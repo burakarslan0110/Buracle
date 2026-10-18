@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#05060a">
+<title>Buracle Brain</title>
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<script src="/assets/theme-boot.js"></script>
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/app.css">
+<link rel="stylesheet" href="/assets/dash.css">
+<script type="module" src="/assets/app.js"></script>
+</head>
+<body>
+<header class="topbar" id="topbar">
+  <div class="bar-left">
+    <label class="scope">
+      <span class="sr-only" data-i18n="scope.label">Brain</span>
+      <select id="scope" disabled></select>
+    </label>
+  </div>
+  <div class="brand">
+    <h1 class="brand-name"><span class="brand-logo" id="brand-logo" aria-hidden="true"></span><span class="brand-word" aria-hidden="true">Brain</span><span class="sr-only" data-i18n="brand.name">Buracle Brain</span></h1>
+    <p class="brand-powered"><span data-i18n="brand.powered">Powered by</span> <b>CortexDB</b><span class="brand-layer" id="brand-layer"></span></p>
+  </div>
+  <div class="bar-right">
+    <nav class="actions">
+      <button type="button" class="icon-btn" id="btn-search" aria-expanded="false" aria-controls="search-box" data-i18n-label="btn.search" data-i18n-title="btn.search" aria-label="Search"></button>
+      <button type="button" class="icon-btn" id="btn-health" aria-label="Brain health"><span class="health-dot" id="health-dot" data-state="unknown" aria-hidden="true"></span></button>
+      <button type="button" class="icon-btn" id="btn-reflect" data-i18n-label="btn.reflect" data-i18n-title="btn.reflect" aria-label="Self-improvement"></button>
+      <button type="button" class="icon-btn" id="btn-graph" aria-pressed="false" data-i18n-label="btn.graph" data-i18n-title="btn.graph" aria-label="Network view"></button>
+      <button type="button" class="icon-btn" id="btn-upkeep" data-i18n-label="btn.upkeep" data-i18n-title="btn.upkeep" aria-label="Upkeep"><span class="badge-count" id="upkeep-count" hidden></span></button>
+      <button type="button" class="icon-btn" id="btn-profile" data-i18n-label="btn.profile" data-i18n-title="btn.profile" aria-label="Profile"></button>
+      <a class="icon-btn" id="btn-review" href="/review" data-i18n-label="btn.review" data-i18n-title="btn.review" aria-label="Review plans and changes"></a>
+      <button type="button" class="icon-btn" id="btn-work" data-i18n-label="btn.work" data-i18n-title="btn.work" aria-label="Sessions, usage and extensions"></button>
+      <button type="button" class="icon-btn" id="btn-inbox" aria-label="Notifications"><span class="badge-count" id="inbox-count" hidden></span></button>
+      <button type="button" class="icon-btn" id="btn-theme" aria-label="Switch to light mode"></button>
+      <button type="button" class="icon-btn" id="btn-settings" data-i18n-label="btn.settings" data-i18n-title="btn.settings" aria-label="Settings"></button>
+    </nav>
+    <div class="search" id="search-box" role="search">
+      <label for="q" class="sr-only" data-i18n="search.label">Search memories</label>
+      <span class="search-icon" id="search-icon" aria-hidden="true"></span>
+      <input id="q" type="search" autocomplete="off" spellcheck="false" maxlength="200" data-i18n-ph="search.placeholder" placeholder="Search this brain">
+      <kbd aria-hidden="true">/</kbd>
+    </div>
+  </div>
+</header>
+
+<div class="stage" id="stage">
+  <canvas id="brain" class="brain" aria-hidden="true"></canvas>
+  <svg id="hud" class="hud" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"></svg>
+  <div id="labels" class="labels" role="group" data-i18n-label="labels.group" aria-label="Brain regions"></div>
+  <canvas id="graph" class="graph" aria-hidden="true"></canvas>
+  <div id="tip" class="tip" role="tooltip" hidden></div>
+  <div id="state" class="state" hidden></div>
+</div>
+
+<section id="graph-bar" class="graph-bar" hidden aria-labelledby="graph-title">
+  <button type="button" class="back-btn" id="graph-back"><span id="graph-back-icon" aria-hidden="true"></span><span data-i18n="graph.back">Back to the brain</span></button>
+  <div class="graph-head">
+    <p class="graph-kicker" id="graph-kicker"></p>
+    <h2 id="graph-title"></h2>
+    <p class="graph-stats" id="graph-stats"></p>
+  </div>
+  <ul class="graph-legend" id="graph-legend" data-i18n-label="graph.legend" aria-label="What the dots are"></ul>
+  <div class="graph-zoom" role="group">
+    <button type="button" class="icon-btn sm" id="graph-in" data-i18n-label="graph.zoomIn" data-i18n-title="graph.zoomIn" aria-label="Zoom in"></button>
+    <button type="button" class="icon-btn sm" id="graph-out" data-i18n-label="graph.zoomOut" data-i18n-title="graph.zoomOut" aria-label="Zoom out"></button>
+    <button type="button" class="icon-btn sm" id="graph-fit" data-i18n-label="graph.fit" data-i18n-title="graph.fit" aria-label="Fit to view"></button>
+  </div>
+</section>
+
+<div id="legend" class="legend" role="group" data-i18n-label="labels.group" aria-label="Brain regions"></div>
+
+<footer class="readout" id="readout">
+  <p class="readout-left">
+    <span class="live" id="live" data-state="connecting"><i aria-hidden="true"></i><b id="live-text">Linking</b></span>
+    <span id="stats" class="stats-line"></span>
+  </p>
+  <p class="readout-right" id="hint"></p>
+</footer>
+
+<aside id="panel" class="panel" hidden aria-labelledby="panel-title">
+  <div class="panel-head">
+    <button id="panel-back" class="icon-btn" type="button" hidden data-i18n-label="btn.back" aria-label="Back"></button>
+    <div class="panel-heading">
+      <p id="panel-kicker" class="kicker"></p>
+      <h2 id="panel-title" tabindex="-1"></h2>
+    </div>
+    <button id="panel-close" class="icon-btn" type="button" data-i18n-label="btn.close" aria-label="Close"></button>
+  </div>
+  <div id="panel-body" class="panel-body"></div>
+</aside>
+
+<p id="announce" class="sr-only" aria-live="polite"></p>
+<noscript><p class="noscript">Buracle Brain needs JavaScript.</p></noscript>
+</body>
+</html>

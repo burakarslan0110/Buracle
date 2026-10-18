@@ -1,0 +1,14 @@
+{
+  "session_id": "sess-hook-1",
+  "transcript_path": "/tmp/transcript.jsonl",
+  "cwd": "/tmp/project",
+  "permission_mode": "auto",
+  "hook_event_name": "PreToolUse",
+  "agent_id": "a1b2c3",
+  "agent_type": "buracle:plan-build-review",
+  "tool_name": "SubagentHandback",
+  "tool_input": {
+    "message": "The plan looks good to me."
+  },
+  "tool_use_id": "toolu_01HBK"
+}

@@ -1,0 +1,31 @@
+{
+  "harness": "claude",
+  "status": "Patterns follow Claude Code's stream-json output: each assistant event wraps one content block, tool calls are tool_use blocks with name and input, and the final result event carries total_cost_usd and num_turns. Re-check on the smoke run after Claude Code updates.",
+  "usage": "Per arm: --env CLAUDE_CONFIG_DIR=<arm>/claude and credentials (--env CLAUDE_CODE_OAUTH_TOKEN=... or --env ANTHROPIC_API_KEY=...). Plugin variant: --append-arg --plugin-dir --append-arg <dir>. Pin the model for both arms: --append-arg --model --append-arg <model>. Do not add --include-partial-messages: every tool call would be counted twice. skill:<id> sees model-initiated loads (the Skill tool), not slash-command invocations.",
+  "argv": [
+    "claude", "-p", "{prompt}",
+    "--output-format", "stream-json", "--verbose",
+    "--permission-mode", "acceptEdits",
+    "--permission-prompts", "none",
+    "--no-session-persistence"
+  ],
+  "cwd": "{work}",
+  "timeoutMs": 300000,
+  "probes": {
+    "skill:*": "\"name\":\"Skill\",\"input\":\\{[^\\n]*?\"skill\":\"(?:[A-Za-z0-9_-]+:)?{arg}\"",
+    "mcp:*": "\"name\":\"mcp__(?:plugin_[A-Za-z0-9_-]+_)?{arg}__",
+    "tool:*": "\"type\":\"tool_use\",\"id\":\"[^\"]*\",\"name\":\"{arg}\"",
+    "cmd:*": "\"name\":\"Bash\",\"input\":\\{\"command\":\"(?:[^\"\\\\]|\\\\.)*?{arg}",
+    "any_tool": "\"type\":\"tool_use\""
+  },
+  "metrics": {
+    "cost_usd": "\"total_cost_usd\":([0-9.eE+-]+)",
+    "turns": "\"num_turns\":([0-9]+)"
+  },
+  "grader": {
+    "status": "Read-only judge run: plan permission mode, nothing persisted. Smoke-graded on Claude Code 2.1.302 against a local fake model (ANTHROPIC_BASE_URL): the argv is accepted and the answer arrives in the JSON result field. The quality of a real model's judgment is not covered by that smoke.",
+    "usage": "Give the grader its own throwaway config like an arm: --env CLAUDE_CONFIG_DIR=<root>/grader/claude plus credentials. Pin the grader model: --append-arg --model --append-arg <model>.",
+    "argv": ["claude", "-p", "{prompt}", "--output-format", "json", "--no-session-persistence", "--permission-mode", "plan", "--permission-prompts", "none"],
+    "timeoutMs": 300000
+  }
+}

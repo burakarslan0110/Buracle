@@ -1,0 +1,18 @@
+#!/bin/sh
+# Buracle's launcher in the plugin: what every command hook runs, and the buracle CLI on the Bash
+# tool's PATH while the plugin is enabled. Runs the shim `buracle install` writes
+# (~/.buracle/bin/buracle, or $BURACLE_HOME/bin/buracle; it names bun by its absolute path), else bun
+# with bin/buracle.ts next to this file (Windows, where the shim is buracle.cmd, and a missing shim).
+b="${BURACLE_HOME:-$HOME/.buracle}/bin/buracle"
+if [ -x "$b" ]; then exec "$b" "$@"; fi
+d=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if command -v bun >/dev/null 2>&1; then exec bun "$d/buracle.ts" "$@"; fi
+# Neither the shim nor bun: nothing of Buracle can run. A guard hook (PreToolUse) denies the call
+# (fail closed; `buracle uninstall` removes this plugin, so only a broken install gets here);
+# every other hook does nothing.
+if [ "$1" = hook ]; then
+  if [ "$3" = PreToolUse ]; then printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Buracle blocked this tool call: the buracle shim (~/.buracle/bin/buracle) and bun are both missing, so its guards (H01, H02, H20) cannot run. Ask the user to install bun and run `bun src/cli/main.ts install` in the Buracle checkout, or to remove Buracle'\''s plugin with `claude plugin uninstall buracle@buracle`."}}'; fi
+  exit 0
+fi
+echo "buracle: $b not found and bun is not on PATH; run 'bun src/cli/main.ts install' in the Buracle repository" >&2
+exit 127

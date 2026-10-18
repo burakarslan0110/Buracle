@@ -1,0 +1,240 @@
+tools:
+  - name: bun
+    kind: runtime
+    check: [bun, --version]
+    version_regex: '^(\d+\.\d+\.\d+)'
+    brew: oven-sh/bun/bun
+    winget: Oven-sh.Bun
+    scoop: bun
+    required: true
+    purpose: Buracle runtime
+
+  - name: git
+    kind: runtime
+    check: [git, --version]
+    version_regex: 'git version (\d+\.\d+\.\d+)'
+    brew: git
+    winget: Git.Git
+    scoop: git
+    required: true
+    purpose: Projects, worktrees and the code review scope
+
+  - name: node
+    kind: runtime
+    check: [node, --version]
+    version_regex: 'v(\d+\.\d+\.\d+)'
+    brew: node
+    winget: OpenJS.NodeJS.LTS
+    scoop: nodejs-lts
+    required: true
+    purpose: Runs the npm MCP servers and language servers of the toolchain
+
+  - name: uv
+    kind: runtime
+    check: [uv, --version]
+    version_regex: 'uv (\d+\.\d+\.\d+)'
+    brew: uv
+    winget: astral-sh.uv
+    scoop: uv
+    required: true
+    purpose: Installs the PyPI MCP servers of the toolchain (semble) on Python 3.12
+
+  - name: rg
+    kind: cli
+    check: [rg, --version]
+    version_regex: 'ripgrep (\d+\.\d+\.\d+)'
+    brew: ripgrep
+    winget: BurntSushi.ripgrep.MSVC
+    scoop: ripgrep
+    required: true
+    purpose: Exhaustive exact-match search
+
+  - name: ast-grep
+    kind: cli
+    check: [ast-grep, --version]
+    version_regex: 'ast-grep (\d+\.\d+\.\d+)'
+    brew: ast-grep
+    winget: ast-grep.ast-grep
+    scoop: ast-grep
+    npm: "@ast-grep/cli"
+    bins: [ast-grep, sg]
+    required: false
+    purpose: Structural code search and rewrite
+
+  - name: jq
+    kind: cli
+    check: [jq, --version]
+    version_regex: 'jq-(\d+\.\d+(?:\.\d+)?)'
+    brew: jq
+    winget: jqlang.jq
+    scoop: jq
+    required: true
+    purpose: JSON processing in skills and scripts
+
+  - name: gh
+    kind: cli
+    check: [gh, --version]
+    version_regex: 'gh version (\d+\.\d+\.\d+)'
+    brew: gh
+    winget: GitHub.cli
+    scoop: gh
+    required: false
+    purpose: GitHub pull requests and issues
+
+  - name: tmux
+    kind: cli
+    platforms: [darwin, linux]
+    check: [tmux, -V]
+    version_regex: 'tmux (\d+\.\d+[a-z]?)'
+    brew: tmux
+    required: false
+    purpose: Extra status line for Codex and OpenCode
+
+  - name: ruff
+    kind: cli
+    check: [ruff, --version]
+    version_regex: 'ruff (\d+\.\d+\.\d+)'
+    brew: ruff
+    winget: astral-sh.ruff
+    scoop: ruff
+    pypi: ruff
+    required: false
+    purpose: Python linter the file checks (H04) run in projects that configure ruff
+
+  - name: shellcheck
+    kind: cli
+    check: [shellcheck, --version]
+    version_regex: 'version: (\d+\.\d+\.\d+)'
+    brew: shellcheck
+    winget: koalaman.shellcheck
+    scoop: shellcheck
+    install: Install ShellCheck with your package manager (apt install shellcheck, dnf install ShellCheck)
+    required: false
+    purpose: Shell script linter the file checks (H04) run on .sh and .bash files
+
+  - name: golangci-lint
+    kind: cli
+    check: [golangci-lint, --version]
+    version_regex: 'version v?(\d+\.\d+\.\d+)'
+    brew: golangci-lint
+    winget: GolangCI.golangci-lint
+    scoop: golangci-lint
+    go: github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+    requires: [go]
+    required: false
+    purpose: Go linter the file checks (H04) run in projects with a .golangci config
+
+  - name: codegraph
+    kind: cli
+    check: [codegraph, --version]
+    version_regex: '(\d+\.\d+\.\d+)'
+    npm: "@colbymchenry/codegraph"
+    required: true
+    purpose: Code graph CLI and index builder (the same package serves the codegraph MCP server)
+
+  - name: semble
+    kind: cli
+    check: [semble, --version]
+    version_regex: '(\d+\.\d+\.\d+)'
+    pypi: "semble[mcp]"
+    required: true
+    purpose: Semantic code search CLI and index builder (the same package serves the semble MCP server)
+
+  - name: pyright
+    kind: lsp
+    prefer: toolchain
+    check: [pyright, --version]
+    version_regex: 'pyright (\d+\.\d+\.\d+)'
+    npm: pyright
+    bins: [pyright, pyright-langserver]
+    required: true
+    purpose: Python language server
+    lsp:
+      id: pyright
+      bin: pyright-langserver
+      args: [--stdio]
+      extensions: { .py: python, .pyi: python }
+      root_markers: [pyrightconfig.json, pyproject.toml, setup.py, setup.cfg, requirements.txt, Pipfile]
+      replaces: [pyright-lsp@claude-plugins-official]
+
+  - name: typescript-language-server
+    kind: lsp
+    prefer: toolchain
+    check: [typescript-language-server, --version]
+    version_regex: '(\d+\.\d+\.\d+)'
+    npm: typescript-language-server
+    npm_with: ["typescript@6"]
+    required: true
+    purpose: TypeScript and JavaScript language server
+    lsp:
+      id: typescript
+      args: [--stdio]
+      extensions:
+        .ts: typescript
+        .tsx: typescriptreact
+        .mts: typescript
+        .cts: typescript
+        .js: javascript
+        .jsx: javascriptreact
+        .mjs: javascript
+        .cjs: javascript
+      root_markers: [tsconfig.json, jsconfig.json, package.json]
+      replaces: [typescript-lsp@claude-plugins-official]
+
+  - name: gopls
+    kind: lsp
+    check: [gopls, version]
+    version_regex: 'v(\d+\.\d+\.\d+)'
+    brew: gopls
+    go: golang.org/x/tools/gopls
+    required: false
+    purpose: Go language server; needs Go
+    lsp:
+      id: gopls
+      extensions: { .go: go }
+      root_markers: [go.work, go.mod]
+      replaces: [gopls-lsp@claude-plugins-official]
+
+  - name: rust-analyzer
+    kind: lsp
+    check: [rust-analyzer, --version]
+    version_regex: 'rust-analyzer \S+ \(\w+ (\d{4}-\d{2}-\d{2})\)'
+    brew: rust-analyzer
+    scoop: rust-analyzer
+    install: rustup component add rust-analyzer
+    required: false
+    purpose: Rust language server; needs a Rust toolchain (cargo)
+    lsp:
+      id: rust-analyzer
+      extensions: { .rs: rust }
+      root_markers: [Cargo.toml]
+      replaces: [rust-analyzer-lsp@claude-plugins-official]
+
+  - name: csharp-ls
+    kind: lsp
+    check: [csharp-ls, --version]
+    version_regex: 'csharp-ls,? (\d+\.\d+\.\d+)'
+    dotnet: csharp-ls
+    install: Install the .NET SDK, then run `dotnet tool install --global csharp-ls`
+    required: false
+    purpose: C# language server; needs the .NET SDK
+    lsp:
+      id: csharp-ls
+      extensions: { .cs: csharp }
+      root_markers: ["*.sln", "*.slnx", "*.csproj"]
+      replaces: [csharp-lsp@claude-plugins-official]
+
+  - name: jdtls
+    kind: lsp
+    check: [jdtls, --help]
+    version_regex: 'jdt-language-server-(\d+\.\d+\.\d+)'
+    brew: jdtls
+    scoop: jdtls
+    required: false
+    purpose: Java language server (Eclipse JDT LS); needs Java 21 or newer
+    lsp:
+      id: jdtls
+      extensions: { .java: java }
+      root_markers: [pom.xml, settings.gradle, settings.gradle.kts, build.gradle, build.gradle.kts, .project]
+      startup_timeout_ms: 120000
+      replaces: [jdtls-lsp@claude-plugins-official]

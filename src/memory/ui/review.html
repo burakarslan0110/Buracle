@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#05060a">
+<title>Buracle Review</title>
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<script src="/assets/theme-boot.js"></script>
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/app.css">
+<link rel="stylesheet" href="/assets/review.css">
+<script type="module" src="/assets/review.js"></script>
+</head>
+<body class="review-page">
+<header class="topbar review-top" id="topbar">
+  <div class="bar-left">
+    <a class="back-btn" href="/" id="to-brain"><span id="to-brain-icon" aria-hidden="true"></span><span data-i18n="review.toBrain">Brain</span></a>
+  </div>
+  <div class="brand">
+    <h1 class="brand-name"><span class="brand-logo" id="brand-logo" aria-hidden="true"></span><span class="brand-word" aria-hidden="true" data-i18n="review.word">Review</span><span class="sr-only" data-i18n="review.title">Buracle Review</span></h1>
+    <p class="brand-powered" data-i18n="review.tagline">Notes for the agent on plans and changes</p>
+  </div>
+  <div class="bar-right">
+    <nav class="actions">
+      <button type="button" class="icon-btn" id="btn-refresh" data-i18n-label="review.refresh" data-i18n-title="review.refresh" aria-label="Refresh"></button>
+      <button type="button" class="icon-btn" id="btn-theme" aria-label="Switch to light mode"></button>
+    </nav>
+  </div>
+</header>
+
+<div class="review-shell" id="shell">
+  <nav class="review-side" id="side" data-i18n-label="review.sideLabel" aria-label="Documents and checkouts">
+    <div class="tabs" role="tablist" id="tabs">
+      <button type="button" role="tab" class="tab" id="tab-docs" aria-controls="list-docs" aria-selected="true" data-i18n="review.tabDocs">Plans</button>
+      <button type="button" role="tab" class="tab" id="tab-changes" aria-controls="list-changes" aria-selected="false" tabindex="-1" data-i18n="review.tabChanges">Changes</button>
+    </div>
+    <div class="side-list" id="list-docs" role="tabpanel" aria-labelledby="tab-docs"></div>
+    <div class="side-list" id="list-changes" role="tabpanel" aria-labelledby="tab-changes" hidden></div>
+  </nav>
+  <main class="review-main" id="main" tabindex="-1"></main>
+</div>
+
+<p id="announce" class="sr-only" aria-live="polite"></p>
+<noscript><p class="noscript">Buracle Review needs JavaScript.</p></noscript>
+</body>
+</html>

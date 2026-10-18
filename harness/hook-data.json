@@ -1,0 +1,2065 @@
+{
+  "v": 1,
+  "generator": "buracle build (src/cli/hook-data.ts): what the Claude and Codex command hooks read of canonical/",
+  "mcp": {
+    "servers": {
+      "context7": {
+        "description": "Up-to-date library and framework documentation",
+        "transport": "stdio",
+        "package": {
+          "registry": "npm",
+          "name": "@upstash/context7-mcp",
+          "version": "latest",
+          "bin": "context7-mcp"
+        },
+        "harnesses": [
+          "claude",
+          "codex",
+          "opencode",
+          "omp"
+        ],
+        "pin": "latest",
+        "critical": true,
+        "routing": [
+          "library-docs"
+        ]
+      },
+      "codegraph": {
+        "description": "Code structure graph (symbols, callers, impact) for the current repository",
+        "transport": "stdio",
+        "package": {
+          "registry": "npm",
+          "name": "@colbymchenry/codegraph",
+          "version": "latest",
+          "bin": "codegraph"
+        },
+        "args": [
+          "serve",
+          "--mcp"
+        ],
+        "env": {
+          "CODEGRAPH_TELEMETRY": "0",
+          "CODEGRAPH_NO_UPDATE_CHECK": "1",
+          "CODEGRAPH_MCP_TOOLS": "explore,search,node,callers,callees,impact,status,files"
+        },
+        "harnesses": [
+          "claude",
+          "codex",
+          "opencode",
+          "omp"
+        ],
+        "pin": "latest",
+        "critical": true,
+        "routing": [
+          "code-structure"
+        ]
+      },
+      "context-mode": {
+        "description": "Sandboxed execution and indexed search that keep large output out of context",
+        "transport": "stdio",
+        "package": {
+          "registry": "npm",
+          "name": "context-mode",
+          "version": "latest",
+          "bin": "context-mode",
+          "runtime": "bun",
+          "scripts": false
+        },
+        "harness_env": {
+          "claude": {
+            "CONTEXT_MODE_PLATFORM": "claude-code"
+          },
+          "codex": {
+            "CONTEXT_MODE_PLATFORM": "codex"
+          },
+          "opencode": {
+            "CONTEXT_MODE_PLATFORM": "opencode"
+          },
+          "omp": {
+            "CONTEXT_MODE_PLATFORM": "omp"
+          }
+        },
+        "tool_timeout_sec": 600,
+        "enabled_tools": [
+          "ctx_execute",
+          "ctx_execute_file",
+          "ctx_batch_execute",
+          "ctx_index",
+          "ctx_search",
+          "ctx_fetch_and_index",
+          "ctx_stats",
+          "ctx_purge"
+        ],
+        "disabled_tools": [
+          "ctx_upgrade",
+          "ctx_insight",
+          "ctx_doctor"
+        ],
+        "harnesses": [
+          "claude",
+          "codex",
+          "opencode",
+          "omp"
+        ],
+        "pin": "latest",
+        "critical": true,
+        "routing": [
+          "context-saving"
+        ]
+      },
+      "web-search": {
+        "description": "Web search without an API key (DuckDuckGo by default)",
+        "transport": "stdio",
+        "package": {
+          "registry": "npm",
+          "name": "open-websearch",
+          "version": "latest",
+          "bin": "open-websearch"
+        },
+        "env": {
+          "MODE": "stdio",
+          "DEFAULT_SEARCH_ENGINE": "duckduckgo"
+        },
+        "harnesses": [
+          "claude",
+          "codex",
+          "opencode",
+          "omp"
+        ],
+        "pin": "latest",
+        "critical": true,
+        "routing": [
+          "web-search"
+        ]
+      },
+      "web-fetch": {
+        "description": "Fetch and extract web pages with a headless browser",
+        "transport": "stdio",
+        "package": {
+          "registry": "npm",
+          "name": "fetcher-mcp",
+          "version": "latest",
+          "bin": "fetcher-mcp"
+        },
+        "tool_timeout_sec": 180,
+        "tool_timeout_hard": true,
+        "harnesses": [
+          "claude",
+          "codex",
+          "opencode",
+          "omp"
+        ],
+        "pin": "latest",
+        "critical": true,
+        "routing": [
+          "web-fetch"
+        ]
+      },
+      "grep": {
+        "description": "Search public GitHub code for real-world usage examples",
+        "transport": "http",
+        "url": "https://mcp.grep.app",
+        "harnesses": [
+          "claude",
+          "codex",
+          "opencode",
+          "omp"
+        ],
+        "pin": "monitor",
+        "critical": false,
+        "routing": [
+          "code-examples"
+        ]
+      },
+      "semble": {
+        "description": "Fast semantic code search over local or remote repositories",
+        "transport": "stdio",
+        "package": {
+          "registry": "pypi",
+          "name": "semble",
+          "version": "latest",
+          "bin": "semble",
+          "extras": [
+            "mcp"
+          ]
+        },
+        "env": {
+          "HF_HUB_DISABLE_TELEMETRY": "1"
+        },
+        "harnesses": [
+          "claude",
+          "codex",
+          "opencode",
+          "omp"
+        ],
+        "pin": "latest",
+        "critical": true,
+        "routing": [
+          "code-search"
+        ]
+      },
+      "chrome-devtools": {
+        "description": "Drive and inspect a Chrome browser (DevTools protocol)",
+        "transport": "stdio",
+        "package": {
+          "registry": "npm",
+          "name": "chrome-devtools-mcp",
+          "version": "latest",
+          "bin": "chrome-devtools-mcp"
+        },
+        "args": [
+          "--isolated",
+          "--no-usage-statistics",
+          "--no-performance-crux"
+        ],
+        "harnesses": [
+          "claude",
+          "codex",
+          "opencode"
+        ],
+        "pin": "latest",
+        "critical": false,
+        "routing": [
+          "browser"
+        ]
+      },
+      "buracle-memory": {
+        "description": "Buracle memory, the CortexDB brains of the project and the person (search, get, write, update, status)",
+        "transport": "stdio",
+        "command": "{buracle}",
+        "args": [
+          "mcp",
+          "memory"
+        ],
+        "harnesses": [
+          "claude",
+          "codex",
+          "opencode",
+          "omp"
+        ],
+        "pin": "hard",
+        "critical": true,
+        "routing": [
+          "memory"
+        ]
+      },
+      "lsp": {
+        "description": "Language-server diagnostics, hover, definitions, references and symbols",
+        "transport": "stdio",
+        "command": "{buracle}",
+        "args": [
+          "lsp",
+          "mcp"
+        ],
+        "harness_env": {
+          "codex": {
+            "JAVA_HOME": "${ENV:JAVA_HOME}",
+            "DOTNET_ROOT": "${ENV:DOTNET_ROOT}",
+            "GOPATH": "${ENV:GOPATH}",
+            "GOROOT": "${ENV:GOROOT}",
+            "CARGO_HOME": "${ENV:CARGO_HOME}",
+            "RUSTUP_HOME": "${ENV:RUSTUP_HOME}"
+          }
+        },
+        "harnesses": [
+          "codex",
+          "opencode"
+        ],
+        "pin": "hard",
+        "critical": true,
+        "routing": [
+          "language-server"
+        ]
+      }
+    }
+  },
+  "plugins": {
+    "claude": {
+      "marketplaces": [
+        {
+          "id": "claude-plugins-official",
+          "source": "anthropics/claude-plugins-official"
+        }
+      ],
+      "plugins": [],
+      "retired": [
+        "pyright-lsp@claude-plugins-official",
+        "typescript-lsp@claude-plugins-official",
+        "gopls-lsp@claude-plugins-official"
+      ]
+    },
+    "omp": {
+      "plugins": []
+    },
+    "opencode": {
+      "plugins": []
+    }
+  },
+  "tools": {
+    "tools": [
+      {
+        "name": "bun",
+        "kind": "runtime",
+        "check": [
+          "bun",
+          "--version"
+        ],
+        "version_regex": "^(\\d+\\.\\d+\\.\\d+)",
+        "brew": "oven-sh/bun/bun",
+        "winget": "Oven-sh.Bun",
+        "scoop": "bun",
+        "required": true,
+        "purpose": "Buracle runtime"
+      },
+      {
+        "name": "git",
+        "kind": "runtime",
+        "check": [
+          "git",
+          "--version"
+        ],
+        "version_regex": "git version (\\d+\\.\\d+\\.\\d+)",
+        "brew": "git",
+        "winget": "Git.Git",
+        "scoop": "git",
+        "required": true,
+        "purpose": "Projects, worktrees and the code review scope"
+      },
+      {
+        "name": "node",
+        "kind": "runtime",
+        "check": [
+          "node",
+          "--version"
+        ],
+        "version_regex": "v(\\d+\\.\\d+\\.\\d+)",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "scoop": "nodejs-lts",
+        "required": true,
+        "purpose": "Runs the npm MCP servers and language servers of the toolchain"
+      },
+      {
+        "name": "uv",
+        "kind": "runtime",
+        "check": [
+          "uv",
+          "--version"
+        ],
+        "version_regex": "uv (\\d+\\.\\d+\\.\\d+)",
+        "brew": "uv",
+        "winget": "astral-sh.uv",
+        "scoop": "uv",
+        "required": true,
+        "purpose": "Installs the PyPI MCP servers of the toolchain (semble) on Python 3.12"
+      },
+      {
+        "name": "rg",
+        "kind": "cli",
+        "check": [
+          "rg",
+          "--version"
+        ],
+        "version_regex": "ripgrep (\\d+\\.\\d+\\.\\d+)",
+        "brew": "ripgrep",
+        "winget": "BurntSushi.ripgrep.MSVC",
+        "scoop": "ripgrep",
+        "required": true,
+        "purpose": "Exhaustive exact-match search"
+      },
+      {
+        "name": "ast-grep",
+        "kind": "cli",
+        "check": [
+          "ast-grep",
+          "--version"
+        ],
+        "version_regex": "ast-grep (\\d+\\.\\d+\\.\\d+)",
+        "brew": "ast-grep",
+        "winget": "ast-grep.ast-grep",
+        "scoop": "ast-grep",
+        "npm": "@ast-grep/cli",
+        "bins": [
+          "ast-grep",
+          "sg"
+        ],
+        "required": false,
+        "purpose": "Structural code search and rewrite"
+      },
+      {
+        "name": "jq",
+        "kind": "cli",
+        "check": [
+          "jq",
+          "--version"
+        ],
+        "version_regex": "jq-(\\d+\\.\\d+(?:\\.\\d+)?)",
+        "brew": "jq",
+        "winget": "jqlang.jq",
+        "scoop": "jq",
+        "required": true,
+        "purpose": "JSON processing in skills and scripts"
+      },
+      {
+        "name": "gh",
+        "kind": "cli",
+        "check": [
+          "gh",
+          "--version"
+        ],
+        "version_regex": "gh version (\\d+\\.\\d+\\.\\d+)",
+        "brew": "gh",
+        "winget": "GitHub.cli",
+        "scoop": "gh",
+        "required": false,
+        "purpose": "GitHub pull requests and issues"
+      },
+      {
+        "name": "tmux",
+        "kind": "cli",
+        "platforms": [
+          "darwin",
+          "linux"
+        ],
+        "check": [
+          "tmux",
+          "-V"
+        ],
+        "version_regex": "tmux (\\d+\\.\\d+[a-z]?)",
+        "brew": "tmux",
+        "required": false,
+        "purpose": "Extra status line for Codex and OpenCode"
+      },
+      {
+        "name": "ruff",
+        "kind": "cli",
+        "check": [
+          "ruff",
+          "--version"
+        ],
+        "version_regex": "ruff (\\d+\\.\\d+\\.\\d+)",
+        "brew": "ruff",
+        "winget": "astral-sh.ruff",
+        "scoop": "ruff",
+        "pypi": "ruff",
+        "required": false,
+        "purpose": "Python linter the file checks (H04) run in projects that configure ruff"
+      },
+      {
+        "name": "shellcheck",
+        "kind": "cli",
+        "check": [
+          "shellcheck",
+          "--version"
+        ],
+        "version_regex": "version: (\\d+\\.\\d+\\.\\d+)",
+        "brew": "shellcheck",
+        "winget": "koalaman.shellcheck",
+        "scoop": "shellcheck",
+        "install": "Install ShellCheck with your package manager (apt install shellcheck, dnf install ShellCheck)",
+        "required": false,
+        "purpose": "Shell script linter the file checks (H04) run on .sh and .bash files"
+      },
+      {
+        "name": "golangci-lint",
+        "kind": "cli",
+        "check": [
+          "golangci-lint",
+          "--version"
+        ],
+        "version_regex": "version v?(\\d+\\.\\d+\\.\\d+)",
+        "brew": "golangci-lint",
+        "winget": "GolangCI.golangci-lint",
+        "scoop": "golangci-lint",
+        "go": "github.com/golangci/golangci-lint/v2/cmd/golangci-lint",
+        "requires": [
+          "go"
+        ],
+        "required": false,
+        "purpose": "Go linter the file checks (H04) run in projects with a .golangci config"
+      },
+      {
+        "name": "codegraph",
+        "kind": "cli",
+        "check": [
+          "codegraph",
+          "--version"
+        ],
+        "version_regex": "(\\d+\\.\\d+\\.\\d+)",
+        "npm": "@colbymchenry/codegraph",
+        "required": true,
+        "purpose": "Code graph CLI and index builder (the same package serves the codegraph MCP server)"
+      },
+      {
+        "name": "semble",
+        "kind": "cli",
+        "check": [
+          "semble",
+          "--version"
+        ],
+        "version_regex": "(\\d+\\.\\d+\\.\\d+)",
+        "pypi": "semble[mcp]",
+        "required": true,
+        "purpose": "Semantic code search CLI and index builder (the same package serves the semble MCP server)"
+      },
+      {
+        "name": "pyright",
+        "kind": "lsp",
+        "prefer": "toolchain",
+        "check": [
+          "pyright",
+          "--version"
+        ],
+        "version_regex": "pyright (\\d+\\.\\d+\\.\\d+)",
+        "npm": "pyright",
+        "bins": [
+          "pyright",
+          "pyright-langserver"
+        ],
+        "required": true,
+        "purpose": "Python language server",
+        "lsp": {
+          "id": "pyright",
+          "bin": "pyright-langserver",
+          "args": [
+            "--stdio"
+          ],
+          "extensions": {
+            ".py": "python",
+            ".pyi": "python"
+          },
+          "root_markers": [
+            "pyrightconfig.json",
+            "pyproject.toml",
+            "setup.py",
+            "setup.cfg",
+            "requirements.txt",
+            "Pipfile"
+          ],
+          "replaces": [
+            "pyright-lsp@claude-plugins-official"
+          ]
+        }
+      },
+      {
+        "name": "typescript-language-server",
+        "kind": "lsp",
+        "prefer": "toolchain",
+        "check": [
+          "typescript-language-server",
+          "--version"
+        ],
+        "version_regex": "(\\d+\\.\\d+\\.\\d+)",
+        "npm": "typescript-language-server",
+        "npm_with": [
+          "typescript@6"
+        ],
+        "required": true,
+        "purpose": "TypeScript and JavaScript language server",
+        "lsp": {
+          "id": "typescript",
+          "args": [
+            "--stdio"
+          ],
+          "extensions": {
+            ".ts": "typescript",
+            ".tsx": "typescriptreact",
+            ".mts": "typescript",
+            ".cts": "typescript",
+            ".js": "javascript",
+            ".jsx": "javascriptreact",
+            ".mjs": "javascript",
+            ".cjs": "javascript"
+          },
+          "root_markers": [
+            "tsconfig.json",
+            "jsconfig.json",
+            "package.json"
+          ],
+          "replaces": [
+            "typescript-lsp@claude-plugins-official"
+          ]
+        }
+      },
+      {
+        "name": "gopls",
+        "kind": "lsp",
+        "check": [
+          "gopls",
+          "version"
+        ],
+        "version_regex": "v(\\d+\\.\\d+\\.\\d+)",
+        "brew": "gopls",
+        "go": "golang.org/x/tools/gopls",
+        "required": false,
+        "purpose": "Go language server; needs Go",
+        "lsp": {
+          "id": "gopls",
+          "extensions": {
+            ".go": "go"
+          },
+          "root_markers": [
+            "go.work",
+            "go.mod"
+          ],
+          "replaces": [
+            "gopls-lsp@claude-plugins-official"
+          ]
+        }
+      },
+      {
+        "name": "rust-analyzer",
+        "kind": "lsp",
+        "check": [
+          "rust-analyzer",
+          "--version"
+        ],
+        "version_regex": "rust-analyzer \\S+ \\(\\w+ (\\d{4}-\\d{2}-\\d{2})\\)",
+        "brew": "rust-analyzer",
+        "scoop": "rust-analyzer",
+        "install": "rustup component add rust-analyzer",
+        "required": false,
+        "purpose": "Rust language server; needs a Rust toolchain (cargo)",
+        "lsp": {
+          "id": "rust-analyzer",
+          "extensions": {
+            ".rs": "rust"
+          },
+          "root_markers": [
+            "Cargo.toml"
+          ],
+          "replaces": [
+            "rust-analyzer-lsp@claude-plugins-official"
+          ]
+        }
+      },
+      {
+        "name": "csharp-ls",
+        "kind": "lsp",
+        "check": [
+          "csharp-ls",
+          "--version"
+        ],
+        "version_regex": "csharp-ls,? (\\d+\\.\\d+\\.\\d+)",
+        "dotnet": "csharp-ls",
+        "install": "Install the .NET SDK, then run `dotnet tool install --global csharp-ls`",
+        "required": false,
+        "purpose": "C# language server; needs the .NET SDK",
+        "lsp": {
+          "id": "csharp-ls",
+          "extensions": {
+            ".cs": "csharp"
+          },
+          "root_markers": [
+            "*.sln",
+            "*.slnx",
+            "*.csproj"
+          ],
+          "replaces": [
+            "csharp-lsp@claude-plugins-official"
+          ]
+        }
+      },
+      {
+        "name": "jdtls",
+        "kind": "lsp",
+        "check": [
+          "jdtls",
+          "--help"
+        ],
+        "version_regex": "jdt-language-server-(\\d+\\.\\d+\\.\\d+)",
+        "brew": "jdtls",
+        "scoop": "jdtls",
+        "required": false,
+        "purpose": "Java language server (Eclipse JDT LS); needs Java 21 or newer",
+        "lsp": {
+          "id": "jdtls",
+          "extensions": {
+            ".java": "java"
+          },
+          "root_markers": [
+            "pom.xml",
+            "settings.gradle",
+            "settings.gradle.kts",
+            "build.gradle",
+            "build.gradle.kts",
+            ".project"
+          ],
+          "startup_timeout_ms": 120000,
+          "replaces": [
+            "jdtls-lsp@claude-plugins-official"
+          ]
+        }
+      }
+    ]
+  },
+  "routing": {
+    "strictness": "enforce",
+    "categories": [
+      {
+        "id": "library-docs",
+        "intent": "Library, framework, SDK or CLI documentation at the installed version (APIs, options, config, migrations)",
+        "prefer": [
+          "mcp:context7/resolve-library-id",
+          "mcp:context7/query-docs"
+        ],
+        "fallback": [
+          "mcp:web-fetch/fetch_url"
+        ],
+        "deny_builtin": [],
+        "nudge": "For library or framework APIs, resolve the library with context7 and query its docs at the version in the lockfile.",
+        "reminder": "resolve the library with context7 (resolve-library-id), then query-docs at the version in the lockfile",
+        "triggers": {
+          "topic": [
+            "official docs",
+            "official documentation",
+            "library docs",
+            "framework docs",
+            "according to the docs",
+            "per the docs",
+            "from the docs",
+            "verify in the docs",
+            "api reference",
+            "api docs",
+            "migration guide",
+            "upgrade guide",
+            "re:\\bcheck the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)",
+            "re:\\b(?:look|looked|looking|search|searched|searching)\\b(?:\\s+(?:it|this|that|them)\\s+up)?\\s+in the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)",
+            "re:\\b(?:says?|said|mentioned|documented|described)\\s+in the docs\\b",
+            "re:\\b(?!(?:the|our|my|your|their|this|that|an?|its|new|own|same|internal|custom|official|public|private|client|server|web|mobile)\\b)[a-z][a-z0-9.-]{2,}\\s+sdk\\b",
+            "belgelerden",
+            "belgelere gore",
+            "resmi belge*",
+            "dokumantasyondan",
+            "dokumantasyona gore",
+            "api referans*",
+            "goc rehberi",
+            "re:\\b(?:belgelerde|dokumantasyonda)\\b(?!.{0,40}\\b(?:ekle|guncelle|duzelt|kaldir|sil)\\w*)"
+          ],
+          "not": [
+            "docs folder",
+            "docs directory",
+            "docs klasor*"
+          ],
+          "deps": [
+            "api",
+            "apis",
+            "config",
+            "configure",
+            "configuration",
+            "option*",
+            "migrat*",
+            "upgrade*",
+            "version*",
+            "deprecat*",
+            "breaking change*",
+            "hook*",
+            "middleware",
+            "plugin*",
+            "setup",
+            "set up",
+            "install*",
+            "usage",
+            "how to use",
+            "how to",
+            "how do",
+            "how does",
+            "how can",
+            "why does",
+            "why do",
+            "why is",
+            "what does",
+            "what options",
+            "which options",
+            "by default",
+            "syntax",
+            "integrat*",
+            "method*",
+            "signature",
+            "type*",
+            "re:\\bv\\d+(?:\\.\\d+)*\\b",
+            "re:\\b\\d+\\.\\d+(?:\\.\\d+)?\\b",
+            "nasil",
+            "yapilandir*",
+            "ayar*",
+            "surum*",
+            "guncelle*",
+            "kurulum*",
+            "entegre*",
+            "goc*",
+            "tip*"
+          ]
+        }
+      },
+      {
+        "id": "web-search",
+        "intent": "Web search for errors, releases, changelogs and comparisons",
+        "prefer": [
+          "mcp:web-search/search"
+        ],
+        "fallback": [
+          "mcp:web-fetch/fetch_url",
+          "builtin:web_search"
+        ],
+        "deny_builtin": [
+          "web_search"
+        ],
+        "nudge": "Search the web with the web-search MCP server; while it is down, fetch a search results page (https://html.duckduckgo.com/html/?q=<query>) with web-fetch, and use the built-in web search only when both are down.",
+        "reminder": "search with the web-search MCP server (search), then read the sources with web-fetch (fetch_url)",
+        "triggers": {
+          "topic": [
+            "latest version",
+            "latest release",
+            "latest stable",
+            "release notes",
+            "what's new in",
+            "whats new in",
+            "still maintained",
+            "search the web",
+            "look it up online",
+            "re:\\b(?:read|check|see|look at|according to|per)\\s+(?:the\\s+|its\\s+|their\\s+)?(?:upstream\\s+|official\\s+)?changelog\\b",
+            "re:\\bchangelog\\s+(?:of|for)\\b",
+            "re:\\b(?:is|was)\\s+(?:this|it|that|there)\\s+a\\s+known\\s+(?:issue|bug)\\b",
+            "re:\\b(?:any|are there)\\s+known\\s+(?:issues?|bugs?)\\b",
+            "re:\\bknown\\s+(?:issues?|bugs?)\\s+(?:with|in|of)\\s+(?!(?:our|my|this|the)\\b)",
+            "son surum*",
+            "guncel surum*",
+            "en son surum*",
+            "surum notlari",
+            "degisiklik gunlugu",
+            "hala bakimi yapiliyor",
+            "webde ara*",
+            "internette ara*"
+          ],
+          "not": [
+            "draft* release notes",
+            "write* release notes",
+            "generate* release notes",
+            "release notes from",
+            "our release notes",
+            "our changelog",
+            "update the changelog",
+            "changelog entry",
+            "surum notlari yaz*",
+            "surum notlarini yaz*",
+            "surum notlari hazirla*",
+            "degisiklik gunlugunu guncelle*"
+          ]
+        }
+      },
+      {
+        "id": "web-fetch",
+        "intent": "Read a known URL, including JavaScript-rendered pages",
+        "prefer": [
+          "mcp:web-fetch/fetch_url"
+        ],
+        "fallback": [
+          "mcp:context-mode/ctx_fetch_and_index",
+          "builtin:web_fetch"
+        ],
+        "deny_builtin": [
+          "web_fetch"
+        ],
+        "nudge": "Fetch pages with the web-fetch MCP server; while it is down, use context-mode's ctx_fetch_and_index, and the built-in fetch only when both are down.",
+        "reminder": "read the page with the web-fetch MCP server (fetch_url)"
+      },
+      {
+        "id": "code-examples",
+        "intent": "How public code uses an API (GitHub examples)",
+        "prefer": [
+          "mcp:grep/searchGitHub"
+        ],
+        "fallback": [
+          "mcp:web-search/search"
+        ],
+        "deny_builtin": [],
+        "reminder": "look up real usage in public code with the grep MCP server (searchGitHub)",
+        "triggers": {
+          "topic": [
+            "examples on github",
+            "github examples",
+            "real-world usage",
+            "real world usage",
+            "real-world examples",
+            "how do other projects",
+            "how others use",
+            "open-source examples",
+            "open source examples",
+            "github'da*",
+            "gercek projelerde",
+            "acik kaynak projelerde",
+            "ornek kullanim*",
+            "baska projeler nasil"
+          ]
+        }
+      },
+      {
+        "id": "code-search",
+        "intent": "Find code by intent or concept, or code similar to a snippet",
+        "prefer": [
+          "mcp:semble/search",
+          "mcp:semble/find_related"
+        ],
+        "fallback": [
+          "cli:rg"
+        ],
+        "deny_builtin": [],
+        "nudge": "Search code with semble (intent) or rg (exact text), never grep -r or find | xargs grep.",
+        "reminder": "find code by intent with semble search (repo = the project root); rg stays right for exact text",
+        "triggers": {
+          "topic": [
+            "which file",
+            "find the code that",
+            "find where",
+            "locate the code",
+            "re:\\bwhere (?:is|are|do we|does) (?:the |our |we )?\\S+ (?:defined|implemented|handled|configured|loaded|set|parsed|created)",
+            "re:\\bhow (?:does|do) .{1,60}\\bwork\\b",
+            "nerede tanimli",
+            "nerede yapiliyor",
+            "nerede uygulan*",
+            "hangi dosyada",
+            "nasil calisiyor",
+            "kodu bul"
+          ],
+          "not": [
+            "where were we",
+            "where did we leave",
+            "nerede kalmistik",
+            "nerede kaldik"
+          ]
+        }
+      },
+      {
+        "id": "code-structure",
+        "intent": "Definitions, callers and callees, and the impact of changing a symbol",
+        "prefer": [
+          "mcp:codegraph/codegraph_explore"
+        ],
+        "fallback": [
+          "cli:rg"
+        ],
+        "deny_builtin": [],
+        "nudge": "Before changing a shared function, type or endpoint, get its callers from codegraph.",
+        "reminder": "ask codegraph (callers, callees, impact; projectPath = the project root) before you change a shared symbol",
+        "triggers": {
+          "topic": [
+            "who calls",
+            "what calls",
+            "callers of",
+            "call sites",
+            "call graph",
+            "find usages",
+            "all usages",
+            "references to",
+            "impact of chang*",
+            "blast radius",
+            "what breaks if",
+            "what depends on",
+            "re:\\bwhere (?:is|are) \\S+ (?:called|used|invoked|referenced)",
+            "nereden cagriliyor",
+            "nerelerde cagriliyor",
+            "kim cagiriyor",
+            "cagiranlar*",
+            "cagri grafi*",
+            "nerelerde kullaniliyor",
+            "etki analizi",
+            "neyi bozar",
+            "neler etkilenir"
+          ]
+        }
+      },
+      {
+        "id": "language-server",
+        "intent": "Diagnostics of an edited file, a symbol's type and docs, its definition and references from the language server (Codex and OpenCode; Claude Code and omp use their own LSP tools)",
+        "prefer": [
+          "mcp:lsp/diagnostics",
+          "mcp:lsp/hover",
+          "mcp:lsp/definition",
+          "mcp:lsp/references"
+        ],
+        "fallback": [
+          "mcp:codegraph/codegraph_explore",
+          "cli:rg"
+        ],
+        "deny_builtin": [],
+        "reminder": "check an edited Python, TypeScript, Go, Rust, C# or Java file with the lsp server's diagnostics, and ask its hover or definition for a symbol's type",
+        "triggers": {
+          "topic": [
+            "type error*",
+            "typecheck error*",
+            "type-check error*",
+            "compile error*",
+            "compiler error*",
+            "compilation error*",
+            "lsp diagnostics",
+            "language server",
+            "go to definition",
+            "jump to definition",
+            "re:\\bwhat(?:'s| is) the type of\\b",
+            "tip hata*",
+            "derleme hata*",
+            "tanima git",
+            "tanimina git"
+          ]
+        }
+      },
+      {
+        "id": "browser",
+        "intent": "Drive and inspect a real browser (DOM, console, network, performance)",
+        "prefer": [
+          "mcp:chrome-devtools"
+        ],
+        "fallback": [],
+        "deny_builtin": [],
+        "reminder": "drive and inspect the real browser with chrome-devtools (navigate_page, take_snapshot, list_console_messages)",
+        "triggers": {
+          "topic": [
+            "open the page",
+            "take a screenshot",
+            "screenshot of",
+            "console errors",
+            "browser console",
+            "network tab",
+            "lighthouse",
+            "devtools",
+            "re:\\b(?:open|test|check|verify|look|see|load|reproduce|try|view|inspect|debug|click|watch|preview)\\w*\\b.{0,40}\\bin the browser\\b",
+            "ekran goruntusu",
+            "konsol hata*",
+            "sayfayi ac*",
+            "re:\\btarayicida\\b.{0,30}\\b(?:ac|test et|kontrol et|dene|bak|gor|incele)\\w*"
+          ]
+        }
+      },
+      {
+        "id": "memory",
+        "intent": "Past decisions, gotchas, earlier sessions and preferences",
+        "prefer": [
+          "mcp:buracle-memory/memory_search",
+          "mcp:buracle-memory/memory_get"
+        ],
+        "fallback": [
+          "cli:buracle"
+        ],
+        "deny_builtin": [],
+        "nudge": "History questions start with memory_search on the buracle-memory server.",
+        "reminder": "search memory with memory_search, then memory_get the relevant memories, and cite their ids",
+        "triggers": {
+          "topic": [
+            "memory note*",
+            "vault note*",
+            "the memory vault",
+            "the memory brain",
+            "hafiza not*",
+            "hafiza kayd*",
+            "kasa not*"
+          ]
+        }
+      },
+      {
+        "id": "context-saving",
+        "intent": "Output you will process rather than read whole (logs, test and build output, data, large files, long pages)",
+        "prefer": [
+          "mcp:context-mode/ctx_batch_execute",
+          "mcp:context-mode/ctx_execute"
+        ],
+        "fallback": [],
+        "deny_builtin": [],
+        "nudge": "Run commands whose output you only need to summarize, count or search in the context-mode sandbox and print only the result.",
+        "reminder": "process large output in the context-mode sandbox (ctx_batch_execute, ctx_execute, ctx_execute_file) and print only what you need",
+        "triggers": {
+          "topic": [
+            "test output",
+            "build output",
+            "build log*",
+            "log file*",
+            "server log*",
+            "application log*",
+            "crash log*",
+            "re:\\b(?:analy[sz]e|summari[sz]e|scan|triage|(?:go|dig|look|read|sift|comb)\\s+through)\\s+(?:the\\s+|these\\s+|this\\s+|those\\s+|our\\s+|my\\s+)?(?:[a-z0-9-]+\\s+)?(?:logs?|output|stack\\s?traces?|dumps?|test\\s+results)\\b",
+            "re:\\b(?:large|big|huge|long|massive)\\s+(?:csv|json|jsonl|xml|log|data)\\s+(?:file|dump)s?\\b",
+            "re:\\b(?:csv|json|jsonl|xml|sql|heap|thread)\\s+dumps?\\b",
+            "re:\\bgit\\s+log\\b",
+            "test cikti*",
+            "build cikti*",
+            "derleme cikti*",
+            "log dosya*",
+            "buyuk csv*",
+            "buyuk json*",
+            "re:\\b(?:ciktiyi|ciktisini|ciktilari|ciktilarini|loglari|loglarini)\\s+(?:analiz\\s+et|ozetle|incele|tara|ayikla|gozden\\s+gecir)[a-z']*"
+          ],
+          "not": [
+            "output folder",
+            "output dir*",
+            "output directory",
+            "output path",
+            "cikti klasor*",
+            "cikti dizin*"
+          ]
+        }
+      }
+    ]
+  },
+  "skills": [
+    {
+      "id": "ab-test",
+      "dir": "skills/ab-test",
+      "frontmatter": {
+        "name": "ab-test",
+        "description": "Measure whether a change to a skill, rule, AGENTS.md section or routing policy really changes agent behavior. Defines falsifiable cases, runs paired baseline and candidate trials in throwaway config directories (never hiding or renaming the user's real skills or settings), captures tool-use evidence such as whether the agent loaded the skill or called context7, then scores pass rates and reports per-case deltas. Use when the user asks to benchmark, evaluate, A/B test or compare a skill or rule change, or to check that agents really use an MCP server or skill.",
+        "when_to_use": "After editing a skill's description or body, a rule or the routing policy, before keeping the change; when a skill seems never to trigger (\"benchmark this\", \"compare before and after\", \"does the skill trigger\", \"is context7 really called\").",
+        "invocation": "implicit",
+        "argument-hint": "<skill:<id> | rule:<path> | routing> [harness]",
+        "mcp": [
+          "buracle-memory"
+        ],
+        "short-description": "Paired before/after evals of skills and rules with tool-use evidence"
+      },
+      "triggers": {
+        "ask": [
+          "benchmark the skill",
+          "benchmark this skill",
+          "benchmark the rule",
+          "benchmark the routing",
+          "a/b test the skill",
+          "a/b test the rule",
+          "ab-test the skill",
+          "skill'i* benchmark*",
+          "skill'i* olc*",
+          "kurali benchmark*"
+        ],
+        "topic": [
+          "activation rate",
+          "trigger rate",
+          "really makes the agent",
+          "re:\\bbefore(?:/|\\s+and\\s+)after\\b.{0,60}\\b(?:skill|rule|routing|prompt|agents\\.md|claude\\.md|hook|mcp|description)",
+          "re:\\b(?:skill|rule|routing|prompt|agents\\.md|claude\\.md|hook|description)\\S*\\b.{0,60}\\bbefore(?:/|\\s+and\\s+)after\\b",
+          "re:\\b(?:agents?|models?|claude|codex|opencode|omp)\\b.{0,30}\\breally\\s+(?:calls?|uses?|loads?|triggers?|reads?)\\b",
+          "re:\\bbenchmark\\w*\\b.{0,80}\\b(?:skill|rule|routing|agents\\.md|claude\\.md|hook|prompt|mcp)",
+          "re:\\b(?:skill|rule|routing)\\S*\\b.{0,80}\\bbenchmark",
+          "re:\\b(?:skill|kural|routing|prompt|agents\\.md|claude\\.md|hook|aciklama)\\S*\\b.{0,80}\\b(?:once/?\\s?sonra karsilastir|tetikleniyor mu|gercekten cagriliyor mu)",
+          "re:\\b(?:once/?\\s?sonra karsilastir\\w*|tetikleniyor mu|gercekten cagriliyor mu)\\b.{0,80}\\b(?:skill|kural|routing|prompt|agents\\.md|claude\\.md|hook)",
+          "re:\\bskill\\S*\\b.{0,80}\\b(?:eskisiyle|oncekiyle|onceki surumuyle)"
+        ],
+        "not": [
+          "operations per second",
+          "ops/sec",
+          "ops per second",
+          "throughput",
+          "latency"
+        ]
+      }
+    },
+    {
+      "id": "bugfix",
+      "dir": "skills/bugfix",
+      "frontmatter": {
+        "name": "bugfix",
+        "description": "Plan-less bug workflow that owns one defect end to end: reproduce it first, trace the root cause to file:line, write a failing test, fix at the source, prove the fix on the real program, then pass the quality gate. With branch isolation on it asks where to work: the current branch, a bugfix/<slug> branch or a worktree squash-merged once the fix is proven; no plan file. Run only when the user explicitly asks for bugfix.",
+        "when_to_use": "The user invokes bugfix by name or explicitly asks for this workflow (\"solve it with bugfix\", \"use the bugfix workflow\"), bringing a failing test, an error message, a crash or a regression. A plain \"fix this\" is handled directly, without this workflow.",
+        "invocation": "explicit",
+        "argument-hint": "<bug: symptom, failing test, error or steps> [--worktree | --new-branch | --current-branch]",
+        "mcp": [
+          "semble",
+          "codegraph",
+          "context7",
+          "web-search",
+          "web-fetch",
+          "grep",
+          "chrome-devtools",
+          "buracle-memory",
+          "context-mode"
+        ],
+        "short-description": "Reproduce, root-cause, RED test, fix at the source, prove it end to end"
+      },
+      "triggers": {
+        "ask": [
+          "re:(?<!\\b(?:the|that|this|your|my|our|its)\\s)\\broot[- ]cause\\s+fix\\b",
+          "fix it test-first",
+          "fix it with a failing test first",
+          "reproduce it first and fix it",
+          "kok nedenini bulup duzelt",
+          "once test yazip duzelt"
+        ],
+        "not": [
+          "workflow file",
+          "github actions",
+          "ci workflow"
+        ]
+      }
+    },
+    {
+      "id": "buracle",
+      "dir": "skills/buracle",
+      "frontmatter": {
+        "name": "buracle",
+        "description": "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan …`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, notifications, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.",
+        "when_to_use": "Creating, registering or moving a plan; pausing to ask the user; creating or merging a worktree; computing a review diff; notifying the user; checking rate-limit headroom; diagnosing Buracle.",
+        "invocation": "implicit",
+        "user-invocable": false,
+        "mcp": [],
+        "short-description": "When and how to call the buracle helper CLI"
+      },
+      "triggers": {
+        "ask": [
+          "use the buracle cli",
+          "buracle cli ile"
+        ],
+        "topic": [
+          "re:\\bplan status\\b(?!\\s+(?:endpoint|field|column|code|enum|value|page|api|route|handler|query|badge|label|filter|check|type)s?\\b)",
+          "how many tasks are left",
+          "tasks left in the plan",
+          "diff range",
+          "re:(?<!\\b(?:add|added|adding|new)\\s(?:a\\s|an\\s|the\\s)?)\\breview scope\\b(?!\\s+(?:option|flag|field|param\\w*|column|setting|config\\w*|endpoint|api|type|enum|value)s?\\b)",
+          "what should i review",
+          "re:\\b(?:my|our|claude(?:\\s+code)?|codex|opencode|omp|subscription)(?:'s)?\\s+(?:usage|rate|weekly|5h|5-hour)\\s+limits?\\b",
+          "rate limit headroom",
+          "5h window",
+          "5-hour window",
+          "create a worktree",
+          "merge the worktree",
+          "buracle doctor",
+          "planin durumu",
+          "re:\\bplan durumu\\b(?!\\s+(?:alan|endpoint|kolon|sutun|enum|deger|sayfa|api|kod)\\w*)",
+          "kac gorev kaldi",
+          "kullanim limitim*",
+          "kullanim limitlerim*",
+          "re:\\bkullanim limit\\w*\\s+ne durumda",
+          "5 saatlik pencere*",
+          "5 saatlik limit*",
+          "haftalik limitim*",
+          "haftalik limitlerim*",
+          "re:\\b(?:claude|codex|opencode|omp)\\S*\\s+(?:kullanim\\s+|haftalik\\s+)?limit\\w*",
+          "worktree olustur*",
+          "worktree ac",
+          "worktree'yi birlestir*",
+          "buracle doctor"
+        ]
+      }
+    },
+    {
+      "id": "dead-code",
+      "dir": "skills/dead-code",
+      "frontmatter": {
+        "name": "dead-code",
+        "description": "Report-only dead-code audit. Collects candidate unused files and exports from the project's own analyzers, a bundled rg-based script and a read-only codegraph snapshot, checks every candidate against independent signals (codegraph references, exact and dynamic-usage search, analyzers), rules out a public role (API, entry points, config, registries), and returns a ranked report with evidence and a staged removal plan. Never deletes or edits code.",
+        "when_to_use": "The user invokes it or asks for an unused or dead code audit (\"find the dead code\", \"find unused code\", \"cleanup report\", \"dead code audit\").",
+        "invocation": "explicit",
+        "argument-hint": "[path or package to audit]",
+        "mcp": [
+          "codegraph",
+          "semble",
+          "context7",
+          "buracle-memory"
+        ],
+        "short-description": "Report-only dead-code audit with two-signal evidence and a removal plan"
+      },
+      "triggers": {
+        "ask": [
+          "dead code audit",
+          "dead-code audit",
+          "unused code report",
+          "dead code report",
+          "re:(?:^|[\\n.!?;:]\\s*|\\b(?:please|pls|can you|could you|would you|and|then|just)\\s+)find\\s+(?:all\\s+|the\\s+)?(?:dead|unused)\\s+(?:code|exports|files)\\b",
+          "olu kod analizi",
+          "olu kod raporu",
+          "olu kodlari bul",
+          "olu kod tara*",
+          "kullanilmayan kod* bul",
+          "kullanilmayan kod* tespit",
+          "kullanilmayan export* bul",
+          "temizlik raporu"
+        ]
+      }
+    },
+    {
+      "id": "find-skill",
+      "dir": "skills/find-skill",
+      "frontmatter": {
+        "name": "find-skill",
+        "description": "Find an agent skill for a need and install it for every harness in a few calls. `buracle skills find <need>` is one command that shows the installed and shipped skills that already match, then the skills.sh registry's candidates with description, license, freshness, tool grants and risk ratings; `buracle skills add --dry-run` audits the pick (scripts, allowed-tools, suspicious lines) and `buracle skills add` installs it into ~/.agents/skills (Codex, OpenCode, Oh My Pi) and links it into ~/.claude/skills (Claude Code). Also updates and removes installed skills.",
+        "when_to_use": "\"is there a skill for X\", \"find a skill that does X\", \"install the X skill\", \"add a skill for X\", a recurring task that no skill in `buracle skills list` covers, \"update my skills\", \"remove the X skill\".",
+        "invocation": "implicit",
+        "argument-hint": "<what the skill should do | owner/repo[/path] | skill id>",
+        "mcp": [
+          "buracle-memory",
+          "web-search",
+          "grep"
+        ],
+        "short-description": "Find a skill for a need and install it for every harness"
+      },
+      "triggers": {
+        "ask": [
+          "find a skill",
+          "find me a skill",
+          "find skills for",
+          "is there a skill",
+          "re:\\b(?:install|add|get)\\s+(?:a|the|an)\\s+(?:\\S+\\s+){0,3}skill\\b",
+          "re:\\b(?:update|upgrade|remove|uninstall)\\s+(?:my|the|an?)\\s+(?:\\S+\\s+){0,2}skills?\\b",
+          "search for a skill",
+          "skill marketplace",
+          "skill bul",
+          "skill ara",
+          "skill var mi",
+          "bir skill var mi",
+          "re:\\bskill\\w*\\s+(?:kur|yukle|ekle|indir)",
+          "re:\\b(?:kur|yukle|ekle|indir)\\w*\\s+(?:\\S+\\s+){0,2}skill",
+          "skilleri guncelle",
+          "skill guncelle*",
+          "skill kaldir*",
+          "skill sil"
+        ],
+        "not": [
+          "create a skill",
+          "write a skill",
+          "new skill",
+          "turn this into a skill",
+          "buracle skill",
+          "the skill is",
+          "skill triggers",
+          "skills lint",
+          "new-skill",
+          "in the skill",
+          "skill file",
+          "skill id",
+          "skill yaz",
+          "skill olustur",
+          "skille donustur",
+          "yeni skill",
+          "skill dosyasi"
+        ]
+      }
+    },
+    {
+      "id": "goal-build",
+      "dir": "skills/goal-build",
+      "frontmatter": {
+        "name": "goal-build",
+        "description": "Goal-and-loop workflow for a clear end state whose path is found while building: agree on a goal, tasks sized as the largest slices you can finish and verify, and at least 3 pass/fail acceptance criteria (one of them the oracle), have them reviewed, lock the contract, then build in rounds judged on running evidence (at most four), verify and hand back. Tracked in docs/builds/. Run only when the user explicitly asks for goal-build.",
+        "when_to_use": "The user invokes goal-build by name, or names an end state and asks you to find the way there, working in a loop until it is done.",
+        "invocation": "explicit",
+        "argument-hint": "<goal: the end state you want> [--worktree | --new-branch | --current-branch]",
+        "mcp": [
+          "semble",
+          "codegraph",
+          "context7",
+          "web-search",
+          "web-fetch",
+          "grep",
+          "chrome-devtools",
+          "buracle-memory",
+          "context-mode"
+        ],
+        "short-description": "Lock a goal and pass/fail criteria, then build in judged rounds"
+      },
+      "triggers": {
+        "ask": [
+          "goal-and-loop",
+          "goal and loop",
+          "find the way yourself",
+          "re:\\byou find the way(?: there)?\\s*(?:[.!;:]|$)",
+          "re:(?:^|[\\n.!?;:]\\s*|\\b(?:and|then|just|please)\\s+)(?:keep\\s+)?loop(?:ing)?\\s+until\\s+it\\s+(?:works|passes)\\b",
+          "yolunu sen bul",
+          "bitene kadar dongu*",
+          "hedef odakli dongu*"
+        ],
+        "not": [
+          "github actions",
+          "ci workflow",
+          "ci pipeline",
+          "workflow file",
+          "workflow run",
+          ".github/workflows",
+          "workflow yaml"
+        ]
+      }
+    },
+    {
+      "id": "inspect",
+      "dir": "skills/inspect",
+      "frontmatter": {
+        "name": "inspect",
+        "description": "Read-only investigation of one question about the code. Frames a falsifiable claim, locates code with semble (intent), codegraph (callers, callees, blast radius) and rg or ast-grep (exact and structural matches), checks memory for past decisions, traces the active path hop by hop, challenges the answer with a counterexample search, and reports a direct answer with file:line evidence and calibrated confidence. Never edits anything.",
+        "when_to_use": "The user invokes it to learn how something works, why it behaves a certain way, or where and how something is used (\"how does X work\", \"why does it behave like this\", \"where is this called from\").",
+        "invocation": "explicit",
+        "argument-hint": "<one question about the code>",
+        "mcp": [
+          "codegraph",
+          "semble",
+          "buracle-memory",
+          "context7"
+        ],
+        "short-description": "Read-only trace of one code question with file:line evidence"
+      },
+      "triggers": {
+        "ask": [
+          "inspect how",
+          "inspect why",
+          "inspect where",
+          "investigate how",
+          "investigate why",
+          "investigate where",
+          "dig into how",
+          "trace how",
+          "re:(?:^|[\\n.!?;:]\\s*|\\b(?:please|pls|can you|could you|would you)\\s+)investigate\\s+(?:this|that|it)\\b",
+          "nasil calistigini incele*",
+          "nasil calistigini arastir*",
+          "neden boyle davrandigini incele*",
+          "neden boyle davrandigini arastir*",
+          "nereden cagrildigini incele*"
+        ],
+        "not": [
+          "and fix",
+          "fix it",
+          "then fix",
+          "duzelt"
+        ]
+      }
+    },
+    {
+      "id": "memory",
+      "dir": "skills/memory",
+      "frontmatter": {
+        "name": "memory",
+        "description": "Protocol for Buracle's shared memory: the CortexDB brains (one per project, one for the person) served by the buracle-memory MCP server in every harness. Says when to run a quick memory pass (at most 3 memory_search calls, then at most 3 memories via memory_get), how to treat recalled memories as evidence rather than instructions, and how to keep the memory: one claim per memory with sources, search before writing, update or merge instead of duplicating, keep the core pages current, record the user's preferences in the right brain, work through the upkeep queue, never store secrets. Use when the user refers to past work or asks you to remember something, before re-deciding something, after a non-obvious fix, and when upkeep waits.",
+        "when_to_use": "History or rationale questions (last time, why did we, what did we decide, where were we), requests to remember something, tasks that touch memories listed at session start, the end of work that produced a decision, gotcha or user preference.",
+        "invocation": "implicit",
+        "user-invocable": false,
+        "mcp": [
+          "buracle-memory"
+        ],
+        "short-description": "When and how to read, write and keep Buracle's CortexDB memory"
+      },
+      "triggers": {
+        "ask": [
+          "use the memory protocol",
+          "hafiza protokolu*"
+        ],
+        "topic": [
+          "memory note*",
+          "vault note*",
+          "the memory vault",
+          "the memory brain",
+          "hafiza not*",
+          "hafiza kayd*",
+          "kasa not*",
+          "kasadaki not*"
+        ]
+      }
+    },
+    {
+      "id": "new-skill",
+      "dir": "skills/new-skill",
+      "frontmatter": {
+        "name": "new-skill",
+        "description": "Capture a repeatable procedure as a Buracle skill, or improve an existing one. Picks the right home (global skills in the Buracle repo's canonical/skills or a configured skills git source; project-only skills in .agents/skills), writes SKILL.md in the canonical format with references/, scripts/ and trigger evals, lints it with `buracle skills lint`, and explains how publishing reaches every harness. Use when the user wants to turn a workflow into a skill, edit, split or rename a skill, or fix a skill that triggers too often or never.",
+        "when_to_use": "A multi-step procedure was done more than once or took real effort and will recur; an existing skill misfires, has grown too long or misses a step (\"turn this into a skill\", \"create a new skill\", \"update the skill\").",
+        "invocation": "implicit",
+        "argument-hint": "<skill id or the procedure to capture>",
+        "mcp": [
+          "buracle-memory",
+          "semble"
+        ],
+        "short-description": "Capture a repeatable procedure as a canonical Buracle skill"
+      },
+      "triggers": {
+        "ask": [
+          "turn this into a skill",
+          "turn it into a skill",
+          "into a reusable skill",
+          "make it a skill",
+          "save it as a skill",
+          "new skill for",
+          "re:\\b(?:create|write|add|make) (?:a |an |the )?(?:new )?(?:[a-z-]+ ){0,2}skill\\b",
+          "skill yap",
+          "bunu skill yap",
+          "yeni skill olustur*",
+          "yeni bir skill olustur*",
+          "yeni skill yaz*",
+          "skill olustur*",
+          "skill olarak kaydet*",
+          "skill'e donustur*",
+          "skill'i guncelle*",
+          "tekrar kullanilabilir bir skill"
+        ],
+        "topic": [
+          "reusable skill",
+          "skill trigger*",
+          "skill description",
+          "re:\\bskill\\S*\\b.{0,60}\\b(?:never triggers|does not trigger|doesn't trigger|misfires|triggers too often)",
+          "re:\\bskill\\S*\\b.{0,60}\\btetiklen(?:miyor|mez)",
+          "re:\\bskill\\S*\\b.{0,60}\\bdevreye girmiyor"
+        ]
+      }
+    },
+    {
+      "id": "plan-build",
+      "dir": "skills/plan-build",
+      "frontmatter": {
+        "name": "plan-build",
+        "description": "Plan-driven development through a plan file in docs/plans/: explore and clarify, write and review the plan, get approval, implement task by task with TDD, then verify with real evidence until the plan is VERIFIED. Covers features and bugfixes (behavior contract, reproduce first, root-cause fix). Also pauses, resumes or continues an existing plan. Run only when the user explicitly asks for plan-build.",
+        "when_to_use": "The user invokes plan-build by name, passes a docs/plans/*.md file, or asks to write a plan and implement it, or to continue a plan.",
+        "invocation": "explicit",
+        "argument-hint": "<task | docs/plans/<file>.md | pause | resume> [--worktree | --new-branch | --current-branch]",
+        "mcp": [
+          "semble",
+          "codegraph",
+          "context7",
+          "web-search",
+          "web-fetch",
+          "grep",
+          "chrome-devtools",
+          "buracle-memory",
+          "context-mode"
+        ],
+        "short-description": "Plan, approve, TDD-implement and verify work through a plan file"
+      },
+      "triggers": {
+        "ask": [
+          "write a plan and implement*",
+          "plan and implement it",
+          "plan it and implement*",
+          "re:\\b(?:do|build|implement|handle|tackle)\\s+(?:it|this|that|them|the\\s+\\S+)\\s+plan[- ]driven\\b",
+          "re:\\b(?:go|let's go)\\s+plan[- ]driven\\b",
+          "re:(?:^|[\\n.!?;]\\s*)plan[- ]driven(?:\\s*,?\\s*please)?\\s*[:,]",
+          "plan yaz ve uygula",
+          "plan yazip uygula",
+          "planla ve uygula"
+        ]
+      }
+    },
+    {
+      "id": "project-rules",
+      "dir": "skills/project-rules",
+      "frontmatter": {
+        "name": "project-rules",
+        "description": "Create, refresh or audit a repository's agent guidance so Claude Code, Codex, OpenCode and omp follow the same verified instructions: the root AGENTS.md, optional nested AGENTS.md files for subprojects, and path-scoped rules for specific file types. Discovers commands and conventions from the code (package scripts, CI jobs, linter and test configs, test layout), runs commands before documenting them, keeps every file short, then runs `buracle project sync` and `buracle project check`. Use when the user asks to set up, write, update, slim down or check AGENTS.md, CLAUDE.md or project rules.",
+        "when_to_use": "The repo has no agent guidance, or it is stale, bloated or contradicts the code; after tooling changes such as a new package manager, test runner or linter (\"write an AGENTS.md\", \"set up the project rules\", \"update the instructions\", \"slim down the rules\").",
+        "invocation": "implicit",
+        "argument-hint": "[audit | <subdirectory>]",
+        "mcp": [
+          "semble",
+          "codegraph",
+          "context7",
+          "web-fetch",
+          "buracle-memory"
+        ],
+        "short-description": "Generate and verify AGENTS.md and path-scoped rules for a repo"
+      },
+      "triggers": {
+        "ask": [
+          "set up agent guidance",
+          "set up agents.md",
+          "write agents.md",
+          "create agents.md",
+          "update agents.md",
+          "audit agents.md",
+          "refresh agents.md",
+          "slim down agents.md",
+          "set up the project rules",
+          "audit the agent instructions",
+          "agents.md hazirla*",
+          "agents.md olustur*",
+          "agents.md guncelle*",
+          "agents.md yaz",
+          "proje kurallarini kur",
+          "talimatlari guncelle*",
+          "kurallari sadelestir*"
+        ],
+        "topic": [
+          "agent instructions",
+          "agent guidance",
+          "path rules",
+          "path-scoped rules",
+          "re:\\b(?:agents|claude)\\.md\\b.{0,40}\\b(?:stale|outdated|bloated|too long|wrong|out of date)",
+          "proje talimatlari",
+          "ajan talimatlari",
+          "proje kurallari",
+          "re:\\b(?:agents|claude)\\.md\\b.{0,40}\\b(?:eskimis|guncel degil|cok uzun|yanlis)"
+        ]
+      }
+    },
+    {
+      "id": "requirements",
+      "dir": "skills/requirements",
+      "frontmatter": {
+        "name": "requirements",
+        "description": "Requirements workflow for ideas whose problem, audience or scope is still unclear. Grounds the idea in the codebase and memory, runs tiered research through the research skill, explores directions, asks a few decision questions, proposes approaches, converges on scope, writes an approved PRD to docs/prd/YYYY-MM-DD-<slug>.md and prints the plan-build or goal-build hand-off. No code is written before the PRD is approved.",
+        "when_to_use": "The user invokes it or asks for a PRD or requirements document (\"write a PRD\", \"let's work out the requirements\", \"help me sharpen this idea\").",
+        "invocation": "explicit",
+        "argument-hint": "<idea, problem or feature>",
+        "mcp": [
+          "buracle-memory",
+          "semble",
+          "codegraph",
+          "context7",
+          "web-search",
+          "web-fetch",
+          "grep"
+        ],
+        "short-description": "Interview, research and write an approved PRD before any code"
+      },
+      "triggers": {
+        "ask": [
+          "write a prd",
+          "write the prd",
+          "draft a prd",
+          "draft the prd",
+          "create a prd",
+          "prepare a prd",
+          "make a prd",
+          "need a prd",
+          "re:\\b(?:write|draft|create|prepare|make|produce|need|want)\\s+(?:me\\s+|us\\s+)?(?:a|an|the)\\s+(?:new\\s+|short\\s+|proper\\s+)?(?:product\\s+)?requirements\\s+doc(?:ument)?\\b",
+          "re:(?:^|[\\n.!?;:]\\s*)(?:a\\s+)?prd\\s+for\\b",
+          "prd yaz*",
+          "prd hazirla*",
+          "prd olustur*",
+          "prd cikar*",
+          "gereksinimleri cikar*",
+          "re:\\bgereksinim\\s+(?:dokuman|belge)\\w*\\s+(?:yaz|hazirla|olustur|cikar|lazim|gerek)\\w*",
+          "bu fikri netlestir*",
+          "fikri netlestir*"
+        ],
+        "not": [
+          "do we need a prd",
+          "is there a prd",
+          "do we have a prd",
+          "is a prd needed",
+          "prd gerekli mi",
+          "prd lazim mi",
+          "prd var mi"
+        ]
+      }
+    },
+    {
+      "id": "research",
+      "dir": "skills/research",
+      "frontmatter": {
+        "name": "research",
+        "description": "Evidence-backed research that must use MCP tools instead of recall: web-search to discover sources, web-fetch to read them in full, context7 for library and framework documentation, grep for real-world code on GitHub, and buracle-memory for prior decisions. Produces a cited research note (answer, findings, options, conflicts, gaps, confidence) and can save durable findings to memory as knowledge memories pending review.",
+        "when_to_use": "Time-sensitive or unfamiliar questions: current versions, API behavior, best practices, standards, comparisons of libraries, tools or approaches, \"is X still maintained\"; requests such as \"research\", \"compare\", \"which one is better\", \"is this still current\", \"find sources\", \"cite sources\". The requirements workflow also runs it.",
+        "invocation": "implicit",
+        "argument-hint": "<question or topic>",
+        "mcp": [
+          "web-search",
+          "web-fetch",
+          "context7",
+          "grep",
+          "buracle-memory",
+          "context-mode"
+        ],
+        "short-description": "Cited, MCP-backed research across web, library docs, public code and memory"
+      },
+      "triggers": {
+        "ask": [
+          "research this",
+          "research it",
+          "do research on",
+          "research whether",
+          "research which",
+          "deep research",
+          "find sources",
+          "cite sources",
+          "arastir",
+          "arastirin",
+          "arastiralim",
+          "arastirir misin",
+          "arastirabilir*",
+          "arastirma yap*",
+          "derinlemesine arastir*",
+          "kaynak goster*",
+          "kaynaklarla karsilastir*"
+        ],
+        "topic": [
+          "still maintained",
+          "is it maintained",
+          "current sources",
+          "which is better",
+          "re:(?<!\\b(?:follow|following|use|using|apply|applying|with|keep|keeping|per)\\s(?:the\\s|our\\s|these\\s)?)\\bbest\\s+practices?\\s+(?:for|in|of|on|around|when\\s+using)\\b",
+          "re:\\b(?:what|which)(?:'s|\\s+(?:is|are))\\s+(?:the\\s+)?(?:current\\s+|modern\\s+|recommended\\s+)?best\\s+practices?\\b",
+          "re:\\bbest\\s+practices?\\s*\\?",
+          "pros and cons",
+          "alternatives to",
+          "state of the art",
+          "latest version of",
+          "re:\\bcompare\\b.{0,60}\\b(?:librar|framework|tool|package|approach|option|vendor|provider|service|database|orm|solution|sdk)",
+          "re:\\b(?:librar|framework|tool|package|approach|provider|service|database|sdk)\\w*\\b.{0,40}\\bcompar",
+          "re:\\b(?!(?:actual|expected|got|received|before|after|old|new|left|right|input|output|tabs|spaces|this|that|it|one)\\b)[a-z][a-z0-9.-]+ (?:vs\\.?|versus) (?!(?:actual|expected|got|received|before|after|old|new|left|right|input|output|tabs|spaces|this|that|it|one)\\b)[a-z][a-z0-9.-]+",
+          "hangisi daha iyi",
+          "guncel mi",
+          "guncel kaynak*",
+          "re:\\ben iyi (?:pratik|uygulama)\\w*\\b(?!\\s+(?:uy|uygun|izle|takip))",
+          "artilari ve eksileri",
+          "alternatifleri neler",
+          "re:\\b\\S+ mu \\S+ mu (?:kullan|sec|tercih)",
+          "re:\\b(?:kutuphane|framework|arac|paket|yaklasim|secenek|servis|veritaban|sdk)\\w*\\b.{0,60}\\bkarsilastir"
+        ],
+        "not": [
+          "vs code",
+          "vscode",
+          "visual studio",
+          "compare function",
+          "comparator"
+        ]
+      }
+    },
+    {
+      "id": "security-audit",
+      "dir": "skills/security-audit",
+      "frontmatter": {
+        "name": "security-audit",
+        "description": "Security guidance and vulnerability review for codebases, APIs, services, CLI tools, libraries and daemons: Cloudflare's security-audit skill (MIT), vendored as Buracle's default security skill. Guidance mode answers security questions, focused reviews and triage with the relevant parts only; full audit mode runs six phases (reconnaissance, coverage-led hunting with parallel isolated agents, validation by fresh verifiers, structured findings.json, independent record verification, a target-neutral report) when the user asks for an audit, a pen test, a full security review or report artifacts.",
+        "when_to_use": "\"security audit\", \"audit this codebase\", \"pen test\", \"find vulnerabilities\", \"security review\", or a question about a trust boundary, authentication, injection, secrets or the supply chain.",
+        "invocation": "implicit",
+        "argument-hint": "[<path or scope>] [quick|standard|deep] [output to <dir>]",
+        "mcp": [
+          "semble",
+          "codegraph",
+          "context-mode"
+        ],
+        "short-description": "Cloudflare's security-audit skill, Buracle's default security review"
+      },
+      "triggers": {
+        "ask": [
+          "security audit",
+          "audit the security",
+          "re:\\baudit\\s+(?:this|the|my|our)\\s+(?:\\S+\\s+){0,2}(?:codebase|repo|repository|project|service|app|application|api)\\b.{0,40}\\bsecur",
+          "re:\\bsecur\\w*\\s+(?:review|assessment|analysis|scan)\\b",
+          "pen test",
+          "pentest",
+          "penetration test",
+          "find vulnerabilities",
+          "find security vulnerabilities",
+          "look for vulnerabilities",
+          "threat model",
+          "guvenlik denetimi",
+          "guvenlik taramasi",
+          "guvenlik incelemesi",
+          "guvenlik analizi",
+          "re:\\bguvenlik ac(?:ik|ig)\\w*",
+          "re:\\bzafiyet\\w*\\s+(?:bul|tara|ara)",
+          "sizma testi",
+          "pentest yap*",
+          "tehdit modeli"
+        ],
+        "topic": [
+          "re:\\bis (?:this|it|that) (?:secure|safe|vulnerable|exploitable)\\b",
+          "re:\\b(?:sql|command|prompt|shell|code)\\s+injection\\b",
+          "re:\\b(?:xss|csrf|ssrf|rce|idor)\\b",
+          "re:\\btrust boundar",
+          "re:\\b(?:auth(?:entication|orization)?|session|token|secret|credential)\\w*\\s+(?:bypass|leak|exposure|handling)\\b",
+          "re:\\bguvenli mi\\b",
+          "re:\\b(?:sql|komut|prompt|kod)\\s+enjeksiyon"
+        ],
+        "not": [
+          "audit log",
+          "audit trail",
+          "accessibility audit",
+          "performance audit",
+          "lighthouse audit",
+          "dead code audit",
+          "cleanup audit",
+          "dependency audit only",
+          "npm audit",
+          "security.md",
+          "security headers test",
+          "erisilebilirlik denetimi",
+          "performans denetimi",
+          "olu kod"
+        ]
+      }
+    }
+  ],
+  "agents": [
+    {
+      "id": "changes-review",
+      "file": "agents/changes-review.md",
+      "frontmatter": {
+        "name": "changes-review",
+        "description": "Read-only reviewer for implemented changes before a Buracle workflow is marked verified. Launch it after implementation (plan-build verification, bugfix finalization, goal-build hand-back), passing the plan path or the expected behavior, the run slug and the verification evidence gathered so far. It resolves the diff with `buracle review-scope --json` and checks plan adherence, correctness, tests, security and goal achievement, returning strict JSON findings and goal truths.",
+        "access": "read-only",
+        "tools": [
+          "read",
+          "search",
+          "bash-readonly",
+          "mcp:codegraph",
+          "mcp:semble",
+          "mcp:context7"
+        ],
+        "model": {
+          "claude": "sonnet",
+          "codex": "inherit",
+          "opencode": "inherit",
+          "omp": "inherit"
+        },
+        "output": "json"
+      }
+    },
+    {
+      "id": "goal-build-review",
+      "file": "agents/goal-build-review.md",
+      "frontmatter": {
+        "name": "goal-build-review",
+        "description": "Read-only reviewer for a Buracle goal-build contract (the Buildout) before the build loop starts. Launch it from the goal-build workflow after drafting docs/builds/YYYY-MM-DD-<slug>.md, passing the file path, the user's goal verbatim and the clarifications. It checks that the tasks and acceptance criteria are measurable, complete and correctly ordered, and returns strict JSON findings with ready-to-paste replacement wording.",
+        "access": "read-only",
+        "tools": [
+          "read",
+          "search",
+          "bash-readonly",
+          "mcp:codegraph",
+          "mcp:semble",
+          "mcp:context7"
+        ],
+        "model": {
+          "claude": "sonnet",
+          "codex": "inherit",
+          "opencode": "inherit",
+          "omp": "inherit"
+        },
+        "output": "json"
+      }
+    },
+    {
+      "id": "plan-build-review",
+      "file": "agents/plan-build-review.md",
+      "frontmatter": {
+        "name": "plan-build-review",
+        "description": "Read-only reviewer for a Buracle plan-build plan before the user approves it. Launch it from the plan-build workflow once the plan file passes `buracle plan validate`, passing the plan path, the user's request verbatim and the clarifications. It checks requirement coverage, risky assumptions, missing tasks and tests, task order and Definition-of-Done quality, and returns strict JSON findings.",
+        "access": "read-only",
+        "tools": [
+          "read",
+          "search",
+          "bash-readonly",
+          "mcp:codegraph",
+          "mcp:semble",
+          "mcp:context7"
+        ],
+        "model": {
+          "claude": "sonnet",
+          "codex": "inherit",
+          "opencode": "inherit",
+          "omp": "inherit"
+        },
+        "output": "json"
+      }
+    }
+  ],
+  "rules": [
+    {
+      "id": "core",
+      "scope": "always",
+      "file": "rules/always/core.md",
+      "frontmatter": {}
+    },
+    {
+      "id": "explain",
+      "scope": "always",
+      "file": "rules/always/explain.md",
+      "frontmatter": {}
+    },
+    {
+      "id": "memory",
+      "scope": "always",
+      "file": "rules/always/memory.md",
+      "frontmatter": {}
+    },
+    {
+      "id": "tooling",
+      "scope": "always",
+      "file": "rules/always/tooling.md",
+      "frontmatter": {}
+    },
+    {
+      "id": "backend",
+      "scope": "paths",
+      "file": "rules/paths/backend.md",
+      "frontmatter": {
+        "paths": [
+          "**/api/**",
+          "**/routes/**",
+          "**/handlers/**",
+          "**/controllers/**",
+          "**/endpoints/**",
+          "**/middleware/**",
+          "**/models/**",
+          "**/models.py",
+          "**/entities/**",
+          "**/schema/**",
+          "**/schemas/**",
+          "**/queries/**",
+          "**/repository/**",
+          "**/repositories/**",
+          "**/dao/**",
+          "**/migrations/**",
+          "**/migrate/**",
+          "**/alembic/**",
+          "**/db/**",
+          "**/*.sql",
+          "**/*.prisma",
+          "**/*.graphql",
+          "**/*.proto",
+          "**/openapi*.yaml",
+          "**/openapi*.yml",
+          "**/openapi*.json"
+        ]
+      }
+    },
+    {
+      "id": "blazor",
+      "scope": "paths",
+      "file": "rules/paths/blazor.md",
+      "frontmatter": {
+        "paths": [
+          "**/*.razor",
+          "**/*.razor.cs",
+          "**/*.razor.css"
+        ]
+      }
+    },
+    {
+      "id": "browser-automation",
+      "scope": "paths",
+      "file": "rules/paths/browser-automation.md",
+      "frontmatter": {
+        "paths": [
+          "**/*.tsx",
+          "**/*.jsx",
+          "**/*.vue",
+          "**/*.svelte",
+          "**/*.astro",
+          "**/*.html",
+          "**/*.css",
+          "**/*.scss",
+          "**/*.razor",
+          "**/e2e/**",
+          "**/playwright/**",
+          "**/cypress/**",
+          "**/__tests__/**",
+          "**/playwright.config.*",
+          "**/cypress.config.*"
+        ]
+      }
+    },
+    {
+      "id": "dotnet",
+      "scope": "paths",
+      "file": "rules/paths/dotnet.md",
+      "frontmatter": {
+        "paths": [
+          "**/*.cs",
+          "**/*.csproj",
+          "**/*.sln",
+          "**/*.slnx",
+          "**/global.json",
+          "**/Directory.Build.props",
+          "**/Directory.Packages.props"
+        ]
+      }
+    },
+    {
+      "id": "frontend",
+      "scope": "paths",
+      "file": "rules/paths/frontend.md",
+      "frontmatter": {
+        "paths": [
+          "**/*.tsx",
+          "**/*.jsx",
+          "**/*.vue",
+          "**/*.svelte",
+          "**/*.astro",
+          "**/*.html",
+          "**/*.css",
+          "**/*.scss",
+          "**/*.sass",
+          "**/*.less",
+          "**/*.razor",
+          "**/*.razor.css"
+        ]
+      }
+    },
+    {
+      "id": "go",
+      "scope": "paths",
+      "file": "rules/paths/go.md",
+      "frontmatter": {
+        "paths": [
+          "**/*.go",
+          "**/go.mod",
+          "**/go.sum",
+          "**/go.work"
+        ]
+      }
+    },
+    {
+      "id": "mobile",
+      "scope": "paths",
+      "file": "rules/paths/mobile.md",
+      "frontmatter": {
+        "paths": [
+          "**/capacitor.config.*",
+          "**/ionic.config.json",
+          "**/android/app/build.gradle*",
+          "**/android/app/src/main/AndroidManifest.xml",
+          "**/*.xcodeproj/project.pbxproj",
+          "**/*.xcworkspace/contents.xcworkspacedata",
+          "**/Podfile",
+          "**/pubspec.yaml",
+          "**/react-native.config.*",
+          "**/metro.config.*",
+          "**/expo.json",
+          "**/eas.json",
+          "**/app.config.{js,ts}"
+        ]
+      }
+    },
+    {
+      "id": "python",
+      "scope": "paths",
+      "file": "rules/paths/python.md",
+      "frontmatter": {
+        "paths": [
+          "**/*.py",
+          "**/*.pyi",
+          "**/pyproject.toml",
+          "**/requirements*.txt",
+          "**/uv.lock",
+          "**/setup.cfg"
+        ]
+      }
+    },
+    {
+      "id": "typescript",
+      "scope": "paths",
+      "file": "rules/paths/typescript.md",
+      "frontmatter": {
+        "paths": [
+          "**/*.ts",
+          "**/*.tsx",
+          "**/*.mts",
+          "**/*.cts",
+          "**/*.js",
+          "**/*.jsx",
+          "**/*.mjs",
+          "**/*.cjs",
+          "**/package.json",
+          "**/tsconfig*.json"
+        ]
+      }
+    }
+  ],
+  "notices": [
+    {
+      "id": "0.5.0-project-assets",
+      "since": "0.5.0",
+      "until": "0.6.0",
+      "message": "When a session starts in a repository, Buracle now links the skills in .agents/skills into .claude/skills so Claude Code sees them too, and checks that AGENTS.md lists the path rules in .claude/rules. Run `buracle project check` to see what it would change."
+    },
+    {
+      "id": "0.5.0-smaller-cli",
+      "since": "0.5.0",
+      "until": "0.6.0",
+      "message": "Buracle's CLI is smaller: run `buracle` in a terminal for a main menu you drive with the keyboard. `buracle install` now does what `init` and `sync` did, `buracle install` and `buracle update` apply in a terminal without a question and show each step as it runs, and the rare cases flags used to cover are questions in a terminal. `buracle help --all` lists the commands your agents use."
+    }
+  ],
+  "missing": [],
+  "warnings": []
+}

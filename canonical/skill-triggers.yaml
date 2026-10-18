@@ -1,0 +1,426 @@
+version: 1
+
+skills:
+  plan-build:
+    ask:
+      en:
+        - write a plan and implement*
+        - plan and implement it
+        - plan it and implement*
+        - "re:\\b(?:do|build|implement|handle|tackle)\\s+(?:it|this|that|them|the\\s+\\S+)\\s+plan[- ]driven\\b"
+        - "re:\\b(?:go|let's go)\\s+plan[- ]driven\\b"
+        - "re:(?:^|[\\n.!?;]\\s*)plan[- ]driven(?:\\s*,?\\s*please)?\\s*[:,]"
+      tr: [plan yaz ve uygula, plan yazip uygula, planla ve uygula]
+
+  goal-build:
+    ask:
+      en:
+        - goal-and-loop
+        - goal and loop
+        - find the way yourself
+        - "re:\\byou find the way(?: there)?\\s*(?:[.!;:]|$)"
+        - "re:(?:^|[\\n.!?;:]\\s*|\\b(?:and|then|just|please)\\s+)(?:keep\\s+)?loop(?:ing)?\\s+until\\s+it\\s+(?:works|passes)\\b"
+      tr: [yolunu sen bul, bitene kadar dongu*, hedef odakli dongu*]
+    not:
+      en: [github actions, ci workflow, ci pipeline, workflow file, workflow run, .github/workflows, workflow yaml]
+
+  bugfix:
+    ask:
+      en:
+        - "re:(?<!\\b(?:the|that|this|your|my|our|its)\\s)\\broot[- ]cause\\s+fix\\b"
+        - fix it test-first
+        - fix it with a failing test first
+        - reproduce it first and fix it
+      tr: [kok nedenini bulup duzelt, once test yazip duzelt]
+    not:
+      en: [workflow file, github actions, ci workflow]
+
+  requirements:
+    ask:
+      en:
+        - write a prd
+        - write the prd
+        - draft a prd
+        - draft the prd
+        - create a prd
+        - prepare a prd
+        - make a prd
+        - need a prd
+        - "re:\\b(?:write|draft|create|prepare|make|produce|need|want)\\s+(?:me\\s+|us\\s+)?(?:a|an|the)\\s+(?:new\\s+|short\\s+|proper\\s+)?(?:product\\s+)?requirements\\s+doc(?:ument)?\\b"
+        - "re:(?:^|[\\n.!?;:]\\s*)(?:a\\s+)?prd\\s+for\\b"
+      tr:
+        - prd yaz*
+        - prd hazirla*
+        - prd olustur*
+        - prd cikar*
+        - gereksinimleri cikar*
+        - "re:\\bgereksinim\\s+(?:dokuman|belge)\\w*\\s+(?:yaz|hazirla|olustur|cikar|lazim|gerek)\\w*"
+        - bu fikri netlestir*
+        - fikri netlestir*
+    not:
+      en: [do we need a prd, is there a prd, do we have a prd, is a prd needed]
+      tr: [prd gerekli mi, prd lazim mi, prd var mi]
+
+  research:
+    ask:
+      en: [research this, research it, do research on, research whether, research which, deep research, find sources, cite sources]
+      tr: [arastir, arastirin, arastiralim, arastirir misin, arastirabilir*, arastirma yap*, derinlemesine arastir*, kaynak goster*, kaynaklarla karsilastir*]
+    topic:
+      en:
+        - still maintained
+        - is it maintained
+        - current sources
+        - which is better
+        - "re:(?<!\\b(?:follow|following|use|using|apply|applying|with|keep|keeping|per)\\s(?:the\\s|our\\s|these\\s)?)\\bbest\\s+practices?\\s+(?:for|in|of|on|around|when\\s+using)\\b"
+        - "re:\\b(?:what|which)(?:'s|\\s+(?:is|are))\\s+(?:the\\s+)?(?:current\\s+|modern\\s+|recommended\\s+)?best\\s+practices?\\b"
+        - "re:\\bbest\\s+practices?\\s*\\?"
+        - pros and cons
+        - alternatives to
+        - state of the art
+        - latest version of
+        - "re:\\bcompare\\b.{0,60}\\b(?:librar|framework|tool|package|approach|option|vendor|provider|service|database|orm|solution|sdk)"
+        - "re:\\b(?:librar|framework|tool|package|approach|provider|service|database|sdk)\\w*\\b.{0,40}\\bcompar"
+        - "re:\\b(?!(?:actual|expected|got|received|before|after|old|new|left|right|input|output|tabs|spaces|this|that|it|one)\\b)[a-z][a-z0-9.-]+ (?:vs\\.?|versus) (?!(?:actual|expected|got|received|before|after|old|new|left|right|input|output|tabs|spaces|this|that|it|one)\\b)[a-z][a-z0-9.-]+"
+      tr:
+        - hangisi daha iyi
+        - guncel mi
+        - guncel kaynak*
+        - "re:\\ben iyi (?:pratik|uygulama)\\w*\\b(?!\\s+(?:uy|uygun|izle|takip))"
+        - artilari ve eksileri
+        - alternatifleri neler
+        - "re:\\b\\S+ mu \\S+ mu (?:kullan|sec|tercih)"
+        - "re:\\b(?:kutuphane|framework|arac|paket|yaklasim|secenek|servis|veritaban|sdk)\\w*\\b.{0,60}\\bkarsilastir"
+    not:
+      en: [vs code, vscode, visual studio, compare function, comparator]
+
+  security-audit:
+    ask:
+      en:
+        - security audit
+        - audit the security
+        - "re:\\baudit\\s+(?:this|the|my|our)\\s+(?:\\S+\\s+){0,2}(?:codebase|repo|repository|project|service|app|application|api)\\b.{0,40}\\bsecur"
+        - "re:\\bsecur\\w*\\s+(?:review|assessment|analysis|scan)\\b"
+        - pen test
+        - pentest
+        - penetration test
+        - find vulnerabilities
+        - find security vulnerabilities
+        - look for vulnerabilities
+        - threat model
+      tr:
+        - guvenlik denetimi
+        - guvenlik taramasi
+        - guvenlik incelemesi
+        - guvenlik analizi
+        - "re:\\bguvenlik ac(?:ik|ig)\\w*"
+        - "re:\\bzafiyet\\w*\\s+(?:bul|tara|ara)"
+        - sizma testi
+        - pentest yap*
+        - tehdit modeli
+    topic:
+      en:
+        - "re:\\bis (?:this|it|that) (?:secure|safe|vulnerable|exploitable)\\b"
+        - "re:\\b(?:sql|command|prompt|shell|code)\\s+injection\\b"
+        - "re:\\b(?:xss|csrf|ssrf|rce|idor)\\b"
+        - "re:\\btrust boundar"
+        - "re:\\b(?:auth(?:entication|orization)?|session|token|secret|credential)\\w*\\s+(?:bypass|leak|exposure|handling)\\b"
+      tr:
+        - "re:\\bguvenli mi\\b"
+        - "re:\\b(?:sql|komut|prompt|kod)\\s+enjeksiyon"
+    not:
+      en: [audit log, audit trail, accessibility audit, performance audit, lighthouse audit, dead code audit, cleanup audit, dependency audit only, npm audit, security.md, security headers test]
+      tr: [erisilebilirlik denetimi, performans denetimi, olu kod]
+
+  find-skill:
+    ask:
+      en:
+        - find a skill
+        - find me a skill
+        - find skills for
+        - is there a skill
+        - "re:\\b(?:install|add|get)\\s+(?:a|the|an)\\s+(?:\\S+\\s+){0,3}skill\\b"
+        - "re:\\b(?:update|upgrade|remove|uninstall)\\s+(?:my|the|an?)\\s+(?:\\S+\\s+){0,2}skills?\\b"
+        - search for a skill
+        - skill marketplace
+      tr:
+        - skill bul
+        - skill ara
+        - skill var mi
+        - bir skill var mi
+        - "re:\\bskill\\w*\\s+(?:kur|yukle|ekle|indir)"
+        - "re:\\b(?:kur|yukle|ekle|indir)\\w*\\s+(?:\\S+\\s+){0,2}skill"
+        - skilleri guncelle
+        - skill guncelle*
+        - skill kaldir*
+        - skill sil
+    not:
+      en: [create a skill, write a skill, new skill, turn this into a skill, buracle skill, the skill is, skill triggers, skills lint, new-skill, in the skill, skill file, skill id]
+      tr: [skill yaz, skill olustur, skille donustur, yeni skill, skill dosyasi]
+
+  inspect:
+    ask:
+      en:
+        - inspect how
+        - inspect why
+        - inspect where
+        - investigate how
+        - investigate why
+        - investigate where
+        - dig into how
+        - trace how
+        - "re:(?:^|[\\n.!?;:]\\s*|\\b(?:please|pls|can you|could you|would you)\\s+)investigate\\s+(?:this|that|it)\\b"
+      tr: [nasil calistigini incele*, nasil calistigini arastir*, neden boyle davrandigini incele*, neden boyle davrandigini arastir*, nereden cagrildigini incele*]
+    not:
+      en: [and fix, fix it, then fix]
+      tr: [duzelt]
+
+  dead-code:
+    ask:
+      en:
+        - dead code audit
+        - dead-code audit
+        - unused code report
+        - dead code report
+        - "re:(?:^|[\\n.!?;:]\\s*|\\b(?:please|pls|can you|could you|would you|and|then|just)\\s+)find\\s+(?:all\\s+|the\\s+)?(?:dead|unused)\\s+(?:code|exports|files)\\b"
+      tr: [olu kod analizi, olu kod raporu, olu kodlari bul, olu kod tara*, kullanilmayan kod* bul, kullanilmayan kod* tespit, kullanilmayan export* bul, temizlik raporu]
+
+  project-rules:
+    ask:
+      en: [set up agent guidance, set up agents.md, write agents.md, create agents.md, update agents.md, audit agents.md, refresh agents.md, slim down agents.md, set up the project rules, audit the agent instructions]
+      tr: [agents.md hazirla*, agents.md olustur*, agents.md guncelle*, agents.md yaz, proje kurallarini kur, talimatlari guncelle*, kurallari sadelestir*]
+    topic:
+      en: [agent instructions, agent guidance, path rules, path-scoped rules, "re:\\b(?:agents|claude)\\.md\\b.{0,40}\\b(?:stale|outdated|bloated|too long|wrong|out of date)"]
+      tr: [proje talimatlari, ajan talimatlari, proje kurallari, "re:\\b(?:agents|claude)\\.md\\b.{0,40}\\b(?:eskimis|guncel degil|cok uzun|yanlis)"]
+
+  new-skill:
+    ask:
+      en: [turn this into a skill, turn it into a skill, into a reusable skill, make it a skill, save it as a skill, new skill for, "re:\\b(?:create|write|add|make) (?:a |an |the )?(?:new )?(?:[a-z-]+ ){0,2}skill\\b"]
+      tr: [skill yap, bunu skill yap, yeni skill olustur*, yeni bir skill olustur*, yeni skill yaz*, skill olustur*, skill olarak kaydet*, "skill'e donustur*", "skill'i guncelle*", tekrar kullanilabilir bir skill]
+    topic:
+      en: [reusable skill, skill trigger*, skill description, "re:\\bskill\\S*\\b.{0,60}\\b(?:never triggers|does not trigger|doesn't trigger|misfires|triggers too often)"]
+      tr: ["re:\\bskill\\S*\\b.{0,60}\\btetiklen(?:miyor|mez)", "re:\\bskill\\S*\\b.{0,60}\\bdevreye girmiyor"]
+
+  ab-test:
+    ask:
+      en: [benchmark the skill, benchmark this skill, benchmark the rule, benchmark the routing, a/b test the skill, a/b test the rule, ab-test the skill]
+      tr: ["skill'i* benchmark*", "skill'i* olc*", kurali benchmark*]
+    topic:
+      en:
+        - activation rate
+        - trigger rate
+        - really makes the agent
+        - "re:\\bbefore(?:/|\\s+and\\s+)after\\b.{0,60}\\b(?:skill|rule|routing|prompt|agents\\.md|claude\\.md|hook|mcp|description)"
+        - "re:\\b(?:skill|rule|routing|prompt|agents\\.md|claude\\.md|hook|description)\\S*\\b.{0,60}\\bbefore(?:/|\\s+and\\s+)after\\b"
+        - "re:\\b(?:agents?|models?|claude|codex|opencode|omp)\\b.{0,30}\\breally\\s+(?:calls?|uses?|loads?|triggers?|reads?)\\b"
+        - "re:\\bbenchmark\\w*\\b.{0,80}\\b(?:skill|rule|routing|agents\\.md|claude\\.md|hook|prompt|mcp)"
+        - "re:\\b(?:skill|rule|routing)\\S*\\b.{0,80}\\bbenchmark"
+      tr:
+        - "re:\\b(?:skill|kural|routing|prompt|agents\\.md|claude\\.md|hook|aciklama)\\S*\\b.{0,80}\\b(?:once/?\\s?sonra karsilastir|tetikleniyor mu|gercekten cagriliyor mu)"
+        - "re:\\b(?:once/?\\s?sonra karsilastir\\w*|tetikleniyor mu|gercekten cagriliyor mu)\\b.{0,80}\\b(?:skill|kural|routing|prompt|agents\\.md|claude\\.md|hook)"
+        - "re:\\bskill\\S*\\b.{0,80}\\b(?:eskisiyle|oncekiyle|onceki surumuyle)"
+    not:
+      en: [operations per second, ops/sec, ops per second, throughput, latency]
+
+  memory:
+    ask:
+      en: [use the memory protocol]
+      tr: [hafiza protokolu*]
+    topic:
+      en: [memory note*, vault note*, the memory vault, the memory brain]
+      tr: [hafiza not*, hafiza kayd*, kasa not*, kasadaki not*]
+
+  buracle:
+    ask:
+      en: [use the buracle cli]
+      tr: [buracle cli ile]
+    topic:
+      en:
+        - "re:\\bplan status\\b(?!\\s+(?:endpoint|field|column|code|enum|value|page|api|route|handler|query|badge|label|filter|check|type)s?\\b)"
+        - how many tasks are left
+        - tasks left in the plan
+        - diff range
+        - "re:(?<!\\b(?:add|added|adding|new)\\s(?:a\\s|an\\s|the\\s)?)\\breview scope\\b(?!\\s+(?:option|flag|field|param\\w*|column|setting|config\\w*|endpoint|api|type|enum|value)s?\\b)"
+        - what should i review
+        - "re:\\b(?:my|our|claude(?:\\s+code)?|codex|opencode|omp|subscription)(?:'s)?\\s+(?:usage|rate|weekly|5h|5-hour)\\s+limits?\\b"
+        - rate limit headroom
+        - 5h window
+        - 5-hour window
+        - create a worktree
+        - merge the worktree
+        - buracle doctor
+      tr:
+        - planin durumu
+        - "re:\\bplan durumu\\b(?!\\s+(?:alan|endpoint|kolon|sutun|enum|deger|sayfa|api|kod)\\w*)"
+        - kac gorev kaldi
+        - kullanim limitim*
+        - kullanim limitlerim*
+        - "re:\\bkullanim limit\\w*\\s+ne durumda"
+        - 5 saatlik pencere*
+        - 5 saatlik limit*
+        - haftalik limitim*
+        - haftalik limitlerim*
+        - "re:\\b(?:claude|codex|opencode|omp)\\S*\\s+(?:kullanim\\s+|haftalik\\s+)?limit\\w*"
+        - worktree olustur*
+        - worktree ac
+        - "worktree'yi birlestir*"
+        - buracle doctor
+
+categories:
+  library-docs:
+    topic:
+      en:
+        - official docs
+        - official documentation
+        - library docs
+        - framework docs
+        - according to the docs
+        - per the docs
+        - from the docs
+        - verify in the docs
+        - api reference
+        - api docs
+        - migration guide
+        - upgrade guide
+        - "re:\\bcheck the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)"
+        - "re:\\b(?:look|looked|looking|search|searched|searching)\\b(?:\\s+(?:it|this|that|them)\\s+up)?\\s+in the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)"
+        - "re:\\b(?:says?|said|mentioned|documented|described)\\s+in the docs\\b"
+        - "re:\\b(?!(?:the|our|my|your|their|this|that|an?|its|new|own|same|internal|custom|official|public|private|client|server|web|mobile)\\b)[a-z][a-z0-9.-]{2,}\\s+sdk\\b"
+      tr:
+        - belgelerden
+        - belgelere gore
+        - resmi belge*
+        - dokumantasyondan
+        - dokumantasyona gore
+        - api referans*
+        - goc rehberi
+        - "re:\\b(?:belgelerde|dokumantasyonda)\\b(?!.{0,40}\\b(?:ekle|guncelle|duzelt|kaldir|sil)\\w*)"
+    not:
+      en: [docs folder, docs directory]
+      tr: [docs klasor*]
+    deps:
+      en: [api, apis, config, configure, configuration, option*, migrat*, upgrade*, version*, deprecat*, breaking change*, hook*, middleware, plugin*, setup, set up, install*, usage, how to use, how to, how do, how does, how can, why does, why do, why is, what does, what options, which options, by default, syntax, integrat*, method*, signature, type*, "re:\\bv\\d+(?:\\.\\d+)*\\b", "re:\\b\\d+\\.\\d+(?:\\.\\d+)?\\b"]
+      tr: [nasil, yapilandir*, ayar*, surum*, guncelle*, kurulum*, entegre*, goc*, tip*]
+
+  code-structure:
+    topic:
+      en:
+        - who calls
+        - what calls
+        - callers of
+        - call sites
+        - call graph
+        - find usages
+        - all usages
+        - references to
+        - impact of chang*
+        - blast radius
+        - what breaks if
+        - what depends on
+        - "re:\\bwhere (?:is|are) \\S+ (?:called|used|invoked|referenced)"
+      tr: [nereden cagriliyor, nerelerde cagriliyor, kim cagiriyor, cagiranlar*, cagri grafi*, nerelerde kullaniliyor, etki analizi, neyi bozar, neler etkilenir]
+
+  language-server:
+    topic:
+      en:
+        - type error*
+        - typecheck error*
+        - type-check error*
+        - compile error*
+        - compiler error*
+        - compilation error*
+        - lsp diagnostics
+        - language server
+        - go to definition
+        - jump to definition
+        - "re:\\bwhat(?:'s| is) the type of\\b"
+      tr: [tip hata*, derleme hata*, tanima git, tanimina git]
+
+  code-search:
+    topic:
+      en:
+        - which file
+        - find the code that
+        - find where
+        - locate the code
+        - "re:\\bwhere (?:is|are|do we|does) (?:the |our |we )?\\S+ (?:defined|implemented|handled|configured|loaded|set|parsed|created)"
+        - "re:\\bhow (?:does|do) .{1,60}\\bwork\\b"
+      tr: [nerede tanimli, nerede yapiliyor, nerede uygulan*, hangi dosyada, nasil calisiyor, kodu bul]
+    not:
+      en: [where were we, where did we leave]
+      tr: [nerede kalmistik, nerede kaldik]
+
+  web-search:
+    topic:
+      en:
+        - latest version
+        - latest release
+        - latest stable
+        - release notes
+        - "what's new in"
+        - whats new in
+        - still maintained
+        - search the web
+        - look it up online
+        - "re:\\b(?:read|check|see|look at|according to|per)\\s+(?:the\\s+|its\\s+|their\\s+)?(?:upstream\\s+|official\\s+)?changelog\\b"
+        - "re:\\bchangelog\\s+(?:of|for)\\b"
+        - "re:\\b(?:is|was)\\s+(?:this|it|that|there)\\s+a\\s+known\\s+(?:issue|bug)\\b"
+        - "re:\\b(?:any|are there)\\s+known\\s+(?:issues?|bugs?)\\b"
+        - "re:\\bknown\\s+(?:issues?|bugs?)\\s+(?:with|in|of)\\s+(?!(?:our|my|this|the)\\b)"
+      tr: [son surum*, guncel surum*, en son surum*, surum notlari, degisiklik gunlugu, hala bakimi yapiliyor, webde ara*, internette ara*]
+    not:
+      en: [draft* release notes, write* release notes, generate* release notes, release notes from, our release notes, our changelog, update the changelog, changelog entry]
+      tr: [surum notlari yaz*, surum notlarini yaz*, surum notlari hazirla*, degisiklik gunlugunu guncelle*]
+
+  code-examples:
+    topic:
+      en: [examples on github, github examples, real-world usage, real world usage, real-world examples, how do other projects, how others use, open-source examples, open source examples]
+      tr: ["github'da*", gercek projelerde, acik kaynak projelerde, ornek kullanim*, baska projeler nasil]
+
+  browser:
+    topic:
+      en:
+        - open the page
+        - take a screenshot
+        - screenshot of
+        - console errors
+        - browser console
+        - network tab
+        - lighthouse
+        - devtools
+        - "re:\\b(?:open|test|check|verify|look|see|load|reproduce|try|view|inspect|debug|click|watch|preview)\\w*\\b.{0,40}\\bin the browser\\b"
+      tr:
+        - ekran goruntusu
+        - konsol hata*
+        - sayfayi ac*
+        - "re:\\btarayicida\\b.{0,30}\\b(?:ac|test et|kontrol et|dene|bak|gor|incele)\\w*"
+
+  memory:
+    topic:
+      en: [memory note*, vault note*, the memory vault, the memory brain]
+      tr: [hafiza not*, hafiza kayd*, kasa not*]
+
+  context-saving:
+    topic:
+      en:
+        - test output
+        - build output
+        - build log*
+        - log file*
+        - server log*
+        - application log*
+        - crash log*
+        - "re:\\b(?:analy[sz]e|summari[sz]e|scan|triage|(?:go|dig|look|read|sift|comb)\\s+through)\\s+(?:the\\s+|these\\s+|this\\s+|those\\s+|our\\s+|my\\s+)?(?:[a-z0-9-]+\\s+)?(?:logs?|output|stack\\s?traces?|dumps?|test\\s+results)\\b"
+        - "re:\\b(?:large|big|huge|long|massive)\\s+(?:csv|json|jsonl|xml|log|data)\\s+(?:file|dump)s?\\b"
+        - "re:\\b(?:csv|json|jsonl|xml|sql|heap|thread)\\s+dumps?\\b"
+        - "re:\\bgit\\s+log\\b"
+      tr:
+        - test cikti*
+        - build cikti*
+        - derleme cikti*
+        - log dosya*
+        - buyuk csv*
+        - buyuk json*
+        - "re:\\b(?:ciktiyi|ciktisini|ciktilari|ciktilarini|loglari|loglarini)\\s+(?:analiz\\s+et|ozetle|incele|tara|ayikla|gozden\\s+gecir)[a-z']*"
+    not:
+      en: [output folder, output dir*, output directory, output path]
+      tr: [cikti klasor*, cikti dizin*]

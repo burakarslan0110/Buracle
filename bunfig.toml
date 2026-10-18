@@ -1,0 +1,4 @@
+[test]
+root = "tests"
+preload = ["./tests/helpers/preload.ts"]
+pathIgnorePatterns = ["**/fixtures/**"]

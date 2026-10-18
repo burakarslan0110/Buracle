@@ -1,0 +1,121 @@
+servers:
+  context7:
+    description: Up-to-date library and framework documentation
+    transport: stdio
+    package: { registry: npm, name: "@upstash/context7-mcp", version: latest, bin: context7-mcp }
+    harnesses: [claude, codex, opencode, omp]
+    pin: latest
+    critical: true
+    routing: [library-docs]
+
+  codegraph:
+    description: Code structure graph (symbols, callers, impact) for the current repository
+    transport: stdio
+    package: { registry: npm, name: "@colbymchenry/codegraph", version: latest, bin: codegraph }
+    args: ["serve", "--mcp"]
+    env:
+      CODEGRAPH_TELEMETRY: "0"
+      CODEGRAPH_NO_UPDATE_CHECK: "1"
+      CODEGRAPH_MCP_TOOLS: "explore,search,node,callers,callees,impact,status,files"
+    harnesses: [claude, codex, opencode, omp]
+    pin: latest
+    critical: true
+    routing: [code-structure]
+
+  context-mode:
+    description: Sandboxed execution and indexed search that keep large output out of context
+    transport: stdio
+    package: { registry: npm, name: context-mode, version: latest, bin: context-mode, runtime: bun, scripts: false }
+    harness_env:
+      claude: { CONTEXT_MODE_PLATFORM: claude-code }
+      codex: { CONTEXT_MODE_PLATFORM: codex }
+      opencode: { CONTEXT_MODE_PLATFORM: opencode }
+      omp: { CONTEXT_MODE_PLATFORM: omp }
+    tool_timeout_sec: 600
+    enabled_tools: [ctx_execute, ctx_execute_file, ctx_batch_execute, ctx_index, ctx_search, ctx_fetch_and_index, ctx_stats, ctx_purge]
+    disabled_tools: [ctx_upgrade, ctx_insight, ctx_doctor]
+    harnesses: [claude, codex, opencode, omp]
+    pin: latest
+    critical: true
+    routing: [context-saving]
+
+  web-search:
+    description: Web search without an API key (DuckDuckGo by default)
+    transport: stdio
+    package: { registry: npm, name: open-websearch, version: latest, bin: open-websearch }
+    env:
+      MODE: stdio
+      DEFAULT_SEARCH_ENGINE: duckduckgo
+    harnesses: [claude, codex, opencode, omp]
+    pin: latest
+    critical: true
+    routing: [web-search]
+
+  web-fetch:
+    description: Fetch and extract web pages with a headless browser
+    transport: stdio
+    package: { registry: npm, name: fetcher-mcp, version: latest, bin: fetcher-mcp }
+    tool_timeout_sec: 180
+    tool_timeout_hard: true
+    harnesses: [claude, codex, opencode, omp]
+    pin: latest
+    critical: true
+    routing: [web-fetch]
+
+  grep:
+    description: Search public GitHub code for real-world usage examples
+    transport: http
+    url: https://mcp.grep.app
+    harnesses: [claude, codex, opencode, omp]
+    pin: monitor
+    critical: false
+    routing: [code-examples]
+
+  semble:
+    description: Fast semantic code search over local or remote repositories
+    transport: stdio
+    package: { registry: pypi, name: semble, version: latest, bin: semble, extras: [mcp] }
+    env:
+      HF_HUB_DISABLE_TELEMETRY: "1"
+    harnesses: [claude, codex, opencode, omp]
+    pin: latest
+    critical: true
+    routing: [code-search]
+
+  chrome-devtools:
+    description: Drive and inspect a Chrome browser (DevTools protocol)
+    transport: stdio
+    package: { registry: npm, name: chrome-devtools-mcp, version: latest, bin: chrome-devtools-mcp }
+    args: ["--isolated", "--no-usage-statistics", "--no-performance-crux"]
+    harnesses: [claude, codex, opencode]
+    pin: latest
+    critical: false
+    routing: [browser]
+
+  buracle-memory:
+    description: Buracle memory, the CortexDB brains of the project and the person (search, get, write, update, status)
+    transport: stdio
+    command: "{buracle}"
+    args: ["mcp", "memory"]
+    harnesses: [claude, codex, opencode, omp]
+    pin: hard
+    critical: true
+    routing: [memory]
+
+  lsp:
+    description: Language-server diagnostics, hover, definitions, references and symbols
+    transport: stdio
+    command: "{buracle}"
+    args: ["lsp", "mcp"]
+    harness_env:
+      codex:
+        JAVA_HOME: "${ENV:JAVA_HOME}"
+        DOTNET_ROOT: "${ENV:DOTNET_ROOT}"
+        GOPATH: "${ENV:GOPATH}"
+        GOROOT: "${ENV:GOROOT}"
+        CARGO_HOME: "${ENV:CARGO_HOME}"
+        RUSTUP_HOME: "${ENV:RUSTUP_HOME}"
+    harnesses: [codex, opencode]
+    pin: hard
+    critical: true
+    routing: [language-server]

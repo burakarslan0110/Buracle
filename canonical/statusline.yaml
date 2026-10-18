@@ -1,0 +1,42 @@
+claude:
+  rows:
+    - [model, ctx, 5h, 7d, month, cost]
+    - [git, dir, mem, index, flow, plan, upd, hooks]
+  compact:
+    - [model, ctx, 5h, 7d, month, git, mem, index, flow, plan, hooks]
+  thresholds: { ctxWarn: 75, ctxCrit: 90 }
+  emoji: true
+
+codex:
+  rows:
+    - [ctx, 5h, 7d, month, git, mem, index, flow, plan, upd, hooks]
+  thresholds: { ctxWarn: 75, ctxCrit: 90 }
+  emoji: false
+  native:
+    status_line: [model-with-reasoning, context-used, five-hour-limit, weekly-limit, git-branch, branch-changes, task-progress, run-state]
+    terminal_title: [activity, project-name, git-branch, context-used, five-hour-limit, weekly-limit]
+
+opencode:
+  rows:
+    - [model, ctx, windows, month, git, mem, index, flow, plan, hooks]
+  compact:
+    - [ctx, windows, month, git, mem, index, flow, hooks]
+  thresholds: { ctxWarn: 75, ctxCrit: 90 }
+  emoji: false
+  native:
+    slot: prompt.footer.status
+
+omp:
+  rows:
+    - [month, mem, index, git, flow, plan, upd, hooks]
+  thresholds: { ctxWarn: 75, ctxCrit: 90 }
+  emoji: false
+  native:
+    preset: custom
+    leftSegments: [model, path, git, pr, subagents]
+    rightSegments: [usage, context_pct, cost, status]
+    showHookStatus: false
+    setStatus:
+      buracle.budget: [month]
+      buracle.hooks: [hooks]
+      buracle.mem: [mem]

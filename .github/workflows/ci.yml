@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # One runner per operating system: macOS on arm64, Linux and Windows on x64.
+        include:
+          - { name: macOS arm64, runner: macos-latest, platform: darwin-arm64 }
+          - { name: Linux x64, runner: ubuntu-latest, platform: linux-x64 }
+          - { name: Windows x64, runner: windows-latest, platform: win32-x64 }
+    runs-on: ${{ matrix.runner }}
+    # Every platform runs the same checks, and every job has to pass.
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          # The OpenCode and omp bundles in harness/ are built with this Bun; build --check needs the same one.
+          bun-version-file: .bun-version
+
+      - name: Bun runs natively on ${{ matrix.platform }}
+        run: |
+          got=$(bun -e 'process.stdout.write(process.platform + "-" + process.arch)')
+          echo "bun $(bun --version) on $got"
+          test "$got" = '${{ matrix.platform }}'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Type check
+        run: bunx tsc --noEmit -p .
+
+      - name: Generated harness/ matches the source
+        run: |
+          T=$(mktemp -d)
+          HOME="$T" BURACLE_HOME="$T/.buracle" bun src/cli/main.ts build --check
+
+      - name: Tests
+        run: bun test
+
+      - name: Install scripts parse
+        run: |
+          bash -n scripts/install.sh
+          pwsh -NoProfile -Command '$t = $null; $e = $null; [System.Management.Automation.Language.Parser]::ParseFile("scripts/install.ps1", [ref]$t, [ref]$e) | Out-Null; if ($e.Count) { $e | ForEach-Object { $_.ToString() }; exit 1 }'
+
+  # After every platform passed on a push to the default branch: when package.json names a version
+  # that has no release yet, move the release branch to this commit and publish v<version> with the
+  # install scripts attached. The scripts clone the release branch, and `buracle update` follows it.
+  release:
+    name: Release
+    needs: checks
+    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Publish the version in package.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(jq -r .version package.json)
+          tag="v$version"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "$tag is already released; nothing to publish"
+            exit 0
+          fi
+          git push origin "$GITHUB_SHA:refs/heads/release"
+          gh release create "$tag" scripts/install.sh scripts/install.ps1 \
+            --target "$GITHUB_SHA" --title "Buracle $version" --generate-notes

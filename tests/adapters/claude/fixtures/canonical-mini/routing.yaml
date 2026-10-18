@@ -1,0 +1,14 @@
+strictness: nudge
+categories:
+  - id: library-docs
+    intent: Library or framework documentation
+    prefer: [docs]
+    fallback: [examples]
+    deny_builtin: [WebSearch]
+    nudge: Use the docs server first.
+    note: an extra key the RoutingCategory type does not declare
+  - id: memory
+    intent: Past decisions
+    prefer: [buracle-memory]
+    fallback: []
+    deny_builtin: []

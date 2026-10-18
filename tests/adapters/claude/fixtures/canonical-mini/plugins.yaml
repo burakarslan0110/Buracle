@@ -1,0 +1,13 @@
+claude:
+  marketplaces:
+    - id: acme-market
+      source: acme/claude-market
+  plugins:
+    - id: lint-lsp@acme-market
+      enabled: true
+    - id: off-plugin@acme-market
+      enabled: false
+omp:
+  plugins: []
+opencode:
+  plugins: []

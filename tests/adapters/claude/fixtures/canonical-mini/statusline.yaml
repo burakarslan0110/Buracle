@@ -1,0 +1,10 @@
+claude:
+  rows:
+    - [model, ctx, 5h, 7d]
+    - [git, mem, plan]
+  thresholds: { ctxWarn: 70, ctxCrit: 90 }
+  emoji: false
+codex:
+  rows: [[model]]
+  thresholds: { ctxWarn: 70, ctxCrit: 90 }
+  emoji: false

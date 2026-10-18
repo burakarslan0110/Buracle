@@ -1,0 +1,41 @@
+{
+  "harness": "opencode",
+  "testedWith": "2.0.30",
+  "minVersion": "2.0.20",
+  "contentHash": "ad8f65bf66fff0b91282da07f8f0db2eed9a4d3ee17efe7bdc770e3730cea515",
+  "commands": {
+    "workflow": [
+      "ab-test",
+      "bugfix",
+      "dead-code",
+      "find-skill",
+      "goal-build",
+      "inspect",
+      "new-skill",
+      "plan-build",
+      "project-rules",
+      "requirements",
+      "research",
+      "security-audit"
+    ],
+    "utility": [
+      "aside",
+      "brain",
+      "buracle",
+      "buracle-ping",
+      "buracle-status",
+      "remember"
+    ]
+  },
+  "files": {
+    "AGENTS.block.md": "8aa9690a710496e1850e440693b0aefcbfaed53359fa1a9b4fb799c4ac4394a9",
+    "README.md": "a5fd8068afbe89eb1394897a09801a2af9949dc11e756039727baf84d93aedaf",
+    "agents/changes-review.md": "e6447b233b90fb697157037983eb0103339e1f69d6ad30d097ebfaabccbd7d6b",
+    "agents/goal-build-review.md": "f4a4d045fe6fb84a697c5dde9b6f404d7ebb88b66b12404b60d6e729bc75c1c9",
+    "agents/plan-build-review.md": "bd2895f7d8e1b1ca3f2ee4d3024a2cd660e32616ad3425e912df431e8d105612",
+    "config/cli.fragment.jsonc": "7abce0d2fbf834485923e1b7361d33717d5df4ef7638a001f7b0310f3b565629",
+    "config/opencode.fragment.jsonc": "934e15119690b553f5dd251136f15bd52ab74f275249e278954c84c5acc378d6",
+    "plugins/buracle/index.js": "539d8c29817cbf5b22b12ab9267e3094d6782dd15e713ab38117dcd7b579696d",
+    "plugins/buracle/tui.js": "0518ef67fd5115dbd1ba122aca6dc84063c4b0c43effa2242f795f12481576d7"
+  }
+}

@@ -1,0 +1,7 @@
+version: 1
+routing:
+  strictness: nudge
+checkers:
+  enabled: true
+  timeoutMs: 15000
+  languages: [python, go]

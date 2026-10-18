@@ -1,0 +1,78 @@
+strictness: enforce
+categories:
+  - id: library-docs
+    intent: Library, framework, SDK or CLI documentation at the installed version (APIs, options, config, migrations)
+    prefer: [mcp:context7/resolve-library-id, mcp:context7/query-docs]
+    fallback: [mcp:web-fetch/fetch_url]
+    deny_builtin: []
+    nudge: For library or framework APIs, resolve the library with context7 and query its docs at the version in the lockfile.
+    reminder: resolve the library with context7 (resolve-library-id), then query-docs at the version in the lockfile
+
+  - id: web-search
+    intent: Web search for errors, releases, changelogs and comparisons
+    prefer: [mcp:web-search/search]
+    fallback: [mcp:web-fetch/fetch_url, builtin:web_search]
+    deny_builtin: [web_search]
+    nudge: Search the web with the web-search MCP server; while it is down, fetch a search results page (https://html.duckduckgo.com/html/?q=<query>) with web-fetch, and use the built-in web search only when both are down.
+    reminder: search with the web-search MCP server (search), then read the sources with web-fetch (fetch_url)
+
+  - id: web-fetch
+    intent: Read a known URL, including JavaScript-rendered pages
+    prefer: [mcp:web-fetch/fetch_url]
+    fallback: [mcp:context-mode/ctx_fetch_and_index, builtin:web_fetch]
+    deny_builtin: [web_fetch]
+    nudge: Fetch pages with the web-fetch MCP server; while it is down, use context-mode's ctx_fetch_and_index, and the built-in fetch only when both are down.
+    reminder: read the page with the web-fetch MCP server (fetch_url)
+
+  - id: code-examples
+    intent: How public code uses an API (GitHub examples)
+    prefer: [mcp:grep/searchGitHub]
+    fallback: [mcp:web-search/search]
+    deny_builtin: []
+    reminder: look up real usage in public code with the grep MCP server (searchGitHub)
+
+  - id: code-search
+    intent: Find code by intent or concept, or code similar to a snippet
+    prefer: [mcp:semble/search, mcp:semble/find_related]
+    fallback: [cli:rg]
+    deny_builtin: []
+    nudge: Search code with semble (intent) or rg (exact text), never grep -r or find | xargs grep.
+    reminder: find code by intent with semble search (repo = the project root); rg stays right for exact text
+
+  - id: code-structure
+    intent: Definitions, callers and callees, and the impact of changing a symbol
+    prefer: [mcp:codegraph/codegraph_explore]
+    fallback: [cli:rg]
+    deny_builtin: []
+    nudge: Before changing a shared function, type or endpoint, get its callers from codegraph.
+    reminder: ask codegraph (callers, callees, impact; projectPath = the project root) before you change a shared symbol
+
+  - id: language-server
+    intent: Diagnostics of an edited file, a symbol's type and docs, its definition and references from the language server (Codex and OpenCode; Claude Code and omp use their own LSP tools)
+    prefer: [mcp:lsp/diagnostics, mcp:lsp/hover, mcp:lsp/definition, mcp:lsp/references]
+    fallback: [mcp:codegraph/codegraph_explore, cli:rg]
+    deny_builtin: []
+    reminder: check an edited Python, TypeScript, Go, Rust, C# or Java file with the lsp server's diagnostics, and ask its hover or definition for a symbol's type
+
+  - id: browser
+    intent: Drive and inspect a real browser (DOM, console, network, performance)
+    prefer: [mcp:chrome-devtools]
+    fallback: []
+    deny_builtin: []
+    reminder: drive and inspect the real browser with chrome-devtools (navigate_page, take_snapshot, list_console_messages)
+
+  - id: memory
+    intent: Past decisions, gotchas, earlier sessions and preferences
+    prefer: [mcp:buracle-memory/memory_search, mcp:buracle-memory/memory_get]
+    fallback: [cli:buracle]
+    deny_builtin: []
+    nudge: History questions start with memory_search on the buracle-memory server.
+    reminder: search memory with memory_search, then memory_get the relevant memories, and cite their ids
+
+  - id: context-saving
+    intent: Output you will process rather than read whole (logs, test and build output, data, large files, long pages)
+    prefer: [mcp:context-mode/ctx_batch_execute, mcp:context-mode/ctx_execute]
+    fallback: []
+    deny_builtin: []
+    nudge: Run commands whose output you only need to summarize, count or search in the context-mode sandbox and print only the result.
+    reminder: process large output in the context-mode sandbox (ctx_batch_execute, ctx_execute, ctx_execute_file) and print only what you need
