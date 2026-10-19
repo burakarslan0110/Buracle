@@ -464,7 +464,7 @@
     },
     "harness/claude/.claude-plugin/plugin.json": {
       "by": "claude",
-      "sha256": "3c62509f3c29c6da1b9fdff048018c2ca0d906a6c471b5426389c7a66d639872",
+      "sha256": "d3e9ca60a6489c3ac8dca977b65e607ff49a2404671ac3fbc038e03794474a76",
       "exec": false
     },
     "harness/claude/.lsp.json": {
@@ -1024,7 +1024,7 @@
     },
     "harness/claude/hooks/generated/meta.ts": {
       "by": "claude",
-      "sha256": "1ec7822b8bd14e4084bd2a974f8a76829568bcf62334e5a83d8e32ad621f3969",
+      "sha256": "905cb99b8cb65d3b264b5d87ed2d59da46c80c184a686b51b987e5d72b91da45",
       "exec": false
     },
     "harness/claude/hooks/hooks.json": {
@@ -1669,12 +1669,12 @@
     },
     "harness/omp/extensions/buracle.js": {
       "by": "omp",
-      "sha256": "764ed919b20f336399a74082768beefa4921294a922bbebdee5ee569d063d615",
+      "sha256": "e4d2ec307427033682a5f86385fb4986f7c5e08c8d23ac8e8c13600a258944b2",
       "exec": false
     },
     "harness/omp/package.json": {
       "by": "omp",
-      "sha256": "53e615b29905e45c630667d9e79c15f1dd063544517420923006692e46ff0d19",
+      "sha256": "060146d2b40ca6d807f432fe365a2846f454f1e42f0cff1b8f1bf87e557b292a",
       "exec": false
     },
     "harness/omp/rules/buracle-backend.md": {
@@ -1779,17 +1779,17 @@
     },
     "harness/opencode/manifest.json": {
       "by": "opencode",
-      "sha256": "0d2c66ae2337e4ff66ec1a7bc6b5a99bd38e5ee8a2e99df80c4424b5c43a8471",
+      "sha256": "c56d0bc7e00b90c2856bd311b3fe6112c2ab5b67a318c405410b0ba40e857b42",
       "exec": false
     },
     "harness/opencode/plugins/buracle/index.js": {
       "by": "opencode",
-      "sha256": "e081958b92e13abffe35f395c71e89400f5249638fb064ea47e2bf509fd03a5e",
+      "sha256": "b9cfbb0380e32afc8f9d2705d162f6ae21a56fbd2fdc8f8d9f6a8f7c9eeeeb5b",
       "exec": false
     },
     "harness/opencode/plugins/buracle/tui.js": {
       "by": "opencode",
-      "sha256": "40df2409efc61443f109d14109013bf68037f0a0b663e9cbd68366459806d210",
+      "sha256": "9a4c9652a5f8079bf2972e36f4f3d3b5924bd529223d937c6854547d2acb9fb3",
       "exec": false
     }
   }

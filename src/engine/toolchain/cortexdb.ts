@@ -1,6 +1,6 @@
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { sha256 } from '../fsx'
+import { renameRetrySync, sha256 } from '../fsx'
 import * as paths from '../paths'
 import { exeName, osName } from '../platform'
 
@@ -98,7 +98,7 @@ export async function installCortexdb(opts: { fetch?: FetchFn, timeoutMs?: numbe
     mkdirSync(dir, { recursive: true })
     writeFileSync(staging, bytes, { mode: 0o755 })
     if (osName() !== 'win32') chmodSync(staging, 0o755)
-    renameSync(staging, target)
+    renameRetrySync(staging, target)
   } catch (e) {
     try { rmSync(staging, { force: true }) } catch {  }
     return { ok: false, error: `cannot write ${target}: ${(e as Error).message}` }

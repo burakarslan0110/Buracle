@@ -104,6 +104,17 @@ jobs:
           BURACLE_CHECKOUT: ${{ runner.temp }}\buracle
         run: ./scripts/install.ps1
 
+      # A user without administrator rights or Developer Mode cannot make a symbolic link, so every directory
+      # link Buracle makes on Windows must be a junction.
+      - name: Directory links are junctions
+        shell: pwsh
+        run: |
+          $links = @(Get-ChildItem -Force -LiteralPath (Join-Path $HOME '.agents\skills') | Where-Object { $_.LinkType })
+          if ($links.Count -eq 0) { throw 'no links in ~/.agents/skills' }
+          $bad = @($links | Where-Object { $_.LinkType -ne 'Junction' })
+          if ($bad.Count -gt 0) { $bad | ForEach-Object { "$($_.Name): $($_.LinkType)" }; throw 'directory links that are not junctions' }
+          "$($links.Count) junctions in ~/.agents/skills"
+
       - name: Oh My Pi, installed after Bun
         shell: pwsh
         run: |

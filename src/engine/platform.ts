@@ -87,6 +87,7 @@ export function extraBinDirs(): string[] {
       join(home, 'scoop', 'shims'),
       join(programs, 'nodejs'),
       join(programs, 'Git', 'cmd'),
+      join(local, 'Programs', 'Git', 'cmd'),
       join(programs, 'GitHub CLI'),
       join(programs, 'Go', 'bin'),
       join(local, 'Programs', 'uv'),

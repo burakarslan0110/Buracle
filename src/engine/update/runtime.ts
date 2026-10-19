@@ -1,7 +1,7 @@
-import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import { isFailClosedReason } from '../hook-fail'
-import { sha256 } from '../fsx'
+import { renameRetrySync, sha256 } from '../fsx'
 import * as paths from '../paths'
 import { readShim, type ShimInfo } from '../shim'
 import { run } from '../proc'
@@ -229,7 +229,7 @@ export async function stageRuntime(plan: RuntimePlan, opts: { bun: string, versi
     marker.verifiedAt = opts.nowIso
     writeFileSync(join(staging, paths.RUNTIME_MARKER), JSON.stringify(marker, null, 2) + '\n')
     if (existsSync(plan.dir)) rmSync(plan.dir, { recursive: true, force: true })
-    renameSync(staging, plan.dir)
+    renameRetrySync(staging, plan.dir)
     return { plan, marker, reused: false }
   } finally {
     rmSync(staging, { recursive: true, force: true })

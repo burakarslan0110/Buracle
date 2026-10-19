@@ -57,7 +57,7 @@ Windows (PowerShell):
 irm https://github.com/burakarslan0110/buracle/releases/latest/download/install.ps1 | iex
 ```
 
-İki betik de GitHub'daki en son release'den gelir. Betik Buracle'ın `main` dalını `~/buracle` klasörüne klonlar, bağımlılıklarını kurar, ardından `buracle install` ve `buracle doctor` komutlarını çalıştırır. `main` dalı yayımlanan dosyaları tutar. CI bu dala yalnızca bir release yayımlarken ve test paketi olmadan yazar. `buracle update` de bu dalı izler. Betiği yeniden çalıştırırsan depo güncellenir ve kurulum onarılır. İki betik de çalıştırmadan önce okunacak kadar kısa ([`install.sh`](scripts/install.sh), [`install.ps1`](scripts/install.ps1)).
+İki betik de GitHub'daki en son release'den gelir. Windows'ta her şey senin kullanıcına, yönetici izni olmadan kurulur. Araçlar `winget --scope user` (ya da scoop) ile gelir, dizin bağlantıları junction olur. Tek istisna Visual C++ çalışma zamanıdır. Bunu codegraph ve ast-grep ister ve çoğu Windows makinesinde zaten vardır. Eksikse betik onu yalnızca yönetici olarak açılmış bir terminalde kurar, aksi hâlde kurulum komutunu yazar. Betik Buracle'ın `main` dalını `~/buracle` klasörüne klonlar, bağımlılıklarını kurar, ardından `buracle install` ve `buracle doctor` komutlarını çalıştırır. `main` dalı yayımlanan dosyaları tutar. CI bu dala yalnızca bir release yayımlarken ve test paketi olmadan yazar. `buracle update` de bu dalı izler. Betiği yeniden çalıştırırsan depo güncellenir ve kurulum onarılır. İki betik de çalıştırmadan önce okunacak kadar kısa ([`install.sh`](scripts/install.sh), [`install.ps1`](scripts/install.ps1)).
 
 Kurulumdan sonra:
 

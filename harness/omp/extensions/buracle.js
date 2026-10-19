@@ -7053,7 +7053,7 @@ function extraBinDirs() {
   if (osName() === "win32") {
     const local = process.env["LOCALAPPDATA"] ?? join(home, "AppData", "Local");
     const programs = process.env["ProgramFiles"] ?? "C:\\Program Files";
-    dirs.push(join(local, "Microsoft", "WinGet", "Links"), join(home, "scoop", "shims"), join(programs, "nodejs"), join(programs, "Git", "cmd"), join(programs, "GitHub CLI"), join(programs, "Go", "bin"), join(local, "Programs", "uv"));
+    dirs.push(join(local, "Microsoft", "WinGet", "Links"), join(home, "scoop", "shims"), join(programs, "nodejs"), join(programs, "Git", "cmd"), join(local, "Programs", "Git", "cmd"), join(programs, "GitHub CLI"), join(programs, "Go", "bin"), join(local, "Programs", "uv"));
   }
   return dirs;
 }
@@ -7285,7 +7285,7 @@ var init_paths = __esm(() => {
 
 // src/engine/fsx.ts
 import { createHash, randomBytes } from "crypto";
-import { closeSync, constants, fsyncSync, lstatSync, mkdirSync as mkdirSync2, openSync, readFileSync as readFileSync2, readlinkSync, realpathSync, renameSync as renameSync2, statSync as statSync3, unlinkSync, writeSync, chmodSync } from "fs";
+import { closeSync, constants, fsyncSync, lstatSync, mkdirSync as mkdirSync2, openSync, readFileSync as readFileSync2, readlinkSync, realpathSync, renameSync as renameSync2, statSync as statSync3, symlinkSync, unlinkSync, writeSync, chmodSync } from "fs";
 import { basename as basename2, dirname as dirname2, isAbsolute as isAbsolute3, join as join3, resolve as resolve2 } from "path";
 function realPath(p) {
   return realpathSync.native(p);
@@ -7299,6 +7299,9 @@ function comparablePath(p, base) {
   } catch {
     return abs;
   }
+}
+function readLinkSync(link) {
+  return readlinkSync(link).replace(/^\\(?:\\\?|\?\?)\\/, "");
 }
 function sha256(data) {
   return createHash("sha256").update(data).digest("hex");
@@ -7614,7 +7617,7 @@ var init_shim = __esm(() => {
 var init_hook_fail = () => {};
 
 // src/engine/update/runtime.ts
-import { chmodSync as chmodSync2, cpSync, existsSync as existsSync14, mkdirSync as mkdirSync13, readFileSync as readFileSync22, readdirSync as readdirSync12, renameSync as renameSync3, rmSync as rmSync4, statSync as statSync23, writeFileSync as writeFileSync3 } from "fs";
+import { chmodSync as chmodSync2, cpSync, existsSync as existsSync14, mkdirSync as mkdirSync13, readFileSync as readFileSync22, readdirSync as readdirSync12, rmSync as rmSync4, statSync as statSync23, writeFileSync as writeFileSync3 } from "fs";
 import { basename as basename11, dirname as dirname16, join as join34, relative as relative5, resolve as resolve18, sep as sep6 } from "path";
 function runtimeFiles(checkout) {
   const out = [];
@@ -37099,7 +37102,7 @@ function nonProjectReason(dir) {
 }
 
 // src/workflow/project-assets.ts
-import { existsSync as existsSync9, lstatSync as lstatSync5, mkdirSync as mkdirSync9, readdirSync as readdirSync8, readFileSync as readFileSync16, readlinkSync as readlinkSync3, statSync as statSync15, symlinkSync, unlinkSync as unlinkSync8 } from "fs";
+import { existsSync as existsSync9, lstatSync as lstatSync5, mkdirSync as mkdirSync9, readdirSync as readdirSync8, readFileSync as readFileSync16, statSync as statSync15, unlinkSync as unlinkSync8 } from "fs";
 import { dirname as dirname14, isAbsolute as isAbsolute9, join as join23, relative as relative3, resolve as resolve11, sep as sep4 } from "path";
 init_fsx();
 var SKILL_DIR_RE = /^[a-z0-9][a-z0-9._-]*$/;
@@ -37180,7 +37183,7 @@ function agentSkills(layout) {
     if (kind === "link") {
       let target;
       try {
-        target = readlinkSync3(dir);
+        target = readLinkSync(dir);
       } catch {
         target = undefined;
       }
@@ -37224,7 +37227,7 @@ function claudeSkills(layout, withMeta = true) {
     if (kind === "link") {
       let target = "";
       try {
-        target = readlinkSync3(path);
+        target = readLinkSync(path);
       } catch {}
       const abs = isAbsolute9(target) ? target : resolve11(dirname14(path), target);
       const intoAgents = within5(agentsPlain, abs) || within5(layout.agentsSkills, abs);
@@ -39122,7 +39125,7 @@ function workflowOfExpanded(prompt) {
 
 // src/adapters/omp/runtime/generated-data.ts
 var GENERATED = {
-  buracleVersion: "0.5.0",
+  buracleVersion: "0.5.1",
   commands: [
     "ab-test",
     "bugfix",

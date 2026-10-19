@@ -48,7 +48,7 @@ function extraBinDirs() {
   if (osName() === "win32") {
     const local = process.env["LOCALAPPDATA"] ?? join(home, "AppData", "Local");
     const programs = process.env["ProgramFiles"] ?? "C:\\Program Files";
-    dirs.push(join(local, "Microsoft", "WinGet", "Links"), join(home, "scoop", "shims"), join(programs, "nodejs"), join(programs, "Git", "cmd"), join(programs, "GitHub CLI"), join(programs, "Go", "bin"), join(local, "Programs", "uv"));
+    dirs.push(join(local, "Microsoft", "WinGet", "Links"), join(home, "scoop", "shims"), join(programs, "nodejs"), join(programs, "Git", "cmd"), join(local, "Programs", "Git", "cmd"), join(programs, "GitHub CLI"), join(programs, "Go", "bin"), join(local, "Programs", "uv"));
   }
   return dirs;
 }
@@ -7353,7 +7353,7 @@ var init_paths = __esm(() => {
 
 // src/engine/fsx.ts
 import { createHash, randomBytes } from "crypto";
-import { closeSync, constants, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync as readFileSync2, readlinkSync, realpathSync, renameSync, statSync as statSync2, unlinkSync, writeSync, chmodSync } from "fs";
+import { closeSync, constants, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync as readFileSync2, readlinkSync, realpathSync, renameSync, statSync as statSync2, symlinkSync, unlinkSync, writeSync, chmodSync } from "fs";
 import { basename, dirname as dirname2, isAbsolute as isAbsolute3, join as join3, resolve as resolve2 } from "path";
 function realPath(p) {
   return realpathSync.native(p);
@@ -7551,7 +7551,7 @@ var init_shim = __esm(() => {
 var init_hook_fail = () => {};
 
 // src/engine/update/runtime.ts
-import { chmodSync as chmodSync2, cpSync, existsSync as existsSync6, mkdirSync as mkdirSync5, readFileSync as readFileSync10, readdirSync as readdirSync6, renameSync as renameSync3, rmSync as rmSync2, statSync as statSync13, writeFileSync } from "fs";
+import { chmodSync as chmodSync2, cpSync, existsSync as existsSync6, mkdirSync as mkdirSync5, readFileSync as readFileSync10, readdirSync as readdirSync6, rmSync as rmSync2, statSync as statSync13, writeFileSync } from "fs";
 import { basename as basename3, dirname as dirname6, join as join16, relative as relative3, resolve as resolve7, sep as sep3 } from "path";
 function runtimeFiles(checkout) {
   const out = [];

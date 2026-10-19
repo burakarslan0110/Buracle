@@ -1,11 +1,11 @@
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, statSync, symlinkSync, unlinkSync, type Dirent } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, type Dirent } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { parseFrontmatter } from '../core/frontmatter'
 import {
   DOT_CLAUDE_MD, importsAgentsMd, parseScopedRules, ruleGlobsOf, ruleParity, RULES_DIR,
   type ClaudeOnlySkill, type RuleFacts, type RuleParity, type ScopedRuleIndex,
 } from '../core/project-assets'
-import { realPath } from '../engine/fsx'
+import { linkDirSync, readLinkSync, realPath } from '../engine/fsx'
 
 export const SKILL_DIR_RE = /^[a-z0-9][a-z0-9._-]*$/
 const RULES_MAX_FILES = 500
@@ -121,7 +121,7 @@ export function agentSkills(layout: AssetLayout): AgentSkill[] {
     const kind = kindOf(dir)
     if (kind === 'link') {
       let target: string | undefined
-      try { target = readlinkSync(dir) } catch { target = undefined }
+      try { target = readLinkSync(dir) } catch { target = undefined }
       const claudeOwned = existsSync(join(layout.claudeSkills, id)) && kindOf(join(layout.claudeSkills, id)) === 'dir' && realOr(dir) === realOr(join(layout.claudeSkills, id))
       out.push({ id, dir, state: 'link', ...(target !== undefined ? { target } : {}), ...(claudeOwned ? { claudeOwned } : {}) })
       continue
@@ -152,7 +152,7 @@ export function claudeSkills(layout: AssetLayout, withMeta = true): ClaudeSkill[
     const kind = kindOf(path)
     if (kind === 'link') {
       let target = ''
-      try { target = readlinkSync(path) } catch {  }
+      try { target = readLinkSync(path) } catch {  }
       const abs = isAbsolute(target) ? target : resolve(dirname(path), target)
       const intoAgents = within(agentsPlain, abs) || within(layout.agentsSkills, abs)
       const dangling = !existsSync(abs)
@@ -221,12 +221,12 @@ export function applyLinkPlan(layout: AssetLayout, plan: LinkPlan): LinkReport {
   for (const c of plan.create) {
     mkdirSync(layout.claudeSkills, { recursive: true })
     try {
-      symlinkSync(c.target, c.link)
+      linkDirSync(c.target, c.link)
       report.created.push(c.id)
     } catch (e) {
       if ((e as { code?: string }).code !== 'EEXIST') throw e
       let cur = ''
-      try { cur = readlinkSync(c.link) } catch {  }
+      try { cur = readLinkSync(c.link) } catch {  }
       if (cur === c.target) report.unchanged.push(c.id)
       else report.conflicts.push({ id: c.id, path: c.link, reason: cur !== '' ? `a symlink to ${cur} already exists` : 'something else appeared there while linking' })
     }

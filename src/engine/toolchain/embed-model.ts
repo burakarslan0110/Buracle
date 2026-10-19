@@ -1,7 +1,7 @@
-import { chmodSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, openSync, readFileSync, readSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { decodeEmbedHeader, EMBED_DIM, EMBED_MODEL_ID, encodeEmbedFile, onnxQuantizedEmbedding, parseWordPieceTokenizer, truncateMatrix, type EmbedFileHeader } from '../../core/memory/embed'
-import { sha256 } from '../fsx'
+import { renameRetrySync, sha256 } from '../fsx'
 import * as paths from '../paths'
 
 export interface EmbedModelSource { path: string, sha256: string, bytes: number }
@@ -126,8 +126,8 @@ export async function installEmbedModel(opts: EmbedInstallOptions = {}): Promise
     writeFileSync(tokStaging, tok.bytes, { mode: 0o644 })
     writeFileSync(staging, encoded, { mode: 0o644 })
     chmodSync(staging, 0o644)
-    renameSync(tokStaging, tokTarget)
-    renameSync(staging, target)
+    renameRetrySync(tokStaging, tokTarget)
+    renameRetrySync(staging, target)
   } catch (e) {
     for (const f of [staging, tokStaging]) { try { rmSync(f, { force: true }) } catch {  } }
     return { ok: false, error: `cannot write ${target}: ${(e as Error).message}` }

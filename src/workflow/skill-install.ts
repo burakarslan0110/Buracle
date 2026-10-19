@@ -1,7 +1,7 @@
-import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, unlinkSync } from 'node:fs'
+import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, unlinkSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { parseFrontmatter } from '../engine/canonical'
-import { atomicWriteSync, readJsonSafeSync, sha256 } from '../engine/fsx'
+import { atomicWriteSync, linkDirSync, readJsonSafeSync, readLinkSync, sha256 } from '../engine/fsx'
 import * as paths from '../engine/paths'
 import { git, gitError } from './gitx'
 import { formatFinding, summarize, type LintFinding, type PlaceholderTargets } from './lint'
@@ -230,7 +230,7 @@ function linkState(link: string, target: string): 'absent' | 'ours' | 'foreign' 
   let st
   try { st = lstatSync(link) } catch { return 'absent' }
   if (!st.isSymbolicLink()) return 'foreign'
-  const cur = readlinkSync(link)
+  const cur = readLinkSync(link)
   const abs = isAbsolute(cur) ? cur : resolve(dirname(link), cur)
   return resolve(abs) === resolve(target) ? 'ours' : 'foreign'
 }
@@ -241,7 +241,7 @@ function destinationState(id: string, installed: InstalledSkill[]): 'free' | 'in
   try { st = lstatSync(dir) } catch { return 'free' }
   if (installed.some(s => s.id === id) && !st.isSymbolicLink()) return 'installed'
   if (st.isSymbolicLink()) {
-    const cur = readlinkSync(dir)
+    const cur = readLinkSync(dir)
     const abs = isAbsolute(cur) ? cur : resolve(dirname(dir), cur)
     if (abs.split(sep).includes('agents-skills')) return 'buracle'
   }
@@ -272,7 +272,7 @@ function ensureClaudeLink(id: string, warnings: string[]): boolean {
   if (state === 'foreign') { warnings.push(`${link} exists already (not Buracle's link); Claude Code keeps what is there`); return false }
   try {
     mkdirSync(dirname(link), { recursive: true })
-    symlinkSync(target, link)
+    linkDirSync(target, link)
     return true
   } catch (e) {
     warnings.push(`could not link ${link}: ${e instanceof Error ? e.message : String(e)}`)

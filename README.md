@@ -57,7 +57,7 @@ Windows (PowerShell):
 irm https://github.com/burakarslan0110/buracle/releases/latest/download/install.ps1 | iex
 ```
 
-Both scripts come from the latest GitHub release. The script clones Buracle's `main` branch into `~/buracle`, installs its dependencies, then runs `buracle install` and `buracle doctor`. `main` holds the released files: CI writes it, without the test suite, only when it publishes a release, and `buracle update` follows it. Running the script again updates the checkout and repairs the setup. Both scripts are short enough to read first: [`install.sh`](scripts/install.sh), [`install.ps1`](scripts/install.ps1).
+Both scripts come from the latest GitHub release. On Windows everything installs for your user, without administrator rights: tools through `winget --scope user` (or scoop), and directory links as junctions. The one exception is the Visual C++ runtime, which codegraph and ast-grep need and most Windows machines already have; when it is missing, the script installs it only from an administrator terminal and otherwise prints the command. The script clones Buracle's `main` branch into `~/buracle`, installs its dependencies, then runs `buracle install` and `buracle doctor`. `main` holds the released files: CI writes it, without the test suite, only when it publishes a release, and `buracle update` follows it. Running the script again updates the checkout and repairs the setup. Both scripts are short enough to read first: [`install.sh`](scripts/install.sh), [`install.ps1`](scripts/install.ps1).
 
 After the install:
 

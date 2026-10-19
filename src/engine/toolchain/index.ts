@@ -1,4 +1,4 @@
-import { closeSync, existsSync, mkdirSync, openSync, renameSync, rmSync, statSync, writeSync } from 'node:fs'
+import { closeSync, existsSync, mkdirSync, openSync, rmSync, statSync, writeSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { breakStaleLock, lockSnapshot, lockToken, releaseLockFile } from '../lockfile'
 import { fallbackNpmCache } from './launch'
@@ -6,6 +6,7 @@ import type { CanonicalBundle, McpServerSpec, ToolSpec } from '../../core/catalo
 import { isPackageServer, mcpPackageBin } from '../../core/catalog'
 import { compareVersions } from '../update/versions'
 import { errText } from '../update/output'
+import { renameRetrySync } from '../fsx'
 import * as paths from '../paths'
 import { configuredMinAgeDays, installPackage, installPypi, latestVersion, npmBins, npmInstalledVersion, npmPrefix, npmPreviousPrefix, pypiStillThere, toolRequest, type PackageRequest } from './packages'
 import { packageKey, readToolchainState, updateToolchainState, type InstalledPackage, type ToolchainState } from './state'
@@ -400,14 +401,14 @@ export async function rollbackPackages(packages: readonly InstalledPackage[], no
         if (restored === undefined) { res.error = `the previous copy (${want}) is no longer in ${prev}`; continue }
         const aside = `${live}.rollback`
         rmSync(aside, { recursive: true, force: true })
-        if (existsSync(live)) renameSync(live, aside)
+        if (existsSync(live)) renameRetrySync(live, aside)
         try {
-          renameSync(prev, live)
+          renameRetrySync(prev, live)
         } catch (e) {
-          if (existsSync(aside)) renameSync(aside, live)
+          if (existsSync(aside)) renameRetrySync(aside, live)
           throw e
         }
-        if (existsSync(aside)) renameSync(aside, prev)
+        if (existsSync(aside)) renameRetrySync(aside, prev)
         const all = npmBins(live, p.name)
         const bins: Record<string, string> = {}
         for (const b of Object.keys(p.bins)) if (all[b] !== undefined) bins[b] = all[b] as string

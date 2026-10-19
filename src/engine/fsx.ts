@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { closeSync, constants, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readlinkSync, realpathSync, renameSync, statSync, unlinkSync, writeSync, chmodSync } from 'node:fs'
+import { closeSync, constants, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readlinkSync, realpathSync, renameSync, statSync, symlinkSync, unlinkSync, writeSync, chmodSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { isWindows } from './platform'
 
@@ -19,6 +19,40 @@ export function comparablePath(p: string, base?: string): string {
   const abs = base !== undefined ? resolve(base, p) : resolve(p)
   if (!isWindows()) return abs
   try { return realPath(abs) } catch { return abs }
+}
+
+// Windows refuses to rename a folder while another process (an antivirus scan, the search indexer) still reads a
+// file in it, as it does right after npm wrote one; npm's own file layer retries for the same reason. Windows
+// retries for up to budgetMs; elsewhere the first error stands.
+export function renameRetrySync(from: string, to: string, opts: { budgetMs?: number, platform?: NodeJS.Platform, rename?: (a: string, b: string) => void } = {}): void {
+  const rename = opts.rename ?? renameSync
+  const start = Date.now()
+  for (let delay = 50; ; delay = Math.min(delay * 2, 1000)) {
+    try { rename(from, to); return } catch (e) {
+      const code = (e as { code?: string }).code
+      if ((opts.platform ?? process.platform) !== 'win32' || (code !== 'EPERM' && code !== 'EACCES' && code !== 'EBUSY') || Date.now() - start >= (opts.budgetMs ?? 30_000)) throw e
+      Bun.sleepSync(delay)
+    }
+  }
+}
+
+// Windows lets a user create a symbolic link only with administrator rights or Developer Mode, and a junction
+// always, so a link to a directory is a junction there: one with an absolute target at once, one with a relative
+// target (it stays relative in a repository) when the symbolic link is refused.
+export function linkDirSync(target: string, link: string): void {
+  const abs = resolve(dirname(link), target)
+  let dir = false
+  try { dir = statSync(abs).isDirectory() } catch {  }
+  if (process.platform !== 'win32' || !dir) { symlinkSync(target, link); return }
+  if (!isAbsolute(target)) {
+    try { symlinkSync(target, link); return } catch (e) { if ((e as { code?: string }).code !== 'EPERM') throw e }
+  }
+  symlinkSync(abs, link, 'junction')
+}
+
+// A link's target without the \\?\ prefix Windows gives the target of a junction.
+export function readLinkSync(link: string): string {
+  return readlinkSync(link).replace(/^\\(?:\\\?|\?\?)\\/, '')
 }
 
 export function sha256(data: string | Uint8Array): string {

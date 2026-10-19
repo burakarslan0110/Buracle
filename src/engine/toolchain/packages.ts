@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, isAbsolute, join, resolve } from 'node:path'
 import { defaultConfig } from '../../core/config'
 import { loadConfigSync } from '../config'
+import { renameRetrySync } from '../fsx'
 import { opsDeps } from '../update/deps'
 import { errText } from '../update/output'
 import { npmVersions, pypiVersions } from '../update/updates'
@@ -137,12 +138,12 @@ function prefixVersion(prefix: string, name: string): string | undefined {
 export function swapPrefix(live: string, next: string, prev: string): void {
   removeDir(prev)
   const hadLive = existsSync(live)
-  if (hadLive) renameSync(live, prev)
+  if (hadLive) renameRetrySync(live, prev)
   try {
-    renameSync(next, live)
+    renameRetrySync(next, live)
   } catch (e) {
     if (hadLive && !existsSync(live)) {
-      try { renameSync(prev, live) } catch {  }
+      try { renameRetrySync(prev, live) } catch {  }
     }
     throw e
   }

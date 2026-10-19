@@ -56,7 +56,7 @@ export function installAdvice(t: ToolSpec, os: OsName = osName(), have: (cmd: st
   const needs = missingRequirements(t, have)
   if (needs.length > 0) return `${t.name} needs ${needs.join(' and ')} on PATH; install ${needs.length === 1 ? 'it' : 'them'} first, then run \`buracle install\``
   if (t.rustup !== undefined && have('rustup')) return `rustup component add ${t.rustup}`
-  if (os === 'win32' && t.winget !== undefined) return `winget install --id ${t.winget} -e`
+  if (os === 'win32' && t.winget !== undefined) return `winget install --id ${t.winget} -e --scope user`
   if (os === 'win32' && t.scoop !== undefined) return `scoop install ${t.scoop}`
   if (os !== 'win32' && t.brew !== undefined) return `brew install ${t.brew}`
   if (t.npm !== undefined || t.pypi !== undefined) return 'buracle install (installs it into the Buracle toolchain)'
@@ -104,7 +104,8 @@ async function runInstaller(s: InstallSource, timeoutMs: number): Promise<{ ok: 
   switch (s.kind) {
     case 'rustup': argv = [findExecutable('rustup') ?? exeName('rustup'), 'component', 'add', s.ref]; break
     case 'brew': argv = [findExecutable('brew') ?? 'brew', 'install', s.ref]; break
-    case 'winget': argv = [findExecutable('winget') ?? 'winget', 'install', '--id', s.ref, '--exact', '--silent', '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity']; break
+    // --scope user: an install for this user only, which needs no administrator rights (no UAC prompt).
+    case 'winget': argv = [findExecutable('winget') ?? 'winget', 'install', '--id', s.ref, '--exact', '--scope', 'user', '--silent', '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity']; break
     case 'scoop': argv = [findExecutable('scoop') ?? 'scoop', 'install', s.ref]; break
     case 'go': {
       const gobin = join(paths.toolchainDir(), 'go', 'bin')

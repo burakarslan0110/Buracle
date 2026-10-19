@@ -1,8 +1,8 @@
-import { chmodSync, closeSync, copyFileSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, readlinkSync, rmdirSync, rmSync, statSync, symlinkSync, unlinkSync, writeSync } from 'node:fs'
+import { chmodSync, closeSync, copyFileSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, readlinkSync, rmdirSync, rmSync, statSync, unlinkSync, writeSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, resolve, win32 } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import type { Harness } from '../core/events'
-import { atomicWriteSync, readJsonSafeSync, realPath, sha256 } from './fsx'
+import { atomicWriteSync, linkDirSync, readJsonSafeSync, realPath, sha256 } from './fsx'
 import { unifiedDiff } from './diff'
 import { breakStaleLock, lockSnapshot, lockToken, lookUpProcess, releaseLockFile } from './lockfile'
 import {
@@ -1836,7 +1836,7 @@ function writeNode(path: string, before: Node, after: Node, tick: (w: string) =>
     if (before.type === 'file' || before.type === 'symlink') { tick(`unlink ${path}`); unlinkSync(path) }
     mkdirSync(dirname(path), { recursive: true })
     tick(`symlink ${path}`)
-    symlinkSync(nativeLinkTarget(after.target), path)
+    linkDirSync(nativeLinkTarget(after.target), path)
     if (after.content !== undefined) { tick(`write ${path}`); atomicWriteSync(path, after.content) }
   }
 }
@@ -1938,7 +1938,7 @@ function restoreFromJournal(txnDir: string, f: JournalFile): void {
   if (!(cur.type === 'symlink' && cur.target === linkTarget(b.target ?? ''))) {
     if (cur.type === 'file' || cur.type === 'symlink') unlinkSync(f.path)
     mkdirSync(dirname(f.path), { recursive: true })
-    symlinkSync(nativeLinkTarget(b.target as string), f.path)
+    linkDirSync(nativeLinkTarget(b.target as string), f.path)
   }
   if (b.backup !== undefined && !matchesSnap(readNode(f.path), b)) {
     atomicWriteSync(f.path, readFileSync(join(txnDir, b.backup)))
