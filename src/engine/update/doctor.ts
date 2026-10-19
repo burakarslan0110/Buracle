@@ -303,7 +303,11 @@ function versionOf(t: ToolSpec, out: { stdout: string, stderr: string }): string
   try { return new RegExp(t.version_regex, 'm').exec(`${out.stdout}\n${out.stderr}`)?.[1] } catch { return undefined }
 }
 
-export async function checkTools(tools: readonly ToolSpec[], timeoutMs = 5000, state: ToolchainState = readToolchainState()): Promise<ToolResult[]> {
+// A tool's first start on Windows (Python compiling its modules, an antivirus scan of a new binary) takes longer
+// than 5 s, so its version check gets 20 s there.
+const TOOL_CHECK_MS = process.platform === 'win32' ? 20_000 : 5000
+
+export async function checkTools(tools: readonly ToolSpec[], timeoutMs = TOOL_CHECK_MS, state: ToolchainState = readToolchainState()): Promise<ToolResult[]> {
   return Promise.all(tools.map(async (t): Promise<ToolResult> => {
     const r = await opsDeps.run(t.check, { timeoutMs })
     if (r.code === 127) {

@@ -63,7 +63,7 @@ skills:
       path: canonical/skills
 
 update:
-  minReleaseAgeDays: 3
+  minReleaseAgeDays: 0
 
 permissions:
   bypass: true

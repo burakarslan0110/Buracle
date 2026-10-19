@@ -551,6 +551,7 @@ const EN = {
   'health.backup.manual': 'by hand',
   'health.backup.daily': 'daily',
   'health.backup.pre-restore': 'before a restore',
+  'health.backup.pre-upgrade': 'before a CortexDB upgrade',
   'health.restoreHint': 'To put the newest copy of this brain back, run in a terminal:',
   'settings.title': 'Settings',
   'settings.kicker': 'Buracle',

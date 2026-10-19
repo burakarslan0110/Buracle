@@ -62,7 +62,7 @@ export function defaultConfig(): BuracleConfig {
     },
     statusline: { style: 'buracle', emoji: true, monthly: 'estimate' },
     skills: { sources: [{ name: 'buracle', path: 'canonical/skills' }] },
-    update: { minReleaseAgeDays: 3 },
+    update: { minReleaseAgeDays: 0 },
     permissions: { bypass: true, enforce: true },
     effort: { claude: 'auto', codex: 'auto', opencode: 'auto', omp: 'auto' },
     agents: { teams: true },

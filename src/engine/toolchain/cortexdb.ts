@@ -4,21 +4,23 @@ import { renameRetrySync, sha256 } from '../fsx'
 import * as paths from '../paths'
 import { exeName, osName } from '../platform'
 
-export const CORTEXDB_VERSION = '2.124.0'
-
-export const CORTEXDB_ASSETS: Readonly<Record<string, { asset: string, sha256: string }>> = {
-  'darwin-arm64': { asset: 'cortexdb-mcp-darwin-arm64', sha256: '129c67475a8b064c44cef2beb6f3a95b14c9f248ce16ea575f2a8b811f344308' },
-  'darwin-x64': { asset: 'cortexdb-mcp-darwin-amd64', sha256: '6f6951550ac962753c503561657c80c1542b82c670cdd6e0754988a2a9d74896' },
-  'linux-x64': { asset: 'cortexdb-mcp-linux-amd64', sha256: '42f2f73550c532cf2c82820a92a0f85c7f5e2e7e2971efb8425a493b55924227' },
-  'linux-arm64': { asset: 'cortexdb-mcp-linux-arm64', sha256: '7588dfec265aadebec5d3bc5ddc0e897f20ac59b5dff97f8baaa14eb2ae96fba' },
-  'win32-x64': { asset: 'cortexdb-mcp-windows-amd64.exe', sha256: 'fe478fcbb68b5a48d800317641e817604a75fba18733450c099e78babb91304d' },
-  'win32-arm64': { asset: 'cortexdb-mcp-windows-arm64.exe', sha256: '62898504d7fa0b59a5aed1ab25491afc7f8fc780760c9e8c5ee65c621e139b23' },
+// CortexDB is installed from its newest GitHub release. Each release publishes `<asset>.sha256` next to the binary:
+// the download must match it, and the hash is kept beside the binary for later checks.
+export const CORTEXDB_ASSETS: Readonly<Record<string, string>> = {
+  'darwin-arm64': 'cortexdb-mcp-darwin-arm64',
+  'darwin-x64': 'cortexdb-mcp-darwin-amd64',
+  'linux-x64': 'cortexdb-mcp-linux-amd64',
+  'linux-arm64': 'cortexdb-mcp-linux-arm64',
+  'win32-x64': 'cortexdb-mcp-windows-amd64.exe',
+  'win32-arm64': 'cortexdb-mcp-windows-arm64.exe',
 }
 
 export const CORTEXDB_BIN_ENV = 'BURACLE_CORTEXDB_BIN'
-const RELEASE_URL = 'https://github.com/liliang-cn/cortexdb/releases/download'
+const RELEASES_URL = 'https://github.com/liliang-cn/cortexdb/releases'
 const DOWNLOAD_TIMEOUT_MS = 180_000
 const MAX_BYTES = 120 * 1024 * 1024
+const VERSION_RE = /^\d+\.\d+\.\d+$/
+const SHA_FILE = 'cortexdb-mcp.sha256'
 
 export function cortexdbPlatform(arch: string = process.arch): string | undefined {
   const key = `${osName()}-${arch}`
@@ -27,21 +29,36 @@ export function cortexdbPlatform(arch: string = process.arch): string | undefine
 
 export function cortexdbDir(): string { return join(paths.toolchainDir(), 'cortexdb') }
 
-export function cortexdbBinPath(version: string = CORTEXDB_VERSION): string {
+export function cortexdbBinPath(version: string): string {
   return join(cortexdbDir(), version, exeName('cortexdb-mcp'))
 }
 
-export interface CortexdbBinary { path: string, version: string, source: 'env' | 'toolchain' }
+function shaPath(version: string): string { return join(cortexdbDir(), version, SHA_FILE) }
 
 function isFile(p: string): boolean {
   try { return statSync(p).isFile() } catch { return false }
 }
 
+function compareVersions(a: string, b: string): number {
+  const x = a.split('.').map(Number)
+  const y = b.split('.').map(Number)
+  return (x[0]! - y[0]!) || (x[1]! - y[1]!) || (x[2]! - y[2]!)
+}
+
+// The installed versions, newest first: a folder counts once its binary and its recorded hash are both in place.
+export function installedCortexdbVersions(): string[] {
+  let names: string[]
+  try { names = readdirSync(cortexdbDir()).filter(n => VERSION_RE.test(n)) } catch { return [] }
+  return names.filter(v => isFile(cortexdbBinPath(v)) && isFile(shaPath(v))).sort((a, b) => compareVersions(b, a))
+}
+
+export interface CortexdbBinary { path: string, version: string, source: 'env' | 'toolchain' }
+
 export function cortexdbBinary(env: Readonly<Record<string, string | undefined>> = process.env): CortexdbBinary | undefined {
   const forced = env[CORTEXDB_BIN_ENV]
   if (forced !== undefined && forced !== '') return isFile(forced) ? { path: forced, version: 'custom', source: 'env' } : undefined
-  const p = cortexdbBinPath()
-  return isFile(p) ? { path: p, version: CORTEXDB_VERSION, source: 'toolchain' } : undefined
+  const version = installedCortexdbVersions()[0]
+  return version !== undefined ? { path: cortexdbBinPath(version), version, source: 'toolchain' } : undefined
 }
 
 export function cortexdbLaunch(bin: CortexdbBinary): string[] {
@@ -55,70 +72,129 @@ export type CortexdbCheck =
 export function checkCortexdb(env: Readonly<Record<string, string | undefined>> = process.env): CortexdbCheck {
   const bin = cortexdbBinary(env)
   if (bin?.source === 'env') return { status: 'ok', ...bin }
-  const plat = cortexdbPlatform()
-  if (plat === undefined) return { status: 'unsupported', detail: `CortexDB ships no binary for ${osName()}-${process.arch}` }
-  if (bin === undefined) return { status: 'missing', detail: `cortexdb-mcp ${CORTEXDB_VERSION} is not in the toolchain (buracle install)` }
-  const want = CORTEXDB_ASSETS[plat]?.sha256
+  if (cortexdbPlatform() === undefined) return { status: 'unsupported', detail: `CortexDB ships no binary for ${osName()}-${process.arch}` }
+  if (bin === undefined) return { status: 'missing', detail: 'cortexdb-mcp is not in the toolchain (buracle install)' }
   let got: string
-  try { got = sha256(readFileSync(bin.path)) } catch (e) { return { status: 'damaged', detail: `cannot read ${bin.path}: ${(e as Error).message}` } }
-  if (got !== want) return { status: 'damaged', detail: `${bin.path} does not match the pinned sha256 (reinstall: buracle install)` }
+  let want: string
+  try {
+    got = sha256(readFileSync(bin.path))
+    want = readFileSync(shaPath(bin.version), 'utf8').trim()
+  } catch (e) {
+    return { status: 'damaged', detail: `cannot read ${bin.path}: ${(e as Error).message}` }
+  }
+  if (got !== want) return { status: 'damaged', detail: `${bin.path} does not match the sha256 its release published (reinstall: buracle install)` }
   return { status: 'ok', ...bin }
 }
 
-export type CortexdbInstall = { ok: true, path: string, version: string, changed: boolean } | { ok: false, error: string }
-
 type FetchFn = (url: string, init?: RequestInit) => Promise<Response>
 
-export async function installCortexdb(opts: { fetch?: FetchFn, timeoutMs?: number } = {}): Promise<CortexdbInstall> {
+export type CortexdbRelease = { version: string, sha256: string } | { error: string }
+
+// The newest release, read from where GitHub's `releases/latest/download/<asset>.sha256` redirects to (no API, no rate
+// limit), and the hash that release published for this platform's binary.
+export async function latestCortexdb(opts: { fetch?: FetchFn, timeoutMs?: number } = {}): Promise<CortexdbRelease> {
+  const plat = cortexdbPlatform()
+  if (plat === undefined) return { error: `CortexDB ships no binary for ${osName()}-${process.arch}` }
+  const asset = CORTEXDB_ASSETS[plat] as string
+  const doFetch: FetchFn = opts.fetch ?? fetch
+  const init = (redirect: 'manual' | 'follow'): RequestInit => ({ signal: AbortSignal.timeout(opts.timeoutMs ?? 30_000), headers: { 'user-agent': 'buracle-toolchain' }, redirect })
+  const latestUrl = `${RELEASES_URL}/latest/download/${asset}.sha256`
+  try {
+    const hop = await doFetch(latestUrl, init('manual'))
+    const location = hop.headers.get('location') ?? ''
+    const version = /\/download\/v(\d+\.\d+\.\d+)\//.exec(location)?.[1]
+    if (version === undefined) return { error: `${latestUrl} did not lead to a release (HTTP ${hop.status})` }
+    const res = await doFetch(`${RELEASES_URL}/download/v${version}/${asset}.sha256`, init('follow'))
+    if (!res.ok) return { error: `the sha256 of CortexDB ${version} could not be read: HTTP ${res.status}` }
+    const hash = /\b[0-9a-f]{64}\b/i.exec(await res.text())?.[0]?.toLowerCase()
+    if (hash === undefined) return { error: `CortexDB ${version} published no sha256 for ${asset}` }
+    return { version, sha256: hash }
+  } catch (e) {
+    return { error: `the newest CortexDB release could not be read: ${(e as Error).message}` }
+  }
+}
+
+export type CortexdbInstall =
+  | { ok: true, path: string, version: string, changed: boolean, note?: string, newer?: string }
+  | { ok: false, error: string }
+
+export interface CortexdbInstallOptions {
+  fetch?: FetchFn
+  timeoutMs?: number
+  // Runs the downloaded binary before it is used; a failure keeps the installed version.
+  check?: (bin: string) => Promise<{ ok: true } | { ok: false, error: string }>
+  // Runs once before the installed version is replaced (the memory backs the brains up there).
+  beforeSwitch?: (from: string, to: string) => Promise<void>
+}
+
+export async function installCortexdb(opts: CortexdbInstallOptions = {}): Promise<CortexdbInstall> {
   const plat = cortexdbPlatform()
   if (plat === undefined) return { ok: false, error: `CortexDB ships no binary for ${osName()}-${process.arch}` }
-  const spec = CORTEXDB_ASSETS[plat] as { asset: string, sha256: string }
-  const target = cortexdbBinPath()
-  try {
-    if (isFile(target) && sha256(readFileSync(target)) === spec.sha256) return { ok: true, path: target, version: CORTEXDB_VERSION, changed: false }
-  } catch {  }
-  const url = `${RELEASE_URL}/v${CORTEXDB_VERSION}/${spec.asset}`
+  const asset = CORTEXDB_ASSETS[plat] as string
+  const current = checkCortexdb({})
+  const have = current.status === 'ok' ? current : undefined
+  const keep = (note: string, newer?: string): CortexdbInstall => (have !== undefined ? { ok: true, path: have.path, version: have.version, changed: false, note, ...(newer !== undefined ? { newer } : {}) } : { ok: false, error: note })
+  const latest = await latestCortexdb(opts)
+  if ('error' in latest) return keep(latest.error)
+  if (have?.version === latest.version) return { ok: true, path: have.path, version: have.version, changed: false }
+  const url = `${RELEASES_URL}/download/v${latest.version}/${asset}`
   const doFetch: FetchFn = opts.fetch ?? fetch
   let bytes: Uint8Array
   try {
     const res = await doFetch(url, { signal: AbortSignal.timeout(opts.timeoutMs ?? DOWNLOAD_TIMEOUT_MS), headers: { 'user-agent': 'buracle-toolchain' }, redirect: 'follow' })
-    if (!res.ok) return { ok: false, error: `download of ${url} failed: HTTP ${res.status}` }
+    if (!res.ok) return keep(`download of ${url} failed: HTTP ${res.status}`, latest.version)
     const len = Number(res.headers.get('content-length') ?? '0')
-    if (len > MAX_BYTES) return { ok: false, error: `${url} is ${len} bytes, more than a CortexDB binary` }
+    if (len > MAX_BYTES) return keep(`${url} is ${len} bytes, more than a CortexDB binary`, latest.version)
     bytes = new Uint8Array(await res.arrayBuffer())
   } catch (e) {
-    return { ok: false, error: `download of ${url} failed: ${(e as Error).message}` }
+    return keep(`download of ${url} failed: ${(e as Error).message}`, latest.version)
   }
-  if (bytes.byteLength === 0 || bytes.byteLength > MAX_BYTES) return { ok: false, error: `${url} returned ${bytes.byteLength} bytes` }
+  if (bytes.byteLength === 0 || bytes.byteLength > MAX_BYTES) return keep(`${url} returned ${bytes.byteLength} bytes`, latest.version)
   const got = sha256(bytes)
-  if (got !== spec.sha256) return { ok: false, error: `${spec.asset} ${CORTEXDB_VERSION}: sha256 ${got} does not match the pinned ${spec.sha256}` }
-  const dir = join(cortexdbDir(), CORTEXDB_VERSION)
+  if (got !== latest.sha256) return keep(`${asset} ${latest.version}: sha256 ${got} does not match the ${latest.sha256} its release published`, latest.version)
+  const target = cortexdbBinPath(latest.version)
   const staging = `${target}.staging-${process.pid}`
   try {
-    mkdirSync(dir, { recursive: true })
+    mkdirSync(join(cortexdbDir(), latest.version), { recursive: true })
     writeFileSync(staging, bytes, { mode: 0o755 })
     if (osName() !== 'win32') chmodSync(staging, 0o755)
+  } catch (e) {
+    try { rmSync(staging, { force: true }) } catch {  }
+    return keep(`cannot write ${target}: ${(e as Error).message}`, latest.version)
+  }
+  const checked = opts.check !== undefined ? await opts.check(staging) : { ok: true as const }
+  if (!checked.ok) {
+    try { rmSync(join(cortexdbDir(), latest.version), { recursive: true, force: true }) } catch {  }
+    return keep(`CortexDB ${latest.version} failed Buracle's check (${checked.error})${have !== undefined ? `; ${have.version} stays` : ''}`, latest.version)
+  }
+  if (have !== undefined && opts.beforeSwitch !== undefined) await opts.beforeSwitch(have.version, latest.version)
+  try {
+    writeFileSync(shaPath(latest.version), `${latest.sha256}\n`)
     renameRetrySync(staging, target)
   } catch (e) {
     try { rmSync(staging, { force: true }) } catch {  }
-    return { ok: false, error: `cannot write ${target}: ${(e as Error).message}` }
+    try { rmSync(shaPath(latest.version), { force: true }) } catch {  }
+    return keep(`cannot write ${target}: ${(e as Error).message}`, latest.version)
   }
   pruneOldVersions()
-  return { ok: true, path: target, version: CORTEXDB_VERSION, changed: true }
+  return { ok: true, path: target, version: latest.version, changed: true }
 }
 
+// Keeps the newest installed version and the one before it (a session started earlier may still run it); a
+// version folder without a complete install goes.
 function pruneOldVersions(): void {
+  const kept = new Set(installedCortexdbVersions().slice(0, 2))
   let names: string[]
-  try { names = readdirSync(cortexdbDir()).filter(n => n !== CORTEXDB_VERSION && /^\d+\.\d+\.\d+$/.test(n)) } catch { return }
-  const num = (v: string) => v.split('.').map(Number)
-  names.sort((a, b) => { const x = num(a); const y = num(b); return (y[0]! - x[0]!) || (y[1]! - x[1]!) || (y[2]! - x[2]!) })
-  for (const n of names.slice(1)) {
+  try { names = readdirSync(cortexdbDir()).filter(n => VERSION_RE.test(n)) } catch { return }
+  for (const n of names) {
+    if (kept.has(n)) continue
     try { rmSync(join(cortexdbDir(), n), { recursive: true, force: true }) } catch {  }
   }
 }
 
 export function cortexdbStagingLeft(): boolean {
-  const dir = join(cortexdbDir(), CORTEXDB_VERSION)
-  if (!existsSync(dir)) return false
-  try { return readdirSync(dir).some(n => n.includes('.staging-')) } catch { return false }
+  if (!existsSync(cortexdbDir())) return false
+  let names: string[]
+  try { names = readdirSync(cortexdbDir()).filter(n => VERSION_RE.test(n)) } catch { return false }
+  return names.some(v => { try { return readdirSync(join(cortexdbDir(), v)).some(n => n.includes('.staging-')) } catch { return false } })
 }

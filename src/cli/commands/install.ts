@@ -53,7 +53,7 @@ directly (tests, debugging).
 
 Then it installs the toolchain (toolchain.autoInstall; false skips it): missing system tools through
 Homebrew (macOS) or winget/scoop (Windows), and every MCP server package and language server
-at the newest release at least update.minReleaseAgeDays old into ~/.buracle/toolchain, staged
+at its newest release (update.minReleaseAgeDays, 0 by default, can wait days) into ~/.buracle/toolchain, staged
 and swapped in with the previous copy kept for \`buracle rollback toolchain\` (a new context-mode
 release gets its session library's smoke test; a failure is a warning). Then composes:
   - the core plan: ~/.buracle/bin/buracle shim, ~/.local/bin/buracle link, repo: in

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { realPath } from '../engine/fsx'
 import * as paths from '../engine/paths'
 import { run } from '../engine/proc'
-import { checkCortexdb, CORTEXDB_VERSION } from '../engine/toolchain/cortexdb'
+import { checkCortexdb } from '../engine/toolchain/cortexdb'
 import { readLedgerSync } from '../engine/txn'
 import { embedStatus } from './embed'
 import { oldVaultPath, vaultImportDone } from './import-vault'
@@ -139,7 +139,7 @@ export async function memDoctor(opts: { cwd: string, mcp?: boolean, leak?: boole
   const checks: DoctorCheck[] = []
   const add = (level: DoctorCheck['level'], check: string, detail: string) => checks.push({ level, check, detail })
   const bin = checkCortexdb()
-  if (bin.status === 'ok') add('ok', 'cortexdb', bin.source === 'env' ? `${bin.path} (BURACLE_CORTEXDB_BIN)` : `${CORTEXDB_VERSION}, sha256 verified`)
+  if (bin.status === 'ok') add('ok', 'cortexdb', bin.source === 'env' ? `${bin.path} (BURACLE_CORTEXDB_BIN)` : `${bin.version}, sha256 verified`)
   else add('error', 'cortexdb', bin.detail)
   const projects = (() => { try { return readdirSync(brainProjectsDir()).filter(n => n.endsWith('.db')).length } catch { return 0 } })()
   add('ok', 'brain', `${paths.brainDir()}: ${projects} project brain${projects === 1 ? '' : 's'}${existsSync(personDbFile()) ? ', person brain' : ', no person brain yet'}`)

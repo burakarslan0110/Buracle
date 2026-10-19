@@ -229,7 +229,7 @@ export async function runToolchain(bundle: Pick<CanonicalBundle, 'mcp' | 'tools'
     const needs = !installedOk ? 'install' : target !== 'latest' && compareVersions(have.version, target) < 0 ? 'upgrade' : undefined
     if (needs === undefined) {
       const rolledBack = have?.rolled_back !== undefined ? `; ${have.rolled_back} was rolled back` : ''
-      item.detail = `${have?.version}${item.latest !== undefined ? ' (newest allowed)' : ''}${rolledBack}${heldNote}`
+      item.detail = `${have?.version}${item.latest !== undefined ? (minAgeDays > 0 ? ' (newest allowed)' : ' (newest)') : ''}${rolledBack}${heldNote}`
       return
     }
     if (!opts.install || (needs === 'upgrade' && !opts.upgrade)) {
@@ -277,26 +277,32 @@ export async function runToolchain(bundle: Pick<CanonicalBundle, 'mcp' | 'tools'
   }
 
   if (wanted(opts, 'tool:cortexdb', 'cli')) {
-    const { CORTEXDB_VERSION, checkCortexdb, installCortexdb } = await import('./cortexdb')
-    const item: ToolchainItem = { id: 'tool:cortexdb', group: 'cli', label: 'cortexdb', required: true, status: 'ok', source: `github liliang-cn/cortexdb v${CORTEXDB_VERSION} (Buracle toolchain)`, detail: '' }
+    const { checkCortexdb } = await import('./cortexdb')
+    const item: ToolchainItem = { id: 'tool:cortexdb', group: 'cli', label: 'cortexdb', required: true, status: 'ok', source: 'github liliang-cn/cortexdb, newest release (Buracle toolchain)', detail: '' }
     emit(item, 'start')
     const check = checkCortexdb()
     if (check.status === 'ok') {
       item.current = check.version
       item.detail = check.source === 'env' ? `${check.path} (BURACLE_CORTEXDB_BIN)` : `${check.version}, sha256 verified`
-    } else if (check.status === 'unsupported') {
+    }
+    if (check.status === 'unsupported') {
       item.status = 'failed'
       item.detail = check.detail
-    } else if (!opts.install) {
+    } else if (check.status !== 'ok' && !opts.install) {
       item.status = 'missing'
       item.detail = check.detail
-    } else {
-      const r = await installCortexdb()
-      if (r.ok) {
-        item.status = 'installed'
+    } else if (opts.install && (check.status !== 'ok' || (check.source === 'toolchain' && opts.upgrade))) {
+      // The newest release, checked against what the memory does with it before it replaces the installed one.
+      const { installCortexdbChecked } = await import('../../memory/cortex-check')
+      const r = await installCortexdbChecked()
+      if (r.ok && r.changed) {
+        item.status = check.status === 'ok' ? 'upgraded' : 'installed'
         item.current = r.version
-        item.detail = `${r.version} installed, sha256 verified`
+        item.detail = check.status === 'ok' ? `${check.version} → ${r.version}, sha256 verified` : `${r.version} installed, sha256 verified`
         record(s => { s.system['cortexdb'] = { via: 'github', version: r.version, path: r.path, installed_at: new Date(opts.nowMs()).toISOString() } })
+      } else if (r.ok) {
+        if (r.newer !== undefined) item.status = 'outdated'
+        if (r.note !== undefined) item.detail = `${r.version}, sha256 verified; ${r.note}`
       } else {
         item.status = 'failed'
         item.detail = r.error

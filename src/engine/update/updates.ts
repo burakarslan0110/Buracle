@@ -658,7 +658,7 @@ async function applyToolchain(items: readonly UpdateItem[], env: UpdateEnv, out:
     if (got.status === 'upgraded' || got.status === 'installed') {
       out.applied.push({ kind: i.kind, id: i.id, detail: `toolchain ${i.current ?? 'none'} → ${got.current ?? i.latest ?? 'latest'}` })
       if (i.kind === 'mcp') out.bumpedServers.push(i.id)
-    } else if (got.status === 'ok') out.skipped.push({ kind: i.kind, id: i.id, reason: `already at ${got.current ?? i.current ?? 'the newest allowed release'}`, benign: true })
+    } else if (got.status === 'ok') out.skipped.push({ kind: i.kind, id: i.id, reason: `already at ${got.current ?? i.current ?? 'the newest release'}`, benign: true })
     else out.failed.push({ kind: i.kind, id: i.id, error: got.detail || got.status })
   }
 }

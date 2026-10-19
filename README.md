@@ -70,7 +70,7 @@ After the install:
 
 1. Build. It generates the harness files from `canonical/` and `src/`. A failed build installs nothing.
 2. Runtime. It copies the checkout into `~/.buracle/runtime/<id>` and tests the copy: `--version` must run, and the Claude Code and Codex hooks must deny `rm -rf ~` and allow `ls`. Only then does the `buracle` command switch to it. The previous runtime is kept for rollback.
-3. Toolchain. It installs missing system tools through Homebrew, winget or scoop, and every MCP server and language server into `~/.buracle/toolchain`. A release younger than `update.minReleaseAgeDays` is held back.
+3. Toolchain. It installs missing system tools through Homebrew, winget or scoop, and every MCP server and language server into `~/.buracle/toolchain`. Everything comes in its newest release, CortexDB included (a new CortexDB is used only after it passed the memory's check, with the brains backed up first). `update.minReleaseAgeDays` (0 by default) can make Buracle wait some days after a release.
 4. Core. The `~/.buracle/bin/buracle` command, its `~/.local/bin/buracle` link, `~/.buracle/config.yaml` and the shared skills in `~/.agents/skills`.
 5. Harnesses. Each harness gets its own transaction: backup, atomic writes, journal, commands, verification, ownership ledger and commit. If one harness fails, only that harness rolls back.
 6. Memory. It creates `~/.buracle/brain`.

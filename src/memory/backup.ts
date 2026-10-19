@@ -15,7 +15,7 @@ import { refreshStatus } from './status'
 import { brainExists, forgetListCache, personRef, projectRef, recordEvent, withBrainLock, type BrainRef } from './store'
 import { refreshUpkeepFor } from './sweep'
 
-export type BackupTrigger = 'manual' | 'daily' | 'pre-restore'
+export type BackupTrigger = 'manual' | 'daily' | 'pre-restore' | 'pre-upgrade'
 
 export interface BackupBrain { layer: MemLayer, project?: string, file: string, bytes: number, method: 'sqlite' | 'copy', wal?: string }
 
@@ -185,7 +185,7 @@ function isManifest(v: unknown): v is BackupManifest {
   if (v === null || typeof v !== 'object') return false
   const m = v as Record<string, unknown>
   return m['v'] === 1 && typeof m['id'] === 'string' && typeof m['at'] === 'string' && Array.isArray(m['brains'])
-    && (m['trigger'] === 'manual' || m['trigger'] === 'daily' || m['trigger'] === 'pre-restore')
+    && (m['trigger'] === 'manual' || m['trigger'] === 'daily' || m['trigger'] === 'pre-restore' || m['trigger'] === 'pre-upgrade')
 }
 
 export function listBackups(): BackupManifest[] {

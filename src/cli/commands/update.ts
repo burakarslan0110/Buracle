@@ -35,8 +35,8 @@ the reinstall and the MCP handshake. Without a terminal it only checks, and --ye
 Kinds and names (any number; none means everything):
   self      the Buracle checkout: git fetch; apply: git merge --ff-only, then install
   skills    skill sources (config skills.sources) and skills from \`buracle skills add\`
-  mcp       the MCP server packages of the Buracle toolchain (npm, PyPI); releases
-            younger than update.minReleaseAgeDays are held back
+  mcp       the MCP server packages of the Buracle toolchain (npm, PyPI), at their newest
+            release (update.minReleaseAgeDays, 0 by default, can hold younger ones back)
   plugins   Claude Code plugins; the marketplaces are refreshed before they update
   harness   Claude Code, Codex, OpenCode and Oh My Pi, each through the installer that
             installed it (Homebrew, npm, bun or its own updater); the version is read

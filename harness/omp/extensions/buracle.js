@@ -33324,7 +33324,7 @@ function defaultConfig() {
     },
     statusline: { style: "buracle", emoji: true, monthly: "estimate" },
     skills: { sources: [{ name: "buracle", path: "canonical/skills" }] },
-    update: { minReleaseAgeDays: 3 },
+    update: { minReleaseAgeDays: 0 },
     permissions: { bypass: true, enforce: true },
     effort: { claude: "auto", codex: "auto", opencode: "auto", omp: "auto" },
     agents: { teams: true },
@@ -39125,7 +39125,7 @@ function workflowOfExpanded(prompt) {
 
 // src/adapters/omp/runtime/generated-data.ts
 var GENERATED = {
-  buracleVersion: "0.5.1",
+  buracleVersion: "0.5.2",
   commands: [
     "ab-test",
     "bugfix",
@@ -39258,7 +39258,7 @@ var GENERATED = {
       upgrade: true
     },
     update: {
-      minReleaseAgeDays: 3
+      minReleaseAgeDays: 0
     },
     version: 1,
     workflow: {

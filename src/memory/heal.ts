@@ -7,9 +7,10 @@ import { atomicWriteSync, readJsonSafeSync } from '../engine/fsx'
 import { checkEmbedModel, installEmbedModel } from '../engine/toolchain/embed-model'
 import { log } from '../engine/log'
 import * as paths from '../engine/paths'
-import { cortexdbBinary, installCortexdb } from '../engine/toolchain/cortexdb'
+import { cortexdbBinary } from '../engine/toolchain/cortexdb'
 import { writeHealth } from '../engine/update/mcp'
 import { closeAllCortex } from './cortex'
+import { installCortexdbChecked } from './cortex-check'
 import { distillPending, distillQueueState, pruneDistillQueue, type DistillResult } from './distill'
 import { mcpHandshake } from './doctor'
 import { appendJob } from './jobs'
@@ -106,7 +107,7 @@ export interface HealOptions {
 export type HealResult = HealRun | { skipped: 'busy', detail: string }
 
 async function installCortexDefault(): Promise<{ ok: boolean, detail: string }> {
-  const r = await installCortexdb()
+  const r = await installCortexdbChecked()
   return r.ok ? { ok: true, detail: 'installed' } : { ok: false, detail: r.error }
 }
 

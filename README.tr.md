@@ -70,7 +70,7 @@ Kurulumdan sonra:
 
 1. Önce harness dosyalarını `canonical/` ve `src/` klasörlerinden üretir. Derleme başarısız olursa hiçbir şey kurulmaz.
 2. Depoyu `~/.buracle/runtime/<id>` altına kopyalar ve kopyayı sınar. `--version` çalışmalı, Claude Code ve Codex hook'ları da `rm -rf ~` komutunu reddedip `ls` komutuna izin vermelidir. `buracle` komutu ancak bundan sonra yeni kopyaya geçer. Önceki kopya geri alma için saklanır.
-3. Eksik sistem araçlarını Homebrew, winget ya da scoop ile kurar. Her MCP sunucusunu ve dil sunucusunu `~/.buracle/toolchain` altına kurar. Yayımlanalı `update.minReleaseAgeDays` günden az olan bir sürüm bekletilir.
+3. Eksik sistem araçlarını Homebrew, winget ya da scoop ile kurar. Her MCP sunucusunu ve dil sunucusunu `~/.buracle/toolchain` altına kurar. CortexDB dahil her şey en yeni sürümüyle gelir. Yeni bir CortexDB sürümü yalnızca hafızanın denetiminden geçtikten sonra ve beyinler yedeklendikten sonra kullanılır. `update.minReleaseAgeDays` (varsayılan 0) bir sürümden sonra birkaç gün beklemeyi sağlar.
 4. `~/.buracle/bin/buracle` komutunu, onun `~/.local/bin/buracle` bağlantısını, `~/.buracle/config.yaml` dosyasını ve `~/.agents/skills` altındaki ortak skill'leri yazar.
 5. Her harness'ı kendi işlemiyle (transaction) kurar. İşlem yedek, atomik yazma, günlük, komutlar, doğrulama, sahiplik kaydı ve onay adımlarından geçer. Bir harness başarısız olursa yalnızca o harness geri alınır.
 6. Son olarak `~/.buracle/brain` hafıza klasörünü oluşturur.
