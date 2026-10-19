@@ -1,0 +1,95 @@
+{
+  "csharp-ls": {
+    "command": "bun",
+    "args": [
+      "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+      "lsp",
+      "run",
+      "csharp-ls"
+    ],
+    "extensionToLanguage": {
+      ".cs": "csharp"
+    },
+    "restartOnCrash": true,
+    "maxRestarts": 3
+  },
+  "gopls": {
+    "command": "bun",
+    "args": [
+      "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+      "lsp",
+      "run",
+      "gopls"
+    ],
+    "extensionToLanguage": {
+      ".go": "go"
+    },
+    "restartOnCrash": true,
+    "maxRestarts": 3
+  },
+  "jdtls": {
+    "command": "bun",
+    "args": [
+      "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+      "lsp",
+      "run",
+      "jdtls"
+    ],
+    "extensionToLanguage": {
+      ".java": "java"
+    },
+    "restartOnCrash": true,
+    "maxRestarts": 3,
+    "startupTimeout": 120000
+  },
+  "pyright": {
+    "command": "bun",
+    "args": [
+      "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+      "lsp",
+      "run",
+      "pyright"
+    ],
+    "extensionToLanguage": {
+      ".py": "python",
+      ".pyi": "python"
+    },
+    "restartOnCrash": true,
+    "maxRestarts": 3
+  },
+  "rust-analyzer": {
+    "command": "bun",
+    "args": [
+      "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+      "lsp",
+      "run",
+      "rust-analyzer"
+    ],
+    "extensionToLanguage": {
+      ".rs": "rust"
+    },
+    "restartOnCrash": true,
+    "maxRestarts": 3
+  },
+  "typescript": {
+    "command": "bun",
+    "args": [
+      "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+      "lsp",
+      "run",
+      "typescript"
+    ],
+    "extensionToLanguage": {
+      ".cjs": "javascript",
+      ".cts": "typescript",
+      ".js": "javascript",
+      ".jsx": "javascriptreact",
+      ".mjs": "javascript",
+      ".mts": "typescript",
+      ".ts": "typescript",
+      ".tsx": "typescriptreact"
+    },
+    "restartOnCrash": true,
+    "maxRestarts": 3
+  }
+}

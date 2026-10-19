@@ -1,0 +1,426 @@
+hooks:
+  - id: H01
+    name: guard.bash
+    description: "Deny catastrophic shell commands (rm -rf of / or ~, force-push to main, curl | sh, mkfs, dd to a device, a deleting find (-delete, -exec rm, | xargs rm) that starts at the home folder, a first-level home folder or the vault, …), shell writes, deletes, moves and permission changes of Buracle's own setup (redirects, tee, cp, mv, install, ln, rsync, sed -i, curl and wget output files, dd, truncate, rm and unlink meet the H02 rules; every harness passes the vault, the protect globs and the symlink resolver, so a relocated vault and guards.write.protect count too), the commands that switch Buracle off (buracle uninstall and rollback, buracle config set or unset of guards, permissions, harnesses, routing, plan.stopGuard, plan.runaway, plan.planApproval, plan.resultApproval, plan.reviews, plan.goalVerification, repo or vault, removing or disabling Buracle's harness plugin, claude --bare, --safe-mode or --setting-sources without user, codex -c features.hooks=false, opencode --pure, omp --no-extensions, and a relocation variable such as BURACLE_HOME or CODEX_HOME set with launchctl setenv or written into a shell startup file: the user types these as `! <command>`), upgrades and global or plugin installs of context-mode behind Buracle's back, and any `buracle consent run` the agent writes (Codex's H20 wrapper, which only Buracle puts in place). For a subagent (a lane) it also denies the `buracle plan`, `buracle flow` and `buracle worktree` commands that change the lead's plan or workflow state or merge its worktrees (plan pause, resume, set, complete, approve-result, verify, register, unregister, review; flow start, phase, end; worktree sync, cleanup; plan review status stays allowed; a plan lane may run these plan commands, except set approved and approve-result, on its own binding with --lane <slug>), in the shell, in the context-mode sandbox and in omp's eval cells: Claude Code and Codex tell a subagent's call by `agent_id`, omp by the subagent's context, OpenCode by the child session (whose shell already resolves to its own session, which holds no plan). It follows the commands find -exec runs, the sh -c and bash -c scripts among them, and looks through launchers (sudo, env, nohup, setsid, flock, tmux, screen, at, batch, chrt, taskset, sandbox-exec, strace, dtruss, entr -s, uv run, bundle exec, pnpm exec, direnv exec, nix develop -c, nix-shell --run, …) and resolves computed names in interpreter code (getattr(os, 'sys'+'tem'), require('child_'+'process')), also when Claude's Monitor tool or its PowerShell tool (Windows), omp's eval tool or context-mode's sandbox runs them: the shell code and code of ctx_execute, ctx_execute_file and ctx_batch_execute in the folder it runs in (core checkSandbox, any routing strictness). On Codex a shell call is judged in the exec workdir the session's rollout records. What it cannot follow to the end is denied: shell text nested deeper than 8 levels, more than 24 wrappers around one command, interpreter code too large or too nested to scan, a name built at run time. A context-mode tool Buracle does not use (ctx_upgrade, ctx_insight, ctx_doctor, or one this Buracle version does not know) and a call whose input it cannot read are denied too. The review agents (plan-build-review, changes-review, goal-build-review) stay read-only on every harness: Claude Code and Oh My Pi deny a reviewer's shell command that leaves core's read-only command list (core reviewerShellDenial: writes, redirects, git commit or stash, sed -i, rm), OpenCode adds the same check behind the reviewer's own shell allow rules, and Codex runs reviewers in a read-only sandbox. A second opinion's child process (BURACLE_REVIEWER_AGENT, set by `buracle plan review companion run`) is held the same way on Claude Code and Oh My Pi, where the user's permission rules or MCP servers could offer more than its command line allows: the PreToolUse hook denies a shell command off that list, the edit tools and every MCP tool but codegraph's, semble's and context7's, and the omp extension hides and blocks every tool but read, grep, glob and those servers' tools, xd:// devices included (core companionToolDenial)."
+    blocking: deny
+    failure: closed
+    contract_test: tests/core/policy/bash-guard.test.ts
+    bindings:
+      claude: { event: classic.PreToolUse, matcher: "Bash|Monitor|PowerShell|mcp__plugin_buracle_context-mode__.*|mcp__(?:plugin_[^_]+_)?context-mode__ctx_.*", timeoutMs: 10000 }
+      codex: { event: PreToolUse, matcher: Bash|mcp__.+, timeoutMs: 5000 }
+      opencode: { event: permission.evaluate, matcher: [bash, context-mode_ctx_execute, context-mode_ctx_execute_file, context-mode_ctx_batch_execute] }
+      omp: { event: tool_call, matcher: [bash, eval, mcp__context_mode_ctx_execute, mcp__context_mode_ctx_execute_file, mcp__context_mode_ctx_batch_execute] }
+
+  - id: H02
+    name: guard.write
+    description: "Deny writes to secrets (.env*, keys, credentials), ~/.ssh, ~/.aws, Buracle's own setup (all of ~/.buracle, ~/.local/bin/buracle, Buracle's checkout from an unrelated project, and the harness settings that register its hooks: ~/.claude settings.json, settings.local.json and plugins/, ~/.codex config.toml, hooks.json and rules/, ~/.config/opencode/, omp's config.yml, extensions/ and hooks/ and ~/.omp/plugins/), the vault's .obsidian/.git/.buracle and the generated harness/ tree, also through a symlink (the adapters pass a realpath resolver). Files outside that setup that can still switch Buracle off are judged by what the write leaves in them and refused at the path when the content is unknown (a shell write): project harness settings in any folder (.claude/settings.json and settings.local.json, .codex/config.toml, opencode.json and opencode.jsonc, .omp/config.yml, config.yaml and settings.json), plugin code a harness loads (.opencode/plugins/, .opencode/plugin/, .omp/extensions/, .omp/hooks/, .omp/plugins/), shell startup files and launchd agents that move BURACLE_HOME, the home folder or a harness config folder; an ordinary edit passes: every harness judges its file tools by what they leave in the file (Claude Edit, MultiEdit and Write; Codex apply_patch; OpenCode edit, multiedit, write, patch and apply_patch; omp write and its replace and apply_patch edit modes) and refuses at the path what it cannot see. The file-path arguments of MCP tools (for example chrome-devtools take_heapsnapshot filePath) meet the same rules on every harness (on OpenCode for Buracle's own servers only, since its tool names cannot tell a user's MCP server from a plugin tool). Also what the code of context-mode's ctx_execute and ctx_execute_file writes (ctx_execute_file's code judged with the FILE_CONTENT_PATH and file_path its executor sets) and a shell apply_patch in its sandbox (core checkSandbox). The path given to ctx_index or ctx_execute_file may not name credentials (secret files, ~/.ssh, ~/.aws, ~/.gnupg, the home folder's usual credential stores such as ~/.netrc, ~/.npmrc or ~/.docker/config.json, or a folder that holds one of those home locations, such as the home folder), and ctx_index may not widen its folder walk toward secrets (respectGitignore false, followSymlinks true, or extensions or include patterns of secret files); what a folder holds and the output the sandbox indexes are not checked."
+    blocking: deny
+    failure: closed
+    contract_test: tests/core/policy/write-guard.test.ts
+    bindings:
+      claude: { event: classic.PreToolUse, matcher: "Edit|Write|MultiEdit|NotebookEdit|mcp__.*", timeoutMs: 10000 }
+      codex: { event: PreToolUse, matcher: apply_patch|mcp__.+, timeoutMs: 5000 }
+      opencode: { event: permission.evaluate, matcher: [edit, write, patch, apply_patch, multiedit, context-mode_ctx_execute, context-mode_ctx_execute_file, context-mode_ctx_index] }
+      omp: { event: tool_call, matcher: [edit, write, ast_edit, eval, mcp__context_mode_ctx_execute, mcp__context_mode_ctx_execute_file, mcp__context_mode_ctx_index] }
+
+  - id: H03
+    name: route.tools
+    description: Strict tool routing. Deny the built-in web search and fetch while the preferred MCP server is healthy (a library documentation page goes to context7 first; while web-fetch is down a fetch goes to context-mode's ctx_fetch_and_index), nudge grep -r and find | xargs grep toward rg, semble and codegraph, point a shell command that writes a project file (a redirect, a heredoc into a file, tee, sed -i, perl -i, awk -i inplace, inline interpreter code that writes files, also through find -exec, including the sh -c or bash -c script it runs, where $1, $@ and {} stand for the found files) at the edit tools once per session, so the change shows as a diff and H04 runs on it (files outside the project, system files, home dotfiles, temp files, /dev, variables and Buracle's own CLI are left alone), point cat, head, tail and sed -n printing of one to three files at the read tool (once per turn, three times per session; not on Codex, which has no file-read tool), hint that remote responses printed by curl, wget, HTTPie or xh and JVM builds belong in context-mode's sandbox (never a denial), add one note per plan to the first edit (an edit tool, Codex's apply_patch) of a file other than the plan file and docs/plans, docs/builds or docs/prd while a registered plan is in its plan phase and not approved (Feature and Bugfix plans while plan.planApproval is on, Build plans until the run file is locked), deny a semble repo, codegraph projectPath or context-mode ctx_index path that is the home folder, the filesystem root, an excluded path or a parent of the project, and run the deny-once gates the usage ledger (H24) drives. An edit that changes an exported signature before codegraph was asked about the symbol, or that adds a third-party import before context7 was asked about the library, is denied once; the retry is allowed. On Codex and OpenCode, which have no native path rules, the first edit in a session of a file a path rule covers is denied once with the text of every matching rule (read from ~/.buracle/rules/paths; one that is not installed is skipped), and the retry is allowed; reading the rule file counts as delivery, and on OpenCode the first read of a matching file carries the rules. Under nudge every denial becomes context.
+    blocking: deny
+    failure: open
+    contract_test: tests/core/policy/routing.test.ts
+    bindings:
+      claude:
+        event: classic.PreToolUse
+        matcher: Bash|Monitor|WebSearch|WebFetch|Edit|Write|MultiEdit|Grep|Glob|mcp__plugin_buracle_.*
+        timeoutMs: 10000
+        also: [{ event: tool.describe }]
+      codex: { event: PreToolUse, matcher: Bash|apply_patch|mcp__.+, timeoutMs: 5000 }
+      opencode:
+        event: permission.evaluate
+        also: [{ event: session.context }]
+      omp: { event: tool_call }
+
+  - id: H04
+    name: check.file
+    description: "After an edit, run the language checker and add TDD, charset and file-length notes. One planner finds each project's configs from the file up to the project root on every harness (a monorepo package config counts): ruff (the project .venv's first), eslint (the nearest node_modules/.bin, else PATH, run in the nearest package folder), go vet, gofmt and golangci-lint (with a .golangci config), shellcheck, and dotnet format whitespace for C# (the nearest .csproj, .sln or .slnx folder). A checker is run from PATH, else from Buracle's toolchain folders (a golangci-lint that `go install` put there counts). A slow checker (golangci-lint, dotnet format) is skipped with a note when the hook's time budget is short; a checker that is not installed is named once per session with how to install it (Go once for go vet and gofmt). The TDD note looks next to the file, in the test folders above it (a mirrored tests/ layout counts), for a test that imports it and at pytest's failing tests, and skips trivial edits (imports, deletions, new constants) and logic-free C# types. The charset note flags invisible and bidirectional characters everywhere, and typographic quotes, dashes, arrows and emoji only where code is written (not in strings, comments, JSX or markup text) in code, JSON, TOML and markup files; YAML and INI files get only the invisible-character checks."
+    blocking: none
+    failure: open
+    contract_test: tests/core/checkers/checkers.test.ts
+    bindings:
+      claude: { event: classic.PostToolUse, matcher: Edit|Write|MultiEdit|NotebookEdit, timeoutMs: 30000 }
+      codex: { event: PostToolUse, matcher: apply_patch, timeoutMs: 30000 }
+      opencode: { event: tool.execute.after, matcher: [edit, write, patch, apply_patch, multiedit], timeoutMs: 20000 }
+      omp: { event: tool_result, matcher: [edit, write, ast_edit], timeoutMs: 20000 }
+
+  - id: H05
+    name: context.watch
+    description: "Warn at the configured context thresholds (85% / 95%), once per band, and write session telemetry. The model gets the warning mid-turn on every harness: Claude Code with the next PreToolUse answer of the main agent (never with a denial) or the next prompt, Codex with the next PostToolUse, OpenCode with the next model request, omp as a hidden aside message at the end of a turn that goes on with tool results (else with the next prompt). The user sees it too: the mod's toast at 85% and 95%, omp's TUI notice."
+    blocking: none
+    failure: open
+    contract_test: tests/core/status/context-watch.test.ts
+    bindings:
+      claude:
+        event: classic.UserPromptSubmit
+        timeoutMs: 10000
+        also: [{ event: classic.PreToolUse, matcher: "Bash|Monitor|Edit|Write|MultiEdit|NotebookEdit|WebSearch|WebFetch|Grep|Glob|AskUserQuestion|Skill|mcp__.*", timeoutMs: 10000 }, { event: session.measure }]
+      codex:
+        event: UserPromptSubmit
+        also: [{ event: PostToolUse }, { event: Stop }, { event: SessionStart }, { event: PostCompact }]
+      opencode: { event: session.usage.updated }
+      omp: { event: turn_end }
+
+  - id: H06
+    name: compact.save
+    description: "Before compaction, write the handoff memory (plan, task and todo state) into the project brain, where it expires after 14 days, and steer the summary instructions where the harness allows it. The open todos come from Claude Code's TodoWrite, TaskCreate and TaskUpdate calls, Codex's update_plan checklist (read from the session's rollout) and omp's todo tool; OpenCode's handoff memory carries the plan without a todo list. When no handoff memory could be written (no CortexDB, not a project, a write error), up to 10 open todos are kept in the session's own record instead (Claude Code's handoff.json, Codex's adapter state, omp's preserveData) for H07. Codex's PreCompact cannot change the summary instructions; Buracle writes its summary prompt as Codex's compact_prompt (a soft key), which Codex uses only when it compacts locally, not for providers it compacts remotely (OpenAI, Azure, Bedrock). A reviewer the lead recorded as running in the background (`buracle plan review start`, kept in session state; with `--lane <slug>` for a plan lane, mirrored in the lead's state) is named with its agent handle in the summary instructions (Claude Code, OpenCode, omp) and in the handoff memory (all four), so it is collected after the compaction instead of launched again; a second opinion still running on another harness (`buracle plan review companion start`) is named the same way with its job id. Then the memory tick is woken (`buracle mem tick`), so whatever waits in the memory (queued sessions, a brain that changed, claims to verify) runs while the context is compacted."
+    blocking: none
+    failure: open
+    contract_test: tests/core/compact/compact.test.ts
+    bindings:
+      claude:
+        event: classic.PreCompact
+        timeoutMs: 15000
+        also: [{ event: classic.PostToolUse, matcher: TodoWrite|TaskCreate|TaskUpdate, async: true, timeoutMs: 5000 }, { event: session.compact }]
+      codex: { event: PreCompact, timeoutMs: 10000 }
+      opencode: { event: session.compaction }
+      omp: { event: session.compacting }
+
+  - id: H07
+    name: compact.restore
+    description: "After compaction, re-inject the active plan and the handoff pointer (the id of the handoff memory, to read with memory_get) of this session only: the session's own record, which every compaction rewrites before it writes the handoff memory; only when Claude Code or Codex finds no record of the last 24 h does it ask for the session's own newest handoff memory of the last 24 h, never one another session wrote. Without a handoff memory the open todos the session record kept are listed instead. A reviewer still recorded as running (`buracle plan review start`, a plan lane's included, also when the lead has no plan of its own) is named with its handle, with the instruction to collect its report rather than launch a new one; a second opinion still running on another harness gets its own sentence with its job id and `buracle plan review companion collect`."
+    blocking: none
+    failure: open
+    contract_test: tests/core/compact/compact.test.ts
+    bindings:
+      claude: { event: classic.SessionStart, matcher: compact, timeoutMs: 10000 }
+      codex: { event: SessionStart, matcher: compact, timeoutMs: 10000, also: [{ event: PostCompact, timeoutMs: 5000 }] }
+      opencode: { event: session.context, also: [{ event: session.compaction.ended }] }
+      omp: { event: session_compact }
+
+  - id: H08
+    name: plan.stop
+    description: "Keep an active plan running until it is VERIFIED; the only escape is a pause. Each continuation restates the plan's objective (the Goal and its Done-when lines, the Bugfix Behavior Contract or the Build acceptance criteria) and the next step; at COMPLETE that step is the user's result review (plan.resultApproval), and for a goal-build run with verification off (plan.goalVerification, locked with the contract) the hand-back pause that ends a criteria-only build. Runaway caps per plan and per chain are on by default and reset when a new task is ticked; when one trips, the guard holds the turn once more so the agent pauses and asks the user (continue, pivot or abandon; a typed \"continue\" answers it), then lets the next stop through. A decision answered in the question tool while the plan stays paused gets one reminder to act on it and resume (Claude AskUserQuestion, Codex request_user_input, OpenCode question, omp ask). The stop goes through, with one notice per run, while the session is in a read-only plan mode (Claude permission mode plan, Codex Plan collaboration mode from the rollout, OpenCode's plan agent, omp's last mode_change session entry), and while the agent waits for background work that will wake the session (a subagent, monitor, workflow, MCP task or cloud session, or a finite test, build or lint shell command, together with a last message that reports the wait): on Claude Code from the Stop payload, on OpenCode from the background shell and subagent results the plugin saw; omp emits no session_stop while such work runs. Claude Code gets the continuation as non-error Stop hook feedback, omp as a hidden continuation message."
+    blocking: stop
+    failure: open
+    contract_test: tests/core/plan/state.test.ts
+    bindings:
+      claude: { event: classic.Stop, timeoutMs: 15000, also: [{ event: classic.PostToolUse, matcher: AskUserQuestion, timeoutMs: 10000 }] }
+      codex: { event: Stop, timeoutMs: 15000, also: [{ event: PostToolUse, matcher: request_user_input, timeoutMs: 10000 }] }
+      opencode: { event: session.execution.succeeded, also: [{ event: tool.execute.after, matcher: [question, shell, subagent] }, { event: session.context }] }
+      omp: { event: session_stop, also: [{ event: tool_result, matcher: [ask] }] }
+
+  - id: H09
+    name: plan.question
+    description: "Deny routine \"should I continue / keep waiting?\" questions while an approved plan runs or is verified (status APPROVED, IN_PROGRESS or COMPLETE in phase implement or verify). A batch that mixes routine and real questions is denied with the routine ones named, so the agent asks the rest again. While the user holds the plan (a discussion or manual pause) routine questions are denied too; under a decision pause every question passes. A real question while the plan runs unpaused gets a reminder to pause first; Codex's request_user_input_async, which returns before the user answers, records the decision pause itself."
+    blocking: deny
+    failure: open
+    contract_test: tests/core/policy/questions.test.ts
+    bindings:
+      claude: { event: classic.PreToolUse, matcher: AskUserQuestion, timeoutMs: 10000 }
+      codex: { event: PreToolUse, matcher: request_user_input|request_user_input_async, timeoutMs: 5000 }
+      opencode: { event: permission.evaluate, matcher: question }
+      omp: { event: tool_call, matcher: ask }
+
+  - id: H10
+    name: plan.interaction
+    description: "Pause, resume and stop requests in user prompts (recognized in English and in the user's other language), applied to the running plan, and the memory signal of a history question. A bare \"continue\" keeps a decision or manual pause (it answers neither) and says so, except three decision pauses that a \"continue\" answers by design: the stop guard's runaway question (reason `runaway:`), a goal-build hand-back (`build hand-back:`) and the plan.modelSwitch pause after plan approval (`model switch:`, the user has switched models and wants the implementation to start); a reply during a decision pause is pointed at the open question, and a 'done' during a manual pause at checking the step. During the result review, a short explicit approval (approve, lgtm, looks good, or the same in the user's language) records the approval and resumes the plan. A file-writing workflow (plan-build, bugfix, goal-build, requirements) started while the session is in a read-only plan mode gets one note: ask the user to leave that mode first and register no plan until then (Claude Code permission mode plan, Codex's Plan collaboration mode from the rollout's latest turn context, OpenCode's plan agent at the request that delivers the prompt, omp's last mode_change session entry). When the user pinned new notes in the review page (`buracle mem ui --page review`) since the session last heard of them, on the session's bound plan or build contract, on its checkout's changed lines, or (for a session without a plan) on a PRD of its repository, one line names them and the `buracle plan notes` command that reads them (src/adapters/shared/review-notes.ts over core inboxFor)."
+    blocking: none
+    failure: open
+    contract_test: tests/core/policy/intents.test.ts
+    bindings:
+      claude: { event: classic.UserPromptSubmit, timeoutMs: 10000 }
+      codex: { event: UserPromptSubmit, timeoutMs: 5000, also: [{ event: SubagentStart, timeoutMs: 10000 }] }
+      opencode: { event: session.prompt, also: [{ event: session.context }] }
+      omp: { event: input, also: [{ event: before_agent_start }] }
+
+  - id: H11
+    name: plan.validate
+    description: During the planning phase, do not let the turn end while the registered plan file is missing or invalid; a plan prepared for the harness's plan mode (plan.nativePlanMode, `buracle plan prepare-native`) is exempt until H12 fills it.
+    blocking: stop
+    failure: open
+    contract_test: tests/core/plan/state.test.ts
+    bindings:
+      claude: { event: classic.Stop, timeoutMs: 15000 }
+      codex: { event: Stop, timeoutMs: 15000 }
+      opencode: { event: session.execution.succeeded }
+      omp: { event: session_stop }
+
+  - id: H12
+    name: plan.capture
+    description: "Save a plan the user approved in the harness's own plan mode to docs/plans/YYYY-MM-DD-<slug>.md at the checkout root: type Plan, status SAVED, the harness named in the header, the plan quoted under Captured Plan, never overwriting a file (-2, -3, …). Claude Code: PostToolUse ExitPlanMode in the main session, the approved text first (tool_response.plan, which carries the user's edits), then tool_input.plan. Codex: the Stop hook keeps the turn's <proposed_plan> block from last_assistant_message, and the next prompt saves it when it is Codex's own 'Implement the plan.' (read from the rollout's last assistant message when plan mode stripped the block from last_assistant_message); the fresh-thread choice ('A previous agent produced the plan below …') carries the plan in its prompt. Oh My Pi: the execution prompt omp sends after an approval carries the plan (before_agent_start); an approval that sends none (plan-yolo, ACP) is saved at the approving tool result from the plan file it names (details.planFilePath, inside omp's xd:// device wrapper), read from the session's local:// folder; when that file cannot be read, from omp's own plan autosave copy: Buracle points the autosave at a staging folder (plan.autosave and plan.autosaveDir, soft keys) and empties it, or, when the user set up that autosave, reads the recent copies from the user's folder and leaves them there. OpenCode has no approval step: when a session leaves the plan agent for another agent, the plan agent's last message is saved as a draft (approved: false) when it reads like a plan. With plan.nativePlanMode, a Feature plan prepared with `buracle plan prepare-native` (single use) is filled instead: the captured text replaces the registered plan's body under its own frontmatter, marked approved (Claude Code, Codex, Oh My Pi; OpenCode keeps it a draft); a registered file that changed since the preparation is left as it is and the plan is saved beside it. `buracle plan capture` saves one by hand."
+    blocking: none
+    failure: open
+    contract_test: tests/adapters/claude-mod/plan-capture.test.ts
+    bindings:
+      claude: { event: classic.PostToolUse, matcher: ExitPlanMode, timeoutMs: 10000 }
+      codex: { event: Stop, timeoutMs: 15000, also: [{ event: UserPromptSubmit, timeoutMs: 5000 }] }
+      opencode: { event: session.context }
+      omp: { event: before_agent_start, also: [{ event: tool_result }] }
+
+  - id: H13
+    name: memory.inject
+    description: "Inject the session-start memory context: the user's profile lines, the handoff pointer, the upkeep line, the project brain's memories (pinned, core pages, decisions, gotchas, conventions learned here, procedures, knowledge, references, recent sessions; at most two thirds of the room the fixed parts leave), then the person brain's memories in the rest, within 9,600 bytes or the room the hook passes, whichever is smaller. It also starts the project's sweep in the background when the last one is over 6 hours old."
+    blocking: none
+    failure: open
+    contract_test: tests/core/memory/brain.test.ts
+    bindings:
+      claude: { event: classic.SessionStart, timeoutMs: 10000 }
+      codex: { event: SessionStart, matcher: startup|resume|clear|compact, timeoutMs: 10000 }
+      opencode: { event: session.context }
+      omp: { event: before_agent_start }
+
+  - id: H14
+    name: memory.capture
+    description: Record the session memory from the spool in the project brain (deterministic first; a budgeted LLM distillation follows, always on). A session memory expires after 45 days.
+    blocking: none
+    failure: open
+    contract_test: tests/memory/contract.test.ts
+    bindings:
+      claude:
+        event: classic.PostToolUse
+        matcher: Bash|Monitor|WebSearch|WebFetch|mcp__.*
+        async: true
+        timeoutMs: 5000
+        also: [{ event: classic.Stop, timeoutMs: 15000 }, { event: classic.PostCompact, timeoutMs: 5000 }, { event: classic.SessionEnd, timeoutMs: 3000 }]
+      codex:
+        event: Stop
+        timeoutMs: 15000
+        also: [{ event: SessionEnd, timeoutMs: 3000 }, { event: PostToolUse, matcher: "^(Bash|webrun|mcp__.+)$", async: true, timeoutMs: 15000 }]
+      opencode: { event: session.execution.succeeded, async: true, also: [{ event: session.deleted }, { event: tool.execute.after }] }
+      omp:
+        event: session_stop
+        async: true
+        also: [{ event: session_shutdown }, { event: input }, { event: tool_result }, { event: turn_end }, { event: session_compact }]
+
+  - id: H15
+    name: capability.catalog
+    description: The capability card (installed MCP servers, skills, plugins) and the pointer to the routing rules; byte-stable for prompt caching.
+    blocking: none
+    failure: open
+    contract_test: tests/core/policy/routing.test.ts
+    bindings:
+      claude: { event: classic.SessionStart, timeoutMs: 10000 }
+      codex: { event: SessionStart, matcher: startup|resume|clear|compact, timeoutMs: 10000 }
+      opencode: { event: session.context }
+      omp: { event: before_agent_start }
+
+  - id: H16
+    name: session.maint
+    description: In the background, remove stale session directories, old finalized spool files and spool files no session owns (and heartbeat files older Buracle versions left), and Context Mode's expired session data (7 days) and content stores (14 days).
+    blocking: none
+    failure: open
+    contract_test: tests/workflow/session-maint.test.ts
+    bindings:
+      claude: { event: classic.SessionEnd, timeoutMs: 3000 }
+      codex: { event: SessionStart, matcher: startup, async: true, timeoutMs: 30000 }
+      opencode: { event: setup, async: true }
+      omp: { event: session_start, async: true }
+
+  - id: H17
+    name: profile.guard
+    description: "Warn when the active harness config directory differs from the one Buracle installed into, and show the one-time notices of this Buracle version (canonical/notices.yaml, at most 3): the first freshly started main session of any harness on the machine (never a resumed one) claims each notice (an acknowledgement file under ~/.buracle/state/notices, created exclusively before it is shown), tells the user (Claude Code and Codex: the hook's user message; OpenCode: a desktop notification; omp: a TUI notice) and gives the model one line to pass it on without asking. BURACLE_NO_NOTICES=1 turns them off."
+    blocking: none
+    failure: open
+    contract_test: tests/cli/ops/profile-guard.test.ts
+    bindings:
+      claude: { event: classic.SessionStart, matcher: startup, timeoutMs: 10000 }
+      codex: { event: SessionStart, matcher: startup, timeoutMs: 5000 }
+      opencode: { event: setup, also: [{ event: session.context }] }
+      omp: { event: session_start }
+
+  - id: H18
+    name: status.feed
+    description: Telemetry for the status line and the hooks (context, rate limits, model).
+    blocking: none
+    failure: open
+    contract_test: tests/workflow/session-store.test.ts
+    bindings:
+      claude: { event: session.measure }
+      codex:
+        event: SessionStart
+        also: [{ event: UserPromptSubmit }, { event: PostToolUse }, { event: Stop }, { event: PostCompact }]
+      opencode: { event: session.usage.updated, also: [{ event: session.execution.succeeded }] }
+      omp: { event: turn_end, also: [{ event: session_start }] }
+
+  - id: H19
+    name: review.gate
+    description: Validate a review agent's JSON report (schema, verdict consistency, categories per agent). An invalid report goes back to the reviewer once. Claude delivers context to the subagent at SubagentStop, and a report handed back through the SubagentHandback tool (Claude Code's auto mode, where last_assistant_message is not the report) is checked in PreToolUse, where an invalid one is denied once so the reviewer hands it back again; Codex feeds a SubagentStop decision block to the reviewer as its next prompt (never while stop_hook_active); OpenCode reads the report in the subagent tool's result and adds a note that asks the agent to continue that reviewer once by its session id; omp blocks the review agent's yield in its sub session once. A second invalid report only warns. While the lead session has a plan bound (or its plan lanes do, `buracle plan --lane`), the report's summary must start with one of those plan paths or \"goal\" (the full path, spaces included, or a trailing part of it such as docs/plans/<file>.md, bare, in backticks or in bold), so a valid report about another file goes back too (Claude Code and Codex read the lead's session from the payload, OpenCode from the session that ran the subagent tool, omp from the session the extension exported). The main session is never blocked.
+    blocking: none
+    failure: open
+    contract_test: tests/core/policy/review.test.ts
+    bindings:
+      claude: { event: classic.SubagentStop, timeoutMs: 10000, also: [{ event: classic.PreToolUse, matcher: SubagentHandback, timeoutMs: 10000 }] }
+      codex: { event: SubagentStop, timeoutMs: 10000 }
+      opencode: { event: tool.execute.after, matcher: subagent }
+      omp: { event: tool_call, matcher: [yield] }
+
+  - id: H20
+    name: consent.gate
+    description: Commands that are hard to undo or reach outside the machine (force push, reset --hard, rebase, amend, branch delete, git clean, discarding changes such as git checkout <paths>, git checkout . and git switch --discard-changes, aborting a merge, rebase, cherry-pick, revert or am in progress (--abort), --no-verify, push, publish, database drops, recursive deletes such as rm -r, find -delete, find -exec rm, | xargs rm and tree deletes in interpreter code such as shutil.rmtree, fs.rmSync with recursive, FileUtils.rm_rf or File::Path rmtree), defining a git alias that runs one of them, and `git config core.hooksPath` run only after the user allowed them in this session. Git options are read the way git reads them (abbreviated long options such as --har, short clusters such as -fu), and a path is normalized first (rm -rf node_modules/../src deletes src); git push -n needs nothing. A command line that needs several kinds (git push --no-verify; git push && git reset --hard) runs only when each is allowed; the question names them all and a yes allows them all for that command. A yes at the start of the user's next message covers only the commands the denial held; a message that names the operation ("push it", "git push --force", "npm publish") covers that kind; everyday editing words (remove, clean, merge, reset) never grant, and a negation never does. For a shell command of the main agent the question opens right away on every harness, in Claude Code (the mod) and omp's TUI as "Allow once", "Allow for this session", "Refuse"; in the OpenCode TUI as the same three options while the OpenCode TUI shows that session (the tool call waits for the answer), and in OpenCode clients without the TUI plugin (web, desktop) the denial has the agent ask with the question tool, Buracle's question and the same three options, and the plugin records the pick; on Codex as Codex's own approval prompt (the hook rewrites the held command into `buracle consent run <id> '<command>'`, an execpolicy prompt rule in buracle.rules makes Codex ask, the PermissionRequest hook marks the question as asked, and the wrapper runs the command once after the user approved, in the same Codex thread and after H01 checked it again; a declined question is spent before the model's next call; codex exec and --yolo, which run with approval_policy never, keep the denial). Where no question can open (print mode, the Claude Code VS Code panel, a subagent, codex exec, opencode run) the denial tells the agent what to ask in the conversation. The same holds for each command context-mode's ctx_execute and ctx_batch_execute run (every batch command on its own) and for its ctx_purge, which deletes context-mode's index like a database drop. Every harness starts without approval prompts (permissions.bypass), so this is where the user stays in control.
+    blocking: deny
+    failure: open
+    contract_test: tests/core/policy/consent.test.ts
+    bindings:
+      claude: { event: classic.PreToolUse, matcher: "Bash|Monitor|PowerShell|mcp__plugin_buracle_context-mode__.*|mcp__(?:plugin_[^_]+_)?context-mode__ctx_.*", timeoutMs: 10000, also: [{ event: classic.UserPromptSubmit, timeoutMs: 10000 }, { event: tool.call }] }
+      codex: { event: PreToolUse, matcher: Bash|mcp__.+, timeoutMs: 5000, also: [{ event: UserPromptSubmit, timeoutMs: 5000 }, { event: PermissionRequest, matcher: "^(Bash|mcp__.+)$", timeoutMs: 10000 }] }
+      opencode: { event: permission.evaluate, matcher: [bash, context-mode_ctx_execute, context-mode_ctx_execute_file, context-mode_ctx_batch_execute, context-mode_ctx_purge], also: [{ event: session.prompt }] }
+      omp: { event: tool_call, matcher: [bash, mcp__context_mode_ctx_execute, mcp__context_mode_ctx_execute_file, mcp__context_mode_ctx_batch_execute, mcp__context_mode_ctx_purge], also: [{ event: input }] }
+
+  - id: H21
+    name: workspace.prepare
+    description: "When a session starts, find the project root and its child projects (index.children, index.maxChildren), build or refresh their codegraph and semble indexes in the background (never the home folder, the filesystem root, the old vault, ~/.buracle or a path in index.exclude), make sure the memory web UI is running, and add one context line that names the root and its index state and says to pass the root as codegraph projectPath and semble repo. A codegraph database that is corrupt, not SQLite or without its schema is moved to ~/.buracle/state/index/corrupt/ (only the newest copy per project is kept, and it is removed after 14 days) and built again, unless a live codegraph server holds it (then `buracle index rebuild --force` does it). A timed-out index run is stopped with its whole process group. Subagents get the same lines without starting anything."
+    blocking: none
+    failure: open
+    contract_test: tests/workflow/workspace.test.ts
+    bindings:
+      claude: { event: classic.SessionStart, timeoutMs: 10000, also: [{ event: classic.SubagentStart, timeoutMs: 5000 }] }
+      codex: { event: SessionStart, matcher: startup|resume|clear|compact, timeoutMs: 10000, also: [{ event: SubagentStart, timeoutMs: 10000 }] }
+      opencode: { event: setup, also: [{ event: session.created }] }
+      omp: { event: session_start }
+
+  - id: H22
+    name: route.prompt
+    description: The prompt router. Every user prompt is matched against canonical/skill-triggers.yaml. An explicit request for a workflow gets a deterministic load instruction (the only way an explicit-only workflow starts); matching model-invocable skills are listed for the agent to evaluate YES or NO and load before any other tool; the MCP servers the prompt calls for (library docs for project dependencies, codegraph, semble, web search, public code) and a memory recall or write request get one line each. A prompt with no match gets nothing, so the prompt prefix stays cache-stable. Buracle's own continuations and subagent prompts are never routed.
+    blocking: none
+    failure: open
+    contract_test: tests/core/policy/skill-router.test.ts
+    bindings:
+      claude: { event: classic.UserPromptSubmit, timeoutMs: 10000 }
+      codex: { event: UserPromptSubmit, timeoutMs: 5000 }
+      opencode: { event: session.prompt, also: [{ event: session.context }] }
+      omp: { event: input, also: [{ event: before_agent_start }] }
+
+  - id: H23
+    name: route.audit
+    description: The turn-end routing check, at most once per prompt. When the user explicitly asked for a skill that was not loaded, or asked about earlier work and memory was not searched, the stop is blocked once with a one-line reason; the agent then loads it, searches memory, or says in one line why it does not apply.
+    blocking: stop
+    failure: open
+    contract_test: tests/core/policy/usage.test.ts
+    bindings:
+      claude: { event: classic.Stop, timeoutMs: 15000 }
+      codex: { event: Stop, timeoutMs: 15000 }
+      opencode: { event: session.execution.succeeded }
+      omp: { event: session_stop }
+
+  - id: H24
+    name: usage.ledger
+    description: The per-session usage ledger (sessions/<harness>/<session>/ledger.json) records skill loads, MCP calls (the symbols codegraph was asked about, the libraries context7 resolved) and built-in searches and reads (also the searches a context-mode execution call runs). It drives the tool-time reminders (memory first, semble for questions about intent, codegraph after many reads or searches, context7 for documentation pages fetched by web-fetch or context-mode), the deny-once gates of H03 (on Codex and OpenCode also the path-rule gate, which counts a read of a rule file as delivery), the H23 check, and measurement. An MCP server whose last two calls in the session failed counts as down for the rest of the session until a call succeeds, so H03 routes the built-in tool it stands in for to the next fallback; a context-mode execution call that fails (its code failed) does not count.
+    blocking: none
+    failure: open
+    contract_test: tests/core/policy/usage.test.ts
+    bindings:
+      claude:
+        event: classic.PreToolUse
+        matcher: Skill|Grep|Glob|mcp__plugin_buracle_.*
+        timeoutMs: 10000
+        also:
+          - { event: classic.PostToolUse, matcher: Read, async: true, timeoutMs: 5000 }
+          - { event: classic.PostToolUseFailure, matcher: mcp__plugin_buracle_.*, timeoutMs: 5000 }
+      codex: { event: PreToolUse, matcher: Bash|apply_patch|mcp__.+, timeoutMs: 5000 }
+      opencode: { event: tool.execute.before, also: [{ event: tool.execute.after }, { event: session.skill.activated }] }
+      omp: { event: tool_call, also: [{ event: tool_result }] }
+
+  - id: H25
+    name: flow.track
+    description: Record workflow starts and ends from slash commands, skill loads and plan changes into the session's flow.json, which the workflow band above the prompt and the status lines show; a resumed session whose run did not finish gets a hint on how to continue it while workflow.band is on. Best effort; the workflow skills also call buracle flow at their phase boundaries.
+    blocking: none
+    failure: open
+    contract_test: tests/workflow/flow.test.ts
+    bindings:
+      claude:
+        event: command.run
+        matcher: { command: "^buracle:" }
+        also:
+          - { event: tool.call, matcher: { tool: Skill } }
+          - { event: classic.UserPromptExpansion, matcher: "^buracle:", timeoutMs: 5000 }
+          - { event: classic.PostToolUse, matcher: Skill, async: true, timeoutMs: 5000 }
+      codex:
+        event: UserPromptSubmit
+        timeoutMs: 5000
+        also:
+          - { event: SessionStart, matcher: resume }
+          - { event: PreToolUse, matcher: Bash, timeoutMs: 5000 }
+      opencode: { event: session.prompt, also: [{ event: tool.execute.before, matcher: skill }, { event: session.skill.activated }] }
+      omp: { event: input, also: [{ event: tool_result }, { event: before_agent_start }, { event: session_start }, { event: session_switch }] }
+
+  - id: H26
+    name: profile.signals
+    description: Extract user-profile signals from prompts (explicit preferences such as always, never and from now on, corrections, confirmations and the language; only short redacted quotes of explicit statements are kept) into the memory spool, next to the prompt itself (redacted, at most 800 characters) for the distillation to infer how the user works; the finalizer adds the tool-use signals of the session digest and updates the profile memories in the person brain. The prompt marker this writes also wakes the machine-wide memory tick when the last one is over 20 minutes old (DESIGN 7.19).
+    blocking: none
+    failure: open
+    contract_test: tests/core/memory/profile.test.ts
+    bindings:
+      claude: { event: classic.UserPromptSubmit, timeoutMs: 10000 }
+      codex: { event: UserPromptSubmit, timeoutMs: 5000 }
+      opencode: { event: session.prompt }
+      omp: { event: input, also: [{ event: before_agent_start }] }
+
+  - id: H27
+    name: context.session
+    description: "Context Mode's session continuity (contextMode.enabled and contextMode.capture): the user's own prompts and the main session's tool events go, redacted and capped, into context-mode's session store through its library (a detached `buracle ctx session` child; subagents and Buracle's own continuations are never captured); a snapshot is stored before compaction, and after compaction and on resume a short, budgeted summary of the session is restored in Buracle's own words, pointing to ctx_search for the rest. Never blocks; fails open."
+    blocking: none
+    failure: open
+    contract_test: tests/core/context-mode.test.ts
+    bindings:
+      claude:
+        event: classic.SessionStart
+        timeoutMs: 10000
+        also:
+          - { event: classic.UserPromptSubmit, timeoutMs: 10000 }
+          - { event: classic.PreCompact, timeoutMs: 15000 }
+          - { event: classic.PostToolUse, matcher: Edit|Write|MultiEdit|NotebookEdit|ExitPlanMode|AskUserQuestion, timeoutMs: 10000 }
+          - { event: classic.PostToolUse, matcher: Bash|Read|TodoWrite|TaskCreate|TaskUpdate|Skill|Glob|Grep|EnterPlanMode|Agent|EnterWorktree, async: true, timeoutMs: 5000 }
+          - { event: classic.PostToolUseFailure, matcher: Bash|Read|Write|Edit|MultiEdit|NotebookEdit|Glob|Grep|Agent|Skill, async: true, timeoutMs: 5000 }
+      codex:
+        event: SessionStart
+        matcher: startup|resume|clear|compact
+        timeoutMs: 10000
+        also: [{ event: UserPromptSubmit, timeoutMs: 5000 }, { event: PostToolUse }, { event: PreCompact, timeoutMs: 10000 }]
+      opencode:
+        event: tool.execute.after
+        also:
+          - { event: session.prompt }
+          - { event: session.created }
+          - { event: session.execution.succeeded }
+          - { event: session.execution.failed }
+          - { event: session.execution.interrupted }
+          - { event: session.deleted }
+          - { event: session.compaction }
+          - { event: session.compaction.ended }
+          - { event: session.compaction.failed }
+          - { event: session.context }
+      omp:
+        event: tool_result
+        also:
+          - { event: input }
+          - { event: before_agent_start }
+          - { event: session_start }
+          - { event: session_switch }
+          - { event: session_branch }
+          - { event: turn_end }
+          - { event: session.compacting }
+          - { event: session_compact }
+          - { event: session_shutdown }
+
+  - id: H28
+    name: project.assets
+    description: "Keep the repository's agent files in step for every harness (src/adapters/shared/project-assets.ts). When a session starts, at the end of a turn and after an edit under .agents/skills or .claude/skills, it starts a detached `buracle project sync --auto` when a valid .agents/skills/<id> has no .claude/skills link or a link points to a removed skill (never in the home folder, a scratchpad, Buracle's state or another non-project folder; never through a .agents or .claude symlink that leads outside the repository; at most once every 30 s per repository), so Claude Code sees skills another harness created. Codex, OpenCode and omp get one context block, only when it has something to say: the .claude/rules path rules the root AGENTS.md `## Scoped rules` list does not name (gitignored private rules included; at most 40, with their globs), and on Codex alone the skills that exist only in .claude/skills. Claude Code, which reads .claude/rules itself, gets one line at session start when AGENTS.md exists and the list is out of step. After an edit of CLAUDE.md, a path rule, AGENTS.md or a .claude/skills/<id>/SKILL.md, a note says when CLAUDE.md no longer imports AGENTS.md, a rule and its index line disagree, a deleted rule is still listed, or a skill exists only in .claude/skills, where Codex cannot see it. Never blocks; fails open."
+    blocking: none
+    failure: open
+    contract_test: tests/adapters/shared/project-assets.test.ts
+    bindings:
+      claude:
+        event: classic.SessionStart
+        timeoutMs: 10000
+        also: [{ event: classic.PostToolUse, matcher: Edit|Write|MultiEdit|NotebookEdit, timeoutMs: 30000 }, { event: classic.Stop, timeoutMs: 15000 }]
+      codex:
+        event: SessionStart
+        matcher: startup|resume|clear|compact
+        timeoutMs: 10000
+        also: [{ event: PostToolUse, matcher: apply_patch, timeoutMs: 30000 }, { event: Stop, timeoutMs: 15000 }]
+      opencode:
+        event: session.context
+        also: [{ event: setup }, { event: tool.execute.after, matcher: [edit, write, patch, apply_patch, multiedit], timeoutMs: 20000 }, { event: session.execution.succeeded }]
+      omp:
+        event: before_agent_start
+        also: [{ event: session_start }, { event: tool_result, matcher: [edit, write, ast_edit], timeoutMs: 20000 }, { event: session_stop }]

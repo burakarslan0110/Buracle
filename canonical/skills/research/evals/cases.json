@@ -1,0 +1,114 @@
+{
+  "target": "skill:research",
+  "notes": "Routing checks for research: questions that need current outside facts must reach the MCP research tools (context7 for library docs, web-search to discover sources, grep for public code), and self-contained requests must not. Probes only count calls; read the transcripts to judge citations. Only skill:, mcp: and cmd: probes are used so every shipped profile can run these cases.",
+  "cases": [
+    {
+      "id": "tr-compare",
+      "prompt": "Form doğrulaması için zod mu valibot mu kullanmalıyız? Bundle boyutu önemli, güncel kaynaklarla karşılaştır.",
+      "tags": ["trigger", "tr"],
+      "git": true,
+      "expect": { "skill:research": true },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "en-maintained",
+      "prompt": "Is the request npm package still maintained? Find current sources and tell me what projects use instead.",
+      "tags": ["trigger"],
+      "git": true,
+      "expect": { "skill:research": true },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "tr-library-docs",
+      "prompt": "Express 5'te async route handler'dan fırlatılan hata otomatik olarak error middleware'e gidiyor mu? Belgelerden doğrula.",
+      "tags": ["behavior", "tr"],
+      "git": true,
+      "expect": { "mcp:context7": ">=1" },
+      "allowTimeout": true,
+      "timeoutMs": 180000
+    },
+    {
+      "id": "en-release-notes",
+      "prompt": "What is the latest stable release of Bun and what changed in it? Cite the release notes.",
+      "tags": ["behavior"],
+      "git": true,
+      "expect": { "mcp:web-search": ">=1" },
+      "allowTimeout": true,
+      "timeoutMs": 180000
+    },
+    {
+      "id": "tr-public-code",
+      "prompt": "GitHub'daki gerçek projelerde TanStack Query'nin useSuspenseQuery hook'u nasıl kullanılıyor? Birkaç örnek göster.",
+      "tags": ["behavior", "tr"],
+      "git": true,
+      "expect": { "mcp:grep": ">=1" },
+      "allowTimeout": true,
+      "timeoutMs": 180000
+    },
+    {
+      "id": "en-sdk-docs",
+      "prompt": "How do I create a partial refund with the Stripe SDK in Node?",
+      "tags": ["behavior"],
+      "git": true,
+      "expect": { "mcp:context7": ">=1" },
+      "allowTimeout": true,
+      "timeoutMs": 180000
+    },
+    {
+      "id": "near-miss-best-practice",
+      "prompt": "Follow best practices when you write the tests for the CSV parser.",
+      "tags": ["negative"],
+      "git": true,
+      "expect": { "skill:research": false },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "near-miss-actual-expected",
+      "prompt": "The assertion fails: actual vs expected differ by one. Fix the off-by-one in the counter.",
+      "tags": ["negative"],
+      "git": true,
+      "expect": { "skill:research": false },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "near-miss-docs-folder",
+      "prompt": "Add a section in the docs about the new --verbose flag.",
+      "tags": ["negative"],
+      "git": true,
+      "expect": { "mcp:context7": false },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "near-miss-changelog",
+      "prompt": "Add the fix to the changelog under Unreleased.",
+      "tags": ["negative"],
+      "git": true,
+      "expect": { "mcp:web-search": false },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "near-miss-snippet",
+      "prompt": "Bir dizideki tekrar eden sayıları döndüren kısa bir TypeScript fonksiyonu yaz; açıklama gerekmez.",
+      "tags": ["negative", "tr"],
+      "git": true,
+      "expect": { "skill:research": false, "mcp:web-search": false },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "near-miss-rename",
+      "prompt": "In this snippet, rename count to total and show the result: let count = 0; count += 2; console.log(count)",
+      "tags": ["negative"],
+      "git": true,
+      "expect": { "skill:research": false, "mcp:context7": false },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    }
+  ]
+}

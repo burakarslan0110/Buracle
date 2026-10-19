@@ -1,0 +1,20 @@
+{
+  "harness": "opencode",
+  "status": "Flags checked against `opencode run --help` (opencode v2.0.24); event patterns are an UNVERIFIED starting point. The shape of `opencode run --format json` events is not documented in Buracle's research; these patterns only assume that tool names appear as JSON strings (MCP tools are named <server>_<tool> in OpenCode). Inspect the smoke-run stdout and rewrite the patterns before trusting any result.",
+  "usage": "Per arm: --env HOME=<arm>/home --env XDG_CONFIG_HOME=<arm>/home/.config --env XDG_DATA_HOME=<arm>/home/.local/share plus provider credentials. Keep --standalone: without it the run attaches to the background service, which carries the user's real configuration. Add --append-arg --auto only for edit cases, with the user's consent.",
+  "argv": ["opencode", "run", "--standalone", "--format", "json", "{prompt}"],
+  "cwd": "{work}",
+  "timeoutMs": 300000,
+  "probes": {
+    "skill:*": "\"skill\"[^\\n]*\"{arg}\"",
+    "mcp:*": "\"{arg}_[A-Za-z0-9_-]+\"",
+    "cmd:*": "\"command\":\"(?:[^\"\\\\]|\\\\.)*?{arg}"
+  },
+  "metrics": {},
+  "grader": {
+    "status": "Read-only judge run with OpenCode's plan agent, standalone so it never attaches to the background service. Smoke-graded on opencode 2.0.30 against a local fake Anthropic endpoint (providers.anthropic.settings.baseURL in the throwaway config): the argv is accepted and the answer arrives in a text event. The plan agent still lists the edit tools; its permissions deny them. The quality of a real model's judgment is not covered by that smoke.",
+    "usage": "Give the grader its own throwaway config like an arm: --env HOME=<root>/grader/home --env XDG_CONFIG_HOME=<root>/grader/home/.config --env XDG_DATA_HOME=<root>/grader/home/.local/share plus credentials. Pin the model: --append-arg --model --append-arg <provider/model>.",
+    "argv": ["opencode", "run", "--standalone", "--format", "json", "--agent", "plan", "{prompt}"],
+    "timeoutMs": 300000
+  }
+}

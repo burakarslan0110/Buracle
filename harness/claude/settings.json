@@ -1,0 +1,6 @@
+{
+  "subagentStatusLine": {
+    "type": "command",
+    "command": "\"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" statusline claude --subagent"
+  }
+}

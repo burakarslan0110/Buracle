@@ -1,0 +1,207 @@
+name: CI
+
+# main holds only released files and has no test suite, so nothing runs on it.
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  # What a release leaves out of the tested commit: the test suite and its Bun config.
+  RELEASE_DROPS: tests bunfig.toml
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # One runner per operating system: macOS on arm64, Linux and Windows on x64.
+        include:
+          - { name: macOS arm64, runner: macos-latest, platform: darwin-arm64 }
+          - { name: Linux x64, runner: ubuntu-latest, platform: linux-x64 }
+          - { name: Windows x64, runner: windows-latest, platform: win32-x64 }
+    runs-on: ${{ matrix.runner }}
+    # Every platform runs the same checks, and every job has to pass.
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          # The OpenCode and omp bundles in harness/ are built with this Bun; build --check needs the same one.
+          bun-version-file: .bun-version
+
+      - name: Bun runs natively on ${{ matrix.platform }}
+        run: |
+          got=$(bun -e 'process.stdout.write(process.platform + "-" + process.arch)')
+          echo "bun $(bun --version) on $got"
+          test "$got" = '${{ matrix.platform }}'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Type check
+        run: bunx tsc --noEmit -p .
+
+      - name: Generated harness/ matches the source
+        run: |
+          T=$(mktemp -d)
+          HOME="$T" BURACLE_HOME="$T/.buracle" bun src/cli/main.ts build --check
+
+      # Windows starts a process many times slower than macOS and Linux, and a test that spawns a few
+      # takes 5 to 15 s there: past Bun's default 5 s per test, so Windows gets 60 s.
+      - name: Tests
+        run: bun test ${{ runner.os == 'Windows' && '--timeout 60000' || '' }}
+
+      - name: Install scripts parse
+        run: |
+          bash -n scripts/install.sh
+          pwsh -NoProfile -Command '$t = $null; $e = $null; [System.Management.Automation.Language.Parser]::ParseFile("scripts/install.ps1", [ref]$t, [ref]$e) | Out-Null; if ($e.Count) { $e | ForEach-Object { $_.ToString() }; exit 1 }'
+
+  # A clean Windows runner installs the release tree (this commit without RELEASE_DROPS) the way a
+  # user does (scripts/install.ps1), into all four harnesses at their tested versions, and uses it
+  # once: every MCP server must answer its handshake.
+  windows-install:
+    name: Windows install
+    if: github.event_name == 'push'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: The release tree on a local branch
+        shell: bash
+        run: |
+          git switch -q -c release-tree
+          git rm -r -q --ignore-unmatch -- $RELEASE_DROPS
+          git -c user.name=ci -c user.email=ci@localhost commit -q -m 'release tree'
+          test ! -e tests
+
+      - name: Harnesses to install into
+        shell: pwsh
+        run: npm install -g @anthropic-ai/claude-code@2.1.302 @openai/codex@0.162.1 @opencode/cli@2.0.30
+
+      - name: scripts/install.ps1 from this commit
+        shell: pwsh
+        env:
+          BURACLE_REPO: ${{ github.workspace }}
+          BURACLE_BRANCH: release-tree
+          BURACLE_CHECKOUT: ${{ runner.temp }}\buracle
+        run: ./scripts/install.ps1
+
+      - name: Oh My Pi, installed after Bun
+        shell: pwsh
+        run: |
+          $env:Path = [Environment]::GetEnvironmentVariable('Path', 'User') + ';' + $env:Path
+          bun add -g @oh-my-pi/pi-coding-agent@18.10.1
+          buracle install omp --yes
+          if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 2) { exit $LASTEXITCODE }
+          exit 0
+
+      - name: The installed buracle works
+        shell: pwsh
+        run: |
+          $env:Path = [Environment]::GetEnvironmentVariable('Path', 'User') + ';' + $env:Path
+          buracle --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          foreach ($topic in 'config', 'runtime', 'claude', 'codex', 'opencode', 'omp', 'mcp', 'lsp', 'tools', 'memory') {
+            Write-Host "`n==> buracle doctor $topic"
+            buracle doctor $topic
+            $code = $LASTEXITCODE
+            Write-Host "buracle doctor $topic exited $code"
+            if ($code -eq 1) { throw "buracle doctor $topic reported errors" }
+          }
+          exit 0
+
+  # A push to dev that passes on every platform publishes a release when the released files change.
+  # The release tree is the tested commit at the release's version, rebuilt (harness/ carries the
+  # version), without RELEASE_DROPS. main gets it as one commit per release (the first has no
+  # parent), and v<version> points at that commit with both install scripts attached. The version
+  # counts up by itself: the next patch after the newest v<major.minor>.* tag, or package.json's
+  # version when its line has no release yet, so raising major or minor there starts a new line.
+  # The scripts clone main and `buracle update` follows it, so an install holds the released files.
+  release:
+    name: Release
+    needs: [checks, windows-install]
+    if: github.event_name == 'push' && github.ref_name == 'dev'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Publish main and the next version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          base=$(jq -r .version package.json)
+          # The tree of this commit at version $1, rebuilt, without RELEASE_DROPS.
+          release_tree() (
+            set -e
+            git reset -q --hard "$GITHUB_SHA"
+            V="$1" bun -e 'const f = "package.json"; const t = await Bun.file(f).text(); await Bun.write(f, t.replace(/("version":\s*")[^"]*(")/, `$1${process.env.V}$2`))'
+            T=$(mktemp -d)
+            HOME="$T" BURACLE_HOME="$T/.buracle" bun src/cli/main.ts build >/dev/null
+            export GIT_INDEX_FILE="$RUNNER_TEMP/release.index"
+            rm -f "$GIT_INDEX_FILE"
+            git read-tree HEAD
+            git add -A
+            git rm -r -q --cached --ignore-unmatch -- $RELEASE_DROPS
+            git write-tree
+          )
+          parent=$(git ls-remote origin refs/heads/main | cut -f1)
+          [ -z "$parent" ] || git fetch -q origin main
+          # A version in package.json that has no release yet was raised by hand and is released as it is.
+          # Otherwise nothing is released while main already holds this commit's files.
+          if [ -n "$parent" ] && git ls-remote --exit-code --tags --refs origin "refs/tags/v$base" >/dev/null; then
+            current=$(git show "$parent:package.json" | jq -r .version)
+            candidate=$(release_tree "$current")
+            if [ "$candidate" = "$(git rev-parse "$parent^{tree}")" ]; then
+              echo "main already holds these files as $current"
+              exit 0
+            fi
+          fi
+          line=${base%.*}
+          last=$(git ls-remote --tags --refs origin "refs/tags/v$line.*" | sed "s|.*refs/tags/v$line\.||" | grep -E '^[0-9]+$' | sort -n | tail -1 || true)
+          if [ -n "$last" ] && [ "$last" -ge "${base##*.}" ]; then version="$line.$((last + 1))"; else version=$base; fi
+          tree=$(release_tree "$version")
+          if [ -n "$parent" ] && [ "$tree" = "$(git rev-parse "$parent^{tree}")" ]; then
+            commit=$parent
+          else
+            # The release commit carries the author of the tested commit.
+            export GIT_AUTHOR_NAME="$(git log -1 --format=%an "$GITHUB_SHA")" GIT_AUTHOR_EMAIL="$(git log -1 --format=%ae "$GITHUB_SHA")"
+            export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
+            if [ -n "$parent" ]; then
+              commit=$(git commit-tree "$tree" -p "$parent" -m "Buracle $version")
+            else
+              commit=$(git commit-tree "$tree" -m "Initial release: Buracle $version")
+            fi
+            git push origin "$commit:refs/heads/main"
+          fi
+          gh release view "v$version" >/dev/null 2>&1 || gh release create "v$version" scripts/install.sh scripts/install.ps1 \
+            --target "$commit" --title "Buracle $version" --generate-notes

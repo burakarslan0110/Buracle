@@ -1,0 +1,102 @@
+{
+  "mcpServers": {
+    "buracle-memory": {
+      "command": "bun",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+        "mcp",
+        "memory"
+      ],
+      "alwaysLoad": true
+    },
+    "chrome-devtools": {
+      "command": "bun",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+        "mcp",
+        "run",
+        "chrome-devtools"
+      ]
+    },
+    "codegraph": {
+      "command": "bun",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+        "mcp",
+        "run",
+        "codegraph"
+      ],
+      "env": {
+        "CODEGRAPH_MCP_TOOLS": "explore,search,node,callers,callees,impact,status,files",
+        "CODEGRAPH_NO_UPDATE_CHECK": "1",
+        "CODEGRAPH_TELEMETRY": "0"
+      },
+      "alwaysLoad": true
+    },
+    "context-mode": {
+      "command": "bun",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+        "mcp",
+        "run",
+        "context-mode"
+      ],
+      "env": {
+        "CONTEXT_MODE_PLATFORM": "claude-code"
+      },
+      "alwaysLoad": true
+    },
+    "context7": {
+      "command": "bun",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+        "mcp",
+        "run",
+        "context7"
+      ],
+      "alwaysLoad": true
+    },
+    "grep": {
+      "type": "http",
+      "url": "https://mcp.grep.app"
+    },
+    "semble": {
+      "command": "bun",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+        "mcp",
+        "run",
+        "semble"
+      ],
+      "env": {
+        "HF_HUB_DISABLE_TELEMETRY": "1"
+      },
+      "alwaysLoad": true
+    },
+    "web-fetch": {
+      "command": "bun",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+        "mcp",
+        "run",
+        "web-fetch"
+      ],
+      "timeout": 180000,
+      "alwaysLoad": true
+    },
+    "web-search": {
+      "command": "bun",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+        "mcp",
+        "run",
+        "web-search"
+      ],
+      "env": {
+        "DEFAULT_SEARCH_ENGINE": "duckduckgo",
+        "MODE": "stdio"
+      },
+      "alwaysLoad": true
+    }
+  }
+}

@@ -1,0 +1,15 @@
+claude:
+  marketplaces:
+    - id: claude-plugins-official
+      source: anthropics/claude-plugins-official
+  plugins: []
+  retired:
+    - pyright-lsp@claude-plugins-official
+    - typescript-lsp@claude-plugins-official
+    - gopls-lsp@claude-plugins-official
+
+omp:
+  plugins: []
+
+opencode:
+  plugins: []

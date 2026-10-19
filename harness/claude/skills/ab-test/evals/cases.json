@@ -1,0 +1,60 @@
+{
+  "target": "skill:ab-test",
+  "notes": "Trigger, near-miss and behavior checks for ab-test. Trigger cases stop after the first tool calls; none of them should be allowed to run a real benchmark batch.",
+  "cases": [
+    {
+      "id": "tr-before-after",
+      "prompt": "Memory skill'inin açıklamasını değiştirdim; önce/sonra karşılaştırması yap, Türkçe sorularda tetikleniyor mu ölç.",
+      "tags": ["trigger", "tr"],
+      "git": true,
+      "expect": { "skill:ab-test": true },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "en-routing",
+      "prompt": "Benchmark whether the new routing rule really makes the agent call context7 for library questions.",
+      "tags": ["trigger"],
+      "git": true,
+      "expect": { "skill:ab-test": true },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "near-miss-tests",
+      "prompt": "Run the unit tests and tell me which ones fail.",
+      "tags": ["negative"],
+      "git": true,
+      "expect": { "skill:ab-test": false },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "near-miss-perf",
+      "prompt": "Benchmark our JSON parser against JSON.parse and report operations per second.",
+      "tags": ["negative"],
+      "git": true,
+      "expect": { "skill:ab-test": false },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "near-miss-really-calls",
+      "prompt": "Check that the upload handler really calls the storage API, and show me the before/after diff of the refactor.",
+      "tags": ["negative"],
+      "git": true,
+      "expect": { "skill:ab-test": false },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "checks-budget",
+      "prompt": "Project-rules skill'inin yeni sürümünü eskisiyle karşılaştıracağız. Önce kullanım limitimizin buna yetip yetmediğine bak, henüz çalıştırma.",
+      "tags": ["behavior", "tr"],
+      "git": true,
+      "expect": { "skill:ab-test": true, "cmd:buracle usage": ">=1" },
+      "allowTimeout": true,
+      "timeoutMs": 180000
+    }
+  ]
+}

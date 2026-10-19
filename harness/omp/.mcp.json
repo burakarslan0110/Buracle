@@ -1,0 +1,109 @@
+{
+  "$schema": "https://raw.githubusercontent.com/can1357/oh-my-pi/main/packages/coding-agent/src/config/mcp-schema.json",
+  "mcpServers": {
+    "buracle-memory": {
+      "type": "stdio",
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "exec \"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" \"$@\"",
+        "buracle",
+        "mcp",
+        "memory"
+      ]
+    },
+    "codegraph": {
+      "type": "stdio",
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "exec \"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" \"$@\"",
+        "buracle",
+        "mcp",
+        "run",
+        "codegraph"
+      ],
+      "env": {
+        "CODEGRAPH_MCP_TOOLS": "explore,search,node,callers,callees,impact,status,files",
+        "CODEGRAPH_NO_UPDATE_CHECK": "1",
+        "CODEGRAPH_TELEMETRY": "0"
+      }
+    },
+    "context-mode": {
+      "type": "stdio",
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "exec \"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" \"$@\"",
+        "buracle",
+        "mcp",
+        "run",
+        "context-mode"
+      ],
+      "env": {
+        "CONTEXT_MODE_PLATFORM": "omp"
+      },
+      "timeout": 600000
+    },
+    "context7": {
+      "type": "stdio",
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "exec \"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" \"$@\"",
+        "buracle",
+        "mcp",
+        "run",
+        "context7"
+      ]
+    },
+    "grep": {
+      "type": "http",
+      "url": "https://mcp.grep.app"
+    },
+    "semble": {
+      "type": "stdio",
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "exec \"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" \"$@\"",
+        "buracle",
+        "mcp",
+        "run",
+        "semble"
+      ],
+      "env": {
+        "HF_HUB_DISABLE_TELEMETRY": "1"
+      }
+    },
+    "web-fetch": {
+      "type": "stdio",
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "exec \"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" \"$@\"",
+        "buracle",
+        "mcp",
+        "run",
+        "web-fetch"
+      ],
+      "timeout": 180000
+    },
+    "web-search": {
+      "type": "stdio",
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "exec \"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" \"$@\"",
+        "buracle",
+        "mcp",
+        "run",
+        "web-search"
+      ],
+      "env": {
+        "DEFAULT_SEARCH_ENGINE": "duckduckgo",
+        "MODE": "stdio"
+      }
+    }
+  }
+}

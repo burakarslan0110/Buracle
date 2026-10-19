@@ -1,0 +1,63 @@
+{
+  "target": "skill:new-skill",
+  "notes": "Trigger, near-miss and behavior checks for new-skill. Runs happen in an empty git repo, so the behavior case asks for a project skill (global homes live outside the sandbox and must stay untouched).",
+  "cases": [
+    {
+      "id": "tr-capture",
+      "prompt": "Az önce yaptığımız sürüm çıkarma adımlarını tekrar kullanılabilir bir skill olarak kaydet.",
+      "tags": ["trigger", "tr"],
+      "git": true,
+      "expect": { "skill:new-skill": true },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "en-capture",
+      "prompt": "Turn the steps we use to rotate the staging database credentials into a reusable skill.",
+      "tags": ["trigger"],
+      "git": true,
+      "expect": { "skill:new-skill": true },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "tr-fix-trigger",
+      "prompt": "Memory skill'i neredeyse hiç tetiklenmiyor; açıklamasını düzelt ki doğru durumlarda devreye girsin.",
+      "tags": ["trigger", "tr"],
+      "git": true,
+      "expect": { "skill:new-skill": true },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "near-miss-code",
+      "prompt": "Add a --verbose flag to the CLI argument parser.",
+      "tags": ["negative"],
+      "git": true,
+      "expect": { "skill:new-skill": false },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "near-miss-memory",
+      "prompt": "Bunu unutma: bu projede commit mesajları İngilizce yazılıyor.",
+      "tags": ["negative", "tr"],
+      "git": true,
+      "expect": { "skill:new-skill": false },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "writes-project-skill",
+      "prompt": "Create a project-only skill named release-notes for this repository that drafts release notes from git log since the last tag. Include trigger evals.",
+      "tags": ["behavior"],
+      "git": true,
+      "expect": { "skill:new-skill": true },
+      "files": [
+        { "path": ".agents/skills/release-notes/SKILL.md", "exists": true, "matches": "name: release-notes" },
+        { "path": ".agents/skills/release-notes/evals/cases.json", "exists": true }
+      ],
+      "timeoutMs": 600000
+    }
+  ]
+}

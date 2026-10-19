@@ -1,0 +1,20 @@
+{
+  "harness": "omp",
+  "status": "Flags checked against `omp --help` (omp 18.8.3); event patterns are an UNVERIFIED starting point. The shape of `omp -p --mode json` events is not documented in Buracle's research; these patterns only assume that skill reads use skill://<id> URLs and MCP tools are named mcp__<server>_<tool>. Inspect the smoke-run stdout and rewrite the patterns before trusting any result.",
+  "usage": "Per arm: --env HOME=<arm>/home --env PI_CODING_AGENT_DIR=<arm>/home/.omp/agent plus provider credentials. omp reads ~/.agents (skills and rules) by default, so the moved HOME hides the real ones. Build a without-arm with --append-arg --no-skills or --append-arg --skills=<glob>. Never add --auto-approve.",
+  "argv": ["omp", "-p", "--mode", "json", "--no-session", "--cwd", "{work}", "{prompt}"],
+  "cwd": "{work}",
+  "timeoutMs": 300000,
+  "probes": {
+    "skill:*": "skill://{arg}",
+    "mcp:*": "mcp__{arg}_",
+    "cmd:*": "\"command\":\"(?:[^\"\\\\]|\\\\.)*?{arg}"
+  },
+  "metrics": {},
+  "grader": {
+    "status": "Judge run limited to read tools (--tools). Smoke-graded on omp 18.10.1 against a local fake chat-completions endpoint (a models.yml provider, pinned with --append-arg --model): the request offered exactly read, grep and glob, and the answer was read from the JSON events. The quality of a real model's judgment is not covered by that smoke.",
+    "usage": "Give the grader its own throwaway config like an arm: --env HOME=<root>/grader/home --env PI_CODING_AGENT_DIR=<root>/grader/home/.omp/agent plus credentials. Pin the model: --append-arg --model --append-arg <model>.",
+    "argv": ["omp", "-p", "--mode", "json", "--no-session", "--cwd", "{grade_dir}", "--tools=read,grep,glob", "{prompt}"],
+    "timeoutMs": 300000
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "name": "buracle",
+  "version": "0.5.0",
+  "private": true,
+  "type": "module",
+  "description": "Everything your coding agents need, in one place: one setup for Claude Code, Codex CLI, OpenCode and Oh My Pi",
+  "license": "MIT",
+  "author": "Burak Arslan",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/burakarslan0110/buracle.git"
+  },
+  "homepage": "https://github.com/burakarslan0110/buracle#readme",
+  "bugs": {
+    "url": "https://github.com/burakarslan0110/buracle/issues"
+  },
+  "keywords": [
+    "claude-code",
+    "codex-cli",
+    "opencode",
+    "oh-my-pi",
+    "coding-agents",
+    "agent-skills",
+    "mcp",
+    "hooks",
+    "memory"
+  ],
+  "bin": {
+    "buracle": "src/cli/main.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit -p .",
+    "build": "bun src/cli/main.ts build"
+  },
+  "engines": {
+    "bun": ">=1.4.0"
+  },
+  "dependencies": {
+    "jsonc-parser": "3.3.1",
+    "yaml": "2.9.1"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.2",
+    "typescript": "6.0.3"
+  }
+}
