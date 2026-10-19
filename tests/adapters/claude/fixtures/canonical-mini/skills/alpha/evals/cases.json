@@ -1,0 +1,4 @@
+{
+  "target": "skill:alpha",
+  "cases": [{ "id": "trigger", "prompt": "alpha ile yap", "expect": { "skill:alpha": true } }]
+}

@@ -1,0 +1,175 @@
+import type { CanonicalBundle, McpCatalog, SkillDoc } from '../../core/catalog'
+import { log } from '../../engine/log'
+import { renderMarkdown, RenderError } from './render'
+
+export interface GeneratedFile { path: string, content: string, mode?: number }
+export interface SkillRenderResult { files: GeneratedFile[], warnings: string[] }
+
+const DESCRIPTION_MAX = 1024
+const SHORT_DESCRIPTION_MAX = 80
+const DISPLAY_NAME_MAX = 64
+
+function str(x: unknown): string | undefined {
+  return typeof x === 'string' && x.trim() !== '' ? x : undefined
+}
+
+export function oneLine(s: string): string {
+  return s.replace(/\s+/g, ' ').trim()
+}
+
+function clip(s: string, max: number): string {
+  if (s.length <= max) return s
+  const cut = s.slice(0, max - 1)
+  const space = cut.lastIndexOf(' ')
+  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,;:.]+$/, '')}…`
+}
+
+function q(s: string): string {
+  return JSON.stringify(s)
+}
+
+export function invocationOf(skill: SkillDoc): 'explicit' | 'implicit' {
+  return skill.frontmatter['invocation'] === 'explicit' ? 'explicit' : 'implicit'
+}
+
+export function isUserInvocable(skill: SkillDoc): boolean {
+  return skill.frontmatter['user-invocable'] !== false
+}
+
+export function startForm(id: string): string {
+  return `/${id} (Codex: $${id})`
+}
+
+export function neutralDescription(skill: SkillDoc, warnings: string[] = []): string {
+  const base = oneLine(str(skill.frontmatter['description']) ?? '')
+  if (base === '') warnings.push(`skills/${skill.id}/SKILL.md: description is empty`)
+  const explicit = invocationOf(skill) === 'explicit' && !/only when the user|only on request|only when asked/i.test(base)
+    ? ' Use it only when the user asks for it explicitly.'
+    : ''
+  const start = isUserInvocable(skill) ? ` The user starts it with ${startForm(skill.id)}.` : ''
+  const when = oneLine(str(skill.frontmatter['when_to_use']) ?? '')
+  const head = `${base}${explicit}${start}`
+  if (when === '') return clip(head, DESCRIPTION_MAX)
+  const full = `${head} When to use: ${when}`
+  if (full.length <= DESCRIPTION_MAX) return full
+  warnings.push(`skills/${skill.id}/SKILL.md: description + when_to_use exceed ${DESCRIPTION_MAX} characters; when_to_use was shortened`)
+  const room = DESCRIPTION_MAX - head.length - ' When to use: '.length
+  return room > 40 ? `${head} When to use: ${clip(when, room)}` : clip(head, DESCRIPTION_MAX)
+}
+
+function displayName(id: string): string {
+  return clip(id.split(/[-_]+/).filter(Boolean).map(w => (w[0] as string).toUpperCase() + w.slice(1)).join(' '), DISPLAY_NAME_MAX)
+}
+
+function shortDescription(skill: SkillDoc, warnings: string[]): string | undefined {
+  const s = str(skill.frontmatter['short-description'])
+  if (s === undefined) return undefined
+  const one = oneLine(s)
+  if (one.length > SHORT_DESCRIPTION_MAX) warnings.push(`skills/${skill.id}/SKILL.md: short-description is longer than ${SHORT_DESCRIPTION_MAX} characters`)
+  return one
+}
+
+export function neutralFrontmatter(skill: SkillDoc, warnings: string[] = []): string {
+  const name = str(skill.frontmatter['name']) ?? skill.id
+  if (name !== skill.id) warnings.push(`skills/${skill.id}/SKILL.md: name ${JSON.stringify(name)} differs from the folder name; the folder name is used`)
+  const lines = ['---', `name: ${skill.id}`, `description: ${q(neutralDescription(skill, warnings))}`]
+  if (invocationOf(skill) === 'explicit') lines.push('disable-model-invocation: true')
+  const short = shortDescription(skill, warnings)
+  if (short !== undefined) lines.push('metadata:', `  short-description: ${q(short)}`)
+  lines.push('---')
+  return lines.join('\n') + '\n'
+}
+
+function skillMcp(skill: SkillDoc, mcp: McpCatalog, warnings: string[]): Array<{ id: string, description: string, transport: 'stdio' | 'streamable_http', url?: string }> {
+  const raw = skill.frontmatter['mcp']
+  if (raw === undefined || raw === null) return []
+  if (!Array.isArray(raw)) { warnings.push(`skills/${skill.id}/SKILL.md: mcp must be a list`); return [] }
+  const out: Array<{ id: string, description: string, transport: 'stdio' | 'streamable_http', url?: string }> = []
+  for (const id of raw) {
+    if (typeof id !== 'string') continue
+    const spec = mcp.servers[id]
+    if (!spec) { warnings.push(`skills/${skill.id}/SKILL.md: mcp lists unknown server ${JSON.stringify(id)}`); continue }
+    if (!spec.harnesses.some(h => h === 'codex' || h === 'opencode' || h === 'omp')) continue
+    if (out.some(o => o.id === id)) continue
+    const entry: { id: string, description: string, transport: 'stdio' | 'streamable_http', url?: string } = {
+      id, description: oneLine(spec.description), transport: spec.transport === 'http' ? 'streamable_http' : 'stdio',
+    }
+    if (spec.transport === 'http' && spec.url) entry.url = spec.url
+    out.push(entry)
+  }
+  return out
+}
+
+export function openaiYaml(skill: SkillDoc, mcp: McpCatalog, warnings: string[] = []): string {
+  const lines = ['# Generated by Buracle from canonical/skills. Codex reads this file; edits are overwritten by `buracle install`.']
+  const deps = skillMcp(skill, mcp, warnings)
+  const local = deps.filter(d => d.transport === 'stdio').map(d => d.id)
+  if (local.length > 0) lines.push(`# Local MCP servers this skill uses (installed by \`buracle install\`, not declared below): ${local.join(', ')}.`)
+  lines.push('interface:', `  display_name: ${q(displayName(skill.id))}`)
+  const short = shortDescription(skill, [])
+  if (short !== undefined) lines.push(`  short_description: ${q(short)}`)
+  lines.push('policy:', `  allow_implicit_invocation: ${invocationOf(skill) === 'explicit' ? 'false' : 'true'}`)
+  const remote = deps.filter(d => d.transport === 'streamable_http' && d.url !== undefined)
+  if (remote.length > 0) {
+    lines.push('dependencies:', '  tools:')
+    for (const d of remote) {
+      lines.push(`    - type: ${q('mcp')}`, `      value: ${q(d.id)}`, `      description: ${q(d.description)}`, `      transport: ${q(d.transport)}`, `      url: ${q(d.url as string)}`)
+    }
+  }
+  return lines.join('\n') + '\n'
+}
+
+export function generatedMode(mode: number): number | undefined {
+  return (mode & 0o111) !== 0 ? 0o755 : undefined
+}
+
+function byPath(a: GeneratedFile, b: GeneratedFile): number {
+  return a.path < b.path ? -1 : a.path > b.path ? 1 : 0
+}
+
+export function renderNeutralSkill(skill: SkillDoc, canonical: Pick<CanonicalBundle, 'mcp' | 'skills' | 'agents'>, warnings: string[] = []): GeneratedFile[] {
+  const opts = {
+    skills: canonical.skills.map(s => s.id), agents: canonical.agents.map(a => a.id),
+    protocols: canonical.skills.filter(s => !isUserInvocable(s)).map(s => s.id),
+  }
+  const files: GeneratedFile[] = []
+  for (const f of skill.files) {
+    if (f.path === 'evals' || f.path.startsWith('evals/')) continue
+    if (f.path === 'agents/openai.yaml') { warnings.push(`skills/${skill.id}/agents/openai.yaml: replaced by the generated file`); continue }
+    const out = `${skill.id}/${f.path}`
+    const where = `skills/${skill.id}/${f.path}`
+    if (f.path === 'SKILL.md') {
+      const body = renderMarkdown(skill.body, 'neutral', { ...opts, file: where }, warnings)
+      files.push({ path: out, content: neutralFrontmatter(skill, warnings) + body })
+      continue
+    }
+    if (f.path.endsWith('.md')) {
+      files.push({ path: out, content: renderMarkdown(f.content, 'neutral', { ...opts, file: where }, warnings) })
+      continue
+    }
+    const mode = generatedMode(f.mode)
+    files.push(mode === undefined ? { path: out, content: f.content } : { path: out, content: f.content, mode })
+  }
+  files.push({ path: `${skill.id}/agents/openai.yaml`, content: openaiYaml(skill, canonical.mcp, warnings) })
+  return files.sort(byPath)
+}
+
+export function renderNeutralSkills(canonical: Pick<CanonicalBundle, 'mcp' | 'skills' | 'agents'>): SkillRenderResult {
+  const warnings: string[] = []
+  const files: GeneratedFile[] = []
+  for (const skill of [...canonical.skills].sort((a, b) => (a.id < b.id ? -1 : 1))) {
+    try {
+      files.push(...renderNeutralSkill(skill, canonical, warnings))
+    } catch (e) {
+      if (!(e instanceof RenderError)) throw e
+      warnings.push(`skills/${skill.id}: not rendered: ${e.message}`)
+    }
+  }
+  return { files: files.sort(byPath), warnings }
+}
+
+export function buildAgentsSkills(ctx: { canonical: Pick<CanonicalBundle, 'mcp' | 'skills' | 'agents'> }): GeneratedFile[] {
+  const { files, warnings } = renderNeutralSkills(ctx.canonical)
+  if (warnings.length > 0) log('warn', 'agents-skills build warnings', { warnings })
+  return files
+}

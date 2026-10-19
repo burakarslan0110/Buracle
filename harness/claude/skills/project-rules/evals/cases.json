@@ -1,0 +1,69 @@
+{
+  "target": "skill:project-rules",
+  "notes": "Trigger, near-miss and behavior checks for project-rules. Every case runs in a fresh copy of fixtures/tiny-bun-repo turned into a git repo. Trigger cases only need the first tool calls, so they allow a short timeout.",
+  "cases": [
+    {
+      "id": "tr-create",
+      "prompt": "Bu repo için AGENTS.md hazırla, komutları da doğrula.",
+      "tags": ["trigger", "tr"],
+      "fixture": "fixtures/tiny-bun-repo",
+      "git": true,
+      "expect": { "skill:project-rules": true },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "en-audit",
+      "prompt": "Our agent instructions are probably stale. Audit AGENTS.md and any path rules and tell me what to fix.",
+      "tags": ["trigger"],
+      "fixture": "fixtures/tiny-bun-repo",
+      "git": true,
+      "expect": { "skill:project-rules": true },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "tr-slim",
+      "prompt": "Proje talimatları çok uzun olmuş, kuralları sadeleştir.",
+      "tags": ["trigger", "tr"],
+      "fixture": "fixtures/tiny-bun-repo",
+      "git": true,
+      "expect": { "skill:project-rules": true },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "near-miss-code",
+      "prompt": "Add a multiply function next to add in src/index.ts and export it.",
+      "tags": ["negative"],
+      "fixture": "fixtures/tiny-bun-repo",
+      "git": true,
+      "expect": { "skill:project-rules": false },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "near-miss-explain",
+      "prompt": "package.json içindeki start script'i ne yapıyor? Kısaca açıkla.",
+      "tags": ["negative", "tr"],
+      "fixture": "fixtures/tiny-bun-repo",
+      "git": true,
+      "expect": { "skill:project-rules": false },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "writes-verified-agents-md",
+      "prompt": "Set up agent guidance for this repository: an AGENTS.md whose commands you have actually run.",
+      "tags": ["behavior"],
+      "fixture": "fixtures/tiny-bun-repo",
+      "git": true,
+      "expect": { "skill:project-rules": true },
+      "files": [
+        { "path": "AGENTS.md", "exists": true, "matches": "bun (run start|src/index\\.ts)" },
+        { "path": "CLAUDE.md", "exists": false }
+      ],
+      "timeoutMs": 600000
+    }
+  ]
+}

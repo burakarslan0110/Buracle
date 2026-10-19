@@ -1,0 +1,101 @@
+{
+  "target": "skill:memory",
+  "notes": "Routing checks for the memory protocol: history questions and stated preferences must reach the buracle-memory tools, self-contained requests must not. Prompts tagged tr are test data in the user's other language. Seed the arm's brain with a few project memories (`buracle mem write` under the arm's BURACLE_HOME) if you also want retrieval quality; these probes only check that the tools were called.",
+  "cases": [
+    {
+      "id": "tr-past-decision",
+      "prompt": "Geçen sefer bu projede önbellek katmanı için hangi kararı vermiştik?",
+      "tags": [
+        "trigger",
+        "tr"
+      ],
+      "git": true,
+      "expect": {
+        "mcp:buracle-memory": ">=1"
+      },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "tr-rationale",
+      "prompt": "Testleri neden bun test ile çalıştırıyoruz, bunun sebebi neydi?",
+      "tags": [
+        "trigger",
+        "tr"
+      ],
+      "git": true,
+      "expect": {
+        "mcp:buracle-memory": ">=1"
+      },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "en-decision",
+      "prompt": "What did we decide last time about the plan file format?",
+      "tags": [
+        "trigger"
+      ],
+      "git": true,
+      "expect": {
+        "mcp:buracle-memory": ">=1"
+      },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "tr-resume",
+      "prompt": "Nerede kalmıştık? Kaldığımız yerden devam edelim.",
+      "tags": [
+        "trigger",
+        "tr"
+      ],
+      "git": true,
+      "expect": {
+        "mcp:buracle-memory": ">=1"
+      },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "en-preference",
+      "prompt": "From now on, always write commit messages in English. Remember that for every project.",
+      "tags": [
+        "trigger"
+      ],
+      "git": true,
+      "expect": {
+        "mcp:buracle-memory": ">=1"
+      },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "near-miss-arithmetic",
+      "prompt": "17 ile 23'ü çarp.",
+      "tags": [
+        "negative",
+        "tr"
+      ],
+      "git": true,
+      "expect": {
+        "mcp:buracle-memory": false
+      },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "near-miss-oneliner",
+      "prompt": "Write a bash one-liner that counts the lines of every .md file in this folder.",
+      "tags": [
+        "negative"
+      ],
+      "git": true,
+      "expect": {
+        "mcp:buracle-memory": false
+      },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    }
+  ]
+}

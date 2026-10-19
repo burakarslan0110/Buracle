@@ -1,0 +1,156 @@
+:root {
+  color-scheme: dark;
+  --bg: #05060a;
+  --bg-person: #07050a;
+  --glow: rgba(56, 74, 150, 0.14);
+  --glow-person: rgba(150, 70, 90, 0.16);
+  --glow-person-2: rgba(170, 110, 60, 0.08);
+  --ink: #e7edf5;
+  --ink-2: #aab4c2;
+  --ink-3: #7c8796;
+  --line-rgb: 148, 163, 184;
+  --line: rgba(var(--line-rgb), 0.18);
+  --line-2: rgba(var(--line-rgb), 0.32);
+  --surface: rgba(12, 15, 22, 0.86);
+  --surface-2: rgba(16, 20, 29, 0.96);
+  --field: rgba(12, 15, 22, 0.9);
+  --field-2: rgba(5, 6, 10, 0.7);
+  --menu: #0b0f17;
+  --code-bg: #04060a;
+  --mark-bg: rgba(5, 6, 10, 0.5);
+  --bar: rgba(5, 6, 10, 0.94);
+  --bar-2: rgba(5, 6, 10, 0.6);
+  --hover: rgba(255, 255, 255, 0.05);
+  --tint: rgba(255, 255, 255, 0.04);
+  --tint-2: rgba(255, 255, 255, 0.08);
+  --shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23aab4c2' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  --cancel-filter: invert(0.7);
+  --accent: #7dd3fc;
+  --accent-rgb: 125, 211, 252;
+  --brand-from: #a78bfa;
+  --brand-to: #22d3ee;
+  --brand-eye: #22d3ee;
+  --brand-eye-person: #fda4af;
+  --focus: #7dd3fc;
+  --warn: #fbbf24;
+  --warn-rgb: 251, 191, 36;
+  --alert: #fb7185;
+  --alert-rgb: 251, 113, 133;
+  --alert-ink: #fecdd3;
+  --ok: #4ade80;
+  --ok-rgb: 74, 222, 128;
+  --r-plans: #a78bfa;
+  --r-knowledge: #22d3ee;
+  --r-discoveries: #60a5fa;
+  --r-self: #fb923c;
+  --r-skills: #a3e635;
+  --r-warnings: #fb7185;
+  --r-episodes: #facc15;
+  --r-communication: #f472b6;
+  --r-collaboration: #c084fc;
+  --r-workflow: #38bdf8;
+  --r-engineering: #34d399;
+  --r-avoid: #f87171;
+  --r-lessons: #fbbf24;
+  --r-inbox: #e2e8f0;
+  --g-tag: #c4b5fd;
+  --g-file: #93c5fd;
+  --g-concept: #5eead4;
+  --h-claude: #3987e5;
+  --h-codex: #d95926;
+  --h-opencode: #199e70;
+  --h-omp: #c98500;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --top: 88px;
+  --radius: 8px;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f4f5f9;
+  --bg-person: #faf5f2;
+  --glow: rgba(96, 116, 200, 0.16);
+  --glow-person: rgba(205, 120, 135, 0.18);
+  --glow-person-2: rgba(215, 165, 110, 0.12);
+  --ink: #111827;
+  --ink-2: #3f4856;
+  --ink-3: #5f6978;
+  --line-rgb: 71, 85, 105;
+  --line: rgba(var(--line-rgb), 0.16);
+  --line-2: rgba(var(--line-rgb), 0.28);
+  --surface: rgba(255, 255, 255, 0.86);
+  --surface-2: rgba(255, 255, 255, 0.97);
+  --field: rgba(255, 255, 255, 0.92);
+  --field-2: #ffffff;
+  --menu: #ffffff;
+  --code-bg: #eceef4;
+  --mark-bg: rgba(255, 255, 255, 0.65);
+  --bar: rgba(244, 245, 249, 0.96);
+  --bar-2: rgba(244, 245, 249, 0.7);
+  --hover: rgba(15, 23, 42, 0.05);
+  --tint: rgba(15, 23, 42, 0.04);
+  --tint-2: rgba(15, 23, 42, 0.08);
+  --shadow: 0 24px 64px rgba(15, 23, 42, 0.18);
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234b5563' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  --cancel-filter: none;
+  --accent: #0284c7;
+  --accent-rgb: 2, 132, 199;
+  --brand-from: #7c3aed;
+  --brand-to: #0891b2;
+  --brand-eye: #0891b2;
+  --brand-eye-person: #e11d48;
+  --focus: #0284c7;
+  --warn: #b45309;
+  --warn-rgb: 217, 119, 6;
+  --alert: #e11d48;
+  --alert-rgb: 225, 29, 72;
+  --alert-ink: #be123c;
+  --ok: #15803d;
+  --ok-rgb: 22, 163, 74;
+  --r-plans: #6d28d9;
+  --r-knowledge: #0e7490;
+  --r-discoveries: #1d4ed8;
+  --r-self: #c2410c;
+  --r-skills: #4d7c0f;
+  --r-warnings: #be123c;
+  --r-episodes: #a16207;
+  --r-communication: #be185d;
+  --r-collaboration: #7e22ce;
+  --r-workflow: #0369a1;
+  --r-engineering: #047857;
+  --r-avoid: #b91c1c;
+  --r-lessons: #b45309;
+  --r-inbox: #475569;
+  --g-tag: #7c3aed;
+  --g-file: #2563eb;
+  --g-concept: #0f766e;
+  --h-claude: #2a78d6;
+  --h-codex: #eb6834;
+  --h-opencode: #1baf7a;
+  --h-omp: #eda100;
+}
+
+[data-region="plans"] { --rc: var(--r-plans); }
+[data-region="knowledge"] { --rc: var(--r-knowledge); }
+[data-region="discoveries"] { --rc: var(--r-discoveries); }
+[data-region="self"] { --rc: var(--r-self); }
+[data-region="skills"] { --rc: var(--r-skills); }
+[data-region="warnings"] { --rc: var(--r-warnings); }
+[data-region="episodes"] { --rc: var(--r-episodes); }
+[data-region="communication"] { --rc: var(--r-communication); }
+[data-region="collaboration"] { --rc: var(--r-collaboration); }
+[data-region="workflow"] { --rc: var(--r-workflow); }
+[data-region="engineering"] { --rc: var(--r-engineering); }
+[data-region="avoid"] { --rc: var(--r-avoid); }
+[data-region="lessons"] { --rc: var(--r-lessons); }
+[data-region="inbox"] { --rc: var(--r-inbox); }
+.is-tag { --rc: var(--g-tag); }
+.is-file { --rc: var(--g-file); }
+.is-concept { --rc: var(--g-concept); }
+[data-harness="claude"] { --hc: var(--h-claude); }
+[data-harness="codex"] { --hc: var(--h-codex); }
+[data-harness="opencode"] { --hc: var(--h-opencode); }
+[data-harness="omp"] { --hc: var(--h-omp); }

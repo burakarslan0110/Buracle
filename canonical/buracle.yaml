@@ -1,0 +1,103 @@
+version: 1
+
+harnesses:
+  claude: { enabled: true }
+  codex: { enabled: true }
+  opencode: { enabled: true }
+  omp: { enabled: true }
+
+routing:
+  strictness: enforce
+  skills: router
+  reminders: true
+
+guards:
+  bash:
+    extraDeny: []
+  write:
+    protect: []
+  redact: true
+
+plan:
+  stopGuard: true
+  runaway:
+    perPlan: 30
+    perChain: 5
+  autoPause: false
+  planApproval: true
+  resultApproval: true
+  branchIsolation: true
+  worktreeDir: .worktrees
+  questions: true
+  reviews:
+    plan: true
+    changes: true
+    goal: true
+    companion: "off"
+  goalVerification: true
+  modelSwitch: "off"
+  nativePlanMode: "off"
+
+context:
+  warnPct: 85
+  criticalPct: 95
+
+checkers:
+  enabled: true
+  timeoutMs: 20000
+  languages: [python, typescript, javascript, go, shell, dotnet]
+
+memory:
+  ui:
+    port: 41777
+  exclude: []
+
+statusline:
+  style: buracle
+  emoji: true
+  monthly: estimate
+
+skills:
+  sources:
+    - name: buracle
+      path: canonical/skills
+
+update:
+  minReleaseAgeDays: 0
+
+permissions:
+  bypass: true
+  enforce: true
+
+effort:
+  claude: auto
+  codex: auto
+  opencode: auto
+  omp: auto
+
+agents:
+  teams: true
+
+workflow:
+  band: true
+  foldAfterSec: 8
+  notifyAfterSec: 120
+  codexNotices: true
+
+toolchain:
+  autoInstall: true
+  system: true
+  upgrade: true
+
+index:
+  auto: true
+  codegraph: true
+  semble: true
+  minIntervalMin: 10
+  exclude: []
+  children: true
+  maxChildren: 8
+
+contextMode:
+  enabled: true
+  capture: true

@@ -1,0 +1,14 @@
+{
+  "session_id": "sess-hook-1",
+  "transcript_path": "/tmp/transcript.jsonl",
+  "cwd": "/tmp/project",
+  "permission_mode": "default",
+  "hook_event_name": "SubagentStop",
+  "stop_hook_active": false,
+  "agent_id": "a1b2c3",
+  "agent_transcript_path": "/tmp/agent-a1b2c3.jsonl",
+  "agent_type": "buracle:plan-build-review",
+  "last_assistant_message": "The plan looks good to me.",
+  "background_tasks": [],
+  "session_crons": []
+}

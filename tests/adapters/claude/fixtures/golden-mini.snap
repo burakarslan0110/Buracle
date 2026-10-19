@@ -1,0 +1,534 @@
+===== .claude-plugin/plugin.json =====
+{
+  "name": "buracle",
+  "version": "9.9.9",
+  "description": "Buracle for Claude Code, everything your coding agents need, in one place: command hooks for guards, consent, the stop guard, prompt routing, workflow tracking, memory and code indexes; a mod that adds the workflow band above the prompt, the consent dialog, turn receipts, panes and commands; plan-build/goal-build/bugfix workflows and other skills; read-only review agents; MCP servers and language servers from Buracle's toolchain; the buracle CLI on PATH",
+  "author": {
+    "name": "burakarslan0110"
+  },
+  "types": "./types/index.d.ts"
+}
+===== .mcp.json =====
+{
+  "mcpServers": {
+    "buracle-memory": {
+      "command": "bun",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+        "mcp",
+        "memory"
+      ],
+      "alwaysLoad": true
+    },
+    "docs": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@acme/docs-mcp@1.2.3"
+      ],
+      "env": {
+        "DOCS_TOKEN": "${ACME_DOCS_TOKEN}",
+        "MODE": "stdio"
+      },
+      "alwaysLoad": true
+    },
+    "examples": {
+      "type": "http",
+      "url": "https://mcp.example.com"
+    }
+  }
+}
+===== README.md =====
+# buracle (Claude Code plugin)
+
+This folder is **generated** by `buracle build` from `canonical/` and `src/`; do not edit it by hand.
+The repository's `.claude-plugin/marketplace.json` declares a local marketplace, and Claude Code reads the
+plugin in place from this folder (`claude plugin marketplace add <repo>` and
+`claude plugin install buracle@buracle --scope user`; `buracle install claude` runs both).
+
+- Tested with Claude Code 2.1.302 (oldest supported: 2.1.290).
+- `hooks/hooks.json`: the command hooks, Buracle's backbone (SessionStart, UserPromptExpansion, UserPromptSubmit, PreToolUse ^(?:Bash|Monitor|Edit|Write|MultiEdit|NotebookEdit|WebSearch|WebFetch|AskUserQuestion|Grep|Glob|Skill|PowerShell)$|mcp__.*, PostToolUse Edit|Write|MultiEdit|NotebookEdit|ExitPlanMode|AskUserQuestion, PostToolUse ^(?:TodoWrite|TaskCreate|TaskUpdate|Bash|Monitor|WebSearch|WebFetch|Read|Skill|PowerShell)$|mcp__.*, PreCompact, PostCompact, Stop, SubagentStart, SubagentStop, SessionEnd); each runs
+  `bun ${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts hook claude <Event>` in exec form (no shell, so Git Bash and PowerShell
+  start it alike) and always runs; PreToolUse blocks the tool call when the hook cannot start or times out.
+- `hooks/register.tsx`: the mod, the experience layer (the workflow band above the prompt, the consent dialog, turn receipts, output masking, commands, panes).
+- `hooks/core/`: a copy of `src/core`; `hooks/generated/`: the capability catalog and the versions the mod reads.
+- Skills (`/<id>`, the bare alias Buracle's texts use; `/buracle:<id>` always works, also when another command took the bare name): alpha, beta.
+- Agents (`buracle:<id>`, read-only): reviewer.
+- MCP servers (`mcp__plugin_buracle_<server>__*`): buracle-memory (always loaded), docs (always loaded), examples; `.lsp.json`: language servers (from Buracle's toolchain).
+- `bin/`: `buracle` (on the Bash tool's PATH), `buracle.ts` (the launcher of the hooks, the MCP and the language servers), `buracle.cmd` (Windows, on the PowerShell tool's PATH).
+- `settings.json`: `subagentStatusLine` (plugin settings accept only `agent` and `subagentStatusLine`).
+
+Checks: `claude plugin validate --strict --json harness/claude` (must pass with no error and no warning) and
+`claude plugin test harness/claude`.
+===== agents/reviewer.md =====
+---
+name: reviewer
+description: "Read-only reviewer for the golden test. Launch it from `/alpha` after implementation."
+tools: "Read, Bash, mcp__plugin_buracle_docs__*"
+disallowedTools: "Write, Edit, NotebookEdit"
+model: sonnet
+---
+
+You review changes. Ask nothing; use `AskUserQuestion` never.
+
+Return only JSON.
+===== bin/buracle (mode 755) =====
+#!/bin/sh
+# Buracle's launcher in the plugin: the buracle CLI on the Bash tool's PATH while the plugin is
+# enabled (the command hooks run bin/buracle.ts with bun, no shell). Runs the shim `buracle install` writes
+# (~/.buracle/bin/buracle, or $BURACLE_HOME/bin/buracle; it names bun by its absolute path), else bun
+# with bin/buracle.ts next to this file (Windows, where the shim is buracle.cmd, and a missing shim).
+b="${BURACLE_HOME:-$HOME/.buracle}/bin/buracle"
+if [ -x "$b" ]; then exec "$b" "$@"; fi
+d=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if command -v bun >/dev/null 2>&1; then exec bun "$d/buracle.ts" "$@"; fi
+# Neither the shim nor bun: nothing of Buracle can run. A guard hook (PreToolUse) denies the call
+# (fail closed; `buracle uninstall` removes this plugin, so only a broken install gets here);
+# every other hook does nothing.
+if [ "$1" = hook ]; then
+  if [ "$3" = PreToolUse ]; then printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Buracle blocked this tool call: the buracle shim (~/.buracle/bin/buracle) and bun are both missing, so its guards (H01, H02, H20) cannot run. Ask the user to install bun and run `bun src/cli/main.ts install` in the Buracle checkout, or to remove Buracle'\''s plugin with `claude plugin uninstall buracle@buracle`."}}'; fi
+  exit 0
+fi
+echo "buracle: $b not found and bun is not on PATH; run 'bun src/cli/main.ts install' in the Buracle repository" >&2
+exit 127
+===== bin/buracle.cmd =====
+@echo off
+rem GENERATED by `buracle build`. Do not edit.
+bun "%~dp0buracle.ts" %*
+===== bin/buracle.ts (mode 755) =====
+#!/usr/bin/env bun
+// GENERATED by `buracle build` (src/adapters/claude/plugin.ts). Do not edit.
+// Buracle's launcher inside the Claude Code plugin: `bun <plugin>/bin/buracle.ts <args>` runs the
+// Buracle CLI in this process: the frozen runtime the shim runs, else the checkout. The command hooks,
+// MCP servers and language servers use it, and bin/buracle when there is no shim.
+import { existsSync, readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join, resolve } from 'node:path'
+
+const HOME = (process.env['HOME'] ?? '').trim() || homedir()
+const BURACLE_HOME = (process.env['BURACLE_HOME'] ?? '').trim() || join(HOME, '.buracle')
+const REASON_PRE = "Buracle blocked this tool call: its guard hook could not run ("
+const REASON_POST = "). The guards (H01, H02, H20) must check every call, so calls stay blocked until Buracle works again. Ask the user to run `! buracle doctor` and then `! buracle install` in this session; the log is ~/.buracle/logs/buracle.log."
+
+function isCheckout(dir: string): boolean {
+  return existsSync(join(dir, 'canonical', 'buracle.yaml')) && existsSync(join(dir, 'src', 'cli', 'router.ts'))
+}
+
+/** The tree the shim runs (its frozen runtime, or the checkout), read from the POSIX shim. */
+function shimTree(): string | undefined {
+  try {
+    const text = readFileSync(join(BURACLE_HOME, 'bin', 'buracle'), 'utf8')
+    const main = /^m='((?:[^']|'\\'')*)'$/m.exec(text)?.[1] ?? /^exec '(?:[^']|'\\'')*' '((?:[^']|'\\'')*)' "\$@"$/m.exec(text)?.[1]
+    if (main === undefined) return undefined
+    const dir = resolve(main.replace(/'\\''/g, "'"), '..', '..', '..')
+    return isCheckout(dir) ? dir : undefined
+  } catch { return undefined }
+}
+
+function checkout(): string | undefined {
+  const here = resolve(import.meta.dir, '..', '..', '..')
+  if (isCheckout(here)) return here
+  try {
+    const snap = JSON.parse(readFileSync(join(BURACLE_HOME, 'state', 'runtime-config.json'), 'utf8')) as { resolved?: { repoRoot?: unknown } }
+    const r = snap.resolved?.repoRoot
+    if (typeof r === 'string' && isCheckout(r)) return r
+  } catch { /* no snapshot yet */ }
+  try {
+    const m = /^repo:\s*['"]?([^'"\n]+?)['"]?\s*$/m.exec(readFileSync(join(BURACLE_HOME, 'config.yaml'), 'utf8'))
+    const r = m?.[1]?.replace(/^~(?=$|[\\/])/, HOME)
+    if (r !== undefined && isCheckout(r)) return r
+  } catch { /* no config yet */ }
+  return undefined
+}
+
+const argv = process.argv.slice(2)
+
+/** A hook that cannot run: a guard hook (PreToolUse) denies the call, any other does nothing. */
+function failHook(detail: string): never {
+  if (argv[2] === 'PreToolUse' && (argv[1] === 'claude' || argv[1] === 'codex')) {
+    process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: REASON_PRE + detail + REASON_POST } }) + '\n')
+  }
+  process.exit(0)
+}
+
+const root = shimTree() ?? checkout()
+if (root === undefined) {
+  if (argv[0] === 'hook') failHook('no Buracle runtime or checkout was found')
+  process.stderr.write("buracle: the Buracle checkout was not found; run 'bun src/cli/main.ts install' in it\n")
+  process.exit(127)
+}
+let runProcess: (argv: readonly string[]) => Promise<number>
+try {
+  ({ runProcess } = (await import(join(root, 'src', 'cli', 'router.ts'))) as { runProcess(argv: readonly string[]): Promise<number> })
+} catch (e) {
+  const why = String(e instanceof Error ? e.message : e).split('\n')[0] ?? ''
+  if (argv[0] === 'hook') failHook(`Buracle's CLI in ${root} cannot load: ${why}`)
+  process.stderr.write(`buracle: the CLI in ${root} cannot load: ${why}\n`)
+  process.exit(1)
+}
+process.exit(await runProcess(argv))
+===== hooks/core/events.ts =====
+export type Harness = 'claude'
+===== hooks/core/index.ts =====
+export * from './events'
+===== hooks/generated/catalog.ts =====
+// GENERATED by `buracle build` (src/adapters/claude/plugin.ts). Do not edit: change canonical/ and rebuild.
+// Capability catalog. criticalToolPatterns are RegExp sources over full Claude tool names (critical servers: never deferred).
+import type { CatalogMcp, CatalogSkill } from '../core/index'
+
+export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: string[], criticalToolPatterns: string[], harness: 'claude' } = {
+  "criticalToolPatterns": [
+    "^mcp__plugin_buracle_buracle-memory__",
+    "^mcp__plugin_buracle_docs__"
+  ],
+  "harness": "claude",
+  "mcp": [
+    {
+      "critical": true,
+      "description": "Buracle memory (CortexDB brain)",
+      "harnesses": [
+        "claude",
+        "codex",
+        "opencode",
+        "omp"
+      ],
+      "id": "buracle-memory",
+      "routing": [
+        "memory"
+      ],
+      "transport": "stdio"
+    },
+    {
+      "critical": true,
+      "description": "Library documentation",
+      "harnesses": [
+        "claude",
+        "codex"
+      ],
+      "id": "docs",
+      "routing": [
+        "library-docs"
+      ],
+      "transport": "stdio"
+    },
+    {
+      "critical": false,
+      "description": "Public code examples",
+      "harnesses": [
+        "claude",
+        "opencode"
+      ],
+      "id": "examples",
+      "routing": [
+        "code-examples"
+      ],
+      "transport": "http"
+    }
+  ],
+  "plugins": [
+    "lint-lsp@acme-market"
+  ],
+  "skills": [
+    {
+      "description": "Alpha workflow for the golden test: plan, build and verify one change. Run only when the user explicitly asks for alpha.",
+      "id": "alpha",
+      "invocation": "explicit",
+      "short": "Plan, build and verify one change",
+      "userInvocable": true
+    },
+    {
+      "description": "Beta helper: true: it answers yes/no questions about the repo # with a hash",
+      "id": "beta",
+      "invocation": "implicit",
+      "userInvocable": false
+    }
+  ]
+}
+===== hooks/generated/meta.ts =====
+// GENERATED by `buracle build` (src/adapters/claude/plugin.ts). Do not edit: change canonical/ and rebuild.
+// Versions; contentHash is the sha256 of the parsed canonical/ tree.
+
+export const META: { buracleVersion: string, testedWith: string, minClaude: string, contentHash: string } = {
+  "buracleVersion": "9.9.9",
+  "contentHash": "78bb046c8b6bb094f5fd57dfd9fe291420cd0d5b5dfe3bac0829f02bbd58422f",
+  "minClaude": "2.1.290",
+  "testedWith": "2.1.302"
+}
+===== hooks/hooks.json =====
+{
+  "description": "Buracle: command hooks are the backbone (guards, consent, stop guard, prompt routing, usage ledger, workflow tracking, memory, compaction, file checks, code indexes); the mod adds the workflow band above the prompt, the consent dialog, turn receipts, panes and commands",
+  "modules": [
+    "./register.tsx"
+  ],
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+              "hook",
+              "claude",
+              "SessionStart"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptExpansion": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+              "hook",
+              "claude",
+              "UserPromptExpansion"
+            ],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+              "hook",
+              "claude",
+              "UserPromptSubmit"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "^(?:Bash|Monitor|Edit|Write|MultiEdit|NotebookEdit|WebSearch|WebFetch|AskUserQuestion|Grep|Glob|Skill|PowerShell)$|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+              "hook",
+              "claude",
+              "PreToolUse"
+            ],
+            "timeout": 10,
+            "onFailure": "block"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|ExitPlanMode|AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+              "hook",
+              "claude",
+              "PostToolUse"
+            ],
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "^(?:TodoWrite|TaskCreate|TaskUpdate|Bash|Monitor|WebSearch|WebFetch|Read|Skill|PowerShell)$|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+              "hook",
+              "claude",
+              "PostToolUse"
+            ],
+            "timeout": 5,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+              "hook",
+              "claude",
+              "PreCompact"
+            ],
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+              "hook",
+              "claude",
+              "PostCompact"
+            ],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+              "hook",
+              "claude",
+              "Stop"
+            ],
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+              "hook",
+              "claude",
+              "SubagentStart"
+            ],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+              "hook",
+              "claude",
+              "SubagentStop"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
+              "hook",
+              "claude",
+              "SessionEnd"
+            ],
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
+}
+===== hooks/register.tsx =====
+export function register(): void {}
+===== settings.json =====
+{
+  "subagentStatusLine": {
+    "type": "command",
+    "command": "\"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" statusline claude --subagent"
+  }
+}
+===== skills/alpha/SKILL.md =====
+---
+name: alpha
+description: "Alpha workflow for the golden test: plan, build and verify one change. Run only when the user explicitly asks for alpha."
+when_to_use: "The user says \"alpha ile yap\" or invokes alpha by name."
+argument-hint: "<task>"
+disable-model-invocation: true
+---
+
+# Alpha
+
+Track the phases with `TodoWrite` (or `TaskCreate`/`TaskUpdate`, whichever this session has, if any). Ask with `AskUserQuestion`: 2 to 4 options.
+Launch `buracle:reviewer` with the `Agent` tool, then continue in `/buracle:beta`.
+Inline code keeps one span: `/alpha <task>` and `AskUserQuestion`.
+A literal placeholder stays literal: {{ask_user}} and {{skill:alpha}}.
+Unknown placeholders are left alone: {{nope}} and {{skill:Bad Id}}.
+
+```text
+buracle:reviewer
+plan_file: docs/plans/x.md
+```
+
+Claude block line.
+Inline claude marker.
+
+See [references/ref.md](references/ref.md).
+===== skills/alpha/evals/cases.json =====
+{
+  "target": "skill:alpha",
+  "cases": [{ "id": "trigger", "prompt": "alpha ile yap", "expect": { "skill:alpha": true } }]
+}
+===== skills/alpha/references/ref.md =====
+# Reference
+
+Phase notes: ask with `AskUserQuestion`, track with `TodoWrite` (or `TaskCreate`/`TaskUpdate`, whichever this session has, if any).
+===== skills/alpha/scripts/run.sh (mode 755) =====
+#!/bin/sh
+# Placeholders in scripts are not rendered: {{ask_user}}
+echo alpha
+===== skills/beta/SKILL.md =====
+---
+name: beta
+description: "Beta helper: true: it answers yes/no questions about the repo # with a hash"
+user-invocable: false
+---
+
+# Beta
+
+Answer directly.
+===== tests/ping.test.ts =====
+import { test } from 'claude-code/testing'
+===== types/index.d.ts =====
+export type BarModel = { harness: string }

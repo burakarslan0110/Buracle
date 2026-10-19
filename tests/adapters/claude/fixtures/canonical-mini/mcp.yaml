@@ -1,0 +1,44 @@
+servers:
+  docs:
+    description: Library documentation
+    transport: stdio
+    package: { registry: npm, name: "@acme/docs-mcp", version: 1.2.3 }
+    command: npx
+    args: ["-y", "@acme/docs-mcp@{version}"]
+    env:
+      DOCS_TOKEN: "${ENV:ACME_DOCS_TOKEN}"
+      MODE: stdio
+    harnesses: [claude, codex]
+    pin: hard
+    critical: true
+    routing: [library-docs]
+
+  examples:
+    description: Public code examples
+    transport: http
+    url: https://mcp.example.com
+    harnesses: [claude, opencode]
+    pin: monitor
+    critical: false
+    routing: [code-examples]
+
+  buracle-memory:
+    description: Buracle memory (CortexDB brain)
+    transport: stdio
+    command: "{buracle}"
+    args: ["mcp", "memory"]
+    harnesses: [claude, codex, opencode, omp]
+    pin: hard
+    critical: true
+    routing: [memory]
+
+  codex-only:
+    description: Not for Claude
+    transport: stdio
+    package: { registry: pypi, name: only, version: 0.1.0 }
+    command: uvx
+    args: ["only=={version}"]
+    harnesses: [codex]
+    pin: hard
+    critical: false
+    routing: []

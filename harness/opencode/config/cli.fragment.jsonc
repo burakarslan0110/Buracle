@@ -1,0 +1,7 @@
+// Buracle keys for ~/.config/opencode/cli.json (OpenCode v2 TUI settings), merged by `buracle install`.
+// `plugins` gets one entry at install time: the absolute path of <config dir>/plugins/buracle, which
+// enables the Buracle status line without disabling the built-in footer. It is left out when the user
+// already keeps their own `plugins` list.
+{
+  "$schema": "https://opencode.ai/v2/cli.json"
+}

@@ -1,0 +1,9 @@
+notices:
+  - id: 0.5.0-project-assets
+    since: 0.5.0
+    until: 0.6.0
+    message: "When a session starts in a repository, Buracle now links the skills in .agents/skills into .claude/skills so Claude Code sees them too, and checks that AGENTS.md lists the path rules in .claude/rules. Run `buracle project check` to see what it would change."
+  - id: 0.5.0-smaller-cli
+    since: 0.5.0
+    until: 0.6.0
+    message: "Buracle's CLI is smaller: run `buracle` in a terminal for a main menu you drive with the keyboard. `buracle install` now does what `init` and `sync` did, `buracle install` and `buracle update` apply in a terminal without a question and show each step as it runs, and the rare cases flags used to cover are questions in a terminal. `buracle help --all` lists the commands your agents use."

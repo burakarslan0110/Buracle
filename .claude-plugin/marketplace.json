@@ -1,0 +1,14 @@
+{
+  "name": "buracle",
+  "owner": {
+    "name": "burakarslan0110"
+  },
+  "description": "Local marketplace of the Buracle repository: serves the generated Claude Code plugin in place from ./harness/claude",
+  "plugins": [
+    {
+      "name": "buracle",
+      "source": "./harness/claude",
+      "description": "Buracle for Claude Code, everything your coding agents need, in one place: guard, memory and status-band mod, workflow skills, read-only review agents, pinned MCP servers and the buracle CLI on PATH"
+    }
+  ]
+}

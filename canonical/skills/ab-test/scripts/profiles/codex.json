@@ -1,0 +1,30 @@
+{
+  "harness": "codex",
+  "status": "Flags checked against `codex exec --help` (codex-cli 0.161.0); event patterns are an UNVERIFIED starting point. Assumes `codex exec --json` prints one JSON event per line with item.completed events whose item type is command_execution, mcp_tool_call (with server and tool) or file_change. Inspect the smoke-run stdout and fix these patterns before trusting any result.",
+  "usage": "Per arm: --env HOME=<arm>/home and --env CODEX_HOME=<arm>/home/.codex (create the directory first) plus credentials (--env CODEX_API_KEY=...). Codex reads user skills from $HOME/.agents/skills, so the moved HOME hides the real ones. Never add --dangerously-bypass-approvals-and-sandbox.",
+  "argv": [
+    "codex", "exec", "--json", "--ephemeral", "--skip-git-repo-check",
+    "--sandbox", "workspace-write",
+    "-C", "{work}",
+    "{prompt}"
+  ],
+  "cwd": "{work}",
+  "timeoutMs": 300000,
+  "probes": {
+    "skill:*": "\"item.completed\"[^\\n]*\"command_execution\"[^\\n]*skills/{arg}/SKILL\\.md",
+    "mcp:*": "\"item.completed\"[^\\n]*\"mcp_tool_call\"[^\\n]*\"server\":\"{arg}\"",
+    "cmd:*": "\"item.completed\"[^\\n]*\"command_execution\"[^\\n]*\"command\":\"(?:[^\"\\\\]|\\\\.)*?{arg}",
+    "any_tool": "\"item.completed\"[^\\n]*\"type\":\"(?:command_execution|mcp_tool_call|file_change|web_search)\""
+  },
+  "metrics": {
+    "input_tokens": "\"input_tokens\":([0-9]+)",
+    "output_tokens": "\"output_tokens\":([0-9]+)"
+  },
+  "grader": {
+    "status": "Read-only judge run (sandbox read-only, ephemeral); the last message goes to a file. Smoke-graded on codex-cli 0.162.1 against a local fake Responses endpoint (a model_providers entry in the throwaway CODEX_HOME): the argv is accepted and the answer is read from the -o file and the agent_message event. The quality of a real model's judgment is not covered by that smoke.",
+    "usage": "Give the grader its own throwaway config like an arm: --env HOME=<root>/grader/home --env CODEX_HOME=<root>/grader/home/.codex plus credentials. Pin the model: --append-arg -m --append-arg <model>.",
+    "argv": ["codex", "exec", "--json", "--ephemeral", "--skip-git-repo-check", "--sandbox", "read-only", "-C", "{grade_dir}", "-o", "{grade_dir}/last-message.txt", "{prompt}"],
+    "output": "{grade_dir}/last-message.txt",
+    "timeoutMs": 300000
+  }
+}

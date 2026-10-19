@@ -1,0 +1,25 @@
+# Dependencies and build output
+node_modules/
+dist/
+tmp/
+coverage/
+
+# Local files
+*.log
+.DS_Store
+.env
+.env.*
+
+# Design notes, contracts, the usage guide and the generated reference stay on the author's machine
+docs/
+
+# Per-machine state the buracle CLI and the code indexes write into a checkout
+.codegraph/
+.sembleignore
+.worktrees/
+.claude/settings.local.json
+.claude/worktrees/
+
+# Written by Claude Code at every mod load (also when the plugin is loaded with --plugin-dir)
+harness/claude/.claude-plugin/types/
+harness/claude/tsconfig.json

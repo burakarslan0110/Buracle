@@ -1,0 +1,8 @@
+{
+  "session_id": "sess-hook-1",
+  "transcript_path": "/tmp/transcript.jsonl",
+  "cwd": "/tmp/project",
+  "hook_event_name": "PreCompact",
+  "trigger": "auto",
+  "custom_instructions": null
+}

@@ -1,0 +1,69 @@
+{
+  "target": "skill:buracle",
+  "notes": "Behavior checks: state and scope questions must go through the buracle CLI rather than hand-made git or shell. Probe texts include the subcommand so paths such as the bench temp root never match.",
+  "cases": [
+    {
+      "id": "tr-plan-status",
+      "prompt": "Aktif planın durumu ne, kaç görev kaldı?",
+      "tags": ["behavior", "tr"],
+      "git": true,
+      "expect": { "cmd:buracle plan status": ">=1" },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "en-review-scope",
+      "prompt": "Work out the diff range I should review for the current branch.",
+      "tags": ["behavior"],
+      "git": true,
+      "expect": { "cmd:buracle review-scope": ">=1" },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "tr-usage",
+      "prompt": "Kullanım limitlerimiz ne durumda, 5 saatlik pencere dolmak üzere mi?",
+      "tags": ["behavior", "tr"],
+      "git": true,
+      "expect": { "cmd:buracle usage": ">=1" },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "near-miss-explain",
+      "prompt": "Explain in two sentences what a git worktree is.",
+      "tags": ["negative"],
+      "git": true,
+      "expect": { "cmd:buracle worktree": false },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "near-miss-product-limit",
+      "prompt": "Add a usage limit to the free plan API: at most 100 requests a day, and a weekly limit of 500.",
+      "tags": ["negative"],
+      "git": true,
+      "expect": { "cmd:buracle usage": false },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "near-miss-plan-endpoint",
+      "prompt": "The plan status endpoint returns 500 for archived plans; find out why.",
+      "tags": ["negative"],
+      "git": true,
+      "expect": { "cmd:buracle plan": false },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    },
+    {
+      "id": "near-miss-edit",
+      "prompt": "README.md dosyasının başına tek satırlık bir proje açıklaması ekle.",
+      "tags": ["negative", "tr"],
+      "git": true,
+      "expect": { "cmd:buracle plan": false },
+      "allowTimeout": true,
+      "timeoutMs": 120000
+    }
+  ]
+}

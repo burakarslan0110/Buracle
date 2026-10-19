@@ -1,0 +1,6 @@
+{
+  "name": "context-mode",
+  "version": "0.0.0-fixture",
+  "type": "module",
+  "description": "Test fixture for Buracle's session bridge: the session-library exports the bridge imports, backed by bun:sqlite. Never the real package."
+}

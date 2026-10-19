@@ -1,0 +1,66 @@
+{
+  "generatedAt": 1791442800000,
+  "reports": [
+    {
+      "provider": "anthropic",
+      "fetchedAt": 1791442800000,
+      "limits": [
+        {
+          "id": "anthropic:5h",
+          "label": "5-hour limit",
+          "scope": { "provider": "anthropic", "accountId": "acct-1", "windowId": "5h" },
+          "window": { "id": "5h", "label": "5-hour", "durationMs": 18000000, "resetsAt": 1791457200000 },
+          "amount": { "usedFraction": 0.35, "unit": "percent" },
+          "status": "ok"
+        },
+        {
+          "id": "anthropic:7d",
+          "label": "Weekly limit",
+          "scope": { "provider": "anthropic", "accountId": "acct-1", "windowId": "7d" },
+          "window": { "id": "7d", "label": "Weekly", "durationMs": 604800000, "resetsAt": 1791795600000 },
+          "amount": { "usedFraction": 0.6, "unit": "percent" },
+          "status": "warning"
+        }
+      ]
+    },
+    {
+      "provider": "openai-codex",
+      "fetchedAt": 1791442800000,
+      "limits": [
+        {
+          "id": "openai-codex:primary",
+          "label": "5h",
+          "scope": { "provider": "openai-codex", "windowId": "5h" },
+          "window": { "id": "5h", "label": "5 Hour", "durationMs": 18000000, "resetsAt": 1791457200000 },
+          "amount": { "used": 50, "unit": "percent" },
+          "status": "ok"
+        },
+        {
+          "id": "openai-codex:expired",
+          "label": "weekly",
+          "scope": { "provider": "openai-codex", "windowId": "weekly" },
+          "window": { "id": "weekly", "label": "Weekly", "resetsAt": 1791201600000 },
+          "amount": { "used": 95, "unit": "percent" },
+          "status": "warning"
+        }
+      ]
+    },
+    {
+      "provider": "opencode-go",
+      "fetchedAt": 1791442800000,
+      "limits": [
+        {
+          "id": "opencode-go:monthly",
+          "label": "Monthly",
+          "scope": { "provider": "opencode-go", "windowId": "monthly" },
+          "window": { "id": "monthly", "label": "Monthly", "durationMs": 2592000000 },
+          "amount": { "used": 24.8, "limit": 40, "unit": "usd" },
+          "status": "ok"
+        }
+      ]
+    }
+  ],
+  "accountsWithoutUsage": [],
+  "disabledCredentials": [],
+  "capacity": {}
+}

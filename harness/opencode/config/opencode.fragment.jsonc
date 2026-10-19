@@ -1,0 +1,202 @@
+// Buracle keys for ~/.config/opencode/opencode.jsonc (OpenCode v2). `buracle install` merges them key by key
+// (mcp.servers.<id>, permissions, share, $schema) and keeps every other key and comment of the user.
+// {env:HOME}/.buracle/bin/buracle is replaced with the absolute shim path at install time.
+{
+  "$schema": "https://opencode.ai/config.json",
+  "share": "disabled",
+  "permissions": [
+    {
+      "action": "edit",
+      "resource": "*.env",
+      "effect": "deny"
+    },
+    {
+      "action": "edit",
+      "resource": "*.env.*",
+      "effect": "deny"
+    },
+    {
+      "action": "edit",
+      "resource": "*.env.example",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "rm -rf /",
+      "effect": "deny"
+    },
+    {
+      "action": "shell",
+      "resource": "rm -rf /*",
+      "effect": "deny"
+    },
+    {
+      "action": "shell",
+      "resource": "rm -rf ~",
+      "effect": "deny"
+    },
+    {
+      "action": "shell",
+      "resource": "rm -rf ~/*",
+      "effect": "deny"
+    },
+    {
+      "action": "shell",
+      "resource": "rm -rf $HOME",
+      "effect": "deny"
+    },
+    {
+      "action": "shell",
+      "resource": "rm -rf $HOME/*",
+      "effect": "deny"
+    },
+    {
+      "action": "context-mode_ctx_upgrade",
+      "resource": "*",
+      "effect": "deny"
+    },
+    {
+      "action": "context-mode_ctx_insight",
+      "resource": "*",
+      "effect": "deny"
+    },
+    {
+      "action": "context-mode_ctx_doctor",
+      "resource": "*",
+      "effect": "deny"
+    }
+  ],
+  "mcp": {
+    "servers": {
+      "buracle-memory": {
+        "type": "local",
+        "command": [
+          "{env:HOME}/.buracle/bin/buracle",
+          "mcp",
+          "memory"
+        ],
+        "codemode": false
+      },
+      "chrome-devtools": {
+        "type": "local",
+        "command": [
+          "{env:HOME}/.buracle/bin/buracle",
+          "mcp",
+          "run",
+          "chrome-devtools"
+        ],
+        "timeout": {
+          "startup": 60000
+        }
+      },
+      "codegraph": {
+        "type": "local",
+        "command": [
+          "{env:HOME}/.buracle/bin/buracle",
+          "mcp",
+          "run",
+          "codegraph"
+        ],
+        "environment": {
+          "CODEGRAPH_MCP_TOOLS": "explore,search,node,callers,callees,impact,status,files",
+          "CODEGRAPH_NO_UPDATE_CHECK": "1",
+          "CODEGRAPH_TELEMETRY": "0"
+        },
+        "codemode": false,
+        "timeout": {
+          "startup": 60000
+        }
+      },
+      "context-mode": {
+        "type": "local",
+        "command": [
+          "{env:HOME}/.buracle/bin/buracle",
+          "mcp",
+          "run",
+          "context-mode"
+        ],
+        "environment": {
+          "CONTEXT_MODE_PLATFORM": "opencode"
+        },
+        "codemode": false,
+        "timeout": {
+          "startup": 60000
+        }
+      },
+      "context7": {
+        "type": "local",
+        "command": [
+          "{env:HOME}/.buracle/bin/buracle",
+          "mcp",
+          "run",
+          "context7"
+        ],
+        "codemode": false,
+        "timeout": {
+          "startup": 60000
+        }
+      },
+      "grep": {
+        "type": "remote",
+        "url": "https://mcp.grep.app",
+        "oauth": false
+      },
+      "lsp": {
+        "type": "local",
+        "command": [
+          "{env:HOME}/.buracle/bin/buracle",
+          "lsp",
+          "mcp"
+        ],
+        "codemode": false
+      },
+      "semble": {
+        "type": "local",
+        "command": [
+          "{env:HOME}/.buracle/bin/buracle",
+          "mcp",
+          "run",
+          "semble"
+        ],
+        "environment": {
+          "HF_HUB_DISABLE_TELEMETRY": "1"
+        },
+        "codemode": false,
+        "timeout": {
+          "startup": 60000
+        }
+      },
+      "web-fetch": {
+        "type": "local",
+        "command": [
+          "{env:HOME}/.buracle/bin/buracle",
+          "mcp",
+          "run",
+          "web-fetch"
+        ],
+        "codemode": false,
+        "timeout": {
+          "startup": 60000,
+          "execution": 180000
+        }
+      },
+      "web-search": {
+        "type": "local",
+        "command": [
+          "{env:HOME}/.buracle/bin/buracle",
+          "mcp",
+          "run",
+          "web-search"
+        ],
+        "environment": {
+          "DEFAULT_SEARCH_ENGINE": "duckduckgo",
+          "MODE": "stdio"
+        },
+        "codemode": false,
+        "timeout": {
+          "startup": 60000
+        }
+      }
+    }
+  }
+}
