@@ -22503,14 +22503,6 @@ function indexRetryDelayMs(failures, minIntervalMin) {
   const step = INDEX_RETRY_MIN[Math.min(n, INDEX_RETRY_MIN.length) - 1] ?? 1440;
   return Math.max(step, Math.max(0, minIntervalMin)) * 60000;
 }
-function indexToolDue(record, enabled, minIntervalMin, nowMs) {
-  if (!enabled)
-    return false;
-  if (record === undefined || nowMs < record.at)
-    return true;
-  const wait = record.ok ? Math.max(0, minIntervalMin) * 60000 : indexRetryDelayMs(record.failures ?? 1, minIntervalMin);
-  return nowMs - record.at >= wait;
-}
 function indexState(f, minIntervalMin) {
   if (!f.enabled)
     return { state: "off" };
@@ -24962,76 +24954,12 @@ function indexRecordFile(root) {
   return join4(indexStateDir(), `${indexTag(root)}.json`);
 }
 var CORRUPT_KEEP_MS = 14 * 86400000;
-function corruptDir() {
-  return join4(indexStateDir(), "corrupt");
-}
-function pruneCorruptCopies(nowMs, keepTag) {
-  const dir = corruptDir();
-  let names;
-  try {
-    names = readdirSync(dir).sort();
-  } catch {
-    return [];
-  }
-  const copies = names.flatMap((n) => {
-    const m = /^([0-9a-f]{16})-(\d+)$/.exec(n);
-    return m !== null ? [{ n, tag: m[1], at: Number(m[2]) }] : [];
-  });
-  const own = copies.filter((c) => c.tag === keepTag);
-  const newest = own.length > 0 ? own.reduce((a, b) => b.at > a.at ? b : a).n : undefined;
-  const removed = [];
-  for (const { n, tag, at } of copies) {
-    if (n === newest)
-      continue;
-    if (tag !== keepTag && nowMs - at < CORRUPT_KEEP_MS)
-      continue;
-    try {
-      rmSync(join4(dir, n), { recursive: true, force: true });
-      removed.push(join4(dir, n));
-    } catch {
-      continue;
-    }
-  }
-  return removed;
-}
 function indexLockFile(root) {
   return `${indexRecordFile(root)}.lock`;
 }
 function readIndexRecord(root) {
   const r = readJsonSafeSync(indexRecordFile(root));
   return r.ok && r.value?.v === 1 ? r.value : undefined;
-}
-function pruneIndexStates(nowMs) {
-  const dir = indexStateDir();
-  const removed = [];
-  let names = [];
-  try {
-    names = readdirSync(dir);
-  } catch {
-    return removed;
-  }
-  for (const n of names) {
-    if (!n.endsWith(".json"))
-      continue;
-    const file = join4(dir, n);
-    const r = readJsonSafeSync(file);
-    const root = r.ok && r.value !== null && typeof r.value === "object" ? r.value.root : undefined;
-    if (typeof root !== "string" || !isAbsolute4(root) || existsSync3(root))
-      continue;
-    if (indexLockHolder(root, nowMs) !== undefined)
-      continue;
-    try {
-      unlinkSync2(file);
-      removed.push(file);
-    } catch {
-      continue;
-    }
-    try {
-      unlinkSync2(`${file}.lock`);
-    } catch {}
-  }
-  removed.push(...pruneCorruptCopies(nowMs));
-  return removed;
 }
 function pidAlive(pid) {
   try {
@@ -25087,10 +25015,6 @@ function codegraphDataDir(root, env = process.env) {
 function codegraphIndexPresent(root) {
   return existsSync3(join4(root, codegraphDataDir(root), "codegraph.db"));
 }
-function indexDue(root, cfg, nowMs) {
-  const rec = readIndexRecord(root);
-  return indexToolDue(rec?.codegraph, cfg.codegraph, cfg.minIntervalMin, nowMs) || indexToolDue(rec?.semble, cfg.semble, cfg.minIntervalMin, nowMs);
-}
 function projectIndex(root, cfg, nowMs, building = false) {
   const rec = readIndexRecord(root);
   const lock = building ? { pid: process.pid, at: nowMs } : indexLockHolder(root, nowMs);
@@ -25132,28 +25056,6 @@ function refreshWorkspaceInfo(info, cfg, nowMs) {
   if (info.excluded !== undefined)
     target.excluded = info.excluded;
   return infoFor(target, cfg, nowMs);
-}
-var spawnDetached = (argv, cwd) => {
-  const spawned = spawnArgv(argv);
-  const child = Bun.spawn(spawned, { stdin: "ignore", stdout: "ignore", stderr: "ignore", detached: true, cwd, env: { ...process.env }, windowsVerbatimArguments: windowsVerbatim(spawned) });
-  child.unref();
-};
-function startIndexRun(target, cfg, nowMs, argv, spawn = spawnDetached) {
-  if (argv === undefined || !cfg.index.codegraph && !cfg.index.semble)
-    return [];
-  const roots = target.root !== undefined ? [target.root] : target.children;
-  const due = roots.filter((r) => indexDue(r, cfg.index, nowMs) && indexLockHolder(r, nowMs) === undefined);
-  if (due.length === 0)
-    return [];
-  pruneIndexStates(nowMs);
-  const at = target.root ?? target.cwd;
-  try {
-    spawn([...argv, "index", "ensure", "--cwd", at, "--if-due", "--quiet"], at);
-  } catch (e) {
-    log("warn", "index: could not start the background run", { at, error: e });
-    return [];
-  }
-  return due;
 }
 
 // src/adapters/shared/self-paths.ts
@@ -35427,7 +35329,7 @@ function assetsContextFacts(rootIn) {
 
 // src/adapters/shared/project-assets.ts
 var ASSETS_SPAWN_THROTTLE_MS = 30000;
-var spawnDetached2 = (argv, cwd) => {
+var spawnDetached = (argv, cwd) => {
   const spawned = spawnArgv(argv);
   const child = Bun.spawn(spawned, { stdin: "ignore", stdout: "ignore", stderr: "ignore", detached: true, cwd, env: { ...process.env }, windowsVerbatimArguments: windowsVerbatim(spawned) });
   child.unref();
@@ -35463,7 +35365,7 @@ function startLinkRun(rootIn, o) {
     const root = assetsRoot(rootIn);
     if (root === undefined)
       return false;
-    const spawn = o.spawn ?? (process.env["BURACLE_NO_AUTOSTART"] === "1" ? undefined : spawnDetached2);
+    const spawn = o.spawn ?? (process.env["BURACLE_NO_AUTOSTART"] === "1" ? undefined : spawnDetached);
     if (spawn === undefined || !linkWorkPending(root))
       return false;
     const argv = o.argv ?? buracleArgv();
@@ -35598,15 +35500,9 @@ function fallbackInfo(cwd, cfg) {
     index: { codegraph: { state: cfg.index.codegraph ? "none" : "off" }, semble: { state: cfg.index.semble ? "none" : "off" } }
   };
 }
-function indexRunAtSessionStart(target) {
-  return target.root === undefined && target.children.length > 0;
-}
-async function prepareWorkspace(cwd, cfg, nowMs, o = {}) {
-  const autostart = process.env["BURACLE_NO_AUTOSTART"] !== "1";
+async function prepareWorkspace(cwd, cfg, nowMs) {
   try {
-    const target = await resolveWorkspace(cwd, workspaceOptions(cfg));
-    const building = autostart && cfg.index.auto && indexRunAtSessionStart(target) ? startIndexRun(target, cfg, nowMs, "argv" in o ? o.argv : buracleArgv(), o.spawn) : [];
-    return infoFor(target, cfg, nowMs, building);
+    return infoFor(await resolveWorkspace(cwd, workspaceOptions(cfg)), cfg, nowMs);
   } catch (e) {
     log("warn", "workspace: preparing the session start failed", { cwd, error: e });
     return fallbackInfo(cwd, cfg);
@@ -36185,7 +36081,7 @@ function buracleCli(shim, repoRoot) {
   const bun = Bun.which("bun");
   return main !== undefined && bun !== null && isFile3(main) ? [bun, main] : undefined;
 }
-function spawnDetached3(argv, env = {}) {
+function spawnDetached2(argv, env = {}) {
   try {
     const p = Bun.spawn(argv, { stdin: "ignore", stdout: "ignore", stderr: "ignore", env: { ...process.env, ...env }, detached: true });
     p.unref();
@@ -36197,7 +36093,7 @@ function spawnDetached3(argv, env = {}) {
 }
 function createMemoryBridge(opts) {
   const append = opts.append ?? appendSpool;
-  const spawn = opts.spawnDetached ?? spawnDetached3;
+  const spawn = opts.spawnDetached ?? spawnDetached2;
   const exec = opts.run ?? ((argv, o) => run(argv, o));
   const logged = new Set;
   const once = (key, msg, data) => {

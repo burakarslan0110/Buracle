@@ -280,7 +280,7 @@ Buracle harness'ları onay soruları olmadan çalıştırır ve korumayı kendi 
 | [`chrome-devtools`](https://github.com/ChromeDevTools/chrome-devtools-mcp) | Bir Chrome tarayıcısını yönetir |
 | `lsp` | Codex ve OpenCode için dil sunucusu tanılamaları ve kod içinde gezinme |
 
-Araç zinciri ayrıca `rg`, `ast-grep`, `jq`, `gh`, `tmux`, `ruff`, `shellcheck` ve `golangci-lint` araçlarını ve altı dil sunucusunu (pyright, typescript-language-server, gopls, rust-analyzer, csharp-ls ve jdtls) getirir. Buracle bir projenin ilk codegraph dizinini codegraph sunucusu orada başlarken kurar; sonrasında codegraph ve semble kendi dizinlerini kendileri güncel tutar. Yalnızca birden çok proje barındıran bir klasörde oturum başladığında arka planda bir dizin çalışması başlar. Her düzenlemeden sonra ilgili denetleyici çalışır ve bulguları ajana geri döner.
+Araç zinciri ayrıca `rg`, `ast-grep`, `jq`, `gh`, `tmux`, `ruff`, `shellcheck` ve `golangci-lint` araçlarını ve altı dil sunucusunu (pyright, typescript-language-server, gopls, rust-analyzer, csharp-ls ve jdtls) getirir. Oturum başlangıcı hiçbir dizinleme çalıştırmaz: Buracle bir projenin ilk codegraph dizinini codegraph sunucusu orada başlarken kurar, sonrasında codegraph ve semble kendi dizinlerini kendileri güncel tutar. Birden çok proje barındıran bir klasörde ajan, ihtiyaç duyduğu projenin dizinini `buracle index ensure --cwd <project>` ile kurar. Her düzenlemeden sonra ilgili denetleyici çalışır ve bulguları ajana geri döner.
 
 Claude Code'da durum satırı şöyle görünür:
 

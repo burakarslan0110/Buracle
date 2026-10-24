@@ -653,29 +653,37 @@ describe('what a session start reports', () => {
     })
   })
 
-  test('a session start in a single project starts no index run: its servers keep their own indexes fresh', async () => {
+  // Records every command line Bun starts while `fn` runs; the real spawn still happens.
+  async function spawnedWhile<T>(fn: () => Promise<T>): Promise<{ result: T, commands: string[][] }> {
+    const commands: string[][] = []
+    const real = Bun.spawn
+    ;(Bun as { spawn: unknown }).spawn = ((cmd: unknown, ...rest: unknown[]) => {
+      if (Array.isArray(cmd)) commands.push(cmd.map(String))
+      return (real as (...a: unknown[]) => unknown)(cmd, ...rest)
+    }) as unknown
+    try { return { result: await fn(), commands } } finally { (Bun as { spawn: unknown }).spawn = real }
+  }
+  const startsIndexRun = (commands: string[][]): boolean => commands.some(c => c.includes('index') && c.includes('ensure'))
+
+  test('a session start starts no index run, in a single project or in a folder of projects', async () => {
     await withSandbox(async ({ root }) => {
       const repo = join(root, 'repo')
       await gitInit(repo)
-      const started: string[][] = []
-      expect(indexDue(repo, defaultConfig().index, 1_000)).toBe(true)
-      const info = await withEnv({ BURACLE_NO_AUTOSTART: undefined }, () => prepareWorkspace(repo, defaultConfig(), 1_000, { argv: ['bun', 'main.ts'], spawn: argv => { started.push(argv) } }))
-      expect(started).toEqual([])
-      expect(info.root).toBe(repo)
-      expect(info.index.codegraph).toEqual({ state: 'none' })
-    })
-  })
-
-  test('a session start in a folder that holds several projects still starts one background index run for it', async () => {
-    await withSandbox(async ({ root }) => {
       const parent = join(root, 'parent')
       await gitInit(join(parent, 'a'))
       await gitInit(join(parent, 'b'))
-      const started: Array<{ argv: string[], cwd: string }> = []
-      const info = await withEnv({ BURACLE_NO_AUTOSTART: undefined }, () => prepareWorkspace(parent, defaultConfig(), 1_000, { argv: ['bun', 'main.ts'], spawn: (argv, cwd) => { started.push({ argv, cwd }) } }))
-      expect(info.root).toBeUndefined()
-      expect(info.children.length).toBe(2)
-      expect(started).toEqual([{ argv: ['bun', 'main.ts', 'index', 'ensure', '--cwd', parent, '--if-due', '--quiet'], cwd: parent }])
+      expect(indexDue(repo, defaultConfig().index, 1_000)).toBe(true)
+      await withEnv({ BURACLE_NO_AUTOSTART: undefined }, async () => {
+        const single = await spawnedWhile(() => prepareWorkspace(repo, defaultConfig(), 1_000))
+        expect(single.result.root).toBe(repo)
+        expect(single.result.index.codegraph).toEqual({ state: 'none' })
+        expect(startsIndexRun(single.commands)).toBe(false)
+        const several = await spawnedWhile(() => prepareWorkspace(parent, defaultConfig(), 1_000))
+        expect(several.result.root).toBeUndefined()
+        expect(several.result.children).toEqual([join(parent, 'a'), join(parent, 'b')])
+        expect(several.result.childIndex?.[join(parent, 'a')]?.codegraph).toEqual({ state: 'none' })
+        expect(startsIndexRun(several.commands)).toBe(false)
+      })
     })
   })
 

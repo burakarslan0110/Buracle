@@ -116,7 +116,7 @@ local model, no API key and no resident service. Agents write explicit memories 
 | | 0.5.0 | 0.6 |
 | --- | --- | --- |
 | Per terminal | Bun MCP server + up to 2 CortexDB children | Bun MCP server + 1 CortexDB child |
-| Session start | 8 processes spawned: memory kick, UI server, index refresh, repair job, tick, 3 CortexDB readers (3 still running 3 s later) | none in a single project; a folder that holds several projects starts one background index run |
+| Session start | 8 processes spawned: memory kick, UI server, index refresh, repair job, tick, 3 CortexDB readers (3 still running 3 s later) | none |
 | Each prompt | a detached tick (first prompt) | none |
 | Tool call | hook process + an asynchronous capture process | hook process + the same asynchronous capture |
 | Session end | detached chain: profile, distil, 2 reflections, verify, tick | one bounded `mem finalize` |
@@ -237,12 +237,12 @@ amount. Fewer tests pass than before because the tests of deleted features went 
 - A tool call that the capture hook records still costs one short hook process (about 40 ms). Narrowing those hooks, or
   reading the harness transcript once at the end of the session instead, would remove it; it was left alone because it
   changes what the capture sees.
-- A session start in a single project no longer starts the background index run: codegraph brings its own index up to
-  date when its server starts (checked: a file added while no server ran was in the index right after the next start),
-  the launcher of that server builds the first index of a project that has none, and semble re-indexes when it
-  searches. A folder that holds several projects, for which no server is started, still gets one background index run
-  at session start (at most once per ten minutes per project). The pre-warming of semble at session start is gone, so
-  the first semble search of a session pays for its own indexing.
+- A session start no longer starts a background index run at all. codegraph brings its own index up to date when its
+  server starts (checked: a file added while no server ran was in the index right after the next start), the launcher of
+  that server builds the first index of a project that has none, and semble re-indexes when it searches. In a folder that
+  holds several projects no server is started for the children, so their indexes are built on demand (`buracle index
+  ensure --cwd <project>`, which the context line tells the agent to run), not in the background; the pre-warming of
+  semble at session start is gone too, so the first semble search of a session pays for its own indexing.
 - The Bun memory server is the largest part of a terminal's memory (it holds the runtime and a cache of the brain's
   listing). It was not tuned.
 - The third-party MCP servers (codegraph, semble, context7, the web servers) are untouched and are the heaviest

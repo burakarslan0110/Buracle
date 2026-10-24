@@ -95,7 +95,7 @@ restores them bucket by bucket (`--project <slug>`, `--person`, or `--all`). New
 | `buracle mem write` | new `--origin explicit|inferred` and `--confidence 0..1`; a hand-written memory is `explicit`, an agent's MCP write is `inferred` unless it says otherwise |
 | status JSON `v: 2` | `v: 3` (no upkeep queue, distill queue or core-page counters; adds `last_capture`) |
 | Claude Code status line refreshed every 15 s | every 60 s |
-| a session start builds or refreshes the project's codegraph and semble indexes in the background | a single project starts no index run: codegraph updates its own index when its server starts (the launcher builds the first one) and semble re-indexes when it searches; a folder of several projects still gets one background run |
+| a session start builds or refreshes the project's codegraph and semble indexes in the background | a session start starts no index run: codegraph updates its own index when its server starts (the launcher builds the first one), semble re-indexes when it searches, and in a folder of several projects the agent builds the index it needs with `buracle index ensure --cwd <project>` |
 | Linux: Homebrew-only advice for missing tools | the distribution's own command (apt-get, dnf, yum, pacman, apk, zypper); Buracle never runs `sudo` or a package manager itself |
 
 Behaviour that changed for the better but can surprise you:
