@@ -6,7 +6,7 @@ These rules hold in every session and every harness. A workflow skill you are ru
 
 - Handle requests in the conversation: understand, change, verify, report. Size alone is never a reason to start a workflow or to ask how to proceed.
 - The heavy workflow skills — `plan-build` (plan → implement → verify), `goal-build` (goal loop), `bugfix` (bug with proof), `requirements` (a PRD before code) — start only when the user invokes one, such as `/plan-build` (Codex: `$plan-build`), or explicitly asks for that process by name. If a request clearly fits one, you may say so in one line, then carry on directly unless the user takes it up. A plain "plan first" gets a plan in chat or the harness's plan mode.
-- Every other skill you are allowed to invoke is a tool: when a task matches its description (research, investigation, memory upkeep, Buracle helpers, …), load it instead of improvising the procedure.
+- Every other skill you are allowed to invoke is a tool: when a task matches its description (research, investigation, memory, Buracle helpers, …), load it instead of improvising the procedure.
 - Your todo list and the harness's plan mode help you track work; they never wait for the user's sign-off. For multi-step work, keep the todo list current and tick items as they finish.
 
 ## Autonomy

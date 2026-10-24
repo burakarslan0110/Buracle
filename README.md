@@ -157,17 +157,19 @@ Four rules load in every session: core (autonomy, evidence before "done", testin
 
 ![The Buracle Brain web UI: the project's memory drawn as a brain whose regions are the kinds of memory](assets/brain-overview.png)
 
-Buracle's memory lives in [CortexDB](https://github.com/liliang-cn/cortexdb) files under `~/.buracle/brain`: one brain per project and one for you. Every harness reaches them through the `buracle-memory` MCP server, whose six tools (search, get, write, update, status, context) each have a CLI twin under `buracle mem`. A brain sorts its memories into seven regions:
+Buracle's memory lives in one [CortexDB](https://github.com/liliang-cn/cortexdb) file, `~/.buracle/brain/brain.db`, with a bucket for each project and one for you. Every harness reaches it through the `buracle-memory` MCP server, whose six tools (search, get, write, update, status, context) each have a CLI twin under `buracle mem`. A brain sorts its memories into seven regions:
 
 | Region | What it holds |
 |---|---|
 | Plans & decisions | Decisions with their reasons and the alternatives that were rejected |
-| Knowledge & ideas | The core pages (brief, architecture, conventions, commands, glossary, progress) and project knowledge |
+| Knowledge & ideas | Project knowledge, and the core pages (brief, architecture, conventions, commands, glossary, progress) of projects set up by an older Buracle |
 | Discoveries & references | Links and references worth keeping |
 | You & preferences | Your preferences and the conventions of the project |
 | Skills & procedures | Procedures that took real effort to work out |
 | Warnings & gotchas | Non-obvious failures and their root causes |
 | Memories & events | Sessions, handoffs and captures |
+
+Upgrading from 0.5: [MIGRATION.md](MIGRATION.md) (what the migration does, how to check it and go back). Why the memory looks like this, with measurements: [ARCHITECTURE.md](ARCHITECTURE.md). What each harness and operating system supports, and what was verified: [COMPATIBILITY.md](COMPATIBILITY.md).
 
 ### What it does, and when
 
@@ -177,7 +179,7 @@ Buracle's memory lives in [CortexDB](https://github.com/liliang-cn/cortexdb) fil
 - When a session ends, one `buracle mem finalize` run writes the session memory, files your stated preferences as explicit memories without any model, and asks the model of the harness you used for the decisions, gotchas and procedures worth keeping. Its answer is checked as a whole before anything is written. Confident findings become memories marked as inferred, with the model's confidence, and the rest wait as captures to be filed. A finding that resembles a memory of yours (explicit, pinned or verified) never changes it: it is stored beside it, marked as contradicting. The same run takes up to three older sessions whose capture is still owed.
 - `buracle mem capture` does the same on demand, and `buracle mem doctor` lists what is still owed.
 
-Nothing else runs in the background: no timers, no start-up jobs, no repair or cleanup passes. Sessions and handoffs expire by themselves, because CortexDB drops them after 45 and 14 days. `buracle mem backup` copies the whole brain file when you ask.
+Nothing else runs in the background: no timers, no start-up jobs, no repair or cleanup passes. Sessions and handoffs expire by themselves, because CortexDB drops them after 45 and 14 days. `buracle mem backup` copies the whole brain file when you ask, and a session end takes one copy whenever the newest is more than a day old (the newest 10 are kept).
 
 Model calls go through the CLI of a harness you already use, so no API key is needed. The session's own harness goes first, and a harness whose 5-hour usage is above 75% or whose weekly usage is above 85% is skipped. Search is by words, with the English and Turkish word forms.
 
@@ -285,7 +287,7 @@ In Claude Code, the status line looks like this:
 ```
 Opus 5.5 [xhigh] [1M] | ███░░░░░ 37% | 5h: 42% ↓ 1h20m | 7d: 18% ↓ 1d6h | ~/project | ⎇ main
 plan-build ● Implement 3/7 | Rate limit the public API
-Buracle 0.5.0 · CC 2.1.296 (Max) · Memory: localhost:41777 · brain 142 ✓ · idx ready · cm 1.2 MB kept (94%)
+Buracle 0.5.0 · CC 2.1.296 (Max) · Memory: localhost:41777 · brain 142 ✓ · idx ready
 ```
 
 ## The buracle command

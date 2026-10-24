@@ -120,9 +120,10 @@ writing a second memory.
 
 ## Core pages (`core`, updated in place)
 
-Each project has `core-brief`, `core-architecture`, `core-conventions`, `core-commands`,
-`core-glossary` and `core-progress`. Update them with `memory_update`; `memory_write` refuses the
-`core` kind.
+A project that was set up by an older Buracle has `core-brief`, `core-architecture`, `core-conventions`,
+`core-commands`, `core-glossary` and `core-progress`. Update one with `memory_update`; `memory_write`
+refuses the `core` kind, and Buracle no longer creates these pages, so a project without them keeps the
+same facts as ordinary `knowledge` and `decision` memories.
 
 | Page | Holds |
 |---|---|

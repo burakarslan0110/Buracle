@@ -195,7 +195,8 @@ UI; sessions and handoffs expire on their own (CortexDB drops them).
 - Hooks write handoff memories before compaction; you do not.
 - When the user stops mid-task or moves to another harness, make the state recoverable: tick
   finished tasks in the plan file and check `buracle plan status --json`. Open threads that are not
-  in a plan go into `core-progress` with `memory_update` `append`.
+  in a plan go into `core-progress` with `memory_update` `append` when the project still has that page from
+  an older Buracle, and into a `knowledge` memory otherwise.
 - When a session starts with a handoff pointer for this branch, `memory_get` it first, check that
   the branch and plan status still match, then continue.
 

@@ -153,3 +153,95 @@ network-mounted home directory is not supported by SQLite's WAL mode.
 or `buracle update` on a machine with those files runs the migration described in [MIGRATION.md](MIGRATION.md): it
 backs the files up first, copies every memory into the new buckets (idempotent, resumable), verifies the counts, moves
 the old files aside instead of deleting them, and removes the obsolete embedding model.
+
+## Part 3: results
+
+### How it was measured
+
+macOS on Apple silicon, Bun 1.4.3, CortexDB 2.139.0, a brain of 32 memories written by Buracle 0.5.0 itself (24 in a
+project, 8 for the person). The 0.5.0 numbers come from the untouched 0.5.0 commit and the 0.6 numbers from the final tree,
+run back to back on the same machine, which also carried its normal desktop load, so every latency below is a median over
+30 interleaved runs (a 0.5.0 run and a 0.6 run alternate, so noise hits both). "RSS" is the resident memory of the Bun
+server and its CortexDB children, sampled 3 seconds after a search. The measuring scripts were session-local and are not
+part of the repository.
+
+| Measurement | 0.5.0 | 0.6 |
+| --- | --- | --- |
+| Processes, 1 memory session | 3 | 2 |
+| RSS, 1 memory session | 186.6 MB | 139.3 MB |
+| Processes, 4 concurrent sessions | 12 | 8 |
+| RSS, 4 concurrent sessions | 566.1 MB | 357.9 MB |
+| RSS, 4 sessions that each wrote 4 and read 12 memories | 659 MB (12 processes) | 522 MB (8 processes) |
+| Brain web UI, idle RSS | 60.4 MB | 33.6 MB |
+| Brain web UI, after its first requests | 132.4 MB (the embedder loads) | 36.0 MB |
+| Brain file on disk (32 memories) | 1,024 KB | 688 KB |
+| Processes a session start leaves running | 3 (UI server, repair job, CortexDB reader) | 0 |
+| Processes left running by any other hook event | 0 | 0 |
+| PreToolUse hook, median / p90 wall time | 54 / 57 ms | 38 / 40 ms |
+| PreToolUse hook, peak RSS | 52.4 MB | 39.9 MB |
+| PostToolUse hook, median | 49 ms | 33 ms |
+| UserPromptSubmit hook, median | 84 ms | 63 ms |
+| Claude status line command, median | 49 ms | 45 ms |
+| `buracle --version`, median | 11 ms | 11 ms |
+
+The hook gain comes from keeping the YAML parser and the configuration parse off the hook path: an installed machine has
+the merged configuration recorded by `buracle install`, and the hook reads that instead. Without the recorded
+snapshot a hook falls back to the old parse and costs what it did in 0.5.0.
+
+### Footprint and size
+
+| | 0.5.0 | 0.6 |
+| --- | --- | --- |
+| Runtime / development dependencies | 2 / 2 | 2 / 2 |
+| `node_modules` | 32 MB, 7 packages | 32 MB, 7 packages (unchanged) |
+| Embedding model in the toolchain | 27 MB on disk, 108 MB download | none |
+| CortexDB binary | 31 MB | 31 MB |
+| Source (`src/`) | 99,938 lines, 495 files | 90,333 lines, 459 files |
+| Tests | 73,722 lines, 334 files | 67,038 lines, 317 files |
+| Hooks defined / MCP servers in the catalog | 28 / 10 | 27 / 9 |
+| Modules in the memory folder | 48 | 35 |
+| `bun test` | 6,262 pass, 219.6 s | 5,832 pass, about 200 s |
+
+The dependency count did not fall: both runtime dependencies (`yaml`, `jsonc-parser`) are still used, and there was
+no dependency to remove once the embedder, which was hand-written, went. The 0.6 source also gained code (the
+migration, the Brain UI edit and relations, the capture rules), so the net reduction is smaller than the deleted
+amount. Fewer tests pass than before because the tests of deleted features went with them.
+
+### What was verified, and how
+
+- **Migration** on a brain written by the real 0.5.0 code: every field of all 32 memories equals the 0.5.0 export; a
+  second run changes nothing; a migration killed with SIGKILL at 60, 150 and 300 ms (and at twelve other moments in
+  the unit-level sweep) resumes to the same result as a clean run; the verified backup is taken first.
+- **Concurrency**: four sessions each wrote project and person memories and found all 48 of the others' within the
+  run; four sessions writing the same claim at once stored exactly one copy.
+- **Brain UI API**: a scripted 35-step sequence on the migrated brain lists memories with scope, provenance, confidence
+  and timestamps; returns relations and the graph; corrects (version +1, `origin: explicit`), retires, restores and
+  deletes with the next read reflecting each; refuses a missing token, a cross-origin write and a stale version; and the
+  server stops with no child left. The same flows were exercised in a real browser (edit, retire, the Health panel,
+  a phone-width layout), with no console errors.
+- **Teardown**: closing all sessions leaves no process; the UI server's CortexDB readers exit within 250 ms of a
+  SIGTERM; `buracle uninstall` removes 47 changes, stops the UI, leaves `brain.db` untouched and leaves no process.
+- **Against the real engine**: the memory tests also run against the real CortexDB binary (`BURACLE_CORTEXDB_SMOKE`):
+  651 pass, 0 fail. That run is what exposed that CortexDB 2.139.0 refuses an accepted memory without a reviewer, which
+  the fake used by the normal suite had not enforced; both are fixed and the fake now enforces the rule.
+
+### Known limits and remaining work
+
+- Only macOS was executed. Linux and Windows are covered by the CI definition and by portable-API review
+  ([COMPATIBILITY.md](COMPATIBILITY.md)); nothing was pushed, so the CI jobs have been parsed, not run.
+- A tool call that the capture hook records still costs one short hook process (about 40 ms). Narrowing those hooks, or
+  reading the harness transcript once at the end of the session instead, would remove it; it was left alone because it
+  changes what the capture sees.
+- The workspace code-index refresh (hook H21) is unchanged: it can still start one detached job at session start, at
+  most once per ten minutes per project. It did not fire in the sandboxes used here, so it was not measured.
+- The Bun memory server is the largest part of a terminal's memory (it holds the runtime and a cache of the brain's
+  listing). It was not tuned.
+- The third-party MCP servers (codegraph, semble, context7, the web servers) are untouched and are the heaviest
+  processes of a terminal.
+- Rows written before 0.6 keep their `expires` date as data: they are hidden when it passes but the engine does not drop
+  them. A recall updates counters, so two simultaneous recalls can lose one count.
+- CortexDB's behaviour was verified on 2.139.0 only; the first read of a brain in a process lists the whole file
+  (capped at 20,000 rows).
+- The first commit of this work (Remove Context Mode, embeddings and background maintenance) states its size as "~13k source
+  lines and ~25k test lines fewer". Measured against 0.5.0 the net change at that commit was about 11.6k fewer source lines
+  and 8.3k fewer test lines; the table above has the final figures.

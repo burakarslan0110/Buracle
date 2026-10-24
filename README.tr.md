@@ -157,17 +157,19 @@ Her oturumda dört kural yüklenir. Bunlar core (otonomi, "bitti" demeden önce 
 
 ![Buracle Brain web arayüzü: projenin hafızası, bölgeleri hafıza türleri olan bir beyin olarak çizilmiş](assets/brain-overview.png)
 
-Buracle'ın hafızası `~/.buracle/brain` altındaki [CortexDB](https://github.com/liliang-cn/cortexdb) dosyalarında durur. Her proje için bir beyin, senin için de ayrı bir beyin vardır. Her harness bunlara `buracle-memory` MCP sunucusu üzerinden ulaşır. Sunucunun altı aracının (search, get, write, update, status, context) her birinin `buracle mem` altında bir CLI karşılığı var. Beyin hafıza kayıtlarını yedi bölgeye ayırır.
+Buracle'ın hafızası tek bir [CortexDB](https://github.com/liliang-cn/cortexdb) dosyasında, `~/.buracle/brain/brain.db` içinde durur. Her proje için bir bölme (bucket), senin için de ayrı bir bölme vardır. Her harness ona `buracle-memory` MCP sunucusu üzerinden ulaşır. Sunucunun altı aracının (search, get, write, update, status, context) her birinin `buracle mem` altında bir CLI karşılığı var. Beyin hafıza kayıtlarını yedi bölgeye ayırır.
 
 | Bölge | Ne tutar |
 |---|---|
 | Plans & decisions | Gerekçeleri ve reddedilen seçenekleriyle birlikte kararlar |
-| Knowledge & ideas | Çekirdek sayfalar (brief, architecture, conventions, commands, glossary, progress) ve proje bilgisi |
+| Knowledge & ideas | Proje bilgisi ve eski bir Buracle ile kurulmuş projelerin çekirdek sayfaları (brief, architecture, conventions, commands, glossary, progress) |
 | Discoveries & references | Saklamaya değer bağlantılar ve kaynaklar |
 | You & preferences | Tercihlerin ve projenin kendi kuralları |
 | Skills & procedures | Çözülmesi emek isteyen prosedürler |
 | Warnings & gotchas | Kolay görülmeyen hatalar ve kök nedenleri |
 | Memories & events | Oturumlar, devir notları (handoff) ve dosyalanmayı bekleyen kayıtlar |
+
+0.5'ten yükseltiyorsan: [MIGRATION.md](MIGRATION.md) (taşımanın ne yaptığı, nasıl kontrol edilir, nasıl geri dönülür). Hafızanın neden böyle olduğu ve ölçümler: [ARCHITECTURE.md](ARCHITECTURE.md). Her harness ve işletim sisteminin neyi desteklediği ve neyin doğrulandığı: [COMPATIBILITY.md](COMPATIBILITY.md).
 
 ### Ne yapar, ne zaman
 
@@ -177,7 +179,7 @@ Buracle'ın hafızası `~/.buracle/brain` altındaki [CortexDB](https://github.c
 - Oturum bitince tek bir `buracle mem finalize` çalışması oturumun hafıza kaydını yazar, söylediğin tercihleri hiçbir model kullanmadan açık (explicit) kayıtlar olarak dosyalar ve kullandığın harness'ın modeline saklamaya değer kararları, tuzakları ve prosedürleri sorar. Modelin cevabı, bir şey yazılmadan önce bütün olarak denetlenir. Emin olunan bulgular modelin güven puanıyla birlikte çıkarım (inferred) olarak işaretlenmiş hafıza kaydı olur, gerisi dosyalanmayı bekler. Senin bir kaydına (açık, sabitlenmiş ya da doğrulanmış) benzeyen bir bulgu o kaydı asla değiştirmez: yanına, çelişiyor diye işaretlenerek yazılır. Aynı çalışma, yakalaması hâlâ bekleyen en fazla üç eski oturumu da alır.
 - `buracle mem capture` aynı işi istediğin an yapar, `buracle mem doctor` hâlâ bekleyenleri listeler.
 
-Arka planda başka hiçbir şey çalışmaz: zamanlayıcı, açılış işi, onarım ya da temizlik turu yok. Oturumlar ve devir notları kendiliğinden silinir, çünkü CortexDB onları 45 ve 14 gün sonra düşürür. `buracle mem backup` istediğinde beyin dosyasının tamamını kopyalar.
+Arka planda başka hiçbir şey çalışmaz: zamanlayıcı, açılış işi, onarım ya da temizlik turu yok. Oturumlar ve devir notları kendiliğinden silinir, çünkü CortexDB onları 45 ve 14 gün sonra düşürür. `buracle mem backup` istediğinde beyin dosyasının tamamını kopyalar; bir oturum bittiğinde de en yeni kopya bir günden eskiyse bir kopya daha alınır (en yeni 10 kopya tutulur).
 
 Model çağrıları zaten kullandığın bir harness'ın CLI'ı üzerinden yapılır, bu yüzden API anahtarı gerekmez. Önce oturumun kendi harness'ı denenir. 5 saatlik kullanımı %75'i ya da haftalık kullanımı %85'i aşan harness atlanır. Arama kelimelerle yapılır ve İngilizce ile Türkçe kelime biçimlerini bilir.
 
@@ -285,7 +287,7 @@ Claude Code'da durum satırı şöyle görünür:
 ```
 Opus 5.5 [xhigh] [1M] | ███░░░░░ 37% | 5h: 42% ↓ 1h20m | 7d: 18% ↓ 1d6h | ~/project | ⎇ main
 plan-build ● Implement 3/7 | Rate limit the public API
-Buracle 0.5.0 · CC 2.1.296 (Max) · Memory: localhost:41777 · brain 142 ✓ · idx ready · cm 1.2 MB kept (94%)
+Buracle 0.5.0 · CC 2.1.296 (Max) · Memory: localhost:41777 · brain 142 ✓ · idx ready
 ```
 
 ## buracle komutu
