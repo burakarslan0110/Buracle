@@ -198,6 +198,13 @@ async function memorySteps(): Promise<string[]> {
     const { checkCortexdb } = await import('../../engine/toolchain/cortexdb')
     const bin = checkCortexdb()
     if (bin.status !== 'ok') steps.push(`Memory: ${bin.detail}.`)
+    const { legacyPending } = await import('../../memory/migration-state')
+    if (bin.status === 'ok' && legacyPending()) {
+      const r = await opsDeps.runCli(['mem', 'migrate', '--json'])
+      steps.push(r.code === 0
+        ? 'Folded the brain files of Buracle 0.5 (person.db, projects/) into ~/.buracle/brain/brain.db: verified copies first (brain/backups/pre-migrate-*), nothing deleted; `buracle mem migrate --rollback` goes back.'
+        : `Fold the brain files of Buracle 0.5 into brain.db: run \`buracle mem migrate\` (${reason(r)}).`)
+    }
     const { oldVaultPath, vaultImportDone } = await import('../../memory/import-vault')
     const vault = oldVaultPath()
     const { removeVaultPreCommitHook } = await import('../../engine/update/uninstall')

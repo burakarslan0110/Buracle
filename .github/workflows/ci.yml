@@ -61,6 +61,12 @@ jobs:
           T=$(mktemp -d)
           HOME="$T" BURACLE_HOME="$T/.buracle" bun src/cli/main.ts build --check
 
+      # The literal hook and MCP command lines the generators write for each harness are executed on this
+      # operating system: the hook must deny a destructive command, and every buracle-memory entry must answer
+      # initialize and tools/list and leave no process behind. They also run again inside "Tests" below.
+      - name: Generated hook and MCP commands run
+        run: bun test tests/adapters/hook-wire.test.ts tests/adapters/mcp-wire.test.ts ${{ runner.os == 'Windows' && '--timeout 60000' || '' }}
+
       # Windows starts a process many times slower than macOS and Linux, and a test that spawns a few
       # takes 5 to 15 s there: past Bun's default 5 s per test, so Windows gets 60 s.
       - name: Tests

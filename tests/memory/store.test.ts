@@ -1,10 +1,9 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { existsSync } from 'node:fs'
 import type { MemItem } from '../../src/core/memory/brain'
 import { closeAllCortex, CortexError, cortexFor } from '../../src/memory/cortex'
 import { brainLockFile } from '../../src/memory/layout'
 import { tryLock } from '../../src/memory/lock'
-import { deleteItem, getStored, listAll, personRef, projectRef, saveItem, searchLayer, withBrainLock } from '../../src/memory/store'
+import { bucketExists, deleteItem, getStored, listAll, personRef, projectRef, refKey, saveItem, searchLayer, withBrainLock } from '../../src/memory/store'
 import { withEnv, withSandbox } from '../helpers/sandbox'
 
 afterEach(async () => { await closeAllCortex() })
@@ -20,7 +19,7 @@ describe('store', () => {
   test('a live holder keeps the brain lock past staleMs (heartbeat); a waiter gets it only after the release, and a lock wait fails as busy', async () => {
     await withSandbox(async () => {
       const ref = projectRef('alpha')
-      const lock = brainLockFile(ref.db)
+      const lock = brainLockFile(refKey(ref))
       let released = false
       const holder = withBrainLock(ref, async () => { await Bun.sleep(900); released = true }, { staleMs: 300 })
       await Bun.sleep(100)
@@ -69,7 +68,7 @@ describe('store', () => {
       expect(await listAll(projectRef('beta'))).toEqual([])
       expect(await searchLayer(projectRef('beta'), 'canary', 10)).toEqual([])
       expect(await getStored(projectRef('beta'), 'gotcha-canary')).toBeUndefined()
-      expect(existsSync(projectRef('beta').db)).toBe(false)
+      expect(await bucketExists(projectRef('beta'))).toBe(false)
     })
   })
 

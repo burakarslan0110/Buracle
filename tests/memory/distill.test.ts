@@ -8,6 +8,7 @@ import { withEnv } from '../helpers/sandbox'
 import { finalize } from '../../src/memory/finalize'
 import { readSessionRecord, sessionStart, writeSessionRecord } from '../../src/memory/session-record'
 import { appendSpool } from '../../src/memory/spool'
+import { brainDbFile } from '../../src/memory/layout'
 import { getStored, listAll, personRef, projectRef } from '../../src/memory/store'
 import { writeTelemetry } from '../../src/workflow/session-store'
 import { agentCtx, humanCtx, withBrain } from './helpers'
@@ -25,7 +26,7 @@ async function finishedSession(repo: string, sid = SID, excerpt = 'Moved the ord
 
 function brainBytes(): string {
   const read = (file: string): string => (existsSync(file) ? readFileSync(file, 'utf8') : '')
-  return `${read(projectRef('demo').db)}\n${read(personRef().db)}`
+  return read(brainDbFile())
 }
 
 const candidate = (over: Record<string, unknown> = {}): Record<string, unknown> => ({

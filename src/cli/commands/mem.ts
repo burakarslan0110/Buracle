@@ -9,11 +9,11 @@ import * as paths from '../../engine/paths'
 import { resolveSession } from '../../workflow/session-store'
 
 export const name = 'mem'
-export const summary = 'Memory (CortexDB brains per project and for the person): search, get, write, update, status, capture, backup, import, web UI'
+export const summary = 'Memory (one CortexDB brain: a bucket per project and one for the person): search, get, write, update, status, capture, backup, migrate, import, web UI'
 export const usage = `Usage: buracle mem <subcommand> [args…] [--json]
 
-The memory lives in ~/.buracle/brain: one CortexDB file per project (projects/<slug>.db) and one for
-the person (person.db). A command reaches only the current project's file and the person's.
+The memory lives in one CortexDB file, ~/.buracle/brain/brain.db, with a bucket for each project and one
+for the person. A command reaches only the current project's bucket and the person's.
 Nothing runs in the background by itself: a session end captures what it learned (one detached
 \`mem finalize\`), everything else happens when you run a command.
 
@@ -49,16 +49,23 @@ Capture (the model-assisted writing, on demand)
                                              distills again although the same material was distilled. A
                                              failed, rate-limited or invalid model answer writes nothing.
 
-Backups and moving a brain (the brains stay on this machine; nothing is synced)
-  backup [--project SLUG | --person] [--keep N]
-                                             copy the brains (all of them by default) into
-                                             ~/.buracle/brain/backups/<id>/ and keep the newest 10 copies
-                                             of each brain (--keep N)
-  backup --list                              the backups, newest first, with the brains each holds
+Backups and moving a brain (the brain stays on this machine; nothing is synced)
+  backup [--keep N]                          copy brain.db into ~/.buracle/brain/backups/<id>/ and keep the
+                                             newest 10 copies (--keep N)
+  backup --list                              the backups, newest first, with the buckets each holds
   restore ID (--project SLUG | --person | --all)
-                                             put a backup's copy back; the file it replaces goes into a
-                                             pre-restore backup first, and the running CortexDB readers
-                                             of that brain are stopped (sessions start new ones)
+                                             --all puts the whole brain file back (the running CortexDB
+                                             readers are stopped, sessions start new ones); --project and
+                                             --person take only that bucket out of the backup and leave the
+                                             others as they are. The brain as it was goes into a
+                                             pre-restore backup first.
+  migrate [--status | --dry-run | --rollback [--force] | --purge-legacy]
+                                             fold the per-layer files of Buracle 0.5 (person.db, projects/)
+                                             into brain.db: verified copies first, nothing deleted, safe to
+                                             run again. It also runs by itself at the first memory call.
+                                             --rollback puts the 0.5 files back (brain.db is kept as
+                                             brain.db.rolled-back unless --force); --purge-legacy deletes the
+                                             moved-aside files and the copies
   export [--project SLUG | --person] [--type K]… [--out FILE]
                                              the live memories of one brain as JSON lines, secrets masked
                                              again (decisions, gotchas, procedures, knowledge, references,
@@ -70,7 +77,7 @@ Backups and moving a brain (the brains stay on this machine; nothing is synced)
   project init [--cwd DIR]                   map this folder to its project
   import-vault [--vault PATH] [--dry-run]    copy the live notes of the old Obsidian vault into the
                                              brains once (the vault is only read)
-  doctor [--no-mcp]                          CortexDB binary, brain files, leak check, MCP handshake
+  doctor [--no-mcp]                          CortexDB binary, the brain file and its migration, leak check, MCP handshake
                                              (--json: {"checks":[{level,check,detail}]}; exit 1 errors, 2 warnings)
   ui [--open] [--port N] [--stop]            the brain web UI (http://localhost:41777): starts it in the
                                              background when it does not run, prints its address; it only
@@ -112,7 +119,8 @@ function parse(argv: string[]): Parsed {
     if (!a.startsWith('--') || a === '--') { pos.push(a); continue }
     const eq = a.indexOf('=')
     const key = a.slice(2, eq > 0 ? eq : undefined)
-    if (VALUE_FLAGS.has(key)) {
+    // `--status` takes a value for search (live|any) and none for `migrate --status`.
+    if (VALUE_FLAGS.has(key) && !(key === 'status' && pos[0] === 'migrate')) {
       const value = eq > 0 ? a.slice(eq + 1) : argv[++i]
       if (value === undefined) throw new UsageError(`--${key} needs a value`)
       flags.set(key, [...(flags.get(key) ?? []), value])
@@ -191,7 +199,7 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     if (e instanceof MemoryError) {
       if (json) io.stdout.write(JSON.stringify({ error: e.code, message: e.message, ...(e.data ?? {}) }, null, 2) + '\n')
       else io.stderr.write(`buracle mem ${sub}: ${e.message}\n`)
-      return e.code === 'conflict' || e.code === 'store_unavailable' || e.code === 'no_project' ? 2 : 1
+      return e.code === 'conflict' || e.code === 'store_unavailable' || e.code === 'no_project' || e.code === 'migrating' ? 2 : 1
     }
     io.stderr.write(`buracle mem ${sub}: ${e instanceof Error ? e.message : String(e)}\n`)
     return 1
@@ -366,6 +374,10 @@ async function dispatch(sub: string, rest: string[], p: Parsed, io: CommandIO, j
       out(io, json, r, lines.join('\n'))
       return 0
     }
+    case 'migrate': {
+      const { memMigrateCommand } = await import('./mem-migrate')
+      return memMigrateCommand({ json, has: k => p.bools.has(k), out: (value, text) => out(io, json, value, text), usage: message => { throw new UsageError(message) } })
+    }
     case 'doctor': {
       const { doctorExitCode, memDoctor } = await import('../../memory/doctor')
       const checks = await memDoctor({ cwd: cwdOf(p), mcp: !p.bools.has('no-mcp') })
@@ -498,10 +510,10 @@ async function uiCommand(p: Parsed, io: CommandIO, json: boolean): Promise<numbe
     return 1
   }
   const { projectSlugFor } = await import('../../memory/project')
-  const { brainExists, projectRef } = await import('../../memory/store')
+  const { bucketExists, projectRef } = await import('../../memory/store')
   const slug = want === 'brain' ? await projectSlugFor(cwdOf(p)).catch(() => undefined) : undefined
   const page = want === 'review' ? `${r.url.replace(/\/$/, '')}/review`
-    : slug !== undefined && brainExists(projectRef(slug)) ? `${r.url.replace(/\/$/, '')}/?scope=${encodeURIComponent(`project:${slug}`)}` : r.url
+    : slug !== undefined && await bucketExists(projectRef(slug)).catch(() => false) ? `${r.url.replace(/\/$/, '')}/?scope=${encodeURIComponent(`project:${slug}`)}` : r.url
   const opened = p.bools.has('open') ? ui.openInBrowser(page) : false
   out(io, json, { url: r.url, ...(page !== r.url ? { page } : {}), started: r.started, opened }, `${want === 'review' ? 'Review page' : 'Memory UI'}: ${page}${r.started ? ' (started)' : ''}${opened ? ' · opened in the browser' : ''}`)
   return 0

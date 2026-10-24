@@ -95,17 +95,17 @@ Track Phases 0-6 with {{todo}}.
 <!-- /harness -->
 <!-- harness:codex -->
    ```bash
-   bun ~/.agents/skills/dead-code/scripts/candidates.ts --root . --scope <path>
+   bun "$HOME/.agents/skills/dead-code/scripts/candidates.ts" --root . --scope <path>
    ```
 <!-- /harness -->
 <!-- harness:opencode -->
    ```bash
-   bun ~/.agents/skills/dead-code/scripts/candidates.ts --root . --scope <path>
+   bun "$HOME/.agents/skills/dead-code/scripts/candidates.ts" --root . --scope <path>
    ```
 <!-- /harness -->
 <!-- harness:omp -->
    ```bash
-   bun ~/.agents/skills/dead-code/scripts/candidates.ts --root . --scope <path>
+   bun "$HOME/.agents/skills/dead-code/scripts/candidates.ts" --root . --scope <path>
    ```
 <!-- /harness -->
    If that path does not exist, use the `scripts/` folder next to this SKILL.md.
@@ -124,17 +124,17 @@ Track Phases 0-6 with {{todo}}.
 <!-- /harness -->
 <!-- harness:codex -->
    ```bash
-   bun ~/.agents/skills/dead-code/scripts/graph-candidates.ts --root . --scope <path> --json
+   bun "$HOME/.agents/skills/dead-code/scripts/graph-candidates.ts" --root . --scope <path> --json
    ```
 <!-- /harness -->
 <!-- harness:opencode -->
    ```bash
-   bun ~/.agents/skills/dead-code/scripts/graph-candidates.ts --root . --scope <path> --json
+   bun "$HOME/.agents/skills/dead-code/scripts/graph-candidates.ts" --root . --scope <path> --json
    ```
 <!-- /harness -->
 <!-- harness:omp -->
    ```bash
-   bun ~/.agents/skills/dead-code/scripts/graph-candidates.ts --root . --scope <path> --json
+   bun "$HOME/.agents/skills/dead-code/scripts/graph-candidates.ts" --root . --scope <path> --json
    ```
 <!-- /harness -->
    Options: `--exclude '<glob>'`, `--include-exported`, `--include-tests`, `--limit <n>`, `--help`.

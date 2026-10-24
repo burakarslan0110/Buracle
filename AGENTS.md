@@ -39,12 +39,14 @@ src/workflow/       plan, flow, worktree, review-scope, notify, project, skills/
                     plan-review and plan-lanes (review records, plan lanes), plan-native, plan-notes
                     and review-notes (the review page's notes), companion* (the second opinion),
                     project-assets/-check/-adopt (H28), non-project.ts (the one 'never a project' rule)
-src/memory/         the memory on CortexDB: client (cortex.ts), store (one file per project + person.db),
+src/memory/         the memory on CortexDB: client (cortex.ts), store (one brain.db with a bucket per project
+                    and one for the person; the prefixed ids live in store.ts only), the migration of Buracle
+                    0.5's per-layer files (migrate.ts, migration-state.ts),
                     MCP server, CLI twins, session start text (read-only), the session-end finalizer
                     (finalize.ts) with the capture of explicit preferences and stale sessions (capture.ts) and
                     the validated model distillation (distill.ts), handoffs, the old vault's import, doctor,
                     the harness choice for its model calls (model.ts, runner.ts), and backups, restore,
-                    export and import (backup.ts, export.ts). Nothing here runs in the background: the one
+                    export and import (backup.ts, snapshot.ts, bucket-io.ts, export.ts). Nothing here runs in the background: the one
                     detached process is the session-end `mem finalize`, the UI starts only through `mem ui`
   ui/               the web UI: the brain, the review page, sessions and usage, notifications and the
                     workflow switches; its JSON API and event stream, and the pages' hand-written JS and CSS
@@ -172,8 +174,12 @@ the FEATURES matrix in `tests/adapters/parity.test.ts` and the host-limits table
 - `Bun.spawn`/`Bun.spawnSync` without `env` run the child with the environment the process started
   with (the real `HOME` in tests, because the preload sandboxes `HOME` through `process.env`): always
   pass `env: { ...process.env }`; `tests/engine/spawn-env.test.ts` enforces it under `src/`.
+- The fake CortexDB models the engine's buckets (one id per file, scope/namespace/user id on a row, a search sees one
+  bucket only); `tests/fixtures/legacy-brain/` holds Buracle 0.5's brain files and profile state as the baseline code
+  wrote them under that fake, for the migration tests.
 - Fault injection: `BURACLE_TXN_FAIL_AT=<n>` makes the n-th transaction write throw;
-  `txnTestHooks` (txn.ts) simulates another process touching files mid-transaction.
+  `txnTestHooks` (txn.ts) simulates another process touching files mid-transaction;
+  `BURACLE_MIGRATE_FAIL_AFTER=<n>` stops the memory migration after n writes (read only by src/memory/migrate.ts).
 - Claude mod tests live in `harness/claude/tests/` and run with `claude plugin test harness/claude`.
 - `docs/` is not in the public repository (it is gitignored), so a test reads a file under `docs/`
   only behind a guard (`HAS_DOCS`, as in `tests/workflow/doc-lint.test.ts` and

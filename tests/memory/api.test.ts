@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { get, MemoryError, remember, search, update, write, type WriteInput } from '../../src/memory/api'
 import { brainLockFile } from '../../src/memory/layout'
 import { tryLock } from '../../src/memory/lock'
-import { getStored, listAll, personRef, projectRef, saveItem } from '../../src/memory/store'
+import { getStored, listAll, personRef, projectRef, refKey, saveItem } from '../../src/memory/store'
 import { withEnv } from '../helpers/sandbox'
 import { agentCtx, humanCtx, makeRepo, withBrain } from './helpers'
 
@@ -14,7 +14,7 @@ describe('the brain lock seen from the tools', () => {
     await withBrain(async sb => {
       const ctx = agentCtx(sb.repo)
       const w = await write(ctx, { type: 'knowledge', title: 'The orders cache lives in Redis', summary: 'cache' })
-      const release = tryLock(brainLockFile(projectRef('demo').db), 60_000)
+      const release = tryLock(brainLockFile(refKey(projectRef('demo'))), 60_000)
       expect(release).toBeDefined()
       try {
         await withEnv({ BURACLE_BRAIN_LOCK_WAIT_MS: '150' }, async () => {

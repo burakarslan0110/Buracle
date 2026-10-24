@@ -1,4 +1,3 @@
-import { readdirSync, statSync } from 'node:fs'
 import {
   isLive, isMemId, KIND_INFO, MEM_KINDS, rankHits, regionOf, regionSummaries, REGIONS, searchTerms,
   type MemItem, type MemKind, type MemRankInput,
@@ -10,9 +9,9 @@ import { memQueryWords } from '../../core/memory/query'
 import { memStemForms } from '../../core/memory/stem'
 import { cortexdbBinary } from '../../engine/toolchain/cortexdb'
 import { CortexError } from '../cortex'
-import { brainDir, brainProjectsDir } from '../layout'
+import { brainDir } from '../layout'
 import { readProjectsCache, slugExclusion } from '../project'
-import { brainExists, getStored, listAll, personRef, projectRef, type BrainRef } from '../store'
+import { bucketCounts, bucketExists, brainExists, brainSig, getStored, listAll, personRef, projectRef, refKey, type BrainRef } from '../store'
 
 export const CORTEXDB_FIX = 'buracle install'
 
@@ -40,13 +39,10 @@ export type UiScope =
   | { kind: 'person', key: 'person', ref: BrainRef }
   | { kind: 'project', key: string, slug: string, ref: BrainRef }
 
-export function knownProjects(): Map<string, { exists: boolean, name?: string }> {
+export async function knownProjects(): Promise<Map<string, { exists: boolean, name?: string }>> {
   const out = new Map<string, { exists: boolean, name?: string }>()
   try {
-    for (const f of readdirSync(brainProjectsDir())) {
-      const slug = f.endsWith('.db') ? f.slice(0, -3) : ''
-      if (memIsSlug(slug)) out.set(slug, { exists: true })
-    }
+    for (const slug of (await bucketCounts()).projects.keys()) out.set(slug, { exists: true })
   } catch {  }
   for (const [slug, rec] of Object.entries(readProjectsCache().projects)) {
     if (!memIsSlug(slug)) continue
@@ -59,24 +55,15 @@ export function knownProjects(): Map<string, { exists: boolean, name?: string }>
   return out
 }
 
-export function parseScope(raw: string | null): UiScope {
+export async function parseScope(raw: string | null): Promise<UiScope> {
   if (raw === 'person') return { kind: 'person', key: 'person', ref: personRef() }
   if (raw === null || raw === '') throw new UiApiError(400, 'bad_scope', 'scope is required: person or project:<slug>')
   const m = /^project:(.*)$/su.exec(raw)
   const slug = m?.[1]
   if (slug === undefined || !memIsSlug(slug)) throw new UiApiError(400, 'bad_scope', 'scope must be person or project:<slug> (lowercase letters, digits and dashes)')
   const ref = projectRef(slug)
-  if (!brainExists(ref) && !knownProjects().has(slug)) throw new UiApiError(404, 'unknown_project', `there is no memory for the project ${slug}`)
+  if (!(await bucketExists(ref)) && !(await knownProjects()).has(slug)) throw new UiApiError(404, 'unknown_project', `there is no memory for the project ${slug}`)
   return { kind: 'project', key: `project:${slug}`, slug, ref }
-}
-
-function statSig(file: string): string {
-  try {
-    const s = statSync(file)
-    return `${s.mtimeMs}:${s.size}`
-  } catch {
-    return '-'
-  }
 }
 
 const CACHE_MAX_AGE_MS = 30_000
@@ -87,16 +74,17 @@ export class BrainCache {
   private readonly terms = new WeakMap<MemItem, string[]>()
 
   async items(ref: BrainRef, nowMs = Date.now()): Promise<MemItem[]> {
-    if (!brainExists(ref)) return []
-    const sig = `${statSig(ref.db)}|${statSig(`${ref.db}-wal`)}`
-    const hit = this.entries.get(ref.db)
+    if (!brainExists()) return []
+    const key = refKey(ref)
+    const sig = brainSig()
+    const hit = this.entries.get(key)
     if (hit !== undefined && hit.sig === sig && nowMs - hit.at < CACHE_MAX_AGE_MS) return hit.items
-    const running = this.inflight.get(ref.db)
+    const running = this.inflight.get(key)
     if (running !== undefined) return running
     const p = listAll(ref)
-      .then(items => { this.entries.set(ref.db, { sig, at: nowMs, items }); return items })
-      .finally(() => { this.inflight.delete(ref.db) })
-    this.inflight.set(ref.db, p)
+      .then(items => { this.entries.set(key, { sig, at: nowMs, items }); return items })
+      .finally(() => { this.inflight.delete(key) })
+    this.inflight.set(key, p)
     return p
   }
 
@@ -181,7 +169,7 @@ export interface UiLayerSummary {
 }
 
 async function layerSummary(cache: BrainCache, scope: UiScope, nowMs: number): Promise<UiLayerSummary> {
-  const exists = brainExists(scope.ref)
+  const exists = await bucketExists(scope.ref).catch(() => false)
   try {
     const items = await cache.items(scope.ref, nowMs)
     const s: UiLayerSummary = { scope: scope.key, exists, count: items.filter(i => isLive(i, nowMs)).length, regions: regionCounts(scope, items, nowMs) }
@@ -208,7 +196,7 @@ async function pool<T, R>(list: readonly T[], n: number, fn: (x: T) => Promise<R
 
 export async function overview(cache: BrainCache, nowMs: number): Promise<Record<string, unknown>> {
   const bin = cortexdbBinary()
-  const known = knownProjects()
+  const known = await knownProjects()
   const person = await layerSummary(cache, { kind: 'person', key: 'person', ref: personRef() }, nowMs)
   const projects = await pool([...known.entries()], 3, async ([slug, k]) => {
     const excluded = await slugExclusion(slug).catch(() => undefined)
@@ -247,7 +235,7 @@ export async function brainOf(cache: BrainCache, scope: UiScope, nowMs: number):
     scope: scope.key,
     layer: scope.kind,
     design: scope.kind,
-    exists: brainExists(scope.ref),
+    exists: await bucketExists(scope.ref).catch(() => false),
     now: new Date(nowMs).toISOString(),
     regions,
     items: live.map(i => brief(i, regionFor(scope))),

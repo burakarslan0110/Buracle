@@ -1,16 +1,17 @@
 import { describe, expect, test } from 'bun:test'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { main } from '../../src/cli/router'
 import { MemoryError, search, update, write } from '../../src/memory/api'
-import { backupBrains, listBackups, restoreBackup } from '../../src/memory/backup'
+import * as paths from '../../src/engine/paths'
+import { backupBrains, backupBuckets, listBackups, restoreBackup, type BackupInfo } from '../../src/memory/backup'
 import { CortexError, pidAlive, readerEntries } from '../../src/memory/cortex'
 import { exportBrain, importMemories } from '../../src/memory/export'
 import { removeDeadLocks } from '../../src/memory/housekeeping'
-import { brainBackupsDir, brainHoldFile, cortexChildFile } from '../../src/memory/layout'
+import { brainBackupsDir, brainDbFile, brainHoldFile, cortexChildFile } from '../../src/memory/layout'
 import { removeProject } from '../../src/memory/project-remove'
 import { getStored, listAll, personRef, projectRef, saveItem } from '../../src/memory/store'
-import { agentCtx, humanCtx, makeRepo, withBrain } from './helpers'
+import { agentCtx, humanCtx, installLegacyBrain, makeRepo, REAL_CORTEXDB, withBrain } from './helpers'
 
 async function cli(argv: string[], stdin = ''): Promise<{ code: number, out: string, err: string }> {
   let out = ''
@@ -62,43 +63,122 @@ async function parentOf(root: string, name: string): Promise<{ parent: ReturnTyp
 }
 
 describe('buracle mem backup and restore', () => {
-  test('a backup copies every brain with a manifest; a restore puts one brain back and keeps what it replaced', async () => {
+  test('a backup is one copy of the brain file with the buckets it holds; --all puts the whole file back and keeps what it replaced', async () => {
     await withBrain(async ({ repo }) => {
       const a = await write(agentCtx(repo), { type: 'decision', title: 'Backups live inside the brain folder', summary: 'kept by uninstall', body: '' })
-      const p = await write(agentCtx(repo), { type: 'preference', title: 'Short replies always', summary: 'brevity', body: '' })
+      await write(agentCtx(repo), { type: 'preference', title: 'Short replies always', summary: 'brevity', body: '' })
       const r = await backupBrains({ all: true }, { nowMs: Date.parse('2026-10-17T10:00:00Z') })
       expect(r.manifest?.id).toBe('20261017-100000')
-      expect(r.manifest?.brains.map(b => b.project ?? b.layer)).toEqual(['person', 'demo'])
-      expect(r.manifest?.trigger).toBe('manual')
-      const file = join(brainBackupsDir(), '20261017-100000', 'projects', 'demo.db')
+      expect(r.manifest).toMatchObject({ v: 2, trigger: 'manual', file: { name: 'brain.db' }, buckets: { person: 1, projects: { demo: 1 } } })
+      expect(r.manifest && backupBuckets(r.manifest)).toEqual(['person', 'demo'])
+      const file = join(brainBackupsDir(), '20261017-100000', 'brain.db')
       if (process.platform !== 'win32') expect(statSync(file).mode & 0o777).toBe(0o600)
       expect(listBackups().map(m => m.id)).toEqual(['20261017-100000'])
 
       const later = await write(agentCtx(repo), { type: 'gotcha', title: 'A gotcha written after the backup', summary: 'later', body: '' })
       await update(agentCtx(repo), { id: a.id, patch: { status: 'deprecated' } })
       await write(agentCtx(repo), { type: 'preference', title: 'Tables for comparisons', summary: 'format', body: '' })
-      const restored = await restoreBackup('20261017-100000', { project: 'demo' }, { nowMs: Date.parse('2026-10-17T11:00:00Z') })
-      expect(restored.restored).toEqual([expect.objectContaining({ layer: 'project', project: 'demo' })])
+      const restored = await restoreBackup('20261017-100000', { all: true }, { nowMs: Date.parse('2026-10-17T11:00:00Z') })
+      expect(restored.restored).toEqual([expect.objectContaining({ all: true })])
       expect(await ids(projectRef('demo'))).toEqual([a.id])
       expect((await getStored(projectRef('demo'), a.id))?.item.status).toBe('active')
-      expect((await listAll(personRef())).length).toBe(2)
+      expect((await listAll(personRef())).length).toBe(1)
       expect(restored.safety).toBe('20261017-110000')
       const back = await restoreBackup(restored.safety as string, { all: true }, { nowMs: Date.parse('2026-10-17T12:00:00Z') })
-      expect(back.restored.map(x => x.project)).toEqual(['demo'])
+      expect(back.restored).toHaveLength(1)
       expect(await ids(projectRef('demo'))).toEqual([a.id, later.id].sort())
+      expect((await listAll(personRef())).length).toBe(2)
       expect((await search(agentCtx(repo), { query: 'gotcha written after' })).rows.map(x => x.id)).toEqual([later.id])
-      void p
-      const none = await restoreBackup('20261017-100000', { project: 'other' }).catch(e => e)
-      expect((none as Error).message).toContain('holds no copy of the project other')
       expect(((await restoreBackup('nope', { all: true }).catch(e => e)) as Error).message).toContain('not a backup id')
     })
   })
 
-  test.skipIf(process.platform === 'win32')('a restore stops the CortexDB readers other processes registered for that brain, and no other process', async () => {
+  test('restoring one bucket replaces that bucket only: the other projects and the person keep what they have now', async () => {
+    await withBrain(async ({ repo, root }) => {
+      const other = makeRepo(join(root, 'other'), 'git@github.com:me/other.git')
+      const d1 = await write(agentCtx(repo), { type: 'decision', title: 'Demo decides on queues', summary: 'queues', body: '' })
+      const o1 = await write(agentCtx(other), { type: 'decision', title: 'Other decides on cron', summary: 'cron', body: '' })
+      await write(agentCtx(repo), { type: 'preference', title: 'Short replies always', summary: 'brevity', body: '' })
+      const id = (await backupBrains({ all: true }, { nowMs: Date.parse('2026-10-17T10:00:00Z') })).manifest?.id as string
+
+      // After the backup: demo gets a new memory and loses its decision's activity; other and the person change too.
+      const d2 = await write(agentCtx(repo), { type: 'gotcha', title: 'Demo gotcha written later', summary: 'later', body: '' })
+      await update(agentCtx(repo), { id: d1.id, patch: { status: 'deprecated' } })
+      const o2 = await write(agentCtx(other), { type: 'gotcha', title: 'Other gotcha written later', summary: 'later', body: '' })
+      const p2 = await write(agentCtx(repo), { type: 'preference', title: 'Tables for comparisons', summary: 'format', body: '' })
+
+      const r = await restoreBackup(id, { project: 'demo' }, { nowMs: Date.parse('2026-10-17T11:00:00Z') })
+      expect(r.restored).toEqual([{ layer: 'project', project: 'demo', memories: 1 }])
+      expect(r.safety).toBeDefined()
+      expect(await ids(projectRef('demo'))).toEqual([d1.id])
+      expect((await getStored(projectRef('demo'), d1.id))?.item.status).toBe('active')
+      expect(await ids(projectRef('other'))).toEqual([o1.id, o2.id].sort())
+      expect((await ids(personRef())).includes(p2.id)).toBe(true)
+      expect((await getStored(projectRef('demo'), d2.id))).toBeUndefined()
+
+      // The safety backup holds the brain as it was, so the restore itself can be undone bucket by bucket.
+      await restoreBackup(r.safety as string, { project: 'demo' })
+      expect(await ids(projectRef('demo'))).toEqual([d1.id, d2.id].sort())
+      const person = await restoreBackup(id, { person: true })
+      expect(person.restored).toEqual([{ layer: 'person', memories: 1 }])
+      expect(await ids(personRef())).toHaveLength(1)
+      expect(await ids(projectRef('other'))).toEqual([o1.id, o2.id].sort())
+      const none = await restoreBackup(id, { project: 'nowhere' }).catch(e => e)
+      expect((none as Error).message).toContain('holds no copy of the project nowhere')
+    })
+  })
+
+  test.skipIf(REAL_CORTEXDB)('a backup of Buracle 0.5, one copy per layer, still restores bucket by bucket', async () => {
+    await withBrain(async ({ repo }) => {
+      installLegacyBrain()
+      const dir = join(brainBackupsDir(), '20261001-090000')
+      mkdirSync(join(dir, 'projects'), { recursive: true })
+      copyFileSync(join(paths.brainDir(), 'person.db'), join(dir, 'person.db'))
+      copyFileSync(join(paths.brainDir(), 'projects', 'demo.db'), join(dir, 'projects', 'demo.db'))
+      writeFileSync(join(dir, 'backup.json'), JSON.stringify({
+        v: 1, id: '20261001-090000', at: '2026-10-01T09:00:00.000Z', trigger: 'manual',
+        brains: [{ layer: 'person', file: 'person.db', bytes: 1, method: 'copy' }, { layer: 'project', project: 'demo', file: 'projects/demo.db', bytes: 1, method: 'copy' }],
+      }))
+      rmSync(join(paths.brainDir(), 'person.db'))
+      rmSync(join(paths.brainDir(), 'projects'), { recursive: true })
+      rmSync(join(paths.brainDir(), 'absorbed'), { recursive: true })
+      expect(listBackups().map(m => [m.id, m.v])).toEqual([['20261001-090000', 1]])
+      expect(backupBuckets(listBackups()[0] as BackupInfo)).toEqual(['person', 'demo'])
+
+      const r = await restoreBackup('20261001-090000', { project: 'demo' })
+      expect(r.restored).toEqual([{ layer: 'project', project: 'demo', memories: 5 }])
+      expect((await search(agentCtx(repo), { query: 'cockroachdb' })).rows.map(x => x.id)).toEqual(['decision-orders-live-in-cockroachdb'])
+      expect((await getStored(projectRef('demo'), 'decision-orders-live-in-postgresql-16'))?.item.status).toBe('superseded')
+      const all = await restoreBackup('20261001-090000', { all: true })
+      expect(all.restored.map(x => x.project ?? x.layer)).toEqual(['person', 'demo'])
+      expect(await ids(personRef())).toHaveLength(3)
+    })
+  })
+
+  test('a removed project leaves a backup that brings its bucket back, and nothing else is removed', async () => {
+    await withBrain(async ({ repo, root }) => {
+      const gone = makeRepo(join(root, 'gone'), 'git@github.com:me/gone.git')
+      const keep = await write(agentCtx(repo), { type: 'decision', title: 'The demo project stays', summary: 'stays', body: '' })
+      const g = await write(agentCtx(gone), { type: 'gotcha', title: 'The client project is removed', summary: 'client', body: '' })
+      await write(agentCtx(repo), { type: 'preference', title: 'Short replies always', summary: 'brevity', body: '' })
+      const r = await removeProject('gone')
+      expect(r).toMatchObject({ slug: 'gone', brain: true, memories: 1, total: 1 })
+      expect(r.backup).toBeDefined()
+      expect(listBackups().find(m => m.id === r.backup)).toMatchObject({ trigger: 'pre-remove' })
+      expect(await listAll(projectRef('gone'))).toEqual([])
+      expect(await ids(projectRef('demo'))).toEqual([keep.id])
+      expect((await listAll(personRef())).length).toBe(1)
+      await restoreBackup(r.backup as string, { project: 'gone' })
+      expect(await ids(projectRef('gone'))).toEqual([g.id])
+      expect(await ids(projectRef('demo'))).toEqual([keep.id])
+    })
+  })
+
+  test.skipIf(process.platform === 'win32')('a restore of the whole file stops the CortexDB readers other processes registered for the brain, and no other process', async () => {
     await withBrain(async ({ repo, root }) => {
       await write(agentCtx(repo), { type: 'decision', title: 'Readers are stopped before a restore', summary: 'no foreign WAL', body: '' })
-      const r = await backupBrains({ project: 'demo' })
-      const db = projectRef('demo').db
+      const r = await backupBrains({ all: true })
+      const db = brainDbFile()
       const reader = await parentOf(root, 'cortexdb-mcp')
       const notReader = await parentOf(root, 'sleep')
       const stranger = await parentOf(root, 'cortexdb-mcp')
@@ -116,7 +196,7 @@ describe('buracle mem backup and restore', () => {
         dead: register(999_999, 999_998),
       }
       try {
-        const out = await restoreBackup(r.manifest?.id as string, { project: 'demo' }, { waitMs: 3000 })
+        const out = await restoreBackup(r.manifest?.id as string, { all: true }, { waitMs: 3000 })
         expect(out.stopped).toBe(1)
         await reader.parent.exited
         expect(pidAlive(reader.child)).toBe(false)
@@ -134,7 +214,7 @@ describe('buracle mem backup and restore', () => {
   test('the session-end housekeeping removes reader entries whose process is gone', async () => {
     await withBrain(async ({ repo }) => {
       await write(agentCtx(repo), { type: 'decision', title: 'Dead reader entries are swept', summary: 'housekeeping', body: '' })
-      const db = projectRef('demo').db
+      const db = brainDbFile()
       const live = sleeper()
       const dead = cortexChildFile(db, 999_999)
       const alive = cortexChildFile(db, live.pid)
@@ -159,7 +239,7 @@ describe('buracle mem backup and restore', () => {
       proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'memory_write', arguments: { type: 'gotcha', title: 'Codex kills its MCP children on drop', summary: 'SIGTERM', body: '' } } }) + '\n')
       await proc.stdin.flush()
       expect(JSON.parse(await lines.next()).id).toBe(1)
-      const mine = readerEntries(projectRef('demo').db).filter(e => e.entry.pid === proc.pid)
+      const mine = readerEntries(brainDbFile()).filter(e => e.entry.pid === proc.pid)
       expect(mine).toHaveLength(1)
       proc.kill('SIGTERM')
       expect(await proc.exited).toBe(0)
@@ -170,11 +250,11 @@ describe('buracle mem backup and restore', () => {
     })
   }, 30_000)
 
-  test('while another process restores a brain, its readers refuse to start and the tools report a conflict', async () => {
+  test('while another process restores the brain, its readers refuse to start and the tools report a conflict', async () => {
     await withBrain(async ({ repo }) => {
       await write(agentCtx(repo), { type: 'decision', title: 'The restore hold blocks new readers', summary: 'hold', body: '' })
       const holder = sleeper()
-      const hold = brainHoldFile(projectRef('demo').db)
+      const hold = brainHoldFile(brainDbFile())
       mkdirSync(join(hold, '..'), { recursive: true })
       writeFileSync(hold, JSON.stringify({ pid: holder.pid, at: new Date().toISOString(), token: 'x' }))
       try {
@@ -191,24 +271,19 @@ describe('buracle mem backup and restore', () => {
     })
   })
 
-  test('a restore that fails on a later brain names what it restored, what failed and where the replaced files are', async () => {
+  test('a whole-file restore that cannot take the hold says what it did and where the brain as it was is', async () => {
     await withBrain(async ({ repo }) => {
-      await write(agentCtx(repo), { type: 'decision', title: 'A partial restore says so', summary: 'partial', body: '' })
-      await write(agentCtx(repo), { type: 'preference', title: 'Name every brain a restore touched', summary: 'clarity', body: '' })
+      await write(agentCtx(repo), { type: 'decision', title: 'A failed restore says so', summary: 'partial', body: '' })
       const id = (await backupBrains({ all: true }, { nowMs: Date.parse('2026-10-17T10:00:00Z') })).manifest?.id as string
       const holder = sleeper()
-      const hold = brainHoldFile(projectRef('demo').db)
+      const hold = brainHoldFile(brainDbFile())
       mkdirSync(join(hold, '..'), { recursive: true })
       writeFileSync(hold, JSON.stringify({ pid: holder.pid, at: new Date().toISOString(), token: 'x' }))
       try {
         const r = await cli(['mem', 'restore', id, '--all'])
         expect(r.code).toBe(1)
         const safety = listBackups().find(m => m.trigger === 'pre-restore')
-        expect(safety?.brains.map(b => b.layer)).toEqual(['person'])
-        expect(r.err).toContain(`restored the person brain; the project demo was not restored: another restore holds the project demo; the brain files as they were before this restore are in backup ${safety?.id} (buracle mem restore ${safety?.id} --all puts them back)`)
-        expect(r.err).not.toContain('nothing was restored')
-        const none = await restoreBackup(id, { project: 'demo' }).catch(e => e)
-        expect((none as Error).message).toBe('the project demo was not restored: another restore holds the project demo; nothing was restored')
+        expect(r.err).toContain(`the brain file was not restored: another restore holds the brain; nothing was restored; the brain file as it was before this restore is in backup ${safety?.id} (buracle mem restore ${safety?.id} --all puts it back)`)
       } finally {
         holder.kill()
         await holder.exited
@@ -216,47 +291,21 @@ describe('buracle mem backup and restore', () => {
     })
   })
 
-  test('pruning keeps the newest copies of each brain, so a backup of one project never removes the last copy of another brain', async () => {
+  test('pruning keeps the newest copies; the one just taken is never pruned', async () => {
     await withBrain(async ({ repo }) => {
-      await write(agentCtx(repo), { type: 'decision', title: 'Retention counts copies per brain', summary: 'per brain', body: '' })
-      await write(agentCtx(repo), { type: 'preference', title: 'Short replies always', summary: 'brevity', body: '' })
+      await write(agentCtx(repo), { type: 'decision', title: 'Retention counts copies', summary: 'per backup', body: '' })
       const at = (h: number) => Date.parse('2026-01-01T00:00:00Z') + h * 3600_000
-      const full = await backupBrains({ all: true }, { nowMs: at(1) })
-      const one = await backupBrains({ project: 'demo' }, { nowMs: at(26), keep: 1 })
+      const first = await backupBrains({ all: true }, { nowMs: at(1) })
+      const one = await backupBrains({ all: true }, { nowMs: at(26), keep: 2 })
       expect(one.pruned).toEqual([])
-      const two = await backupBrains({ project: 'demo' }, { nowMs: at(27), keep: 1 })
-      expect(two.pruned).toEqual([one.manifest?.id as string])
-      expect(listBackups().map(m => m.id)).toEqual([two.manifest?.id as string, full.manifest?.id as string])
-      const singles: string[] = []
-      for (let n = 0; n < 10; n++) singles.unshift((await backupBrains({ project: 'demo' }, { nowMs: at(30 + n) })).manifest?.id as string)
-      const now = await cli(['mem', 'backup', '--cwd', repo, '--project', 'demo', '--json'])
+      const two = await backupBrains({ all: true }, { nowMs: at(27), keep: 2 })
+      expect(two.pruned).toEqual([first.manifest?.id as string])
+      expect(listBackups().map(m => m.id)).toEqual([two.manifest?.id as string, one.manifest?.id as string])
+      const now = await cli(['mem', 'backup', '--cwd', repo, '--keep', '1', '--json'])
       expect(now.code).toBe(0)
       const r = JSON.parse(now.out) as { manifest: { id: string }, pruned: string[] }
-      expect(r.pruned.sort()).toEqual([singles.at(-1) as string, two.manifest?.id as string].sort())
-      expect(listBackups().map(m => m.id)).toEqual([r.manifest.id, ...singles.slice(0, 9), full.manifest?.id as string])
-    })
-  })
-
-  test('a removed project keeps its copies in the backups until as many newer backups exist as pruning keeps', async () => {
-    await withBrain(async ({ repo, root }) => {
-      await write(agentCtx(repo), { type: 'decision', title: 'Removed projects age out of the backups', summary: 'retention', body: '' })
-      await write(agentCtx(repo), { type: 'preference', title: 'Short replies always', summary: 'brevity', body: '' })
-      const gone = makeRepo(join(root, 'gone'), 'git@github.com:me/gone.git')
-      await write(agentCtx(gone), { type: 'gotcha', title: 'The client project leaks nothing', summary: 'client', body: '' })
-      const at = (h: number) => Date.parse('2026-01-01T00:00:00Z') + h * 3600_000
-      const id = async (nowMs: number, keep?: number, choice: Parameters<typeof backupBrains>[0] = { all: true }) => (await backupBrains(choice, { nowMs, ...(keep !== undefined ? { keep } : {}) })).manifest?.id as string
-      await id(at(1), 2)
-      const b2 = await id(at(2), 2)
-      const b3 = await id(at(3), 2)
-      const only = await id(at(3) + 1800_000, undefined, { project: 'gone' })
-      expect(listBackups().map(m => m.id)).toEqual([only, b3, b2])
-      await removeProject('gone')
-      expect(listBackups().filter(m => m.brains.some(b => b.project === 'gone')).map(m => m.id)).toEqual([only, b3, b2])
-      const b4 = await id(at(4), 2)
-      expect(listBackups().map(m => m.id)).toEqual([b4, only, b3])
-      const b5 = await id(at(5), 2)
-      expect(listBackups().map(m => m.id)).toEqual([b5, b4])
-      expect(listBackups().flatMap(m => m.brains.map(b => b.project ?? b.layer))).not.toContain('gone')
+      expect(r.pruned.sort()).toEqual([one.manifest?.id as string, two.manifest?.id as string].sort())
+      expect(listBackups().map(m => m.id)).toEqual([r.manifest.id])
     })
   })
 
@@ -266,6 +315,7 @@ describe('buracle mem backup and restore', () => {
       const b = await cli(['mem', 'backup', '--cwd', repo, '--project', 'demo', '--json'])
       expect(b.code).toBe(0)
       const id = (JSON.parse(b.out) as { manifest: { id: string } }).manifest.id
+      expect((await cli(['mem', 'backup', '--cwd', repo, '--project', 'demo'])).out).toContain('A backup always holds the whole brain file')
       expect((await cli(['mem', 'backup', '--list'])).out).toContain(`${id}  `)
       const bare = await cli(['mem', 'restore', id])
       expect(bare.code).toBe(1)
@@ -273,11 +323,11 @@ describe('buracle mem backup and restore', () => {
       expect((await cli(['mem', 'restore', id, '--person'])).err).toContain('holds no copy of the person brain')
       const ok = await cli(['mem', 'restore', id, '--project', 'demo'])
       expect(ok.code).toBe(0)
-      expect(ok.out).toContain(`Restored from ${id}: project demo`)
-      expect((await cli(['mem', 'backup', '--person'])).err).toContain('no brain file yet')
+      expect(ok.out).toContain(`Restored from ${id}: project demo (1 memories)`)
     })
   }, 60_000)
 })
+
 
 describe('buracle mem export and import', () => {
   test('an export holds the live durable memories, secrets masked again; an import goes through memory_write once', async () => {

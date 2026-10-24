@@ -16,11 +16,11 @@ import { gitProvenance, projectExclusion, resolveProject } from './project'
 import { recordRedactions } from './spool'
 import { refreshStatus } from './status'
 import {
-  brainExists, deleteItem, getStored, listAll, personRef, projectRef, recordEvent, saveItem, searchLayer, withBrainLock,
+  deleteItem, getStored, listAll, personRef, projectRef, recordEvent, refKey, saveItem, searchLayer, withBrainLock,
   type BrainRef, type Stored,
 } from './store'
 
-export type MemoryErrorCode = 'invalid_input' | 'not_found' | 'conflict' | 'no_project' | 'not_editable' | 'store_unavailable'
+export type MemoryErrorCode = 'invalid_input' | 'not_found' | 'conflict' | 'no_project' | 'not_editable' | 'store_unavailable' | 'migrating'
 
 export class MemoryError extends Error {
   readonly code: MemoryErrorCode
@@ -129,6 +129,8 @@ async function guard<T>(fn: () => Promise<T>): Promise<T> {
     if (e instanceof CortexError) {
       if (e.code === 'not_installed') throw new MemoryError('store_unavailable', e.message)
       if (e.code === 'busy') throw new MemoryError('conflict', e.message)
+      if (e.code === 'migrating') throw new MemoryError('migrating', e.message)
+      if (e.code === 'migration_failed') throw new MemoryError('store_unavailable', e.message)
       throw new MemoryError('store_unavailable', `the memory store did not answer: ${e.message}`)
     }
     throw e
@@ -225,7 +227,11 @@ export async function search(ctx: MemoryCtx, input: SearchInput): Promise<Search
     } else if (narrowed) {
       const pool = new Map(all.filter(i => memMatchesFilter(i, filter, now)).map(i => [itemKey(i), i]))
       for (const q of queries) {
-        const hits = (await Promise.all(refs.map(r => searchLayer(r, q, topK)))).flat().filter(h => pool.has(itemKey(h.item)))
+        // Narrowed by `about`, the engine also walks the graph from those topics. That ranks what is linked to them higher; what is
+        // found still has to match the words of the query, as it does without the graph.
+        const byAbout = about !== undefined && about.length > 0
+        const hits = (await Promise.all(refs.map(r => searchLayer(r, q, topK, byAbout ? { about } : {})))).flat()
+          .filter(h => pool.has(itemKey(h.item)) && (!byAbout || memMatchesWords(h.item, q)))
         const hit = new Set(hits.map(h => itemKey(h.item)))
         const local = [...pool.values()].filter(i => !hit.has(itemKey(i)) && memMatchesWords(i, q))
         for (const item of rankHits(q, [...hits.map(h => ({ item: pool.get(itemKey(h.item)) as MemItem, rank: h.rank })), ...local.map((item, n) => ({ item, rank: hits.length + n }))])) add(item)
@@ -663,17 +669,17 @@ export async function update(ctx: MemoryCtx, input: UpdateInput): Promise<Update
       const dest = layer === ref.layer ? ref : await writeRef(ctx, layer)
       const moved: MemItem = { ...next, kind, layer }
       if (cur.kind === 'capture' && kind !== 'capture') moved.review = patch.review === 'ok' ? 'ok' : 'pending'
-      if (dest.db !== ref.db || kind !== cur.kind) {
+      if (refKey(dest) !== refKey(ref) || kind !== cur.kind) {
         const taken = new Set((await listAll(dest)).map(i => i.id))
         taken.delete(cur.id)
         moved.id = kind !== cur.kind || taken.has(cur.id) ? memoryIdFor(kind, moved.title, taken) : cur.id
       }
       if (layer !== 'project') { delete moved.branch; delete moved.commit; delete moved.verifiedCommit }
-      await saveItem(dest, moved, moved.id === cur.id && dest.db === ref.db ? stored.keep : {}, { nowMs: now })
-      if (moved.id !== cur.id || dest.db !== ref.db) await deleteItem(ref, cur.id)
+      await saveItem(dest, moved, moved.id === cur.id && refKey(dest) === refKey(ref) ? stored.keep : {}, { nowMs: now })
+      if (moved.id !== cur.id || refKey(dest) !== refKey(ref)) await deleteItem(ref, cur.id)
       recordEvent({ op: 'update', layer, ...(dest.slug !== undefined ? { project: dest.slug } : {}), id: moved.id, kind, by: ctx.harness })
       await afterWrite(ctx, ref)
-      if (dest.db !== ref.db) await afterWrite(ctx, dest)
+      if (refKey(dest) !== refKey(ref)) await afterWrite(ctx, dest)
       return { id: moved.id, layer, version: moved.version, changed: [...changed, 'moved'], moved_to: { id: moved.id, layer } }
     }
     if (changed.length === 0) return { id: cur.id, layer: ref.layer, version: cur.version, changed: [] }
@@ -701,4 +707,3 @@ export function cliContext(cwd: string, harness = 'human', opts: { agent?: boole
   return ctx
 }
 
-export { brainExists }

@@ -110,6 +110,15 @@ function sidOf(name: string, h: Harness): string[] {
  * model call waiting for another try, a session whose harness died before the end hook ran, and spools nothing
  * recorded. Everything counts only once it is `pendingAfterMs` old, so a session that is merely quiet is left alone.
  */
+/**
+ * Whether a file changed too recently to settle. A file's mtime carries sub-millisecond digits and `Date.now()` is cut to
+ * whole milliseconds, so a file written in the same millisecond as the check has an mtime slightly AFTER `nowMs`: with no
+ * waiting asked for (afterMs 0, the doctor) nothing is ever too recent.
+ */
+function tooRecent(nowMs: number, mtimeMs: number, afterMs: number): boolean {
+  return afterMs > 0 && nowMs - mtimeMs < afterMs
+}
+
 export function pendingSessions(nowMs: number, opts: { skip?: { h: Harness, sid: string }, max?: number, afterMs?: number } = {}): PendingSession[] {
   const afterMs = opts.afterMs ?? CAPTURE_BUDGET.pendingAfterMs
   const max = opts.max ?? CAPTURE_BUDGET.pendingPerRun
@@ -139,7 +148,7 @@ export function pendingSessions(nowMs: number, opts: { skip?: { h: Harness, sid:
     let last = 0
     try { last = statSync(sessionRecordFile(h, sid)).mtimeMs } catch {  }
     for (const s of mine) last = Math.max(last, s.mtimeMs)
-    if (nowMs - last < afterMs) continue
+    if (tooRecent(nowMs, last, afterMs)) continue
     if (rec.status === 'ended') {
       const c = rec.capture
       const waiting = c?.state === 'retry' && c.tries < CAPTURE_BUDGET.maxTries && nowMs - (rec.finalizedMs ?? 0) < PENDING_GIVE_UP_MS && nowMs - (c.lastTryMs ?? 0) >= afterMs
@@ -150,7 +159,7 @@ export function pendingSessions(nowMs: number, opts: { skip?: { h: Harness, sid:
   for (const s of spools) {
     const dash = s.name.indexOf('-')
     const h = s.name.slice(0, dash)
-    if (dash <= 0 || !isHarness(h) || nowMs - s.mtimeMs < afterMs) continue
+    if (dash <= 0 || !isHarness(h) || tooRecent(nowMs, s.mtimeMs, afterMs)) continue
     const cuts = sidOf(s.name, h)
     if (cuts.some(sid => recorded.has(`${h}-${sid}`) || (paths.isValidSessionId(sid) && existsSync(sessionRecordFile(h, sid))))) continue
     const sid = cuts.find(c => UUID_RE.test(c)) ?? cuts[0]

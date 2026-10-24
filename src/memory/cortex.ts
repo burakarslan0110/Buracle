@@ -81,7 +81,7 @@ export function pruneDeadReaders(): number {
   return n
 }
 
-export type CortexErrorCode = 'not_installed' | 'start_failed' | 'exited' | 'timeout' | 'protocol' | 'tool_error' | 'not_found' | 'busy'
+export type CortexErrorCode = 'not_installed' | 'start_failed' | 'exited' | 'timeout' | 'protocol' | 'tool_error' | 'not_found' | 'busy' | 'migrating' | 'migration_failed'
 
 export class CortexError extends Error {
   readonly code: CortexErrorCode

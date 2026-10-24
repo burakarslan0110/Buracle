@@ -4,6 +4,7 @@ import { memIsSlug } from '../core/memory/note'
 import { MEMORY_INJECT } from '../core/memory/budgets'
 import { log } from '../engine/log'
 import { cortexdbBinary } from '../engine/toolchain/cortexdb'
+import { CortexError } from './cortex'
 import { gitProvenance, memoryExcludeConfig, memoryExcludeProblemText, projectExclusion, resolveProject } from './project'
 import { healthLine, readStatus } from './status'
 import { listAll, personRef, projectRef } from './store'
@@ -35,6 +36,8 @@ export async function contextText(opts: { cwd: string, branch?: string, nowMs?: 
     ;[projectItems, personItems] = await Promise.all([slug !== undefined ? listAll(projectRef(slug)) : Promise.resolve([]), listAll(personRef())])
   } catch (e) {
     log('warn', 'memory: the start text could not read the brain', { slug, error: e })
+    // A brain that is being migrated is not an empty one: say so, so the agent does not conclude there is nothing to recall.
+    if (e instanceof CortexError && (e.code === 'migrating' || e.code === 'migration_failed')) return `# Buracle memory (CortexDB brain)\n\n${e.message}\n`
     return ''
   }
   const health = healthLine(readStatus(slug))

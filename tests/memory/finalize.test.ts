@@ -6,12 +6,12 @@ import { contextText } from '../../src/memory/context'
 import { cortexFor } from '../../src/memory/cortex'
 import type { DistillRunner } from '../../src/memory/distill'
 import { capturePending, finalize } from '../../src/memory/finalize'
-import { locksDir } from '../../src/memory/layout'
+import { brainDbFile, locksDir } from '../../src/memory/layout'
 import { writeHandoff } from '../../src/memory/handoff'
 import { promptSeen, readSessionRecord, sessionStart, writeSessionRecord } from '../../src/memory/session-record'
 import { appendSpool } from '../../src/memory/spool'
 import { readStatus } from '../../src/memory/status'
-import { forgetListCache, getStored, listAll, personRef, projectRef } from '../../src/memory/store'
+import { forgetListCache, getStored, listAll, personRef, projectRef, storedId } from '../../src/memory/store'
 import { writeTelemetry } from '../../src/workflow/session-store'
 import * as paths from '../../src/engine/paths'
 import { withEnv } from '../helpers/sandbox'
@@ -144,14 +144,14 @@ describe('finalize', () => {
         const item = (await getStored(projectRef('demo'), id))?.item
         expect(Date.parse(item?.expires as string)).toBeGreaterThan(t0 + 44 * DAY)
         expect(Date.parse(item?.expires as string)).toBeLessThan(t0 + 46 * DAY)
-        const raw = await cortexFor(projectRef('demo').db).call<{ memory?: { expires_at?: string, metadata?: Record<string, unknown> } }>('memory_get', { memory_id: id })
+        const raw = await cortexFor(brainDbFile()).call<{ memory?: { expires_at?: string, metadata?: Record<string, unknown> } }>('memory_get', { memory_id: storedId(projectRef('demo'), id) })
         expect(Math.abs(Date.parse(raw.memory?.expires_at as string) - Date.parse(item?.expires as string))).toBeLessThan(5_000)
         expect(raw.memory?.metadata?.['ttl_seconds']).toBeGreaterThan(44 * 86_400)
         writeFileSync(clock, String(t0 + 44 * DAY))
         expect(await getStored(projectRef('demo'), id)).toBeDefined()
         writeFileSync(clock, String(t0 + 46 * DAY))
         expect(await getStored(projectRef('demo'), id)).toBeUndefined()
-        forgetListCache(projectRef('demo').db)
+        forgetListCache()
         expect((await listAll(projectRef('demo'))).map(i => i.id)).not.toContain(id)
       })
     })

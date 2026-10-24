@@ -8,7 +8,7 @@ import { closeAllCortex } from '../../src/memory/cortex'
 import { projectsFile, statusFile } from '../../src/memory/layout'
 import { readProjectsCache } from '../../src/memory/project'
 import { refreshStatus } from '../../src/memory/status'
-import { brainExists, getStored, personRef, projectRef, recordEvent, saveItem } from '../../src/memory/store'
+import { bucketExists, getStored, personRef, projectRef, recordEvent, saveItem } from '../../src/memory/store'
 import { clearUiRecord, handle, healthy, localHost, PAGE_CSP, readUiRecord, serveUi, UI_ASSETS, uiContext, type UiContext } from '../../src/memory/ui'
 import { eventInScope, parseEventLine } from '../../src/memory/ui/events'
 import { withEnv, withSandbox, type Sandbox } from '../helpers/sandbox'
@@ -225,11 +225,10 @@ describe('changing the memory from the page', () => {
 
       expect(await post(c, '/api/project/remove', { scope: 'person' })).toMatchObject({ status: 400, body: { error: 'bad_scope' } })
       expect((await post(c, '/api/project/remove', { scope: 'project:gamma' })).status).toBe(404)
-      expect(brainExists(personRef())).toBe(true)
+      expect(await bucketExists(personRef())).toBe(true)
 
       expect(await post(c, '/api/project/remove', { scope: 'project:alpha' })).toEqual({ status: 200, body: { ok: true, slug: 'alpha', brain: true, memories: 2, total: 3, record: true } })
-      expect(brainExists(projectRef('alpha'))).toBe(false)
-      expect(existsSync(`${projectRef('alpha').db}-wal`)).toBe(false)
+      expect(await bucketExists(projectRef('alpha'))).toBe(false)
       expect(existsSync(statusFile('alpha'))).toBe(false)
       const cache = readProjectsCache()
       expect(cache.projects['alpha']).toBeUndefined()
@@ -238,7 +237,7 @@ describe('changing the memory from the page', () => {
       expect(((await getJson(c, '/api/overview')).body['projects'] as Array<{ slug: string }>).map(p => p.slug)).toEqual(['beta'])
       expect((await getJson(c, '/api/brain?scope=project:alpha')).status).toBe(404)
       expect((await post(c, '/api/project/remove', { scope: 'project:alpha' })).status).toBe(404)
-      expect(brainExists(projectRef('alpha'))).toBe(false)
+      expect(await bucketExists(projectRef('alpha'))).toBe(false)
       expect((await getStored(projectRef('beta'), 'decision-beta-plan'))?.item.title).toBe('Betaplan only')
       expect((await getJson(c, '/api/brain?scope=person')).body['items']).toHaveLength(3)
       const events = readFileSync(join(paths.memoryStateDir(), 'events.jsonl'), 'utf8')
@@ -381,7 +380,7 @@ describe('scopes', () => {
       const unknown = await getJson(c, '/api/brain?scope=project:gamma')
       expect(unknown.status).toBe(404)
       expect(unknown.body['error']).toBe('unknown_project')
-      expect(brainExists(projectRef('gamma'))).toBe(false)
+      expect(await bucketExists(projectRef('gamma'))).toBe(false)
       for (const id of ['', '../x', 'Decision-Alpha', 'decision alpha', 'x'.repeat(200)]) {
         const r = await getJson(c, `/api/memory?scope=project:alpha&id=${encodeURIComponent(id)}`)
         expect(r.status).toBe(400)
@@ -566,13 +565,16 @@ describe('memories, search and the profile', () => {
       const b = await getJson(c, '/api/brain?scope=person')
       expect(b.body['items']).toEqual([])
       expect((b.body['regions'] as Array<{ count: number }>).every(r => r.count === 0)).toBe(true)
-      expect(brainExists(personRef())).toBe(false)
+      expect(await bucketExists(personRef())).toBe(false)
     })
   })
 
   test('without CortexDB the API says so and names the install command', async () => {
     await withSandbox(async ({ root }: Sandbox) => {
       await seed()
+      // Without the engine the buckets cannot be listed, so the projects shown are the ones the registry knows.
+      mkdirSync(dirname(projectsFile()), { recursive: true })
+      writeFileSync(projectsFile(), JSON.stringify({ v: 1, projects: { alpha: { slug: 'alpha', scope: 'project', roots: [join(root, 'alpha-root')], ownerRepo: 'me/alpha', updated: '2026-10-01T00:00:00Z' } } }))
       await closeAllCortex()
       await withEnv({ BURACLE_CORTEXDB_BIN: join(root, 'no-cortexdb') }, async () => {
         const c = ctx()

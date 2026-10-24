@@ -6,12 +6,12 @@ import * as paths from '../../engine/paths'
 import { memReasonAdvice } from '../../core/memory/status'
 import { tilde } from '../../engine/update/output'
 import { update as updateMemory, type MemoryCtx } from '../api'
-import { BackupError, backupBrains, listBackups, type BackupManifest } from '../backup'
+import { BackupError, backupBrains, backupBytes, backupBuckets, backupHolds, listBackups, type BackupInfo } from '../backup'
 import { chooseHarnesses } from '../model'
 import { projectRoot, readProjectsCache } from '../project'
 import { removeProject } from '../project-remove'
 import { computeStatus, memoryMcpHealth, refreshStatus } from '../status'
-import { brainExists, deleteItem, getStored, projectRef, recordEvent, withBrainLock } from '../store'
+import { bucketExists, deleteItem, getStored, projectRef, recordEvent, withBrainLock } from '../store'
 import { parseScope, UiApiError, type UiScope } from './api'
 
 export const MAX_BODY_BYTES = 64 * 1024
@@ -29,18 +29,18 @@ export async function readBody(req: Request): Promise<Record<string, unknown>> {
   return v as Record<string, unknown>
 }
 
-function scopeOf(body: Record<string, unknown>): UiScope {
+async function scopeOf(body: Record<string, unknown>): Promise<UiScope> {
   return parseScope(typeof body['scope'] === 'string' ? body['scope'] : null)
 }
 
-function projectInfo(slug: string, memories: number): Record<string, unknown> {
+async function projectInfo(slug: string, memories: number): Promise<Record<string, unknown>> {
   const rec = readProjectsCache().projects[slug]
   return {
     slug,
     ...(rec?.ownerRepo !== undefined && rec.ownerRepo !== '' ? { name: rec.ownerRepo } : {}),
     registered: rec !== undefined,
     roots: (rec?.roots ?? []).map(r => ({ path: tilde(r), exists: existsSync(r) })),
-    brain: brainExists(projectRef(slug)),
+    brain: await bucketExists(projectRef(slug)).catch(() => false),
     memories,
   }
 }
@@ -53,7 +53,7 @@ export async function healthPayload(scope: UiScope, nowMs: number): Promise<Reco
     computedAt: status.computed_at,
     health: status.health,
     reasons: status.reasons.map(code => ({ code, ...memReasonAdvice(code, status) })),
-    ...(slug !== undefined ? { project: projectInfo(slug, status.counts.project) } : {}),
+    ...(slug !== undefined ? { project: await projectInfo(slug, status.counts.project) } : {}),
     captures: status.captures,
     ...(status.last_capture !== undefined ? { lastCapture: status.last_capture } : {}),
     store: { ok: status.store.ok, ...(status.store.version !== undefined ? { version: status.store.version } : {}) },
@@ -63,22 +63,22 @@ export async function healthPayload(scope: UiScope, nowMs: number): Promise<Reco
 }
 
 function backupsPayload(scope: UiScope): Record<string, unknown> {
-  const holds = (m: BackupManifest) => m.brains.some(x => (scope.kind === 'person' ? x.layer === 'person' : x.layer === 'project' && x.project === scope.slug))
+  const holds = (m: BackupInfo) => backupHolds(m, scope.kind === 'person' ? { person: true } : { project: scope.slug })
   const all = listBackups()
   const list = all.slice(0, BACKUP_BUDGET.keep)
   const mine = all.find(holds)
   return {
-    list: list.map(m => ({ id: m.id, at: m.at, trigger: m.trigger, brains: m.brains.length, bytes: m.brains.reduce((n, x) => n + x.bytes, 0), here: holds(m) })),
+    list: list.map(m => ({ id: m.id, at: m.at, trigger: m.trigger, brains: backupBuckets(m).length, bytes: backupBytes(m), here: holds(m) })),
     ...(mine !== undefined ? { restore: `buracle mem restore ${mine.id} ${scope.kind === 'person' ? '--person' : `--project ${scope.slug}`}` } : {}),
   }
 }
 
 export async function backupNow(body: Record<string, unknown>, nowMs: number): Promise<Record<string, unknown>> {
-  scopeOf(body)
+  await scopeOf(body)
   try {
     const r = await backupBrains({ all: true }, { trigger: 'manual', nowMs, keep: BACKUP_BUDGET.keep })
     if (r.manifest === undefined) throw new UiApiError(409, 'nothing_to_back_up', 'there is no brain file yet')
-    return { ok: true, id: r.manifest.id, brains: r.manifest.brains.length, pruned: r.pruned.length, ...(r.manifest.skipped !== undefined ? { skipped: r.manifest.skipped } : {}) }
+    return { ok: true, id: r.manifest.id, brains: backupBuckets(r.manifest).length, pruned: r.pruned.length }
   } catch (e) {
     if (e instanceof BackupError) throw new UiApiError(409, 'backup_failed', e.message)
     throw e
@@ -86,7 +86,7 @@ export async function backupNow(body: Record<string, unknown>, nowMs: number): P
 }
 
 export async function removeProjectNow(body: Record<string, unknown>, nowMs: number): Promise<Record<string, unknown>> {
-  const scope = scopeOf(body)
+  const scope = await scopeOf(body)
   if (scope.kind !== 'project') throw new UiApiError(400, 'bad_scope', 'only a project can be removed; the person brain stays')
   const r = await removeProject(scope.slug, { nowMs, by: 'human' })
   await refreshStatus({ nowMs })
@@ -96,7 +96,7 @@ export async function removeProjectNow(body: Record<string, unknown>, nowMs: num
 const PROTECTED_KINDS: ReadonlySet<string> = new Set(['core', 'profile'])
 
 async function target(body: Record<string, unknown>): Promise<{ scope: UiScope, id: string }> {
-  const scope = scopeOf(body)
+  const scope = await scopeOf(body)
   const id = body['id']
   if (!isMemId(id)) throw new UiApiError(400, 'bad_id', 'id must be a memory id (lowercase letters, digits and dashes)')
   const got = await getStored(scope.ref, id)

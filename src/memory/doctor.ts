@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { realPath } from '../engine/fsx'
@@ -10,10 +10,12 @@ import { CAPTURE_BUDGET } from '../core/memory/budgets'
 import { pendingSessions } from './capture'
 import { oldVaultPath, vaultImportDone } from './import-vault'
 import { listBackups } from './backup'
-import { brainBackupsDir, brainProjectsDir, personDbFile } from './layout'
+import { brainSelfTest } from './cortex-check'
+import { brainBackupsDir, brainDbFile } from './layout'
+import { migrationInfo } from './migrate'
 import { memoryExcludeConfig, memoryExcludeProblemText, projectExclusion, readProjectsCache, resolveProject } from './project'
 import { cliArgv } from './spawn'
-import { listAll, personRef, projectRef } from './store'
+import { bucketCounts, listAll, personRef, projectRef } from './store'
 
 export type DoctorLevel = 'ok' | 'info' | 'warn' | 'error'
 export interface DoctorCheck { level: DoctorLevel, check: string, detail: string }
@@ -100,13 +102,10 @@ export async function memDoctor(opts: { cwd: string, mcp?: boolean, leak?: boole
   const bin = checkCortexdb()
   if (bin.status === 'ok') add('ok', 'cortexdb', bin.source === 'env' ? `${bin.path} (BURACLE_CORTEXDB_BIN)` : `${bin.version}, sha256 verified`)
   else add('error', 'cortexdb', bin.detail)
-  const projects = (() => { try { return readdirSync(brainProjectsDir()).filter(n => n.endsWith('.db')).length } catch { return 0 } })()
-  add('ok', 'brain', `${paths.brainDir()}: ${projects} project brain${projects === 1 ? '' : 's'}${existsSync(personDbFile()) ? ', person brain' : ', no person brain yet'}`)
-  try {
-    const known = new Set(Object.keys(readProjectsCache().projects))
-    const orphans = readdirSync(brainProjectsDir()).filter(n => n.endsWith('.db') && !known.has(n.slice(0, -3)))
-    if (orphans.length > 0) add('warn', 'brain', `${orphans.length} brain file(s) without a project record, so no status reaches them: ${orphans.join(', ')}; a session in the project's folder registers it again (buracle project init), or move the file out of ${brainProjectsDir()}`)
-  } catch {  }
+  const db = brainDbFile()
+  if (existsSync(db)) add('ok', 'brain', `${db} (${Math.max(1, Math.round(statSync(db).size / 1024))} KB)`)
+  else if (migrationInfo().legacy.length > 0) add('info', 'brain', `${db} does not exist yet; the Buracle 0.5 brain files are folded into it at the first memory call`)
+  else add('ok', 'brain', `${db} does not exist yet; the first memory write creates it`)
   const backups = listBackups()
   const newest = backups[0]
   add('info', 'backups', newest === undefined
@@ -119,6 +118,7 @@ export async function memDoctor(opts: { cwd: string, mcp?: boolean, leak?: boole
     try {
       const person = await listAll(personRef())
       add('ok', 'person memory', `${person.length} memories`)
+      await bucketChecks(add)
       if (rec !== undefined) {
         const items = await listAll(projectRef(rec.slug))
         add('ok', 'project memory', `${rec.slug}: ${items.length} memories`)
@@ -134,6 +134,12 @@ export async function memDoctor(opts: { cwd: string, mcp?: boolean, leak?: boole
       const leak = await runLeakCheck()
       add(leak.ok ? 'ok' : 'error', 'leak check', leak.detail)
     }
+  }
+  checks.push(...migrationChecks())
+  if (bin.status === 'ok' && existsSync(db)) {
+    const t = await brainSelfTest(db)
+    if (t.status === 'failed') add('error', 'brain file', `CortexDB's self-test failed on ${db}: ${t.detail}; restore a backup (buracle mem backup --list)`)
+    else if (t.status === 'passed') add('ok', 'brain file', `CortexDB's self-test passed (${t.detail})`)
   }
   if (opts.mcp !== false) {
     const h = await mcpHandshake(opts.cwd)
@@ -151,4 +157,33 @@ export async function memDoctor(opts: { cwd: string, mcp?: boolean, leak?: boole
     if (left.length > 0) add('warn', 'claude redirect', `${left.length} project(s) still carry the autoMemoryDirectory an older Buracle wrote; \`buracle install\` takes them back`)
   } catch {  }
   return checks
+}
+
+/** Where the migration from Buracle 0.5 stands, and what it left behind. */
+export function migrationChecks(): DoctorCheck[] {
+  const info = migrationInfo()
+  const m = info.marker
+  const out: DoctorCheck[] = []
+  if (info.state === 'none') return out
+  if (info.state === 'complete') {
+    out.push({ level: 'ok', check: 'migration', detail: `complete${m?.finishedAt !== undefined ? ` on ${m.finishedAt.slice(0, 10)}` : ''}: the memory is one file, brain.db` })
+    if (info.keptLegacy) out.push({ level: 'info', check: 'migration', detail: `the Buracle 0.5 brain files are kept in ${paths.brainDir()}/legacy-0.5${info.backup !== undefined ? ` and verified copies in backups/${info.backup}` : ''}; \`buracle mem migrate --purge-legacy\` deletes them` })
+  } else {
+    out.push({
+      level: info.state === 'failed' ? 'error' : 'warn', check: 'migration',
+      detail: `${info.state}: ${info.legacy.length} Buracle 0.5 file(s) wait to be folded into brain.db (${info.legacy.join(', ')})${m?.error !== undefined ? `; the last run stopped: ${m.error}` : ''}; \`buracle mem migrate\` runs it, \`buracle mem migrate --status\` shows where it is`,
+    })
+  }
+  if (m?.leftover !== undefined && m.leftover.length > 0) out.push({ level: 'warn', check: 'migration', detail: `${m.leftover.length} Buracle 0.5 file(s) could not be moved aside (a process still holds them open): ${m.leftover.join(', ')}; they are not migrated again, move them out of ${paths.brainDir()} once that process is gone` })
+  return out
+}
+
+async function bucketChecks(add: (level: DoctorLevel, check: string, detail: string) => void): Promise<void> {
+  const counts = await bucketCounts()
+  const slugs = [...counts.projects.keys()].sort()
+  add('ok', 'buckets', `person ${counts.person}${slugs.length > 0 ? `, ${slugs.map(s => `${s} ${counts.projects.get(s)}`).join(', ')}` : ''} (rows, retired ones included)`)
+  const known = new Set(Object.keys(readProjectsCache().projects))
+  const orphans = slugs.filter(s => !known.has(s))
+  if (orphans.length > 0) add('warn', 'brain', `${orphans.length} project bucket(s) without a project record, so no status reaches them: ${orphans.join(', ')}; a session in the project's folder registers it again (buracle project init)`)
+  if (counts.foreign > 0) add('warn', 'brain', `${counts.foreign} row(s) in brain.db belong to no bucket (an id without the u/ or p/<project>/ prefix); Buracle ignores them`)
 }

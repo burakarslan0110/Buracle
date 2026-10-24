@@ -241,7 +241,62 @@ export function toCortexSave(item: MemItem, keep: Readonly<Record<string, unknow
   const save: Record<string, unknown> = { memory_id: item.id, content: encodeContent(item.title, item.summary, item.body), metadata: meta, importance: cortexImportance(item.importance) }
   const ttl = ttlSeconds(item.expires, nowMs)
   if (ttl !== undefined) save['ttl_seconds'] = ttl
+  save['review_status'] = cortexReviewStatus(item)
+  if (save['review_status'] === 'accepted' && item.verifiedBy !== undefined) {
+    save['reviewed_by'] = item.verifiedBy
+    if (item.verifiedAt !== undefined && Number.isFinite(Date.parse(item.verifiedAt))) save['reviewed_at'] = new Date(item.verifiedAt).toISOString()
+  }
+  const graph = cortexGraph(item)
+  if (graph.entities.length > 0) save['entities'] = graph.entities
+  if (graph.relations.length > 0) save['relations'] = graph.relations
   return save
+}
+
+/**
+ * CortexDB's own review state, next to the `review` metadata: `accepted` once the memory is verified (an inferred one
+ * only by the user), `proposed` before. Buracle never turns the engine's review gate on, so this only labels the row.
+ */
+export function cortexReviewStatus(item: Pick<MemItem, 'review' | 'origin' | 'verifiedBy'>): 'proposed' | 'accepted' {
+  if (item.review !== 'ok') return 'proposed'
+  return item.origin === 'inferred' && item.verifiedBy !== 'user' ? 'proposed' : 'accepted'
+}
+
+export interface CortexEntity { name: string, type: string }
+export interface CortexRelation { from: string, to: string, type: string }
+
+const MAX_ENTITIES = 30
+const MAX_RELATIONS = 40
+const ENTITY_NAME_MAX = 120
+
+/**
+ * The graph a memory brings along on save: what it is `about` (topics) and the repository files its `sources` cite
+ * (files), with an `about` relation from each topic to each file. A relation only names entities in the same list,
+ * because the engine rejects one that does not.
+ */
+export function cortexGraph(item: Pick<MemItem, 'about' | 'sources'>): { entities: CortexEntity[], relations: CortexRelation[] } {
+  const entities: CortexEntity[] = []
+  const canonical = new Map<string, string>()
+  const add = (raw: string, type: string): string | undefined => {
+    const name = raw.trim().replace(/\s+/g, ' ').slice(0, ENTITY_NAME_MAX)
+    const key = name.toLowerCase()
+    if (name === '') return undefined
+    const have = canonical.get(key)
+    if (have !== undefined) return have
+    if (entities.length >= MAX_ENTITIES) return undefined
+    canonical.set(key, name)
+    entities.push({ name, type })
+    return name
+  }
+  const topics = item.about.map(a => add(a, 'topic')).filter((n): n is string => n !== undefined)
+  const files = item.sources.map(s => sourcePath(s)).filter((p): p is string => p !== undefined).map(p => add(p, 'file')).filter((n): n is string => n !== undefined)
+  const relations: CortexRelation[] = []
+  for (const from of new Set(topics)) {
+    for (const to of new Set(files)) {
+      if (from.toLowerCase() === to.toLowerCase() || relations.length >= MAX_RELATIONS) continue
+      relations.push({ from, to, type: 'about' })
+    }
+  }
+  return { entities, relations }
 }
 
 export function ttlSeconds(expires: string | undefined, nowMs: number | undefined): number | undefined {
@@ -282,6 +337,15 @@ export function cortexQuery(query: string, topK: number): Record<string, unknown
   const args: Record<string, unknown> = { query: memOneLine(query).slice(0, 300), top_k: topK, retrieval_mode: 'lexical' }
   if (keywords.size > 0) args['keywords'] = [...keywords].slice(0, 32)
   return args
+}
+
+/**
+ * A search narrowed by `about` also walks the graph from those topics: the engine adds the memories linked to them
+ * to the words' hits. Without topics the search stays lexical.
+ */
+export function cortexAbout(args: Record<string, unknown>, about: readonly string[]): Record<string, unknown> {
+  const names = about.map(a => a.trim()).filter(a => a !== '').slice(0, 12)
+  return names.length === 0 ? args : { ...args, entity_names: names, retrieval_mode: 'graph' }
 }
 
 export interface MemRankInput { item: MemItem, rank: number }

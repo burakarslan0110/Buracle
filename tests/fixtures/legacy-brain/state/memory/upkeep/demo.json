@@ -1,0 +1,38 @@
+{
+  "v": 1,
+  "at": "2026-10-24T17:51:59.373Z",
+  "layer": "project",
+  "items": [
+    {
+      "id": "decision-orders-live-in-cockroachdb",
+      "layer": "project",
+      "kind": "decision",
+      "title": "Orders live in CockroachDB",
+      "reasons": [
+        "source-missing"
+      ],
+      "action": "a file it cites is gone: the sweep follows a move git made, else the curator picks among files of the same name or retires the memory",
+      "files": [
+        "src/orders/db.ts"
+      ],
+      "since": "2026-10-24T17:51:59.140Z"
+    },
+    {
+      "id": "procedure-run-the-migration-before-the-deploy",
+      "layer": "project",
+      "kind": "procedure",
+      "title": "Run the migration before the deploy",
+      "reasons": [
+        "source-missing"
+      ],
+      "action": "a file it cites is gone: the sweep follows a move git made, else the curator picks among files of the same name or retires the memory",
+      "files": [
+        "scripts/deploy.sh"
+      ],
+      "since": "2026-10-24T17:51:59.294Z"
+    }
+  ],
+  "changed": {},
+  "sig": "1792864319373.5464:5464|-",
+  "project": "demo"
+}

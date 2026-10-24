@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
-  brainStartText, cortexImportance, decodeBody, encodeContent, fromCortex, HANDOFF_KEEP_MS, hitLine, isLive, memLocked, memoryIdFor, memProtected,
+  brainStartText, cortexAbout, cortexGraph, cortexImportance, cortexQuery, cortexReviewStatus, decodeBody, encodeContent, fromCortex, HANDOFF_KEEP_MS, hitLine, isLive, memLocked, memoryIdFor, memProtected,
   regionSummaries, searchTerms, SESSION_KEEP_MS, similarMemories, sourcePath, TERMS_OPEN, toCortexSave, ttlSeconds, utf8Length, type MemItem,
 } from '../../../src/core/memory/brain'
 
@@ -263,5 +263,48 @@ describe('regions', () => {
     ], NOW)
     expect(r.find(x => x.region === 'self')?.count).toBe(2)
     expect(r.find(x => x.region === 'skills')?.count).toBe(1)
+  })
+})
+
+describe('what a save tells CortexDB beyond the text', () => {
+  test('the review state is accepted once verified, and an inferred memory only by the user', () => {
+    expect(cortexReviewStatus({ review: 'pending' })).toBe('proposed')
+    expect(cortexReviewStatus({ review: 'ok', origin: 'explicit' })).toBe('accepted')
+    expect(cortexReviewStatus({ review: 'ok' })).toBe('accepted')
+    expect(cortexReviewStatus({ review: 'ok', origin: 'inferred', verifiedBy: 'codex' })).toBe('proposed')
+    expect(cortexReviewStatus({ review: 'ok', origin: 'inferred', verifiedBy: 'user' })).toBe('accepted')
+    const save = toCortexSave(item({ id: 'decision-a', title: 'A', review: 'ok', verifiedBy: 'user', verifiedAt: iso(NOW) }))
+    expect(save).toMatchObject({ review_status: 'accepted', reviewed_by: 'user', reviewed_at: iso(NOW) })
+    expect((save['metadata'] as Record<string, unknown>)['review']).toBe('ok')
+    expect(toCortexSave(item({ id: 'decision-b', title: 'B', review: 'pending' }))).toMatchObject({ review_status: 'proposed' })
+    expect(toCortexSave(item({ id: 'decision-b', title: 'B', review: 'pending' }))).not.toHaveProperty('reviewed_by')
+  })
+
+  test('what a memory is about, and the repository files its sources cite, become entities joined by about relations', () => {
+    const g = cortexGraph({ about: ['Payments', 'payments', 'Retries'], sources: ['src/payments/retry.ts:10-20', 'https://example.com/doc', 'a1b2c3d4e5f', 'src/payments/retry.ts'] })
+    expect(g.entities).toEqual([{ name: 'Payments', type: 'topic' }, { name: 'Retries', type: 'topic' }, { name: 'src/payments/retry.ts', type: 'file' }])
+    expect(g.relations).toEqual([{ from: 'Payments', to: 'src/payments/retry.ts', type: 'about' }, { from: 'Retries', to: 'src/payments/retry.ts', type: 'about' }])
+    // A relation never names an entity that is not in the list: the engine rejects the whole save for that.
+    const names = new Set(g.entities.map(e => e.name))
+    for (const r of g.relations) { expect(names.has(r.from)).toBe(true); expect(names.has(r.to)).toBe(true) }
+    expect(cortexGraph({ about: [], sources: ['https://example.com/doc'] })).toEqual({ entities: [], relations: [] })
+    expect(cortexGraph({ about: ['src/a.ts'], sources: ['src/a.ts'] }).relations).toEqual([])
+  })
+
+  test('a save carries the graph only when there is one, and the graph stays bounded', () => {
+    expect(toCortexSave(item({ id: 'decision-a', title: 'A' }))).not.toHaveProperty('entities')
+    expect(toCortexSave(item({ id: 'decision-a', title: 'A' }))).not.toHaveProperty('relations')
+    const wide = cortexGraph({ about: Array.from({ length: 12 }, (_, n) => `topic ${n}`), sources: Array.from({ length: 20 }, (_, n) => `src/file${n}.ts`) })
+    expect(wide.entities.length).toBeLessThanOrEqual(30)
+    expect(wide.relations.length).toBeLessThanOrEqual(40)
+    const save = toCortexSave(item({ id: 'decision-g', title: 'G', about: ['Payments'], sources: ['src/pay.ts'] }))
+    expect(save['entities']).toEqual([{ name: 'Payments', type: 'topic' }, { name: 'src/pay.ts', type: 'file' }])
+  })
+
+  test('a search narrowed by about walks the graph from those topics; without topics it stays lexical', () => {
+    const base = cortexQuery('retry storm', 10)
+    expect(base['retrieval_mode']).toBe('lexical')
+    expect(cortexAbout(base, [])).toBe(base)
+    expect(cortexAbout(base, [' Payments ', ''])).toMatchObject({ retrieval_mode: 'graph', entity_names: ['Payments'], query: 'retry storm' })
   })
 })

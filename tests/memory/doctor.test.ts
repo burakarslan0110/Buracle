@@ -1,13 +1,15 @@
 import { describe, expect, test } from 'bun:test'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { captureChecks, doctorExitCode, memDoctor, runLeakCheck } from '../../src/memory/doctor'
 import { finalize } from '../../src/memory/finalize'
 import { sessionStart } from '../../src/memory/session-record'
+import { projectRef, saveItem } from '../../src/memory/store'
+import { migrationLockFile, sessionRecordsDir, spoolDir } from '../../src/memory/layout'
+import { tryLock } from '../../src/memory/lock'
 import { appendSpool } from '../../src/memory/spool'
-import { brainProjectsDir } from '../../src/memory/layout'
 import { withEnv } from '../helpers/sandbox'
-import { withBrain } from './helpers'
+import { installLegacyBrain, REAL_CORTEXDB, withBrain } from './helpers'
 
 describe('mem doctor', () => {
   test('a healthy setup passes every check, the leak check included', async () => {
@@ -36,15 +38,72 @@ describe('mem doctor', () => {
     })
   })
 
-  test('a brain file without a project record is a warning that names it and the way back', async () => {
+  test('a session whose files were written in the same millisecond as the check still counts as waiting', async () => {
     await withBrain(async ({ repo }) => {
-      mkdirSync(brainProjectsDir(), { recursive: true })
-      writeFileSync(join(brainProjectsDir(), 'ghost.db'), '')
+      const sid = '0199a213-81c0-7800-8aa1-bbab2a035a91'
+      await sessionStart('codex', sid, repo)
+      appendSpool('codex', sid, [{ ts: Date.now(), ev: 'prompt' }, { ts: Date.now() + 1, ev: 'stop', excerpt: 'Done.' }])
+      await finalize('codex', sid, { pending: false, runner: async () => ({ ok: false, text: '', error: 'codex: not logged in' }) })
+      // File times carry sub-millisecond digits and Date.now() is cut to whole milliseconds, so a file written a moment
+      // before the check can be dated after it: put every file of the session 5 ms ahead.
+      const ahead = (Date.now() + 5) / 1000
+      for (const dir of [sessionRecordsDir(), spoolDir()]) {
+        for (const name of readdirSync(dir)) if (name.includes(sid)) utimesSync(join(dir, name), ahead, ahead)
+      }
+      const [warn] = captureChecks(Date.now())
+      expect(warn).toMatchObject({ level: 'warn', check: 'capture' })
+    })
+  })
+
+  test('a project bucket without a project record is a warning that names it and the way back', async () => {
+    await withBrain(async ({ repo }) => {
+      await saveItem(projectRef('ghost'), { id: 'decision-ghost', kind: 'decision', layer: 'project', title: 'A ghost decision', summary: '', body: '', tags: [], sources: [], about: [], status: 'active', review: 'pending', importance: 3, created: '2026-10-13T10:00:00Z', updated: '2026-10-13T10:00:00Z', author: 'agent', version: 1, history: [] })
       const checks = await memDoctor({ cwd: repo, mcp: false, leak: false })
       const warn = checks.find(c => c.check === 'brain' && c.level === 'warn')
-      expect(warn?.detail).toContain('1 brain file(s) without a project record')
-      expect(warn?.detail).toContain('ghost.db')
+      expect(warn?.detail).toContain('1 project bucket(s) without a project record')
+      expect(warn?.detail).toContain('ghost')
       expect(warn?.detail).toContain('buracle project init')
+    })
+  })
+
+  test.skipIf(REAL_CORTEXDB)('the doctor reports the migration: pending while another process holds it, complete with what was kept afterwards', async () => {
+    await withBrain(async ({ repo }) => {
+      installLegacyBrain()
+      const holder = tryLock(migrationLockFile(), 60_000)
+      try {
+        await withEnv({ BURACLE_MIGRATE_WAIT_MS: '100' }, async () => {
+          const checks = await memDoctor({ cwd: repo, mcp: false, leak: false })
+          const m = checks.find(c => c.check === 'migration')
+          expect(m).toMatchObject({ level: 'warn' })
+          expect(m?.detail).toContain('person.db')
+          expect(m?.detail).toContain('buracle mem migrate')
+          expect(checks.find(c => c.level === 'error')?.detail).toContain('migrated')
+          expect(doctorExitCode(checks)).toBe(1)
+        })
+      } finally {
+        holder?.()
+      }
+      const done = await memDoctor({ cwd: repo, mcp: false, leak: false })
+      const ms = done.filter(c => c.check === 'migration')
+      expect(ms[0]).toMatchObject({ level: 'ok' })
+      expect(ms[0]?.detail).toContain('complete')
+      expect(ms[1]).toMatchObject({ level: 'info' })
+      expect(ms[1]?.detail).toContain('--purge-legacy')
+      expect(done.find(c => c.check === 'buckets')?.detail).toContain('person 5, demo 6')
+      expect(doctorExitCode(done)).toBe(0)
+    })
+  })
+
+  test('CortexDB\'s own self-test of the brain file is part of the report, and its failure is an error', async () => {
+    await withBrain(async ({ repo }) => {
+      await saveItem(projectRef('demo'), { id: 'decision-a', kind: 'decision', layer: 'project', title: 'A', summary: '', body: '', tags: [], sources: [], about: [], status: 'active', review: 'pending', importance: 3, created: '2026-10-13T10:00:00Z', updated: '2026-10-13T10:00:00Z', author: 'agent', version: 1, history: [] })
+      const ok = await memDoctor({ cwd: repo, mcp: false, leak: false })
+      expect(ok.find(c => c.check === 'brain file')).toMatchObject({ level: 'ok' })
+      await withEnv({ FAKE_CORTEXDB_DOCTOR: 'fail' }, async () => {
+        const bad = await memDoctor({ cwd: repo, mcp: false, leak: false })
+        expect(bad.find(c => c.check === 'brain file')).toMatchObject({ level: 'error' })
+        expect(bad.find(c => c.check === 'brain file')?.detail).toContain('injected failure')
+      })
     })
   })
 

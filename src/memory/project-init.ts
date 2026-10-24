@@ -4,7 +4,7 @@ import { toplevel } from '../engine/git'
 import { log } from '../engine/log'
 import { applyPlans, readLedgerSync, type Plan } from '../engine/txn'
 import { nonProjectReason, projectExclusion, resolveProject } from './project'
-import { projectRef } from './store'
+import { brainDbFile } from './layout'
 
 export interface ProjectInitResult {
   slug: string
@@ -56,5 +56,5 @@ export async function projectInit(cwd: string): Promise<ProjectInitResult> {
       warnings.push(`${settings} keeps an autoMemoryDirectory that is not Buracle's to remove (${r.kept[0]?.why ?? 'changed'}); Claude Code's own auto memory is off, so it is unused`)
     }
   }
-  return { slug: rec.slug, scope: rec.scope, db: projectRef(rec.slug).db, claudeRedirect, warnings }
+  return { slug: rec.slug, scope: rec.scope, db: brainDbFile(), claudeRedirect, warnings }
 }

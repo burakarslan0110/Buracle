@@ -119,7 +119,7 @@
     },
     "harness/agents-skills/dead-code/SKILL.md": {
       "by": "agents-skills",
-      "sha256": "0fa80b1e7356c25f1b54b355fc48020b2a5e9b14dc2cd35bd2af6a8d4bb0265d",
+      "sha256": "e3192e4ddadb5b4d6fb13c08f8616f11c84adf1dad51fab3a38aeba82e90208a",
       "exec": false
     },
     "harness/agents-skills/dead-code/agents/openai.yaml": {
@@ -594,7 +594,7 @@
     },
     "harness/claude/hooks/core/memory/brain.ts": {
       "by": "claude",
-      "sha256": "87920a7cedfd678ef08f42c91d05bf03b6c8a3e6567c92297560a28b496fe44f",
+      "sha256": "5e1fa2233d6a919b22949602407f3c655de1609aac9b149ae134af435e049105",
       "exec": false
     },
     "harness/claude/hooks/core/memory/budgets.ts": {
@@ -984,7 +984,7 @@
     },
     "harness/claude/hooks/generated/meta.ts": {
       "by": "claude",
-      "sha256": "7b0024fed1c38a8a70d9965690cbeb8537850fb23a4c50473c318ac4327bc1d5",
+      "sha256": "05dec4b06726591694c3bd752730ecfa10f9e3979e61f9a73b759f541055d027",
       "exec": false
     },
     "harness/claude/hooks/hooks.json": {

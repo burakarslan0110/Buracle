@@ -1,13 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { installPlan } from '../../../src/adapters/opencode/install'
 import { jsoncSet } from '../../../src/engine/merge'
 import * as paths from '../../../src/engine/paths'
 import { parseVersion } from '../../../src/engine/proc'
 import { applyPlans } from '../../../src/engine/txn'
-import { brainProjectsDir } from '../../../src/memory/layout'
-import { listAll, personRef, projectRef } from '../../../src/memory/store'
+import { bucketCounts, listAll, personRef, projectRef } from '../../../src/memory/store'
 import { readFlow, writeFlow } from '../../../src/workflow/flow'
 import { flowPhase } from '../../../src/core/flow/record'
 import { narrowPath, pathOf } from '../../helpers/fake-exe'
@@ -130,7 +129,7 @@ describe('opencode TUI (real binary in tmux, opt-in)', () => {
       const before = agentRequests()
       await submit('/remember buracle tui smoke note')
       await waitFor(s => s.includes('Remembered: '), 'remember-toast', 30_000)
-      const projects = existsSync(brainProjectsDir()) ? readdirSync(brainProjectsDir()).filter(f => f.endsWith('.db')).map(f => projectRef(f.slice(0, -3))) : []
+      const projects = [...(await bucketCounts()).projects.keys()].map(slug => projectRef(slug))
       const captures = (await Promise.all([personRef(), ...projects].map(r => listAll(r)))).flat().filter(i => i.kind === 'capture')
       expect(captures.some(i => i.title === 'buracle tui smoke note')).toBe(true)
       expect(agentRequests()).toBe(before)

@@ -27,7 +27,7 @@ describe('project memory setup', () => {
     expect(r.code).toBe(0)
     const memory = r.data['memory'] as { status: string, path: string, detail: string[] }
     expect(memory.status).toBe('ok')
-    expect(memory.path.endsWith(join('brain', 'projects', 'repo.db'))).toBe(true)
+    expect(memory.path.endsWith(join('brain', 'brain.db'))).toBe(true)
     expect(memory.detail[0]).toStartWith('project repo')
     expect(await listAll(projectRef('repo'))).toEqual([])
     expect(existsSync(settingsOf(repo))).toBe(false)

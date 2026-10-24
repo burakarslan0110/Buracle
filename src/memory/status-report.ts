@@ -1,4 +1,4 @@
-import { regionSummaries, REGIONS } from '../core/memory/brain'
+import { regionSummaries, REGIONS, type MemItem } from '../core/memory/brain'
 import { memAge, memReasonAdvice, type MemoryStatus } from '../core/memory/status'
 import { cortexdbBinary } from '../engine/toolchain/cortexdb'
 import { currentProject, type MemoryCtx } from './api'
@@ -20,9 +20,14 @@ export async function memoryStatusReport(ctx: MemoryCtx, opts: { nowMs?: number 
   const now = opts.nowMs ?? Date.now()
   const slug = await currentProject(ctx)
   const bin = cortexdbBinary()
-  const project = bin !== undefined && slug !== undefined ? await listAll(projectRef(slug)).catch(() => []) : []
-  const person = bin !== undefined ? await listAll(personRef()).catch(() => []) : []
-  const status = await computeStatus({ ...(slug !== undefined ? { slug } : {}), nowMs: now, items: { project, person } })
+  // A brain that cannot be read (a migration is running, CortexDB does not answer) is reported as unreadable, never as empty.
+  let items: { project: MemItem[], person: MemItem[] } | undefined
+  if (bin !== undefined) {
+    try { items = { project: slug !== undefined ? await listAll(projectRef(slug)) : [], person: await listAll(personRef()) } } catch { items = undefined }
+  }
+  const project = items?.project ?? []
+  const person = items?.person ?? []
+  const status = await computeStatus({ ...(slug !== undefined ? { slug } : {}), nowMs: now, ...(items !== undefined ? { items } : {}) })
   try { writeStatus(status) } catch {  }
   const regions = { project: regionSummaries(project, now), person: regionSummaries(person, now) }
   const lines: string[] = []
