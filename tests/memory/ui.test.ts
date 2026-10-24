@@ -12,7 +12,7 @@ import { readProjectsCache } from '../../src/memory/project'
 import { refreshStatus } from '../../src/memory/status'
 import { bucketExists, getStored, personRef, projectRef, recordEvent, saveItem } from '../../src/memory/store'
 import { browserArgv, clearUiRecord, handle, healthy, localHost, PAGE_CSP, readUiRecord, serveUi, UI_ASSETS, UI_IDLE_MS, uiContext, uiIdleMs, type UiContext, type UiStopReason } from '../../src/memory/ui'
-import { uiErrorOf } from '../../src/memory/ui/actions'
+import { MAX_BODY_BYTES, readBody, uiErrorOf } from '../../src/memory/ui/actions'
 import { eventInScope, parseEventLine } from '../../src/memory/ui/events'
 import { installLegacyBrain, REAL_CORTEXDB } from './helpers'
 import { withEnv, withSandbox, type Sandbox } from '../helpers/sandbox'
@@ -132,6 +132,22 @@ describe('who may ask, and what', () => {
 })
 
 describe('changing the memory from the page', () => {
+  test('a write body is capped while it is read: a stream with no content-length is cancelled, not buffered whole', async () => {
+    const chunk = new Uint8Array(16 * 1024).fill(0x20)
+    let pulled = 0
+    const body = new ReadableStream<Uint8Array>({ pull(c) { pulled += chunk.byteLength; if (pulled <= 100 * 1024 * 1024) c.enqueue(chunk); else c.close() } })
+    const req = new Request('http://127.0.0.1/api/memory/update', { method: 'POST', headers: { 'content-type': 'application/json' }, body, duplex: 'half' } as RequestInit)
+    expect(req.headers.get('content-length')).toBeNull()
+    const err = await readBody(req).catch(e => e)
+    expect(err).toMatchObject({ status: 413, code: 'too_large' })
+    expect(pulled).toBeLessThan(MAX_BODY_BYTES + 4 * chunk.byteLength)
+  })
+
+  test('a body within the cap is read as JSON, whole', async () => {
+    const small = new Request('http://127.0.0.1/x', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: 'a', note: 'ö' }) })
+    expect(await readBody(small)).toEqual({ id: 'a', note: 'ö' })
+  })
+
   async function post(c: UiContext, path: string, body: unknown): Promise<{ status: number, body: Record<string, unknown> }> {
     const token = (await getJson(c, '/api/token')).body['token'] as string
     const r = await handle(new Request(`http://127.0.0.1:${c.port}${path}`, { method: 'POST', headers: { host: `127.0.0.1:${c.port}`, 'content-type': 'application/json', 'x-buracle-token': token, origin: `http://127.0.0.1:${c.port}` }, body: JSON.stringify(body) }), c)

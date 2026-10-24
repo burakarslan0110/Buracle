@@ -17,13 +17,29 @@ import { migrationSummary, parseScope, UiApiError, type UiScope } from './api'
 
 export const MAX_BODY_BYTES = 64 * 1024
 
+/** The request body as text, read chunk by chunk: past `max` bytes the reader is cancelled, so a body without (or with a false) content-length is never buffered whole. */
+async function boundedText(req: Request, max: number): Promise<string | undefined> {
+  if (req.body === null) return ''
+  const reader = req.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > max) { await reader.cancel().catch(() => undefined); return undefined }
+    chunks.push(value)
+  }
+  return new TextDecoder().decode(Buffer.concat(chunks))
+}
+
 export async function readBody(req: Request): Promise<Record<string, unknown>> {
   const type = (req.headers.get('content-type') ?? '').toLowerCase()
   if (!type.startsWith('application/json')) throw new UiApiError(415, 'bad_type', 'a write sends application/json')
   const declared = Number(req.headers.get('content-length') ?? '')
   if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) throw new UiApiError(413, 'too_large', `the body is larger than ${MAX_BODY_BYTES} bytes`)
-  const text = await req.text()
-  if (text.length > MAX_BODY_BYTES) throw new UiApiError(413, 'too_large', `the body is larger than ${MAX_BODY_BYTES} bytes`)
+  const text = await boundedText(req, MAX_BODY_BYTES)
+  if (text === undefined) throw new UiApiError(413, 'too_large', `the body is larger than ${MAX_BODY_BYTES} bytes`)
   let v: unknown
   try { v = JSON.parse(text) } catch { throw new UiApiError(400, 'bad_json', 'the body is not JSON') }
   if (v === null || typeof v !== 'object' || Array.isArray(v)) throw new UiApiError(400, 'bad_json', 'the body must be a JSON object')
