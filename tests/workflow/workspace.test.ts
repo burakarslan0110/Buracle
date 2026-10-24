@@ -653,6 +653,32 @@ describe('what a session start reports', () => {
     })
   })
 
+  test('a session start in a single project starts no index run: its servers keep their own indexes fresh', async () => {
+    await withSandbox(async ({ root }) => {
+      const repo = join(root, 'repo')
+      await gitInit(repo)
+      const started: string[][] = []
+      expect(indexDue(repo, defaultConfig().index, 1_000)).toBe(true)
+      const info = await withEnv({ BURACLE_NO_AUTOSTART: undefined }, () => prepareWorkspace(repo, defaultConfig(), 1_000, { argv: ['bun', 'main.ts'], spawn: argv => { started.push(argv) } }))
+      expect(started).toEqual([])
+      expect(info.root).toBe(repo)
+      expect(info.index.codegraph).toEqual({ state: 'none' })
+    })
+  })
+
+  test('a session start in a folder that holds several projects still starts one background index run for it', async () => {
+    await withSandbox(async ({ root }) => {
+      const parent = join(root, 'parent')
+      await gitInit(join(parent, 'a'))
+      await gitInit(join(parent, 'b'))
+      const started: Array<{ argv: string[], cwd: string }> = []
+      const info = await withEnv({ BURACLE_NO_AUTOSTART: undefined }, () => prepareWorkspace(parent, defaultConfig(), 1_000, { argv: ['bun', 'main.ts'], spawn: (argv, cwd) => { started.push({ argv, cwd }) } }))
+      expect(info.root).toBeUndefined()
+      expect(info.children.length).toBe(2)
+      expect(started).toEqual([{ argv: ['bun', 'main.ts', 'index', 'ensure', '--cwd', parent, '--if-due', '--quiet'], cwd: parent }])
+    })
+  })
+
   test('a folder of projects and the home folder', async () => {
     await withSandbox(async ({ root, home }) => {
       const parent = join(root, 'parent')
@@ -692,7 +718,7 @@ describe('what a session start reports', () => {
         { level: 'warn', check: 'index.semble', detail: `${repo}: not built yet` },
       ])
       expect(await indexChecks(home, cfgWith({ auto: false }), 1_000)).toEqual([
-        { level: 'info', check: 'index.auto', detail: 'off: session starts build no code indexes (`buracle index ensure` builds them by hand)' },
+        { level: 'info', check: 'index.auto', detail: 'off: no code index is built automatically (`buracle index ensure` builds them by hand)' },
         { level: 'info', check: 'index', detail: `${home} is your home folder: nothing is indexed here` },
       ])
     })

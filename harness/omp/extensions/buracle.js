@@ -35598,11 +35598,14 @@ function fallbackInfo(cwd, cfg) {
     index: { codegraph: { state: cfg.index.codegraph ? "none" : "off" }, semble: { state: cfg.index.semble ? "none" : "off" } }
   };
 }
-async function prepareWorkspace(cwd, cfg, nowMs) {
+function indexRunAtSessionStart(target) {
+  return target.root === undefined && target.children.length > 0;
+}
+async function prepareWorkspace(cwd, cfg, nowMs, o = {}) {
   const autostart = process.env["BURACLE_NO_AUTOSTART"] !== "1";
   try {
     const target = await resolveWorkspace(cwd, workspaceOptions(cfg));
-    const building = autostart && cfg.index.auto ? startIndexRun(target, cfg, nowMs, buracleArgv()) : [];
+    const building = autostart && cfg.index.auto && indexRunAtSessionStart(target) ? startIndexRun(target, cfg, nowMs, "argv" in o ? o.argv : buracleArgv(), o.spawn) : [];
     return infoFor(target, cfg, nowMs, building);
   } catch (e) {
     log("warn", "workspace: preparing the session start failed", { cwd, error: e });

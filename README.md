@@ -280,7 +280,7 @@ Buracle runs the harnesses without approval prompts and lets its hooks do the gu
 | [`chrome-devtools`](https://github.com/ChromeDevTools/chrome-devtools-mcp) | Drives a Chrome browser |
 | `lsp` | Language-server diagnostics and navigation for Codex and OpenCode |
 
-The toolchain also brings `rg`, `ast-grep`, `jq`, `gh`, `tmux`, `ruff`, `shellcheck` and `golangci-lint`, and six language servers: pyright, typescript-language-server, gopls, rust-analyzer, csharp-ls and jdtls. When a session starts, Buracle builds or refreshes the project's codegraph and semble indexes in the background. After every edit, the matching checker runs and its findings go back to the agent.
+The toolchain also brings `rg`, `ast-grep`, `jq`, `gh`, `tmux`, `ruff`, `shellcheck` and `golangci-lint`, and six language servers: pyright, typescript-language-server, gopls, rust-analyzer, csharp-ls and jdtls. Buracle builds a project's first codegraph index when the codegraph server starts there; after that codegraph and semble keep their own indexes fresh, and only a folder that holds several projects gets a background index run when a session starts in it. After every edit, the matching checker runs and its findings go back to the agent.
 
 In Claude Code, the status line looks like this:
 

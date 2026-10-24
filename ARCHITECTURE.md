@@ -116,7 +116,7 @@ local model, no API key and no resident service. Agents write explicit memories 
 | | 0.5.0 | 0.6 |
 | --- | --- | --- |
 | Per terminal | Bun MCP server + up to 2 CortexDB children | Bun MCP server + 1 CortexDB child |
-| Session start | 4 detached Bun processes + 7 git calls | none from memory (workspace index runs as before) |
+| Session start | 8 processes spawned: memory kick, UI server, index refresh, repair job, tick, 3 CortexDB readers (3 still running 3 s later) | none in a single project; a folder that holds several projects starts one background index run |
 | Each prompt | a detached tick (first prompt) | none |
 | Tool call | hook process + an asynchronous capture process | hook process + the same asynchronous capture |
 | Session end | detached chain: profile, distil, 2 reflections, verify, tick | one bounded `mem finalize` |
@@ -175,8 +175,8 @@ part of the repository.
 | Brain web UI, idle RSS | 60.4 MB | 33.6 MB |
 | Brain web UI, after its first requests | 132.4 MB (the embedder loads) | 36.0 MB |
 | Brain file on disk (32 memories) | 1,024 KB | 688 KB |
-| Processes a session start leaves running | 3 (UI server, repair job, CortexDB reader) | 0 |
-| Processes left running by any other hook event | 0 | 0 |
+| Processes a session start spawns / leaves running | 8 / 3 (UI server, repair job, CortexDB reader) | 0 / 0 |
+| Other hook events: spawned | PreCompact 1, session end 2 | PreCompact 1 (a CortexDB reader inside the hook for the handoff), session end 2 (the one finalize child and its reader) |
 | PreToolUse hook, median / p90 wall time | 54 / 57 ms | 38 / 40 ms |
 | PreToolUse hook, peak RSS | 52.4 MB | 39.9 MB |
 | PostToolUse hook, median | 49 ms | 33 ms |
@@ -219,6 +219,11 @@ amount. Fewer tests pass than before because the tests of deleted features went 
   deletes with the next read reflecting each; refuses a missing token, a cross-origin write and a stale version; and the
   server stops with no child left. The same flows were exercised in a real browser (edit, retire, the Health panel,
   a phone-width layout), with no console errors.
+- **Spawn census**: each Claude hook event (session start, prompt, tool calls, compaction, stop, session end) was fired with a
+  sample payload in an installed sandbox whose project was a copy of this repository, while every process on the machine
+  was sampled every 25 ms until 3.5 s after the hook returned. 0.5.0 spawned 8 processes at session start; 0.6 spawns none,
+  and its only other spawns are the handoff's CortexDB reader (inside the compaction hook) and, at session end, the one
+  finalize child with its reader.
 - **Teardown**: closing all sessions leaves no process; the UI server's CortexDB readers exit within 250 ms of a
   SIGTERM; `buracle uninstall` removes 47 changes, stops the UI, leaves `brain.db` untouched and leaves no process.
 - **Against the real engine**: the memory tests also run against the real CortexDB binary (`BURACLE_CORTEXDB_SMOKE`):
@@ -232,8 +237,12 @@ amount. Fewer tests pass than before because the tests of deleted features went 
 - A tool call that the capture hook records still costs one short hook process (about 40 ms). Narrowing those hooks, or
   reading the harness transcript once at the end of the session instead, would remove it; it was left alone because it
   changes what the capture sees.
-- The workspace code-index refresh (hook H21) is unchanged: it can still start one detached job at session start, at
-  most once per ten minutes per project. It did not fire in the sandboxes used here, so it was not measured.
+- A session start in a single project no longer starts the background index run: codegraph brings its own index up to
+  date when its server starts (checked: a file added while no server ran was in the index right after the next start),
+  the launcher of that server builds the first index of a project that has none, and semble re-indexes when it
+  searches. A folder that holds several projects, for which no server is started, still gets one background index run
+  at session start (at most once per ten minutes per project). The pre-warming of semble at session start is gone, so
+  the first semble search of a session pays for its own indexing.
 - The Bun memory server is the largest part of a terminal's memory (it holds the runtime and a cache of the brain's
   listing). It was not tuned.
 - The third-party MCP servers (codegraph, semble, context7, the web servers) are untouched and are the heaviest
