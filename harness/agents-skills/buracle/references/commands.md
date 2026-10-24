@@ -164,6 +164,7 @@ buracle mem write --type K --title "<claim>" --summary "<one line>" --body "<tex
 buracle mem update <id> --patch '<json>' [--expected-version N]
 buracle mem remember "<text>"
 buracle mem status [--json]
+buracle mem capture [--session <id> [--harness H]] [--pending] [--force]
 buracle mem backup [--project <slug> | --person] [--list]
 buracle mem restore <id> (--project <slug> | --person | --all)
 buracle mem export [--project <slug> | --person] [--type K]… [--out <file>]

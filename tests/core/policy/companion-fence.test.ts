@@ -13,7 +13,7 @@ describe('the second-opinion fence (BURACLE_REVIEWER_AGENT)', () => {
     for (const command of ['touch pwned.txt', 'git commit -am x', 'git diff > out.patch', 'echo $(rm -rf x)', 'git diff --output=x']) expect({ command, why: p('Bash', { command }) }).toEqual({ command, why: expect.any(String) })
     for (const command of ['git diff HEAD~1', 'git -C "/r with space" log -3', 'rg -n foo src']) expect(p('Bash', { command })).toBeUndefined()
     expect(p('Monitor', { command: 'touch x' })).toBeDefined()
-    for (const tool of ['mcp__plugin_buracle_buracle-memory__memory_write', 'mcp__plugin_buracle_context-mode__ctx_execute', 'mcp__memtest__memory_write', 'mcp__plugin_buracle_codegraphx__run', 'mcp__codegraph_admin__drop']) {
+    for (const tool of ['mcp__plugin_buracle_buracle-memory__memory_write', 'mcp__plugin_buracle_web-fetch__fetch_url', 'mcp__memtest__memory_write', 'mcp__plugin_buracle_codegraphx__run', 'mcp__codegraph_admin__drop']) {
       expect(p(tool)).toBe(`\`${tool}\` is not a codegraph, semble or context7 tool`)
     }
     for (const tool of ['mcp__plugin_buracle_codegraph__codegraph_explore', 'mcp__plugin_buracle_semble__search', 'mcp__plugin_buracle_context7__query-docs', 'mcp__codegraph__codegraph_node', 'Read', 'Grep', 'Glob', 'ToolSearch']) expect(p(tool)).toBeUndefined()

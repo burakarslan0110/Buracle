@@ -3,7 +3,9 @@ import { basename, dirname, join } from 'node:path'
 import type { Harness } from '../core/events'
 import { isHarness } from '../core/events'
 import { memNoteHarness } from '../core/memory/note'
-import { memSessionAreas, memSessionBody, memSessionMemoryId, memSessionOutcome, memSessionStats, memSessionTitle } from '../core/memory/session'
+import { CAPTURE_BUDGET } from '../core/memory/budgets'
+import { SESSION_KEEP_MS } from '../core/memory/brain'
+import { memSessionAreas, memSessionBody, memSessionMemoryId, memSessionOutcome, memSessionStats, memSessionTitle, type MemCaptureState } from '../core/memory/session'
 import { spoolDigest, spoolIsEmptySession, type SpoolDigest } from '../core/memory/spool'
 import { memClip, redact } from '../core/memory/text'
 import { readJsonSafeSync } from '../engine/fsx'
@@ -12,20 +14,26 @@ import * as paths from '../engine/paths'
 import { run } from '../engine/proc'
 import { cortexdbBinary } from '../engine/toolchain/cortexdb'
 import { loadState } from '../workflow/session-store'
+import { capturePreferences, logPending, pendingSessions, type PendingSession, type PreferenceResult } from './capture'
+import { distillSession, type DistillResult, type DistillRunner } from './distill'
+import { removeDeadLocks } from './housekeeping'
 import { locksDir, sessionRecordsDir, spoolDoneDir } from './layout'
-import { appendJob } from './jobs'
-import { acquireLock } from './lock'
+import { acquireLock, lockHeld } from './lock'
 import { projectExclusion, readProjectsCache, resolveProject, tzOffset, type ProjectRecord } from './project'
 import { readSessionRecord, writeSessionRecord, type SessionRecord } from './session-record'
 import { captureOff, deleteSpool, pruneRedactions, readSpool, recordRedactions, spoolFiles } from './spool'
 import { refreshStatus } from './status'
-import { getStored, personRef, projectRef, recordEvent, saveItem, withBrainLock } from './store'
-import { refreshUpkeepFor } from './sweep'
-import { maybeStartTick } from './tick-start'
+import { getStored, projectRef, recordEvent, saveItem, withBrainLock } from './store'
 
 export { bunExecutable, cliArgv, moduleCheckout } from './spawn'
 
-export { compactSeen, promptSeen, readSessionRecord, sessionStart, spawnFinalizer, spawnFinalizerPid, type SessionRecord, type SessionStartResult } from './session-record'
+export { promptSeen, readSessionRecord, sessionStart, spawnFinalizer, spawnFinalizerPid, type SessionRecord, type SessionStartResult } from './session-record'
+
+export interface CaptureSummary {
+  state: MemCaptureState['state']
+  preferences: PreferenceResult
+  distill?: Pick<DistillResult, 'ran' | 'skipped' | 'detail' | 'candidates' | 'summary' | 'ranBy' | 'model'>
+}
 
 export interface FinalizeResult {
   skipped?: 'invalid-session' | 'no-store' | 'busy' | 'unknown-session' | 'capture-off' | 'already-finalized'
@@ -34,6 +42,8 @@ export interface FinalizeResult {
   changed?: boolean
   redactions?: number
   empty?: boolean
+  capture?: CaptureSummary
+  pending?: Array<{ harness: Harness, sid: string, why: PendingSession['why'], result: FinalizeResult }>
 }
 
 interface GitFacts { commitEnd?: string, commits: string[], count?: number, diffstat?: string }
@@ -109,61 +119,82 @@ export interface FinalizeOptions {
   nowMs?: number
   graceMs?: number
   settleMs?: number
+  /** Redo the capture of a session that was finalized before (`buracle mem capture`). */
+  force?: boolean
+  /** Distill again although the same material was distilled before. */
+  redistill?: boolean
+  /** How many other stale sessions to capture too; 0 or false skips them (default: the budget's). */
+  pending?: number | false
+  /** Stop starting pending captures after this time (ms since the epoch). */
+  deadlineMs?: number
+  runner?: DistillRunner
+  model?: string
 }
 
-const SESSION_KEEP_MS = 45 * 86_400_000
-const FINALIZE_DISTILL_RUNS = 3
+/** The longest a detached finalizer keeps starting work: its own session, then others. */
+export const FINALIZE_BUDGET_MS = 12 * 60_000
 
 export async function finalize(h: Harness, sid: string, opts: FinalizeOptions = {}): Promise<FinalizeResult> {
   if (captureOff()) return { skipped: 'capture-off' }
   if (!paths.isValidSessionId(sid) || !isHarness(h)) return { skipped: 'invalid-session' }
-  const t0 = Date.now()
-  const journal = (outcome: 'ran' | 'skipped' | 'failed', extra: { reason?: string, detail?: string, project?: string } = {}): void => {
-    appendJob({ job: 'finalize', trigger: 'session-end', outcome, harness: h, sid, ...extra, ms: Date.now() - t0 }, opts.nowMs ?? Date.now())
-  }
-  if (cortexdbBinary() === undefined) {
-    journal('skipped', { reason: 'no-store', detail: 'CortexDB is not installed' })
-    await startRepair(h, sid, opts.nowMs ?? Date.now(), undefined, 'cortexdb_missing')
-    return { skipped: 'no-store' }
-  }
+  if (cortexdbBinary() === undefined) return { skipped: 'no-store' }
+  const deadline = opts.deadlineMs ?? (opts.nowMs ?? Date.now()) + FINALIZE_BUDGET_MS
   if (opts.graceMs !== undefined && opts.graceMs > 0) await Bun.sleep(opts.graceMs)
   const release = await acquireLock(join(locksDir(), `finalize-${h}-${sid}.lock`), { timeoutMs: 30_000, staleMs: 5 * 60_000, heartbeat: true })
-  if (!release) { journal('skipped', { reason: 'busy', detail: 'another finalizer holds this session' }); return { skipped: 'busy' } }
-  let slug: string | undefined
+  if (!release) return { skipped: 'busy' }
   try {
     const prev = readSessionRecord(h, sid)
-    if (prev?.status === 'ended' && spoolFiles(h, sid).active.length === 0) {
+    const settled = prev?.status === 'ended' && spoolFiles(h, sid).active.length === 0
+    const redo = settled && (opts.force === true || prev.capture?.state === 'retry')
+    if (settled && !redo) {
       return { skipped: 'already-finalized', ...(prev.slug !== undefined ? { slug: prev.slug } : {}), ...(prev.memoryId !== undefined ? { memoryId: prev.memoryId } : {}) }
     }
-    let pass = await finalizePass(h, sid, opts)
-    for (let n = 1; n < 3 && pass.result.skipped === undefined; n++) {
+    let pass = redo ? await redoPass(h, sid) : await finalizePass(h, sid, opts)
+    for (let n = 1; !redo && n < 3 && pass.result.skipped === undefined; n++) {
       if (opts.settleMs !== undefined && opts.settleMs > 0) await Bun.sleep(opts.settleMs)
       if (spoolFiles(h, sid).active.length === 0) break
       pass = await finalizePass(h, sid, opts)
     }
-    slug = pass.result.slug
-    if (pass.result.skipped !== undefined) { journal('skipped', { reason: pass.result.skipped }); return pass.result }
-    await finalizeTail(h, sid, pass, opts.nowMs ?? Date.now())
-    journal('ran', {
-      ...(slug !== undefined ? { project: slug } : {}),
-      detail: slug === undefined ? 'not in a project: no session memory' : pass.result.memoryId !== undefined ? `session memory ${pass.result.memoryId}` : 'no model turn: no session memory',
-    })
+    if (pass.result.skipped !== undefined) return pass.result
+    const now = opts.nowMs ?? Date.now()
+    const capture = await captureStep(h, sid, pass, opts)
+    if (capture !== undefined) pass.result.capture = capture
+    if (opts.pending !== false && opts.pending !== 0) {
+      const done = await capturePending({ ...opts, skip: { h, sid }, deadlineMs: deadline, ...(typeof opts.pending === 'number' ? { max: opts.pending } : {}) })
+      if (done.length > 0) pass.result.pending = done
+    }
+    await finalizeTail(h, pass, now, capture)
     return pass.result
   } catch (e) {
     log('error', 'memory: finalize failed', { h, sid, error: e })
-    journal('failed', { reason: 'error', detail: e instanceof Error ? e.message : String(e), ...(slug !== undefined ? { project: slug } : {}) })
-    await startRepair(h, sid, opts.nowMs ?? Date.now(), slug, 'brain_unreadable')
     throw e
   } finally {
     release()
   }
 }
 
-async function startRepair(h: Harness, sid: string, nowMs: number, slug: string | undefined, storeProblem?: 'cortexdb_missing' | 'brain_unreadable'): Promise<void> {
-  try {
-    const { maybeStartHeal } = await import('./heal')
-    maybeStartHeal({ ...(slug !== undefined ? { slug } : {}), nowMs, trigger: 'session-end', harness: h, sid, ...(storeProblem !== undefined ? { storeProblem } : {}) })
-  } catch (e) { log('warn', 'memory: the repair was not started after the session', { error: e }) }
+export interface PendingCaptureOptions extends FinalizeOptions {
+  skip?: { h: Harness, sid: string }
+  max?: number
+}
+
+/** Captures the stale sessions whose capture is still owed (`why` says what is missing), oldest first, within the deadline. */
+export async function capturePending(opts: PendingCaptureOptions = {}): Promise<NonNullable<FinalizeResult['pending']>> {
+  const now = opts.nowMs ?? Date.now()
+  const deadline = opts.deadlineMs ?? now + FINALIZE_BUDGET_MS
+  const pending = pendingSessions(now, { ...(opts.skip !== undefined ? { skip: opts.skip } : {}), ...(opts.max !== undefined ? { max: opts.max } : {}) })
+  logPending(pending)
+  const done: NonNullable<FinalizeResult['pending']> = []
+  for (const p of pending) {
+    if (Date.now() >= deadline) break
+    if (lockHeld(join(locksDir(), `finalize-${p.h}-${p.sid}.lock`), 5 * 60_000)) continue
+    try {
+      const { skip: _skip, max: _max, ...rest } = opts
+      const result = await finalize(p.h, p.sid, { ...rest, graceMs: 0, settleMs: 0, pending: false, force: p.why === 'retry', deadlineMs: deadline })
+      done.push({ harness: p.h, sid: p.sid, why: p.why, result })
+    } catch (e) { log('warn', 'memory: a stale session was not captured', { h: p.h, sid: p.sid, error: e }) }
+  }
+  return done
 }
 
 interface FinalizePass {
@@ -171,6 +202,23 @@ interface FinalizePass {
   rec: SessionRecord
   project?: ProjectRecord
   digest: SpoolDigest
+}
+
+async function projectOf(rec: SessionRecord | undefined, cwd: string | undefined): Promise<{ project?: ProjectRecord, excluded: boolean }> {
+  let project: ProjectRecord | undefined
+  if (rec?.slug !== undefined) project = readProjectsCache().projects[rec.slug]
+  if (!project && cwd !== undefined) project = await resolveProject(cwd)
+  const excluded = (await projectExclusion(rec?.cwd ?? cwd ?? project?.roots[0] ?? paths.home()).catch(() => undefined)) !== undefined
+  return excluded ? { excluded } : { ...(project !== undefined ? { project } : {}), excluded }
+}
+
+/** A session already finalized: read it again for the capture, without rewriting its session memory. */
+async function redoPass(h: Harness, sid: string): Promise<FinalizePass> {
+  const rec = readSessionRecord(h, sid) as SessionRecord
+  const digest = spoolDigest(readSpool(h, sid), rec.cwd)
+  const { project } = await projectOf(rec, rec.cwd)
+  const result: FinalizeResult = { ...(project !== undefined ? { slug: project.slug } : {}), ...(rec.memoryId !== undefined ? { memoryId: rec.memoryId } : {}) }
+  return { result, rec, ...(project !== undefined ? { project } : {}), digest }
 }
 
 async function finalizePass(h: Harness, sid: string, opts: FinalizeOptions): Promise<FinalizePass> {
@@ -181,11 +229,7 @@ async function finalizePass(h: Harness, sid: string, opts: FinalizeOptions): Pro
   const cwdGuess = rec?.cwd ?? guessProjectFromSpool(spoolDigest(entries))
   const digest = spoolDigest(entries, cwdGuess)
   if (!rec && entries.length === 0) return { result: { skipped: 'unknown-session' }, rec: { v: 1, harness: h, sid, cwd: paths.home(), startedMs: now, status: 'active' }, digest }
-  let project: ProjectRecord | undefined
-  if (rec?.slug !== undefined) project = readProjectsCache().projects[rec.slug]
-  if (!project && cwdGuess !== undefined) project = await resolveProject(cwdGuess)
-  const excluded = (await projectExclusion(rec?.cwd ?? cwdGuess ?? project?.roots[0] ?? paths.home()).catch(() => undefined)) !== undefined
-  if (excluded) project = undefined
+  const { project, excluded } = await projectOf(rec, cwdGuess)
   if (!rec) {
     rec = { v: 1, harness: h, sid, cwd: cwdGuess ?? paths.home(), startedMs: digest.startedMs ?? now, status: 'active' }
     if (project) rec.slug = project.slug
@@ -225,7 +269,7 @@ async function finalizePass(h: Harness, sid: string, opts: FinalizeOptions): Pro
         history: [...(existing?.item.history ?? []), { at, by: 'buracle', what: existing ? 'finalized again' : 'session ended' }].slice(-8),
         harness, session: sid, ...(rec.branch !== undefined ? { branch: rec.branch } : {}), ...(git.commitEnd !== undefined ? { commit: git.commitEnd } : {}),
         ...(digest.model !== undefined ? { model: digest.model } : {}), expires: new Date(endedMs + SESSION_KEEP_MS).toISOString(),
-      }, existing?.keep ?? {})
+      }, existing?.keep ?? {}, { nowMs: now })
       recordEvent({ op: 'write', layer: 'project', project: project.slug, id, kind: 'session', by: harness })
       result.memoryId = id
       result.changed = true
@@ -237,56 +281,64 @@ async function finalizePass(h: Harness, sid: string, opts: FinalizeOptions): Pro
   const { stats: _stale, ...base } = rec
   const measured = facts !== undefined && rec.commitStart !== undefined && facts.commitEnd !== undefined ? facts : undefined
   const stats = excluded ? undefined : memSessionStats(digest, measured !== undefined ? { commits: measured.count ?? measured.commits.length, ...(measured.diffstat !== undefined ? { diffstat: measured.diffstat } : {}) } : undefined)
-  writeSessionRecord({ ...base, status: 'ended', finalizedMs: now, ...(stats !== undefined ? { stats } : {}) })
-  return { result, rec, ...(project !== undefined ? { project } : {}), digest }
+  const ended: SessionRecord = { ...base, status: 'ended', finalizedMs: now, ...(stats !== undefined ? { stats } : {}) }
+  writeSessionRecord(ended)
+  return { result, rec: ended, ...(project !== undefined ? { project } : {}), digest }
 }
 
-async function finalizeTail(h: Harness, sid: string, pass: FinalizePass, now: number): Promise<void> {
-  const { result, rec, project, digest } = pass
+/**
+ * Steps two and three of a session end, after the session memory: the user's explicit statements become
+ * preference memories (no model), then one bounded model call distills the durable decisions, gotchas and
+ * procedures. A model call that fails, is held back by a rate limit, or answers with an invalid reply writes
+ * nothing; the session record remembers that another try is owed.
+ */
+async function captureStep(h: Harness, sid: string, pass: FinalizePass, opts: FinalizeOptions): Promise<CaptureSummary | undefined> {
+  const { project, digest } = pass
+  if (!project) return undefined
+  const now = opts.nowMs ?? Date.now()
+  const rec = readSessionRecord(h, sid) ?? pass.rec
+  let preferences: PreferenceResult = { written: [], superseded: [], skipped: 0 }
+  try {
+    preferences = await capturePreferences(digest.signals, { harness: h, sid, cwd: rec.cwd, nowMs: now })
+  } catch (e) { log('warn', 'memory: the preferences of a session were not filed', { h, sid, error: e }) }
+  let distill: DistillResult | undefined
+  try {
+    distill = await distillSession(h, sid, { nowMs: now, ...(opts.runner !== undefined ? { runner: opts.runner } : {}), ...(opts.model !== undefined ? { model: opts.model } : {}), force: opts.redistill === true })
+  } catch (e) {
+    log('warn', 'memory: the distillation of a session failed', { h, sid, error: e })
+  }
+  const prior = rec.capture
+  const tries = prior?.tries ?? 0
+  let next: MemCaptureState
+  const skipped = distill?.skipped
+  if (distill === undefined) next = { state: 'retry', tries: tries + 1, lastTryMs: now, detail: 'the distillation threw' }
+  else if (distill.ran) next = { state: 'done', tries, lastTryMs: now, ...(distill.sha !== undefined ? { sha: distill.sha } : {}) }
+  else if (skipped === 'runner-failed' || skipped === 'invalid-reply') {
+    next = { state: tries + 1 >= CAPTURE_BUDGET.maxTries ? 'gave-up' : 'retry', tries: tries + 1, lastTryMs: now, ...(distill.detail !== undefined ? { detail: memClip(distill.detail, 300) } : {}) }
+  } else if (skipped === 'rate-limit' || skipped === 'no-harness' || skipped === 'runner-unavailable' || skipped === 'busy') {
+    next = { state: 'retry', tries, lastTryMs: now, ...(distill.detail !== undefined ? { detail: memClip(distill.detail, 300) } : {}) }
+  } else next = { state: 'done', tries, lastTryMs: now, ...(distill?.sha !== undefined ? { sha: distill.sha } : prior?.sha !== undefined ? { sha: prior.sha } : {}) }
+  writeSessionRecord({ ...rec, capture: next })
+  const out: CaptureSummary = { state: next.state, preferences }
+  if (distill !== undefined) {
+    const { ran, skipped: sk, detail, candidates, summary, ranBy, model } = distill
+    out.distill = { ran, ...(sk !== undefined ? { skipped: sk } : {}), ...(detail !== undefined ? { detail } : {}), candidates, ...(summary !== undefined ? { summary } : {}), ...(ranBy !== undefined ? { ranBy } : {}), ...(model !== undefined ? { model } : {}) }
+  }
+  return out
+}
+
+async function finalizeTail(h: Harness, pass: FinalizePass, now: number, capture: CaptureSummary | undefined): Promise<void> {
+  const { result, project } = pass
   const harness = memNoteHarness(h)
-  if (project) {
-    const t0 = Date.now()
-    try {
-      const { recordSessionEvidence, updateProfile } = await import('./profile')
-      recordSessionEvidence(h, sid, { digest, project: project.slug, nowMs: now })
-      await updateProfile({ nowMs: now, projects: [project.slug] })
-      appendJob({ job: 'profile', trigger: 'session-end', outcome: 'ran', harness: h, sid, project: project.slug, ms: Date.now() - t0 }, now)
-    } catch (e) {
-      log('warn', 'memory: the user profile was not updated', { h, sid, error: e })
-      appendJob({ job: 'profile', trigger: 'session-end', outcome: 'failed', reason: 'error', detail: e instanceof Error ? e.message : String(e), harness: h, sid, project: project.slug }, now)
-    }
-  }
-  if (project && result.memoryId !== undefined && process.env['BURACLE_NO_DISTILL'] !== '1') {
-    try {
-      const { distillPending, enqueueDistill } = await import('./distill')
-      enqueueDistill(h, sid)
-      await distillPending({ auto: true, nowMs: now, harness: h, first: sid, maxRuns: FINALIZE_DISTILL_RUNS, trigger: 'session-end' })
-    } catch (e) { log('warn', 'memory: automatic distill failed', { h, sid, error: e }) }
-  }
-  if (project && result.memoryId !== undefined && process.env['BURACLE_NO_REFLECT'] !== '1') {
-    try {
-      const { reflectBrain } = await import('./reflect')
-      const { sessionModel } = await import('./runner')
-      const model = sessionModel(h, sid)
-      const via = { harness: h, ...(model !== undefined ? { model } : {}) }
-      await reflectBrain(projectRef(project.slug), { trigger: 'session-end', nowMs: now, ...via })
-      await reflectBrain(personRef(), { trigger: 'session-end', nowMs: now, ...via })
-    } catch (e) { log('warn', 'memory: automatic reflect failed', { h, sid, error: e }) }
-  }
-  if (project && result.memoryId !== undefined) {
-    try {
-      const { maybeStartVerify } = await import('./verify-start')
-      maybeStartVerify({ slug: project.slug, nowMs: now, trigger: 'session-end', harness: h, sid })
-    } catch (e) { log('warn', 'memory: the verifier was not started after the session', { error: e }) }
-  }
-  if (project) {
-    try { await refreshUpkeepFor(projectRef(project.slug), { cwd: rec.cwd, nowMs: now }) } catch (e) { log('warn', 'memory: upkeep not refreshed after the session', { error: e }) }
-  }
-  await refreshStatus({ ...(project ? { slug: project.slug } : {}), nowMs: now, ...(result.changed === true ? { lastWrite: { by: harness, type: 'session' } } : {}) })
-  await startRepair(h, sid, now, project?.slug)
+  const saved = (capture?.preferences.written.length ?? 0) + (capture?.distill?.candidates.length ?? 0)
+  await refreshStatus({
+    ...(project ? { slug: project.slug } : {}), nowMs: now,
+    ...(result.changed === true ? { lastWrite: { by: harness, type: 'session' } } : {}),
+    ...(capture?.distill?.ran === true || (capture?.preferences.written.length ?? 0) > 0 ? { lastCapture: { by: harness, saved } } : {}),
+  })
   pruneRedactions(now)
   pruneSessionRecords(now)
-  try { maybeStartTick({ harness: h, sid, trigger: 'session-end', nowMs: now }) } catch (e) { log('warn', 'memory: the finalizer could not wake the tick', { error: e }) }
+  try { removeDeadLocks(now) } catch (e) { log('warn', 'memory: dead locks were not cleaned', { error: e }) }
 }
 
 const RECORD_KEEP_MS = 30 * 24 * 3600_000

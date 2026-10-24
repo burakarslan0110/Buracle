@@ -44,6 +44,6 @@ export async function setConfigValue(key: string, value: unknown): Promise<{ ok:
   const problems = newProblems(repoRoot, before, after)
   if (problems.length > 0) return { ok: false, error: `invalid value: ${problems.join('; ')}` }
   atomicWriteSync(file, after)
-  try { await writeRuntimeConfig(loadConfigSync({ repoRoot }).config) } catch {  }
+  try { await writeRuntimeConfig(loadConfigSync({ repoRoot })) } catch {  }
   return { ok: true, changed: true }
 }

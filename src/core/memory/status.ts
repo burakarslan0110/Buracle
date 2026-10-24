@@ -3,50 +3,54 @@ import type { Segment } from '../status/model'
 import type { MemRegion } from './brain'
 
 export interface MemoryStatus {
-  v: 2
+  v: 3
   computed_at: string
   project?: string
   health: 'ok' | 'warn' | 'error'
   reasons: string[]
   counts: { project: number, person: number }
   regions: Partial<Record<MemRegion, number>>
-  upkeep: number
   captures: number
   last_write?: { at: string, by: string, type?: string }
+  last_capture?: { at: string, by: string, saved: number }
   store: { engine: 'cortexdb', version?: string, ok: boolean }
-  distill: { pending: number, held?: number, until?: string }
   redactions_24h: number
 }
 
 export const MEM_HEALTH_LIMITS = {
-  upkeepWarn: 15,
   capturesWarn: 10,
-  distillWarn: 5,
 } as const
 
 export interface MemHealthInput {
   storeOk: boolean
   readable: boolean
   mcpDown?: boolean
-  embedMissing?: boolean
-  upkeep: number
   captures: number
-  distillPending: number
-  coreMissing?: number
 }
 
-export function memReasonText(reason: string, s: Pick<MemoryStatus, 'upkeep' | 'captures' | 'distill'>): string {
+export function memReasonText(reason: string, s: Pick<MemoryStatus, 'captures'>): string {
   switch (reason) {
     case 'cortexdb_missing': return 'cortexdb missing'
     case 'brain_unreadable': return 'unreadable'
     case 'mcp_down': return 'mcp down'
-    case 'embed_missing': return 'no embeddings'
-    case 'upkeep_high': return `upkeep ${s.upkeep}`
     case 'captures_high': return `inbox ${s.captures}`
-    case 'distill_backlog': return `queue ${Math.max(0, s.distill.pending - (s.distill.held ?? 0))}`
-    case 'core_missing': return 'core pages missing'
     default: return reason
   }
+}
+
+export function memReasonAdvice(reason: string, s: Pick<MemoryStatus, 'captures'>): { detail: string, fix?: string } {
+  switch (reason) {
+    case 'cortexdb_missing': return { detail: 'CortexDB is not installed, so the brain cannot be read', fix: 'buracle install' }
+    case 'brain_unreadable': return { detail: 'a brain file could not be read', fix: 'buracle mem doctor' }
+    case 'mcp_down': return { detail: 'the buracle-memory MCP server did not start', fix: 'buracle doctor' }
+    case 'captures_high': return { detail: `${s.captures} captures wait to be filed`, fix: 'memory_update with move: {kind, layer}' }
+    default: return { detail: reason }
+  }
+}
+
+export function memHealthLine(s: Pick<MemoryStatus, 'health' | 'reasons' | 'captures'> | undefined): string | undefined {
+  if (s === undefined || s.health === 'ok' || s.reasons.length === 0) return undefined
+  return `Memory health: ${s.health} (${s.reasons.map(r => memReasonText(r, s)).join(', ')}). \`buracle mem doctor\` names what is wrong.`
 }
 
 export function memHealth(i: MemHealthInput): { health: 'ok' | 'warn' | 'error', reasons: string[] } {
@@ -56,11 +60,7 @@ export function memHealth(i: MemHealthInput): { health: 'ok' | 'warn' | 'error',
   if (!i.storeOk) errors.push('cortexdb_missing')
   else if (!i.readable) errors.push('brain_unreadable')
   if (i.mcpDown) errors.push('mcp_down')
-  if (i.embedMissing === true) warns.push('embed_missing')
-  if ((i.coreMissing ?? 0) > 0) warns.push('core_missing')
-  if (i.upkeep >= L.upkeepWarn) warns.push('upkeep_high')
   if (i.captures >= L.capturesWarn) warns.push('captures_high')
-  if (i.distillPending >= L.distillWarn) warns.push('distill_backlog')
   const reasons = [...errors, ...warns]
   return { health: errors.length > 0 ? 'error' : warns.length > 0 ? 'warn' : 'ok', reasons }
 }
@@ -111,7 +111,7 @@ const HEALTH_MARK = { ok: '✓', warn: '⚠', error: '✗' } as const
 
 export function memSegmentWith(s: MemoryStatus | undefined, nowMs: number, style: 'compact' | 'wide', opts: { emoji: boolean }): Segment {
   const brain = opts.emoji ? '🧠 ' : ''
-  if (s === undefined || s.v !== 2) {
+  if (s === undefined || s.v !== 3) {
     return { id: 'mem', text: style === 'wide' ? `${brain}brain –` : 'brain –', color: 'gray', dim: true }
   }
   const color = HEALTH_COLOR[s.health] ?? 'gray'
@@ -123,15 +123,15 @@ export function memSegmentWith(s: MemoryStatus | undefined, nowMs: number, style
   const own = s.project !== undefined ? s.counts.project : s.counts.person
   if (style === 'compact') {
     const parts = [String(own)]
-    if (s.upkeep > 0) parts.push(`u${s.upkeep}`)
     if (age !== undefined) parts.push(age)
     return { id: 'mem', text: `brain ${parts.join('·')} ${mark}${reason}`, color }
   }
   const head = s.project !== undefined ? `${brain}${s.project} ${s.counts.project}+${s.counts.person}p` : `${brain}person ${s.counts.person}p`
   const parts = [head]
-  if (s.upkeep > 0) parts.push(`upkeep ${s.upkeep}`)
   if (s.captures > 0) parts.push(`inbox ${s.captures}`)
   if (s.last_write !== undefined && age !== undefined) parts.push(`last ${age} (${s.last_write.by})`)
+  const capturedAt = s.last_capture !== undefined ? Date.parse(s.last_capture.at) : Number.NaN
+  if (Number.isFinite(capturedAt)) parts.push(`captured ${memAge(nowMs - capturedAt)}`)
   if (s.health !== 'ok') parts.push(`${mark}${reason}`)
   return { id: 'mem', text: parts.join(' · '), color }
 }
@@ -142,16 +142,14 @@ export function memSegment(s: MemoryStatus | undefined, nowMs: number, style: 'c
 
 export function memEmptyStatus(computedAt: string, project?: string): MemoryStatus {
   const s: MemoryStatus = {
-    v: 2,
+    v: 3,
     computed_at: computedAt,
     health: 'ok',
     reasons: [],
     counts: { project: 0, person: 0 },
     regions: {},
-    upkeep: 0,
     captures: 0,
     store: { engine: 'cortexdb', ok: true },
-    distill: { pending: 0 },
     redactions_24h: 0,
   }
   if (project !== undefined) s.project = project

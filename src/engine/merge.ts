@@ -1,6 +1,15 @@
 import { applyEdits, findNodeAtLocation, modify, parse as parseJsonc, parseTree, printParseErrorCode, type JSONPath, type Node as JsonNode, type ParseError } from 'jsonc-parser'
-import { isAlias, isMap, isScalar, isSeq, parseDocument, stringify as yamlStringify } from 'yaml'
+import type * as YamlModule from 'yaml'
 import { sha256 } from './fsx'
+import { yaml } from './yaml'
+
+// The hooks import this module for `valueHash`, so `yaml` is loaded when a YAML edit first needs it.
+const isAlias = ((node: unknown) => yaml().isAlias(node)) as typeof YamlModule.isAlias
+const isMap = ((node: unknown) => yaml().isMap(node)) as typeof YamlModule.isMap
+const isScalar = ((node: unknown) => yaml().isScalar(node)) as typeof YamlModule.isScalar
+const isSeq = ((node: unknown) => yaml().isSeq(node)) as typeof YamlModule.isSeq
+const parseDocument = ((...args: unknown[]) => Reflect.apply(yaml().parseDocument, undefined, args)) as typeof YamlModule.parseDocument
+const yamlStringify = ((...args: unknown[]) => Reflect.apply(yaml().stringify, undefined, args)) as typeof YamlModule.stringify
 
 export type KeyPath = Array<string | number>
 

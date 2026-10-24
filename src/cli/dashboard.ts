@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { McpCatalog, McpServerSpec, ToolSpec } from '../core/catalog'
 import type { BuracleConfig } from '../core/config'
-import { CM_SERVER_ID } from '../core/context-mode'
 import { HARNESSES, type Harness } from '../core/events'
 import * as paths from '../engine/paths'
 import { spawnArgv, windowsVerbatim } from '../engine/platform'
@@ -119,7 +118,6 @@ function harnessRow(f: Facts, h: Harness): DashRow {
 function mcpRow(f: Facts, id: string, spec: McpServerSpec): DashRow {
   const row: DashRow = { id: `mcp:${id}`, section: 'mcp', label: id, state: 'off', status: 'not checked yet', detail: 'press d or enter to run the handshake' }
   const doctor = { argv: ['doctor', 'mcp'], label: 'check the MCP servers' }
-  if (id === CM_SERVER_ID && !f.config.contextMode.enabled) return { ...row, status: 'off in config', detail: 'contextMode.enabled is false', action: doctor }
   const pkg = spec.package !== undefined ? f.toolchain.packages[`${spec.package.registry}:${spec.package.name}`] : undefined
   if (spec.transport === 'http') row.source = spec.url ?? 'remote'
   else if (spec.package !== undefined) row.source = `${spec.package.registry} ${spec.package.name}`

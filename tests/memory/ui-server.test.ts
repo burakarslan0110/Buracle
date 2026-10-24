@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { liveMemoryUi } from '../../src/usage/bar-info'
-import { brainDir, sessionRecordFile } from '../../src/memory/layout'
-import { readSessionRecord, writeSessionRecord } from '../../src/memory/session-record'
+import * as bar from '../../src/usage/bar-info'
+import { brainDir } from '../../src/memory/layout'
+import { writeSessionRecord } from '../../src/memory/session-record'
 import { clearUiRecord, probeUi, readUiRecord, serveUi, stopUi, type UiRecord, type UiStopReason } from '../../src/memory/ui'
 import { sameUiBuild, uiBuildId } from '../../src/memory/ui-build'
 import * as paths from '../../src/engine/paths'
@@ -88,15 +88,19 @@ async function stopRecorded(): Promise<void> {
   if (rec !== undefined) await stopUi(rec)
 }
 
-function autostartDriver(root: string): string {
-  const driver = join(root, 'autostart-driver.ts')
+function startDriver(root: string): string {
+  const driver = join(root, 'start-driver.ts')
   write(driver, [
-    "const [main, nowMs, home, buracleHome, caller, capture] = process.argv.slice(2)",
+    "const [barInfoModule, startModule, cwd, home, buracleHome] = process.argv.slice(2)",
     "Object.assign(process.env, { HOME: home, BURACLE_HOME: buracleHome })",
     "delete process.env['BURACLE_NO_AUTOSTART']",
-    "if (capture === 'capture') delete process.env['BURACLE_NO_CAPTURE']",
-    "const { ensureMemoryUi } = await import(main)",
-    "ensureMemoryUi(Number(nowMs), caller === 'session-start' ? { sessionStarting: true } : {})",
+    "delete process.env['BURACLE_NO_CAPTURE']",
+    "const { loadConfigSync } = await import(process.argv[7] as string)",
+    "const bar = await import(barInfoModule)",
+    "const start = await import(startModule)",
+    "const cfg = loadConfigSync().config",
+    "await bar.barInfo('claude', { nowMs: Date.now(), version: '1', memoryUi: { port: cfg.memory.ui.port } })",
+    "await start.prepareWorkspace(cwd, cfg, Date.now())",
   ].join('\n') + '\n')
   return driver
 }
@@ -213,27 +217,7 @@ describe('the server closes with the harnesses', () => {
     } finally { server.stop(true); clearUiRecord() }
   })))
 
-  test('started for a session (sessionAtStart) it stops even when that session ended before its first look; with capture off it stays', () => withSandbox(async () => {
-    await withEnv({ BURACLE_NO_CAPTURE: undefined }, async () => {
-      const stops: UiStopReason[] = []
-      const { server, record } = serveUi({ port: freePort(), version: '9.9.9', ...fast, sessionAtStart: true, onStop: why => stops.push(why) })
-      try {
-        await waitFor('the server to stop', () => stops.length > 0, 5_000)
-        expect(stops).toEqual(['no-sessions'])
-        await expect(fetch(`${record.url}/healthz`)).rejects.toBeDefined()
-      } finally { server.stop(true); clearUiRecord() }
-    })
-    const stops: UiStopReason[] = []
-    const { server, record } = serveUi({ port: freePort(), version: '9.9.9', ...fast, sessionAtStart: true, onStop: why => stops.push(why) })
-    try {
-      await Bun.sleep(500)
-      expect((await fetch(`${record.url}/healthz`)).status).toBe(200)
-      expect(stops).toEqual([])
-      expect(readUiRecord()?.pid).toBe(process.pid)
-    } finally { server.stop(true); clearUiRecord() }
-  }))
-
-  test('`mem ui --serve --for-session` exits by itself, with its record cleared, once no harness session has been open for BURACLE_UI_STOP_AFTER_MS', () => withSandbox(async ({ buracleHome }) => {
+  test('`mem ui --serve` stays up while no harness session was ever open and exits by itself, with its record cleared, once a session it saw open has ended (BURACLE_UI_STOP_AFTER_MS)', () => withSandbox(async ({ buracleHome }) => {
     const port = freePort()
     uiConfig(buracleHome, port)
     const env = captureEnv({ BURACLE_UI_STOP_AFTER_MS: '600' })
@@ -243,23 +227,8 @@ describe('the server closes with the harnesses', () => {
       return readUiRecord() as UiRecord
     }
     const exited = (proc: ReturnType<typeof Bun.spawn>) => Promise.race([proc.exited.then(() => true), Bun.sleep(15_000).then(() => false)])
-    const a = serve(['--for-session'])
+    const c = serve([])
     try {
-      const rec = await started(a)
-      expect(await exited(a)).toBe(true)
-      expect(readUiRecord()).toBeUndefined()
-      expect(await probeUi(rec.url)).toBeUndefined()
-
-      session('active')
-      const b = serve(['--for-session'])
-      const recB = await started(b)
-      await Bun.sleep(1500)
-      expect(await probeUi(recB.url)).toMatchObject({ pid: b.pid })
-      session('ended')
-      expect(await exited(b)).toBe(true)
-      expect(readUiRecord()).toBeUndefined()
-
-      const c = serve([])
       const recC = await started(c)
       await Bun.sleep(1500)
       expect(await probeUi(recC.url)).toMatchObject({ pid: c.pid })
@@ -269,7 +238,7 @@ describe('the server closes with the harnesses', () => {
       expect(await exited(c)).toBe(true)
       expect(readUiRecord()).toBeUndefined()
     } finally {
-      for (const p of [a]) { try { p.kill() } catch {  } }
+      try { c.kill() } catch {  }
       await stopRecorded()
     }
   }), 90_000)
@@ -325,68 +294,24 @@ describe('replacing a server of another build', () => {
     }
   }), 60_000)
 
-  test('a session start (ensureMemoryUi) replaces a server of another build in the live environment; one of this build is left alone', () => withSandbox(async ({ root, home, buracleHome }) => {
+  test('a status line and a session start start no server: the UI starts only through `buracle mem ui`', () => withSandbox(async ({ root, home, buracleHome }) => {
     const port = freePort()
-    uiConfig(buracleHome, port)
-    const old = await oldServer(root, port)
+    write(join(buracleHome, 'config.yaml'), `memory:\n  ui:\n    port: ${port}\nindex:\n  auto: false\n`)
     const marker = join(paths.stateDir(), 'memory-ui.spawn')
-    const decoy = join(root, 'decoy')
-    const driver = autostartDriver(root)
-    const autostart = async (nowMs: number): Promise<void> => {
-      const env = { ...childEnv(), HOME: join(decoy, 'home'), BURACLE_HOME: join(decoy, 'home', '.buracle') }
-      const p = Bun.spawn(['bun', driver, join(REPO, 'src', 'usage', 'bar-info.ts'), String(nowMs), home, buracleHome, 'status-line'], { cwd: REPO, env, stdin: 'ignore', stdout: 'ignore', stderr: 'inherit' })
-      expect(await p.exited).toBe(0)
-    }
+    const driver = startDriver(root)
     try {
-      expect(liveMemoryUi()?.pid).toBe(old.pid)
-      await autostart(Date.now())
-      await waitFor('the new server', () => { const r = readUiRecord(); return r !== undefined && r.pid !== old.pid && r.build === uiBuildId() })
-      await old.proc.exited
-      const rec = readUiRecord() as UiRecord
-      await waitFor('the new server to answer', async () => (await probeUi(rec.url))?.build === uiBuildId())
-      expect(rec.url).toBe(`http://127.0.0.1:${port}`)
-      expect(existsSync(join(decoy, 'home', '.buracle', 'state', 'memory-ui.json'))).toBe(false)
-
-      writeFileSync(marker, '0')
-      await autostart(Date.now() + 120_000)
-      expect(readFileSync(marker, 'utf8')).toBe('0')
-      expect(readUiRecord()?.pid).toBe(rec.pid)
-    } finally {
-      old.proc.kill()
-      await stopRecorded()
-    }
-  }), 90_000)
-
-  test('with capture on, a status line starts no server while no harness session is open; a session start always does, for its session', () => withSandbox(async ({ root, home, buracleHome }) => {
-    const port = freePort()
-    uiConfig(buracleHome, port)
-    const marker = join(paths.stateDir(), 'memory-ui.spawn')
-    const driver = autostartDriver(root)
-    const autostart = async (caller: 'status-line' | 'session-start'): Promise<void> => {
-      const p = Bun.spawn(['bun', driver, join(REPO, 'src', 'usage', 'bar-info.ts'), String(Date.now()), home, buracleHome, caller, 'capture'], { cwd: REPO, env: captureEnv(), stdin: 'ignore', stdout: 'ignore', stderr: 'inherit' })
+      expect((bar as Record<string, unknown>)['ensureMemoryUi']).toBeUndefined()
+      session('active')
+      const p = Bun.spawn(['bun', driver, join(REPO, 'src', 'usage', 'bar-info.ts'), join(REPO, 'src', 'adapters', 'shared', 'workspace-start.ts'), root, home, buracleHome, join(REPO, 'src', 'engine', 'config.ts')], { cwd: REPO, env: captureEnv(), stdin: 'ignore', stdout: 'ignore', stderr: 'inherit' })
       expect(await p.exited).toBe(0)
-    }
-    try {
-      session('ended')
-      await autostart('status-line')
       await Bun.sleep(1500)
       expect(existsSync(marker)).toBe(false)
       expect(readUiRecord()).toBeUndefined()
-      session('active')
-      await autostart('status-line')
-      await waitFor('the server', async () => { const r = readUiRecord(); return r !== undefined && await probeUi(r.url) !== undefined })
-      expect(readFileSync(marker, 'utf8')).toMatch(/^\d+$/)
-      await stopRecorded()
-      expect(readUiRecord()).toBeUndefined()
-      rmSync(sessionRecordFile('claude', SID), { force: true })
-      rmSync(marker, { force: true })
-      await autostart('session-start')
-      await waitFor('the server', async () => { const r = readUiRecord(); return r !== undefined && await probeUi(r.url) !== undefined })
-      expect(readSessionRecord('claude', SID)).toBeUndefined()
+      expect(await probeUi(`http://127.0.0.1:${port}`)).toBeUndefined()
     } finally {
       await stopRecorded()
     }
-  }), 90_000)
+  }), 60_000)
 
   test('a record whose pid /healthz does not confirm is never signalled: --stop leaves the process, a new server starts beside it', () => withSandbox(async ({ root, buracleHome }) => {
     const port = freePort()

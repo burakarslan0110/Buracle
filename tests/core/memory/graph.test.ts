@@ -40,14 +40,11 @@ describe('which memories', () => {
       item({ id: 'decision-gone', title: 'Gone decision', status: 'superseded', supersededBy: 'decision-live' }),
       item({ id: 'decision-expired', title: 'Expired decision', expires: iso(NOW - 1) }),
     ]
-    const upkeep = new Map([['decision-live', { reasons: ['duplicate'], twin: 'decision-elsewhere' }], ['decision-unknown', { reasons: ['unverified'] }]])
-    const g = memGraph(items, { nowMs: NOW, upkeep })
+    const g = memGraph(items, { nowMs: NOW })
     expect(memIds(g)).toEqual(['decision-live'])
     expect(g.edges).toEqual([])
     const input = new Set(items.map(i => i.id))
     for (const n of memoryNodes(g)) expect(input.has(n.id)).toBe(true)
-    expect(JSON.stringify(g)).not.toContain('decision-elsewhere')
-    expect(JSON.stringify(g)).not.toContain('decision-unknown')
     assertConsistent(g)
   })
 
@@ -57,11 +54,11 @@ describe('which memories', () => {
       item({ id: 'session-codex-abc123', kind: 'session', title: 'Session', review: 'pending', author: 'buracle' }),
       item({ id: 'decision-b', title: 'B' }),
     ]
-    const g = memGraph(items, { nowMs: NOW, upkeep: new Map([['decision-b', { reasons: ['stale'] }]]) })
+    const g = memGraph(items, { nowMs: NOW })
     const byId = new Map(memoryNodes(g).map(n => [n.id, n]))
-    expect(byId.get('gotcha-a')).toEqual({ id: 'gotcha-a', type: 'memory', kind: 'gotcha', region: 'warnings', title: 'A', importance: 5, unverified: true, upkeep: false, pinned: true, recallCount: 7, focus: true, degree: 0 })
+    expect(byId.get('gotcha-a')).toEqual({ id: 'gotcha-a', type: 'memory', kind: 'gotcha', region: 'warnings', title: 'A', importance: 5, unverified: true, pinned: true, recallCount: 7, focus: true, degree: 0 })
     expect(byId.get('session-codex-abc123')).toMatchObject({ region: 'episodes', unverified: false, pinned: false, recallCount: 0 })
-    expect(byId.get('decision-b')).toMatchObject({ region: 'plans', upkeep: true, unverified: false })
+    expect(byId.get('decision-b')).toMatchObject({ region: 'plans', unverified: false })
   })
 
   test('a region keeps its own memories in focus, best first: pinned, then importance, then the newest', () => {
@@ -147,15 +144,6 @@ describe('memory-to-memory edges', () => {
     expect(edgesOf(g, 'mentions')).toEqual([{ source: 'decision-a', target: 'decision-b' }])
   })
 
-  test('twin: the upkeep queue links a likely duplicate to its twin', () => {
-    const g = memGraph([item({ id: 'decision-a', title: 'Alpha' }), item({ id: 'decision-b', title: 'Beta' })], {
-      nowMs: NOW, upkeep: new Map([['decision-b', { reasons: ['duplicate'], twin: 'decision-a' }]]),
-    })
-    expect(edgesOf(g, 'twin')).toEqual([{ source: 'decision-b', target: 'decision-a' }])
-    expect(memoryNodes(g).find(n => n.id === 'decision-b')?.upkeep).toBe(true)
-    expect(memoryNodes(g).find(n => n.id === 'decision-a')?.upkeep).toBe(false)
-  })
-
   test('from: a `session:` source names a session memory by its session id or by its memory id', () => {
     const sid = '0199a213-81c0-7800-8aa1-bbab2a035a53'
     const items = [
@@ -212,16 +200,15 @@ describe('neighbors from other regions', () => {
       item({ id: 'gotcha-mentioned', kind: 'gotcha', title: 'Broker gotcha' }),
       item({ id: 'procedure-related', kind: 'procedure', title: 'Related' }),
       item({ id: 'knowledge-mentions-a', kind: 'knowledge', title: 'Linker note', body: 'decision-a' }),
-      item({ id: 'knowledge-twin', kind: 'knowledge', title: 'Twin' }),
       item({ id: 'knowledge-unlinked', kind: 'knowledge', title: 'Unlinked' }),
       item({ id: 'reference-x', kind: 'reference', title: 'X', body: 'reference-y gotcha-mentioned' }),
       item({ id: 'reference-y', kind: 'reference', title: 'Y' }),
     ]
-    const g = memGraph(items, { nowMs: NOW, region: 'plans', upkeep: new Map([['knowledge-twin', { reasons: ['duplicate'], twin: 'decision-b' }]]) })
+    const g = memGraph(items, { nowMs: NOW, region: 'plans' })
     const focus = memoryNodes(g).filter(n => n.focus).map(n => n.id)
     const neighbors = memoryNodes(g).filter(n => !n.focus).map(n => n.id)
     expect(focus).toEqual(['decision-a', 'decision-b'])
-    expect(neighbors.sort()).toEqual(['gotcha-mentioned', 'knowledge-mentions-a', 'knowledge-twin', 'procedure-related'])
+    expect(neighbors.sort()).toEqual(['gotcha-mentioned', 'knowledge-mentions-a', 'procedure-related'])
     expect(memIds(g)).not.toContain('knowledge-unlinked')
     expect(memIds(g)).not.toContain('reference-x')
     expect(memIds(g)).not.toContain('reference-y')
@@ -320,11 +307,10 @@ describe('caps and order', () => {
       item({ id: 'decision-d', title: 'D', importance: 3, updated: iso(NOW - DAY), tags: ['cache'] }),
       item({ id: 'decision-e', title: 'E', importance: 3, updated: iso(NOW - DAY), tags: ['ops'] }),
     ]
-    const upkeep = new Map([['decision-d', { reasons: ['duplicate'], twin: 'decision-e' }]])
-    const want = JSON.stringify(memGraph(items, { nowMs: NOW, region: 'plans', upkeep }))
+    const want = JSON.stringify(memGraph(items, { nowMs: NOW, region: 'plans' }))
     for (const order of [[5, 4, 3, 2, 1, 0], [2, 0, 5, 1, 3, 4], [3, 5, 1, 0, 4, 2]]) {
       const shuffled = order.map(n => items[n] as MemItem)
-      expect(JSON.stringify(memGraph(shuffled, { nowMs: NOW, region: 'plans', upkeep }))).toBe(want)
+      expect(JSON.stringify(memGraph(shuffled, { nowMs: NOW, region: 'plans' }))).toBe(want)
     }
     const g = JSON.parse(want) as MemGraph
     assertConsistent(g)

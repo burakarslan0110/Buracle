@@ -23,13 +23,15 @@ in one line under 140 characters; search results and the session-start text show
 |---|---|
 | `type` | `decision`, `gotcha`, `procedure`, `knowledge`, `reference`, `preference` |
 | `layer` | `project` by default; `person` when it holds in every project (a `preference` defaults to `person`) |
-| `sources` | `path`, `path:line`, short commit SHA, URL; at least one for `decision`, `gotcha` and `knowledge`. Upkeep watches the cited files |
+| `sources` | `path`, `path:line`, short commit SHA, URL; at least one for `decision`, `gotcha` and `knowledge`. A reader can check the cited files |
 | `tags` | a few topic words (`memory`, `search`); they group memories in the brain view |
 | `about` | tools, libraries or concepts it concerns: `bun`, `sqlite` |
 | `importance` | 1 to 5 (default 3) when a memory matters more or less than usual for recall |
 | `supersedes` | ids of the memories this one replaces (they stop showing up) |
 | `pin` | `true` only for what every session must see at start |
 | `review` | `ok` when you verified every claim in this session; otherwise leave the default `pending` |
+| `origin` | `explicit` only when the user said the claim in this conversation; the default for you is `inferred`. An inferred write never replaces an explicit, pinned or verified memory |
+| `confidence` | 0 to 1, how sure you are (explicit memories are 1) |
 
 State your confidence in the body when it is not high: "Confidence: medium (inferred from the
 config, not run)".
@@ -147,8 +149,8 @@ An update of a core page:
 ```
 
 On `core-commands` and `core-architecture` the part between `<!-- buracle:detected:start -->`
-and `<!-- buracle:detected:end -->` is what the sweep found in the repository; it rewrites that
-part, so keep it when you replace the `body` and write outside it.
+and `<!-- buracle:detected:end -->` was written by an older Buracle from the repository; nothing
+rewrites it now, so keep it when you replace the `body` and write outside it.
 
 ## Updating instead of duplicating
 

@@ -358,7 +358,7 @@ export function createGraph(canvas, opts = {}) {
       ctx.beginPath()
       ctx.arc(x, y, r * 0.62, 0, TAU)
       ctx.fill()
-      if (n.type === 'memory' && (n.unverified || n.upkeep)) {
+      if (n.type === 'memory' && n.unverified) {
         ctx.strokeStyle = rgba(palette.warn, 0.7)
         ctx.lineWidth = 1
         ctx.beginPath()

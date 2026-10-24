@@ -12,7 +12,7 @@ import { routeTool } from '../../../src/core/policy/routing'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import * as paths from '../../../src/engine/paths'
 
-const MCP_IDS = ['buracle-memory', 'chrome-devtools', 'codegraph', 'context-mode', 'context7', 'grep', 'semble', 'web-fetch', 'web-search']
+const MCP_IDS = ['buracle-memory', 'chrome-devtools', 'codegraph', 'context7', 'grep', 'semble', 'web-fetch', 'web-search']
 const POLICY = loadCanonicalSync(paths.canonicalDir()).routing
 const NOW = 1_800_000_000_000
 
@@ -487,63 +487,5 @@ describe('H23 and the memory backlog', () => {
     expect(turnAudit(fresh())).toEqual({ action: 'allow' })
     expect(ledgerAudited(fresh(), { action: 'allow' }).prompt?.audited).toBe(true)
     expect(parseLedger({ v: 1, upkeepTouched: true, upkeepAudited: true })).toEqual(emptyLedger())
-  })
-})
-
-describe('context-mode calls in the ledger (H24)', () => {
-  const cmCallOf = (tool: string, input: Record<string, unknown>, h: Harness = 'claude'): ToolCall => {
-    const name = h === 'claude' ? `mcp__plugin_buracle_context-mode__${tool}` : h === 'codex' ? `mcp__context_mode__${tool}` : h === 'opencode' ? `context-mode_${tool}` : `mcp__context_mode_${tool}`
-    return call(h, name, input)
-  }
-
-  test('rg, grep and find run by an execution call count as text searches; other sandbox work does not', () => {
-    for (const h of ['claude', 'codex', 'opencode', 'omp'] as const) {
-      let l = fresh()
-      l = ledgerCall(l, cmCallOf('ctx_batch_execute', { commands: ['git log -5', { label: 's', command: 'rg -n "TODO" src' }], queries: ['x'] }, h))
-      l = ledgerCall(l, cmCallOf('ctx_execute', { language: 'shell', code: 'find . -name "*.ts" | wc -l' }, h))
-      l = ledgerCall(l, cmCallOf('ctx_execute', { language: 'python', code: "import subprocess; subprocess.run(['grep', '-rn', 'x', '.'])" }, h))
-      l = ledgerCall(l, cmCallOf('ctx_execute', { language: 'shell', code: 'npm test 2>&1 | tail -20' }, h))
-      l = ledgerCall(l, cmCallOf('ctx_search', { queries: ['grep'] }, h))
-      expect({ h, search: l.turnTools.search, streak: l.streak.search, mcp: l.mcp['context-mode']?.n }).toEqual({ h, search: 3, streak: 3, mcp: 5 })
-    }
-  })
-
-  test('a failing execution call (the code failed) never counts toward the session failure rule; other context-mode errors do', () => {
-    let l = fresh()
-    for (const tool of ['ctx_execute', 'ctx_execute_file', 'ctx_batch_execute']) l = ledgerMcpResult(ledgerMcpResult(l, 'context-mode', false, tool), 'context-mode', false, tool)
-    expect(l.mcpErrors).toBeUndefined()
-    expect(sessionMcpHealth({}, l)).toEqual({})
-    l = ledgerMcpResult(ledgerMcpResult(l, 'context-mode', false, 'ctx_fetch_and_index'), 'context-mode', false, 'ctx_search')
-    expect(sessionMcpHealth({}, l)).toEqual({ 'context-mode': 'down' })
-    expect(ledgerMcpResult(fresh(), 'context-mode', false).mcpErrors).toEqual({ 'context-mode': 1 })
-    expect(ledgerMcpResult(l, 'context-mode', true, 'ctx_execute').mcpErrors).toBeUndefined()
-    expect(ledgerMcpResult(fresh(), 'web-fetch', false, 'ctx_execute').mcpErrors).toEqual({ 'web-fetch': 1 })
-  })
-
-  test("ctx_fetch_and_index of a documentation page points to context7 (url and requests[].url)", () => {
-    for (const input of [
-      { url: 'https://docs.rs/serde/latest/serde/' },
-      { requests: [{ url: 'https://example.com/blog' }, { url: 'https://zod.dev.readthedocs.io/en/latest/', source: 'zod' }] },
-      { requests: JSON.stringify([{ url: 'https://pkg.go.dev/net/http' }]) },
-    ]) {
-      expect({ input, context: reminders(fresh(), cmCallOf('ctx_fetch_and_index', input), ctx()).context }).toEqual({ input, context: expect.stringContaining('context7') })
-    }
-    expect(reminders(fresh(), cmCallOf('ctx_fetch_and_index', { url: 'https://example.com/post' }), ctx()).context).toBeUndefined()
-    expect(reminders(fresh(), cmCallOf('ctx_fetch_and_index', { url: 'https://docs.rs/serde' }), ctx({ available: MCP_IDS.filter(id => id !== 'context7') })).context).toBeUndefined()
-  })
-
-  test('ctx_index of home, /, an excluded folder or a parent of the project is the root check (H03); the project and plain content are fine', () => {
-    for (const value of ['/Users/u', '/', '/Users/u/code', '/Users/u/Documents/Buracle/projects', '~']) {
-      const r = reminders(fresh(), cmCallOf('ctx_index', { path: value }), ctx())
-      expect({ value, deny: r.deny?.key }).toEqual({ value, deny: 'root' })
-      expect(r.deny?.reason).toContain('context-mode `path`')
-      expect(r.deny?.reason).toContain('Pass the project root /Users/u/code/app instead')
-      expect(r.next.mcp['context-mode']).toBeUndefined()
-    }
-    for (const input of [{ path: '/Users/u/code/app' }, { path: '/Users/u/code/app/docs/spec.md' }, { path: 'docs' }, { content: '# notes', source: 'n' }]) {
-      const r = reminders(fresh(), cmCallOf('ctx_index', input, 'omp'), ctx())
-      expect({ input, deny: r.deny }).toEqual({ input, deny: undefined })
-    }
-    expect(reminders(fresh(), cmCallOf('ctx_index', { path: '/Users/u' }, 'codex'), ctx({ strictness: 'nudge' })).context).toContain('context-mode `path` is /Users/u')
   })
 })

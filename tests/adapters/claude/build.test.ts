@@ -289,7 +289,7 @@ describe('real repository build', () => {
 
     const hooks = JSON.parse(file(files, 'hooks/hooks.json').content) as { modules?: string[], hooks: Record<string, Array<{ matcher?: string, hooks: Array<Record<string, unknown>> }>> }
     const classic = classicHooks(ctx.canonical)
-    expect(classic.map(h => h.event)).toEqual(['SessionStart', 'UserPromptExpansion', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUse', 'PreCompact', 'PostCompact', 'Stop', 'SubagentStart', 'SubagentStop', 'SessionEnd', 'PostToolUseFailure', 'PostToolUseFailure'])
+    expect(classic.map(h => h.event)).toEqual(['SessionStart', 'UserPromptExpansion', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUse', 'PreCompact', 'PostCompact', 'Stop', 'SubagentStart', 'SubagentStop', 'SessionEnd', 'PostToolUseFailure'])
     expect(classic.find(h => h.event === 'SubagentStart')).toEqual({ event: 'SubagentStart', timeout: 5 })
     const fires = (m: string | undefined, name: string): boolean => m === undefined || (/^[A-Za-z0-9_ ,|-]+$/.test(m) ? m.split(/[|,]/).map(x => x.trim()).includes(name) : new RegExp(m).test(name))
     const pre = classic.find(h => h.event === 'PreToolUse')?.matcher
@@ -302,16 +302,12 @@ describe('real repository build', () => {
     for (const t of ['Read', 'Bash', 'TodoWrite']) expect(fires(sync, t), `PostToolUse ${t}`).toBe(false)
     const async_ = post.find(h => h.async === true)?.matcher
     for (const t of ['TodoWrite', 'TaskCreate', 'TaskUpdate', 'Bash', 'Monitor', 'WebSearch', 'WebFetch', 'Read', 'Skill', 'mcp__plugin_buracle_context7__query-docs']) expect(fires(async_, t), `async PostToolUse ${t}`).toBe(true)
-    for (const t of ['Glob', 'Grep', 'EnterPlanMode', 'Agent', 'EnterWorktree']) expect(fires(async_, t), `async PostToolUse ${t}`).toBe(true)
-    for (const t of ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'ExitPlanMode', 'AskUserQuestion', 'ReadMcpResourceTool']) expect(fires(async_, t), `async PostToolUse ${t}`).toBe(false)
+    for (const t of ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'ExitPlanMode', 'AskUserQuestion', 'ReadMcpResourceTool', 'Glob', 'Grep', 'EnterPlanMode', 'Agent', 'EnterWorktree']) expect(fires(async_, t), `async PostToolUse ${t}`).toBe(false)
     const failure = classic.find(h => h.event === 'PostToolUseFailure')
     expect(failure).toEqual({ event: 'PostToolUseFailure', matcher: 'mcp__plugin_buracle_.*', timeout: 5 })
     for (const t of ['mcp__plugin_buracle_web-search__search', 'mcp__plugin_buracle_web-fetch__fetch_url']) expect(fires(failure?.matcher, t), `PostToolUseFailure ${t}`).toBe(true)
     for (const t of ['Bash', 'WebSearch', 'mcp__claude_ai_Gmail__search_threads']) expect(fires(failure?.matcher, t), `PostToolUseFailure ${t}`).toBe(false)
-    const cmFailure = classic.filter(h => h.event === 'PostToolUseFailure').find(h => h.async === true)
-    expect(cmFailure?.async).toBe(true)
-    for (const t of ['Bash', 'Monitor', 'Read', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Glob', 'Grep', 'Agent', 'Skill']) expect(fires(cmFailure?.matcher, t), `async PostToolUseFailure ${t}`).toBe(true)
-    for (const t of ['WebSearch', 'mcp__plugin_buracle_web-fetch__fetch_url']) expect(fires(cmFailure?.matcher, t), `async PostToolUseFailure ${t}`).toBe(false)
+    expect(classic.filter(h => h.event === 'PostToolUseFailure')).toHaveLength(1)
     const upe = classic.find(h => h.event === 'UserPromptExpansion')
     expect(upe?.matcher).toBe('^buracle:')
     for (const name of ['buracle:plan-build', 'buracle:new-skill']) expect(fires(upe?.matcher, name), `UserPromptExpansion ${name}`).toBe(true)
@@ -397,25 +393,14 @@ describe('real repository build', () => {
     expect(Object.entries(mcp.mcpServers).filter(([, e]) => e['alwaysLoad'] === true).map(([id]) => id)).toEqual(expect.arrayContaining(['buracle-memory', 'codegraph', 'context7', 'semble']))
   })
 
-  test('.mcp.json: context-mode with its Claude platform and no timeout (Claude Code\'s own limit is longer than its 600 s); no tool lists (Claude cannot filter a server\'s tools)', async () => {
-    const files = first.length > 0 ? first : await buildClaude(ctx)
-    const mcp = JSON.parse(file(files, '.mcp.json').content) as { mcpServers: Record<string, Record<string, unknown>> }
-    expect(mcp.mcpServers['context-mode']).toEqual({
-      command: 'bun',
-      args: ['${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts', 'mcp', 'run', 'context-mode'],
-      env: { CONTEXT_MODE_PLATFORM: 'claude-code' },
-      alwaysLoad: true,
-    })
-  })
-
   test('.mcp.json from the mcp.yaml fields: env plus harness_env.claude only, ${ENV:NAME} forwarded; tool_timeout_sec only above Claude Code\'s MCP_TOOL_TIMEOUT default (100,000,000 ms) or with tool_timeout_hard, on stdio and http', () => {
     const base = { description: 'd', harnesses: ['claude', 'codex'] as Harness[], pin: 'latest' as const, critical: false, routing: [] }
     const mcp = mcpJson({
       servers: {
         sandbox: {
-          ...base, transport: 'stdio', package: { registry: 'npm', name: 'sandbox-mcp', version: 'latest', runtime: 'bun', scripts: false },
+          ...base, transport: 'stdio', package: { registry: 'npm', name: 'sandbox-mcp', version: 'latest' },
           env: { SHARED: '1' }, harness_env: { claude: { WHO: 'claude', TOKEN: '${ENV:SANDBOX_TOKEN}' }, codex: { WHO: 'codex' } },
-          tool_timeout_sec: 90, enabled_tools: ['run'], disabled_tools: ['upgrade'],
+          tool_timeout_sec: 90,
         },
         remote: { ...base, transport: 'http', url: 'https://mcp.example.com', tool_timeout_sec: 5 },
         atDefault: { ...base, transport: 'http', url: 'https://a.example.com', tool_timeout_sec: 100_000 },

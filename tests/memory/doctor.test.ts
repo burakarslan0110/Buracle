@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { doctorExitCode, memDoctor, runLeakCheck } from '../../src/memory/doctor'
+import { captureChecks, doctorExitCode, memDoctor, runLeakCheck } from '../../src/memory/doctor'
+import { finalize } from '../../src/memory/finalize'
+import { sessionStart } from '../../src/memory/session-record'
+import { appendSpool } from '../../src/memory/spool'
 import { brainProjectsDir } from '../../src/memory/layout'
 import { withEnv } from '../helpers/sandbox'
 import { withBrain } from './helpers'
@@ -18,6 +21,20 @@ describe('mem doctor', () => {
       expect(doctorExitCode(checks)).toBe(0)
     })
   }, 60_000)
+
+  test('the doctor names the sessions whose capture is still owed, and says nothing waits otherwise', async () => {
+    await withBrain(async ({ repo }) => {
+      expect(captureChecks(Date.now())).toEqual([{ level: 'ok', check: 'capture', detail: 'no session waits for its capture' }])
+      const sid = '0199a213-81c0-7800-8aa1-bbab2a035a90'
+      await sessionStart('codex', sid, repo)
+      appendSpool('codex', sid, [{ ts: Date.now(), ev: 'prompt' }, { ts: Date.now() + 1, ev: 'stop', excerpt: 'Done.' }])
+      await finalize('codex', sid, { pending: false, runner: async () => ({ ok: false, text: '', error: 'codex: not logged in' }) })
+      const [warn] = captureChecks(Date.now())
+      expect(warn).toMatchObject({ level: 'warn', check: 'capture' })
+      expect(warn?.detail).toContain('1 session(s) wait for their capture (1 for another model try')
+      expect(warn?.detail).toContain('buracle mem capture --pending')
+    })
+  })
 
   test('a brain file without a project record is a warning that names it and the way back', async () => {
     await withBrain(async ({ repo }) => {

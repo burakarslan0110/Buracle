@@ -1,8 +1,6 @@
-import { CM_SERVER_ID } from '../context-mode'
 import type { Harness, PreDecision, ToolCall, ToolKind } from '../events'
 import { mcpServerToken } from '../events'
 import type { CatalogMcp, CatalogSkill } from '../catalog'
-import { largeOutputKind } from './output-hints'
 import { commandName, parseShell, stageCommands, unwrap } from './shell'
 import type { Script } from './shell'
 import type { Triggers } from './skill-router'
@@ -33,14 +31,6 @@ export function mcpHealthOf(raw: unknown, nowMs: number): McpHealth {
     const s = healthEntry(v, nowMs)
     if (s !== undefined) out[id] = s
   }
-  return out
-}
-
-export function withDisabledServers(health: McpHealth, ids: readonly string[]): McpHealth {
-  const list = Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string' && id !== '') : []
-  if (list.length === 0) return health
-  const out: McpHealth = { ...(isObj(health) ? health : {}) }
-  for (const id of list) out[id] = 'down'
   return out
 }
 
@@ -199,36 +189,11 @@ function docsFetchRoute(call: ToolCall, policy: RoutingPolicy, health: McpHealth
   return { action: 'allow', context: [`This page is library documentation: ${docs} answers at the installed version; use the ${builtin} only when context7 does not know the library.`] }
 }
 
-function cmAvailable(policy: RoutingPolicy, health: McpHealth): boolean {
-  if (health?.[CM_SERVER_ID] === 'down') return false
-  return (Array.isArray(policy?.categories) ? policy.categories : []).some(c =>
-    [...(Array.isArray(c.prefer) ? c.prefer : []), ...(Array.isArray(c.fallback) ? c.fallback : [])].some(r => {
-      const ref = parseRouteRef(r)
-      return ref?.kind === 'mcp' && ref.server === CM_SERVER_ID
-    }))
-}
-
-function cmTool(harness: Harness, tool: string): string {
-  return code(harnessMcpToolName(harness, CM_SERVER_ID, tool))
-}
-
-function sandboxHint(call: ToolCall, policy: RoutingPolicy, health: McpHealth): string | undefined {
-  if (typeof call.command !== 'string' || !cmAvailable(policy, health)) return undefined
-  const kind = largeOutputKind(call.command)
-  if (kind === undefined) return undefined
-  const h = call.harness
-  return kind === 'remote'
-    ? `This prints a remote response into your context. For a page or a long response, call ${cmTool(h, 'ctx_fetch_and_index')} and then ${cmTool(h, 'ctx_search')}; otherwise filter it here (jq, head) or run it in ${cmTool(h, 'ctx_execute')} (language: "shell") and print only what you need.`
-    : `Build output is long: run the build in ${cmTool(h, 'ctx_execute')} (language: "shell") or ${cmTool(h, 'ctx_batch_execute')} and print only the summary counts and every failure with its message.`
-}
-
 export function routeTool(call: ToolCall, policy: RoutingPolicy, health: McpHealth): PreDecision {
   if (!policy || policy.strictness === 'off') return { action: 'allow' }
   if (call.kind === 'bash') {
     const nudge = typeof call.command === 'string' ? bashNudge(call.command) : undefined
-    const hint = sandboxHint(call, policy, health ?? {})
-    const context = [nudge, hint].filter((x): x is string => x !== undefined)
-    return context.length > 0 ? { action: 'allow', context } : { action: 'allow' }
+    return nudge !== undefined ? { action: 'allow', context: [nudge] } : { action: 'allow' }
   }
   if (call.kind === 'mcp' || call.kind === 'eval' || call.kind === 'other') return { action: 'allow' }
   if (call.kind === 'web_fetch' && needsBuiltinSession(call)) return { action: 'allow' }
@@ -240,12 +205,10 @@ export function routeTool(call: ToolCall, policy: RoutingPolicy, health: McpHeal
   const redirects: string[] = []
   const nudges: string[] = []
   const notes: string[] = []
-  let toCm = false
   for (const cat of cats) {
     const choice = choose(cat, call.kind, health ?? {})
     if (choice.ref?.kind === 'mcp') {
       redirects.push(serverLabel(cat, choice.ref, call.harness))
-      if (choice.ref.server === CM_SERVER_ID) toCm = true
       if (typeof cat.nudge === 'string' && cat.nudge.trim() !== '') nudges.push(cat.nudge.trim())
     } else if (choice.down.length > 0) {
       notes.push(`The ${choice.down.map(code).join(', ')} MCP server is down, so the ${builtin} is allowed as a fallback; mention the fallback in your report.`)
@@ -254,13 +217,10 @@ export function routeTool(call: ToolCall, policy: RoutingPolicy, health: McpHeal
   if (redirects.length === 0) return notes.length > 0 ? { action: 'allow', context: notes } : { action: 'allow' }
   const docs = libraryDocsHint(policy, call, health ?? {})
   const target = redirects.join(' or ')
-  const longPage = call.kind !== 'web_fetch' || !cmAvailable(policy, health ?? {}) ? ''
-    : toCm ? ` It indexes the page instead of returning it: query it with ${cmTool(call.harness, 'ctx_search')}.`
-      : ` For a long page you need only parts of, call ${cmTool(call.harness, 'ctx_fetch_and_index')} and then ${cmTool(call.harness, 'ctx_search')} instead.`
   if (policy.strictness === 'enforce') {
-    return { action: 'deny', hook: 'H03', reason: `The ${builtin} is disabled while the preferred MCP server is available: call ${target} instead${docs}.${longPage}` }
+    return { action: 'deny', hook: 'H03', reason: `The ${builtin} is disabled while the preferred MCP server is available: call ${target} instead${docs}.` }
   }
-  return { action: 'allow', context: [`Prefer ${target} over the ${builtin}${docs}.${longPage}`, ...nudges] }
+  return { action: 'allow', context: [`Prefer ${target} over the ${builtin}${docs}.`, ...nudges] }
 }
 
 function libraryDocsHint(policy: RoutingPolicy, call: ToolCall, health: McpHealth): string {

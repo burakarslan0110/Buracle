@@ -2,7 +2,6 @@ import { Database } from 'bun:sqlite'
 import { chmodSync, closeSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, readSync, renameSync, rmSync, statSync, unlinkSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import type { MemLayer } from '../core/memory/brain'
-import { BACKUP_BUDGET } from '../core/memory/budgets'
 import { memIsSlug } from '../core/memory/note'
 import { atomicWriteSync, readJsonSafeSync } from '../engine/fsx'
 import { log } from '../engine/log'
@@ -13,7 +12,6 @@ import { acquireLock, tryLock } from './lock'
 import { readProjectsCache } from './project'
 import { refreshStatus } from './status'
 import { brainExists, forgetListCache, personRef, projectRef, recordEvent, withBrainLock, type BrainRef } from './store'
-import { refreshUpkeepFor } from './sweep'
 
 export type BackupTrigger = 'manual' | 'daily' | 'pre-restore' | 'pre-upgrade'
 
@@ -226,25 +224,6 @@ function pruneNow(keep: number, protect: readonly string[], nowMs: number): stri
   return removed
 }
 
-function dueForDailyBackup(nowMs: number): BrainRef[] {
-  const newest = new Map<string, number>()
-  for (const m of listBackups()) {
-    if (m.trigger === 'pre-restore') continue
-    for (const b of m.brains) if (!newest.has(brainKey(b))) newest.set(brainKey(b), Date.parse(m.at))
-  }
-  return brainRefs({ all: true }).filter(r => {
-    if (!brainExists(r)) return false
-    const at = newest.get(brainKey(r))
-    return at === undefined || !Number.isFinite(at) || nowMs - at >= BACKUP_BUDGET.everyMs
-  })
-}
-
-export async function maybeDailyBackup(nowMs: number): Promise<BackupResult | undefined> {
-  const due = dueForDailyBackup(nowMs)
-  if (due.length === 0) return undefined
-  return backupBrains({ refs: due }, { trigger: 'daily', nowMs, keep: BACKUP_BUDGET.keep })
-}
-
 function zombie(pid: number): boolean {
   if (process.platform === 'win32') return false
   try {
@@ -393,9 +372,7 @@ export async function restoreBackup(id: string, choice: BrainChoice, opts: { now
     return { result: { id, restored, ...(safety.length > 0 ? { safety: safetyId } : {}), stopped }, failure }
   })
   for (const r of result.restored) {
-    const ref = r.layer === 'person' ? personRef() : projectRef(r.project as string)
     try {
-      await refreshUpkeepFor(ref, { nowMs: now })
       await refreshStatus({ ...(r.project !== undefined ? { slug: r.project } : {}), nowMs: now })
     } catch (e) { log('warn', 'memory: the status was not refreshed after a restore', { error: e }) }
   }

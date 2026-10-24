@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createBuracleExtension, type ExtensionDeps } from '../../../src/adapters/omp/runtime/extension'
-import { OMP_HIDDEN_TOOLS } from '../../../src/adapters/omp/runtime/hidden-tools'
 import type { OmpGenerated } from '../../../src/adapters/omp/runtime/types'
 import { defaultConfig } from '../../../src/core/config'
 import { flowStart } from '../../../src/core/flow/record'
@@ -92,45 +91,5 @@ describe('omp turn receipt, loop alarms, the long-turn notification and the resu
     writeFlow('omp', SID, flowStart(undefined, { workflow: 'plan-build', title: 'Add login', source: 'command' }, clock.now - 60_000).record)
     await fp.emit('session_switch', { type: 'session_switch', reason: 'resume' }, ctx)
     expect(notices(ctx).filter(n => n.startsWith('This session has an unfinished workflow run'))).toEqual([])
-  }))
-})
-
-describe('omp hides the context-mode tools Buracle never uses (PARITY-8)', () => {
-  test('before_agent_start of the main session drops them from the active tools; other tools and subagents are left alone', () => withSandbox(async sb => {
-    const { fp, ctx, cwd } = setup(sb)
-    let active = ['read', 'bash', 'mcp__context_mode_ctx_execute', ...OMP_HIDDEN_TOOLS]
-    const set: string[][] = []
-    fp.pi.getActiveTools = () => [...active]
-    fp.pi.setActiveTools = names => { set.push(names); active = names }
-    expect([...OMP_HIDDEN_TOOLS].sort()).toEqual(['mcp__context_mode_ctx_doctor', 'mcp__context_mode_ctx_insight', 'mcp__context_mode_ctx_upgrade'])
-    await fp.emit('before_agent_start', { type: 'before_agent_start', prompt: 'hi', systemPrompt: [] }, ctx)
-    expect(active).toEqual(['read', 'bash', 'mcp__context_mode_ctx_execute'])
-    await fp.emit('before_agent_start', { type: 'before_agent_start', prompt: 'again', systemPrompt: [] }, ctx)
-    expect(set).toHaveLength(1)
-    active = [...active, 'mcp__context_mode_ctx_doctor']
-    await fp.emit('before_agent_start', { type: 'before_agent_start', prompt: 'after a reconnect', systemPrompt: [] }, fakeCtx({ cwd, sid: SID, kind: 'sub' }))
-    expect(active).toContain('mcp__context_mode_ctx_doctor')
-    await fp.emit('before_agent_start', { type: 'before_agent_start', prompt: 'after a reconnect', systemPrompt: [] }, ctx)
-    expect(active).not.toContain('mcp__context_mode_ctx_doctor')
-  }))
-
-  test('omp\'s setActiveTools is asynchronous: before_agent_start waits for it, so the first run of a session already lacks the hidden tools; a failing call lets the run start', () => withSandbox(async sb => {
-    const { fp, ctx } = setup(sb)
-    let active = ['read', 'bash', ...OMP_HIDDEN_TOOLS]
-    const order: string[] = []
-    fp.pi.getActiveTools = () => [...active]
-    fp.pi.setActiveTools = async names => {
-      await Bun.sleep(30)
-      active = names
-      order.push('tools set')
-    }
-    await fp.emit('before_agent_start', { type: 'before_agent_start', prompt: 'first run', systemPrompt: [] }, ctx)
-    order.push('agent starts')
-    expect(order).toEqual(['tools set', 'agent starts'])
-    expect(active).toEqual(['read', 'bash'])
-    active = [...active, ...OMP_HIDDEN_TOOLS]
-    fp.pi.setActiveTools = async () => { throw new Error('registry busy') }
-    await fp.emit('before_agent_start', { type: 'before_agent_start', prompt: 'second run', systemPrompt: [] }, ctx)
-    expect(active).toContain('mcp__context_mode_ctx_doctor')
   }))
 })

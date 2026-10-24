@@ -4,6 +4,7 @@ import type { ToolSpec } from '../../core/catalog'
 import { opsDeps } from '../update/deps'
 import * as paths from '../paths'
 import { exeName, findExecutable, osName, spawnArgv, type OsName } from '../platform'
+import { defaultLinuxEnv, linuxInstallHint, type LinuxEnv } from './linux-packages'
 import { installPackage, toolchainEnv, toolRequest } from './packages'
 import type { InstalledPackage, InstalledSystemTool } from './state'
 
@@ -52,13 +53,20 @@ export function installSources(t: ToolSpec, os: OsName = osName(), have: (cmd: s
   return out
 }
 
-export function installAdvice(t: ToolSpec, os: OsName = osName(), have: (cmd: string) => boolean = c => findExecutable(c) !== undefined): string {
+// On Linux Homebrew is optional and usually absent: without it the advice names the distribution's own package
+// manager (linux-packages.ts) and never `brew install`. Buracle prints that command and does not run it.
+export function installAdvice(t: ToolSpec, os: OsName = osName(), have: (cmd: string) => boolean = c => findExecutable(c) !== undefined, linux?: LinuxEnv): string {
   const needs = missingRequirements(t, have)
   if (needs.length > 0) return `${t.name} needs ${needs.join(' and ')} on PATH; install ${needs.length === 1 ? 'it' : 'them'} first, then run \`buracle install\``
   if (t.rustup !== undefined && have('rustup')) return `rustup component add ${t.rustup}`
   if (os === 'win32' && t.winget !== undefined) return `winget install --id ${t.winget} -e --scope user`
   if (os === 'win32' && t.scoop !== undefined) return `scoop install ${t.scoop}`
-  if (os !== 'win32' && t.brew !== undefined) return `brew install ${t.brew}`
+  const brewHere = os === 'darwin' || (os === 'linux' && have('brew'))
+  if (os === 'linux' && !brewHere) {
+    const hint = linuxInstallHint(t.name, linux ?? defaultLinuxEnv(have))
+    if (hint !== undefined) return hint
+  }
+  if (brewHere && t.brew !== undefined) return `brew install ${t.brew}`
   if (t.npm !== undefined || t.pypi !== undefined) return 'buracle install (installs it into the Buracle toolchain)'
   if (t.install !== undefined) return t.install
   return 'install it with your package manager'

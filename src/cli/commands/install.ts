@@ -52,10 +52,9 @@ kept for \`buracle rollback\`. BURACLE_RUNTIME=checkout makes the shim run the c
 directly (tests, debugging).
 
 Then it installs the toolchain (toolchain.autoInstall; false skips it): missing system tools through
-Homebrew (macOS) or winget/scoop (Windows), and every MCP server package and language server
+Homebrew (macOS, or Linux with Homebrew) or winget/scoop (Windows), and every MCP server package and language server
 at its newest release (update.minReleaseAgeDays, 0 by default, can wait days) into ~/.buracle/toolchain, staged
-and swapped in with the previous copy kept for \`buracle rollback toolchain\` (a new context-mode
-release gets its session library's smoke test; a failure is a warning). Then composes:
+and swapped in with the previous copy kept for \`buracle rollback toolchain\`. Then composes:
   - the core plan: ~/.buracle/bin/buracle shim, ~/.local/bin/buracle link, repo: in
     config.yaml, and the path rules Codex and OpenCode read (~/.buracle/rules/paths/<id>.md)
   - the shared skills plan: ~/.agents/skills/<id> -> harness/agents-skills/<id> symlinks
@@ -328,11 +327,6 @@ export async function runInstallFlow(opts: InstallFlowOptions, io: CommandIO): P
       for (const i of r.items) {
         if (i.status === 'failed' || (i.status === 'missing' && i.required)) result.warnings.push(`toolchain: ${i.label}: ${i.detail}`)
       }
-      const { cmSmokeWarning, cmToolchainChanged } = await import('../../engine/update/context-mode-doctor')
-      if (cmToolchainChanged(r.items)) {
-        const w = await cmSmokeWarning()
-        if (w !== undefined) result.warnings.push(`toolchain: ${w}`)
-      }
     }
   }
 
@@ -539,7 +533,7 @@ export async function runInstallFlow(opts: InstallFlowOptions, io: CommandIO): P
   }
 
   verbose(io, opts, 'record')
-  const after = loadConfigSync({ repoRoot }).config
+  const after = loadConfigSync({ repoRoot })
   try {
     await writeRuntimeConfig(after)
   } catch (e) {

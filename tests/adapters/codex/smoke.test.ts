@@ -159,7 +159,6 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary (isola
     expect(doctor.filter(i => i.level === 'error')).toEqual([])
     expect(doctor.find(i => i.check === 'codex.hooks.trust')?.level).toBe('ok')
     for (const check of ['codex.permissions', 'codex.effort', 'codex.routing', 'codex.config']) expect({ check, level: doctor.find(i => i.check === check)?.level }).toEqual({ check, level: 'ok' })
-    expect(doctor.find(i => i.check === 'codex.context-mode')).toEqual({ level: 'ok', check: 'codex.context-mode', detail: expect.stringContaining('8 tools offered, ctx_upgrade, ctx_insight, ctx_doctor hidden, calls up to 600 s, CONTEXT_MODE_PLATFORM=codex') })
   }), 120_000)
 
   test('next to the user\'s own hooks: their groups keep their keys, Buracle\'s are appended and Codex hashes them like Buracle', () => withSandbox(async ({ root, home }) => {
@@ -317,7 +316,7 @@ async function installEndToEnd(root: string, home: string, buracleHome: string):
   mkdirSync(work)
   const env = {
     ...isolatedEnv(root, home), SHELL: '/bin/sh', BURACLE_HOME: buracleHome,
-    BURACLE_NO_MEMORY: '1', BURACLE_NO_CAPTURE: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_NO_NOTIFY: '1', BURACLE_NO_TOOLCHAIN: '1', BURACLE_NO_DISTILL: '1', BURACLE_NO_REFLECT: '1',
+    BURACLE_NO_MEMORY: '1', BURACLE_NO_CAPTURE: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_NO_NOTIFY: '1', BURACLE_NO_TOOLCHAIN: '1', BURACLE_NO_DISTILL: '1',
   }
   return { env, work, mcpLog }
 }

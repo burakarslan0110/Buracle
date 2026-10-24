@@ -37,7 +37,7 @@ describe("G2: Buracle's CLI and the harness CLIs cannot switch the guards off", 
     }
   })
 
-  test("the brain web UI's settings API is the user's too: a shell call or sandbox code that reaches it is refused, a mention is not", () => {
+  test("the brain web UI's settings API is the user's too: a shell call or eval code that reaches it is refused, a mention is not", () => {
     for (const cmd of [
       "curl -s -X POST http://127.0.0.1:41777/api/settings -H 'x-buracle-token: abc' -d '{\"key\":\"plan.reviews.changes\",\"value\":false}'",
       'curl localhost:41778/api/settings', 'wget -qO- "http://[::1]:41777/api//settings"', "bash -c 'curl -d @x http://127.0.0.1:41777/api/settings'",
@@ -142,7 +142,7 @@ describe('G3: Buracle and the harness settings cannot be relocated for later ses
     ]) expect({ cmd, reason: denied(cmd) }).toEqual({ cmd, reason: undefined })
   })
 
-  test("code in context-mode's sandbox that runs such a command is refused too", () => {
+  test("code in omp's eval cell that runs such a command is refused too", () => {
     const ctx = { cwd: `${home}/code/app`, home, vault: '~/Documents/Buracle', protect: [] }
     expect(checkEval("import os; os.system('buracle uninstall --yes')", 'python', ctx).deny).toContain(OFF)
     expect(checkEval("require('child_process').execSync(\"echo 'export BURACLE_HOME=/tmp/fb' >> ~/.zshrc\")", 'js', ctx).deny).toContain('shell startup file')

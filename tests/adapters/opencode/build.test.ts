@@ -5,9 +5,8 @@ import { join } from 'node:path'
 import { buildFiles, commandNames, type BuiltFile } from '../../../src/adapters/opencode/build'
 import { CLI_SCHEMA_URL, CONFIG_SCHEMA_URL, GLOBAL_PERMISSIONS } from '../../../src/adapters/opencode/constants'
 import { diffTree } from '../../../src/adapters/opencode/dev-build'
-import { configPermissions, configSet, mcpDenyRules, mcpServerEntry } from '../../../src/adapters/opencode/render'
+import { configPermissions, configSet, mcpServerEntry } from '../../../src/adapters/opencode/render'
 import { catalogSkills, type McpServerSpec } from '../../../src/core/catalog'
-import { CM_HIDDEN_TOOLS } from '../../../src/core/context-mode'
 import type { Harness } from '../../../src/core/events'
 import { jsoncParse } from '../../../src/engine/merge'
 import { parseFrontmatter } from '../../../src/engine/canonical'
@@ -106,15 +105,8 @@ describe('opencode build', () => {
     const v = (cfg.ok ? cfg.value : {}) as Record<string, any>
     expect(v['$schema']).toBe(CONFIG_SCHEMA_URL)
     expect(v['share']).toBe('disabled')
-    expect(v['permissions']).toEqual([...GLOBAL_PERMISSIONS, ...CM_HIDDEN_TOOLS.map(t => ({ action: `context-mode_${t}`, resource: '*', effect: 'deny' }))])
+    expect(v['permissions']).toEqual(GLOBAL_PERMISSIONS)
     const servers = v['mcp']['servers'] as Record<string, Record<string, unknown>>
-    expect(servers['context-mode']).toEqual({
-      type: 'local',
-      command: ['{env:HOME}/.buracle/bin/buracle', 'mcp', 'run', 'context-mode'],
-      environment: { CONTEXT_MODE_PLATFORM: 'opencode' },
-      codemode: false,
-      timeout: { startup: 60_000 },
-    })
     const expectIds = Object.entries(canonical().mcp.servers).filter(([, s]) => s.harnesses.includes('opencode')).map(([id]) => id).sort()
     expect(Object.keys(servers).sort()).toEqual(expectIds)
     for (const [id, s] of Object.entries(canonical().mcp.servers)) {
@@ -157,21 +149,10 @@ describe('opencode build', () => {
     })
   }, 60_000)
 
-  test('the server bundle guards context-mode\'s tools and carries none of its SQLite modules (only the child client)', async () => {
+  test('the server bundle carries no module of the removed Context Mode', async () => {
     const server = file(await built(), 'plugins/buracle/index.js')
-    for (const m of ['session', 'library', 'bridge']) expect(server).not.toContain(`// src/adapters/shared/context-mode/${m}.ts`)
-    expect(server).toContain('// src/adapters/shared/context-mode/client.ts')
-    await withSandbox(async ({ root }) => {
-      const entry = join(root, 'index.js')
-      writeFileSync(entry, server)
-      const mod = await import(entry) as { default: { setup: (ctx: unknown) => Promise<unknown> } }
-      const f = fakeServerContext(root)
-      const cleanup = await mod.default.setup(f.ctx)
-      await f.trigger('tool.execute.before', { tool: 'context-mode_ctx_execute', sessionID: 'ses_bundle2', agent: 'build', messageID: 'msg_1', id: 'call_b1', input: { language: 'shell', code: 'rm -rf ~' } })
-      const ev = await f.trigger('permission.evaluate', { sessionID: 'ses_bundle2', action: 'context-mode_ctx_execute', resources: ['*'], effect: 'allow', source: { type: 'tool', messageID: 'msg_1', id: 'call_b1' } })
-      expect((ev as { effect: string, message?: string }).message).toStartWith('[Buracle H01 guard.bash] ')
-      if (typeof cleanup === 'function') await (cleanup as () => Promise<void>)()
-    })
+    expect(server).not.toContain('// src/adapters/shared/context-mode/')
+    expect(server).not.toContain('// src/adapters/opencode/runtime/context-mode.ts')
   }, 60_000)
 
   test('the TUI bundle loads against host-provided UI modules: status line, workflow band above the prompt, utility commands', async () => {
@@ -230,37 +211,34 @@ describe('opencode build', () => {
 
 describe('opencode MCP entries from the mcp.yaml fields', () => {
   const base = { description: 'd', harnesses: ['opencode', 'codex'] as Harness[], pin: 'latest' as const, critical: false, routing: [] }
-  const sandbox: McpServerSpec = {
-    ...base, transport: 'stdio', package: { registry: 'npm', name: 'sandbox-mcp', version: 'latest', runtime: 'bun', scripts: false },
-    env: { SHARED: '1' }, harness_env: { opencode: { WHO: 'opencode', TOKEN: '${ENV:SANDBOX_TOKEN}' }, codex: { WHO: 'codex' } },
-    tool_timeout_sec: 90, enabled_tools: ['run'], disabled_tools: ['upgrade', 'insight'],
+  const sample: McpServerSpec = {
+    ...base, transport: 'stdio', package: { registry: 'npm', name: 'sample-mcp', version: 'latest' },
+    env: { SHARED: '1' }, harness_env: { opencode: { WHO: 'opencode', TOKEN: '${ENV:SAMPLE_TOKEN}' }, codex: { WHO: 'codex' } },
+    tool_timeout_sec: 90,
   }
 
   test('environment: env plus harness_env.opencode ({env:NAME} forwarding); tool_timeout_sec as timeout.execution in ms only above OpenCode\'s own 12 h or with tool_timeout_hard', () => {
-    expect(mcpServerEntry(sandbox, '/b/buracle', 'sandbox')).toEqual({
-      type: 'local', command: ['/b/buracle', 'mcp', 'run', 'sandbox'],
-      environment: { SHARED: '1', TOKEN: '{env:SANDBOX_TOKEN}', WHO: 'opencode' },
+    expect(mcpServerEntry(sample, '/b/buracle', 'sample')).toEqual({
+      type: 'local', command: ['/b/buracle', 'mcp', 'run', 'sample'],
+      environment: { SHARED: '1', TOKEN: '{env:SAMPLE_TOKEN}', WHO: 'opencode' },
       timeout: { startup: 60_000 },
     })
     const remote = { ...base, transport: 'http' as const, url: 'https://mcp.example.com' }
     expect(mcpServerEntry({ ...remote, tool_timeout_sec: 5 }, '/b/buracle', 'remote')).toEqual({ type: 'remote', url: 'https://mcp.example.com', oauth: false })
     expect(mcpServerEntry({ ...remote, tool_timeout_sec: 43_200 }, '/b/buracle', 'remote')).toEqual({ type: 'remote', url: 'https://mcp.example.com', oauth: false })
     expect(mcpServerEntry({ ...remote, tool_timeout_sec: 43_201 }, '/b/buracle', 'remote')).toEqual({ type: 'remote', url: 'https://mcp.example.com', oauth: false, timeout: { execution: 43_201_000 } })
-    expect(mcpServerEntry({ ...sandbox, tool_timeout_sec: 43_201 }, '/b/buracle', 'sandbox')['timeout']).toEqual({ startup: 60_000, execution: 43_201_000 })
+    expect(mcpServerEntry({ ...sample, tool_timeout_sec: 43_201 }, '/b/buracle', 'sample')['timeout']).toEqual({ startup: 60_000, execution: 43_201_000 })
     expect(mcpServerEntry({ ...base, transport: 'stdio', command: 'long-mcp', tool_timeout_sec: 43_201 }, '/b/buracle', 'long')).toEqual({ type: 'local', command: ['long-mcp'], timeout: { execution: 43_201_000 } })
-    expect(mcpServerEntry({ ...sandbox, tool_timeout_sec: 180, tool_timeout_hard: true }, '/b/buracle', 'sandbox')['timeout']).toEqual({ startup: 60_000, execution: 180_000 })
+    expect(mcpServerEntry({ ...sample, tool_timeout_sec: 180, tool_timeout_hard: true }, '/b/buracle', 'sample')['timeout']).toEqual({ startup: 60_000, execution: 180_000 })
     expect(mcpServerEntry({ ...remote, tool_timeout_sec: 180, tool_timeout_hard: true }, '/b/buracle', 'remote')).toEqual({ type: 'remote', url: 'https://mcp.example.com', oauth: false, timeout: { execution: 180_000 } })
     expect(mcpServerEntry({ ...remote, tool_timeout_sec: 180, tool_timeout_hard: false }, '/b/buracle', 'remote')).toEqual({ type: 'remote', url: 'https://mcp.example.com', oauth: false })
-    expect(mcpServerEntry({ ...sandbox, tool_timeout_sec: undefined, harness_env: undefined, env: undefined }, '/b/buracle', 'sandbox')).toEqual({ type: 'local', command: ['/b/buracle', 'mcp', 'run', 'sandbox'], timeout: { startup: 60_000 } })
+    expect(mcpServerEntry({ ...sample, tool_timeout_sec: undefined, harness_env: undefined, env: undefined }, '/b/buracle', 'sample')).toEqual({ type: 'local', command: ['/b/buracle', 'mcp', 'run', 'sample'], timeout: { startup: 60_000 } })
   })
 
-  test('disabled_tools become deny rules on <server>_<tool> after the static rules, for OpenCode servers only', () => {
-    const c = { ...canonical(), mcp: { servers: { sandbox, codexOnly: { ...sandbox, harnesses: ['codex'] as Harness[], disabled_tools: ['gone'] } } } }
-    expect(mcpDenyRules(c)).toEqual([
-      { action: 'sandbox_upgrade', resource: '*', effect: 'deny' },
-      { action: 'sandbox_insight', resource: '*', effect: 'deny' },
-    ])
-    expect(configPermissions(c)).toEqual([...GLOBAL_PERMISSIONS, ...mcpDenyRules(c)])
-    expect(configSet(c, '/b/buracle')['permissions']).toEqual(configPermissions(c))
+  test('permissions: the static rules only, as a fresh copy, and configSet writes them', () => {
+    const rules = configPermissions()
+    expect(rules).toEqual([...GLOBAL_PERMISSIONS])
+    expect(rules[0]).not.toBe(GLOBAL_PERMISSIONS[0])
+    expect(configSet({ ...canonical(), mcp: { servers: { sample } } }, '/b/buracle')['permissions']).toEqual(GLOBAL_PERMISSIONS)
   })
 })

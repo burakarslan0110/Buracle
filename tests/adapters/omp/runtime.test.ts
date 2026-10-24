@@ -22,19 +22,36 @@ describe('omp runtime: memory bridge', () => {
     await throwing.appendSpool(SID, [{ ts: 1, ev: 'note' }])
   })
 
-  test('session start and finalize spawn the CLI twins detached; no CLI means no spawn', async () => {
-    const spawned: string[][] = []
-    const bridge = createMemoryBridge({ cli: () => ['/b/buracle'], spawnDetached: a => { spawned.push(a); return true } })
+  test('session start and a prompt are recorded in this process and spawn nothing, even with the CLI at hand', async () => {
+    const spawned: Array<[string[], Record<string, string> | undefined]> = []
+    const started: string[][] = []
+    const touched: string[] = []
+    const bridge = createMemoryBridge({
+      cli: () => ['/b/buracle'], spawnDetached: (a, env) => { spawned.push([a, env]); return true },
+      recordStart: async (sid, cwd) => { started.push([sid, cwd]) }, touch: sid => { touched.push(sid) },
+    })
     await bridge.sessionStart(SID, '/work')
+    bridge.promptSeen?.(SID)
+    expect(started).toEqual([[SID, '/work']])
+    expect(touched).toEqual([SID])
+    expect(spawned).toEqual([])
+  })
+
+  test('the finalizer is spawned directly as the `mem finalize` twin with BURACLE_FINALIZER=1 and without --detach; no CLI means no spawn', async () => {
+    const spawned: Array<[string[], Record<string, string> | undefined]> = []
+    const bridge = createMemoryBridge({ cli: () => ['/b/buracle'], spawnDetached: (a, env) => { spawned.push([a, env]); return true } })
     await bridge.spawnFinalizer(SID)
-    expect(spawned).toEqual([
-      ['/b/buracle', 'mem', 'start', '--harness', 'omp', '--session', SID, '--cwd', '/work'],
-      ['/b/buracle', 'mem', 'finalize', '--harness', 'omp', '--session', SID, '--detach'],
-    ])
-    const none = createMemoryBridge({ cli: () => undefined, spawnDetached: a => { spawned.push(a); return true } })
-    await none.sessionStart(SID, '/work')
+    expect(spawned).toEqual([[['/b/buracle', 'mem', 'finalize', '--harness', 'omp', '--session', SID], { BURACLE_FINALIZER: '1' }]])
+    expect(spawned[0]?.[0]).not.toContain('--detach')
+    const none = createMemoryBridge({ cli: () => undefined, spawnDetached: (a, env) => { spawned.push([a, env]); return true } })
     await none.spawnFinalizer(SID)
-    expect(spawned).toHaveLength(2)
+    expect(spawned).toHaveLength(1)
+  })
+
+  test('a recorder that throws never escapes the bridge', async () => {
+    const bridge = createMemoryBridge({ cli: () => undefined, recordStart: async () => { throw new Error('disk full') }, touch: () => { throw new Error('disk full') } })
+    await bridge.sessionStart(SID, '/work')
+    bridge.promptSeen?.(SID)
   })
 
   test('contextText reads `buracle mem context --json`; failures yield undefined', async () => {
@@ -152,13 +169,13 @@ describe('omp runtime: memory index, status inputs and maintenance', () => {
     const dir = join(paths.memoryStateDir(), 'status')
     mkdirSync(dir, { recursive: true })
     expect(readMemoryStatus('demo')).toBeUndefined()
-    writeFileSync(join(dir, '_global.json'), JSON.stringify({ v: 2, health: 'warn' }))
+    writeFileSync(join(dir, '_global.json'), JSON.stringify({ v: 3, health: 'warn' }))
     expect(readMemoryStatus('demo')).toMatchObject({ health: 'warn' })
-    writeFileSync(join(dir, 'demo.json'), '{"v":2,')
+    writeFileSync(join(dir, 'demo.json'), '{"v":3,')
     expect(readMemoryStatus('demo')).toMatchObject({ health: 'warn' })
-    writeFileSync(join(dir, 'demo.json'), JSON.stringify({ v: 1, health: 'error' }))
+    writeFileSync(join(dir, 'demo.json'), JSON.stringify({ v: 2, health: 'error' }))
     expect(readMemoryStatus('demo')).toMatchObject({ health: 'warn' })
-    writeFileSync(join(dir, 'demo.json'), JSON.stringify({ v: 2, health: 'ok' }))
+    writeFileSync(join(dir, 'demo.json'), JSON.stringify({ v: 3, health: 'ok' }))
     expect(readMemoryStatus('demo')).toMatchObject({ health: 'ok' })
   }))
 

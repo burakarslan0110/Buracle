@@ -79,7 +79,6 @@ describe('omp extension: open todos in the H06 handoff note (Claude parity)', ()
     expect(await fp.emit('session.compacting', { type: 'session.compacting', sessionId: SID }, ctx)).toBeUndefined()
     expect(memory.handoffs.length).toBe(2)
     expect(memory.handoffs[1]?.markdown).toContain('None recorded.')
-    expect(memory.compactions).toEqual([SID, SID])
   }))
 })
 

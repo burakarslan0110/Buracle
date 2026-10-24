@@ -10,11 +10,8 @@ import { flowDef } from '../../../core/flow/catalog'
 import type { FlowSource } from '../../../core/flow/record'
 import { capabilityCard, checkBash, checkQuestion, checkWrite, isGuardContinuation, laneStateDenial, reviewerShellDenial, routeTool, skillOf } from '../../../core/policy/index'
 import type { BashGuardOptions } from '../../../core/policy/bash-guard'
-import { CM_SERVER_ID } from '../../../core/context-mode'
 import { mcpWritePaths } from '../../../core/policy/mcp-paths'
-import { cmCall } from '../../../core/policy/sandbox'
 import type { McpHealth } from '../../../core/policy/routing'
-import { withDisabledServers } from '../../../core/policy/routing'
 import type { ReminderContext } from '../../../core/policy/usage'
 import { ledgerOnce } from '../../../core/policy/usage'
 import type { WriteGuardContext } from '../../../core/policy/write-guard'
@@ -36,7 +33,7 @@ import { shownPath } from '../../../workflow/plan-capture'
 import { captureSessionPlan } from '../../../workflow/plan-native'
 import { loadState, reviewSubjects, sessionMaint, writeTelemetry } from '../../../workflow/session-store'
 import { refreshWorkspaceInfo, workspaceInfo } from '../../../workflow/workspace'
-import { consentGate, consentGateAll, recordPromptGrants } from '../../shared/consent-store'
+import { consentGate, recordPromptGrants } from '../../shared/consent-store'
 import { pathRuleSource } from '../../shared/path-rules'
 import { realWriteTarget } from '../../shared/realpath'
 import { reviewNotesNotice } from '../../shared/review-notes'
@@ -52,8 +49,6 @@ import { hookFailure } from './baked'
 import type { CheckerRunner, LspEditAsk } from './checks'
 import { fileChecks, lspEditNotes } from './checks'
 import { registerWorkflowCommands } from './commands'
-import type { CmDeps, CmDenial, CmGuardVerdict } from './context-mode'
-import { cmGuardVerdict, cmUnseenDenial, isCmToolName, OpencodeContextMode } from './context-mode'
 import type { PendingPrompt } from './delivery'
 import { addPending, deliveredPrompts, inboxUpdate, takeDelivered } from './delivery'
 import { projectDeps } from './deps'
@@ -75,7 +70,7 @@ import { reviewNote, reviewProblems, subagentReport } from './review'
 import type { CallVerdict, LedgerStore, PromptRouteResult } from './routing'
 import {
   attachedSkills, availableServers, commandOfPrompt, compiledTriggers, evaluateCall, fileLedgerStore, ledgerUserPrompt, loadedSkills,
-  promptSignalEntries, recordCall, recordMcpResult, routeInputText, routeUserPrompt, runTitle, sessionHealth, skillSignalEntries, withinBudget,
+  promptSignalEntries, recordCall, recordMcpResult, routeInputText, routeUserPrompt, runTitle, sessionHealth, withinBudget,
 } from './routing'
 import type {
   ModelRef, OpenCodeEvent, PermissionEvaluation, ServerContext, ServerPluginDefinition, SessionCompactionEvent,
@@ -114,14 +109,15 @@ export interface PluginDeps {
   workspace?: WorkspaceFn
   workspaceRead?: WorkspaceFn
   ledger?: LedgerStore
-  contextMode?: CmDeps
   assetsSpawn?: AssetsSpawner
   consentAsk?: Partial<ConsentAskHost>
 }
 
-interface PendingCall { tool: string; input: unknown; sessionID: string; at: number; cm?: CmGuardVerdict; denied?: boolean }
+interface PendingCall { tool: string; input: unknown; sessionID: string; at: number; denied?: boolean }
 
-const CM_RESUME_AFTER_MS = 60_000
+interface Denial { reason: string; hook: HookId }
+
+const RESUME_AFTER_MS = 60_000
 
 interface SessionRuntime {
   sid: string
@@ -209,7 +205,6 @@ export class BuracleRuntime {
   private readonly abort = new AbortController()
   private card: { key: string, text: string | undefined } | undefined
   private readonly models: ModelFacts
-  private readonly cm: OpencodeContextMode
   private readonly startedAt: number
   private disposed = false
 
@@ -238,7 +233,6 @@ export class BuracleRuntime {
     this.config = runtimeConfigCache(this.baked.defaults)
     this.models = new ModelFacts(ctx, (msg, data) => this.logFn('debug', msg, data))
     this.startedAt = this.now()
-    this.cm = new OpencodeContextMode({ directory: ctx.location.directory, cfg: () => this.cfg(), log: (level, msg, data) => this.logFn(level, msg, data), track: p => this.track(p) }, deps.contextMode)
     this.stopGuard = new StopGuard({
       disposed: () => this.disposed,
       now: () => this.now(),
@@ -497,7 +491,6 @@ export class BuracleRuntime {
     if (this.disposed) return
     this.disposed = true
     this.abort.abort()
-    this.cm.flushAll()
     for (const s of this.sessions.values()) {
       this.cancelIdleFinalize(s)
       if (!s.activity || typeof s.parentID === 'string') continue
@@ -516,13 +509,8 @@ export class BuracleRuntime {
       const now = this.now()
       if (reg.maintAt !== undefined && now - reg.maintAt >= 0 && now - reg.maintAt < MAINT_INTERVAL_MS) return
       reg.maintAt = now
-      try {
-        const r = this.maintFn(now, [...this.sessions.keys()])
-        if (r.removed.length > 0) this.logFn('info', 'session maintenance removed idle state', { removed: r.removed.length })
-      } finally {
-        const cm = this.cm.prune(now)
-        if (cm.removed.length > 0) this.logFn('info', 'session maintenance removed expired context-mode data', { removed: cm.removed.length })
-      }
+      const r = this.maintFn(now, [...this.sessions.keys()])
+      if (r.removed.length > 0) this.logFn('info', 'session maintenance removed idle state', { removed: r.removed.length })
     } catch (e) {
       this.logFn('warn', 'session maintenance failed', { error: errText(e) })
     }
@@ -619,8 +607,7 @@ export class BuracleRuntime {
 
   private sessionHealth(sid: string | undefined): McpHealth {
     const health = this.health.get()
-    const h = sid !== undefined && paths.isValidSessionId(sid) ? sessionHealth(this.ledger, sid, health) : health
-    return this.cfg().contextMode.enabled ? h : withDisabledServers(h, [CM_SERVER_ID])
+    return sid !== undefined && paths.isValidSessionId(sid) ? sessionHealth(this.ledger, sid, health) : health
   }
 
   private reminderContext(s: SessionRuntime, call: ToolCall, cfg: BuracleConfig): ReminderContext {
@@ -649,14 +636,12 @@ export class BuracleRuntime {
     if (s.parentID === undefined) await this.resolveParent(s)
     if (this.isSubagent(s)) return
     if (flowDef(id) !== undefined) recordFlowStart(HARNESS, s.sid, { workflow: id, source: 'skill' }, now)
-    this.spool(s.sid, skillSignalEntries(id, now))
   }
 
   onToolBefore(e: ToolExecuteBefore): void {
     this.prunePending()
     const pending: PendingCall = { tool: e.tool, input: e.input, sessionID: e.sessionID, at: this.now() }
     this.calls.set(e.id, pending)
-    if (isCmToolName(e.tool)) pending.cm = this.cmGuard(e.tool, e.input, e.sessionID, e.agent)
     const s = this.session(e.sessionID)
     this.touch(s)
     if (typeof e.agent === 'string' && e.agent !== '') s.agent = e.agent
@@ -731,7 +716,7 @@ export class BuracleRuntime {
   }
 
   private mcpWriteVerdict(call: ToolCall, cfg: BuracleConfig): { deny?: string } {
-    if (call.kind !== 'mcp' || cmCall(call) !== undefined) return {}
+    if (call.kind !== 'mcp') return {}
     const targets = mcpWritePaths(call.tool, call.input, call.mcp)
     return targets.length > 0 ? checkWrite(targets, this.writeContext(call.cwd, cfg)) : {}
   }
@@ -750,34 +735,7 @@ export class BuracleRuntime {
     }
   }
 
-  private cmGuard(tool: string, input: unknown, sid: string, agent: string | undefined): CmGuardVerdict {
-    const cwd = this.ctx.location.directory
-    return cmGuardVerdict(() => this.callOf(tool, input, sid), {
-      agent,
-      sandbox: () => {
-        const cfg = this.cfg()
-        return { bash: this.bashOptions(cwd, cfg), write: this.writeContext(cwd, cfg), serverDir: this.cm.serverDir() }
-      },
-      ...(paths.isValidSessionId(sid) ? { consent: (commands: string[]) => consentGateAll(HARNESS, sid, commands, this.now()) } : {}),
-      consentFailure: hookFailure(this.baked, 'H20'),
-      onError: (hook, error) => this.logFn('error', `${hook} context-mode guard failed`, { tool, error: errText(error) }),
-      lane: typeof this.sessions.get(sid)?.parentID === 'string',
-    })
-  }
-
-  private cmEvaluate(e: PermissionEvaluation): CmDenial | undefined {
-    try {
-      if (!isCmToolName(e.action)) return undefined
-      const pending = e.source?.type === 'tool' ? this.calls.get(e.source.id) : undefined
-      if (pending === undefined) return cmUnseenDenial(e.action)
-      pending.cm ??= this.cmGuard(e.action, pending.input, pending.sessionID, e.agent)
-      return pending.cm.deny
-    } catch (err) {
-      return { reason: `the guard could not evaluate this context-mode call (${errText(err)}), so it was blocked to stay safe. Run \`buracle doctor opencode\`.`, hook: 'H01' }
-    }
-  }
-
-  private denyCall(e: PermissionEvaluation, denied: CmDenial, sid: string, tool: string): void {
+  private denyCall(e: PermissionEvaluation, denied: Denial, sid: string, tool: string): void {
     e.effect = 'deny'
     e.message = denyMessage(denied.hook, denied.reason)
     const pending = e.source?.type === 'tool' ? this.calls.get(e.source.id) : undefined
@@ -798,12 +756,10 @@ export class BuracleRuntime {
   onEvaluate(e: PermissionEvaluation): void {
     if (e.effect === 'deny') return
     const before = e.effect
-    const cm = this.cmEvaluate(e)
-    if (cm !== undefined) return this.denyCall(e, cm, e.sessionID, e.action)
     const call = this.buildCall(e)
     if (call === undefined) return
     const cfg = this.cfg()
-    let denied: { reason: string, hook: HookId } | undefined
+    let denied: Denial | undefined
     if (call.kind === 'bash') {
       const command = call.command ?? ''
       if (command !== '') denied = this.guard('H01', () => checkBash(command, this.bashOptions(call.cwd, cfg)))
@@ -892,10 +848,9 @@ export class BuracleRuntime {
     const denied = verdict?.deny !== undefined || pending?.denied === true
     if (!denied && s.parentID === null) this.receipts.tool(s.sid, e, { kind: cls.kind, paths: cls.paths, cwd, home: this.env.home, ...(cls.command !== undefined ? { command: cls.command } : {}) })
     const server = cls.kind === 'mcp' ? cls.mcp?.server : undefined
-    if (server !== undefined && !denied && paths.isValidSessionId(e.sessionID)) recordMcpResult(this.ledger, e.sessionID, server, e.status === 'completed', cls.mcp?.tool)
+    if (server !== undefined && !denied && paths.isValidSessionId(e.sessionID)) recordMcpResult(this.ledger, e.sessionID, server, e.status === 'completed')
     if (e.status === 'completed') this.maskResult(e, cls.kind)
     else this.maskError(e, cls.kind)
-    if (!denied) await this.cmToolResult(s, e)
     if (!denied && e.tool === 'question' && e.status === 'completed') await this.answerReceipt(s, e.input, e.result)
 
     if (e.status !== 'completed') return
@@ -952,16 +907,6 @@ export class BuracleRuntime {
       const count = maskedError(e.error)
       if (count > 0) this.logFn('info', maskNotice(count), { tool: e.tool, failed: true })
     } catch (err) { this.logFn('warn', 'mask failed', { tool: e.tool, error: errText(err) }) }
-  }
-
-  private async cmToolResult(s: SessionRuntime, e: ToolExecuteAfter): Promise<void> {
-    try {
-      if (this.cm.blocked(s.capture) !== undefined) return
-      const ev = this.cm.toolEvent(e.status === 'completed' ? { tool: e.tool, input: e.input, status: e.status, result: e.result } : { tool: e.tool, input: e.input, status: e.status, error: e.error })
-      if (ev === undefined) return
-      if (s.parentID === undefined) await this.resolveParent(s)
-      if (!this.isSubagent(s)) this.cm.tool(s.sid, ev, s.capture)
-    } catch (err) { this.logFn('warn', 'context-mode capture failed', { sid: s.sid, error: errText(err) }) }
   }
 
   private async answerReceipt(s: SessionRuntime, input: unknown, result: ToolResultShape): Promise<void> {
@@ -1056,8 +1001,6 @@ export class BuracleRuntime {
         if (text !== undefined && text.trim() !== '') parts.push(text)
       } catch (err) { this.logFn('warn', 'restoreContext failed', { error: errText(err) }) }
     }
-    const cmRestore = await this.cmRequestText(s)
-    if (cmRestore !== undefined) parts.push(cmRestore)
     const notice = await this.sessionNotice(s)
     if (notice !== undefined) parts.push(notice)
     const watch = contextWatch(s.ctxWarned, s.ctx?.pct, cfg.context)
@@ -1092,24 +1035,7 @@ export class BuracleRuntime {
   }
 
   private resumed(s: SessionRuntime): boolean {
-    return s.createdAt !== undefined && s.createdAt <= this.startedAt - CM_RESUME_AFTER_MS
-  }
-
-  private async cmRequestText(s: SessionRuntime): Promise<string | undefined> {
-    try {
-      await this.cmResume(s)
-      return this.isSubagent(s) ? undefined : await this.cm.requestText(s.sid, s.capture)
-    } catch (err) {
-      this.logFn('warn', 'context-mode restore failed', { sid: s.sid, error: errText(err) })
-      return undefined
-    }
-  }
-
-  private async cmResume(s: SessionRuntime): Promise<void> {
-    if (!paths.isValidSessionId(s.sid) || this.cm.blocked(s.capture) !== undefined) return
-    if (s.parentID === undefined) await this.resolveParent(s)
-    if (this.isSubagent(s) || !this.resumed(s)) return
-    await this.cm.resume(s.sid, s.capture)
+    return s.createdAt !== undefined && s.createdAt <= this.startedAt - RESUME_AFTER_MS
   }
 
   private deliverPrompts(s: SessionRuntime, messages: unknown, cfg: BuracleConfig, readOnly: boolean): void {
@@ -1125,7 +1051,6 @@ export class BuracleRuntime {
   async onCompaction(e: SessionCompactionEvent): Promise<void> {
     const s = this.session(e.sessionID)
     this.touch(s)
-    const snapshot = this.cmSnapshot(s)
     const state = loadState(HARNESS, s.sid)
     try {
       const text = compactInstructions(undefined, state)
@@ -1133,22 +1058,6 @@ export class BuracleRuntime {
     } catch (err) { this.logFn('warn', 'compactInstructions failed', { error: errText(err) }) }
     if (s.parentID === undefined) await this.resolveParent(s)
     if (!this.isSubagent(s)) await this.writeHandoff(s, state)
-    if (s.capture && !this.isSubagent(s)) {
-      try { this.memory.compact?.(s.sid) } catch (err) { this.logFn('warn', 'memory tick not woken', { error: errText(err) }) }
-    }
-    const summary = await snapshot
-    if (summary !== undefined) e.system.push({ type: 'text', text: summary })
-  }
-
-  private async cmSnapshot(s: SessionRuntime): Promise<string | undefined> {
-    try {
-      if (this.cm.blocked(s.capture) !== undefined) return undefined
-      if (s.parentID === undefined) await this.resolveParent(s)
-      return this.isSubagent(s) ? undefined : await this.cm.compacting(s.sid, s.capture)
-    } catch (err) {
-      this.logFn('warn', 'context-mode snapshot failed', { sid: s.sid, error: errText(err) })
-      return undefined
-    }
   }
 
   private async writeHandoff(s: SessionRuntime, state: SessionState): Promise<void> {
@@ -1184,12 +1093,10 @@ export class BuracleRuntime {
     if (!s.running) this.receipts.prompt(s.sid)
     const excerpt = spoolPromptExcerpt(text)
     this.spool(s.sid, [{ ts: at, ev: 'prompt', ...(excerpt !== undefined ? { excerpt } : {}) }])
-    try { this.memory.prompt?.(s.sid) } catch (e) { this.logFn('warn', 'memory tick not woken', { error: errText(e) }) }
+    try { this.memory.prompt?.(s.sid) } catch (e) { this.logFn('warn', 'session record not touched', { error: errText(e) }) }
     const cfg = this.cfg()
     const cmd = commandOfPrompt(meta, text)
     const words = cmd !== undefined ? cmd.args : text
-    this.cm.prompt(s.sid, routeInputText(words, cmd?.command), s.capture)
-    this.track(this.cmResume(s).catch(err => this.logFn('warn', 'context-mode resume failed', { sid: s.sid, error: errText(err) })))
     try { recordPromptGrants(HARNESS, s.sid, words, at) } catch (err) { this.logFn('warn', 'consent grants failed', { error: errText(err) }) }
     let guidance = promptPlanInteraction(s.sid, words, { autoPause: cfg.plan.autoPause, now: at }, this.logFn)
     try { guidance = [guidance, reviewNotesNotice(HARNESS, s.sid, { plan: loadState(HARNESS, s.sid).plan?.path, roots: [(await this.workspaceOf(s))?.root, this.cwdOf(s)], now: at })].filter(x => x !== undefined).join('\n\n') || undefined } catch (err) { this.logFn('warn', 'review notes notice failed', { error: errText(err) }) }
@@ -1227,7 +1134,7 @@ export class BuracleRuntime {
       const source: FlowSource = workflow === command ? 'command' : 'prompt'
       recordFlowStart(HARNESS, s.sid, title !== undefined ? { workflow, title, source } : { workflow, source }, at)
     }
-    this.spool(s.sid, promptSignalEntries(routeInputText(words, command), { skills: [...attached, ...route.attach], workflows: route.workflows }, at))
+    this.spool(s.sid, promptSignalEntries(routeInputText(words, command), at))
     return route
   }
 
@@ -1273,7 +1180,6 @@ export class BuracleRuntime {
         const parent = str(data['parentID'])
         s.parentID = parent ?? null
         if (s.parentID === null) this.touch(s)
-        if (s.parentID === null) this.cm.startup(sid, s.capture)
         if (paths.isValidSessionId(sid)) void this.ensureWorkspace(s)
         return
       }
@@ -1347,7 +1253,6 @@ export class BuracleRuntime {
       case 'session.idle': {
         const s = this.session(sid)
         s.running = false
-        this.cm.flush(sid)
         if (typeof s.parentID === 'string') this.sessions.get(s.parentID)?.background?.delete(`subagent:${sid}`)
         if (s.handledGen === s.gen) return
         s.handledGen = s.gen
@@ -1364,7 +1269,6 @@ export class BuracleRuntime {
         s.running = false
         s.interrupts++
         resetChain(sid)
-        this.cm.flush(sid)
         this.track(this.turnEnded(s, 'interrupted'))
         return
       }
@@ -1372,7 +1276,6 @@ export class BuracleRuntime {
         const s = this.session(sid)
         s.running = false
         s.failures++
-        this.cm.flush(sid)
         this.track(this.turnEnded(s, 'failed'))
         return
       }
@@ -1384,19 +1287,12 @@ export class BuracleRuntime {
         s.memoryIndex = undefined
         s.memoryIndexLoading = undefined
         this.persist(s)
-        this.track(this.cmCompacted(s, true))
-        return
-      }
-      case 'session.compaction.failed': {
-        const s = this.sessions.get(sid)
-        if (s !== undefined) this.track(this.cmCompacted(s, false))
         return
       }
       case 'session.deleted': {
         const s = this.sessions.get(sid)
         this.cancelIdleFinalize(s)
         this.sessions.delete(sid)
-        this.cm.forget(sid)
         this.receipts.forget(sid)
         registry().chains.delete(sid)
         if (s !== undefined && s.parentID !== null && s.parentID !== undefined) return
@@ -1406,15 +1302,6 @@ export class BuracleRuntime {
       default:
         return
     }
-  }
-
-  private async cmCompacted(s: SessionRuntime, ended: boolean): Promise<void> {
-    try {
-      if (s.parentID === undefined) await this.resolveParent(s)
-      if (this.isSubagent(s)) return
-      if (ended) this.cm.compacted(s.sid, s.capture)
-      else this.cm.compactionFailed(s.sid)
-    } catch (err) { this.logFn('warn', 'context-mode restore after compaction failed', { sid: s.sid, error: errText(err) }) }
   }
 
   private turnSpool(s: SessionRuntime): void {

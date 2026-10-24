@@ -1,8 +1,7 @@
 import type { BuracleConfig } from '../../../core/config'
 import type { StopDecision, ToolCall } from '../../../core/events'
 import { flowDef } from '../../../core/flow/catalog'
-import type { ProfileSignal } from '../../../core/memory/profile'
-import { profileSignalsFromPrompt, profileUsageSignal } from '../../../core/memory/profile'
+import { promptSignals } from '../../../core/memory/signals'
 import type { SpoolEntry } from '../../../core/memory/spool'
 import type { McpHealth, RoutingPolicy } from '../../../core/policy/routing'
 import type { CompiledTriggers, PromptRoute } from '../../../core/policy/skill-router'
@@ -118,28 +117,8 @@ export function runTitle(words: string): string | undefined {
   return line !== undefined && line !== '' ? line : undefined
 }
 
-export function promptSignalEntries(text: string, used: { skills: readonly string[], workflows: readonly string[] }, now: number): SpoolEntry[] {
-  const signals: ProfileSignal[] = []
-  try { signals.push(...profileSignalsFromPrompt(text)) } catch {  }
-  for (const id of used.skills) { const s = profileUsageSignal('skill', id); if (s !== undefined) signals.push(s) }
-  for (const id of used.workflows) { const s = profileUsageSignal('workflow', id); if (s !== undefined) signals.push(s) }
-  const seen = new Set<string>()
-  const out: SpoolEntry[] = []
-  for (const signal of signals) {
-    if (seen.has(signal.key)) continue
-    seen.add(signal.key)
-    out.push({ ts: now, ev: 'signal', signal })
-  }
-  return out
-}
-
-export function skillSignalEntries(id: string, now: number): SpoolEntry[] {
-  const out: SpoolEntry[] = []
-  const s = profileUsageSignal('skill', id)
-  if (s !== undefined) out.push({ ts: now, ev: 'signal', signal: s })
-  const w = flowDef(id) !== undefined ? profileUsageSignal('workflow', id) : undefined
-  if (w !== undefined) out.push({ ts: now, ev: 'signal', signal: w })
-  return out
+export function promptSignalEntries(text: string, now: number): SpoolEntry[] {
+  try { return promptSignals(text).map(signal => ({ ts: now, ev: 'prompt-signal' as const, signal })) } catch { return [] }
 }
 
 export interface LedgerStore {
@@ -185,10 +164,10 @@ export function sessionHealth(store: LedgerStore, sid: string, health: McpHealth
   try { return sessionMcpHealth(health, store.load(sid)) } catch { return health }
 }
 
-export function recordMcpResult(store: LedgerStore, sid: string, server: string, ok: boolean, tool?: string): void {
+export function recordMcpResult(store: LedgerStore, sid: string, server: string, ok: boolean): void {
   try {
     if (ok && store.load(sid).mcpErrors?.[server] === undefined) return
-    store.update(sid, l => ledgerMcpResult(l, server, ok, tool))
+    store.update(sid, l => ledgerMcpResult(l, server, ok))
   } catch {  }
 }
 

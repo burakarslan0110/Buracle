@@ -142,30 +142,39 @@ describe('spoolSanitize bounds the redaction work', () => {
   })
 })
 
-describe('signal entries', () => {
-  test('a valid signal is kept (quote redacted and capped), an invalid one drops the entry', () => {
-    const r = spoolSanitize({ ts: 1, ev: 'signal', signal: { kind: 'statement', key: 'said:deploy-fridays', polarity: -1, text: 'Never deploy on Fridays', quote: `never deploy with ghp_${'a'.repeat(36)} on Fridays ${'x'.repeat(300)}` } })
+describe('prompt-signal entries', () => {
+  test('a valid statement is kept (quote redacted and capped), an invalid one drops the entry', () => {
+    const r = spoolSanitize({ ts: 1, ev: 'prompt-signal', signal: { kind: 'statement', key: 'said:deploy-fridays', polarity: -1, text: 'Never deploy on Fridays', quote: `never deploy with ghp_${'a'.repeat(36)} on Fridays ${'x'.repeat(300)}` } })
     expect(r.entry?.signal).toMatchObject({ kind: 'statement', key: 'said:deploy-fridays', polarity: -1, text: 'Never deploy on Fridays' })
     expect(r.entry?.signal?.quote).toHaveLength(160)
     expect(r.entry?.signal?.quote).not.toContain('ghp_aaaa')
     expect(r.redactions.count).toBe(1)
-    expect(spoolSanitize({ ts: 1, ev: 'signal', signal: { kind: 'nope', key: 'x' } }).entry).toBeUndefined()
-    expect(spoolSanitize({ ts: 1, ev: 'signal' }).entry).toBeUndefined()
-    expect(spoolSanitize({ ts: 1, ev: 'tool', signal: { kind: 'usage', key: 'usage.mcp=x' } }).entry).toEqual({ ts: 1, ev: 'tool' })
+    expect(spoolSanitize({ ts: 1, ev: 'prompt-signal', signal: { kind: 'nope', key: 'x' } }).entry).toBeUndefined()
+    expect(spoolSanitize({ ts: 1, ev: 'prompt-signal', signal: { kind: 'statement', key: 'Bad Key' } }).entry).toBeUndefined()
+    expect(spoolSanitize({ ts: 1, ev: 'prompt-signal' }).entry).toBeUndefined()
   })
 
-  test('the digest collects signals, tool counts, command heads and the last test result; signals alone are an empty session', () => {
+  test('only statements are signals: the old usage and style kinds and the old `signal` event are dropped', () => {
+    expect(spoolSanitize({ ts: 1, ev: 'prompt-signal', signal: { kind: 'usage', key: 'usage.mcp=x' } }).entry).toBeUndefined()
+    expect(spoolSanitize({ ts: 1, ev: 'prompt-signal', signal: { kind: 'style', key: 'style.prompt_language=en' } }).entry).toBeUndefined()
+    expect(spoolSanitize({ ts: 1, ev: 'signal', signal: { kind: 'statement', key: 'said:deploy-fridays' } }).entry).toBeUndefined()
+    expect(spoolParse(`${JSON.stringify({ ts: 1, ev: 'signal', signal: { kind: 'statement', key: 'said:deploy-fridays' } })}\n`)).toEqual([])
+    expect(spoolSanitize({ ts: 1, ev: 'tool', signal: { kind: 'statement', key: 'said:x-y' } }).entry).toEqual({ ts: 1, ev: 'tool' })
+  })
+
+  test('the digest collects statements, tool counts, command heads and the last test result; statements alone are an empty session', () => {
+    const statement = { kind: 'statement', key: 'said:deploy-fridays', polarity: -1, text: 'Never deploy on Fridays' } as const
     const d = spoolDigest([
-      { ts: 3, ev: 'signal', signal: { kind: 'usage', key: 'usage.workflow=plan-build' } },
+      { ts: 3, ev: 'prompt-signal', signal: statement },
       { ts: 1, ev: 'tool', tool: 'Bash', kind: 'bash', cmd: 'cd x && FOO=1 bun test; sudo npm i -g y', exit: 1 },
       { ts: 2, ev: 'tool', tool: 'mcp__semble__search', kind: 'mcp' },
       { ts: 4, ev: 'tool', tool: '__proto__', kind: 'other' },
     ])
-    expect(d.signals).toEqual([{ ts: 3, signal: { kind: 'usage', key: 'usage.workflow=plan-build' } }])
+    expect(d.signals).toEqual([{ ts: 3, signal: statement }])
     expect(d.toolCounts).toEqual({ Bash: 1, 'mcp__semble__search': 1 })
     expect(d.commandHeads).toEqual({ 'cd x': 1, 'bun test': 1, 'npm i': 1 })
     expect(d.lastTestExit).toBe(1)
-    expect(spoolIsEmptySession(spoolDigest([{ ts: 1, ev: 'signal', signal: { kind: 'style', key: 'style.prompt_language=en' } }]))).toBe(true)
+    expect(spoolIsEmptySession(spoolDigest([{ ts: 1, ev: 'prompt-signal', signal: { kind: 'statement', key: 'communication.emoji=never' } }]))).toBe(true)
     expect(spoolCommandHeads('git -C repo commit -m x | tee log')).toEqual(['git -c', 'tee log'])
   })
 })

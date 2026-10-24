@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
-  brainStartText, cortexImportance, decodeBody, encodeContent, fromCortex, isLive, memoryIdFor, pruneCandidates, regionSummaries,
-  duplicateTwins, searchTerms, similarMemories, sourcePath, TERMS_OPEN, toCortexSave, upkeepFindings, utf8Length, type MemItem,
+  brainStartText, cortexImportance, decodeBody, encodeContent, fromCortex, HANDOFF_KEEP_MS, hitLine, isLive, memLocked, memoryIdFor, memProtected,
+  regionSummaries, searchTerms, SESSION_KEEP_MS, similarMemories, sourcePath, TERMS_OPEN, toCortexSave, ttlSeconds, utf8Length, type MemItem,
 } from '../../../src/core/memory/brain'
 
 const NOW = Date.parse('2026-10-13T12:00:00Z')
@@ -80,99 +80,7 @@ describe('liveness and duplicates', () => {
   })
 })
 
-describe('upkeep', () => {
-  const facts = (over: Partial<Parameters<typeof upkeepFindings>[1]> = {}) => ({ nowMs: NOW, missing: new Set<string>(), changed: new Map<string, string[]>(), ...over })
-
-  test('each reason is found and comes with an action', () => {
-    const items = [
-      item({ id: 'capture-a', kind: 'capture', title: 'remember this', review: 'pending' }),
-      item({ id: 'gotcha-gone', kind: 'gotcha', title: 'Gone file', sources: ['src/gone.ts:4'] }),
-      item({ id: 'knowledge-changed', kind: 'knowledge', title: 'Changed file', sources: ['src/a.ts'] }),
-      item({ id: 'decision-new', title: 'Fresh unverified', review: 'pending', created: iso(NOW - 60_000), updated: iso(NOW - 60_000) }),
-      item({ id: 'decision-old', title: 'Old unverified', review: 'pending', created: iso(NOW - DAY) }),
-      item({ id: 'procedure-stale', kind: 'procedure', title: 'Stale procedure', verifiedAt: iso(NOW - 200 * DAY) }),
-    ]
-    const out = upkeepFindings(items, facts({ missing: new Set(['src/gone.ts']), changed: new Map([['knowledge-changed', ['src/a.ts']]]) }))
-    const reasons = Object.fromEntries(out.map(u => [u.id, u.reasons]))
-    expect(reasons['capture-a']).toEqual(['capture'])
-    expect(reasons['gotcha-gone']).toEqual(['source-missing'])
-    expect(reasons['knowledge-changed']).toEqual(['source-changed'])
-    expect(reasons['decision-old']).toEqual(['unverified'])
-    expect(reasons['decision-new']).toBeUndefined()
-    expect(reasons['procedure-stale']).toEqual(['stale'])
-    for (const u of out) expect(u.action.length).toBeGreaterThan(10)
-    expect(out[0]?.id).toBe('gotcha-gone')
-  })
-
-  test('duplicateTwins pairs memories across inflections through the title-word index and never core pages or captures', () => {
-    const twins = duplicateTwins([
-      item({ id: 'decision-a', kind: 'decision', title: 'Orders are stored in CockroachDB' }),
-      item({ id: 'decision-b', kind: 'decision', title: 'The orders are stored in CockroachDB now' }),
-      item({ id: 'gotcha-c', kind: 'gotcha', title: 'Memories are listed newest first' }),
-      item({ id: 'gotcha-d', kind: 'gotcha', title: 'Memory listing is newest first' }),
-      item({ id: 'core-brief', kind: 'core', title: 'Orders are stored in CockroachDB' }),
-      item({ id: 'capture-e', kind: 'capture', title: 'Orders are stored in CockroachDB' }),
-      item({ id: 'knowledge-f', kind: 'knowledge', title: 'Deploys go out on Tuesdays' }),
-    ], NOW)
-    expect(twins.get('decision-a')).toBe('decision-b')
-    expect(twins.get('decision-b')).toBe('decision-a')
-    expect(twins.get('gotcha-c')).toBe('gotcha-d')
-    expect(twins.has('core-brief')).toBe(false)
-    expect(twins.has('capture-e')).toBe(false)
-    expect(twins.has('knowledge-f')).toBe(false)
-  })
-
-  test('two memories with the same claim are one duplicate item with its twin', () => {
-    const out = upkeepFindings([
-      item({ id: 'decision-a', title: 'Orders live in PostgreSQL', summary: 'orders in postgres' }),
-      item({ id: 'decision-b', title: 'Orders live in PostgreSQL', summary: 'orders in postgres' }),
-    ], facts())
-    expect(out).toHaveLength(1)
-    expect(out[0]?.reasons).toEqual(['duplicate'])
-    expect(['decision-a', 'decision-b']).toContain(out[0]?.twin as string)
-  })
-
-  test('a settled memory is quiet whatever the verifier reason, also when its files changed since it was verified; other reasons stay loud', () => {
-    const out = upkeepFindings([
-      item({ id: 'knowledge-old', kind: 'knowledge', title: 'old', review: 'pending', created: iso(NOW - 9 * DAY) }),
-      item({ id: 'gotcha-moved', kind: 'gotcha', title: 'moved', sources: ['src/a.ts'] }),
-      item({ id: 'decision-wrong', kind: 'decision', title: 'wrong', review: 'pending', created: iso(NOW - 9 * DAY), contradictedAt: iso(NOW - DAY) }),
-      item({ id: 'knowledge-gone', kind: 'knowledge', title: 'gone', sources: ['src/gone.ts', 'src/a.ts'] }),
-    ], facts({ settled: new Set(['knowledge-old', 'gotcha-moved', 'decision-wrong', 'knowledge-gone']), missing: new Set(['src/gone.ts']), changed: new Map([['gotcha-moved', ['src/a.ts']], ['knowledge-gone', ['src/a.ts']]]) }))
-    expect(out.find(u => u.id === 'knowledge-old')).toMatchObject({ reasons: ['unverified'], quiet: true })
-    expect(out.find(u => u.id === 'gotcha-moved')).toMatchObject({ reasons: ['source-changed'], quiet: true })
-    expect(out.find(u => u.id === 'decision-wrong')?.quiet).toBeUndefined()
-    expect(out.find(u => u.id === 'knowledge-gone')?.quiet).toBeUndefined()
-  })
-
-  test('only project memories of the kinds the verifier checks are unverified or stale: nothing would ever check the others', () => {
-    const old = { created: iso(NOW - 9 * DAY), updated: iso(NOW - 9 * DAY) }
-    const out = upkeepFindings([
-      item({ id: 'preference-tabs', kind: 'preference', layer: 'person', title: 'Tabs over spaces', review: 'pending', ...old }),
-      item({ id: 'knowledge-person', kind: 'knowledge', layer: 'person', title: 'A crash-aware client restarts its helper', review: 'pending', ...old }),
-      item({ id: 'decision-person-old', kind: 'decision', layer: 'person', title: 'Old person decision', verifiedAt: iso(NOW - 200 * DAY) }),
-      item({ id: 'core-progress', kind: 'core', title: 'Progress', review: 'pending', ...old }),
-      item({ id: 'core-architecture', kind: 'core', title: 'Architecture', verifiedAt: iso(NOW - 200 * DAY) }),
-      item({ id: 'gotcha-project', kind: 'gotcha', title: 'A project gotcha', review: 'pending', ...old }),
-    ], facts())
-    expect(out.map(u => [u.id, u.reasons])).toEqual([['gotcha-project', ['unverified']]])
-  })
-
-  test('a pair marked distinct is not a duplicate', () => {
-    const pair = [item({ id: 'decision-a', title: 'Orders live in PostgreSQL', summary: 'orders in postgres' }), item({ id: 'decision-b', title: 'Orders live in PostgreSQL', summary: 'orders in postgres' })]
-    expect(upkeepFindings(pair, facts()).map(u => u.reasons)).toEqual([['duplicate']])
-    expect(upkeepFindings(pair, facts({ distinct: new Set(['decision-a|decision-b']) }))).toEqual([])
-  })
-
-  test('a decision kept although the code disagrees is quiet while nothing else is wrong with it', () => {
-    const out = upkeepFindings([item({ id: 'decision-kept', kind: 'decision', title: 'kept', review: 'pending', created: iso(NOW - 9 * DAY), tags: ['code-disagrees'] })], facts())
-    expect(out.find(u => u.id === 'decision-kept')).toMatchObject({ reasons: ['unverified'], quiet: true })
-  })
-
-  test('generated memories are never upkeep', () => {
-    expect(upkeepFindings([item({ id: 'session-x', kind: 'session', title: 's', review: 'pending', created: iso(NOW - 9 * DAY) })], facts())).toEqual([])
-  })
-
+describe('source paths', () => {
   test('sourcePath keeps repository paths only', () => {
     expect(sourcePath('src/a.ts:10-20')).toBe('src/a.ts')
     expect(sourcePath('docs/DESIGN.md:68,343-344')).toBe('docs/DESIGN.md')
@@ -185,49 +93,106 @@ describe('upkeep', () => {
     expect(sourcePath('/abs/path.ts')).toBeUndefined()
     expect(sourcePath('README')).toBeUndefined()
   })
-
-  test('a pending memory a background check contradicted comes first, with its note as one clipped line', () => {
-    const out = upkeepFindings([
-      item({ id: 'gotcha-gone', kind: 'gotcha', title: 'Gone file', sources: ['src/gone.ts'] }),
-      item({ id: 'decision-wrong', title: 'Wrong claim', review: 'pending', created: iso(NOW - DAY), contradictedAt: iso(NOW - 60_000), contradictedNote: `the code says otherwise\n${'x'.repeat(400)}` }),
-      item({ id: 'decision-fixed', title: 'Fixed claim', review: 'ok', contradictedAt: iso(NOW - DAY) }),
-    ], facts({ missing: new Set(['src/gone.ts']) }))
-    expect(out.map(u => u.id)).toEqual(['decision-wrong', 'gotcha-gone'])
-    const [first] = out
-    expect(first?.reasons).toEqual(['contradicted'])
-    expect(first?.action).toContain('contradicted by the code')
-    expect(first?.note?.startsWith('the code says otherwise x')).toBe(true)
-    expect(first?.note).not.toContain('\n')
-    expect((first?.note ?? '').length).toBeLessThanOrEqual(200)
-  })
-
-  test('the unverified grace counts from the last change, not from the creation', () => {
-    const old = { review: 'pending' as const, created: iso(NOW - 10 * DAY) }
-    const out = upkeepFindings([
-      item({ id: 'decision-rewritten', title: 'Rewritten an hour ago', ...old, updated: iso(NOW - 3600_000) }),
-      item({ id: 'decision-untouched', title: 'Untouched for a week', ...old, updated: iso(NOW - 7 * DAY) }),
-    ], facts())
-    expect(out.map(u => [u.id, u.reasons])).toEqual([['decision-untouched', ['unverified']]])
-  })
-
 })
 
-describe('pruning', () => {
-  test('expired, long-retired and surplus episodes go; pinned ones stay', () => {
-    const items: MemItem[] = [
-      item({ id: 'session-old', kind: 'session', title: 's', expires: iso(NOW - 1) }),
-      item({ id: 'decision-retired', title: 'r', status: 'superseded', supersededAt: iso(NOW - 31 * DAY) }),
-      item({ id: 'decision-recent', title: 'r2', status: 'deprecated', deprecatedAt: iso(NOW - 5 * DAY) }),
-      item({ id: 'gotcha-pinned', kind: 'gotcha', title: 'p', status: 'deprecated', deprecatedAt: iso(NOW - 90 * DAY), pinned: true }),
-      ...Array.from({ length: 42 }, (_, i) => item({ id: `session-${i}`, kind: 'session', title: `s${i}`, created: iso(NOW - i * 60_000) })),
-    ]
-    const out = pruneCandidates(items, NOW)
-    const ids = out.map(p => p.id)
-    expect(ids).toContain('session-old')
-    expect(ids).toContain('decision-retired')
-    expect(ids).not.toContain('decision-recent')
-    expect(ids).not.toContain('gotcha-pinned')
-    expect(out.filter(p => p.reason === 'excess-session').map(p => p.id).sort()).toEqual(['session-40', 'session-41'])
+describe('native expiry', () => {
+  const session = (expires?: string) => item({ id: 'session-claude-abc123', kind: 'session', title: 'Session', author: 'buracle', ...(expires !== undefined ? { expires } : {}) })
+
+  test('an expires date becomes CortexDB ttl_seconds counted from now, rounded up, never below 1', () => {
+    expect(toCortexSave(session(iso(NOW + SESSION_KEEP_MS)), {}, NOW)['ttl_seconds']).toBe(45 * 86_400)
+    expect(toCortexSave(session(iso(NOW + HANDOFF_KEEP_MS)), {}, NOW)['ttl_seconds']).toBe(14 * 86_400)
+    expect(toCortexSave(session(iso(NOW + 1500)), {}, NOW)['ttl_seconds']).toBe(2)
+    expect(toCortexSave(session(iso(NOW - DAY)), {}, NOW)['ttl_seconds']).toBe(1)
+    expect(ttlSeconds(iso(NOW + 60_000), NOW)).toBe(60)
+  })
+
+  test('no ttl_seconds without an expires date, without a clock, or with a date that does not parse', () => {
+    expect(toCortexSave(session(), {}, NOW)).not.toHaveProperty('ttl_seconds')
+    expect(toCortexSave(session(iso(NOW + DAY)))).not.toHaveProperty('ttl_seconds')
+    expect(toCortexSave(session('someday'), {}, NOW)).not.toHaveProperty('ttl_seconds')
+    expect(ttlSeconds(undefined, NOW)).toBeUndefined()
+    expect(ttlSeconds(iso(NOW), undefined)).toBeUndefined()
+  })
+
+  test('the expiry also stays in the metadata: a session row reads back with its date, and the native field is not stored as metadata', () => {
+    const it = session(iso(NOW + SESSION_KEEP_MS))
+    const save = toCortexSave(it, {}, NOW)
+    expect(save['metadata']).toHaveProperty('expires', it.expires)
+    expect(save['metadata']).not.toHaveProperty('ttl_seconds')
+    const back = fromCortex({ id: save['memory_id'], content: save['content'], created_at: it.created, metadata: save['metadata'] }, 'project')
+    expect(back?.expires).toBe(it.expires)
+    expect(back).toEqual(it)
+    expect(isLive(back as MemItem, NOW + SESSION_KEEP_MS - 1)).toBe(true)
+    expect(isLive(back as MemItem, NOW + SESSION_KEEP_MS)).toBe(false)
+  })
+
+  test('a row written before native expiry (only a metadata expires date, no ttl) is hidden once the date has passed', () => {
+    const raw = (expires: string) => ({ id: 'handoff-old', content: 'Handoff', metadata: { buracle: 1, type: 'handoff', title: 'Handoff', expires } })
+    const passed = fromCortex(raw(iso(NOW - 1000)), 'project') as MemItem
+    expect(passed.expires).toBe(iso(NOW - 1000))
+    expect(isLive(passed, NOW)).toBe(false)
+    expect(isLive(fromCortex(raw(iso(NOW + 1000)), 'project') as MemItem, NOW)).toBe(true)
+  })
+})
+
+describe('origin and confidence', () => {
+  const stated = () => item({ id: 'preference-short', kind: 'preference', layer: 'person', title: 'Short answers', origin: 'explicit', confidence: 0.8 })
+  const read = (meta: Record<string, unknown>) => fromCortex({ id: 'preference-short', content: 'Short answers', metadata: { buracle: 1, type: 'preference', title: 'Short answers', ...meta } }, 'person') as MemItem
+
+  test('both survive the CortexDB round trip as the origin and confidence metadata keys', () => {
+    const save = toCortexSave(stated())
+    expect(save['metadata']).toMatchObject({ origin: 'explicit', confidence: 0.8 })
+    const back = fromCortex({ id: save['memory_id'], content: save['content'], created_at: stated().created, metadata: save['metadata'] }, 'person')
+    expect(back).toEqual(stated())
+    expect(read({ origin: 'inferred', confidence: 0 })).toMatchObject({ origin: 'inferred', confidence: 0 })
+    expect(read({ confidence: 1 }).confidence).toBe(1)
+  })
+
+  test('a memory without them stores neither key', () => {
+    const meta = toCortexSave(item({ id: 'decision-x', title: 'X' }))['metadata'] as Record<string, unknown>
+    expect(meta).not.toHaveProperty('origin')
+    expect(meta).not.toHaveProperty('confidence')
+    expect(read({})).not.toHaveProperty('origin')
+    expect(read({})).not.toHaveProperty('confidence')
+  })
+
+  test('an unknown origin and a confidence outside 0..1 or not a number are dropped, the rest of the row is kept', () => {
+    const bad = read({ origin: 'x', confidence: 2 })
+    expect(bad).not.toHaveProperty('origin')
+    expect(bad).not.toHaveProperty('confidence')
+    expect(bad.title).toBe('Short answers')
+    expect(read({ confidence: -0.1 })).not.toHaveProperty('confidence')
+    expect(read({ confidence: '0.5' })).not.toHaveProperty('confidence')
+    expect(read({ origin: 'EXPLICIT' })).not.toHaveProperty('origin')
+  })
+
+  test('hitLine flags an explicit memory and one a background check contradicted', () => {
+    expect(hitLine(item({ id: 'preference-a', kind: 'preference', layer: 'person', title: 'A', origin: 'explicit' }))).toEndWith('[person] (explicit)')
+    expect(hitLine(item({ id: 'decision-b', title: 'B', origin: 'inferred' }))).toEndWith('[project]')
+    expect(hitLine(item({ id: 'decision-c', title: 'C', review: 'pending', origin: 'explicit', contradictedAt: iso(NOW) }))).toEndWith('[project] (unverified, explicit, contradicts)')
+  })
+})
+
+describe('locked and protected memories', () => {
+  // [origin, pinned, review, locked, protected]
+  const table: Array<[MemItem['origin'], boolean | undefined, MemItem['review'], boolean, boolean]> = [
+    ['explicit', undefined, 'pending', true, true],
+    ['explicit', false, 'pending', true, true],
+    ['explicit', true, 'ok', true, true],
+    ['inferred', true, 'pending', true, true],
+    [undefined, true, 'pending', true, true],
+    ['inferred', undefined, 'ok', false, true],
+    [undefined, false, 'ok', false, true],
+    ['inferred', undefined, 'pending', false, false],
+    [undefined, undefined, 'pending', false, false],
+    [undefined, false, 'pending', false, false],
+  ]
+
+  test('locked is the user\'s own words or pinned; protected is locked or verified', () => {
+    for (const [origin, pinned, review, locked, prot] of table) {
+      const m = item({ id: 'preference-x', title: 'x', review, ...(origin !== undefined ? { origin } : {}), ...(pinned !== undefined ? { pinned } : {}) })
+      expect({ origin, pinned, review, locked: memLocked(m), protected: memProtected(m) }).toEqual({ origin, pinned, review, locked, protected: prot })
+    }
   })
 })
 
@@ -240,26 +205,42 @@ describe('the session-start text', () => {
   ]
   const person = [item({ id: 'preference-short', kind: 'preference', layer: 'person', title: 'Short answers' }), item({ id: 'gotcha-bun', kind: 'gotcha', layer: 'person', title: 'Bun gotcha' })]
 
-  test('profile, handoff, project and person parts in order, with ids', () => {
+  test('handoff, project and person parts in order, with ids; a person preference is listed like any other person memory', () => {
     const text = brainStartText({
-      nowMs: NOW, maxBytes: 9600, maxLines: 150, profile: ['- Short answers', '- Writes mostly in Turkish'],
+      nowMs: NOW, maxBytes: 9600, maxLines: 150,
       handoff: { id: 'handoff-x', branch: 'main' },
       project: { slug: 'demo', items: project }, person,
     })
     const at = (s: string) => text.indexOf(s)
-    expect(at('## How the user works')).toBeLessThan(at('Handoff'))
-    expect(at('Handoff')).toBeLessThan(at('## Project memory: demo'))
+    expect(text).not.toContain('How the user works')
     expect(text).not.toContain('upkeep')
+    expect(at('Handoff')).toBeLessThan(at('## Project memory: demo'))
     expect(at('## Project memory: demo')).toBeLessThan(at('## Person memory'))
     expect(text).toContain('(decision-a) (unverified)')
     expect(text).toContain('handoff-x')
     expect(text).toContain('(gotcha-bun)')
-    expect(text).not.toContain('(preference-short)')
+    expect(at('### Preferences')).toBeGreaterThan(at('## Person memory'))
+    expect(text).toContain('- Short answers (preference-short)')
+    expect(at('(preference-short)')).toBeLessThan(at('(gotcha-bun)'))
+  })
+
+  test('person preferences come before the other person kinds, and a retired one is not listed', () => {
+    const text = brainStartText({
+      nowMs: NOW, maxBytes: 9600, maxLines: 150,
+      person: [
+        item({ id: 'preference-old', kind: 'preference', layer: 'person', title: 'Old habit', status: 'deprecated' }),
+        item({ id: 'knowledge-k', kind: 'knowledge', layer: 'person', title: 'Some knowledge' }),
+        item({ id: 'preference-stated', kind: 'preference', layer: 'person', title: 'No emojis', origin: 'explicit', review: 'ok' }),
+      ],
+    })
+    expect(text).toContain('- No emojis (preference-stated)')
+    expect(text).not.toContain('preference-old')
+    expect(text.indexOf('preference-stated')).toBeLessThan(text.indexOf('knowledge-k'))
   })
 
   test('the text stays within its budget', () => {
     const many = Array.from({ length: 300 }, (_, i) => item({ id: `decision-${i}`, title: `Decision number ${i} with a long title to fill the room`, summary: 'x'.repeat(100) }))
-    const text = brainStartText({ nowMs: NOW, maxBytes: 2000, maxLines: 40, profile: [], project: { slug: 'demo', items: many }, person: [] })
+    const text = brainStartText({ nowMs: NOW, maxBytes: 2000, maxLines: 40, project: { slug: 'demo', items: many }, person: [] })
     expect(utf8Length(text)).toBeLessThanOrEqual(2001)
     expect(text.split('\n').length).toBeLessThanOrEqual(41)
   })

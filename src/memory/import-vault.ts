@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { basename, isAbsolute, join, relative, sep } from 'node:path'
-import { parse as parseYaml } from 'yaml'
+import { parseYaml } from '../engine/yaml'
 import { CORE_SECTIONS, coreId, isMemKind, memoryIdFor, type MemItem, type MemKind, type MemLayer } from '../core/memory/brain'
 import { memIsSlug, parseNote } from '../core/memory/note'
 import { memClip, memOneLine, redact } from '../core/memory/text'

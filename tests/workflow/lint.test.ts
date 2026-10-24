@@ -31,10 +31,9 @@ describe('buracle command mentions', () => {
     'buracle notify <type> "<title>"',
     'buracle skills list\\|new\\|lint',
     'buracle mem search|get|remember|status',
-    'buracle mem sweep --project <slug>',
+    'buracle mem capture --pending',
+    'buracle mem finalize',
     'buracle mem ui --open',
-    'buracle mem profile drop "<text>"',
-    'buracle mem profile --rebuild',
     'buracle config get plan.branchIsolation',
     'buracle doctor <harness>',
     'buracle install <h> --dry-run',
@@ -68,7 +67,7 @@ describe('buracle command mentions', () => {
     expect(bad('buracle config set a b')[0]).toContain("'buracle config set'")
     expect(bad('buracle mem obsidian status')[0]).toContain("'buracle mem obsidian'")
     expect(bad('buracle mem consolidate')[0]).toContain("'buracle mem consolidate'")
-    expect(bad('buracle mem profile rebuild')[0]).toContain("'buracle mem profile rebuild'")
+    for (const gone of ['sweep', 'heal', 'reflect', 'verify', 'jobs', 'tick', 'kick', 'profile drop "x"']) expect(bad(`buracle mem ${gone}`)[0]).toContain(`'buracle mem ${gone.split(' ')[0]}'`)
   })
 
   test('only real invocations count: paths, placeholders and prose are ignored; pipes end a command', () => {

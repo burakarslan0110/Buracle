@@ -45,7 +45,6 @@ function deps(over: Partial<HookDeps> = {}): Partial<HookDeps> {
     realpath: () => undefined,
     run: async () => ({ code: 0, stdout: '', stderr: '', timedOut: false }),
     prepareWorkspace: async () => undefined,
-    cmForward: async () => ({ action: 'none', skipped: 'test' }),
     ...over,
   }
 }
@@ -387,16 +386,48 @@ describe('UserPromptExpansion and UserPromptSubmit: H25 flow, H22 router, H24 le
     })
   })
 
-  test('H26: explicit rules become profile signals in the spool, unless capture or the profile is off', async () => {
+  test('H26: an explicit rule becomes a prompt-signal statement in the spool, unless capture is off; a workflow command or a question adds none', async () => {
     await withSandbox(async () => {
       const s = spoolStub()
       await claudeHook('UserPromptSubmit', prompt('From now on always write the failing test first.'), ctx(), deps({ importModule: s.importModule }))
       const entries = (s.appended[0]?.[2] ?? []) as Array<Record<string, unknown>>
       expect(entries[0]).toEqual({ ts: NOW, ev: 'prompt', excerpt: 'From now on always write the failing test first.' })
-      expect(entries.some(e => e['ev'] === 'signal' && (e['signal'] as { kind?: string }).kind === 'statement')).toBe(true)
+      expect(entries.slice(1).map(e => [e['ev'], (e['signal'] as { kind?: string }).kind, (e['signal'] as { text?: string }).text])).toEqual([['prompt-signal', 'statement', 'Always write the failing test first']])
+      const plain = spoolStub()
+      await claudeHook('UserPromptSubmit', prompt('/buracle:plan-build add rate limiting'), ctx(), deps({ importModule: plain.importModule }))
+      await claudeHook('UserPromptSubmit', prompt('Why does the parser fail on empty input?'), ctx(), deps({ importModule: plain.importModule }))
+      expect(plain.appended.flatMap(a => (a[2] as Array<Record<string, unknown>>).map(e => e['ev']))).toEqual(['prompt', 'prompt'])
       const u = spoolStub()
       await claudeHook('UserPromptSubmit', prompt('From now on always write the failing test first.'), ctx(), deps({ importModule: u.importModule, env: n => (n === 'BURACLE_NO_CAPTURE' ? '1' : undefined) }))
       expect(u.appended).toEqual([])
+    })
+  })
+
+  test('session start, a prompt and a compaction spawn nothing: the record is started and touched in-process and only SessionEnd starts the finalizer', async () => {
+    await withSandbox(async () => {
+      const calls: string[] = []
+      const spawned: string[] = []
+      const importModule: HookDeps['importModule'] = async name => {
+        if (name === 'finalize') {
+          return {
+            sessionStart: async (h: string, sid: string) => { calls.push(`start:${h}:${sid}`) },
+            promptSeen: (h: string, sid: string) => { calls.push(`seen:${h}:${sid}`) },
+            spawnFinalizer: (h: string, sid: string) => { calls.push(`finalize:${h}:${sid}`) },
+          }
+        }
+        if (name === 'handoff') return { writeHandoff: async () => ({ id: 'handoff-demo' }) }
+        return name === 'spool' ? { appendSpool: () => undefined } : undefined
+      }
+      const d = deps({ importModule, assetsSpawn: argv => { spawned.push(argv.join(' ')) } })
+      await claudeHook('SessionStart', payload('SessionStart', { source: 'startup' }), ctx(), d)
+      await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'From now on always write the failing test first.' }), ctx(), d)
+      await claudeHook('PreCompact', payload('PreCompact', { trigger: 'auto' }), ctx(), d)
+      await claudeHook('PostCompact', payload('PostCompact', { compact_summary: 'The parser is done.' }), ctx(), d)
+      await claudeHook('SessionStart', payload('SessionStart', { source: 'compact' }), ctx(), d)
+      expect(calls).toEqual([`start:claude:${SID}`, `seen:claude:${SID}`])
+      expect(spawned).toEqual([])
+      await claudeHook('SessionEnd', payload('SessionEnd', { reason: 'other' }), ctx(), d)
+      expect(calls).toEqual([`start:claude:${SID}`, `seen:claude:${SID}`, `finalize:claude:${SID}`])
     })
   })
 
@@ -488,14 +519,13 @@ describe('PreToolUse: H24 ledger, the H03 deny-once gates and the semble/codegra
 })
 
 describe('PostToolUse: H25 skill loads, H24 reads, H14 capture of web and MCP calls', () => {
-  test('reading a workflow\'s SKILL.md in the plugin (the router\'s instruction) starts it and counts it as loaded', async () => {
+  test('reading a workflow\'s SKILL.md in the plugin (the router\'s instruction) starts it and counts it as loaded; no usage signal is spooled', async () => {
     await withSandbox(async () => {
       const s = spoolStub()
       await claudeHook('PostToolUse', payload('PostToolUse', { tool_name: 'Read', tool_input: { file_path: join(PLUGIN, 'skills', 'plan-build', 'SKILL.md') }, tool_response: { type: 'text' } }), ctx(), deps({ importModule: s.importModule }))
       expect(readFlow('claude', SID)?.stack[0]).toMatchObject({ workflow: 'plan-build', source: 'skill' })
       expect(loadLedger('claude', SID).skills['plan-build']?.n).toBe(1)
-      const keys = ((s.appended[0]?.[2] ?? []) as Array<{ signal?: { key: string } }>).map(e => e.signal?.key)
-      expect(keys).toEqual(['usage.skill=plan-build', 'usage.workflow=plan-build'])
+      expect(s.appended.flatMap(a => (a[2] as Array<{ ev: string }>).map(e => e.ev)).filter(ev => ev === 'prompt-signal')).toEqual([])
       await claudeHook('PostToolUse', payload('PostToolUse', { tool_name: 'Read', tool_input: { file_path: join(REPO, 'README.md') }, tool_response: { type: 'text' } }), ctx(), deps())
       expect(loadLedger('claude', SID).turnTools.read).toContain(join(REPO, 'README.md'))
     })

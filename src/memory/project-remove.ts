@@ -3,11 +3,9 @@ import { isLive, type MemItem } from '../core/memory/brain'
 import { memIsSlug } from '../core/memory/note'
 import { log } from '../engine/log'
 import { closeCortex } from './cortex'
-import { statusFile, upkeepFile } from './layout'
+import { statusFile } from './layout'
 import { forgetProject } from './project'
-import { dropScanRecord } from './repo-scan'
 import { brainExists, listAll, projectRef, recordEvent, withBrainLock } from './store'
-import { forgetSwept } from './sweep'
 
 export interface ProjectRemoval {
   slug: string
@@ -32,9 +30,7 @@ export async function removeProject(slug: string, opts: { nowMs?: number, by?: s
       await closeCortex(ref.db)
       for (const suffix of ['', '-wal', '-shm']) rmSync(ref.db + suffix, { force: true })
     }
-    for (const f of [statusFile(slug), upkeepFile(slug)]) rmSync(f, { force: true })
-    dropScanRecord(slug)
-    forgetSwept(slug)
+    rmSync(statusFile(slug), { force: true })
     out.record = forgetProject(slug)
   })
   if (out.brain || out.record) recordEvent({ op: 'delete', layer: 'project', project: slug, n: out.total, by: opts.by ?? 'human' })

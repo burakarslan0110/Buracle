@@ -3,7 +3,6 @@ import { dirname } from 'node:path'
 import { cortexQuery, fromCortex, toCortexSave, type MemItem, type MemKind, type MemLayer, type MemRankInput } from '../core/memory/brain'
 import { log } from '../engine/log'
 import { CortexError, cortexFor } from './cortex'
-import { embedSemanticNow } from './embed'
 import { brainLockFile, eventsFile, personDbFile, projectDbFile } from './layout'
 import { acquireLock } from './lock'
 
@@ -86,7 +85,7 @@ export async function getStored(ref: BrainRef, id: string): Promise<Stored | und
 
 export async function searchLayer(ref: BrainRef, query: string, topK: number): Promise<MemRankInput[]> {
   if (!brainExists(ref)) return []
-  const r = await cortexFor(ref.db).call<{ results?: Array<{ memory?: unknown }> }>('memory_search', cortexQuery(query, topK, { semantic: embedSemanticNow() }))
+  const r = await cortexFor(ref.db).call<{ results?: Array<{ memory?: unknown }> }>('memory_search', cortexQuery(query, topK))
   const out: MemRankInput[] = []
   for (const [rank, hit] of (r.results ?? []).entries()) {
     const item = fromCortex(hit.memory, ref.layer)
@@ -95,9 +94,9 @@ export async function searchLayer(ref: BrainRef, query: string, topK: number): P
   return out
 }
 
-export async function saveItem(ref: BrainRef, item: MemItem, keep: Record<string, unknown> = {}, opts: { supersedes?: string[] } = {}): Promise<void> {
+export async function saveItem(ref: BrainRef, item: MemItem, keep: Record<string, unknown> = {}, opts: { supersedes?: string[], nowMs?: number } = {}): Promise<void> {
   mkdirSync(dirname(ref.db), { recursive: true, mode: 0o700 })
-  const args = toCortexSave(item, keep)
+  const args = toCortexSave(item, keep, opts.nowMs ?? Date.now())
   if (opts.supersedes !== undefined && opts.supersedes.length > 0) args['supersedes'] = opts.supersedes
   await cortexFor(ref.db).call('memory_save', args)
   const hit = listCache.get(ref.db)
@@ -132,7 +131,7 @@ export async function withBrainLock<T>(ref: BrainRef, fn: () => Promise<T>, opts
   }
 }
 
-export type BrainOp = 'write' | 'update' | 'retire' | 'delete' | 'prune' | 'recall' | 'import' | 'sweep'
+export type BrainOp = 'write' | 'update' | 'retire' | 'delete' | 'recall' | 'import'
 
 export interface BrainEvent {
   at: string

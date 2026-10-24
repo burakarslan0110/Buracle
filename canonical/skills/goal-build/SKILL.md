@@ -11,7 +11,7 @@ when_to_use: >-
   working in a loop until it is done.
 invocation: explicit
 argument-hint: "<goal: the end state you want> [--worktree | --new-branch | --current-branch]"
-mcp: [semble, codegraph, context7, web-search, web-fetch, grep, chrome-devtools, buracle-memory, context-mode]
+mcp: [semble, codegraph, context7, web-search, web-fetch, grep, chrome-devtools, buracle-memory]
 short-description: Lock a goal and pass/fail criteria, then build in judged rounds
 ---
 
@@ -128,7 +128,7 @@ Any other message during a run is steering: answer briefly, apply it to tasks (n
 | How public projects solve the same thing | grep (public code search) | web-search |
 | Earlier decisions and gotchas | buracle-memory: `memory_search`, then `memory_get` | `buracle mem search "<q>"` |
 | Judging or testing a web UI | chrome-devtools | the repo's Playwright setup |
-| Long test, build or log output | context-mode: `ctx_batch_execute` or `ctx_execute`, printing the counts and every failure | the shell, output narrowed |
+| Long test, build or log output | the shell with the output narrowed, keeping the counts and every failure | none |
 
 An empty search result is not proof of absence: rephrase once or switch tools. If a server is down, use the fallback and say so in the hand-back.
 <!-- harness:omp -->

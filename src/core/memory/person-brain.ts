@@ -1,5 +1,5 @@
 import { isLive, type MemItem, type MemKind } from './brain'
-import { PROFILE_CATEGORIES, profileCategory, type ProfileCategory } from './profile'
+import { PROFILE_CATEGORIES, profileCategory, type ProfileCategory } from './signals'
 
 export type PersonRegion = 'communication' | 'collaboration' | 'workflow' | 'engineering' | 'avoid' | 'lessons' | 'inbox'
 

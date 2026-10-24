@@ -7,7 +7,6 @@ import { CONFIG_RENAMES, defaultConfig, type ConfigRename } from '../../../src/c
 import { liveContext } from '../../../src/engine/update/context'
 import { indexChecks } from '../../../src/workflow/workspace-index'
 import type { McpCatalog } from '../../../src/core/catalog'
-import type { Harness } from '../../../src/core/events'
 import { checkTools, configChecks, doctorExit, parseShim, skillChecks } from '../../../src/engine/update/doctor'
 import { emptyToolchainState } from '../../../src/engine/toolchain/state'
 import type { ToolSpec } from '../../../src/core/catalog'
@@ -106,28 +105,6 @@ describe('MCP handshake', () => {
     expect(entries['broken']).toMatchObject({ status: 'down' })
     expect(entries['broken']?.error).toContain('boom: missing API key')
     expect(mcpHealthMap(catalog, { v: 1, checked_at: '', mcp: entries })).toEqual({ broken: 'down', mem: 'ok', web: 'unknown' })
-  }), 60_000)
-
-  test('probeServers never hands context-mode the storage variables of a live session (a doctor run inside its sandbox)', () => withSandbox(async ({ root }) => {
-    const shim = fakeExe(join(root, 'shim'), `const send = (o) => process.stdout.write(JSON.stringify(o) + '\\n')
-let buf = ''
-for await (const chunk of Bun.stdin.stream()) {
-  buf += new TextDecoder().decode(chunk)
-  let nl
-  while ((nl = buf.indexOf('\\n')) >= 0) {
-    const msg = JSON.parse(buf.slice(0, nl)); buf = buf.slice(nl + 1)
-    if (msg.method === 'initialize') send({ jsonrpc: '2.0', id: msg.id, result: { protocolVersion: '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'env', version: '1' } } })
-    else if (msg.method === 'tools/list') send({ jsonrpc: '2.0', id: msg.id, result: { tools: Object.keys(process.env).filter(k => k.startsWith('CONTEXT_MODE_')).map(name => ({ name })) } })
-  }
-}
-`)
-    const server = { description: 'e', transport: 'stdio' as const, command: '{buracle}', harnesses: ['claude'] as Harness[], pin: 'hard' as const, critical: true, routing: [] }
-    const catalog: McpCatalog = { servers: { 'context-mode': server, other: server } }
-    const session = { CONTEXT_MODE_PLATFORM: 'claude-code', CONTEXT_MODE_DIR: join(root, 'live-root'), CONTEXT_MODE_PROJECT_DIR: root }
-    const entries = await withEnv(session, () => probeServers(catalog, { timeoutMs: 15_000, fetcher: fakeFetch({}), buracle: shim, http: false }, () => 'now'))
-    expect(entries['context-mode']).toMatchObject({ status: 'ok', tools: 0, toolNames: [] })
-    expect(entries['other']?.status).toBe('ok')
-    expect(entries['other']?.toolNames).toEqual(expect.arrayContaining(['CONTEXT_MODE_DIR', 'CONTEXT_MODE_PLATFORM', 'CONTEXT_MODE_PROJECT_DIR']))
   }), 60_000)
 })
 

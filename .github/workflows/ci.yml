@@ -139,6 +139,88 @@ jobs:
           }
           exit 0
 
+  # The POSIX twin of windows-install: a clean macOS and Linux runner installs the release tree the way a
+  # user does (scripts/install.sh, in a throwaway HOME), into the harnesses at their tested versions
+  # (read from src/engine/update/tested-with.ts, not copied here), then checks the installed buracle:
+  # `buracle doctor` on the config, runtime and mcp topics (the mcp topic runs every server's handshake
+  # through the installed shim). The Linux runner gets the system tools by hand with the commands
+  # install.sh prints for a missing tool; the script itself never runs sudo or a package manager there.
+  # Not run anywhere yet: this job was only checked by parsing the YAML; its first run is the first push.
+  posix-install:
+    name: ${{ matrix.os }} install
+    if: github.event_name == 'push'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macOS, runner: macos-latest }
+          - { os: Linux, runner: ubuntu-latest }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      # bun reads src/engine/update/tested-with.ts below; scripts/install.sh finds it on PATH.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: The release tree on a local branch
+        run: |
+          git switch -q -c release-tree
+          git rm -r -q --ignore-unmatch -- $RELEASE_DROPS
+          git -c user.name=ci -c user.email=ci@localhost commit -q -m 'release tree'
+          test ! -e tests
+
+      - name: Harness versions from tested-with.ts
+        run: |
+          bun -e 'import { TESTED_WITH as T } from "./src/engine/update/tested-with.ts"; console.log(`CLAUDE_VERSION=${T.claude.tested}\nCODEX_VERSION=${T.codex.tested}\nOPENCODE_VERSION=${T.opencode.tested}\nOMP_VERSION=${T.omp.tested}`)' | tee -a "$GITHUB_ENV"
+
+      # Everything after this step runs in a home folder that holds nothing but what the install creates.
+      - name: Throwaway HOME
+        run: |
+          mkdir -p "$RUNNER_TEMP/home"
+          echo "HOME=$RUNNER_TEMP/home" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/home/.bun/bin" >> "$GITHUB_PATH"
+          echo "$RUNNER_TEMP/home/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Harnesses to install into
+        run: |
+          npm install -g "@anthropic-ai/claude-code@$CLAUDE_VERSION" "@openai/codex@$CODEX_VERSION" "@opencode/cli@$OPENCODE_VERSION"
+          bun add -g "@oh-my-pi/pi-coding-agent@$OMP_VERSION"
+
+      # What install.sh prints on a Linux machine without them (the macOS runner has Homebrew, which
+      # buracle install uses for the same job).
+      - name: System tools install.sh does not install (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y ripgrep jq
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: scripts/install.sh from this commit
+        env:
+          BURACLE_REPO: ${{ github.workspace }}
+          BURACLE_BRANCH: release-tree
+          BURACLE_CHECKOUT: ${{ runner.temp }}/buracle
+        run: bash scripts/install.sh
+
+      - name: The installed buracle works
+        run: |
+          buracle --version
+          for topic in config runtime mcp; do
+            echo; echo "==> buracle doctor $topic"
+            code=0
+            buracle doctor "$topic" || code=$?
+            echo "buracle doctor $topic exited $code"
+            # 1 means errors; 2 means warnings, which the offline runners can have (an update check, for example)
+            if [ "$code" = 1 ]; then echo "buracle doctor $topic reported errors"; exit 1; fi
+          done
+
   # A push to dev that passes on every platform publishes a release when the released files change.
   # The release tree is the tested commit at the release's version, rebuilt (harness/ carries the
   # version), without RELEASE_DROPS. main gets it as one commit per release (the first has no
@@ -148,7 +230,7 @@ jobs:
   # The scripts clone main and `buracle update` follows it, so an install holds the released files.
   release:
     name: Release
-    needs: [checks, windows-install]
+    needs: [checks, windows-install, posix-install]
     if: github.event_name == 'push' && github.ref_name == 'dev'
     runs-on: ubuntu-latest
     timeout-minutes: 15

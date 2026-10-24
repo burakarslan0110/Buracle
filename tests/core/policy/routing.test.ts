@@ -9,14 +9,13 @@ import { catalogMcp, catalogSkills } from '../../../src/core/catalog'
 import type { McpHealth, RoutingPolicy } from '../../../src/core/policy/routing'
 import {
   CAPABILITY_CARD_MAX_LINES, bashNudge, capabilityCard, harnessMcpPattern, harnessMcpToolName, isDocsUrl, mcpHealthOf, parseRouteRef, routeTool, validateRoutingPolicy,
-  withDisabledServers,
 } from '../../../src/core/policy/routing'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import * as paths from '../../../src/engine/paths'
 
 const CANON = paths.canonicalDir()
 const POLICY = parseYaml(readFileSync(join(CANON, 'routing.yaml'), 'utf8')) as RoutingPolicy
-const MCP_IDS = ['buracle-memory', 'chrome-devtools', 'codegraph', 'context-mode', 'context7', 'grep', 'semble', 'web-fetch', 'web-search']
+const MCP_IDS = ['buracle-memory', 'chrome-devtools', 'codegraph', 'context7', 'grep', 'semble', 'web-fetch', 'web-search']
 
 function call(harness: Harness, tool: string, input: Record<string, unknown>): ToolCall {
   return { harness, sessionId: 's', cwd: '/repo', tool, input, ...classifyTool(harness, tool, input, '/repo', MCP_IDS) }
@@ -30,7 +29,7 @@ describe('canonical/routing.yaml', () => {
     const bundle = loadCanonicalSync(CANON)
     const fromMcp = new Set(Object.values(bundle.mcp.servers).flatMap(s => s.routing))
     expect(POLICY.categories.map(c => c.id).sort()).toEqual([...fromMcp].sort())
-    expect([...fromMcp].sort()).toEqual(['browser', 'code-examples', 'code-search', 'code-structure', 'context-saving', 'language-server', 'library-docs', 'memory', 'web-fetch', 'web-search'])
+    expect([...fromMcp].sort()).toEqual(['browser', 'code-examples', 'code-search', 'code-structure', 'language-server', 'library-docs', 'memory', 'web-fetch', 'web-search'])
     expect(bundle.warnings).toEqual([])
   })
 
@@ -164,53 +163,31 @@ describe('routeTool: built-in web tools', () => {
     expect(text).toContain('search results page')
   })
 
-  test('built-in fetch follows web-fetch health, then context-mode; claude.ai pages need the built-in session', () => {
+  test('built-in fetch follows web-fetch health; claude.ai pages need the built-in session', () => {
     for (const h of ['claude', 'opencode', 'omp'] as const) {
       const d = routeTool(call(h, WEB_FETCH[h], { url: 'https://docs.example.com/x' }), POLICY, { 'web-fetch': 'ok' })
       expect(d.action).toBe('deny')
       if (d.action === 'deny') expect(d.reason).toContain(harnessMcpToolName(h, 'web-fetch', 'fetch_url'))
     }
-    const bothDown = { 'web-fetch': 'down', 'context-mode': 'down' } as const
-    expect(routeTool(call('claude', 'WebFetch', { url: 'https://docs.example.com/x' }), POLICY, bothDown).action).toBe('allow')
+    const down = { 'web-fetch': 'down' } as const
+    expect(routeTool(call('claude', 'WebFetch', { url: 'https://docs.example.com/x' }), POLICY, down).action).toBe('allow')
     expect(routeTool(call('claude', 'WebFetch', { url: 'https://claude.ai/code/artifact/123' }), POLICY, {}).action).toBe('allow')
     expect(routeTool(call('omp', 'read', { path: 'https://docs.example.com/x' }), POLICY, {}).action).toBe('deny')
-    const blog = routeTool(call('claude', 'WebFetch', { url: 'https://example.com/blog/post' }), POLICY, bothDown)
+    const blog = routeTool(call('claude', 'WebFetch', { url: 'https://example.com/blog/post' }), POLICY, down)
     expect(blog.action).toBe('allow')
     expect(blog.action === 'allow' ? blog.context?.join(' ') : '').toContain('allowed as a fallback')
   })
 
-  test('web-fetch down: a built-in fetch goes to context-mode\'s ctx_fetch_and_index (then ctx_search), the built-in only when both are down', () => {
+  test('web-fetch down: the built-in fetch is allowed as the fallback with the note; a documentation page still names context7', () => {
     const cat = POLICY.categories.find(c => c.id === 'web-fetch')
-    expect([...(cat?.prefer ?? []), ...(cat?.fallback ?? [])]).toEqual(['mcp:web-fetch/fetch_url', 'mcp:context-mode/ctx_fetch_and_index', 'builtin:web_fetch'])
+    expect([...(cat?.prefer ?? []), ...(cat?.fallback ?? [])]).toEqual(['mcp:web-fetch/fetch_url', 'builtin:web_fetch'])
     for (const h of ['claude', 'opencode', 'omp'] as const) {
       const d = routeTool(call(h, WEB_FETCH[h], { url: 'https://example.com/blog/post' }), POLICY, { 'web-fetch': 'down' })
-      expect({ h, action: d.action }).toEqual({ h, action: 'deny' })
-      if (d.action !== 'deny') continue
-      expect(d.reason).toContain(harnessMcpToolName(h, 'context-mode', 'ctx_fetch_and_index'))
-      expect(d.reason).toContain(harnessMcpToolName(h, 'context-mode', 'ctx_search'))
-      expect(d.reason).not.toContain(harnessMcpToolName(h, 'web-fetch', 'fetch_url'))
+      expect({ h, action: d.action }).toEqual({ h, action: 'allow' })
+      expect(d.action === 'allow' ? d.context?.join(' ') : '').toContain('allowed as a fallback')
     }
-    expect(routeTool(call('claude', 'WebFetch', { url: 'https://example.com/blog/post' }), POLICY, withDisabledServers({ 'web-fetch': 'down' }, ['context-mode'])).action).toBe('allow')
     const docs = routeTool(call('claude', 'WebFetch', { url: 'https://docs.rs/serde' }), POLICY, { 'web-fetch': 'down' })
-    expect(docs.action === 'deny' ? docs.reason : '').toContain('mcp__plugin_buracle_context7__resolve-library-id')
-    expect(docs.action === 'deny' ? docs.reason : '').toContain('mcp__plugin_buracle_context-mode__ctx_fetch_and_index')
-  })
-
-  test('the web-fetch redirect names ctx_fetch_and_index then ctx_search for long pages while context-mode is available', () => {
-    for (const h of ['claude', 'opencode', 'omp'] as const) {
-      const d = routeTool(call(h, WEB_FETCH[h], { url: 'https://example.com/blog/post' }), POLICY, { 'web-fetch': 'ok' })
-      const reason = d.action === 'deny' ? d.reason : ''
-      expect(reason).toContain(harnessMcpToolName(h, 'web-fetch', 'fetch_url'))
-      expect(reason).toContain(`For a long page you need only parts of, call \`${harnessMcpToolName(h, 'context-mode', 'ctx_fetch_and_index')}\` and then \`${harnessMcpToolName(h, 'context-mode', 'ctx_search')}\``)
-    }
-    const nudge = routeTool(call('claude', 'WebFetch', { url: 'https://example.com/blog/post' }), withStrictness('nudge'), {})
-    expect(nudge.action === 'allow' ? nudge.context?.[0] : '').toContain('mcp__plugin_buracle_context-mode__ctx_fetch_and_index')
-    for (const health of [{ 'context-mode': 'down' } as McpHealth, withDisabledServers({}, ['context-mode'])]) {
-      const off = routeTool(call('claude', 'WebFetch', { url: 'https://example.com/blog/post' }), POLICY, health)
-      expect(off.action === 'deny' ? off.reason : 'x').not.toContain('ctx_fetch_and_index')
-    }
-    const search = routeTool(call('claude', 'WebSearch', { query: 'x' }), POLICY, {})
-    expect(search.action === 'deny' ? search.reason : 'x').not.toContain('context-mode')
+    expect(docs.action === 'allow' ? docs.context?.join(' ') : '').toContain('mcp__plugin_buracle_context7__resolve-library-id')
   })
 
   test('library documentation pages go to context7 first', () => {
@@ -228,7 +205,7 @@ describe('routeTool: built-in web tools', () => {
         expect(d.reason).toContain(harnessMcpToolName(h, 'web-fetch', 'fetch_url'))
       }
     }
-    const fallback = routeTool(call('claude', 'WebFetch', { url: 'https://docs.rs/serde' }), POLICY, { 'web-fetch': 'down', 'context-mode': 'down' })
+    const fallback = routeTool(call('claude', 'WebFetch', { url: 'https://docs.rs/serde' }), POLICY, { 'web-fetch': 'down' })
     expect(fallback.action).toBe('allow')
     expect(fallback.action === 'allow' ? fallback.context?.[0] : '').toContain('mcp__plugin_buracle_context7__resolve-library-id')
     const noDocs = routeTool(call('claude', 'WebFetch', { url: 'https://docs.rs/serde' }), POLICY, { context7: 'down' })
@@ -325,86 +302,6 @@ describe('routeTool and bashNudge: shell searches', () => {
   })
 })
 
-describe('routeTool: context-mode sandbox hints for shell output (hints only, never denials)', () => {
-  const hintOf = (command: string, h: Harness = 'claude', policy: RoutingPolicy = POLICY, health: McpHealth = {}): string | undefined => {
-    const d = routeTool(call(h, h === 'claude' ? 'Bash' : h === 'codex' ? 'Bash' : 'bash', { command }), policy, health)
-    expect(d.action).toBe('allow')
-    return d.action === 'allow' ? d.context?.find(c => c.includes('context')) : undefined
-  }
-  const REMOTE = [
-    'curl https://api.github.com/repos/oven-sh/bun/releases/latest', 'curl -sSL https://example.com/page.html', 'curl -s https://example.com 2>/dev/null',
-    'curl -o - https://example.com/data.json', 'curl --url https://example.com/x', 'curl -H "Accept: application/json" example.com/api',
-    'wget -qO- https://example.com/install.txt', 'wget -O - https://example.com/a', 'wget --output-document=- https://example.com/a',
-    'http GET https://api.example.com/users', 'xh https://example.com/feed', 'cd /tmp && curl https://example.com/report.csv',
-    "bash -c 'curl https://example.com/big.json'",
-  ]
-  const BUILDS = ['./gradlew test', 'gradle build --info', 'mvn -q verify', './mvnw clean install', 'sbt compile', 'cd app && ./gradlew assemble 2>&1']
-  const QUIET = [
-    'curl -s https://api.github.com/repos/x/y | jq .tag_name', 'curl -o page.html https://example.com', 'curl -O https://example.com/a.tgz',
-    'curl https://example.com > page.html', 'curl -I https://example.com', 'curl --version', 'curl -fsSL https://example.com/install.sh -o install.sh',
-    'wget https://example.com/file.tar.gz', 'wget -q https://example.com/x', 'http --download https://example.com/big.iso', 'http -o out.json example.com/api',
-    'curl localhost:3000/health', 'curl http://127.0.0.1:8080/api', 'curl -i http://[::1]:3000/', 'http :3000/health', 'xh :8080/api', 'curl http://0.0.0.0:5000',
-    'curl "$URL"', 'curl $(cat url.txt)',
-    'mvn -v', './gradlew --version', 'sbt --help', './gradlew test | tail -40', 'mvn test > build.log',
-    'git log --oneline -5', 'ls -la', 'echo https://example.com',
-  ]
-
-  for (const cmd of REMOTE) {
-    test(`remote response: ${cmd}`, () => {
-      const hint = hintOf(cmd)
-      expect(hint).toContain('remote response')
-      expect(hint).toContain('`mcp__plugin_buracle_context-mode__ctx_fetch_and_index`')
-      expect(hint).toContain('`mcp__plugin_buracle_context-mode__ctx_search`')
-      expect(hint).toContain('`mcp__plugin_buracle_context-mode__ctx_execute`')
-    })
-  }
-  for (const cmd of BUILDS) {
-    test(`goal-build: ${cmd}`, () => {
-      const hint = hintOf(cmd)
-      expect(hint).toContain('Build output is long')
-      expect(hint).toContain('`mcp__plugin_buracle_context-mode__ctx_batch_execute`')
-      expect(hint).toContain('every failure with its message')
-    })
-  }
-  for (const cmd of QUIET) test(`no hint: ${cmd}`, () => expect(hintOf(cmd)).toBeUndefined())
-
-  test('every harness names its own tools; enforce and nudge both hint and never deny', () => {
-    for (const h of HARNESSES) {
-      for (const s of ['enforce', 'nudge'] as const) {
-        const hint = hintOf('curl https://example.com/changelog', h, withStrictness(s))
-        expect({ h, s, hint }).toEqual({ h, s, hint: expect.stringContaining(`\`${harnessMcpToolName(h, 'context-mode', 'ctx_fetch_and_index')}\``) })
-      }
-    }
-    expect(harnessMcpToolName('codex', 'context-mode', 'ctx_execute')).toBe('mcp__context_mode__ctx_execute')
-    expect(harnessMcpToolName('opencode', 'context-mode', 'ctx_execute')).toBe('context-mode_ctx_execute')
-    expect(harnessMcpToolName('omp', 'context-mode', 'ctx_execute')).toBe('mcp__context_mode_ctx_execute')
-  })
-
-  test('no hint while context-mode is down, switched off or not in the policy, nor under strictness off', () => {
-    expect(hintOf('./gradlew test', 'claude', POLICY, { 'context-mode': 'down' })).toBeUndefined()
-    expect(hintOf('./gradlew test', 'claude', POLICY, withDisabledServers({ 'context-mode': 'ok' }, ['context-mode']))).toBeUndefined()
-    const without: RoutingPolicy = { ...POLICY, categories: POLICY.categories.filter(c => c.id !== 'context-saving').map(c => ({ ...c, fallback: c.fallback.filter(f => !f.includes('context-mode')) })) }
-    expect(hintOf('./gradlew test', 'claude', without)).toBeUndefined()
-    expect(routeTool(call('claude', 'Bash', { command: './gradlew test' }), withStrictness('off'), {})).toEqual({ action: 'allow' })
-  })
-
-  test('the grep nudge and the sandbox hint come together, nudge first', () => {
-    const d = routeTool(call('claude', 'Bash', { command: 'grep -r TODO src && curl https://example.com/x' }), POLICY, {})
-    expect(d.action === 'allow' ? d.context?.length : 0).toBe(2)
-    expect(d.action === 'allow' ? d.context?.[0] : '').toContain('rg')
-  })
-})
-
-describe('withDisabledServers', () => {
-  test('marks the given servers down and keeps the rest', () => {
-    expect(withDisabledServers({ 'context-mode': 'ok', semble: 'unknown' }, ['context-mode'])).toEqual({ 'context-mode': 'down', semble: 'unknown' })
-    expect(withDisabledServers({}, ['context-mode'])).toEqual({ 'context-mode': 'down' })
-    const h: McpHealth = { a: 'ok' }
-    expect(withDisabledServers(h, [])).toBe(h)
-    expect(withDisabledServers(h, ['', 3 as unknown as string])).toBe(h)
-  })
-})
-
 describe('capabilityCard (H15)', () => {
   const bundle = loadCanonicalSync(CANON)
   const card = (h: Harness, extra: Partial<{ mcp: CatalogMcp[], skills: CatalogSkill[], plugins: string[], policy: RoutingPolicy }> = {}): string =>
@@ -434,17 +331,9 @@ describe('capabilityCard (H15)', () => {
       for (const s of skills) expect({ h, skill: s.id, oneLiner: lines.includes(`- ${s.id}: ${s.short}${s.invocation === 'explicit' ? ' (on request)' : ''}`) }).toEqual({ h, skill: s.id, oneLiner: true })
       expect(c).not.toContain('more lines omitted')
     }
-    expect(catalogMcp(bundle.mcp, 'claude').map(m => m.id)).toContain('context-mode')
     const claude = capabilityCard({ policy: POLICY, mcp: catalogMcp(bundle.mcp, 'claude'), skills, plugins: plugins.claude, harness: 'claude', lsp })
     expect(claude).toContain('Language servers (LSP tool: definitions, references, hover, diagnostics): ')
     expect(claude.split('\n')[0]).toBe('Buracle capabilities (Claude Code). Tool routing is enforced: follow "Tool routing (strict)" in your rules. Buracle names the skills and MCP servers each prompt calls for and holds a few calls until the right tool has run; when it denies a call, use the tool the denial names.')
-  })
-
-  test('context-mode drops off the card while it is switched off (withDisabledServers, as the adapters filter down servers)', () => {
-    const health = withDisabledServers({}, ['context-mode'])
-    const c = card('codex', { mcp: catalogMcp(bundle.mcp, 'codex').filter(m => health[m.id] !== 'down') })
-    expect(c).not.toContain('- context-mode')
-    expect(card('codex')).toContain('- context-mode: ')
   })
 
   test('lists installed servers and skills with the harness syntax and points to the routing rules', () => {

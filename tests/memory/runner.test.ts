@@ -69,7 +69,7 @@ describe('runner', () => {
           expect(readFileSync(join(log, 'cwd'), 'utf8').trim()).toBe(sb.home)
           expect(readFileSync(join(log, 'pwd'), 'utf8')).toBe(sb.home)
           expect(readFileSync(join(log, 'env'), 'utf8').trim().split('\n')).toEqual(expect.arrayContaining([
-            'BURACLE_NO_AUTOSTART=1', 'BURACLE_NO_CAPTURE=1', 'BURACLE_NO_DISTILL=1', 'BURACLE_NO_MEMORY=1', 'BURACLE_NO_NOTIFY=1', 'BURACLE_NO_REFLECT=1', 'BURACLE_NO_VERIFY=1',
+            'BURACLE_NO_AUTOSTART=1', 'BURACLE_NO_CAPTURE=1', 'BURACLE_NO_DISTILL=1', 'BURACLE_NO_MEMORY=1', 'BURACLE_NO_NOTIFY=1',
           ]))
         }
       })

@@ -4,11 +4,10 @@ import { join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import type { HookBinding, HookSpec, HooksMatrix } from '../../../src/core/catalog'
 import { hookFallbacks } from '../../../src/core/catalog'
-import { HARNESSES, HOOK_IDS } from '../../../src/core/events'
+import { HARNESSES, HOOK_IDS, RETIRED_HOOK_IDS } from '../../../src/core/events'
 import {
   BLOCKING_HOOKS, CLAUDE_CLASSIC_EVENTS, CLAUDE_ENGINE_EVENTS, CODEX_EVENTS, HOOK_EVENTS, OMP_EVENTS, OPENCODE_EVENTS, validateHooksMatrix,
 } from '../../../src/core/policy/hooks-matrix'
-import { harnessMcpToolName } from '../../../src/core/policy/routing'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import * as paths from '../../../src/engine/paths'
 
@@ -26,14 +25,16 @@ describe('canonical/hooks.yaml', () => {
     expect(loadCanonicalSync(paths.canonicalDir()).hooks).toEqual(RAW)
   })
 
-  test('has H01…H28 exactly once, in order, with names from DESIGN §5', () => {
+  test('has H01…H28 exactly once, in order, with names from DESIGN §5; the retired H27 keeps its gap', () => {
     expect(RAW.hooks.map(h => h.id)).toEqual([...HOOK_IDS])
-    expect(HOOK_IDS.length).toBe(28)
+    expect(HOOK_IDS.length).toBe(27)
+    expect(RETIRED_HOOK_IDS).toEqual(['H27'])
+    for (const id of RETIRED_HOOK_IDS) expect(RAW.hooks.map(h => h.id as string)).not.toContain(id)
     expect(RAW.hooks.map(h => h.name)).toEqual([
       'guard.bash', 'guard.write', 'route.tools', 'check.file', 'context.watch', 'compact.save', 'compact.restore', 'plan.stop', 'plan.question',
       'plan.interaction', 'plan.validate', 'plan.capture', 'memory.inject', 'memory.capture', 'capability.catalog', 'session.maint',
       'profile.guard', 'status.feed', 'review.gate', 'consent.gate', 'workspace.prepare',
-      'route.prompt', 'route.audit', 'usage.ledger', 'flow.track', 'profile.signals', 'context.session', 'project.assets',
+      'route.prompt', 'route.audit', 'usage.ledger', 'flow.track', 'profile.signals', 'project.assets',
     ])
   })
 
@@ -116,46 +117,23 @@ describe('canonical/hooks.yaml', () => {
     expect(RAW.hooks.flatMap(h => hookFallbacks(h.bindings.claude))).toEqual([])
   })
 
-  test('shell and code tools outside Bash are guarded: Claude Monitor (H01/H03) and PowerShell (H01/H20), omp eval (H01/H02), context-mode\'s sandbox (H01/H02/H20)', () => {
+  test('shell and code tools outside Bash are guarded: Claude Monitor (H01/H03) and PowerShell (H01/H20), omp eval (H01/H02); no MCP tool is a shell since Context Mode left', () => {
     const by = Object.fromEntries(RAW.hooks.map(h => [h.id, h])) as Record<string, HookSpec>
-    const foreign = 'mcp__(?:plugin_[^_]+_)?context-mode__ctx_.*'
-    expect(binding(by['H01'] as HookSpec, 'claude')?.matcher).toBe(`Bash|Monitor|PowerShell|mcp__plugin_buracle_context-mode__.*|${foreign}`)
-    expect(binding(by['H20'] as HookSpec, 'claude')?.matcher).toBe(`Bash|Monitor|PowerShell|mcp__plugin_buracle_context-mode__.*|${foreign}`)
+    expect(binding(by['H01'] as HookSpec, 'claude')?.matcher).toBe('Bash|Monitor|PowerShell')
+    expect(binding(by['H20'] as HookSpec, 'claude')?.matcher).toBe('Bash|Monitor|PowerShell')
     expect(binding(by['H02'] as HookSpec, 'claude')?.matcher).toBe('Edit|Write|MultiEdit|NotebookEdit|mcp__.*')
     expect(binding(by['H03'] as HookSpec, 'claude')?.matcher).toBe('Bash|Monitor|WebSearch|WebFetch|Edit|Write|MultiEdit|Grep|Glob|mcp__plugin_buracle_.*')
     expect(binding(by['H03'] as HookSpec, 'codex')?.matcher).toBe('Bash|apply_patch|mcp__.+')
     expect([binding(by['H01'] as HookSpec, 'codex')?.matcher, binding(by['H02'] as HookSpec, 'codex')?.matcher, binding(by['H20'] as HookSpec, 'codex')?.matcher]).toEqual(['Bash|mcp__.+', 'apply_patch|mcp__.+', 'Bash|mcp__.+'])
-    const exec = (h: 'opencode' | 'omp'): string[] => ['ctx_execute', 'ctx_execute_file', 'ctx_batch_execute'].map(t => harnessMcpToolName(h, 'context-mode', t))
-    expect(binding(by['H01'] as HookSpec, 'omp')?.matcher).toEqual(['bash', 'eval', ...exec('omp')])
-    expect(binding(by['H02'] as HookSpec, 'omp')?.matcher).toEqual(['edit', 'write', 'ast_edit', 'eval', 'mcp__context_mode_ctx_execute', 'mcp__context_mode_ctx_execute_file', 'mcp__context_mode_ctx_index'])
-    expect(binding(by['H01'] as HookSpec, 'opencode')?.matcher).toEqual(['bash', ...exec('opencode')])
-    expect(binding(by['H20'] as HookSpec, 'opencode')?.matcher).toEqual(['bash', ...exec('opencode'), 'context-mode_ctx_purge'])
-    expect(binding(by['H20'] as HookSpec, 'omp')?.matcher).toEqual(['bash', ...exec('omp'), 'mcp__context_mode_ctx_purge'])
-    for (const id of ['H01', 'H02', 'H20']) expect(by[id]?.description).toContain('ctx_execute')
-  })
-
-  test('H27 context.session: non-blocking, fails open, bound on all four harnesses to the events the session bridge needs', () => {
-    const h27 = RAW.hooks.find(h => h.id === 'H27') as HookSpec
-    expect(h27).toMatchObject({ name: 'context.session', blocking: 'none', failure: 'open', contract_test: 'tests/core/context-mode.test.ts' })
-    expect(BLOCKING_HOOKS).not.toContain('H27')
-    const events = (harness: keyof HookSpec['bindings']): string[] => { const b = binding(h27, harness); return b ? [b.event, ...(b.also ?? []).map(a => a.event)] : [] }
-    expect(events('claude')).toEqual(['classic.SessionStart', 'classic.UserPromptSubmit', 'classic.PreCompact', 'classic.PostToolUse', 'classic.PostToolUse', 'classic.PostToolUseFailure'])
-    expect(events('codex')).toEqual(['SessionStart', 'UserPromptSubmit', 'PostToolUse', 'PreCompact'])
-    expect(events('opencode')).toEqual(['tool.execute.after', 'session.prompt', 'session.created', 'session.execution.succeeded', 'session.execution.failed', 'session.execution.interrupted', 'session.deleted', 'session.compaction', 'session.compaction.ended', 'session.compaction.failed', 'session.context'])
-    expect(events('omp')).toEqual(['tool_result', 'input', 'before_agent_start', 'session_start', 'session_switch', 'session_branch', 'turn_end', 'session.compacting', 'session_compact', 'session_shutdown'])
-    expect(events('omp')).not.toContain('session_before_compact')
-    const also = binding(h27, 'claude')?.also ?? []
-    const post = also.filter(a => a.event === 'classic.PostToolUse')
-    const sync = post.find(a => a.async !== true)?.matcher?.toString().split('|') ?? []
-    const async_ = post.find(a => a.async === true)?.matcher?.toString().split('|') ?? []
-    expect(sync).toEqual(['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'ExitPlanMode', 'AskUserQuestion'])
-    expect(async_).toEqual(expect.arrayContaining(['Bash', 'Read', 'TodoWrite', 'TaskCreate', 'TaskUpdate', 'Skill', 'Glob', 'Grep', 'EnterPlanMode', 'Agent', 'EnterWorktree']))
-    expect(async_).not.toContain('AskUserQuestion')
-    expect(sync.filter(t => async_.includes(t))).toEqual([])
-    const union = (isAsync: boolean): string[] => RAW.hooks.flatMap(h => { const b = binding(h, 'claude'); return b ? [b, ...(b.also ?? [])] : [] })
-      .filter(b => b.event === 'classic.PostToolUse' && (b.async === true) === isAsync).flatMap(b => String(b.matcher ?? '').split('|'))
-    expect(union(false).filter(t => union(true).includes(t))).toEqual([])
-    expect(also.find(a => a.event === 'classic.PostToolUseFailure')).toEqual({ event: 'classic.PostToolUseFailure', matcher: 'Bash|Read|Write|Edit|MultiEdit|NotebookEdit|Glob|Grep|Agent|Skill', async: true, timeoutMs: 5000 })
+    expect(binding(by['H01'] as HookSpec, 'omp')?.matcher).toEqual(['bash', 'eval'])
+    expect(binding(by['H02'] as HookSpec, 'omp')?.matcher).toEqual(['edit', 'write', 'ast_edit', 'eval'])
+    expect(binding(by['H01'] as HookSpec, 'opencode')?.matcher).toEqual(['bash'])
+    expect(binding(by['H02'] as HookSpec, 'opencode')?.matcher).toEqual(['edit', 'write', 'patch', 'apply_patch', 'multiedit'])
+    expect(binding(by['H20'] as HookSpec, 'opencode')?.matcher).toEqual(['bash'])
+    expect(binding(by['H20'] as HookSpec, 'omp')?.matcher).toEqual(['bash'])
+    const text = JSON.stringify(RAW)
+    expect(text).not.toContain('context-mode')
+    expect(text).not.toContain('ctx_')
   })
 
   test('H28 project.assets: non-blocking, fails open, bound on all four harnesses at session start, after edits and at the end of a turn', () => {
@@ -232,7 +210,7 @@ describe('canonical/hooks.yaml', () => {
   const STILL_TO_WRITE: string[] = []
   test('contract tests of the other hooks exist', () => {
     const foreign = RAW.hooks.filter(h => !['tests/core/policy/', 'tests/core/plan/', 'tests/core/compact/', 'tests/core/checkers/'].some(p => h.contract_test.startsWith(p)))
-    expect(foreign.map(h => h.id)).toEqual(['H05', 'H12', 'H13', 'H14', 'H16', 'H17', 'H18', 'H21', 'H25', 'H26', 'H27', 'H28'])
+    expect(foreign.map(h => h.id)).toEqual(['H05', 'H12', 'H13', 'H14', 'H16', 'H17', 'H18', 'H21', 'H25', 'H26', 'H28'])
     for (const h of foreign.filter(x => !STILL_TO_WRITE.includes(x.id))) expect({ hook: h.id, file: h.contract_test, exists: existsSync(join(REPO, h.contract_test)) }).toEqual({ hook: h.id, file: h.contract_test, exists: true })
   })
   for (const h of RAW.hooks.filter(x => STILL_TO_WRITE.includes(x.id))) {

@@ -2,7 +2,6 @@ import { existsSync, lstatSync, readdirSync, readFileSync, readlinkSync, rmdirSy
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import type { Adapter, AdapterContext } from '../../adapters/registry'
 import type { Harness } from '../../core/events'
-import { cmEmptyClaudeConfigDir, cmHome, cmProbeRoot, cmSentinelDir } from '../context-mode'
 import { readJsonSafeSync } from '../fsx'
 import * as paths from '../paths'
 import { historyCreatedDirs, listTxns, markExecsUndone, repointPathsMissing, undoKeptOnPurpose, type Journal, type Ledger, type LedgerEntry, type Op, type Plan } from '../txn'
@@ -210,9 +209,14 @@ export async function runExecUndos(undos: readonly ExecUndo[], record: InstallRe
   return out
 }
 
+// Context Mode (removed in 0.6.0) kept its session data here; --purge-state still removes what an older Buracle left.
+function legacyContextModeHome(): string {
+  return join(paths.buracleHome(), 'context-mode')
+}
+
 export function purgeTargets(): string[] {
   const h = paths.buracleHome()
-  return [paths.stateDir(), paths.sessionsDir(), paths.runDir(), join(h, 'cache'), paths.logsDir(), paths.backupsDir(), paths.journalDir(), paths.binDir(), cmHome(), paths.toolchainDir(), paths.runtimeRoot()]
+  return [paths.stateDir(), paths.sessionsDir(), paths.runDir(), join(h, 'cache'), paths.logsDir(), paths.backupsDir(), paths.journalDir(), paths.binDir(), legacyContextModeHome(), paths.toolchainDir(), paths.runtimeRoot()]
 }
 
 const TXN_DIR = /^\d{8}T\d{9}Z-[0-9a-f]{6}$/
@@ -220,7 +224,7 @@ const RUNTIME_ENTRY = /^(?:[0-9a-f]{16}|\.staging-.+)$/
 const CACHE_ENTRIES = ['memory', 'usage', 'skills', 'npm', 'statusline-slugs.json', 'claude-plan.json', 'harness-versions.json', 'hook-health.json', 'runtime-drift.json']
 const TMP_FILE = /^\..*\.buracle-\d+-[0-9a-f]+\.tmp$/
 const HARNESS_DIRS = ['claude', 'codex', 'opencode', 'omp']
-const CM_DIRS = [...HARNESS_DIRS, basename(cmProbeRoot()), basename(cmSentinelDir()), 'tmp', basename(cmEmptyClaudeConfigDir())]
+const LEGACY_CONTEXT_MODE_DIRS = [...HARNESS_DIRS, 'probe', 'sentinel', 'tmp', 'claude-config-empty']
 
 function knownEntry(dir: string, name: string): boolean {
   if (TMP_FILE.test(name)) return true
@@ -233,7 +237,7 @@ function knownEntry(dir: string, name: string): boolean {
     case paths.logsDir(): return /^buracle\.log(\.\d+)?$/.test(name)
     case paths.backupsDir(): return TXN_DIR.test(name)
     case paths.journalDir(): return /^\d{8}T\d{9}Z-[0-9a-f]{6}\.json$/.test(name) || name === '_checkpoint.json'
-    case cmHome(): return CM_DIRS.includes(name)
+    case legacyContextModeHome(): return LEGACY_CONTEXT_MODE_DIRS.includes(name)
     case paths.runtimeRoot(): return RUNTIME_ENTRY.test(name)
     default: return false
   }

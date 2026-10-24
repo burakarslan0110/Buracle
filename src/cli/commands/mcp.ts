@@ -1,6 +1,5 @@
-import { mkdirSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { CM_SERVER_ID } from '../../core/context-mode'
 import type { StartGate, StartGateOptions } from '../../workflow/workspace-index'
 import type { CommandIO } from '../router'
 
@@ -25,12 +24,8 @@ run <id>  Starts package server <id> of canonical/mcp.yaml with stdio passed thr
           the 5 s Claude Code gives an always-loaded server. A server that cannot start, or exits
           with an error while starting, is marked down in ~/.buracle/state/health.json for 10
           minutes, so routing sends the built-in tool it stands in for to the next fallback until
-          then (web-fetch: context-mode's ctx_fetch_and_index, then the built-in fetch; web-search:
-          web-fetch, then the built-in web search).
-          context-mode runs on Bun with its storage under ~/.buracle/context-mode/<harness>/,
-          one folder per project. While config contextMode.enabled is false it is served as a
-          server without tools instead (nothing is installed or run); a change of the switch
-          reaches the server at its next start (a new session or an MCP reconnect).
+          then (web-fetch: the built-in fetch; web-search: web-fetch, then the built-in web
+          search).
 install <id>  Installs package server <id> into ~/.buracle/toolchain, as \`buracle install\`
           would (the background install of \`run\` uses it). Quiet; BURACLE_NO_TOOLCHAIN=1 skips it.
           Exit codes: 0 installed or already there, 1 error, 2 the install failed.
@@ -203,36 +198,6 @@ async function spawnServer(id: string, argv: readonly string[], env: Record<stri
   return typeof code === 'number' ? code : 1
 }
 
-export async function contextModeOff(): Promise<boolean> {
-  try {
-    const { loadConfigSync } = await import('../../engine/config')
-    return !loadConfigSync().config.contextMode.enabled
-  } catch {
-    return false
-  }
-}
-
-export async function contextModeEnv(env: Record<string, string | undefined>, cwd: string): Promise<Record<string, string>> {
-  const cm = await import('../../engine/context-mode')
-  const out = cm.cmServerEnv(env, { cwd })
-  const h = cm.cmHarnessOfPlatform(out['CONTEXT_MODE_PLATFORM'])
-  if (h !== undefined) cm.ensureCmDirs(h, cm.cmProjectDir(h, { claudeProjectDir: out['CLAUDE_PROJECT_DIR'], cwd }))
-  const stale = cm.cmStaleClaudePlugin(out, { cwd })
-  if (stale.length > 0) {
-    const { log } = await import('../../engine/log')
-    const empty = cm.cmEmptyClaudeConfigDir()
-    try { mkdirSync(empty, { recursive: true, mode: 0o700 }) } catch {  }
-    out['CLAUDE_CONFIG_DIR'] = empty
-    log('warn', "mcp run: Claude Code's plugin registry names context-mode's own plugin in a folder that is gone, and the server would link itself there (Claude Code would then run that plugin's hooks again); the server gets an empty Claude config folder instead. Remove the plugin: `claude plugin uninstall context-mode@context-mode`", { installPaths: stale, claudeConfigDir: empty })
-  }
-  return out
-}
-
-export function startMjsRefusal(id: string, argv: readonly string[]): string | undefined {
-  if (id !== CM_SERVER_ID || !argv.some(a => /(?:^|[\\/])start\.mjs$/.test(a))) return undefined
-  return `${id}: the installed package starts through start.mjs, which changes harness settings outside Buracle; run \`buracle doctor context-mode\``
-}
-
 async function runServer(id: string | undefined, io: CommandIO): Promise<number> {
   const { log } = await import('../../engine/log')
   if (id === undefined) { io.stderr.write(`buracle mcp run: missing <id>\n\n${usage}`); return 1 }
@@ -247,15 +212,8 @@ async function runServer(id: string | undefined, io: CommandIO): Promise<number>
     return 1
   }
   if (spec === undefined) { io.stderr.write(`buracle mcp run: unknown server '${id}'\n`); return 1 }
-  if (id === CM_SERVER_ID && await contextModeOff()) {
-    log('info', 'mcp run: contextMode.enabled is false; serving context-mode without tools', { id })
-    const { runStubServer } = await import('../../engine/toolchain/stub')
-    return runStubServer({ name: id, write: line => io.stdout.write(line) })
-  }
   await expireLaunchFailures(Date.now())
-  const planned = launchPlan(id, spec, readToolchainState())
-  const refused = 'error' in planned ? undefined : startMjsRefusal(id, planned.argv)
-  const plan = refused !== undefined ? { error: refused } : planned
+  const plan = launchPlan(id, spec, readToolchainState())
   if ('error' in plan) {
     io.stderr.write(`buracle mcp run: ${plan.error}\n`)
     log('error', 'mcp run: cannot start the server', { id, error: plan.error })
@@ -267,8 +225,7 @@ async function runServer(id: string | undefined, io: CommandIO): Promise<number>
     await backgroundInstall(id)
   }
   if (id === 'codegraph') await codegraphGate(process.cwd())
-  const base: Record<string, string | undefined> = { ...process.env, ...plan.env }
-  const env: Record<string, string | undefined> = id === CM_SERVER_ID ? await contextModeEnv(base, process.cwd()) : base
+  const env: Record<string, string | undefined> = { ...process.env, ...plan.env }
   if (plan.source === 'toolchain') {
     const { execServer } = await import('../../engine/platform')
     const failed = execServer(plan.argv, env)
@@ -284,11 +241,9 @@ async function listServers(argv: string[], io: CommandIO): Promise<number> {
   const { isPackageServer } = await import('../../core/catalog')
   const catalog = readMcpCatalog()
   const state = readToolchainState()
-  const cmOff = await contextModeOff()
   const rows = Object.keys(catalog.servers).sort().map(id => {
     const spec = catalog.servers[id]!
     if (spec.transport === 'http') return { id, transport: 'http', source: 'remote', start: spec.url ?? '' }
-    if (id === CM_SERVER_ID && cmOff) return { id, transport: 'stdio', source: 'disabled', start: 'a server without tools (contextMode.enabled: false)' }
     if (!isPackageServer(spec)) return { id, transport: 'stdio', source: 'buracle', start: [spec.command ?? '', ...(spec.args ?? [])].join(' ') }
     const p = launchPlan(id, spec, state)
     return 'error' in p ? { id, transport: 'stdio', source: 'missing', start: p.error } : { id, transport: 'stdio', source: p.source === 'toolchain' ? `toolchain ${p.version ?? ''}`.trim() : 'fallback', start: p.argv.join(' ') }

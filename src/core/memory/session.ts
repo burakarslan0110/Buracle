@@ -16,6 +16,21 @@ export interface MemSessionRecord {
   status: 'active' | 'ended'
   finalizedMs?: number
   stats?: MemSessionStats
+  capture?: MemCaptureState
+}
+
+/**
+ * Where the model-assisted capture of a session stands. It lives in the session record, never in the brain: a
+ * failed or held model call leaves the brain untouched and only marks the session for another try.
+ */
+export interface MemCaptureState {
+  state: 'done' | 'retry' | 'gave-up'
+  /** Model calls that failed or returned an invalid reply. */
+  tries: number
+  lastTryMs?: number
+  /** Digest of the material the last successful distillation read. */
+  sha?: string
+  detail?: string
 }
 
 export interface MemSessionStats {

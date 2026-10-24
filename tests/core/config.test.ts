@@ -29,15 +29,21 @@ describe('config migration (renamed keys)', () => {
     expect(migrateConfig({ memory: { reflect: { provider: 'api' } } }).value).toEqual({})
   })
 
-  test('removed keys (the vault memory, the memory switches, budgets, model and embedder) are dropped: quietly at their shipped default, with a note otherwise', () => {
+  test('removed keys (the vault memory, the memory switches, budgets, model and embedder, Context Mode) are dropped: quietly at their shipped default, with a note otherwise', () => {
     expect(CONFIG_REMOVALS.map(r => r.key)).toEqual([
       'vault', 'memory.qmd', 'memory.git', 'memory.reflect.model',
       'memory.inject', 'memory.distill',
       'memory.reflect.auto', 'memory.reflect.maxRunsPerDay', 'memory.reflect.maxOpsPerRun', 'memory.reflect.maxSubQueries', 'memory.reflect.maxRounds', 'memory.reflect.maxInputTokens', 'memory.reflect.maxOutputTokens', 'memory.reflect.minIntervalMin',
       'memory.verify', 'memory.heal', 'memory.profile', 'memory.ui.enabled', 'memory.ui.autostart',
       'memory.reflect.provider', 'memory.reflect.api', 'memory.llm', 'memory.embed',
+      'contextMode',
     ])
     expect(migrateConfig({ memory: { llm: { provider: 'auto', api: { format: 'openai', url: '', model: '', keyEnv: '' } }, embed: { url: '', model: '', dim: 0, keyEnv: '' } } }, [])).toEqual({ value: {}, notes: [] })
+    expect(migrateConfig({ contextMode: { enabled: true, capture: true } }, [])).toEqual({ value: {}, notes: [] })
+    expect(migrateConfig({ contextMode: { enabled: false }, routing: { strictness: 'nudge' } }, [])).toEqual({
+      value: { routing: { strictness: 'nudge' } },
+      notes: ['contextMode was removed in 0.6.0 (Context Mode and its context-mode MCP server are gone; the handoff memory and the compaction restore carry the session state); its value is ignored (remove it from config.yaml)'],
+    })
     expect(migrateConfig({ memory: { llm: { provider: 'api', api: { url: 'https://openrouter.ai/api/v1' } } } }, []).notes).toEqual([
       'memory.llm was removed in 0.5.0 (the memory\'s model calls run through a harness with usage headroom; there is no external API); its value is ignored (remove it from config.yaml)',
     ])
@@ -49,12 +55,12 @@ describe('config migration (renamed keys)', () => {
     expect(quiet).toEqual({ value: {}, notes: [] })
     expect(migrateConfig({ memory: { profile: { enabled: false }, ui: { autostart: true, port: 41800 } } }, [])).toEqual({
       value: { memory: { ui: { port: 41800 } } },
-      notes: ['memory.profile was removed in 0.5.0 (the memory\'s automatic jobs are always on and run within fixed budgets (src/core/memory/budgets.ts)); its value is ignored (remove it from config.yaml)'],
+      notes: ['memory.profile was removed in 0.5.0 (the memory has no background jobs any more; its model-assisted capture runs once at the end of a session, within fixed budgets (src/core/memory/budgets.ts)); its value is ignored (remove it from config.yaml)'],
     })
     expect(migrateConfig({ memory: { reflect: { provider: 'api', auto: false, maxRounds: 2 } } })).toEqual({
       value: {},
       notes: [
-        'memory.reflect.auto was removed in 0.5.0 (the memory\'s automatic jobs are always on and run within fixed budgets (src/core/memory/budgets.ts)); its value is ignored (remove it from config.yaml)',
+        'memory.reflect.auto was removed in 0.5.0 (the memory has no background jobs any more; its model-assisted capture runs once at the end of a session, within fixed budgets (src/core/memory/budgets.ts)); its value is ignored (remove it from config.yaml)',
         'memory.reflect.provider was removed in 0.5.0 (the memory\'s model calls run through a harness with usage headroom; there is no external API); its value is ignored (remove it from config.yaml)',
       ],
     })

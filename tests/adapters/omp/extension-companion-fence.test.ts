@@ -34,7 +34,6 @@ describe('omp: the second-opinion fence (BURACLE_REVIEWER_AGENT in the child)', 
     for (const [tool, input] of [
       ['mcp__memtest_memory_write', {}],
       ['mcp__buracle_memory_memory_write', { title: 'x' }],
-      ['mcp__context_mode_ctx_execute', { language: 'shell', code: 'touch x' }],
       ['write', { path: 'xd://mcp__memtest_memory_write', content: '{}' }],
       ['write', { path: join(root, 'work', 'pwned.txt'), content: 'x' }],
       ['bash', { command: 'git diff' }],
@@ -55,7 +54,7 @@ describe('omp: the second-opinion fence (BURACLE_REVIEWER_AGENT in the child)', 
   }))
 
   test('before the review starts, the tools the fence would block are taken out of the model\'s list (write stays for the allowed devices)', () => withSandbox(({ root }) => withEnv({ BURACLE_MEMORY_RUNNER: '1' }, async () => {
-    const { start, tools } = setup(join(root, 'work'), 'plan-build-review', ['read', 'grep', 'glob', 'write', 'mcp__memtest_memory_write', 'mcp__codegraph_codegraph_explore', 'mcp__context_mode_ctx_execute'])
+    const { start, tools } = setup(join(root, 'work'), 'plan-build-review', ['read', 'grep', 'glob', 'write', 'mcp__memtest_memory_write', 'mcp__codegraph_codegraph_explore'])
     await start()
     expect(tools.set).toEqual([['read', 'grep', 'glob', 'write', 'mcp__codegraph_codegraph_explore']])
   })))

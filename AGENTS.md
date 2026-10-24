@@ -30,19 +30,9 @@ src/core/           PURE logic (copied verbatim into the Claude plugin)
   flow/             workflow progress: phase catalog, flow record, the band view model
   workspace.ts      index exclusions, index states, the H21 workspace context line
   effort.ts         reasoning-effort levels per harness (maps `effort.*` to the level adapters write)
-  context-mode*.ts  Context Mode (the context-mode MCP server): the tools Buracle allows and hides,
-                    the session bridge's event normalizers (redacted, capped) and, in
-                    context-mode-restore.ts, the restore text (H27); its guards are policy/sandbox.ts
 src/engine/         IO: paths, fsx, proc, git, log, config loader, canonical loader, txn, merge, diff
-  context-mode.ts   Context Mode's storage roots (one per harness and project under
-                    $BURACLE_HOME/context-mode), its toolchain copy and its server's environment
 src/cli/main.ts     thin entry only (never import it); the router lives in src/cli/router.ts; one module per command in src/cli/commands/<name>.ts
 src/adapters/<h>/   per-harness generator, runtime templates and hook handlers; registry.ts
-src/adapters/shared/context-mode/  Context Mode's session bridge over context-mode's own session
-                    library: the `buracle ctx session` ops, the Claude/Codex bridge, the child client,
-                    the stats reader, H16 housekeeping and the smoke test (the OpenCode server
-                    plugin and the omp extension never bundle session.ts, library.ts or bridge.ts;
-                    build tests pin it)
 src/workflow/       plan, flow, worktree, review-scope, notify, project, skills/rules lint, session-store
                     (session state, telemetry, session resolution, aliases), usage ledger, code indexes (H21);
                     plan-audit (the plan against the diff), worktree-branch, plan-capture (H12),
@@ -50,10 +40,12 @@ src/workflow/       plan, flow, worktree, review-scope, notify, project, skills/
                     and review-notes (the review page's notes), companion* (the second opinion),
                     project-assets/-check/-adopt (H28), non-project.ts (the one 'never a project' rule)
 src/memory/         the memory on CortexDB: client (cortex.ts), store (one file per project + person.db),
-                    MCP server, CLI twins, session start text, finalizer, sweep and upkeep, profile,
-                    handoffs, distillation, the old vault's import, doctor, the harness choice for its
-                    model calls (model.ts), the built-in embedder (embed.ts), the tick (tick.ts), what the sweep settles without a model (settle.ts), the files it finds by name (sources.ts),
-                    and backups, restore, export and import (backup.ts, export.ts)
+                    MCP server, CLI twins, session start text (read-only), the session-end finalizer
+                    (finalize.ts) with the capture of explicit preferences and stale sessions (capture.ts) and
+                    the validated model distillation (distill.ts), handoffs, the old vault's import, doctor,
+                    the harness choice for its model calls (model.ts, runner.ts), and backups, restore,
+                    export and import (backup.ts, export.ts). Nothing here runs in the background: the one
+                    detached process is the session-end `mem finalize`, the UI starts only through `mem ui`
   ui/               the web UI: the brain, the review page, sessions and usage, notifications and the
                     workflow switches; its JSON API and event stream, and the pages' hand-written JS and CSS
 src/usage/          per-harness usage collectors
@@ -103,7 +95,8 @@ major or minor there to start a new line). It rebuilds the commit at that versio
 carries it), leaves out `RELEASE_DROPS` (`tests/` and `bunfig.toml`), writes the result to `main` as
 one commit per release and publishes `v<version>` from it with `scripts/install.sh` and
 `scripts/install.ps1` attached. A push that changes only the test suite releases nothing. The
-`windows-install` job installs the tree without `RELEASE_DROPS` before. CI never runs on `main`. The
+`windows-install` job installs the tree without `RELEASE_DROPS` before, and the `posix-install` job
+does the same with `scripts/install.sh` on macOS and Linux (the release waits for both). CI never runs on `main`. The
 install scripts clone `main`, so installs and `buracle update` (which follows the checkout's
 upstream) get exactly the released files.
 
@@ -182,12 +175,6 @@ the FEATURES matrix in `tests/adapters/parity.test.ts` and the host-limits table
 - Fault injection: `BURACLE_TXN_FAIL_AT=<n>` makes the n-th transaction write throw;
   `txnTestHooks` (txn.ts) simulates another process touching files mid-transaction.
 - Claude mod tests live in `harness/claude/tests/` and run with `claude plugin test harness/claude`.
-- Context Mode tests use the fixture package in `tests/fixtures/context-mode/` (stub session-library
-  modules), never the real package, and never run context-mode code against the real home. The
-  opt-in tests against a real installed package run only with
-  `BURACLE_CM_SMOKE=<context-mode package folder> bun test tests/adapters/shared/context-mode-maint.test.ts tests/adapters/codex/context-mode.test.ts -t OPT-IN`:
-  they drive Buracle's CLI and hooks in child processes whose HOME, BURACLE_HOME, CLAUDE_CONFIG_DIR,
-  CODEX_HOME, XDG_*, TMPDIR and CONTEXT_MODE_DIR point into a temp folder.
 - `docs/` is not in the public repository (it is gitignored), so a test reads a file under `docs/`
   only behind a guard (`HAS_DOCS`, as in `tests/workflow/doc-lint.test.ts` and
   `tests/adapters/parity.test.ts`); CI runs without it.

@@ -33,7 +33,7 @@ describe(`claude ${GATE?.version || TESTED_WITH} checks on the assembled mod`, (
       expect(parsed.success).toBe(true)
       const gates = parsed.contents.flatMap(c => c.gatingHooks)
       for (const hook of [
-        'tool.call{tool=Bash|Monitor|PowerShell}', 'tool.call{tool=/"^mcp__(?:plugin_[^_]+_)?context-mode__ctx_(?:execute|execute_file|batch_execute)$"/}',
+        'tool.call{tool=Bash|Monitor|PowerShell}',
         'tool.call{tool=/"^(?:Edit|Write|MultiEdit|NotebookEdit)$"/}', 'tool.call{tool=/"^(?:Read|Grep|Glob|mcp__.+)$"/}',
         'tool.call{tool=/"^(?:Skill|Agent|TodoWrite|TaskCreate|TaskUpdate)$"/}', 'session.compact',
         'command.run{command=buracle-ping|buracle-status|buracle|remember|buracle-remember|brain|buracle-brain|aside|buracle-aside}', 'command.run{command=/"^buracle:[a-z][a-z0-9-]*$"/}',

@@ -41,7 +41,7 @@ Buracle dördünü tek bir kaynaktan kurar ve aynı çizgide tutar.
 
 ### Başlamadan önce
 
-En az bir harness kur: [Claude Code](https://code.claude.com/docs/en/quickstart), [Codex CLI](https://developers.openai.com/codex/cli), [OpenCode](https://opencode.ai) ya da [Oh My Pi](https://www.npmjs.com/package/@oh-my-pi/pi-coding-agent). Buracle bulduğu her harness'ı kurar, olmayanları atlar. Betik eksikse Bun'ı, Linux ve Windows'ta da Git'i kurar.
+En az bir harness kur: [Claude Code](https://code.claude.com/docs/en/quickstart), [Codex CLI](https://developers.openai.com/codex/cli), [OpenCode](https://opencode.ai) ya da [Oh My Pi](https://www.npmjs.com/package/@oh-my-pi/pi-coding-agent). Buracle bulduğu her harness'ı kurar, olmayanları atlar. Betik eksikse Bun'ı, Windows'ta da Git'i kurar. Linux'ta sudo'yu ya da paket yöneticisini asla kendisi çalıştırmaz: eksik olanı (Git, curl, unzip, Node.js, uv, ripgrep, jq) dağıtımında hangi komutla kuracağını yazar.
 
 ### Kurulum komutları
 
@@ -62,7 +62,7 @@ irm https://github.com/burakarslan0110/buracle/releases/latest/download/install.
 Kurulumdan sonra:
 
 1. Açık olan Claude Code oturumlarında `/reload-plugins` çalıştır. Diğer harness'larda bir kez oturum aç (`codex login`, `opencode auth login`, `omp login`).
-2. Her projede `buracle project init` çalıştır. Bu komut projenin beynini oluşturur ve skill'lerini her harness için bağlar.
+2. Her projede `buracle project init` çalıştır. Bu komut projeyi beynine eşler ve skill'lerini her harness için bağlar.
 3. Buracle'ın, harness'ların ve araçların en yeni sürümünü istediğinde `buracle update` çalıştır.
 
 <details>
@@ -70,7 +70,7 @@ Kurulumdan sonra:
 
 1. Önce harness dosyalarını `canonical/` ve `src/` klasörlerinden üretir. Derleme başarısız olursa hiçbir şey kurulmaz.
 2. Depoyu `~/.buracle/runtime/<id>` altına kopyalar ve kopyayı sınar. `--version` çalışmalı, Claude Code ve Codex hook'ları da `rm -rf ~` komutunu reddedip `ls` komutuna izin vermelidir. `buracle` komutu ancak bundan sonra yeni kopyaya geçer. Önceki kopya geri alma için saklanır.
-3. Eksik sistem araçlarını Homebrew, winget ya da scoop ile kurar. Her MCP sunucusunu ve dil sunucusunu `~/.buracle/toolchain` altına kurar. CortexDB dahil her şey en yeni sürümüyle gelir. Yeni bir CortexDB sürümü yalnızca hafızanın denetiminden geçtikten sonra ve beyinler yedeklendikten sonra kullanılır. `update.minReleaseAgeDays` (varsayılan 0) bir sürümden sonra birkaç gün beklemeyi sağlar.
+3. Eksik sistem araçlarını Homebrew (macOS'ta, Homebrew kuruluysa Linux'ta da), winget ya da scoop (Windows) ile kurar. Linux'ta Homebrew yoksa eksik her aracı yalnızca dağıtımın komutuyla birlikte bildirir. Her MCP sunucusunu ve dil sunucusunu `~/.buracle/toolchain` altına kurar. CortexDB dahil her şey en yeni sürümüyle gelir. Yeni bir CortexDB sürümü yalnızca hafızanın denetiminden geçtikten sonra ve beyinler yedeklendikten sonra kullanılır. `update.minReleaseAgeDays` (varsayılan 0) bir sürümden sonra birkaç gün beklemeyi sağlar.
 4. `~/.buracle/bin/buracle` komutunu, onun `~/.local/bin/buracle` bağlantısını, `~/.buracle/config.yaml` dosyasını ve `~/.agents/skills` altındaki ortak skill'leri yazar.
 5. Her harness'ı kendi işlemiyle (transaction) kurar. İşlem yedek, atomik yazma, günlük, komutlar, doğrulama, sahiplik kaydı ve onay adımlarından geçer. Bir harness başarısız olursa yalnızca o harness geri alınır.
 6. Son olarak `~/.buracle/brain` hafıza klasörünü oluşturur.
@@ -164,51 +164,35 @@ Buracle'ın hafızası `~/.buracle/brain` altındaki [CortexDB](https://github.c
 | Plans & decisions | Gerekçeleri ve reddedilen seçenekleriyle birlikte kararlar |
 | Knowledge & ideas | Çekirdek sayfalar (brief, architecture, conventions, commands, glossary, progress) ve proje bilgisi |
 | Discoveries & references | Saklamaya değer bağlantılar ve kaynaklar |
-| You & preferences | Profilin, tercihlerin ve projenin kendi kuralları |
+| You & preferences | Tercihlerin ve projenin kendi kuralları |
 | Skills & procedures | Çözülmesi emek isteyen prosedürler |
 | Warnings & gotchas | Kolay görülmeyen hatalar ve kök nedenleri |
 | Memories & events | Oturumlar, devir notları (handoff) ve dosyalanmayı bekleyen kayıtlar |
 
-### Kendi başına yaptıkları
+### Ne yapar, ne zaman
 
-- Bir oturum başladığında ajan profilini, projenin önemli hafıza kayıtlarını ve iş yarım kaldıysa nerede durduğunu anlatan bir devir notunu alır.
-- Sen çalışırken söylediğin tercihler ve düzeltmeler ("her zaman", "asla", "bundan sonra") profilini besler.
+- Bir oturum başladığında ajan tercihlerini, projenin önemli hafıza kayıtlarını ve iş yarım kaldıysa nerede durduğunu anlatan bir devir notunu alır. O anda yalnızca okuma yapılır.
+- Sen çalışırken söylediğin tercihler ("her zaman", "asla", "bundan sonra") kısa ve maskelenmiş bir alıntıyla oturumun spool dosyasına not edilir.
 - Bağlam sıkıştırılmadan önce plan, görev ve yapılacaklar durumu bir devir notuna yazılır ve sıkıştırmadan hemen sonra geri gelir.
-- Oturum bitince kullandığın harness'ın modeli oturumu hafıza kayıtlarına damıtır. Emin olunan bulgular hafıza kaydı olur, gerisi dosyalanmayı bekler.
-- Arka plandaki bakım işleri ilgili kayıtları bağlar ve birleştirir, iddiaları kaynak gösterdikleri dosyalarla karşılaştırır, kodla çelişenleri devreden çıkarır, süresi dolanları siler ve her beyni günde bir kez yedekler.
+- Oturum bitince tek bir `buracle mem finalize` çalışması oturumun hafıza kaydını yazar, söylediğin tercihleri hiçbir model kullanmadan açık (explicit) kayıtlar olarak dosyalar ve kullandığın harness'ın modeline saklamaya değer kararları, tuzakları ve prosedürleri sorar. Modelin cevabı, bir şey yazılmadan önce bütün olarak denetlenir. Emin olunan bulgular modelin güven puanıyla birlikte çıkarım (inferred) olarak işaretlenmiş hafıza kaydı olur, gerisi dosyalanmayı bekler. Senin bir kaydına (açık, sabitlenmiş ya da doğrulanmış) benzeyen bir bulgu o kaydı asla değiştirmez: yanına, çelişiyor diye işaretlenerek yazılır. Aynı çalışma, yakalaması hâlâ bekleyen en fazla üç eski oturumu da alır.
+- `buracle mem capture` aynı işi istediğin an yapar, `buracle mem doctor` hâlâ bekleyenleri listeler.
 
-Model çağrıları zaten kullandığın bir harness'ın CLI'ı üzerinden yapılır, bu yüzden API anahtarı gerekmez. Önce oturumun kendi harness'ı denenir. 5 saatlik kullanımı %75'i ya da haftalık kullanımı %85'i aşan harness atlanır. Arama, kelimeleri yerleşik çok dilli bir embedding modeliyle birleştirir.
+Arka planda başka hiçbir şey çalışmaz: zamanlayıcı, açılış işi, onarım ya da temizlik turu yok. Oturumlar ve devir notları kendiliğinden silinir, çünkü CortexDB onları 45 ve 14 gün sonra düşürür. `buracle mem backup` istediğinde beyinleri kopyalar.
 
-<details>
-<summary><b>Bakım işleri</b></summary>
+Model çağrıları zaten kullandığın bir harness'ın CLI'ı üzerinden yapılır, bu yüzden API anahtarı gerekmez. Önce oturumun kendi harness'ı denenir. 5 saatlik kullanımı %75'i ya da haftalık kullanımı %85'i aşan harness atlanır. Arama kelimelerle yapılır ve İngilizce ile Türkçe kelime biçimlerini bilir.
 
-| İş | Ne zaman çalışır | Ne yapar |
-|---|---|---|
-| kick | Her oturum başında | Temizlik yapar, depoyu denetler, eski oturumları ve kilitleri temizler |
-| tick | Makine başına tek bir işçi olarak, istemler, oturum başı ve sonu ve sıkıştırma ile uyanır, en fazla dakikada bir çalışır | Etkin her proje için kick'in işini, ayrıca damıtma, reflect, doğrulama ve onarım işlerini yapar |
-| distill | Oturum bittikten sonra | Oturumu hafıza kayıtlarına ve dosyalanmayı bekleyen kayıtlara dönüştürür |
-| reflect | Bir beyin değiştiğinde ve 6 saatte bir | İzin listesindeki küçük düzenlemeleri yapar (etiket, bağlantı, şüphe, dosyalama, kopyaları birleştirme). Her çalışma geri alınabilir |
-| verify | Kontrol bekleyen kayıt olduğunda | Model kaynak dosyalardan kelimesi kelimesine alıntı yapmak zorundadır. Bir kaydı yalnızca denetlenmiş alıntılar doğrulanmış yapar |
-| sweep | Her beyin için 6 saatte bir | Süresi dolan oturumları ve devir notlarını, 30 gün önce devreden çıkarılan kayıtları siler, çekirdek sayfaları yeniler |
-| heal | Hafıza sağlıksızken, en fazla 30 dakikada bir | CortexDB'yi ve embedding modelini yeniden kurar, okuyucuları yeniden başlatır, MCP sunucusunu denetler |
-| backup | Her beyin için günde bir kez | Beyni kopyalar ve en yeni 10 kopyayı saklar |
-
-`buracle mem jobs` her işin en son ne zaman çalıştığını, ne yaptığını ve neden atlandığını gösterir.
-
-</details>
-
-Gizli bilgiler yazılmadan önce maskelenir, `<private>…</private>` blokları hiç saklanmaz ve `memory.exclude` listesindeki klasörler hiç kaydedilmez. Bir kayıt silinmeden önce devreden çıkarılır, böylece 30 gün boyunca geri getirebilirsin. `buracle mem export` ve `buracle mem import` kayıtları JSON satırları olarak taşır. `buracle mem restore` bir yedeği geri getirir.
+Gizli bilgiler yazılmadan önce maskelenir, `<private>…</private>` blokları hiç saklanmaz ve `memory.exclude` listesindeki klasörler hiç kaydedilmez. Devreden çıkarılmış bir kayıt sen silene kadar aramalardan gizli kalır, böylece geri getirebilirsin. `buracle mem export` ve `buracle mem import` kayıtları JSON satırları olarak taşır. `buracle mem restore` bir yedeği geri getirir.
 
 ### Buracle Brain web arayüzü
 
 ![Açılmış bir bölge: kayıtları bir bağlantı ağı olarak çizilmiş, listesi yan panelde](assets/brain-network.png)
 
-`/brain` ya da `buracle mem ui --open` arayüzü `http://localhost:41777` adresinde açar. Arayüz oturumlarınla birlikte başlar ve son harness oturumu kapandıktan 90 saniye sonra kendini kapatır.
+`/brain` ya da `buracle mem ui --open` arayüzü `http://localhost:41777` adresinde açar. Arayüz yalnızca bu komutu çalıştırdığında başlar. Bir harness oturumu açık olduktan sonra, sonuncusu kapandıktan 90 saniye sonra kendini kapatır.
 
 - Beyin görünümü bölgeleri bir beyin olarak çizer ve yazma ile arama anında burada yanar. `/` arama yapar, `1` ile `7` arasındaki tuşlar bir bölgeyi açar, `G` kayıtların, etiketlerin, dosyaların ve kavramların ağını gösterir.
 - Kayıt ayrıntısında metin, etiketler, kaynaklar, geçmiş ve kaydın nereden geldiği görünür. Kaydı buradan devreden çıkarabilir, geri getirebilir ya da silebilirsin.
 - İnceleme sayfası planlarını, geliştirme sözleşmelerini, PRD'lerini ve ajanın diff'ini gösterir. Bir metni seçerek ya da bir satır numarasına tıklayarak ajana not iliştirirsin.
-- Sağlık panelinde (`H`) sorunlar sade bir dille anlatılır. Panel damıtma kuyruğunu, işleri ve yedekleri gösterir. Repair, Clean up, Verify ve Back up düğmeleri de buradadır.
+- Sağlık panelinde (`H`) sorunlar sade bir dille anlatılır. Panel depoyu, dosyalanmayı bekleyen kayıtları, son yakalamayı ve yedekleri gösterir. Back up düğmesi de buradadır.
 - Oturumlar ve kullanım panelinde (`W`) dört harness'taki son 30 günün oturumları görünür. Burada yalnızca sayılar tutulur, yazdıkların asla tutulmaz. Panel ayrıca giren commit'leri, güne ve modele göre maliyeti ve token'ları, kurulu skill'leri, ajanları ve kuralları gösterir.
 - Bildirimler (`N`) ile koyu ve açık tema (`T`) da arayüzde yer alır.
 
@@ -220,7 +204,7 @@ Sayfa yalnızca kendi yerel sunucusuna giden ve token ile denetlenen isteklerle 
 
 ![Beynin yanında açılmış ayarlar paneli, ilk workflow anahtarları ve yapılandırma adlarıyla](assets/brain-settings.png)
 
-Ayarları açmak için `S` tuşuna bas. Ayarlar üç gruptan oluşur.
+Ayarları açmak için `S` tuşuna bas. Ayarlar iki gruptan oluşur.
 
 Workflow anahtarları plan-build, goal-build ve bugfix'in her harness'ta nasıl çalışacağını belirler. Bunları buradan ya da `buracle config set plan.<key> <value>` komutuyla değiştirirsin. Ajanlar bu sayfayı kullanamaz. Onay, inceleme ve doğrulama anahtarlarını da hiçbir yoldan değiştiremez. Yaptığın değişiklik hemen `~/.buracle/config.yaml` dosyasına yazılır ve bir workflow ayarları bir sonraki okuduğunda geçerli olur. Çalışmakta olan bir goal-build ise sözleşmesiyle kilitlediği değerleri korur. Her anahtar kendi adını, kısa bir açıklamasını ve "How it works" altında ayrıntısını gösterir. Değer gelen varsayılandan farklıysa arayüz bunu da not eder.
 
@@ -239,15 +223,13 @@ Workflow anahtarları plan-build, goal-build ve bugfix'in her harness'ta nasıl 
 | Onaydan sonra model değiştirebilmen için durur | `plan.modelSwitch` | `off` (diğer seçenek `manual`) |
 | Planı harness'ın kendi plan modunda yazar | `plan.nativePlanMode` | `off` (diğer seçenek `on`) |
 
-Model for upkeep grubu, hafızanın damıtma, reflect ve doğrulama için bir harness ödünç alırken uyduğu kuralı gösterir. Bir harness bu çağrıyı ancak 5 saatlik penceresi %75'in, haftalık penceresi %85'in altındayken çalıştırır. Kuralın altında bir sonraki çağrıyı hangi harness'ın çalıştıracağını, her pencereden ne kadar kullandığını ve bekletilen bir harness'ın ne zaman serbest kalacağını görürsün. Bu grupta ayarlanacak bir şey yok.
-
-Search by meaning grubu yerleşik çok dilli embedding modelini, modelin indirilip indirilmediğini ve web arayüzünün onu hangi adresten sunduğunu gösterir. Model indirilene kadar arama kelimelerle yapılır. Modeli arka plandaki onarım ya da `buracle install` indirir.
+Model for capture grubu, hafızanın oturum sonu damıtması için bir harness ödünç alırken uyduğu kuralı gösterir. Bir harness bu çağrıyı ancak 5 saatlik penceresi %75'in, haftalık penceresi %85'in altındayken çalıştırır. Kuralın altında bir sonraki çağrıyı hangi harness'ın çalıştıracağını, her pencereden ne kadar kullandığını ve bekletilen bir harness'ın ne zaman serbest kalacağını görürsün. Bu grupta ayarlanacak bir şey yok.
 
 Son satır web arayüzünün dinlediği portu ve yazdığı yapılandırma dosyasını gösterir.
 
 ## Her harness'a ne gelir
 
-Dört harness da aynı 28 hook'u, skill'leri, inceleme ajanlarını, kuralları, hafızayı, korumaları ve durum satırı verisini alır. Değişen şey Buracle'ın harness'a nasıl bağlandığı ve her harness'ın neyi gösterebildiğidir.
+Dört harness da aynı 27 hook'u, skill'leri, inceleme ajanlarını, kuralları, hafızayı, korumaları ve durum satırı verisini alır. Değişen şey Buracle'ın harness'a nasıl bağlandığı ve her harness'ın neyi gösterebildiğidir.
 
 | | Claude Code | Codex CLI | OpenCode | Oh My Pi |
 |---|---|---|---|---|
@@ -290,7 +272,6 @@ Buracle harness'ları onay soruları olmadan çalıştırır ve korumayı kendi 
 | [`context7`](https://github.com/upstash/context7) | Kütüphane ve framework belgeleri |
 | [`codegraph`](https://github.com/colbymchenry/codegraph) | Semboller, çağıranlar ve bir değişikliğin etkisi |
 | [`semble`](https://github.com/MinishLab/semble) | Anlamsal kod arama |
-| [`context-mode`](https://github.com/mksglu/context-mode) | Uzun çıktıyı bağlamın dışında tutar ve sıkıştırmadan sonra oturumu geri yükler |
 | [`web-search`](https://www.npmjs.com/package/open-websearch) | API anahtarı istemeyen web araması |
 | [`web-fetch`](https://www.npmjs.com/package/fetcher-mcp) | Web sayfalarını arayüzsüz (headless) bir tarayıcıda okur |
 | [`grep`](https://grep.app) | Açık GitHub depolarından kod örnekleri |

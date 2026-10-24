@@ -507,7 +507,7 @@ describe('parity: secrets in shell output are masked before the model reads them
   }), 60_000)
 })
 
-const FEATURES: Readonly<Record<'consentDialog' | 'readOnlyStartNotice' | 'earlyEditNote' | 'rateWindows' | 'todoHandoff' | 'pathRules' | 'goalCommand' | 'projectRuleList' | 'claudeOnlySkillList' | 'laneGuard' | 'answerReceipt' | 'readOnlyStop' | 'backgroundWait' | 'quietStopFeedback' | 'shellWriteNudge' | 'shellReadNudge' | 'approvedPlanCapture' | 'reviewerShellReadOnly' | 'midTurnContextWarning' | 'startupNotices' | 'summaryKeepList' | 'languageServers' | 'lspDiagnosticsOnEdit' | 'turnReceipt' | 'longTurnNotice' | 'resumeHint' | 'hideMcpTools' | 'livePanes' | 'stopVeto' | 'subagentStopHold' | 'commandsWithoutTurn' | 'liveExecMask' | 'failedMcpMask' | 'customStatusLine' | 'reviewSubject' | 'reviewRestore' | 'modelSwitchCommand' | 'nativePlanMode' | 'nativePlanApproval' | 'companionShell' | 'reviewNotesNotice', Readonly<Record<Harness, boolean>>>> = {
+const FEATURES: Readonly<Record<'consentDialog' | 'readOnlyStartNotice' | 'earlyEditNote' | 'rateWindows' | 'todoHandoff' | 'pathRules' | 'goalCommand' | 'projectRuleList' | 'claudeOnlySkillList' | 'laneGuard' | 'answerReceipt' | 'readOnlyStop' | 'backgroundWait' | 'quietStopFeedback' | 'shellWriteNudge' | 'shellReadNudge' | 'approvedPlanCapture' | 'reviewerShellReadOnly' | 'midTurnContextWarning' | 'startupNotices' | 'summaryKeepList' | 'languageServers' | 'lspDiagnosticsOnEdit' | 'turnReceipt' | 'longTurnNotice' | 'resumeHint' | 'livePanes' | 'stopVeto' | 'subagentStopHold' | 'commandsWithoutTurn' | 'liveExecMask' | 'failedMcpMask' | 'customStatusLine' | 'reviewSubject' | 'reviewRestore' | 'modelSwitchCommand' | 'nativePlanMode' | 'nativePlanApproval' | 'companionShell' | 'reviewNotesNotice', Readonly<Record<Harness, boolean>>>> = {
   approvedPlanCapture: { claude: true, codex: true, opencode: false, omp: true },
   reviewerShellReadOnly: { claude: true, codex: true, opencode: true, omp: true },
   consentDialog: { claude: true, codex: true, opencode: true, omp: true },
@@ -534,7 +534,6 @@ const FEATURES: Readonly<Record<'consentDialog' | 'readOnlyStartNotice' | 'early
   turnReceipt: { claude: true, codex: true, opencode: true, omp: true },
   longTurnNotice: { claude: true, codex: true, opencode: true, omp: true },
   resumeHint: { claude: true, codex: true, opencode: true, omp: true },
-  hideMcpTools: { claude: true, codex: true, opencode: true, omp: true },
   livePanes: { claude: true, codex: false, opencode: true, omp: true },
   stopVeto: { claude: true, codex: true, opencode: false, omp: true },
   subagentStopHold: { claude: true, codex: true, opencode: false, omp: true },
@@ -617,7 +616,6 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
     const each = (test: (code: string, h: Harness) => boolean): Record<Harness, boolean> => ({ claude: test(src.claude, 'claude'), codex: test(src.codex, 'codex'), opencode: test(src.opencode, 'opencode'), omp: test(src.omp, 'omp') })
     expect(each(c => /laneStateDenial\(command\)/.test(c))).toEqual(FEATURES.laneGuard)
     expect(each(c => /reviewNotesNotice\((?:H|HARNESS|'omp'), /.test(c))).toEqual(FEATURES.reviewNotesNotice)
-    expect(each(c => /laneStateDenialAll\(/.test(c))).toEqual(FEATURES.laneGuard)
     expect(each(c => /answerReceipt\(/.test(c) && /questionAnswered\(/.test(c))).toEqual(FEATURES.answerReceipt)
     expect(each(c => /readOnly = true/.test(c))).toEqual(FEATURES.readOnlyStop)
     const matrix = HAS_DOCS ? readFileSync(join(REPO, 'docs', 'design', 'harness-adapters.md'), 'utf8') : ''
@@ -873,7 +871,7 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
     expect([...s.openCodeServer.commands, ...s.openCodeTui.slash].filter(c => c === 'aside' || c === 'btw')).toEqual(['aside'])
   }, 60_000)
 
-  test('UX parity (w3): turn receipts and loop alarms, the long-turn notification and the resume hint on all four; hidden MCP tools everywhere (omp through setActiveTools); live memory and plan panes everywhere but Codex', async () => {
+  test('UX parity (w3): turn receipts and loop alarms, the long-turn notification and the resume hint on all four; live memory and plan panes everywhere but Codex', async () => {
     const { files } = await built()
     const src: Record<Harness, string> = {
       claude: sources('src/adapters/claude'), codex: sources('src/adapters/codex'), opencode: sources('src/adapters/opencode/runtime'), omp: sources('src/adapters/omp/runtime'),
@@ -882,11 +880,6 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
     expect(each(c => /receiptLine\(/.test(c) && /noteCommand\(/.test(c) && /note(?:Changes|Edit)\(/.test(c))).toEqual(FEATURES.turnReceipt)
     expect(each(c => /longTurnText\(/.test(c))).toEqual(FEATURES.longTurnNotice)
     expect(each(c => /resumeSuggestion\(/.test(c))).toEqual(FEATURES.resumeHint)
-    const hidden = (h: Harness) => h === 'claude' ? /disabled_tools/.test(readFileSync(join(REPO, 'src/adapters/claude/install.ts'), 'utf8'))
-      : h === 'codex' ? file(files.codex, 'config.fragment.toml').includes('disabled_tools')
-        : h === 'opencode' ? /disabled_tools/.test(readFileSync(join(REPO, 'src/adapters/opencode/render.ts'), 'utf8'))
-          : file(files.omp, 'extensions/buracle.js').includes('setActiveTools(') && /hideTools\(pi\)/.test(src.omp)
-    expect(each((_c, h) => hidden(h))).toEqual(FEATURES.hideMcpTools)
     expect({
       claude: file(files.claude, 'hooks/register.tsx').includes("component: 'Pane'"),
       codex: [...files.codex.values()].some(t => /setWidget|dialog\.show|component: 'Pane'/.test(t)),

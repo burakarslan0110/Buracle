@@ -10,7 +10,6 @@ export function projectDbFile(slug: string): string {
   if (!memIsSlug(slug)) throw new Error(`not a project slug: ${JSON.stringify(slug)}`)
   return join(brainProjectsDir(), `${slug}.db`)
 }
-export function brainAbsorbedDir(): string { return join(brainDir(), 'absorbed') }
 export function brainBackupsDir(): string { return join(brainDir(), 'backups') }
 export const BACKUP_ID_RE = /^\d{8}-\d{6}(?:-\d{1,3})?$/
 export function brainBackupDir(id: string): string {
@@ -27,15 +26,6 @@ export function statusFile(slug?: string): string {
   if (slug !== undefined && !memIsSlug(slug)) throw new Error(`not a project slug: ${JSON.stringify(slug)}`)
   return join(statusDir(), `${slug ?? '_global'}.json`)
 }
-export function upkeepFile(slug?: string): string {
-  if (slug !== undefined && !memIsSlug(slug)) throw new Error(`not a project slug: ${JSON.stringify(slug)}`)
-  return join(memStateDir(), 'upkeep', `${slug ?? '_person'}.json`)
-}
-export function distinctFile(slug?: string): string {
-  if (slug !== undefined && !memIsSlug(slug)) throw new Error(`not a project slug: ${JSON.stringify(slug)}`)
-  return join(memStateDir(), 'distinct', `${slug ?? '_person'}.json`)
-}
-export function sweepStateFile(): string { return join(memStateDir(), 'sweep.json') }
 export function eventsFile(): string { return join(memStateDir(), 'events.jsonl') }
 export function vaultImportFile(): string { return join(memStateDir(), 'vault-import.json') }
 export function projectsFile(): string { return join(memStateDir(), 'projects.json') }
@@ -47,37 +37,4 @@ export function cortexChildFile(db: string, pid: number): string { return join(c
 export function sessionRecordsDir(): string { return join(memStateDir(), 'sessions') }
 export function sessionRecordFile(h: Harness, sid: string): string { return join(sessionRecordsDir(), `${h}-${sid}.json`) }
 export function redactionsFile(): string { return join(memStateDir(), 'redactions.jsonl') }
-export function distillDir(): string { return join(memStateDir(), 'distill') }
-export function profileStateDir(): string { return join(memStateDir(), 'profile') }
-export function profileEvidenceDir(): string { return join(profileStateDir(), 'sessions') }
-export function profileClaimsFile(): string { return join(profileStateDir(), 'claims.json') }
-export function profileDroppedFile(): string { return join(profileStateDir(), 'dropped.json') }
-export function scanStateDir(): string { return join(memStateDir(), 'scan') }
-export function distillQueueDir(): string { return join(distillDir(), 'queue') }
-export function distillLockFile(h: Harness, sid: string): string { return join(locksDir(), `distill-${h}-${sid}.lock`) }
-export function distillRunsFile(): string { return join(distillDir(), 'runs.jsonl') }
-export function jobsFile(): string { return join(memStateDir(), 'jobs.jsonl') }
 export function runnerBackoffFile(): string { return join(memStateDir(), 'runner-backoff.json') }
-export function healStateFile(): string { return join(memStateDir(), 'heal.json') }
-export function healLockFile(): string { return join(locksDir(), 'heal.lock') }
-export function reflectDir(): string { return join(memStateDir(), 'reflect') }
-export function reflectRunsFile(): string { return join(reflectDir(), 'runs.jsonl') }
-export function reflectUndoDir(): string { return join(reflectDir(), 'undo') }
-export function verifyDir(): string { return join(memStateDir(), 'verify') }
-export function verifyRunsFile(): string { return join(verifyDir(), 'runs.jsonl') }
-export function verifyStateFile(): string { return join(verifyDir(), 'state.json') }
-export function verifyUndoDir(): string { return join(verifyDir(), 'undo') }
-export function verifyLockFile(slug: string): string {
-  if (!memIsSlug(slug)) throw new Error(`not a project slug: ${JSON.stringify(slug)}`)
-  return join(locksDir(), `verify-${slug}.lock`)
-}
-export const VERIFY_RUN_ID_RE = /^vf-\d{8}-\d{6}-[0-9a-f]{4}$/
-export function verifyUndoFile(runId: string): string {
-  if (!VERIFY_RUN_ID_RE.test(runId)) throw new Error(`not a verify run id: ${JSON.stringify(runId)}`)
-  return join(verifyUndoDir(), `${runId}.json`)
-}
-export const REFLECT_RUN_ID_RE = /^rf-\d{8}-\d{6}-[0-9a-f]{4}$/
-export function reflectUndoFile(runId: string): string {
-  if (!REFLECT_RUN_ID_RE.test(runId)) throw new Error(`not a reflect run id: ${JSON.stringify(runId)}`)
-  return join(reflectUndoDir(), `${runId}.json`)
-}

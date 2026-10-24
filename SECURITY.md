@@ -17,5 +17,5 @@ fix on the default branch. Only the newest commit on the default branch is suppo
 ## Out of scope
 
 - A command that Buracle holds for consent and the user then allows.
-- The behavior of the tools Buracle installs (MCP servers, language servers, CortexDB,
-  context-mode): report those upstream.
+- The behavior of the tools Buracle installs (MCP servers, language servers, CortexDB): report
+  those upstream.

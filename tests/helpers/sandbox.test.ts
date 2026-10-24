@@ -26,7 +26,7 @@ describe('withSandbox', () => {
   })
 
   test('the preload sets the quiet defaults; withSandbox keeps them and child processes inherit them', async () => {
-    expect(TEST_DEFAULT_ENV).toEqual({ BURACLE_NO_NOTIFY: '1', BURACLE_NO_CAPTURE: '1', BURACLE_NO_TOOLCHAIN: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_NO_DISTILL: '1', BURACLE_NO_REFLECT: '1', BURACLE_NO_VERIFY: '1', BURACLE_NO_EMBED: '1', BURACLE_NO_NOTICES: '1', BURACLE_RUNTIME: 'checkout', BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0', GIT_CONFIG_NOSYSTEM: '1' })
+    expect(TEST_DEFAULT_ENV).toEqual({ BURACLE_NO_NOTIFY: '1', BURACLE_NO_CAPTURE: '1', BURACLE_NO_TOOLCHAIN: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_NO_DISTILL: '1', BURACLE_NO_NOTICES: '1', BURACLE_RUNTIME: 'checkout', BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0', GIT_CONFIG_NOSYSTEM: '1' })
     for (const [k, v] of Object.entries(TEST_DEFAULT_ENV)) {
       expect(ISOLATED_ENV).not.toContain(k)
       expect(process.env[k]).toBe(v)

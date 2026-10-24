@@ -1,6 +1,6 @@
 import {
   CORE_SECTIONS, coreId, isLive, isMemId, isMemKind, KIND_INFO, similarMemories, WRITABLE_KINDS,
-  type MemAuthor, type MemItem, type MemKind, type MemLayer,
+  type MemAuthor, type MemItem, type MemKind, type MemLayer, type MemOrigin,
 } from '../core/memory/brain'
 import { memIsSlug } from '../core/memory/note'
 import { coreHumanPart, detectedBlockOf, withDetectedBlock } from '../core/memory/repo'
@@ -30,6 +30,8 @@ export interface ExportLine {
   created: string
   updated: string
   pinned?: true
+  origin?: MemOrigin
+  confidence?: number
 }
 
 const clean = (s: string): string => redact(s).text
@@ -44,6 +46,8 @@ function lineOf(i: MemItem): ExportLine {
     author: i.author, review: i.review, created: i.created, updated: i.updated,
   }
   if (i.pinned === true) line.pinned = true
+  if (i.origin !== undefined) line.origin = i.origin
+  if (i.confidence !== undefined) line.confidence = i.confidence
   return line
 }
 
@@ -87,6 +91,8 @@ function parseLine(raw: string): ExportLine | undefined {
     importance: typeof r['importance'] === 'number' ? r['importance'] : 3, author, review: 'pending', created, updated: created,
   }
   if (r['pinned'] === true) line.pinned = true
+  if (r['origin'] === 'explicit' || r['origin'] === 'inferred') line.origin = r['origin']
+  if (typeof r['confidence'] === 'number' && Number.isFinite(r['confidence']) && r['confidence'] >= 0 && r['confidence'] <= 1) line.confidence = r['confidence']
   return line
 }
 
@@ -156,6 +162,7 @@ export async function importMemories(ctx: MemoryCtx, text: string, opts: { dryRu
       kind: line.kind, title: line.title, summary: line.summary, body: line.body, layer: line.layer,
       sources: line.sources, tags: line.tags, about: line.about, importance: line.importance,
       ...(line.pinned === true ? { pin: true } : {}),
+      ...(line.origin !== undefined ? { origin: line.origin } : {}), ...(line.confidence !== undefined ? { confidence: line.confidence } : {}),
     }, { ...(line.kind === 'capture' ? { internal: true } : {}), author: line.author, importedFrom: marker, ...(line.created !== '' ? { created: line.created } : {}) })
     if (r.action === 'duplicate_suspected') { skip(`a live memory already says this: ${r.id}`); continue }
     loaded.delete(line.layer)

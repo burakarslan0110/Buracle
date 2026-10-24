@@ -37,16 +37,14 @@ import { codegraphIndexPresent, refreshWorkspaceInfo, workspaceInfo } from '../.
 import { buracleRepoFor } from '../../opencode/runtime/adapter-rules'
 import { recordDialogGrant } from '../../shared/consent-dialog'
 import { reviewNotesNotice } from '../../shared/review-notes'
-import { consentGate, consentGateAll, recordPromptGrants } from '../../shared/consent-store'
+import { consentGate, recordPromptGrants } from '../../shared/consent-store'
 import { nodeCheckFs, type CheckFs } from '../../shared/checker-scan'
-import { cmPrune } from '../../shared/context-mode/maint'
 import { realWriteTarget } from '../../shared/realpath'
 import { assetsAfterEdit, assetsContext, startLinkRun } from '../../shared/project-assets'
 import { prepareWorkspace } from '../../shared/workspace-start'
 import { spawnNotify } from '../../shared/turn-receipt'
 import { liveConfig, mcpHealth, ompConfigPath, type LiveConfig } from './config'
 import { reviewerFenceFromEnv } from './companion-fence'
-import { defaultCmDeps, type CmDeps } from './context-mode'
 import { buracleCli, createMemoryBridge, readMemoryStatus, type MemoryBridge } from './memory'
 import { ompAutosaveDir, STAGED_PLAN_MAX_AGE_MS, STAGED_PLAN_STALE_MS, USER_PLAN_MAX_AGE_MS, type PlanStore, type StagedPlan } from './plan-capture'
 import { createDepsReader } from './routing'
@@ -117,8 +115,6 @@ export interface ExtensionDeps {
   refreshUsage(): void
   prune(keep: ReadonlySet<string>, nowMs: number): string[]
   consentGate(sid: string, command: string, nowMs: number): string | undefined
-  consentGateAll(sid: string, commands: readonly string[], nowMs: number): string | undefined
-  cm: CmDeps
   recordGrants(sid: string, text: string, nowMs: number): void
   recordAskGrant(sid: string, kind: ConsentKind, answer: 'once' | 'session', nowMs: number): void
   prepareWorkspace(cwd: string, cfg: BuracleConfig, nowMs: number): Promise<WorkspaceInfo>
@@ -268,11 +264,9 @@ export function defaultDeps(): ExtensionDeps {
       const argv = cli()
       if (argv !== undefined) spawnUsageRefresh('omp', { argv: [...argv, 'usage', 'refresh', '--harness', 'omp', '--background'] })
     },
-    prune: (keep, nowMs) => [...sessionMaint('omp', nowMs, { keep }).removed, ...cmPrune(nowMs).removed],
+    prune: (keep, nowMs) => sessionMaint('omp', nowMs, { keep }).removed,
     notifyDesktop: (title, message) => { spawnNotify(cli(), title, message) },
     consentGate: (sid, command, nowMs) => consentGate('omp', sid, command, nowMs),
-    consentGateAll: (sid, commands, nowMs) => consentGateAll('omp', sid, commands, nowMs),
-    cm: defaultCmDeps(),
     recordGrants: (sid, text, nowMs) => { recordPromptGrants('omp', sid, text, nowMs) },
     recordAskGrant: (sid, kind, answer, nowMs) => { recordDialogGrant('omp', sid, kind, answer, nowMs) },
     prepareWorkspace: (cwd, cfg, nowMs) => prepareWorkspace(cwd, cfg, nowMs),

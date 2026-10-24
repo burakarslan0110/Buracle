@@ -1,7 +1,7 @@
 import { readdirSync, statSync } from 'node:fs'
 import {
   isLive, isMemId, KIND_INFO, MEM_KINDS, rankHits, regionOf, regionSummaries, REGIONS, searchTerms,
-  type MemItem, type MemKind, type MemRankInput, type UpkeepItem, type UpkeepReason,
+  type MemItem, type MemKind, type MemRankInput,
 } from '../../core/memory/brain'
 import { memIsSlug } from '../../core/memory/note'
 import { isPersonRegion, PERSON_REGIONS, personRegionOf, personRegionSummaries } from '../../core/memory/person-brain'
@@ -11,9 +11,7 @@ import { memStemForms } from '../../core/memory/stem'
 import { cortexdbBinary } from '../../engine/toolchain/cortexdb'
 import { CortexError } from '../cortex'
 import { brainDir, brainProjectsDir } from '../layout'
-import { profileLines } from '../profile'
 import { readProjectsCache, slugExclusion } from '../project'
-import { readUpkeep } from '../sweep'
 import { brainExists, getStored, listAll, personRef, projectRef, type BrainRef } from '../store'
 
 export const CORTEXDB_FIX = 'buracle install'
@@ -129,14 +127,16 @@ export interface UiBrief {
   pinned?: boolean
   recallCount?: number
   lastRecalledAt?: string
-  upkeep?: UpkeepReason[]
+  origin?: MemItem['origin']
+  confidence?: number
+  contradicts?: boolean
 }
 
 export function regionFor(scope: Pick<UiScope, 'kind'>): (i: Pick<MemItem, 'kind' | 'title' | 'summary' | 'tags'>) => MemGraphRegion {
   return scope.kind === 'person' ? personRegionOf : (i) => regionOf(i.kind)
 }
 
-function brief(i: MemItem, upkeep: ReadonlyMap<string, UpkeepItem>, region: (i: MemItem) => MemGraphRegion = (x) => regionOf(x.kind)): UiBrief {
+function brief(i: MemItem, region: (i: MemItem) => MemGraphRegion = (x) => regionOf(x.kind)): UiBrief {
   const b: UiBrief = {
     id: i.id, kind: i.kind, region: region(i), title: i.title, summary: i.summary, tags: i.tags, importance: i.importance,
     review: i.review, unverified: i.review === 'pending' && !KIND_INFO[i.kind].generated, status: i.status,
@@ -145,23 +145,14 @@ function brief(i: MemItem, upkeep: ReadonlyMap<string, UpkeepItem>, region: (i: 
   if (i.pinned === true) b.pinned = true
   if (i.recallCount !== undefined) b.recallCount = i.recallCount
   if (i.lastRecalledAt !== undefined) b.lastRecalledAt = i.lastRecalledAt
-  const u = upkeep.get(i.id)
-  if (u !== undefined) b.upkeep = u.reasons
+  if (i.origin !== undefined) b.origin = i.origin
+  if (i.confidence !== undefined) b.confidence = i.confidence
+  if (i.contradictedAt !== undefined) b.contradicts = true
   return b
 }
 
 const byWeight = (a: MemItem, b: MemItem) =>
   Number(b.pinned === true) - Number(a.pinned === true) || b.importance - a.importance || (b.updated || b.created).localeCompare(a.updated || a.created)
-
-function upkeepOf(scope: UiScope): { at?: string, gitAt?: string, items: UpkeepItem[], quiet: UpkeepItem[], byId: Map<string, UpkeepItem> } {
-  const rec = readUpkeep(scope.kind === 'project' ? scope.slug : undefined)
-  const all = (rec?.items ?? []).filter(u => u.layer === scope.kind && isMemId(u.id))
-  const items = all.filter(u => u.quiet !== true)
-  const out: { at?: string, gitAt?: string, items: UpkeepItem[], quiet: UpkeepItem[], byId: Map<string, UpkeepItem> } = { items, quiet: all.filter(u => u.quiet === true), byId: new Map(all.map(u => [u.id, u])) }
-  if (rec?.at !== undefined) out.at = rec.at
-  if (rec?.gitAt !== undefined) out.gitAt = rec.gitAt
-  return out
-}
 
 function regionCounts(scope: UiScope, items: readonly MemItem[], nowMs: number): Record<string, number> {
   const ids: readonly string[] = scope.kind === 'person' ? PERSON_REGIONS.map(r => r.id) : REGIONS.map(r => r.id)
@@ -186,21 +177,19 @@ export interface UiLayerSummary {
   count: number | null
   regions: Record<string, number> | null
   lastActivity?: string
-  upkeep: number
   error?: string
 }
 
 async function layerSummary(cache: BrainCache, scope: UiScope, nowMs: number): Promise<UiLayerSummary> {
   const exists = brainExists(scope.ref)
-  const upkeep = upkeepOf(scope).items.length
   try {
     const items = await cache.items(scope.ref, nowMs)
-    const s: UiLayerSummary = { scope: scope.key, exists, count: items.filter(i => isLive(i, nowMs)).length, regions: regionCounts(scope, items, nowMs), upkeep }
+    const s: UiLayerSummary = { scope: scope.key, exists, count: items.filter(i => isLive(i, nowMs)).length, regions: regionCounts(scope, items, nowMs) }
     const last = lastActivity(items)
     if (last !== undefined) s.lastActivity = last
     return s
   } catch (e) {
-    return { scope: scope.key, exists, count: null, regions: null, upkeep, error: errorPayload(e).body.error }
+    return { scope: scope.key, exists, count: null, regions: null, error: errorPayload(e).body.error }
   }
 }
 
@@ -241,7 +230,6 @@ export async function overview(cache: BrainCache, nowMs: number): Promise<Record
 
 export async function brainOf(cache: BrainCache, scope: UiScope, nowMs: number): Promise<Record<string, unknown>> {
   const items = await cache.items(scope.ref, nowMs)
-  const up = upkeepOf(scope)
   const live = items.filter(i => isLive(i, nowMs)).sort(byWeight)
   const regions = scope.kind === 'person'
     ? personRegionSummaries(items, nowMs).map(s => {
@@ -262,9 +250,8 @@ export async function brainOf(cache: BrainCache, scope: UiScope, nowMs: number):
     exists: brainExists(scope.ref),
     now: new Date(nowMs).toISOString(),
     regions,
-    items: live.map(i => brief(i, up.byId, regionFor(scope))),
+    items: live.map(i => brief(i, regionFor(scope))),
     retired: items.length - live.length,
-    upkeep: up.items.length,
   }
   if (scope.kind === 'project') out['project'] = scope.slug
   const last = lastActivity(items)
@@ -277,16 +264,16 @@ export async function memoryOf(scope: UiScope, id: string | null): Promise<Recor
   const got = await getStored(scope.ref, id)
   if (got === undefined) throw new UiApiError(404, 'not_found', `there is no memory ${id} in this brain`)
   const i = got.item
-  const up = upkeepOf(scope).byId.get(i.id)
   const provenance: Record<string, string | number> = { version: i.version }
-  const keys: Array<keyof MemItem> = ['harness', 'model', 'session', 'branch', 'commit', 'verifiedAt', 'verifiedBy', 'verifiedCommit', 'importedFrom', 'expires', 'supersededBy', 'supersededAt', 'deprecatedAt']
+  const keys: Array<keyof MemItem> = ['harness', 'model', 'session', 'branch', 'commit', 'verifiedAt', 'verifiedBy', 'verifiedCommit', 'importedFrom', 'expires', 'supersededBy', 'supersededAt', 'deprecatedAt', 'origin']
   for (const k of keys) {
     const v = i[k]
     if (typeof v === 'string' && v !== '') provenance[k] = v
   }
+  if (i.confidence !== undefined) provenance['confidence'] = i.confidence
   const out: Record<string, unknown> = {
     scope: scope.key,
-    ...brief(i, new Map(), regionFor(scope)),
+    ...brief(i, regionFor(scope)),
     layer: i.layer,
     body: i.body,
     sources: i.sources,
@@ -294,13 +281,7 @@ export async function memoryOf(scope: UiScope, id: string | null): Promise<Recor
     history: i.history,
     provenance,
   }
-  if (up !== undefined) {
-    out['upkeep'] = up.reasons
-    out['upkeepAction'] = up.action
-    if (up.twin !== undefined) out['twin'] = up.twin
-    if (up.files !== undefined) out['files'] = up.files
-    if (up.note !== undefined) out['upkeepNote'] = up.note
-  }
+  if (i.contradictedNote !== undefined) out['contradictedNote'] = i.contradictedNote
   return out
 }
 
@@ -311,7 +292,6 @@ export async function searchOf(cache: BrainCache, scope: UiScope, rawQuery: stri
   const words = memQueryWords(q)
   if (words.length === 0) return { scope: scope.key, q, items: [] }
   const items = await cache.items(scope.ref, nowMs)
-  const up = upkeepOf(scope)
   const forms = words.map(w => [w, ...memStemForms(w)])
   const matched: Array<{ item: MemItem, hits: number }> = []
   for (const i of items) {
@@ -323,7 +303,7 @@ export async function searchOf(cache: BrainCache, scope: UiScope, rawQuery: stri
   }
   matched.sort((a, b) => b.hits - a.hits)
   const ranked = rankHits(q, matched.map((m, rank): MemRankInput => ({ item: m.item, rank })))
-  return { scope: scope.key, q, items: ranked.slice(0, limit).map(i => brief(i, up.byId, regionFor(scope))) }
+  return { scope: scope.key, q, items: ranked.slice(0, limit).map(i => brief(i, regionFor(scope))) }
 }
 
 export async function graphOf(cache: BrainCache, scope: UiScope, region: string | null, nowMs: number): Promise<Record<string, unknown>> {
@@ -331,43 +311,5 @@ export async function graphOf(cache: BrainCache, scope: UiScope, region: string 
   const r = region === null || region === '' ? undefined : (scope.kind === 'person' ? (isPersonRegion(region) ? region : undefined) : REGIONS.find(x => x.id === region)?.id)
   if (r === undefined && region !== null && region !== '') throw new UiApiError(400, 'bad_region', `region must be one of ${ids.join(', ')}, or empty for the whole brain`)
   const items = await cache.items(scope.ref, nowMs)
-  const up = upkeepOf(scope)
-  return { scope: scope.key, ...memGraph(items, { nowMs, upkeep: up.byId, regionOf: regionFor(scope), ...(r !== undefined ? { region: r } : {}) }) }
-}
-
-export function upkeepPayload(scope: UiScope): Record<string, unknown> {
-  const up = upkeepOf(scope)
-  const counts: Partial<Record<UpkeepReason, number>> = {}
-  for (const u of up.items) for (const r of u.reasons) counts[r] = (counts[r] ?? 0) + 1
-  return {
-    scope: scope.key,
-    ...(up.at !== undefined ? { at: up.at } : {}),
-    ...(up.gitAt !== undefined ? { gitAt: up.gitAt } : {}),
-    counts,
-    quiet: up.quiet.length,
-    items: up.items.map(u => ({ id: u.id, kind: u.kind, region: regionFor(scope)({ kind: u.kind, title: u.title, summary: '', tags: [] }), title: u.title, reasons: u.reasons, action: u.action, ...(u.twin !== undefined ? { twin: u.twin } : {}), ...(u.files !== undefined ? { files: u.files } : {}), ...(u.note !== undefined ? { note: u.note } : {}) })),
-  }
-}
-
-export async function profilePayload(cache: BrainCache, nowMs: number): Promise<Record<string, unknown>> {
-  const ref = personRef()
-  const items = await cache.items(ref, nowMs)
-  const live = items.filter(i => isLive(i, nowMs))
-  const facts = live.filter(i => i.kind === 'profile')
-  const rank = (i: MemItem) => Number((i.tags.find(t => t.startsWith('rank-')) ?? 'rank-9').slice(5))
-  return {
-    scope: 'person',
-    exists: brainExists(ref),
-    lines: profileLines(items, 30, nowMs).map(l => l.replace(/^- /, '')),
-    facts: facts.sort((a, b) => rank(a) - rank(b) || b.importance - a.importance || a.title.localeCompare(b.title)).map(i => ({
-      id: i.id,
-      title: i.title,
-      category: i.summary.split(' · ')[0] ?? '',
-      confidence: i.summary.split(' · ')[1] ?? '',
-      hypothesis: i.tags.includes('hypothesis'),
-      stated: i.tags.includes('stated'),
-      inferred: i.tags.includes('inferred'),
-    })),
-    preferences: live.filter(i => i.kind === 'preference').sort(byWeight).map(i => brief(i, new Map(), personRegionOf)),
-  }
+  return { scope: scope.key, ...memGraph(items, { nowMs, regionOf: regionFor(scope), ...(r !== undefined ? { region: r } : {}) }) }
 }

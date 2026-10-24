@@ -4,7 +4,7 @@ import type {
   BarModel, BuracleConfig, CatalogMcp, CatalogSkill, CheckerFacts, CheckerPlan, CompiledTriggers, DirScan, Finding, GitState, Harness, HookId, IndexStatus, Intent,
   McpHealth, MemItem, MemKind, MemLayer, MemRegion, MemoryStatus, Plan, PlanType, PreDecision, PricingTable, PromptRoute, PromptSignals, ReminderContext,
   ReminderResult, RouteOptions, RouteTextOptions, RoutingPolicy, Segment, SessionState, StatusLayout, StopDecision, StopInput, StopWhy,
-  PruneItem, StartTextInput, TddEdit, TestCandidates, ToolCall, UpkeepFacts, UpkeepItem, UsageLedger, WorkspaceInfo,
+  StartTextInput, TddEdit, TestCandidates, ToolCall, UsageLedger, WorkspaceInfo,
 } from '../../src/core/index'
 
 type Equals<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false
@@ -22,7 +22,7 @@ const parsePatch: (patch: string, cwd: string) => { paths: string[], added: Reco
 void parsePatch
 assertType<Equals<Parameters<typeof core.parseApplyPatch>, [patch: string, cwd: string, opts?: core.ToolPathOptions]>>(true)
 assertType<Equals<ReturnType<typeof core.parseApplyPatch>, { paths: string[], added: Record<string, string> }>>(true)
-assertType<Equals<HookId, 'H01' | 'H02' | 'H03' | 'H04' | 'H05' | 'H06' | 'H07' | 'H08' | 'H09' | 'H10' | 'H11' | 'H12' | 'H13' | 'H14' | 'H15' | 'H16' | 'H17' | 'H18' | 'H19' | 'H20' | 'H21' | 'H22' | 'H23' | 'H24' | 'H25' | 'H26' | 'H27' | 'H28'>>(true)
+assertType<Equals<HookId, 'H01' | 'H02' | 'H03' | 'H04' | 'H05' | 'H06' | 'H07' | 'H08' | 'H09' | 'H10' | 'H11' | 'H12' | 'H13' | 'H14' | 'H15' | 'H16' | 'H17' | 'H18' | 'H19' | 'H20' | 'H21' | 'H22' | 'H23' | 'H24' | 'H25' | 'H26' | 'H28'>>(true)
 assertType<Equals<PreDecision, { action: 'allow', context?: string[] } | { action: 'deny', reason: string, hook: HookId }>>(true)
 assertType<Equals<StopDecision, { action: 'allow' } | { action: 'block', reason: string, hook: HookId }>>(true)
 
@@ -103,15 +103,16 @@ assertType<Equals<typeof core.normalizeForSearch, (text: string) => string>>(tru
 assertType<Equals<typeof core.redact, (text: string) => { text: string; count: number; kinds: string[] }>>(true)
 assertType<Equals<typeof core.memSegment, (s: MemoryStatus | undefined, nowMs: number, style: 'compact' | 'wide') => Segment>>(true)
 assertType<Equals<typeof core.fromCortex, (raw: unknown, layer: MemLayer) => MemItem | undefined>>(true)
-assertType<Equals<typeof core.toCortexSave, (item: MemItem, keep?: Readonly<Record<string, unknown>>) => Record<string, unknown>>>(true)
-assertType<Equals<typeof core.cortexQuery, (query: string, topK: number, opts?: { semantic?: boolean }) => Record<string, unknown>>>(true)
+assertType<Equals<typeof core.toCortexSave, (item: MemItem, keep?: Readonly<Record<string, unknown>>, nowMs?: number) => Record<string, unknown>>>(true)
+assertType<Equals<typeof core.cortexQuery, (query: string, topK: number) => Record<string, unknown>>>(true)
 assertType<Equals<typeof core.regionOf, (kind: MemKind) => MemRegion>>(true)
 assertType<Equals<typeof core.isLive, (item: MemItem, nowMs: number) => boolean>>(true)
 assertType<Equals<typeof core.brainStartText, (input: StartTextInput) => string>>(true)
-assertType<Equals<typeof core.upkeepFindings, (items: readonly MemItem[], facts: UpkeepFacts) => UpkeepItem[]>>(true)
-assertType<Equals<typeof core.pruneCandidates, (items: readonly MemItem[], nowMs: number) => PruneItem[]>>(true)
+assertType<Equals<typeof core.memLocked, (i: Pick<MemItem, 'origin' | 'pinned'>) => boolean>>(true)
+assertType<Equals<typeof core.memProtected, (i: Pick<MemItem, 'origin' | 'pinned' | 'review'>) => boolean>>(true)
+assertType<Equals<typeof core.promptSignals, (text: string) => core.PromptSignal[]>>(true)
 assertType<Equals<MemLayer, 'project' | 'person'>>(true)
-assertType<Equals<MemoryStatus['v'], 2>>(true)
+assertType<Equals<MemoryStatus['v'], 3>>(true)
 
 assertType<Equals<typeof core.priceOf, (model: string, tokens: { input: number; output: number; cacheRead: number; cacheWrite: number }, table: PricingTable) => number | undefined>>(true)
 
@@ -125,7 +126,7 @@ describe('core exports', () => {
       'checkersFor', 'findingsOf', 'tddHint', 'charsetFindings', 'lengthNote', 'checkerFacts', 'checkerDirs', 'missingToolNote', 'missingToolKey',
       'gitFromPorcelainV2', 'pace', 'windowLabel', 'rows', 'renderAnsi', 'renderPlain',
       'parseNote', 'slugify', 'normalizeForSearch', 'redact', 'memSegment',
-      'fromCortex', 'toCortexSave', 'cortexQuery', 'regionOf', 'isLive', 'brainStartText', 'upkeepFindings', 'pruneCandidates', 'memHealth',
+      'fromCortex', 'toCortexSave', 'cortexQuery', 'regionOf', 'isLive', 'brainStartText', 'memLocked', 'memProtected', 'ttlSeconds', 'promptSignals', 'sanitizePromptSignal', 'memHealth',
       'priceOf',
       'realpathQueries', 'checkEval', 'catastrophicCommandRules', 'scanCode', 'redactClip',
       'compileTriggers', 'routePrompt', 'routeText', 'parseSkillTriggers', 'validateSkillTriggers', 'detectSignals', 'isUserText',

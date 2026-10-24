@@ -142,6 +142,7 @@ export function fakeModelEditor(models: EditableModel[]): ModelEditor & { models
 export interface FakeMemory extends MemoryBridge {
   appended: Array<{ sid: string, entries: SpoolEntry[] }>
   started: Array<{ sid: string, cwd: string }>
+  prompts: string[]
   finalized: string[]
   handoffs: HandoffRequest[]
   contexts: Array<{ cwd: string, maxBytes: number }>
@@ -149,9 +150,10 @@ export interface FakeMemory extends MemoryBridge {
 
 export function fakeMemory(context?: string): FakeMemory {
   const m: FakeMemory = {
-    appended: [], started: [], finalized: [], handoffs: [], contexts: [],
+    appended: [], started: [], prompts: [], finalized: [], handoffs: [], contexts: [],
     append(sid, entries) { m.appended.push({ sid, entries }) },
     start(sid, cwd) { m.started.push({ sid, cwd }) },
+    prompt(sid) { m.prompts.push(sid) },
     finalize(sid) { m.finalized.push(sid) },
     async context(cwd, maxBytes) { m.contexts.push({ cwd, maxBytes }); return context },
     async handoff(req) { m.handoffs.push(req); return `handoff-${req.project ?? 'none'}` },

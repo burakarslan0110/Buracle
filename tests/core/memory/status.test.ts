@@ -1,28 +1,29 @@
 import { describe, expect, test } from 'bun:test'
-import { memAge, memEmptyStatus, memHealth, memMcpHealth, memSegment, memSegmentWith, type MemHealthInput, type MemoryStatus } from '../../../src/core/memory/status'
+import { memAge, memEmptyStatus, memHealth, memHealthLine, memMcpHealth, memReasonAdvice, memSegment, memSegmentWith, type MemHealthInput, type MemoryStatus } from '../../../src/core/memory/status'
 
 const NOW = Date.UTC(2026, 9, 8, 12, 0, 0)
-const base = (over: Partial<MemHealthInput> = {}): MemHealthInput => ({ storeOk: true, readable: true, upkeep: 0, captures: 0, distillPending: 0, ...over })
+const base = (over: Partial<MemHealthInput> = {}): MemHealthInput => ({ storeOk: true, readable: true, captures: 0, ...over })
 
 describe('memHealth', () => {
   test('ok when nothing applies', () => {
     expect(memHealth(base())).toEqual({ health: 'ok', reasons: [] })
   })
 
-  test('error reasons come first and win', () => {
-    const h = memHealth(base({ storeOk: false, mcpDown: true, upkeep: 20 }))
+  test('error reasons come first and win over warnings', () => {
+    const h = memHealth(base({ storeOk: false, mcpDown: true, captures: 20 }))
     expect(h.health).toBe('error')
-    expect(h.reasons).toEqual(['cortexdb_missing', 'mcp_down', 'upkeep_high'])
+    expect(h.reasons).toEqual(['cortexdb_missing', 'mcp_down', 'captures_high'])
     expect(memHealth(base({ readable: false })).reasons).toEqual(['brain_unreadable'])
   })
 
-  test('warnings', () => {
-    expect(memHealth(base({ upkeep: 15 })).reasons).toEqual(['upkeep_high'])
-    expect(memHealth(base({ upkeep: 14 })).reasons).toEqual([])
-    expect(memHealth(base({ captures: 10 })).reasons).toEqual(['captures_high'])
-    expect(memHealth(base({ coreMissing: 1 })).reasons).toEqual(['core_missing'])
-    expect(memHealth(base({ coreMissing: 0 })).reasons).toEqual([])
-    expect(memHealth(base({ distillPending: 5 }))).toEqual({ health: 'warn', reasons: ['distill_backlog'] })
+  test('an unreadable brain is not reported on top of a missing store', () => {
+    expect(memHealth(base({ storeOk: false, readable: false })).reasons).toEqual(['cortexdb_missing'])
+  })
+
+  test('only a full inbox warns', () => {
+    expect(memHealth(base({ captures: 10 }))).toEqual({ health: 'warn', reasons: ['captures_high'] })
+    expect(memHealth(base({ captures: 9 }))).toEqual({ health: 'ok', reasons: [] })
+    expect(memHealth(base({ mcpDown: true })).health).toBe('error')
   })
 })
 
@@ -42,30 +43,34 @@ describe('memSegment', () => {
   const status = (over: Partial<MemoryStatus> = {}): MemoryStatus => ({
     ...memEmptyStatus('2026-10-08T15:00:00+03:00', 'buracle'),
     counts: { project: 142, person: 37 },
-    upkeep: 3,
     captures: 1,
     last_write: { at: '2026-10-08T14:48:00+03:00', by: 'codex', type: 'decision' },
     ...over,
   })
 
-  test('compact: count · upkeep · age · health', () => {
-    expect(memSegment(status(), NOW, 'compact')).toEqual({ id: 'mem', text: 'brain 142·u3·12m ✓', color: 'green' })
+  test('compact: count · age · health', () => {
+    expect(memSegment(status(), NOW, 'compact')).toEqual({ id: 'mem', text: 'brain 142·12m ✓', color: 'green' })
   })
 
   test('wide', () => {
-    expect(memSegment(status(), NOW, 'wide').text).toBe('🧠 buracle 142+37p · upkeep 3 · inbox 1 · last 12m (codex)')
+    expect(memSegment(status(), NOW, 'wide').text).toBe('🧠 buracle 142+37p · inbox 1 · last 12m (codex)')
     expect(memSegmentWith(status(), NOW, 'wide', { emoji: false }).text.startsWith('buracle 142+37p')).toBe(true)
   })
 
+  test('wide shows when the last capture saved something', () => {
+    const s = status({ last_capture: { at: '2026-10-08T14:55:00+03:00', by: 'claude', saved: 2 } })
+    expect(memSegment(s, NOW, 'wide').text).toBe('🧠 buracle 142+37p · inbox 1 · last 12m (codex) · captured 5m')
+    expect(memSegment(s, NOW, 'compact').text).toBe('brain 142·12m ✓')
+    expect(memSegment(status({ last_capture: { at: 'not a date', by: 'claude', saved: 0 } }), NOW, 'wide').text).not.toContain('captured')
+  })
+
   test('warnings and errors append the first reason and change the color', () => {
-    const warn = memSegment(status({ health: 'warn', reasons: ['upkeep_high'], upkeep: 16 }), NOW + 3 * 3600_000, 'compact')
-    expect(warn).toEqual({ id: 'mem', text: 'brain 142·u16·3h ⚠ upkeep 16', color: 'yellow' })
+    const warn = memSegment(status({ health: 'warn', reasons: ['captures_high'], captures: 12 }), NOW + 3 * 3600_000, 'compact')
+    expect(warn).toEqual({ id: 'mem', text: 'brain 142·3h ⚠ inbox 12', color: 'yellow' })
     const err = memSegment(status({ health: 'error', reasons: ['cortexdb_missing'] }), NOW, 'wide')
     expect(err.color).toBe('red')
     expect(err.text.endsWith('✗ cortexdb missing')).toBe(true)
-    const queue = memSegment(status({ health: 'warn', reasons: ['distill_backlog'], distill: { pending: 9, held: 2 } }), NOW, 'compact')
-    expect(queue.text.endsWith('⚠ queue 7')).toBe(true)
-    expect(memSegment(status({ health: 'warn', reasons: ['captures_high'], captures: 12 }), NOW, 'compact').text.endsWith('⚠ inbox 12')).toBe(true)
+    expect(memSegment(status({ health: 'error', reasons: ['mcp_down'] }), NOW, 'compact').text.endsWith('✗ mcp down')).toBe(true)
   })
 
   test('ages are computed at render time', () => {
@@ -73,15 +78,35 @@ describe('memSegment', () => {
     expect(memSegment(s, NOW, 'compact').text).not.toBe(memSegment(s, NOW + 2 * 3600_000, 'compact').text)
   })
 
-  test('no status yet, or a status of the old vault format', () => {
+  test('no status yet, or a status of an older format', () => {
     expect(memSegment(undefined, NOW, 'compact')).toEqual({ id: 'mem', text: 'brain –', color: 'gray', dim: true })
     expect(memSegment({ v: 1 } as unknown as MemoryStatus, NOW, 'compact').text).toBe('brain –')
+    expect(memSegment({ ...status(), v: 2 } as unknown as MemoryStatus, NOW, 'compact').text).toBe('brain –')
   })
 
   test('outside a project the person count shows', () => {
     const g = { ...memEmptyStatus('x'), counts: { project: 0, person: 9 } }
     expect(memSegment(g, NOW, 'compact').text).toBe('brain 9 ✓')
     expect(memSegment(g, NOW, 'wide').text).toBe('🧠 person 9p')
+  })
+})
+
+describe('health text', () => {
+  test('memHealthLine names the reasons and stays silent while the memory is healthy', () => {
+    expect(memHealthLine(undefined)).toBeUndefined()
+    expect(memHealthLine({ health: 'ok', reasons: [], captures: 0 })).toBeUndefined()
+    expect(memHealthLine({ health: 'warn', reasons: ['captures_high'], captures: 12 })).toBe('Memory health: warn (inbox 12). `buracle mem doctor` names what is wrong.')
+    expect(memHealthLine({ health: 'error', reasons: ['cortexdb_missing', 'mcp_down'], captures: 0 })).toContain('(cortexdb missing, mcp down)')
+  })
+
+  test('every reason memHealth can give has advice with a fix, and an unknown reason is passed through', () => {
+    for (const reason of memHealth(base({ storeOk: false, mcpDown: true, captures: 20 })).reasons.concat('brain_unreadable')) {
+      const advice = memReasonAdvice(reason, { captures: 20 })
+      expect(advice.detail.length).toBeGreaterThan(10)
+      expect(advice.fix?.length ?? 0).toBeGreaterThan(0)
+    }
+    expect(memReasonAdvice('captures_high', { captures: 20 }).detail).toContain('20')
+    expect(memReasonAdvice('something_new', { captures: 0 })).toEqual({ detail: 'something_new' })
   })
 })
 

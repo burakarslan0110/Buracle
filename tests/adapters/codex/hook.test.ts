@@ -367,7 +367,7 @@ describe('UserPromptSubmit', () => {
     expect(runner.rec.spool).toEqual([])
   }))
 
-  test('H22: a question about earlier work gets the router\'s memory line (English); H26 spools the prompt\'s profile signals', () => withSandbox(async () => {
+  test('H22: a question about earlier work gets the router\'s memory line (English); a question is no statement, so only the prompt itself is spooled', () => withSandbox(async () => {
     const d = deps(quiet)
     const r = await handleCodexHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'geçen sefer neden böyle yapmıştık?' }), ctx(), d)
     const out = JSON.parse(r.stdout)
@@ -376,10 +376,40 @@ describe('UserPromptSubmit', () => {
     expect(text).toStartWith('Buracle routing for this prompt:')
     expect(text).toContain('Earlier work: search memory first (memory_search, then memory_get')
     expect(text).not.toMatch(/[çğıöşüÇĞİÖŞÜ]/)
+    expect(d.rec.spool).toEqual([{ ts: NOW, ev: 'prompt', excerpt: 'geçen sefer neden böyle yapmıştık?' }])
+  }))
+
+  test('H26: an explicit standing rule is spooled as a prompt-signal statement before the prompt; a workflow command or a language alone is not', () => withSandbox(async () => {
+    const d = deps(quiet)
+    const rule = 'Bundan sonra her zaman Türkçe yanıt ver.'
+    await handleCodexHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: rule }), ctx(), d)
     expect(d.rec.spool).toEqual([
-      { ts: NOW, ev: 'signal', signal: { kind: 'style', key: 'style.prompt_language=tr', category: 'communication' } },
-      { ts: NOW, ev: 'prompt', excerpt: 'geçen sefer neden böyle yapmıştık?' },
+      { ts: NOW, ev: 'prompt-signal', signal: { kind: 'statement', key: 'communication.reply_language=tr', category: 'communication', text: 'Reply in Turkish', quote: rule } },
+      { ts: NOW, ev: 'prompt', excerpt: rule },
     ])
+    const plain = deps(quiet)
+    await handleCodexHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: '$plan-build Bu projede testleri çalıştır' }), ctx(), plain)
+    expect(plain.rec.spool.map(e => e.ev)).toEqual(['prompt'])
+  }))
+
+  test('session start, a prompt and a compaction spawn nothing: the record is started and touched in-process and only the end of the session starts the finalizer', () => withSandbox(async ({ root }) => {
+    const cwd = join(root, 'proj')
+    mkdirSync(cwd)
+    const assets: string[] = []
+    const d = deps(quiet)
+    d.assetsSpawn = argv => { assets.push(argv.join(' ')) }
+    await handleCodexHook('SessionStart', payload('SessionStart', { cwd, source: 'startup' }), ctx(), d)
+    await handleCodexHook('UserPromptSubmit', payload('UserPromptSubmit', { cwd, prompt: 'Bundan sonra her zaman Türkçe yanıt ver.' }), ctx(), d)
+    await handleCodexHook('PreCompact', payload('PreCompact', { cwd, trigger: 'auto' }), ctx(), d)
+    await handleCodexHook('PostCompact', payload('PostCompact', { cwd, trigger: 'auto' }), ctx(), d)
+    await handleCodexHook('SessionStart', payload('SessionStart', { cwd, source: 'compact' }), ctx(), d)
+    expect(d.rec.finalizer).toEqual([])
+    expect(d.rec.runs).toEqual([])
+    expect(assets).toEqual([])
+    expect(d.rec.started).toEqual([`codex:${SID}:${cwd}:gpt-6.1-sol`])
+    expect(d.rec.touched).toEqual([`codex:${SID}`])
+    await handleCodexHook('SessionEnd', payload('SessionEnd', { cwd, reason: 'other' }), ctx(), d)
+    expect(d.rec.finalizer).toEqual([`codex:${SID}`])
   }))
 
   test('pause intent updates the session state through core promptInteraction', () => withSandbox(async () => {

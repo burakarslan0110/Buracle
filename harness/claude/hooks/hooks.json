@@ -58,7 +58,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "^(?:Bash|Monitor|PowerShell|Edit|Write|MultiEdit|NotebookEdit|WebSearch|WebFetch|Grep|Glob|AskUserQuestion|Skill|SubagentHandback)$|mcp__plugin_buracle_context-mode__.*|mcp__(?:plugin_[^_]+_)?context-mode__ctx_.*|mcp__.*|mcp__plugin_buracle_.*",
+        "matcher": "^(?:Bash|Monitor|PowerShell|Edit|Write|MultiEdit|NotebookEdit|WebSearch|WebFetch|Grep|Glob|AskUserQuestion|Skill|SubagentHandback)$|mcp__.*|mcp__plugin_buracle_.*",
         "hooks": [
           {
             "type": "command",
@@ -93,7 +93,7 @@
         ]
       },
       {
-        "matcher": "^(?:TodoWrite|TaskCreate|TaskUpdate|Bash|Monitor|WebSearch|WebFetch|Read|Skill|Glob|Grep|EnterPlanMode|Agent|EnterWorktree|PowerShell)$|mcp__.*",
+        "matcher": "^(?:TodoWrite|TaskCreate|TaskUpdate|Bash|Monitor|WebSearch|WebFetch|Read|Skill|PowerShell)$|mcp__.*",
         "hooks": [
           {
             "type": "command",
@@ -226,23 +226,6 @@
               "PostToolUseFailure"
             ],
             "timeout": 5
-          }
-        ]
-      },
-      {
-        "matcher": "Bash|Read|Write|Edit|MultiEdit|NotebookEdit|Glob|Grep|Agent|Skill|Monitor|PowerShell",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bun",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
-              "hook",
-              "claude",
-              "PostToolUseFailure"
-            ],
-            "timeout": 5,
-            "async": true
           }
         ]
       }

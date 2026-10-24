@@ -20,7 +20,7 @@ function withMemory(fn: (o: { root: string, home: string }) => Promise<void>): P
 const settingsOf = (repo: string) => join(repo, '.claude', 'settings.local.json')
 
 describe('project memory setup', () => {
-  test('project init creates the core pages in the project\'s own brain; Claude Code settings stay untouched', () => withMemory(async ({ root }) => {
+  test('project init maps the folder to its project brain and writes no memory; Claude Code settings stay untouched', () => withMemory(async ({ root }) => {
     const repo = await makeRepo(root)
     write(join(repo, 'AGENTS.md'), '# Demo\n')
     const r = await projectSync('init', ctxAt(repo), undefined)
@@ -29,12 +29,11 @@ describe('project memory setup', () => {
     expect(memory.status).toBe('ok')
     expect(memory.path.endsWith(join('brain', 'projects', 'repo.db'))).toBe(true)
     expect(memory.detail[0]).toStartWith('project repo')
-    const core = (await listAll(projectRef('repo'))).filter(i => i.kind === 'core').map(i => i.id).sort()
-    expect(core).toEqual(['core-architecture', 'core-brief', 'core-commands', 'core-conventions', 'core-glossary', 'core-progress'])
+    expect(await listAll(projectRef('repo'))).toEqual([])
     expect(existsSync(settingsOf(repo))).toBe(false)
     const again = await projectSync('sync', ctxAt(repo), undefined)
     expect(again.code).toBe(0)
-    expect((await listAll(projectRef('repo'))).filter(i => i.kind === 'core').length).toBe(6)
+    expect(await listAll(projectRef('repo'))).toEqual([])
   }), 30_000)
 
   test('the redirect an older Buracle wrote is taken back; a value the user set is not touched', () => withMemory(async ({ root }) => {

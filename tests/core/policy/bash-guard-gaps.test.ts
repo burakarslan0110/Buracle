@@ -37,7 +37,7 @@ describe('G4: what the guard cannot evaluate is refused (fail closed)', () => {
     expect(denied("git -c alias.a='b' -c alias.b='a' a")).toBeUndefined()
   })
 
-  test("context-mode's sandbox inherits it: code that runs the nested command is refused", () => {
+  test("omp's eval cell inherits it: code that runs the nested command is refused", () => {
     const ctx = { cwd: `${home}/code/app`, home, vault: '~/Documents/Buracle', protect: [] }
     const r = checkEval(`import os; os.system(${JSON.stringify(`${'eval '.repeat(9)}rm -rf ~`)})`, 'python', ctx)
     expect(r.hook).toBe('H01')
@@ -101,11 +101,11 @@ describe('G9: launchers no longer hide what they run', () => {
   })
 })
 
-describe('G10: shell writes meet the same H02 decision as sandbox code', () => {
+describe('G10: shell writes meet the same H02 decision as eval code', () => {
   const ctx = { cwd: `${home}/code/app`, home, vault: `${home}/Documents/Buracle`, protect: ['config/prod/**', '*.lock'] }
   const opts: BashGuardOptions = { ...session, vault: ctx.vault, protect: ctx.protect }
 
-  test('the reproduction: `echo K=1 >> .env` is refused in the shell as in the sandbox', () => {
+  test('the reproduction: `echo K=1 >> .env` is refused in the shell as in an eval cell', () => {
     expect(checkEval("open('.env', 'a').write('K=1')", 'python', ctx).deny).toContain('environment secrets')
     expect(denied('echo K=1 >> .env', opts)).toContain('environment secrets')
     expect(denied('echo K=1 >> .env')).toContain('environment secrets')

@@ -2,8 +2,6 @@ import { join } from 'node:path'
 import type * as CoreNs from '../../core/index'
 import type { Harness, ToolCall } from '../../core/events'
 import type { BuracleConfig } from '../../core/config'
-import { CM_SERVER_ID } from '../../core/context-mode'
-import type { ProfileSignal } from '../../core/memory/profile'
 import type { McpHealth, RoutingPolicy } from '../../core/policy/routing'
 import { mcpHealthOf } from '../../core/policy/routing'
 import type { PathRuleSource } from '../../core/policy/path-rules'
@@ -82,17 +80,13 @@ export function availableServers(ctx: Pick<AdapterContext, 'canonical'>, core: C
   return core.catalogMcp(ctx.canonical.mcp, H).filter(m => health[m.id] !== 'down').map(m => m.id)
 }
 
-export function liveHealth(ctx: Pick<AdapterContext, 'config'>, core: CoreFns, health: McpHealth): McpHealth {
-  return ctx.config.contextMode?.enabled === false ? core.withDisabledServers(health, [CM_SERVER_ID]) : health
+export function sessionHealth(ctx: Pick<AdapterContext, 'paths'>, core: CoreFns, sid: string, nowMs: number): McpHealth {
+  return core.sessionMcpHealth(readMcpHealth(ctx, nowMs), loadLedger(H, sid))
 }
 
-export function sessionHealth(ctx: Pick<AdapterContext, 'paths' | 'config'>, core: CoreFns, sid: string, nowMs: number): McpHealth {
-  return liveHealth(ctx, core, core.sessionMcpHealth(readMcpHealth(ctx, nowMs), loadLedger(H, sid)))
-}
-
-export function recordMcpResult(core: CoreFns, sid: string, server: string, ok: boolean, tool?: string): void {
+export function recordMcpResult(core: CoreFns, sid: string, server: string, ok: boolean): void {
   if (ok && loadLedger(H, sid).mcpErrors?.[server] === undefined) return
-  updateLedger(H, sid, l => core.ledgerMcpResult(l, server, ok, tool))
+  updateLedger(H, sid, l => core.ledgerMcpResult(l, server, ok))
 }
 
 export function workspaceFacts(ctx: Pick<AdapterContext, 'paths' | 'config'>, info: WorkspaceInfo | undefined): WorkspaceFacts {
@@ -157,15 +151,6 @@ export function resumeNotice(sid: string, now: number, cfg: Pick<BuracleConfig, 
     user: `Buracle: this session has an unfinished workflow run (${summary}). To go on, say: ${suggestion}`,
     model: `Buracle: this session has an unfinished workflow run: ${summary}. Continue it only when the user asks.`,
   }
-}
-
-export function promptSignals(prompt: string, invoked: readonly string[], core: CoreFns): ProfileSignal[] {
-  const out = core.profileSignalsFromPrompt(prompt)
-  for (const id of invoked) {
-    const s = core.profileUsageSignal(core.flowDef(id) !== undefined ? 'workflow' : 'skill', id)
-    if (s !== undefined && !out.some(o => o.key === s.key)) out.push(s)
-  }
-  return out
 }
 
 export interface UsageVerdict {

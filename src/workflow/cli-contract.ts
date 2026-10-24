@@ -15,7 +15,7 @@ export const SKILL_COMMANDS: Readonly<Record<string, CommandSpec>> = {
   project: { subs: ['init', 'sync', 'check'] },
   skills: { subs: ['lint', 'list', 'new', 'find', 'add', 'remove', 'update'] },
   rules: { subs: ['lint'] },
-  mem: { subs: ['search', 'get', 'write', 'update', 'remember', 'status', 'context', 'sweep', 'heal', 'reflect', 'verify', 'jobs', 'kick', 'profile', 'import-vault', 'doctor', 'ui', 'backup', 'restore', 'export', 'import'], nested: { profile: ['drop'] } },
+  mem: { subs: ['search', 'get', 'write', 'update', 'remember', 'status', 'context', 'capture', 'finalize', 'import-vault', 'doctor', 'ui', 'backup', 'restore', 'export', 'import'] },
   usage: { subs: null },
   flow: { subs: ['start', 'phase', 'step', 'end', 'status'] },
   index: { subs: ['ensure', 'status'] },

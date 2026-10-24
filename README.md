@@ -41,7 +41,7 @@ Buracle sets all four up from one source and keeps them in step:
 
 ### Before you start
 
-Install at least one harness: [Claude Code](https://code.claude.com/docs/en/quickstart), [Codex CLI](https://developers.openai.com/codex/cli), [OpenCode](https://opencode.ai) or [Oh My Pi](https://www.npmjs.com/package/@oh-my-pi/pi-coding-agent). Buracle sets up every harness it finds and skips the rest. The script installs Bun when it is missing, and Git on Linux and Windows.
+Install at least one harness: [Claude Code](https://code.claude.com/docs/en/quickstart), [Codex CLI](https://developers.openai.com/codex/cli), [OpenCode](https://opencode.ai) or [Oh My Pi](https://www.npmjs.com/package/@oh-my-pi/pi-coding-agent). Buracle sets up every harness it finds and skips the rest. The script installs Bun when it is missing, and Git on Windows. On Linux it never runs sudo or a package manager: it prints the command that installs what is missing (Git, curl, unzip, Node.js, uv, ripgrep, jq) on your distribution.
 
 ### Install
 
@@ -62,7 +62,7 @@ Both scripts come from the latest GitHub release. On Windows everything installs
 After the install:
 
 1. Run `/reload-plugins` in any Claude Code session that is already open. Sign in to the other harnesses once: `codex login`, `opencode auth login`, `omp login`.
-2. Run `buracle project init` in each project. It creates the project's brain and links its skills for every harness.
+2. Run `buracle project init` in each project. It maps the project to its brain and links its skills for every harness.
 3. Run `buracle update` whenever you want the newest Buracle, harnesses and tools.
 
 <details>
@@ -70,7 +70,7 @@ After the install:
 
 1. Build. It generates the harness files from `canonical/` and `src/`. A failed build installs nothing.
 2. Runtime. It copies the checkout into `~/.buracle/runtime/<id>` and tests the copy: `--version` must run, and the Claude Code and Codex hooks must deny `rm -rf ~` and allow `ls`. Only then does the `buracle` command switch to it. The previous runtime is kept for rollback.
-3. Toolchain. It installs missing system tools through Homebrew, winget or scoop, and every MCP server and language server into `~/.buracle/toolchain`. Everything comes in its newest release, CortexDB included (a new CortexDB is used only after it passed the memory's check, with the brains backed up first). `update.minReleaseAgeDays` (0 by default) can make Buracle wait some days after a release.
+3. Toolchain. It installs missing system tools through Homebrew (macOS, and Linux when Homebrew is installed), winget or scoop (Windows); on Linux without Homebrew it only reports each missing tool with the command for your distribution. It installs every MCP server and language server into `~/.buracle/toolchain`. Everything comes in its newest release, CortexDB included (a new CortexDB is used only after it passed the memory's check, with the brains backed up first). `update.minReleaseAgeDays` (0 by default) can make Buracle wait some days after a release.
 4. Core. The `~/.buracle/bin/buracle` command, its `~/.local/bin/buracle` link, `~/.buracle/config.yaml` and the shared skills in `~/.agents/skills`.
 5. Harnesses. Each harness gets its own transaction: backup, atomic writes, journal, commands, verification, ownership ledger and commit. If one harness fails, only that harness rolls back.
 6. Memory. It creates `~/.buracle/brain`.
@@ -164,51 +164,35 @@ Buracle's memory lives in [CortexDB](https://github.com/liliang-cn/cortexdb) fil
 | Plans & decisions | Decisions with their reasons and the alternatives that were rejected |
 | Knowledge & ideas | The core pages (brief, architecture, conventions, commands, glossary, progress) and project knowledge |
 | Discoveries & references | Links and references worth keeping |
-| You & preferences | Your profile, your preferences and the conventions of the project |
+| You & preferences | Your preferences and the conventions of the project |
 | Skills & procedures | Procedures that took real effort to work out |
 | Warnings & gotchas | Non-obvious failures and their root causes |
 | Memories & events | Sessions, handoffs and captures |
 
-### What it does on its own
+### What it does, and when
 
-- When a session starts, the agent gets your profile, the project's key memories and, if work was cut off, a handoff saying where it stopped.
-- While you work, the preferences and corrections you state ("always", "never", "from now on") feed your profile.
+- When a session starts, the agent gets your preferences, the project's key memories and, if work was cut off, a handoff saying where it stopped. Reading is all that happens at that moment.
+- While you work, the preferences you state ("always", "never", "from now on") are noted in the session's spool, with a short redacted quote.
 - Before the context is compacted, the plan, task and todo state go into a handoff memory, and they come back right after.
-- When a session ends, the model of the harness you used distills it into memories. Confident findings become memories and the rest wait as captures to be filed.
-- In the background, upkeep jobs link and merge related memories, check claims against the files they cite, retire what the code contradicts, delete what expired and back each brain up once a day.
+- When a session ends, one `buracle mem finalize` run writes the session memory, files your stated preferences as explicit memories without any model, and asks the model of the harness you used for the decisions, gotchas and procedures worth keeping. Its answer is checked as a whole before anything is written. Confident findings become memories marked as inferred, with the model's confidence, and the rest wait as captures to be filed. A finding that resembles a memory of yours (explicit, pinned or verified) never changes it: it is stored beside it, marked as contradicting. The same run takes up to three older sessions whose capture is still owed.
+- `buracle mem capture` does the same on demand, and `buracle mem doctor` lists what is still owed.
 
-Model calls go through the CLI of a harness you already use, so no API key is needed. The session's own harness goes first, and a harness whose 5-hour usage is above 75% or whose weekly usage is above 85% is skipped. Search combines words with a built-in multilingual embedding model.
+Nothing else runs in the background: no timers, no start-up jobs, no repair or cleanup passes. Sessions and handoffs expire by themselves, because CortexDB drops them after 45 and 14 days. `buracle mem backup` copies the brains when you ask.
 
-<details>
-<summary><b>The upkeep jobs</b></summary>
+Model calls go through the CLI of a harness you already use, so no API key is needed. The session's own harness goes first, and a harness whose 5-hour usage is above 75% or whose weekly usage is above 85% is skipped. Search is by words, with the English and Turkish word forms.
 
-| Job | When it runs | What it does |
-|---|---|---|
-| kick | At every session start | Sweeps, checks the store, clears stale sessions and locks |
-| tick | At most once a minute, one per machine, woken by prompts, session starts and ends, and compaction | The kick's work for every active project, plus distill, reflect, verify and repair |
-| distill | After a session ends | Turns the session into memories and captures |
-| reflect | When a brain changed, and every 6 hours | Small allowlisted edits: tags, links, doubts, filing, merging duplicates. Every run can be undone |
-| verify | When memories wait for a check | The model must quote the cited files word for word. Only checked quotes mark a memory verified |
-| sweep | Every 6 hours per brain | Deletes expired sessions and handoffs and memories retired 30 days ago, refreshes the core pages |
-| heal | While the memory is unhealthy, at most every 30 minutes | Reinstalls CortexDB and the embedding model, restarts readers, checks the MCP server |
-| backup | Once a day per brain | Copies the brain and keeps the newest 10 copies |
-
-`buracle mem jobs` shows when each job last ran, what it did and why it skipped.
-
-</details>
-
-Secrets are masked before anything is written, `<private>…</private>` blocks are never stored, and folders listed in `memory.exclude` are never recorded. A memory is retired before it is deleted, so you can restore it for 30 days. `buracle mem export` and `buracle mem import` move memories as JSON lines, and `buracle mem restore` brings a backup back.
+Secrets are masked before anything is written, `<private>…</private>` blocks are never stored, and folders listed in `memory.exclude` are never recorded. A retired memory stays hidden from search until you delete it, so you can restore it. `buracle mem export` and `buracle mem import` move memories as JSON lines, and `buracle mem restore` brings a backup back.
 
 ### Buracle Brain, the web UI
 
 ![A region opened: its memories drawn as a network of links, with their list in the side panel](assets/brain-network.png)
 
-`/brain` or `buracle mem ui --open` opens it at `http://localhost:41777`. It starts with your sessions and stops 90 seconds after the last harness session closes.
+`/brain` or `buracle mem ui --open` opens it at `http://localhost:41777`. It starts only when you run that command, and once a harness session has been open it stops 90 seconds after the last one closes.
 
 - Brain view. The regions drawn as a brain, where writes and searches light up as they happen. `/` searches, `1` to `7` open a region and `G` shows the network of memories, tags, files and concepts.
 - Memory detail. The body, tags, sources, history and where the memory came from, with retire, restore and delete.
 - Review page. Your plans, build contracts and PRDs, and the agent's diff. Select text or click a line number to pin a note for the agent.
-- Health (`H`). What is wrong in plain words, the distill queue, the jobs and the backups, with Repair, Clean up, Verify and Back up buttons.
+- Health (`H`). What is wrong in plain words, the store, the inbox of captures, the last capture and the backups, with a Back up button.
 - Sessions and usage (`W`). Sessions across all four harnesses for the last 30 days (counts only, never what you typed), commits landed, cost and tokens per day and model, and the installed skills, agents and rules.
 - Notifications (`N`) and a dark and a light theme (`T`).
 
@@ -220,7 +204,7 @@ The page writes only through token-checked requests to its own local server.
 
 ![The settings panel open beside the brain, with the first workflow switches and their keys](assets/brain-settings.png)
 
-Press `S` to open the settings. They come in three groups.
+Press `S` to open the settings. They come in two groups.
 
 Workflow switches decide how plan-build, goal-build and bugfix run on every harness. You change them here or with `buracle config set plan.<key> <value>`. An agent cannot use this page, and it cannot change the approval, review and verification switches at all. A change is written to `~/.buracle/config.yaml` at once and applies the next time a workflow reads it, while a running goal-build keeps the values it locked with its contract. Each switch shows its key, a short explanation with more under "How it works", and a note when it differs from the shipped default.
 
@@ -239,15 +223,13 @@ Workflow switches decide how plan-build, goal-build and bugfix run on every harn
 | Pause after approval to switch the model | `plan.modelSwitch` | `off`, or `manual` |
 | Plan in the harness's own plan mode | `plan.nativePlanMode` | `off`, or `on` |
 
-Model for upkeep shows the rule the memory follows when it borrows a harness for distill, reflect and verify: a harness runs the call only while its 5-hour window is under 75% and its weekly window under 85%. Below the rule you see which harness would run the next call, how much of each window it has used, and when a harness that is held back frees up. Nothing in this group needs a setting.
-
-Search by meaning shows the built-in multilingual embedding model, whether it is downloaded and the address the web UI serves it at. Until it is downloaded, search works by words, and the background repair or `buracle install` fetches it.
+Model for capture shows the rule the memory follows when it borrows a harness for the end-of-session distillation: a harness runs the call only while its 5-hour window is under 75% and its weekly window under 85%. Below the rule you see which harness would run the next call, how much of each window it has used, and when a harness that is held back frees up. Nothing in this group needs a setting.
 
 The last line names the port the web UI listens on and the config file it writes to.
 
 ## What each harness gets
 
-All four get the same 28 hooks, skills, review agents, rules, memory, guards and status line data. What differs is how Buracle plugs in and what each host can show.
+All four get the same 27 hooks, skills, review agents, rules, memory, guards and status line data. What differs is how Buracle plugs in and what each host can show.
 
 | | Claude Code | Codex CLI | OpenCode | Oh My Pi |
 |---|---|---|---|---|
@@ -290,7 +272,6 @@ Buracle runs the harnesses without approval prompts and lets its hooks do the gu
 | [`context7`](https://github.com/upstash/context7) | Library and framework docs |
 | [`codegraph`](https://github.com/colbymchenry/codegraph) | Symbols, callers and the impact of a change |
 | [`semble`](https://github.com/MinishLab/semble) | Semantic code search |
-| [`context-mode`](https://github.com/mksglu/context-mode) | Keeps long output out of the context and restores the session after compaction |
 | [`web-search`](https://www.npmjs.com/package/open-websearch) | Web search without an API key |
 | [`web-fetch`](https://www.npmjs.com/package/fetcher-mcp) | Reads web pages in a headless browser |
 | [`grep`](https://grep.app) | Code examples from public GitHub repositories |

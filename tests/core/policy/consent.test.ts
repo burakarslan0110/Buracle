@@ -3,7 +3,6 @@ import {
   addConsentGrants, applyPromptGrants, CONSENT_KINDS, CONSENT_LABEL, consentNeeded, consentNeeds, consentVerdict, consentVerdictAll, emptyConsent, grantsFromPrompt, GRANT_TTL_MS, GRANT_USES, parseConsent,
   PENDING_TTL_MS, type ConsentState,
 } from '../../../src/core/policy/consent'
-import { CM_PURGE_COMMAND } from '../../../src/core/policy/sandbox'
 
 const NOW = 1_800_000_000_000
 
@@ -205,7 +204,7 @@ describe('consentVerdict', () => {
   })
 })
 
-describe('consentVerdictAll: a call that runs several commands (context-mode batches)', () => {
+describe('consentVerdictAll: a call that runs several commands', () => {
   const grant = (kind: ConsentState['grants'][number]['kind'], uses = GRANT_USES): ConsentState['grants'][number] => ({ kind, until: NOW + GRANT_TTL_MS, uses, source: 'prompt' })
 
   test('every command that needs consent needs a grant of its own kind', () => {
@@ -233,23 +232,12 @@ describe('consentVerdictAll: a call that runs several commands (context-mode bat
     expect(consentVerdictAll([], s, NOW)).toEqual({ allow: true, next: s })
   })
 
-  test("context-mode's ctx_purge is a database drop; only the user's yes to its question lets it run", () => {
-    const purge = `${CM_PURGE_COMMAND} --scope project`
-    expect(consentNeeded(purge)?.kind).toBe('db-destroy')
-    expect(consentNeeded(`${CM_PURGE_COMMAND} --session abc`)?.kind).toBe('db-destroy')
-    const asked = consentVerdict(purge, emptyConsent(), NOW)
-    expect(asked.allow).toBe(false)
-    expect(asked.reason).toContain(`May I run \`${purge}\`?`)
-    const yes = applyPromptGrants(asked.next, 'yes, go ahead', NOW + 1_000)
-    expect(consentVerdict(purge, yes, NOW + 2_000).allow).toBe(true)
-  })
-
   test('the everyday word "purge" grants nothing: a cache purge never allows a database drop', () => {
-    for (const p of ['purge the redis cache and rerun the tests', 'please purge the old log files', 'purge node_modules and reinstall', 'purge the CDN cache for the landing page', "purge context-mode's index, please", 'Purge the old session events']) {
+    for (const p of ['purge the redis cache and rerun the tests', 'please purge the old log files', 'purge node_modules and reinstall', 'purge the CDN cache for the landing page', 'Purge the old session events']) {
       expect({ p, grants: grantsFromPrompt(p, undefined, NOW) }).toEqual({ p, grants: [] })
     }
     const s = applyPromptGrants(emptyConsent(), 'purge the redis cache and rerun the tests', NOW)
-    for (const cmd of ['dropdb app', `${CM_PURGE_COMMAND} --scope project`, 'npx prisma migrate reset --force']) expect({ cmd, allow: consentVerdict(cmd, s, NOW + 1_000).allow }).toEqual({ cmd, allow: false })
+    for (const cmd of ['dropdb app', 'npx prisma migrate reset --force']) expect({ cmd, allow: consentVerdict(cmd, s, NOW + 1_000).allow }).toEqual({ cmd, allow: false })
     expect(grantsFromPrompt('drop the test database', undefined, NOW).map(g => g.kind)).toContain('db-destroy')
   })
 })

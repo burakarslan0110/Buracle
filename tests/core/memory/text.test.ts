@@ -84,9 +84,9 @@ describe('redact', () => {
     for (const b of benign) expect(redact(b)).toEqual({ text: b, count: 0, kinds: [] })
   })
 
-  test('a path behind a dot-folder stays whole (the temp folder context-mode sandboxes run in)', () => {
+  test('a path behind a dot-folder stays whole (temp folders with random names)', () => {
     const paths = [
-      '/private/var/folders/0w/vl9b4m6n3b5b9z_0q1b2c3d40000gn/T/.ctx-mode-JzLi3O/buracle-cm-smoke-AbC123/project/src/app.ts',
+      '/private/var/folders/0w/vl9b4m6n3b5b9z_0q1b2c3d40000gn/T/.tmp-JzLi3O/buracle-smoke-AbC123/project/src/app.ts',
       'Read ~/.cache/Build-Qx7Lm2Np/Rt5Yk8Wz-Out/Gen9Kt/src/Main.java',
       'see ./.tmp/Run-JzLi3O/Qx7Lm2Np/Rt5Yk8Wz/out/index.js',
     ]

@@ -6,7 +6,7 @@ import { eventsFile } from '../layout'
 import type { BrainOp } from '../store'
 import type { UiScope } from './api'
 
-const OPS: ReadonlySet<string> = new Set<BrainOp>(['write', 'update', 'retire', 'delete', 'prune', 'recall', 'import', 'sweep'])
+const OPS: ReadonlySet<string> = new Set<BrainOp>(['write', 'update', 'retire', 'delete', 'recall', 'import'])
 const MAX_CHUNK = 256 * 1024
 
 export interface UiEvent {

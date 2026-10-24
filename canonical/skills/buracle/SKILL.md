@@ -76,7 +76,7 @@ protecting this run, and suggest `buracle doctor`.
 | Diff to review | `buracle review-scope --slug <slug> --json` |
 | User attention needed | `buracle notify <type> "<title>" "<message>" [--plan <path>]` |
 | Before an expensive fan-out | `buracle usage --json` |
-| Memory without the MCP server | `buracle mem search\|get\|write\|update\|remember\|status` (`mem search` also filters without a query: `--type`, `--since`, `--until`, `--file`, `--tag`, `--around <id>`; `buracle mem --help` lists them all) |
+| Memory without the MCP server | `buracle mem search\|get\|write\|update\|remember\|status\|capture` (`mem search` also filters without a query: `--type`, `--since`, `--until`, `--file`, `--tag`, `--around <id>`; `buracle mem --help` lists them all) |
 | Back up, restore or move a brain (only when the user asks) | `buracle mem backup [--list]`, `buracle mem restore <id> --project <slug>`, `buracle mem export [--out <file>]`, `buracle mem import <file> [--dry-run]` |
 | Show a workflow's progress (the band above the prompt, the status line) | `buracle flow start <workflow>`, `buracle flow phase <id>`, `buracle flow end --outcome done` (the workflow skills say when) |
 | codegraph reports that the project has no index | `buracle index ensure --cwd <project root>`, then retry |

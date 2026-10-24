@@ -83,17 +83,17 @@ describe('routing (H21-H26)', () => {
     expect([l.turn, l.prompt?.route.load]).toEqual([1, ['research']])
   }))
 
-  test('H25: `$plan-build <task>` starts the plan-build run in flow.json and counts as loaded; H26 records the workflow use', () => withSandbox(async () => {
+  test('H25: `$plan-build <task>` starts the plan-build run in flow.json and counts as loaded; no usage signal is spooled', () => withSandbox(async () => {
     const d = deps(quiet)
     const text = contextOf(await handleCodexHook('UserPromptSubmit', prompt('$plan-build add rate limiting to the upload API'), ctx(), d))
     expect(text).not.toContain('plan-build')
     expect(readFlow('codex', SID)?.stack[0]).toMatchObject({ workflow: 'plan-build', title: 'add rate limiting to the upload API', source: 'prompt' })
     expect(loadLedger('codex', SID).skills['plan-build']?.n).toBe(1)
-    expect(d.rec.spool.filter(e => e.ev === 'signal').map(e => e.signal?.key)).toContain('usage.workflow=plan-build')
+    expect(d.rec.spool.filter(e => e.ev === 'prompt-signal')).toEqual([])
     const d2 = deps(quiet)
     await handleCodexHook('UserPromptSubmit', prompt('please run $memory on this'), ctx(), d2)
     expect(readFlow('codex', SID)?.stack.map(e => e.workflow)).toEqual(['plan-build'])
-    expect(d2.rec.spool.filter(e => e.ev === 'signal').map(e => e.signal?.key)).toContain('usage.skill=memory')
+    expect(d2.rec.spool.filter(e => e.ev === 'prompt-signal')).toEqual([])
   }))
 
   test('routing.skills off drops the skill lines (the memory line stays); routing.strictness off drops the MCP lines', () => withSandbox(async () => {
@@ -210,7 +210,7 @@ describe('routing (H21-H26)', () => {
     expect(await reason(call('apply_patch', { command: patch }, {}))).toStartWith('Buracle H03: this edit adds an import of `zod`')
   }))
 
-  test('H24/H23: a Bash read of a SKILL.md loads the skill (profile usage signal); an explicitly requested skill that was not loaded holds the stop once', () => withSandbox(async () => {
+  test('H24/H23: a Bash read of a SKILL.md loads the skill; an explicitly requested skill that was not loaded holds the stop once', () => withSandbox(async () => {
     const d = deps(quiet)
     await handleCodexHook('UserPromptSubmit', prompt('use the research skill to compare bun and deno'), ctx(), d)
     const blocked = JSON.parse((await handleCodexHook('Stop', payload('Stop'), ctx(), d)).stdout)
@@ -221,7 +221,7 @@ describe('routing (H21-H26)', () => {
     await handleCodexHook('UserPromptSubmit', prompt('use the research skill to compare zod and yup'), ctx(), d)
     expect((await handleCodexHook('PreToolUse', payload('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'cat ~/.agents/skills/research/SKILL.md' } }), ctx(), d)).stdout).toBe('')
     expect(loadLedger('codex', SID).skills['research']?.n).toBe(1)
-    expect(d.rec.spool.some(e => e.ev === 'signal' && e.signal?.key === 'usage.skill=research')).toBe(true)
+    expect(d.rec.spool.filter(e => e.ev === 'prompt-signal')).toEqual([])
     expect((await handleCodexHook('Stop', payload('Stop'), ctx(), d)).stdout).toBe('')
   }))
 
@@ -260,7 +260,7 @@ describe('routing (H21-H26)', () => {
     }
   }))
 
-  test('H25: a workflow the model loads by reading its installed SKILL.md (the router\'s T1 line) starts its run; H26 counts the skill and the workflow', () => withSandbox(async ({ home }) => {
+  test('H25: a workflow the model loads by reading its installed SKILL.md (the router\'s T1 line) starts its run', () => withSandbox(async ({ home }) => {
     const d = deps(quiet)
     const text = contextOf(await handleCodexHook('UserPromptSubmit', prompt('plan-build ile yap: add rate limiting to the upload endpoint'), ctx(), d))
     expect(text).toContain('read ~/.agents/skills/plan-build/SKILL.md')
@@ -268,7 +268,6 @@ describe('routing (H21-H26)', () => {
     const read = (command: string) => handleCodexHook('PreToolUse', payload('PreToolUse', { tool_name: 'Bash', tool_input: { command } }), ctx(), d)
     expect((await read(`cat ${home}/.agents/skills/plan-build/SKILL.md`)).stdout).toBe('')
     expect(readFlow('codex', SID)?.stack).toEqual([{ workflow: 'plan-build', source: 'skill', startedAt: NOW }])
-    expect(d.rec.spool.filter(e => e.ev === 'signal' && e.signal?.key.startsWith('usage.')).map(e => e.signal?.key)).toEqual(['usage.skill=plan-build', 'usage.workflow=plan-build'])
     expect((await read('sed -n 1,80p ~/.agents/skills/plan-build/SKILL.md')).stdout).toBe('')
     expect(readFlow('codex', SID)?.stack).toEqual([{ workflow: 'plan-build', source: 'skill', startedAt: NOW }])
     expect((await handleCodexHook('Stop', payload('Stop'), ctx(), d)).stdout).toBe('')
@@ -280,7 +279,6 @@ describe('routing (H21-H26)', () => {
     await read(`cat ${home}/.agents/skills/bugfix/SKILL.md`, { agent_id: CHILD, agent_type: 'worker' })
     await read(`cat ${join(root, 'buracle', 'canonical', 'skills', 'bugfix', 'SKILL.md')}`)
     expect(readFlow('codex', SID)).toBeUndefined()
-    expect(d.rec.spool.filter(e => e.ev === 'signal' && e.signal?.key === 'usage.workflow=bugfix')).toEqual([])
   }))
 
   test('H24/R4: an apply_patch that imports a project dependency context7 was not asked about is denied once; the retry goes through', () => withSandbox(async ({ root }) => {

@@ -11,9 +11,7 @@ import type { AdapterContext } from '../../../src/adapters/registry'
 import { adapter } from '../../../src/adapters/codex/index'
 import { installTestHooks } from '../../../src/adapters/codex/install'
 import { BYPASS_APPROVAL_POLICY } from '../../../src/adapters/codex/config'
-import { codexDoctor, compareVersions, configLoadCheck, contextModeCheck, effortCheck, featureEnabled, guardProbe, hookCommandProblems, hookTrustReport, mcpCommandProblems, permissionCheck, PROBE_COMMAND, routingCheck, TESTED_CODEX, type DoctorDeps, type DoctorItem } from '../../../src/adapters/codex/doctor'
-import { codexArtifacts } from '../../../src/adapters/codex/generate'
-import { CM_HIDDEN_TOOLS, CM_TOOLS } from '../../../src/core/context-mode'
+import { codexDoctor, compareVersions, configLoadCheck, effortCheck, featureEnabled, guardProbe, hookCommandProblems, hookTrustReport, mcpCommandProblems, permissionCheck, PROBE_COMMAND, routingCheck, TESTED_CODEX, type DoctorDeps, type DoctorItem } from '../../../src/adapters/codex/doctor'
 import { run as runProcess } from '../../../src/engine/proc'
 import { HOOK_COMMAND_PREFIX, hookCommand, windowsHookPrefix } from '../../../src/adapters/codex/hooks-config'
 import { buracleHooksFile, findBuracleHandlers } from '../../../src/adapters/codex/hooks-config'
@@ -35,13 +33,7 @@ const codexServers = Object.keys(canonical.mcp.servers).filter(id => canonical.m
 
 const doctorJson = (load: Record<string, unknown> = { status: 'ok', summary: 'config loaded', details: { 'startup warnings': '0' } }) => JSON.stringify({ schemaVersion: 1, overallStatus: 'fail', checks: { 'config.load': { id: 'config.load', ...load }, 'auth.credentials': { status: 'fail' } } })
 
-const cmGet = (over: Record<string, unknown> = {}) => JSON.stringify({
-  name: 'context-mode', enabled: true, disabled_reason: null,
-  transport: { type: 'stdio', command: '/h/.buracle/bin/buracle', args: ['mcp', 'run', 'context-mode'], env: { CONTEXT_MODE_PLATFORM: 'codex' }, env_vars: [], cwd: null },
-  enabled_tools: [...CM_TOOLS], disabled_tools: [...CM_HIDDEN_TOOLS], startup_timeout_sec: 30.0, tool_timeout_sec: 600.0, ...over,
-})
-
-function fake(over: { version?: string, installed?: boolean, features?: string, mcp?: string, mcpGet?: string, doctor?: string, env?: Record<string, string | undefined> } = {}, seen: string[][] = []): DoctorDeps {
+function fake(over: { version?: string, installed?: boolean, features?: string, mcp?: string, doctor?: string, env?: Record<string, string | undefined> } = {}, seen: string[][] = []): DoctorDeps {
   const res = (stdout: string, code = 0): RunResult => ({ code, stdout, stderr: '', timedOut: false })
   return {
     ...(over.env !== undefined ? { env: () => over.env as Record<string, string | undefined> } : {}),
@@ -49,7 +41,6 @@ function fake(over: { version?: string, installed?: boolean, features?: string, 
     run: async argv => {
       seen.push(argv)
       if (argv[1] === 'doctor') return res(over.doctor ?? doctorJson(), 1)
-      if (argv[1] === 'mcp' && argv[2] === 'get') return res(over.mcpGet ?? cmGet())
       return res(argv.includes('features') ? over.features ?? FEATURES : over.mcp ?? mcpList(codexServers))
     },
   }
@@ -252,38 +243,6 @@ describe('codex doctor', () => {
     expect(configLoadCheck(r(doctorJson({ status: 'fail', summary: 'config could not be loaded', details: { error: 'invalid data' }, remediation: 'Fix the reported config error, then rerun codex doctor.' })))).toEqual({ level: 'error', check: 'codex.config', detail: expect.stringContaining('does not start: invalid data') })
     expect(configLoadCheck({ code: -1, stdout: '', stderr: '', timedOut: true })).toEqual({ level: 'warn', check: 'codex.config', detail: expect.stringContaining('timed out') })
   })
-
-  test('context-mode as Codex parsed it: the tools Buracle uses, the three hidden ones, 600 s and CONTEXT_MODE_PLATFORM=codex', () => {
-    const res = (stdout: string, code = 0, stderr = ''): RunResult => ({ code, stdout, stderr, timedOut: false })
-    const want = codexArtifacts({ canonical, buracle: '/h/.buracle/bin/buracle', pathRulesDir: '' }).mcpTables['mcp_servers.context-mode']
-    expect(want).toBeDefined()
-    const table = want as NonNullable<typeof want>
-    expect(table['enabled_tools']).toEqual([...CM_TOOLS])
-    expect(table['disabled_tools']).toEqual([...CM_HIDDEN_TOOLS])
-    expect(table['tool_timeout_sec']).toBe(600)
-    expect(table['env']).toEqual({ CONTEXT_MODE_PLATFORM: 'codex' })
-    const ok = contextModeCheck(res(cmGet({ enabled_tools: [...CM_TOOLS].reverse() })), table)
-    expect(ok.level).toBe('ok')
-    expect(ok.check).toBe('codex.context-mode')
-    for (const s of ['8 tools offered', 'ctx_upgrade, ctx_insight, ctx_doctor hidden', 'calls up to 600 s', 'CONTEXT_MODE_PLATFORM=codex']) expect(ok.detail).toContain(s)
-    const lost = contextModeCheck(res(cmGet({ enabled_tools: null, disabled_tools: ['ctx_upgrade', 'ctx_insight'], tool_timeout_sec: null, transport: { type: 'stdio', env: null } })), table)
-    expect(lost.level).toBe('warn')
-    for (const s of ['enabled_tools is not set', 'disabled_tools is ctx_upgrade, ctx_insight (Buracle writes ctx_upgrade, ctx_insight, ctx_doctor)', 'tool_timeout_sec is not set (Codex stops a call after 300 s) (Buracle writes 600)', 'env CONTEXT_MODE_PLATFORM is not set', 'buracle install codex']) expect(lost.detail).toContain(s)
-    expect(contextModeCheck(res(cmGet({ enabled_tools: [...CM_TOOLS, 'ctx_upgrade'], tool_timeout_sec: 300 })), table).detail).toContain('tool_timeout_sec is 300 (Buracle writes 600)')
-    expect(contextModeCheck(res('', 1, "Error: No MCP server named 'context-mode' found.\n"), table)).toEqual({ level: 'warn', check: 'codex.context-mode', detail: expect.stringContaining("failed (exit 1: Error: No MCP server named 'context-mode' found.)") })
-    expect(contextModeCheck(res('[]'), table).detail).toContain('did not return a JSON object')
-  })
-
-  test('codex doctor runs `codex mcp get context-mode --json` when codex is installed and lists it', () => withSandbox(async () => {
-    const seen: string[][] = []
-    expect(by(await codexDoctor(ctx(), fake({}, seen)), 'codex.context-mode').map(i => i.level)).toEqual(['ok'])
-    expect(seen).toContainEqual(['/opt/homebrew/bin/codex', 'mcp', 'get', 'context-mode', '--json'])
-    expect(by(await codexDoctor(ctx(), fake({ mcpGet: cmGet({ disabled_tools: null }) })), 'codex.context-mode').map(i => i.level)).toEqual(['warn'])
-    expect(by(await codexDoctor(ctx(), fake({ installed: false })), 'codex.context-mode')).toEqual([])
-    const listed = fake({ mcp: mcpList(codexServers.filter(id => id !== 'context-mode')) })
-    expect(by(await codexDoctor(ctx(), listed), 'codex.context-mode')).toEqual([])
-    expect(by(await codexDoctor(ctx(), listed), 'codex.mcp')[0]?.detail).toContain('context-mode')
-  }))
 
   test('I8: Buracle MCP commands must resolve (the shim is an error, a missing package runner a warning)', () => {
     const cfg = '[mcp_servers.buracle-memory]\ncommand = "/nope/bin/buracle"\nargs = ["mcp", "memory"]\n[mcp_servers.context7]\ncommand = "definitely-not-a-runner-x"\n[mcp_servers.grep]\nurl = "https://mcp.grep.app"\n[mcp_servers.sh]\ncommand = "/bin/sh"\nargs = ["-c", "exec \\"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\\" mcp memory"]\n'

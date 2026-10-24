@@ -39,7 +39,7 @@ describe('opencode TUI status model', () => {
     }], now)
     const memDir = join(paths.memoryStateDir(), 'status')
     mkdirSync(memDir, { recursive: true })
-    writeFileSync(join(memDir, '_global.json'), JSON.stringify({ v: 2, computed_at: new Date(now).toISOString(), health: 'ok', reasons: [], counts: { project: 3, person: 2 }, regions: {}, upkeep: 0, captures: 1, store: { engine: 'cortexdb', version: '2.124.0', ok: true }, distill: { pending: 0 }, redactions_24h: 0 }))
+    writeFileSync(join(memDir, '_global.json'), JSON.stringify({ v: 3, computed_at: new Date(now).toISOString(), health: 'ok', reasons: [], counts: { project: 3, person: 2 }, regions: {}, captures: 1, store: { engine: 'cortexdb', version: '2.124.0', ok: true }, redactions_24h: 0 }))
     const planFile = join(root, 'plan.md')
     writeFileSync(planFile, '---\nstatus: IN_PROGRESS\n---\n# Auth fix\n\n## Tasks\n\n### Task 1: A\n- [x] Task 1 done\n\n### Task 2: B\n- [ ] Task 2 done\n')
     saveState('opencode', 'ses_tui2', { v: 1, plan: { path: planFile, slug: 'auth-fix', status: 'IN_PROGRESS', type: 'Feature', phase: 'implement', registeredAt: 1 }, guard: { blocksForPlan: 0, blocksInChain: 0 } })
@@ -129,7 +129,7 @@ describe('opencode TUI status: code indexes and the running workflow', () => {
   }))
 })
 
-describe('opencode TUI status: no Context Mode segment', () => {
+describe('opencode TUI status: no segment for the retired `cm` id', () => {
   test('the rows and the Buracle bar line carry no `cm` segment', () => withSandbox(async ({ root }) => {
     const now = 1_791_400_000_000
     const cfg = defaultConfig()

@@ -33,19 +33,6 @@
       },
       "alwaysLoad": true
     },
-    "context-mode": {
-      "command": "bun",
-      "args": [
-        "${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts",
-        "mcp",
-        "run",
-        "context-mode"
-      ],
-      "env": {
-        "CONTEXT_MODE_PLATFORM": "claude-code"
-      },
-      "alwaysLoad": true
-    },
     "context7": {
       "command": "bun",
       "args": [

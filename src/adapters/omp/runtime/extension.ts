@@ -1,15 +1,14 @@
 import type { BuracleConfig } from '../../../core/config'
-import { CM_SERVER_ID } from '../../../core/context-mode'
 import type { HookId, ToolCall, ToolKind } from '../../../core/events'
 import { classifyTool } from '../../../core/events'
 import { flowDef } from '../../../core/flow/catalog'
-import { profileSignalsFromPrompt, profileUsageSignal } from '../../../core/memory/profile'
+import { promptSignals } from '../../../core/memory/signals'
 import { spoolPromptExcerpt } from '../../../core/memory/spool'
 import * as corePolicy from '../../../core/policy/index'
 import type { BashGuardOptions } from '../../../core/policy/bash-guard'
 import type { PromptRoute } from '../../../core/policy/skill-router'
 import { PROMPT_CONTEXT_MAX_CHARS, routeText } from '../../../core/policy/skill-router'
-import { withDisabledServers, type McpHealth } from '../../../core/policy/routing'
+import type { McpHealth } from '../../../core/policy/routing'
 import type { ReminderContext, ReminderResult } from '../../../core/policy/usage'
 import { ledgerCall, ledgerPrompt, reminders, skillOf } from '../../../core/policy/usage'
 import type { WriteGuardContext } from '../../../core/policy/write-guard'
@@ -28,11 +27,9 @@ import { fenceActiveTools, fenceToolCall } from './companion-fence'
 import { judgeWithConsent, type ConsentNeed } from './consent-ask'
 import { heldConsentNeed } from './consent-held'
 import type { LiveConfig } from './config'
-import { CM_RESTORE_MESSAGE_TYPE, cmGuard, createCmBridge, isCmToolName } from './context-mode'
 import { CODE_EXECUTION_TOOLS, defaultDeps, emptyGenerated, type ExtensionDeps } from './deps'
 import { editTargets, type EditTargets } from './edits'
 import { FlowWidget, flowWidgetLines } from './flow-widget'
-import { hideTools } from './hidden-tools'
 import { StatusPane } from './pane'
 import { createTurnReceipts } from './receipt'
 import { workflowOfExpanded, workflowOfInput } from './flow-track'
@@ -61,7 +58,7 @@ export { STATUS_KEYS, WIDGET_KEY } from './status'
 export { runawayNotice, stopReason } from './stop'
 
 const WORKSPACE_WAIT_MS = 3_000
-const HIDE_TOOLS_WAIT_MS = 2_000
+const FENCE_TOOLS_WAIT_MS = 2_000
 const MAX_QUEUED_PROMPTS = 16
 const WRITE_KINDS: ReadonlySet<ToolKind> = new Set(['edit', 'write', 'patch'])
 const SPOOL_KINDS: ReadonlySet<ToolKind> = new Set(['bash', 'edit', 'write', 'patch', 'mcp', 'web_search', 'web_fetch'])
@@ -143,17 +140,12 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       if (sid === undefined || entries.length === 0 || !captureOn(sid)) return
       deps.memory.appendSpool(sid, entries).catch(e => report('spool', e))
     }
-    const usageSignal = (_lc: LiveConfig, what: 'workflow' | 'skill', id: string, now: number): SpoolEntry[] => {
-      const signal = profileUsageSignal(what, id)
-      return signal !== undefined ? [{ ts: now, ev: 'signal', signal }] : []
-    }
     const routerFor = (strictness: BuracleConfig['routing']['strictness']): RouterData => {
       if (router === undefined || router.strictness !== strictness) router = { strictness, data: routerData(data.skills, data.routing, strictness) }
       return router.data
     }
     const healthFor = (lsid: string | undefined): McpHealth => {
-      const raw = guarded('health', () => deps.health()) ?? {}
-      const health = guarded('contextMode.enabled', () => liveOrDefaults().config.contextMode.enabled) !== false ? raw : withDisabledServers(raw, [CM_SERVER_ID])
+      const health = guarded('health', () => deps.health()) ?? {}
       return guarded('H24 session health', () => sessionHealth(health, deps.ledger, lsid)) ?? health
     }
     const availableNow = (lsid: string | undefined): string[] => availableServers(data.mcp, healthFor(lsid))
@@ -176,12 +168,6 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       band: { get: sid => memo(sid).band, set: (sid, text) => { memo(sid).band = text } },
     })
 
-    const cm = createCmBridge({
-      deps: deps.cm,
-      config: () => liveOrDefaults().config,
-      report: (what, e) => report(what, e),
-      send: text => pi.sendMessage({ customType: CM_RESTORE_MESSAGE_TYPE, content: text, display: false }, { deliverAs: 'nextTurn' }),
-    })
     const consentHolds = new Map<string, ConsentNeed>()
     const deniedCalls = new Set<string>()
     const denied = (id: unknown): void => {
@@ -285,12 +271,6 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       }
       const device = isDeviceWrite(event.toolName, input)
 
-      const cmv = cmGuard(call, {
-        bash: bashOptions, write: writeContext, serverDir: () => deps.cm.projectDir(), cwd, agent: ctx.agent?.name, device, closed: closedGuard, lane: !isMain(ctx),
-        consent: commands => (sid !== undefined && paths.isValidSessionId(sid) ? guarded('H20 consent', () => deps.consentGateAll(sid, commands, deps.now())) : undefined),
-      })
-      if (cmv?.deny !== undefined) return deny(cmv.deny, cmv.hook ?? 'H01')
-
       if (call.kind === 'bash' && call.command !== undefined) {
         const command = call.command
         const r = closedGuard('H01', () => deps.policy.checkBash(command, bashOptions()))
@@ -319,7 +299,7 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
         })
         if (r.deny) return deny(r.deny, 'H02')
       }
-      if (cmv === undefined && (call.kind === 'mcp' || device || event.toolName.startsWith('mcp__'))) {
+      if (call.kind === 'mcp' || device || event.toolName.startsWith('mcp__')) {
         const r = closedGuard('H02', () => {
           const targets = ompMcpWritePaths(event.toolName, input, call.mcp, device)
           return targets.length > 0 ? deps.policy.checkWrite(targets, writeContext()) : {}
@@ -380,23 +360,15 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       const lines = [...new Set(context.map(c => c.trim()))]
       const result: OmpToolCallResult = {}
       if (lines.length > 0) result.additionalContext = lines.join('\n')
-      if (cmv?.input !== undefined) result.input = cmv.input
-      return result.additionalContext !== undefined || result.input !== undefined ? result : undefined
+      return result.additionalContext !== undefined ? result : undefined
     }
-
-    const cmUnjudged = (why: string): OmpToolCallResult => ({
-      block: true,
-      reason: `Buracle H01: the guard could not evaluate this context-mode call (${why}), so it was blocked to stay safe. Run \`buracle doctor omp\`.`,
-    })
 
     pi.on('tool_call', async (event: OmpToolCallEvent, ctx: OmpContext): Promise<OmpToolCallResult | undefined> => {
       const fenced = fenceToolCall(deps.reviewerFence?.(), event)
       if (fenced !== undefined) return fenced
-      let cmTool = false
       try {
-        cmTool = isCmToolName(event.toolName)
         return await judgeWithConsent(ctx, {
-          judge: () => withDeadline(toolCall(event, ctx), deps.timings.toolCallMs, cmTool ? cmUnjudged('no answer in time') : undefined),
+          judge: () => withDeadline(toolCall(event, ctx), deps.timings.toolCallMs, undefined),
           take: () => { const need = consentHolds.get(event.toolCallId); consentHolds.delete(event.toolCallId); return need },
           record: (need, answer) => {
             const sid = sessionOf(ctx)
@@ -405,21 +377,18 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
           cleared: () => { deniedCalls.delete(event.toolCallId) },
         })
       } catch (e) {
-        report('tool_call', e, cmTool ? 'blocked' : 'allowed')
-        return cmTool ? cmUnjudged(e instanceof Error ? e.message : String(e)) : undefined
+        report('tool_call', e)
+        return undefined
       }
     })
 
     const skillLoaded = (id: string, ctx: OmpContext): void => {
-      const lc = live()
       const now = deps.now()
-      const entries = usageSignal(lc, 'skill', id, now)
       const sid = sessionOf(ctx)
       if (isMain(ctx) && sid !== undefined && flowDef(id) !== undefined) {
-        if (guarded('H25 flow start', () => deps.flow.start(sid, { workflow: id, source: 'skill' }, now)) === true) entries.push(...usageSignal(lc, 'workflow', id, now))
+        guarded('H25 flow start', () => deps.flow.start(sid, { workflow: id, source: 'skill' }, now))
         refreshFlowSafe(ctx)
       }
-      spool(spoolSid(ctx), entries)
     }
 
     const savedPlans = async (ctx: OmpContext, signal: PlanSignal): Promise<string | undefined> => {
@@ -451,12 +420,11 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       }
       const server = cls.kind === 'mcp' && !device ? cls.mcp?.server : undefined
       const lsid = spoolSid(ctx)
-      if (server !== undefined && server !== '' && lsid !== undefined) guarded('H24 MCP result', () => { recordMcpResult(deps.ledger, lsid, server, !event.isError, cls.mcp?.tool) })
+      if (server !== undefined && server !== '' && lsid !== undefined) guarded('H24 MCP result', () => { recordMcpResult(deps.ledger, lsid, server, !event.isError) })
       const wasDenied = deniedCalls.delete(event.toolCallId)
       const sid = sessionOf(ctx)
       if (!wasDenied && isMain(ctx) && sid !== undefined && !device) {
         guarded('turn receipt', () => receipts.tool(sid, ctx, event, { kind: cls.kind, files, targets, ...(cls.command !== undefined ? { command: cls.command } : {}) }))
-        cm.toolResult(sid, { toolName: event.toolName, input, content: event.content, isError: event.isError }, { cwd: ctx.cwd, ...(cls.kind === 'edit' || cls.kind === 'patch' ? { paths: files } : {}) })
       }
       if (isMain(ctx) && sid !== undefined) {
         const todos = guarded('H06 todos', () => openTodosOf(event))
@@ -555,14 +523,13 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       const m = memo(sid)
       m.noticed = false
       const entries: SpoolEntry[] = [{ ts: now, ev: 'prompt' }]
-      guarded('memory tick', () => { deps.memory.promptSeen?.(sid) })
+      guarded('session record touch', () => { deps.memory.promptSeen?.(sid) })
       const wfExpanded = expanded ? workflowOfExpanded(raw) : undefined
       const text = wfExpanded !== undefined ? wfExpanded.args : raw.trim()
       if (wfExpanded === undefined && !isModelPrompt(text)) { spool(sid, entries); return }
       if (agentIdle(ctx)) receipts.prompt(sid)
       const excerpt = spoolPromptExcerpt(text)
       if (excerpt !== undefined && entries[0] !== undefined) entries[0].excerpt = excerpt
-      cm.prompt(sid, text)
       const literalSkill = expanded && wfExpanded === undefined && /^\/skill:[a-z0-9]/.test(text)
       const parts: QueuedPrompt['parts'] = []
       const intent = text === '' ? null : guarded('H10 detectIntent', () => deps.policy.detectIntent(text))
@@ -581,11 +548,10 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       if (wf !== undefined) {
         const input = wf.args !== '' ? { workflow: wf.workflow, title: wf.args, source: 'command' as const } : { workflow: wf.workflow, source: 'command' as const }
         guarded('H25 flow start', () => deps.flow.start(sid, input, now))
-        if (wf.via === 'skill' || wfExpanded !== undefined) entries.push(...usageSignal(lc, 'workflow', wf.workflow, now))
       }
       if (text !== '') {
-        const signals = guarded('H26 profile signals', () => profileSignalsFromPrompt(text)) ?? []
-        for (const signal of signals) entries.push({ ts: now, ev: 'signal', signal })
+        const signals = guarded('H26 prompt signals', () => promptSignals(text)) ?? []
+        for (const signal of signals) entries.push({ ts: now, ev: 'prompt-signal', signal })
       }
       spool(sid, entries)
       const queued = m.queued ??= []
@@ -634,14 +600,13 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
     }
 
     pi.on('before_agent_start', async (event: OmpBeforeAgentStartEvent, ctx: OmpContext): Promise<OmpBeforeAgentStartResult | undefined> => {
-      await withDeadline(fenceActiveTools(pi, deps.reviewerFence?.()).catch(e => { report('second-opinion tools', e); return [] }), HIDE_TOOLS_WAIT_MS, [])
+      await withDeadline(fenceActiveTools(pi, deps.reviewerFence?.()).catch(e => { report('second-opinion tools', e); return [] }), FENCE_TOOLS_WAIT_MS, [])
       if (process.env['BURACLE_MEMORY_RUNNER'] === '1') return undefined
       try {
         const sid = sessionOf(ctx)
         if (sid === undefined) return undefined
         const m = memo(sid)
         const base = Array.isArray(event.systemPrompt) ? event.systemPrompt : []
-        if (isMain(ctx)) await withDeadline(hideTools(pi).catch(e => { report('hidden tools', e); return [] }), HIDE_TOOLS_WAIT_MS, [])
         if (!isMain(ctx)) {
           m.block ??= subagentBlock(sid, ctx).catch(e => { report('subagent block', e); return '' })
           const block = await m.block
@@ -684,7 +649,6 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
         if (!isMain(ctx)) return undefined
         const sid = sessionOf(ctx)
         if (sid === undefined) return undefined
-        cm.flush(sid)
         writeTelemetryFor(sid, ctx)
         guarded('H05 context watch', () => contextCheck(notes, memo(sid), ctx, event, live().config.context))
         const text = messageText(event.message)
@@ -709,25 +673,19 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       noticed: { get: sid => memo(sid).noticed === true, set: sid => { memo(sid).noticed = true } },
     })
 
-    registerCompaction(pi, { deps, live, slugOf, guarded, report: (what, e) => report(what, e), spool, cm, todos: sid => memo(sid).todos ?? [], handoff: (sid, cwd, note) => deps.memory.writeHandoff(sid, cwd, note) })
+    registerCompaction(pi, { deps, live, slugOf, guarded, report: (what, e) => report(what, e), spool, todos: sid => memo(sid).todos ?? [], handoff: (sid, cwd, note) => deps.memory.writeHandoff(sid, cwd, note) })
 
     const finalize = (sid: string): Promise<void> => (captureOn(sid) ? deps.memory.spawnFinalizer(sid) : Promise.resolve())
 
     const startSession = (ctx: OmpContext, ev: string, event: unknown) => {
       const sid = sessionOf(ctx)
       if (sid === undefined) return
-      if (currentSid !== undefined && currentSid !== sid) {
-        const prev = currentSid
-        cm.flush(prev)
-        finalize(prev).catch(e => report('finalizer', e))
-      }
+      if (currentSid !== undefined && currentSid !== sid) finalize(currentSid).catch(e => report('finalizer', e))
       currentSid = sid
       deps.setEnv('BURACLE_SESSION_ID', sid)
       deps.setEnv('BURACLE_HARNESS', 'omp')
       if (captureOn(sid)) deps.memory.sessionStart(sid, ctx.cwd).catch(e => report('memory sessionStart', e))
-      cm.startup(sid)
-      const resumed = guarded('H27 resumed', () => resumedSession(ev, event, ctx, f => deps.isFile(f))) === true
-      if (resumed) cm.resume(sid)
+      const resumed = guarded('resumed session', () => resumedSession(ev, event, ctx, f => deps.isFile(f))) === true
       if (resumed) guarded('resume hint', () => receipts.resumed(sid, ctx, live().config))
       const m = memo(sid)
       m.context ??= deps.memory.contextText(ctx.cwd).catch(e => { report('H13 memory context', e); return undefined })
@@ -777,10 +735,7 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       try {
         if (!isMain(ctx)) return undefined
         const sid = sessionOf(ctx) ?? currentSid
-        if (sid !== undefined) {
-          cm.flush(sid)
-          await finalize(sid)
-        }
+        if (sid !== undefined) await finalize(sid)
       } catch (e) {
         report('session_shutdown', e)
       }

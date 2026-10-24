@@ -276,35 +276,6 @@ describe('caps, dedupe and availability', () => {
   })
 })
 
-describe('large output calls for context-mode (context-saving, narrow triggers)', () => {
-  const CALLS = [
-    'Analyze the output of npm test and tell me which suites fail.', 'Summarize the server logs from last night.', 'Go through the build output and list the warnings.',
-    'Scan the nginx logs for 500 errors.', 'The test output is huge; which tests failed?', 'Look at the build log and find why the linker fails.',
-    'Here is the crash log of the app.', 'Triage this stack trace.', 'Check this large CSV file for duplicate rows.', 'Read the JSON dump and count the users per country.',
-    'Summarize the git log since the last tag.', 'Bu test çıktısını özetle, hangi testler kırıldı?', 'Logları incele ve hataları say.',
-    'Çıktıyı analiz et, hangi adım yavaş?', 'Build çıktısında hangi uyarılar var?', 'Bu log dosyasında kaç hata var?', 'Büyük CSV dosyasındaki tekrarları bul.',
-  ]
-  const QUIET = [
-    'Add a CSV export button to the reports page.', 'Clean the build output folder before packaging.', 'Fix the failing test in parser.test.ts.',
-    'Run the unit tests and tell me which ones fail.', 'Write code that parses the output of the API.', 'Add logging to the auth middleware.',
-    'The login page logs users out after an hour.', 'Set the output directory to dist.', 'Rename the log level option.', 'Çıktı klasörünü temizle.',
-  ]
-  for (const text of CALLS) {
-    test(`calls for it: ${text}`, () => {
-      for (const h of HARNESSES) expect({ h, cats: route(text, { harness: h }).categories }).toEqual({ h, cats: expect.arrayContaining(['context-saving']) })
-    })
-  }
-  for (const text of QUIET) test(`no call: ${text}`, () => expect(route(text).categories).not.toContain('context-saving'))
-
-  test('only while context-mode is available; the route text names it "Large output"', () => {
-    const text = 'Summarize the server logs from last night.'
-    expect(route(text, { available: ALL_SERVERS.filter(s => s !== 'context-mode') }).categories).not.toContain('context-saving')
-    const out = routeText(route(text), 'claude', POLICY, { triggers: T }) ?? ''
-    expect(out).toContain('- Large output: process large output in the context-mode sandbox (ctx_batch_execute, ctx_execute, ctx_execute_file) and print only what you need.')
-    expect(categoryOf('context-mode')).toBe('context-saving')
-  })
-})
-
 describe('project dependencies call for their docs', () => {
   const deps = ['zod', 'express', 'next', '@tanstack/react-query', 'yaml']
   test('a dependency named next to an API word', () => {

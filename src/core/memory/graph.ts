@@ -14,7 +14,6 @@ export interface MemGraphMemoryNode {
   title: string
   importance: number
   unverified: boolean
-  upkeep: boolean
   pinned: boolean
   recallCount: number
   focus: boolean
@@ -45,7 +44,6 @@ export interface MemGraphOptions {
   nowMs: number
   region?: MemGraphRegion
   regionOf?: (i: MemItem) => MemGraphRegion
-  upkeep?: ReadonlyMap<string, { reasons: readonly string[], twin?: string }>
   limits?: { memories?: number, entities?: number, edges?: number }
 }
 
@@ -96,7 +94,6 @@ export function memGraph(items: readonly MemItem[], opts: MemGraphOptions): MemG
     entities: Math.max(0, Math.floor(opts.limits?.entities ?? MEM_GRAPH_LIMITS.entities)),
     edges: Math.max(0, Math.floor(opts.limits?.edges ?? MEM_GRAPH_LIMITS.edges)),
   }
-  const upkeep = opts.upkeep ?? new Map<string, { reasons: readonly string[], twin?: string }>()
   let truncated = false
 
   const live = new Map<string, MemItem>()
@@ -140,9 +137,6 @@ export function memGraph(items: readonly MemItem[], opts: MemGraphOptions): MemG
         if (ref !== undefined) addEdge(links, a.id, ref, 'related', EDGE_WEIGHT.related)
       }
     }
-  }
-  for (const [id, u] of [...upkeep.entries()].sort((x, y) => cmp(x[0], y[0]))) {
-    if (u.twin !== undefined && live.has(id) && live.has(u.twin)) addEdge(links, id, u.twin, 'twin', EDGE_WEIGHT.twin)
   }
 
   const neighbors: MemItem[] = []
@@ -246,7 +240,7 @@ export function memGraph(items: readonly MemItem[], opts: MemGraphOptions): MemG
 
   const memoryNodes: MemGraphMemoryNode[] = memories.map(i => ({
     id: i.id, type: 'memory', kind: i.kind, region: regionFor(i), title: i.title, importance: i.importance,
-    unverified: i.review === 'pending' && !KIND_INFO[i.kind].generated, upkeep: upkeep.has(i.id), pinned: i.pinned === true,
+    unverified: i.review === 'pending' && !KIND_INFO[i.kind].generated, pinned: i.pinned === true,
     recallCount: i.recallCount ?? 0, focus: focusIds.has(i.id), degree: degree.get(i.id) ?? 0,
   }))
   const entityNodes: MemGraphEntityNode[] = liveHubs

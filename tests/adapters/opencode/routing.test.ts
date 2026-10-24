@@ -298,18 +298,18 @@ describe('H25 flow.track and the workflow commands', () => {
   }))
 })
 
-describe('H26 profile signals and H14 capture', () => {
-  test('a user prompt spools its profile signals; a workflow command adds the workflow and skill usage', () => withSandbox(async ({ root }) => {
+describe('H26 prompt signals and H14 capture', () => {
+  test('a user prompt spools an explicit rule as a prompt-signal statement; a workflow command adds no usage signal', () => withSandbox(async ({ root }) => {
     const { f, mem } = await runtime(root, { skills: ['plan-build'] })
     await f.trigger('session.prompt', prompt('from now on always run the tests before you commit'))
-    const keys = () => mem.appended.flatMap(a => a.entries).filter(e => e.ev === 'signal').map(e => e.signal?.key)
-    expect(keys()).toContain('quality.tests=always')
+    const signals = () => mem.appended.flatMap(a => a.entries).filter(e => e.ev === 'prompt-signal').map(e => e.signal)
+    expect(signals().map(s => [s?.kind, s?.key])).toEqual([['statement', 'quality.tests=always']])
     const spec = f.commands.get('plan-build') as CommandDefinition
     await spec.execute({ sessionID: SID, prompt: { text: 'add rate limiting' }, delivery: 'steer' })
     const sent = f.prompts[0] as PromptInput
     await f.trigger('session.prompt', { sessionID: SID, messageID: 'msg_c', prompt: { text: sent.text, skills: sent.skills ?? [] }, delivery: 'steer', ...(sent.metadata !== undefined ? { metadata: sent.metadata } : {}) })
-    expect(keys()).toContain('usage.workflow=plan-build')
-    expect(keys()).toContain('usage.skill=plan-build')
+    expect(signals().map(s => s?.key)).toEqual(['quality.tests=always'])
+    expect(mem.appended.flatMap(a => a.entries).filter(e => e.ev === 'prompt')).toHaveLength(2)
   }))
 
   test('MCP, web and skill calls are spooled by name (metadata only)', () => withSandbox(async ({ root }) => {

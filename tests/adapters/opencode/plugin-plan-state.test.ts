@@ -149,24 +149,6 @@ describe('w2 plan state on OpenCode: the lane guard and the H08 receipt', () => 
     expect(lead.effect).toBe('allow')
   }))
 
-  test('a child session cannot change the plan state through context-mode either; the root session can', () => withSandbox(async ({ root }) => {
-    const { f, rt } = await runtime(root)
-    const child = 'ses_lane3'
-    await rt.handleEvent({ type: 'session.created', data: { sessionID: child, parentID: SID, location: { directory: root } } })
-    const cm = async (sid: string, id: string, input: Record<string, unknown>): Promise<PermissionEvaluation> => {
-      await f.trigger('tool.execute.before', { tool: 'context-mode_ctx_execute', sessionID: sid, agent: 'general', messageID: 'msg_1', id, input })
-      const ev: PermissionEvaluation = { sessionID: sid, action: 'context-mode_ctx_execute', resources: ['*'], effect: 'allow', source: { type: 'tool', messageID: 'msg_1', id } }
-      await f.trigger('permission.evaluate', ev)
-      return ev
-    }
-    const lane = await cm(child, 'call_l1', { language: 'shell', code: 'buracle plan resume' })
-    expect(lane.effect).toBe('deny')
-    expect(lane.message).toContain('Buracle lane guard')
-    expect((await cm(child, 'call_l2', { language: 'python', code: "import subprocess\nsubprocess.run(['buracle', 'worktree', 'sync', 'x'])" })).message).toContain('`buracle worktree sync`')
-    expect((await cm(child, 'call_l3', { language: 'shell', code: 'buracle plan status --json' })).effect).toBe('allow')
-    expect((await cm(SID, 'call_l4', { language: 'shell', code: 'buracle plan resume' })).effect).toBe('allow')
-  }))
-
   test('an answered question tool during a decision pause is recorded for the stop guard; a subagent\'s is not', () => withSandbox(async ({ root }) => {
     saveState('opencode', SID, { ...planState(), interaction: { state: 'paused', kind: 'decision', since: 1, reason: 'merge decision' } })
     const { f, rt } = await runtime(root, () => 5_000)

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { claudeInstallPlan, defaultInstallDeps, effortKeys, effortOps, envOps, hiddenToolOps, LSP_NEVER_KEY, lspRecommendationPlan, permissionOps, renderRule, ruleOps, statusLineOp, teamsOps, windowsCliCommand } from '../../../src/adapters/claude/install'
+import { claudeInstallPlan, defaultInstallDeps, effortKeys, effortOps, envOps, LSP_NEVER_KEY, lspRecommendationPlan, permissionOps, renderRule, retiredDenyOps, ruleOps, statusLineOp, teamsOps, windowsCliCommand } from '../../../src/adapters/claude/install'
 import { buracleInstalledPlugin, KEPT_EXIT, marketplaceHolds, parseList, pluginInstalled, pluginsFrom } from '../../../src/adapters/claude/check'
 import type { AdapterContext } from '../../../src/adapters/registry'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
@@ -48,7 +48,7 @@ describe('install plan as data', () => {
       const ctx = (repoRoot: string): AdapterContext => ({ ...ctxFor(), repoRoot, buracleBin: 'C:\\Users\\Ann Lee\\.buracle\\bin\\buracle.cmd' })
       const set = (op: Op) => (op as Extract<Op, { kind: 'json-merge' }>).set as Record<string, { type?: string, command: string }>
       const spaced = set(statusLineOp(ctx('C:\\Users\\Ann Lee\\buracle'), 'C:\\Users\\Ann Lee\\.bun\\bin\\bun.exe', true))
-      expect(spaced['statusLine']).toEqual({ type: 'command', command: "bun 'C:/Users/Ann Lee/buracle/harness/claude/bin/buracle.ts' statusline claude", padding: 0, refreshInterval: 15 } as never)
+      expect(spaced['statusLine']).toEqual({ type: 'command', command: "bun 'C:/Users/Ann Lee/buracle/harness/claude/bin/buracle.ts' statusline claude", padding: 0, refreshInterval: 60 } as never)
       expect(spaced['subagentStatusLine']).toEqual({ type: 'command', command: "bun 'C:/Users/Ann Lee/buracle/harness/claude/bin/buracle.ts' statusline claude --subagent" })
       const plain = set(statusLineOp(ctx('C:\\Users\\RUNNER~1\\buracle'), 'C:\\Users\\RUNNER~1\\.bun\\bin\\bun.exe', true))
       expect(plain['statusLine']?.command).toBe('C:/Users/RUNNER~1/.bun/bin/bun.exe C:/Users/RUNNER~1/buracle/harness/claude/bin/buracle.ts statusline claude')
@@ -88,7 +88,7 @@ describe('install plan as data', () => {
       expect(merges[3]?.soft).toEqual(['env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS'])
       expect(merges[3]?.enforce).toBeUndefined()
       expect(merges.every(m => m.path === join(sb.home, '.claude', 'settings.json'))).toBe(true)
-      if (process.platform !== 'win32') expect(merges[0]?.set).toEqual({ statusLine: { type: 'command', command: `${join(sb.buracleHome, 'bin', 'buracle')} statusline claude`, padding: 0, refreshInterval: 15 } })
+      if (process.platform !== 'win32') expect(merges[0]?.set).toEqual({ statusLine: { type: 'command', command: `${join(sb.buracleHome, 'bin', 'buracle')} statusline claude`, padding: 0, refreshInterval: 60 } })
       else expect((merges[0]?.set['statusLine'] as { command: string }).command).toMatch(/^(?:\/x\/bun|bun) '?[^']*\/harness\/claude\/bin\/buracle\.ts'? statusline claude$/)
       expect(merges[1]?.set).toEqual({ 'permissions.defaultMode': 'bypassPermissions', skipDangerousModePermissionPrompt: true })
       expect(merges[1]?.enforce).toEqual(['permissions.defaultMode', 'skipDangerousModePermissionPrompt'])
@@ -276,7 +276,7 @@ describe('install plan applied through the transaction engine (fake claude)', ()
           'claude-sonnet-5-5': { effortLevel: 'xhigh' }, 'claude-haiku-5-5': { effortLevel: 'xhigh' }, 'claude-fable-5-1': { effortLevel: 'xhigh' },
         })
         expect(s['theme']).toBe('dark')
-        expect((s['statusLine'] as Record<string, unknown>)['refreshInterval']).toBe(15)
+        expect((s['statusLine'] as Record<string, unknown>)['refreshInterval']).toBe(60)
         expect(existsSync(join(sb.home, '.claude', 'rules', 'buracle', 'paths', 'python.md'))).toBe(true)
         const plugs = JSON.parse(readFileSync(join(state, 'plugins.json'), 'utf8')) as Array<{ id: string }>
         expect(plugs.map(p => p.id).sort()).toEqual(['buracle@buracle', 'lint-lsp@acme-market'])
@@ -421,66 +421,53 @@ describe('the undo of a third-party marketplace Buracle added (install F02)', ()
   }, 60_000)
 })
 
-describe('H11: the MCP tools Buracle hides are bare-name permissions.deny entries (json-list-merge)', () => {
+describe('retired permissions.deny entries: Buracle hides no MCP tool any more, and an empty json-list-merge op removes what an older install wrote', () => {
   const settingsOf = (home: string) => join(home, '.claude', 'settings.json')
-  const UPGRADE = 'mcp__plugin_buracle_context-mode__ctx_upgrade'
-  const INSIGHT = 'mcp__plugin_buracle_context-mode__ctx_insight'
-  const DOCTOR = 'mcp__plugin_buracle_context-mode__ctx_doctor'
-  const HIDDEN = [UPGRADE, INSIGHT, DOCTOR]
+  // Bare-name deny entries the way an install before 0.6.0 wrote them for a server since retired.
+  const OLD = ['mcp__plugin_buracle_old-server__upgrade', 'mcp__plugin_buracle_old-server__insight']
+  const ADOPTED = 'mcp__plugin_buracle_old-server__doctor'
+  const olderInstall = (items: string[]) => ({ id: 'claude', harness: 'claude' as const, ops: [{ kind: 'json-list-merge', path: join(paths.claudeDir(), 'settings.json'), pointer: 'permissions.deny', items, identity: LIST_IDENTITY_HASH, owner: 'claude', format: 'json' } as Op] })
+  const retire = () => ({ id: 'claude', harness: 'claude' as const, ops: retiredDenyOps(ctxFor()) })
 
-  function withHidden(c: AdapterContext): AdapterContext {
-    const servers = { ...c.canonical.mcp.servers }
-    const docs = servers['docs']
-    const codexOnly = servers['codex-only']
-    if (docs === undefined || codexOnly === undefined) throw new Error('canonical-mini lost its docs or codex-only server')
-    servers['context-mode'] = { ...docs, disabled_tools: ['ctx_upgrade', 'ctx_insight', 'ctx_doctor'] }
-    servers['codex-only'] = { ...codexOnly, disabled_tools: ['dangerous'] }
-    return { ...c, canonical: { ...c.canonical, mcp: { ...c.canonical.mcp, servers } } }
-  }
-
-  test("one op on ~/.claude/settings.json: the Claude servers' hidden tools in Claude's spelling; none hidden is an empty list", async () => {
+  test('one op on ~/.claude/settings.json with an empty list, and the install plan carries exactly that list op', async () => {
     await withSandbox(async sb => {
-      expect(hiddenToolOps(withHidden(ctxFor()))).toEqual([{ kind: 'json-list-merge', path: settingsOf(sb.home), pointer: 'permissions.deny', items: HIDDEN, identity: LIST_IDENTITY_HASH, owner: 'claude', format: 'json' }])
-      expect(hiddenToolOps(ctxFor())).toEqual([{ kind: 'json-list-merge', path: settingsOf(sb.home), pointer: 'permissions.deny', items: [], identity: LIST_IDENTITY_HASH, owner: 'claude', format: 'json' }])
+      expect(retiredDenyOps(ctxFor())).toEqual([{ kind: 'json-list-merge', path: settingsOf(sb.home), pointer: 'permissions.deny', items: [], identity: LIST_IDENTITY_HASH, owner: 'claude', format: 'json' }])
       const real = { ...ctxFor(), canonical: loadCanonicalSync(join(REPO, 'canonical')) }
-      expect(hiddenToolOps(real)[0]).toMatchObject({ kind: 'json-list-merge', items: HIDDEN })
       const plan = await claudeInstallPlan(real, { claudeBin: () => '/x/claude', bunBin: () => '/x/bun', marketplaces: async () => [], ledger: async () => ({}) })
       const lists: Op[] = plan.ops.filter(o => o.kind === 'json-list-merge')
-      expect(lists).toEqual(hiddenToolOps(real))
+      expect(lists).toEqual(retiredDenyOps(real))
     })
   })
 
-  test("applied: added after the user's entries, the same entry of the user's adopted, idempotent; uninstall removes only Buracle's", async () => {
+  test("applied over an older install's entries: Buracle's go, the user's own and the adopted one stay, the ledger forgets the list, a second run changes nothing", async () => {
     await withSandbox(async sb => {
       const settings = settingsOf(sb.home)
       mkdirSync(join(sb.home, '.claude'), { recursive: true })
-      writeFileSync(settings, JSON.stringify({ permissions: { deny: ['Bash(rm -rf *)', DOCTOR] }, theme: 'dark' }, null, 2))
+      writeFileSync(settings, JSON.stringify({ permissions: { deny: ['Bash(rm -rf *)', ADOPTED] }, theme: 'dark' }, null, 2))
       const deny = () => (JSON.parse(readFileSync(settings, 'utf8')) as { permissions: { deny: string[] } }).permissions.deny
-      const plan = { id: 'claude', harness: 'claude' as const, ops: hiddenToolOps(withHidden(ctxFor())) }
-      const r1 = await applyPlans([plan])
+      expect((await applyPlans([olderInstall([ADOPTED, ...OLD])])).conflicts).toEqual([])
+      expect(deny()).toEqual(['Bash(rm -rf *)', ADOPTED, ...OLD])
+      const r1 = await applyPlans([retire()])
       expect(r1.conflicts).toEqual([])
-      expect(deny()).toEqual(['Bash(rm -rf *)', DOCTOR, UPGRADE, INSIGHT])
-      const r2 = await applyPlans([plan])
+      expect(JSON.parse(readFileSync(settings, 'utf8'))).toEqual({ permissions: { deny: ['Bash(rm -rf *)', ADOPTED] }, theme: 'dark' })
+      expect(Object.values(await readLedger()).filter(e => e.kind === 'json-list')).toEqual([])
+      const r2 = await applyPlans([retire()])
       expect(r2.applied).toBe(0)
-      expect(deny()).toEqual(['Bash(rm -rf *)', DOCTOR, UPGRADE, INSIGHT])
-      const ledger = await readLedger()
-      const group = composeUninstall(ledger, [], emptyRecord(), paths.oldVaultRoot()).groups.find(g => g.owner === 'claude')
-      expect(group).toBeDefined()
-      await applyPlans([group!.content])
-      const after = JSON.parse(readFileSync(settings, 'utf8')) as Record<string, unknown>
-      expect(after).toEqual({ permissions: { deny: ['Bash(rm -rf *)', DOCTOR] }, theme: 'dark' })
+      expect(deny()).toEqual(['Bash(rm -rf *)', ADOPTED])
     })
   })
 
-  test('a settings file without a deny list gets one, and uninstall leaves no empty permissions behind', async () => {
+  test('a settings file that never had the entries is left alone; one where the older install created the deny list loses the empty permissions too', async () => {
     await withSandbox(async sb => {
       const settings = settingsOf(sb.home)
       mkdirSync(join(sb.home, '.claude'), { recursive: true })
       writeFileSync(settings, JSON.stringify({ theme: 'dark' }, null, 2))
-      await applyPlans([{ id: 'claude', harness: 'claude', ops: hiddenToolOps(withHidden(ctxFor())) }])
-      expect(JSON.parse(readFileSync(settings, 'utf8'))).toEqual({ theme: 'dark', permissions: { deny: HIDDEN } })
-      const group = composeUninstall(await readLedger(), [], emptyRecord(), paths.oldVaultRoot()).groups.find(g => g.owner === 'claude')
-      await applyPlans([group!.content])
+      const untouched = await applyPlans([retire()])
+      expect({ applied: untouched.applied, conflicts: untouched.conflicts }).toEqual({ applied: 0, conflicts: [] })
+      expect(JSON.parse(readFileSync(settings, 'utf8'))).toEqual({ theme: 'dark' })
+      await applyPlans([olderInstall(OLD)])
+      expect(JSON.parse(readFileSync(settings, 'utf8'))).toEqual({ theme: 'dark', permissions: { deny: OLD } })
+      await applyPlans([retire()])
       expect(JSON.parse(readFileSync(settings, 'utf8'))).toEqual({ theme: 'dark' })
     })
   })

@@ -4,6 +4,7 @@ import { renderPlainLines } from '../../../src/core/status/render'
 import { existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createBuracleExtension, defaultDeps, STATUS_KEYS, stopReason, WIDGET_KEY, type ExtensionDeps } from '../../../src/adapters/omp/runtime/extension'
+import { createMemoryBridge } from '../../../src/adapters/omp/runtime/memory'
 import { PROMPT_MESSAGE_TYPE } from '../../../src/adapters/omp/runtime/prompt'
 import { AUTO_PAUSE_REASON } from '../../../src/adapters/opencode/runtime/adapter-rules'
 import { withDeadline } from '../../../src/adapters/omp/runtime/util'
@@ -560,7 +561,7 @@ describe('omp extension: session lifecycle, status and telemetry (H05/H14/H16/H1
   }))
 
   test('status keys render their canonical segments; the band appears while a plan is registered', () => withSandbox(async sb => {
-    const memStatus = { v: 2, computed_at: '2026-10-08T00:00:00Z', health: 'ok', reasons: [], counts: { project: 3, person: 1 }, regions: {}, upkeep: 0, captures: 1, store: { engine: 'cortexdb', version: '2.124.0', ok: true }, distill: { pending: 0 }, redactions_24h: 0 } as const
+    const memStatus = { v: 3, computed_at: '2026-10-08T00:00:00Z', health: 'ok', reasons: [], counts: { project: 3, person: 1 }, regions: {}, captures: 1, store: { engine: 'cortexdb', version: '2.124.0', ok: true }, redactions_24h: 0 } as const
     let gitCalls = 0
     const { fp, ctx, cwd } = setup(sb, {
       usage: () => ({ harness: 'omp', computed_at: '2026-10-08T00:00:00Z', windows: [], month_key: monthKeyOf(1_791_400_000_000), month: { start: '2026-10-01', tokens: 3_400_000, usd: 12.5, byModel: {} } }),
@@ -686,6 +687,30 @@ describe('omp extension: session lifecycle, status and telemetry (H05/H14/H16/H1
     expect(memory.started.map(s => s.sid)).toEqual([SID, '01a118a8-8d01-740c-9360-aaaaaaaaaaaa'])
   }))
 
+  test('session start, a prompt and a compaction spawn no process: the record is started and touched in-process and only the end of the session starts the finalizer, directly', () => withSandbox(async sb => {
+    const spawned: Array<[string[], Record<string, string> | undefined]> = []
+    const started: string[] = []
+    const touched: string[] = []
+    const bridge = createMemoryBridge({
+      cli: () => ['/b/buracle'], append: () => undefined,
+      spawnDetached: (argv, env) => { spawned.push([argv, env]); return true },
+      recordStart: async sid => { started.push(sid) }, touch: sid => { touched.push(sid) },
+      run: async () => ({ code: 1, stdout: '', stderr: '', timedOut: false }),
+    })
+    const { fp, ctx, runs } = setup(sb, { memory: bridge })
+    await fp.emit('session_start', { type: 'session_start' }, ctx)
+    await fp.emit('input', { type: 'input', text: 'From now on always use bun for scripts.', source: 'interactive' }, ctx)
+    await fp.emit('session.compacting', { type: 'session.compacting', sessionId: SID, messages: [] }, ctx)
+    await fp.emit('session_compact', { type: 'session_compact', compactionEntry: { summary: 'The parser is done.' }, fromExtension: false }, ctx)
+    await Bun.sleep(0)
+    expect(started).toEqual([SID])
+    expect(touched).toEqual([SID])
+    expect(spawned).toEqual([])
+    expect(runs).toEqual([])
+    await fp.emit('session_shutdown', { type: 'session_shutdown' }, ctx)
+    expect(spawned).toEqual([[['/b/buracle', 'mem', 'finalize', '--harness', 'omp', '--session', SID], { BURACLE_FINALIZER: '1' }]])
+  }))
+
   test('H16 maintenance prunes idle omp session state but keeps the live one', () => withSandbox(async sb => {
     let pruned: { keep: string[] } | undefined
     const { fp, ctx } = setup(sb, { prune: (keep) => { pruned = { keep: [...keep] }; return [] } })
@@ -780,14 +805,12 @@ describe('omp extension: fail-safe under a fully broken environment', () => {
       projectSlug: async () => boom(), branch: async () => boom(), run: async () => boom(),
       memory: { appendSpool: async () => boom(), sessionStart: async () => boom(), spawnFinalizer: async () => boom(), contextText: async () => boom(), writeHandoff: async () => boom() },
       captureEnabled: boom, buracleRepo: boom, refreshUsage: boom,
-      cli: boom, consentGateAll: boom,
-      cm: { projectDir: boom, installed: boom, spawn: boom, run: async () => boom(), env: boom },
+      cli: boom,
     }
     const { fp, ctx } = setup(sb, broken)
     const events: Array<[string, unknown]> = [
       ['session_start', { type: 'session_start' }],
       ['tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'bash', input: { command: 'rm -rf /' } }],
-      ['tool_call', { type: 'tool_call', toolCallId: '2', toolName: 'mcp__context_mode_ctx_execute', input: { language: 'shell', code: 'ls' } }],
       ['tool_result', { type: 'tool_result', toolCallId: '1', toolName: 'write', input: { path: 'a', content: 'x' }, content: [], isError: false }],
       ['input', { type: 'input', text: 'dur', source: 'interactive' }],
       ['before_agent_start', { type: 'before_agent_start', prompt: 'x', systemPrompt: [] }],

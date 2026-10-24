@@ -26,7 +26,6 @@ export interface BuracleConfig {
   workflow: { band: boolean, foldAfterSec: number, notifyAfterSec: number, codexNotices: boolean }
   toolchain: { autoInstall: boolean, system: boolean, upgrade: boolean }
   index: { auto: boolean, codegraph: boolean, semble: boolean, minIntervalMin: number, exclude: string[], children: boolean, maxChildren: number }
-  contextMode: { enabled: boolean, capture: boolean }
 }
 
 export function defaultConfig(): BuracleConfig {
@@ -69,7 +68,6 @@ export function defaultConfig(): BuracleConfig {
     workflow: { band: true, foldAfterSec: 8, notifyAfterSec: 120, codexNotices: true },
     toolchain: { autoInstall: true, system: true, upgrade: true },
     index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 },
-    contextMode: { enabled: true, capture: true },
   }
 }
 
@@ -173,7 +171,6 @@ const CONFIG_SCHEMA: Schema = {
     workflow: { t: 'obj', fields: { band: bool, foldAfterSec: count(0), notifyAfterSec: count(0), codexNotices: bool } },
     toolchain: { t: 'obj', fields: { autoInstall: bool, system: bool, upgrade: bool } },
     index: { t: 'obj', fields: { auto: bool, codegraph: bool, semble: bool, minIntervalMin: count(0), exclude: strList, children: bool, maxChildren: count(0) } },
-    contextMode: { t: 'obj', fields: { enabled: bool, capture: bool } },
   },
 }
 
@@ -380,7 +377,7 @@ export const CONFIG_RENAMES: readonly ConfigRename[] = [
 
 export interface ConfigRemoval { key: string; since: string; why: string; quietWhen?: unknown }
 
-const ALWAYS_ON = 'the memory\'s automatic jobs are always on and run within fixed budgets (src/core/memory/budgets.ts)'
+const ALWAYS_ON = 'the memory has no background jobs any more; its model-assisted capture runs once at the end of a session, within fixed budgets (src/core/memory/budgets.ts)'
 
 export const CONFIG_REMOVALS: readonly ConfigRemoval[] = [
   { key: 'vault', since: '0.5.0', why: 'the memory moved from the Obsidian vault to CortexDB under ~/.buracle/brain', quietWhen: '~/Documents/Buracle' },
@@ -400,12 +397,13 @@ export const CONFIG_REMOVALS: readonly ConfigRemoval[] = [
   { key: 'memory.verify', since: '0.5.0', why: ALWAYS_ON, quietWhen: { auto: true, maxRunsPerDay: 4, maxPerRun: 4, maxInputTokens: 8000, maxOutputTokens: 900, minIntervalMin: 60 } },
   { key: 'memory.heal', since: '0.5.0', why: ALWAYS_ON, quietWhen: { auto: true } },
   { key: 'memory.profile', since: '0.5.0', why: ALWAYS_ON, quietWhen: { enabled: true, statements: true } },
-  { key: 'memory.ui.enabled', since: '0.5.0', why: 'the brain web UI is always available (BURACLE_NO_AUTOSTART=1 keeps a session from starting it)', quietWhen: true },
-  { key: 'memory.ui.autostart', since: '0.5.0', why: 'the brain web UI starts with a session (BURACLE_NO_AUTOSTART=1 keeps a session from starting it)', quietWhen: true },
+  { key: 'memory.ui.enabled', since: '0.5.0', why: 'the brain web UI is always available; it starts only when you run `buracle mem ui`', quietWhen: true },
+  { key: 'memory.ui.autostart', since: '0.5.0', why: 'the brain web UI no longer starts with a session; it starts only when you run `buracle mem ui`', quietWhen: true },
   { key: 'memory.reflect.provider', since: '0.5.0', why: 'the memory\'s model calls run through a harness with usage headroom; there is no external API', quietWhen: 'harness' },
   { key: 'memory.reflect.api', since: '0.5.0', why: 'the memory\'s model calls run through a harness with usage headroom; there is no external API', quietWhen: { format: 'openai', url: '', model: '', keyEnv: '', person: false } },
   { key: 'memory.llm', since: '0.5.0', why: 'the memory\'s model calls run through a harness with usage headroom; there is no external API', quietWhen: { provider: 'auto', api: { format: 'openai', url: '', model: '', keyEnv: '', person: false } } },
-  { key: 'memory.embed', since: '0.5.0', why: 'the search by meaning uses the built-in embedding model; no embeddings endpoint is configured', quietWhen: { url: '', model: '', dim: 0, keyEnv: '' } },
+  { key: 'memory.embed', since: '0.5.0', why: 'the memory search is by words; there is no embedding model or endpoint to configure', quietWhen: { url: '', model: '', dim: 0, keyEnv: '' } },
+  { key: 'contextMode', since: '0.6.0', why: 'Context Mode and its context-mode MCP server are gone; the handoff memory and the compaction restore carry the session state', quietWhen: { enabled: true, capture: true } },
 ]
 
 function quietRemoval(old: unknown, quiet: unknown): boolean {

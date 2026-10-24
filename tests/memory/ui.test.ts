@@ -5,12 +5,10 @@ import type { MemItem } from '../../src/core/memory/brain'
 import * as paths from '../../src/engine/paths'
 import { tilde } from '../../src/engine/update/output'
 import { closeAllCortex } from '../../src/memory/cortex'
-import { projectsFile, scanStateDir, statusFile, upkeepFile } from '../../src/memory/layout'
+import { projectsFile, statusFile } from '../../src/memory/layout'
 import { readProjectsCache } from '../../src/memory/project'
-import { appendReflectRun, type ReflectRunEntry } from '../../src/memory/reflect-log'
 import { refreshStatus } from '../../src/memory/status'
 import { brainExists, getStored, personRef, projectRef, recordEvent, saveItem } from '../../src/memory/store'
-import { markSweepStarted, sweepDue } from '../../src/memory/sweep'
 import { clearUiRecord, handle, healthy, localHost, PAGE_CSP, readUiRecord, serveUi, UI_ASSETS, uiContext, type UiContext } from '../../src/memory/ui'
 import { eventInScope, parseEventLine } from '../../src/memory/ui/events'
 import { withEnv, withSandbox, type Sandbox } from '../helpers/sandbox'
@@ -57,12 +55,6 @@ async function seed(): Promise<void> {
   await saveItem(person, item({ id: 'preference-short-answers', kind: 'preference', layer: 'person', title: 'Kullanıcının yanıtları kısa olmalı', summary: 'Kısa ve net', tags: ['iletişim'] }))
   await saveItem(person, item({ id: 'profile-result-first', kind: 'profile', layer: 'person', author: 'buracle', title: 'Wants the result first', summary: 'communication · high · stated by the user', tags: ['communication', 'stated', 'rank-1'] }))
   await saveItem(person, item({ id: 'profile-maybe-dark', kind: 'profile', layer: 'person', author: 'buracle', title: 'May prefer dark screens', summary: 'design · hypothesis · inferred from sessions', tags: ['design', 'hypothesis', 'inferred', 'rank-4'] }))
-}
-
-function writeUpkeep(slug: string | undefined, layer: 'project' | 'person', items: unknown[]): void {
-  const file = upkeepFile(slug)
-  mkdirSync(dirname(file), { recursive: true })
-  writeFileSync(file, JSON.stringify({ v: 1, at: '2026-10-13T10:00:00Z', layer, ...(slug !== undefined ? { project: slug } : {}), items, changed: {} }))
 }
 
 const ALPHA_WORDS = ['decision-alpha-canary', 'gotcha-alpha-broker', 'Alphacanary', 'Alphabroker', 'alphatag', 'only alpha knows']
@@ -115,10 +107,11 @@ describe('who may ask, and what', () => {
 
   test('a write needs the token of this server, its Origin, a same-origin fetch and a JSON body', async () => {
     await withSandbox(async () => {
+      await seed()
       const c = ctx()
       const token = (await getJson(c, '/api/token')).body['token'] as string
       expect(token).toMatch(/^[0-9a-f]{48}$/)
-      const post = (headers: Record<string, string>, body = '{"scope":"person"}') => handle(new Request(`http://127.0.0.1:${c.port}/api/heal`, { method: 'POST', headers: { host: `127.0.0.1:${c.port}`, ...headers }, body }), c)
+      const post = (headers: Record<string, string>, body = '{"scope":"person"}') => handle(new Request(`http://127.0.0.1:${c.port}/api/backup`, { method: 'POST', headers: { host: `127.0.0.1:${c.port}`, ...headers }, body }), c)
       const json = { 'content-type': 'application/json' }
       expect((await post(json)).status).toBe(403)
       expect((await post({ ...json, 'x-buracle-token': 'f'.repeat(48) })).status).toBe(403)
@@ -162,12 +155,12 @@ describe('changing the memory from the page', () => {
     })
   })
 
-  test('settings: the memory part is read-only (who would run the model now, the embedding model\'s state, the UI port); only the workflow switches can be written', async () => {
+  test('settings: the memory part is read-only (who would run the model now, the UI port); only the workflow switches can be written', async () => {
     await withSandbox(async ({ buracleHome }) => {
       const c = uiContext({ version: '9.9.9', port: 41999 })
-      const s = (await getJson(c, '/api/settings')).body as { model: Record<string, unknown>, embed: Record<string, unknown>, ui: Record<string, unknown> }
-      expect(s.model).toMatchObject({ harnesses: [], held: [], headroom: { max5hPct: 75, max7dPct: 85 }, relateEveryMin: 360 })
-      expect(s.embed).toMatchObject({ model: 'static-similarity-mrl-multilingual-v1', dim: 256, installed: false, off: true })
+      const s = (await getJson(c, '/api/settings')).body as { model: Record<string, unknown>, ui: Record<string, unknown> }
+      expect(s.model).toEqual({ harnesses: [], held: [], headroom: { max5hPct: 75, max7dPct: 85 } })
+      expect(s).not.toHaveProperty('embed')
       expect(s.ui).toEqual({ port: 41777 })
       const token = (await getJson(c, '/api/token')).body['token'] as string
       const raw = (path: string, body: unknown) => handle(new Request(`http://127.0.0.1:${c.port}${path}`, { method: 'POST', headers: { host: `127.0.0.1:${c.port}`, 'content-type': 'application/json', 'x-buracle-token': token, origin: `http://127.0.0.1:${c.port}`, 'sec-fetch-site': 'same-origin' }, body: JSON.stringify(body) }), c)
@@ -177,14 +170,19 @@ describe('changing the memory from the page', () => {
     })
   })
 
-  test('health names each reason with its repair; the cleanup runs and the repair is started once', async () => {
+  test('health reports the store, the inbox and the last capture, and no repair, sweep or verifier endpoint exists', async () => {
     await withSandbox(async () => {
       await seed()
       const c = uiContext({ version: '9.9.9', port: 41999 })
       const h = (await getJson(c, '/api/health?scope=project:alpha')).body
-      expect(h).toMatchObject({ scope: 'project:alpha', health: 'ok', reasons: [], distill: { pending: 0, held: 0, harnesses: [], holds: [] }, mcp: 'unknown', heal: { running: false } })
-      expect((await post(c, '/api/sweep', { scope: 'project:alpha' })).body).toMatchObject({ pruned: 0 })
-      expect((await post(c, '/api/sweep', { scope: 'project:nope' })).status).toBe(404)
+      expect(h).toMatchObject({ scope: 'project:alpha', health: 'ok', reasons: [], captures: 0, mcp: 'unknown' })
+      for (const key of ['distill', 'heal', 'jobs', 'upkeep']) expect(h).not.toHaveProperty(key)
+      await refreshStatus({ slug: 'alpha', nowMs: NOW, lastCapture: { by: 'codex', saved: 2 } })
+      expect((await getJson(c, '/api/health?scope=project:alpha')).body['lastCapture']).toMatchObject({ by: 'codex', saved: 2 })
+      for (const gone of ['/api/heal', '/api/sweep', '/api/verify', '/api/reflect', '/api/upkeep', '/api/profile']) {
+        expect((await handle(req(c, gone, { method: 'POST' }), c)).status).toBe(405)
+        expect((await get(c, gone)).status).toBe(404)
+      }
     })
   })
 
@@ -202,7 +200,7 @@ describe('changing the memory from the page', () => {
       expect(b.restore).toBe(`buracle mem restore ${id} --project alpha`)
       expect(((await getJson(c, '/api/health?scope=person')).body['backups'] as { restore?: string }).restore).toBe(`buracle mem restore ${id} --person`)
       expect((await post(c, '/api/backup', { scope: 'project:nope' })).status).toBe(404)
-      expect((await get(c, '/api/backup')).status).toBe((await get(c, '/api/sweep')).status)
+      expect((await get(c, '/api/backup')).status).toBe((await get(c, '/api/heal')).status)
     })
   })
 
@@ -217,13 +215,8 @@ describe('changing the memory from the page', () => {
         alpha: { slug: 'alpha', scope: 'project', roots: [alphaRoot, gone], ownerRepo: 'me/alpha', updated: '2026-10-01T00:00:00Z' },
         beta: { slug: 'beta', scope: 'project', roots: [join(root, 'beta-root')], merged: ['alpha'] },
       } }))
-      writeUpkeep('alpha', 'project', [])
       await refreshStatus({ slug: 'alpha', nowMs: NOW })
-      mkdirSync(scanStateDir(), { recursive: true })
-      writeFileSync(join(scanStateDir(), 'alpha.json'), '{}')
-      markSweepStarted('alpha', NOW)
       expect(existsSync(statusFile('alpha'))).toBe(true)
-      expect(sweepDue('alpha', NOW)).toBe(false)
       const c = uiContext({ version: '9.9.9', port: 41999 })
 
       const h = (await getJson(c, '/api/health?scope=project:alpha')).body
@@ -238,9 +231,6 @@ describe('changing the memory from the page', () => {
       expect(brainExists(projectRef('alpha'))).toBe(false)
       expect(existsSync(`${projectRef('alpha').db}-wal`)).toBe(false)
       expect(existsSync(statusFile('alpha'))).toBe(false)
-      expect(existsSync(upkeepFile('alpha'))).toBe(false)
-      expect(existsSync(join(scanStateDir(), 'alpha.json'))).toBe(false)
-      expect(sweepDue('alpha', NOW)).toBe(true)
       const cache = readProjectsCache()
       expect(cache.projects['alpha']).toBeUndefined()
       expect(cache.projects['beta']).toMatchObject({ slug: 'beta', roots: [join(root, 'beta-root')] })
@@ -403,8 +393,6 @@ describe('scopes', () => {
   test("no response for one scope holds another's memories; the overview holds counts, never content", async () => {
     await withSandbox(async () => {
       await seed()
-      writeUpkeep('alpha', 'project', [{ id: 'gotcha-alpha-broker', layer: 'project', kind: 'gotcha', title: 'Alphabroker returns 200 on rejects', reasons: ['unverified'], action: 'check it' }])
-      writeUpkeep('beta', 'project', [])
       const c = ctx()
 
       const alpha = await getJson(c, '/api/brain?scope=project:alpha')
@@ -433,24 +421,15 @@ describe('scopes', () => {
         expect((await getJson(c, `/api/search?scope=person&q=${q}`)).body['items']).toEqual([])
       }
 
-      const upBeta = await getJson(c, '/api/upkeep?scope=project:beta')
-      expect(upBeta.body['items']).toEqual([])
-      expectNone(upBeta.text, ALPHA_WORDS)
-      const upAlpha = await getJson(c, '/api/upkeep?scope=project:alpha')
-      expect((upAlpha.body['items'] as Array<{ id: string }>).map(u => u.id)).toEqual(['gotcha-alpha-broker'])
-
-      const profile = await getJson(c, '/api/profile')
-      expectNone(profile.text, [...ALPHA_WORDS, ...BETA_WORDS])
-
       const ov = await getJson(c, '/api/overview')
       expectNone(ov.text, [...ALPHA_WORDS, ...BETA_WORDS, ...PERSON_WORDS])
-      const projects = ov.body['projects'] as Array<{ slug: string, count: number, regions: Record<string, number>, upkeep: number }>
+      const projects = ov.body['projects'] as Array<{ slug: string, count: number, regions: Record<string, number> }>
       expect(projects.map(p => p.slug).sort()).toEqual(['alpha', 'beta'])
       const a = projects.find(p => p.slug === 'alpha')
       expect(a?.count).toBe(2)
       expect(a?.regions['plans']).toBe(1)
       expect(a?.regions['warnings']).toBe(1)
-      expect(a?.upkeep).toBe(1)
+      expect(a).not.toHaveProperty('upkeep')
       expect((ov.body['person'] as { count: number }).count).toBe(3)
       expect((ov.body['store'] as { installed: boolean }).installed).toBe(true)
     })
@@ -462,15 +441,14 @@ describe('scopes', () => {
       const alphaRef = projectRef('alpha')
       await saveItem(alphaRef, item({ id: 'gotcha-alpha-link', kind: 'gotcha', title: 'Alphalink gotcha', body: 'see decision-alpha-canary and decision-beta-plan', tags: ['alphatag'] }))
       await saveItem(personRef(), item({ id: 'preference-names-alpha', kind: 'preference', layer: 'person', title: 'Names an alpha id', body: 'decision-alpha-canary' }))
-      writeUpkeep('alpha', 'project', [{ id: 'decision-alpha-canary', layer: 'project', kind: 'decision', title: 'x', reasons: ['duplicate'], action: 'merge', twin: 'decision-beta-plan' }])
       const c = ctx()
 
       const plans = await getJson(c, '/api/graph?scope=project:alpha&region=plans')
       expect(plans.status).toBe(200)
       expect(plans.body).toMatchObject({ scope: 'project:alpha', region: 'plans', truncated: false })
-      const nodes = plans.body['nodes'] as Array<{ id: string, type: string, focus?: boolean, upkeep?: boolean, degree: number }>
+      const nodes = plans.body['nodes'] as Array<{ id: string, type: string, focus?: boolean, degree: number }>
       expect(nodes.filter(n => n.type === 'memory').map(n => [n.id, n.focus])).toEqual([['decision-alpha-canary', true], ['gotcha-alpha-link', false]])
-      expect(nodes.find(n => n.id === 'decision-alpha-canary')?.upkeep).toBe(true)
+      expect(nodes.every(n => !('upkeep' in n))).toBe(true)
       expect(nodes.filter(n => n.type !== 'memory').map(n => n.id)).toEqual(['tag:alphatag', 'file:src/alpha.ts'])
       expect(plans.body['edges']).toEqual([
         { source: 'gotcha-alpha-link', target: 'decision-alpha-canary', kind: 'mentions', weight: 0.8 },
@@ -521,21 +499,21 @@ describe('scopes', () => {
     })
   })
 
-  test('a brain lists live memories with their region, upkeep reasons and the region summaries', async () => {
+  test('a brain lists live memories with their region, origin and the region summaries', async () => {
     await withSandbox(async () => {
       await seed()
-      writeUpkeep('alpha', 'project', [{ id: 'gotcha-alpha-broker', layer: 'project', kind: 'gotcha', title: 'x', reasons: ['unverified', 'duplicate'], action: 'check it', twin: 'decision-alpha-canary' }])
+      await saveItem(projectRef('alpha'), item({ id: 'gotcha-alpha-broker', kind: 'gotcha', title: 'Alphabroker returns 200 on rejects', review: 'pending', created: '2026-10-01T10:00:00Z', origin: 'explicit', confidence: 1 }))
       const { body } = await getJson(ctx(), '/api/brain?scope=project:alpha')
-      const items = body['items'] as Array<{ id: string, region: string, unverified: boolean, upkeep?: string[], status: string }>
+      const items = body['items'] as Array<{ id: string, region: string, unverified: boolean, origin?: string, contradicts?: boolean, status: string }>
       expect(items.map(i => i.id).sort()).toEqual(['decision-alpha-canary', 'gotcha-alpha-broker'])
       expect(body['retired']).toBe(1)
-      expect(items.find(i => i.id === 'gotcha-alpha-broker')).toMatchObject({ region: 'warnings', unverified: true, upkeep: ['unverified', 'duplicate'] })
+      expect(items.find(i => i.id === 'gotcha-alpha-broker')).toMatchObject({ region: 'warnings', unverified: true, origin: 'explicit', confidence: 1 })
       expect(items.find(i => i.id === 'decision-alpha-canary')).toMatchObject({ region: 'plans', unverified: false })
-      expect(items.find(i => i.id === 'decision-alpha-canary')?.upkeep).toBeUndefined()
+      expect(items.find(i => i.id === 'decision-alpha-canary')?.origin).toBeUndefined()
       const regions = body['regions'] as Array<{ id: string, count: number, groups: number, topTags: string[] }>
       expect(regions.map(r => r.id)).toEqual(['plans', 'knowledge', 'discoveries', 'self', 'skills', 'warnings', 'episodes'])
       expect(regions[0]).toMatchObject({ id: 'plans', count: 1, topTags: ['alphatag'] })
-      expect(body['upkeep']).toBe(1)
+      expect(body).not.toHaveProperty('upkeep')
     })
   })
 })
@@ -570,16 +548,12 @@ describe('memories, search and the profile', () => {
     })
   })
 
-  test('the profile: the start lines (no hypotheses), every fact (stated or inferred) and the stated preferences', async () => {
+  test('the profile endpoint is gone: the stated preferences are ordinary memories of the person brain', async () => {
     await withSandbox(async () => {
       await seed()
-      const { body } = await getJson(ctx(), '/api/profile')
-      expect(body['lines']).toEqual(['Wants the result first'])
-      expect(body['facts']).toEqual([
-        { id: 'profile-result-first', title: 'Wants the result first', category: 'communication', confidence: 'high', hypothesis: false, stated: true, inferred: false },
-        { id: 'profile-maybe-dark', title: 'May prefer dark screens', category: 'design', confidence: 'hypothesis', hypothesis: true, stated: false, inferred: true },
-      ])
-      expect((body['preferences'] as Array<{ id: string }>).map(p => p.id)).toEqual(['preference-short-answers'])
+      expect((await get(ctx(), '/api/profile')).status).toBe(404)
+      const { body } = await getJson(ctx(), '/api/brain?scope=person')
+      expect((body['items'] as Array<{ id: string, kind: string }>).filter(i => i.kind === 'preference').map(i => i.id)).toEqual(['preference-short-answers'])
     })
   })
 
@@ -588,7 +562,7 @@ describe('memories, search and the profile', () => {
       const c = ctx()
       const ov = await getJson(c, '/api/overview')
       expect(ov.body['projects']).toEqual([])
-      expect(ov.body['person']).toMatchObject({ exists: false, count: 0, upkeep: 0 })
+      expect(ov.body['person']).toMatchObject({ exists: false, count: 0 })
       const b = await getJson(c, '/api/brain?scope=person')
       expect(b.body['items']).toEqual([])
       expect((b.body['regions'] as Array<{ count: number }>).every(r => r.count === 0)).toBe(true)
@@ -723,40 +697,6 @@ describe('the server', () => {
         blocker.stop(true)
         clearUiRecord()
       }
-    })
-  })
-})
-
-describe('the self-improvement view', () => {
-  test('/api/reflect holds the settings, the guards and the runs of its own scope only', async () => {
-    await withSandbox(async () => {
-      await seed()
-      const run = (id: string, layer: 'project' | 'person', project?: string): ReflectRunEntry => ({
-        v: 1, id, at: new Date(NOW - 60_000).toISOString(), layer, ...(project !== undefined ? { project } : {}), trigger: 'session-end',
-        harness: 'claude', model: 'haiku', rounds: 2, subQueries: 3, shown: 5, proposed: 2,
-        applied: [{ op: 'tag', id: project === 'alpha' ? 'decision-alpha-canary' : 'decision-beta-plan', why: 'group it' }],
-        rejected: [{ op: 'delete', reason: 'unknown-op' }], inputChars: 100, outputChars: 50,
-      })
-      await appendReflectRun(run('rf-20261013-115900-aaaa', 'project', 'alpha'), NOW)
-      await appendReflectRun(run('rf-20261013-115900-bbbb', 'project', 'beta'), NOW)
-      await appendReflectRun(run('rf-20261013-115900-cccc', 'person'), NOW)
-      const { status, body, text } = await getJson(ctx(), '/api/reflect?scope=project:alpha')
-      expect(status).toBe(200)
-      expect(body['scope']).toBe('project:alpha')
-      expect(body['config']).toMatchObject({ harnesses: [], held: [], maxOpsPerRun: 8, maxSubQueries: 6, relateEveryMin: 360 })
-      expect(body['guards']).toContain('no-delete')
-      expect(body['guards']).toContain('local-only')
-      expect(body['guards']).toHaveLength(11)
-      const runs = body['runs'] as Array<{ id: string, undo?: string }>
-      expect(runs.map(r => r.id)).toEqual(['rf-20261013-115900-aaaa'])
-      expect(runs[0]?.undo).toBe('buracle mem reflect --undo rf-20261013-115900-aaaa')
-      expect(text).not.toContain('rf-20261013-115900-bbbb')
-      expect(text).not.toContain('rf-20261013-115900-cccc')
-      expectNone(text, BETA_WORDS)
-      const person = await getJson(ctx(), '/api/reflect?scope=person')
-      expect((person.body['runs'] as Array<{ id: string }>).map(r => r.id)).toEqual(['rf-20261013-115900-cccc'])
-      expect((await get(ctx(), '/api/reflect?scope=project:../x')).status).toBe(400)
-      expect((await get(ctx(), '/api/reflect', { method: 'POST' })).status).toBe(405)
     })
   })
 })

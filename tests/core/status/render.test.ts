@@ -20,10 +20,10 @@ const LAYOUT: StatusLayout = {
 }
 
 const MEM: MemoryStatus = {
-  v: 2, computed_at: '2026-10-08T08:50:00.000Z', project: 'buracle', health: 'ok', reasons: [],
-  counts: { project: 128, person: 37 }, regions: { plans: 20, knowledge: 60 }, upkeep: 2, captures: 2,
+  v: 3, computed_at: '2026-10-08T08:50:00.000Z', project: 'buracle', health: 'ok', reasons: [],
+  counts: { project: 128, person: 37 }, regions: { plans: 20, knowledge: 60 }, captures: 2,
   last_write: { at: '2026-10-08T08:56:00.000Z', by: 'codex', type: 'decision' },
-  store: { engine: 'cortexdb', version: '2.124.0', ok: true }, distill: { pending: 0 }, redactions_24h: 0,
+  store: { engine: 'cortexdb', version: '2.124.0', ok: true }, redactions_24h: 0,
 }
 
 function bar(over: Partial<BarModel> = {}): BarModel {

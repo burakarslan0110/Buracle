@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { consentFile, consentGate, consentGateAll, readConsentState, recordPromptGrants, writeConsentState } from '../../../src/adapters/shared/consent-store'
+import { consentFile, consentGate, readConsentState, recordPromptGrants, writeConsentState } from '../../../src/adapters/shared/consent-store'
 import { withSandbox } from '../../helpers/sandbox'
 
 const NOW = 1_790_000_000_000
@@ -16,26 +16,18 @@ describe('consent store gates', () => {
     })
   })
 
-  test('consentGateAll: nothing to judge means allowed', async () => {
+  test('a command that needs no consent passes without a consent file', async () => {
     await withSandbox(async () => {
-      expect(consentGateAll('codex', 'sid-2', [], NOW)).toBeUndefined()
-      expect(consentGateAll('codex', 'sid-2', ['ls -la', 'git status'], NOW)).toBeUndefined()
+      expect(consentGate('codex', 'sid-2', 'git status', NOW)).toBeUndefined()
       expect(existsSync(consentFile('codex', 'sid-2'))).toBe(false)
     })
   })
 
-  test('consentGateAll: one command of a batch that needs consent denies the whole call', async () => {
+  test('a grant from the user lets the held command run once', async () => {
     await withSandbox(async () => {
-      expect(consentGateAll('omp', 'sid-3', ['git status', 'git push origin main'], NOW)).toBeDefined()
-    })
-  })
-
-  test('consentGateAll: a grant from the user lets the batch run once', async () => {
-    await withSandbox(async () => {
-      const first = consentGateAll('opencode', 'sid-4', ['git push origin feature'], NOW)
-      expect(first).toBeDefined()
+      expect(consentGate('opencode', 'sid-4', 'git push origin feature', NOW)).toBeDefined()
       recordPromptGrants('opencode', 'sid-4', 'yes, push it', NOW + 1_000)
-      expect(consentGateAll('opencode', 'sid-4', ['git push origin feature'], NOW + 2_000)).toBeUndefined()
+      expect(consentGate('opencode', 'sid-4', 'git push origin feature', NOW + 2_000)).toBeUndefined()
     })
   })
 })

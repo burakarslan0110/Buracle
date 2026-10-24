@@ -29,22 +29,6 @@
         "CODEGRAPH_TELEMETRY": "0"
       }
     },
-    "context-mode": {
-      "type": "stdio",
-      "command": "/bin/sh",
-      "args": [
-        "-c",
-        "exec \"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" \"$@\"",
-        "buracle",
-        "mcp",
-        "run",
-        "context-mode"
-      ],
-      "env": {
-        "CONTEXT_MODE_PLATFORM": "omp"
-      },
-      "timeout": 600000
-    },
     "context7": {
       "type": "stdio",
       "command": "/bin/sh",

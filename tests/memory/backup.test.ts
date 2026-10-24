@@ -3,14 +3,13 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, symlinkSync
 import { basename, join } from 'node:path'
 import { main } from '../../src/cli/router'
 import { MemoryError, search, update, write } from '../../src/memory/api'
-import { backupBrains, listBackups, maybeDailyBackup, restoreBackup } from '../../src/memory/backup'
+import { backupBrains, listBackups, restoreBackup } from '../../src/memory/backup'
 import { CortexError, pidAlive, readerEntries } from '../../src/memory/cortex'
 import { exportBrain, importMemories } from '../../src/memory/export'
-import { readJobs } from '../../src/memory/jobs'
+import { removeDeadLocks } from '../../src/memory/housekeeping'
 import { brainBackupsDir, brainHoldFile, cortexChildFile } from '../../src/memory/layout'
 import { removeProject } from '../../src/memory/project-remove'
 import { getStored, listAll, personRef, projectRef, saveItem } from '../../src/memory/store'
-import { tick } from '../../src/memory/tick'
 import { agentCtx, humanCtx, makeRepo, withBrain } from './helpers'
 
 async function cli(argv: string[], stdin = ''): Promise<{ code: number, out: string, err: string }> {
@@ -132,7 +131,7 @@ describe('buracle mem backup and restore', () => {
     })
   })
 
-  test('the session-start and tick housekeeping removes reader entries whose process is gone', async () => {
+  test('the session-end housekeeping removes reader entries whose process is gone', async () => {
     await withBrain(async ({ repo }) => {
       await write(agentCtx(repo), { type: 'decision', title: 'Dead reader entries are swept', summary: 'housekeeping', body: '' })
       const db = projectRef('demo').db
@@ -144,11 +143,9 @@ describe('buracle mem backup and restore', () => {
       writeFileSync(alive, JSON.stringify({ v: 1, pid: live.pid, child: live.pid, db, at: new Date().toISOString() }))
       writeFileSync(join(dead, '..', `.${basename(dead)}.buracle-999999-0a1b2c3d.tmp`), '{')
       try {
-        const report = await tick({ cwd: repo })
-        expect(report.locksRemoved).toBe(2)
+        expect(removeDeadLocks()).toBe(2)
         expect(existsSync(dead)).toBe(false)
         expect(existsSync(alive)).toBe(true)
-        expect(readJobs().find(e => e.job === 'locks')?.detail).toBe('removed 2 lock or reader file(s) whose owner is gone')
       } finally {
         live.kill()
       }
@@ -194,49 +191,6 @@ describe('buracle mem backup and restore', () => {
     })
   })
 
-  test('the tick takes one backup a day and keeps the newest ten', async () => {
-    await withBrain(async ({ repo }) => {
-      await write(agentCtx(repo), { type: 'knowledge', title: 'The tick backs the brains up daily', summary: 'daily', body: '' })
-      const day = 86_400_000
-      const t0 = Date.parse('2026-10-01T08:00:00Z')
-      const first = await tick({ cwd: repo, nowMs: t0 })
-      expect(first.backup).toBe('20261001-080000')
-      expect((await tick({ cwd: repo, nowMs: t0 + 3600_000 })).backup).toBeUndefined()
-      expect(readJobs().filter(e => e.job === 'backup')).toEqual([expect.objectContaining({ outcome: 'ran', trigger: 'cli' })])
-      for (let n = 1; n <= 11; n++) expect((await maybeDailyBackup(t0 + n * day))?.manifest?.trigger).toBe('daily')
-      const kept = listBackups()
-      expect(kept).toHaveLength(10)
-      expect(kept[0]?.id).toBe('20261012-080000')
-      expect(kept.at(-1)?.id).toBe('20261003-080000')
-    })
-  })
-
-  test('a new brain gets its first daily copy at the next tick without another copy of the brains backed up today', async () => {
-    await withBrain(async ({ repo, root }) => {
-      await write(agentCtx(repo), { type: 'decision', title: 'Daily copies are counted per brain', summary: 'per brain', body: '' })
-      const t0 = Date.parse('2026-10-01T08:00:00Z')
-      const first = await tick({ cwd: repo, nowMs: t0 })
-      expect(listBackups().find(m => m.id === first.backup)?.brains.map(b => b.project)).toEqual(['demo'])
-      const fresh: string[] = []
-      for (const [n, name] of ['alpha', 'beta', 'gamma'].entries()) {
-        const other = makeRepo(join(root, name), `git@github.com:me/${name}.git`)
-        await write(agentCtx(other), { type: 'gotcha', title: `The ${name} gotcha`, summary: name, body: '' })
-        const r = await tick({ cwd: other, nowMs: t0 + (n + 1) * 600_000 })
-        expect(listBackups().find(m => m.id === r.backup)?.brains.map(b => b.project ?? b.layer)).toEqual([name])
-        fresh.push(name)
-      }
-      const copies = (slug: string) => listBackups().filter(m => m.brains.some(b => b.project === slug)).length
-      expect(copies('demo')).toBe(1)
-      for (const name of fresh) expect(copies(name)).toBe(1)
-      expect((await tick({ cwd: repo, nowMs: t0 + 3600_000 })).backup).toBeUndefined()
-      const next = await tick({ cwd: repo, nowMs: t0 + 86_400_000 })
-      expect(listBackups().find(m => m.id === next.backup)?.brains.map(b => b.project).sort()).toEqual(['demo'])
-      const later = await tick({ cwd: repo, nowMs: t0 + 86_400_000 + 1800_000 })
-      expect(listBackups().find(m => m.id === later.backup)?.brains.map(b => b.project).sort()).toEqual(['alpha', 'beta', 'gamma'])
-      expect(copies('demo')).toBe(2)
-    })
-  })
-
   test('a restore that fails on a later brain names what it restored, what failed and where the replaced files are', async () => {
     await withBrain(async ({ repo }) => {
       await write(agentCtx(repo), { type: 'decision', title: 'A partial restore says so', summary: 'partial', body: '' })
@@ -273,16 +227,13 @@ describe('buracle mem backup and restore', () => {
       const two = await backupBrains({ project: 'demo' }, { nowMs: at(27), keep: 1 })
       expect(two.pruned).toEqual([one.manifest?.id as string])
       expect(listBackups().map(m => m.id)).toEqual([two.manifest?.id as string, full.manifest?.id as string])
-      const daily = await maybeDailyBackup(at(28))
-      expect(daily?.manifest?.trigger).toBe('daily')
-      expect(await maybeDailyBackup(at(29))).toBeUndefined()
       const singles: string[] = []
       for (let n = 0; n < 10; n++) singles.unshift((await backupBrains({ project: 'demo' }, { nowMs: at(30 + n) })).manifest?.id as string)
       const now = await cli(['mem', 'backup', '--cwd', repo, '--project', 'demo', '--json'])
       expect(now.code).toBe(0)
       const r = JSON.parse(now.out) as { manifest: { id: string }, pruned: string[] }
       expect(r.pruned.sort()).toEqual([singles.at(-1) as string, two.manifest?.id as string].sort())
-      expect(listBackups().map(m => m.id)).toEqual([r.manifest.id, ...singles.slice(0, 9), daily?.manifest?.id as string, full.manifest?.id as string])
+      expect(listBackups().map(m => m.id)).toEqual([r.manifest.id, ...singles.slice(0, 9), full.manifest?.id as string])
     })
   })
 
@@ -366,6 +317,19 @@ describe('buracle mem export and import', () => {
     })
   })
 
+  test('origin and confidence survive an export and an import', async () => {
+    await withBrain(async ({ repo, root }) => {
+      const mine = await write(humanCtx(repo), { type: 'decision', title: 'Orders live in PostgreSQL', summary: 'storage choice' })
+      const guess = await write(agentCtx(repo), { type: 'gotcha', title: 'The queue drops messages on restart', summary: 'maybe', confidence: 0.4 })
+      const ex = await exportBrain(projectRef('demo'))
+      expect(ex.lines.map(l => [l.id, l.origin, l.confidence]).sort()).toEqual([[guess.id, 'inferred', 0.4], [mine.id, 'explicit', 1]].sort())
+      const other = makeRepo(join(root, 'other'), 'git@github.com:me/other.git')
+      await importMemories(humanCtx(other), ex.text)
+      const got = await listAll(projectRef('other'))
+      expect(got.map(i => [i.title, i.origin, i.confidence]).sort()).toEqual([['Orders live in PostgreSQL', 'explicit', 1], ['The queue drops messages on restart', 'inferred', 0.4]])
+    })
+  })
+
   test('an import refuses a header whose project is not a slug and skips a line whose id is not a memory id', async () => {
     await withBrain(async ({ repo }) => {
       const header = (project: string) => JSON.stringify({ format: 'buracle-memory-export', v: 1, layer: 'project', project, at: '2026-10-01T00:00:00.000Z', count: 1, kinds: ['decision'] })
@@ -382,12 +346,12 @@ describe('buracle mem export and import', () => {
 
   test('a core page is imported only into an empty page of the target project', async () => {
     await withBrain(async ({ repo, root }) => {
-      await cli(['mem', 'project', 'init', '--cwd', repo])
-      await update(agentCtx(repo), { id: 'core-brief', patch: { body: 'Demo is a shop for one team.' } })
+      await write(agentCtx(repo), { kind: 'core', title: 'Brief', summary: 'What demo is', body: 'Demo is a shop for one team.', layer: 'project' }, { internal: true, id: 'core-brief' })
       const ex = await exportBrain(projectRef('demo'))
       expect(ex.lines.map(l => l.id)).toEqual(['core-brief'])
       const other = makeRepo(join(root, 'other'), 'git@github.com:me/other.git')
       await cli(['mem', 'project', 'init', '--cwd', other])
+      await write(agentCtx(other), { kind: 'core', title: 'Brief', summary: '', body: '', layer: 'project' }, { internal: true, id: 'core-brief' })
       expect((await importMemories(humanCtx(other), ex.text)).imported.map(i => i.id)).toEqual(['core-brief'])
       expect((await getStored(projectRef('other'), 'core-brief'))?.item.body).toBe('Demo is a shop for one team.')
       expect((await importMemories(humanCtx(other), ex.text)).skipped.map(s => s.reason)).toEqual(['this project\'s core page has text already'])

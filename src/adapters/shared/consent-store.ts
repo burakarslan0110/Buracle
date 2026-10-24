@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import type { Harness } from '../../core/events'
-import { addConsentGrants, applyPromptGrants, consentVerdict, consentVerdictAll, parseConsent, type ConsentGrant, type ConsentState } from '../../core/policy/consent'
+import { addConsentGrants, applyPromptGrants, consentVerdict, parseConsent, type ConsentGrant, type ConsentState } from '../../core/policy/consent'
 import { atomicWriteSync, ensureDirSync, readJsonSafeSync } from '../../engine/fsx'
 import * as paths from '../../engine/paths'
 import { withFileLock } from '../../workflow/session-store'
@@ -44,12 +44,6 @@ function settle<V extends { next: ConsentState }>(h: Harness, sid: string, decid
 
 export function consentGate(h: Harness, sid: string, command: string, now: number, verdict: typeof consentVerdict = consentVerdict): string | undefined {
   const v = settle(h, sid, s => verdict(command, s, now))
-  return v.allow ? undefined : v.reason
-}
-
-export function consentGateAll(h: Harness, sid: string, commands: readonly string[], now: number, verdict: typeof consentVerdictAll = consentVerdictAll): string | undefined {
-  if (commands.length === 0) return undefined
-  const v = settle(h, sid, s => verdict(commands, s, now))
   return v.allow ? undefined : v.reason
 }
 

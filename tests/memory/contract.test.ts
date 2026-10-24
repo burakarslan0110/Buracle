@@ -65,7 +65,7 @@ describe('handoffs', () => {
       expect(await latestHandoff({ project: 'demo', branch: 'other' })).toBeUndefined()
       expect((await latestHandoff({ project: 'demo', branch: 'main', session: SID }))?.id).toBe(w?.id)
       expect(await latestHandoff({ project: 'demo', branch: 'main', session: 'a-parallel-session' })).toBeUndefined()
-      const text = await contextText({ cwd: sb.repo, sweep: false })
+      const text = await contextText({ cwd: sb.repo })
       expect(text).toContain(`${w?.id} \u2014 memory_get it`)
       const [h] = (await listAll(projectRef('demo'))).filter(i => i.kind === 'handoff')
       expect(h?.body).toContain('finish T3')
@@ -73,7 +73,7 @@ describe('handoffs', () => {
   })
 })
 
-const LIGHT_GRAPH = [/^src\/core\//, /^src\/engine\/(paths|config|fsx|log|platform|git|proc|lockfile|shim)\.ts$/, /^src\/memory\/(spool|layout|session-record|session-open|spawn|project|lock|upkeep-file|jobs|tick-start)\.ts$/, /^src\/workflow\/(workspace|gitx|non-project)\.ts$/]
+const LIGHT_GRAPH = [/^src\/core\//, /^src\/engine\/(paths|config|fsx|log|platform|git|proc|lockfile|shim|yaml)\.ts$/, /^src\/memory\/(spool|layout|session-record|session-open|spawn|project|lock)\.ts$/, /^src\/workflow\/(workspace|gitx|non-project)\.ts$/]
 const LIGHT_EXTERNAL = ['node:fs', 'node:path', 'node:os', 'node:crypto', 'node:child_process', 'yaml', 'jsonc-parser']
 
 function importGraph(entry: string): { files: string[], external: string[] } {
@@ -97,7 +97,7 @@ function importGraph(entry: string): { files: string[], external: string[] } {
 }
 
 describe('the bundled memory modules stay light', () => {
-  for (const mod of ['spool.ts', 'session-record.ts', 'upkeep-file.ts']) {
+  for (const mod of ['spool.ts', 'session-record.ts']) {
     test(`src/memory/${mod} reaches no CortexDB client, store or API`, () => {
       const g = importGraph(join(REPO, 'src', 'memory', mod))
       expect(g.files).toContain(`src/memory/${mod}`)
@@ -109,10 +109,5 @@ describe('the bundled memory modules stay light', () => {
   test('the spool alone stays within core, engine basics and its own layout', () => {
     const g = importGraph(join(REPO, 'src', 'memory', 'spool.ts'))
     expect(g.files.filter(f => f.startsWith('src/memory/'))).toEqual(['src/memory/layout.ts', 'src/memory/spool.ts'])
-  })
-
-  test('the upkeep reader needs no project resolution (the omp extension bundles it)', () => {
-    const g = importGraph(join(REPO, 'src', 'memory', 'upkeep-file.ts'))
-    expect(g.files.filter(f => f.startsWith('src/memory/'))).toEqual(['src/memory/layout.ts', 'src/memory/upkeep-file.ts'])
   })
 })

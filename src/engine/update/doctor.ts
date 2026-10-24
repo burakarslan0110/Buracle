@@ -73,7 +73,7 @@ export function configChecks(live: LiveContext, bundle: { bundle: CanonicalBundl
     for (const p of bundle.problems) add('error', 'canonical', p)
   }
   const rc = readTextSync(paths.runtimeConfigFile())
-  const want = JSON.stringify(runtimeConfigSnapshot(live.config), null, 2) + '\n'
+  const want = JSON.stringify(runtimeConfigSnapshot(live.config, live.loaded.stamp), null, 2) + '\n'
   if (!rc.ok) add('warn', 'runtime-config', `${tilde(paths.runtimeConfigFile())} is missing; run \`buracle install\``)
   else if (rc.value !== want) add('warn', 'runtime-config', 'stale snapshot of the configuration; run `buracle install` (or `buracle build`) to refresh it')
   else add('ok', 'runtime-config', 'snapshot matches the configuration')

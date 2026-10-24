@@ -54,7 +54,6 @@ describe('the notice about new notes from the review page', () => {
       const deps: Partial<HookDeps> = {
         now: () => NOW, importModule: async () => undefined, branch: async () => 'main', project: async () => 'demo', sessionMaint: () => undefined, env: () => undefined,
         buracleRepo: async () => undefined, realpath: () => undefined, run: async () => ({ code: 0, stdout: '', stderr: '', timedOut: false }), prepareWorkspace: async () => undefined,
-        cmForward: async () => ({ action: 'none', skipped: 'test' }),
       }
       const prompt = () => JSON.stringify({ session_id: sid, cwd: '/work/app', hook_event_name: 'UserPromptSubmit', transcript_path: '/tmp/t.jsonl', permission_mode: 'bypassPermissions', prompt: 'I left notes on the plan' })
       const context = (stdout: string) => (stdout === '' ? '' : String((JSON.parse(stdout) as { hookSpecificOutput?: { additionalContext?: string } }).hookSpecificOutput?.additionalContext ?? ''))

@@ -9,7 +9,7 @@ import { brainDir, projectsFile } from '../../src/memory/layout'
 import { loadConfigSync, writeRuntimeConfig } from '../../src/engine/config'
 import { forgetProject, isNonProjectDir, memoryExcludeConfig, oldVaultDir, projectExclusion, readProjectsCache, repoDisplay, resolveProject, slugExclusion } from '../../src/memory/project'
 import { projectInit } from '../../src/memory/project-init'
-import { memoryStatusReport } from '../../src/memory/report'
+import { memoryStatusReport } from '../../src/memory/status-report'
 import { sessionStart } from '../../src/memory/session-record'
 import { appendSpool, readSpool, spoolFiles } from '../../src/memory/spool'
 import { listAll, projectRef } from '../../src/memory/store'
@@ -172,7 +172,7 @@ describe('memory.exclude', () => {
     await withBrain(async ({ repo, buracleHome }) => {
       await write(agentCtx(repo), { type: 'preference', title: 'Answer in short paragraphs', summary: 'brevity', body: '' })
       exclude(buracleHome, 'me/demo')
-      const text = await contextText({ cwd: repo, sweep: false })
+      const text = await contextText({ cwd: repo })
       expect(text).toContain('## Project memory: off for this folder (excluded by memory.exclude (me/demo))')
       expect(text).toContain('Answer in short paragraphs')
       const e = await write(agentCtx(repo), { type: 'decision', title: 'Keep the client code apart', summary: 'x', body: '' }).catch(x => x)
@@ -227,7 +227,7 @@ describe('memory.exclude', () => {
       expect(await resolveProject(repo)).toBeUndefined()
       expect(await projectExclusion(repo)).toBe('excluded by memory.exclude (me/demo)')
       const note = /memory\.exclude may be unreadable \([^()]*config\.yaml: invalid YAML[^\n]*\); the projects of the last good list stay out until the file reads cleanly/
-      const text = await contextText({ cwd: repo, sweep: false })
+      const text = await contextText({ cwd: repo })
       expect(text).toMatch(new RegExp(`Memory config: ${note.source}\\. Only the user can fix the file; tell them\\.`))
       expect(text).toContain('Answer in short paragraphs')
       const st = await memoryStatusReport(agentCtx(repo))
@@ -240,7 +240,7 @@ describe('memory.exclude', () => {
       writeFileSync(file, 'memory:\n  exclude: [acme/*]\nmemroy: {}\n')
       expect(memoryExcludeConfig()).toEqual({ patterns: ['acme/*'] })
       expect((await resolveProject(repo))?.slug).toBe('demo')
-      expect(await contextText({ cwd: repo, sweep: false })).not.toContain('Memory config:')
+      expect(await contextText({ cwd: repo })).not.toContain('Memory config:')
     })
   })
 
@@ -300,18 +300,15 @@ describe('memory.exclude', () => {
 })
 
 describe('projectInit', () => {
-  test('creates the six core pages, the detected ones filled in from the repository', async () => {
+  test('maps the folder to its project and writes no memory: the core pages are no longer created', async () => {
     await withBrain(async ({ repo }) => {
       writeFileSync(join(repo, 'package.json'), JSON.stringify({ name: 'demo', scripts: { test: 'bun test', build: 'bun build' } }))
-      writeFileSync(join(repo, 'bun.lock'), '')
       const r = await projectInit(repo)
       expect(r.slug).toBe('demo')
-      expect(r.core.sort()).toEqual(['core-architecture', 'core-brief', 'core-commands', 'core-conventions', 'core-glossary', 'core-progress'])
-      const items = await listAll(projectRef('demo'))
-      const commands = items.find(i => i.id === 'core-commands')
-      expect(commands?.body).toContain('`bun run test`')
-      expect(commands?.author).toBe('buracle')
-      expect((await projectInit(repo)).core).toEqual([])
+      expect(r.scope).toBe('project')
+      expect(r).not.toHaveProperty('core')
+      expect(await listAll(projectRef('demo'))).toEqual([])
+      expect((await projectInit(repo)).slug).toBe('demo')
     })
   })
 

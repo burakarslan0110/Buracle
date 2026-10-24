@@ -112,7 +112,7 @@ describe('omp status band: the index segment', () => {
 describe('omp status band: the Buracle bar footer', () => {
   const INFO = { product: { name: 'Buracle', version: '9.9.9' }, harness: { label: 'OMP', version: '18.8.3' } }
 
-  test('buracle style: the footer names Buracle and the harness, never a Context Mode segment', () => withSandbox(async sb => {
+  test('buracle style: the footer names Buracle and the harness, never the retired `cm` segment', () => withSandbox(async sb => {
     const cfg = defaultConfig()
     const rigged = rig(sb, () => cfg, { bar: { lines: barLines, render: renderPlainLines, info: async () => INFO } })
     await rigged.refresh()

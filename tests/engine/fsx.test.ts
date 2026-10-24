@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import { chmodSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, renameSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { atomicWrite, ensureDir, exists, readJsonSafe, readText, renameRetrySync, sha256 } from '../../src/engine/fsx'
+import { atomicWrite, atomicWriteSync, ensureDir, exists, readJsonSafe, readText, renameRetrySync, sha256 } from '../../src/engine/fsx'
 import { KEEPS_MODES } from '../helpers/fake-exe'
 import { withSandbox } from '../helpers/sandbox'
 
@@ -102,4 +102,43 @@ describe('renameRetrySync', () => {
     expect(() => renameRetrySync('a', 'b', { platform: 'win32', rename: stuck.rename, budgetMs: 200 })).toThrow(/EPERM/)
     expect(stuck.calls.length).toBeGreaterThan(1)
   })
+})
+
+describe('atomicWriteSync on a file another process holds', () => {
+  const busy = (code: string) => Object.assign(new Error(`${code}: resource busy or locked, rename`), { code })
+  // A rename that fails `fails` times (as Windows does while a scanner or the indexer has the target open), then works.
+  function flaky(fails: number, code = 'EBUSY') {
+    const calls: string[] = []
+    return { calls, rename: (a: string, b: string) => { calls.push(b); if (calls.length <= fails) throw busy(code); renameSync(a, b) } }
+  }
+
+  test('on Windows the replacing rename is tried again after EPERM or EBUSY, and the file ends up with the new content', () => withSandbox(({ root }) => {
+    for (const code of ['EPERM', 'EBUSY', 'EACCES']) {
+      const p = join(root, `state-${code}.json`)
+      writeFileSync(p, 'old')
+      const f = flaky(2, code)
+      const naps: number[] = []
+      atomicWriteSync(p, 'new', { renameRetry: { platform: 'win32', rename: f.rename, sleep: ms => { naps.push(ms) } } })
+      expect(f.calls).toEqual([p, p, p])
+      expect(naps).toEqual([50, 100])
+      expect(readFileSync(p, 'utf8')).toBe('new')
+    }
+    expect(readdirSync(root).filter(n => n.endsWith('.tmp'))).toEqual([])
+  }))
+
+  test('a rename that never succeeds, another error code or any other platform throws at once or after the budget; the old content and no temp file stay', () => withSandbox(({ root }) => {
+    const p = join(root, 'state.json')
+    writeFileSync(p, 'old')
+    const posix = flaky(1, 'EPERM')
+    expect(() => atomicWriteSync(p, 'new', { renameRetry: { platform: 'linux', rename: posix.rename } })).toThrow(/EPERM/)
+    expect(posix.calls).toHaveLength(1)
+    const missing = flaky(1, 'ENOENT')
+    expect(() => atomicWriteSync(p, 'new', { renameRetry: { platform: 'win32', rename: missing.rename } })).toThrow(/ENOENT/)
+    expect(missing.calls).toHaveLength(1)
+    const stuck = flaky(1_000)
+    expect(() => atomicWriteSync(p, 'new', { renameRetry: { platform: 'win32', rename: stuck.rename, budgetMs: 0, sleep: () => {} } })).toThrow(/EBUSY/)
+    expect(stuck.calls).toHaveLength(1)
+    expect(readFileSync(p, 'utf8')).toBe('old')
+    expect(readdirSync(root).filter(n => n !== 'home')).toEqual(['state.json'])
+  }))
 })

@@ -125,7 +125,7 @@ describe('reference docs', () => {
     for (const f of ['~/.buracle/state/owned.json', '~/.buracle/journal/<txn>.json', '~/.buracle/backups/<txn>/', '~/.buracle/state/txn.lock', '~/.buracle/state/runtime-config.json', '~/.buracle/state/health.json', '~/.buracle/rules/paths/<id>.md', '~/.agents/skills/<id>', '~/.local/bin/buracle', 'harness/.manifest.json']) expect(md).toContain(`\`${f}\``)
     expect(md).toContain(`m='<BURACLE_HOME>/runtime/<id>/src/cli/main.ts'`)
     expect(md).toContain('omp plugin uninstall buracle-omp')
-    expect(md).toContain('Context Mode\'s session data in `~/.buracle/context-mode` included')
+    expect(md).toContain('those an older Buracle release wrote included')
     expect(md).toContain('| `~/.buracle/state/health.json` | MCP server and tool health: the last `buracle doctor` and `buracle update` results, and the servers `buracle mcp run` could not start (down for 10 minutes); routing and the capability card skip servers that are `down` |')
     expect(md).toContain('| An enforced key with another value, or removed (the harnesses\' no-approval mode while `permissions.enforce` is on, and the Claude Code env keys in `~/.claude/settings.json`) | Buracle\'s value is written again')
     expect(md).toContain('| A soft key with another value, or removed (the default reasoning effort) | The user\'s value (or removal) is kept and reported as skipped ("kept user value"), not as a conflict')

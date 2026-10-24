@@ -398,29 +398,3 @@ categories:
     topic:
       en: [memory note*, vault note*, the memory vault, the memory brain]
       tr: [hafiza not*, hafiza kayd*, kasa not*]
-
-  context-saving:
-    topic:
-      en:
-        - test output
-        - build output
-        - build log*
-        - log file*
-        - server log*
-        - application log*
-        - crash log*
-        - "re:\\b(?:analy[sz]e|summari[sz]e|scan|triage|(?:go|dig|look|read|sift|comb)\\s+through)\\s+(?:the\\s+|these\\s+|this\\s+|those\\s+|our\\s+|my\\s+)?(?:[a-z0-9-]+\\s+)?(?:logs?|output|stack\\s?traces?|dumps?|test\\s+results)\\b"
-        - "re:\\b(?:large|big|huge|long|massive)\\s+(?:csv|json|jsonl|xml|log|data)\\s+(?:file|dump)s?\\b"
-        - "re:\\b(?:csv|json|jsonl|xml|sql|heap|thread)\\s+dumps?\\b"
-        - "re:\\bgit\\s+log\\b"
-      tr:
-        - test cikti*
-        - build cikti*
-        - derleme cikti*
-        - log dosya*
-        - buyuk csv*
-        - buyuk json*
-        - "re:\\b(?:ciktiyi|ciktisini|ciktilari|ciktilarini|loglari|loglarini)\\s+(?:analiz\\s+et|ozetle|incele|tara|ayikla|gozden\\s+gecir)[a-z']*"
-    not:
-      en: [output folder, output dir*, output directory, output path]
-      tr: [cikti klasor*, cikti dizin*]

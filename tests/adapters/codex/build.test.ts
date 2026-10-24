@@ -5,7 +5,6 @@ import { join, relative, sep } from 'node:path'
 import type { CanonicalBundle } from '../../../src/core/catalog'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import { defaultConfig } from '../../../src/core/config'
-import { CM_HIDDEN_TOOLS, CM_TOOLS } from '../../../src/core/context-mode'
 import type { Harness } from '../../../src/core/events'
 import * as paths from '../../../src/engine/paths'
 import { mdBlockGet } from '../../../src/engine/merge'
@@ -99,10 +98,6 @@ describe('codex build (harness/codex)', () => {
     expect(toml['mcp_servers']['codegraph']['env']).toEqual({ CODEGRAPH_TELEMETRY: '0', CODEGRAPH_NO_UPDATE_CHECK: '1', CODEGRAPH_MCP_TOOLS: 'explore,search,node,callers,callees,impact,status,files' })
     expect(toml['mcp_servers']['grep']).toEqual({ url: 'https://mcp.grep.app', default_tools_approval_mode: 'approve' })
     expect(toml['mcp_servers']['buracle-memory']).toEqual({ command: '{buracle}', args: ['mcp', 'memory'], ...top })
-    expect(toml['mcp_servers']['context-mode']).toEqual({
-      command: '{buracle}', args: ['mcp', 'run', 'context-mode'], env: { CONTEXT_MODE_PLATFORM: 'codex' }, startup_timeout_sec: 30,
-      tool_timeout_sec: 600, enabled_tools: [...CM_TOOLS], disabled_tools: [...CM_HIDDEN_TOOLS], ...top,
-    })
     expect(toml['mcp_servers']['web-fetch']['tool_timeout_sec']).toBe(180)
     for (const [id, spec] of Object.entries(canonical.mcp.servers)) {
       if (!spec.harnesses.includes('codex')) continue
@@ -150,11 +145,6 @@ describe('codex build (harness/codex)', () => {
     const commands = block.slice(block.indexOf('# Buracle commands in Codex'), block.indexOf('# Path-scoped rules'))
     for (const s of ['`$plan-build`', '`$bugfix`', '`buracle mem remember -- "<text>"`', '`$memory`', '`buracle mem ui --open`', '`buracle flow status`', '`/side`']) expect(commands).toContain(s)
     expect(commands).not.toContain('`$memory`,')
-    expect(commands).toContain('`mcp__context_mode__ctx_stats`')
-    expect(commands).toContain('`buracle ctx stats --harness codex`')
-    const noCm = { ...canonical, mcp: { ...canonical.mcp, servers: Object.fromEntries(Object.entries(canonical.mcp.servers).filter(([id]) => id !== 'context-mode')) } }
-    const without = mdBlockGet((codexBuildFiles(noCm).files.find(f => f.path === 'AGENTS.md') as { content: string }).content, 'buracle') as string
-    expect(without.slice(without.indexOf('# Buracle commands in Codex'), without.indexOf('# Path-scoped rules'))).not.toContain('ctx_stats')
     for (const r of canonical.rules.filter(r => r.scope === 'paths')) expect(block).toContain(`\`~/.buracle/rules/paths/${r.id}.md\``)
     expect(block.split('| Need | Use first | Fallback |').length).toBe(2)
   })
@@ -173,29 +163,28 @@ describe('codex build (harness/codex)', () => {
 })
 
 describe('codex MCP tables from the mcp.yaml fields', () => {
-  test('env plus harness_env.codex (a forwarded variable as env_vars), tool_timeout_sec, enabled_tools and disabled_tools; nothing of another harness', () => {
+  test('env plus harness_env.codex (a forwarded variable as env_vars) and tool_timeout_sec; nothing of another harness', () => {
     const base = { description: 'd', harnesses: ['claude', 'codex'] as Harness[], pin: 'latest' as const, critical: false, routing: [] }
     const warnings: string[] = []
     const tables = codexMcpTables({
       servers: {
         sandbox: {
-          ...base, transport: 'stdio', package: { registry: 'npm', name: 'sandbox-mcp', version: 'latest', runtime: 'bun', scripts: false },
+          ...base, transport: 'stdio', package: { registry: 'npm', name: 'sandbox-mcp', version: 'latest' },
           env: { SHARED: '1' }, harness_env: { codex: { WHO: 'codex', SANDBOX_TOKEN: '${ENV:SANDBOX_TOKEN}', OTHER: '${ENV:RENAMED}' }, claude: { WHO: 'claude' } },
-          tool_timeout_sec: 90, enabled_tools: ['run', 'search'], disabled_tools: ['upgrade'],
+          tool_timeout_sec: 90,
         },
-        remote: { ...base, transport: 'http', url: 'https://mcp.example.com', tool_timeout_sec: 5, disabled_tools: ['admin'] },
+        remote: { ...base, transport: 'http', url: 'https://mcp.example.com', tool_timeout_sec: 5 },
         plain: { ...base, transport: 'stdio', package: { registry: 'npm', name: 'plain-mcp', version: 'latest' } },
       },
     }, '/b/buracle', warnings)
     expect(tables['mcp_servers.sandbox']).toEqual({
-      command: '/b/buracle', args: ['mcp', 'run', 'sandbox'], env: { SHARED: '1', WHO: 'codex' }, env_vars: ['SANDBOX_TOKEN'], startup_timeout_sec: 30,
-      tool_timeout_sec: 90, enabled_tools: ['run', 'search'], disabled_tools: ['upgrade'],
+      command: '/b/buracle', args: ['mcp', 'run', 'sandbox'], env: { SHARED: '1', WHO: 'codex' }, env_vars: ['SANDBOX_TOKEN'], startup_timeout_sec: 30, tool_timeout_sec: 90,
     })
-    expect(tables['mcp_servers.remote']).toEqual({ url: 'https://mcp.example.com', tool_timeout_sec: 5, disabled_tools: ['admin'] })
+    expect(tables['mcp_servers.remote']).toEqual({ url: 'https://mcp.example.com', tool_timeout_sec: 5 })
     expect(tables['mcp_servers.plain']).toEqual({ command: '/b/buracle', args: ['mcp', 'run', 'plain'], startup_timeout_sec: 30 })
     expect(warnings).toEqual(['mcp.yaml: sandbox: env OTHER forwards ${ENV:RENAMED}; Codex can only forward a variable under its own name, so it is not passed'])
     const toml = Bun.TOML.parse(renderTomlTables(Object.entries(tables))) as Record<string, any>
     expect(toml['mcp_servers']['sandbox']['tool_timeout_sec']).toBe(90)
-    expect(toml['mcp_servers']['sandbox']['enabled_tools']).toEqual(['run', 'search'])
+    expect(toml['mcp_servers']['sandbox']['env_vars']).toEqual(['SANDBOX_TOKEN'])
   })
 })

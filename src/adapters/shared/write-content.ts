@@ -1,9 +1,9 @@
 import { readFileSync, statSync } from 'node:fs'
 import { parse as parseJsonc, printParseErrorCode, type ParseError } from 'jsonc-parser'
-import { parse as parseYaml } from 'yaml'
 import { resolvePath } from '../../core/events'
 import type { ConfigParsers, WriteContent } from '../../core/policy/write-guard'
 import { guardedFile } from '../../core/policy/write-guard'
+import { parseYaml } from '../../engine/yaml'
 
 export const WRITE_CONTENT_MAX_BYTES = 2_000_000
 

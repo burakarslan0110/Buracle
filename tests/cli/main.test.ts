@@ -7,7 +7,7 @@ import { withSandbox } from '../helpers/sandbox'
 
 const REPO = join(import.meta.dir, '..', '..')
 const CONTRACT_COMMANDS = ['build', 'install', 'uninstall', 'rollback', 'doctor', 'index', 'update', 'config', 'hook',
-  'statusline', 'usage', 'mem', 'mcp', 'lsp', 'ctx', 'plan', 'flow', 'worktree', 'review-scope', 'notify', 'consent', 'project', 'skills', 'rules']
+  'statusline', 'usage', 'mem', 'mcp', 'lsp', 'plan', 'flow', 'worktree', 'review-scope', 'notify', 'consent', 'project', 'skills', 'rules']
 
 export function memoryIO(stdin = ''): Omit<CommandIO, 'flags'> & { out(): string, err(): string } {
   let out = ''
@@ -106,6 +106,7 @@ describe('router', () => {
       sync: 'use `buracle install`',
       toolchain: 'use `buracle install`, `buracle update tools`, `buracle doctor tools` or `buracle rollback toolchain`',
       menu: 'run `buracle` in a terminal',
+      ctx: 'Context Mode was removed in 0.6.0',
     }
     for (const [name, instead] of Object.entries(want)) {
       for (const argv of [[name], [name, '--json'], [name, '--help'], ['help', name]]) {

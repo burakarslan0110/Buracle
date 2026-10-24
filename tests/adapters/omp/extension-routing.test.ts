@@ -411,16 +411,18 @@ describe('omp H25 workflow tracking and the band above the editor', () => {
   }))
 })
 
-describe('omp H26 profile signals, H05 context watch, H17 profile guard', () => {
-  test('a prompt spools its profile signals next to the prompt entry; a /skill: workflow adds its usage signal', () => withSandbox(async sb => {
+describe('omp H26 prompt signals, H05 context watch, H17 profile guard', () => {
+  test('a prompt spools an explicit rule as a prompt-signal statement next to the prompt entry; a /skill: workflow or a question adds none', () => withSandbox(async sb => {
     const { fp, ctx, memory } = setup(sb)
     await fp.emit('input', input('From now on always use bun for scripts.'), ctx)
     await fp.emit('input', input('/skill:research compare zod and valibot'), ctx)
+    await fp.emit('input', input('Bu projede testleri çalıştır, neden hata veriyor?'), ctx)
     await Bun.sleep(0)
-    const evs = memory.spool.map(s => s.entries.map(e => e.ev === 'signal' ? `signal:${e.signal?.key}` : e.ev))
+    const evs = memory.spool.map(s => s.entries.map(e => e.ev === 'prompt-signal' ? `${e.signal?.kind}:${e.signal?.text}` : e.ev))
     expect(evs[0]?.[0]).toBe('prompt')
-    expect(evs[0]?.some(e => e.startsWith('signal:'))).toBe(true)
-    expect(evs[1]).toContain('signal:usage.workflow=research')
+    expect(evs[0]?.slice(1)).toEqual(['statement:Always use bun for scripts'])
+    expect(evs[1]).toEqual(['prompt'])
+    expect(evs[2]).toEqual(['prompt'])
   }))
 
   test('H05: a warning once per band, shown in the TUI and handed to the model with the next prompt', () => withSandbox(async sb => {
@@ -580,14 +582,9 @@ describe('w2 plan state on omp: the lane guard, the H09 reminder and the H08 rec
     expect(await sub.fp.emit('tool_call', toolCall('bash', { command: 'buracle plan status --json' }, '2'), sub.ctx)).toBeUndefined()
   }))
 
-  test('a subagent cannot change the plan state through context-mode or an eval cell either; the main agent can', () => withSandbox(async sb => {
+  test('a subagent cannot change the plan state through an eval cell either; the main agent can', () => withSandbox(async sb => {
     type Verdict = { block?: boolean, reason?: string } | undefined
     const sub = setup(sb, { evalGuard: defaultDeps().evalGuard }, { kind: 'sub', name: 'task' })
-    const cm = await sub.fp.emit('tool_call', toolCall('mcp__context_mode_ctx_execute', { language: 'shell', code: 'buracle plan resume' }), sub.ctx) as Verdict
-    expect(cm?.block).toBe(true)
-    expect(cm?.reason).toContain('Buracle lane guard')
-    const batch = await sub.fp.emit('tool_call', toolCall('mcp__context_mode_ctx_batch_execute', { commands: ['ls', 'buracle worktree sync x'], queries: ['x'] }, '2'), sub.ctx) as Verdict
-    expect(batch?.reason).toContain('`buracle worktree sync`')
     for (const input of [
       { language: 'js', code: "require('child_process').execSync('buracle plan resume')" },
       { language: 'py', code: "import subprocess\nsubprocess.run(['buracle', 'plan', 'pause', '--kind', 'decision'])" },
@@ -598,7 +595,6 @@ describe('w2 plan state on omp: the lane guard, the H09 reminder and the H08 rec
     expect(await sub.fp.emit('tool_call', toolCall('eval', { language: 'js', code: "require('child_process').execSync('buracle plan status --json')" }, '4'), sub.ctx)).toBeUndefined()
     const main = setup(sb, { evalGuard: defaultDeps().evalGuard })
     expect(await main.fp.emit('tool_call', toolCall('eval', { language: 'js', code: "require('child_process').execSync('buracle plan resume')" }, '5'), main.ctx)).toBeUndefined()
-    expect((await main.fp.emit('tool_call', toolCall('mcp__context_mode_ctx_execute', { language: 'shell', code: 'buracle plan resume' }, '6'), main.ctx) as Verdict)?.block).toBeUndefined()
   }))
 
   test('ask: a real question while the plan runs gets the pause reminder; its answer during a decision pause is recorded', () => withSandbox(async sb => {

@@ -92,25 +92,21 @@ describe('omp build: golden output for the fixture canonical', () => {
     }
   }))
 
-  test('.mcp.json: context-mode with its omp platform and a 600 s timeout (omp stops a request after 30 s by default); no tool lists; web-fetch with its 180 s wall', () => {
+  test('.mcp.json: web-fetch carries its 180 s wall as a timeout in ms (omp stops a request after 30 s by default)', () => {
     const mcp = JSON.parse(renderMcp(loadCanonicalSync(join(REPO, 'canonical'))).content) as { mcpServers: Record<string, unknown> }
-    expect(mcp.mcpServers['context-mode']).toEqual({
-      type: 'stdio', command: '/bin/sh', args: ['-c', 'exec "${BURACLE_HOME:-$HOME/.buracle}/bin/buracle" "$@"', 'buracle', 'mcp', 'run', 'context-mode'],
-      env: { CONTEXT_MODE_PLATFORM: 'omp' }, timeout: 600_000,
-    })
     expect((mcp.mcpServers['web-fetch'] as { timeout?: number }).timeout).toBe(180_000)
   })
 
   test('.mcp.json entries from the mcp.yaml fields: env plus harness_env.omp (${VAR} forwarding), tool_timeout_sec in ms, also in the Windows form', () => {
     const base = { description: 'd', harnesses: ['omp', 'codex'] as Harness[], pin: 'latest' as const, critical: false, routing: [] }
-    const sandbox: McpServerSpec = {
-      ...base, transport: 'stdio', package: { registry: 'npm', name: 'sandbox-mcp', version: 'latest', runtime: 'bun', scripts: false },
-      env: { SHARED: '1' }, harness_env: { omp: { WHO: 'omp', TOKEN: '${ENV:SANDBOX_TOKEN}' }, codex: { WHO: 'codex' } },
-      tool_timeout_sec: 90, enabled_tools: ['run'], disabled_tools: ['upgrade'],
+    const sample: McpServerSpec = {
+      ...base, transport: 'stdio', package: { registry: 'npm', name: 'sample-mcp', version: 'latest' },
+      env: { SHARED: '1' }, harness_env: { omp: { WHO: 'omp', TOKEN: '${ENV:SAMPLE_TOKEN}' }, codex: { WHO: 'codex' } },
+      tool_timeout_sec: 90,
     }
-    const env = { SHARED: '1', TOKEN: '${SANDBOX_TOKEN}', WHO: 'omp' }
-    expect(mcpEntry('sandbox', sandbox)).toEqual({ type: 'stdio', ...mcpShimArgv(['mcp', 'run', 'sandbox']), env, timeout: 90_000 })
-    expect(mcpEntry('sandbox', sandbox, 'C:\\Users\\me\\.buracle\\bin\\buracle.cmd')).toEqual({ type: 'stdio', command: 'C:\\Users\\me\\.buracle\\bin\\buracle.cmd', args: ['mcp', 'run', 'sandbox'], env, timeout: 90_000 })
+    const env = { SHARED: '1', TOKEN: '${SAMPLE_TOKEN}', WHO: 'omp' }
+    expect(mcpEntry('sample', sample)).toEqual({ type: 'stdio', ...mcpShimArgv(['mcp', 'run', 'sample']), env, timeout: 90_000 })
+    expect(mcpEntry('sample', sample, 'C:\\Users\\me\\.buracle\\bin\\buracle.cmd')).toEqual({ type: 'stdio', command: 'C:\\Users\\me\\.buracle\\bin\\buracle.cmd', args: ['mcp', 'run', 'sample'], env, timeout: 90_000 })
     expect(mcpEntry('remote', { ...base, transport: 'http', url: 'https://mcp.example.com', tool_timeout_sec: 5 })).toEqual({ type: 'http', url: 'https://mcp.example.com', timeout: 5_000 })
   })
 
@@ -298,15 +294,16 @@ describe('omp build: canonical/hooks.yaml matches what the extension subscribes 
 })
 
 describe('omp build: the bundle stays light', () => {
-  test('no sqlite, no vault or index code: of src/memory only the spool writer and its layout', async () => {
+  test('no sqlite, no vault or index code: of src/memory only the spool writer, the in-process session record and their layout', async () => {
     const code = await bundleExtension(REPO, ompGeneratedData(fixtureCtx().canonical, '0.1.0'))
     const modules = [...new Set(code.split('\n').filter(l => /^\/\/ src\//.test(l)).map(l => l.slice(3)))]
     expect(code).not.toContain('bun:sqlite')
-    const heavy = ['index', 'vault', 'api', 'finalize', 'regen', 'mcp', 'git', 'status', 'project', 'distill', 'consolidate', 'obsidian', 'scan', 'mirror'].map(n => `src/memory/${n}.ts`)
+    const heavy = ['index', 'vault', 'api', 'finalize', 'regen', 'mcp', 'git', 'status', 'distill', 'consolidate', 'obsidian', 'scan', 'mirror'].map(n => `src/memory/${n}.ts`)
     expect(modules.filter(m => heavy.includes(m))).toEqual([])
     expect(modules).toContain('src/memory/spool.ts')
+    expect(modules).toContain('src/memory/session-record.ts')
     expect(modules.filter(m => m.startsWith('src/adapters/opencode/'))).toEqual(['src/adapters/opencode/runtime/adapter-rules.ts'])
-    expect(modules.filter(m => m.startsWith('src/adapters/shared/context-mode/'))).toEqual(['src/adapters/shared/context-mode/client.ts', 'src/adapters/shared/context-mode/maint.ts'])
+    expect(modules.filter(m => m.startsWith('src/adapters/shared/context-mode/'))).toEqual([])
   }, 60_000)
 })
 

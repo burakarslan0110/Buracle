@@ -27,16 +27,18 @@ describe('panes', () => {
   })
 
   test('the memory pane from the status file, or a hint when there is none', () => {
-    const status = { v: 2, health: 'warn', project: 'demo', counts: { project: 4, person: 2 }, upkeep: 16, captures: 3 }
+    const status = { v: 3, health: 'warn', project: 'demo', counts: { project: 4, person: 2 }, captures: 3, last_capture: { at: '2026-10-23T09:30:12.000Z', by: 'codex', saved: 2 } }
     expect(memoryPaneLines(status, 'http://localhost:41777', '/home/me/.buracle/brain')).toEqual([
       { text: 'memory: warn', color: 'warning', bold: true },
       { text: 'project demo 4 · person 2' },
-      { text: 'upkeep 16 · captures 3' },
+      { text: 'inbox 3 · last capture 2026-10-23 09:30' },
       { text: 'web UI: http://localhost:41777  (w)', dim: true },
       { text: 'brain: /home/me/.buracle/brain', dim: true },
     ])
     expect(memoryPaneLines(undefined, undefined, '/b').map(l => l.text)).toEqual(['No memory status yet.', '`buracle mem status` and memory writes create the status file.', 'brain: /b'])
     expect(memoryPaneLines({ v: 1, health: 'ok', notes: { project: 1 } }, undefined, '/b')[0]?.text).toBe('No memory status yet.')
+    expect(memoryPaneLines({ v: 2, health: 'ok', counts: { project: 1, person: 1 }, upkeep: 0, captures: 0 }, undefined, '/b')[0]?.text).toBe('No memory status yet.')
+    expect(memoryPaneLines({ v: 3, health: 'ok', counts: { project: 1, person: 1 }, captures: 0 }, undefined, '/b').map(l => l.text)).toContain('inbox 0 · last capture none yet')
   })
 
   test('/buracle-status lines and the theme of segment colors', () => {

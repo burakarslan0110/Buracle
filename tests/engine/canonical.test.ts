@@ -4,10 +4,7 @@ import { join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import { catalogMcp, catalogSkills, envRef, expandMcpCommand, mcpEnvFor, validateMcpCatalog, validatePluginsCatalog, validateToolsCatalog, type McpServerSpec } from '../../src/core/catalog'
 import { defaultConfig, validateConfig } from '../../src/core/config'
-import { CM_HIDDEN_TOOLS, CM_TOOLS } from '../../src/core/context-mode'
-import { HARNESSES } from '../../src/core/events'
 import { CanonicalError, loadCanonicalSync, parseFrontmatter } from '../../src/engine/canonical'
-import { cmPlatform } from '../../src/engine/context-mode'
 import * as paths from '../../src/engine/paths'
 import { withSandbox } from '../helpers/sandbox'
 
@@ -22,13 +19,12 @@ describe('the real canonical/ tree', () => {
     expect(validateConfig(raw)).toEqual({ ok: true, config: defaultConfig() })
   })
 
-  test('mcp.yaml has the ten servers; packages follow their latest release through the launcher', () => {
-    expect(Object.keys(bundle.mcp.servers).sort()).toEqual(['buracle-memory', 'chrome-devtools', 'codegraph', 'context-mode', 'context7', 'grep', 'lsp', 'semble', 'web-fetch', 'web-search'])
+  test('mcp.yaml has the nine servers; packages follow their latest release through the launcher', () => {
+    expect(Object.keys(bundle.mcp.servers).sort()).toEqual(['buracle-memory', 'chrome-devtools', 'codegraph', 'context7', 'grep', 'lsp', 'semble', 'web-fetch', 'web-search'])
     const pins = Object.fromEntries(Object.entries(bundle.mcp.servers).map(([id, s]) => [id, s.package ? `${s.package.registry}:${s.package.name}@${s.package.version}` : s.url ?? s.command]))
     expect(pins).toEqual({
       context7: 'npm:@upstash/context7-mcp@latest',
       codegraph: 'npm:@colbymchenry/codegraph@latest',
-      'context-mode': 'npm:context-mode@latest',
       'web-search': 'npm:open-websearch@latest',
       'web-fetch': 'npm:fetcher-mcp@latest',
       grep: 'https://mcp.grep.app',
@@ -46,20 +42,6 @@ describe('the real canonical/ tree', () => {
     expect(expandMcpCommand(bundle.mcp.servers['buracle-memory']!, { buracle: '/h/.buracle/bin/buracle', id: 'buracle-memory' })).toEqual({ command: '/h/.buracle/bin/buracle', args: ['mcp', 'memory'] })
     expect(expandMcpCommand(bundle.mcp.servers['lsp']!, { buracle: '/h/.buracle/bin/buracle', id: 'lsp' })).toEqual({ command: '/h/.buracle/bin/buracle', args: ['lsp', 'mcp'] })
     expect(bundle.mcp.servers['lsp']).toMatchObject({ harnesses: ['codex', 'opencode'], critical: true, pin: 'hard', routing: ['language-server'] })
-  })
-
-  test('context-mode: Bun without install scripts, its platform per harness, a 600 s tool timeout, the tools Buracle uses listed and the rest hidden', () => {
-    const cm = bundle.mcp.servers['context-mode']
-    expect(cm?.package).toEqual({ registry: 'npm', name: 'context-mode', version: 'latest', bin: 'context-mode', runtime: 'bun', scripts: false })
-    expect(cm?.env).toBeUndefined()
-    expect(cm?.harness_env).toEqual({ claude: { CONTEXT_MODE_PLATFORM: 'claude-code' }, codex: { CONTEXT_MODE_PLATFORM: 'codex' }, opencode: { CONTEXT_MODE_PLATFORM: 'opencode' }, omp: { CONTEXT_MODE_PLATFORM: 'omp' } })
-    expect(cm?.tool_timeout_sec).toBe(600)
-    expect(cm?.enabled_tools).toEqual([...CM_TOOLS])
-    expect(cm?.disabled_tools).toEqual([...CM_HIDDEN_TOOLS])
-    expect(cm?.harnesses).toEqual(['claude', 'codex', 'opencode', 'omp'])
-    expect(cm?.critical).toBe(true)
-    expect(cm?.args).toBeUndefined()
-    for (const h of HARNESSES) expect(mcpEnvFor(cm!, h)).toEqual({ CONTEXT_MODE_PLATFORM: cmPlatform(h) })
   })
 
   test('web-fetch: a 180 s tool timeout that is a wall on every harness (a fetch whose browser never answers ends there)', () => {
@@ -142,7 +124,7 @@ describe('the real canonical/ tree', () => {
       expect({ id: s.id, short: typeof s.short === 'string', invocation: s.invocation === 'explicit' || s.invocation === 'implicit', triggers: (s.triggers?.ask?.length ?? 0) > 0 }).toEqual({ id: s.id, short: true, invocation: true, triggers: true })
     }
     expect(bundle.triggers).toBeDefined()
-    expect(bundle.routing.categories.filter(c => c.triggers !== undefined).map(c => c.id).sort()).toEqual(['browser', 'code-examples', 'code-search', 'code-structure', 'context-saving', 'language-server', 'library-docs', 'memory', 'web-search'])
+    expect(bundle.routing.categories.filter(c => c.triggers !== undefined).map(c => c.id).sort()).toEqual(['browser', 'code-examples', 'code-search', 'code-structure', 'language-server', 'library-docs', 'memory', 'web-search'])
   })
 })
 
@@ -300,23 +282,18 @@ describe('catalog validators', () => {
     expect(validateMcpCatalog({})).toEqual(['servers: expected a mapping of server id → spec'])
   })
 
-  test('mcp.yaml: runtime, scripts, harness_env, tool_timeout_sec (with tool_timeout_hard) and the tool lists', () => {
+  test('mcp.yaml: harness_env and tool_timeout_sec (with tool_timeout_hard); the retired runtime, scripts and tool-list keys no longer validate', () => {
     const base = { description: 'x', transport: 'stdio', package: { registry: 'npm', name: 'p', version: 'latest' }, harnesses: ['claude', 'codex'], pin: 'latest', critical: false, routing: [] }
     const good = {
       ...base,
-      package: { ...base.package, runtime: 'bun', scripts: false },
       env: { SHARED: '1' },
       harness_env: { claude: { WHO: 'claude', TOKEN: '${ENV:TOKEN}' }, codex: { WHO: 'codex' } },
       tool_timeout_sec: 600,
       tool_timeout_hard: true,
-      enabled_tools: ['a_tool', 'b-tool', 'c.tool'],
-      disabled_tools: ['d_tool'],
     }
     expect(validateMcpCatalog({ servers: { good } })).toEqual([])
     const errors = validateMcpCatalog({
       servers: {
-        runtime: { ...base, package: { ...base.package, runtime: 'deno', scripts: 'no' } },
-        pypi: { ...base, package: { registry: 'pypi', name: 'p', version: 'latest', runtime: 'bun', scripts: false } },
         stranger: { ...base, harness_env: { omp: { A: '1' }, claude: 'x' } },
         overlap: { ...base, env: { A: '1' }, harness_env: { codex: { A: '2', 'bad-name': '3', B: 4, C: 'x${ENV:Y}' } } },
         remote: { ...base, package: undefined, transport: 'http', url: 'https://x.y', harness_env: { claude: { A: '1' } } },
@@ -324,16 +301,11 @@ describe('catalog validators', () => {
         zero: { ...base, tool_timeout_sec: 0 },
         hardType: { ...base, tool_timeout_sec: 180, tool_timeout_hard: 'yes' },
         hardAlone: { ...base, tool_timeout_hard: true },
-        lists:{ ...base, enabled_tools: [], disabled_tools: ['x', 'x', 'has space'] },
-        both: { ...base, enabled_tools: ['x', 'y'], disabled_tools: ['y'] },
-        shape: { ...base, harness_env: ['claude'], enabled_tools: 'x' },
+        shape: { ...base, harness_env: ['claude'] },
+        retired: { ...base, package: { ...base.package, runtime: 'bun', scripts: false }, enabled_tools: ['a_tool'], disabled_tools: ['b_tool'] },
       },
     })
     expect(errors).toEqual(expect.arrayContaining([
-      'servers.runtime.package.runtime: expected node | bun',
-      'servers.runtime.package.scripts: expected boolean',
-      'servers.pypi.package.runtime: only npm packages choose a runtime',
-      'servers.pypi.package.scripts: only npm packages have lifecycle scripts to turn off',
       'servers.stranger.harness_env.omp: not one of this server\'s harnesses',
       'servers.stranger.harness_env.claude: expected a mapping',
       'servers.overlap.harness_env.codex.A: also in env (a variable is set either for every harness or per harness)',
@@ -345,14 +317,12 @@ describe('catalog validators', () => {
       'servers.zero.tool_timeout_sec: expected a positive whole number of seconds',
       'servers.hardType.tool_timeout_hard: expected a boolean',
       'servers.hardAlone.tool_timeout_hard: needs tool_timeout_sec',
-      'servers.lists.enabled_tools: expected a non-empty list of tool names',
-      'servers.lists.disabled_tools: not a tool name: "has space"',
-      'servers.lists.disabled_tools: duplicates',
-      'servers.both.disabled_tools: also in enabled_tools: y',
       'servers.shape.harness_env: expected a mapping of harness to variables',
-      'servers.shape.enabled_tools: expected a non-empty list of tool names',
+      'servers.retired.enabled_tools: unknown key',
+      'servers.retired.disabled_tools: unknown key',
+      'servers.retired.package.runtime: unknown key',
+      'servers.retired.package.scripts: unknown key',
     ]))
-    expect(errors.filter(e => e.startsWith('servers.runtime.') || e.startsWith('servers.pypi.') || e.startsWith('servers.both.'))).toHaveLength(5)
   })
 
   test('mcpEnvFor: env plus the harness\'s own variables, in key order; nothing of another harness', () => {

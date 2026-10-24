@@ -12,7 +12,7 @@ when_to_use: >-
   this" is handled directly, without this workflow.
 invocation: explicit
 argument-hint: "<bug: symptom, failing test, error or steps> [--worktree | --new-branch | --current-branch]"
-mcp: [semble, codegraph, context7, web-search, web-fetch, grep, chrome-devtools, buracle-memory, context-mode]
+mcp: [semble, codegraph, context7, web-search, web-fetch, grep, chrome-devtools, buracle-memory]
 short-description: Reproduce, root-cause, RED test, fix at the source, prove it end to end
 ---
 
@@ -125,7 +125,7 @@ Never ask whether to continue between phases; just continue.
 | Correct usage in public code | grep (public code search) | web-search |
 | Earlier gotchas and decisions | buracle-memory: `memory_search`, then `memory_get` | `buracle mem search "<q>"` |
 | Reproducing or proving a UI bug | chrome-devtools | the repo's Playwright setup |
-| Long test, build or log output | context-mode: `ctx_batch_execute` or `ctx_execute`, printing every failure and error with its full message | the shell, output narrowed |
+| Long test, build or log output | the shell with the output narrowed, keeping every failure and error with its full message | none |
 
 Use codegraph whenever the path leaves the code you have already read; skip it while the defect is confined to one function you fully understand. An empty search result is not proof of absence. If a server is down, use the fallback and say so in the report.
 <!-- harness:omp -->

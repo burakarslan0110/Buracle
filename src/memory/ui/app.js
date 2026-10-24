@@ -7,7 +7,7 @@ import { LOGO, pixelArt } from './logo.js'
 import { count, lang, num, regionLabel, relTime, t } from './i18n.js'
 import { createHealth, errorBlock, healthView, settingsView } from './manage.js'
 import { createNetwork } from './network.js'
-import { detailView, profileView, reflectView, regionView, searchView, upkeepView } from './panel.js'
+import { detailView, regionView, searchView } from './panel.js'
 import { wirePointer } from './pointer.js'
 import { createRenderer } from './render.js'
 import { createTheme } from './theme.js'
@@ -57,10 +57,7 @@ $('search-icon').append(icon('search', 'icon'))
 $('btn-search').append(icon('search'))
 $('btn-health').prepend(icon('pulse'))
 $('btn-settings').append(icon('gear'))
-$('btn-reflect').append(icon('loop'))
 $('btn-graph').append(icon('graph'))
-$('btn-upkeep').prepend(icon('sparkle'))
-$('btn-profile').append(icon('user'))
 $('btn-review').append(icon('file'))
 $('btn-work').append(icon('chart'))
 $('btn-inbox').prepend(icon('bell'))
@@ -313,7 +310,7 @@ function setScope(scope) {
   state.items = new Map()
   clearSearch(false)
   network.hide()
-  if (state.panel !== null && state.panel.view !== 'profile') closePanel(false)
+  if (state.panel !== null) closePanel(false)
   setVariant(scope === 'person' ? 'person' : 'project')
   applyWords()
   renderer.setRegions(loadingLevels)
@@ -325,7 +322,7 @@ function setScope(scope) {
 }
 
 function restLevel(m) {
-  if (m.kind === 'preference' || (m.kind === 'profile' && m.tags.includes('stated'))) return 0.85
+  if (m.kind === 'preference' || m.origin === 'explicit' || (m.kind === 'profile' && m.tags.includes('stated'))) return 0.85
   if (m.kind === 'profile' && m.tags.includes('hypothesis')) return 0.22
   return 0.5
 }
@@ -347,7 +344,7 @@ async function loadBrain(quiet) {
   hud.setRegions(b.regions)
   updateReadout()
   const p = state.panel
-  if (p !== null && (p.view === 'region' || p.view === 'upkeep' || p.view === 'reflect')) renderPanel()
+  if (p !== null && p.view === 'region') renderPanel()
   if (state.q !== '') void runSearch(true)
   if (state.graph !== null && quiet) void network.load(true)
   updateEmphasis()
@@ -359,15 +356,9 @@ function updateReadout() {
   const parts = [h('b', null, scopeName(state.scope ?? ''))]
   if (b !== null) {
     parts.push(h('span', null, count('memories', b.items.length)))
-    parts.push(h('span', { class: b.upkeep > 0 ? 'warn' : 'ok' }, b.upkeep > 0 ? t('stats.upkeep', { n: num(b.upkeep) }) : t('stats.clean')))
     if (b.lastActivity) parts.push(h('span', null, t('stats.last', { t: relTime(b.lastActivity) })))
   }
   $('stats').replaceChildren(...parts.flatMap((x, i) => (i === 0 ? [x] : [h('i', { class: 'sep', 'aria-hidden': 'true' }, '·'), x])))
-  const badge = $('upkeep-count')
-  const n = b?.upkeep ?? 0
-  badge.hidden = n === 0
-  badge.textContent = n > 99 ? '99+' : String(n)
-  $('btn-upkeep').setAttribute('aria-label', n > 0 ? `${t('btn.upkeep')}: ${t('stats.upkeep', { n: num(n) })}` : t('btn.upkeep'))
 }
 
 let announceAt = 0
@@ -399,7 +390,7 @@ function connectEvents() {
 
 function onEvent(e) {
   const ri = regionIndex(e.region ?? (e.id !== undefined ? state.items.get(e.id)?.region : undefined))
-  const kind = e.op === 'recall' || e.op === 'sweep' ? 'recall' : e.op === 'retire' || e.op === 'delete' || e.op === 'prune' ? 'fade' : 'write'
+  const kind = e.op === 'recall' ? 'recall' : e.op === 'retire' || e.op === 'delete' ? 'fade' : 'write'
   renderer.pulse(ri, kind)
   if (ri >= 0) hud.pulse(ri)
   if (e.op === 'recall' && Array.isArray(e.ids)) {
@@ -414,7 +405,7 @@ function onEvent(e) {
   if (now - announceAt > 4000) {
     announceAt = now
     const what = t('announce.event', { region: ri >= 0 ? regionLabel(regionIds()[ri]) : t('app.title'), op: t(`op.${e.op}`) })
-    $('announce').textContent = e.by === 'buracle-reflect' ? t('announce.reflect', { op: what }) : what
+    $('announce').textContent = what
   }
   refreshSoon()
 }
@@ -457,12 +448,6 @@ function afterWrite() {
 
 const health = createHealth({
   scope: () => state.scope,
-  repairDone: (last) => {
-    state.note = t(last?.ok === false ? 'health.repairFailed' : 'health.repairDone')
-    announce(state.note)
-    void loadBrain(true)
-    void loadOverview()
-  },
 })
 
 async function projectRemoved() {
@@ -499,7 +484,6 @@ function memoryCtx(scope) {
 
 function openPanel(view, arg, opener, scope) {
   const prev = state.panel
-  health.stop()
   if (view === 'health' && prev?.view !== 'health') state.note = null
   if (view === 'detail' && prev !== null && prev.view !== 'detail') state.stack = [prev]
   else if (view !== 'detail') state.stack = []
@@ -517,7 +501,6 @@ function openPanel(view, arg, opener, scope) {
 function closePanel(restoreFocus = true) {
   const p = state.panel
   if (p === null) return
-  health.stop()
   state.panel = null
   state.stack = []
   const el = $('panel')
@@ -579,31 +562,12 @@ async function renderPanel(focus = false, quiet = false) {
     }
     p.region = r.body.region
     done(detailView(body, r.body, memoryCtx(p.scope)))
-  } else if (p.view === 'upkeep') {
-    loading(t('upkeep.title'))
-    const r = await getJson(`/api/upkeep?scope=${encodeURIComponent(state.scope)}`)
-    if (seq !== state.seq.panel) return
-    if (!r.ok) { body.replaceChildren(h('p', { class: 'empty' }, r.body?.message ?? t('state.error'))); done({ title: t('upkeep.title') }); return }
-    done(upkeepView(body, r.body, panelCtx, now))
-  } else if (p.view === 'profile') {
-    loading(t('profile.title'))
-    const r = await getJson('/api/profile')
-    if (seq !== state.seq.panel) return
-    if (!r.ok) { body.replaceChildren(h('p', { class: 'empty' }, r.body?.message ?? t('state.error'))); done({ title: t('profile.title') }); return }
-    done(profileView(body, r.body, panelCtx, now))
-  } else if (p.view === 'reflect') {
-    loading(t('reflect.title'))
-    const r = await getJson(`/api/reflect?scope=${encodeURIComponent(state.scope)}`)
-    if (seq !== state.seq.panel) return
-    if (!r.ok) { body.replaceChildren(h('p', { class: 'empty' }, r.body?.message ?? t('reflect.unavailable'))); done({ title: t('reflect.title') }); return }
-    done(reflectView(body, r.body, panelCtx, now))
   } else if (p.view === 'health') {
     loading(t('health.title'))
     const r = await health.refresh()
     if (seq !== state.seq.panel) return
     if (!r.ok) { body.replaceChildren(errorBlock(r)); done({ title: t('health.title') }); return }
     done(healthView(body, r.body, manageCtx, now))
-    health.follow(() => { if (state.panel?.view === 'health') void renderPanel(false, true) })
   } else if (p.view === 'settings') {
     loading(t('settings.title'))
     const r = await getJson('/api/settings')
@@ -638,9 +602,6 @@ $('panel-close').addEventListener('click', () => closePanel())
 $('panel-back').addEventListener('click', () => { goBack() })
 $('btn-health').addEventListener('click', (e) => openPanel('health', null, e.currentTarget))
 $('btn-settings').addEventListener('click', (e) => openPanel('settings', null, e.currentTarget))
-$('btn-reflect').addEventListener('click', (e) => openPanel('reflect', null, e.currentTarget))
-$('btn-upkeep').addEventListener('click', (e) => openPanel('upkeep', null, e.currentTarget))
-$('btn-profile').addEventListener('click', (e) => openPanel('profile', null, e.currentTarget))
 $('btn-work').addEventListener('click', (e) => openPanel('work', 'sessions', e.currentTarget))
 $('btn-inbox').addEventListener('click', (e) => openPanel('inbox', null, e.currentTarget))
 $('scope').addEventListener('change', (e) => setScope(e.currentTarget.value))
@@ -730,9 +691,6 @@ document.addEventListener('keydown', (e) => {
   if (e.key === '/') { e.preventDefault(); openSearch() }
   else if (e.key === 'g' || e.key === 'G') network.toggle()
   else if (e.key === 't' || e.key === 'T') theme.toggle()
-  else if (e.key === 'u' || e.key === 'U') openPanel('upkeep', null, document.activeElement)
-  else if (e.key === 'p' || e.key === 'P') openPanel('profile', null, document.activeElement)
-  else if (e.key === 'r' || e.key === 'R') openPanel('reflect', null, document.activeElement)
   else if (e.key === 'h' || e.key === 'H') openPanel('health', null, document.activeElement)
   else if (e.key === 's' || e.key === 'S') openPanel('settings', null, document.activeElement)
   else if (e.key === 'w' || e.key === 'W') openPanel('work', 'sessions', document.activeElement)

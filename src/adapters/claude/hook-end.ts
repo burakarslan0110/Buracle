@@ -11,7 +11,6 @@ import * as paths from '../../engine/paths'
 import { loadState, updateState } from '../../workflow/session-store'
 import type { AdapterContext } from '../registry'
 import type { HookDeps } from './hook'
-import { cmBridge } from './hook-cm'
 import { H, QUIET, captureOff, isObj, isSubagent, out, spool, step, str, type HookOutcome } from './hook-io'
 import { auditTurn, readWorkspace } from './hook-route'
 import { assetsOptions, startLinkRun } from '../shared/project-assets'
@@ -115,8 +114,7 @@ export async function projectHandoff(cwd: string, sid: string, d: HookDeps, now:
   return isObj(r) && typeof r['id'] === 'string' ? r['id'] : undefined
 }
 
-export async function preCompact(p: Record<string, unknown>, sid: string, ctx: AdapterContext, d: HookDeps, now: number): Promise<HookOutcome> {
-  await cmBridge(d, ctx, 'PreCompact', p)
+export async function preCompact(p: Record<string, unknown>, sid: string, d: HookDeps, now: number): Promise<HookOutcome> {
   if (isSubagent(p)) return QUIET
   const record = handoffRecordPath(sid)
   if (d.env('BURACLE_NO_MEMORY') === '1') {
@@ -142,14 +140,6 @@ export async function preCompact(p: Record<string, unknown>, sid: string, ctx: A
     return isObj(r) && typeof r['id'] === 'string' ? r['id'] : undefined
   })
   if (id !== undefined) await mark(id)
-  if (!captureOff(d)) {
-    try {
-      const seen = (await d.importModule('finalize'))?.['compactSeen']
-      if (typeof seen === 'function') (seen as (h: string, sid: string, o: { nowMs: number }) => unknown)(H, sid, { nowMs: now })
-    } catch (e) {
-      log('warn', 'claude hook PreCompact: the memory tick was not woken', { sid, error: e })
-    }
-  }
   return QUIET
 }
 

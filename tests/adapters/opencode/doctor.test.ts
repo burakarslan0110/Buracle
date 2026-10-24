@@ -1,11 +1,10 @@
 import { Database } from 'bun:sqlite'
 import { describe, expect, test } from 'bun:test'
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { claudeSubscriptionSigns, commandFindings, contextModeFindings, doctor, effortFinding, mcpCommandFindings, permissionFinding, rememberedVariants, type DoctorItem, type DoctorOptions } from '../../../src/adapters/opencode/doctor'
+import { claudeSubscriptionSigns, commandFindings, doctor, effortFinding, mcpCommandFindings, permissionFinding, rememberedVariants, type DoctorItem, type DoctorOptions } from '../../../src/adapters/opencode/doctor'
 import { TESTED_WITH } from '../../../src/adapters/opencode/constants'
 import { installPlan } from '../../../src/adapters/opencode/install'
-import { jsoncParse } from '../../../src/engine/merge'
 import type { RunResult } from '../../../src/engine/proc'
 import * as paths from '../../../src/engine/paths'
 import { applyPlans } from '../../../src/engine/txn'
@@ -58,7 +57,7 @@ describe('opencode doctor', () => {
     expect(fakeExe(join(dirname(ctx.buracleBin), 'buracle'), '')).toBe(ctx.buracleBin)
     const stopped = await doctor(ctx, fake(TESTED_WITH, { 'service get env BURACLE_HOME': `${buracleHome}\n`, 'service status': 'stopped\n' }))
     expect(stopped.filter(i => i.level === 'error')).toEqual([])
-    for (const c of ['opencode.version', 'opencode.config', 'opencode.context-mode', 'opencode.cli', 'opencode.permissions', 'opencode.effort', 'opencode.files', 'opencode.commands', 'opencode.pointer', 'opencode.agents-md', 'opencode.service-env', 'opencode.live']) expect(level(stopped, c)).toBe('ok')
+    for (const c of ['opencode.version', 'opencode.config', 'opencode.cli', 'opencode.permissions', 'opencode.effort', 'opencode.files', 'opencode.commands', 'opencode.pointer', 'opencode.agents-md', 'opencode.service-env', 'opencode.live']) expect(level(stopped, c)).toBe('ok')
     expect(stopped.find(i => i.check === 'opencode.effort')?.detail).toContain('default effort xhigh')
     const live = await doctor(ctx, fake(TESTED_WITH, {
       'service get env BURACLE_HOME': buracleHome,
@@ -71,39 +70,6 @@ describe('opencode doctor', () => {
     const unset = await doctor(ctx, fake(TESTED_WITH, { 'service status': 'stopped' }))
     expect(level(unset, 'opencode.service-env')).toBe('warn')
   }), 60_000)
-
-  test('context-mode: it runs as platform "opencode" with its unused tools hidden; a wrong platform or lost deny rules warn', () => withSandbox(async () => {
-    const ctx = adapterContext()
-    await applyPlans([await installPlan(ctx, { opencode: null })])
-    const healthy = (await doctor(ctx, fake(TESTED_WITH, { 'service status': 'stopped' }))).find(i => i.check === 'opencode.context-mode')
-    expect(healthy?.level).toBe('ok')
-    expect(healthy?.detail).toContain('platform "opencode"')
-    expect(healthy?.detail).toContain('context-mode_ctx_upgrade, context-mode_ctx_insight, context-mode_ctx_doctor')
-    const file = join(paths.opencodeConfigDir(), 'opencode.jsonc')
-    const parsed = jsoncParse(readFileSync(file, 'utf8'))
-    if (!parsed.ok) throw new Error(parsed.error)
-    const cfg = parsed.value as { permissions: Array<{ action: string }>, mcp: { servers: Record<string, { environment?: Record<string, string> }> } }
-    cfg.permissions = cfg.permissions.filter(r => !r.action.startsWith('context-mode_'))
-    const server = cfg.mcp.servers['context-mode']
-    if (server?.environment === undefined) throw new Error('the installed context-mode entry has no environment')
-    server.environment['CONTEXT_MODE_PLATFORM'] = 'claude-code'
-    writeFileSync(file, JSON.stringify(cfg, null, 2))
-    const items = await doctor(ctx, fake(TESTED_WITH, { 'service status': 'stopped' }))
-    const cm = items.find(i => i.check === 'opencode.context-mode')
-    expect(cm?.level).toBe('warn')
-    expect(cm?.detail).toContain('CONTEXT_MODE_PLATFORM is "claude-code", not "opencode"')
-    expect(cm?.detail).toContain('context-mode_ctx_upgrade, context-mode_ctx_insight, context-mode_ctx_doctor are missing')
-    expect(items.find(i => i.check === 'opencode.config')?.detail).toContain('3 Buracle permission rule(s)')
-  }))
-
-  test('context-mode findings: a missing server entry warns; canonical/ without the server has no finding', () => {
-    const ctx = adapterContext()
-    expect(contextModeFindings(ctx.canonical, ctx.buracleBin, undefined, [])).toMatchObject([{ level: 'warn' }])
-    expect(contextModeFindings(ctx.canonical, ctx.buracleBin, undefined, [])[0]?.detail).toContain('mcp.servers.context-mode is missing')
-    const servers = { ...ctx.canonical.mcp.servers }
-    delete servers['context-mode']
-    expect(contextModeFindings({ ...ctx.canonical, mcp: { ...ctx.canonical.mcp, servers } }, ctx.buracleBin, undefined, [])).toEqual([])
-  })
 
   test('version gates: v1 and old v2 are errors, an untested newer v2 is a warning', () => withSandbox(async () => {
     const ctx = adapterContext()

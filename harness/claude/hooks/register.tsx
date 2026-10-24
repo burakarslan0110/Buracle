@@ -122,14 +122,6 @@ export const register: Register = on => {
     return await masked($, S, e.tool_use_id, ran)
   }).catch(($, e, next) => next(e))
 
-  on('tool.call', { tool: /^mcp__(?:plugin_[^_]+_)?context-mode__ctx_(?:execute|execute_file|batch_execute)$/ }, async ($, e, next) => {
-    if (e.agentId === undefined && S.interactive) {
-      const refused = await consentDialog($, S, Core.sandboxShellCommands(sandboxCallOf(e)))
-      if (refused !== undefined) return { deny: refused }
-    }
-    return next(e)
-  }).catch(($, e, next) => next(e))
-
   on('tool.call', { tool: /^(?:Edit|Write|MultiEdit|NotebookEdit)$/ }, async ($, e, next) => {
     const ran = await next(e)
     if (ran.deny === undefined && ran.isError !== true && e.agentId === undefined) {
@@ -563,13 +555,6 @@ async function takeConsentLock($: EngineInterface, rt: Runtime, lock: string): P
     }
   }
   return false
-}
-
-function sandboxCallOf(e: object): Core.ToolCall {
-  const input: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(e)) if (k !== 'tool' && k !== 'tool_use_id' && k !== 'agentId' && k !== 'consent') input[k] = v
-  const tool = String((e as { tool?: unknown }).tool ?? '')
-  return { harness: 'claude', sessionId: '', cwd: '', tool, input, ...Core.classifyTool('claude', tool, input, '', [Core.CM_SERVER_ID]) }
 }
 
 function noteCommandRan($: EngineInterface, S: ModState, command: string, failed: boolean): void {

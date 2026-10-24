@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import { HOOK_IDS, classifyTool, isAbsPath, isHarness, isRootPath, isWindowsPath, mcpServerToken, nativePath, normalizePath, parseApplyPatch, parseMcpName, pathRoot, resolveNormalPath, resolvePath } from '../../src/core/events'
+import { HOOK_IDS, RETIRED_HOOK_IDS, classifyTool, isAbsPath, isHarness, isRootPath, isWindowsPath, mcpServerToken, nativePath, normalizePath, parseApplyPatch, parseMcpName, pathRoot, resolveNormalPath, resolvePath } from '../../src/core/events'
 import type { Harness, ToolKind } from '../../src/core/events'
 
 const CWD = '/work/repo'
-const KNOWN = ['context7', 'codegraph', 'context-mode', 'web-search', 'web-fetch', 'grep', 'semble', 'chrome-devtools', 'buracle-memory']
+const KNOWN = ['context7', 'codegraph', 'web-search', 'web-fetch', 'grep', 'semble', 'chrome-devtools', 'buracle-memory']
 
 describe('tool tables', () => {
   const cases: Array<[Harness, string, ToolKind]> = [
@@ -126,16 +126,7 @@ describe('MCP names', () => {
     expect(classifyTool('omp', 'mcp__web_search_search', {}, CWD, KNOWN).mcp).toEqual({ server: 'web-search', tool: 'search' })
   })
 
-  test('context-mode on every harness, beside context7', () => {
-    const want = { server: 'context-mode', tool: 'ctx_execute' }
-    expect(parseMcpName('claude', 'mcp__plugin_buracle_context-mode__ctx_execute')).toEqual(want)
-    expect(parseMcpName('claude', 'mcp__plugin_buracle_context-mode__ctx_execute', KNOWN)).toEqual(want)
-    expect(parseMcpName('codex', 'mcp__context_mode__ctx_execute', KNOWN)).toEqual(want)
-    expect(parseMcpName('opencode', 'context-mode_ctx_execute', KNOWN)).toEqual(want)
-    expect(parseMcpName('omp', 'mcp__context_mode_ctx_execute', KNOWN)).toEqual(want)
-    expect(classifyTool('codex', 'mcp__context_mode__ctx_batch_execute', {}, CWD, KNOWN)).toEqual({ kind: 'mcp', paths: [], mcp: { server: 'context-mode', tool: 'ctx_batch_execute' } })
-    expect(classifyTool('opencode', 'context-mode_ctx_fetch_and_index', {}, CWD, KNOWN).mcp).toEqual({ server: 'context-mode', tool: 'ctx_fetch_and_index' })
-    expect(classifyTool('omp', 'mcp__context_mode_ctx_execute_file', {}, CWD, KNOWN).mcp).toEqual({ server: 'context-mode', tool: 'ctx_execute_file' })
+  test('context7 on every harness', () => {
     expect(parseMcpName('claude', 'mcp__plugin_buracle_context7__query-docs', KNOWN)).toEqual({ server: 'context7', tool: 'query-docs' })
     expect(parseMcpName('codex', 'mcp__context7__query_docs', KNOWN)).toEqual({ server: 'context7', tool: 'query_docs' })
     expect(parseMcpName('opencode', 'context7_query-docs', KNOWN)).toEqual({ server: 'context7', tool: 'query-docs' })
@@ -375,9 +366,11 @@ describe('classifyTool: shell and code tools outside Bash', () => {
 })
 
 describe('logical hook ids', () => {
-  test('H01 to H28 in order; H27 context.session came with Context Mode, H28 project.assets with 0.5.0', () => {
-    expect(HOOK_IDS.length).toBe(28)
-    expect(HOOK_IDS).toEqual(Array.from({ length: 28 }, (_, i) => `H${String(i + 1).padStart(2, '0')}`) as typeof HOOK_IDS)
+  test('H01 to H28 in order with one gap: H27 context.session retired with Context Mode in 0.6.0, H28 project.assets keeps its id', () => {
+    expect(HOOK_IDS.length).toBe(27)
+    expect(HOOK_IDS).toEqual([...Array.from({ length: 26 }, (_, i) => `H${String(i + 1).padStart(2, '0')}`), 'H28'] as typeof HOOK_IDS)
     expect(HOOK_IDS[HOOK_IDS.length - 1]).toBe('H28')
+    expect(RETIRED_HOOK_IDS).toEqual(['H27'])
+    for (const id of RETIRED_HOOK_IDS) expect([...HOOK_IDS] as string[]).not.toContain(id)
   })
 })

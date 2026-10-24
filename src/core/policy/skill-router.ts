@@ -452,7 +452,6 @@ const CANDIDATE_HOW: Record<Harness, string> = {
 const CATEGORY_LABEL: Record<string, string> = {
   'library-docs': 'Library docs', 'web-search': 'Web search', 'web-fetch': 'Web pages', 'code-examples': 'Public code examples',
   'code-search': 'Code search', 'code-structure': 'Code structure', browser: 'Browser', memory: 'Memory',
-  'context-saving': 'Large output',
 }
 
 function labelOf(id: string): string {

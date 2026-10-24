@@ -1,8 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
+import { promptSignals } from '../../src/core/memory/signals'
+import { finalize } from '../../src/memory/finalize'
 import { projectInit } from '../../src/memory/project-init'
-import { listAll, projectRef } from '../../src/memory/store'
+import { sessionStart } from '../../src/memory/session-record'
+import { appendSpool } from '../../src/memory/spool'
+import { listAll, personRef, projectRef } from '../../src/memory/store'
 import { withBrain } from '../memory/helpers'
 
 const REPO = join(import.meta.dir, '..', '..')
@@ -21,7 +25,7 @@ const ALLOWED: Readonly<Record<string, Allowed>> = {
   'src/core/policy/skill-router.ts': { why: 'the Turkish forms of an explicit skill request' },
   'src/core/policy/text.ts': { why: 'case folding' },
   'src/core/memory/brain.ts': { why: 'search folding of the terms line CortexDB indexes', only: /ı→i|`yanıtları` →|the dotless ı/ },
-  'src/core/memory/profile.ts': { why: 'profile signals in what the user types' },
+  'src/core/memory/signals.ts': { why: 'the explicit preference statements in what the user types' },
   'src/core/memory/query.ts': { why: 'memory query stopwords' },
   'src/core/memory/stem.ts': { why: 'Turkish inflection endings that memory search strips from query words' },
   'src/core/memory/text.ts': { why: 'secret-word redaction and case folding' },
@@ -132,11 +136,19 @@ describe('language guard (R1): what Buracle ships is English', () => {
     }
   })
 
-  test('the memories a freshly initialized project starts with are English', () => withBrain(async ({ repo }) => {
-    const r = await projectInit(repo)
-    const items = await listAll(projectRef(r.slug))
-    expect(items.length).toBeGreaterThanOrEqual(6)
-    expect(items.flatMap(i => findings(`brain/${r.slug}/${i.id}`, [i.title, i.summary, i.body, ...i.tags].join('\n')))).toEqual([])
+  test('the memories Buracle itself writes are English: the session memory, a handoff and a preference filed from an English statement', () => withBrain(async ({ repo }) => {
+    const sid = '0199a213-81c0-7800-8aa1-bbab2a035a99'
+    await sessionStart('claude', sid, repo)
+    appendSpool('claude', sid, [
+      { ts: Date.now(), ev: 'prompt' },
+      ...promptSignals('Always run the tests before you commit.').map(signal => ({ ts: Date.now() + 1, ev: 'prompt-signal' as const, signal })),
+      { ts: Date.now() + 2, ev: 'stop', excerpt: 'Done.' },
+    ])
+    await finalize('claude', sid, { pending: false })
+    const slug = (await projectInit(repo)).slug
+    const items = [...await listAll(projectRef(slug)), ...await listAll(personRef())]
+    expect(items.map(i => i.kind).sort()).toEqual(['preference', 'session'])
+    expect(items.flatMap(i => findings(`brain/${slug}/${i.id}`, [i.title, i.summary, i.body, ...i.tags].join('\n')))).toEqual([])
   }))
 
   test('the guard sees what it guards', () => {

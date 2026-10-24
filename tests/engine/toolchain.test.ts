@@ -7,7 +7,7 @@ import { serverRequest } from '../../src/engine/toolchain/index'
 import { fallbackNpmCache, launchPlan, serverEnvFor } from '../../src/engine/toolchain/launch'
 import { toolchainLinks } from '../../src/engine/toolchain/links'
 import { claudeLspJson, lspLaunch, lspServers, probeLsp, readToolsCatalog, shortVersion } from '../../src/engine/toolchain/lsp'
-import { binArgv, bunBinary, installNpm, isNodeScript, npmBins, npmInstalledVersion, npmPrefix, npmStagingPrefix, pypiSpec, safeName, toolRequest, UV_PYTHON } from '../../src/engine/toolchain/packages'
+import { binArgv, installNpm, isNodeScript, npmBins, npmInstalledVersion, npmPrefix, npmStagingPrefix, pypiSpec, safeName, toolRequest, UV_PYTHON } from '../../src/engine/toolchain/packages'
 import { opsDeps } from '../../src/engine/update/deps'
 import { emptyToolchainState, packageKey, readToolchainState, updateToolchainState, writeToolchainState } from '../../src/engine/toolchain/state'
 import { installAdvice, installSources, installTool, toolApplies, toolchainBinDirs } from '../../src/engine/toolchain/system'
@@ -91,51 +91,12 @@ describe('launch (buracle mcp run)', () => {
     expect(uvx).toMatchObject({ argv: ['/u/uvx', '--python', '3.12', '--from', 'semble[mcp]', 'semble'], source: 'fallback' })
     expect(launchPlan('x', { ...npmSpec, transport: 'http', url: 'https://x' } as McpServerSpec, s)).toEqual({ error: 'x is not a package server' })
   }))
-
-  const bunSpec: McpServerSpec = { description: 'd', transport: 'stdio', package: { registry: 'npm', name: 'context-mode', version: 'latest', bin: 'context-mode', runtime: 'bun', scripts: false }, harnesses: ['claude'], pin: 'latest', critical: true, routing: [] }
-
-  test('runtime: bun runs the installed script bin with Bun, never node; a native executable runs itself', () => withSandbox(async ({ root }) => {
-    const entry = join(root, 'pkg', 'cli.bundle.mjs')
-    mkdirSync(join(root, 'pkg'), { recursive: true })
-    writeFileSync(entry, 'console.log(1)\n')
-    const s = emptyToolchainState()
-    s.packages['npm:context-mode'] = { registry: 'npm', name: 'context-mode', version: '1.0.169', dir: root, bins: { 'context-mode': entry }, installed_at: 't' }
-    expect(launchPlan('context-mode', bunSpec, s, { bun: '/b/bun', node: '/n/node' })).toEqual({ argv: ['/b/bun', entry], env: {}, source: 'toolchain', version: '1.0.169' })
-    const nodeSpec: McpServerSpec = { ...bunSpec, package: { registry: 'npm', name: 'context-mode', version: 'latest', bin: 'context-mode' } }
-    expect(launchPlan('context-mode', nodeSpec, s, { bun: '/b/bun', node: '/n/node' })).toMatchObject({ argv: ['/n/node', entry], source: 'toolchain' })
-    expect(launchPlan('context-mode', bunSpec, s, { node: '/n/node' })).toMatchObject({ argv: [process.execPath, entry] })
-    const native = exe(join(root, 'native'), '#!/bin/sh\necho hi\n')
-    s.packages['npm:context-mode'] = { ...s.packages['npm:context-mode']!, bins: { 'context-mode': native } }
-    expect(launchPlan('context-mode', bunSpec, s, { bun: '/b/bun' })).toMatchObject({ argv: [native], source: 'toolchain' })
-  }))
-
-  test('scripts: false also holds for the npx fallback (npm_config_ignore_scripts for npx\'s install, never for the bin), which runs the bin with its own shebang', () => withSandbox(async () => {
-    // The POSIX form, on every host; the Windows form follows under BURACLE_PLATFORM=win32.
-    await withEnv({ BURACLE_PLATFORM: 'linux' }, () => {
-      const plan = launchPlan('context-mode', bunSpec, emptyToolchainState(), { npx: '/n/npx', bun: '/b/bun' })
-      expect(plan).toMatchObject({ argv: ['/n/npx', '--yes', '--package=context-mode@latest', '-c', 'exec env -u npm_config_ignore_scripts -u npm_config_cache -u npm_config_update_notifier -u npm_config_fund -u npm_config_call -u npm_config_package -u npm_config_yes context-mode'], source: 'fallback' })
-      expect('env' in plan ? plan.env : {}).toEqual({ npm_config_cache: fallbackNpmCache(), npm_config_update_notifier: 'false', npm_config_fund: 'false', npm_config_ignore_scripts: 'true' })
-      const args = launchPlan('context-mode', { ...bunSpec, args: ['--mode', "it's here", 'a b'] }, emptyToolchainState(), { npx: '/n/npx' })
-      expect('argv' in args ? args.argv.slice(3) : []).toEqual(['-c', "exec env -u npm_config_ignore_scripts -u npm_config_cache -u npm_config_update_notifier -u npm_config_fund -u npm_config_call -u npm_config_package -u npm_config_yes context-mode --mode 'it'\\''s here' 'a b'"])
-    })
-    await withEnv({ BURACLE_PLATFORM: 'win32' }, () => {
-      const win = launchPlan('context-mode', { ...bunSpec, args: ['a b'] }, emptyToolchainState(), { npx: 'C:\\n\\npx.cmd' })
-      expect(win).toMatchObject({ argv: ['C:\\n\\npx.cmd', '--yes', '--package=context-mode@latest', '-c', 'set "npm_config_ignore_scripts=" && set "npm_config_cache=" && set "npm_config_update_notifier=" && set "npm_config_fund=" && set "npm_config_call=" && set "npm_config_package=" && set "npm_config_yes=" && context-mode "a b"'], source: 'fallback' })
-      expect('env' in win ? win.env['npm_config_ignore_scripts'] : undefined).toBe('true')
-    })
-  }))
-
-  test('bunBinary: the running Bun (tests run on Bun), never another program', () => {
-    expect(process.versions.bun).toBeDefined()
-    expect(bunBinary()).toBe(process.execPath)
-  })
 })
 
 describe('installing a package server', () => {
-  test('package.scripts: false installs with --ignore-scripts; other servers keep their lifecycle scripts', () => withSandbox(async ({ root }) => {
-    const spec = (pkg: Record<string, unknown>): McpServerSpec => ({ description: 'd', transport: 'stdio', package: { registry: 'npm', name: 'context-mode', version: 'latest', ...pkg }, harnesses: ['claude'], pin: 'latest', critical: true, routing: [] }) as McpServerSpec
-    expect(serverRequest(spec({ bin: 'context-mode', runtime: 'bun', scripts: false }))).toEqual({ registry: 'npm', name: 'context-mode', version: 'latest', bins: ['context-mode'], scripts: false })
-    expect(serverRequest(spec({ scripts: true }))).toEqual({ registry: 'npm', name: 'context-mode', version: 'latest', bins: ['context-mode'] })
+  test('npm installs into the staging prefix with its lifecycle scripts; the version is then read from the prefix', () => withSandbox(async ({ root }) => {
+    const spec: McpServerSpec = { description: 'd', transport: 'stdio', package: { registry: 'npm', name: 'open-websearch', version: 'latest', bin: 'open-websearch' }, harnesses: ['claude'], pin: 'latest', critical: true, routing: [] }
+    expect(serverRequest(spec)).toEqual({ registry: 'npm', name: 'open-websearch', version: 'latest', bins: ['open-websearch'] })
     const bin = join(root, 'bin')
     fakeExe(join(bin, 'npm'), 'process.exit(1)')
     const calls: string[][] = []
@@ -144,25 +105,24 @@ describe('installing a package server', () => {
     process.env['PATH'] = pathOf(bin, savedPath ?? '')
     opsDeps.run = async (argv, opts) => {
       calls.push(unwrapCmd(argv))
-      const dir = join(opts?.cwd ?? '', 'node_modules', 'context-mode')
+      const dir = join(opts?.cwd ?? '', 'node_modules', 'open-websearch')
       mkdirSync(dir, { recursive: true })
-      writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'context-mode', version: '1.0.169', bin: { 'context-mode': './cli.bundle.mjs' } }))
-      writeFileSync(join(dir, 'cli.bundle.mjs'), 'console.log(1)\n')
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'open-websearch', version: '9.9.9', bin: { 'open-websearch': './cli.js' } }))
+      writeFileSync(join(dir, 'cli.js'), 'console.log(1)\n')
       return { code: 0, stdout: '', stderr: '', timedOut: false }
     }
     try {
-      const off = await installNpm(serverRequest(spec({ bin: 'context-mode', scripts: false })), '1.0.169', 't')
-      expect(off.ok).toBe(true)
-      const on = await installNpm(serverRequest(spec({ bin: 'context-mode' })), '1.0.169', 't')
-      expect(on.ok).toBe(true)
+      const r = await installNpm(serverRequest(spec), '9.9.9', 't')
+      expect(r.ok).toBe(true)
     } finally {
       opsDeps.run = savedRun
       if (savedPath === undefined) delete process.env['PATH']
       else process.env['PATH'] = savedPath
     }
-    expect(calls.map(a => a.includes('--ignore-scripts'))).toEqual([true, false])
-    expect(calls[0]?.slice(1, 4)).toEqual(['install', '--prefix', npmStagingPrefix('context-mode')])
-    expect(npmInstalledVersion(npmPrefix('context-mode'), 'context-mode')).toBe('1.0.169')
+    expect(calls).toHaveLength(1)
+    expect(calls[0]?.slice(1, 4)).toEqual(['install', '--prefix', npmStagingPrefix('open-websearch')])
+    expect(calls[0]).not.toContain('--ignore-scripts')
+    expect(npmInstalledVersion(npmPrefix('open-websearch'), 'open-websearch')).toBe('9.9.9')
   }))
 })
 

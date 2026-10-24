@@ -4,7 +4,6 @@ import { join } from 'node:path'
 import { buildFiles } from '../../../src/adapters/opencode/build'
 import { AGENTS_BLOCK_ID, CLI_SCHEMA_URL, CONFIG_SCHEMA_URL, GLOBAL_PERMISSIONS } from '../../../src/adapters/opencode/constants'
 import { CLI_PERMISSIONS_KEY, configTarget, displayPath, installPlan } from '../../../src/adapters/opencode/install'
-import { CM_HIDDEN_TOOLS } from '../../../src/core/context-mode'
 import { jsoncParse, mdBlockGet } from '../../../src/engine/merge'
 import * as paths from '../../../src/engine/paths'
 import { applyPlans, rollbackTxn } from '../../../src/engine/txn'
@@ -53,13 +52,9 @@ describe('opencode installPlan', () => {
     expect(cfg['mcp']['servers']['mine']).toEqual({ type: 'local', command: ['my-mcp', '--stdio'] })
     expect(cfg['$schema']).toBe(CONFIG_SCHEMA_URL)
     expect(cfg['share']).toBe('disabled')
-    expect(cfg['permissions']).toEqual([...GLOBAL_PERMISSIONS, ...CM_HIDDEN_TOOLS.map(t => ({ action: `context-mode_${t}`, resource: '*', effect: 'deny' }))])
+    expect(cfg['permissions']).toEqual(GLOBAL_PERMISSIONS)
     expect(cfg['mcp']['servers']['context7']['codemode']).toBe(false)
     expect(cfg['mcp']['servers']['buracle-memory']['command']).toEqual([ctx.buracleBin, 'mcp', 'memory'])
-    expect(cfg['mcp']['servers']['context-mode']).toEqual({
-      type: 'local', command: [ctx.buracleBin, 'mcp', 'run', 'context-mode'], environment: { CONTEXT_MODE_PLATFORM: 'opencode' },
-      codemode: false, timeout: { startup: 60_000 },
-    })
     expect(existsSync(join(cfgDir, 'opencode.json'))).toBe(false)
 
     const built = await buildFiles(ctx)

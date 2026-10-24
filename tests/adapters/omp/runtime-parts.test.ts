@@ -162,12 +162,6 @@ describe('omp routing helpers (H03, H22, H24)', () => {
     expect(rootCheck(call({ repo: '/h' }), info, 'off', env)).toEqual({})
     expect(rootCheck(call({ repo: '/h/code' }), folder, 'enforce', env).deny).toContain('Pass one of its projects instead (a, b), as /h/code/<name>.')
     expect(rootCheck(call({ query: 'x' }), info, 'enforce', env)).toEqual({})
-    const index = (input: Record<string, unknown>): ToolCall => ({ harness: 'omp', sessionId: 's', cwd: '/h/code/app', tool: 'mcp__context_mode_ctx_index', kind: 'mcp', input, paths: [], mcp: { server: 'context-mode', tool: 'ctx_index' } })
-    expect(rootCheck(index({ path: '/h' }), info, 'enforce', env).deny).toBe('context-mode `path` is /h, your home folder; indexing it is slow and searches the wrong tree. Pass the project root /h/code/app instead.')
-    expect(rootCheck(index({ path: '/h/code' }), info, 'nudge', env).context).toStartWith('Buracle: context-mode `path` is /h/code, a parent folder of the project')
-    for (const path of ['/h/code/app/docs', '/h/code/app/README.md', 'docs']) expect(rootCheck(index({ path }), info, 'enforce', env)).toEqual({})
-    expect(rootCheck(index({ content: '# notes', source: 'notes' }), info, 'enforce', env)).toEqual({})
-    expect(rootCheck({ ...index({ path: '/h' }), tool: 'mcp__context_mode_ctx_search', mcp: { server: 'context-mode', tool: 'ctx_search' } }, info, 'enforce', env)).toEqual({})
   })
 
   test('workspace facts: the root, home, excluded folders; codegraph only counts with an index and the tool on', () => {

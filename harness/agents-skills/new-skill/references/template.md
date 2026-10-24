@@ -78,7 +78,7 @@ Field rules (CONTRACTS §8.1):
 - `invocation`: `explicit` makes the skill user-started only (adapters map it to each harness's
   switch); `implicit` lets the agent pick it up.
 - `mcp`: ids from `canonical/mcp.yaml` (`context7`, `codegraph`, `semble`, `web-search`,
-  `web-fetch`, `grep`, `chrome-devtools`, `buracle-memory`, `context-mode`); `[]` when none.
+  `web-fetch`, `grep`, `chrome-devtools`, `buracle-memory`); `[]` when none.
 - `short-description`: at most 80 characters (shown in Codex's skill list).
 
 ## Calling a bundled script

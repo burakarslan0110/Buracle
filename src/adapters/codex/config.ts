@@ -66,8 +66,6 @@ export function codexMcpTables(mcp: McpCatalog, buracle: string, warnings: strin
       if (spec.package && (spec.package.registry === 'npm' || spec.package.registry === 'pypi')) table['startup_timeout_sec'] = PACKAGE_STARTUP_TIMEOUT_SEC
     }
     if (spec.tool_timeout_sec !== undefined) table['tool_timeout_sec'] = spec.tool_timeout_sec
-    if (spec.enabled_tools !== undefined) table['enabled_tools'] = [...spec.enabled_tools]
-    if (spec.disabled_tools !== undefined) table['disabled_tools'] = [...spec.disabled_tools]
     if (spec.critical) table['omit_tools_from'] = [...CRITICAL_OMIT_TOOLS_FROM]
     if (opts.approve === true) table['default_tools_approval_mode'] = BYPASS_TOOLS_APPROVAL_MODE
     out[`mcp_servers.${id}`] = table

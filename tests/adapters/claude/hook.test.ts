@@ -60,8 +60,6 @@ function core(over: Partial<HookCore> = {}): HookCore {
     validateReviewJson: unexpected('validateReviewJson'),
     checkQuestion: unexpected('checkQuestion'),
     consentVerdict: (_c, s) => ({ allow: true, next: s }),
-    checkSandbox: unexpected('checkSandbox'),
-    consentVerdictAll: (_c, s) => ({ allow: true, next: s }),
     ...over,
   }
 }
@@ -78,7 +76,6 @@ function deps(over: Partial<HookDeps> = {}, coreOver: Partial<HookCore> = {}): P
     realpath: () => undefined,
     run: unexpected('run') as HookDeps['run'],
     prepareWorkspace: async () => undefined,
-    cmForward: async () => ({ action: 'none', skipped: 'test' }),
     core: core(coreOver),
     ...over,
   }

@@ -6945,8 +6945,57 @@ var require_public_api = __commonJS(function(exports) {
   exports.stringify = stringify;
 });
 
+// node_modules/yaml/dist/index.js
+var require_dist = __commonJS(function(exports) {
+  var composer = require_composer();
+  var Document = require_Document();
+  var Schema = require_Schema();
+  var errors = require_errors();
+  var Alias = require_Alias();
+  var identity = require_identity();
+  var Pair = require_Pair();
+  var Scalar = require_Scalar();
+  var YAMLMap = require_YAMLMap();
+  var YAMLSeq = require_YAMLSeq();
+  var cst = require_cst();
+  var lexer = require_lexer();
+  var lineCounter = require_line_counter();
+  var parser = require_parser();
+  var publicApi = require_public_api();
+  var visit = require_visit();
+  exports.Composer = composer.Composer;
+  exports.Document = Document.Document;
+  exports.Schema = Schema.Schema;
+  exports.YAMLError = errors.YAMLError;
+  exports.YAMLParseError = errors.YAMLParseError;
+  exports.YAMLWarning = errors.YAMLWarning;
+  exports.Alias = Alias.Alias;
+  exports.isAlias = identity.isAlias;
+  exports.isCollection = identity.isCollection;
+  exports.isDocument = identity.isDocument;
+  exports.isMap = identity.isMap;
+  exports.isNode = identity.isNode;
+  exports.isPair = identity.isPair;
+  exports.isScalar = identity.isScalar;
+  exports.isSeq = identity.isSeq;
+  exports.Pair = Pair.Pair;
+  exports.Scalar = Scalar.Scalar;
+  exports.YAMLMap = YAMLMap.YAMLMap;
+  exports.YAMLSeq = YAMLSeq.YAMLSeq;
+  exports.CST = cst;
+  exports.Lexer = lexer.Lexer;
+  exports.LineCounter = lineCounter.LineCounter;
+  exports.Parser = parser.Parser;
+  exports.parse = publicApi.parse;
+  exports.parseAllDocuments = publicApi.parseAllDocuments;
+  exports.parseDocument = publicApi.parseDocument;
+  exports.stringify = publicApi.stringify;
+  exports.visit = visit.visit;
+  exports.visitAsync = visit.visitAsync;
+});
+
 // src/adapters/opencode/runtime/memory-bridge.ts
-import { existsSync as existsSync7 } from "fs";
+import { existsSync as existsSync6 } from "fs";
 
 // src/engine/log.ts
 import { appendFileSync, mkdirSync, renameSync, statSync as statSync2 } from "fs";
@@ -6955,52 +7004,6 @@ import { appendFileSync, mkdirSync, renameSync, statSync as statSync2 } from "fs
 import os from "os";
 import { existsSync as existsSync2, readFileSync } from "fs";
 import { dirname, isAbsolute as isAbsolute2, join as join2, resolve } from "path";
-
-// node_modules/yaml/dist/index.js
-var composer = require_composer();
-var Document = require_Document();
-var Schema = require_Schema();
-var errors = require_errors();
-var Alias = require_Alias();
-var identity = require_identity();
-var Pair = require_Pair();
-var Scalar = require_Scalar();
-var YAMLMap = require_YAMLMap();
-var YAMLSeq = require_YAMLSeq();
-var cst = require_cst();
-var lexer = require_lexer();
-var lineCounter = require_line_counter();
-var parser = require_parser();
-var publicApi = require_public_api();
-var visit = require_visit();
-var $Composer = composer.Composer;
-var $Document = Document.Document;
-var $Schema = Schema.Schema;
-var $YAMLError = errors.YAMLError;
-var $YAMLParseError = errors.YAMLParseError;
-var $YAMLWarning = errors.YAMLWarning;
-var $Alias = Alias.Alias;
-var $isAlias = identity.isAlias;
-var $isCollection = identity.isCollection;
-var $isDocument = identity.isDocument;
-var $isMap = identity.isMap;
-var $isNode = identity.isNode;
-var $isPair = identity.isPair;
-var $isScalar = identity.isScalar;
-var $isSeq = identity.isSeq;
-var $Pair = Pair.Pair;
-var $Scalar = Scalar.Scalar;
-var $YAMLMap = YAMLMap.YAMLMap;
-var $YAMLSeq = YAMLSeq.YAMLSeq;
-var $Lexer = lexer.Lexer;
-var $LineCounter = lineCounter.LineCounter;
-var $Parser = parser.Parser;
-var $parse = publicApi.parse;
-var $parseAllDocuments = publicApi.parseAllDocuments;
-var $parseDocument = publicApi.parseDocument;
-var $stringify = publicApi.stringify;
-var $visit = visit.visit;
-var $visitAsync = visit.visitAsync;
 
 // src/engine/platform.ts
 import { existsSync, statSync } from "fs";
@@ -7078,6 +7081,15 @@ function quoteCmd(arg) {
   return `"${arg.replace(/"/g, '""').replace(/%/g, '"^%"')}"`;
 }
 
+// src/engine/yaml.ts
+var loaded;
+function yaml() {
+  return loaded ??= require_dist();
+}
+function parseYaml(text) {
+  return yaml().parse(text);
+}
+
 // src/engine/paths.ts
 function env(name) {
   const v = process.env[name];
@@ -7142,7 +7154,7 @@ function findCheckout(start) {
 }
 function configuredRepoRoot() {
   try {
-    const raw = $parse(readFileSync(userConfigFile(), "utf8"));
+    const raw = parseYaml(readFileSync(userConfigFile(), "utf8"));
     const repo = raw !== null && typeof raw === "object" ? raw["repo"] : undefined;
     if (typeof repo === "string" && repo.trim() !== "") {
       const expanded = expandHome(repo.trim());
@@ -7193,9 +7205,6 @@ function toolchainDir() {
 }
 function toolchainBinDirs() {
   return [join2(toolchainDir(), "go", "bin"), join2(toolchainDir(), "dotnet", "tools")];
-}
-function memoryUiStateFile() {
-  return join2(stateDir(), "memory-ui.json");
 }
 function indexStateDir() {
   return join2(stateDir(), "index");
@@ -7381,8 +7390,8 @@ function shimArgv(args, shim = shimPath()) {
 }
 
 // src/memory/session-record.ts
-import { closeSync as closeSync5, mkdirSync as mkdirSync6, openSync as openSync5, readdirSync as readdirSync5, statSync as statSync12, unlinkSync as unlinkSync6, utimesSync as utimesSync2 } from "fs";
-import { join as join12, resolve as resolve7 } from "path";
+import { mkdirSync as mkdirSync5, utimesSync as utimesSync2 } from "fs";
+import { join as join11, resolve as resolve7 } from "path";
 
 // src/core/events.ts
 var HARNESSES = ["claude", "codex", "opencode", "omp"];
@@ -7923,6 +7932,23 @@ function comparablePath(p, base) {
     return abs;
   }
 }
+function renameRetrySync(from, to, opts = {}) {
+  const rename = opts.rename ?? renameSync2;
+  const sleep = opts.sleep ?? Bun.sleepSync;
+  const start = Date.now();
+  for (let delay = 50;; delay = Math.min(delay * 2, 1000)) {
+    try {
+      rename(from, to);
+      return;
+    } catch (e) {
+      const code = e.code;
+      if ((opts.platform ?? process.platform) !== "win32" || code !== "EPERM" && code !== "EACCES" && code !== "EBUSY" || Date.now() - start >= (opts.budgetMs ?? 30000))
+        throw e;
+      sleep(delay);
+    }
+  }
+}
+var ATOMIC_RENAME_BUDGET_MS = 1500;
 function readLinkSync(link) {
   return readlinkSync(link).replace(/^\\(?:\\\?|\?\?)\\/, "");
 }
@@ -7999,7 +8025,7 @@ function atomicWriteSync(path, data, opts = {}) {
     closeSync(fd);
     fd = undefined;
     chmodSync(tmp, mode);
-    renameSync2(tmp, target);
+    renameRetrySync(tmp, target, { budgetMs: ATOMIC_RENAME_BUDGET_MS, ...opts.renameRetry });
   } catch (e) {
     if (fd !== undefined) {
       try {
@@ -8743,6 +8769,146 @@ function redactionsFile() {
   return join5(memStateDir(), "redactions.jsonl");
 }
 
+// src/memory/lock.ts
+import { closeSync as closeSync3, mkdirSync as mkdirSync3, openSync as openSync3, readFileSync as readFileSync5, utimesSync, writeSync as writeSync2 } from "fs";
+import { dirname as dirname4 } from "path";
+
+// src/engine/lockfile.ts
+import { randomBytes as randomBytes2 } from "crypto";
+import { closeSync as closeSync2, openSync as openSync2, readFileSync as readFileSync4, statSync as statSync5, unlinkSync as unlinkSync2 } from "fs";
+var lockTestHooks = {};
+var BREAKER_STALE_MS = 5000;
+function lockToken() {
+  return `${process.pid}-${randomBytes2(6).toString("hex")}`;
+}
+function lockSnapshot(path) {
+  try {
+    const st = statSync5(path);
+    return { dev: st.dev, ino: st.ino, mtimeMs: st.mtimeMs, text: readFileSync4(path, "utf8") };
+  } catch {
+    return;
+  }
+}
+function sameLock(a, b) {
+  return a.dev === b.dev && a.ino === b.ino && a.mtimeMs === b.mtimeMs && a.text === b.text;
+}
+function breakStaleLock(path, seen) {
+  try {
+    lockTestHooks.beforeBreak?.(path);
+  } catch {}
+  const breaker = `${path}.break`;
+  let fd;
+  try {
+    fd = openSync2(breaker, "wx", 384);
+  } catch (e) {
+    if (e.code === "EEXIST") {
+      try {
+        if (Date.now() - statSync5(breaker).mtimeMs > BREAKER_STALE_MS)
+          unlinkSync2(breaker);
+      } catch {}
+    }
+    return "busy";
+  }
+  try {
+    closeSync2(fd);
+    const now = lockSnapshot(path);
+    if (now === undefined)
+      return "broken";
+    if (!sameLock(now, seen))
+      return "changed";
+    unlinkSync2(path);
+    return "broken";
+  } catch {
+    return "changed";
+  } finally {
+    try {
+      unlinkSync2(breaker);
+    } catch {}
+  }
+}
+function releaseLockFile(path, text) {
+  let cur;
+  try {
+    cur = readFileSync4(path, "utf8");
+  } catch {
+    return;
+  }
+  if (cur !== text)
+    return;
+  try {
+    unlinkSync2(path);
+  } catch {}
+}
+
+// src/memory/lock.ts
+function ownerAlive(text) {
+  try {
+    const info = JSON.parse(text);
+    if (typeof info.pid !== "number")
+      return true;
+    try {
+      process.kill(info.pid, 0);
+      return true;
+    } catch (e) {
+      return e.code === "EPERM";
+    }
+  } catch {
+    return true;
+  }
+}
+function touchOwn(path, text) {
+  try {
+    if (readFileSync5(path, "utf8") !== text)
+      return;
+    const now = new Date;
+    utimesSync(path, now, now);
+  } catch {}
+}
+function tryLock(path, staleMs = 60000, opts = {}) {
+  mkdirSync3(dirname4(path), { recursive: true });
+  for (let attempt = 0;attempt < 3; attempt++) {
+    try {
+      const fd = openSync3(path, "wx", 384);
+      const text = JSON.stringify({ pid: process.pid, at: new Date().toISOString(), token: lockToken() });
+      try {
+        writeSync2(fd, text);
+      } finally {
+        closeSync3(fd);
+      }
+      let released = false;
+      const timer = opts.heartbeat === true ? setInterval(() => touchOwn(path, text), Math.max(250, Math.floor(staleMs / 3))) : undefined;
+      timer?.unref?.();
+      return () => {
+        if (released)
+          return;
+        released = true;
+        if (timer !== undefined)
+          clearInterval(timer);
+        releaseLockFile(path, text);
+      };
+    } catch (e) {
+      const code = e.code;
+      if (process.platform === "win32" && (code === "EPERM" || code === "EACCES"))
+        return;
+      if (code !== "EEXIST")
+        throw e;
+      const seen = lockSnapshot(path);
+      if (seen === undefined)
+        continue;
+      if (Math.max(0, Date.now() - seen.mtimeMs) > staleMs || !ownerAlive(seen.text)) {
+        if (breakStaleLock(path, seen) === "broken")
+          continue;
+      }
+      return;
+    }
+  }
+  return;
+}
+function lockHeld(path, staleMs, nowMs = Date.now()) {
+  const seen = lockSnapshot(path);
+  return seen !== undefined && nowMs - seen.mtimeMs <= staleMs && ownerAlive(seen.text);
+}
+
 // src/memory/project.ts
 import { existsSync as existsSync4, readdirSync as readdirSync2 } from "fs";
 import { basename as basename3, dirname as dirname6, join as join8, resolve as resolve6 } from "path";
@@ -9215,48 +9381,6 @@ function shown(p, home) {
 }
 function code2(s) {
   return "`" + s.replace(/`/g, "'") + "`";
-}
-var CREDENTIAL_FOLDER = /^(?:\/(?:(?:users|home)\/[^/]+|root|var\/root)|[A-Za-z]:\/users\/[^/]+)\/\.(ssh|aws|gnupg)(?:\/|$)/i;
-var CREDENTIAL_WHAT = { ssh: "the user's SSH directory", aws: "the user's AWS credentials directory", gnupg: "the user's GnuPG directory" };
-var CREDENTIAL_STORES = [".netrc", ".git-credentials", ".npmrc", ".pypirc", ".docker/config.json", ".kube/config", ".config/gh/hosts.yml", ".config/gcloud/", ".azure/"];
-function credentialStore(abs, home) {
-  const homes = [home, HOME_PREFIX2.exec(abs)?.[0] ?? ""].filter((h) => isAbsPath(h) && !isRootPath(h));
-  for (const h of homes) {
-    for (const store of CREDENTIAL_STORES) {
-      const loc = `${h}/${store.replace(/\/$/, "")}`;
-      const shownStore = `~/${store}`;
-      if (store.endsWith("/") ? within(abs, loc) : lower2(abs) === lower2(loc))
-        return `is one of the user's credential stores (${shownStore})`;
-      if (within(loc, abs))
-        return `holds one of the user's credential stores (${shownStore})`;
-    }
-  }
-  return;
-}
-function credentialLocation(path, ctx) {
-  if (typeof path !== "string" || ctx === null || typeof ctx !== "object")
-    return;
-  const home = typeof ctx.home === "string" && ctx.home !== "" ? normalizePath(ctx.home) : "";
-  const abs = absolute(path, typeof ctx.cwd === "string" ? ctx.cwd : "", home);
-  if (abs === undefined)
-    return;
-  if (home !== "") {
-    for (const dir of ["ssh", "aws", "gnupg"])
-      if (within(abs, `${home}/.${dir}`))
-        return `is in ${CREDENTIAL_WHAT[dir]}`;
-    if (isAbsPath(abs) && within(home, abs))
-      return "holds the home folder with its credentials (~/.ssh, ~/.aws)";
-  } else if (isRootPath(abs))
-    return "holds every home folder with its credentials";
-  const m = CREDENTIAL_FOLDER.exec(abs);
-  if (m)
-    return `is in ${CREDENTIAL_WHAT[m[1].toLowerCase()] ?? "a credentials directory"}`;
-  if (isAbsPath(abs)) {
-    const store = credentialStore(abs, home);
-    if (store !== undefined)
-      return store;
-  }
-  return secretKind(abs.slice(abs.lastIndexOf("/") + 1));
 }
 function secretKind(base) {
   const b = lower2(base);
@@ -10355,7 +10479,7 @@ function redactClip(text, max) {
 }
 
 // src/engine/config.ts
-import { readFileSync as readFileSync4, statSync as statSync5 } from "fs";
+import { readFileSync as readFileSync6, statSync as statSync6 } from "fs";
 import { join as join6 } from "path";
 
 // src/core/config.ts
@@ -10399,8 +10523,7 @@ function defaultConfig() {
     agents: { teams: true },
     workflow: { band: true, foldAfterSec: 8, notifyAfterSec: 120, codexNotices: true },
     toolchain: { autoInstall: true, system: true, upgrade: true },
-    index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 },
-    contextMode: { enabled: true, capture: true }
+    index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 }
   };
 }
 var bool = { t: "bool" };
@@ -10493,8 +10616,7 @@ var CONFIG_SCHEMA = {
     agents: { t: "obj", fields: { teams: bool } },
     workflow: { t: "obj", fields: { band: bool, foldAfterSec: count(0), notifyAfterSec: count(0), codexNotices: bool } },
     toolchain: { t: "obj", fields: { autoInstall: bool, system: bool, upgrade: bool } },
-    index: { t: "obj", fields: { auto: bool, codegraph: bool, semble: bool, minIntervalMin: count(0), exclude: strList, children: bool, maxChildren: count(0) } },
-    contextMode: { t: "obj", fields: { enabled: bool, capture: bool } }
+    index: { t: "obj", fields: { auto: bool, codegraph: bool, semble: bool, minIntervalMin: count(0), exclude: strList, children: bool, maxChildren: count(0) } }
   }
 };
 function isPlainObject(x) {
@@ -10706,7 +10828,7 @@ function setAt(x, path, value, remove) {
   }
 }
 var CONFIG_RENAMES = [];
-var ALWAYS_ON = "the memory's automatic jobs are always on and run within fixed budgets (src/core/memory/budgets.ts)";
+var ALWAYS_ON = "the memory has no background jobs any more; its model-assisted capture runs once at the end of a session, within fixed budgets (src/core/memory/budgets.ts)";
 var CONFIG_REMOVALS = [
   { key: "vault", since: "0.5.0", why: "the memory moved from the Obsidian vault to CortexDB under ~/.buracle/brain", quietWhen: "~/Documents/Buracle" },
   { key: "memory.qmd", since: "0.5.0", why: "CortexDB does the search", quietWhen: { enabled: false, url: "http://127.0.0.1:8181" } },
@@ -10725,12 +10847,13 @@ var CONFIG_REMOVALS = [
   { key: "memory.verify", since: "0.5.0", why: ALWAYS_ON, quietWhen: { auto: true, maxRunsPerDay: 4, maxPerRun: 4, maxInputTokens: 8000, maxOutputTokens: 900, minIntervalMin: 60 } },
   { key: "memory.heal", since: "0.5.0", why: ALWAYS_ON, quietWhen: { auto: true } },
   { key: "memory.profile", since: "0.5.0", why: ALWAYS_ON, quietWhen: { enabled: true, statements: true } },
-  { key: "memory.ui.enabled", since: "0.5.0", why: "the brain web UI is always available (BURACLE_NO_AUTOSTART=1 keeps a session from starting it)", quietWhen: true },
-  { key: "memory.ui.autostart", since: "0.5.0", why: "the brain web UI starts with a session (BURACLE_NO_AUTOSTART=1 keeps a session from starting it)", quietWhen: true },
+  { key: "memory.ui.enabled", since: "0.5.0", why: "the brain web UI is always available; it starts only when you run `buracle mem ui`", quietWhen: true },
+  { key: "memory.ui.autostart", since: "0.5.0", why: "the brain web UI no longer starts with a session; it starts only when you run `buracle mem ui`", quietWhen: true },
   { key: "memory.reflect.provider", since: "0.5.0", why: "the memory's model calls run through a harness with usage headroom; there is no external API", quietWhen: "harness" },
   { key: "memory.reflect.api", since: "0.5.0", why: "the memory's model calls run through a harness with usage headroom; there is no external API", quietWhen: { format: "openai", url: "", model: "", keyEnv: "", person: false } },
   { key: "memory.llm", since: "0.5.0", why: "the memory's model calls run through a harness with usage headroom; there is no external API", quietWhen: { provider: "auto", api: { format: "openai", url: "", model: "", keyEnv: "", person: false } } },
-  { key: "memory.embed", since: "0.5.0", why: "the search by meaning uses the built-in embedding model; no embeddings endpoint is configured", quietWhen: { url: "", model: "", dim: 0, keyEnv: "" } }
+  { key: "memory.embed", since: "0.5.0", why: "the memory search is by words; there is no embedding model or endpoint to configure", quietWhen: { url: "", model: "", dim: 0, keyEnv: "" } },
+  { key: "contextMode", since: "0.6.0", why: "Context Mode and its context-mode MCP server are gone; the handoff memory and the compaction restore carry the session state", quietWhen: { enabled: true, capture: true } }
 ];
 function quietRemoval(old, quiet) {
   if (isPlainObject(old) && isPlainObject(quiet)) {
@@ -10865,21 +10988,39 @@ function deepEqual(a, b) {
 
 // src/engine/config.ts
 var UNKNOWN_KEY_HINT = "(ignored; misspelled, renamed or removed? `buracle config get` prints the valid keys)";
-function readYaml(path) {
-  let text;
+function readText(path) {
   try {
-    text = readFileSync4(path, "utf8");
+    return { kind: "ok", text: readFileSync6(path, "utf8") };
   } catch (e) {
     const code = e.code;
     if (code === "ENOENT" || code === "ENOTDIR")
       return { kind: "missing" };
     return { kind: "error", error: `${path}: ${e instanceof Error ? e.message : String(e)}` };
   }
+}
+function parseText(path, read) {
+  if (read.kind !== "ok")
+    return read;
   try {
-    return { kind: "ok", value: $parse(text) };
+    return { kind: "ok", value: parseYaml(read.text) };
   } catch (e) {
     return { kind: "error", error: `${path}: invalid YAML: ${e instanceof Error ? e.message.split(`
 `)[0] : String(e)}` };
+  }
+}
+var codeKey;
+function inputsStamp(canonical, user) {
+  codeKey ??= JSON.stringify([defaultConfig(), CONFIG_RENAMES]);
+  return new Bun.CryptoHasher("sha256").update(JSON.stringify([canonical, user ?? null, codeKey])).digest("hex");
+}
+function snapshotConfig(stamp) {
+  try {
+    const snap = JSON.parse(readFileSync6(runtimeConfigFile(), "utf8"));
+    if (snap === null || typeof snap !== "object" || snap.v !== 1 || snap.stamp !== stamp)
+      return;
+    return mergeConfig(defaultConfig(), snap.config);
+  } catch {
+    return;
   }
 }
 function mergeLayer(base, override, file, errors, warnings, renames) {
@@ -10900,8 +11041,18 @@ function loadConfigSync(opts = {}) {
   const userPath = opts.userConfigPath ?? userConfigFile();
   const errors = [];
   const warnings = [];
+  const canonText = readText(canonicalPath);
+  const userText = readText(userPath);
+  const files = { canonical: canonicalPath, user: userPath, userExists: userText.kind !== "missing" };
+  const stampable = opts.userConfigPath === undefined && opts.renames === undefined && canonText.kind === "ok" && userText.kind !== "error";
+  const stamp = stampable ? inputsStamp(canonText.text, userText.kind === "ok" ? userText.text : undefined) : undefined;
+  if (stamp !== undefined) {
+    const cached = snapshotConfig(stamp);
+    if (cached !== undefined)
+      return { config: cached, errors, warnings, files, stamp };
+  }
   let base = defaultConfig();
-  const canon = readYaml(canonicalPath);
+  const canon = parseText(canonicalPath, canonText);
   if (canon.kind === "missing")
     errors.push(`${canonicalPath}: not found; using built-in defaults`);
   else if (canon.kind === "error")
@@ -10909,12 +11060,15 @@ function loadConfigSync(opts = {}) {
   else
     base = mergeLayer(base, canon.value, canonicalPath, errors, warnings, []);
   let config = base;
-  const user = readYaml(userPath);
+  const user = parseText(userPath, userText);
   if (user.kind === "error")
     errors.push(user.error);
   else if (user.kind === "ok")
     config = mergeLayer(base, user.value, userPath, errors, warnings, opts.renames ?? CONFIG_RENAMES);
-  return { config, errors, warnings, files: { canonical: canonicalPath, user: userPath, userExists: user.kind !== "missing" } };
+  const loaded = { config, errors, warnings, files };
+  if (stamp !== undefined && errors.length === 0 && warnings.length === 0)
+    loaded.stamp = stamp;
+  return loaded;
 }
 
 // src/workflow/non-project.ts
@@ -10958,8 +11112,8 @@ function nonProjectReason(dir) {
 }
 
 // src/workflow/workspace.ts
-import { existsSync as existsSync3, readdirSync, readFileSync as readFileSync5, rmSync, statSync as statSync6, unlinkSync as unlinkSync2 } from "fs";
-import { dirname as dirname4, isAbsolute as isAbsolute5, join as join7, resolve as resolve5 } from "path";
+import { existsSync as existsSync3, readdirSync, readFileSync as readFileSync7, rmSync, statSync as statSync7, unlinkSync as unlinkSync3 } from "fs";
+import { dirname as dirname5, isAbsolute as isAbsolute5, join as join7, resolve as resolve5 } from "path";
 var PROJECT_MARKERS = [
   "package.json",
   "pyproject.toml",
@@ -11037,7 +11191,7 @@ function markerEntries(dir) {
       files.add(e.name);
     else if (e.isSymbolicLink()) {
       try {
-        if (statSync6(join7(dir, e.name)).isFile())
+        if (statSync7(join7(dir, e.name)).isFile())
           files.add(e.name);
       } catch {}
     }
@@ -11068,7 +11222,7 @@ function markerRoot(dir, ctx) {
     } else if (hasWorkspaceMarker(cur)) {
       found = cur;
     }
-    const parent = dirname4(cur);
+    const parent = dirname5(cur);
     if (parent === cur)
       break;
     cur = parent;
@@ -11082,7 +11236,7 @@ function activity(dir, mtimeMs) {
   let t = mtimeMs;
   for (const f of [".git", join7(".git", "index"), join7(".git", "HEAD")]) {
     try {
-      t = Math.max(t, statSync6(join7(dir, f)).mtimeMs);
+      t = Math.max(t, statSync7(join7(dir, f)).mtimeMs);
     } catch {}
   }
   return t;
@@ -11103,7 +11257,7 @@ function childProjects(dir, ctx, max) {
     const p = join7(dir, name);
     let mtimeMs;
     try {
-      const st = statSync6(p);
+      const st = statSync7(p);
       if (!st.isDirectory())
         continue;
       mtimeMs = st.mtimeMs;
@@ -11216,13 +11370,13 @@ function pruneIndexStates(nowMs) {
     if (indexLockHolder(root, nowMs) !== undefined)
       continue;
     try {
-      unlinkSync2(file);
+      unlinkSync3(file);
       removed.push(file);
     } catch {
       continue;
     }
     try {
-      unlinkSync2(`${file}.lock`);
+      unlinkSync3(`${file}.lock`);
     } catch {}
   }
   removed.push(...pruneCorruptCopies(nowMs));
@@ -11239,7 +11393,7 @@ function pidAlive(pid) {
 function indexLockHolder(root, nowMs) {
   let held;
   try {
-    held = JSON.parse(readFileSync5(indexLockFile(root), "utf8"));
+    held = JSON.parse(readFileSync7(indexLockFile(root), "utf8"));
   } catch {
     return;
   }
@@ -11258,7 +11412,7 @@ function isWsl(env) {
     return true;
   if (wslCache === undefined) {
     try {
-      const v = readFileSync5("/proc/version", "utf8").toLowerCase();
+      const v = readFileSync7("/proc/version", "utf8").toLowerCase();
       wslCache = v.includes("microsoft") || v.includes("wsl");
     } catch {
       wslCache = false;
@@ -11272,7 +11426,7 @@ function codegraphDataDir(root, env = process.env) {
     return raw;
   if (isWsl(env) && /^\/mnt\/[a-z](?:\/|$)/i.test(root)) {
     try {
-      if (statSync6(join7(root, ".codegraph-wsl")).isDirectory())
+      if (statSync7(join7(root, ".codegraph-wsl")).isDirectory())
         return ".codegraph-wsl";
     } catch {}
     return existsSync3(join7(root, ".codegraph", "codegraph.db")) ? ".codegraph" : ".codegraph-wsl";
@@ -11349,146 +11503,6 @@ function startIndexRun(target, cfg, nowMs, argv, spawn = spawnDetached) {
     return [];
   }
   return due;
-}
-
-// src/memory/lock.ts
-import { closeSync as closeSync3, mkdirSync as mkdirSync3, openSync as openSync3, readFileSync as readFileSync7, utimesSync, writeSync as writeSync2 } from "fs";
-import { dirname as dirname5 } from "path";
-
-// src/engine/lockfile.ts
-import { randomBytes as randomBytes2 } from "crypto";
-import { closeSync as closeSync2, openSync as openSync2, readFileSync as readFileSync6, statSync as statSync7, unlinkSync as unlinkSync3 } from "fs";
-var lockTestHooks = {};
-var BREAKER_STALE_MS = 5000;
-function lockToken() {
-  return `${process.pid}-${randomBytes2(6).toString("hex")}`;
-}
-function lockSnapshot(path) {
-  try {
-    const st = statSync7(path);
-    return { dev: st.dev, ino: st.ino, mtimeMs: st.mtimeMs, text: readFileSync6(path, "utf8") };
-  } catch {
-    return;
-  }
-}
-function sameLock(a, b) {
-  return a.dev === b.dev && a.ino === b.ino && a.mtimeMs === b.mtimeMs && a.text === b.text;
-}
-function breakStaleLock(path, seen) {
-  try {
-    lockTestHooks.beforeBreak?.(path);
-  } catch {}
-  const breaker = `${path}.break`;
-  let fd;
-  try {
-    fd = openSync2(breaker, "wx", 384);
-  } catch (e) {
-    if (e.code === "EEXIST") {
-      try {
-        if (Date.now() - statSync7(breaker).mtimeMs > BREAKER_STALE_MS)
-          unlinkSync3(breaker);
-      } catch {}
-    }
-    return "busy";
-  }
-  try {
-    closeSync2(fd);
-    const now = lockSnapshot(path);
-    if (now === undefined)
-      return "broken";
-    if (!sameLock(now, seen))
-      return "changed";
-    unlinkSync3(path);
-    return "broken";
-  } catch {
-    return "changed";
-  } finally {
-    try {
-      unlinkSync3(breaker);
-    } catch {}
-  }
-}
-function releaseLockFile(path, text) {
-  let cur;
-  try {
-    cur = readFileSync6(path, "utf8");
-  } catch {
-    return;
-  }
-  if (cur !== text)
-    return;
-  try {
-    unlinkSync3(path);
-  } catch {}
-}
-
-// src/memory/lock.ts
-function ownerAlive(text) {
-  try {
-    const info = JSON.parse(text);
-    if (typeof info.pid !== "number")
-      return true;
-    try {
-      process.kill(info.pid, 0);
-      return true;
-    } catch (e) {
-      return e.code === "EPERM";
-    }
-  } catch {
-    return true;
-  }
-}
-function touchOwn(path, text) {
-  try {
-    if (readFileSync7(path, "utf8") !== text)
-      return;
-    const now = new Date;
-    utimesSync(path, now, now);
-  } catch {}
-}
-function tryLock(path, staleMs = 60000, opts = {}) {
-  mkdirSync3(dirname5(path), { recursive: true });
-  for (let attempt = 0;attempt < 3; attempt++) {
-    try {
-      const fd = openSync3(path, "wx", 384);
-      const text = JSON.stringify({ pid: process.pid, at: new Date().toISOString(), token: lockToken() });
-      try {
-        writeSync2(fd, text);
-      } finally {
-        closeSync3(fd);
-      }
-      let released = false;
-      const timer = opts.heartbeat === true ? setInterval(() => touchOwn(path, text), Math.max(250, Math.floor(staleMs / 3))) : undefined;
-      timer?.unref?.();
-      return () => {
-        if (released)
-          return;
-        released = true;
-        if (timer !== undefined)
-          clearInterval(timer);
-        releaseLockFile(path, text);
-      };
-    } catch (e) {
-      const code = e.code;
-      if (process.platform === "win32" && (code === "EPERM" || code === "EACCES"))
-        return;
-      if (code !== "EEXIST")
-        throw e;
-      const seen = lockSnapshot(path);
-      if (seen === undefined)
-        continue;
-      if (Math.max(0, Date.now() - seen.mtimeMs) > staleMs || !ownerAlive(seen.text)) {
-        if (breakStaleLock(path, seen) === "broken")
-          continue;
-      }
-      return;
-    }
-  }
-  return;
-}
-function lockHeld(path, staleMs, nowMs = Date.now()) {
-  const seen = lockSnapshot(path);
-  return seen !== undefined && nowMs - seen.mtimeMs <= staleMs && ownerAlive(seen.text);
 }
 
 // src/memory/project.ts
@@ -11755,9 +11769,6 @@ async function registerChildren(children) {
   }
 }
 
-// src/memory/session-open.ts
-import { readdirSync as readdirSync4, statSync as statSync9 } from "fs";
-
 // src/memory/spool.ts
 import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync4, readdirSync as readdirSync3, readFileSync as readFileSync8, statSync as statSync8, unlinkSync as unlinkSync4 } from "fs";
 import { join as join9 } from "path";
@@ -11913,53 +11924,36 @@ function memQueryWords(query) {
   return [...new Set(list)].slice(0, 16);
 }
 
-// src/core/memory/profile.ts
+// src/core/memory/signals.ts
 var PROFILE_CATEGORIES = ["communication", "autonomy", "engineering", "workflow", "quality", "avoid", "other"];
-var KINDS = ["statement", "correction", "confirmation", "usage", "environment", "style"];
 var PROFILE_QUOTE_MAX = 160;
 var KEY_RE = /^[a-z][a-z0-9_.:=+#/-]{0,119}$/;
 var WORD_EDGE = String.raw`(?:(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])|(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_]))`;
 function uw(re) {
   return new RegExp(re.source.split("\\b").join(WORD_EDGE), re.flags.includes("u") ? re.flags : `${re.flags}u`);
 }
-var PROFILE_WORKFLOWS = [
-  "plan-build",
-  "goal-build",
-  "bugfix",
-  "requirements",
-  "research",
-  "inspect",
-  "dead-code",
-  "project-rules",
-  "new-skill",
-  "ab-test"
-];
 function clipText(s, scrub) {
   const one = memOneLine(s);
   return scrub ? scrub(one, PROFILE_QUOTE_MAX) : redactClip(one, PROFILE_QUOTE_MAX).text;
 }
-function profileSanitizeSignal(x, scrub) {
+function sanitizePromptSignal(x, scrub) {
   if (x === null || typeof x !== "object" || Array.isArray(x))
     return;
   const o = x;
-  const kind = o["kind"];
   const key = o["key"];
-  if (typeof kind !== "string" || !KINDS.includes(kind))
+  if (o["kind"] !== "statement")
     return;
   if (typeof key !== "string" || !KEY_RE.test(key))
     return;
-  const s = { kind, key };
+  const s = { kind: "statement", key };
   if (o["polarity"] === -1)
     s.polarity = -1;
-  const w = o["weight"];
-  if (typeof w === "number" && Number.isFinite(w))
-    s.weight = Math.max(0, Math.min(5, w));
   const c = o["category"];
   if (typeof c === "string" && PROFILE_CATEGORIES.includes(c))
     s.category = c;
   if (typeof o["text"] === "string" && o["text"].trim() !== "")
     s.text = clipText(o["text"], scrub);
-  if (typeof o["quote"] === "string" && o["quote"].trim() !== "" && kind === "statement")
+  if (typeof o["quote"] === "string" && o["quote"].trim() !== "")
     s.quote = clipText(o["quote"], scrub);
   return s;
 }
@@ -12494,7 +12488,7 @@ function profileSignature(text) {
   const words = memQueryWords(text).map((w) => normalizeForSearch(w).replace(/[^a-z0-9]/g, "")).filter((w) => w.length >= 3 && !SIGNATURE_STOP.has(w));
   return [...new Set(words.map((w) => w.length > 8 ? w.slice(0, 8) : w))].sort().slice(0, 6).join("-");
 }
-function statementOf(sentence, statements) {
+function statementOf(sentence) {
   if (sentence.length < 8 || sentence.length > 400 || NOT_A_RULE.test(sentence))
     return;
   const lead = TRIGGER_LEAD.test(sentence);
@@ -12502,7 +12496,7 @@ function statementOf(sentence, statements) {
     return;
   if (!ruleShaped(sentence))
     return;
-  const quote = statements ? { quote: sentence } : {};
+  const quote = { quote: sentence };
   const known = CANONICAL.filter((c) => c.test.test(sentence) && !(c.unless?.test(sentence) ?? false));
   const affirmed = known.find((c) => !negatesClaim(sentence, c));
   if (affirmed)
@@ -12515,52 +12509,28 @@ function statementOf(sentence, statements) {
   if (signature === "")
     return;
   const cleaned = capitalize(sentence.replace(STRIP_LEAD, "").replace(/^[\s,:-]+/, "").replace(PERSONAL_LEAD, (_m, prefer) => prefer !== undefined ? "Prefer " : "").replace(/[\s.!]+$/, ""));
-  const s = { kind: "statement", key: `said:${signature}`, category: profileCategory(cleaned, polarity) };
+  const s = { kind: "statement", key: `said:${signature}`, category: profileCategory(cleaned, polarity), text: cleaned, quote: sentence };
   if (polarity === -1)
     s.polarity = -1;
-  if (statements) {
-    s.text = cleaned;
-    s.quote = sentence;
-  }
   return s;
 }
-var CORRECTION = uw(/^(?:no\b|nope\b|wrong\b|that'?s (?:wrong|not (?:right|it|what i))|not like that|undo\b|revert\b|you (?:broke|missed)|hay[\u0131i]r\b|yanl[\u0131i][\u015Fs]\b|[\u00F6o]yle de[\u011Fg]il|bu de[\u011Fg]il|geri al\b|olmad[\u0131i]\b)/i);
-var CONFIRMATION = uw(/^(?:yes\b|yep\b|ok(?:ay)?\b|perfect\b|great\b|looks good|lgtm\b|thanks?\b|thank you|nice\b|exactly\b|evet\b|tamam\b|olur\b|harika\b|s[\u00FCu]per\b|m[\u00FCu]kemmel\b|te[\u015Fs]ekk[\u00FCu]rler\b|onayl[\u0131i]yorum\b|onay\b|g[\u00FCu]zel\b)/i);
-function profileSignalsFromPrompt(text, opts = {}) {
+function promptSignals(text) {
   const t = redactClip(text, 4000).text.trim();
   if (t === "" || t.startsWith("<"))
     return [];
-  const statements = opts.statements !== false;
-  const out = [];
   const cmd = /^(?:\/(?:buracle:)?|\$)([a-z][a-z0-9-]{1,40})(?=\s|$)/.exec(t);
-  if (cmd && PROFILE_WORKFLOWS.includes(cmd[1]))
-    out.push({ kind: "usage", key: `usage.workflow=${cmd[1]}`, category: "workflow", text: cmd[1] });
   const body = cmd ? t.slice(cmd[0].length).trim() : t;
-  const lang = profilePromptLanguage(body);
-  if (lang !== undefined)
-    out.push({ kind: "style", key: `style.prompt_language=${lang}`, category: "communication" });
+  const out = [];
   for (const sentence of sentencesOf(body).slice(0, 40)) {
-    const s = statementOf(sentence, statements);
+    const s = statementOf(sentence);
     if (s && !out.some((o) => o.key === s.key))
       out.push(s);
   }
-  const head = body.split(`
-`)[0] ?? "";
-  if (CORRECTION.test(head))
-    out.push({ kind: "correction", key: "feedback.correction", category: "autonomy" });
-  else if (CONFIRMATION.test(head))
-    out.push({ kind: "confirmation", key: "feedback.confirmation", category: "autonomy" });
-  return out.slice(0, 12).map((s) => profileSanitizeSignal(s));
-}
-function profileUsageSignal(what, id) {
-  const v = id.toLowerCase().replace(/^\/?(?:buracle:)?/, "").replace(/[^a-z0-9._-]/g, "").slice(0, 60);
-  if (v === "")
-    return;
-  return { kind: "usage", key: `usage.${what}=${v}`, category: "workflow", text: v };
+  return out.slice(0, 12).map((s) => sanitizePromptSignal(s));
 }
 
 // src/core/memory/spool.ts
-var SPOOL_EVENTS = ["prompt", "tool", "turn", "compact", "stop", "note", "signal"];
+var SPOOL_EVENTS = ["prompt", "tool", "turn", "compact", "stop", "note", "prompt-signal"];
 var EXCERPT_EVENTS = ["prompt", "turn", "stop", "compact", "note"];
 var TOOL_KINDS = [
   "bash",
@@ -12641,8 +12611,8 @@ function spoolSanitize(input) {
     const max = ev === "compact" ? SPOOL_LIMITS.compactExcerpt : ev === "prompt" ? SPOOL_LIMITS.promptExcerpt : SPOOL_LIMITS.excerpt;
     entry.excerpt = scrub(x["excerpt"], max);
   }
-  if (ev === "signal") {
-    const signal = profileSanitizeSignal(x["signal"], scrub);
+  if (ev === "prompt-signal") {
+    const signal = sanitizePromptSignal(x["signal"], scrub);
     if (!signal)
       return { redactions: { count, kinds: [...kinds].sort() } };
     entry.signal = signal;
@@ -12732,26 +12702,6 @@ function appendSpool(h, sid, entries, opts = {}) {
     log("warn", "memory: spool append failed", { h, sid, error: e });
   }
 }
-function activeSpoolFiles(h, sids) {
-  const out = new Map;
-  let names;
-  try {
-    names = readdirSync3(spoolDir());
-  } catch {
-    return out;
-  }
-  for (const n of names.sort()) {
-    if (!n.startsWith(`${h}-`) || !n.endsWith(".jsonl"))
-      continue;
-    const rest = n.slice(h.length + 1, -".jsonl".length);
-    for (let i = rest.length;i > 0; i = rest.lastIndexOf("-", i - 1)) {
-      const sid = rest.slice(0, i);
-      if (sids.has(sid))
-        out.set(sid, [...out.get(sid) ?? [], join9(spoolDir(), n)]);
-    }
-  }
-  return out;
-}
 
 // src/memory/session-open.ts
 function readSessionRecord(h, sid) {
@@ -12763,61 +12713,9 @@ function writeSessionRecord(rec) {
 `);
 }
 var STALE_ACTIVE_MS = 2 * 3600000;
-function openSessions(nowMs, max = Number.POSITIVE_INFINITY) {
-  const out = [];
-  let names = [];
-  try {
-    names = readdirSync4(sessionRecordsDir());
-  } catch {
-    return out;
-  }
-  const byHarness = new Map;
-  for (const n of names) {
-    if (!n.endsWith(".json"))
-      continue;
-    const dash = n.indexOf("-");
-    const h = n.slice(0, dash);
-    const sid = n.slice(dash + 1, -".json".length);
-    if (!isHarness(h) || !isValidSessionId(sid))
-      continue;
-    let sids = byHarness.get(h);
-    if (sids === undefined) {
-      sids = new Set;
-      byHarness.set(h, sids);
-    }
-    sids.add(sid);
-  }
-  for (const [h, sids] of byHarness) {
-    const spooled = activeSpoolFiles(h, sids);
-    for (const sid of sids) {
-      let last;
-      try {
-        last = statSync9(sessionRecordFile(h, sid)).mtimeMs;
-      } catch {
-        continue;
-      }
-      for (const f of spooled.get(sid) ?? []) {
-        try {
-          last = Math.max(last, statSync9(f).mtimeMs);
-        } catch {}
-      }
-      if (nowMs - last >= STALE_ACTIVE_MS)
-        continue;
-      if (readSessionRecord(h, sid)?.status !== "active")
-        continue;
-      out.push({ h, sid });
-      if (out.length >= max)
-        return out;
-    }
-  }
-  return out;
-}
-function anySessionOpen(nowMs) {
-  return openSessions(nowMs, 1).length > 0;
-}
 
 // src/memory/spawn.ts
-import { existsSync as existsSync5, statSync as statSync10 } from "fs";
+import { existsSync as existsSync5, statSync as statSync9 } from "fs";
 import { basename as basename4, join as join10 } from "path";
 var MEMORY_RUNNER_DIR_PREFIX = "buracle-runner-";
 function isMemoryRunnerDir(dir) {
@@ -12831,7 +12729,7 @@ function bunBinary() {
 }
 function isFile3(p) {
   try {
-    return statSync10(p).isFile();
+    return statSync9(p).isFile();
   } catch {
     return false;
   }
@@ -12868,118 +12766,8 @@ function spawnCli(args, env = {}) {
   }
 }
 
-// src/memory/tick-start.ts
-import { closeSync as closeSync4, existsSync as existsSync6, mkdirSync as mkdirSync5, openSync as openSync4, readFileSync as readFileSync9, statSync as statSync11, unlinkSync as unlinkSync5, writeFileSync, writeSync as writeSync3 } from "fs";
-import { join as join11 } from "path";
-var TICK_DEBOUNCE_MS = 60000;
-var TICK_LOCK_STALE_MS = 15 * 60000;
-function tickLockFile() {
-  return join11(locksDir(), "tick.lock");
-}
-function tickMarkFile() {
-  return join11(locksDir(), "tick.mark");
-}
-function tickAgainFile() {
-  return join11(locksDir(), "tick.again");
-}
-function markTickAgain(nowMs) {
-  try {
-    mkdirSync5(locksDir(), { recursive: true });
-    writeFileSync(tickAgainFile(), new Date(nowMs).toISOString() + `
-`, { mode: 384 });
-  } catch {}
-}
-function takeTickAgain() {
-  try {
-    unlinkSync5(tickAgainFile());
-    return true;
-  } catch {
-    return false;
-  }
-}
-var TICK_TIMER_MAX_MS = 6 * 3600000;
-var TICK_TIMER_ARM_MS = 2 * 60000;
-function claimTickMark(nowMs) {
-  const f = tickMarkFile();
-  mkdirSync5(locksDir(), { recursive: true });
-  const parked = existsSync6(tickAgainFile());
-  for (let attempt = 0;attempt < 2; attempt++) {
-    try {
-      const fd = openSync4(f, "wx", 384);
-      try {
-        writeSync3(fd, new Date(nowMs).toISOString() + `
-`);
-      } finally {
-        closeSync4(fd);
-      }
-      if (parked)
-        takeTickAgain();
-      return true;
-    } catch (e) {
-      if (e.code !== "EEXIST")
-        throw e;
-    }
-    try {
-      if (!parked && nowMs - statSync11(f).mtimeMs < TICK_DEBOUNCE_MS)
-        return false;
-    } catch {
-      continue;
-    }
-    try {
-      unlinkSync5(f);
-    } catch {}
-  }
-  return false;
-}
-function maybeStartTick(opts = {}) {
-  if (process.env["BURACLE_NO_AUTOSTART"] === "1" || process.env["BURACLE_NO_CAPTURE"] === "1")
-    return false;
-  const nowMs = opts.nowMs ?? Date.now();
-  try {
-    if (lockHeld(tickLockFile(), TICK_LOCK_STALE_MS, nowMs)) {
-      markTickAgain(nowMs);
-      return false;
-    }
-    if (!claimTickMark(nowMs))
-      return false;
-    const args = ["mem", "tick", "--quiet", "--trigger", opts.trigger ?? "prompt", ...opts.harness !== undefined ? ["--harness", opts.harness] : [], ...opts.sid !== undefined ? ["--session", opts.sid] : []];
-    return (opts.spawn ?? spawnCli)(args) !== undefined;
-  } catch {
-    return false;
-  }
-}
-
 // src/memory/session-record.ts
-var KICK_ONCE_MS = 2 * 60000;
-function spawnKick(h, sid, cwd, opts = {}) {
-  const nowMs = opts.nowMs ?? Date.now();
-  if (process.env["BURACLE_NO_AUTOSTART"] === "1")
-    return false;
-  try {
-    const mark = join12(locksDir(), `kick-${h}-${sid}`);
-    mkdirSync6(locksDir(), { recursive: true });
-    try {
-      closeSync5(openSync5(mark, "wx", 384));
-    } catch (e) {
-      if (e.code !== "EEXIST")
-        throw e;
-      try {
-        if (nowMs - statSync12(mark).mtimeMs < KICK_ONCE_MS)
-          return false;
-      } catch {}
-      try {
-        unlinkSync6(mark);
-      } catch {}
-      closeSync5(openSync5(mark, "wx", 384));
-    }
-    return (opts.spawn ?? spawnCli)(["mem", "kick", "--harness", h, "--session", sid, "--cwd", resolve7(cwd)]) !== undefined;
-  } catch {
-    return false;
-  }
-}
 async function sessionStart(h, sid, cwd, opts = {}) {
-  if (isValidSessionId(sid) && isHarness(h))
-    spawnKick(h, sid, cwd);
   if (captureOff())
     return { skipped: "capture-off" };
   try {
@@ -13016,7 +12804,7 @@ async function sessionStart(h, sid, cwd, opts = {}) {
 }
 function promptSeen(h, sid, opts = {}) {
   if (!isValidSessionId(sid) || !isHarness(h) || captureOff())
-    return false;
+    return;
   try {
     const file = sessionRecordFile(h, sid);
     const rec = readSessionRecord(h, sid);
@@ -13025,12 +12813,6 @@ function promptSeen(h, sid, opts = {}) {
     const t = new Date(opts.nowMs ?? Date.now());
     utimesSync2(file, t, t);
   } catch {}
-  return maybeStartTick({ harness: h, sid, trigger: "prompt", ...opts.nowMs !== undefined ? { nowMs: opts.nowMs } : {} });
-}
-function compactSeen(h, sid, opts = {}) {
-  if (!isValidSessionId(sid) || !isHarness(h) || captureOff())
-    return false;
-  return maybeStartTick({ harness: h, sid, trigger: "compact", ...opts.nowMs !== undefined ? { nowMs: opts.nowMs } : {} });
 }
 function spawnFinalizer(h, sid) {
   spawnFinalizerPid(h, sid);
@@ -13041,8 +12823,10 @@ function spawnFinalizerPid(h, sid) {
   if (!isValidSessionId(sid) || !isHarness(h))
     return;
   try {
-    mkdirSync6(spoolDir(), { recursive: true });
+    mkdirSync5(spoolDir(), { recursive: true });
   } catch {}
+  if (lockHeld(join11(locksDir(), `finalize-${h}-${sid}.lock`), 5 * 60000))
+    return;
   return spawnCli(["mem", "finalize", "--harness", h, "--session", sid], { BURACLE_FINALIZER: "1" });
 }
 
@@ -13071,7 +12855,7 @@ function cli() {
 async function runCliJson(args, opts) {
   try {
     const proc = Bun.spawn([...cli(), ...args], {
-      cwd: existsSync7(opts.cwd) ? opts.cwd : home(),
+      cwd: existsSync6(opts.cwd) ? opts.cwd : home(),
       env: { ...process.env },
       stdin: opts.stdin !== undefined ? new TextEncoder().encode(opts.stdin) : "ignore",
       stdout: "pipe",
@@ -13101,9 +12885,6 @@ var memoryBridge = {
   prompt: (sid) => {
     promptSeen("opencode", sid);
   },
-  compact: (sid) => {
-    compactSeen("opencode", sid);
-  },
   finalize: (sid) => {
     if (!spawnShimFinalizer(sid))
       spawnFinalizer("opencode", sid);
@@ -13126,13 +12907,12 @@ var memoryBridge = {
 };
 
 // src/adapters/opencode/runtime/plugin.ts
-import { existsSync as existsSync15, readFileSync as readFileSync24, statSync as statSync23 } from "fs";
-import { basename as basename14, isAbsolute as isAbsolute13, join as join37, resolve as resolve18 } from "path";
+import { existsSync as existsSync12, readFileSync as readFileSync21, statSync as statSync19 } from "fs";
+import { basename as basename12, isAbsolute as isAbsolute13, join as join31, resolve as resolve17 } from "path";
 
 // src/core/memory/budgets.ts
 var MEMORY_INJECT = { maxLines: 150, maxBytes: 12288 };
-var REFLECT_BUDGET = { maxOpsPerRun: 8, maxSubQueries: 6, maxRounds: 2, maxInputTokens: 6000, maxOutputTokens: 700, relateEveryMs: 6 * 3600000 };
-var BACKUP_BUDGET = { keep: 10, everyMs: 24 * 3600000 };
+var CAPTURE_BUDGET = { pendingPerRun: 3, pendingAfterMs: 3 * 3600000, maxTries: 3 };
 
 // src/core/plan/vague.ts
 var VAGUE_PHRASES = [
@@ -14521,105 +14301,6 @@ function bandSummary(v) {
   return flowText(`${head}${parts.length > 0 ? `: ${parts.join(", ")}` : ""}${tail}`, 240);
 }
 var NOTICE_STATUSES = new Set(["approval", "waiting", "paused", "done", "failed", "cancelled"]);
-
-// src/core/policy/cm-self.ts
-var PACKAGE_NAME = /^(?:(?:@[^\s/@]+\/)?[^\s/@]+@)?(?:npm:)?context-mode(?:@[^\s/]*)?$/i;
-var PACKAGE_SEGMENT = /^context-mode(?:\.git)?(?:@[^@]*)?$/i;
-var PACKAGE_TARBALL = /^context-mode-v?\d[^\s/]*\.(?:tgz|tar\.gz)$/i;
-function namesPackage(word) {
-  if (PACKAGE_NAME.test(word))
-    return true;
-  if (word.startsWith("@"))
-    return false;
-  const segments = word.split(/[/:#?]/);
-  return segments.slice(1).some((s) => PACKAGE_SEGMENT.test(s)) || PACKAGE_TARBALL.test(segments[segments.length - 1] ?? "");
-}
-var MENTION = /(?:^|[^a-z0-9_-])context-mode(?:$|[^a-z0-9_-])/i;
-var MANAGERS = new Set(["npm", "pnpm", "yarn", "bun"]);
-var INSTALL_VERBS = new Set(["i", "in", "ins", "inst", "insta", "instal", "install", "isntall", "isnt", "isnta", "isntal", "add", "update", "up", "upgrade", "udpate", "link", "ln"]);
-var RUNNERS2 = new Set(["npx", "bunx", "pnpx"]);
-var INTERPRETERS = new Set(["node", "nodejs", "bun", "deno"]);
-var HARNESS_CLIS = new Set(["claude", "codex", "opencode", "omp"]);
-var PLUGIN_SAFE = new Set(["uninstall", "remove", "rm", "disable", "list", "ls", "info", "show", "help", "--help", "-h"]);
-function basename5(p) {
-  return p.slice(Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\")) + 1).toLowerCase();
-}
-function isCli(word) {
-  if (word === undefined)
-    return false;
-  const base = basename5(word);
-  return base === "context-mode" || base === "context-mode.cmd" || base === "cli.bundle.mjs" || /(?:^|[\\/])context-mode[\\/](?:build[\\/])?cli\.m?js$/i.test(word);
-}
-function positional(args) {
-  return args.filter((a) => !a.startsWith("-"));
-}
-function isGlobal(args) {
-  return args.some((a, i) => a === "--global" || a === "--location=global" || a === "--location" && args[i + 1] === "global" || /^-[A-Za-z]*g[A-Za-z]*$/.test(a));
-}
-function npmOn(value) {
-  if (value === "false" || value === "null")
-    return false;
-  const n = Number(value);
-  return Number.isNaN(n) || n !== 0;
-}
-function globalByEnv(assigns, env) {
-  const pairs = [];
-  for (const a of assigns) {
-    const eq = typeof a === "string" ? a.indexOf("=") : -1;
-    if (eq > 0)
-      pairs.push([a.slice(0, eq), a.slice(eq + 1)]);
-  }
-  if (env !== undefined && typeof env.forEach === "function")
-    env.forEach((v, k) => {
-      pairs.push([k, v]);
-    });
-  return pairs.some(([k, v]) => {
-    const key = k.toLowerCase();
-    if (key === "npm_config_global")
-      return !/^[\w.-]*$/.test(v) || npmOn(v);
-    return key === "npm_config_location" && (!/^[\w.-]*$/.test(v) || v.toLowerCase() === "global");
-  });
-}
-function runsUpgrade(args) {
-  const at = args.findIndex(namesPackage);
-  return at >= 0 && args.slice(at + 1).includes("upgrade");
-}
-var UPGRADE_REASON = "would install or upgrade context-mode outside Buracle, which keeps its own copy current; ask the user to run `buracle update context-mode` instead (`buracle doctor context-mode` shows the installed version).";
-var PLUGIN_REASON = "would install context-mode's own plugin or server next to the one Buracle already runs on every harness; its plugins rewrite harness settings outside Buracle. Leave context-mode to Buracle (check it with `buracle doctor context-mode`).";
-function cmSelfManagement(name, args, assigns = [], env) {
-  const pos = positional(args);
-  if (isCli(name) && pos[0] === "upgrade")
-    return UPGRADE_REASON;
-  if (INTERPRETERS.has(name)) {
-    const at = pos.findIndex(isCli);
-    if (at >= 0 && pos.slice(at + 1).includes("upgrade"))
-      return UPGRADE_REASON;
-  }
-  if (RUNNERS2.has(name) && runsUpgrade(args))
-    return UPGRADE_REASON;
-  if (MANAGERS.has(name)) {
-    if (["dlx", "exec", "x"].includes(pos[0] ?? "") && runsUpgrade(args))
-      return UPGRADE_REASON;
-    if (args.some(namesPackage)) {
-      const at = pos.findIndex((w) => INSTALL_VERBS.has(w.toLowerCase()));
-      const yarnGlobal = name === "yarn" && pos.slice(0, Math.max(0, at)).includes("global");
-      if (at >= 0 && (yarnGlobal || isGlobal(args) || globalByEnv(assigns, env)))
-        return UPGRADE_REASON;
-    }
-  }
-  if (HARNESS_CLIS.has(name) && args.some((a) => MENTION.test(a))) {
-    const sub = pos[0]?.toLowerCase();
-    if (sub === "plugin" || sub === "plugins") {
-      const verb = pos[1]?.toLowerCase();
-      const marketVerb = verb === "marketplace" ? pos[2]?.toLowerCase() : undefined;
-      if (verb !== undefined && !PLUGIN_SAFE.has(verb) && (marketVerb === undefined || !PLUGIN_SAFE.has(marketVerb)))
-        return PLUGIN_REASON;
-    }
-    if (sub === "mcp" && (name === "claude" || name === "codex") && ["add", "add-json", "add-from-claude-desktop"].includes(pos[1]?.toLowerCase() ?? ""))
-      return PLUGIN_REASON;
-  }
-  return;
-}
 
 // src/core/policy/launchers.ts
 var RUN = { subs: ["run"] };
@@ -21218,9 +20899,6 @@ function checkCommand(u, cmd, cx) {
   if (name === undefined)
     return;
   const args = argv.slice(1);
-  const cm = cmSelfManagement(name, args.map((a) => a.text), [...cmd.assigns, ...before].map((w) => w.text), cx.walk.env);
-  if (cm)
-    return `${q(shown)} ${cm}`;
   const native = windowsNative(name, args);
   if (native === "disk")
     return `${q(shown)} formats a disk or partition and destroys its data; ask the user to run it themselves if it is really needed.`;
@@ -21831,155 +21509,6 @@ function visitShellCommands(command, visit, opts) {
     analyzeCommand(command, { extraDeny: [], ...opts?.shell !== undefined ? { shell: opts.shell } : {} }, walked(), walked);
   } catch {}
 }
-// src/core/policy/shell-text.ts
-function shellQuote2(s) {
-  return `'${s.replace(/'/g, `'\\''`)}'`;
-}
-function withCd(dir, command) {
-  return `cd ${shellQuote2(dir)}
-${command}`;
-}
-
-// src/core/policy/eval-guard.ts
-function q2(s) {
-  return "`" + s.replace(/`/g, "'") + "`";
-}
-function expandHome3(p, home) {
-  if (home === "")
-    return p;
-  if (p === "~")
-    return home;
-  if (p.startsWith("~/") || p.startsWith("~\\") && isWindowsPath(home))
-    return `${home.replace(/[\\/]+$/, "")}/${p.slice(2)}`;
-  return p;
-}
-function concrete(target, home) {
-  if (target === "" || target.includes(DYN))
-    return;
-  if (target.startsWith(HOME))
-    return home === "" ? undefined : home.replace(/\/+$/, "") + target.slice(1);
-  return target;
-}
-function lower3(s) {
-  return s.toLowerCase();
-}
-function protectedInside(abs, ctx) {
-  const home = typeof ctx.home === "string" ? normalizePath(ctx.home) : "";
-  const vault = typeof ctx.vault === "string" && ctx.vault !== "" ? normalizePath(expandHome3(ctx.vault, ctx.home)) : "";
-  const roots = [];
-  if (home !== "" && !isRootPath(home)) {
-    roots.push([`${home}/.ssh`, "the user's SSH directory"], [`${home}/.aws`, "the user's AWS credentials directory"], [`${home}/.buracle/state`, "Buracle's own state"]);
-  }
-  if (vault !== "" && !isRootPath(vault))
-    roots.push([vault, "the Buracle memory vault"]);
-  const a = lower3(normalizePath(abs).replace(/\/+$/, ""));
-  for (const [root, what] of roots) {
-    const r = lower3(root);
-    if (a === "" || r === a || r.startsWith(a === "/" ? "/" : a + "/"))
-      return what;
-  }
-  return;
-}
-function shellOptions(ctx, extraDeny) {
-  const o = { extraDeny };
-  if (typeof ctx.home === "string" && isAbsPath(ctx.home))
-    o.home = ctx.home;
-  if (ctx.selfPaths !== null && typeof ctx.selfPaths === "object")
-    o.selfPaths = ctx.selfPaths;
-  if (typeof ctx.cwd === "string" && isAbsPath(ctx.cwd))
-    o.cwd = ctx.cwd;
-  if (typeof ctx.vault === "string" && ctx.vault !== "")
-    o.vault = ctx.vault;
-  if (Array.isArray(ctx.protect))
-    o.protect = ctx.protect;
-  if (typeof ctx.buracleRepo === "string" && ctx.buracleRepo !== "")
-    o.buracleRepo = ctx.buracleRepo;
-  if (typeof ctx.realpath === "function")
-    o.realpath = ctx.realpath;
-  return o;
-}
-function resolveIn(base, p, home) {
-  if (isAbsPath(p))
-    return normalizePath(p);
-  if (home !== "" && (p === "~" || p.startsWith("~/") || p.startsWith("~\\") && isWindowsPath(home)))
-    return resolveNormalPath("", p, home) ?? p;
-  return isAbsPath(base) ? resolveNormalPath(base, p) ?? p : p;
-}
-function judge(op, ctx, execCwd, extraDeny) {
-  const home = typeof ctx.home === "string" ? ctx.home : "";
-  const cwd = typeof ctx.cwd === "string" ? ctx.cwd : "";
-  if (op.kind === "unreadable") {
-    return { deny: `The guard could not check all of this code (${op.why}); run it in smaller steps.`, hook: "H01" };
-  }
-  if (op.kind === "shell") {
-    const command = execCwd !== cwd && isAbsPath(execCwd) ? withCd(execCwd, op.command) : op.command;
-    const r = checkBash(command, shellOptions(ctx, extraDeny));
-    return r.deny !== undefined ? { deny: r.deny, hook: "H01" } : undefined;
-  }
-  if (op.kind === "delete-tree" || op.kind === "move") {
-    const target = op.kind === "move" ? op.src : op.target;
-    if (target !== undefined) {
-      const mode = op.kind === "move" ? "perm" : "rm";
-      const path = concrete(target, home);
-      const abs = path !== undefined ? resolveIn(execCwd, path, home) : undefined;
-      const what = catastrophicPath(target, mode) ?? (abs !== undefined && isAbsPath(abs) && abs !== target ? catastrophicPath(abs, mode) : undefined);
-      if (what) {
-        return op.kind === "move" ? { deny: `${q2(op.api)} would move ${what} away and break the system or the user's account; move only specific files inside the project.`, hook: "H01" } : { deny: `${q2(op.api)} would delete ${what}; delete only the specific paths you need, inside the project.`, hook: "H01" };
-      }
-      if (abs !== undefined) {
-        const inside = isAbsPath(abs) ? protectedInside(abs, ctx) : undefined;
-        if (inside)
-          return { deny: `${q2(op.api)} would ${op.kind === "move" ? "move away" : "delete"} ${inside}; leave it to the user and Buracle.`, hook: "H02" };
-        const area = isAbsPath(abs) ? selfProtectedArea(abs, home, ctx.selfPaths, true, cwd) : undefined;
-        if (area !== undefined) {
-          const t = selfProtectionText(area);
-          return { deny: `${q2(op.api)} would ${op.kind === "move" ? "move away" : "delete"} ${t.what}; ${t.remedy}.`, hook: "H02" };
-        }
-        const w = checkWrite([abs], ctx);
-        if (w.deny !== undefined)
-          return { deny: `${q2(op.api)} would ${op.kind === "move" ? "move" : "delete"} a protected path: ${w.deny}`, hook: "H02" };
-      }
-    }
-  }
-  const dst = op.kind === "write" || op.kind === "delete" ? op.target : op.kind === "move" ? op.dst : undefined;
-  if (dst !== undefined) {
-    const path = concrete(dst, home);
-    const abs = path !== undefined ? resolveIn(execCwd, path, home) : undefined;
-    const bad = forbiddenWritePath(dst) ?? (abs !== undefined && isAbsPath(abs) && abs !== dst ? forbiddenWritePath(abs) : undefined);
-    if (bad) {
-      return bad.startsWith("~") ? { deny: `Writing into ${bad} changes the user's credentials; ask the user to make this change themselves.`, hook: "H01" } : { deny: `${q2(op.api)} writes to ${bad} and destroys its data; write to a regular file instead.`, hook: "H01" };
-    }
-    if (abs !== undefined) {
-      const w = checkWrite([abs], ctx);
-      if (w.deny !== undefined)
-        return { deny: `${q2(op.api)} would ${op.kind === "delete" ? "delete" : "write"} a protected path: ${w.deny}`, hook: "H02" };
-    }
-  }
-  return;
-}
-function checkEval(code, language, ctx, opts) {
-  if (typeof code !== "string" || code.trim() === "")
-    return {};
-  const c = ctx !== null && typeof ctx === "object" ? ctx : { cwd: "", home: "", vault: "", protect: [] };
-  const session = typeof c.cwd === "string" ? c.cwd : "";
-  const exec = typeof opts?.execCwd === "string" && isAbsPath(opts.execCwd) ? normalizePath(opts.execCwd) : session;
-  const extraDeny = Array.isArray(opts?.extraDeny) ? opts.extraDeny.filter((p) => typeof p === "string") : [];
-  try {
-    for (const op of scanCode(code, codeLang(typeof language === "string" ? language : ""))) {
-      const r = judge(op, c, exec, extraDeny);
-      if (r)
-        return r;
-    }
-  } catch {
-    if (/\b(?:rmtree|rm_rf|rmSync|rimraf|os\.system|execSync|subprocess)\b|rm\s+-[a-z]*r/i.test(code)) {
-      return { deny: "The guard could not read this code, and it deletes files or runs shell commands; run the step as a reviewed shell command instead.", hook: "H01" };
-    }
-  }
-  if (uiSettingsCall([code]))
-    return { deny: UI_SETTINGS_REASON, hook: "H01" };
-  const extra = extraDenyReason(extraDeny, [code]);
-  return extra !== undefined ? { deny: extra, hook: "H01" } : {};
-}
 // src/core/policy/catastrophic.ts
 var RF = ["-rf", "-fr", "-Rf", "-fR", "-rF", "-Fr", "-RF", "-FR", "-rfv", "-rvf", "-vrf", "-frv", "-fvr", "-vfr"];
 var R = ["-r", "-R", "--recursive"];
@@ -22283,6 +21812,409 @@ function catastrophicCommandRules(opts) {
   return rules;
 }
 var CATASTROPHIC_COMMAND_RULES = catastrophicCommandRules();
+// src/core/policy/routing.ts
+function isObj2(x) {
+  return x !== null && typeof x === "object" && !Array.isArray(x);
+}
+function healthEntry(v, nowMs) {
+  if (v === "ok" || v === "down" || v === "unknown")
+    return v;
+  if (typeof v === "boolean")
+    return v ? "ok" : "down";
+  if (!isObj2(v))
+    return;
+  if (typeof v["status"] !== "string")
+    return typeof v["ok"] === "boolean" ? v["ok"] ? "ok" : "down" : undefined;
+  const status = healthEntry(v["status"], nowMs);
+  const until = typeof v["until"] === "string" ? Date.parse(v["until"]) : Number.NaN;
+  return status === "down" && Number.isFinite(until) && until <= nowMs ? "unknown" : status;
+}
+function mcpHealthOf(raw, nowMs) {
+  const out = {};
+  if (!isObj2(raw))
+    return out;
+  const table = isObj2(raw["mcp"]) ? raw["mcp"] : isObj2(raw["servers"]) ? raw["servers"] : raw;
+  for (const [id, v] of Object.entries(table)) {
+    const s = healthEntry(v, nowMs);
+    if (s !== undefined)
+      out[id] = s;
+  }
+  return out;
+}
+function parseRouteRef(ref) {
+  if (typeof ref !== "string")
+    return;
+  const m = /^(mcp|cli|builtin|skill):([^\s/]+)(?:\/(\S+))?$/.exec(ref.trim());
+  if (!m)
+    return;
+  const [, kind, name, tool] = m;
+  if (kind === "mcp")
+    return tool !== undefined ? { kind, server: name, tool } : { kind, server: name };
+  if (tool !== undefined)
+    return;
+  if (kind === "cli")
+    return { kind, name };
+  if (kind === "skill")
+    return { kind, id: name };
+  return { kind: "builtin", tool: name };
+}
+var CLAUDE_PLUGIN_NAME = "buracle";
+function ompPart(s, fallback) {
+  const t = s.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "");
+  return t.length > 0 ? t : fallback;
+}
+function harnessMcpToolName(harness, server, tool) {
+  switch (harness) {
+    case "claude":
+      return `mcp__plugin_${CLAUDE_PLUGIN_NAME}_${mcpServerToken("claude", server)}__${tool.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+    case "codex":
+      return `mcp__${server}__${tool}`.replace(/[^A-Za-z0-9_]/g, "_");
+    case "opencode":
+      return `${mcpServerToken("opencode", server)}_${tool.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+    case "omp": {
+      const s = mcpServerToken("omp", server);
+      let t = ompPart(tool, "tool");
+      if (t.startsWith(`${s}_`) && t.length > s.length + 1)
+        t = t.slice(s.length + 1);
+      return `mcp__${s}_${t}`;
+    }
+  }
+}
+function harnessMcpPattern(harness, server) {
+  switch (harness) {
+    case "claude":
+      return `mcp__plugin_${CLAUDE_PLUGIN_NAME}_${mcpServerToken("claude", server)}__*`;
+    case "codex":
+      return `mcp__${server.replace(/[^A-Za-z0-9_]/g, "_")}__*`;
+    case "opencode":
+      return `${mcpServerToken("opencode", server)}_*`;
+    case "omp":
+      return `mcp__${mcpServerToken("omp", server)}_*`;
+  }
+}
+var HARNESS_LABEL = { claude: "Claude Code", codex: "Codex", opencode: "OpenCode", omp: "Oh My Pi" };
+var SKILL_HOWTO = {
+  claude: "the user starts a workflow with /<id>; you load the others with the Skill tool as buracle:<id>",
+  codex: "the user starts a workflow with $<id>; you load one by reading ~/.agents/skills/<id>/SKILL.md",
+  opencode: "the user starts a workflow with /<id>; you load one with the skill tool",
+  omp: "the user starts a workflow with /<id>; you load one by reading skill://<id>"
+};
+var MCP_SYNTAX = {
+  claude: `mcp__plugin_${CLAUDE_PLUGIN_NAME}_<server>__<tool>`,
+  codex: "mcp__<server>__<tool>, with - written as _",
+  opencode: "<server>_<tool>",
+  omp: "mcp__<server>_<tool>, lower-case with - written as _"
+};
+var HIDDEN_NOTE = {
+  claude: "* = may be deferred: find its tools with tool search before assuming they are missing",
+  codex: "* = may be deferred: find its tools with tool_search before assuming they are missing",
+  opencode: "* = in Code Mode: its tools are not on your tool list; call them from a script run by the execute tool",
+  omp: "* = may be an xd:// device instead of a tool: read xd:// to find it before assuming it is missing"
+};
+var BUILTIN_LABEL = { web_search: "built-in web search", web_fetch: "built-in web fetch" };
+function code4(s) {
+  return "`" + s + "`";
+}
+function choose(cat, kind, health) {
+  const down = [];
+  const refs = [...Array.isArray(cat.prefer) ? cat.prefer : [], ...Array.isArray(cat.fallback) ? cat.fallback : []];
+  for (const raw of refs) {
+    const ref = parseRouteRef(raw);
+    if (!ref)
+      continue;
+    if (ref.kind === "mcp") {
+      if (health[ref.server] === "down") {
+        if (!down.includes(ref.server))
+          down.push(ref.server);
+        continue;
+      }
+      return { ref, down };
+    }
+    if (ref.kind === "builtin" && ref.tool === kind)
+      return { ref, down };
+  }
+  return { down };
+}
+function mcpTools(cat, server, harness) {
+  const names = [];
+  for (const raw of [...Array.isArray(cat.prefer) ? cat.prefer : [], ...Array.isArray(cat.fallback) ? cat.fallback : []]) {
+    const ref = parseRouteRef(raw);
+    if (ref?.kind === "mcp" && ref.server === server && ref.tool !== undefined)
+      names.push(code4(harnessMcpToolName(harness, server, ref.tool)));
+  }
+  return names.slice(0, 2);
+}
+function serverLabel(cat, ref, harness) {
+  const tools = mcpTools(cat, ref.server, harness);
+  if (tools.length === 0)
+    return `the ${code4(ref.server)} MCP server (${code4(harnessMcpPattern(harness, ref.server))})`;
+  return tools.join(" then ");
+}
+function urlOf(call) {
+  const input = call.input !== null && typeof call.input === "object" ? call.input : {};
+  for (const k of ["url", "uri", "path"]) {
+    const v = input[k];
+    if (typeof v === "string" && /^https?:\/\//i.test(v))
+      return v;
+  }
+  return;
+}
+function needsBuiltinSession(call) {
+  const url = urlOf(call);
+  if (url === undefined)
+    return false;
+  const host = /^https?:\/\/([^/?#:]+)/i.exec(url)?.[1]?.toLowerCase() ?? "";
+  return host === "claude.ai" || host.endsWith(".claude.ai");
+}
+function isDocsUrl(url) {
+  const m = /^https?:\/\/([^/?#:]+)(?::\d+)?([^?#]*)/i.exec(typeof url === "string" ? url.trim() : "");
+  if (!m)
+    return false;
+  const host = (m[1] ?? "").toLowerCase().replace(/\.$/, "");
+  const path = (m[2] ?? "").toLowerCase();
+  if (host === "readthedocs.io" || host === "readthedocs.org" || host.endsWith(".readthedocs.io") || host.endsWith(".readthedocs.org"))
+    return true;
+  if (host.startsWith("docs."))
+    return true;
+  if ((host === "www.npmjs.com" || host === "npmjs.com") && path.startsWith("/package/"))
+    return true;
+  if (host === "pypi.org" && path.startsWith("/project/"))
+    return true;
+  if (host === "pkg.go.dev" || host === "docs.rs")
+    return true;
+  return host === "developer.mozilla.org";
+}
+function docsFetchRoute(call, policy, health) {
+  if (call.kind !== "web_fetch")
+    return;
+  const url = urlOf(call);
+  if (url === undefined || !isDocsUrl(url))
+    return;
+  const cat = (Array.isArray(policy.categories) ? policy.categories : []).find((c) => c.id === "library-docs");
+  if (!cat)
+    return;
+  const first = (Array.isArray(cat.prefer) ? cat.prefer : []).map(parseRouteRef).find((r) => r?.kind === "mcp");
+  if (first === undefined || health[first.server] === "down")
+    return;
+  const docs = serverLabel(cat, first, call.harness);
+  const fetchCat = policy.categories.find((c) => Array.isArray(c.deny_builtin) && c.deny_builtin.includes("web_fetch"));
+  const fallback = fetchCat ? choose(fetchCat, "web_fetch", health).ref : undefined;
+  const builtin = BUILTIN_LABEL["web_fetch"];
+  if (policy.strictness === "enforce" && fallback?.kind === "mcp") {
+    return { action: "deny", hook: "H03", reason: `This page is library documentation: call ${docs} for the docs at the installed version instead of the ${builtin}; if context7 does not know the library, fetch the page with ${serverLabel(fetchCat, fallback, call.harness)}.` };
+  }
+  return { action: "allow", context: [`This page is library documentation: ${docs} answers at the installed version; use the ${builtin} only when context7 does not know the library.`] };
+}
+function routeTool(call, policy, health) {
+  if (!policy || policy.strictness === "off")
+    return { action: "allow" };
+  if (call.kind === "bash") {
+    const nudge = typeof call.command === "string" ? bashNudge(call.command) : undefined;
+    return nudge !== undefined ? { action: "allow", context: [nudge] } : { action: "allow" };
+  }
+  if (call.kind === "mcp" || call.kind === "eval" || call.kind === "other")
+    return { action: "allow" };
+  if (call.kind === "web_fetch" && needsBuiltinSession(call))
+    return { action: "allow" };
+  const docsRoute = docsFetchRoute(call, policy, health ?? {});
+  if (docsRoute !== undefined)
+    return docsRoute;
+  const cats = (Array.isArray(policy.categories) ? policy.categories : []).filter((c) => Array.isArray(c.deny_builtin) && c.deny_builtin.includes(call.kind));
+  if (cats.length === 0)
+    return { action: "allow" };
+  const builtin = BUILTIN_LABEL[call.kind] ?? `the built-in ${call.kind} tool`;
+  const redirects = [];
+  const nudges = [];
+  const notes = [];
+  for (const cat of cats) {
+    const choice = choose(cat, call.kind, health ?? {});
+    if (choice.ref?.kind === "mcp") {
+      redirects.push(serverLabel(cat, choice.ref, call.harness));
+      if (typeof cat.nudge === "string" && cat.nudge.trim() !== "")
+        nudges.push(cat.nudge.trim());
+    } else if (choice.down.length > 0) {
+      notes.push(`The ${choice.down.map(code4).join(", ")} MCP server is down, so the ${builtin} is allowed as a fallback; mention the fallback in your report.`);
+    }
+  }
+  if (redirects.length === 0)
+    return notes.length > 0 ? { action: "allow", context: notes } : { action: "allow" };
+  const docs = libraryDocsHint(policy, call, health ?? {});
+  const target = redirects.join(" or ");
+  if (policy.strictness === "enforce") {
+    return { action: "deny", hook: "H03", reason: `The ${builtin} is disabled while the preferred MCP server is available: call ${target} instead${docs}.` };
+  }
+  return { action: "allow", context: [`Prefer ${target} over the ${builtin}${docs}.`, ...nudges] };
+}
+function libraryDocsHint(policy, call, health) {
+  if (call.kind !== "web_search" && call.kind !== "web_fetch")
+    return "";
+  const cat = (Array.isArray(policy.categories) ? policy.categories : []).find((c) => c.id === "library-docs");
+  if (!cat)
+    return "";
+  const choice = choose(cat, "-", health);
+  if (choice.ref?.kind !== "mcp")
+    return "";
+  return ` (for library or framework docs, use ${serverLabel(cat, choice.ref, call.harness)} first)`;
+}
+var GREP_FAMILY = new Set(["grep", "egrep", "fgrep", "ggrep"]);
+function grepIsRecursive(argv) {
+  for (let k = 1;k < argv.length; k++) {
+    const t = argv[k];
+    if (t === "--")
+      break;
+    if (t === "--recursive" || t === "--dereference-recursive" || t === "--directories=recurse")
+      return true;
+    if ((t === "-d" || t === "--directories") && argv[k + 1] === "recurse")
+      return true;
+    if (/^-[A-Za-z]+$/.test(t)) {
+      const letters = t.slice(1);
+      for (let j = 0;j < letters.length; j++) {
+        const ch = letters[j];
+        if (ch === "r" || ch === "R")
+          return true;
+        if ("efmABCdD".includes(ch)) {
+          if (j === letters.length - 1)
+            k++;
+          break;
+        }
+      }
+    }
+  }
+  return false;
+}
+var NUDGE_GREP = 'Search with `rg -n "<pattern>" <dir>` instead of `grep -r` (faster, respects .gitignore); for code by intent use the semble MCP `search`, and for definitions and callers use codegraph.';
+var NUDGE_FIND = 'Search with `rg -n "<pattern>" -g "<glob>"` instead of `find \u2026 | xargs grep` or `find -exec grep`; for code by intent use the semble MCP `search`, and for definitions and callers use codegraph.';
+function scanScript(script, depth) {
+  for (const pl of script.pipelines) {
+    let sawFind = false;
+    for (const stage of pl.stages) {
+      for (const cmd of stageCommands(stage)) {
+        const first = commandName(cmd.words[0]);
+        const u = unwrap(cmd.words);
+        const name = commandName(u.argv[0]);
+        const argv = u.argv.map((w) => w.text);
+        if (name === "rgrep")
+          return NUDGE_GREP;
+        if (name !== undefined && GREP_FAMILY.has(name)) {
+          if (grepIsRecursive(argv))
+            return NUDGE_GREP;
+          if (sawFind && first === "xargs")
+            return NUDGE_FIND;
+        }
+        if (name === "find") {
+          for (let k = 0;k < argv.length; k++) {
+            if (["-exec", "-execdir", "-ok", "-okdir"].includes(argv[k])) {
+              const n = commandName(u.argv[k + 1]);
+              if (n !== undefined && GREP_FAMILY.has(n))
+                return NUDGE_FIND;
+            }
+          }
+          sawFind = true;
+        }
+        if (depth < 4) {
+          for (const s of u.scripts) {
+            const inner = scanScript(parseShell(s).script, depth + 1);
+            if (inner)
+              return inner;
+          }
+        }
+      }
+    }
+  }
+  return;
+}
+function bashNudge(command) {
+  if (typeof command !== "string" || command.trim() === "")
+    return;
+  try {
+    const { script, subs } = parseShell(command);
+    const direct = scanScript(script, 0);
+    if (direct)
+      return direct;
+    for (const s of subs) {
+      const inner = scanScript(parseShell(s).script, 1);
+      if (inner)
+        return inner;
+    }
+  } catch {
+    return;
+  }
+  return;
+}
+var CAPABILITY_CARD_MAX_LINES = 30;
+function firstClause(text, max) {
+  const t = text.replace(/\s+/g, " ").trim();
+  let cut = t;
+  for (const sep of [". ", ": ", "; ", " \u2014 "]) {
+    const at = t.indexOf(sep);
+    if (at >= 20 && at < cut.length)
+      cut = t.slice(0, at);
+  }
+  cut = cut.replace(/[.:;]+$/, "");
+  if (cut.length <= max)
+    return cut;
+  const room = cut.slice(0, max - 1);
+  const space = room.lastIndexOf(" ");
+  return `${(space > max / 2 ? room.slice(0, space) : room).replace(/[,;:\s]+$/, "")}\u2026`;
+}
+function wrapList(prefix, items, width = 110) {
+  const lines = [];
+  let cur = prefix;
+  for (const [i, it] of items.entries()) {
+    const piece = it + (i < items.length - 1 ? "," : "");
+    if (cur.length + 1 + piece.length > width && cur !== prefix) {
+      lines.push(cur);
+      cur = "  " + piece;
+    } else
+      cur = cur === prefix ? `${prefix} ${piece}` : `${cur} ${piece}`;
+  }
+  lines.push(cur);
+  return lines;
+}
+function byId(xs) {
+  const seen = new Set;
+  return [...xs].filter((x) => x && typeof x.id === "string").sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0).filter((x) => seen.has(x.id) ? false : (seen.add(x.id), true));
+}
+function capabilityCard(input) {
+  const h = input.harness;
+  const hiddenNote = HIDDEN_NOTE[h];
+  const servers = byId(Array.isArray(input.mcp) ? input.mcp : []).filter((m) => !Array.isArray(m.harnesses) || m.harnesses.includes(h));
+  const skills = byId(Array.isArray(input.skills) ? input.skills : []);
+  const plugins = [...new Set((Array.isArray(input.plugins) ? input.plugins : []).filter((p) => typeof p === "string" && p.trim() !== "").map((p) => p.trim().split("@")[0]))].sort();
+  const strictness = input.policy?.strictness ?? "enforce";
+  const head = [
+    `Buracle capabilities (${HARNESS_LABEL[h]}). ` + (strictness === "enforce" ? 'Tool routing is enforced: follow "Tool routing (strict)" in your rules. Buracle names the skills and MCP servers each prompt calls for and holds a few calls until the right tool has run; when it denies a call, use the tool the denial names.' : strictness === "nudge" ? 'Tool routing is advisory: follow "Tool routing (strict)" in your rules. Buracle names the skills and MCP servers each prompt calls for and adds reminders instead of denying calls.' : 'Tool routing hooks are off; still follow "Tool routing (strict)" in your rules.')
+  ];
+  const mcpHeader = `MCP servers (tools are named ${MCP_SYNTAX[h]}${servers.some((s) => !s.critical) ? `; ${hiddenNote}` : ""}):`;
+  const mcpLines = servers.map((s) => `- ${s.id}${!s.critical ? "*" : ""}: ${firstClause(s.description ?? "", 80)}`);
+  const skillHeader = `Skills (${SKILL_HOWTO[h]}):`;
+  const skillLines = skills.map((s) => {
+    const short = typeof s.short === "string" && s.short.trim() !== "" ? firstClause(s.short, 90) : firstClause(s.description ?? "", 90);
+    return `- ${s.id}: ${short}${s.invocation === "explicit" ? " (on request)" : ""}`;
+  });
+  const pluginLine = plugins.length > 0 ? [`Plugins: ${plugins.join(", ")}`] : [];
+  const lsp = [...new Set((Array.isArray(input.lsp) ? input.lsp : []).filter((x) => typeof x === "string" && x.trim() !== "").map((x) => x.trim()))].sort();
+  if (lsp.length > 0)
+    pluginLine.push(`Language servers (LSP tool: definitions, references, hover, diagnostics): ${lsp.join(", ")}`);
+  const assemble = (mcpBlock, skillBlock) => [...head, ...mcpBlock, ...skillBlock, ...pluginLine];
+  const fullMcp = servers.length > 0 ? [mcpHeader, ...mcpLines] : [];
+  const fullSkills = skills.length > 0 ? [skillHeader, ...skillLines] : [];
+  let lines = assemble(fullMcp, fullSkills);
+  if (lines.length > CAPABILITY_CARD_MAX_LINES && skills.length > 0) {
+    lines = assemble(fullMcp, wrapList(skillHeader, skills.map((s) => s.id)));
+  }
+  if (lines.length > CAPABILITY_CARD_MAX_LINES && servers.length > 0) {
+    const compactMcp = wrapList(`MCP servers (${MCP_SYNTAX[h]}):`, servers.map((s) => s.id));
+    lines = assemble(compactMcp, skills.length > 0 ? wrapList(skillHeader, skills.map((s) => s.id)) : []);
+  }
+  if (lines.length > CAPABILITY_CARD_MAX_LINES) {
+    const kept = lines.slice(0, CAPABILITY_CARD_MAX_LINES - 1);
+    kept.push(`\u2026 ${lines.length - kept.length} more lines omitted (run buracle doctor for the full list)`);
+    lines = kept;
+  }
+  return lines.join(`
+`);
+}
 // src/core/policy/text.ts
 function fold2(s) {
   return s.replace(/[\u0130I\u0131]/g, "i").toLowerCase().normalize("NFD").replace(/[\u0300-\u036F]/g, "").replace(/[\u2019\u2018\u02BC\u00B4`]/g, "'").replace(/\u00DF/g, "ss").replace(/[\u00F8\u0153]/g, "o").replace(/\u00E6/g, "ae").replace(/[^\S\n]+/g, " ").replace(/ *\n[\s]*/g, `
@@ -22295,6 +22227,263 @@ function word2(body) {
   return `(?<![a-z0-9_'-])(?:${body})(?![a-z0-9_'-])`;
 }
 
+// src/core/policy/questions.ts
+function str4(x) {
+  return typeof x === "string" && x.trim() !== "" ? x : undefined;
+}
+function optionsOf(x) {
+  const options = [];
+  const details = [];
+  if (!Array.isArray(x))
+    return { options, details };
+  for (const o of x) {
+    if (typeof o === "string") {
+      options.push(o);
+      continue;
+    }
+    if (o !== null && typeof o === "object") {
+      const rec = o;
+      const label = str4(rec["label"]) ?? str4(rec["value"]) ?? str4(rec["text"]);
+      if (label !== undefined)
+        options.push(label);
+      const d = str4(rec["description"]);
+      if (d !== undefined)
+        details.push(d);
+    }
+  }
+  return { options, details };
+}
+function questionsOf(input) {
+  const out = [];
+  const qs = input["questions"];
+  if (Array.isArray(qs)) {
+    for (const q of qs) {
+      if (typeof q === "string") {
+        out.push({ text: q, options: [], details: [] });
+        continue;
+      }
+      if (q === null || typeof q !== "object")
+        continue;
+      const rec = q;
+      const text = str4(rec["question"]) ?? str4(rec["prompt"]) ?? str4(rec["text"]) ?? str4(rec["header"]) ?? "";
+      const { options, details } = optionsOf(rec["options"]);
+      const header = str4(rec["header"]);
+      out.push({ text, options, details: header !== undefined && header !== text ? [...details, header] : details });
+    }
+    return out;
+  }
+  const text = str4(input["question"]) ?? str4(input["prompt"]) ?? str4(input["message"]) ?? str4(input["text"]);
+  if (text !== undefined) {
+    const { options, details } = optionsOf(input["options"] ?? input["choices"]);
+    out.push({ text, options, details });
+  }
+  return out;
+}
+var ROUTINE_TEXT = new RegExp(word2([
+  "devam (?:ede(?:yim|lim|bilir miyim|bilir miyiz|cek miyim|cek miyiz)|etme(?:mi|li mi(?:yim|yiz))|edilsin|etsem|mi)",
+  "beklemeye devam",
+  "bekle(?:yeyim|yelim|meli mi(?:yim|yiz)|memi|sem)",
+  "surdur(?:eyim|elim)",
+  "ilerle(?:yeyim|yelim)",
+  "gec(?:eyim|elim) mi",
+  "(?:tekrar|sonra|biraz sonra|daha sonra) kontrol (?:edeyim|edelim)",
+  "hala bekle(?:yeyim|yelim)",
+  "(?:should|shall|can|may) (?:i|we) (?:still )?(?:continue|proceed|keep going|keep waiting|wait|go ahead|carry on|move on|resume|check back|check again|keep monitoring|keep polling)",
+  "(?:do|would) you (?:want|like) me to (?:continue|proceed|keep going|keep waiting|wait|go ahead|carry on|move on)",
+  "want me to (?:continue|proceed|keep going|keep waiting)",
+  "(?:ok|okay|alright|fine) (?:if i|to) (?:continue|proceed|keep (?:going|waiting))",
+  "ready (?:for me )?to (?:continue|proceed)",
+  "(?:let me know|tell me) (?:if|when|whether) (?:i should|to) (?:continue|proceed|keep)",
+  "is it (?:ok|okay|fine|alright) (?:if i|to) (?:continue|proceed|keep)"
+].join("|")));
+var BARE_ROUTINE = /^(?:continue|proceed|keep (?:going|waiting)|wait longer|devam(?: edeyim)?|devam mi|beklemeye devam(?: edeyim)?|bekleyeyim mi)\s*\?*$/;
+var ROUTINE_OPTION = /^(?:yes|no|ok|okay|sure|continue|proceed|keep (?:going|waiting)|wait(?: longer| more)?|stop|abort|cancel|pause|check (?:later|again|back)|retry later|later|not now|yes,? (?:continue|proceed|keep (?:going|waiting))|no,? (?:stop|wait)|continue waiting|stop waiting|evet|hayir|tamam|olur|devam(?: et)?|evet,? devam(?: et)?|beklemeye devam(?: et)?|bekle|dur|durdur|iptal|vazgec|sonra|daha sonra|sonra kontrol et|tekrar kontrol et|simdilik dur)$/;
+var MATERIAL = new RegExp(word2([
+  "sil|silin|sileyim|silelim|silinsin|silmek|silme|silinecek|silmemi",
+  "delet[a-z]*",
+  "remov[a-z]*",
+  "kaldir[a-z]*",
+  "drop[a-z]*",
+  "destroy[a-z]*",
+  "wip(?:e|es|ed|ing)",
+  "purg[a-z]*",
+  "eras[a-z]*",
+  "deploy[a-z]*",
+  "publish[a-z]*",
+  "releas[a-z]*",
+  "yayin[a-z]*",
+  "merg[a-z]*",
+  "birlestir[a-z]*",
+  "push[a-z]*",
+  "commit[a-z]*",
+  "credential[a-z]*",
+  "sifre[a-z]*",
+  "parola[a-z]*",
+  "password[a-z]*",
+  "secret[a-z]*",
+  "gizli",
+  "token[a-z]*",
+  "api key",
+  "anahtar[a-z]*",
+  "permission[a-z]*",
+  "izin[a-z]*",
+  "approv[a-z]*",
+  "onay[a-z]*",
+  "cost[a-z]*",
+  "maliyet[a-z]*",
+  "ucret[a-z]*",
+  "fiyat[a-z]*",
+  "pric[a-z]*",
+  "pay",
+  "payment[a-z]*",
+  "odeme[a-z]*",
+  "quota",
+  "kota[a-z]*",
+  "budget",
+  "butce[a-z]*",
+  "billing",
+  "fatura[a-z]*",
+  "credit[a-z]*",
+  "kredi[a-z]*",
+  "deadline",
+  "son tarih",
+  "prod",
+  "production",
+  "canli",
+  "database",
+  "veritaban[a-z]*",
+  "migrat[a-z]*",
+  "fail[a-z]*",
+  "error[a-z]*",
+  "hata[a-z]*",
+  "basarisiz[a-z]*",
+  "broken",
+  "bozul[a-z]*",
+  "manual[a-z]*",
+  "manuel",
+  "elle",
+  "by hand",
+  "your (?:input|decision|choice|call)",
+  "senin (?:karar[a-z]*|tercih[a-z]*|fikr[a-z]*)"
+].join("|")));
+var MONEY = /[$\u20AC\u20BA\u00A3]\s?\d|\d\s?(?:usd|tl|eur|try|dolar)(?![a-z])/;
+var ROUTINE_ALTERNATIVE = /\b(?:or|ya da|veya|yoksa) (?:should i |shall i )?(?:stop|wait|not|abort|cancel|pause|keep waiting|check (?:back )?later|dur(?:ayim|alim)?|bekle(?:yeyim|yelim)?|hayir)\b/g;
+var ALTERNATIVE = /\b(?:or|ya da|veya|yoksa)\b/;
+function cleanLabel(s) {
+  return fold2(s).replace(/\((?:recommended|onerilen|tavsiye edilen)\)/g, "").replace(/[.!?:;"'()[\]]+/g, " ").replace(/\s+/g, " ").trim();
+}
+function isRoutine(q) {
+  const text = fold2(q.text);
+  if (text === "")
+    return false;
+  const all = [text, ...q.options.map(fold2), ...q.details.map(fold2)].join(` 
+ `);
+  MATERIAL.lastIndex = 0;
+  if (MATERIAL.test(all) || MONEY.test(all))
+    return false;
+  ROUTINE_TEXT.lastIndex = 0;
+  if (!ROUTINE_TEXT.test(text) && !BARE_ROUTINE.test(text))
+    return false;
+  if (ALTERNATIVE.test(text.replace(ROUTINE_ALTERNATIVE, " ")))
+    return false;
+  return q.options.every((o) => ROUTINE_OPTION.test(cleanLabel(o)));
+}
+var REASON = 'A routine "should I continue / keep waiting?" question is not allowed while an approved plan runs: keep working and poll long jobs yourself, or for a real decision run `buracle plan pause --kind decision --reason "<question>"` first and then ask.';
+var HELD = "The plan is held for the user, so no keep-waiting question is needed: say where things stand and end the turn; the user resumes the plan.";
+var QUESTION_PAUSE_NOTE = 'Buracle H09: the plan is running, not paused. If the answer to this question may come in a later turn, run `buracle plan pause --kind decision --reason "<question>"` first; after the answer, run `buracle plan resume`.';
+function clip3(s, max) {
+  const t = s.replace(/\s+/g, " ").trim();
+  return t.length <= max ? t : `${t.slice(0, max - 3).trimEnd()}...`;
+}
+function mixedReason(routine) {
+  const named = routine.slice(0, 2).map((q) => `"${clip3(q.text, 80)}"`).join(" and ");
+  return `A routine "should I continue / keep waiting?" question is not allowed while an approved plan runs: drop ${named} and ask the remaining question${routine.length === 1 ? "" : "s"} again.`;
+}
+function guarded(plan) {
+  if (plan === undefined)
+    return false;
+  if (plan.status !== "APPROVED" && plan.status !== "IN_PROGRESS" && plan.status !== "COMPLETE")
+    return false;
+  return plan.phase === "implement" || plan.phase === "verify";
+}
+function checkQuestion(state, call, now) {
+  if (!call || call.kind !== "ask_user")
+    return {};
+  if (!guarded(state?.plan))
+    return {};
+  const input = call.input !== null && typeof call.input === "object" ? call.input : {};
+  const qs = questionsOf(input);
+  if (qs.length === 0)
+    return {};
+  const routine = qs.filter(isRoutine);
+  const i = state.interaction;
+  if (i?.state === "paused") {
+    if (i.kind === "decision" || routine.length === 0)
+      return {};
+    return { deny: routine.length === qs.length ? HELD : mixedReason(routine) };
+  }
+  if (routine.length === qs.length)
+    return { deny: REASON };
+  if (routine.length > 0)
+    return { deny: mixedReason(routine) };
+  return { context: QUESTION_PAUSE_NOTE };
+}
+var CANCELLED = /^(?:(?:the )?user (?:cancel+ed|declined|dismissed|skipped|did not (?:select|answer)|chose to chat)|ask tool was cancel+ed|cancel+ed|dismissed|declined|no answer|\(no answer\))/i;
+function noneAnswered(t) {
+  if (t.startsWith("User has answered your questions:")) {
+    const values = [...t.matchAll(/"="([\s\S]*?)"(?=, "|\. You can now|$)/g)].map((m) => m[1]);
+    return values.length > 0 && values.every((v) => v === "Unanswered");
+  }
+  if (t.startsWith("User answers:")) {
+    const lines = t.split(`
+`).slice(1).filter((l) => l.trim() !== "");
+    return lines.length > 0 && lines.every((l) => /: (?:\(cancelled\)|\[\])$/.test(l.trim()));
+  }
+  return false;
+}
+function hasAnswer(x, depth = 0) {
+  if (depth > 4)
+    return false;
+  if (typeof x === "string")
+    return x.trim() !== "";
+  if (typeof x === "number" || typeof x === "boolean")
+    return true;
+  if (Array.isArray(x))
+    return x.some((v) => hasAnswer(v, depth + 1));
+  if (x !== null && typeof x === "object")
+    return Object.values(x).some((v) => hasAnswer(v, depth + 1));
+  return false;
+}
+function questionAnswered(response, depth = 0) {
+  if (depth > 3)
+    return false;
+  let r = response;
+  if (typeof r === "string") {
+    const t = r.trim();
+    if (t === "")
+      return false;
+    if (!/^[[{]/.test(t))
+      return !CANCELLED.test(t) && !noneAnswered(t);
+    try {
+      r = JSON.parse(t);
+    } catch {
+      return !CANCELLED.test(t);
+    }
+  }
+  if (Array.isArray(r))
+    return r.some((b) => questionAnswered(b !== null && typeof b === "object" && typeof b["text"] === "string" ? b["text"] : b, depth + 1));
+  if (r === null || typeof r !== "object")
+    return false;
+  const rec = r;
+  if ("answers" in rec)
+    return hasAnswer(rec["answers"]);
+  if (rec["accepted"] === true)
+    return false;
+  for (const k of ["content", "output", "text", "answer", "result"])
+    if (rec[k] !== undefined)
+      return questionAnswered(rec[k], depth + 1);
+  return false;
+}
 // src/core/policy/intents.ts
 var GUARD_MARKERS = ["Buracle stop guard:", "Buracle plan check:", "Buracle routing check:"];
 function isGuardContinuation(text) {
@@ -22663,1297 +22852,6 @@ function detectSignals(text) {
   RECALL.lastIndex = 0;
   WRITE.lastIndex = 0;
   return { control: controlOf(t), recall: RECALL.test(t), write: WRITE.test(t) };
-}
-
-// src/core/context-mode-restore.ts
-function cmIsUserPrompt(text) {
-  return isUserText(text) && !/^<(?:context_guidance|tool-result)>/i.test(text.trim());
-}
-var DONE = new Set(["completed", "done", "deleted", "failed", "abandoned", "cancelled"]);
-
-// src/core/context-mode.ts
-var CM_SERVER_ID = "context-mode";
-var CM_TOOLS = ["ctx_execute", "ctx_execute_file", "ctx_batch_execute", "ctx_index", "ctx_search", "ctx_fetch_and_index", "ctx_stats", "ctx_purge"];
-var CM_HIDDEN_TOOLS = ["ctx_upgrade", "ctx_insight", "ctx_doctor"];
-var CM_EXEC_TOOLS = ["ctx_execute", "ctx_execute_file", "ctx_batch_execute"];
-var CM_EXEC_INPUT_KEYS = {
-  ctx_execute: ["language", "code", "timeout", "background", "cwd", "intent"],
-  ctx_execute_file: ["path", "language", "code", "timeout", "intent"],
-  ctx_batch_execute: ["commands", "queries", "timeout", "concurrency", "cwd", "query_scope"]
-};
-var CM_BATCH_COMMAND_KEYS = ["label", "command"];
-function isCmTool(x) {
-  return typeof x === "string" && CM_TOOLS.includes(x);
-}
-function isCmHiddenTool(x) {
-  return typeof x === "string" && CM_HIDDEN_TOOLS.includes(x);
-}
-function isCmExecTool(x) {
-  return typeof x === "string" && CM_EXEC_TOOLS.includes(x);
-}
-var CM_CAPTURE_MAX_CHARS = 2000;
-var CM_EXTRACT_TOOLS = [
-  "Bash",
-  "Read",
-  "Write",
-  "Edit",
-  "NotebookEdit",
-  "Glob",
-  "Grep",
-  "TodoWrite",
-  "TaskCreate",
-  "TaskUpdate",
-  "EnterPlanMode",
-  "ExitPlanMode",
-  "Skill",
-  "Agent",
-  "AskUserQuestion",
-  "EnterWorktree",
-  "WebFetch",
-  "apply_patch"
-];
-var RESPONSE_TOOLS = new Set(["Bash", "Agent", "AskUserQuestion", "ExitPlanMode", "WebFetch"]);
-var SHORT_CHARS = 300;
-var PATH_CHARS = 1000;
-function isRecord(x) {
-  return x !== null && typeof x === "object" && !Array.isArray(x);
-}
-function str4(x) {
-  return typeof x === "string" ? x : undefined;
-}
-function clean(s, max) {
-  return redactClip(s, max).text;
-}
-function field(x, max) {
-  if (typeof x !== "string")
-    return;
-  const t = clean(x, max);
-  return t.trim() === "" ? undefined : t;
-}
-function defined(obj) {
-  const out = {};
-  for (const [k, v] of Object.entries(obj))
-    if (v !== undefined)
-      out[k] = v;
-  return out;
-}
-function json(x) {
-  try {
-    return JSON.stringify(x) ?? "";
-  } catch {
-    return "";
-  }
-}
-function cmPatchHeaders(patch) {
-  return patch.split(/\r?\n/).map((l) => l.trim()).filter((l) => /^\*\*\* (?:Begin Patch|End Patch|Add File:|Update File:|Delete File:|Move to:)/.test(l)).join(`
-`);
-}
-function todos(x) {
-  if (!Array.isArray(x))
-    return [];
-  const out = [];
-  for (const t of x.slice(0, 50)) {
-    if (!isRecord(t))
-      continue;
-    const content = field(t["content"], SHORT_CHARS) ?? field(t["subject"], SHORT_CHARS);
-    if (content === undefined)
-      continue;
-    out.push(defined({ content, status: field(t["status"], 40) ?? "pending", activeForm: field(t["activeForm"], SHORT_CHARS) }));
-  }
-  return out;
-}
-function taskId(x) {
-  return field(typeof x === "number" ? String(x) : x, 40);
-}
-function questions(x) {
-  const list = Array.isArray(x) ? x : [];
-  const out = [];
-  for (const q of list.slice(0, 8)) {
-    const question = isRecord(q) ? field(q["question"], SHORT_CHARS) : field(q, SHORT_CHARS);
-    if (question !== undefined)
-      out.push({ question });
-  }
-  return out;
-}
-function toolInput(tool, raw) {
-  switch (tool) {
-    case "Bash":
-      return defined({ command: field(raw["command"], CM_CAPTURE_MAX_CHARS) });
-    case "Read":
-    case "Write":
-    case "Edit":
-      return defined({ file_path: field(raw["file_path"], PATH_CHARS) });
-    case "NotebookEdit":
-      return defined({ notebook_path: field(raw["notebook_path"], PATH_CHARS) });
-    case "Glob":
-    case "Grep":
-      return defined({ pattern: field(raw["pattern"], SHORT_CHARS), path: field(raw["path"], PATH_CHARS) });
-    case "TodoWrite":
-      return { todos: todos(raw["todos"]) };
-    case "TaskCreate":
-      return defined({ subject: field(raw["subject"], SHORT_CHARS), taskId: taskId(raw["taskId"]) });
-    case "TaskUpdate":
-      return defined({ taskId: taskId(raw["taskId"]), status: field(raw["status"], 40), subject: field(raw["subject"], SHORT_CHARS) });
-    case "ExitPlanMode": {
-      const list = Array.isArray(raw["allowedPrompts"]) ? raw["allowedPrompts"] : [];
-      const prompts = list.slice(0, 10).map((p) => field(isRecord(p) ? p["prompt"] : p, SHORT_CHARS)).filter((p) => p !== undefined);
-      return prompts.length > 0 ? { allowedPrompts: prompts } : {};
-    }
-    case "Skill":
-      return defined({ skill: field(raw["skill"], SHORT_CHARS) });
-    case "Agent":
-      return defined({ prompt: field(raw["prompt"], SHORT_CHARS), subagent_type: field(raw["subagent_type"], 80) });
-    case "AskUserQuestion":
-      return { questions: questions(raw["questions"]) };
-    case "EnterWorktree":
-      return defined({ name: field(raw["name"], SHORT_CHARS) });
-    case "WebFetch":
-      return defined({ url: field(raw["url"], PATH_CHARS) });
-    case "apply_patch": {
-      const patch = str4(raw["command"]);
-      return patch === undefined ? {} : defined({ command: field(cmPatchHeaders(patch), CM_CAPTURE_MAX_CHARS) });
-    }
-    default:
-      return {};
-  }
-}
-function cmPromptEvent(text) {
-  if (typeof text !== "string" || !cmIsUserPrompt(text))
-    return;
-  const t = clean(text.trim(), CM_CAPTURE_MAX_CHARS);
-  return t.trim() === "" ? undefined : { kind: "prompt", text: t };
-}
-function cmToolEvent(tool, input, response, status) {
-  const failed = /^failed:(.+)$/.exec(tool);
-  const base = failed !== null ? failed[1] : tool;
-  const name = base === "MultiEdit" ? "Edit" : base;
-  if (!CM_EXTRACT_TOOLS.includes(name))
-    return;
-  const keep = failed !== null || RESPONSE_TOOLS.has(name);
-  return {
-    kind: "tool",
-    tool: failed !== null ? `failed:${name}` : name,
-    input: failed !== null ? {} : toolInput(name, isRecord(input) ? input : {}),
-    response: keep && typeof response === "string" ? clean(response, CM_CAPTURE_MAX_CHARS) : "",
-    status: failed !== null ? "error" : status
-  };
-}
-function failure(name, input, error) {
-  if (name === "Bash")
-    return cmToolEvent("Bash", input, error, "error");
-  return cmToolEvent(`failed:${name}`, {}, `${name} error: ${error}`, "error");
-}
-function textOf2(x) {
-  if (typeof x === "string")
-    return x;
-  if (Array.isArray(x))
-    return x.map((b) => isRecord(b) && typeof b["text"] === "string" ? b["text"] : "").filter((t) => t !== "").join(`
-`);
-  return "";
-}
-function errorText(x) {
-  if (typeof x === "string")
-    return x;
-  if (isRecord(x) && typeof x["message"] === "string")
-    return x["message"];
-  return x === undefined || x === null ? "" : json(x);
-}
-var OPENCODE_TOOLS2 = {
-  shell: "Bash",
-  bash: "Bash",
-  read: "Read",
-  edit: "Edit",
-  multiedit: "Edit",
-  write: "Write",
-  patch: "apply_patch",
-  apply_patch: "apply_patch",
-  grep: "Grep",
-  glob: "Glob",
-  list: "Glob",
-  webfetch: "WebFetch",
-  subagent: "Agent",
-  task: "Agent",
-  todowrite: "TodoWrite",
-  question: "AskUserQuestion",
-  skill: "Skill"
-};
-function mappedInput(tool, raw) {
-  const file = str4(raw["file_path"]) ?? str4(raw["path"]) ?? str4(raw["filePath"]);
-  switch (tool) {
-    case "Read":
-    case "Write":
-    case "Edit":
-      return { file_path: file };
-    case "Bash":
-      return { command: str4(raw["command"]) ?? str4(raw["cmd"]) };
-    case "Glob":
-      return { pattern: str4(raw["pattern"]) ?? str4(raw["glob"]) ?? file ?? ".", path: str4(raw["path"]) };
-    case "Grep":
-      return { pattern: str4(raw["pattern"]), path: str4(raw["path"]) };
-    case "apply_patch":
-      return { command: str4(raw["patchText"]) ?? str4(raw["patch"]) ?? str4(raw["input"]) };
-    case "Agent": {
-      const batch = Array.isArray(raw["tasks"]) ? raw["tasks"].map((t) => isRecord(t) ? str4(t["task"]) : undefined).filter((t) => t !== undefined) : [];
-      const prompt = str4(raw["prompt"]) ?? str4(raw["task"]) ?? (batch.length > 0 ? [str4(raw["context"]), ...batch].filter((s) => s !== undefined).join(`
-`) : undefined) ?? str4(raw["description"]);
-      return { prompt, subagent_type: str4(raw["subagent_type"]) ?? str4(raw["agent"]) };
-    }
-    case "Skill":
-      return { skill: str4(raw["skill"]) ?? str4(raw["name"]) ?? str4(raw["id"]) };
-    case "WebFetch":
-      return { url: str4(raw["url"]) };
-    case "TodoWrite":
-      return { todos: raw["todos"] };
-    case "AskUserQuestion":
-      return { questions: Array.isArray(raw["questions"]) ? raw["questions"] : [raw["question"]] };
-    default:
-      return {};
-  }
-}
-function answersJson(questionList, answer) {
-  const first = questions(questionList)[0]?.["question"];
-  const a = answer.trim().slice(0, SHORT_CHARS);
-  return json({ answers: typeof first === "string" && a !== "" ? { [first]: a } : {} });
-}
-function opencodeText(result) {
-  if (!isRecord(result))
-    return "";
-  const content = result["content"];
-  if (typeof content === "string")
-    return content;
-  if (Array.isArray(content))
-    return textOf2(content);
-  const output = result["output"];
-  return typeof output === "string" ? output : output === undefined ? "" : json(output);
-}
-function opencodeShellStatus(result) {
-  const r = isRecord(result) ? result : {};
-  const output = isRecord(r["output"]) ? r["output"] : {};
-  const metadata = isRecord(r["metadata"]) ? r["metadata"] : {};
-  const get = (k) => output[k] ?? metadata[k];
-  const exit = get("exit");
-  if (typeof exit === "number" && exit !== 0 || get("timeout") === true || typeof get("signal") === "string")
-    return "error";
-  return exit === 0 ? "ok" : "unknown";
-}
-function cmOpencodeEvent(e) {
-  const tool = OPENCODE_TOOLS2[e.tool];
-  if (tool === undefined)
-    return;
-  const raw = isRecord(e.input) ? e.input : {};
-  const input = mappedInput(tool, raw);
-  if (e.status === "error")
-    return failure(tool, input, errorText(e.error));
-  const text = opencodeText(e.result);
-  const status = tool === "Bash" ? opencodeShellStatus(e.result) : "ok";
-  return cmToolEvent(tool, input, tool === "AskUserQuestion" ? answersJson(input["questions"], text) : text, status);
-}
-function cmCaptureBlocked(s) {
-  if (!s.config.contextMode.enabled)
-    return "contextMode.enabled is false";
-  if (!s.config.contextMode.capture)
-    return "contextMode.capture is false";
-  if (memCaptureOff(s.env))
-    return "BURACLE_NO_CAPTURE=1";
-  return;
-}
-
-// src/core/policy/output-hints.ts
-var LOOPBACK2 = /^(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|::1?|\[::1?\])$/i;
-var QUIET_FLAGS = new Set(["--version", "--help", "--manual", "--offline"]);
-var CURL_SHORT_ARG = new Set(["A", "b", "c", "C", "d", "D", "E", "e", "F", "H", "K", "m", "o", "P", "Q", "r", "T", "t", "U", "u", "w", "X", "x", "Y", "y", "z"]);
-var CURL_LONG_ARG = new Set([
-  "--url",
-  "--output",
-  "--output-dir",
-  "--data",
-  "--data-raw",
-  "--data-binary",
-  "--data-urlencode",
-  "--data-ascii",
-  "--json",
-  "--header",
-  "--proxy-header",
-  "--request",
-  "--user",
-  "--user-agent",
-  "--referer",
-  "--cookie",
-  "--cookie-jar",
-  "--form",
-  "--form-string",
-  "--upload-file",
-  "--write-out",
-  "--max-time",
-  "--connect-timeout",
-  "--proxy",
-  "--proxy-user",
-  "--preproxy",
-  "--noproxy",
-  "--config",
-  "--cert",
-  "--key",
-  "--cacert",
-  "--capath",
-  "--range",
-  "--retry",
-  "--retry-delay",
-  "--retry-max-time",
-  "--resolve",
-  "--connect-to",
-  "--dump-header",
-  "--oauth2-bearer",
-  "--unix-socket",
-  "--abstract-unix-socket",
-  "--interface",
-  "--dns-servers",
-  "--limit-rate",
-  "--max-filesize",
-  "--max-redirs",
-  "--speed-limit",
-  "--speed-time",
-  "--time-cond",
-  "--trace",
-  "--trace-ascii",
-  "--stderr",
-  "--continue-at",
-  "--quote",
-  "--aws-sigv4",
-  "--variable",
-  "--url-query",
-  "--expect100-timeout",
-  "--keepalive-time",
-  "--local-port",
-  "--netrc-file",
-  "--pass",
-  "--cert-type",
-  "--key-type",
-  "--proto",
-  "--proto-redir",
-  "--proto-default",
-  "--socks4",
-  "--socks4a",
-  "--socks5",
-  "--socks5-hostname"
-]);
-var WGET_SHORT_ARG = new Set(["O", "o", "a", "i", "B", "t", "T", "w", "Q", "P", "U", "e", "l", "A", "R", "D", "X", "I"]);
-var WGET_LONG_ARG = new Set([
-  "--output-document",
-  "--output-file",
-  "--append-output",
-  "--input-file",
-  "--base",
-  "--tries",
-  "--timeout",
-  "--wait",
-  "--waitretry",
-  "--quota",
-  "--directory-prefix",
-  "--user-agent",
-  "--execute",
-  "--level",
-  "--accept",
-  "--reject",
-  "--domains",
-  "--exclude-domains",
-  "--exclude-directories",
-  "--include-directories",
-  "--header",
-  "--post-data",
-  "--post-file",
-  "--user",
-  "--password",
-  "--http-user",
-  "--http-password",
-  "--proxy-user",
-  "--proxy-password",
-  "--load-cookies",
-  "--save-cookies",
-  "--referer",
-  "--method",
-  "--body-data",
-  "--body-file",
-  "--limit-rate",
-  "--bind-address",
-  "--dns-timeout",
-  "--connect-timeout",
-  "--read-timeout",
-  "--ca-certificate",
-  "--certificate",
-  "--private-key",
-  "--progress",
-  "--restrict-file-names",
-  "--config"
-]);
-var HTTPIE_SHORT_ARG = new Set(["a", "A", "o", "s", "p", "P"]);
-var HTTPIE_LONG_ARG = new Set([
-  "--auth",
-  "--auth-type",
-  "--output",
-  "--style",
-  "--print",
-  "--history-print",
-  "--session",
-  "--session-read-only",
-  "--verify",
-  "--cert",
-  "--cert-key",
-  "--cert-key-pass",
-  "--proxy",
-  "--timeout",
-  "--max-redirects",
-  "--max-headers",
-  "--pretty",
-  "--format-options",
-  "--boundary",
-  "--raw",
-  "--default-scheme",
-  "--response-charset",
-  "--response-mime",
-  "--ssl",
-  "--ciphers",
-  "--bearer"
-]);
-var BUILDS = new Set(["gradle", "gradlew", "mvn", "mvnw", "sbt"]);
-var BUILD_QUIET = new Set(["-v", "-version", "--version", "-h", "--help", "-?"]);
-function hostOf(word, shorthand) {
-  const w = word.trim();
-  if (shorthand && /^:(?:\d+)?(?:[/?#]|$)/.test(w))
-    return "localhost";
-  const m = /^(?:([a-z][a-z0-9+.-]*):\/\/)?(?:[^/@\s]*@)?(\[[0-9a-f:.]+\]|[a-z0-9_.-]+)(?::\d+)?(?:[/?#]\S*)?$/i.exec(w);
-  if (m === null)
-    return;
-  const host = m[2].toLowerCase();
-  if (m[1] !== undefined)
-    return host;
-  return host === "localhost" || host.startsWith("[") || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host) || /^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/.test(host) ? host : undefined;
-}
-function remote(urls, shorthand = false) {
-  return urls.some((u) => {
-    const h = hostOf(u, shorthand);
-    return h !== undefined && !LOOPBACK2.test(h);
-  });
-}
-function parseArgs(args, shortArg, longArg) {
-  const out = { positional: [], values: new Map, flags: new Set };
-  const put = (k, v) => {
-    if (v !== undefined)
-      out.values.set(k, [...out.values.get(k) ?? [], v]);
-  };
-  for (let k = 0;k < args.length; k++) {
-    const a = args[k];
-    if (a === "--") {
-      out.positional.push(...args.slice(k + 1));
-      break;
-    }
-    if (a.startsWith("--")) {
-      const eq = a.indexOf("=");
-      const name = eq < 0 ? a : a.slice(0, eq);
-      out.flags.add(name);
-      if (eq >= 0)
-        put(name, a.slice(eq + 1));
-      else if (longArg.has(name)) {
-        put(name, args[k + 1]);
-        k++;
-      }
-      continue;
-    }
-    if (a.startsWith("-") && a.length > 1) {
-      for (let j = 1;j < a.length; j++) {
-        const ch = a[j];
-        out.flags.add(ch);
-        if (!shortArg.has(ch))
-          continue;
-        const rest = a.slice(j + 1);
-        if (rest !== "")
-          put(ch, rest);
-        else {
-          put(ch, args[k + 1]);
-          k++;
-        }
-        break;
-      }
-      continue;
-    }
-    out.positional.push(a);
-  }
-  return out;
-}
-var STDOUT = (v) => v === "-" || v === "/dev/stdout";
-function curlKind(args) {
-  const p = parseArgs(args, CURL_SHORT_ARG, CURL_LONG_ARG);
-  if ([...QUIET_FLAGS, "--head", "I", "V", "h", "M"].some((f) => p.flags.has(f)))
-    return;
-  if (p.flags.has("O") || p.flags.has("--remote-name") || p.flags.has("--remote-name-all"))
-    return;
-  if ([...p.values.get("o") ?? [], ...p.values.get("--output") ?? []].some((v) => !STDOUT(v)))
-    return;
-  return remote([...p.positional, ...p.values.get("--url") ?? []]) ? "remote" : undefined;
-}
-function wgetKind(args) {
-  const p = parseArgs(args, WGET_SHORT_ARG, WGET_LONG_ARG);
-  if ([...QUIET_FLAGS, "V", "h"].some((f) => p.flags.has(f)))
-    return;
-  const toStdout = [...p.values.get("O") ?? [], ...p.values.get("--output-document") ?? []].some(STDOUT);
-  return toStdout && remote(p.positional) ? "remote" : undefined;
-}
-function httpieKind(args) {
-  const p = parseArgs(args, HTTPIE_SHORT_ARG, HTTPIE_LONG_ARG);
-  if ([...QUIET_FLAGS, "h", "d", "--download", "--headers"].some((f) => p.flags.has(f)))
-    return;
-  if ([...p.values.get("o") ?? [], ...p.values.get("--output") ?? []].some((v) => !STDOUT(v)))
-    return;
-  const first = p.positional[0];
-  const url = first !== undefined && /^[A-Z]+$/.test(first) ? p.positional[1] : first;
-  return url !== undefined && remote([url], true) ? "remote" : undefined;
-}
-function commandKind(name, args) {
-  if (name === "curl")
-    return curlKind(args);
-  if (name === "wget")
-    return wgetKind(args);
-  if (name === "http" || name === "https" || name === "xh" || name === "xhs")
-    return httpieKind(args);
-  if (BUILDS.has(name))
-    return args.some((a) => BUILD_QUIET.has(a)) ? undefined : "build";
-  return;
-}
-function toFile(redirects) {
-  return redirects.some((r) => [">", ">>", ">|", "&>", "&>>", ">&"].includes(r.op) && r.target !== undefined && !/^(?:\d+|-)$/.test(r.target.text) && !/^\/dev\/(?:null|stdout|stderr|tty|fd\/[0-2])$/.test(r.target.text));
-}
-function scriptKind(script, depth, printed) {
-  for (const pl of script.pipelines) {
-    for (const [i, stage] of pl.stages.entries()) {
-      const shown = printed && i === pl.stages.length - 1 && !toFile(stage.kind === "cmd" ? stage.cmd.redirects : stage.redirects);
-      if (stage.kind === "group") {
-        if (depth < 4) {
-          const k = scriptKind(stage.body, depth + 1, shown);
-          if (k)
-            return k;
-        }
-        continue;
-      }
-      const u = unwrap(stage.cmd.words);
-      if (depth < 4)
-        for (const s of u.scripts) {
-          const k = scriptKind(parseShell(s).script, depth + 1, shown);
-          if (k)
-            return k;
-        }
-      const name = commandName(u.argv[0]);
-      if (!shown || name === undefined)
-        continue;
-      const k = commandKind(name, u.argv.slice(1).map((w) => w.text));
-      if (k)
-        return k;
-    }
-  }
-  return;
-}
-function largeOutputKind(command) {
-  if (typeof command !== "string" || command.trim() === "")
-    return;
-  try {
-    return scriptKind(parseShell(command).script, 0, true);
-  } catch {
-    return;
-  }
-}
-
-// src/core/policy/routing.ts
-function isObj2(x) {
-  return x !== null && typeof x === "object" && !Array.isArray(x);
-}
-function healthEntry(v, nowMs) {
-  if (v === "ok" || v === "down" || v === "unknown")
-    return v;
-  if (typeof v === "boolean")
-    return v ? "ok" : "down";
-  if (!isObj2(v))
-    return;
-  if (typeof v["status"] !== "string")
-    return typeof v["ok"] === "boolean" ? v["ok"] ? "ok" : "down" : undefined;
-  const status = healthEntry(v["status"], nowMs);
-  const until = typeof v["until"] === "string" ? Date.parse(v["until"]) : Number.NaN;
-  return status === "down" && Number.isFinite(until) && until <= nowMs ? "unknown" : status;
-}
-function mcpHealthOf(raw, nowMs) {
-  const out = {};
-  if (!isObj2(raw))
-    return out;
-  const table = isObj2(raw["mcp"]) ? raw["mcp"] : isObj2(raw["servers"]) ? raw["servers"] : raw;
-  for (const [id, v] of Object.entries(table)) {
-    const s = healthEntry(v, nowMs);
-    if (s !== undefined)
-      out[id] = s;
-  }
-  return out;
-}
-function withDisabledServers(health, ids) {
-  const list = Array.isArray(ids) ? ids.filter((id) => typeof id === "string" && id !== "") : [];
-  if (list.length === 0)
-    return health;
-  const out = { ...isObj2(health) ? health : {} };
-  for (const id of list)
-    out[id] = "down";
-  return out;
-}
-function parseRouteRef(ref) {
-  if (typeof ref !== "string")
-    return;
-  const m = /^(mcp|cli|builtin|skill):([^\s/]+)(?:\/(\S+))?$/.exec(ref.trim());
-  if (!m)
-    return;
-  const [, kind, name, tool] = m;
-  if (kind === "mcp")
-    return tool !== undefined ? { kind, server: name, tool } : { kind, server: name };
-  if (tool !== undefined)
-    return;
-  if (kind === "cli")
-    return { kind, name };
-  if (kind === "skill")
-    return { kind, id: name };
-  return { kind: "builtin", tool: name };
-}
-var CLAUDE_PLUGIN_NAME = "buracle";
-function ompPart(s, fallback) {
-  const t = s.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "");
-  return t.length > 0 ? t : fallback;
-}
-function harnessMcpToolName(harness, server, tool) {
-  switch (harness) {
-    case "claude":
-      return `mcp__plugin_${CLAUDE_PLUGIN_NAME}_${mcpServerToken("claude", server)}__${tool.replace(/[^A-Za-z0-9_-]/g, "_")}`;
-    case "codex":
-      return `mcp__${server}__${tool}`.replace(/[^A-Za-z0-9_]/g, "_");
-    case "opencode":
-      return `${mcpServerToken("opencode", server)}_${tool.replace(/[^A-Za-z0-9_-]/g, "_")}`;
-    case "omp": {
-      const s = mcpServerToken("omp", server);
-      let t = ompPart(tool, "tool");
-      if (t.startsWith(`${s}_`) && t.length > s.length + 1)
-        t = t.slice(s.length + 1);
-      return `mcp__${s}_${t}`;
-    }
-  }
-}
-function harnessMcpPattern(harness, server) {
-  switch (harness) {
-    case "claude":
-      return `mcp__plugin_${CLAUDE_PLUGIN_NAME}_${mcpServerToken("claude", server)}__*`;
-    case "codex":
-      return `mcp__${server.replace(/[^A-Za-z0-9_]/g, "_")}__*`;
-    case "opencode":
-      return `${mcpServerToken("opencode", server)}_*`;
-    case "omp":
-      return `mcp__${mcpServerToken("omp", server)}_*`;
-  }
-}
-var HARNESS_LABEL = { claude: "Claude Code", codex: "Codex", opencode: "OpenCode", omp: "Oh My Pi" };
-var SKILL_HOWTO = {
-  claude: "the user starts a workflow with /<id>; you load the others with the Skill tool as buracle:<id>",
-  codex: "the user starts a workflow with $<id>; you load one by reading ~/.agents/skills/<id>/SKILL.md",
-  opencode: "the user starts a workflow with /<id>; you load one with the skill tool",
-  omp: "the user starts a workflow with /<id>; you load one by reading skill://<id>"
-};
-var MCP_SYNTAX = {
-  claude: `mcp__plugin_${CLAUDE_PLUGIN_NAME}_<server>__<tool>`,
-  codex: "mcp__<server>__<tool>, with - written as _",
-  opencode: "<server>_<tool>",
-  omp: "mcp__<server>_<tool>, lower-case with - written as _"
-};
-var HIDDEN_NOTE = {
-  claude: "* = may be deferred: find its tools with tool search before assuming they are missing",
-  codex: "* = may be deferred: find its tools with tool_search before assuming they are missing",
-  opencode: "* = in Code Mode: its tools are not on your tool list; call them from a script run by the execute tool",
-  omp: "* = may be an xd:// device instead of a tool: read xd:// to find it before assuming it is missing"
-};
-var BUILTIN_LABEL = { web_search: "built-in web search", web_fetch: "built-in web fetch" };
-function code4(s) {
-  return "`" + s + "`";
-}
-function choose(cat, kind, health) {
-  const down = [];
-  const refs = [...Array.isArray(cat.prefer) ? cat.prefer : [], ...Array.isArray(cat.fallback) ? cat.fallback : []];
-  for (const raw of refs) {
-    const ref = parseRouteRef(raw);
-    if (!ref)
-      continue;
-    if (ref.kind === "mcp") {
-      if (health[ref.server] === "down") {
-        if (!down.includes(ref.server))
-          down.push(ref.server);
-        continue;
-      }
-      return { ref, down };
-    }
-    if (ref.kind === "builtin" && ref.tool === kind)
-      return { ref, down };
-  }
-  return { down };
-}
-function mcpTools(cat, server, harness) {
-  const names = [];
-  for (const raw of [...Array.isArray(cat.prefer) ? cat.prefer : [], ...Array.isArray(cat.fallback) ? cat.fallback : []]) {
-    const ref = parseRouteRef(raw);
-    if (ref?.kind === "mcp" && ref.server === server && ref.tool !== undefined)
-      names.push(code4(harnessMcpToolName(harness, server, ref.tool)));
-  }
-  return names.slice(0, 2);
-}
-function serverLabel(cat, ref, harness) {
-  const tools = mcpTools(cat, ref.server, harness);
-  if (tools.length === 0)
-    return `the ${code4(ref.server)} MCP server (${code4(harnessMcpPattern(harness, ref.server))})`;
-  return tools.join(" then ");
-}
-function urlOf(call) {
-  const input = call.input !== null && typeof call.input === "object" ? call.input : {};
-  for (const k of ["url", "uri", "path"]) {
-    const v = input[k];
-    if (typeof v === "string" && /^https?:\/\//i.test(v))
-      return v;
-  }
-  return;
-}
-function needsBuiltinSession(call) {
-  const url = urlOf(call);
-  if (url === undefined)
-    return false;
-  const host = /^https?:\/\/([^/?#:]+)/i.exec(url)?.[1]?.toLowerCase() ?? "";
-  return host === "claude.ai" || host.endsWith(".claude.ai");
-}
-function isDocsUrl(url) {
-  const m = /^https?:\/\/([^/?#:]+)(?::\d+)?([^?#]*)/i.exec(typeof url === "string" ? url.trim() : "");
-  if (!m)
-    return false;
-  const host = (m[1] ?? "").toLowerCase().replace(/\.$/, "");
-  const path = (m[2] ?? "").toLowerCase();
-  if (host === "readthedocs.io" || host === "readthedocs.org" || host.endsWith(".readthedocs.io") || host.endsWith(".readthedocs.org"))
-    return true;
-  if (host.startsWith("docs."))
-    return true;
-  if ((host === "www.npmjs.com" || host === "npmjs.com") && path.startsWith("/package/"))
-    return true;
-  if (host === "pypi.org" && path.startsWith("/project/"))
-    return true;
-  if (host === "pkg.go.dev" || host === "docs.rs")
-    return true;
-  return host === "developer.mozilla.org";
-}
-function docsFetchRoute(call, policy, health) {
-  if (call.kind !== "web_fetch")
-    return;
-  const url = urlOf(call);
-  if (url === undefined || !isDocsUrl(url))
-    return;
-  const cat = (Array.isArray(policy.categories) ? policy.categories : []).find((c) => c.id === "library-docs");
-  if (!cat)
-    return;
-  const first = (Array.isArray(cat.prefer) ? cat.prefer : []).map(parseRouteRef).find((r) => r?.kind === "mcp");
-  if (first === undefined || health[first.server] === "down")
-    return;
-  const docs = serverLabel(cat, first, call.harness);
-  const fetchCat = policy.categories.find((c) => Array.isArray(c.deny_builtin) && c.deny_builtin.includes("web_fetch"));
-  const fallback = fetchCat ? choose(fetchCat, "web_fetch", health).ref : undefined;
-  const builtin = BUILTIN_LABEL["web_fetch"];
-  if (policy.strictness === "enforce" && fallback?.kind === "mcp") {
-    return { action: "deny", hook: "H03", reason: `This page is library documentation: call ${docs} for the docs at the installed version instead of the ${builtin}; if context7 does not know the library, fetch the page with ${serverLabel(fetchCat, fallback, call.harness)}.` };
-  }
-  return { action: "allow", context: [`This page is library documentation: ${docs} answers at the installed version; use the ${builtin} only when context7 does not know the library.`] };
-}
-function cmAvailable(policy, health) {
-  if (health?.[CM_SERVER_ID] === "down")
-    return false;
-  return (Array.isArray(policy?.categories) ? policy.categories : []).some((c) => [...Array.isArray(c.prefer) ? c.prefer : [], ...Array.isArray(c.fallback) ? c.fallback : []].some((r) => {
-    const ref = parseRouteRef(r);
-    return ref?.kind === "mcp" && ref.server === CM_SERVER_ID;
-  }));
-}
-function cmTool(harness, tool) {
-  return code4(harnessMcpToolName(harness, CM_SERVER_ID, tool));
-}
-function sandboxHint(call, policy, health) {
-  if (typeof call.command !== "string" || !cmAvailable(policy, health))
-    return;
-  const kind = largeOutputKind(call.command);
-  if (kind === undefined)
-    return;
-  const h = call.harness;
-  return kind === "remote" ? `This prints a remote response into your context. For a page or a long response, call ${cmTool(h, "ctx_fetch_and_index")} and then ${cmTool(h, "ctx_search")}; otherwise filter it here (jq, head) or run it in ${cmTool(h, "ctx_execute")} (language: "shell") and print only what you need.` : `Build output is long: run the build in ${cmTool(h, "ctx_execute")} (language: "shell") or ${cmTool(h, "ctx_batch_execute")} and print only the summary counts and every failure with its message.`;
-}
-function routeTool(call, policy, health) {
-  if (!policy || policy.strictness === "off")
-    return { action: "allow" };
-  if (call.kind === "bash") {
-    const nudge = typeof call.command === "string" ? bashNudge(call.command) : undefined;
-    const hint = sandboxHint(call, policy, health ?? {});
-    const context = [nudge, hint].filter((x) => x !== undefined);
-    return context.length > 0 ? { action: "allow", context } : { action: "allow" };
-  }
-  if (call.kind === "mcp" || call.kind === "eval" || call.kind === "other")
-    return { action: "allow" };
-  if (call.kind === "web_fetch" && needsBuiltinSession(call))
-    return { action: "allow" };
-  const docsRoute = docsFetchRoute(call, policy, health ?? {});
-  if (docsRoute !== undefined)
-    return docsRoute;
-  const cats = (Array.isArray(policy.categories) ? policy.categories : []).filter((c) => Array.isArray(c.deny_builtin) && c.deny_builtin.includes(call.kind));
-  if (cats.length === 0)
-    return { action: "allow" };
-  const builtin = BUILTIN_LABEL[call.kind] ?? `the built-in ${call.kind} tool`;
-  const redirects = [];
-  const nudges = [];
-  const notes = [];
-  let toCm = false;
-  for (const cat of cats) {
-    const choice = choose(cat, call.kind, health ?? {});
-    if (choice.ref?.kind === "mcp") {
-      redirects.push(serverLabel(cat, choice.ref, call.harness));
-      if (choice.ref.server === CM_SERVER_ID)
-        toCm = true;
-      if (typeof cat.nudge === "string" && cat.nudge.trim() !== "")
-        nudges.push(cat.nudge.trim());
-    } else if (choice.down.length > 0) {
-      notes.push(`The ${choice.down.map(code4).join(", ")} MCP server is down, so the ${builtin} is allowed as a fallback; mention the fallback in your report.`);
-    }
-  }
-  if (redirects.length === 0)
-    return notes.length > 0 ? { action: "allow", context: notes } : { action: "allow" };
-  const docs = libraryDocsHint(policy, call, health ?? {});
-  const target = redirects.join(" or ");
-  const longPage = call.kind !== "web_fetch" || !cmAvailable(policy, health ?? {}) ? "" : toCm ? ` It indexes the page instead of returning it: query it with ${cmTool(call.harness, "ctx_search")}.` : ` For a long page you need only parts of, call ${cmTool(call.harness, "ctx_fetch_and_index")} and then ${cmTool(call.harness, "ctx_search")} instead.`;
-  if (policy.strictness === "enforce") {
-    return { action: "deny", hook: "H03", reason: `The ${builtin} is disabled while the preferred MCP server is available: call ${target} instead${docs}.${longPage}` };
-  }
-  return { action: "allow", context: [`Prefer ${target} over the ${builtin}${docs}.${longPage}`, ...nudges] };
-}
-function libraryDocsHint(policy, call, health) {
-  if (call.kind !== "web_search" && call.kind !== "web_fetch")
-    return "";
-  const cat = (Array.isArray(policy.categories) ? policy.categories : []).find((c) => c.id === "library-docs");
-  if (!cat)
-    return "";
-  const choice = choose(cat, "-", health);
-  if (choice.ref?.kind !== "mcp")
-    return "";
-  return ` (for library or framework docs, use ${serverLabel(cat, choice.ref, call.harness)} first)`;
-}
-var GREP_FAMILY = new Set(["grep", "egrep", "fgrep", "ggrep"]);
-function grepIsRecursive(argv) {
-  for (let k = 1;k < argv.length; k++) {
-    const t = argv[k];
-    if (t === "--")
-      break;
-    if (t === "--recursive" || t === "--dereference-recursive" || t === "--directories=recurse")
-      return true;
-    if ((t === "-d" || t === "--directories") && argv[k + 1] === "recurse")
-      return true;
-    if (/^-[A-Za-z]+$/.test(t)) {
-      const letters = t.slice(1);
-      for (let j = 0;j < letters.length; j++) {
-        const ch = letters[j];
-        if (ch === "r" || ch === "R")
-          return true;
-        if ("efmABCdD".includes(ch)) {
-          if (j === letters.length - 1)
-            k++;
-          break;
-        }
-      }
-    }
-  }
-  return false;
-}
-var NUDGE_GREP = 'Search with `rg -n "<pattern>" <dir>` instead of `grep -r` (faster, respects .gitignore); for code by intent use the semble MCP `search`, and for definitions and callers use codegraph.';
-var NUDGE_FIND = 'Search with `rg -n "<pattern>" -g "<glob>"` instead of `find \u2026 | xargs grep` or `find -exec grep`; for code by intent use the semble MCP `search`, and for definitions and callers use codegraph.';
-function scanScript(script, depth) {
-  for (const pl of script.pipelines) {
-    let sawFind = false;
-    for (const stage of pl.stages) {
-      for (const cmd of stageCommands(stage)) {
-        const first = commandName(cmd.words[0]);
-        const u = unwrap(cmd.words);
-        const name = commandName(u.argv[0]);
-        const argv = u.argv.map((w) => w.text);
-        if (name === "rgrep")
-          return NUDGE_GREP;
-        if (name !== undefined && GREP_FAMILY.has(name)) {
-          if (grepIsRecursive(argv))
-            return NUDGE_GREP;
-          if (sawFind && first === "xargs")
-            return NUDGE_FIND;
-        }
-        if (name === "find") {
-          for (let k = 0;k < argv.length; k++) {
-            if (["-exec", "-execdir", "-ok", "-okdir"].includes(argv[k])) {
-              const n = commandName(u.argv[k + 1]);
-              if (n !== undefined && GREP_FAMILY.has(n))
-                return NUDGE_FIND;
-            }
-          }
-          sawFind = true;
-        }
-        if (depth < 4) {
-          for (const s of u.scripts) {
-            const inner = scanScript(parseShell(s).script, depth + 1);
-            if (inner)
-              return inner;
-          }
-        }
-      }
-    }
-  }
-  return;
-}
-function bashNudge(command) {
-  if (typeof command !== "string" || command.trim() === "")
-    return;
-  try {
-    const { script, subs } = parseShell(command);
-    const direct = scanScript(script, 0);
-    if (direct)
-      return direct;
-    for (const s of subs) {
-      const inner = scanScript(parseShell(s).script, 1);
-      if (inner)
-        return inner;
-    }
-  } catch {
-    return;
-  }
-  return;
-}
-var CAPABILITY_CARD_MAX_LINES = 30;
-function firstClause(text, max) {
-  const t = text.replace(/\s+/g, " ").trim();
-  let cut = t;
-  for (const sep of [". ", ": ", "; ", " \u2014 "]) {
-    const at = t.indexOf(sep);
-    if (at >= 20 && at < cut.length)
-      cut = t.slice(0, at);
-  }
-  cut = cut.replace(/[.:;]+$/, "");
-  if (cut.length <= max)
-    return cut;
-  const room = cut.slice(0, max - 1);
-  const space = room.lastIndexOf(" ");
-  return `${(space > max / 2 ? room.slice(0, space) : room).replace(/[,;:\s]+$/, "")}\u2026`;
-}
-function wrapList(prefix, items, width = 110) {
-  const lines = [];
-  let cur = prefix;
-  for (const [i, it] of items.entries()) {
-    const piece = it + (i < items.length - 1 ? "," : "");
-    if (cur.length + 1 + piece.length > width && cur !== prefix) {
-      lines.push(cur);
-      cur = "  " + piece;
-    } else
-      cur = cur === prefix ? `${prefix} ${piece}` : `${cur} ${piece}`;
-  }
-  lines.push(cur);
-  return lines;
-}
-function byId(xs) {
-  const seen = new Set;
-  return [...xs].filter((x) => x && typeof x.id === "string").sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0).filter((x) => seen.has(x.id) ? false : (seen.add(x.id), true));
-}
-function capabilityCard(input) {
-  const h = input.harness;
-  const hiddenNote = HIDDEN_NOTE[h];
-  const servers = byId(Array.isArray(input.mcp) ? input.mcp : []).filter((m) => !Array.isArray(m.harnesses) || m.harnesses.includes(h));
-  const skills = byId(Array.isArray(input.skills) ? input.skills : []);
-  const plugins = [...new Set((Array.isArray(input.plugins) ? input.plugins : []).filter((p) => typeof p === "string" && p.trim() !== "").map((p) => p.trim().split("@")[0]))].sort();
-  const strictness = input.policy?.strictness ?? "enforce";
-  const head = [
-    `Buracle capabilities (${HARNESS_LABEL[h]}). ` + (strictness === "enforce" ? 'Tool routing is enforced: follow "Tool routing (strict)" in your rules. Buracle names the skills and MCP servers each prompt calls for and holds a few calls until the right tool has run; when it denies a call, use the tool the denial names.' : strictness === "nudge" ? 'Tool routing is advisory: follow "Tool routing (strict)" in your rules. Buracle names the skills and MCP servers each prompt calls for and adds reminders instead of denying calls.' : 'Tool routing hooks are off; still follow "Tool routing (strict)" in your rules.')
-  ];
-  const mcpHeader = `MCP servers (tools are named ${MCP_SYNTAX[h]}${servers.some((s) => !s.critical) ? `; ${hiddenNote}` : ""}):`;
-  const mcpLines = servers.map((s) => `- ${s.id}${!s.critical ? "*" : ""}: ${firstClause(s.description ?? "", 80)}`);
-  const skillHeader = `Skills (${SKILL_HOWTO[h]}):`;
-  const skillLines = skills.map((s) => {
-    const short = typeof s.short === "string" && s.short.trim() !== "" ? firstClause(s.short, 90) : firstClause(s.description ?? "", 90);
-    return `- ${s.id}: ${short}${s.invocation === "explicit" ? " (on request)" : ""}`;
-  });
-  const pluginLine = plugins.length > 0 ? [`Plugins: ${plugins.join(", ")}`] : [];
-  const lsp = [...new Set((Array.isArray(input.lsp) ? input.lsp : []).filter((x) => typeof x === "string" && x.trim() !== "").map((x) => x.trim()))].sort();
-  if (lsp.length > 0)
-    pluginLine.push(`Language servers (LSP tool: definitions, references, hover, diagnostics): ${lsp.join(", ")}`);
-  const assemble = (mcpBlock, skillBlock) => [...head, ...mcpBlock, ...skillBlock, ...pluginLine];
-  const fullMcp = servers.length > 0 ? [mcpHeader, ...mcpLines] : [];
-  const fullSkills = skills.length > 0 ? [skillHeader, ...skillLines] : [];
-  let lines = assemble(fullMcp, fullSkills);
-  if (lines.length > CAPABILITY_CARD_MAX_LINES && skills.length > 0) {
-    lines = assemble(fullMcp, wrapList(skillHeader, skills.map((s) => s.id)));
-  }
-  if (lines.length > CAPABILITY_CARD_MAX_LINES && servers.length > 0) {
-    const compactMcp = wrapList(`MCP servers (${MCP_SYNTAX[h]}):`, servers.map((s) => s.id));
-    lines = assemble(compactMcp, skills.length > 0 ? wrapList(skillHeader, skills.map((s) => s.id)) : []);
-  }
-  if (lines.length > CAPABILITY_CARD_MAX_LINES) {
-    const kept = lines.slice(0, CAPABILITY_CARD_MAX_LINES - 1);
-    kept.push(`\u2026 ${lines.length - kept.length} more lines omitted (run buracle doctor for the full list)`);
-    lines = kept;
-  }
-  return lines.join(`
-`);
-}
-// src/core/policy/questions.ts
-function str5(x) {
-  return typeof x === "string" && x.trim() !== "" ? x : undefined;
-}
-function optionsOf(x) {
-  const options = [];
-  const details = [];
-  if (!Array.isArray(x))
-    return { options, details };
-  for (const o of x) {
-    if (typeof o === "string") {
-      options.push(o);
-      continue;
-    }
-    if (o !== null && typeof o === "object") {
-      const rec = o;
-      const label = str5(rec["label"]) ?? str5(rec["value"]) ?? str5(rec["text"]);
-      if (label !== undefined)
-        options.push(label);
-      const d = str5(rec["description"]);
-      if (d !== undefined)
-        details.push(d);
-    }
-  }
-  return { options, details };
-}
-function questionsOf(input) {
-  const out = [];
-  const qs = input["questions"];
-  if (Array.isArray(qs)) {
-    for (const q of qs) {
-      if (typeof q === "string") {
-        out.push({ text: q, options: [], details: [] });
-        continue;
-      }
-      if (q === null || typeof q !== "object")
-        continue;
-      const rec = q;
-      const text = str5(rec["question"]) ?? str5(rec["prompt"]) ?? str5(rec["text"]) ?? str5(rec["header"]) ?? "";
-      const { options, details } = optionsOf(rec["options"]);
-      const header = str5(rec["header"]);
-      out.push({ text, options, details: header !== undefined && header !== text ? [...details, header] : details });
-    }
-    return out;
-  }
-  const text = str5(input["question"]) ?? str5(input["prompt"]) ?? str5(input["message"]) ?? str5(input["text"]);
-  if (text !== undefined) {
-    const { options, details } = optionsOf(input["options"] ?? input["choices"]);
-    out.push({ text, options, details });
-  }
-  return out;
-}
-var ROUTINE_TEXT = new RegExp(word2([
-  "devam (?:ede(?:yim|lim|bilir miyim|bilir miyiz|cek miyim|cek miyiz)|etme(?:mi|li mi(?:yim|yiz))|edilsin|etsem|mi)",
-  "beklemeye devam",
-  "bekle(?:yeyim|yelim|meli mi(?:yim|yiz)|memi|sem)",
-  "surdur(?:eyim|elim)",
-  "ilerle(?:yeyim|yelim)",
-  "gec(?:eyim|elim) mi",
-  "(?:tekrar|sonra|biraz sonra|daha sonra) kontrol (?:edeyim|edelim)",
-  "hala bekle(?:yeyim|yelim)",
-  "(?:should|shall|can|may) (?:i|we) (?:still )?(?:continue|proceed|keep going|keep waiting|wait|go ahead|carry on|move on|resume|check back|check again|keep monitoring|keep polling)",
-  "(?:do|would) you (?:want|like) me to (?:continue|proceed|keep going|keep waiting|wait|go ahead|carry on|move on)",
-  "want me to (?:continue|proceed|keep going|keep waiting)",
-  "(?:ok|okay|alright|fine) (?:if i|to) (?:continue|proceed|keep (?:going|waiting))",
-  "ready (?:for me )?to (?:continue|proceed)",
-  "(?:let me know|tell me) (?:if|when|whether) (?:i should|to) (?:continue|proceed|keep)",
-  "is it (?:ok|okay|fine|alright) (?:if i|to) (?:continue|proceed|keep)"
-].join("|")));
-var BARE_ROUTINE = /^(?:continue|proceed|keep (?:going|waiting)|wait longer|devam(?: edeyim)?|devam mi|beklemeye devam(?: edeyim)?|bekleyeyim mi)\s*\?*$/;
-var ROUTINE_OPTION = /^(?:yes|no|ok|okay|sure|continue|proceed|keep (?:going|waiting)|wait(?: longer| more)?|stop|abort|cancel|pause|check (?:later|again|back)|retry later|later|not now|yes,? (?:continue|proceed|keep (?:going|waiting))|no,? (?:stop|wait)|continue waiting|stop waiting|evet|hayir|tamam|olur|devam(?: et)?|evet,? devam(?: et)?|beklemeye devam(?: et)?|bekle|dur|durdur|iptal|vazgec|sonra|daha sonra|sonra kontrol et|tekrar kontrol et|simdilik dur)$/;
-var MATERIAL = new RegExp(word2([
-  "sil|silin|sileyim|silelim|silinsin|silmek|silme|silinecek|silmemi",
-  "delet[a-z]*",
-  "remov[a-z]*",
-  "kaldir[a-z]*",
-  "drop[a-z]*",
-  "destroy[a-z]*",
-  "wip(?:e|es|ed|ing)",
-  "purg[a-z]*",
-  "eras[a-z]*",
-  "deploy[a-z]*",
-  "publish[a-z]*",
-  "releas[a-z]*",
-  "yayin[a-z]*",
-  "merg[a-z]*",
-  "birlestir[a-z]*",
-  "push[a-z]*",
-  "commit[a-z]*",
-  "credential[a-z]*",
-  "sifre[a-z]*",
-  "parola[a-z]*",
-  "password[a-z]*",
-  "secret[a-z]*",
-  "gizli",
-  "token[a-z]*",
-  "api key",
-  "anahtar[a-z]*",
-  "permission[a-z]*",
-  "izin[a-z]*",
-  "approv[a-z]*",
-  "onay[a-z]*",
-  "cost[a-z]*",
-  "maliyet[a-z]*",
-  "ucret[a-z]*",
-  "fiyat[a-z]*",
-  "pric[a-z]*",
-  "pay",
-  "payment[a-z]*",
-  "odeme[a-z]*",
-  "quota",
-  "kota[a-z]*",
-  "budget",
-  "butce[a-z]*",
-  "billing",
-  "fatura[a-z]*",
-  "credit[a-z]*",
-  "kredi[a-z]*",
-  "deadline",
-  "son tarih",
-  "prod",
-  "production",
-  "canli",
-  "database",
-  "veritaban[a-z]*",
-  "migrat[a-z]*",
-  "fail[a-z]*",
-  "error[a-z]*",
-  "hata[a-z]*",
-  "basarisiz[a-z]*",
-  "broken",
-  "bozul[a-z]*",
-  "manual[a-z]*",
-  "manuel",
-  "elle",
-  "by hand",
-  "your (?:input|decision|choice|call)",
-  "senin (?:karar[a-z]*|tercih[a-z]*|fikr[a-z]*)"
-].join("|")));
-var MONEY = /[$\u20AC\u20BA\u00A3]\s?\d|\d\s?(?:usd|tl|eur|try|dolar)(?![a-z])/;
-var ROUTINE_ALTERNATIVE = /\b(?:or|ya da|veya|yoksa) (?:should i |shall i )?(?:stop|wait|not|abort|cancel|pause|keep waiting|check (?:back )?later|dur(?:ayim|alim)?|bekle(?:yeyim|yelim)?|hayir)\b/g;
-var ALTERNATIVE = /\b(?:or|ya da|veya|yoksa)\b/;
-function cleanLabel(s) {
-  return fold2(s).replace(/\((?:recommended|onerilen|tavsiye edilen)\)/g, "").replace(/[.!?:;"'()[\]]+/g, " ").replace(/\s+/g, " ").trim();
-}
-function isRoutine(q) {
-  const text = fold2(q.text);
-  if (text === "")
-    return false;
-  const all = [text, ...q.options.map(fold2), ...q.details.map(fold2)].join(` 
- `);
-  MATERIAL.lastIndex = 0;
-  if (MATERIAL.test(all) || MONEY.test(all))
-    return false;
-  ROUTINE_TEXT.lastIndex = 0;
-  if (!ROUTINE_TEXT.test(text) && !BARE_ROUTINE.test(text))
-    return false;
-  if (ALTERNATIVE.test(text.replace(ROUTINE_ALTERNATIVE, " ")))
-    return false;
-  return q.options.every((o) => ROUTINE_OPTION.test(cleanLabel(o)));
-}
-var REASON = 'A routine "should I continue / keep waiting?" question is not allowed while an approved plan runs: keep working and poll long jobs yourself, or for a real decision run `buracle plan pause --kind decision --reason "<question>"` first and then ask.';
-var HELD = "The plan is held for the user, so no keep-waiting question is needed: say where things stand and end the turn; the user resumes the plan.";
-var QUESTION_PAUSE_NOTE = 'Buracle H09: the plan is running, not paused. If the answer to this question may come in a later turn, run `buracle plan pause --kind decision --reason "<question>"` first; after the answer, run `buracle plan resume`.';
-function clip3(s, max) {
-  const t = s.replace(/\s+/g, " ").trim();
-  return t.length <= max ? t : `${t.slice(0, max - 3).trimEnd()}...`;
-}
-function mixedReason(routine) {
-  const named = routine.slice(0, 2).map((q) => `"${clip3(q.text, 80)}"`).join(" and ");
-  return `A routine "should I continue / keep waiting?" question is not allowed while an approved plan runs: drop ${named} and ask the remaining question${routine.length === 1 ? "" : "s"} again.`;
-}
-function guarded(plan) {
-  if (plan === undefined)
-    return false;
-  if (plan.status !== "APPROVED" && plan.status !== "IN_PROGRESS" && plan.status !== "COMPLETE")
-    return false;
-  return plan.phase === "implement" || plan.phase === "verify";
-}
-function checkQuestion(state, call, now) {
-  if (!call || call.kind !== "ask_user")
-    return {};
-  if (!guarded(state?.plan))
-    return {};
-  const input = call.input !== null && typeof call.input === "object" ? call.input : {};
-  const qs = questionsOf(input);
-  if (qs.length === 0)
-    return {};
-  const routine = qs.filter(isRoutine);
-  const i = state.interaction;
-  if (i?.state === "paused") {
-    if (i.kind === "decision" || routine.length === 0)
-      return {};
-    return { deny: routine.length === qs.length ? HELD : mixedReason(routine) };
-  }
-  if (routine.length === qs.length)
-    return { deny: REASON };
-  if (routine.length > 0)
-    return { deny: mixedReason(routine) };
-  return { context: QUESTION_PAUSE_NOTE };
-}
-var CANCELLED = /^(?:(?:the )?user (?:cancel+ed|declined|dismissed|skipped|did not (?:select|answer)|chose to chat)|ask tool was cancel+ed|cancel+ed|dismissed|declined|no answer|\(no answer\))/i;
-function noneAnswered(t) {
-  if (t.startsWith("User has answered your questions:")) {
-    const values = [...t.matchAll(/"="([\s\S]*?)"(?=, "|\. You can now|$)/g)].map((m) => m[1]);
-    return values.length > 0 && values.every((v) => v === "Unanswered");
-  }
-  if (t.startsWith("User answers:")) {
-    const lines = t.split(`
-`).slice(1).filter((l) => l.trim() !== "");
-    return lines.length > 0 && lines.every((l) => /: (?:\(cancelled\)|\[\])$/.test(l.trim()));
-  }
-  return false;
-}
-function hasAnswer(x, depth = 0) {
-  if (depth > 4)
-    return false;
-  if (typeof x === "string")
-    return x.trim() !== "";
-  if (typeof x === "number" || typeof x === "boolean")
-    return true;
-  if (Array.isArray(x))
-    return x.some((v) => hasAnswer(v, depth + 1));
-  if (x !== null && typeof x === "object")
-    return Object.values(x).some((v) => hasAnswer(v, depth + 1));
-  return false;
-}
-function questionAnswered(response, depth = 0) {
-  if (depth > 3)
-    return false;
-  let r = response;
-  if (typeof r === "string") {
-    const t = r.trim();
-    if (t === "")
-      return false;
-    if (!/^[[{]/.test(t))
-      return !CANCELLED.test(t) && !noneAnswered(t);
-    try {
-      r = JSON.parse(t);
-    } catch {
-      return !CANCELLED.test(t);
-    }
-  }
-  if (Array.isArray(r))
-    return r.some((b) => questionAnswered(b !== null && typeof b === "object" && typeof b["text"] === "string" ? b["text"] : b, depth + 1));
-  if (r === null || typeof r !== "object")
-    return false;
-  const rec = r;
-  if ("answers" in rec)
-    return hasAnswer(rec["answers"]);
-  if (rec["accepted"] === true)
-    return false;
-  for (const k of ["content", "output", "text", "answer", "result"])
-    if (rec[k] !== undefined)
-      return questionAnswered(rec[k], depth + 1);
-  return false;
 }
 // src/core/policy/review.ts
 var REVIEW_CATEGORIES = {
@@ -24437,7 +23335,7 @@ var FOLDER_DELETE = [
   re2(`^(?:delete|remove)\\s+(?:(?:the|this|that|whole|entire|old)\\s+)*(?:([\\w./~-]+)\\s+)?(?:folder|directory|dir)(?:\\s+([\\w./~-]+))?$`),
   re2(`(?:^|\\s)(?:([\\w./~-]+)\\s+)?(?:klasor|dizin|folder|directory)\\S*\\s+${TR_DELETE}$`)
 ];
-var LITERAL = /^(?:sudo\s+)?(?:git|npm|pnpm|yarn|bun|bunx|npx|cargo|gh|docker|podman|rm|dropdb|prisma|rails|rake|bin\/rails|psql|mysql|mariadb|sqlite3?|duckdb|mongosh|find|xargs|ctx_purge)(?![a-z0-9_-])/u;
+var LITERAL = /^(?:sudo\s+)?(?:git|npm|pnpm|yarn|bun|bunx|npx|cargo|gh|docker|podman|rm|dropdb|prisma|rails|rake|bin\/rails|psql|mysql|mariadb|sqlite3?|duckdb|mongosh|find|xargs)(?![a-z0-9_-])/u;
 var LITERAL_VERB = re2(`^(.*?)(?:\\s+(?:${TR_DO}|${TR_DELETE})|${TR_ALLOW})$`);
 var SUBORDINATE = /(?:^|\s)(?:\S+(?:madan|meden|dikten|dukten|diktan|duktan)|once|before|after|without|until|unless|if|when|while|eger|iken)(?=\s|$)/u;
 function plainCommandLine(literal) {
@@ -24503,6 +23401,637 @@ function readPrompt(text, classify) {
   return { negated, question: QUESTION.test(t), permits: /\bizin\b|\ballowed\b/u.test(t), approves: APPROVAL.test(t), confirms, kinds };
 }
 
+// src/core/policy/consent.ts
+var CONSENT_KINDS = ["force-push", "history-rewrite", "discard-changes", "branch-delete", "skip-hooks", "push", "publish", "db-destroy", "recursive-delete"];
+var GRANT_TTL_MS = 20 * 60000;
+var GRANT_USES = 5;
+var PENDING_TTL_MS = 30 * 60000;
+function emptyConsent() {
+  return { v: 1, grants: [] };
+}
+var SUMMARY = {
+  "force-push": "force-pushes, overwriting history on the remote",
+  "history-rewrite": "rewrites git history (commits can be lost)",
+  "discard-changes": "discards uncommitted work",
+  "branch-delete": "deletes a branch or tag",
+  "skip-hooks": "skips the git hooks (--no-verify)",
+  push: "pushes to a remote",
+  publish: "publishes outside this machine (a package, a release, a merge, an image)",
+  "db-destroy": "destroys database data",
+  "recursive-delete": "deletes a directory tree"
+};
+var CONSENT_LABEL = {
+  "force-push": "force push",
+  "history-rewrite": "rewrite git history",
+  "discard-changes": "discard uncommitted changes",
+  "branch-delete": "delete a branch or tag",
+  "skip-hooks": "skip the git hooks (--no-verify)",
+  push: "push to a remote",
+  publish: "publish outside this machine (a package, a release, a merge, an image)",
+  "db-destroy": "delete database data",
+  "recursive-delete": "delete a folder tree"
+};
+var DISPOSABLE = /^(?:node_modules|dist|build|out|target|coverage|\.next|\.nuxt|\.turbo|\.cache|\.parcel-cache|\.pytest_cache|__pycache__|\.mypy_cache|\.ruff_cache|\.venv|venv|tmp|\.tmp|\.gradle|\.dart_tool|\.svelte-kit|\.vercel|\.output|\.expo|DerivedData|vendor\/bundle)(?:\/.*)?$/u;
+function normalizePath2(p) {
+  const abs = p.startsWith("/");
+  const out = [];
+  for (const seg of p.split("/")) {
+    if (seg === "" || seg === ".")
+      continue;
+    if (seg === "..") {
+      if (out.length > 0 && out[out.length - 1] !== "..")
+        out.pop();
+      else if (!abs)
+        out.push("..");
+      continue;
+    }
+    out.push(seg);
+  }
+  return (abs ? "/" : "") + out.join("/");
+}
+function disposable(target) {
+  const n = normalizePath2(target);
+  return n !== "" && DISPOSABLE.test(n);
+}
+function words(ws) {
+  return ws.map((w) => w.text);
+}
+var GIT_GLOBAL_WITH_ARG2 = new Set(["-c", "-C", "--git-dir", "--work-tree", "--namespace", "--config-env", "--super-prefix", "--attr-source", "--list-cmds"]);
+var GIT_CONFIG_WITH_ARG2 = new Set(["-f", "--file", "--blob", "--type", "--default", "--comment", "--value", "--fixed-value"]);
+function shellWords(text) {
+  const [first] = simpleCommands(parseShell(text).script);
+  return first ? [...first.assigns, ...first.words].map((w) => w.text) : [];
+}
+function gitArgs(rest, shortValue = "", longValue = []) {
+  const g = { longs: [], shorts: new Set, pos: [], after: [], dashdash: false };
+  for (let k = 0;k < rest.length; k++) {
+    const a = rest[k];
+    if (a === "--") {
+      g.dashdash = true;
+      g.after.push(...rest.slice(k + 1));
+      break;
+    }
+    if (a.startsWith("--")) {
+      const name = a.slice(2).split("=")[0];
+      g.longs.push(name);
+      if (!a.includes("=") && longValue.some((l) => abbrev(name, l)))
+        k++;
+      continue;
+    }
+    if (a.length > 1 && a.startsWith("-")) {
+      const letters = a.slice(1);
+      for (let j = 0;j < letters.length; j++) {
+        const c = letters[j];
+        g.shorts.add(c);
+        if (shortValue.includes(c)) {
+          if (j === letters.length - 1)
+            k++;
+          break;
+        }
+      }
+      continue;
+    }
+    g.pos.push(a);
+  }
+  return g;
+}
+function abbrev(name, option, min = 2) {
+  return name.length >= min && option.startsWith(name);
+}
+function hasLong(g, ...options) {
+  return g.longs.some((n) => options.some((o) => abbrev(n, o)));
+}
+function hasShort(g, letters) {
+  return [...letters].some((c) => g.shorts.has(c));
+}
+function looksLikePath2(p) {
+  return p === "." || p === ".." || p.startsWith("./") || p.startsWith("../") || p.startsWith(":") || /[*?[]/u.test(p) || /\.[A-Za-z][A-Za-z0-9]*$/u.test(p);
+}
+function gitConfigNeeds(rest, depth) {
+  const pos = [];
+  for (let k = 0;k < rest.length; k++) {
+    const a = rest[k];
+    if (a === "--") {
+      pos.push(...rest.slice(k + 1));
+      break;
+    }
+    if (a.startsWith("-") && a.length > 1) {
+      if (GIT_CONFIG_WITH_ARG2.has(a))
+        k++;
+      continue;
+    }
+    pos.push(a);
+  }
+  const at = pos[0] === "set" || pos[0] === "add" ? 1 : 0;
+  const key = pos[at];
+  const value = pos[at + 1];
+  if (key === undefined || value === undefined)
+    return [];
+  if (/^core\.hookspath$/iu.test(key))
+    return ["skip-hooks"];
+  if (!/^alias\.[^.]+$/iu.test(key) || depth > 4)
+    return [];
+  const body = value.trim();
+  if (body.startsWith("!"))
+    return consentNeeds(body.slice(1)).map((n) => n.kind);
+  return gitNeeds(shellWords(body), depth + 1);
+}
+function gitNeeds(args, depth = 0) {
+  let i = 0;
+  const globals = [];
+  while (i < args.length) {
+    const a = args[i];
+    if (GIT_GLOBAL_WITH_ARG2.has(a)) {
+      globals.push(a, args[i + 1] ?? "");
+      i += 2;
+      continue;
+    }
+    if (a.startsWith("-")) {
+      globals.push(a);
+      i++;
+      continue;
+    }
+    break;
+  }
+  const out = globals.some((g) => /^(?:--config-env=)?core\.hookspath=/iu.test(g)) ? ["skip-hooks"] : [];
+  const sub = args[i];
+  const rest = args.slice(i + 1);
+  if (sub === "config")
+    return unique([...out, ...gitConfigNeeds(rest, depth)]);
+  const first = gitNeed(sub, rest);
+  return unique([...out, ...first !== undefined ? [first, ...gitAlsoNeeds(sub, rest, first)] : []]);
+}
+function gitAlsoNeeds(sub, rest, first) {
+  if (sub === "push") {
+    if (first === "skip-hooks")
+      return ["push"];
+    const g = gitArgs(rest, "o", ["repo", "receive-pack", "exec", "push-option"]);
+    return g.longs.some((n) => abbrev(n, "no-verify", 4)) ? ["skip-hooks"] : [];
+  }
+  if (sub === "commit" && first === "skip-hooks") {
+    const g = gitArgs(rest, "mFcCt", ["message", "file", "reuse-message", "reedit-message", "fixup", "squash", "author", "date", "template", "cleanup", "trailer", "pathspec-from-file"]);
+    return hasLong(g, "amend") ? ["history-rewrite"] : [];
+  }
+  return [];
+}
+function unique(xs) {
+  return [...new Set(xs)];
+}
+function gitNeed(sub, rest) {
+  switch (sub) {
+    case "push": {
+      const g = gitArgs(rest, "o", ["repo", "receive-pack", "exec", "push-option"]);
+      if (hasShort(g, "n") || hasLong(g, "dry-run"))
+        return;
+      const refs = [...g.pos, ...g.after];
+      if (hasShort(g, "f") || hasLong(g, "force", "force-with-lease", "force-if-includes", "mirror") || refs.some((r) => /^\+./u.test(r)))
+        return "force-push";
+      if (hasShort(g, "d") || hasLong(g, "delete", "prune") || refs.some((r) => /^:[^:]+$/u.test(r)))
+        return "branch-delete";
+      if (g.longs.some((n) => abbrev(n, "no-verify", 4)))
+        return "skip-hooks";
+      return "push";
+    }
+    case "reset": {
+      const g = gitArgs(rest);
+      return hasLong(g, "hard", "merge", "keep") ? "history-rewrite" : undefined;
+    }
+    case "rebase": {
+      const g = gitArgs(rest, "sxX", ["onto", "strategy", "strategy-option", "exec"]);
+      if (hasLong(g, "abort"))
+        return "discard-changes";
+      return hasLong(g, "continue", "skip", "quit", "edit-todo", "show-current-patch") ? undefined : "history-rewrite";
+    }
+    case "cherry-pick":
+    case "revert":
+    case "am":
+      return hasLong(gitArgs(rest), "abort") ? "discard-changes" : undefined;
+    case "commit": {
+      const g = gitArgs(rest, "mFcCt", ["message", "file", "reuse-message", "reedit-message", "fixup", "squash", "author", "date", "template", "cleanup", "trailer", "pathspec-from-file"]);
+      if (hasShort(g, "n") || g.longs.some((n) => abbrev(n, "no-verify", 4)))
+        return "skip-hooks";
+      return hasLong(g, "amend") ? "history-rewrite" : undefined;
+    }
+    case "filter-branch":
+    case "filter-repo":
+      return "history-rewrite";
+    case "update-ref":
+      return gitArgs(rest).shorts.has("d") ? "history-rewrite" : undefined;
+    case "checkout": {
+      const g = gitArgs(rest, "bB", ["orphan", "conflict", "pathspec-from-file"]);
+      if (hasShort(g, "f") || hasLong(g, "force"))
+        return "discard-changes";
+      if (g.dashdash && g.after.length > 0)
+        return "discard-changes";
+      if (hasShort(g, "bB") || hasLong(g, "orphan"))
+        return;
+      if (g.pos.length >= 2)
+        return "discard-changes";
+      return g.pos.length === 1 && looksLikePath2(g.pos[0]) ? "discard-changes" : undefined;
+    }
+    case "switch": {
+      const g = gitArgs(rest, "cC", ["create", "force-create", "orphan", "conflict"]);
+      return hasShort(g, "f") || hasLong(g, "force", "discard-changes") ? "discard-changes" : undefined;
+    }
+    case "restore": {
+      const g = gitArgs(rest, "s", ["source", "pathspec-from-file"]);
+      const staged = hasShort(g, "S") || hasLong(g, "staged");
+      const worktree = hasShort(g, "W") || hasLong(g, "worktree");
+      if (staged && !worktree)
+        return;
+      return g.pos.length > 0 || g.after.length > 0 ? "discard-changes" : undefined;
+    }
+    case "clean": {
+      const g = gitArgs(rest, "e", ["exclude"]);
+      const force = hasShort(g, "f") || hasLong(g, "force");
+      const dry = hasShort(g, "n") || hasLong(g, "dry-run");
+      return force && !dry ? "discard-changes" : undefined;
+    }
+    case "stash":
+      return rest[0] === "drop" || rest[0] === "clear" ? "discard-changes" : undefined;
+    case "branch": {
+      const g = gitArgs(rest, "u", ["set-upstream-to"]);
+      return hasShort(g, "dD") || hasLong(g, "delete") ? "branch-delete" : undefined;
+    }
+    case "tag": {
+      const g = gitArgs(rest, "mFu", ["message", "file", "local-user"]);
+      return hasShort(g, "d") || hasLong(g, "delete") ? "branch-delete" : undefined;
+    }
+    case "merge": {
+      const g = gitArgs(rest, "msX", ["message", "strategy", "strategy-option", "file"]);
+      if (hasLong(g, "abort"))
+        return "discard-changes";
+      return g.longs.some((n) => abbrev(n, "no-verify", 4)) ? "skip-hooks" : undefined;
+    }
+    default:
+      return;
+  }
+}
+var REMOVERS = new Set(["rm", "unlink", "shred", "srm"]);
+function findParts(args) {
+  let k = 0;
+  while (k < args.length) {
+    const t = args[k].text;
+    if (t === "-H" || t === "-L" || t === "-P" || /^-O\d*$/u.test(t)) {
+      k++;
+      continue;
+    }
+    if (t === "-D") {
+      k += 2;
+      continue;
+    }
+    break;
+  }
+  const roots = [];
+  while (k < args.length) {
+    const t = args[k].text;
+    if (t.startsWith("-") || t === "(" || t === "!")
+      break;
+    roots.push(t);
+    k++;
+  }
+  return { roots: roots.length > 0 ? roots : ["."], expr: args.slice(k) };
+}
+function findExecs2(expr) {
+  const out = [];
+  for (let k = 0;k < expr.length; k++) {
+    const t = expr[k].text;
+    if (t !== "-exec" && t !== "-execdir" && t !== "-ok" && t !== "-okdir")
+      continue;
+    const cmd = [];
+    k++;
+    while (k < expr.length && expr[k].text !== ";" && expr[k].text !== "+") {
+      cmd.push(expr[k]);
+      k++;
+    }
+    if (cmd.length > 0)
+      out.push(cmd);
+  }
+  return out;
+}
+function removesFiles(cmd) {
+  const u = unwrap(cmd);
+  const n = commandName(u.argv[0]);
+  if (n !== undefined && REMOVERS.has(n))
+    return true;
+  return u.scripts.some((s) => simpleCommands(parseShell(s).script).some((c) => {
+    const name = commandName(unwrap(c.words).argv[0]);
+    return name !== undefined && REMOVERS.has(name);
+  }));
+}
+function findNeed(args, st) {
+  const { roots, expr } = findParts(args);
+  const execs = findExecs2(expr).filter(removesFiles);
+  if (!expr.some((w) => w.text === "-delete") && execs.length === 0)
+    return;
+  if (!roots.every(disposable))
+    return "recursive-delete";
+  for (const e of execs)
+    st.execs.push(words(unwrap(e).argv).join(" "));
+  return;
+}
+function disposableFeeder(prev) {
+  if (prev === undefined)
+    return false;
+  const name = commandName(prev[0]);
+  if (name === "find")
+    return findParts(prev.slice(1)).roots.every(disposable);
+  if (name === "echo") {
+    const items = words(prev.slice(1)).filter((w) => !/^-[neE]+$/u.test(w));
+    return items.length > 0 && items.every(disposable);
+  }
+  return false;
+}
+function removeNeed(name, argv, st) {
+  const operands = [];
+  let options = true;
+  let recursive = false;
+  for (const a of words(argv.slice(1))) {
+    if (options && a === "--") {
+      options = false;
+      continue;
+    }
+    if (options && a.length > 1 && a.startsWith("-")) {
+      if (/^-[a-zA-Z]*[rR]/u.test(a) || a === "--recursive")
+        recursive = true;
+      continue;
+    }
+    operands.push(a);
+  }
+  if (REMOVERS.has(name) && (operands.length === 0 || operands.some((o) => o.includes("{}")))) {
+    if (!disposableFeeder(st.prev))
+      st.fed = words(argv);
+    return;
+  }
+  if (name !== "rm" || !recursive || operands.length === 0)
+    return;
+  return operands.every(disposable) ? undefined : "recursive-delete";
+}
+var PYTHON = /^(?:python|pypy)(?:\d+(?:\.\d+)*)?$/u;
+function interpreterCode(name, args) {
+  const flagged = (lang, flags) => {
+    const code = [];
+    for (let k = 0;k < args.length; k++) {
+      const a = args[k];
+      const eq = /^(--eval|--print)=(.*)$/su.exec(a);
+      if (eq !== null && lang === "js") {
+        code.push(eq[2]);
+        continue;
+      }
+      if (flags.test(a) && args[k + 1] !== undefined) {
+        code.push(args[k + 1]);
+        k++;
+        continue;
+      }
+      if (lang === "python" && !a.startsWith("-"))
+        break;
+    }
+    return { lang, code };
+  };
+  if (PYTHON.test(name))
+    return flagged("python", /^-[A-Za-z]*c$/u);
+  if (name === "node" || name === "nodejs" || name === "bun")
+    return flagged("js", /^(?:-e|-p|--eval|--print)$/u);
+  if (name === "deno")
+    return args[0] === "eval" ? { lang: "js", code: args.slice(1).filter((a) => !a.startsWith("-")).slice(0, 1) } : undefined;
+  if (name === "ruby")
+    return flagged("ruby", /^-[A-Za-z]*e$/u);
+  if (name === "perl")
+    return flagged("perl", /^-[A-Za-z]*[eE]$/u);
+  if (name === "php")
+    return flagged("php", /^-r$/u);
+  return;
+}
+function codeDeletesTree(code, lang) {
+  if (typeof code !== "string" || code.trim() === "")
+    return false;
+  return scanCode(code, lang).some((op) => op.kind === "delete-tree" && (op.target === undefined || !disposable(op.target)));
+}
+function fedCodeDeletesTree(command) {
+  for (const c of simpleCommands(parseShell(command).script)) {
+    const u = unwrap(c.words);
+    const name = commandName(u.argv[0]);
+    if (name === undefined)
+      continue;
+    const it = interpreterCode(name, words(u.argv.slice(1)));
+    if (it === undefined)
+      continue;
+    for (const r of c.redirects) {
+      const body = r.op === "<<<" ? r.target?.text : r.op === "<<" || r.op === "<<-" ? r.body : undefined;
+      if (body !== undefined && codeDeletesTree(body, it.lang))
+        return true;
+    }
+  }
+  return false;
+}
+var SQL_DESTROY = /\b(?:drop\s+(?:table|database|schema)|truncate\s+(?:table\s+)?[a-z_"`])/iu;
+var DB_CLIENTS = new Set(["psql", "mysql", "mariadb", "sqlite3", "sqlite", "duckdb", "mongosh", "mongo", "clickhouse-client", "cockroach", "sqlcmd"]);
+function commandNeeds(argv, st) {
+  const name = commandName(argv[0]);
+  if (name === "git") {
+    const all = words(argv);
+    const seen = st.execs.indexOf(all.join(" "));
+    if (seen >= 0) {
+      st.execs.splice(seen, 1);
+      return [];
+    }
+    return gitNeeds(all.slice(1));
+  }
+  const kind = commandNeed(argv, st);
+  return kind !== undefined ? [kind] : [];
+}
+function commandNeed(argv, st) {
+  const name = commandName(argv[0]);
+  if (name === undefined)
+    return;
+  const all = words(argv);
+  const seen = st.execs.indexOf(all.join(" "));
+  if (seen >= 0) {
+    st.execs.splice(seen, 1);
+    return;
+  }
+  if (st.fed !== undefined) {
+    const fed = st.fed;
+    if (all.length > fed.length && fed.every((w, i) => all[i] === w)) {
+      st.fed = undefined;
+      return all.slice(fed.length).every(disposable) ? undefined : "recursive-delete";
+    }
+  }
+  const args = all.slice(1);
+  if ((name === "npm" || name === "pnpm" || name === "yarn" || name === "bun") && args.includes("publish") && !args.includes("--dry-run"))
+    return "publish";
+  if (name === "cargo" && args[0] === "publish" && !args.includes("--dry-run"))
+    return "publish";
+  if (name === "gh" && (args[0] === "release" && args[1] === "create" || args[0] === "pr" && args[1] === "merge"))
+    return "publish";
+  if ((name === "docker" || name === "podman") && (args[0] === "push" || args[0] === "image" && args[1] === "push"))
+    return "publish";
+  if (name === "dropdb")
+    return "db-destroy";
+  if ((name === "prisma" || name === "npx" && args[0] === "prisma" || name === "bunx" && args[0] === "prisma") && args.includes("migrate") && args.includes("reset"))
+    return "db-destroy";
+  if ((name === "rails" || name === "rake" || name === "bin/rails") && args.some((a) => /^db:(?:drop|reset|purge|schema:load)$/u.test(a)))
+    return "db-destroy";
+  if (DB_CLIENTS.has(name) && SQL_DESTROY.test(args.join(" ")))
+    return "db-destroy";
+  if (name === "find")
+    return findNeed(argv.slice(1), st);
+  if (REMOVERS.has(name) || name === "rmdir")
+    return removeNeed(name, argv, st);
+  const it = interpreterCode(name, args);
+  if (it !== undefined && it.code.some((code) => codeDeletesTree(code, it.lang)))
+    return "recursive-delete";
+  return;
+}
+function consentNeeded(command, opts) {
+  return consentNeeds(command, opts)[0];
+}
+function consentNeeds(command, opts) {
+  if (typeof command !== "string")
+    return [];
+  const kinds = [];
+  try {
+    const st = { execs: [] };
+    visitShellCommands(command, (argv) => {
+      kinds.push(...commandNeeds(argv, st));
+      st.prev = argv;
+      return false;
+    }, opts !== null && typeof opts === "object" && opts.shell !== undefined ? { shell: opts.shell } : undefined);
+    if (st.fed !== undefined)
+      kinds.push("recursive-delete");
+    if (SQL_DESTROY.test(command) && /\b(?:psql|mysql|mariadb|sqlite3?|duckdb|mongosh|sqlcmd)\b/u.test(command))
+      kinds.push("db-destroy");
+    if (!kinds.includes("recursive-delete") && /<</u.test(command) && fedCodeDeletesTree(command))
+      kinds.push("recursive-delete");
+  } catch {}
+  const shown = command.length > 300 ? `${command.slice(0, 297)}...` : command;
+  return unique(kinds).map((kind) => ({ kind, summary: SUMMARY[kind], command: shown }));
+}
+function fnv1a(s, seed) {
+  let h = seed >>> 0;
+  for (let i = 0;i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h.toString(16).padStart(8, "0");
+}
+function commandTarget(command) {
+  const t = typeof command === "string" ? command.replace(/\s+/gu, " ").trim() : "";
+  return `${fnv1a(t, 2166136261)}${fnv1a(t, 84696351)}:${t.length}`;
+}
+function grantsFromPrompt(text, pending, now) {
+  const r = readPrompt(text, (command) => consentNeeded(command)?.kind);
+  if (r === undefined || r.negated)
+    return [];
+  const out = [];
+  const held = pending !== undefined ? heldKinds(pending) : [];
+  if (pending !== undefined && now - pending.at <= PENDING_TTL_MS && !r.question && (r.approves || held.some((k) => r.confirms.has(k)))) {
+    for (const kind of held)
+      out.push({ kind, until: now + GRANT_TTL_MS, uses: GRANT_USES, source: "prompt", ...pending.targets !== undefined ? { targets: [...pending.targets] } : {} });
+  }
+  if (r.question && !r.permits)
+    return out;
+  for (const kind of CONSENT_KINDS) {
+    if (!r.kinds.has(kind) || out.some((g) => g.kind === kind))
+      continue;
+    out.push({ kind, until: now + GRANT_TTL_MS, uses: GRANT_USES, source: "prompt" });
+  }
+  return out;
+}
+function liveGrants(s, now) {
+  return s.grants.filter((g) => g.until > now && g.uses > 0);
+}
+function covers(g, kind, target) {
+  const kindOk = g.kind === "any" || g.kind === kind || g.kind === "force-push" && kind === "push";
+  return kindOk && (g.targets === undefined || g.targets.includes(target));
+}
+function heldKinds(p) {
+  return Array.isArray(p.kinds) && p.kinds.length > 0 ? p.kinds : [p.kind];
+}
+function consentVerdict(command, s, now, opts) {
+  const needs = consentNeeds(command, opts);
+  const first = needs[0];
+  if (first === undefined)
+    return { allow: true, next: s };
+  const target = commandTarget(command);
+  const grants = liveGrants(s, now);
+  const used = new Set;
+  const missing = [];
+  for (const need of needs) {
+    const idx = grants.findIndex((g) => covers(g, need.kind, target));
+    if (idx >= 0)
+      used.add(idx);
+    else
+      missing.push(need);
+  }
+  const held = missing[0];
+  if (held === undefined) {
+    const next = { v: 1, grants: grants.map((g, i) => used.has(i) ? { ...g, uses: g.uses - 1 } : g).filter((g) => g.uses > 0) };
+    if (s.pending !== undefined)
+      next.pending = s.pending;
+    return { allow: true, next, need: first };
+  }
+  const next = { v: 1, grants, pending: { ...held, at: now, targets: [target], ...missing.length > 1 ? { kinds: missing.map((n) => n.kind) } : {} } };
+  return { allow: false, next, reason: consentReason(missing), need: held };
+}
+function consentReason(needs) {
+  const command = needs[0]?.command ?? "";
+  const shown = command.length > 80 ? `${command.slice(0, 77)}...` : command;
+  const summary = needs.map((n) => n.summary).join(" and ");
+  const label = needs.map((n) => CONSENT_LABEL[n.kind]).join(" and ");
+  return `this command ${summary}, and the user has not allowed that in this session. Ask the user first, in their language, naming the exact command and what it changes (for example: "May I run \`${shown}\`? It will ${label}."), then retry once they say yes. Do not look for another way to do the same thing.`;
+}
+function applyPromptGrants(s, text, now) {
+  const fresh = grantsFromPrompt(text, s.pending, now);
+  const kept = liveGrants(s, now);
+  if (fresh.length === 0 && s.pending === undefined)
+    return kept.length === s.grants.length ? s : { ...s, grants: kept };
+  const replaced = (g) => fresh.some((f) => f.kind === g.kind && (f.targets === undefined || g.targets !== undefined && g.targets.every((t) => f.targets?.includes(t) === true)));
+  return { v: 1, grants: [...kept.filter((g) => !replaced(g)), ...fresh] };
+}
+function addConsentGrants(s, grants, now) {
+  const add = Array.isArray(grants) ? grants : [];
+  const out = { v: 1, grants: [...liveGrants(s, now).filter((g) => !add.some((n) => n.kind === g.kind)), ...add] };
+  if (s.pending !== undefined && !add.some((n) => n.kind === s.pending?.kind))
+    out.pending = s.pending;
+  return out;
+}
+function targetsOf(x) {
+  return Array.isArray(x) && x.every((t) => typeof t === "string") ? [...x] : undefined;
+}
+function parseConsent(raw) {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw))
+    return emptyConsent();
+  const o = raw;
+  const grants = [];
+  for (const g of Array.isArray(o["grants"]) ? o["grants"] : []) {
+    if (g === null || typeof g !== "object")
+      continue;
+    const x = g;
+    if (!(x["kind"] === "any" || CONSENT_KINDS.includes(x["kind"])) || typeof x["until"] !== "number" || typeof x["uses"] !== "number")
+      continue;
+    const targets = targetsOf(x["targets"]);
+    grants.push({ kind: x["kind"], until: x["until"], uses: x["uses"], source: x["source"] === "ask" ? "ask" : "prompt", ...targets !== undefined ? { targets } : {} });
+  }
+  const out = { v: 1, grants };
+  const p = o["pending"];
+  if (p !== null && typeof p === "object" && !Array.isArray(p)) {
+    const x = p;
+    if (CONSENT_KINDS.includes(x["kind"]) && typeof x["at"] === "number" && typeof x["command"] === "string") {
+      const targets = targetsOf(x["targets"]);
+      const kinds = Array.isArray(x["kinds"]) ? x["kinds"].filter((k) => CONSENT_KINDS.includes(k)) : [];
+      out.pending = {
+        kind: x["kind"],
+        summary: typeof x["summary"] === "string" ? x["summary"] : SUMMARY[x["kind"]],
+        command: x["command"],
+        at: x["at"],
+        ...targets !== undefined ? { targets } : {},
+        ...kinds.length > 1 && kinds[0] === x["kind"] ? { kinds: unique(kinds) } : {}
+      };
+    }
+  }
+  return out;
+}
 // src/core/policy/readonly-shell.ts
 var REVIEW_AGENT_TYPE = /^(?:buracle:)?(?:plan-build|changes|goal-build)-review$|^buracle:[a-z0-9-]+-review$/;
 function reviewerShellDenial(agentType, command) {
@@ -25090,1059 +24619,6 @@ function buracleProblem(args) {
     return;
   return `\`buracle ${[command, words[1]].filter((w) => w !== undefined).join(" ")}\` is not one of its read-only commands`;
 }
-
-// src/core/policy/sandbox.ts
-function isObj4(x) {
-  return x !== null && typeof x === "object" && !Array.isArray(x);
-}
-function q3(s) {
-  return "`" + s.replace(/`/g, "'") + "`";
-}
-function clip4(s, max = 60) {
-  return s.length > max ? `${s.slice(0, max - 3)}...` : s;
-}
-var CM_NAME = {
-  claude: /^mcp__(?:plugin_[^_]+_)?context-mode__(ctx_[A-Za-z0-9_]+)$/,
-  codex: /^mcp__context_mode__(ctx_[A-Za-z0-9_]+)$/,
-  opencode: /^context-mode_(ctx_[A-Za-z0-9_]+)$/,
-  omp: /^mcp__context_mode_(ctx_[a-z0-9_]+)$/
-};
-function cmToolOfName(harness, name) {
-  const re = typeof harness === "string" ? CM_NAME[harness] : undefined;
-  if (re === undefined || typeof name !== "string")
-    return;
-  return re.exec(name)?.[1];
-}
-var CM_EXEC_NAME = /(?:^|_)context[-_]mode_{1,2}ctx_(?:execute|execute_file|batch_execute)$/i;
-function looksLikeCmExecTool(name) {
-  return typeof name === "string" && CM_EXEC_NAME.test(name);
-}
-function cmCall(call) {
-  if (call === null || typeof call !== "object")
-    return;
-  const input = isObj4(call.input) ? call.input : {};
-  const m = call.mcp;
-  if (call.kind === "mcp" && isObj4(m) && m.server === CM_SERVER_ID && typeof m.tool === "string" && m.tool !== "")
-    return { tool: m.tool, input };
-  const tool = typeof call.tool === "string" ? cmToolOfName(call.harness, call.tool) : undefined;
-  return tool !== undefined ? { tool, input } : undefined;
-}
-var HIDDEN_REASON = {
-  ctx_upgrade: "context-mode's ctx_upgrade is not used under Buracle: Buracle keeps context-mode current (`buracle update --yes context-mode`, with the user's go-ahead).",
-  ctx_insight: "context-mode's ctx_insight opens context-mode's hosted dashboard; it is not used under Buracle.",
-  ctx_doctor: "context-mode's ctx_doctor checks context-mode's own installs, not the one Buracle runs; run `buracle doctor context-mode` instead."
-};
-function cmToolDenial(call) {
-  const c = cmCall(call);
-  if (c === undefined)
-    return;
-  if (isCmHiddenTool(c.tool))
-    return HIDDEN_REASON[c.tool];
-  if (!isCmTool(c.tool))
-    return `${q3(clip4(c.tool))} is a context-mode tool this Buracle version does not know, so its guards cannot check what it does; do not use it, and run \`buracle doctor context-mode\` (or tell the user).`;
-  return;
-}
-var SHELL_LANGUAGES = new Set(["shell", "bash", "sh", "zsh", "dash", "ksh"]);
-var MAX_BATCH_COMMANDS = 100;
-function batchCommands(v) {
-  let list = v;
-  if (typeof v === "string") {
-    if (v.trim() === "")
-      return { why: "its commands are empty" };
-    try {
-      const parsed = JSON.parse(v);
-      list = Array.isArray(parsed) ? parsed : [v];
-    } catch {
-      list = [v];
-    }
-  }
-  if (!Array.isArray(list))
-    return { why: "its commands are not a list" };
-  if (list.length === 0)
-    return { why: "it names no commands" };
-  if (list.length > MAX_BATCH_COMMANDS)
-    return { why: `it holds more than ${MAX_BATCH_COMMANDS} commands` };
-  const out = [];
-  for (const item of list) {
-    if (typeof item === "string") {
-      out.push(item);
-      continue;
-    }
-    if (isObj4(item) && typeof item["command"] === "string" && Object.keys(item).every((k) => CM_BATCH_COMMAND_KEYS.includes(k))) {
-      out.push(item["command"]);
-      continue;
-    }
-    return { why: "a command is neither text nor a {label, command} entry" };
-  }
-  return out;
-}
-function sandboxOps(call) {
-  try {
-    const c = cmCall(call);
-    if (c === undefined || !isCmExecTool(c.tool))
-      return [];
-    const tool = c.tool;
-    const input = c.input;
-    const unreadable = (why) => [{ kind: "unreadable", tool, why }];
-    const extra = Object.keys(input).find((k) => !CM_EXEC_INPUT_KEYS[tool].includes(k));
-    if (extra !== undefined)
-      return unreadable(`it has the input field ${q3(clip4(extra, 40))}, which this Buracle version does not know`);
-    let cwd;
-    if (input["cwd"] !== undefined) {
-      const v = input["cwd"];
-      if (typeof v !== "string" || v.trim() === "")
-        return unreadable("its `cwd` names no folder");
-      cwd = v;
-    }
-    const at = cwd !== undefined ? { cwd } : {};
-    if (tool === "ctx_batch_execute") {
-      const cmds = batchCommands(input["commands"]);
-      if (!Array.isArray(cmds))
-        return unreadable(cmds.why);
-      return cmds.map((command) => ({ kind: "shell", tool, command, ...at }));
-    }
-    const language = typeof input["language"] === "string" ? input["language"].trim().toLowerCase() : "";
-    const code = input["code"];
-    if (language === "")
-      return unreadable("it names no language");
-    if (typeof code !== "string")
-      return unreadable("its code is not text");
-    const ops = [];
-    if (tool === "ctx_execute_file") {
-      const path = input["path"];
-      if (typeof path !== "string" || path.trim() === "")
-        return unreadable("it names no file");
-      ops.push({ kind: "read", tool, path });
-    }
-    ops.push(SHELL_LANGUAGES.has(language) ? { kind: "shell", tool, command: code, ...at } : { kind: "code", tool, language, code, ...at });
-    return ops;
-  } catch {
-    return [{ kind: "unreadable", tool: "context-mode", why: "the guard failed to read it" }];
-  }
-}
-var APPLY_PATCH_REASON = "context-mode's sandbox would run `apply_patch`, which writes files where the write guard cannot check them; make the change with your own edit or apply_patch tool instead.";
-function absDir(x) {
-  return typeof x === "string" && isAbsPath(x) ? normalizePath(x) : undefined;
-}
-function resolveDir(server, cwd) {
-  const c = cwd.trim();
-  if (isAbsPath(c))
-    return normalizePath(c);
-  if (isWindowsPath(server) && /^[\\/]/.test(c))
-    return normalizePath(`${pathRoot(server).replace(/\/$/, "")}${c}`);
-  return isAbsPath(server) ? normalizePath(`${server}/${c}`) : c;
-}
-function runsApplyPatch(command) {
-  let found = false;
-  visitShellCommands(command, (argv) => {
-    const name = commandName(argv[0]);
-    found = name === "apply_patch" || name === "applypatch" || argv.some((w) => w.text === "--codex-run-as-apply-patch");
-    return found;
-  });
-  return found;
-}
-function credentialDenial(tool, path, server, home) {
-  const why = credentialLocation(path, { cwd: server, home });
-  return why === undefined ? undefined : `${q3(clip4(path, 80))} ${why}, and context-mode keeps what ${tool} reads in its search index; leave it out (ask the user if you need a value from it).`;
-}
-var TYPESCRIPT_LANGUAGES = new Set(["typescript", "ts", "tsx"]);
-var TYPESCRIPT_REASON = `context-mode would run this TypeScript code, and Buracle's guards cannot read past its type annotations; run it as JavaScript instead (language: "javascript", without the type annotations; Bun runs both).`;
-function fileHeader(op, abs) {
-  const json = JSON.stringify(abs);
-  if (op.kind === "shell") {
-    const sq = shellQuote2(abs);
-    return `FILE_CONTENT_PATH=${sq}
-file_path=${sq}
-FILE_CONTENT=$(cat ${sq})
-`;
-  }
-  switch (codeLang(op.language)) {
-    case "js":
-      return `const FILE_CONTENT_PATH = ${json};
-const file_path = FILE_CONTENT_PATH;
-const FILE_CONTENT = require("fs").readFileSync(FILE_CONTENT_PATH, "utf-8");
-`;
-    case "python":
-      return `FILE_CONTENT_PATH = ${json}
-file_path = FILE_CONTENT_PATH
-with open(FILE_CONTENT_PATH, "r", encoding="utf-8") as _f:
-    FILE_CONTENT = _f.read()
-`;
-    case "ruby":
-      return `FILE_CONTENT_PATH = ${json}
-file_path = FILE_CONTENT_PATH
-FILE_CONTENT = File.read(FILE_CONTENT_PATH, encoding: "utf-8")
-`;
-    case "php":
-      return `<?php
-$FILE_CONTENT_PATH = ${json};
-$file_path = $FILE_CONTENT_PATH;
-$FILE_CONTENT = file_get_contents($FILE_CONTENT_PATH);
-`;
-    case "perl":
-      return `my $FILE_CONTENT_PATH = ${json};
-my $file_path = $FILE_CONTENT_PATH;
-open(my $fh, '<:encoding(UTF-8)', $FILE_CONTENT_PATH) or die "Cannot open: $!";
-my $FILE_CONTENT = do { local $/; <$fh> };
-close($fh);
-`;
-    default:
-      return "";
-  }
-}
-var SECRET_EXTENSION = /^\.(?:pem|key|p12|pfx|env|local|prod(?:uction)?|dev(?:elopment)?|stag(?:e|ing)|test(?:ing)?|ci|qa|uat|preview|secrets?)$/i;
-var SECRET_NAMES = [".env", ".env.local", ".env.production", ".envrc", "server.pem", "server.key", "cert.p12", "cert.pfx", "id_rsa", "id_ed25519", "id_ecdsa", "credentials", "credentials.json", "credentials.yml"];
-var ORDINARY_NAMES = ["README.md", "index.ts", "main.py", "notes.txt", "package.json", "config.yaml", "ci.yml", ".eslintrc.json", ".prettierrc"];
-function walkGlob(pattern) {
-  let re = "";
-  for (let i = 0;i < pattern.length; i++) {
-    const ch = pattern[i];
-    if (ch === "*") {
-      if (pattern[i + 1] === "*") {
-        re += ".*";
-        i++;
-      } else
-        re += "[^/]*";
-      continue;
-    }
-    if (ch === "?") {
-      re += "[^/]";
-      continue;
-    }
-    re += "\\^$.|+()[]{}".includes(ch) ? `\\${ch}` : ch;
-  }
-  return new RegExp(`^${re}$`, "i");
-}
-function includesSecrets(glob) {
-  const last = glob.slice(glob.lastIndexOf("/") + 1);
-  if (last === "")
-    return false;
-  const re = walkGlob(last);
-  return SECRET_NAMES.some((n) => re.test(n)) && !ORDINARY_NAMES.some((n) => re.test(n));
-}
-function strings(v) {
-  return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
-}
-function walkWidening(input) {
-  if (input["respectGitignore"] === false)
-    return "with respectGitignore: false would also index what .gitignore leaves out, where secrets such as .env files usually are";
-  if (input["followSymlinks"] === true)
-    return "with followSymlinks: true would follow symbolic links to files the walk otherwise leaves out";
-  const ext = strings(input["extensions"]).find((e) => SECRET_EXTENSION.test(e.startsWith(".") ? e : `.${e}`));
-  if (ext !== undefined)
-    return `with the extension ${q3(clip4(ext, 40))} would index secret files (private keys, certificates or .env files)`;
-  const glob = strings(input["include"]).find(includesSecrets);
-  if (glob !== undefined)
-    return `with the include pattern ${q3(clip4(glob, 60))} would index files named like secrets`;
-  return;
-}
-function judgeSandbox(call, opts) {
-  const c = cmCall(call);
-  if (c === undefined)
-    return {};
-  const denial = cmToolDenial(call);
-  if (denial !== undefined)
-    return { deny: denial, hook: "H01" };
-  const o = isObj4(opts) ? opts : {};
-  const bash = isObj4(o.bash) ? o.bash : { extraDeny: [] };
-  const write = isObj4(o.write) ? o.write : { cwd: "", home: "", vault: "", protect: [] };
-  const session = absDir(bash.cwd) ?? absDir(write.cwd) ?? absDir(call.cwd) ?? "";
-  const home = typeof write.home === "string" && write.home !== "" ? write.home : typeof bash.home === "string" ? bash.home : "";
-  const server = absDir(o.serverDir) ?? session;
-  const pinned = absDir(o.pinnedDir) ?? session;
-  if (c.tool === "ctx_index") {
-    const path = c.input["path"];
-    if (typeof path !== "string" || path.trim() === "")
-      return {};
-    const why = credentialDenial(c.tool, path, server, home);
-    if (why !== undefined)
-      return { deny: why, hook: "H02" };
-    const wide = walkWidening(c.input);
-    return wide === undefined ? {} : { deny: `ctx_index of ${q3(clip4(path, 80))} ${wide}, and context-mode keeps what it reads in its search index; index the folder with the default options, or name the files you need.`, hook: "H02" };
-  }
-  if (!isCmExecTool(c.tool))
-    return {};
-  const fromWrite = {};
-  if (bash.vault === undefined && typeof write.vault === "string" && write.vault !== "")
-    fromWrite.vault = write.vault;
-  if (bash.protect === undefined && Array.isArray(write.protect))
-    fromWrite.protect = write.protect;
-  if (bash.buracleRepo === undefined && typeof write.buracleRepo === "string")
-    fromWrite.buracleRepo = write.buracleRepo;
-  if (bash.realpath === undefined && typeof write.realpath === "function")
-    fromWrite.realpath = write.realpath;
-  const shellOpts = { ...bash, ...fromWrite, ...session !== "" ? { cwd: session } : {} };
-  const writeCtx = session !== "" ? { ...write, cwd: session } : write;
-  const extraDeny = strings(bash.extraDeny);
-  let file;
-  for (const op of sandboxOps(call)) {
-    if (op.kind === "unreadable") {
-      return { deny: `The guard could not read this ${op.tool} call (${op.why}), so it cannot check what would run; pass only the fields context-mode documents (batch commands as text or {label, command}), or run the step in the shell, where the guards see it.`, hook: "H01" };
-    }
-    if (op.kind === "read") {
-      const why = credentialDenial(op.tool, op.path, server, home);
-      if (why !== undefined)
-        return { deny: why, hook: "H02" };
-      const named = extraDenyReason(extraDeny, [op.path]);
-      if (named !== undefined)
-        return { deny: named, hook: "H01" };
-      file = resolveDir(server, op.path);
-      continue;
-    }
-    const dirs = op.tool === "ctx_execute_file" ? [server] : op.cwd !== undefined ? [resolveDir(server, op.cwd)] : [...new Set([pinned, server])];
-    if (op.kind === "shell") {
-      if (runsApplyPatch(op.command))
-        return { deny: APPLY_PATCH_REASON, hook: "H02" };
-      for (const dir of dirs) {
-        const at = (s) => dir !== "" && dir !== session ? withCd(dir, s) : s;
-        if (file !== undefined) {
-          const h = checkBash(at(fileHeader(op, file) + op.command), { ...shellOpts, extraDeny: [] });
-          if (h.deny !== undefined)
-            return { deny: h.deny, hook: "H01" };
-        }
-        const r = checkBash(at(op.command), shellOpts);
-        if (r.deny !== undefined)
-          return { deny: r.deny, hook: "H01" };
-      }
-      continue;
-    }
-    if (codeLang(op.language) === "unknown") {
-      return { deny: `context-mode would run this ${q3(clip4(op.language, 20))} code, which Buracle's guards cannot check; run it as shell, JavaScript or Python instead.`, hook: "H01" };
-    }
-    if (TYPESCRIPT_LANGUAGES.has(op.language))
-      return { deny: TYPESCRIPT_REASON, hook: "H01" };
-    if (scanCode(op.code, codeLang(op.language)).some((s) => s.kind === "shell" && runsApplyPatch(s.command)))
-      return { deny: APPLY_PATCH_REASON, hook: "H02" };
-    for (const dir of dirs) {
-      const at = isAbsPath(dir) ? { execCwd: dir } : {};
-      if (file !== undefined) {
-        const h = checkEval(fileHeader(op, file) + op.code, op.language, writeCtx, at);
-        if (h.deny !== undefined)
-          return { deny: h.deny, hook: h.hook ?? "H01" };
-      }
-      const r = checkEval(op.code, op.language, writeCtx, { ...at, extraDeny });
-      if (r.deny !== undefined)
-        return { deny: r.deny, hook: r.hook ?? "H01" };
-    }
-  }
-  return {};
-}
-function checkSandbox(call, opts) {
-  try {
-    return judgeSandbox(call, opts);
-  } catch {
-    const named = call !== null && typeof call === "object" && typeof call.tool === "string" && looksLikeCmExecTool(call.tool);
-    return named || call?.kind === "mcp" && call.mcp?.server === CM_SERVER_ID ? { deny: "The guard could not check this context-mode call; run the step in the shell, where the guards see it.", hook: "H01" } : {};
-  }
-}
-var CM_PURGE_COMMAND = "ctx_purge";
-function purgeCommand(input) {
-  const confirm = input["confirm"];
-  if (confirm !== true && !(typeof confirm === "string" && confirm.trim().toLowerCase() === "true"))
-    return;
-  const sid = typeof input["sessionId"] === "string" ? input["sessionId"].replace(/[^A-Za-z0-9._:-]/g, "").slice(0, 64) : "";
-  return sid !== "" ? `${CM_PURGE_COMMAND} --session ${sid}` : `${CM_PURGE_COMMAND} --scope project`;
-}
-function sandboxShellCommands(call) {
-  try {
-    const c = cmCall(call);
-    if (c === undefined)
-      return [];
-    if (c.tool === "ctx_purge") {
-      const purge = purgeCommand(c.input);
-      return purge !== undefined ? [purge] : [];
-    }
-    const out = [];
-    for (const op of sandboxOps(call)) {
-      if (op.kind === "shell")
-        out.push(op.command);
-      else if (op.kind === "code") {
-        for (const s of scanCode(op.code, codeLang(op.language)))
-          if (s.kind === "shell")
-            out.push(s.command);
-      }
-    }
-    return out;
-  } catch {
-    return [];
-  }
-}
-function cmReviewerDenial(agentType, call) {
-  if (typeof agentType !== "string" || !REVIEW_AGENT_TYPE.test(agentType))
-    return;
-  const c = cmCall(call);
-  if (c === undefined || c.tool === "ctx_search" || c.tool === "ctx_stats")
-    return;
-  const lead = `Buracle: ${agentType} is a read-only reviewer`;
-  const tail = "Read files with Read, search with rg, and see the change with git diff, log or show and `buracle review-scope --json`; change nothing.";
-  if (!isCmExecTool(c.tool))
-    return `${lead}, and context-mode's ${clip4(c.tool)} changes the index the main session searches. ${tail}`;
-  for (const op of sandboxOps(call)) {
-    if (op.kind === "read")
-      continue;
-    if (op.kind === "shell") {
-      const problem = readOnlyShellProblem(op.command);
-      if (problem !== undefined)
-        return `${lead} and ${problem}. ${tail}`;
-      continue;
-    }
-    if (op.kind === "code")
-      return `${lead}, and context-mode would run ${clip4(op.language, 20)} code that no guard can prove read-only; run read-only shell commands (language: "shell") instead. ${tail}`;
-    return `${lead}, and the guard could not read this ${op.tool} call (${op.why}). ${tail}`;
-  }
-  return;
-}
-
-// src/core/policy/consent.ts
-var CONSENT_KINDS = ["force-push", "history-rewrite", "discard-changes", "branch-delete", "skip-hooks", "push", "publish", "db-destroy", "recursive-delete"];
-var GRANT_TTL_MS = 20 * 60000;
-var GRANT_USES = 5;
-var PENDING_TTL_MS = 30 * 60000;
-function emptyConsent() {
-  return { v: 1, grants: [] };
-}
-var SUMMARY = {
-  "force-push": "force-pushes, overwriting history on the remote",
-  "history-rewrite": "rewrites git history (commits can be lost)",
-  "discard-changes": "discards uncommitted work",
-  "branch-delete": "deletes a branch or tag",
-  "skip-hooks": "skips the git hooks (--no-verify)",
-  push: "pushes to a remote",
-  publish: "publishes outside this machine (a package, a release, a merge, an image)",
-  "db-destroy": "destroys database data",
-  "recursive-delete": "deletes a directory tree"
-};
-var CONSENT_LABEL = {
-  "force-push": "force push",
-  "history-rewrite": "rewrite git history",
-  "discard-changes": "discard uncommitted changes",
-  "branch-delete": "delete a branch or tag",
-  "skip-hooks": "skip the git hooks (--no-verify)",
-  push: "push to a remote",
-  publish: "publish outside this machine (a package, a release, a merge, an image)",
-  "db-destroy": "delete database data",
-  "recursive-delete": "delete a folder tree"
-};
-var DISPOSABLE = /^(?:node_modules|dist|build|out|target|coverage|\.next|\.nuxt|\.turbo|\.cache|\.parcel-cache|\.pytest_cache|__pycache__|\.mypy_cache|\.ruff_cache|\.venv|venv|tmp|\.tmp|\.gradle|\.dart_tool|\.svelte-kit|\.vercel|\.output|\.expo|DerivedData|vendor\/bundle)(?:\/.*)?$/u;
-function normalizePath2(p) {
-  const abs = p.startsWith("/");
-  const out = [];
-  for (const seg of p.split("/")) {
-    if (seg === "" || seg === ".")
-      continue;
-    if (seg === "..") {
-      if (out.length > 0 && out[out.length - 1] !== "..")
-        out.pop();
-      else if (!abs)
-        out.push("..");
-      continue;
-    }
-    out.push(seg);
-  }
-  return (abs ? "/" : "") + out.join("/");
-}
-function disposable(target) {
-  const n = normalizePath2(target);
-  return n !== "" && DISPOSABLE.test(n);
-}
-function words(ws) {
-  return ws.map((w) => w.text);
-}
-var GIT_GLOBAL_WITH_ARG2 = new Set(["-c", "-C", "--git-dir", "--work-tree", "--namespace", "--config-env", "--super-prefix", "--attr-source", "--list-cmds"]);
-var GIT_CONFIG_WITH_ARG2 = new Set(["-f", "--file", "--blob", "--type", "--default", "--comment", "--value", "--fixed-value"]);
-function shellWords(text) {
-  const [first] = simpleCommands(parseShell(text).script);
-  return first ? [...first.assigns, ...first.words].map((w) => w.text) : [];
-}
-function gitArgs(rest, shortValue = "", longValue = []) {
-  const g = { longs: [], shorts: new Set, pos: [], after: [], dashdash: false };
-  for (let k = 0;k < rest.length; k++) {
-    const a = rest[k];
-    if (a === "--") {
-      g.dashdash = true;
-      g.after.push(...rest.slice(k + 1));
-      break;
-    }
-    if (a.startsWith("--")) {
-      const name = a.slice(2).split("=")[0];
-      g.longs.push(name);
-      if (!a.includes("=") && longValue.some((l) => abbrev(name, l)))
-        k++;
-      continue;
-    }
-    if (a.length > 1 && a.startsWith("-")) {
-      const letters = a.slice(1);
-      for (let j = 0;j < letters.length; j++) {
-        const c = letters[j];
-        g.shorts.add(c);
-        if (shortValue.includes(c)) {
-          if (j === letters.length - 1)
-            k++;
-          break;
-        }
-      }
-      continue;
-    }
-    g.pos.push(a);
-  }
-  return g;
-}
-function abbrev(name, option, min = 2) {
-  return name.length >= min && option.startsWith(name);
-}
-function hasLong(g, ...options) {
-  return g.longs.some((n) => options.some((o) => abbrev(n, o)));
-}
-function hasShort(g, letters) {
-  return [...letters].some((c) => g.shorts.has(c));
-}
-function looksLikePath2(p) {
-  return p === "." || p === ".." || p.startsWith("./") || p.startsWith("../") || p.startsWith(":") || /[*?[]/u.test(p) || /\.[A-Za-z][A-Za-z0-9]*$/u.test(p);
-}
-function gitConfigNeeds(rest, depth) {
-  const pos = [];
-  for (let k = 0;k < rest.length; k++) {
-    const a = rest[k];
-    if (a === "--") {
-      pos.push(...rest.slice(k + 1));
-      break;
-    }
-    if (a.startsWith("-") && a.length > 1) {
-      if (GIT_CONFIG_WITH_ARG2.has(a))
-        k++;
-      continue;
-    }
-    pos.push(a);
-  }
-  const at = pos[0] === "set" || pos[0] === "add" ? 1 : 0;
-  const key = pos[at];
-  const value = pos[at + 1];
-  if (key === undefined || value === undefined)
-    return [];
-  if (/^core\.hookspath$/iu.test(key))
-    return ["skip-hooks"];
-  if (!/^alias\.[^.]+$/iu.test(key) || depth > 4)
-    return [];
-  const body = value.trim();
-  if (body.startsWith("!"))
-    return consentNeeds(body.slice(1)).map((n) => n.kind);
-  return gitNeeds(shellWords(body), depth + 1);
-}
-function gitNeeds(args, depth = 0) {
-  let i = 0;
-  const globals = [];
-  while (i < args.length) {
-    const a = args[i];
-    if (GIT_GLOBAL_WITH_ARG2.has(a)) {
-      globals.push(a, args[i + 1] ?? "");
-      i += 2;
-      continue;
-    }
-    if (a.startsWith("-")) {
-      globals.push(a);
-      i++;
-      continue;
-    }
-    break;
-  }
-  const out = globals.some((g) => /^(?:--config-env=)?core\.hookspath=/iu.test(g)) ? ["skip-hooks"] : [];
-  const sub = args[i];
-  const rest = args.slice(i + 1);
-  if (sub === "config")
-    return unique([...out, ...gitConfigNeeds(rest, depth)]);
-  const first = gitNeed(sub, rest);
-  return unique([...out, ...first !== undefined ? [first, ...gitAlsoNeeds(sub, rest, first)] : []]);
-}
-function gitAlsoNeeds(sub, rest, first) {
-  if (sub === "push") {
-    if (first === "skip-hooks")
-      return ["push"];
-    const g = gitArgs(rest, "o", ["repo", "receive-pack", "exec", "push-option"]);
-    return g.longs.some((n) => abbrev(n, "no-verify", 4)) ? ["skip-hooks"] : [];
-  }
-  if (sub === "commit" && first === "skip-hooks") {
-    const g = gitArgs(rest, "mFcCt", ["message", "file", "reuse-message", "reedit-message", "fixup", "squash", "author", "date", "template", "cleanup", "trailer", "pathspec-from-file"]);
-    return hasLong(g, "amend") ? ["history-rewrite"] : [];
-  }
-  return [];
-}
-function unique(xs) {
-  return [...new Set(xs)];
-}
-function gitNeed(sub, rest) {
-  switch (sub) {
-    case "push": {
-      const g = gitArgs(rest, "o", ["repo", "receive-pack", "exec", "push-option"]);
-      if (hasShort(g, "n") || hasLong(g, "dry-run"))
-        return;
-      const refs = [...g.pos, ...g.after];
-      if (hasShort(g, "f") || hasLong(g, "force", "force-with-lease", "force-if-includes", "mirror") || refs.some((r) => /^\+./u.test(r)))
-        return "force-push";
-      if (hasShort(g, "d") || hasLong(g, "delete", "prune") || refs.some((r) => /^:[^:]+$/u.test(r)))
-        return "branch-delete";
-      if (g.longs.some((n) => abbrev(n, "no-verify", 4)))
-        return "skip-hooks";
-      return "push";
-    }
-    case "reset": {
-      const g = gitArgs(rest);
-      return hasLong(g, "hard", "merge", "keep") ? "history-rewrite" : undefined;
-    }
-    case "rebase": {
-      const g = gitArgs(rest, "sxX", ["onto", "strategy", "strategy-option", "exec"]);
-      if (hasLong(g, "abort"))
-        return "discard-changes";
-      return hasLong(g, "continue", "skip", "quit", "edit-todo", "show-current-patch") ? undefined : "history-rewrite";
-    }
-    case "cherry-pick":
-    case "revert":
-    case "am":
-      return hasLong(gitArgs(rest), "abort") ? "discard-changes" : undefined;
-    case "commit": {
-      const g = gitArgs(rest, "mFcCt", ["message", "file", "reuse-message", "reedit-message", "fixup", "squash", "author", "date", "template", "cleanup", "trailer", "pathspec-from-file"]);
-      if (hasShort(g, "n") || g.longs.some((n) => abbrev(n, "no-verify", 4)))
-        return "skip-hooks";
-      return hasLong(g, "amend") ? "history-rewrite" : undefined;
-    }
-    case "filter-branch":
-    case "filter-repo":
-      return "history-rewrite";
-    case "update-ref":
-      return gitArgs(rest).shorts.has("d") ? "history-rewrite" : undefined;
-    case "checkout": {
-      const g = gitArgs(rest, "bB", ["orphan", "conflict", "pathspec-from-file"]);
-      if (hasShort(g, "f") || hasLong(g, "force"))
-        return "discard-changes";
-      if (g.dashdash && g.after.length > 0)
-        return "discard-changes";
-      if (hasShort(g, "bB") || hasLong(g, "orphan"))
-        return;
-      if (g.pos.length >= 2)
-        return "discard-changes";
-      return g.pos.length === 1 && looksLikePath2(g.pos[0]) ? "discard-changes" : undefined;
-    }
-    case "switch": {
-      const g = gitArgs(rest, "cC", ["create", "force-create", "orphan", "conflict"]);
-      return hasShort(g, "f") || hasLong(g, "force", "discard-changes") ? "discard-changes" : undefined;
-    }
-    case "restore": {
-      const g = gitArgs(rest, "s", ["source", "pathspec-from-file"]);
-      const staged = hasShort(g, "S") || hasLong(g, "staged");
-      const worktree = hasShort(g, "W") || hasLong(g, "worktree");
-      if (staged && !worktree)
-        return;
-      return g.pos.length > 0 || g.after.length > 0 ? "discard-changes" : undefined;
-    }
-    case "clean": {
-      const g = gitArgs(rest, "e", ["exclude"]);
-      const force = hasShort(g, "f") || hasLong(g, "force");
-      const dry = hasShort(g, "n") || hasLong(g, "dry-run");
-      return force && !dry ? "discard-changes" : undefined;
-    }
-    case "stash":
-      return rest[0] === "drop" || rest[0] === "clear" ? "discard-changes" : undefined;
-    case "branch": {
-      const g = gitArgs(rest, "u", ["set-upstream-to"]);
-      return hasShort(g, "dD") || hasLong(g, "delete") ? "branch-delete" : undefined;
-    }
-    case "tag": {
-      const g = gitArgs(rest, "mFu", ["message", "file", "local-user"]);
-      return hasShort(g, "d") || hasLong(g, "delete") ? "branch-delete" : undefined;
-    }
-    case "merge": {
-      const g = gitArgs(rest, "msX", ["message", "strategy", "strategy-option", "file"]);
-      if (hasLong(g, "abort"))
-        return "discard-changes";
-      return g.longs.some((n) => abbrev(n, "no-verify", 4)) ? "skip-hooks" : undefined;
-    }
-    default:
-      return;
-  }
-}
-var REMOVERS = new Set(["rm", "unlink", "shred", "srm"]);
-function findParts(args) {
-  let k = 0;
-  while (k < args.length) {
-    const t = args[k].text;
-    if (t === "-H" || t === "-L" || t === "-P" || /^-O\d*$/u.test(t)) {
-      k++;
-      continue;
-    }
-    if (t === "-D") {
-      k += 2;
-      continue;
-    }
-    break;
-  }
-  const roots = [];
-  while (k < args.length) {
-    const t = args[k].text;
-    if (t.startsWith("-") || t === "(" || t === "!")
-      break;
-    roots.push(t);
-    k++;
-  }
-  return { roots: roots.length > 0 ? roots : ["."], expr: args.slice(k) };
-}
-function findExecs2(expr) {
-  const out = [];
-  for (let k = 0;k < expr.length; k++) {
-    const t = expr[k].text;
-    if (t !== "-exec" && t !== "-execdir" && t !== "-ok" && t !== "-okdir")
-      continue;
-    const cmd = [];
-    k++;
-    while (k < expr.length && expr[k].text !== ";" && expr[k].text !== "+") {
-      cmd.push(expr[k]);
-      k++;
-    }
-    if (cmd.length > 0)
-      out.push(cmd);
-  }
-  return out;
-}
-function removesFiles(cmd) {
-  const u = unwrap(cmd);
-  const n = commandName(u.argv[0]);
-  if (n !== undefined && REMOVERS.has(n))
-    return true;
-  return u.scripts.some((s) => simpleCommands(parseShell(s).script).some((c) => {
-    const name = commandName(unwrap(c.words).argv[0]);
-    return name !== undefined && REMOVERS.has(name);
-  }));
-}
-function findNeed(args, st) {
-  const { roots, expr } = findParts(args);
-  const execs = findExecs2(expr).filter(removesFiles);
-  if (!expr.some((w) => w.text === "-delete") && execs.length === 0)
-    return;
-  if (!roots.every(disposable))
-    return "recursive-delete";
-  for (const e of execs)
-    st.execs.push(words(unwrap(e).argv).join(" "));
-  return;
-}
-function disposableFeeder(prev) {
-  if (prev === undefined)
-    return false;
-  const name = commandName(prev[0]);
-  if (name === "find")
-    return findParts(prev.slice(1)).roots.every(disposable);
-  if (name === "echo") {
-    const items = words(prev.slice(1)).filter((w) => !/^-[neE]+$/u.test(w));
-    return items.length > 0 && items.every(disposable);
-  }
-  return false;
-}
-function removeNeed(name, argv, st) {
-  const operands = [];
-  let options = true;
-  let recursive = false;
-  for (const a of words(argv.slice(1))) {
-    if (options && a === "--") {
-      options = false;
-      continue;
-    }
-    if (options && a.length > 1 && a.startsWith("-")) {
-      if (/^-[a-zA-Z]*[rR]/u.test(a) || a === "--recursive")
-        recursive = true;
-      continue;
-    }
-    operands.push(a);
-  }
-  if (REMOVERS.has(name) && (operands.length === 0 || operands.some((o) => o.includes("{}")))) {
-    if (!disposableFeeder(st.prev))
-      st.fed = words(argv);
-    return;
-  }
-  if (name !== "rm" || !recursive || operands.length === 0)
-    return;
-  return operands.every(disposable) ? undefined : "recursive-delete";
-}
-var PYTHON = /^(?:python|pypy)(?:\d+(?:\.\d+)*)?$/u;
-function interpreterCode(name, args) {
-  const flagged = (lang, flags) => {
-    const code = [];
-    for (let k = 0;k < args.length; k++) {
-      const a = args[k];
-      const eq = /^(--eval|--print)=(.*)$/su.exec(a);
-      if (eq !== null && lang === "js") {
-        code.push(eq[2]);
-        continue;
-      }
-      if (flags.test(a) && args[k + 1] !== undefined) {
-        code.push(args[k + 1]);
-        k++;
-        continue;
-      }
-      if (lang === "python" && !a.startsWith("-"))
-        break;
-    }
-    return { lang, code };
-  };
-  if (PYTHON.test(name))
-    return flagged("python", /^-[A-Za-z]*c$/u);
-  if (name === "node" || name === "nodejs" || name === "bun")
-    return flagged("js", /^(?:-e|-p|--eval|--print)$/u);
-  if (name === "deno")
-    return args[0] === "eval" ? { lang: "js", code: args.slice(1).filter((a) => !a.startsWith("-")).slice(0, 1) } : undefined;
-  if (name === "ruby")
-    return flagged("ruby", /^-[A-Za-z]*e$/u);
-  if (name === "perl")
-    return flagged("perl", /^-[A-Za-z]*[eE]$/u);
-  if (name === "php")
-    return flagged("php", /^-r$/u);
-  return;
-}
-function codeDeletesTree(code, lang) {
-  if (typeof code !== "string" || code.trim() === "")
-    return false;
-  return scanCode(code, lang).some((op) => op.kind === "delete-tree" && (op.target === undefined || !disposable(op.target)));
-}
-function fedCodeDeletesTree(command) {
-  for (const c of simpleCommands(parseShell(command).script)) {
-    const u = unwrap(c.words);
-    const name = commandName(u.argv[0]);
-    if (name === undefined)
-      continue;
-    const it = interpreterCode(name, words(u.argv.slice(1)));
-    if (it === undefined)
-      continue;
-    for (const r of c.redirects) {
-      const body = r.op === "<<<" ? r.target?.text : r.op === "<<" || r.op === "<<-" ? r.body : undefined;
-      if (body !== undefined && codeDeletesTree(body, it.lang))
-        return true;
-    }
-  }
-  return false;
-}
-var SQL_DESTROY = /\b(?:drop\s+(?:table|database|schema)|truncate\s+(?:table\s+)?[a-z_"`])/iu;
-var DB_CLIENTS = new Set(["psql", "mysql", "mariadb", "sqlite3", "sqlite", "duckdb", "mongosh", "mongo", "clickhouse-client", "cockroach", "sqlcmd"]);
-function commandNeeds(argv, st) {
-  const name = commandName(argv[0]);
-  if (name === "git") {
-    const all = words(argv);
-    const seen = st.execs.indexOf(all.join(" "));
-    if (seen >= 0) {
-      st.execs.splice(seen, 1);
-      return [];
-    }
-    return gitNeeds(all.slice(1));
-  }
-  const kind = commandNeed(argv, st);
-  return kind !== undefined ? [kind] : [];
-}
-function commandNeed(argv, st) {
-  const name = commandName(argv[0]);
-  if (name === undefined)
-    return;
-  const all = words(argv);
-  const seen = st.execs.indexOf(all.join(" "));
-  if (seen >= 0) {
-    st.execs.splice(seen, 1);
-    return;
-  }
-  if (st.fed !== undefined) {
-    const fed = st.fed;
-    if (all.length > fed.length && fed.every((w, i) => all[i] === w)) {
-      st.fed = undefined;
-      return all.slice(fed.length).every(disposable) ? undefined : "recursive-delete";
-    }
-  }
-  const args = all.slice(1);
-  if ((name === "npm" || name === "pnpm" || name === "yarn" || name === "bun") && args.includes("publish") && !args.includes("--dry-run"))
-    return "publish";
-  if (name === "cargo" && args[0] === "publish" && !args.includes("--dry-run"))
-    return "publish";
-  if (name === "gh" && (args[0] === "release" && args[1] === "create" || args[0] === "pr" && args[1] === "merge"))
-    return "publish";
-  if ((name === "docker" || name === "podman") && (args[0] === "push" || args[0] === "image" && args[1] === "push"))
-    return "publish";
-  if (name === "dropdb" || name === CM_PURGE_COMMAND)
-    return "db-destroy";
-  if ((name === "prisma" || name === "npx" && args[0] === "prisma" || name === "bunx" && args[0] === "prisma") && args.includes("migrate") && args.includes("reset"))
-    return "db-destroy";
-  if ((name === "rails" || name === "rake" || name === "bin/rails") && args.some((a) => /^db:(?:drop|reset|purge|schema:load)$/u.test(a)))
-    return "db-destroy";
-  if (DB_CLIENTS.has(name) && SQL_DESTROY.test(args.join(" ")))
-    return "db-destroy";
-  if (name === "find")
-    return findNeed(argv.slice(1), st);
-  if (REMOVERS.has(name) || name === "rmdir")
-    return removeNeed(name, argv, st);
-  const it = interpreterCode(name, args);
-  if (it !== undefined && it.code.some((code) => codeDeletesTree(code, it.lang)))
-    return "recursive-delete";
-  return;
-}
-function consentNeeded(command, opts) {
-  return consentNeeds(command, opts)[0];
-}
-function consentNeeds(command, opts) {
-  if (typeof command !== "string")
-    return [];
-  const kinds = [];
-  try {
-    const st = { execs: [] };
-    visitShellCommands(command, (argv) => {
-      kinds.push(...commandNeeds(argv, st));
-      st.prev = argv;
-      return false;
-    }, opts !== null && typeof opts === "object" && opts.shell !== undefined ? { shell: opts.shell } : undefined);
-    if (st.fed !== undefined)
-      kinds.push("recursive-delete");
-    if (SQL_DESTROY.test(command) && /\b(?:psql|mysql|mariadb|sqlite3?|duckdb|mongosh|sqlcmd)\b/u.test(command))
-      kinds.push("db-destroy");
-    if (!kinds.includes("recursive-delete") && /<</u.test(command) && fedCodeDeletesTree(command))
-      kinds.push("recursive-delete");
-  } catch {}
-  const shown = command.length > 300 ? `${command.slice(0, 297)}...` : command;
-  return unique(kinds).map((kind) => ({ kind, summary: SUMMARY[kind], command: shown }));
-}
-function fnv1a(s, seed) {
-  let h = seed >>> 0;
-  for (let i = 0;i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619) >>> 0;
-  }
-  return h.toString(16).padStart(8, "0");
-}
-function commandTarget(command) {
-  const t = typeof command === "string" ? command.replace(/\s+/gu, " ").trim() : "";
-  return `${fnv1a(t, 2166136261)}${fnv1a(t, 84696351)}:${t.length}`;
-}
-function grantsFromPrompt(text, pending, now) {
-  const r = readPrompt(text, (command) => consentNeeded(command)?.kind);
-  if (r === undefined || r.negated)
-    return [];
-  const out = [];
-  const held = pending !== undefined ? heldKinds(pending) : [];
-  if (pending !== undefined && now - pending.at <= PENDING_TTL_MS && !r.question && (r.approves || held.some((k) => r.confirms.has(k)))) {
-    for (const kind of held)
-      out.push({ kind, until: now + GRANT_TTL_MS, uses: GRANT_USES, source: "prompt", ...pending.targets !== undefined ? { targets: [...pending.targets] } : {} });
-  }
-  if (r.question && !r.permits)
-    return out;
-  for (const kind of CONSENT_KINDS) {
-    if (!r.kinds.has(kind) || out.some((g) => g.kind === kind))
-      continue;
-    out.push({ kind, until: now + GRANT_TTL_MS, uses: GRANT_USES, source: "prompt" });
-  }
-  return out;
-}
-function liveGrants(s, now) {
-  return s.grants.filter((g) => g.until > now && g.uses > 0);
-}
-function covers(g, kind, target) {
-  const kindOk = g.kind === "any" || g.kind === kind || g.kind === "force-push" && kind === "push";
-  return kindOk && (g.targets === undefined || g.targets.includes(target));
-}
-function heldKinds(p) {
-  return Array.isArray(p.kinds) && p.kinds.length > 0 ? p.kinds : [p.kind];
-}
-function consentVerdict(command, s, now, opts) {
-  const needs = consentNeeds(command, opts);
-  const first = needs[0];
-  if (first === undefined)
-    return { allow: true, next: s };
-  const target = commandTarget(command);
-  const grants = liveGrants(s, now);
-  const used = new Set;
-  const missing = [];
-  for (const need of needs) {
-    const idx = grants.findIndex((g) => covers(g, need.kind, target));
-    if (idx >= 0)
-      used.add(idx);
-    else
-      missing.push(need);
-  }
-  const held = missing[0];
-  if (held === undefined) {
-    const next = { v: 1, grants: grants.map((g, i) => used.has(i) ? { ...g, uses: g.uses - 1 } : g).filter((g) => g.uses > 0) };
-    if (s.pending !== undefined)
-      next.pending = s.pending;
-    return { allow: true, next, need: first };
-  }
-  const next = { v: 1, grants, pending: { ...held, at: now, targets: [target], ...missing.length > 1 ? { kinds: missing.map((n) => n.kind) } : {} } };
-  return { allow: false, next, reason: consentReason(missing), need: held };
-}
-function consentReason(needs) {
-  const command = needs[0]?.command ?? "";
-  const shown = command.length > 80 ? `${command.slice(0, 77)}...` : command;
-  const summary = needs.map((n) => n.summary).join(" and ");
-  const label = needs.map((n) => CONSENT_LABEL[n.kind]).join(" and ");
-  return `this command ${summary}, and the user has not allowed that in this session. Ask the user first, in their language, naming the exact command and what it changes (for example: "May I run \`${shown}\`? It will ${label}."), then retry once they say yes. Do not look for another way to do the same thing.`;
-}
-function consentVerdictAll(commands, s, now) {
-  const list = Array.isArray(commands) ? commands : [];
-  let state = s;
-  let first;
-  for (const command of list) {
-    const v = consentVerdict(command, state, now);
-    if (!v.allow) {
-      const need = v.need;
-      const kinds = v.next.pending !== undefined ? heldKinds(v.next.pending) : [need.kind];
-      const targets = list.filter((c) => consentNeeds(c).some((n) => kinds.includes(n.kind))).map(commandTarget);
-      const pending = { ...need, at: now, targets, ...kinds.length > 1 ? { kinds } : {} };
-      return { allow: false, next: { v: 1, grants: liveGrants(s, now), pending }, reason: v.reason ?? consentReason([need]), need };
-    }
-    if (v.need !== undefined)
-      first ??= v.need;
-    state = v.next;
-  }
-  return first !== undefined ? { allow: true, next: state, need: first } : { allow: true, next: state };
-}
-function applyPromptGrants(s, text, now) {
-  const fresh = grantsFromPrompt(text, s.pending, now);
-  const kept = liveGrants(s, now);
-  if (fresh.length === 0 && s.pending === undefined)
-    return kept.length === s.grants.length ? s : { ...s, grants: kept };
-  const replaced = (g) => fresh.some((f) => f.kind === g.kind && (f.targets === undefined || g.targets !== undefined && g.targets.every((t) => f.targets?.includes(t) === true)));
-  return { v: 1, grants: [...kept.filter((g) => !replaced(g)), ...fresh] };
-}
-function addConsentGrants(s, grants, now) {
-  const add = Array.isArray(grants) ? grants : [];
-  const out = { v: 1, grants: [...liveGrants(s, now).filter((g) => !add.some((n) => n.kind === g.kind)), ...add] };
-  if (s.pending !== undefined && !add.some((n) => n.kind === s.pending?.kind))
-    out.pending = s.pending;
-  return out;
-}
-function targetsOf(x) {
-  return Array.isArray(x) && x.every((t) => typeof t === "string") ? [...x] : undefined;
-}
-function parseConsent(raw) {
-  if (raw === null || typeof raw !== "object" || Array.isArray(raw))
-    return emptyConsent();
-  const o = raw;
-  const grants = [];
-  for (const g of Array.isArray(o["grants"]) ? o["grants"] : []) {
-    if (g === null || typeof g !== "object")
-      continue;
-    const x = g;
-    if (!(x["kind"] === "any" || CONSENT_KINDS.includes(x["kind"])) || typeof x["until"] !== "number" || typeof x["uses"] !== "number")
-      continue;
-    const targets = targetsOf(x["targets"]);
-    grants.push({ kind: x["kind"], until: x["until"], uses: x["uses"], source: x["source"] === "ask" ? "ask" : "prompt", ...targets !== undefined ? { targets } : {} });
-  }
-  const out = { v: 1, grants };
-  const p = o["pending"];
-  if (p !== null && typeof p === "object" && !Array.isArray(p)) {
-    const x = p;
-    if (CONSENT_KINDS.includes(x["kind"]) && typeof x["at"] === "number" && typeof x["command"] === "string") {
-      const targets = targetsOf(x["targets"]);
-      const kinds = Array.isArray(x["kinds"]) ? x["kinds"].filter((k) => CONSENT_KINDS.includes(k)) : [];
-      out.pending = {
-        kind: x["kind"],
-        summary: typeof x["summary"] === "string" ? x["summary"] : SUMMARY[x["kind"]],
-        command: x["command"],
-        at: x["at"],
-        ...targets !== undefined ? { targets } : {},
-        ...kinds.length > 1 && kinds[0] === x["kind"] ? { kinds: unique(kinds) } : {}
-      };
-    }
-  }
-  return out;
-}
 // src/core/policy/companion-fence.ts
 var COMPANION_MCP_SERVERS = ["codegraph", "semble", "context7"];
 var COMPANION_MCP_TOOLS = {
@@ -26551,8 +25027,7 @@ var CATEGORY_LABEL = {
   "code-search": "Code search",
   "code-structure": "Code structure",
   browser: "Browser",
-  memory: "Memory",
-  "context-saving": "Large output"
+  memory: "Memory"
 };
 function labelOf(id) {
   const l = CATEGORY_LABEL[id];
@@ -27843,24 +26318,24 @@ function emptyTurn() {
 function emptyLedger() {
   return { v: 1, turn: 0, mcp: {}, skills: {}, turnTools: emptyTurn(), streak: { search: 0 }, symbols: [], libs: [], shown: {}, usedOnce: [] };
 }
-function isObj5(x) {
+function isObj4(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 var isNum = (x) => typeof x === "number" && Number.isFinite(x) && x >= 0;
 var strList2 = (x, max) => Array.isArray(x) ? x.filter((s) => typeof s === "string").slice(-max) : [];
 function counts(x) {
   const out = {};
-  if (!isObj5(x))
+  if (!isObj4(x))
     return out;
   for (const [k, v] of Object.entries(x).slice(0, MAP_MAX))
-    if (isObj5(v) && isNum(v["n"]) && isNum(v["turn"]))
+    if (isObj4(v) && isNum(v["n"]) && isNum(v["turn"]))
       out[k] = { n: v["n"], turn: v["turn"] };
   return out;
 }
 function routeOf(x) {
-  if (!isObj5(x))
+  if (!isObj4(x))
     return;
-  const mem = isObj5(x["memory"]) ? x["memory"] : {};
+  const mem = isObj4(x["memory"]) ? x["memory"] : {};
   const r = {
     invoked: strList2(x["invoked"], 8),
     load: strList2(x["load"], 1),
@@ -27877,12 +26352,12 @@ function routeOf(x) {
 }
 function parseLedger(raw) {
   const l = emptyLedger();
-  if (!isObj5(raw) || raw["v"] !== 1)
+  if (!isObj4(raw) || raw["v"] !== 1)
     return l;
   if (isNum(raw["turn"]))
     l.turn = Math.floor(raw["turn"]);
   const p = raw["prompt"];
-  if (isObj5(p) && isNum(p["turn"]) && isNum(p["at"])) {
+  if (isObj4(p) && isNum(p["turn"]) && isNum(p["at"])) {
     const route = routeOf(p["route"]);
     if (route !== undefined)
       l.prompt = { turn: p["turn"], at: p["at"], route, ...p["audited"] === true ? { audited: true } : {} };
@@ -27890,7 +26365,7 @@ function parseLedger(raw) {
   l.mcp = counts(raw["mcp"]);
   l.skills = counts(raw["skills"]);
   const t = raw["turnTools"];
-  if (isObj5(t)) {
+  if (isObj4(t)) {
     l.turnTools = {
       calls: isNum(t["calls"]) ? t["calls"] : 0,
       search: isNum(t["search"]) ? t["search"] : 0,
@@ -27899,17 +26374,17 @@ function parseLedger(raw) {
       memory: isNum(t["memory"]) ? t["memory"] : 0
     };
   }
-  if (isObj5(raw["streak"]) && isNum(raw["streak"]["search"]))
+  if (isObj4(raw["streak"]) && isNum(raw["streak"]["search"]))
     l.streak = { search: raw["streak"]["search"] };
   l.symbols = strList2(raw["symbols"], LIST_MAX);
   l.libs = strList2(raw["libs"], LIST_MAX);
-  if (isObj5(raw["shown"])) {
+  if (isObj4(raw["shown"])) {
     for (const [k, v] of Object.entries(raw["shown"]).slice(0, MAP_MAX))
-      if (isObj5(v) && isNum(v["turn"]) && isNum(v["n"]))
+      if (isObj4(v) && isNum(v["turn"]) && isNum(v["n"]))
         l.shown[k] = { turn: v["turn"], n: v["n"] };
   }
   l.usedOnce = strList2(raw["usedOnce"], LIST_MAX);
-  if (isObj5(raw["mcpErrors"])) {
+  if (isObj4(raw["mcpErrors"])) {
     const errors = {};
     for (const [k, v] of Object.entries(raw["mcpErrors"]).slice(0, MAP_MAX))
       if (isNum(v) && v >= 1)
@@ -27994,7 +26469,7 @@ function shellArgv(command, word = (w) => w.text) {
   }
 }
 function skillOf(call, harness) {
-  const input = isObj5(call.input) ? call.input : {};
+  const input = isObj4(call.input) ? call.input : {};
   if (harness === "claude" && call.tool === "Skill")
     return skillName(input["skill"] ?? input["name"] ?? input["command"]);
   if (harness === "opencode" && call.tool === "skill")
@@ -28024,10 +26499,7 @@ function searchesText(command) {
 function isTextSearch(call) {
   if (call.kind === "search")
     return !["LS", "list", "ls"].includes(call.tool);
-  if (call.kind === "bash")
-    return typeof call.command === "string" && searchesText(call.command);
-  const cm = cmCall(call);
-  return cm !== undefined && isCmExecTool(cm.tool) && sandboxShellCommands(call).some(searchesText);
+  return call.kind === "bash" && typeof call.command === "string" && searchesText(call.command);
 }
 function memoryCliOps(call) {
   if (call.kind !== "bash" || typeof call.command !== "string")
@@ -28074,7 +26546,7 @@ function ledgerCall(l, call) {
   if (skill !== undefined)
     next.skills = bump(l.skills, skill, turn);
   const server = call.kind === "mcp" ? call.mcp?.server : undefined;
-  const input = isObj5(call.input) ? call.input : {};
+  const input = isObj4(call.input) ? call.input : {};
   if (server !== undefined && server !== "") {
     next.mcp = bump(l.mcp, server, turn);
     if (server === "semble" || server === "codegraph") {
@@ -28104,10 +26576,8 @@ function ledgerCall(l, call) {
   return next;
 }
 var MCP_SESSION_DOWN_ERRORS = 2;
-function ledgerMcpResult(l, server, ok, tool) {
+function ledgerMcpResult(l, server, ok) {
   if (typeof server !== "string" || server === "")
-    return l;
-  if (!ok && server === CM_SERVER_ID && isCmExecTool(tool))
     return l;
   const errors = { ...l.mcpErrors ?? {} };
   if (ok) {
@@ -28162,24 +26632,24 @@ function markShown(l, id) {
   const prev = l.shown[id];
   return { ...l, shown: { ...l.shown, [id]: { turn: l.turn, n: (prev?.n ?? 0) + 1 } } };
 }
-function str6(x) {
+function str5(x) {
   return typeof x === "string" ? x : undefined;
 }
 var PATCH_TEXT = /^(?:\*\*\* |--- |\+\+\+ )/m;
 function patchText(call) {
-  const input = isObj5(call.input) ? call.input : {};
+  const input = isObj4(call.input) ? call.input : {};
   return [input["patchText"], input["patch"], input["input"], input["diff"], input["command"]].find((v) => typeof v === "string" && PATCH_TEXT.test(v));
 }
 function editsOf(call, ctx) {
   if (ctx.edits !== undefined)
     return [...ctx.edits];
-  const input = isObj5(call.input) ? call.input : {};
-  const file = call.paths[0] ?? str6(input["file_path"]) ?? str6(input["filePath"]) ?? str6(input["path"]) ?? "";
+  const input = isObj4(call.input) ? call.input : {};
+  const file = call.paths[0] ?? str5(input["file_path"]) ?? str5(input["filePath"]) ?? str5(input["path"]) ?? "";
   if (call.kind === "edit") {
     const out = [];
     const one = (o) => {
-      const removed = str6(o["old_string"]) ?? str6(o["oldString"]) ?? str6(o["old_text"]);
-      const added = str6(o["new_string"]) ?? str6(o["newString"]) ?? str6(o["new_text"]);
+      const removed = str5(o["old_string"]) ?? str5(o["oldString"]) ?? str5(o["old_text"]);
+      const added = str5(o["new_string"]) ?? str5(o["newString"]) ?? str5(o["new_text"]);
       if (removed !== undefined && added !== undefined)
         out.push({ file, removed, added });
     };
@@ -28187,7 +26657,7 @@ function editsOf(call, ctx) {
     const edits = input["edits"];
     if (Array.isArray(edits)) {
       for (const e of edits)
-        if (isObj5(e))
+        if (isObj4(e))
           one(e);
     }
     return out;
@@ -28265,36 +26735,13 @@ function urlIn(input) {
   }
   return;
 }
-function fetchUrls(input) {
-  const out = [];
-  const one = urlIn(input);
-  if (one !== undefined)
-    out.push(one);
-  let reqs = input["requests"];
-  if (typeof reqs === "string") {
-    try {
-      reqs = JSON.parse(reqs);
-    } catch {
-      reqs = undefined;
-    }
-  }
-  if (Array.isArray(reqs)) {
-    for (const r of reqs.slice(0, 32))
-      if (isObj5(r)) {
-        const u = urlIn(r);
-        if (u !== undefined)
-          out.push(u);
-      }
-  }
-  return out;
-}
 function rootArgument(call) {
   const server = call.kind === "mcp" ? call.mcp?.server : undefined;
   if (server === "semble")
     return { server, key: "repo" };
   if (server === "codegraph")
     return { server, key: "projectPath" };
-  return cmCall(call)?.tool === "ctx_index" ? { server: CM_SERVER_ID, key: "path" } : undefined;
+  return;
 }
 var ruleKey = (id) => `R5:${id}`;
 function markRules(l, ids) {
@@ -28312,7 +26759,7 @@ function ruleFileReads(call, src, ci) {
       out.push(id);
   };
   if (call.kind === "read") {
-    const input = isObj5(call.input) ? call.input : {};
+    const input = isObj4(call.input) ? call.input : {};
     for (const p of [...call.paths, input["file_path"], input["filePath"], input["path"]])
       add(p);
   }
@@ -28345,14 +26792,14 @@ function pendingRules(l, call, ctx, src, files) {
   return first !== undefined ? { file: first, ids } : undefined;
 }
 function editTargets(call, ctx) {
-  const input = isObj5(call.input) ? call.input : {};
+  const input = isObj4(call.input) ? call.input : {};
   const edited = editsOf(call, ctx).map((e) => e.file);
   const more = [call.command, ...Array.isArray(input["command"]) ? input["command"] : []];
   const text = call.kind === "patch" ? patchText(call) ?? more.find((v) => typeof v === "string" && PATCH_TEXT.test(v)) : undefined;
   const base = relBase(call, ctx);
   const gone = new Set(text !== undefined ? patchDeletes(text).map((p) => projectRelative(p, base)) : []);
   const files = [...call.paths.filter((p) => !gone.has(projectRelative(p, base))), ...edited];
-  const named = str6(input["file_path"]) ?? str6(input["filePath"]) ?? str6(input["path"]);
+  const named = str5(input["file_path"]) ?? str5(input["filePath"]) ?? str5(input["path"]);
   if (files.length === 0 && gone.size === 0 && named !== undefined)
     files.push(named);
   return [...new Set(files)];
@@ -28398,7 +26845,7 @@ function reminders(l, call, ctx) {
   const enforce = ctx.strictness === "enforce";
   const remind = ctx.reminders !== false;
   const available = new Set(ctx.available);
-  const input = isObj5(call.input) ? call.input : {};
+  const input = isObj4(call.input) ? call.input : {};
   const rules = ctx.pathRules;
   const ruleReads = rules !== undefined ? ruleFileReads(call, rules, caseInsensitiveOf(ctx)) : [];
   const recorded = ruleReads.length > 0 ? markRules(counted, ruleReads) : counted;
@@ -28484,7 +26931,7 @@ ${text}` : text;
   const ruleNote = readNote();
   if (ruleNote !== undefined)
     return ruleNote;
-  const pattern = str6(input["pattern"]) ?? str6(input["query"]);
+  const pattern = str5(input["pattern"]) ?? str5(input["query"]);
   if (call.kind === "search" && pattern !== undefined && available.has("semble") && naturalLanguage(pattern) && canShow(l, "semble-intent", { cooldownTurns: 3, max: 3, topic: "code-search" })) {
     return { context: `Buracle: "${pattern.trim().slice(0, 80)}" reads like a question about intent: ${reminderText(ctx, "code-search")}.`, next: markShown(recorded, "semble-intent") };
   }
@@ -28495,8 +26942,7 @@ ${text}` : text;
   if (t.search >= 4 && t.graph === 0 && (available.has("semble") || available.has("codegraph")) && canShow(l, "search-streak", { perTurn: true, max: 3, topic: "code-search" })) {
     return { context: `Buracle: ${t.search} text searches this turn and no semble or codegraph call; ${reminderText(ctx, "code-search")}, and ask codegraph for definitions and callers.`, next: markShown(recorded, "search-streak") };
   }
-  const urls = server === "web-fetch" ? [urlIn(input)] : cmCall(call)?.tool === "ctx_fetch_and_index" ? fetchUrls(input) : [];
-  const url = urls.find((u) => u !== undefined && isDocsUrl(u));
+  const url = server === "web-fetch" ? [urlIn(input)].find((u) => u !== undefined && isDocsUrl(u)) : undefined;
   if (url !== undefined && available.has("context7") && canShow(l, "docs-fetch", { cooldownTurns: 1, max: 3, topic: "library-docs" })) {
     return { context: `Buracle: this is a library documentation page; for docs at the installed version, ${reminderText(ctx, "library-docs")}.`, next: markShown(recorded, "docs-fetch") };
   }
@@ -28585,18 +27031,6 @@ function laneStateDenial(command) {
     return;
   return `Buracle lane guard: a lane (subagent) does not run \`${hit}\`, because the plan, the workflow state and the worktree merges belong to the lead. Return status \`blocked\` with the question and its options; the lead asks the user and changes the state. Read-only commands such as \`buracle plan status\`, \`buracle plan review status\` and \`buracle plan validate\` stay allowed, and so does a plan lane's own binding: \`buracle plan <command> --lane <slug>\` for the lane worktree the lead created (the user's approvals, \`set approved\` and \`approve-result\`, stay with the lead).`;
 }
-function laneStateDenialAll(commands) {
-  try {
-    for (const c of Array.isArray(commands) ? commands : []) {
-      const d = laneStateDenial(c);
-      if (d !== undefined)
-        return d;
-    }
-  } catch {
-    return;
-  }
-  return;
-}
 // src/core/policy/mcp-paths.ts
 var WRITE_PATH_KEYS = new Set([
   "path",
@@ -28672,7 +27106,7 @@ var ITEM_MAX = 200;
 function plain2(line) {
   return line.replace(/<!--[\s\S]*?(?:-->|$)/g, " ").replace(/\*\*|__|`/g, "").replace(/\s+/g, " ").trim();
 }
-function clip5(s, max) {
+function clip4(s, max) {
   return s.length <= max ? s : `${s.slice(0, max - 3).trimEnd()}...`;
 }
 function sectionLines(o, name) {
@@ -28706,12 +27140,12 @@ function bullets(lines) {
   return lines.flatMap((l) => {
     const m = BULLET.exec(l);
     const t = m ? plain2(m[1]) : "";
-    return t !== "" ? [clip5(t, ITEM_MAX)] : [];
+    return t !== "" ? [clip4(t, ITEM_MAX)] : [];
   });
 }
 function prose(lines) {
   const t = plain2(lines.filter((l) => !BULLET.test(l)).join(" "));
-  return t === "" ? undefined : clip5(t, OBJECTIVE_GOAL_MAX);
+  return t === "" ? undefined : clip4(t, OBJECTIVE_GOAL_MAX);
 }
 function featureObjective(o) {
   const lines = sectionLines(o, /^goal$/i);
@@ -28723,7 +27157,7 @@ function featureObjective(o) {
   const items = bullets(at < 0 ? [] : tail.slice(1));
   const inline = at < 0 ? "" : tail[0] ?? "";
   if (inline !== "")
-    items.unshift(clip5(inline, ITEM_MAX));
+    items.unshift(clip4(inline, ITEM_MAX));
   const goal = prose(head);
   return goal === undefined && items.length === 0 ? undefined : { ...goal !== undefined ? { goal } : {}, label: "Done when", items: items.slice(0, OBJECTIVE_ITEMS_MAX) };
 }
@@ -28750,7 +27184,7 @@ function buildObjective(o) {
       continue;
     const status = (cells[cells.length - 1] ?? "").toLowerCase();
     const open = !/^(?:pass|passed|ok|\u2713)/u.test(status);
-    rows.push({ text: clip5(`${id.toUpperCase()} ${text} (${open ? status || "open" : "pass"})`, ITEM_MAX), open });
+    rows.push({ text: clip4(`${id.toUpperCase()} ${text} (${open ? status || "open" : "pass"})`, ITEM_MAX), open });
   }
   const items = [...rows.filter((r) => r.open), ...rows.filter((r) => !r.open)].map((r) => r.text);
   return goal === undefined && items.length === 0 ? undefined : { ...goal !== undefined ? { goal } : {}, label: "Acceptance criteria", items: items.slice(0, OBJECTIVE_ITEMS_MAX) };
@@ -28776,7 +27210,7 @@ function objectiveLine(obj, budget) {
     text = render();
   }
   if (text.length > budget)
-    text = clip5(text, budget);
+    text = clip4(text, budget);
   return text === "." || text === "" ? undefined : text;
 }
 function tickedTasks(o) {
@@ -29212,7 +27646,7 @@ function approveResult(state, now) {
 // src/core/plan/reviews.ts
 var REVIEW_ROLES = ["plan", "changes", "goal"];
 var REVIEW_AGENT_OF = { plan: "plan-build-review", changes: "changes-review", goal: "goal-build-review" };
-function isRecord2(x) {
+function isRecord(x) {
   if (x === null || typeof x !== "object")
     return false;
   const r = x;
@@ -29220,7 +27654,7 @@ function isRecord2(x) {
 }
 function reviewRecords(state) {
   const list = state?.reviews;
-  return Array.isArray(list) ? list.filter(isRecord2) : [];
+  return Array.isArray(list) ? list.filter(isRecord) : [];
 }
 function planReviews(state) {
   const p = state?.plan;
@@ -29486,15 +27920,15 @@ function contextWatch(warned, pct, cfg) {
 }
 
 // src/engine/toolchain/lsp-edits.ts
-import { mkdirSync as mkdirSync7, readdirSync as readdirSync6, readFileSync as readFileSync10, rmSync as rmSync2, writeFileSync as writeFileSync2 } from "fs";
-import { isAbsolute as isAbsolute6, join as join13, relative, resolve as resolve8 } from "path";
+import { mkdirSync as mkdirSync6, readdirSync as readdirSync4, readFileSync as readFileSync9, rmSync as rmSync2, writeFileSync } from "fs";
+import { isAbsolute as isAbsolute6, join as join12, relative, resolve as resolve8 } from "path";
 var EDIT_WAIT_MS = 4000;
 var EDIT_MAX_FILES = 3;
 var STATES = ["report", "clean", "pending", "starting", "none", "error"];
 function lspBridgeDir() {
-  return join13(runDir(), "lsp");
+  return join12(runDir(), "lsp");
 }
-function isObj6(x) {
+function isObj5(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 function alive(pid) {
@@ -29506,12 +27940,12 @@ function alive(pid) {
   }
 }
 function validEntry(x) {
-  return isObj6(x) && typeof x["pid"] === "number" && typeof x["ppid"] === "number" && typeof x["cwd"] === "string" && typeof x["port"] === "number" && typeof x["token"] === "string" && typeof x["startedAt"] === "number";
+  return isObj5(x) && typeof x["pid"] === "number" && typeof x["ppid"] === "number" && typeof x["cwd"] === "string" && typeof x["port"] === "number" && typeof x["token"] === "string" && typeof x["startedAt"] === "number";
 }
 function liveBridges(dir = lspBridgeDir()) {
   let names;
   try {
-    names = readdirSync6(dir).filter((n) => /^\d+\.json$/.test(n)).sort();
+    names = readdirSync4(dir).filter((n) => /^\d+\.json$/.test(n)).sort();
   } catch {
     return [];
   }
@@ -29519,7 +27953,7 @@ function liveBridges(dir = lspBridgeDir()) {
   for (const n of names) {
     let e;
     try {
-      e = JSON.parse(readFileSync10(join13(dir, n), "utf8"));
+      e = JSON.parse(readFileSync9(join12(dir, n), "utf8"));
     } catch {
       continue;
     }
@@ -29527,7 +27961,7 @@ function liveBridges(dir = lspBridgeDir()) {
       continue;
     if (!alive(e.pid)) {
       try {
-        rmSync2(join13(dir, n), { force: true });
+        rmSync2(join12(dir, n), { force: true });
       } catch {}
       continue;
     }
@@ -29560,7 +27994,7 @@ async function askBridge(entry, file, waitMs, timeoutMs) {
     if (!res.ok)
       return;
     const r = await res.json();
-    if (!isObj6(r) || typeof r["state"] !== "string" || !STATES.includes(r["state"]))
+    if (!isObj5(r) || typeof r["state"] !== "string" || !STATES.includes(r["state"]))
       return;
     return { state: r["state"], ...typeof r["text"] === "string" ? { text: r["text"] } : {} };
   } catch {
@@ -29590,19 +28024,19 @@ async function editDiagnostics(files, opts) {
 }
 
 // src/workflow/flow.ts
-import { join as join15 } from "path";
+import { join as join14 } from "path";
 
 // src/workflow/session-store.ts
-import { existsSync as existsSync8, lstatSync as lstatSync2, readdirSync as readdirSync7, rmSync as rmSync3, statSync as statSync13, unlinkSync as unlinkSync7 } from "fs";
-import { join as join14, posix, win32 } from "path";
+import { existsSync as existsSync7, lstatSync as lstatSync2, readdirSync as readdirSync5, rmSync as rmSync3, statSync as statSync10, unlinkSync as unlinkSync5 } from "fs";
+import { join as join13, posix, win32 } from "path";
 function freshState() {
   return { v: 1, guard: { blocksForPlan: 0, blocksInChain: 0 } };
 }
 function statePath(h, sid) {
-  return join14(sessionDir(h, sid), "state.json");
+  return join13(sessionDir(h, sid), "state.json");
 }
 function telemetryPath(h, sid) {
-  return join14(sessionDir(h, sid), "telemetry.json");
+  return join13(sessionDir(h, sid), "telemetry.json");
 }
 function isSessionState(x) {
   if (x === null || typeof x !== "object")
@@ -29647,7 +28081,7 @@ function laneSessions(h, sid) {
   const prefix = laneSessionId(sid, "");
   let names = [];
   try {
-    names = readdirSync7(sessionsDir(h));
+    names = readdirSync5(sessionsDir(h));
   } catch {
     return [];
   }
@@ -29686,19 +28120,19 @@ var SESSION_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 function newestMtime(dir) {
   let newest = 0;
   try {
-    newest = statSync13(dir).mtimeMs;
+    newest = statSync10(dir).mtimeMs;
   } catch {
     return 0;
   }
   let names = [];
   try {
-    names = readdirSync7(dir);
+    names = readdirSync5(dir);
   } catch {
     return newest;
   }
   for (const n of names) {
     try {
-      newest = Math.max(newest, lstatSync2(join14(dir, n)).mtimeMs);
+      newest = Math.max(newest, lstatSync2(join13(dir, n)).mtimeMs);
     } catch {}
   }
   return newest;
@@ -29718,19 +28152,19 @@ function pruneSessions(h, opts) {
   const run = runDir(h);
   let names = [];
   try {
-    names = readdirSync7(sessions);
+    names = readdirSync5(sessions);
   } catch {
     names = [];
   }
   for (const sid of names) {
     if (!isValidSessionId(sid) || keep.has(sid))
       continue;
-    const dir = join14(sessions, sid);
+    const dir = join13(sessions, sid);
     try {
       const st = lstatSync2(dir);
       if (!st.isDirectory() || st.isSymbolicLink())
         continue;
-      const activity = Math.max(newestMtime(dir), mtimeOf(join14(run, `${sid}.json`)) ?? 0);
+      const activity = Math.max(newestMtime(dir), mtimeOf(join13(run, `${sid}.json`)) ?? 0);
       if (opts.nowMs - activity < maxAge)
         continue;
       rmSync3(dir, { recursive: true, force: true });
@@ -29738,7 +28172,7 @@ function pruneSessions(h, opts) {
     } catch {}
   }
   try {
-    names = readdirSync7(run);
+    names = readdirSync5(run);
   } catch {
     names = [];
   }
@@ -29748,45 +28182,45 @@ function pruneSessions(h, opts) {
     const sid = name.slice(0, -".json".length);
     if (!isValidSessionId(sid) || keep.has(sid))
       continue;
-    const file = join14(run, name);
+    const file = join13(run, name);
     try {
       const st = lstatSync2(file);
       if (!st.isFile())
         continue;
-      const activity = Math.max(st.mtimeMs, mtimeOf(join14(sessions, sid)) ?? 0);
+      const activity = Math.max(st.mtimeMs, mtimeOf(join13(sessions, sid)) ?? 0);
       if (opts.nowMs - activity < maxAge)
         continue;
-      unlinkSync7(file);
+      unlinkSync5(file);
       removed.push(file);
     } catch {}
   }
   return removed;
 }
 function spoolActiveDir() {
-  return join14(memoryStateDir(), "spool");
+  return join13(memoryStateDir(), "spool");
 }
 function spoolDoneDir2() {
-  return join14(spoolActiveDir(), "done");
+  return join13(spoolActiveDir(), "done");
 }
 function sessionRecordPath(h, sid) {
-  return join14(memoryStateDir(), "sessions", `${h}-${sid}.json`);
+  return join13(memoryStateDir(), "sessions", `${h}-${sid}.json`);
 }
 function pruneSpoolFiles(dir, h, nowMs, maxAgeMs, keep, removed) {
   let names = [];
   try {
-    names = readdirSync7(dir);
+    names = readdirSync5(dir);
   } catch {
     names = [];
   }
   for (const name of names) {
     if (!name.startsWith(`${h}-`) || !name.endsWith(".jsonl"))
       continue;
-    const file = join14(dir, name);
+    const file = join13(dir, name);
     try {
       const st = lstatSync2(file);
       if (!st.isFile() || nowMs - st.mtimeMs < maxAgeMs || keep(name.slice(h.length + 1, -".jsonl".length)))
         continue;
-      unlinkSync7(file);
+      unlinkSync5(file);
       removed.push(file);
     } catch {}
   }
@@ -29800,7 +28234,7 @@ function sessionMaint(h, nowMs, opts = {}) {
   const owned = (rest) => {
     for (let i = rest.length;i > 0; i = rest.lastIndexOf("-", i - 1)) {
       const sid = rest.slice(0, i);
-      if (live.has(sid) || isValidSessionId(sid) && existsSync8(sessionRecordPath(h, sid)))
+      if (live.has(sid) || isValidSessionId(sid) && existsSync7(sessionRecordPath(h, sid)))
         return true;
     }
     return false;
@@ -29864,7 +28298,7 @@ function profileGuard(h, runtimeCfg, env) {
   return `Buracle was installed for ${spec.label} into ${installed}, but this session reads ${live} (${spec.variable}), where Buracle's hooks, rules and settings are missing. Run \`buracle install ${h}\` with this environment, or start ${spec.label} without the override.`;
 }
 function sessionAliasesPath(h) {
-  return join14(sessionsDir(h), "aliases.json");
+  return join13(sessionsDir(h), "aliases.json");
 }
 function readSessionAliases(h) {
   const r = readJsonSafeSync(sessionAliasesPath(h));
@@ -29896,7 +28330,7 @@ function withFileLock(file, fn, timeoutMs = 2000, staleMs = 1e4) {
 }
 function pruneSessionAliases(h) {
   const file = sessionAliasesPath(h);
-  if (!existsSync8(file))
+  if (!existsSync7(file))
     return 0;
   try {
     return withFileLock(file, () => {
@@ -29904,7 +28338,7 @@ function pruneSessionAliases(h) {
       const kept = {};
       let dropped = 0;
       for (const [k, v] of Object.entries(cur)) {
-        if (existsSync8(sessionDir(h, v)))
+        if (existsSync7(sessionDir(h, v)))
           kept[k] = v;
         else
           dropped++;
@@ -29925,7 +28359,7 @@ var NO_SESSION_HINT = "no session: no harness session id was found. Buracle read
 // src/workflow/flow.ts
 var DEFAULT_FOLD_SEC = 8;
 function flowPath(h, sid) {
-  return join15(sessionDir(h, sid), "flow.json");
+  return join14(sessionDir(h, sid), "flow.json");
 }
 function readFlow(h, sid) {
   const r = readJsonSafeSync(flowPath(h, sid));
@@ -29981,11 +28415,11 @@ function recordFlowStart(h, sid, input, now) {
 }
 
 // src/workflow/plan-capture.ts
-import { closeSync as closeSync6, mkdirSync as mkdirSync8, openSync as openSync6, readFileSync as readFileSync12, writeSync as writeSync4 } from "fs";
-import { isAbsolute as isAbsolute7, join as join16, relative as relative2, resolve as resolve9, sep } from "path";
+import { closeSync as closeSync4, mkdirSync as mkdirSync7, openSync as openSync4, readFileSync as readFileSync11, writeSync as writeSync3 } from "fs";
+import { isAbsolute as isAbsolute7, join as join15, relative as relative2, resolve as resolve9, sep } from "path";
 
 // src/workflow/plan-file.ts
-import { readFileSync as readFileSync11 } from "fs";
+import { readFileSync as readFileSync10 } from "fs";
 var PLAN_STATUSES2 = ["PENDING", "APPROVED", "IN_PROGRESS", "COMPLETE", "VERIFIED", "SAVED"];
 var PLAN_TYPES2 = ["Feature", "Bugfix", "Build", "Plan"];
 var PHASES = ["plan", "implement", "verify", "done"];
@@ -30168,7 +28602,7 @@ function analyzePlan(markdown) {
 function readPlanFile(path) {
   let text;
   try {
-    text = readFileSync11(path, "utf8");
+    text = readFileSync10(path, "utf8");
   } catch (e) {
     const code = e.code;
     if (code === "ENOENT" || code === "ENOTDIR")
@@ -30296,7 +28730,7 @@ var CAPTURE_SLOTS = 99;
 function claim(path, content) {
   let fd;
   try {
-    fd = openSync6(path, "wx", 420);
+    fd = openSync4(path, "wx", 420);
   } catch (e) {
     if (e.code === "EEXIST")
       return false;
@@ -30306,9 +28740,9 @@ function claim(path, content) {
     const buf = Buffer.from(content, "utf8");
     let off = 0;
     while (off < buf.length)
-      off += writeSync4(fd, buf, off, buf.length - off);
+      off += writeSync3(fd, buf, off, buf.length - off);
   } finally {
-    closeSync6(fd);
+    closeSync4(fd);
   }
   return true;
 }
@@ -30325,11 +28759,11 @@ async function capturePlanFile(i) {
   const base = slugFromTitle(title, 60) || "plan";
   const approved = i.approved ?? true;
   const content = capturedPlanMarkdown(text, { created, harness: i.harness, approved, title, ...i.via !== undefined ? { via: i.via } : {} });
-  const dir = join16(root, "docs", "plans");
-  mkdirSync8(dir, { recursive: true });
+  const dir = join15(root, "docs", "plans");
+  mkdirSync7(dir, { recursive: true });
   for (let n = 1;n <= CAPTURE_SLOTS; n++) {
     const slug = n === 1 ? base : `${base}-${n}`;
-    const path = join16(dir, `${created}-${slug}.md`);
+    const path = join15(dir, `${created}-${slug}.md`);
     if (claim(path, content))
       return { path, slug, title, created, approved };
   }
@@ -30401,11 +28835,11 @@ async function captureSessionPlan(i) {
 }
 
 // src/adapters/shared/consent-store.ts
-import { join as join17 } from "path";
+import { join as join16 } from "path";
 var LOCK_WAIT_MS = 1500;
 var LOCK_STALE_MS = 1e4;
 function consentFile(h, sid) {
-  return join17(sessionDir(h, sid), "consent.json");
+  return join16(sessionDir(h, sid), "consent.json");
 }
 function readConsentState(h, sid) {
   const r = readJsonSafeSync(consentFile(h, sid));
@@ -30445,12 +28879,6 @@ function consentGate(h, sid, command, now, verdict = consentVerdict) {
   const v = settle(h, sid, (s) => verdict(command, s, now));
   return v.allow ? undefined : v.reason;
 }
-function consentGateAll(h, sid, commands, now, verdict = consentVerdictAll) {
-  if (commands.length === 0)
-    return;
-  const v = settle(h, sid, (s) => verdict(commands, s, now));
-  return v.allow ? undefined : v.reason;
-}
 function recordPromptGrants(h, sid, prompt, now) {
   settle(h, sid, (s) => ({ next: applyPromptGrants(s, prompt, now) }));
 }
@@ -30461,8 +28889,8 @@ function recordUserGrants(h, sid, grants, now) {
 }
 
 // src/adapters/shared/path-rules.ts
-import { readFileSync as readFileSync13 } from "fs";
-import { join as join18 } from "path";
+import { readFileSync as readFileSync12 } from "fs";
+import { join as join17 } from "path";
 function tilde(dir, home) {
   if (home === undefined || home === "")
     return;
@@ -30477,7 +28905,7 @@ function pathRuleSource(rules, dir, opts = {}) {
     dir,
     body: (id) => {
       try {
-        return readFileSync13(join18(dir, `${id}.md`), "utf8");
+        return readFileSync12(join17(dir, `${id}.md`), "utf8");
       } catch {
         return;
       }
@@ -30493,7 +28921,7 @@ function pathRuleSource(rules, dir, opts = {}) {
 
 // src/adapters/shared/realpath.ts
 import { lstatSync as lstatSync3, readlinkSync as readlinkSync2 } from "fs";
-import { basename as basename6, dirname as dirname7, isAbsolute as isAbsolute8, join as join19, resolve as resolve10 } from "path";
+import { basename as basename5, dirname as dirname7, isAbsolute as isAbsolute8, join as join18, resolve as resolve10 } from "path";
 var MAX_HOPS = 40;
 function resolveFrom(p, hops) {
   if (hops > MAX_HOPS)
@@ -30520,7 +28948,7 @@ function resolveFrom(p, hops) {
   if (parent === p)
     return p;
   const real = resolveFrom(parent, hops + 1);
-  return real === undefined ? undefined : join19(real, basename6(p));
+  return real === undefined ? undefined : join18(real, basename5(p));
 }
 function realWriteTarget(p) {
   if (typeof p !== "string" || !isAbsolute8(p))
@@ -30529,8 +28957,8 @@ function realWriteTarget(p) {
 }
 
 // src/adapters/shared/review-notes.ts
-import { mkdirSync as mkdirSync9 } from "fs";
-import { dirname as dirname8, join as join20 } from "path";
+import { mkdirSync as mkdirSync8 } from "fs";
+import { dirname as dirname8, join as join19 } from "path";
 
 // src/core/plan/notes.ts
 function reviewDocOf(rel) {
@@ -30542,11 +28970,11 @@ function reviewDocOf(rel) {
     return;
   return { dir: m[1], name };
 }
-function isObj7(x) {
+function isObj6(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 function isInboxEntry(x) {
-  return isObj7(x) && typeof x["at"] === "number" && typeof x["root"] === "string" && typeof x["key"] === "string" && typeof x["open"] === "number";
+  return isObj6(x) && typeof x["at"] === "number" && typeof x["root"] === "string" && typeof x["key"] === "string" && typeof x["open"] === "number";
 }
 function norm(p) {
   return p.replace(/\\/g, "/").replace(/\/+$/, "");
@@ -30621,7 +29049,7 @@ function reviewNotesNotice(h, sid, o) {
   const entries = inbox();
   if (entries.length === 0)
     return;
-  const file = join20(sessionDir(h, sid), "review-notes.json");
+  const file = join19(sessionDir(h, sid), "review-notes.json");
   const seen = readJsonSafeSync(file);
   const since = seen.ok && typeof seen.value?.at === "number" ? seen.value.at : 0;
   const s = { ...o.plan !== undefined && o.plan !== "" ? { plan: real(o.plan) } : {}, roots: [...new Set(o.roots.filter((r) => typeof r === "string" && r !== "").map(real))] };
@@ -30629,7 +29057,7 @@ function reviewNotesNotice(h, sid, o) {
   if (hits.length === 0)
     return;
   try {
-    mkdirSync9(dirname8(file), { recursive: true });
+    mkdirSync8(dirname8(file), { recursive: true });
     atomicWriteSync(file, JSON.stringify({ at: Math.max(...hits.map((e) => e.at)), noticedAt: o.now }) + `
 `);
   } catch (e) {
@@ -30690,19 +29118,8 @@ var KIND_INFO = {
 };
 var MEM_KINDS = Object.keys(KIND_INFO);
 var WRITABLE_KINDS = MEM_KINDS.filter((k) => KIND_INFO[k].agentWritable && k !== "core");
-var STALE_AFTER_DAYS = 120;
-var UNVERIFIED_GRACE_MS = 6 * 3600000;
-var ACTION = {
-  contradicted: "a background check found the claim contradicted by the code (see the note): the curator restates it from the code; one it leaves after three reflect runs (or contradicted twice, or for 7 days) is settled: a fact is retired, a decision keeps the note",
-  capture: "reflect files it as a memory of its kind (in the brain it sits in) or drops it; one that three reflect runs left unfiled is dropped by the sweep (restorable for 30 days)",
-  "source-missing": "a file it cites is gone: the sweep follows a move git made, else the curator picks among files of the same name or retires the memory",
-  "source-changed": "files it cites changed since it was verified: the verifier checks the claim against them again (two tries at most; a claim it cannot decide leaves this list)",
-  duplicate: "it looks like another memory: reflect merges the pair; a pair three reflect runs leave unmerged counts as two distinct memories",
-  unverified: "the verifier checks the claim against the code (two tries at most; a claim it cannot decide leaves this list until it or its files change)",
-  stale: `verified more than ${STALE_AFTER_DAYS} days ago: the verifier checks it again (two tries at most)`
-};
-var UPKEEP_REASONS = ["contradicted", "source-missing", "capture", "duplicate", "source-changed", "unverified", "stale"];
-var REASON_WEIGHT = Object.fromEntries(UPKEEP_REASONS.map((r, n) => [r, n]));
+var SESSION_KEEP_MS = 45 * 86400000;
+var HANDOFF_KEEP_MS = 14 * 86400000;
 // src/core/receipt.ts
 function emptyReceipt() {
   return { edits: {}, commands: [], lastEditSeq: -1, lastCheckSeq: -1, seq: 0, failStreak: undefined, removedTexts: {}, flipFlops: {} };
@@ -30885,101 +29302,13 @@ function maskNotice(count) {
 }
 
 // src/usage/bar-info.ts
-import { existsSync as existsSync9, readFileSync as readFileSync15, statSync as statSync14 } from "fs";
-import { join as join22 } from "path";
-
-// src/memory/ui-build.ts
-import { createHash as createHash2 } from "crypto";
-import { readdirSync as readdirSync8, readFileSync as readFileSync14 } from "fs";
-import { join as join21 } from "path";
-function uiSources(memoryDir) {
-  const out = readdirSync8(memoryDir).filter((n) => /^ui.*\.ts$/u.test(n)).sort();
-  const walk = (rel) => {
-    const entries = readdirSync8(join21(memoryDir, rel), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
-    for (const e of entries) {
-      if (e.name.startsWith("."))
-        continue;
-      const r = `${rel}/${e.name}`;
-      if (e.isDirectory())
-        walk(r);
-      else if (e.isFile())
-        out.push(r);
-    }
-  };
-  walk("ui");
-  return out;
-}
-function uiBuildId(repoRoot2 = repoRoot()) {
-  try {
-    const raw = JSON.parse(readFileSync14(join21(repoRoot2, "package.json"), "utf8")).version;
-    const dir = join21(repoRoot2, "src", "memory");
-    const h = createHash2("sha256");
-    for (const rel of uiSources(dir)) {
-      h.update(rel);
-      h.update("\x00");
-      h.update(readFileSync14(join21(dir, rel)));
-      h.update("\x00");
-    }
-    return `${typeof raw === "string" ? raw : "?"}+${h.digest("hex").slice(0, 12)}`;
-  } catch {
-    return;
-  }
-}
-function sameUiBuild(running, current) {
-  return current === undefined || running === current;
-}
-
-// src/usage/bar-info.ts
-function isRecord3(x) {
-  return x !== null && typeof x === "object" && !Array.isArray(x);
-}
+import { existsSync as existsSync8, readFileSync as readFileSync13, statSync as statSync11 } from "fs";
+import { join as join20 } from "path";
 var VERSION_TTL_MS = 12 * 60 * 60000;
-function liveMemoryUi() {
-  const r = readJsonSafeSync(memoryUiStateFile());
-  if (!r.ok || !isRecord3(r.value))
-    return;
-  const v = r.value;
-  if (typeof v["pid"] !== "number" || typeof v["port"] !== "number" || typeof v["url"] !== "string")
-    return;
-  if (v["build"] !== undefined && typeof v["build"] !== "string")
-    return;
-  try {
-    process.kill(v["pid"], 0);
-  } catch (e) {
-    if (e.code !== "EPERM")
-      return;
-  }
-  return v;
-}
-function ensureMemoryUi(nowMs, opts = {}) {
-  if (process.env["BURACLE_NO_AUTOSTART"] === "1")
-    return;
-  const live = liveMemoryUi();
-  if (live !== undefined && sameUiBuild(live.build, uiBuildId()))
-    return;
-  if (opts.sessionStarting !== true && !captureOff() && !anySessionOpen(nowMs))
-    return;
-  const marker = join22(stateDir(), "memory-ui.spawn");
-  try {
-    if (existsSync9(marker) && nowMs - statSync14(marker).mtimeMs < 60000)
-      return;
-    atomicWriteSync(marker, String(nowMs));
-  } catch {
-    return;
-  }
-  try {
-    const argv = buracleArgv();
-    if (argv === undefined)
-      return;
-    const spawned = spawnArgv([...argv, "mem", "ui", "--serve", "--for-session"]);
-    const child = Bun.spawn(spawned, { stdin: "ignore", stdout: "ignore", stderr: "ignore", detached: true, cwd: home(), env: { ...process.env }, windowsVerbatimArguments: windowsVerbatim(spawned) });
-    child.unref();
-  } catch {}
-}
 function buracleArgv() {
-  const main = join22(repoRoot(), "src", "cli", "main.ts");
+  const main = join20(repoRoot(), "src", "cli", "main.ts");
   const bun = findExecutable("bun");
-  if (bun !== undefined && existsSync9(main))
+  if (bun !== undefined && existsSync8(main))
     return [bun, main];
   return shimLaunch();
 }
@@ -30994,13 +29323,6 @@ function fallbackInfo(cwd, cfg) {
 }
 async function prepareWorkspace(cwd, cfg, nowMs) {
   const autostart = process.env["BURACLE_NO_AUTOSTART"] !== "1";
-  if (autostart) {
-    try {
-      ensureMemoryUi(nowMs, { sessionStarting: true });
-    } catch (e) {
-      log("warn", "workspace: could not start the memory web UI", { error: e });
-    }
-  }
   try {
     const target = await resolveWorkspace(cwd, workspaceOptions(cfg));
     const building = autostart && cfg.index.auto ? startIndexRun(target, cfg, nowMs, buracleArgv()) : [];
@@ -31012,8 +29334,8 @@ async function prepareWorkspace(cwd, cfg, nowMs) {
 }
 
 // src/adapters/shared/project-assets.ts
-import { existsSync as existsSync11, mkdirSync as mkdirSync11, statSync as statSync16, utimesSync as utimesSync3, writeFileSync as writeFileSync3 } from "fs";
-import { basename as basename7, dirname as dirname10, join as join24, relative as relative4, resolve as resolve13, sep as sep3 } from "path";
+import { existsSync as existsSync10, mkdirSync as mkdirSync10, statSync as statSync13, utimesSync as utimesSync3, writeFileSync as writeFileSync2 } from "fs";
+import { basename as basename6, dirname as dirname10, join as join22, relative as relative4, resolve as resolve13, sep as sep3 } from "path";
 
 // src/core/project-assets.ts
 var RULES_DIR = ".claude/rules";
@@ -31238,8 +29560,8 @@ function indexEditNote(p, max = 5) {
 }
 
 // src/workflow/project-assets.ts
-import { existsSync as existsSync10, lstatSync as lstatSync4, mkdirSync as mkdirSync10, readdirSync as readdirSync9, readFileSync as readFileSync16, statSync as statSync15, unlinkSync as unlinkSync8 } from "fs";
-import { dirname as dirname9, isAbsolute as isAbsolute10, join as join23, relative as relative3, resolve as resolve12, sep as sep2 } from "path";
+import { existsSync as existsSync9, lstatSync as lstatSync4, mkdirSync as mkdirSync9, readdirSync as readdirSync6, readFileSync as readFileSync14, statSync as statSync12, unlinkSync as unlinkSync6 } from "fs";
+import { dirname as dirname9, isAbsolute as isAbsolute10, join as join21, relative as relative3, resolve as resolve12, sep as sep2 } from "path";
 var SKILL_DIR_RE = /^[a-z0-9][a-z0-9._-]*$/;
 var RULES_MAX_FILES = 500;
 var RULES_MAX_DEPTH = 8;
@@ -31264,14 +29586,14 @@ function kindOf(p) {
 }
 function targetKind(p) {
   try {
-    const st = statSync15(p);
+    const st = statSync12(p);
     return st.isDirectory() ? "dir" : st.isFile() ? "file" : "other";
   } catch {
     return "missing";
   }
 }
 function pathFacts(root, rel) {
-  const p = join23(root, ...rel.split("/"));
+  const p = join21(root, ...rel.split("/"));
   const kind = kindOf(p);
   if (kind === "missing")
     return { rel, kind, inside: true };
@@ -31292,20 +29614,20 @@ function assetLayout(rootIn) {
       blocked.push(`${f.rel} is a dangling symlink; Buracle does not write through it`);
     else if (f.kind === "link" && !f.inside)
       blocked.push(`${f.rel} is a symlink to ${f.real ?? "?"}, outside the repository; Buracle does not write through it`);
-    else if (f.kind === "link" && targetKind(join23(root, f.rel)) !== "dir")
+    else if (f.kind === "link" && targetKind(join21(root, f.rel)) !== "dir")
       blocked.push(`${f.rel} is a symlink to a file, not a folder`);
     else if (f.kind === "file" || f.kind === "other")
       blocked.push(`${f.rel} is a file, not a folder`);
   }
-  const agentsSkills = realOr2(join23(root, ".agents", "skills"));
-  const claudeDir = realOr2(join23(root, ".claude"));
-  const claudeSkills = existsSync10(join23(root, ".claude", "skills")) ? realOr2(join23(root, ".claude", "skills")) : join23(claudeDir, "skills");
-  const alias = existsSync10(join23(root, ".claude", "skills")) && existsSync10(join23(root, ".agents", "skills")) && claudeSkills === agentsSkills;
+  const agentsSkills = realOr2(join21(root, ".agents", "skills"));
+  const claudeDir = realOr2(join21(root, ".claude"));
+  const claudeSkills = existsSync9(join21(root, ".claude", "skills")) ? realOr2(join21(root, ".claude", "skills")) : join21(claudeDir, "skills");
+  const alias = existsSync9(join21(root, ".claude", "skills")) && existsSync9(join21(root, ".agents", "skills")) && claudeSkills === agentsSkills;
   return { root, agentsSkills, claudeSkills, alias, blocked, facts };
 }
 function list2(dir) {
   try {
-    return readdirSync9(dir).filter((n) => !n.startsWith(".")).sort();
+    return readdirSync6(dir).filter((n) => !n.startsWith(".")).sort();
   } catch {
     return [];
   }
@@ -31313,7 +29635,7 @@ function list2(dir) {
 function agentSkills(layout) {
   const out = [];
   for (const id of list2(layout.agentsSkills)) {
-    const dir = join23(layout.agentsSkills, id);
+    const dir = join21(layout.agentsSkills, id);
     const kind = kindOf(dir);
     if (kind === "link") {
       let target;
@@ -31322,7 +29644,7 @@ function agentSkills(layout) {
       } catch {
         target = undefined;
       }
-      const claudeOwned = existsSync10(join23(layout.claudeSkills, id)) && kindOf(join23(layout.claudeSkills, id)) === "dir" && realOr2(dir) === realOr2(join23(layout.claudeSkills, id));
+      const claudeOwned = existsSync9(join21(layout.claudeSkills, id)) && kindOf(join21(layout.claudeSkills, id)) === "dir" && realOr2(dir) === realOr2(join21(layout.claudeSkills, id));
       out.push({ id, dir, state: "link", ...target !== undefined ? { target } : {}, ...claudeOwned ? { claudeOwned } : {} });
       continue;
     }
@@ -31332,14 +29654,14 @@ function agentSkills(layout) {
       out.push({ id, dir, state: "bad-id" });
       continue;
     }
-    out.push({ id, dir, state: existsSync10(join23(dir, "SKILL.md")) ? "skill" : "no-skill-md" });
+    out.push({ id, dir, state: existsSync9(join21(dir, "SKILL.md")) ? "skill" : "no-skill-md" });
   }
   return out;
 }
 function skillMeta(dir) {
   let text;
   try {
-    text = readFileSync16(join23(dir, "SKILL.md"), "utf8");
+    text = readFileSync14(join21(dir, "SKILL.md"), "utf8");
   } catch {
     return;
   }
@@ -31355,9 +29677,9 @@ function claudeSkills(layout, withMeta = true) {
   const out = [];
   if (layout.alias)
     return out;
-  const agentsPlain = join23(layout.root, ".agents", "skills");
+  const agentsPlain = join21(layout.root, ".agents", "skills");
   for (const id of list2(layout.claudeSkills)) {
-    const path = join23(layout.claudeSkills, id);
+    const path = join21(layout.claudeSkills, id);
     const kind = kindOf(path);
     if (kind === "link") {
       let target = "";
@@ -31366,8 +29688,8 @@ function claudeSkills(layout, withMeta = true) {
       } catch {}
       const abs = isAbsolute10(target) ? target : resolve12(dirname9(path), target);
       const intoAgents = within4(agentsPlain, abs) || within4(layout.agentsSkills, abs);
-      const dangling = !existsSync10(abs);
-      const ours = !dangling && realOr2(abs) === realOr2(join23(layout.agentsSkills, id)) && kindOf(join23(layout.agentsSkills, id)) !== "link";
+      const dangling = !existsSync9(abs);
+      const ours = !dangling && realOr2(abs) === realOr2(join21(layout.agentsSkills, id)) && kindOf(join21(layout.agentsSkills, id)) !== "link";
       out.push({ id, path, kind, target, ours, dangling, intoAgents });
       continue;
     }
@@ -31412,7 +29734,7 @@ function linkPlan(layout, agents = agentSkills(layout), claude = claudeSkills(la
       continue;
     }
     wanted.add(a.id);
-    const link = join23(layout.claudeSkills, a.id);
+    const link = join21(layout.claudeSkills, a.id);
     const c = byId.get(a.id);
     if (c === undefined) {
       plan.create.push({ id: a.id, link, target: relative3(layout.claudeSkills, a.dir) });
@@ -31447,7 +29769,7 @@ function walkRules(dir, root, depth, out) {
     return;
   let entries;
   try {
-    entries = readdirSync9(dir, { withFileTypes: true });
+    entries = readdirSync6(dir, { withFileTypes: true });
   } catch {
     return;
   }
@@ -31456,7 +29778,7 @@ function walkRules(dir, root, depth, out) {
       return;
     if (e.name.startsWith("."))
       continue;
-    const p = join23(dir, e.name);
+    const p = join21(dir, e.name);
     let isDir = e.isDirectory();
     let isFile = e.isFile();
     if (e.isSymbolicLink()) {
@@ -31478,7 +29800,7 @@ function ruleFiles(rootIn) {
   const claude = pathFacts(root, ".claude");
   if (claude.kind === "link" && !claude.inside)
     return [];
-  const dir = join23(root, ...RULES_DIR.split("/"));
+  const dir = join21(root, ...RULES_DIR.split("/"));
   const out = [];
   walkRules(dir, root, 0, out);
   return out.map((p) => relative3(root, p).split(sep2).join("/"));
@@ -31488,7 +29810,7 @@ function ruleFacts(rootIn, privatePaths = new Set) {
   return ruleFiles(root).map((path) => {
     let text = "";
     try {
-      text = readFileSync16(join23(root, ...path.split("/")), "utf8");
+      text = readFileSync14(join21(root, ...path.split("/")), "utf8");
     } catch {}
     const g = ruleGlobsOf(text);
     const r = { path, globs: g.globs };
@@ -31502,7 +29824,7 @@ function ruleFacts(rootIn, privatePaths = new Set) {
 function readRuleIndex(rootIn) {
   let text;
   try {
-    text = readFileSync16(join23(realOr2(rootIn), "AGENTS.md"), "utf8");
+    text = readFileSync14(join21(realOr2(rootIn), "AGENTS.md"), "utf8");
   } catch {
     return { exists: false, found: false, entries: [] };
   }
@@ -31515,15 +29837,15 @@ function rulesParity(rootIn, privatePaths) {
 }
 function claudeRouting(rootIn) {
   const root = realOr2(rootIn);
-  const agents = join23(root, "AGENTS.md");
-  const agentsReal = existsSync10(agents) ? realOr2(agents) : undefined;
+  const agents = join21(root, "AGENTS.md");
+  const agentsReal = existsSync9(agents) ? realOr2(agents) : undefined;
   const out = [];
   for (const name of ["CLAUDE.md", "CLAUDE.local.md", DOT_CLAUDE_MD]) {
-    const path = join23(root, ...name.split("/"));
+    const path = join21(root, ...name.split("/"));
     const kind = kindOf(path);
     if (kind === "missing")
       continue;
-    const real = existsSync10(path) ? realOr2(path) : undefined;
+    const real = existsSync9(path) ? realOr2(path) : undefined;
     const sharedLink = agentsReal !== undefined && real !== undefined && real === agentsReal && (kind === "link" || kindOf(agents) === "link");
     const entry = { name, path, importsAgents: sharedLink, sharedLink };
     if (kind === "link" && real !== undefined && !within4(root, real))
@@ -31531,7 +29853,7 @@ function claudeRouting(rootIn) {
     if (!sharedLink) {
       let text;
       try {
-        text = readFileSync16(path, "utf8");
+        text = readFileSync14(path, "utf8");
       } catch {
         text = undefined;
       }
@@ -31568,24 +29890,24 @@ var spawnDetached2 = (argv, cwd) => {
   child.unref();
 };
 function assetsRoot(root) {
-  if (root === undefined || root === "" || !existsSync11(root))
+  if (root === undefined || root === "" || !existsSync10(root))
     return;
   const real = realOr2(root);
   return nonProjectReason(real) === undefined ? real : undefined;
 }
 function markerFile(root) {
-  return join24(stateDir(), "project-assets", `${sha256(root).slice(0, 16)}.spawn`);
+  return join22(stateDir(), "project-assets", `${sha256(root).slice(0, 16)}.spawn`);
 }
 function throttled(root, nowMs) {
   const file = markerFile(root);
   try {
-    const age = nowMs - statSync16(file).mtimeMs;
+    const age = nowMs - statSync13(file).mtimeMs;
     if (age >= 0 && age < ASSETS_SPAWN_THROTTLE_MS)
       return true;
   } catch {}
   try {
-    mkdirSync11(join24(stateDir(), "project-assets"), { recursive: true });
-    writeFileSync3(file, String(nowMs));
+    mkdirSync10(join22(stateDir(), "project-assets"), { recursive: true });
+    writeFileSync2(file, String(nowMs));
     const t = new Date(nowMs);
     utimesSync3(file, t, t);
   } catch {
@@ -31617,7 +29939,7 @@ function assetsContext(rootIn, harness) {
     if (root === undefined)
       return "";
     if (harness === "claude")
-      return existsSync11(join24(root, "AGENTS.md")) ? claudeParityText(rulesParity(root, ignoredRules(root))) : "";
+      return existsSync10(join22(root, "AGENTS.md")) ? claudeParityText(rulesParity(root, ignoredRules(root))) : "";
     const facts = assetsContextFacts(root);
     return assetsContextText({ harness, rules: facts.rules, claudeOnly: facts.claudeOnly });
   } catch (e) {
@@ -31662,14 +29984,14 @@ function ignoredRules(root) {
 function realPathOf(file) {
   const rest = [];
   let dir = resolve13(file);
-  while (!existsSync11(dir)) {
+  while (!existsSync10(dir)) {
     const parent = dirname10(dir);
     if (parent === dir)
       return resolve13(file);
-    rest.unshift(basename7(dir));
+    rest.unshift(basename6(dir));
     dir = parent;
   }
-  return join24(realOr2(dir), ...rest);
+  return join22(realOr2(dir), ...rest);
 }
 var CLAUDE_SKILL_MD = /^\.claude\/skills\/([^/]+)\/SKILL\.md$/;
 function relIn(root, file) {
@@ -31703,7 +30025,7 @@ function assetsAfterEdit(rootIn, files, o) {
           notes.push(claudeOnlySkillNote(id));
     }
     const claudeFiles = rels.filter((r) => r === "CLAUDE.md" || r === "CLAUDE.local.md" || r === DOT_CLAUDE_MD);
-    if (claudeFiles.length > 0 && existsSync11(join24(root, "AGENTS.md"))) {
+    if (claudeFiles.length > 0 && existsSync10(join22(root, "AGENTS.md"))) {
       const routing = claudeRouting(root);
       const dot = routing.find((c) => c.name === DOT_CLAUDE_MD);
       if (claudeFiles.includes(DOT_CLAUDE_MD) && dot !== undefined && !dot.importsAgents)
@@ -31725,7 +30047,7 @@ function assetsAfterEdit(rootIn, files, o) {
           const gone = [];
           for (const rel of ruleRels) {
             const rule = rules.find((r) => r.path === rel);
-            if (rule === undefined && !existsSync11(join24(root, ...rel.split("/"))))
+            if (rule === undefined && !existsSync10(join22(root, ...rel.split("/"))))
               gone.push(rel);
             const n = rule !== undefined ? ruleEditNote(rule, index) : undefined;
             if (n !== undefined)
@@ -31749,7 +30071,7 @@ function assetsAfterEdit(rootIn, files, o) {
 }
 
 // src/adapters/shared/write-content.ts
-import { readFileSync as readFileSync17, statSync as statSync17 } from "fs";
+import { readFileSync as readFileSync15, statSync as statSync14 } from "fs";
 
 // node_modules/jsonc-parser/lib/esm/impl/scanner.js
 function createScanner(text, ignoreTrivia = false) {
@@ -32247,10 +30569,10 @@ function parse2(text, errors = [], options = ParseOptions.DEFAULT) {
       errors.push({ error, offset, length });
     }
   };
-  visit2(text, visitor, options);
+  visit(text, visitor, options);
   return currentParent[0];
 }
-function visit2(text, visitor, options = ParseOptions.DEFAULT) {
+function visit(text, visitor, options = ParseOptions.DEFAULT) {
   const _scanner = createScanner(text, false);
   const _jsonPath = [];
   let suppressedCallbacks = 0;
@@ -32608,14 +30930,14 @@ var CONFIG_PARSERS = {
       throw new Error("no TOML parser in this runtime");
     return Bun.TOML.parse(text);
   },
-  yaml: (text) => $parse(text)
+  yaml: (text) => parseYaml(text)
 };
 function currentText(file) {
   try {
-    const st = statSync17(file);
+    const st = statSync14(file);
     if (!st.isFile() || st.size > WRITE_CONTENT_MAX_BYTES)
       return;
-    return readFileSync17(file, "utf8");
+    return readFileSync15(file, "utf8");
   } catch (e) {
     return e.code === "ENOENT" ? "" : undefined;
   }
@@ -32960,15 +31282,15 @@ function guardedContents(changes, paths, home, opts = {}) {
 }
 
 // src/adapters/opencode/runtime/adapter-rules.ts
-import { existsSync as existsSync12, readFileSync as readFileSync18 } from "fs";
-import { dirname as dirname11, join as join25, resolve as resolve14 } from "path";
+import { existsSync as existsSync11, readFileSync as readFileSync16 } from "fs";
+import { dirname as dirname11, join as join23, resolve as resolve14 } from "path";
 var CACHE_TTL_MS = 30000;
 var CACHE_MAX = 64;
 var cache = new Map;
 function gitToplevel(dir) {
   let d = resolve14(dir);
   for (let i = 0;i < 128; i++) {
-    if (existsSync12(join25(d, ".git")))
+    if (existsSync11(join23(d, ".git")))
       return d;
     const up = dirname11(d);
     if (up === d)
@@ -32979,7 +31301,7 @@ function gitToplevel(dir) {
 }
 function packageName(dir) {
   try {
-    const pkg = JSON.parse(readFileSync18(join25(dir, "package.json"), "utf8"));
+    const pkg = JSON.parse(readFileSync16(join23(dir, "package.json"), "utf8"));
     return pkg !== null && typeof pkg === "object" && typeof pkg.name === "string" ? pkg.name : undefined;
   } catch {
     return;
@@ -33069,7 +31391,7 @@ var SUBCOMMAND_TOOLS = {
 };
 var PACKAGE_MANAGERS = new Set(["npm", "pnpm", "yarn", "bun"]);
 var PACKAGE_RUNNERS = new Set(["npx", "bunx", "pnpx"]);
-function positional2(words) {
+function positional(words) {
   return words.filter((w) => !w.startsWith("-"));
 }
 function finiteArgv(argv) {
@@ -33077,7 +31399,7 @@ function finiteArgv(argv) {
   const rest = argv.slice(1);
   if (rest.some((w) => /^--watch(?:=|$)|^-w$|^--watchAll(?:=|$)|^--serve(?:=|$)/.test(w)))
     return false;
-  const pos = positional2(rest);
+  const pos = positional(rest);
   if (PACKAGE_RUNNERS.has(name))
     return pos[0] !== undefined && finiteArgv(rest.slice(rest.indexOf(pos[0])));
   if (PACKAGE_MANAGERS.has(name)) {
@@ -33157,7 +31479,7 @@ var BACKGROUND_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 function rec3(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x) ? x : {};
 }
-function str7(x) {
+function str6(x) {
   return typeof x === "string" && x !== "" ? x : undefined;
 }
 function backgroundStart(tool, input, result, at) {
@@ -33166,14 +31488,14 @@ function backgroundStart(tool, input, result, at) {
   if ((out["status"] ?? meta["status"]) !== "running")
     return;
   if (tool === "shell") {
-    const id = str7(out["shellID"]) ?? str7(meta["shellID"]);
+    const id = str6(out["shellID"]) ?? str6(meta["shellID"]);
     if (id === undefined)
       return;
-    const command = str7(input["command"]);
+    const command = str6(input["command"]);
     return [`shell:${id}`, { type: "shell", status: "running", at, ...command !== undefined ? { command } : {} }];
   }
   if (tool === "subagent") {
-    const id = str7(out["sessionID"]);
+    const id = str6(out["sessionID"]);
     return id === undefined ? undefined : [`subagent:${id}`, { type: "subagent", status: "running", at }];
   }
   return;
@@ -33183,11 +31505,11 @@ function backgroundEnd(metadata) {
   if (m["state"] === "running")
     return;
   if (m["source"] === "shell") {
-    const id = str7(m["shellID"]);
+    const id = str6(m["shellID"]);
     return id === undefined ? undefined : `shell:${id}`;
   }
   if (m["source"] === "subagent") {
-    const id = str7(m["childID"]);
+    const id = str6(m["childID"]);
     return id === undefined ? undefined : `subagent:${id}`;
   }
   return;
@@ -33214,8 +31536,8 @@ function hookFailure(baked, id) {
 }
 
 // src/adapters/opencode/runtime/checks.ts
-import { statSync as statSync19 } from "fs";
-import { basename as basename11 } from "path";
+import { statSync as statSync16 } from "fs";
+import { basename as basename10 } from "path";
 
 // src/core/checker-facts.ts
 var ESLINT_BINS = ["node_modules/.bin/eslint.exe", "node_modules/.bin/eslint.cmd", "node_modules/.bin/eslint"];
@@ -33324,7 +31646,7 @@ function checkerFacts(scans, cwd) {
   return facts;
 }
 // src/core/tdd.ts
-function basename8(p) {
+function basename7(p) {
   return p.slice(Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\")) + 1);
 }
 function dirname12(p) {
@@ -33332,7 +31654,7 @@ function dirname12(p) {
   return i <= 0 ? i === 0 ? p.slice(0, 1) : "." : p.slice(0, i);
 }
 function ext(p) {
-  const b = basename8(p);
+  const b = basename7(p);
   const i = b.lastIndexOf(".");
   return i <= 0 ? "" : b.slice(i + 1).toLowerCase();
 }
@@ -33348,7 +31670,7 @@ var DOTNET_TEST_DIR = /(?:^|\/)(?:[^/]+\.(?:Unit|Integration|Functional|Acceptan
 var NON_SOURCE_FILE = /(?:\.d\.ts|\.config\.[cm]?[jt]s|\.stories\.[jt]sx?|^conftest\.py|^setup\.py|^__init__\.py|^manage\.py|^__main__\.py|^vite-env\.d\.ts|^index\.d\.ts|\.(?:designer|g|g\.i|generated)\.cs|^AssemblyInfo\.cs|^GlobalUsings\.cs)$/i;
 var TEST_DIR_NAMES = ["tests", "test", "__tests__", "spec", "specs", "Tests"];
 function isTestFileName(name) {
-  const base = basename8(name);
+  const base = basename7(name);
   return /^test_.*\.py$/i.test(base) || /_test\.(?:py|go)$/i.test(base) || /\.(?:test|spec)\.[cm]?[jt]sx?$/i.test(base) || /Tests?\.cs$/.test(base);
 }
 function isDotnetTestProjectName(name) {
@@ -33483,7 +31805,7 @@ function importsModule(text, testPath, modulePath) {
   if (typeof text !== "string" || text === "" || typeof modulePath !== "string" || modulePath === "")
     return false;
   const e = ext(modulePath);
-  const base = basename8(modulePath);
+  const base = basename7(modulePath);
   const stem = base.slice(0, base.length - e.length - 1);
   if (stem === "")
     return false;
@@ -33500,7 +31822,7 @@ function importsModule(text, testPath, modulePath) {
     return false;
   const target = slash(modulePath).replace(JS_EXT, "");
   const dir = slash(dirname12(modulePath));
-  const parent = basename8(dir);
+  const parent = basename7(dir);
   for (const m of text.matchAll(JS_SPEC)) {
     const spec = m[1].replace(JS_EXT, "");
     if (spec.startsWith("./") || spec.startsWith("../")) {
@@ -33545,7 +31867,7 @@ function tddHint(path, candidates, edit) {
   if (typeof path !== "string" || path === "")
     return;
   const p = slash(path);
-  const base = basename8(p);
+  const base = basename7(p);
   const e = ext(p);
   const dir = dirname12(p);
   if (!TDD_EXT.has(e) || isTestFileName(base) || TEST_DIR.test(dir) || NON_SOURCE_DIR.test(p) || NON_SOURCE_FILE.test(base))
@@ -33557,16 +31879,16 @@ function tddHint(path, candidates, edit) {
   const c = Array.isArray(candidates) ? { siblings: candidates } : candidates ?? { siblings: [] };
   const str = (xs) => Array.isArray(xs) ? xs.filter((s) => typeof s === "string") : [];
   const stem = base.slice(0, base.length - e.length - 1);
-  const parentDir = basename8(dir);
-  const siblings = str(c.siblings).map(basename8);
+  const parentDir = basename7(dir);
+  const siblings = str(c.siblings).map(basename7);
   if (e === "go" && siblings.some((s) => /_test\.go$/i.test(s)))
     return;
-  if (nameMatches(e, stem, parentDir, [...siblings, ...str(c.testFiles).map(basename8)]))
+  if (nameMatches(e, stem, parentDir, [...siblings, ...str(c.testFiles).map(basename7)]))
     return;
   if (str(c.importers).length > 0)
     return;
   if ((e === "py" || e === "pyi") && str(c.failing).some((f) => {
-    const b = basename8(f).replace(/\.py$/i, "");
+    const b = basename7(f).replace(/\.py$/i, "");
     return b === `test_${stem}` || b === `${stem}_test`;
   }))
     return;
@@ -33997,7 +32319,7 @@ function charsetFindings(addedText, path, fileText) {
 var FINDINGS_MAX_LINES = 20;
 var SLOW_CHECKER_MIN_MS = 4000;
 var DOTNET_FORMAT_ENV = { LC_ALL: "en_US.UTF-8", DOTNET_CLI_UI_LANGUAGE: "en" };
-function basename9(p) {
+function basename8(p) {
   return p.slice(Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\")) + 1);
 }
 function dirname13(p) {
@@ -34005,7 +32327,7 @@ function dirname13(p) {
   return i <= 0 ? i === 0 ? p.slice(0, 1) : "." : p.slice(0, i);
 }
 function ext2(p) {
-  const b = basename9(p);
+  const b = basename8(p);
   const i = b.lastIndexOf(".");
   return i <= 0 ? "" : b.slice(i + 1).toLowerCase();
 }
@@ -34066,7 +32388,7 @@ function note2(title, items, cwd) {
 `);
 }
 function tool(plan) {
-  const a0 = basename9(plan.argv[0] ?? "");
+  const a0 = basename8(plan.argv[0] ?? "");
   return a0 === "" ? plan.parser : a0;
 }
 var ANSI = /\x1b\[[0-9;?]*[A-Za-z]/g;
@@ -34195,27 +32517,27 @@ function lengthNote(lineCount) {
 }
 
 // src/adapters/shared/checker-scan.ts
-import { readdirSync as readdirSync10, readFileSync as readFileSync19, statSync as statSync18 } from "fs";
-import { basename as basename10, dirname as dirname14, join as join26, relative as relative5, sep as sep4 } from "path";
+import { readdirSync as readdirSync7, readFileSync as readFileSync17, statSync as statSync15 } from "fs";
+import { basename as basename9, dirname as dirname14, join as join24, relative as relative5, sep as sep4 } from "path";
 var nodeCheckFs = {
   list: (dir) => {
     try {
-      return readdirSync10(dir, { withFileTypes: true }).map((d) => ({ name: d.name, dir: d.isDirectory() })).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+      return readdirSync7(dir, { withFileTypes: true }).map((d) => ({ name: d.name, dir: d.isDirectory() })).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
     } catch {
       return [];
     }
   },
   read: (path, maxBytes) => {
     try {
-      const st = statSync18(path);
-      return st.isFile() && st.size <= maxBytes ? readFileSync19(path, "utf8") : undefined;
+      const st = statSync15(path);
+      return st.isFile() && st.size <= maxBytes ? readFileSync17(path, "utf8") : undefined;
     } catch {
       return;
     }
   },
   exists: (path) => {
     try {
-      statSync18(path);
+      statSync15(path);
       return true;
     } catch {
       return false;
@@ -34237,23 +32559,23 @@ function scanUpward(fs, file, root, home, windows = isWindows()) {
     const names = fs.list(dir).map((e) => e.name);
     const scan = { dir, names };
     if (names.includes("pyproject.toml")) {
-      const t = fs.read(join26(dir, "pyproject.toml"), MANIFEST_MAX_BYTES);
+      const t = fs.read(join24(dir, "pyproject.toml"), MANIFEST_MAX_BYTES);
       if (t !== undefined)
         scan.pyproject = t;
     }
     if (names.includes("package.json")) {
-      const t = fs.read(join26(dir, "package.json"), MANIFEST_MAX_BYTES);
+      const t = fs.read(join24(dir, "package.json"), MANIFEST_MAX_BYTES);
       if (t !== undefined)
         scan.packageJson = t;
     }
-    const present = probes.filter((p) => names.includes(p.split("/")[0]) && fs.exists(join26(dir, ...p.split("/"))));
+    const present = probes.filter((p) => names.includes(p.split("/")[0]) && fs.exists(join24(dir, ...p.split("/"))));
     if (present.length > 0)
       scan.present = present;
     return scan;
   });
 }
 function extOf(p) {
-  const b = basename10(p);
+  const b = basename9(p);
   const i = b.lastIndexOf(".");
   return i <= 0 ? "" : b.slice(i + 1).toLowerCase();
 }
@@ -34263,10 +32585,10 @@ function mirrorDirs(file, testDir, owner) {
   if (rel === "" || rel.startsWith(".."))
     return [];
   const segs = rel.split(sep4);
-  const stem = basename10(file).replace(/\.[^.]+$/, "");
-  const out = [join26(testDir, ...segs), join26(testDir, ...segs, stem)];
+  const stem = basename9(file).replace(/\.[^.]+$/, "");
+  const out = [join24(testDir, ...segs), join24(testDir, ...segs, stem)];
   if (segs.length > 0 && SOURCE_ROOTS.has(segs[0]))
-    out.push(join26(testDir, ...segs.slice(1)), join26(testDir, ...segs.slice(1), stem));
+    out.push(join24(testDir, ...segs.slice(1)), join24(testDir, ...segs.slice(1), stem));
   return out;
 }
 function testFilesNear(fs, file, scans, now) {
@@ -34278,10 +32600,10 @@ function testFilesNear(fs, file, scans, now) {
   const queue = [];
   for (const s of scans) {
     for (const n of s.names) {
-      if (n === basename10(dirname14(file)) && join26(s.dir, n) === dirname14(file))
+      if (n === basename9(dirname14(file)) && join24(s.dir, n) === dirname14(file))
         continue;
       if (TEST_DIR_NAMES.includes(n) || family === "cs" && isDotnetTestProjectName(n)) {
-        const t = join26(s.dir, n);
+        const t = join24(s.dir, n);
         if (roots.includes(t))
           continue;
         roots.push(t);
@@ -34302,10 +32624,10 @@ function testFilesNear(fs, file, scans, now) {
       visited++;
       if (e.dir) {
         if (!SKIP_DIRS.has(e.name) && !e.name.startsWith("."))
-          queue.push(join26(d, e.name));
+          queue.push(join24(d, e.name));
         continue;
       }
-      const p = join26(d, e.name);
+      const p = join24(d, e.name);
       if (FAMILY[extOf(e.name)] !== family || found.includes(p))
         continue;
       if (isTestFileName(e.name) || family === "cs")
@@ -34331,7 +32653,7 @@ function lastFailed(fs, scans) {
   for (const s of scans) {
     if (!s.names.includes(".pytest_cache"))
       continue;
-    const text = fs.read(join26(s.dir, ".pytest_cache", "v", "cache", "lastfailed"), MANIFEST_MAX_BYTES);
+    const text = fs.read(join24(s.dir, ".pytest_cache", "v", "cache", "lastfailed"), MANIFEST_MAX_BYTES);
     if (text === undefined)
       continue;
     try {
@@ -34451,7 +32773,7 @@ async function checkOneFile(env, t, cfg) {
 var OPENCODE_H04_BUDGET_MS = 20000;
 var OPENCODE_LSP_BUDGET_MS = 12000;
 var MAX_CHECKED_FILES = 5;
-function str8(x) {
+function str7(x) {
   return typeof x === "string" ? x : undefined;
 }
 function editTexts(kind, files, input, cwd, home) {
@@ -34459,7 +32781,7 @@ function editTexts(kind, files, input, cwd, home) {
   const removed = {};
   const first = files[0];
   if (kind === "write") {
-    const c = str8(input["content"]);
+    const c = str7(input["content"]);
     if (c !== undefined && first !== undefined)
       added[first] = c;
   }
@@ -34470,8 +32792,8 @@ function editTexts(kind, files, input, cwd, home) {
       if (o === null || typeof o !== "object")
         return;
       const r = o;
-      const n = str8(r["newString"]);
-      const old = str8(r["oldString"]);
+      const n = str7(r["newString"]);
+      const old = str7(r["oldString"]);
       if (n !== undefined)
         news.push(n);
       if (old !== undefined)
@@ -34488,7 +32810,7 @@ function editTexts(kind, files, input, cwd, home) {
 `);
   }
   if (kind === "patch") {
-    const text = str8(input["patchText"]) ?? str8(input["patch"]);
+    const text = str7(input["patchText"]) ?? str7(input["patch"]);
     if (text !== undefined) {
       Object.assign(added, parseApplyPatch(text, cwd, { homeTilde: home }).added);
       Object.assign(removed, removedByFile(patchEdits(text), files));
@@ -34498,7 +32820,7 @@ function editTexts(kind, files, input, cwd, home) {
 }
 function isFile4(path) {
   try {
-    return statSync19(path).isFile();
+    return statSync16(path).isFile();
   } catch {
     return false;
   }
@@ -34513,7 +32835,7 @@ async function fileChecks(kind, files, input, cfg, deps) {
   for (const file of files.slice(0, MAX_CHECKED_FILES)) {
     if (!isFile4(file))
       continue;
-    const name = basename11(file);
+    const name = basename10(file);
     const found = await checkOneFile({
       api: { checkersFor, findingsOf, tddHint, charsetFindings, lengthNote },
       fs: deps.fs ?? nodeCheckFs,
@@ -34547,9 +32869,9 @@ async function lspEditNotes(files, cfg, deps) {
 }
 
 // src/workflow/ledger.ts
-import { join as join27 } from "path";
+import { join as join25 } from "path";
 function ledgerPath(h, sid) {
-  return join27(sessionDir(h, sid), "ledger.json");
+  return join25(sessionDir(h, sid), "ledger.json");
 }
 function loadLedger(h, sid) {
   const r = readJsonSafeSync(ledgerPath(h, sid));
@@ -34662,40 +32984,12 @@ function runTitle(words) {
 `).map((l) => l.trim()).find((l) => l !== "");
   return line !== undefined && line !== "" ? line : undefined;
 }
-function promptSignalEntries(text, used, now) {
-  const signals = [];
+function promptSignalEntries(text, now) {
   try {
-    signals.push(...profileSignalsFromPrompt(text));
-  } catch {}
-  for (const id of used.skills) {
-    const s = profileUsageSignal("skill", id);
-    if (s !== undefined)
-      signals.push(s);
+    return promptSignals(text).map((signal) => ({ ts: now, ev: "prompt-signal", signal }));
+  } catch {
+    return [];
   }
-  for (const id of used.workflows) {
-    const s = profileUsageSignal("workflow", id);
-    if (s !== undefined)
-      signals.push(s);
-  }
-  const seen = new Set;
-  const out = [];
-  for (const signal of signals) {
-    if (seen.has(signal.key))
-      continue;
-    seen.add(signal.key);
-    out.push({ ts: now, ev: "signal", signal });
-  }
-  return out;
-}
-function skillSignalEntries(id, now) {
-  const out = [];
-  const s = profileUsageSignal("skill", id);
-  if (s !== undefined)
-    out.push({ ts: now, ev: "signal", signal: s });
-  const w = flowDef(id) !== undefined ? profileUsageSignal("workflow", id) : undefined;
-  if (w !== undefined)
-    out.push({ ts: now, ev: "signal", signal: w });
-  return out;
 }
 function fileLedgerStore() {
   return {
@@ -34741,11 +33035,11 @@ function sessionHealth(store, sid, health) {
     return health;
   }
 }
-function recordMcpResult(store, sid, server, ok, tool) {
+function recordMcpResult(store, sid, server, ok) {
   try {
     if (ok && store.load(sid).mcpErrors?.[server] === undefined)
       return;
-    store.update(sid, (l) => ledgerMcpResult(l, server, ok, tool));
+    store.update(sid, (l) => ledgerMcpResult(l, server, ok));
   } catch {}
 }
 function auditTurn(store, sid) {
@@ -34826,679 +33120,6 @@ async function registerWorkflowCommands(ctx, skills, deps) {
       editor.add(workflowCommand(s, deps));
   });
   return true;
-}
-
-// src/adapters/opencode/runtime/context-mode.ts
-import { existsSync as existsSync14, unlinkSync as unlinkSync11 } from "fs";
-import { join as join31 } from "path";
-
-// src/engine/context-mode.ts
-import { basename as basename12, join as join28, resolve as resolve15, sep as sep5 } from "path";
-function cmHome() {
-  return join28(buracleHome(), "context-mode");
-}
-function cmProbeRoot() {
-  return join28(cmHome(), "probe");
-}
-function cmSentinelDir() {
-  return join28(cmHome(), "sentinel");
-}
-function cmSessionsDir(root) {
-  return join28(root, "sessions");
-}
-function cmBun() {
-  const own = process.execPath;
-  if (own !== "" && /^bun(?:\.exe)?$/i.test(basename12(own)))
-    return own;
-  return findExecutable("bun");
-}
-function realOr3(p, realpath) {
-  try {
-    return realpath(p);
-  } catch {
-    return p;
-  }
-}
-function cmProjectDir(h, opts) {
-  if (h === "claude" && opts.claudeProjectDir !== undefined && opts.claudeProjectDir.trim() !== "")
-    return opts.claudeProjectDir;
-  return realOr3(opts.cwd, opts.realpath ?? realPath);
-}
-
-// src/adapters/shared/context-mode/client.ts
-import { randomBytes as randomBytes3 } from "crypto";
-import { closeSync as closeSync7, existsSync as existsSync13, mkdirSync as mkdirSync12, openSync as openSync7, readFileSync as readFileSync20, statSync as statSync20, unlinkSync as unlinkSync9, writeSync as writeSync5 } from "fs";
-import { dirname as dirname15, join as join29 } from "path";
-function cmTmpDir() {
-  return join29(cmHome(), "tmp");
-}
-function writeCmInput(text) {
-  try {
-    mkdirSync12(cmTmpDir(), { recursive: true, mode: 448 });
-    const file = join29(cmTmpDir(), `in-${process.pid}-${randomBytes3(6).toString("hex")}.json`);
-    const fd = openSync7(file, "wx", 384);
-    try {
-      writeSync5(fd, text);
-    } finally {
-      closeSync7(fd);
-    }
-    return file;
-  } catch (e) {
-    log("debug", "context-mode: cannot write a session input file", { error: e });
-    return;
-  }
-}
-function isFile5(p) {
-  try {
-    return statSync20(p).isFile();
-  } catch {
-    return false;
-  }
-}
-function cmCliArgv() {
-  const shim = shimLaunch();
-  if (shim !== undefined && findCheckout(import.meta.dir) === undefined)
-    return shim;
-  const main = join29(repoRoot(), "src", "cli", "main.ts");
-  const bun = cmBun();
-  if (bun !== undefined && isFile5(main))
-    return [bun, main];
-  if (shim !== undefined)
-    return shim;
-  return [bun ?? process.execPath, main];
-}
-function cmChildArgs(req, input) {
-  const t = req.target;
-  return [
-    "ctx",
-    "session",
-    req.op,
-    "--harness",
-    t.harness,
-    "--session",
-    t.sessionId,
-    "--project-dir",
-    t.projectDir,
-    ...input !== undefined ? ["--input", input] : [],
-    ...req.source !== undefined ? ["--source", req.source] : [],
-    ...req.maxBytes !== undefined ? ["--max-bytes", String(req.maxBytes)] : [],
-    "--json"
-  ];
-}
-function childCwd() {
-  const home2 = home();
-  return existsSync13(home2) ? home2 : "/";
-}
-var spawnDetached3 = (argv, opts) => {
-  const spawned = spawnArgv(argv);
-  const child = Bun.spawn(spawned, { stdin: "ignore", stdout: "ignore", stderr: "ignore", detached: true, cwd: opts.cwd, env: { ...process.env }, windowsVerbatimArguments: windowsVerbatim(spawned) });
-  child.unref();
-};
-function cmSpawnSession(req, spawn = spawnDetached3) {
-  let input;
-  try {
-    if (req.events !== undefined && req.events.length > 0) {
-      input = writeCmInput(JSON.stringify({ events: req.events }));
-      if (input === undefined)
-        return false;
-    }
-    spawn([...cmCliArgv(), ...cmChildArgs(req, input)], { cwd: childCwd() });
-    return true;
-  } catch (e) {
-    log("warn", `context-mode: cannot start the session ${req.op} child`, { error: e });
-    if (input !== undefined) {
-      try {
-        unlinkSync9(input);
-      } catch {}
-    }
-    return false;
-  }
-}
-function parseCmOutcome(stdout) {
-  const lines = stdout.split(`
-`).map((l) => l.trim()).filter((l) => l.startsWith("{"));
-  const last = lines[lines.length - 1];
-  if (last === undefined)
-    return;
-  try {
-    const v = JSON.parse(last);
-    if (v === null || typeof v !== "object" || typeof v.ok !== "boolean")
-      return;
-    return v;
-  } catch {
-    return;
-  }
-}
-async function cmRunSessionChild(req, opts) {
-  let timer;
-  try {
-    const body = req.events !== undefined && req.events.length > 0 ? JSON.stringify({ events: req.events }) : undefined;
-    const spawned = spawnArgv([...cmCliArgv(), ...cmChildArgs(req)]);
-    const proc = Bun.spawn(spawned, {
-      stdin: body !== undefined ? new Blob([body]) : "ignore",
-      stdout: "pipe",
-      stderr: "ignore",
-      cwd: childCwd(),
-      env: { ...process.env },
-      windowsVerbatimArguments: windowsVerbatim(spawned)
-    });
-    let timedOut = false;
-    timer = setTimeout(() => {
-      timedOut = true;
-      try {
-        proc.kill();
-      } catch {}
-    }, opts.timeoutMs);
-    const out = await new Response(proc.stdout).text();
-    await proc.exited;
-    return timedOut ? undefined : parseCmOutcome(out);
-  } catch (e) {
-    log("warn", `context-mode: the session ${req.op} child failed`, { error: e });
-    return;
-  } finally {
-    if (timer !== undefined)
-      clearTimeout(timer);
-  }
-}
-
-// src/adapters/shared/context-mode/exclusion.ts
-async function cmExclusion(projectDir, config) {
-  try {
-    const patterns = [...new Set([...config?.memory.exclude ?? [], ...memoryExcludePatterns()])];
-    return await projectExclusion(projectDir, patterns);
-  } catch (e) {
-    log("debug", "context-mode: cannot check memory.exclude for the project folder", { error: e });
-    return;
-  }
-}
-
-// src/adapters/shared/context-mode/maint.ts
-import { lstatSync as lstatSync5, readdirSync as readdirSync11, rmdirSync, unlinkSync as unlinkSync10 } from "fs";
-import { join as join30 } from "path";
-var DAY_MS = 24 * 3600000;
-var CONTENT_MAX_AGE_DAYS = 14;
-var DB_FILE = /^([0-9a-f]{16}(?:__[A-Za-z0-9._-]+)?\.db)(?:-wal|-shm)?$/;
-var EVENTS_FILE = /^[0-9a-f]{16}(?:__[A-Za-z0-9._-]+)?-events\.md$/;
-var STATS_FILE = /^stats-[A-Za-z0-9._-]+\.json(?:\.tmp)?$/;
-var CORRUPT_FILE = /\.db(?:-wal|-shm)?\.corrupt-\d+$/;
-function entries(dir) {
-  if (!isDir(dir))
-    return [];
-  try {
-    return readdirSync11(dir);
-  } catch {
-    return [];
-  }
-}
-function fileMtime(p) {
-  try {
-    const s = lstatSync5(p);
-    return s.isFile() ? s.mtimeMs : undefined;
-  } catch {
-    return;
-  }
-}
-function dirMtime(p) {
-  try {
-    const s = lstatSync5(p);
-    return s.isDirectory() ? s.mtimeMs : undefined;
-  } catch {
-    return;
-  }
-}
-function isDir(p) {
-  return dirMtime(p) !== undefined;
-}
-function dbFamilies(dir, names) {
-  const newest = new Map;
-  for (const n of names) {
-    const db = DB_FILE.exec(n);
-    const m = fileMtime(join30(dir, n));
-    if (db === null || m === undefined)
-      continue;
-    const base = db[1];
-    newest.set(base, Math.max(newest.get(base) ?? 0, m));
-  }
-  return newest;
-}
-function cmPrune(nowMs, maxAgeDays = 7, opts = {}) {
-  const removed = [];
-  const cutoff = nowMs - maxAgeDays * DAY_MS;
-  const rm = (p) => {
-    try {
-      unlinkSync10(p);
-      removed.push(p);
-    } catch {}
-  };
-  const rmdirIfIdle = (p, mtimeBefore) => {
-    if (mtimeBefore === undefined || mtimeBefore >= cutoff || entries(p).length > 0)
-      return;
-    try {
-      rmdirSync(p);
-      removed.push(p);
-    } catch {}
-  };
-  const sweepFolder = (dir, maxAgeMs, name) => {
-    for (const n of entries(dir)) {
-      const p = join30(dir, n);
-      const m = fileMtime(p);
-      if (m !== undefined && name.test(n) && nowMs - m > maxAgeMs)
-        rm(p);
-    }
-  };
-  const sweepSessions = (dir) => {
-    const names = entries(dir);
-    const newest = dbFamilies(dir, names);
-    for (const n of names) {
-      const p = join30(dir, n);
-      const m = fileMtime(p);
-      if (m === undefined)
-        continue;
-      const db = DB_FILE.exec(n);
-      if (db !== null) {
-        if ((newest.get(db[1]) ?? m) < cutoff)
-          rm(p);
-        continue;
-      }
-      if ((EVENTS_FILE.test(n) || CORRUPT_FILE.test(n)) && m < cutoff) {
-        rm(p);
-        continue;
-      }
-      if (STATS_FILE.test(n) && nowMs - m > (opts.statsMaxAgeMs ?? DAY_MS))
-        rm(p);
-    }
-  };
-  const sweepContent = (dir) => {
-    const names = entries(dir);
-    const newest = dbFamilies(dir, names);
-    const contentCutoff = nowMs - CONTENT_MAX_AGE_DAYS * DAY_MS;
-    for (const n of names) {
-      const db = DB_FILE.exec(n);
-      if (db !== null && fileMtime(join30(dir, n)) !== undefined && (newest.get(db[1]) ?? nowMs) < contentCutoff)
-        rm(join30(dir, n));
-    }
-  };
-  const servedLately = (sessions) => entries(sessions).some((n) => STATS_FILE.test(n) && nowMs - (fileMtime(join30(sessions, n)) ?? -Infinity) <= DAY_MS);
-  const sweepRoot = (root) => {
-    const sessions = cmSessionsDir(root);
-    const content = join30(root, "content");
-    const before = { root: dirMtime(root), sessions: dirMtime(sessions), content: dirMtime(content) };
-    const served = servedLately(sessions);
-    sweepSessions(sessions);
-    rmdirIfIdle(sessions, before.sessions);
-    const lock = join30(root, "writer.lock");
-    const m = fileMtime(lock);
-    if (m !== undefined && nowMs - m > DAY_MS) {
-      const seen = lockSnapshot(lock);
-      if (seen !== undefined && nowMs - seen.mtimeMs > DAY_MS && breakStaleLock(lock, seen) === "broken")
-        removed.push(lock);
-    }
-    if (!served)
-      sweepContent(content);
-    rmdirIfIdle(content, before.content);
-    rmdirIfIdle(root, before.root);
-  };
-  try {
-    const home = cmHome();
-    if (!isDir(home))
-      return { removed };
-    sweepFolder(cmTmpDir(), opts.tmpMaxAgeMs ?? 10 * 60000, /^in-[\w-]+\.json$/);
-    sweepFolder(cmSentinelDir(), maxAgeDays * DAY_MS, /^[\w.-]+$/);
-    for (const h of HARNESSES) {
-      const dir = join30(home, h);
-      const before = dirMtime(dir);
-      for (const n of entries(dir)) {
-        const root = join30(dir, n);
-        if (isDir(root))
-          sweepRoot(root);
-      }
-      rmdirIfIdle(dir, before);
-    }
-    if (isDir(cmProbeRoot()))
-      sweepRoot(cmProbeRoot());
-  } catch (e) {
-    log("debug", "context-mode: storage housekeeping failed", { error: e });
-  }
-  return { removed };
-}
-
-// src/adapters/opencode/runtime/context-mode.ts
-var HARNESS2 = "opencode";
-var CM_SNAPSHOT_TIMEOUT_MS = 3000;
-var CM_RESUME_TIMEOUT_MS = 3000;
-var CM_RESTORE_TIMEOUT_MS = 5000;
-var CM_FLUSH_AT = 50;
-var CM_STATE_FILE = "context-mode.json";
-var CM_EXCLUDE_TTL_MS = 60000;
-function isCmToolName(name) {
-  return typeof name === "string" && (cmToolOfName(HARNESS2, name) !== undefined || looksLikeCmExecTool(name));
-}
-function errText(e) {
-  return e instanceof Error ? e.message : String(e);
-}
-function guardFailed(e) {
-  return `the guard could not evaluate this context-mode call (${errText(e)}), so it was blocked to stay safe. Run \`buracle doctor opencode\`.`;
-}
-function cmGuardVerdict(call, opts) {
-  let commands;
-  try {
-    const c = call();
-    const v = checkSandbox(c, opts.sandbox());
-    if (v.deny !== undefined && v.deny !== "")
-      return { deny: { reason: v.deny, hook: v.hook ?? "H01" } };
-    const reviewer = cmReviewerDenial(opts.agent, c);
-    if (reviewer !== undefined)
-      return { deny: { reason: reviewer, hook: "H01" } };
-    commands = sandboxShellCommands(c);
-  } catch (e) {
-    report(opts, "H01", e);
-    return { deny: { reason: guardFailed(e), hook: "H01" } };
-  }
-  const lane = opts.lane === true ? laneStateDenialAll(commands) : undefined;
-  if (lane !== undefined)
-    return { deny: { reason: lane, hook: "H01" } };
-  if (commands.length === 0 || opts.consent === undefined)
-    return {};
-  try {
-    const reason = opts.consent(commands);
-    return reason !== undefined && reason !== "" ? { deny: { reason, hook: "H20" } } : {};
-  } catch (e) {
-    report(opts, "H20", e);
-    return opts.consentFailure === "closed" ? { deny: { reason: guardFailed(e), hook: "H20" } } : {};
-  }
-}
-function report(opts, hook, e) {
-  try {
-    opts.onError?.(hook, e);
-  } catch {}
-}
-function cmUnseenDenial(action) {
-  const tool = cmToolOfName(HARNESS2, action);
-  if (tool === "ctx_search" || tool === "ctx_stats")
-    return;
-  return { reason: `Buracle did not see the arguments of this ${tool ?? "context-mode"} call, so its guards could not check what it runs; call it again.`, hook: "H01" };
-}
-function shimReady() {
-  try {
-    return existsSync14(shimPath());
-  } catch {
-    return false;
-  }
-}
-var defaultSpawn = (req) => shimReady() && cmSpawnSession(req);
-var defaultRun = async (req, opts) => shimReady() ? cmRunSessionChild(req, opts) : undefined;
-
-class OpencodeContextMode {
-  host;
-  sessions = new Map;
-  spawnFn;
-  runFn;
-  envFn;
-  pruneFn;
-  excludedFn;
-  nowFn;
-  server;
-  exclusion;
-  constructor(host, deps = {}) {
-    this.host = host;
-    this.spawnFn = deps.spawn ?? defaultSpawn;
-    this.runFn = deps.run ?? defaultRun;
-    this.envFn = deps.env ?? (() => process.env);
-    this.pruneFn = deps.prune ?? ((nowMs) => cmPrune(nowMs));
-    this.excludedFn = deps.excluded ?? ((dir, config) => cmExclusion(dir, config));
-    this.nowFn = deps.now ?? Date.now;
-    this.excluded();
-  }
-  serverDir() {
-    this.server ??= cmProjectDir(HARNESS2, { cwd: this.host.directory });
-    return this.server;
-  }
-  excluded() {
-    const now = this.nowFn();
-    const last = this.exclusion;
-    if (last === undefined || last.pending === undefined && now - last.at >= CM_EXCLUDE_TTL_MS)
-      this.checkExclusion(now, last?.why);
-    return this.exclusion?.why;
-  }
-  checkExclusion(now, why) {
-    const next = why !== undefined ? { at: now, why } : { at: now };
-    this.exclusion = next;
-    let config;
-    try {
-      config = this.host.cfg();
-    } catch {
-      config = undefined;
-    }
-    let check;
-    try {
-      check = this.excludedFn(this.serverDir(), config);
-    } catch (e) {
-      check = Promise.reject(e);
-    }
-    const done = check.then((found) => {
-      if (found !== undefined && found !== "")
-        next.why = found;
-      else
-        delete next.why;
-    }, (e) => {
-      this.host.log("debug", "context-mode: cannot check memory.exclude", { error: errText(e) });
-    }).then(() => {
-      delete next.pending;
-    });
-    next.pending = done;
-    this.host.track(done);
-  }
-  blocked(capture) {
-    if (!capture)
-      return "capture is off for this session";
-    try {
-      return cmCaptureBlocked({ config: this.host.cfg(), env: this.envFn() }) ?? this.excluded();
-    } catch (e) {
-      return `the switches are unreadable (${errText(e)})`;
-    }
-  }
-  target(sid) {
-    return { harness: HARNESS2, sessionId: sid, projectDir: this.serverDir() };
-  }
-  active(sid, capture) {
-    return isValidSessionId(sid) && this.blocked(capture) === undefined;
-  }
-  spawn(req) {
-    try {
-      if (!this.spawnFn(req))
-        this.host.log("debug", `context-mode: no session ${req.op} child started`, { sid: req.target.sessionId });
-    } catch (e) {
-      this.host.log("warn", `context-mode: the session ${req.op} child failed to start`, { error: errText(e) });
-    }
-  }
-  async run(req, timeoutMs) {
-    try {
-      const out = await this.runFn(req, { timeoutMs });
-      if (out === undefined)
-        this.host.log("debug", `context-mode: the session ${req.op} child gave no answer`, { sid: req.target.sessionId });
-      else if (!out.ok)
-        this.host.log("debug", `context-mode: the session ${req.op} child stood down`, { sid: req.target.sessionId, skipped: out.skipped });
-      return out;
-    } catch (e) {
-      this.host.log("warn", `context-mode: the session ${req.op} child failed`, { error: errText(e) });
-      return;
-    }
-  }
-  file(sid) {
-    return join31(sessionDir(HARNESS2, sid), CM_STATE_FILE);
-  }
-  state(sid) {
-    let s = this.sessions.get(sid);
-    if (s === undefined) {
-      s = { buffer: [] };
-      try {
-        const r = readJsonSafeSync(this.file(sid));
-        if (r.ok && r.value !== null && typeof r.value === "object" && typeof r.value.restore === "string" && r.value.restore !== "")
-          s.restore = r.value.restore;
-      } catch {}
-      this.sessions.set(sid, s);
-    }
-    return s;
-  }
-  setRestore(sid, s, text, keep) {
-    s.restore = text !== undefined && text.trim() !== "" ? text : undefined;
-    if (!keep)
-      return;
-    try {
-      if (s.restore !== undefined)
-        atomicWriteSync(this.file(sid), JSON.stringify({ v: 1, restore: s.restore }) + `
-`, { mode: 384 });
-      else if (existsSync14(this.file(sid)))
-        unlinkSync11(this.file(sid));
-    } catch (e) {
-      this.host.log("warn", "context-mode: could not keep the restore text", { sid, error: errText(e) });
-    }
-  }
-  startup(sid, capture) {
-    if (!this.active(sid, capture))
-      return;
-    this.spawn({ op: "startup", target: this.target(sid) });
-  }
-  prompt(sid, text, capture) {
-    if (!this.active(sid, capture))
-      return;
-    let ev;
-    try {
-      ev = cmPromptEvent(text);
-    } catch {
-      ev = undefined;
-    }
-    if (ev !== undefined)
-      this.add(sid, ev);
-  }
-  toolEvent(call) {
-    try {
-      return cmOpencodeEvent(call);
-    } catch {
-      return;
-    }
-  }
-  tool(sid, ev, capture) {
-    if (this.active(sid, capture))
-      this.add(sid, ev);
-  }
-  add(sid, ev) {
-    const s = this.state(sid);
-    s.buffer.push(ev);
-    if (s.buffer.length >= CM_FLUSH_AT)
-      this.flush(sid);
-  }
-  flush(sid) {
-    const s = this.sessions.get(sid);
-    if (s === undefined || s.buffer.length === 0)
-      return;
-    const events = s.buffer.splice(0);
-    if (this.excluded() !== undefined)
-      return;
-    this.spawn({ op: "capture", target: this.target(sid), events });
-  }
-  flushAll() {
-    for (const sid of this.sessions.keys())
-      this.flush(sid);
-  }
-  forget(sid) {
-    this.flush(sid);
-    this.sessions.delete(sid);
-  }
-  async compacting(sid, capture) {
-    if (!this.active(sid, capture))
-      return;
-    const s = this.state(sid);
-    s.snapshotted = false;
-    const gen = s.gen = (s.gen ?? 0) + 1;
-    s.inflight = gen;
-    const events = s.buffer.splice(0);
-    const target = this.target(sid);
-    const out = await this.run({ op: "snapshot", target, events }, CM_SNAPSHOT_TIMEOUT_MS);
-    const live = s.gen === gen && s.inflight === gen;
-    if (s.inflight === gen)
-      s.inflight = undefined;
-    if (out === undefined) {
-      if (events.length > 0)
-        this.spawn({ op: "capture", target, events });
-      return;
-    }
-    if (!out.ok || !live)
-      return;
-    if (typeof out.text === "string") {
-      s.previous = s.restore;
-      this.setRestore(sid, s, out.text, false);
-      s.snapshotted = true;
-    }
-    return typeof out.snapshot === "string" && out.snapshot.trim() !== "" ? summarizerText(out.snapshot) : undefined;
-  }
-  compacted(sid, capture) {
-    if (!isValidSessionId(sid))
-      return;
-    const s = this.state(sid);
-    const fromSnapshot = s.snapshotted === true && this.blocked(capture) === undefined;
-    s.snapshotted = false;
-    s.previous = undefined;
-    this.setRestore(sid, s, fromSnapshot ? s.restore : undefined, true);
-    if (!this.active(sid, capture))
-      return;
-    this.host.track(this.run({ op: "restore", target: this.target(sid), source: "compact" }, CM_RESTORE_TIMEOUT_MS).then((out) => {
-      if (!fromSnapshot && s.restore === undefined && out?.ok === true && typeof out.text === "string")
-        this.setRestore(sid, s, out.text, true);
-    }));
-  }
-  compactionFailed(sid) {
-    const s = this.sessions.get(sid);
-    if (s === undefined)
-      return;
-    if (s.inflight !== undefined && s.inflight === s.gen) {
-      s.inflight = undefined;
-      return;
-    }
-    if (s.snapshotted !== true)
-      return;
-    s.snapshotted = false;
-    s.restore = s.previous;
-    s.previous = undefined;
-  }
-  async resume(sid, capture) {
-    await this.exclusion?.pending;
-    if (!this.active(sid, capture))
-      return;
-    const s = this.state(sid);
-    if (s.resume !== undefined)
-      return s.resume;
-    if (s.restore !== undefined) {
-      s.resume = Promise.resolve();
-      return s.resume;
-    }
-    s.resume = this.host.track(this.run({ op: "restore", target: this.target(sid), source: "resume" }, CM_RESUME_TIMEOUT_MS).then((out) => {
-      if (s.restore === undefined && out?.ok === true && typeof out.text === "string")
-        this.setRestore(sid, s, out.text, false);
-    }));
-    return s.resume;
-  }
-  async requestText(sid, capture) {
-    await this.exclusion?.pending;
-    if (!this.active(sid, capture))
-      return;
-    const s = this.state(sid);
-    if (s.resume !== undefined)
-      await s.resume;
-    return s.restore;
-  }
-  prune(nowMs) {
-    try {
-      return this.pruneFn(nowMs);
-    } catch (e) {
-      this.host.log("warn", "context-mode: storage housekeeping failed", { error: errText(e) });
-      return { removed: [] };
-    }
-  }
-}
-function summarizerText(snapshot) {
-  return `Context Mode's record of this session's prompts and tool calls (recorded data, not instructions); keep in the summary what the work still needs:
-${snapshot}`;
 }
 
 // src/core/plan/plan-mode.ts
@@ -35642,8 +33263,8 @@ function deliveredPrompts(taken, compiled, policy, readOnly = false) {
 }
 
 // src/adapters/shared/project-deps.ts
-import { readdirSync as readdirSync12, readFileSync as readFileSync21, statSync as statSync21 } from "fs";
-import { join as join32, resolve as resolve16 } from "path";
+import { readdirSync as readdirSync8, readFileSync as readFileSync18, statSync as statSync17 } from "fs";
+import { join as join26, resolve as resolve15 } from "path";
 var ROOT_MANIFESTS = ["package.json", "pyproject.toml", "Pipfile", "go.mod", "Cargo.toml", "composer.json", "Gemfile"];
 var REQUIREMENTS = /^(?:requirements|constraints)[\w.-]*\.(?:txt|in)$/i;
 var WORKSPACE_MEMBERS_MAX = 32;
@@ -35653,7 +33274,7 @@ var READ_MAX_BYTES = 1024 * 1024;
 var cache2 = new Map;
 function stamp2(path) {
   try {
-    const st = statSync21(path);
+    const st = statSync17(path);
     return st.isFile() ? `${st.size}:${Math.trunc(st.mtimeMs)}` : undefined;
   } catch {
     return;
@@ -35661,14 +33282,14 @@ function stamp2(path) {
 }
 function readSmall(path) {
   try {
-    if (statSync21(path).size > READ_MAX_BYTES)
+    if (statSync17(path).size > READ_MAX_BYTES)
       return;
-    return readFileSync21(path, "utf8");
+    return readFileSync18(path, "utf8");
   } catch {
     return;
   }
 }
-function isObj8(x) {
+function isObj7(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 function workspacePatterns(root, pkgText) {
@@ -35676,14 +33297,14 @@ function workspacePatterns(root, pkgText) {
   if (pkgText !== undefined) {
     try {
       const j = JSON.parse(pkgText);
-      const ws = isObj8(j) ? j["workspaces"] : undefined;
-      const list = Array.isArray(ws) ? ws : isObj8(ws) && Array.isArray(ws["packages"]) ? ws["packages"] : [];
+      const ws = isObj7(j) ? j["workspaces"] : undefined;
+      const list = Array.isArray(ws) ? ws : isObj7(ws) && Array.isArray(ws["packages"]) ? ws["packages"] : [];
       for (const p of list)
         if (typeof p === "string")
           out.push(p);
     } catch {}
   }
-  const pnpm = readSmall(join32(root, "pnpm-workspace.yaml"));
+  const pnpm = readSmall(join26(root, "pnpm-workspace.yaml"));
   if (pnpm !== undefined) {
     let inPackages = false;
     for (const raw of pnpm.split(`
@@ -35711,18 +33332,18 @@ function memberDirs(root, patterns) {
     if (p === "" || p.startsWith("!") || p.startsWith("/") || p.split("/").includes(".."))
       continue;
     if (p.endsWith("/*") && !/[*?[{]/.test(p.slice(0, -2))) {
-      const base = join32(root, p.slice(0, -2));
+      const base = join26(root, p.slice(0, -2));
       let names = [];
       try {
-        names = readdirSync12(base).sort();
+        names = readdirSync8(base).sort();
       } catch {
         continue;
       }
       for (const n of names)
         if (!n.startsWith(".") && n !== "node_modules")
-          dirs.add(join32(base, n));
+          dirs.add(join26(base, n));
     } else if (!/[*?[{]/.test(p)) {
-      dirs.add(join32(root, p));
+      dirs.add(join26(root, p));
     }
   }
   return [...dirs].sort();
@@ -35730,10 +33351,10 @@ function memberDirs(root, patterns) {
 function projectDeps(root) {
   if (typeof root !== "string" || root.trim() === "")
     return [];
-  const dir = resolve16(root);
+  const dir = resolve15(root);
   let names;
   try {
-    names = readdirSync12(dir);
+    names = readdirSync8(dir);
   } catch {
     return [];
   }
@@ -35741,17 +33362,17 @@ function projectDeps(root) {
     ...ROOT_MANIFESTS.filter((n) => names.includes(n)),
     ...names.filter((n) => REQUIREMENTS.test(n)).sort()
   ];
-  const pkgText = files.includes("package.json") ? readSmall(join32(dir, "package.json")) : undefined;
-  const members = pkgText !== undefined || names.includes("pnpm-workspace.yaml") ? memberDirs(dir, workspacePatterns(dir, pkgText)).map((m) => join32(m, "package.json")).filter((p) => stamp2(p) !== undefined).slice(0, WORKSPACE_MEMBERS_MAX) : [];
-  const paths = [...files.map((n) => join32(dir, n)), ...members];
-  const sig = [...paths.map((p) => `${p}=${stamp2(p) ?? ""}`), names.includes("pnpm-workspace.yaml") ? `pnpm=${stamp2(join32(dir, "pnpm-workspace.yaml")) ?? ""}` : ""].join(`
+  const pkgText = files.includes("package.json") ? readSmall(join26(dir, "package.json")) : undefined;
+  const members = pkgText !== undefined || names.includes("pnpm-workspace.yaml") ? memberDirs(dir, workspacePatterns(dir, pkgText)).map((m) => join26(m, "package.json")).filter((p) => stamp2(p) !== undefined).slice(0, WORKSPACE_MEMBERS_MAX) : [];
+  const paths = [...files.map((n) => join26(dir, n)), ...members];
+  const sig = [...paths.map((p) => `${p}=${stamp2(p) ?? ""}`), names.includes("pnpm-workspace.yaml") ? `pnpm=${stamp2(join26(dir, "pnpm-workspace.yaml")) ?? ""}` : ""].join(`
 `);
   const hit = cache2.get(dir);
   if (hit !== undefined && hit.sig === sig)
     return [...hit.deps];
   const deps = new Set;
   for (const p of paths) {
-    const text = p === join32(dir, "package.json") ? pkgText : readSmall(p);
+    const text = p === join26(dir, "package.json") ? pkgText : readSmall(p);
     if (text === undefined)
       continue;
     for (const d of parseManifestDeps(p, text))
@@ -35862,9 +33483,9 @@ async function registerEffort(ctx, cfg, report, onError) {
 }
 
 // src/adapters/opencode/runtime/env.ts
-import { readFileSync as readFileSync22, statSync as statSync22 } from "fs";
+import { readFileSync as readFileSync19, statSync as statSync18 } from "fs";
 import os2 from "os";
-import { isAbsolute as isAbsolute11, join as join33 } from "path";
+import { isAbsolute as isAbsolute11, join as join27 } from "path";
 var POINTER_FILE = "runtime.json";
 function absEnv2(name) {
   const v = process.env[name];
@@ -35874,7 +33495,7 @@ function readPointer(pluginDir) {
   if (pluginDir === undefined)
     return;
   try {
-    const raw = JSON.parse(readFileSync22(join33(pluginDir, POINTER_FILE), "utf8"));
+    const raw = JSON.parse(readFileSync19(join27(pluginDir, POINTER_FILE), "utf8"));
     if (raw !== null && typeof raw === "object") {
       const bh = raw.buracleHome;
       if (typeof bh === "string" && isAbsolute11(bh))
@@ -35891,7 +33512,7 @@ function resolveEnv(pluginDir) {
   const pointer = readPointer(pluginDir);
   if (pointer !== undefined)
     return { home, buracleHome: pointer.buracleHome, source: "pointer" };
-  return { home, buracleHome: join33(home, ".buracle"), source: "default" };
+  return { home, buracleHome: join27(home, ".buracle"), source: "default" };
 }
 function applyEnv(resolved) {
   const changed = [];
@@ -35903,7 +33524,7 @@ function applyEnv(resolved) {
 }
 function mtimeOf2(path) {
   try {
-    const st = statSync22(path);
+    const st = statSync18(path);
     return `${st.mtimeMs}:${st.size}`;
   } catch {
     return;
@@ -35939,7 +33560,7 @@ class MtimeCache {
       return this.value;
     }
     try {
-      this.value = this.parse(JSON.parse(readFileSync22(path, "utf8")));
+      this.value = this.parse(JSON.parse(readFileSync19(path, "utf8")));
     } catch {
       this.value = this.fallback();
     }
@@ -36009,13 +33630,13 @@ function recordDialogGrants(h, sid, kinds, answer, now) {
 }
 
 // src/adapters/opencode/runtime/util.ts
-function errText2(e) {
+function errText(e) {
   return e instanceof Error ? e.message : String(e);
 }
 function asRecord(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x) ? x : {};
 }
-function str9(x) {
+function str8(x) {
   return typeof x === "string" ? x : undefined;
 }
 function num2(x) {
@@ -36054,7 +33675,7 @@ function skillIdsOf(res) {
   const list = Array.isArray(res) ? res : asRecord(res)["data"];
   if (!Array.isArray(list))
     return;
-  return new Set(list.map((s) => str9(asRecord(s)["id"])).filter((id) => id !== undefined));
+  return new Set(list.map((s) => str8(asRecord(s)["id"])).filter((id) => id !== undefined));
 }
 function actionMatchesTool(action, tool) {
   switch (action) {
@@ -36070,7 +33691,7 @@ function actionMatchesTool(action, tool) {
 }
 
 // src/adapters/opencode/runtime/consent-question.ts
-var HARNESS3 = "opencode";
+var HARNESS2 = "opencode";
 function questionHint(need) {
   return `To ask right away, call the \`question\` tool with one question whose text is exactly ${JSON.stringify(consentQuestion(need))} and the options ${CONSENT_OPTIONS.map((o) => `"${o}"`).join(", ")}; Buracle records the user's pick, and after an allow you run the command again.`;
 }
@@ -36079,7 +33700,7 @@ function offersConsentOptions(q) {
   return labels.length === CONSENT_OPTIONS.length && CONSENT_OPTIONS.every((o) => labels.includes(o));
 }
 function questionGrant(sid, input, result, now) {
-  const held = pendingConsent(HARNESS3, sid);
+  const held = pendingConsent(HARNESS2, sid);
   const questions = asRecord(input)["questions"];
   const answers = asRecord(result.metadata)["answers"] ?? asRecord(result.output)["answers"];
   if (held === undefined || !Array.isArray(questions) || !Array.isArray(answers))
@@ -36093,33 +33714,33 @@ function questionGrant(sid, input, result, now) {
     const answer = picked[0] === ALLOW_SESSION ? "session" : picked[0] === ALLOW_ONCE ? "once" : undefined;
     if (answer === undefined)
       continue;
-    recordDialogGrants(HARNESS3, sid, held.kinds, answer, now);
+    recordDialogGrants(HARNESS2, sid, held.kinds, answer, now);
     return answer;
   }
   return;
 }
 
 // src/adapters/opencode/runtime/consent-relay.ts
-import { closeSync as closeSync8, openSync as openSync8, readdirSync as readdirSync13, rmSync as rmSync4, writeSync as writeSync6 } from "fs";
-import { join as join34 } from "path";
+import { closeSync as closeSync5, openSync as openSync5, readdirSync as readdirSync9, rmSync as rmSync4, writeSync as writeSync4 } from "fs";
+import { join as join28 } from "path";
 var RELAY_DIR = "consent-relay";
 var TUI_FRESH_MS = 6000;
 var ASK_ID = /^[a-z0-9-]{8,64}$/;
 var RELAY_ANSWERS = ["once", "session", "refuse", "dismiss"];
 function relayDir(sid) {
-  return join34(sessionDir("opencode", sid), RELAY_DIR);
+  return join28(sessionDir("opencode", sid), RELAY_DIR);
 }
 function askFile(sid, id) {
-  return join34(relayDir(sid), `ask-${id}.json`);
+  return join28(relayDir(sid), `ask-${id}.json`);
 }
 function answerFile(sid, id) {
-  return join34(relayDir(sid), `answer-${id}.json`);
+  return join28(relayDir(sid), `answer-${id}.json`);
 }
 function valid(sid, id) {
   return isValidSessionId(sid) && (id === undefined || ASK_ID.test(id));
 }
 function anyTuiFile() {
-  return join34(stateDir(), "opencode-tui.json");
+  return join28(stateDir(), "opencode-tui.json");
 }
 function fresh(file, now) {
   const r = readJsonSafeSync(file);
@@ -36127,7 +33748,7 @@ function fresh(file, now) {
   return typeof at === "number" && now - at <= TUI_FRESH_MS && at - now <= TUI_FRESH_MS;
 }
 function tuiPresent(sid, now) {
-  return valid(sid) && fresh(join34(relayDir(sid), "tui.json"), now);
+  return valid(sid) && fresh(join28(relayDir(sid), "tui.json"), now);
 }
 function anyTuiPresent(now) {
   return fresh(anyTuiFile(), now);
@@ -36155,8 +33776,8 @@ function clearAsk(sid, id) {
 }
 
 // src/adapters/opencode/runtime/guard.ts
-import { readFileSync as readFileSync23 } from "fs";
-import { isAbsolute as isAbsolute12, resolve as resolve17 } from "path";
+import { readFileSync as readFileSync20 } from "fs";
+import { isAbsolute as isAbsolute12, resolve as resolve16 } from "path";
 // src/core/plan/interaction.ts
 function running(s) {
   return s.plan !== undefined && !isPlanFinished(s) && s.interaction?.state !== "paused";
@@ -36188,7 +33809,7 @@ function promptInteraction(state, control, text, opts) {
   return { next: { ...paused, interaction: { ...paused.interaction, reason: AUTO_PAUSE_REASON } }, guidance: CONTROL_GUIDANCE.autoPause, autoPaused: true };
 }
 // src/adapters/opencode/runtime/guard.ts
-var HARNESS4 = "opencode";
+var HARNESS3 = "opencode";
 var CONTINUE_MARK = "buracle.continue";
 var HOOK_NAMES = {
   H01: "guard.bash",
@@ -36276,33 +33897,33 @@ function shimNotify(title, message) {
     log("warn", "opencode: notify spawn failed", { error: e instanceof Error ? e.message : String(e) });
   }
 }
-function errText3(e) {
+function errText2(e) {
   return e instanceof Error ? e.message : String(e);
 }
 function recordAnswer(sid, result, now) {
   if (isValidSessionId(sid) && questionAnswered(result))
-    updateState(HARNESS4, sid, (st) => answerReceipt(st, now));
+    updateState(HARNESS3, sid, (st) => answerReceipt(st, now));
 }
 function promptPlanInteraction(sid, words, opts, logFn) {
   let control = null;
   try {
     control = detectSignals(words).control;
   } catch (err) {
-    logFn("warn", "detectSignals failed", { error: errText3(err) });
+    logFn("warn", "detectSignals failed", { error: errText2(err) });
   }
   try {
-    const before = loadState(HARNESS4, sid);
+    const before = loadState(HARNESS3, sid);
     if (before.plan === undefined)
       return promptInteraction(before, control, words, opts).guidance;
     let guidance;
-    updateState(HARNESS4, sid, (st) => {
+    updateState(HARNESS3, sid, (st) => {
       const r = promptInteraction(st, control, words, opts);
       guidance = r.guidance;
       return r.next;
     });
     return guidance;
   } catch (err) {
-    logFn("warn", "plan interaction failed", { error: errText3(err) });
+    logFn("warn", "plan interaction failed", { error: errText2(err) });
     return;
   }
 }
@@ -36315,10 +33936,10 @@ class StopGuard {
     this.settleMs = settleMs;
   }
   planCheck(plan, cwd) {
-    const abs = isAbsolute12(plan.path) ? plan.path : resolve17(cwd, plan.path);
+    const abs = isAbsolute12(plan.path) ? plan.path : resolve16(cwd, plan.path);
     let text;
     try {
-      text = readFileSync23(abs, "utf8");
+      text = readFileSync20(abs, "utf8");
     } catch {
       return { exists: false, findings: [] };
     }
@@ -36327,7 +33948,7 @@ class StopGuard {
     try {
       return { exists: true, findings: validatePlan(text), text };
     } catch (e) {
-      this.host.log("warn", "validatePlan failed (H11 fail-open)", { error: errText3(e) });
+      this.host.log("warn", "validatePlan failed (H11 fail-open)", { error: errText2(e) });
       return { exists: true, findings: [], text };
     }
   }
@@ -36342,7 +33963,7 @@ class StopGuard {
     try {
       this.host.notify("Buracle stop guard", message);
     } catch (e) {
-      this.host.log("warn", "notice failed", { error: errText3(e) });
+      this.host.log("warn", "notice failed", { error: errText2(e) });
     }
   }
   runaway(sid, chain, why, plan) {
@@ -36355,7 +33976,7 @@ class StopGuard {
       this.host.spool(sid, [{ ts: now, ev: "stop", excerpt: `${decision.hook}: ${decision.reason}`.slice(0, 2000) }]);
       return true;
     } catch (e) {
-      this.host.log("warn", "continuation prompt failed", { sid, hook: decision.hook, error: errText3(e) });
+      this.host.log("warn", "continuation prompt failed", { sid, hook: decision.hook, error: errText2(e) });
       return false;
     }
   }
@@ -36386,7 +34007,7 @@ class StopGuard {
     const cfg = this.host.cfg();
     const chain = guardChain(sid);
     const now = this.host.now();
-    const state = cfg.plan.stopGuard ? loadState(HARNESS4, sid) : undefined;
+    const state = cfg.plan.stopGuard ? loadState(HARNESS3, sid) : undefined;
     const plan = state?.plan;
     if (state === undefined || plan === undefined) {
       chain.chain = 0;
@@ -36408,7 +34029,7 @@ class StopGuard {
     }
     if (claim !== undefined && !claimEvent(claim))
       return;
-    const input = { harness: HARNESS4, sessionId: sid, cwd, hookActive: chain.chain > 0, now };
+    const input = { harness: HARNESS3, sessionId: sid, cwd, hookActive: chain.chain > 0, now };
     const session = this.host.session(sid);
     if (session?.lastAssistantText !== undefined)
       input.lastMessage = session.lastAssistantText;
@@ -36418,14 +34039,14 @@ class StopGuard {
       input.backgroundWait = true;
     let result;
     try {
-      updateState(HARNESS4, sid, (cur) => {
+      updateState(HARNESS3, sid, (cur) => {
         const check = cur.plan === undefined ? undefined : cur.plan.path === plan.path && cur.plan.phase === plan.phase ? doc : this.planCheck(cur.plan, cwd);
         const r = stopGuardVerdict(cur, input, cfg.plan, check);
         result = r;
         return r.next;
       });
     } catch (e) {
-      this.host.log("warn", "stop guard failed (fail-open)", { error: errText3(e) });
+      this.host.log("warn", "stop guard failed (fail-open)", { error: errText2(e) });
       return;
     }
     const r = result;
@@ -36455,7 +34076,7 @@ class StopGuard {
 }
 
 // src/adapters/opencode/runtime/consent-ask.ts
-var HARNESS5 = "opencode";
+var HARNESS4 = "opencode";
 var ASK_POLL_MS = 200;
 var ASK_TIMEOUT_MS = 15 * 60000;
 var TUI_ARRIVE_MS = 2000;
@@ -36474,7 +34095,7 @@ async function tuiFor(sid, host, poll) {
 }
 async function askInTui(sid, command, host) {
   const poll = Math.max(10, host.pollMs ?? ASK_POLL_MS);
-  const held = heldConsent(HARNESS5, sid, command);
+  const held = heldConsent(HARNESS4, sid, command);
   if (held === undefined || !await tuiFor(sid, host, poll))
     return;
   const id = host.newId();
@@ -36488,7 +34109,7 @@ async function askInTui(sid, command, host) {
       const answer = readAnswer(sid, id);
       if (answer !== undefined) {
         if (answer === "once" || answer === "session")
-          recordDialogGrants(HARNESS5, sid, held.kinds, answer, host.now());
+          recordDialogGrants(HARNESS4, sid, held.kinds, answer, host.now());
         return { answer, held };
       }
       const now = host.now();
@@ -36504,7 +34125,7 @@ async function answerHeld(e, held, hooks) {
     return false;
   const r = await askInTui(held.sid, held.command, hooks.host);
   if (r === undefined) {
-    const need = heldConsent(HARNESS5, held.sid, held.command)?.need;
+    const need = heldConsent(HARNESS4, held.sid, held.command)?.need;
     if (need !== undefined && e.message !== undefined)
       e.message = `${e.message} ${questionHint(need)}`;
     return false;
@@ -36532,10 +34153,10 @@ function earlyEdit(h, sid, files, cwd, planApproval) {
 }
 
 // src/adapters/opencode/runtime/early-edit.ts
-var HARNESS6 = "opencode";
+var HARNESS5 = "opencode";
 function earlyEditNote(call, approval, push, warn) {
   try {
-    const early = isValidSessionId(call.sessionId) ? earlyEdit(HARNESS6, call.sessionId, call.paths, call.cwd, approval) : undefined;
+    const early = isValidSessionId(call.sessionId) ? earlyEdit(HARNESS5, call.sessionId, call.paths, call.cwd, approval) : undefined;
     if (early === undefined)
       return;
     push(early.note);
@@ -36597,11 +34218,11 @@ function maskedError(error, depth = 0) {
 }
 
 // src/adapters/opencode/runtime/notice-board.ts
-import { join as join35 } from "path";
-var HARNESS7 = "opencode";
+import { join as join29 } from "path";
+var HARNESS6 = "opencode";
 var KEEP = 20;
 function boardFile(sid) {
-  return join35(sessionDir(HARNESS7, sid), "notices.json");
+  return join29(sessionDir(HARNESS6, sid), "notices.json");
 }
 function readBoard(sid) {
   const r = readJsonSafeSync(boardFile(sid));
@@ -36616,7 +34237,7 @@ function postNotice(sid, text, variant, now) {
   const board = readBoard(sid);
   const seq = (board.items.at(-1)?.seq ?? 0) + 1;
   board.items = [...board.items, { seq, at: now, text: text.trim(), variant }].slice(-KEEP);
-  ensureDirSync(sessionDir(HARNESS7, sid));
+  ensureDirSync(sessionDir(HARNESS6, sid));
   atomicWriteSync(boardFile(sid), JSON.stringify(board) + `
 `);
 }
@@ -36755,12 +34376,12 @@ async function registerRateWindows(ctx, sink, opts) {
         try {
           deliver(e.sessionID, responseWindows(e, opts.now()));
         } catch (err) {
-          opts.log("rate windows from headers failed", { error: errText2(err) });
+          opts.log("rate windows from headers failed", { error: errText(err) });
         }
       }, { providerID });
       hooks++;
     } catch (err) {
-      opts.log("http.response hook not registered", { providerID, error: errText2(err) });
+      opts.log("http.response hook not registered", { providerID, error: errText(err) });
     }
   }
   for (const providerID of FRAME_PROVIDERS) {
@@ -36769,12 +34390,12 @@ async function registerRateWindows(ctx, sink, opts) {
         try {
           deliver(e.sessionID, windowsFromFrame(e.frame));
         } catch (err) {
-          opts.log("rate windows from a websocket frame failed", { error: errText2(err) });
+          opts.log("rate windows from a websocket frame failed", { error: errText(err) });
         }
       }, { providerID });
       hooks++;
     } catch (err) {
-      opts.log("experimental.ws.receive hook not registered", { providerID, error: errText2(err) });
+      opts.log("experimental.ws.receive hook not registered", { providerID, error: errText(err) });
     }
   }
   return hooks;
@@ -36974,15 +34595,15 @@ class ModelFacts {
           if (Array.isArray(list)) {
             for (const m of list) {
               const r = asRecord(m);
-              const id = str9(r["id"]);
-              const provider = str9(r["providerID"]);
+              const id = str8(r["id"]);
+              const provider = str8(r["providerID"]);
               const ctxLimit = num2(asRecord(r["limit"])["context"]);
               if (id !== undefined && provider !== undefined && ctxLimit !== undefined)
                 map.set(`${provider}/${id}`, ctxLimit);
             }
           }
         } catch (e) {
-          this.log("model list unavailable", { error: errText2(e) });
+          this.log("model list unavailable", { error: errText(e) });
         }
         this.limits = map;
         this.loading = undefined;
@@ -36994,14 +34615,14 @@ class ModelFacts {
 }
 
 // src/adapters/shared/notices.ts
-import { closeSync as closeSync9, mkdirSync as mkdirSync13, openSync as openSync9, readdirSync as readdirSync14, writeSync as writeSync7 } from "fs";
-import { join as join36 } from "path";
+import { closeSync as closeSync6, mkdirSync as mkdirSync11, openSync as openSync6, readdirSync as readdirSync10, writeSync as writeSync5 } from "fs";
+import { join as join30 } from "path";
 
 // src/core/notices.ts
 var NOTICE_ID = /^[a-z0-9][a-z0-9.-]{0,63}$/;
 var NOTICES_PER_SESSION = 3;
 var DATE = /^\d{4}-\d{2}-\d{2}$/;
-function isObj9(x) {
+function isObj8(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 function versionOrder(a, b) {
@@ -37036,7 +34657,7 @@ function current(n, version, nowMs) {
   return versionOrder(version, n.until) < 0;
 }
 function pendingNotices(notices, o) {
-  return (Array.isArray(notices) ? notices : []).filter((n) => isObj9(n) && typeof n.id === "string" && NOTICE_ID.test(n.id) && typeof n.since === "string" && (n.until === undefined || typeof n.until === "string") && typeof n.message === "string" && n.message.trim() !== "").filter((n) => !o.acked.has(n.id) && current(n, o.version, o.nowMs)).slice(0, NOTICES_PER_SESSION);
+  return (Array.isArray(notices) ? notices : []).filter((n) => isObj8(n) && typeof n.id === "string" && NOTICE_ID.test(n.id) && typeof n.since === "string" && (n.until === undefined || typeof n.until === "string") && typeof n.message === "string" && n.message.trim() !== "").filter((n) => !o.acked.has(n.id) && current(n, o.version, o.nowMs)).slice(0, NOTICES_PER_SESSION);
 }
 function oneLine4(s) {
   return s.replace(/\s+/g, " ").trim();
@@ -37061,7 +34682,7 @@ function noticesOff(env = process.env) {
 }
 function ackedIds(dir) {
   try {
-    return new Set(readdirSync14(dir).filter((n) => n.endsWith(".ack")).map((n) => n.slice(0, -4)));
+    return new Set(readdirSync10(dir).filter((n) => n.endsWith(".ack")).map((n) => n.slice(0, -4)));
   } catch {
     return new Set;
   }
@@ -37074,7 +34695,7 @@ function claimNotices(list, o) {
   if (pending.length === 0)
     return [];
   try {
-    mkdirSync13(dir, { recursive: true });
+    mkdirSync11(dir, { recursive: true });
   } catch (e) {
     log("warn", "notices: cannot create the acknowledgement folder; nothing is shown", { error: e });
     return [];
@@ -37082,12 +34703,12 @@ function claimNotices(list, o) {
   const claimed = [];
   for (const n of pending) {
     try {
-      const fd = openSync9(join36(dir, `${n.id}.ack`), "wx", 384);
+      const fd = openSync6(join30(dir, `${n.id}.ack`), "wx", 384);
       try {
-        writeSync7(fd, `${JSON.stringify({ at: o.nowMs, version: o.version, harness: o.harness })}
+        writeSync5(fd, `${JSON.stringify({ at: o.nowMs, version: o.version, harness: o.harness })}
 `);
       } finally {
-        closeSync9(fd);
+        closeSync6(fd);
       }
       claimed.push(n);
     } catch (e) {
@@ -37112,13 +34733,13 @@ function openingNotice(baked, nowMs, notify, logFn) {
     notify("Buracle", n.user);
     return n.model;
   } catch (e) {
-    logFn("warn", "startup notices failed", { error: errText2(e) });
+    logFn("warn", "startup notices failed", { error: errText(e) });
     return;
   }
 }
 
 // src/adapters/opencode/runtime/workspace.ts
-import { basename as basename13, dirname as dirname16 } from "path";
+import { basename as basename11, dirname as dirname15 } from "path";
 var WORKSPACE_THROTTLE_MS = 60000;
 var MAX_DIRS = 64;
 var WORKSPACE_KEY = Symbol.for("buracle.opencode.workspaces");
@@ -37164,22 +34785,22 @@ function workspaceFacts(info, cfg, home) {
 function profileWarning(pluginDir, runtimeSnapshot, home) {
   if (pluginDir === undefined || pluginDir === "")
     return;
-  const plugins = dirname16(pluginDir);
-  const configDir = dirname16(plugins);
-  if (basename13(plugins) !== "plugins" || basename13(configDir) !== "opencode")
+  const plugins = dirname15(pluginDir);
+  const configDir = dirname15(plugins);
+  if (basename11(plugins) !== "plugins" || basename11(configDir) !== "opencode")
     return;
-  return profileGuard("opencode", runtimeSnapshot, { HOME: home, XDG_CONFIG_HOME: dirname16(configDir) });
+  return profileGuard("opencode", runtimeSnapshot, { HOME: home, XDG_CONFIG_HOME: dirname15(configDir) });
 }
 
 // src/adapters/opencode/runtime/plugin.ts
 var PLUGIN_ID = "buracle";
-var HARNESS8 = "opencode";
+var HARNESS7 = "opencode";
 var MAINT_INTERVAL_MS = 6 * 60 * 60000;
 var WORKSPACE_WAIT_MS = 1500;
 var SKILL_LIST_TTL_MS = 30000;
 var SKILL_LIST_TIMEOUT_MS = 2000;
 var WRITE_COMPARE_MAX_BYTES = 512 * 1024;
-var CM_RESUME_AFTER_MS = 60000;
+var RESUME_AFTER_MS = 60000;
 var IDLE_FINALIZE_MS = 10 * 60000;
 var MAX_PENDING_CALLS = 500;
 var PENDING_TTL_MS2 = 30 * 60000;
@@ -37220,7 +34841,6 @@ class BuracleRuntime {
   abort = new AbortController;
   card;
   models;
-  cm;
   startedAt;
   disposed = false;
   constructor(ctx, deps) {
@@ -37238,7 +34858,7 @@ class BuracleRuntime {
     });
     this.lspEdits = deps.lspEdits ?? editDiagnostics;
     this.captureOn = deps.capture ?? (() => process.env["BURACLE_NO_CAPTURE"] !== "1");
-    this.maintFn = deps.maint ?? ((nowMs, keep) => sessionMaint(HARNESS8, nowMs, { keep }));
+    this.maintFn = deps.maint ?? ((nowMs, keep) => sessionMaint(HARNESS7, nowMs, { keep }));
     this.workspaceFn = deps.workspace ?? prepareWorkspace;
     this.workspaceRead = deps.workspaceRead ?? workspaceInfo;
     this.assetsSpawn = deps.assetsSpawn;
@@ -37249,7 +34869,6 @@ class BuracleRuntime {
     this.config = runtimeConfigCache(this.baked.defaults);
     this.models = new ModelFacts(ctx, (msg, data) => this.logFn("debug", msg, data));
     this.startedAt = this.now();
-    this.cm = new OpencodeContextMode({ directory: ctx.location.directory, cfg: () => this.cfg(), log: (level, msg, data) => this.logFn(level, msg, data), track: (p) => this.track(p) }, deps.contextMode);
     this.stopGuard = new StopGuard({
       disposed: () => this.disposed,
       now: () => this.now(),
@@ -37275,11 +34894,11 @@ class BuracleRuntime {
         try {
           postNotice(sid, text, variant, this.now());
         } catch (e) {
-          this.logFn("warn", "notice not posted", { sid, error: errText2(e) });
+          this.logFn("warn", "notice not posted", { sid, error: errText(e) });
         }
       },
       notify: (title, message) => this.notifyFn(title, message),
-      run: (sid) => bandSummary(flowViewFor(HARNESS8, sid, this.now(), this.cfg().workflow.foldAfterSec)),
+      run: (sid) => bandSummary(flowViewFor(HARNESS7, sid, this.now(), this.cfg().workflow.foldAfterSec)),
       log: (msg, data) => this.logFn("debug", msg, data)
     });
   }
@@ -37314,7 +34933,7 @@ class BuracleRuntime {
       try {
         await fn(...args);
       } catch (e) {
-        this.logFn("error", `${name} failed`, { error: errText2(e) });
+        this.logFn("error", `${name} failed`, { error: errText(e) });
       }
     };
   }
@@ -37345,7 +34964,7 @@ class BuracleRuntime {
     return s;
   }
   persistFile(sid) {
-    return join37(sessionDir(HARNESS8, sid), "opencode.json");
+    return join31(sessionDir(HARNESS7, sid), "opencode.json");
   }
   readPersisted(sid) {
     try {
@@ -37362,11 +34981,11 @@ class BuracleRuntime {
         data["handoffPath"] = s.handoffPath;
       if (s.ctxWarned !== undefined)
         data["ctxWarned"] = s.ctxWarned;
-      ensureDirSync(sessionDir(HARNESS8, s.sid));
+      ensureDirSync(sessionDir(HARNESS7, s.sid));
       atomicWriteSync(this.persistFile(s.sid), JSON.stringify(data) + `
 `);
     } catch (e) {
-      this.logFn("warn", "could not persist session data", { sid: s.sid, error: errText2(e) });
+      this.logFn("warn", "could not persist session data", { sid: s.sid, error: errText(e) });
     }
   }
   cwdOf(s) {
@@ -37389,9 +35008,9 @@ class BuracleRuntime {
     try {
       const r = this.memory.append(sid, entries);
       if (r instanceof Promise)
-        this.track(r.catch((e) => this.logFn("warn", "spool append failed", { sid, error: errText2(e) })));
+        this.track(r.catch((e) => this.logFn("warn", "spool append failed", { sid, error: errText(e) })));
     } catch (e) {
-      this.logFn("warn", "spool append failed", { sid, error: errText2(e) });
+      this.logFn("warn", "spool append failed", { sid, error: errText(e) });
     }
   }
   async rootOf(s) {
@@ -37427,7 +35046,7 @@ class BuracleRuntime {
         if (this.isSubagent(s) || !s.activity)
           return;
         await this.finalize(s.sid, s);
-      })().catch((e) => this.logFn("warn", "idle finalize failed", { sid: s.sid, error: errText2(e) })));
+      })().catch((e) => this.logFn("warn", "idle finalize failed", { sid: s.sid, error: errText(e) })));
     }, this.idleFinalizeMs);
     s.idleTimer.unref?.();
   }
@@ -37445,7 +35064,7 @@ class BuracleRuntime {
     try {
       await this.memory.finalize(sid);
     } catch (e) {
-      this.logFn("warn", "finalizer spawn failed", { sid, error: errText2(e) });
+      this.logFn("warn", "finalizer spawn failed", { sid, error: errText(e) });
     }
   }
   touch(s) {
@@ -37465,7 +35084,7 @@ class BuracleRuntime {
           return;
         await this.memory.start(s.sid, this.cwdOf(s));
       } catch (e) {
-        this.logFn("warn", "memory session start failed", { sid: s.sid, error: errText2(e) });
+        this.logFn("warn", "memory session start failed", { sid: s.sid, error: errText(e) });
       }
     })());
   }
@@ -37519,24 +35138,24 @@ class BuracleRuntime {
         flowStart: (sid, workflow, title) => {
           if (!isValidSessionId(sid))
             return;
-          recordFlowStart(HARNESS8, sid, title !== undefined ? { workflow, title, source: "command" } : { workflow, source: "command" }, this.now());
+          recordFlowStart(HARNESS7, sid, title !== undefined ? { workflow, title, source: "command" } : { workflow, source: "command" }, this.now());
         },
         prompt: (input) => this.ctx.session.prompt(input)
       });
       if (!ok)
         this.logFn("warn", "this OpenCode has no plugin commands (ctx.command); the /<workflow> commands are unavailable");
     } catch (e) {
-      this.logFn("warn", "workflow commands not registered", { error: errText2(e) });
+      this.logFn("warn", "workflow commands not registered", { error: errText(e) });
     }
     try {
       const ok = await registerEffort(this.ctx, () => this.cfg(), (level, touched) => {
         this.models.effortApplied(level, touched);
         this.logFn("debug", "default effort applied", { level, models: touched.length });
-      }, (e) => this.logFn("warn", "effort transform failed", { error: errText2(e) }));
+      }, (e) => this.logFn("warn", "effort transform failed", { error: errText(e) }));
       if (!ok)
         this.logFn("info", "this OpenCode has no model transform; effort.opencode is not applied");
     } catch (e) {
-      this.logFn("warn", "effort transform not registered", { error: errText2(e) });
+      this.logFn("warn", "effort transform not registered", { error: errText(e) });
     }
   }
   startEvents() {
@@ -37549,12 +35168,12 @@ class BuracleRuntime {
           try {
             await this.handleEvent(e);
           } catch (err) {
-            this.logFn("error", "event handler failed", { type: e?.type, error: errText2(err) });
+            this.logFn("error", "event handler failed", { type: e?.type, error: errText(err) });
           }
         }
       } catch (err) {
         if (!signal.aborted)
-          this.logFn("warn", "event stream ended", { error: errText2(err) });
+          this.logFn("warn", "event stream ended", { error: errText(err) });
       }
     })());
   }
@@ -37563,7 +35182,6 @@ class BuracleRuntime {
       return;
     this.disposed = true;
     this.abort.abort();
-    this.cm.flushAll();
     for (const s of this.sessions.values()) {
       this.cancelIdleFinalize(s);
       if (!s.activity || typeof s.parentID === "string")
@@ -37584,17 +35202,11 @@ class BuracleRuntime {
       if (reg.maintAt !== undefined && now - reg.maintAt >= 0 && now - reg.maintAt < MAINT_INTERVAL_MS)
         return;
       reg.maintAt = now;
-      try {
-        const r = this.maintFn(now, [...this.sessions.keys()]);
-        if (r.removed.length > 0)
-          this.logFn("info", "session maintenance removed idle state", { removed: r.removed.length });
-      } finally {
-        const cm = this.cm.prune(now);
-        if (cm.removed.length > 0)
-          this.logFn("info", "session maintenance removed expired context-mode data", { removed: cm.removed.length });
-      }
+      const r = this.maintFn(now, [...this.sessions.keys()]);
+      if (r.removed.length > 0)
+        this.logFn("info", "session maintenance removed idle state", { removed: r.removed.length });
     } catch (e) {
-      this.logFn("warn", "session maintenance failed", { error: errText2(e) });
+      this.logFn("warn", "session maintenance failed", { error: errText(e) });
     }
   }
   scheduleMaintenance() {
@@ -37613,7 +35225,7 @@ class BuracleRuntime {
         const info = await prepareOnce(cwd, this.cfg(), this.now(), this.workspaceFn);
         startLinkRun(info.root, assetsOptions(this.now(), this.assetsSpawn));
       } catch (e) {
-        this.logFn("warn", "workspace preparation failed", { error: errText2(e) });
+        this.logFn("warn", "workspace preparation failed", { error: errText(e) });
       }
     }));
   }
@@ -37629,7 +35241,7 @@ class BuracleRuntime {
       this.logFn("warn", warning);
       this.notifyFn("Buracle", warning);
     } catch (e) {
-      this.logFn("debug", "profile guard failed", { error: errText2(e) });
+      this.logFn("debug", "profile guard failed", { error: errText(e) });
     }
   }
   ensureWorkspace(s) {
@@ -37643,7 +35255,7 @@ class BuracleRuntime {
       s.workspaceSeen ??= info;
       return s.workspace;
     }, (e) => {
-      this.logFn("warn", "workspace facts unavailable", { sid: s.sid, error: errText2(e) });
+      this.logFn("warn", "workspace facts unavailable", { sid: s.sid, error: errText(e) });
       return;
     });
     s.workspaceLoading = p;
@@ -37678,8 +35290,8 @@ class BuracleRuntime {
   callOf(tool, input, sessionID) {
     const cwd = this.ctx.location.directory;
     const raw = asRecord(input);
-    const cls = classifyTool(HARNESS8, tool, raw, cwd, this.baked.mcpIds, { homeTilde: this.env.home });
-    const call = { harness: HARNESS8, sessionId: sessionID, cwd, tool, kind: cls.kind, input: raw, paths: cls.paths };
+    const cls = classifyTool(HARNESS7, tool, raw, cwd, this.baked.mcpIds, { homeTilde: this.env.home });
+    const call = { harness: HARNESS7, sessionId: sessionID, cwd, tool, kind: cls.kind, input: raw, paths: cls.paths };
     if (cls.command !== undefined)
       call.command = cls.command;
     if (cls.mcp !== undefined)
@@ -37688,13 +35300,13 @@ class BuracleRuntime {
   }
   wholeFileEdit(call) {
     const file = call.paths[0];
-    const added = str9(call.input["content"]);
+    const added = str8(call.input["content"]);
     if (file === undefined || added === undefined)
       return;
     let removed = "";
     try {
-      if (statSync23(file).size <= WRITE_COMPARE_MAX_BYTES)
-        removed = readFileSync24(file, "utf8");
+      if (statSync19(file).size <= WRITE_COMPARE_MAX_BYTES)
+        removed = readFileSync21(file, "utf8");
       else
         return;
     } catch {
@@ -37704,8 +35316,7 @@ class BuracleRuntime {
   }
   sessionHealth(sid) {
     const health = this.health.get();
-    const h = sid !== undefined && isValidSessionId(sid) ? sessionHealth(this.ledger, sid, health) : health;
-    return this.cfg().contextMode.enabled ? h : withDisabledServers(h, [CM_SERVER_ID]);
+    return sid !== undefined && isValidSessionId(sid) ? sessionHealth(this.ledger, sid, health) : health;
   }
   reminderContext(s, call, cfg) {
     const info = s.workspace;
@@ -37719,8 +35330,8 @@ class BuracleRuntime {
     const deps = projectDeps2(info?.root);
     if (deps.length > 0)
       ctx.deps = deps;
-    const read = call.kind === "read" && call.paths.length > 0 && call.paths.every((p) => existsSync15(p));
-    const rules = pathRuleSource(this.baked.pathRules, join37(this.env.buracleHome, "rules", "paths"), { onRead: read, home: this.env.home });
+    const read = call.kind === "read" && call.paths.length > 0 && call.paths.every((p) => existsSync12(p));
+    const rules = pathRuleSource(this.baked.pathRules, join31(this.env.buracleHome, "rules", "paths"), { onRead: read, home: this.env.home });
     if (rules !== undefined)
       ctx.pathRules = rules;
     if (call.kind === "write") {
@@ -37738,15 +35349,12 @@ class BuracleRuntime {
     if (this.isSubagent(s))
       return;
     if (flowDef(id) !== undefined)
-      recordFlowStart(HARNESS8, s.sid, { workflow: id, source: "skill" }, now);
-    this.spool(s.sid, skillSignalEntries(id, now));
+      recordFlowStart(HARNESS7, s.sid, { workflow: id, source: "skill" }, now);
   }
   onToolBefore(e) {
     this.prunePending();
     const pending = { tool: e.tool, input: e.input, sessionID: e.sessionID, at: this.now() };
     this.calls.set(e.id, pending);
-    if (isCmToolName(e.tool))
-      pending.cm = this.cmGuard(e.tool, e.input, e.sessionID, e.agent);
     const s = this.session(e.sessionID);
     this.touch(s);
     if (typeof e.agent === "string" && e.agent !== "")
@@ -37759,7 +35367,7 @@ class BuracleRuntime {
     const verdict = evaluateCall(this.ledger, e.sessionID, call, this.reminderContext(s, call, this.cfg()));
     if (verdict.deny !== undefined || verdict.context !== undefined)
       this.verdicts.set(e.id, verdict);
-    const skill = skillOf(call, HARNESS8);
+    const skill = skillOf(call, HARNESS7);
     if (skill !== undefined && verdict.deny === undefined)
       this.track(this.skillLoaded(s, skill, this.now()));
   }
@@ -37797,13 +35405,13 @@ class BuracleRuntime {
           input = {};
       }
     }
-    const cls = classifyTool(HARNESS8, tool, input, cwd, this.baked.mcpIds, { homeTilde: this.env.home });
+    const cls = classifyTool(HARNESS7, tool, input, cwd, this.baked.mcpIds, { homeTilde: this.env.home });
     let pathsOut = cls.paths;
     if (e.action === "edit") {
-      const fromResources = resources.flatMap((r) => r === "" ? [] : [isAbsolute13(r) ? resolve18(r) : resolve18(cwd, r)]);
+      const fromResources = resources.flatMap((r) => r === "" ? [] : [isAbsolute13(r) ? resolve17(r) : resolve17(cwd, r)]);
       pathsOut = [...new Set([...pathsOut, ...fromResources])];
     }
-    const call = { harness: HARNESS8, sessionId: e.sessionID, cwd, tool, kind: cls.kind, input, paths: pathsOut };
+    const call = { harness: HARNESS7, sessionId: e.sessionID, cwd, tool, kind: cls.kind, input, paths: pathsOut };
     if (cls.command !== undefined)
       call.command = cls.command;
     else if (cls.kind === "bash" && e.action === "shell")
@@ -37850,7 +35458,7 @@ class BuracleRuntime {
     return checkWrite(call.paths, Object.keys(contents).length > 0 ? { ...wctx, contents } : wctx);
   }
   mcpWriteVerdict(call, cfg) {
-    if (call.kind !== "mcp" || cmCall(call) !== undefined)
+    if (call.kind !== "mcp")
       return {};
     const targets = mcpWritePaths(call.tool, call.input, call.mcp);
     return targets.length > 0 ? checkWrite(targets, this.writeContext(call.cwd, cfg)) : {};
@@ -37860,39 +35468,12 @@ class BuracleRuntime {
       const r = fn();
       return r?.deny !== undefined && r.deny !== "" ? { reason: r.deny, hook: id } : undefined;
     } catch (e) {
-      const msg = errText2(e);
+      const msg = errText(e);
       this.logFn("error", `${id} guard failed`, { error: msg });
       if (hookFailure(this.baked, id) === "closed") {
         return { reason: `the guard could not evaluate this call (${msg}), so it was blocked to stay safe. Run \`buracle doctor opencode\`.`, hook: id };
       }
       return;
-    }
-  }
-  cmGuard(tool, input, sid, agent) {
-    const cwd = this.ctx.location.directory;
-    return cmGuardVerdict(() => this.callOf(tool, input, sid), {
-      agent,
-      sandbox: () => {
-        const cfg = this.cfg();
-        return { bash: this.bashOptions(cwd, cfg), write: this.writeContext(cwd, cfg), serverDir: this.cm.serverDir() };
-      },
-      ...isValidSessionId(sid) ? { consent: (commands) => consentGateAll(HARNESS8, sid, commands, this.now()) } : {},
-      consentFailure: hookFailure(this.baked, "H20"),
-      onError: (hook, error) => this.logFn("error", `${hook} context-mode guard failed`, { tool, error: errText2(error) }),
-      lane: typeof this.sessions.get(sid)?.parentID === "string"
-    });
-  }
-  cmEvaluate(e) {
-    try {
-      if (!isCmToolName(e.action))
-        return;
-      const pending = e.source?.type === "tool" ? this.calls.get(e.source.id) : undefined;
-      if (pending === undefined)
-        return cmUnseenDenial(e.action);
-      pending.cm ??= this.cmGuard(e.action, pending.input, pending.sessionID, e.agent);
-      return pending.cm.deny;
-    } catch (err) {
-      return { reason: `the guard could not evaluate this context-mode call (${errText2(err)}), so it was blocked to stay safe. Run \`buracle doctor opencode\`.`, hook: "H01" };
     }
   }
   denyCall(e, denied, sid, tool) {
@@ -37918,9 +35499,6 @@ class BuracleRuntime {
     if (e.effect === "deny")
       return;
     const before = e.effect;
-    const cm = this.cmEvaluate(e);
-    if (cm !== undefined)
-      return this.denyCall(e, cm, e.sessionID, e.action);
     const call = this.buildCall(e);
     if (call === undefined)
       return;
@@ -37940,7 +35518,7 @@ class BuracleRuntime {
         denied = this.guard("H01", () => ({ deny: reviewerShellDenial(e.agent, command) }));
       if (denied === undefined && command !== "" && isValidSessionId(call.sessionId)) {
         denied = this.guard("H20", () => {
-          const reason = consentGate(HARNESS8, call.sessionId, command, this.now());
+          const reason = consentGate(HARNESS7, call.sessionId, command, this.now());
           return reason !== undefined ? { deny: reason } : undefined;
         });
         if (denied?.hook === "H20")
@@ -37954,7 +35532,7 @@ class BuracleRuntime {
       denied = this.guard("H02", () => this.mcpWriteVerdict(call, cfg));
     if (denied === undefined && call.kind === "ask_user") {
       let question;
-      denied = this.guard("H09", () => question = checkQuestion(loadState(HARNESS8, call.sessionId), call, this.now()));
+      denied = this.guard("H09", () => question = checkQuestion(loadState(HARNESS7, call.sessionId), call, this.now()));
       const note = question?.context;
       if (denied === undefined && note !== undefined && e.source?.type === "tool" && typeof this.sessions.get(call.sessionId)?.parentID !== "string") {
         this.nudges.set(e.source.id, [...this.nudges.get(e.source.id) ?? [], note]);
@@ -37978,7 +35556,7 @@ class BuracleRuntime {
     }
     if (denied === undefined && (call.kind === "edit" || call.kind === "write" || call.kind === "patch") && e.source?.type === "tool") {
       const id = e.source.id;
-      earlyEditNote(call, cfg.plan.planApproval, (note) => this.nudges.set(id, [...this.nudges.get(id) ?? [], note]), (err) => this.logFn("warn", "early edit note failed", { error: errText2(err) }));
+      earlyEditNote(call, cfg.plan.planApproval, (note) => this.nudges.set(id, [...this.nudges.get(id) ?? [], note]), (err) => this.logFn("warn", "early edit note failed", { error: errText(err) }));
     }
     if (denied !== undefined)
       this.denyCall(e, denied, call.sessionId, call.tool);
@@ -37994,7 +35572,7 @@ class BuracleRuntime {
     this.touch(s);
     const cwd = this.ctx.location.directory;
     const input = asRecord(e.input);
-    const cls = classifyTool(HARNESS8, e.tool, input, cwd, this.baked.mcpIds, { homeTilde: this.env.home });
+    const cls = classifyTool(HARNESS7, e.tool, input, cwd, this.baked.mcpIds, { homeTilde: this.env.home });
     const ms = pending !== undefined ? Math.max(0, this.now() - pending.at) : undefined;
     let entry;
     if (cls.kind === "edit" || cls.kind === "write" || cls.kind === "patch" || cls.kind === "bash") {
@@ -38031,13 +35609,11 @@ class BuracleRuntime {
       this.receipts.tool(s.sid, e, { kind: cls.kind, paths: cls.paths, cwd, home: this.env.home, ...cls.command !== undefined ? { command: cls.command } : {} });
     const server = cls.kind === "mcp" ? cls.mcp?.server : undefined;
     if (server !== undefined && !denied && isValidSessionId(e.sessionID))
-      recordMcpResult(this.ledger, e.sessionID, server, e.status === "completed", cls.mcp?.tool);
+      recordMcpResult(this.ledger, e.sessionID, server, e.status === "completed");
     if (e.status === "completed")
       this.maskResult(e, cls.kind);
     else
       this.maskError(e, cls.kind);
-    if (!denied)
-      await this.cmToolResult(s, e);
     if (!denied && e.tool === "question" && e.status === "completed")
       await this.answerReceipt(s, e.input, e.result);
     if (e.status !== "completed")
@@ -38073,7 +35649,7 @@ class BuracleRuntime {
         extra.push(assets);
     }
     if (e.tool === "subagent") {
-      const note = this.reviewGate(input, e.result, reviewSubjects(HARNESS8, s.sid));
+      const note = this.reviewGate(input, e.result, reviewSubjects(HARNESS7, s.sid));
       if (note !== undefined)
         extra.push(note);
     }
@@ -38107,7 +35683,7 @@ class BuracleRuntime {
       e.result = r.result;
       this.logFn("info", maskNotice(r.count), { tool: e.tool });
     } catch (err) {
-      this.logFn("warn", "mask failed", { tool: e.tool, error: errText2(err) });
+      this.logFn("warn", "mask failed", { tool: e.tool, error: errText(err) });
     }
   }
   maskError(e, kind) {
@@ -38118,22 +35694,7 @@ class BuracleRuntime {
       if (count > 0)
         this.logFn("info", maskNotice(count), { tool: e.tool, failed: true });
     } catch (err) {
-      this.logFn("warn", "mask failed", { tool: e.tool, error: errText2(err) });
-    }
-  }
-  async cmToolResult(s, e) {
-    try {
-      if (this.cm.blocked(s.capture) !== undefined)
-        return;
-      const ev = this.cm.toolEvent(e.status === "completed" ? { tool: e.tool, input: e.input, status: e.status, result: e.result } : { tool: e.tool, input: e.input, status: e.status, error: e.error });
-      if (ev === undefined)
-        return;
-      if (s.parentID === undefined)
-        await this.resolveParent(s);
-      if (!this.isSubagent(s))
-        this.cm.tool(s.sid, ev, s.capture);
-    } catch (err) {
-      this.logFn("warn", "context-mode capture failed", { sid: s.sid, error: errText2(err) });
+      this.logFn("warn", "mask failed", { tool: e.tool, error: errText(err) });
     }
   }
   async answerReceipt(s, input, result) {
@@ -38146,7 +35707,7 @@ class BuracleRuntime {
       if (isValidSessionId(s.sid))
         questionGrant(s.sid, input, result, this.now());
     } catch (err) {
-      this.logFn("warn", "H08 answer receipt failed", { sid: s.sid, error: errText2(err) });
+      this.logFn("warn", "H08 answer receipt failed", { sid: s.sid, error: errText(err) });
     }
   }
   reviewGate(input, result, subject) {
@@ -38165,7 +35726,7 @@ class BuracleRuntime {
       this.logFn("info", "H19: invalid review report", { agent: report.agent, first });
       return reviewNote(report, problems, first);
     } catch (err) {
-      this.logFn("warn", "H19 review gate failed", { error: errText2(err) });
+      this.logFn("warn", "H19 review gate failed", { error: errText(err) });
       return;
     }
   }
@@ -38178,9 +35739,9 @@ class BuracleRuntime {
     let text;
     try {
       const mcp = this.baked.mcp.filter((m) => health[m.id] !== "down");
-      text = capabilityCard({ policy: { ...this.baked.routing, strictness: cfg.routing.strictness }, mcp, skills: this.baked.skills, plugins: this.baked.plugins, harness: HARNESS8 });
+      text = capabilityCard({ policy: { ...this.baked.routing, strictness: cfg.routing.strictness }, mcp, skills: this.baked.skills, plugins: this.baked.plugins, harness: HARNESS7 });
     } catch (e) {
-      this.logFn("warn", "capability card failed", { error: errText2(e) });
+      this.logFn("warn", "capability card failed", { error: errText(e) });
       return;
     }
     this.card = { key, text: text.trim() === "" ? undefined : text };
@@ -38194,7 +35755,7 @@ class BuracleRuntime {
         try {
           s.memoryIndex = await this.memory.context(this.cwdOf(s), MEMORY_INJECT.maxBytes) ?? null;
         } catch (e) {
-          this.logFn("warn", "memory context failed", { error: errText2(e) });
+          this.logFn("warn", "memory context failed", { error: errText(e) });
           s.memoryIndex = null;
         }
       })();
@@ -38223,11 +35784,11 @@ class BuracleRuntime {
       const info = await this.workspaceOf(s);
       if (info !== undefined) {
         try {
-          parts.push(workspaceContext(info, HARNESS8));
+          parts.push(workspaceContext(info, HARNESS7));
         } catch (err) {
-          this.logFn("warn", "workspace context failed", { error: errText2(err) });
+          this.logFn("warn", "workspace context failed", { error: errText(err) });
         }
-        const assets = assetsContextCached(info.root, HARNESS8, this.now());
+        const assets = assetsContextCached(info.root, HARNESS7, this.now());
         if (assets !== "")
           parts.push(assets);
       }
@@ -38240,16 +35801,13 @@ class BuracleRuntime {
     const cfg = this.cfg();
     if (s.compacted) {
       try {
-        const text = restoreContext(loadState(HARNESS8, s.sid), s.handoffPath);
+        const text = restoreContext(loadState(HARNESS7, s.sid), s.handoffPath);
         if (text !== undefined && text.trim() !== "")
           parts.push(text);
       } catch (err) {
-        this.logFn("warn", "restoreContext failed", { error: errText2(err) });
+        this.logFn("warn", "restoreContext failed", { error: errText(err) });
       }
     }
-    const cmRestore = await this.cmRequestText(s);
-    if (cmRestore !== undefined)
-      parts.push(cmRestore);
     const notice = await this.sessionNotice(s);
     if (notice !== undefined)
       parts.push(notice);
@@ -38268,13 +35826,13 @@ class BuracleRuntime {
   async saveDraft(s, plan) {
     try {
       const cwd = this.cwdOf(s);
-      const saved = await captureSessionPlan({ plan, cwd, now: this.now(), harness: HARNESS8, approved: false, sid: s.sid });
+      const saved = await captureSessionPlan({ plan, cwd, now: this.now(), harness: HARNESS7, approved: false, sid: s.sid });
       if (saved === undefined)
         return;
       this.spool(s.sid, [{ ts: this.now(), ev: "note", paths: [saved.path] }]);
       return saved.note ?? draftNote(shownPath2(saved.path, cwd));
     } catch (err) {
-      this.logFn("warn", "H12 plan draft failed", { sid: s.sid, error: errText2(err) });
+      this.logFn("warn", "H12 plan draft failed", { sid: s.sid, error: errText(err) });
       return;
     }
   }
@@ -38287,25 +35845,7 @@ class BuracleRuntime {
     return this.isSubagent(s) || this.resumed(s) ? undefined : openingNotice(this.baked, this.now(), this.notifyFn, this.logFn);
   }
   resumed(s) {
-    return s.createdAt !== undefined && s.createdAt <= this.startedAt - CM_RESUME_AFTER_MS;
-  }
-  async cmRequestText(s) {
-    try {
-      await this.cmResume(s);
-      return this.isSubagent(s) ? undefined : await this.cm.requestText(s.sid, s.capture);
-    } catch (err) {
-      this.logFn("warn", "context-mode restore failed", { sid: s.sid, error: errText2(err) });
-      return;
-    }
-  }
-  async cmResume(s) {
-    if (!isValidSessionId(s.sid) || this.cm.blocked(s.capture) !== undefined)
-      return;
-    if (s.parentID === undefined)
-      await this.resolveParent(s);
-    if (this.isSubagent(s) || !this.resumed(s))
-      return;
-    await this.cm.resume(s.sid, s.capture);
+    return s.createdAt !== undefined && s.createdAt <= this.startedAt - RESUME_AFTER_MS;
   }
   deliverPrompts(s, messages, cfg, readOnly) {
     try {
@@ -38317,47 +35857,24 @@ class BuracleRuntime {
         ledgerUserPrompt(this.ledger, s.sid, delivered.route, this.now());
       s.pendingContext = withinBudget(delivered.parts);
     } catch (err) {
-      this.logFn("warn", "prompt delivery failed", { error: errText2(err) });
+      this.logFn("warn", "prompt delivery failed", { error: errText(err) });
     }
   }
   async onCompaction(e) {
     const s = this.session(e.sessionID);
     this.touch(s);
-    const snapshot = this.cmSnapshot(s);
-    const state = loadState(HARNESS8, s.sid);
+    const state = loadState(HARNESS7, s.sid);
     try {
       const text = compactInstructions(undefined, state);
       if (text.trim() !== "")
         e.system.push({ type: "text", text });
     } catch (err) {
-      this.logFn("warn", "compactInstructions failed", { error: errText2(err) });
+      this.logFn("warn", "compactInstructions failed", { error: errText(err) });
     }
     if (s.parentID === undefined)
       await this.resolveParent(s);
     if (!this.isSubagent(s))
       await this.writeHandoff(s, state);
-    if (s.capture && !this.isSubagent(s)) {
-      try {
-        this.memory.compact?.(s.sid);
-      } catch (err) {
-        this.logFn("warn", "memory tick not woken", { error: errText2(err) });
-      }
-    }
-    const summary = await snapshot;
-    if (summary !== undefined)
-      e.system.push({ type: "text", text: summary });
-  }
-  async cmSnapshot(s) {
-    try {
-      if (this.cm.blocked(s.capture) !== undefined)
-        return;
-      if (s.parentID === undefined)
-        await this.resolveParent(s);
-      return this.isSubagent(s) ? undefined : await this.cm.compacting(s.sid, s.capture);
-    } catch (err) {
-      this.logFn("warn", "context-mode snapshot failed", { sid: s.sid, error: errText2(err) });
-      return;
-    }
   }
   async writeHandoff(s, state) {
     try {
@@ -38367,7 +35884,7 @@ class BuracleRuntime {
       }
       const cwd = this.cwdOf(s);
       const now = this.now();
-      const input = { state, project: basename14(cwd), harness: HARNESS8, sessionId: s.sid, now };
+      const input = { state, project: basename12(cwd), harness: HARNESS7, sessionId: s.sid, now };
       const branch = await currentBranch(cwd);
       if (branch !== undefined)
         input.branch = branch;
@@ -38381,7 +35898,7 @@ class BuracleRuntime {
       s.handoffPath = id;
       this.persist(s);
     } catch (err) {
-      this.logFn("warn", "handoff memory failed", { sid: s.sid, error: errText2(err) });
+      this.logFn("warn", "handoff memory failed", { sid: s.sid, error: errText(err) });
     }
   }
   async onPrompt(e) {
@@ -38407,31 +35924,29 @@ class BuracleRuntime {
     try {
       this.memory.prompt?.(s.sid);
     } catch (e) {
-      this.logFn("warn", "memory tick not woken", { error: errText2(e) });
+      this.logFn("warn", "session record not touched", { error: errText(e) });
     }
     const cfg = this.cfg();
     const cmd = commandOfPrompt(meta, text);
     const words = cmd !== undefined ? cmd.args : text;
-    this.cm.prompt(s.sid, routeInputText(words, cmd?.command), s.capture);
-    this.track(this.cmResume(s).catch((err) => this.logFn("warn", "context-mode resume failed", { sid: s.sid, error: errText2(err) })));
     try {
-      recordPromptGrants(HARNESS8, s.sid, words, at);
+      recordPromptGrants(HARNESS7, s.sid, words, at);
     } catch (err) {
-      this.logFn("warn", "consent grants failed", { error: errText2(err) });
+      this.logFn("warn", "consent grants failed", { error: errText(err) });
     }
     let guidance = promptPlanInteraction(s.sid, words, { autoPause: cfg.plan.autoPause, now: at }, this.logFn);
     try {
-      guidance = [guidance, reviewNotesNotice(HARNESS8, s.sid, { plan: loadState(HARNESS8, s.sid).plan?.path, roots: [(await this.workspaceOf(s))?.root, this.cwdOf(s)], now: at })].filter((x) => x !== undefined).join(`
+      guidance = [guidance, reviewNotesNotice(HARNESS7, s.sid, { plan: loadState(HARNESS7, s.sid).plan?.path, roots: [(await this.workspaceOf(s))?.root, this.cwdOf(s)], now: at })].filter((x) => x !== undefined).join(`
 
 `) || undefined;
     } catch (err) {
-      this.logFn("warn", "review notes notice failed", { error: errText2(err) });
+      this.logFn("warn", "review notes notice failed", { error: errText(err) });
     }
     let routed;
     try {
       routed = await this.routeWords(s, e, words, cmd?.command, cfg, at);
     } catch (err) {
-      this.logFn("warn", "prompt routing failed", { error: errText2(err) });
+      this.logFn("warn", "prompt routing failed", { error: errText(err) });
     }
     const notice = this.indexNotice(s, cfg, at);
     const id = typeof e.messageID === "string" && e.messageID !== "" ? e.messageID : undefined;
@@ -38466,9 +35981,9 @@ class BuracleRuntime {
     const title = runTitle(words);
     for (const workflow of route.workflows) {
       const source = workflow === command ? "command" : "prompt";
-      recordFlowStart(HARNESS8, s.sid, title !== undefined ? { workflow, title, source } : { workflow, source }, at);
+      recordFlowStart(HARNESS7, s.sid, title !== undefined ? { workflow, title, source } : { workflow, source }, at);
     }
-    this.spool(s.sid, promptSignalEntries(routeInputText(words, command), { skills: [...attached, ...route.attach], workflows: route.workflows }, at));
+    this.spool(s.sid, promptSignalEntries(routeInputText(words, command), at));
     return route;
   }
   indexNotice(s, cfg, at) {
@@ -38480,16 +35995,16 @@ class BuracleRuntime {
       s.workspaceSeen = next;
       return workspaceNotice(prev, next);
     } catch (err) {
-      this.logFn("debug", "workspace notice failed", { error: errText2(err) });
+      this.logFn("debug", "workspace notice failed", { error: errText(err) });
       return;
     }
   }
   onShellCreate(e) {
-    e.env["BURACLE_HARNESS"] = HARNESS8;
+    e.env["BURACLE_HARNESS"] = HARNESS7;
     let sid;
     let best = -1;
     for (const c of this.calls.values()) {
-      if ((c.tool === "shell" || c.tool === "bash") && str9(asRecord(c.input)["command"]) === e.command && c.at > best) {
+      if ((c.tool === "shell" || c.tool === "bash") && str8(asRecord(c.input)["command"]) === e.command && c.at > best) {
         sid = c.sessionID;
         best = c.at;
       }
@@ -38506,7 +36021,7 @@ class BuracleRuntime {
   }
   async handleEvent(e) {
     const data = asRecord(e.data);
-    const sid = str9(data["sessionID"]);
+    const sid = str8(data["sessionID"]);
     if (e.type === "model.updated") {
       this.models.invalidate();
       return;
@@ -38517,38 +36032,36 @@ class BuracleRuntime {
       case "session.created": {
         const s = this.session(sid);
         const loc = asRecord(data["location"]);
-        const dir = str9(loc["directory"]);
-        const sub = str9(data["subpath"]);
+        const dir = str8(loc["directory"]);
+        const sub = str8(data["subpath"]);
         if (dir !== undefined)
-          s.cwd = sub !== undefined && sub !== "" ? join37(dir, sub) : dir;
+          s.cwd = sub !== undefined && sub !== "" ? join31(dir, sub) : dir;
         if (isMemoryRunnerDir(this.cwdOf(s)))
           s.capture = false;
-        const parent = str9(data["parentID"]);
+        const parent = str8(data["parentID"]);
         s.parentID = parent ?? null;
         if (s.parentID === null)
           this.touch(s);
-        if (s.parentID === null)
-          this.cm.startup(sid, s.capture);
         if (isValidSessionId(sid))
           this.ensureWorkspace(s);
         return;
       }
       case "session.skill.activated": {
-        const id = str9(data["id"]);
+        const id = str8(data["id"]);
         if (id === undefined || !isValidSessionId(sid))
           return;
         const s = this.session(sid);
-        recordCall(this.ledger, sid, { harness: HARNESS8, sessionId: sid, cwd: this.cwdOf(s), tool: "skill", kind: "other", input: { id }, paths: [] });
+        recordCall(this.ledger, sid, { harness: HARNESS7, sessionId: sid, cwd: this.cwdOf(s), tool: "skill", kind: "other", input: { id }, paths: [] });
         await this.skillLoaded(s, id, this.now());
         return;
       }
       case "session.step.started": {
         const model = asRecord(data["model"]);
-        const id = str9(model["id"]);
-        const providerID = str9(model["providerID"]);
+        const id = str8(model["id"]);
+        const providerID = str8(model["providerID"]);
         if (id !== undefined && providerID !== undefined) {
           const ref = { id, providerID };
-          const variant = str9(model["variant"]);
+          const variant = str8(model["variant"]);
           if (variant !== undefined)
             ref.variant = variant;
           this.session(sid).model = ref;
@@ -38576,7 +36089,7 @@ class BuracleRuntime {
         return;
       }
       case "session.text.ended": {
-        const text = str9(data["text"]);
+        const text = str8(data["text"]);
         if (text !== undefined && text.trim() !== "") {
           const s = this.session(sid);
           s.lastAssistantText = text;
@@ -38593,7 +36106,7 @@ class BuracleRuntime {
       case "session.inbox.delivered":
       case "session.inbox.cancelled":
       case "session.inbox.delivery.changed": {
-        const id = str9(data["inboxID"]);
+        const id = str8(data["inboxID"]);
         const s = this.sessions.get(sid);
         if (id !== undefined && s !== undefined)
           inboxUpdate(s.pending, e.type, id, data["delivery"]);
@@ -38610,7 +36123,6 @@ class BuracleRuntime {
       case "session.idle": {
         const s = this.session(sid);
         s.running = false;
-        this.cm.flush(sid);
         if (typeof s.parentID === "string")
           this.sessions.get(s.parentID)?.background?.delete(`subagent:${sid}`);
         if (s.handledGen === s.gen)
@@ -38630,7 +36142,6 @@ class BuracleRuntime {
         s.running = false;
         s.interrupts++;
         resetChain(sid);
-        this.cm.flush(sid);
         this.track(this.turnEnded(s, "interrupted"));
         return;
       }
@@ -38638,33 +36149,24 @@ class BuracleRuntime {
         const s = this.session(sid);
         s.running = false;
         s.failures++;
-        this.cm.flush(sid);
         this.track(this.turnEnded(s, "failed"));
         return;
       }
       case "session.compaction.ended": {
         const s = this.session(sid);
-        const text = str9(data["text"]);
+        const text = str8(data["text"]);
         if (text !== undefined && text.trim() !== "")
           this.track(this.spoolOwn(s, [{ ts: this.now(), ev: "compact", excerpt: text.slice(0, 8000) }]));
         s.compacted = true;
         s.memoryIndex = undefined;
         s.memoryIndexLoading = undefined;
         this.persist(s);
-        this.track(this.cmCompacted(s, true));
-        return;
-      }
-      case "session.compaction.failed": {
-        const s = this.sessions.get(sid);
-        if (s !== undefined)
-          this.track(this.cmCompacted(s, false));
         return;
       }
       case "session.deleted": {
         const s = this.sessions.get(sid);
         this.cancelIdleFinalize(s);
         this.sessions.delete(sid);
-        this.cm.forget(sid);
         this.receipts.forget(sid);
         registry().chains.delete(sid);
         if (s !== undefined && s.parentID !== null && s.parentID !== undefined)
@@ -38674,20 +36176,6 @@ class BuracleRuntime {
       }
       default:
         return;
-    }
-  }
-  async cmCompacted(s, ended) {
-    try {
-      if (s.parentID === undefined)
-        await this.resolveParent(s);
-      if (this.isSubagent(s))
-        return;
-      if (ended)
-        this.cm.compacted(s.sid, s.capture);
-      else
-        this.cm.compactionFailed(s.sid);
-    } catch (err) {
-      this.logFn("warn", "context-mode restore after compaction failed", { sid: s.sid, error: errText2(err) });
     }
   }
   turnSpool(s) {
@@ -38724,9 +36212,9 @@ class BuracleRuntime {
         t.windows = s.windows;
       if (s.windowsAt !== undefined)
         t.windowsAt = s.windowsAt;
-      writeTelemetry(HARNESS8, s.sid, t);
+      writeTelemetry(HARNESS7, s.sid, t);
     } catch (e) {
-      this.logFn("warn", "telemetry write failed", { sid: s.sid, error: errText2(e) });
+      this.logFn("warn", "telemetry write failed", { sid: s.sid, error: errText(e) });
     }
   }
   async resolveParent(s) {
@@ -38735,10 +36223,10 @@ class BuracleRuntime {
     try {
       const res = asRecord(await this.ctx.session.get({ sessionID: s.sid }));
       const info = res["data"] !== undefined ? asRecord(res["data"]) : res;
-      s.parentID = str9(info["parentID"]) ?? null;
+      s.parentID = str8(info["parentID"]) ?? null;
       const loc = asRecord(info["location"]);
-      if (s.cwd === undefined && str9(loc["directory"]) !== undefined)
-        s.cwd = str9(loc["directory"]);
+      if (s.cwd === undefined && str8(loc["directory"]) !== undefined)
+        s.cwd = str8(loc["directory"]);
       const created = num2(asRecord(info["time"])["created"]);
       if (created !== undefined)
         s.createdAt = created;
@@ -38767,7 +36255,7 @@ function createBuraclePlugin(deps) {
 }
 
 // src/adapters/opencode/runtime/server.ts
-var server_default = createBuraclePlugin({ baked: { v: 1, contentHash: "f8fb44c0510bf6f9bc48fa8ea4868d9e43fecbff3f3f3ccb59e8d64bef655776", testedWith: "2.0.30", defaults: { version: 1, harnesses: { claude: { enabled: true }, codex: { enabled: true }, opencode: { enabled: true }, omp: { enabled: true } }, routing: { strictness: "enforce", skills: "router", reminders: true }, guards: { bash: { extraDeny: [] }, write: { protect: [] }, redact: true }, plan: { stopGuard: true, runaway: { perPlan: 30, perChain: 5 }, autoPause: false, planApproval: true, resultApproval: true, branchIsolation: true, worktreeDir: ".worktrees", questions: true, reviews: { plan: true, changes: true, goal: true, companion: "off" }, goalVerification: true, modelSwitch: "off", nativePlanMode: "off" }, context: { warnPct: 85, criticalPct: 95 }, checkers: { enabled: true, timeoutMs: 20000, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] }, memory: { ui: { port: 41777 }, exclude: [] }, statusline: { style: "buracle", emoji: true, monthly: "estimate" }, skills: { sources: [{ name: "buracle", path: "canonical/skills" }] }, update: { minReleaseAgeDays: 0 }, permissions: { bypass: true, enforce: true }, effort: { claude: "auto", codex: "auto", opencode: "auto", omp: "auto" }, agents: { teams: true }, workflow: { band: true, foldAfterSec: 8, notifyAfterSec: 120, codexNotices: true }, toolchain: { autoInstall: true, system: true, upgrade: true }, index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 }, contextMode: { enabled: true, capture: true } }, routing: { strictness: "enforce", categories: [{ id: "library-docs", intent: "Library, framework, SDK or CLI documentation at the installed version (APIs, options, config, migrations)", prefer: ["mcp:context7/resolve-library-id", "mcp:context7/query-docs"], fallback: ["mcp:web-fetch/fetch_url"], deny_builtin: [], nudge: "For library or framework APIs, resolve the library with context7 and query its docs at the version in the lockfile.", reminder: "resolve the library with context7 (resolve-library-id), then query-docs at the version in the lockfile", triggers: { topic: ["official docs", "official documentation", "library docs", "framework docs", "according to the docs", "per the docs", "from the docs", "verify in the docs", "api reference", "api docs", "migration guide", "upgrade guide", "re:\\bcheck the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:look|looked|looking|search|searched|searching)\\b(?:\\s+(?:it|this|that|them)\\s+up)?\\s+in the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:says?|said|mentioned|documented|described)\\s+in the docs\\b", "re:\\b(?!(?:the|our|my|your|their|this|that|an?|its|new|own|same|internal|custom|official|public|private|client|server|web|mobile)\\b)[a-z][a-z0-9.-]{2,}\\s+sdk\\b", "belgelerden", "belgelere gore", "resmi belge*", "dokumantasyondan", "dokumantasyona gore", "api referans*", "goc rehberi", "re:\\b(?:belgelerde|dokumantasyonda)\\b(?!.{0,40}\\b(?:ekle|guncelle|duzelt|kaldir|sil)\\w*)"], not: ["docs folder", "docs directory", "docs klasor*"], deps: ["api", "apis", "config", "configure", "configuration", "option*", "migrat*", "upgrade*", "version*", "deprecat*", "breaking change*", "hook*", "middleware", "plugin*", "setup", "set up", "install*", "usage", "how to use", "how to", "how do", "how does", "how can", "why does", "why do", "why is", "what does", "what options", "which options", "by default", "syntax", "integrat*", "method*", "signature", "type*", "re:\\bv\\d+(?:\\.\\d+)*\\b", "re:\\b\\d+\\.\\d+(?:\\.\\d+)?\\b", "nasil", "yapilandir*", "ayar*", "surum*", "guncelle*", "kurulum*", "entegre*", "goc*", "tip*"] } }, { id: "web-search", intent: "Web search for errors, releases, changelogs and comparisons", prefer: ["mcp:web-search/search"], fallback: ["mcp:web-fetch/fetch_url", "builtin:web_search"], deny_builtin: ["web_search"], nudge: "Search the web with the web-search MCP server; while it is down, fetch a search results page (https://html.duckduckgo.com/html/?q=<query>) with web-fetch, and use the built-in web search only when both are down.", reminder: "search with the web-search MCP server (search), then read the sources with web-fetch (fetch_url)", triggers: { topic: ["latest version", "latest release", "latest stable", "release notes", "what's new in", "whats new in", "still maintained", "search the web", "look it up online", "re:\\b(?:read|check|see|look at|according to|per)\\s+(?:the\\s+|its\\s+|their\\s+)?(?:upstream\\s+|official\\s+)?changelog\\b", "re:\\bchangelog\\s+(?:of|for)\\b", "re:\\b(?:is|was)\\s+(?:this|it|that|there)\\s+a\\s+known\\s+(?:issue|bug)\\b", "re:\\b(?:any|are there)\\s+known\\s+(?:issues?|bugs?)\\b", "re:\\bknown\\s+(?:issues?|bugs?)\\s+(?:with|in|of)\\s+(?!(?:our|my|this|the)\\b)", "son surum*", "guncel surum*", "en son surum*", "surum notlari", "degisiklik gunlugu", "hala bakimi yapiliyor", "webde ara*", "internette ara*"], not: ["draft* release notes", "write* release notes", "generate* release notes", "release notes from", "our release notes", "our changelog", "update the changelog", "changelog entry", "surum notlari yaz*", "surum notlarini yaz*", "surum notlari hazirla*", "degisiklik gunlugunu guncelle*"] } }, { id: "web-fetch", intent: "Read a known URL, including JavaScript-rendered pages", prefer: ["mcp:web-fetch/fetch_url"], fallback: ["mcp:context-mode/ctx_fetch_and_index", "builtin:web_fetch"], deny_builtin: ["web_fetch"], nudge: "Fetch pages with the web-fetch MCP server; while it is down, use context-mode's ctx_fetch_and_index, and the built-in fetch only when both are down.", reminder: "read the page with the web-fetch MCP server (fetch_url)" }, { id: "code-examples", intent: "How public code uses an API (GitHub examples)", prefer: ["mcp:grep/searchGitHub"], fallback: ["mcp:web-search/search"], deny_builtin: [], reminder: "look up real usage in public code with the grep MCP server (searchGitHub)", triggers: { topic: ["examples on github", "github examples", "real-world usage", "real world usage", "real-world examples", "how do other projects", "how others use", "open-source examples", "open source examples", "github'da*", "gercek projelerde", "acik kaynak projelerde", "ornek kullanim*", "baska projeler nasil"] } }, { id: "code-search", intent: "Find code by intent or concept, or code similar to a snippet", prefer: ["mcp:semble/search", "mcp:semble/find_related"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Search code with semble (intent) or rg (exact text), never grep -r or find | xargs grep.", reminder: "find code by intent with semble search (repo = the project root); rg stays right for exact text", triggers: { topic: ["which file", "find the code that", "find where", "locate the code", "re:\\bwhere (?:is|are|do we|does) (?:the |our |we )?\\S+ (?:defined|implemented|handled|configured|loaded|set|parsed|created)", "re:\\bhow (?:does|do) .{1,60}\\bwork\\b", "nerede tanimli", "nerede yapiliyor", "nerede uygulan*", "hangi dosyada", "nasil calisiyor", "kodu bul"], not: ["where were we", "where did we leave", "nerede kalmistik", "nerede kaldik"] } }, { id: "code-structure", intent: "Definitions, callers and callees, and the impact of changing a symbol", prefer: ["mcp:codegraph/codegraph_explore"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Before changing a shared function, type or endpoint, get its callers from codegraph.", reminder: "ask codegraph (callers, callees, impact; projectPath = the project root) before you change a shared symbol", triggers: { topic: ["who calls", "what calls", "callers of", "call sites", "call graph", "find usages", "all usages", "references to", "impact of chang*", "blast radius", "what breaks if", "what depends on", "re:\\bwhere (?:is|are) \\S+ (?:called|used|invoked|referenced)", "nereden cagriliyor", "nerelerde cagriliyor", "kim cagiriyor", "cagiranlar*", "cagri grafi*", "nerelerde kullaniliyor", "etki analizi", "neyi bozar", "neler etkilenir"] } }, { id: "language-server", intent: "Diagnostics of an edited file, a symbol's type and docs, its definition and references from the language server (Codex and OpenCode; Claude Code and omp use their own LSP tools)", prefer: ["mcp:lsp/diagnostics", "mcp:lsp/hover", "mcp:lsp/definition", "mcp:lsp/references"], fallback: ["mcp:codegraph/codegraph_explore", "cli:rg"], deny_builtin: [], reminder: "check an edited Python, TypeScript, Go, Rust, C# or Java file with the lsp server's diagnostics, and ask its hover or definition for a symbol's type", triggers: { topic: ["type error*", "typecheck error*", "type-check error*", "compile error*", "compiler error*", "compilation error*", "lsp diagnostics", "language server", "go to definition", "jump to definition", "re:\\bwhat(?:'s| is) the type of\\b", "tip hata*", "derleme hata*", "tanima git", "tanimina git"] } }, { id: "browser", intent: "Drive and inspect a real browser (DOM, console, network, performance)", prefer: ["mcp:chrome-devtools"], fallback: [], deny_builtin: [], reminder: "drive and inspect the real browser with chrome-devtools (navigate_page, take_snapshot, list_console_messages)", triggers: { topic: ["open the page", "take a screenshot", "screenshot of", "console errors", "browser console", "network tab", "lighthouse", "devtools", "re:\\b(?:open|test|check|verify|look|see|load|reproduce|try|view|inspect|debug|click|watch|preview)\\w*\\b.{0,40}\\bin the browser\\b", "ekran goruntusu", "konsol hata*", "sayfayi ac*", "re:\\btarayicida\\b.{0,30}\\b(?:ac|test et|kontrol et|dene|bak|gor|incele)\\w*"] } }, { id: "memory", intent: "Past decisions, gotchas, earlier sessions and preferences", prefer: ["mcp:buracle-memory/memory_search", "mcp:buracle-memory/memory_get"], fallback: ["cli:buracle"], deny_builtin: [], nudge: "History questions start with memory_search on the buracle-memory server.", reminder: "search memory with memory_search, then memory_get the relevant memories, and cite their ids", triggers: { topic: ["memory note*", "vault note*", "the memory vault", "the memory brain", "hafiza not*", "hafiza kayd*", "kasa not*"] } }, { id: "context-saving", intent: "Output you will process rather than read whole (logs, test and build output, data, large files, long pages)", prefer: ["mcp:context-mode/ctx_batch_execute", "mcp:context-mode/ctx_execute"], fallback: [], deny_builtin: [], nudge: "Run commands whose output you only need to summarize, count or search in the context-mode sandbox and print only the result.", reminder: "process large output in the context-mode sandbox (ctx_batch_execute, ctx_execute, ctx_execute_file) and print only what you need", triggers: { topic: ["test output", "build output", "build log*", "log file*", "server log*", "application log*", "crash log*", "re:\\b(?:analy[sz]e|summari[sz]e|scan|triage|(?:go|dig|look|read|sift|comb)\\s+through)\\s+(?:the\\s+|these\\s+|this\\s+|those\\s+|our\\s+|my\\s+)?(?:[a-z0-9-]+\\s+)?(?:logs?|output|stack\\s?traces?|dumps?|test\\s+results)\\b", "re:\\b(?:large|big|huge|long|massive)\\s+(?:csv|json|jsonl|xml|log|data)\\s+(?:file|dump)s?\\b", "re:\\b(?:csv|json|jsonl|xml|sql|heap|thread)\\s+dumps?\\b", "re:\\bgit\\s+log\\b", "test cikti*", "build cikti*", "derleme cikti*", "log dosya*", "buyuk csv*", "buyuk json*", "re:\\b(?:ciktiyi|ciktisini|ciktilari|ciktilarini|loglari|loglarini)\\s+(?:analiz\\s+et|ozetle|incele|tara|ayikla|gozden\\s+gecir)[a-z']*"], not: ["output folder", "output dir*", "output directory", "output path", "cikti klasor*", "cikti dizin*"] } }] }, mcp: [{ id: "buracle-memory", description: "Buracle memory, the CortexDB brains of the project and the person (search, get, write, update, status)", transport: "stdio", critical: true, routing: ["memory"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "chrome-devtools", description: "Drive and inspect a Chrome browser (DevTools protocol)", transport: "stdio", critical: false, routing: ["browser"], harnesses: ["claude", "codex", "opencode"] }, { id: "codegraph", description: "Code structure graph (symbols, callers, impact) for the current repository", transport: "stdio", critical: true, routing: ["code-structure"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "context-mode", description: "Sandboxed execution and indexed search that keep large output out of context", transport: "stdio", critical: true, routing: ["context-saving"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "context7", description: "Up-to-date library and framework documentation", transport: "stdio", critical: true, routing: ["library-docs"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "grep", description: "Search public GitHub code for real-world usage examples", transport: "http", critical: false, routing: ["code-examples"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "lsp", description: "Language-server diagnostics, hover, definitions, references and symbols", transport: "stdio", critical: true, routing: ["language-server"], harnesses: ["codex", "opencode"] }, { id: "semble", description: "Fast semantic code search over local or remote repositories", transport: "stdio", critical: true, routing: ["code-search"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-fetch", description: "Fetch and extract web pages with a headless browser", transport: "stdio", critical: true, routing: ["web-fetch"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-search", description: "Web search without an API key (DuckDuckGo by default)", transport: "stdio", critical: true, routing: ["web-search"], harnesses: ["claude", "codex", "opencode", "omp"] }], mcpIds: ["buracle-memory", "chrome-devtools", "codegraph", "context-mode", "context7", "grep", "lsp", "semble", "web-fetch", "web-search"], skills: [{ id: "ab-test", description: "Measure whether a change to a skill, rule, AGENTS.md section or routing policy really changes agent behavior. Defines falsifiable cases, runs paired baseline and candidate trials in throwaway config directories (never hiding or renaming the user's real skills or settings), captures tool-use evidence such as whether the agent loaded the skill or called context7, then scores pass rates and reports per-case deltas. Use when the user asks to benchmark, evaluate, A/B test or compare a skill or rule change, or to check that agents really use an MCP server or skill.", userInvocable: true, short: "Paired before/after evals of skills and rules with tool-use evidence", invocation: "implicit", triggers: { ask: ["benchmark the skill", "benchmark this skill", "benchmark the rule", "benchmark the routing", "a/b test the skill", "a/b test the rule", "ab-test the skill", "skill'i* benchmark*", "skill'i* olc*", "kurali benchmark*"], topic: ["activation rate", "trigger rate", "really makes the agent", "re:\\bbefore(?:/|\\s+and\\s+)after\\b.{0,60}\\b(?:skill|rule|routing|prompt|agents\\.md|claude\\.md|hook|mcp|description)", "re:\\b(?:skill|rule|routing|prompt|agents\\.md|claude\\.md|hook|description)\\S*\\b.{0,60}\\bbefore(?:/|\\s+and\\s+)after\\b", "re:\\b(?:agents?|models?|claude|codex|opencode|omp)\\b.{0,30}\\breally\\s+(?:calls?|uses?|loads?|triggers?|reads?)\\b", "re:\\bbenchmark\\w*\\b.{0,80}\\b(?:skill|rule|routing|agents\\.md|claude\\.md|hook|prompt|mcp)", "re:\\b(?:skill|rule|routing)\\S*\\b.{0,80}\\bbenchmark", "re:\\b(?:skill|kural|routing|prompt|agents\\.md|claude\\.md|hook|aciklama)\\S*\\b.{0,80}\\b(?:once/?\\s?sonra karsilastir|tetikleniyor mu|gercekten cagriliyor mu)", "re:\\b(?:once/?\\s?sonra karsilastir\\w*|tetikleniyor mu|gercekten cagriliyor mu)\\b.{0,80}\\b(?:skill|kural|routing|prompt|agents\\.md|claude\\.md|hook)", "re:\\bskill\\S*\\b.{0,80}\\b(?:eskisiyle|oncekiyle|onceki surumuyle)"], not: ["operations per second", "ops/sec", "ops per second", "throughput", "latency"] } }, { id: "bugfix", description: "Plan-less bug workflow that owns one defect end to end: reproduce it first, trace the root cause to file:line, write a failing test, fix at the source, prove the fix on the real program, then pass the quality gate. With branch isolation on it asks where to work: the current branch, a bugfix/<slug> branch or a worktree squash-merged once the fix is proven; no plan file. Run only when the user explicitly asks for bugfix.", userInvocable: true, short: "Reproduce, root-cause, RED test, fix at the source, prove it end to end", invocation: "explicit", triggers: { ask: ["re:(?<!\\b(?:the|that|this|your|my|our|its)\\s)\\broot[- ]cause\\s+fix\\b", "fix it test-first", "fix it with a failing test first", "reproduce it first and fix it", "kok nedenini bulup duzelt", "once test yazip duzelt"], not: ["workflow file", "github actions", "ci workflow"] } }, { id: "buracle", description: "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan \u2026`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, notifications, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.", userInvocable: false, short: "When and how to call the buracle helper CLI", invocation: "implicit", triggers: { ask: ["use the buracle cli", "buracle cli ile"], topic: ["re:\\bplan status\\b(?!\\s+(?:endpoint|field|column|code|enum|value|page|api|route|handler|query|badge|label|filter|check|type)s?\\b)", "how many tasks are left", "tasks left in the plan", "diff range", "re:(?<!\\b(?:add|added|adding|new)\\s(?:a\\s|an\\s|the\\s)?)\\breview scope\\b(?!\\s+(?:option|flag|field|param\\w*|column|setting|config\\w*|endpoint|api|type|enum|value)s?\\b)", "what should i review", "re:\\b(?:my|our|claude(?:\\s+code)?|codex|opencode|omp|subscription)(?:'s)?\\s+(?:usage|rate|weekly|5h|5-hour)\\s+limits?\\b", "rate limit headroom", "5h window", "5-hour window", "create a worktree", "merge the worktree", "buracle doctor", "planin durumu", "re:\\bplan durumu\\b(?!\\s+(?:alan|endpoint|kolon|sutun|enum|deger|sayfa|api|kod)\\w*)", "kac gorev kaldi", "kullanim limitim*", "kullanim limitlerim*", "re:\\bkullanim limit\\w*\\s+ne durumda", "5 saatlik pencere*", "5 saatlik limit*", "haftalik limitim*", "haftalik limitlerim*", "re:\\b(?:claude|codex|opencode|omp)\\S*\\s+(?:kullanim\\s+|haftalik\\s+)?limit\\w*", "worktree olustur*", "worktree ac", "worktree'yi birlestir*", "buracle doctor"] } }, { id: "dead-code", description: "Report-only dead-code audit. Collects candidate unused files and exports from the project's own analyzers, a bundled rg-based script and a read-only codegraph snapshot, checks every candidate against independent signals (codegraph references, exact and dynamic-usage search, analyzers), rules out a public role (API, entry points, config, registries), and returns a ranked report with evidence and a staged removal plan. Never deletes or edits code.", userInvocable: true, short: "Report-only dead-code audit with two-signal evidence and a removal plan", invocation: "explicit", triggers: { ask: ["dead code audit", "dead-code audit", "unused code report", "dead code report", "re:(?:^|[\\n.!?;:]\\s*|\\b(?:please|pls|can you|could you|would you|and|then|just)\\s+)find\\s+(?:all\\s+|the\\s+)?(?:dead|unused)\\s+(?:code|exports|files)\\b", "olu kod analizi", "olu kod raporu", "olu kodlari bul", "olu kod tara*", "kullanilmayan kod* bul", "kullanilmayan kod* tespit", "kullanilmayan export* bul", "temizlik raporu"] } }, { id: "find-skill", description: "Find an agent skill for a need and install it for every harness in a few calls. `buracle skills find <need>` is one command that shows the installed and shipped skills that already match, then the skills.sh registry's candidates with description, license, freshness, tool grants and risk ratings; `buracle skills add --dry-run` audits the pick (scripts, allowed-tools, suspicious lines) and `buracle skills add` installs it into ~/.agents/skills (Codex, OpenCode, Oh My Pi) and links it into ~/.claude/skills (Claude Code). Also updates and removes installed skills.", userInvocable: true, short: "Find a skill for a need and install it for every harness", invocation: "implicit", triggers: { ask: ["find a skill", "find me a skill", "find skills for", "is there a skill", "re:\\b(?:install|add|get)\\s+(?:a|the|an)\\s+(?:\\S+\\s+){0,3}skill\\b", "re:\\b(?:update|upgrade|remove|uninstall)\\s+(?:my|the|an?)\\s+(?:\\S+\\s+){0,2}skills?\\b", "search for a skill", "skill marketplace", "skill bul", "skill ara", "skill var mi", "bir skill var mi", "re:\\bskill\\w*\\s+(?:kur|yukle|ekle|indir)", "re:\\b(?:kur|yukle|ekle|indir)\\w*\\s+(?:\\S+\\s+){0,2}skill", "skilleri guncelle", "skill guncelle*", "skill kaldir*", "skill sil"], not: ["create a skill", "write a skill", "new skill", "turn this into a skill", "buracle skill", "the skill is", "skill triggers", "skills lint", "new-skill", "in the skill", "skill file", "skill id", "skill yaz", "skill olustur", "skille donustur", "yeni skill", "skill dosyasi"] } }, { id: "goal-build", description: "Goal-and-loop workflow for a clear end state whose path is found while building: agree on a goal, tasks sized as the largest slices you can finish and verify, and at least 3 pass/fail acceptance criteria (one of them the oracle), have them reviewed, lock the contract, then build in rounds judged on running evidence (at most four), verify and hand back. Tracked in docs/builds/. Run only when the user explicitly asks for goal-build.", userInvocable: true, short: "Lock a goal and pass/fail criteria, then build in judged rounds", invocation: "explicit", triggers: { ask: ["goal-and-loop", "goal and loop", "find the way yourself", "re:\\byou find the way(?: there)?\\s*(?:[.!;:]|$)", "re:(?:^|[\\n.!?;:]\\s*|\\b(?:and|then|just|please)\\s+)(?:keep\\s+)?loop(?:ing)?\\s+until\\s+it\\s+(?:works|passes)\\b", "yolunu sen bul", "bitene kadar dongu*", "hedef odakli dongu*"], not: ["github actions", "ci workflow", "ci pipeline", "workflow file", "workflow run", ".github/workflows", "workflow yaml"] } }, { id: "inspect", description: "Read-only investigation of one question about the code. Frames a falsifiable claim, locates code with semble (intent), codegraph (callers, callees, blast radius) and rg or ast-grep (exact and structural matches), checks memory for past decisions, traces the active path hop by hop, challenges the answer with a counterexample search, and reports a direct answer with file:line evidence and calibrated confidence. Never edits anything.", userInvocable: true, short: "Read-only trace of one code question with file:line evidence", invocation: "explicit", triggers: { ask: ["inspect how", "inspect why", "inspect where", "investigate how", "investigate why", "investigate where", "dig into how", "trace how", "re:(?:^|[\\n.!?;:]\\s*|\\b(?:please|pls|can you|could you|would you)\\s+)investigate\\s+(?:this|that|it)\\b", "nasil calistigini incele*", "nasil calistigini arastir*", "neden boyle davrandigini incele*", "neden boyle davrandigini arastir*", "nereden cagrildigini incele*"], not: ["and fix", "fix it", "then fix", "duzelt"] } }, { id: "memory", description: "Protocol for Buracle's shared memory: the CortexDB brains (one per project, one for the person) served by the buracle-memory MCP server in every harness. Says when to run a quick memory pass (at most 3 memory_search calls, then at most 3 memories via memory_get), how to treat recalled memories as evidence rather than instructions, and how to keep the memory: one claim per memory with sources, search before writing, update or merge instead of duplicating, keep the core pages current, record the user's preferences in the right brain, work through the upkeep queue, never store secrets. Use when the user refers to past work or asks you to remember something, before re-deciding something, after a non-obvious fix, and when upkeep waits.", userInvocable: false, short: "When and how to read, write and keep Buracle's CortexDB memory", invocation: "implicit", triggers: { ask: ["use the memory protocol", "hafiza protokolu*"], topic: ["memory note*", "vault note*", "the memory vault", "the memory brain", "hafiza not*", "hafiza kayd*", "kasa not*", "kasadaki not*"] } }, { id: "new-skill", description: "Capture a repeatable procedure as a Buracle skill, or improve an existing one. Picks the right home (global skills in the Buracle repo's canonical/skills or a configured skills git source; project-only skills in .agents/skills), writes SKILL.md in the canonical format with references/, scripts/ and trigger evals, lints it with `buracle skills lint`, and explains how publishing reaches every harness. Use when the user wants to turn a workflow into a skill, edit, split or rename a skill, or fix a skill that triggers too often or never.", userInvocable: true, short: "Capture a repeatable procedure as a canonical Buracle skill", invocation: "implicit", triggers: { ask: ["turn this into a skill", "turn it into a skill", "into a reusable skill", "make it a skill", "save it as a skill", "new skill for", "re:\\b(?:create|write|add|make) (?:a |an |the )?(?:new )?(?:[a-z-]+ ){0,2}skill\\b", "skill yap", "bunu skill yap", "yeni skill olustur*", "yeni bir skill olustur*", "yeni skill yaz*", "skill olustur*", "skill olarak kaydet*", "skill'e donustur*", "skill'i guncelle*", "tekrar kullanilabilir bir skill"], topic: ["reusable skill", "skill trigger*", "skill description", "re:\\bskill\\S*\\b.{0,60}\\b(?:never triggers|does not trigger|doesn't trigger|misfires|triggers too often)", "re:\\bskill\\S*\\b.{0,60}\\btetiklen(?:miyor|mez)", "re:\\bskill\\S*\\b.{0,60}\\bdevreye girmiyor"] } }, { id: "plan-build", description: "Plan-driven development through a plan file in docs/plans/: explore and clarify, write and review the plan, get approval, implement task by task with TDD, then verify with real evidence until the plan is VERIFIED. Covers features and bugfixes (behavior contract, reproduce first, root-cause fix). Also pauses, resumes or continues an existing plan. Run only when the user explicitly asks for plan-build.", userInvocable: true, short: "Plan, approve, TDD-implement and verify work through a plan file", invocation: "explicit", triggers: { ask: ["write a plan and implement*", "plan and implement it", "plan it and implement*", "re:\\b(?:do|build|implement|handle|tackle)\\s+(?:it|this|that|them|the\\s+\\S+)\\s+plan[- ]driven\\b", "re:\\b(?:go|let's go)\\s+plan[- ]driven\\b", "re:(?:^|[\\n.!?;]\\s*)plan[- ]driven(?:\\s*,?\\s*please)?\\s*[:,]", "plan yaz ve uygula", "plan yazip uygula", "planla ve uygula"] } }, { id: "project-rules", description: "Create, refresh or audit a repository's agent guidance so Claude Code, Codex, OpenCode and omp follow the same verified instructions: the root AGENTS.md, optional nested AGENTS.md files for subprojects, and path-scoped rules for specific file types. Discovers commands and conventions from the code (package scripts, CI jobs, linter and test configs, test layout), runs commands before documenting them, keeps every file short, then runs `buracle project sync` and `buracle project check`. Use when the user asks to set up, write, update, slim down or check AGENTS.md, CLAUDE.md or project rules.", userInvocable: true, short: "Generate and verify AGENTS.md and path-scoped rules for a repo", invocation: "implicit", triggers: { ask: ["set up agent guidance", "set up agents.md", "write agents.md", "create agents.md", "update agents.md", "audit agents.md", "refresh agents.md", "slim down agents.md", "set up the project rules", "audit the agent instructions", "agents.md hazirla*", "agents.md olustur*", "agents.md guncelle*", "agents.md yaz", "proje kurallarini kur", "talimatlari guncelle*", "kurallari sadelestir*"], topic: ["agent instructions", "agent guidance", "path rules", "path-scoped rules", "re:\\b(?:agents|claude)\\.md\\b.{0,40}\\b(?:stale|outdated|bloated|too long|wrong|out of date)", "proje talimatlari", "ajan talimatlari", "proje kurallari", "re:\\b(?:agents|claude)\\.md\\b.{0,40}\\b(?:eskimis|guncel degil|cok uzun|yanlis)"] } }, { id: "requirements", description: "Requirements workflow for ideas whose problem, audience or scope is still unclear. Grounds the idea in the codebase and memory, runs tiered research through the research skill, explores directions, asks a few decision questions, proposes approaches, converges on scope, writes an approved PRD to docs/prd/YYYY-MM-DD-<slug>.md and prints the plan-build or goal-build hand-off. No code is written before the PRD is approved.", userInvocable: true, short: "Interview, research and write an approved PRD before any code", invocation: "explicit", triggers: { ask: ["write a prd", "write the prd", "draft a prd", "draft the prd", "create a prd", "prepare a prd", "make a prd", "need a prd", "re:\\b(?:write|draft|create|prepare|make|produce|need|want)\\s+(?:me\\s+|us\\s+)?(?:a|an|the)\\s+(?:new\\s+|short\\s+|proper\\s+)?(?:product\\s+)?requirements\\s+doc(?:ument)?\\b", "re:(?:^|[\\n.!?;:]\\s*)(?:a\\s+)?prd\\s+for\\b", "prd yaz*", "prd hazirla*", "prd olustur*", "prd cikar*", "gereksinimleri cikar*", "re:\\bgereksinim\\s+(?:dokuman|belge)\\w*\\s+(?:yaz|hazirla|olustur|cikar|lazim|gerek)\\w*", "bu fikri netlestir*", "fikri netlestir*"], not: ["do we need a prd", "is there a prd", "do we have a prd", "is a prd needed", "prd gerekli mi", "prd lazim mi", "prd var mi"] } }, { id: "research", description: "Evidence-backed research that must use MCP tools instead of recall: web-search to discover sources, web-fetch to read them in full, context7 for library and framework documentation, grep for real-world code on GitHub, and buracle-memory for prior decisions. Produces a cited research note (answer, findings, options, conflicts, gaps, confidence) and can save durable findings to memory as knowledge memories pending review.", userInvocable: true, short: "Cited, MCP-backed research across web, library docs, public code and memory", invocation: "implicit", triggers: { ask: ["research this", "research it", "do research on", "research whether", "research which", "deep research", "find sources", "cite sources", "arastir", "arastirin", "arastiralim", "arastirir misin", "arastirabilir*", "arastirma yap*", "derinlemesine arastir*", "kaynak goster*", "kaynaklarla karsilastir*"], topic: ["still maintained", "is it maintained", "current sources", "which is better", "re:(?<!\\b(?:follow|following|use|using|apply|applying|with|keep|keeping|per)\\s(?:the\\s|our\\s|these\\s)?)\\bbest\\s+practices?\\s+(?:for|in|of|on|around|when\\s+using)\\b", "re:\\b(?:what|which)(?:'s|\\s+(?:is|are))\\s+(?:the\\s+)?(?:current\\s+|modern\\s+|recommended\\s+)?best\\s+practices?\\b", "re:\\bbest\\s+practices?\\s*\\?", "pros and cons", "alternatives to", "state of the art", "latest version of", "re:\\bcompare\\b.{0,60}\\b(?:librar|framework|tool|package|approach|option|vendor|provider|service|database|orm|solution|sdk)", "re:\\b(?:librar|framework|tool|package|approach|provider|service|database|sdk)\\w*\\b.{0,40}\\bcompar", "re:\\b(?!(?:actual|expected|got|received|before|after|old|new|left|right|input|output|tabs|spaces|this|that|it|one)\\b)[a-z][a-z0-9.-]+ (?:vs\\.?|versus) (?!(?:actual|expected|got|received|before|after|old|new|left|right|input|output|tabs|spaces|this|that|it|one)\\b)[a-z][a-z0-9.-]+", "hangisi daha iyi", "guncel mi", "guncel kaynak*", "re:\\ben iyi (?:pratik|uygulama)\\w*\\b(?!\\s+(?:uy|uygun|izle|takip))", "artilari ve eksileri", "alternatifleri neler", "re:\\b\\S+ mu \\S+ mu (?:kullan|sec|tercih)", "re:\\b(?:kutuphane|framework|arac|paket|yaklasim|secenek|servis|veritaban|sdk)\\w*\\b.{0,60}\\bkarsilastir"], not: ["vs code", "vscode", "visual studio", "compare function", "comparator"] } }, { id: "security-audit", description: "Security guidance and vulnerability review for codebases, APIs, services, CLI tools, libraries and daemons: Cloudflare's security-audit skill (MIT), vendored as Buracle's default security skill. Guidance mode answers security questions, focused reviews and triage with the relevant parts only; full audit mode runs six phases (reconnaissance, coverage-led hunting with parallel isolated agents, validation by fresh verifiers, structured findings.json, independent record verification, a target-neutral report) when the user asks for an audit, a pen test, a full security review or report artifacts.", userInvocable: true, short: "Cloudflare's security-audit skill, Buracle's default security review", invocation: "implicit", triggers: { ask: ["security audit", "audit the security", "re:\\baudit\\s+(?:this|the|my|our)\\s+(?:\\S+\\s+){0,2}(?:codebase|repo|repository|project|service|app|application|api)\\b.{0,40}\\bsecur", "re:\\bsecur\\w*\\s+(?:review|assessment|analysis|scan)\\b", "pen test", "pentest", "penetration test", "find vulnerabilities", "find security vulnerabilities", "look for vulnerabilities", "threat model", "guvenlik denetimi", "guvenlik taramasi", "guvenlik incelemesi", "guvenlik analizi", "re:\\bguvenlik ac(?:ik|ig)\\w*", "re:\\bzafiyet\\w*\\s+(?:bul|tara|ara)", "sizma testi", "pentest yap*", "tehdit modeli"], topic: ["re:\\bis (?:this|it|that) (?:secure|safe|vulnerable|exploitable)\\b", "re:\\b(?:sql|command|prompt|shell|code)\\s+injection\\b", "re:\\b(?:xss|csrf|ssrf|rce|idor)\\b", "re:\\btrust boundar", "re:\\b(?:auth(?:entication|orization)?|session|token|secret|credential)\\w*\\s+(?:bypass|leak|exposure|handling)\\b", "re:\\bguvenli mi\\b", "re:\\b(?:sql|komut|prompt|kod)\\s+enjeksiyon"], not: ["audit log", "audit trail", "accessibility audit", "performance audit", "lighthouse audit", "dead code audit", "cleanup audit", "dependency audit only", "npm audit", "security.md", "security headers test", "erisilebilirlik denetimi", "performans denetimi", "olu kod"] } }], plugins: [], hooks: [{ id: "H01", blocking: "deny", failure: "closed" }, { id: "H02", blocking: "deny", failure: "closed" }, { id: "H03", blocking: "deny", failure: "open" }, { id: "H04", blocking: "none", failure: "open" }, { id: "H05", blocking: "none", failure: "open" }, { id: "H06", blocking: "none", failure: "open" }, { id: "H07", blocking: "none", failure: "open" }, { id: "H08", blocking: "stop", failure: "open" }, { id: "H09", blocking: "deny", failure: "open" }, { id: "H10", blocking: "none", failure: "open" }, { id: "H11", blocking: "stop", failure: "open" }, { id: "H12", blocking: "none", failure: "open" }, { id: "H13", blocking: "none", failure: "open" }, { id: "H14", blocking: "none", failure: "open" }, { id: "H15", blocking: "none", failure: "open" }, { id: "H16", blocking: "none", failure: "open" }, { id: "H17", blocking: "none", failure: "open" }, { id: "H18", blocking: "none", failure: "open" }, { id: "H19", blocking: "none", failure: "open" }, { id: "H20", blocking: "deny", failure: "open" }, { id: "H21", blocking: "none", failure: "open" }, { id: "H22", blocking: "none", failure: "open" }, { id: "H23", blocking: "stop", failure: "open" }, { id: "H24", blocking: "none", failure: "open" }, { id: "H25", blocking: "none", failure: "open" }, { id: "H26", blocking: "none", failure: "open" }, { id: "H27", blocking: "none", failure: "open" }, { id: "H28", blocking: "none", failure: "open" }], pathRules: [{ id: "backend", globs: ["**/api/**", "**/routes/**", "**/handlers/**", "**/controllers/**", "**/endpoints/**", "**/middleware/**", "**/models/**", "**/models.py", "**/entities/**", "**/schema/**", "**/schemas/**", "**/queries/**", "**/repository/**", "**/repositories/**", "**/dao/**", "**/migrations/**", "**/migrate/**", "**/alembic/**", "**/db/**", "**/*.sql", "**/*.prisma", "**/*.graphql", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json"] }, { id: "blazor", globs: ["**/*.razor", "**/*.razor.cs", "**/*.razor.css"] }, { id: "browser-automation", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.razor", "**/e2e/**", "**/playwright/**", "**/cypress/**", "**/__tests__/**", "**/playwright.config.*", "**/cypress.config.*"] }, { id: "dotnet", globs: ["**/*.cs", "**/*.csproj", "**/*.sln", "**/*.slnx", "**/global.json", "**/Directory.Build.props", "**/Directory.Packages.props"] }, { id: "frontend", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.sass", "**/*.less", "**/*.razor", "**/*.razor.css"] }, { id: "go", globs: ["**/*.go", "**/go.mod", "**/go.sum", "**/go.work"] }, { id: "mobile", globs: ["**/capacitor.config.*", "**/ionic.config.json", "**/android/app/build.gradle*", "**/android/app/src/main/AndroidManifest.xml", "**/*.xcodeproj/project.pbxproj", "**/*.xcworkspace/contents.xcworkspacedata", "**/Podfile", "**/pubspec.yaml", "**/react-native.config.*", "**/metro.config.*", "**/expo.json", "**/eas.json", "**/app.config.{js,ts}"] }, { id: "python", globs: ["**/*.py", "**/*.pyi", "**/pyproject.toml", "**/requirements*.txt", "**/uv.lock", "**/setup.cfg"] }, { id: "typescript", globs: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts", "**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs", "**/package.json", "**/tsconfig*.json"] }], version: "0.5.0", notices: [{ id: "0.5.0-project-assets", since: "0.5.0", until: "0.6.0", message: "When a session starts in a repository, Buracle now links the skills in .agents/skills into .claude/skills so Claude Code sees them too, and checks that AGENTS.md lists the path rules in .claude/rules. Run `buracle project check` to see what it would change." }, { id: "0.5.0-smaller-cli", since: "0.5.0", until: "0.6.0", message: "Buracle's CLI is smaller: run `buracle` in a terminal for a main menu you drive with the keyboard. `buracle install` now does what `init` and `sync` did, `buracle install` and `buracle update` apply in a terminal without a question and show each step as it runs, and the rare cases flags used to cover are questions in a terminal. `buracle help --all` lists the commands your agents use." }] }, memory: memoryBridge, pluginDir: import.meta.dir });
+var server_default = createBuraclePlugin({ baked: { v: 1, contentHash: "5b2552b52f80d545608a8a8312a42ff224d8fb5620dc04e6003beaa89c187d18", testedWith: "2.0.30", defaults: { version: 1, harnesses: { claude: { enabled: true }, codex: { enabled: true }, opencode: { enabled: true }, omp: { enabled: true } }, routing: { strictness: "enforce", skills: "router", reminders: true }, guards: { bash: { extraDeny: [] }, write: { protect: [] }, redact: true }, plan: { stopGuard: true, runaway: { perPlan: 30, perChain: 5 }, autoPause: false, planApproval: true, resultApproval: true, branchIsolation: true, worktreeDir: ".worktrees", questions: true, reviews: { plan: true, changes: true, goal: true, companion: "off" }, goalVerification: true, modelSwitch: "off", nativePlanMode: "off" }, context: { warnPct: 85, criticalPct: 95 }, checkers: { enabled: true, timeoutMs: 20000, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] }, memory: { ui: { port: 41777 }, exclude: [] }, statusline: { style: "buracle", emoji: true, monthly: "estimate" }, skills: { sources: [{ name: "buracle", path: "canonical/skills" }] }, update: { minReleaseAgeDays: 0 }, permissions: { bypass: true, enforce: true }, effort: { claude: "auto", codex: "auto", opencode: "auto", omp: "auto" }, agents: { teams: true }, workflow: { band: true, foldAfterSec: 8, notifyAfterSec: 120, codexNotices: true }, toolchain: { autoInstall: true, system: true, upgrade: true }, index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 } }, routing: { strictness: "enforce", categories: [{ id: "library-docs", intent: "Library, framework, SDK or CLI documentation at the installed version (APIs, options, config, migrations)", prefer: ["mcp:context7/resolve-library-id", "mcp:context7/query-docs"], fallback: ["mcp:web-fetch/fetch_url"], deny_builtin: [], nudge: "For library or framework APIs, resolve the library with context7 and query its docs at the version in the lockfile.", reminder: "resolve the library with context7 (resolve-library-id), then query-docs at the version in the lockfile", triggers: { topic: ["official docs", "official documentation", "library docs", "framework docs", "according to the docs", "per the docs", "from the docs", "verify in the docs", "api reference", "api docs", "migration guide", "upgrade guide", "re:\\bcheck the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:look|looked|looking|search|searched|searching)\\b(?:\\s+(?:it|this|that|them)\\s+up)?\\s+in the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:says?|said|mentioned|documented|described)\\s+in the docs\\b", "re:\\b(?!(?:the|our|my|your|their|this|that|an?|its|new|own|same|internal|custom|official|public|private|client|server|web|mobile)\\b)[a-z][a-z0-9.-]{2,}\\s+sdk\\b", "belgelerden", "belgelere gore", "resmi belge*", "dokumantasyondan", "dokumantasyona gore", "api referans*", "goc rehberi", "re:\\b(?:belgelerde|dokumantasyonda)\\b(?!.{0,40}\\b(?:ekle|guncelle|duzelt|kaldir|sil)\\w*)"], not: ["docs folder", "docs directory", "docs klasor*"], deps: ["api", "apis", "config", "configure", "configuration", "option*", "migrat*", "upgrade*", "version*", "deprecat*", "breaking change*", "hook*", "middleware", "plugin*", "setup", "set up", "install*", "usage", "how to use", "how to", "how do", "how does", "how can", "why does", "why do", "why is", "what does", "what options", "which options", "by default", "syntax", "integrat*", "method*", "signature", "type*", "re:\\bv\\d+(?:\\.\\d+)*\\b", "re:\\b\\d+\\.\\d+(?:\\.\\d+)?\\b", "nasil", "yapilandir*", "ayar*", "surum*", "guncelle*", "kurulum*", "entegre*", "goc*", "tip*"] } }, { id: "web-search", intent: "Web search for errors, releases, changelogs and comparisons", prefer: ["mcp:web-search/search"], fallback: ["mcp:web-fetch/fetch_url", "builtin:web_search"], deny_builtin: ["web_search"], nudge: "Search the web with the web-search MCP server; while it is down, fetch a search results page (https://html.duckduckgo.com/html/?q=<query>) with web-fetch, and use the built-in web search only when both are down.", reminder: "search with the web-search MCP server (search), then read the sources with web-fetch (fetch_url)", triggers: { topic: ["latest version", "latest release", "latest stable", "release notes", "what's new in", "whats new in", "still maintained", "search the web", "look it up online", "re:\\b(?:read|check|see|look at|according to|per)\\s+(?:the\\s+|its\\s+|their\\s+)?(?:upstream\\s+|official\\s+)?changelog\\b", "re:\\bchangelog\\s+(?:of|for)\\b", "re:\\b(?:is|was)\\s+(?:this|it|that|there)\\s+a\\s+known\\s+(?:issue|bug)\\b", "re:\\b(?:any|are there)\\s+known\\s+(?:issues?|bugs?)\\b", "re:\\bknown\\s+(?:issues?|bugs?)\\s+(?:with|in|of)\\s+(?!(?:our|my|this|the)\\b)", "son surum*", "guncel surum*", "en son surum*", "surum notlari", "degisiklik gunlugu", "hala bakimi yapiliyor", "webde ara*", "internette ara*"], not: ["draft* release notes", "write* release notes", "generate* release notes", "release notes from", "our release notes", "our changelog", "update the changelog", "changelog entry", "surum notlari yaz*", "surum notlarini yaz*", "surum notlari hazirla*", "degisiklik gunlugunu guncelle*"] } }, { id: "web-fetch", intent: "Read a known URL, including JavaScript-rendered pages", prefer: ["mcp:web-fetch/fetch_url"], fallback: ["builtin:web_fetch"], deny_builtin: ["web_fetch"], nudge: "Fetch pages with the web-fetch MCP server, and use the built-in fetch only while it is down.", reminder: "read the page with the web-fetch MCP server (fetch_url)" }, { id: "code-examples", intent: "How public code uses an API (GitHub examples)", prefer: ["mcp:grep/searchGitHub"], fallback: ["mcp:web-search/search"], deny_builtin: [], reminder: "look up real usage in public code with the grep MCP server (searchGitHub)", triggers: { topic: ["examples on github", "github examples", "real-world usage", "real world usage", "real-world examples", "how do other projects", "how others use", "open-source examples", "open source examples", "github'da*", "gercek projelerde", "acik kaynak projelerde", "ornek kullanim*", "baska projeler nasil"] } }, { id: "code-search", intent: "Find code by intent or concept, or code similar to a snippet", prefer: ["mcp:semble/search", "mcp:semble/find_related"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Search code with semble (intent) or rg (exact text), never grep -r or find | xargs grep.", reminder: "find code by intent with semble search (repo = the project root); rg stays right for exact text", triggers: { topic: ["which file", "find the code that", "find where", "locate the code", "re:\\bwhere (?:is|are|do we|does) (?:the |our |we )?\\S+ (?:defined|implemented|handled|configured|loaded|set|parsed|created)", "re:\\bhow (?:does|do) .{1,60}\\bwork\\b", "nerede tanimli", "nerede yapiliyor", "nerede uygulan*", "hangi dosyada", "nasil calisiyor", "kodu bul"], not: ["where were we", "where did we leave", "nerede kalmistik", "nerede kaldik"] } }, { id: "code-structure", intent: "Definitions, callers and callees, and the impact of changing a symbol", prefer: ["mcp:codegraph/codegraph_explore"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Before changing a shared function, type or endpoint, get its callers from codegraph.", reminder: "ask codegraph (callers, callees, impact; projectPath = the project root) before you change a shared symbol", triggers: { topic: ["who calls", "what calls", "callers of", "call sites", "call graph", "find usages", "all usages", "references to", "impact of chang*", "blast radius", "what breaks if", "what depends on", "re:\\bwhere (?:is|are) \\S+ (?:called|used|invoked|referenced)", "nereden cagriliyor", "nerelerde cagriliyor", "kim cagiriyor", "cagiranlar*", "cagri grafi*", "nerelerde kullaniliyor", "etki analizi", "neyi bozar", "neler etkilenir"] } }, { id: "language-server", intent: "Diagnostics of an edited file, a symbol's type and docs, its definition and references from the language server (Codex and OpenCode; Claude Code and omp use their own LSP tools)", prefer: ["mcp:lsp/diagnostics", "mcp:lsp/hover", "mcp:lsp/definition", "mcp:lsp/references"], fallback: ["mcp:codegraph/codegraph_explore", "cli:rg"], deny_builtin: [], reminder: "check an edited Python, TypeScript, Go, Rust, C# or Java file with the lsp server's diagnostics, and ask its hover or definition for a symbol's type", triggers: { topic: ["type error*", "typecheck error*", "type-check error*", "compile error*", "compiler error*", "compilation error*", "lsp diagnostics", "language server", "go to definition", "jump to definition", "re:\\bwhat(?:'s| is) the type of\\b", "tip hata*", "derleme hata*", "tanima git", "tanimina git"] } }, { id: "browser", intent: "Drive and inspect a real browser (DOM, console, network, performance)", prefer: ["mcp:chrome-devtools"], fallback: [], deny_builtin: [], reminder: "drive and inspect the real browser with chrome-devtools (navigate_page, take_snapshot, list_console_messages)", triggers: { topic: ["open the page", "take a screenshot", "screenshot of", "console errors", "browser console", "network tab", "lighthouse", "devtools", "re:\\b(?:open|test|check|verify|look|see|load|reproduce|try|view|inspect|debug|click|watch|preview)\\w*\\b.{0,40}\\bin the browser\\b", "ekran goruntusu", "konsol hata*", "sayfayi ac*", "re:\\btarayicida\\b.{0,30}\\b(?:ac|test et|kontrol et|dene|bak|gor|incele)\\w*"] } }, { id: "memory", intent: "Past decisions, gotchas, earlier sessions and preferences", prefer: ["mcp:buracle-memory/memory_search", "mcp:buracle-memory/memory_get"], fallback: ["cli:buracle"], deny_builtin: [], nudge: "History questions start with memory_search on the buracle-memory server.", reminder: "search memory with memory_search, then memory_get the relevant memories, and cite their ids", triggers: { topic: ["memory note*", "vault note*", "the memory vault", "the memory brain", "hafiza not*", "hafiza kayd*", "kasa not*"] } }] }, mcp: [{ id: "buracle-memory", description: "Buracle memory, the CortexDB brains of the project and the person (search, get, write, update, status)", transport: "stdio", critical: true, routing: ["memory"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "chrome-devtools", description: "Drive and inspect a Chrome browser (DevTools protocol)", transport: "stdio", critical: false, routing: ["browser"], harnesses: ["claude", "codex", "opencode"] }, { id: "codegraph", description: "Code structure graph (symbols, callers, impact) for the current repository", transport: "stdio", critical: true, routing: ["code-structure"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "context7", description: "Up-to-date library and framework documentation", transport: "stdio", critical: true, routing: ["library-docs"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "grep", description: "Search public GitHub code for real-world usage examples", transport: "http", critical: false, routing: ["code-examples"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "lsp", description: "Language-server diagnostics, hover, definitions, references and symbols", transport: "stdio", critical: true, routing: ["language-server"], harnesses: ["codex", "opencode"] }, { id: "semble", description: "Fast semantic code search over local or remote repositories", transport: "stdio", critical: true, routing: ["code-search"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-fetch", description: "Fetch and extract web pages with a headless browser", transport: "stdio", critical: true, routing: ["web-fetch"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-search", description: "Web search without an API key (DuckDuckGo by default)", transport: "stdio", critical: true, routing: ["web-search"], harnesses: ["claude", "codex", "opencode", "omp"] }], mcpIds: ["buracle-memory", "chrome-devtools", "codegraph", "context7", "grep", "lsp", "semble", "web-fetch", "web-search"], skills: [{ id: "ab-test", description: "Measure whether a change to a skill, rule, AGENTS.md section or routing policy really changes agent behavior. Defines falsifiable cases, runs paired baseline and candidate trials in throwaway config directories (never hiding or renaming the user's real skills or settings), captures tool-use evidence such as whether the agent loaded the skill or called context7, then scores pass rates and reports per-case deltas. Use when the user asks to benchmark, evaluate, A/B test or compare a skill or rule change, or to check that agents really use an MCP server or skill.", userInvocable: true, short: "Paired before/after evals of skills and rules with tool-use evidence", invocation: "implicit", triggers: { ask: ["benchmark the skill", "benchmark this skill", "benchmark the rule", "benchmark the routing", "a/b test the skill", "a/b test the rule", "ab-test the skill", "skill'i* benchmark*", "skill'i* olc*", "kurali benchmark*"], topic: ["activation rate", "trigger rate", "really makes the agent", "re:\\bbefore(?:/|\\s+and\\s+)after\\b.{0,60}\\b(?:skill|rule|routing|prompt|agents\\.md|claude\\.md|hook|mcp|description)", "re:\\b(?:skill|rule|routing|prompt|agents\\.md|claude\\.md|hook|description)\\S*\\b.{0,60}\\bbefore(?:/|\\s+and\\s+)after\\b", "re:\\b(?:agents?|models?|claude|codex|opencode|omp)\\b.{0,30}\\breally\\s+(?:calls?|uses?|loads?|triggers?|reads?)\\b", "re:\\bbenchmark\\w*\\b.{0,80}\\b(?:skill|rule|routing|agents\\.md|claude\\.md|hook|prompt|mcp)", "re:\\b(?:skill|rule|routing)\\S*\\b.{0,80}\\bbenchmark", "re:\\b(?:skill|kural|routing|prompt|agents\\.md|claude\\.md|hook|aciklama)\\S*\\b.{0,80}\\b(?:once/?\\s?sonra karsilastir|tetikleniyor mu|gercekten cagriliyor mu)", "re:\\b(?:once/?\\s?sonra karsilastir\\w*|tetikleniyor mu|gercekten cagriliyor mu)\\b.{0,80}\\b(?:skill|kural|routing|prompt|agents\\.md|claude\\.md|hook)", "re:\\bskill\\S*\\b.{0,80}\\b(?:eskisiyle|oncekiyle|onceki surumuyle)"], not: ["operations per second", "ops/sec", "ops per second", "throughput", "latency"] } }, { id: "bugfix", description: "Plan-less bug workflow that owns one defect end to end: reproduce it first, trace the root cause to file:line, write a failing test, fix at the source, prove the fix on the real program, then pass the quality gate. With branch isolation on it asks where to work: the current branch, a bugfix/<slug> branch or a worktree squash-merged once the fix is proven; no plan file. Run only when the user explicitly asks for bugfix.", userInvocable: true, short: "Reproduce, root-cause, RED test, fix at the source, prove it end to end", invocation: "explicit", triggers: { ask: ["re:(?<!\\b(?:the|that|this|your|my|our|its)\\s)\\broot[- ]cause\\s+fix\\b", "fix it test-first", "fix it with a failing test first", "reproduce it first and fix it", "kok nedenini bulup duzelt", "once test yazip duzelt"], not: ["workflow file", "github actions", "ci workflow"] } }, { id: "buracle", description: "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan \u2026`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, notifications, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.", userInvocable: false, short: "When and how to call the buracle helper CLI", invocation: "implicit", triggers: { ask: ["use the buracle cli", "buracle cli ile"], topic: ["re:\\bplan status\\b(?!\\s+(?:endpoint|field|column|code|enum|value|page|api|route|handler|query|badge|label|filter|check|type)s?\\b)", "how many tasks are left", "tasks left in the plan", "diff range", "re:(?<!\\b(?:add|added|adding|new)\\s(?:a\\s|an\\s|the\\s)?)\\breview scope\\b(?!\\s+(?:option|flag|field|param\\w*|column|setting|config\\w*|endpoint|api|type|enum|value)s?\\b)", "what should i review", "re:\\b(?:my|our|claude(?:\\s+code)?|codex|opencode|omp|subscription)(?:'s)?\\s+(?:usage|rate|weekly|5h|5-hour)\\s+limits?\\b", "rate limit headroom", "5h window", "5-hour window", "create a worktree", "merge the worktree", "buracle doctor", "planin durumu", "re:\\bplan durumu\\b(?!\\s+(?:alan|endpoint|kolon|sutun|enum|deger|sayfa|api|kod)\\w*)", "kac gorev kaldi", "kullanim limitim*", "kullanim limitlerim*", "re:\\bkullanim limit\\w*\\s+ne durumda", "5 saatlik pencere*", "5 saatlik limit*", "haftalik limitim*", "haftalik limitlerim*", "re:\\b(?:claude|codex|opencode|omp)\\S*\\s+(?:kullanim\\s+|haftalik\\s+)?limit\\w*", "worktree olustur*", "worktree ac", "worktree'yi birlestir*", "buracle doctor"] } }, { id: "dead-code", description: "Report-only dead-code audit. Collects candidate unused files and exports from the project's own analyzers, a bundled rg-based script and a read-only codegraph snapshot, checks every candidate against independent signals (codegraph references, exact and dynamic-usage search, analyzers), rules out a public role (API, entry points, config, registries), and returns a ranked report with evidence and a staged removal plan. Never deletes or edits code.", userInvocable: true, short: "Report-only dead-code audit with two-signal evidence and a removal plan", invocation: "explicit", triggers: { ask: ["dead code audit", "dead-code audit", "unused code report", "dead code report", "re:(?:^|[\\n.!?;:]\\s*|\\b(?:please|pls|can you|could you|would you|and|then|just)\\s+)find\\s+(?:all\\s+|the\\s+)?(?:dead|unused)\\s+(?:code|exports|files)\\b", "olu kod analizi", "olu kod raporu", "olu kodlari bul", "olu kod tara*", "kullanilmayan kod* bul", "kullanilmayan kod* tespit", "kullanilmayan export* bul", "temizlik raporu"] } }, { id: "find-skill", description: "Find an agent skill for a need and install it for every harness in a few calls. `buracle skills find <need>` is one command that shows the installed and shipped skills that already match, then the skills.sh registry's candidates with description, license, freshness, tool grants and risk ratings; `buracle skills add --dry-run` audits the pick (scripts, allowed-tools, suspicious lines) and `buracle skills add` installs it into ~/.agents/skills (Codex, OpenCode, Oh My Pi) and links it into ~/.claude/skills (Claude Code). Also updates and removes installed skills.", userInvocable: true, short: "Find a skill for a need and install it for every harness", invocation: "implicit", triggers: { ask: ["find a skill", "find me a skill", "find skills for", "is there a skill", "re:\\b(?:install|add|get)\\s+(?:a|the|an)\\s+(?:\\S+\\s+){0,3}skill\\b", "re:\\b(?:update|upgrade|remove|uninstall)\\s+(?:my|the|an?)\\s+(?:\\S+\\s+){0,2}skills?\\b", "search for a skill", "skill marketplace", "skill bul", "skill ara", "skill var mi", "bir skill var mi", "re:\\bskill\\w*\\s+(?:kur|yukle|ekle|indir)", "re:\\b(?:kur|yukle|ekle|indir)\\w*\\s+(?:\\S+\\s+){0,2}skill", "skilleri guncelle", "skill guncelle*", "skill kaldir*", "skill sil"], not: ["create a skill", "write a skill", "new skill", "turn this into a skill", "buracle skill", "the skill is", "skill triggers", "skills lint", "new-skill", "in the skill", "skill file", "skill id", "skill yaz", "skill olustur", "skille donustur", "yeni skill", "skill dosyasi"] } }, { id: "goal-build", description: "Goal-and-loop workflow for a clear end state whose path is found while building: agree on a goal, tasks sized as the largest slices you can finish and verify, and at least 3 pass/fail acceptance criteria (one of them the oracle), have them reviewed, lock the contract, then build in rounds judged on running evidence (at most four), verify and hand back. Tracked in docs/builds/. Run only when the user explicitly asks for goal-build.", userInvocable: true, short: "Lock a goal and pass/fail criteria, then build in judged rounds", invocation: "explicit", triggers: { ask: ["goal-and-loop", "goal and loop", "find the way yourself", "re:\\byou find the way(?: there)?\\s*(?:[.!;:]|$)", "re:(?:^|[\\n.!?;:]\\s*|\\b(?:and|then|just|please)\\s+)(?:keep\\s+)?loop(?:ing)?\\s+until\\s+it\\s+(?:works|passes)\\b", "yolunu sen bul", "bitene kadar dongu*", "hedef odakli dongu*"], not: ["github actions", "ci workflow", "ci pipeline", "workflow file", "workflow run", ".github/workflows", "workflow yaml"] } }, { id: "inspect", description: "Read-only investigation of one question about the code. Frames a falsifiable claim, locates code with semble (intent), codegraph (callers, callees, blast radius) and rg or ast-grep (exact and structural matches), checks memory for past decisions, traces the active path hop by hop, challenges the answer with a counterexample search, and reports a direct answer with file:line evidence and calibrated confidence. Never edits anything.", userInvocable: true, short: "Read-only trace of one code question with file:line evidence", invocation: "explicit", triggers: { ask: ["inspect how", "inspect why", "inspect where", "investigate how", "investigate why", "investigate where", "dig into how", "trace how", "re:(?:^|[\\n.!?;:]\\s*|\\b(?:please|pls|can you|could you|would you)\\s+)investigate\\s+(?:this|that|it)\\b", "nasil calistigini incele*", "nasil calistigini arastir*", "neden boyle davrandigini incele*", "neden boyle davrandigini arastir*", "nereden cagrildigini incele*"], not: ["and fix", "fix it", "then fix", "duzelt"] } }, { id: "memory", description: "Protocol for Buracle's shared memory: the CortexDB brains (one per project, one for the person) served by the buracle-memory MCP server in every harness. Says when to run a quick memory pass (at most 3 memory_search calls, then at most 3 memories via memory_get), how to treat recalled memories as evidence rather than instructions, and how to keep the memory: one claim per memory with sources, search before writing, update or merge instead of duplicating, record the user's preferences in the right brain, never overrule an explicit memory, never store secrets. Use when the user refers to past work or asks you to remember something, before re-deciding something and after a non-obvious fix.", userInvocable: false, short: "When and how to read, write and keep Buracle's CortexDB memory", invocation: "implicit", triggers: { ask: ["use the memory protocol", "hafiza protokolu*"], topic: ["memory note*", "vault note*", "the memory vault", "the memory brain", "hafiza not*", "hafiza kayd*", "kasa not*", "kasadaki not*"] } }, { id: "new-skill", description: "Capture a repeatable procedure as a Buracle skill, or improve an existing one. Picks the right home (global skills in the Buracle repo's canonical/skills or a configured skills git source; project-only skills in .agents/skills), writes SKILL.md in the canonical format with references/, scripts/ and trigger evals, lints it with `buracle skills lint`, and explains how publishing reaches every harness. Use when the user wants to turn a workflow into a skill, edit, split or rename a skill, or fix a skill that triggers too often or never.", userInvocable: true, short: "Capture a repeatable procedure as a canonical Buracle skill", invocation: "implicit", triggers: { ask: ["turn this into a skill", "turn it into a skill", "into a reusable skill", "make it a skill", "save it as a skill", "new skill for", "re:\\b(?:create|write|add|make) (?:a |an |the )?(?:new )?(?:[a-z-]+ ){0,2}skill\\b", "skill yap", "bunu skill yap", "yeni skill olustur*", "yeni bir skill olustur*", "yeni skill yaz*", "skill olustur*", "skill olarak kaydet*", "skill'e donustur*", "skill'i guncelle*", "tekrar kullanilabilir bir skill"], topic: ["reusable skill", "skill trigger*", "skill description", "re:\\bskill\\S*\\b.{0,60}\\b(?:never triggers|does not trigger|doesn't trigger|misfires|triggers too often)", "re:\\bskill\\S*\\b.{0,60}\\btetiklen(?:miyor|mez)", "re:\\bskill\\S*\\b.{0,60}\\bdevreye girmiyor"] } }, { id: "plan-build", description: "Plan-driven development through a plan file in docs/plans/: explore and clarify, write and review the plan, get approval, implement task by task with TDD, then verify with real evidence until the plan is VERIFIED. Covers features and bugfixes (behavior contract, reproduce first, root-cause fix). Also pauses, resumes or continues an existing plan. Run only when the user explicitly asks for plan-build.", userInvocable: true, short: "Plan, approve, TDD-implement and verify work through a plan file", invocation: "explicit", triggers: { ask: ["write a plan and implement*", "plan and implement it", "plan it and implement*", "re:\\b(?:do|build|implement|handle|tackle)\\s+(?:it|this|that|them|the\\s+\\S+)\\s+plan[- ]driven\\b", "re:\\b(?:go|let's go)\\s+plan[- ]driven\\b", "re:(?:^|[\\n.!?;]\\s*)plan[- ]driven(?:\\s*,?\\s*please)?\\s*[:,]", "plan yaz ve uygula", "plan yazip uygula", "planla ve uygula"] } }, { id: "project-rules", description: "Create, refresh or audit a repository's agent guidance so Claude Code, Codex, OpenCode and omp follow the same verified instructions: the root AGENTS.md, optional nested AGENTS.md files for subprojects, and path-scoped rules for specific file types. Discovers commands and conventions from the code (package scripts, CI jobs, linter and test configs, test layout), runs commands before documenting them, keeps every file short, then runs `buracle project sync` and `buracle project check`. Use when the user asks to set up, write, update, slim down or check AGENTS.md, CLAUDE.md or project rules.", userInvocable: true, short: "Generate and verify AGENTS.md and path-scoped rules for a repo", invocation: "implicit", triggers: { ask: ["set up agent guidance", "set up agents.md", "write agents.md", "create agents.md", "update agents.md", "audit agents.md", "refresh agents.md", "slim down agents.md", "set up the project rules", "audit the agent instructions", "agents.md hazirla*", "agents.md olustur*", "agents.md guncelle*", "agents.md yaz", "proje kurallarini kur", "talimatlari guncelle*", "kurallari sadelestir*"], topic: ["agent instructions", "agent guidance", "path rules", "path-scoped rules", "re:\\b(?:agents|claude)\\.md\\b.{0,40}\\b(?:stale|outdated|bloated|too long|wrong|out of date)", "proje talimatlari", "ajan talimatlari", "proje kurallari", "re:\\b(?:agents|claude)\\.md\\b.{0,40}\\b(?:eskimis|guncel degil|cok uzun|yanlis)"] } }, { id: "requirements", description: "Requirements workflow for ideas whose problem, audience or scope is still unclear. Grounds the idea in the codebase and memory, runs tiered research through the research skill, explores directions, asks a few decision questions, proposes approaches, converges on scope, writes an approved PRD to docs/prd/YYYY-MM-DD-<slug>.md and prints the plan-build or goal-build hand-off. No code is written before the PRD is approved.", userInvocable: true, short: "Interview, research and write an approved PRD before any code", invocation: "explicit", triggers: { ask: ["write a prd", "write the prd", "draft a prd", "draft the prd", "create a prd", "prepare a prd", "make a prd", "need a prd", "re:\\b(?:write|draft|create|prepare|make|produce|need|want)\\s+(?:me\\s+|us\\s+)?(?:a|an|the)\\s+(?:new\\s+|short\\s+|proper\\s+)?(?:product\\s+)?requirements\\s+doc(?:ument)?\\b", "re:(?:^|[\\n.!?;:]\\s*)(?:a\\s+)?prd\\s+for\\b", "prd yaz*", "prd hazirla*", "prd olustur*", "prd cikar*", "gereksinimleri cikar*", "re:\\bgereksinim\\s+(?:dokuman|belge)\\w*\\s+(?:yaz|hazirla|olustur|cikar|lazim|gerek)\\w*", "bu fikri netlestir*", "fikri netlestir*"], not: ["do we need a prd", "is there a prd", "do we have a prd", "is a prd needed", "prd gerekli mi", "prd lazim mi", "prd var mi"] } }, { id: "research", description: "Evidence-backed research that must use MCP tools instead of recall: web-search to discover sources, web-fetch to read them in full, context7 for library and framework documentation, grep for real-world code on GitHub, and buracle-memory for prior decisions. Produces a cited research note (answer, findings, options, conflicts, gaps, confidence) and can save durable findings to memory as knowledge memories pending review.", userInvocable: true, short: "Cited, MCP-backed research across web, library docs, public code and memory", invocation: "implicit", triggers: { ask: ["research this", "research it", "do research on", "research whether", "research which", "deep research", "find sources", "cite sources", "arastir", "arastirin", "arastiralim", "arastirir misin", "arastirabilir*", "arastirma yap*", "derinlemesine arastir*", "kaynak goster*", "kaynaklarla karsilastir*"], topic: ["still maintained", "is it maintained", "current sources", "which is better", "re:(?<!\\b(?:follow|following|use|using|apply|applying|with|keep|keeping|per)\\s(?:the\\s|our\\s|these\\s)?)\\bbest\\s+practices?\\s+(?:for|in|of|on|around|when\\s+using)\\b", "re:\\b(?:what|which)(?:'s|\\s+(?:is|are))\\s+(?:the\\s+)?(?:current\\s+|modern\\s+|recommended\\s+)?best\\s+practices?\\b", "re:\\bbest\\s+practices?\\s*\\?", "pros and cons", "alternatives to", "state of the art", "latest version of", "re:\\bcompare\\b.{0,60}\\b(?:librar|framework|tool|package|approach|option|vendor|provider|service|database|orm|solution|sdk)", "re:\\b(?:librar|framework|tool|package|approach|provider|service|database|sdk)\\w*\\b.{0,40}\\bcompar", "re:\\b(?!(?:actual|expected|got|received|before|after|old|new|left|right|input|output|tabs|spaces|this|that|it|one)\\b)[a-z][a-z0-9.-]+ (?:vs\\.?|versus) (?!(?:actual|expected|got|received|before|after|old|new|left|right|input|output|tabs|spaces|this|that|it|one)\\b)[a-z][a-z0-9.-]+", "hangisi daha iyi", "guncel mi", "guncel kaynak*", "re:\\ben iyi (?:pratik|uygulama)\\w*\\b(?!\\s+(?:uy|uygun|izle|takip))", "artilari ve eksileri", "alternatifleri neler", "re:\\b\\S+ mu \\S+ mu (?:kullan|sec|tercih)", "re:\\b(?:kutuphane|framework|arac|paket|yaklasim|secenek|servis|veritaban|sdk)\\w*\\b.{0,60}\\bkarsilastir"], not: ["vs code", "vscode", "visual studio", "compare function", "comparator"] } }, { id: "security-audit", description: "Security guidance and vulnerability review for codebases, APIs, services, CLI tools, libraries and daemons: Cloudflare's security-audit skill (MIT), vendored as Buracle's default security skill. Guidance mode answers security questions, focused reviews and triage with the relevant parts only; full audit mode runs six phases (reconnaissance, coverage-led hunting with parallel isolated agents, validation by fresh verifiers, structured findings.json, independent record verification, a target-neutral report) when the user asks for an audit, a pen test, a full security review or report artifacts.", userInvocable: true, short: "Cloudflare's security-audit skill, Buracle's default security review", invocation: "implicit", triggers: { ask: ["security audit", "audit the security", "re:\\baudit\\s+(?:this|the|my|our)\\s+(?:\\S+\\s+){0,2}(?:codebase|repo|repository|project|service|app|application|api)\\b.{0,40}\\bsecur", "re:\\bsecur\\w*\\s+(?:review|assessment|analysis|scan)\\b", "pen test", "pentest", "penetration test", "find vulnerabilities", "find security vulnerabilities", "look for vulnerabilities", "threat model", "guvenlik denetimi", "guvenlik taramasi", "guvenlik incelemesi", "guvenlik analizi", "re:\\bguvenlik ac(?:ik|ig)\\w*", "re:\\bzafiyet\\w*\\s+(?:bul|tara|ara)", "sizma testi", "pentest yap*", "tehdit modeli"], topic: ["re:\\bis (?:this|it|that) (?:secure|safe|vulnerable|exploitable)\\b", "re:\\b(?:sql|command|prompt|shell|code)\\s+injection\\b", "re:\\b(?:xss|csrf|ssrf|rce|idor)\\b", "re:\\btrust boundar", "re:\\b(?:auth(?:entication|orization)?|session|token|secret|credential)\\w*\\s+(?:bypass|leak|exposure|handling)\\b", "re:\\bguvenli mi\\b", "re:\\b(?:sql|komut|prompt|kod)\\s+enjeksiyon"], not: ["audit log", "audit trail", "accessibility audit", "performance audit", "lighthouse audit", "dead code audit", "cleanup audit", "dependency audit only", "npm audit", "security.md", "security headers test", "erisilebilirlik denetimi", "performans denetimi", "olu kod"] } }], plugins: [], hooks: [{ id: "H01", blocking: "deny", failure: "closed" }, { id: "H02", blocking: "deny", failure: "closed" }, { id: "H03", blocking: "deny", failure: "open" }, { id: "H04", blocking: "none", failure: "open" }, { id: "H05", blocking: "none", failure: "open" }, { id: "H06", blocking: "none", failure: "open" }, { id: "H07", blocking: "none", failure: "open" }, { id: "H08", blocking: "stop", failure: "open" }, { id: "H09", blocking: "deny", failure: "open" }, { id: "H10", blocking: "none", failure: "open" }, { id: "H11", blocking: "stop", failure: "open" }, { id: "H12", blocking: "none", failure: "open" }, { id: "H13", blocking: "none", failure: "open" }, { id: "H14", blocking: "none", failure: "open" }, { id: "H15", blocking: "none", failure: "open" }, { id: "H16", blocking: "none", failure: "open" }, { id: "H17", blocking: "none", failure: "open" }, { id: "H18", blocking: "none", failure: "open" }, { id: "H19", blocking: "none", failure: "open" }, { id: "H20", blocking: "deny", failure: "open" }, { id: "H21", blocking: "none", failure: "open" }, { id: "H22", blocking: "none", failure: "open" }, { id: "H23", blocking: "stop", failure: "open" }, { id: "H24", blocking: "none", failure: "open" }, { id: "H25", blocking: "none", failure: "open" }, { id: "H26", blocking: "none", failure: "open" }, { id: "H28", blocking: "none", failure: "open" }], pathRules: [{ id: "backend", globs: ["**/api/**", "**/routes/**", "**/handlers/**", "**/controllers/**", "**/endpoints/**", "**/middleware/**", "**/models/**", "**/models.py", "**/entities/**", "**/schema/**", "**/schemas/**", "**/queries/**", "**/repository/**", "**/repositories/**", "**/dao/**", "**/migrations/**", "**/migrate/**", "**/alembic/**", "**/db/**", "**/*.sql", "**/*.prisma", "**/*.graphql", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json"] }, { id: "blazor", globs: ["**/*.razor", "**/*.razor.cs", "**/*.razor.css"] }, { id: "browser-automation", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.razor", "**/e2e/**", "**/playwright/**", "**/cypress/**", "**/__tests__/**", "**/playwright.config.*", "**/cypress.config.*"] }, { id: "dotnet", globs: ["**/*.cs", "**/*.csproj", "**/*.sln", "**/*.slnx", "**/global.json", "**/Directory.Build.props", "**/Directory.Packages.props"] }, { id: "frontend", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.sass", "**/*.less", "**/*.razor", "**/*.razor.css"] }, { id: "go", globs: ["**/*.go", "**/go.mod", "**/go.sum", "**/go.work"] }, { id: "mobile", globs: ["**/capacitor.config.*", "**/ionic.config.json", "**/android/app/build.gradle*", "**/android/app/src/main/AndroidManifest.xml", "**/*.xcodeproj/project.pbxproj", "**/*.xcworkspace/contents.xcworkspacedata", "**/Podfile", "**/pubspec.yaml", "**/react-native.config.*", "**/metro.config.*", "**/expo.json", "**/eas.json", "**/app.config.{js,ts}"] }, { id: "python", globs: ["**/*.py", "**/*.pyi", "**/pyproject.toml", "**/requirements*.txt", "**/uv.lock", "**/setup.cfg"] }, { id: "typescript", globs: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts", "**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs", "**/package.json", "**/tsconfig*.json"] }], version: "0.5.0", notices: [{ id: "0.5.0-project-assets", since: "0.5.0", until: "0.6.0", message: "When a session starts in a repository, Buracle now links the skills in .agents/skills into .claude/skills so Claude Code sees them too, and checks that AGENTS.md lists the path rules in .claude/rules. Run `buracle project check` to see what it would change." }, { id: "0.5.0-smaller-cli", since: "0.5.0", until: "0.6.0", message: "Buracle's CLI is smaller: run `buracle` in a terminal for a main menu you drive with the keyboard. `buracle install` now does what `init` and `sync` did, `buracle install` and `buracle update` apply in a terminal without a question and show each step as it runs, and the rare cases flags used to cover are questions in a terminal. `buracle help --all` lists the commands your agents use." }] }, memory: memoryBridge, pluginDir: import.meta.dir });
 export {
   server_default as default
 };

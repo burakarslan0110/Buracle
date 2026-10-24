@@ -3,7 +3,6 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from 'node:path'
 import { run as installRun } from '../../../src/cli/commands/install'
 import { run as uninstallRun } from '../../../src/cli/commands/uninstall'
-import { cmHome } from '../../../src/engine/context-mode'
 import { readJournal, readLedger, rollbackTxn, type Plan } from '../../../src/engine/txn'
 import { readInstallRecord } from '../../../src/engine/update/install-core'
 import { execUndos } from '../../../src/engine/update/uninstall'
@@ -169,29 +168,30 @@ describe('buracle uninstall', () => {
     })
   }))
 
-  test('--purge-state also removes Context Mode\'s storage; in a BURACLE_HOME that held other files before, only its known folders go', () => withSandbox(async ({ root, home, buracleHome }) => {
+  test('--purge-state also removes the Context Mode folder an older release wrote; in a BURACLE_HOME that held other files before, only its known folders go', () => withSandbox(async ({ root, home, buracleHome }) => {
     const env = setup(root, home)
     const codex = fakeAdapter('codex', { plan: () => codexPlan(env, home) })
     const put = (p: string) => { mkdirSync(join(p, '..'), { recursive: true }); writeFileSync(p, 'x') }
     await withDeps({ repoRoot: () => env.repo, adapters: async () => [codex], runCli: fakeCli().runCli }, async () => {
       expect(await installRun(['--yes'], memoryIO())).toBe(0)
-      for (const f of ['codex/app-0123456789ab/sessions/s.db', 'codex/app-0123456789ab/content/c.db', 'probe/sessions/stats-pid-1.json', 'sentinel/ready']) put(join(cmHome(), f))
-      expect(cmHome()).toBe(join(buracleHome, 'context-mode'))
+      const legacy = join(buracleHome, 'context-mode')
+      for (const f of ['codex/app-0123456789ab/sessions/s.db', 'codex/app-0123456789ab/content/c.db', 'probe/sessions/stats-pid-1.json', 'sentinel/ready']) put(join(legacy, f))
       const io = memoryIO({ json: true })
       expect(await uninstallRun(['--yes', '--purge-state', '--json'], io)).toBe(0)
       expect((JSON.parse(io.out()) as { purged: string[] }).purged).toContain('~/.buracle/context-mode')
-      expect(existsSync(cmHome())).toBe(false)
+      expect(existsSync(legacy)).toBe(false)
 
       const tools = join(home, 'tools')
       put(join(tools, 'bin', 'my-tool'))
       await withEnv({ BURACLE_HOME: tools }, async () => {
         expect(await installRun(['--yes'], memoryIO())).toBe(0)
-        for (const f of ['omp/app-0123456789ab/sessions/s.db', 'claude/x-0123456789ab/sessions/s.db', 'sentinel/ready', 'tmp/in-1-abc.json', 'notes.txt']) put(join(cmHome(), f))
-        mkdirSync(join(cmHome(), 'claude-config-empty'), { recursive: true })
-        const shared = memoryIO({ json: true })
-        expect(await uninstallRun(['--yes', '--purge-state', '--json'], shared)).toBe(2)
-        expect(readdirSync(cmHome())).toEqual(['notes.txt'])
-        expect((JSON.parse(shared.out()) as { purgeKept: string[] }).purgeKept).toContain('~/tools/context-mode (not Buracle\'s: notes.txt)')
+        const shared = join(tools, 'context-mode')
+        for (const f of ['omp/app-0123456789ab/sessions/s.db', 'claude/x-0123456789ab/sessions/s.db', 'sentinel/ready', 'tmp/in-1-abc.json', 'notes.txt']) put(join(shared, f))
+        mkdirSync(join(shared, 'claude-config-empty'), { recursive: true })
+        const out = memoryIO({ json: true })
+        expect(await uninstallRun(['--yes', '--purge-state', '--json'], out)).toBe(2)
+        expect(readdirSync(shared)).toEqual(['notes.txt'])
+        expect((JSON.parse(out.out()) as { purgeKept: string[] }).purgeKept).toContain('~/tools/context-mode (not Buracle\'s: notes.txt)')
       })
     })
   }))

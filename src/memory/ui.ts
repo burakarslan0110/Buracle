@@ -6,15 +6,13 @@ import { log } from '../engine/log'
 import * as paths from '../engine/paths'
 import { spawnArgv, windowsVerbatim } from '../engine/platform'
 import { idleCortex } from './cortex'
-import { EMBED_MAX_CHARS, EMBED_MAX_INPUTS, embeddingsResponse } from './embed'
 import { brainDir } from './layout'
-import { reflectOverview } from './reflect-log'
 import { anySessionOpen } from './session-open'
 import { captureOff } from './spool'
 import { sameUiBuild, uiBuildId } from './ui-build'
 import { processAlive, readUiRecord, type UiRecord } from './ui-record'
-import { backupNow, deleteMemory, healStart, healthPayload, readBody, removeProjectNow, setMemoryStatus, settingsPayload, sweepNow, verifyStart } from './ui/actions'
-import { BrainCache, brainOf, errorPayload, graphOf, memoryOf, overview, parseScope, profilePayload, searchOf, UiApiError, upkeepPayload } from './ui/api'
+import { backupNow, deleteMemory, healthPayload, readBody, removeProjectNow, setMemoryStatus, settingsPayload } from './ui/actions'
+import { BrainCache, brainOf, errorPayload, graphOf, memoryOf, overview, parseScope, searchOf, UiApiError } from './ui/api'
 import { eventStream } from './ui/events'
 import { addReviewNote, deleteReviewNote, editReviewNote, reviewDoc, reviewDocs } from './ui/review'
 import { reviewChanges } from './ui/review-changes'
@@ -141,29 +139,11 @@ export function uiContext(opts: { version: string, build?: string, port: number,
   return c
 }
 
-const WRITE_PATHS: ReadonlySet<string> = new Set(['/api/heal', '/api/sweep', '/api/verify', '/api/backup', '/api/project/remove', '/api/memory/retire', '/api/memory/restore', '/api/memory/delete', '/api/review/note/add', '/api/review/note/edit', '/api/review/note/delete', '/api/notifications/read', '/api/settings'])
+const WRITE_PATHS: ReadonlySet<string> = new Set(['/api/backup', '/api/project/remove', '/api/memory/retire', '/api/memory/restore', '/api/memory/delete', '/api/review/note/add', '/api/review/note/edit', '/api/review/note/delete', '/api/notifications/read', '/api/settings'])
 
 const BROWSER_ONLY: ReadonlySet<string> = new Set(['/api/settings'])
 
 const TOKEN_READS: ReadonlySet<string> = new Set(['/api/review/doc', '/api/review/changes'])
-
-const EMBED_PATH = '/v1/embeddings'
-const EMBED_MAX_BODY_BYTES = EMBED_MAX_INPUTS * (EMBED_MAX_CHARS * 4 + 64)
-
-async function embeddings(req: Request): Promise<Response> {
-  const declared = Number(req.headers.get('content-length') ?? '')
-  if (Number.isFinite(declared) && declared > EMBED_MAX_BODY_BYTES) return json({ error: { message: `the body is larger than ${EMBED_MAX_BODY_BYTES} bytes`, type: 'invalid_request_error' } }, 413)
-  let body: unknown
-  try {
-    const text = await req.text()
-    if (text.length > EMBED_MAX_BODY_BYTES) return json({ error: { message: `the body is larger than ${EMBED_MAX_BODY_BYTES} bytes`, type: 'invalid_request_error' } }, 413)
-    body = JSON.parse(text)
-  } catch {
-    return json({ error: { message: 'the body is not JSON', type: 'invalid_request_error' } }, 400)
-  }
-  const r = embeddingsResponse(body)
-  return json(r.body, r.status)
-}
 
 function sameToken(sent: string | null, token: string): boolean {
   if (sent === null) return false
@@ -189,9 +169,6 @@ async function write(p: string, raw: string, req: Request, c: UiContext): Promis
   const body = await readBody(req)
   const now = c.now()
   switch (p) {
-    case '/api/heal': return json(healStart(body, now))
-    case '/api/sweep': return json(await sweepNow(body, now))
-    case '/api/verify': return json(verifyStart(body, now))
     case '/api/backup': return json(await backupNow(body, now))
     case '/api/project/remove': return json(await removeProjectNow(body, now))
     case '/api/memory/retire': return json(await setMemoryStatus(body, 'deprecated', now))
@@ -211,7 +188,6 @@ export async function handle(req: Request, c: UiContext, server?: UiServerHandle
   const url = new URL(req.url)
   let p: string
   try { p = decodeURIComponent(url.pathname) } catch { return text('bad request: the path is not valid URL encoding\n', 400) }
-  if (p === EMBED_PATH) return req.method === 'POST' ? embeddings(req) : text('method not allowed: embeddings are computed with POST\n', 405)
   if (req.method === 'POST' && WRITE_PATHS.has(p)) {
     try {
       return await write(p, url.pathname, req, c)
@@ -239,8 +215,6 @@ export async function handle(req: Request, c: UiContext, server?: UiServerHandle
       case '/api/memory': return json(await memoryOf(parseScope(q.get('scope')), q.get('id')))
       case '/api/search': return json(await searchOf(c.cache, parseScope(q.get('scope')), q.get('q'), now))
       case '/api/graph': return json(await graphOf(c.cache, parseScope(q.get('scope')), q.get('region'), now))
-      case '/api/upkeep': return json(upkeepPayload(parseScope(q.get('scope'))))
-      case '/api/profile': return json(await profilePayload(c.cache, now))
       case '/api/token': return json({ token: c.token })
       case '/api/health': return json(await healthPayload(parseScope(q.get('scope')), now))
       case '/api/settings': return json({ ...settingsPayload(now), workflow: workflowPayload() })
@@ -251,10 +225,6 @@ export async function handle(req: Request, c: UiContext, server?: UiServerHandle
       case '/api/usage': return json(await usagePayload(now))
       case '/api/notifications': return json(notificationsPayload())
       case '/api/extensions': return json(await extensionsPayload(parseScope(q.get('scope')), now))
-      case '/api/reflect': {
-        const scope = parseScope(q.get('scope'))
-        return json(reflectOverview(scope.kind === 'person' ? { kind: 'person' } : { kind: 'project', slug: scope.slug }, now))
-      }
       case '/api/events': {
         const scope = parseScope(q.get('scope'))
         if (req.method === 'HEAD') return new Response(null, { headers: { ...SECURITY_HEADERS, 'content-type': 'text/event-stream; charset=utf-8' } })
@@ -333,7 +303,6 @@ export interface ServeOptions {
   now?: () => number
   idleEveryMs?: number
   stopAfterMs?: number
-  sessionAtStart?: boolean
   onStop?: (why: UiStopReason) => void
 }
 
@@ -351,7 +320,7 @@ export function serveUi(opts: ServeOptions): { server: ReturnType<typeof Bun.ser
       const server = Bun.serve({ hostname: HOST, port, idleTimeout: 60, fetch: (req, srv) => handle(req, ctx, srv) })
       const record: UiRecord = { v: 1, pid: process.pid, port, host: HOST, url: `http://${HOST}:${port}`, startedAt: new Date().toISOString(), version: opts.version, ...(build !== undefined ? { build } : {}), brain: brainDir() }
       atomicWriteSync(paths.memoryUiStateFile(), JSON.stringify(record, null, 2) + '\n')
-      let openAt: number | undefined = opts.sessionAtStart === true ? now() : undefined
+      let openAt: number | undefined
       const idle = setInterval(() => {
         idleCortex(CORTEX_IDLE_MS)
         if (!existsSync(paths.buracleHome())) {

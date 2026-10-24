@@ -1,22 +1,17 @@
 import { existsSync } from 'node:fs'
 import { isMemId } from '../../core/memory/brain'
-import { BACKUP_BUDGET, HEADROOM, REFLECT_BUDGET } from '../../core/memory/budgets'
+import { BACKUP_BUDGET, HEADROOM } from '../../core/memory/budgets'
 import { loadConfigSync } from '../../engine/config'
 import * as paths from '../../engine/paths'
+import { memReasonAdvice } from '../../core/memory/status'
 import { tilde } from '../../engine/update/output'
 import { update as updateMemory, type MemoryCtx } from '../api'
 import { BackupError, backupBrains, listBackups, type BackupManifest } from '../backup'
-import { distillQueueState } from '../distill'
-import { embedStatus } from '../embed'
-import { healAdvice, healPending, healRuns, startHeal } from '../heal'
-import { jobsOverview } from '../jobs'
 import { chooseHarnesses } from '../model'
-import { spawnCli } from '../spawn'
 import { projectRoot, readProjectsCache } from '../project'
 import { removeProject } from '../project-remove'
 import { computeStatus, memoryMcpHealth, refreshStatus } from '../status'
 import { brainExists, deleteItem, getStored, projectRef, recordEvent, withBrainLock } from '../store'
-import { refreshUpkeepFor, sweep } from '../sweep'
 import { parseScope, UiApiError, type UiScope } from './api'
 
 export const MAX_BODY_BYTES = 64 * 1024
@@ -53,29 +48,17 @@ function projectInfo(slug: string, memories: number): Record<string, unknown> {
 export async function healthPayload(scope: UiScope, nowMs: number): Promise<Record<string, unknown>> {
   const slug = scope.kind === 'project' ? scope.slug : undefined
   const status = await computeStatus({ ...(slug !== undefined ? { slug } : {}), nowMs })
-  const choice = chooseHarnesses({ nowMs })
-  const q = distillQueueState({ nowMs, choice })
-  const last = healRuns()[0]
   return {
     scope: scope.key,
     computedAt: status.computed_at,
     health: status.health,
-    reasons: healAdvice(status),
+    reasons: status.reasons.map(code => ({ code, ...memReasonAdvice(code, status) })),
     ...(slug !== undefined ? { project: projectInfo(slug, status.counts.project) } : {}),
-    distill: {
-      pending: q.pending, byHarness: q.byHarness, held: q.held, ...(q.why !== undefined ? { why: q.why } : {}), ...(q.until !== undefined ? { until: q.until } : {}),
-      harnesses: choice.picks, holds: choice.held,
-    },
-    upkeep: status.upkeep,
     captures: status.captures,
+    ...(status.last_capture !== undefined ? { lastCapture: status.last_capture } : {}),
     store: { ok: status.store.ok, ...(status.store.version !== undefined ? { version: status.store.version } : {}) },
     mcp: memoryMcpHealth(),
-    heal: { running: healPending(nowMs), ...(last !== undefined ? { last } : {}) },
     backups: backupsPayload(scope),
-    jobs: jobsOverview(nowMs, { ...(slug !== undefined ? { project: slug } : {}) }).map(v => ({
-      job: v.job, schedule: v.schedule, day: v.day,
-      ...(v.last !== undefined ? { last: v.last } : {}), ...(v.lastFailed !== undefined && v.lastFailed !== v.last ? { lastFailed: v.lastFailed } : {}),
-    })),
   }
 }
 
@@ -102,31 +85,6 @@ export async function backupNow(body: Record<string, unknown>, nowMs: number): P
   }
 }
 
-export function healStart(body: Record<string, unknown>, nowMs: number): Record<string, unknown> {
-  const scope = scopeOf(body)
-  const started = startHeal({ ...(scope.kind === 'project' ? { slug: scope.slug } : {}), nowMs, trigger: 'ui' })
-  return { started, running: healPending(nowMs) }
-}
-
-export function verifyStart(body: Record<string, unknown>, _nowMs: number): Record<string, unknown> {
-  const scope = scopeOf(body)
-  if (scope.kind !== 'project' || process.env['BURACLE_NO_AUTOSTART'] === '1') return { started: false }
-  const pid = spawnCli(['mem', 'verify', '--quiet', '--trigger', 'manual', '--project', scope.slug])
-  return { started: pid !== undefined }
-}
-
-export async function sweepNow(body: Record<string, unknown>, nowMs: number): Promise<Record<string, unknown>> {
-  const scope = scopeOf(body)
-  const r = await sweep({ ...(scope.kind === 'project' ? { slug: scope.slug } : {}), nowMs, trigger: 'ui' })
-  if (scope.kind === 'project') await refreshStatus({ slug: scope.slug, nowMs })
-  await refreshStatus({ nowMs })
-  return {
-    pruned: r.layers.reduce((n, l) => n + l.pruned.length, 0),
-    core: r.layers.flatMap(l => l.core),
-    upkeep: r.layers.reduce((n, l) => n + l.upkeep, 0),
-  }
-}
-
 export async function removeProjectNow(body: Record<string, unknown>, nowMs: number): Promise<Record<string, unknown>> {
   const scope = scopeOf(body)
   if (scope.kind !== 'project') throw new UiApiError(400, 'bad_scope', 'only a project can be removed; the person brain stays')
@@ -146,7 +104,7 @@ async function target(body: Record<string, unknown>): Promise<{ scope: UiScope, 
   if (PROTECTED_KINDS.has(got.item.kind)) {
     throw new UiApiError(400, 'protected_kind', got.item.kind === 'core'
       ? 'core pages are kept by Buracle; edit them instead of deleting them'
-      : 'profile lines are learned from sessions; drop a wrong one with `buracle mem profile drop`')
+      : 'profile lines come from an older Buracle and are no longer maintained; write a preference memory instead')
   }
   return { scope, id }
 }
@@ -157,7 +115,6 @@ function uiCtx(scope: UiScope, nowMs: number): MemoryCtx {
 }
 
 async function afterChange(scope: UiScope, nowMs: number): Promise<void> {
-  await refreshUpkeepFor(scope.ref, { nowMs })
   await refreshStatus({ ...(scope.kind === 'project' ? { slug: scope.slug } : {}), nowMs })
 }
 
@@ -188,7 +145,6 @@ export async function deleteMemory(body: Record<string, unknown>, nowMs: number)
 
 export function settingsPayload(nowMs: number): Record<string, unknown> {
   const choice = chooseHarnesses({ nowMs })
-  const embed = embedStatus()
   let port: number | undefined
   try { port = loadConfigSync().config.memory.ui.port } catch { port = undefined }
   return {
@@ -196,12 +152,6 @@ export function settingsPayload(nowMs: number): Record<string, unknown> {
     model: {
       harnesses: choice.picks, held: choice.held,
       headroom: { max5hPct: HEADROOM.max5hPct, max7dPct: HEADROOM.max7dPct },
-      relateEveryMin: Math.round(REFLECT_BUDGET.relateEveryMs / 60_000),
-    },
-    embed: {
-      model: embed.model, dim: embed.dim, installed: embed.installed, off: embed.off,
-      ...(embed.check.status === 'ok' ? { rows: embed.check.header.rows, bytes: embed.check.bytes } : { detail: embed.check.detail }),
-      ...(embed.endpoint !== undefined ? { endpoint: embed.endpoint } : {}),
     },
     ...(port !== undefined ? { ui: { port } } : {}),
   }

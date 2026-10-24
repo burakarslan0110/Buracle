@@ -34,7 +34,6 @@ function deps(over: Partial<HookDeps> = {}): Partial<HookDeps> {
     realpath: () => undefined,
     run: async () => ({ code: 0, stdout: '', stderr: '', timedOut: false }),
     prepareWorkspace: async () => undefined,
-    cmForward: async () => ({ action: 'none', skipped: 'test' }),
     ...over,
   }
 }

@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test'
 import { main } from '../../src/cli/router'
-import { appendJob } from '../../src/memory/jobs'
 import { listAll, projectRef } from '../../src/memory/store'
 import { withEnv } from '../helpers/sandbox'
 import { withBrain } from './helpers'
@@ -21,9 +20,9 @@ describe('buracle mem', () => {
     const help = await cli(['mem'])
     expect(help.code).toBe(0)
     expect(help.out).toContain('Usage: buracle mem <subcommand>')
-    for (const s of ['sweep', 'import-vault', 'profile drop', 'handoff', 'project init', 'reflect --undo RUN', 'reflect --list']) expect(help.out).toContain(s)
-    expect(help.out).not.toMatch(/consolidate|timeline|obsidian \[/i)
-    for (const gone of ['init', 'obsidian', 'consolidate', 'timeline', 'scan', 'mirror']) {
+    for (const s of ['import-vault', 'handoff', 'project init', 'capture [--session SID', 'finalize --harness H --session SID', '--origin explicit|inferred']) expect(help.out).toContain(s)
+    expect(help.out).not.toMatch(/consolidate|timeline|obsidian \[|\b(?:sweep|reflect|heal|tick|kick)\b|mem jobs|profile drop|\bverify\b/i)
+    for (const gone of ['init', 'obsidian', 'consolidate', 'timeline', 'scan', 'mirror', 'sweep', 'reflect', 'verify', 'heal', 'jobs', 'tick', 'kick', 'profile', 'distill']) {
       const r = await cli(['mem', gone])
       expect(r.code).toBe(1)
       expect(r.err).toContain(`unknown subcommand '${gone}'`)
@@ -31,13 +30,14 @@ describe('buracle mem', () => {
     expect((await cli(['mem', 'search', '--limit'])).code).toBe(1)
   })
 
-  test('project init, write, search, get, update, remember, status, context, sweep', async () => {
+  test('project init, write, search, get, update, remember, status, context', async () => {
     await withBrain(async ({ repo }) => {
       expect((await cli(['mem', 'project', 'init', '--cwd', repo])).code).toBe(0)
       const w = await cli(['mem', 'write', '--cwd', repo, '--type', 'decision', '--title', 'Use bun for every script', '--summary', 'One runtime', '--source', 'README.md', '--json'], '## Decision\nBun.\n')
       expect(w.code).toBe(0)
       const created = JSON.parse(w.out) as { id: string, action: string }
       expect(created.action).toBe('created')
+      expect((await listAll(projectRef('demo'))).find(i => i.id === created.id)).toMatchObject({ origin: 'explicit', confidence: 1 })
       const dup = await cli(['mem', 'write', '--cwd', repo, '--type', 'decision', '--title', 'Use bun for every script', '--summary', 'One runtime', '--body', 'x'])
       expect(dup.code).toBe(2)
       expect(dup.out).toContain('duplicate suspected')
@@ -53,14 +53,15 @@ describe('buracle mem', () => {
       const rem = await cli(['mem', 'remember', 'Check the release checklist before tagging', '--cwd', repo, '--json'])
       expect(JSON.parse(rem.out).id).toMatch(/^capture-/)
       const st = await cli(['mem', 'status', '--cwd', repo, '--json'])
-      expect(JSON.parse(st.out).status).toMatchObject({ v: 2, project: 'demo', captures: 1 })
-      expect(JSON.parse(st.out).upkeep.map((u: { reasons: string[] }) => u.reasons[0])).toContain('capture')
+      expect(JSON.parse(st.out).status).toMatchObject({ v: 3, project: 'demo', captures: 1 })
+      expect(st.out).not.toContain('upkeep')
+      const text = await cli(['mem', 'status', '--cwd', repo])
+      expect(text.out).toContain('Last capture: none yet')
+      expect(text.out).toContain('Inbox: 1 capture')
       const compact = await cli(['mem', 'status', '--cwd', repo, '--style', 'compact'])
-      expect(compact.out.split('\n')[0]).toMatch(/^brain \d+·u1/)
+      expect(compact.out.split('\n')[0]).toMatch(/^brain \d+/)
       const ctx = await cli(['mem', 'context', '--cwd', repo, '--harness', 'codex', '--json'])
       expect(JSON.parse(ctx.out).text).toContain('Use bun for every script')
-      const sw = await cli(['mem', 'sweep', '--cwd', repo, '--json'])
-      expect(JSON.parse(sw.out).layers.map((l: { project?: string }) => l.project ?? 'person')).toEqual(['demo', 'person'])
     })
   })
 
@@ -77,6 +78,12 @@ describe('buracle mem', () => {
         const [item] = (await listAll(projectRef('demo'))).filter(i => i.id === JSON.parse(w.out).id)
         expect(item).toMatchObject({ harness: 'codex', session: 'abc-123', review: 'pending', author: 'agent' })
       })
+      const cap = await cli(['mem', 'capture', '--harness', 'codex', '--session', 'abc-123', '--json'])
+      expect(cap.code).toBe(0)
+      expect(JSON.parse(cap.out).capture).toMatchObject({ state: 'done', preferences: { written: [] } })
+      const latest = await cli(['mem', 'capture', '--cwd', repo, '--json'])
+      expect(latest.code).toBe(0)
+      expect((await cli(['mem', 'capture', '--cwd', repo, '--harness', 'codex', '--session', 'not valid!'])).code).toBe(2)
       const h = await cli(['mem', 'handoff', '--harness', 'codex', '--session', 'abc-123', '--cwd', repo, '--slug', '2026-10-13-2200-codex-abc123', '--json'], '---\ntitle: "Handoff: demo"\n---\n# Handoff: demo\n\nopen work\n')
       expect(JSON.parse(h.out).id).toBe('handoff-2026-10-13-2200-codex-abc123')
     })
@@ -132,25 +139,5 @@ describe('buracle mcp', () => {
     const r = await cli(['mcp', 'other'])
     expect(r.code).toBe(1)
     expect(r.err).toContain("unknown server 'other'")
-  })
-
-  test('jobs: the overview of every automatic job, one job\'s lines with --job, and a bad id refused', async () => {
-    await withBrain(async () => {
-      appendJob({ job: 'reflect', trigger: 'session-end', outcome: 'skipped', reason: 'interval', detail: 'last run 12 min ago', project: 'demo' }, Date.now() - 60_000)
-      appendJob({ job: 'verify', trigger: 'session-end', outcome: 'ran', detail: '1 verified', project: 'demo' }, Date.now() - 30_000)
-      const all = await cli(['mem', 'jobs', '--json'])
-      expect(all.code).toBe(0)
-      const views = (JSON.parse(all.out) as { jobs: Array<{ job: string, last?: { reason?: string } }> }).jobs
-      expect(views.map(v => v.job)).toContain('kick')
-      expect(views.find(v => v.job === 'reflect')?.last?.reason).toBe('interval')
-      const one = await cli(['mem', 'jobs', '--job', 'verify'])
-      expect(one.code).toBe(0)
-      expect(one.out).toStartWith('verify: ')
-      expect(one.out).toContain('1 verified')
-      expect(one.out).not.toContain('interval')
-      const bad = await cli(['mem', 'jobs', '--job', 'nope'])
-      expect(bad.code).toBe(1)
-      expect(bad.err).toContain('--job must be one of')
-    })
   })
 })

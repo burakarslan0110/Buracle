@@ -23,14 +23,15 @@ export function withPlan(cfg: Partial<BuracleConfig['plan']>): BuracleConfig {
   return { ...c, plan: { ...c.plan, ...cfg } }
 }
 
-export interface Recorder { spool: SpoolEntry[], finalizer: string[], started: string[], runs: string[][], handoffs: Array<Record<string, unknown>> }
+export interface Recorder { spool: SpoolEntry[], finalizer: string[], started: string[], touched: string[], runs: string[][], handoffs: Array<Record<string, unknown>> }
 
 export function deps(over: Partial<CoreFns> = {}, extra: MemoryFns = {}, env: Record<string, string | undefined> = {}): CodexHookDeps & { rec: Recorder } {
-  const rec: Recorder = { spool: [], finalizer: [], started: [], runs: [], handoffs: [] }
+  const rec: Recorder = { spool: [], finalizer: [], started: [], touched: [], runs: [], handoffs: [] }
   const memory: MemoryFns = {
     appendSpool: (_h, _sid, entries) => { rec.spool.push(...entries) },
     spawnFinalizer: (h, sid) => { rec.finalizer.push(`${h}:${sid}`) },
     sessionStart: (h, sid, cwd, opts) => { rec.started.push(`${h}:${sid}:${cwd}:${opts?.model ?? ''}`) },
+    promptSeen: (h, sid) => { rec.touched.push(`${h}:${sid}`) },
     writeHandoff: async input => { rec.handoffs.push(input); return { id: `handoff-${input.project}`, path: `handoff-${input.project}`, rel: `handoff-${input.project}` } },
     ...extra,
   }

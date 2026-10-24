@@ -36,7 +36,7 @@ export async function memDataCommand(sub: 'backup' | 'restore' | 'export' | 'imp
   if (sub === 'backup') {
     if (a.has('list')) {
       const list = b.listBackups()
-      a.out({ backups: list }, list.length === 0 ? 'No backups yet: `buracle mem backup` takes one, and the tick copies each brain once a day.' : list.map(m => `${m.id}  ${m.at.slice(0, 16).replace('T', ' ')}  ${m.trigger}  ${m.brains.map(x => x.layer === 'person' ? 'person' : x.project).join(', ')}  (${size(m.brains.reduce((n, x) => n + x.bytes, 0))})`).join('\n'))
+      a.out({ backups: list }, list.length === 0 ? 'No backups yet: `buracle mem backup` takes one.' : list.map(m => `${m.id}  ${m.at.slice(0, 16).replace('T', ' ')}  ${m.trigger}  ${m.brains.map(x => x.layer === 'person' ? 'person' : x.project).join(', ')}  (${size(m.brains.reduce((n, x) => n + x.bytes, 0))})`).join('\n'))
       return 0
     }
     const keep = a.int('keep')

@@ -4,12 +4,9 @@ import type { Harness } from '../core/events'
 import type { BarInfo } from '../core/status/bar'
 import { atomicWriteSync, readJsonSafeSync } from '../engine/fsx'
 import * as paths from '../engine/paths'
-import { findExecutable, spawnArgv, windowsVerbatim } from '../engine/platform'
+import { findExecutable } from '../engine/platform'
 import { run } from '../engine/proc'
 import { shimLaunch } from '../engine/shim'
-import { anySessionOpen } from '../memory/session-open'
-import { captureOff } from '../memory/spool'
-import { sameUiBuild, uiBuildId } from '../memory/ui-build'
 
 const HARNESS_LABEL: Readonly<Record<Harness, string>> = { claude: 'CC', codex: 'Codex', opencode: 'OpenCode', omp: 'OMP' }
 
@@ -103,25 +100,6 @@ export function liveMemoryUi(): MemoryUiRecord | undefined {
   return v as unknown as MemoryUiRecord
 }
 
-export function ensureMemoryUi(nowMs: number, opts: { sessionStarting?: boolean } = {}): void {
-  if (process.env['BURACLE_NO_AUTOSTART'] === '1') return
-  const live = liveMemoryUi()
-  if (live !== undefined && sameUiBuild(live.build, uiBuildId())) return
-  if (opts.sessionStarting !== true && !captureOff() && !anySessionOpen(nowMs)) return
-  const marker = join(paths.stateDir(), 'memory-ui.spawn')
-  try {
-    if (existsSync(marker) && nowMs - statSync(marker).mtimeMs < 60_000) return
-    atomicWriteSync(marker, String(nowMs))
-  } catch { return }
-  try {
-    const argv = buracleArgv()
-    if (argv === undefined) return
-    const spawned = spawnArgv([...argv, 'mem', 'ui', '--serve', '--for-session'])
-    const child = Bun.spawn(spawned, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, cwd: paths.home(), env: { ...process.env }, windowsVerbatimArguments: windowsVerbatim(spawned) })
-    child.unref()
-  } catch {  }
-}
-
 export function buracleArgv(): string[] | undefined {
   const main = join(paths.repoRoot(), 'src', 'cli', 'main.ts')
   const bun = findExecutable('bun')
@@ -139,7 +117,6 @@ export async function barInfo(h: Harness, o: { nowMs: number, version?: string, 
     if (plan !== undefined) harness.plan = plan
   }
   info.harness = harness
-  ensureMemoryUi(o.nowMs)
   const live = liveMemoryUi()
   info.memoryUrl = live?.url ?? `http://localhost:${o.memoryUi.port}`
   if (o.lines !== undefined) info.lines = o.lines

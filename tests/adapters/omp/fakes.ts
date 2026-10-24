@@ -1,9 +1,6 @@
-import type { CmDeps } from '../../../src/adapters/omp/runtime/context-mode'
 import type { ExtensionDeps } from '../../../src/adapters/omp/runtime/extension'
 import { defaultDeps } from '../../../src/adapters/omp/runtime/extension'
 import type { OmpContext, OmpCustomMessage, OmpExtensionAPI, OmpGenerated } from '../../../src/adapters/omp/runtime/types'
-import type { CmChildRequest } from '../../../src/adapters/shared/context-mode/client'
-import type { CmOpOutcome } from '../../../src/adapters/shared/context-mode/session'
 import { defaultConfig } from '../../../src/core/config'
 import type { SessionState } from '../../../src/core/plan/state'
 import { answerReceipt } from '../../../src/core/plan/state'
@@ -87,11 +84,11 @@ export function fakeCtx(opts: { sid?: string, cwd: string, mode?: OmpContext['mo
 export interface MemoryCalls {
   spool: Array<{ sid: string, entries: SpoolEntry[] }>, started: Array<{ sid: string, cwd: string }>, finalized: string[], contexts: string[]
   handoffs: Array<{ sid: string, cwd: string, slug: string, markdown: string, branch?: string }>
-  prompts: string[], compactions: string[]
+  prompts: string[]
 }
 
 export function fakeMemory(context?: string): { bridge: MemoryBridge, calls: MemoryCalls } {
-  const calls: MemoryCalls = { spool: [], started: [], finalized: [], contexts: [], handoffs: [], prompts: [], compactions: [] }
+  const calls: MemoryCalls = { spool: [], started: [], finalized: [], contexts: [], handoffs: [], prompts: [] }
   return {
     calls,
     bridge: {
@@ -101,26 +98,6 @@ export function fakeMemory(context?: string): { bridge: MemoryBridge, calls: Mem
       async contextText(cwd) { calls.contexts.push(cwd); return context },
       async writeHandoff(sid, cwd, note) { calls.handoffs.push({ sid, cwd, ...note }); return `handoff-${note.slug}` },
       promptSeen(sid) { calls.prompts.push(sid) },
-      compactSeen(sid) { calls.compactions.push(sid) },
-    },
-  }
-}
-
-export interface CmCalls {
-  spawned: CmChildRequest[]
-  runs: Array<{ req: CmChildRequest, timeoutMs: number }>
-}
-
-export function fakeCm(opts: { projectDir?: string, installed?: boolean, env?: Record<string, string | undefined>, answer?: (req: CmChildRequest) => CmOpOutcome | undefined } = {}): { deps: CmDeps, calls: CmCalls } {
-  const calls: CmCalls = { spawned: [], runs: [] }
-  return {
-    calls,
-    deps: {
-      projectDir: () => opts.projectDir ?? '/srv/omp-project',
-      installed: () => opts.installed ?? true,
-      spawn: req => { calls.spawned.push(req); return true },
-      run: async (req, o) => { calls.runs.push({ req, timeoutMs: o.timeoutMs }); return opts.answer?.(req) },
-      env: () => opts.env ?? {},
     },
   }
 }
@@ -144,10 +121,9 @@ function notImplemented(name: string): never {
   throw new Error(`not implemented: ${name}`)
 }
 
-export function testDeps(overrides: Partial<ExtensionDeps> = {}): { deps: Partial<ExtensionDeps>, memory: MemoryCalls, runs: string[][], env: Record<string, string>, usageRefreshes: { count: number }, cm: CmCalls } {
+export function testDeps(overrides: Partial<ExtensionDeps> = {}): { deps: Partial<ExtensionDeps>, memory: MemoryCalls, runs: string[][], env: Record<string, string>, usageRefreshes: { count: number } } {
   const base = defaultDeps()
   const memory = fakeMemory()
-  const cm = fakeCm()
   const runs: string[][] = []
   const env: Record<string, string> = {}
   const usageRefreshes = { count: 0 }
@@ -209,10 +185,9 @@ export function testDeps(overrides: Partial<ExtensionDeps> = {}): { deps: Partia
     memoryUi: () => undefined,
     codegraphIndexed: () => false,
     columns: () => 120,
-    cm: cm.deps,
     ...overrides,
   }
-  return { deps, memory: memory.calls, runs, env, usageRefreshes, cm: cm.calls }
+  return { deps, memory: memory.calls, runs, env, usageRefreshes }
 }
 
 export function planState(over: Partial<NonNullable<SessionState['plan']>> = {}, extra: Partial<SessionState> = {}): SessionState {

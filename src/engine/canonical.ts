@@ -1,6 +1,5 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { parse as parseYaml } from 'yaml'
 import type { AgentDoc, CanonicalBundle, CanonicalFile, HooksMatrix, McpCatalog, PluginsCatalog, RuleDoc, SkillDoc, StatuslineCatalog, ToolsCatalog } from '../core/catalog'
 import { validateMcpCatalog, validatePluginsCatalog, validateToolsCatalog } from '../core/catalog'
 import type { BuracleConfig } from '../core/config'
@@ -14,6 +13,7 @@ import type { SkillTriggerTable } from '../core/policy/skill-router'
 import { parseSkillTriggers, validateSkillTriggers } from '../core/policy/skill-router'
 import type { PricingTable } from '../core/usage'
 import * as paths from './paths'
+import { parseYaml } from './yaml'
 
 export class CanonicalError extends Error {
   readonly problems: string[]

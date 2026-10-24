@@ -1,4 +1,3 @@
-import { CM_SERVER_ID, isCmExecTool } from '../context-mode'
 import type { Harness, StopDecision, ToolCall } from '../events'
 import type { IndexExclusionContext } from '../workspace'
 import { indexExclusion, isPathWithin, pathKey } from '../workspace'
@@ -7,7 +6,6 @@ import type { PathRuleSource } from './path-rules'
 import { matchPathRules, pathRuleNote, projectRelative, ruleFileId } from './path-rules'
 import type { McpHealth, RoutingPolicy } from './routing'
 import { isDocsUrl } from './routing'
-import { cmCall, sandboxShellCommands } from './sandbox'
 import { shellFileRead, shellFileWrite } from './shell-files'
 import type { PromptRoute } from './skill-router'
 import { categoryReminder } from './skill-router'
@@ -204,9 +202,7 @@ function searchesText(command: string): boolean {
 
 function isTextSearch(call: ToolCall): boolean {
   if (call.kind === 'search') return !['LS', 'list', 'ls'].includes(call.tool)
-  if (call.kind === 'bash') return typeof call.command === 'string' && searchesText(call.command)
-  const cm = cmCall(call)
-  return cm !== undefined && isCmExecTool(cm.tool) && sandboxShellCommands(call).some(searchesText)
+  return call.kind === 'bash' && typeof call.command === 'string' && searchesText(call.command)
 }
 
 function memoryCliOps(call: ToolCall): string[] {
@@ -267,9 +263,8 @@ export function ledgerCall(l: UsageLedger, call: ToolCall): UsageLedger {
 
 export const MCP_SESSION_DOWN_ERRORS = 2
 
-export function ledgerMcpResult(l: UsageLedger, server: string, ok: boolean, tool?: string): UsageLedger {
+export function ledgerMcpResult(l: UsageLedger, server: string, ok: boolean): UsageLedger {
   if (typeof server !== 'string' || server === '') return l
-  if (!ok && server === CM_SERVER_ID && isCmExecTool(tool)) return l
   const errors = { ...(l.mcpErrors ?? {}) }
   if (ok) {
     if (errors[server] === undefined) return l
@@ -445,21 +440,11 @@ function urlIn(input: Record<string, unknown>): string | undefined {
   return undefined
 }
 
-function fetchUrls(input: Record<string, unknown>): string[] {
-  const out: string[] = []
-  const one = urlIn(input)
-  if (one !== undefined) out.push(one)
-  let reqs: unknown = input['requests']
-  if (typeof reqs === 'string') { try { reqs = JSON.parse(reqs) } catch { reqs = undefined } }
-  if (Array.isArray(reqs)) for (const r of reqs.slice(0, 32)) if (isObj(r)) { const u = urlIn(r); if (u !== undefined) out.push(u) }
-  return out
-}
-
 function rootArgument(call: ToolCall): { server: string, key: string } | undefined {
   const server = call.kind === 'mcp' ? call.mcp?.server : undefined
   if (server === 'semble') return { server, key: 'repo' }
   if (server === 'codegraph') return { server, key: 'projectPath' }
-  return cmCall(call)?.tool === 'ctx_index' ? { server: CM_SERVER_ID, key: 'path' } : undefined
+  return undefined
 }
 
 const ruleKey = (id: string): string => `R5:${id}`
@@ -649,8 +634,7 @@ export function reminders(l: UsageLedger, call: ToolCall, ctx: ReminderContext):
   if (t.search >= 4 && t.graph === 0 && (available.has('semble') || available.has('codegraph')) && canShow(l, 'search-streak', { perTurn: true, max: 3, topic: 'code-search' })) {
     return { context: `Buracle: ${t.search} text searches this turn and no semble or codegraph call; ${reminderText(ctx, 'code-search')}, and ask codegraph for definitions and callers.`, next: markShown(recorded, 'search-streak') }
   }
-  const urls = server === 'web-fetch' ? [urlIn(input)] : cmCall(call)?.tool === 'ctx_fetch_and_index' ? fetchUrls(input) : []
-  const url = urls.find((u): u is string => u !== undefined && isDocsUrl(u))
+  const url = server === 'web-fetch' ? [urlIn(input)].find((u): u is string => u !== undefined && isDocsUrl(u)) : undefined
   if (url !== undefined && available.has('context7') && canShow(l, 'docs-fetch', { cooldownTurns: 1, max: 3, topic: 'library-docs' })) {
     return { context: `Buracle: this is a library documentation page; for docs at the installed version, ${reminderText(ctx, 'library-docs')}.`, next: markShown(recorded, 'docs-fetch') }
   }

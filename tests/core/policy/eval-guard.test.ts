@@ -178,7 +178,7 @@ describe('checkEval: languages and robustness', () => {
   })
 })
 
-describe('checkEval: code that runs in another folder than the session (execCwd, context-mode\'s sandbox)', () => {
+describe('checkEval: code that runs in another folder than the session (execCwd)', () => {
   const home = '/Users/u'
   const exec = (code: string, language: string, execCwd: string | undefined, c: Partial<WriteGuardContext> = {}) =>
     checkEval(code, language, { ...ctx, ...c }, execCwd !== undefined ? { execCwd } : undefined)

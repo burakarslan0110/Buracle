@@ -35,6 +35,24 @@ async function runtime(dir: string) {
 
 const compaction = (): SessionCompactionEvent => ({ sessionID: SID, model: { id: 'm1', providerID: 'p' }, agent: 'compaction', system: [], messages: [], options: {}, tools: {} })
 
+describe('opencode: session start, a prompt and a compaction spawn nothing', () => {
+  test('the session record is started and touched through the bridge, the handoff is written, and no finalizer starts until the session ends', () => withSandbox(async ({ root }) => {
+    const { f, rt, mem } = await runtime(root)
+    await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: root } } })
+    await f.trigger('session.prompt', { sessionID: SID, messageID: 'msg_p1', prompt: { text: 'from now on always run the tests before you commit' }, delivery: 'steer' })
+    await f.trigger('session.compaction', compaction())
+    await rt.handleEvent({ type: 'session.compaction.ended', data: { sessionID: SID, text: 'Summary', reason: 'auto' } })
+    await rt.idle()
+    expect(mem.started).toEqual([{ sid: SID, cwd: root }])
+    expect(mem.prompts).toEqual([SID])
+    expect(mem.handoffs).toHaveLength(1)
+    expect(mem.finalized).toEqual([])
+    await rt.handleEvent({ type: 'session.deleted', data: { sessionID: SID } })
+    await rt.idle()
+    expect(mem.finalized).toEqual([SID])
+  }))
+})
+
 describe('opencode: H06/H07 keep the compaction state of this compaction only', () => {
   test('a later compaction whose handoff write fails drops the earlier handoff pointer, so the restore never offers it', () => withSandbox(async ({ root }) => {
     const { f, rt, mem } = await runtime(root)

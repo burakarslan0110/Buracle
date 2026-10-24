@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { distillQueueState, enqueueDistill } from '../../src/memory/distill'
 import { runnerBackoffFile } from '../../src/memory/layout'
 import { chooseHarnesses, choiceHoldsRunner, choiceRunner, choiceSkip, choiceUntil, choiceWhy, latestModel, rateLimitBlock } from '../../src/memory/model'
 import { markRunnerFailed, RUNNER_FAILED_BACKOFF_MS, RUNNER_REFUSED_BACKOFF_MS, runnerUnavailable, type ModelRunner } from '../../src/memory/runner'
@@ -170,28 +169,6 @@ describe('the runner over a choice', () => {
       expect(await missing('p', { maxOutputTokens: 10, timeoutMs: 1000 })).toMatchObject({ ok: false, unavailable: true })
       const none = choiceRunner({ picks: [], held: [] }, { harnessRunner: () => answer('never') })
       expect(await none('p', { maxOutputTokens: 10, timeoutMs: 1000 })).toEqual({ ok: false, text: '', error: 'no harness can run the memory\'s model now' })
-    })
-  })
-})
-
-describe('the distill queue and the choice', () => {
-  test('the queue names the harness that runs next, or that all its entries wait for a harness with room', async () => {
-    await withSandbox(async ({ root }) => {
-      const now = Date.now()
-      enqueueDistill('codex', SID)
-      enqueueDistill('claude', SID2)
-      expect(distillQueueState({ nowMs: now })).toMatchObject({ pending: 2, byHarness: { codex: 1, claude: 1 }, held: 0, why: expect.stringContaining('no harness ran a session') })
-      writeTelemetry('claude', SID2, { at: now, modelId: 'claude-opus-5-5', windows: [{ label: '5h', pct: 5 }] })
-      expect(distillQueueState({ nowMs: now, choice: chooseHarnesses({ nowMs: now, which: onPath }) })).toMatchObject({ pending: 2, held: 0, next: { harness: 'claude', model: 'claude-opus-5-5' } })
-      const empty = join(root, 'empty-bin')
-      mkdirSync(empty, { recursive: true })
-      await withEnv({ PATH: empty }, () => {
-        expect(distillQueueState({ nowMs: now })).toMatchObject({ held: 0, why: 'claude: claude is not on PATH' })
-      })
-      const windowed = chooseHarnesses({ nowMs: now, which: onPath })
-      windowed.picks = []
-      windowed.held = [{ harness: 'claude', why: 'claude: 7-day window at 90% (limit 85%)', kind: 'window', window: '7d', pct: 90, until: '2026-10-17T16:00:00.000Z' }]
-      expect(distillQueueState({ nowMs: now, choice: windowed })).toMatchObject({ pending: 2, held: 2, until: '2026-10-17T16:00:00.000Z', why: 'claude: 7-day window at 90% (limit 85%)' })
     })
   })
 })

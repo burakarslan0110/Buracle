@@ -1,13 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { ContextModeFns } from '../../../src/adapters/codex/context-mode'
 import { handleCodexHook } from '../../../src/adapters/codex/hook'
-import type { CmForwardResult } from '../../../src/adapters/shared/context-mode/bridge'
-import { cmCodexEvent } from '../../../src/core/context-mode'
 import { defaultConfig } from '../../../src/core/config'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
-import { ctx, deps, payload, quiet, SID } from './hook-helpers'
+import { ctx, deps, payload } from './hook-helpers'
 
 const bash = (command: string, cwd: string) => payload('PreToolUse', { cwd, tool_name: 'Bash', tool_use_id: 'c1', tool_input: { command } })
 const patch = (body: string, cwd: string) => payload('PreToolUse', { cwd, tool_name: 'apply_patch', tool_input: { command: `*** Begin Patch\n${body}\n*** End Patch\n` } })
@@ -83,31 +80,4 @@ describe('Codex MCP calls that name a file they write go through H02 (W1.3, G12)
     const r = await handleCodexHook('PreToolUse', mcp('mcp__chrome_devtools__take_screenshot', { filePath: join(proj, 's.png') }, proj), ctx(), d)
     expect(JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason).toStartWith('Buracle H02: the write guard could not check')
   }), 20_000)
-})
-
-describe('P3: Codex forwards the latest update_plan checklist to context-mode at PreCompact (W1.4)', () => {
-  const callLine = (name: string, callId: string, args: Record<string, unknown>): string => JSON.stringify({ timestamp: '2026-10-08T12:00:00.000Z', type: 'response_item', payload: { type: 'function_call', name, arguments: JSON.stringify(args), call_id: callId } })
-
-  function recorder() {
-    const calls: Array<{ event: string, payload: Record<string, unknown> }> = []
-    const fns: ContextModeFns = { forward: async (event, p): Promise<CmForwardResult> => { calls.push({ event, payload: p }); return { action: 'capture' } } }
-    return { calls, load: async () => fns }
-  }
-
-  test('the checklist goes before the snapshot, as a TodoWrite list the restore reads; no checklist, no extra event', () => withSandbox(async ({ root }) => {
-    const rollout = join(root, 'rollout.jsonl')
-    const plan = [{ step: 'Write the parser', status: 'completed' }, { step: 'Add the tests', status: 'in_progress' }]
-    writeFileSync(rollout, `${callLine('update_plan', 'call_p1', { plan: [{ step: 'Old', status: 'pending' }] })}\n${callLine('update_plan', 'call_p2', { plan })}\n`)
-    const b = recorder()
-    await handleCodexHook('PreCompact', payload('PreCompact', { cwd: root, trigger: 'auto', transcript_path: rollout }), ctx(), { ...deps(quiet), contextMode: b.load })
-    expect(b.calls.map(c => c.event)).toEqual(['PostToolUse', 'PreCompact'])
-    const forwarded = b.calls[0]?.payload ?? {}
-    expect(forwarded).toMatchObject({ session_id: SID, hook_event_name: 'PostToolUse', tool_name: 'update_plan', tool_input: { plan } })
-    expect(cmCodexEvent('PostToolUse', forwarded)).toMatchObject({ tool: 'TodoWrite', input: { todos: [{ content: 'Write the parser', status: 'completed' }, { content: 'Add the tests', status: 'in_progress' }] } })
-    const empty = join(root, 'empty.jsonl')
-    writeFileSync(empty, '')
-    const c = recorder()
-    await handleCodexHook('PreCompact', payload('PreCompact', { cwd: root, trigger: 'auto', transcript_path: empty }), ctx(), { ...deps(quiet), contextMode: c.load })
-    expect(c.calls.map(x => x.event)).toEqual(['PreCompact'])
-  }))
 })
