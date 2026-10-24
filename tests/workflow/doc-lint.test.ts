@@ -31,16 +31,19 @@ function designDocs(): string[] {
   return [join(REPO, 'docs', 'DESIGN.md'), ...files(join(REPO, 'docs', 'design'), n => n.endsWith('.md'))]
 }
 
+// Documents the repository ships beside the README (architecture, compatibility matrix, upgrade guide).
+const SHIPPED_DOCS = ['ARCHITECTURE.md', 'COMPATIBILITY.md', 'MIGRATION.md'].map(f => join(REPO, f))
+
 function englishDocs(): string[] {
   return [
-    join(REPO, 'README.md'), join(REPO, 'AGENTS.md'), join(REPO, 'docs', 'USAGE.md'), ...designDocs(),
+    join(REPO, 'README.md'), join(REPO, 'AGENTS.md'), ...SHIPPED_DOCS, join(REPO, 'docs', 'USAGE.md'), ...designDocs(),
     ...contractDocs(),
     ...files(join(REPO, 'docs', 'reference'), n => n.endsWith('.md')),
   ]
 }
 
 function linkedDocs(): string[] {
-  return [join(REPO, 'README.md'), join(REPO, 'AGENTS.md'), join(REPO, 'docs', 'USAGE.md'), ...designDocs(), ...contractDocs()]
+  return [join(REPO, 'README.md'), join(REPO, 'AGENTS.md'), ...SHIPPED_DOCS, join(REPO, 'docs', 'USAGE.md'), ...designDocs(), ...contractDocs()]
 }
 
 const CATEGORY_D_LINES: ReadonlyArray<{ file: string, re: RegExp }> = [

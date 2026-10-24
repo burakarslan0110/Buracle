@@ -66,9 +66,9 @@ export function createHud({ svgEl, labelsEl, legendEl, onOpen, onHover }) {
       lb.title.textContent = regionLabel(r.id)
       chips[i].name.textContent = regionLabel(r.id)
       const parts = [count('memories', r.count)]
-      if (r.stated !== undefined) {
-        if (r.stated > 0) parts.push(count('stated', r.stated))
-        if (r.hypotheses > 0) parts.push(count('hypotheses', r.hypotheses))
+      if (Array.isArray(r.categories)) {
+        if (r.explicit > 0) parts.push(count('explicit', r.explicit))
+        if (r.inferred > 0) parts.push(count('inferred', r.inferred))
       } else parts.push(count('groups', r.groups))
       if (r.topTags.length > 0) parts.push(listJoin(r.topTags.slice(0, 2).map(tagText)))
       lb.sub.textContent = parts.join(' · ')

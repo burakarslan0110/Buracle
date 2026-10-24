@@ -156,6 +156,19 @@ export async function backupBrains(choice: BrainChoice, opts: { trigger?: Backup
   })
 }
 
+const DAILY_MS = 24 * 3600_000
+const DAILY_KEEP = 10
+
+/**
+ * One copy of the whole brain per 24 hours, taken by the session-end finalizer after its work: the safety net the
+ * removed tick used to provide, with no timer and no process of its own. Skipped when any backup is newer than a day.
+ */
+export async function maybeDailyBackup(nowMs: number = Date.now()): Promise<BackupManifest | undefined> {
+  const newest = listBackups()[0]
+  if (newest !== undefined && nowMs - Date.parse(newest.at) < DAILY_MS) return undefined
+  return (await backupBrains({ all: true }, { trigger: 'daily', nowMs, keep: DAILY_KEEP })).manifest
+}
+
 const TRIGGERS: readonly string[] = ['manual', 'daily', 'pre-restore', 'pre-upgrade', 'pre-remove']
 
 function isManifest(v: unknown): v is BackupInfo {

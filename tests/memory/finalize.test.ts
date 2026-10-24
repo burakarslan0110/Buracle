@@ -15,7 +15,7 @@ import { forgetListCache, getStored, listAll, personRef, projectRef, storedId } 
 import { writeTelemetry } from '../../src/workflow/session-store'
 import * as paths from '../../src/engine/paths'
 import { withEnv } from '../helpers/sandbox'
-import { git, withBrain } from './helpers'
+import { git, REAL_CORTEXDB, withBrain } from './helpers'
 
 const SID = '0199a213-81c0-7800-8aa1-bbab2a035a80'
 const OTHER = '0199a213-81c0-7800-8aa1-bbab2a035a81'
@@ -147,6 +147,8 @@ describe('finalize', () => {
         const raw = await cortexFor(brainDbFile()).call<{ memory?: { expires_at?: string, metadata?: Record<string, unknown> } }>('memory_get', { memory_id: storedId(projectRef('demo'), id) })
         expect(Math.abs(Date.parse(raw.memory?.expires_at as string) - Date.parse(item?.expires as string))).toBeLessThan(5_000)
         expect(raw.memory?.metadata?.['ttl_seconds']).toBeGreaterThan(44 * 86_400)
+        // The real engine keeps its own clock, so only the fake lets a test move time forward.
+        if (REAL_CORTEXDB) return
         writeFileSync(clock, String(t0 + 44 * DAY))
         expect(await getStored(projectRef('demo'), id)).toBeDefined()
         writeFileSync(clock, String(t0 + 46 * DAY))

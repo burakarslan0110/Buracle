@@ -80,7 +80,7 @@ export interface ExtensionDeps {
   resolveChecker?: (argv: readonly string[]) => string[]
   memSegment: typeof memSegment
   status: Pick<typeof coreStatus, 'rows' | 'renderPlain'>
-  bar?: { lines: typeof barLines, render: typeof coreStatus.renderPlainLines, info(nowMs: number, memoryUi: { port: number }): Promise<BarInfo> }
+  bar?: { lines: typeof barLines, render: typeof coreStatus.renderPlainLines, info(nowMs: number): Promise<BarInfo> }
   state: {
     load(sid: string): SessionState
     update(sid: string, fn: (s: SessionState) => SessionState): SessionState
@@ -228,7 +228,7 @@ export function defaultDeps(): ExtensionDeps {
     bar: {
       lines: barLines,
       render: coreStatus.renderPlainLines,
-      info: (nowMs, memoryUi) => barInfo('omp', { nowMs, memoryUi }),
+      info: nowMs => barInfo('omp', { nowMs }),
     },
     state: {
       load: sid => loadState('omp', sid),

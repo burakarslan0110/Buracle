@@ -174,6 +174,42 @@ function sizeText(bytes) {
   return n < 1024 * 1024 ? `${num(Math.max(1, Math.round(n / 1024)))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`
 }
 
+function migrationItem(mig) {
+  const failed = mig.state === 'failed'
+  return h('li', { class: failed ? 'is-error' : 'is-warn' },
+    h('p', { class: 'hr-title' }, icon('alert', 'icon xs'), h('span', null, t(`health.migration.${mig.state}`))),
+    failed && typeof mig.error === 'string' ? h('p', { class: 'hr-detail' }, mig.error) : null,
+    typeof mig.fix === 'string' && mig.fix !== '' ? h('code', { class: 'fix' }, mig.fix) : null)
+}
+
+function migrationRows(mig) {
+  if (mig === undefined || mig === null) return []
+  const finished = mig.state === 'complete' && typeof mig.finishedAt === 'string' ? t('health.migrationFinished', { t: relTime(mig.finishedAt, Date.now()) }) : tOr(`health.migration.${mig.state}`, String(mig.state))
+  return [
+    [t('health.migration'), mig.state === 'failed' ? h('span', { class: 'warn-text' }, finished) : finished],
+    mig.legacy > 0 ? [t('health.legacyWaiting', { n: num(mig.legacy) }), null] : null,
+    mig.keptLegacy ? [t('health.legacyKept'), null] : null,
+  ]
+}
+
+function brainFileSection(data) {
+  const b = data.brain
+  const rows = []
+  if (b !== undefined && b !== null) {
+    const slugs = Object.keys(b.projects ?? {})
+    rows.push([t('health.file'), h('code', null, String(b.file ?? ''))])
+    rows.push([t('health.size'), sizeText(b.bytes)])
+    rows.push([t('health.buckets'), h('ul', { class: 'buckets' },
+      h('li', null, t('health.bucketPerson'), ' · ', t('health.bucketCount', { n: num(b.person ?? 0) })),
+      slugs.map(slug => h('li', null, h('code', null, slug), ' · ', t('health.bucketCount', { n: num(b.projects[slug]) }))))])
+  }
+  const mig = migrationRows(data.migration).filter(Boolean)
+  return section(t('health.brainFile'),
+    h('p', { class: 'set-lead' }, t('health.brainFileLead')),
+    rows.length > 0 ? props(rows) : h('p', { class: 'empty' }, t('health.noBrainFile')),
+    mig.length > 0 ? h('ul', { class: 'notes' }, mig.map(([k, v]) => h('li', null, v === null ? k : [k, ': ', v]))) : null)
+}
+
 function backupSection(b, ctx, now) {
   if (b === undefined || b === null) return null
   const list = Array.isArray(b.list) ? b.list : []
@@ -188,7 +224,7 @@ function backupSection(b, ctx, now) {
     make.removeAttribute('aria-busy')
     setOff([make], false)
     if (!r.ok) { fill(note, errorBlock(r)); return }
-    const msg = t('health.backedUp', { id: String(r.body?.id ?? ''), n: num(r.body?.brains ?? 0) })
+    const msg = t('health.backedUp', { id: String(r.body?.id ?? ''), n: num(r.body?.buckets ?? 0) })
     ctx.announce(msg)
     ctx.refresh(msg)
   })
@@ -203,7 +239,7 @@ function backupSection(b, ctx, now) {
           h('time', { datetime: x.at, title: fmtDate(x.at) }, relTime(x.at, now)), ' · ',
           h('span', { class: 'meta-inline' }, [
             tOr(`health.backup.${x.trigger}`, String(x.trigger ?? '')),
-            t(x.brains === 1 ? 'health.backupBrain' : 'health.backupBrains', { n: num(x.brains ?? 0), size: sizeText(x.bytes) }),
+            t(x.buckets === 1 ? 'health.backupBucket' : 'health.backupBuckets', { n: num(x.buckets ?? 0), size: sizeText(x.bytes) }),
             x.here === true ? t('health.backupHere') : '',
           ].filter(Boolean).join(' · '))))))
       : h('p', { class: 'empty' }, t('health.noBackups')),
@@ -277,15 +313,18 @@ function projectSection(p, ctx) {
 }
 
 export function healthView(body, data, ctx, now) {
-  const level = LEVELS.has(data.health) ? data.health : 'warn'
+  const level = data.migration?.state === 'failed' ? 'error' : LEVELS.has(data.health) ? data.health : 'warn'
   const reasons = Array.isArray(data.reasons) ? data.reasons : []
+  const migrating = data.migration?.state === 'failed' || data.migration?.state === 'running'
   const settings = button(t('health.openSettings'), { class: 'btn sm quiet', 'data-key': 'settings' })
   settings.addEventListener('click', () => ctx.open('settings'))
   fill(body,
     h('p', { class: `health-head is-${level}` }, icon(level === 'ok' ? 'check' : 'alert', 'icon'), h('span', null, t(`health.head.${level}`))),
     data.computedAt ? h('p', { class: 'meta' }, t('health.checked', { t: relTime(data.computedAt, now) })) : null,
     reasons.length > 0 ? section(t('health.reasons'), h('ul', { class: 'hreasons' }, reasons.map(reasonItem))) : null,
+    migrating ? section(t('health.migration'), h('ul', { class: 'hreasons' }, migrationItem(data.migration))) : null,
     storeSection(data),
+    brainFileSection(data),
     backupSection(data.backups, ctx, now),
     projectSection(data.project, ctx),
     h('div', { class: 'btn-row sec' }, settings))
@@ -376,4 +415,108 @@ export function memoryActions(m, ctx) {
     h('div', { class: 'btn-row' }, flipBtn, delBtn),
     confirm,
     msg)
+}
+
+const REVIEWS = ['pending', 'ok']
+
+function listText(list) {
+  return Array.isArray(list) ? list.join(', ') : ''
+}
+
+function listOf(text) {
+  return [...new Set(String(text).split(',').map(x => x.trim()).filter(x => x !== ''))]
+}
+
+function sameList(a, b) {
+  return a.length === b.length && a.every((x, i) => x === b[i])
+}
+
+function formField(id, label, control, help) {
+  return h('div', { class: 'field' },
+    h('label', { for: id }, label),
+    control,
+    help !== undefined ? h('p', { class: 'field-help', id: `${id}-help` }, help) : null)
+}
+
+/**
+ * The form that corrects a memory: it replaces the detail in the panel, sends only what changed to /api/memory/update with the
+ * version it read, and shows the server's own error (a stale version, a refused edit) under the buttons.
+ */
+export function memoryEditor(body, m, ctx, back) {
+  const field = (k) => `edit-${k}`
+  const text = (k, value, extra = {}) => h('input', { class: 'inp', id: field(k), type: 'text', value, autocomplete: 'off', 'aria-describedby': `${field(k)}-help`, ...extra })
+  const title = text('title', m.title, { maxlength: 200, required: true })
+  const summary = text('summary', m.summary, { maxlength: 300 })
+  const bodyBox = h('textarea', { class: 'inp', id: field('body'), rows: 10, 'aria-describedby': `${field('body')}-help`, spellcheck: 'false' }, m.body)
+  const tags = text('tags', listText(m.tags), { spellcheck: 'false' })
+  const about = text('about', listText(m.about), { spellcheck: 'false' })
+  const level = h('select', { class: 'inp', id: field('importance') }, [1, 2, 3, 4, 5].map(n => h('option', { value: n, selected: n === m.importance }, t('edit.importanceOption', { n }))))
+  const review = h('select', { class: 'inp', id: field('review'), 'aria-describedby': `${field('review')}-help` }, REVIEWS.map(r => h('option', { value: r, selected: r === m.review }, t(r === 'ok' ? 'edit.reviewOk' : 'edit.reviewPending'))))
+  const save = h('button', { type: 'submit', class: 'btn sm', 'data-key': 'save' }, t('edit.save'))
+  const cancel = h('button', { type: 'button', class: 'btn sm quiet', 'data-key': 'cancel-edit' }, t('edit.cancel'))
+  const note = h('div', { class: 'note-box', role: 'status' })
+  const form = h('form', { class: 'edit-form', novalidate: true, 'aria-labelledby': 'edit-heading' },
+    h('h3', { id: 'edit-heading', class: 'edit-heading' }, t('edit.heading')),
+    h('p', { class: 'set-lead' }, t('edit.lead')),
+    formField(field('title'), t('edit.title'), title, t('edit.helpTitle')),
+    formField(field('summary'), t('edit.summary'), summary, t('edit.helpSummary')),
+    formField(field('body'), t('edit.body'), bodyBox, t('edit.helpBody')),
+    formField(field('tags'), t('edit.tags'), tags, t('edit.helpTags')),
+    formField(field('about'), t('edit.about'), about, t('edit.helpAbout')),
+    formField(field('importance'), t('edit.importance'), level),
+    formField(field('review'), t('edit.review'), review, t('edit.helpReview')),
+    h('div', { class: 'btn-row' }, save, cancel),
+    note)
+
+  // What the form holds that differs from the memory as it was read.
+  const changes = () => {
+    const patch = {}
+    const claim = []
+    if (title.value.trim() !== m.title) { patch.title = title.value.trim(); claim.push('title') }
+    if (summary.value.trim() !== m.summary) { patch.summary = summary.value.trim(); claim.push('summary') }
+    if (bodyBox.value.trim() !== m.body.trim()) { patch.body = bodyBox.value.trim(); claim.push('body') }
+    if (!sameList(listOf(tags.value), m.tags)) patch.tags = listOf(tags.value)
+    if (!sameList(listOf(about.value), m.about)) patch.about = listOf(about.value)
+    if (Number(level.value) !== m.importance) patch.importance = Number(level.value)
+    if (review.value !== m.review || (claim.length > 0 && review.value === 'ok')) patch.review = review.value
+    return patch
+  }
+  const dirty = () => Object.keys(changes()).length > 0
+  const all = [save, cancel]
+  let busy = false
+
+  cancel.addEventListener('click', () => { if (!busy) back() })
+  form.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return
+    e.stopPropagation()
+    e.preventDefault()
+    if (busy) return
+    if (dirty()) fill(note, h('p', { class: 'note' }, t('edit.dirtyEscape')))
+    else back()
+  })
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault()
+    if (busy) return
+    const patch = changes()
+    if (patch.title === '') { title.focus(); fill(note, h('p', { class: 'form-err' }, t('edit.needTitle'))); return }
+    if (Object.keys(patch).length === 0) { fill(note, h('p', { class: 'note' }, t('edit.nothing'))); return }
+    busy = true
+    setOff(all, true)
+    save.setAttribute('aria-busy', 'true')
+    fill(note, h('p', { class: 'note' }, t('edit.saving')))
+    const r = await postJson('/api/memory/update', { scope: ctx.memoryScope, id: m.id, patch, expected_version: m.version })
+    busy = false
+    save.removeAttribute('aria-busy')
+    setOff(all, false)
+    if (!r.ok) {
+      fill(note, errorBlock(r), r.status === 409 && typeof r.body?.version === 'number' ? h('p', { class: 'note' }, t('edit.conflict', { v: r.body.version })) : null)
+      return
+    }
+    ctx.announce(t('edit.saved', { title: patch.title ?? m.title }))
+    ctx.memoryChanged('update')
+  })
+  fill(body, form)
+  body.scrollTop = 0
+  title.focus({ preventScroll: true })
+  title.select()
 }

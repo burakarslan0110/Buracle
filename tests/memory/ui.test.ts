@@ -1,16 +1,20 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import type { MemItem } from '../../src/core/memory/brain'
+import { contradictionNote, type MemItem } from '../../src/core/memory/brain'
 import * as paths from '../../src/engine/paths'
 import { tilde } from '../../src/engine/update/output'
-import { closeAllCortex } from '../../src/memory/cortex'
-import { projectsFile, statusFile } from '../../src/memory/layout'
+import { closeAllCortex, pidAlive, readerEntries } from '../../src/memory/cortex'
+import { brainDbFile, migrationLockFile, projectsFile, statusFile } from '../../src/memory/layout'
+import { tryLock } from '../../src/memory/lock'
+import { MemoryError } from '../../src/memory/api'
 import { readProjectsCache } from '../../src/memory/project'
 import { refreshStatus } from '../../src/memory/status'
 import { bucketExists, getStored, personRef, projectRef, recordEvent, saveItem } from '../../src/memory/store'
-import { clearUiRecord, handle, healthy, localHost, PAGE_CSP, readUiRecord, serveUi, UI_ASSETS, uiContext, type UiContext } from '../../src/memory/ui'
+import { browserArgv, clearUiRecord, handle, healthy, localHost, PAGE_CSP, readUiRecord, serveUi, UI_ASSETS, UI_IDLE_MS, uiContext, uiIdleMs, type UiContext, type UiStopReason } from '../../src/memory/ui'
+import { uiErrorOf } from '../../src/memory/ui/actions'
 import { eventInScope, parseEventLine } from '../../src/memory/ui/events'
+import { installLegacyBrain, REAL_CORTEXDB } from './helpers'
 import { withEnv, withSandbox, type Sandbox } from '../helpers/sandbox'
 
 afterEach(async () => { await closeAllCortex() })
@@ -193,10 +197,10 @@ describe('changing the memory from the page', () => {
       expect((await getJson(c, '/api/health?scope=project:alpha')).body['backups']).toEqual({ list: [] })
       const made = await post(c, '/api/backup', { scope: 'project:alpha' })
       expect(made.status).toBe(200)
-      expect(made.body).toMatchObject({ ok: true, brains: 3, pruned: 0 })
+      expect(made.body).toMatchObject({ ok: true, buckets: 3, pruned: 0 })
       const id = String(made.body['id'])
       const b = (await getJson(c, '/api/health?scope=project:alpha')).body['backups'] as { list: Array<Record<string, unknown>>, restore?: string }
-      expect(b.list).toEqual([expect.objectContaining({ id, trigger: 'manual', brains: 3, here: true })])
+      expect(b.list).toEqual([expect.objectContaining({ id, trigger: 'manual', buckets: 3, here: true })])
       expect(b.restore).toBe(`buracle mem restore ${id} --project alpha`)
       expect(((await getJson(c, '/api/health?scope=person')).body['backups'] as { restore?: string }).restore).toBe(`buracle mem restore ${id} --person`)
       expect((await post(c, '/api/backup', { scope: 'project:nope' })).status).toBe(404)
@@ -508,7 +512,8 @@ describe('scopes', () => {
       expect(body['retired']).toBe(1)
       expect(items.find(i => i.id === 'gotcha-alpha-broker')).toMatchObject({ region: 'warnings', unverified: true, origin: 'explicit', confidence: 1 })
       expect(items.find(i => i.id === 'decision-alpha-canary')).toMatchObject({ region: 'plans', unverified: false })
-      expect(items.find(i => i.id === 'decision-alpha-canary')?.origin).toBeUndefined()
+      // A memory written before origins were kept says so: null, not a guess.
+      expect(items.find(i => i.id === 'decision-alpha-canary')).toMatchObject({ origin: null, confidence: null, contradicts: false })
       const regions = body['regions'] as Array<{ id: string, count: number, groups: number, topTags: string[] }>
       expect(regions.map(r => r.id)).toEqual(['plans', 'knowledge', 'discoveries', 'self', 'skills', 'warnings', 'episodes'])
       expect(regions[0]).toMatchObject({ id: 'plans', count: 1, topTags: ['alphatag'] })
@@ -527,7 +532,7 @@ describe('memories, search and the profile', () => {
       expect(body['sources']).toEqual(['src/alpha.ts:3'])
       expect(body['history']).toEqual([{ at: '2026-10-11T10:00:00Z', by: 'codex', what: 'written' }])
       expect(body['provenance']).toEqual({ version: 1, harness: 'codex', commit: 'abc1234' })
-      expect(body).toMatchObject({ scope: 'project:alpha', layer: 'project', kind: 'decision', region: 'plans', title: 'Alphacanary decision' })
+      expect(body).toMatchObject({ scope: { layer: 'project', project: 'alpha', key: 'project:alpha' }, layer: 'project', kind: 'decision', region: 'plans', title: 'Alphacanary decision', version: 1, origin: null, confidence: null })
       expect((await getJson(ctx(), '/api/memory?scope=project:alpha&id=decision-nothing')).status).toBe(404)
     })
   })
@@ -709,10 +714,10 @@ describe('the personal profile brain', () => {
       await seed()
       const { body } = await getJson(ctx(), '/api/brain?scope=person')
       expect(body['design']).toBe('person')
-      const regions = body['regions'] as Array<{ id: string, count: number, stated: number, hypotheses: number }>
+      const regions = body['regions'] as Array<{ id: string, count: number, explicit: number, inferred: number }>
       expect(regions.map(r => r.id)).toEqual(['communication', 'collaboration', 'workflow', 'engineering', 'avoid', 'lessons', 'inbox'])
-      expect(regions.find(r => r.id === 'communication')).toMatchObject({ count: 2, stated: 2, hypotheses: 0 })
-      expect(regions.find(r => r.id === 'collaboration')).toMatchObject({ count: 1, hypotheses: 1 })
+      expect(regions.find(r => r.id === 'communication')).toMatchObject({ count: 2, explicit: 0, inferred: 0 })
+      expect(regions.every(r => !('stated' in r) && !('hypotheses' in r))).toBe(true)
       const items = body['items'] as Array<{ id: string, region: string }>
       expect(Object.fromEntries(items.map(i => [i.id, i.region]))).toEqual({
         'preference-short-answers': 'communication', 'profile-result-first': 'communication', 'profile-maybe-dark': 'collaboration',
@@ -723,5 +728,386 @@ describe('the personal profile brain', () => {
       const memory = await getJson(ctx(), '/api/memory?scope=person&id=profile-maybe-dark')
       expect(memory.body['region']).toBe('collaboration')
     })
+  })
+})
+
+describe('the memory API of the page', () => {
+  async function post(c: UiContext, path: string, body: unknown, headers: Record<string, string> = {}): Promise<{ status: number, body: Record<string, unknown> }> {
+    const token = (await getJson(c, '/api/token')).body['token'] as string
+    const r = await handle(new Request(`http://127.0.0.1:${c.port}${path}`, { method: 'POST', headers: { host: `127.0.0.1:${c.port}`, 'content-type': 'application/json', 'x-buracle-token': token, origin: `http://127.0.0.1:${c.port}`, ...headers }, body: JSON.stringify(body) }), c)
+    return { status: r.status, body: await r.json() as Record<string, unknown> }
+  }
+
+  type Row = { id: string, scope: { layer: string, project?: string, key: string }, origin: string | null, confidence: number | null, version: number, created: string, updated: string, author: string, review: string, status: string, importance: number, tags: string[], sources: string[], history: unknown[], contradicts: boolean, pinned?: boolean }
+  const itemsOf = (r: { body: Record<string, unknown> }) => r.body['items'] as Row[]
+
+  async function seedDelta(): Promise<void> {
+    const delta = projectRef('delta')
+    await saveItem(delta, item({ id: 'decision-delta-core', title: 'Core choice', summary: 'builds on a trap', body: 'Follows gotcha-delta-trap closely.', about: ['sqlite', 'bun'], sources: ['memory:knowledge-delta-old', 'src/core.ts:1'], tags: ['core'] }))
+    await saveItem(delta, item({ id: 'gotcha-delta-trap', kind: 'gotcha', title: 'A trap', about: ['sqlite'], origin: 'inferred', confidence: 0.4 }))
+    await saveItem(delta, item({ id: 'knowledge-delta-old', kind: 'knowledge', title: 'The old way' }))
+    // The engine retires the replaced memory: it is superseded by the one that names it.
+    await saveItem(delta, item({ id: 'knowledge-delta-new', kind: 'knowledge', title: 'The new way', about: ['bun'], origin: 'inferred', confidence: 0.8 }), {}, { supersedes: ['knowledge-delta-old'] })
+    await saveItem(delta, item({ id: 'preference-delta-explicit', kind: 'preference', title: 'Always use tabs', origin: 'explicit', confidence: 1, pinned: true }))
+    await saveItem(delta, item({ id: 'knowledge-delta-guess', kind: 'knowledge', title: 'Spaces are fine', origin: 'inferred', confidence: 0.3, review: 'pending', contradictedAt: '2026-10-12T10:00:00Z', contradictedNote: contradictionNote([{ id: 'preference-delta-explicit', why: 'explicit' }]) }))
+  }
+
+  test('a listing carries each memory with its scope, provenance, confidence and timestamps; so does a search', async () => {
+    await withSandbox(async () => {
+      await seed()
+      await seedDelta()
+      const c = ctx()
+      const brain = await getJson(c, '/api/brain?scope=project:delta')
+      const by = new Map(itemsOf(brain).map(i => [i.id, i]))
+      expect(by.get('knowledge-delta-new')).toMatchObject({
+        scope: { layer: 'project', project: 'delta', key: 'project:delta' }, kind: 'knowledge', title: 'The new way', origin: 'inferred', confidence: 0.8, author: 'agent',
+        review: 'ok', status: 'active', importance: 3, version: 1, created: '2026-10-10T10:00:00Z', updated: '2026-10-11T10:00:00Z', tags: [], sources: [], history: [], contradicts: false,
+      })
+      expect(by.get('preference-delta-explicit')).toMatchObject({ origin: 'explicit', confidence: 1, pinned: true })
+      expect(by.get('knowledge-delta-guess')).toMatchObject({ origin: 'inferred', confidence: 0.3, review: 'pending', unverified: true, contradicts: true })
+      expect(by.get('decision-delta-core')).toMatchObject({ sources: ['memory:knowledge-delta-old', 'src/core.ts:1'], tags: ['core'] })
+      // The old way is retired: it is counted, not listed.
+      expect(by.has('knowledge-delta-old')).toBe(false)
+      expect(brain.body['retired']).toBe(1)
+      // A listing never carries the body; the detail does.
+      expect(brain.text).not.toContain('Follows gotcha-delta-trap closely.')
+
+      const person = itemsOf(await getJson(c, '/api/brain?scope=person'))
+      expect(person.find(i => i.id === 'preference-short-answers')).toMatchObject({ scope: { layer: 'person', key: 'person' }, origin: null, confidence: null, version: 1 })
+      expect(person.find(i => i.id === 'preference-short-answers')?.scope).not.toHaveProperty('project')
+
+      const found = itemsOf(await getJson(c, '/api/search?scope=project:delta&q=spaces'))
+      expect(found).toHaveLength(1)
+      expect(found[0]).toMatchObject({ id: 'knowledge-delta-guess', scope: { layer: 'project', project: 'delta' }, origin: 'inferred', confidence: 0.3, contradicts: true, version: 1, updated: '2026-10-11T10:00:00Z' })
+    })
+  })
+
+  test('one memory in full: provenance and its relations, and the network draws the same links', async () => {
+    await withSandbox(async () => {
+      await seedDelta()
+      const c = ctx()
+      const core = (await getJson(c, '/api/memory?scope=project:delta&id=decision-delta-core')).body as Record<string, unknown> & { relations: Record<string, Array<Record<string, unknown>>> }
+      expect(core).toMatchObject({ scope: { layer: 'project', project: 'delta' }, body: 'Follows gotcha-delta-trap closely.', about: ['sqlite', 'bun'], version: 1 })
+      const rel = core.relations
+      // Cited ids: one in the text, one in a `memory:` source that names a retired memory (it points at the memory that took its place).
+      expect(rel['cites']?.map(x => [x['id'], x['via']])).toEqual([['gotcha-delta-trap', 'text'], ['knowledge-delta-new', 'memory']])
+      expect(rel['cites']?.[0]).toMatchObject({ title: 'A trap', kind: 'gotcha', status: 'active' })
+      expect(rel['about']).toEqual([
+        { name: 'sqlite', total: 1, others: [expect.objectContaining({ id: 'gotcha-delta-trap' })] },
+        { name: 'bun', total: 1, others: [expect.objectContaining({ id: 'knowledge-delta-new' })] },
+      ])
+      expect(rel['citedBy']).toEqual([])
+
+      const old = (await getJson(c, '/api/memory?scope=project:delta&id=knowledge-delta-old')).body as { status: string, relations: { supersededBy?: Record<string, unknown> } }
+      expect(old.status).toBe('superseded')
+      expect(old.relations.supersededBy).toMatchObject({ id: 'knowledge-delta-new', title: 'The new way' })
+      const fresh = (await getJson(c, '/api/memory?scope=project:delta&id=knowledge-delta-new')).body as { relations: { supersedes: Array<Record<string, unknown>>, citedBy: Array<Record<string, unknown>> } }
+      expect(fresh.relations.supersedes).toEqual([expect.objectContaining({ id: 'knowledge-delta-old', status: 'superseded' })])
+      expect(fresh.relations.citedBy.map(x => x['id'])).toEqual(['decision-delta-core'])
+
+      const guess = (await getJson(c, '/api/memory?scope=project:delta&id=knowledge-delta-guess')).body as Record<string, unknown> & { relations: { contradicts: Array<Record<string, unknown>> } }
+      expect(guess['contradictedAt']).toBe('2026-10-12T10:00:00Z')
+      expect(guess['contradictedNote']).toContain('preference-delta-explicit')
+      expect(guess.relations.contradicts).toEqual([expect.objectContaining({ id: 'preference-delta-explicit', why: 'explicit', title: 'Always use tabs' })])
+      const protectedOne = (await getJson(c, '/api/memory?scope=project:delta&id=preference-delta-explicit')).body as { relations: { contradictedBy: Array<Record<string, unknown>> } }
+      expect(protectedOne.relations.contradictedBy.map(x => x['id'])).toEqual(['knowledge-delta-guess'])
+
+      // The network is built from the same data: every link of a memory in the detail is an edge of the graph.
+      const g = (await getJson(c, '/api/graph?scope=project:delta')).body as { nodes: Array<{ id: string, type: string, retired?: boolean, focus?: boolean }>, edges: Array<{ source: string, target: string, kind: string }> }
+      const edge = (kind: string, source: string, target: string) => g.edges.some(e => e.kind === kind && e.source === source && e.target === target)
+      expect(edge('mentions', 'decision-delta-core', 'gotcha-delta-trap')).toBe(true)
+      expect(edge('related', 'decision-delta-core', 'knowledge-delta-new')).toBe(true)
+      expect(edge('supersedes', 'knowledge-delta-new', 'knowledge-delta-old')).toBe(true)
+      expect(edge('contradicts', 'knowledge-delta-guess', 'preference-delta-explicit')).toBe(true)
+      expect(g.nodes.find(n => n.id === 'knowledge-delta-old')).toMatchObject({ type: 'memory', retired: true, focus: false })
+      expect(g.nodes.filter(n => n.retired === true).map(n => n.id)).toEqual(['knowledge-delta-old'])
+      for (const name of ['sqlite', 'bun']) expect(g.edges.some(e => e.kind === 'about' && e.target === `concept:${name}` && e.source === 'decision-delta-core')).toBe(true)
+      // …and the other way round: no edge between two memories that the detail of one of them does not list.
+      const detail = new Map<string, Set<string>>()
+      for (const n of g.nodes.filter(x => x.type === 'memory')) {
+        const r = (await getJson(c, `/api/memory?scope=project:delta&id=${n.id}`)).body['relations'] as Record<string, unknown>
+        const ids = new Set<string>()
+        for (const k of ['cites', 'citedBy', 'supersedes', 'contradicts', 'contradictedBy']) for (const x of r[k] as Array<{ id: string }>) ids.add(x.id)
+        const sb = r['supersededBy'] as { id: string } | undefined
+        if (sb !== undefined) ids.add(sb.id)
+        detail.set(n.id, ids)
+      }
+      for (const e of g.edges.filter(x => ['mentions', 'from', 'related', 'supersedes', 'contradicts'].includes(x.kind))) {
+        expect(detail.get(e.source)?.has(e.target) === true || detail.get(e.target)?.has(e.source) === true).toBe(true)
+      }
+    })
+  })
+
+  test('a correction: the same update as the CLI, by the human actor; the next read shows it, one version later, in the user\'s own words', async () => {
+    await withSandbox(async () => {
+      await seedDelta()
+      const c = ctx()
+      const url = '/api/memory?scope=project:delta&id=knowledge-delta-new'
+      const before = (await getJson(c, url)).body
+      expect(before).toMatchObject({ version: 1, origin: 'inferred', confidence: 0.8, review: 'ok', title: 'The new way' })
+
+      const done = await post(c, '/api/memory/update', { scope: 'project:delta', id: 'knowledge-delta-new', expected_version: 1, patch: { title: 'The newest way', summary: 'a better summary', body: 'A fuller body.', tags: ['Fresh', 'bun'], about: ['bun', 'cortexdb'], importance: 5 }, reason: 'fixed in a test' })
+      expect(done).toEqual({ status: 200, body: { ok: true, id: 'knowledge-delta-new', version: 2, changed: ['title', 'summary', 'body', 'importance', 'tags', 'about'] } })
+
+      const after = (await getJson(c, url)).body as Record<string, unknown> & { history: Array<{ by: string, what: string }>, relations: { about: Array<{ name: string }> } }
+      expect(after).toMatchObject({ version: 2, title: 'The newest way', summary: 'a better summary', body: 'A fuller body.', tags: ['fresh', 'bun'], about: ['bun', 'cortexdb'], importance: 5, origin: 'explicit', confidence: 1, review: 'pending', unverified: true })
+      expect(after.history.at(-1)).toMatchObject({ by: 'human', what: 'fixed in a test' })
+      expect(Date.parse(after['updated'] as string)).toBe(NOW)
+      expect(after.relations.about.map(a => a.name)).toEqual(['bun', 'cortexdb'])
+      expect(itemsOf(await getJson(c, '/api/brain?scope=project:delta')).find(i => i.id === 'knowledge-delta-new')).toMatchObject({ title: 'The newest way', version: 2, origin: 'explicit', confidence: 1 })
+      expect(itemsOf(await getJson(c, '/api/search?scope=project:delta&q=newest'))[0]).toMatchObject({ id: 'knowledge-delta-new', version: 2 })
+
+      // A stale version is refused with the version the page has to read again; nothing changes.
+      const stale = await post(c, '/api/memory/update', { scope: 'project:delta', id: 'knowledge-delta-new', expected_version: 1, patch: { title: 'Lost update' } })
+      expect(stale.status).toBe(409)
+      expect(stale.body).toMatchObject({ error: 'conflict', version: 2 })
+      expect(String(stale.body['message'])).toContain('version 2')
+      expect((await getJson(c, url)).body['title']).toBe('The newest way')
+
+      // Verifying in the same save keeps the memory verified; the human is the actor.
+      const verified = await post(c, '/api/memory/update', { scope: 'project:delta', id: 'knowledge-delta-new', expected_version: 2, patch: { review: 'ok' } })
+      expect(verified.body).toMatchObject({ ok: true, version: 3, changed: ['review'] })
+      expect((await getJson(c, url)).body).toMatchObject({ review: 'ok', provenance: expect.objectContaining({ verifiedBy: 'human' }) })
+
+      // The user's own, pinned memory may be corrected by the user (an agent could not).
+      const own = await post(c, '/api/memory/update', { scope: 'project:delta', id: 'preference-delta-explicit', patch: { body: 'Tabs, four wide.' } })
+      expect(own).toMatchObject({ status: 200, body: { ok: true, version: 2 } })
+      expect((await getJson(c, '/api/memory?scope=project:delta&id=preference-delta-explicit')).body).toMatchObject({ body: 'Tabs, four wide.', origin: 'explicit', confidence: 1, pinned: true })
+    })
+  })
+
+  test('a correction is checked: only the editable fields, the right types, a known memory of that scope', async () => {
+    await withSandbox(async () => {
+      await seedDelta()
+      await seed()
+      const c = ctx()
+      const send = (body: unknown) => post(c, '/api/memory/update', body)
+      const base = { scope: 'project:delta', id: 'knowledge-delta-new' }
+      for (const [patch, error] of [
+        [{}, 'bad_patch'], [[], 'bad_patch'], [null, 'bad_patch'], [{ status: 'deprecated' }, 'bad_patch'], [{ merge_into: 'x' }, 'bad_patch'], [{ title: 5 }, 'bad_patch'],
+        [{ tags: 'a' }, 'bad_patch'], [{ about: [1] }, 'bad_patch'], [{ importance: 9 }, 'bad_patch'], [{ importance: 2.5 }, 'bad_patch'], [{ review: 'maybe' }, 'bad_patch'],
+        [{ title: '   ' }, 'invalid_input'],
+      ] as const) {
+        const r = await send({ ...base, patch })
+        expect([r.status, r.body['error']]).toEqual([400, error])
+      }
+      expect((await send({ ...base })).status).toBe(400)
+      expect(await send({ ...base, patch: { title: 'x' }, expected_version: 'one' })).toMatchObject({ status: 400, body: { error: 'bad_version' } })
+      expect(await send({ ...base, patch: { title: 'x' }, reason: 7 })).toMatchObject({ status: 400, body: { error: 'bad_reason' } })
+      expect((await send({ ...base, id: 'knowledge-missing', patch: { title: 'x' } })).status).toBe(404)
+      expect((await send({ ...base, id: '../x', patch: { title: 'x' } })).status).toBe(400)
+      expect((await send({ scope: 'project:alpha', id: 'knowledge-delta-new', patch: { title: 'x' } })).status).toBe(404)
+      expect((await send({ scope: 'person', id: 'knowledge-delta-new', patch: { title: 'x' } })).status).toBe(404)
+      expect((await send({ scope: 'project:nope', id: 'x', patch: { title: 'x' } })).status).toBe(404)
+      expect((await getJson(c, '/api/memory?scope=project:delta&id=knowledge-delta-new')).body).toMatchObject({ version: 1, title: 'The new way' })
+      // A person memory is reached with the person scope.
+      expect(await send({ scope: 'person', id: 'preference-short-answers', patch: { importance: 4 } })).toMatchObject({ status: 200, body: { version: 2 } })
+    })
+  })
+
+  test('an update is a guarded write like the others: the token, the origin and a JSON body', async () => {
+    await withSandbox(async () => {
+      await seedDelta()
+      const c = ctx()
+      const token = (await getJson(c, '/api/token')).body['token'] as string
+      const raw = (headers: Record<string, string>, body = '{"scope":"project:delta","id":"knowledge-delta-new","patch":{"title":"Nope"}}') =>
+        handle(new Request(`http://127.0.0.1:${c.port}/api/memory/update`, { method: 'POST', headers: { host: `127.0.0.1:${c.port}`, ...headers }, body }), c)
+      const json = { 'content-type': 'application/json' }
+      expect((await raw(json)).status).toBe(403)
+      expect((await raw({ ...json, 'x-buracle-token': 'f'.repeat(48) })).status).toBe(403)
+      expect((await raw({ ...json, 'x-buracle-token': token, origin: 'https://evil.example' })).status).toBe(403)
+      expect((await raw({ ...json, 'x-buracle-token': token, 'sec-fetch-site': 'cross-site' })).status).toBe(403)
+      expect((await raw({ 'content-type': 'text/plain', 'x-buracle-token': token })).status).toBe(415)
+      expect((await handle(new Request(`http://127.0.0.1:${c.port}/api/memory/update`, { method: 'GET', headers: { host: `127.0.0.1:${c.port}` } }), c)).status).toBe(404)
+      expect((await getJson(c, '/api/memory?scope=project:delta&id=knowledge-delta-new')).body['title']).toBe('The new way')
+    })
+  })
+
+  test('retire, restore and delete: each is in the next read of the listing, the detail, the search and the network', async () => {
+    await withSandbox(async () => {
+      await seedDelta()
+      const c = ctx()
+      const live = async () => itemsOf(await getJson(c, '/api/brain?scope=project:delta')).map(i => i.id)
+      const found = async () => itemsOf(await getJson(c, '/api/search?scope=project:delta&q=tabs')).map(i => i.id)
+      const inGraph = async () => ((await getJson(c, '/api/graph?scope=project:delta')).body['nodes'] as Array<{ id: string }>).map(n => n.id)
+      const target = { scope: 'project:delta', id: 'preference-delta-explicit' }
+      expect(await live()).toContain(target.id)
+      expect(await found()).toEqual([target.id])
+      expect(await inGraph()).toContain(target.id)
+
+      expect(await post(c, '/api/memory/retire', target)).toMatchObject({ status: 200, body: { status: 'deprecated' } })
+      expect(await live()).not.toContain(target.id)
+      expect(await found()).toEqual([])
+      expect(await inGraph()).not.toContain(target.id)
+      const retired = (await getJson(c, `/api/memory?scope=project:delta&id=${target.id}`)).body
+      expect(retired).toMatchObject({ status: 'deprecated', version: 2 })
+      expect((await getJson(c, '/api/brain?scope=project:delta')).body['retired']).toBe(2)
+
+      expect(await post(c, '/api/memory/restore', target)).toMatchObject({ status: 200, body: { status: 'active' } })
+      expect(await live()).toContain(target.id)
+      expect(await found()).toEqual([target.id])
+      expect((await getJson(c, `/api/memory?scope=project:delta&id=${target.id}`)).body).toMatchObject({ status: 'active', version: 3 })
+
+      expect(await post(c, '/api/memory/delete', target)).toMatchObject({ status: 200, body: { deleted: true } })
+      expect(await live()).not.toContain(target.id)
+      expect(await found()).toEqual([])
+      expect(await inGraph()).not.toContain(target.id)
+      expect((await getJson(c, `/api/memory?scope=project:delta&id=${target.id}`)).status).toBe(404)
+      expect((await getJson(c, '/api/memory?scope=project:delta&id=knowledge-delta-guess')).body['relations']).toMatchObject({ contradicts: [expect.objectContaining({ id: target.id })] })
+    })
+  })
+
+  test('a memory error becomes the status the page can act on, with the error payload shape of every other refusal', () => {
+    const map = (code: ConstructorParameters<typeof MemoryError>[0], data?: Record<string, unknown>) => { const e = uiErrorOf(new MemoryError(code, `m-${code}`, data)); return [e.status, e.code, e.message, e.data] }
+    expect(map('conflict', { version: 4 })).toEqual([409, 'conflict', 'm-conflict', { version: 4 }])
+    expect(map('not_editable')).toEqual([403, 'not_editable', 'm-not_editable', undefined])
+    expect(map('not_found')[0]).toBe(404)
+    expect(map('invalid_input')[0]).toBe(400)
+    expect(map('store_unavailable')[0]).toBe(503)
+  })
+
+  test('the health view names the brain file, its size, every bucket, the migration and the CortexDB version', async () => {
+    await withSandbox(async () => {
+      await seed()
+      const c = ctx()
+      const h = (await getJson(c, '/api/health?scope=project:alpha')).body as { store: Record<string, unknown>, brain: { file: string, bytes: number, person: number, projects: Record<string, number> }, migration: Record<string, unknown> }
+      expect(h.brain.file).toBe(tilde(brainDbFile()))
+      expect(h.brain.bytes).toBeGreaterThan(0)
+      expect(h.brain).toMatchObject({ person: 3, projects: { alpha: 3, beta: 1 } })
+      expect(h.migration).toEqual({ state: 'none', legacy: 0, keptLegacy: false })
+      expect(h.store).toMatchObject({ ok: true })
+      expect(typeof h.store['version']).toBe('string')
+      expect(h).not.toHaveProperty('heal')
+    })
+  })
+
+  test.skipIf(REAL_CORTEXDB)('a brain of Buracle 0.5 is moved when the page asks, and a move that failed is a banner with its fix, never an empty brain', async () => {
+    await withSandbox(async () => {
+      installLegacyBrain()
+      await withEnv({ BURACLE_MIGRATE_FAIL_AFTER: '0' }, async () => {
+        const c = ctx()
+        const ov = (await getJson(c, '/api/overview')).body as { migration: Record<string, unknown>, person: { count: number | null, error?: string } }
+        expect(ov.migration).toMatchObject({ state: 'failed', legacy: 3, fix: 'buracle mem migrate' })
+        expect(typeof ov.migration['error']).toBe('string')
+        const brain = await getJson(c, '/api/brain?scope=person')
+        expect(brain.status).toBe(503)
+        expect(brain.body).toMatchObject({ error: 'migration_failed', fix: 'buracle mem migrate' })
+        expect(brain.body).not.toHaveProperty('items')
+      })
+      await closeAllCortex()
+      const c = ctx()
+      const ov = (await getJson(c, '/api/overview')).body as { migration: Record<string, unknown>, person: { count: number }, projects: Array<{ slug: string, count: number }> }
+      expect(ov.migration).toMatchObject({ state: 'complete', legacy: 0, keptLegacy: true })
+      expect(typeof ov.migration['finishedAt']).toBe('string')
+      // What 0.5 kept is in the page: the same memories the listing shows, not an empty brain.
+      expect(ov.person.count).toBeGreaterThanOrEqual(3)
+      expect(itemsOf(await getJson(c, '/api/brain?scope=person')).length).toBe(ov.person.count)
+      const demo = ov.projects.find(p => p.slug === 'demo')
+      expect(demo?.count).toBeGreaterThanOrEqual(4)
+      expect(itemsOf(await getJson(c, '/api/brain?scope=project:demo')).length).toBe(demo?.count ?? -1)
+    })
+  }, 30_000)
+
+  test('while another process moves the memory the page is told so (503 migrating), not shown an empty brain', async () => {
+    await withSandbox(async () => {
+      installLegacyBrain()
+      const release = tryLock(migrationLockFile(), 60_000)
+      expect(release).toBeDefined()
+      try {
+        await withEnv({ BURACLE_MIGRATE_WAIT_MS: '60' }, async () => {
+          const c = ctx()
+          const brain = await getJson(c, '/api/brain?scope=person')
+          expect(brain.status).toBe(503)
+          expect(brain.body).toMatchObject({ error: 'migrating', fix: 'buracle mem migrate --status' })
+          const ov = (await getJson(c, '/api/overview')).body as { migration: Record<string, unknown> }
+          expect(ov.migration).toMatchObject({ state: 'running', legacy: 3, fix: 'buracle mem migrate --status' })
+        })
+      } finally { release?.() }
+    })
+  }, 30_000)
+})
+
+describe('how long the server lives', () => {
+  test('without a request for the idle time it stops by itself: record cleared, port closed, every CortexDB reader closed', async () => {
+    await withSandbox(async () => {
+      await seed()
+      let clock = NOW
+      const stops: UiStopReason[] = []
+      const served = serveUi({ port: freePort(), version: '9.9.9', now: () => clock, idleMs: 1000, idleEveryMs: 20, onStop: why => stops.push(why) })
+      const url = served.record.url
+      try {
+        // A request starts a CortexDB reader (a child process).
+        expect((await fetch(`${url}/api/brain?scope=person`)).status).toBe(200)
+        const readers = readerEntries()
+        expect(readers).toHaveLength(1)
+        const child = readers[0]?.entry.child as number
+        expect(pidAlive(child)).toBe(true)
+
+        clock = NOW + 900
+        await Bun.sleep(120)
+        expect(stops).toEqual([])
+        // Any request is activity, a probe included: the quiet time starts again.
+        expect((await fetch(`${url}/healthz`)).status).toBe(200)
+        clock = NOW + 900 + 900
+        await Bun.sleep(120)
+        expect(stops).toEqual([])
+        expect(readUiRecord()).toMatchObject({ pid: process.pid, port: served.record.port })
+
+        clock = NOW + 900 + 900 + 1100
+        const deadline = Date.now() + 5000
+        while (stops.length === 0 && Date.now() < deadline) await Bun.sleep(20)
+        expect(stops).toEqual(['idle'])
+        expect(readUiRecord()).toBeUndefined()
+        await expect(fetch(`${url}/healthz`)).rejects.toBeDefined()
+        expect(readerEntries()).toEqual([])
+        const gone = Date.now() + 5000
+        while (pidAlive(child) && Date.now() < gone) await Bun.sleep(20)
+        expect(pidAlive(child)).toBe(false)
+      } finally { await served.stop() }
+    })
+  }, 30_000)
+
+  test('stop() is what Ctrl-C and `mem ui --stop` run: it ends the server, clears the record and can be called twice', async () => {
+    await withSandbox(async () => {
+      await seed()
+      const served = serveUi({ port: freePort(), version: '9.9.9' })
+      expect((await fetch(`${served.record.url}/api/brain?scope=person`)).status).toBe(200)
+      expect(readerEntries()).toHaveLength(1)
+      await Promise.all([served.stop(), served.stop()])
+      expect(readUiRecord()).toBeUndefined()
+      expect(readerEntries()).toEqual([])
+      await expect(fetch(`${served.record.url}/healthz`)).rejects.toBeDefined()
+    })
+  }, 30_000)
+
+  test('the idle time: 30 minutes, BURACLE_UI_IDLE_MS first, then the earlier BURACLE_UI_STOP_AFTER_MS, anything that is not a positive number ignored', () => {
+    expect(UI_IDLE_MS).toBe(30 * 60_000)
+    expect(uiIdleMs({})).toBe(UI_IDLE_MS)
+    expect(uiIdleMs({ BURACLE_UI_IDLE_MS: '5000' })).toBe(5000)
+    expect(uiIdleMs({ BURACLE_UI_STOP_AFTER_MS: '7000' })).toBe(7000)
+    expect(uiIdleMs({ BURACLE_UI_IDLE_MS: '5000', BURACLE_UI_STOP_AFTER_MS: '7000' })).toBe(5000)
+    for (const bad of ['', ' ', '0', '-3', 'soon', 'NaN']) expect(uiIdleMs({ BURACLE_UI_IDLE_MS: bad })).toBe(UI_IDLE_MS)
+    expect(uiIdleMs({ BURACLE_UI_IDLE_MS: 'soon', BURACLE_UI_STOP_AFTER_MS: '7000' })).toBe(7000)
+  })
+})
+
+describe('opening the page in a browser', () => {
+  test('macOS runs `open`, Linux `xdg-open`, each with the address as one argument', () => {
+    expect(browserArgv('http://127.0.0.1:41777/?scope=project%3Ashop', 'darwin')).toEqual(['open', 'http://127.0.0.1:41777/?scope=project%3Ashop'])
+    expect(browserArgv('http://127.0.0.1:41777/review?doc=a&x=b', 'linux')).toEqual(['xdg-open', 'http://127.0.0.1:41777/review?doc=a&x=b'])
+  })
+
+  test('Windows goes through rundll32, never cmd.exe: & and spaces in the address stay inside one argument', () => {
+    const argv = browserArgv('http://127.0.0.1:41777/review?doc=my plan&x=1%252', 'win32')
+    expect(argv).toEqual(['rundll32', 'url.dll,FileProtocolHandler', 'http://127.0.0.1:41777/review?doc=my%20plan&x=1%252'])
+    expect(argv?.join(' ')).not.toMatch(/cmd|start/i)
+    expect(argv).toHaveLength(3)
+  })
+
+  test('only an http(s) address is opened: a file, a script, a command or garbage is not', () => {
+    for (const os of ['darwin', 'linux', 'win32'] as const) {
+      for (const bad of ['file:///etc/passwd', 'javascript:alert(1)', 'calc.exe', '', 'C:\\Windows\\system32\\calc.exe', 'ftp://x/y', '-a Calculator']) expect(browserArgv(bad, os)).toBeUndefined()
+      expect(browserArgv('https://example.com/a', os)?.at(-1)).toBe('https://example.com/a')
+    }
   })
 })

@@ -78,7 +78,8 @@ async function within(work: Promise<unknown>, ms: number): Promise<void> {
 export interface StatusFeederOptions {
   now?: () => number
   spawnRefresh?: boolean
-  memoryUi?: () => { port: number }
+  /** Feed the footer's address line (the TUI does; a test of another part leaves it off). */
+  footer?: boolean
   config?: () => BuracleConfig
   band?: Pick<BandFeeder, 'view'>
   hooks?: (nowMs: number) => Promise<HookHealth>
@@ -160,9 +161,9 @@ export class StatusFeeder {
         this.updates.at = now
         try { this.updates.value = pendingUpdates() } catch { this.updates.value = undefined }
       }
-      if (due(this.footer, TTL.footer) && this.opts.memoryUi !== undefined) {
+      if (due(this.footer, TTL.footer) && this.opts.footer === true) {
         this.footer.at = now
-        try { this.footer.value = await barInfo('opencode', { nowMs: now, memoryUi: this.opts.memoryUi() }) } catch { this.footer.value = undefined }
+        try { this.footer.value = await barInfo('opencode', { nowMs: now }) } catch { this.footer.value = undefined }
       }
       if (due(this.index, TTL.index)) {
         const entry = this.index

@@ -47,7 +47,12 @@ export interface MigrateOptions {
   waitMs?: number
   nowMs?: number
   hooks?: MigrateHooks
+  /** Told, for a file with many memories, how far the copy is (every {@link PROGRESS_EVERY} memories); the CLI prints it on stderr. */
+  onProgress?: (line: string) => void
 }
+
+/** A file of at most this many memories migrates without a progress line. */
+export const PROGRESS_EVERY = 250
 
 export interface MigratedFile { path: string, bucket: string, rows: number, memories: number, written: number, skipped: number }
 
@@ -196,7 +201,7 @@ async function runLocked(opts: MigrateOptions, opened: string[]): Promise<Migrat
   }
   writeMarker(marker)
   try {
-    await bringIn(files, rowsOf, marker, report, nowMs)
+    await bringIn(files, rowsOf, marker, report, nowMs, opts.onProgress)
     await verify(files, rowsOf)
     // (e) The data is safe in brain.db; what remains is putting the old files aside. Nothing is deleted. The marker says
     // `complete` only after that, so a run killed half-way through the move finds the rest still to move.
@@ -251,7 +256,7 @@ async function existingStamps(): Promise<ReturnType<typeof stampsOfRows>> {
   return brainExists() ? stampsOfRows(await rawRows(brainDbFile())) : new Map()
 }
 
-async function bringIn(files: readonly LegacyFile[], rowsOf: ReadonlyMap<string, unknown[]>, marker: MigrationMarker, report: MigrateReport, nowMs: number): Promise<void> {
+async function bringIn(files: readonly LegacyFile[], rowsOf: ReadonlyMap<string, unknown[]>, marker: MigrationMarker, report: MigrateReport, nowMs: number, onProgress?: (line: string) => void): Promise<void> {
   const existing = await existingStamps()
   const limit = failLimit()
   let writes = 0
@@ -270,7 +275,10 @@ async function bringIn(files: readonly LegacyFile[], rowsOf: ReadonlyMap<string,
     }
     const { entries } = entriesOfLegacyRows(rows, ref.layer)
     // A file an earlier run finished is read again: what brain.db holds already is skipped by its stamp, anything else is written.
-    const r = await importEntries(ref, entries, { nowMs, existing, beforeWrite })
+    const progress = onProgress !== undefined && entries.length > PROGRESS_EVERY
+      ? { every: PROGRESS_EVERY, report: (done: number) => onProgress(`${f.path} -> ${state.bucket}: ${done} of ${entries.length} memories`) }
+      : undefined
+    const r = await importEntries(ref, entries, { nowMs, existing, beforeWrite, ...(progress !== undefined ? { progress } : {}) })
     state.done = true
     state.written = (state.written ?? 0) + r.written
     writeMarker(marker)

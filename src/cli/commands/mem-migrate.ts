@@ -4,6 +4,8 @@ export interface MemMigrateArgs {
   json: boolean
   has(k: string): boolean
   out(value: unknown, text: string): void
+  /** A progress line while the memories are copied (stderr); not called for --json. */
+  progress(line: string): void
   usage(message: string): never
 }
 
@@ -64,7 +66,7 @@ export async function memMigrateCommand(a: MemMigrateArgs): Promise<number> {
     a.out(r, r.removed.length > 0 ? `Deleted: ${r.removed.join(', ')}` : 'Nothing to delete: the moved-aside 0.5 files and the copies are already gone.')
     return 0
   }
-  const r = await m.runMigration({ waitMs: 60_000 })
+  const r = await m.runMigration({ waitMs: 60_000, ...(a.json ? {} : { onProgress: a.progress }) })
   a.out(r, reportText(r))
   return 0
 }

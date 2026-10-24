@@ -107,7 +107,7 @@ export function buracleArgv(): string[] | undefined {
   return shimLaunch()
 }
 
-export async function barInfo(h: Harness, o: { nowMs: number, version?: string, memoryUi: { port: number }, lines?: { added: number, removed: number } }): Promise<BarInfo> {
+export async function barInfo(h: Harness, o: { nowMs: number, version?: string, lines?: { added: number, removed: number } }): Promise<BarInfo> {
   const info: BarInfo = { product: { name: 'Buracle', version: buracleVersion() } }
   const version = o.version ?? await harnessVersion(h, o.nowMs).catch(() => undefined)
   const harness: NonNullable<BarInfo['harness']> = { label: HARNESS_LABEL[h] }
@@ -117,8 +117,9 @@ export async function barInfo(h: Harness, o: { nowMs: number, version?: string, 
     if (plan !== undefined) harness.plan = plan
   }
   info.harness = harness
+  // Nothing starts the web UI by itself, so the bar names it only while a server runs (its record names a live process).
   const live = liveMemoryUi()
-  info.memoryUrl = live?.url ?? `http://localhost:${o.memoryUi.port}`
+  if (live !== undefined) info.memoryUrl = live.url
   if (o.lines !== undefined) info.lines = o.lines
   return info
 }

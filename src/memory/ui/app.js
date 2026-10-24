@@ -197,7 +197,10 @@ function setHover(i) {
   updateEmphasis()
 }
 
+let migrationTimer = 0
+
 function showState(kind, info = {}) {
+  clearTimeout(migrationTimer)
   const el = $('state')
   const splash = kind === 'loading' && !state.booted
   if (splash && el.dataset.kind === 'splash' && !el.hidden) return
@@ -211,6 +214,19 @@ function showState(kind, info = {}) {
     const reload = h('button', { type: 'button', class: 'btn' }, t('btn.reload'))
     reload.addEventListener('click', () => location.reload())
     el.replaceChildren(h('div', { class: 'card', role: 'alert' }, h('p', { class: 'state-title' }, icon('alert', 'icon'), t('state.cortexMissing')), h('p', { class: 'state-lead' }, t('state.cortexLead')), h('pre', null, code), reload))
+  } else if (kind === 'migrating' || kind === 'migration_failed') {
+    const failed = kind === 'migration_failed'
+    const retry = h('button', { type: 'button', class: 'btn' }, t('btn.retry'))
+    retry.addEventListener('click', () => { void loadAll() })
+    if (!failed) migrationTimer = setTimeout(() => { void loadAll() }, 3000)
+    el.replaceChildren(h('div', { class: 'card', role: failed ? 'alert' : 'status' },
+      h('p', { class: 'state-title' }, icon(failed ? 'alert' : 'loop', 'icon'), t(failed ? 'state.migrationFailed' : 'state.migrating')),
+      h('p', { class: 'state-lead' }, t(failed ? 'state.migrationFailedLead' : 'state.migratingLead')),
+      h('pre', null, h('code', null, info.fix ?? (failed ? 'buracle mem migrate' : 'buracle mem migrate --status'))),
+      failed && info.message ? h('p', { class: 'state-lead' }, t('state.migrationWhy', { message: info.message })) : null,
+      failed ? h('p', { class: 'state-lead' }, t('state.migrationRollback')) : null,
+      failed ? h('pre', null, h('code', null, 'buracle mem migrate --rollback')) : null,
+      retry))
   } else {
     const retry = h('button', { type: 'button', class: 'btn' }, t('btn.retry'))
     retry.addEventListener('click', () => { void loadAll() })
@@ -226,6 +242,7 @@ function hideState() {
 function apiError(r) {
   if (state.es === null) setLive('offline')
   if (r.status === 503 && r.body?.error === 'cortexdb_missing') showState('cortex', { fix: r.body.fix })
+  else if (r.status === 503 && (r.body?.error === 'migrating' || r.body?.error === 'migration_failed')) showState(r.body.error, { fix: r.body.fix, message: r.body.message })
   else showState(r.status === 404 ? 'unknown' : 'error', { message: r.body?.message ?? (r.status === 0 ? t('state.noServer') : `HTTP ${r.status}`) })
 }
 
@@ -290,6 +307,13 @@ async function loadAll() {
     showState('cortex', { fix: state.overview.store.fix })
     return
   }
+  // While Buracle 0.5's files are being folded into the new brain file (or the move failed), say so instead of showing an empty brain.
+  const move = state.overview.migration
+  if (move?.state === 'running' || move?.state === 'failed') {
+    setLive('offline')
+    showState(move.state === 'running' ? 'migrating' : 'migration_failed', { fix: move.fix, message: move.error })
+    return
+  }
   setScope(pickScope())
 }
 
@@ -322,8 +346,8 @@ function setScope(scope) {
 }
 
 function restLevel(m) {
-  if (m.kind === 'preference' || m.origin === 'explicit' || (m.kind === 'profile' && m.tags.includes('stated'))) return 0.85
-  if (m.kind === 'profile' && m.tags.includes('hypothesis')) return 0.22
+  if (m.kind === 'preference' || m.origin === 'explicit') return 0.85
+  if (m.origin === 'inferred' && typeof m.confidence === 'number' && m.confidence < 0.5) return 0.3
   return 0.5
 }
 
@@ -476,7 +500,8 @@ function memoryCtx(scope) {
     announce,
     memoryChanged: (op) => {
       afterWrite()
-      if (op !== 'delete') void renderPanel(false, true)
+      if (op === 'update') void renderPanel(true, true)
+      else if (op !== 'delete') void renderPanel(false, true)
       else if (!goBack()) closePanel()
     },
   }
@@ -486,6 +511,7 @@ function openPanel(view, arg, opener, scope) {
   const prev = state.panel
   if (view === 'health' && prev?.view !== 'health') state.note = null
   if (view === 'detail' && prev !== null && prev.view !== 'detail') state.stack = [prev]
+  else if (view === 'detail' && prev !== null && (prev.arg !== arg || prev.scope !== (scope ?? state.scope))) state.stack = [...state.stack, prev].slice(-12)
   else if (view !== 'detail') state.stack = []
   if (view === 'region' && (prev === null || prev.view !== 'region' || prev.arg !== arg)) state.filter = 'all'
   state.panel = { view, arg, scope: scope ?? state.scope, opener: prev?.opener ?? opener ?? document.activeElement }

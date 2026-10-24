@@ -177,7 +177,7 @@ Buracle'ın hafızası `~/.buracle/brain` altındaki [CortexDB](https://github.c
 - Oturum bitince tek bir `buracle mem finalize` çalışması oturumun hafıza kaydını yazar, söylediğin tercihleri hiçbir model kullanmadan açık (explicit) kayıtlar olarak dosyalar ve kullandığın harness'ın modeline saklamaya değer kararları, tuzakları ve prosedürleri sorar. Modelin cevabı, bir şey yazılmadan önce bütün olarak denetlenir. Emin olunan bulgular modelin güven puanıyla birlikte çıkarım (inferred) olarak işaretlenmiş hafıza kaydı olur, gerisi dosyalanmayı bekler. Senin bir kaydına (açık, sabitlenmiş ya da doğrulanmış) benzeyen bir bulgu o kaydı asla değiştirmez: yanına, çelişiyor diye işaretlenerek yazılır. Aynı çalışma, yakalaması hâlâ bekleyen en fazla üç eski oturumu da alır.
 - `buracle mem capture` aynı işi istediğin an yapar, `buracle mem doctor` hâlâ bekleyenleri listeler.
 
-Arka planda başka hiçbir şey çalışmaz: zamanlayıcı, açılış işi, onarım ya da temizlik turu yok. Oturumlar ve devir notları kendiliğinden silinir, çünkü CortexDB onları 45 ve 14 gün sonra düşürür. `buracle mem backup` istediğinde beyinleri kopyalar.
+Arka planda başka hiçbir şey çalışmaz: zamanlayıcı, açılış işi, onarım ya da temizlik turu yok. Oturumlar ve devir notları kendiliğinden silinir, çünkü CortexDB onları 45 ve 14 gün sonra düşürür. `buracle mem backup` istediğinde beyin dosyasının tamamını kopyalar.
 
 Model çağrıları zaten kullandığın bir harness'ın CLI'ı üzerinden yapılır, bu yüzden API anahtarı gerekmez. Önce oturumun kendi harness'ı denenir. 5 saatlik kullanımı %75'i ya da haftalık kullanımı %85'i aşan harness atlanır. Arama kelimelerle yapılır ve İngilizce ile Türkçe kelime biçimlerini bilir.
 
@@ -187,12 +187,12 @@ Gizli bilgiler yazılmadan önce maskelenir, `<private>…</private>` blokları 
 
 ![Açılmış bir bölge: kayıtları bir bağlantı ağı olarak çizilmiş, listesi yan panelde](assets/brain-network.png)
 
-`/brain` ya da `buracle mem ui --open` arayüzü `http://localhost:41777` adresinde açar. Arayüz yalnızca bu komutu çalıştırdığında başlar. Bir harness oturumu açık olduktan sonra, sonuncusu kapandıktan 90 saniye sonra kendini kapatır.
+`/brain` ya da `buracle mem ui --open` arayüzü `http://localhost:41777` adresinde açar. Arayüz yalnızca bu komutu çalıştırdığında başlar ve 30 dakika boyunca hiç istek gelmezse kendini kapatır (`BURACLE_UI_IDLE_MS` bunu milisaniye olarak değiştirir). Ctrl-C ve `buracle mem ui --stop` da onu kapatır.
 
 - Beyin görünümü bölgeleri bir beyin olarak çizer ve yazma ile arama anında burada yanar. `/` arama yapar, `1` ile `7` arasındaki tuşlar bir bölgeyi açar, `G` kayıtların, etiketlerin, dosyaların ve kavramların ağını gösterir.
-- Kayıt ayrıntısında metin, etiketler, kaynaklar, geçmiş ve kaydın nereden geldiği görünür. Kaydı buradan devreden çıkarabilir, geri getirebilir ya da silebilirsin.
+- Kayıt ayrıntısında metin, etiketler, kaynaklar, geçmiş, kaydın nereden geldiği (senin sözlerin mi, çıkarım mı, hangi güvenle) ve bağlantılı olduğu kayıtlar görünür. Kaydı buradan düzeltebilir, devreden çıkarabilir, geri getirebilir ya da silebilirsin. Düzeltme senin kendi sözün olarak saklanır.
 - İnceleme sayfası planlarını, geliştirme sözleşmelerini, PRD'lerini ve ajanın diff'ini gösterir. Bir metni seçerek ya da bir satır numarasına tıklayarak ajana not iliştirirsin.
-- Sağlık panelinde (`H`) sorunlar sade bir dille anlatılır. Panel depoyu, dosyalanmayı bekleyen kayıtları, son yakalamayı ve yedekleri gösterir. Back up düğmesi de buradadır.
+- Sağlık panelinde (`H`) sorunlar sade bir dille anlatılır. Panel depoyu ve sürümünü, beyin dosyasını boyutu ve kovalarıyla, Buracle 0.5'ten taşımayı, dosyalanmayı bekleyen kayıtları, son yakalamayı ve yedekleri gösterir. Back up düğmesi de buradadır.
 - Oturumlar ve kullanım panelinde (`W`) dört harness'taki son 30 günün oturumları görünür. Burada yalnızca sayılar tutulur, yazdıkların asla tutulmaz. Panel ayrıca giren commit'leri, güne ve modele göre maliyeti ve token'ları, kurulu skill'leri, ajanları ve kuralları gösterir.
 - Bildirimler (`N`) ile koyu ve açık tema (`T`) da arayüzde yer alır.
 

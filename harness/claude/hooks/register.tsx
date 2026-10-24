@@ -323,8 +323,8 @@ async function memoryUiUrl($: EngineInterface, S: ModState): Promise<string | un
   const rt = await runtime($, S)
   if (rt.buracleHome === '') return undefined
   const raw = await readJson($, `${rt.buracleHome}/state/memory-ui.json`)
-  const url = isObj(raw) ? str(raw['url']) : undefined
-  return url ?? `http://localhost:${rt.cfg.memory.ui.port}`
+  // The web UI starts only when the user runs `buracle mem ui`, so no record means no address to name.
+  return isObj(raw) ? str(raw['url']) : undefined
 }
 
 async function openMemoryUi($: EngineInterface, S: ModState, page: 'brain' | 'review' = 'brain'): Promise<string | undefined> {

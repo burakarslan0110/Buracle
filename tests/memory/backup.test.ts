@@ -4,7 +4,7 @@ import { basename, join } from 'node:path'
 import { main } from '../../src/cli/router'
 import { MemoryError, search, update, write } from '../../src/memory/api'
 import * as paths from '../../src/engine/paths'
-import { backupBrains, backupBuckets, listBackups, restoreBackup, type BackupInfo } from '../../src/memory/backup'
+import { backupBrains, backupBuckets, listBackups, maybeDailyBackup, restoreBackup, type BackupInfo } from '../../src/memory/backup'
 import { CortexError, pidAlive, readerEntries } from '../../src/memory/cortex'
 import { exportBrain, importMemories } from '../../src/memory/export'
 import { removeDeadLocks } from '../../src/memory/housekeeping'
@@ -90,6 +90,21 @@ describe('buracle mem backup and restore', () => {
       expect((await listAll(personRef())).length).toBe(2)
       expect((await search(agentCtx(repo), { query: 'gotcha written after' })).rows.map(x => x.id)).toEqual([later.id])
       expect(((await restoreBackup('nope', { all: true }).catch(e => e)) as Error).message).toContain('not a backup id')
+    })
+  })
+
+  test('the session-end finalizer keeps a daily copy: one when none is newer than a day, none within the day, another after it', async () => {
+    await withBrain(async ({ repo }) => {
+      await write(agentCtx(repo), { type: 'decision', title: 'Daily copies come from the session end', summary: 'no timer', body: '' })
+      const t0 = Date.parse('2026-10-17T10:00:00Z')
+      const first = await maybeDailyBackup(t0)
+      expect(first).toMatchObject({ trigger: 'daily', buckets: { projects: { demo: 1 } } })
+      expect(await maybeDailyBackup(t0 + 23 * 3600_000)).toBeUndefined()
+      const manual = await backupBrains({ all: true }, { nowMs: t0 + 25 * 3600_000 })
+      expect(await maybeDailyBackup(t0 + 26 * 3600_000)).toBeUndefined()
+      const next = await maybeDailyBackup(t0 + 50 * 3600_000)
+      expect(next?.trigger).toBe('daily')
+      expect(listBackups().map(m => m.id)).toEqual([next, manual.manifest, first].map(m => m?.id as string))
     })
   })
 
@@ -312,10 +327,17 @@ describe('buracle mem backup and restore', () => {
   test('the CLI backs up, lists and refuses a restore that does not say what it replaces', async () => {
     await withBrain(async ({ repo }) => {
       await write(agentCtx(repo), { type: 'decision', title: 'The CLI twin of the backup', summary: 'cli', body: '' })
-      const b = await cli(['mem', 'backup', '--cwd', repo, '--project', 'demo', '--json'])
+      // A backup is the whole file: a bucket flag is refused (it would suggest a partial copy), with the way to save one bucket.
+      for (const flag of [['--project', 'demo'], ['--person']]) {
+        const refused = await cli(['mem', 'backup', '--cwd', repo, ...flag])
+        expect(refused.code).toBe(1)
+        expect(refused.err).toContain('a backup holds the whole brain file')
+        expect(refused.err).toContain('buracle mem export --project SLUG')
+      }
+      expect(listBackups()).toEqual([])
+      const b = await cli(['mem', 'backup', '--cwd', repo, '--json'])
       expect(b.code).toBe(0)
       const id = (JSON.parse(b.out) as { manifest: { id: string } }).manifest.id
-      expect((await cli(['mem', 'backup', '--cwd', repo, '--project', 'demo'])).out).toContain('A backup always holds the whole brain file')
       expect((await cli(['mem', 'backup', '--list'])).out).toContain(`${id}  `)
       const bare = await cli(['mem', 'restore', id])
       expect(bare.code).toBe(1)

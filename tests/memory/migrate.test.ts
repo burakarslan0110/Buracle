@@ -404,6 +404,35 @@ describe.skipIf(REAL_CORTEXDB)('buracle mem migrate', () => {
     })
   })
 
+  test('a file with many memories prints how far the copy is on stderr; --json prints none and keeps stdout one JSON document', async () => {
+    const bigPerson = (): void => {
+      const file = join(paths.brainDir(), 'person.db')
+      const db = JSON.parse(readFileSync(file, 'utf8')) as { records: Record<string, Record<string, unknown>> }
+      const first = Object.values(db.records)[0] as Record<string, unknown>
+      for (let n = 0; n < 300; n++) {
+        const id = `preference-bulk-${n}`
+        db.records[id] = { ...first, id, metadata: { ...(first['metadata'] as Record<string, unknown>), title: `Bulk preference ${n}` } }
+      }
+      writeFileSync(file, JSON.stringify(db))
+    }
+    await withBrain(async () => {
+      installLegacyBrain()
+      bigPerson()
+      const r = await cli(['mem', 'migrate'])
+      expect(r.code).toBe(0)
+      expect(r.err).toMatch(/^buracle mem migrate: person\.db -> person: 250 of \d{3} memories$/m)
+      expect(r.out).toContain('Migrated Buracle 0.5')
+    })
+    await withBrain(async () => {
+      installLegacyBrain()
+      bigPerson()
+      const r = await cli(['mem', 'migrate', '--json'])
+      expect(r.code).toBe(0)
+      expect(r.err).toBe('')
+      expect(JSON.parse(r.out)).toMatchObject({ ran: true })
+    })
+  })
+
   test('a fresh install with no 0.5 files has nothing to migrate and creates no brain', async () => {
     await withBrain(async () => {
       const r = await cli(['mem', 'migrate'])

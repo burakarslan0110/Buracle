@@ -1,36 +1,46 @@
 import {
   isLive, isMemId, KIND_INFO, MEM_KINDS, rankHits, regionOf, regionSummaries, REGIONS, searchTerms,
-  type MemItem, type MemKind, type MemRankInput,
+  type MemItem, type MemKind, type MemOrigin, type MemRankInput,
 } from '../../core/memory/brain'
 import { memIsSlug } from '../../core/memory/note'
 import { isPersonRegion, PERSON_REGIONS, personRegionOf, personRegionSummaries } from '../../core/memory/person-brain'
-import { memGraph, type MemGraphRegion } from '../../core/memory/graph'
+import { memGraph, memRelations, type MemGraphRegion, type MemRelations } from '../../core/memory/graph'
 import { memQueryWords } from '../../core/memory/query'
 import { memStemForms } from '../../core/memory/stem'
 import { cortexdbBinary } from '../../engine/toolchain/cortexdb'
 import { CortexError } from '../cortex'
-import { brainDir } from '../layout'
+import { brainDir, migrationLockFile } from '../layout'
+import { lockHeld } from '../lock'
+import { migrationInfo } from '../migrate'
+import { legacyPending } from '../migration-state'
 import { readProjectsCache, slugExclusion } from '../project'
 import { bucketCounts, bucketExists, brainExists, brainSig, getStored, listAll, personRef, projectRef, refKey, type BrainRef } from '../store'
 
 export const CORTEXDB_FIX = 'buracle install'
+export const MIGRATION_STATUS_FIX = 'buracle mem migrate --status'
+export const MIGRATION_FIX = 'buracle mem migrate'
 
 export class UiApiError extends Error {
   readonly status: number
   readonly code: string
   readonly fix?: string
-  constructor(status: number, code: string, message: string, fix?: string) {
+  /** More fields for the body of the answer, e.g. the `version` a stale edit ran into. */
+  readonly data?: Record<string, unknown>
+  constructor(status: number, code: string, message: string, fix?: string, data?: Record<string, unknown>) {
     super(message)
     this.name = 'UiApiError'
     this.status = status
     this.code = code
     if (fix !== undefined) this.fix = fix
+    if (data !== undefined) this.data = data
   }
 }
 
-export function errorPayload(e: unknown): { status: number, body: { error: string, message: string, fix?: string } } {
-  if (e instanceof UiApiError) return { status: e.status, body: { error: e.code, message: e.message, ...(e.fix !== undefined ? { fix: e.fix } : {}) } }
+export function errorPayload(e: unknown): { status: number, body: { error: string, message: string, fix?: string } & Record<string, unknown> } {
+  if (e instanceof UiApiError) return { status: e.status, body: { ...(e.data ?? {}), error: e.code, message: e.message, ...(e.fix !== undefined ? { fix: e.fix } : {}) } }
   if (e instanceof CortexError && e.code === 'not_installed') return { status: 503, body: { error: 'cortexdb_missing', message: 'CortexDB is not installed, so the brain cannot be read.', fix: CORTEXDB_FIX } }
+  if (e instanceof CortexError && e.code === 'migrating') return { status: 503, body: { error: 'migrating', message: e.message, fix: MIGRATION_STATUS_FIX } }
+  if (e instanceof CortexError && e.code === 'migration_failed') return { status: 503, body: { error: 'migration_failed', message: e.message, fix: MIGRATION_FIX } }
   if (e instanceof CortexError) return { status: 502, body: { error: 'cortexdb_failed', message: e.message } }
   return { status: 500, body: { error: 'failed', message: e instanceof Error ? e.message : String(e) } }
 }
@@ -74,7 +84,8 @@ export class BrainCache {
   private readonly terms = new WeakMap<MemItem, string[]>()
 
   async items(ref: BrainRef, nowMs = Date.now()): Promise<MemItem[]> {
-    if (!brainExists()) return []
+    // Buracle 0.5's files that wait to be moved count as a brain: listing them waits for (or runs) the move instead of reporting nothing.
+    if (!brainExists() && !legacyPending()) return []
     const key = refKey(ref)
     const sig = brainSig()
     const hit = this.entries.get(key)
@@ -88,6 +99,11 @@ export class BrainCache {
     return p
   }
 
+  /** Drops what was read: the next read lists the brain again. A write of this server calls it, so the next read always shows the change. */
+  forget(): void {
+    this.entries.clear()
+  }
+
   termsOf(i: MemItem): string[] {
     let t = this.terms.get(i)
     if (t === undefined) {
@@ -98,13 +114,23 @@ export class BrainCache {
   }
 }
 
+export interface UiMemoryScope {
+  layer: MemItem['layer']
+  /** The project slug; absent for the person brain. */
+  project?: string
+  /** `person` or `project:<slug>`: the value the API takes as `scope`. */
+  key: string
+}
+
 export interface UiBrief {
   id: string
+  scope: UiMemoryScope
   kind: MemKind
   region: MemGraphRegion
   title: string
   summary: string
   tags: string[]
+  sources: string[]
   importance: number
   review: 'pending' | 'ok'
   unverified: boolean
@@ -112,30 +138,36 @@ export interface UiBrief {
   created: string
   updated: string
   author: MemItem['author']
+  version: number
+  history: MemItem['history']
+  /** Who the claim is from; null for a memory written before Buracle recorded it. */
+  origin: MemOrigin | null
+  confidence: number | null
+  /** True while the memory is marked as contradicting a protected one (see `contradictedNote` in the detail). */
+  contradicts: boolean
   pinned?: boolean
   recallCount?: number
   lastRecalledAt?: string
-  origin?: MemItem['origin']
-  confidence?: number
-  contradicts?: boolean
 }
 
 export function regionFor(scope: Pick<UiScope, 'kind'>): (i: Pick<MemItem, 'kind' | 'title' | 'summary' | 'tags'>) => MemGraphRegion {
   return scope.kind === 'person' ? personRegionOf : (i) => regionOf(i.kind)
 }
 
-function brief(i: MemItem, region: (i: MemItem) => MemGraphRegion = (x) => regionOf(x.kind)): UiBrief {
+function scopeOfItem(scope: UiScope): UiMemoryScope {
+  return scope.kind === 'person' ? { layer: 'person', key: 'person' } : { layer: 'project', project: scope.slug, key: scope.key }
+}
+
+function brief(i: MemItem, scope: UiScope): UiBrief {
   const b: UiBrief = {
-    id: i.id, kind: i.kind, region: region(i), title: i.title, summary: i.summary, tags: i.tags, importance: i.importance,
-    review: i.review, unverified: i.review === 'pending' && !KIND_INFO[i.kind].generated, status: i.status,
-    created: i.created, updated: i.updated, author: i.author,
+    id: i.id, scope: scopeOfItem(scope), kind: i.kind, region: regionFor(scope)(i), title: i.title, summary: i.summary, tags: i.tags, sources: i.sources,
+    importance: i.importance, review: i.review, unverified: i.review === 'pending' && !KIND_INFO[i.kind].generated, status: i.status,
+    created: i.created, updated: i.updated, author: i.author, version: i.version, history: i.history,
+    origin: i.origin ?? null, confidence: i.confidence ?? null, contradicts: i.contradictedAt !== undefined,
   }
   if (i.pinned === true) b.pinned = true
   if (i.recallCount !== undefined) b.recallCount = i.recallCount
   if (i.lastRecalledAt !== undefined) b.lastRecalledAt = i.lastRecalledAt
-  if (i.origin !== undefined) b.origin = i.origin
-  if (i.confidence !== undefined) b.confidence = i.confidence
-  if (i.contradictedAt !== undefined) b.contradicts = true
   return b
 }
 
@@ -194,6 +226,20 @@ async function pool<T, R>(list: readonly T[], n: number, fn: (x: T) => Promise<R
   return out
 }
 
+/** Where the move from Buracle 0.5's per-layer files stands, for the banner that replaces an empty brain while it runs or has failed. */
+export function migrationSummary(): { state: string, legacy: number, keptLegacy: boolean, startedAt?: string, finishedAt?: string, error?: string, fix?: string } {
+  const m = migrationInfo()
+  // Files wait and another process holds the migration lock: the move is under way there, whatever its marker says yet.
+  const state = m.state === 'pending' && lockHeld(migrationLockFile(), 60_000) ? 'running' : m.state
+  return {
+    state, legacy: m.legacy.length, keptLegacy: m.keptLegacy,
+    ...(m.marker?.startedAt !== undefined ? { startedAt: m.marker.startedAt } : {}),
+    ...(m.marker?.finishedAt !== undefined ? { finishedAt: m.marker.finishedAt } : {}),
+    ...(state === 'failed' && m.marker?.error !== undefined ? { error: m.marker.error } : {}),
+    ...(state === 'failed' ? { fix: MIGRATION_FIX } : state === 'running' ? { fix: MIGRATION_STATUS_FIX } : {}),
+  }
+}
+
 export async function overview(cache: BrainCache, nowMs: number): Promise<Record<string, unknown>> {
   const bin = cortexdbBinary()
   const known = await knownProjects()
@@ -209,6 +255,7 @@ export async function overview(cache: BrainCache, nowMs: number): Promise<Record
   return {
     now: new Date(nowMs).toISOString(),
     store: { engine: 'cortexdb', installed: bin !== undefined, ...(bin !== undefined ? { version: bin.version } : {}), brain: brainDir(), fix: CORTEXDB_FIX },
+    migration: migrationSummary(),
     regions: REGIONS.map(r => ({ id: r.id, label: r.label, area: r.area, kinds: r.kinds })),
     kinds: Object.fromEntries(MEM_KINDS.map(k => [k, regionOf(k)])),
     person,
@@ -216,19 +263,34 @@ export async function overview(cache: BrainCache, nowMs: number): Promise<Record
   }
 }
 
+function originCounts(scope: UiScope, items: readonly MemItem[], nowMs: number): Map<string, { explicit: number, inferred: number }> {
+  const region = regionFor(scope)
+  const out = new Map<string, { explicit: number, inferred: number }>()
+  for (const i of items) {
+    if (!isLive(i, nowMs) || i.origin === undefined) continue
+    const r = region(i)
+    const c = out.get(r) ?? { explicit: 0, inferred: 0 }
+    c[i.origin]++
+    out.set(r, c)
+  }
+  return out
+}
+
 export async function brainOf(cache: BrainCache, scope: UiScope, nowMs: number): Promise<Record<string, unknown>> {
   const items = await cache.items(scope.ref, nowMs)
   const live = items.filter(i => isLive(i, nowMs)).sort(byWeight)
+  const origins = originCounts(scope, items, nowMs)
+  const originOf = (id: string) => ({ explicit: origins.get(id)?.explicit ?? 0, inferred: origins.get(id)?.inferred ?? 0 })
   const regions = scope.kind === 'person'
     ? personRegionSummaries(items, nowMs).map(s => {
       const r = PERSON_REGIONS.find(x => x.id === s.region)
-      return { id: s.region, label: r?.label ?? s.region, area: r?.area ?? '', categories: r?.categories ?? [], count: s.count, groups: s.groups, topTags: s.topTags, hypotheses: s.hypotheses, stated: s.stated }
+      return { id: s.region, label: r?.label ?? s.region, area: r?.area ?? '', categories: r?.categories ?? [], count: s.count, groups: s.groups, topTags: s.topTags, ...originOf(s.region) }
     })
     : (() => {
       const summaries = regionSummaries(items, nowMs)
       return REGIONS.map(r => {
         const s = summaries.find(x => x.region === r.id)
-        return { id: r.id, label: r.label, area: r.area, kinds: r.kinds, count: s?.count ?? 0, groups: s?.groups ?? 0, topTags: s?.topTags ?? [] }
+        return { id: r.id, label: r.label, area: r.area, kinds: r.kinds, count: s?.count ?? 0, groups: s?.groups ?? 0, topTags: s?.topTags ?? [], ...originOf(r.id) }
       })
     })()
   const out: Record<string, unknown> = {
@@ -238,7 +300,7 @@ export async function brainOf(cache: BrainCache, scope: UiScope, nowMs: number):
     exists: await bucketExists(scope.ref).catch(() => false),
     now: new Date(nowMs).toISOString(),
     regions,
-    items: live.map(i => brief(i, regionFor(scope))),
+    items: live.map(i => brief(i, scope)),
     retired: items.length - live.length,
   }
   if (scope.kind === 'project') out['project'] = scope.slug
@@ -247,29 +309,36 @@ export async function brainOf(cache: BrainCache, scope: UiScope, nowMs: number):
   return out
 }
 
-export async function memoryOf(scope: UiScope, id: string | null): Promise<Record<string, unknown>> {
+export interface UiMemory extends UiBrief {
+  layer: MemItem['layer']
+  body: string
+  about: string[]
+  provenance: Record<string, string | number>
+  contradictedAt?: string
+  contradictedNote?: string
+  relations: MemRelations
+}
+
+const PROVENANCE_KEYS: ReadonlyArray<keyof MemItem> = ['harness', 'model', 'session', 'branch', 'commit', 'verifiedAt', 'verifiedBy', 'verifiedCommit', 'importedFrom', 'expires', 'supersededBy', 'supersededAt', 'deprecatedAt', 'origin']
+
+/** One memory in full: the brief, the body, where it came from and how it is linked to the rest of its brain. */
+export async function memoryOf(cache: BrainCache, scope: UiScope, id: string | null, nowMs: number): Promise<UiMemory> {
   if (!isMemId(id)) throw new UiApiError(400, 'bad_id', 'id must be a memory id (lowercase letters, digits and dashes)')
   const got = await getStored(scope.ref, id)
   if (got === undefined) throw new UiApiError(404, 'not_found', `there is no memory ${id} in this brain`)
   const i = got.item
   const provenance: Record<string, string | number> = { version: i.version }
-  const keys: Array<keyof MemItem> = ['harness', 'model', 'session', 'branch', 'commit', 'verifiedAt', 'verifiedBy', 'verifiedCommit', 'importedFrom', 'expires', 'supersededBy', 'supersededAt', 'deprecatedAt', 'origin']
-  for (const k of keys) {
+  for (const k of PROVENANCE_KEYS) {
     const v = i[k]
     if (typeof v === 'string' && v !== '') provenance[k] = v
   }
   if (i.confidence !== undefined) provenance['confidence'] = i.confidence
-  const out: Record<string, unknown> = {
-    scope: scope.key,
-    ...brief(i, regionFor(scope)),
-    layer: i.layer,
-    body: i.body,
-    sources: i.sources,
-    about: i.about,
-    history: i.history,
-    provenance,
-  }
-  if (i.contradictedNote !== undefined) out['contradictedNote'] = i.contradictedNote
+  // The links are read from the whole bucket, with the memory itself as it was just stored.
+  const all = await cache.items(scope.ref, nowMs)
+  const relations = memRelations([i, ...all.filter(x => x.id !== i.id)], i.id, nowMs) as MemRelations
+  const out: UiMemory = { ...brief(i, scope), layer: i.layer, body: i.body, about: i.about, provenance, relations }
+  if (i.contradictedAt !== undefined) out.contradictedAt = i.contradictedAt
+  if (i.contradictedNote !== undefined) out.contradictedNote = i.contradictedNote
   return out
 }
 
@@ -291,7 +360,7 @@ export async function searchOf(cache: BrainCache, scope: UiScope, rawQuery: stri
   }
   matched.sort((a, b) => b.hits - a.hits)
   const ranked = rankHits(q, matched.map((m, rank): MemRankInput => ({ item: m.item, rank })))
-  return { scope: scope.key, q, items: ranked.slice(0, limit).map(i => brief(i, regionFor(scope))) }
+  return { scope: scope.key, q, items: ranked.slice(0, limit).map(i => brief(i, scope)) }
 }
 
 export async function graphOf(cache: BrainCache, scope: UiScope, region: string | null, nowMs: number): Promise<Record<string, unknown>> {
@@ -299,5 +368,5 @@ export async function graphOf(cache: BrainCache, scope: UiScope, region: string 
   const r = region === null || region === '' ? undefined : (scope.kind === 'person' ? (isPersonRegion(region) ? region : undefined) : REGIONS.find(x => x.id === region)?.id)
   if (r === undefined && region !== null && region !== '') throw new UiApiError(400, 'bad_region', `region must be one of ${ids.join(', ')}, or empty for the whole brain`)
   const items = await cache.items(scope.ref, nowMs)
-  return { scope: scope.key, ...memGraph(items, { nowMs, regionOf: regionFor(scope), ...(r !== undefined ? { region: r } : {}) }) }
+  return { scope: scope.key, ...memGraph(items, { nowMs, regionOf: regionFor(scope), includeRetired: true, ...(r !== undefined ? { region: r } : {}) }) }
 }

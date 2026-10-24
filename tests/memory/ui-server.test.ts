@@ -4,10 +4,11 @@ import { dirname, join } from 'node:path'
 import * as bar from '../../src/usage/bar-info'
 import { brainDir } from '../../src/memory/layout'
 import { writeSessionRecord } from '../../src/memory/session-record'
-import { clearUiRecord, probeUi, readUiRecord, serveUi, stopUi, type UiRecord, type UiStopReason } from '../../src/memory/ui'
+import { clearUiRecord, probeUi, readUiRecord, serveUi, stopUi, type UiRecord } from '../../src/memory/ui'
+import { readerEntries } from '../../src/memory/cortex'
 import { sameUiBuild, uiBuildId } from '../../src/memory/ui-build'
 import * as paths from '../../src/engine/paths'
-import { withEnv, withSandbox } from '../helpers/sandbox'
+import { withSandbox } from '../helpers/sandbox'
 
 const REPO = join(import.meta.dir, '..', '..')
 const MAIN = join(REPO, 'src', 'cli', 'main.ts')
@@ -99,7 +100,7 @@ function startDriver(root: string): string {
     "const bar = await import(barInfoModule)",
     "const start = await import(startModule)",
     "const cfg = loadConfigSync().config",
-    "await bar.barInfo('claude', { nowMs: Date.now(), version: '1', memoryUi: { port: cfg.memory.ui.port } })",
+    "await bar.barInfo('claude', { nowMs: Date.now(), version: '1' })",
     "await start.prepareWorkspace(cwd, cfg, Date.now())",
   ].join('\n') + '\n')
   return driver
@@ -179,69 +180,82 @@ describe('the UI build identity', () => {
   }))
 })
 
-describe('the server closes with the harnesses', () => {
-  const fast = { idleEveryMs: 30, stopAfterMs: 150 }
-
-  test('once the session it saw open ends, it waits stopAfterMs, clears its record and stops', () => withSandbox(() => withEnv({ BURACLE_NO_CAPTURE: undefined }, async () => {
-    session('active')
-    const stops: UiStopReason[] = []
-    const { server, record } = serveUi({ port: freePort(), version: '9.9.9', ...fast, onStop: why => stops.push(why) })
-    try {
-      await Bun.sleep(400)
-      expect((await fetch(`${record.url}/healthz`)).status).toBe(200)
-      expect(stops).toEqual([])
-      session('ended')
-      await Bun.sleep(80)
-      expect((await fetch(`${record.url}/healthz`)).status).toBe(200)
-      await waitFor('the server to stop', () => stops.length > 0, 5_000)
-      expect(stops).toEqual(['no-sessions'])
-      await expect(fetch(`${record.url}/healthz`)).rejects.toBeDefined()
-      expect(readUiRecord()).toBeUndefined()
-    } finally { server.stop(true); clearUiRecord() }
-  })))
-
-  test('a session opened after the start counts too, and a stopped server never writes its record again', () => withSandbox(() => withEnv({ BURACLE_NO_CAPTURE: undefined }, async () => {
-    const stops: UiStopReason[] = []
-    const { server, record } = serveUi({ port: freePort(), version: '9.9.9', ...fast, onStop: why => stops.push(why) })
-    try {
-      await Bun.sleep(400)
-      expect((await fetch(`${record.url}/healthz`)).status).toBe(200)
-      session('active')
-      await Bun.sleep(100)
-      session('ended')
-      await waitFor('the server to stop', () => stops.length > 0, 5_000)
-      expect(stops).toEqual(['no-sessions'])
-      expect(readUiRecord()).toBeUndefined()
-      await Bun.sleep(100)
-      expect(readUiRecord()).toBeUndefined()
-    } finally { server.stop(true); clearUiRecord() }
-  })))
-
-  test('`mem ui --serve` stays up while no harness session was ever open and exits by itself, with its record cleared, once a session it saw open has ended (BURACLE_UI_STOP_AFTER_MS)', () => withSandbox(async ({ buracleHome }) => {
+describe('the server closes by itself', () => {
+  test('`mem ui --serve` exits once no request came for BURACLE_UI_IDLE_MS: its record is cleared and no CortexDB reader outlives it', () => withSandbox(async ({ root, buracleHome }) => {
     const port = freePort()
     uiConfig(buracleHome, port)
-    const env = captureEnv({ BURACLE_UI_STOP_AFTER_MS: '600' })
-    const serve = (args: string[]) => Bun.spawn(['bun', MAIN, 'mem', 'ui', '--serve', ...args], { cwd: REPO, env, stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' })
-    const started = async (proc: ReturnType<typeof Bun.spawn>): Promise<UiRecord> => {
-      await waitFor('the server', async () => { const r = readUiRecord(); return r !== undefined && r.pid === proc.pid && await probeUi(r.url) !== undefined })
-      return readUiRecord() as UiRecord
-    }
-    const exited = (proc: ReturnType<typeof Bun.spawn>) => Promise.race([proc.exited.then(() => true), Bun.sleep(15_000).then(() => false)])
-    const c = serve([])
+    const repo = join(root, 'shop')
+    mkdirSync(repo, { recursive: true })
+    expect((await cli(['mem', 'write', '--type', 'preference', '--layer', 'person', '--title', 'Keep answers short', '--summary', 's', '--json', '--cwd', repo])).code).toBe(0)
+    const env = captureEnv({ BURACLE_UI_IDLE_MS: '1500' })
+    const proc = Bun.spawn(['bun', MAIN, 'mem', 'ui', '--serve'], { cwd: REPO, env, stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' })
     try {
-      const recC = await started(c)
-      await Bun.sleep(1500)
-      expect(await probeUi(recC.url)).toMatchObject({ pid: c.pid })
-      session('active')
-      await Bun.sleep(300)
-      session('ended')
-      expect(await exited(c)).toBe(true)
+      await waitFor('the server', async () => { const r = readUiRecord(); return r !== undefined && r.pid === proc.pid && await probeUi(r.url) !== undefined })
+      const rec = readUiRecord() as UiRecord
+      // The page reads the brain: a CortexDB reader (a child of the server) starts.
+      expect((await fetch(`${rec.url}/api/brain?scope=person`)).status).toBe(200)
+      const readers = readerEntries()
+      expect(readers).toHaveLength(1)
+      expect(readers[0]?.entry.pid).toBe(proc.pid)
+      const reader = readers[0]?.entry.child as number
+      expect(alive(reader)).toBe(true)
+      // A request restarts the quiet time.
+      await Bun.sleep(1000)
+      expect((await fetch(`${rec.url}/healthz`)).status).toBe(200)
+      await Bun.sleep(1000)
+      expect(alive(proc.pid)).toBe(true)
+      const exited = await Promise.race([proc.exited.then(() => true), Bun.sleep(20_000).then(() => false)])
+      expect(exited).toBe(true)
       expect(readUiRecord()).toBeUndefined()
+      await waitFor('the reader to end', () => !alive(reader), 10_000)
+      expect(readerEntries()).toEqual([])
     } finally {
-      try { c.kill() } catch {  }
+      try { proc.kill() } catch {  }
       await stopRecorded()
     }
   }), 90_000)
+
+  test('`mem ui --stop` (a SIGTERM) closes the readers too', () => withSandbox(async ({ root, buracleHome }) => {
+    const port = freePort()
+    uiConfig(buracleHome, port)
+    const repo = join(root, 'shop')
+    mkdirSync(repo, { recursive: true })
+    expect((await cli(['mem', 'write', '--type', 'preference', '--layer', 'person', '--title', 'Keep answers short', '--summary', 's', '--json', '--cwd', repo])).code).toBe(0)
+    try {
+      expect(JSON.parse((await cli(['mem', 'ui', '--json'])).stdout)).toMatchObject({ started: true })
+      const rec = readUiRecord() as UiRecord
+      expect((await fetch(`${rec.url}/api/brain?scope=person`)).status).toBe(200)
+      const reader = readerEntries()[0]?.entry.child as number
+      expect(alive(reader)).toBe(true)
+      expect(JSON.parse((await cli(['mem', 'ui', '--stop', '--json'])).stdout)).toEqual({ stopped: true })
+      expect(alive(rec.pid)).toBe(false)
+      await waitFor('the reader to end', () => !alive(reader), 10_000)
+      expect(readUiRecord()).toBeUndefined()
+      expect(readerEntries()).toEqual([])
+    } finally {
+      await stopRecorded()
+    }
+  }), 90_000)
+})
+
+describe('the status line names the web UI only while it runs', () => {
+  test('no record, a dead process or a stopped server: no address; a running one: its address', () => withSandbox(async () => {
+    const at = Date.now()
+    const memoryUrl = async () => (await bar.barInfo('claude', { nowMs: at, version: '1' })).memoryUrl
+    expect(await memoryUrl()).toBeUndefined()
+
+    const record = (pid: number): UiRecord => ({ v: 1, pid, port: 41999, host: '127.0.0.1', url: 'http://127.0.0.1:41999', startedAt: new Date().toISOString(), version: '1', brain: '' })
+    const dead = Bun.spawn(['bun', '-e', '0'], { env: childEnv(), stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' })
+    await dead.exited
+    write(paths.memoryUiStateFile(), JSON.stringify(record(dead.pid)) + '\n')
+    expect(await memoryUrl()).toBeUndefined()
+
+    const served = serveUi({ port: freePort(), version: '9.9.9' })
+    try {
+      expect(await memoryUrl()).toBe(served.record.url)
+    } finally { await served.stop() }
+    expect(await memoryUrl()).toBeUndefined()
+  }))
 })
 
 describe('replacing a server of another build', () => {

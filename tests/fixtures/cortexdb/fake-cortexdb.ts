@@ -114,6 +114,8 @@ function call(name: string, a: Record<string, unknown>): unknown {
       for (const s of sup) if (db.records[s] === undefined || !live(db.records[s] as Rec)) throw new ToolError(`supersedes: memory ${s} not found`)
       const review = typeof a['review_status'] === 'string' && a['review_status'] !== '' ? a['review_status'] : undefined
       if (review !== undefined && !REVIEW.includes(review)) throw new ToolError(`review_status must be proposed, accepted or rejected, got "${review}"`)
+      // The real engine (2.139.0) refuses an accepted or rejected memory that does not say who reviewed it.
+      if ((review === 'accepted' || review === 'rejected') && (typeof a['reviewed_by'] !== 'string' || a['reviewed_by'] === '')) throw new ToolError(`review_status=${review} needs reviewed_by: a decision names who made it`)
       const entities = Array.isArray(a['entities']) ? (a['entities'] as Array<{ name?: unknown }>).map(e => String(e.name ?? '')).filter(n => n !== '') : []
       const relations = Array.isArray(a['relations']) ? a['relations'] as Array<{ from: string, to: string }> : []
       if ((entities.length > 0 || relations.length > 0) && process.env['FAKE_CORTEXDB_REJECT_GRAPH'] === '1') throw new ToolError('save memory relations: no relation could be written (injected)')

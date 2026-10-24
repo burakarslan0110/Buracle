@@ -43,7 +43,7 @@ describe('the person brain regions', () => {
     expect(personRegionOfKind('preference')).toBeUndefined()
   })
 
-  test('the summaries count live memories, stated rules and hypotheses, and skip bookkeeping tags', () => {
+  test('the summaries count live memories and skip bookkeeping tags', () => {
     const items = [
       item({ id: 'a', kind: 'profile', title: 'Writes in Turkish', tags: ['communication', 'stated', 'rank-1'] }),
       item({ id: 'b', kind: 'profile', title: 'Maybe terse', tags: ['communication', 'hypothesis', 'rank-5'] }),
@@ -53,7 +53,7 @@ describe('the person brain regions', () => {
     ]
     const s = personRegionSummaries(items, NOW)
     expect(s.map(r => r.region)).toEqual([...PERSON_REGION_IDS])
-    expect(s[0]).toEqual({ region: 'communication', count: 3, groups: 1, topTags: ['tone'], hypotheses: 1, stated: 2 })
+    expect(s[0]).toEqual({ region: 'communication', count: 3, groups: 1, topTags: ['tone'] })
     expect(s.find(r => r.region === 'lessons')).toMatchObject({ count: 1, topTags: ['bun'] })
     expect(s.find(r => r.region === 'inbox')?.count).toBe(0)
   })

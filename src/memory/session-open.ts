@@ -50,10 +50,6 @@ export function openSessions(nowMs: number, max = Number.POSITIVE_INFINITY): Arr
   return out
 }
 
-export function anySessionOpen(nowMs: number): boolean {
-  return openSessions(nowMs, 1).length > 0
-}
-
 /** The newest session record, optionally of one project or one harness. */
 export function latestSessionRecord(slug?: string, h?: Harness): SessionRecord | undefined {
   let names: string[] = []

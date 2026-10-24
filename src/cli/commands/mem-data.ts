@@ -39,6 +39,9 @@ export async function memDataCommand(sub: 'backup' | 'restore' | 'export' | 'imp
       a.out({ backups: list }, list.length === 0 ? 'No backups yet: `buracle mem backup` takes one.' : list.map(m => `${m.id}  ${m.at.slice(0, 16).replace('T', ' ')}  ${m.trigger}  ${b.backupBuckets(m).join(', ')}  (${size(b.backupBytes(m))})${m.v === 1 ? '  [Buracle 0.5: restores bucket by bucket]' : ''}`).join('\n'))
       return 0
     }
+    if (a.project() !== undefined || a.has('person')) {
+      a.usage('a backup holds the whole brain file (every bucket), so --project and --person do not apply to it: save one bucket with `buracle mem export --project SLUG` (or --person); --project, --person and --all choose what `buracle mem restore` takes out of a backup')
+    }
     const keep = a.int('keep')
     if (keep !== undefined && (keep < 1 || keep > 100)) a.usage('--keep must be between 1 and 100')
     const r = await b.backupBrains({ all: true }, { trigger: 'manual', keep: keep ?? BACKUP_BUDGET.keep })
@@ -46,7 +49,6 @@ export async function memDataCommand(sub: 'backup' | 'restore' | 'export' | 'imp
     const m = r.manifest
     a.out(r, [
       `Backup ${m.id}: the whole brain (${b.backupBuckets(m).join(', ') || 'empty'}; ${size(m.file.bytes)}) in ${r.dir ?? ''}`,
-      ...(a.project() !== undefined || a.has('person') ? ['A backup always holds the whole brain file; --project and --person only choose what a restore takes out of it.'] : []),
       ...(r.pruned.length > 0 ? [`removed older backups: ${r.pruned.join(', ')}`] : []),
       `Restore with: buracle mem restore ${m.id} (--project SLUG | --person | --all)`,
     ].join('\n'))

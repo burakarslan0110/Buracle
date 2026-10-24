@@ -1,13 +1,33 @@
 import { regionSummaries, REGIONS, type MemItem } from '../core/memory/brain'
 import { memAge, memReasonAdvice, type MemoryStatus } from '../core/memory/status'
+import { statSync } from 'node:fs'
 import { cortexdbBinary } from '../engine/toolchain/cortexdb'
+import { tilde } from '../engine/update/output'
 import { currentProject, type MemoryCtx } from './api'
+import { brainDbFile } from './layout'
+import { migrationStatus } from './migrate'
 import { memoryExcludeConfig, memoryExcludeProblemText, projectExclusion } from './project'
 import { computeStatus, writeStatus } from './status'
-import { listAll, personRef, projectRef } from './store'
+import { brainExists, listAll, personRef, projectRef } from './store'
+
+/** The one brain file: where it is, how big, and how many memories each bucket holds (retired ones included). */
+export interface BrainFileInfo { file: string, bytes: number, person: number, projects: Record<string, number> }
+
+export async function brainFileInfo(): Promise<BrainFileInfo | undefined> {
+  if (!brainExists()) return undefined
+  let bytes = 0
+  try { bytes = statSync(brainDbFile()).size } catch {  }
+  const s = await migrationStatus()
+  return { file: tilde(brainDbFile()), bytes, person: s.brain.person, projects: s.brain.projects }
+}
+
+function sizeText(bytes: number): string {
+  return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
 
 export interface StatusReport {
   status: MemoryStatus
+  brain?: BrainFileInfo
   project?: string
   excluded?: string
   excludeProblem?: string
@@ -42,6 +62,11 @@ export async function memoryStatusReport(ctx: MemoryCtx, opts: { nowMs?: number 
   lines.push(slug !== undefined ? `Project ${slug}: ${status.counts.project} live memories · person: ${status.counts.person}`
     : excluded !== undefined ? `Project memory off here (${excluded}) · person: ${status.counts.person} live memories`
     : `No project here · person: ${status.counts.person} live memories`)
+  const brain = await brainFileInfo().catch(() => undefined)
+  if (brain !== undefined) {
+    const buckets = [`person ${brain.person}`, ...Object.entries(brain.projects).map(([k, n]) => `${k} ${n}`)]
+    lines.push(`Brain file: ${brain.file} (${sizeText(brain.bytes)}), one CortexDB file with a bucket per project and one for the person: ${buckets.join(' · ')} memories kept (retired ones included)`)
+  } else lines.push(`Brain file: none yet (${tilde(brainDbFile())} appears with the first memory)`)
   const regionLine = (list: ReturnType<typeof regionSummaries>) => list.filter(r => r.count > 0).map(r => `${REGIONS.find(x => x.id === r.region)?.label ?? r.region} ${r.count}`).join(' · ')
   if (slug !== undefined && regionLine(regions.project) !== '') lines.push(`  project regions: ${regionLine(regions.project)}`)
   if (regionLine(regions.person) !== '') lines.push(`  person regions: ${regionLine(regions.person)}`)
@@ -50,5 +75,5 @@ export async function memoryStatusReport(ctx: MemoryCtx, opts: { nowMs?: number 
     ? `Last capture: ${memAge(now - Date.parse(status.last_capture.at))} ago (${status.last_capture.saved} saved, by ${status.last_capture.by}); \`buracle mem capture\` runs one now`
     : 'Last capture: none yet; a session end captures what it learned, `buracle mem capture` does it on demand')
   if (status.captures > 0) lines.push(`Inbox: ${status.captures} capture${status.captures === 1 ? '' : 's'} wait to be filed (memory_update with move: {kind, layer})`)
-  return { status, ...(slug !== undefined ? { project: slug } : {}), ...(excluded !== undefined ? { excluded } : {}), ...(excludeProblem !== undefined ? { excludeProblem } : {}), regions, text: lines.join('\n') }
+  return { status, ...(brain !== undefined ? { brain } : {}), ...(slug !== undefined ? { project: slug } : {}), ...(excluded !== undefined ? { excluded } : {}), ...(excludeProblem !== undefined ? { excludeProblem } : {}), regions, text: lines.join('\n') }
 }

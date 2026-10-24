@@ -189,6 +189,9 @@ describe('commands', () => {
     expect(text).toContain('workflow band: on')
     expect(text).toContain('/brain')
     expect(/[çğıöşüÇĞİÖŞÜ]/.test(text)).toBe(false)
+    // Nothing started the web UI and its record is absent: neither view names an address that leads nowhere.
+    expect(text).not.toContain('memory UI:')
+    expect((await $.command.run(command('buracle-status', 'memory'))).text ?? '').not.toContain('web UI:')
     expect((await $.command.run(command('buracle-status', 'nonsense'))).text).toBe('Usage: /buracle-status [status|memory|plan|flow]')
     expect((await $.command.run(command('buracle-status', 'flow'))).text).toBe('No workflow is running.')
   })

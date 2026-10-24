@@ -21,8 +21,10 @@ Memories (CLI twins of the MCP tools)
   search ["<query>"] [--layer project|person|all] [--type K]… [--status live|any] [--since D] [--until D] [--limit N]
          [--file PATH]… [--tag T]… [--about A]… [--offset N] [--around ID [--depth N]]
                                              a filter works without a query: --file lists the memories that
-                                             cite a file or a folder (path relative to the root); --offset
-                                             pages on; --around lists what was recorded before and after ID
+                                             cite a file or a folder (path relative to the root); --about
+                                             names a topic and also follows the graph from it (memories linked
+                                             to the topic rank first); --offset pages on; --around lists what
+                                             was recorded before and after ID
   get ID…                                    up to 5 memories in full (person/<id> picks the person layer)
   write --type K --title "…" --summary "…" [--body "…" | --body-file F | stdin] [--layer project|person]
         [--source S]… [--tag T]… [--about A]… [--supersedes ID]… [--importance 1-5] [--pin] [--force] [--review ok]
@@ -35,7 +37,8 @@ Memories (CLI twins of the MCP tools)
                                              pinned or (for retiring and replacing) verified memory
   remember "<text>"                          a capture to file later (memory_update with move: {kind, layer})
   status [--project SLUG] [--style compact|wide] [--refresh]
-                                             the store, the counts per brain region, the last write and the last capture
+                                             the store, the brain file with its buckets, the counts per brain
+                                             region, the last write and the last capture
   context [--cwd DIR]                        the session-start memory text (--json: {"text": …})
 
 Capture (the model-assisted writing, on demand)
@@ -50,8 +53,9 @@ Capture (the model-assisted writing, on demand)
                                              failed, rate-limited or invalid model answer writes nothing.
 
 Backups and moving a brain (the brain stays on this machine; nothing is synced)
-  backup [--keep N]                          copy brain.db into ~/.buracle/brain/backups/<id>/ and keep the
-                                             newest 10 copies (--keep N)
+  backup [--keep N]                          copy brain.db (every bucket: a backup is always the whole file, so
+                                             --project and --person are refused; \`export\` saves one bucket)
+                                             into ~/.buracle/brain/backups/<id>/ and keep the newest 10 copies
   backup --list                              the backups, newest first, with the buckets each holds
   restore ID (--project SLUG | --person | --all)
                                              --all puts the whole brain file back (the running CortexDB
@@ -62,7 +66,8 @@ Backups and moving a brain (the brain stays on this machine; nothing is synced)
   migrate [--status | --dry-run | --rollback [--force] | --purge-legacy]
                                              fold the per-layer files of Buracle 0.5 (person.db, projects/)
                                              into brain.db: verified copies first, nothing deleted, safe to
-                                             run again. It also runs by itself at the first memory call.
+                                             run again. It also runs by itself at the first memory call. A large
+                                             file shows how far the copy is on stderr (not with --json).
                                              --rollback puts the 0.5 files back (brain.db is kept as
                                              brain.db.rolled-back unless --force); --purge-legacy deletes the
                                              moved-aside files and the copies
@@ -81,12 +86,13 @@ Backups and moving a brain (the brain stays on this machine; nothing is synced)
                                              (--json: {"checks":[{level,check,detail}]}; exit 1 errors, 2 warnings)
   ui [--open] [--port N] [--stop]            the brain web UI (http://localhost:41777): starts it in the
                                              background when it does not run, prints its address; it only
-                                             starts when you run this command
+                                             starts when you run this command, and it stops by itself after
+                                             30 minutes without a request (BURACLE_UI_IDLE_MS, in milliseconds)
   ui --page review [--open]                  the review page of the same UI: the plans, build contracts
                                              and PRDs of your projects and the agent's changes, where you
                                              pin notes the agent reads (buracle plan notes)
-  ui --serve [--port N]                      run the web UI in the foreground; once a harness session has
-                                             been open, it stops by itself when none has been for a while
+  ui --serve [--port N]                      run the web UI in the foreground (Ctrl-C stops it; it stops by
+                                             itself after the same idle time)
 
 Sessions (called by hooks; nothing is recorded under BURACLE_NO_CAPTURE=1)
   start --harness H --session SID [--cwd DIR]
@@ -225,7 +231,7 @@ async function dispatch(sub: string, rest: string[], p: Parsed, io: CommandIO, j
       }
       const r = await memoryStatusReport(ctx)
       const seg = memSegmentWith(r.status, Date.now(), one(p, 'style') === 'compact' ? 'compact' : 'wide', { emoji: true })
-      out(io, json, { status: r.status, ...(r.excluded !== undefined ? { excluded: r.excluded } : {}), regions: r.regions }, `${seg.text}\n${r.text}`)
+      out(io, json, { status: r.status, ...(r.brain !== undefined ? { brain: r.brain } : {}), ...(r.excluded !== undefined ? { excluded: r.excluded } : {}), regions: r.regions }, `${seg.text}\n${r.text}`)
       return r.status.health === 'error' ? 2 : 0
     }
     case 'search': {
@@ -339,6 +345,9 @@ async function dispatch(sub: string, rest: string[], p: Parsed, io: CommandIO, j
       watchdog?.unref()
       const r = await fin.finalize(hs.h, hs.sid, detached ? { graceMs: FINALIZER_GRACE_MS, settleMs: FINALIZER_SETTLE_MS } : {})
       if (watchdog !== undefined) clearTimeout(watchdog)
+      if (detached && r.skipped === undefined) {
+        try { await (await import('../../memory/backup')).maybeDailyBackup() } catch (e) { (await import('../../engine/log')).log('warn', 'memory: the daily backup was not taken', { error: e }) }
+      }
       out(io, json, r, finalizeText(r))
       return r.skipped === 'invalid-session' ? 2 : 0
     }
@@ -376,7 +385,7 @@ async function dispatch(sub: string, rest: string[], p: Parsed, io: CommandIO, j
     }
     case 'migrate': {
       const { memMigrateCommand } = await import('./mem-migrate')
-      return memMigrateCommand({ json, has: k => p.bools.has(k), out: (value, text) => out(io, json, value, text), usage: message => { throw new UsageError(message) } })
+      return memMigrateCommand({ json, has: k => p.bools.has(k), out: (value, text) => out(io, json, value, text), progress: line => { io.stderr.write(`buracle mem migrate: ${line}\n`) }, usage: message => { throw new UsageError(message) } })
     }
     case 'doctor': {
       const { doctorExitCode, memDoctor } = await import('../../memory/doctor')
@@ -488,19 +497,14 @@ async function uiCommand(p: Parsed, io: CommandIO, json: boolean): Promise<numbe
       io.stderr.write(`buracle mem ui: the running memory UI (pid ${live.pid}, build ${live.health.build ?? live.health.version ?? 'unknown'}) is not this checkout's build: ${outcome === 'stopped' ? 'stopped it' : `could not stop it (${outcome})`}\n`)
     }
     const { buracleVersion } = await import('../../usage/bar-info')
-    const stopAfterMs = Number(process.env['BURACLE_UI_STOP_AFTER_MS'])
-    const exit = (clearRecord: boolean): void => {
-      if (clearRecord) ui.clearUiRecord()
-      try { server.stop(true) } catch {  }
-      void (async () => { try { await (await import('../../memory/cortex')).closeAllCortex() } catch {  } process.exit(0) })()
-    }
-    const { server, record } = ui.serveUi({
+    const served = ui.serveUi({
       port, version: buracleVersion(), ...(build !== undefined ? { build } : {}),
-      ...(Number.isFinite(stopAfterMs) && stopAfterMs > 0 ? { stopAfterMs } : {}),
-      onStop: () => exit(false),
+      idleMs: ui.uiIdleMs(),
+      onStop: () => process.exit(0),
     })
-    io.stderr.write(`buracle mem ui: ${record.url} (pid ${record.pid}; Ctrl-C stops it, and it stops by itself once no harness session has been open for a while)\n`)
-    for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) process.on(sig, () => exit(true))
+    const idleMinutes = Math.max(1, Math.round(ui.uiIdleMs() / 60_000))
+    io.stderr.write(`buracle mem ui: ${served.record.url} (pid ${served.record.pid}; Ctrl-C stops it, and it stops by itself after ${idleMinutes} minute${idleMinutes === 1 ? '' : 's'} without a request)\n`)
+    for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) process.on(sig, () => { void served.stop().then(() => process.exit(0)) })
     await new Promise<never>(() => {  })
   }
   const { buracleArgv } = await import('../../usage/bar-info')

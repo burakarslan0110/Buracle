@@ -65,8 +65,6 @@ export interface PersonRegionSummary {
   count: number
   groups: number
   topTags: string[]
-  hypotheses: number
-  stated: number
 }
 
 export function personRegionSummaries(items: readonly MemItem[], nowMs: number): PersonRegionSummary[] {
@@ -81,8 +79,6 @@ export function personRegionSummaries(items: readonly MemItem[], nowMs: number):
       count: mine.length,
       groups: tags.size,
       topTags: topTags.slice(0, 3),
-      hypotheses: mine.filter(i => i.kind === 'profile' && i.tags.includes('hypothesis')).length,
-      stated: mine.filter(i => i.kind === 'preference' || (i.kind === 'profile' && i.tags.includes('stated'))).length,
     }
   })
 }

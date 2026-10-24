@@ -12,7 +12,7 @@ import { readSessionRecord, writeSessionRecord, type SessionRecord } from './ses
 import { spawnCli } from './spawn'
 import { captureOff } from './spool'
 
-export { anySessionOpen, latestSessionRecord, openSessions, readSessionRecord, STALE_ACTIVE_MS, writeSessionRecord, type SessionRecord } from './session-open'
+export { latestSessionRecord, openSessions, readSessionRecord, STALE_ACTIVE_MS, writeSessionRecord, type SessionRecord } from './session-open'
 
 export interface SessionStartResult {
   skipped?: 'invalid-session' | 'not-a-project' | 'error' | 'capture-off'

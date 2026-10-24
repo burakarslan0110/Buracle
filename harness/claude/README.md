@@ -33,7 +33,7 @@ For a single session while developing: `claude --plugin-dir harness/claude`.
 
 | Event | Hooks |
 |---|---|
-| SessionStart | H07 restores the plan state (after a compaction), H13 memory index, H15 capability card, H16 session upkeep, H17 profile warning and the one-time notices of this version (at startup), H21 code indexes and the memory web UI (in the background) |
+| SessionStart | H07 restores the plan state (after a compaction), H13 memory index, H15 capability card, H16 session upkeep, H17 profile warning and the one-time notices of this version (at startup), H21 code indexes (in the background) |
 | UserPromptSubmit | H10 pause/continue intents and the `memory_search` reminder for history questions, H20 consent the user gives in their own words, H05 context warning |
 | PreToolUse | Bash/Monitor/PowerShell: H01 destructive-command guard (denies when it fails), H20 consent gate, H03 `grep -r` advice; write tools: H02 write guard (denies when it fails); WebSearch/WebFetch: H03 routing; AskUserQuestion: H09; SubagentHandback: H19 checks a review agent's handed-back report (auto mode) and denies an invalid one once; every answer that does not deny a main-agent call carries the H05 context warning once per band |
 | PostToolUse | Write tools: H04 file checks; ExitPlanMode: H12 saves the plan under `docs/plans/`; TodoWrite and the task tools: open work for the handoff note; shell, web and MCP tools: H14 spool (in the background) |
@@ -78,12 +78,12 @@ The mod answers only the names Claude Code accepted; a refused name goes to its 
 **Panes:** memory (`buracle-memory`) and plan (`buracle-plan`, also the band's "details").
 
 The status line is not the mod's: `buracle statusline claude` draws it (two lines: model, context
-bar, 5-hour and 7-day usage; Buracle and Claude Code versions and the memory web UI link).
+bar, 5-hour and 7-day usage; Buracle and Claude Code versions and, while it runs, the memory web UI link).
 
 ## Files it reads and writes
 
 - Reads: `~/.buracle/state/runtime-config.json` (settings), `state/memory-ui.json` (the web UI's
-  address), `state/memory/status/_global.json` (memory pane), `sessions/claude/<session>/state.json`
+  address, while it runs), `state/memory/status/_global.json` (memory pane), `sessions/claude/<session>/state.json`
   (plan), `sessions/claude/<session>/flow.json` (the band) and the bound plan file.
 - Writes: `~/.buracle/sessions/claude/<session>/consent.json` (consent),
   `sessions/claude/<session>/flow.json` (workflow starts), a memory capture (`/remember`).
@@ -92,7 +92,7 @@ The command hooks also write `sessions/claude/<session>/{state.json,telemetry.js
 `state/memory/spool/`, handoff memories in the project's brain (`~/.buracle/brain`) and
 `docs/plans/` in the project; `buracle flow` and `buracle plan` keep `flow.json` current.
 `BURACLE_HOME` moves these paths. `BURACLE_NO_CAPTURE=1` turns memory capture off,
-`BURACLE_NO_AUTOSTART=1` the background indexes and the web UI.
+`BURACLE_NO_AUTOSTART=1` the background indexes. Nothing starts the web UI by itself: it runs after `buracle mem ui`.
 
 ## Known limits
 

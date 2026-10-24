@@ -38,6 +38,16 @@ describe('record encoding', () => {
     expect(back).toEqual(it)
   })
 
+  test('an accepted memory always names its reviewer, because CortexDB refuses one that does not', () => {
+    const generated = toCortexSave(item({ id: 'session-x', kind: 'session', title: 'S', author: 'buracle' }))
+    expect(generated).toMatchObject({ review_status: 'accepted', reviewed_by: 'buracle', reviewed_at: iso(NOW - DAY) })
+    const verified = toCortexSave(item({ id: 'decision-v', title: 'V', verifiedBy: 'claude-code', verifiedAt: iso(NOW) }))
+    expect(verified).toMatchObject({ review_status: 'accepted', reviewed_by: 'claude-code', reviewed_at: iso(NOW) })
+    const pending = toCortexSave(item({ id: 'decision-p', title: 'P', review: 'pending' }))
+    expect(pending['review_status']).toBe('proposed')
+    expect(pending).not.toHaveProperty('reviewed_by')
+  })
+
   test('a background check\'s finding is stored as contradicted_at and contradicted_note and reads back', () => {
     const it = item({ id: 'decision-x', title: 'X', review: 'pending', contradictedAt: iso(NOW), contradictedNote: 'src/a.ts no longer exports X' })
     const meta = toCortexSave(it)['metadata'] as Record<string, unknown>

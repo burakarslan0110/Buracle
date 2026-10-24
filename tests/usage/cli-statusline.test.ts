@@ -11,7 +11,7 @@ import type { MemoryStatus } from '../../src/core/memory/status'
 import { renderPlain, renderPlainLines } from '../../src/core/status/render'
 import { atomicWriteSync } from '../../src/engine/fsx'
 import { projectSlug } from '../../src/engine/git'
-import { heartbeatFile, memoryStateDir, updatesFile, userConfigFile } from '../../src/engine/paths'
+import { heartbeatFile, memoryStateDir, memoryUiStateFile, updatesFile, userConfigFile } from '../../src/engine/paths'
 import { run as runProc } from '../../src/engine/proc'
 import { writeUsageEntries } from '../../src/usage/cache'
 import { monthKeyOf } from '../../src/usage/month'
@@ -102,6 +102,11 @@ function writeIndexRecord(root: string, rec: Omit<IndexRecord, 'v' | 'root'>): v
   atomicWriteSync(indexRecordFile(root), JSON.stringify({ v: 1, root, ...rec }))
 }
 
+// The web UI starts only when the user runs `buracle mem ui`, so the footer names it only while its record names a live process (this one).
+function runningUi(port = 41777): void {
+  atomicWriteSync(memoryUiStateFile(), JSON.stringify({ v: 1, pid: process.pid, port, host: '127.0.0.1', url: `http://localhost:${port}`, startedAt: new Date(NOW).toISOString(), version: '0', brain: '' }))
+}
+
 describe('parseStatuslineArgs', () => {
   test('flags and errors', () => {
     expect(parseStatuslineArgs(['codex', '--width', '80', '--format=plain', '--style', 'compact', '--session', 's1', '--cwd', '/x', '--json'])).toEqual({ harness: 'codex', width: 80, format: 'plain', style: 'compact', session: 's1', cwd: '/x', json: true, verbose: false })
@@ -115,7 +120,21 @@ describe('parseStatuslineArgs', () => {
 })
 
 describe('statusline claude', () => {
+  test('the footer names no web UI while none runs: a missing record, one of a process that is gone, or one of a UI that was stopped', () => withSandbox(async () => {
+    const footer = async () => plainLines((await build(['claude'], JSON.stringify(claudePayload()), deps())).rows)[1]
+    expect(await footer()).toMatch(/^Buracle \d+\.\d+\.\d+ · CC 2\.1\.293$/)
+    const gone = Bun.spawn(['bun', '-e', '0'], { env: { ...process.env }, stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' })
+    await gone.exited
+    atomicWriteSync(memoryUiStateFile(), JSON.stringify({ v: 1, pid: gone.pid, port: 41777, host: '127.0.0.1', url: 'http://localhost:41777', startedAt: '', version: '0', brain: '' }))
+    expect(await footer()).not.toContain('Buracle Brain')
+    runningUi()
+    expect(await footer()).toMatch(/Buracle Brain: localhost:41777$/)
+    atomicWriteSync(memoryUiStateFile(), '{}\n')
+    expect(await footer()).not.toContain('Buracle Brain')
+  }))
+
   test('the default Buracle bar: model, context bar, both windows and the folder; the footer names Buracle, Claude Code and the memory UI as a link', () => withSandbox(async () => {
+    runningUi()
     const r = await build(['claude'], JSON.stringify(claudePayload()), deps())
     expect(r.joined).toBe(true)
     const lines = plainLines(r.rows)
@@ -200,6 +219,7 @@ describe('statusline claude', () => {
 
   test('the running workflow comes from the session\'s flow record; an ended run shows as done, folds after workflow.foldAfterSec and the plan line returns', () => withSandbox(async ({ root }) => {
     const repo = await gitRepo(join(root, 'proj'))
+    runningUi()
     bindPlan(repo, 'Rate limit plan')
     const rec = specFlow('Rate limit')
     writeFlow('claude', SID, rec)
@@ -243,6 +263,7 @@ describe('statusline claude', () => {
   }))
 
   test('O3: hook failures of the last 24 hours show on the Buracle bar footer and in the segment rows; nothing while all is well', () => withSandbox(async ({ buracleHome }) => {
+    runningUi()
     const quiet = await build(['claude'], JSON.stringify(claudePayload()), deps())
     expect(plainLines(quiet.rows).join('\n')).not.toContain('hooks')
     const logs = join(buracleHome, 'logs')
@@ -331,6 +352,7 @@ describe('statusline claude --subagent (subagentStatusLine)', () => {
 describe('statusline codex / opencode / omp', () => {
   test('codex from telemetry + cache, as one tmux line', () => withSandbox(async ({ root }) => {
     const repo = await gitRepo(join(root, 'proj'))
+    runningUi()
     writeTelemetry('codex', 'thread-1', { at: NOW - 60_000, model: 'gpt-6.1-sol', effort: 'high', cwd: repo, ctx: { pct: 3, tokens: 21_000, window: 272_000 } })
     writeUsageEntries([entry('codex', { windows: [{ label: '5h', pct: 22, windowMinutes: 300, resetsAt: new Date(NOW + 120 * 60_000).toISOString() }, { label: '7d', pct: 41, windowMinutes: 10080, resetsAt: new Date(NOW + 4 * 86_400_000).toISOString() }] })], NOW)
     const io = memIO()
@@ -439,6 +461,7 @@ describe('statusline codex / opencode / omp', () => {
   }))
 
   test('opencode with nothing known: the segment rows print nothing; the Buracle bar still shows its footer', () => withSandbox(async ({ root }) => {
+    runningUi()
     const io = memIO()
     expect(await run(['opencode', '--cwd', root, '--format', 'plain', '--style', 'full'], io, deps())).toBe(0)
     expect(io.out()).toBe('')

@@ -287,7 +287,7 @@ export async function buildStatusline(args: StatuslineArgs, io: Pick<CommandIO, 
     if (p.worktree !== undefined) d.worktreeHint = p.worktree
     await decorate(bar, 'claude', d)
     if (style === 'buracle') {
-      const po: Parameters<typeof barInfo>[1] = { nowMs, memoryUi: config.memory.ui }
+      const po: Parameters<typeof barInfo>[1] = { nowMs }
       if (p.version !== undefined) po.version = p.version
       if (p.lines !== undefined) po.lines = p.lines
       const info = await barInfo('claude', po)
@@ -331,7 +331,7 @@ export async function buildStatusline(args: StatuslineArgs, io: Pick<CommandIO, 
   const width = widthOf(args, env)
   let result: StatuslineResult
   if (style === 'buracle') {
-    const info = await barInfo(h, { nowMs, memoryUi: config.memory.ui })
+    const info = await barInfo(h, { nowMs })
     const lines = args.format === undefined || args.format === 'tmux' ? [barOneLine(bar, info, layout, width, nowMs)] : barLines(bar, info, layout, width, nowMs)
     result = { harness: h, quiet: false, text: '', rows: lines, joined: true, bar }
   } else result = { harness: h, quiet: false, text: '', rows: rows(bar, layout, width, nowMs), bar }

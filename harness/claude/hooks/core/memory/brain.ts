@@ -242,9 +242,12 @@ export function toCortexSave(item: MemItem, keep: Readonly<Record<string, unknow
   const ttl = ttlSeconds(item.expires, nowMs)
   if (ttl !== undefined) save['ttl_seconds'] = ttl
   save['review_status'] = cortexReviewStatus(item)
-  if (save['review_status'] === 'accepted' && item.verifiedBy !== undefined) {
-    save['reviewed_by'] = item.verifiedBy
-    if (item.verifiedAt !== undefined && Number.isFinite(Date.parse(item.verifiedAt))) save['reviewed_at'] = new Date(item.verifiedAt).toISOString()
+  if (save['review_status'] === 'accepted') {
+    // CortexDB refuses an accepted memory that does not name its reviewer: a memory Buracle generated itself (a session
+    // note, a handoff) is accepted by its author, one a person or an agent verified by whoever verified it.
+    save['reviewed_by'] = item.verifiedBy ?? item.author
+    const at = item.verifiedAt ?? item.updated
+    if (Number.isFinite(Date.parse(at))) save['reviewed_at'] = new Date(at).toISOString()
   }
   const graph = cortexGraph(item)
   if (graph.entities.length > 0) save['entities'] = graph.entities
@@ -425,6 +428,27 @@ export function similarMemories(cand: Pick<MemItem, 'title' | 'summary' | 'kind'
 }
 
 export const CONTRADICTED_NOTE_MAX = 200
+
+/** A protected memory (the user's own, pinned or verified) that a newer, inferred memory differs from. */
+export interface MemConflict { id: string, why: 'explicit' | 'pinned' | 'verified' }
+
+/** The note a memory carries while it is marked as contradicting: it names the memories it was written beside. */
+export function contradictionNote(conflicts: readonly MemConflict[]): string {
+  return memClip(`differs from ${conflicts.map(c => `${c.id} (${c.why})`).join(', ')}; that memory was left as it is`, CONTRADICTED_NOTE_MAX)
+}
+
+const CONFLICT_REF = /(?:^|[\s,])([a-z][a-z0-9-]{1,95}) \((explicit|pinned|verified)\)/g
+
+/** The memories a contradiction note names (the inverse of {@link contradictionNote}); a name cut off by the clip is not one. */
+export function parseContradictionNote(note: string | undefined): MemConflict[] {
+  if (note === undefined) return []
+  const out: MemConflict[] = []
+  for (const m of note.matchAll(CONFLICT_REF)) {
+    const id = m[1] as string
+    if (!out.some(c => c.id === id)) out.push({ id, why: m[2] as MemConflict['why'] })
+  }
+  return out
+}
 
 export function sourcePath(source: string): string | undefined {
   const s = source.trim()

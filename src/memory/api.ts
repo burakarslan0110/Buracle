@@ -1,7 +1,7 @@
 import { isAbsolute, relative, resolve } from 'node:path'
 import {
-  CONTRADICTED_NOTE_MAX, FILE_AS_KINDS, hitLine, isMemId, isMemKind, KIND_INFO, memLocked, memoryIdFor, memProtected, rankHits, searchTerms, similarMemories, WRITABLE_KINDS,
-  type MemItem, type MemKind, type MemLayer, type MemOrigin,
+  CONTRADICTED_NOTE_MAX, contradictionNote, FILE_AS_KINDS, hitLine, isMemId, isMemKind, KIND_INFO, memLocked, memoryIdFor, memProtected, rankHits, searchTerms, similarMemories, WRITABLE_KINDS,
+  type MemConflict, type MemItem, type MemKind, type MemLayer, type MemOrigin,
 } from '../core/memory/brain'
 import { memAround, memFilterPath, memMatchesFilter, memMatchesWords, memNewestFirst, memPage, type MemFilter } from '../core/memory/filter'
 import { memQueryWords } from '../core/memory/query'
@@ -374,7 +374,7 @@ export interface WriteInput {
   confidence?: number | string
 }
 
-export interface MemoryConflict { id: string, why: 'explicit' | 'pinned' | 'verified' }
+export type MemoryConflict = MemConflict
 
 export interface TrustedWrite {
   author?: 'agent' | 'user' | 'buracle'
@@ -403,10 +403,6 @@ export interface WriteResult {
 
 export function conflictWhy(m: Pick<MemItem, 'origin' | 'pinned'>): MemoryConflict['why'] {
   return m.origin === 'explicit' ? 'explicit' : m.pinned === true ? 'pinned' : 'verified'
-}
-
-function conflictNote(conflicts: readonly MemoryConflict[]): string {
-  return memClip(`differs from ${conflicts.map(c => `${c.id} (${c.why})`).join(', ')}; that memory was left as it is`, CONTRADICTED_NOTE_MAX)
 }
 
 const LIMITS = { title: 200, summary: 300, body: 20_000 }
@@ -484,7 +480,7 @@ export async function write(ctx: MemoryCtx, input: WriteInput, trusted: TrustedW
     if (confidence !== undefined) item.confidence = confidence
     if (conflicts.length > 0) {
       item.contradictedAt = iso(now)
-      item.contradictedNote = conflictNote(conflicts)
+      item.contradictedNote = contradictionNote(conflicts)
     }
     if (ctx.model !== undefined) item.model = ctx.model
     if (ctx.session !== undefined) item.session = ctx.session

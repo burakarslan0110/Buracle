@@ -177,7 +177,7 @@ Buracle's memory lives in [CortexDB](https://github.com/liliang-cn/cortexdb) fil
 - When a session ends, one `buracle mem finalize` run writes the session memory, files your stated preferences as explicit memories without any model, and asks the model of the harness you used for the decisions, gotchas and procedures worth keeping. Its answer is checked as a whole before anything is written. Confident findings become memories marked as inferred, with the model's confidence, and the rest wait as captures to be filed. A finding that resembles a memory of yours (explicit, pinned or verified) never changes it: it is stored beside it, marked as contradicting. The same run takes up to three older sessions whose capture is still owed.
 - `buracle mem capture` does the same on demand, and `buracle mem doctor` lists what is still owed.
 
-Nothing else runs in the background: no timers, no start-up jobs, no repair or cleanup passes. Sessions and handoffs expire by themselves, because CortexDB drops them after 45 and 14 days. `buracle mem backup` copies the brains when you ask.
+Nothing else runs in the background: no timers, no start-up jobs, no repair or cleanup passes. Sessions and handoffs expire by themselves, because CortexDB drops them after 45 and 14 days. `buracle mem backup` copies the whole brain file when you ask.
 
 Model calls go through the CLI of a harness you already use, so no API key is needed. The session's own harness goes first, and a harness whose 5-hour usage is above 75% or whose weekly usage is above 85% is skipped. Search is by words, with the English and Turkish word forms.
 
@@ -187,12 +187,12 @@ Secrets are masked before anything is written, `<private>…</private>` blocks a
 
 ![A region opened: its memories drawn as a network of links, with their list in the side panel](assets/brain-network.png)
 
-`/brain` or `buracle mem ui --open` opens it at `http://localhost:41777`. It starts only when you run that command, and once a harness session has been open it stops 90 seconds after the last one closes.
+`/brain` or `buracle mem ui --open` opens it at `http://localhost:41777`. It starts only when you run that command, and it stops by itself after 30 minutes without a request (`BURACLE_UI_IDLE_MS`, in milliseconds, changes that). Ctrl-C and `buracle mem ui --stop` stop it too.
 
 - Brain view. The regions drawn as a brain, where writes and searches light up as they happen. `/` searches, `1` to `7` open a region and `G` shows the network of memories, tags, files and concepts.
-- Memory detail. The body, tags, sources, history and where the memory came from, with retire, restore and delete.
+- Memory detail. The body, tags, sources and history, where the memory came from (your words or inferred, with its confidence) and the memories it links to, with edit, retire, restore and delete. An edit is stored as your own words.
 - Review page. Your plans, build contracts and PRDs, and the agent's diff. Select text or click a line number to pin a note for the agent.
-- Health (`H`). What is wrong in plain words, the store, the inbox of captures, the last capture and the backups, with a Back up button.
+- Health (`H`). What is wrong in plain words, the store and its version, the brain file with its size and buckets, the move from Buracle 0.5, the inbox of captures, the last capture and the backups, with a Back up button.
 - Sessions and usage (`W`). Sessions across all four harnesses for the last 30 days (counts only, never what you typed), commits landed, cost and tokens per day and model, and the installed skills, agents and rules.
 - Notifications (`N`) and a dark and a light theme (`T`).
 

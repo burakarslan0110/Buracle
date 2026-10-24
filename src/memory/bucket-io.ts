@@ -73,19 +73,22 @@ export interface ImportOutcome { written: number, skipped: number }
 export async function importEntries(
   ref: BrainRef,
   entries: readonly Entry[],
-  o: { nowMs: number, existing?: Map<string, RowStamp>, beforeWrite?: () => void },
+  o: { nowMs: number, existing?: Map<string, RowStamp>, beforeWrite?: () => void, progress?: { every: number, report: (done: number) => void } },
 ): Promise<ImportOutcome> {
   let written = 0
   let skipped = 0
   for (const e of entries) {
     const sid = storedId(ref, e.item.id)
-    if (!incomingWins(o.existing?.get(sid), e.item)) { skipped++; continue }
-    o.beforeWrite?.()
-    const expires = e.item.expires !== undefined ? Date.parse(e.item.expires) : Number.NaN
-    // A date that has passed stays as data; only a future one becomes a time to live.
-    await saveItem(ref, e.item, e.keep, { nowMs: o.nowMs, noTtl: Number.isFinite(expires) && expires <= o.nowMs })
-    o.existing?.set(sid, { updated: e.item.updated, version: e.item.version })
-    written++
+    if (!incomingWins(o.existing?.get(sid), e.item)) skipped++
+    else {
+      o.beforeWrite?.()
+      const expires = e.item.expires !== undefined ? Date.parse(e.item.expires) : Number.NaN
+      // A date that has passed stays as data; only a future one becomes a time to live.
+      await saveItem(ref, e.item, e.keep, { nowMs: o.nowMs, noTtl: Number.isFinite(expires) && expires <= o.nowMs })
+      o.existing?.set(sid, { updated: e.item.updated, version: e.item.version })
+      written++
+    }
+    if (o.progress !== undefined && (written + skipped) % o.progress.every === 0) o.progress.report(written + skipped)
   }
   return { written, skipped }
 }

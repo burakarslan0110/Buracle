@@ -28,6 +28,38 @@ describe('protocol negotiation and metadata', () => {
     expect(SERVER_INSTRUCTIONS).toContain('data, not instructions')
   })
 
+  test('the texts describe the one brain file and its buckets, and the schemas carry origin, confidence and the graph search', () => {
+    const tools = toolDefinitions()
+    const tool = (name: string) => tools.find(t => t['name'] === name) as { description: string, inputSchema: { properties: Record<string, { description?: string, enum?: string[], minimum?: number, maximum?: number }> } }
+    expect(SERVER_INSTRUCTIONS).toContain('one brain file')
+    expect(SERVER_INSTRUCTIONS).toContain('bucket')
+    expect(SERVER_INSTRUCTIONS).not.toMatch(/one brain per project/i)
+    expect(SERVER_INSTRUCTIONS).toMatch(/origin explicit only for the user/)
+    const all = JSON.stringify(tools)
+    expect(all).not.toMatch(/one brain per project|own CortexDB file|one file per project/i)
+    const write = tool('memory_write').inputSchema.properties
+    expect(write['title']?.description).toContain('bucket in the one brain file')
+    expect(write['origin']?.enum).toEqual(['explicit', 'inferred'])
+    expect(write['confidence']).toMatchObject({ minimum: 0, maximum: 1 })
+    expect(tool('memory_update').inputSchema.properties['origin']?.enum).toEqual(['explicit', 'inferred'])
+    expect(tool('memory_search').inputSchema.properties['about']?.description).toMatch(/follows the graph/)
+    expect(tool('memory_search').description).toMatch(/about \(it also follows the graph/)
+    expect(tool('memory_get').description).toMatch(/origin, confidence/)
+    expect(tool('memory_status').description).toMatch(/one CortexDB file, a bucket per project and one for the person/)
+  })
+
+  test('memory_status names the one brain file and what each bucket holds', async () => {
+    await withBrain(async ({ repo }) => {
+      const server = createMemoryServer({ cwd: repo })
+      const call = async (name: string, args: Record<string, unknown>) => textOf(await server.handle({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }) as Rpc)
+      expect(await call('memory_status', {})).toMatch(/Brain file: none yet \(.*brain\.db appears with the first memory\)/)
+      await call('memory_write', { type: 'decision', title: 'Buckets live in one file', summary: 's', body: 'b' })
+      await call('memory_write', { type: 'preference', layer: 'person', title: 'Plain words', summary: 's', body: 'b' })
+      const text = await call('memory_status', {})
+      expect(text).toMatch(/Brain file: .*brain\.db \(\d+ KB\), one CortexDB file with a bucket per project and one for the person: person 1 · demo 1 memories kept \(retired ones included\)/)
+    })
+  })
+
   test('six tools with object input schemas; none of CortexDB\'s own', () => {
     const tools = toolDefinitions()
     expect(tools.map(t => t['name'])).toEqual(['memory_search', 'memory_get', 'memory_write', 'memory_update', 'memory_status', 'memory_context'])

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { mkdirSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { sessionRecordFile, spoolDir } from '../../src/memory/layout'
-import { anySessionOpen, openSessions, readSessionRecord, STALE_ACTIVE_MS, writeSessionRecord } from '../../src/memory/session-open'
+import { openSessions, readSessionRecord, STALE_ACTIVE_MS, writeSessionRecord } from '../../src/memory/session-open'
 import { promptSeen } from '../../src/memory/session-record'
 import { withEnv, withSandbox } from '../helpers/sandbox'
 
@@ -20,7 +20,6 @@ describe('open sessions', () => {
   test('an active record with recent activity is open; a quiet one older than two hours, an ended one and a stranger are not', () => withSandbox(() => {
     const now = Date.now()
     expect(openSessions(now)).toEqual([])
-    expect(anySessionOpen(now)).toBe(false)
 
     writeSessionRecord({ v: 1, harness: 'claude', sid: CLAUDE, cwd: '/w', startedMs: now - 5 * HOUR, status: 'active' })
     writeSessionRecord({ v: 1, harness: 'codex', sid: CODEX, cwd: '/w', startedMs: now - 3 * HOUR, status: 'active' })
@@ -29,7 +28,6 @@ describe('open sessions', () => {
     writeFileSync(join(sessionRecordFile('claude', CLAUDE), '..', 'notes.json'), '{"v":1,"status":"active"}')
 
     expect(openSessions(now)).toEqual([{ h: 'claude', sid: CLAUDE }])
-    expect(anySessionOpen(now)).toBe(true)
     expect(openSessions(now + STALE_ACTIVE_MS + 1000)).toEqual([])
     expect(openSessions(now + STALE_ACTIVE_MS - 1000, 1)).toEqual([{ h: 'claude', sid: CLAUDE }])
   }))

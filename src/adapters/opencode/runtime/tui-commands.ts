@@ -79,12 +79,9 @@ export async function remember(host: UtilityHost, input: string | undefined, nam
   }
 }
 
-function memoryUiUrl(cfg: BuracleConfig): string | undefined {
-  try {
-    const live = liveMemoryUi()
-    if (live !== undefined) return live.url
-  } catch {  }
-  return `http://localhost:${cfg.memory.ui.port}`
+/** The address of the web UI while it runs; it starts only when the user runs `buracle mem ui`, so otherwise there is none. */
+function memoryUiUrl(): string | undefined {
+  try { return liveMemoryUi()?.url } catch { return undefined }
 }
 
 export async function brain(host: UtilityHost, input = '', name = 'brain'): Promise<void> {
@@ -100,7 +97,7 @@ export async function brain(host: UtilityHost, input = '', name = 'brain'): Prom
     if (page === 'review' && typeof j.page === 'string') url = j.page
     else if (typeof j.url === 'string') url = j.url
   } catch {  }
-  url ??= memoryUiUrl(host.cfg())
+  url ??= memoryUiUrl()
   host.toast(url !== undefined ? `${page === 'review' ? 'Review page' : 'Memory UI'}: ${url}` : 'The memory UI is starting.', 'success', 'Buracle')
 }
 
@@ -117,7 +114,7 @@ export function statusLines(host: UtilityHost): string[] {
     `default effort: ${level ?? 'OpenCode decides'} (effort.opencode ${cfg.effort.opencode})`,
     `workflows: ${about.workflows.map(w => `/${w}`).join(' ')}`,
   ]
-  const url = memoryUiUrl(cfg)
+  const url = memoryUiUrl()
   if (url !== undefined) lines.push(`memory UI: ${url}`)
   return lines
 }
@@ -132,7 +129,7 @@ export async function status(host: UtilityHost, input: string | undefined): Prom
     lines = statusLines(host)
   } else if (what === 'memory' || what === 'mem' || what === 'plan') {
     title = what === 'plan' ? 'Buracle plan' : 'Buracle memory'
-    const live = what === 'plan' ? () => planLines(host, sid) : () => memoryLines(host.cfg())
+    const live = what === 'plan' ? () => planLines(host, sid) : () => memoryLines()
     if (host.pane?.(title, live) === true) return
     lines = live()
   } else if (what === 'flow') {
@@ -147,9 +144,9 @@ export async function status(host: UtilityHost, input: string | undefined): Prom
 
 export const PANE_REFRESH_MS = 2_000
 
-export function memoryLines(cfg: BuracleConfig): string[] {
+export function memoryLines(): string[] {
   const r = readJsonSafeSync<unknown>(join(paths.memoryStateDir(), 'status', '_global.json'))
-  return memoryPaneLines(r.ok ? r.value : undefined, memoryUiUrl(cfg), paths.brainDir()).map(l => l.text.replace(/ {2}\(w\)$/, ''))
+  return memoryPaneLines(r.ok ? r.value : undefined, memoryUiUrl(), paths.brainDir()).map(l => l.text.replace(/ {2}\(w\)$/, ''))
 }
 
 export function planLines(host: Pick<UtilityHost, 'band'>, sid: string | undefined): string[] {

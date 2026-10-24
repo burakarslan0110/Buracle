@@ -94,7 +94,7 @@ describe('mem doctor', () => {
     })
   })
 
-  test('CortexDB\'s own self-test of the brain file is part of the report, and its failure is an error', async () => {
+  test.skipIf(REAL_CORTEXDB)('CortexDB\'s own self-test of the brain file is part of the report, and its failure is an error', async () => {
     await withBrain(async ({ repo }) => {
       await saveItem(projectRef('demo'), { id: 'decision-a', kind: 'decision', layer: 'project', title: 'A', summary: '', body: '', tags: [], sources: [], about: [], status: 'active', review: 'pending', importance: 3, created: '2026-10-13T10:00:00Z', updated: '2026-10-13T10:00:00Z', author: 'agent', version: 1, history: [] })
       const ok = await memDoctor({ cwd: repo, mcp: false, leak: false })
@@ -128,7 +128,7 @@ describe('mem doctor', () => {
       vault = (await memDoctor({ cwd: repo, mcp: false, leak: false })).find(c => c.check === 'old vault')
       expect(vault?.level).toBe('info')
     })
-  })
+  }, 60_000)
 
   test('the leak check proves itself: project A finds its canary, project B does not', async () => {
     const r = await runLeakCheck()
