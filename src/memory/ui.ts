@@ -5,7 +5,7 @@ import { atomicWriteSync } from '../engine/fsx'
 import { log } from '../engine/log'
 import * as paths from '../engine/paths'
 import { osName, spawnArgv, windowsVerbatim, type OsName } from '../engine/platform'
-import { closeAllCortex, idleCortex } from './cortex'
+import { closeAllCortex, idleCortex, pruneDeadReaders } from './cortex'
 import { brainDir } from './layout'
 import { sameUiBuild, uiBuildId } from './ui-build'
 import { processAlive, readUiRecord, type UiRecord } from './ui-record'
@@ -301,13 +301,19 @@ export async function liveUi(): Promise<(UiRecord & { health: UiHealth }) | unde
 
 export type UiStopOutcome = 'stopped' | 'not-running' | 'unconfirmed' | 'still-running'
 
+/** The server is gone. On Windows a SIGTERM ends a process outright, so its exit handler never removed its CortexDB reader entries. */
+function serverGone(pid: number): void {
+  clearUiRecord(pid)
+  pruneDeadReaders()
+}
+
 export async function stopUi(rec: UiRecord, opts: { waitMs?: number } = {}): Promise<UiStopOutcome> {
-  if (!alive(rec.pid)) { clearUiRecord(rec.pid); return 'not-running' }
+  if (!alive(rec.pid)) { serverGone(rec.pid); return 'not-running' }
   const health = await probeUi(rec.url)
   if (health === undefined || health.pid !== rec.pid) return 'unconfirmed'
   try { process.kill(rec.pid, 'SIGTERM') } catch (e) {
     if ((e as { code?: string }).code !== 'ESRCH') return 'unconfirmed'
-    clearUiRecord(rec.pid)
+    serverGone(rec.pid)
     return 'not-running'
   }
   const deadline = Date.now() + (opts.waitMs ?? 5_000)
@@ -315,7 +321,7 @@ export async function stopUi(rec: UiRecord, opts: { waitMs?: number } = {}): Pro
     if (Date.now() >= deadline) return 'still-running'
     await Bun.sleep(50)
   }
-  clearUiRecord(rec.pid)
+  serverGone(rec.pid)
   return 'stopped'
 }
 

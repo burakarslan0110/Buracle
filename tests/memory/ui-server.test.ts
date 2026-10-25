@@ -236,6 +236,30 @@ describe('the server closes by itself', () => {
       await stopRecorded()
     }
   }), 90_000)
+
+  test('a server ended without running its handlers (what a SIGTERM does on Windows) leaves no reader entry once `stopUi` has seen it gone', () => withSandbox(async ({ root, buracleHome }) => {
+    const port = freePort()
+    uiConfig(buracleHome, port)
+    const repo = join(root, 'shop')
+    mkdirSync(repo, { recursive: true })
+    expect((await cli(['mem', 'write', '--type', 'preference', '--layer', 'person', '--title', 'Keep answers short', '--summary', 's', '--json', '--cwd', repo])).code).toBe(0)
+    try {
+      expect(JSON.parse((await cli(['mem', 'ui', '--json'])).stdout)).toMatchObject({ started: true })
+      const rec = readUiRecord() as UiRecord
+      expect((await fetch(`${rec.url}/api/brain?scope=person`)).status).toBe(200)
+      const reader = readerEntries()[0]?.entry.child as number
+      expect(alive(reader)).toBe(true)
+      process.kill(rec.pid, 'SIGKILL')
+      await waitFor('the server to end', () => !alive(rec.pid))
+      await waitFor('the reader to end', () => !alive(reader), 10_000)
+      expect(readerEntries()).toHaveLength(1)
+      expect(await stopUi(rec)).toBe('not-running')
+      expect(readUiRecord()).toBeUndefined()
+      expect(readerEntries()).toEqual([])
+    } finally {
+      await stopRecorded()
+    }
+  }), 90_000)
 })
 
 describe('the status line names the web UI only while it runs', () => {
