@@ -1,16 +1,15 @@
 import { join } from 'node:path'
 import type { CommandIO } from '../router'
-import { CM_SERVER_ID } from '../../core/context-mode'
 import { sanitizeText } from '../../core/status/format'
 import * as paths from '../../engine/paths'
 import { HARNESSES } from '../../core/events'
 import { parseFlags, removedFlags } from '../../engine/update/args'
-import { cmSmokeWarning } from '../../engine/update/context-mode-doctor'
 import { liveContext, loadBundle } from '../../engine/update/context'
 import { opsDeps } from '../../engine/update/deps'
 import { bunPath } from '../../engine/update/install-core'
 import { probeServers, readHealth, writeHealth } from '../../engine/update/mcp'
 import { errText, table, tildeText, writeJson } from '../../engine/update/output'
+import { applyVerdicts, findBroken, realRollbackDeps, rollbackBroken, type RollbackVerdict } from '../../engine/update/rollback'
 import { isUpdateKind, UPDATE_KINDS, writeUpdatesCache, type UpdateKind } from '../../engine/update/updates-cache'
 import { applyUpdates, checkUpdates, knownPluginNames, partName, revertCheckout, toolDiff, type ApplyOutcome, type CheckResult, type CheckStep, type UpdateEnv } from '../../engine/update/updates'
 import { runBuildFlow } from './build'
@@ -43,7 +42,7 @@ Kinds and names (any number; none means everything):
             again afterwards and the harness's own checks run
   tools     the Homebrew tools and the toolchain's language servers and npm/PyPI tools
   pricing   canonical/pricing.yaml list prices
-  <name>    one part, such as codex, context-mode or pyright
+  <name>    one part, such as codex, codegraph or pyright
 
 A part whose check failed is named as not checked, never as up to date. After an apply
 that changed Buracle, a skill source or the prices, Buracle rebuilds and installs again
@@ -52,6 +51,12 @@ moved. A self update that changes package.json or bun.lock runs
 \`bun install --frozen-lockfile\` in the checkout; when the follow-up install fails, the
 hooks keep the old runtime and the checkout moves back to its previous commit
 (\`git reset --keep\`, only while its tracked files have no local changes).
+
+A toolchain upgrade has to prove itself: an MCP server must answer the handshake and a tool
+must run its version check. One that does not goes back to the version the toolchain kept
+(\`buracle rollback toolchain\` does the same by hand) and is checked again. If that version
+fails too, the update was not the cause: the newer one is put back and the part is reported
+as down. A version rolled back this way is not offered again, only a newer one.
 
 Exit codes: 0 ok, 1 error, 2 some checks or updates failed, were cancelled or need action.`
 
@@ -264,11 +269,6 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     } finally {
       progress.stop()
     }
-    const warnings: string[] = []
-    if (outcome.applied.some(a => a.kind === 'mcp' && a.id === CM_SERVER_ID)) {
-      const w = await cmSmokeWarning()
-      if (w !== undefined) warnings.push(w)
-    }
     let sync: Awaited<ReturnType<typeof followUpSync>> | undefined
     if (outcome.rebuild) {
       const self = outcome.selfUpdated
@@ -308,6 +308,21 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
       if (handshakes.length === 0) steps.done('handshake', 'skip', 'MCP handshake: not run (canonical/ could not be loaded)')
       else steps.done('handshake', down > 0 ? 'err' : 'ok', `MCP handshake: ${handshakes.length - down} ok${down > 0 ? `, ${down} not ok (below)` : ''}`)
     }
+    // An upgrade that fails its check is undone while the toolchain still keeps the version it replaced.
+    let rollbacks: RollbackVerdict[] = []
+    if (outcome.toolchainUpgraded.length > 0) {
+      const after = loadBundle(repoRoot)
+      if ('bundle' in after) {
+        const broken = await findBroken(outcome.toolchainUpgraded, after.bundle, handshakes)
+        if (broken.length > 0) {
+          steps.start('rollback', `Undoing the upgrades that fail their check: ${broken.map(b => b.id).join(', ')}`)
+          rollbacks = await rollbackBroken(broken, realRollbackDeps(after.bundle))
+          applyVerdicts(outcome, rollbacks)
+          syncHandshakes(handshakes, rollbacks)
+          rollbacks.forEach((v, n) => steps.done(n === 0 ? 'rollback' : `rollback#${n}`, v.status === 'rolled-back' ? 'warn' : 'err', line(firstOf(`${partName(v.kind, v.id)}: ${v.detail}`))))
+        }
+      }
+    }
     const done = new Set(outcome.applied.map(a => `${a.kind}\0${a.id}`))
     try {
       writeUpdatesCache({ checked_at: checkedAt, kinds, items: full.items.filter(i => !done.has(`${i.kind}\0${i.id}`)), held: full.held, errors: full.errors })
@@ -317,7 +332,7 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     const own = failed ? (outcome.applied.length === 0 && outcome.failed.length > 0 ? 1 : 2) : attention ? 2 : 0
     const code = own === 1 || restCode === 1 ? 1 : own === 2 || restCode === 2 ? 2 : 0
     if (json) {
-      writeJson(io.stdout, { ok: code === 0, code, checked_at: checkedAt, kinds, check, ...outcome, sync: sync ?? null, handshakes, warnings })
+      writeJson(io.stdout, { ok: code === 0, code, checked_at: checkedAt, kinds, check, ...outcome, sync: sync ?? null, handshakes, rollbacks })
       return code
     }
     if (steps.live) {
@@ -339,10 +354,24 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     if (outcome.pinsBumped) io.stdout.write('canonical/mcp.yaml changed: review and commit it.\n')
     for (const n of check.notes) io.stdout.write(`note: ${lines(n)}\n`)
     for (const e of check.errors) io.stderr.write(`error: ${e.kind}${e.id !== undefined ? ` ${line(e.id)}` : ''}: ${lines(e.error)}\n`)
-    for (const w of warnings) io.stderr.write(`warning: ${lines(w)}\n`)
     return code
   } finally {
     steps.stop()
+  }
+}
+
+// A rollback checks the server again and writes what it found; the handshake lines show that last result.
+function syncHandshakes(handshakes: Array<{ id: string, status: string, tools?: number, version?: string, error?: string }>, verdicts: readonly RollbackVerdict[]): void {
+  const health = readHealth()
+  for (const v of verdicts) {
+    const e = v.kind === 'mcp' ? health?.mcp[v.id] : undefined
+    const h = handshakes.find(x => x.id === v.id)
+    if (e === undefined || h === undefined) continue
+    h.status = e.status
+    if (e.tools !== undefined) h.tools = e.tools
+    if (e.version !== undefined) h.version = e.version
+    if (e.error !== undefined) h.error = e.error
+    else delete h.error
   }
 }
 

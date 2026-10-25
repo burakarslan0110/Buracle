@@ -50,6 +50,20 @@ export function openSessions(nowMs: number, max = Number.POSITIVE_INFINITY): Arr
   return out
 }
 
-export function anySessionOpen(nowMs: number): boolean {
-  return openSessions(nowMs, 1).length > 0
+/** The newest session record, optionally of one project or one harness. */
+export function latestSessionRecord(slug?: string, h?: Harness): SessionRecord | undefined {
+  let names: string[] = []
+  try { names = readdirSync(sessionRecordsDir()) } catch { return undefined }
+  let best: SessionRecord | undefined
+  for (const n of names) {
+    if (!n.endsWith('.json')) continue
+    const dash = n.indexOf('-')
+    const rh = n.slice(0, dash)
+    const sid = n.slice(dash + 1, -'.json'.length)
+    if (!isHarness(rh) || (h !== undefined && rh !== h) || !paths.isValidSessionId(sid)) continue
+    const rec = readSessionRecord(rh, sid)
+    if (rec === undefined || (slug !== undefined && rec.slug !== slug)) continue
+    if (best === undefined || rec.startedMs > best.startedMs) best = rec
+  }
+  return best
 }

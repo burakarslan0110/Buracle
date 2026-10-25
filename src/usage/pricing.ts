@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { parse as parseYaml } from 'yaml'
+import { parseYaml } from '../engine/yaml'
 import type { PricingTable } from '../core/usage'
 import { atomicWriteSync } from '../engine/fsx'
 import { canonicalDir } from '../engine/paths'

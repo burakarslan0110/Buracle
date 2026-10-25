@@ -1,38 +1,53 @@
-import { Database } from 'bun:sqlite'
-import { chmodSync, closeSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, readSync, renameSync, rmSync, statSync, unlinkSync } from 'node:fs'
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, unlinkSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import type { MemLayer } from '../core/memory/brain'
-import { BACKUP_BUDGET } from '../core/memory/budgets'
 import { memIsSlug } from '../core/memory/note'
 import { atomicWriteSync, readJsonSafeSync } from '../engine/fsx'
 import { log } from '../engine/log'
 import { cortexdbBinary } from '../engine/toolchain/cortexdb'
+import { entriesOfBucketRows, entriesOfLegacyRows, importEntries, type Entry } from './bucket-io'
 import { closeCortex, pidAlive, readerEntries, RESTORE_HOLD_STALE_MS } from './cortex'
-import { BACKUP_ID_RE, brainBackupDir, brainBackupsDir, brainHoldFile, brainProjectsDir, locksDir, personDbFile } from './layout'
+import { BACKUP_ID_RE, brainBackupDir, brainBackupsDir, brainDbFile, brainHoldFile, locksDir } from './layout'
 import { acquireLock, tryLock } from './lock'
-import { readProjectsCache } from './project'
+import { legacyPending } from './migration-state'
 import { refreshStatus } from './status'
-import { brainExists, forgetListCache, personRef, projectRef, recordEvent, withBrainLock, type BrainRef } from './store'
-import { refreshUpkeepFor } from './sweep'
+import { snapshotFile, rowsOfCopy } from './snapshot'
+import {
+  bucketCounts, bypassMigrationGate, brainExists, deleteItem, forgetListCache, personRef, projectRef, rawRows, recordEvent, refKey, rowOwner, storedId, withBrainLock,
+  type BrainRef,
+} from './store'
 
-export type BackupTrigger = 'manual' | 'daily' | 'pre-restore' | 'pre-upgrade'
+export type BackupTrigger = 'manual' | 'daily' | 'pre-restore' | 'pre-upgrade' | 'pre-remove'
 
-export interface BackupBrain { layer: MemLayer, project?: string, file: string, bytes: number, method: 'sqlite' | 'copy', wal?: string }
+export interface BackupFile { name: string, bytes: number, method: 'sqlite' | 'copy', wal?: string }
 
+/** A backup is one copy of brain.db; `buckets` records how many memories each bucket held when it was taken. */
 export interface BackupManifest {
+  v: 2
+  id: string
+  at: string
+  trigger: BackupTrigger
+  file: BackupFile
+  buckets: { person: number, projects: Record<string, number> }
+}
+
+export interface LegacyBackupBrain { layer: MemLayer, project?: string, file: string, bytes: number, method: 'sqlite' | 'copy', wal?: string }
+
+/** A backup taken by Buracle 0.5: one copy per layer. It is still listed, and restores bucket by bucket. */
+export interface LegacyBackupManifest {
   v: 1
   id: string
   at: string
   trigger: BackupTrigger
-  brains: BackupBrain[]
+  brains: LegacyBackupBrain[]
   skipped?: Array<{ brain: string, why: string }>
 }
+
+export type BackupInfo = BackupManifest | LegacyBackupManifest
 
 export interface BackupResult { manifest?: BackupManifest, dir?: string, pruned: string[] }
 
 export type BrainChoice = { all: true } | { project: string } | { person: true }
-
-export type BackupChoice = BrainChoice | { refs: readonly BrainRef[] }
 
 export class BackupError extends Error {
   constructor(message: string) {
@@ -41,34 +56,28 @@ export class BackupError extends Error {
   }
 }
 
-const SQLITE_MAGIC = 'SQLite format 3\0'
 const PARTIAL_STALE_MS = 3600_000
 const STOP_PASSES = 3
 
-function brainKey(b: { layer: MemLayer, project?: string, slug?: string }): string {
-  return b.layer === 'person' ? 'person' : `project:${b.project ?? b.slug ?? ''}`
+function bucketName(b: { layer: MemLayer, project?: string, slug?: string }): string {
+  return b.layer === 'person' ? 'the person brain' : `the project ${b.project ?? b.slug ?? '?'}`
 }
 
-function brainName(ref: { layer: MemLayer, slug?: string, project?: string }): string {
-  return ref.layer === 'person' ? 'the person brain' : `the project ${ref.slug ?? ref.project ?? '?'}`
+/** The buckets a backup holds: `person` and project slugs. */
+export function backupBuckets(m: BackupInfo): string[] {
+  if (m.v === 1) return m.brains.map(b => (b.layer === 'person' ? 'person' : b.project ?? '?'))
+  return [...(m.buckets.person > 0 ? ['person'] : []), ...Object.keys(m.buckets.projects).sort()]
 }
 
-export function brainRefs(choice: BackupChoice): BrainRef[] {
-  if ('refs' in choice) return [...choice.refs]
-  if ('person' in choice) return [personRef()]
-  if ('project' in choice) {
-    if (!memIsSlug(choice.project)) throw new BackupError(`not a project slug: ${JSON.stringify(choice.project)}`)
-    return [projectRef(choice.project)]
-  }
-  const out: BrainRef[] = []
-  if (existsSync(personDbFile())) out.push(personRef())
-  let names: string[] = []
-  try { names = readdirSync(brainProjectsDir()).sort() } catch { names = [] }
-  for (const n of names) {
-    const slug = n.endsWith('.db') ? n.slice(0, -3) : ''
-    if (memIsSlug(slug)) out.push(projectRef(slug))
-  }
-  return out
+export function backupBytes(m: BackupInfo): number {
+  return m.v === 1 ? m.brains.reduce((n, b) => n + b.bytes, 0) : m.file.bytes
+}
+
+/** True when the backup holds a copy of that bucket (`all` is always true). */
+export function backupHolds(m: BackupInfo, choice: BrainChoice): boolean {
+  if ('all' in choice) return true
+  if (m.v === 1) return m.brains.some(b => ('person' in choice ? b.layer === 'person' : b.layer === 'project' && b.project === choice.project))
+  return 'person' in choice ? m.buckets.person > 0 : (m.buckets.projects[choice.project] ?? 0) > 0
 }
 
 function stampOf(ms: number): string {
@@ -93,57 +102,7 @@ function newBackupDir(nowMs: number): { id: string, partial: string } {
   throw new BackupError('too many backups in one second')
 }
 
-function isSqlite(file: string): boolean {
-  let fd: number | undefined
-  try {
-    fd = openSync(file, 'r')
-    const buf = Buffer.alloc(16)
-    return readSync(fd, buf, 0, 16, 0) === 16 && buf.toString('latin1') === SQLITE_MAGIC
-  } catch {
-    return false
-  } finally {
-    if (fd !== undefined) closeSync(fd)
-  }
-}
-
-function sqliteSnapshot(src: string, dest: string): boolean {
-  for (const opts of [{ readonly: true }, { readwrite: true, create: false }]) {
-    let db: Database | undefined
-    try {
-      db = new Database(src, opts)
-      db.exec(`VACUUM INTO '${dest.replace(/'/g, "''")}'`)
-      return true
-    } catch (e) {
-      log('debug', 'memory: a consistent SQLite copy failed', { db: src, readonly: 'readonly' in opts, error: e })
-      try { unlinkSync(dest) } catch {  }
-    } finally {
-      try { db?.close() } catch {  }
-    }
-  }
-  return false
-}
-
-function snapshotBrain(ref: BrainRef, dir: string): BackupBrain {
-  const file = ref.layer === 'person' ? 'person.db' : `projects/${ref.slug ?? ''}.db`
-  const dest = join(dir, file)
-  mkdirSync(dirname(dest), { recursive: true, mode: 0o700 })
-  let method: BackupBrain['method'] = 'copy'
-  let wal: string | undefined
-  if (isSqlite(ref.db) && sqliteSnapshot(ref.db, dest)) method = 'sqlite'
-  else {
-    copyFileSync(ref.db, dest)
-    if (existsSync(`${ref.db}-wal`)) {
-      copyFileSync(`${ref.db}-wal`, `${dest}-wal`)
-      chmodSync(`${dest}-wal`, 0o600)
-      wal = `${file}-wal`
-    }
-  }
-  chmodSync(dest, 0o600)
-  const bytes = statSync(dest).size + (wal !== undefined ? statSync(`${dest}-wal`).size : 0)
-  return { layer: ref.layer, ...(ref.slug !== undefined ? { project: ref.slug } : {}), file, bytes, method, ...(wal !== undefined ? { wal } : {}) }
-}
-
-function finishBackup(id: string, partial: string, manifest: BackupManifest): string {
+function finishBackup(id: string, partial: string, manifest: BackupInfo): string {
   atomicWriteSync(join(partial, 'backup.json'), JSON.stringify(manifest, null, 2) + '\n', { mode: 0o600 })
   const dir = brainBackupDir(id)
   renameSync(partial, dir)
@@ -156,42 +115,76 @@ async function withBackupsLock<T>(fn: () => Promise<T>): Promise<T> {
   try { return await fn() } finally { release() }
 }
 
-export async function backupBrains(choice: BackupChoice, opts: { trigger?: BackupTrigger, nowMs?: number, keep?: number } = {}): Promise<BackupResult> {
+async function currentBuckets(): Promise<BackupManifest['buckets']> {
+  try {
+    const c = await bypassMigrationGate(() => bucketCounts())
+    return { person: c.person, projects: Object.fromEntries([...c.projects].sort((a, b) => a[0].localeCompare(b[0]))) }
+  } catch (e) {
+    log('debug', 'memory: the buckets of a backup were not counted', { error: e })
+    return { person: 0, projects: {} }
+  }
+}
+
+function takeSnapshot(partial: string): BackupFile {
+  const r = snapshotFile(brainDbFile(), join(partial, 'brain.db'))
+  return { name: 'brain.db', bytes: r.bytes, method: r.method, ...(r.wal !== undefined ? { wal: 'brain.db-wal' } : {}) }
+}
+
+/** Copies brain.db (a SQLite snapshot that takes in the WAL) into backups/<id>/ and keeps the newest `keep` copies. */
+export async function backupBrains(choice: BrainChoice, opts: { trigger?: BackupTrigger, nowMs?: number, keep?: number } = {}): Promise<BackupResult> {
   const now = opts.nowMs ?? Date.now()
-  const refs = brainRefs(choice).filter(r => brainExists(r))
-  if (refs.length === 0) {
-    if ('project' in choice || 'person' in choice) throw new BackupError(`${brainName(brainRefs(choice)[0] ?? { layer: 'person' })} has no brain file yet; nothing to back up`)
+  // Buracle 0.5 files waiting for their migration are the brain: fold them in (verified copies first) rather than report an empty one.
+  if (!brainExists() && legacyPending()) await (await import('./migrate')).ensureMigrated().catch(() => undefined)
+  if (!brainExists()) {
+    if (legacyPending()) throw new BackupError('the Buracle 0.5 brain files are not migrated yet, so there is no brain.db to back up; run `buracle mem migrate` (it copies them and checks the copies first)')
+    if (!('all' in choice)) throw new BackupError(`${'person' in choice ? 'the person brain' : `the project ${choice.project}`} has no brain file yet; nothing to back up`)
     return { pruned: [] }
   }
   return withBackupsLock(async () => {
     const { id, partial } = newBackupDir(now)
-    const brains: BackupBrain[] = []
-    const skipped: Array<{ brain: string, why: string }> = []
-    for (const ref of refs) {
-      try { brains.push(await withBrainLock(ref, async () => snapshotBrain(ref, partial))) } catch (e) { skipped.push({ brain: brainName(ref), why: (e as Error).message }) }
-    }
-    if (brains.length === 0) {
+    let file: BackupFile
+    try {
+      file = takeSnapshot(partial)
+    } catch (e) {
       rmSync(partial, { recursive: true, force: true })
-      throw new BackupError(`nothing was backed up: ${skipped.map(s => `${s.brain}: ${s.why}`).join('; ')}`)
+      throw new BackupError(`nothing was backed up: ${e instanceof Error ? e.message : String(e)}`)
     }
-    const manifest: BackupManifest = { v: 1, id, at: new Date(now).toISOString(), trigger: opts.trigger ?? 'manual', brains, ...(skipped.length > 0 ? { skipped } : {}) }
+    const manifest: BackupManifest = { v: 2, id, at: new Date(now).toISOString(), trigger: opts.trigger ?? 'manual', file, buckets: await currentBuckets() }
     const dir = finishBackup(id, partial, manifest)
     const pruned = opts.keep !== undefined ? pruneNow(opts.keep, [id], now) : []
     return { manifest, dir, pruned }
   })
 }
 
-function isManifest(v: unknown): v is BackupManifest {
-  if (v === null || typeof v !== 'object') return false
-  const m = v as Record<string, unknown>
-  return m['v'] === 1 && typeof m['id'] === 'string' && typeof m['at'] === 'string' && Array.isArray(m['brains'])
-    && (m['trigger'] === 'manual' || m['trigger'] === 'daily' || m['trigger'] === 'pre-restore' || m['trigger'] === 'pre-upgrade')
+const DAILY_MS = 24 * 3600_000
+const DAILY_KEEP = 10
+
+/**
+ * One copy of the whole brain per 24 hours, taken by the session-end finalizer after its work: the safety net the
+ * removed tick used to provide, with no timer and no process of its own. Skipped when any backup is newer than a day.
+ */
+export async function maybeDailyBackup(nowMs: number = Date.now()): Promise<BackupManifest | undefined> {
+  const newest = listBackups()[0]
+  if (newest !== undefined && nowMs - Date.parse(newest.at) < DAILY_MS) return undefined
+  return (await backupBrains({ all: true }, { trigger: 'daily', nowMs, keep: DAILY_KEEP })).manifest
 }
 
-export function listBackups(): BackupManifest[] {
+const TRIGGERS: readonly string[] = ['manual', 'daily', 'pre-restore', 'pre-upgrade', 'pre-remove']
+
+function isManifest(v: unknown): v is BackupInfo {
+  if (v === null || typeof v !== 'object') return false
+  const m = v as Record<string, unknown>
+  if (typeof m['id'] !== 'string' || typeof m['at'] !== 'string' || typeof m['trigger'] !== 'string' || !TRIGGERS.includes(m['trigger'])) return false
+  if (m['v'] === 1) return Array.isArray(m['brains'])
+  const f = m['file']
+  const b = m['buckets']
+  return m['v'] === 2 && f !== null && typeof f === 'object' && typeof (f as BackupFile).name === 'string' && b !== null && typeof b === 'object'
+}
+
+export function listBackups(): BackupInfo[] {
   let names: string[] = []
   try { names = readdirSync(brainBackupsDir()) } catch { return [] }
-  const out: BackupManifest[] = []
+  const out: BackupInfo[] = []
   for (const n of names) {
     if (!BACKUP_ID_RE.test(n)) continue
     const r = readJsonSafeSync<unknown>(join(brainBackupsDir(), n, 'backup.json'))
@@ -201,19 +194,10 @@ export function listBackups(): BackupManifest[] {
 }
 
 function pruneNow(keep: number, protect: readonly string[], nowMs: number): string[] {
-  const copies = new Map<string, number>()
   const removed: string[] = []
-  const projects = readProjectsCache().projects
-  const gone = (b: BackupBrain) => b.layer === 'project' && memIsSlug(b.project) && projects[b.project] === undefined && !brainExists(projectRef(b.project))
-  let newer = 0
+  let kept = 0
   for (const m of listBackups()) {
-    const held = [...new Set(m.brains.map(brainKey))]
-    const goneHeld = new Set(m.brains.filter(gone).map(brainKey))
-    if (protect.includes(m.id) || held.length === 0 || held.some(k => (goneHeld.has(k) ? newer : (copies.get(k) ?? 0)) < Math.max(1, keep))) {
-      for (const k of held) copies.set(k, (copies.get(k) ?? 0) + 1)
-      newer++
-      continue
-    }
+    if (protect.includes(m.id) || kept < Math.max(1, keep)) { kept++; continue }
     try { rmSync(brainBackupDir(m.id), { recursive: true, force: true }); removed.push(m.id) } catch (e) { log('warn', 'memory: an old backup was not removed', { id: m.id, error: e }) }
   }
   let names: string[] = []
@@ -224,25 +208,6 @@ function pruneNow(keep: number, protect: readonly string[], nowMs: number): stri
     try { if (nowMs - statSync(p).mtimeMs > PARTIAL_STALE_MS) rmSync(p, { recursive: true, force: true }) } catch {  }
   }
   return removed
-}
-
-function dueForDailyBackup(nowMs: number): BrainRef[] {
-  const newest = new Map<string, number>()
-  for (const m of listBackups()) {
-    if (m.trigger === 'pre-restore') continue
-    for (const b of m.brains) if (!newest.has(brainKey(b))) newest.set(brainKey(b), Date.parse(m.at))
-  }
-  return brainRefs({ all: true }).filter(r => {
-    if (!brainExists(r)) return false
-    const at = newest.get(brainKey(r))
-    return at === undefined || !Number.isFinite(at) || nowMs - at >= BACKUP_BUDGET.everyMs
-  })
-}
-
-export async function maybeDailyBackup(nowMs: number): Promise<BackupResult | undefined> {
-  const due = dueForDailyBackup(nowMs)
-  if (due.length === 0) return undefined
-  return backupBrains({ refs: due }, { trigger: 'daily', nowMs, keep: BACKUP_BUDGET.keep })
 }
 
 function zombie(pid: number): boolean {
@@ -329,87 +294,138 @@ async function stopBrainReaders(db: string, waitMs: number): Promise<number> {
   return stopped.size
 }
 
-function swapIn(ref: BrainRef, src: string, wal: string | undefined): void {
-  mkdirSync(dirname(ref.db), { recursive: true, mode: 0o700 })
-  const tmp = `${ref.db}.restore-${process.pid}`
+/**
+ * Runs `fn` while no CortexDB reader has the brain file open: it takes the restore hold (new readers refuse to start),
+ * stops the readers other processes registered, and lets go of the hold afterwards. Returns how many readers it stopped.
+ */
+export async function withBrainStopped<T>(waitMs: number, fn: () => T | Promise<T>): Promise<{ value: T, stopped: number }> {
+  const hold = tryLock(brainHoldFile(brainDbFile()), RESTORE_HOLD_STALE_MS, { heartbeat: true })
+  if (!hold) throw new BackupError('another restore holds the brain')
+  try {
+    const stopped = await stopBrainReaders(brainDbFile(), waitMs)
+    return { value: await fn(), stopped }
+  } finally {
+    hold()
+  }
+}
+
+function swapIn(src: string, wal: string | undefined): void {
+  const db = brainDbFile()
+  mkdirSync(dirname(db), { recursive: true, mode: 0o700 })
+  const tmp = `${db}.restore-${process.pid}`
   copyFileSync(src, tmp)
   chmodSync(tmp, 0o600)
-  for (const ext of ['-wal', '-shm', '-journal']) { try { unlinkSync(`${ref.db}${ext}`) } catch {  } }
-  renameSync(tmp, ref.db)
+  for (const ext of ['-wal', '-shm', '-journal']) { try { unlinkSync(`${db}${ext}`) } catch {  } }
+  renameSync(tmp, db)
   if (wal !== undefined) {
-    copyFileSync(wal, `${ref.db}-wal`)
-    chmodSync(`${ref.db}-wal`, 0o600)
+    copyFileSync(wal, `${db}-wal`)
+    chmodSync(`${db}-wal`, 0o600)
   }
-  forgetListCache(ref.db)
+  forgetListCache()
 }
 
 export interface RestoreResult {
   id: string
-  restored: Array<{ layer: MemLayer, project?: string, bytes: number }>
+  /** What came back: the whole brain file (`all`), or one bucket with the memories it holds now. */
+  restored: Array<{ layer: MemLayer, project?: string, memories?: number, all?: true }>
   safety?: string
   stopped: number
+}
+
+function wantedName(choice: BrainChoice): string {
+  return 'all' in choice ? 'any brain' : 'person' in choice ? 'the person brain' : `the project ${choice.project}`
+}
+
+/** The memories of a bucket, from the copy of a backup: brain.db copies carry bucket ids, Buracle 0.5 copies one layer per file. */
+async function bucketFromBackup(m: BackupInfo, ref: BrainRef): Promise<{ entries: Entry[] }> {
+  const dir = brainBackupDir(m.id)
+  if (m.v === 2) return entriesOfBucketRows(await rowsOfCopy(join(dir, m.file.name)), ref)
+  const b = m.brains.find(x => (ref.layer === 'person' ? x.layer === 'person' : x.layer === 'project' && x.project === ref.slug))
+  return b === undefined ? { entries: [] } : entriesOfLegacyRows(await rowsOfCopy(join(dir, b.file)), ref.layer)
+}
+
+async function restoreBucket(m: BackupInfo, ref: BrainRef, nowMs: number): Promise<number> {
+  const { entries } = await bucketFromBackup(m, ref)
+  if (entries.length === 0) throw new BackupError(`backup ${m.id} holds no copy of ${bucketName(ref)}`)
+  return withBrainLock(ref, async () => {
+    // The backup's memories go in first; only then do the rows it does not hold go, so a stop in between loses nothing.
+    await importEntries(ref, entries, { nowMs })
+    const keep = new Set(entries.map(e => storedId(ref, e.item.id)))
+    if (brainExists()) {
+      for (const raw of await rawRows(brainDbFile())) {
+        const owner = rowOwner(raw)
+        if (owner === undefined || refKey(owner.ref) !== refKey(ref) || keep.has((raw as { id: string }).id)) continue
+        await deleteItem(ref, owner.id)
+      }
+    }
+    forgetListCache()
+    return entries.length
+  })
 }
 
 export async function restoreBackup(id: string, choice: BrainChoice, opts: { nowMs?: number, waitMs?: number } = {}): Promise<RestoreResult> {
   if (!BACKUP_ID_RE.test(id)) throw new BackupError(`not a backup id: ${JSON.stringify(id)} (buracle mem backup --list shows them)`)
   const manifest = listBackups().find(m => m.id === id)
   if (manifest === undefined) throw new BackupError(`there is no backup ${id} (buracle mem backup --list shows them)`)
-  const picked = manifest.brains.filter(b => 'all' in choice || ('person' in choice ? b.layer === 'person' : b.layer === 'project' && b.project === choice.project))
-  if (picked.length === 0) throw new BackupError(`backup ${id} holds no copy of ${'person' in choice ? 'the person brain' : 'project' in choice ? `the project ${choice.project}` : 'any brain'}`)
-  for (const b of picked) if (b.layer === 'project' && !memIsSlug(b.project)) throw new BackupError(`backup ${id} names a project that is not a slug: ${JSON.stringify(b.project)}`)
+  if ('project' in choice && !memIsSlug(choice.project)) throw new BackupError(`not a project slug: ${JSON.stringify(choice.project)}`)
+  // A brain.db copy restores whole; a Buracle 0.5 backup (one copy per layer) and a single bucket restore bucket by bucket.
+  const buckets: BrainRef[] = manifest.v === 1 && 'all' in choice
+    ? manifest.brains.map(b => (b.layer === 'person' ? personRef() : projectRef(b.project as string)))
+    : 'project' in choice ? [projectRef(choice.project)] : 'person' in choice ? [personRef()] : []
+  if (manifest.v === 1 && !('all' in choice) && !backupHolds(manifest, choice)) throw new BackupError(`backup ${id} holds no copy of ${wantedName(choice)}`)
+  if (manifest.v === 1) for (const b of manifest.brains) if (b.layer === 'project' && !memIsSlug(b.project)) throw new BackupError(`backup ${id} names a project that is not a slug: ${JSON.stringify(b.project)}`)
   const now = opts.nowMs ?? Date.now()
   const { result, failure } = await withBackupsLock(async () => {
     const { id: safetyId, partial } = newBackupDir(now)
-    const safety: BackupBrain[] = []
+    let safety: BackupFile | undefined
     const restored: RestoreResult['restored'] = []
     let stopped = 0
-    let failure: { at: number, error: unknown } | undefined
+    let failure: { at?: BrainRef, index: number, error: unknown } | undefined
+    let before: BackupManifest['buckets'] = { person: 0, projects: {} }
     try {
-      for (const [n, b] of picked.entries()) {
-        const ref = b.layer === 'person' ? personRef() : projectRef(b.project as string)
+      if (brainExists()) { before = await currentBuckets(); safety = takeSnapshot(partial) }
+      if (manifest.v === 2 && 'all' in choice) {
         try {
-          await withBrainLock(ref, async () => {
-            const hold = tryLock(brainHoldFile(ref.db), RESTORE_HOLD_STALE_MS, { heartbeat: true })
-            if (!hold) throw new BackupError(`another restore holds ${brainName(ref)}`)
-            try {
-              stopped += await stopBrainReaders(ref.db, opts.waitMs ?? 10_000)
-              if (brainExists(ref)) safety.push(snapshotBrain(ref, partial))
-              swapIn(ref, join(brainBackupDir(id), b.file), b.wal !== undefined ? join(brainBackupDir(id), b.wal) : undefined)
-            } finally {
-              hold()
-            }
-          })
+          stopped += (await withBrainStopped(opts.waitMs ?? 10_000, () => swapIn(join(brainBackupDir(id), manifest.file.name), manifest.file.wal !== undefined ? join(brainBackupDir(id), manifest.file.wal) : undefined))).stopped
+          restored.push({ layer: 'person', all: true })
+          recordEvent({ op: 'import', layer: 'person', n: 1, by: 'buracle-restore' })
         } catch (e) {
-          failure = { at: n, error: e }
-          break
+          failure = { index: -1, error: e }
         }
-        restored.push({ layer: b.layer, ...(b.project !== undefined ? { project: b.project } : {}), bytes: b.bytes })
-        recordEvent({ op: 'import', layer: b.layer, ...(b.project !== undefined ? { project: b.project } : {}), n: 1, by: 'buracle-restore' })
+      } else {
+        for (const [index, ref] of buckets.entries()) {
+          try {
+            const memories = await restoreBucket(manifest, ref, now)
+            restored.push({ layer: ref.layer, ...(ref.slug !== undefined ? { project: ref.slug } : {}), memories })
+            recordEvent({ op: 'import', layer: ref.layer, ...(ref.slug !== undefined ? { project: ref.slug } : {}), n: memories, by: 'buracle-restore' })
+          } catch (e) {
+            failure = { at: ref, index, error: e }
+            break
+          }
+        }
       }
     } finally {
-      if (safety.length > 0) finishBackup(safetyId, partial, { v: 1, id: safetyId, at: new Date(now).toISOString(), trigger: 'pre-restore', brains: safety })
+      if (safety !== undefined) finishBackup(safetyId, partial, { v: 2, id: safetyId, at: new Date(now).toISOString(), trigger: 'pre-restore', file: safety, buckets: before })
       else rmSync(partial, { recursive: true, force: true })
     }
-    return { result: { id, restored, ...(safety.length > 0 ? { safety: safetyId } : {}), stopped }, failure }
+    return { result: { id, restored, ...(safety !== undefined ? { safety: safetyId } : {}), stopped } satisfies RestoreResult, failure }
   })
   for (const r of result.restored) {
-    const ref = r.layer === 'person' ? personRef() : projectRef(r.project as string)
     try {
-      await refreshUpkeepFor(ref, { nowMs: now })
       await refreshStatus({ ...(r.project !== undefined ? { slug: r.project } : {}), nowMs: now })
     } catch (e) { log('warn', 'memory: the status was not refreshed after a restore', { error: e }) }
   }
-  if (failure !== undefined) throw new BackupError(restoreFailure(result, picked[failure.at] as BackupBrain, picked.slice(failure.at + 1), failure.error))
+  if (failure !== undefined) throw new BackupError(restoreFailure(result, failure.at, buckets.slice(failure.index + 1), failure.error))
   return result
 }
 
-function restoreFailure(done: RestoreResult, failed: BackupBrain, left: readonly BackupBrain[], error: unknown): string {
-  const names = (list: ReadonlyArray<{ layer: MemLayer, project?: string }>) => list.map(brainName).join(', ')
+function restoreFailure(done: RestoreResult, failed: BrainRef | undefined, left: readonly BrainRef[], error: unknown): string {
+  const names = (list: ReadonlyArray<{ layer: MemLayer, project?: string, slug?: string, all?: true }>) => list.map(x => ('all' in x && x.all === true ? 'the brain file' : bucketName(x))).join(', ')
   return [
     done.restored.length > 0 ? `restored ${names(done.restored)}` : undefined,
-    `${brainName(failed)} was not restored: ${error instanceof Error ? error.message : String(error)}`,
+    `${failed !== undefined ? bucketName(failed) : 'the brain file'} was not restored: ${error instanceof Error ? error.message : String(error)}`,
     left.length > 0 ? `not tried: ${names(left)}` : undefined,
     done.restored.length === 0 ? 'nothing was restored' : undefined,
-    done.safety !== undefined ? `the brain files as they were before this restore are in backup ${done.safety} (buracle mem restore ${done.safety} --all puts them back)` : undefined,
+    done.safety !== undefined ? `the brain file as it was before this restore is in backup ${done.safety} (buracle mem restore ${done.safety} --all puts it back)` : undefined,
   ].filter((s): s is string => s !== undefined).join('; ')
 }

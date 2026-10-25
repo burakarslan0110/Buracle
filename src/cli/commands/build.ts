@@ -38,7 +38,7 @@ export async function runBuildFlow(opts: { check: boolean, harnesses?: Harness[]
   const res: BuildCommandResult = { code: report.ok ? 0 : 1, report }
   if (!opts.check && opts.runtimeConfig !== false) {
     try {
-      res.runtimeConfig = await writeRuntimeConfig(loadConfigSync({ repoRoot }).config)
+      res.runtimeConfig = await writeRuntimeConfig(loadConfigSync({ repoRoot }))
     } catch (e) {
       report.warnings.push(`runtime-config.json: ${errText(e)}`)
     }

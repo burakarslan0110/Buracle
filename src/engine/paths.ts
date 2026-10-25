@@ -1,9 +1,9 @@
 import os from 'node:os'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
-import { parse as parseYaml } from 'yaml'
 import type { Harness } from '../core/events'
 import { osName } from './platform'
+import { parseYaml } from './yaml'
 
 export function env(name: string): string | undefined {
   const v = process.env[name]

@@ -4,17 +4,18 @@ import type { Style } from './style'
 import { padEnd, stripAnsi, visibleWidth, wordmark } from './style'
 
 export type RowState = 'ok' | 'warn' | 'err' | 'off'
-export type SectionId = 'buracle' | 'harnesses' | 'mcp' | 'tools' | 'memory'
+export type SectionId = 'buracle' | 'harnesses' | 'mcp' | 'tools' | 'lsp' | 'memory'
 
 export const SECTION_TITLES: Readonly<Record<SectionId, string>> = {
   buracle: 'Buracle',
   harnesses: 'Harnesses',
   mcp: 'MCP servers',
-  tools: 'Tools and language servers',
+  tools: 'Tools',
+  lsp: 'Language servers',
   memory: 'Memory',
 }
 
-const SECTION_ORDER: readonly SectionId[] = ['buracle', 'harnesses', 'mcp', 'tools', 'memory']
+const SECTION_ORDER: readonly SectionId[] = ['buracle', 'harnesses', 'mcp', 'tools', 'lsp', 'memory']
 
 export interface DashRow {
   id: string
@@ -38,7 +39,7 @@ export interface DashView {
   scroll: number // the first visible item
   help: boolean
   message?: string
-  summary: { updates: number; problems: number; checkedAt?: string }
+  summary: { updates: number; problems: number; checkedAt?: string; working?: string } // working: what is being verified right now
 }
 
 export type DashAction = { kind: 'run'; argv: string[] } | { kind: 'reload' } | { kind: 'back' } | { kind: 'quit' }
@@ -69,13 +70,14 @@ const SHORTCUTS: ReadonlyMap<string, readonly string[]> = new Map<string, readon
 const HELP: ReadonlyArray<readonly [string, string]> = [
   ['↑ ↓ or k j', 'move'],
   ['PgUp PgDn, Home End, g G', 'jump'],
+  ['n N', 'next, previous row that needs a look'],
   ['enter', 'run the action of the selected row'],
   ['u', 'update everything'],
   ['c', 'check for updates'],
   ['i', 'install or repair'],
   ['d', 'health check'],
   ['m', 'open the memory web UI'],
-  ['r', 'reload'],
+  ['r', 'recheck everything now'],
   ['esc', 'back to the main menu'],
   ['?', 'close this help'],
   ['q', 'quit'],
@@ -233,7 +235,9 @@ function titleLine(st: Style, view: DashView, width: number): string {
   }
   const counts = updates === 0 && problems === 0 ? [st.ok('all good')] : [count(updates, 'update', st.accent), count(problems, 'problem', st.warn)]
   const checked = clean(view.summary.checkedAt)
-  for (const parts of checked === '' ? [counts] : [[...counts, st.muted(`checked ${checked}`)], counts]) {
+  const working = clean(view.summary.working)
+  const tail = working !== '' ? st.accent(working) : checked !== '' ? st.muted(`checked ${checked}`) : ''
+  for (const parts of tail === '' ? [counts] : [[...counts, tail], counts]) {
     const right = parts.join(st.muted(' · '))
     const pad = width - visibleWidth(left) - visibleWidth(right)
     if (pad >= 2) return `${left}${' '.repeat(pad)}${right}`
@@ -251,6 +255,7 @@ function hintLine(st: Style, row: DashRow | undefined, width: number): string {
     { key: 'i', word: 'install', drop: 3 },
     { key: 'd', word: 'doctor', drop: 2 },
     { key: 'm', word: 'memory', drop: 1 },
+    { key: 'r', word: 'recheck', drop: 1 },
     { key: 'esc', word: 'menu', drop: 7 },
     { key: '?', word: 'keys' },
     { key: 'q', word: 'quit' },
@@ -351,6 +356,14 @@ export function dashboardStep(view: DashView, key: Key): { view: DashView; actio
   if (key === 'pagedown') return { view: at(current.selected + height) }
   if (key === 'home' || char === 'g') return { view: at(0) }
   if (key === 'end' || char === 'G') return { view: at(count - 1) }
+  if (char === 'n' || char === 'N') {
+    for (let step = 1; step <= count; step++) {
+      const i = (((current.selected + (char === 'n' ? step : -step)) % count) + count) % count
+      const state = view.items[i]?.state
+      if (state === 'err' || state === 'warn') return { view: at(i) }
+    }
+    return { view: { ...current, message: 'nothing needs a look' } }
+  }
   if (key === 'enter') {
     const action = view.items[current.selected]?.action
     return action === undefined ? { view: current } : { view: current, action: { kind: 'run', argv: [...action.argv] } }

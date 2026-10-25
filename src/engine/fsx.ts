@@ -24,17 +24,29 @@ export function comparablePath(p: string, base?: string): string {
 // Windows refuses to rename a folder while another process (an antivirus scan, the search indexer) still reads a
 // file in it, as it does right after npm wrote one; npm's own file layer retries for the same reason. Windows
 // retries for up to budgetMs; elsewhere the first error stands.
-export function renameRetrySync(from: string, to: string, opts: { budgetMs?: number, platform?: NodeJS.Platform, rename?: (a: string, b: string) => void } = {}): void {
+export interface RenameRetryOptions {
+  budgetMs?: number
+  platform?: NodeJS.Platform
+  rename?: (a: string, b: string) => void
+  sleep?: (ms: number) => void
+}
+
+export function renameRetrySync(from: string, to: string, opts: RenameRetryOptions = {}): void {
   const rename = opts.rename ?? renameSync
+  const sleep = opts.sleep ?? Bun.sleepSync
   const start = Date.now()
   for (let delay = 50; ; delay = Math.min(delay * 2, 1000)) {
     try { rename(from, to); return } catch (e) {
       const code = (e as { code?: string }).code
       if ((opts.platform ?? process.platform) !== 'win32' || (code !== 'EPERM' && code !== 'EACCES' && code !== 'EBUSY') || Date.now() - start >= (opts.budgetMs ?? 30_000)) throw e
-      Bun.sleepSync(delay)
+      sleep(delay)
     }
   }
 }
+
+// atomicWriteSync also runs inside hooks, which have a time budget: a few tries (50, 100, 200, 400, 800 ms apart)
+// ride out a scanner or indexer holding the target on Windows, then the error stands.
+const ATOMIC_RENAME_BUDGET_MS = 1500
 
 // Windows lets a user create a symbolic link only with administrator rights or Developer Mode, and a junction
 // always, so a link to a directory is a junction there: one with an absolute target at once, one with a relative
@@ -132,11 +144,17 @@ export function fileMode(path: string): number | undefined {
   }
 }
 
-export async function atomicWrite(path: string, data: string | Uint8Array, opts: { mode?: number } = {}): Promise<void> {
+export interface AtomicWriteOptions {
+  mode?: number
+  /** Replaces the rename and its retry policy; for tests. */
+  renameRetry?: RenameRetryOptions
+}
+
+export async function atomicWrite(path: string, data: string | Uint8Array, opts: AtomicWriteOptions = {}): Promise<void> {
   atomicWriteSync(path, data, opts)
 }
 
-export function atomicWriteSync(path: string, data: string | Uint8Array, opts: { mode?: number } = {}): void {
+export function atomicWriteSync(path: string, data: string | Uint8Array, opts: AtomicWriteOptions = {}): void {
   const target = resolveWriteTarget(path)
   const dir = dirname(target)
   mkdirSync(dir, { recursive: true })
@@ -152,7 +170,7 @@ export function atomicWriteSync(path: string, data: string | Uint8Array, opts: {
     closeSync(fd)
     fd = undefined
     chmodSync(tmp, mode)
-    renameSync(tmp, target)
+    renameRetrySync(tmp, target, { budgetMs: ATOMIC_RENAME_BUDGET_MS, ...opts.renameRetry })
   } catch (e) {
     if (fd !== undefined) { try { closeSync(fd) } catch {  } }
     try { unlinkSync(tmp) } catch {  }

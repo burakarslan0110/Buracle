@@ -1,4 +1,5 @@
 import type { Harness } from '../core/events'
+import { HANDOFF_KEEP_MS } from '../core/memory/brain'
 import { memNoteHarness, parseNote } from '../core/memory/note'
 import { memClip, memOneLine, redact, slugify } from '../core/memory/text'
 import { log } from '../engine/log'
@@ -23,8 +24,6 @@ export interface HandoffInput {
 
 export interface HandoffRef { id: string, path: string, rel: string, title: string }
 
-const KEEP_MS = 14 * 86_400_000
-
 export async function writeHandoff(input: HandoffInput): Promise<HandoffRef | undefined> {
   if (cortexdbBinary() === undefined) return undefined
   const now = input.now ?? Date.now()
@@ -44,8 +43,8 @@ export async function writeHandoff(input: HandoffInput): Promise<HandoffRef | un
       sources: typeof fm['plan'] === 'string' ? [fm['plan']] : [], about: [], status: 'active', review: 'ok', importance: 4,
       created: at, updated: at, author: 'buracle', version: 1, history: [{ at, by: memNoteHarness(input.harness), what: 'written before compaction' }],
       harness: memNoteHarness(input.harness), session: input.sessionId, ...(input.branch !== undefined ? { branch: input.branch } : {}),
-      expires: new Date(now + KEEP_MS).toISOString(),
-    })
+      expires: new Date(now + HANDOFF_KEEP_MS).toISOString(),
+    }, {}, { nowMs: now })
     recordEvent({ op: 'write', layer: 'project', project: slug, id, kind: 'handoff', by: memNoteHarness(input.harness) })
     await refreshStatus({ slug, nowMs: now, lastWrite: { by: memNoteHarness(input.harness), type: 'handoff' } })
     return { id, path: id, rel: id, title }

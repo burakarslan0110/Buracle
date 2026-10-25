@@ -2,46 +2,75 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { CommandIO } from '../router'
 import type { Harness } from '../../core/events'
-import { HARNESSES, isHarness } from '../../core/events'
+import { isHarness } from '../../core/events'
 import { memIsSlug } from '../../core/memory/note'
 import { memSegmentWith } from '../../core/memory/status'
 import * as paths from '../../engine/paths'
 import { resolveSession } from '../../workflow/session-store'
 
 export const name = 'mem'
-export const summary = 'Memory (CortexDB brains per project and for the person): search, get, write, update, status, sweep, reflect, profile, import, web UI'
+export const summary = 'Memory (one CortexDB brain: a bucket per project and one for the person): search, get, write, update, status, capture, backup, migrate, import, web UI'
 export const usage = `Usage: buracle mem <subcommand> [args…] [--json]
 
-The memory lives in ~/.buracle/brain: one CortexDB file per project (projects/<slug>.db) and one for
-the person (person.db). A command reaches only the current project's file and the person's.
+The memory lives in one CortexDB file, ~/.buracle/brain/brain.db, with a bucket for each project and one
+for the person. A command reaches only the current project's bucket and the person's.
+Nothing runs in the background by itself: a session end captures what it learned (one detached
+\`mem finalize\`), everything else happens when you run a command.
 
 Memories (CLI twins of the MCP tools)
   search ["<query>"] [--layer project|person|all] [--type K]… [--status live|any] [--since D] [--until D] [--limit N]
          [--file PATH]… [--tag T]… [--about A]… [--offset N] [--around ID [--depth N]]
                                              a filter works without a query: --file lists the memories that
-                                             cite a file or a folder (path relative to the root); --offset
-                                             pages on; --around lists what was recorded before and after ID
+                                             cite a file or a folder (path relative to the root); --about
+                                             names a topic and also follows the graph from it (memories linked
+                                             to the topic rank first); --offset pages on; --around lists what
+                                             was recorded before and after ID
   get ID…                                    up to 5 memories in full (person/<id> picks the person layer)
   write --type K --title "…" --summary "…" [--body "…" | --body-file F | stdin] [--layer project|person]
         [--source S]… [--tag T]… [--about A]… [--supersedes ID]… [--importance 1-5] [--pin] [--force] [--review ok]
-  update ID --patch '<json>' [--reason "…"] [--expected-version N]
+        [--origin explicit|inferred] [--confidence 0-1]
+                                             written by hand, so the origin is explicit unless you say otherwise
+  update ID --patch '<json>' [--reason "…"] [--expected-version N] [--origin explicit|inferred]
                                              e.g. --patch '{"review":"ok"}', '{"status":"deprecated"}',
                                              '{"merge_into":"<id>"}', '{"move":{"kind":"decision"}}'
-  remember "<text>"                          a capture the next harness files
+                                             an inferred change never edits, retires or replaces an explicit,
+                                             pinned or (for retiring and replacing) verified memory
+  remember "<text>"                          a capture to file later (memory_update with move: {kind, layer})
   status [--project SLUG] [--style compact|wide] [--refresh]
-                                             counts per brain region and the upkeep queue
-  context [--harness H] [--cwd DIR]          the session-start memory text (--json: {"text": …})
+                                             the store, the brain file with its buckets, the counts per brain
+                                             region, the last write and the last capture
+  context [--cwd DIR]                        the session-start memory text (--json: {"text": …})
 
-Backups and moving a brain (the brains stay on this machine; nothing is synced)
-  backup [--project SLUG | --person] [--keep N]
-                                             copy the brains (all of them by default) into
-                                             ~/.buracle/brain/backups/<id>/ and keep the newest 10 copies
-                                             of each brain (--keep N); the tick copies each brain once a day
-  backup --list                              the backups, newest first, with the brains each holds
+Capture (the model-assisted writing, on demand)
+  capture [--session SID [--harness H]] [--pending] [--limit N] [--force]
+                                             the same work a session end does, now: the session memory, the
+                                             user's explicit statements as preference memories (no model),
+                                             and one bounded model call over the session for its durable
+                                             decisions, gotchas and procedures. Without --session it takes
+                                             the newest session of this project. --pending also takes up to
+                                             N (default 3) stale sessions whose capture is owed; --force
+                                             distills again although the same material was distilled. A
+                                             failed, rate-limited or invalid model answer writes nothing.
+
+Backups and moving a brain (the brain stays on this machine; nothing is synced)
+  backup [--keep N]                          copy brain.db (every bucket: a backup is always the whole file, so
+                                             --project and --person are refused; \`export\` saves one bucket)
+                                             into ~/.buracle/brain/backups/<id>/ and keep the newest 10 copies
+  backup --list                              the backups, newest first, with the buckets each holds
   restore ID (--project SLUG | --person | --all)
-                                             put a backup's copy back; the file it replaces goes into a
-                                             pre-restore backup first, and the running CortexDB readers
-                                             of that brain are stopped (sessions start new ones)
+                                             --all puts the whole brain file back (the running CortexDB
+                                             readers are stopped, sessions start new ones); --project and
+                                             --person take only that bucket out of the backup and leave the
+                                             others as they are. The brain as it was goes into a
+                                             pre-restore backup first.
+  migrate [--status | --dry-run | --rollback [--force] | --purge-legacy]
+                                             fold the per-layer files of Buracle 0.5 (person.db, projects/)
+                                             into brain.db: verified copies first, nothing deleted, safe to
+                                             run again. It also runs by itself at the first memory call. A large
+                                             file shows how far the copy is on stderr (not with --json).
+                                             --rollback puts the 0.5 files back (brain.db is kept as
+                                             brain.db.rolled-back unless --force); --purge-legacy deletes the
+                                             moved-aside files and the copies
   export [--project SLUG | --person] [--type K]… [--out FILE]
                                              the live memories of one brain as JSON lines, secrets masked
                                              again (decisions, gotchas, procedures, knowledge, references,
@@ -50,67 +79,27 @@ Backups and moving a brain (the brains stay on this machine; nothing is synced)
                                              write an export into this project's brain and the person's
                                              through memory_write: duplicates and what an earlier import
                                              brought are skipped, and every memory starts unverified
-
-Upkeep (the memory keeps itself clean; the harnesses do the work)
-  sweep [--project SLUG | --all] [--dry-run] [--quiet]
-                                             delete what ran out (expired sessions and handoffs, memories
-                                             retired 30 days ago), refresh the core pages from the
-                                             repository and the upkeep queue (git looks at cited files)
-  reflect [--project SLUG | --person] [--harness H] [--model M] [--dry-run]
-                                             the brain questions itself: the model proposes small edits
-                                             from an allowlist (tags, links, doubts, filing, merging
-                                             flagged duplicates, drafts); never deletes or verifies. It
-                                             runs through a harness with usage headroom: the calling
-                                             agent's (or --harness) first, then any other with room
-  heal [--project SLUG] [--quiet]           repair what the memory status reports: reinstall CortexDB
-                                             and the embedding model, restart the brain readers, check
-                                             the MCP server, prune and drain the distill queue, sweep and
-                                             reflect (sessions run it in the background while the status is not ok)
-  heal --list                                the recent repairs and what each step did
-  jobs [--job ID] [--project SLUG] [--limit N]
-                                             every automatic memory job (kick, finalize, sweep, distill,
-                                             reflect, verify, heal, profile): when it last ran, what it
-                                             did, why it was skipped or failed, and when it runs
-  verify [--project SLUG] [--harness H] [--model M] [--dry-run] [--quiet]
-                                             check waiting memories against the code: Buracle reads the
-                                             cited files at HEAD, the model judges with verbatim quotes,
-                                             and only a claim with checked quotes is marked verified
-  verify --list | --undo RUN                 the recent verifier runs; take one back
-  reflect --list                             the recent reflect runs (what each one changed)
-  reflect --undo RUN                         take a reflect run back (memories changed since are left alone)
-  profile [--rebuild]                        the user profile the agents start with
-  profile drop "<text|key>" [--all]          take a wrongly learned line out of the profile
-  project init [--cwd DIR]                   map this folder to its project and create its core pages
+  project init [--cwd DIR]                   map this folder to its project
   import-vault [--vault PATH] [--dry-run]    copy the live notes of the old Obsidian vault into the
                                              brains once (the vault is only read)
-  doctor [--no-mcp]                          CortexDB binary, brain files, leak check, MCP handshake
+  doctor [--no-mcp]                          CortexDB binary, the brain file and its migration, leak check, MCP handshake
                                              (--json: {"checks":[{level,check,detail}]}; exit 1 errors, 2 warnings)
   ui [--open] [--port N] [--stop]            the brain web UI (http://localhost:41777): starts it in the
-                                             background when it does not run, prints its address
+                                             background when it does not run, prints its address; it only
+                                             starts when you run this command, and it stops by itself after
+                                             30 minutes without a request (BURACLE_UI_IDLE_MS, in milliseconds)
   ui --page review [--open]                  the review page of the same UI: the plans, build contracts
                                              and PRDs of your projects and the agent's changes, where you
                                              pin notes the agent reads (buracle plan notes)
-  ui --serve [--port N] [--for-session]      run the web UI in the foreground; it stops by itself once no
-                                             harness session has been open for a while (--for-session: one
-                                             is open as it starts, as the session-start autostart says)
+  ui --serve [--port N]                      run the web UI in the foreground (Ctrl-C stops it; it stops by
+                                             itself after the same idle time)
 
 Sessions (called by hooks; nothing is recorded under BURACLE_NO_CAPTURE=1)
   start --harness H --session SID [--cwd DIR]
-  kick [--harness H --session SID] [--cwd DIR]
-                                             the session-start upkeep (every start runs it detached):
-                                             sweep, store check and repair, stale sessions, orphan
-                                             spools, dead locks
-  tick [--harness H --session SID] [--cwd DIR] [--trigger cli|prompt|session-start|session-end|compact|window-reset] [--at ISO] [--quiet]
-                                             the machine-wide upkeep (every prompt, session start or
-                                             end and compaction in any harness runs it detached, at
-                                             most once a minute): the kick's work for every active
-                                             project, the distill queue, reflect of the brains that
-                                             changed (the curator included), the verifier and the repair
   finalize --harness H --session SID [--detach]
+                                             the session end: the same work as capture, then up to 3 other
+                                             stale sessions (--detach starts it in the background)
   handoff --harness H --session SID [--cwd DIR] [--branch B] [--slug S] [--trigger T]   (markdown on stdin)
-  distill [--harness H --session SID | --pending] [--model M] [--dry-run]
-                                             LLM summary (budgeted per call) through a harness with
-                                             usage headroom: the session's own first, then any other
 
 Global: --json for machine-readable output. Exit codes: 0 ok, 1 error, 2 user action needed.
 `
@@ -120,7 +109,7 @@ interface Parsed { pos: string[], flags: Map<string, string[]>, bools: Set<strin
 const VALUE_FLAGS = new Set([
   'vault', 'cwd', 'project', 'style', 'scope', 'layer', 'type', 'kind', 'status', 'since', 'until', 'limit', 'max-tokens',
   'title', 'summary', 'description', 'body', 'body-file', 'source', 'supersedes', 'tag', 'importance', 'review', 'harness',
-  'session', 'model', 'port', 'patch', 'reason', 'expected-version', 'branch', 'slug', 'trigger', 'undo', 'job',
+  'session', 'model', 'port', 'patch', 'reason', 'expected-version', 'branch', 'slug', 'trigger', 'origin', 'confidence',
   'file', 'about', 'offset', 'around', 'depth', 'keep', 'out', 'page',
 ])
 
@@ -136,7 +125,8 @@ function parse(argv: string[]): Parsed {
     if (!a.startsWith('--') || a === '--') { pos.push(a); continue }
     const eq = a.indexOf('=')
     const key = a.slice(2, eq > 0 ? eq : undefined)
-    if (VALUE_FLAGS.has(key)) {
+    // `--status` takes a value for search (live|any) and none for `migrate --status`.
+    if (VALUE_FLAGS.has(key) && !(key === 'status' && pos[0] === 'migrate')) {
       const value = eq > 0 ? a.slice(eq + 1) : argv[++i]
       if (value === undefined) throw new UsageError(`--${key} needs a value`)
       flags.set(key, [...(flags.get(key) ?? []), value])
@@ -215,7 +205,7 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     if (e instanceof MemoryError) {
       if (json) io.stdout.write(JSON.stringify({ error: e.code, message: e.message, ...(e.data ?? {}) }, null, 2) + '\n')
       else io.stderr.write(`buracle mem ${sub}: ${e.message}\n`)
-      return e.code === 'conflict' || e.code === 'store_unavailable' || e.code === 'no_project' ? 2 : 1
+      return e.code === 'conflict' || e.code === 'store_unavailable' || e.code === 'no_project' || e.code === 'migrating' ? 2 : 1
     }
     io.stderr.write(`buracle mem ${sub}: ${e instanceof Error ? e.message : String(e)}\n`)
     return 1
@@ -228,7 +218,7 @@ async function dispatch(sub: string, rest: string[], p: Parsed, io: CommandIO, j
   switch (sub) {
     case 'status': {
       const { readStatus } = await import('../../memory/status')
-      const { memoryStatusReport } = await import('../../memory/report')
+      const { memoryStatusReport } = await import('../../memory/status-report')
       const ctx = await ctxFor(p)
       if (projectFlag(p) !== undefined) ctx.project = projectFlag(p) as string
       if (!p.bools.has('refresh') && one(p, 'style') !== undefined) {
@@ -239,9 +229,9 @@ async function dispatch(sub: string, rest: string[], p: Parsed, io: CommandIO, j
           return s.health === 'error' ? 2 : 0
         }
       }
-      const r = await memoryStatusReport(ctx, { ...(int(p, 'limit') !== undefined ? { limit: int(p, 'limit') as number } : {}) })
+      const r = await memoryStatusReport(ctx)
       const seg = memSegmentWith(r.status, Date.now(), one(p, 'style') === 'compact' ? 'compact' : 'wide', { emoji: true })
-      out(io, json, { status: r.status, ...(r.excluded !== undefined ? { excluded: r.excluded } : {}), regions: r.regions, profile: r.profile, upkeep: r.upkeep, ...(r.sweptAt !== undefined ? { sweptAt: r.sweptAt } : {}) }, `${seg.text}\n${r.text}`)
+      out(io, json, { status: r.status, ...(r.brain !== undefined ? { brain: r.brain } : {}), ...(r.excluded !== undefined ? { excluded: r.excluded } : {}), regions: r.regions }, `${seg.text}\n${r.text}`)
       return r.status.health === 'error' ? 2 : 0
     }
     case 'search': {
@@ -290,10 +280,12 @@ async function dispatch(sub: string, rest: string[], p: Parsed, io: CommandIO, j
         ...(one(p, 'review') !== undefined ? { review: one(p, 'review') as string } : {}),
         ...(p.bools.has('pin') ? { pin: true } : {}),
         ...(p.bools.has('force') ? { force: true } : {}),
+        origin: one(p, 'origin') ?? 'explicit',
+        ...(one(p, 'confidence') !== undefined ? { confidence: one(p, 'confidence') as string } : {}),
       })
       const text = r.action === 'duplicate_suspected'
         ? ['duplicate suspected; nothing written. Similar memories:', ...(r.similar ?? []).map(s => `  ${s.id} (${s.score}) ${s.title}`), 'Update one of them (buracle mem update), or write again with --force.'].join('\n')
-        : `${r.action} ${r.layer === 'person' ? 'person/' : ''}${r.id}${r.redactions ? ` (redacted ${r.redactions} secret(s))` : ''}`
+        : `${r.action} ${r.layer === 'person' ? 'person/' : ''}${r.id}${r.redactions ? ` (redacted ${r.redactions} secret(s))` : ''}${r.conflicts ? `; left unchanged and marked as contradicting: ${r.conflicts.map(c => `${c.id} (${c.why})`).join(', ')}` : ''}`
       out(io, json, r, text)
       return r.action === 'duplicate_suspected' ? 2 : 0
     }
@@ -309,6 +301,7 @@ async function dispatch(sub: string, rest: string[], p: Parsed, io: CommandIO, j
         id, patch: patch as Record<string, unknown>,
         ...(one(p, 'reason') !== undefined ? { reason: one(p, 'reason') as string } : {}),
         ...(int(p, 'expected-version') !== undefined ? { expected_version: int(p, 'expected-version') as number } : {}),
+        ...(one(p, 'origin') !== undefined ? { origin: one(p, 'origin') as string } : {}),
       })
       out(io, json, r, r.changed.length === 0 ? `${r.id}: nothing changed` : `${r.moved_to !== undefined ? `moved to ${r.moved_to.layer}/${r.moved_to.id}` : `updated ${r.id}`} (version ${r.version}: ${r.changed.join(', ')})`)
       return 0
@@ -317,13 +310,12 @@ async function dispatch(sub: string, rest: string[], p: Parsed, io: CommandIO, j
       const { remember } = await import('../../memory/api')
       const text = rest.length > 0 ? rest.join(' ') : await stdinText(io)
       const r = await remember(await ctxFor(p), text)
-      out(io, json, r, `saved as a capture: ${r.layer === 'person' ? 'person/' : ''}${r.id} (the next harness files it)`)
+      out(io, json, r, `saved as a capture: ${r.layer === 'person' ? 'person/' : ''}${r.id} (file it with memory_update: move: {kind, layer})`)
       return 0
     }
     case 'context': {
       const { contextText } = await import('../../memory/context')
-      const h = one(p, 'harness')
-      const text = await contextText({ cwd: cwdOf(p), ...(h !== undefined ? { harness: h } : {}) })
+      const text = await contextText({ cwd: cwdOf(p) })
       if (json) io.stdout.write(JSON.stringify({ text }) + '\n')
       else io.stdout.write(text)
       return 0
@@ -348,10 +340,18 @@ async function dispatch(sub: string, rest: string[], p: Parsed, io: CommandIO, j
         return pid !== undefined ? 0 : 1
       }
       const detached = process.env['BURACLE_FINALIZER'] === '1'
+      // The detached finalizer is bounded: it starts no new work after the budget, and a model call ends at its own timeout; this stops anything stuck beyond both.
+      const watchdog = detached ? setTimeout(() => process.exit(1), fin.FINALIZE_BUDGET_MS + 10 * 60_000) : undefined
+      watchdog?.unref()
       const r = await fin.finalize(hs.h, hs.sid, detached ? { graceMs: FINALIZER_GRACE_MS, settleMs: FINALIZER_SETTLE_MS } : {})
-      out(io, json, r, r.skipped !== undefined ? `skipped: ${r.skipped}` : r.memoryId !== undefined ? `session memory: ${r.memoryId}` : r.empty === true ? 'no model turn ran: no session memory' : 'not a project: no session memory')
+      if (watchdog !== undefined) clearTimeout(watchdog)
+      if (detached && r.skipped === undefined) {
+        try { await (await import('../../memory/backup')).maybeDailyBackup() } catch (e) { (await import('../../engine/log')).log('warn', 'memory: the daily backup was not taken', { error: e }) }
+      }
+      out(io, json, r, finalizeText(r))
       return r.skipped === 'invalid-session' ? 2 : 0
     }
+    case 'capture': return captureCommand(p, io, json)
     case 'handoff': {
       const hs = harnessSession(p)
       if (!hs) { io.stderr.write('buracle mem handoff: --harness and --session are required\n'); return 2 }
@@ -366,133 +366,11 @@ async function dispatch(sub: string, rest: string[], p: Parsed, io: CommandIO, j
       out(io, json, r ?? { skipped: true }, r !== undefined ? `handoff memory: ${r.id}` : 'skipped: not a project, or CortexDB is not installed')
       return 0
     }
-    case 'distill': {
-      const d = await import('../../memory/distill')
-      const dry = p.bools.has('dry-run')
-      if (p.bools.has('pending')) {
-        const r = await d.distillPending({ dryRun: dry, ...(one(p, 'model') !== undefined ? { model: one(p, 'model') as string } : {}) })
-        out(io, json, r, r.length === 0 ? 'nothing queued' : r.map(x => `${x.harness}/${x.sid} (${x.model ?? 'default model'}): ${x.ran ? 'distilled' : `skipped (${x.skipped}${x.detail ? `: ${x.detail}` : ''})`}`).join('\n'))
-        return 0
-      }
-      const hs = harnessSession(p)
-      if (!hs) { io.stderr.write('buracle mem distill: --harness and --session, or --pending\n'); return 2 }
-      const r = await d.distillSession(hs.h, hs.sid, { dryRun: dry, ...(one(p, 'model') !== undefined ? { model: one(p, 'model') as string } : {}) })
-      out(io, json, r, r.ran ? `distilled: ${r.decisions.length} candidate(s) (${r.candidates.length} written)` : `skipped (${r.skipped}${r.detail ? `: ${r.detail}` : ''})`)
-      return r.ran || r.skipped === 'dry-run' || r.skipped === 'nothing-to-distill' ? 0 : 2
-    }
-    case 'sweep': {
-      const { sweep } = await import('../../memory/sweep')
-      const { projectSlugFor } = await import('../../memory/project')
-      const all = p.bools.has('all')
-      const slug = all ? undefined : projectFlag(p) ?? (await projectSlugFor(cwdOf(p)).catch(() => undefined))
-      const r = await sweep({ ...(slug !== undefined ? { slug } : {}), all, ...(p.bools.has('dry-run') ? { dryRun: true } : {}), trigger: one(p, 'trigger') ?? 'cli' })
-      const { refreshStatus } = await import('../../memory/status')
-      if (!r.dryRun) for (const l of r.layers) if (l.project !== undefined) await refreshStatus({ slug: l.project })
-      if (p.bools.has('quiet') && !json) return 0
-      const lines = r.layers.map(l => `${l.project ?? 'person'}: ${l.skipped !== undefined ? `skipped (${l.skipped})` : `${r.dryRun ? 'would delete' : 'deleted'} ${l.pruned.length}${l.pruned.length > 0 ? ` (${[...new Set(l.pruned.map(x => x.reason))].join(', ')})` : ''}; core pages ${l.core.length > 0 ? `refreshed: ${l.core.join(', ')}` : 'current'}; upkeep ${l.upkeep}${(l.absorbed ?? []).map(x => `; took over ${x.copied.length} from the folder project ${x.from}`).join('')}`}`)
-      out(io, json, r, lines.join('\n') || 'nothing to sweep')
-      return 0
-    }
-    case 'reflect': return reflectCommand(p, io, json)
-    case 'heal': return healCommand(p, io, json)
-    case 'verify': return verifyCommand(p, io, json)
-    case 'kick': {
-      const flagH = one(p, 'harness')
-      if (flagH !== undefined && !isHarness(flagH)) throw new UsageError(`--harness must be one of ${HARNESSES.join(', ')}`)
-      const sid = one(p, 'session')
-      const { kick } = await import('../../memory/kick')
-      const r = await kick({ cwd: cwdOf(p), ...(flagH !== undefined ? { harness: flagH } : {}), ...(sid !== undefined && paths.isValidSessionId(sid) ? { sid } : {}) })
-      out(io, json, r, [
-        `project: ${r.slug ?? 'none'}; store: ${r.store}`,
-        `swept: ${r.swept.length > 0 ? r.swept.join(', ') : 'nothing due'}`,
-        `repair: ${r.healStarted ? 'started' : 'not needed or not due'}`,
-        `stale sessions handed to finalizers: ${r.staleFinalized.length > 0 ? r.staleFinalized.join(', ') : 'none'}`,
-        `orphan spools handed to finalizers: ${r.orphansFinalized.length > 0 ? r.orphansFinalized.join(', ') : 'none'}`,
-        `dead locks removed: ${r.locksRemoved}`,
-      ].join('\n'))
-      return r.store === 'ok' ? 0 : 2
-    }
-    case 'tick': {
-      const flagH = one(p, 'harness')
-      if (flagH !== undefined && !isHarness(flagH)) throw new UsageError(`--harness must be one of ${HARNESSES.join(', ')}`)
-      const sid = one(p, 'session')
-      const trigger = one(p, 'trigger') ?? 'cli'
-      if (trigger !== 'cli' && trigger !== 'prompt' && trigger !== 'session-start' && trigger !== 'session-end' && trigger !== 'compact' && trigger !== 'window-reset') throw new UsageError('--trigger must be cli, prompt, session-start, session-end, compact or window-reset')
-      const at = one(p, 'at')
-      if (at !== undefined && !Number.isFinite(Date.parse(at))) throw new UsageError('--at must be an ISO time (the window-reset timer sleeps until then)')
-      const { tick } = await import('../../memory/tick')
-      const r = await tick({ cwd: cwdOf(p), trigger, ...(at !== undefined ? { at } : {}), ...(flagH !== undefined ? { harness: flagH } : {}), ...(sid !== undefined && paths.isValidSessionId(sid) ? { sid } : {}) })
-      if (p.bools.has('quiet') && !json) return r.skipped === undefined ? 0 : 2
-      out(io, json, r, r.skipped !== undefined ? `tick skipped: ${r.skipped === 'busy' ? 'another tick is running' : r.skipped === 'replaced' ? 'another window-reset timer took over' : 'CortexDB is not installed (the repair was asked to install it)'}` : [
-        `projects: ${r.projects.length > 0 ? r.projects.join(', ') : 'none active'}`,
-        `swept: ${r.swept.length > 0 ? r.swept.join(', ') : 'nothing due'}`,
-        `distilled: ${r.distilled}`,
-        `reflected: ${r.reflected.length > 0 ? r.reflected.join(', ') : 'nothing (no brain changed, or nothing to do)'}`,
-        `verifier started: ${r.verifyStarted.length > 0 ? r.verifyStarted.join(', ') : 'no'}`,
-        `repair started: ${r.healStarted.length > 0 ? r.healStarted.join(', ') : 'not needed or not due'}`,
-        `stale sessions handed to finalizers: ${r.staleFinalized.length > 0 ? r.staleFinalized.join(', ') : 'none'}`,
-        `orphan spools handed to finalizers: ${r.orphansFinalized.length > 0 ? r.orphansFinalized.join(', ') : 'none'}`,
-        `dead locks removed: ${r.locksRemoved}`,
-        `daily backup: ${r.backup ?? 'not due'}`,
-      ].join('\n'))
-      return r.skipped === undefined ? 0 : 2
-    }
-    case 'jobs': {
-      const jobs = await import('../../memory/jobs')
-      const job = one(p, 'job')
-      if (job !== undefined && !(jobs.JOB_IDS as readonly string[]).includes(job)) throw new UsageError(`--job must be one of ${jobs.JOB_IDS.join(', ')}`)
-      const now = Date.now()
-      const project = projectFlag(p)
-      const entries = jobs.readJobs().filter(e => (job === undefined || e.job === job) && (project === undefined || e.project === undefined || e.project === project))
-      if (job !== undefined) {
-        const recent = entries.slice(-(int(p, 'limit') ?? 20)).reverse()
-        out(io, json, { job, schedule: jobs.JOB_SCHEDULE[job as import('../../memory/jobs').JobId], entries: recent },
-          [`${job}: ${jobs.JOB_SCHEDULE[job as import('../../memory/jobs').JobId]}`, ...(recent.length === 0 ? ['  no entries yet'] : recent.map(e => `  ${e.at.slice(0, 16).replace('T', ' ')}  ${e.trigger}  ${jobs.jobEntryLine(e, now)}`))].join('\n'))
-        return 0
-      }
-      const views = jobs.jobsOverview(now, { entries, ...(project !== undefined ? { project } : {}) })
-      out(io, json, { jobs: views }, views.map(v => [
-        `${v.job}  (${v.schedule})`,
-        `  last: ${v.last !== undefined ? jobs.jobEntryLine(v.last, now) : 'never'}`,
-        ...(v.lastRan !== undefined && v.lastRan !== v.last ? [`  last run: ${jobs.jobEntryLine(v.lastRan, now)}`] : []),
-        ...(v.lastFailed !== undefined && v.lastFailed !== v.last ? [`  last failure: ${jobs.jobEntryLine(v.lastFailed, now)}`] : []),
-        `  24 h: ${v.day.ran} ran, ${v.day.skipped} skipped, ${v.day.failed} failed`,
-      ].join('\n')).join('\n'))
-      return 0
-    }
-    case 'profile': {
-      const prof = await import('../../memory/profile')
-      if (rest[0] === 'drop') {
-        const query = rest.slice(1).join(' ').trim()
-        if (query === '') throw new UsageError('usage: buracle mem profile drop "<text of the line | claim key>" [--all]')
-        const r = await prof.dropProfileClaim(query, { all: p.bools.has('all') })
-        if (r.matches.length === 0) {
-          if (json) out(io, json, r, '')
-          else io.stderr.write(`buracle mem profile drop: no learned line matches ${JSON.stringify(query)} (see \`buracle mem profile\`)\n`)
-          return 1
-        }
-        if (r.dropped.length === 0) {
-          out(io, json, r, [`${r.matches.length} learned lines match ${JSON.stringify(query)}; nothing was dropped. Pass one key, or --all:`, ...r.matches.map(m => `  ${m.key}  ${m.text}`)].join('\n'))
-          return 2
-        }
-        out(io, json, r, ['Dropped from the profile (it comes back only if the user states it again):', ...r.dropped.map(m => `  ${m.key}  ${m.text}`)].join('\n'))
-        return 0
-      }
-      if (p.bools.has('rebuild')) await prof.updateProfile({})
-      const s = await prof.profileSummary()
-      const lines = [
-        `${s.claims} claims from ${s.sessions} sessions${s.at !== undefined ? `, computed ${new Date(s.at).toISOString()}` : ''} (person brain: ${paths.brainDir()}/person.db)`,
-        ...(s.top.length > 0 ? ['', 'What sessions start with:', ...s.top] : ['', 'Nothing learned yet: the profile fills in as sessions end.']),
-        ...(s.hypotheses.length > 0 ? ['', 'Hypotheses (listed, never injected):', ...s.hypotheses] : []),
-      ]
-      out(io, json, s, lines.join('\n'))
-      return 0
-    }
     case 'project': {
       if (rest[0] !== 'init') throw new UsageError('usage: buracle mem project init [--cwd DIR]')
       const { projectInit } = await import('../../memory/project-init')
       const r = await projectInit(cwdOf(p))
-      out(io, json, r, [`Project: ${r.slug} (${r.scope}) → ${r.db}`, `Core pages: ${r.core.length > 0 ? `created or refreshed ${r.core.join(', ')}` : 'current'}`, ...r.warnings.map(w => `warning: ${w}`)].join('\n'))
+      out(io, json, r, [`Project: ${r.slug} (${r.scope}) → ${r.db}`, ...r.warnings.map(w => `warning: ${w}`)].join('\n'))
       return 0
     }
     case 'import-vault': {
@@ -504,6 +382,10 @@ async function dispatch(sub: string, rest: string[], p: Parsed, io: CommandIO, j
         ...(r.skipped.length > 0 ? [`Skipped ${r.skipped.length}:`, ...r.skipped.slice(0, 40).map(s => `  - ${s.from}: ${s.reason}`)] : [])]
       out(io, json, r, lines.join('\n'))
       return 0
+    }
+    case 'migrate': {
+      const { memMigrateCommand } = await import('./mem-migrate')
+      return memMigrateCommand({ json, has: k => p.bools.has(k), out: (value, text) => out(io, json, value, text), progress: line => { io.stderr.write(`buracle mem migrate: ${line}\n`) }, usage: message => { throw new UsageError(message) } })
     }
     case 'doctor': {
       const { doctorExitCode, memDoctor } = await import('../../memory/doctor')
@@ -527,132 +409,61 @@ async function dispatch(sub: string, rest: string[], p: Parsed, io: CommandIO, j
   }
 }
 
-async function healCommand(p: Parsed, io: CommandIO, json: boolean): Promise<number> {
-  const heal = await import('../../memory/heal')
-  const runLine = (r: import('../../memory/heal').HealRun): string => [
-    `${r.at.slice(0, 16).replace('T', ' ')}  ${r.trigger}  ${r.project ?? 'person'}  ${r.before.health} -> ${r.after.health}${r.after.reasons.length > 0 ? ` (${r.after.reasons.join(', ')})` : ''}  ${r.ok ? 'ok' : 'a step failed'}`,
-    ...r.steps.map(s => `  ${s.ok ? 'ok  ' : 'fail'} ${s.step}: ${s.detail}`),
-  ].join('\n')
-  if (p.bools.has('list')) {
-    const runs = heal.healRuns()
-    out(io, json, { runs, running: heal.healRunning() }, runs.length === 0 ? 'No repairs yet.' : runs.map(runLine).join('\n'))
-    return 0
+function finalizeText(r: import('../../memory/finalize').FinalizeResult): string {
+  if (r.skipped !== undefined) return `skipped: ${r.skipped}`
+  const lines = [r.memoryId !== undefined ? `session memory: ${r.memoryId}` : r.empty === true ? 'no model turn ran: no session memory' : 'not a project: no session memory']
+  const c = r.capture
+  if (c !== undefined) {
+    const prefs = c.preferences
+    lines.push(`preferences: ${prefs.written.length > 0 ? `filed ${prefs.written.join(', ')}` : 'none new'}${prefs.superseded.length > 0 ? `; replaced ${prefs.superseded.join(', ')}` : ''}`)
+    const d = c.distill
+    lines.push(d === undefined ? 'distillation: did not run'
+      : d.ran ? `distillation: ${d.candidates.length} memor${d.candidates.length === 1 ? 'y' : 'ies'} written${d.candidates.length > 0 ? ` (${d.candidates.join(', ')})` : ''}`
+      : `distillation: ${d.skipped ?? 'did not run'}${d.detail !== undefined ? ` (${d.detail})` : ''}; ${c.state === 'retry' ? 'another try is owed' : c.state === 'gave-up' ? 'given up after repeated failures' : 'nothing is owed'}`)
   }
-  const trigger = one(p, 'trigger') ?? 'cli'
-  if (!['session-start', 'session-end', 'tick', 'ui', 'cli'].includes(trigger)) throw new UsageError('--trigger must be session-start, session-end, tick, ui or cli')
-  const flagH = one(p, 'harness')
-  if (flagH !== undefined && !isHarness(flagH)) throw new UsageError(`--harness must be one of ${HARNESSES.join(', ')}`)
-  const { projectSlugFor } = await import('../../memory/project')
-  const slug = projectFlag(p) ?? (await projectSlugFor(cwdOf(p)).catch(() => undefined))
-  const sid = one(p, 'session')
-  const model = flagH !== undefined && sid !== undefined ? (await import('../../memory/runner')).sessionModel(flagH, sid) : undefined
-  const r = await heal.healBrain({
-    trigger: trigger as import('../../memory/heal').HealTrigger, ...(slug !== undefined ? { slug } : {}),
-    ...(flagH !== undefined ? { harness: flagH } : {}), ...(model !== undefined ? { model } : {}),
-  })
-  if ('skipped' in r) {
-    out(io, json, r, `skipped: ${r.detail}`)
-    return r.skipped === 'busy' ? 0 : 2
-  }
-  if (p.bools.has('quiet') && !json) return 0
-  out(io, json, r, r.steps.length === 0 ? `${runLine(r)}\n  nothing to repair` : runLine(r))
-  return r.after.health === 'error' ? 2 : 0
+  for (const x of r.pending ?? []) lines.push(`stale session ${x.harness}-${x.sid} (${x.why}): ${x.result.skipped !== undefined ? `skipped (${x.result.skipped})` : x.result.capture !== undefined ? `capture ${x.result.capture.state}` : 'finalized'}`)
+  return lines.join('\n')
 }
 
-async function verifyCommand(p: Parsed, io: CommandIO, json: boolean): Promise<number> {
-  const v = await import('../../memory/verify')
-  const runLine = (e: import('../../memory/verify').VerifyRunEntry): string => {
-    const what = e.skipped !== undefined ? `skipped (${e.skipped}${e.detail !== undefined ? `: ${e.detail}` : ''})`
-      : `${e.dryRun === true ? 'dry run: ' : ''}${e.verified.length} verified, ${e.contradicted.length} contradicted, ${e.unsure.length} unsure (${e.checked} checked)`
-    return `${e.id}  ${e.at.slice(0, 16).replace('T', ' ')}  project ${e.project}  ${e.trigger}  ${e.harness ?? '-'}/${e.model}  ${what}${e.undone !== undefined ? '  [undone]' : ''}`
+async function captureCommand(p: Parsed, io: CommandIO, json: boolean): Promise<number> {
+  const fin = await import('../../memory/finalize')
+  const { captureOff } = await import('../../memory/spool')
+  if (captureOff()) { out(io, json, { skipped: 'capture-off' }, 'skipped: capture-off (BURACLE_NO_CAPTURE=1)'); return 0 }
+  const wantPending = p.bools.has('pending')
+  let target = harnessSession(p)
+  if (target === undefined && one(p, 'session') !== undefined) {
+    io.stderr.write('buracle mem capture: --session must be a session id of a harness (add --harness H when it is not the current one)\n')
+    return 2
   }
-  const undoId = one(p, 'undo')
-  if (undoId !== undefined) {
-    const u = await v.undoVerify(undoId)
-    out(io, json, u, [`Undid ${u.runId} (project ${u.project}): restored ${u.restored.length}${u.restored.length > 0 ? ` (${u.restored.join(', ')})` : ''}`, ...u.conflicts.map(c => `  conflict: ${c.id} ${c.reason === 'gone' ? 'is gone' : 'changed since the run'}; left as it is`)].join('\n'))
-    return u.conflicts.length > 0 ? 2 : 0
-  }
-  if (p.bools.has('list')) {
-    const runs = v.listVerifyRuns(20)
-    out(io, json, { runs }, runs.length === 0 ? 'No verifier runs yet.' : runs.map(runLine).join('\n'))
-    return 0
-  }
-  const { projectSlugFor } = await import('../../memory/project')
-  const slug = projectFlag(p) ?? (await projectSlugFor(cwdOf(p)).catch(() => undefined))
-  if (slug === undefined) { io.stderr.write('buracle mem verify: this folder is not inside a project; pass --project SLUG\n'); return 2 }
-  const trigger = one(p, 'trigger') ?? 'manual'
-  if (!['manual', 'session-end', 'heal', 'session-start', 'tick'].includes(trigger)) throw new UsageError('--trigger must be manual, session-end, heal, session-start or tick')
-  const via = await reflectVia(p, slug)
-  const run = await v.verifyProject(slug, { trigger: trigger as import('../../memory/verify').VerifyTrigger, ...via, ...(p.bools.has('dry-run') ? { dryRun: true } : {}) })
-  if (p.bools.has('quiet') && !json) return 0
-  const lines = [runLine(run)]
-  for (const x of run.verified) lines.push(`  verified ${x.id}: ${x.checked}`)
-  for (const x of run.contradicted) lines.push(`  contradicted ${x.id}: ${x.note}`)
-  for (const x of run.unsure) lines.push(`  unsure ${x.id}${x.why !== undefined ? ` (${x.why})` : ''}`)
-  if ((run.verified.length > 0 || run.contradicted.length > 0) && run.dryRun !== true) lines.push(`Undo: buracle mem verify --undo ${run.id}`)
-  out(io, json, run, lines.join('\n'))
-  return run.skipped === undefined || run.skipped === 'nothing-to-do' ? 0 : 2
-}
-
-async function reflectCommand(p: Parsed, io: CommandIO, json: boolean): Promise<number> {
-  const r = await import('../../memory/reflect')
-  const runLine = (e: import('../../memory/reflect').ReflectRunEntry): string => {
-    const scope = e.layer === 'person' ? 'person' : `project ${e.project ?? '?'}`
-    const what = e.skipped !== undefined ? `skipped (${e.skipped}${e.detail !== undefined ? `: ${e.detail}` : ''})`
-      : `${e.dryRun === true ? `dry run, would apply ${e.planned?.length ?? 0}` : `applied ${e.applied.length}`}, rejected ${e.rejected.length} (${e.rounds} model call${e.rounds === 1 ? '' : 's'}, ${e.subQueries} sub-quer${e.subQueries === 1 ? 'y' : 'ies'}, ${e.shown} shown)`
-    return `${e.id}  ${e.at.slice(0, 16).replace('T', ' ')}  ${scope}  ${e.trigger}  ${e.harness ?? '-'}/${e.model}  ${what}${e.undone !== undefined ? '  [undone]' : ''}`
-  }
-  const undoId = one(p, 'undo')
-  if (undoId !== undefined) {
-    const u = await r.undoReflect(undoId)
-    const text = [
-      `Undid ${u.runId} (${u.layer === 'person' ? 'person' : `project ${u.project ?? '?'}`}): restored ${u.restored.length}${u.restored.length > 0 ? ` (${u.restored.join(', ')})` : ''}, retired ${u.retired.length} draft(s)`,
-      ...u.conflicts.map(c => `  conflict: ${c.id} ${c.reason === 'gone' ? 'is gone' : 'changed since the run'}; left as it is`),
-    ].join('\n')
-    out(io, json, u, text)
-    return u.conflicts.length > 0 ? 2 : 0
-  }
-  if (p.bools.has('list')) {
-    const runs = r.listReflectRuns(20)
-    out(io, json, { runs }, runs.length === 0 ? 'No reflect runs yet.' : runs.map(runLine).join('\n'))
-    return 0
-  }
-  const { personRef, projectRef } = await import('../../memory/store')
-  let ref
-  if (p.bools.has('person')) {
-    if (projectFlag(p) !== undefined) throw new UsageError('pass --project SLUG or --person, not both')
-    ref = personRef()
-  } else {
+  if (target === undefined && !wantPending) {
     const { projectSlugFor } = await import('../../memory/project')
+    const { latestSessionRecord } = await import('../../memory/session-record')
     const slug = projectFlag(p) ?? (await projectSlugFor(cwdOf(p)).catch(() => undefined))
-    if (slug === undefined) {
-      io.stderr.write('buracle mem reflect: this folder is not inside a project; pass --project SLUG or --person\n')
+    const rec = slug !== undefined ? latestSessionRecord(slug) : undefined
+    if (rec === undefined) {
+      io.stderr.write('buracle mem capture: no session of this project to capture; pass --session SID (and --harness H), or --pending\n')
       return 2
     }
-    ref = projectRef(slug)
+    target = { h: rec.harness, sid: rec.sid }
   }
-  const via = await reflectVia(p, ref.slug)
-  const run = await r.reflectBrain(ref, { trigger: 'manual', ...via, ...(p.bools.has('dry-run') ? { dryRun: true } : {}) })
-  const { logged: _logged, ...entry } = run
-  const lines = [runLine(entry)]
-  for (const a of run.dryRun === true ? run.planned ?? [] : run.applied) lines.push(`  ${run.dryRun === true ? 'would' : 'did'} ${a.op} ${a.id}${a.to !== undefined ? ` -> ${a.to}` : ''}${a.why !== '' ? `: ${a.why}` : ''}`)
-  for (const x of run.rejected) lines.push(`  rejected ${x.op}${x.id !== undefined ? ` ${x.id}` : ''}: ${x.reason}`)
-  if (run.applied.length > 0 && run.dryRun !== true) lines.push(`Undo: buracle mem reflect --undo ${run.id}`)
-  out(io, json, entry, lines.join('\n'))
-  return run.rounds > 0 || run.skipped === 'nothing-to-do' ? 0 : 2
-}
-
-async function reflectVia(p: Parsed, slug: string | undefined): Promise<{ harness?: Harness, model?: string }> {
-  const flagH = one(p, 'harness')
-  if (flagH !== undefined && !isHarness(flagH)) throw new UsageError(`--harness must be one of ${HARNESSES.join(', ')}`)
-  const { latestSessionRecord } = await import('../../memory/session-record')
-  const { sessionModel } = await import('../../memory/runner')
-  const caller = resolveSession(flagH !== undefined ? { harness: flagH } : {})
-  const rec = caller === undefined ? latestSessionRecord(slug, flagH) : undefined
-  const h = caller?.harness ?? rec?.harness ?? flagH
-  const sid = caller?.sessionId ?? rec?.sid
-  const model = one(p, 'model') ?? (h !== undefined && sid !== undefined ? sessionModel(h, sid) : undefined)
-  return { ...(h !== undefined ? { harness: h } : {}), ...(model !== undefined ? { model } : {}) }
+  const limit = int(p, 'limit')
+  const model = one(p, 'model')
+  const opts = { force: true, redistill: p.bools.has('force'), ...(model !== undefined ? { model } : {}) }
+  const lines: string[] = []
+  let code = 0
+  const results: unknown[] = []
+  if (target !== undefined) {
+    const r = await fin.finalize(target.h, target.sid, { ...opts, pending: wantPending ? limit ?? undefined : false })
+    results.push(r)
+    lines.push(finalizeText(r))
+    if (r.skipped === 'invalid-session' || r.skipped === 'unknown-session') code = 2
+  } else {
+    const done = await fin.capturePending({ ...opts, ...(limit !== undefined ? { max: limit } : {}) })
+    results.push(done)
+    lines.push(done.length === 0 ? 'no stale session waits for its capture' : done.map(x => `stale session ${x.harness}-${x.sid} (${x.why}): ${finalizeText(x.result)}`).join('\n'))
+  }
+  out(io, json, results.length === 1 ? results[0] : results, lines.join('\n'))
+  return code
 }
 
 async function uiCommand(p: Parsed, io: CommandIO, json: boolean): Promise<number> {
@@ -686,20 +497,14 @@ async function uiCommand(p: Parsed, io: CommandIO, json: boolean): Promise<numbe
       io.stderr.write(`buracle mem ui: the running memory UI (pid ${live.pid}, build ${live.health.build ?? live.health.version ?? 'unknown'}) is not this checkout's build: ${outcome === 'stopped' ? 'stopped it' : `could not stop it (${outcome})`}\n`)
     }
     const { buracleVersion } = await import('../../usage/bar-info')
-    const stopAfterMs = Number(process.env['BURACLE_UI_STOP_AFTER_MS'])
-    const exit = (clearRecord: boolean): void => {
-      if (clearRecord) ui.clearUiRecord()
-      try { server.stop(true) } catch {  }
-      void (async () => { try { await (await import('../../memory/cortex')).closeAllCortex() } catch {  } process.exit(0) })()
-    }
-    const { server, record } = ui.serveUi({
+    const served = ui.serveUi({
       port, version: buracleVersion(), ...(build !== undefined ? { build } : {}),
-      ...(Number.isFinite(stopAfterMs) && stopAfterMs > 0 ? { stopAfterMs } : {}),
-      ...(p.bools.has('for-session') ? { sessionAtStart: true } : {}),
-      onStop: () => exit(false),
+      idleMs: ui.uiIdleMs(),
+      onStop: () => process.exit(0),
     })
-    io.stderr.write(`buracle mem ui: ${record.url} (pid ${record.pid}; Ctrl-C stops it, and it stops by itself once no harness session has been open for a while)\n`)
-    for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) process.on(sig, () => exit(true))
+    const idleMinutes = Math.max(1, Math.round(ui.uiIdleMs() / 60_000))
+    io.stderr.write(`buracle mem ui: ${served.record.url} (pid ${served.record.pid}; Ctrl-C stops it, and it stops by itself after ${idleMinutes} minute${idleMinutes === 1 ? '' : 's'} without a request)\n`)
+    for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) process.on(sig, () => { void served.stop().then(() => process.exit(0)) })
     await new Promise<never>(() => {  })
   }
   const { buracleArgv } = await import('../../usage/bar-info')
@@ -709,10 +514,10 @@ async function uiCommand(p: Parsed, io: CommandIO, json: boolean): Promise<numbe
     return 1
   }
   const { projectSlugFor } = await import('../../memory/project')
-  const { brainExists, projectRef } = await import('../../memory/store')
+  const { bucketExists, projectRef } = await import('../../memory/store')
   const slug = want === 'brain' ? await projectSlugFor(cwdOf(p)).catch(() => undefined) : undefined
   const page = want === 'review' ? `${r.url.replace(/\/$/, '')}/review`
-    : slug !== undefined && brainExists(projectRef(slug)) ? `${r.url.replace(/\/$/, '')}/?scope=${encodeURIComponent(`project:${slug}`)}` : r.url
+    : slug !== undefined && await bucketExists(projectRef(slug)).catch(() => false) ? `${r.url.replace(/\/$/, '')}/?scope=${encodeURIComponent(`project:${slug}`)}` : r.url
   const opened = p.bools.has('open') ? ui.openInBrowser(page) : false
   out(io, json, { url: r.url, ...(page !== r.url ? { page } : {}), started: r.started, opened }, `${want === 'review' ? 'Review page' : 'Memory UI'}: ${page}${r.started ? ' (started)' : ''}${opened ? ' · opened in the browser' : ''}`)
   return 0

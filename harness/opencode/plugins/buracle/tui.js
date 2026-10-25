@@ -7167,53 +7167,62 @@ var require_public_api = __commonJS(function(exports) {
 });
 
 // node_modules/yaml/dist/index.js
-var composer, Document, Schema, errors, Alias, identity, Pair, Scalar, YAMLMap, YAMLSeq, cst, lexer, lineCounter, parser, publicApi, visit, $Composer, $Document, $Schema, $YAMLError, $YAMLParseError, $YAMLWarning, $Alias, $isAlias, $isCollection, $isDocument, $isMap, $isNode, $isPair, $isScalar, $isSeq, $Pair, $Scalar, $YAMLMap, $YAMLSeq, $Lexer, $LineCounter, $Parser, $parse, $parseAllDocuments, $parseDocument, $stringify, $visit, $visitAsync;
-var init_dist = __esm(() => {
-  composer = require_composer();
-  Document = require_Document();
-  Schema = require_Schema();
-  errors = require_errors();
-  Alias = require_Alias();
-  identity = require_identity();
-  Pair = require_Pair();
-  Scalar = require_Scalar();
-  YAMLMap = require_YAMLMap();
-  YAMLSeq = require_YAMLSeq();
-  cst = require_cst();
-  lexer = require_lexer();
-  lineCounter = require_line_counter();
-  parser = require_parser();
-  publicApi = require_public_api();
-  visit = require_visit();
-  $Composer = composer.Composer;
-  $Document = Document.Document;
-  $Schema = Schema.Schema;
-  $YAMLError = errors.YAMLError;
-  $YAMLParseError = errors.YAMLParseError;
-  $YAMLWarning = errors.YAMLWarning;
-  $Alias = Alias.Alias;
-  $isAlias = identity.isAlias;
-  $isCollection = identity.isCollection;
-  $isDocument = identity.isDocument;
-  $isMap = identity.isMap;
-  $isNode = identity.isNode;
-  $isPair = identity.isPair;
-  $isScalar = identity.isScalar;
-  $isSeq = identity.isSeq;
-  $Pair = Pair.Pair;
-  $Scalar = Scalar.Scalar;
-  $YAMLMap = YAMLMap.YAMLMap;
-  $YAMLSeq = YAMLSeq.YAMLSeq;
-  $Lexer = lexer.Lexer;
-  $LineCounter = lineCounter.LineCounter;
-  $Parser = parser.Parser;
-  $parse = publicApi.parse;
-  $parseAllDocuments = publicApi.parseAllDocuments;
-  $parseDocument = publicApi.parseDocument;
-  $stringify = publicApi.stringify;
-  $visit = visit.visit;
-  $visitAsync = visit.visitAsync;
+var require_dist = __commonJS(function(exports) {
+  var composer = require_composer();
+  var Document = require_Document();
+  var Schema = require_Schema();
+  var errors = require_errors();
+  var Alias = require_Alias();
+  var identity = require_identity();
+  var Pair = require_Pair();
+  var Scalar = require_Scalar();
+  var YAMLMap = require_YAMLMap();
+  var YAMLSeq = require_YAMLSeq();
+  var cst = require_cst();
+  var lexer = require_lexer();
+  var lineCounter = require_line_counter();
+  var parser = require_parser();
+  var publicApi = require_public_api();
+  var visit = require_visit();
+  exports.Composer = composer.Composer;
+  exports.Document = Document.Document;
+  exports.Schema = Schema.Schema;
+  exports.YAMLError = errors.YAMLError;
+  exports.YAMLParseError = errors.YAMLParseError;
+  exports.YAMLWarning = errors.YAMLWarning;
+  exports.Alias = Alias.Alias;
+  exports.isAlias = identity.isAlias;
+  exports.isCollection = identity.isCollection;
+  exports.isDocument = identity.isDocument;
+  exports.isMap = identity.isMap;
+  exports.isNode = identity.isNode;
+  exports.isPair = identity.isPair;
+  exports.isScalar = identity.isScalar;
+  exports.isSeq = identity.isSeq;
+  exports.Pair = Pair.Pair;
+  exports.Scalar = Scalar.Scalar;
+  exports.YAMLMap = YAMLMap.YAMLMap;
+  exports.YAMLSeq = YAMLSeq.YAMLSeq;
+  exports.CST = cst;
+  exports.Lexer = lexer.Lexer;
+  exports.LineCounter = lineCounter.LineCounter;
+  exports.Parser = parser.Parser;
+  exports.parse = publicApi.parse;
+  exports.parseAllDocuments = publicApi.parseAllDocuments;
+  exports.parseDocument = publicApi.parseDocument;
+  exports.stringify = publicApi.stringify;
+  exports.visit = visit.visit;
+  exports.visitAsync = visit.visitAsync;
 });
+
+// src/engine/yaml.ts
+function yaml() {
+  return loaded ??= require_dist();
+}
+function parseYaml(text) {
+  return yaml().parse(text);
+}
+var loaded;
 
 // src/engine/paths.ts
 import os from "os";
@@ -7264,7 +7273,7 @@ function findCheckout(start) {
 }
 function configuredRepoRoot() {
   try {
-    const raw = $parse(readFileSync(userConfigFile(), "utf8"));
+    const raw = parseYaml(readFileSync(userConfigFile(), "utf8"));
     const repo = raw !== null && typeof raw === "object" ? raw["repo"] : undefined;
     if (typeof repo === "string" && repo.trim() !== "") {
       const expanded = expandHome(repo.trim());
@@ -7346,7 +7355,6 @@ function sessionDir(h, sessionId) {
 }
 var cachedCheckout, RUNTIME_MARKER = ".buracle-runtime.json", SESSION_ID_RE;
 var init_paths = __esm(() => {
-  init_dist();
   init_platform();
   SESSION_ID_RE = /^[A-Za-z0-9._:-]{1,128}$/;
 });
@@ -7366,6 +7374,22 @@ function comparablePath(p, base) {
     return realPath(abs);
   } catch {
     return abs;
+  }
+}
+function renameRetrySync(from, to, opts = {}) {
+  const rename = opts.rename ?? renameSync;
+  const sleep = opts.sleep ?? Bun.sleepSync;
+  const start = Date.now();
+  for (let delay = 50;; delay = Math.min(delay * 2, 1000)) {
+    try {
+      rename(from, to);
+      return;
+    } catch (e) {
+      const code = e.code;
+      if ((opts.platform ?? process.platform) !== "win32" || code !== "EPERM" && code !== "EACCES" && code !== "EBUSY" || Date.now() - start >= (opts.budgetMs ?? 30000))
+        throw e;
+      sleep(delay);
+    }
   }
 }
 function sha256(data) {
@@ -7441,7 +7465,7 @@ function atomicWriteSync(path, data, opts = {}) {
     closeSync(fd);
     fd = undefined;
     chmodSync(tmp, mode);
-    renameSync(tmp, target);
+    renameRetrySync(tmp, target, { budgetMs: ATOMIC_RENAME_BUDGET_MS, ...opts.renameRetry });
   } catch (e) {
     if (fd !== undefined) {
       try {
@@ -7462,6 +7486,7 @@ function atomicWriteSync(path, data, opts = {}) {
     }
   } catch {}
 }
+var ATOMIC_RENAME_BUDGET_MS = 1500;
 var init_fsx = __esm(() => {
   init_platform();
 });
@@ -7551,21 +7576,21 @@ var init_shim = __esm(() => {
 var init_hook_fail = () => {};
 
 // src/engine/update/runtime.ts
-import { chmodSync as chmodSync2, cpSync, existsSync as existsSync6, mkdirSync as mkdirSync5, readFileSync as readFileSync10, readdirSync as readdirSync6, rmSync as rmSync2, statSync as statSync13, writeFileSync } from "fs";
-import { basename as basename3, dirname as dirname6, join as join16, relative as relative3, resolve as resolve7, sep as sep3 } from "path";
+import { chmodSync as chmodSync2, cpSync, existsSync as existsSync6, mkdirSync as mkdirSync4, readFileSync as readFileSync8, readdirSync as readdirSync3, rmSync as rmSync2, statSync as statSync11, writeFileSync } from "fs";
+import { basename as basename3, dirname as dirname6, join as join13, relative as relative3, resolve as resolve7, sep as sep3 } from "path";
 function runtimeFiles(checkout) {
   const out = [];
   const walk = (rel) => {
     let entries;
     try {
-      entries = readdirSync6(join16(checkout, rel), { withFileTypes: true });
+      entries = readdirSync3(join13(checkout, rel), { withFileTypes: true });
     } catch {
       return;
     }
     for (const e of entries) {
       if (SKIP_NAMES.has(e.name))
         continue;
-      const r = join16(rel, e.name);
+      const r = join13(rel, e.name);
       if (e.isDirectory())
         walk(r);
       else if (e.isFile())
@@ -7575,13 +7600,13 @@ function runtimeFiles(checkout) {
   for (const d of RUNTIME_DIRS)
     walk(d);
   for (const f of RUNTIME_FILES)
-    if (existsSync6(join16(checkout, f)))
+    if (existsSync6(join13(checkout, f)))
       out.push(f);
   return out.map((p) => p.split(sep3).join("/")).sort();
 }
 function readJson(path) {
   try {
-    const v = JSON.parse(readFileSync10(path, "utf8"));
+    const v = JSON.parse(readFileSync8(path, "utf8"));
     return v !== null && typeof v === "object" && !Array.isArray(v) ? v : undefined;
   } catch {
     return;
@@ -7598,12 +7623,12 @@ function depsOf(pkg) {
   return out;
 }
 function runtimePackages(checkout) {
-  const root = readJson(join16(checkout, "package.json"));
+  const root = readJson(join13(checkout, "package.json"));
   if (root === undefined)
-    return { error: `${join16(checkout, "package.json")} cannot be read` };
+    return { error: `${join13(checkout, "package.json")} cannot be read` };
   let lock = "";
   try {
-    lock = readFileSync10(join16(checkout, "bun.lock"), "utf8");
+    lock = readFileSync8(join13(checkout, "bun.lock"), "utf8");
   } catch {}
   const locked = (name) => {
     const esc = name.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
@@ -7616,8 +7641,8 @@ function runtimePackages(checkout) {
     const [name, want] = queue.shift();
     if (found.has(name))
       continue;
-    const dir = join16(checkout, "node_modules", ...name.split("/"));
-    const pkg = readJson(join16(dir, "package.json"));
+    const dir = join13(checkout, "node_modules", ...name.split("/"));
+    const pkg = readJson(join13(dir, "package.json"));
     const have = typeof pkg?.["version"] === "string" ? pkg["version"] : undefined;
     if (have === undefined) {
       problems.push(`${name} is not installed`);
@@ -7642,9 +7667,9 @@ function fileEntry(rel, content, mode) {
 function checkoutFingerprint(checkout, deps) {
   const parts = [];
   for (const rel of runtimeFiles(checkout)) {
-    const abs = join16(checkout, rel);
+    const abs = join13(checkout, rel);
     try {
-      parts.push(fileEntry(rel, readFileSync10(abs), statSync13(abs).mode));
+      parts.push(fileEntry(rel, readFileSync8(abs), statSync11(abs).mode));
     } catch {
       parts.push(`${rel}\x00missing
 `);
@@ -7660,7 +7685,7 @@ function runtimeDirFingerprint(dir) {
   return "error" in pk ? undefined : checkoutFingerprint(dir, pk.deps);
 }
 function readMarker(dir) {
-  const m = readJson(join16(dir, RUNTIME_MARKER));
+  const m = readJson(join13(dir, RUNTIME_MARKER));
   if (m === undefined || m["v"] !== 1 || typeof m["id"] !== "string" || typeof m["fingerprint"] !== "string" || typeof m["checkout"] !== "string")
     return;
   return m;
@@ -9237,9 +9262,6 @@ import { join as join4, posix, win32 } from "path";
 
 // src/core/events.ts
 var HARNESSES = ["claude", "codex", "opencode", "omp"];
-function isHarness(x) {
-  return typeof x === "string" && HARNESSES.includes(x);
-}
 var DRIVE = /^[A-Za-z]:(?=[\\/]|$)/;
 function isWindowsPath(p) {
   return typeof p === "string" && (DRIVE.test(p) || p.startsWith("\\\\"));
@@ -10061,7 +10083,7 @@ var SIMILARITY_STOPWORDS = new Set([
   "artik"
 ]);
 
-// src/core/memory/profile.ts
+// src/core/memory/signals.ts
 var WORD_EDGE = String.raw`(?:(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])|(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_]))`;
 function uw(re) {
   return new RegExp(re.source.split("\\b").join(WORD_EDGE), re.flags.includes("u") ? re.flags : `${re.flags}u`);
@@ -10489,32 +10511,6 @@ var CATEGORY_WORDS = [
   ["workflow", uw(/\b(?:plan|plans|spec|workflow|workflows|commits?|branch|branches|worktrees?|pull request|prs?|push|merge|release|deploy|skills?|mcp)\b|\b(?:dal[\u0131i]?|birle[\u015Fs]tir)\b/i)],
   ["engineering", uw(/\b(?:bun|npm|pnpm|yarn|typescript|javascript|python|go|rust|library|libraries|dependenc(?:y|ies)|framework|code|api|architecture|database|sql|docker|runtime|package)\b|\b(?:k[\u00FCu]t[\u00FCu]phane|ba[\u011Fg][\u0131i]ml[\u0131i]l[\u0131i]k|kod|mimari)/i)]
 ];
-var CORRECTION = uw(/^(?:no\b|nope\b|wrong\b|that'?s (?:wrong|not (?:right|it|what i))|not like that|undo\b|revert\b|you (?:broke|missed)|hay[\u0131i]r\b|yanl[\u0131i][\u015Fs]\b|[\u00F6o]yle de[\u011Fg]il|bu de[\u011Fg]il|geri al\b|olmad[\u0131i]\b)/i);
-var CONFIRMATION = uw(/^(?:yes\b|yep\b|ok(?:ay)?\b|perfect\b|great\b|looks good|lgtm\b|thanks?\b|thank you|nice\b|exactly\b|evet\b|tamam\b|olur\b|harika\b|s[\u00FCu]per\b|m[\u00FCu]kemmel\b|te[\u015Fs]ekk[\u00FCu]rler\b|onayl[\u0131i]yorum\b|onay\b|g[\u00FCu]zel\b)/i);
-
-// src/core/memory/spool.ts
-var NO_CAPTURE_ENV = "BURACLE_NO_CAPTURE";
-function memCaptureOff(env) {
-  return env[NO_CAPTURE_ENV] === "1";
-}
-var SPOOL_LIMITS = {
-  excerpt: 2000,
-  promptExcerpt: 800,
-  compactExcerpt: 8000,
-  cmd: 600,
-  paths: 50,
-  path: 600,
-  tool: 128,
-  model: 128,
-  softFileBytes: 4 * 1024 * 1024,
-  hardFileBytes: 8 * 1024 * 1024
-};
-var UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
-
-// src/core/context-mode-restore.ts
-var DONE = new Set(["completed", "done", "deleted", "failed", "abandoned", "cancelled"]);
-// src/core/context-mode.ts
-var RESPONSE_TOOLS = new Set(["Bash", "Agent", "AskUserQuestion", "ExitPlanMode", "WebFetch"]);
 
 // src/core/policy/launchers.ts
 var SCREEN_WORDS = new Set(["-ls", "-list", "-wipe", "-version", "-v", "-d", "-m", "-r", "-x", "-R", "-D", "-q", "-L", "-U", "-A", "-a", "-O", "-i", "-f", "-fn", "-fa"]);
@@ -10539,164 +10535,6 @@ var WRAPPER_ARGS = {
   taskpolicy: new Set(["c", "d", "t", "l", "p"])
 };
 var SHELL_ARG_OPTS = new Set(["o", "O"]);
-
-// src/core/policy/output-hints.ts
-var QUIET_FLAGS = new Set(["--version", "--help", "--manual", "--offline"]);
-var CURL_SHORT_ARG = new Set(["A", "b", "c", "C", "d", "D", "E", "e", "F", "H", "K", "m", "o", "P", "Q", "r", "T", "t", "U", "u", "w", "X", "x", "Y", "y", "z"]);
-var CURL_LONG_ARG = new Set([
-  "--url",
-  "--output",
-  "--output-dir",
-  "--data",
-  "--data-raw",
-  "--data-binary",
-  "--data-urlencode",
-  "--data-ascii",
-  "--json",
-  "--header",
-  "--proxy-header",
-  "--request",
-  "--user",
-  "--user-agent",
-  "--referer",
-  "--cookie",
-  "--cookie-jar",
-  "--form",
-  "--form-string",
-  "--upload-file",
-  "--write-out",
-  "--max-time",
-  "--connect-timeout",
-  "--proxy",
-  "--proxy-user",
-  "--preproxy",
-  "--noproxy",
-  "--config",
-  "--cert",
-  "--key",
-  "--cacert",
-  "--capath",
-  "--range",
-  "--retry",
-  "--retry-delay",
-  "--retry-max-time",
-  "--resolve",
-  "--connect-to",
-  "--dump-header",
-  "--oauth2-bearer",
-  "--unix-socket",
-  "--abstract-unix-socket",
-  "--interface",
-  "--dns-servers",
-  "--limit-rate",
-  "--max-filesize",
-  "--max-redirs",
-  "--speed-limit",
-  "--speed-time",
-  "--time-cond",
-  "--trace",
-  "--trace-ascii",
-  "--stderr",
-  "--continue-at",
-  "--quote",
-  "--aws-sigv4",
-  "--variable",
-  "--url-query",
-  "--expect100-timeout",
-  "--keepalive-time",
-  "--local-port",
-  "--netrc-file",
-  "--pass",
-  "--cert-type",
-  "--key-type",
-  "--proto",
-  "--proto-redir",
-  "--proto-default",
-  "--socks4",
-  "--socks4a",
-  "--socks5",
-  "--socks5-hostname"
-]);
-var WGET_SHORT_ARG = new Set(["O", "o", "a", "i", "B", "t", "T", "w", "Q", "P", "U", "e", "l", "A", "R", "D", "X", "I"]);
-var WGET_LONG_ARG = new Set([
-  "--output-document",
-  "--output-file",
-  "--append-output",
-  "--input-file",
-  "--base",
-  "--tries",
-  "--timeout",
-  "--wait",
-  "--waitretry",
-  "--quota",
-  "--directory-prefix",
-  "--user-agent",
-  "--execute",
-  "--level",
-  "--accept",
-  "--reject",
-  "--domains",
-  "--exclude-domains",
-  "--exclude-directories",
-  "--include-directories",
-  "--header",
-  "--post-data",
-  "--post-file",
-  "--user",
-  "--password",
-  "--http-user",
-  "--http-password",
-  "--proxy-user",
-  "--proxy-password",
-  "--load-cookies",
-  "--save-cookies",
-  "--referer",
-  "--method",
-  "--body-data",
-  "--body-file",
-  "--limit-rate",
-  "--bind-address",
-  "--dns-timeout",
-  "--connect-timeout",
-  "--read-timeout",
-  "--ca-certificate",
-  "--certificate",
-  "--private-key",
-  "--progress",
-  "--restrict-file-names",
-  "--config"
-]);
-var HTTPIE_SHORT_ARG = new Set(["a", "A", "o", "s", "p", "P"]);
-var HTTPIE_LONG_ARG = new Set([
-  "--auth",
-  "--auth-type",
-  "--output",
-  "--style",
-  "--print",
-  "--history-print",
-  "--session",
-  "--session-read-only",
-  "--verify",
-  "--cert",
-  "--cert-key",
-  "--cert-key-pass",
-  "--proxy",
-  "--timeout",
-  "--max-redirects",
-  "--max-headers",
-  "--pretty",
-  "--format-options",
-  "--boundary",
-  "--raw",
-  "--default-scheme",
-  "--response-charset",
-  "--response-mime",
-  "--ssl",
-  "--ciphers",
-  "--bearer"
-]);
-var BUILDS = new Set(["gradle", "gradlew", "mvn", "mvnw", "sbt"]);
-var BUILD_QUIET = new Set(["-v", "-version", "--version", "-h", "--help", "-?"]);
 
 // src/core/policy/routing.ts
 var CLAUDE_PLUGIN_NAME = "buracle";
@@ -11139,209 +10977,6 @@ var PY_STDLIB = new Set([
 ]);
 var RUST_BUILTINS = new Set(["std", "core", "alloc", "crate", "self", "super", "proc_macro", "test"]);
 
-// src/core/policy/cm-self.ts
-var MANAGERS = new Set(["npm", "pnpm", "yarn", "bun"]);
-var INSTALL_VERBS = new Set(["i", "in", "ins", "inst", "insta", "instal", "install", "isntall", "isnt", "isnta", "isntal", "add", "update", "up", "upgrade", "udpate", "link", "ln"]);
-var RUNNERS2 = new Set(["npx", "bunx", "pnpx"]);
-var INTERPRETERS = new Set(["node", "nodejs", "bun", "deno"]);
-var HARNESS_CLIS = new Set(["claude", "codex", "opencode", "omp"]);
-var PLUGIN_SAFE = new Set(["uninstall", "remove", "rm", "disable", "list", "ls", "info", "show", "help", "--help", "-h"]);
-
-// src/core/policy/code-scan.ts
-var REGEX_AFTER = new Set(["(", ",", "=", ":", "[", "!", "&", "|", "?", "{", "}", ";", "+", "-", "*", "%", "<", ">", "~", "^", "=>", "==", "===", "!=", "!==", "&&", "||", "??", "return", "typeof", "case", "do", "else", "in", "of", "new", "void", "throw"]);
-var HOME_ENV = new Set(["HOME", "USERPROFILE"]);
-var LOOKUPS = new Set(["getattr", "__import__", "import_module", "require", "import"]);
-var GENERIC = new Set(["remove", "copy", "move", "run", "call", "rm", "cp", "rename", "replace", "unlink", "exec", "spawn", "popen", "write", "delete", "open", "system"]);
-var GENERIC_BARE = new Set(["remove", "copy", "move", "run", "call", "rm", "cp", "rename", "unlink", "exec", "spawn", "popen", "write", "delete", "open", "system"]);
-var VALUE_METHODS = new Set(["unlink", "rename", "open"]);
-var PARENLESS = new Set(["perl", "ruby", "lua"]);
-
-// src/core/policy/self-disable.ts
-var RELOCATION_VARS2 = ["BURACLE_HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "PI_CODING_AGENT_DIR", "BURACLE_CORTEXDB_BIN"];
-var RELOCATION = new RegExp(RELOCATION_VARS2.map((v) => [...v].map((c) => c.replace(/[^A-Za-z0-9]/g, "\\$&")).join(`['"\\\\{}$:+-]*`)).join("|"), "i");
-var STARTUP_NAMES = new Set([".zshrc", ".zprofile", ".zshenv", ".zlogin", ".bashrc", ".bash_profile", ".bash_login", ".profile", ".kshrc", ".mkshrc", ".cshrc", ".tcshrc", ".login", ".envrc", ".pam_environment", ".xprofile", ".xsessionrc"]);
-var SYSTEM_STARTUP = new Set(["zshrc", "zprofile", "zshenv", "zlogin", "profile", "bashrc", "bash.bashrc", "environment", "csh.cshrc", "csh.login", "launchd.conf"]);
-var SHELL_RUNNERS = new Set(["sh", "bash", "zsh", "dash", "ksh", "mksh", "ash", "source", "."]);
-var SCRIPT_RUNNERS = new Set(["bun", "node", "nodejs", "tsx", "ts-node", "deno", "parallel"]);
-var SHELL_OPTION_WITH_VALUE = new Set(["-o", "+o", "-O", "+O"]);
-var REMOVE_VERBS = new Set(["disable", "uninstall", "remove", "rm", "unlink"]);
-
-// src/core/policy/powershell.ts
-var KNOWN_HOME = new Set(["home", "env:userprofile", "env:home"]);
-var KEYWORDS = new Set(["if", "elseif", "else", "foreach", "for", "while", "do", "until", "switch", "try", "catch", "finally", "function", "filter", "trap", "begin", "process", "end", "param", "data", "return", "throw", "break", "continue", "exit", "class", "enum"]);
-var POWERSHELL_SIGNS = new RegExp([
-  String.raw`\$env:`,
-  String.raw`\[(?:system\.)?(?:io\.(?:file|directory)|environment|net\.webclient)\]`,
-  String.raw`(?:^|[\s;|&({])(?:remove|copy|move|rename|set|add|clear|new|out|format|stop|restart|invoke|start|initialize|get|foreach|where|tee)-[a-z]+(?=[\s;|)}]|$)`,
-  String.raw`(?:^|[\s;|&(])(?:ri|rd|del|erase|cpi|mi|rni|sc|ac|clc|ni|iex|iwr|irm|gci|saps|sl|cmd(?:\.exe)?\s+/[ck])\s`,
-  String.raw`\s-(?:recurse|force|literalpath|itemtype|destination|outfile|filepath|erroraction|whatif|argumentlist|encodedcommand)\b`,
-  String.raw`(?:^|[\s'"=(,])(?:[a-z]:|\.{1,2}|~)\\`
-].join("|"), "i");
-
-// src/core/policy/windows-paths.ts
-var TOP_LEVEL = new Set(["windows", "program files", "program files (x86)", "programdata", "users", "documents and settings", "system volume information", "recovery", "$recycle.bin", "boot", "perflogs"]);
-var CRITICAL_SECOND_LEVEL = new Set(["windows/system32", "windows/syswow64", "windows/winsxs", "users/public", "users/default", "programdata/microsoft"]);
-var HOME_FOLDERS = new Set([
-  "applications",
-  "desktop",
-  "documents",
-  "downloads",
-  "library",
-  "movies",
-  "music",
-  "pictures",
-  "public",
-  ".config",
-  ".ssh",
-  ".gnupg",
-  ".aws",
-  "appdata",
-  "onedrive",
-  "videos",
-  "favorites",
-  "contacts",
-  "links",
-  "saved games",
-  "searches"
-]);
-
-// src/core/policy/windows-shell.ts
-var COMMON_VALUES = ["erroraction", "warningaction", "informationaction", "errorvariable", "warningvariable", "informationvariable", "outvariable", "outbuffer", "pipelinevariable", "progressaction"];
-var COMMON_SWITCHES = ["verbose", "debug", "whatif", "confirm"];
-var COMMON_ALIASES = { ea: "erroraction", wa: "warningaction", ev: "errorvariable", ov: "outvariable", ob: "outbuffer", pv: "pipelinevariable", vb: "verbose", db: "debug", wi: "whatif", cf: "confirm", lp: "literalpath", pspath: "literalpath" };
-function spec(values, switches, positional, aliases = {}) {
-  return { values: [...values, ...COMMON_VALUES], switches: [...switches, ...COMMON_SWITCHES], positional, aliases: { ...COMMON_ALIASES, ...aliases } };
-}
-var PATHS = ["path", "literalpath"];
-var SPECS = {
-  "remove-item": spec([...PATHS, "filter", "include", "exclude", "credential", "stream"], ["recurse", "force"], ["path"]),
-  "get-childitem": spec([...PATHS, "filter", "include", "exclude", "depth", "attributes"], ["recurse", "force", "name", "file", "directory", "hidden", "followsymlink"], ["path", "filter"]),
-  "get-item": spec([...PATHS, "filter", "include", "exclude", "stream"], ["force"], ["path"]),
-  "copy-item": spec([...PATHS, "destination", "filter", "include", "exclude", "credential", "fromsession", "tosession"], ["recurse", "force", "container", "passthru"], ["path", "destination"]),
-  "move-item": spec([...PATHS, "destination", "filter", "include", "exclude", "credential"], ["force", "passthru"], ["path", "destination"]),
-  "rename-item": spec([...PATHS, "newname", "credential"], ["force", "passthru"], ["path", "newname"]),
-  "set-content": spec([...PATHS, "value", "encoding", "filter", "include", "exclude", "credential", "stream"], ["force", "nonewline", "passthru", "asbytestream"], ["path", "value"]),
-  "add-content": spec([...PATHS, "value", "encoding", "filter", "include", "exclude", "credential", "stream"], ["force", "nonewline", "passthru", "asbytestream"], ["path", "value"]),
-  "clear-content": spec([...PATHS, "filter", "include", "exclude", "credential", "stream"], ["force"], ["path"]),
-  "out-file": spec(["filepath", "literalpath", "encoding", "inputobject", "width"], ["append", "force", "noclobber", "nonewline"], ["filepath", "encoding"], { path: "filepath" }),
-  "tee-object": spec(["filepath", "literalpath", "variable", "inputobject", "encoding"], ["append"], ["filepath"], { path: "filepath" }),
-  "new-item": spec(["path", "name", "itemtype", "value", "target", "credential"], ["force"], ["path"], { type: "itemtype" }),
-  "set-item": spec([...PATHS, "value", "filter", "include", "exclude", "credential"], ["force", "passthru"], ["path", "value"]),
-  "set-itemproperty": spec([...PATHS, "name", "value", "type", "filter", "include", "exclude", "credential", "inputobject"], ["force", "passthru"], ["path", "name", "value"]),
-  "new-itemproperty": spec([...PATHS, "name", "value", "propertytype", "filter", "include", "exclude", "credential"], ["force"], ["path", "name", "value"], { type: "propertytype" }),
-  "set-location": spec([...PATHS, "stackname"], ["passthru"], ["path"]),
-  "push-location": spec([...PATHS, "stackname"], ["passthru"], ["path"]),
-  "invoke-expression": spec(["command"], [], ["command"]),
-  "invoke-webrequest": spec(["uri", "outfile", "method", "body", "headers", "infile", "contenttype", "useragent", "proxy", "credential", "sessionvariable", "websession", "timeoutsec", "maximumredirection"], ["usebasicparsing", "passthru", "usedefaultcredentials", "skipcertificatecheck"], ["uri"]),
-  "start-process": spec(["filepath", "argumentlist", "workingdirectory", "verb", "credential", "redirectstandardoutput", "redirectstandarderror", "redirectstandardinput", "windowstyle"], ["wait", "passthru", "nonewwindow", "loaduserprofile", "usenewenvironment"], ["filepath", "argumentlist"], { args: "argumentlist", file: "filepath" }),
-  "stop-process": spec(["id", "name", "inputobject"], ["force", "passthru"], ["id"], { processname: "name" }),
-  "foreach-object": spec(["process", "begin", "end", "membername", "argumentlist", "inputobject", "throttlelimit", "remainingscripts"], ["parallel", "asjob"], ["process"]),
-  "invoke-command": spec(["scriptblock", "computername", "session", "argumentlist", "filepath", "credential"], ["asjob", "nonewscope"], ["scriptblock"])
-};
-var WINDOWS_SHELLS = new Set(["cmd", "powershell", "pwsh", "powershell_ise"]);
-var SHARED = new Set(["rm", "rmdir", "cp", "mv", "ls", "dir", "cd", "pushd", "popd", "kill", "tee", "ps", "start", "foreach", "where"]);
-var DISK = new Set(["format-volume", "clear-disk", "initialize-disk", "remove-partition", "clear-partition", "reset-physicaldisk"]);
-var POWER = new Set(["stop-computer", "restart-computer"]);
-
-// src/core/policy/bash-guard.ts
-var TOP_LEVEL2 = new Set([
-  "applications",
-  "bin",
-  "boot",
-  "cores",
-  "dev",
-  "etc",
-  "home",
-  "lib",
-  "lib32",
-  "lib64",
-  "libx32",
-  "library",
-  "media",
-  "mnt",
-  "network",
-  "nix",
-  "opt",
-  "private",
-  "proc",
-  "root",
-  "run",
-  "sbin",
-  "snap",
-  "srv",
-  "sys",
-  "system",
-  "tmp",
-  "users",
-  "usr",
-  "var",
-  "volumes"
-]);
-var CRITICAL_SECOND_LEVEL2 = new Set([
-  "/usr/bin",
-  "/usr/sbin",
-  "/usr/lib",
-  "/usr/libexec",
-  "/usr/local",
-  "/usr/share",
-  "/usr/include",
-  "/opt/homebrew",
-  "/private/etc",
-  "/private/var",
-  "/private/tmp",
-  "/var/lib",
-  "/var/db",
-  "/system/library",
-  "/system/applications",
-  "/library/apple"
-]);
-var HOME_FOLDERS2 = new Set(["applications", "desktop", "documents", "downloads", "library", "movies", "music", "pictures", "public", ".config", ".ssh", ".gnupg", ".aws"]);
-var DOWNLOADERS = new Set(["curl", "wget", "fetch", "http", "https", "xh", "aria2c"]);
-var OUTPUT_REDIRECTS = new Set([">", ">>", ">|", "&>", "&>>", "<>", ">&"]);
-var DECLARE = new Set(["export", "declare", "typeset", "local", "readonly"]);
-var GIT_GLOBAL_WITH_ARG = new Set(["-C", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--attr-source", "--list-cmds"]);
-var PUSH_LONG_ARG = new Set(["repo", "receive-pack", "exec", "push-option", "recurse-submodules"]);
-var FORCE_FAMILY = new Set(["force", "force-with-lease", "force-if-includes"]);
-var GIT_CONFIG_WITH_ARG = new Set(["-f", "--file", "--blob", "--type", "--default", "--comment", "--value", "--fixed-value"]);
-var patternCache = new Map;
-
-// src/core/policy/readonly-shell.ts
-var TIED_VARIABLES = new Set(["path", "cdpath", "fpath", "manpath", "mailpath", "module_path"]);
-var GIT_READ = new Set([
-  "status",
-  "diff",
-  "log",
-  "show",
-  "ls-files",
-  "ls-tree",
-  "blame",
-  "annotate",
-  "merge-base",
-  "rev-parse",
-  "rev-list",
-  "describe",
-  "shortlog",
-  "grep",
-  "cat-file",
-  "name-rev",
-  "for-each-ref",
-  "show-ref",
-  "check-ignore",
-  "count-objects",
-  "whatchanged",
-  "range-diff",
-  "cherry",
-  "show-branch",
-  "version",
-  "help"
-]);
-var SHELL_LEAD = new Set(["if", "then", "elif", "else", "do", "while", "until"]);
-var SHELL_CLOSE = new Set(["fi", "done"]);
-
-// src/core/policy/sandbox.ts
-var SHELL_LANGUAGES = new Set(["shell", "bash", "sh", "zsh", "dash", "ksh"]);
-var TYPESCRIPT_LANGUAGES = new Set(["typescript", "ts", "tsx"]);
-
 // src/core/policy/shell-files.ts
 var WRITE_REDIRECTS = new Set([">", ">>", ">|", "&>", "&>>"]);
 var TEMP_VARS = new Set(["TMPDIR", "TMP", "TEMP", "RUNNER_TEMP", "XDG_RUNTIME_DIR"]);
@@ -11472,8 +11107,7 @@ function defaultConfig() {
     agents: { teams: true },
     workflow: { band: true, foldAfterSec: 8, notifyAfterSec: 120, codexNotices: true },
     toolchain: { autoInstall: true, system: true, upgrade: true },
-    index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 },
-    contextMode: { enabled: true, capture: true }
+    index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 }
   };
 }
 var bool = { t: "bool" };
@@ -11566,8 +11200,7 @@ var CONFIG_SCHEMA = {
     agents: { t: "obj", fields: { teams: bool } },
     workflow: { t: "obj", fields: { band: bool, foldAfterSec: count2(0), notifyAfterSec: count2(0), codexNotices: bool } },
     toolchain: { t: "obj", fields: { autoInstall: bool, system: bool, upgrade: bool } },
-    index: { t: "obj", fields: { auto: bool, codegraph: bool, semble: bool, minIntervalMin: count2(0), exclude: strList, children: bool, maxChildren: count2(0) } },
-    contextMode: { t: "obj", fields: { enabled: bool, capture: bool } }
+    index: { t: "obj", fields: { auto: bool, codegraph: bool, semble: bool, minIntervalMin: count2(0), exclude: strList, children: bool, maxChildren: count2(0) } }
   }
 };
 function isPlainObject(x) {
@@ -11761,7 +11394,7 @@ function setAt(x, path, value, remove) {
   }
 }
 var CONFIG_RENAMES = [];
-var ALWAYS_ON = "the memory's automatic jobs are always on and run within fixed budgets (src/core/memory/budgets.ts)";
+var ALWAYS_ON = "the memory has no background jobs any more; its model-assisted capture runs once at the end of a session, within fixed budgets (src/core/memory/budgets.ts)";
 var CONFIG_REMOVALS = [
   { key: "vault", since: "0.5.0", why: "the memory moved from the Obsidian vault to CortexDB under ~/.buracle/brain", quietWhen: "~/Documents/Buracle" },
   { key: "memory.qmd", since: "0.5.0", why: "CortexDB does the search", quietWhen: { enabled: false, url: "http://127.0.0.1:8181" } },
@@ -11780,12 +11413,13 @@ var CONFIG_REMOVALS = [
   { key: "memory.verify", since: "0.5.0", why: ALWAYS_ON, quietWhen: { auto: true, maxRunsPerDay: 4, maxPerRun: 4, maxInputTokens: 8000, maxOutputTokens: 900, minIntervalMin: 60 } },
   { key: "memory.heal", since: "0.5.0", why: ALWAYS_ON, quietWhen: { auto: true } },
   { key: "memory.profile", since: "0.5.0", why: ALWAYS_ON, quietWhen: { enabled: true, statements: true } },
-  { key: "memory.ui.enabled", since: "0.5.0", why: "the brain web UI is always available (BURACLE_NO_AUTOSTART=1 keeps a session from starting it)", quietWhen: true },
-  { key: "memory.ui.autostart", since: "0.5.0", why: "the brain web UI starts with a session (BURACLE_NO_AUTOSTART=1 keeps a session from starting it)", quietWhen: true },
+  { key: "memory.ui.enabled", since: "0.5.0", why: "the brain web UI is always available; it starts only when you run `buracle mem ui`", quietWhen: true },
+  { key: "memory.ui.autostart", since: "0.5.0", why: "the brain web UI no longer starts with a session; it starts only when you run `buracle mem ui`", quietWhen: true },
   { key: "memory.reflect.provider", since: "0.5.0", why: "the memory's model calls run through a harness with usage headroom; there is no external API", quietWhen: "harness" },
   { key: "memory.reflect.api", since: "0.5.0", why: "the memory's model calls run through a harness with usage headroom; there is no external API", quietWhen: { format: "openai", url: "", model: "", keyEnv: "", person: false } },
   { key: "memory.llm", since: "0.5.0", why: "the memory's model calls run through a harness with usage headroom; there is no external API", quietWhen: { provider: "auto", api: { format: "openai", url: "", model: "", keyEnv: "", person: false } } },
-  { key: "memory.embed", since: "0.5.0", why: "the search by meaning uses the built-in embedding model; no embeddings endpoint is configured", quietWhen: { url: "", model: "", dim: 0, keyEnv: "" } }
+  { key: "memory.embed", since: "0.5.0", why: "the memory search is by words; there is no embedding model or endpoint to configure", quietWhen: { url: "", model: "", dim: 0, keyEnv: "" } },
+  { key: "contextMode", since: "0.6.0", why: "Context Mode and its context-mode MCP server are gone; the handoff memory and the compaction restore carry the session state", quietWhen: { enabled: true, capture: true } }
 ];
 function quietRemoval(old, quiet) {
   if (isPlainObject(old) && isPlainObject(quiet)) {
@@ -12025,16 +11659,8 @@ function memReasonText(reason, s) {
       return "unreadable";
     case "mcp_down":
       return "mcp down";
-    case "embed_missing":
-      return "no embeddings";
-    case "upkeep_high":
-      return `upkeep ${s.upkeep}`;
     case "captures_high":
       return `inbox ${s.captures}`;
-    case "distill_backlog":
-      return `queue ${Math.max(0, s.distill.pending - (s.distill.held ?? 0))}`;
-    case "core_missing":
-      return "core pages missing";
     default:
       return reason;
   }
@@ -12056,7 +11682,7 @@ var HEALTH_COLOR = { ok: "green", warn: "yellow", error: "red" };
 var HEALTH_MARK = { ok: "\u2713", warn: "\u26A0", error: "\u2717" };
 function memSegmentWith(s, nowMs, style, opts) {
   const brain = opts.emoji ? "\uD83E\uDDE0 " : "";
-  if (s === undefined || s.v !== 2) {
+  if (s === undefined || s.v !== 3) {
     return { id: "mem", text: style === "wide" ? `${brain}brain \u2013` : "brain \u2013", color: "gray", dim: true };
   }
   const color = HEALTH_COLOR[s.health] ?? "gray";
@@ -12068,20 +11694,19 @@ function memSegmentWith(s, nowMs, style, opts) {
   const own = s.project !== undefined ? s.counts.project : s.counts.person;
   if (style === "compact") {
     const parts = [String(own)];
-    if (s.upkeep > 0)
-      parts.push(`u${s.upkeep}`);
     if (age !== undefined)
       parts.push(age);
     return { id: "mem", text: `brain ${parts.join("\xB7")} ${mark}${reason}`, color };
   }
   const head = s.project !== undefined ? `${brain}${s.project} ${s.counts.project}+${s.counts.person}p` : `${brain}person ${s.counts.person}p`;
   const parts = [head];
-  if (s.upkeep > 0)
-    parts.push(`upkeep ${s.upkeep}`);
   if (s.captures > 0)
     parts.push(`inbox ${s.captures}`);
   if (s.last_write !== undefined && age !== undefined)
     parts.push(`last ${age} (${s.last_write.by})`);
+  const capturedAt = s.last_capture !== undefined ? Date.parse(s.last_capture.at) : Number.NaN;
+  if (Number.isFinite(capturedAt))
+    parts.push(`captured ${memAge(nowMs - capturedAt)}`);
   if (s.health !== "ok")
     parts.push(`${mark}${reason}`);
   return { id: "mem", text: parts.join(" \xB7 "), color };
@@ -12309,7 +11934,7 @@ function memVariant(bar, nowMs, style, emoji) {
   } catch {
     const color = s.health === "error" ? "red" : s.health === "warn" ? "yellow" : "green";
     const own = s.project !== undefined ? s.counts?.project ?? 0 : s.counts?.person ?? 0;
-    return seg2("mem", `brain ${own}${(s.upkeep ?? 0) > 0 ? `\xB7u${s.upkeep}` : ""} ${s.health === "ok" ? "\u2713" : s.health === "warn" ? "\u26A0" : "\u2717"}`, color);
+    return seg2("mem", `brain ${own} ${s.health === "ok" ? "\u2713" : s.health === "warn" ? "\u26A0" : "\u2717"}`, color);
   }
 }
 function memCandidate(bar, nowMs, emoji) {
@@ -12795,169 +12420,15 @@ init_paths();
 init_platform();
 init_proc();
 init_shim();
-import { existsSync as existsSync3, readFileSync as readFileSync7, statSync as statSync9 } from "fs";
-import { join as join11 } from "path";
-
-// src/memory/session-open.ts
-import { readdirSync as readdirSync2, statSync as statSync8 } from "fs";
-init_fsx();
-init_paths();
-
-// src/memory/layout.ts
+import { existsSync as existsSync3, readFileSync as readFileSync5, statSync as statSync7 } from "fs";
 import { join as join8 } from "path";
-init_fsx();
-init_paths();
-function memStateDir() {
-  return memoryStateDir();
-}
-function spoolDir() {
-  return join8(memStateDir(), "spool");
-}
-function sessionRecordsDir() {
-  return join8(memStateDir(), "sessions");
-}
-function sessionRecordFile(h, sid) {
-  return join8(sessionRecordsDir(), `${h}-${sid}.json`);
-}
-
-// src/memory/spool.ts
-import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync3, readdirSync, readFileSync as readFileSync5, statSync as statSync7, unlinkSync as unlinkSync2 } from "fs";
-import { join as join9 } from "path";
-init_fsx();
-init_paths();
-function captureOff() {
-  return memCaptureOff(process.env);
-}
-function activeSpoolFiles(h, sids) {
-  const out = new Map;
-  let names;
-  try {
-    names = readdirSync(spoolDir());
-  } catch {
-    return out;
-  }
-  for (const n of names.sort()) {
-    if (!n.startsWith(`${h}-`) || !n.endsWith(".jsonl"))
-      continue;
-    const rest = n.slice(h.length + 1, -".jsonl".length);
-    for (let i = rest.length;i > 0; i = rest.lastIndexOf("-", i - 1)) {
-      const sid = rest.slice(0, i);
-      if (sids.has(sid))
-        out.set(sid, [...out.get(sid) ?? [], join9(spoolDir(), n)]);
-    }
-  }
-  return out;
-}
-
-// src/memory/session-open.ts
-function readSessionRecord(h, sid) {
-  const r = readJsonSafeSync(sessionRecordFile(h, sid));
-  return r.ok && r.value !== null && typeof r.value === "object" && r.value.v === 1 ? r.value : undefined;
-}
-var STALE_ACTIVE_MS = 2 * 3600000;
-function openSessions(nowMs, max = Number.POSITIVE_INFINITY) {
-  const out = [];
-  let names = [];
-  try {
-    names = readdirSync2(sessionRecordsDir());
-  } catch {
-    return out;
-  }
-  const byHarness = new Map;
-  for (const n of names) {
-    if (!n.endsWith(".json"))
-      continue;
-    const dash = n.indexOf("-");
-    const h = n.slice(0, dash);
-    const sid = n.slice(dash + 1, -".json".length);
-    if (!isHarness(h) || !isValidSessionId(sid))
-      continue;
-    let sids = byHarness.get(h);
-    if (sids === undefined) {
-      sids = new Set;
-      byHarness.set(h, sids);
-    }
-    sids.add(sid);
-  }
-  for (const [h, sids] of byHarness) {
-    const spooled = activeSpoolFiles(h, sids);
-    for (const sid of sids) {
-      let last;
-      try {
-        last = statSync8(sessionRecordFile(h, sid)).mtimeMs;
-      } catch {
-        continue;
-      }
-      for (const f of spooled.get(sid) ?? []) {
-        try {
-          last = Math.max(last, statSync8(f).mtimeMs);
-        } catch {}
-      }
-      if (nowMs - last >= STALE_ACTIVE_MS)
-        continue;
-      if (readSessionRecord(h, sid)?.status !== "active")
-        continue;
-      out.push({ h, sid });
-      if (out.length >= max)
-        return out;
-    }
-  }
-  return out;
-}
-function anySessionOpen(nowMs) {
-  return openSessions(nowMs, 1).length > 0;
-}
-
-// src/memory/ui-build.ts
-init_paths();
-import { createHash as createHash2 } from "crypto";
-import { readdirSync as readdirSync3, readFileSync as readFileSync6 } from "fs";
-import { join as join10 } from "path";
-function uiSources(memoryDir) {
-  const out = readdirSync3(memoryDir).filter((n) => /^ui.*\.ts$/u.test(n)).sort();
-  const walk = (rel) => {
-    const entries = readdirSync3(join10(memoryDir, rel), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
-    for (const e of entries) {
-      if (e.name.startsWith("."))
-        continue;
-      const r = `${rel}/${e.name}`;
-      if (e.isDirectory())
-        walk(r);
-      else if (e.isFile())
-        out.push(r);
-    }
-  };
-  walk("ui");
-  return out;
-}
-function uiBuildId(repoRoot2 = repoRoot()) {
-  try {
-    const raw = JSON.parse(readFileSync6(join10(repoRoot2, "package.json"), "utf8")).version;
-    const dir = join10(repoRoot2, "src", "memory");
-    const h = createHash2("sha256");
-    for (const rel of uiSources(dir)) {
-      h.update(rel);
-      h.update("\x00");
-      h.update(readFileSync6(join10(dir, rel)));
-      h.update("\x00");
-    }
-    return `${typeof raw === "string" ? raw : "?"}+${h.digest("hex").slice(0, 12)}`;
-  } catch {
-    return;
-  }
-}
-function sameUiBuild(running, current) {
-  return current === undefined || running === current;
-}
-
-// src/usage/bar-info.ts
 var HARNESS_LABEL = { claude: "CC", codex: "Codex", opencode: "OpenCode", omp: "OMP" };
 function isRecord(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 function buracleVersion(repoRoot2 = repoRoot()) {
   try {
-    const v = JSON.parse(readFileSync7(join11(repoRoot2, "package.json"), "utf8")).version;
+    const v = JSON.parse(readFileSync5(join8(repoRoot2, "package.json"), "utf8")).version;
     return typeof v === "string" ? v : "?";
   } catch {
     return "?";
@@ -12967,17 +12438,17 @@ function claudePlan() {
   const file = claudeJson();
   let mtime;
   try {
-    mtime = statSync9(file).mtimeMs;
+    mtime = statSync7(file).mtimeMs;
   } catch {
     return;
   }
-  const cacheFile = join11(buracleHome(), "cache", "claude-plan.json");
+  const cacheFile = join8(buracleHome(), "cache", "claude-plan.json");
   const cached = readJsonSafeSync(cacheFile);
   if (cached.ok && cached.value?.mtime === mtime)
     return cached.value.plan ?? undefined;
   let plan;
   try {
-    const j = JSON.parse(readFileSync7(file, "utf8"));
+    const j = JSON.parse(readFileSync5(file, "utf8"));
     const oa = isRecord(j) && isRecord(j["oauthAccount"]) ? j["oauthAccount"] : undefined;
     if (oa === undefined)
       plan = "API";
@@ -13008,7 +12479,7 @@ function claudePlan() {
 var VERSION_TTL_MS = 12 * 60 * 60000;
 var VERSION_CMD = { claude: "claude", codex: "codex", opencode: "opencode", omp: "omp" };
 function versionCacheFile() {
-  return join11(buracleHome(), "cache", "harness-versions.json");
+  return join8(buracleHome(), "cache", "harness-versions.json");
 }
 async function harnessVersion(h, nowMs) {
   const cacheFile = versionCacheFile();
@@ -13047,33 +12518,8 @@ function liveMemoryUi() {
   }
   return v;
 }
-function ensureMemoryUi(nowMs, opts = {}) {
-  if (process.env["BURACLE_NO_AUTOSTART"] === "1")
-    return;
-  const live = liveMemoryUi();
-  if (live !== undefined && sameUiBuild(live.build, uiBuildId()))
-    return;
-  if (opts.sessionStarting !== true && !captureOff() && !anySessionOpen(nowMs))
-    return;
-  const marker = join11(stateDir(), "memory-ui.spawn");
-  try {
-    if (existsSync3(marker) && nowMs - statSync9(marker).mtimeMs < 60000)
-      return;
-    atomicWriteSync(marker, String(nowMs));
-  } catch {
-    return;
-  }
-  try {
-    const argv = buracleArgv();
-    if (argv === undefined)
-      return;
-    const spawned = spawnArgv([...argv, "mem", "ui", "--serve", "--for-session"]);
-    const child = Bun.spawn(spawned, { stdin: "ignore", stdout: "ignore", stderr: "ignore", detached: true, cwd: home(), env: { ...process.env }, windowsVerbatimArguments: windowsVerbatim(spawned) });
-    child.unref();
-  } catch {}
-}
 function buracleArgv() {
-  const main = join11(repoRoot(), "src", "cli", "main.ts");
+  const main = join8(repoRoot(), "src", "cli", "main.ts");
   const bun = findExecutable("bun");
   if (bun !== undefined && existsSync3(main))
     return [bun, main];
@@ -13093,18 +12539,17 @@ async function barInfo(h, o) {
       harness.plan = plan;
   }
   info.harness = harness;
-  ensureMemoryUi(o.nowMs);
   const live = liveMemoryUi();
-  info.memoryUrl = live?.url ?? `http://localhost:${o.memoryUi.port}`;
+  if (live !== undefined)
+    info.memoryUrl = live.url;
   if (o.lines !== undefined)
     info.lines = o.lines;
   return info;
 }
 
 // src/usage/bar.ts
-init_dist();
-import { readFileSync as readFileSync9 } from "fs";
-import { isAbsolute as isAbsolute8, join as join14, relative as relative2, resolve as resolve6, sep as sep2 } from "path";
+import { readFileSync as readFileSync7 } from "fs";
+import { isAbsolute as isAbsolute8, join as join11, relative as relative2, resolve as resolve6, sep as sep2 } from "path";
 
 // src/core/status/git.ts
 function trimSlashes(p) {
@@ -13267,8 +12712,8 @@ function tildeFrom(home, p) {
 }
 
 // src/workflow/workspace.ts
-import { existsSync as existsSync4, readdirSync as readdirSync4, readFileSync as readFileSync8, rmSync, statSync as statSync10, unlinkSync as unlinkSync3 } from "fs";
-import { dirname as dirname4, isAbsolute as isAbsolute7, join as join12, resolve as resolve4 } from "path";
+import { existsSync as existsSync4, readdirSync, readFileSync as readFileSync6, rmSync, statSync as statSync8, unlinkSync as unlinkSync2 } from "fs";
+import { dirname as dirname4, isAbsolute as isAbsolute7, join as join9, resolve as resolve4 } from "path";
 init_fsx();
 init_paths();
 init_platform();
@@ -13333,7 +12778,7 @@ function exclusionContext(vault, exclude) {
 function markerEntries(dir) {
   let entries;
   try {
-    entries = readdirSync4(dir, { withFileTypes: true });
+    entries = readdirSync(dir, { withFileTypes: true });
   } catch {
     return;
   }
@@ -13343,7 +12788,7 @@ function markerEntries(dir) {
       files.add(e.name);
     else if (e.isSymbolicLink()) {
       try {
-        if (statSync10(join12(dir, e.name)).isFile())
+        if (statSync8(join9(dir, e.name)).isFile())
           files.add(e.name);
       } catch {}
     }
@@ -13382,13 +12827,13 @@ function markerRoot(dir, ctx) {
   return found;
 }
 function isProjectDir(dir) {
-  return existsSync4(join12(dir, ".git")) || hasMarker(dir);
+  return existsSync4(join9(dir, ".git")) || hasMarker(dir);
 }
 function activity(dir, mtimeMs) {
   let t = mtimeMs;
-  for (const f of [".git", join12(".git", "index"), join12(".git", "HEAD")]) {
+  for (const f of [".git", join9(".git", "index"), join9(".git", "HEAD")]) {
     try {
-      t = Math.max(t, statSync10(join12(dir, f)).mtimeMs);
+      t = Math.max(t, statSync8(join9(dir, f)).mtimeMs);
     } catch {}
   }
   return t;
@@ -13396,7 +12841,7 @@ function activity(dir, mtimeMs) {
 function childProjects(dir, ctx, max) {
   let names;
   try {
-    names = readdirSync4(dir).sort();
+    names = readdirSync(dir).sort();
   } catch {
     return [];
   }
@@ -13406,10 +12851,10 @@ function childProjects(dir, ctx, max) {
   for (const name of names) {
     if (name.startsWith(".") || name === "node_modules")
       continue;
-    const p = join12(dir, name);
+    const p = join9(dir, name);
     let mtimeMs;
     try {
-      const st = statSync10(p);
+      const st = statSync8(p);
       if (!st.isDirectory())
         continue;
       mtimeMs = st.mtimeMs;
@@ -13460,7 +12905,7 @@ function indexTag(root) {
   return sha256(canonicalDir(root)).slice(0, 16);
 }
 function indexRecordFile(root) {
-  return join12(indexStateDir(), `${indexTag(root)}.json`);
+  return join9(indexStateDir(), `${indexTag(root)}.json`);
 }
 var CORRUPT_KEEP_MS = 14 * 86400000;
 function indexLockFile(root) {
@@ -13481,7 +12926,7 @@ function pidAlive(pid) {
 function indexLockHolder(root, nowMs) {
   let held;
   try {
-    held = JSON.parse(readFileSync8(indexLockFile(root), "utf8"));
+    held = JSON.parse(readFileSync6(indexLockFile(root), "utf8"));
   } catch {
     return;
   }
@@ -13500,7 +12945,7 @@ function isWsl(env) {
     return true;
   if (wslCache === undefined) {
     try {
-      const v = readFileSync8("/proc/version", "utf8").toLowerCase();
+      const v = readFileSync6("/proc/version", "utf8").toLowerCase();
       wslCache = v.includes("microsoft") || v.includes("wsl");
     } catch {
       wslCache = false;
@@ -13514,15 +12959,15 @@ function codegraphDataDir(root, env = process.env) {
     return raw;
   if (isWsl(env) && /^\/mnt\/[a-z](?:\/|$)/i.test(root)) {
     try {
-      if (statSync10(join12(root, ".codegraph-wsl")).isDirectory())
+      if (statSync8(join9(root, ".codegraph-wsl")).isDirectory())
         return ".codegraph-wsl";
     } catch {}
-    return existsSync4(join12(root, ".codegraph", "codegraph.db")) ? ".codegraph" : ".codegraph-wsl";
+    return existsSync4(join9(root, ".codegraph", "codegraph.db")) ? ".codegraph" : ".codegraph-wsl";
   }
   return ".codegraph";
 }
 function codegraphIndexPresent(root) {
-  return existsSync4(join12(root, codegraphDataDir(root), "codegraph.db"));
+  return existsSync4(join9(root, codegraphDataDir(root), "codegraph.db"));
 }
 function projectIndex(root, cfg, nowMs, building = false) {
   const rec = readIndexRecord(root);
@@ -13568,14 +13013,14 @@ function monthKeyOf(ms) {
 // src/usage/telemetry.ts
 init_fsx();
 init_paths();
-import { readdirSync as readdirSync5, statSync as statSync11 } from "fs";
-import { join as join13, resolve as resolve5 } from "path";
+import { readdirSync as readdirSync2, statSync as statSync9 } from "fs";
+import { join as join10, resolve as resolve5 } from "path";
 var WINDOWS_MAX_AGE_MS = 6 * 60 * 60000;
 function latestWindows(h, nowMs, opts = {}) {
   const dir = sessionsDir(h);
   let names;
   try {
-    names = readdirSync5(dir);
+    names = readdirSync2(dir);
   } catch {
     return [];
   }
@@ -13583,9 +13028,9 @@ function latestWindows(h, nowMs, opts = {}) {
   for (const sid of names) {
     if (!isValidSessionId(sid))
       continue;
-    const path = join13(dir, sid, "telemetry.json");
+    const path = join10(dir, sid, "telemetry.json");
     try {
-      files.push({ path, mtime: statSync11(path).mtimeMs });
+      files.push({ path, mtime: statSync9(path).mtimeMs });
     } catch {}
   }
   files.sort((a, b) => b.mtime - a.mtime);
@@ -13685,7 +13130,7 @@ function dirLabel(cwd, info) {
 }
 var SLUG_TTL_MS = 60 * 60000;
 function slugCacheFile() {
-  return join14(buracleHome(), "cache", "statusline-slugs.json");
+  return join11(buracleHome(), "cache", "statusline-slugs.json");
 }
 async function cachedProjectSlug(cwd, nowMs) {
   const key = resolve6(cwd);
@@ -13712,14 +13157,14 @@ async function cachedProjectSlug(cwd, nowMs) {
 function isMemoryStatus(x) {
   const s = obj(x);
   const counts = obj(s?.["counts"]);
-  return s !== undefined && s["v"] === 2 && typeof s["health"] === "string" && counts !== undefined && typeof counts["project"] === "number" && typeof counts["person"] === "number" && Array.isArray(s["reasons"]) && typeof s["upkeep"] === "number";
+  return s !== undefined && s["v"] === 3 && typeof s["health"] === "string" && counts !== undefined && typeof counts["project"] === "number" && typeof counts["person"] === "number" && Array.isArray(s["reasons"]);
 }
 function readMemoryStatus(slug) {
-  const dir = join14(memoryStateDir(), "status");
+  const dir = join11(memoryStateDir(), "status");
   for (const name of slug !== undefined ? [slug, "_global"] : ["_global"]) {
     if (!/^[A-Za-z0-9._-]+$/u.test(name))
       continue;
-    const r = readJsonSafeSync(join14(dir, `${name}.json`));
+    const r = readJsonSafeSync(join11(dir, `${name}.json`));
     if (r.ok && isMemoryStatus(r.value))
       return r.value;
   }
@@ -13732,11 +13177,11 @@ function planForSession(h, sid, roots) {
   if (p === undefined)
     return;
   const plan = { title: p.slug, phase: p.phase, done: 0, total: 0 };
-  const candidates = isAbsolute8(p.path) ? [p.path] : roots.map((r) => join14(r, p.path));
+  const candidates = isAbsolute8(p.path) ? [p.path] : roots.map((r) => join11(r, p.path));
   for (const file of candidates) {
     let text;
     try {
-      text = readFileSync9(file, "utf8");
+      text = readFileSync7(file, "utf8");
     } catch {
       continue;
     }
@@ -13785,11 +13230,10 @@ var TELEMETRY_FRESH_MS = 60 * 60000;
 
 // src/usage/cache.ts
 import { spawn } from "child_process";
-import { closeSync as closeSync2, existsSync as existsSync5, mkdirSync as mkdirSync4, openSync as openSync2, statSync as statSync12, utimesSync, writeSync as writeSync2 } from "fs";
-import { dirname as dirname5, join as join15 } from "path";
+import { closeSync as closeSync2, existsSync as existsSync5, mkdirSync as mkdirSync3, openSync as openSync2, statSync as statSync10, utimesSync, writeSync as writeSync2 } from "fs";
+import { dirname as dirname5, join as join12 } from "path";
 
 // src/engine/config.ts
-init_dist();
 init_fsx();
 init_paths();
 function bunExecutable() {
@@ -13832,29 +13276,29 @@ function isStale(entry, nowMs, ttlMs = USAGE_TTL_MS) {
   return !Number.isFinite(at) || nowMs - at > ttlMs || at - nowMs > 60000;
 }
 function lockFile() {
-  return join15(stateDir(), "usage.lock");
+  return join12(stateDir(), "usage.lock");
 }
 function spawnMarker(h) {
-  return join15(stateDir(), `usage.spawn.${h}`);
+  return join12(stateDir(), `usage.spawn.${h}`);
 }
 function defaultRefreshArgv(h) {
   const tail = ["usage", "refresh", "--harness", h, "--background"];
-  const main = join15(repoRoot(), "src", "cli", "main.ts");
+  const main = join12(repoRoot(), "src", "cli", "main.ts");
   return existsSync5(main) ? [bunExecutable(), main, ...tail] : [...shimLaunch() ?? [shimPath()], ...tail];
 }
 function spawnUsageRefresh(h, opts = {}) {
   try {
     const now = Date.now();
     try {
-      if (now - statSync12(lockFile()).mtimeMs <= LOCK_STALE_MS)
+      if (now - statSync10(lockFile()).mtimeMs <= LOCK_STALE_MS)
         return false;
     } catch {}
     const marker = spawnMarker(h);
     try {
-      if (now - statSync12(marker).mtimeMs < SPAWN_INTERVAL_MS)
+      if (now - statSync10(marker).mtimeMs < SPAWN_INTERVAL_MS)
         return false;
     } catch {}
-    mkdirSync4(dirname5(marker), { recursive: true });
+    mkdirSync3(dirname5(marker), { recursive: true });
     try {
       closeSync2(openSync2(marker, "a"));
     } catch {}
@@ -13876,8 +13320,8 @@ function spawnUsageRefresh(h, opts = {}) {
 // src/engine/hook-health.ts
 init_fsx();
 init_paths();
-import { existsSync as existsSync7, readFileSync as readFileSync11, rmSync as rmSync3, statSync as statSync14 } from "fs";
-import { join as join17 } from "path";
+import { existsSync as existsSync7, readFileSync as readFileSync9, rmSync as rmSync3, statSync as statSync12 } from "fs";
+import { join as join14 } from "path";
 var HOOK_FAILURE_MESSAGES = ["hook handler failed", "hook command failed before dispatch", "hook runtime failed"];
 var DAY_MS = 86400000;
 function str2(x) {
@@ -13927,7 +13371,7 @@ function scanHookFailures(nowMs, windowMs = DAY_MS, file = logFile()) {
   for (const f of [`${file}.1`, file]) {
     let text;
     try {
-      text = readFileSync11(f, "utf8");
+      text = readFileSync9(f, "utf8");
     } catch {
       continue;
     }
@@ -13946,12 +13390,12 @@ function scanHookFailures(nowMs, windowMs = DAY_MS, file = logFile()) {
   return out;
 }
 function hookHealthCacheFile() {
-  return join17(buracleHome(), "cache", "hook-health.json");
+  return join14(buracleHome(), "cache", "hook-health.json");
 }
 function hookHealthForStatus(nowMs, maxAgeMs = 60000) {
   const file = hookHealthCacheFile();
   try {
-    const c = JSON.parse(readFileSync11(file, "utf8"));
+    const c = JSON.parse(readFileSync9(file, "utf8"));
     if (typeof c.at === "number" && nowMs - c.at >= 0 && nowMs - c.at < maxAgeMs && c.summary !== undefined && typeof c.summary.failures === "number")
       return c.summary;
   } catch {}
@@ -13968,11 +13412,11 @@ function hookHealthForStatus(nowMs, maxAgeMs = 60000) {
   return summary;
 }
 function runtimeDriftCacheFile() {
-  return join17(buracleHome(), "cache", "runtime-drift.json");
+  return join14(buracleHome(), "cache", "runtime-drift.json");
 }
 function shimStamp() {
   try {
-    const s = statSync14(join17(binDir(), "buracle"));
+    const s = statSync12(join14(binDir(), "buracle"));
     return `${s.size}:${s.mtimeMs}`;
   } catch {
     return "";
@@ -13982,7 +13426,7 @@ async function runtimeBehindForStatus(nowMs, maxAgeMs = 300000) {
   const file = runtimeDriftCacheFile();
   const stamp = shimStamp();
   try {
-    const c = JSON.parse(readFileSync11(file, "utf8"));
+    const c = JSON.parse(readFileSync9(file, "utf8"));
     if (typeof c.at === "number" && nowMs - c.at >= 0 && nowMs - c.at < maxAgeMs && typeof c.behind === "boolean" && c.shim === stamp)
       return c.behind;
   } catch {}
@@ -14015,13 +13459,13 @@ async function statusHealth(nowMs) {
 init_paths();
 init_shim();
 import { existsSync as existsSync8 } from "fs";
-import { join as join18 } from "path";
+import { join as join15 } from "path";
 function usageRefreshArgv() {
   const tail = ["usage", "refresh", "--harness", "opencode", "--background"];
   const viaShim = shimLaunch();
   if (viaShim !== undefined)
     return [...viaShim, ...tail];
-  const main = join18(repoRoot(), "src", "cli", "main.ts");
+  const main = join15(repoRoot(), "src", "cli", "main.ts");
   const bun = typeof Bun !== "undefined" ? Bun.which("bun") : null;
   return bun !== null && existsSync8(main) ? [bun, main, ...tail] : undefined;
 }
@@ -14178,10 +13622,10 @@ class StatusFeeder {
           this.updates.value = undefined;
         }
       }
-      if (due(this.footer, TTL.footer) && this.opts.memoryUi !== undefined) {
+      if (due(this.footer, TTL.footer) && this.opts.footer === true) {
         this.footer.at = now;
         try {
-          this.footer.value = await barInfo("opencode", { nowMs: now, memoryUi: this.opts.memoryUi() });
+          this.footer.value = await barInfo("opencode", { nowMs: now });
         } catch {
           this.footer.value = undefined;
         }
@@ -14263,7 +13707,7 @@ function statusSegments(bar, layout, width, nowMs) {
 }
 
 // src/adapters/opencode/runtime/tui-commands.ts
-import { join as join19 } from "path";
+import { join as join16 } from "path";
 
 // src/core/flow/panes.ts
 function planPaneLines(v, state) {
@@ -14287,7 +13731,7 @@ function count3(x) {
 }
 function memoryPaneLines(status, url, brain) {
   const lines = [];
-  const s = status !== null && typeof status === "object" && !Array.isArray(status) && status["v"] === 2 ? status : undefined;
+  const s = status !== null && typeof status === "object" && !Array.isArray(status) && status["v"] === 3 ? status : undefined;
   if (s === undefined) {
     lines.push({ text: "No memory status yet.", bold: true });
     lines.push({ text: "`buracle mem status` and memory writes create the status file.", dim: true });
@@ -14297,7 +13741,8 @@ function memoryPaneLines(status, url, brain) {
     const project = typeof s["project"] === "string" ? s["project"] : undefined;
     lines.push({ text: `memory: ${health}`, color: health === "ok" ? "success" : health === "warn" ? "warning" : "error", bold: true });
     lines.push({ text: `${project !== undefined ? `project ${project} ${count3(counts["project"])} \xB7 ` : ""}person ${count3(counts["person"])}` });
-    lines.push({ text: `upkeep ${count3(s["upkeep"])} \xB7 captures ${count3(s["captures"])}` });
+    const last = s["last_capture"] !== null && typeof s["last_capture"] === "object" ? s["last_capture"]["at"] : undefined;
+    lines.push({ text: `inbox ${count3(s["captures"])} \xB7 last capture ${typeof last === "string" ? last.slice(0, 16).replace("T", " ") : "none yet"}` });
   }
   if (url !== undefined)
     lines.push({ text: `web UI: ${url}  (w)`, dim: true });
@@ -14359,13 +13804,12 @@ async function remember(host, input, name = "remember") {
     host.toast(`Not saved (exit code ${r.code}): ${firstLine(r.stderr) || firstLine(r.stdout)}`, "error", "Buracle");
   }
 }
-function memoryUiUrl(cfg) {
+function memoryUiUrl() {
   try {
-    const live = liveMemoryUi();
-    if (live !== undefined)
-      return live.url;
-  } catch {}
-  return `http://localhost:${cfg.memory.ui.port}`;
+    return liveMemoryUi()?.url;
+  } catch {
+    return;
+  }
 }
 async function brain(host, input = "", name = "brain") {
   const page = brainPageArg(input);
@@ -14391,7 +13835,7 @@ async function brain(host, input = "", name = "brain") {
     else if (typeof j.url === "string")
       url = j.url;
   } catch {}
-  url ??= memoryUiUrl(host.cfg());
+  url ??= memoryUiUrl();
   host.toast(url !== undefined ? `${page === "review" ? "Review page" : "Memory UI"}: ${url}` : "The memory UI is starting.", "success", "Buracle");
 }
 function statusLines(host) {
@@ -14407,7 +13851,7 @@ function statusLines(host) {
     `default effort: ${level ?? "OpenCode decides"} (effort.opencode ${cfg.effort.opencode})`,
     `workflows: ${about.workflows.map((w) => `/${w}`).join(" ")}`
   ];
-  const url = memoryUiUrl(cfg);
+  const url = memoryUiUrl();
   if (url !== undefined)
     lines.push(`memory UI: ${url}`);
   return lines;
@@ -14422,7 +13866,7 @@ async function status(host, input) {
     lines = statusLines(host);
   } else if (what === "memory" || what === "mem" || what === "plan") {
     title = what === "plan" ? "Buracle plan" : "Buracle memory";
-    const live = what === "plan" ? () => planLines(host, sid) : () => memoryLines(host.cfg());
+    const live = what === "plan" ? () => planLines(host, sid) : () => memoryLines();
     if (host.pane?.(title, live) === true)
       return;
     lines = live();
@@ -14437,9 +13881,9 @@ async function status(host, input) {
 `));
 }
 var PANE_REFRESH_MS = 2000;
-function memoryLines(cfg) {
-  const r = readJsonSafeSync(join19(memoryStateDir(), "status", "_global.json"));
-  return memoryPaneLines(r.ok ? r.value : undefined, memoryUiUrl(cfg), brainDir()).map((l) => l.text.replace(/ {2}\(w\)$/, ""));
+function memoryLines() {
+  const r = readJsonSafeSync(join16(memoryStateDir(), "status", "_global.json"));
+  return memoryPaneLines(r.ok ? r.value : undefined, memoryUiUrl(), brainDir()).map((l) => l.text.replace(/ {2}\(w\)$/, ""));
 }
 function planLines(host, sid) {
   return planPaneLines(host.band(sid), sid !== undefined && isValidSessionId(sid) ? loadState("opencode", sid) : { v: 1, guard: { blocksForPlan: 0, blocksInChain: 0 } }).map((l) => l.text);
@@ -14511,6 +13955,164 @@ function utilityCommands(host, names) {
     }
   ];
 }
+
+// src/core/policy/code-scan.ts
+var REGEX_AFTER = new Set(["(", ",", "=", ":", "[", "!", "&", "|", "?", "{", "}", ";", "+", "-", "*", "%", "<", ">", "~", "^", "=>", "==", "===", "!=", "!==", "&&", "||", "??", "return", "typeof", "case", "do", "else", "in", "of", "new", "void", "throw"]);
+var HOME_ENV = new Set(["HOME", "USERPROFILE"]);
+var LOOKUPS = new Set(["getattr", "__import__", "import_module", "require", "import"]);
+var GENERIC = new Set(["remove", "copy", "move", "run", "call", "rm", "cp", "rename", "replace", "unlink", "exec", "spawn", "popen", "write", "delete", "open", "system"]);
+var GENERIC_BARE = new Set(["remove", "copy", "move", "run", "call", "rm", "cp", "rename", "unlink", "exec", "spawn", "popen", "write", "delete", "open", "system"]);
+var VALUE_METHODS = new Set(["unlink", "rename", "open"]);
+var PARENLESS = new Set(["perl", "ruby", "lua"]);
+
+// src/core/policy/self-disable.ts
+var RELOCATION_VARS2 = ["BURACLE_HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "PI_CODING_AGENT_DIR", "BURACLE_CORTEXDB_BIN"];
+var RELOCATION = new RegExp(RELOCATION_VARS2.map((v) => [...v].map((c) => c.replace(/[^A-Za-z0-9]/g, "\\$&")).join(`['"\\\\{}$:+-]*`)).join("|"), "i");
+var STARTUP_NAMES = new Set([".zshrc", ".zprofile", ".zshenv", ".zlogin", ".bashrc", ".bash_profile", ".bash_login", ".profile", ".kshrc", ".mkshrc", ".cshrc", ".tcshrc", ".login", ".envrc", ".pam_environment", ".xprofile", ".xsessionrc"]);
+var SYSTEM_STARTUP = new Set(["zshrc", "zprofile", "zshenv", "zlogin", "profile", "bashrc", "bash.bashrc", "environment", "csh.cshrc", "csh.login", "launchd.conf"]);
+var SHELL_RUNNERS = new Set(["sh", "bash", "zsh", "dash", "ksh", "mksh", "ash", "source", "."]);
+var SCRIPT_RUNNERS = new Set(["bun", "node", "nodejs", "tsx", "ts-node", "deno", "parallel"]);
+var SHELL_OPTION_WITH_VALUE = new Set(["-o", "+o", "-O", "+O"]);
+var REMOVE_VERBS = new Set(["disable", "uninstall", "remove", "rm", "unlink"]);
+
+// src/core/policy/powershell.ts
+var KNOWN_HOME = new Set(["home", "env:userprofile", "env:home"]);
+var KEYWORDS = new Set(["if", "elseif", "else", "foreach", "for", "while", "do", "until", "switch", "try", "catch", "finally", "function", "filter", "trap", "begin", "process", "end", "param", "data", "return", "throw", "break", "continue", "exit", "class", "enum"]);
+var POWERSHELL_SIGNS = new RegExp([
+  String.raw`\$env:`,
+  String.raw`\[(?:system\.)?(?:io\.(?:file|directory)|environment|net\.webclient)\]`,
+  String.raw`(?:^|[\s;|&({])(?:remove|copy|move|rename|set|add|clear|new|out|format|stop|restart|invoke|start|initialize|get|foreach|where|tee)-[a-z]+(?=[\s;|)}]|$)`,
+  String.raw`(?:^|[\s;|&(])(?:ri|rd|del|erase|cpi|mi|rni|sc|ac|clc|ni|iex|iwr|irm|gci|saps|sl|cmd(?:\.exe)?\s+/[ck])\s`,
+  String.raw`\s-(?:recurse|force|literalpath|itemtype|destination|outfile|filepath|erroraction|whatif|argumentlist|encodedcommand)\b`,
+  String.raw`(?:^|[\s'"=(,])(?:[a-z]:|\.{1,2}|~)\\`
+].join("|"), "i");
+
+// src/core/policy/windows-paths.ts
+var TOP_LEVEL = new Set(["windows", "program files", "program files (x86)", "programdata", "users", "documents and settings", "system volume information", "recovery", "$recycle.bin", "boot", "perflogs"]);
+var CRITICAL_SECOND_LEVEL = new Set(["windows/system32", "windows/syswow64", "windows/winsxs", "users/public", "users/default", "programdata/microsoft"]);
+var HOME_FOLDERS = new Set([
+  "applications",
+  "desktop",
+  "documents",
+  "downloads",
+  "library",
+  "movies",
+  "music",
+  "pictures",
+  "public",
+  ".config",
+  ".ssh",
+  ".gnupg",
+  ".aws",
+  "appdata",
+  "onedrive",
+  "videos",
+  "favorites",
+  "contacts",
+  "links",
+  "saved games",
+  "searches"
+]);
+
+// src/core/policy/windows-shell.ts
+var COMMON_VALUES = ["erroraction", "warningaction", "informationaction", "errorvariable", "warningvariable", "informationvariable", "outvariable", "outbuffer", "pipelinevariable", "progressaction"];
+var COMMON_SWITCHES = ["verbose", "debug", "whatif", "confirm"];
+var COMMON_ALIASES = { ea: "erroraction", wa: "warningaction", ev: "errorvariable", ov: "outvariable", ob: "outbuffer", pv: "pipelinevariable", vb: "verbose", db: "debug", wi: "whatif", cf: "confirm", lp: "literalpath", pspath: "literalpath" };
+function spec(values, switches, positional, aliases = {}) {
+  return { values: [...values, ...COMMON_VALUES], switches: [...switches, ...COMMON_SWITCHES], positional, aliases: { ...COMMON_ALIASES, ...aliases } };
+}
+var PATHS = ["path", "literalpath"];
+var SPECS = {
+  "remove-item": spec([...PATHS, "filter", "include", "exclude", "credential", "stream"], ["recurse", "force"], ["path"]),
+  "get-childitem": spec([...PATHS, "filter", "include", "exclude", "depth", "attributes"], ["recurse", "force", "name", "file", "directory", "hidden", "followsymlink"], ["path", "filter"]),
+  "get-item": spec([...PATHS, "filter", "include", "exclude", "stream"], ["force"], ["path"]),
+  "copy-item": spec([...PATHS, "destination", "filter", "include", "exclude", "credential", "fromsession", "tosession"], ["recurse", "force", "container", "passthru"], ["path", "destination"]),
+  "move-item": spec([...PATHS, "destination", "filter", "include", "exclude", "credential"], ["force", "passthru"], ["path", "destination"]),
+  "rename-item": spec([...PATHS, "newname", "credential"], ["force", "passthru"], ["path", "newname"]),
+  "set-content": spec([...PATHS, "value", "encoding", "filter", "include", "exclude", "credential", "stream"], ["force", "nonewline", "passthru", "asbytestream"], ["path", "value"]),
+  "add-content": spec([...PATHS, "value", "encoding", "filter", "include", "exclude", "credential", "stream"], ["force", "nonewline", "passthru", "asbytestream"], ["path", "value"]),
+  "clear-content": spec([...PATHS, "filter", "include", "exclude", "credential", "stream"], ["force"], ["path"]),
+  "out-file": spec(["filepath", "literalpath", "encoding", "inputobject", "width"], ["append", "force", "noclobber", "nonewline"], ["filepath", "encoding"], { path: "filepath" }),
+  "tee-object": spec(["filepath", "literalpath", "variable", "inputobject", "encoding"], ["append"], ["filepath"], { path: "filepath" }),
+  "new-item": spec(["path", "name", "itemtype", "value", "target", "credential"], ["force"], ["path"], { type: "itemtype" }),
+  "set-item": spec([...PATHS, "value", "filter", "include", "exclude", "credential"], ["force", "passthru"], ["path", "value"]),
+  "set-itemproperty": spec([...PATHS, "name", "value", "type", "filter", "include", "exclude", "credential", "inputobject"], ["force", "passthru"], ["path", "name", "value"]),
+  "new-itemproperty": spec([...PATHS, "name", "value", "propertytype", "filter", "include", "exclude", "credential"], ["force"], ["path", "name", "value"], { type: "propertytype" }),
+  "set-location": spec([...PATHS, "stackname"], ["passthru"], ["path"]),
+  "push-location": spec([...PATHS, "stackname"], ["passthru"], ["path"]),
+  "invoke-expression": spec(["command"], [], ["command"]),
+  "invoke-webrequest": spec(["uri", "outfile", "method", "body", "headers", "infile", "contenttype", "useragent", "proxy", "credential", "sessionvariable", "websession", "timeoutsec", "maximumredirection"], ["usebasicparsing", "passthru", "usedefaultcredentials", "skipcertificatecheck"], ["uri"]),
+  "start-process": spec(["filepath", "argumentlist", "workingdirectory", "verb", "credential", "redirectstandardoutput", "redirectstandarderror", "redirectstandardinput", "windowstyle"], ["wait", "passthru", "nonewwindow", "loaduserprofile", "usenewenvironment"], ["filepath", "argumentlist"], { args: "argumentlist", file: "filepath" }),
+  "stop-process": spec(["id", "name", "inputobject"], ["force", "passthru"], ["id"], { processname: "name" }),
+  "foreach-object": spec(["process", "begin", "end", "membername", "argumentlist", "inputobject", "throttlelimit", "remainingscripts"], ["parallel", "asjob"], ["process"]),
+  "invoke-command": spec(["scriptblock", "computername", "session", "argumentlist", "filepath", "credential"], ["asjob", "nonewscope"], ["scriptblock"])
+};
+var WINDOWS_SHELLS = new Set(["cmd", "powershell", "pwsh", "powershell_ise"]);
+var SHARED = new Set(["rm", "rmdir", "cp", "mv", "ls", "dir", "cd", "pushd", "popd", "kill", "tee", "ps", "start", "foreach", "where"]);
+var DISK = new Set(["format-volume", "clear-disk", "initialize-disk", "remove-partition", "clear-partition", "reset-physicaldisk"]);
+var POWER = new Set(["stop-computer", "restart-computer"]);
+
+// src/core/policy/bash-guard.ts
+var TOP_LEVEL2 = new Set([
+  "applications",
+  "bin",
+  "boot",
+  "cores",
+  "dev",
+  "etc",
+  "home",
+  "lib",
+  "lib32",
+  "lib64",
+  "libx32",
+  "library",
+  "media",
+  "mnt",
+  "network",
+  "nix",
+  "opt",
+  "private",
+  "proc",
+  "root",
+  "run",
+  "sbin",
+  "snap",
+  "srv",
+  "sys",
+  "system",
+  "tmp",
+  "users",
+  "usr",
+  "var",
+  "volumes"
+]);
+var CRITICAL_SECOND_LEVEL2 = new Set([
+  "/usr/bin",
+  "/usr/sbin",
+  "/usr/lib",
+  "/usr/libexec",
+  "/usr/local",
+  "/usr/share",
+  "/usr/include",
+  "/opt/homebrew",
+  "/private/etc",
+  "/private/var",
+  "/private/tmp",
+  "/var/lib",
+  "/var/db",
+  "/system/library",
+  "/system/applications",
+  "/library/apple"
+]);
+var HOME_FOLDERS2 = new Set(["applications", "desktop", "documents", "downloads", "library", "movies", "music", "pictures", "public", ".config", ".ssh", ".gnupg", ".aws"]);
+var DOWNLOADERS = new Set(["curl", "wget", "fetch", "http", "https", "xh", "aria2c"]);
+var OUTPUT_REDIRECTS = new Set([">", ">>", ">|", "&>", "&>>", "<>", ">&"]);
+var DECLARE = new Set(["export", "declare", "typeset", "local", "readonly"]);
+var GIT_GLOBAL_WITH_ARG = new Set(["-C", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--attr-source", "--list-cmds"]);
+var PUSH_LONG_ARG = new Set(["repo", "receive-pack", "exec", "push-option", "recurse-submodules"]);
+var FORCE_FAMILY = new Set(["force", "force-with-lease", "force-if-includes"]);
+var GIT_CONFIG_WITH_ARG = new Set(["-f", "--file", "--blob", "--type", "--default", "--comment", "--value", "--fixed-value"]);
+var patternCache = new Map;
 
 // src/core/policy/consent-words.ts
 var TR_DO = "(?:et|edin|ediniz|edelim|etsene|edebilirsin|edebilirsiniz|yap|yapin|yapiniz|yapalim|yapsana|yapabilirsin|yapabilirsiniz|calistir|calistirin|calistiralim|calistirsana|calistirabilirsin|calistirabilirsiniz|kos|kosun|kosalim|kosabilirsin|at|atin|atalim|atsana|atabilirsin|uygula|uygulayin|uygulayalim|uygulayabilirsin|gerceklestir|gerceklestirin|gerceklestirebilirsin)";
@@ -14599,25 +14201,25 @@ function consentAnswerOf(pick) {
 // src/adapters/opencode/runtime/consent-relay.ts
 init_fsx();
 init_paths();
-import { closeSync as closeSync3, openSync as openSync3, readdirSync as readdirSync7, rmSync as rmSync4, writeSync as writeSync3 } from "fs";
-import { join as join20 } from "path";
+import { closeSync as closeSync3, openSync as openSync3, readdirSync as readdirSync4, rmSync as rmSync4, writeSync as writeSync3 } from "fs";
+import { join as join17 } from "path";
 var RELAY_DIR = "consent-relay";
 var ASK_ID = /^[a-z0-9-]{8,64}$/;
 var RELAY_ANSWERS = ["once", "session", "refuse", "dismiss"];
 function relayDir(sid) {
-  return join20(sessionDir("opencode", sid), RELAY_DIR);
+  return join17(sessionDir("opencode", sid), RELAY_DIR);
 }
 function askFile(sid, id) {
-  return join20(relayDir(sid), `ask-${id}.json`);
+  return join17(relayDir(sid), `ask-${id}.json`);
 }
 function answerFile(sid, id) {
-  return join20(relayDir(sid), `answer-${id}.json`);
+  return join17(relayDir(sid), `answer-${id}.json`);
 }
 function valid(sid, id) {
   return isValidSessionId(sid) && (id === undefined || ASK_ID.test(id));
 }
 function anyTuiFile() {
-  return join20(stateDir(), "opencode-tui.json");
+  return join17(stateDir(), "opencode-tui.json");
 }
 function writeTuiBeat(sid, now, pid) {
   const beat = JSON.stringify({ at: now, pid }) + `
@@ -14627,7 +14229,7 @@ function writeTuiBeat(sid, now, pid) {
   if (sid === undefined || !valid(sid))
     return;
   ensureDirSync(relayDir(sid));
-  atomicWriteSync(join20(relayDir(sid), "tui.json"), beat);
+  atomicWriteSync(join17(relayDir(sid), "tui.json"), beat);
 }
 function parseAsk(raw, id) {
   if (raw === null || typeof raw !== "object")
@@ -14647,7 +14249,7 @@ function openAsks(sid) {
     return [];
   let names;
   try {
-    names = readdirSync7(relayDir(sid));
+    names = readdirSync4(relayDir(sid));
   } catch {
     return [];
   }
@@ -14740,11 +14342,11 @@ function startConsentRelay(host) {
 // src/adapters/opencode/runtime/notice-board.ts
 init_fsx();
 init_paths();
-import { join as join21 } from "path";
+import { join as join18 } from "path";
 var HARNESS2 = "opencode";
 var FIRST_SIGHT_MS = 30000;
 function boardFile(sid) {
-  return join21(sessionDir(HARNESS2, sid), "notices.json");
+  return join18(sessionDir(HARNESS2, sid), "notices.json");
 }
 function readBoard(sid) {
   const r = readJsonSafeSync(boardFile(sid));
@@ -14888,7 +14490,7 @@ function createTuiPlugin(baked, pluginDir) {
       applyEnv(env);
       const config = runtimeConfigCache(baked.defaults);
       const band = new BandFeeder;
-      const feeder = new StatusFeeder({ memoryUi: () => config.get().config.memory.ui, config: () => config.get().config, band });
+      const feeder = new StatusFeeder({ footer: true, config: () => config.get().config, band });
       const [version, setVersion] = createSignal(0);
       let current = { cwd: ctx.location?.directory ?? process.cwd() };
       let stopped = false;
@@ -15110,7 +14712,7 @@ function createTuiPlugin(baked, pluginDir) {
     }
   };
 }
-var tui_default = createTuiPlugin({ v: 1, contentHash: "f8fb44c0510bf6f9bc48fa8ea4868d9e43fecbff3f3f3ccb59e8d64bef655776", testedWith: "2.0.30", defaults: { version: 1, harnesses: { claude: { enabled: true }, codex: { enabled: true }, opencode: { enabled: true }, omp: { enabled: true } }, routing: { strictness: "enforce", skills: "router", reminders: true }, guards: { bash: { extraDeny: [] }, write: { protect: [] }, redact: true }, plan: { stopGuard: true, runaway: { perPlan: 30, perChain: 5 }, autoPause: false, planApproval: true, resultApproval: true, branchIsolation: true, worktreeDir: ".worktrees", questions: true, reviews: { plan: true, changes: true, goal: true, companion: "off" }, goalVerification: true, modelSwitch: "off", nativePlanMode: "off" }, context: { warnPct: 85, criticalPct: 95 }, checkers: { enabled: true, timeoutMs: 20000, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] }, memory: { ui: { port: 41777 }, exclude: [] }, statusline: { style: "buracle", emoji: true, monthly: "estimate" }, skills: { sources: [{ name: "buracle", path: "canonical/skills" }] }, update: { minReleaseAgeDays: 0 }, permissions: { bypass: true, enforce: true }, effort: { claude: "auto", codex: "auto", opencode: "auto", omp: "auto" }, agents: { teams: true }, workflow: { band: true, foldAfterSec: 8, notifyAfterSec: 120, codexNotices: true }, toolchain: { autoInstall: true, system: true, upgrade: true }, index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 }, contextMode: { enabled: true, capture: true } }, routing: { strictness: "enforce", categories: [{ id: "library-docs", intent: "Library, framework, SDK or CLI documentation at the installed version (APIs, options, config, migrations)", prefer: ["mcp:context7/resolve-library-id", "mcp:context7/query-docs"], fallback: ["mcp:web-fetch/fetch_url"], deny_builtin: [], nudge: "For library or framework APIs, resolve the library with context7 and query its docs at the version in the lockfile.", reminder: "resolve the library with context7 (resolve-library-id), then query-docs at the version in the lockfile", triggers: { topic: ["official docs", "official documentation", "library docs", "framework docs", "according to the docs", "per the docs", "from the docs", "verify in the docs", "api reference", "api docs", "migration guide", "upgrade guide", "re:\\bcheck the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:look|looked|looking|search|searched|searching)\\b(?:\\s+(?:it|this|that|them)\\s+up)?\\s+in the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:says?|said|mentioned|documented|described)\\s+in the docs\\b", "re:\\b(?!(?:the|our|my|your|their|this|that|an?|its|new|own|same|internal|custom|official|public|private|client|server|web|mobile)\\b)[a-z][a-z0-9.-]{2,}\\s+sdk\\b", "belgelerden", "belgelere gore", "resmi belge*", "dokumantasyondan", "dokumantasyona gore", "api referans*", "goc rehberi", "re:\\b(?:belgelerde|dokumantasyonda)\\b(?!.{0,40}\\b(?:ekle|guncelle|duzelt|kaldir|sil)\\w*)"], not: ["docs folder", "docs directory", "docs klasor*"], deps: ["api", "apis", "config", "configure", "configuration", "option*", "migrat*", "upgrade*", "version*", "deprecat*", "breaking change*", "hook*", "middleware", "plugin*", "setup", "set up", "install*", "usage", "how to use", "how to", "how do", "how does", "how can", "why does", "why do", "why is", "what does", "what options", "which options", "by default", "syntax", "integrat*", "method*", "signature", "type*", "re:\\bv\\d+(?:\\.\\d+)*\\b", "re:\\b\\d+\\.\\d+(?:\\.\\d+)?\\b", "nasil", "yapilandir*", "ayar*", "surum*", "guncelle*", "kurulum*", "entegre*", "goc*", "tip*"] } }, { id: "web-search", intent: "Web search for errors, releases, changelogs and comparisons", prefer: ["mcp:web-search/search"], fallback: ["mcp:web-fetch/fetch_url", "builtin:web_search"], deny_builtin: ["web_search"], nudge: "Search the web with the web-search MCP server; while it is down, fetch a search results page (https://html.duckduckgo.com/html/?q=<query>) with web-fetch, and use the built-in web search only when both are down.", reminder: "search with the web-search MCP server (search), then read the sources with web-fetch (fetch_url)", triggers: { topic: ["latest version", "latest release", "latest stable", "release notes", "what's new in", "whats new in", "still maintained", "search the web", "look it up online", "re:\\b(?:read|check|see|look at|according to|per)\\s+(?:the\\s+|its\\s+|their\\s+)?(?:upstream\\s+|official\\s+)?changelog\\b", "re:\\bchangelog\\s+(?:of|for)\\b", "re:\\b(?:is|was)\\s+(?:this|it|that|there)\\s+a\\s+known\\s+(?:issue|bug)\\b", "re:\\b(?:any|are there)\\s+known\\s+(?:issues?|bugs?)\\b", "re:\\bknown\\s+(?:issues?|bugs?)\\s+(?:with|in|of)\\s+(?!(?:our|my|this|the)\\b)", "son surum*", "guncel surum*", "en son surum*", "surum notlari", "degisiklik gunlugu", "hala bakimi yapiliyor", "webde ara*", "internette ara*"], not: ["draft* release notes", "write* release notes", "generate* release notes", "release notes from", "our release notes", "our changelog", "update the changelog", "changelog entry", "surum notlari yaz*", "surum notlarini yaz*", "surum notlari hazirla*", "degisiklik gunlugunu guncelle*"] } }, { id: "web-fetch", intent: "Read a known URL, including JavaScript-rendered pages", prefer: ["mcp:web-fetch/fetch_url"], fallback: ["mcp:context-mode/ctx_fetch_and_index", "builtin:web_fetch"], deny_builtin: ["web_fetch"], nudge: "Fetch pages with the web-fetch MCP server; while it is down, use context-mode's ctx_fetch_and_index, and the built-in fetch only when both are down.", reminder: "read the page with the web-fetch MCP server (fetch_url)" }, { id: "code-examples", intent: "How public code uses an API (GitHub examples)", prefer: ["mcp:grep/searchGitHub"], fallback: ["mcp:web-search/search"], deny_builtin: [], reminder: "look up real usage in public code with the grep MCP server (searchGitHub)", triggers: { topic: ["examples on github", "github examples", "real-world usage", "real world usage", "real-world examples", "how do other projects", "how others use", "open-source examples", "open source examples", "github'da*", "gercek projelerde", "acik kaynak projelerde", "ornek kullanim*", "baska projeler nasil"] } }, { id: "code-search", intent: "Find code by intent or concept, or code similar to a snippet", prefer: ["mcp:semble/search", "mcp:semble/find_related"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Search code with semble (intent) or rg (exact text), never grep -r or find | xargs grep.", reminder: "find code by intent with semble search (repo = the project root); rg stays right for exact text", triggers: { topic: ["which file", "find the code that", "find where", "locate the code", "re:\\bwhere (?:is|are|do we|does) (?:the |our |we )?\\S+ (?:defined|implemented|handled|configured|loaded|set|parsed|created)", "re:\\bhow (?:does|do) .{1,60}\\bwork\\b", "nerede tanimli", "nerede yapiliyor", "nerede uygulan*", "hangi dosyada", "nasil calisiyor", "kodu bul"], not: ["where were we", "where did we leave", "nerede kalmistik", "nerede kaldik"] } }, { id: "code-structure", intent: "Definitions, callers and callees, and the impact of changing a symbol", prefer: ["mcp:codegraph/codegraph_explore"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Before changing a shared function, type or endpoint, get its callers from codegraph.", reminder: "ask codegraph (callers, callees, impact; projectPath = the project root) before you change a shared symbol", triggers: { topic: ["who calls", "what calls", "callers of", "call sites", "call graph", "find usages", "all usages", "references to", "impact of chang*", "blast radius", "what breaks if", "what depends on", "re:\\bwhere (?:is|are) \\S+ (?:called|used|invoked|referenced)", "nereden cagriliyor", "nerelerde cagriliyor", "kim cagiriyor", "cagiranlar*", "cagri grafi*", "nerelerde kullaniliyor", "etki analizi", "neyi bozar", "neler etkilenir"] } }, { id: "language-server", intent: "Diagnostics of an edited file, a symbol's type and docs, its definition and references from the language server (Codex and OpenCode; Claude Code and omp use their own LSP tools)", prefer: ["mcp:lsp/diagnostics", "mcp:lsp/hover", "mcp:lsp/definition", "mcp:lsp/references"], fallback: ["mcp:codegraph/codegraph_explore", "cli:rg"], deny_builtin: [], reminder: "check an edited Python, TypeScript, Go, Rust, C# or Java file with the lsp server's diagnostics, and ask its hover or definition for a symbol's type", triggers: { topic: ["type error*", "typecheck error*", "type-check error*", "compile error*", "compiler error*", "compilation error*", "lsp diagnostics", "language server", "go to definition", "jump to definition", "re:\\bwhat(?:'s| is) the type of\\b", "tip hata*", "derleme hata*", "tanima git", "tanimina git"] } }, { id: "browser", intent: "Drive and inspect a real browser (DOM, console, network, performance)", prefer: ["mcp:chrome-devtools"], fallback: [], deny_builtin: [], reminder: "drive and inspect the real browser with chrome-devtools (navigate_page, take_snapshot, list_console_messages)", triggers: { topic: ["open the page", "take a screenshot", "screenshot of", "console errors", "browser console", "network tab", "lighthouse", "devtools", "re:\\b(?:open|test|check|verify|look|see|load|reproduce|try|view|inspect|debug|click|watch|preview)\\w*\\b.{0,40}\\bin the browser\\b", "ekran goruntusu", "konsol hata*", "sayfayi ac*", "re:\\btarayicida\\b.{0,30}\\b(?:ac|test et|kontrol et|dene|bak|gor|incele)\\w*"] } }, { id: "memory", intent: "Past decisions, gotchas, earlier sessions and preferences", prefer: ["mcp:buracle-memory/memory_search", "mcp:buracle-memory/memory_get"], fallback: ["cli:buracle"], deny_builtin: [], nudge: "History questions start with memory_search on the buracle-memory server.", reminder: "search memory with memory_search, then memory_get the relevant memories, and cite their ids", triggers: { topic: ["memory note*", "vault note*", "the memory vault", "the memory brain", "hafiza not*", "hafiza kayd*", "kasa not*"] } }, { id: "context-saving", intent: "Output you will process rather than read whole (logs, test and build output, data, large files, long pages)", prefer: ["mcp:context-mode/ctx_batch_execute", "mcp:context-mode/ctx_execute"], fallback: [], deny_builtin: [], nudge: "Run commands whose output you only need to summarize, count or search in the context-mode sandbox and print only the result.", reminder: "process large output in the context-mode sandbox (ctx_batch_execute, ctx_execute, ctx_execute_file) and print only what you need", triggers: { topic: ["test output", "build output", "build log*", "log file*", "server log*", "application log*", "crash log*", "re:\\b(?:analy[sz]e|summari[sz]e|scan|triage|(?:go|dig|look|read|sift|comb)\\s+through)\\s+(?:the\\s+|these\\s+|this\\s+|those\\s+|our\\s+|my\\s+)?(?:[a-z0-9-]+\\s+)?(?:logs?|output|stack\\s?traces?|dumps?|test\\s+results)\\b", "re:\\b(?:large|big|huge|long|massive)\\s+(?:csv|json|jsonl|xml|log|data)\\s+(?:file|dump)s?\\b", "re:\\b(?:csv|json|jsonl|xml|sql|heap|thread)\\s+dumps?\\b", "re:\\bgit\\s+log\\b", "test cikti*", "build cikti*", "derleme cikti*", "log dosya*", "buyuk csv*", "buyuk json*", "re:\\b(?:ciktiyi|ciktisini|ciktilari|ciktilarini|loglari|loglarini)\\s+(?:analiz\\s+et|ozetle|incele|tara|ayikla|gozden\\s+gecir)[a-z']*"], not: ["output folder", "output dir*", "output directory", "output path", "cikti klasor*", "cikti dizin*"] } }] }, mcp: [{ id: "buracle-memory", description: "Buracle memory, the CortexDB brains of the project and the person (search, get, write, update, status)", transport: "stdio", critical: true, routing: ["memory"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "chrome-devtools", description: "Drive and inspect a Chrome browser (DevTools protocol)", transport: "stdio", critical: false, routing: ["browser"], harnesses: ["claude", "codex", "opencode"] }, { id: "codegraph", description: "Code structure graph (symbols, callers, impact) for the current repository", transport: "stdio", critical: true, routing: ["code-structure"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "context-mode", description: "Sandboxed execution and indexed search that keep large output out of context", transport: "stdio", critical: true, routing: ["context-saving"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "context7", description: "Up-to-date library and framework documentation", transport: "stdio", critical: true, routing: ["library-docs"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "grep", description: "Search public GitHub code for real-world usage examples", transport: "http", critical: false, routing: ["code-examples"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "lsp", description: "Language-server diagnostics, hover, definitions, references and symbols", transport: "stdio", critical: true, routing: ["language-server"], harnesses: ["codex", "opencode"] }, { id: "semble", description: "Fast semantic code search over local or remote repositories", transport: "stdio", critical: true, routing: ["code-search"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-fetch", description: "Fetch and extract web pages with a headless browser", transport: "stdio", critical: true, routing: ["web-fetch"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-search", description: "Web search without an API key (DuckDuckGo by default)", transport: "stdio", critical: true, routing: ["web-search"], harnesses: ["claude", "codex", "opencode", "omp"] }], mcpIds: ["buracle-memory", "chrome-devtools", "codegraph", "context-mode", "context7", "grep", "lsp", "semble", "web-fetch", "web-search"], skills: [{ id: "ab-test", description: "Measure whether a change to a skill, rule, AGENTS.md section or routing policy really changes agent behavior. Defines falsifiable cases, runs paired baseline and candidate trials in throwaway config directories (never hiding or renaming the user's real skills or settings), captures tool-use evidence such as whether the agent loaded the skill or called context7, then scores pass rates and reports per-case deltas. Use when the user asks to benchmark, evaluate, A/B test or compare a skill or rule change, or to check that agents really use an MCP server or skill.", userInvocable: true, short: "Paired before/after evals of skills and rules with tool-use evidence", invocation: "implicit", triggers: { ask: ["benchmark the skill", "benchmark this skill", "benchmark the rule", "benchmark the routing", "a/b test the skill", "a/b test the rule", "ab-test the skill", "skill'i* benchmark*", "skill'i* olc*", "kurali benchmark*"], topic: ["activation rate", "trigger rate", "really makes the agent", "re:\\bbefore(?:/|\\s+and\\s+)after\\b.{0,60}\\b(?:skill|rule|routing|prompt|agents\\.md|claude\\.md|hook|mcp|description)", "re:\\b(?:skill|rule|routing|prompt|agents\\.md|claude\\.md|hook|description)\\S*\\b.{0,60}\\bbefore(?:/|\\s+and\\s+)after\\b", "re:\\b(?:agents?|models?|claude|codex|opencode|omp)\\b.{0,30}\\breally\\s+(?:calls?|uses?|loads?|triggers?|reads?)\\b", "re:\\bbenchmark\\w*\\b.{0,80}\\b(?:skill|rule|routing|agents\\.md|claude\\.md|hook|prompt|mcp)", "re:\\b(?:skill|rule|routing)\\S*\\b.{0,80}\\bbenchmark", "re:\\b(?:skill|kural|routing|prompt|agents\\.md|claude\\.md|hook|aciklama)\\S*\\b.{0,80}\\b(?:once/?\\s?sonra karsilastir|tetikleniyor mu|gercekten cagriliyor mu)", "re:\\b(?:once/?\\s?sonra karsilastir\\w*|tetikleniyor mu|gercekten cagriliyor mu)\\b.{0,80}\\b(?:skill|kural|routing|prompt|agents\\.md|claude\\.md|hook)", "re:\\bskill\\S*\\b.{0,80}\\b(?:eskisiyle|oncekiyle|onceki surumuyle)"], not: ["operations per second", "ops/sec", "ops per second", "throughput", "latency"] } }, { id: "bugfix", description: "Plan-less bug workflow that owns one defect end to end: reproduce it first, trace the root cause to file:line, write a failing test, fix at the source, prove the fix on the real program, then pass the quality gate. With branch isolation on it asks where to work: the current branch, a bugfix/<slug> branch or a worktree squash-merged once the fix is proven; no plan file. Run only when the user explicitly asks for bugfix.", userInvocable: true, short: "Reproduce, root-cause, RED test, fix at the source, prove it end to end", invocation: "explicit", triggers: { ask: ["re:(?<!\\b(?:the|that|this|your|my|our|its)\\s)\\broot[- ]cause\\s+fix\\b", "fix it test-first", "fix it with a failing test first", "reproduce it first and fix it", "kok nedenini bulup duzelt", "once test yazip duzelt"], not: ["workflow file", "github actions", "ci workflow"] } }, { id: "buracle", description: "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan \u2026`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, notifications, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.", userInvocable: false, short: "When and how to call the buracle helper CLI", invocation: "implicit", triggers: { ask: ["use the buracle cli", "buracle cli ile"], topic: ["re:\\bplan status\\b(?!\\s+(?:endpoint|field|column|code|enum|value|page|api|route|handler|query|badge|label|filter|check|type)s?\\b)", "how many tasks are left", "tasks left in the plan", "diff range", "re:(?<!\\b(?:add|added|adding|new)\\s(?:a\\s|an\\s|the\\s)?)\\breview scope\\b(?!\\s+(?:option|flag|field|param\\w*|column|setting|config\\w*|endpoint|api|type|enum|value)s?\\b)", "what should i review", "re:\\b(?:my|our|claude(?:\\s+code)?|codex|opencode|omp|subscription)(?:'s)?\\s+(?:usage|rate|weekly|5h|5-hour)\\s+limits?\\b", "rate limit headroom", "5h window", "5-hour window", "create a worktree", "merge the worktree", "buracle doctor", "planin durumu", "re:\\bplan durumu\\b(?!\\s+(?:alan|endpoint|kolon|sutun|enum|deger|sayfa|api|kod)\\w*)", "kac gorev kaldi", "kullanim limitim*", "kullanim limitlerim*", "re:\\bkullanim limit\\w*\\s+ne durumda", "5 saatlik pencere*", "5 saatlik limit*", "haftalik limitim*", "haftalik limitlerim*", "re:\\b(?:claude|codex|opencode|omp)\\S*\\s+(?:kullanim\\s+|haftalik\\s+)?limit\\w*", "worktree olustur*", "worktree ac", "worktree'yi birlestir*", "buracle doctor"] } }, { id: "dead-code", description: "Report-only dead-code audit. Collects candidate unused files and exports from the project's own analyzers, a bundled rg-based script and a read-only codegraph snapshot, checks every candidate against independent signals (codegraph references, exact and dynamic-usage search, analyzers), rules out a public role (API, entry points, config, registries), and returns a ranked report with evidence and a staged removal plan. Never deletes or edits code.", userInvocable: true, short: "Report-only dead-code audit with two-signal evidence and a removal plan", invocation: "explicit", triggers: { ask: ["dead code audit", "dead-code audit", "unused code report", "dead code report", "re:(?:^|[\\n.!?;:]\\s*|\\b(?:please|pls|can you|could you|would you|and|then|just)\\s+)find\\s+(?:all\\s+|the\\s+)?(?:dead|unused)\\s+(?:code|exports|files)\\b", "olu kod analizi", "olu kod raporu", "olu kodlari bul", "olu kod tara*", "kullanilmayan kod* bul", "kullanilmayan kod* tespit", "kullanilmayan export* bul", "temizlik raporu"] } }, { id: "find-skill", description: "Find an agent skill for a need and install it for every harness in a few calls. `buracle skills find <need>` is one command that shows the installed and shipped skills that already match, then the skills.sh registry's candidates with description, license, freshness, tool grants and risk ratings; `buracle skills add --dry-run` audits the pick (scripts, allowed-tools, suspicious lines) and `buracle skills add` installs it into ~/.agents/skills (Codex, OpenCode, Oh My Pi) and links it into ~/.claude/skills (Claude Code). Also updates and removes installed skills.", userInvocable: true, short: "Find a skill for a need and install it for every harness", invocation: "implicit", triggers: { ask: ["find a skill", "find me a skill", "find skills for", "is there a skill", "re:\\b(?:install|add|get)\\s+(?:a|the|an)\\s+(?:\\S+\\s+){0,3}skill\\b", "re:\\b(?:update|upgrade|remove|uninstall)\\s+(?:my|the|an?)\\s+(?:\\S+\\s+){0,2}skills?\\b", "search for a skill", "skill marketplace", "skill bul", "skill ara", "skill var mi", "bir skill var mi", "re:\\bskill\\w*\\s+(?:kur|yukle|ekle|indir)", "re:\\b(?:kur|yukle|ekle|indir)\\w*\\s+(?:\\S+\\s+){0,2}skill", "skilleri guncelle", "skill guncelle*", "skill kaldir*", "skill sil"], not: ["create a skill", "write a skill", "new skill", "turn this into a skill", "buracle skill", "the skill is", "skill triggers", "skills lint", "new-skill", "in the skill", "skill file", "skill id", "skill yaz", "skill olustur", "skille donustur", "yeni skill", "skill dosyasi"] } }, { id: "goal-build", description: "Goal-and-loop workflow for a clear end state whose path is found while building: agree on a goal, tasks sized as the largest slices you can finish and verify, and at least 3 pass/fail acceptance criteria (one of them the oracle), have them reviewed, lock the contract, then build in rounds judged on running evidence (at most four), verify and hand back. Tracked in docs/builds/. Run only when the user explicitly asks for goal-build.", userInvocable: true, short: "Lock a goal and pass/fail criteria, then build in judged rounds", invocation: "explicit", triggers: { ask: ["goal-and-loop", "goal and loop", "find the way yourself", "re:\\byou find the way(?: there)?\\s*(?:[.!;:]|$)", "re:(?:^|[\\n.!?;:]\\s*|\\b(?:and|then|just|please)\\s+)(?:keep\\s+)?loop(?:ing)?\\s+until\\s+it\\s+(?:works|passes)\\b", "yolunu sen bul", "bitene kadar dongu*", "hedef odakli dongu*"], not: ["github actions", "ci workflow", "ci pipeline", "workflow file", "workflow run", ".github/workflows", "workflow yaml"] } }, { id: "inspect", description: "Read-only investigation of one question about the code. Frames a falsifiable claim, locates code with semble (intent), codegraph (callers, callees, blast radius) and rg or ast-grep (exact and structural matches), checks memory for past decisions, traces the active path hop by hop, challenges the answer with a counterexample search, and reports a direct answer with file:line evidence and calibrated confidence. Never edits anything.", userInvocable: true, short: "Read-only trace of one code question with file:line evidence", invocation: "explicit", triggers: { ask: ["inspect how", "inspect why", "inspect where", "investigate how", "investigate why", "investigate where", "dig into how", "trace how", "re:(?:^|[\\n.!?;:]\\s*|\\b(?:please|pls|can you|could you|would you)\\s+)investigate\\s+(?:this|that|it)\\b", "nasil calistigini incele*", "nasil calistigini arastir*", "neden boyle davrandigini incele*", "neden boyle davrandigini arastir*", "nereden cagrildigini incele*"], not: ["and fix", "fix it", "then fix", "duzelt"] } }, { id: "memory", description: "Protocol for Buracle's shared memory: the CortexDB brains (one per project, one for the person) served by the buracle-memory MCP server in every harness. Says when to run a quick memory pass (at most 3 memory_search calls, then at most 3 memories via memory_get), how to treat recalled memories as evidence rather than instructions, and how to keep the memory: one claim per memory with sources, search before writing, update or merge instead of duplicating, keep the core pages current, record the user's preferences in the right brain, work through the upkeep queue, never store secrets. Use when the user refers to past work or asks you to remember something, before re-deciding something, after a non-obvious fix, and when upkeep waits.", userInvocable: false, short: "When and how to read, write and keep Buracle's CortexDB memory", invocation: "implicit", triggers: { ask: ["use the memory protocol", "hafiza protokolu*"], topic: ["memory note*", "vault note*", "the memory vault", "the memory brain", "hafiza not*", "hafiza kayd*", "kasa not*", "kasadaki not*"] } }, { id: "new-skill", description: "Capture a repeatable procedure as a Buracle skill, or improve an existing one. Picks the right home (global skills in the Buracle repo's canonical/skills or a configured skills git source; project-only skills in .agents/skills), writes SKILL.md in the canonical format with references/, scripts/ and trigger evals, lints it with `buracle skills lint`, and explains how publishing reaches every harness. Use when the user wants to turn a workflow into a skill, edit, split or rename a skill, or fix a skill that triggers too often or never.", userInvocable: true, short: "Capture a repeatable procedure as a canonical Buracle skill", invocation: "implicit", triggers: { ask: ["turn this into a skill", "turn it into a skill", "into a reusable skill", "make it a skill", "save it as a skill", "new skill for", "re:\\b(?:create|write|add|make) (?:a |an |the )?(?:new )?(?:[a-z-]+ ){0,2}skill\\b", "skill yap", "bunu skill yap", "yeni skill olustur*", "yeni bir skill olustur*", "yeni skill yaz*", "skill olustur*", "skill olarak kaydet*", "skill'e donustur*", "skill'i guncelle*", "tekrar kullanilabilir bir skill"], topic: ["reusable skill", "skill trigger*", "skill description", "re:\\bskill\\S*\\b.{0,60}\\b(?:never triggers|does not trigger|doesn't trigger|misfires|triggers too often)", "re:\\bskill\\S*\\b.{0,60}\\btetiklen(?:miyor|mez)", "re:\\bskill\\S*\\b.{0,60}\\bdevreye girmiyor"] } }, { id: "plan-build", description: "Plan-driven development through a plan file in docs/plans/: explore and clarify, write and review the plan, get approval, implement task by task with TDD, then verify with real evidence until the plan is VERIFIED. Covers features and bugfixes (behavior contract, reproduce first, root-cause fix). Also pauses, resumes or continues an existing plan. Run only when the user explicitly asks for plan-build.", userInvocable: true, short: "Plan, approve, TDD-implement and verify work through a plan file", invocation: "explicit", triggers: { ask: ["write a plan and implement*", "plan and implement it", "plan it and implement*", "re:\\b(?:do|build|implement|handle|tackle)\\s+(?:it|this|that|them|the\\s+\\S+)\\s+plan[- ]driven\\b", "re:\\b(?:go|let's go)\\s+plan[- ]driven\\b", "re:(?:^|[\\n.!?;]\\s*)plan[- ]driven(?:\\s*,?\\s*please)?\\s*[:,]", "plan yaz ve uygula", "plan yazip uygula", "planla ve uygula"] } }, { id: "project-rules", description: "Create, refresh or audit a repository's agent guidance so Claude Code, Codex, OpenCode and omp follow the same verified instructions: the root AGENTS.md, optional nested AGENTS.md files for subprojects, and path-scoped rules for specific file types. Discovers commands and conventions from the code (package scripts, CI jobs, linter and test configs, test layout), runs commands before documenting them, keeps every file short, then runs `buracle project sync` and `buracle project check`. Use when the user asks to set up, write, update, slim down or check AGENTS.md, CLAUDE.md or project rules.", userInvocable: true, short: "Generate and verify AGENTS.md and path-scoped rules for a repo", invocation: "implicit", triggers: { ask: ["set up agent guidance", "set up agents.md", "write agents.md", "create agents.md", "update agents.md", "audit agents.md", "refresh agents.md", "slim down agents.md", "set up the project rules", "audit the agent instructions", "agents.md hazirla*", "agents.md olustur*", "agents.md guncelle*", "agents.md yaz", "proje kurallarini kur", "talimatlari guncelle*", "kurallari sadelestir*"], topic: ["agent instructions", "agent guidance", "path rules", "path-scoped rules", "re:\\b(?:agents|claude)\\.md\\b.{0,40}\\b(?:stale|outdated|bloated|too long|wrong|out of date)", "proje talimatlari", "ajan talimatlari", "proje kurallari", "re:\\b(?:agents|claude)\\.md\\b.{0,40}\\b(?:eskimis|guncel degil|cok uzun|yanlis)"] } }, { id: "requirements", description: "Requirements workflow for ideas whose problem, audience or scope is still unclear. Grounds the idea in the codebase and memory, runs tiered research through the research skill, explores directions, asks a few decision questions, proposes approaches, converges on scope, writes an approved PRD to docs/prd/YYYY-MM-DD-<slug>.md and prints the plan-build or goal-build hand-off. No code is written before the PRD is approved.", userInvocable: true, short: "Interview, research and write an approved PRD before any code", invocation: "explicit", triggers: { ask: ["write a prd", "write the prd", "draft a prd", "draft the prd", "create a prd", "prepare a prd", "make a prd", "need a prd", "re:\\b(?:write|draft|create|prepare|make|produce|need|want)\\s+(?:me\\s+|us\\s+)?(?:a|an|the)\\s+(?:new\\s+|short\\s+|proper\\s+)?(?:product\\s+)?requirements\\s+doc(?:ument)?\\b", "re:(?:^|[\\n.!?;:]\\s*)(?:a\\s+)?prd\\s+for\\b", "prd yaz*", "prd hazirla*", "prd olustur*", "prd cikar*", "gereksinimleri cikar*", "re:\\bgereksinim\\s+(?:dokuman|belge)\\w*\\s+(?:yaz|hazirla|olustur|cikar|lazim|gerek)\\w*", "bu fikri netlestir*", "fikri netlestir*"], not: ["do we need a prd", "is there a prd", "do we have a prd", "is a prd needed", "prd gerekli mi", "prd lazim mi", "prd var mi"] } }, { id: "research", description: "Evidence-backed research that must use MCP tools instead of recall: web-search to discover sources, web-fetch to read them in full, context7 for library and framework documentation, grep for real-world code on GitHub, and buracle-memory for prior decisions. Produces a cited research note (answer, findings, options, conflicts, gaps, confidence) and can save durable findings to memory as knowledge memories pending review.", userInvocable: true, short: "Cited, MCP-backed research across web, library docs, public code and memory", invocation: "implicit", triggers: { ask: ["research this", "research it", "do research on", "research whether", "research which", "deep research", "find sources", "cite sources", "arastir", "arastirin", "arastiralim", "arastirir misin", "arastirabilir*", "arastirma yap*", "derinlemesine arastir*", "kaynak goster*", "kaynaklarla karsilastir*"], topic: ["still maintained", "is it maintained", "current sources", "which is better", "re:(?<!\\b(?:follow|following|use|using|apply|applying|with|keep|keeping|per)\\s(?:the\\s|our\\s|these\\s)?)\\bbest\\s+practices?\\s+(?:for|in|of|on|around|when\\s+using)\\b", "re:\\b(?:what|which)(?:'s|\\s+(?:is|are))\\s+(?:the\\s+)?(?:current\\s+|modern\\s+|recommended\\s+)?best\\s+practices?\\b", "re:\\bbest\\s+practices?\\s*\\?", "pros and cons", "alternatives to", "state of the art", "latest version of", "re:\\bcompare\\b.{0,60}\\b(?:librar|framework|tool|package|approach|option|vendor|provider|service|database|orm|solution|sdk)", "re:\\b(?:librar|framework|tool|package|approach|provider|service|database|sdk)\\w*\\b.{0,40}\\bcompar", "re:\\b(?!(?:actual|expected|got|received|before|after|old|new|left|right|input|output|tabs|spaces|this|that|it|one)\\b)[a-z][a-z0-9.-]+ (?:vs\\.?|versus) (?!(?:actual|expected|got|received|before|after|old|new|left|right|input|output|tabs|spaces|this|that|it|one)\\b)[a-z][a-z0-9.-]+", "hangisi daha iyi", "guncel mi", "guncel kaynak*", "re:\\ben iyi (?:pratik|uygulama)\\w*\\b(?!\\s+(?:uy|uygun|izle|takip))", "artilari ve eksileri", "alternatifleri neler", "re:\\b\\S+ mu \\S+ mu (?:kullan|sec|tercih)", "re:\\b(?:kutuphane|framework|arac|paket|yaklasim|secenek|servis|veritaban|sdk)\\w*\\b.{0,60}\\bkarsilastir"], not: ["vs code", "vscode", "visual studio", "compare function", "comparator"] } }, { id: "security-audit", description: "Security guidance and vulnerability review for codebases, APIs, services, CLI tools, libraries and daemons: Cloudflare's security-audit skill (MIT), vendored as Buracle's default security skill. Guidance mode answers security questions, focused reviews and triage with the relevant parts only; full audit mode runs six phases (reconnaissance, coverage-led hunting with parallel isolated agents, validation by fresh verifiers, structured findings.json, independent record verification, a target-neutral report) when the user asks for an audit, a pen test, a full security review or report artifacts.", userInvocable: true, short: "Cloudflare's security-audit skill, Buracle's default security review", invocation: "implicit", triggers: { ask: ["security audit", "audit the security", "re:\\baudit\\s+(?:this|the|my|our)\\s+(?:\\S+\\s+){0,2}(?:codebase|repo|repository|project|service|app|application|api)\\b.{0,40}\\bsecur", "re:\\bsecur\\w*\\s+(?:review|assessment|analysis|scan)\\b", "pen test", "pentest", "penetration test", "find vulnerabilities", "find security vulnerabilities", "look for vulnerabilities", "threat model", "guvenlik denetimi", "guvenlik taramasi", "guvenlik incelemesi", "guvenlik analizi", "re:\\bguvenlik ac(?:ik|ig)\\w*", "re:\\bzafiyet\\w*\\s+(?:bul|tara|ara)", "sizma testi", "pentest yap*", "tehdit modeli"], topic: ["re:\\bis (?:this|it|that) (?:secure|safe|vulnerable|exploitable)\\b", "re:\\b(?:sql|command|prompt|shell|code)\\s+injection\\b", "re:\\b(?:xss|csrf|ssrf|rce|idor)\\b", "re:\\btrust boundar", "re:\\b(?:auth(?:entication|orization)?|session|token|secret|credential)\\w*\\s+(?:bypass|leak|exposure|handling)\\b", "re:\\bguvenli mi\\b", "re:\\b(?:sql|komut|prompt|kod)\\s+enjeksiyon"], not: ["audit log", "audit trail", "accessibility audit", "performance audit", "lighthouse audit", "dead code audit", "cleanup audit", "dependency audit only", "npm audit", "security.md", "security headers test", "erisilebilirlik denetimi", "performans denetimi", "olu kod"] } }], plugins: [], hooks: [{ id: "H01", blocking: "deny", failure: "closed" }, { id: "H02", blocking: "deny", failure: "closed" }, { id: "H03", blocking: "deny", failure: "open" }, { id: "H04", blocking: "none", failure: "open" }, { id: "H05", blocking: "none", failure: "open" }, { id: "H06", blocking: "none", failure: "open" }, { id: "H07", blocking: "none", failure: "open" }, { id: "H08", blocking: "stop", failure: "open" }, { id: "H09", blocking: "deny", failure: "open" }, { id: "H10", blocking: "none", failure: "open" }, { id: "H11", blocking: "stop", failure: "open" }, { id: "H12", blocking: "none", failure: "open" }, { id: "H13", blocking: "none", failure: "open" }, { id: "H14", blocking: "none", failure: "open" }, { id: "H15", blocking: "none", failure: "open" }, { id: "H16", blocking: "none", failure: "open" }, { id: "H17", blocking: "none", failure: "open" }, { id: "H18", blocking: "none", failure: "open" }, { id: "H19", blocking: "none", failure: "open" }, { id: "H20", blocking: "deny", failure: "open" }, { id: "H21", blocking: "none", failure: "open" }, { id: "H22", blocking: "none", failure: "open" }, { id: "H23", blocking: "stop", failure: "open" }, { id: "H24", blocking: "none", failure: "open" }, { id: "H25", blocking: "none", failure: "open" }, { id: "H26", blocking: "none", failure: "open" }, { id: "H27", blocking: "none", failure: "open" }, { id: "H28", blocking: "none", failure: "open" }], pathRules: [{ id: "backend", globs: ["**/api/**", "**/routes/**", "**/handlers/**", "**/controllers/**", "**/endpoints/**", "**/middleware/**", "**/models/**", "**/models.py", "**/entities/**", "**/schema/**", "**/schemas/**", "**/queries/**", "**/repository/**", "**/repositories/**", "**/dao/**", "**/migrations/**", "**/migrate/**", "**/alembic/**", "**/db/**", "**/*.sql", "**/*.prisma", "**/*.graphql", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json"] }, { id: "blazor", globs: ["**/*.razor", "**/*.razor.cs", "**/*.razor.css"] }, { id: "browser-automation", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.razor", "**/e2e/**", "**/playwright/**", "**/cypress/**", "**/__tests__/**", "**/playwright.config.*", "**/cypress.config.*"] }, { id: "dotnet", globs: ["**/*.cs", "**/*.csproj", "**/*.sln", "**/*.slnx", "**/global.json", "**/Directory.Build.props", "**/Directory.Packages.props"] }, { id: "frontend", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.sass", "**/*.less", "**/*.razor", "**/*.razor.css"] }, { id: "go", globs: ["**/*.go", "**/go.mod", "**/go.sum", "**/go.work"] }, { id: "mobile", globs: ["**/capacitor.config.*", "**/ionic.config.json", "**/android/app/build.gradle*", "**/android/app/src/main/AndroidManifest.xml", "**/*.xcodeproj/project.pbxproj", "**/*.xcworkspace/contents.xcworkspacedata", "**/Podfile", "**/pubspec.yaml", "**/react-native.config.*", "**/metro.config.*", "**/expo.json", "**/eas.json", "**/app.config.{js,ts}"] }, { id: "python", globs: ["**/*.py", "**/*.pyi", "**/pyproject.toml", "**/requirements*.txt", "**/uv.lock", "**/setup.cfg"] }, { id: "typescript", globs: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts", "**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs", "**/package.json", "**/tsconfig*.json"] }], layout: { rows: [["model", "ctx", "windows", "month", "git", "mem", "index", "flow", "plan", "hooks"]], compact: [["ctx", "windows", "month", "git", "mem", "index", "flow", "hooks"]], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: false, native: { slot: "prompt.footer.status" } }, notices: [{ id: "0.5.0-project-assets", since: "0.5.0", until: "0.6.0", message: "When a session starts in a repository, Buracle now links the skills in .agents/skills into .claude/skills so Claude Code sees them too, and checks that AGENTS.md lists the path rules in .claude/rules. Run `buracle project check` to see what it would change." }, { id: "0.5.0-smaller-cli", since: "0.5.0", until: "0.6.0", message: "Buracle's CLI is smaller: run `buracle` in a terminal for a main menu you drive with the keyboard. `buracle install` now does what `init` and `sync` did, `buracle install` and `buracle update` apply in a terminal without a question and show each step as it runs, and the rare cases flags used to cover are questions in a terminal. `buracle help --all` lists the commands your agents use." }] }, import.meta.dir);
+var tui_default = createTuiPlugin({ v: 1, contentHash: "8212f9e0eea2241ea22f3089e6a858848a08f91f26c63777d7d3645649339f8e", testedWith: "2.0.30", defaults: { version: 1, harnesses: { claude: { enabled: true }, codex: { enabled: true }, opencode: { enabled: true }, omp: { enabled: true } }, routing: { strictness: "enforce", skills: "router", reminders: true }, guards: { bash: { extraDeny: [] }, write: { protect: [] }, redact: true }, plan: { stopGuard: true, runaway: { perPlan: 30, perChain: 5 }, autoPause: false, planApproval: true, resultApproval: true, branchIsolation: true, worktreeDir: ".worktrees", questions: true, reviews: { plan: true, changes: true, goal: true, companion: "off" }, goalVerification: true, modelSwitch: "off", nativePlanMode: "off" }, context: { warnPct: 85, criticalPct: 95 }, checkers: { enabled: true, timeoutMs: 20000, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] }, memory: { ui: { port: 41777 }, exclude: [] }, statusline: { style: "buracle", emoji: true, monthly: "estimate" }, skills: { sources: [{ name: "buracle", path: "canonical/skills" }] }, update: { minReleaseAgeDays: 0 }, permissions: { bypass: true, enforce: true }, effort: { claude: "auto", codex: "auto", opencode: "auto", omp: "auto" }, agents: { teams: true }, workflow: { band: true, foldAfterSec: 8, notifyAfterSec: 120, codexNotices: true }, toolchain: { autoInstall: true, system: true, upgrade: true }, index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 } }, routing: { strictness: "enforce", categories: [{ id: "library-docs", intent: "Library, framework, SDK or CLI documentation at the installed version (APIs, options, config, migrations)", prefer: ["mcp:context7/resolve-library-id", "mcp:context7/query-docs"], fallback: ["mcp:web-fetch/fetch_url"], deny_builtin: [], nudge: "For library or framework APIs, resolve the library with context7 and query its docs at the version in the lockfile.", reminder: "resolve the library with context7 (resolve-library-id), then query-docs at the version in the lockfile", triggers: { topic: ["official docs", "official documentation", "library docs", "framework docs", "according to the docs", "per the docs", "from the docs", "verify in the docs", "api reference", "api docs", "migration guide", "upgrade guide", "re:\\bcheck the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:look|looked|looking|search|searched|searching)\\b(?:\\s+(?:it|this|that|them)\\s+up)?\\s+in the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:says?|said|mentioned|documented|described)\\s+in the docs\\b", "re:\\b(?!(?:the|our|my|your|their|this|that|an?|its|new|own|same|internal|custom|official|public|private|client|server|web|mobile)\\b)[a-z][a-z0-9.-]{2,}\\s+sdk\\b", "belgelerden", "belgelere gore", "resmi belge*", "dokumantasyondan", "dokumantasyona gore", "api referans*", "goc rehberi", "re:\\b(?:belgelerde|dokumantasyonda)\\b(?!.{0,40}\\b(?:ekle|guncelle|duzelt|kaldir|sil)\\w*)"], not: ["docs folder", "docs directory", "docs klasor*"], deps: ["api", "apis", "config", "configure", "configuration", "option*", "migrat*", "upgrade*", "version*", "deprecat*", "breaking change*", "hook*", "middleware", "plugin*", "setup", "set up", "install*", "usage", "how to use", "how to", "how do", "how does", "how can", "why does", "why do", "why is", "what does", "what options", "which options", "by default", "syntax", "integrat*", "method*", "signature", "type*", "re:\\bv\\d+(?:\\.\\d+)*\\b", "re:\\b\\d+\\.\\d+(?:\\.\\d+)?\\b", "nasil", "yapilandir*", "ayar*", "surum*", "guncelle*", "kurulum*", "entegre*", "goc*", "tip*"] } }, { id: "web-search", intent: "Web search for errors, releases, changelogs and comparisons", prefer: ["mcp:web-search/search"], fallback: ["mcp:web-fetch/fetch_url", "builtin:web_search"], deny_builtin: ["web_search"], nudge: "Search the web with the web-search MCP server; while it is down, fetch a search results page (https://html.duckduckgo.com/html/?q=<query>) with web-fetch, and use the built-in web search only when both are down.", reminder: "search with the web-search MCP server (search), then read the sources with web-fetch (fetch_url)", triggers: { topic: ["latest version", "latest release", "latest stable", "release notes", "what's new in", "whats new in", "still maintained", "search the web", "look it up online", "re:\\b(?:read|check|see|look at|according to|per)\\s+(?:the\\s+|its\\s+|their\\s+)?(?:upstream\\s+|official\\s+)?changelog\\b", "re:\\bchangelog\\s+(?:of|for)\\b", "re:\\b(?:is|was)\\s+(?:this|it|that|there)\\s+a\\s+known\\s+(?:issue|bug)\\b", "re:\\b(?:any|are there)\\s+known\\s+(?:issues?|bugs?)\\b", "re:\\bknown\\s+(?:issues?|bugs?)\\s+(?:with|in|of)\\s+(?!(?:our|my|this|the)\\b)", "son surum*", "guncel surum*", "en son surum*", "surum notlari", "degisiklik gunlugu", "hala bakimi yapiliyor", "webde ara*", "internette ara*"], not: ["draft* release notes", "write* release notes", "generate* release notes", "release notes from", "our release notes", "our changelog", "update the changelog", "changelog entry", "surum notlari yaz*", "surum notlarini yaz*", "surum notlari hazirla*", "degisiklik gunlugunu guncelle*"] } }, { id: "web-fetch", intent: "Read a known URL, including JavaScript-rendered pages", prefer: ["mcp:web-fetch/fetch_url"], fallback: ["builtin:web_fetch"], deny_builtin: ["web_fetch"], nudge: "Fetch pages with the web-fetch MCP server, and use the built-in fetch only while it is down.", reminder: "read the page with the web-fetch MCP server (fetch_url)" }, { id: "code-examples", intent: "How public code uses an API (GitHub examples)", prefer: ["mcp:grep/searchGitHub"], fallback: ["mcp:web-search/search"], deny_builtin: [], reminder: "look up real usage in public code with the grep MCP server (searchGitHub)", triggers: { topic: ["examples on github", "github examples", "real-world usage", "real world usage", "real-world examples", "how do other projects", "how others use", "open-source examples", "open source examples", "github'da*", "gercek projelerde", "acik kaynak projelerde", "ornek kullanim*", "baska projeler nasil"] } }, { id: "code-search", intent: "Find code by intent or concept, or code similar to a snippet", prefer: ["mcp:semble/search", "mcp:semble/find_related"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Search code with semble (intent) or rg (exact text), never grep -r or find | xargs grep.", reminder: "find code by intent with semble search (repo = the project root); rg stays right for exact text", triggers: { topic: ["which file", "find the code that", "find where", "locate the code", "re:\\bwhere (?:is|are|do we|does) (?:the |our |we )?\\S+ (?:defined|implemented|handled|configured|loaded|set|parsed|created)", "re:\\bhow (?:does|do) .{1,60}\\bwork\\b", "nerede tanimli", "nerede yapiliyor", "nerede uygulan*", "hangi dosyada", "nasil calisiyor", "kodu bul"], not: ["where were we", "where did we leave", "nerede kalmistik", "nerede kaldik"] } }, { id: "code-structure", intent: "Definitions, callers and callees, and the impact of changing a symbol", prefer: ["mcp:codegraph/codegraph_explore"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Before changing a shared function, type or endpoint, get its callers from codegraph.", reminder: "ask codegraph (callers, callees, impact; projectPath = the project root) before you change a shared symbol", triggers: { topic: ["who calls", "what calls", "callers of", "call sites", "call graph", "find usages", "all usages", "references to", "impact of chang*", "blast radius", "what breaks if", "what depends on", "re:\\bwhere (?:is|are) \\S+ (?:called|used|invoked|referenced)", "nereden cagriliyor", "nerelerde cagriliyor", "kim cagiriyor", "cagiranlar*", "cagri grafi*", "nerelerde kullaniliyor", "etki analizi", "neyi bozar", "neler etkilenir"] } }, { id: "language-server", intent: "Diagnostics of an edited file, a symbol's type and docs, its definition and references from the language server (Codex and OpenCode; Claude Code and omp use their own LSP tools)", prefer: ["mcp:lsp/diagnostics", "mcp:lsp/hover", "mcp:lsp/definition", "mcp:lsp/references"], fallback: ["mcp:codegraph/codegraph_explore", "cli:rg"], deny_builtin: [], reminder: "check an edited Python, TypeScript, Go, Rust, C# or Java file with the lsp server's diagnostics, and ask its hover or definition for a symbol's type", triggers: { topic: ["type error*", "typecheck error*", "type-check error*", "compile error*", "compiler error*", "compilation error*", "lsp diagnostics", "language server", "go to definition", "jump to definition", "re:\\bwhat(?:'s| is) the type of\\b", "tip hata*", "derleme hata*", "tanima git", "tanimina git"] } }, { id: "browser", intent: "Drive and inspect a real browser (DOM, console, network, performance)", prefer: ["mcp:chrome-devtools"], fallback: [], deny_builtin: [], reminder: "drive and inspect the real browser with chrome-devtools (navigate_page, take_snapshot, list_console_messages)", triggers: { topic: ["open the page", "take a screenshot", "screenshot of", "console errors", "browser console", "network tab", "lighthouse", "devtools", "re:\\b(?:open|test|check|verify|look|see|load|reproduce|try|view|inspect|debug|click|watch|preview)\\w*\\b.{0,40}\\bin the browser\\b", "ekran goruntusu", "konsol hata*", "sayfayi ac*", "re:\\btarayicida\\b.{0,30}\\b(?:ac|test et|kontrol et|dene|bak|gor|incele)\\w*"] } }, { id: "memory", intent: "Past decisions, gotchas, earlier sessions and preferences", prefer: ["mcp:buracle-memory/memory_search", "mcp:buracle-memory/memory_get"], fallback: ["cli:buracle"], deny_builtin: [], nudge: "History questions start with memory_search on the buracle-memory server.", reminder: "search memory with memory_search, then memory_get the relevant memories, and cite their ids", triggers: { topic: ["memory note*", "vault note*", "the memory vault", "the memory brain", "hafiza not*", "hafiza kayd*", "kasa not*"] } }] }, mcp: [{ id: "buracle-memory", description: "Buracle memory, the CortexDB brains of the project and the person (search, get, write, update, status)", transport: "stdio", critical: true, routing: ["memory"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "chrome-devtools", description: "Drive and inspect a Chrome browser (DevTools protocol)", transport: "stdio", critical: false, routing: ["browser"], harnesses: ["claude", "codex", "opencode"] }, { id: "codegraph", description: "Code structure graph (symbols, callers, impact) for the current repository", transport: "stdio", critical: true, routing: ["code-structure"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "context7", description: "Up-to-date library and framework documentation", transport: "stdio", critical: true, routing: ["library-docs"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "grep", description: "Search public GitHub code for real-world usage examples", transport: "http", critical: false, routing: ["code-examples"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "lsp", description: "Language-server diagnostics, hover, definitions, references and symbols", transport: "stdio", critical: true, routing: ["language-server"], harnesses: ["codex", "opencode"] }, { id: "semble", description: "Fast semantic code search over local or remote repositories", transport: "stdio", critical: true, routing: ["code-search"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-fetch", description: "Fetch and extract web pages with a headless browser", transport: "stdio", critical: true, routing: ["web-fetch"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-search", description: "Web search without an API key (DuckDuckGo by default)", transport: "stdio", critical: true, routing: ["web-search"], harnesses: ["claude", "codex", "opencode", "omp"] }], mcpIds: ["buracle-memory", "chrome-devtools", "codegraph", "context7", "grep", "lsp", "semble", "web-fetch", "web-search"], skills: [{ id: "ab-test", description: "Measure whether a change to a skill, rule, AGENTS.md section or routing policy really changes agent behavior. Defines falsifiable cases, runs paired baseline and candidate trials in throwaway config directories (never hiding or renaming the user's real skills or settings), captures tool-use evidence such as whether the agent loaded the skill or called context7, then scores pass rates and reports per-case deltas. Use when the user asks to benchmark, evaluate, A/B test or compare a skill or rule change, or to check that agents really use an MCP server or skill.", userInvocable: true, short: "Paired before/after evals of skills and rules with tool-use evidence", invocation: "implicit", triggers: { ask: ["benchmark the skill", "benchmark this skill", "benchmark the rule", "benchmark the routing", "a/b test the skill", "a/b test the rule", "ab-test the skill", "skill'i* benchmark*", "skill'i* olc*", "kurali benchmark*"], topic: ["activation rate", "trigger rate", "really makes the agent", "re:\\bbefore(?:/|\\s+and\\s+)after\\b.{0,60}\\b(?:skill|rule|routing|prompt|agents\\.md|claude\\.md|hook|mcp|description)", "re:\\b(?:skill|rule|routing|prompt|agents\\.md|claude\\.md|hook|description)\\S*\\b.{0,60}\\bbefore(?:/|\\s+and\\s+)after\\b", "re:\\b(?:agents?|models?|claude|codex|opencode|omp)\\b.{0,30}\\breally\\s+(?:calls?|uses?|loads?|triggers?|reads?)\\b", "re:\\bbenchmark\\w*\\b.{0,80}\\b(?:skill|rule|routing|agents\\.md|claude\\.md|hook|prompt|mcp)", "re:\\b(?:skill|rule|routing)\\S*\\b.{0,80}\\bbenchmark", "re:\\b(?:skill|kural|routing|prompt|agents\\.md|claude\\.md|hook|aciklama)\\S*\\b.{0,80}\\b(?:once/?\\s?sonra karsilastir|tetikleniyor mu|gercekten cagriliyor mu)", "re:\\b(?:once/?\\s?sonra karsilastir\\w*|tetikleniyor mu|gercekten cagriliyor mu)\\b.{0,80}\\b(?:skill|kural|routing|prompt|agents\\.md|claude\\.md|hook)", "re:\\bskill\\S*\\b.{0,80}\\b(?:eskisiyle|oncekiyle|onceki surumuyle)"], not: ["operations per second", "ops/sec", "ops per second", "throughput", "latency"] } }, { id: "bugfix", description: "Plan-less bug workflow that owns one defect end to end: reproduce it first, trace the root cause to file:line, write a failing test, fix at the source, prove the fix on the real program, then pass the quality gate. With branch isolation on it asks where to work: the current branch, a bugfix/<slug> branch or a worktree squash-merged once the fix is proven; no plan file. Run only when the user explicitly asks for bugfix.", userInvocable: true, short: "Reproduce, root-cause, RED test, fix at the source, prove it end to end", invocation: "explicit", triggers: { ask: ["re:(?<!\\b(?:the|that|this|your|my|our|its)\\s)\\broot[- ]cause\\s+fix\\b", "fix it test-first", "fix it with a failing test first", "reproduce it first and fix it", "kok nedenini bulup duzelt", "once test yazip duzelt"], not: ["workflow file", "github actions", "ci workflow"] } }, { id: "buracle", description: "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan \u2026`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, notifications, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.", userInvocable: false, short: "When and how to call the buracle helper CLI", invocation: "implicit", triggers: { ask: ["use the buracle cli", "buracle cli ile"], topic: ["re:\\bplan status\\b(?!\\s+(?:endpoint|field|column|code|enum|value|page|api|route|handler|query|badge|label|filter|check|type)s?\\b)", "how many tasks are left", "tasks left in the plan", "diff range", "re:(?<!\\b(?:add|added|adding|new)\\s(?:a\\s|an\\s|the\\s)?)\\breview scope\\b(?!\\s+(?:option|flag|field|param\\w*|column|setting|config\\w*|endpoint|api|type|enum|value)s?\\b)", "what should i review", "re:\\b(?:my|our|claude(?:\\s+code)?|codex|opencode|omp|subscription)(?:'s)?\\s+(?:usage|rate|weekly|5h|5-hour)\\s+limits?\\b", "rate limit headroom", "5h window", "5-hour window", "create a worktree", "merge the worktree", "buracle doctor", "planin durumu", "re:\\bplan durumu\\b(?!\\s+(?:alan|endpoint|kolon|sutun|enum|deger|sayfa|api|kod)\\w*)", "kac gorev kaldi", "kullanim limitim*", "kullanim limitlerim*", "re:\\bkullanim limit\\w*\\s+ne durumda", "5 saatlik pencere*", "5 saatlik limit*", "haftalik limitim*", "haftalik limitlerim*", "re:\\b(?:claude|codex|opencode|omp)\\S*\\s+(?:kullanim\\s+|haftalik\\s+)?limit\\w*", "worktree olustur*", "worktree ac", "worktree'yi birlestir*", "buracle doctor"] } }, { id: "dead-code", description: "Report-only dead-code audit. Collects candidate unused files and exports from the project's own analyzers, a bundled rg-based script and a read-only codegraph snapshot, checks every candidate against independent signals (codegraph references, exact and dynamic-usage search, analyzers), rules out a public role (API, entry points, config, registries), and returns a ranked report with evidence and a staged removal plan. Never deletes or edits code.", userInvocable: true, short: "Report-only dead-code audit with two-signal evidence and a removal plan", invocation: "explicit", triggers: { ask: ["dead code audit", "dead-code audit", "unused code report", "dead code report", "re:(?:^|[\\n.!?;:]\\s*|\\b(?:please|pls|can you|could you|would you|and|then|just)\\s+)find\\s+(?:all\\s+|the\\s+)?(?:dead|unused)\\s+(?:code|exports|files)\\b", "olu kod analizi", "olu kod raporu", "olu kodlari bul", "olu kod tara*", "kullanilmayan kod* bul", "kullanilmayan kod* tespit", "kullanilmayan export* bul", "temizlik raporu"] } }, { id: "find-skill", description: "Find an agent skill for a need and install it for every harness in a few calls. `buracle skills find <need>` is one command that shows the installed and shipped skills that already match, then the skills.sh registry's candidates with description, license, freshness, tool grants and risk ratings; `buracle skills add --dry-run` audits the pick (scripts, allowed-tools, suspicious lines) and `buracle skills add` installs it into ~/.agents/skills (Codex, OpenCode, Oh My Pi) and links it into ~/.claude/skills (Claude Code). Also updates and removes installed skills.", userInvocable: true, short: "Find a skill for a need and install it for every harness", invocation: "implicit", triggers: { ask: ["find a skill", "find me a skill", "find skills for", "is there a skill", "re:\\b(?:install|add|get)\\s+(?:a|the|an)\\s+(?:\\S+\\s+){0,3}skill\\b", "re:\\b(?:update|upgrade|remove|uninstall)\\s+(?:my|the|an?)\\s+(?:\\S+\\s+){0,2}skills?\\b", "search for a skill", "skill marketplace", "skill bul", "skill ara", "skill var mi", "bir skill var mi", "re:\\bskill\\w*\\s+(?:kur|yukle|ekle|indir)", "re:\\b(?:kur|yukle|ekle|indir)\\w*\\s+(?:\\S+\\s+){0,2}skill", "skilleri guncelle", "skill guncelle*", "skill kaldir*", "skill sil"], not: ["create a skill", "write a skill", "new skill", "turn this into a skill", "buracle skill", "the skill is", "skill triggers", "skills lint", "new-skill", "in the skill", "skill file", "skill id", "skill yaz", "skill olustur", "skille donustur", "yeni skill", "skill dosyasi"] } }, { id: "goal-build", description: "Goal-and-loop workflow for a clear end state whose path is found while building: agree on a goal, tasks sized as the largest slices you can finish and verify, and at least 3 pass/fail acceptance criteria (one of them the oracle), have them reviewed, lock the contract, then build in rounds judged on running evidence (at most four), verify and hand back. Tracked in docs/builds/. Run only when the user explicitly asks for goal-build.", userInvocable: true, short: "Lock a goal and pass/fail criteria, then build in judged rounds", invocation: "explicit", triggers: { ask: ["goal-and-loop", "goal and loop", "find the way yourself", "re:\\byou find the way(?: there)?\\s*(?:[.!;:]|$)", "re:(?:^|[\\n.!?;:]\\s*|\\b(?:and|then|just|please)\\s+)(?:keep\\s+)?loop(?:ing)?\\s+until\\s+it\\s+(?:works|passes)\\b", "yolunu sen bul", "bitene kadar dongu*", "hedef odakli dongu*"], not: ["github actions", "ci workflow", "ci pipeline", "workflow file", "workflow run", ".github/workflows", "workflow yaml"] } }, { id: "inspect", description: "Read-only investigation of one question about the code. Frames a falsifiable claim, locates code with semble (intent), codegraph (callers, callees, blast radius) and rg or ast-grep (exact and structural matches), checks memory for past decisions, traces the active path hop by hop, challenges the answer with a counterexample search, and reports a direct answer with file:line evidence and calibrated confidence. Never edits anything.", userInvocable: true, short: "Read-only trace of one code question with file:line evidence", invocation: "explicit", triggers: { ask: ["inspect how", "inspect why", "inspect where", "investigate how", "investigate why", "investigate where", "dig into how", "trace how", "re:(?:^|[\\n.!?;:]\\s*|\\b(?:please|pls|can you|could you|would you)\\s+)investigate\\s+(?:this|that|it)\\b", "nasil calistigini incele*", "nasil calistigini arastir*", "neden boyle davrandigini incele*", "neden boyle davrandigini arastir*", "nereden cagrildigini incele*"], not: ["and fix", "fix it", "then fix", "duzelt"] } }, { id: "memory", description: "Protocol for Buracle's shared memory: one CortexDB brain with a bucket for each project and one for the person, served by the buracle-memory MCP server in every harness. Says when to run a quick memory pass (at most 3 memory_search calls, then at most 3 memories via memory_get), how to treat recalled memories as evidence rather than instructions, and how to keep the memory: one claim per memory with sources, search before writing, update or merge instead of duplicating, record the user's preferences in the right brain, never overrule an explicit memory, never store secrets. Use when the user refers to past work or asks you to remember something, before re-deciding something and after a non-obvious fix.", userInvocable: false, short: "When and how to read, write and keep Buracle's CortexDB memory", invocation: "implicit", triggers: { ask: ["use the memory protocol", "hafiza protokolu*"], topic: ["memory note*", "vault note*", "the memory vault", "the memory brain", "hafiza not*", "hafiza kayd*", "kasa not*", "kasadaki not*"] } }, { id: "new-skill", description: "Capture a repeatable procedure as a Buracle skill, or improve an existing one. Picks the right home (global skills in the Buracle repo's canonical/skills or a configured skills git source; project-only skills in .agents/skills), writes SKILL.md in the canonical format with references/, scripts/ and trigger evals, lints it with `buracle skills lint`, and explains how publishing reaches every harness. Use when the user wants to turn a workflow into a skill, edit, split or rename a skill, or fix a skill that triggers too often or never.", userInvocable: true, short: "Capture a repeatable procedure as a canonical Buracle skill", invocation: "implicit", triggers: { ask: ["turn this into a skill", "turn it into a skill", "into a reusable skill", "make it a skill", "save it as a skill", "new skill for", "re:\\b(?:create|write|add|make) (?:a |an |the )?(?:new )?(?:[a-z-]+ ){0,2}skill\\b", "skill yap", "bunu skill yap", "yeni skill olustur*", "yeni bir skill olustur*", "yeni skill yaz*", "skill olustur*", "skill olarak kaydet*", "skill'e donustur*", "skill'i guncelle*", "tekrar kullanilabilir bir skill"], topic: ["reusable skill", "skill trigger*", "skill description", "re:\\bskill\\S*\\b.{0,60}\\b(?:never triggers|does not trigger|doesn't trigger|misfires|triggers too often)", "re:\\bskill\\S*\\b.{0,60}\\btetiklen(?:miyor|mez)", "re:\\bskill\\S*\\b.{0,60}\\bdevreye girmiyor"] } }, { id: "plan-build", description: "Plan-driven development through a plan file in docs/plans/: explore and clarify, write and review the plan, get approval, implement task by task with TDD, then verify with real evidence until the plan is VERIFIED. Covers features and bugfixes (behavior contract, reproduce first, root-cause fix). Also pauses, resumes or continues an existing plan. Run only when the user explicitly asks for plan-build.", userInvocable: true, short: "Plan, approve, TDD-implement and verify work through a plan file", invocation: "explicit", triggers: { ask: ["write a plan and implement*", "plan and implement it", "plan it and implement*", "re:\\b(?:do|build|implement|handle|tackle)\\s+(?:it|this|that|them|the\\s+\\S+)\\s+plan[- ]driven\\b", "re:\\b(?:go|let's go)\\s+plan[- ]driven\\b", "re:(?:^|[\\n.!?;]\\s*)plan[- ]driven(?:\\s*,?\\s*please)?\\s*[:,]", "plan yaz ve uygula", "plan yazip uygula", "planla ve uygula"] } }, { id: "project-rules", description: "Create, refresh or audit a repository's agent guidance so Claude Code, Codex, OpenCode and omp follow the same verified instructions: the root AGENTS.md, optional nested AGENTS.md files for subprojects, and path-scoped rules for specific file types. Discovers commands and conventions from the code (package scripts, CI jobs, linter and test configs, test layout), runs commands before documenting them, keeps every file short, then runs `buracle project sync` and `buracle project check`. Use when the user asks to set up, write, update, slim down or check AGENTS.md, CLAUDE.md or project rules.", userInvocable: true, short: "Generate and verify AGENTS.md and path-scoped rules for a repo", invocation: "implicit", triggers: { ask: ["set up agent guidance", "set up agents.md", "write agents.md", "create agents.md", "update agents.md", "audit agents.md", "refresh agents.md", "slim down agents.md", "set up the project rules", "audit the agent instructions", "agents.md hazirla*", "agents.md olustur*", "agents.md guncelle*", "agents.md yaz", "proje kurallarini kur", "talimatlari guncelle*", "kurallari sadelestir*"], topic: ["agent instructions", "agent guidance", "path rules", "path-scoped rules", "re:\\b(?:agents|claude)\\.md\\b.{0,40}\\b(?:stale|outdated|bloated|too long|wrong|out of date)", "proje talimatlari", "ajan talimatlari", "proje kurallari", "re:\\b(?:agents|claude)\\.md\\b.{0,40}\\b(?:eskimis|guncel degil|cok uzun|yanlis)"] } }, { id: "requirements", description: "Requirements workflow for ideas whose problem, audience or scope is still unclear. Grounds the idea in the codebase and memory, runs tiered research through the research skill, explores directions, asks a few decision questions, proposes approaches, converges on scope, writes an approved PRD to docs/prd/YYYY-MM-DD-<slug>.md and prints the plan-build or goal-build hand-off. No code is written before the PRD is approved.", userInvocable: true, short: "Interview, research and write an approved PRD before any code", invocation: "explicit", triggers: { ask: ["write a prd", "write the prd", "draft a prd", "draft the prd", "create a prd", "prepare a prd", "make a prd", "need a prd", "re:\\b(?:write|draft|create|prepare|make|produce|need|want)\\s+(?:me\\s+|us\\s+)?(?:a|an|the)\\s+(?:new\\s+|short\\s+|proper\\s+)?(?:product\\s+)?requirements\\s+doc(?:ument)?\\b", "re:(?:^|[\\n.!?;:]\\s*)(?:a\\s+)?prd\\s+for\\b", "prd yaz*", "prd hazirla*", "prd olustur*", "prd cikar*", "gereksinimleri cikar*", "re:\\bgereksinim\\s+(?:dokuman|belge)\\w*\\s+(?:yaz|hazirla|olustur|cikar|lazim|gerek)\\w*", "bu fikri netlestir*", "fikri netlestir*"], not: ["do we need a prd", "is there a prd", "do we have a prd", "is a prd needed", "prd gerekli mi", "prd lazim mi", "prd var mi"] } }, { id: "research", description: "Evidence-backed research that must use MCP tools instead of recall: web-search to discover sources, web-fetch to read them in full, context7 for library and framework documentation, grep for real-world code on GitHub, and buracle-memory for prior decisions. Produces a cited research note (answer, findings, options, conflicts, gaps, confidence) and can save durable findings to memory as knowledge memories pending review.", userInvocable: true, short: "Cited, MCP-backed research across web, library docs, public code and memory", invocation: "implicit", triggers: { ask: ["research this", "research it", "do research on", "research whether", "research which", "deep research", "find sources", "cite sources", "arastir", "arastirin", "arastiralim", "arastirir misin", "arastirabilir*", "arastirma yap*", "derinlemesine arastir*", "kaynak goster*", "kaynaklarla karsilastir*"], topic: ["still maintained", "is it maintained", "current sources", "which is better", "re:(?<!\\b(?:follow|following|use|using|apply|applying|with|keep|keeping|per)\\s(?:the\\s|our\\s|these\\s)?)\\bbest\\s+practices?\\s+(?:for|in|of|on|around|when\\s+using)\\b", "re:\\b(?:what|which)(?:'s|\\s+(?:is|are))\\s+(?:the\\s+)?(?:current\\s+|modern\\s+|recommended\\s+)?best\\s+practices?\\b", "re:\\bbest\\s+practices?\\s*\\?", "pros and cons", "alternatives to", "state of the art", "latest version of", "re:\\bcompare\\b.{0,60}\\b(?:librar|framework|tool|package|approach|option|vendor|provider|service|database|orm|solution|sdk)", "re:\\b(?:librar|framework|tool|package|approach|provider|service|database|sdk)\\w*\\b.{0,40}\\bcompar", "re:\\b(?!(?:actual|expected|got|received|before|after|old|new|left|right|input|output|tabs|spaces|this|that|it|one)\\b)[a-z][a-z0-9.-]+ (?:vs\\.?|versus) (?!(?:actual|expected|got|received|before|after|old|new|left|right|input|output|tabs|spaces|this|that|it|one)\\b)[a-z][a-z0-9.-]+", "hangisi daha iyi", "guncel mi", "guncel kaynak*", "re:\\ben iyi (?:pratik|uygulama)\\w*\\b(?!\\s+(?:uy|uygun|izle|takip))", "artilari ve eksileri", "alternatifleri neler", "re:\\b\\S+ mu \\S+ mu (?:kullan|sec|tercih)", "re:\\b(?:kutuphane|framework|arac|paket|yaklasim|secenek|servis|veritaban|sdk)\\w*\\b.{0,60}\\bkarsilastir"], not: ["vs code", "vscode", "visual studio", "compare function", "comparator"] } }, { id: "security-audit", description: "Security guidance and vulnerability review for codebases, APIs, services, CLI tools, libraries and daemons: Cloudflare's security-audit skill (MIT), vendored as Buracle's default security skill. Guidance mode answers security questions, focused reviews and triage with the relevant parts only; full audit mode runs six phases (reconnaissance, coverage-led hunting with parallel isolated agents, validation by fresh verifiers, structured findings.json, independent record verification, a target-neutral report) when the user asks for an audit, a pen test, a full security review or report artifacts.", userInvocable: true, short: "Cloudflare's security-audit skill, Buracle's default security review", invocation: "implicit", triggers: { ask: ["security audit", "audit the security", "re:\\baudit\\s+(?:this|the|my|our)\\s+(?:\\S+\\s+){0,2}(?:codebase|repo|repository|project|service|app|application|api)\\b.{0,40}\\bsecur", "re:\\bsecur\\w*\\s+(?:review|assessment|analysis|scan)\\b", "pen test", "pentest", "penetration test", "find vulnerabilities", "find security vulnerabilities", "look for vulnerabilities", "threat model", "guvenlik denetimi", "guvenlik taramasi", "guvenlik incelemesi", "guvenlik analizi", "re:\\bguvenlik ac(?:ik|ig)\\w*", "re:\\bzafiyet\\w*\\s+(?:bul|tara|ara)", "sizma testi", "pentest yap*", "tehdit modeli"], topic: ["re:\\bis (?:this|it|that) (?:secure|safe|vulnerable|exploitable)\\b", "re:\\b(?:sql|command|prompt|shell|code)\\s+injection\\b", "re:\\b(?:xss|csrf|ssrf|rce|idor)\\b", "re:\\btrust boundar", "re:\\b(?:auth(?:entication|orization)?|session|token|secret|credential)\\w*\\s+(?:bypass|leak|exposure|handling)\\b", "re:\\bguvenli mi\\b", "re:\\b(?:sql|komut|prompt|kod)\\s+enjeksiyon"], not: ["audit log", "audit trail", "accessibility audit", "performance audit", "lighthouse audit", "dead code audit", "cleanup audit", "dependency audit only", "npm audit", "security.md", "security headers test", "erisilebilirlik denetimi", "performans denetimi", "olu kod"] } }], plugins: [], hooks: [{ id: "H01", blocking: "deny", failure: "closed" }, { id: "H02", blocking: "deny", failure: "closed" }, { id: "H03", blocking: "deny", failure: "open" }, { id: "H04", blocking: "none", failure: "open" }, { id: "H05", blocking: "none", failure: "open" }, { id: "H06", blocking: "none", failure: "open" }, { id: "H07", blocking: "none", failure: "open" }, { id: "H08", blocking: "stop", failure: "open" }, { id: "H09", blocking: "deny", failure: "open" }, { id: "H10", blocking: "none", failure: "open" }, { id: "H11", blocking: "stop", failure: "open" }, { id: "H12", blocking: "none", failure: "open" }, { id: "H13", blocking: "none", failure: "open" }, { id: "H14", blocking: "none", failure: "open" }, { id: "H15", blocking: "none", failure: "open" }, { id: "H16", blocking: "none", failure: "open" }, { id: "H17", blocking: "none", failure: "open" }, { id: "H18", blocking: "none", failure: "open" }, { id: "H19", blocking: "none", failure: "open" }, { id: "H20", blocking: "deny", failure: "open" }, { id: "H21", blocking: "none", failure: "open" }, { id: "H22", blocking: "none", failure: "open" }, { id: "H23", blocking: "stop", failure: "open" }, { id: "H24", blocking: "none", failure: "open" }, { id: "H25", blocking: "none", failure: "open" }, { id: "H26", blocking: "none", failure: "open" }, { id: "H28", blocking: "none", failure: "open" }], pathRules: [{ id: "backend", globs: ["**/api/**", "**/routes/**", "**/handlers/**", "**/controllers/**", "**/endpoints/**", "**/middleware/**", "**/models/**", "**/models.py", "**/entities/**", "**/schema/**", "**/schemas/**", "**/queries/**", "**/repository/**", "**/repositories/**", "**/dao/**", "**/migrations/**", "**/migrate/**", "**/alembic/**", "**/db/**", "**/*.sql", "**/*.prisma", "**/*.graphql", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json"] }, { id: "blazor", globs: ["**/*.razor", "**/*.razor.cs", "**/*.razor.css"] }, { id: "browser-automation", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.razor", "**/e2e/**", "**/playwright/**", "**/cypress/**", "**/__tests__/**", "**/playwright.config.*", "**/cypress.config.*"] }, { id: "dotnet", globs: ["**/*.cs", "**/*.csproj", "**/*.sln", "**/*.slnx", "**/global.json", "**/Directory.Build.props", "**/Directory.Packages.props"] }, { id: "frontend", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.sass", "**/*.less", "**/*.razor", "**/*.razor.css"] }, { id: "go", globs: ["**/*.go", "**/go.mod", "**/go.sum", "**/go.work"] }, { id: "mobile", globs: ["**/capacitor.config.*", "**/ionic.config.json", "**/android/app/build.gradle*", "**/android/app/src/main/AndroidManifest.xml", "**/*.xcodeproj/project.pbxproj", "**/*.xcworkspace/contents.xcworkspacedata", "**/Podfile", "**/pubspec.yaml", "**/react-native.config.*", "**/metro.config.*", "**/expo.json", "**/eas.json", "**/app.config.{js,ts}"] }, { id: "python", globs: ["**/*.py", "**/*.pyi", "**/pyproject.toml", "**/requirements*.txt", "**/uv.lock", "**/setup.cfg"] }, { id: "typescript", globs: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts", "**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs", "**/package.json", "**/tsconfig*.json"] }], layout: { rows: [["model", "ctx", "windows", "month", "git", "mem", "index", "flow", "plan", "hooks"]], compact: [["ctx", "windows", "month", "git", "mem", "index", "flow", "hooks"]], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: false, native: { slot: "prompt.footer.status" } }, notices: [{ id: "0.5.0-project-assets", since: "0.5.0", until: "0.6.0", message: "When a session starts in a repository, Buracle now links the skills in .agents/skills into .claude/skills so Claude Code sees them too, and checks that AGENTS.md lists the path rules in .claude/rules. Run `buracle project check` to see what it would change." }, { id: "0.5.0-smaller-cli", since: "0.5.0", until: "0.6.0", message: "Buracle's CLI is smaller: run `buracle` in a terminal for a main menu you drive with the keyboard. `buracle install` now does what `init` and `sync` did, `buracle install` and `buracle update` apply in a terminal without a question and show each step as it runs, and the rare cases flags used to cover are questions in a terminal. `buracle help --all` lists the commands your agents use." }] }, import.meta.dir);
 export {
   createTuiPlugin,
   tui_default as default

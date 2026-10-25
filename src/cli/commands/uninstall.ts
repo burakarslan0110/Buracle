@@ -46,10 +46,10 @@ anyway?). Without a terminal, or with --yes, every answer is no.
 
 Options:
   --purge-state         also delete ~/.buracle state (state/, sessions/, run/, cache/, logs/,
-                        backups/, journal/, bin/, context-mode/ with Context Mode's session
-                        data, toolchain/ with the npm and uv packages, runtime/ with the
-                        frozen runtimes the hooks run); config.yaml and the memory
-                        (brain/) are kept.
+                        backups/, journal/, bin/, toolchain/ with the npm and uv packages,
+                        runtime/ with the frozen runtimes the hooks run, and the state folders
+                        an older Buracle release wrote); config.yaml and the memory (brain/)
+                        are kept.
                         Skipped when anything failed, so the records stay for a retry. When
                         BURACLE_HOME is not a directory of Buracle's own, only Buracle's files
                         are removed there. System tools installed with Homebrew, winget or

@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AdapterContext } from '../registry'
 import type { BuracleConfig } from '../../core/config'
-import { CM_SERVER_ID } from '../../core/context-mode'
 import { resolveEffort } from '../../core/effort'
 import { mdBlockGet } from '../../engine/merge'
 import { detectBinary, run as runProcess, type RunOptions, type RunResult } from '../../engine/proc'
@@ -11,7 +10,7 @@ import { hostLimitsRow } from '../shared/host-limits'
 import { resolveArgv, resolveCommandLine, type Env } from '../shared/command'
 import { pathRuleFiles } from '../shared/rules'
 import { valueHash } from '../../engine/merge'
-import { BYPASS_KEYS, CRITICAL_OMIT_TOOLS_FROM, SUBAGENT_EFFORTS, type McpTable } from './config'
+import { BYPASS_KEYS, CRITICAL_OMIT_TOOLS_FROM, SUBAGENT_EFFORTS } from './config'
 import { AGENTS_BLOCK_ID, codexArtifacts, RULES_FILE } from './generate'
 import { CODEX_HOOK_EVENTS, duplicateBuracleHandlers, findBuracleHandlers, type FoundHandler } from './hooks-config'
 
@@ -187,50 +186,6 @@ export function routingCheck(toml: Record<string, unknown>, ctx: Pick<AdapterCon
   return { level: 'ok', check, detail: `critical MCP tools are top-level from the first turn${ctx.config.routing.strictness === 'enforce' ? '; the built-in web search is off (routing enforced)' : ''}` }
 }
 
-function sameSet(a: readonly unknown[], b: readonly unknown[]): boolean {
-  const sa = new Set(a)
-  const sb = new Set(b)
-  return sa.size === sb.size && [...sb].every(x => sa.has(x))
-}
-
-function listText(x: unknown): string {
-  return Array.isArray(x) ? (x.length > 0 ? x.join(', ') : 'empty') : 'not set'
-}
-
-export function contextModeCheck(r: RunResult, want: McpTable): DoctorItem {
-  const check = 'codex.context-mode'
-  const cmd = `\`codex mcp get ${CM_SERVER_ID} --json\``
-  if (r.code !== 0) {
-    const why = r.timedOut ? 'timed out' : `exit ${r.code}${(r.stderr || r.stdout).trim() !== '' ? `: ${(r.stderr || r.stdout).trim().split('\n')[0]?.slice(0, 200)}` : ''}`
-    return { level: 'warn', check, detail: `${cmd} failed (${why})` }
-  }
-  let live: unknown
-  try { live = JSON.parse(r.stdout) } catch { live = undefined }
-  if (!isObj(live)) return { level: 'warn', check, detail: `${cmd} did not return a JSON object` }
-  const problems: string[] = []
-  const done: string[] = []
-  for (const key of ['enabled_tools', 'disabled_tools'] as const) {
-    const w = want[key]
-    if (!Array.isArray(w)) continue
-    const l = live[key]
-    if (!Array.isArray(l) || !sameSet(l, w)) problems.push(`${key} is ${listText(l)} (Buracle writes ${listText(w)})`)
-    else done.push(key === 'enabled_tools' ? `${w.length} tools offered` : `${listText(w)} hidden`)
-  }
-  const timeout = want['tool_timeout_sec']
-  if (typeof timeout === 'number') {
-    const l = live['tool_timeout_sec']
-    if (l !== timeout) problems.push(`tool_timeout_sec is ${typeof l === 'number' ? l : 'not set (Codex stops a call after 300 s)'} (Buracle writes ${timeout})`)
-    else done.push(`calls up to ${timeout} s`)
-  }
-  const env = rec(rec(live['transport'])['env'])
-  for (const [k, v] of Object.entries(rec(want['env']))) {
-    if (env[k] !== v) problems.push(`env ${k} is ${typeof env[k] === 'string' ? JSON.stringify(env[k]) : 'not set'} (Buracle writes ${JSON.stringify(v)})`)
-    else done.push(`${k}=${String(v)}`)
-  }
-  if (problems.length > 0) return { level: 'warn', check, detail: `context-mode in Codex's config: ${problems.join('; ')}; run \`buracle install codex\` (Codex ignores a key it cannot read)` }
-  return { level: 'ok', check, detail: `context-mode as Buracle writes it: ${done.length > 0 ? done.join(', ') : 'no tool lists, timeout or env to check'}` }
-}
-
 export function configLoadCheck(r: RunResult): DoctorItem {
   const check = 'codex.config'
   let report: unknown
@@ -335,7 +290,6 @@ export async function codexDoctor(ctx: AdapterContext, deps: DoctorDeps = defaul
   const tables = codexArtifacts({ canonical: ctx.canonical, buracle: ctx.buracleBin, pathRulesDir: '' }).mcpTables
   const expected = Object.keys(tables).map(n => n.slice('mcp_servers.'.length))
   const mcp = found.installed ? await deps.run([codex, 'mcp', 'list', '--json'], { timeoutMs: 15000 }) : { code: -1, stdout: '', stderr: 'codex is not installed', timedOut: false }
-  let listed: Set<string> | undefined
   if (mcp.code !== 0) add('warn', 'codex.mcp', `\`codex mcp list --json\` failed (exit ${mcp.code}): ${(mcp.stderr || mcp.stdout).trim().slice(0, 200)}`)
   else {
     let list: unknown
@@ -343,17 +297,12 @@ export async function codexDoctor(ctx: AdapterContext, deps: DoctorDeps = defaul
     if (!Array.isArray(list)) add('warn', 'codex.mcp', '`codex mcp list --json` did not return a JSON array')
     else {
       const byName = new Map(list.map(x => [String(rec(x)['name']), rec(x)] as const))
-      listed = new Set(byName.keys())
       const missing = expected.filter(id => !byName.has(id))
       const disabled = expected.filter(id => byName.get(id)?.['enabled'] === false)
       if (missing.length > 0) add('error', 'codex.mcp', `MCP servers missing from Codex: ${missing.join(', ')}`)
       else if (disabled.length > 0) add('warn', 'codex.mcp', `MCP servers disabled in Codex: ${disabled.join(', ')}`)
       else add('ok', 'codex.mcp', `${expected.length} Buracle MCP servers configured`)
     }
-  }
-  const cmTable = tables[`mcp_servers.${CM_SERVER_ID}`]
-  if (found.installed && cmTable !== undefined && listed?.has(CM_SERVER_ID) !== false) {
-    items.push(contextModeCheck(await deps.run([codex, 'mcp', 'get', CM_SERVER_ID, '--json'], { timeoutMs: 15000 }), cmTable))
   }
   const mcpProblems = mcpCommandProblems(configText, expected, env)
   if (mcpProblems.errors.length > 0) add('error', 'codex.mcp.command', `MCP server commands that do not resolve to an executable: ${mcpProblems.errors.join('; ')}; run \`buracle install codex\` again (BURACLE_HOME moved or the shim is missing)`)

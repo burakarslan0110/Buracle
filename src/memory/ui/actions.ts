@@ -1,51 +1,63 @@
 import { existsSync } from 'node:fs'
 import { isMemId } from '../../core/memory/brain'
-import { BACKUP_BUDGET, HEADROOM, REFLECT_BUDGET } from '../../core/memory/budgets'
+import { BACKUP_BUDGET, HEADROOM } from '../../core/memory/budgets'
 import { loadConfigSync } from '../../engine/config'
 import * as paths from '../../engine/paths'
+import { memReasonAdvice } from '../../core/memory/status'
 import { tilde } from '../../engine/update/output'
-import { update as updateMemory, type MemoryCtx } from '../api'
-import { BackupError, backupBrains, listBackups, type BackupManifest } from '../backup'
-import { distillQueueState } from '../distill'
-import { embedStatus } from '../embed'
-import { healAdvice, healPending, healRuns, startHeal } from '../heal'
-import { jobsOverview } from '../jobs'
+import { MemoryError, update as updateMemory, type MemoryCtx, type UpdatePatch } from '../api'
+import { BackupError, backupBrains, backupBytes, backupBuckets, backupHolds, listBackups, type BackupInfo } from '../backup'
 import { chooseHarnesses } from '../model'
-import { spawnCli } from '../spawn'
 import { projectRoot, readProjectsCache } from '../project'
 import { removeProject } from '../project-remove'
 import { computeStatus, memoryMcpHealth, refreshStatus } from '../status'
-import { brainExists, deleteItem, getStored, projectRef, recordEvent, withBrainLock } from '../store'
-import { refreshUpkeepFor, sweep } from '../sweep'
-import { parseScope, UiApiError, type UiScope } from './api'
+import { brainFileInfo } from '../status-report'
+import { bucketExists, deleteItem, getStored, projectRef, recordEvent, withBrainLock } from '../store'
+import { migrationSummary, parseScope, UiApiError, type UiScope } from './api'
 
 export const MAX_BODY_BYTES = 64 * 1024
+
+/** The request body as text, read chunk by chunk: past `max` bytes the reader is cancelled, so a body without (or with a false) content-length is never buffered whole. */
+async function boundedText(req: Request, max: number): Promise<string | undefined> {
+  if (req.body === null) return ''
+  const reader = req.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > max) { await reader.cancel().catch(() => undefined); return undefined }
+    chunks.push(value)
+  }
+  return new TextDecoder().decode(Buffer.concat(chunks))
+}
 
 export async function readBody(req: Request): Promise<Record<string, unknown>> {
   const type = (req.headers.get('content-type') ?? '').toLowerCase()
   if (!type.startsWith('application/json')) throw new UiApiError(415, 'bad_type', 'a write sends application/json')
   const declared = Number(req.headers.get('content-length') ?? '')
   if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) throw new UiApiError(413, 'too_large', `the body is larger than ${MAX_BODY_BYTES} bytes`)
-  const text = await req.text()
-  if (text.length > MAX_BODY_BYTES) throw new UiApiError(413, 'too_large', `the body is larger than ${MAX_BODY_BYTES} bytes`)
+  const text = await boundedText(req, MAX_BODY_BYTES)
+  if (text === undefined) throw new UiApiError(413, 'too_large', `the body is larger than ${MAX_BODY_BYTES} bytes`)
   let v: unknown
   try { v = JSON.parse(text) } catch { throw new UiApiError(400, 'bad_json', 'the body is not JSON') }
   if (v === null || typeof v !== 'object' || Array.isArray(v)) throw new UiApiError(400, 'bad_json', 'the body must be a JSON object')
   return v as Record<string, unknown>
 }
 
-function scopeOf(body: Record<string, unknown>): UiScope {
+async function scopeOf(body: Record<string, unknown>): Promise<UiScope> {
   return parseScope(typeof body['scope'] === 'string' ? body['scope'] : null)
 }
 
-function projectInfo(slug: string, memories: number): Record<string, unknown> {
+async function projectInfo(slug: string, memories: number): Promise<Record<string, unknown>> {
   const rec = readProjectsCache().projects[slug]
   return {
     slug,
     ...(rec?.ownerRepo !== undefined && rec.ownerRepo !== '' ? { name: rec.ownerRepo } : {}),
     registered: rec !== undefined,
     roots: (rec?.roots ?? []).map(r => ({ path: tilde(r), exists: existsSync(r) })),
-    brain: brainExists(projectRef(slug)),
+    brain: await bucketExists(projectRef(slug)).catch(() => false),
     memories,
   }
 }
@@ -53,82 +65,47 @@ function projectInfo(slug: string, memories: number): Record<string, unknown> {
 export async function healthPayload(scope: UiScope, nowMs: number): Promise<Record<string, unknown>> {
   const slug = scope.kind === 'project' ? scope.slug : undefined
   const status = await computeStatus({ ...(slug !== undefined ? { slug } : {}), nowMs })
-  const choice = chooseHarnesses({ nowMs })
-  const q = distillQueueState({ nowMs, choice })
-  const last = healRuns()[0]
   return {
     scope: scope.key,
     computedAt: status.computed_at,
     health: status.health,
-    reasons: healAdvice(status),
-    ...(slug !== undefined ? { project: projectInfo(slug, status.counts.project) } : {}),
-    distill: {
-      pending: q.pending, byHarness: q.byHarness, held: q.held, ...(q.why !== undefined ? { why: q.why } : {}), ...(q.until !== undefined ? { until: q.until } : {}),
-      harnesses: choice.picks, holds: choice.held,
-    },
-    upkeep: status.upkeep,
+    reasons: status.reasons.map(code => ({ code, ...memReasonAdvice(code, status) })),
+    ...(slug !== undefined ? { project: await projectInfo(slug, status.counts.project) } : {}),
     captures: status.captures,
+    ...(status.last_capture !== undefined ? { lastCapture: status.last_capture } : {}),
     store: { ok: status.store.ok, ...(status.store.version !== undefined ? { version: status.store.version } : {}) },
+    brain: await brainFileInfo().catch(() => undefined),
+    migration: migrationSummary(),
     mcp: memoryMcpHealth(),
-    heal: { running: healPending(nowMs), ...(last !== undefined ? { last } : {}) },
     backups: backupsPayload(scope),
-    jobs: jobsOverview(nowMs, { ...(slug !== undefined ? { project: slug } : {}) }).map(v => ({
-      job: v.job, schedule: v.schedule, day: v.day,
-      ...(v.last !== undefined ? { last: v.last } : {}), ...(v.lastFailed !== undefined && v.lastFailed !== v.last ? { lastFailed: v.lastFailed } : {}),
-    })),
   }
 }
 
 function backupsPayload(scope: UiScope): Record<string, unknown> {
-  const holds = (m: BackupManifest) => m.brains.some(x => (scope.kind === 'person' ? x.layer === 'person' : x.layer === 'project' && x.project === scope.slug))
+  const holds = (m: BackupInfo) => backupHolds(m, scope.kind === 'person' ? { person: true } : { project: scope.slug })
   const all = listBackups()
   const list = all.slice(0, BACKUP_BUDGET.keep)
   const mine = all.find(holds)
   return {
-    list: list.map(m => ({ id: m.id, at: m.at, trigger: m.trigger, brains: m.brains.length, bytes: m.brains.reduce((n, x) => n + x.bytes, 0), here: holds(m) })),
+    list: list.map(m => ({ id: m.id, at: m.at, trigger: m.trigger, buckets: backupBuckets(m).length, bytes: backupBytes(m), here: holds(m) })),
     ...(mine !== undefined ? { restore: `buracle mem restore ${mine.id} ${scope.kind === 'person' ? '--person' : `--project ${scope.slug}`}` } : {}),
   }
 }
 
 export async function backupNow(body: Record<string, unknown>, nowMs: number): Promise<Record<string, unknown>> {
-  scopeOf(body)
+  await scopeOf(body)
   try {
     const r = await backupBrains({ all: true }, { trigger: 'manual', nowMs, keep: BACKUP_BUDGET.keep })
     if (r.manifest === undefined) throw new UiApiError(409, 'nothing_to_back_up', 'there is no brain file yet')
-    return { ok: true, id: r.manifest.id, brains: r.manifest.brains.length, pruned: r.pruned.length, ...(r.manifest.skipped !== undefined ? { skipped: r.manifest.skipped } : {}) }
+    return { ok: true, id: r.manifest.id, buckets: backupBuckets(r.manifest).length, pruned: r.pruned.length }
   } catch (e) {
     if (e instanceof BackupError) throw new UiApiError(409, 'backup_failed', e.message)
     throw e
   }
 }
 
-export function healStart(body: Record<string, unknown>, nowMs: number): Record<string, unknown> {
-  const scope = scopeOf(body)
-  const started = startHeal({ ...(scope.kind === 'project' ? { slug: scope.slug } : {}), nowMs, trigger: 'ui' })
-  return { started, running: healPending(nowMs) }
-}
-
-export function verifyStart(body: Record<string, unknown>, _nowMs: number): Record<string, unknown> {
-  const scope = scopeOf(body)
-  if (scope.kind !== 'project' || process.env['BURACLE_NO_AUTOSTART'] === '1') return { started: false }
-  const pid = spawnCli(['mem', 'verify', '--quiet', '--trigger', 'manual', '--project', scope.slug])
-  return { started: pid !== undefined }
-}
-
-export async function sweepNow(body: Record<string, unknown>, nowMs: number): Promise<Record<string, unknown>> {
-  const scope = scopeOf(body)
-  const r = await sweep({ ...(scope.kind === 'project' ? { slug: scope.slug } : {}), nowMs, trigger: 'ui' })
-  if (scope.kind === 'project') await refreshStatus({ slug: scope.slug, nowMs })
-  await refreshStatus({ nowMs })
-  return {
-    pruned: r.layers.reduce((n, l) => n + l.pruned.length, 0),
-    core: r.layers.flatMap(l => l.core),
-    upkeep: r.layers.reduce((n, l) => n + l.upkeep, 0),
-  }
-}
-
 export async function removeProjectNow(body: Record<string, unknown>, nowMs: number): Promise<Record<string, unknown>> {
-  const scope = scopeOf(body)
+  const scope = await scopeOf(body)
   if (scope.kind !== 'project') throw new UiApiError(400, 'bad_scope', 'only a project can be removed; the person brain stays')
   const r = await removeProject(scope.slug, { nowMs, by: 'human' })
   await refreshStatus({ nowMs })
@@ -137,16 +114,17 @@ export async function removeProjectNow(body: Record<string, unknown>, nowMs: num
 
 const PROTECTED_KINDS: ReadonlySet<string> = new Set(['core', 'profile'])
 
-async function target(body: Record<string, unknown>): Promise<{ scope: UiScope, id: string }> {
-  const scope = scopeOf(body)
+/** The memory a write names. An edit (`editing`) is accepted for core pages and profile lines; retiring or deleting them is refused. */
+async function target(body: Record<string, unknown>, opts: { editing?: boolean } = {}): Promise<{ scope: UiScope, id: string }> {
+  const scope = await scopeOf(body)
   const id = body['id']
   if (!isMemId(id)) throw new UiApiError(400, 'bad_id', 'id must be a memory id (lowercase letters, digits and dashes)')
   const got = await getStored(scope.ref, id)
   if (got === undefined) throw new UiApiError(404, 'not_found', `there is no memory ${id} in this brain`)
-  if (PROTECTED_KINDS.has(got.item.kind)) {
+  if (opts.editing !== true && PROTECTED_KINDS.has(got.item.kind)) {
     throw new UiApiError(400, 'protected_kind', got.item.kind === 'core'
       ? 'core pages are kept by Buracle; edit them instead of deleting them'
-      : 'profile lines are learned from sessions; drop a wrong one with `buracle mem profile drop`')
+      : 'profile lines come from an older Buracle and are no longer maintained; write a preference memory instead')
   }
   return { scope, id }
 }
@@ -157,19 +135,85 @@ function uiCtx(scope: UiScope, nowMs: number): MemoryCtx {
 }
 
 async function afterChange(scope: UiScope, nowMs: number): Promise<void> {
-  await refreshUpkeepFor(scope.ref, { nowMs })
   await refreshStatus({ ...(scope.kind === 'project' ? { slug: scope.slug } : {}), nowMs })
+}
+
+const layerId = (scope: UiScope, id: string): string => `${scope.kind === 'person' ? 'person' : 'project'}/${id}`
+
+/** A memory error of the shared memory API as the status and body the page gets. */
+export function uiErrorOf(e: MemoryError): UiApiError {
+  const status = e.code === 'conflict' ? 409 : e.code === 'not_editable' ? 403 : e.code === 'not_found' ? 404 : e.code === 'invalid_input' ? 400 : e.code === 'migrating' || e.code === 'store_unavailable' ? 503 : 400
+  return new UiApiError(status, e.code, e.message, undefined, e.data)
 }
 
 export async function setMemoryStatus(body: Record<string, unknown>, status: 'deprecated' | 'active', nowMs: number): Promise<Record<string, unknown>> {
   const { scope, id } = await target(body)
-  await updateMemory(uiCtx(scope, nowMs), {
-    id: scope.kind === 'person' ? `person/${id}` : id,
-    patch: { status },
-    reason: status === 'deprecated' ? 'retired in the web UI' : 'restored in the web UI',
-  })
+  try {
+    await updateMemory(uiCtx(scope, nowMs), {
+      id: layerId(scope, id),
+      patch: { status },
+      reason: status === 'deprecated' ? 'retired in the web UI' : 'restored in the web UI',
+    })
+  } catch (e) {
+    throw e instanceof MemoryError ? uiErrorOf(e) : e
+  }
   await afterChange(scope, nowMs)
   return { ok: true, id, status }
+}
+
+const EDITABLE = ['title', 'summary', 'body', 'tags', 'about', 'importance', 'review'] as const
+
+function editPatch(raw: unknown): UpdatePatch {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) throw new UiApiError(400, 'bad_patch', 'patch must be an object with title, summary, body, tags, about, importance or review')
+  const p = raw as Record<string, unknown>
+  const unknown = Object.keys(p).filter(k => !(EDITABLE as readonly string[]).includes(k))
+  if (unknown.length > 0) throw new UiApiError(400, 'bad_patch', `the page edits ${EDITABLE.join(', ')}; not ${unknown.join(', ')}`)
+  if (Object.keys(p).length === 0) throw new UiApiError(400, 'bad_patch', 'patch is empty: name what to change')
+  const out: UpdatePatch = {}
+  for (const k of ['title', 'summary', 'body'] as const) {
+    if (p[k] === undefined) continue
+    if (typeof p[k] !== 'string') throw new UiApiError(400, 'bad_patch', `${k} must be text`)
+    out[k] = p[k]
+  }
+  for (const k of ['tags', 'about'] as const) {
+    if (p[k] === undefined) continue
+    if (!Array.isArray(p[k]) || (p[k] as unknown[]).some(x => typeof x !== 'string')) throw new UiApiError(400, 'bad_patch', `${k} must be a list of text`)
+    out[k] = p[k] as string[]
+  }
+  if (p['importance'] !== undefined) {
+    if (typeof p['importance'] !== 'number' || !Number.isInteger(p['importance']) || p['importance'] < 1 || p['importance'] > 5) throw new UiApiError(400, 'bad_patch', 'importance must be a whole number from 1 to 5')
+    out.importance = p['importance']
+  }
+  if (p['review'] !== undefined) {
+    if (p['review'] !== 'ok' && p['review'] !== 'pending') throw new UiApiError(400, 'bad_patch', 'review must be ok or pending')
+    out.review = p['review']
+  }
+  return out
+}
+
+/**
+ * A correction made in the page: the same `update` the CLI and the agents use, with the human as the actor, so a rewritten
+ * claim becomes the user's own (origin explicit, confidence 1) and an older version number is refused.
+ */
+export async function editMemory(body: Record<string, unknown>, nowMs: number): Promise<Record<string, unknown>> {
+  const { scope, id } = await target(body, { editing: true })
+  const patch = editPatch(body['patch'])
+  const expected = body['expected_version']
+  if (expected !== undefined && (typeof expected !== 'number' || !Number.isInteger(expected) || expected < 1)) throw new UiApiError(400, 'bad_version', 'expected_version must be the whole number the page read')
+  const reason = body['reason']
+  if (reason !== undefined && typeof reason !== 'string') throw new UiApiError(400, 'bad_reason', 'reason must be text')
+  let r
+  try {
+    r = await updateMemory(uiCtx(scope, nowMs), {
+      id: layerId(scope, id), patch,
+      ...(expected !== undefined ? { expected_version: expected } : {}),
+      reason: reason !== undefined && reason.trim() !== '' ? reason : 'edited in the web UI',
+    })
+  } catch (e) {
+    throw e instanceof MemoryError ? uiErrorOf(e) : e
+  }
+  await afterChange(scope, nowMs)
+  return { ok: true, id: r.id, version: r.version, changed: r.changed }
 }
 
 export async function deleteMemory(body: Record<string, unknown>, nowMs: number): Promise<Record<string, unknown>> {
@@ -188,7 +232,6 @@ export async function deleteMemory(body: Record<string, unknown>, nowMs: number)
 
 export function settingsPayload(nowMs: number): Record<string, unknown> {
   const choice = chooseHarnesses({ nowMs })
-  const embed = embedStatus()
   let port: number | undefined
   try { port = loadConfigSync().config.memory.ui.port } catch { port = undefined }
   return {
@@ -196,12 +239,6 @@ export function settingsPayload(nowMs: number): Record<string, unknown> {
     model: {
       harnesses: choice.picks, held: choice.held,
       headroom: { max5hPct: HEADROOM.max5hPct, max7dPct: HEADROOM.max7dPct },
-      relateEveryMin: Math.round(REFLECT_BUDGET.relateEveryMs / 60_000),
-    },
-    embed: {
-      model: embed.model, dim: embed.dim, installed: embed.installed, off: embed.off,
-      ...(embed.check.status === 'ok' ? { rows: embed.check.header.rows, bytes: embed.check.bytes } : { detail: embed.check.detail }),
-      ...(embed.endpoint !== undefined ? { endpoint: embed.endpoint } : {}),
     },
     ...(port !== undefined ? { ui: { port } } : {}),
   }

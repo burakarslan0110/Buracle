@@ -96,7 +96,7 @@ const FOLDER_DELETE: readonly RegExp[] = [
   re(`(?:^|\\s)(?:([\\w./~-]+)\\s+)?(?:klasor|dizin|folder|directory)\\S*\\s+${TR_DELETE}$`),
 ]
 
-const LITERAL = /^(?:sudo\s+)?(?:git|npm|pnpm|yarn|bun|bunx|npx|cargo|gh|docker|podman|rm|dropdb|prisma|rails|rake|bin\/rails|psql|mysql|mariadb|sqlite3?|duckdb|mongosh|find|xargs|ctx_purge)(?![a-z0-9_-])/u
+const LITERAL = /^(?:sudo\s+)?(?:git|npm|pnpm|yarn|bun|bunx|npx|cargo|gh|docker|podman|rm|dropdb|prisma|rails|rake|bin\/rails|psql|mysql|mariadb|sqlite3?|duckdb|mongosh|find|xargs)(?![a-z0-9_-])/u
 const LITERAL_VERB = re(`^(.*?)(?:\\s+(?:${TR_DO}|${TR_DELETE})|${TR_ALLOW})$`)
 const SUBORDINATE = /(?:^|\s)(?:\S+(?:madan|meden|dikten|dukten|diktan|duktan)|once|before|after|without|until|unless|if|when|while|eger|iken)(?=\s|$)/u
 function plainCommandLine(literal: string): boolean {

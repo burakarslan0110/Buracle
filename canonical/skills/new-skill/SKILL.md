@@ -76,7 +76,7 @@ the user has the publish steps. The calls are cheap and best effort; a failing o
      `implicit` for utilities the agent should pick up by itself;
    - inputs, numbered phases with gates, the evidence that proves "done", failure handling;
    - the MCP servers it needs, by id from `canonical/mcp.yaml`: `context7`, `codegraph`,
-     `semble`, `web-search`, `web-fetch`, `grep`, `chrome-devtools`, `buracle-memory`, `context-mode`;
+     `semble`, `web-search`, `web-fetch`, `grep`, `chrome-devtools`, `buracle-memory`;
    - the buracle CLI calls it makes: only documented subcommands ({{skill:buracle}});
    - which steps are deterministic or fragile enough to deserve a script.
 4. **Write** (`buracle flow phase write`). For a skill in the Buracle repo, scaffold with

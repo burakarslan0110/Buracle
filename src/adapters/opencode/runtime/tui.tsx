@@ -63,7 +63,7 @@ export function createTuiPlugin(baked: BakedData, pluginDir: string | undefined)
       applyEnv(env)
       const config = runtimeConfigCache(baked.defaults)
       const band = new BandFeeder()
-      const feeder = new StatusFeeder({ memoryUi: () => config.get().config.memory.ui, config: () => config.get().config, band })
+      const feeder = new StatusFeeder({ footer: true, config: () => config.get().config, band })
       const [version, setVersion] = createSignal(0)
       let current: { cwd: string, sessionID?: string } = { cwd: ctx.location?.directory ?? process.cwd() }
       let stopped = false

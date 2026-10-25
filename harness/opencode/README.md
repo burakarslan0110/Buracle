@@ -41,9 +41,4 @@ AGENTS.md block lists are written to `~/.buracle/rules/paths/` by the core insta
   available model that has a variant of that level; nothing is written into `opencode.jsonc`. Your own
   model settings and a variant picked in the TUI still win.
 - The plugin bundles are copies, not links: after `git pull`, run `buracle install` (it builds, then installs).
-- `BURACLE_NO_CAPTURE=1` in the service environment turns off memory capture for new sessions and
-  Context Mode's session recording (H27).
-- **Context Mode.** The server plugin judges every `context-mode_*` call with Buracle's guards (H01,
-  H02, H20) before OpenCode runs it, buffers the session's prompts and tool events for context-mode's
-  session store, stores a snapshot before compaction and adds a short restore to the requests after
-  it (H27).
+- `BURACLE_NO_CAPTURE=1` in the service environment turns off memory capture for new sessions.

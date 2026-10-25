@@ -2,8 +2,6 @@ import { Database } from 'bun:sqlite'
 import { readFileSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
 import type { AdapterContext } from '../registry'
-import type { CanonicalBundle } from '../../core/catalog'
-import { CM_SERVER_ID } from '../../core/context-mode'
 import { resolveEffort } from '../../core/effort'
 import { pathExistsSync, readTextSync, sha256 } from '../../engine/fsx'
 import { getIn, jsoncParse, mdBlockGet } from '../../engine/merge'
@@ -13,7 +11,7 @@ import { buildFiles, commandNames } from './build'
 import { AGENTS_BLOCK_ID, CONFIG_SCHEMA_URL, MIN_VERSION, PLUGIN_DIR, PLUGIN_ID, TESTED_WITH } from './constants'
 import { compareVersions, configTarget } from './install'
 import { POINTER_FILE } from './runtime/env'
-import { configPermissions, mcpDenyRules, opencodeServers } from './render'
+import { configPermissions, opencodeServers } from './render'
 import { resolveArgv, type Env } from '../shared/command'
 import { hostLimitsRow } from '../shared/host-limits'
 
@@ -156,25 +154,6 @@ export function effortFinding(value: string, config: unknown, remembered: readon
   }
 }
 
-export function contextModeFindings(canonical: CanonicalBundle, shim: string, entry: unknown, permissions: readonly unknown[]): Finding[] {
-  const expected = opencodeServers(canonical, shim).find(([id]) => id === CM_SERVER_ID)?.[1]
-  if (expected === undefined) return []
-  const platform = obj(expected['environment'])?.['CONTEXT_MODE_PLATFORM']
-  const hidden = mcpDenyRules(canonical).filter(r => r.action.startsWith(`${CM_SERVER_ID}_`))
-  const problems: string[] = []
-  const installed = obj(entry)
-  if (installed === undefined) problems.push(`mcp.servers.${CM_SERVER_ID} is missing`)
-  else if (typeof platform === 'string') {
-    const have = obj(installed['environment'])?.['CONTEXT_MODE_PLATFORM']
-    if (have !== platform) problems.push(`mcp.servers.${CM_SERVER_ID} environment.CONTEXT_MODE_PLATFORM is ${have === undefined ? 'unset' : JSON.stringify(have)}, not "${platform}" (context-mode would file OpenCode's sessions under another harness)`)
-  }
-  const lost = hidden.filter(r => !permissions.some(p => sameRule(p, r)))
-  if (lost.length > 0) problems.push(`the permissions deny rules that hide ${lost.map(r => r.action).join(', ')} are missing`)
-  if (problems.length > 0) return [{ level: 'warn', detail: `context-mode: ${problems.join('; ')}; run \`buracle install opencode\`` }]
-  const runs = typeof platform === 'string' ? `context-mode runs as platform "${platform}"` : 'context-mode is configured'
-  return [{ level: 'ok', detail: hidden.length > 0 ? `${runs}; ${hidden.map(r => r.action).join(', ')} are hidden (permissions deny rules)` : runs }]
-}
-
 export function commandFindings(ctx: AdapterContext, configDir: string, config: unknown): Finding[] {
   const workflow = commandNames(ctx.canonical).workflow
   const files = workflow.filter(id => pathExistsSync(join(configDir, 'commands', `${id}.md`))).map(id => `commands/${id}.md`)
@@ -227,11 +206,10 @@ export async function doctor(ctx: AdapterContext, opts: DoctorOptions = {}): Pro
     }
     const listOf = (doc: unknown) => { const v = getIn(doc, ['permissions']).value; return Array.isArray(v) ? v : [] }
     const perms = [...(lower !== undefined ? listOf(lower) : []), ...listOf(cfg)]
-    const lost = configPermissions(ctx.canonical).filter(r => !perms.some(p => sameRule(p, r)))
+    const lost = configPermissions().filter(r => !perms.some(p => sameRule(p, r)))
     if (lost.length > 0) missing.push(`${lost.length} Buracle permission rule(s)`)
     if (missing.length === 0) add('ok', 'opencode.config', `${target} has the Buracle keys${both ? ' (opencode.json is loaded too; opencode.jsonc wins)' : ''}`)
     else add('warn', 'opencode.config', `${target} lacks: ${missing.join(', ')} (user values are kept; see \`buracle install --dry-run\`)`)
-    for (const f of contextModeFindings(ctx.canonical, ctx.buracleBin, look(['mcp', 'servers', CM_SERVER_ID]).value, perms)) add(f.level, 'opencode.context-mode', f.detail)
     const servers: Record<string, unknown> = {}
     for (const [id] of opencodeServers(ctx.canonical, ctx.buracleBin)) servers[id] = look(['mcp', 'servers', id]).value
     for (const f of mcpCommandFindings(servers, process.env)) add(f.level, 'opencode.mcp.command', f.detail)

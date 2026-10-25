@@ -115,20 +115,6 @@ async function mapToChild(abs: string, child: string): Promise<ProjectRecord | u
   return mapped
 }
 
-export function mergedProjects(slug: string): string[] {
-  const merged = readProjectsCache().projects[slug]?.merged
-  return Array.isArray(merged) ? [...new Set(merged)].filter(s => memIsSlug(s) && s !== slug) : []
-}
-
-export function dropMerged(slug: string, merged: string): void {
-  updateProjectsCache(cache => {
-    const r = cache.projects[slug]
-    if (r?.merged === undefined) return
-    r.merged = r.merged.filter(m => m !== merged)
-    if (r.merged.length === 0) delete r.merged
-  })
-}
-
 export function forgetProject(slug: string): boolean {
   if (!memIsSlug(slug)) return false
   let had = false

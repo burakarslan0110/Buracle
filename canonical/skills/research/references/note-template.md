@@ -5,7 +5,7 @@ five lines. Omit sections that do not apply, except *Sources*.
 
 ```markdown
 ## Research: <question>
-As of <YYYY-MM-DD> · depth <quick|standard|deep> · tools: <memory, context7, web-search, web-fetch, context-mode, grep>
+As of <YYYY-MM-DD> · depth <quick|standard|deep> · tools: <memory, context7, web-search, web-fetch, grep>
 · fallbacks: <none | which>
 
 **Answer.** <two to five sentences that answer the question directly, with [n] citations>
@@ -58,5 +58,5 @@ As of <YYYY-MM-DD> · depth <quick|standard|deep> · tools: <memory, context7, w
 - Include versions and the as-of date in the body so staleness is visible.
 - Use `layer: "project"` when the finding only matters for this repository.
 - Pass `review: "ok"` only when every claim in the memory rests on a primary source you read in this
-  run; otherwise the memory stays `review: pending` until a later session verifies it (memory upkeep
+  run; otherwise the memory stays `review: pending` until a later session verifies it (checking it
   is the harness's job, never the user's).

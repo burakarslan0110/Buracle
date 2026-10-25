@@ -91,7 +91,6 @@ export async function writeDenial(p: Payload, call: ToolCall, cwd: string, ctx: 
 export async function mcpWriteDenial(call: ToolCall, cwd: string, ctx: AdapterContext, c: CoreFns, ev: string): Promise<string | undefined> {
   if (call.kind !== 'mcp') return undefined
   try {
-    if (c.cmCall(call) !== undefined) return undefined
     const targets = mcpWritePaths(call.tool, call.input, call.mcp)
     if (targets.length === 0) return undefined
     const r = c.checkWrite(targets, await writeContext(ev, cwd, ctx))

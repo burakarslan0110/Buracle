@@ -72,7 +72,6 @@ export function serverRequest(spec: McpServerSpec): PackageRequest {
   const pkg = spec.package as NonNullable<McpServerSpec['package']>
   const req: PackageRequest = { registry: pkg.registry as 'npm' | 'pypi', name: pkg.name, version: pkg.version, bins: [mcpPackageBin(pkg)] }
   if (pkg.extras !== undefined) req.extras = [...pkg.extras]
-  if (pkg.scripts === false) req.scripts = false
   return req
 }
 
@@ -303,33 +302,6 @@ export async function runToolchain(bundle: Pick<CanonicalBundle, 'mcp' | 'tools'
       } else if (r.ok) {
         if (r.newer !== undefined) item.status = 'outdated'
         if (r.note !== undefined) item.detail = `${r.version}, sha256 verified; ${r.note}`
-      } else {
-        item.status = 'failed'
-        item.detail = r.error
-      }
-    }
-    emit(item, 'done')
-    items.push(item)
-  }
-
-  if (wanted(opts, 'tool:embed-model', 'cli')) {
-    const { EMBED_MODEL, checkEmbedModel, installEmbedModel } = await import('./embed-model')
-    const item: ToolchainItem = { id: 'tool:embed-model', group: 'cli', label: 'embeddings', required: false, status: 'ok', source: `huggingface ${EMBED_MODEL.repo}@${EMBED_MODEL.commit.slice(0, 7)} (Buracle toolchain)`, detail: '' }
-    emit(item, 'start')
-    const check = checkEmbedModel()
-    if (check.status === 'ok') {
-      item.current = `${check.header.dim}d`
-      item.detail = `${EMBED_MODEL.id}: ${check.header.rows} word pieces, ${check.header.dim} dimensions`
-    } else if (!opts.install) {
-      item.status = 'missing'
-      item.detail = check.detail
-    } else {
-      const r = await installEmbedModel()
-      if (r.ok) {
-        item.status = 'installed'
-        item.current = `${r.dim}d`
-        item.detail = `${EMBED_MODEL.id} installed: ${r.rows} word pieces, ${r.dim} dimensions, sha256 verified`
-        record(s => { s.system['embed-model'] = { via: 'github', version: EMBED_MODEL.commit.slice(0, 7), path: r.path, installed_at: new Date(opts.nowMs()).toISOString() } })
       } else {
         item.status = 'failed'
         item.detail = r.error

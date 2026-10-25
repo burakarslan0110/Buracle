@@ -1,6 +1,5 @@
 import type { McpCatalog, McpServerSpec } from '../../core/catalog'
 import { envRef, expandMcpCommand } from '../../core/catalog'
-import { CM_SERVER_ID } from '../../core/context-mode'
 import type { McpHealth } from '../../core/policy/routing'
 import { mcpHealthOf } from '../../core/policy/routing'
 import { atomicWriteSync, readJsonSafeSync } from '../fsx'
@@ -132,12 +131,12 @@ export function serverEnv(spec: McpServerSpec): { env: Record<string, string>, m
   return { env, missing }
 }
 
-export async function probeStdio(argv: string[], opts: { env?: Record<string, string>, timeoutMs: number, cwd?: string, drop?: (name: string) => boolean }): Promise<McpProbe> {
+export async function probeStdio(argv: string[], opts: { env?: Record<string, string>, timeoutMs: number, cwd?: string }): Promise<McpProbe> {
   const started = Date.now()
   const down = (error: string): McpProbe => ({ status: 'down', error, ms: Date.now() - started })
   if (argv.length === 0 || argv[0] === '') return down('no command')
   const env: Record<string, string> = {}
-  for (const [k, v] of Object.entries(process.env)) if (v !== undefined && opts.drop?.(k) !== true) env[k] = v
+  for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v
   Object.assign(env, opts.env ?? {})
   let proc: ReturnType<typeof Bun.spawn<'pipe', 'pipe', 'pipe'>>
   try {
@@ -294,8 +293,7 @@ export async function probeServers(catalog: McpCatalog, opts: ProbeOptions, nowI
     }
     const { command, args } = expandMcpCommand(spec, { buracle: opts.buracle, id })
     const { env, missing } = serverEnv(spec)
-    const drop = id === CM_SERVER_ID ? (name: string) => name.startsWith('CONTEXT_MODE_') : undefined
-    const p = await probeStdio(mcpLaunchArgv(command, args, opts.buracle), { env, timeoutMs: opts.timeoutMs, ...(drop !== undefined ? { drop } : {}) })
+    const p = await probeStdio(mcpLaunchArgv(command, args, opts.buracle), { env, timeoutMs: opts.timeoutMs })
     if (p.status === 'down' && missing.length > 0) p.error = `${p.error ?? 'down'} (unset environment: ${missing.join(', ')})`
     return [id, { ...p, transport: 'stdio', checked_at: nowIso() }]
   }))

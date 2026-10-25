@@ -4,7 +4,6 @@ import { atomicWriteSync } from '../engine/fsx'
 import { lockSnapshot } from '../engine/lockfile'
 import { cortexdbBinary, cortexdbLaunch } from '../engine/toolchain/cortexdb'
 import { log } from '../engine/log'
-import { embedChildEnvNow } from './embed'
 import { brainHoldFile, cortexChildFile, cortexChildrenDir } from './layout'
 
 export const RESTORE_HOLD_STALE_MS = 10 * 60_000
@@ -82,7 +81,7 @@ export function pruneDeadReaders(): number {
   return n
 }
 
-export type CortexErrorCode = 'not_installed' | 'start_failed' | 'exited' | 'timeout' | 'protocol' | 'tool_error' | 'not_found' | 'busy'
+export type CortexErrorCode = 'not_installed' | 'start_failed' | 'exited' | 'timeout' | 'protocol' | 'tool_error' | 'not_found' | 'busy' | 'migrating' | 'migration_failed'
 
 export class CortexError extends Error {
   readonly code: CortexErrorCode
@@ -100,13 +99,16 @@ export interface CortexOptions {
 
 interface Pending { resolve: (v: unknown) => void, reject: (e: Error) => void, timer: ReturnType<typeof setTimeout> }
 
-export function cortexEnv(dbPath: string, base: Record<string, string | undefined> = process.env, embed: Record<string, string> = embedChildEnvNow(base)): Record<string, string> {
+// CortexDB falls back to OPENAI_BASE_URL/OPENAI_API_KEY for an embeddings endpoint; the child never gets either, so it
+// stays in its lexical mode whatever the user's shell exports.
+const NEVER_PASSED = /^(?:CORTEXDB_|OPENAI_)/
+
+export function cortexEnv(dbPath: string, base: Record<string, string | undefined> = process.env): Record<string, string> {
   const env: Record<string, string> = {}
   for (const [k, v] of Object.entries(base)) {
-    if (v === undefined || k.startsWith('CORTEXDB_')) continue
+    if (v === undefined || NEVER_PASSED.test(k)) continue
     env[k] = v
   }
-  for (const [k, v] of Object.entries(embed)) if (k.startsWith('CORTEXDB_EMBED_')) env[k] = v
   env['CORTEXDB_PATH'] = dbPath
   return env
 }

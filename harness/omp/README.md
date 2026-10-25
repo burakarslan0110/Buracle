@@ -34,10 +34,8 @@ Skills are not in this package: omp reads the shared neutral render in `~/.agent
   (H10, H22), the memory index, capability card and workspace lines (H13, H15, H21), session capture and the
   finalizer (H14), maintenance (H16), the profile guard (H17), telemetry and the status texts (H18:
   `buracle.budget`, `buracle.mem`, and the status band below the editor), the review-report check of the
-  review agents (H19), workflow tracking (H25), profile signals (H26) and Context Mode's session bridge (H27:
-  prompts and tool events into context-mode's session store, a snapshot before compaction, a restore after
-  it); the guards also judge every context-mode call. When a handler fails, the tool call is allowed and the
-  error goes to the log; only the H01 and H02 guards fail closed.
+  review agents (H19), workflow tracking (H25) and profile signals (H26). When a handler fails, the tool call
+  is allowed and the error goes to the log; only the H01 and H02 guards fail closed.
 - The running workflow shows above the editor (widget `buracle.flow`, `workflow.band`): its phases, progress
   and current step.
 - Extension commands (no model turn): `/buracle-status [status|memory|plan|flow]` (alias `/buracle`),
@@ -47,7 +45,7 @@ Skills are not in this package: omp reads the shared neutral render in `~/.agent
 - `rules/`: always-on rules, and path rules injected when matching files are edited (TTSR): `buracle-backend.md`, `buracle-blazor.md`, `buracle-browser-automation.md`, `buracle-core.md`, `buracle-dotnet.md`, `buracle-explain.md`, `buracle-frontend.md`, `buracle-go.md`, `buracle-memory.md`, `buracle-mobile.md`, `buracle-python.md`, `buracle-tooling.md`, `buracle-typescript.md`.
 - `commands/`: one workflow command per user-invocable skill: `/ab-test`, `/bugfix`, `/dead-code`, `/find-skill`, `/goal-build`, `/inspect`, `/new-skill`, `/plan-build`, `/project-rules`, `/requirements`, `/research`, `/security-audit`.
 - `agents/`: read-only review agents `changes-review`, `goal-build-review`, `plan-build-review`.
-- `.mcp.json`: pinned MCP servers `buracle-memory`, `codegraph`, `context-mode`, `context7`, `grep`, `semble`, `web-fetch`, `web-search`. `chrome-devtools` is left out because omp drops browser MCP servers while its built-in browser is on.
+- `.mcp.json`: pinned MCP servers `buracle-memory`, `codegraph`, `context7`, `grep`, `semble`, `web-fetch`, `web-search`. `chrome-devtools` is left out because omp drops browser MCP servers while its built-in browser is on.
 
 ## Version
 

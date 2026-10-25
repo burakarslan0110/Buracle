@@ -8,7 +8,7 @@ export function createNetwork(ctx) {
   function showTip(node, x, y) {
     if (node === null) { tip.hidden = true; return }
     if (node.type === 'memory') {
-      tip.replaceChildren(h('span', { class: 'tip-kind', 'data-region': node.region }, kindLabel(node.kind)), h('strong', null, node.title), h('small', null, count('links', node.degree ?? 0)))
+      tip.replaceChildren(h('span', { class: 'tip-kind', 'data-region': node.region }, kindLabel(node.kind)), h('strong', null, node.title), h('small', null, node.retired === true ? t('graph.retired') : count('links', node.degree ?? 0)))
     } else {
       tip.replaceChildren(h('span', { class: `tip-kind is-${node.type}` }, t(`graph.type.${node.type}`)), h('strong', null, node.label), h('small', null, count('memories', node.weight ?? 0)))
     }

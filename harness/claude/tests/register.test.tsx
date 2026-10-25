@@ -14,7 +14,6 @@ const RUNTIME = `${BURACLE_HOME}/state/runtime-config.json`
 const STATE = `${BURACLE_HOME}/sessions/claude/${SID}/state.json`
 const CONSENT = `${BURACLE_HOME}/sessions/claude/${SID}/consent.json`
 const AWS_KEY = 'AKIA' + 'IOSFODNN7EXAMPLE'
-const CTX = 'mcp__plugin_buracle_context-mode__'
 
 const SESSION: SessionStartInput = { cwd: CWD, surface: 'terminal', isInteractive: true }
 const HEADLESS: SessionStartInput = { cwd: CWD, surface: null, isInteractive: false }
@@ -190,6 +189,9 @@ describe('commands', () => {
     expect(text).toContain('workflow band: on')
     expect(text).toContain('/brain')
     expect(/[çğıöşüÇĞİÖŞÜ]/.test(text)).toBe(false)
+    // Nothing started the web UI and its record is absent: neither view names an address that leads nowhere.
+    expect(text).not.toContain('memory UI:')
+    expect((await $.command.run(command('buracle-status', 'memory'))).text ?? '').not.toContain('web UI:')
     expect((await $.command.run(command('buracle-status', 'nonsense'))).text).toBe('Usage: /buracle-status [status|memory|plan|flow]')
     expect((await $.command.run(command('buracle-status', 'flow'))).text).toBe('No workflow is running.')
   })
@@ -232,55 +234,6 @@ describe('H20 consent dialog', () => {
     await $.tool.call({ tool: 'Bash', command: 'ls -la' })
     expect(world.asked).toEqual([])
     expect(world.reached).toEqual(['Bash', 'Bash'])
-  })
-
-  test('a context-mode batch: one question per kind it needs, and "allow once" covers each of its commands', async ($, on) => {
-    const world = worldOf(on, {}, { answer: 'Allow once' })
-    await $.session.start(SESSION)
-    const commands = [{ label: 'a', command: 'git push origin a' }, { label: 'b', command: 'git push origin b' }, { label: 'undo', command: 'git reset --hard HEAD~1' }]
-    const ran = await $.tool.call({ tool: `${CTX}ctx_batch_execute`, commands, queries: ['x'] } as never)
-    expect(denyOf(ran)).toBeUndefined()
-    expect(world.asked.map(a => a.question)).toEqual([
-      'Buracle consent: `git push origin a` pushes to a remote. Run it?',
-      'Buracle consent: `git reset --hard HEAD~1` rewrites git history (commits can be lost). Run it?',
-    ])
-    expect(world.reached).toEqual([`${CTX}ctx_batch_execute`])
-    const consent = world.json(CONSENT) as { grants: Array<{ kind: string, uses: number }> }
-    expect(consent.grants).toEqual([expect.objectContaining({ kind: 'push', uses: 2 }), expect.objectContaining({ kind: 'history-rewrite', uses: 1 })])
-  })
-
-  test('context-mode shell code is asked about like Bash; refusing denies the call and records nothing', async ($, on) => {
-    const world = worldOf(on, {}, { answer: 'Refuse' })
-    await $.session.start(SESSION)
-    const ran = await $.tool.call({ tool: `${CTX}ctx_execute`, language: 'shell', code: 'git push origin feature' } as never)
-    expect(denyOf(ran) ?? '').toContain('the user refused')
-    expect(world.asked.map(a => a.question)).toEqual(['Buracle consent: `git push origin feature` pushes to a remote. Run it?'])
-    expect(world.reached).toEqual([])
-    expect(world.files.has(CONSENT)).toBe(false)
-  })
-
-  test('context-mode calls that need no consent, its other tools and headless sessions are never asked about', async ($, on) => {
-    const world = worldOf(on, {}, { answer: 'Refuse' })
-    await $.session.start(SESSION)
-    await $.tool.call({ tool: `${CTX}ctx_execute`, language: 'shell', code: 'bun test 2>&1 | tail -5' } as never)
-    await $.tool.call({ tool: `${CTX}ctx_search`, queries: ['git push'] } as never)
-    await $.tool.call({ tool: `${CTX}ctx_purge`, confirm: true } as never)
-    expect(world.asked).toEqual([])
-    expect(world.reached).toEqual([`${CTX}ctx_execute`, `${CTX}ctx_search`, `${CTX}ctx_purge`])
-  })
-
-  test('a context-mode installed outside Buracle (a user-scope server, its own plugin) gets the same dialog', async ($, on) => {
-    const world = worldOf(on, {}, { answer: 'Refuse' })
-    await $.session.start(SESSION)
-    const own = await $.tool.call({ tool: 'mcp__context-mode__ctx_execute', language: 'shell', code: 'git push origin feature' } as never)
-    expect(denyOf(own) ?? '').toContain('the user refused')
-    const plugin = await $.tool.call({ tool: 'mcp__plugin_context-mode_context-mode__ctx_batch_execute', commands: ['git reset --hard HEAD~1'], queries: ['x'] } as never)
-    expect(denyOf(plugin) ?? '').toContain('the user refused')
-    expect(world.asked.map(a => a.question)).toEqual([
-      'Buracle consent: `git push origin feature` pushes to a remote. Run it?',
-      'Buracle consent: `git reset --hard HEAD~1` rewrites git history (commits can be lost). Run it?',
-    ])
-    expect(world.reached).toEqual([])
   })
 
   test('the dialog keeps what the command hooks recorded while it was open (it reads the file again before writing)', async ($, on) => {
@@ -335,14 +288,6 @@ describe('H20 consent dialog', () => {
     expect(world.trail.filter(t => t.startsWith('drop '))).toEqual([])
     expect(world.trail.at(-1)).toBe(`write ${CONSENT}`)
     expect(world.files.get(`${CONSENT}.lock`)).toBe('{"pid":1}')
-  })
-
-  test('a headless session is never asked about a context-mode call either', async ($, on) => {
-    const world = worldOf(on)
-    await $.session.start(HEADLESS)
-    await $.tool.call({ tool: `${CTX}ctx_batch_execute`, commands: ['git push origin feature'], queries: ['x'] } as never)
-    expect(world.asked).toEqual([])
-    expect(world.reached).toEqual([`${CTX}ctx_batch_execute`])
   })
 })
 

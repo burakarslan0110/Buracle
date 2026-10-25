@@ -1,10 +1,10 @@
 import type { ToolKind } from '../events'
-import { profileSanitizeSignal, type ProfileSignal } from './profile'
+import { sanitizePromptSignal, type PromptSignal } from './signals'
 import { redactClip } from './text'
 
-export interface SpoolEntry { ts: number; ev: 'prompt'|'tool'|'turn'|'compact'|'stop'|'note'|'signal'; tool?: string; kind?: ToolKind; paths?: string[]; cmd?: string; exit?: number; ms?: number; excerpt?: string; model?: string; tokens?: number; signal?: ProfileSignal }
+export interface SpoolEntry { ts: number; ev: 'prompt'|'tool'|'turn'|'compact'|'stop'|'note'|'prompt-signal'; tool?: string; kind?: ToolKind; paths?: string[]; cmd?: string; exit?: number; ms?: number; excerpt?: string; model?: string; tokens?: number; signal?: PromptSignal }
 
-export const SPOOL_EVENTS: readonly SpoolEntry['ev'][] = ['prompt', 'tool', 'turn', 'compact', 'stop', 'note', 'signal']
+export const SPOOL_EVENTS: readonly SpoolEntry['ev'][] = ['prompt', 'tool', 'turn', 'compact', 'stop', 'note', 'prompt-signal']
 
 export const EXCERPT_EVENTS: readonly SpoolEntry['ev'][] = ['prompt', 'turn', 'stop', 'compact', 'note']
 
@@ -69,8 +69,8 @@ export function spoolSanitize(input: unknown): { entry?: SpoolEntry, redactions:
     const max = ev === 'compact' ? SPOOL_LIMITS.compactExcerpt : ev === 'prompt' ? SPOOL_LIMITS.promptExcerpt : SPOOL_LIMITS.excerpt
     entry.excerpt = scrub(x['excerpt'], max)
   }
-  if (ev === 'signal') {
-    const signal = profileSanitizeSignal(x['signal'], scrub)
+  if (ev === 'prompt-signal') {
+    const signal = sanitizePromptSignal(x['signal'], scrub)
     if (!signal) return { redactions: { count, kinds: [...kinds].sort() } }
     entry.signal = signal
   }
@@ -134,7 +134,7 @@ export interface SpoolDigest {
   lastTestExit?: number
   toolCounts: Record<string, number>
   commandHeads: Record<string, number>
-  signals: Array<{ ts: number, signal: ProfileSignal }>
+  signals: Array<{ ts: number, signal: PromptSignal }>
 }
 
 const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
@@ -226,7 +226,7 @@ export function spoolDigest(entries: readonly SpoolEntry[], cwd?: string): Spool
         if (e.excerpt !== undefined && !d.notes.includes(e.excerpt)) d.notes.push(e.excerpt)
         for (const p of e.paths ?? []) if (!d.notes.includes(p)) d.notes.push(p)
         break
-      case 'signal':
+      case 'prompt-signal':
         if (e.signal !== undefined && d.signals.length < 500) d.signals.push({ ts: e.ts, signal: e.signal })
         break
     }

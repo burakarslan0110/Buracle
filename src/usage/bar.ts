@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { parse as parseYaml } from 'yaml'
+import { parseYaml } from '../engine/yaml'
 import type { BuracleConfig } from '../core/config'
 import type { Harness } from '../core/events'
 import type { BandView } from '../core/flow/band'
@@ -234,8 +234,8 @@ export async function cachedProjectSlug(cwd: string, nowMs: number): Promise<str
 function isMemoryStatus(x: unknown): x is MemoryStatus {
   const s = obj(x)
   const counts = obj(s?.['counts'])
-  return s !== undefined && s['v'] === 2 && typeof s['health'] === 'string' && counts !== undefined && typeof counts['project'] === 'number'
-    && typeof counts['person'] === 'number' && Array.isArray(s['reasons']) && typeof s['upkeep'] === 'number'
+  return s !== undefined && s['v'] === 3 && typeof s['health'] === 'string' && counts !== undefined && typeof counts['project'] === 'number'
+    && typeof counts['person'] === 'number' && Array.isArray(s['reasons'])
 }
 
 export function readMemoryStatus(slug: string | undefined): MemoryStatus | undefined {

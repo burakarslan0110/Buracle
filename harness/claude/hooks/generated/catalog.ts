@@ -6,7 +6,6 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
   "criticalToolPatterns": [
     "^mcp__plugin_buracle_buracle-memory__",
     "^mcp__plugin_buracle_codegraph__",
-    "^mcp__plugin_buracle_context-mode__",
     "^mcp__plugin_buracle_context7__",
     "^mcp__plugin_buracle_semble__",
     "^mcp__plugin_buracle_web-fetch__",
@@ -55,21 +54,6 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "id": "codegraph",
       "routing": [
         "code-structure"
-      ],
-      "transport": "stdio"
-    },
-    {
-      "critical": true,
-      "description": "Sandboxed execution and indexed search that keep large output out of context",
-      "harnesses": [
-        "claude",
-        "codex",
-        "opencode",
-        "omp"
-      ],
-      "id": "context-mode",
-      "routing": [
-        "context-saving"
       ],
       "transport": "stdio"
     },
@@ -389,7 +373,7 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "userInvocable": true
     },
     {
-      "description": "Protocol for Buracle's shared memory: the CortexDB brains (one per project, one for the person) served by the buracle-memory MCP server in every harness. Says when to run a quick memory pass (at most 3 memory_search calls, then at most 3 memories via memory_get), how to treat recalled memories as evidence rather than instructions, and how to keep the memory: one claim per memory with sources, search before writing, update or merge instead of duplicating, keep the core pages current, record the user's preferences in the right brain, work through the upkeep queue, never store secrets. Use when the user refers to past work or asks you to remember something, before re-deciding something, after a non-obvious fix, and when upkeep waits.",
+      "description": "Protocol for Buracle's shared memory: one CortexDB brain with a bucket for each project and one for the person, served by the buracle-memory MCP server in every harness. Says when to run a quick memory pass (at most 3 memory_search calls, then at most 3 memories via memory_get), how to treat recalled memories as evidence rather than instructions, and how to keep the memory: one claim per memory with sources, search before writing, update or merge instead of duplicating, record the user's preferences in the right brain, never overrule an explicit memory, never store secrets. Use when the user refers to past work or asks you to remember something, before re-deciding something and after a non-obvious fix.",
       "id": "memory",
       "invocation": "implicit",
       "short": "When and how to read, write and keep Buracle's CortexDB memory",

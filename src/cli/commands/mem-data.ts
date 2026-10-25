@@ -36,21 +36,23 @@ export async function memDataCommand(sub: 'backup' | 'restore' | 'export' | 'imp
   if (sub === 'backup') {
     if (a.has('list')) {
       const list = b.listBackups()
-      a.out({ backups: list }, list.length === 0 ? 'No backups yet: `buracle mem backup` takes one, and the tick copies each brain once a day.' : list.map(m => `${m.id}  ${m.at.slice(0, 16).replace('T', ' ')}  ${m.trigger}  ${m.brains.map(x => x.layer === 'person' ? 'person' : x.project).join(', ')}  (${size(m.brains.reduce((n, x) => n + x.bytes, 0))})`).join('\n'))
+      a.out({ backups: list }, list.length === 0 ? 'No backups yet: `buracle mem backup` takes one.' : list.map(m => `${m.id}  ${m.at.slice(0, 16).replace('T', ' ')}  ${m.trigger}  ${b.backupBuckets(m).join(', ')}  (${size(b.backupBytes(m))})${m.v === 1 ? '  [Buracle 0.5: restores bucket by bucket]' : ''}`).join('\n'))
       return 0
+    }
+    if (a.project() !== undefined || a.has('person')) {
+      a.usage('a backup holds the whole brain file (every bucket), so --project and --person do not apply to it: save one bucket with `buracle mem export --project SLUG` (or --person); --project, --person and --all choose what `buracle mem restore` takes out of a backup')
     }
     const keep = a.int('keep')
     if (keep !== undefined && (keep < 1 || keep > 100)) a.usage('--keep must be between 1 and 100')
-    const r = await b.backupBrains(choiceOf(a, { all: 'default' }) as BrainChoice, { trigger: 'manual', keep: keep ?? BACKUP_BUDGET.keep })
+    const r = await b.backupBrains({ all: true }, { trigger: 'manual', keep: keep ?? BACKUP_BUDGET.keep })
     if (r.manifest === undefined) { a.out(r, 'Nothing to back up: there is no brain file yet.'); return 0 }
     const m = r.manifest
     a.out(r, [
-      `Backup ${m.id}: ${m.brains.map(x => `${x.layer === 'person' ? 'person' : x.project} (${size(x.bytes)})`).join(', ')} in ${r.dir ?? ''}`,
-      ...(m.skipped ?? []).map(s => `skipped ${s.brain}: ${s.why}`),
+      `Backup ${m.id}: the whole brain (${b.backupBuckets(m).join(', ') || 'empty'}; ${size(m.file.bytes)}) in ${r.dir ?? ''}`,
       ...(r.pruned.length > 0 ? [`removed older backups: ${r.pruned.join(', ')}`] : []),
       `Restore with: buracle mem restore ${m.id} (--project SLUG | --person | --all)`,
     ].join('\n'))
-    return m.skipped !== undefined ? 2 : 0
+    return 0
   }
   if (sub === 'restore') {
     const id = a.rest[0]
@@ -59,8 +61,8 @@ export async function memDataCommand(sub: 'backup' | 'restore' | 'export' | 'imp
     if (choice === undefined) a.usage('name what to restore: --project SLUG, --person or --all (a restore replaces the brain file)')
     const r = await b.restoreBackup(id, choice)
     a.out(r, [
-      `Restored from ${r.id}: ${r.restored.map(x => (x.layer === 'person' ? 'the person brain' : `project ${x.project ?? ''}`)).join(', ')}`,
-      ...(r.safety !== undefined ? [`The files it replaced are in backup ${r.safety} (buracle mem restore ${r.safety} --all puts them back).`] : []),
+      `Restored from ${r.id}: ${r.restored.map(x => (x.all === true ? 'the whole brain file' : `${x.layer === 'person' ? 'the person brain' : `project ${x.project ?? ''}`}${x.memories !== undefined ? ` (${x.memories} memories)` : ''}`)).join(', ')}`,
+      ...(r.safety !== undefined ? [`The brain as it was before is in backup ${r.safety} (buracle mem restore ${r.safety} --all puts it back).`] : []),
       ...(r.stopped > 0 ? [`Stopped ${r.stopped} running CortexDB reader(s); their sessions start a new one at their next memory call.`] : []),
     ].join('\n'))
     return 0
@@ -93,8 +95,8 @@ export async function memDataCommand(sub: 'backup' | 'restore' | 'export' | 'imp
   const slug = a.project()
   if (slug !== undefined) {
     const { readProjectsCache, slugExclusion } = await import('../../memory/project')
-    const { brainExists, projectRef } = await import('../../memory/store')
-    if (readProjectsCache().projects[slug] === undefined && !brainExists(projectRef(slug))) a.usage(`there is no project ${slug} here; run the import in the project's folder once, or pass a known slug`)
+    const { bucketExists, projectRef } = await import('../../memory/store')
+    if (readProjectsCache().projects[slug] === undefined && !(await bucketExists(projectRef(slug)))) a.usage(`there is no project ${slug} here; run the import in the project's folder once, or pass a known slug`)
     const excluded = await slugExclusion(slug)
     if (excluded !== undefined) {
       const { MemoryError } = await import('../../memory/api')

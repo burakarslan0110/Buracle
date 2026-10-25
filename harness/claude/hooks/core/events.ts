@@ -24,13 +24,17 @@ export interface StopInput { harness: Harness; sessionId: string; cwd: string; l
 export type StopDecision = { action: 'allow' } | { action: 'block', reason: string, hook: HookId }
 export interface PromptInput { harness: Harness; sessionId: string; cwd: string; text: string; now: number }
 export type HookId = 'H01' | 'H02' | 'H03' | 'H04' | 'H05' | 'H06' | 'H07' | 'H08' | 'H09' | 'H10' | 'H11' | 'H12' | 'H13' | 'H14' | 'H15' | 'H16' | 'H17' | 'H18' | 'H19' | 'H20' | 'H21'
-  | 'H22' | 'H23' | 'H24' | 'H25' | 'H26' | 'H27' | 'H28'
+  | 'H22' | 'H23' | 'H24' | 'H25' | 'H26' | 'H28'
 
+// Hook ids are stable: a retired hook leaves a gap, and its id is never reused.
 export const HOOK_IDS: readonly HookId[] = [
   'H01', 'H02', 'H03', 'H04', 'H05', 'H06', 'H07', 'H08', 'H09', 'H10',
   'H11', 'H12', 'H13', 'H14', 'H15', 'H16', 'H17', 'H18', 'H19', 'H20', 'H21',
-  'H22', 'H23', 'H24', 'H25', 'H26', 'H27', 'H28',
+  'H22', 'H23', 'H24', 'H25', 'H26', 'H28',
 ]
+
+// Ids of hooks earlier Buracle versions had (H27 context.session came and went with Context Mode).
+export const RETIRED_HOOK_IDS = ['H27'] as const
 
 const CLAUDE_TOOLS: Readonly<Record<string, ToolKind>> = {
   Bash: 'bash', Monitor: 'bash', PowerShell: 'bash',

@@ -4,17 +4,13 @@ import { join } from 'node:path'
 import { atomicWriteSync } from '../engine/fsx'
 import { log } from '../engine/log'
 import * as paths from '../engine/paths'
-import { spawnArgv, windowsVerbatim } from '../engine/platform'
-import { idleCortex } from './cortex'
-import { EMBED_MAX_CHARS, EMBED_MAX_INPUTS, embeddingsResponse } from './embed'
+import { osName, spawnArgv, windowsVerbatim, type OsName } from '../engine/platform'
+import { closeAllCortex, idleCortex, pruneDeadReaders } from './cortex'
 import { brainDir } from './layout'
-import { reflectOverview } from './reflect-log'
-import { anySessionOpen } from './session-open'
-import { captureOff } from './spool'
 import { sameUiBuild, uiBuildId } from './ui-build'
 import { processAlive, readUiRecord, type UiRecord } from './ui-record'
-import { backupNow, deleteMemory, healStart, healthPayload, readBody, removeProjectNow, setMemoryStatus, settingsPayload, sweepNow, verifyStart } from './ui/actions'
-import { BrainCache, brainOf, errorPayload, graphOf, memoryOf, overview, parseScope, profilePayload, searchOf, UiApiError, upkeepPayload } from './ui/api'
+import { backupNow, deleteMemory, editMemory, healthPayload, readBody, removeProjectNow, setMemoryStatus, settingsPayload } from './ui/actions'
+import { BrainCache, brainOf, errorPayload, graphOf, memoryOf, overview, parseScope, searchOf, UiApiError } from './ui/api'
 import { eventStream } from './ui/events'
 import { addReviewNote, deleteReviewNote, editReviewNote, reviewDoc, reviewDocs } from './ui/review'
 import { reviewChanges } from './ui/review-changes'
@@ -30,8 +26,23 @@ const PORT_TRIES = 20
 const HOST = '127.0.0.1'
 const UI_APP = 'buracle-memory-ui'
 const CORTEX_IDLE_MS = 120_000
-export const UI_STOP_AFTER_MS = 90_000
+/** Nothing starts the UI by itself and no session ties its life, so it stops once this long has passed without a request. */
+export const UI_IDLE_MS = 30 * 60_000
 const UI_POLL_MS = 30_000
+
+/**
+ * How long the server waits without any request before it stops. BURACLE_UI_IDLE_MS sets it; BURACLE_UI_STOP_AFTER_MS, the
+ * name of an earlier release, still does when that one is absent. A value that is not a positive number is ignored.
+ */
+export function uiIdleMs(env: Readonly<Record<string, string | undefined>> = process.env): number {
+  for (const name of ['BURACLE_UI_IDLE_MS', 'BURACLE_UI_STOP_AFTER_MS']) {
+    const raw = env[name]
+    if (raw === undefined || raw.trim() === '') continue
+    const n = Number(raw)
+    if (Number.isFinite(n) && n > 0) return n
+  }
+  return UI_IDLE_MS
+}
 
 export const PAGE_CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'"
 
@@ -130,40 +141,27 @@ function asset(dir: string, name: string, req: Request): Response {
   return type === undefined ? text('not found\n', 404) : staticFile(dir, name, type, req)
 }
 
-export interface UiContext { version: string; build?: string; port: number; now: () => number; cache: BrainCache; token: string; uiDir: string }
+export interface UiContext {
+  version: string; build?: string; port: number; now: () => number; cache: BrainCache; token: string; uiDir: string
+  /** When the server last answered a request (its clock); the idle stop counts from here. */
+  lastRequestAt: number
+}
 
 export interface UiServerHandle { timeout(req: Request, seconds: number): void }
 
 export function uiContext(opts: { version: string, build?: string, port: number, now?: () => number, uiDir?: string }): UiContext {
-  const c: UiContext = { version: opts.version, port: opts.port, now: opts.now ?? Date.now, cache: new BrainCache(), token: randomBytes(24).toString('hex'), uiDir: opts.uiDir ?? UI_DIR }
+  const now = opts.now ?? Date.now
+  const c: UiContext = { version: opts.version, port: opts.port, now, cache: new BrainCache(), token: randomBytes(24).toString('hex'), uiDir: opts.uiDir ?? UI_DIR, lastRequestAt: now() }
   if (opts.build !== undefined) c.build = opts.build
   for (const name of [PAGE_FILE, REVIEW_PAGE, ...Object.keys(UI_ASSETS)]) pageFile(c.uiDir, name)
   return c
 }
 
-const WRITE_PATHS: ReadonlySet<string> = new Set(['/api/heal', '/api/sweep', '/api/verify', '/api/backup', '/api/project/remove', '/api/memory/retire', '/api/memory/restore', '/api/memory/delete', '/api/review/note/add', '/api/review/note/edit', '/api/review/note/delete', '/api/notifications/read', '/api/settings'])
+const WRITE_PATHS: ReadonlySet<string> = new Set(['/api/backup', '/api/project/remove', '/api/memory/update', '/api/memory/retire', '/api/memory/restore', '/api/memory/delete', '/api/review/note/add', '/api/review/note/edit', '/api/review/note/delete', '/api/notifications/read', '/api/settings'])
 
 const BROWSER_ONLY: ReadonlySet<string> = new Set(['/api/settings'])
 
 const TOKEN_READS: ReadonlySet<string> = new Set(['/api/review/doc', '/api/review/changes'])
-
-const EMBED_PATH = '/v1/embeddings'
-const EMBED_MAX_BODY_BYTES = EMBED_MAX_INPUTS * (EMBED_MAX_CHARS * 4 + 64)
-
-async function embeddings(req: Request): Promise<Response> {
-  const declared = Number(req.headers.get('content-length') ?? '')
-  if (Number.isFinite(declared) && declared > EMBED_MAX_BODY_BYTES) return json({ error: { message: `the body is larger than ${EMBED_MAX_BODY_BYTES} bytes`, type: 'invalid_request_error' } }, 413)
-  let body: unknown
-  try {
-    const text = await req.text()
-    if (text.length > EMBED_MAX_BODY_BYTES) return json({ error: { message: `the body is larger than ${EMBED_MAX_BODY_BYTES} bytes`, type: 'invalid_request_error' } }, 413)
-    body = JSON.parse(text)
-  } catch {
-    return json({ error: { message: 'the body is not JSON', type: 'invalid_request_error' } }, 400)
-  }
-  const r = embeddingsResponse(body)
-  return json(r.body, r.status)
-}
 
 function sameToken(sent: string | null, token: string): boolean {
   if (sent === null) return false
@@ -188,30 +186,33 @@ async function write(p: string, raw: string, req: Request, c: UiContext): Promis
   if (refused !== undefined) throw refused
   const body = await readBody(req)
   const now = c.now()
-  switch (p) {
-    case '/api/heal': return json(healStart(body, now))
-    case '/api/sweep': return json(await sweepNow(body, now))
-    case '/api/verify': return json(verifyStart(body, now))
-    case '/api/backup': return json(await backupNow(body, now))
-    case '/api/project/remove': return json(await removeProjectNow(body, now))
-    case '/api/memory/retire': return json(await setMemoryStatus(body, 'deprecated', now))
-    case '/api/memory/restore': return json(await setMemoryStatus(body, 'active', now))
-    case '/api/memory/delete': return json(await deleteMemory(body, now))
-    case '/api/review/note/add': return json(await addReviewNote(body, now))
-    case '/api/review/note/edit': return json(await editReviewNote(body, now))
-    case '/api/review/note/delete': return json(await deleteReviewNote(body, now))
-    case '/api/notifications/read': return json(markRead(body))
-    case '/api/settings': return json(await saveSetting(body))
-    default: throw new UiApiError(404, 'not_found', `there is no API at ${p}`)
+  try {
+    switch (p) {
+      case '/api/backup': return json(await backupNow(body, now))
+      case '/api/project/remove': return json(await removeProjectNow(body, now))
+      case '/api/memory/update': return json(await editMemory(body, now))
+      case '/api/memory/retire': return json(await setMemoryStatus(body, 'deprecated', now))
+      case '/api/memory/restore': return json(await setMemoryStatus(body, 'active', now))
+      case '/api/memory/delete': return json(await deleteMemory(body, now))
+      case '/api/review/note/add': return json(await addReviewNote(body, now))
+      case '/api/review/note/edit': return json(await editReviewNote(body, now))
+      case '/api/review/note/delete': return json(await deleteReviewNote(body, now))
+      case '/api/notifications/read': return json(markRead(body))
+      case '/api/settings': return json(await saveSetting(body))
+      default: throw new UiApiError(404, 'not_found', `there is no API at ${p}`)
+    }
+  } finally {
+    // A write may have changed what the brain lists, whatever the file's timestamps say: the next read lists it again.
+    c.cache.forget()
   }
 }
 
 export async function handle(req: Request, c: UiContext, server?: UiServerHandle): Promise<Response> {
+  c.lastRequestAt = c.now()
   if (!localHost(req.headers.get('host'), c.port)) return text('forbidden: only this machine may use the memory UI\n', 403)
   const url = new URL(req.url)
   let p: string
   try { p = decodeURIComponent(url.pathname) } catch { return text('bad request: the path is not valid URL encoding\n', 400) }
-  if (p === EMBED_PATH) return req.method === 'POST' ? embeddings(req) : text('method not allowed: embeddings are computed with POST\n', 405)
   if (req.method === 'POST' && WRITE_PATHS.has(p)) {
     try {
       return await write(p, url.pathname, req, c)
@@ -235,14 +236,12 @@ export async function handle(req: Request, c: UiContext, server?: UiServerHandle
     if (refused !== undefined) throw refused
     switch (p) {
       case '/api/overview': return json(await overview(c.cache, now))
-      case '/api/brain': return json(await brainOf(c.cache, parseScope(q.get('scope')), now))
-      case '/api/memory': return json(await memoryOf(parseScope(q.get('scope')), q.get('id')))
-      case '/api/search': return json(await searchOf(c.cache, parseScope(q.get('scope')), q.get('q'), now))
-      case '/api/graph': return json(await graphOf(c.cache, parseScope(q.get('scope')), q.get('region'), now))
-      case '/api/upkeep': return json(upkeepPayload(parseScope(q.get('scope'))))
-      case '/api/profile': return json(await profilePayload(c.cache, now))
+      case '/api/brain': return json(await brainOf(c.cache, await parseScope(q.get('scope')), now))
+      case '/api/memory': return json(await memoryOf(c.cache, await parseScope(q.get('scope')), q.get('id'), now))
+      case '/api/search': return json(await searchOf(c.cache, await parseScope(q.get('scope')), q.get('q'), now))
+      case '/api/graph': return json(await graphOf(c.cache, await parseScope(q.get('scope')), q.get('region'), now))
       case '/api/token': return json({ token: c.token })
-      case '/api/health': return json(await healthPayload(parseScope(q.get('scope')), now))
+      case '/api/health': return json(await healthPayload(await parseScope(q.get('scope')), now))
       case '/api/settings': return json({ ...settingsPayload(now), workflow: workflowPayload() })
       case '/api/review/docs': return json(await reviewDocs(now))
       case '/api/review/doc': return json(await reviewDoc(q.get('id'), now))
@@ -250,13 +249,9 @@ export async function handle(req: Request, c: UiContext, server?: UiServerHandle
       case '/api/sessions': return json(await sessionsPayload(now))
       case '/api/usage': return json(await usagePayload(now))
       case '/api/notifications': return json(notificationsPayload())
-      case '/api/extensions': return json(await extensionsPayload(parseScope(q.get('scope')), now))
-      case '/api/reflect': {
-        const scope = parseScope(q.get('scope'))
-        return json(reflectOverview(scope.kind === 'person' ? { kind: 'person' } : { kind: 'project', slug: scope.slug }, now))
-      }
+      case '/api/extensions': return json(await extensionsPayload(await parseScope(q.get('scope')), now))
       case '/api/events': {
-        const scope = parseScope(q.get('scope'))
+        const scope = await parseScope(q.get('scope'))
         if (req.method === 'HEAD') return new Response(null, { headers: { ...SECURITY_HEADERS, 'content-type': 'text/event-stream; charset=utf-8' } })
         server?.timeout(req, 0)
         const r = eventStream(req, scope)
@@ -306,13 +301,19 @@ export async function liveUi(): Promise<(UiRecord & { health: UiHealth }) | unde
 
 export type UiStopOutcome = 'stopped' | 'not-running' | 'unconfirmed' | 'still-running'
 
+/** The server is gone. On Windows a SIGTERM ends a process outright, so its exit handler never removed its CortexDB reader entries. */
+function serverGone(pid: number): void {
+  clearUiRecord(pid)
+  pruneDeadReaders()
+}
+
 export async function stopUi(rec: UiRecord, opts: { waitMs?: number } = {}): Promise<UiStopOutcome> {
-  if (!alive(rec.pid)) { clearUiRecord(rec.pid); return 'not-running' }
+  if (!alive(rec.pid)) { serverGone(rec.pid); return 'not-running' }
   const health = await probeUi(rec.url)
   if (health === undefined || health.pid !== rec.pid) return 'unconfirmed'
   try { process.kill(rec.pid, 'SIGTERM') } catch (e) {
     if ((e as { code?: string }).code !== 'ESRCH') return 'unconfirmed'
-    clearUiRecord(rec.pid)
+    serverGone(rec.pid)
     return 'not-running'
   }
   const deadline = Date.now() + (opts.waitMs ?? 5_000)
@@ -320,30 +321,39 @@ export async function stopUi(rec: UiRecord, opts: { waitMs?: number } = {}): Pro
     if (Date.now() >= deadline) return 'still-running'
     await Bun.sleep(50)
   }
-  clearUiRecord(rec.pid)
+  serverGone(rec.pid)
   return 'stopped'
 }
 
-export type UiStopReason = 'home-gone' | 'no-sessions'
+export type UiStopReason = 'home-gone' | 'idle'
 
 export interface ServeOptions {
   port?: number
   version: string
   build?: string
+  /** The clock (a test seam): the idle stop counts requests and waiting with it. */
   now?: () => number
+  /** How often the server checks whether it is idle (default: every 30 s, at most a third of the idle time). */
   idleEveryMs?: number
-  stopAfterMs?: number
-  sessionAtStart?: boolean
+  /** How long without a request ends the server (default {@link UI_IDLE_MS}; the CLI passes {@link uiIdleMs}). */
+  idleMs?: number
+  /** Called once the server has stopped by itself; the CLI ends its process here. */
   onStop?: (why: UiStopReason) => void
 }
 
-export function serveUi(opts: ServeOptions): { server: ReturnType<typeof Bun.serve>, record: UiRecord } {
+export interface ServedUi {
+  server: ReturnType<typeof Bun.serve>
+  record: UiRecord
+  /** Stops the server, clears its record and closes every CortexDB reader it started (so no child outlives it). Safe to call twice. */
+  stop(): Promise<void>
+}
+
+export function serveUi(opts: ServeOptions): ServedUi {
   const first = opts.port ?? DEFAULT_UI_PORT
   const build = opts.build ?? uiBuildId()
   const now = opts.now ?? Date.now
-  const stopAfterMs = opts.stopAfterMs ?? UI_STOP_AFTER_MS
-  const pollMs = opts.idleEveryMs ?? Math.min(UI_POLL_MS, Math.max(20, Math.floor(stopAfterMs / 3)))
-  const follow = !captureOff()
+  const idleMs = opts.idleMs ?? UI_IDLE_MS
+  const pollMs = opts.idleEveryMs ?? Math.min(UI_POLL_MS, Math.max(20, Math.floor(idleMs / 3)))
   let lastErr: unknown
   for (let port = first; port < first + PORT_TRIES; port++) {
     const ctx = uiContext({ version: opts.version, port, ...(build !== undefined ? { build } : {}), ...(opts.now !== undefined ? { now: opts.now } : {}) })
@@ -351,27 +361,26 @@ export function serveUi(opts: ServeOptions): { server: ReturnType<typeof Bun.ser
       const server = Bun.serve({ hostname: HOST, port, idleTimeout: 60, fetch: (req, srv) => handle(req, ctx, srv) })
       const record: UiRecord = { v: 1, pid: process.pid, port, host: HOST, url: `http://${HOST}:${port}`, startedAt: new Date().toISOString(), version: opts.version, ...(build !== undefined ? { build } : {}), brain: brainDir() }
       atomicWriteSync(paths.memoryUiStateFile(), JSON.stringify(record, null, 2) + '\n')
-      let openAt: number | undefined = opts.sessionAtStart === true ? now() : undefined
+      let stopping: Promise<void> | undefined
+      const stop = (clearRecord = true): Promise<void> => (stopping ??= (async () => {
+        clearInterval(idle)
+        if (clearRecord) clearUiRecord()
+        try { server.stop(true) } catch {  }
+        try { await closeAllCortex() } catch (e) { log('warn', 'memory ui: a CortexDB reader did not close', { error: e }) }
+      })())
       const idle = setInterval(() => {
         idleCortex(CORTEX_IDLE_MS)
         if (!existsSync(paths.buracleHome())) {
-          clearInterval(idle)
-          try { server.stop(true) } catch {  }
-          opts.onStop?.('home-gone')
+          void stop(false).then(() => opts.onStop?.('home-gone'))
           return
         }
-        if (!follow) return
-        const t = now()
-        if (anySessionOpen(t)) { openAt = t; return }
-        if (openAt === undefined || t - openAt < stopAfterMs) return
-        clearInterval(idle)
-        log('info', 'memory ui: stopping, no harness session has been open', { port, forMs: t - openAt })
-        clearUiRecord()
-        try { server.stop(true) } catch {  }
-        opts.onStop?.('no-sessions')
+        const quiet = now() - ctx.lastRequestAt
+        if (quiet < idleMs) return
+        log('info', 'memory ui: stopping, no request for a while', { port, forMs: quiet })
+        void stop().then(() => opts.onStop?.('idle'))
       }, pollMs)
       idle.unref?.()
-      return { server, record }
+      return { server, record, stop }
     } catch (e) { lastErr = e }
   }
   throw new Error(`no free port in ${first}-${first + PORT_TRIES - 1} for the memory UI (${lastErr instanceof Error ? lastErr.message : String(lastErr)})`)
@@ -399,10 +408,29 @@ export async function ensureUi(argv: string[] | undefined, opts: { port?: number
   return undefined
 }
 
+/**
+ * The command that opens a page in the browser of the person's desktop, or undefined for an address that is not http(s).
+ * Windows goes through `rundll32 url.dll,FileProtocolHandler`, which takes the address as one argument and never runs it through
+ * cmd.exe (where `&` and `%` in an address would be read as shell syntax); the address is normalised, so a space becomes %20.
+ */
+export function browserArgv(url: string, os: OsName = osName()): string[] | undefined {
+  let href: string
+  try {
+    const u = new URL(url)
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return undefined
+    href = u.href
+  } catch { return undefined }
+  if (os === 'darwin') return ['open', href]
+  if (os === 'win32') return ['rundll32', 'url.dll,FileProtocolHandler', href]
+  return ['xdg-open', href]
+}
+
 export function openInBrowser(url: string): boolean {
   try {
-    const argv = process.platform === 'darwin' ? ['open', url] : process.platform === 'win32' ? ['cmd', '/c', 'start', '""', url] : ['xdg-open', url]
-    const p = Bun.spawn(argv, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, env: { ...process.env } })
+    const argv = browserArgv(url)
+    if (argv === undefined) return false
+    const spawned = spawnArgv(argv)
+    const p = Bun.spawn(spawned, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, env: { ...process.env }, windowsVerbatimArguments: windowsVerbatim(spawned) })
     p.unref()
     return true
   } catch { return false }

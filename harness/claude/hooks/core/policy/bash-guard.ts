@@ -1,5 +1,4 @@
 import { isAbsPath, isRootPath, isWindowsPath, nativePath, normalizePath, pathRoot } from '../events'
-import { cmSelfManagement } from './cm-self'
 import type { CodeLang } from './code-scan'
 import { scanCode } from './code-scan'
 import { CONSENT_RUN_REASON, consentRunCall, isStartupFile, mentionsRelocation, renderPrintf, selfDisabling, UI_SETTINGS_REASON, uiSettingsCall } from './self-disable'
@@ -1264,8 +1263,6 @@ function checkCommand(u: Unwrapped, cmd: SimpleCommand, cx: Cx): string | undefi
   const name = commandName(argv[0])
   if (name === undefined) return undefined
   const args = argv.slice(1)
-  const cm = cmSelfManagement(name, args.map(a => a.text), [...cmd.assigns, ...before].map(w => w.text), cx.walk.env)
-  if (cm) return `${q(shown)} ${cm}`
   const native = windowsNative(name, args)
   if (native === 'disk') return `${q(shown)} formats a disk or partition and destroys its data; ask the user to run it themselves if it is really needed.`
   if (native !== undefined) return checkCommand(unwrap(native), { assigns: [], words: native, redirects: cmd.redirects }, cx)

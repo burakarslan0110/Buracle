@@ -48,7 +48,6 @@ export const COMMANDS: ReadonlyArray<readonly [string, () => Promise<Command>]> 
   ['mem', () => import('./commands/mem')],
   ['mcp', () => import('./commands/mcp')],
   ['lsp', () => import('./commands/lsp')],
-  ['ctx', () => import('./commands/ctx')],
   ['plan', () => import('./commands/plan')],
   ['flow', () => import('./commands/flow')],
   ['worktree', () => import('./commands/worktree')],
@@ -154,7 +153,7 @@ async function loadCommand(name: string): Promise<Command | undefined> {
 // Every name in COMMANDS sits in exactly one group (tests/cli/main.test.ts checks it).
 export const COMMAND_GROUPS: ReadonlyArray<readonly [string, readonly string[]]> = [
   ['Commands', ['install', 'update', 'doctor', 'config', 'rollback', 'uninstall']],
-  ['Used by your agents and hooks', ['plan', 'flow', 'worktree', 'review-scope', 'notify', 'project', 'skills', 'rules', 'mem', 'index', 'usage', 'hook', 'statusline', 'mcp', 'lsp', 'ctx', 'consent']],
+  ['Used by your agents and hooks', ['plan', 'flow', 'worktree', 'review-scope', 'notify', 'project', 'skills', 'rules', 'mem', 'index', 'usage', 'hook', 'statusline', 'mcp', 'lsp', 'consent']],
   ['Buracle development', ['build']],
 ]
 
@@ -164,6 +163,7 @@ export const REMOVED_COMMANDS: Readonly<Record<string, string>> = {
   sync: 'use `buracle install`',
   toolchain: 'use `buracle install`, `buracle update tools`, `buracle doctor tools` or `buracle rollback toolchain`',
   menu: 'run `buracle` in a terminal',
+  ctx: 'Context Mode was removed in 0.6.0',
 }
 
 export async function helpText(all = false): Promise<string> {

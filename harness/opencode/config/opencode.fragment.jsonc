@@ -49,21 +49,6 @@
       "action": "shell",
       "resource": "rm -rf $HOME/*",
       "effect": "deny"
-    },
-    {
-      "action": "context-mode_ctx_upgrade",
-      "resource": "*",
-      "effect": "deny"
-    },
-    {
-      "action": "context-mode_ctx_insight",
-      "resource": "*",
-      "effect": "deny"
-    },
-    {
-      "action": "context-mode_ctx_doctor",
-      "resource": "*",
-      "effect": "deny"
     }
   ],
   "mcp": {
@@ -101,22 +86,6 @@
           "CODEGRAPH_MCP_TOOLS": "explore,search,node,callers,callees,impact,status,files",
           "CODEGRAPH_NO_UPDATE_CHECK": "1",
           "CODEGRAPH_TELEMETRY": "0"
-        },
-        "codemode": false,
-        "timeout": {
-          "startup": 60000
-        }
-      },
-      "context-mode": {
-        "type": "local",
-        "command": [
-          "{env:HOME}/.buracle/bin/buracle",
-          "mcp",
-          "run",
-          "context-mode"
-        ],
-        "environment": {
-          "CONTEXT_MODE_PLATFORM": "opencode"
         },
         "codemode": false,
         "timeout": {

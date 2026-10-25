@@ -3,10 +3,9 @@ import { join } from 'node:path'
 import type { CatalogSkill } from '../../core/catalog'
 import { catalogMcp, catalogSkills } from '../../core/catalog'
 import type { BuracleConfig } from '../../core/config'
-import { CM_SERVER_ID } from '../../core/context-mode'
 import type { ToolCall } from '../../core/events'
 import type { McpHealth, RoutingPolicy } from '../../core/policy/routing'
-import { capabilityCard, mcpHealthOf, withDisabledServers } from '../../core/policy/routing'
+import { capabilityCard, mcpHealthOf } from '../../core/policy/routing'
 import type { CompiledTriggers, PromptRoute } from '../../core/policy/skill-router'
 import { compileTriggers, routePrompt, routeText } from '../../core/policy/skill-router'
 import type { ReminderContext, ReminderResult, UsageLedger, WorkspaceFacts } from '../../core/policy/usage'
@@ -43,17 +42,12 @@ export function readHealth(nowMs: number = Date.now()): McpHealth {
   return r.ok ? mcpHealthOf(r.value, nowMs) : {}
 }
 
-export function liveHealth(health: McpHealth, cfg: BuracleConfig): McpHealth {
-  return cfg.contextMode.enabled ? health : withDisabledServers(health, [CM_SERVER_ID])
-}
-
-export function sessionHealth(sid: string, nowMs: number, cfg: BuracleConfig): McpHealth {
-  return liveHealth(sessionMcpHealth(readHealth(nowMs), loadLedger(H, sid)), cfg)
+export function sessionHealth(sid: string, nowMs: number): McpHealth {
+  return sessionMcpHealth(readHealth(nowMs), loadLedger(H, sid))
 }
 
 export function capabilityCardText(ctx: AdapterContext, health: McpHealth = readHealth()): string {
-  const live = liveHealth(health, ctx.config)
-  const mcp = catalogMcp(ctx.canonical.mcp, H).filter(m => live[m.id] !== 'down')
+  const mcp = catalogMcp(ctx.canonical.mcp, H).filter(m => health[m.id] !== 'down')
   const plugins = ctx.canonical.plugins.claude.plugins.filter(x => x.enabled).map(x => x.id)
   const lsp = ctx.canonical.tools.tools.flatMap(t => (t.lsp !== undefined ? [t.lsp.id] : []))
   const policy: RoutingPolicy = { ...ctx.canonical.routing, strictness: ctx.config.routing.strictness }

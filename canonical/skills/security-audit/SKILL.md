@@ -13,7 +13,7 @@ when_to_use: >-
   or a question about a trust boundary, authentication, injection, secrets or the supply chain.
 invocation: implicit
 argument-hint: "[<path or scope>] [quick|standard|deep] [output to <dir>]"
-mcp: [semble, codegraph, context-mode]
+mcp: [semble, codegraph]
 short-description: Cloudflare's security-audit skill, Buracle's default security review
 ---
 
@@ -32,8 +32,8 @@ read-only agent (file reads, semble, codegraph, no shell writes) and a `general`
 also run bounded local commands in the sandbox the skill describes. Hunters, critics and verifiers are
 independent lanes: launch each wave in parallel per the *Parallel agents* rule, one agent per ledger
 unit, and never let the agent that found a candidate verify it. Navigate the source with semble
-(`search`, `find_related`) and codegraph (`codegraph_explore`, callers, impact); send long tool
-output through context-mode. The report follows the *Plain language* rule, in the language of the
+(`search`, `find_related`) and codegraph (`codegraph_explore`, callers, impact); narrow long tool
+output in the shell. The report follows the *Plain language* rule, in the language of the
 user's prompt: the findings ordered by severity, with the evidence per finding. Write nothing
 into the target repository unless the user picks an ignored directory.
 

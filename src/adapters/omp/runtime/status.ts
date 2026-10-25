@@ -129,7 +129,7 @@ export function createStatusTexts(host: StatusHost): StatusTexts {
     const width = deps.columns() > 20 ? deps.columns() - 2 : 118
     if (barStyle && deps.bar !== undefined) {
       const design = deps.bar
-      const info = await withDeadline(design.info(deps.now(), lc.config.memory.ui).catch(() => ({})), 2_000, {})
+      const info = await withDeadline(design.info(deps.now()).catch(() => ({})), 2_000, {})
       const text = guarded('bar render', () => design.render(design.lines(bar, info, { thresholds: data.status.layout.thresholds, emoji }, width, deps.now()))) ?? ''
       band = text.trim() !== '' ? text : undefined
     } else if (bandRows !== undefined) {

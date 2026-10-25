@@ -22,23 +22,6 @@ servers:
     critical: true
     routing: [code-structure]
 
-  context-mode:
-    description: Sandboxed execution and indexed search that keep large output out of context
-    transport: stdio
-    package: { registry: npm, name: context-mode, version: latest, bin: context-mode, runtime: bun, scripts: false }
-    harness_env:
-      claude: { CONTEXT_MODE_PLATFORM: claude-code }
-      codex: { CONTEXT_MODE_PLATFORM: codex }
-      opencode: { CONTEXT_MODE_PLATFORM: opencode }
-      omp: { CONTEXT_MODE_PLATFORM: omp }
-    tool_timeout_sec: 600
-    enabled_tools: [ctx_execute, ctx_execute_file, ctx_batch_execute, ctx_index, ctx_search, ctx_fetch_and_index, ctx_stats, ctx_purge]
-    disabled_tools: [ctx_upgrade, ctx_insight, ctx_doctor]
-    harnesses: [claude, codex, opencode, omp]
-    pin: latest
-    critical: true
-    routing: [context-saving]
-
   web-search:
     description: Web search without an API key (DuckDuckGo by default)
     transport: stdio

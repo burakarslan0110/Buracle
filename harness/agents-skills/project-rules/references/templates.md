@@ -129,5 +129,5 @@ cannot reach it. Adding a declaration to another harness's config makes a second
 step, so offer it and let the user decide.
 
 Buracle's own servers (`context7`, `codegraph`, `semble`, `web-search`, `web-fetch`, `grep`,
-`chrome-devtools`, `buracle-memory`, `context-mode`) are covered by Buracle's routing card in every
+`chrome-devtools`, `buracle-memory`) are covered by Buracle's routing card in every
 harness; do not repeat them here.

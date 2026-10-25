@@ -4,7 +4,7 @@ import { log } from '../../../engine/log'
 import * as paths from '../../../engine/paths'
 import { windowsVerbatim } from '../../../engine/platform'
 import { shimArgv, shimLaunch } from '../../../engine/shim'
-import { compactSeen, promptSeen, sessionStart, spawnFinalizer } from '../../../memory/session-record'
+import { promptSeen, sessionStart, spawnFinalizer } from '../../../memory/session-record'
 import { cliArgv } from '../../../memory/spawn'
 import { appendSpool } from '../../../memory/spool'
 
@@ -16,7 +16,6 @@ export interface MemoryBridge {
   append(sid: string, entries: SpoolEntry[]): void | Promise<void>
   start(sid: string, cwd: string): void | Promise<unknown>
   prompt?(sid: string): void
-  compact?(sid: string): void
   finalize(sid: string): void | Promise<unknown>
   context(cwd: string, maxBytes: number): Promise<string | undefined>
   handoff(req: HandoffRequest): Promise<string | undefined>
@@ -69,7 +68,6 @@ export const memoryBridge: MemoryBridge = {
   append: (sid, entries) => appendSpool('opencode', sid, entries),
   start: (sid, cwd) => sessionStart('opencode', sid, cwd),
   prompt: sid => { promptSeen('opencode', sid) },
-  compact: sid => { compactSeen('opencode', sid) },
   finalize: sid => { if (!spawnShimFinalizer(sid)) spawnFinalizer('opencode', sid) },
   context: async (cwd, maxBytes) => {
     const r = await runCliJson(['mem', 'context', '--harness', 'opencode', '--cwd', cwd, '--json'], { cwd, timeoutMs: 15_000 })

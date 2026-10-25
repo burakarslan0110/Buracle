@@ -1,17 +1,21 @@
 import { fill, h, icon, md } from './dom.js'
-import { count, fmtDate, kindLabel, num, reasonLabel, regionArea, regionLabel, relTime, t, tagText } from './i18n.js'
-import { memoryActions } from './manage.js'
+import { count, fmtDate, kindLabel, num, regionArea, regionLabel, relTime, t, tagText } from './i18n.js'
+import { memoryActions, memoryEditor } from './manage.js'
 
-const REASON_ORDER = ['contradicted', 'source-missing', 'capture', 'duplicate', 'source-changed', 'unverified', 'stale']
+function confidenceText(c) {
+  return typeof c === 'number' ? (Math.round(c * 100) / 100).toFixed(2) : null
+}
 
 function badges(m) {
   const out = []
   if (m.status && m.status !== 'active') out.push(h('span', { class: 'badge muted' }, t(`badge.${m.status}`)))
   if (m.unverified) out.push(h('span', { class: 'badge warn' }, t('badge.unverified')))
-  const reasons = (m.upkeep ?? []).filter(r => !(r === 'unverified' && m.unverified))
-  if (reasons.length > 0) {
-    out.push(h('span', { class: 'badge alert', title: reasons.map(reasonLabel).join(', ') }, reasonLabel(reasons[0]), reasons.length > 1 ? ` +${reasons.length - 1}` : ''))
+  if (m.origin === 'explicit') out.push(h('span', { class: 'badge' }, t('badge.explicit')))
+  if (m.origin === 'inferred') {
+    const c = confidenceText(m.confidence)
+    out.push(h('span', { class: 'badge' }, c !== null ? t('badge.inferred', { c }) : t('badge.inferredUnsure')))
   }
+  if (m.contradicts) out.push(h('span', { class: 'badge alert' }, t('badge.contradicts')))
   if (m.pinned) out.push(h('span', { class: 'badge' }, icon('pin', 'icon xs'), t('badge.pinned')))
   if (m.recallCount) out.push(h('span', { class: 'badge muted' }, icon('eye', 'icon xs'), t('badge.recalled', { n: num(m.recallCount) })))
   return out
@@ -46,7 +50,6 @@ export function regionView(body, region, items, ctx, now, filter = 'all') {
   const mine = items.filter(m => m.region === region.id)
   const sets = {
     all: mine,
-    upkeep: mine.filter(m => m.upkeep && m.upkeep.length > 0),
     unverified: mine.filter(m => m.unverified),
   }
   const list = h('div', { class: 'region-list' })
@@ -56,7 +59,7 @@ export function regionView(body, region, items, ctx, now, filter = 'all') {
     ctx.setFilter?.(f)
   }
   const chips = h('div', { class: 'filters', role: 'group', 'aria-label': t('filter.label') },
-    ['all', 'upkeep', 'unverified'].map(f => {
+    ['all', 'unverified'].map(f => {
       const b = h('button', { type: 'button', class: 'filter', 'data-filter': f, 'aria-pressed': String(f === filter) }, t(`filter.${f}`), h('b', null, num(sets[f].length)))
       b.addEventListener('click', () => showFilter(f))
       return b
@@ -80,19 +83,29 @@ function importance(n) {
   return h('span', { class: 'importance', 'aria-label': `${n} / 5` }, [1, 2, 3, 4, 5].map(k => h('i', { class: k <= n ? 'on' : '' })))
 }
 
-const PROVENANCE = ['harness', 'model', 'session', 'branch', 'commit', 'verifiedAt', 'verifiedBy', 'verifiedCommit', 'importedFrom', 'expires', 'supersededBy', 'supersededAt', 'deprecatedAt', 'version']
+const PROVENANCE = ['harness', 'model', 'session', 'branch', 'commit', 'verifiedAt', 'verifiedBy', 'verifiedCommit', 'importedFrom', 'expires', 'supersededBy', 'supersededAt', 'deprecatedAt']
 const TIME_KEYS = new Set(['verifiedAt', 'expires', 'supersededAt', 'deprecatedAt'])
 const CODE_KEYS = new Set(['session', 'commit', 'verifiedCommit', 'supersededBy', 'branch'])
 
-export function detailView(body, m, ctx) {
+function originText(m) {
+  if (m.origin === 'explicit') return t('value.explicit')
+  if (m.origin === 'inferred') return t('value.inferred')
+  return t('value.originUnknown')
+}
+
+function provenanceRows(m) {
+  const c = confidenceText(m.confidence)
   const rows = [
-    [t('field.layer'), t(`value.${m.layer}`)],
+    [t('field.scope'), m.scope?.layer === 'person' ? t('scope.person') : String(m.scope?.project ?? '')],
+    [t('field.origin'), m.origin === 'explicit' || m.origin === 'inferred' ? h('span', { class: 'badge' }, originText(m)) : originText(m)],
+    [t('field.confidence'), c !== null ? t('value.confidence', { c }) : t('value.confidenceUnknown')],
     [t('field.status'), t(`value.${m.status}`)],
     [t('field.review'), t(`value.${m.review}`)],
     [t('field.importance'), importance(m.importance)],
     [t('field.author'), t(`value.${m.author}`)],
     [t('field.created'), fmtDate(m.created)],
     [t('field.updated'), fmtDate(m.updated)],
+    [t('field.version'), String(m.version)],
   ]
   if (m.recallCount) rows.push([t('field.recalls'), t('value.times', { n: num(m.recallCount) })])
   if (m.lastRecalledAt) rows.push([t('field.lastRecalledAt'), fmtDate(m.lastRecalledAt)])
@@ -101,24 +114,70 @@ export function detailView(body, m, ctx) {
     if (v === undefined || v === '') continue
     rows.push([t(`field.${k}`), TIME_KEYS.has(k) ? fmtDate(String(v)) : CODE_KEYS.has(k) ? h('code', null, String(v)) : String(v)])
   }
+  return rows
+}
+
+function refItem(ref, ctx, note) {
+  const known = typeof ref.title === 'string'
+  const label = known ? ref.title : ref.id
+  const open = known && typeof ctx.openMemory === 'function'
+    ? h('button', { type: 'button', class: 'link', title: t('detail.openRef', { title: label }) }, label)
+    : h('code', null, label)
+  if (known && typeof ctx.openMemory === 'function') open.addEventListener('click', () => ctx.openMemory(ref.id, ctx.memoryScope))
+  return h('li', null,
+    known ? h('span', { class: 'ref-kind' }, kindLabel(ref.kind)) : null,
+    open,
+    known && ref.status && ref.status !== 'active' ? h('span', { class: 'badge muted' }, t(`badge.${ref.status}`)) : null,
+    !known ? h('span', { class: 'meta-inline' }, t('detail.refMissing')) : null,
+    note ? h('span', { class: 'meta-inline' }, note) : null)
+}
+
+function relationGroup(titleKey, list, ctx, note) {
+  if (!Array.isArray(list) || list.length === 0) return null
+  return h('div', { class: 'rel-group' }, h('h4', null, t(titleKey)), h('ul', { class: 'refs' }, list.map(x => refItem(x, ctx, note?.(x)))))
+}
+
+function relationsSection(r, ctx) {
+  if (r === undefined || r === null) return null
+  const about = (Array.isArray(r.about) ? r.about : []).map(a => h('div', { class: 'rel-group' },
+    h('h4', null, t('detail.about'), h('span', { class: 'tag' }, a.name)),
+    a.others.length > 0 ? h('ul', { class: 'refs' }, a.others.map(x => refItem(x, ctx))) : h('p', { class: 'meta' }, t('detail.aboutAlone')),
+    a.total > a.others.length ? h('p', { class: 'meta' }, t('detail.aboutMore', { n: num(a.total - a.others.length) })) : null))
+  const groups = [
+    relationGroup('detail.supersededBy', r.supersededBy ? [r.supersededBy] : [], ctx),
+    relationGroup('detail.supersedes', r.supersedes, ctx),
+    relationGroup('detail.writtenBeside', r.contradicts, ctx, x => t(`detail.why.${x.why}`)),
+    relationGroup('detail.contradictedBy', r.contradictedBy, ctx),
+    relationGroup('detail.cites', r.cites, ctx, x => t(`detail.via.${x.via}`)),
+    relationGroup('detail.citedBy', r.citedBy, ctx),
+    ...about,
+  ].filter(Boolean)
+  return section(t('detail.relations'), groups.length > 0 ? groups : empty(t('detail.noRelations')))
+}
+
+export function detailView(body, m, ctx) {
+  const canEdit = typeof ctx.memoryScope === 'string' && typeof ctx.memoryChanged === 'function'
+  const edit = canEdit ? h('button', { type: 'button', class: 'btn sm quiet', 'data-key': 'edit' }, icon('pen', 'icon xs'), t('edit.open')) : null
+  edit?.addEventListener('click', () => memoryEditor(body, m, ctx, () => {
+    detailView(body, m, ctx)
+    body.querySelector('[data-key="edit"]')?.focus()
+  }))
   const parts = [
     m.summary ? h('p', { class: 'lead' }, m.summary) : null,
     h('div', { class: 'badges' }, badges(m)),
+    edit !== null ? h('div', { class: 'btn-row' }, edit) : null,
   ]
-  if (m.upkeep && m.upkeep.length > 0) {
-    parts.push(h('section', { class: 'sec upkeep-note' },
-      h('h3', null, icon('sparkle', 'icon xs'), t('detail.upkeep')),
-      h('ul', { class: 'reasons' }, m.upkeep.map(r => h('li', null, reasonLabel(r)))),
-      m.upkeepAction ? h('p', { class: 'action' }, h('span', null, t('upkeep.action')), h('code', null, m.upkeepAction)) : null,
-      m.twin ? h('p', null, `${t('upkeep.twin')}: `, linkButton(m.twin, ctx)) : null,
-      m.files && m.files.length > 0 ? h('p', null, `${t('upkeep.files')}: `, m.files.map(f => h('code', null, f))) : null,
-      m.upkeepNote ? h('p', null, `${t('upkeep.note')}: `, h('q', null, m.upkeepNote)) : null,
+  if (m.contradicts) {
+    parts.push(h('section', { class: 'sec contradiction-note' },
+      h('h3', null, icon('alert', 'icon xs'), t('detail.contradicts')),
+      m.contradictedNote ? h('p', null, h('q', null, m.contradictedNote)) : null,
     ))
   }
   parts.push(section(t('detail.body'), m.body ? h('div', { class: 'md' }, md(m.body)) : empty(t('detail.noBody'))))
   if (m.tags.length > 0) parts.push(section(t('detail.tags'), h('div', { class: 'tags' }, m.tags.map(tg => h('span', { class: 'tag' }, tg)))))
   if (m.sources.length > 0) parts.push(section(t('detail.sources'), h('ul', { class: 'sources' }, m.sources.map(s => h('li', null, icon('file', 'icon xs'), h('code', null, s))))))
-  parts.push(section(t('detail.provenance'), h('dl', { class: 'props' }, rows.flatMap(([k, v]) => [h('dt', null, k), h('dd', null, v)]))))
+  parts.push(relationsSection(m.relations, ctx))
+  parts.push(section(t('detail.provenance'), h('dl', { class: 'props' }, provenanceRows(m).flatMap(([k, v]) => [h('dt', null, k), h('dd', null, v)]))))
   if (m.history.length > 0) {
     parts.push(section(t('detail.history'), h('ol', { class: 'history' }, [...m.history].reverse().map(e =>
       h('li', null, h('time', { datetime: e.at }, fmtDate(e.at)), h('span', { class: 'by' }, e.by), h('span', null, e.what))))))
@@ -126,104 +185,6 @@ export function detailView(body, m, ctx) {
   parts.push(memoryActions(m, ctx))
   fill(body, ...parts.filter(Boolean))
   return { kicker: `${kindLabel(m.kind)} · ${regionLabel(m.region)}`, title: m.title, region: m.region }
-}
-
-function linkButton(id, ctx) {
-  const b = h('button', { type: 'button', class: 'link' }, h('code', null, id))
-  b.addEventListener('click', () => ctx.openMemory(id))
-  return b
-}
-
-export function upkeepView(body, data, ctx, now) {
-  const head = h('p', { class: 'lead' }, t('upkeep.lead'))
-  const when = [data.at ? t('upkeep.checked', { t: relTime(data.at, now) }) : '', data.gitAt ? t('upkeep.git', { t: relTime(data.gitAt, now) }) : ''].filter(Boolean).join(' · ')
-  if (data.items.length === 0) {
-    fill(body, head, h('p', { class: 'clean' }, icon('check', 'icon'), t('upkeep.empty')), when ? h('p', { class: 'meta' }, when) : null)
-  } else {
-    const groups = REASON_ORDER.map(r => ({ r, items: data.items.filter(u => u.reasons[0] === r) })).filter(g => g.items.length > 0)
-    fill(body, head, when ? h('p', { class: 'meta' }, when) : '',
-      ...groups.map(g => section(`${reasonLabel(g.r)} · ${num(g.items.length)}`, h('ul', { class: 'mem-list' }, g.items.map(u => {
-        const b = h('button', { type: 'button', class: 'mem', 'data-region': u.region },
-          h('span', { class: 'mem-top' }, h('span', { class: 'kind' }, h('i', { class: 'dot', 'aria-hidden': 'true' }), kindLabel(u.kind)), h('span', { class: 'reasons-inline' }, u.reasons.map(reasonLabel).join(' · '))),
-          h('strong', { class: 'mem-title' }, u.title),
-          u.note ? h('span', { class: 'mem-sum' }, `${t('upkeep.note')}: `, h('q', null, u.note)) : null,
-          h('code', { class: 'action' }, u.action))
-        b.addEventListener('click', () => ctx.openMemory(u.id))
-        b.addEventListener('pointerenter', () => ctx.hoverMemory(u.id))
-        b.addEventListener('pointerleave', () => ctx.hoverMemory(null))
-        return h('li', null, b)
-      })))))
-  }
-  return { kicker: count('items', data.items.length), title: t('upkeep.title') }
-}
-
-export function profileView(body, data, ctx, now) {
-  const parts = [h('p', { class: 'lead' }, t('profile.lead'))]
-  if (data.lines.length === 0 && data.facts.length === 0 && data.preferences.length === 0) parts.push(empty(t('profile.empty')))
-  if (data.lines.length > 0) parts.push(section(t('profile.lines'), h('ul', { class: 'lines' }, data.lines.map(l => h('li', null, l)))))
-  const learned = data.facts.filter(f => !f.hypothesis)
-  const hyp = data.facts.filter(f => f.hypothesis)
-  const factList = (list) => h('ul', { class: 'facts' }, list.map(f => h('li', null,
-    h('span', null, f.title),
-    h('span', { class: 'fact-meta', lang: 'en' }, [f.category, f.confidence, f.stated ? t('profile.stated') : f.inferred ? t('profile.inferred') : ''].filter(Boolean).join(' · ')))))
-  if (learned.length > data.lines.length) parts.push(section(t('profile.facts'), factList(learned)))
-  if (hyp.length > 0) parts.push(section(t('profile.hypotheses'), factList(hyp)))
-  if (data.preferences.length > 0) parts.push(section(t('profile.preferences'), memoryList(data.preferences, { ...ctx, scopeFor: () => 'person' }, now)))
-  fill(body, ...parts)
-  return { kicker: t('scope.person'), title: t('profile.title'), region: 'self' }
-}
-
-const GUARD_ORDER = ['allowlist', 'shown-only', 'no-delete', 'no-verify', 'claims-locked', 'generated-locked', 'redacted', 'budget', 'lock-and-version', 'undo', 'local-only']
-
-export function reflectView(body, data, ctx, now) {
-  const c = data.config ?? {}
-  const picks = Array.isArray(c.harnesses) ? c.harnesses : []
-  const held = Array.isArray(c.held) ? c.held : []
-  const first = picks[0]
-  const model = first !== undefined
-    ? t('reflect.viaHarness', { harness: String(first.harness ?? '?'), model: typeof first.model === 'string' && first.model !== '' ? first.model : t('model.defaultModel') })
-    : h('span', { class: 'warn-text' }, t(held.length > 0 ? 'health.allHeld' : 'model.noneKnown'))
-  const facts = [
-    [t('reflect.model'), model],
-    [t('reflect.data'), t('reflect.local')],
-    [t('reflect.budget'), t('reflect.budgetLine', { n: num(c.runsToday ?? 0), ops: num(c.maxOpsPerRun ?? 0), q: num(c.maxSubQueries ?? 0), min: num(c.relateEveryMin ?? 0) })],
-  ]
-  const guards = GUARD_ORDER.filter(g => (data.guards ?? []).includes(g))
-  const runs = Array.isArray(data.runs) ? data.runs : []
-  const target = (o) => (o.op === 'file' && typeof o.to === 'string' && o.to.includes('-') ? o.to : o.id)
-  const opName = (op) => (t(`rop.${op}`) === `rop.${op}` ? h('code', null, String(op)) : t(`rop.${op}`))
-  const opLine = (o) => h('li', null,
-    h('span', { class: 'op' }, opName(o.op)),
-    target(o) ? linkButton(target(o), ctx) : null,
-    o.reason ? h('span', { class: 'why' }, t(`rreason.${o.reason}`)) : o.why ? h('span', { class: 'why' }, o.why) : null)
-  const runCard = (r) => {
-    const applied = Array.isArray(r.applied) ? r.applied : []
-    const planned = Array.isArray(r.planned) ? r.planned : []
-    const rejected = Array.isArray(r.rejected) ? r.rejected : []
-    const head = h('summary', null,
-      h('span', { class: 'run-top' },
-        h('time', { datetime: r.at, title: fmtDate(r.at) }, relTime(r.at, now)),
-        h('span', null, [t(`reflect.trigger.${r.trigger}`), r.harness, r.model].filter(Boolean).join(' · ')),
-        r.undone ? h('span', { class: 'badge muted' }, t('reflect.undone')) : null,
-        r.dryRun ? h('span', { class: 'badge muted' }, t('reflect.dryRun')) : null),
-      h('span', { class: 'run-sum' }, r.skipped ? t('reflect.skipped', { why: t(`rskip.${r.skipped}`) }) : t('reflect.summary', { q: num(r.subQueries ?? 0), a: num(r.dryRun ? planned.length : applied.length), r: num(rejected.length) })),
-      r.skipped && r.detail ? h('span', { class: 'run-detail', lang: 'en' }, r.detail) : null)
-    return h('li', null, h('details', { class: 'run' }, head,
-      applied.length > 0 ? h('div', { class: 'run-part' }, h('h4', null, t('reflect.applied')), h('ul', { class: 'ops' }, applied.map(opLine))) : null,
-      planned.length > 0 ? h('div', { class: 'run-part' }, h('h4', null, t('reflect.planned')), h('ul', { class: 'ops' }, planned.map(opLine))) : null,
-      rejected.length > 0 ? h('div', { class: 'run-part' }, h('h4', null, t('reflect.rejected')), h('ul', { class: 'ops rejected' }, rejected.map(opLine))) : null,
-      r.undo && !r.undone ? h('p', { class: 'action' }, h('span', null, t('reflect.undo')), h('code', null, r.undo)) : null))
-  }
-  fill(body,
-    h('p', { class: 'lead' }, t('reflect.lead')),
-    section(t('reflect.state'), h('dl', { class: 'props' }, facts.flatMap(([k, v]) => [h('dt', null, k), h('dd', null, v)]))),
-    guards.length > 0 ? section(t('reflect.guards'), h('ul', { class: 'guards' }, guards.map(g => h('li', null, icon('check', 'icon xs'), h('span', null, t(`guard.${g}`)))))) : null,
-    section(t('reflect.runs'), runs.length > 0 ? h('ul', { class: 'runs' }, runs.map(runCard)) : empty(t('reflect.none'))),
-    section(t('reflect.commands'), h('ul', { class: 'cmds' },
-      h('li', null, h('code', null, 'buracle mem reflect --dry-run'), h('span', null, t('reflect.cmd.dry'))),
-      h('li', null, h('code', null, 'buracle mem reflect --list'), h('span', null, t('reflect.cmd.list'))))),
-  )
-  return { kicker: t('reflect.auto'), title: t('reflect.title') }
 }
 
 export function searchView(body, q, items, ctx, now) {

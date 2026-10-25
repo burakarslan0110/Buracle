@@ -81,7 +81,7 @@ Track Phases 0-6 with your plan/todo tool where available (`update_plan` in Code
    needs only `bun` and `rg`.
    **Codex, OpenCode and Oh My Pi:**
    ```bash
-   bun ~/.agents/skills/dead-code/scripts/candidates.ts --root . --scope <path>
+   bun "$HOME/.agents/skills/dead-code/scripts/candidates.ts" --root . --scope <path>
    ```
    If that path does not exist, use the `scripts/` folder next to this SKILL.md.
    Options: `--mode exports|files|all`, `--lang ts,js,py,go`, `--exclude '<glob>'` (repeatable),
@@ -94,7 +94,7 @@ Track Phases 0-6 with your plan/todo tool where available (`update_plan` in Code
    toolchain Buracle installs.
    **Codex, OpenCode and Oh My Pi:**
    ```bash
-   bun ~/.agents/skills/dead-code/scripts/graph-candidates.ts --root . --scope <path> --json
+   bun "$HOME/.agents/skills/dead-code/scripts/graph-candidates.ts" --root . --scope <path> --json
    ```
    Options: `--exclude '<glob>'`, `--include-exported`, `--include-tests`, `--limit <n>`, `--help`.
    Its rows are G evidence for the candidates of step 1 and nominate symbols the text script cannot

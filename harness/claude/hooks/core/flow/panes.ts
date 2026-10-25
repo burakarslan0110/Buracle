@@ -55,7 +55,7 @@ function count(x: unknown): number {
 
 export function memoryPaneLines(status: unknown, url: string | undefined, brain: string): FlowPaneLine[] {
   const lines: FlowPaneLine[] = []
-  const s = status !== null && typeof status === 'object' && !Array.isArray(status) && (status as Record<string, unknown>)['v'] === 2 ? status as Record<string, unknown> : undefined
+  const s = status !== null && typeof status === 'object' && !Array.isArray(status) && (status as Record<string, unknown>)['v'] === 3 ? status as Record<string, unknown> : undefined
   if (s === undefined) {
     lines.push({ text: 'No memory status yet.', bold: true })
     lines.push({ text: '`buracle mem status` and memory writes create the status file.', dim: true })
@@ -65,7 +65,8 @@ export function memoryPaneLines(status: unknown, url: string | undefined, brain:
     const project = typeof s['project'] === 'string' ? s['project'] : undefined
     lines.push({ text: `memory: ${health}`, color: health === 'ok' ? 'success' : health === 'warn' ? 'warning' : 'error', bold: true })
     lines.push({ text: `${project !== undefined ? `project ${project} ${count(counts['project'])} · ` : ''}person ${count(counts['person'])}` })
-    lines.push({ text: `upkeep ${count(s['upkeep'])} · captures ${count(s['captures'])}` })
+    const last = s['last_capture'] !== null && typeof s['last_capture'] === 'object' ? (s['last_capture'] as Record<string, unknown>)['at'] : undefined
+    lines.push({ text: `inbox ${count(s['captures'])} · last capture ${typeof last === 'string' ? last.slice(0, 16).replace('T', ' ') : 'none yet'}` })
   }
   if (url !== undefined) lines.push({ text: `web UI: ${url}  (w)`, dim: true })
   lines.push({ text: `brain: ${brain}`, dim: true })

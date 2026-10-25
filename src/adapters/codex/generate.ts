@@ -1,6 +1,5 @@
 import type { CanonicalBundle } from '../../core/catalog'
 import type { BuracleConfig } from '../../core/config'
-import { CM_SERVER_ID } from '../../core/context-mode'
 import { codexAgentToml, codexAgentsBlock } from './agents'
 import { BYPASS_KEYS, codexMcpTables, codexTui, codexValueProblems, compactKeys, effortKeys, MEMORY_KEYS, renderTomlTables, routingRootKeys, teamsKeys, UPDATE_PLAN_TABLE, updatePlanTable, type CodexTui, type McpTable } from './config'
 import { renderRulesFile } from './execpolicy'
@@ -65,10 +64,7 @@ export function codexArtifacts(input: ArtifactInput): CodexArtifacts {
     mcpTables,
     tui: codexTui(c.statusline, warnings),
     rootKeys,
-    agentsBlock: codexAgentsBlock({
-      rules: c.rules, pathRulesDir: input.pathRulesDir, skillDocs: c.skills, ...refs,
-      contextMode: c.mcp.servers[CM_SERVER_ID]?.harnesses.includes('codex') === true,
-    }, warnings),
+    agentsBlock: codexAgentsBlock({ rules: c.rules, pathRulesDir: input.pathRulesDir, skillDocs: c.skills, ...refs }, warnings),
     agentFiles: [...c.agents].sort((a, b) => (a.id < b.id ? -1 : 1)).map(a => ({ id: a.id, content: codexAgentToml(a, refs, warnings) })),
     rulesFile: renderRulesFile({ ...(input.home !== undefined ? { home: input.home } : {}), shim: input.buracle }),
     pathRules: pathRuleFiles(c, warnings).map(r => ({ id: r.id, content: r.content })),

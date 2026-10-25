@@ -7,14 +7,13 @@ import { log } from '../../../engine/log'
 import { run } from '../../../engine/proc'
 import { shimLaunch } from '../../../engine/shim'
 import { appendSpool as memoryAppendSpool } from '../../../memory/spool'
-import { maybeStartTick } from '../../../memory/tick-start'
+import { promptSeen as memoryPromptSeen, sessionStart as memorySessionStart } from '../../../memory/session-record'
 
 export type { SpoolEntry }
 
 export interface MemoryBridge {
   appendSpool(sid: string, entries: SpoolEntry[]): Promise<void>
   promptSeen?(sid: string): void
-  compactSeen?(sid: string): void
   sessionStart(sid: string, cwd: string): Promise<void>
   spawnFinalizer(sid: string): Promise<void>
   contextText(cwd: string): Promise<string | undefined>
@@ -24,7 +23,10 @@ export interface MemoryBridge {
 export interface MemoryBridgeOptions {
   cli(): string[] | undefined
   append?: (h: 'omp', sid: string, entries: SpoolEntry[]) => void
-  spawnDetached?: (argv: string[]) => boolean
+  spawnDetached?: (argv: string[], env?: Record<string, string>) => boolean
+  /** Records a started session in this process (default: the memory module's own). */
+  recordStart?: (sid: string, cwd: string) => Promise<unknown>
+  touch?: (sid: string) => void
   run?: (argv: string[], opts: { timeoutMs: number, stdin?: string }) => Promise<{ code: number, stdout: string, stderr: string, timedOut: boolean }>
 }
 
@@ -40,9 +42,9 @@ export function buracleCli(shim: string, repoRoot: string | undefined): string[]
   return main !== undefined && bun !== null && isFile(main) ? [bun, main] : undefined
 }
 
-export function spawnDetached(argv: string[]): boolean {
+export function spawnDetached(argv: string[], env: Record<string, string> = {}): boolean {
   try {
-    const p = Bun.spawn(argv, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', env: process.env, detached: true })
+    const p = Bun.spawn(argv, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', env: { ...process.env, ...env }, detached: true })
     p.unref()
     return true
   } catch (e) {
@@ -61,27 +63,26 @@ export function createMemoryBridge(opts: MemoryBridgeOptions): MemoryBridge {
     logged.add(key)
     log('warn', msg, data)
   }
-  const detached = (args: string[]) => {
+  const detached = (args: string[], env?: Record<string, string>) => {
     const cli = opts.cli()
     if (cli === undefined) { once('cli', 'omp: the buracle CLI was not found; memory capture runs without it'); return }
-    spawn([...cli, ...args])
+    spawn([...cli, ...args], env)
   }
+  const recordStart = opts.recordStart ?? ((sid: string, cwd: string) => memorySessionStart('omp', sid, cwd))
+  const touch = opts.touch ?? ((sid: string) => { memoryPromptSeen('omp', sid) })
   return {
     async appendSpool(sid, entries) {
       if (entries.length === 0) return
       try { append('omp', sid, entries) } catch (e) { once('spool', 'omp: appendSpool failed', { error: e instanceof Error ? e.message : String(e) }) }
     },
     promptSeen(sid) {
-      try { maybeStartTick({ harness: 'omp', sid, trigger: 'prompt' }) } catch (e) { once('tick', 'omp: the memory tick was not woken', { error: e instanceof Error ? e.message : String(e) }) }
-    },
-    compactSeen(sid) {
-      try { maybeStartTick({ harness: 'omp', sid, trigger: 'compact' }) } catch (e) { once('tick', 'omp: the memory tick was not woken', { error: e instanceof Error ? e.message : String(e) }) }
+      try { touch(sid) } catch (e) { once('touch', 'omp: the session record was not touched', { error: e instanceof Error ? e.message : String(e) }) }
     },
     async sessionStart(sid, cwd) {
-      detached(['mem', 'start', '--harness', 'omp', '--session', sid, '--cwd', cwd])
+      try { await recordStart(sid, cwd) } catch (e) { once('start', 'omp: the session was not recorded', { error: e instanceof Error ? e.message : String(e) }) }
     },
     async spawnFinalizer(sid) {
-      detached(['mem', 'finalize', '--harness', 'omp', '--session', sid, '--detach'])
+      detached(['mem', 'finalize', '--harness', 'omp', '--session', sid], { BURACLE_FINALIZER: '1' })
     },
     async contextText(cwd) {
       const cli = opts.cli()
@@ -136,7 +137,7 @@ export function readMemoryStatus(slug: string | undefined): MemoryStatus | undef
     if (t === undefined) continue
     try {
       const v = JSON.parse(t) as unknown
-      if (v !== null && typeof v === 'object' && (v as { v?: unknown }).v === 2) return v as MemoryStatus
+      if (v !== null && typeof v === 'object' && (v as { v?: unknown }).v === 3) return v as MemoryStatus
     } catch {  }
   }
   return undefined

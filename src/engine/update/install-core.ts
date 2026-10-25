@@ -107,10 +107,32 @@ export function windowsShimContent(opts: ShimOptions): string {
   const checkoutMain = join(opts.repoRoot, 'src', 'cli', 'main.ts')
   const lines = ['@echo off', 'rem Buracle CLI shim written by `buracle install`. Re-run `buracle install` instead of editing it.', `rem buracle-shim: ${opts.runtime !== undefined ? 'frozen' : 'checkout'}`]
   if (opts.buracleHome !== undefined) lines.push(`if not defined BURACLE_HOME set "BURACLE_HOME=${opts.buracleHome}"`)
+  const deny = cmdSafe(denyJson(failClosedReason(SHIM_DENY_DETAIL)).trimEnd())
   lines.push(
     `if not exist "${main}" goto missing`,
+    // A guard hook (PreToolUse) runs like the sh shim's: stdout is held back, an exit other than 0 or 2 (a crashed bun,
+    // a missing bun.exe) is answered with the deny JSON instead, so the call is not let through.
+    'if /i not "%~1"=="hook" goto run',
+    'if /i not "%~3"=="PreToolUse" goto run',
+    'if /i "%~2"=="claude" goto guard',
+    'if /i "%~2"=="codex" goto guard',
+    ':run',
     `"${opts.bun}" "${main}" %*`,
     'exit /b %ERRORLEVEL%',
+    ':guard',
+    'setlocal',
+    'set "BURACLE_HOOK_OUT=%TEMP%\\buracle-hook-%RANDOM%%RANDOM%%RANDOM%.out"',
+    `"${opts.bun}" "${main}" %* > "%BURACLE_HOOK_OUT%"`,
+    'set "BURACLE_HOOK_RC=%ERRORLEVEL%"',
+    'if "%BURACLE_HOOK_RC%"=="0" goto guardok',
+    'if "%BURACLE_HOOK_RC%"=="2" goto guardok',
+    'del "%BURACLE_HOOK_OUT%" 2>nul',
+    `echo ${deny}`,
+    'exit /b 0',
+    ':guardok',
+    'type "%BURACLE_HOOK_OUT%"',
+    'del "%BURACLE_HOOK_OUT%" 2>nul',
+    'exit /b %BURACLE_HOOK_RC%',
     ':missing',
     'if /i "%~1"=="hook" goto hook',
   )
@@ -124,7 +146,7 @@ export function windowsShimContent(opts: ShimOptions): string {
     'if /i "%~2"=="codex" goto deny',
     'exit /b 0',
     ':deny',
-    `echo ${cmdSafe(denyJson(failClosedReason(SHIM_DENY_DETAIL)).trimEnd())}`,
+    `echo ${deny}`,
     'exit /b 0',
   )
   return lines.join('\r\n') + '\r\n'

@@ -141,7 +141,7 @@ function memVariant(bar: BarModel, nowMs: number, style: 'wide' | 'compact', emo
   } catch {
     const color: Color = s.health === 'error' ? 'red' : s.health === 'warn' ? 'yellow' : 'green'
     const own = s.project !== undefined ? s.counts?.project ?? 0 : s.counts?.person ?? 0
-    return seg('mem', `brain ${own}${(s.upkeep ?? 0) > 0 ? `·u${s.upkeep}` : ''} ${s.health === 'ok' ? '✓' : s.health === 'warn' ? '⚠' : '✗'}`, color)
+    return seg('mem', `brain ${own} ${s.health === 'ok' ? '✓' : s.health === 'warn' ? '⚠' : '✗'}`, color)
   }
 }
 

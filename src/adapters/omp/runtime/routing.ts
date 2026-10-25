@@ -1,8 +1,6 @@
 import type { CatalogMcp, CatalogSkill } from '../../../core/catalog'
 import type { BuracleConfig } from '../../../core/config'
-import { CM_SERVER_ID } from '../../../core/context-mode'
 import type { ToolCall } from '../../../core/events'
-import { cmCall } from '../../../core/policy/sandbox'
 import type { McpHealth, RoutingPolicy } from '../../../core/policy/routing'
 import type { CompiledTriggers, PromptRoute } from '../../../core/policy/skill-router'
 import { compileTriggers, ROUTE_CAPS, routePrompt, routeText } from '../../../core/policy/skill-router'
@@ -47,9 +45,9 @@ export function sessionHealth(health: McpHealth, ledger: LedgerAccess, lsid: str
   return lsid === undefined ? health : sessionMcpHealth(health, ledger.load(lsid))
 }
 
-export function recordMcpResult(ledger: LedgerAccess, lsid: string, server: string, ok: boolean, tool?: string): void {
+export function recordMcpResult(ledger: LedgerAccess, lsid: string, server: string, ok: boolean): void {
   if (ok && ledger.load(lsid).mcpErrors?.[server] === undefined) return
-  ledger.update(lsid, l => ledgerMcpResult(l, server, ok, tool))
+  ledger.update(lsid, l => ledgerMcpResult(l, server, ok))
 }
 
 export interface RouterData { compiled: CompiledTriggers; policy: RoutingPolicy }
@@ -118,7 +116,7 @@ function rootArgument(call: ToolCall): { server: string, key: string } | undefin
   const server = call.kind === 'mcp' ? call.mcp?.server : undefined
   if (server === 'semble') return { server, key: 'repo' }
   if (server === 'codegraph') return { server, key: 'projectPath' }
-  return cmCall(call)?.tool === 'ctx_index' ? { server: CM_SERVER_ID, key: 'path' } : undefined
+  return undefined
 }
 
 export function rootCheck(call: ToolCall, info: WorkspaceInfo | undefined, strictness: RoutingPolicy['strictness'], env: RootEnv): { deny?: string, context?: string } {

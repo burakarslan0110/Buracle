@@ -9,15 +9,12 @@ import type { PricingTable } from './usage'
 
 export type McpTransport = 'stdio' | 'http'
 export type PinPolicy = 'latest' | 'hard' | 'soft' | 'monitor'
-export type McpRuntime = 'node' | 'bun'
 export interface McpPackage {
   registry: 'npm' | 'pypi' | 'none'
   name: string
   version: string
   bin?: string
   extras?: string[]
-  runtime?: McpRuntime
-  scripts?: boolean
 }
 export interface McpServerSpec {
   description: string
@@ -29,8 +26,6 @@ export interface McpServerSpec {
   harness_env?: Partial<Record<Harness, Record<string, string>>>
   tool_timeout_sec?: number
   tool_timeout_hard?: boolean
-  enabled_tools?: string[]
-  disabled_tools?: string[]
   url?: string
   harnesses: Harness[]
   pin: PinPolicy
@@ -214,11 +209,9 @@ const SERVER_ID = /^[a-z0-9][a-z0-9-]*$/
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:[-+.][0-9A-Za-z.-]+)?$/
 const BIN_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
-const TOOL_NAME = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/
-const SERVER_KEYS = ['description', 'transport', 'package', 'command', 'args', 'env', 'harness_env', 'tool_timeout_sec', 'tool_timeout_hard', 'enabled_tools', 'disabled_tools', 'url', 'harnesses', 'pin', 'pin_reason', 'critical', 'routing', 'health'] as const
-const PACKAGE_KEYS = ['registry', 'name', 'version', 'bin', 'extras', 'runtime', 'scripts'] as const
+const SERVER_KEYS = ['description', 'transport', 'package', 'command', 'args', 'env', 'harness_env', 'tool_timeout_sec', 'tool_timeout_hard', 'url', 'harnesses', 'pin', 'pin_reason', 'critical', 'routing', 'health'] as const
+const PACKAGE_KEYS = ['registry', 'name', 'version', 'bin', 'extras'] as const
 const PIN_POLICIES: readonly string[] = ['latest', 'hard', 'soft', 'monitor']
-const RUNTIMES: readonly string[] = ['node', 'bun']
 
 function validateEnvMap(env: unknown, at: string, errors: string[]): void {
   if (!isObj(env)) { errors.push(`${at}: expected a mapping`); return }
@@ -227,14 +220,6 @@ function validateEnvMap(env: unknown, at: string, errors: string[]): void {
     if (typeof v !== 'string') errors.push(`${at}.${k}: expected string`)
     else if (v.includes('${') && envRef(v) === undefined) errors.push(`${at}.${k}: only whole-value "\${ENV:NAME}" forwarding is supported`)
   }
-}
-
-function validateToolList(x: unknown, at: string, errors: string[]): string[] | undefined {
-  if (!isStrArr(x) || x.length === 0) { errors.push(`${at}: expected a non-empty list of tool names`); return undefined }
-  const bad = x.filter(t => !TOOL_NAME.test(t))
-  if (bad.length > 0) errors.push(`${at}: not a tool name: ${bad.map(t => JSON.stringify(t)).join(', ')}`)
-  if (new Set(x).size !== x.length) errors.push(`${at}: duplicates`)
-  return x
 }
 
 export function validateMcpCatalog(x: unknown): string[] {
@@ -264,11 +249,6 @@ export function validateMcpCatalog(x: unknown): string[] {
         if (pkg['bin'] !== undefined && (!isStr(pkg['bin']) || !BIN_NAME.test(pkg['bin']))) errors.push(`${at}.package.bin: expected an executable name`)
         if (pkg['extras'] !== undefined && (!isStrArr(pkg['extras']) || pkg['extras'].some(e => !/^[A-Za-z0-9._-]+$/.test(e)))) errors.push(`${at}.package.extras: expected a list of extra names`)
         if (pkg['extras'] !== undefined && reg !== 'pypi') errors.push(`${at}.package.extras: only PyPI packages have extras`)
-        const runtime = pkg['runtime']
-        if (runtime !== undefined && (typeof runtime !== 'string' || !RUNTIMES.includes(runtime))) errors.push(`${at}.package.runtime: expected ${RUNTIMES.join(' | ')}`)
-        if (runtime !== undefined && reg !== 'npm') errors.push(`${at}.package.runtime: only npm packages choose a runtime`)
-        if (pkg['scripts'] !== undefined && typeof pkg['scripts'] !== 'boolean') errors.push(`${at}.package.scripts: expected boolean`)
-        if (pkg['scripts'] !== undefined && reg !== 'npm') errors.push(`${at}.package.scripts: only npm packages have lifecycle scripts to turn off`)
       }
     }
     const command = raw['command']
@@ -316,12 +296,6 @@ export function validateMcpCatalog(x: unknown): string[] {
     const hard = raw['tool_timeout_hard']
     if (hard !== undefined && typeof hard !== 'boolean') errors.push(`${at}.tool_timeout_hard: expected a boolean`)
     else if (hard === true && timeout === undefined) errors.push(`${at}.tool_timeout_hard: needs tool_timeout_sec`)
-    const enabled = raw['enabled_tools'] !== undefined ? validateToolList(raw['enabled_tools'], `${at}.enabled_tools`, errors) : undefined
-    const disabled = raw['disabled_tools'] !== undefined ? validateToolList(raw['disabled_tools'], `${at}.disabled_tools`, errors) : undefined
-    if (enabled !== undefined && disabled !== undefined) {
-      const both = disabled.filter(t => enabled.includes(t))
-      if (both.length > 0) errors.push(`${at}.disabled_tools: also in enabled_tools: ${both.join(', ')}`)
-    }
     const pin = raw['pin']
     if (typeof pin !== 'string' || !PIN_POLICIES.includes(pin)) errors.push(`${at}.pin: expected ${PIN_POLICIES.join(' | ')}`)
     if (pin === 'latest' && isObj(pkg) && isStr(pkg['version']) && pkg['version'] !== 'latest') errors.push(`${at}.package.version: a latest pin installs the newest release; write version: latest`)

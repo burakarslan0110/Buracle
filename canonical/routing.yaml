@@ -19,9 +19,9 @@ categories:
   - id: web-fetch
     intent: Read a known URL, including JavaScript-rendered pages
     prefer: [mcp:web-fetch/fetch_url]
-    fallback: [mcp:context-mode/ctx_fetch_and_index, builtin:web_fetch]
+    fallback: [builtin:web_fetch]
     deny_builtin: [web_fetch]
-    nudge: Fetch pages with the web-fetch MCP server; while it is down, use context-mode's ctx_fetch_and_index, and the built-in fetch only when both are down.
+    nudge: Fetch pages with the web-fetch MCP server, and use the built-in fetch only while it is down.
     reminder: read the page with the web-fetch MCP server (fetch_url)
 
   - id: code-examples
@@ -68,11 +68,3 @@ categories:
     deny_builtin: []
     nudge: History questions start with memory_search on the buracle-memory server.
     reminder: search memory with memory_search, then memory_get the relevant memories, and cite their ids
-
-  - id: context-saving
-    intent: Output you will process rather than read whole (logs, test and build output, data, large files, long pages)
-    prefer: [mcp:context-mode/ctx_batch_execute, mcp:context-mode/ctx_execute]
-    fallback: []
-    deny_builtin: []
-    nudge: Run commands whose output you only need to summarize, count or search in the context-mode sandbox and print only the result.
-    reminder: process large output in the context-mode sandbox (ctx_batch_execute, ctx_execute, ctx_execute_file) and print only what you need

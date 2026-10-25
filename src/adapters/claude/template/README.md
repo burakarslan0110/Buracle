@@ -33,15 +33,15 @@ For a single session while developing: `claude --plugin-dir harness/claude`.
 
 | Event | Hooks |
 |---|---|
-| SessionStart | H07 restores the plan state (after a compaction), H27 context-mode's restore of the session (after a compaction or a resume), H13 memory index, H15 capability card, H16 session upkeep, H17 profile warning and the one-time notices of this version (at startup), H21 code indexes and the memory web UI (in the background) |
-| UserPromptSubmit | H10 pause/continue intents and the `memory_search` reminder for history questions, H20 consent the user gives in their own words, H05 context warning, H27 the user's prompt for context-mode's session store |
-| PreToolUse | Bash/Monitor/PowerShell: H01 destructive-command guard (denies when it fails), H20 consent gate, H03 `grep -r` advice; write tools: H02 write guard (denies when it fails); WebSearch/WebFetch: H03 routing; AskUserQuestion: H09; context-mode's tools: H01/H02 on every command and all code its sandbox would run (denies when it fails), H20 for each of those commands, and a `ctx_execute` or `ctx_batch_execute` call without `cwd` runs in the session folder; SubagentHandback: H19 checks a review agent's handed-back report (auto mode) and denies an invalid one once; every answer that does not deny a main-agent call carries the H05 context warning once per band |
-| PostToolUse | Write tools: H04 file checks; ExitPlanMode: H12 saves the plan under `docs/plans/`; TodoWrite and the task tools: open work for the handoff note; shell, web and MCP tools: H14 spool (in the background); the tools context-mode records: H27 |
-| PostToolUseFailure | Buracle's MCP tools: H24 (two failures in a row and the server is down for the session); the built-in tools: H27 |
-| PreCompact / PostCompact | H06 handoff note (without one, the open todos stay in the session's record for H07) and H27 context-mode's snapshot / H14 compaction summary |
+| SessionStart | H07 restores the plan state (after a compaction), H13 memory index, H15 capability card, H16 session upkeep, H17 profile warning and the one-time notices of this version (at startup), H21 code indexes (in the background) |
+| UserPromptSubmit | H10 pause/continue intents and the `memory_search` reminder for history questions, H20 consent the user gives in their own words, H05 context warning |
+| PreToolUse | Bash/Monitor/PowerShell: H01 destructive-command guard (denies when it fails), H20 consent gate, H03 `grep -r` advice; write tools: H02 write guard (denies when it fails); WebSearch/WebFetch: H03 routing; AskUserQuestion: H09; SubagentHandback: H19 checks a review agent's handed-back report (auto mode) and denies an invalid one once; every answer that does not deny a main-agent call carries the H05 context warning once per band |
+| PostToolUse | Write tools: H04 file checks; ExitPlanMode: H12 saves the plan under `docs/plans/`; TodoWrite and the task tools: open work for the handoff note; shell, web and MCP tools: H14 spool (in the background) |
+| PostToolUseFailure | Buracle's MCP tools: H24 (two failures in a row and the server is down for the session) |
+| PreCompact / PostCompact | H06 handoff note (without one, the open todos stay in the session's record for H07) / H14 compaction summary |
 | Stop | H08 + H11 stop guard (until the plan is VERIFIED), H14 answer excerpt |
 | SubagentStop | H19 validates the review agents' JSON report (skipped for a reviewer that already handed back through SubagentHandback) |
-| SessionEnd | H14 memory finalizer, H16 upkeep (context-mode's old session data included) |
+| SessionEnd | H14 memory finalizer, H16 upkeep |
 
 In Buracle's review agents (`buracle:*-review`) the shell is read-only (rg, git diff/log/show,
 `buracle review-scope` …); commands that change anything are denied.
@@ -60,7 +60,6 @@ delete it") or by answering the question the denial told the agent to ask.
 | `command.run` `/buracle:<workflow>`, `turn.start` | Record the start in `flow.json` (H25 flow.track), so the band shows at once; the command runs as typed. |
 | `tool.call` Skill, Agent, TodoWrite, TaskCreate, TaskUpdate | Feed the band: a workflow skill the model loaded (nested), subagents (a background one until its turn ends), the todo in progress. |
 | `tool.call` Bash/Monitor/PowerShell | In an interactive session, asks right away about a command the consent gate would stop ("Allow once", "Allow for this session", "Refuse") and writes the answer to the consent record the command hook reads. Tracks commands and their results for the turn receipt and the loop alarms; a `buracle flow` or `buracle plan` command refreshes the band. |
-| `tool.call` context-mode's `ctx_execute`, `ctx_execute_file`, `ctx_batch_execute` | The same consent dialog for the commands the sandbox would run: one question per kind of consent the call still needs; "Allow once" covers each of its commands. |
 | `tool.call` write tools | Track edits for the turn receipt (file, +/− lines) and the "same change undone and redone" alarm; an edit of the bound plan file refreshes the band. |
 | `tool.call` read and MCP tools | With `guards.redact` on, mask secrets (keys, tokens) in tool output before the model reads it. |
 | `turn.complete` | The turn receipt: a toast for unverified changes, a failed check or a success claim without evidence; after an edit-only turn, the suggestion "run the checks …" (Tab takes it); a native notification when a turn longer than `workflow.notifyAfterSec` ends. |
@@ -79,22 +78,21 @@ The mod answers only the names Claude Code accepted; a refused name goes to its 
 **Panes:** memory (`buracle-memory`) and plan (`buracle-plan`, also the band's "details").
 
 The status line is not the mod's: `buracle statusline claude` draws it (two lines: model, context
-bar, 5-hour and 7-day usage; Buracle and Claude Code versions and the memory web UI link).
+bar, 5-hour and 7-day usage; Buracle and Claude Code versions and, while it runs, the memory web UI link).
 
 ## Files it reads and writes
 
 - Reads: `~/.buracle/state/runtime-config.json` (settings), `state/memory-ui.json` (the web UI's
-  address), `state/memory/status/_global.json` (memory pane), `sessions/claude/<session>/state.json`
+  address, while it runs), `state/memory/status/_global.json` (memory pane), `sessions/claude/<session>/state.json`
   (plan), `sessions/claude/<session>/flow.json` (the band) and the bound plan file.
 - Writes: `~/.buracle/sessions/claude/<session>/consent.json` (consent),
   `sessions/claude/<session>/flow.json` (workflow starts), a memory capture (`/remember`).
 
 The command hooks also write `sessions/claude/<session>/{state.json,telemetry.json,work.json}`,
-`state/memory/spool/`, `context-mode/claude/` (context-mode's session store, through
-`buracle ctx session`), handoff memories in the project's brain (`~/.buracle/brain`) and
+`state/memory/spool/`, handoff memories in the project's brain (`~/.buracle/brain`) and
 `docs/plans/` in the project; `buracle flow` and `buracle plan` keep `flow.json` current.
-`BURACLE_HOME` moves these paths. `BURACLE_NO_CAPTURE=1` turns memory capture off (context-mode's
-too), `BURACLE_NO_AUTOSTART=1` the background indexes and the web UI.
+`BURACLE_HOME` moves these paths. `BURACLE_NO_CAPTURE=1` turns memory capture off,
+`BURACLE_NO_AUTOSTART=1` the background indexes. Nothing starts the web UI by itself: it runs after `buracle mem ui`.
 
 ## Known limits
 

@@ -1,6 +1,6 @@
 {
   "name": "buracle",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "private": true,
   "type": "module",
   "description": "Everything your coding agents need, in one place: one setup for Claude Code, Codex CLI, OpenCode and Oh My Pi",

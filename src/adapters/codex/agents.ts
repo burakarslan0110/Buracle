@@ -1,5 +1,4 @@
 import type { AgentDoc, RuleDoc, SkillDoc } from '../../core/catalog'
-import { cmToolName } from '../../core/context-mode'
 import { tomlValue } from '../../engine/merge'
 import { renderMarkdown } from '../shared/render'
 import { pathGlobs } from '../shared/rules'
@@ -53,7 +52,6 @@ export interface AgentsBlockInput {
   skills?: readonly string[]
   agents?: readonly string[]
   skillDocs?: readonly SkillDoc[]
-  contextMode?: boolean
 }
 
 export function codexWorkflowForms(skills: readonly SkillDoc[]): string[] {
@@ -62,7 +60,7 @@ export function codexWorkflowForms(skills: readonly SkillDoc[]): string[] {
     .map(s => s.id).sort().map(id => `\`$${id}\``)
 }
 
-export function codexCommandsSection(skills: readonly SkillDoc[], opts: { contextMode?: boolean } = {}): string {
+export function codexCommandsSection(skills: readonly SkillDoc[]): string {
   const forms = codexWorkflowForms(skills)
   return [
     '# Buracle commands in Codex',
@@ -72,7 +70,6 @@ export function codexCommandsSection(skills: readonly SkillDoc[], opts: { contex
     '- `/brain`: `buracle mem ui --open` starts the brain web UI and opens it.',
     '- `/brain review`: `buracle mem ui --open --page review` opens the review page, where the user reads plans, build contracts, PRDs and your changes and pins notes to them; `buracle plan notes --json` reads the open notes.',
     '- `/buracle-status`: `buracle plan status --json`, `buracle flow status` and `buracle mem status` show the plan, the running workflow and the memory.',
-    ...(opts.contextMode === true ? [`- What context-mode kept out of the context (the other harnesses show it in the status line): call \`${cmToolName('codex', 'ctx_stats')}\`, or run \`buracle ctx stats --harness codex\` in the project folder.`] : []),
     '- `/aside <question>`: Codex\'s own `/side` asks a side question without changing this conversation.',
   ].join('\n')
 }
@@ -93,7 +90,7 @@ export function codexAgentsBlock(input: AgentsBlockInput, warnings: string[] = [
     '- Without the MCP server, use the CLI twins: `buracle mem search "<q>"`, `buracle mem get <id>`, `buracle mem remember -- "<text>"`.',
     '- Codex\'s own memories feature stays off and nothing is written to `~/.codex/memories`; Buracle\'s brain is the single memory.',
   ].join('\n'))
-  parts.push(codexCommandsSection(input.skillDocs ?? [], { contextMode: input.contextMode === true }))
+  parts.push(codexCommandsSection(input.skillDocs ?? []))
   if (paths.length > 0) {
     const rows = paths.map(r => {
       const globs = pathGlobs(r).map(g => `\`${shortGlob(g)}\``).join(', ')

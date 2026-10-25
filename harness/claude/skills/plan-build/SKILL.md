@@ -90,7 +90,7 @@ Any other message during a run is steering: answer briefly, fold it into the pla
 
 ## Tool routing
 
-Follow *Tool routing (strict)* in your rules (it lists the fallbacks): semble for code by intent (`find_related` for similar code), codegraph for callers and blast radius, `rg` for exact strings, context7 for library APIs at the installed version, web-search then web-fetch for web facts, grep for public usage of an API, buracle-memory (`memory_search`, then `memory_get`) for earlier decisions, chrome-devtools for web UIs, context-mode (`ctx_batch_execute`, `ctx_execute`) for long test, build and log output, printing the counts and every failure.
+Follow *Tool routing (strict)* in your rules (it lists the fallbacks): semble for code by intent (`find_related` for similar code), codegraph for callers and blast radius, `rg` for exact strings, context7 for library APIs at the installed version, web-search then web-fetch for web facts, grep for public usage of an API, buracle-memory (`memory_search`, then `memory_get`) for earlier decisions, chrome-devtools for web UIs, and the shell with the output narrowed for long test, build and log output, keeping the counts and every failure.
 
 Read the line ranges you need, not whole large files. An empty search result is not proof of absence: rephrase once or switch tools. If a server is down, use the fallback and say so in the report.
 

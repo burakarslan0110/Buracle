@@ -1,5 +1,4 @@
 import type { CommandIO } from '../router'
-import type { McpCatalog } from '../../core/catalog'
 import type { BuracleConfig } from '../../core/config'
 import type { Harness } from '../../core/events'
 import { HARNESSES, isHarness } from '../../core/events'
@@ -13,11 +12,12 @@ import {
 import * as paths from '../../engine/paths'
 import { writeHealth } from '../../engine/update/mcp'
 import { errText, table, writeJson } from '../../engine/update/output'
+import { progressSteps } from '../ui/steps'
 import { heading, makeStyle, colorLevel, padEnd, type Style } from '../ui/style'
 
 export const name = 'doctor'
-export const summary = 'Health checks: config, tools, harness adapters and their hooks, MCP and LSP handshakes, Context Mode, memory, code indexes and the update cache'
-export const usage = `Usage: buracle doctor [<harness>|runtime|mcp|lsp|tools|memory|index|config|context-mode] [--json]
+export const summary = 'Health checks: config, tools, harness adapters and their hooks, MCP and LSP handshakes, memory, code indexes and the update cache'
+export const usage = `Usage: buracle doctor [<harness>|runtime|mcp|lsp|tools|memory|index|config] [--json]
 
 Without a topic every section runs:
   config   ~/.buracle/config.yaml, canonical/ data, runtime-config.json, shim (and what it
@@ -46,17 +46,8 @@ Without a topic every section runs:
            ~/.buracle/state/health.json, which routing enforcement and the capability card read
   lsp      start every language server (Buracle's toolchain copy) and run the LSP
            initialize handshake, each within 30 s
-  context-mode
-           Context Mode: the toolchain copy and its version, Bun, the smoke test of its
-           session library, ~/.buracle/context-mode, the contextMode switches, the last
-           MCP handshake (its tool list), context-mode installed outside Buracle (its own
-           Claude Code, Codex, OpenCode or omp plugin, its server in Claude Code's or omp's
-           MCP config, stray hooks, a global CLI) and its telemetry file (platform.json in
-           ~/.context-mode, $XDG_CONFIG_HOME/context-mode or %APPDATA%\\context-mode), which
-           only context-mode's hook scripts (in its Claude Code and Codex plugins) read: a warning, an error beside
-           an install that runs them. Read-only.
-  memory   \`buracle mem doctor\` (CortexDB, the project and person brains, upkeep, the
-           cross-project leak check, the MCP server, the old vault's import)
+  memory   \`buracle mem doctor\` (CortexDB, the project and person brains, the sessions whose
+           capture is owed, the cross-project leak check, the MCP server, the old vault's import)
   index    the codegraph and semble indexes of the project in the current folder (or of
            each child project of a folder of projects), as \`buracle index status\` shows them
   updates  age of the \`buracle update --check\` cache
@@ -67,7 +58,7 @@ Options:
 
 Exit codes: 0 all ok, 1 errors, 2 warnings.`
 
-const TOPICS = ['runtime', 'mcp', 'lsp', 'tools', 'memory', 'index', 'config', 'context-mode'] as const
+const TOPICS = ['runtime', 'mcp', 'lsp', 'tools', 'memory', 'index', 'config'] as const
 const HANDSHAKE_TIMEOUT_MS = 30_000
 
 const REMOVED_FLAGS: Readonly<Record<string, string>> = {
@@ -75,17 +66,6 @@ const REMOVED_FLAGS: Readonly<Record<string, string>> = {
   'no-lsp': 'run `buracle doctor <topic>` for the sections you want',
   live: 'a harness topic runs the liveness probes: `buracle doctor claude`',
   timeout: 'every handshake waits up to 30 s',
-}
-
-export async function contextModeSection(cfg: BuracleConfig, catalog: McpCatalog | undefined, nowMs: number): Promise<DoctorCheck[]> {
-  try {
-    const { contextModeChecks } = await import('../../engine/update/context-mode-doctor')
-    const o: Parameters<typeof contextModeChecks>[0] = { config: cfg, nowMs }
-    if (catalog !== undefined) o.catalog = catalog
-    return await contextModeChecks(o)
-  } catch (e) {
-    return [{ section: 'context-mode', level: 'warn', check: 'context-mode', detail: `the checks could not run: ${errText(e)}` }]
-  }
 }
 
 export async function indexSection(cwd: string, cfg: BuracleConfig, nowMs: number): Promise<DoctorCheck[]> {
@@ -125,58 +105,73 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
   const repoRoot = paths.isFrozenRuntime() ? (paths.checkoutRoot() ?? opsDeps.repoRoot()) : opsDeps.repoRoot()
   const live = liveContext(repoRoot)
   const bundle = loadBundle(repoRoot)
-  const wants = (section: 'config' | 'runtime' | 'tools' | 'harness' | 'mcp' | 'lsp' | 'context-mode' | 'memory' | 'index' | 'updates'): boolean => {
+  const wants = (section: 'config' | 'runtime' | 'tools' | 'harness' | 'mcp' | 'lsp' | 'memory' | 'index' | 'updates'): boolean => {
     if (topic === undefined) return true
     if (isHarness(topic)) return section === 'config' || section === 'runtime' || section === 'harness'
     return topic === section
   }
   const checks: DoctorCheck[] = []
   const nowIso = () => new Date(opsDeps.now()).toISOString()
-  if (wants('config')) checks.push(...configChecks(live, bundle, repoRoot))
-  if (wants('runtime')) checks.push(...await runtimeChecks(repoRoot, bundle, opsDeps.now()))
-  if (wants('tools')) {
-    if ('bundle' in bundle) {
-      const { toolApplies } = await import('../../engine/toolchain/system')
-      const tools = bundle.bundle.tools.tools.filter(t => toolApplies(t))
-      const results = await checkTools(tools)
-      checks.push(...toolChecks(tools, results))
-      const { readToolchainState } = await import('../../engine/toolchain/state')
-      checks.push(...toolchainChecks(readToolchainState()))
-      if (!live.config.toolchain.autoInstall) checks.push({ section: 'tools', level: 'info', check: 'toolchain.autoInstall', detail: 'off: `buracle install` skips the toolchain, so the advice above installs nothing until `buracle config set toolchain.autoInstall true`' })
-      try { writeHealth({ tools: toolHealth(results, nowIso()) }, nowIso()) } catch {  }
-    } else checks.push({ section: 'tools', level: 'error', check: 'tools.yaml', detail: 'canonical data could not be loaded' })
+  // One rolling line names the section that runs (the handshakes take up to 30 s); it is gone before the report.
+  const steps = progressSteps(io, json)
+  let working = false
+  const checking = (what: string): void => {
+    if (!steps.live) return
+    if (working) steps.list.update('doctor', `Checking ${what}…`)
+    else { steps.list.start('doctor', `Checking ${what}…`); working = true }
   }
-  if (wants('harness') && 'bundle' in bundle) {
-    const enabled = (h: Harness) => live.config.harnesses[h].enabled && (!isHarness(topic) || topic === h)
-    const ids = bundle.bundle.skills.filter(s => s.frontmatter['harnesses'] === undefined || !Array.isArray(s.frontmatter['harnesses']) || (s.frontmatter['harnesses'] as unknown[]).length > 0).map(s => s.id)
-    checks.push(...skillChecks(ids, repoRoot, { claude: enabled('claude'), shared: enabled('codex') || enabled('opencode') || enabled('omp') }))
-  }
-  if (wants('harness')) {
-    try {
-      const adapters = await opsDeps.adapters()
-      checks.push(...await withLiveProbes(isHarness(topic), () => harnessChecks(adapters, live, isHarness(topic) ? (topic as Harness) : undefined)))
-    } catch (e) {
-      checks.push({ section: 'harness', level: 'error', check: 'adapters', detail: errText(e) })
+  try {
+    if (wants('config')) { checking('configuration'); checks.push(...configChecks(live, bundle, repoRoot)) }
+    if (wants('runtime')) { checking('the runtime'); checks.push(...await runtimeChecks(repoRoot, bundle, opsDeps.now())) }
+    if (wants('tools')) {
+      checking('tools')
+      if ('bundle' in bundle) {
+        const { toolApplies } = await import('../../engine/toolchain/system')
+        const tools = bundle.bundle.tools.tools.filter(t => toolApplies(t))
+        const results = await checkTools(tools)
+        checks.push(...toolChecks(tools, results))
+        const { readToolchainState } = await import('../../engine/toolchain/state')
+        checks.push(...toolchainChecks(readToolchainState()))
+        if (!live.config.toolchain.autoInstall) checks.push({ section: 'tools', level: 'info', check: 'toolchain.autoInstall', detail: 'off: `buracle install` skips the toolchain, so the advice above installs nothing until `buracle config set toolchain.autoInstall true`' })
+        try { writeHealth({ tools: toolHealth(results, nowIso()) }, nowIso()) } catch {  }
+      } else checks.push({ section: 'tools', level: 'error', check: 'tools.yaml', detail: 'canonical data could not be loaded' })
     }
-  }
-  if (wants('mcp')) {
-    if ('bundle' in bundle) checks.push(...await runMcpDoctor(bundle.bundle.mcp, HANDSHAKE_TIMEOUT_MS))
-    else checks.push({ section: 'mcp', level: 'error', check: 'mcp.yaml', detail: 'canonical data could not be loaded' })
-  }
-  if (wants('lsp')) {
-    try {
-      const { checkLspServers } = await import('./lsp')
-      for (const r of await checkLspServers([], HANDSHAKE_TIMEOUT_MS)) {
-        checks.push({ section: 'lsp', level: r.status === 'ok' ? 'ok' : r.required ? 'error' : 'warn', check: r.id, detail: r.detail })
+    if (wants('harness')) checking('the harnesses')
+    if (wants('harness') && 'bundle' in bundle) {
+      const enabled = (h: Harness) => live.config.harnesses[h].enabled && (!isHarness(topic) || topic === h)
+      const ids = bundle.bundle.skills.filter(s => s.frontmatter['harnesses'] === undefined || !Array.isArray(s.frontmatter['harnesses']) || (s.frontmatter['harnesses'] as unknown[]).length > 0).map(s => s.id)
+      checks.push(...skillChecks(ids, repoRoot, { claude: enabled('claude'), shared: enabled('codex') || enabled('opencode') || enabled('omp') }))
+    }
+    if (wants('harness')) {
+      try {
+        const adapters = await opsDeps.adapters()
+        checks.push(...await withLiveProbes(isHarness(topic), () => harnessChecks(adapters, live, isHarness(topic) ? (topic as Harness) : undefined)))
+      } catch (e) {
+        checks.push({ section: 'harness', level: 'error', check: 'adapters', detail: errText(e) })
       }
-    } catch (e) {
-      checks.push({ section: 'lsp', level: 'error', check: 'lsp', detail: errText(e) })
     }
+    if (wants('mcp')) {
+      checking('MCP servers')
+      if ('bundle' in bundle) checks.push(...await runMcpDoctor(bundle.bundle.mcp, HANDSHAKE_TIMEOUT_MS))
+      else checks.push({ section: 'mcp', level: 'error', check: 'mcp.yaml', detail: 'canonical data could not be loaded' })
+    }
+    if (wants('lsp')) {
+      checking('language servers')
+      try {
+        const { checkLspServers } = await import('./lsp')
+        for (const r of await checkLspServers([], HANDSHAKE_TIMEOUT_MS)) {
+          checks.push({ section: 'lsp', level: r.status === 'ok' ? 'ok' : r.required ? 'error' : 'warn', check: r.id, detail: r.detail })
+        }
+      } catch (e) {
+        checks.push({ section: 'lsp', level: 'error', check: 'lsp', detail: errText(e) })
+      }
+    }
+    if (wants('memory')) { checking('memory'); checks.push(...await memoryChecks()) }
+    if (wants('index')) { checking('code indexes'); checks.push(...await indexSection(process.cwd(), live.config, opsDeps.now())) }
+    if (wants('updates')) checks.push(...updateChecks(opsDeps.now()))
+  } finally {
+    steps.stop()
   }
-  if (wants('context-mode')) checks.push(...await contextModeSection(live.config, 'bundle' in bundle ? bundle.bundle.mcp : undefined, opsDeps.now()))
-  if (wants('memory')) checks.push(...await memoryChecks())
-  if (wants('index')) checks.push(...await indexSection(process.cwd(), live.config, opsDeps.now()))
-  if (wants('updates')) checks.push(...updateChecks(opsDeps.now()))
 
   const code = doctorExit(checks)
   const count = (l: DoctorCheck['level']) => checks.filter(c => c.level === l).length
@@ -198,7 +193,7 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
 
 const SECTION_TITLE: Readonly<Record<string, string>> = {
   config: 'Configuration', runtime: 'Runtime', tools: 'Tools', skills: 'Skills', claude: 'Claude Code', codex: 'Codex', opencode: 'OpenCode', omp: 'Oh My Pi',
-  mcp: 'MCP servers', lsp: 'Language servers', 'context-mode': 'Context Mode', memory: 'Memory', index: 'Code indexes', updates: 'Updates', harness: 'Harnesses',
+  mcp: 'MCP servers', lsp: 'Language servers', memory: 'Memory', index: 'Code indexes', updates: 'Updates', harness: 'Harnesses',
 }
 
 export function styledReport(st: Style, checks: readonly DoctorCheck[], columns: number): string {

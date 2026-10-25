@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { basename, isAbsolute, join, relative, sep } from 'node:path'
-import { parse as parseYaml } from 'yaml'
+import { parseYaml } from '../engine/yaml'
 import { CORE_SECTIONS, coreId, isMemKind, memoryIdFor, type MemItem, type MemKind, type MemLayer } from '../core/memory/brain'
 import { memIsSlug, parseNote } from '../core/memory/note'
 import { memClip, memOneLine, redact } from '../core/memory/text'
@@ -9,7 +9,7 @@ import { log } from '../engine/log'
 import * as paths from '../engine/paths'
 import { vaultImportFile } from './layout'
 import { oldVaultDir } from './project'
-import { listAll, personRef, projectRef, recordEvent, saveItem, withBrainLock, type BrainRef } from './store'
+import { listAll, personRef, projectRef, recordEvent, refKey, saveItem, withBrainLock, type BrainRef } from './store'
 
 export interface VaultImportReport {
   vault: string
@@ -160,9 +160,9 @@ export async function importVault(opts: { vault?: string, dryRun?: boolean, nowM
   const groups = new Map<string, { ref: BrainRef, items: Candidate[] }>()
   for (const c of list) {
     const ref = c.layer === 'person' ? personRef() : projectRef(c.project as string)
-    const g = groups.get(ref.db) ?? { ref, items: [] }
+    const g = groups.get(refKey(ref)) ?? { ref, items: [] }
     g.items.push(c)
-    groups.set(ref.db, g)
+    groups.set(refKey(ref), g)
   }
   for (const { ref, items } of groups.values()) {
     await withBrainLock(ref, async () => {

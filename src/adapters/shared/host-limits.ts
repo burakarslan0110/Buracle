@@ -77,7 +77,7 @@ export const HOST_LIMITS: readonly HostLimit[] = [
   },
   {
     id: 'codex.summary-keep-list', harness: 'codex', feature: 'summaryKeepList', kind: 'partial', checkedOn: '0.162.1',
-    reason: '`compact_prompt` steers only local compaction; the OpenAI, Azure and Bedrock providers compact on the server and ignore it', fallback: 'the handoff memory and the H07 and H27 restores carry the state over',
+    reason: '`compact_prompt` steers only local compaction; the OpenAI, Azure and Bedrock providers compact on the server and ignore it', fallback: 'the handoff memory and the H07 restore carry the state over',
     recheck: 'the compaction path of the Codex source for remote providers',
   },
   {

@@ -3,7 +3,6 @@ import { catalogMcp, catalogSkills, envRef, expandMcpCommand, mcpEnvFor } from '
 import type { HookId } from '../../core/events'
 import { HOOK_IDS } from '../../core/events'
 import { pathRuleIndex } from '../../core/policy/path-rules'
-import { harnessMcpToolName } from '../../core/policy/routing'
 import { sha256 } from '../../engine/fsx'
 import { stableStringify } from '../../engine/merge'
 import {
@@ -182,23 +181,15 @@ export function opencodeServers(canonical: CanonicalBundle, shim: string): Array
   })
 }
 
-export function mcpDenyRules(canonical: CanonicalBundle): PermissionRule[] {
-  return Object.keys(canonical.mcp.servers).sort().flatMap(id => {
-    const spec = canonical.mcp.servers[id]
-    if (spec === undefined || !spec.harnesses.includes('opencode')) return []
-    return (spec.disabled_tools ?? []).map((tool): PermissionRule => ({ action: harnessMcpToolName('opencode', id, tool), resource: '*', effect: 'deny' }))
-  })
-}
-
-export function configPermissions(canonical: CanonicalBundle): PermissionRule[] {
-  return [...GLOBAL_PERMISSIONS.map(r => ({ ...r })), ...mcpDenyRules(canonical)]
+export function configPermissions(): PermissionRule[] {
+  return GLOBAL_PERMISSIONS.map(r => ({ ...r }))
 }
 
 export function configSet(canonical: CanonicalBundle, shim: string): Record<string, unknown> {
   const set: Record<string, unknown> = {
     '$schema': CONFIG_SCHEMA_URL,
     share: 'disabled',
-    permissions: configPermissions(canonical),
+    permissions: configPermissions(),
   }
   for (const [id, entry] of opencodeServers(canonical, shim)) set[`mcp.servers.${id}`] = entry
   return set
@@ -207,7 +198,7 @@ export function configSet(canonical: CanonicalBundle, shim: string): Record<stri
 export function configFragmentText(canonical: CanonicalBundle, shim: string): string {
   const servers: Record<string, unknown> = {}
   for (const [id, entry] of opencodeServers(canonical, shim)) servers[id] = entry
-  const doc = { $schema: CONFIG_SCHEMA_URL, share: 'disabled', permissions: configPermissions(canonical), mcp: { servers } }
+  const doc = { $schema: CONFIG_SCHEMA_URL, share: 'disabled', permissions: configPermissions(), mcp: { servers } }
   return [
     '// Buracle keys for ~/.config/opencode/opencode.jsonc (OpenCode v2). `buracle install` merges them key by key',
     '// (mcp.servers.<id>, permissions, share, $schema) and keeps every other key and comment of the user.',

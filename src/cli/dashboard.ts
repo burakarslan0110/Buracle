@@ -1,12 +1,13 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { McpCatalog, McpServerSpec, ToolSpec } from '../core/catalog'
 import type { BuracleConfig } from '../core/config'
-import { CM_SERVER_ID } from '../core/context-mode'
 import { HARNESSES, type Harness } from '../core/events'
 import * as paths from '../engine/paths'
 import { spawnArgv, windowsVerbatim } from '../engine/platform'
 import type { HealthFile } from '../engine/update/mcp'
+import { errText } from '../engine/update/output'
+import { staleServers, staleTools, updatesStale, type Verifier } from '../engine/update/refresh'
 import { parseShimText, type RuntimeHealth } from '../engine/update/runtime'
 import type { UpdateItem, UpdateKind, UpdatesCache } from '../engine/update/updates-cache'
 import type { ToolchainState } from '../engine/toolchain/state'
@@ -21,13 +22,15 @@ export const MIN_SIZE = { columns: 40, rows: 10 } as const
 const LABEL: Readonly<Record<Harness, string>> = { claude: 'Claude Code', codex: 'Codex', opencode: 'OpenCode', omp: 'Oh My Pi' }
 const BIN: Readonly<Record<Harness, string>> = { claude: 'claude', codex: 'codex', opencode: 'opencode', omp: 'omp' }
 
-export interface DashData { version: string; rows: DashRow[]; checkedAt?: string }
+export interface DashData { version: string; rows: DashRow[]; checkedAt?: string; working?: string }
 
 // read() is what the files say right now (no network, no harness binary); fill() reads the slow
-// facts in the background and hands over the new rows each time one arrives.
+// facts in the background and hands over the new rows each time one arrives. With a verifier it also
+// re-checks what is stale (all of it with `force`), one verification at a time: asking again while one
+// runs starts nothing, and the newest `changed` hears its results.
 export interface DashSource {
   read(): DashData
-  fill(changed: (d: DashData) => void): Promise<void>
+  fill(changed: (d: DashData) => void, opts?: { force?: boolean }): Promise<void>
 }
 
 export interface ChildHandle { exited: Promise<number>; kill(sig: 'SIGINT' | 'SIGTERM'): void }
@@ -64,6 +67,9 @@ interface Facts {
   ui?: string
   cortexdb?: string
   runtime?: RuntimeHealth | null // null: could not be checked; missing: still checking
+  shim: boolean // the buracle shim exists; the servers Buracle itself runs start through it
+  checking: ReadonlySet<string> // row ids ('mcp:<id>', 'tool:<name>') and 'updates' being verified right now
+  failed: ReadonlyMap<string, string> // the same ids whose verification itself broke, with why
 }
 
 const tilde = (p: string): string => (p.startsWith(paths.home()) ? `~${p.slice(paths.home().length)}` : p)
@@ -119,7 +125,6 @@ function harnessRow(f: Facts, h: Harness): DashRow {
 function mcpRow(f: Facts, id: string, spec: McpServerSpec): DashRow {
   const row: DashRow = { id: `mcp:${id}`, section: 'mcp', label: id, state: 'off', status: 'not checked yet', detail: 'press d or enter to run the handshake' }
   const doctor = { argv: ['doctor', 'mcp'], label: 'check the MCP servers' }
-  if (id === CM_SERVER_ID && !f.config.contextMode.enabled) return { ...row, status: 'off in config', detail: 'contextMode.enabled is false', action: doctor }
   const pkg = spec.package !== undefined ? f.toolchain.packages[`${spec.package.registry}:${spec.package.name}`] : undefined
   if (spec.transport === 'http') row.source = spec.url ?? 'remote'
   else if (spec.package !== undefined) row.source = `${spec.package.registry} ${spec.package.name}`
@@ -127,24 +132,39 @@ function mcpRow(f: Facts, id: string, spec: McpServerSpec): DashRow {
   if (pkg !== undefined) row.version = pkg.version
   const h = f.health?.mcp[id]
   const status = f.mcpHealth[id] ?? 'unknown'
-  if (status === 'ok') Object.assign(row, { state: 'ok', status: h?.tools !== undefined ? `handshake ok, ${plural(h.tools, 'tool')}` : 'handshake ok', detail: `last checked ${h?.checked_at ?? 'at an unknown time'}` })
+  if (status === 'ok') Object.assign(row, { state: 'ok', status: h?.tools !== undefined ? `handshake ok, ${plural(h.tools, 'tool')}` : 'handshake ok', detail: verifiedDetail(h, f.nowMs) })
   else if (status === 'down') Object.assign(row, { state: 'err', status: 'down', detail: h?.error ?? 'the last handshake failed; press enter to check again' })
   if (spec.package !== undefined && pkg === undefined && status !== 'down') Object.assign(row, { state: 'warn', status: status === 'ok' ? 'not in the toolchain' : 'not installed', detail: `not in the toolchain yet: it starts through the package runner; ${toolchainHint(f)}` })
-  return withUpdate(row, updateOf(f, 'mcp', id), id, doctor)
+  if (spec.package === undefined && spec.command?.includes('{buracle}') === true && !f.shim && status !== 'down') Object.assign(row, { state: 'warn', status: 'not installed', detail: 'it runs through the buracle shim, which is not installed yet; press i to install' })
+  return withUpdate(verifying(f, row, `mcp:${id}`, 'running the handshake'), updateOf(f, 'mcp', id), id, doctor)
+}
+
+// What a check is doing or why it could not run replaces what the last one found.
+function verifying(f: Facts, row: DashRow, key: string, doing: string): DashRow {
+  if (f.checking.has(key)) return { ...row, state: 'off', status: 'checking…', detail: doing }
+  const why = f.failed.get(key)
+  return why === undefined ? row : { ...row, state: 'warn', status: 'check failed', detail: why }
+}
+
+function verifiedDetail(h: { checked_at?: string, ms?: number, version?: string } | undefined, nowMs: number): string {
+  const parts = [`verified ${ago(h?.checked_at, nowMs) ?? 'at an unknown time'}`, ...(h?.ms !== undefined ? [`${h.ms} ms`] : []), ...(h?.version !== undefined ? [`v${h.version}`] : [])]
+  return parts.join(' · ')
 }
 
 function toolRow(f: Facts, t: ToolSpec): DashRow {
   const need = t.required ? 'required' : 'optional'
-  const row: DashRow = { id: `tool:${t.name}`, section: 'tools', label: t.name, state: 'off', status: 'not checked yet', detail: `${t.purpose ?? t.name} (${need}); press d or enter to check` }
+  const row: DashRow = { id: `tool:${t.name}`, section: t.kind === 'lsp' ? 'lsp' : 'tools', label: t.name, state: 'off', status: 'not checked yet', detail: `${t.purpose ?? t.name} (${need}); press d or enter to check` }
   const pkg = f.toolPackage(t)
   const h = f.health?.tools?.[t.name]
   const version = pkg?.version ?? h?.version
   if (version !== undefined) row.version = version
   if (pkg !== undefined) row.source = `${pkg.registry} ${pkg.name} (Buracle toolchain)`
   else if (t.brew !== undefined) row.source = `Homebrew ${t.brew}`
-  if (pkg !== undefined || h?.status === 'ok') Object.assign(row, { state: 'ok', status: `installed, ${need}`, detail: `${t.purpose ?? t.name} (${need})` })
-  else if (h !== undefined) Object.assign(row, { state: t.required ? 'err' : 'warn', status: `missing, ${need}`, detail: `${t.purpose ?? t.name} (${need}); ${toolchainHint(f)}` })
-  return withUpdate(row, updateOf(f, 'tools', t.name), t.name, { argv: ['doctor', 'tools'], label: 'check the tools' })
+  if (pkg !== undefined || h?.status === 'ok') {
+    const seen = h?.status === 'ok' ? ago(h.checked_at, f.nowMs) : undefined
+    Object.assign(row, { state: 'ok', status: `installed, ${need}`, detail: `${t.purpose ?? t.name} (${need})${seen !== undefined ? `; verified ${seen}` : ''}` })
+  } else if (h !== undefined) Object.assign(row, { state: t.required ? 'err' : 'warn', status: `missing, ${need}`, detail: `${t.purpose ?? t.name} (${need}); ${toolchainHint(f)}` })
+  return withUpdate(verifying(f, row, `tool:${t.name}`, 'running its version check'), updateOf(f, 'tools', t.name), t.name, { argv: ['doctor', 'tools'], label: 'check the tools' })
 }
 
 function memoryRow(f: Facts): DashRow {
@@ -191,8 +211,18 @@ function dataOf(f: Facts): DashData {
     if (spec !== undefined) rows.push(mcpRow(f, id, spec))
   }
   rows.push(...f.tools.map(t => toolRow(f, t)), memoryRow(f))
+  const out: DashData = { version: f.version, rows }
   const checkedAt = ago(f.updates?.checked_at, f.nowMs)
-  return checkedAt !== undefined ? { version: f.version, rows, checkedAt } : { version: f.version, rows }
+  if (checkedAt !== undefined) out.checkedAt = checkedAt
+  const working = workingText(f)
+  if (working !== undefined) out.working = working
+  return out
+}
+
+function workingText(f: Facts): string | undefined {
+  const parts = f.checking.size - (f.checking.has('updates') ? 1 : 0)
+  const text = [...(parts > 0 ? [`verifying ${plural(parts, 'part')}`] : []), ...(f.checking.has('updates') ? ['checking for updates'] : [])]
+  return text.length > 0 ? text.join(' · ') : undefined
 }
 
 function originLabel(o: { method: string, name?: string }): string | undefined {
@@ -208,7 +238,7 @@ function originLabel(o: { method: string, name?: string }): string | undefined {
 
 // The dashboard's data straight from Buracle's state files; only harness versions missing from the
 // version cache and the runtime comparison (git, file hashes) come later, in fill().
-export async function fileSource(now: () => number): Promise<DashSource> {
+export async function fileSource(now: () => number, verifier?: Verifier): Promise<DashSource> {
   const [{ loadConfigSync }, { readInstallRecord }, { readUpdatesCache }, mcp, { readToolchainState }, { readMcpCatalog }, { readToolsCatalog }, toolchain, system, platform, origin, bar, cortex, router] = await Promise.all([
     import('../engine/config'), import('../engine/update/install-core'), import('../engine/update/updates-cache'), import('../engine/update/mcp'),
     import('../engine/toolchain/state'), import('../engine/toolchain/launch'), import('../engine/toolchain/lsp'), import('../engine/toolchain/index'),
@@ -216,6 +246,9 @@ export async function fileSource(now: () => number): Promise<DashSource> {
     import('../engine/toolchain/cortexdb'), import('./router'),
   ])
   let facts: Facts | undefined
+  // One verification at a time. Its state outlives a read(): every Facts shares these two, and a result
+  // lands in whichever Facts is current when it arrives.
+  const verify = { checking: new Set<string>(), failed: new Map<string, string>(), running: undefined as Promise<void> | undefined, sink: undefined as ((d: DashData) => void) | undefined }
   const read = (): Facts => {
     const nowMs = now()
     const config = loadConfigSync({ repoRoot: paths.repoRoot() }).config
@@ -243,6 +276,7 @@ export async function fileSource(now: () => number): Promise<DashSource> {
       installed: new Set(Object.keys(readInstallRecord().record.plans)),
       mcpHealth: catalog !== undefined ? mcp.mcpHealthMap(catalog, health, nowMs) : {},
       toolPackage: t => toolchain.toolPackage(t, state),
+      shim: existsSync(paths.shimPath()), checking: verify.checking, failed: verify.failed,
     }
     const updates = readUpdatesCache()
     if (updates !== undefined) f.updates = updates
@@ -255,12 +289,42 @@ export async function fileSource(now: () => number): Promise<DashSource> {
     if (facts?.runtime !== undefined) f.runtime = facts.runtime
     return f
   }
+  // A verification wrote its result to the files; the current Facts takes it from there.
+  const take = (): void => {
+    const f = facts
+    if (f === undefined) return
+    f.health = mcp.readHealth()
+    f.mcpHealth = f.mcp !== undefined ? mcp.mcpHealthMap(f.mcp, f.health, f.nowMs) : {}
+    const updates = readUpdatesCache()
+    if (updates !== undefined) f.updates = updates
+    verify.sink?.(dataOf(f))
+  }
+  const runVerify = async (v: Verifier, force: boolean): Promise<void> => {
+    const f = facts
+    if (f === undefined) return
+    const catalog = f.mcp
+    const servers = catalog !== undefined ? staleServers(catalog, f.health, f.toolchain, existsSync(paths.shimPath()), f.nowMs, force) : []
+    const jobs: Array<[string, () => Promise<void>]> = [
+      ...servers.map((id): [string, () => Promise<void>] => [`mcp:${id}`, () => v.mcp(id, catalog as McpCatalog)]),
+      ...staleTools(f.tools, f.health, f.nowMs, force).map((t): [string, () => Promise<void>] => [`tool:${t.name}`, () => v.tool(t)]),
+      ...(updatesStale(f.updates, f.nowMs, force) ? [['updates', () => v.updates()] as [string, () => Promise<void>]] : []),
+    ]
+    if (jobs.length === 0) return
+    for (const [key] of jobs) { verify.checking.add(key); verify.failed.delete(key) }
+    verify.sink?.(dataOf(f))
+    await Promise.all(jobs.map(async ([key, work]) => {
+      try { await work() } catch (e) { verify.failed.set(key, errText(e)) }
+      verify.checking.delete(key)
+      take()
+    }))
+  }
   return {
     read() {
       facts = read()
       return dataOf(facts)
     },
-    async fill(changed) {
+    async fill(changed, opts) {
+      verify.sink = changed
       const f = facts ?? read()
       facts = f
       const missing = HARNESSES.filter(h => f.bins[h] !== undefined && f.config.harnesses[h].enabled && !(h in f.versions))
@@ -280,7 +344,11 @@ export async function fileSource(now: () => number): Promise<DashSource> {
         }
         changed(dataOf(f))
       })()
-      await Promise.all([...versions, runtime])
+      if (verifier !== undefined && verify.running === undefined) {
+        const run = runVerify(verifier, opts?.force === true).catch(() => {  }).finally(() => { verify.running = undefined })
+        verify.running = run
+      }
+      await Promise.all([...versions, runtime, verify.running])
     },
   }
 }
@@ -294,6 +362,7 @@ export function resultLine(code: number): string {
 function viewOf(prev: DashView | undefined, data: DashData, size: { columns: number, rows: number }): DashView {
   const next = initialView(data.version, data.rows, size)
   if (data.checkedAt !== undefined) next.summary = { ...next.summary, checkedAt: data.checkedAt }
+  if (data.working !== undefined) next.summary = { ...next.summary, working: data.working }
   if (prev === undefined) return next
   const id = prev.items[prev.selected]?.id
   const at = id === undefined ? -1 : next.items.findIndex(r => r.id === id)
@@ -336,9 +405,9 @@ async function dashboardLoop(d: DashboardDeps): Promise<number> {
     menu = menuOf(menu, view)
     draw()
   }
-  const fill = (): void => {
+  const fill = (force = false): void => {
     const n = ++fills
-    void Promise.resolve().then(() => source.fill(data => { if (n === fills) show(data) })).catch(() => {  })
+    void Promise.resolve().then(() => source.fill(data => { if (n === fills) show(data) }, force ? { force: true } : undefined)).catch(() => {  })
   }
 
   const runChild = async (argv: readonly string[]): Promise<number> => {
@@ -392,7 +461,7 @@ async function dashboardLoop(d: DashboardDeps): Promise<number> {
     if (action === undefined) { draw(); continue }
     if (action.kind === 'quit') return 0
     if (action.kind === 'detail' || action.kind === 'back') { screen = action.kind === 'detail' ? 'detail' : 'menu'; draw(); continue }
-    if (action.kind === 'reload') { show(source.read()); fill(); continue }
+    if (action.kind === 'reload') { show(source.read()); fill(true); continue }
     const code = await runChild(action.argv)
     // An install or update can point the shim at new code; the dashboard then starts once more from it.
     const now = shim()
@@ -438,6 +507,6 @@ function spawnChild(argv: readonly string[], env: Record<string, string | undefi
 }
 
 export async function openDashboard(): Promise<number> {
-  const { openTerminal } = await import('./ui/terminal')
-  return runDashboard({ terminal: openTerminal({ input: process.stdin, output: process.stdout }), spawn: spawnChild, now: Date.now })
+  const [{ openTerminal }, { liveVerifier }] = await Promise.all([import('./ui/terminal'), import('../engine/update/refresh')])
+  return runDashboard({ terminal: openTerminal({ input: process.stdin, output: process.stdout }), spawn: spawnChild, now: Date.now, source: await fileSource(Date.now, liveVerifier()) })
 }

@@ -97,7 +97,3 @@ index:
   exclude: []
   children: true
   maxChildren: 8
-
-contextMode:
-  enabled: true
-  capture: true

@@ -29,22 +29,10 @@
 ### web-fetch (`fetch_url`, `fetch_urls`)
 - Fetch before citing. Batch 2-5 URLs with `fetch_urls`.
 - `maxLength` (for example 20000) keeps long pages from flooding the context; fetch a narrower URL
-  (an anchor or a sub-page), or index the page with context-mode, instead of raising it.
+  (an anchor or a sub-page) instead of raising it.
 - Script-rendered documentation: `waitUntil: "networkidle"`. Raw files on GitHub: use
   `raw.githubusercontent.com` URLs.
 - Record the page's own published or updated date when it shows one.
-
-### context-mode (`ctx_fetch_and_index`, `ctx_search`)
-- For long pages you need only parts of (a spec, several changelogs, a long guide):
-  `ctx_fetch_and_index` with `requests: [{url, source}]`, one short `source` label per page. It
-  indexes them and returns only short previews.
-- Then one `ctx_search` with every sub-question in `queries` (2-4 specific terms each); `source`
-  keeps it to one page. Batch the questions: repeated calls within a minute return fewer hits and
-  are then refused.
-- Hits are the page's own text: quote them and cite the page's URL. When a claim depends on the
-  surrounding section, search for that section or read the page with web-fetch.
-- It is a plain HTTP fetch without JavaScript: script-rendered pages need web-fetch. A copy fetched
-  in the last 24 hours is reused; pass `force: true` when the facts must be today's.
 
 ### grep (`searchGitHub`)
 - The query is literal code that appears in files: `useQuery(`, `createClient({`, `@app.get(`. Keywords
@@ -72,8 +60,7 @@ A claim backed only by levels 4-5 gets low confidence and says so.
 | buracle-memory | `buracle mem search "<query>"`, then `buracle mem get <id>` |
 | context7 | web-fetch the official docs site; then web-search for "<library> <version> docs <topic>" |
 | web-search | web-fetch `fetch_url` on a search results page (`https://html.duckduckgo.com/html/?q=<query>`); the harness's built-in web search only while web-search and web-fetch are both down (Codex has none under `enforce`) |
-| web-fetch | web-search's `fetchWebContent`, or context-mode's `ctx_fetch_and_index` then `ctx_search` (plain HTTP, no JavaScript); the harness's built-in fetch only while web-fetch and context-mode are both down |
-| context-mode | web-fetch `fetch_url` with `maxLength` on the narrowest URL (an anchor or a sub-page) |
+| web-fetch | web-search's `fetchWebContent`; the harness's built-in fetch only while web-fetch is down |
 | grep | web-search for the code pattern plus "site:github.com", then fetch the raw files |
 
 Never loop on a failing tool: one retry with a simpler call, then fall back.

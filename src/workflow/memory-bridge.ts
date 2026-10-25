@@ -31,7 +31,7 @@ export function resetMemoryBridgeCache(): void {
   cached = undefined
 }
 
-interface ProjectInitResultLike { slug?: string, db?: string, core?: string[], claudeRedirect?: string, warnings?: unknown[] }
+interface ProjectInitResultLike { slug?: string, db?: string, claudeRedirect?: string, warnings?: unknown[] }
 
 export async function projectInit(input: ProjectInitInput): Promise<BridgeResult> {
   if (process.env['BURACLE_NO_MEMORY'] === '1') return { status: 'skipped', reason: 'BURACLE_NO_MEMORY=1' }
@@ -42,7 +42,6 @@ export async function projectInit(input: ProjectInitInput): Promise<BridgeResult
     const r = await init(input.root)
     const detail: string[] = []
     if (r.slug !== undefined) detail.push(`project ${r.slug}${r.db !== undefined ? ` (${r.db})` : ''}`)
-    if (r.core !== undefined && r.core.length > 0) detail.push(`core pages ${r.core.join(', ')}`)
     if (r.claudeRedirect === 'removed') detail.push('the old Claude Code memory redirect was taken back')
     for (const w of r.warnings ?? []) detail.push(String(w))
     return { status: 'ok', ...(r.db !== undefined ? { path: r.db } : {}), detail }

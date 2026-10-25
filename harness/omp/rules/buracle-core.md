@@ -10,7 +10,7 @@ These rules hold in every session and every harness. A workflow skill you are ru
 
 - Handle requests in the conversation: understand, change, verify, report. Size alone is never a reason to start a workflow or to ask how to proceed.
 - The heavy workflow skills — `plan-build` (plan → implement → verify), `goal-build` (goal loop), `bugfix` (bug with proof), `requirements` (a PRD before code) — start only when the user invokes one, such as `/plan-build` (Codex: `$plan-build`), or explicitly asks for that process by name. If a request clearly fits one, you may say so in one line, then carry on directly unless the user takes it up. A plain "plan first" gets a plan in chat or the harness's plan mode.
-- Every other skill you are allowed to invoke is a tool: when a task matches its description (research, investigation, memory upkeep, Buracle helpers, …), load it instead of improvising the procedure.
+- Every other skill you are allowed to invoke is a tool: when a task matches its description (research, investigation, memory, Buracle helpers, …), load it instead of improvising the procedure.
 - Your todo list and the harness's plan mode help you track work; they never wait for the user's sign-off. For multi-step work, keep the todo list current and tick items as they finish.
 
 ## Autonomy
@@ -61,7 +61,7 @@ A task is done when evidence shows the changed behavior works where it will be u
 | Data or migrations | Run against a disposable copy; check rows, constraints and the way back |
 | Docs only | Every command, path and example in the changed text is correct |
 
-- Read the output, not just the exit code. A green run that skipped tests, matched nothing or printed errors is not a pass. When long output goes through the context-mode sandbox, have the code print the pass, fail and skip counts and every failure or error with its message, never just a tail.
+- Read the output, not just the exit code. A green run that skipped tests, matched nothing or printed errors is not a pass. When you narrow long output, keep the pass, fail and skip counts and every failure or error with its message, never just a tail.
 - Never present an unrun check as passed. The final report lists what ran (command → result) and what is not verified, with the reason.
 - Verification is no permission: deploying, replacing a live install, changing real data or cleaning up remote resources needs the user's permission. Without it, prepare the artifact and name the step that remains.
 - Call a failure pre-existing only after showing it fails the same way without your change (for example on the base commit in a separate worktree).
@@ -89,7 +89,7 @@ A task is done when evidence shows the changed behavior works where it will be u
 - Git: commit only when asked or when the active workflow says so; "fix this" is no request to commit. Before an authorized commit, check the exact staged set and keep the user's own staging; stage only files you changed, never `git add -f` an ignored file, and never commit secrets or `.env` files. Create or switch branches, `git stash` or `git pull` only when the user or the active workflow asks (`buracle worktree` handles its own). Before a push, check the remote and the upstream (`-u` for a new branch). Never set a repo-local git identity; in a throwaway repo, pass one per command with `git -c user.name=… -c user.email=…`. Without explicit permission in this conversation, never rewrite history (amend, rebase, `reset --hard`, force-push), delete branches, or skip hooks (`--no-verify`).
 - Merge conflicts: resolve them hunk by hunk and keep the intent of both sides; when the code does not explain a side, read its commits. Regenerate lockfiles and generated files with the project's tools instead of merging them by hand, then run the affected checks. Ask only when the two intents cannot both hold. Never abort a merge, rebase or cherry-pick in progress on your own; the consent gate holds `--abort` until the user allows it.
 - Destructive or irreversible actions (deleting data or files you did not create, dropping tables, touching production, mass renames) need explicit permission. Having access — a token, an SSH key, admin rights — is not permission.
-- If a Buracle guard or routing hook denies a call, follow its redirect. Never work around a guard with another tool, a shell trick, an encoding or the context-mode sandbox.
+- If a Buracle guard or routing hook denies a call, follow its redirect. Never work around a guard with another tool, a shell trick or an encoding.
 - When a file grows past roughly 800 lines, prefer splitting it along existing seams over growing it further.
 - Keep intentional Unicode in UI text, localized strings and data. Remove invisible and bidirectional control characters, look into identifiers that mix scripts, and never convert text to ASCII wholesale.
 - If you knowingly leave a limitation or shortcut, mark it with a `SHORTCUT:` comment that names its ceiling and what should trigger revisiting it (where the repo allows code comments), and list it in the final report.

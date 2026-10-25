@@ -4,7 +4,7 @@ import type { ToolCall, ToolKind } from '../../core/events'
 import { classifyTool } from '../../core/events'
 import { workflowOfPrompt, workflowOfSkill } from '../../core/flow/catalog'
 import { spoolPromptExcerpt, type SpoolEntry } from '../../core/memory/spool'
-import { profileSignalsFromPrompt, profileUsageSignal } from '../../core/memory/profile'
+import { promptSignals } from '../../core/memory/signals'
 import { checkBash, type BashGuardOptions } from '../../core/policy/bash-guard'
 import { checkWrite } from '../../core/policy/write-guard'
 import { validateReviewJson } from '../../core/policy/review'
@@ -13,10 +13,9 @@ import { checkQuestion, questionAnswered } from '../../core/policy/questions'
 import type { PromptSignals } from '../../core/policy/intents'
 import { detectSignals, isGuardContinuation, isUserText } from '../../core/policy/intents'
 import { laneStateDenial } from '../../core/policy/lane-guard'
-import { consentVerdict, consentVerdictAll, type ConsentState } from '../../core/policy/consent'
+import { consentVerdict, type ConsentState } from '../../core/policy/consent'
 import { REVIEWER_AGENT_ENV, companionAgent, companionToolDenial } from '../../core/policy/companion-fence'
 import { reviewerShellDenial } from '../../core/policy/readonly-shell'
-import { checkSandbox, cmCall, looksLikeCmExecTool } from '../../core/policy/sandbox'
 import { PROMPT_CONTEXT_MAX_CHARS } from '../../core/policy/skill-router'
 import { ledgerCall, ledgerMcpResult, ledgerPrompt, skillOf } from '../../core/policy/usage'
 import { validatePlan } from '../../core/plan/format'
@@ -41,8 +40,6 @@ import { loadState, profileGuard, readTelemetry, sessionMaint, updateState } fro
 import { canonicalDir, refreshWorkspaceInfo } from '../../workflow/workspace'
 import type { AdapterContext } from '../registry'
 import { consentFile, consentGate, readConsentState, recordPromptGrants } from '../shared/consent-store'
-import type { CmForwardResult } from '../shared/context-mode/bridge'
-import { cmPrune } from '../shared/context-mode/maint'
 import { fileCheckNotes, sessionOnce } from '../shared/file-checks'
 import { noticesOff, runtimeVersion, startupNotices } from '../shared/notices'
 import { assetsAfterEdit, assetsOptions, assetsSessionStart, type AssetsSpawner } from '../shared/project-assets'
@@ -51,7 +48,6 @@ import { buracleRepoFor } from '../shared/repo'
 import { selfPaths } from '../shared/self-paths'
 import { earlyEdit, readOnlyStart } from '../shared/plan-mode'
 import { SHELL_TOOLS } from './constants'
-import { CM_POST_ONLY_TOOLS, classifyMcpCall, cmBridge, cmBridgeTool, cmForwardDefault, cmGuard, cmSessionStart, isCmToolName } from './hook-cm'
 import { postCompact, preCompact, projectHandoff, recentCompact, REVIEW_AGENT, sessionEnd, stop, subagentStop } from './hook-end'
 import { HANDBACK_TOOL, subagentHandback } from './hook-handback'
 import { preMcpWrite, preWrite } from './hook-write'
@@ -59,7 +55,7 @@ import {
   CONTEXT_BUDGET_BYTES, GUARD_FAILED, H, QUIET, byteLength, captureOff, clipBytes, contextOut, isObj, isSubagent, out, spool, step, str, type HookOutcome,
 } from './hook-io'
 import {
-  availableServers, capabilityCardText, liveHealth, memoryOnlyRouting, permissionNotice, pluginRoot, pluginServers, projectDeps, promptRouting,
+  availableServers, capabilityCardText, memoryOnlyRouting, permissionNotice, pluginRoot, pluginServers, projectDeps, promptRouting,
   readHealth, readWorkspace, rootCheck, routerData, routingPolicy, saveWorkspace, sessionHealth, usageReminders, workspaceFacts, type PromptRouting,
   type RouterData,
 } from './hook-route'
@@ -69,7 +65,7 @@ export type { HookOutcome } from './hook-io'
 export { CONTEXT_BUDGET_BYTES, FALLBACK_SPOOL_SUFFIX, GUARD_FAILED, clipBytes } from './hook-io'
 export { REVIEW_AGENT, handoffRecordPath, reviewNote, runawayNotice } from './hook-end'
 export { WRITE_GUARD_FAILED } from './hook-write'
-export { capabilityCardText, liveHealth, readHealth, routingPolicy, sessionHealth } from './hook-route'
+export { capabilityCardText, readHealth, routingPolicy, sessionHealth } from './hook-route'
 
 export interface HookCore {
   checkBash: typeof checkBash
@@ -82,8 +78,6 @@ export interface HookCore {
   validateReviewJson: typeof validateReviewJson
   checkQuestion: typeof checkQuestion
   consentVerdict: typeof consentVerdict
-  checkSandbox: typeof checkSandbox
-  consentVerdictAll: typeof consentVerdictAll
 }
 
 export type MemoryModule = 'finalize' | 'handoff' | 'spool' | 'context'
@@ -101,7 +95,6 @@ export interface HookDeps {
   prepareWorkspace(cwd: string, ctx: AdapterContext, nowMs: number): Promise<WorkspaceInfo | undefined>
   workspaceInfo(cwd: string, ctx: AdapterContext, nowMs: number): Promise<WorkspaceInfo | undefined>
   refreshWorkspace(info: WorkspaceInfo, ctx: AdapterContext, nowMs: number): WorkspaceInfo
-  cmForward(event: string, payload: Record<string, unknown>, ctx: AdapterContext, opts?: { maxBytes?: number }): Promise<CmForwardResult>
   assetsSpawn?: AssetsSpawner
   core: HookCore
 }
@@ -132,7 +125,7 @@ export const defaultHookDeps: HookDeps = {
   },
   branch: cwd => currentBranch(cwd),
   project: cwd => projectSlug(cwd),
-  sessionMaint: (nowMs, keep) => { try { sessionMaint(H, nowMs, { keep }) } finally { cmPrune(nowMs) } },
+  sessionMaint: (nowMs, keep) => { sessionMaint(H, nowMs, { keep }) },
   env: name => process.env[name],
   buracleRepo: (cwd, ctx) => buracleRepoFor(cwd, { known: [ctx.repoRoot, ctx.config.repo], home: paths.home() }),
   realpath: p => realWriteTarget(p),
@@ -144,8 +137,7 @@ export const defaultHookDeps: HookDeps = {
     return (await import('../../workflow/workspace')).workspaceInfo(cwd, ctx.config, nowMs)
   },
   refreshWorkspace: (info, ctx, nowMs) => refreshWorkspaceInfo(info, ctx.config, nowMs),
-  cmForward: cmForwardDefault,
-  core: { checkBash, checkWrite, routeTool, validatePlan, stopGuardVerdict, handoffNote, restoreContext, validateReviewJson, checkQuestion, consentVerdict, checkSandbox, consentVerdictAll },
+  core: { checkBash, checkWrite, routeTool, validatePlan, stopGuardVerdict, handoffNote, restoreContext, validateReviewJson, checkQuestion, consentVerdict },
 }
 
 export function parsePayload(stdin: string): Record<string, unknown> | undefined {
@@ -173,7 +165,7 @@ export async function claudeHook(event: string, stdin: string, ctx: AdapterConte
     case 'PreToolUse': return preToolUse(p, sid, ctx, d, now)
     case 'PostToolUse': return postToolUse(p, sid, ctx, d, now)
     case 'PostToolUseFailure': return postToolUseFailure(p, sid, ctx, d)
-    case 'PreCompact': return preCompact(p, sid, ctx, d, now)
+    case 'PreCompact': return preCompact(p, sid, d, now)
     case 'PostCompact': return postCompact(p, sid, d, now)
     case 'Stop': return stop(p, sid, ctx, d, now)
     case 'SubagentStop': return subagentStop(p, sid, d)
@@ -207,14 +199,13 @@ async function sessionStart(p: Record<string, unknown>, sid: string, ctx: Adapte
     })
   }
   const restore = source === 'compact' ? await step('H07 restore', '', () => restoreText(p, sid, d, now)) : ''
-  const card = await step('H15 capability card', '', () => capabilityCardText(ctx, sessionHealth(sid, now, ctx.config)))
+  const card = await step('H15 capability card', '', () => capabilityCardText(ctx, sessionHealth(sid, now)))
   const workspace = await step('H21 workspace', '', () => workspaceStart(cwd, sid, sub, ctx, d, now))
   const assets = sub ? '' : await step('H28 project assets', '', () => assetsSessionStart(readWorkspace(sid)?.root, H, assetsOptions(now, d.assetsSpawn)))
   const notice = source === 'startup' && !sub && !noticesOff()
     ? await step('H17 notices', undefined as NoticeTexts | undefined, () => startupNotices(ctx.canonical.notices, { version: runtimeVersion(ctx.repoRoot), nowMs: now, harness: H }))
     : undefined
-  const cm = await cmSessionStart(p, ctx, d, CONTEXT_BUDGET_BYTES - byteLength([restore, notice?.model ?? '', workspace, assets, card].filter(s => s.trim() !== '').join('\n\n')) - 64)
-  const fixed = [restore, cm, notice?.model ?? '', workspace, assets, card].filter(s => s.trim() !== '')
+  const fixed = [restore, notice?.model ?? '', workspace, assets, card].filter(s => s.trim() !== '')
   const room = CONTEXT_BUDGET_BYTES - byteLength(fixed.join('\n\n')) - 64
   let memory = ''
   if (room > 400 && d.env('BURACLE_NO_MEMORY') !== '1') {
@@ -235,7 +226,7 @@ async function sessionStart(p: Record<string, unknown>, sid: string, ctx: Adapte
     await step('H16 session maintenance', undefined, () => { d.sessionMaint(now, [sid]) })
   }
   const user = [warning, notice?.user].filter((s): s is string => s !== undefined).join('\n')
-  return contextOut('SessionStart', [restore, cm, notice?.model ?? '', memory, workspace, assets, card], user !== '' ? user : undefined)
+  return contextOut('SessionStart', [restore, notice?.model ?? '', memory, workspace, assets, card], user !== '' ? user : undefined)
 }
 
 async function workspaceStart(cwd: string, sid: string, sub: boolean, ctx: AdapterContext, d: HookDeps, now: number): Promise<string> {
@@ -333,7 +324,7 @@ function controlNotice(control: PromptSignals['control'], prompt: string, sid: s
 
 async function promptRoute(prompt: string, signals: PromptSignals, sid: string, ctx: AdapterContext, d: HookDeps, now: number, invoked: string[] = []): Promise<string | undefined> {
   const root = pluginRoot(ctx.repoRoot, d.env)
-  const available = availableServers(root, sessionHealth(sid, now, ctx.config), ctx)
+  const available = availableServers(root, sessionHealth(sid, now), ctx)
   let data: RouterData | undefined
   try { data = routerData(ctx) } catch (e) { log('warn', 'claude hook: the prompt router has no canonical data; routing memory signals only', { error: e }) }
   let routing: PromptRouting
@@ -383,7 +374,6 @@ async function userPromptSubmit(p: Record<string, unknown>, sid: string, ctx: Ad
   let notes: string | undefined
   const entries: SpoolEntry[] = []
   if (user) {
-    await cmBridge(d, ctx, 'UserPromptSubmit', p)
     const signals = await step('H10 detectSignals', NO_SIGNALS, () => detectSignals(prompt))
     control = await step('H10 intents', undefined as string | undefined, () => controlNotice(signals.control, prompt, sid, ctx, now))
     notes = await step('H10 review notes', undefined as string | undefined, () => {
@@ -398,8 +388,8 @@ async function userPromptSubmit(p: Record<string, unknown>, sid: string, ctx: Ad
     planMode = await step('H10 read-only start', undefined as string | undefined, () => readOnlyStart(H, p['permission_mode'] === 'plan', [typed?.workflow, ...invoked]))
     system = await step('permission mode', undefined as string | undefined, () => permissionNotice(sid, p['permission_mode'], ctx.config, now))
     if (!captureOff(d)) {
-      const signals26 = await step('H26 profile signals', [] as ReturnType<typeof profileSignalsFromPrompt>, () => profileSignalsFromPrompt(prompt))
-      for (const signal of signals26) entries.push({ ts: now, ev: 'signal', signal })
+      const signals26 = await step('H26 prompt signals', [] as ReturnType<typeof promptSignals>, () => promptSignals(prompt))
+      for (const signal of signals26) entries.push({ ts: now, ev: 'prompt-signal', signal })
     }
   }
   const notice = await step('H21 workspace notice', undefined as string | undefined, () => workspaceUpdate(sid, ctx, d, now))
@@ -407,7 +397,7 @@ async function userPromptSubmit(p: Record<string, unknown>, sid: string, ctx: Ad
   if (!continuation) {
     const excerpt = user ? spoolPromptExcerpt(prompt) : undefined
     await spool(d, sid, [{ ts: now, ev: 'prompt', ...(excerpt !== undefined ? { excerpt } : {}) }, ...entries])
-    if (!captureOff(d)) await step('memory tick', undefined, async () => {
+    if (!captureOff(d)) await step('session record touch', undefined, async () => {
       const seen = (await d.importModule('finalize'))?.['promptSeen']
       if (typeof seen === 'function') (seen as (h: string, s: string, o: unknown) => unknown)(H, sid, { nowMs: now })
     })
@@ -474,7 +464,7 @@ async function preToolDecision(p: Record<string, unknown>, sid: string, ctx: Ada
     return gated
   }
   if (SHELL_TOOLS.includes(tool)) return preShell(p, sid, ctx, d, now, tool, input, cwd, guardsOnly)
-  if (guardsOnly && !tool.startsWith('mcp__') && !isCmToolName(tool)) return QUIET
+  if (guardsOnly && !tool.startsWith('mcp__')) return QUIET
   if (tool === HANDBACK_TOOL) return subagentHandback(p, sid, REVIEW_AGENT, d, now)
   if (tool === 'AskUserQuestion') {
     return step('H09 checkQuestion', QUIET, () => {
@@ -487,20 +477,14 @@ async function preToolDecision(p: Record<string, unknown>, sid: string, ctx: Ada
   if (WEB_TOOLS.includes(tool)) {
     return step('H03 routing', QUIET, () => {
       const call: ToolCall = { harness: H, sessionId: sid, cwd, tool, input, ...classifyTool(H, tool, input, cwd) }
-      const r = d.core.routeTool(call, routingPolicy(ctx), sessionHealth(sid, now, ctx.config))
+      const r = d.core.routeTool(call, routingPolicy(ctx), sessionHealth(sid, now))
       if (r.action === 'deny') return deny(`Buracle ${r.hook} (route.tools): ${r.reason}`)
       return preContext(r.context ?? [])
     })
   }
-  if (USAGE_TOOLS.includes(tool) || tool.startsWith('mcp__') || isCmToolName(tool)) {
-    const call = classifyMcpCall(sid, ctx, d, tool, input, cwd)
-    if (call === undefined) return deny(GUARD_FAILED)
-    if (cmCall(call) !== undefined || looksLikeCmExecTool(tool)) {
-      const v = await cmGuard(p, sid, ctx, d, now, call)
-      if (v.deny !== undefined) return deny(v.deny)
-      if (guardsOnly) return preContext([], v.updatedInput)
-      return usageGate(sid, ctx, d, call, [], undefined, v.updatedInput)
-    }
+  if (USAGE_TOOLS.includes(tool) || tool.startsWith('mcp__')) {
+    const servers = pluginServers(pluginRoot(ctx.repoRoot, d.env)) ?? []
+    const call: ToolCall = { harness: H, sessionId: sid, cwd, tool, input, ...classifyTool(H, tool, input, cwd, servers) }
     const written = await preMcpWrite(sid, ctx, d, call)
     if (written !== undefined) return written
     if (guardsOnly || !(USAGE_TOOLS.includes(tool) || tool.startsWith(PLUGIN_MCP_PREFIX))) return QUIET
@@ -545,7 +529,7 @@ async function preShell(p: Record<string, unknown>, sid: string, ctx: AdapterCon
   if (guardsOnly) return QUIET
   const call: ToolCall = { harness: H, sessionId: sid, cwd, tool, input, ...cls, kind: 'bash', command }
   const routed = await step('H03 routing', { context: [] as string[] } as { deny?: string, context: string[] }, () => {
-    const r = d.core.routeTool(call, routingPolicy(ctx), liveHealth(readHealth(), ctx.config))
+    const r = d.core.routeTool(call, routingPolicy(ctx), readHealth())
     return r.action === 'deny' ? { deny: r.reason, context: [] } : { context: r.context ?? [] }
   })
   if (routed.deny !== undefined) return deny(routed.deny)
@@ -577,7 +561,7 @@ async function usageGate(sid: string, ctx: AdapterContext, d: HookDeps, call: To
     }
     const facts = workspaceFacts(info, cfg)
     const servers = pluginServers(pluginRoot(ctx.repoRoot, d.env)) ?? []
-    const health = sessionHealth(sid, d.now(), cfg)
+    const health = sessionHealth(sid, d.now())
     const rctx: Parameters<typeof usageReminders>[2] = {
       strictness: cfg.routing.strictness, reminders: cfg.routing.reminders, available: servers.filter(id => health[id] !== 'down'),
       policy: routingPolicy(ctx), facts,
@@ -601,13 +585,9 @@ function pluginSkillRead(file: string | undefined, root: string): string | undef
   return /^skills\/([a-z0-9][a-z0-9-]*)\/SKILL\.md$/.exec(rel)?.[1]
 }
 
-async function skillLoaded(sid: string, id: string, args: string, _ctx: AdapterContext, d: HookDeps, now: number, entries: SpoolEntry[]): Promise<void> {
+async function skillLoaded(sid: string, id: string, args: string, now: number): Promise<void> {
   const workflow = workflowOfSkill(`buracle:${id}`)
   if (workflow !== undefined) await flowStart(sid, workflow, args, 'skill', now)
-  if (captureOff(d)) return
-  for (const signal of [profileUsageSignal('skill', id), workflow !== undefined ? profileUsageSignal('workflow', workflow) : undefined]) {
-    if (signal !== undefined) entries.push({ ts: now, ev: 'signal', signal })
-  }
 }
 
 async function postToolUse(p: Record<string, unknown>, sid: string, ctx: AdapterContext, d: HookDeps, now: number): Promise<HookOutcome> {
@@ -618,8 +598,6 @@ async function postToolUse(p: Record<string, unknown>, sid: string, ctx: Adapter
   const sub = isSubagent(p)
   const parts: string[] = []
   const entries: SpoolEntry[] = []
-  await cmBridgeTool(d, ctx, 'PostToolUse', p, tool)
-  if (CM_POST_ONLY_TOOLS.includes(tool)) return QUIET
   if (tool.startsWith(PLUGIN_MCP_PREFIX)) await step('H24 MCP result', undefined, () => { mcpResult(sid, tool, input, cwd, ctx, d, true) })
   if (WRITE_TOOLS.includes(tool)) {
     const cls = await step('classify', { kind: 'other', paths: [] } as ReturnType<typeof classifyTool>, () => classifyTool(H, tool, input, cwd))
@@ -649,10 +627,10 @@ async function postToolUse(p: Record<string, unknown>, sid: string, ctx: Adapter
     const call: ToolCall = { harness: H, sessionId: sid, cwd, tool, input, ...classifyTool(H, tool, input, cwd) }
     await step('H24 ledger', undefined, () => { updateLedger(H, sid, l => ledgerCall(l, call)) })
     const id = pluginSkillRead(call.paths[0], pluginRoot(ctx.repoRoot, d.env))
-    if (id !== undefined && !sub && !failed(response)) await skillLoaded(sid, id, '', ctx, d, now, entries)
+    if (id !== undefined && !sub && !failed(response)) await skillLoaded(sid, id, '', now)
   } else if (tool === 'Skill') {
     const id = skillOf({ tool, input, kind: 'other' }, H)
-    if (!sub && id !== undefined && !failed(response)) await skillLoaded(sid, id, str(input['args']) ?? '', ctx, d, now, entries)
+    if (!sub && id !== undefined && !failed(response)) await skillLoaded(sid, id, str(input['args']) ?? '', now)
     if (!sub) entries.push({ ts: now, ev: 'tool', tool, kind: 'other' })
   } else if (SHELL_TOOLS.includes(tool)) {
     if (!sub) {
@@ -676,16 +654,12 @@ function mcpResult(sid: string, tool: string, input: Record<string, unknown>, cw
   const server = cls.kind === 'mcp' ? cls.mcp?.server : undefined
   if (server === undefined || server === '') return
   if (ok && loadLedger(H, sid).mcpErrors?.[server] === undefined) return
-  updateLedger(H, sid, l => ledgerMcpResult(l, server, ok, cls.mcp?.tool))
+  updateLedger(H, sid, l => ledgerMcpResult(l, server, ok))
 }
 
 async function postToolUseFailure(p: Record<string, unknown>, sid: string, ctx: AdapterContext, d: HookDeps): Promise<HookOutcome> {
   const tool = str(p['tool_name']) ?? ''
-  if (!tool.startsWith(PLUGIN_MCP_PREFIX)) {
-    await cmBridgeTool(d, ctx, 'PostToolUseFailure', p, tool)
-    return QUIET
-  }
-  if (p['is_interrupt'] === true) return QUIET
+  if (!tool.startsWith(PLUGIN_MCP_PREFIX) || p['is_interrupt'] === true) return QUIET
   const input = isObj(p['tool_input']) ? p['tool_input'] : {}
   await step('H24 MCP result', undefined, () => { mcpResult(sid, tool, input, str(p['cwd']) ?? '', ctx, d, false) })
   return QUIET

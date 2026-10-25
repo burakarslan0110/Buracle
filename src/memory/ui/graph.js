@@ -353,17 +353,26 @@ export function createGraph(canvas, opts = {}) {
       const [x, y] = pos[i]
       const r = n.r * Math.max(0.6, Math.min(1.6, k)) * s
       const d = dimOf(i)
-      ctx.globalAlpha = d * (n.type === 'memory' && n.focus === false ? 0.6 : 1)
+      ctx.globalAlpha = d * (n.type === 'memory' && n.focus === false ? 0.6 : 1) * (n.retired === true ? 0.6 : 1)
       ctx.fillStyle = rgba(n.rgb, 1)
       ctx.beginPath()
       ctx.arc(x, y, r * 0.62, 0, TAU)
       ctx.fill()
-      if (n.type === 'memory' && (n.unverified || n.upkeep)) {
+      if (n.type === 'memory' && n.unverified) {
         ctx.strokeStyle = rgba(palette.warn, 0.7)
         ctx.lineWidth = 1
         ctx.beginPath()
         ctx.arc(x, y, r * 0.62 + 3, 0, TAU)
         ctx.stroke()
+      }
+      if (n.type === 'memory' && n.retired === true) {
+        ctx.setLineDash([2, 3])
+        ctx.strokeStyle = rgba(palette.ink, 0.6)
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.arc(x, y, r * 0.62 + 3, 0, TAU)
+        ctx.stroke()
+        ctx.setLineDash([])
       }
       if (n.type === 'memory' && n.pinned) {
         ctx.strokeStyle = rgba(palette.ink, 0.75)

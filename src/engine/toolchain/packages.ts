@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { basename, isAbsolute, join, resolve } from 'node:path'
+import { isAbsolute, join, resolve } from 'node:path'
 import { defaultConfig } from '../../core/config'
 import { loadConfigSync } from '../config'
 import { renameRetrySync } from '../fsx'
@@ -21,7 +21,6 @@ export interface PackageRequest {
   extras?: string[]
   bins?: string[]
   with?: string[]
-  scripts?: boolean
 }
 
 export interface InstallOutcome { ok: true; pkg: InstalledPackage }
@@ -169,7 +168,7 @@ export async function installNpm(req: PackageRequest, version: string, nowIso: s
     return { ok: false, error: `cannot prepare ${stage}: ${errText(e)}` }
   }
   const fail = (error: string): InstallFailure => { removeDir(stage); return { ok: false, error } }
-  const argv = spawnArgv([npm, 'install', '--prefix', stage, '--no-audit', '--no-fund', '--omit=dev', '--loglevel=error', '--no-package-lock', ...(req.scripts === false ? ['--ignore-scripts'] : [])])
+  const argv = spawnArgv([npm, 'install', '--prefix', stage, '--no-audit', '--no-fund', '--omit=dev', '--loglevel=error', '--no-package-lock'])
   const r = await opsDeps.run(argv, { cwd: stage, env: toolchainEnv(), timeoutMs: opts.timeoutMs ?? 300_000 })
   if (r.code !== 0) return fail(`npm install ${req.name}@${version} failed (exit ${r.code}): ${tail(r.stderr || r.stdout)}`)
   const installed = npmInstalledVersion(stage, req.name)
@@ -254,12 +253,6 @@ export function binArgv(entry: string, runner: string | undefined = findExecutab
   if (!isAbsolute(entry) || !existsSync(entry)) return undefined
   if (isNodeScript(entry)) return runner !== undefined ? [runner, entry] : undefined
   return [entry]
-}
-
-export function bunBinary(): string | undefined {
-  const own = process.execPath
-  if (own !== '' && /^bun(?:\.exe)?$/i.test(basename(own))) return own
-  return findExecutable('bun')
 }
 
 export function toolRequest(t: ToolSpec): PackageRequest | undefined {

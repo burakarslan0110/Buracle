@@ -96,13 +96,11 @@ export function createHealth(ctx) {
   let data = null
   let seq = 0
   let at = 0
-  let running = false
-  let timer = 0
 
   function paint() {
     const level = LEVELS.has(data?.health) ? data.health : 'unknown'
     dot.dataset.state = level
-    const label = `${t('btn.health')}: ${t(running ? 'health.state.running' : `health.state.${level}`)}`
+    const label = `${t('btn.health')}: ${t(`health.state.${level}`)}`
     btn.setAttribute('aria-label', label)
     btn.setAttribute('title', label)
   }
@@ -115,25 +113,15 @@ export function createHealth(ctx) {
     if (mine !== seq) return r
     at = Date.now()
     data = r.ok ? r.body : null
-    const now = r.ok && data?.heal?.running === true
-    if (running && !now && r.ok) ctx.repairDone(data?.heal?.last)
-    running = now
     paint()
     return r
-  }
-
-  function follow(again) {
-    clearTimeout(timer)
-    if (running) timer = setTimeout(again, 2000)
   }
 
   return {
     refresh,
     paint,
-    follow,
-    stop: () => clearTimeout(timer),
     stale: (ms) => Date.now() - at > ms,
-    reset: () => { seq++; data = null; running = false; clearTimeout(timer); paint() },
+    reset: () => { seq++; data = null; paint() },
   }
 }
 
@@ -163,114 +151,63 @@ function harnessLists(picks, holds, now) {
 }
 
 function reasonItem(r) {
-  const level = r.level === 'error' ? 'error' : 'warn'
-  return h('li', { class: `is-${level}` },
+  return h('li', { class: 'is-error' },
     h('p', { class: 'hr-title' }, icon('alert', 'icon xs'), h('span', null, tOr(`health.reason.${r.code}`, String(r.code)))),
     r.detail ? h('p', { class: 'hr-detail' }, r.detail) : null,
-    h('p', { class: 'hr-auto' }, t(r.auto ? 'health.auto' : 'health.manual')),
     typeof r.fix === 'string' && r.fix !== '' ? h('code', { class: 'fix' }, r.fix) : null)
 }
 
-function repairSection(data, ctx) {
-  const running = data.heal?.running === true
-  const note = h('div', { class: 'note-box' }, ctx.note ? h('p', { class: 'note' }, ctx.note) : null)
-  const repair = button(t(running ? 'health.repairing' : 'health.repair'), { 'data-key': 'repair', 'aria-disabled': running ? 'true' : undefined })
-  const sweep = button(t('health.sweep'), { class: 'btn sm quiet', 'data-key': 'sweep', 'aria-disabled': running ? 'true' : undefined })
-  const verify = data.project ? button(t('health.verify'), { class: 'btn sm quiet', 'data-key': 'verify' }) : null
-  const work = (b, text) => {
-    setOff([repair, sweep], true)
-    b.setAttribute('aria-busy', 'true')
-    fill(note, h('p', { class: 'note' }, text))
-  }
-  const failed = (b, r) => {
-    setOff([repair, sweep], false)
-    b.removeAttribute('aria-busy')
-    fill(note, errorBlock(r))
-  }
-  repair.addEventListener('click', async () => {
-    if (isOff(repair)) return
-    work(repair, t('health.repairStarting'))
-    const r = await postJson('/api/heal', { scope: ctx.scope() })
-    if (!r.ok) { failed(repair, r); return }
-    const msg = t(r.body?.started ? 'health.repairStarted' : r.body?.running ? 'health.repairAlready' : 'health.repairNotStarted')
-    ctx.announce(msg)
-    ctx.refresh(msg)
-  })
-  verify?.addEventListener('click', async () => {
-    if (isOff(verify)) return
-    verify.setAttribute('aria-busy', 'true')
-    const r = await postJson('/api/verify', { scope: ctx.scope() })
-    verify.removeAttribute('aria-busy')
-    if (!r.ok) { fill(note, errorBlock(r)); return }
-    const msg = t(r.body?.started ? 'health.verifyStarted' : 'health.verifyNotStarted')
-    fill(note, h('p', { class: 'note' }, msg))
-    ctx.announce(msg)
-  })
-  sweep.addEventListener('click', async () => {
-    if (isOff(sweep)) return
-    work(sweep, t('health.sweeping'))
-    const r = await postJson('/api/sweep', { scope: ctx.scope() })
-    if (!r.ok) { failed(sweep, r); return }
-    const core = Array.isArray(r.body?.core) ? r.body.core : []
-    const msg = [t('health.swept', { pruned: num(r.body?.pruned ?? 0), upkeep: num(r.body?.upkeep ?? 0) }), core.length > 0 ? t('health.sweptCore', { pages: core.join(', ') }) : ''].filter(Boolean).join(' ')
-    ctx.announce(msg)
-    ctx.afterWrite()
-    ctx.refresh(msg)
-  })
-  return section(t('health.fix'),
-    h('p', { class: 'set-lead' }, t('health.fixLead')),
-    running ? h('p', { class: 'running' }, h('i', { class: 'scan', 'aria-hidden': 'true' }), t('health.runningLine')) : null,
-    h('div', { class: 'btn-row' }, repair, sweep, verify),
-    note)
-}
-
-function distillSection(d, now) {
-  if (d === undefined || d === null) return null
-  const by = Object.entries(d.byHarness ?? {}).filter(([, n]) => typeof n === 'number' && n > 0)
-  const picks = Array.isArray(d.harnesses) ? d.harnesses : []
-  const first = picks[0]
-  const rows = [
-    [t('health.pending'), by.length > 0 ? `${num(d.pending ?? 0)} (${by.map(([k, n]) => `${k} ${num(n)}`).join(' · ')})` : num(d.pending ?? 0)],
-    [t('health.provider'), first !== undefined ? pickLine(first) : h('span', { class: 'warn-text' }, t(typeof d.held === 'number' && d.held > 0 ? 'health.allHeld' : 'model.noneKnown'))],
-  ]
-  return section(t('health.distill'),
-    h('p', { class: 'set-lead' }, t('health.distillLead')),
-    props(rows),
-    ...harnessLists(picks.slice(1), d.holds, now))
-}
-
-function storeSection(data, ctx) {
+function storeSection(data) {
   const store = data.store ?? {}
-  const upkeep = button(t('health.openUpkeep'), { class: 'link' })
-  upkeep.addEventListener('click', () => ctx.open('upkeep'))
   const mcp = typeof data.mcp === 'string' ? data.mcp : 'unknown'
+  const last = data.lastCapture
   return section(t('health.brain'), props([
     [t('health.store'), store.ok ? h('span', null, t('health.storeOk'), store.version ? ` · ${store.version}` : '') : h('span', { class: 'warn-text' }, t('health.storeBad'))],
     [t('health.mcp'), mcp === 'down' ? h('span', { class: 'warn-text' }, t('health.mcp.down')) : tOr(`health.mcp.${mcp}`, mcp)],
-    [t('health.upkeep'), h('span', null, num(data.upkeep ?? 0), ' ', upkeep)],
     [t('health.captures'), num(data.captures ?? 0)],
+    [t('health.lastCapture'), last !== undefined && last !== null ? h('time', { datetime: last.at, title: fmtDate(last.at) }, relTime(last.at, Date.now())) : t('health.noCapture')],
   ]))
-}
-
-function lastRunSection(heal, now) {
-  const last = heal?.last
-  const auto = h('p', { class: 'meta' }, t('health.autoOn'))
-  if (last === undefined || last === null) return section(t('health.lastRun'), auto, h('p', { class: 'empty' }, t('health.noRun')))
-  const steps = Array.isArray(last.steps) ? last.steps : []
-  return section(t('health.lastRun'), auto,
-    h('p', { class: `run-line is-${last.ok ? 'ok' : 'error'}` },
-      icon(last.ok ? 'check' : 'alert', 'icon xs'),
-      h('span', null, t(last.ok ? 'health.runOk' : 'health.runFailed', { t: relTime(last.at, now) })),
-      h('time', { datetime: last.at, class: 'meta-inline' }, fmtDate(last.at)),
-      last.trigger ? h('span', { class: 'meta-inline' }, tOr(`health.trigger.${last.trigger}`, String(last.trigger))) : null),
-    steps.length > 0 ? h('ul', { class: 'steps' }, steps.map(s => h('li', { class: s.ok ? 'is-ok' : 'is-error' },
-      icon(s.ok ? 'check' : 'alert', 'icon xs'),
-      h('span', null, h('b', null, String(s.step ?? '')), s.detail ? ` ${s.detail}` : '')))) : null)
 }
 
 function sizeText(bytes) {
   const n = typeof bytes === 'number' && bytes > 0 ? bytes : 0
   return n < 1024 * 1024 ? `${num(Math.max(1, Math.round(n / 1024)))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`
+}
+
+function migrationItem(mig) {
+  const failed = mig.state === 'failed'
+  return h('li', { class: failed ? 'is-error' : 'is-warn' },
+    h('p', { class: 'hr-title' }, icon('alert', 'icon xs'), h('span', null, t(`health.migration.${mig.state}`))),
+    failed && typeof mig.error === 'string' ? h('p', { class: 'hr-detail' }, mig.error) : null,
+    typeof mig.fix === 'string' && mig.fix !== '' ? h('code', { class: 'fix' }, mig.fix) : null)
+}
+
+function migrationRows(mig) {
+  if (mig === undefined || mig === null) return []
+  const finished = mig.state === 'complete' && typeof mig.finishedAt === 'string' ? t('health.migrationFinished', { t: relTime(mig.finishedAt, Date.now()) }) : tOr(`health.migration.${mig.state}`, String(mig.state))
+  return [
+    [t('health.migration'), mig.state === 'failed' ? h('span', { class: 'warn-text' }, finished) : finished],
+    mig.legacy > 0 ? [t('health.legacyWaiting', { n: num(mig.legacy) }), null] : null,
+    mig.keptLegacy ? [t('health.legacyKept'), null] : null,
+  ]
+}
+
+function brainFileSection(data) {
+  const b = data.brain
+  const rows = []
+  if (b !== undefined && b !== null) {
+    const slugs = Object.keys(b.projects ?? {})
+    rows.push([t('health.file'), h('code', null, String(b.file ?? ''))])
+    rows.push([t('health.size'), sizeText(b.bytes)])
+    rows.push([t('health.buckets'), h('ul', { class: 'buckets' },
+      h('li', null, t('health.bucketPerson'), ' · ', t('health.bucketCount', { n: num(b.person ?? 0) })),
+      slugs.map(slug => h('li', null, h('code', null, slug), ' · ', t('health.bucketCount', { n: num(b.projects[slug]) }))))])
+  }
+  const mig = migrationRows(data.migration).filter(Boolean)
+  return section(t('health.brainFile'),
+    h('p', { class: 'set-lead' }, t('health.brainFileLead')),
+    rows.length > 0 ? props(rows) : h('p', { class: 'empty' }, t('health.noBrainFile')),
+    mig.length > 0 ? h('ul', { class: 'notes' }, mig.map(([k, v]) => h('li', null, v === null ? k : [k, ': ', v]))) : null)
 }
 
 function backupSection(b, ctx, now) {
@@ -287,7 +224,7 @@ function backupSection(b, ctx, now) {
     make.removeAttribute('aria-busy')
     setOff([make], false)
     if (!r.ok) { fill(note, errorBlock(r)); return }
-    const msg = t('health.backedUp', { id: String(r.body?.id ?? ''), n: num(r.body?.brains ?? 0) })
+    const msg = t('health.backedUp', { id: String(r.body?.id ?? ''), n: num(r.body?.buckets ?? 0) })
     ctx.announce(msg)
     ctx.refresh(msg)
   })
@@ -302,7 +239,7 @@ function backupSection(b, ctx, now) {
           h('time', { datetime: x.at, title: fmtDate(x.at) }, relTime(x.at, now)), ' · ',
           h('span', { class: 'meta-inline' }, [
             tOr(`health.backup.${x.trigger}`, String(x.trigger ?? '')),
-            t(x.brains === 1 ? 'health.backupBrain' : 'health.backupBrains', { n: num(x.brains ?? 0), size: sizeText(x.bytes) }),
+            t(x.buckets === 1 ? 'health.backupBucket' : 'health.backupBuckets', { n: num(x.buckets ?? 0), size: sizeText(x.bytes) }),
             x.here === true ? t('health.backupHere') : '',
           ].filter(Boolean).join(' · '))))))
       : h('p', { class: 'empty' }, t('health.noBackups')),
@@ -310,33 +247,6 @@ function backupSection(b, ctx, now) {
     mine !== undefined && typeof b.restore === 'string' ? h('code', { class: 'fix' }, b.restore) : null,
     h('div', { class: 'btn-row' }, make),
     note)
-}
-
-function jobLine(e, now) {
-  const why = [e.reason ? tOr(`jobs.reason.${e.reason}`, String(e.reason)) : '', e.detail ? String(e.detail) : ''].filter(Boolean).join(': ')
-  return h('span', null,
-    h('b', null, t(`jobs.outcome.${e.outcome === 'failed' ? 'failed' : e.outcome === 'skipped' ? 'skipped' : 'ran'}`, { t: relTime(e.at, now) })),
-    e.trigger ? h('span', { class: 'meta-inline' }, tOr(`health.trigger.${e.trigger}`, String(e.trigger))) : null,
-    why !== '' ? ` ${why}` : '')
-}
-
-function jobsSection(jobs, now) {
-  if (!Array.isArray(jobs) || jobs.length === 0) return null
-  return section(t('jobs.title'),
-    h('p', { class: 'set-lead' }, t('jobs.lead')),
-    h('ul', { class: 'steps jobs' }, jobs.map(j => {
-      const last = j.last
-      const state = last === undefined ? 'none' : last.outcome === 'failed' ? 'error' : 'ok'
-      const day = j.day ?? { ran: 0, skipped: 0, failed: 0 }
-      return h('li', { class: state === 'error' ? 'is-error' : 'is-ok' },
-        icon(state === 'error' ? 'alert' : state === 'none' ? 'clock' : last.outcome === 'skipped' ? 'clock' : 'check', 'icon xs'),
-        h('span', null,
-          h('b', null, tOr(`jobs.name.${j.job}`, String(j.job))), ' ',
-          last !== undefined ? jobLine(last, now) : h('span', { class: 'empty' }, t('jobs.never')),
-          j.lastFailed ? h('span', { class: 'meta-inline' }, t('jobs.lastFailed', { t: relTime(j.lastFailed.at, now) })) : null,
-          h('span', { class: 'meta-inline' }, t('jobs.day', { ran: num(day.ran), skipped: num(day.skipped), failed: num(day.failed) })),
-          h('span', { class: 'meta' }, tOr(`jobs.schedule.${j.job}`, String(j.schedule ?? '')))))
-    })))
 }
 
 function projectSection(p, ctx) {
@@ -403,20 +313,19 @@ function projectSection(p, ctx) {
 }
 
 export function healthView(body, data, ctx, now) {
-  const level = LEVELS.has(data.health) ? data.health : 'warn'
+  const level = data.migration?.state === 'failed' ? 'error' : LEVELS.has(data.health) ? data.health : 'warn'
   const reasons = Array.isArray(data.reasons) ? data.reasons : []
+  const migrating = data.migration?.state === 'failed' || data.migration?.state === 'running'
   const settings = button(t('health.openSettings'), { class: 'btn sm quiet', 'data-key': 'settings' })
   settings.addEventListener('click', () => ctx.open('settings'))
   fill(body,
     h('p', { class: `health-head is-${level}` }, icon(level === 'ok' ? 'check' : 'alert', 'icon'), h('span', null, t(`health.head.${level}`))),
     data.computedAt ? h('p', { class: 'meta' }, t('health.checked', { t: relTime(data.computedAt, now) })) : null,
     reasons.length > 0 ? section(t('health.reasons'), h('ul', { class: 'hreasons' }, reasons.map(reasonItem))) : null,
-    repairSection(data, ctx),
-    distillSection(data.distill, now),
-    storeSection(data, ctx),
-    lastRunSection(data.heal, now),
+    migrating ? section(t('health.migration'), h('ul', { class: 'hreasons' }, migrationItem(data.migration))) : null,
+    storeSection(data),
+    brainFileSection(data),
     backupSection(data.backups, ctx, now),
-    jobsSection(data.jobs, now),
     projectSection(data.project, ctx),
     h('div', { class: 'btn-row sec' }, settings))
   return { kicker: t(`health.state.${level}`), title: t('health.title') }
@@ -436,40 +345,17 @@ function modelGroup(m, now) {
     props([[t('model.rule'), t('model.ruleLine', { h5: num(headroom.max5hPct ?? 0), d7: num(headroom.max7dPct ?? 0) })]]),
     h('h4', null, t('model.now')),
     ...harnessLists(m.harnesses, m.held, now),
-    typeof m.relateEveryMin === 'number' ? h('p', { class: 'field-help' }, t('model.relate', { min: num(m.relateEveryMin) })) : null,
   ]
   return group('llm', rows)
-}
-
-function embedGroup(e) {
-  const rows = []
-  if (e.off) rows.push(h('p', { class: 'warn-text' }, t('embed.off')))
-  else if (e.installed) {
-    rows.push(props([
-      [t('embed.model'), `${e.model ?? '?'} · ${t('embed.dims', { n: num(e.dim ?? 0) })}${typeof e.rows === 'number' ? ` · ${t('embed.pieces', { n: num(e.rows) })}` : ''}`],
-      [t('embed.state'), h('span', null, icon('check', 'icon xs'), ' ', t('embed.ready'))],
-      [t('embed.endpoint'), typeof e.endpoint === 'string' ? h('code', null, e.endpoint) : h('span', { class: 'warn-text' }, t('embed.noUi'))],
-    ]))
-  } else {
-    rows.push(props([
-      [t('embed.model'), `${e.model ?? '?'} · ${t('embed.dims', { n: num(e.dim ?? 0) })}`],
-      [t('embed.state'), h('span', { class: 'warn-text' }, t('embed.missing'))],
-    ]))
-    if (typeof e.detail === 'string' && e.detail !== '') rows.push(h('p', { class: 'field-help', lang: 'en' }, e.detail))
-    rows.push(h('p', { class: 'field-help' }, t('embed.repairLine'), ' ', h('code', null, 'buracle install')))
-  }
-  return group('embed', rows)
 }
 
 export function settingsView(body, data, ctx) {
   const now = Date.now()
   const m = data.model ?? {}
-  const e = data.embed ?? {}
   fill(body,
     h('p', { class: 'lead' }, t('settings.lead')),
     switchesGroup(data.workflow, ctx, { postJson, errorText }),
     modelGroup(m, now),
-    embedGroup(e),
     data.ui && typeof data.ui.port === 'number' ? h('p', { class: 'meta' }, t('settings.port', { port: String(data.ui.port) }), data.file ? h('span', null, ' · ', t('settings.file'), ' ', h('code', null, String(data.file))) : null) : null)
   return { kicker: t('settings.kicker'), title: t('settings.title') }
 }
@@ -529,4 +415,108 @@ export function memoryActions(m, ctx) {
     h('div', { class: 'btn-row' }, flipBtn, delBtn),
     confirm,
     msg)
+}
+
+const REVIEWS = ['pending', 'ok']
+
+function listText(list) {
+  return Array.isArray(list) ? list.join(', ') : ''
+}
+
+function listOf(text) {
+  return [...new Set(String(text).split(',').map(x => x.trim()).filter(x => x !== ''))]
+}
+
+function sameList(a, b) {
+  return a.length === b.length && a.every((x, i) => x === b[i])
+}
+
+function formField(id, label, control, help) {
+  return h('div', { class: 'field' },
+    h('label', { for: id }, label),
+    control,
+    help !== undefined ? h('p', { class: 'field-help', id: `${id}-help` }, help) : null)
+}
+
+/**
+ * The form that corrects a memory: it replaces the detail in the panel, sends only what changed to /api/memory/update with the
+ * version it read, and shows the server's own error (a stale version, a refused edit) under the buttons.
+ */
+export function memoryEditor(body, m, ctx, back) {
+  const field = (k) => `edit-${k}`
+  const text = (k, value, extra = {}) => h('input', { class: 'inp', id: field(k), type: 'text', value, autocomplete: 'off', 'aria-describedby': `${field(k)}-help`, ...extra })
+  const title = text('title', m.title, { maxlength: 200, required: true })
+  const summary = text('summary', m.summary, { maxlength: 300 })
+  const bodyBox = h('textarea', { class: 'inp', id: field('body'), rows: 10, 'aria-describedby': `${field('body')}-help`, spellcheck: 'false' }, m.body)
+  const tags = text('tags', listText(m.tags), { spellcheck: 'false' })
+  const about = text('about', listText(m.about), { spellcheck: 'false' })
+  const level = h('select', { class: 'inp', id: field('importance') }, [1, 2, 3, 4, 5].map(n => h('option', { value: n, selected: n === m.importance }, t('edit.importanceOption', { n }))))
+  const review = h('select', { class: 'inp', id: field('review'), 'aria-describedby': `${field('review')}-help` }, REVIEWS.map(r => h('option', { value: r, selected: r === m.review }, t(r === 'ok' ? 'edit.reviewOk' : 'edit.reviewPending'))))
+  const save = h('button', { type: 'submit', class: 'btn sm', 'data-key': 'save' }, t('edit.save'))
+  const cancel = h('button', { type: 'button', class: 'btn sm quiet', 'data-key': 'cancel-edit' }, t('edit.cancel'))
+  const note = h('div', { class: 'note-box', role: 'status' })
+  const form = h('form', { class: 'edit-form', novalidate: true, 'aria-labelledby': 'edit-heading' },
+    h('h3', { id: 'edit-heading', class: 'edit-heading' }, t('edit.heading')),
+    h('p', { class: 'set-lead' }, t('edit.lead')),
+    formField(field('title'), t('edit.title'), title, t('edit.helpTitle')),
+    formField(field('summary'), t('edit.summary'), summary, t('edit.helpSummary')),
+    formField(field('body'), t('edit.body'), bodyBox, t('edit.helpBody')),
+    formField(field('tags'), t('edit.tags'), tags, t('edit.helpTags')),
+    formField(field('about'), t('edit.about'), about, t('edit.helpAbout')),
+    formField(field('importance'), t('edit.importance'), level),
+    formField(field('review'), t('edit.review'), review, t('edit.helpReview')),
+    h('div', { class: 'btn-row' }, save, cancel),
+    note)
+
+  // What the form holds that differs from the memory as it was read.
+  const changes = () => {
+    const patch = {}
+    const claim = []
+    if (title.value.trim() !== m.title) { patch.title = title.value.trim(); claim.push('title') }
+    if (summary.value.trim() !== m.summary) { patch.summary = summary.value.trim(); claim.push('summary') }
+    if (bodyBox.value.trim() !== m.body.trim()) { patch.body = bodyBox.value.trim(); claim.push('body') }
+    if (!sameList(listOf(tags.value), m.tags)) patch.tags = listOf(tags.value)
+    if (!sameList(listOf(about.value), m.about)) patch.about = listOf(about.value)
+    if (Number(level.value) !== m.importance) patch.importance = Number(level.value)
+    if (review.value !== m.review || (claim.length > 0 && review.value === 'ok')) patch.review = review.value
+    return patch
+  }
+  const dirty = () => Object.keys(changes()).length > 0
+  const all = [save, cancel]
+  let busy = false
+
+  cancel.addEventListener('click', () => { if (!busy) back() })
+  form.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return
+    e.stopPropagation()
+    e.preventDefault()
+    if (busy) return
+    if (dirty()) fill(note, h('p', { class: 'note' }, t('edit.dirtyEscape')))
+    else back()
+  })
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault()
+    if (busy) return
+    const patch = changes()
+    if (patch.title === '') { title.focus(); fill(note, h('p', { class: 'form-err' }, t('edit.needTitle'))); return }
+    if (Object.keys(patch).length === 0) { fill(note, h('p', { class: 'note' }, t('edit.nothing'))); return }
+    busy = true
+    setOff(all, true)
+    save.setAttribute('aria-busy', 'true')
+    fill(note, h('p', { class: 'note' }, t('edit.saving')))
+    const r = await postJson('/api/memory/update', { scope: ctx.memoryScope, id: m.id, patch, expected_version: m.version })
+    busy = false
+    save.removeAttribute('aria-busy')
+    setOff(all, false)
+    if (!r.ok) {
+      fill(note, errorBlock(r), r.status === 409 && typeof r.body?.version === 'number' ? h('p', { class: 'note' }, t('edit.conflict', { v: r.body.version })) : null)
+      return
+    }
+    ctx.announce(t('edit.saved', { title: patch.title ?? m.title }))
+    ctx.memoryChanged('update')
+  })
+  fill(body, form)
+  body.scrollTop = 0
+  title.focus({ preventScroll: true })
+  title.select()
 }

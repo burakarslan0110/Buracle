@@ -8,35 +8,28 @@ export interface Headroom {
 export const HEADROOM: Headroom = { max5hPct: 75, max7dPct: 85 }
 
 export interface DistillBudget {
-  promote: 'high' | 'medium'
+  /** A candidate the model is at least this sure of (0..1) is filed as a memory of its kind; a less sure one waits as a capture. */
+  promoteAt: number
+  maxCandidates: number
   maxInputTokens: number
   maxOutputTokens: number
 }
 
-export const DISTILL_BUDGET: DistillBudget = { promote: 'medium', maxInputTokens: 8000, maxOutputTokens: 1000 }
+export const DISTILL_BUDGET: DistillBudget = { promoteAt: 0.6, maxCandidates: 3, maxInputTokens: 8000, maxOutputTokens: 1000 }
 
-export interface ReflectBudget {
-  maxOpsPerRun: number
-  maxSubQueries: number
-  maxRounds: number
-  maxInputTokens: number
-  maxOutputTokens: number
-  relateEveryMs: number
+export interface CaptureBudget {
+  /** How many other stale spools one session end takes care of besides its own. */
+  pendingPerRun: number
+  /** A spool this old, with no live session behind it, is pending. */
+  pendingAfterMs: number
+  /** After this many failed model calls the spool is kept for a human (`buracle mem capture`), not retried by session ends. */
+  maxTries: number
 }
 
-export const REFLECT_BUDGET: ReflectBudget = { maxOpsPerRun: 8, maxSubQueries: 6, maxRounds: 2, maxInputTokens: 6000, maxOutputTokens: 700, relateEveryMs: 6 * 3600_000 }
-
-export interface VerifyBudget {
-  maxPerRun: number
-  maxInputTokens: number
-  maxOutputTokens: number
-}
-
-export const VERIFY_BUDGET: VerifyBudget = { maxPerRun: 4, maxInputTokens: 8000, maxOutputTokens: 900 }
+export const CAPTURE_BUDGET: CaptureBudget = { pendingPerRun: 3, pendingAfterMs: 3 * 3600_000, maxTries: 3 }
 
 export interface BackupBudget {
   keep: number
-  everyMs: number
 }
 
-export const BACKUP_BUDGET: BackupBudget = { keep: 10, everyMs: 24 * 3600_000 }
+export const BACKUP_BUDGET: BackupBudget = { keep: 10 }

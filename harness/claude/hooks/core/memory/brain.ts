@@ -62,6 +62,8 @@ export function regionOf(kind: MemKind): MemRegion {
 export type MemStatusValue = 'active' | 'deprecated' | 'superseded'
 export type MemReview = 'pending' | 'ok'
 export type MemAuthor = 'agent' | 'buracle' | 'user'
+/** Where a claim comes from: the user said or wrote it ('explicit'), or an agent or the model concluded it ('inferred'). */
+export type MemOrigin = 'explicit' | 'inferred'
 
 export interface MemHistoryEntry { at: string, by: string, what: string }
 
@@ -82,6 +84,8 @@ export interface MemItem {
   updated: string
   author: MemAuthor
   version: number
+  origin?: MemOrigin
+  confidence?: number
   harness?: string
   model?: string
   session?: string
@@ -197,13 +201,21 @@ export function fromCortex(raw: unknown, layer: MemLayer): MemItem | undefined {
     if (v !== undefined) (item as unknown as Record<string, unknown>)[k] = v
   }
   if (meta['pinned'] === true) item.pinned = true
+  if (meta['origin'] === 'explicit' || meta['origin'] === 'inferred') item.origin = meta['origin']
+  const confidence = meta['confidence']
+  if (typeof confidence === 'number' && Number.isFinite(confidence) && confidence >= 0 && confidence <= 1) item.confidence = confidence
   if (typeof meta['recall_count'] === 'number') item.recallCount = meta['recall_count']
   return item
 }
 
 const CORTEX_KEPT = ['recall_count', 'last_recalled_at', 'superseded_by', 'superseded_at'] as const
 
-export function toCortexSave(item: MemItem, keep: Readonly<Record<string, unknown>> = {}): Record<string, unknown> {
+/**
+ * The memory_save arguments of an item. A row with an `expires` date is saved with CortexDB's own `ttl_seconds`
+ * (counted from `nowMs`), so the engine hides and drops it by itself; the date also stays in the metadata, which is
+ * how rows written before the native expiry still show when they run out.
+ */
+export function toCortexSave(item: MemItem, keep: Readonly<Record<string, unknown>> = {}, nowMs?: number): Record<string, unknown> {
   const meta: Record<string, unknown> = {
     buracle: MEM_SCHEMA, type: item.kind, layer: item.layer, title: item.title, summary: item.summary,
     status: item.status === 'deprecated' ? 'deprecated' : 'active', review: item.review, priority: item.importance,
@@ -223,9 +235,83 @@ export function toCortexSave(item: MemItem, keep: Readonly<Record<string, unknow
     if (typeof v === 'string' && v !== '') meta[m] = v
   }
   if (item.pinned === true) meta['pinned'] = true
+  if (item.origin !== undefined) meta['origin'] = item.origin
+  if (item.confidence !== undefined) meta['confidence'] = item.confidence
   for (const k of CORTEX_KEPT) if (keep[k] !== undefined) meta[k] = keep[k]
-  return { memory_id: item.id, content: encodeContent(item.title, item.summary, item.body), metadata: meta, importance: cortexImportance(item.importance) }
+  const save: Record<string, unknown> = { memory_id: item.id, content: encodeContent(item.title, item.summary, item.body), metadata: meta, importance: cortexImportance(item.importance) }
+  const ttl = ttlSeconds(item.expires, nowMs)
+  if (ttl !== undefined) save['ttl_seconds'] = ttl
+  save['review_status'] = cortexReviewStatus(item)
+  if (save['review_status'] === 'accepted') {
+    // CortexDB refuses an accepted memory that does not name its reviewer: a memory Buracle generated itself (a session
+    // note, a handoff) is accepted by its author, one a person or an agent verified by whoever verified it.
+    save['reviewed_by'] = item.verifiedBy ?? item.author
+    const at = item.verifiedAt ?? item.updated
+    if (Number.isFinite(Date.parse(at))) save['reviewed_at'] = new Date(at).toISOString()
+  }
+  const graph = cortexGraph(item)
+  if (graph.entities.length > 0) save['entities'] = graph.entities
+  if (graph.relations.length > 0) save['relations'] = graph.relations
+  return save
 }
+
+/**
+ * CortexDB's own review state, next to the `review` metadata: `accepted` once the memory is verified (an inferred one
+ * only by the user), `proposed` before. Buracle never turns the engine's review gate on, so this only labels the row.
+ */
+export function cortexReviewStatus(item: Pick<MemItem, 'review' | 'origin' | 'verifiedBy'>): 'proposed' | 'accepted' {
+  if (item.review !== 'ok') return 'proposed'
+  return item.origin === 'inferred' && item.verifiedBy !== 'user' ? 'proposed' : 'accepted'
+}
+
+export interface CortexEntity { name: string, type: string }
+export interface CortexRelation { from: string, to: string, type: string }
+
+const MAX_ENTITIES = 30
+const MAX_RELATIONS = 40
+const ENTITY_NAME_MAX = 120
+
+/**
+ * The graph a memory brings along on save: what it is `about` (topics) and the repository files its `sources` cite
+ * (files), with an `about` relation from each topic to each file. A relation only names entities in the same list,
+ * because the engine rejects one that does not.
+ */
+export function cortexGraph(item: Pick<MemItem, 'about' | 'sources'>): { entities: CortexEntity[], relations: CortexRelation[] } {
+  const entities: CortexEntity[] = []
+  const canonical = new Map<string, string>()
+  const add = (raw: string, type: string): string | undefined => {
+    const name = raw.trim().replace(/\s+/g, ' ').slice(0, ENTITY_NAME_MAX)
+    const key = name.toLowerCase()
+    if (name === '') return undefined
+    const have = canonical.get(key)
+    if (have !== undefined) return have
+    if (entities.length >= MAX_ENTITIES) return undefined
+    canonical.set(key, name)
+    entities.push({ name, type })
+    return name
+  }
+  const topics = item.about.map(a => add(a, 'topic')).filter((n): n is string => n !== undefined)
+  const files = item.sources.map(s => sourcePath(s)).filter((p): p is string => p !== undefined).map(p => add(p, 'file')).filter((n): n is string => n !== undefined)
+  const relations: CortexRelation[] = []
+  for (const from of new Set(topics)) {
+    for (const to of new Set(files)) {
+      if (from.toLowerCase() === to.toLowerCase() || relations.length >= MAX_RELATIONS) continue
+      relations.push({ from, to, type: 'about' })
+    }
+  }
+  return { entities, relations }
+}
+
+export function ttlSeconds(expires: string | undefined, nowMs: number | undefined): number | undefined {
+  if (expires === undefined || nowMs === undefined) return undefined
+  const at = Date.parse(expires)
+  return Number.isFinite(at) ? Math.max(1, Math.ceil((at - nowMs) / 1000)) : undefined
+}
+
+/** How long a session memory lives before CortexDB drops it. */
+export const SESSION_KEEP_MS = 45 * 86_400_000
+/** How long a handoff memory lives before CortexDB drops it. */
+export const HANDOFF_KEEP_MS = 14 * 86_400_000
 
 const ID_RE = /^[a-z][a-z0-9-]{1,95}$/
 
@@ -244,16 +330,25 @@ export function coreId(section: string): string {
   return `core-${slugify(section)}`
 }
 
-export function cortexQuery(query: string, topK: number, opts: { semantic?: boolean } = {}): Record<string, unknown> {
+export function cortexQuery(query: string, topK: number): Record<string, unknown> {
   const words = memQueryWords(query)
   const keywords = new Set<string>()
   for (const w of words) {
     keywords.add(w)
     for (const s of memStemForms(w)) keywords.add(s)
   }
-  const args: Record<string, unknown> = { query: memOneLine(query).slice(0, 300), top_k: topK, retrieval_mode: opts.semantic === true ? 'hybrid' : 'lexical' }
+  const args: Record<string, unknown> = { query: memOneLine(query).slice(0, 300), top_k: topK, retrieval_mode: 'lexical' }
   if (keywords.size > 0) args['keywords'] = [...keywords].slice(0, 32)
   return args
+}
+
+/**
+ * A search narrowed by `about` also walks the graph from those topics: the engine adds the memories linked to them
+ * to the words' hits. Without topics the search stays lexical.
+ */
+export function cortexAbout(args: Record<string, unknown>, about: readonly string[]): Record<string, unknown> {
+  const names = about.map(a => a.trim()).filter(a => a !== '').slice(0, 12)
+  return names.length === 0 ? args : { ...args, entity_names: names, retrieval_mode: 'graph' }
 }
 
 export interface MemRankInput { item: MemItem, rank: number }
@@ -280,8 +375,21 @@ export function rankHits(query: string, hits: readonly MemRankInput[]): MemItem[
 export function hitLine(item: MemItem): string {
   const date = (item.updated || item.created).slice(0, 10)
   const summary = item.summary !== '' ? ` — ${memClip(memOneLine(item.summary), 160)}` : ''
-  const flags = [item.review === 'pending' && !KIND_INFO[item.kind].generated ? 'unverified' : '', item.status !== 'active' ? item.status : ''].filter(Boolean)
+  const flags = [
+    item.review === 'pending' && !KIND_INFO[item.kind].generated ? 'unverified' : '', item.status !== 'active' ? item.status : '',
+    item.origin === 'explicit' ? 'explicit' : '', item.contradictedAt !== undefined ? 'contradicts' : '',
+  ].filter(Boolean)
   return `${item.id} · ${item.kind} · ${date} · ${memClip(memOneLine(item.title), 140)}${summary} [${item.layer}]${flags.length > 0 ? ` (${flags.join(', ')})` : ''}`
+}
+
+/** The user's own words, or pinned: a model or an agent never edits, retires, merges or replaces such a memory. */
+export function memLocked(i: Pick<MemItem, 'origin' | 'pinned'>): boolean {
+  return i.origin === 'explicit' || i.pinned === true
+}
+
+/** Locked, or verified: a model or an agent never retires, merges or replaces such a memory. */
+export function memProtected(i: Pick<MemItem, 'origin' | 'pinned' | 'review'>): boolean {
+  return memLocked(i) || i.review === 'ok'
 }
 
 export function isLive(item: MemItem, nowMs: number): boolean {
@@ -311,41 +419,6 @@ export function memPreparedMemSimilarity(a: MemSimilarityPrep, b: MemSimilarityP
 
 export const DUPLICATE_THRESHOLD = 0.7
 
-function twinKey(w: string): string {
-  return w.length >= 4 ? w.slice(0, 4) : w
-}
-
-export function duplicateTwins(items: readonly MemItem[], nowMs: number, threshold = DUPLICATE_THRESHOLD): Map<string, string> {
-  const pool = items.filter(i => isLive(i, nowMs) && !KIND_INFO[i.kind].generated && i.kind !== 'capture' && i.kind !== 'core')
-  const preps = pool.map(memSimilarityPrep)
-  const index = new Map<string, number[]>()
-  preps.forEach((p, n) => {
-    for (const w of p.title.words) {
-      const k = twinKey(w)
-      const list = index.get(k)
-      if (list === undefined) index.set(k, [n])
-      else list.push(n)
-    }
-  })
-  const LEAST_TITLE = 0.4
-  const out = new Map<string, string>()
-  pool.forEach((i, n) => {
-    const mine = preps[n] as MemSimilarityPrep
-    const hits = new Map<number, number>()
-    for (const k of new Set([...mine.title.words].map(twinKey))) for (const m of index.get(k) ?? []) if (m !== n) hits.set(m, (hits.get(m) ?? 0) + 1)
-    let best: { id: string, score: number } | undefined
-    for (const [m, shared] of hits) {
-      const theirs = preps[m] as MemSimilarityPrep
-      if (shared * (1 + LEAST_TITLE) < LEAST_TITLE * (mine.title.words.size + theirs.title.words.size)) continue
-      const other = pool[m] as MemItem
-      const score = memPreparedMemSimilarity(mine, theirs)
-      if (score >= threshold && (best === undefined || score > best.score || (score === best.score && other.id < best.id))) best = { id: other.id, score }
-    }
-    if (best !== undefined) out.set(i.id, best.id)
-  })
-  return out
-}
-
 export function similarMemories(cand: Pick<MemItem, 'title' | 'summary' | 'kind'>, items: readonly MemItem[], nowMs: number, threshold = DUPLICATE_THRESHOLD): Array<{ item: MemItem, score: number }> {
   return items
     .filter(i => isLive(i, nowMs) && !KIND_INFO[i.kind].generated && i.kind !== 'capture')
@@ -354,38 +427,28 @@ export function similarMemories(cand: Pick<MemItem, 'title' | 'summary' | 'kind'
     .sort((a, b) => b.score - a.score)
 }
 
-export type UpkeepReason = 'contradicted' | 'capture' | 'unverified' | 'source-missing' | 'source-changed' | 'stale' | 'duplicate'
-
-export interface UpkeepItem {
-  id: string
-  layer: MemLayer
-  kind: MemKind
-  title: string
-  reasons: UpkeepReason[]
-  action: string
-  twin?: string
-  files?: string[]
-  since?: string
-  note?: string
-  quiet?: true
-}
-
-export interface UpkeepFacts {
-  nowMs: number
-  missing: ReadonlySet<string>
-  changed: ReadonlyMap<string, readonly string[]>
-  settled?: ReadonlySet<string>
-  twins?: ReadonlyMap<string, string>
-  distinct?: ReadonlySet<string>
-}
-
-const DAY = 86_400_000
-export const CODE_DISAGREES_TAG = 'code-disagrees'
-export const VERIFY_KINDS = ['decision', 'gotcha', 'procedure', 'knowledge', 'reference'] as const
-export const VERIFIER_REASONS: readonly UpkeepReason[] = ['source-changed', 'unverified', 'stale']
-export const STALE_AFTER_DAYS = 120
-const UNVERIFIED_GRACE_MS = 6 * 3600_000
 export const CONTRADICTED_NOTE_MAX = 200
+
+/** A protected memory (the user's own, pinned or verified) that a newer, inferred memory differs from. */
+export interface MemConflict { id: string, why: 'explicit' | 'pinned' | 'verified' }
+
+/** The note a memory carries while it is marked as contradicting: it names the memories it was written beside. */
+export function contradictionNote(conflicts: readonly MemConflict[]): string {
+  return memClip(`differs from ${conflicts.map(c => `${c.id} (${c.why})`).join(', ')}; that memory was left as it is`, CONTRADICTED_NOTE_MAX)
+}
+
+const CONFLICT_REF = /(?:^|[\s,])([a-z][a-z0-9-]{1,95}) \((explicit|pinned|verified)\)/g
+
+/** The memories a contradiction note names (the inverse of {@link contradictionNote}); a name cut off by the clip is not one. */
+export function parseContradictionNote(note: string | undefined): MemConflict[] {
+  if (note === undefined) return []
+  const out: MemConflict[] = []
+  for (const m of note.matchAll(CONFLICT_REF)) {
+    const id = m[1] as string
+    if (!out.some(c => c.id === id)) out.push({ id, why: m[2] as MemConflict['why'] })
+  }
+  return out
+}
 
 export function sourcePath(source: string): string | undefined {
   const s = source.trim()
@@ -397,100 +460,10 @@ export function sourcePath(source: string): string | undefined {
 
 export const SOURCE_LINES = /(?:#L|[#:])\d+(?:[-–]L?\d+|:\d+)?(?:,L?\d+(?:[-–]L?\d+)?)*$/
 
-function ageMs(iso: string | undefined, nowMs: number): number {
-  const t = iso !== undefined ? Date.parse(iso) : Number.NaN
-  return Number.isFinite(t) ? nowMs - t : 0
-}
-
-const ACTION: Readonly<Record<UpkeepReason, string>> = {
-  contradicted: 'a background check found the claim contradicted by the code (see the note): the curator restates it from the code; one it leaves after three reflect runs (or contradicted twice, or for 7 days) is settled: a fact is retired, a decision keeps the note',
-  capture: 'reflect files it as a memory of its kind (in the brain it sits in) or drops it; one that three reflect runs left unfiled is dropped by the sweep (restorable for 30 days)',
-  'source-missing': 'a file it cites is gone: the sweep follows a move git made, else the curator picks among files of the same name or retires the memory',
-  'source-changed': 'files it cites changed since it was verified: the verifier checks the claim against them again (two tries at most; a claim it cannot decide leaves this list)',
-  duplicate: 'it looks like another memory: reflect merges the pair; a pair three reflect runs leave unmerged counts as two distinct memories',
-  unverified: 'the verifier checks the claim against the code (two tries at most; a claim it cannot decide leaves this list until it or its files change)',
-  stale: `verified more than ${STALE_AFTER_DAYS} days ago: the verifier checks it again (two tries at most)`,
-}
-
-export function upkeepAction(reason: UpkeepReason): string {
-  return ACTION[reason]
-}
-
-export const UPKEEP_REASONS: readonly UpkeepReason[] = ['contradicted', 'source-missing', 'capture', 'duplicate', 'source-changed', 'unverified', 'stale']
-const REASON_WEIGHT = Object.fromEntries(UPKEEP_REASONS.map((r, n) => [r, n])) as Readonly<Record<UpkeepReason, number>>
-
-export function upkeepFindings(items: readonly MemItem[], facts: UpkeepFacts): UpkeepItem[] {
-  const live = items.filter(i => isLive(i, facts.nowMs))
-  const twins = facts.twins ?? duplicateTwins(live, facts.nowMs)
-  const out: UpkeepItem[] = []
-  const seenPairs = new Set<string>()
-  for (const i of live) {
-    const info = KIND_INFO[i.kind]
-    if (info.generated) continue
-    const reasons: UpkeepReason[] = []
-    let twin: string | undefined
-    let files: string[] | undefined
-    let note: string | undefined
-    if (i.kind === 'capture') reasons.push('capture')
-    else {
-      const contradicted = i.contradictedAt !== undefined && i.review === 'pending'
-      if (contradicted) {
-        reasons.push('contradicted')
-        const n = memClip(memOneLine(i.contradictedNote ?? ''), CONTRADICTED_NOTE_MAX)
-        if (n !== '') note = n
-      }
-      const gone = i.sources.map(sourcePath).filter((p): p is string => p !== undefined && facts.missing.has(p))
-      if (gone.length > 0) { reasons.push('source-missing'); files = [...new Set(gone)] }
-      const checkable = i.layer === 'project' && (VERIFY_KINDS as readonly string[]).includes(i.kind)
-      const changed = facts.changed.get(i.id) ?? []
-      if (changed.length > 0 && i.review === 'ok') { reasons.push('source-changed'); files = [...new Set([...(files ?? []), ...changed])] }
-      if (checkable && i.review === 'pending' && !contradicted && ageMs(i.updated || i.created, facts.nowMs) >= UNVERIFIED_GRACE_MS) reasons.push('unverified')
-      if (checkable && i.review === 'ok' && info.driftProne && ageMs(i.verifiedAt ?? i.updated, facts.nowMs) > STALE_AFTER_DAYS * DAY) reasons.push('stale')
-      const dup = twins.get(i.id)
-      const pair = dup !== undefined ? [i.id, dup].sort().join('|') : ''
-      if (dup !== undefined && i.kind !== 'core' && facts.distinct?.has(pair) !== true) {
-        if (!seenPairs.has(pair)) { seenPairs.add(pair); reasons.push('duplicate'); twin = dup }
-      }
-    }
-    if (reasons.length === 0) continue
-    const u: UpkeepItem = { id: i.id, layer: i.layer, kind: i.kind, title: i.title, reasons, action: reasons.map(r => ACTION[r]).join('; ') }
-    if (twin !== undefined) u.twin = twin
-    if (files !== undefined) u.files = files
-    if (note !== undefined) u.note = note
-    if ((facts.settled?.has(i.id) === true || i.tags.includes(CODE_DISAGREES_TAG)) && reasons.every(r => VERIFIER_REASONS.includes(r))) u.quiet = true
-    out.push(u)
-  }
-  const best = (u: UpkeepItem) => Math.min(...u.reasons.map(r => REASON_WEIGHT[r]))
-  return out.sort((a, b) => best(a) - best(b) || a.id.localeCompare(b.id))
-}
-
-export interface PruneItem { id: string, reason: 'expired' | 'superseded' | 'deprecated' | 'excess-session' | 'excess-handoff' }
-
-export const RETIRED_KEEP_DAYS = 30
-export const MAX_SESSIONS = 40
-export const MAX_HANDOFFS = 10
-
-export function pruneCandidates(items: readonly MemItem[], nowMs: number): PruneItem[] {
-  const out: PruneItem[] = []
-  const done = new Set<string>()
-  const add = (id: string, reason: PruneItem['reason']) => { if (!done.has(id)) { done.add(id); out.push({ id, reason }) } }
-  for (const i of items) {
-    if (i.pinned === true) continue
-    if (i.expires !== undefined && Number.isFinite(Date.parse(i.expires)) && Date.parse(i.expires) <= nowMs) add(i.id, 'expired')
-    else if (i.status === 'superseded' && ageMs(i.supersededAt ?? i.updated, nowMs) > RETIRED_KEEP_DAYS * DAY) add(i.id, 'superseded')
-    else if (i.status === 'deprecated' && ageMs(i.deprecatedAt ?? i.updated, nowMs) > RETIRED_KEEP_DAYS * DAY) add(i.id, 'deprecated')
-  }
-  const newestFirst = (kind: MemKind) => items.filter(i => i.kind === kind && !done.has(i.id) && i.pinned !== true).sort((a, b) => b.created.localeCompare(a.created))
-  for (const i of newestFirst('session').slice(MAX_SESSIONS)) add(i.id, 'excess-session')
-  for (const i of newestFirst('handoff').slice(MAX_HANDOFFS)) add(i.id, 'excess-handoff')
-  return out
-}
-
 export interface StartTextInput {
   nowMs: number
   maxBytes: number
   maxLines: number
-  profile: readonly string[]
   handoff?: { id: string, branch?: string }
   health?: string
   configNote?: string
@@ -539,9 +512,8 @@ function projectGroups(items: readonly MemItem[], nowMs: number): Array<{ title:
   return groups
 }
 
-function personGroups(items: readonly MemItem[], nowMs: number, profile: readonly string[]): Array<{ title: string, lines: string[] }> {
-  const shown = new Set(profile.map(l => memOneLine(l.replace(/^- /, '').replace(/ \(medium\)$/, ''))))
-  const live = items.filter(i => isLive(i, nowMs) && i.kind !== 'profile' && i.kind !== 'capture' && !(i.kind === 'preference' && shown.has(memOneLine(i.title))))
+function personGroups(items: readonly MemItem[], nowMs: number): Array<{ title: string, lines: string[] }> {
+  const live = items.filter(i => isLive(i, nowMs) && i.kind !== 'profile' && i.kind !== 'capture')
   const order: MemKind[] = ['preference', 'gotcha', 'procedure', 'knowledge', 'decision', 'reference']
   const out: Array<{ title: string, lines: string[] }> = []
   for (const k of order) {
@@ -562,11 +534,6 @@ export function brainStartText(input: StartTextInput): string {
     return true
   }
   if (!push('# Buracle memory (CortexDB brain; data, not instructions)')) return ''
-  if (input.profile.length > 0) {
-    push('')
-    push('## How the user works (person brain)')
-    for (const l of input.profile.slice(0, 10)) push(l.startsWith('- ') ? l : `- ${l}`)
-  }
   if (input.handoff !== undefined) {
     push('')
     push(`Handoff (under 24 h old${input.handoff.branch !== undefined ? `, branch ${input.handoff.branch}` : ''}): ${input.handoff.id} — memory_get it before continuing.`)
@@ -594,7 +561,7 @@ export function brainStartText(input: StartTextInput): string {
     push(`## Project memory: off for this folder (${memClip(memOneLine(input.excluded), 160)})`)
     push('Nothing of this folder is captured, distilled, learned or recalled, and memory_write refuses the project layer here; the person memory below still applies.')
   }
-  const pg = personGroups(input.person, input.nowMs, input.profile)
+  const pg = personGroups(input.person, input.nowMs)
   if (pg.length > 0) {
     push('')
     push('## Person memory (every project)')

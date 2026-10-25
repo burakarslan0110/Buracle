@@ -25,22 +25,19 @@ import { assetsAfterEdit, assetsOptions, assetsSessionStart, startLinkRun, type 
 import { earlyEdit, readOnlyStart, startedWorkflow } from '../shared/plan-mode'
 import { projectDeps as readProjectDeps } from '../shared/project-deps'
 import { reviewAgentIds } from './agents'
-import {
-  bridgePostPayload, cmClassifyFailed, contextModeDenial, contextModeForward, contextModePrune, loadContextModeFns, type ContextModeFns,
-} from './context-mode'
 import { removedByFile } from '../shared/checker-scan'
 import { fileCheckNotes, sessionOnce } from '../shared/file-checks'
 import { captureApprovedPlan, noteProposedPlan } from './plan-capture'
 import { canPromptConsent, consentPromptInput, onPermissionRequest, settleConsentAsks, type PromptEnv } from './consent-prompt'
 import { unaskedConsent } from '../shared/consent-asks'
-import { bashOptions, GUARDED_TOOLS, guardFailed, mcpWriteDenial, SHELL_TOOL, shellPatchOf, writeContext, writeDenial } from './guards'
+import { bashOptions, GUARDED_TOOLS, guardFailed, mcpWriteDenial, SHELL_TOOL, shellPatchOf, writeDenial } from './guards'
 import {
   blockOutput, byteLength, clipBytes, CONTEXT_BUDGET_BYTES, contextOutput, denyOutput, denyReason, json, loadAdapterState, NOTHING, rec,
   saveAdapterState, step, str, type CodexSessionState, type HookOutcome, type Payload,
 } from './hook-io'
 import { reviewErrors } from './review'
 import {
-  availableServers, codexPathRules, fitParts, knownServers, liveHealth, loadWorkspaceInfo, promptSignals, readMcpHealth, recordMcpResult, recordPrompt, recordWorkflowStart, resumeNotice,
+  availableServers, codexPathRules, fitParts, knownServers, loadWorkspaceInfo, readMcpHealth, recordMcpResult, recordPrompt, recordWorkflowStart, resumeNotice,
   routeUserPrompt, routingPolicy, saveWorkspaceInfo, sessionHealth, stopAudit, usageReminders, workflowStart, workspaceFacts, workspaceNoticeFor,
 } from './route'
 import { POST_MASK_HANDLER } from './hooks-config'
@@ -68,7 +65,6 @@ export interface MemoryFns {
   spawnFinalizer?: (h: Harness, sid: string) => unknown
   sessionStart?: (h: Harness, sid: string, cwd: string, opts?: { nowMs?: number, model?: string }) => unknown
   promptSeen?: (h: Harness, sid: string, opts?: { nowMs?: number }) => unknown
-  compactSeen?: (h: Harness, sid: string, opts?: { nowMs?: number }) => unknown
   contextText?: (opts: { cwd: string, harness?: string, branch?: string, nowMs?: number, maxBytes?: number }) => Promise<string>
   writeHandoff?: (input: { harness: Harness, sessionId: string, cwd: string, project?: string, branch?: string, slug: string, markdown: string, trigger?: string, now?: number }) => Promise<{ id: string, path: string, rel: string } | undefined>
   latestHandoff?: (opts: { project: string, branch?: string, nowMs?: number, session?: string }) => Promise<{ id: string, path: string, rel: string, title: string } | undefined>
@@ -89,7 +85,6 @@ export interface CodexHookDeps {
   workspaceInfo?: (cwd: string, ctx: AdapterContext, nowMs: number) => Promise<WorkspaceInfo | undefined>
   refreshWorkspace?: (info: WorkspaceInfo, ctx: AdapterContext, nowMs: number) => WorkspaceInfo
   projectDeps?: (root: string) => string[]
-  contextMode?: () => Promise<ContextModeFns>
   assetsSpawn?: AssetsSpawner
   lspEdits?: (files: readonly string[], opts: { cwd: string, deadlineMs: number, now: () => number }) => Promise<string[]>
   notify?: (title: string, message: string) => void
@@ -107,7 +102,6 @@ async function loadMemoryFns(): Promise<MemoryFns> {
     out.spawnFinalizer = m.spawnFinalizer
     out.sessionStart = m.sessionStart
     out.promptSeen = m.promptSeen
-    out.compactSeen = m.compactSeen
   })
   await load('context', async () => { out.contextText = (await import('../../memory/context')).contextText })
   await load('handoff', async () => {
@@ -120,10 +114,8 @@ async function loadMemoryFns(): Promise<MemoryFns> {
 
 export function defaultDeps(): CodexHookDeps {
   let memo: Promise<MemoryFns> | undefined
-  let cm: Promise<ContextModeFns> | undefined
   return {
     core, memory: () => (memo ??= loadMemoryFns()), now: () => Date.now(), run: runProcess, env: () => process.env,
-    contextMode: () => (cm ??= loadContextModeFns()),
     async prepareWorkspace(cwd, ctx, nowMs) {
       return (await import('../shared/workspace-start')).prepareWorkspace(cwd, ctx.config, nowMs)
     },
@@ -216,7 +208,7 @@ function readIfFile(path: string): string | undefined {
 }
 
 export function capabilityCardText(ctx: AdapterContext, deps: CodexHookDeps, sid?: string): string {
-  const health = sid !== undefined ? sessionHealth(ctx, deps.core, sid, deps.now()) : liveHealth(ctx, deps.core, readMcpHealth(ctx, deps.now()))
+  const health = sid !== undefined ? sessionHealth(ctx, deps.core, sid, deps.now()) : readMcpHealth(ctx, deps.now())
   const mcp = deps.core.catalogMcp(ctx.canonical.mcp, H).filter(m => health[m.id] !== 'down')
   return deps.core.capabilityCard({ policy: routingPolicy(ctx), mcp, skills: deps.core.catalogSkills(ctx.canonical.skills), plugins: [], harness: H })
 }
@@ -271,11 +263,7 @@ async function onSessionStart(p: Payload, sid: string, cwd: string, ctx: Adapter
   const notice = source === 'startup' && !sub && !noticesOff(envOf(deps))
     ? await step(ev, 'H17 notices', undefined as NoticeTexts | undefined, () => startupNotices(ctx.canonical.notices, { version: runtimeVersion(ctx.repoRoot), nowMs: now, harness: H }))
     : undefined
-  const nonEmpty = (xs: string[]): string[] => xs.filter(s => s.trim() !== '')
-  const cmRoom = CONTEXT_BUDGET_BYTES - byteLength(nonEmpty([restore, notice?.model ?? '', workspace, assets, resumed?.model ?? '', card]).join('\n\n')) - 64
-  const cm = sub ? undefined : await contextModeForward(ev, p, { config: ctx.config, env: envOf(deps), load: deps.contextMode, maxBytes: Math.max(0, Math.min(core.CM_RESTORE_MAX_BYTES, cmRoom)) })
-  const cmText = cm?.text ?? ''
-  const fixed = nonEmpty([restore, cmText, notice?.model ?? '', workspace, assets, resumed?.model ?? '', card])
+  const fixed = [restore, notice?.model ?? '', workspace, assets, resumed?.model ?? '', card].filter(s => s.trim() !== '')
   const room = CONTEXT_BUDGET_BYTES - byteLength(fixed.join('\n\n')) - 64
   const index = room > 400 && !memoryOff(deps)
     ? await step(ev, 'H13 memory context', undefined as string | undefined, () => memoryContext(deps, cwd, now, room))
@@ -284,13 +272,12 @@ async function onSessionStart(p: Payload, sid: string, cwd: string, ctx: Adapter
   if (source === 'startup') {
     warning = await step(ev, 'H17 profileGuard', undefined as string | undefined, () => profileWarning(ctx, deps))
     await step(ev, 'H16 sessionMaint', undefined, () => { sessionMaint(H, now, { keep: [sid] }) })
-    await contextModePrune(deps.contextMode, now)
   }
   const health = !sub && (source === 'startup' || source === 'resume') && ctx.config.workflow.codexNotices
     ? await step(ev, 'hooks notice', undefined as string | undefined, async () => hooksNotice(ctx, await hookHealthOf(deps, now)))
     : undefined
   const user = [warning, notice?.user, resumed?.user, health].filter((s): s is string => s !== undefined).join('\n')
-  return contextOutput('SessionStart', [restore, cmText, notice?.model ?? '', workspace, assets, resumed?.model ?? '', index !== undefined ? clipBytes(index, room) : '', card], user !== '' ? user : undefined)
+  return contextOutput('SessionStart', [restore, notice?.model ?? '', workspace, assets, resumed?.model ?? '', index !== undefined ? clipBytes(index, room) : '', card], user !== '' ? user : undefined)
 }
 
 async function workspaceStart(p: Payload, sid: string, cwd: string, ctx: AdapterContext, deps: CodexHookDeps, now: number): Promise<string> {
@@ -317,8 +304,8 @@ async function routePromptStep(prompt: string, sid: string, cwd: string, ctx: Ad
   const start = workflowStart(routed.route, prompt, deps.core)
   if (start !== undefined) await step(ev, 'H25 flow start', undefined, () => { recordWorkflowStart(sid, start, now) })
   if (!captureOff(deps)) {
-    const signals = await step(ev, 'H26 signals', [] as ReturnType<typeof promptSignals>, () => promptSignals(prompt, routed.route.invoked, deps.core))
-    await spool(deps, ev, sid, signals.map(signal => ({ ts: now, ev: 'signal' as const, signal })))
+    const signals = await step(ev, 'H26 signals', [] as ReturnType<CoreFns['promptSignals']>, () => deps.core.promptSignals(prompt))
+    await spool(deps, ev, sid, signals.map(signal => ({ ts: now, ev: 'prompt-signal' as const, signal })))
   }
   return routed.text
 }
@@ -361,7 +348,6 @@ async function onUserPromptSubmit(p: Payload, sid: string, cwd: string, ctx: Ada
       : undefined
     if (planMode !== undefined) parts.push(planMode)
     if (routeText !== undefined) parts.push(routeText)
-    await contextModeForward(ev, p, { config: ctx.config, env: envOf(deps), load: deps.contextMode })
   }
   const refresh = deps.refreshWorkspace
   if (refresh !== undefined) {
@@ -375,7 +361,7 @@ async function onUserPromptSubmit(p: Payload, sid: string, cwd: string, ctx: Ada
     await step(ev, 'workflow notice seen', undefined, () => { flowNotice(ctx, sid, now, true) })
     const excerpt = core.spoolPromptExcerpt(prompt)
     await spool(deps, ev, sid, [{ ts: now, ev: 'prompt', ...(excerpt !== undefined ? { excerpt } : {}) }])
-    if (!captureOff(deps)) await step(ev, 'memory tick', undefined, async () => { (await deps.memory()).promptSeen?.(H, sid, { nowMs: now }) })
+    if (!captureOff(deps)) await step(ev, 'session record touch', undefined, async () => { (await deps.memory()).promptSeen?.(H, sid, { nowMs: now }) })
   }
   return contextOutput('UserPromptSubmit', fitParts(parts, core.PROMPT_CONTEXT_MAX_CHARS), flow)
 }
@@ -406,12 +392,9 @@ async function onPreToolUse(p: Payload, sid: string, sessionCwd: string, ctx: Ad
     const tool = str(p['tool_name']) ?? ''
     log('error', 'codex hook PreToolUse: cannot classify the call', { tool, error: e })
     if (GUARDED_TOOLS.has(tool)) return denyOutput(guardFailed(tool === 'Bash' ? 'H01' : 'H02', e))
-    const cm = cmClassifyFailed(tool, e)
-    return cm !== undefined ? denyOutput(cm) : NOTHING
+    return NOTHING
   }
   let held: { command: string, reason: string, env: PromptEnv } | undefined
-  const cmDeny = await contextModeDenial({ payload: p, call, sid, cwd, core: deps.core, now, bash: () => bashOptions(ctx, cwd), write: () => writeContext(ev, cwd, ctx), lane: isSubagentPayload(p) })
-  if (cmDeny !== undefined) return denyOutput(cmDeny)
   if (call.kind === 'bash' && call.command !== undefined) {
     let r: { deny?: string }
     try {
@@ -504,21 +487,18 @@ async function usageStep(p: Payload, call: ToolCall, sid: string, ledgerId: stri
     deps: isEdit && facts.root !== undefined ? projectDepsOf(facts.root) : [], ...(edits !== undefined ? { edits } : {}),
     ...(pathRules !== undefined ? { pathRules } : {}),
   })
-  if (ledgerId === sid && v.deny === undefined) await step('PreToolUse', 'H25/H26 skill load', undefined, () => skillLoad(judged, v.loaded, sid, ctx, deps, now))
+  if (ledgerId === sid && v.deny === undefined) await step('PreToolUse', 'H25/H26 skill load', undefined, () => skillLoad(judged, sid, deps, now))
   const out: UsageStep = {}
   if (v.deny !== undefined) out.deny = v.deny.replace(/^Buracle:\s*/, '')
   if (v.context !== undefined) out.context = v.context
   return out
 }
 
-async function skillLoad(call: ToolCall, first: string | undefined, sid: string, _ctx: AdapterContext, deps: CodexHookDeps, now: number): Promise<void> {
+function skillLoad(call: ToolCall, sid: string, deps: CodexHookDeps, now: number): void {
   const id = deps.core.skillOf(call, H)
   const installed = id !== undefined && new RegExp(`\\.agents[/\\\\]skills[/\\\\]${id}[/\\\\]SKILL\\.md`).test(call.command ?? '')
   const workflow = installed ? deps.core.workflowOfSkill(`buracle:${id}`) : undefined
-  const started = workflow !== undefined && recordFlowStart(H, sid, { workflow, source: 'skill' }, now)
-  if (captureOff(deps)) return
-  const signals = [first !== undefined ? deps.core.profileUsageSignal('skill', first) : undefined, started && workflow !== undefined ? deps.core.profileUsageSignal('workflow', workflow) : undefined]
-  await spool(deps, 'PreToolUse', sid, signals.flatMap(signal => (signal !== undefined ? [{ ts: now, ev: 'signal' as const, signal }] : [])))
+  if (workflow !== undefined) recordFlowStart(H, sid, { workflow, source: 'skill' }, now)
 }
 
 function exitCodeOf(response: unknown): number | undefined {
@@ -581,13 +561,8 @@ async function onPostToolUse(p: Payload, sid: string, cwd: string, ctx: AdapterC
     await step(ev, 'H08 answer receipt', undefined, () => { updateState(H, sid, s => deps.core.answerReceipt(s, start)) })
   }
   await spool(deps, ev, sid, entries)
-  if (!sub && (call.kind === 'bash' || call.kind === 'patch')) {
-    const forwarded = await step(ev, 'H27 payload', undefined as Payload | undefined, () => bridgePostPayload(p))
-    if (forwarded !== undefined) await contextModeForward(ev, forwarded, { config: ctx.config, env: envOf(deps), load: deps.contextMode })
-  }
   const server = call.kind === 'mcp' ? call.mcp?.server : undefined
-  const mcpTool = call.mcp?.tool
-  if (server !== undefined && server !== '') await step(ev, 'H24 MCP result', undefined, () => { recordMcpResult(deps.core, sid, server, rec(p['tool_response'])['isError'] !== true, mcpTool) })
+  if (server !== undefined && server !== '') await step(ev, 'H24 MCP result', undefined, () => { recordMcpResult(deps.core, sid, server, rec(p['tool_response'])['isError'] !== true) })
   if (!sub) {
     const usage = await updateTelemetry(deps, ev, p, sid)
     const warning = await contextWarning(ctx, ev, sid, usage)
@@ -642,13 +617,7 @@ async function onPreCompact(p: Payload, sid: string, cwd: string, ctx: AdapterCo
     return (await m.writeHandoff({ harness: H, sessionId: sid, cwd, project: id.slug, ...(branch !== undefined ? { branch } : {}), slug: note.slug, markdown: note.markdown, trigger, now }))?.id
   })
   if (written !== undefined) await mark(written)
-  if (plan !== undefined) {
-    const planned: Payload = { ...p, hook_event_name: 'PostToolUse', tool_name: 'update_plan', tool_input: { plan } }
-    await contextModeForward('PostToolUse', planned, { config: ctx.config, env: envOf(deps), load: deps.contextMode })
-  }
-  await contextModeForward(ev, p, { config: ctx.config, env: envOf(deps), load: deps.contextMode })
   await spool(deps, ev, sid, [{ ts: now, ev: 'compact', excerpt: `PreCompact (${trigger})` }])
-  if (!captureOff(deps)) await step(ev, 'memory tick', undefined, async () => { (await deps.memory()).compactSeen?.(H, sid, { nowMs: now }) })
   return NOTHING
 }
 

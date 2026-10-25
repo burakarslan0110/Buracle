@@ -2,7 +2,6 @@ import { existsSync } from 'node:fs'
 import { join, sep } from 'node:path'
 import type { RuleDoc } from '../../core/catalog'
 import { resolveEffort } from '../../core/effort'
-import { harnessMcpToolName } from '../../core/policy/routing'
 import type { Ledger, Op, Plan } from '../../engine/txn'
 import { LIST_IDENTITY_HASH, readLedger } from '../../engine/txn'
 import { bunExecutable } from '../../engine/config'
@@ -90,7 +89,7 @@ export function windowsCliCommand(ctx: Pick<AdapterContext, 'repoRoot' | 'buracl
 
 export function statusLineOp(ctx: AdapterContext, bun: string = bunExecutable(), windows: boolean = isWindows()): Op {
   const command = (args: string) => (windows ? windowsCliCommand(ctx, bun, args) : `${shellWord(ctx.buracleBin)} ${args}`)
-  const set: Record<string, unknown> = { statusLine: { type: 'command', command: command('statusline claude'), padding: 0, refreshInterval: 15 } }
+  const set: Record<string, unknown> = { statusLine: { type: 'command', command: command('statusline claude'), padding: 0, refreshInterval: 60 } }
   // The plugin's subagentStatusLine is a POSIX shell line (Git Bash runs it); on Windows the user-level key wins over it and also runs in PowerShell.
   if (windows) set['subagentStatusLine'] = { type: 'command', command: command('statusline claude --subagent') }
   return { kind: 'json-merge', path: join(ctx.paths.claudeDir(), 'settings.json'), set, owner: OWNER }
@@ -151,14 +150,13 @@ export function autoMemoryOps(ctx: AdapterContext): Op[] {
   return [{ kind: 'json-merge', path: join(ctx.paths.claudeDir(), 'settings.json'), set: { [AUTO_MEMORY_KEY]: false }, owner: OWNER, soft: [AUTO_MEMORY_KEY] }]
 }
 
-export function hiddenToolOps(ctx: AdapterContext): Op[] {
-  const items: string[] = []
-  for (const id of Object.keys(ctx.canonical.mcp.servers).sort()) {
-    const s = ctx.canonical.mcp.servers[id]
-    if (s === undefined || !s.harnesses.includes('claude')) continue
-    for (const tool of s.disabled_tools ?? []) items.push(harnessMcpToolName('claude', id, tool))
-  }
-  return [{ kind: 'json-list-merge', path: join(ctx.paths.claudeDir(), 'settings.json'), pointer: 'permissions.deny', items, identity: LIST_IDENTITY_HASH, owner: OWNER, format: 'json' }]
+/**
+ * Buracle no longer hides any MCP tool through `permissions.deny` (the last ones belonged to a server retired in
+ * 0.6.0). The empty list makes the transaction engine remove the entries an earlier install wrote and leaves a
+ * settings.json that never had them alone.
+ */
+export function retiredDenyOps(ctx: AdapterContext): Op[] {
+  return [{ kind: 'json-list-merge', path: join(ctx.paths.claudeDir(), 'settings.json'), pointer: 'permissions.deny', items: [], identity: LIST_IDENTITY_HASH, owner: OWNER, format: 'json' }]
 }
 
 export type ClaudeExecOp = Extract<Op, { kind: 'exec' }>
@@ -245,7 +243,7 @@ export async function claudeInstallPlan(ctx: AdapterContext, deps: Partial<Insta
   return {
     id: 'claude',
     harness: 'claude',
-    ops: [...ruleOps(ctx, ledger), statusLineOp(ctx, tools.bun), ...permissionOps(ctx), ...effortOps(ctx), ...teamsOps(ctx), ...envOps(ctx), ...autoMemoryOps(ctx), ...hiddenToolOps(ctx), ...execOps(ctx, tools)],
+    ops: [...ruleOps(ctx, ledger), statusLineOp(ctx, tools.bun), ...permissionOps(ctx), ...effortOps(ctx), ...teamsOps(ctx), ...envOps(ctx), ...autoMemoryOps(ctx), ...retiredDenyOps(ctx), ...execOps(ctx, tools)],
     cleanupKeys: cleanupKeys(ctx),
   }
 }

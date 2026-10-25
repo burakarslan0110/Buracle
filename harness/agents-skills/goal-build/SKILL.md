@@ -119,7 +119,7 @@ Any other message during a run is steering: answer briefly, apply it to tasks (n
 | How public projects solve the same thing | grep (public code search) | web-search |
 | Earlier decisions and gotchas | buracle-memory: `memory_search`, then `memory_get` | `buracle mem search "<q>"` |
 | Judging or testing a web UI | chrome-devtools | the repo's Playwright setup |
-| Long test, build or log output | context-mode: `ctx_batch_execute` or `ctx_execute`, printing the counts and every failure | the shell, output narrowed |
+| Long test, build or log output | the shell with the output narrowed, keeping the counts and every failure | none |
 
 An empty search result is not proof of absence: rephrase once or switch tools. If a server is down, use the fallback and say so in the hand-back.
 **Oh My Pi:** omp has no chrome-devtools server: wherever this skill says chrome-devtools, use omp's built-in browser tool.

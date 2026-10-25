@@ -2,7 +2,6 @@ import { RESTORE_TODOS_MAX } from '../../../core/compact'
 import { laneReviewsInFlight } from '../../../core/plan/reviews'
 import * as paths from '../../../engine/paths'
 import type { LiveConfig } from './config'
-import type { CmBridge } from './context-mode'
 import type { ExtensionDeps } from './deps'
 import type { SpoolEntry } from './memory'
 import type { OmpCompactEvent, OmpCompactingEvent, OmpCompactingResult, OmpContext, OmpExtensionAPI } from './types'
@@ -17,7 +16,6 @@ export interface CompactionHost {
   guarded<T>(what: string, fn: () => T): T | undefined
   report(what: string, e: unknown): void
   spool(sid: string, entries: SpoolEntry[]): void
-  cm: CmBridge
   todos?(sid: string): string[]
   handoff(sid: string, cwd: string, note: { slug: string, markdown: string, branch?: string }): Promise<string | undefined>
 }
@@ -28,7 +26,6 @@ function isRecord(x: unknown): x is Record<string, unknown> {
 
 async function compactSave(sid: string, ctx: OmpContext, host: CompactionHost): Promise<OmpCompactingResult | undefined> {
   const { deps } = host
-  host.guarded('memory tick', () => { deps.memory.compactSeen?.(sid) })
   const state = deps.state.load(sid)
   const todo = host.guarded('H06 todos', () => host.todos?.(sid)) ?? []
   let handoff: string | undefined
@@ -53,30 +50,13 @@ async function compactSave(sid: string, ctx: OmpContext, host: CompactionHost): 
   return result
 }
 
-function withRestore(result: OmpCompactingResult, sid: string, text: string): OmpCompactingResult {
-  const out: OmpCompactingResult = { ...result }
-  const kept = out.preserveData?.['buracle']
-  const preserve: Record<string, unknown> = isRecord(kept) ? { ...kept } : { v: 1, sessionId: sid }
-  preserve['contextMode'] = text
-  out.preserveData = { ...(out.preserveData ?? {}), buracle: preserve }
-  return out
-}
-
 export function registerCompaction(pi: OmpExtensionAPI, host: CompactionHost): void {
   pi.on('session.compacting', async (event: OmpCompactingEvent, ctx: OmpContext): Promise<OmpCompactingResult | undefined> => {
     try {
       if (!isMain(ctx)) return undefined
       const sid = paths.isValidSessionId(event.sessionId) ? event.sessionId : sessionOf(ctx)
       if (sid === undefined) return undefined
-      const restore = host.cm.beforeCompaction(sid)
-      let result: OmpCompactingResult | undefined
-      try {
-        result = await compactSave(sid, ctx, host)
-      } catch (e) {
-        host.report('session.compacting', e)
-      }
-      const text = await restore
-      return text !== undefined && result !== undefined ? withRestore(result, sid, text) : result
+      return await compactSave(sid, ctx, host)
     } catch (e) {
       host.report('session.compacting', e)
       return undefined
@@ -92,13 +72,10 @@ export function registerCompaction(pi: OmpExtensionAPI, host: CompactionHost): v
       if (typeof summary === 'string' && summary.trim() !== '') host.spool(sid, [{ ts: host.deps.now(), ev: 'compact', excerpt: clip(summary, 8000) }])
       const preserved = event.compactionEntry?.preserveData?.['buracle']
       const handoff = strAt(preserved, 'handoff')
-      const restore = strAt(preserved, 'contextMode')
       const kept = isRecord(preserved) ? preserved['todos'] : undefined
       const todos = handoff === undefined && Array.isArray(kept) ? kept.filter((t): t is string => typeof t === 'string').slice(0, RESTORE_TODOS_MAX) : []
       const plan = host.guarded('H07 restoreContext', () => host.deps.compact.restoreContext(host.deps.state.load(sid), handoff, todos))
-      const parts = [plan, restore].filter((t): t is string => typeof t === 'string' && t.trim() !== '')
-      if (parts.length > 0) pi.sendMessage({ customType: COMPACT_RESTORE_TYPE, content: parts.join('\n\n'), display: false }, { deliverAs: 'nextTurn' })
-      host.cm.afterCompaction(sid, restore !== undefined && restore.trim() !== '')
+      if (typeof plan === 'string' && plan.trim() !== '') pi.sendMessage({ customType: COMPACT_RESTORE_TYPE, content: plan, display: false }, { deliverAs: 'nextTurn' })
     } catch (e) {
       host.report('session_compact', e)
     }

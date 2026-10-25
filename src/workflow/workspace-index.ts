@@ -401,7 +401,7 @@ function levelOf(s: IndexState): IndexCheck['level'] {
 
 export async function indexChecks(cwd: string, cfg: BuracleConfig, nowMs: number): Promise<IndexCheck[]> {
   const out: IndexCheck[] = []
-  if (!cfg.index.auto) out.push({ level: 'info', check: 'index.auto', detail: 'off: session starts build no code indexes (`buracle index ensure` builds them by hand)' })
+  if (!cfg.index.auto) out.push({ level: 'info', check: 'index.auto', detail: 'off: no code index is built automatically (`buracle index ensure` builds them by hand)' })
   const info = await workspaceInfo(cwd, cfg, nowMs)
   const tools = (pi: ProjectIndex): Array<[string, IndexState]> => [['codegraph', pi.codegraph], ['semble', pi.semble]]
   if (info.root !== undefined) {
