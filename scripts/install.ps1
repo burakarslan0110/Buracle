@@ -78,6 +78,54 @@ function Add-ToUserPath([string]$Folder) {
   if (($env:Path -split ';') -notcontains $Folder) { $env:Path = "$env:Path;$Folder" }
 }
 
+# The logo of the buracle command (LOGO in src/cli/ui/style.ts), with # for a full block, _ for a lower half and ^ for an
+# upper half, so that this file stays ASCII (Windows PowerShell 5.1 reads a file without a BOM in the ANSI code page);
+# tests/engine/install-script.test.ts compares the two.
+$LogoRows = @(
+  '##                                             ##'
+  '##                                             ##'
+  '######_   ##    ##  ##_###   _######   _#####  ##   _####_'
+  '## __ ##  ##    ##  ##^     ##    ##  ##       ##  ##____##'
+  '## ^^ ##  ##    ##  ##      ##    ##  ##       ##  ##^^^^^^'
+  '######^    ^######  ##       ^######   ^#####  ##   ^#####'
+)
+$Tagline = 'everything your coding agents need, in one place'
+
+function Write-Part([string]$Text, [string]$Color) {
+  if ($Color) { Write-Host -NoNewline $Text -ForegroundColor $Color } else { Write-Host -NoNewline $Text }
+}
+
+# The logo in three shades along each row (violet to cyan, as the buracle command paints it), in block characters when the
+# console can show them and in ASCII otherwise. A window narrower than the logo gets one line. Blue and DarkMagenta are not
+# used: on the dark blue background of Windows PowerShell's own console they cannot be read.
+function Show-Banner {
+  $unicode = $false
+  try { $unicode = (-not [Console]::IsOutputRedirected) -and (($PSVersionTable.PSVersion.Major -ge 6) -or [bool]$env:WT_SESSION -or ([Console]::OutputEncoding.CodePage -eq 65001)) } catch { }
+  $shades = if ($env:NO_COLOR) { @('', '', '') } else { @('Magenta', 'DarkCyan', 'Cyan') }
+  $width = 80
+  try { $w = $Host.UI.RawUI.WindowSize.Width; if ($w -gt 0) { $width = $w } } catch { }
+  Write-Host ''
+  if ($width -lt 62) {
+    Write-Part '  buracle' $shades[0]
+    Write-Host "  $Tagline"
+    Write-Host ''
+    return
+  }
+  foreach ($row in $LogoRows) {
+    Write-Part '  ' ''
+    for ($i = 0; $i -lt 3 -and $i * 20 -lt $row.Length; $i++) {
+      $text = if ($i -eq 2) { $row.Substring(40) } else { $row.Substring($i * 20, [Math]::Min(20, $row.Length - $i * 20)) }
+      if ($unicode) { $text = $text.Replace('#', [string][char]0x2588).Replace('_', [string][char]0x2584).Replace('^', [string][char]0x2580) }
+      Write-Part $text $shades[$i]
+    }
+    Write-Host ''
+  }
+  Write-Part "  $Tagline" $(if ($env:NO_COLOR) { '' } else { 'DarkGray' })
+  Write-Host ''
+  Write-Host ''
+}
+
+Show-Banner
 Refresh-Path
 Ensure-Command 'git' 'Git for Windows' 'Git.Git' 'git'
 if (-not (Have 'bun')) {
