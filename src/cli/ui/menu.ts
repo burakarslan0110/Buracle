@@ -53,7 +53,8 @@ function statusLine(st: Style, summary: DashView['summary'], width: number): str
         [...(updates > 0 ? [st.accent(count(updates, 'update waiting', 'updates waiting'))] : []), ...(problems > 0 ? [st.warn(count(problems, 'problem', 'problems'))] : [])].join(st.muted(' · ')),
       ].join(' ')
   const checked = clean(summary.checkedAt)
-  const when = st.muted(` · ${checked === '' ? 'no update check yet' : `updates checked ${checked}`}`)
+  const working = clean(summary.working)
+  const when = working !== '' ? st.muted(' · ') + st.accent(working) : st.muted(` · ${checked === '' ? 'no update check yet' : `updates checked ${checked}`}`)
   const line = `${MARGIN}${main}`
   return visibleWidth(line + when) <= width ? line + when : line
 }

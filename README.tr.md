@@ -82,7 +82,7 @@ Elle değiştirdiğin değerler korunur ve raporlanır. Terminalde değişiklikl
 <details>
 <summary><b>Güncelleme, geri alma, kaldırma</b></summary>
 
-- `buracle update` Buracle'ı, skill'leri, MCP sunucularını, Claude Code eklentilerini, harness'ları, araçları ve fiyat listesini denetler ve her parçayı kendi kaynağından günceller. Her harness onu kuran yükleyiciyle (Homebrew, npm, bun ya da kendi güncelleyicisi) güncellenir ve sürümü ardından yeniden okunur. `--check` yalnızca denetler. İsim verirsen kapsam daralır (`buracle update codex mcp`).
+- `buracle update` Buracle'ı, skill'leri, MCP sunucularını, Claude Code eklentilerini, harness'ları, araçları ve fiyat listesini denetler ve her parçayı kendi kaynağından günceller. Her harness onu kuran yükleyiciyle (Homebrew, npm, bun ya da kendi güncelleyicisi) güncellenir ve sürümü ardından yeniden okunur. `--check` yalnızca denetler. İsim verirsen kapsam daralır (`buracle update codex mcp`). Araç zinciri yükseltmesi kendini kanıtlamak zorundadır. MCP sunucusu başlayıp cevap vermeli, araç sürüm kontrolünü çalıştırmalı. Bunu yapamayan, araç zincirinin sakladığı önceki sürüme döner.
 - `buracle rollback` en son kurulumu yedeklerinden geri alır. `buracle rollback toolchain` araç zincirinin önceki sürümlerini geri getirir.
 - `buracle uninstall` yalnızca sahiplik kaydının Buracle'ın yazdığını kanıtladığı şeyleri kaldırır. Senin değiştirdiğin değerler kalır ve `~/.buracle/brain` altındaki hafızaya hiç dokunulmaz.
 
@@ -293,6 +293,8 @@ Buracle 0.5.0 · CC 2.1.296 (Max) · Memory: localhost:41777 · brain 142 ✓ ·
 ## buracle komutu
 
 Terminalde `buracle` yazınca bir menü açılır. Menüde logo, her şeyin yolunda olup olmadığını söyleyen bir satır ve altı seçenek bulunur. Seçenekler kurulum ya da onarım, güncelleme, sağlık kontrolü, hafıza, her parçayı sürümü ve bekleyen güncellemesiyle gösteren ayrıntılı görünüm ve çıkıştır. Ok tuşları ya da j/k ile gezinir, Enter ile seçimi çalıştırırsın. Her seçeneğin kendi kısayol tuşu da var.
+
+Menü açıkken Buracle, son doğrulaması altı saatten eski olanları yeniler. MCP sunucuları canlı olarak yoklanır, araçlar sürümünü bildirir, güncelleme denetimi yeniden çalışır. Sonucu gelene kadar satırda `checking…` yazar. Kontrol hiçbir şey indirmez. Paketi araç zincirinde olmayan sunucu `buracle install` komutunu bekler. Ayrıntılı görünümde `n` bakılması gereken sonraki satıra atlar, `r` her şeyi hemen yeniden kontrol eder.
 
 | Komut | Ne yapar |
 |---|---|

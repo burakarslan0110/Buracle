@@ -82,7 +82,7 @@ Values you changed by hand are kept and reported. In a terminal it applies at on
 <details>
 <summary><b>Update, roll back, uninstall</b></summary>
 
-- `buracle update` checks Buracle, skills, MCP servers, Claude Code plugins, the harnesses, the tools and the price list, and updates each part from its own source. A harness is updated with the installer that installed it (Homebrew, npm, bun or its own updater) and its version is read again afterwards. `--check` only checks, and names narrow it down: `buracle update codex mcp`.
+- `buracle update` checks Buracle, skills, MCP servers, Claude Code plugins, the harnesses, the tools and the price list, and updates each part from its own source. A harness is updated with the installer that installed it (Homebrew, npm, bun or its own updater) and its version is read again afterwards. `--check` only checks, and names narrow it down: `buracle update codex mcp`. A toolchain upgrade has to prove itself: an MCP server must start and answer, and a tool must run its version check. One that does not goes back to the version the toolchain kept.
 - `buracle rollback` undoes the newest install from its backups. `buracle rollback toolchain` puts back the previous toolchain versions.
 - `buracle uninstall` removes only what the ownership ledger proves Buracle wrote. Values you changed stay, and the memory in `~/.buracle/brain` is never touched.
 
@@ -293,6 +293,8 @@ Buracle 0.5.0 · CC 2.1.296 (Max) · Memory: localhost:41777 · brain 142 ✓ ·
 ## The buracle command
 
 Run `buracle` in a terminal and it opens a menu with the logo, one line that says whether all is well, and six choices: install or repair, update, health check, memory, a detailed view of every part with its version and pending update, and quit. Arrow keys or j/k move, Enter runs the choice, and each choice has its own key.
+
+While the menu is open, Buracle re-checks what was last verified more than six hours ago: the MCP servers answer a live handshake, the tools report their version and the update check runs again. A row says `checking…` until its result is in. A check never downloads anything, so a server whose package is not in the toolchain waits for `buracle install`. In the detailed view, `n` jumps to the next row that needs a look and `r` rechecks everything now.
 
 | Command | What it does |
 |---|---|

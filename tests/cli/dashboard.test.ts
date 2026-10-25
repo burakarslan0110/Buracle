@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { dashboardFits, fileSource, REEXEC_ENV, resultLine, runDashboard, type ChildHandle, type DashData, type DashSource } from '../../src/cli/dashboard'
 import type { DashRow } from '../../src/cli/ui/dashboard'
@@ -8,6 +8,9 @@ import { makeStyle } from '../../src/cli/ui/style'
 import type { Terminal } from '../../src/cli/ui/terminal'
 import * as paths from '../../src/engine/paths'
 import { installRecordFile } from '../../src/engine/update/install-core'
+import { writeHealth } from '../../src/engine/update/mcp'
+import type { Verifier } from '../../src/engine/update/refresh'
+import { UPDATE_KINDS, writeUpdatesCache } from '../../src/engine/update/updates-cache'
 import { fakeExe, onlyPath } from '../helpers/fake-exe'
 import { withEnv, withSandbox } from '../helpers/sandbox'
 
@@ -341,6 +344,194 @@ describe('the dashboard data', () => {
       expect(await done).toBe(0)
     })
   }), 15_000)
+})
+
+describe('the dashboard verifies what is stale while it is open', () => {
+  const NOW = Date.parse('2026-10-25T12:00:00.000Z')
+  const iso = new Date(NOW).toISOString()
+
+  // Records what it was asked and writes the result where doctor and update write theirs, as the real one does.
+  function fakeVerifier(opts: { hold?: boolean, failMcp?: string } = {}) {
+    const calls: string[] = []
+    const gates = new Map<string, () => void>()
+    const wait = async (key: string): Promise<void> => { if (opts.hold === true) await new Promise<void>(r => gates.set(key, r)) }
+    const verifier: Verifier = {
+      async mcp(id) {
+        calls.push(`mcp:${id}`)
+        await wait(`mcp:${id}`)
+        if (id === opts.failMcp) throw new Error('could not write health.json')
+        writeHealth({ mcp: { [id]: { status: 'ok', transport: 'stdio', tools: 3, ms: 12, version: '4.5.6', checked_at: iso } } }, iso)
+      },
+      async tool(t) {
+        calls.push(`tool:${t.name}`)
+        await wait(`tool:${t.name}`)
+        writeHealth({ tools: { [t.name]: { status: 'ok', version: '9.9.9', checked_at: iso } } }, iso)
+      },
+      async updates() {
+        calls.push('updates')
+        await wait('updates')
+        writeUpdatesCache({ checked_at: iso, kinds: [...UPDATE_KINDS], items: [], held: [], errors: [] })
+      },
+    }
+    return { verifier, calls, release: () => { for (const g of [...gates.values()]) g(); gates.clear() }, gated: () => [...gates.keys()] }
+  }
+
+  // The toolchain holds context7 only; the shim exists; every harness is off so only Buracle's own files are read.
+  function setup(buracleHome: string): void {
+    mkdirSync(join(buracleHome, 'state'), { recursive: true })
+    mkdirSync(join(buracleHome, 'bin'), { recursive: true })
+    writeFileSync(paths.shimPath(), '#!/bin/sh\n')
+    writeFileSync(paths.userConfigFile(), 'harnesses:\n  claude: { enabled: false }\n  codex: { enabled: false }\n  opencode: { enabled: false }\n  omp: { enabled: false }\n')
+    writeFileSync(paths.toolchainStateFile(), JSON.stringify({ v: 1, updated_at: iso, system: {}, packages: { 'npm:@upstash/context7-mcp': { registry: 'npm', name: '@upstash/context7-mcp', version: '2.1.0', dir: join(buracleHome, 'toolchain', 'x'), bins: {}, installed_at: iso } } }))
+  }
+
+  const row = (d: DashData | undefined, id: string) => d?.rows.find(r => r.id === id)
+
+  test('stale servers, stale tools and the update check are verified; a row says it is being checked until its result is in', () => withSandbox(async ({ buracleHome }) => {
+    setup(buracleHome)
+    const v = fakeVerifier({ hold: true })
+    const src = await fileSource(() => NOW, v.verifier)
+    expect(row(src.read(), 'mcp:context7')).toMatchObject({ state: 'off', status: 'not checked yet' })
+    const seen: DashData[] = []
+    const done = src.fill(d => { seen.push(d) })
+    await until(() => seen.some(d => row(d, 'mcp:context7')?.status === 'checking…'), 'the checking row')
+    const during = seen.find(d => row(d, 'mcp:context7')?.status === 'checking…')
+    expect(row(during, 'mcp:context7')).toMatchObject({ state: 'off', detail: 'running the handshake' })
+    expect(during?.working).toContain('verifying')
+    expect(during?.working).toContain('checking for updates')
+    v.release()
+    await done
+    const last = seen.at(-1)
+    expect(row(last, 'mcp:context7')).toMatchObject({ state: 'ok', status: 'handshake ok, 3 tools' })
+    expect(row(last, 'mcp:context7')?.detail).toBe('verified just now · 12 ms · v4.5.6')
+    expect(row(last, 'tool:bun')).toMatchObject({ state: 'ok', version: '9.9.9' })
+    expect(last?.working).toBeUndefined()
+    expect(last?.checkedAt).toBe('just now')
+    expect(v.calls).toContain('updates')
+    expect(v.calls).toContain('tool:bun')
+  }), 15_000)
+
+  test('a handshake never downloads: servers whose package is not in the toolchain are left for `buracle install`', () => withSandbox(async ({ buracleHome }) => {
+    setup(buracleHome)
+    const v = fakeVerifier()
+    const src = await fileSource(() => NOW, v.verifier)
+    src.read()
+    await src.fill(() => {  })
+    const probed = v.calls.filter(c => c.startsWith('mcp:')).sort()
+    expect(probed).toEqual(['mcp:buracle-memory', 'mcp:context7', 'mcp:grep', 'mcp:lsp'])
+    expect(probed).not.toContain('mcp:codegraph')
+    expect(probed).not.toContain('mcp:semble')
+  }), 15_000)
+
+  test('fresh results are trusted; a forced recheck repeats everything', () => withSandbox(async ({ buracleHome }) => {
+    setup(buracleHome)
+    const v = fakeVerifier()
+    const src = await fileSource(() => NOW, v.verifier)
+    src.read()
+    await src.fill(() => {  })
+    const first = v.calls.length
+    expect(first).toBeGreaterThan(5)
+    src.read()
+    await src.fill(() => {  })
+    expect(v.calls.length).toBe(first)
+    src.read()
+    await src.fill(() => {  }, { force: true })
+    expect(v.calls.length).toBe(first * 2)
+  }), 15_000)
+
+  test('a result older than six hours is checked again, and a down server on every open', () => withSandbox(async ({ buracleHome }) => {
+    setup(buracleHome)
+    const old = new Date(NOW - 7 * 3_600_000).toISOString()
+    writeFileSync(paths.healthFile(), JSON.stringify({ v: 1, checked_at: iso, mcp: {
+      context7: { status: 'ok', transport: 'stdio', tools: 2, checked_at: iso },
+      lsp: { status: 'ok', transport: 'stdio', tools: 2, checked_at: old },
+      'buracle-memory': { status: 'down', transport: 'stdio', error: 'exited', checked_at: iso },
+      grep: { status: 'ok', transport: 'http', tools: 1, checked_at: iso },
+    } }))
+    const v = fakeVerifier()
+    const src = await fileSource(() => NOW, v.verifier)
+    src.read()
+    await src.fill(() => {  })
+    expect(v.calls.filter(c => c.startsWith('mcp:')).sort()).toEqual(['mcp:buracle-memory', 'mcp:lsp'])
+  }), 15_000)
+
+  test('asking again while a verification runs starts nothing new; the newest listener hears the result', () => withSandbox(async ({ buracleHome }) => {
+    setup(buracleHome)
+    const v = fakeVerifier({ hold: true })
+    const src = await fileSource(() => NOW, v.verifier)
+    src.read()
+    const a: DashData[] = []
+    const b: DashData[] = []
+    const first = src.fill(d => { a.push(d) })
+    await until(() => v.gated().length > 3, 'the verifier to start')
+    const started = v.calls.length
+    src.read()
+    const second = src.fill(d => { b.push(d) })
+    expect(v.calls.length).toBe(started)
+    v.release()
+    await Promise.all([first, second])
+    expect(v.calls.length).toBe(started)
+    expect(row(b.at(-1), 'mcp:context7')?.status).toBe('handshake ok, 3 tools')
+  }), 15_000)
+
+  test('a verification that itself fails is shown on its row and does not stop the others', () => withSandbox(async ({ buracleHome }) => {
+    setup(buracleHome)
+    const v = fakeVerifier({ failMcp: 'context7' })
+    const src = await fileSource(() => NOW, v.verifier)
+    src.read()
+    const seen: DashData[] = []
+    await src.fill(d => { seen.push(d) })
+    expect(row(seen.at(-1), 'mcp:context7')).toMatchObject({ state: 'warn', status: 'check failed', detail: 'could not write health.json' })
+    expect(row(seen.at(-1), 'mcp:lsp')).toMatchObject({ state: 'ok' })
+    expect(seen.at(-1)?.working).toBeUndefined()
+  }), 15_000)
+
+  test('a server that runs through the buracle shim says so when there is no shim, instead of inviting a handshake that cannot run', () => withSandbox(async ({ buracleHome }) => {
+    setup(buracleHome)
+    const withShim = (await fileSource(() => NOW)).read().rows
+    expect(row({ version: '', rows: withShim }, 'mcp:lsp')).toMatchObject({ state: 'off', status: 'not checked yet' })
+    rmSync(paths.shimPath())
+    const rows = (await fileSource(() => NOW)).read().rows
+    expect(row({ version: '', rows }, 'mcp:lsp')).toMatchObject({ state: 'warn', status: 'not installed' })
+    expect(row({ version: '', rows }, 'mcp:lsp')?.detail).toContain('shim')
+    expect(row({ version: '', rows }, 'mcp:buracle-memory')).toMatchObject({ state: 'warn', status: 'not installed' })
+    // A remote server needs no shim.
+    expect(row({ version: '', rows }, 'mcp:grep')).toMatchObject({ state: 'off', status: 'not checked yet' })
+  }), 15_000)
+
+  test('language servers are rows of their own section, the other tools stay under Tools', () => withSandbox(async ({ buracleHome }) => {
+    setup(buracleHome)
+    const rows = (await fileSource(() => NOW)).read().rows
+    expect(row({ version: '', rows }, 'tool:pyright')?.section).toBe('lsp')
+    expect(row({ version: '', rows }, 'tool:typescript-language-server')?.section).toBe('lsp')
+    expect(row({ version: '', rows }, 'tool:jq')?.section).toBe('tools')
+    expect(row({ version: '', rows }, 'tool:codegraph')?.section).toBe('tools')
+  }), 15_000)
+
+  test('without a verifier the dashboard only reads files, as before', () => withSandbox(async ({ buracleHome }) => {
+    setup(buracleHome)
+    const src = await fileSource(() => NOW)
+    src.read()
+    const seen: DashData[] = []
+    await src.fill(d => { seen.push(d) })
+    expect(seen.some(d => d.working !== undefined)).toBe(false)
+    expect(row(src.read(), 'mcp:context7')?.status).toBe('not checked yet')
+  }), 15_000)
+
+  test('r asks for a forced recheck; the other ways to refresh are not forced', async () => {
+    const forced: Array<boolean | undefined> = []
+    const source: DashSource = { read: () => ({ version: '0.5.0', rows: ROWS }), fill: async (_changed, o) => { forced.push(o?.force) } }
+    const d = start({ source })
+    await until(d.waiting, 'the first key')
+    d.press({ char: 'v' })
+    await until(() => d.waiting() && frame(d).includes('Harnesses'), 'the detailed view')
+    d.press({ char: 'r' })
+    await until(() => forced.length === 2, 'the forced fill')
+    expect(forced[0]).toBeUndefined()
+    expect(forced[1]).toBe(true)
+    d.press({ char: 'q' })
+    await d.done
+  })
 })
 
 describe('the dashboard hints follow toolchain.autoInstall', () => {

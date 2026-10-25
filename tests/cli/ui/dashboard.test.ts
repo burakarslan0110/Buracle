@@ -45,7 +45,7 @@ const FRAME_100_30 = [
   '    semble                    0.3.1    x down                          uv tool semble',
   '    web-fetch                 1.0.4    + running                       npm',
   '',
-  '  Tools and language servers',
+  '  Tools',
   '    codegraph                 0.9.2    + installed                     npm',
   '    ast-grep                           x missing',
   '    typescript-language-ser…  5.1.3    + installed                     npm',
@@ -173,7 +173,7 @@ describe('dashboard rendering', () => {
     for (const id of ['buracle', 'harnesses', 'mcp', 'tools', 'memory'] as const) {
       expect(lines).toContain(`  ${color.bold(SECTION_TITLES[id])}`)
     }
-    expect(Object.values(SECTION_TITLES)).toEqual(['Buracle', 'Harnesses', 'MCP servers', 'Tools and language servers', 'Memory'])
+    expect(Object.values(SECTION_TITLES)).toEqual(['Buracle', 'Harnesses', 'MCP servers', 'Tools', 'Language servers', 'Memory'])
     expect(stripAnsi(lines[3] ?? '')).toStartWith('  ❯ Buracle')
     expect(stripAnsi(lines[7] ?? '')).toContain('▲ update available  → 0.165.0')
     expect(stripAnsi(lines[0] ?? '')).toStartWith('  ◉ buracle 0.4.0')
@@ -197,6 +197,50 @@ describe('dashboard rendering', () => {
     expect(title({ updates: 0, problems: 0 })).toEndWith('all good')
     expect(title({ updates: 0, problems: 0, checkedAt: '10:42' })).toEndWith('all good · checked 10:42')
     expect(initialView('1', SAMPLE, { columns: 80, rows: 24 }).summary).toEqual({ updates: 1, problems: 2 })
+  })
+
+  test('while parts are being verified the title says so in place of the time of the last check', () => {
+    const title = (summary: DashView['summary'], columns = 100) => stripAnsi(renderDashboard(plain, { ...view(columns, 30), summary })[0] ?? '')
+    expect(title({ updates: 0, problems: 0, checkedAt: '10:42', working: 'verifying 4 parts' })).toEndWith('all good · verifying 4 parts')
+    expect(title({ updates: 1, problems: 0, working: 'checking for updates' })).toEndWith('1 update · 0 problems · checking for updates')
+    // Too narrow for both, the counts stay and the activity goes.
+    expect(title({ updates: 2, problems: 3, working: 'verifying 12 parts · checking for updates' }, 40)).toEndWith('2 updates · 3 problems')
+  })
+
+  test('a row being checked shows its state without a verdict', () => {
+    const rows: DashRow[] = [{ id: 'mcp:context7', section: 'mcp', label: 'context7', version: '2.1.0', state: 'off', status: 'checking…', detail: 'running the handshake' }]
+    const lines = renderDashboard(plain, initialView('1', rows, { columns: 100, rows: 20 })).map(stripAnsi)
+    expect(lines.some(l => /context7\s+2\.1\.0\s+\S?\s*checking…/.test(l))).toBe(true)
+    expect(lines.some(l => l.includes('running the handshake'))).toBe(true)
+    expect(initialView('1', rows, { columns: 100, rows: 20 }).summary).toEqual({ updates: 0, problems: 0 })
+  })
+
+  test('language servers have their own section, after the tools and before the memory', () => {
+    const rows: DashRow[] = [
+      { id: 'tool:jq', section: 'tools', label: 'jq', state: 'ok', status: 'installed' },
+      { id: 'tool:pyright', section: 'lsp', label: 'pyright', state: 'ok', status: 'installed' },
+      { id: 'memory', section: 'memory', label: 'Memory', state: 'ok', status: 'ready' },
+    ]
+    const lines = renderDashboard(plain, initialView('1', rows, { columns: 80, rows: 24 })).map(stripAnsi)
+    const at = (title: string) => lines.findIndex(l => l.trim() === title)
+    expect(at('Tools')).toBeGreaterThan(-1)
+    expect(at('Language servers')).toBeGreaterThan(at('Tools'))
+    expect(at('Memory')).toBeGreaterThan(at('Language servers'))
+  })
+
+  test('n and N jump to the next and previous row that needs a look and wrap around; with none, a message says so', () => {
+    const sel = (v: DashView) => v.items[v.selected]?.id
+    const v = view(100, 30)
+    expect(sel(press(v, ch('n')))).toBe('codex')
+    expect(sel(press(v, ch('n'), ch('n')))).toBe('semble')
+    expect(sel(press(v, ch('n'), ch('n'), ch('n')))).toBe('ast-grep')
+    expect(sel(press(v, ch('n'), ch('n'), ch('n'), ch('n')))).toBe('codex')
+    expect(sel(press(v, ch('N')))).toBe('ast-grep')
+    expect(sel(press(v, ch('n'), ch('N')))).toBe('ast-grep')
+    const calm = view(100, 30, SAMPLE.filter(r => r.state === 'ok'))
+    const none = dashboardStep(calm, ch('n')).view
+    expect(none.selected).toBe(0)
+    expect(none.message).toBe('nothing needs a look')
   })
 
   test('the hint names the selected row\'s action; a message takes the detail line', () => {
@@ -231,17 +275,18 @@ describe('dashboard rendering', () => {
 
   test('the help overlay replaces the list with one key per line', () => {
     const lines = renderDashboard(plain, press(view(100, 30), ch('?')))
-    expect(lines.slice(2, 15)).toEqual([
+    expect(lines.slice(2, 16)).toEqual([
       '  Keys',
       '  ↑ ↓ or k j                move',
       '  PgUp PgDn, Home End, g G  jump',
+      '  n N                       next, previous row that needs a look',
       '  enter                     run the action of the selected row',
       '  u                         update everything',
       '  c                         check for updates',
       '  i                         install or repair',
       '  d                         health check',
       '  m                         open the memory web UI',
-      '  r                         reload',
+      '  r                         recheck everything now',
       '  esc                       back to the main menu',
       '  ?                         close this help',
       '  q                         quit',
@@ -279,7 +324,7 @@ describe('dashboard keys', () => {
     expect(dashboardStep(v, 'enter').action).toBeUndefined()
   })
 
-  test('the letter keys run their commands, r reloads, Escape and Backspace go back to the main menu, q and Ctrl-C quit', () => {
+  test('the letter keys run their commands, r rechecks (reload), Escape and Backspace go back to the main menu, q and Ctrl-C quit', () => {
     const v = view(100, 30)
     const run = (c: string) => dashboardStep(v, ch(c)).action
     expect(run('u')).toEqual({ kind: 'run', argv: ['update'] })

@@ -12,6 +12,7 @@ import {
 import * as paths from '../../engine/paths'
 import { writeHealth } from '../../engine/update/mcp'
 import { errText, table, writeJson } from '../../engine/update/output'
+import { progressSteps } from '../ui/steps'
 import { heading, makeStyle, colorLevel, padEnd, type Style } from '../ui/style'
 
 export const name = 'doctor'
@@ -111,50 +112,66 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
   }
   const checks: DoctorCheck[] = []
   const nowIso = () => new Date(opsDeps.now()).toISOString()
-  if (wants('config')) checks.push(...configChecks(live, bundle, repoRoot))
-  if (wants('runtime')) checks.push(...await runtimeChecks(repoRoot, bundle, opsDeps.now()))
-  if (wants('tools')) {
-    if ('bundle' in bundle) {
-      const { toolApplies } = await import('../../engine/toolchain/system')
-      const tools = bundle.bundle.tools.tools.filter(t => toolApplies(t))
-      const results = await checkTools(tools)
-      checks.push(...toolChecks(tools, results))
-      const { readToolchainState } = await import('../../engine/toolchain/state')
-      checks.push(...toolchainChecks(readToolchainState()))
-      if (!live.config.toolchain.autoInstall) checks.push({ section: 'tools', level: 'info', check: 'toolchain.autoInstall', detail: 'off: `buracle install` skips the toolchain, so the advice above installs nothing until `buracle config set toolchain.autoInstall true`' })
-      try { writeHealth({ tools: toolHealth(results, nowIso()) }, nowIso()) } catch {  }
-    } else checks.push({ section: 'tools', level: 'error', check: 'tools.yaml', detail: 'canonical data could not be loaded' })
+  // One rolling line names the section that runs (the handshakes take up to 30 s); it is gone before the report.
+  const steps = progressSteps(io, json)
+  let working = false
+  const checking = (what: string): void => {
+    if (!steps.live) return
+    if (working) steps.list.update('doctor', `Checking ${what}…`)
+    else { steps.list.start('doctor', `Checking ${what}…`); working = true }
   }
-  if (wants('harness') && 'bundle' in bundle) {
-    const enabled = (h: Harness) => live.config.harnesses[h].enabled && (!isHarness(topic) || topic === h)
-    const ids = bundle.bundle.skills.filter(s => s.frontmatter['harnesses'] === undefined || !Array.isArray(s.frontmatter['harnesses']) || (s.frontmatter['harnesses'] as unknown[]).length > 0).map(s => s.id)
-    checks.push(...skillChecks(ids, repoRoot, { claude: enabled('claude'), shared: enabled('codex') || enabled('opencode') || enabled('omp') }))
-  }
-  if (wants('harness')) {
-    try {
-      const adapters = await opsDeps.adapters()
-      checks.push(...await withLiveProbes(isHarness(topic), () => harnessChecks(adapters, live, isHarness(topic) ? (topic as Harness) : undefined)))
-    } catch (e) {
-      checks.push({ section: 'harness', level: 'error', check: 'adapters', detail: errText(e) })
+  try {
+    if (wants('config')) { checking('configuration'); checks.push(...configChecks(live, bundle, repoRoot)) }
+    if (wants('runtime')) { checking('the runtime'); checks.push(...await runtimeChecks(repoRoot, bundle, opsDeps.now())) }
+    if (wants('tools')) {
+      checking('tools')
+      if ('bundle' in bundle) {
+        const { toolApplies } = await import('../../engine/toolchain/system')
+        const tools = bundle.bundle.tools.tools.filter(t => toolApplies(t))
+        const results = await checkTools(tools)
+        checks.push(...toolChecks(tools, results))
+        const { readToolchainState } = await import('../../engine/toolchain/state')
+        checks.push(...toolchainChecks(readToolchainState()))
+        if (!live.config.toolchain.autoInstall) checks.push({ section: 'tools', level: 'info', check: 'toolchain.autoInstall', detail: 'off: `buracle install` skips the toolchain, so the advice above installs nothing until `buracle config set toolchain.autoInstall true`' })
+        try { writeHealth({ tools: toolHealth(results, nowIso()) }, nowIso()) } catch {  }
+      } else checks.push({ section: 'tools', level: 'error', check: 'tools.yaml', detail: 'canonical data could not be loaded' })
     }
-  }
-  if (wants('mcp')) {
-    if ('bundle' in bundle) checks.push(...await runMcpDoctor(bundle.bundle.mcp, HANDSHAKE_TIMEOUT_MS))
-    else checks.push({ section: 'mcp', level: 'error', check: 'mcp.yaml', detail: 'canonical data could not be loaded' })
-  }
-  if (wants('lsp')) {
-    try {
-      const { checkLspServers } = await import('./lsp')
-      for (const r of await checkLspServers([], HANDSHAKE_TIMEOUT_MS)) {
-        checks.push({ section: 'lsp', level: r.status === 'ok' ? 'ok' : r.required ? 'error' : 'warn', check: r.id, detail: r.detail })
+    if (wants('harness')) checking('the harnesses')
+    if (wants('harness') && 'bundle' in bundle) {
+      const enabled = (h: Harness) => live.config.harnesses[h].enabled && (!isHarness(topic) || topic === h)
+      const ids = bundle.bundle.skills.filter(s => s.frontmatter['harnesses'] === undefined || !Array.isArray(s.frontmatter['harnesses']) || (s.frontmatter['harnesses'] as unknown[]).length > 0).map(s => s.id)
+      checks.push(...skillChecks(ids, repoRoot, { claude: enabled('claude'), shared: enabled('codex') || enabled('opencode') || enabled('omp') }))
+    }
+    if (wants('harness')) {
+      try {
+        const adapters = await opsDeps.adapters()
+        checks.push(...await withLiveProbes(isHarness(topic), () => harnessChecks(adapters, live, isHarness(topic) ? (topic as Harness) : undefined)))
+      } catch (e) {
+        checks.push({ section: 'harness', level: 'error', check: 'adapters', detail: errText(e) })
       }
-    } catch (e) {
-      checks.push({ section: 'lsp', level: 'error', check: 'lsp', detail: errText(e) })
     }
+    if (wants('mcp')) {
+      checking('MCP servers')
+      if ('bundle' in bundle) checks.push(...await runMcpDoctor(bundle.bundle.mcp, HANDSHAKE_TIMEOUT_MS))
+      else checks.push({ section: 'mcp', level: 'error', check: 'mcp.yaml', detail: 'canonical data could not be loaded' })
+    }
+    if (wants('lsp')) {
+      checking('language servers')
+      try {
+        const { checkLspServers } = await import('./lsp')
+        for (const r of await checkLspServers([], HANDSHAKE_TIMEOUT_MS)) {
+          checks.push({ section: 'lsp', level: r.status === 'ok' ? 'ok' : r.required ? 'error' : 'warn', check: r.id, detail: r.detail })
+        }
+      } catch (e) {
+        checks.push({ section: 'lsp', level: 'error', check: 'lsp', detail: errText(e) })
+      }
+    }
+    if (wants('memory')) { checking('memory'); checks.push(...await memoryChecks()) }
+    if (wants('index')) { checking('code indexes'); checks.push(...await indexSection(process.cwd(), live.config, opsDeps.now())) }
+    if (wants('updates')) checks.push(...updateChecks(opsDeps.now()))
+  } finally {
+    steps.stop()
   }
-  if (wants('memory')) checks.push(...await memoryChecks())
-  if (wants('index')) checks.push(...await indexSection(process.cwd(), live.config, opsDeps.now()))
-  if (wants('updates')) checks.push(...updateChecks(opsDeps.now()))
 
   const code = doctorExit(checks)
   const count = (l: DoctorCheck['level']) => checks.filter(c => c.level === l).length

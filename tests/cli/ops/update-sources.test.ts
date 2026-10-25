@@ -295,6 +295,211 @@ describe('one update for the toolchain, the system tools, the plugins and the sk
     expect(readHealth()?.mcp['alpha']).toMatchObject({ status: 'ok', toolNames: ['lookup', 'resolve'] })
   }), 150_000)
 
+  describe('an upgrade that fails its check is undone', () => {
+    const stateFile = (buracleHome: string): string => join(buracleHome, 'state', 'toolchain.json')
+
+    // The real toolchain keeps the replaced version as `previous` and a rollback swaps the two.
+    function setPackage(buracleHome: string, key: string, version: string, previous?: string): void {
+      const s = JSON.parse(read(stateFile(buracleHome))) as { packages: Record<string, Record<string, unknown>> }
+      const p: Record<string, unknown> = { ...s.packages[key], version }
+      delete p['previous']
+      if (previous !== undefined) p['previous'] = { version: previous }
+      s.packages[key] = p
+      writeFileSync(stateFile(buracleHome), JSON.stringify(s))
+    }
+
+    function swapPackage(buracleHome: string, key: string): { from: string, to: string } {
+      const s = JSON.parse(read(stateFile(buracleHome))) as { packages: Record<string, { version: string, previous?: { version: string } }> }
+      const p = s.packages[key] as { version: string, previous?: { version: string } }
+      const from = p.version
+      const to = p.previous?.version as string
+      setPackage(buracleHome, key, to, from)
+      return { from, to }
+    }
+
+    function registry(alphaLatest: string): ReturnType<typeof fakeFetch> {
+      return fakeFetch({
+        [npmUrl('@demo/alpha')]: { 'dist-tags': { latest: alphaLatest }, time: { [alphaLatest]: daysAgo(NOW, 10), '1.0.0': daysAgo(NOW, 90) }, versions: { '1.0.0': {}, [alphaLatest]: {} } },
+        [npmUrl('omega-mcp')]: { 'dist-tags': { latest: '2.0.0' }, time: { '2.0.0': daysAgo(NOW, 90) }, versions: { '2.0.0': {} } },
+      })
+    }
+
+    function upgradeAlpha(buracleHome: string, afterUpgrade: () => void): OpsDeps['runToolchain'] {
+      return async () => {
+        setPackage(buracleHome, 'npm:@demo/alpha', '1.1.0', '1.0.0')
+        afterUpgrade()
+        const items = [{ id: 'mcp:alpha', group: 'mcp', label: 'alpha', required: false, status: 'upgraded', current: '1.1.0', detail: '1.0.0 → 1.1.0' }]
+        return { items, state: { v: 1, updated_at: '', packages: {}, system: {} }, changed: true } as unknown as Awaited<ReturnType<OpsDeps['runToolchain']>>
+      }
+    }
+
+    test('an MCP server that does not answer after the upgrade goes back to the version that did; the handshake shows the result', () => withSandbox(async ({ root, buracleHome }) => {
+      const repo = makeRepo(root, { 'canonical/mcp.yaml': LATEST_YAML })
+      toolchainState(buracleHome, { 'npm:@demo/alpha': '1.0.0', 'npm:omega-mcp': '2.0.0' })
+      const shim = join(buracleHome, 'bin', 'buracle')
+      fakeMcpServer(shim, '1.0.0')
+      const rolled: string[][] = []
+      const rollbackToolchain: OpsDeps['rollbackToolchain'] = async keys => {
+        rolled.push([...keys])
+        const r = swapPackage(buracleHome, keys[0] as string)
+        fakeMcpServer(shim, r.to)
+        return [{ key: keys[0] as string, name: '@demo/alpha', from: r.from, to: r.to, ok: true }]
+      }
+      await withDeps({ repoRoot: () => repo, adapters: async () => [], fetch: registry('1.1.0'), now: () => NOW, runToolchain: upgradeAlpha(buracleHome, () => fakeExe(shim, 'process.exit(3)')), rollbackToolchain }, async () => {
+        await withEnv({ BURACLE_NO_TOOLCHAIN: undefined }, async () => {
+          const io = memoryIO()
+          expect(await updateRun(['--yes', 'mcp'], io)).toBe(1)
+          expect(rolled).toEqual([['npm:@demo/alpha']])
+          expect(io.err()).toContain('failed   mcp alpha: 1.1.0 fails its check')
+          expect(io.err()).toContain('rolled back to 1.0.0, which works')
+          expect(io.out()).not.toContain('applied  mcp alpha')
+          expect(io.out()).toContain('handshake alpha: ok, 2 tool(s), v1.0.0')
+        })
+      })
+      expect(readHealth()?.mcp['alpha']).toMatchObject({ status: 'ok', version: '1.0.0' })
+      expect(JSON.parse(read(stateFile(buracleHome))).packages['npm:@demo/alpha']).toMatchObject({ version: '1.0.0', previous: { version: '1.1.0' } })
+    }), 150_000)
+
+    test('the JSON result lists each rollback with its status', () => withSandbox(async ({ root, buracleHome }) => {
+      const repo = makeRepo(root, { 'canonical/mcp.yaml': LATEST_YAML })
+      toolchainState(buracleHome, { 'npm:@demo/alpha': '1.0.0', 'npm:omega-mcp': '2.0.0' })
+      const shim = join(buracleHome, 'bin', 'buracle')
+      fakeMcpServer(shim, '1.0.0')
+      const rollbackToolchain: OpsDeps['rollbackToolchain'] = async keys => {
+        const r = swapPackage(buracleHome, keys[0] as string)
+        fakeMcpServer(shim, r.to)
+        return [{ key: keys[0] as string, name: '@demo/alpha', from: r.from, to: r.to, ok: true }]
+      }
+      await withDeps({ repoRoot: () => repo, adapters: async () => [], fetch: registry('1.1.0'), now: () => NOW, runToolchain: upgradeAlpha(buracleHome, () => fakeExe(shim, 'process.exit(3)')), rollbackToolchain }, async () => {
+        await withEnv({ BURACLE_NO_TOOLCHAIN: undefined }, async () => {
+          const io = memoryIO({ json: true })
+          expect(await updateRun(['--yes', 'mcp', '--json'], io)).toBe(1)
+          const r = JSON.parse(io.out()) as { rollbacks: Array<Record<string, unknown>>, failed: Array<Record<string, unknown>>, applied: unknown[] }
+          expect(r.rollbacks).toHaveLength(1)
+          expect(r.rollbacks[0]).toMatchObject({ kind: 'mcp', id: 'alpha', status: 'rolled-back' })
+          expect(r.failed).toHaveLength(1)
+          expect(r.applied).toEqual([])
+        })
+      })
+    }), 150_000)
+
+    test('when the previous version fails too, the newer one is put back and the server is reported down, not blamed on the update', () => withSandbox(async ({ root, buracleHome }) => {
+      const repo = makeRepo(root, { 'canonical/mcp.yaml': LATEST_YAML })
+      toolchainState(buracleHome, { 'npm:@demo/alpha': '1.0.0', 'npm:omega-mcp': '2.0.0' })
+      const shim = join(buracleHome, 'bin', 'buracle')
+      fakeExe(shim, 'process.exit(3)')
+      let calls = 0
+      const rollbackToolchain: OpsDeps['rollbackToolchain'] = async keys => {
+        calls++
+        const r = swapPackage(buracleHome, keys[0] as string)
+        return [{ key: keys[0] as string, name: '@demo/alpha', from: r.from, to: r.to, ok: true }]
+      }
+      await withDeps({ repoRoot: () => repo, adapters: async () => [], fetch: registry('1.1.0'), now: () => NOW, runToolchain: upgradeAlpha(buracleHome, () => {  }), rollbackToolchain }, async () => {
+        await withEnv({ BURACLE_NO_TOOLCHAIN: undefined }, async () => {
+          const io = memoryIO()
+          expect(await updateRun(['--yes', 'mcp'], io)).toBe(2)
+          expect(calls).toBe(2)
+          expect(io.out()).toContain('applied  mcp alpha: toolchain 1.0.0 → 1.1.0')
+          expect(io.out()).toContain('skipped  mcp alpha: ')
+          expect(io.out()).toContain('so the update is not the cause')
+          expect(io.out()).toContain('handshake alpha: down')
+        })
+      })
+      expect(JSON.parse(read(stateFile(buracleHome))).packages['npm:@demo/alpha']).toMatchObject({ version: '1.1.0' })
+    }), 150_000)
+
+    test('with no kept previous version the failure is reported as it is, and no rollback is attempted', () => withSandbox(async ({ root, buracleHome }) => {
+      const repo = makeRepo(root, { 'canonical/mcp.yaml': LATEST_YAML })
+      toolchainState(buracleHome, { 'npm:@demo/alpha': '1.0.0', 'npm:omega-mcp': '2.0.0' })
+      const shim = join(buracleHome, 'bin', 'buracle')
+      fakeMcpServer(shim, '1.0.0')
+      const runToolchain: OpsDeps['runToolchain'] = async () => {
+        setPackage(buracleHome, 'npm:@demo/alpha', '1.1.0')
+        fakeExe(shim, 'process.exit(3)')
+        const items = [{ id: 'mcp:alpha', group: 'mcp', label: 'alpha', required: false, status: 'upgraded', current: '1.1.0', detail: '1.0.0 → 1.1.0' }]
+        return { items, state: { v: 1, updated_at: '', packages: {}, system: {} }, changed: true } as unknown as Awaited<ReturnType<OpsDeps['runToolchain']>>
+      }
+      const rolled: string[][] = []
+      await withDeps({ repoRoot: () => repo, adapters: async () => [], fetch: registry('1.1.0'), now: () => NOW, runToolchain, rollbackToolchain: async keys => { rolled.push([...keys]); return [] } }, async () => {
+        await withEnv({ BURACLE_NO_TOOLCHAIN: undefined }, async () => {
+          const io = memoryIO()
+          expect(await updateRun(['--yes', 'mcp'], io)).toBe(1)
+          expect(rolled).toEqual([])
+          expect(io.err()).toContain('failed   mcp alpha: ')
+          expect(io.err()).toContain('no earlier version is kept')
+          expect(io.out()).toContain('handshake alpha: down')
+        })
+      })
+    }), 150_000)
+
+    test('a toolchain tool whose version check no longer runs is rolled back like an MCP server', () => withSandbox(async ({ root, buracleHome }) => {
+      const repo = makeRepo(root)
+      toolchainState(buracleHome, { 'npm:pyright': '1.1.400' })
+      const bin = join(root, 'bin')
+      const flag = join(root, 'pyright.version')
+      writeFileSync(flag, '1.1.400')
+      fakeExe(join(bin, 'pyright'), `const v = fs.readFileSync(${q(flag)}, 'utf8')
+if (v === 'broken') { console.error('Cannot find module'); process.exit(1) }
+console.log('pyright ' + v)`)
+      const f = fakeFetch({ [npmUrl('pyright')]: { 'dist-tags': { latest: '1.1.404' }, time: { '1.1.400': daysAgo(NOW, 90), '1.1.404': daysAgo(NOW, 10) }, versions: { '1.1.400': {}, '1.1.404': {} } } })
+      const runToolchain: OpsDeps['runToolchain'] = async () => {
+        setPackage(buracleHome, 'npm:pyright', '1.1.404', '1.1.400')
+        writeFileSync(flag, 'broken')
+        const items = [{ id: 'tool:pyright', group: 'lsp', label: 'pyright', required: true, status: 'upgraded', current: '1.1.404', detail: '1.1.400 → 1.1.404' }]
+        return { items, state: { v: 1, updated_at: '', packages: {}, system: {} }, changed: true } as unknown as Awaited<ReturnType<OpsDeps['runToolchain']>>
+      }
+      const rollbackToolchain: OpsDeps['rollbackToolchain'] = async keys => {
+        const r = swapPackage(buracleHome, keys[0] as string)
+        writeFileSync(flag, r.to)
+        return [{ key: keys[0] as string, name: 'pyright', from: r.from, to: r.to, ok: true }]
+      }
+      await withDeps({ repoRoot: () => repo, adapters: async () => [], fetch: f, now: () => NOW, runToolchain, rollbackToolchain }, async () => {
+        await withEnv({ BURACLE_NO_TOOLCHAIN: undefined, PATH: narrowPath(bin) }, async () => {
+          const io = memoryIO()
+          expect(await updateRun(['--yes', 'tools'], io)).toBe(1)
+          expect(io.err()).toContain('failed   tools pyright: 1.1.404 fails its check')
+          expect(io.err()).toContain('rolled back to 1.1.400, which works')
+        })
+      })
+      expect(read(flag)).toBe('1.1.400')
+    }), 150_000)
+
+    test('an upgrade that passes its check is left alone', () => withSandbox(async ({ root, buracleHome }) => {
+      const repo = makeRepo(root, { 'canonical/mcp.yaml': LATEST_YAML })
+      toolchainState(buracleHome, { 'npm:@demo/alpha': '1.0.0', 'npm:omega-mcp': '2.0.0' })
+      const shim = join(buracleHome, 'bin', 'buracle')
+      fakeMcpServer(shim, '1.0.0')
+      const rolled: string[][] = []
+      await withDeps({ repoRoot: () => repo, adapters: async () => [], fetch: registry('1.1.0'), now: () => NOW, runToolchain: upgradeAlpha(buracleHome, () => fakeMcpServer(shim, '1.1.0')), rollbackToolchain: async keys => { rolled.push([...keys]); return [] } }, async () => {
+        await withEnv({ BURACLE_NO_TOOLCHAIN: undefined }, async () => {
+          const io = memoryIO()
+          expect(await updateRun(['--yes', 'mcp'], io)).toBe(0)
+          expect(rolled).toEqual([])
+          expect(io.out()).toContain('applied  mcp alpha: toolchain 1.0.0 → 1.1.0')
+          expect(io.out()).toContain('handshake alpha: ok, 2 tool(s), v1.1.0')
+        })
+      })
+    }), 150_000)
+
+    test('a version that was rolled back is not offered again, only a newer one', () => withSandbox(async ({ root, buracleHome }) => {
+      const repo = makeRepo(root, { 'canonical/mcp.yaml': LATEST_YAML })
+      toolchainState(buracleHome, { 'npm:@demo/alpha': '1.0.0', 'npm:omega-mcp': '2.0.0' })
+      const s = JSON.parse(read(stateFile(buracleHome))) as { packages: Record<string, Record<string, unknown>> }
+      s.packages['npm:@demo/alpha'] = { ...s.packages['npm:@demo/alpha'], previous: { version: '1.1.0' }, rolled_back: '1.1.0' }
+      writeFileSync(stateFile(buracleHome), JSON.stringify(s))
+      await withDeps({ repoRoot: () => repo, adapters: async () => [], fetch: registry('1.1.0'), now: () => NOW }, async () => {
+        const io = memoryIO({ json: true })
+        expect(await updateRun(['mcp', '--check', '--json'], io)).toBe(0)
+        expect((JSON.parse(io.out()) as { items: unknown[] }).items).toEqual([])
+      })
+      await withDeps({ repoRoot: () => repo, adapters: async () => [], fetch: registry('1.2.0'), now: () => NOW }, async () => {
+        const io = memoryIO({ json: true })
+        expect(await updateRun(['mcp', '--check', '--json'], io)).toBe(0)
+        expect((JSON.parse(io.out()) as { items: Array<{ id: string, latest: string }> }).items.map(i => `${i.id}:${i.latest}`)).toEqual(['alpha:1.2.0'])
+      })
+    }), 60_000)
+  })
+
   test('BURACLE_NO_TOOLCHAIN=1 stops every toolchain change of the update', () => withSandbox(async ({ root, buracleHome }) => {
     const repo = makeRepo(root, { 'canonical/mcp.yaml': LATEST_YAML })
     toolchainState(buracleHome, { 'npm:@demo/alpha': '1.0.0' })

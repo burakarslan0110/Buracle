@@ -13,7 +13,7 @@ import type { ToolSpec } from '../../../src/core/catalog'
 import { run as runProcess } from '../../../src/engine/proc'
 import * as paths from '../../../src/engine/paths'
 import { styledReport } from '../../../src/cli/commands/doctor'
-import { makeStyle } from '../../../src/cli/ui/style'
+import { makeStyle, stripAnsi } from '../../../src/cli/ui/style'
 import { symlinkSync } from 'node:fs'
 import { pathLink, shimContent } from '../../../src/engine/update/install-core'
 import { windowsLauncher } from '../../../src/engine/toolchain/links'
@@ -168,6 +168,23 @@ describe('buracle doctor', () => {
       expect(health?.mcp['buracle-memory']).toMatchObject({ status: 'ok', tools: 3, version: '9.9.9' })
       expect(health?.tools?.['jq']).toMatchObject({ status: 'missing' })
       expect(JSON.parse(readFileSync(join(buracleHome, 'state/health.json'), 'utf8')).v).toBe(1)
+    })
+  }), 60_000)
+
+  test('in a terminal the section being checked is named while it runs; pipes and --json get no progress on stderr', () => withSandbox(async ({ root }) => {
+    const repo = makeRepo(root)
+    await withDeps({ repoRoot: () => repo, adapters: async () => [], now: () => Date.parse('2026-10-08T00:00:00Z') }, async () => {
+      const live = memoryIO({ liveErr: true })
+      await doctorRun(['config'], live)
+      expect(stripAnsi(live.err())).toContain('Checking configuration…')
+      // The spinner line is cleared once the section is done, so the report is not repeated by progress lines.
+      expect(live.out()).toContain('config')
+      const piped = memoryIO()
+      await doctorRun(['config'], piped)
+      expect(piped.err()).toBe('')
+      const json = memoryIO({ json: true, liveErr: true })
+      await doctorRun(['config', '--json'], json)
+      expect(json.err()).toBe('')
     })
   }), 60_000)
 

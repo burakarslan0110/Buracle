@@ -91,6 +91,11 @@ describe('main menu status line', () => {
     expect(status({ updates: 0, problems: 3 })).toBe('  ! 3 problems · no update check yet')
   })
 
+  test('what is being verified right now takes the place of the time of the last check', () => {
+    expect(status({ updates: 0, problems: 0, checkedAt: '5 min ago', working: 'verifying 3 parts · checking for updates' })).toBe('  + All good · verifying 3 parts · checking for updates')
+    expect(status({ updates: 1, problems: 0, working: 'checking for updates' })).toBe('  i 1 update waiting · checking for updates')
+  })
+
   test('the time of the check goes first when the line is too narrow', () => {
     expect(shown(plain, menu(40, 24, { updates: 2, problems: 1, checkedAt: '5 min ago' }))[3]).toBe('  ! 2 updates waiting · 1 problem')
   })
