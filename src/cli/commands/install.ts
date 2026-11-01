@@ -89,8 +89,9 @@ Without a terminal, or with --yes, every answer is no and the next steps say so.
 Right after the Codex transaction, Codex's trust records for Buracle's own hooks are
 written (their own transaction), so /hooks needs no approval. Right after the Claude
 transaction, the official LSP plugins Buracle's language servers replace go on
-lspRecommendationNeverPlugins in ~/.claude.json (their own transaction), so Claude
-Code's "LSP plugin recommendation" dialog stops offering them. Afterwards it lists
+lspRecommendationNeverPlugins in ~/.claude.json and lspRecommendationDisabled is set
+to true there (their own transaction; a value you set stays yours), so Claude Code's
+"LSP plugin recommendation" dialog stops offering them. Afterwards it lists
 harness-specific next steps (Codex /hooks only when that trust could not be recorded,
 the one-time OpenCode service restart, the omp plugin link).
 
@@ -628,7 +629,7 @@ async function applyClaudeLspHints(result: InstallFlowResult, conflicts: Conflic
     result.warnings.push(...t.warnings)
     conflicts.push(...t.conflicts.map(conflictInfo))
   } catch (e) {
-    result.warnings.push(`claude: listing the official LSP plugins under lspRecommendationNeverPlugins in ~/.claude.json failed (${errText(e)}); Claude Code's "LSP plugin recommendation" dialog may still offer them (answer "Never for this plugin", not "Yes")`)
+    result.warnings.push(`claude: writing lspRecommendationNeverPlugins and lspRecommendationDisabled in ~/.claude.json failed (${errText(e)}); Claude Code's "LSP plugin recommendation" dialog may still offer the official LSP plugins (answer "Never for this plugin", not "Yes")`)
   }
 }
 

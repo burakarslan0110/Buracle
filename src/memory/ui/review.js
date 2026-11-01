@@ -180,7 +180,7 @@ function docView(d) {
     waiting(d) ? h('p', { class: 'warn-line' }, icon('clock', 'icon xs'), h('span', null, t('review.waitingLead'))) : null,
     h('p', { class: 'hint-line' }, t('review.docHint')),
     d.changes ? (() => { const b = h('button', { type: 'button', class: 'link' }, t('review.seeChanges')); b.addEventListener('click', () => { setTab('changes'); openView({ kind: 'changes', id: d.changes }, true) }); return b })() : null)
-  const doc = renderDoc(d.text)
+  const doc = renderDoc(d.text, d.diagrams)
   const marks = new Map()
   const notes = d.notes ?? []
   for (const n of [...notes].sort((a, b) => Number(a.done !== undefined) - Number(b.done !== undefined))) {
@@ -190,6 +190,7 @@ function docView(d) {
     if (blk !== null) got = markQuote(blk, n.quote, attrs)
     if (got.length === 0) got = markQuote(doc, n.quote, attrs)
     if (got.length > 0) marks.set(n.id, got[0])
+    for (const m of got) m.closest('details')?.setAttribute('open', '')
   }
   const cardCtx = {
     target,

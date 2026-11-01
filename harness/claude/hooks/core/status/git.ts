@@ -15,6 +15,20 @@ function int(s: string | undefined): number {
   return Number.isFinite(n) && n > 0 ? n : 0
 }
 
+// The lines added and removed in the working tree against HEAD, from `git diff HEAD --shortstat`
+// (" 3 files changed, 12 insertions(+), 4 deletions(-)"); git leaves out a side that is zero.
+export function linesFromShortstat(text: string): { added: number; removed: number } | undefined {
+  const line = text.split('\n').map(l => l.trim()).find(l => /\bfiles? changed\b/u.test(l))
+  if (line === undefined) return undefined
+  return { added: int(/(\d+) insertions?\(\+\)/u.exec(line)?.[1]), removed: int(/(\d+) deletions?\(-\)/u.exec(line)?.[1]) }
+}
+
+// The git segment's " +N −M" (U+2212 minus), or nothing when the working tree has no line changes.
+export function gitTreeLines(g: GitState): string {
+  const l = g.lines
+  return l !== undefined && l.added + l.removed > 0 ? ` +${l.added} −${l.removed}` : ''
+}
+
 export function gitFromPorcelainV2(text: string, gitDir?: string, commonDir?: string): GitState {
   const st: GitState = { ahead: 0, behind: 0, staged: 0, unstaged: 0, untracked: 0, stash: 0, conflicts: 0 }
   let oid: string | undefined

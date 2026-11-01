@@ -13,6 +13,10 @@ export async function gitStatusPorcelainV2(cwd: string): Promise<string | undefi
   return git(cwd, ['status', '--porcelain=v2', '--branch', '--show-stash'])
 }
 
+export async function gitDiffShortstat(cwd: string): Promise<string | undefined> {
+  return git(cwd, ['diff', 'HEAD', '--shortstat', '--no-color', '--no-ext-diff'])
+}
+
 export async function revParse(cwd: string, ...args: string[]): Promise<string | undefined> {
   const out = await git(cwd, ['rev-parse', ...args])
   return out === undefined ? undefined : out.trim()

@@ -193,7 +193,7 @@ Gizli bilgiler yazılmadan önce maskelenir, `<private>…</private>` blokları 
 
 - Beyin görünümü bölgeleri bir beyin olarak çizer ve yazma ile arama anında burada yanar. `/` arama yapar, `1` ile `7` arasındaki tuşlar bir bölgeyi açar, `G` kayıtların, etiketlerin, dosyaların ve kavramların ağını gösterir.
 - Kayıt ayrıntısında metin, etiketler, kaynaklar, geçmiş, kaydın nereden geldiği (senin sözlerin mi, çıkarım mı, hangi güvenle) ve bağlantılı olduğu kayıtlar görünür. Kaydı buradan düzeltebilir, devreden çıkarabilir, geri getirebilir ya da silebilirsin. Düzeltme senin kendi sözün olarak saklanır.
-- İnceleme sayfası planlarını, geliştirme sözleşmelerini, PRD'lerini ve ajanın diff'ini gösterir. Bir metni seçerek ya da bir satır numarasına tıklayarak ajana not iliştirirsin.
+- İnceleme sayfası planlarını, geliştirme sözleşmelerini, PRD'lerini ve ajanın diff'ini gösterir. Mermaid blokları diyagram olarak çizilir, kaynakları altında durur. Bir metni seçerek ya da bir satır numarasına tıklayarak ajana not iliştirirsin.
 - Sağlık panelinde (`H`) sorunlar sade bir dille anlatılır. Panel depoyu ve sürümünü, beyin dosyasını boyutu ve kovalarıyla, Buracle 0.5'ten taşımayı, dosyalanmayı bekleyen kayıtları, son yakalamayı ve yedekleri gösterir. Back up düğmesi de buradadır.
 - Oturumlar ve kullanım panelinde (`W`) dört harness'taki son 30 günün oturumları görünür. Burada yalnızca sayılar tutulur, yazdıkların asla tutulmaz. Panel ayrıca giren commit'leri, güne ve modele göre maliyeti ve token'ları, kurulu skill'leri, ajanları ve kuralları gösterir.
 - Bildirimler (`N`) ile koyu ve açık tema (`T`) da arayüzde yer alır.
@@ -305,7 +305,7 @@ Menü açıkken Buracle, son doğrulaması altı saatten eski olanları yeniler.
 | `buracle rollback` | En son kurulumu geri alır |
 | `buracle uninstall` | Buracle'ın kurduğu her şeyi kaldırır ve hafızaya dokunmaz |
 
-Ajanlar `plan`, `worktree`, `mem`, `skills` ve `project` gibi başka komutlar da kullanır. `buracle help --all` hepsini listeler, `buracle help <komut>` birini açıklar.
+Ajanlar `plan`, `worktree`, `mem`, `skills`, `project` ve `diagram` gibi başka komutlar da kullanır. `buracle help --all` hepsini listeler, `buracle help <komut>` birini açıklar. `buracle diagram` bir Mermaid diyagramını kutu karakterleriyle çizer; böylece ajanın sohbet cevabındaki diyagram terminalde ham Mermaid yerine çizim olarak görünür.
 
 ## Geliştirme
 

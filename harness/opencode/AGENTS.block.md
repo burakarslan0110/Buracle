@@ -60,7 +60,8 @@ A task is done when evidence shows the changed behavior works where it will be u
 | Docs only | Every command, path and example in the changed text is correct |
 
 - Read the output, not just the exit code. A green run that skipped tests, matched nothing or printed errors is not a pass. When you narrow long output, keep the pass, fail and skip counts and every failure or error with its message, never just a tail.
-- Never present an unrun check as passed. The final report lists what ran (command → result) and what is not verified, with the reason.
+- Never present an unrun check as passed. The final report keeps three things apart: what you verified (command → result), what you only infer from it, and what is not verified, with the reason.
+- A unit test with mocks proves the logic around the mock, not the connection, the packaging or the remote service the mock stands for. Prove those on the real thing, or list them as not verified.
 - Verification is no permission: deploying, replacing a live install, changing real data or cleaning up remote resources needs the user's permission. Without it, prepare the artifact and name the step that remains.
 - Call a failure pre-existing only after showing it fails the same way without your change (for example on the base commit in a separate worktree).
 - Verify unfamiliar facts — library APIs, flags, versions, platform behavior — from current sources (context7, official docs) before relying on them. Training memory is not a source.
@@ -69,6 +70,7 @@ A task is done when evidence shows the changed behavior works where it will be u
 ## Testing
 
 - Test behavior through public entry points, not internals. Extend existing test files, fixtures and helpers before adding new scaffolding.
+- Never add an API, flag, export or branch to production code only so a test can reach it; test through what callers already use.
 - Be proportionate: cover the behavior you changed and its important edge and error cases. No tests for trivial pass-throughs; no coverage targets unless the repo enforces them.
 - For a bug, first write a test that reproduces it and fails (when practical), then fix until it passes. It must fail for the reason the bug names, not an import or setup error. When the fix already exists, prove that the test catches the bug in a throwaway checkout or worktree, or by undoing the fix once with the edit tools and restoring it, never by discarding work.
 - Derive expected values from the requirement or from independent reasoning, never from the code under test. Don't assert on source text, log wording, or mocks of the unit being tested.
@@ -100,7 +102,7 @@ A task is done when evidence shows the changed behavior works where it will be u
 4. Trace backward from the symptom to its origin: callers and data flow with codegraph, similar code with semble. Temporary instrumentation is fine — tag it `BURACLE-DEBUG` and remove every tag before you finish.
 5. Fix the cause where it originates, not where it surfaces. No special-casing of the failing input.
 6. Prove the fix: the reproduction passes, the original symptom is gone end to end, and nearby tests still pass. Look for the same defect elsewhere and report what you find.
-7. After three failed fix attempts, stop patching. Re-read the evidence, question your assumptions, and widen the search.
+7. After three failed fix attempts, stop patching. Re-read the evidence, question your assumptions, and widen the search. Three failures are no license to rewrite the code from scratch; a rewrite needs the user's approval.
 
 ## Review findings
 
@@ -110,6 +112,7 @@ A task is done when evidence shows the changed behavior works where it will be u
 - The user is the authority on intent and priorities; their claims about how code behaves still get checked.
 - A finding that contradicts a decision the user already made (in this conversation or in a decision memory) goes to the user before you change anything. If your push-back turns out wrong, say so in one line.
 - After fixing, re-verify the affected behavior; a structural fix may warrant another review pass.
+- A tool or call budget running out never ends a review: finish it, or report which parts stay unreviewed.
 
 ## Documentation
 
@@ -135,7 +138,7 @@ The standard sets outcomes, not word counts or word lists. Use your judgment on 
 
 1. **Relevant: the readers get what they need.** Before you write, know who reads the document (the user; for a plan, also the agent that implements it), why they read it (to approve, decide, act or understand) and how much time they have. Keep the content they need and leave out the rest. Never hide what they must know: risks, failures, what you did not verify.
 2. **Findable: the readers can easily find what they need.** Put the main message first: the answer, the decision or the result. Group related information and order it the way the reader uses it: steps in time order, warnings before the steps they guard, what most readers need before what few need. Write headings that say what comes next. Keep supporting material (long evidence, logs, alternatives) after the main text or in its own section.
-3. **Understandable: the readers can easily understand what they find.** Use words the reader knows; explain a term the first time and keep that one term for that one thing. Write clear, short sentences with one idea each and the actor first. Keep paragraphs short. Use a list for parallel items, a table for anything with two or more dimensions, and a Mermaid diagram in a fenced `mermaid` block when the structure carries the meaning (a flow, a sequence, a state machine, a dependency map; under about 25 nodes, with one sentence under it that says what to look at). Keep a direct, respectful tone without hedges or filler.
+3. **Understandable: the readers can easily understand what they find.** Use words the reader knows; explain a term the first time and keep that one term for that one thing. Write clear, short sentences with one idea each and the actor first. Keep paragraphs short. Use a list for parallel items, a table for anything with two or more dimensions, and a diagram when the structure carries the meaning (a flow, a sequence, a state machine, a dependency map; under about 25 nodes, with one sentence under it that says what to look at; *Diagrams* below says how to show it). Keep a direct, respectful tone without hedges or filler.
 4. **Usable: the readers can easily use the information.** Make every step something the reader can do and every claim something the reader can check (`path:line`, command → result). Before you hand a document over, read it as its reader: is the answer in the first lines, is the next step clear, does every term mean one thing? Fix what fails.
 
 ## Language
@@ -148,6 +151,7 @@ The standard sets outcomes, not word counts or word lists. Use your judgment on 
 
 - Markdown is the deliverable. A workflow writes its document as a Markdown file in the repository (the path its skill names) and summarizes it in the reply. No web page, artifact, HTML file or video unless the user asks for one.
 - Never put secrets, tokens or private data in a document.
+- **Diagrams.** Write them in Mermaid. In a Markdown file, keep the source in a fenced `mermaid` block; the review page draws it. In a chat reply, draw it instead, because a terminal shows Mermaid as raw code: pipe the source to `buracle diagram` (add `--ascii` for plain ASCII) and put its output in a plain fenced `text` block. Start the source with its header (`flowchart TD`, `sequenceDiagram`, `stateDiagram-v2`, `classDiagram` or `erDiagram`) and write one statement per line. When it warns that the drawing is wider than 100 columns, switch `LR` to `TD`; when it reports that the drawing did not finish, split it into smaller diagrams (a chain of more than about 20 boxes can stall it); when it fails, fix the source or use a list.
 
 ## Where this applies
 

@@ -58,7 +58,8 @@ A task is done when evidence shows the changed behavior works where it will be u
 | Docs only | Every command, path and example in the changed text is correct |
 
 - Read the output, not just the exit code. A green run that skipped tests, matched nothing or printed errors is not a pass. When you narrow long output, keep the pass, fail and skip counts and every failure or error with its message, never just a tail.
-- Never present an unrun check as passed. The final report lists what ran (command → result) and what is not verified, with the reason.
+- Never present an unrun check as passed. The final report keeps three things apart: what you verified (command → result), what you only infer from it, and what is not verified, with the reason.
+- A unit test with mocks proves the logic around the mock, not the connection, the packaging or the remote service the mock stands for. Prove those on the real thing, or list them as not verified.
 - Verification is no permission: deploying, replacing a live install, changing real data or cleaning up remote resources needs the user's permission. Without it, prepare the artifact and name the step that remains.
 - Call a failure pre-existing only after showing it fails the same way without your change (for example on the base commit in a separate worktree).
 - Verify unfamiliar facts — library APIs, flags, versions, platform behavior — from current sources (context7, official docs) before relying on them. Training memory is not a source.
@@ -67,6 +68,7 @@ A task is done when evidence shows the changed behavior works where it will be u
 ## Testing
 
 - Test behavior through public entry points, not internals. Extend existing test files, fixtures and helpers before adding new scaffolding.
+- Never add an API, flag, export or branch to production code only so a test can reach it; test through what callers already use.
 - Be proportionate: cover the behavior you changed and its important edge and error cases. No tests for trivial pass-throughs; no coverage targets unless the repo enforces them.
 - For a bug, first write a test that reproduces it and fails (when practical), then fix until it passes. It must fail for the reason the bug names, not an import or setup error. When the fix already exists, prove that the test catches the bug in a throwaway checkout or worktree, or by undoing the fix once with the edit tools and restoring it, never by discarding work.
 - Derive expected values from the requirement or from independent reasoning, never from the code under test. Don't assert on source text, log wording, or mocks of the unit being tested.
@@ -98,7 +100,7 @@ A task is done when evidence shows the changed behavior works where it will be u
 4. Trace backward from the symptom to its origin: callers and data flow with codegraph, similar code with semble. Temporary instrumentation is fine — tag it `BURACLE-DEBUG` and remove every tag before you finish.
 5. Fix the cause where it originates, not where it surfaces. No special-casing of the failing input.
 6. Prove the fix: the reproduction passes, the original symptom is gone end to end, and nearby tests still pass. Look for the same defect elsewhere and report what you find.
-7. After three failed fix attempts, stop patching. Re-read the evidence, question your assumptions, and widen the search.
+7. After three failed fix attempts, stop patching. Re-read the evidence, question your assumptions, and widen the search. Three failures are no license to rewrite the code from scratch; a rewrite needs the user's approval.
 
 ## Review findings
 
@@ -108,6 +110,7 @@ A task is done when evidence shows the changed behavior works where it will be u
 - The user is the authority on intent and priorities; their claims about how code behaves still get checked.
 - A finding that contradicts a decision the user already made (in this conversation or in a decision memory) goes to the user before you change anything. If your push-back turns out wrong, say so in one line.
 - After fixing, re-verify the affected behavior; a structural fix may warrant another review pass.
+- A tool or call budget running out never ends a review: finish it, or report which parts stay unreviewed.
 
 ## Documentation
 

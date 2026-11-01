@@ -85,6 +85,17 @@ body.review-page { --top: 76px; --rail: 340px; background: var(--bg); }
 .md-doc code { padding: 1px 5px; background: rgba(var(--line-rgb), 0.13); border-radius: 4px; font-size: 0.9em; }
 .md-doc pre { margin: 0 0 14px; padding: 12px 14px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; line-height: 1.5; }
 .md-doc pre code { padding: 0; background: none; font-size: 12.5px; }
+.md-doc figure.diagram { margin: 0 0 14px; padding: 12px 14px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; }
+.md-doc figure.diagram img { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+.md-doc figure.diagram .diagram-light { display: none; }
+:root[data-theme="light"] .md-doc figure.diagram .diagram-light { display: block; }
+:root[data-theme="light"] .md-doc figure.diagram .diagram-dark { display: none; }
+.md-doc .diagram-source { margin-top: 10px; }
+.md-doc .diagram-source summary { cursor: pointer; color: var(--ink-3); font-size: 12.5px; }
+.md-doc .diagram-source pre { margin: 8px 0 0; }
+.md-doc .diagram-failed { margin: 0 0 14px; }
+.md-doc .diagram-failed pre { margin-bottom: 6px; }
+.md-doc .diagram-error { margin: 0; color: var(--warn); font-size: 13px; }
 .md-doc blockquote { margin: 0 0 12px; padding: 6px 14px; background: var(--tint); border-radius: 6px; color: var(--ink-2); }
 .md-doc hr { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }
 .md-doc a, .md-link { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }

@@ -7,7 +7,7 @@ export interface ReviewReport { verdict: 'pass' | 'needs_changes'; summary: stri
 
 export const REVIEW_CATEGORIES: Readonly<Record<ReviewAgent, readonly string[]>> = {
   'plan-build-review': ['requirement_gap', 'scope_creep', 'risky_assumption', 'missing_task', 'missing_test', 'weak_dod', 'task_order', 'risk', 'format', 'review_input'],
-  'changes-review': ['plan_deviation', 'incomplete_task', 'correctness', 'regression_risk', 'error_handling', 'security', 'data_integrity', 'test_gap', 'docs_drift', 'goal_gap', 'needs_runtime_check', 'performance', 'over_engineering', 'maintainability', 'review_input'],
+  'changes-review': ['plan_deviation', 'incomplete_task', 'correctness', 'regression_risk', 'error_handling', 'security', 'data_integrity', 'test_gap', 'test_quality', 'docs_drift', 'goal_gap', 'needs_runtime_check', 'performance', 'over_engineering', 'maintainability', 'review_input'],
   'goal-build-review': ['criterion_not_binary', 'criterion_unobservable', 'criterion_describes_work', 'criterion_bundled', 'criterion_subjective', 'criterion_fakeable', 'outcome_uncovered', 'no_end_to_end_check', 'oracle_mismatch', 'false_pass_uncaught', 'reference_unobtainable', 'no_measurable_criterion', 'goal_unclear', 'scope_creep', 'task_gap', 'task_order', 'task_too_large', 'contract_size', 'risky_assumption', 'format', 'review_input'],
 }
 

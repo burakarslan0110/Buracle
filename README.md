@@ -193,7 +193,7 @@ Secrets are masked before anything is written, `<private>…</private>` blocks a
 
 - Brain view. The regions drawn as a brain, where writes and searches light up as they happen. `/` searches, `1` to `7` open a region and `G` shows the network of memories, tags, files and concepts.
 - Memory detail. The body, tags, sources and history, where the memory came from (your words or inferred, with its confidence) and the memories it links to, with edit, retire, restore and delete. An edit is stored as your own words.
-- Review page. Your plans, build contracts and PRDs, and the agent's diff. Select text or click a line number to pin a note for the agent.
+- Review page. Your plans, build contracts and PRDs, and the agent's diff. Mermaid blocks are drawn as diagrams, with their source underneath. Select text or click a line number to pin a note for the agent.
 - Health (`H`). What is wrong in plain words, the store and its version, the brain file with its size and buckets, the move from Buracle 0.5, the inbox of captures, the last capture and the backups, with a Back up button.
 - Sessions and usage (`W`). Sessions across all four harnesses for the last 30 days (counts only, never what you typed), commits landed, cost and tokens per day and model, and the installed skills, agents and rules.
 - Notifications (`N`) and a dark and a light theme (`T`).
@@ -305,7 +305,7 @@ While the menu is open, Buracle re-checks what was last verified more than six h
 | `buracle rollback` | Undoes the newest install |
 | `buracle uninstall` | Removes everything Buracle installed and leaves the memory alone |
 
-Your agents use more commands, such as `plan`, `worktree`, `mem`, `skills` and `project`. `buracle help --all` lists them and `buracle help <command>` explains one.
+Your agents use more commands, such as `plan`, `worktree`, `mem`, `skills`, `project` and `diagram`. `buracle help --all` lists them and `buracle help <command>` explains one. `buracle diagram` draws a Mermaid diagram with box characters, so a diagram in the agent's chat reply shows as a drawing in the terminal instead of raw Mermaid.
 
 ## Development
 

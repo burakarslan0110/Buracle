@@ -19847,7 +19847,7 @@ function detectSignals(text) {
 // src/core/policy/review.ts
 var REVIEW_CATEGORIES = {
   "plan-build-review": ["requirement_gap", "scope_creep", "risky_assumption", "missing_task", "missing_test", "weak_dod", "task_order", "risk", "format", "review_input"],
-  "changes-review": ["plan_deviation", "incomplete_task", "correctness", "regression_risk", "error_handling", "security", "data_integrity", "test_gap", "docs_drift", "goal_gap", "needs_runtime_check", "performance", "over_engineering", "maintainability", "review_input"],
+  "changes-review": ["plan_deviation", "incomplete_task", "correctness", "regression_risk", "error_handling", "security", "data_integrity", "test_gap", "test_quality", "docs_drift", "goal_gap", "needs_runtime_check", "performance", "over_engineering", "maintainability", "review_input"],
   "goal-build-review": ["criterion_not_binary", "criterion_unobservable", "criterion_describes_work", "criterion_bundled", "criterion_subjective", "criterion_fakeable", "outcome_uncovered", "no_end_to_end_check", "oracle_mismatch", "false_pass_uncaught", "reference_unobtainable", "no_measurable_criterion", "goal_unclear", "scope_creep", "task_gap", "task_order", "task_too_large", "contract_size", "risky_assumption", "format", "review_input"]
 };
 var REVIEW_MAX_FINDINGS = 15;
@@ -21794,6 +21794,7 @@ var BURACLE_READ = {
   "review-scope": true,
   version: true,
   help: true,
+  diagram: true,
   plan: ["status", "validate"],
   worktree: ["detect", "status", "diff"],
   mem: ["search", "get", "status", "context"],
@@ -24698,6 +24699,9 @@ async function git(cwd, args) {
 }
 async function gitStatusPorcelainV2(cwd) {
   return git(cwd, ["status", "--porcelain=v2", "--branch", "--show-stash"]);
+}
+async function gitDiffShortstat(cwd) {
+  return git(cwd, ["diff", "HEAD", "--shortstat", "--no-color", "--no-ext-diff"]);
 }
 async function revParse(cwd, ...args) {
   const out = await git(cwd, ["rev-parse", ...args]);
@@ -32203,6 +32207,17 @@ function int(s) {
   const n = s === undefined ? Number.NaN : Number.parseInt(s, 10);
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
+function linesFromShortstat(text) {
+  const line = text.split(`
+`).map((l) => l.trim()).find((l) => /\bfiles? changed\b/u.test(l));
+  if (line === undefined)
+    return;
+  return { added: int(/(\d+) insertions?\(\+\)/u.exec(line)?.[1]), removed: int(/(\d+) deletions?\(-\)/u.exec(line)?.[1]) };
+}
+function gitTreeLines(g) {
+  const l = g.lines;
+  return l !== undefined && l.added + l.removed > 0 ? ` +${l.added} \u2212${l.removed}` : "";
+}
 function gitFromPorcelainV2(text, gitDir, commonDir) {
   const st = { ahead: 0, behind: 0, staged: 0, unstaged: 0, untracked: 0, stash: 0, conflicts: 0 };
   let oid;
@@ -33065,7 +33080,7 @@ function gitCandidate(g) {
   const ab = `${g.ahead > 0 ? ` \u2191${g.ahead}` : ""}${g.behind > 0 ? ` \u2193${g.behind}` : ""}`;
   const dirty = g.staged + g.unstaged + g.untracked;
   const color = g.conflicts > 0 ? "red" : dirty > 0 ? "yellow" : "green";
-  const long = `\u2387 ${name}${ab}` + (g.staged > 0 ? ` \u25CF${g.staged}` : "") + (g.unstaged > 0 ? ` \u271A${g.unstaged}` : "") + (g.untracked > 0 ? ` \u2026${g.untracked}` : "") + (g.stash > 0 ? ` \u2691${g.stash}` : "") + (g.conflicts > 0 ? ` \u26A0${g.conflicts}` : "") + (g.worktree ? ` [wt:${g.worktree}]` : "");
+  const long = `\u2387 ${name}${ab}` + (g.staged > 0 ? ` \u25CF${g.staged}` : "") + (g.unstaged > 0 ? ` \u271A${g.unstaged}` : "") + (g.untracked > 0 ? ` \u2026${g.untracked}` : "") + gitTreeLines(g) + (g.stash > 0 ? ` \u2691${g.stash}` : "") + (g.conflicts > 0 ? ` \u26A0${g.conflicts}` : "") + (g.worktree ? ` [wt:${g.worktree}]` : "");
   const short = `\u2387 ${truncateToWidth(name, 24)}${ab}${dirty > 0 ? " *" : ""}${g.conflicts > 0 ? ` \u26A0${g.conflicts}` : ""}`;
   return cand("git", PRIORITY["git"] ?? 0, seg2("git", long, color), seg2("git", short, color));
 }
@@ -33415,7 +33430,7 @@ function gitText(g, long) {
     const dirty = g.staged + g.unstaged + g.untracked;
     return `\u2387 ${truncateToWidth(name, 24)}${ab}${dirty > 0 ? " *" : ""}${g.conflicts > 0 ? ` \u26A0${g.conflicts}` : ""}`;
   }
-  return `\u2387 ${name}${ab}` + (g.staged > 0 ? ` \u25CF${g.staged}` : "") + (g.unstaged > 0 ? ` \u271A${g.unstaged}` : "") + (g.untracked > 0 ? ` \u2026${g.untracked}` : "") + (g.stash > 0 ? ` \u2691${g.stash}` : "") + (g.conflicts > 0 ? ` \u26A0${g.conflicts}` : "") + (g.worktree ? ` [wt:${g.worktree}]` : "");
+  return `\u2387 ${name}${ab}` + (g.staged > 0 ? ` \u25CF${g.staged}` : "") + (g.unstaged > 0 ? ` \u271A${g.unstaged}` : "") + (g.untracked > 0 ? ` \u2026${g.untracked}` : "") + gitTreeLines(g) + (g.stash > 0 ? ` \u2691${g.stash}` : "") + (g.conflicts > 0 ? ` \u26A0${g.conflicts}` : "") + (g.worktree ? ` [wt:${g.worktree}]` : "");
 }
 function gitPart(bar) {
   const g = bar.git;
@@ -36916,11 +36931,15 @@ function ompPlanStore() {
   };
 }
 async function gitState(cwd) {
-  const text = await gitStatusPorcelainV2(cwd);
+  const [text, diff] = await Promise.all([gitStatusPorcelainV2(cwd), gitDiffShortstat(cwd)]);
   if (text === undefined)
     return;
   const [gitDir, common] = await Promise.all([revParse(cwd, "--absolute-git-dir"), commonDir(cwd)]);
-  return gitFromPorcelainV2(text, gitDir, common);
+  const state = gitFromPorcelainV2(text, gitDir, common);
+  const lines = diff === undefined ? undefined : linesFromShortstat(diff);
+  if (lines !== undefined)
+    state.lines = lines;
+  return state;
 }
 function defaultDeps() {
   const cli = () => buracleCli(shimPath(), repoRoot2());
@@ -37556,7 +37575,7 @@ function workflowOfExpanded(prompt) {
 
 // src/adapters/omp/runtime/generated-data.ts
 var GENERATED = {
-  buracleVersion: "0.5.4",
+  buracleVersion: "0.6.0",
   commands: [
     "ab-test",
     "bugfix",

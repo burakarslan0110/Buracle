@@ -111,7 +111,28 @@ function renderList(lines, i, baseIndent) {
   return { el: list, next: i }
 }
 
-export function renderDoc(text) {
+function svgUrl(svg) {
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
+}
+
+// A ```mermaid block: the server's drawing as two images (one per theme), with the source kept as
+// selectable text underneath so notes can still be pinned to it. A failed drawing shows the source
+// and the reason; a block the server did not draw stays a plain code block.
+function mermaidBlock(line, end, source, drawn) {
+  const code = () => h('pre', { 'data-lang': 'mermaid' }, h('code', null, source))
+  if (drawn !== null && typeof drawn === 'object' && typeof drawn.light === 'string' && typeof drawn.dark === 'string') {
+    return block('figure', line, end, { class: 'diagram' },
+      h('img', { class: 'diagram-dark', src: svgUrl(drawn.dark), alt: t('review.diagramAlt') }),
+      h('img', { class: 'diagram-light', src: svgUrl(drawn.light), alt: t('review.diagramAlt') }),
+      h('details', { class: 'diagram-source' }, h('summary', null, t('review.diagramSource')), code()))
+  }
+  if (drawn !== null && typeof drawn === 'object' && typeof drawn.error === 'string') {
+    return block('div', line, end, { class: 'diagram-failed' }, code(), h('p', { class: 'diagram-error' }, t('review.diagramError', { msg: drawn.error })))
+  }
+  return block('pre', line, end, { 'data-lang': 'mermaid' }, h('code', null, source))
+}
+
+export function renderDoc(text, diagrams) {
   const root = h('div', { class: 'doc md-doc' })
   const lines = String(text ?? '').replace(/\r\n?/g, '\n').split('\n')
   const blocks = []
@@ -139,7 +160,13 @@ export function renderDoc(text) {
       i++
       while (i < lines.length && !(lines[i] ?? '').trim().startsWith(mark)) body.push(lines[i++])
       i++
-      const pre = block('pre', start + 1, i, fence[2] ? { 'data-lang': fence[2] } : null, h('code', null, body.join('\n')))
+      const source = body.join('\n')
+      if (fence[2] === 'mermaid') {
+        const drawn = diagrams !== null && typeof diagrams === 'object' && Object.hasOwn(diagrams, source) ? diagrams[source] : null
+        blocks.push(mermaidBlock(start + 1, i, source, drawn))
+        continue
+      }
+      const pre = block('pre', start + 1, i, fence[2] ? { 'data-lang': fence[2] } : null, h('code', null, source))
       blocks.push(pre)
       continue
     }

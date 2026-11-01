@@ -150,6 +150,15 @@ export function autoMemoryOps(ctx: AdapterContext): Op[] {
   return [{ kind: 'json-merge', path: join(ctx.paths.claudeDir(), 'settings.json'), set: { [AUTO_MEMORY_KEY]: false }, owner: OWNER, soft: [AUTO_MEMORY_KEY] }]
 }
 
+export const ANNOUNCEMENTS_KEY = 'companyAnnouncements'
+
+// Claude Code shows one of these at startup (a random one when there are several). A soft key: a list
+// the user or their company set stays theirs.
+export function announcementOps(ctx: AdapterContext): Op[] {
+  const text = `Buracle · Memory UI: http://127.0.0.1:${ctx.config.memory.ui.port} (buracle mem ui) · /buracle:plan-build plans and builds a change`
+  return [{ kind: 'json-merge', path: join(ctx.paths.claudeDir(), 'settings.json'), set: { [ANNOUNCEMENTS_KEY]: [text] }, owner: OWNER, soft: [ANNOUNCEMENTS_KEY] }]
+}
+
 /**
  * Buracle no longer hides any MCP tool through `permissions.deny` (the last ones belonged to a server retired in
  * 0.6.0). The empty list makes the transaction engine remove the entries an earlier install wrote and leaves a
@@ -226,12 +235,21 @@ export function cleanupKeys(ctx: AdapterContext): CleanupKey[] {
 }
 
 export const LSP_NEVER_KEY = 'lspRecommendationNeverPlugins'
+// Not in Anthropic's docs: Claude Code 2.1.316 skips its "LSP plugin recommendation" dialog when this
+// global-config key is true (the dialog's own "disable" answer writes it).
+export const LSP_DISABLED_KEY = 'lspRecommendationDisabled'
 
 export function lspRecommendationPlan(ctx: Pick<AdapterContext, 'paths' | 'canonical'>): Plan | undefined {
   const path = ctx.paths.claudeJson()
   if (!existsSync(path)) return undefined
   const items = [...new Set(ctx.canonical.tools.tools.flatMap(t => t.lsp?.replaces ?? []))].sort()
-  return { id: 'claude-lsp-hints', harness: 'claude', ops: [{ kind: 'json-list-merge', path, pointer: LSP_NEVER_KEY, items, identity: LIST_IDENTITY_HASH, owner: OWNER, format: 'json' }] }
+  return {
+    id: 'claude-lsp-hints', harness: 'claude',
+    ops: [
+      { kind: 'json-list-merge', path, pointer: LSP_NEVER_KEY, items, identity: LIST_IDENTITY_HASH, owner: OWNER, format: 'json' },
+      { kind: 'json-merge', path, set: { [LSP_DISABLED_KEY]: true }, owner: OWNER, soft: [LSP_DISABLED_KEY] },
+    ],
+  }
 }
 
 export async function claudeInstallPlan(ctx: AdapterContext, deps: Partial<InstallDeps> = {}): Promise<Plan> {
@@ -243,7 +261,7 @@ export async function claudeInstallPlan(ctx: AdapterContext, deps: Partial<Insta
   return {
     id: 'claude',
     harness: 'claude',
-    ops: [...ruleOps(ctx, ledger), statusLineOp(ctx, tools.bun), ...permissionOps(ctx), ...effortOps(ctx), ...teamsOps(ctx), ...envOps(ctx), ...autoMemoryOps(ctx), ...retiredDenyOps(ctx), ...execOps(ctx, tools)],
+    ops: [...ruleOps(ctx, ledger), statusLineOp(ctx, tools.bun), ...permissionOps(ctx), ...effortOps(ctx), ...teamsOps(ctx), ...envOps(ctx), ...autoMemoryOps(ctx), ...announcementOps(ctx), ...retiredDenyOps(ctx), ...execOps(ctx, tools)],
     cleanupKeys: cleanupKeys(ctx),
   }
 }

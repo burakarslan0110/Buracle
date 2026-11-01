@@ -1,6 +1,7 @@
 import { memSegmentWith } from '../memory/status'
 import { hooksSegmentTexts } from './hooks'
 import { formatPct, formatTokens, formatUsd, sanitizeText, stripEmoji, textWidth, truncateToWidth } from './format'
+import { gitTreeLines } from './git'
 import { INDEX_STATUS_TEXT, flowElapsed, flowRow, flowRowText } from './live'
 import type { BarModel, GitState, RateWindow, Segment, StatusLayout } from './model'
 import { WINDOW_MINUTES, pace } from './model'
@@ -125,6 +126,7 @@ function gitText(g: GitState, long: boolean): string {
     + (g.staged > 0 ? ` ●${g.staged}` : '')
     + (g.unstaged > 0 ? ` ✚${g.unstaged}` : '')
     + (g.untracked > 0 ? ` …${g.untracked}` : '')
+    + gitTreeLines(g)
     + (g.stash > 0 ? ` ⚑${g.stash}` : '')
     + (g.conflicts > 0 ? ` ⚠${g.conflicts}` : '')
     + (g.worktree ? ` [wt:${g.worktree}]` : '')
