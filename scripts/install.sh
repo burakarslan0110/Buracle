@@ -5,11 +5,11 @@
 #   bash scripts/install.sh [--dir <checkout>] [--no-install]
 #
 # What it does: installs Bun when it is missing, clones the main branch (or updates the
-# checkout), runs `bun install`, `buracle install --yes` and `buracle doctor`. On Linux it never
-# runs sudo or a package manager: it prints the command for what is missing (git, curl, unzip,
-# Node.js, uv, ripgrep, jq) and leaves running it to you.
+# checkout), runs `bun install` and hands over to `buracle install --script`, which installs
+# the tools (a missing Node.js, uv, ripgrep or jq is downloaded, sha256-checked, into ~/.buracle),
+# sets up every harness, starts the memory web UI and prints the summary. Nothing runs sudo.
 # Variables: BURACLE_CHECKOUT (default ~/buracle), BURACLE_REPO, BURACLE_BRANCH (default main),
-# BURACLE_HOME (default ~/.buracle).
+# BURACLE_HOME (default ~/.buracle). The details go to ~/.buracle/logs/install-<date>.log.
 # Windows: scripts/install.ps1.
 set -euo pipefail
 
@@ -17,10 +17,86 @@ REPO_URL="${BURACLE_REPO:-https://github.com/burakarslan0110/buracle.git}"
 BRANCH="${BURACLE_BRANCH:-main}"
 DIR="${BURACLE_CHECKOUT:-$HOME/buracle}"
 RUN_INSTALL=1
+LOG=""
 
-say() { printf '\n==> %s\n' "$*"; }
 die() { printf 'install.sh: %s\n' "$*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
+
+# The summary lines, in the layout of src/cli/ui/sections.ts (tests/engine/install-script.test.ts keeps them in step):
+# an icon, the section name padded to 16 columns, the detail; an item is indented by four, its name padded to 12.
+# A terminal gets one live line while a section runs; NO_COLOR, TERM=dumb or a pipe get plain lines only. The icons
+# come from escapes so that this file stays ASCII: block symbols in a UTF-8 locale, + ! x i otherwise.
+# shellcheck disable=SC2034 # the order of every section; this script prints the first two, the test compares it
+SECTION_ORDER=(Prerequisites Buracle Harnesses Tools Memory Result)
+LIVE=0
+I_OK='+' I_WARN='!' I_FAIL='x' I_INFO='i' I_RUN='...' D='-'
+C_OK='' C_WARN='' C_FAIL='' C_INFO='' C_OFF=''
+
+setup_output() {
+  case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
+    *[Uu][Tt][Ff]-8*|*[Uu][Tt][Ff]8*)
+      I_OK=$'\xe2\x9c\x94'; I_WARN=$'\xe2\x96\xb2'; I_FAIL=$'\xe2\x9c\x96'; I_INFO=$'\xe2\x84\xb9'; I_RUN=$'\xe2\x80\xa6'; D=$'\xc2\xb7' ;;
+  esac
+  if [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != dumb ]; then
+    LIVE=1
+    C_OK=$'\033[32m'; C_WARN=$'\033[33m'; C_FAIL=$'\033[31m'; C_INFO=$'\033[36m'; C_OFF=$'\033[0m'
+  fi
+}
+
+icon() {
+  case "$1" in
+    ok) printf '%s%s%s' "$C_OK" "$I_OK" "$C_OFF" ;;
+    warn) printf '%s%s%s' "$C_WARN" "$I_WARN" "$C_OFF" ;;
+    fail) printf '%s%s%s' "$C_FAIL" "$I_FAIL" "$C_OFF" ;;
+    *) printf '%s%s%s' "$C_INFO" "$I_INFO" "$C_OFF" ;;
+  esac
+}
+
+# $1 section, $2 what runs now: the live line (a terminal only).
+section_start() {
+  if [ "$LIVE" = 1 ]; then printf '\r\033[2K%s %-16s%s' "$I_RUN" "$1" "$2"; fi
+}
+
+# $1 ok|warn|fail|info, $2 section, $3 detail: clears the live line and prints the section.
+section_done() {
+  if [ "$LIVE" = 1 ]; then printf '\r\033[2K'; fi
+  printf '%s %-16s%s\n' "$(icon "$1")" "$2" "$3"
+}
+
+# $1 ok|warn|fail|info, $2 name, $3 detail: one indented line under a section.
+section_item() {
+  printf '    %s %-12s %s\n' "$(icon "$1")" "$2" "$3"
+}
+
+# $1 path: ~/... when it lies in the home folder.
+tilde() {
+  # shellcheck disable=SC2088 # the ~ is printed for the reader, never expanded
+  case "$1" in
+    "$HOME") printf '~' ;;
+    "$HOME"/*) printf '~/%s' "${1#"$HOME"/}" ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+# Whether libatomic.so.1 is on this system (the usual library folders, or the dynamic linker's cache).
+# BURACLE_LIB_ROOT (tests) looks under another root and skips the cache.
+have_libatomic() {
+  local f root="${BURACLE_LIB_ROOT:-}"
+  for f in "$root"/lib/*-linux-gnu/libatomic.so.1 "$root"/usr/lib/*-linux-gnu/libatomic.so.1 "$root"/lib64/libatomic.so.1 "$root"/usr/lib64/libatomic.so.1 "$root"/lib/libatomic.so.1 "$root"/usr/lib/libatomic.so.1; do
+    [ -e "$f" ] && return 0
+  done
+  # grep reads the whole list (no -q): under pipefail an early exit would kill ldconfig with SIGPIPE and read as "missing".
+  [ -z "$root" ] && { ldconfig -p 2>/dev/null || /sbin/ldconfig -p 2>/dev/null; } | grep 'libatomic\.so\.1' >/dev/null
+}
+
+# Takes the credentials out of a URL (https://user:token@host/... becomes https://host/...): BURACLE_REPO may hold them.
+redact() { sed -E 's#://[^/@[:space:]]+@#://#g'; }
+
+# Runs a command with its output in the install log, without the credentials of a URL (pipefail keeps its exit code).
+logged() {
+  printf '\n$ %s\n' "$*" | redact >> "$LOG"
+  "$@" 2>&1 | redact >> "$LOG"
+}
 
 bun_is_new_enough() {
   # engines.bun in package.json: >= 1.4.0
@@ -67,6 +143,7 @@ pm_detect() {
 pkgs_for() {
   case "$2" in
     git|curl|unzip|jq) echo "$2" ;;
+    libatomic) case "$1" in apt-get|zypper) echo libatomic1 ;; pacman) echo gcc-libs ;; *) echo libatomic ;; esac ;;
     rg) echo ripgrep ;;
     node) if [ "$1" = zypper ]; then echo "nodejs-default npm-default"; else echo "nodejs npm"; fi ;;
   esac
@@ -170,6 +247,8 @@ main() {
     esac
   done
 
+  local started
+  started=$(( $(date +%s 2>/dev/null || echo 0) * 1000 ))
   banner
 
   case "$(uname -s)" in
@@ -178,79 +257,88 @@ main() {
     *) die "this script is for macOS and Linux; on Windows run scripts/install.ps1 in PowerShell" ;;
   esac
 
-  if [ "$os" = macos ]; then
-    have git || die "git was not found: run 'xcode-select --install', finish the Command Line Tools installation, then run this script again"
-  else
-    local missing="" t
-    for t in git curl; do have "$t" || missing="$missing $t"; done
-    # Bun's installer unpacks a zip file.
-    if ! have bun && ! have unzip; then missing="$missing unzip"; fi
-    if [ -n "$missing" ]; then
-      printf '\nMissing on this machine:%s\nThis script does not run sudo or a package manager. Install them with:\n' "$missing" >&2
-      # shellcheck disable=SC2086 # one word per tool
-      print_install_help $missing >&2
-      die "install the tools above, then run this script again"
-    fi
-  fi
-  have curl || die "curl was not found: install it, then run this script again"
+  setup_output
+  LOG="${BURACLE_HOME:-$HOME/.buracle}/logs/install-$(date +%Y-%m-%d).log"
+  mkdir -p "$(dirname "$LOG")"
+  # The log holds the toolchain output and the health report: readable by this user only, as ~/.buracle/logs/buracle.log.
+  ( umask 077; : >> "$LOG" ) && chmod 600 "$LOG" 2>/dev/null || true
+  printf '\n== install.sh %s (%s)\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$os" >> "$LOG"
 
+  # Prerequisites: git, curl (and unzip on Linux while Bun is missing) are yours to install; Bun this script installs.
+  section_start Prerequisites "checking git, curl and Bun"
+  local missing="" t
+  for t in git curl; do have "$t" || missing="${missing:+$missing, }$t"; done
+  # Bun's installer unpacks a zip file.
+  if [ "$os" = linux ] && ! have bun && ! have unzip; then missing="${missing:+$missing, }unzip"; fi
+  # The Node.js the install downloads when node is missing needs libatomic.so.1, which a minimal Linux lacks.
+  if [ "$os" = linux ] && ! have node && ! have_libatomic; then missing="${missing:+$missing, }libatomic"; fi
+  if [ -n "$missing" ]; then
+    section_done fail Prerequisites "missing $missing ${D} this script runs no sudo and no package manager"
+    if [ "$os" = macos ]; then
+      section_item fail install "xcode-select --install, then run this script again"
+    else
+      local line
+      # shellcheck disable=SC2086 # one word per tool
+      while IFS= read -r line; do
+        [ -n "$line" ] && section_item fail install "${line#  }"
+      done < <(print_install_help ${missing//,/})
+    fi
+    exit 1
+  fi
   export PATH="$HOME/.bun/bin:$PATH"
   if ! have bun; then
-    say "Installing Bun"
-    curl -fsSL https://bun.sh/install | bash
+    section_start Prerequisites "installing Bun"
+    # pipefail: a failed download must fail the step, not run an empty installer that exits 0.
+    if ! logged bash -c 'set -o pipefail; curl -fsSL https://bun.sh/install | bash'; then
+      section_done fail Prerequisites "Bun could not be installed ${D} log $(tilde "$LOG")"
+      exit 1
+    fi
     hash -r
   fi
-  have bun || die "Bun was not found after the install; open a new shell and run this script again"
-  bun_is_new_enough || die "Bun $(bun --version) is too old: Buracle needs Bun 1.4 or newer (bun upgrade)"
-
-  if [ "$os" = linux ] && ! have brew; then
-    local absent="" tool
-    for tool in node uv rg jq; do have "$tool" || absent="$absent $tool"; done
-    if [ -n "$absent" ]; then
-      printf '\nMissing system tools:%s\nWithout Homebrew buracle install cannot add them, and this script does not run sudo or a package manager. Install them with:\n' "$absent"
-      # shellcheck disable=SC2086 # one word per tool
-      print_install_help $absent
-      printf 'then run buracle install again; buracle doctor lists what is still missing.\n'
-    fi
+  if ! have bun; then
+    section_done fail Prerequisites "Bun was installed but is not on PATH ${D} open a new terminal and run this script again"
+    exit 1
   fi
+  if ! bun_is_new_enough; then
+    section_done fail Prerequisites "Bun $(bun --version) is too old: Buracle needs 1.4 or newer ${D} bun upgrade"
+    exit 1
+  fi
+  section_done ok Prerequisites "git, curl, Bun $(bun --version)"
 
-  # main only receives commits that passed CI on every platform; `buracle update` follows the branch it was cloned from.
+  # Buracle: main only receives commits that passed CI on every platform; `buracle update` follows the branch it was cloned from.
   if [ -d "$DIR/.git" ]; then
-    say "Updating the checkout in $DIR"
-    git -C "$DIR" pull --ff-only
+    section_start Buracle "updating $(tilde "$DIR")"
+    logged git -C "$DIR" pull --ff-only || { section_done fail Buracle "git pull in $(tilde "$DIR") failed ${D} log $(tilde "$LOG")"; exit 1; }
   elif git ls-remote --exit-code --heads "$REPO_URL" "$BRANCH" >/dev/null 2>&1; then
-    say "Cloning the $BRANCH branch into $DIR"
-    git clone --branch "$BRANCH" "$REPO_URL" "$DIR"
+    section_start Buracle "cloning $BRANCH into $(tilde "$DIR")"
+    logged git clone --branch "$BRANCH" "$REPO_URL" "$DIR" || { section_done fail Buracle "git clone failed ${D} log $(tilde "$LOG")"; exit 1; }
   else
-    say "No $BRANCH branch yet; cloning the default branch into $DIR"
-    git clone "$REPO_URL" "$DIR"
+    section_start Buracle "cloning the default branch into $(tilde "$DIR")"
+    logged git clone "$REPO_URL" "$DIR" || { section_done fail Buracle "git clone failed ${D} log $(tilde "$LOG")"; exit 1; }
   fi
   cd "$DIR"
+  section_start Buracle "installing the dependencies"
+  logged bun install --frozen-lockfile || { section_done fail Buracle "bun install failed ${D} log $(tilde "$LOG")"; exit 1; }
+  section_done ok Buracle "$(tilde "$DIR") ${D} $(git -C "$DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?') @ $(git -C "$DIR" rev-parse --short HEAD 2>/dev/null || echo '?')"
 
-  say "Installing the dependencies"
-  bun install --frozen-lockfile
-
-  if [ "$RUN_INSTALL" = 1 ]; then
-    say "buracle install"
-    code=0
-    bun src/cli/main.ts install --yes || code=$?
-    if [ "$code" = 2 ]; then printf '\nburacle install finished with warnings (exit code 2); read them above.\n'
-    elif [ "$code" != 0 ]; then die "buracle install failed (exit code $code)"
-    fi
-    buracle="${BURACLE_HOME:-$HOME/.buracle}/bin/buracle"
-    [ -x "$buracle" ] || die "buracle install did not create the shim at $buracle"
-    say "buracle doctor"
-    "$buracle" doctor || true
-  else
-    say "Skipped buracle install (--no-install). Run it yourself: bun src/cli/main.ts install"
+  if [ "$RUN_INSTALL" != 1 ]; then
+    section_done warn Result "skipped (--no-install) ${D} log $(tilde "$LOG")"
+    exit 0
   fi
-
-  # shellcheck disable=SC2016 # the export line is printed for the user to copy, unexpanded
-  case ":$PATH:" in
-    *":$HOME/.local/bin:"*) ;;
-    *) printf '\nAdd ~/.local/bin to your PATH so that the buracle command is found, for example in ~/.zshrc or ~/.bashrc:\n  export PATH="$HOME/.local/bin:$PATH"\n' ;;
-  esac
-  say "Done. Checkout: $DIR"
+  # The rest is `buracle install --script`: Harnesses, Tools, Memory and Result. A terminal answers its questions, also
+  # under `curl ... | bash` (stdin is the pipe there, so they are read from /dev/tty); without one it applies the defaults.
+  local code=0
+  local args=(src/cli/main.ts install --script --log "$LOG" --started "$started")
+  if [ -t 1 ] && { : < /dev/tty; } 2>/dev/null; then
+    bun "${args[@]}" < /dev/tty || code=$?
+  else
+    bun "${args[@]}" --yes < /dev/null || code=$?
+  fi
+  # 2: installed with warnings, which the summary shows.
+  if [ "$code" != 0 ] && [ "$code" != 2 ]; then
+    printf '%s buracle install exited %s %s log %s\n' "$(icon fail)" "$code" "$D" "$(tilde "$LOG")"
+    exit 1
+  fi
 }
 
 # BURACLE_INSTALL_SOURCED=1 loads the functions without running the installer (the tests use it).

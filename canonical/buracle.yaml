@@ -50,6 +50,7 @@ checkers:
 memory:
   ui:
     port: 41777
+    autostart: true
   exclude: []
 
 statusline:

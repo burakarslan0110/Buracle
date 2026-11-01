@@ -1,6 +1,6 @@
 {
   "name": "buracle",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "Buracle for Claude Code, everything your coding agents need, in one place: command hooks for guards, consent, the stop guard, prompt routing, workflow tracking, memory and code indexes; a mod that adds the workflow band above the prompt, the consent dialog, turn receipts, panes and commands; plan-build/goal-build/bugfix workflows and other skills; read-only review agents; MCP servers and language servers from Buracle's toolchain; the buracle CLI on PATH",
   "author": {
     "name": "burakarslan0110"

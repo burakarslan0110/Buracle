@@ -26,7 +26,7 @@ const PORT_TRIES = 20
 const HOST = '127.0.0.1'
 const UI_APP = 'buracle-memory-ui'
 const CORTEX_IDLE_MS = 120_000
-/** Nothing starts the UI by itself and no session ties its life, so it stops once this long has passed without a request. */
+/** A UI that no harness session holds open (memory.ui.autostart off, or none has started yet) stops once this long has passed without a request. */
 export const UI_IDLE_MS = 30 * 60_000
 const UI_POLL_MS = 30_000
 
@@ -325,7 +325,7 @@ export async function stopUi(rec: UiRecord, opts: { waitMs?: number } = {}): Pro
   return 'stopped'
 }
 
-export type UiStopReason = 'home-gone' | 'idle'
+export type UiStopReason = 'home-gone' | 'idle' | 'sessions-ended'
 
 export interface ServeOptions {
   port?: number
@@ -339,6 +339,11 @@ export interface ServeOptions {
   idleMs?: number
   /** Called once the server has stopped by itself; the CLI ends its process here. */
   onStop?: (why: UiStopReason) => void
+  /**
+   * The open harness sessions (memory.ui.autostart): while one is open the server never stops by itself; once it has
+   * seen one and none is left, it stops at the next look. Before it has seen any, the idle time applies.
+   */
+  sessions?: () => number
 }
 
 export interface ServedUi {
@@ -368,11 +373,22 @@ export function serveUi(opts: ServeOptions): ServedUi {
         try { server.stop(true) } catch {  }
         try { await closeAllCortex() } catch (e) { log('warn', 'memory ui: a CortexDB reader did not close', { error: e }) }
       })())
+      let sawSession = false
       const idle = setInterval(() => {
         idleCortex(CORTEX_IDLE_MS)
         if (!existsSync(paths.buracleHome())) {
           void stop(false).then(() => opts.onStop?.('home-gone'))
           return
+        }
+        if (opts.sessions !== undefined) {
+          let open = 0
+          try { open = opts.sessions() } catch (e) { log('warn', 'memory ui: cannot count the open sessions', { error: e }) }
+          if (open > 0) { sawSession = true; return }
+          if (sawSession) {
+            log('info', 'memory ui: stopping, the last harness session ended', { port })
+            void stop().then(() => opts.onStop?.('sessions-ended'))
+            return
+          }
         }
         const quiet = now() - ctx.lastRequestAt
         if (quiet < idleMs) return

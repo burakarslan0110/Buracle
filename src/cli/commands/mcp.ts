@@ -226,6 +226,10 @@ async function runServer(id: string | undefined, io: CommandIO): Promise<number>
   }
   if (id === 'codegraph') await codegraphGate(process.cwd())
   const env: Record<string, string | undefined> = { ...process.env, ...plan.env }
+  // A server that starts `node`, `npx` or `uvx` itself finds the copies Buracle downloaded when the system has none.
+  const { withSystemTools } = await import('../../engine/toolchain/packages')
+  const pathKey = Object.keys(env).find(k => k.toUpperCase() === 'PATH') ?? 'PATH'
+  env[pathKey] = withSystemTools(env[pathKey])
   if (plan.source === 'toolchain') {
     const { execServer } = await import('../../engine/platform')
     const failed = execServer(plan.argv, env)

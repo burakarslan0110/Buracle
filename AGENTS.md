@@ -46,8 +46,9 @@ src/memory/         the memory on CortexDB: client (cortex.ts), store (one brain
                     (finalize.ts) with the capture of explicit preferences and stale sessions (capture.ts) and
                     the validated model distillation (distill.ts), handoffs, the old vault's import, doctor,
                     the harness choice for its model calls (model.ts, runner.ts), and backups, restore,
-                    export and import (backup.ts, snapshot.ts, bucket-io.ts, export.ts). Nothing here runs in the background: the one
-                    detached process is the session-end `mem finalize`, the UI starts only through `mem ui`
+                    export and import (backup.ts, snapshot.ts, bucket-io.ts, export.ts). The detached processes are
+                    the session-end `mem finalize` and the web UI, which the install, a session start (ui-presence.ts,
+                    while memory.ui.autostart is on) or `mem ui` starts, and which stops when the last harness session ends
   ui/               the web UI: the brain, the review page, sessions and usage, notifications and the
                     workflow switches; its JSON API and event stream, and the pages' hand-written JS and CSS
 src/usage/          per-harness usage collectors

@@ -8,7 +8,7 @@ import { errText } from '../update/output'
 import { npmVersions, pypiVersions } from '../update/updates'
 import { pickUpdate } from '../update/versions'
 import * as paths from '../paths'
-import { augmentedPath, exeName, findExecutable, spawnArgv } from '../platform'
+import { augmentedPath, exeName, findExecutable, pathDelimiter, spawnArgv } from '../platform'
 import type { ToolSpec } from '../../core/catalog'
 import type { InstalledPackage, PackageRegistry } from './state'
 
@@ -58,9 +58,20 @@ export function uvBinDir(): string {
   return join(paths.toolchainDir(), 'uv', 'bin')
 }
 
+/**
+ * `base` with the folders of the system tools Buracle downloaded (src/engine/toolchain/system-download.ts) in front,
+ * the ones that exist: npm and npx are `#!/usr/bin/env node` scripts, so the node they need must be on PATH.
+ */
+export function withSystemTools(base: string | undefined): string {
+  const sep = pathDelimiter()
+  const have = (base ?? '').split(sep).filter(s => s !== '')
+  const add = paths.systemToolBinDirs().filter(d => !have.includes(d) && existsSync(d))
+  return [...add, ...have].join(sep)
+}
+
 export function toolchainEnv(extra: Record<string, string> = {}): Record<string, string> {
   return {
-    PATH: augmentedPath(),
+    PATH: withSystemTools(augmentedPath()),
     npm_config_fund: 'false',
     npm_config_audit: 'false',
     npm_config_update_notifier: 'false',
@@ -149,7 +160,7 @@ export function swapPrefix(live: string, next: string, prev: string): void {
 }
 
 export async function installNpm(req: PackageRequest, version: string, nowIso: string, opts: { timeoutMs?: number } = {}): Promise<InstallOutcome | InstallFailure> {
-  const npm = findExecutable('npm')
+  const npm = findExecutable('npm', { extra: paths.toolchainBinDirs() })
   if (npm === undefined) return { ok: false, error: 'npm is not installed (install Node.js first)' }
   const live = npmPrefix(req.name)
   const stage = npmStagingPrefix(req.name)
@@ -200,7 +211,7 @@ function uvBins(req: PackageRequest): Record<string, string> {
 }
 
 export async function installPypi(req: PackageRequest, version: string, nowIso: string, opts: { timeoutMs?: number, before?: string } = {}): Promise<InstallOutcome | InstallFailure> {
-  const uv = findExecutable('uv')
+  const uv = findExecutable('uv', { extra: paths.toolchainBinDirs() })
   if (uv === undefined) return { ok: false, error: 'uv is not installed' }
   mkdirSync(uvToolDir(), { recursive: true })
   mkdirSync(uvBinDir(), { recursive: true })
@@ -249,7 +260,7 @@ export function isNodeScript(entry: string): boolean {
   } catch { return false }
 }
 
-export function binArgv(entry: string, runner: string | undefined = findExecutable('node')): string[] | undefined {
+export function binArgv(entry: string, runner: string | undefined = findExecutable('node', { extra: paths.toolchainBinDirs() })): string[] | undefined {
   if (!isAbsolute(entry) || !existsSync(entry)) return undefined
   if (isNodeScript(entry)) return runner !== undefined ? [runner, entry] : undefined
   return [entry]

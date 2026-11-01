@@ -60,6 +60,7 @@ import {
   type RouterData,
 } from './hook-route'
 import { addedText, exitCodeOf, failed, noteWork, removedText } from './hook-work'
+import { uiSessionHooks, type UiSessionHooks } from '../shared/ui-session'
 
 export type { HookOutcome } from './hook-io'
 export { CONTEXT_BUDGET_BYTES, FALLBACK_SPOOL_SUFFIX, GUARD_FAILED, clipBytes } from './hook-io'
@@ -96,6 +97,8 @@ export interface HookDeps {
   workspaceInfo(cwd: string, ctx: AdapterContext, nowMs: number): Promise<WorkspaceInfo | undefined>
   refreshWorkspace(info: WorkspaceInfo, ctx: AdapterContext, nowMs: number): WorkspaceInfo
   assetsSpawn?: AssetsSpawner
+  /** The memory web UI's session record and start (memory.ui.autostart). */
+  ui: UiSessionHooks
   core: HookCore
 }
 
@@ -126,6 +129,7 @@ export const defaultHookDeps: HookDeps = {
   branch: cwd => currentBranch(cwd),
   project: cwd => projectSlug(cwd),
   sessionMaint: (nowMs, keep) => { sessionMaint(H, nowMs, { keep }) },
+  ui: uiSessionHooks,
   env: name => process.env[name],
   buracleRepo: (cwd, ctx) => buracleRepoFor(cwd, { known: [ctx.repoRoot, ctx.config.repo], home: paths.home() }),
   realpath: p => realWriteTarget(p),
@@ -198,6 +202,7 @@ async function sessionStart(p: Record<string, unknown>, sid: string, ctx: Adapte
       if (typeof start === 'function') await (start as (h: string, s: string, c: string, o: unknown) => Promise<unknown>)(H, sid, cwd, model !== undefined ? { nowMs: now, model } : { nowMs: now })
     })
   }
+  if (!sub) await step('H14 memory UI', undefined, () => (source === 'compact' ? d.ui.seen(H, sid, now) : d.ui.started(H, sid, now)))
   const restore = source === 'compact' ? await step('H07 restore', '', () => restoreText(p, sid, d, now)) : ''
   const card = await step('H15 capability card', '', () => capabilityCardText(ctx, sessionHealth(sid, now)))
   const workspace = await step('H21 workspace', '', () => workspaceStart(cwd, sid, sub, ctx, d, now))
@@ -402,6 +407,7 @@ async function userPromptSubmit(p: Record<string, unknown>, sid: string, ctx: Ad
       if (typeof seen === 'function') (seen as (h: string, s: string, o: unknown) => unknown)(H, sid, { nowMs: now })
     })
   }
+  await step('H14 memory UI', undefined, () => d.ui.seen(H, sid, now))
   const parts = fitPrompt([
     { text: control, order: 0 }, { text: planMode, order: 0 }, { text: notes, order: 0 }, { text: warning, order: 3 }, { text: routed, order: 1 }, { text: notice, order: 2 },
   ], PROMPT_CONTEXT_MAX_CHARS)
@@ -598,6 +604,7 @@ async function postToolUse(p: Record<string, unknown>, sid: string, ctx: Adapter
   const sub = isSubagent(p)
   const parts: string[] = []
   const entries: SpoolEntry[] = []
+  if (!sub) await step('H14 memory UI', undefined, () => d.ui.seen(H, sid, now))
   if (tool.startsWith(PLUGIN_MCP_PREFIX)) await step('H24 MCP result', undefined, () => { mcpResult(sid, tool, input, cwd, ctx, d, true) })
   if (WRITE_TOOLS.includes(tool)) {
     const cls = await step('classify', { kind: 'other', paths: [] } as ReturnType<typeof classifyTool>, () => classifyTool(H, tool, input, cwd))

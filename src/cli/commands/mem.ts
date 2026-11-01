@@ -85,14 +85,17 @@ Backups and moving a brain (the brain stays on this machine; nothing is synced)
   doctor [--no-mcp]                          CortexDB binary, the brain file and its migration, leak check, MCP handshake
                                              (--json: {"checks":[{level,check,detail}]}; exit 1 errors, 2 warnings)
   ui [--open] [--port N] [--stop]            the brain web UI (http://localhost:41777): starts it in the
-                                             background when it does not run, prints its address; it only
-                                             starts when you run this command, and it stops by itself after
-                                             30 minutes without a request (BURACLE_UI_IDLE_MS, in milliseconds)
+                                             background when it does not run, prints its address. With
+                                             memory.ui.autostart (the default) the install and every harness
+                                             session start it too, and it runs until the last harness session
+                                             ends; before any session it stops after 30 minutes without a
+                                             request (BURACLE_UI_IDLE_MS, in milliseconds). --stop stops it
+                                             until the next session start
   ui --page review [--open]                  the review page of the same UI: the plans, build contracts
                                              and PRDs of your projects and the agent's changes, where you
                                              pin notes the agent reads (buracle plan notes)
-  ui --serve [--port N]                      run the web UI in the foreground (Ctrl-C stops it; it stops by
-                                             itself after the same idle time)
+  ui --serve [--port N]                      run the web UI in the foreground (Ctrl-C stops it; otherwise it
+                                             stops by the same rule)
 
 Sessions (called by hooks; nothing is recorded under BURACLE_NO_CAPTURE=1)
   start --harness H --session SID [--cwd DIR]
@@ -497,13 +500,17 @@ async function uiCommand(p: Parsed, io: CommandIO, json: boolean): Promise<numbe
       io.stderr.write(`buracle mem ui: the running memory UI (pid ${live.pid}, build ${live.health.build ?? live.health.version ?? 'unknown'}) is not this checkout's build: ${outcome === 'stopped' ? 'stopped it' : `could not stop it (${outcome})`}\n`)
     }
     const { buracleVersion } = await import('../../usage/bar-info')
+    const { openSessionCount } = await import('../../memory/ui-presence')
     const served = ui.serveUi({
       port, version: buracleVersion(), ...(build !== undefined ? { build } : {}),
       idleMs: ui.uiIdleMs(),
+      ...(cfg.autostart ? { sessions: () => openSessionCount(Date.now()) } : {}),
       onStop: () => process.exit(0),
     })
     const idleMinutes = Math.max(1, Math.round(ui.uiIdleMs() / 60_000))
-    io.stderr.write(`buracle mem ui: ${served.record.url} (pid ${served.record.pid}; Ctrl-C stops it, and it stops by itself after ${idleMinutes} minute${idleMinutes === 1 ? '' : 's'} without a request)\n`)
+    const idle = `${idleMinutes} minute${idleMinutes === 1 ? '' : 's'} without a request`
+    const rule = cfg.autostart ? `it stops when the last harness session ends, or after ${idle} while no session has started` : `it stops by itself after ${idle}`
+    io.stderr.write(`buracle mem ui: ${served.record.url} (pid ${served.record.pid}; Ctrl-C stops it, and ${rule})\n`)
     for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) process.on(sig, () => { void served.stop().then(() => process.exit(0)) })
     await new Promise<never>(() => {  })
   }

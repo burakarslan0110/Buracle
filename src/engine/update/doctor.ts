@@ -312,7 +312,8 @@ export async function checkTools(tools: readonly ToolSpec[], timeoutMs = TOOL_CH
     const r = await opsDeps.run(t.check, { timeoutMs })
     if (r.code === 127) {
       const pkg = toolPackage(t, state)
-      const local = pkg === undefined ? paths.toolchainBinDirs().map(d => join(d, exeName(t.check[0] ?? t.name))).find(p => existsSync(p)) : undefined
+      // The toolchain's folders, then ~/.bun/bin: the Bun the install script put there is not on PATH before a new terminal.
+      const local = pkg === undefined ? [...paths.toolchainBinDirs(), join(paths.home(), '.bun', 'bin')].map(d => join(d, exeName(t.check[0] ?? t.name))).find(p => existsSync(p)) : undefined
       if (local !== undefined) {
         const rr = await opsDeps.run(spawnArgv([local, ...t.check.slice(1)]), { timeoutMs })
         const v = versionOf(t, rr)

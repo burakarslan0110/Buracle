@@ -92,7 +92,7 @@ The command hooks also write `sessions/claude/<session>/{state.json,telemetry.js
 `state/memory/spool/`, handoff memories in the project's brain (`~/.buracle/brain`) and
 `docs/plans/` in the project; `buracle flow` and `buracle plan` keep `flow.json` current.
 `BURACLE_HOME` moves these paths. `BURACLE_NO_CAPTURE=1` turns memory capture off,
-`BURACLE_NO_AUTOSTART=1` the background indexes. Nothing starts the web UI by itself: it runs after `buracle mem ui`.
+`BURACLE_NO_AUTOSTART=1` the background indexes and the memory web UI's start. With `memory.ui.autostart` (the default) a session start opens the web UI when it is not running, and it stops when the last harness session ends; otherwise it runs after `buracle mem ui`.
 
 ## Known limits
 

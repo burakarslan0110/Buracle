@@ -323,7 +323,7 @@ async function memoryUiUrl($: EngineInterface, S: ModState): Promise<string | un
   const rt = await runtime($, S)
   if (rt.buracleHome === '') return undefined
   const raw = await readJson($, `${rt.buracleHome}/state/memory-ui.json`)
-  // The web UI starts only when the user runs `buracle mem ui`, so no record means no address to name.
+  // No record means no web UI is running (a session start or `buracle mem ui` starts one), so there is no address to name.
   return isObj(raw) ? str(raw['url']) : undefined
 }
 

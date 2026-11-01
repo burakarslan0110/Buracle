@@ -5,12 +5,13 @@ Installs Buracle on Windows.
   irm https://github.com/burakarslan0110/buracle/releases/latest/download/install.ps1 | iex
   powershell -ExecutionPolicy Bypass -File scripts\install.ps1 [-Dir <checkout>] [-Branch <branch>] [-NoInstall]
 
-What it does: installs what Buracle needs when it is missing (Git for Windows, Bun, Node.js LTS, uv,
-ripgrep and jq, for this user only through winget or else scoop, so without administrator rights; the
-Visual C++ runtime only from an administrator terminal), clones the main branch (or
-updates the checkout), runs `bun install`, `buracle install --yes` and `buracle doctor`, and puts
-~\.local\bin, where the `buracle` command lives, on your PATH. Claude Code runs its hooks with the
-Git Bash that Git for Windows brings.
+What it does: installs Git for Windows and Bun when they are missing (for this user only, through winget or
+else scoop, so without administrator rights; the Visual C++ runtime only from an administrator terminal),
+clones the main branch (or updates the checkout), runs `bun install`, puts ~\.local\bin, where the
+`buracle` command lives, on your PATH and hands over to `buracle install --script`, which installs the tools
+(Node.js, uv, ripgrep and jq through winget or scoop, else downloaded and sha256-checked into ~\.buracle),
+sets up every harness, starts the memory web UI and prints the summary. The details go to
+~\.buracle\logs\install-<date>.log. Claude Code runs its hooks with the Git Bash that Git for Windows brings.
 Variables: BURACLE_CHECKOUT (default ~\buracle), BURACLE_REPO, BURACLE_BRANCH (default main), BURACLE_HOME (default ~\.buracle).
 macOS and Linux: scripts/install.sh.
 #>
@@ -23,8 +24,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $LocalBin = Join-Path $HOME '.local\bin'
+$BuracleHome = if ($env:BURACLE_HOME) { $env:BURACLE_HOME } else { Join-Path $HOME '.buracle' }
+$Started = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+$Log = Join-Path $BuracleHome ('logs\install-' + (Get-Date -Format 'yyyy-MM-dd') + '.log')
 
-function Say([string]$Message) { Write-Host "`n==> $Message" }
 function Have([string]$Command) { return $null -ne (Get-Command $Command -ErrorAction SilentlyContinue) }
 function Refresh-Path {
   $machine = [Environment]::GetEnvironmentVariable('Path', 'Machine')
@@ -32,29 +35,103 @@ function Refresh-Path {
   $winget = Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Links'
   $env:Path = "$machine;$user;$HOME\.bun\bin;$winget;$HOME\scoop\shims;$LocalBin"
 }
-function Run([string]$Label, [scriptblock]$Body) {
-  & $Body
-  if ($LASTEXITCODE -ne 0) { throw "$Label failed (exit code $LASTEXITCODE)" }
+
+# The summary lines, in the layout of src/cli/ui/sections.ts (tests/engine/install-script.test.ts keeps them in step):
+# an icon, the section name padded to 16 columns, the detail; an item is indented by four, its name padded to 12.
+# The icons are code points, so that this file stays ASCII (Windows PowerShell 5.1 reads a file without a BOM in the
+# ANSI code page): block symbols where the console shows them, + ! x i otherwise.
+$SectionOrder = @('Prerequisites', 'Buracle', 'Harnesses', 'Tools', 'Memory', 'Result')
+$Unicode = $false
+try { $Unicode = ($PSVersionTable.PSVersion.Major -ge 6) -or [bool]$env:WT_SESSION -or ([Console]::OutputEncoding.CodePage -eq 65001) } catch { }
+$Redirected = $true
+try { $Redirected = [Console]::IsOutputRedirected } catch { }
+$Live = (-not $Redirected) -and (-not $env:NO_COLOR) -and ($env:TERM -ne 'dumb')
+$Icons = if ($Unicode) {
+  @{ ok = [string][char]0x2714; warn = [string][char]0x25B2; fail = [string][char]0x2716; info = [string][char]0x2139; run = [string][char]0x2026 }
+} else {
+  @{ ok = '+'; warn = '!'; fail = 'x'; info = 'i'; run = '...' }
+}
+$D = if ($Unicode) { [string][char]0x00B7 } else { '-' }
+$Colors = @{ ok = 'Green'; warn = 'Yellow'; fail = 'Red'; info = 'Cyan' }
+$LiveShown = $false
+
+function Write-Icon([string]$Status) {
+  if ($Live) { Write-Host -NoNewline $Icons[$Status] -ForegroundColor $Colors[$Status] } else { Write-Host -NoNewline $Icons[$Status] }
+}
+
+function Clear-Live {
+  if ($script:LiveShown) {
+    $width = 80
+    try { $w = $Host.UI.RawUI.WindowSize.Width; if ($w -gt 1) { $width = $w } } catch { }
+    Write-Host -NoNewline ("`r" + (' ' * ($width - 1)) + "`r")
+    $script:LiveShown = $false
+  }
+}
+
+# $Name section, $Text what runs now: the live line (a console only).
+function Start-Section([string]$Name, [string]$Text) {
+  if (-not $Live) { return }
+  Clear-Live
+  Write-Host -NoNewline ($Icons['run'] + ' ' + $Name.PadRight(16) + $Text)
+  $script:LiveShown = $true
+}
+
+# $Status ok|warn|fail|info, $Name section, $Detail: clears the live line and prints the section.
+function Write-Section([string]$Status, [string]$Name, [string]$Detail) {
+  Clear-Live
+  Write-Icon $Status
+  Write-Host (' ' + $Name.PadRight(16) + $Detail)
+}
+
+# $Status ok|warn|fail|info, $Name, $Detail: one indented line under a section.
+function Write-Item([string]$Status, [string]$Name, [string]$Detail) {
+  Write-Host -NoNewline '    '
+  Write-Icon $Status
+  Write-Host (' ' + $Name.PadRight(12) + ' ' + $Detail)
+}
+
+function Tilde([string]$Path) {
+  if ($Path.StartsWith($HOME, [StringComparison]::OrdinalIgnoreCase)) { return '~' + $Path.Substring($HOME.Length) }
+  return $Path
+}
+
+# Without the credentials of a URL (https://user:token@host/... becomes https://host/...): BURACLE_REPO may hold them.
+function Write-Log([string]$Text) {
+  try { ($Text -replace '://[^/@\s]+@', '://') | Out-File -FilePath $Log -Append -Encoding utf8 } catch { }
+}
+
+# README.md runs this script as `irm ... | iex`, in the user's own session, where `exit` would close the window and the
+# line above with it. A failure throws instead: the script ends, the session stays, and `pwsh -File` still exits 1.
+function Stop-Install { throw 'Buracle was not installed; the line above says why.' }
+
+# Runs a native command with every line it prints in the install log; returns its exit code. Git writes progress to
+# stderr, which Windows PowerShell 5.1 would turn into an error under Stop.
+function Invoke-Logged([string]$Exe, [string[]]$Arguments) {
+  Write-Log ("`n$ $Exe " + ($Arguments -join ' '))
+  $previous = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    & $Exe @Arguments 2>&1 | ForEach-Object { Write-Log "$_" }
+    return $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previous
+  }
 }
 
 # Everything installs for this user only (winget --scope user, or scoop), so no step needs administrator rights.
 function Install-Package([string]$Label, [string]$WingetId, [string]$ScoopName) {
+  $code = 1
   if (Have 'winget') {
-    Say "Installing $Label"
-    Run "winget install $WingetId" { winget install --id $WingetId --exact --scope user --silent --disable-interactivity --accept-package-agreements --accept-source-agreements }
+    $code = Invoke-Logged 'winget' @('install', '--id', $WingetId, '--exact', '--scope', 'user', '--silent', '--disable-interactivity', '--accept-package-agreements', '--accept-source-agreements')
   } elseif ($ScoopName -ne '' -and (Have 'scoop')) {
-    Say "Installing $Label"
-    Run "scoop install $ScoopName" { scoop install $ScoopName }
+    $code = Invoke-Logged 'scoop' @('install', $ScoopName)
   } else {
-    throw "$Label is missing and neither winget nor scoop was found. Install 'App Installer' from the Microsoft Store (it brings winget), then run this script again."
+    Write-Section 'fail' 'Prerequisites' "$Label is missing and neither winget nor scoop was found"
+    Write-Item 'fail' 'install' "App Installer from the Microsoft Store (it brings winget), then run this script again"
+    Stop-Install
   }
   Refresh-Path
-}
-
-function Ensure-Command([string]$Command, [string]$Label, [string]$WingetId, [string]$ScoopName) {
-  if (Have $Command) { return }
-  Install-Package $Label $WingetId $ScoopName
-  if (-not (Have $Command)) { throw "$Label was installed but '$Command' is not on PATH yet; open a new terminal and run this script again." }
+  return $code
 }
 
 function Is-Elevated {
@@ -68,14 +145,17 @@ function Has-VcRuntime {
   return $null -ne $runtime -and $runtime.Installed -eq 1
 }
 
+# Puts $Folder on the user PATH once; says whether it was added.
 function Add-ToUserPath([string]$Folder) {
+  $added = $false
   $user = [Environment]::GetEnvironmentVariable('Path', 'User')
   $parts = @(if ($user) { $user -split ';' | Where-Object { $_ -ne '' } })
   if ($parts -notcontains $Folder) {
     [Environment]::SetEnvironmentVariable('Path', (($parts + $Folder) -join ';'), 'User')
-    Say "Added $Folder to your PATH (new terminals see it)"
+    $added = $true
   }
   if (($env:Path -split ';') -notcontains $Folder) { $env:Path = "$env:Path;$Folder" }
+  return $added
 }
 
 # The logo of the buracle command (LOGO in src/cli/ui/style.ts), with # for a full block, _ for a lower half and ^ for an
@@ -127,78 +207,77 @@ function Show-Banner {
 
 Show-Banner
 Refresh-Path
-Ensure-Command 'git' 'Git for Windows' 'Git.Git' 'git'
-if (-not (Have 'bun')) {
-  Say 'Installing Bun'
-  # Bun's own installer, run in this session as `irm bun.sh/install.ps1 | iex` runs it by hand: it sees this
-  # session's proxy and TLS settings, and its messages show here. It reports a failure without an exit code, so
-  # the check is whether bun is there afterwards.
-  Invoke-RestMethod -Uri 'https://bun.sh/install.ps1' | Invoke-Expression
-  Refresh-Path
-  if (-not (Have 'bun')) {
-    Say 'The Bun installer did not leave a bun command; installing Bun through winget or scoop instead'
-    Install-Package 'Bun' 'Oven-sh.Bun' 'bun'
-  }
+New-Item -ItemType Directory -Force -Path (Split-Path $Log) | Out-Null
+Write-Log ("`n== install.ps1 " + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'))
+
+# Prerequisites: Git for Windows and Bun, for this user only; the Visual C++ runtime only from an administrator terminal.
+Start-Section 'Prerequisites' 'checking Git and Bun'
+if (-not (Have 'git')) {
+  Start-Section 'Prerequisites' 'installing Git for Windows'
+  [void](Install-Package 'Git for Windows' 'Git.Git' 'git')
+  if (-not (Have 'git')) { Write-Section 'fail' 'Prerequisites' "Git was installed but is not on PATH $D open a new terminal and run this script again"; Stop-Install }
 }
-if (-not (Have 'bun')) { throw 'Bun was not found after the install; open a new terminal and run this script again.' }
+if (-not (Have 'bun')) {
+  Start-Section 'Prerequisites' 'installing Bun'
+  # Bun's own installer, run in this session as `irm bun.sh/install.ps1 | iex` runs it by hand: it sees this session's
+  # proxy and TLS settings. It reports a failure without an exit code, so the check is whether bun is there afterwards.
+  try { Invoke-RestMethod -Uri 'https://bun.sh/install.ps1' | Invoke-Expression *>&1 | ForEach-Object { Write-Log "$_" } } catch { Write-Log "$_" }
+  Refresh-Path
+  if (-not (Have 'bun')) { [void](Install-Package 'Bun' 'Oven-sh.Bun' 'bun') }
+}
+if (-not (Have 'bun')) { Write-Section 'fail' 'Prerequisites' "Bun was not found after the install $D open a new terminal and run this script again"; Stop-Install }
 $bunVersion = [version]((bun --version).Trim())
-if ($bunVersion -lt [version]'1.4.0') { throw "Bun $bunVersion is too old: Buracle needs Bun 1.4 or newer (bun upgrade)." }
-Ensure-Command 'node' 'Node.js LTS' 'OpenJS.NodeJS.LTS' 'nodejs-lts'
-Ensure-Command 'uv' 'uv' 'astral-sh.uv' 'uv'
-Ensure-Command 'rg' 'ripgrep' 'BurntSushi.ripgrep.MSVC' 'ripgrep'
-Ensure-Command 'jq' 'jq' 'jqlang.jq' 'jq'
-# The Visual C++ runtime is the one part that installs only for the whole machine; codegraph's native module and
-# ast-grep need it. It is installed when this terminal already runs as administrator, and named otherwise: no UAC prompt.
-if ($env:PROCESSOR_ARCHITECTURE -eq 'AMD64' -and -not (Has-VcRuntime)) {
-  if ((Is-Elevated) -and (Have 'winget')) {
-    Say 'Installing the Visual C++ runtime'
-    Run 'winget install Microsoft.VCRedist.2015+.x64' { winget install --id Microsoft.VCRedist.2015+.x64 --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements }
-  } else {
-    Write-Warning 'The Visual C++ runtime is missing, and only an administrator can install it. codegraph and ast-grep need it; the rest of Buracle works without it. To add it once, run in an administrator terminal: winget install --id Microsoft.VCRedist.2015+.x64 -e'
-  }
+if ($bunVersion -lt [version]'1.4.0') { Write-Section 'fail' 'Prerequisites' "Bun $bunVersion is too old: Buracle needs 1.4 or newer $D bun upgrade"; Stop-Install }
+$vcMissing = $env:PROCESSOR_ARCHITECTURE -eq 'AMD64' -and -not (Has-VcRuntime)
+if ($vcMissing -and (Is-Elevated) -and (Have 'winget')) {
+  Start-Section 'Prerequisites' 'installing the Visual C++ runtime'
+  if ((Invoke-Logged 'winget' @('install', '--id', 'Microsoft.VCRedist.2015+.x64', '--exact', '--silent', '--disable-interactivity', '--accept-package-agreements', '--accept-source-agreements')) -eq 0) { $vcMissing = $false }
+}
+if ($vcMissing) {
+  # codegraph's native module and ast-grep need it; the rest of Buracle works without it.
+  Write-Section 'warn' 'Prerequisites' "Git, Bun $bunVersion $D the Visual C++ runtime is missing"
+  Write-Item 'warn' 'vcredist' 'codegraph and ast-grep need it: winget install --id Microsoft.VCRedist.2015+.x64 -e (administrator terminal)'
+} else {
+  Write-Section 'ok' 'Prerequisites' "Git, Bun $bunVersion"
 }
 
-# main only receives commits that passed CI on every platform; `buracle update` follows the branch it was cloned from.
+# Buracle: main only receives commits that passed CI on every platform; `buracle update` follows the branch it was cloned from.
 if (Test-Path (Join-Path $Dir '.git')) {
-  Say "Updating the checkout in $Dir"
-  Run 'git pull' { git -C $Dir pull --ff-only }
+  Start-Section 'Buracle' ("updating " + (Tilde $Dir))
+  if ((Invoke-Logged 'git' @('-C', $Dir, 'pull', '--ff-only')) -ne 0) { Write-Section 'fail' 'Buracle' ("git pull failed $D log " + (Tilde $Log)); Stop-Install }
 } else {
-  # git writes to stderr when the remote cannot be reached; Windows PowerShell 5.1 would turn that into an error under Stop.
   $ErrorActionPreference = 'Continue'
   git ls-remote --exit-code --heads $RepoUrl $Branch *> $null
   $hasBranch = $LASTEXITCODE -eq 0
   $ErrorActionPreference = 'Stop'
-  if ($hasBranch) {
-    Say "Cloning the $Branch branch into $Dir"
-    Run 'git clone' { git clone --branch $Branch $RepoUrl $Dir }
-  } else {
-    Say "No $Branch branch yet; cloning the default branch into $Dir"
-    Run 'git clone' { git clone $RepoUrl $Dir }
-  }
+  $cloneArgs = if ($hasBranch) { @('clone', '--branch', $Branch, $RepoUrl, $Dir) } else { @('clone', $RepoUrl, $Dir) }
+  Start-Section 'Buracle' ("cloning into " + (Tilde $Dir))
+  if ((Invoke-Logged 'git' $cloneArgs) -ne 0) { Write-Section 'fail' 'Buracle' ("git clone failed $D log " + (Tilde $Log)); Stop-Install }
 }
 Set-Location $Dir
-
-Say 'Installing the dependencies'
-Run 'bun install' { bun install --frozen-lockfile }
+Start-Section 'Buracle' 'installing the dependencies'
+if ((Invoke-Logged 'bun' @('install', '--frozen-lockfile')) -ne 0) { Write-Section 'fail' 'Buracle' ("bun install failed $D log " + (Tilde $Log)); Stop-Install }
+$head = (git -C $Dir rev-parse --short HEAD 2>$null)
+$ref = (git -C $Dir rev-parse --abbrev-ref HEAD 2>$null)
+Write-Section 'ok' 'Buracle' ((Tilde $Dir) + " $D $ref @ $head")
 
 if ($NoInstall) {
-  Say 'Skipped buracle install (-NoInstall). Run it yourself: bun src/cli/main.ts install'
+  Write-Section 'warn' 'Result' ("skipped (-NoInstall) $D log " + (Tilde $Log))
 } else {
-  Say 'buracle install'
-  bun src/cli/main.ts install --yes
+  # ~\.local\bin, where the buracle command lives, on the user PATH; the Result line says so.
+  $scriptArgs = @('src/cli/main.ts', 'install', '--script', '--log', $Log, '--started', "$Started")
+  if (Add-ToUserPath $LocalBin) { $scriptArgs += @('--path-note', 'added to your user PATH') }
+  # A console answers the install's questions; without one (a CI job, redirected output) it applies the defaults.
+  $interactive = $false
+  try { $interactive = -not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected } catch { }
+  if (-not $interactive) { $scriptArgs += '--yes' }
+  & bun @scriptArgs
   $installCode = $LASTEXITCODE
-  if ($installCode -eq 2) { Write-Warning 'buracle install finished with warnings (exit code 2); read them above.' }
-  elseif ($installCode -ne 0) { throw "buracle install failed (exit code $installCode)" }
-  $buracleHome = if ($env:BURACLE_HOME) { $env:BURACLE_HOME } else { Join-Path $HOME '.buracle' }
-  $shim = Join-Path $buracleHome 'bin\buracle.cmd'
-  if (-not (Test-Path $shim)) { throw "buracle install did not create the shim at $shim" }
-  Add-ToUserPath $LocalBin
-  if (-not (Have 'buracle')) { throw "the buracle command is not on PATH; $LocalBin should hold buracle.cmd" }
-  Run 'buracle --version' { buracle --version }
-  Say 'buracle doctor'
-  & buracle doctor
-  # The doctor's findings are for the reader; like install.sh, its exit code does not fail the install.
-  $global:LASTEXITCODE = 0
+  # 2: installed with warnings, which the summary shows.
+  if ($installCode -ne 0 -and $installCode -ne 2) {
+    Write-Icon 'fail'
+    Write-Host (" buracle install exited $installCode $D log " + (Tilde $Log))
+    Stop-Install
+  }
 }
-
-Say "Done. Checkout: $Dir. Open a new terminal to use the buracle command."
+$global:LASTEXITCODE = 0

@@ -79,7 +79,7 @@ export async function remember(host: UtilityHost, input: string | undefined, nam
   }
 }
 
-/** The address of the web UI while it runs; it starts only when the user runs `buracle mem ui`, so otherwise there is none. */
+/** The address of the web UI while it runs (a session start or `buracle mem ui` starts it); otherwise there is none. */
 function memoryUiUrl(): string | undefined {
   try { return liveMemoryUi()?.url } catch { return undefined }
 }

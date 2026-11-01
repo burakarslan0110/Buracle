@@ -404,15 +404,22 @@ export class BuracleRuntime {
     s.activity = true
     if (s.started || typeof s.parentID === 'string' || !paths.isValidSessionId(s.sid)) return
     s.started = true
-    if (isMemoryRunnerDir(this.cwdOf(s))) s.capture = false
-    if (!s.capture) return
+    const runner = isMemoryRunnerDir(this.cwdOf(s))
+    if (runner) s.capture = false
     this.track((async () => {
       try {
         if (s.parentID === undefined) await this.resolveParent(s)
         if (s.parentID !== null) return
+        // The memory UI follows root sessions whether or not the memory captures them.
+        if (!runner) this.ui('started', s.sid)
+        if (!s.capture) return
         await this.memory.start(s.sid, this.cwdOf(s))
       } catch (e) { this.logFn('warn', 'memory session start failed', { sid: s.sid, error: errText(e) }) }
     })())
+  }
+
+  private ui(what: 'started' | 'seen' | 'ended', sid: string): void {
+    try { this.memory.ui?.[what](sid) } catch (e) { this.logFn('warn', `memory ui ${what} failed`, { sid, error: errText(e) }) }
   }
 
   private prunePending(): void {
@@ -493,6 +500,7 @@ export class BuracleRuntime {
     this.abort.abort()
     for (const s of this.sessions.values()) {
       this.cancelIdleFinalize(s)
+      if (typeof s.parentID !== 'string') this.ui('ended', s.sid)
       if (!s.activity || typeof s.parentID === 'string') continue
       await this.finalize(s.sid, s)
     }
@@ -818,6 +826,7 @@ export class BuracleRuntime {
     this.verdicts.delete(e.id)
     const s = this.session(e.sessionID)
     this.touch(s)
+    if (s.parentID === null && !isMemoryRunnerDir(this.cwdOf(s))) this.ui('seen', s.sid)
     const cwd = this.ctx.location.directory
     const input = asRecord(e.input)
     const cls = classifyTool(HARNESS, e.tool, input, cwd, this.baked.mcpIds, { homeTilde: this.env.home })
@@ -1094,6 +1103,7 @@ export class BuracleRuntime {
     const excerpt = spoolPromptExcerpt(text)
     this.spool(s.sid, [{ ts: at, ev: 'prompt', ...(excerpt !== undefined ? { excerpt } : {}) }])
     try { this.memory.prompt?.(s.sid) } catch (e) { this.logFn('warn', 'session record not touched', { error: errText(e) }) }
+    if (!isMemoryRunnerDir(this.cwdOf(s))) this.ui('seen', s.sid)
     const cfg = this.cfg()
     const cmd = commandOfPrompt(meta, text)
     const words = cmd !== undefined ? cmd.args : text
@@ -1296,6 +1306,7 @@ export class BuracleRuntime {
         this.receipts.forget(sid)
         registry().chains.delete(sid)
         if (s !== undefined && s.parentID !== null && s.parentID !== undefined) return
+        this.ui('ended', sid)
         await this.finalize(sid, s)
         return
       }

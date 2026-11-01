@@ -181,7 +181,7 @@ export async function runToolchain(bundle: Pick<CanonicalBundle, 'mcp' | 'tools'
           item.detail = `${check.detail}; ${installAdvice(t)}`
         } else {
           item.source = sources[0]?.label
-          const r = await installTool({ ...t, ...(opts.system ? {} : { brew: undefined, winget: undefined, scoop: undefined, go: undefined, dotnet: undefined }) } as ToolSpec, opts.nowMs(), { minAgeDays })
+          const r = await installTool({ ...t, ...(opts.system ? {} : { brew: undefined, winget: undefined, scoop: undefined, go: undefined, dotnet: undefined }) } as ToolSpec, opts.nowMs(), { minAgeDays, ...(opts.system ? {} : { download: false }) })
           if (r.ok) {
             const after = await checkTool(t)
             item.status = 'installed'

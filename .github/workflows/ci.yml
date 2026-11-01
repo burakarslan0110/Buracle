@@ -102,13 +102,33 @@ jobs:
         shell: pwsh
         run: npm install -g @anthropic-ai/claude-code@2.1.302 @openai/codex@0.162.1 @opencode/cli@2.0.30
 
+      # The install must end in one step: its output never tells the user to run `buracle install`, and a successful
+      # install prints at most 40 lines (the details are in the install log, printed here when the install fails).
       - name: scripts/install.ps1 from this commit
         shell: pwsh
         env:
           BURACLE_REPO: ${{ github.workspace }}
           BURACLE_BRANCH: release-tree
           BURACLE_CHECKOUT: ${{ runner.temp }}\buracle
-        run: ./scripts/install.ps1
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'install.out'
+          pwsh -NoProfile -File ./scripts/install.ps1 *>&1 | Tee-Object -FilePath $out
+          $code = $LASTEXITCODE
+          $lines = @(Get-Content $out).Count
+          Write-Host "install.ps1 exited $code and printed $lines lines"
+          if ($code -ne 0) { Get-ChildItem (Join-Path $HOME '.buracle\logs') -Filter 'install-*.log' | Get-Content; exit $code }
+          $hits = @(Select-String -Path $out -Pattern 'buracle install' -SimpleMatch)
+          if ($hits.Count -gt 0) { $hits | ForEach-Object { $_.Line }; throw 'the install output tells the user to run buracle install' }
+          if ($lines -gt 40) { throw 'a successful install printed more than 40 lines' }
+
+      # GitHub's runner has winget, so the install above never downloads a tool; this checks the pinned downloads
+      # (sha256, the .zip unpacked with tar.exe, the program run) with the product's own code.
+      - name: Pinned system tools download and run
+        shell: pwsh
+        run: |
+          $env:Path = [Environment]::GetEnvironmentVariable('Path', 'User') + ';' + $env:Path
+          bun scripts/pin-system-tools.ts --verify
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       # A user without administrator rights or Developer Mode cannot make a symbolic link, so every directory
       # link Buracle makes on Windows must be a junction.
@@ -149,9 +169,9 @@ jobs:
   # user does (scripts/install.sh, in a throwaway HOME), into the harnesses at their tested versions
   # (read from src/engine/update/tested-with.ts, not copied here), then checks the installed buracle:
   # `buracle doctor` on the config, runtime and mcp topics (the mcp topic runs every server's handshake
-  # through the installed shim). The Linux runner gets the system tools by hand with the commands
-  # install.sh prints for a missing tool; the script itself never runs sudo or a package manager there.
-  # Not run anywhere yet: this job was only checked by parsing the YAML; its first run is the first push.
+  # through the installed shim). Nothing installs the system tools by hand: what the runner lacks, the install
+  # downloads (pinned, sha256-checked); the runners' own Node.js, jq and Homebrew mean it rarely has to, so a step
+  # of its own downloads and runs every pinned tool of the platform. The script never runs sudo or a package manager.
   posix-install:
     name: ${{ matrix.os }} install
     if: github.event_name == 'push'
@@ -200,20 +220,28 @@ jobs:
           npm install -g "@anthropic-ai/claude-code@$CLAUDE_VERSION" "@openai/codex@$CODEX_VERSION" "@opencode/cli@$OPENCODE_VERSION"
           bun add -g "@oh-my-pi/pi-coding-agent@$OMP_VERSION"
 
-      # What install.sh prints on a Linux machine without them (the macOS runner has Homebrew, which
-      # buracle install uses for the same job).
-      - name: System tools install.sh does not install (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update && sudo apt-get install -y ripgrep jq
-          curl -LsSf https://astral.sh/uv/install.sh | sh
+      # The download path the install takes for node, uv, rg and jq when no package manager can install them.
+      - name: Pinned system tools download and run
+        run: bun scripts/pin-system-tools.ts --verify
 
+      # The install must end in one step: its output never tells the user to run `buracle install`, and a successful
+      # install prints at most 40 lines (the details are in the install log, printed here when the install fails).
       - name: scripts/install.sh from this commit
         env:
           BURACLE_REPO: ${{ github.workspace }}
           BURACLE_BRANCH: release-tree
           BURACLE_CHECKOUT: ${{ runner.temp }}/buracle
-        run: bash scripts/install.sh
+        run: |
+          out="$RUNNER_TEMP/install.out"
+          set +e
+          bash scripts/install.sh 2>&1 | tee "$out"
+          code=${PIPESTATUS[0]}
+          set -e
+          lines=$(wc -l < "$out" | tr -d ' ')
+          echo "install.sh exited $code and printed $lines lines"
+          if [ "$code" != 0 ]; then cat "$HOME"/.buracle/logs/install-*.log || true; exit "$code"; fi
+          if grep -n 'buracle install' "$out"; then echo 'the install output tells the user to run buracle install'; exit 1; fi
+          if [ "$lines" -gt 40 ]; then echo 'a successful install printed more than 40 lines'; exit 1; fi
 
       - name: The installed buracle works
         run: |

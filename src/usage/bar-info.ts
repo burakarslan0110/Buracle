@@ -117,7 +117,7 @@ export async function barInfo(h: Harness, o: { nowMs: number, version?: string, 
     if (plan !== undefined) harness.plan = plan
   }
   info.harness = harness
-  // Nothing starts the web UI by itself, so the bar names it only while a server runs (its record names a live process).
+  // The bar names the web UI only while a server runs (its record names a live process): with memory.ui.autostart off, or before a session started it, there is none.
   const live = liveMemoryUi()
   if (live !== undefined) info.memoryUrl = live.url
   if (o.lines !== undefined) info.lines = o.lines

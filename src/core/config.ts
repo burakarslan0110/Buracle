@@ -16,7 +16,7 @@ export interface BuracleConfig {
   }
   context: { warnPct: number, criticalPct: number }
   checkers: { enabled: boolean, timeoutMs: number, languages: string[] }
-  memory: { ui: { port: number }, exclude: string[] }
+  memory: { ui: { port: number, autostart: boolean }, exclude: string[] }
   statusline: { style: 'buracle' | 'full' | 'compact', emoji: boolean, monthly: 'estimate' | 'off' }
   skills: { sources: Array<{ name: string, path?: string, git?: string, ref?: string }> }
   update: { minReleaseAgeDays: number }
@@ -56,7 +56,7 @@ export function defaultConfig(): BuracleConfig {
     context: { warnPct: 85, criticalPct: 95 },
     checkers: { enabled: true, timeoutMs: 20000, languages: ['python', 'typescript', 'javascript', 'go', 'shell', 'dotnet'] },
     memory: {
-      ui: { port: 41777 },
+      ui: { port: 41777, autostart: true },
       exclude: [],
     },
     statusline: { style: 'buracle', emoji: true, monthly: 'estimate' },
@@ -143,7 +143,7 @@ const CONFIG_SCHEMA: Schema = {
     memory: {
       t: 'obj',
       fields: {
-        ui: { t: 'obj', fields: { port: { t: 'int', min: 1024, max: 65535 } } },
+        ui: { t: 'obj', fields: { port: { t: 'int', min: 1024, max: 65535 }, autostart: bool } },
         exclude: strList,
       },
     },
@@ -397,8 +397,7 @@ export const CONFIG_REMOVALS: readonly ConfigRemoval[] = [
   { key: 'memory.verify', since: '0.5.0', why: ALWAYS_ON, quietWhen: { auto: true, maxRunsPerDay: 4, maxPerRun: 4, maxInputTokens: 8000, maxOutputTokens: 900, minIntervalMin: 60 } },
   { key: 'memory.heal', since: '0.5.0', why: ALWAYS_ON, quietWhen: { auto: true } },
   { key: 'memory.profile', since: '0.5.0', why: ALWAYS_ON, quietWhen: { enabled: true, statements: true } },
-  { key: 'memory.ui.enabled', since: '0.5.0', why: 'the brain web UI is always available; it starts only when you run `buracle mem ui`', quietWhen: true },
-  { key: 'memory.ui.autostart', since: '0.5.0', why: 'the brain web UI no longer starts with a session; it starts only when you run `buracle mem ui`', quietWhen: true },
+  { key: 'memory.ui.enabled', since: '0.5.0', why: 'the brain web UI is always available; `memory.ui.autostart` decides whether it starts by itself', quietWhen: true },
   { key: 'memory.reflect.provider', since: '0.5.0', why: 'the memory\'s model calls run through a harness with usage headroom; there is no external API', quietWhen: 'harness' },
   { key: 'memory.reflect.api', since: '0.5.0', why: 'the memory\'s model calls run through a harness with usage headroom; there is no external API', quietWhen: { format: 'openai', url: '', model: '', keyEnv: '', person: false } },
   { key: 'memory.llm', since: '0.5.0', why: 'the memory\'s model calls run through a harness with usage headroom; there is no external API', quietWhen: { provider: 'auto', api: { format: 'openai', url: '', model: '', keyEnv: '', person: false } } },
