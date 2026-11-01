@@ -71,8 +71,9 @@ const cache = new Map<string, CacheEntry>()
 let cacheBytes = 0
 const inFlight = new Map<string, Promise<Drawing>>()
 
-function cacheKey(kind: DiagramKind, ascii: boolean, source: string): string {
-  return createHash('sha256').update(`${kind}\0${ascii ? 1 : 0}\0${source}`).digest('hex')
+// The time limit is part of the key: a timeout under a short limit says nothing about a longer one.
+function cacheKey(kind: DiagramKind, ascii: boolean, timeoutMs: number, source: string): string {
+  return createHash('sha256').update(`${kind}\0${ascii ? 1 : 0}\0${timeoutMs}\0${source}`).digest('hex')
 }
 
 function sizeOf(d: Drawing): number {
@@ -203,7 +204,7 @@ export async function drawDiagrams(sources: readonly string[], opts: DrawOptions
     const source = normalizeMermaid(raw)
     if (source.trim() === '') { out.push(fail('invalid', 'Empty mermaid diagram')); continue }
     if (source.length > DIAGRAM_MAX_CHARS) { out.push(fail('too_large', `the diagram source is ${source.length} characters; the limit is ${DIAGRAM_MAX_CHARS}`)); continue }
-    const key = cacheKey(o.kind, o.ascii, source)
+    const key = cacheKey(o.kind, o.ascii, o.timeoutMs, source)
     const hit = cached(key, Date.now())
     if (hit !== undefined) { out.push(hit); continue }
     const pending = inFlight.get(key)

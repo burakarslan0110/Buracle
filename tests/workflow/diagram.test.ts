@@ -143,6 +143,15 @@ describe('drawDiagrams: one batch, one worker at a time', () => {
     expect(again[0]?.ok).toBe(true)
   }, 15_000)
 
+  test("a timeout under a short limit is not the answer for a call with a longer limit", async () => {
+    const src = chain(33, 'TD', 'W')
+    const short = await drawDiagrams([src], { kind: 'text', timeoutMs: 400 })
+    if (short[0] !== undefined && !short[0].ok) expect(short[0].error).toContain('within 0.4 s')
+    const long = await drawDiagram(src, { timeoutMs: 1200 })
+    expect(long.ok).toBe(false)
+    if (!long.ok) expect(long.error).toContain('within 1.2 s')
+  }, 15_000)
+
   test('a repeated stalled source comes from the cache, and two calls at once draw it once', async () => {
     const src = chain(32, 'TD', 'V')
     const t0 = performance.now()
