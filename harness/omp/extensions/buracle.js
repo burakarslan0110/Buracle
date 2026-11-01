@@ -7269,11 +7269,24 @@ function brainDir() {
 function toolchainDir() {
   return join2(buracleHome(), "toolchain");
 }
+function systemToolsDir() {
+  return join2(toolchainDir(), "system");
+}
+function systemToolBinDirs() {
+  const root = systemToolsDir();
+  return [osName() === "win32" ? join2(root, "node") : join2(root, "node", "bin"), join2(root, "uv"), join2(root, "rg"), join2(root, "jq")];
+}
 function toolchainBinDirs() {
-  return [join2(toolchainDir(), "go", "bin"), join2(toolchainDir(), "dotnet", "tools")];
+  return [join2(toolchainDir(), "go", "bin"), join2(toolchainDir(), "dotnet", "tools"), ...systemToolBinDirs()];
 }
 function memoryUiStateFile() {
   return join2(stateDir(), "memory-ui.json");
+}
+function uiSessionsDir() {
+  return join2(stateDir(), "ui-sessions");
+}
+function memoryUiSpawnMarker() {
+  return join2(stateDir(), "memory-ui.spawn");
 }
 function indexStateDir() {
   return join2(stateDir(), "index");
@@ -7670,21 +7683,21 @@ var init_shim = __esm(() => {
 var init_hook_fail = () => {};
 
 // src/engine/update/runtime.ts
-import { chmodSync as chmodSync2, cpSync, existsSync as existsSync12, mkdirSync as mkdirSync12, readFileSync as readFileSync20, readdirSync as readdirSync10, rmSync as rmSync4, statSync as statSync20, writeFileSync as writeFileSync2 } from "fs";
-import { basename as basename9, dirname as dirname16, join as join31, relative as relative5, resolve as resolve19, sep as sep5 } from "path";
+import { chmodSync as chmodSync2, cpSync, existsSync as existsSync13, mkdirSync as mkdirSync13, readFileSync as readFileSync21, readdirSync as readdirSync12, rmSync as rmSync5, statSync as statSync22, writeFileSync as writeFileSync2 } from "fs";
+import { basename as basename10, dirname as dirname16, join as join34, relative as relative5, resolve as resolve19, sep as sep5 } from "path";
 function runtimeFiles(checkout) {
   const out = [];
   const walk = (rel) => {
     let entries;
     try {
-      entries = readdirSync10(join31(checkout, rel), { withFileTypes: true });
+      entries = readdirSync12(join34(checkout, rel), { withFileTypes: true });
     } catch {
       return;
     }
     for (const e of entries) {
       if (SKIP_NAMES.has(e.name))
         continue;
-      const r = join31(rel, e.name);
+      const r = join34(rel, e.name);
       if (e.isDirectory())
         walk(r);
       else if (e.isFile())
@@ -7694,13 +7707,13 @@ function runtimeFiles(checkout) {
   for (const d of RUNTIME_DIRS)
     walk(d);
   for (const f of RUNTIME_FILES)
-    if (existsSync12(join31(checkout, f)))
+    if (existsSync13(join34(checkout, f)))
       out.push(f);
   return out.map((p) => p.split(sep5).join("/")).sort();
 }
 function readJson(path) {
   try {
-    const v = JSON.parse(readFileSync20(path, "utf8"));
+    const v = JSON.parse(readFileSync21(path, "utf8"));
     return v !== null && typeof v === "object" && !Array.isArray(v) ? v : undefined;
   } catch {
     return;
@@ -7717,12 +7730,12 @@ function depsOf(pkg) {
   return out;
 }
 function runtimePackages(checkout) {
-  const root = readJson(join31(checkout, "package.json"));
+  const root = readJson(join34(checkout, "package.json"));
   if (root === undefined)
-    return { error: `${join31(checkout, "package.json")} cannot be read` };
+    return { error: `${join34(checkout, "package.json")} cannot be read` };
   let lock = "";
   try {
-    lock = readFileSync20(join31(checkout, "bun.lock"), "utf8");
+    lock = readFileSync21(join34(checkout, "bun.lock"), "utf8");
   } catch {}
   const locked = (name) => {
     const esc = name.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
@@ -7735,8 +7748,8 @@ function runtimePackages(checkout) {
     const [name, want] = queue.shift();
     if (found.has(name))
       continue;
-    const dir = join31(checkout, "node_modules", ...name.split("/"));
-    const pkg = readJson(join31(dir, "package.json"));
+    const dir = join34(checkout, "node_modules", ...name.split("/"));
+    const pkg = readJson(join34(dir, "package.json"));
     const have = typeof pkg?.["version"] === "string" ? pkg["version"] : undefined;
     if (have === undefined) {
       problems.push(`${name} is not installed`);
@@ -7761,9 +7774,9 @@ function fileEntry(rel, content, mode) {
 function checkoutFingerprint(checkout, deps) {
   const parts = [];
   for (const rel of runtimeFiles(checkout)) {
-    const abs = join31(checkout, rel);
+    const abs = join34(checkout, rel);
     try {
-      parts.push(fileEntry(rel, readFileSync20(abs), statSync20(abs).mode));
+      parts.push(fileEntry(rel, readFileSync21(abs), statSync22(abs).mode));
     } catch {
       parts.push(`${rel}\x00missing
 `);
@@ -7779,7 +7792,7 @@ function runtimeDirFingerprint(dir) {
   return "error" in pk ? undefined : checkoutFingerprint(dir, pk.deps);
 }
 function readMarker(dir) {
-  const m = readJson(join31(dir, RUNTIME_MARKER));
+  const m = readJson(join34(dir, RUNTIME_MARKER));
   if (m === undefined || m["v"] !== 1 || typeof m["id"] !== "string" || typeof m["fingerprint"] !== "string" || typeof m["checkout"] !== "string")
     return;
   return m;
@@ -7820,7 +7833,7 @@ function runtimeHealth(checkout, shim = readShim()) {
     return h;
   }
   h.dir = dir;
-  if (!existsSync12(shim.main)) {
+  if (!existsSync13(shim.main)) {
     h.problems.push(`the live runtime ${dir} is missing: Claude Code and Codex hooks deny every tool call (fail closed) until \`buracle install\` (or \`bun src/cli/main.ts install\` in the checkout) restores it`);
     return h;
   }
@@ -31392,8 +31405,8 @@ function heldConsentNeed(sid, command) {
 }
 
 // src/adapters/omp/runtime/deps.ts
-import { readdirSync as readdirSync8, readFileSync as readFileSync19, rmSync as rmSync3, statSync as statSync19 } from "fs";
-import { join as join28, resolve as resolve16 } from "path";
+import { readdirSync as readdirSync10, readFileSync as readFileSync20, rmSync as rmSync4, statSync as statSync21 } from "fs";
+import { join as join31, resolve as resolve16 } from "path";
 
 // src/core/config.ts
 var COMPANION_SETTINGS = ["off", "auto", ...HARNESSES];
@@ -31425,7 +31438,7 @@ function defaultConfig() {
     context: { warnPct: 85, criticalPct: 95 },
     checkers: { enabled: true, timeoutMs: 20000, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] },
     memory: {
-      ui: { port: 41777 },
+      ui: { port: 41777, autostart: true },
       exclude: []
     },
     statusline: { style: "buracle", emoji: true, monthly: "estimate" },
@@ -31502,7 +31515,7 @@ var CONFIG_SCHEMA = {
     memory: {
       t: "obj",
       fields: {
-        ui: { t: "obj", fields: { port: { t: "int", min: 1024, max: 65535 } } },
+        ui: { t: "obj", fields: { port: { t: "int", min: 1024, max: 65535 }, autostart: bool } },
         exclude: strList2
       }
     },
@@ -31760,8 +31773,7 @@ var CONFIG_REMOVALS = [
   { key: "memory.verify", since: "0.5.0", why: ALWAYS_ON, quietWhen: { auto: true, maxRunsPerDay: 4, maxPerRun: 4, maxInputTokens: 8000, maxOutputTokens: 900, minIntervalMin: 60 } },
   { key: "memory.heal", since: "0.5.0", why: ALWAYS_ON, quietWhen: { auto: true } },
   { key: "memory.profile", since: "0.5.0", why: ALWAYS_ON, quietWhen: { enabled: true, statements: true } },
-  { key: "memory.ui.enabled", since: "0.5.0", why: "the brain web UI is always available; it starts only when you run `buracle mem ui`", quietWhen: true },
-  { key: "memory.ui.autostart", since: "0.5.0", why: "the brain web UI no longer starts with a session; it starts only when you run `buracle mem ui`", quietWhen: true },
+  { key: "memory.ui.enabled", since: "0.5.0", why: "the brain web UI is always available; `memory.ui.autostart` decides whether it starts by itself", quietWhen: true },
   { key: "memory.reflect.provider", since: "0.5.0", why: "the memory's model calls run through a harness with usage headroom; there is no external API", quietWhen: "harness" },
   { key: "memory.reflect.api", since: "0.5.0", why: "the memory's model calls run through a harness with usage headroom; there is no external API", quietWhen: { format: "openai", url: "", model: "", keyEnv: "", person: false } },
   { key: "memory.llm", since: "0.5.0", why: "the memory's model calls run through a harness with usage headroom; there is no external API", quietWhen: { provider: "auto", api: { format: "openai", url: "", model: "", keyEnv: "", person: false } } },
@@ -35627,8 +35639,8 @@ function mcpHealth(nowMs = Date.now()) {
 
 // src/adapters/omp/runtime/memory.ts
 init_paths();
-import { readFileSync as readFileSync17, statSync as statSync17 } from "fs";
-import { join as join25 } from "path";
+import { readFileSync as readFileSync18, statSync as statSync19 } from "fs";
+import { join as join28 } from "path";
 init_proc();
 init_shim();
 
@@ -35728,7 +35740,7 @@ function appendSpool(h, sid, entries, opts = {}) {
 
 // src/memory/session-record.ts
 import { mkdirSync as mkdirSync10, utimesSync as utimesSync4 } from "fs";
-import { join as join24, resolve as resolve13 } from "path";
+import { join as join25, resolve as resolve13 } from "path";
 init_paths();
 
 // src/memory/project.ts
@@ -36013,8 +36025,54 @@ function writeSessionRecord(rec) {
 var STALE_ACTIVE_MS = 2 * 3600000;
 
 // src/memory/spawn.ts
+import { existsSync as existsSync12, statSync as statSync17 } from "fs";
+import { basename as basename9, join as join24 } from "path";
 init_paths();
 init_shim();
+function bunBinary() {
+  const exe = process.execPath;
+  if (/^bun(?:-[^/]*)?$/.test(basename9(exe)))
+    return exe;
+  return Bun.which("bun") ?? undefined;
+}
+function isFile3(p) {
+  try {
+    return statSync17(p).isFile();
+  } catch {
+    return false;
+  }
+}
+function moduleCheckout() {
+  return findCheckout(import.meta.dir);
+}
+function cliArgv() {
+  const shim = shimLaunch();
+  if (shim !== undefined && moduleCheckout() === undefined)
+    return shim;
+  const main = join24(repoRoot2(), "src", "cli", "main.ts");
+  const bun = bunBinary();
+  if (bun !== undefined && isFile3(main))
+    return [bun, main];
+  if (shim !== undefined)
+    return shim;
+  return [bun ?? process.execPath, main];
+}
+function spawnCli(args, env = {}) {
+  try {
+    const checkout = moduleCheckout() ?? configuredRepoRoot();
+    const proc = Bun.spawn([...cliArgv(), ...args], {
+      cwd: checkout !== undefined ? checkout : existsSync12(home()) ? home() : "/",
+      env: { ...process.env, ...env },
+      stdio: ["ignore", "ignore", "ignore"],
+      detached: true
+    });
+    proc.unref();
+    return proc.pid;
+  } catch (e) {
+    log("warn", "memory: cannot start a background job", { args: args.slice(0, 3), error: e });
+    return;
+  }
+}
 
 // src/memory/session-record.ts
 async function sessionStart(h, sid, cwd, opts = {}) {
@@ -36065,10 +36123,204 @@ function promptSeen(h, sid, opts = {}) {
   } catch {}
 }
 
-// src/adapters/omp/runtime/memory.ts
-function isFile3(p) {
+// src/memory/ui-build.ts
+init_paths();
+import { createHash as createHash2 } from "crypto";
+import { readdirSync as readdirSync7, readFileSync as readFileSync17 } from "fs";
+import { join as join26 } from "path";
+function uiSources(memoryDir) {
+  const out = readdirSync7(memoryDir).filter((n) => /^ui.*\.ts$/u.test(n)).sort();
+  const walk = (rel) => {
+    const entries = readdirSync7(join26(memoryDir, rel), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+    for (const e of entries) {
+      if (e.name.startsWith("."))
+        continue;
+      const r = `${rel}/${e.name}`;
+      if (e.isDirectory())
+        walk(r);
+      else if (e.isFile())
+        out.push(r);
+    }
+  };
+  walk("ui");
+  return out;
+}
+function uiBuildId(repoRoot = repoRoot2()) {
   try {
-    return statSync17(p).isFile();
+    const raw = JSON.parse(readFileSync17(join26(repoRoot, "package.json"), "utf8")).version;
+    const dir = join26(repoRoot, "src", "memory");
+    const h = createHash2("sha256");
+    for (const rel of uiSources(dir)) {
+      h.update(rel);
+      h.update("\x00");
+      h.update(readFileSync17(join26(dir, rel)));
+      h.update("\x00");
+    }
+    return `${typeof raw === "string" ? raw : "?"}+${h.digest("hex").slice(0, 12)}`;
+  } catch {
+    return;
+  }
+}
+
+// src/memory/ui-presence.ts
+import { closeSync as closeSync6, mkdirSync as mkdirSync11, openSync as openSync6, readdirSync as readdirSync8, rmSync as rmSync3, statSync as statSync18, utimesSync as utimesSync5 } from "fs";
+import { join as join27 } from "path";
+init_paths();
+
+// src/memory/ui-record.ts
+init_fsx();
+init_paths();
+function readUiRecord() {
+  const r = readJsonSafeSync(memoryUiStateFile());
+  const v = r.ok ? r.value : undefined;
+  if (v === undefined || v === null || typeof v !== "object" || typeof v.pid !== "number" || typeof v.port !== "number" || typeof v.url !== "string")
+    return;
+  return v;
+}
+function processAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code === "EPERM";
+  }
+}
+
+// src/memory/ui-presence.ts
+var UI_SESSION_STALE_MS = 2 * 3600000;
+var UI_SESSION_REFRESH_MS = 10 * 60000;
+var UI_SPAWN_MARKER_MS = 15000;
+function quiet(env) {
+  return env["BURACLE_NO_AUTOSTART"] === "1" || env["BURACLE_MEMORY_RUNNER"] === "1";
+}
+function recordFile(h, sid) {
+  return isHarness(h) && isValidSessionId(sid) ? join27(uiSessionsDir(), `${h}-${sid}`) : undefined;
+}
+function touch(file, nowMs) {
+  mkdirSync11(uiSessionsDir(), { recursive: true });
+  try {
+    closeSync6(openSync6(file, "a"));
+  } catch {}
+  const t = new Date(nowMs);
+  utimesSync5(file, t, t);
+}
+function sessionOpened(h, sid, nowMs = Date.now(), env = process.env) {
+  if (quiet(env))
+    return;
+  const file = recordFile(h, sid);
+  if (file === undefined)
+    return;
+  try {
+    touch(file, nowMs);
+  } catch (e) {
+    log("warn", "memory ui: cannot mark the session open", { h, error: e });
+  }
+}
+function sessionSeen(h, sid, nowMs = Date.now(), env = process.env) {
+  if (quiet(env))
+    return "fresh";
+  const file = recordFile(h, sid);
+  if (file === undefined)
+    return "fresh";
+  let mtime;
+  try {
+    mtime = statSync18(file).mtimeMs;
+  } catch {
+    mtime = undefined;
+  }
+  if (mtime !== undefined && nowMs - mtime < UI_SESSION_REFRESH_MS)
+    return "fresh";
+  try {
+    touch(file, nowMs);
+  } catch (e) {
+    log("warn", "memory ui: cannot refresh the session", { h, error: e });
+  }
+  return mtime === undefined || nowMs - mtime >= UI_SESSION_STALE_MS ? "revived" : "fresh";
+}
+function sessionClosed(h, sid) {
+  const file = recordFile(h, sid);
+  if (file === undefined)
+    return;
+  try {
+    rmSync3(file, { force: true });
+  } catch {}
+}
+var uiPresenceDeps = { spawn: (args) => spawnCli(args) };
+function autostartOn() {
+  try {
+    return loadConfigSync({ repoRoot: repoRoot2() }).config.memory.ui.autostart;
+  } catch {
+    return true;
+  }
+}
+function startUiSoon(opts = {}) {
+  const env = opts.env ?? process.env;
+  if (quiet(env))
+    return "off";
+  try {
+    const rec = readUiRecord();
+    if (rec !== undefined && processAlive(rec.pid) && (opts.build === undefined || rec.build === undefined || rec.build === opts.build))
+      return "running";
+    if (!(opts.autostart ?? autostartOn()))
+      return "off";
+    const marker = memoryUiSpawnMarker();
+    mkdirSync11(stateDir(), { recursive: true });
+    const now = opts.nowMs ?? Date.now();
+    let fd;
+    try {
+      fd = openSync6(marker, "wx");
+    } catch {
+      let stale = false;
+      try {
+        stale = now - statSync18(marker).mtimeMs >= UI_SPAWN_MARKER_MS;
+      } catch {
+        stale = true;
+      }
+      if (!stale)
+        return "busy";
+      rmSync3(marker, { force: true });
+      try {
+        fd = openSync6(marker, "wx");
+      } catch {
+        return "busy";
+      }
+    }
+    closeSync6(fd);
+    let pid;
+    try {
+      pid = (opts.spawn ?? uiPresenceDeps.spawn)(["mem", "ui", "--serve"]);
+    } catch (e) {
+      log("warn", "memory ui: cannot start it", { error: e });
+    }
+    if (pid === undefined) {
+      rmSync3(marker, { force: true });
+      return "failed";
+    }
+    return "started";
+  } catch (e) {
+    log("warn", "memory ui: the start check failed", { error: e });
+    return "failed";
+  }
+}
+
+// src/adapters/omp/runtime/memory.ts
+var ompUiBridge = {
+  started(sid) {
+    sessionOpened("omp", sid);
+    const build = uiBuildId();
+    startUiSoon(build !== undefined ? { build } : {});
+  },
+  seen(sid) {
+    if (sessionSeen("omp", sid) === "revived")
+      startUiSoon();
+  },
+  ended(sid) {
+    sessionClosed("omp", sid);
+  }
+};
+function isFile4(p) {
+  try {
+    return statSync19(p).isFile();
   } catch {
     return false;
   }
@@ -36077,9 +36329,9 @@ function buracleCli(shim, repoRoot) {
   const viaShim = shimLaunch(shim);
   if (viaShim !== undefined)
     return viaShim;
-  const main = repoRoot !== undefined ? join25(repoRoot, "src", "cli", "main.ts") : undefined;
+  const main = repoRoot !== undefined ? join28(repoRoot, "src", "cli", "main.ts") : undefined;
   const bun = Bun.which("bun");
-  return main !== undefined && bun !== null && isFile3(main) ? [bun, main] : undefined;
+  return main !== undefined && bun !== null && isFile4(main) ? [bun, main] : undefined;
 }
 function spawnDetached2(argv, env = {}) {
   try {
@@ -36114,7 +36366,16 @@ function createMemoryBridge(opts) {
   const touch = opts.touch ?? ((sid) => {
     promptSeen("omp", sid);
   });
+  const ui = opts.ui ?? ompUiBridge;
+  const uiCall = (what, sid) => {
+    try {
+      ui[what](sid);
+    } catch (e) {
+      once(`ui-${what}`, `omp: memory ui ${what} failed`, { error: e instanceof Error ? e.message : String(e) });
+    }
+  };
   return {
+    ui: { started: (sid) => uiCall("started", sid), seen: (sid) => uiCall("seen", sid), ended: (sid) => uiCall("ended", sid) },
     async appendSpool(sid, entries) {
       if (entries.length === 0)
         return;
@@ -36180,15 +36441,15 @@ function createMemoryBridge(opts) {
 }
 function readIf(path) {
   try {
-    return readFileSync17(path, "utf8");
+    return readFileSync18(path, "utf8");
   } catch {
     return;
   }
 }
 function readMemoryStatus(slug) {
-  const dir = join25(memoryStateDir(), "status");
+  const dir = join28(memoryStateDir(), "status");
   for (const name of slug !== undefined ? [`${slug}.json`, "_global.json"] : ["_global.json"]) {
-    const t = readIf(join25(dir, name));
+    const t = readIf(join28(dir, name));
     if (t === undefined)
       continue;
     try {
@@ -36202,7 +36463,7 @@ function readMemoryStatus(slug) {
 
 // src/adapters/omp/runtime/plan-capture.ts
 var import_yaml5 = __toESM(require_dist(), 1);
-import { isAbsolute as isAbsolute10, join as join26, normalize, resolve as resolve14 } from "path";
+import { isAbsolute as isAbsolute10, join as join29, normalize, resolve as resolve14 } from "path";
 var OMP_PLAN_APPROVED = "Plan approved.";
 var OMP_PLAN_OPEN = '<plan path="';
 var OMP_PLAN_CLOSE = "</plan>";
@@ -36230,8 +36491,8 @@ function ompAutosaveDir(configText, cwd, home) {
     return;
   const raw = typeof p["autosaveDir"] === "string" ? p["autosaveDir"].trim() : "";
   if (raw === "")
-    return join26(cwd, ".omp", "plans");
-  const dir = raw === "~" ? home : raw.startsWith("~/") ? join26(home, raw.slice(2)) : raw;
+    return join29(cwd, ".omp", "plans");
+  const dir = raw === "~" ? home : raw.startsWith("~/") ? join29(home, raw.slice(2)) : raw;
   return isAbsolute10(dir) ? normalize(dir) : resolve14(cwd, dir);
 }
 function proposeDetails(details) {
@@ -36256,7 +36517,7 @@ function planFileOf(details, artifactsDir, cwd) {
   const parts = rel.split("/").filter((p) => p !== "" && p !== ".");
   if (parts.length === 0 || parts.includes(".."))
     return;
-  return join26(resolve14(artifactsDir, "local"), ...parts);
+  return join29(resolve14(artifactsDir, "local"), ...parts);
 }
 function approvedPlanOf(prompt) {
   const text = prompt.replace(/\r\n?/g, `
@@ -36326,8 +36587,8 @@ function planSavedNote(saved, cwd) {
 }
 
 // src/adapters/shared/project-deps.ts
-import { readdirSync as readdirSync7, readFileSync as readFileSync18, statSync as statSync18 } from "fs";
-import { join as join27, resolve as resolve15 } from "path";
+import { readdirSync as readdirSync9, readFileSync as readFileSync19, statSync as statSync20 } from "fs";
+import { join as join30, resolve as resolve15 } from "path";
 var ROOT_MANIFESTS = ["package.json", "pyproject.toml", "Pipfile", "go.mod", "Cargo.toml", "composer.json", "Gemfile"];
 var REQUIREMENTS = /^(?:requirements|constraints)[\w.-]*\.(?:txt|in)$/i;
 var WORKSPACE_MEMBERS_MAX = 32;
@@ -36337,7 +36598,7 @@ var READ_MAX_BYTES = 1024 * 1024;
 var cache2 = new Map;
 function stamp2(path) {
   try {
-    const st = statSync18(path);
+    const st = statSync20(path);
     return st.isFile() ? `${st.size}:${Math.trunc(st.mtimeMs)}` : undefined;
   } catch {
     return;
@@ -36345,9 +36606,9 @@ function stamp2(path) {
 }
 function readSmall(path) {
   try {
-    if (statSync18(path).size > READ_MAX_BYTES)
+    if (statSync20(path).size > READ_MAX_BYTES)
       return;
-    return readFileSync18(path, "utf8");
+    return readFileSync19(path, "utf8");
   } catch {
     return;
   }
@@ -36367,7 +36628,7 @@ function workspacePatterns(root, pkgText) {
           out.push(p);
     } catch {}
   }
-  const pnpm = readSmall(join27(root, "pnpm-workspace.yaml"));
+  const pnpm = readSmall(join30(root, "pnpm-workspace.yaml"));
   if (pnpm !== undefined) {
     let inPackages = false;
     for (const raw of pnpm.split(`
@@ -36395,18 +36656,18 @@ function memberDirs(root, patterns) {
     if (p === "" || p.startsWith("!") || p.startsWith("/") || p.split("/").includes(".."))
       continue;
     if (p.endsWith("/*") && !/[*?[{]/.test(p.slice(0, -2))) {
-      const base = join27(root, p.slice(0, -2));
+      const base = join30(root, p.slice(0, -2));
       let names = [];
       try {
-        names = readdirSync7(base).sort();
+        names = readdirSync9(base).sort();
       } catch {
         continue;
       }
       for (const n of names)
         if (!n.startsWith(".") && n !== "node_modules")
-          dirs.add(join27(base, n));
+          dirs.add(join30(base, n));
     } else if (!/[*?[{]/.test(p)) {
-      dirs.add(join27(root, p));
+      dirs.add(join30(root, p));
     }
   }
   return [...dirs].sort();
@@ -36417,7 +36678,7 @@ function projectDeps(root) {
   const dir = resolve15(root);
   let names;
   try {
-    names = readdirSync7(dir);
+    names = readdirSync9(dir);
   } catch {
     return [];
   }
@@ -36425,17 +36686,17 @@ function projectDeps(root) {
     ...ROOT_MANIFESTS.filter((n) => names.includes(n)),
     ...names.filter((n) => REQUIREMENTS.test(n)).sort()
   ];
-  const pkgText = files.includes("package.json") ? readSmall(join27(dir, "package.json")) : undefined;
-  const members = pkgText !== undefined || names.includes("pnpm-workspace.yaml") ? memberDirs(dir, workspacePatterns(dir, pkgText)).map((m) => join27(m, "package.json")).filter((p) => stamp2(p) !== undefined).slice(0, WORKSPACE_MEMBERS_MAX) : [];
-  const paths = [...files.map((n) => join27(dir, n)), ...members];
-  const sig = [...paths.map((p) => `${p}=${stamp2(p) ?? ""}`), names.includes("pnpm-workspace.yaml") ? `pnpm=${stamp2(join27(dir, "pnpm-workspace.yaml")) ?? ""}` : ""].join(`
+  const pkgText = files.includes("package.json") ? readSmall(join30(dir, "package.json")) : undefined;
+  const members = pkgText !== undefined || names.includes("pnpm-workspace.yaml") ? memberDirs(dir, workspacePatterns(dir, pkgText)).map((m) => join30(m, "package.json")).filter((p) => stamp2(p) !== undefined).slice(0, WORKSPACE_MEMBERS_MAX) : [];
+  const paths = [...files.map((n) => join30(dir, n)), ...members];
+  const sig = [...paths.map((p) => `${p}=${stamp2(p) ?? ""}`), names.includes("pnpm-workspace.yaml") ? `pnpm=${stamp2(join30(dir, "pnpm-workspace.yaml")) ?? ""}` : ""].join(`
 `);
   const hit = cache2.get(dir);
   if (hit !== undefined && hit.sig === sig)
     return [...hit.deps];
   const deps = new Set;
   for (const p of paths) {
-    const text = p === join27(dir, "package.json") ? pkgText : readSmall(p);
+    const text = p === join30(dir, "package.json") ? pkgText : readSmall(p);
     if (text === undefined)
       continue;
     for (const d of parseManifestDeps(p, text))
@@ -36573,7 +36834,7 @@ function coreEvalGuard() {
 }
 function readText2(path) {
   try {
-    return readFileSync19(path, "utf8");
+    return readFileSync20(path, "utf8");
   } catch {
     return;
   }
@@ -36581,15 +36842,15 @@ function readText2(path) {
 function planFiles(dir) {
   let names;
   try {
-    names = readdirSync8(dir).filter((n) => n.endsWith(".md")).sort();
+    names = readdirSync10(dir).filter((n) => n.endsWith(".md")).sort();
   } catch {
     return [];
   }
   const out = [];
   for (const name of names) {
-    const path = join28(dir, name);
+    const path = join31(dir, name);
     try {
-      const st = statSync19(path);
+      const st = statSync21(path);
       if (st.isFile())
         out.push({ path, mtimeMs: st.mtimeMs });
     } catch {}
@@ -36600,7 +36861,7 @@ function sweepStaged(dir, nowMs) {
   for (const f of planFiles(dir)) {
     if (nowMs - f.mtimeMs > STAGED_PLAN_STALE_MS) {
       try {
-        rmSync3(f.path, { force: true });
+        rmSync4(f.path, { force: true });
       } catch {}
     }
   }
@@ -36611,7 +36872,7 @@ function recentPlans(dir, nowMs, maxAgeMs) {
     if (nowMs - f.mtimeMs > maxAgeMs)
       continue;
     try {
-      out.push({ ...f, text: readFileSync19(f.path, "utf8") });
+      out.push({ ...f, text: readFileSync20(f.path, "utf8") });
     } catch {}
   }
   return out;
@@ -36649,7 +36910,7 @@ function ompPlanStore() {
     sweep: (nowMs) => sweepStaged(ompPlanStagingDir(), nowMs),
     drop: (path) => {
       try {
-        rmSync3(path, { force: true });
+        rmSync4(path, { force: true });
       } catch {}
     }
   };
@@ -36707,14 +36968,14 @@ function defaultDeps() {
     readText: readText2,
     listDir: (path) => {
       try {
-        return readdirSync8(path);
+        return readdirSync10(path);
       } catch {
         return [];
       }
     },
     isFile: (path) => {
       try {
-        return statSync19(path).isFile();
+        return statSync21(path).isFile();
       } catch {
         return false;
       }
@@ -36781,7 +37042,7 @@ function emptyGenerated() {
 }
 
 // src/adapters/omp/runtime/edits.ts
-import { isAbsolute as isAbsolute11, join as join29, resolve as resolve17 } from "path";
+import { isAbsolute as isAbsolute11, join as join32, resolve as resolve17 } from "path";
 var READ_MAX2 = 512 * 1024;
 var SECTION = /^\[(.+)#([0-9A-Fa-f]{4})\]\s*$/;
 var RANGE = /^(?:PUT|CUT)\s+(\d+)\s*\.=\s*(\d+)/;
@@ -36792,7 +37053,7 @@ var SLOPPY_PART = /^\*\*\* (Find|Replace|Insert Before|Insert After)\s*$/;
 function abs(cwd, p, home) {
   const t = p.trim();
   if (home !== undefined && (t === "~" || t.startsWith("~/")))
-    return join29(home, t.slice(2));
+    return join32(home, t.slice(2));
   return isAbsolute11(t) ? resolve17(t) : resolve17(cwd, t);
 }
 function hashline(text, cwd, read, home) {
@@ -37371,6 +37632,7 @@ var GENERATED = {
     memory: {
       exclude: [],
       ui: {
+        autostart: true,
         port: 41777
       }
     },
@@ -38803,8 +39065,8 @@ function contextWatch(warned, pct, cfg) {
 }
 
 // src/adapters/shared/notices.ts
-import { closeSync as closeSync6, mkdirSync as mkdirSync11, openSync as openSync6, readdirSync as readdirSync9, writeSync as writeSync5 } from "fs";
-import { join as join30 } from "path";
+import { closeSync as closeSync7, mkdirSync as mkdirSync12, openSync as openSync7, readdirSync as readdirSync11, writeSync as writeSync5 } from "fs";
+import { join as join33 } from "path";
 
 // src/core/notices.ts
 var NOTICE_ID = /^[a-z0-9][a-z0-9.-]{0,63}$/;
@@ -38872,7 +39134,7 @@ function noticesOff(env = process.env) {
 }
 function ackedIds(dir) {
   try {
-    return new Set(readdirSync9(dir).filter((n) => n.endsWith(".ack")).map((n) => n.slice(0, -4)));
+    return new Set(readdirSync11(dir).filter((n) => n.endsWith(".ack")).map((n) => n.slice(0, -4)));
   } catch {
     return new Set;
   }
@@ -38885,7 +39147,7 @@ function claimNotices(list, o) {
   if (pending.length === 0)
     return [];
   try {
-    mkdirSync11(dir, { recursive: true });
+    mkdirSync12(dir, { recursive: true });
   } catch (e) {
     log("warn", "notices: cannot create the acknowledgement folder; nothing is shown", { error: e });
     return [];
@@ -38893,12 +39155,12 @@ function claimNotices(list, o) {
   const claimed = [];
   for (const n of pending) {
     try {
-      const fd = openSync6(join30(dir, `${n.id}.ack`), "wx", 384);
+      const fd = openSync7(join33(dir, `${n.id}.ack`), "wx", 384);
       try {
         writeSync5(fd, `${JSON.stringify({ at: o.nowMs, version: o.version, harness: o.harness })}
 `);
       } finally {
-        closeSync6(fd);
+        closeSync7(fd);
       }
       claimed.push(n);
     } catch (e) {
@@ -39044,8 +39306,8 @@ function memoryPaneLines(status, url, brain) {
 // src/engine/hook-health.ts
 init_fsx();
 init_paths();
-import { existsSync as existsSync13, readFileSync as readFileSync21, rmSync as rmSync5, statSync as statSync21 } from "fs";
-import { join as join32 } from "path";
+import { existsSync as existsSync14, readFileSync as readFileSync22, rmSync as rmSync6, statSync as statSync23 } from "fs";
+import { join as join35 } from "path";
 var HOOK_FAILURE_MESSAGES = ["hook handler failed", "hook command failed before dispatch", "hook runtime failed"];
 var DAY_MS = 86400000;
 function str6(x) {
@@ -39095,7 +39357,7 @@ function scanHookFailures(nowMs, windowMs = DAY_MS, file = logFile()) {
   for (const f of [`${file}.1`, file]) {
     let text;
     try {
-      text = readFileSync21(f, "utf8");
+      text = readFileSync22(f, "utf8");
     } catch {
       continue;
     }
@@ -39114,12 +39376,12 @@ function scanHookFailures(nowMs, windowMs = DAY_MS, file = logFile()) {
   return out;
 }
 function hookHealthCacheFile() {
-  return join32(buracleHome(), "cache", "hook-health.json");
+  return join35(buracleHome(), "cache", "hook-health.json");
 }
 function hookHealthForStatus(nowMs, maxAgeMs = 60000) {
   const file = hookHealthCacheFile();
   try {
-    const c = JSON.parse(readFileSync21(file, "utf8"));
+    const c = JSON.parse(readFileSync22(file, "utf8"));
     if (typeof c.at === "number" && nowMs - c.at >= 0 && nowMs - c.at < maxAgeMs && c.summary !== undefined && typeof c.summary.failures === "number")
       return c.summary;
   } catch {}
@@ -39136,11 +39398,11 @@ function hookHealthForStatus(nowMs, maxAgeMs = 60000) {
   return summary;
 }
 function runtimeDriftCacheFile() {
-  return join32(buracleHome(), "cache", "runtime-drift.json");
+  return join35(buracleHome(), "cache", "runtime-drift.json");
 }
 function shimStamp() {
   try {
-    const s = statSync21(join32(binDir(), "buracle"));
+    const s = statSync23(join35(binDir(), "buracle"));
     return `${s.size}:${s.mtimeMs}`;
   } catch {
     return "";
@@ -39150,7 +39412,7 @@ async function runtimeBehindForStatus(nowMs, maxAgeMs = 300000) {
   const file = runtimeDriftCacheFile();
   const stamp = shimStamp();
   try {
-    const c = JSON.parse(readFileSync21(file, "utf8"));
+    const c = JSON.parse(readFileSync22(file, "utf8"));
     if (typeof c.at === "number" && nowMs - c.at >= 0 && nowMs - c.at < maxAgeMs && typeof c.behind === "boolean" && c.shim === stamp)
       return c.behind;
   } catch {}
@@ -39165,7 +39427,7 @@ async function runtimeBehindForStatus(nowMs, maxAgeMs = 300000) {
   } catch {
     return false;
   }
-  if (!existsSync13(buracleHome()))
+  if (!existsSync14(buracleHome()))
     return behind;
   try {
     atomicWriteSync(file, JSON.stringify({ at: nowMs, behind, shim: stamp }) + `
@@ -39922,6 +40184,11 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
 `) } : undefined;
     };
     pi.on("tool_result", async (event, ctx) => {
+      if (isMain(ctx)) {
+        const sid = sessionOf(ctx);
+        if (sid !== undefined)
+          guarded("memory ui", () => deps.memory.ui?.seen(sid));
+      }
       const masked = guarded("mask", () => maskResult(event, ctx, { redact: liveOrDefaults().config.guards.redact, mcpIds: data.mcpIds, home: deps.home() }));
       const withMasked = (r) => masked === undefined ? r : { ...r ?? {}, content: masked };
       try {
@@ -39992,6 +40259,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
       guarded("session record touch", () => {
         deps.memory.promptSeen?.(sid);
       });
+      guarded("memory ui", () => deps.memory.ui?.seen(sid));
       const wfExpanded = expanded ? workflowOfExpanded(raw) : undefined;
       const text = wfExpanded !== undefined ? wfExpanded.args : raw.trim();
       if (wfExpanded === undefined && !isModelPrompt(text)) {
@@ -40185,8 +40453,13 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
       const sid = sessionOf(ctx);
       if (sid === undefined)
         return;
-      if (currentSid !== undefined && currentSid !== sid)
-        finalize(currentSid).catch((e) => report("finalizer", e));
+      if (currentSid !== undefined && currentSid !== sid) {
+        const previous = currentSid;
+        guarded("memory ui", () => deps.memory.ui?.ended(previous));
+        finalize(previous).catch((e) => report("finalizer", e));
+      }
+      if (isMain(ctx) && currentSid !== sid)
+        guarded("memory ui", () => deps.memory.ui?.started(sid));
       currentSid = sid;
       deps.setEnv("BURACLE_SESSION_ID", sid);
       deps.setEnv("BURACLE_HARNESS", "omp");
@@ -40256,6 +40529,8 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
         if (!isMain(ctx))
           return;
         const sid = sessionOf(ctx) ?? currentSid;
+        if (sid !== undefined)
+          guarded("memory ui", () => deps.memory.ui?.ended(sid));
         if (sid !== undefined)
           await finalize(sid);
       } catch (e) {

@@ -146,11 +146,18 @@ export interface FakeMemory extends MemoryBridge {
   finalized: string[]
   handoffs: HandoffRequest[]
   contexts: Array<{ cwd: string, maxBytes: number }>
+  /** The memory UI's session calls, as `started <sid>`, `seen <sid>`, `ended <sid>`. */
+  uiCalls: string[]
 }
 
 export function fakeMemory(context?: string): FakeMemory {
   const m: FakeMemory = {
-    appended: [], started: [], prompts: [], finalized: [], handoffs: [], contexts: [],
+    appended: [], started: [], prompts: [], finalized: [], handoffs: [], contexts: [], uiCalls: [],
+    ui: {
+      started: sid => { m.uiCalls.push(`started ${sid}`) },
+      seen: sid => { m.uiCalls.push(`seen ${sid}`) },
+      ended: sid => { m.uiCalls.push(`ended ${sid}`) },
+    },
     append(sid, entries) { m.appended.push({ sid, entries }) },
     start(sid, cwd) { m.started.push({ sid, cwd }) },
     prompt(sid) { m.prompts.push(sid) },

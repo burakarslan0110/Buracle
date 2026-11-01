@@ -4,6 +4,7 @@ import * as paths from '../paths'
 import { exeName, isWindows } from '../platform'
 import { uvBinDir } from './packages'
 import type { ToolchainState } from './state'
+import { pinnedAsset } from './system-download'
 
 export interface ToolLink {
   bin: string
@@ -32,7 +33,16 @@ export function toolchainLinks(state: ToolchainState): ToolLink[] {
     }
   }
   const dirs = paths.toolchainBinDirs()
-  for (const rec of Object.values(state.system)) {
+  for (const [name, rec] of Object.entries(state.system)) {
+    // A pinned download links every program it brings (node with npm and npx, uv with uvx), for the agents' shells.
+    if (rec.via === 'download') {
+      const pinned = pinnedAsset(name)
+      for (const [bin, rel] of Object.entries(pinned?.asset.bins ?? {})) {
+        const target = join(paths.systemToolsDir(), name, rel)
+        if (BIN_NAME.test(bin) && existsSync(target)) add(bin, target)
+      }
+      continue
+    }
     const target = rec.path
     if ((rec.via !== 'go' && rec.via !== 'dotnet') || target === undefined) continue
     if (!dirs.some(d => target.startsWith(d + sep)) || !existsSync(target)) continue

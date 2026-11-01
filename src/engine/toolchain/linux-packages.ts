@@ -15,6 +15,8 @@ const PACKAGES: Readonly<Record<string, Readonly<Partial<Record<LinuxPackageMana
   git: { 'apt-get': 'git', dnf: 'git', yum: 'git', pacman: 'git', apk: 'git', zypper: 'git' },
   curl: { 'apt-get': 'curl', dnf: 'curl', yum: 'curl', pacman: 'curl', apk: 'curl', zypper: 'curl' },
   unzip: { 'apt-get': 'unzip', dnf: 'unzip', yum: 'unzip', pacman: 'unzip', apk: 'unzip', zypper: 'unzip' },
+  // The official Node.js builds for Linux need libatomic.so.1; a minimal system lacks it (install.sh checks it).
+  libatomic: { 'apt-get': 'libatomic1', dnf: 'libatomic', yum: 'libatomic', pacman: 'gcc-libs', apk: 'libatomic', zypper: 'libatomic1' },
   jq: { 'apt-get': 'jq', dnf: 'jq', yum: 'jq', pacman: 'jq', apk: 'jq', zypper: 'jq' },
   rg: { 'apt-get': 'ripgrep', dnf: 'ripgrep', yum: 'ripgrep', pacman: 'ripgrep', apk: 'ripgrep', zypper: 'ripgrep' },
   node: { 'apt-get': 'nodejs npm', dnf: 'nodejs npm', yum: 'nodejs npm', pacman: 'nodejs npm', apk: 'nodejs npm', zypper: 'nodejs-default npm-default' },

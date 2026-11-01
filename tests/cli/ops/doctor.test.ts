@@ -370,6 +370,15 @@ describe('buracle doctor', () => {
     })
   }))
 
+  test.skipIf(process.platform === 'win32')('the Bun the install script put in ~/.bun/bin counts though a new terminal has it not on PATH yet', () => withSandbox(async ({ home }) => {
+    const bun: ToolSpec = { name: 'bun', check: ['bun', '--version'], version_regex: '(\\d+\\.\\d+\\.\\d+)', required: true }
+    mkdirSync(join(home, '.bun', 'bin'), { recursive: true })
+    writeFileSync(join(home, '.bun', 'bin', 'bun'), '#!/bin/sh\necho 1.4.3\n', { mode: 0o755 })
+    await withDeps({ run: async (argv, opts) => (argv[0] === 'bun' ? { code: 127, stdout: '', stderr: '', timedOut: false } : runProcess(argv, opts ?? {})) }, async () => {
+      expect((await checkTools([bun], 5000, emptyToolchainState()))[0]).toMatchObject({ name: 'bun', status: 'ok', version: '1.4.3' })
+    })
+  }))
+
   test('skills: in the Claude plugin and linked into ~/.agents/skills for the other harnesses', () => withSandbox(async ({ root }) => {
     const repo = join(root, 'repo')
     for (const id of ['plan-build', 'bugfix']) {
@@ -385,6 +394,21 @@ describe('buracle doctor', () => {
     expect(skillChecks(['plan-build', 'bugfix'], repo, { claude: true, shared: true }).every(c => c.level === 'ok')).toBe(true)
     expect(skillChecks(['plan-build', 'gone'], repo, { claude: true, shared: false })[0]).toMatchObject({ level: 'error', detail: expect.stringContaining('gone') })
   }))
+
+  test('the shared skills are checked only when Codex, OpenCode or Oh My Pi is installed, as install links them only then', () => withSandbox(async ({ root }) => {
+    const repo = makeRepo(root, { 'canonical/skills/demo/SKILL.md': '---\nname: demo\ndescription: A demo skill.\n---\nBody.\n' })
+    const shared = async (installed: boolean): Promise<{ level: string } | undefined> => {
+      const adapters = [fakeAdapter('claude'), fakeAdapter('codex', { installed }), fakeAdapter('opencode', { installed: false }), fakeAdapter('omp', { installed: false })]
+      return withDeps({ repoRoot: () => repo, adapters: async () => adapters, runCli: fakeCli().runCli }, async () => {
+        const io = memoryIO({ json: true })
+        await doctorRun(['codex', '--json'], io)
+        const r = JSON.parse(io.out()) as { checks: Array<{ section: string, level: string, check: string }> }
+        return r.checks.find(c => c.section === 'skills' && c.check === 'shared (~/.agents/skills)')
+      })
+    }
+    expect(await shared(false)).toBeUndefined()
+    expect(await shared(true)).toMatchObject({ level: 'error' })
+  }), 60_000)
 
   test('the terminal report: one block per section, a symbol per check, the summary in English', () => {
     const text = styledReport(makeStyle(0), [

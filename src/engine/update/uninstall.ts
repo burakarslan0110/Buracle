@@ -230,11 +230,11 @@ function knownEntry(dir: string, name: string): boolean {
   if (TMP_FILE.test(name)) return true
   switch (dir) {
     case paths.binDir(): return name === 'buracle'
-    case paths.stateDir(): return ['owned.json', 'health.json', 'updates.json', 'usage.json', 'runtime-config.json', 'txn.lock', 'install-record.json', 'memory', 'usage.lock', 'notifications.jsonl', 'notifications-read.json', 'toolchain.json', 'toolchain.json.lock', 'memory-ui.json', 'index', 'skills.json'].includes(name) || name.startsWith('usage.spawn.') || name.startsWith('toolchain.spawn.')
-    case paths.toolchainDir(): return ['npm', 'uv', 'go', 'dotnet', 'cortexdb'].includes(name)
+    case paths.stateDir(): return ['owned.json', 'health.json', 'updates.json', 'usage.json', 'runtime-config.json', 'txn.lock', 'install-record.json', 'memory', 'usage.lock', 'notifications.jsonl', 'notifications-read.json', 'toolchain.json', 'toolchain.json.lock', 'memory-ui.json', 'memory-ui.spawn', 'ui-sessions', 'shell-path.json', 'index', 'skills.json'].includes(name) || name.startsWith('usage.spawn.') || name.startsWith('toolchain.spawn.')
+    case paths.toolchainDir(): return ['npm', 'uv', 'go', 'dotnet', 'cortexdb', 'system'].includes(name)
     case paths.sessionsDir(): case paths.runDir(): return HARNESS_DIRS.includes(name)
     case join(paths.buracleHome(), 'cache'): return CACHE_ENTRIES.includes(name)
-    case paths.logsDir(): return /^buracle\.log(\.\d+)?$/.test(name)
+    case paths.logsDir(): return /^buracle\.log(\.\d+)?$/.test(name) || paths.INSTALL_LOG_RE.test(name)
     case paths.backupsDir(): return TXN_DIR.test(name)
     case paths.journalDir(): return /^\d{8}T\d{9}Z-[0-9a-f]{6}\.json$/.test(name) || name === '_checkpoint.json'
     case legacyContextModeHome(): return LEGACY_CONTEXT_MODE_DIRS.includes(name)
@@ -299,6 +299,22 @@ export async function stopMemoryUi(): Promise<{ status: 'none' | 'stopped' | 'no
   } catch {
     return { status: 'none' }
   }
+}
+
+/**
+ * The system tools the install downloaded (node, uv, rg, jq under toolchain/system) and their records: Buracle's own
+ * copies of programs the machine lacked, so a plain uninstall removes them (the npm and uv packages stay for a purge).
+ */
+export async function removeDownloadedTools(nowMs: number): Promise<string[]> {
+  const dir = paths.systemToolsDir()
+  if (!existsSync(dir)) return []
+  const names = readdirSync(dir).filter(n => !n.startsWith('.')).sort()
+  rmSync(dir, { recursive: true, force: true })
+  if (existsSync(paths.toolchainStateFile())) {
+    const { updateToolchainState } = await import('../toolchain/state')
+    updateToolchainState(s => { for (const [k, r] of Object.entries(s.system)) if (r.via === 'download') delete s.system[k] }, new Date(nowMs).toISOString())
+  }
+  return names
 }
 
 export const VAULT_PRE_COMMIT_MARKER = '# Installed by buracle: refuse commits that contain secrets.'

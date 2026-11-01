@@ -165,6 +165,21 @@ describe('buracle mcp run: the launcher becomes the server (PERF-5)', () => {
     })
   })
 
+  test('the server finds the tools Buracle downloaded first on its PATH (an npm server that runs `node` itself)', async () => {
+    await withSandbox(async ({ root }) => {
+      const pathFile = join(root, 'server.path')
+      const nodeBin = paths.systemToolBinDirs()[0] as string
+      mkdirSync(nodeBin, { recursive: true })
+      installWebSearch(fakeExe(join(root, 'tc', 'open-websearch'), `fs.writeFileSync(${q(pathFile)}, process.env.PATH ?? process.env.Path ?? '')\nawait Bun.stdin.text()`))
+      const proc = launch()
+      const seen = await textIn(pathFile)
+      proc.stdin.write('x\n')
+      await proc.stdin.end()
+      await proc.exited
+      expect(seen.split(IS_WINDOWS ? ';' : ':')[0]).toBe(nodeBin)
+    })
+  })
+
   test('without execve (Windows) the server runs as the launcher\'s child and its exit code is passed on', async () => {
     await withSandbox(async ({ root }) => {
       const pidFile = join(root, 'server.pid')

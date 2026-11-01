@@ -21,6 +21,8 @@ import {
 } from '../../engine/update/install-core'
 import { discardRuntime, planRuntime, pruneRuntimes, readShim, runtimeDirOf, runtimeModeFromEnv, stageRuntime, type RuntimeMode, type RuntimePlan } from '../../engine/update/runtime'
 import { errText, isInside, table, tilde, tildeText, writeJson } from '../../engine/update/output'
+import { addLocalBinToPath } from '../../engine/update/shell-path'
+import { isWindows } from '../../engine/platform'
 import type { ToolchainItem } from '../../engine/toolchain/index'
 import { lspRecommendationPlan } from '../../adapters/claude/install'
 import { codexTrustPlan } from '../../adapters/codex/trust'
@@ -32,12 +34,21 @@ import { heading, padEnd, styleFor, wordmark, type Style } from '../ui/style'
 export const name = 'install'
 export const summary = 'Set up or repair Buracle in every detected harness (first setup included)'
 export const usage = `Usage: buracle install [<harness>…] [--dry-run] [--yes] [--json]
+       buracle install --script --log <file> [--started <epoch ms>] [--path-note <text>] [--yes]
 
 Sets Buracle up, repairs it, and makes edits in the checkout live, in one command. With
 harness names (${HARNESSES.join(', ')}) only those harnesses are installed.
 On a new machine it creates ~/.buracle/config.yaml (repo: this checkout), the
 ~/.buracle/bin/buracle shim and its ~/.local/bin/buracle link, and the memory folder
-(~/.buracle/brain), and says what is left (PATH, a harness to install).
+(~/.buracle/brain), puts ~/.local/bin on PATH in the shell's startup file when PATH
+lacks it (macOS and Linux; one marked block, \`buracle uninstall\` takes it out), and says
+what is left (a harness to install).
+
+--script is what scripts/install.sh and scripts/install.ps1 run: it prints the Harnesses,
+Tools, Memory and Result sections, one line each unless something did not pass, starts the
+memory web UI (memory.ui.autostart), runs the checks of \`buracle doctor\` and writes every
+detail to the install log (--log). --started is when the script began (the Result line
+shows the time taken); --path-note says how install.ps1 put ~/.local/bin on PATH.
 
 It first regenerates harness/ from canonical/ and src/ (\`buracle build\`); a failed build
 installs nothing. --dry-run only checks the generated files and prints the diff of every
@@ -145,6 +156,8 @@ export interface InstallFlowResult {
   removedItems?: number
   outsideLinks?: number
   ledgerLost?: boolean
+  /** The shell startup file the install added ~/.local/bin to (POSIX, only when PATH lacked it). */
+  pathAdded?: string
 }
 
 function emptyResult(dryRun: boolean): InstallFlowResult {
@@ -658,6 +671,7 @@ export function renderInstallStyled(r: InstallFlowResult, st: Style, columns = 1
   else if (r.applied > 0) lines.push(`  ${st.ok(st.sym.ok)} Applied ${r.applied} change${r.applied === 1 ? '' : 's'}${r.unchanged > 0 ? st.muted(` · ${r.unchanged} already up to date`) : ''}${r.retried ? st.muted(' · retried once because a file changed') : ''}`)
   else if (r.errors.length === 0) lines.push(`  ${st.ok(st.sym.ok)} Everything is already up to date`)
   if (r.pruned > 0 && !r.dryRun) lines.push(`  ${st.accent(st.sym.info)} Removed ${r.pruned} leftover item${r.pruned === 1 ? '' : 's'} from earlier installs`)
+  if (r.pathAdded !== undefined) lines.push(`  ${st.accent(st.sym.info)} ${pathAddedText(r.pathAdded)}`)
   if (r.recovered.length > 0) lines.push(`  ${st.warn(st.sym.warn)} Rolled back an interrupted transaction: ${r.recovered.join(', ')}`)
   for (const c of r.conflicts) lines.push(`  ${st.warn(st.sym.warn)} Kept your value: ${st.muted(tildeText(c.detail))}`)
   for (const k of r.kept) lines.push(`  ${st.accent(st.sym.info)} Kept your value of ${k.key} in ${st.muted(tilde(k.path))}`)
@@ -695,6 +709,7 @@ export function renderInstall(r: InstallFlowResult, io: CommandIO, title = 'bura
     out.write('Everything is already up to date.\n')
   }
   if (r.pruned > 0 && !r.dryRun) out.write(`Removed stale items from earlier installs: ${r.pruned} planned.\n`)
+  if (r.pathAdded !== undefined) out.write(`${pathAddedText(r.pathAdded)}.\n`)
   if (r.recovered.length > 0) out.write(`Recovered (rolled back) interrupted transaction(s): ${r.recovered.join(', ')}\n`)
   if (r.conflicts.length > 0) {
     out.write('Conflicts (your version was kept):\n')
@@ -731,16 +746,26 @@ function onPath(dir: string): boolean {
   return (process.env['PATH'] ?? '').split(delimiter).some(d => d !== '' && resolve(d) === dir)
 }
 
-// What the first setup of a machine still needs, after the install wrote the shim and its link.
+export function pathAddedText(file: string): string {
+  return `Added ${tilde(paths.localBinDir())} to PATH in ${tilde(file)}; open a new terminal to use buracle`
+}
+
+// What the first setup of a machine still needs, after the install wrote the shim and its link. A missing
+// ~/.local/bin on PATH is fixed in the shell's startup file (POSIX); the hint stays only when that cannot be done.
 function firstRunSteps(r: InstallFlowResult): void {
-  if (!onPath(paths.localBinDir())) r.steps.push(`Add ${tilde(paths.localBinDir())} to PATH (e.g. in ~/.zshrc: export PATH="$HOME/.local/bin:$PATH").`)
+  const hint = `Add ${tilde(paths.localBinDir())} to PATH (e.g. in ~/.zshrc: export PATH="$HOME/.local/bin:$PATH").`
+  if (!onPath(paths.localBinDir()) && existsSync(join(paths.localBinDir(), isWindows() ? 'buracle.cmd' : 'buracle'))) {
+    const p = addLocalBinToPath()
+    if (p.changed && p.file !== undefined) r.pathAdded = p.file
+    else if (p.skipped !== 'in-file') r.steps.push(p.reason !== undefined ? `${hint} (${tildeText(p.reason)})` : hint)
+  }
   if (r.harnesses.length > 0 && !r.harnesses.some(h => h.installed)) r.steps.push('No enabled harness was found; install one of Claude Code, Codex, OpenCode or Oh My Pi, then run `buracle install`.')
 }
 
 export async function run(argv: string[], io: CommandIO): Promise<number> {
   const removed = removedFlags(argv, REMOVED_FLAGS)
   if (removed.length > 0) { io.stderr.write(`buracle install: ${removed.join('; ')}\n`); return 1 }
-  const p = parseFlags(argv, { flags: { 'dry-run': 'bool', yes: 'bool', json: 'bool' }, aliases: { y: 'yes' } })
+  const p = parseFlags(argv, { flags: { 'dry-run': 'bool', yes: 'bool', json: 'bool', script: 'bool', log: 'string', started: 'string', 'path-note': 'string' }, aliases: { y: 'yes' } })
   const json = io.flags.json || p.bools.has('json')
   const bad = p.positionals.filter(h => !isHarness(h))
   if (p.errors.length > 0 || bad.length > 0) {
@@ -749,11 +774,21 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     return 1
   }
   const opts: InstallFlowOptions = { dryRun: p.bools.has('dry-run'), yes: p.bools.has('yes'), json }
-  if (!opts.dryRun && !opts.yes && !json && io.stdin.isTTY) opts.ask = q => opsDeps.confirm(q)
+  const interactive = !opts.dryRun && !opts.yes && !json && io.stdin.isTTY === true
+  const started = Number(p.strings.get('started'))
+  const script = p.bools.has('script') && !json && !opts.dryRun
+    ? (await import('./install-script')).scriptSession(io, {
+      log: p.strings.get('log') ?? paths.installLogFile(new Date(opsDeps.now())),
+      startedMs: Number.isFinite(started) && started > 0 ? started : opsDeps.now(),
+      ...(p.strings.get('path-note') !== undefined ? { pathNote: p.strings.get('path-note') as string } : {}),
+      interactive,
+    })
+    : undefined
+  if (interactive) opts.ask = script?.ask ?? (q => opsDeps.confirm(q))
   const hs = p.positionals.filter(isHarness)
   if (hs.length > 0) opts.harnesses = hs
   const scope = opts.harnesses !== undefined ? { harnesses: opts.harnesses } : {}
-  const steps = progressSteps(io, json)
+  const steps = script?.steps ?? progressSteps(io, json)
   opts.progress = steps
   try {
     steps.title(opts.dryRun ? 'install preview' : 'install')
@@ -770,6 +805,7 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
       const first = built.report.errors[0]
       const why = first !== undefined ? `${first.source}: ${first.error}` : 'unknown error'
       steps.done('build', 'err', `The build failed (${why})`)
+      if (script !== undefined) return await script.finish(undefined, `the build failed (${why}); nothing was installed`)
       if (json) writeJson(io.stdout, { ok: false, code: 1, build: built.report, install: null })
       else io.stderr.write(`buracle install: the build failed (${why}); nothing was installed.\n`)
       return 1
@@ -777,6 +813,7 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     steps.done('build', 'ok', rebuilt ? `Rebuilt the generated files: ${built.report.written.length} written, ${built.report.removed.length} removed`
       : built.report.drift.length > 0 ? `${built.report.drift.length} generated file(s) differ from the sources; a preview does not rebuild them` : 'Generated files are up to date')
     const r = await runInstallFlow(opts, io)
+    if (script !== undefined) return await script.finish(r)
     if (!opts.dryRun) firstRunSteps(r)
     if (json) writeJson(io.stdout, { ...r, build: built.report })
     else {

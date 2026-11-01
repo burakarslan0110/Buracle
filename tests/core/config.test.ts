@@ -34,7 +34,7 @@ describe('config migration (renamed keys)', () => {
       'vault', 'memory.qmd', 'memory.git', 'memory.reflect.model',
       'memory.inject', 'memory.distill',
       'memory.reflect.auto', 'memory.reflect.maxRunsPerDay', 'memory.reflect.maxOpsPerRun', 'memory.reflect.maxSubQueries', 'memory.reflect.maxRounds', 'memory.reflect.maxInputTokens', 'memory.reflect.maxOutputTokens', 'memory.reflect.minIntervalMin',
-      'memory.verify', 'memory.heal', 'memory.profile', 'memory.ui.enabled', 'memory.ui.autostart',
+      'memory.verify', 'memory.heal', 'memory.profile', 'memory.ui.enabled',
       'memory.reflect.provider', 'memory.reflect.api', 'memory.llm', 'memory.embed',
       'contextMode',
     ])
@@ -53,8 +53,9 @@ describe('config migration (renamed keys)', () => {
     ])
     const quiet = migrateConfig({ vault: '~/Documents/Buracle', memory: { git: { autoCommit: true, debounceMin: 10 }, profile: { enabled: true }, distill: { auto: true, promote: 'medium' } } }, [])
     expect(quiet).toEqual({ value: {}, notes: [] })
-    expect(migrateConfig({ memory: { profile: { enabled: false }, ui: { autostart: true, port: 41800 } } }, [])).toEqual({
-      value: { memory: { ui: { port: 41800 } } },
+    // memory.ui.autostart is a live setting again (0.6.0): a value an older config still holds is kept, with no note.
+    expect(migrateConfig({ memory: { profile: { enabled: false }, ui: { autostart: false, port: 41800 } } }, [])).toEqual({
+      value: { memory: { ui: { autostart: false, port: 41800 } } },
       notes: ['memory.profile was removed in 0.5.0 (the memory has no background jobs any more; its model-assisted capture runs once at the end of a session, within fixed budgets (src/core/memory/budgets.ts)); its value is ignored (remove it from config.yaml)'],
     })
     expect(migrateConfig({ memory: { reflect: { provider: 'api', auto: false, maxRounds: 2 } } })).toEqual({
@@ -128,7 +129,10 @@ describe('configSchemaLeaves', () => {
       { key: 'plan.questions', t: 'bool' }, { key: 'plan.reviews.changes', t: 'bool' }, { key: 'plan.goalVerification', t: 'bool' },
       { key: 'plan.modelSwitch', t: 'enum', values: ['off', 'manual'] }, { key: 'plan.runaway.perPlan', t: 'int', min: 1 }, { key: 'plan.worktreeDir', t: 'str' },
     ]))
-    expect(configSchemaLeaves('memory.ui')).toEqual([{ key: 'memory.ui.port', t: 'int', min: 1024, max: 65535 }])
+    expect(configSchemaLeaves('memory.ui')).toEqual([{ key: 'memory.ui.port', t: 'int', min: 1024, max: 65535 }, { key: 'memory.ui.autostart', t: 'bool' }])
+    expect(defaultConfig().memory.ui.autostart).toBe(true)
+    const notBool = validateConfig({ ...defaultConfig(), memory: { ui: { port: 41777, autostart: 'yes' }, exclude: [] } })
+    expect(notBool.ok ? [] : notBool.errors).toEqual([expect.stringContaining('memory.ui.autostart: expected boolean')])
   })
 })
 
@@ -208,7 +212,7 @@ describe('mergeConfig', () => {
     })
     expect(merged.routing.strictness).toBe('nudge')
     expect(merged.checkers).toEqual({ enabled: true, timeoutMs: 20000, languages: ['go'] })
-    expect(merged.memory).toEqual({ ui: { port: 41800 }, exclude: [] })
+    expect(merged.memory).toEqual({ ui: { port: 41800, autostart: true }, exclude: [] })
     expect(merged.context).toEqual({ warnPct: 85, criticalPct: 95 })
     expect(merged.repo).toBe('/src/buracle')
   })

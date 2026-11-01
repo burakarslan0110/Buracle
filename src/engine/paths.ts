@@ -161,9 +161,22 @@ export function memoryStateDir(): string { return join(stateDir(), 'memory') }
 export function brainDir(): string { return join(buracleHome(), 'brain') }
 export function pathRulesDir(): string { return join(buracleHome(), 'rules', 'paths') }
 export function toolchainDir(): string { return join(buracleHome(), 'toolchain') }
-export function toolchainBinDirs(): string[] { return [join(toolchainDir(), 'go', 'bin'), join(toolchainDir(), 'dotnet', 'tools')] }
+/** The system tools Buracle downloaded itself (node, uv, rg, jq), one folder each (src/engine/toolchain/system-download.ts). */
+export function systemToolsDir(): string { return join(toolchainDir(), 'system') }
+/** The folders that hold the downloaded tools' programs: Node keeps them in bin/ except on Windows. */
+export function systemToolBinDirs(): string[] {
+  const root = systemToolsDir()
+  return [osName() === 'win32' ? join(root, 'node') : join(root, 'node', 'bin'), join(root, 'uv'), join(root, 'rg'), join(root, 'jq')]
+}
+export function toolchainBinDirs(): string[] { return [join(toolchainDir(), 'go', 'bin'), join(toolchainDir(), 'dotnet', 'tools'), ...systemToolBinDirs()] }
 export function toolchainStateFile(): string { return join(stateDir(), 'toolchain.json') }
 export function memoryUiStateFile(): string { return join(stateDir(), 'memory-ui.json') }
+/** One empty file per open harness session, refreshed by its hooks; the memory UI counts them (src/memory/ui-presence.ts). */
+export function uiSessionsDir(): string { return join(stateDir(), 'ui-sessions') }
+/** Taken (O_EXCL) by the hook that starts the memory UI, so two sessions starting at once start one UI. */
+export function memoryUiSpawnMarker(): string { return join(stateDir(), 'memory-ui.spawn') }
+/** Which shell startup file holds the PATH block the install added (src/engine/update/shell-path.ts). */
+export function shellPathStateFile(): string { return join(stateDir(), 'shell-path.json') }
 export function indexStateDir(): string { return join(stateDir(), 'index') }
 export function ompPlanStagingDir(): string { return join(stateDir(), 'omp-plans') }
 export function noticesDir(): string { return join(stateDir(), 'notices') }
@@ -178,6 +191,12 @@ export function journalDir(): string { return join(buracleHome(), 'journal') }
 export function journalFile(txn: string): string { return join(journalDir(), `${txn}.json`) }
 export function logsDir(): string { return join(buracleHome(), 'logs') }
 export function logFile(): string { return join(logsDir(), 'buracle.log') }
+/** The install log of one day (local date): the scripts and `buracle install --script` append to it. */
+export function installLogFile(now: Date): string {
+  const two = (n: number) => String(n).padStart(2, '0')
+  return join(logsDir(), `install-${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}.log`)
+}
+export const INSTALL_LOG_RE = /^install-\d{4}-\d{2}-\d{2}\.log$/
 
 export const SESSION_ID_RE = /^[A-Za-z0-9._:-]{1,128}$/
 

@@ -47,6 +47,7 @@ import { shellPatchTargets } from './shell-patch'
 import { patchReceiptChanges, spawnNotify } from '../shared/turn-receipt'
 import { commandRan, filesChanged, flowNotice, hooksNotice, joinNotices, turnEnded, turnStarted, withSystemMessage } from './turn-notices'
 import { isSubagentPayload, recordSubagentAlias, subagentLedgerId, subagentWorkspace } from './subagents'
+import { uiSessionHooks, type UiSessionHooks } from '../shared/ui-session'
 
 export { fileCheckNotes } from '../shared/file-checks'
 export { clipBytes, CONTEXT_BUDGET_BYTES, type HookOutcome } from './hook-io'
@@ -89,6 +90,8 @@ export interface CodexHookDeps {
   lspEdits?: (files: readonly string[], opts: { cwd: string, deadlineMs: number, now: () => number }) => Promise<string[]>
   notify?: (title: string, message: string) => void
   hookHealth?: (nowMs: number) => Promise<HookHealth>
+  /** The memory web UI's session record and start (memory.ui.autostart); the shared implementation by default. */
+  ui?: UiSessionHooks
 }
 
 async function loadMemoryFns(): Promise<MemoryFns> {
@@ -130,6 +133,10 @@ export function defaultDeps(): CodexHookDeps {
       return (await import('../../engine/toolchain/lsp-edits')).editDiagnostics(files, opts)
     },
   }
+}
+
+function uiOf(deps: CodexHookDeps): UiSessionHooks {
+  return deps.ui ?? uiSessionHooks
 }
 
 function notifier(ctx: AdapterContext, deps: CodexHookDeps): (title: string, message: string) => void {
@@ -255,6 +262,7 @@ async function onSessionStart(p: Payload, sid: string, cwd: string, ctx: Adapter
   await updateTelemetry(deps, ev, p, sid)
   const sub = isSubagentPayload(p)
   if (!sub && (source === 'startup' || source === 'clear')) await step(ev, 'H24 resetLedger', undefined, () => { resetLedger(H, sid) })
+  if (!sub) await step(ev, 'H14 memory UI', undefined, () => (source === 'compact' ? uiOf(deps).seen(H, sid, now) : uiOf(deps).started(H, sid, now)))
   const workspace = await step(ev, 'H21 workspace', '', () => workspaceStart(p, sid, cwd, ctx, deps, now))
   const assets = sub ? '' : await step(ev, 'H28 project assets', '', () => assetsSessionStart(loadWorkspaceInfo(ctx, sid)?.root, H, assetsOptions(now, deps.assetsSpawn)))
   const card = await step(ev, 'H15 capability card', '', () => capabilityCardText(ctx, deps, sid))
@@ -363,6 +371,7 @@ async function onUserPromptSubmit(p: Payload, sid: string, cwd: string, ctx: Ada
     await spool(deps, ev, sid, [{ ts: now, ev: 'prompt', ...(excerpt !== undefined ? { excerpt } : {}) }])
     if (!captureOff(deps)) await step(ev, 'session record touch', undefined, async () => { (await deps.memory()).promptSeen?.(H, sid, { nowMs: now }) })
   }
+  await step(ev, 'H14 memory UI', undefined, () => uiOf(deps).seen(H, sid, now))
   return contextOutput('UserPromptSubmit', fitParts(parts, core.PROMPT_CONTEXT_MAX_CHARS), flow)
 }
 
@@ -520,6 +529,7 @@ async function onPostToolUse(p: Payload, sid: string, cwd: string, ctx: AdapterC
   const sub = isSubagentPayload(p)
   const context: string[] = []
   const entries: SpoolEntry[] = []
+  if (!sub) await step(ev, 'H14 memory UI', undefined, () => uiOf(deps).seen(H, sid, start))
   let alarm: string | undefined
   const shellPatch = await step(ev, 'shell apply_patch', undefined as { paths: string[], added: Record<string, string> } | undefined, () => {
     const sp = shellPatchOf(p)
@@ -758,6 +768,7 @@ async function onSubagentStart(p: Payload, sid: string, cwd: string, ctx: Adapte
 
 async function onSessionEnd(sid: string, ctx: AdapterContext, deps: CodexHookDeps): Promise<HookOutcome> {
   const ev = 'SessionEnd'
+  await step(ev, 'H14 memory UI', undefined, () => uiOf(deps).ended(H, sid))
   if (captureOff(deps)) return NOTHING
   await step(ev, 'H14 spawnFinalizer', undefined, async () => {
     const m = await deps.memory()

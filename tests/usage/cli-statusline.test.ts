@@ -102,7 +102,7 @@ function writeIndexRecord(root: string, rec: Omit<IndexRecord, 'v' | 'root'>): v
   atomicWriteSync(indexRecordFile(root), JSON.stringify({ v: 1, root, ...rec }))
 }
 
-// The web UI starts only when the user runs `buracle mem ui`, so the footer names it only while its record names a live process (this one).
+// The footer names the web UI only while its record names a live process (this one), however it was started.
 function runningUi(port = 41777): void {
   atomicWriteSync(memoryUiStateFile(), JSON.stringify({ v: 1, pid: process.pid, port, host: '127.0.0.1', url: `http://localhost:${port}`, startedAt: new Date(NOW).toISOString(), version: '0', brain: '' }))
 }

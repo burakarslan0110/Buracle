@@ -5,6 +5,7 @@ import { HARNESSES, isHarness } from '../../core/events'
 import { sanitizeText } from '../../core/status/format'
 import { parseFlags, removedFlags } from '../../engine/update/args'
 import { liveContext, loadBundle } from '../../engine/update/context'
+import { AGENTS_SKILLS_CONSUMERS } from '../../engine/update/install-core'
 import { opsDeps } from '../../engine/update/deps'
 import {
   checkTools, configChecks, doctorExit, harnessChecks, memoryChecks, runMcpDoctor, runtimeChecks, skillChecks, toolChecks, toolchainChecks, toolHealth, updateChecks, type DoctorCheck,
@@ -136,19 +137,23 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
         try { writeHealth({ tools: toolHealth(results, nowIso()) }, nowIso()) } catch {  }
       } else checks.push({ section: 'tools', level: 'error', check: 'tools.yaml', detail: 'canonical data could not be loaded' })
     }
-    if (wants('harness')) checking('the harnesses')
-    if (wants('harness') && 'bundle' in bundle) {
-      const enabled = (h: Harness) => live.config.harnesses[h].enabled && (!isHarness(topic) || topic === h)
-      const ids = bundle.bundle.skills.filter(s => s.frontmatter['harnesses'] === undefined || !Array.isArray(s.frontmatter['harnesses']) || (s.frontmatter['harnesses'] as unknown[]).length > 0).map(s => s.id)
-      checks.push(...skillChecks(ids, repoRoot, { claude: enabled('claude'), shared: enabled('codex') || enabled('opencode') || enabled('omp') }))
-    }
     if (wants('harness')) {
+      checking('the harnesses')
+      let found: DoctorCheck[]
       try {
         const adapters = await opsDeps.adapters()
-        checks.push(...await withLiveProbes(isHarness(topic), () => harnessChecks(adapters, live, isHarness(topic) ? (topic as Harness) : undefined)))
+        found = await withLiveProbes(isHarness(topic), () => harnessChecks(adapters, live, isHarness(topic) ? (topic as Harness) : undefined))
       } catch (e) {
-        checks.push({ section: 'harness', level: 'error', check: 'adapters', detail: errText(e) })
+        found = [{ section: 'harness', level: 'error', check: 'adapters', detail: errText(e) }]
       }
+      if ('bundle' in bundle) {
+        const enabled = (h: Harness) => live.config.harnesses[h].enabled && (!isHarness(topic) || topic === h)
+        // Install links ~/.agents/skills only for an installed Codex, OpenCode or Oh My Pi (compose.ts), so only then is a missing link an error.
+        const installed = (h: Harness) => found.some(c => c.section === h && c.check === 'installed' && c.level === 'ok')
+        const ids = bundle.bundle.skills.filter(s => s.frontmatter['harnesses'] === undefined || !Array.isArray(s.frontmatter['harnesses']) || (s.frontmatter['harnesses'] as unknown[]).length > 0).map(s => s.id)
+        checks.push(...skillChecks(ids, repoRoot, { claude: enabled('claude'), shared: AGENTS_SKILLS_CONSUMERS.some(h => enabled(h) && installed(h)) }))
+      }
+      checks.push(...found)
     }
     if (wants('mcp')) {
       checking('MCP servers')

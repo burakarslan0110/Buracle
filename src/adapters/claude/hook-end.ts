@@ -171,6 +171,7 @@ export function subagentStop(p: Record<string, unknown>, sid: string, d: HookDep
 }
 
 export async function sessionEnd(sid: string, d: HookDeps, now: number): Promise<HookOutcome> {
+  await step('H14 memory UI', undefined, () => d.ui.ended(H, sid))
   if (!captureOff(d)) {
     try {
       const mem = await d.importModule('finalize')

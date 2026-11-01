@@ -85,13 +85,20 @@ export interface MemoryCalls {
   spool: Array<{ sid: string, entries: SpoolEntry[] }>, started: Array<{ sid: string, cwd: string }>, finalized: string[], contexts: string[]
   handoffs: Array<{ sid: string, cwd: string, slug: string, markdown: string, branch?: string }>
   prompts: string[]
+  /** The memory UI's session calls, as `started <sid>`, `seen <sid>`, `ended <sid>`. */
+  ui: string[]
 }
 
 export function fakeMemory(context?: string): { bridge: MemoryBridge, calls: MemoryCalls } {
-  const calls: MemoryCalls = { spool: [], started: [], finalized: [], contexts: [], handoffs: [], prompts: [] }
+  const calls: MemoryCalls = { spool: [], started: [], finalized: [], contexts: [], handoffs: [], prompts: [], ui: [] }
   return {
     calls,
     bridge: {
+      ui: {
+        started(sid) { calls.ui.push(`started ${sid}`) },
+        seen(sid) { calls.ui.push(`seen ${sid}`) },
+        ended(sid) { calls.ui.push(`ended ${sid}`) },
+      },
       async appendSpool(sid, entries) { calls.spool.push({ sid, entries }) },
       async sessionStart(sid, cwd) { calls.started.push({ sid, cwd }) },
       async spawnFinalizer(sid) { calls.finalized.push(sid) },

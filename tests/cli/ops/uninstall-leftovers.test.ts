@@ -6,6 +6,7 @@ import { run as uninstallRun } from '../../../src/cli/commands/uninstall'
 import * as paths from '../../../src/engine/paths'
 import { VAULT_PRE_COMMIT_MARKER } from '../../../src/engine/update/uninstall'
 import { git } from '../../memory/helpers'
+import { IS_WINDOWS, narrowPath } from '../../helpers/fake-exe'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
 import { fakeAdapter, fakeCli, makeRepo, memoryIO, withDeps } from './helpers'
 
@@ -70,6 +71,52 @@ describe('uninstall leftovers (O8)', () => {
         expect(await uninstallRun(['--yes', '--purge-state', '--json'], shared)).toBe(2)
         expect(existsSync(join(paths.toolchainDir(), 'npm'))).toBe(false)
         expect(existsSync(join(paths.toolchainDir(), 'mine.txt'))).toBe(true)
+      })
+    })
+  }))
+
+  test.skipIf(IS_WINDOWS)('a plain uninstall takes out the PATH block the install added and the system tools it downloaded; the npm and uv packages stay', () => withSandbox(async ({ root, home }) => {
+    const repo = makeRepo(root)
+    await withDeps({ repoRoot: () => repo, adapters: async () => [], runCli: fakeCli().runCli }, async () => {
+      await withEnv({ PATH: narrowPath(), SHELL: '/bin/zsh', ZDOTDIR: undefined }, async () => {
+        put(join(home, '.zshrc'), 'alias ll="ls -l"\n')
+        expect(await installRun(['--yes'], memoryIO())).toBe(0)
+        expect(readFileSync(join(home, '.zshrc'), 'utf8')).toContain('# >>> buracle >>>')
+        put(join(paths.systemToolsDir(), 'node', 'bin', 'node'), '#!/bin/sh\n')
+        put(join(paths.toolchainDir(), 'npm', 'srv', 'package.json'), '{}')
+        put(paths.toolchainStateFile(), JSON.stringify({ v: 1, packages: {}, system: { node: { via: 'download', version: '26.13.0', installed_at: 't' }, gh: { via: 'brew', installed_at: 't' } } }) + '\n')
+        const io = memoryIO({ json: true })
+        expect(await uninstallRun(['--yes', '--json'], io)).toBe(0)
+        expect(readFileSync(join(home, '.zshrc'), 'utf8')).toBe('alias ll="ls -l"\n')
+        expect(existsSync(paths.systemToolsDir())).toBe(false)
+        expect(existsSync(join(paths.toolchainDir(), 'npm', 'srv', 'package.json'))).toBe(true)
+        expect(Object.keys((JSON.parse(readFileSync(paths.toolchainStateFile(), 'utf8')) as { system: object }).system)).toEqual(['gh'])
+        const notes = (JSON.parse(io.out()) as { notes: string[] }).notes
+        expect(notes).toContain('Removed the PATH lines Buracle added to ~/.zshrc.')
+        expect(notes.some(n => n.startsWith('Removed the system tools Buracle downloaded (node)'))).toBe(true)
+      })
+    })
+  }))
+
+  test('--purge-state in a shared BURACLE_HOME also removes the UI session records, the UI start marker, the PATH record and the install logs', () => withSandbox(async ({ root, home }) => {
+    const repo = makeRepo(root)
+    const tools = join(home, 'tools')
+    put(join(tools, 'bin', 'my-tool'))
+    await withDeps({ repoRoot: () => repo, adapters: async () => [], runCli: fakeCli().runCli }, async () => {
+      await withEnv({ BURACLE_HOME: tools, PATH: narrowPath(join(home, '.local', 'bin')) }, async () => {
+        expect(await installRun(['--yes'], memoryIO())).toBe(0)
+        put(join(paths.stateDir(), 'ui-sessions', 'claude-s1'), '')
+        put(join(paths.stateDir(), 'memory-ui.spawn'), '1')
+        put(paths.shellPathStateFile(), '{"v":1,"file":"/nowhere/.zshrc"}\n')
+        put(paths.installLogFile(new Date('2026-11-01T10:00:00Z')), 'log\n')
+        put(join(paths.systemToolsDir(), 'jq', 'jq'))
+        await uninstallRun(['--yes', '--purge-state', '--json'], memoryIO({ json: true }))
+        expect(existsSync(join(paths.stateDir(), 'ui-sessions'))).toBe(false)
+        expect(existsSync(join(paths.stateDir(), 'memory-ui.spawn'))).toBe(false)
+        expect(existsSync(paths.shellPathStateFile())).toBe(false)
+        expect(existsSync(paths.installLogFile(new Date('2026-11-01T10:00:00Z')))).toBe(false)
+        expect(existsSync(paths.systemToolsDir())).toBe(false)
+        expect(existsSync(join(tools, 'bin', 'my-tool'))).toBe(true)
       })
     })
   }))

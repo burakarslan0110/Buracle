@@ -85,7 +85,7 @@ export function lspLaunch(s: LspServer, state: ToolchainState, opts: { node?: st
     const pkg = state.packages[packageKey(req.registry, req.name)]
     const entry = pkg?.bins[bin]
     if (pkg === undefined || entry === undefined) return undefined
-    const run = binArgv(entry, opts.node ?? findExecutable('node'))
+    const run = binArgv(entry, opts.node ?? findExecutable('node', { extra: toolchainBinDirs() }))
     return run !== undefined ? { argv: [...run, ...args], source: 'toolchain', version: pkg.version } : undefined
   }
   const onPath = (): LspLaunch | undefined => {

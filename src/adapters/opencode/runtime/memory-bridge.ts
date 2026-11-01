@@ -7,6 +7,8 @@ import { shimArgv, shimLaunch } from '../../../engine/shim'
 import { promptSeen, sessionStart, spawnFinalizer } from '../../../memory/session-record'
 import { cliArgv } from '../../../memory/spawn'
 import { appendSpool } from '../../../memory/spool'
+import { uiBuildId } from '../../../memory/ui-build'
+import { sessionClosed, sessionOpened, sessionSeen, startUiSoon } from '../../../memory/ui-presence'
 
 export type { SpoolEntry }
 
@@ -19,6 +21,31 @@ export interface MemoryBridge {
   finalize(sid: string): void | Promise<unknown>
   context(cwd: string, maxBytes: number): Promise<string | undefined>
   handoff(req: HandoffRequest): Promise<string | undefined>
+  /** The memory web UI's session record (memory.ui.autostart): independent of the capture and of the idle finalize. */
+  ui?: UiBridge
+}
+
+export interface UiBridge {
+  started(sid: string): void
+  seen(sid: string): void
+  ended(sid: string): void
+}
+
+/** The memory UI's session record and start, called in-process (never throws, never waits for the UI). */
+export const uiBridge: UiBridge = {
+  started: sid => {
+    try {
+      sessionOpened('opencode', sid)
+      const build = uiBuildId()
+      startUiSoon(build !== undefined ? { build } : {})
+    } catch (e) { log('warn', 'opencode: memory ui session start failed', { error: e }) }
+  },
+  seen: sid => {
+    try { if (sessionSeen('opencode', sid) === 'revived') startUiSoon() } catch (e) { log('warn', 'opencode: memory ui refresh failed', { error: e }) }
+  },
+  ended: sid => {
+    try { sessionClosed('opencode', sid) } catch {  }
+  },
 }
 
 export function spawnShimFinalizer(sid: string): boolean {
@@ -69,6 +96,7 @@ export const memoryBridge: MemoryBridge = {
   start: (sid, cwd) => sessionStart('opencode', sid, cwd),
   prompt: sid => { promptSeen('opencode', sid) },
   finalize: sid => { if (!spawnShimFinalizer(sid)) spawnFinalizer('opencode', sid) },
+  ui: uiBridge,
   context: async (cwd, maxBytes) => {
     const r = await runCliJson(['mem', 'context', '--harness', 'opencode', '--cwd', cwd, '--json'], { cwd, timeoutMs: 15_000 })
     const text = typeof r?.['text'] === 'string' ? r['text'].trim() : ''

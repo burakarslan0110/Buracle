@@ -369,6 +369,19 @@ describe('omp extension: input (H10) and before_agent_start (H13/H15)', () => {
     expect({ spool: memory.spool, started: memory.started, finalized: memory.finalized }).toEqual({ spool: [], started: [], finalized: [] })
   }))
 
+  test('the memory UI follows the main session: started, refreshed by prompts and tool results, ended at a switch and at shutdown; capture off too', () => withSandbox(async sb => {
+    const { fp, ctx, memory } = setup(sb, { captureEnabled: () => false })
+    await fp.emit('session_start', { type: 'session_start' }, ctx)
+    await fp.emit('input', { type: 'input', text: 'hello', source: 'interactive' }, ctx)
+    await fp.emit('tool_result', { type: 'tool_result', toolCallId: '1', toolName: 'bash', input: { command: 'ls' }, content: [], isError: false }, ctx)
+    const other = '01a118a8-8d01-740c-9360-bbbbbbbbbbbb'
+    const next = fakeCtx({ cwd: ctx.cwd, sid: other })
+    await fp.emit('session_switch', { type: 'session_switch', reason: 'new' }, next)
+    await fp.emit('session_shutdown', { type: 'session_shutdown' }, next)
+    await Bun.sleep(0)
+    expect(memory.ui).toEqual([`started ${SID}`, `seen ${SID}`, `seen ${SID}`, `ended ${SID}`, `started ${other}`, `ended ${other}`])
+  }))
+
   test('BURACLE_NO_CAPTURE: the production probe reads the environment', () => {
     const d = defaultDeps()
     const prev = process.env['BURACLE_NO_CAPTURE']

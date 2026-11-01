@@ -891,3 +891,28 @@ describe('w2 plan state on Codex: the lane guard, the async question pause, the 
     expect(held.decision).toBe('block')
   }))
 })
+
+describe('the memory UI hears about the session (memory.ui.autostart)', () => {
+  function ui(): { calls: string[], hooks: NonNullable<ReturnType<typeof deps>['ui']> } {
+    const calls: string[] = []
+    return {
+      calls,
+      hooks: {
+        started: async (h, s) => { calls.push(`started ${h} ${s}`) },
+        seen: async (h, s) => { calls.push(`seen ${h} ${s}`) },
+        ended: async (h, s) => { calls.push(`ended ${h} ${s}`) },
+      },
+    }
+  }
+
+  test('a session start, a prompt, a tool call and the session end reach it, with the capture off too; a subagent never does', () => withSandbox(async () => {
+    const u = ui()
+    const d = { ...deps({}, {}, { BURACLE_NO_CAPTURE: '1' }), ui: u.hooks }
+    await handleCodexHook('SessionStart', payload('SessionStart', { source: 'startup' }), ctx(), d)
+    await handleCodexHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'hello' }), ctx(), d)
+    await handleCodexHook('PostToolUse', payload('PostToolUse', { tool_name: 'shell', tool_input: { command: ['ls'] }, tool_response: 'ok' }), ctx(), d)
+    await handleCodexHook('PostToolUse', payload('PostToolUse', { tool_name: 'shell', tool_input: { command: ['ls'] }, tool_response: 'ok', agent_id: 'a1' }), ctx(), d)
+    await handleCodexHook('SessionEnd', payload('SessionEnd', {}), ctx(), d)
+    expect(u.calls).toEqual([`started codex ${SID}`, `seen codex ${SID}`, `seen codex ${SID}`, `ended codex ${SID}`])
+  }))
+})

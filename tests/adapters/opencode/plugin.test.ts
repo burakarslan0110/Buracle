@@ -212,6 +212,36 @@ describe('opencode server plugin: setup and lifecycle', () => {
     expect(mem.finalized).toEqual([])
   }))
 
+  test('the memory UI follows root sessions: started, refreshed by prompts and tool calls, ended by session.deleted, never by the idle finalize; capture off too', () => withSandbox(async ({ root }) => {
+    const { f, rt, mem } = await runtime(root, { idleFinalizeMs: 20, capture: () => false })
+    await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: root } } })
+    await rt.idle()
+    await f.trigger('session.prompt', { sessionID: SID, messageID: 'msg_p1', prompt: { text: 'hello' }, delivery: 'steer' })
+    const ls = { command: 'ls' }
+    await f.trigger('tool.execute.before', { tool: 'shell', sessionID: SID, agent: 'build', messageID: 'msg_t1', id: 'call_t1', input: ls })
+    await f.trigger('tool.execute.after', { tool: 'shell', sessionID: SID, agent: 'build', messageID: 'msg_t1', id: 'call_t1', input: ls, status: 'completed', result: { output: { exit: 0 }, content: [{ type: 'text', text: '' }] } } satisfies ToolExecuteAfter)
+    await rt.handleEvent({ type: 'session.execution.started', data: { sessionID: SID } })
+    await rt.handleEvent({ type: 'session.execution.succeeded', data: { sessionID: SID } })
+    await Bun.sleep(60)
+    await rt.idle()
+    expect(mem.uiCalls).toEqual([`started ${SID}`, `seen ${SID}`, `seen ${SID}`])
+    await rt.handleEvent({ type: 'session.created', data: { sessionID: 'ses_child5', parentID: SID, location: { directory: root } } })
+    await rt.handleEvent({ type: 'session.deleted', data: { sessionID: 'ses_child5' } })
+    await rt.handleEvent({ type: 'session.deleted', data: { sessionID: SID } })
+    await rt.idle()
+    expect(mem.uiCalls).toEqual([`started ${SID}`, `seen ${SID}`, `seen ${SID}`, `ended ${SID}`])
+  }))
+
+  test('closing OpenCode (dispose) ends the open root sessions for the memory UI; a runner folder never reaches it', () => withSandbox(async ({ root }) => {
+    const { rt, mem } = await runtime(root)
+    await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: root } } })
+    await rt.handleEvent({ type: 'session.created', data: { sessionID: 'ses_run1', location: { directory: join(root, 'buracle-runner-Ab1') } } })
+    await rt.idle()
+    await rt.dispose()
+    expect(mem.uiCalls.filter(c => c.startsWith('started'))).toEqual([`started ${SID}`])
+    expect(mem.uiCalls).toContain(`ended ${SID}`)
+  }))
+
   test('session.deleted finalizes a root session; invalid ids are ignored', () => withSandbox(async ({ root }) => {
     const { rt, mem } = await runtime(root)
     await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: root } } })

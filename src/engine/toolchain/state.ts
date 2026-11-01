@@ -18,7 +18,7 @@ export interface InstalledPackage {
 }
 
 export interface InstalledSystemTool {
-  via: 'brew' | 'winget' | 'scoop' | 'rustup' | 'go' | 'dotnet' | 'npm' | 'uv' | 'github'
+  via: 'brew' | 'winget' | 'scoop' | 'rustup' | 'go' | 'dotnet' | 'npm' | 'uv' | 'github' | 'download'
   version?: string
   path?: string
   installed_at: string

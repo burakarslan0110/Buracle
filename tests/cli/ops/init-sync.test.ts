@@ -24,7 +24,7 @@ describe('buracle install sets Buracle up on a clean home', () => {
     const cli = fakeCli()
     const adapters = [fakeAdapter('claude', { installed: false }), fakeAdapter('codex', { installed: false })]
     await withDeps({ repoRoot: () => repo, adapters: async () => adapters, runCli: cli.runCli, fetch: noNetwork }, async () => {
-      await withEnv({ PATH: narrowPath() }, async () => {
+      await withEnv({ PATH: narrowPath(), SHELL: '/bin/zsh', ZDOTDIR: undefined }, async () => {
         const io = memoryIO()
         expect(await installRun(['--yes'], io)).toBe(0)
         expect(yamlParse(read(join(buracleHome, 'config.yaml')))).toEqual({ repo })
@@ -32,13 +32,20 @@ describe('buracle install sets Buracle up on a clean home', () => {
         if (IS_WINDOWS) expect(read(`${pathLink()}.cmd`)).toBe(windowsLauncher(paths.shimPath()))
         else expect(readlinkSync(join(home, '.local/bin/buracle'))).toBe(join(buracleHome, 'bin/buracle'))
         expect(io.out()).toContain('claude  -  skipped: not installed')
-        expect(io.out()).toContain('Add ~/.local/bin to PATH')
+        // POSIX: the install puts ~/.local/bin on PATH in the shell's startup file itself; Windows leaves it to install.ps1.
+        if (IS_WINDOWS) expect(io.out()).toContain('Add ~/.local/bin to PATH')
+        else {
+          expect(io.out()).toContain('Added ~/.local/bin to PATH in ~/.zshrc; open a new terminal to use buracle.')
+          expect(io.out()).not.toContain('Add ~/.local/bin to PATH')
+          expect(read(join(home, '.zshrc'))).toBe('# >>> buracle >>>\nexport PATH="$HOME/.local/bin:$PATH"\n# <<< buracle <<<\n')
+        }
         expect(io.out()).toContain('No enabled harness was found; install one of Claude Code, Codex, OpenCode or Oh My Pi, then run `buracle install`.')
 
         const before = snapshotTree(home, rel => rel.startsWith('.buracle/journal') || rel.startsWith('.buracle/backups') || rel.startsWith('.buracle/logs') || rel.startsWith('.buracle/state'))
         const again = memoryIO()
         expect(await installRun(['--yes'], again)).toBe(0)
         expect(again.out()).toContain('Everything is already up to date.')
+        expect(again.out()).not.toContain('Added ~/.local/bin')
         expect(snapshotTree(home, rel => rel.startsWith('.buracle/journal') || rel.startsWith('.buracle/backups') || rel.startsWith('.buracle/logs') || rel.startsWith('.buracle/state'))).toEqual(before)
       })
       await withEnv({ PATH: narrowPath(join(home, '.local', 'bin')) }, async () => {

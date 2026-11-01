@@ -7,11 +7,11 @@ import { serverRequest } from '../../src/engine/toolchain/index'
 import { fallbackNpmCache, launchPlan, serverEnvFor } from '../../src/engine/toolchain/launch'
 import { toolchainLinks } from '../../src/engine/toolchain/links'
 import { claudeLspJson, lspLaunch, lspServers, probeLsp, readToolsCatalog, shortVersion } from '../../src/engine/toolchain/lsp'
-import { binArgv, installNpm, isNodeScript, npmBins, npmInstalledVersion, npmPrefix, npmStagingPrefix, pypiSpec, safeName, toolRequest, UV_PYTHON } from '../../src/engine/toolchain/packages'
+import { binArgv, installNpm, isNodeScript, npmBins, npmInstalledVersion, npmPrefix, npmStagingPrefix, pypiSpec, safeName, toolchainEnv, toolRequest, UV_PYTHON } from '../../src/engine/toolchain/packages'
 import { opsDeps } from '../../src/engine/update/deps'
 import { emptyToolchainState, packageKey, readToolchainState, updateToolchainState, writeToolchainState } from '../../src/engine/toolchain/state'
 import { installAdvice, installSources, installTool, toolApplies, toolchainBinDirs } from '../../src/engine/toolchain/system'
-import { exePath, fakeExe, onlyPath, pathOf, unwrapCmd } from '../helpers/fake-exe'
+import { exePath, fakeExe, IS_WINDOWS, onlyPath, pathOf, unwrapCmd } from '../helpers/fake-exe'
 import { withEnv, withSandbox } from '../helpers/sandbox'
 
 function exe(path: string, text: string): string {
@@ -128,11 +128,13 @@ describe('installing a package server', () => {
 
 describe('install sources', () => {
   const t: ToolSpec = { name: 'rg', check: ['rg', '--version'], version_regex: 'ripgrep (\\d+)', required: true, brew: 'ripgrep', winget: 'BurntSushi.ripgrep.MSVC', scoop: 'ripgrep' }
-  test('macOS uses Homebrew; Windows winget, then scoop; advice when none is there', () => {
-    expect(installSources(t, 'darwin', () => true).map(s => s.label)).toEqual(['brew install ripgrep'])
-    expect(installSources(t, 'win32', () => true).map(s => s.kind)).toEqual(['winget', 'scoop'])
-    expect(installSources(t, 'win32', c => c === 'scoop').map(s => s.kind)).toEqual(['scoop'])
-    expect(installSources(t, 'darwin', () => false)).toEqual([])
+  test('macOS uses Homebrew; Windows winget, then scoop; the pinned download last; advice when none is there', () => {
+    expect(installSources(t, 'darwin', () => true, 'arm64').map(s => s.kind)).toEqual(['brew', 'download'])
+    expect(installSources(t, 'darwin', () => true, 'arm64')[0]?.label).toBe('brew install ripgrep')
+    expect(installSources(t, 'win32', () => true, 'x64').map(s => s.kind)).toEqual(['winget', 'scoop', 'download'])
+    expect(installSources(t, 'win32', c => c === 'scoop', 'x64').map(s => s.kind)).toEqual(['scoop', 'download'])
+    expect(installSources(t, 'darwin', () => false, 'arm64').map(s => s.kind)).toEqual(['download'])
+    expect(installSources(t, 'win32', () => false, 'arm64')).toEqual([])
     expect(installAdvice(t, 'win32')).toBe('winget install --id BurntSushi.ripgrep.MSVC -e --scope user')
     expect(installAdvice(t, 'darwin')).toBe('brew install ripgrep')
     expect(toolApplies({ ...t, platforms: ['win32'] }, 'darwin')).toBe(false)
@@ -309,4 +311,52 @@ describe('language servers', () => {
     expect(silent).toMatchObject({ status: 'down', error: 'no answer to initialize within 800 ms' })
     expect(shortVersion('{"Version":"v0.23.0","Deps":[]}')).toBe('v0.23.0')
   }), 30_000)
+})
+
+describe('the tools Buracle downloaded', () => {
+  test('toolchainEnv puts their folders first on PATH, only the ones that exist', () => withSandbox(async () => {
+    const [nodeBin, uvDir] = paths.systemToolBinDirs() as [string, string]
+    mkdirSync(nodeBin, { recursive: true })
+    const parts = (toolchainEnv().PATH as string).split(IS_WINDOWS ? ';' : ':')
+    expect(parts[0]).toBe(nodeBin)
+    expect(parts).not.toContain(uvDir)
+  }))
+
+  test('the MCP launcher and the LSP launcher run node scripts with the downloaded node when PATH has none', () => withSandbox(async ({ root }) => {
+    const node = fakeExe(join(paths.systemToolBinDirs()[0] as string, 'node'), 'console.log("v26.13.0")')
+    const entry = join(root, 'server.js')
+    writeFileSync(entry, 'console.log(1)\n')
+    const state = emptyToolchainState()
+    state.packages['npm:open-websearch'] = { registry: 'npm', name: 'open-websearch', version: '1.0.0', dir: root, bins: { 'open-websearch': entry }, installed_at: 't' }
+    const empty = join(root, 'empty-bin')
+    mkdirSync(empty, { recursive: true })
+    await withEnv({ PATH: onlyPath(empty), HOME: root }, async () => {
+      const plan = launchPlan('web-search', { description: 'd', transport: 'stdio', package: { registry: 'npm', name: 'open-websearch', version: 'latest', bin: 'open-websearch' }, harnesses: ['claude'], pin: 'latest', critical: true } as McpServerSpec, state)
+      expect(plan).toMatchObject({ source: 'toolchain', argv: [node, entry] })
+      expect(binArgv(entry)).toEqual([node, entry])
+    })
+  }))
+
+  test('npm in the downloaded node folder is used when PATH has none', () => withSandbox(async ({ root }) => {
+    fakeExe(join(paths.systemToolBinDirs()[0] as string, 'npm'), 'process.exit(3)')
+    const empty = join(root, 'empty-bin')
+    mkdirSync(empty, { recursive: true })
+    await withEnv({ PATH: onlyPath(empty), HOME: root }, async () => {
+      const r = await installNpm({ registry: 'npm', name: 'open-websearch', version: '1.0.0' }, '1.0.0', 't')
+      expect(r.ok).toBe(false)
+      expect(r.ok ? '' : r.error).toContain('npm install open-websearch@1.0.0 failed (exit 3)')
+    })
+  }))
+
+  test('the downloaded programs are linked into ~/.local/bin, only for a download record', () => withSandbox(async () => {
+    const nodeDir = join(paths.systemToolsDir(), 'node')
+    const bins = IS_WINDOWS ? ['node.exe', 'npm.cmd', 'npx.cmd'] : ['bin/node', 'bin/npm', 'bin/npx']
+    for (const b of bins) exe(join(nodeDir, b), 'x')
+    const state = emptyToolchainState()
+    state.system['node'] = { via: 'download', version: '26.13.0', path: join(nodeDir, bins[0] as string), installed_at: 't' }
+    expect(toolchainLinks(state).map(l => l.bin).sort()).toEqual(['node', 'npm', 'npx'])
+    expect(toolchainLinks(state).map(l => l.target).sort()).toEqual(bins.map(b => join(nodeDir, b)).sort())
+    state.system['node'] = { via: 'brew', version: '26.13.0', path: join(nodeDir, bins[0] as string), installed_at: 't' }
+    expect(toolchainLinks(state)).toEqual([])
+  }))
 })

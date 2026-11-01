@@ -92,8 +92,10 @@ describe('installAdvice and installSources on Linux', () => {
     expect(installAdvice(uv, 'win32', none)).toBe('winget install --id astral-sh.uv -e --scope user')
   })
 
-  test('Buracle has no installer to run on Linux other than Homebrew, so a missing system tool is only reported', () => {
-    expect(installSources(node, 'linux', c => c === 'apt-get' || c === 'dnf' || c === 'pacman')).toEqual([])
-    expect(installSources(node, 'linux', c => c === 'brew').map(s => s.kind)).toEqual(['brew'])
+  test('Buracle never runs the Linux package manager: without Homebrew a missing pinned tool is downloaded, any other is only reported', () => {
+    const apt = (c: string) => c === 'apt-get' || c === 'dnf' || c === 'pacman'
+    expect(installSources(node, 'linux', apt, 'x64').map(s => s.kind)).toEqual(['download'])
+    expect(installSources(node, 'linux', c => c === 'brew', 'x64').map(s => s.kind)).toEqual(['brew', 'download'])
+    expect(installSources(gh, 'linux', apt, 'x64')).toEqual([])
   })
 })

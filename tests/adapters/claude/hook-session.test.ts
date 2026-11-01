@@ -117,3 +117,43 @@ describe('H17 one-time notices at a Claude Code session start', () => {
     expect(again.context).not.toContain('Buracle notice')
   })))
 })
+
+describe('the memory UI hears about the session (memory.ui.autostart)', () => {
+  function recorder(): { calls: string[], ui: NonNullable<HookDeps['ui']> } {
+    const calls: string[] = []
+    return {
+      calls,
+      ui: {
+        started: async (h, s) => { calls.push(`started ${h} ${s}`) },
+        seen: async (h, s) => { calls.push(`seen ${h} ${s}`) },
+        ended: async (h, s) => { calls.push(`ended ${h} ${s}`) },
+      },
+    }
+  }
+
+  test('a session start, a prompt, a tool call and the session end reach it, with the capture off too', () => withSandbox(async () => {
+    await withEnv({ BURACLE_NO_CAPTURE: '1' }, async () => {
+      const r = recorder()
+      await claudeHook('SessionStart', payload('SessionStart', { source: 'startup' }), ctx(), deps({ ui: r.ui }))
+      await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'hello' }), ctx(), deps({ ui: r.ui }))
+      await claudeHook('PostToolUse', payload('PostToolUse', { tool_name: 'Bash', tool_input: { command: 'ls' }, tool_response: { stdout: '' } }), ctx(), deps({ ui: r.ui }))
+      await claudeHook('SessionEnd', payload('SessionEnd', { reason: 'exit' }), ctx(), deps({ ui: r.ui }))
+      expect(r.calls).toEqual([`started claude ${SID}`, `seen claude ${SID}`, `seen claude ${SID}`, `ended claude ${SID}`])
+    })
+  }))
+
+  test('a subagent never writes a record; a compaction is no new session', () => withSandbox(async () => {
+    const r = recorder()
+    await claudeHook('SessionStart', payload('SessionStart', { source: 'startup', agent_id: 'a1' }), ctx(), deps({ ui: r.ui }))
+    await claudeHook('PostToolUse', payload('PostToolUse', { tool_name: 'Bash', tool_input: { command: 'ls' }, tool_response: {}, agent_id: 'a1' }), ctx(), deps({ ui: r.ui }))
+    await claudeHook('SessionStart', payload('SessionStart', { source: 'compact' }), ctx(), deps({ ui: r.ui }))
+    expect(r.calls).toEqual([`seen claude ${SID}`])
+  }))
+
+  test('a failing UI hook never breaks the session start', () => withSandbox(async () => {
+    const boom = async () => { throw new Error('EIO') }
+    const res = await claudeHook('SessionStart', payload('SessionStart', { source: 'startup' }), ctx(), deps({ ui: { started: boom, seen: boom, ended: boom } }))
+    expect(res.exitCode).toBe(0)
+    expect(out(res.stdout).context).toContain('Buracle')
+  }))
+})

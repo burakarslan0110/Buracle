@@ -7,6 +7,7 @@ import { exeName, findExecutable, osName, spawnArgv, type OsName } from '../plat
 import { defaultLinuxEnv, linuxInstallHint, type LinuxEnv } from './linux-packages'
 import { installPackage, toolchainEnv, toolRequest } from './packages'
 import type { InstalledPackage, InstalledSystemTool } from './state'
+import { installPinnedTool, isPinnedTool, pinnedAsset, type PinnedInstallOptions } from './system-download'
 
 export interface ToolCheck { name: string; status: 'ok' | 'missing' | 'error'; version?: string; path?: string; detail: string }
 
@@ -30,7 +31,7 @@ export async function checkTool(t: ToolSpec, timeoutMs = 8000): Promise<ToolChec
   return version !== undefined ? { name: t.name, status: 'ok', version, path, detail: version } : { name: t.name, status: 'ok', path, detail: 'present (version not recognized)' }
 }
 
-export type SourceKind = 'rustup' | 'brew' | 'winget' | 'scoop' | 'npm' | 'pypi' | 'go' | 'dotnet'
+export type SourceKind = 'rustup' | 'brew' | 'winget' | 'scoop' | 'download' | 'npm' | 'pypi' | 'go' | 'dotnet'
 
 export interface InstallSource { kind: SourceKind; ref: string; label: string }
 
@@ -38,7 +39,7 @@ function missingRequirements(t: ToolSpec, have: (cmd: string) => boolean): strin
   return (t.requires ?? []).filter(c => !have(c))
 }
 
-export function installSources(t: ToolSpec, os: OsName = osName(), have: (cmd: string) => boolean = c => findExecutable(c) !== undefined): InstallSource[] {
+export function installSources(t: ToolSpec, os: OsName = osName(), have: (cmd: string) => boolean = c => findExecutable(c) !== undefined, arch: string = process.arch): InstallSource[] {
   const out: InstallSource[] = []
   if (missingRequirements(t, have).length > 0) return out
   // rustup's proxy for a component shadows any other copy on PATH until the component is added, so it comes first.
@@ -46,6 +47,9 @@ export function installSources(t: ToolSpec, os: OsName = osName(), have: (cmd: s
   if (os !== 'win32' && t.brew !== undefined && have('brew')) out.push({ kind: 'brew', ref: t.brew, label: `brew install ${t.brew}` })
   if (os === 'win32' && t.winget !== undefined && have('winget')) out.push({ kind: 'winget', ref: t.winget, label: `winget install ${t.winget}` })
   if (os === 'win32' && t.scoop !== undefined && have('scoop')) out.push({ kind: 'scoop', ref: t.scoop, label: `scoop install ${t.scoop}` })
+  // node, uv, rg and jq at the pinned version, sha256-checked, into the Buracle toolchain: no sudo, no package manager.
+  const pinned = pinnedAsset(t.name, os, arch)
+  if (pinned !== undefined) out.push({ kind: 'download', ref: `${t.name}@${pinned.version}`, label: `${t.name} ${pinned.version} download (Buracle toolchain)` })
   if (t.npm !== undefined) out.push({ kind: 'npm', ref: t.npm, label: `npm ${t.npm} (Buracle toolchain)` })
   if (t.pypi !== undefined) out.push({ kind: 'pypi', ref: t.pypi, label: `uv tool ${t.pypi} (Buracle toolchain)` })
   if (t.go !== undefined && have('go')) out.push({ kind: 'go', ref: t.go, label: `go install ${t.go}@latest` })
@@ -80,12 +84,29 @@ export interface SystemInstallResult {
   record?: InstalledSystemTool
 }
 
-export async function installTool(t: ToolSpec, nowMs: number, opts: { timeoutMs?: number, minAgeDays?: number } = {}): Promise<SystemInstallResult> {
-  const sources = installSources(t)
-  if (sources.length === 0) return { ok: false, error: `no installer for ${t.name} on this machine; ${installAdvice(t)}` }
+export interface InstallToolOptions {
+  timeoutMs?: number
+  minAgeDays?: number
+  /** false: never the pinned download (toolchain.system off). Test seams for the download otherwise. */
+  download?: false | Pick<PinnedInstallOptions, 'fetch' | 'pins' | 'run' | 'root'>
+  have?: (cmd: string) => boolean
+}
+
+export async function installTool(t: ToolSpec, nowMs: number, opts: InstallToolOptions = {}): Promise<SystemInstallResult> {
+  const sources = installSources(t, osName(), opts.have).filter(s => opts.download !== false || s.kind !== 'download')
+  if (sources.length === 0) {
+    const noPin = opts.download !== false && isPinnedTool(t.name) && pinnedAsset(t.name) === undefined ? ` (no download for ${osName()}-${process.arch})` : ''
+    return { ok: false, error: `no installer for ${t.name} on this machine${noPin}; ${installAdvice(t, osName(), opts.have)}` }
+  }
   const nowIso = new Date(nowMs).toISOString()
   const errors: string[] = []
   for (const s of sources) {
+    if (s.kind === 'download' && isPinnedTool(t.name)) {
+      const r = await installPinnedTool(t.name, { check: { argv: t.check, regex: t.version_regex }, ...(opts.download !== false ? opts.download : {}) })
+      if (r.ok) return { ok: true, source: s, record: { via: 'download', version: r.version, installed_at: nowIso, ...(t.check[0] !== undefined && r.bins[t.check[0]] !== undefined ? { path: r.bins[t.check[0]] } : {}) } }
+      errors.push(r.error)
+      continue
+    }
     if (s.kind === 'npm' || s.kind === 'pypi') {
       const req = toolRequest(s.kind === 'npm' ? { ...t, pypi: undefined } as ToolSpec : { ...t, npm: undefined } as ToolSpec)
       if (req === undefined) continue

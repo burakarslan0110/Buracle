@@ -8,6 +8,8 @@ import { run } from '../../../engine/proc'
 import { shimLaunch } from '../../../engine/shim'
 import { appendSpool as memoryAppendSpool } from '../../../memory/spool'
 import { promptSeen as memoryPromptSeen, sessionStart as memorySessionStart } from '../../../memory/session-record'
+import { uiBuildId } from '../../../memory/ui-build'
+import { sessionClosed, sessionOpened, sessionSeen, startUiSoon } from '../../../memory/ui-presence'
 
 export type { SpoolEntry }
 
@@ -18,6 +20,14 @@ export interface MemoryBridge {
   spawnFinalizer(sid: string): Promise<void>
   contextText(cwd: string): Promise<string | undefined>
   writeHandoff(sid: string, cwd: string, note: { slug: string, markdown: string, branch?: string }): Promise<string | undefined>
+  /** The memory web UI's session record and start (memory.ui.autostart), independent of the capture. */
+  ui?: UiBridge
+}
+
+export interface UiBridge {
+  started(sid: string): void
+  seen(sid: string): void
+  ended(sid: string): void
 }
 
 export interface MemoryBridgeOptions {
@@ -28,6 +38,18 @@ export interface MemoryBridgeOptions {
   recordStart?: (sid: string, cwd: string) => Promise<unknown>
   touch?: (sid: string) => void
   run?: (argv: string[], opts: { timeoutMs: number, stdin?: string }) => Promise<{ code: number, stdout: string, stderr: string, timedOut: boolean }>
+  ui?: UiBridge
+}
+
+/** The memory UI's session record and start, in this process: a few file operations, never waits for the UI. */
+export const ompUiBridge: UiBridge = {
+  started(sid) {
+    sessionOpened('omp', sid)
+    const build = uiBuildId()
+    startUiSoon(build !== undefined ? { build } : {})
+  },
+  seen(sid) { if (sessionSeen('omp', sid) === 'revived') startUiSoon() },
+  ended(sid) { sessionClosed('omp', sid) },
 }
 
 function isFile(p: string): boolean {
@@ -70,7 +92,12 @@ export function createMemoryBridge(opts: MemoryBridgeOptions): MemoryBridge {
   }
   const recordStart = opts.recordStart ?? ((sid: string, cwd: string) => memorySessionStart('omp', sid, cwd))
   const touch = opts.touch ?? ((sid: string) => { memoryPromptSeen('omp', sid) })
+  const ui = opts.ui ?? ompUiBridge
+  const uiCall = (what: keyof UiBridge, sid: string): void => {
+    try { ui[what](sid) } catch (e) { once(`ui-${what}`, `omp: memory ui ${what} failed`, { error: e instanceof Error ? e.message : String(e) }) }
+  }
   return {
+    ui: { started: sid => uiCall('started', sid), seen: sid => uiCall('seen', sid), ended: sid => uiCall('ended', sid) },
     async appendSpool(sid, entries) {
       if (entries.length === 0) return
       try { append('omp', sid, entries) } catch (e) { once('spool', 'omp: appendSpool failed', { error: e instanceof Error ? e.message : String(e) }) }

@@ -41,7 +41,7 @@ Buracle sets all four up from one source and keeps them in step:
 
 ### Before you start
 
-Install at least one harness: [Claude Code](https://code.claude.com/docs/en/quickstart), [Codex CLI](https://developers.openai.com/codex/cli), [OpenCode](https://opencode.ai) or [Oh My Pi](https://www.npmjs.com/package/@oh-my-pi/pi-coding-agent). Buracle sets up every harness it finds and skips the rest. The script installs Bun when it is missing, and Git on Windows. On Linux it never runs sudo or a package manager: it prints the command that installs what is missing (Git, curl, unzip, Node.js, uv, ripgrep, jq) on your distribution.
+Install at least one harness: [Claude Code](https://code.claude.com/docs/en/quickstart), [Codex CLI](https://developers.openai.com/codex/cli), [OpenCode](https://opencode.ai) or [Oh My Pi](https://www.npmjs.com/package/@oh-my-pi/pi-coding-agent). Buracle sets up every harness it finds and skips the rest. The script installs Bun when it is missing, and Git on Windows. Git and curl (on Linux also unzip, and libatomic1 when Node.js is missing, for the Node.js the install downloads) are yours to install: the script never runs sudo or a package manager, and on Linux it prints the command for your distribution when one is missing. Node.js, uv, ripgrep and jq come through Homebrew, winget or scoop when you have one; otherwise the install downloads a version Buracle pins, checks it against the sha256 pinned with it and keeps it in `~/.buracle/toolchain/system`.
 
 ### Install
 
@@ -57,7 +57,7 @@ Windows (PowerShell):
 irm https://github.com/burakarslan0110/buracle/releases/latest/download/install.ps1 | iex
 ```
 
-Both scripts come from the latest GitHub release. On Windows everything installs for your user, without administrator rights: tools through `winget --scope user` (or scoop), and directory links as junctions. The one exception is the Visual C++ runtime, which codegraph and ast-grep need and most Windows machines already have; when it is missing, the script installs it only from an administrator terminal and otherwise prints the command. The script clones Buracle's `main` branch into `~/buracle`, installs its dependencies, then runs `buracle install` and `buracle doctor`. `main` holds the released files: CI writes it, without the test suite, only when it publishes a release, and `buracle update` follows it. Running the script again updates the checkout and repairs the setup. Both scripts are short enough to read first: [`install.sh`](scripts/install.sh), [`install.ps1`](scripts/install.ps1).
+Both scripts come from the latest GitHub release. On Windows everything installs for your user, without administrator rights: tools through `winget --scope user` (or scoop), and directory links as junctions. The one exception is the Visual C++ runtime, which codegraph and ast-grep need and most Windows machines already have; when it is missing, the script installs it only from an administrator terminal and otherwise prints the command. The script clones Buracle's `main` branch into `~/buracle`, installs its dependencies, then runs `buracle install`, which asks its rare questions right in the terminal (also under `curl … | bash`), puts `~/.local/bin` on your PATH (a marked block in your shell's startup file; the user PATH on Windows) and starts the memory web UI. It ends with a short summary, one line each for Prerequisites, Buracle, Harnesses, Tools, Memory and Result, plus a line for anything that did not pass; every detail, the health check included, goes to `~/.buracle/logs/install-<date>.log`, which the Result line names. `main` holds the released files: CI writes it, without the test suite, only when it publishes a release, and `buracle update` follows it. Running the script again updates the checkout and repairs the setup. Both scripts are short enough to read first: [`install.sh`](scripts/install.sh), [`install.ps1`](scripts/install.ps1).
 
 After the install:
 
@@ -70,7 +70,7 @@ After the install:
 
 1. Build. It generates the harness files from `canonical/` and `src/`. A failed build installs nothing.
 2. Runtime. It copies the checkout into `~/.buracle/runtime/<id>` and tests the copy: `--version` must run, and the Claude Code and Codex hooks must deny `rm -rf ~` and allow `ls`. Only then does the `buracle` command switch to it. The previous runtime is kept for rollback.
-3. Toolchain. It installs missing system tools through Homebrew (macOS, and Linux when Homebrew is installed), winget or scoop (Windows); on Linux without Homebrew it only reports each missing tool with the command for your distribution. It installs every MCP server and language server into `~/.buracle/toolchain`. Everything comes in its newest release, CortexDB included (a new CortexDB is used only after it passed the memory's check, with the brains backed up first). `update.minReleaseAgeDays` (0 by default) can make Buracle wait some days after a release.
+3. Toolchain. It installs missing system tools through Homebrew (macOS, and Linux when Homebrew is installed), winget or scoop (Windows). Node.js, uv, ripgrep and jq that none of them can install are downloaded at a pinned version, checked against the pinned sha256, run once, and linked into `~/.local/bin`; on Linux without Homebrew any other missing tool is only reported with the command for your distribution. It installs every MCP server and language server into `~/.buracle/toolchain`. Everything comes in its newest release, CortexDB included (a new CortexDB is used only after it passed the memory's check, with the brains backed up first). `update.minReleaseAgeDays` (0 by default) can make Buracle wait some days after a release.
 4. Core. The `~/.buracle/bin/buracle` command, its `~/.local/bin/buracle` link, `~/.buracle/config.yaml` and the shared skills in `~/.agents/skills`.
 5. Harnesses. Each harness gets its own transaction: backup, atomic writes, journal, commands, verification, ownership ledger and commit. If one harness fails, only that harness rolls back.
 6. Memory. It creates `~/.buracle/brain`.
@@ -84,7 +84,7 @@ Values you changed by hand are kept and reported. In a terminal it applies at on
 
 - `buracle update` checks Buracle, skills, MCP servers, Claude Code plugins, the harnesses, the tools and the price list, and updates each part from its own source. A harness is updated with the installer that installed it (Homebrew, npm, bun or its own updater) and its version is read again afterwards. `--check` only checks, and names narrow it down: `buracle update codex mcp`. A toolchain upgrade has to prove itself: an MCP server must start and answer, and a tool must run its version check. One that does not goes back to the version the toolchain kept.
 - `buracle rollback` undoes the newest install from its backups. `buracle rollback toolchain` puts back the previous toolchain versions.
-- `buracle uninstall` removes only what the ownership ledger proves Buracle wrote. Values you changed stay, and the memory in `~/.buracle/brain` is never touched.
+- `buracle uninstall` removes only what the ownership ledger proves Buracle wrote, the PATH block the install added to your shell's startup file and the system tools it downloaded. Values you changed stay, and the memory in `~/.buracle/brain` is never touched.
 
 </details>
 
@@ -189,7 +189,7 @@ Secrets are masked before anything is written, `<private>…</private>` blocks a
 
 ![A region opened: its memories drawn as a network of links, with their list in the side panel](assets/brain-network.png)
 
-`/brain` or `buracle mem ui --open` opens it at `http://localhost:41777`. It starts only when you run that command, and it stops by itself after 30 minutes without a request (`BURACLE_UI_IDLE_MS`, in milliseconds, changes that). Ctrl-C and `buracle mem ui --stop` stop it too.
+`/brain` or `buracle mem ui --open` opens it at `http://localhost:41777`. It runs while you work: the install starts it, a session start in any of the four harnesses starts it when it is not running, and it stays up as long as a harness session is open. When the last session ends it stops within about a minute; before any session it stops after 30 minutes without a request (`BURACLE_UI_IDLE_MS`, in milliseconds, changes that). `buracle mem ui --stop` stops it until the next session starts. `buracle config set memory.ui.autostart false` brings back the manual way: it starts only with `buracle mem ui` and stops after the idle time.
 
 - Brain view. The regions drawn as a brain, where writes and searches light up as they happen. `/` searches, `1` to `7` open a region and `G` shows the network of memories, tags, files and concepts.
 - Memory detail. The body, tags, sources and history, where the memory came from (your words or inferred, with its confidence) and the memories it links to, with edit, retire, restore and delete. An edit is stored as your own words.

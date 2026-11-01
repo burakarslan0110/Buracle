@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path'
 import * as bar from '../../src/usage/bar-info'
 import { brainDir } from '../../src/memory/layout'
 import { writeSessionRecord } from '../../src/memory/session-record'
-import { clearUiRecord, probeUi, readUiRecord, serveUi, stopUi, type UiRecord } from '../../src/memory/ui'
+import { clearUiRecord, probeUi, readUiRecord, serveUi, stopUi, type UiRecord, type UiStopReason } from '../../src/memory/ui'
 import { readerEntries } from '../../src/memory/cortex'
 import { sameUiBuild, uiBuildId } from '../../src/memory/ui-build'
 import * as paths from '../../src/engine/paths'
@@ -177,6 +177,80 @@ describe('the UI build identity', () => {
       server.stop(true)
       clearUiRecord()
     }
+  }))
+})
+
+describe('the server tied to the harness sessions (memory.ui.autostart)', () => {
+  const NOW = Date.parse('2026-11-01T10:00:00Z')
+
+  test('an open session keeps it up without requests; the last one ending stops it at the next look', () => withSandbox(async () => {
+    let clock = NOW
+    let open = 1
+    const stops: UiStopReason[] = []
+    const served = serveUi({ port: freePort(), version: '9.9.9', now: () => clock, idleMs: 1000, idleEveryMs: 20, sessions: () => open, onStop: why => stops.push(why) })
+    try {
+      clock = NOW + 40 * 60_000
+      await Bun.sleep(150)
+      expect(stops).toEqual([])
+      expect((await fetch(`${served.record.url}/healthz`)).status).toBe(200)
+      open = 0
+      await waitFor('the stop', () => stops.length > 0, 5000)
+      expect(stops).toEqual(['sessions-ended'])
+      expect(readUiRecord()).toBeUndefined()
+    } finally { await served.stop() }
+  }))
+
+  test('no session seen yet (just after the install): the idle time applies', () => withSandbox(async () => {
+    let clock = NOW
+    const stops: UiStopReason[] = []
+    const served = serveUi({ port: freePort(), version: '9.9.9', now: () => clock, idleMs: 1000, idleEveryMs: 20, sessions: () => 0, onStop: why => stops.push(why) })
+    try {
+      clock = NOW + 900
+      await Bun.sleep(120)
+      expect(stops).toEqual([])
+      clock = NOW + 1100
+      await waitFor('the stop', () => stops.length > 0, 5000)
+      expect(stops).toEqual(['idle'])
+    } finally { await served.stop() }
+  }))
+
+  test('`mem ui --serve` outlives the idle time while a harness session is open and exits once it ends; with autostart off it goes after the idle time', () => withSandbox(async ({ buracleHome }) => {
+    const port = freePort()
+    const session = join(paths.uiSessionsDir(), 'claude-s1')
+    write(session, '')
+    const serve = async (autostart: boolean): Promise<ReturnType<typeof Bun.spawn>> => {
+      write(join(buracleHome, 'config.yaml'), `memory:\n  ui:\n    port: ${port}\n    autostart: ${autostart}\n`)
+      const proc = Bun.spawn(['bun', MAIN, 'mem', 'ui', '--serve'], { cwd: REPO, env: { ...childEnv(), BURACLE_UI_IDLE_MS: '900' }, stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' })
+      await waitFor('the server', async () => { const r = readUiRecord(); return r !== undefined && r.pid === proc.pid && await probeUi(r.url) !== undefined })
+      return proc
+    }
+    const tied = await serve(true)
+    try {
+      await Bun.sleep(2000)
+      expect(alive(tied.pid)).toBe(true)
+      rmSync(session)
+      const exited = await Promise.race([tied.exited.then(() => true), Bun.sleep(10_000).then(() => false)])
+      expect(exited).toBe(true)
+    } finally { try { tied.kill() } catch {  } }
+    write(session, '')
+    const loose = await serve(false)
+    try {
+      const exited = await Promise.race([loose.exited.then(() => true), Bun.sleep(10_000).then(() => false)])
+      expect(exited).toBe(true)
+    } finally {
+      try { loose.kill() } catch {  }
+      await stopRecorded()
+    }
+  }), 60_000)
+
+  test('a session count that throws counts as none and never crashes the server', () => withSandbox(async () => {
+    const stops: UiStopReason[] = []
+    const served = serveUi({ port: freePort(), version: '9.9.9', now: () => NOW, idleMs: 1000, idleEveryMs: 20, sessions: () => { throw new Error('EIO') }, onStop: why => stops.push(why) })
+    try {
+      await Bun.sleep(120)
+      expect(stops).toEqual([])
+      expect((await fetch(`${served.record.url}/healthz`)).status).toBe(200)
+    } finally { await served.stop() }
   }))
 })
 

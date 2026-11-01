@@ -10,8 +10,9 @@ import { applyWithRetry, buracleHomeProblem, checkHome, keyPath, partitionEscape
 import { errText, tilde, tildeText, writeJson } from '../../engine/update/output'
 import {
   adapterUndoArgvs, adapterUninstallPlans, composeUninstall, journalsForUninstall, markAdapterUndos, projectLeftovers, pruneCreatedDirs, pruneEmptyRuleDirs, purgeState,
-  removedKeys, removeVaultPreCommitHook, runExecUndos, stopMemoryUi, type AdapterUninstall, type ProjectLeftover,
+  removedKeys, removeDownloadedTools, removeVaultPreCommitHook, runExecUndos, stopMemoryUi, type AdapterUninstall, type ProjectLeftover,
 } from '../../engine/update/uninstall'
+import { removeLocalBinFromPath } from '../../engine/update/shell-path'
 
 export const name = 'uninstall'
 export const summary = 'Remove everything Buracle installed (ledger-proven), undo its commands; never touches the memory'
@@ -33,11 +34,13 @@ touched, not even by --purge-state; neither is the old Obsidian vault
 
 Outside the ledger: the memory web UI is stopped; the old vault's pre-commit hook
 is removed when it is Buracle's (an older Buracle's secret scan, which would refuse
-every commit once Buracle is gone; a hook you wrote stays). Files Buracle wrote into your
-projects without a ledger entry (the .codegraph/ index, the managed blocks of
-.sembleignore and .git/info/exclude, .claude/skills links to .agents/skills) are
-listed with how to remove them, never deleted. The toolchain (~/.buracle/toolchain)
-stays unless --purge-state is given.
+every commit once Buracle is gone; a hook you wrote stays); the PATH lines the install
+added to your shell's startup file are taken out; the system tools the install
+downloaded (node, uv, rg, jq in ~/.buracle/toolchain/system) are removed. Files Buracle
+wrote into your projects without a ledger entry (the .codegraph/ index, the managed blocks
+of .sembleignore and .git/info/exclude, .claude/skills links to .agents/skills) are
+listed with how to remove them, never deleted. The rest of the toolchain
+(~/.buracle/toolchain: the npm and uv packages) stays unless --purge-state is given.
 
 In a terminal it asks when a rare case comes up, and the answer is no unless you say yes: a
 harness is running (change its config anyway?), config files are links that lead outside your
@@ -305,7 +308,18 @@ async function uninstallFlow(res: UninstallResult, o: FlowOptions, io: CommandIO
     const ui = await stopMemoryUi()
     res.memoryUi = ui.status
     if (ui.status === 'still-running') res.warnings.push(`the memory web UI at ${ui.url ?? '?'} did not stop; end its process by hand`)
-    if (!coreFailed) res.vaultHook = await removeVaultPreCommitHook(vault)
+    if (!coreFailed) {
+      res.vaultHook = await removeVaultPreCommitHook(vault)
+      const shell = removeLocalBinFromPath()
+      if (shell.removed && shell.file !== undefined) res.notes.push(`Removed the PATH lines Buracle added to ${tilde(shell.file)}.`)
+      else if (shell.note !== undefined) res.warnings.push(tildeText(shell.note))
+      try {
+        const tools = await removeDownloadedTools(Date.now())
+        if (tools.length > 0) res.notes.push(`Removed the system tools Buracle downloaded (${tools.join(', ')}) from ${tilde(paths.systemToolsDir())}.`)
+      } catch (e) {
+        res.warnings.push(`the downloaded system tools in ${tilde(paths.systemToolsDir())} could not be removed: ${errText(e)}`)
+      }
+    }
   }
   if (!o.purge && existsSync(paths.toolchainDir())) res.notes.push(`The toolchain at ${tilde(paths.toolchainDir())} (npm and uv packages) was kept; \`buracle uninstall --purge-state\` removes it.`)
   if (o.purge) {

@@ -457,6 +457,10 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
     }
 
     pi.on('tool_result', async (event: OmpToolResultEvent, ctx: OmpContext): Promise<OmpToolResultResult | undefined> => {
+      if (isMain(ctx)) {
+        const sid = sessionOf(ctx)
+        if (sid !== undefined) guarded('memory ui', () => deps.memory.ui?.seen(sid))
+      }
       const masked = guarded('mask', () => maskResult(event, ctx, { redact: liveOrDefaults().config.guards.redact, mcpIds: data.mcpIds, home: deps.home() }))
       const withMasked = (r: OmpToolResultResult | undefined): OmpToolResultResult | undefined => (masked === undefined ? r : { ...(r ?? {}), content: masked })
       try {
@@ -524,6 +528,7 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       m.noticed = false
       const entries: SpoolEntry[] = [{ ts: now, ev: 'prompt' }]
       guarded('session record touch', () => { deps.memory.promptSeen?.(sid) })
+      guarded('memory ui', () => deps.memory.ui?.seen(sid))
       const wfExpanded = expanded ? workflowOfExpanded(raw) : undefined
       const text = wfExpanded !== undefined ? wfExpanded.args : raw.trim()
       if (wfExpanded === undefined && !isModelPrompt(text)) { spool(sid, entries); return }
@@ -680,7 +685,12 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
     const startSession = (ctx: OmpContext, ev: string, event: unknown) => {
       const sid = sessionOf(ctx)
       if (sid === undefined) return
-      if (currentSid !== undefined && currentSid !== sid) finalize(currentSid).catch(e => report('finalizer', e))
+      if (currentSid !== undefined && currentSid !== sid) {
+        const previous = currentSid
+        guarded('memory ui', () => deps.memory.ui?.ended(previous))
+        finalize(previous).catch(e => report('finalizer', e))
+      }
+      if (isMain(ctx) && currentSid !== sid) guarded('memory ui', () => deps.memory.ui?.started(sid))
       currentSid = sid
       deps.setEnv('BURACLE_SESSION_ID', sid)
       deps.setEnv('BURACLE_HARNESS', 'omp')
@@ -735,6 +745,7 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       try {
         if (!isMain(ctx)) return undefined
         const sid = sessionOf(ctx) ?? currentSid
+        if (sid !== undefined) guarded('memory ui', () => deps.memory.ui?.ended(sid))
         if (sid !== undefined) await finalize(sid)
       } catch (e) {
         report('session_shutdown', e)
