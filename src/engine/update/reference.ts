@@ -349,7 +349,7 @@ const SEGMENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
   month: 'Calendar month to date: tokens and the estimated cost (`≈`), labelled `mo`',
   mem: 'Memory health: the project and person brains (live memories), the inbox of captures, the last write and the last capture',
   index: 'The project\'s code indexes (codegraph and semble): ready, building, none, failed or off',
-  git: 'Branch, ahead/behind, staged/changed/untracked files, stash, conflicts and worktree',
+  git: 'Branch, ahead/behind, staged/changed/untracked files, the lines added and removed in the working tree (`+N −M`), stash, conflicts and worktree',
   dir: 'Working directory (inside a worktree, a subdirectory or outside git)',
   plan: 'The bound spec/build plan: title, phase and done/total tasks (only while no workflow is visible)',
   flow: 'The running workflow: the band\'s one-row view (workflow, current phase, progress, status) with its title while there is room; it replaces the plan text while visible',

@@ -8,6 +8,7 @@ import { listWorktrees, realish, repoFacts, type RepoFacts } from '../../workflo
 import { notificationsFile } from '../../workflow/notify'
 import { analyzePlan } from '../../workflow/plan-file'
 import { changesTarget, checkoutId, docId, docTarget, newNoteId, readNotes, repoKey, updateNotes, type NotesTarget } from '../../workflow/review-notes'
+import { diagramSvgs } from '../../workflow/diagram'
 import { metaForPlan } from '../../workflow/worktree'
 import { readProjectsCache } from '../project'
 import { UiApiError } from './api'
@@ -17,6 +18,7 @@ const DOC_MAX_BYTES = 1024 * 1024
 const SESSION_FRESH_MS = 7 * 24 * 60 * 60 * 1000
 const ASK_FRESH_MS = 2 * 24 * 60 * 60 * 1000
 const LIST_CACHE_MS = 4000
+const DIAGRAMS_PER_DOC = 30
 
 export interface ReviewSessionMark { harness: string, session: string, status: string, phase: string, paused: boolean, reason?: string, since?: string }
 
@@ -269,6 +271,51 @@ function notesOut(f: ReviewNotesFile): Record<string, unknown> {
   return { notes: [...f.notes].sort((a, b) => a.at.localeCompare(b.at)), open: openNotes(f).length }
 }
 
+const FENCE_RE = /^\s*(```+|~~~+)\s*([\w+-]*)/
+
+// The bodies of the ```mermaid blocks, found the way the page's renderDoc (review-doc.js) walks the
+// document, so each body is the key the page looks its drawing up by.
+export function mermaidBlocks(text: string): string[] {
+  const lines = text.replace(/\r\n?/g, '\n').split('\n')
+  let i = 0
+  if ((lines[0] ?? '').trim() === '---') {
+    for (let j = 1; j < Math.min(lines.length, 80); j++) if ((lines[j] ?? '').trim() === '---') { i = j + 1; break }
+  }
+  const out = new Set<string>()
+  while (i < lines.length) {
+    const line = lines[i] ?? ''
+    if (/^\s*<!--/.test(line)) {
+      while (i < lines.length && !(lines[i] ?? '').includes('-->')) i++
+      i++
+      continue
+    }
+    const fence = FENCE_RE.exec(line)
+    if (fence === null) { i++; continue }
+    const mark = fence[1] as string
+    const body: string[] = []
+    i++
+    while (i < lines.length && !(lines[i] ?? '').trim().startsWith(mark)) body.push(lines[i++] as string)
+    i++
+    if (fence[2] === 'mermaid') out.add(body.join('\n'))
+  }
+  return [...out]
+}
+
+type DiagramEntry = { light: string, dark: string } | { error: string }
+
+async function docDiagrams(text: string): Promise<Record<string, DiagramEntry>> {
+  const blocks = mermaidBlocks(text)
+  const drawn = await diagramSvgs(blocks.slice(0, DIAGRAMS_PER_DOC))
+  const out: Record<string, DiagramEntry> = {}
+  blocks.forEach((body, n) => {
+    const d = drawn[n]
+    out[body] = d === undefined
+      ? { error: `not drawn: a document shows at most ${DIAGRAMS_PER_DOC} diagrams` }
+      : d.ok ? { light: d.light, dark: d.dark } : { error: d.error }
+  })
+  return out
+}
+
 export async function reviewDoc(id: string | null, nowMs: number): Promise<Record<string, unknown>> {
   const { doc, facts } = await findDoc(id, nowMs)
   let text: string
@@ -282,7 +329,7 @@ export async function reviewDoc(id: string | null, nowMs: number): Promise<Recor
     throw new UiApiError(404, 'unknown_doc', 'the file is gone')
   }
   const t = docTarget(facts, doc.path) as NotesTarget
-  return { ...doc, root: facts.mainRoot, text, ...notesOut(readNotes(t)) }
+  return { ...doc, root: facts.mainRoot, text, diagrams: await docDiagrams(text), ...notesOut(readNotes(t)) }
 }
 
 async function targetOf(body: Record<string, unknown>, nowMs: number): Promise<NotesTarget> {

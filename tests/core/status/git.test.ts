@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { gitFromPorcelainV2 } from '../../../src/core/status/git'
+import { gitFromPorcelainV2, linesFromShortstat } from '../../../src/core/status/git'
 
 const SAMPLE = [
   '# branch.oid 4f2a9c1e0b7d3a5f6e8c9b0a1d2e3f4a5b6c7d8e',
@@ -46,6 +46,15 @@ describe('gitFromPorcelainV2', () => {
     expect(gitFromPorcelainV2('# branch.head main\n', '/repo/.git', '/repo/.git/').worktree).toBeUndefined()
     expect(gitFromPorcelainV2('# branch.head main\n', '/repo/.git').worktree).toBeUndefined()
     expect(gitFromPorcelainV2('# branch.head main\n', 'C:\\repo\\.git\\worktrees\\wt1', 'C:\\repo\\.git').worktree).toBe('wt1')
+  })
+
+  test('linesFromShortstat reads the added and removed lines of git diff --shortstat, singular forms included', () => {
+    expect(linesFromShortstat(' 3 files changed, 12 insertions(+), 4 deletions(-)\n')).toEqual({ added: 12, removed: 4 })
+    expect(linesFromShortstat(' 1 file changed, 1 insertion(+)\n')).toEqual({ added: 1, removed: 0 })
+    expect(linesFromShortstat(' 1 file changed, 1 deletion(-)\r\n')).toEqual({ added: 0, removed: 1 })
+    expect(linesFromShortstat(' 2 files changed, 0 insertions(+), 0 deletions(-)')).toEqual({ added: 0, removed: 0 })
+    expect(linesFromShortstat('')).toBeUndefined()
+    expect(linesFromShortstat('fatal: bad revision HEAD\n')).toBeUndefined()
   })
 
   test('CRLF output, empty output and junk lines', () => {

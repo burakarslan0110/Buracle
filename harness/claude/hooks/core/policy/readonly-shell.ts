@@ -393,7 +393,7 @@ function gitProblem(args: readonly string[]): string | undefined {
 }
 
 const BURACLE_READ: Readonly<Record<string, readonly string[] | true>> = {
-  'review-scope': true, version: true, help: true,
+  'review-scope': true, version: true, help: true, diagram: true,
   plan: ['status', 'validate'], worktree: ['detect', 'status', 'diff'], mem: ['search', 'get', 'status', 'context'],
   config: ['get', 'path'], skills: ['lint'], rules: ['lint'],
 }

@@ -72,6 +72,14 @@ describe('barLines', () => {
     expect(text).toHaveLength(2)
   })
 
+  test("the git part adds the working tree's lines after the session's own +N -M, which stays", () => {
+    const git = { branch: 'main', ahead: 0, behind: 0, staged: 0, unstaged: 3, untracked: 1, stash: 0, conflicts: 0, lines: { added: 42, removed: 7 } }
+    const text = renderPlainLines(barLines(bar({ git }), INFO, LAYOUT, 200, NOW)).split('\n')
+    expect(text[0]).toEndWith('| +120 -30 | ⎇ main ✚3 …1 +42 −7')
+    const none = renderPlainLines(barLines(bar({ git: { ...git, lines: { added: 0, removed: 0 } } }), INFO, LAYOUT, 200, NOW)).split('\n')
+    expect(none[0]).toEndWith('| +120 -30 | ⎇ main ✚3 …1')
+  })
+
   test('an over-pace window turns red with an up arrow; an unknown context reads --%', () => {
     const b = bar({ ctx: undefined, windows: [{ label: '5h', pct: 80, windowMinutes: 300, resetsAt: new Date(NOW + 4 * H).toISOString() }] })
     const lines = barLines(b, {}, LAYOUT, 200, NOW)

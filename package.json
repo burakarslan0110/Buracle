@@ -1,6 +1,6 @@
 {
   "name": "buracle",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "description": "Everything your coding agents need, in one place: one setup for Claude Code, Codex CLI, OpenCode and Oh My Pi",
@@ -37,6 +37,7 @@
     "bun": ">=1.4.0"
   },
   "dependencies": {
+    "beautiful-mermaid": "1.1.3",
     "jsonc-parser": "3.3.1",
     "yaml": "2.9.1"
   },

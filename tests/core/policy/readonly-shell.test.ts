@@ -3,6 +3,15 @@ import { readOnlyShellProblem, reviewerShellDenial } from '../../../src/core/pol
 
 const problem = (command: string): string | undefined => readOnlyShellProblem(command)
 
+describe('buracle commands in a read-only shell', () => {
+  test('buracle diagram only draws, so it passes; a command that writes does not', () => {
+    for (const command of ['buracle diagram --ascii', 'buracle diagram flow.mmd', "printf 'flowchart TD\\n  A --> B\\n' | buracle diagram"]) {
+      expect({ command, problem: problem(command) }).toEqual({ command, problem: undefined })
+    }
+    expect(problem('buracle plan set approved true')).toContain('is not one of its read-only commands')
+  })
+})
+
 describe('the read-only shell fence: no way to make a command run another program', () => {
   test('a leading variable that git or a tool reads is refused, also through env, a bare assignment or a loop variable', () => {
     for (const command of [

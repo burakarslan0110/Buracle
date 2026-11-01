@@ -158,6 +158,15 @@ describe('rows: segment rules', () => {
     expect(texts(short)[0]?.[0]).toBe('⎇ spec/a-really-long-bran… ↑1 *')
   })
 
+  test('git: the working tree lines added and removed follow the untracked count; nothing when both are zero', () => {
+    const g = (git: BarModel['git']) => rows(bar(git === undefined ? {} : { git }), { ...LAYOUT, rows: [['git']] }, 200, NOW)[0]?.[0]?.text
+    const base = { branch: 'main', ahead: 0, behind: 0, staged: 0, unstaged: 3, untracked: 1, stash: 2, conflicts: 0 }
+    expect(g({ ...base, lines: { added: 42, removed: 7 } })).toBe('⎇ main ✚3 …1 +42 −7 ⚑2')
+    expect(g({ ...base, lines: { added: 5, removed: 0 } })).toBe('⎇ main ✚3 …1 +5 −0 ⚑2')
+    expect(g({ ...base, lines: { added: 0, removed: 0 } })).toBe('⎇ main ✚3 …1 ⚑2')
+    expect(g(base)).toBe('⎇ main ✚3 …1 ⚑2')
+  })
+
   test('cost, plan and updates', () => {
     const one = (b: Partial<BarModel>, id: string) => rows(bar(b), { ...LAYOUT, rows: [[id]] }, 200, NOW)[0]?.[0]?.text
     expect(one({ cost: { usd: 0.4234 } }, 'cost')).toBe('$0.42')

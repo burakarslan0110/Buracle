@@ -3,7 +3,7 @@ import type { BandView } from '../flow/band'
 import type { MemoryStatus } from '../memory/status'
 
 export interface RateWindow { pct: number; resetsAt?: string; windowMinutes?: number; label: string }
-export interface GitState { branch?: string; detached?: boolean; ahead: number; behind: number; staged: number; unstaged: number; untracked: number; stash: number; conflicts: number; worktree?: string }
+export interface GitState { branch?: string; detached?: boolean; ahead: number; behind: number; staged: number; unstaged: number; untracked: number; stash: number; conflicts: number; worktree?: string; lines?: { added: number; removed: number } }
 
 export type IndexStatus = 'ready' | 'building' | 'none' | 'failed' | 'off'
 

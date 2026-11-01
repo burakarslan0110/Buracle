@@ -88,8 +88,11 @@ PowerShell parser. Run the first after editing `scripts/install.sh`.
   without it the child gets the environment the process started with, which in tests is the real
   `HOME` (the preload sandboxes `HOME` through `process.env`). `tests/engine/spawn-env.test.ts`
   enforces it under `src/`.
-- **Dependencies.** Add none. The runtime and dev dependencies are pinned exactly in
-  `package.json`; Bun built-ins are fine outside `src/core/`.
+- **Dependencies.** Add none, with one registered exception: `beautiful-mermaid` (exact pin, MIT;
+  it brings `elkjs` and `entities`) draws Mermaid for `buracle diagram` and the review page. Only
+  `src/workflow/diagram-worker.ts` imports it, inside a Bun `Worker` with a time limit, because its
+  text renderer can hang. The runtime and dev dependencies are pinned exactly in `package.json`;
+  Bun built-ins are fine outside `src/core/`.
 - **Language.** Everything is English: code, comments, identifiers, test names, agent-facing prose
   (skills, rules, agents, hook texts), user docs, CLI output, status lines, the mod and the web UI
   (one dictionary in `src/memory/ui/i18n.js`, no language switch). Agents still reply in the

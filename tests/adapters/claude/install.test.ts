@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { claudeInstallPlan, defaultInstallDeps, effortKeys, effortOps, envOps, LSP_NEVER_KEY, lspRecommendationPlan, permissionOps, renderRule, retiredDenyOps, ruleOps, statusLineOp, teamsOps, windowsCliCommand } from '../../../src/adapters/claude/install'
+import { announcementOps, claudeInstallPlan, defaultInstallDeps, effortKeys, effortOps, envOps, LSP_DISABLED_KEY, LSP_NEVER_KEY, lspRecommendationPlan, permissionOps, renderRule, retiredDenyOps, ruleOps, statusLineOp, teamsOps, windowsCliCommand } from '../../../src/adapters/claude/install'
 import { buracleInstalledPlugin, KEPT_EXIT, marketplaceHolds, parseList, pluginInstalled, pluginsFrom } from '../../../src/adapters/claude/check'
 import type { AdapterContext } from '../../../src/adapters/registry'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
@@ -78,7 +78,10 @@ describe('install plan as data', () => {
       expect(files[1]?.content).toBe('---\npaths:\n  - "**/*.py"\n  - "**/pyproject.toml"\n---\n\n# Python\n\nUse the project\'s environment and lockfile.\n')
 
       const merges = plan.ops.filter(o => o.kind === 'json-merge') as Array<Extract<Op, { kind: 'json-merge' }>>
-      expect(merges).toHaveLength(6)
+      expect(merges).toHaveLength(7)
+      expect(merges[6]?.set).toEqual({ companyAnnouncements: ['Buracle · Memory UI: http://127.0.0.1:41777 (buracle mem ui) · /buracle:plan-build plans and builds a change'] })
+      expect(merges[6]?.soft).toEqual(['companyAnnouncements'])
+      expect(merges[6]?.enforce).toBeUndefined()
       expect(merges[5]?.set).toEqual({ autoMemoryEnabled: false })
       expect(merges[5]?.soft).toEqual(['autoMemoryEnabled'])
       expect(merges[4]?.set).toEqual(CLAUDE_ENV)
@@ -126,6 +129,50 @@ describe('install plan as data', () => {
     const op = permissionOps(ctxFor({ enforce: false }))[0] as Extract<Op, { kind: 'json-merge' }>
     expect(op.set).toEqual({ 'permissions.defaultMode': 'bypassPermissions', skipDangerousModePermissionPrompt: true })
     expect(op.enforce).toBeUndefined()
+  })
+
+  test('the startup announcement names the configured Memory UI port', () => {
+    const ctx = ctxFor()
+    ctx.config.memory.ui.port = 41999
+    const op = announcementOps(ctx)[0] as Extract<Op, { kind: 'json-merge' }>
+    expect(op.path).toBe(join(ctx.paths.claudeDir(), 'settings.json'))
+    expect(op.set).toEqual({ companyAnnouncements: ['Buracle · Memory UI: http://127.0.0.1:41999 (buracle mem ui) · /buracle:plan-build plans and builds a change'] })
+  })
+
+  test("applied: the announcement is written, a value the user set before or after stays theirs, and uninstall removes only Buracle's", async () => {
+    await withSandbox(async sb => {
+      const file = join(sb.home, '.claude', 'settings.json')
+      mkdirSync(join(sb.home, '.claude'), { recursive: true })
+      const read = () => JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>
+      const plan = { id: 'claude', harness: 'claude' as const, ops: announcementOps(ctxFor()) }
+      const ours = (plan.ops[0] as Extract<Op, { kind: 'json-merge' }>).set['companyAnnouncements']
+
+      writeFileSync(file, JSON.stringify({ model: 'opus', companyAnnouncements: ['Team news'] }, null, 2))
+      expect((await applyPlans([plan])).conflicts).toEqual([])
+      expect(read()).toEqual({ model: 'opus', companyAnnouncements: ['Team news'] })
+
+      writeFileSync(file, JSON.stringify({ model: 'opus' }, null, 2))
+      expect((await applyPlans([plan])).conflicts).toEqual([])
+      expect(read()).toEqual({ model: 'opus', companyAnnouncements: ours })
+      writeFileSync(file, JSON.stringify({ model: 'opus', companyAnnouncements: ['Mine now'] }, null, 2))
+      expect((await applyPlans([plan])).conflicts).toEqual([])
+      expect(read()['companyAnnouncements']).toEqual(['Mine now'])
+      const group = composeUninstall(await readLedger(), [], emptyRecord(), paths.oldVaultRoot()).groups.find(g => g.owner === 'claude')
+      await applyPlans([group!.content])
+      expect(read()).toEqual({ model: 'opus', companyAnnouncements: ['Mine now'] })
+    })
+  })
+
+  test("uninstall takes back the announcement Buracle wrote when the user left it alone", async () => {
+    await withSandbox(async sb => {
+      const file = join(sb.home, '.claude', 'settings.json')
+      mkdirSync(join(sb.home, '.claude'), { recursive: true })
+      writeFileSync(file, JSON.stringify({ model: 'opus' }, null, 2))
+      await applyPlans([{ id: 'claude', harness: 'claude', ops: announcementOps(ctxFor()) }])
+      const group = composeUninstall(await readLedger(), [], emptyRecord(), paths.oldVaultRoot()).groups.find(g => g.owner === 'claude')
+      await applyPlans([group!.content])
+      expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ model: 'opus' })
+    })
   })
 
   test('agents.teams: on writes the agent-teams switch as a soft key; off writes nothing (an earlier value is pruned)', () => {
@@ -535,14 +582,17 @@ describe("Claude Code's LSP plugin recommendation: the official plugins the .lsp
   const OFFICIAL = ['csharp-lsp', 'gopls-lsp', 'jdtls-lsp', 'pyright-lsp', 'rust-analyzer-lsp', 'typescript-lsp'].map(p => `${p}@claude-plugins-official`)
   const real = () => ({ ...ctxFor(), canonical: loadCanonicalSync(join(REPO, 'canonical')) })
 
-  test('one list op on ~/.claude.json with every lsp.replaces id; nothing while Claude Code has not created the file', async () => {
+  test('a list op with every lsp.replaces id and the soft switch that turns the dialog off; nothing while Claude Code has not created the file', async () => {
     await withSandbox(async sb => {
       expect(lspRecommendationPlan(real())).toBeUndefined()
       expect(existsSync(join(sb.home, '.claude.json'))).toBe(false)
       writeFileSync(join(sb.home, '.claude.json'), '{}\n')
       expect(lspRecommendationPlan(real())).toEqual({
         id: 'claude-lsp-hints', harness: 'claude',
-        ops: [{ kind: 'json-list-merge', path: join(sb.home, '.claude.json'), pointer: LSP_NEVER_KEY, items: OFFICIAL, identity: LIST_IDENTITY_HASH, owner: 'claude', format: 'json' }],
+        ops: [
+          { kind: 'json-list-merge', path: join(sb.home, '.claude.json'), pointer: LSP_NEVER_KEY, items: OFFICIAL, identity: LIST_IDENTITY_HASH, owner: 'claude', format: 'json' },
+          { kind: 'json-merge', path: join(sb.home, '.claude.json'), set: { [LSP_DISABLED_KEY]: true }, owner: 'claude', soft: [LSP_DISABLED_KEY] },
+        ],
       })
       expect(lspRecommendationPlan(ctxFor())?.ops[0]).toMatchObject({ items: [] })
     })
@@ -556,11 +606,32 @@ describe("Claude Code's LSP plugin recommendation: the official plugins the .lsp
       const read = () => JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>
       const plan = lspRecommendationPlan(real())!
       expect((await applyPlans([plan])).conflicts).toEqual([])
-      expect(read()).toEqual({ numStartups: 7, lspRecommendationIgnoredCount: 3, lspRecommendationNeverPlugins: [...own, ...OFFICIAL.filter(id => !own.includes(id))] })
+      expect(read()).toEqual({ numStartups: 7, lspRecommendationIgnoredCount: 3, lspRecommendationNeverPlugins: [...own, ...OFFICIAL.filter(id => !own.includes(id))], lspRecommendationDisabled: true })
       expect((await applyPlans([plan])).applied).toBe(0)
       const group = composeUninstall(await readLedger(), [], emptyRecord(), paths.oldVaultRoot()).groups.find(g => g.owner === 'claude')
       await applyPlans([group!.content])
       expect(read()).toEqual({ numStartups: 7, lspRecommendationIgnoredCount: 3, lspRecommendationNeverPlugins: own })
+    })
+  })
+
+  test("the user's lspRecommendationDisabled: false stays, before and after the install, and uninstall leaves it", async () => {
+    await withSandbox(async sb => {
+      const file = join(sb.home, '.claude.json')
+      const read = () => JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>
+      writeFileSync(file, JSON.stringify({ numStartups: 2, lspRecommendationDisabled: false }, null, 2))
+      const plan = lspRecommendationPlan(real())!
+      expect((await applyPlans([plan])).conflicts).toEqual([])
+      expect(read()['lspRecommendationDisabled']).toBe(false)
+      const { [LSP_DISABLED_KEY]: _userValue, ...rest } = read()
+      writeFileSync(file, JSON.stringify(rest, null, 2))
+      expect((await applyPlans([plan])).conflicts).toEqual([])
+      expect(read()['lspRecommendationDisabled']).toBe(true)
+      writeFileSync(file, JSON.stringify({ ...read(), lspRecommendationDisabled: false }, null, 2))
+      expect((await applyPlans([plan])).conflicts).toEqual([])
+      expect(read()['lspRecommendationDisabled']).toBe(false)
+      const group = composeUninstall(await readLedger(), [], emptyRecord(), paths.oldVaultRoot()).groups.find(g => g.owner === 'claude')
+      await applyPlans([group!.content])
+      expect(read()['lspRecommendationDisabled']).toBe(false)
     })
   })
 })

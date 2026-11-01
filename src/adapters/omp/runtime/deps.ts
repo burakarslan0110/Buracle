@@ -16,13 +16,13 @@ import type { SessionState } from '../../../core/plan/index'
 import { normalizePlanText } from '../../../core/plan/capture'
 import * as coreCompact from '../../../core/compact'
 import * as coreCheckers from '../../../core/checkers'
-import { gitFromPorcelainV2 } from '../../../core/status/git'
+import { gitFromPorcelainV2, linesFromShortstat } from '../../../core/status/git'
 import type { GitState } from '../../../core/status/model'
 import * as coreStatus from '../../../core/status/render'
 import { barLines, type BarInfo } from '../../../core/status/bar'
 import type { WorkspaceInfo } from '../../../core/workspace'
 import { barInfo, liveMemoryUi } from '../../../usage/bar-info'
-import { commonDir, currentBranch, gitStatusPorcelainV2, projectSlug, revParse } from '../../../engine/git'
+import { commonDir, currentBranch, gitDiffShortstat, gitStatusPorcelainV2, projectSlug, revParse } from '../../../engine/git'
 import * as paths from '../../../engine/paths'
 import { run } from '../../../engine/proc'
 import { pendingUpdates } from '../../../usage/bar'
@@ -204,10 +204,13 @@ export function ompPlanStore(): PlanStore {
 }
 
 async function gitState(cwd: string): Promise<GitState | undefined> {
-  const text = await gitStatusPorcelainV2(cwd)
+  const [text, diff] = await Promise.all([gitStatusPorcelainV2(cwd), gitDiffShortstat(cwd)])
   if (text === undefined) return undefined
   const [gitDir, common] = await Promise.all([revParse(cwd, '--absolute-git-dir'), commonDir(cwd)])
-  return gitFromPorcelainV2(text, gitDir, common)
+  const state = gitFromPorcelainV2(text, gitDir, common)
+  const lines = diff === undefined ? undefined : linesFromShortstat(diff)
+  if (lines !== undefined) state.lines = lines
+  return state
 }
 
 export function defaultDeps(): ExtensionDeps {

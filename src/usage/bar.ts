@@ -6,7 +6,7 @@ import type { Harness } from '../core/events'
 import type { BandView } from '../core/flow/band'
 import { bandPlanOf, bandView } from '../core/flow/band'
 import type { MemoryStatus } from '../core/memory/status'
-import { gitFromPorcelainV2 } from '../core/status/git'
+import { gitFromPorcelainV2, linesFromShortstat } from '../core/status/git'
 import { indexStatusOf } from '../core/status/live'
 import type { BarModel, GitState, IndexStatus, RateWindow, StatusLayout } from '../core/status/model'
 import { atomicWriteSync, comparablePath, readJsonSafeSync } from '../engine/fsx'
@@ -170,9 +170,10 @@ const GIT_ENV = { GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C', GIT_TERMINAL_PROMPT: '0'
 
 export async function gitInfo(cwd: string, budgetMs = 300): Promise<GitInfo | undefined> {
   const opts = { cwd, timeoutMs: budgetMs, env: GIT_ENV }
-  const [st, rp] = await Promise.all([
+  const [st, rp, diff] = await Promise.all([
     run(['git', 'status', '--porcelain=v2', '--branch', '--show-stash'], opts),
     run(['git', 'rev-parse', '--path-format=absolute', '--git-dir', '--git-common-dir', '--show-toplevel'], opts),
+    run(['git', 'diff', 'HEAD', '--shortstat', '--no-color', '--no-ext-diff'], opts),
   ])
   let status = st
   let stash: number | undefined
@@ -188,6 +189,8 @@ export async function gitInfo(cwd: string, budgetMs = 300): Promise<GitInfo | un
   const [gitDir, commonDir, toplevel] = rp.code === 0 && !rp.timedOut ? rp.stdout.split('\n').map(s => s.trim()) : []
   const git = gitFromPorcelainV2(status.stdout, gitDir || undefined, commonDir || undefined)
   if (stash !== undefined) git.stash = stash
+  const lines = diff.code === 0 && !diff.timedOut ? linesFromShortstat(diff.stdout) : undefined
+  if (lines !== undefined) git.lines = lines
   const out: GitInfo = { git }
   if (toplevel) out.toplevel = comparablePath(toplevel, cwd)
   return out

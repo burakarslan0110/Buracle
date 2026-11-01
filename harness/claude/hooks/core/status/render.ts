@@ -2,6 +2,7 @@ import { memSegmentWith } from '../memory/status'
 import type { BarModel, GitState, RateWindow, Segment, StatusLayout } from './model'
 import { WINDOW_MINUTES, pace } from './model'
 import { formatPct, formatResetIn, formatTokens, formatUsd, gauge, sanitizeText, stripEmoji, textWidth, truncateToWidth } from './format'
+import { gitTreeLines } from './git'
 import { INDEX_STATUS_TEXT, flowRow, flowRowColor, flowRowText } from './live'
 import { hooksSegmentTexts } from './hooks'
 
@@ -115,6 +116,7 @@ function gitCandidate(g: GitState | undefined): Candidate | undefined {
     + (g.staged > 0 ? ` ●${g.staged}` : '')
     + (g.unstaged > 0 ? ` ✚${g.unstaged}` : '')
     + (g.untracked > 0 ? ` …${g.untracked}` : '')
+    + gitTreeLines(g)
     + (g.stash > 0 ? ` ⚑${g.stash}` : '')
     + (g.conflicts > 0 ? ` ⚠${g.conflicts}` : '')
     + (g.worktree ? ` [wt:${g.worktree}]` : '')

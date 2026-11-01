@@ -192,8 +192,8 @@ snapshot a hook falls back to the old parse and costs what it did in 0.5.0.
 
 | | 0.5.0 | 0.6 |
 | --- | --- | --- |
-| Runtime / development dependencies | 2 / 2 | 2 / 2 |
-| `node_modules` | 32 MB, 7 packages | 32 MB, 7 packages (unchanged) |
+| Runtime / development dependencies | 2 / 2 | 3 / 2 |
+| `node_modules` | 32 MB, 7 packages | 43 MB, 10 packages |
 | Embedding model in the toolchain | 27 MB on disk, 108 MB download | none |
 | CortexDB binary | 31 MB | 31 MB |
 | Source (`src/`) | 99,938 lines, 495 files | 90,333 lines, 459 files |
@@ -202,8 +202,10 @@ snapshot a hook falls back to the old parse and costs what it did in 0.5.0.
 | Modules in the memory folder | 48 | 35 |
 | `bun test` | 6,262 pass, 219.6 s | 5,832 pass, about 200 s |
 
-The dependency count did not fall: both runtime dependencies (`yaml`, `jsonc-parser`) are still used, and there was
-no dependency to remove once the embedder, which was hand-written, went. The 0.6 source also gained code (the
+The dependency count did not fall: both runtime dependencies of 0.5.0 (`yaml`, `jsonc-parser`) are still used, and
+there was no dependency to remove once the embedder, which was hand-written, went. 0.6 adds a third, `beautiful-mermaid`
+(with `elkjs` and `entities`), which draws the diagrams of `buracle diagram` and the review page; that is the 11 MB
+`node_modules` grew by. The 0.6 source also gained code (the
 migration, the Brain UI edit and relations, the capture rules), so the net reduction is smaller than the deleted
 amount. Fewer tests pass than before because the tests of deleted features went with them.
 

@@ -57,6 +57,7 @@ export const COMMANDS: ReadonlyArray<readonly [string, () => Promise<Command>]> 
   ['project', () => import('./commands/project')],
   ['skills', () => import('./commands/skills')],
   ['rules', () => import('./commands/rules')],
+  ['diagram', () => import('./commands/diagram')],
 ]
 
 export interface ParsedArgs { command?: string; rest: string[]; flags: GlobalFlags; help: boolean; version: boolean }
@@ -153,7 +154,7 @@ async function loadCommand(name: string): Promise<Command | undefined> {
 // Every name in COMMANDS sits in exactly one group (tests/cli/main.test.ts checks it).
 export const COMMAND_GROUPS: ReadonlyArray<readonly [string, readonly string[]]> = [
   ['Commands', ['install', 'update', 'doctor', 'config', 'rollback', 'uninstall']],
-  ['Used by your agents and hooks', ['plan', 'flow', 'worktree', 'review-scope', 'notify', 'project', 'skills', 'rules', 'mem', 'index', 'usage', 'hook', 'statusline', 'mcp', 'lsp', 'consent']],
+  ['Used by your agents and hooks', ['plan', 'flow', 'worktree', 'review-scope', 'notify', 'project', 'skills', 'rules', 'mem', 'index', 'usage', 'hook', 'statusline', 'mcp', 'lsp', 'consent', 'diagram']],
   ['Buracle development', ['build']],
 ]
 

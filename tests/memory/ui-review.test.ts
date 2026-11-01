@@ -220,3 +220,76 @@ describe('the review page', () => {
     })
   })
 })
+
+type DiagramEntry = { light?: string, dark?: string, error?: string }
+
+async function docDiagrams(c: UiContext, rel: string): Promise<Record<string, DiagramEntry>> {
+  forgetReviewListing()
+  const docs = ((await getJson(c, '/api/review/docs')).body['repos'] as Repo[])[0]!.docs
+  const d = docs.find(x => x.rel === rel)
+  if (d === undefined) throw new Error(`no listed doc ${rel}: ${docs.map(x => x.rel).join(', ')}`)
+  const r = await getJson(c, `/api/review/doc?id=${d.id}`)
+  expect(r.status).toBe(200)
+  return r.body['diagrams'] as Record<string, DiagramEntry>
+}
+
+const FLOW = 'flowchart LR\n  A[Plan] --> B[Build]'
+const SEQ = 'sequenceDiagram\n  Agent->>User: done'
+const PIE = 'pie title Pets\n  "Dogs" : 386'
+
+describe('the review page draws Mermaid blocks', () => {
+  test('each mermaid block, keyed by its body, gets a light and a dark SVG or the parse error', async () => {
+    await withSandbox(async ({ root }) => {
+      const { repo } = await setup(root)
+      const text = [
+        // A fence inside the frontmatter is data, not a block: the page skips the frontmatter.
+        '---', 'type: prd', 'notes: |', '  ```mermaid', '  flowchart LR', '  ```', '---', '# Flows', '',
+        '```mermaid', FLOW, '```', '',
+        '```ts', 'const a = 1', '```', '',
+        '```mermaid', PIE, '```', '',
+        'Again:', '', '```mermaid', FLOW, '```', '',
+        '~~~mermaid', SEQ, '~~~', '',
+        // The page ends a comment at the first line holding -->, so this one has no arrow inside.
+        '<!-- hidden', '```mermaid', 'sequenceDiagram', '  X->>Y: hi', '```', '-->', '',
+        '````markdown', '```mermaid', 'flowchart TD', '  P --> Q', '```', '````', '',
+      ].join('\n')
+      write(join(repo, 'docs', 'prd', '2026-10-19-flows.md'), text)
+      const c = ctx()
+      const diagrams = await docDiagrams(c, 'docs/prd/2026-10-19-flows.md')
+      expect(Object.keys(diagrams).sort()).toEqual([FLOW, PIE, SEQ].sort())
+      for (const key of [FLOW, SEQ]) {
+        expect(diagrams[key]!.light!.startsWith('<svg')).toBe(true)
+        expect(diagrams[key]!.dark!.startsWith('<svg')).toBe(true)
+        expect(diagrams[key]!.light).not.toContain('<script')
+      }
+      expect(diagrams[PIE]).toEqual({ error: expect.stringContaining('Invalid mermaid header') })
+    })
+  })
+
+  test('CRLF line ends and an unclosed fence give the same keys the page computes; a doc without blocks gets none', async () => {
+    await withSandbox(async ({ root }) => {
+      const { repo } = await setup(root)
+      write(join(repo, 'docs', 'prd', '2026-10-19-crlf.md'), ['# CRLF', '', '```mermaid', FLOW, '```', ''].join('\n').replace(/\n/g, '\r\n'))
+      write(join(repo, 'docs', 'prd', '2026-10-19-open.md'), ['# Open', '', '```mermaid', SEQ].join('\n'))
+      const c = ctx()
+      expect(Object.keys(await docDiagrams(c, 'docs/prd/2026-10-19-crlf.md'))).toEqual([FLOW])
+      expect(Object.keys(await docDiagrams(c, 'docs/prd/2026-10-19-open.md'))).toEqual([SEQ])
+      expect(await docDiagrams(c, 'docs/prd/2026-10-17-search.md')).toEqual({})
+    })
+  })
+
+  test('past 30 distinct blocks, and for a block over 20000 characters, the entry is an error and nothing is drawn', async () => {
+    await withSandbox(async ({ root }) => {
+      const { repo } = await setup(root)
+      const blocks = Array.from({ length: 31 }, (_, i) => `flowchart LR\n  A${i} --> B${i}`)
+      const huge = ('flowchart TD\n' + '  A --> B\n'.repeat(2500)).trimEnd()
+      write(join(repo, 'docs', 'prd', '2026-10-19-many.md'), ['# Many', '', ...blocks.flatMap(b => ['```mermaid', b, '```', ''])].join('\n'))
+      write(join(repo, 'docs', 'prd', '2026-10-19-huge.md'), ['# Huge', '', '```mermaid', huge, '```', ''].join('\n'))
+      const c = ctx()
+      const diagrams = await docDiagrams(c, 'docs/prd/2026-10-19-many.md')
+      expect(diagrams[blocks[29]!]!.light).toBeString()
+      expect(diagrams[blocks[30]!]).toEqual({ error: expect.stringContaining('30') })
+      expect((await docDiagrams(c, 'docs/prd/2026-10-19-huge.md'))[huge]).toEqual({ error: expect.stringContaining('20000') })
+    })
+  }, 30_000)
+})

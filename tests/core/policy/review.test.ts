@@ -121,6 +121,14 @@ describe('validateReviewJson: contract violations', () => {
     expect(errorsOf(report({ findings: [finding({ category: 'performance' })], truths: undefined }), { agent: 'plan-build-review' })).toContain('not one of plan-build-review')
   })
 
+  test('test_quality (redundant, mirroring or mock-only tests) belongs to changes-review only', () => {
+    const changes = v(report({ findings: [finding({ category: 'test_quality', severity: 'should_fix' })], truths: [{ truth: 't', status: 'verified', evidence: 'a.ts:1' }] }), { agent: 'changes-review' })
+    expect(changes.errors).toEqual([])
+    expect(changes.ok).toBe(true)
+    const goal = v(report({ summary: 'docs/builds/2026-10-08-x.md: tests.', findings: [finding({ category: 'test_quality', severity: 'should_fix' })], truths: undefined }), { agent: 'goal-build-review' })
+    expect(goal.ok).toBe(false)
+  })
+
   test('finding fields', () => {
     const errs = errorsOf(report({ findings: [{ severity: 'blocker', category: '', title: 'x'.repeat(101), evidence: '', suggested_fix: '', file: '', line: 0, extra: 1 }] }))
     for (const needle of ['severity', 'category', 'title', 'evidence', 'suggested_fix', 'file', 'line', 'unknown field `extra`']) expect(errs).toContain(needle)
