@@ -155,4 +155,58 @@ describe('what the mod reads from tool calls', () => {
     expect(maskSecrets(clean, 400_000).value).toBe(clean)
     expect(maskSecrets(`x${key}`.padEnd(64, 'y'), 32).count).toBe(0)
   })
+
+  // The base64 of 1536 pseudo-random bytes from a fixed seed: deterministic, and as bare text it reads like a key.
+  const B64 = (() => {
+    let seed = 0x2545f491
+    const bytes = new Uint8Array(1536)
+    for (let i = 0; i < bytes.length; i++) { seed = (Math.imul(seed, 1103515245) + 12345) >>> 0; bytes[i] = seed >>> 24 }
+    return btoa(String.fromCharCode(...bytes))
+  })()
+  const KEY = 'AKIA' + 'IOSFODNN7EXAMPLE'
+
+  test('maskSecrets: as bare text the payload used below is masked (the cases are not vacuous)', () => {
+    expect(maskSecrets(B64, 400_000)).toEqual({ value: '[REDACTED:entropy]', count: 1 })
+  })
+
+  test.each<[string, unknown]>([
+    ['an image Read returns', { type: 'image', file: { base64: B64, type: 'image/png', originalSize: 1536, dimensions: { width: 4, height: 4 } } }],
+    ['a notebook cell image Read returns', { type: 'notebook', file: { filePath: 'plot.ipynb', cells: [{ cell_type: 'code', source: 'plt.show()', outputs: [{ output_type: 'display_data', image: { image_data: B64, media_type: 'image/png' } }] }] } }],
+    ['an API image block', [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: B64 } }]],
+    ['an API document block (a PDF)', { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: B64 } }],
+    ['an MCP image block', [{ type: 'image', data: B64, mimeType: 'image/png' }]],
+    ['an MCP audio block', [{ type: 'audio', data: B64, mimeType: 'audio/wav' }]],
+    ['an MCP resource with a binary blob', { type: 'resource', resource: { uri: 'file:///a.pdf', mimeType: 'application/pdf', blob: B64 } }],
+    ['an MCP resource blob without a declared type', { type: 'resource', resource: { uri: 'file:///a.bin', blob: B64 } }],
+    ['a Bash stdout that is an image data URI', { stdout: `data:image/png;base64,${B64}`, stderr: '', interrupted: false, isImage: true }],
+  ])('maskSecrets: %s passes through as it is', (_name, value) => {
+    const r = maskSecrets(value, 400_000)
+    expect(r.count).toBe(0)
+    expect(r.value).toBe(value)
+  })
+
+  test('maskSecrets: text next to a binary payload is still masked, and the payload stays', () => {
+    const blocks = [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: B64 } }, { type: 'text', text: `token ${KEY}` }]
+    const r = maskSecrets(blocks, 400_000)
+    expect(r.count).toBe(1)
+    expect(JSON.stringify(r.value)).toContain(B64)
+    expect(JSON.stringify(r.value)).not.toContain(KEY)
+  })
+
+  test.each<[string, unknown]>([
+    ['data without a type', { data: KEY }],
+    ['data of a text type', { data: KEY, mimeType: 'text/plain' }],
+    ['data of a JSON type', { data: KEY, mimeType: 'application/json; charset=utf-8' }],
+    ['data of a vendor text type', { data: KEY, mimeType: 'application/x-yaml' }],
+    ['a blob without a uri or a type', { blob: B64 }],
+    ['a resource blob of a text type', { type: 'resource', resource: { uri: 'file:///a.txt', mimeType: 'text/plain', blob: B64 } }],
+    ['image_data without a media type', { image: { image_data: B64 } }],
+    ['a data URI of a text type', { stdout: `data:text/plain;base64,${B64}` }],
+    ['a plain stdout', { stdout: `key ${KEY}` }],
+  ])('maskSecrets: %s is masked as before', (_name, value) => {
+    const r = maskSecrets(value, 400_000)
+    expect(r.count).toBe(1)
+    expect(JSON.stringify(r.value)).not.toContain(KEY)
+    expect(JSON.stringify(r.value)).not.toContain(B64)
+  })
 })

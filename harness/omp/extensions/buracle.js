@@ -37431,11 +37431,30 @@ function receiptLine(s, answer = "") {
   }
   return { line: `Buracle \xB7 ${parts.join(" \xB7 ")}`, warn };
 }
+var TEXT_MIME = /^(?:text\/|application\/(?:[A-Za-z0-9.+-]*\+|x-)?(?:json|xml|javascript|ecmascript|yaml|toml|www-form-urlencoded)(?:\s*;|\s*$))/i;
+var DATA_URI = /^data:([A-Za-z0-9.+_-]+\/[A-Za-z0-9.+_-]+)(?:;[^,]*)?;base64,/i;
+function binaryMime(mime) {
+  return typeof mime === "string" && mime.trim() !== "" && !TEXT_MIME.test(mime.trim());
+}
+function binaryPayload(parent, key) {
+  if (key === "base64")
+    return true;
+  if (key === "image_data")
+    return binaryMime(parent["media_type"]);
+  if (key === "data")
+    return parent["type"] === "base64" || binaryMime(parent["mimeType"]);
+  if (key === "blob")
+    return binaryMime(parent["mimeType"]) || parent["mimeType"] === undefined && typeof parent["uri"] === "string";
+  return false;
+}
 function maskSecrets(value, maxChars, depth = 0) {
   if (depth > 12)
     return { value, count: 0 };
   if (typeof value === "string") {
     if (value.length < 16 || value.length > maxChars)
+      return { value, count: 0 };
+    const uri = DATA_URI.exec(value);
+    if (uri !== null && binaryMime(uri[1]))
       return { value, count: 0 };
     const r = redact(value);
     return r.count > 0 ? { value: r.text, count: r.count } : { value, count: 0 };
@@ -37451,8 +37470,13 @@ function maskSecrets(value, maxChars, depth = 0) {
     });
     return count > 0 ? { value: out, count } : { value, count: 0 };
   }
+  const obj = value;
   const out = {};
-  for (const [k, v] of Object.entries(value)) {
+  for (const [k, v] of Object.entries(obj)) {
+    if (typeof v === "string" && binaryPayload(obj, k)) {
+      out[k] = v;
+      continue;
+    }
     const r = maskSecrets(v, maxChars, depth + 1);
     count += r.count;
     out[k] = r.value;

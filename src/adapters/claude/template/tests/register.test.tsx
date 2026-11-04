@@ -14,6 +14,13 @@ const RUNTIME = `${BURACLE_HOME}/state/runtime-config.json`
 const STATE = `${BURACLE_HOME}/sessions/claude/${SID}/state.json`
 const CONSENT = `${BURACLE_HOME}/sessions/claude/${SID}/consent.json`
 const AWS_KEY = 'AKIA' + 'IOSFODNN7EXAMPLE'
+// The base64 of 1536 pseudo-random bytes from a fixed seed: an image payload that, as text, would read like a key.
+const B64 = (() => {
+  let seed = 0x2545f491
+  const bytes = new Uint8Array(1536)
+  for (let i = 0; i < bytes.length; i++) { seed = (Math.imul(seed, 1103515245) + 12345) >>> 0; bytes[i] = seed >>> 24 }
+  return btoa(String.fromCharCode(...bytes))
+})()
 
 const SESSION: SessionStartInput = { cwd: CWD, surface: 'terminal', isInteractive: true }
 const HEADLESS: SessionStartInput = { cwd: CWD, surface: null, isInteractive: false }
@@ -298,6 +305,18 @@ describe('masking secrets in tool output', () => {
     const ran = await $.tool.call({ tool: 'Read', file_path: `${CWD}/.env.local` } as never)
     expect(JSON.stringify((ran as { result?: unknown }).result)).not.toContain(AWS_KEY)
     expect(world.notices).toEqual(['Buracle: 1 secret value hidden from the model'])
+  })
+
+  test('an image that Read or an MCP screenshot returns passes through as it is: its base64 is not a secret', async ($, on) => {
+    const image = { type: 'image', file: { base64: B64, type: 'image/png', originalSize: 1536 } }
+    const shot = [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: B64 } }]
+    const world = worldOf(on, {}, { results: { Read: image, 'mcp__plugin_buracle_chrome-devtools__take_screenshot': shot } })
+    await $.session.start(SESSION)
+    const read = await $.tool.call({ tool: 'Read', file_path: `${CWD}/shot.png` } as never)
+    expect((read as { result?: unknown }).result).toEqual(image)
+    const mcp = await $.tool.call({ tool: 'mcp__plugin_buracle_chrome-devtools__take_screenshot' } as never)
+    expect((mcp as { result?: unknown }).result).toEqual(shot)
+    expect(world.notices).toEqual([])
   })
 
   test('guards.redact: false leaves the output alone', async ($, on) => {

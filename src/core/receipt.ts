@@ -218,10 +218,36 @@ export function editOf(tool: string, input: Readonly<Record<string, unknown>>): 
   return { path, removed, added }
 }
 
+/** A MIME type whose content is text once decoded; the base64 of any other type is a binary payload. */
+const TEXT_MIME = /^(?:text\/|application\/(?:[A-Za-z0-9.+-]*\+|x-)?(?:json|xml|javascript|ecmascript|yaml|toml|www-form-urlencoded)(?:\s*;|\s*$))/i
+const DATA_URI = /^data:([A-Za-z0-9.+_-]+\/[A-Za-z0-9.+_-]+)(?:;[^,]*)?;base64,/i
+
+function binaryMime(mime: unknown): boolean {
+  return typeof mime === 'string' && mime.trim() !== '' && !TEXT_MIME.test(mime.trim())
+}
+
+/**
+ * A string under one of these keys is the base64 of an image, audio, a document or an embedded resource, not text the
+ * model reads: Claude Code's Read returns `{ type: 'image', file: { base64, type } }` and, for a notebook cell,
+ * `image: { image_data, media_type }`; an API block carries `source: { type: 'base64', media_type, data }`; an MCP
+ * image or audio block `{ data, mimeType }`; an MCP resource `{ uri, mimeType, blob }`. Rewriting one breaks the
+ * block, and the next API call with it fails. A payload whose declared type is text stays masked as before.
+ */
+function binaryPayload(parent: Readonly<Record<string, unknown>>, key: string): boolean {
+  if (key === 'base64') return true
+  if (key === 'image_data') return binaryMime(parent['media_type'])
+  if (key === 'data') return parent['type'] === 'base64' || binaryMime(parent['mimeType'])
+  if (key === 'blob') return binaryMime(parent['mimeType']) || (parent['mimeType'] === undefined && typeof parent['uri'] === 'string')
+  return false
+}
+
 export function maskSecrets(value: unknown, maxChars: number, depth = 0): { value: unknown, count: number } {
   if (depth > 12) return { value, count: 0 }
   if (typeof value === 'string') {
     if (value.length < 16 || value.length > maxChars) return { value, count: 0 }
+    // A data URI of a binary type (Bash marks such a stdout as an image) is a payload, not text.
+    const uri = DATA_URI.exec(value)
+    if (uri !== null && binaryMime(uri[1])) return { value, count: 0 }
     const r = redact(value)
     return r.count > 0 ? { value: r.text, count: r.count } : { value, count: 0 }
   }
@@ -231,8 +257,14 @@ export function maskSecrets(value: unknown, maxChars: number, depth = 0): { valu
     const out = value.map(v => { const r = maskSecrets(v, maxChars, depth + 1); count += r.count; return r.value })
     return count > 0 ? { value: out, count } : { value, count: 0 }
   }
+  const obj = value as Record<string, unknown>
   const out: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(value as Record<string, unknown>)) { const r = maskSecrets(v, maxChars, depth + 1); count += r.count; out[k] = r.value }
+  for (const [k, v] of Object.entries(obj)) {
+    if (typeof v === 'string' && binaryPayload(obj, k)) { out[k] = v; continue }
+    const r = maskSecrets(v, maxChars, depth + 1)
+    count += r.count
+    out[k] = r.value
+  }
   return count > 0 ? { value: out, count } : { value, count: 0 }
 }
 
