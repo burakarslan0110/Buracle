@@ -464,7 +464,7 @@
     },
     "harness/claude/.claude-plugin/plugin.json": {
       "by": "claude",
-      "sha256": "035d1fda3488d66ce244c19479bc93f49297119f55b3145bd3a5f1a07a06f98e",
+      "sha256": "57a213457eef38d1588b130eda25bdacdffd125514d10b4a9b72221bbecf566f",
       "exec": false
     },
     "harness/claude/.lsp.json": {
@@ -804,7 +804,7 @@
     },
     "harness/claude/hooks/core/policy/intents.ts": {
       "by": "claude",
-      "sha256": "55bcbde5b6878eb68ccdcaba5ae3303882331f65cdd80e746d7703d96b34df09",
+      "sha256": "4bc948f534cfe1d2bbe189df854ba3e38d8e4b77126f4099647593447fd4db68",
       "exec": false
     },
     "harness/claude/hooks/core/policy/lane-guard.ts": {
@@ -914,7 +914,7 @@
     },
     "harness/claude/hooks/core/receipt.ts": {
       "by": "claude",
-      "sha256": "eb6c15f0e4a83f07d2344d302e5746b4ceb0d422594510cdb5118ee7d498dbd8",
+      "sha256": "44ab3aad9976f871f974e81cce760dd924605922a4a97f61ad2382304083c34f",
       "exec": false
     },
     "harness/claude/hooks/core/status/bar.ts": {
@@ -984,7 +984,7 @@
     },
     "harness/claude/hooks/generated/meta.ts": {
       "by": "claude",
-      "sha256": "0f178b94d7503d3fe9b1850b0bef8371739b569d29ad2c666d2cbd98f3e8c227",
+      "sha256": "a307ef12e78cfb4136d6a764e45398bf182c4771dd60db34b566d72916fc63f3",
       "exec": false
     },
     "harness/claude/hooks/hooks.json": {
@@ -1449,7 +1449,7 @@
     },
     "harness/claude/tests/register.test.tsx": {
       "by": "claude",
-      "sha256": "b8c3cdf111e5045fcd5a48dd37c053548d954c449c68959958350e82d2e8bb29",
+      "sha256": "bb34657a88479fcc388bea9ca7b7a9471e0eab291b900094976d46b7f69b4fa7",
       "exec": false
     },
     "harness/claude/types/index.d.ts": {
@@ -1629,12 +1629,12 @@
     },
     "harness/omp/extensions/buracle.js": {
       "by": "omp",
-      "sha256": "cc1709ee25466511d921efb72f630f09c3565820998d01b732da2186c11af3ed",
+      "sha256": "55b04d42d5a565cbe915236b4e7a4b0458347a380c5c8f0c95661cfe13458f5b",
       "exec": false
     },
     "harness/omp/package.json": {
       "by": "omp",
-      "sha256": "de5c47c4d961b6c23805b1a0bb4d46a33320c8e956b934c01da9119f5e894300",
+      "sha256": "b39721a26fdcce55e70a3857fed89fea3401bd9548a6a1c4994e14ce6c5023b1",
       "exec": false
     },
     "harness/omp/rules/buracle-backend.md": {
@@ -1739,12 +1739,12 @@
     },
     "harness/opencode/manifest.json": {
       "by": "opencode",
-      "sha256": "41425976c28334f39afe97355f9a2f1b2f4fe6816d6b9aa36904692f178acd23",
+      "sha256": "77102033a5bc962fc889813f311a739e5fa1155dc547a2276e9142c10076a4d2",
       "exec": false
     },
     "harness/opencode/plugins/buracle/index.js": {
       "by": "opencode",
-      "sha256": "20d0f2dccdf02210f4c52580eb8299eea2b2f5e301b8f7d00cfe5ae4d3a3c52c",
+      "sha256": "d6271984b710451a44083e8876aeb1799856131f431c9ff1a0df48e1dc76b65e",
       "exec": false
     },
     "harness/opencode/plugins/buracle/tui.js": {

@@ -10,7 +10,10 @@ export function isGuardContinuation(text: string): boolean {
   return GUARD_MARKERS.some(m => t.startsWith(m))
 }
 
-const HARNESS_TEXT = /^(?:<(?:task-notification|system-reminder|local-command|bash-|command-)|Base directory for this skill:)/i
+// Text a harness injects as a user turn: Claude Code's notifications and skill loads, and another session's or a lane's
+// message (SendMessage, agent teams), which it frames as "Another Claude session sent a message:" / "A peer session sent a
+// message while you were working:" around a <cross-session-message>, <agent-message> or <teammate-message> block.
+const HARNESS_TEXT = /^(?:<(?:task-notification|system-reminder|local-command|bash-|command-|cross-session-message|agent-message|teammate-message)|Base directory for this skill:|(?:Another Claude|A peer) session sent a message(?: while you were working)?:)/i
 
 export function isUserText(text: string): boolean {
   if (typeof text !== 'string') return false
