@@ -95,7 +95,7 @@ Open your harness in a project and work as usual. Buracle loads its rules, memor
 | Way of working | What you get |
 |---|---|
 | A direct request | The agent understands, changes, verifies and reports, following Buracle's rules and memory |
-| The harness's own plan mode | The plan you approve is saved to `docs/plans/` and survives the session (OpenCode saves a draft) |
+| The harness's own plan mode | The plan you approve is saved to `docs/plan-build/` and survives the session (OpenCode saves a draft) |
 | A Buracle workflow | A durable plan, contract or PRD, approval gates, test-first work, independent reviews and verification |
 
 Run `/project-rules` once per repository: it reads the code, runs the commands it documents and writes an `AGENTS.md` that every harness follows. In Codex, type `$` where this page says `/`.
@@ -104,10 +104,10 @@ Run `/project-rules` once per repository: it reads the code, runs the commands i
 
 | Workflow | Use it when | What you get |
 |---|---|---|
-| `/plan-build` | You want a reviewed plan approved before any code | A plan in `docs/plans/`, a plan review, a failing test before each change, a change review, a run of the real program on every changed surface, end-to-end scenarios and your sign-off on the result |
-| `/goal-build` | The end state is clear and the path is found by building | A locked contract in `docs/builds/` with pass/fail criteria, build and judge rounds where missing evidence counts as a fail, and a verification phase at the end |
+| `/plan-build` | You want a reviewed plan approved before any code | A plan in `docs/plan-build/`, a plan review, a failing test before each change, a change review, a run of the real program on every changed surface, end-to-end scenarios and your sign-off on the result |
+| `/goal-build` | The end state is clear and the path is found by building | A locked contract in `docs/goal-build/` with pass/fail criteria, build and judge rounds where missing evidence counts as a fail, and a verification phase at the end |
 | `/bugfix` | One behavior is broken and you want proof it is fixed | The failure reproduced first, the root cause named as `file:line`, a failing test before the fix, a fix where the fault starts, a change review and an end-to-end check |
-| `/requirements` | The problem, audience or scope is still unclear | A few rounds of questions, research, and an approved PRD in `docs/prd/` that hands off to the right build workflow |
+| `/requirements` | The problem, audience or scope is still unclear | A few rounds of questions, research, and an approved PRD in `docs/requirements/` that hands off to the right build workflow |
 
 ```mermaid
 flowchart LR
@@ -241,11 +241,36 @@ All four get the same 27 hooks, skills, review agents, rules, memory, guards and
 | Consent | A dialog inside Claude Code | Codex's own approval prompt | A TUI dialog, or the question tool on web and desktop | omp's select dialog |
 | Workflow progress | A band above the prompt, memory and plan panes | The status bar in tmux and `buracle plan status` | A band above the composer and a dialog | A widget above the editor and a pane below it |
 | Status line | Buracle's own status line | Codex's native items and a tmux bar | The prompt footer | omp's native preset with Buracle entries |
-| Plan mode | Saved to `docs/plans/` | Saved when you choose to implement the plan | Saved as a draft | Saved on approval |
+| Plan mode | Saved to `docs/plan-build/` | Saved when you choose to implement the plan | Saved as a draft | Saved on approval |
 | Language servers | Claude Code's LSP | Buracle's `lsp` MCP server | Buracle's `lsp` MCP server | omp's own LSP |
 | Browser | chrome-devtools | chrome-devtools | chrome-devtools | omp's built-in browser |
 
-Buracle switches off the built-in memory of Claude Code, Codex and Oh My Pi, so the brain is the one memory all four share. Review agents always run read-only. Where a host lacks a hook Buracle needs, [`src/adapters/shared/host-limits.ts`](src/adapters/shared/host-limits.ts) records the gap and the fallback, and `buracle doctor` tells you when a newer harness version may close it.
+Buracle switches off the built-in memory of Claude Code, Codex and Oh My Pi, so the brain is the one memory all four share. Review agents always run read-only. Where a host lacks a mechanism Buracle needs, [`src/adapters/shared/host-limits.ts`](src/adapters/shared/host-limits.ts) records the gap and the fallback, `buracle doctor <harness>` lists each record, and it tells you when a newer harness version may close one. The table below is that list.
+
+### Host limits
+
+| Record | Harness | What the host lacks | Buracle's fallback |
+|---|---|---|---|
+| `codex.consent-dialog` | Codex | A hook cannot ask the user, and `codex exec`, `--yolo` and `-a never` sessions show no approval prompt | The denial tells the agent what to ask, and the next prompt carries the answer |
+| `codex.background-wait` | Codex | The Stop payload carries no task data, and nothing wakes a turn when a background command ends | The stop guard holds the turn |
+| `codex.quiet-stop-feedback` | Codex | A Stop hook continues a turn only with a block, whose reason becomes a new prompt | The stop guard's reason goes in that prompt |
+| `codex.shell-read-nudge` | Codex | No file-read tool to point a shell read to | The shell read stays allowed, and the edit note names `apply_patch` |
+| `codex.commands-without-turn` | Codex | No custom slash commands (a plugin's commands become skills) | `$memory`, the CLI twins and Codex's own `/side` |
+| `codex.live-exec-mask` | Codex | The `write_stdin` polls of a running command reach no hook | Every completed shell and MCP result is masked |
+| `codex.failed-mcp-mask` | Codex | PostToolUse runs only for a call that succeeded | Every successful shell and MCP result is masked |
+| `codex.live-panes` | Codex | Hooks get no pane, widget or dialog | `buracle mem status`, `buracle plan status` and the tmux status line |
+| `codex.custom-status-line` | Codex | The footer shows only Codex's own items | Buracle picks the native items and shows its own bar through tmux |
+| `codex.summary-keep-list` | Codex | Remote compaction (OpenAI, Azure, Bedrock) ignores `compact_prompt` | The handoff memory and the restore carry the state over |
+| `opencode.consent-dialog` | OpenCode | The dialog needs the TUI plugin, which web, desktop, the server API and `opencode run` do not load | The denial tells the agent to ask with the `question` tool |
+| `opencode.approved-plan-capture` | OpenCode | The plan agent has no approval tool or event | A draft plan (`approved: false`) when the session leaves the plan agent |
+| `opencode.native-plan-approval` | OpenCode | Leaving the plan agent is no approval | The prepared plan is filled as a draft, and plan-build asks the user |
+| `opencode.todo-handoff` | OpenCode | OpenCode 2.x has no todo tool | The handoff memory carries the plan and its open tasks |
+| `opencode.goal-command` | OpenCode | No native goal command | The goal-build brief states the condition in its first sentence |
+| `opencode.quiet-stop-feedback` | OpenCode | No plugin hook runs before a session stops | A capped re-prompt after the session ends |
+| `opencode.stop-veto` | OpenCode | No plugin hook can hold a session that is about to stop | A capped re-prompt after the session ends |
+| `opencode.subagent-stop-hold` | OpenCode | No subagent-stop hook | An invalid review report gets a note that asks the agent to continue the reviewer once |
+| `opencode.rate-windows` | OpenCode | No quota API, so the windows come from provider response headers | The 5-hour and 7-day segments stay empty until a response carries them |
+| `omp.companion-shell` | Oh My Pi | Print mode cannot hold bash to read-only commands | The second opinion runs with read, grep and glob only, with the diff in its prompt |
 
 | Harness | Tested with |
 |---|---|
@@ -305,7 +330,7 @@ While the menu is open, Buracle re-checks what was last verified more than six h
 | `buracle rollback` | Undoes the newest install |
 | `buracle uninstall` | Removes everything Buracle installed and leaves the memory alone |
 
-Your agents use more commands, such as `plan`, `worktree`, `mem`, `skills`, `project` and `diagram`. `buracle help --all` lists them and `buracle help <command>` explains one. `buracle diagram` draws a Mermaid diagram with box characters, so a diagram in the agent's chat reply shows as a drawing in the terminal instead of raw Mermaid.
+Your agents use more commands, such as `plan`, `worktree`, `mem`, `skills` and `project`. `buracle help --all` lists them and `buracle help <command>` explains one.
 
 ## Development
 

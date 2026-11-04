@@ -26,7 +26,8 @@ export const usage = `Usage: buracle worktree <subcommand> [args…] [--json]
   diff <slug>        commits, files and stats of the worktree branch against its base
   sync <slug>        squash-merge the branch into its base with one conventional commit; local
                      changes in the base checkout are stashed and restored (plan files under
-                     docs/plans and docs/builds, and the registered plan, are never stashed).
+                     the document folders docs/plan-build, docs/goal-build, docs/plans and docs/builds,
+                     and the registered plan, are never stashed).
                      In phase verify, a sync of the plan's worktree ends a held merge decision.
                      Exit 0 merged · 1 nothing merged · 2 merged, but the stash was not restored
   cleanup <slug> [--force|--discard]

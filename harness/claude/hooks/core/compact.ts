@@ -86,7 +86,7 @@ export function compactPrompt(): string {
   return [
     'Compact this conversation into a handoff summary so that another agent can continue the work in a fresh context. That agent sees only your summary, the files on disk and its tools; it has not seen this conversation.',
     'Write short Markdown sections: the goal and what the user asked for; what is done; what is in progress and the exact next step; what is still open, unanswered questions to the user included.',
-    `${compactInstructionsWith(undefined, emptyState(), {})}\n- If a plan file is active (under docs/plans/ or docs/builds/), keep its path verbatim and which task is in progress; the file holds the real progress and is re-read after compaction.`,
+    `${compactInstructionsWith(undefined, emptyState(), {})}\n- If a plan file is active (under docs/plan-build/ or docs/goal-build/), keep its path verbatim and which task is in progress; the file holds the real progress and is re-read after compaction.`,
   ].join('\n\n')
 }
 

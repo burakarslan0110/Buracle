@@ -1,11 +1,10 @@
-// Draws Mermaid diagrams for `buracle diagram` (text) and the review page (SVG). The library runs in
-// src/workflow/diagram-worker.ts inside a Bun Worker: its text renderer can loop forever, so every
-// job has a time limit and a worker past it is terminated. One batch runs at a time, so at most one
-// worker is alive; finished results are cached by the hash of what was drawn.
+// Draws Mermaid as SVG for the review page. beautiful-mermaid runs in a Bun Worker
+// (src/workflow/diagram-worker.ts), every job gets a time limit and every batch a budget: a render
+// that does not finish in time is reported as a failure and its worker is replaced, so one slow
+// diagram never holds the page. Results are cached by source and limit.
 import { createHash } from 'node:crypto'
-import { textWidth } from '../core/status/format'
 
-export const DIAGRAM_TIMEOUT_MS = 5000
+const DIAGRAM_TIMEOUT_MS = 5000
 export const DIAGRAM_TOTAL_MS = 15000
 export const DIAGRAM_MAX_CHARS = 20000
 export const SVG_MAX_BYTES = 1_000_000
@@ -14,24 +13,21 @@ const CACHE_MAX_ENTRIES = 256
 const CACHE_MAX_BYTES = 16_000_000
 const TIMEOUT_TTL_MS = 60_000
 
-export type DiagramKind = 'text' | 'svg'
+export type DiagramKind = 'svg'
 export type FailureReason = 'invalid' | 'too_large' | 'timeout' | 'budget' | 'worker'
 
-export interface TextDrawing { ok: true, kind: 'text', text: string, width: number }
 export interface SvgDrawing { ok: true, kind: 'svg', light: string, dark: string }
 export interface DiagramFailure { ok: false, reason: FailureReason, error: string }
-export type Drawing = TextDrawing | SvgDrawing | DiagramFailure
+export type Drawing = SvgDrawing | DiagramFailure
 
 export interface DrawOptions {
   kind: DiagramKind
-  ascii?: boolean
   timeoutMs?: number
   totalMs?: number
 }
 
-export interface DiagramJob { id: number, kind: DiagramKind, source: string, ascii: boolean }
+export interface DiagramJob { id: number, kind: DiagramKind, source: string }
 export type WorkerReply =
-  | { id: number, ok: true, kind: 'text', text: string }
   | { id: number, ok: true, kind: 'svg', light: string, dark: string }
   | { id: number, ok: false, reason: 'invalid' | 'worker', error: string }
 
@@ -72,13 +68,13 @@ let cacheBytes = 0
 const inFlight = new Map<string, Promise<Drawing>>()
 
 // The time limit is part of the key: a timeout under a short limit says nothing about a longer one.
-function cacheKey(kind: DiagramKind, ascii: boolean, timeoutMs: number, source: string): string {
-  return createHash('sha256').update(`${kind}\0${ascii ? 1 : 0}\0${timeoutMs}\0${source}`).digest('hex')
+function cacheKey(kind: DiagramKind, timeoutMs: number, source: string): string {
+  return createHash('sha256').update(`${kind}\0${timeoutMs}\0${source}`).digest('hex')
 }
 
 function sizeOf(d: Drawing): number {
   if (!d.ok) return d.error.length
-  return d.kind === 'text' ? d.text.length : d.light.length + d.dark.length
+  return d.light.length + d.dark.length
 }
 
 function cached(key: string, nowMs: number): Drawing | undefined {
@@ -167,7 +163,6 @@ function serial<T>(work: () => Promise<T>): Promise<T> {
 
 function toDrawing(r: WorkerReply | DiagramFailure): Drawing {
   if (!r.ok) return 'id' in r ? fail(r.reason, r.error) : r
-  if (r.kind === 'text') return { ok: true, kind: 'text', text: r.text, width: Math.max(0, ...r.text.split('\n').map(textWidth)) }
   if (r.light.length > SVG_MAX_BYTES || r.dark.length > SVG_MAX_BYTES) return fail('too_large', 'the drawing is larger than 1 MB')
   return { ok: true, kind: 'svg', light: r.light, dark: r.dark }
 }
@@ -182,7 +177,7 @@ async function drawBatch(jobs: ReadonlyArray<{ key: string, source: string }>, o
       if (left <= 0) { settle(job.key, budget()); continue }
       const own = left >= o.timeoutMs
       const limitMs = own ? o.timeoutMs : left
-      const reply = await slot.run({ kind: o.kind, source: job.source, ascii: o.ascii }, limitMs, () =>
+      const reply = await slot.run({ kind: o.kind, source: job.source }, limitMs, () =>
         own ? fail('timeout', `the drawing did not finish within ${seconds(o.timeoutMs)}; split the diagram into smaller ones`) : budget())
       settle(job.key, toDrawing(reply))
     }
@@ -194,7 +189,7 @@ async function drawBatch(jobs: ReadonlyArray<{ key: string, source: string }>, o
 // The one entry point that runs the library: draws each source in order in one worker, replacing a
 // worker that stalls, within `timeoutMs` per source and `totalMs` for the whole batch.
 export async function drawDiagrams(sources: readonly string[], opts: DrawOptions): Promise<Drawing[]> {
-  const o: Required<DrawOptions> = { kind: opts.kind, ascii: opts.ascii === true, timeoutMs: opts.timeoutMs ?? DIAGRAM_TIMEOUT_MS, totalMs: opts.totalMs ?? DIAGRAM_TOTAL_MS }
+  const o: Required<DrawOptions> = { kind: opts.kind, timeoutMs: opts.timeoutMs ?? DIAGRAM_TIMEOUT_MS, totalMs: opts.totalMs ?? DIAGRAM_TOTAL_MS }
   const out: Array<Drawing | Promise<Drawing>> = []
   const jobs: Array<{ key: string, source: string }> = []
   const waiting = new Map<string, (d: Drawing) => void>()
@@ -204,7 +199,7 @@ export async function drawDiagrams(sources: readonly string[], opts: DrawOptions
     const source = normalizeMermaid(raw)
     if (source.trim() === '') { out.push(fail('invalid', 'Empty mermaid diagram')); continue }
     if (source.length > DIAGRAM_MAX_CHARS) { out.push(fail('too_large', `the diagram source is ${source.length} characters; the limit is ${DIAGRAM_MAX_CHARS}`)); continue }
-    const key = cacheKey(o.kind, o.ascii, o.timeoutMs, source)
+    const key = cacheKey(o.kind, o.timeoutMs, source)
     const hit = cached(key, Date.now())
     if (hit !== undefined) { out.push(hit); continue }
     const pending = inFlight.get(key)
@@ -228,13 +223,6 @@ export async function drawDiagrams(sources: readonly string[], opts: DrawOptions
   return Promise.all(out)
 }
 
-export async function drawDiagram(source: string, opts: { ascii?: boolean, timeoutMs?: number }): Promise<TextDrawing | DiagramFailure> {
-  const [r] = await drawDiagrams([source], { kind: 'text', ascii: opts.ascii === true, ...(opts.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}) })
-  if (r === undefined) return fail('worker', 'no drawing came back')
-  return r.ok && r.kind === 'svg' ? fail('worker', 'unexpected SVG drawing') : r
-}
-
-export async function diagramSvgs(sources: readonly string[], opts: { timeoutMs?: number, totalMs?: number } = {}): Promise<Array<SvgDrawing | DiagramFailure>> {
-  const out = await drawDiagrams(sources, { kind: 'svg', ...opts })
-  return out.map(r => (r.ok && r.kind === 'text' ? fail('worker', 'unexpected text drawing') : r))
+export function diagramSvgs(sources: readonly string[], opts: { timeoutMs?: number, totalMs?: number } = {}): Promise<Array<SvgDrawing | DiagramFailure>> {
+  return drawDiagrams(sources, { kind: 'svg', ...opts })
 }

@@ -108,9 +108,10 @@ URL, title, publisher, and the publication date or version.
 `buracle flow phase write`. Use [references/note-template.md](references/note-template.md): answer
 first, then findings with `[n]` citations, an options table when comparing, a recommendation only when
 asked for or needed by the decision, conflicts, what was not checked, and the source list. Write it per
-the *Plain language* rule, in the language of the user's prompt, with a diagram when the answer is a
-flow or a structure. When the requirements workflow called you, return the note to it unchanged and do not
-save memory unless it asks.
+the *Plain language* rule, in the user's language with the template's English section titles. Show a
+flow or a structure as a numbered list or a table, never as a diagram in the reply. When the
+requirements workflow called you, return the note to it unchanged and do not save memory unless it
+asks.
 
 ## Phase 6: Save (optional)
 

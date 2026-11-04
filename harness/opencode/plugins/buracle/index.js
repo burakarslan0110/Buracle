@@ -11992,10 +11992,8 @@ var EN_WORDS = new Set([
   "an",
   "a"
 ]);
-function profilePromptLanguage(text) {
+function languageHits(text) {
   const words = text.replace(/\u0130/g, "i").toLowerCase().split(/[^\p{L}']+/u).filter((w) => w !== "");
-  if (words.length < 3)
-    return;
   let tr = 0;
   let en = 0;
   for (const w of words) {
@@ -12004,11 +12002,16 @@ function profilePromptLanguage(text) {
     if (EN_WORDS.has(w))
       en++;
   }
-  if (/[\u011F\u0131\u015F\u0130\u015E\u011E]/.test(text))
-    tr += 2;
-  if (tr === en)
+  return { words: words.length, tr, en, letters: /[\u011F\u0131\u015F\u0130\u015E\u011E]/.test(text) };
+}
+function profilePromptLanguage(text) {
+  const h = languageHits(text);
+  if (h.words < 3)
     return;
-  return tr > en ? "tr" : "en";
+  const tr = h.tr + (h.letters ? 2 : 0);
+  if (tr === h.en)
+    return;
+  return tr > h.en ? "tr" : "en";
 }
 var TRIGGER_LEAD = uw(/^(?:please\s+|l\u00FCtfen\s+|lutfen\s+)?(?:always|never|from now on|going forward|in (?:the )?future|every time|whenever|her zaman|daima|asla|hi\u00E7bir zaman|hicbir zaman|hi\u00E7 bir zaman|bundan sonra|bundan b\u00F6yle|bundan boyle|art\u0131k|artik|sak\u0131n|sakin|unutma|akl\u0131nda tut|aklinda tut)\b/i);
 var TRIGGER_ANY = uw(/\b(?:always|never|from now on|going forward|i(?:'d| would)? prefer|i (?:want|need) you to|i (?:don'?t|do not) (?:want|like)|(?:don'?t|do not) ever|stop (?:doing|using|adding|writing|asking)|remember (?:that|to)|keep in mind|make sure (?:to|you))\b|(?:^|\s)(?:her zaman|daima|asla|hi\u00E7bir zaman|hicbir zaman|bundan sonra|bundan b\u00F6yle|tercih ederim|tercihim|istemiyorum|bir daha)(?=[\s.,!?]|$)/i);
@@ -13039,12 +13042,7 @@ var VAGUE_PHRASES = [
   /\bdetails below\b/i,
   /\b(?:similar to|same as) task \d+\b/i,
   /\b(?:add )?appropriate error handling\b/i,
-  /\bhandle (?:the |all |any )?edge cases\b/i,
-  /(?<!\p{L})(?:daha )?sonra (?:uygulan|yap[\u0131i]l|eklen|doldurul)\p{L}*/iu,
-  /(?<!\p{L})(?:ayr[\u0131i]nt[\u0131i]|detay)\p{L}* (?:sonra|doldur)\p{L}*/iu,
-  /(?<!\p{L})(?:task|g[\u00F6o]rev) \d+(?:'\p{L}+)?(?: ile)? (?:benzer|gibi)(?!\p{L})/iu,
-  /(?<!\p{L})uygun (?:bir )?hata (?:y[\u00F6o]netim|i[\u015Fs]le|ele al)\p{L}*/iu,
-  /(?<!\p{L})(?:u[\u00E7c]|kenar|s[\u0131i]n[\u0131i]r) durum\p{L}* (?:ele al|i[\u015Fs]le)\p{L}*/iu
+  /\bhandle (?:the |all |any )?edge cases\b/i
 ];
 function vaguePhrase(text) {
   for (const re of VAGUE_PHRASES) {
@@ -13153,7 +13151,7 @@ var EXTENSIONS = new Set([
   "pdf",
   "wasm"
 ]);
-var FILE_NAMES = new Set(["Makefile", "Dockerfile", "Containerfile", "Justfile", "Procfile", "Gemfile", "Rakefile"]);
+var FILE_NAMES = new Set(["Makefile", "Dockerfile", "Containerfile", "Justfile", "Procfile", "Gemfile", "Rakefile", ".gitignore"]);
 var AFTER_RUN = new Set(["deviations", "follow-ups", "followups", "review notes", "gaps", "evidence", "e2e results", "dod audit", "unverified", "red evidence"]);
 var IDENT2 = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 var MAX_DRIFT = 5;
@@ -13421,16 +13419,171 @@ function authoringFindings(o) {
   return [...filesIncomplete(o), ...vagueFindings(o), ...inventoryFindings(o), ...identifierDrift(o)];
 }
 
+// src/core/plan/doc-dirs.ts
+var DOC_DIRS = [
+  { dir: "requirements", workflow: "requirements", legacy: "prd" },
+  { dir: "plan-build", workflow: "plan-build", legacy: "plans" },
+  { dir: "goal-build", workflow: "goal-build", legacy: "builds" },
+  { dir: "dead-code", workflow: "dead-code", legacy: "cleanup" }
+];
+var LEGACY_DOC_DIRS = ["prd", "plans", "builds", "cleanup"];
+var ALL_DOC_DIRS = ["requirements", "plan-build", "goal-build", "dead-code", "prd", "plans", "builds", "cleanup"];
+var NAMES2 = ALL_DOC_DIRS.join("|");
+var DOC_FILE = new RegExp(`^docs/(${NAMES2})/([^/]+\\.md)$`, "u");
+var DOC_DIR_PREFIX = new RegExp(`(?:^|/)docs/(?:${NAMES2})/`);
+function docDirFor(workflow) {
+  const row = DOC_DIRS.find((d) => d.workflow === workflow);
+  return row === undefined ? workflow : row.dir;
+}
+function docDirOf(rel) {
+  const dir = DOC_FILE.exec(rel.replace(/\\/g, "/"))?.[1];
+  if (dir === undefined)
+    return;
+  const row = DOC_DIRS.find((d) => d.dir === dir || d.legacy === dir);
+  if (row === undefined)
+    return;
+  return { dir, workflow: row.workflow, legacy: row.legacy === dir };
+}
+
+// src/core/plan/document.ts
+var MAX_SENTENCE_WORDS = 25;
+var HEADING = /^\s{0,3}#{1,6}\s/;
+var LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s+/;
+var BLOCKQUOTE = /^\s*(?:>\s?)+/;
+var CONTINUATION = /^\s{2,}\S/;
+var TABLE_ROW = /^\s*\|.*\|\s*$/;
+var TABLE_RULE = /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$/;
+var VERIFY_LINE2 = /^\s*[-*+]\s+\**Verify:/;
+var CODE_SPAN = /`[^`]*`/g;
+var LINK = /\[([^\]]*)\]\([^)]*\)/g;
+var URL2 = /https?:\/\/[^\s)\]>"']+/g;
+var LABEL = /^\*\*[^*]+:\*\*\s*/;
+var EMPHASIS = /\*\*|__|(?<![\w`])[*_](?=\S)|(?<=\S)[*_](?![\w`])/g;
+var SENTENCE_END = /(?<=[.!?])\s+/;
+var LEGACY_PATH = new RegExp(`docs/(${LEGACY_DOC_DIRS.join("|")})/`);
+function at2(line, code, message) {
+  return { level: "warning", code, message, line: line + 1 };
+}
+function skippedLines(o) {
+  const skip = new Set;
+  for (const s of o.sections)
+    if (AFTER_RUN.has(s.text.trim().toLowerCase()))
+      for (let i = s.line;i < s.end; i++)
+        skip.add(i);
+  return skip;
+}
+function units(o) {
+  const out = [];
+  const skip = skippedLines(o);
+  let current;
+  let inComment = false;
+  const flush = () => {
+    if (current !== undefined) {
+      out.push({ ...current, cell: false });
+      current = undefined;
+    }
+  };
+  for (let i = o.body;i < o.lines.length; i++) {
+    const line = o.lines[i] ?? "";
+    if (inComment) {
+      flush();
+      if (line.includes("-->"))
+        inComment = false;
+      continue;
+    }
+    if (o.code[i] === true || skip.has(i)) {
+      flush();
+      continue;
+    }
+    const bare = line.replace(CODE_SPAN, "");
+    if (bare.includes("<!--")) {
+      flush();
+      inComment = bare.lastIndexOf("<!--") > bare.lastIndexOf("-->");
+      continue;
+    }
+    if (line.trim() === "" || HEADING.test(line) || VERIFY_LINE2.test(line) || TABLE_RULE.test(line)) {
+      flush();
+      continue;
+    }
+    if (TABLE_ROW.test(line)) {
+      flush();
+      for (const cell of line.trim().replace(/^\||\|$/g, "").split("|"))
+        if (cell.trim() !== "")
+          out.push({ first: i, lines: [cell.trim()], cell: true });
+      continue;
+    }
+    if (LIST_ITEM.test(line)) {
+      flush();
+      current = { first: i, lines: [line] };
+      continue;
+    }
+    if (current !== undefined && CONTINUATION.test(line) && LIST_ITEM.test(current.lines[0] ?? "")) {
+      current.lines.push(line);
+      continue;
+    }
+    if (current === undefined)
+      current = { first: i, lines: [line] };
+    else
+      current.lines.push(line);
+  }
+  flush();
+  return out;
+}
+function plain(u) {
+  return u.lines.map((l) => l.replace(BLOCKQUOTE, "").replace(LIST_ITEM, "").replace(LABEL, "")).join(" ").replace(CODE_SPAN, "code").replace(LINK, "$1").replace(URL2, "url").replace(EMPHASIS, "").trim();
+}
+function words(sentence) {
+  return sentence.split(/\s+/).filter((w) => w !== "").length;
+}
+function readsAsTurkish(text) {
+  const h = languageHits(text);
+  if (h.words < 3)
+    return false;
+  if (h.letters)
+    return h.tr >= h.en;
+  return h.tr >= 2 && h.tr - h.en >= 2;
+}
+function legacyMessage(path) {
+  const legacy = LEGACY_PATH.exec(path)?.[1];
+  const fresh = DOC_DIRS.find((d) => d.legacy === legacy)?.dir ?? "plan-build";
+  return `\`docs/${legacy}/\` is an old document folder, new documents go to \`docs/${fresh}/\``;
+}
+function documentFindings(o) {
+  const out = [];
+  for (const u of units(o)) {
+    for (const [k, raw] of u.lines.entries()) {
+      if (LEGACY_PATH.test(raw)) {
+        out.push(at2(u.first + k, "legacy-folder", legacyMessage(raw)));
+        break;
+      }
+    }
+    const text = plain(u);
+    if (text === "")
+      continue;
+    const semi = u.lines.findIndex((l) => l.replace(CODE_SPAN, "").includes(";"));
+    if (semi >= 0)
+      out.push(at2(u.first + semi, "semicolon", "a semicolon joins two statements: write two sentences or a list"));
+    if (readsAsTurkish(text))
+      out.push(at2(u.first, "not-english", "this paragraph reads as Turkish: a document under docs is English"));
+    for (const sentence of u.cell ? [text] : text.split(SENTENCE_END)) {
+      const n = words(sentence);
+      if (n > MAX_SENTENCE_WORDS)
+        out.push(at2(u.first, "long-sentence", `a sentence has ${n} words (the limit is ${MAX_SENTENCE_WORDS}): split it, one idea per sentence`));
+    }
+  }
+  return out.sort((a, b) => (a.line ?? 0) - (b.line ?? 0));
+}
+
 // src/core/plan/format.ts
 var PLAN_STATUSES = ["PENDING", "APPROVED", "IN_PROGRESS", "COMPLETE", "VERIFIED", "SAVED"];
 var PLAN_TYPES = ["Feature", "Bugfix", "Build", "Plan"];
 var FILE_VERBS = ["Create", "Modify", "Delete", "Rename", "Test"];
 var FENCE = /^ {0,3}(`{3,}|~{3,})/;
-var HEADING = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
+var HEADING2 = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
 var TASK_HEADING = /^Task\s+(\d+)\s*[:.\-\u2013\u2014]\s*(.*)$/i;
 var CHECKBOX = /^\s*[-*+]\s+\[([ xX])\]\s+Task\s+(\d+)\s+done\b/i;
-var LABEL = /^\s*\*\*([^*]+?)\*\*\s*(.*)$/;
-var LIST_ITEM = /^\s*[-*+]\s+(.*)$/;
+var LABEL2 = /^\s*\*\*([^*]+?)\*\*\s*(.*)$/;
+var LIST_ITEM2 = /^\s*[-*+]\s+(.*)$/;
 var PLACEHOLDER2 = /\b(TBD|TODO|FIXME)\b/;
 function scan(markdown) {
   const lines = markdown.replace(/^\uFEFF/, "").split(/\r\n|\r|\n/);
@@ -13462,7 +13615,7 @@ function scan(markdown) {
       code[i] = true;
       continue;
     }
-    const h = HEADING.exec(line);
+    const h = HEADING2.exec(line);
     if (h)
       headings.push({ level: h[1].length, text: h[2].trim(), line: i });
   }
@@ -13519,7 +13672,7 @@ function readCard(doc, card) {
       block = undefined;
       continue;
     }
-    const lab = LABEL.exec(line);
+    const lab = LABEL2.exec(line);
     if (lab) {
       let name = lab[1].trim();
       let rest = lab[2];
@@ -13571,7 +13724,7 @@ function readCard(doc, card) {
       if (/^\s*(?:[-*+]\s+)?\**verify\**\s*:/i.test(line))
         verify = true;
     } else if (block === "files") {
-      const li = LIST_ITEM.exec(line);
+      const li = LIST_ITEM2.exec(line);
       if (!li)
         continue;
       const item = li[1].trim();
@@ -13687,6 +13840,25 @@ function fmLine(doc, key) {
     if (new RegExp(`^${key}\\s*:`).test(doc.lines[i] ?? ""))
       return i;
   return;
+}
+var PRD_STATUSES = ["draft", "approved"];
+function checkPrdHeader(doc, out) {
+  const fm = doc.fm;
+  const missing = (k) => fm[k] === undefined || fm[k] === null || fm[k] === "";
+  for (const k of ["created", "status", "approved"]) {
+    if (missing(k))
+      out.push(err("missing-field", `frontmatter field \`${k}\` is missing`, 0));
+  }
+  const created = fm["created"];
+  if (!missing("created") && !(typeof created === "string" && CREATED.test(created.trim()))) {
+    out.push(err("bad-field", "`created` must be a date such as 2026-11-04", fmLine(doc, "created")));
+  }
+  const status = fm["status"];
+  if (!missing("status") && !(typeof status === "string" && PRD_STATUSES.includes(status))) {
+    out.push(err("bad-status", `a PRD's \`status\` must be one of ${PRD_STATUSES.join(", ")} (got ${JSON.stringify(status)})`, fmLine(doc, "status")));
+  }
+  if (!missing("approved") && typeof fm["approved"] !== "boolean")
+    out.push(err("bad-field", `\`approved\` must be true or false (got ${JSON.stringify(fm["approved"])})`, fmLine(doc, "approved")));
 }
 function checkHeader(doc, out) {
   if (!doc.hasFrontmatter) {
@@ -13816,6 +13988,11 @@ function validatePlan(markdown, opts) {
     out.push(err("crlf", "use LF line endings only (the file contains CR characters)", markdown.slice(0, cr).split(`
 `).length - 1));
   const doc = scan(markdown);
+  if (doc.hasFrontmatter && doc.fm["type"] === "prd") {
+    checkPrdHeader(doc, out);
+    out.push(...documentFindings(outlineOf(doc)));
+    return out;
+  }
   const type = checkHeader(doc, out);
   if (!doc.title || doc.title.text === "")
     out.push(err("missing-title", "add a `# Title` heading after the frontmatter", doc.body));
@@ -13864,6 +14041,8 @@ function validatePlan(markdown, opts) {
   }
   if (type === "Feature" || type === "Bugfix")
     out.push(...authoringFindings(outlineOf(doc)));
+  if (type === "Feature" || type === "Bugfix" || type === "Build")
+    out.push(...documentFindings(outlineOf(doc)));
   const skeleton = skeletonPlaceholders();
   let skel = 0;
   let firstSkel = -1;
@@ -23571,7 +23750,7 @@ function disposable(target) {
   const n = normalizePath2(target);
   return n !== "" && DISPOSABLE.test(n);
 }
-function words(ws) {
+function words2(ws) {
   return ws.map((w) => w.text);
 }
 var GIT_GLOBAL_WITH_ARG2 = new Set(["-c", "-C", "--git-dir", "--work-tree", "--namespace", "--config-env", "--super-prefix", "--attr-source", "--list-cmds"]);
@@ -23845,7 +24024,7 @@ function findNeed(args, st) {
   if (!roots.every(disposable))
     return "recursive-delete";
   for (const e of execs)
-    st.execs.push(words(unwrap(e).argv).join(" "));
+    st.execs.push(words2(unwrap(e).argv).join(" "));
   return;
 }
 function disposableFeeder(prev) {
@@ -23855,7 +24034,7 @@ function disposableFeeder(prev) {
   if (name === "find")
     return findParts(prev.slice(1)).roots.every(disposable);
   if (name === "echo") {
-    const items = words(prev.slice(1)).filter((w) => !/^-[neE]+$/u.test(w));
+    const items = words2(prev.slice(1)).filter((w) => !/^-[neE]+$/u.test(w));
     return items.length > 0 && items.every(disposable);
   }
   return false;
@@ -23864,7 +24043,7 @@ function removeNeed(name, argv, st) {
   const operands = [];
   let options = true;
   let recursive = false;
-  for (const a of words(argv.slice(1))) {
+  for (const a of words2(argv.slice(1))) {
     if (options && a === "--") {
       options = false;
       continue;
@@ -23878,7 +24057,7 @@ function removeNeed(name, argv, st) {
   }
   if (REMOVERS.has(name) && (operands.length === 0 || operands.some((o) => o.includes("{}")))) {
     if (!disposableFeeder(st.prev))
-      st.fed = words(argv);
+      st.fed = words2(argv);
     return;
   }
   if (name !== "rm" || !recursive || operands.length === 0)
@@ -23931,7 +24110,7 @@ function fedCodeDeletesTree(command) {
     const name = commandName(u.argv[0]);
     if (name === undefined)
       continue;
-    const it = interpreterCode(name, words(u.argv.slice(1)));
+    const it = interpreterCode(name, words2(u.argv.slice(1)));
     if (it === undefined)
       continue;
     for (const r of c.redirects) {
@@ -23947,7 +24126,7 @@ var DB_CLIENTS = new Set(["psql", "mysql", "mariadb", "sqlite3", "sqlite", "duck
 function commandNeeds(argv, st) {
   const name = commandName(argv[0]);
   if (name === "git") {
-    const all = words(argv);
+    const all = words2(argv);
     const seen = st.execs.indexOf(all.join(" "));
     if (seen >= 0) {
       st.execs.splice(seen, 1);
@@ -23962,7 +24141,7 @@ function commandNeed(argv, st) {
   const name = commandName(argv[0]);
   if (name === undefined)
     return;
-  const all = words(argv);
+  const all = words2(argv);
   const seen = st.execs.indexOf(all.join(" "));
   if (seen >= 0) {
     st.execs.splice(seen, 1);
@@ -24720,7 +24899,6 @@ var BURACLE_READ = {
   "review-scope": true,
   version: true,
   help: true,
-  diagram: true,
   plan: ["status", "validate"],
   worktree: ["detect", "status", "diff"],
   mem: ["search", "get", "status", "context"],
@@ -26094,7 +26272,7 @@ var CODE_FLAGS = {
 var CODE_CLUSTER = { sed: /^-[A-Za-z]+e$/, perl: /^-[A-Za-z0-9]+[eE]$/, ruby: /^-[A-Za-z0-9]+e$/ };
 var EXEC_FLAGS = new Set(["-exec", "-execdir", "-ok", "-okdir"]);
 var FIND_PLACEHOLDER = "{}";
-function words2(cmd) {
+function words3(cmd) {
   return unwrap(cmd.words).argv;
 }
 function tempWord(w) {
@@ -26271,7 +26449,7 @@ function execWrite(args, scope, depth) {
   return;
 }
 function commandWrite(cmd, scope, depth = 0) {
-  const argv = words2(cmd);
+  const argv = words3(cmd);
   const name = commandName(argv[0]);
   if (name !== undefined && SELF.has(name))
     return;
@@ -26338,7 +26516,7 @@ function scriptWrite(script, scope, depth) {
     }
     const only = pl.stages.length === 1 ? pl.stages[0] : undefined;
     if (only?.kind === "cmd") {
-      const argv = words2(only.cmd);
+      const argv = words3(only.cmd);
       if (commandName(argv[0]) === "cd")
         at = afterCd(argv.slice(1), at);
     }
@@ -26401,7 +26579,7 @@ function shellFileRead(command) {
       if (st === undefined || st.kind !== "cmd")
         return;
       const cmd = st.cmd;
-      const argv = words2(cmd);
+      const argv = words3(cmd);
       const name = commandName(argv[0]);
       if (name === undefined)
         return;
@@ -27177,7 +27355,7 @@ var READ_ONLY_TOOLS = new Set(["chrome-devtools/upload_file"]);
 function keyOf2(k) {
   return k.toLowerCase().replace(/[_-]/g, "");
 }
-function plain(v) {
+function plain2(v) {
   return v !== null && typeof v === "object" && !Array.isArray(v) ? v : undefined;
 }
 function mcpParts(tool) {
@@ -27206,13 +27384,13 @@ function mcpWritePaths(tool, input, mcp) {
       if (WRITE_PATH_KEYS.has(keyOf2(k)))
         add(v);
       else if (depth === 0) {
-        const inner = plain(v);
+        const inner = plain2(v);
         if (inner !== undefined)
           scan(inner, 1);
       }
     }
   };
-  const top = plain(input);
+  const top = plain2(input);
   if (top !== undefined)
     scan(top, 0);
   return out;
@@ -27222,7 +27400,7 @@ function mcpWritePaths(tool, input, mcp) {
 var OBJECTIVE_GOAL_MAX = 500;
 var OBJECTIVE_ITEMS_MAX = 5;
 var ITEM_MAX = 200;
-function plain2(line) {
+function plain3(line) {
   return line.replace(/<!--[\s\S]*?(?:-->|$)/g, " ").replace(/\*\*|__|`/g, "").replace(/\s+/g, " ").trim();
 }
 function clip4(s, max) {
@@ -27258,12 +27436,12 @@ var BULLET = /^\s*(?:[-*+]|\d+[.)])\s+(.*)$/;
 function bullets(lines) {
   return lines.flatMap((l) => {
     const m = BULLET.exec(l);
-    const t = m ? plain2(m[1]) : "";
+    const t = m ? plain3(m[1]) : "";
     return t !== "" ? [clip4(t, ITEM_MAX)] : [];
   });
 }
 function prose(lines) {
-  const t = plain2(lines.filter((l) => !BULLET.test(l)).join(" "));
+  const t = plain3(lines.filter((l) => !BULLET.test(l)).join(" "));
   return t === "" ? undefined : clip4(t, OBJECTIVE_GOAL_MAX);
 }
 function featureObjective(o) {
@@ -27272,7 +27450,7 @@ function featureObjective(o) {
     return;
   const at = lines.findIndex((l) => /^\s*(?:\*\*)?done when(?:\*\*)?\s*:?/i.test(l));
   const head = at < 0 ? lines : lines.slice(0, at);
-  const tail = at < 0 ? [] : [plain2(lines[at]).replace(/^done when\s*:?\s*/i, ""), ...lines.slice(at + 1)];
+  const tail = at < 0 ? [] : [plain3(lines[at]).replace(/^done when\s*:?\s*/i, ""), ...lines.slice(at + 1)];
   const items = bullets(at < 0 ? [] : tail.slice(1));
   const inline = at < 0 ? "" : tail[0] ?? "";
   if (inline !== "")
@@ -27296,7 +27474,7 @@ function buildObjective(o) {
     const t = line.trim();
     if (!t.startsWith("|"))
       continue;
-    const cells = t.replace(/^\||\|$/g, "").split("|").map((c) => plain2(c));
+    const cells = t.replace(/^\||\|$/g, "").split("|").map((c) => plain3(c));
     const id = /^C\d{1,3}\b/i.exec(cells[0] ?? "")?.[0];
     const text = cells[1] ?? "";
     if (id === undefined || text === "")
@@ -28878,7 +29056,7 @@ async function capturePlanFile(i) {
   const base = slugFromTitle(title, 60) || "plan";
   const approved = i.approved ?? true;
   const content = capturedPlanMarkdown(text, { created, harness: i.harness, approved, title, ...i.via !== undefined ? { via: i.via } : {} });
-  const dir = join17(root, "docs", "plans");
+  const dir = join17(root, "docs", docDirFor("plan-build"));
   mkdirSync8(dir, { recursive: true });
   for (let n = 1;n <= CAPTURE_SLOTS; n++) {
     const slug = n === 1 ? base : `${base}-${n}`;
@@ -29080,15 +29258,6 @@ import { mkdirSync as mkdirSync9 } from "fs";
 import { dirname as dirname8, join as join21 } from "path";
 
 // src/core/plan/notes.ts
-function reviewDocOf(rel) {
-  const m = /^docs\/(plans|builds|prd)\/([^/]+\.md)$/u.exec(rel.replace(/\\/g, "/"));
-  if (m === null)
-    return;
-  const name = m[2];
-  if (name.startsWith("."))
-    return;
-  return { dir: m[1], name };
-}
 function isObj6(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
@@ -29111,7 +29280,7 @@ function inboxFor(entries, s, since) {
     if (e.doc !== undefined) {
       if (s.plan !== undefined)
         return norm(e.doc) === norm(s.plan);
-      return reviewDocOf(e.rel ?? "")?.dir === "prd" && roots.some((r) => within3(r, e.root));
+      return docDirOf(e.rel ?? "")?.workflow === "requirements" && roots.some((r) => within3(r, e.root));
     }
     if (s.plan !== undefined)
       return roots.some((r) => within3(r, e.root) || e.checkout !== undefined && within3(r, e.checkout));
@@ -29473,7 +29642,7 @@ var ASSETS_CONTEXT_MAX_SKILLS = 40;
 var ASSETS_DESCRIPTION_MAX = 160;
 var ASSETS_BLOCK_MAX_CHARS = 2400;
 var DASH = "\u2014";
-var HEADING2 = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
+var HEADING3 = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
 var ITEM = /^\s*[-*+]\s+(.*)$/;
 var CODE = /`([^`]+)`/g;
 var LINK_TARGET = /\]\(\s*<?((?:\.\/)?\.claude\/rules\/[^)>\s]+\.md)>?\s*\)/;
@@ -29525,7 +29694,7 @@ function parseScopedRules(agentsText) {
     }
     if (fence)
       continue;
-    const h = HEADING2.exec(raw);
+    const h = HEADING3.exec(raw);
     if (h !== null) {
       const depth = (h[1] ?? "").length;
       if (inSection && depth <= level)
@@ -33264,10 +33433,9 @@ async function registerWorkflowCommands(ctx, skills, deps) {
 
 // src/core/plan/plan-mode.ts
 var FILE_WRITING_WORKFLOWS = {
-  "plan-build": "its plan file under docs/plans/",
-  bugfix: "its plan file under docs/plans/",
-  "goal-build": "its run file under docs/builds/",
-  requirements: "its PRD under docs/prd/"
+  "plan-build": "its plan file under docs/plan-build/",
+  "goal-build": "its run file under docs/goal-build/",
+  requirements: "its PRD under docs/requirements/"
 };
 var READ_ONLY_MODE = {
   claude: { name: "Claude Code's plan mode", leave: "leave plan mode (Shift+Tab)" },
@@ -33283,7 +33451,7 @@ function readOnlyStartNotice(workflow, harness) {
   const native = workflow === "plan-build" ? " With plan.nativePlanMode on, the workflow asks the user to return to plan mode after it has registered and prepared its plan file; a plan already prepared that way (`buracle plan prepare-native`) keeps planning here and ignores this note." : "";
   return `Buracle: ${workflow} was started while the session is in ${mode.name}, which allows no file edits, and the workflow's first phase writes ${writes}. Ask the user to ${mode.leave} first, then continue the workflow. Until then only discuss the task in the conversation: do not run \`buracle plan init\` or \`buracle plan register\`.${native}`;
 }
-var PLAN_DIRS = /(?:^|\/)docs\/(?:plans|builds|prd)\//;
+var PLAN_DIRS = DOC_DIR_PREFIX;
 function norm2(p) {
   return p.replace(/\\/g, "/").replace(/\/+/g, "/");
 }
@@ -33552,7 +33720,7 @@ var EFFORT_SCALES = {
     persistable: ["minimal", "low", "medium", "high", "xhigh", "max", "auto"]
   }
 };
-var LABEL2 = { claude: "Claude Code", codex: "Codex", opencode: "OpenCode", omp: "Oh My Pi" };
+var LABEL3 = { claude: "Claude Code", codex: "Codex", opencode: "OpenCode", omp: "Oh My Pi" };
 var OMP_CLASSIFIER = "classifier";
 function effortBelowTop(h) {
   const s = EFFORT_SCALES[h];
@@ -33580,7 +33748,7 @@ function resolveEffort(h, value) {
   if (h === "omp" && v === "off") {
     return { invalid: "Oh My Pi's settings cannot hold 'off' (it ignores it and runs at high); minimal is the least thinking it saves" };
   }
-  return { invalid: `'${value.trim()}' is not an effort value for ${LABEL2[h]}; use one of ${effortConfigValues(h).join(", ")}` };
+  return { invalid: `'${value.trim()}' is not an effort value for ${LABEL3[h]}; use one of ${effortConfigValues(h).join(", ")}` };
 }
 
 // src/adapters/opencode/runtime/effort.ts
@@ -36412,7 +36580,7 @@ function createBuraclePlugin(deps) {
 }
 
 // src/adapters/opencode/runtime/server.ts
-var server_default = createBuraclePlugin({ baked: { v: 1, contentHash: "ef5b0988d347f5747462c7fd4f248be5c1fb4a2ed1445aff8b766f1d6fad3ed9", testedWith: "2.0.30", defaults: { version: 1, harnesses: { claude: { enabled: true }, codex: { enabled: true }, opencode: { enabled: true }, omp: { enabled: true } }, routing: { strictness: "enforce", skills: "router", reminders: true }, guards: { bash: { extraDeny: [] }, write: { protect: [] }, redact: true }, plan: { stopGuard: true, runaway: { perPlan: 30, perChain: 5 }, autoPause: false, planApproval: true, resultApproval: true, branchIsolation: true, worktreeDir: ".worktrees", questions: true, reviews: { plan: true, changes: true, goal: true, companion: "off" }, goalVerification: true, modelSwitch: "off", nativePlanMode: "off" }, context: { warnPct: 85, criticalPct: 95 }, checkers: { enabled: true, timeoutMs: 20000, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] }, memory: { ui: { port: 41777, autostart: true }, exclude: [] }, statusline: { style: "buracle", emoji: true, monthly: "estimate" }, skills: { sources: [{ name: "buracle", path: "canonical/skills" }] }, update: { minReleaseAgeDays: 0 }, permissions: { bypass: true, enforce: true }, effort: { claude: "auto", codex: "auto", opencode: "auto", omp: "auto" }, agents: { teams: true }, workflow: { band: true, foldAfterSec: 8, notifyAfterSec: 120, codexNotices: true }, toolchain: { autoInstall: true, system: true, upgrade: true }, index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 } }, routing: { strictness: "enforce", categories: [{ id: "library-docs", intent: "Library, framework, SDK or CLI documentation at the installed version (APIs, options, config, migrations)", prefer: ["mcp:context7/resolve-library-id", "mcp:context7/query-docs"], fallback: ["mcp:web-fetch/fetch_url"], deny_builtin: [], nudge: "For library or framework APIs, resolve the library with context7 and query its docs at the version in the lockfile.", reminder: "resolve the library with context7 (resolve-library-id), then query-docs at the version in the lockfile", triggers: { topic: ["official docs", "official documentation", "library docs", "framework docs", "according to the docs", "per the docs", "from the docs", "verify in the docs", "api reference", "api docs", "migration guide", "upgrade guide", "re:\\bcheck the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:look|looked|looking|search|searched|searching)\\b(?:\\s+(?:it|this|that|them)\\s+up)?\\s+in the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:says?|said|mentioned|documented|described)\\s+in the docs\\b", "re:\\b(?!(?:the|our|my|your|their|this|that|an?|its|new|own|same|internal|custom|official|public|private|client|server|web|mobile)\\b)[a-z][a-z0-9.-]{2,}\\s+sdk\\b", "belgelerden", "belgelere gore", "resmi belge*", "dokumantasyondan", "dokumantasyona gore", "api referans*", "goc rehberi", "re:\\b(?:belgelerde|dokumantasyonda)\\b(?!.{0,40}\\b(?:ekle|guncelle|duzelt|kaldir|sil)\\w*)"], not: ["docs folder", "docs directory", "docs klasor*"], deps: ["api", "apis", "config", "configure", "configuration", "option*", "migrat*", "upgrade*", "version*", "deprecat*", "breaking change*", "hook*", "middleware", "plugin*", "setup", "set up", "install*", "usage", "how to use", "how to", "how do", "how does", "how can", "why does", "why do", "why is", "what does", "what options", "which options", "by default", "syntax", "integrat*", "method*", "signature", "type*", "re:\\bv\\d+(?:\\.\\d+)*\\b", "re:\\b\\d+\\.\\d+(?:\\.\\d+)?\\b", "nasil", "yapilandir*", "ayar*", "surum*", "guncelle*", "kurulum*", "entegre*", "goc*", "tip*"] } }, { id: "web-search", intent: "Web search for errors, releases, changelogs and comparisons", prefer: ["mcp:web-search/search"], fallback: ["mcp:web-fetch/fetch_url", "builtin:web_search"], deny_builtin: ["web_search"], nudge: "Search the web with the web-search MCP server; while it is down, fetch a search results page (https://html.duckduckgo.com/html/?q=<query>) with web-fetch, and use the built-in web search only when both are down.", reminder: "search with the web-search MCP server (search), then read the sources with web-fetch (fetch_url)", triggers: { topic: ["latest version", "latest release", "latest stable", "release notes", "what's new in", "whats new in", "still maintained", "search the web", "look it up online", "re:\\b(?:read|check|see|look at|according to|per)\\s+(?:the\\s+|its\\s+|their\\s+)?(?:upstream\\s+|official\\s+)?changelog\\b", "re:\\bchangelog\\s+(?:of|for)\\b", "re:\\b(?:is|was)\\s+(?:this|it|that|there)\\s+a\\s+known\\s+(?:issue|bug)\\b", "re:\\b(?:any|are there)\\s+known\\s+(?:issues?|bugs?)\\b", "re:\\bknown\\s+(?:issues?|bugs?)\\s+(?:with|in|of)\\s+(?!(?:our|my|this|the)\\b)", "son surum*", "guncel surum*", "en son surum*", "surum notlari", "degisiklik gunlugu", "hala bakimi yapiliyor", "webde ara*", "internette ara*"], not: ["draft* release notes", "write* release notes", "generate* release notes", "release notes from", "our release notes", "our changelog", "update the changelog", "changelog entry", "surum notlari yaz*", "surum notlarini yaz*", "surum notlari hazirla*", "degisiklik gunlugunu guncelle*"] } }, { id: "web-fetch", intent: "Read a known URL, including JavaScript-rendered pages", prefer: ["mcp:web-fetch/fetch_url"], fallback: ["builtin:web_fetch"], deny_builtin: ["web_fetch"], nudge: "Fetch pages with the web-fetch MCP server, and use the built-in fetch only while it is down.", reminder: "read the page with the web-fetch MCP server (fetch_url)" }, { id: "code-examples", intent: "How public code uses an API (GitHub examples)", prefer: ["mcp:grep/searchGitHub"], fallback: ["mcp:web-search/search"], deny_builtin: [], reminder: "look up real usage in public code with the grep MCP server (searchGitHub)", triggers: { topic: ["examples on github", "github examples", "real-world usage", "real world usage", "real-world examples", "how do other projects", "how others use", "open-source examples", "open source examples", "github'da*", "gercek projelerde", "acik kaynak projelerde", "ornek kullanim*", "baska projeler nasil"] } }, { id: "code-search", intent: "Find code by intent or concept, or code similar to a snippet", prefer: ["mcp:semble/search", "mcp:semble/find_related"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Search code with semble (intent) or rg (exact text), never grep -r or find | xargs grep.", reminder: "find code by intent with semble search (repo = the project root); rg stays right for exact text", triggers: { topic: ["which file", "find the code that", "find where", "locate the code", "re:\\bwhere (?:is|are|do we|does) (?:the |our |we )?\\S+ (?:defined|implemented|handled|configured|loaded|set|parsed|created)", "re:\\bhow (?:does|do) .{1,60}\\bwork\\b", "nerede tanimli", "nerede yapiliyor", "nerede uygulan*", "hangi dosyada", "nasil calisiyor", "kodu bul"], not: ["where were we", "where did we leave", "nerede kalmistik", "nerede kaldik"] } }, { id: "code-structure", intent: "Definitions, callers and callees, and the impact of changing a symbol", prefer: ["mcp:codegraph/codegraph_explore"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Before changing a shared function, type or endpoint, get its callers from codegraph.", reminder: "ask codegraph (callers, callees, impact; projectPath = the project root) before you change a shared symbol", triggers: { topic: ["who calls", "what calls", "callers of", "call sites", "call graph", "find usages", "all usages", "references to", "impact of chang*", "blast radius", "what breaks if", "what depends on", "re:\\bwhere (?:is|are) \\S+ (?:called|used|invoked|referenced)", "nereden cagriliyor", "nerelerde cagriliyor", "kim cagiriyor", "cagiranlar*", "cagri grafi*", "nerelerde kullaniliyor", "etki analizi", "neyi bozar", "neler etkilenir"] } }, { id: "language-server", intent: "Diagnostics of an edited file, a symbol's type and docs, its definition and references from the language server (Codex and OpenCode; Claude Code and omp use their own LSP tools)", prefer: ["mcp:lsp/diagnostics", "mcp:lsp/hover", "mcp:lsp/definition", "mcp:lsp/references"], fallback: ["mcp:codegraph/codegraph_explore", "cli:rg"], deny_builtin: [], reminder: "check an edited Python, TypeScript, Go, Rust, C# or Java file with the lsp server's diagnostics, and ask its hover or definition for a symbol's type", triggers: { topic: ["type error*", "typecheck error*", "type-check error*", "compile error*", "compiler error*", "compilation error*", "lsp diagnostics", "language server", "go to definition", "jump to definition", "re:\\bwhat(?:'s| is) the type of\\b", "tip hata*", "derleme hata*", "tanima git", "tanimina git"] } }, { id: "browser", intent: "Drive and inspect a real browser (DOM, console, network, performance)", prefer: ["mcp:chrome-devtools"], fallback: [], deny_builtin: [], reminder: "drive and inspect the real browser with chrome-devtools (navigate_page, take_snapshot, list_console_messages)", triggers: { topic: ["open the page", "take a screenshot", "screenshot of", "console errors", "browser console", "network tab", "lighthouse", "devtools", "re:\\b(?:open|test|check|verify|look|see|load|reproduce|try|view|inspect|debug|click|watch|preview)\\w*\\b.{0,40}\\bin the browser\\b", "ekran goruntusu", "konsol hata*", "sayfayi ac*", "re:\\btarayicida\\b.{0,30}\\b(?:ac|test et|kontrol et|dene|bak|gor|incele)\\w*"] } }, { id: "memory", intent: "Past decisions, gotchas, earlier sessions and preferences", prefer: ["mcp:buracle-memory/memory_search", "mcp:buracle-memory/memory_get"], fallback: ["cli:buracle"], deny_builtin: [], nudge: "History questions start with memory_search on the buracle-memory server.", reminder: "search memory with memory_search, then memory_get the relevant memories, and cite their ids", triggers: { topic: ["memory note*", "vault note*", "the memory vault", "the memory brain", "hafiza not*", "hafiza kayd*", "kasa not*"] } }] }, mcp: [{ id: "buracle-memory", description: "Buracle memory, the CortexDB brains of the project and the person (search, get, write, update, status)", transport: "stdio", critical: true, routing: ["memory"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "chrome-devtools", description: "Drive and inspect a Chrome browser (DevTools protocol)", transport: "stdio", critical: false, routing: ["browser"], harnesses: ["claude", "codex", "opencode"] }, { id: "codegraph", description: "Code structure graph (symbols, callers, impact) for the current repository", transport: "stdio", critical: true, routing: ["code-structure"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "context7", description: "Up-to-date library and framework documentation", transport: "stdio", critical: true, routing: ["library-docs"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "grep", description: "Search public GitHub code for real-world usage examples", transport: "http", critical: false, routing: ["code-examples"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "lsp", description: "Language-server diagnostics, hover, definitions, references and symbols", transport: "stdio", critical: true, routing: ["language-server"], harnesses: ["codex", "opencode"] }, { id: "semble", description: "Fast semantic code search over local or remote repositories", transport: "stdio", critical: true, routing: ["code-search"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-fetch", description: "Fetch and extract web pages with a headless browser", transport: "stdio", critical: true, routing: ["web-fetch"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-search", description: "Web search without an API key (DuckDuckGo by default)", transport: "stdio", critical: true, routing: ["web-search"], harnesses: ["claude", "codex", "opencode", "omp"] }], mcpIds: ["buracle-memory", "chrome-devtools", "codegraph", "context7", "grep", "lsp", "semble", "web-fetch", "web-search"], skills: [{ id: "ab-test", description: "Measure whether a change to a skill, rule, AGENTS.md section or routing policy really changes agent behavior. Defines falsifiable cases, runs paired baseline and candidate trials in throwaway config directories (never hiding or renaming the user's real skills or settings), captures tool-use evidence such as whether the agent loaded the skill or called context7, then scores pass rates and reports per-case deltas. Use when the user asks to benchmark, evaluate, A/B test or compare a skill or rule change, or to check that agents really use an MCP server or skill.", userInvocable: true, short: "Paired before/after evals of skills and rules with tool-use evidence", invocation: "implicit", triggers: { ask: ["benchmark the skill", "benchmark this skill", "benchmark the rule", "benchmark the routing", "a/b test the skill", "a/b test the rule", "ab-test the skill", "skill'i* benchmark*", "skill'i* olc*", "kurali benchmark*"], topic: ["activation rate", "trigger rate", "really makes the agent", "re:\\bbefore(?:/|\\s+and\\s+)after\\b.{0,60}\\b(?:skill|rule|routing|prompt|agents\\.md|claude\\.md|hook|mcp|description)", "re:\\b(?:skill|rule|routing|prompt|agents\\.md|claude\\.md|hook|description)\\S*\\b.{0,60}\\bbefore(?:/|\\s+and\\s+)after\\b", "re:\\b(?:agents?|models?|claude|codex|opencode|omp)\\b.{0,30}\\breally\\s+(?:calls?|uses?|loads?|triggers?|reads?)\\b", "re:\\bbenchmark\\w*\\b.{0,80}\\b(?:skill|rule|routing|agents\\.md|claude\\.md|hook|prompt|mcp)", "re:\\b(?:skill|rule|routing)\\S*\\b.{0,80}\\bbenchmark", "re:\\b(?:skill|kural|routing|prompt|agents\\.md|claude\\.md|hook|aciklama)\\S*\\b.{0,80}\\b(?:once/?\\s?sonra karsilastir|tetikleniyor mu|gercekten cagriliyor mu)", "re:\\b(?:once/?\\s?sonra karsilastir\\w*|tetikleniyor mu|gercekten cagriliyor mu)\\b.{0,80}\\b(?:skill|kural|routing|prompt|agents\\.md|claude\\.md|hook)", "re:\\bskill\\S*\\b.{0,80}\\b(?:eskisiyle|oncekiyle|onceki surumuyle)"], not: ["operations per second", "ops/sec", "ops per second", "throughput", "latency"] } }, { id: "bugfix", description: "Plan-less bug workflow that owns one defect end to end: reproduce it first, trace the root cause to file:line, write a failing test, fix at the source, prove the fix on the real program, then pass the quality gate. With branch isolation on it asks where to work: the current branch, a bugfix/<slug> branch or a worktree squash-merged once the fix is proven; no plan file. Run only when the user explicitly asks for bugfix.", userInvocable: true, short: "Reproduce, root-cause, RED test, fix at the source, prove it end to end", invocation: "explicit", triggers: { ask: ["re:(?<!\\b(?:the|that|this|your|my|our|its)\\s)\\broot[- ]cause\\s+fix\\b", "fix it test-first", "fix it with a failing test first", "reproduce it first and fix it", "kok nedenini bulup duzelt", "once test yazip duzelt"], not: ["workflow file", "github actions", "ci workflow"] } }, { id: "buracle", description: "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan \u2026`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, notifications, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.", userInvocable: false, short: "When and how to call the buracle helper CLI", invocation: "implicit", triggers: { ask: ["use the buracle cli", "buracle cli ile"], topic: ["re:\\bplan status\\b(?!\\s+(?:endpoint|field|column|code|enum|value|page|api|route|handler|query|badge|label|filter|check|type)s?\\b)", "how many tasks are left", "tasks left in the plan", "diff range", "re:(?<!\\b(?:add|added|adding|new)\\s(?:a\\s|an\\s|the\\s)?)\\breview scope\\b(?!\\s+(?:option|flag|field|param\\w*|column|setting|config\\w*|endpoint|api|type|enum|value)s?\\b)", "what should i review", "re:\\b(?:my|our|claude(?:\\s+code)?|codex|opencode|omp|subscription)(?:'s)?\\s+(?:usage|rate|weekly|5h|5-hour)\\s+limits?\\b", "rate limit headroom", "5h window", "5-hour window", "create a worktree", "merge the worktree", "buracle doctor", "planin durumu", "re:\\bplan durumu\\b(?!\\s+(?:alan|endpoint|kolon|sutun|enum|deger|sayfa|api|kod)\\w*)", "kac gorev kaldi", "kullanim limitim*", "kullanim limitlerim*", "re:\\bkullanim limit\\w*\\s+ne durumda", "5 saatlik pencere*", "5 saatlik limit*", "haftalik limitim*", "haftalik limitlerim*", "re:\\b(?:claude|codex|opencode|omp)\\S*\\s+(?:kullanim\\s+|haftalik\\s+)?limit\\w*", "worktree olustur*", "worktree ac", "worktree'yi birlestir*", "buracle doctor"] } }, { id: "dead-code", description: "Report-only dead-code audit. Collects candidate unused files and exports from the project's own analyzers, a bundled rg-based script and a read-only codegraph snapshot, checks every candidate against independent signals (codegraph references, exact and dynamic-usage search, analyzers), rules out a public role (API, entry points, config, registries), and returns a ranked report with evidence and a staged removal plan. Never deletes or edits code.", userInvocable: true, short: "Report-only dead-code audit with two-signal evidence and a removal plan", invocation: "explicit", triggers: { ask: ["dead code audit", "dead-code audit", "unused code report", "dead code report", "re:(?:^|[\\n.!?;:]\\s*|\\b(?:please|pls|can you|could you|would you|and|then|just)\\s+)find\\s+(?:all\\s+|the\\s+)?(?:dead|unused)\\s+(?:code|exports|files)\\b", "olu kod analizi", "olu kod raporu", "olu kodlari bul", "olu kod tara*", "kullanilmayan kod* bul", "kullanilmayan kod* tespit", "kullanilmayan export* bul", "temizlik raporu"] } }, { id: "find-skill", description: "Find an agent skill for a need and install it for every harness in a few calls. `buracle skills find <need>` is one command that shows the installed and shipped skills that already match, then the skills.sh registry's candidates with description, license, freshness, tool grants and risk ratings; `buracle skills add --dry-run` audits the pick (scripts, allowed-tools, suspicious lines) and `buracle skills add` installs it into ~/.agents/skills (Codex, OpenCode, Oh My Pi) and links it into ~/.claude/skills (Claude Code). Also updates and removes installed skills.", userInvocable: true, short: "Find a skill for a need and install it for every harness", invocation: "implicit", triggers: { ask: ["find a skill", "find me a skill", "find skills for", "is there a skill", "re:\\b(?:install|add|get)\\s+(?:a|the|an)\\s+(?:\\S+\\s+){0,3}skill\\b", "re:\\b(?:update|upgrade|remove|uninstall)\\s+(?:my|the|an?)\\s+(?:\\S+\\s+){0,2}skills?\\b", "search for a skill", "skill marketplace", "skill bul", "skill ara", "skill var mi", "bir skill var mi", "re:\\bskill\\w*\\s+(?:kur|yukle|ekle|indir)", "re:\\b(?:kur|yukle|ekle|indir)\\w*\\s+(?:\\S+\\s+){0,2}skill", "skilleri guncelle", "skill guncelle*", "skill kaldir*", "skill sil"], not: ["create a skill", "write a skill", "new skill", "turn this into a skill", "buracle skill", "the skill is", "skill triggers", "skills lint", "new-skill", "in the skill", "skill file", "skill id", "skill yaz", "skill olustur", "skille donustur", "yeni skill", "skill dosyasi"] } }, { id: "goal-build", description: "Goal-and-loop workflow for a clear end state whose path is found while building: agree on a goal, tasks sized as the largest slices you can finish and verify, and at least 3 pass/fail acceptance criteria (one of them the oracle), have them reviewed, lock the contract, then build in rounds judged on running evidence (at most four), verify and hand back. Tracked in docs/builds/. Run only when the user explicitly asks for goal-build.", userInvocable: true, short: "Lock a goal and pass/fail criteria, then build in judged rounds", invocation: "explicit", triggers: { ask: ["goal-and-loop", "goal and loop", "find the way yourself", "re:\\byou find the way(?: there)?\\s*(?:[.!;:]|$)", "re:(?:^|[\\n.!?;:]\\s*|\\b(?:and|then|just|please)\\s+)(?:keep\\s+)?loop(?:ing)?\\s+until\\s+it\\s+(?:works|passes)\\b", "yolunu sen bul", "bitene kadar dongu*", "hedef odakli dongu*"], not: ["github actions", "ci workflow", "ci pipeline", "workflow file", "workflow run", ".github/workflows", "workflow yaml"] } }, { id: "inspect", description: "Read-only investigation of one question about the code. Frames a falsifiable claim, locates code with semble (intent), codegraph (callers, callees, blast radius) and rg or ast-grep (exact and structural matches), checks memory for past decisions, traces the active path hop by hop, challenges the answer with a counterexample search, and reports a direct answer with file:line evidence and calibrated confidence. Never edits anything.", userInvocable: true, short: "Read-only trace of one code question with file:line evidence", invocation: "explicit", triggers: { ask: ["inspect how", "inspect why", "inspect where", "investigate how", "investigate why", "investigate where", "dig into how", "trace how", "re:(?:^|[\\n.!?;:]\\s*|\\b(?:please|pls|can you|could you|would you)\\s+)investigate\\s+(?:this|that|it)\\b", "nasil calistigini incele*", "nasil calistigini arastir*", "neden boyle davrandigini incele*", "neden boyle davrandigini arastir*", "nereden cagrildigini incele*"], not: ["and fix", "fix it", "then fix", "duzelt"] } }, { id: "memory", description: "Protocol for Buracle's shared memory: one CortexDB brain with a bucket for each project and one for the person, served by the buracle-memory MCP server in every harness. Says when to run a quick memory pass (at most 3 memory_search calls, then at most 3 memories via memory_get), how to treat recalled memories as evidence rather than instructions, and how to keep the memory: one claim per memory with sources, search before writing, update or merge instead of duplicating, record the user's preferences in the right brain, never overrule an explicit memory, never store secrets. Use when the user refers to past work or asks you to remember something, before re-deciding something and after a non-obvious fix.", userInvocable: false, short: "When and how to read, write and keep Buracle's CortexDB memory", invocation: "implicit", triggers: { ask: ["use the memory protocol", "hafiza protokolu*"], topic: ["memory note*", "vault note*", "the memory vault", "the memory brain", "hafiza not*", "hafiza kayd*", "kasa not*", "kasadaki not*"] } }, { id: "new-skill", description: "Capture a repeatable procedure as a Buracle skill, or improve an existing one. Picks the right home (global skills in the Buracle repo's canonical/skills or a configured skills git source; project-only skills in .agents/skills), writes SKILL.md in the canonical format with references/, scripts/ and trigger evals, lints it with `buracle skills lint`, and explains how publishing reaches every harness. Use when the user wants to turn a workflow into a skill, edit, split or rename a skill, or fix a skill that triggers too often or never.", userInvocable: true, short: "Capture a repeatable procedure as a canonical Buracle skill", invocation: "implicit", triggers: { ask: ["turn this into a skill", "turn it into a skill", "into a reusable skill", "make it a skill", "save it as a skill", "new skill for", "re:\\b(?:create|write|add|make) (?:a |an |the )?(?:new )?(?:[a-z-]+ ){0,2}skill\\b", "skill yap", "bunu skill yap", "yeni skill olustur*", "yeni bir skill olustur*", "yeni skill yaz*", "skill olustur*", "skill olarak kaydet*", "skill'e donustur*", "skill'i guncelle*", "tekrar kullanilabilir bir skill"], topic: ["reusable skill", "skill trigger*", "skill description", "re:\\bskill\\S*\\b.{0,60}\\b(?:never triggers|does not trigger|doesn't trigger|misfires|triggers too often)", "re:\\bskill\\S*\\b.{0,60}\\btetiklen(?:miyor|mez)", "re:\\bskill\\S*\\b.{0,60}\\bdevreye girmiyor"] } }, { id: "plan-build", description: "Plan-driven development through a plan file in docs/plans/: explore and clarify, write and review the plan, get approval, implement task by task with TDD, then verify with real evidence until the plan is VERIFIED. Covers features and bugfixes (behavior contract, reproduce first, root-cause fix). Also pauses, resumes or continues an existing plan. Run only when the user explicitly asks for plan-build.", userInvocable: true, short: "Plan, approve, TDD-implement and verify work through a plan file", invocation: "explicit", triggers: { ask: ["write a plan and implement*", "plan and implement it", "plan it and implement*", "re:\\b(?:do|build|implement|handle|tackle)\\s+(?:it|this|that|them|the\\s+\\S+)\\s+plan[- ]driven\\b", "re:\\b(?:go|let's go)\\s+plan[- ]driven\\b", "re:(?:^|[\\n.!?;]\\s*)plan[- ]driven(?:\\s*,?\\s*please)?\\s*[:,]", "plan yaz ve uygula", "plan yazip uygula", "planla ve uygula"] } }, { id: "project-rules", description: "Create, refresh or audit a repository's agent guidance so Claude Code, Codex, OpenCode and omp follow the same verified instructions: the root AGENTS.md, optional nested AGENTS.md files for subprojects, and path-scoped rules for specific file types. Discovers commands and conventions from the code (package scripts, CI jobs, linter and test configs, test layout), runs commands before documenting them, keeps every file short, then runs `buracle project sync` and `buracle project check`. Use when the user asks to set up, write, update, slim down or check AGENTS.md, CLAUDE.md or project rules.", userInvocable: true, short: "Generate and verify AGENTS.md and path-scoped rules for a repo", invocation: "implicit", triggers: { ask: ["set up agent guidance", "set up agents.md", "write agents.md", "create agents.md", "update agents.md", "audit agents.md", "refresh agents.md", "slim down agents.md", "set up the project rules", "audit the agent instructions", "agents.md hazirla*", "agents.md olustur*", "agents.md guncelle*", "agents.md yaz", "proje kurallarini kur", "talimatlari guncelle*", "kurallari sadelestir*"], topic: ["agent instructions", "agent guidance", "path rules", "path-scoped rules", "re:\\b(?:agents|claude)\\.md\\b.{0,40}\\b(?:stale|outdated|bloated|too long|wrong|out of date)", "proje talimatlari", "ajan talimatlari", "proje kurallari", "re:\\b(?:agents|claude)\\.md\\b.{0,40}\\b(?:eskimis|guncel degil|cok uzun|yanlis)"] } }, { id: "requirements", description: "Requirements workflow for ideas whose problem, audience or scope is still unclear. Grounds the idea in the codebase and memory, runs tiered research through the research skill, explores directions, asks a few decision questions, proposes approaches, converges on scope, writes an approved PRD to docs/prd/YYYY-MM-DD-<slug>.md and prints the plan-build or goal-build hand-off. No code is written before the PRD is approved.", userInvocable: true, short: "Interview, research and write an approved PRD before any code", invocation: "explicit", triggers: { ask: ["write a prd", "write the prd", "draft a prd", "draft the prd", "create a prd", "prepare a prd", "make a prd", "need a prd", "re:\\b(?:write|draft|create|prepare|make|produce|need|want)\\s+(?:me\\s+|us\\s+)?(?:a|an|the)\\s+(?:new\\s+|short\\s+|proper\\s+)?(?:product\\s+)?requirements\\s+doc(?:ument)?\\b", "re:(?:^|[\\n.!?;:]\\s*)(?:a\\s+)?prd\\s+for\\b", "prd yaz*", "prd hazirla*", "prd olustur*", "prd cikar*", "gereksinimleri cikar*", "re:\\bgereksinim\\s+(?:dokuman|belge)\\w*\\s+(?:yaz|hazirla|olustur|cikar|lazim|gerek)\\w*", "bu fikri netlestir*", "fikri netlestir*"], not: ["do we need a prd", "is there a prd", "do we have a prd", "is a prd needed", "prd gerekli mi", "prd lazim mi", "prd var mi"] } }, { id: "research", description: "Evidence-backed research that must use MCP tools instead of recall: web-search to discover sources, web-fetch to read them in full, context7 for library and framework documentation, grep for real-world code on GitHub, and buracle-memory for prior decisions. Produces a cited research note (answer, findings, options, conflicts, gaps, confidence) and can save durable findings to memory as knowledge memories pending review.", userInvocable: true, short: "Cited, MCP-backed research across web, library docs, public code and memory", invocation: "implicit", triggers: { ask: ["research this", "research it", "do research on", "research whether", "research which", "deep research", "find sources", "cite sources", "arastir", "arastirin", "arastiralim", "arastirir misin", "arastirabilir*", "arastirma yap*", "derinlemesine arastir*", "kaynak goster*", "kaynaklarla karsilastir*"], topic: ["still maintained", "is it maintained", "current sources", "which is better", "re:(?<!\\b(?:follow|following|use|using|apply|applying|with|keep|keeping|per)\\s(?:the\\s|our\\s|these\\s)?)\\bbest\\s+practices?\\s+(?:for|in|of|on|around|when\\s+using)\\b", "re:\\b(?:what|which)(?:'s|\\s+(?:is|are))\\s+(?:the\\s+)?(?:current\\s+|modern\\s+|recommended\\s+)?best\\s+practices?\\b", "re:\\bbest\\s+practices?\\s*\\?", "pros and cons", "alternatives to", "state of the art", "latest version of", "re:\\bcompare\\b.{0,60}\\b(?:librar|framework|tool|package|approach|option|vendor|provider|service|database|orm|solution|sdk)", "re:\\b(?:librar|framework|tool|package|approach|provider|service|database|sdk)\\w*\\b.{0,40}\\bcompar", "re:\\b(?!(?:actual|expected|got|received|before|after|old|new|left|right|input|output|tabs|spaces|this|that|it|one)\\b)[a-z][a-z0-9.-]+ (?:vs\\.?|versus) (?!(?:actual|expected|got|received|before|after|old|new|left|right|input|output|tabs|spaces|this|that|it|one)\\b)[a-z][a-z0-9.-]+", "hangisi daha iyi", "guncel mi", "guncel kaynak*", "re:\\ben iyi (?:pratik|uygulama)\\w*\\b(?!\\s+(?:uy|uygun|izle|takip))", "artilari ve eksileri", "alternatifleri neler", "re:\\b\\S+ mu \\S+ mu (?:kullan|sec|tercih)", "re:\\b(?:kutuphane|framework|arac|paket|yaklasim|secenek|servis|veritaban|sdk)\\w*\\b.{0,60}\\bkarsilastir"], not: ["vs code", "vscode", "visual studio", "compare function", "comparator"] } }, { id: "security-audit", description: "Security guidance and vulnerability review for codebases, APIs, services, CLI tools, libraries and daemons: Cloudflare's security-audit skill (MIT), vendored as Buracle's default security skill. Guidance mode answers security questions, focused reviews and triage with the relevant parts only; full audit mode runs six phases (reconnaissance, coverage-led hunting with parallel isolated agents, validation by fresh verifiers, structured findings.json, independent record verification, a target-neutral report) when the user asks for an audit, a pen test, a full security review or report artifacts.", userInvocable: true, short: "Cloudflare's security-audit skill, Buracle's default security review", invocation: "implicit", triggers: { ask: ["security audit", "audit the security", "re:\\baudit\\s+(?:this|the|my|our)\\s+(?:\\S+\\s+){0,2}(?:codebase|repo|repository|project|service|app|application|api)\\b.{0,40}\\bsecur", "re:\\bsecur\\w*\\s+(?:review|assessment|analysis|scan)\\b", "pen test", "pentest", "penetration test", "find vulnerabilities", "find security vulnerabilities", "look for vulnerabilities", "threat model", "guvenlik denetimi", "guvenlik taramasi", "guvenlik incelemesi", "guvenlik analizi", "re:\\bguvenlik ac(?:ik|ig)\\w*", "re:\\bzafiyet\\w*\\s+(?:bul|tara|ara)", "sizma testi", "pentest yap*", "tehdit modeli"], topic: ["re:\\bis (?:this|it|that) (?:secure|safe|vulnerable|exploitable)\\b", "re:\\b(?:sql|command|prompt|shell|code)\\s+injection\\b", "re:\\b(?:xss|csrf|ssrf|rce|idor)\\b", "re:\\btrust boundar", "re:\\b(?:auth(?:entication|orization)?|session|token|secret|credential)\\w*\\s+(?:bypass|leak|exposure|handling)\\b", "re:\\bguvenli mi\\b", "re:\\b(?:sql|komut|prompt|kod)\\s+enjeksiyon"], not: ["audit log", "audit trail", "accessibility audit", "performance audit", "lighthouse audit", "dead code audit", "cleanup audit", "dependency audit only", "npm audit", "security.md", "security headers test", "erisilebilirlik denetimi", "performans denetimi", "olu kod"] } }], plugins: [], hooks: [{ id: "H01", blocking: "deny", failure: "closed" }, { id: "H02", blocking: "deny", failure: "closed" }, { id: "H03", blocking: "deny", failure: "open" }, { id: "H04", blocking: "none", failure: "open" }, { id: "H05", blocking: "none", failure: "open" }, { id: "H06", blocking: "none", failure: "open" }, { id: "H07", blocking: "none", failure: "open" }, { id: "H08", blocking: "stop", failure: "open" }, { id: "H09", blocking: "deny", failure: "open" }, { id: "H10", blocking: "none", failure: "open" }, { id: "H11", blocking: "stop", failure: "open" }, { id: "H12", blocking: "none", failure: "open" }, { id: "H13", blocking: "none", failure: "open" }, { id: "H14", blocking: "none", failure: "open" }, { id: "H15", blocking: "none", failure: "open" }, { id: "H16", blocking: "none", failure: "open" }, { id: "H17", blocking: "none", failure: "open" }, { id: "H18", blocking: "none", failure: "open" }, { id: "H19", blocking: "none", failure: "open" }, { id: "H20", blocking: "deny", failure: "open" }, { id: "H21", blocking: "none", failure: "open" }, { id: "H22", blocking: "none", failure: "open" }, { id: "H23", blocking: "stop", failure: "open" }, { id: "H24", blocking: "none", failure: "open" }, { id: "H25", blocking: "none", failure: "open" }, { id: "H26", blocking: "none", failure: "open" }, { id: "H28", blocking: "none", failure: "open" }], pathRules: [{ id: "backend", globs: ["**/api/**", "**/routes/**", "**/handlers/**", "**/controllers/**", "**/endpoints/**", "**/middleware/**", "**/models/**", "**/models.py", "**/entities/**", "**/schema/**", "**/schemas/**", "**/queries/**", "**/repository/**", "**/repositories/**", "**/dao/**", "**/migrations/**", "**/migrate/**", "**/alembic/**", "**/db/**", "**/*.sql", "**/*.prisma", "**/*.graphql", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json"] }, { id: "blazor", globs: ["**/*.razor", "**/*.razor.cs", "**/*.razor.css"] }, { id: "browser-automation", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.razor", "**/e2e/**", "**/playwright/**", "**/cypress/**", "**/__tests__/**", "**/playwright.config.*", "**/cypress.config.*"] }, { id: "dotnet", globs: ["**/*.cs", "**/*.csproj", "**/*.sln", "**/*.slnx", "**/global.json", "**/Directory.Build.props", "**/Directory.Packages.props"] }, { id: "frontend", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.sass", "**/*.less", "**/*.razor", "**/*.razor.css"] }, { id: "go", globs: ["**/*.go", "**/go.mod", "**/go.sum", "**/go.work"] }, { id: "mobile", globs: ["**/capacitor.config.*", "**/ionic.config.json", "**/android/app/build.gradle*", "**/android/app/src/main/AndroidManifest.xml", "**/*.xcodeproj/project.pbxproj", "**/*.xcworkspace/contents.xcworkspacedata", "**/Podfile", "**/pubspec.yaml", "**/react-native.config.*", "**/metro.config.*", "**/expo.json", "**/eas.json", "**/app.config.{js,ts}"] }, { id: "python", globs: ["**/*.py", "**/*.pyi", "**/pyproject.toml", "**/requirements*.txt", "**/uv.lock", "**/setup.cfg"] }, { id: "typescript", globs: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts", "**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs", "**/package.json", "**/tsconfig*.json"] }], version: "0.6.1", notices: [{ id: "0.5.0-project-assets", since: "0.5.0", until: "0.6.0", message: "When a session starts in a repository, Buracle now links the skills in .agents/skills into .claude/skills so Claude Code sees them too, and checks that AGENTS.md lists the path rules in .claude/rules. Run `buracle project check` to see what it would change." }, { id: "0.5.0-smaller-cli", since: "0.5.0", until: "0.6.0", message: "Buracle's CLI is smaller: run `buracle` in a terminal for a main menu you drive with the keyboard. `buracle install` now does what `init` and `sync` did, `buracle install` and `buracle update` apply in a terminal without a question and show each step as it runs, and the rare cases flags used to cover are questions in a terminal. `buracle help --all` lists the commands your agents use." }] }, memory: memoryBridge, pluginDir: import.meta.dir });
+var server_default = createBuraclePlugin({ baked: { v: 1, contentHash: "8d3373d4b3e378ba9a51ccdb148c7af8c6b446d6d5c46f12842ad962c45fd233", testedWith: "2.0.30", defaults: { version: 1, harnesses: { claude: { enabled: true }, codex: { enabled: true }, opencode: { enabled: true }, omp: { enabled: true } }, routing: { strictness: "enforce", skills: "router", reminders: true }, guards: { bash: { extraDeny: [] }, write: { protect: [] }, redact: true }, plan: { stopGuard: true, runaway: { perPlan: 30, perChain: 5 }, autoPause: false, planApproval: true, resultApproval: true, branchIsolation: true, worktreeDir: ".worktrees", questions: true, reviews: { plan: true, changes: true, goal: true, companion: "off" }, goalVerification: true, modelSwitch: "off", nativePlanMode: "off" }, context: { warnPct: 85, criticalPct: 95 }, checkers: { enabled: true, timeoutMs: 20000, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] }, memory: { ui: { port: 41777, autostart: true }, exclude: [] }, statusline: { style: "buracle", emoji: true, monthly: "estimate" }, skills: { sources: [{ name: "buracle", path: "canonical/skills" }] }, update: { minReleaseAgeDays: 0 }, permissions: { bypass: true, enforce: true }, effort: { claude: "auto", codex: "auto", opencode: "auto", omp: "auto" }, agents: { teams: true }, workflow: { band: true, foldAfterSec: 8, notifyAfterSec: 120, codexNotices: true }, toolchain: { autoInstall: true, system: true, upgrade: true }, index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 } }, routing: { strictness: "enforce", categories: [{ id: "library-docs", intent: "Library, framework, SDK or CLI documentation at the installed version (APIs, options, config, migrations)", prefer: ["mcp:context7/resolve-library-id", "mcp:context7/query-docs"], fallback: ["mcp:web-fetch/fetch_url"], deny_builtin: [], nudge: "For library or framework APIs, resolve the library with context7 and query its docs at the version in the lockfile.", reminder: "resolve the library with context7 (resolve-library-id), then query-docs at the version in the lockfile", triggers: { topic: ["official docs", "official documentation", "library docs", "framework docs", "according to the docs", "per the docs", "from the docs", "verify in the docs", "api reference", "api docs", "migration guide", "upgrade guide", "re:\\bcheck the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:look|looked|looking|search|searched|searching)\\b(?:\\s+(?:it|this|that|them)\\s+up)?\\s+in the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:says?|said|mentioned|documented|described)\\s+in the docs\\b", "re:\\b(?!(?:the|our|my|your|their|this|that|an?|its|new|own|same|internal|custom|official|public|private|client|server|web|mobile)\\b)[a-z][a-z0-9.-]{2,}\\s+sdk\\b", "belgelerden", "belgelere gore", "resmi belge*", "dokumantasyondan", "dokumantasyona gore", "api referans*", "goc rehberi", "re:\\b(?:belgelerde|dokumantasyonda)\\b(?!.{0,40}\\b(?:ekle|guncelle|duzelt|kaldir|sil)\\w*)"], not: ["docs folder", "docs directory", "docs klasor*"], deps: ["api", "apis", "config", "configure", "configuration", "option*", "migrat*", "upgrade*", "version*", "deprecat*", "breaking change*", "hook*", "middleware", "plugin*", "setup", "set up", "install*", "usage", "how to use", "how to", "how do", "how does", "how can", "why does", "why do", "why is", "what does", "what options", "which options", "by default", "syntax", "integrat*", "method*", "signature", "type*", "re:\\bv\\d+(?:\\.\\d+)*\\b", "re:\\b\\d+\\.\\d+(?:\\.\\d+)?\\b", "nasil", "yapilandir*", "ayar*", "surum*", "guncelle*", "kurulum*", "entegre*", "goc*", "tip*"] } }, { id: "web-search", intent: "Web search for errors, releases, changelogs and comparisons", prefer: ["mcp:web-search/search"], fallback: ["mcp:web-fetch/fetch_url", "builtin:web_search"], deny_builtin: ["web_search"], nudge: "Search the web with the web-search MCP server; while it is down, fetch a search results page (https://html.duckduckgo.com/html/?q=<query>) with web-fetch, and use the built-in web search only when both are down.", reminder: "search with the web-search MCP server (search), then read the sources with web-fetch (fetch_url)", triggers: { topic: ["latest version", "latest release", "latest stable", "release notes", "what's new in", "whats new in", "still maintained", "search the web", "look it up online", "re:\\b(?:read|check|see|look at|according to|per)\\s+(?:the\\s+|its\\s+|their\\s+)?(?:upstream\\s+|official\\s+)?changelog\\b", "re:\\bchangelog\\s+(?:of|for)\\b", "re:\\b(?:is|was)\\s+(?:this|it|that|there)\\s+a\\s+known\\s+(?:issue|bug)\\b", "re:\\b(?:any|are there)\\s+known\\s+(?:issues?|bugs?)\\b", "re:\\bknown\\s+(?:issues?|bugs?)\\s+(?:with|in|of)\\s+(?!(?:our|my|this|the)\\b)", "son surum*", "guncel surum*", "en son surum*", "surum notlari", "degisiklik gunlugu", "hala bakimi yapiliyor", "webde ara*", "internette ara*"], not: ["draft* release notes", "write* release notes", "generate* release notes", "release notes from", "our release notes", "our changelog", "update the changelog", "changelog entry", "surum notlari yaz*", "surum notlarini yaz*", "surum notlari hazirla*", "degisiklik gunlugunu guncelle*"] } }, { id: "web-fetch", intent: "Read a known URL, including JavaScript-rendered pages", prefer: ["mcp:web-fetch/fetch_url"], fallback: ["builtin:web_fetch"], deny_builtin: ["web_fetch"], nudge: "Fetch pages with the web-fetch MCP server, and use the built-in fetch only while it is down.", reminder: "read the page with the web-fetch MCP server (fetch_url)" }, { id: "code-examples", intent: "How public code uses an API (GitHub examples)", prefer: ["mcp:grep/searchGitHub"], fallback: ["mcp:web-search/search"], deny_builtin: [], reminder: "look up real usage in public code with the grep MCP server (searchGitHub)", triggers: { topic: ["examples on github", "github examples", "real-world usage", "real world usage", "real-world examples", "how do other projects", "how others use", "open-source examples", "open source examples", "github'da*", "gercek projelerde", "acik kaynak projelerde", "ornek kullanim*", "baska projeler nasil"] } }, { id: "code-search", intent: "Find code by intent or concept, or code similar to a snippet", prefer: ["mcp:semble/search", "mcp:semble/find_related"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Search code with semble (intent) or rg (exact text), never grep -r or find | xargs grep.", reminder: "find code by intent with semble search (repo = the project root); rg stays right for exact text", triggers: { topic: ["which file", "find the code that", "find where", "locate the code", "re:\\bwhere (?:is|are|do we|does) (?:the |our |we )?\\S+ (?:defined|implemented|handled|configured|loaded|set|parsed|created)", "re:\\bhow (?:does|do) .{1,60}\\bwork\\b", "nerede tanimli", "nerede yapiliyor", "nerede uygulan*", "hangi dosyada", "nasil calisiyor", "kodu bul"], not: ["where were we", "where did we leave", "nerede kalmistik", "nerede kaldik"] } }, { id: "code-structure", intent: "Definitions, callers and callees, and the impact of changing a symbol", prefer: ["mcp:codegraph/codegraph_explore"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Before changing a shared function, type or endpoint, get its callers from codegraph.", reminder: "ask codegraph (callers, callees, impact; projectPath = the project root) before you change a shared symbol", triggers: { topic: ["who calls", "what calls", "callers of", "call sites", "call graph", "find usages", "all usages", "references to", "impact of chang*", "blast radius", "what breaks if", "what depends on", "re:\\bwhere (?:is|are) \\S+ (?:called|used|invoked|referenced)", "nereden cagriliyor", "nerelerde cagriliyor", "kim cagiriyor", "cagiranlar*", "cagri grafi*", "nerelerde kullaniliyor", "etki analizi", "neyi bozar", "neler etkilenir"] } }, { id: "language-server", intent: "Diagnostics of an edited file, a symbol's type and docs, its definition and references from the language server (Codex and OpenCode; Claude Code and omp use their own LSP tools)", prefer: ["mcp:lsp/diagnostics", "mcp:lsp/hover", "mcp:lsp/definition", "mcp:lsp/references"], fallback: ["mcp:codegraph/codegraph_explore", "cli:rg"], deny_builtin: [], reminder: "check an edited Python, TypeScript, Go, Rust, C# or Java file with the lsp server's diagnostics, and ask its hover or definition for a symbol's type", triggers: { topic: ["type error*", "typecheck error*", "type-check error*", "compile error*", "compiler error*", "compilation error*", "lsp diagnostics", "language server", "go to definition", "jump to definition", "re:\\bwhat(?:'s| is) the type of\\b", "tip hata*", "derleme hata*", "tanima git", "tanimina git"] } }, { id: "browser", intent: "Drive and inspect a real browser (DOM, console, network, performance)", prefer: ["mcp:chrome-devtools"], fallback: [], deny_builtin: [], reminder: "drive and inspect the real browser with chrome-devtools (navigate_page, take_snapshot, list_console_messages)", triggers: { topic: ["open the page", "take a screenshot", "screenshot of", "console errors", "browser console", "network tab", "lighthouse", "devtools", "re:\\b(?:open|test|check|verify|look|see|load|reproduce|try|view|inspect|debug|click|watch|preview)\\w*\\b.{0,40}\\bin the browser\\b", "ekran goruntusu", "konsol hata*", "sayfayi ac*", "re:\\btarayicida\\b.{0,30}\\b(?:ac|test et|kontrol et|dene|bak|gor|incele)\\w*"] } }, { id: "memory", intent: "Past decisions, gotchas, earlier sessions and preferences", prefer: ["mcp:buracle-memory/memory_search", "mcp:buracle-memory/memory_get"], fallback: ["cli:buracle"], deny_builtin: [], nudge: "History questions start with memory_search on the buracle-memory server.", reminder: "search memory with memory_search, then memory_get the relevant memories, and cite their ids", triggers: { topic: ["memory note*", "vault note*", "the memory vault", "the memory brain", "hafiza not*", "hafiza kayd*", "kasa not*"] } }] }, mcp: [{ id: "buracle-memory", description: "Buracle memory, the CortexDB brains of the project and the person (search, get, write, update, status)", transport: "stdio", critical: true, routing: ["memory"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "chrome-devtools", description: "Drive and inspect a Chrome browser (DevTools protocol)", transport: "stdio", critical: false, routing: ["browser"], harnesses: ["claude", "codex", "opencode"] }, { id: "codegraph", description: "Code structure graph (symbols, callers, impact) for the current repository", transport: "stdio", critical: true, routing: ["code-structure"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "context7", description: "Up-to-date library and framework documentation", transport: "stdio", critical: true, routing: ["library-docs"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "grep", description: "Search public GitHub code for real-world usage examples", transport: "http", critical: false, routing: ["code-examples"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "lsp", description: "Language-server diagnostics, hover, definitions, references and symbols", transport: "stdio", critical: true, routing: ["language-server"], harnesses: ["codex", "opencode"] }, { id: "semble", description: "Fast semantic code search over local or remote repositories", transport: "stdio", critical: true, routing: ["code-search"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-fetch", description: "Fetch and extract web pages with a headless browser", transport: "stdio", critical: true, routing: ["web-fetch"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-search", description: "Web search without an API key (DuckDuckGo by default)", transport: "stdio", critical: true, routing: ["web-search"], harnesses: ["claude", "codex", "opencode", "omp"] }], mcpIds: ["buracle-memory", "chrome-devtools", "codegraph", "context7", "grep", "lsp", "semble", "web-fetch", "web-search"], skills: [{ id: "ab-test", description: "Measure whether a change to a skill, rule, AGENTS.md section or routing policy really changes agent behavior. Defines falsifiable cases, runs paired baseline and candidate trials in throwaway config directories (never hiding or renaming the user's real skills or settings), captures tool-use evidence such as whether the agent loaded the skill or called context7, then scores pass rates and reports per-case deltas. Use when the user asks to benchmark, evaluate, A/B test or compare a skill or rule change, or to check that agents really use an MCP server or skill.", userInvocable: true, short: "Paired before/after evals of skills and rules with tool-use evidence", invocation: "implicit", triggers: { ask: ["benchmark the skill", "benchmark this skill", "benchmark the rule", "benchmark the routing", "a/b test the skill", "a/b test the rule", "ab-test the skill", "skill'i* benchmark*", "skill'i* olc*", "kurali benchmark*"], topic: ["activation rate", "trigger rate", "really makes the agent", "re:\\bbefore(?:/|\\s+and\\s+)after\\b.{0,60}\\b(?:skill|rule|routing|prompt|agents\\.md|claude\\.md|hook|mcp|description)", "re:\\b(?:skill|rule|routing|prompt|agents\\.md|claude\\.md|hook|description)\\S*\\b.{0,60}\\bbefore(?:/|\\s+and\\s+)after\\b", "re:\\b(?:agents?|models?|claude|codex|opencode|omp)\\b.{0,30}\\breally\\s+(?:calls?|uses?|loads?|triggers?|reads?)\\b", "re:\\bbenchmark\\w*\\b.{0,80}\\b(?:skill|rule|routing|agents\\.md|claude\\.md|hook|prompt|mcp)", "re:\\b(?:skill|rule|routing)\\S*\\b.{0,80}\\bbenchmark", "re:\\b(?:skill|kural|routing|prompt|agents\\.md|claude\\.md|hook|aciklama)\\S*\\b.{0,80}\\b(?:once/?\\s?sonra karsilastir|tetikleniyor mu|gercekten cagriliyor mu)", "re:\\b(?:once/?\\s?sonra karsilastir\\w*|tetikleniyor mu|gercekten cagriliyor mu)\\b.{0,80}\\b(?:skill|kural|routing|prompt|agents\\.md|claude\\.md|hook)", "re:\\bskill\\S*\\b.{0,80}\\b(?:eskisiyle|oncekiyle|onceki surumuyle)"], not: ["operations per second", "ops/sec", "ops per second", "throughput", "latency"] } }, { id: "bugfix", description: "Plan-less bug workflow that owns one defect end to end: reproduce it first, trace the root cause to file:line, write a failing test, fix at the source, prove the fix on the real program, then pass the quality gate. With branch isolation on it asks where to work: the current branch, a bugfix/<slug> branch or a worktree squash-merged once the fix is proven; no plan file. Run only when the user explicitly asks for bugfix.", userInvocable: true, short: "Reproduce, root-cause, RED test, fix at the source, prove it end to end", invocation: "explicit", triggers: { ask: ["re:(?<!\\b(?:the|that|this|your|my|our|its)\\s)\\broot[- ]cause\\s+fix\\b", "fix it test-first", "fix it with a failing test first", "reproduce it first and fix it", "kok nedenini bulup duzelt", "once test yazip duzelt"], not: ["workflow file", "github actions", "ci workflow"] } }, { id: "buracle", description: "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan \u2026`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, notifications, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.", userInvocable: false, short: "When and how to call the buracle helper CLI", invocation: "implicit", triggers: { ask: ["use the buracle cli", "buracle cli ile"], topic: ["re:\\bplan status\\b(?!\\s+(?:endpoint|field|column|code|enum|value|page|api|route|handler|query|badge|label|filter|check|type)s?\\b)", "how many tasks are left", "tasks left in the plan", "diff range", "re:(?<!\\b(?:add|added|adding|new)\\s(?:a\\s|an\\s|the\\s)?)\\breview scope\\b(?!\\s+(?:option|flag|field|param\\w*|column|setting|config\\w*|endpoint|api|type|enum|value)s?\\b)", "what should i review", "re:\\b(?:my|our|claude(?:\\s+code)?|codex|opencode|omp|subscription)(?:'s)?\\s+(?:usage|rate|weekly|5h|5-hour)\\s+limits?\\b", "rate limit headroom", "5h window", "5-hour window", "create a worktree", "merge the worktree", "buracle doctor", "planin durumu", "re:\\bplan durumu\\b(?!\\s+(?:alan|endpoint|kolon|sutun|enum|deger|sayfa|api|kod)\\w*)", "kac gorev kaldi", "kullanim limitim*", "kullanim limitlerim*", "re:\\bkullanim limit\\w*\\s+ne durumda", "5 saatlik pencere*", "5 saatlik limit*", "haftalik limitim*", "haftalik limitlerim*", "re:\\b(?:claude|codex|opencode|omp)\\S*\\s+(?:kullanim\\s+|haftalik\\s+)?limit\\w*", "worktree olustur*", "worktree ac", "worktree'yi birlestir*", "buracle doctor"] } }, { id: "dead-code", description: "Report-only dead-code audit. Collects candidate unused files and exports from the project's own analyzers, a bundled rg-based script and a read-only codegraph snapshot, checks every candidate against independent signals (codegraph references, exact and dynamic-usage search, analyzers), rules out a public role (API, entry points, config, registries), and returns a ranked report with evidence and a staged removal plan. Never deletes or edits code.", userInvocable: true, short: "Report-only dead-code audit with two-signal evidence and a removal plan", invocation: "explicit", triggers: { ask: ["dead code audit", "dead-code audit", "unused code report", "dead code report", "re:(?:^|[\\n.!?;:]\\s*|\\b(?:please|pls|can you|could you|would you|and|then|just)\\s+)find\\s+(?:all\\s+|the\\s+)?(?:dead|unused)\\s+(?:code|exports|files)\\b", "olu kod analizi", "olu kod raporu", "olu kodlari bul", "olu kod tara*", "kullanilmayan kod* bul", "kullanilmayan kod* tespit", "kullanilmayan export* bul", "temizlik raporu"] } }, { id: "find-skill", description: "Find an agent skill for a need and install it for every harness in a few calls. `buracle skills find <need>` is one command that shows the installed and shipped skills that already match, then the skills.sh registry's candidates with description, license, freshness, tool grants and risk ratings; `buracle skills add --dry-run` audits the pick (scripts, allowed-tools, suspicious lines) and `buracle skills add` installs it into ~/.agents/skills (Codex, OpenCode, Oh My Pi) and links it into ~/.claude/skills (Claude Code). Also updates and removes installed skills.", userInvocable: true, short: "Find a skill for a need and install it for every harness", invocation: "implicit", triggers: { ask: ["find a skill", "find me a skill", "find skills for", "is there a skill", "re:\\b(?:install|add|get)\\s+(?:a|the|an)\\s+(?:\\S+\\s+){0,3}skill\\b", "re:\\b(?:update|upgrade|remove|uninstall)\\s+(?:my|the|an?)\\s+(?:\\S+\\s+){0,2}skills?\\b", "search for a skill", "skill marketplace", "skill bul", "skill ara", "skill var mi", "bir skill var mi", "re:\\bskill\\w*\\s+(?:kur|yukle|ekle|indir)", "re:\\b(?:kur|yukle|ekle|indir)\\w*\\s+(?:\\S+\\s+){0,2}skill", "skilleri guncelle", "skill guncelle*", "skill kaldir*", "skill sil"], not: ["create a skill", "write a skill", "new skill", "turn this into a skill", "buracle skill", "the skill is", "skill triggers", "skills lint", "new-skill", "in the skill", "skill file", "skill id", "skill yaz", "skill olustur", "skille donustur", "yeni skill", "skill dosyasi"] } }, { id: "goal-build", description: "Goal-and-loop workflow for a clear end state whose path is found while building: agree on a goal, tasks sized as the largest slices you can finish and verify, and at least 3 pass/fail acceptance criteria (one of them the oracle), have them reviewed, lock the contract, then build in rounds judged on running evidence (at most four), verify and hand back. Tracked in docs/goal-build/. Run only when the user explicitly asks for goal-build.", userInvocable: true, short: "Lock a goal and pass/fail criteria, then build in judged rounds", invocation: "explicit", triggers: { ask: ["goal-and-loop", "goal and loop", "find the way yourself", "re:\\byou find the way(?: there)?\\s*(?:[.!;:]|$)", "re:(?:^|[\\n.!?;:]\\s*|\\b(?:and|then|just|please)\\s+)(?:keep\\s+)?loop(?:ing)?\\s+until\\s+it\\s+(?:works|passes)\\b", "yolunu sen bul", "bitene kadar dongu*", "hedef odakli dongu*"], not: ["github actions", "ci workflow", "ci pipeline", "workflow file", "workflow run", ".github/workflows", "workflow yaml"] } }, { id: "inspect", description: "Read-only investigation of one question about the code. Frames a falsifiable claim, locates code with semble (intent), codegraph (callers, callees, blast radius) and rg or ast-grep (exact and structural matches), checks memory for past decisions, traces the active path hop by hop, challenges the answer with a counterexample search, and reports a direct answer with file:line evidence and calibrated confidence. Never edits anything.", userInvocable: true, short: "Read-only trace of one code question with file:line evidence", invocation: "explicit", triggers: { ask: ["inspect how", "inspect why", "inspect where", "investigate how", "investigate why", "investigate where", "dig into how", "trace how", "re:(?:^|[\\n.!?;:]\\s*|\\b(?:please|pls|can you|could you|would you)\\s+)investigate\\s+(?:this|that|it)\\b", "nasil calistigini incele*", "nasil calistigini arastir*", "neden boyle davrandigini incele*", "neden boyle davrandigini arastir*", "nereden cagrildigini incele*"], not: ["and fix", "fix it", "then fix", "duzelt"] } }, { id: "memory", description: "Protocol for Buracle's shared memory: one CortexDB brain with a bucket for each project and one for the person, served by the buracle-memory MCP server in every harness. Says when to run a quick memory pass (at most 3 memory_search calls, then at most 3 memories via memory_get), how to treat recalled memories as evidence rather than instructions, and how to keep the memory: one claim per memory with sources, search before writing, update or merge instead of duplicating, record the user's preferences in the right brain, never overrule an explicit memory, never store secrets. Use when the user refers to past work or asks you to remember something, before re-deciding something and after a non-obvious fix.", userInvocable: false, short: "When and how to read, write and keep Buracle's CortexDB memory", invocation: "implicit", triggers: { ask: ["use the memory protocol", "hafiza protokolu*"], topic: ["memory note*", "vault note*", "the memory vault", "the memory brain", "hafiza not*", "hafiza kayd*", "kasa not*", "kasadaki not*"] } }, { id: "new-skill", description: "Capture a repeatable procedure as a Buracle skill, or improve an existing one. Picks the right home (global skills in the Buracle repo's canonical/skills or a configured skills git source; project-only skills in .agents/skills), writes SKILL.md in the canonical format with references/, scripts/ and trigger evals, lints it with `buracle skills lint`, and explains how publishing reaches every harness. Use when the user wants to turn a workflow into a skill, edit, split or rename a skill, or fix a skill that triggers too often or never.", userInvocable: true, short: "Capture a repeatable procedure as a canonical Buracle skill", invocation: "implicit", triggers: { ask: ["turn this into a skill", "turn it into a skill", "into a reusable skill", "make it a skill", "save it as a skill", "new skill for", "re:\\b(?:create|write|add|make) (?:a |an |the )?(?:new )?(?:[a-z-]+ ){0,2}skill\\b", "skill yap", "bunu skill yap", "yeni skill olustur*", "yeni bir skill olustur*", "yeni skill yaz*", "skill olustur*", "skill olarak kaydet*", "skill'e donustur*", "skill'i guncelle*", "tekrar kullanilabilir bir skill"], topic: ["reusable skill", "skill trigger*", "skill description", "re:\\bskill\\S*\\b.{0,60}\\b(?:never triggers|does not trigger|doesn't trigger|misfires|triggers too often)", "re:\\bskill\\S*\\b.{0,60}\\btetiklen(?:miyor|mez)", "re:\\bskill\\S*\\b.{0,60}\\bdevreye girmiyor"] } }, { id: "plan-build", description: "Plan-driven development through a plan file in docs/plan-build/: explore and clarify, write and review the plan, get approval, implement task by task with TDD, then verify with real evidence until the plan is VERIFIED. Covers features and bugfixes (behavior contract, reproduce first, root-cause fix). Also pauses, resumes or continues an existing plan. Run only when the user explicitly asks for plan-build.", userInvocable: true, short: "Plan, approve, TDD-implement and verify work through a plan file", invocation: "explicit", triggers: { ask: ["write a plan and implement*", "plan and implement it", "plan it and implement*", "re:\\b(?:do|build|implement|handle|tackle)\\s+(?:it|this|that|them|the\\s+\\S+)\\s+plan[- ]driven\\b", "re:\\b(?:go|let's go)\\s+plan[- ]driven\\b", "re:(?:^|[\\n.!?;]\\s*)plan[- ]driven(?:\\s*,?\\s*please)?\\s*[:,]", "plan yaz ve uygula", "plan yazip uygula", "planla ve uygula"] } }, { id: "project-rules", description: "Create, refresh or audit a repository's agent guidance so Claude Code, Codex, OpenCode and omp follow the same verified instructions: the root AGENTS.md, optional nested AGENTS.md files for subprojects, and path-scoped rules for specific file types. Discovers commands and conventions from the code (package scripts, CI jobs, linter and test configs, test layout), runs commands before documenting them, keeps every file short, then runs `buracle project sync` and `buracle project check`. Use when the user asks to set up, write, update, slim down or check AGENTS.md, CLAUDE.md or project rules.", userInvocable: true, short: "Generate and verify AGENTS.md and path-scoped rules for a repo", invocation: "implicit", triggers: { ask: ["set up agent guidance", "set up agents.md", "write agents.md", "create agents.md", "update agents.md", "audit agents.md", "refresh agents.md", "slim down agents.md", "set up the project rules", "audit the agent instructions", "agents.md hazirla*", "agents.md olustur*", "agents.md guncelle*", "agents.md yaz", "proje kurallarini kur", "talimatlari guncelle*", "kurallari sadelestir*"], topic: ["agent instructions", "agent guidance", "path rules", "path-scoped rules", "re:\\b(?:agents|claude)\\.md\\b.{0,40}\\b(?:stale|outdated|bloated|too long|wrong|out of date)", "proje talimatlari", "ajan talimatlari", "proje kurallari", "re:\\b(?:agents|claude)\\.md\\b.{0,40}\\b(?:eskimis|guncel degil|cok uzun|yanlis)"] } }, { id: "requirements", description: "Requirements workflow for ideas whose problem, audience or scope is still unclear. Grounds the idea in the codebase and memory, runs tiered research through the research skill, explores directions, asks a few decision questions, proposes approaches, converges on scope, writes an approved PRD to docs/requirements/YYYY-MM-DD-<slug>.md and prints the plan-build or goal-build hand-off. No code is written before the PRD is approved.", userInvocable: true, short: "Interview, research and write an approved PRD before any code", invocation: "explicit", triggers: { ask: ["write a prd", "write the prd", "draft a prd", "draft the prd", "create a prd", "prepare a prd", "make a prd", "need a prd", "re:\\b(?:write|draft|create|prepare|make|produce|need|want)\\s+(?:me\\s+|us\\s+)?(?:a|an|the)\\s+(?:new\\s+|short\\s+|proper\\s+)?(?:product\\s+)?requirements\\s+doc(?:ument)?\\b", "re:(?:^|[\\n.!?;:]\\s*)(?:a\\s+)?prd\\s+for\\b", "prd yaz*", "prd hazirla*", "prd olustur*", "prd cikar*", "gereksinimleri cikar*", "re:\\bgereksinim\\s+(?:dokuman|belge)\\w*\\s+(?:yaz|hazirla|olustur|cikar|lazim|gerek)\\w*", "bu fikri netlestir*", "fikri netlestir*"], not: ["do we need a prd", "is there a prd", "do we have a prd", "is a prd needed", "prd gerekli mi", "prd lazim mi", "prd var mi"] } }, { id: "research", description: "Evidence-backed research that must use MCP tools instead of recall: web-search to discover sources, web-fetch to read them in full, context7 for library and framework documentation, grep for real-world code on GitHub, and buracle-memory for prior decisions. Produces a cited research note (answer, findings, options, conflicts, gaps, confidence) and can save durable findings to memory as knowledge memories pending review.", userInvocable: true, short: "Cited, MCP-backed research across web, library docs, public code and memory", invocation: "implicit", triggers: { ask: ["research this", "research it", "do research on", "research whether", "research which", "deep research", "find sources", "cite sources", "arastir", "arastirin", "arastiralim", "arastirir misin", "arastirabilir*", "arastirma yap*", "derinlemesine arastir*", "kaynak goster*", "kaynaklarla karsilastir*"], topic: ["still maintained", "is it maintained", "current sources", "which is better", "re:(?<!\\b(?:follow|following|use|using|apply|applying|with|keep|keeping|per)\\s(?:the\\s|our\\s|these\\s)?)\\bbest\\s+practices?\\s+(?:for|in|of|on|around|when\\s+using)\\b", "re:\\b(?:what|which)(?:'s|\\s+(?:is|are))\\s+(?:the\\s+)?(?:current\\s+|modern\\s+|recommended\\s+)?best\\s+practices?\\b", "re:\\bbest\\s+practices?\\s*\\?", "pros and cons", "alternatives to", "state of the art", "latest version of", "re:\\bcompare\\b.{0,60}\\b(?:librar|framework|tool|package|approach|option|vendor|provider|service|database|orm|solution|sdk)", "re:\\b(?:librar|framework|tool|package|approach|provider|service|database|sdk)\\w*\\b.{0,40}\\bcompar", "re:\\b(?!(?:actual|expected|got|received|before|after|old|new|left|right|input|output|tabs|spaces|this|that|it|one)\\b)[a-z][a-z0-9.-]+ (?:vs\\.?|versus) (?!(?:actual|expected|got|received|before|after|old|new|left|right|input|output|tabs|spaces|this|that|it|one)\\b)[a-z][a-z0-9.-]+", "hangisi daha iyi", "guncel mi", "guncel kaynak*", "re:\\ben iyi (?:pratik|uygulama)\\w*\\b(?!\\s+(?:uy|uygun|izle|takip))", "artilari ve eksileri", "alternatifleri neler", "re:\\b\\S+ mu \\S+ mu (?:kullan|sec|tercih)", "re:\\b(?:kutuphane|framework|arac|paket|yaklasim|secenek|servis|veritaban|sdk)\\w*\\b.{0,60}\\bkarsilastir"], not: ["vs code", "vscode", "visual studio", "compare function", "comparator"] } }, { id: "security-audit", description: "Security guidance and vulnerability review for codebases, APIs, services, CLI tools, libraries and daemons: Cloudflare's security-audit skill (MIT), vendored as Buracle's default security skill. Guidance mode answers security questions, focused reviews and triage with the relevant parts only; full audit mode runs six phases (reconnaissance, coverage-led hunting with parallel isolated agents, validation by fresh verifiers, structured findings.json, independent record verification, a target-neutral report) when the user asks for an audit, a pen test, a full security review or report artifacts.", userInvocable: true, short: "Cloudflare's security-audit skill, Buracle's default security review", invocation: "implicit", triggers: { ask: ["security audit", "audit the security", "re:\\baudit\\s+(?:this|the|my|our)\\s+(?:\\S+\\s+){0,2}(?:codebase|repo|repository|project|service|app|application|api)\\b.{0,40}\\bsecur", "re:\\bsecur\\w*\\s+(?:review|assessment|analysis|scan)\\b", "pen test", "pentest", "penetration test", "find vulnerabilities", "find security vulnerabilities", "look for vulnerabilities", "threat model", "guvenlik denetimi", "guvenlik taramasi", "guvenlik incelemesi", "guvenlik analizi", "re:\\bguvenlik ac(?:ik|ig)\\w*", "re:\\bzafiyet\\w*\\s+(?:bul|tara|ara)", "sizma testi", "pentest yap*", "tehdit modeli"], topic: ["re:\\bis (?:this|it|that) (?:secure|safe|vulnerable|exploitable)\\b", "re:\\b(?:sql|command|prompt|shell|code)\\s+injection\\b", "re:\\b(?:xss|csrf|ssrf|rce|idor)\\b", "re:\\btrust boundar", "re:\\b(?:auth(?:entication|orization)?|session|token|secret|credential)\\w*\\s+(?:bypass|leak|exposure|handling)\\b", "re:\\bguvenli mi\\b", "re:\\b(?:sql|komut|prompt|kod)\\s+enjeksiyon"], not: ["audit log", "audit trail", "accessibility audit", "performance audit", "lighthouse audit", "dead code audit", "cleanup audit", "dependency audit only", "npm audit", "security.md", "security headers test", "erisilebilirlik denetimi", "performans denetimi", "olu kod"] } }], plugins: [], hooks: [{ id: "H01", blocking: "deny", failure: "closed" }, { id: "H02", blocking: "deny", failure: "closed" }, { id: "H03", blocking: "deny", failure: "open" }, { id: "H04", blocking: "none", failure: "open" }, { id: "H05", blocking: "none", failure: "open" }, { id: "H06", blocking: "none", failure: "open" }, { id: "H07", blocking: "none", failure: "open" }, { id: "H08", blocking: "stop", failure: "open" }, { id: "H09", blocking: "deny", failure: "open" }, { id: "H10", blocking: "none", failure: "open" }, { id: "H11", blocking: "stop", failure: "open" }, { id: "H12", blocking: "none", failure: "open" }, { id: "H13", blocking: "none", failure: "open" }, { id: "H14", blocking: "none", failure: "open" }, { id: "H15", blocking: "none", failure: "open" }, { id: "H16", blocking: "none", failure: "open" }, { id: "H17", blocking: "none", failure: "open" }, { id: "H18", blocking: "none", failure: "open" }, { id: "H19", blocking: "none", failure: "open" }, { id: "H20", blocking: "deny", failure: "open" }, { id: "H21", blocking: "none", failure: "open" }, { id: "H22", blocking: "none", failure: "open" }, { id: "H23", blocking: "stop", failure: "open" }, { id: "H24", blocking: "none", failure: "open" }, { id: "H25", blocking: "none", failure: "open" }, { id: "H26", blocking: "none", failure: "open" }, { id: "H28", blocking: "none", failure: "open" }], pathRules: [{ id: "backend", globs: ["**/api/**", "**/routes/**", "**/handlers/**", "**/controllers/**", "**/endpoints/**", "**/middleware/**", "**/models/**", "**/models.py", "**/entities/**", "**/schema/**", "**/schemas/**", "**/queries/**", "**/repository/**", "**/repositories/**", "**/dao/**", "**/migrations/**", "**/migrate/**", "**/alembic/**", "**/db/**", "**/*.sql", "**/*.prisma", "**/*.graphql", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json"] }, { id: "blazor", globs: ["**/*.razor", "**/*.razor.cs", "**/*.razor.css"] }, { id: "browser-automation", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.razor", "**/e2e/**", "**/playwright/**", "**/cypress/**", "**/__tests__/**", "**/playwright.config.*", "**/cypress.config.*"] }, { id: "dotnet", globs: ["**/*.cs", "**/*.csproj", "**/*.sln", "**/*.slnx", "**/global.json", "**/Directory.Build.props", "**/Directory.Packages.props"] }, { id: "frontend", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.sass", "**/*.less", "**/*.razor", "**/*.razor.css"] }, { id: "go", globs: ["**/*.go", "**/go.mod", "**/go.sum", "**/go.work"] }, { id: "mobile", globs: ["**/capacitor.config.*", "**/ionic.config.json", "**/android/app/build.gradle*", "**/android/app/src/main/AndroidManifest.xml", "**/*.xcodeproj/project.pbxproj", "**/*.xcworkspace/contents.xcworkspacedata", "**/Podfile", "**/pubspec.yaml", "**/react-native.config.*", "**/metro.config.*", "**/expo.json", "**/eas.json", "**/app.config.{js,ts}"] }, { id: "python", globs: ["**/*.py", "**/*.pyi", "**/pyproject.toml", "**/requirements*.txt", "**/uv.lock", "**/setup.cfg"] }, { id: "typescript", globs: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts", "**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs", "**/package.json", "**/tsconfig*.json"] }], version: "0.7.0", notices: [{ id: "0.5.0-project-assets", since: "0.5.0", until: "0.6.0", message: "When a session starts in a repository, Buracle now links the skills in .agents/skills into .claude/skills so Claude Code sees them too, and checks that AGENTS.md lists the path rules in .claude/rules. Run `buracle project check` to see what it would change." }, { id: "0.5.0-smaller-cli", since: "0.5.0", until: "0.6.0", message: "Buracle's CLI is smaller: run `buracle` in a terminal for a main menu you drive with the keyboard. `buracle install` now does what `init` and `sync` did, `buracle install` and `buracle update` apply in a terminal without a question and show each step as it runs, and the rare cases flags used to cover are questions in a terminal. `buracle help --all` lists the commands your agents use." }, { id: "0.7.0-one-standard", since: "0.7.0", until: "0.8.0", message: "One standard on every harness: `buracle diagram` is gone, a chat reply shows a flow as a list or a table, and workflow documents under docs/ are English in ASD-STE100 style (`buracle plan validate` checks them). New documents go to docs/requirements/, docs/plan-build/, docs/goal-build/ and docs/dead-code/; the old folders docs/prd/, docs/plans/, docs/builds/ and docs/cleanup/ stay readable." }] }, memory: memoryBridge, pluginDir: import.meta.dir });
 export {
   server_default as default
 };

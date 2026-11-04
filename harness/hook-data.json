@@ -1237,7 +1237,7 @@
       "dir": "skills/goal-build",
       "frontmatter": {
         "name": "goal-build",
-        "description": "Goal-and-loop workflow for a clear end state whose path is found while building: agree on a goal, tasks sized as the largest slices you can finish and verify, and at least 3 pass/fail acceptance criteria (one of them the oracle), have them reviewed, lock the contract, then build in rounds judged on running evidence (at most four), verify and hand back. Tracked in docs/builds/. Run only when the user explicitly asks for goal-build.",
+        "description": "Goal-and-loop workflow for a clear end state whose path is found while building: agree on a goal, tasks sized as the largest slices you can finish and verify, and at least 3 pass/fail acceptance criteria (one of them the oracle), have them reviewed, lock the contract, then build in rounds judged on running evidence (at most four), verify and hand back. Tracked in docs/goal-build/. Run only when the user explicitly asks for goal-build.",
         "when_to_use": "The user invokes goal-build by name, or names an end state and asks you to find the way there, working in a loop until it is done.",
         "invocation": "explicit",
         "argument-hint": "<goal: the end state you want> [--worktree | --new-branch | --current-branch]",
@@ -1398,10 +1398,10 @@
       "dir": "skills/plan-build",
       "frontmatter": {
         "name": "plan-build",
-        "description": "Plan-driven development through a plan file in docs/plans/: explore and clarify, write and review the plan, get approval, implement task by task with TDD, then verify with real evidence until the plan is VERIFIED. Covers features and bugfixes (behavior contract, reproduce first, root-cause fix). Also pauses, resumes or continues an existing plan. Run only when the user explicitly asks for plan-build.",
-        "when_to_use": "The user invokes plan-build by name, passes a docs/plans/*.md file, or asks to write a plan and implement it, or to continue a plan.",
+        "description": "Plan-driven development through a plan file in docs/plan-build/: explore and clarify, write and review the plan, get approval, implement task by task with TDD, then verify with real evidence until the plan is VERIFIED. Covers features and bugfixes (behavior contract, reproduce first, root-cause fix). Also pauses, resumes or continues an existing plan. Run only when the user explicitly asks for plan-build.",
+        "when_to_use": "The user invokes plan-build by name, passes a docs/plan-build/*.md file, or asks to write a plan and implement it, or to continue a plan.",
         "invocation": "explicit",
-        "argument-hint": "<task | docs/plans/<file>.md | pause | resume> [--worktree | --new-branch | --current-branch]",
+        "argument-hint": "<task | docs/plan-build/<file>.md | pause | resume> [--worktree | --new-branch | --current-branch]",
         "mcp": [
           "semble",
           "codegraph",
@@ -1484,7 +1484,7 @@
       "dir": "skills/requirements",
       "frontmatter": {
         "name": "requirements",
-        "description": "Requirements workflow for ideas whose problem, audience or scope is still unclear. Grounds the idea in the codebase and memory, runs tiered research through the research skill, explores directions, asks a few decision questions, proposes approaches, converges on scope, writes an approved PRD to docs/prd/YYYY-MM-DD-<slug>.md and prints the plan-build or goal-build hand-off. No code is written before the PRD is approved.",
+        "description": "Requirements workflow for ideas whose problem, audience or scope is still unclear. Grounds the idea in the codebase and memory, runs tiered research through the research skill, explores directions, asks a few decision questions, proposes approaches, converges on scope, writes an approved PRD to docs/requirements/YYYY-MM-DD-<slug>.md and prints the plan-build or goal-build hand-off. No code is written before the PRD is approved.",
         "when_to_use": "The user invokes it or asks for a PRD or requirements document (\"write a PRD\", \"let's work out the requirements\", \"help me sharpen this idea\").",
         "invocation": "explicit",
         "argument-hint": "<idea, problem or feature>",
@@ -1698,7 +1698,7 @@
       "file": "agents/goal-build-review.md",
       "frontmatter": {
         "name": "goal-build-review",
-        "description": "Read-only reviewer for a Buracle goal-build contract (the Buildout) before the build loop starts. Launch it from the goal-build workflow after drafting docs/builds/YYYY-MM-DD-<slug>.md, passing the file path, the user's goal verbatim and the clarifications. It checks that the tasks and acceptance criteria are measurable, complete and correctly ordered, and returns strict JSON findings with ready-to-paste replacement wording.",
+        "description": "Read-only reviewer for a Buracle goal-build contract (the Buildout) before the build loop starts. Launch it from the goal-build workflow after drafting docs/goal-build/YYYY-MM-DD-<slug>.md, passing the file path, the user's goal verbatim and the clarifications. It checks that the tasks and acceptance criteria are measurable, complete and correctly ordered, and returns strict JSON findings with ready-to-paste replacement wording.",
         "access": "read-only",
         "tools": [
           "read",
@@ -1957,6 +1957,12 @@
       "since": "0.5.0",
       "until": "0.6.0",
       "message": "Buracle's CLI is smaller: run `buracle` in a terminal for a main menu you drive with the keyboard. `buracle install` now does what `init` and `sync` did, `buracle install` and `buracle update` apply in a terminal without a question and show each step as it runs, and the rare cases flags used to cover are questions in a terminal. `buracle help --all` lists the commands your agents use."
+    },
+    {
+      "id": "0.7.0-one-standard",
+      "since": "0.7.0",
+      "until": "0.8.0",
+      "message": "One standard on every harness: `buracle diagram` is gone, a chat reply shows a flow as a list or a table, and workflow documents under docs/ are English in ASD-STE100 style (`buracle plan validate` checks them). New documents go to docs/requirements/, docs/plan-build/, docs/goal-build/ and docs/dead-code/; the old folders docs/prd/, docs/plans/, docs/builds/ and docs/cleanup/ stay readable."
     }
   ],
   "missing": [],

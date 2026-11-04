@@ -3,6 +3,7 @@ import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { Harness } from '../core/events'
 import { isHarness } from '../core/events'
 import { capturedPlanMarkdown, normalizePlanText, planTitleOf, type PlanCaptureVia } from '../core/plan/capture'
+import { docDirFor } from '../core/plan/doc-dirs'
 import { comparablePath } from '../engine/fsx'
 import { toplevel } from '../engine/git'
 import { localDate, slugFromTitle } from './plan-file'
@@ -51,7 +52,7 @@ export async function capturePlanFile(i: PlanCaptureInput): Promise<PlanCaptureR
   const base = slugFromTitle(title, 60) || 'plan'
   const approved = i.approved ?? true
   const content = capturedPlanMarkdown(text, { created, harness: i.harness, approved, title, ...(i.via !== undefined ? { via: i.via } : {}) })
-  const dir = join(root, 'docs', 'plans')
+  const dir = join(root, 'docs', docDirFor('plan-build'))
   mkdirSync(dir, { recursive: true })
   for (let n = 1; n <= CAPTURE_SLOTS; n++) {
     const slug = n === 1 ? base : `${base}-${n}`
@@ -85,6 +86,6 @@ export async function planCapture(o: { title?: string, harness?: string, file?: 
   } catch (e) {
     return fail('io', `cannot write the plan file: ${e instanceof Error ? e.message : String(e)}`)
   }
-  if (r === undefined) return fail('exists', `${CAPTURE_SLOTS} plan files with this date and title already exist in docs/plans/; pass --title`)
+  if (r === undefined) return fail('exists', `${CAPTURE_SLOTS} plan files with this date and title already exist in docs/plan-build/; pass --title`)
   return ok({ ok: true, path: r.path, slug: r.slug, title: r.title, created: r.created, approved: r.approved, harness }, [r.path], [])
 }

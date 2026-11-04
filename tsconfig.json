@@ -24,5 +24,5 @@
     "jsxFragmentFactory": "Fragment"
   },
   "include": ["src/**/*", "tests/**/*"],
-  "exclude": ["node_modules", "dist", "canonical", "harness/**/tests", "tmp", "src/adapters/claude/template"]
+  "exclude": ["node_modules", "dist", "canonical", "harness/**/tests", "tmp", "src/adapters/claude/template", "tests/fixtures/ab-test"]
 }

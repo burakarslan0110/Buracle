@@ -7,6 +7,7 @@ import { isWindows } from '../../engine/platform'
 import { detectBinary, parseVersion, run, which } from '../../engine/proc'
 import type { AdapterContext } from '../registry'
 import { resolveArgv, type Env } from '../shared/command'
+import { hostLimitRows } from '../shared/host-limits'
 import { checkLink } from './check-link'
 import { BUN_MIN_VERSION, OMP_MIN_VERSION, OMP_TESTED_WITH, OMP_THINKING_LEVELS, PACKAGE_NAME, ompCommandSkills, ompThinkingLevel } from './generated'
 import { AGENTS_BLOCK_ID, APPROVAL_KEY, ompConfigKeysFor, ompConfigPath, PLAN_AUTOSAVE_DIR_KEY, PLAN_AUTOSAVE_KEY, SHARED_AGENTS_IMPORT, THINKING_KEY } from './install'
@@ -167,10 +168,16 @@ export function effortFindings(doc: unknown, cfg: Pick<AdapterContext['config'],
   return out
 }
 
-export async function doctor(ctx: AdapterContext): Promise<DoctorFinding[]> {
+export interface DoctorDeps {
+  detect?: () => Promise<{ installed: boolean, version?: string, path?: string }>
+}
+
+export async function doctor(ctx: AdapterContext, deps: DoctorDeps = {}): Promise<DoctorFinding[]> {
   const out: DoctorFinding[] = []
-  const found = await detectBinary('omp')
-  if (!found.installed) return [{ level: 'warn', check: 'omp', detail: 'omp is not on PATH; omp checks skipped' }]
+  const found = await (deps.detect ?? (() => detectBinary('omp')))()
+  // The host limits and their fallbacks hold whether or not omp is installed here.
+  out.push(...hostLimitRows('omp', found.installed ? found.version : undefined, 'tests/adapters/omp/smoke.test.ts'))
+  if (!found.installed) return [{ level: 'warn', check: 'omp', detail: 'omp is not on PATH; omp checks skipped' }, ...out]
   const ompBin = found.path ?? 'omp'
   if (found.version === undefined) out.push({ level: 'warn', check: 'omp version', detail: '`omp --version` printed no version' })
   else if (compareVersions(found.version, OMP_MIN_VERSION) < 0) out.push({ level: 'error', check: 'omp version', detail: `omp ${found.version} is older than ${OMP_MIN_VERSION}; run \`omp update\`` })

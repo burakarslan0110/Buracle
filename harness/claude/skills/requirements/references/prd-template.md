@@ -1,8 +1,9 @@
 # PRD template
 
-Write the PRD in the language of the user's prompt, per the *Plain language* rule. Translate the
-section titles; keep their order. Keep the frontmatter keys and values in English so tools can read
-them. Delete the guidance in angle brackets.
+Write the PRD in English, in the ASD-STE100 structural style of the *Plain language* rule, whatever
+language the user writes in. Keep the section titles as they are, in English and in this order. Keep
+the frontmatter keys and values in English so tools can read them. Delete the guidance in angle
+brackets.
 
 ```markdown
 ---
@@ -85,6 +86,8 @@ Recommended next step: <the plan-build, goal-build or bugfix command printed in 
    flow or goal; the title, slug and hand-off match the content.
 7. **Readable in five minutes.** The summary answers what the reader approves. Cut repetition; state
    each fact once and point to it elsewhere.
+8. **English and clear.** `buracle plan validate <path> --strict` exits 0: no Turkish prose, no
+   sentence over 25 words, no semicolon in prose, no path in an old document folder.
 
 ## After approval
 

@@ -213,9 +213,10 @@ Suggest running larger plans through {{skill:plan-build}}. Never execute any par
 
 `buracle flow phase report`. Write the report in the conversation using
 [references/audit-template.md](references/audit-template.md), per the *Plain language* rule, in the
-language of the user's prompt: the verdict counts first, then the candidates with the evidence per
-row, and the removal plan as batches with checkboxes. Save it to a Markdown file only when the user
-asks (suggest `docs/cleanup/YYYY-MM-DD-<scope>.md`).
+user's language with the template's English section titles: the verdict counts first, then the
+candidates with the evidence per row, and the removal plan as batches with checkboxes. Save it to a
+Markdown file only when the user asks (suggest `docs/dead-code/YYYY-MM-DD-<scope>.md`). A saved
+audit is English, in the ASD-STE100 structural style, like every document under docs.
 
 If you found a non-obvious reason why code that looks dead is alive (loaded by name from config, a
 framework convention), offer to save it as one `gotcha` memory with `memory_write` after the report.

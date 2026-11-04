@@ -1,6 +1,7 @@
 import { accessSync, constants, existsSync, lstatSync, readFileSync, readlinkSync, statSync } from 'node:fs'
 import { delimiter, join, resolve } from 'node:path'
 import type { Adapter } from '../../adapters/registry'
+import { hostLimitRows } from '../../adapters/shared/host-limits'
 import type { CanonicalBundle, McpCatalog, ToolSpec } from '../../core/catalog'
 import type { Harness } from '../../core/events'
 import { runtimeConfigSnapshot } from '../config'
@@ -376,6 +377,8 @@ export async function harnessChecks(adapters: readonly Adapter[], live: LiveCont
     try { det = await a.detect() } catch (e) { out.push({ section: s, level: 'error', check: 'detect', detail: errText(e) }); continue }
     if (!det.installed) {
       out.push({ section: s, level: only === s ? 'warn' : 'info', check: 'installed', detail: 'not installed; skipped' })
+      // The recorded host limits hold whether or not the host is installed, so their fallbacks are listed either way.
+      for (const r of hostLimitRows(s, undefined, `tests/adapters/${s}/smoke.test.ts`)) out.push({ section: s, level: r.level, check: r.check, detail: tildeText(r.detail) })
       continue
     }
     out.push({ section: s, level: 'ok', check: 'installed', detail: `${det.version ?? 'unknown version'}${det.path ? ` (${tilde(det.path)})` : ''}` })

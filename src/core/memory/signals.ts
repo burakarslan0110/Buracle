@@ -59,18 +59,24 @@ const EN_WORDS = new Set([
   'let', "let's", 'just', 'also', 'there', 'here', 'when', 'which', 'your', 'me', 'have', 'has', 'was', 'were', 'an', 'a',
 ])
 
-export function profilePromptLanguage(text: string): 'tr' | 'en' | undefined {
+/** The raw language evidence of a text: its word count, the Turkish and English function words it holds, and whether a letter only Turkish uses appears. */
+export function languageHits(text: string): { words: number, tr: number, en: number, letters: boolean } {
   const words = text.replace(/İ/g, 'i').toLowerCase().split(/[^\p{L}']+/u).filter(w => w !== '')
-  if (words.length < 3) return undefined
   let tr = 0
   let en = 0
   for (const w of words) {
     if (TR_WORDS.has(w)) tr++
     if (EN_WORDS.has(w)) en++
   }
-  if (/[ğışİŞĞ]/.test(text)) tr += 2
-  if (tr === en) return undefined
-  return tr > en ? 'tr' : 'en'
+  return { words: words.length, tr, en, letters: /[ğışİŞĞ]/.test(text) }
+}
+
+export function profilePromptLanguage(text: string): 'tr' | 'en' | undefined {
+  const h = languageHits(text)
+  if (h.words < 3) return undefined
+  const tr = h.tr + (h.letters ? 2 : 0)
+  if (tr === h.en) return undefined
+  return tr > h.en ? 'tr' : 'en'
 }
 
 const TRIGGER_LEAD = uw(/^(?:please\s+|lütfen\s+|lutfen\s+)?(?:always|never|from now on|going forward|in (?:the )?future|every time|whenever|her zaman|daima|asla|hiçbir zaman|hicbir zaman|hiç bir zaman|bundan sonra|bundan böyle|bundan boyle|artık|artik|sakın|sakin|unutma|aklında tut|aklinda tut)\b/i)

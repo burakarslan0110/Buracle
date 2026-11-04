@@ -11,6 +11,7 @@ import * as planFormat from '../../core/plan/format'
 import type { StatusLayout } from '../../core/status/model'
 import * as paths from '../paths'
 import { TXN_STEPS } from '../txn'
+import { HOST_LIMITS } from '../../adapters/shared/host-limits'
 import { INSTALL_PHASES, INSTALL_RECORD_REL, pathRulesDir, shimContent } from './install-core'
 
 export interface CommandInfo { name: string; summary: string; usage: string }
@@ -432,9 +433,9 @@ const STATUS_TEXT: Record<PlanStatus, string> = {
   SAVED: 'A plan captured from the harness\'s own plan mode and saved (H12).',
 }
 const TYPE_TEXT: Record<PlanType, string> = {
-  Feature: 'Feature work (`buracle plan init --type feature`, `docs/plans/`)',
-  Bugfix: 'A bug fix (`--type bugfix`, `docs/plans/`)',
-  Build: 'A build round (`--type build`, `docs/builds/`); task cards need only `**Objective:**` and the checkbox',
+  Feature: 'Feature work (`buracle plan init --type feature`, `docs/plan-build/`)',
+  Bugfix: 'A bug fix (`--type bugfix`, `docs/plan-build/`)',
+  Build: 'A build round (`--type build`, `docs/goal-build/`); task cards need only `**Objective:**` and the checkbox',
   Plan: 'A captured native plan (written with status `SAVED`)',
 }
 const HEADER_TEXT: Record<keyof PlanHeader, string> = {
@@ -457,9 +458,17 @@ export const PLAN_FORBIDDEN_WORDS = ['TBD', 'TODO', 'FIXME'] as const
 
 const AUTHORING_CHECKS: ReadonlyArray<readonly [string, string, string]> = [
   ['files-incomplete', 'warning', 'A repository path that an Objective, DoD or `Verify:` line names (in backticks, or anywhere on a line of a DoD code block) while no task\'s `**Files:**` list has it (the lists of all tasks count together). A `path:line` reference, a route (`/api/…`), a host (`localhost:3000/…`) and a directory written without a trailing `/` are exempt; a directory with one counts as listed once a file beneath it is. A script that a `Verify:` command only runs is exempt too: the first path after an interpreter (`bun scripts/check.ts`, `python3 tools/smoke.py`, `sh scripts/smoke.sh`) or a `./` path that starts a command. A test file handed to a test runner (`bun test tests/x.test.ts`) is not: list it under `Test:`.'],
-  ['vague-placeholder', 'warning in a task card, info elsewhere', 'Filler that leaves the work undefined: "implement later", "fill in details", "details below", "similar to Task N", "appropriate error handling", "handle edge cases", and the same filler in Turkish. Text in backticks, code blocks and the sections a run writes (Deviations, Follow-ups, Evidence, …) are skipped.'],
+  ['vague-placeholder', 'warning in a task card, info elsewhere', 'Filler that leaves the work undefined: "implement later", "fill in details", "details below", "similar to Task N", "appropriate error handling", "handle edge cases". Text in backticks, code blocks and the sections a run writes (Deviations, Follow-ups, Evidence, …) are skipped.'],
   ['inventory-unmapped', 'warning', 'An `## Inventory` table row that names neither an existing task (`Task N`) nor a reason for dropping the item. The columns are the replaced item, the task that keeps it and the reason.'],
   ['identifier-drift', 'info', 'Two backticked names that differ only in case or underscores, or by one or two letters when both are 8 or more characters long (a plural `s` aside), such as `clearLayers` and `clear_layers`. At most 5 are reported, from the first 400 distinct names.'],
+]
+
+// The document check (PRD 2026-11-04): every document under docs/ is English in ASD-STE100 structural style.
+const DOCUMENT_CHECKS: ReadonlyArray<readonly [string, string, string]> = [
+  ['not-english', 'warning', 'A paragraph, list item or table cell that reads as Turkish (function words and letters). A document under docs/ is English, whatever language the user writes in.'],
+  ['long-sentence', 'warning', 'A sentence over 25 words. A sentence ends at `.`, `!` or `?` followed by a space or the line end, a code span counts as one word, and a table cell is one sentence.'],
+  ['semicolon', 'warning', 'A semicolon in prose. Code spans, fenced code and headings are skipped.'],
+  ['legacy-folder', 'warning', 'A path under an old document folder (`docs/prd/`, `docs/plans/`, `docs/builds/`, `docs/cleanup/`). New documents go to `docs/requirements/`, `docs/plan-build/`, `docs/goal-build/` and `docs/dead-code/`.'],
 ]
 
 const AUDIT_CODES = ['unimplemented', 'delete-pending', 'rename-mismatch', 'unplanned', 'inventory-open'] as const satisfies readonly AuditCode[]
@@ -469,7 +478,7 @@ const AUDIT_TEXT: Record<AuditCode, string> = {
   'unimplemented': 'A `Create` or `Modify` path the diff does not change (or deletes), a `Create` path that does not exist, a `Test` path that does not exist. A `Test` path that exists but that the diff leaves alone is `info` (fine when the task only runs it)',
   'delete-pending': 'A `Delete` path that still exists, or that the diff does not delete',
   'rename-mismatch': 'A `Rename` whose old path still exists, whose new path is missing, or that the diff shows neither as a rename nor as a delete plus an add',
-  'unplanned': 'A changed path that no task\'s `**Files:**` list and no `## Deviations` line names (plan files under `docs/plans/` and `docs/builds/` never count)',
+  'unplanned': 'A changed path that no task\'s `**Files:**` list and no `## Deviations` line names (documents under `docs/plan-build/`, `docs/goal-build/`, `docs/requirements/`, `docs/dead-code/` and the old folders never count)',
   'inventory-open': 'An `## Inventory` row whose task is missing or not ticked, or that names no task and no reason',
 }
 
@@ -510,6 +519,9 @@ function planDoc(): string {
   out += '\n## Authoring checks (Feature and Bugfix plans)\n\n'
   out += 'Besides the format, `buracle plan validate` reports these findings. Warnings fail `--strict` (exit 2); infos never do. The stop guard (H11) blocks on errors only.\n\n'
   out += mdTable(['Code', 'Level', 'Reported when'], AUTHORING_CHECKS.map(([c, l, t]) => [code(c), cell(l), cell(t)]))
+  out += '\n## Document checks (all plan types)\n\n'
+  out += 'Every document under docs/ is English in ASD-STE100 structural style (PRD 2026-11-04). `buracle plan validate` runs these checks on Feature, Bugfix and Build files and on a PRD (`type: prd`), as warnings with their line; a captured native plan (type Plan) is skipped.\n\n'
+  out += mdTable(['Code', 'Level', 'Reported when'], DOCUMENT_CHECKS.map(([c, l, t]) => [code(c), cell(l), cell(t)]))
   out += '\n## Plan against diff (`buracle plan audit`)\n\n'
   out += '`buracle plan audit [<path>] [--base <ref>] [--slug <s>]` compares every task\'s `**Files:**` lines with the diff that `buracle review-scope` picks (`git diff --name-status -M`, plus untracked files in `working-tree` mode). A finding of a task that is not ticked yet is an info; every other finding is a warning, and any warning makes it exit 2.\n\n'
   out += mdTable(['Code', 'Reported when'], AUDIT_CODES.map(c => [code(c), cell(AUDIT_TEXT[c])]))
@@ -551,6 +563,9 @@ function installDoc(): string {
   out += '\nIn a list shared with the user (for example one event list of Codex\'s `hooks.json`), Buracle adds only its own items: the user\'s items, their order and their comments are never touched, and Buracle\'s items are updated in place or appended. Parent maps that Buracle created and that are left empty (and files Buracle created that hold only an empty document) are cleaned up on uninstall; structures the user had before are never removed.\n'
   out += '\nEdits change only the text concerned: neighboring values are not reformatted, a file without a final newline does not get one, the comments in Buracle\'s TOML tables survive updates, and one-line JSON/YAML flow structures stay on one line. An install followed by an uninstall therefore gives hand-edited files back byte for byte.\n'
   out += '\nTwo symlinks to the same file (for example Codex\'s and OpenCode\'s `AGENTS.md` linked to one shared file) are handled as one file: the edits made through both links compose in that file.\n'
+  out += '\n## Host limits\n\n'
+  out += 'Where a host lacks a mechanism Buracle needs, `src/adapters/shared/host-limits.ts` records the gap and the fallback. `buracle doctor <harness>` lists these rows and warns when the installed host is newer than the version a record was checked on. The README keeps the same table in short form.\n\n'
+  out += mdTable(['Record', 'Harness', 'Kind', 'Checked on', 'What the host lacks', 'Fallback'], HOST_LIMITS.filter(l => l.kind !== 'native').map(l => [code(l.id), cell(l.harness), cell(l.kind), cell(l.checkedOn), cell(l.reason), cell(l.fallback)]))
   out += '\n## State files\n\n'
   out += mdTable(['Path', 'Content'], [
     [code(stateRel(paths.ownedLedgerFile())), 'The ownership ledger: the path, key and content hash of everything Buracle wrote (and, for an enforced key, the value it replaced). When it is lost it is rebuilt from the transaction journals; without journals, `buracle install` in a terminal asks whether to record the values that equal Buracle\'s as its own'],

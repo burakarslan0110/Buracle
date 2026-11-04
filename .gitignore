@@ -12,6 +12,8 @@ coverage/
 
 # Design notes, contracts, the usage guide and the generated reference stay on the author's machine
 docs/
+# The ab-test fixture repos carry their measured plans under docs/plan-build/ (PRD 2026-11-04 R9)
+!tests/fixtures/ab-test/plan-format/fixtures/*/docs/
 
 # Per-machine state the buracle CLI and the code indexes write into a checkout
 .codegraph/

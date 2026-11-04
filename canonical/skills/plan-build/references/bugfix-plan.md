@@ -96,14 +96,14 @@ iterations: 0
 - **When:** `GET /invoices/42/total` is called
 - **Actual:** the total is 20.00
 - **Expected:** the total is 35.00
-- **Unchanged:** empty invoices still total 0.00 (`tests/invoice.test.ts`, "empty invoice"); discounts still apply after summing (new test in Task 1)
+- **Unchanged:** empty invoices still total 0.00 (`tests/invoice.test.ts`, "empty invoice"), and discounts still apply after summing (new test in Task 1)
 
 ## Root Cause
 `src/billing/total.ts:27` — `sumItems` stops one index early, so the last item is never added. Introduced in a1b2c3d. Confidence: high.
 Reproduction: `bun test tests/invoice.test.ts -t "three items"` → `expected 35, received 20`.
 
 ## Context
-- `sumItems` lives at `src/billing/total.ts:20-35`; its only caller is `src/routes/invoices.ts:58`.
+- `sumItems` lives at `src/billing/total.ts:20-35`. Its only caller is `src/routes/invoices.ts:58`.
 - Commands: tests `bun test` · types `bunx tsc --noEmit` · run `bun run dev` (port 3000).
 
 ## Tasks

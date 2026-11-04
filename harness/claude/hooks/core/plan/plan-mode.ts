@@ -1,12 +1,13 @@
 import type { Harness } from '../events'
+import { DOC_DIR_PREFIX } from './doc-dirs'
 import { nativeBinding } from './native'
 import type { SessionState } from './state'
 
+// The bugfix workflow is not listed: it works without a plan file (canonical/skills/bugfix/SKILL.md).
 export const FILE_WRITING_WORKFLOWS: Readonly<Record<string, string>> = {
-  'plan-build': 'its plan file under docs/plans/',
-  bugfix: 'its plan file under docs/plans/',
-  'goal-build': 'its run file under docs/builds/',
-  requirements: 'its PRD under docs/prd/',
+  'plan-build': 'its plan file under docs/plan-build/',
+  'goal-build': 'its run file under docs/goal-build/',
+  requirements: 'its PRD under docs/requirements/',
 }
 
 const READ_ONLY_MODE: Readonly<Record<Harness, { name: string; leave: string }>> = {
@@ -24,7 +25,7 @@ export function readOnlyStartNotice(workflow: string, harness: Harness): string 
   return `Buracle: ${workflow} was started while the session is in ${mode.name}, which allows no file edits, and the workflow's first phase writes ${writes}. Ask the user to ${mode.leave} first, then continue the workflow. Until then only discuss the task in the conversation: do not run \`buracle plan init\` or \`buracle plan register\`.${native}`
 }
 
-const PLAN_DIRS = /(?:^|\/)docs\/(?:plans|builds|prd)\//
+const PLAN_DIRS = DOC_DIR_PREFIX
 
 function norm(p: string): string {
   return p.replace(/\\/g, '/').replace(/\/+/g, '/')

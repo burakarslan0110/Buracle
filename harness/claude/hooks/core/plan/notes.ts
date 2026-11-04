@@ -1,3 +1,5 @@
+import { ALL_DOC_DIRS, DOC_FILE, docDirOf, type DocDirName } from './doc-dirs'
+
 export type ReviewNoteKind = 'plan' | 'code'
 export type ReviewSide = 'old' | 'new'
 
@@ -35,8 +37,8 @@ export interface NoteInput {
   end?: number
 }
 
-export const REVIEW_DOC_DIRS = ['plans', 'builds', 'prd'] as const
-export type ReviewDocDir = typeof REVIEW_DOC_DIRS[number]
+export const REVIEW_DOC_DIRS = ALL_DOC_DIRS
+export type ReviewDocDir = DocDirName
 
 export const NOTE_TEXT_MAX = 4000
 export const NOTE_QUOTE_MAX = 1200
@@ -48,7 +50,7 @@ export const NOTE_ID_RE = /^n-[0-9a-f]{8}$/
 export const NOTES_INBOX_MAX = 60
 
 export function reviewDocOf(rel: string): { dir: ReviewDocDir, name: string } | undefined {
-  const m = /^docs\/(plans|builds|prd)\/([^/]+\.md)$/u.exec(rel.replace(/\\/g, '/'))
+  const m = DOC_FILE.exec(rel.replace(/\\/g, '/'))
   if (m === null) return undefined
   const name = m[2] as string
   if (name.startsWith('.')) return undefined
@@ -248,7 +250,7 @@ export function inboxFor(entries: readonly NotesInboxEntry[], s: NoticeSession, 
     if (e.at <= since || e.open <= 0) return false
     if (e.doc !== undefined) {
       if (s.plan !== undefined) return norm(e.doc) === norm(s.plan)
-      return reviewDocOf(e.rel ?? '')?.dir === 'prd' && roots.some(r => within(r, e.root))
+      return docDirOf(e.rel ?? '')?.workflow === 'requirements' && roots.some(r => within(r, e.root))
     }
     if (s.plan !== undefined) return roots.some(r => within(r, e.root) || (e.checkout !== undefined && within(r, e.checkout)))
     return e.checkout !== undefined && roots.some(r => within(r, e.checkout as string))

@@ -375,13 +375,13 @@ describe('context and compaction', () => {
   })
 
   test('the compaction instructions keep the registered plan, the work so far and the touched files', async ($, on) => {
-    const plan = { v: 1, plan: { path: `${CWD}/docs/plans/p.md`, slug: 'login', status: 'IN_PROGRESS', type: 'Feature', phase: 'implement', registeredAt: NOW - 60_000 }, guard: { blocksForPlan: 0, blocksInChain: 0 } }
+    const plan = { v: 1, plan: { path: `${CWD}/docs/plan-build/p.md`, slug: 'login', status: 'IN_PROGRESS', type: 'Feature', phase: 'implement', registeredAt: NOW - 60_000 }, guard: { blocksForPlan: 0, blocksInChain: 0 } }
     const world = worldOf(on, { [STATE]: JSON.stringify(plan) })
     await $.session.start(SESSION)
     await $.tool.call({ tool: 'Edit', file_path: `${CWD}/src/login.ts`, old_string: 'a', new_string: 'b' } as never)
     await $.session.compact({ trigger: 'manual', instructions: undefined, messages: [{ role: 'user', text: 'work so far', toolUses: [] }] } as never)
     const text = world.compacted[0] ?? ''
-    expect(text).toContain('docs/plans/p.md')
+    expect(text).toContain('docs/plan-build/p.md')
     expect(text).toContain('- Running workflow: plan-build: phase Implement')
     expect(text).toContain('tried and rejected')
     expect(text).toContain(`Files changed so far (keep these paths and what changed in each): ${CWD}/src/login.ts.`)

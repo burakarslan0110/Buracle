@@ -108,7 +108,7 @@ If neither `plan_file` nor `goal` is usable, return `needs_changes` with a singl
 
 ## Build run files
 
-A goal-build run file (frontmatter `type: Build`, normally under `docs/builds/`) works differently from a plan; for it these rules replace steps 4 and 12 and the `changed_files` comparison in step 2:
+A goal-build run file (frontmatter `type: Build`, normally under `docs/goal-build/`) works differently from a plan; for it these rules replace steps 4 and 12 and the `changed_files` comparison in step 2:
 
 - Its task cards carry only an Objective. `## Files Touched` is the scope ledger and `## Rounds` the log of task changes. A changed file listed in `## Files Touched` is in scope, whether or not a task card names it. A changed file that is in neither the ledger nor a task card → `should_fix` `plan_deviation`. In `working-tree` mode, a changed file outside the ledger may be the user's own edit: report it as a `suggestion` that names it, never as a defect of the run.
 - `changed_files` is the ledger, not the whole diff. A diff path outside it follows the rule above, never a `review_input` finding. `review_input` stays for a `warning` from `buracle review-scope` and for a ledger path the diff does not contain, which means the range may be wrong.
@@ -167,7 +167,7 @@ Example:
 ```json
 {
   "verdict": "needs_changes",
-  "summary": "docs/plans/2026-10-08-invoice-csv-export.md: the export endpoint works for the happy path, but the date filter runs after pagination, so later pages leak out-of-range invoices; the empty-range case is untested.",
+  "summary": "docs/plan-build/2026-10-08-invoice-csv-export.md: the export endpoint works for the happy path, but the date filter runs after pagination, so later pages leak out-of-range invoices; the empty-range case is untested.",
   "findings": [
     {
       "severity": "must_fix",

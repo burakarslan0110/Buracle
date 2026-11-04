@@ -1,6 +1,6 @@
 ---
 name: goal-build
-description: "Goal-and-loop workflow for a clear end state whose path is found while building: agree on a goal, tasks sized as the largest slices you can finish and verify, and at least 3 pass/fail acceptance criteria (one of them the oracle), have them reviewed, lock the contract, then build in rounds judged on running evidence (at most four), verify and hand back. Tracked in docs/builds/. Run only when the user explicitly asks for goal-build."
+description: "Goal-and-loop workflow for a clear end state whose path is found while building: agree on a goal, tasks sized as the largest slices you can finish and verify, and at least 3 pass/fail acceptance criteria (one of them the oracle), have them reviewed, lock the contract, then build in rounds judged on running evidence (at most four), verify and hand back. Tracked in docs/goal-build/. Run only when the user explicitly asks for goal-build."
 when_to_use: "The user invokes goal-build by name, or names an end state and asks you to find the way there, working in a loop until it is done."
 argument-hint: "<goal: the end state you want> [--worktree | --new-branch | --current-branch]"
 disable-model-invocation: true
@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 # Goal-build
 
-Turn a clear goal into a locked contract of acceptance criteria, then work toward it in rounds: build every open task, then judge every criterion on a running artifact. Tasks can be reshaped between rounds; the criteria stay fixed. The run file lives in `docs/builds/` and moves through `buracle plan …` like a plan-build plan.
+Turn a clear goal into a locked contract of acceptance criteria, then work toward it in rounds: build every open task, then judge every criterion on a running artifact. Tasks can be reshaped between rounds; the criteria stay fixed. The run file lives in `docs/goal-build/` and moves through `buracle plan …` like a plan-build plan.
 
 Pick another workflow when the idea is still vague (`/requirements`), when something that used to work is broken (`/bugfix`), or when the user wants to approve a task list before any code (`/plan-build`).
 
@@ -64,8 +64,8 @@ Run `buracle plan status --json`, then:
 
 | Situation | Go to |
 |---|---|
-| The user passed a `docs/builds/*.md` path | `buracle plan register <absolute path> --phase plan` while `approved: false`; otherwise `buracle plan register <absolute path>` without `--phase`, so the CLI keeps the phase the run file records; then route it by the rows below |
-| The request names a PRD (`docs/prd/*.md`, frontmatter `type: prd`) | Phase 1, with the PRD's problem, Must requirements and *Out of scope* list as the goal input; cite the PRD path under `## Goal` and do not re-ask what it settled |
+| The user passed a `docs/goal-build/*.md` path, or the old `docs/builds/*.md` | `buracle plan register <absolute path> --phase plan` while `approved: false`; otherwise `buracle plan register <absolute path>` without `--phase`, so the CLI keeps the phase the run file records; then route it by the rows below |
+| The request names a PRD (`docs/requirements/*.md`, or the old `docs/prd/*.md`, frontmatter `type: prd`) | Phase 1, with the PRD's problem, Must requirements and *Out of scope* list as the goal input; cite the PRD path under `## Goal` and do not re-ask what it settled |
 | A new goal while an unfinished plan or run is bound | Ask with `AskUserQuestion`: continue the bound one (a plan-build plan continues in `/plan-build`), or start the new goal after `buracle plan unregister` |
 | Nothing bound | Phase 1 with the user's goal |
 | The bound run is paused | `buracle plan resume` (invoking goal-build again counts as "continue"), then route by the rows below |
@@ -79,7 +79,7 @@ Re-read the run file and the reference of the phase you land in. Do the same aft
 
 ## Key commands
 
-- `buracle plan init --type build --title "<goal title>" --json` prints `{path, slug}` for a file under `docs/builds/`.
+- `buracle plan init --type build --title "<goal title>" --json` prints `{path, slug}` for a file under `docs/goal-build/`.
 - `buracle plan register <absolute path> --phase plan` while drafting; without `--phase` for a locked run (it keeps the recorded phase).
 - `buracle plan validate <path> --strict --json`
 - `buracle plan set approved true`, `buracle plan set status APPROVED|IN_PROGRESS`, `buracle plan set phase implement|verify`, `buracle plan set rounds <n>`
@@ -91,7 +91,7 @@ Re-read the run file and the reference of the phase you land in. Do the same aft
 
 ## Talking to the user
 
-Reply and write the run file in the language of the user's prompt. Keep the markers Buracle reads (listed in the *Plain language* rule; `## Unverified` among them, which `buracle plan verify` reads), commands and identifiers verbatim; every other heading and sentence follows the user's language.
+Write the run file in English, in the ASD-STE100 structural style of the *Plain language* rule, whatever language the user writes in. Reply in the user's language. Keep the markers Buracle reads (listed in the *Plain language* rule; `## Unverified` among them, which `buracle plan verify` reads), commands and identifiers verbatim.
 
 Phase 1 is the only planned conversation. Ask with `AskUserQuestion`: 2 to 4 concrete options, your recommendation first; if it is unavailable, ask in plain text with numbered options. Once the run file is registered, pause before any question that could end your turn (`buracle plan pause --kind decision --reason "<question>"`), and run `buracle plan resume` after the answer.
 
@@ -136,7 +136,7 @@ A build round is made for parallel work per the *Parallel agents* rule: you are 
 
 Lanes never write the run file. Tasks that share files or build on each other stay in your session, in order.
 
-The contract, the run file and the hand-back follow the *Plain language* rule, in the language of the user's prompt: the hand-back opens with the outcome, then the criteria table with its verdicts and the evidence per row, and a diagram of the built flow when more than two modules took part.
+The contract and the run file follow the *Plain language* rule in English. When more than two modules took part, the run file gets a Mermaid diagram of the flow you built, after the text. The hand-back goes in the reply, in the user's language: it opens with the outcome, then the criteria table with its verdicts and the evidence per row.
 
 ## Review agents
 

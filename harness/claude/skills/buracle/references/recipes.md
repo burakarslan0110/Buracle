@@ -66,7 +66,7 @@ The same holds when they say it in their own language.
 
    ```text
    buracle:changes-review
-   plan_file: /abs/repo/docs/plans/2026-10-08-rate-limit.md
+   plan_file: /abs/repo/docs/plan-build/2026-10-08-rate-limit.md
    base_ref: <base_ref>
    diff_range: <diff_range>
    changed_files: <from the --stat output>

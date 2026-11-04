@@ -14,8 +14,9 @@ const EXTENSIONS = new Set([
   'clj', 'elm', 'hs', 'ml', 'nim', 'zig', 'sql', 'graphql', 'gql', 'proto', 'sh', 'bash', 'zsh', 'fish', 'ps1', 'bat',
   'lock', 'tf', 'tfvars', 'hcl', 'nix', 'csv', 'tsv', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'pdf', 'wasm',
 ])
-const FILE_NAMES = new Set(['Makefile', 'Dockerfile', 'Containerfile', 'Justfile', 'Procfile', 'Gemfile', 'Rakefile'])
-const AFTER_RUN = new Set(['deviations', 'follow-ups', 'followups', 'review notes', 'gaps', 'evidence', 'e2e results', 'dod audit', 'unverified', 'red evidence'])
+const FILE_NAMES = new Set(['Makefile', 'Dockerfile', 'Containerfile', 'Justfile', 'Procfile', 'Gemfile', 'Rakefile', '.gitignore'])
+// The sections a run writes after approval: the authoring and document checks leave them alone.
+export const AFTER_RUN = new Set(['deviations', 'follow-ups', 'followups', 'review notes', 'gaps', 'evidence', 'e2e results', 'dod audit', 'unverified', 'red evidence'])
 const IDENT = /^[A-Za-z_$][A-Za-z0-9_$]*$/
 const MAX_DRIFT = 5
 const MAX_IDS = 400

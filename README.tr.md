@@ -95,7 +95,7 @@ Bir projede harness'ını aç ve her zamanki gibi çalış. Buracle kuralların�
 | Çalışma biçimi | Ne kazanırsın |
 |---|---|
 | Doğrudan istek | Ajan Buracle'ın kurallarına ve hafızasına uyarak işi anlar, değiştirir, doğrular ve raporlar |
-| Harness'ın kendi plan modu | Onayladığın plan `docs/plans/` altına kaydedilir ve oturum bitince kaybolmaz (OpenCode taslak olarak kaydeder) |
+| Harness'ın kendi plan modu | Onayladığın plan `docs/plan-build/` altına kaydedilir ve oturum bitince kaybolmaz (OpenCode taslak olarak kaydeder) |
 | Bir Buracle workflow'u | Kalıcı bir plan, sözleşme ya da PRD, onay kapıları, önce test, bağımsız incelemeler ve doğrulama |
 
 Her depoda bir kez `/project-rules` çalıştır. Bu komut kodu okur, belgelediği komutları çalıştırır ve her harness'ın uyduğu bir `AGENTS.md` yazar. Codex'te bu sayfada `/` yazan yerlere `$` yaz.
@@ -104,10 +104,10 @@ Her depoda bir kez `/project-rules` çalıştır. Bu komut kodu okur, belgeledi�
 
 | Workflow | Ne zaman | Ne kazanırsın |
 |---|---|---|
-| `/plan-build` | Koddan önce incelenmiş bir planı onaylamak istediğinde | `docs/plans/` altında bir plan, plan incelemesi, her değişiklikten önce başarısız olan bir test, değişiklik incelemesi, değişen her yüzeyde gerçek programın çalıştırılması, uçtan uca senaryolar ve sonuç için senin onayın |
-| `/goal-build` | Varılacak nokta belli ama yol geliştirirken bulunacaksa | `docs/builds/` altında geçti/kaldı ölçütleri kilitlenmiş bir sözleşme, eksik kanıtın kaldı sayıldığı geliştirme ve değerlendirme turları, sonda da bir doğrulama aşaması |
+| `/plan-build` | Koddan önce incelenmiş bir planı onaylamak istediğinde | `docs/plan-build/` altında bir plan, plan incelemesi, her değişiklikten önce başarısız olan bir test, değişiklik incelemesi, değişen her yüzeyde gerçek programın çalıştırılması, uçtan uca senaryolar ve sonuç için senin onayın |
+| `/goal-build` | Varılacak nokta belli ama yol geliştirirken bulunacaksa | `docs/goal-build/` altında geçti/kaldı ölçütleri kilitlenmiş bir sözleşme, eksik kanıtın kaldı sayıldığı geliştirme ve değerlendirme turları, sonda da bir doğrulama aşaması |
 | `/bugfix` | Bir davranış bozuksa ve düzeldiğinin kanıtını istiyorsan | Önce hatanın yeniden üretilmesi, kök nedenin `file:line` olarak gösterilmesi, düzeltmeden önce başarısız olan bir test, hatanın başladığı yerde düzeltme, değişiklik incelemesi ve uçtan uca kontrol |
-| `/requirements` | Sorun, hedef kitle ya da kapsam henüz belirsizse | Birkaç tur soru, araştırma ve `docs/prd/` altında, doğru geliştirme workflow'una devreden onaylı bir PRD |
+| `/requirements` | Sorun, hedef kitle ya da kapsam henüz belirsizse | Birkaç tur soru, araştırma ve `docs/requirements/` altında, doğru geliştirme workflow'una devreden onaylı bir PRD |
 
 ```mermaid
 flowchart LR
@@ -241,11 +241,36 @@ Dört harness da aynı 27 hook'u, skill'leri, inceleme ajanlarını, kuralları,
 | Onay | Claude Code içinde bir pencere | Codex'in kendi onay sorusu | Bir TUI penceresi, web ve masaüstünde question aracı | omp'nin seçim penceresi |
 | Workflow ilerlemesi | İstem alanının üstünde bir bant, hafıza ve plan panelleri | tmux'taki durum çubuğu ve `buracle plan status` | Yazma alanının üstünde bir bant ve bir pencere | Editörün üstünde bir widget, altında bir panel |
 | Durum satırı | Buracle'ın kendi durum satırı | Codex'in yerleşik öğeleri ve bir tmux çubuğu | İstem alanının alt satırı | omp'nin yerleşik düzeni ve Buracle girdileri |
-| Plan modu | `docs/plans/` altına kaydedilir | Planı uygulamayı seçtiğinde kaydedilir | Taslak olarak kaydedilir | Onaylandığında kaydedilir |
+| Plan modu | `docs/plan-build/` altına kaydedilir | Planı uygulamayı seçtiğinde kaydedilir | Taslak olarak kaydedilir | Onaylandığında kaydedilir |
 | Dil sunucuları | Claude Code'un LSP'si | Buracle'ın `lsp` MCP sunucusu | Buracle'ın `lsp` MCP sunucusu | omp'nin kendi LSP'si |
 | Tarayıcı | chrome-devtools | chrome-devtools | chrome-devtools | omp'nin yerleşik tarayıcısı |
 
-Buracle Claude Code, Codex ve Oh My Pi'nin yerleşik hafızasını kapatır. Böylece dört harness'ın paylaştığı tek hafıza beyin olur. İnceleme ajanları her zaman salt okunur çalışır. Bir harness'ta Buracle'ın ihtiyaç duyduğu bir hook yoksa [`src/adapters/shared/host-limits.ts`](src/adapters/shared/host-limits.ts) bu eksiği ve yerine ne yapıldığını kaydeder. Daha yeni bir harness sürümü bu eksiği kapatabilecekse `buracle doctor` bunu söyler.
+Buracle Claude Code, Codex ve Oh My Pi'nin yerleşik hafızasını kapatır. Böylece dört harness'ın paylaştığı tek hafıza beyin olur. İnceleme ajanları her zaman salt okunur çalışır. Bir harness'ta Buracle'ın ihtiyaç duyduğu bir mekanizma yoksa [`src/adapters/shared/host-limits.ts`](src/adapters/shared/host-limits.ts) bu eksiği ve yerine ne yapıldığını kaydeder. `buracle doctor <harness>` her kaydı listeler ve daha yeni bir harness sürümü bir eksiği kapatabilecekse bunu söyler. Aşağıdaki tablo bu listedir.
+
+### Harness sınırları
+
+| Kayıt | Harness | Harness'ta eksik olan | Buracle'ın yerine yaptığı |
+|---|---|---|---|
+| `codex.consent-dialog` | Codex | Bir hook kullanıcıya soru soramaz, `codex exec`, `--yolo` ve `-a never` oturumları onay sorusu göstermez | Ret mesajı ajana neyi soracağını söyler, cevap bir sonraki istemle gelir |
+| `codex.background-wait` | Codex | Stop yükü görev verisi taşımaz, arka plandaki komut bitince turu uyandıran bir şey yok | Durma koruması turu açık tutar |
+| `codex.quiet-stop-feedback` | Codex | Bir Stop hook'u turu ancak bir engelle sürdürür, engelin gerekçesi yeni bir istem olur | Durma korumasının gerekçesi o isteme girer |
+| `codex.shell-read-nudge` | Codex | Kabuktan dosya okumayı yönlendirecek bir dosya okuma aracı yok | Kabuktan okuma serbest kalır, düzenleme notu `apply_patch` aracını söyler |
+| `codex.commands-without-turn` | Codex | Özel eğik çizgi komutu yok (bir eklentinin komutları skill olur) | `$memory`, CLI karşılıkları ve Codex'in kendi `/side` komutu |
+| `codex.live-exec-mask` | Codex | Çalışan bir komutun `write_stdin` yoklamaları hiçbir hook'a ulaşmaz | Tamamlanan her kabuk ve MCP sonucu maskelenir |
+| `codex.failed-mcp-mask` | Codex | PostToolUse yalnızca başarılı bir çağrı için çalışır | Başarılı her kabuk ve MCP sonucu maskelenir |
+| `codex.live-panes` | Codex | Hook'lar panel, widget ya da pencere alamaz | `buracle mem status`, `buracle plan status` ve tmux durum satırı |
+| `codex.custom-status-line` | Codex | Alt satır yalnızca Codex'in kendi öğelerini gösterir | Buracle yerleşik öğeleri seçer ve kendi çubuğunu tmux'ta gösterir |
+| `codex.summary-keep-list` | Codex | Uzak sıkıştırma (OpenAI, Azure, Bedrock) `compact_prompt` değerini yok sayar | Devir hafızası ve geri yükleme durumu taşır |
+| `opencode.consent-dialog` | OpenCode | Pencere TUI eklentisine muhtaç, web, masaüstü, sunucu API'si ve `opencode run` onu yüklemez | Ret mesajı ajana `question` aracıyla sormasını söyler |
+| `opencode.approved-plan-capture` | OpenCode | Plan ajanının onay aracı ya da olayı yok | Oturum plan ajanından çıkınca taslak bir plan (`approved: false`) |
+| `opencode.native-plan-approval` | OpenCode | Plan ajanından çıkmak onay sayılmaz | Hazırlanan plan taslak olarak doldurulur, plan-build kullanıcıya sorar |
+| `opencode.todo-handoff` | OpenCode | OpenCode 2.x'te todo aracı yok | Devir hafızası planı ve açık görevlerini taşır |
+| `opencode.goal-command` | OpenCode | Yerleşik bir goal komutu yok | goal-build özeti koşulu ilk cümlesinde söyler |
+| `opencode.quiet-stop-feedback` | OpenCode | Oturum durmadan önce çalışan bir eklenti hook'u yok | Oturum bitince sınırlı sayıda yeniden istem |
+| `opencode.stop-veto` | OpenCode | Durmak üzere olan bir oturumu tutabilen eklenti hook'u yok | Oturum bitince sınırlı sayıda yeniden istem |
+| `opencode.subagent-stop-hold` | OpenCode | Alt ajan durma hook'u yok | Geçersiz bir inceleme raporu, ajana o incelemeciyi bir kez daha sürdürmesini söyleyen bir not alır |
+| `opencode.rate-windows` | OpenCode | Kota API'si yok, pencereler sağlayıcı cevaplarının başlıklarından gelir | 5 saatlik ve 7 günlük bölümler bir cevap taşıyana kadar boş kalır |
+| `omp.companion-shell` | Oh My Pi | Print modu bash'i salt okunur komutlarla sınırlayamaz | İkinci görüş yalnızca read, grep ve glob ile çalışır, diff istemine konur |
 
 | Harness | Test edilen sürüm |
 |---|---|
@@ -305,7 +330,7 @@ Menü açıkken Buracle, son doğrulaması altı saatten eski olanları yeniler.
 | `buracle rollback` | En son kurulumu geri alır |
 | `buracle uninstall` | Buracle'ın kurduğu her şeyi kaldırır ve hafızaya dokunmaz |
 
-Ajanlar `plan`, `worktree`, `mem`, `skills`, `project` ve `diagram` gibi başka komutlar da kullanır. `buracle help --all` hepsini listeler, `buracle help <komut>` birini açıklar. `buracle diagram` bir Mermaid diyagramını kutu karakterleriyle çizer; böylece ajanın sohbet cevabındaki diyagram terminalde ham Mermaid yerine çizim olarak görünür.
+Ajanlar `plan`, `worktree`, `mem`, `skills` ve `project` gibi başka komutlar da kullanır. `buracle help --all` hepsini listeler, `buracle help <komut>` birini açıklar.
 
 ## Geliştirme
 
