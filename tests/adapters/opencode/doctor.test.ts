@@ -79,9 +79,14 @@ describe('opencode doctor', () => {
     expect(level(await doctor(ctx, fake(TESTED_WITH.replace(/\d+$/, n => String(Number(n) + 1)), {})), 'opencode.version')).toBe('warn')
   }))
 
-  test('host limits (PARITY-10): ok on the version they were checked on, a re-probe hint on a newer one', () => withSandbox(async () => {
+  test('host limits (PARITY-10): the version row is ok on the checked version and warns on a newer one; each limit is a row with its fallback and the README pointer', () => withSandbox(async () => {
     const ctx = adapterContext()
-    expect(level(await doctor(ctx, fake('2.0.30', {})), 'opencode.limits')).toBe('ok')
+    const items = await doctor(ctx, fake('2.0.30', {}))
+    expect(level(items, 'opencode.limits')).toBe('ok')
+    const row = items.find(i => i.check === 'opencode.stop-veto')
+    expect(row?.level).toBe('ok')
+    expect(row?.detail).toContain('. Fallback: a capped re-prompt after `session.execution.succeeded`. See the Host limits table in README.md.')
+    expect(items.filter(i => i.detail.includes('DESIGN §4.5'))).toEqual([])
     const newer = (await doctor(ctx, fake('2.0.31', {}))).find(i => i.check === 'opencode.limits')
     expect(newer?.level).toBe('warn')
     expect(newer?.detail).toContain('stop-veto')

@@ -13,7 +13,7 @@ import { compareVersions, configTarget } from './install'
 import { POINTER_FILE } from './runtime/env'
 import { configPermissions, opencodeServers } from './render'
 import { resolveArgv, type Env } from '../shared/command'
-import { hostLimitsRow } from '../shared/host-limits'
+import { hostLimitRows } from '../shared/host-limits'
 
 export interface DoctorItem { level: 'ok' | 'warn' | 'error', check: string, detail: string }
 
@@ -183,8 +183,7 @@ export async function doctor(ctx: AdapterContext, opts: DoctorOptions = {}): Pro
   } else {
     add('ok', 'opencode.version', `OpenCode ${bin.version} (tested)`)
   }
-  const limits = hostLimitsRow('opencode', bin.installed ? bin.version : undefined, 'tests/adapters/opencode/smoke.test.ts')
-  if (limits !== undefined) out.push(limits)
+  out.push(...hostLimitRows('opencode', bin.installed ? bin.version : undefined, 'tests/adapters/opencode/smoke.test.ts'))
 
   const target = configTarget(configDir)
   const both = pathExistsSync(join(configDir, 'opencode.json')) && pathExistsSync(join(configDir, 'opencode.jsonc'))

@@ -15,6 +15,7 @@ import { codexDoctor, compareVersions, configLoadCheck, effortCheck, featureEnab
 import { run as runProcess } from '../../../src/engine/proc'
 import { HOOK_COMMAND_PREFIX, hookCommand, windowsHookPrefix } from '../../../src/adapters/codex/hooks-config'
 import { buracleHooksFile, findBuracleHandlers } from '../../../src/adapters/codex/hooks-config'
+import { hostLimitsOf } from '../../../src/adapters/shared/host-limits'
 import { pathRuleFiles } from '../../../src/adapters/shared/rules'
 import { pathToFileURL } from 'node:url'
 import { fakeExe } from '../../helpers/fake-exe'
@@ -62,15 +63,21 @@ describe('codex doctor', () => {
     })
   })
 
-  test('host limits (PARITY-10) and the workflow view (PARITY-9): listed on the checked version, flagged for a re-probe on a newer one; the tmux line is named', () => withSandbox(async () => {
+  test('host limits (PARITY-10) and the workflow view (PARITY-9): the version row is ok on the checked version and warns on a newer one, each limit is a row with its fallback and the README pointer; the tmux line is named', () => withSandbox(async () => {
     const limits = () => by(items, 'codex.limits')[0]
-    let items = await codexDoctor(ctx(), fake({ version: '0.162.1' }))
+    let items = await codexDoctor(ctx(), fake({ version: '0.166.0' }))
     expect(limits()).toMatchObject({ level: 'ok' })
     expect(limits()?.detail).toContain('commands-without-turn')
+    const row = by(items, 'codex.commands-without-turn')[0]
+    expect(row?.level).toBe('ok')
+    expect(row?.detail).toContain('. Fallback: `$memory`, the CLI twins (`buracle mem ...`, `buracle plan status`) and Codex\'s own `/side`. See the Host limits table in README.md.')
+    expect(items.filter(i => i.check.startsWith('codex.') && hostLimitsOf('codex').some(l => l.id === i.check)).map(i => i.level)).toEqual(hostLimitsOf('codex').map(() => 'ok'))
+    expect(items.filter(i => i.detail.includes('DESIGN §4.5'))).toEqual([])
     expect(by(items, 'codex.workflow-view')[0]?.detail).toContain('`buracle statusline codex`')
-    items = await codexDoctor(ctx(), fake({ version: '0.163.0' }))
+    items = await codexDoctor(ctx(), fake({ version: '0.167.0' }))
     expect(limits()?.level).toBe('warn')
     expect(limits()?.detail).toContain('bun test tests/adapters/codex/smoke.test.ts -t "host limits"')
+    expect(by(items, 'codex.custom-status-line')[0]?.level).toBe('ok')
   }))
 
   test('before install: hooks, AGENTS.md block and MCP servers are reported missing', () => withSandbox(async () => {

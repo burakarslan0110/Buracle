@@ -578,7 +578,11 @@ describe('omp link check and doctor', () => {
       expect(by['omp config']?.level).toBe('warn')
     })
     await withEnv({ PATH: join(sb.root, 'empty') }, async () => {
-      expect(await adapter.doctor(ctxFor())).toEqual([{ level: 'warn', check: 'omp', detail: 'omp is not on PATH; omp checks skipped' }])
+      const absent = await adapter.doctor(ctxFor())
+      expect(absent[0]).toEqual({ level: 'warn', check: 'omp', detail: 'omp is not on PATH; omp checks skipped' })
+      // The recorded host limits and their fallbacks are listed whether or not omp is installed.
+      expect(absent.slice(1).map(f => [f.check.startsWith('omp.'), f.level])).toEqual(absent.slice(1).map(() => [true, 'ok']))
+      expect(absent.map(f => f.check)).toContain('omp.companion-shell')
     })
   }))
 })

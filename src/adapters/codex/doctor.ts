@@ -6,7 +6,7 @@ import { resolveEffort } from '../../core/effort'
 import { mdBlockGet } from '../../engine/merge'
 import { detectBinary, run as runProcess, type RunOptions, type RunResult } from '../../engine/proc'
 import { TESTED_WITH } from '../../engine/update/tested-with'
-import { hostLimitsRow } from '../shared/host-limits'
+import { hostLimitRows } from '../shared/host-limits'
 import { resolveArgv, resolveCommandLine, type Env } from '../shared/command'
 import { pathRuleFiles } from '../shared/rules'
 import { valueHash } from '../../engine/merge'
@@ -234,8 +234,7 @@ export async function codexDoctor(ctx: AdapterContext, deps: DoctorDeps = defaul
   } else {
     add('ok', 'codex.version', `codex ${found.version} (minimum ${MIN_CODEX}, tested ${TESTED_CODEX})`)
   }
-  const limits = hostLimitsRow('codex', found.installed ? found.version : undefined, 'tests/adapters/codex/smoke.test.ts')
-  if (limits !== undefined) items.push(limits)
+  items.push(...hostLimitRows('codex', found.installed ? found.version : undefined, 'tests/adapters/codex/smoke.test.ts'))
   add('ok', 'codex.workflow-view', ctx.config.workflow.codexNotices
     ? 'Codex has no surface above the prompt: a workflow that waits, pauses or ends and failing Buracle hooks show as one warning line (workflow.codexNotices); the tmux status line (`buracle statusline codex`, USAGE §6) shows the full bar'
     : 'workflow.codexNotices is off: the tmux status line (`buracle statusline codex`, USAGE §6) is the only live view of a workflow and of failing Buracle hooks')

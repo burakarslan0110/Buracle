@@ -1,8 +1,12 @@
 import { describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import type { Harness } from '../../../src/core/events'
-import { HOST_LIMITS, hostLimitsOf, hostLimitsRow, probeClosers, probeMisses, probeNames, splitRun } from '../../../src/adapters/shared/host-limits'
+import { HOST_LIMITS, hostLimitRows, hostLimitsOf, probeClosers, probeMisses, probeNames, splitRun } from '../../../src/adapters/shared/host-limits'
 import { compareVersions } from '../../../src/engine/update/versions'
 import { TESTED_WITH } from '../../../src/engine/update/tested-with'
+
+const REPO = join(import.meta.dir, '..', '..', '..')
 
 const probe = (id: string) => {
   const p = HOST_LIMITS.find(l => l.id === id)?.probe
@@ -13,7 +17,36 @@ const probe = (id: string) => {
 const schema = (title: string, properties: Record<string, unknown>, definitions: Record<string, unknown> = {}) =>
   `{\n  "$schema": "http://json-schema.org/draft-07/schema#",\n  "definitions": ${JSON.stringify(definitions)},\n  "properties": ${JSON.stringify(properties)},\n  "title": "${title}",\n  "type": "object"\n}`
 
-const CODEX_PLUGIN_DETAIL = 'currentHashtrustStatusmarketplaceNamemarketplacePathsummaryshareUrldescriptionskillsonboardingSkillhooksappsappTemplatesmcpServersscheduledTaskslocalpathgiturl'
+// The plugin detail field run of Codex 0.166.0 (0.162.1 still had `marketplaceNamemarketplacePathsummary` before `shareUrl`).
+const CODEX_PLUGIN_DETAIL = 'displayOrderisManagedcurrentHashtrustStatusshareUrldescriptionskillsonboardingSkillhooksappsappTemplatesmcpServersscheduledTaskslocalrefNamenpmpackageversionshortDescriptioninterfaceremotePluginId'
+// The `[tui]` config key run of Codex 0.166.0; one copy ends in `pet` instead of `theme`.
+const CODEX_TUI_KEYS = 'mouse_scroll_speedcopy_on_selectcopy_on_select_clear_selectionright_click_pastestatus_linestatus_line_use_colorsterminal_titlethemepetpet_anchorsession_picker_view'
+// The hook event enum of Codex 0.166.0 (HookEventsToml); shorter copies in the binary leave out PostModelRequest, UserPromptSubmit and Stop.
+const CODEX_HOOK_EVENTS = 'struct HooksTomlHookEventsTomlPreModelRequestPostModelRequestPreToolUsePermissionRequestPostToolUsePreCompactPostCompactSessionStartSessionEndUserPromptSubmitSubagentStartSubagentStopStopInterruptcommandWindowstimeout'
+
+/** For every limit and partial record: the test that proves its fallback works (most are cells of the parity test). */
+const FALLBACK_TESTS: Readonly<Record<string, { file: string, title: string }>> = {
+  'codex.consent-dialog': { file: 'tests/adapters/parity.test.ts', title: 'the immediate consent question on all four: the Claude mod, Codex\'s own approval prompt (an execpolicy prompt rule), the OpenCode TUI and the omp TUI' },
+  'codex.background-wait': { file: 'tests/adapters/codex/hook.test.ts', title: 'block → {decision:"block", reason} only; the verdict runs under the state lock and `next` is persisted' },
+  'codex.quiet-stop-feedback': { file: 'tests/adapters/codex/hook.test.ts', title: 'block → {decision:"block", reason} only; the verdict runs under the state lock and `next` is persisted' },
+  'codex.shell-read-nudge': { file: 'tests/adapters/parity.test.ts', title: 'H03 shell nudges: a shell file write points to the edit tools on all four; a shell file print to the read tool where one exists (Codex has none)' },
+  'codex.commands-without-turn': { file: 'tests/adapters/parity.test.ts', title: 'codex cannot register commands: its AGENTS block names the equivalents ($memory, the CLI twins, native /side)' },
+  'codex.live-exec-mask': { file: 'tests/adapters/parity.test.ts', title: 'codex: a synchronous PostToolUse group of shell and MCP results runs the mask handler' },
+  'codex.failed-mcp-mask': { file: 'tests/adapters/parity.test.ts', title: 'codex: a synchronous PostToolUse group of shell and MCP results runs the mask handler' },
+  'codex.live-panes': { file: 'tests/adapters/codex/doctor.test.ts', title: 'the tmux line is named' },
+  'codex.custom-status-line': { file: 'tests/adapters/parity.test.ts', title: 'host limits (PARITY-10): the cells no tested host can close, each false cell recorded once in HOST_LIMITS with its reason and fallback, each LIMITS caveat as a partial entry' },
+  'codex.summary-keep-list': { file: 'tests/adapters/parity.test.ts', title: 'workflow switches and review records (w3): H19 binds reports to the bound plans, H06/H07 carry the running reviewers, and the model-switch step names each harness\'s own command' },
+  'opencode.consent-dialog': { file: 'tests/adapters/parity.test.ts', title: 'the immediate consent question on all four: the Claude mod, Codex\'s own approval prompt (an execpolicy prompt rule), the OpenCode TUI and the omp TUI' },
+  'opencode.approved-plan-capture': { file: 'tests/adapters/parity.test.ts', title: 'H12 saves an approved native plan on Claude Code, Codex and omp; OpenCode has no approval step, so it saves a draft (approved: false)' },
+  'opencode.native-plan-approval': { file: 'tests/adapters/parity.test.ts', title: 'native plan mode (w4): every H12 path fills a prepared plan-build plan, each harness has its way into plan mode, and leaving plan mode approves the plan everywhere but OpenCode' },
+  'opencode.todo-handoff': { file: 'tests/adapters/opencode/plugin.test.ts', title: 'compaction saves a handoff and steers the summary; compaction.ended spools it and restores the plan' },
+  'opencode.goal-command': { file: 'tests/adapters/parity.test.ts', title: 'goal-build\'s portable brief opens with the native /goal command on Claude Code, Codex and omp; OpenCode has none' },
+  'opencode.quiet-stop-feedback': { file: 'tests/adapters/opencode/plugin.test.ts', title: 'an unfinished plan is continued with the core reason, once per stop, until the chain cap and its one escalation' },
+  'opencode.stop-veto': { file: 'tests/adapters/opencode/plugin.test.ts', title: 'an unfinished plan is continued with the core reason, once per stop, until the chain cap and its one escalation' },
+  'opencode.subagent-stop-hold': { file: 'tests/adapters/opencode/routing.test.ts', title: 'an invalid report asks the orchestrator to continue that reviewer once; a second one only warns; a valid one adds nothing' },
+  'opencode.rate-windows': { file: 'tests/adapters/parity.test.ts', title: '5-hour and weekly usage windows on all four; OpenCode reads them from provider responses (the server plugin bundle\'s http.response hook)' },
+  'omp.companion-shell': { file: 'tests/adapters/parity.test.ts', title: 'second opinion (plan.reviews.companion): every host can run it read-only; omp runs it without a shell, with the diff in its prompt' },
+}
 
 describe('host limits (PARITY-10)', () => {
   test('the OpenCode trigger probe reads the minified trigger calls and flags a stop or subagent hook', () => {
@@ -65,8 +98,51 @@ describe('host limits (PARITY-10)', () => {
     expect(probeMisses('no schema here', probe('codex.background-wait'))).toEqual(['last_assistant_message', 'stop_hook_active', 'turn_id'])
   })
 
+  test('the Codex status-line probe reads the [tui] key run and flags a status_line_command or status_line_script key', () => {
+    const p = probe('codex.custom-status-line')
+    expect(probeNames(CODEX_TUI_KEYS, p)).toEqual(['status_line', 'status_line_use_colors', 'terminal_title'])
+    expect(probeMisses(CODEX_TUI_KEYS, p)).toEqual([])
+    expect(probeClosers(CODEX_TUI_KEYS, p)).toEqual([])
+    expect(probeNames(CODEX_TUI_KEYS.replace('terminal_titlethemepet', 'terminal_titlepet'), p)).toEqual(['status_line', 'status_line_use_colors', 'terminal_title'])
+    expect(probeClosers(CODEX_TUI_KEYS.replace('status_linestatus_line_use_colors', 'status_linestatus_line_commandstatus_line_use_colors'), p)).toEqual(['_command'])
+    expect(probeClosers(CODEX_TUI_KEYS.replace('terminal_titletheme', 'terminal_titlestatus_line_scripttheme'), p)).toEqual(['_script'])
+    expect(probeMisses('codex.status_line and status_line_setup are no key run', p)).toEqual(['status_line', 'status_line_use_colors', 'terminal_title'])
+  })
+
+  test('the Codex hook-event probe reads the HookEventsToml enum and flags a failure event next to PostToolUse', () => {
+    const p = probe('codex.failed-mcp-mask')
+    expect(probeNames(CODEX_HOOK_EVENTS, p)).toEqual(['Interrupt', 'PermissionRequest', 'PostCompact', 'PostModelRequest', 'PostToolUse', 'PreCompact', 'PreModelRequest', 'PreToolUse', 'SessionEnd', 'SessionStart', 'Stop', 'SubagentStart', 'SubagentStop', 'UserPromptSubmit'])
+    expect(probeMisses(CODEX_HOOK_EVENTS, p)).toEqual([])
+    expect(probeClosers(CODEX_HOOK_EVENTS, p)).toEqual([])
+    const shorter = 'HookEventsTomlPreModelRequestPreToolUsePermissionRequestPostToolUsePreCompactPostCompactSessionStartSessionEndSubagentStartSubagentStopInterruptwritable_roots'
+    expect(probeMisses(`${shorter}\u0000${CODEX_HOOK_EVENTS}`, p)).toEqual([])
+    expect(probeMisses(shorter, p)).toEqual(['PostModelRequest', 'UserPromptSubmit', 'Stop'])
+    expect(probeClosers(CODEX_HOOK_EVENTS.replace('PostToolUsePreCompact', 'PostToolUsePostToolUseFailurePreCompact'), p)).toEqual(['Failure'])
+    expect(probeClosers(CODEX_HOOK_EVENTS.replace('SubagentStopStop', 'SubagentStopStopToolError'), p)).toEqual(['ToolError'])
+  })
+
   test('every probe says what it must find on the version it was recorded on', () => {
     for (const l of HOST_LIMITS) if (l.probe !== undefined) expect({ id: l.id, expects: l.probe.expect.length > 0 }).toEqual({ id: l.id, expects: true })
+  })
+
+  test('every limit and partial record says where it was re-checked (a URL or a source file) and on which day', () => {
+    for (const l of HOST_LIMITS.filter(l => l.kind !== 'native')) {
+      const r = l.recheck ?? ''
+      expect({ id: l.id, dated: /\b20\d\d-\d\d-\d\d\b/.test(r), sourced: /https?:\/\/\S+|\b[\w/-]+\.(?:rs|ts|md|mdx)\b/.test(r) }).toEqual({ id: l.id, dated: true, sourced: true })
+    }
+    expect(HOST_LIMITS.filter(l => l.kind !== 'native')).toHaveLength(20)
+  })
+
+  test('every limit and partial record names the test that proves its fallback, and that file holds the test', () => {
+    const records = HOST_LIMITS.filter(l => l.kind !== 'native').map(l => l.id)
+    expect(records.filter(id => FALLBACK_TESTS[id] === undefined)).toEqual([])
+    expect(Object.keys(FALLBACK_TESTS).filter(id => !records.includes(id))).toEqual([])
+    const texts = new Map<string, string>()
+    for (const [id, { file, title }] of Object.entries(FALLBACK_TESTS)) {
+      const text = texts.get(file) ?? readFileSync(join(REPO, file), 'utf8').replaceAll("\\'", "'")
+      texts.set(file, text)
+      expect({ id, file, found: text.includes(title) }).toEqual({ id, file, found: true })
+    }
   })
 
   test('the record moves with TESTED_WITH: a tested version newer than every checkedOn of a harness fails here before users see a re-probe warning', () => {
@@ -74,16 +150,29 @@ describe('host limits (PARITY-10)', () => {
       const checked = HOST_LIMITS.filter(l => l.harness === h).map(l => l.checkedOn).sort(compareVersions).at(-1)
       if (checked === undefined) continue
       expect({ harness: h, recordBehindTested: compareVersions(TESTED_WITH[h].tested, checked) > 0 }).toEqual({ harness: h, recordBehindTested: false })
-      expect(hostLimitsRow(h, TESTED_WITH[h].tested, 't.ts')?.level ?? 'ok').toBe('ok')
+      expect(hostLimitRows(h, TESTED_WITH[h].tested, 't.ts')[0]?.level ?? 'ok').toBe('ok')
     }
   })
 
-  test('doctor: listed as ok on the version they were recorded on, a warning to re-probe on a newer one; nothing for a harness without limits', () => {
+  test('doctor rows: the version row, then one ok row per limit with its fallback and the README pointer; only the version row warns, on a newer host; nothing for a harness without limits', () => {
     expect(hostLimitsOf('codex').map(l => l.id)).toEqual(expect.arrayContaining(['codex.live-exec-mask', 'codex.failed-mcp-mask', 'codex.custom-status-line']))
-    expect(hostLimitsRow('codex', '0.162.1', 't.ts')).toMatchObject({ level: 'ok', check: 'codex.limits' })
-    expect(hostLimitsRow('codex', undefined, 't.ts')?.level).toBe('ok')
-    expect(hostLimitsRow('opencode', '2.1.0', 'tests/adapters/opencode/smoke.test.ts')?.detail).toContain('2.1.0 is newer than 2.0.30, where Buracle recorded')
-    expect(hostLimitsRow('omp', '18.10.1', 't.ts')).toMatchObject({ level: 'ok', check: 'omp.limits', detail: expect.stringContaining('(companion-shell)') })
-    expect(hostLimitsRow('claude', '9.0.0', 't.ts')).toBeUndefined()
+    const codex = hostLimitRows('codex', '0.162.1', 't.ts')
+    expect(codex[0]).toMatchObject({ level: 'ok', check: 'codex.limits' })
+    expect(codex.slice(1).map(r => r.check)).toEqual(hostLimitsOf('codex').map(l => l.id))
+    for (const r of codex.slice(1)) {
+      expect({ check: r.check, level: r.level }).toEqual({ check: r.check, level: 'ok' })
+      expect({ check: r.check, shape: /^.+\. Fallback: .+\. See the Host limits table in README\.md\.$/.test(r.detail) }).toEqual({ check: r.check, shape: true })
+    }
+    expect(codex.find(r => r.check === 'codex.commands-without-turn')?.detail).toContain('. Fallback: `$memory`, the CLI twins')
+    expect(codex.filter(r => r.detail.includes('DESIGN'))).toEqual([])
+    expect(hostLimitRows('codex', undefined, 't.ts')[0]?.level).toBe('ok')
+    // Asserted field by field: Bun's toMatchObject with an asymmetric matcher writes the matcher into the received object.
+    const newer = hostLimitRows('opencode', '2.1.0', 'tests/adapters/opencode/smoke.test.ts')
+    expect([newer[0]?.level, newer[0]?.check]).toEqual(['warn', 'opencode.limits'])
+    expect(newer[0]?.detail).toContain('2.1.0 is newer than 2.0.30')
+    expect(newer[0]?.detail).toContain('bun test tests/adapters/opencode/smoke.test.ts -t "host limits"')
+    expect(newer.slice(1).map(r => r.level)).toEqual(hostLimitsOf('opencode').map(() => 'ok'))
+    expect(hostLimitRows('omp', '18.10.1', 't.ts').map(r => r.check)).toEqual(['omp.limits', 'omp.companion-shell'])
+    expect(hostLimitRows('claude', '9.0.0', 't.ts')).toEqual([])
   })
 })
