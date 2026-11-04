@@ -112,7 +112,7 @@ describe('skill command lines, end to end', () => {
     const b = cli(repo, { HOME: home, BURACLE_HOME: buracleHome, CODEX_THREAD_ID: 'thread-1' })
     const init = await b('plan', 'init', '--type', 'build', '--title', 'Offline mode', '--json')
     const { path } = init.json<{ path: string }>()
-    expect(path).toContain(join('docs', 'builds'))
+    expect(path).toContain(join('docs', 'goal-build'))
     expect((await b('plan', 'register', path, '--phase', 'plan')).code).toBe(0)
     fillPlan(path)
     for (const args of [['set', 'approved', 'true'], ['set', 'status', 'APPROVED'], ['set', 'phase', 'implement'], ['set', 'status', 'IN_PROGRESS']]) {

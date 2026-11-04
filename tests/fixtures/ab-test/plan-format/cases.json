@@ -1,0 +1,152 @@
+{
+  "target": "rule:canonical/rules/always/explain.md (plan format: English ASD-STE100 vs the prompt-language format)",
+  "notes": "PRD 2026-11-04 R9. Both arms run the same Buracle render; only the plan file differs: docs/plan-build/baseline.md (Turkish prose, the format before the standard) against docs/plan-build/candidate.md (English, ASD-STE100 structural style). The prompt is Turkish in both arms, as the user types.",
+  "cases": [
+    {
+      "id": "slugify",
+      "prompt": "docs/plan-build/{arm}.md dosyasındaki planın Task 1'ini uygula: yalnızca planın Files listesindeki kaynak dosyayı oluştur, test dosyasına dokunma, sonra planın Verify komutunu çalıştır ve sonucu bildir. Plan dosyasını değiştirme.",
+      "tags": [
+        "plan-format",
+        "control: both arms passed the smoke run of 2026-11-05"
+      ],
+      "fixture": "fixtures/slugify",
+      "git": true,
+      "expect": {
+        "cmd:bun test": ">=1"
+      },
+      "files": [
+        {
+          "path": "src/slugify.ts",
+          "exists": true,
+          "matches": "export\\s+function\\s+slugify\\(title:\\s+string\\):\\s+string"
+        },
+        {
+          "path": "src/slugify.ts",
+          "exists": true,
+          "matches": "empty title"
+        }
+      ],
+      "rubric": [
+        "The transcript shows a `bun test` run whose final summary reports 0 fail, and it is the last test run.",
+        "The agent did not edit tests/slugify.test.ts."
+      ],
+      "timeoutMs": 300000
+    },
+    {
+      "id": "duration",
+      "prompt": "docs/plan-build/{arm}.md dosyasındaki planın Task 1'ini uygula: yalnızca planın Files listesindeki kaynak dosyayı oluştur, test dosyasına dokunma, sonra planın Verify komutunu çalıştır ve sonucu bildir. Plan dosyasını değiştirme.",
+      "tags": [
+        "plan-format"
+      ],
+      "fixture": "fixtures/duration",
+      "git": true,
+      "expect": {
+        "cmd:bun test": ">=1"
+      },
+      "files": [
+        {
+          "path": "src/duration.ts",
+          "exists": true,
+          "matches": "export\\s+function\\s+parseDuration\\(text:\\s+string\\):\\s+number"
+        },
+        {
+          "path": "src/duration.ts",
+          "exists": true,
+          "matches": "invalid duration"
+        }
+      ],
+      "rubric": [
+        "The transcript shows a `bun test` run whose final summary reports 0 fail, and it is the last test run.",
+        "The agent did not edit tests/duration.test.ts."
+      ],
+      "timeoutMs": 300000
+    },
+    {
+      "id": "window",
+      "prompt": "docs/plan-build/{arm}.md dosyasındaki planın Task 1'ini uygula: yalnızca planın Files listesindeki kaynak dosyayı oluştur, test dosyasına dokunma, sonra planın Verify komutunu çalıştır ve sonucu bildir. Plan dosyasını değiştirme.",
+      "tags": [
+        "plan-format"
+      ],
+      "fixture": "fixtures/window",
+      "git": true,
+      "expect": {
+        "cmd:bun test": ">=1"
+      },
+      "files": [
+        {
+          "path": "src/window.ts",
+          "exists": true,
+          "matches": "export\\s+class\\s+FixedWindow"
+        },
+        {
+          "path": "src/window.ts",
+          "exists": true,
+          "matches": "limit must be positive"
+        }
+      ],
+      "rubric": [
+        "The transcript shows a `bun test` run whose final summary reports 0 fail, and it is the last test run.",
+        "The agent did not edit tests/window.test.ts."
+      ],
+      "timeoutMs": 300000
+    },
+    {
+      "id": "bytes",
+      "prompt": "docs/plan-build/{arm}.md dosyasındaki planın Task 1'ini uygula: yalnızca planın Files listesindeki kaynak dosyayı oluştur, test dosyasına dokunma, sonra planın Verify komutunu çalıştır ve sonucu bildir. Plan dosyasını değiştirme.",
+      "tags": [
+        "plan-format"
+      ],
+      "fixture": "fixtures/bytes",
+      "git": true,
+      "expect": {
+        "cmd:bun test": ">=1"
+      },
+      "files": [
+        {
+          "path": "src/bytes.ts",
+          "exists": true,
+          "matches": "export\\s+function\\s+formatBytes\\(n:\\s+number\\):\\s+string"
+        },
+        {
+          "path": "src/bytes.ts",
+          "exists": true,
+          "matches": "negative size"
+        }
+      ],
+      "rubric": [
+        "The transcript shows a `bun test` run whose final summary reports 0 fail, and it is the last test run.",
+        "The agent did not edit tests/bytes.test.ts."
+      ],
+      "timeoutMs": 300000
+    },
+    {
+      "id": "frontmatter",
+      "prompt": "docs/plan-build/{arm}.md dosyasındaki planın Task 1'ini uygula: yalnızca planın Files listesindeki kaynak dosyayı oluştur, test dosyasına dokunma, sonra planın Verify komutunu çalıştır ve sonucu bildir. Plan dosyasını değiştirme.",
+      "tags": [
+        "plan-format"
+      ],
+      "fixture": "fixtures/frontmatter",
+      "git": true,
+      "expect": {
+        "cmd:bun test": ">=1"
+      },
+      "files": [
+        {
+          "path": "src/frontmatter.ts",
+          "exists": true,
+          "matches": "export\\s+function\\s+parseFrontmatter\\(markdown:\\s+string\\):\\s+Record<string,\\s+string>"
+        },
+        {
+          "path": "src/frontmatter.ts",
+          "exists": true,
+          "matches": "no frontmatter"
+        }
+      ],
+      "rubric": [
+        "The transcript shows a `bun test` run whose final summary reports 0 fail, and it is the last test run.",
+        "The agent did not edit tests/frontmatter.test.ts."
+      ],
+      "timeoutMs": 300000
+    }
+  ]
+}

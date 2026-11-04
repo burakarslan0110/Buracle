@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { COMPACT_MARKER, HANDOFF_GENERATED_BY, compactInstructions, compactInstructionsWith, handoffNote, handoffNoteLocal, restoreContext } from '../../../src/core/compact'
+import { COMPACT_MARKER, HANDOFF_GENERATED_BY, compactInstructions, compactInstructionsWith, compactPrompt, handoffNote, handoffNoteLocal, restoreContext } from '../../../src/core/compact'
 import { parseFrontmatter } from '../../../src/core/frontmatter'
 import { parseNote } from '../../../src/core/memory/note'
 import type { SessionState } from '../../../src/core/plan/state'
@@ -63,6 +63,11 @@ describe('compactInstructions', () => {
     expect(out).toContain('- Still running in the background (keep them and how to check on them): changes-review (subagent).')
     expect(compactInstructionsWith(out, withPlan(), {}).split(COMPACT_MARKER).length).toBe(2)
     expect(compactInstructionsWith(undefined, emptyState(), {})).toBe(compactInstructions(undefined, emptyState()))
+  })
+
+  test('the compaction prompt names the document folders a plan file can live in', () => {
+    expect(compactPrompt()).toContain('under docs/plan-build/ or docs/goal-build/')
+    expect(compactPrompt()).not.toContain('docs/plans/')
   })
 })
 

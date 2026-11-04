@@ -26,7 +26,7 @@ Outcome: a validated, reviewed and locked run file whose criteria anyone could r
 ## 2. Draft the run file
 
 1. Mark the phase: `buracle flow phase contract` (it covers phases 2 and 3). `buracle plan init --type build --title "<goal title>" --json` prints `{path, slug}`. Then `buracle plan register <absolute path> --phase plan`. From here on, pause before any question that could end your turn.
-2. Fill the file and keep the frontmatter and layout the CLI produced (its task layout wins over the example below). The markers the validator reads stay exactly as shown (`## Tasks`, `### Task N:`, `**Objective:**`, the checkbox line, `## Acceptance Criteria` with its `C1`, `C2`, … rows, `(oracle)` and the `pass` or `fail` verdicts, `**False pass:**`, `## Evidence`; the full list is in the *Plain language* rule), and so does `## Unverified`, which `buracle plan verify` reads. Write every other heading, the task titles and all prose in the language of the user's prompt. Under `## Assumptions`, write the switches this run follows as one line from phase 1's `buracle config get plan`, keys and values verbatim (`Switches: reviews.changes on, goalVerification on`). Write it now, before the review: an edit after `buracle plan review done` makes the lock warn that the review is stale.
+2. Fill the file and keep the frontmatter and layout the CLI produced (its task layout wins over the example below). The markers the validator reads stay exactly as shown (`## Tasks`, `### Task N:`, `**Objective:**`, the checkbox line, `## Acceptance Criteria` with its `C1`, `C2`, … rows, `(oracle)` and the `pass` or `fail` verdicts, `**False pass:**`, `## Evidence`; the full list is in the *Plain language* rule), and so does `## Unverified`, which `buracle plan verify` reads. Write every other heading, the task titles and all prose in English, in the ASD-STE100 structural style of the *Plain language* rule (short sentences, the active voice, no semicolons). Under `## Assumptions`, write the switches this run follows as one line from phase 1's `buracle config get plan`, keys and values verbatim (`Switches: reviews.changes on, goalVerification on`). Write it now, before the review: an edit after `buracle plan review done` makes the lock warn that the review is stale.
 
 Criteria rules:
 
@@ -71,10 +71,10 @@ None.
 | C3 | `bun test` passes, including new sync-queue tests. | test run output | open |
 | C4 (oracle) | A note created offline appears in a second browser profile after reconnecting. | screenshots of both profiles | open |
 
-**False pass:** the list only looks saved because the service worker serves a cached copy; C1's reload and C4's second profile catch it.
+**False pass:** the list only looks saved because the service worker serves a cached copy. C1's reload and C4's second profile catch it.
 
 ## Out of Scope
-- Attachments offline; the user named them for a later run.
+- Attachments offline. The user named them for a later run.
 
 ## Tasks
 
@@ -93,7 +93,7 @@ None.
 - [ ] Task 1 done
 
 ## Assumptions
-- Last write wins on conflicts; the user named no conflict policy.
+- Last write wins on conflicts. The user named no conflict policy.
 - Switches: reviews.changes on, goalVerification on
 ```
 

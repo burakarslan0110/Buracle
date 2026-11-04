@@ -53,7 +53,7 @@ function stage(name: string, text: string, mtimeMs: number, dir = paths.ompPlanS
 }
 
 function saved(cwd: string): string[] {
-  const dir = join(cwd, 'docs', 'plans')
+  const dir = join(cwd, 'docs', 'plan-build')
   return existsSync(dir) ? readdirSync(dir).sort() : []
 }
 
@@ -64,18 +64,18 @@ const proposeResult = (text: string, planExists = true) => ({
   details: { xdev: { tool: 'propose', mode: 'execute', args: { title: 'Add a cache' }, inner: { planFilePath: 'local://CACHE_PLAN.md', title: 'Add a cache', planExists } } },
 })
 
-describe('omp H12: an approved plan reaches docs/plans/', () => {
+describe('omp H12: an approved plan reaches docs/plan-build/', () => {
   test('the execution prompt omp sends after "Approve and execute" carries the plan: saved once, the agent and the TUI are told, the identical autosave copy is dropped', () => withSandbox(async sb => {
     const s = setup(sb)
     const copy = stage('CACHE_PLAN.md', `${PLAN}\n`, s.now)
     const r = await s.fp.emit('before_agent_start', agentStart(approvalPrompt(PLAN)), s.ctx) as { message?: { content: string } } | undefined
     const files = saved(s.cwd)
     expect(files.map(f => f.replace(/^\d{4}-\d{2}-\d{2}-/, ''))).toEqual(['add-a-cache.md'])
-    const text = readFileSync(join(s.cwd, 'docs', 'plans', files[0] as string), 'utf8')
+    const text = readFileSync(join(s.cwd, 'docs', 'plan-build', files[0] as string), 'utf8')
     expect(parsePlan(text).header).toMatchObject({ status: 'SAVED', approved: true, type: 'Plan' })
     expect(text).toContain('harness: omp')
     expect(text).toContain('> 2. Test it')
-    expect(r?.message?.content).toContain(`docs/plans/${files[0]} (H12)`)
+    expect(r?.message?.content).toContain(`docs/plan-build/${files[0]} (H12)`)
     expect(s.ctx.uiCalls.some(c => c.method === 'notify' && String(c.args[0]).includes('(H12)'))).toBe(true)
     expect(existsSync(copy)).toBe(false)
     expect(s.memory.spool.flatMap(x => x.entries).some(e => e.ev === 'note' && e.paths?.[0]?.endsWith(files[0] as string) === true)).toBe(true)
@@ -94,7 +94,7 @@ describe('omp H12: an approved plan reaches docs/plans/', () => {
     const r = await s.fp.emit('tool_result', proposeResult('Plan approved at local://CACHE_PLAN.md. Plan mode exited; proceed with the implementation.'), s.ctx) as { additionalContext?: string } | undefined
     const files = saved(s.cwd)
     expect(files.map(f => f.replace(/^\d{4}-\d{2}-\d{2}-/, ''))).toEqual(['add-a-cache.md'])
-    expect(readFileSync(join(s.cwd, 'docs', 'plans', files[0] as string), 'utf8')).toContain('> 1. Cache the index')
+    expect(readFileSync(join(s.cwd, 'docs', 'plan-build', files[0] as string), 'utf8')).toContain('> 1. Cache the index')
     expect(r?.additionalContext).toContain('(H12)')
     expect([existsSync(same), existsSync(other)]).toEqual([false, true])
   }))
@@ -152,7 +152,7 @@ describe('omp H12: an approved plan reaches docs/plans/', () => {
     const r = await s.fp.emit('tool_result', proposeResult('Plan approved at local://CACHE_PLAN.md. Plan mode exited; proceed with the implementation.'), s.ctx) as { additionalContext?: string } | undefined
     const files = saved(s.cwd)
     expect(files.map(f => f.replace(/^\d{4}-\d{2}-\d{2}-/, ''))).toEqual(['add-a-cache.md'])
-    expect(readFileSync(join(s.cwd, 'docs', 'plans', files[0] as string), 'utf8')).toContain('> 2. Test it')
+    expect(readFileSync(join(s.cwd, 'docs', 'plan-build', files[0] as string), 'utf8')).toContain('> 2. Test it')
     expect(r?.additionalContext).toContain('(H12)')
     expect([existsSync(copy), existsSync(older)]).toEqual([true, true])
     await s.fp.emit('tool_result', proposeResult('Plan approved. Implementing now with gpt-5.5.'), s.ctx)

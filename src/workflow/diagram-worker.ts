@@ -1,6 +1,6 @@
-// Runs beautiful-mermaid inside a Bun Worker. Its text renderer can loop forever on large drawings
-// (a flowchart chain of about 25 boxes), so src/workflow/diagram.ts gives every job a time limit and
-// terminates this worker when the limit passes. Nothing else imports the library.
+// Runs beautiful-mermaid inside a Bun Worker, so that src/workflow/diagram.ts can give every job a
+// time limit and terminate this worker when a render does not finish in time. Nothing else imports
+// the library.
 import type { DiagramJob, WorkerReply } from './diagram'
 
 declare var self: Worker
@@ -31,9 +31,7 @@ self.onmessage = async (event: MessageEvent<DiagramJob>) => {
   }
   let reply: WorkerReply
   try {
-    reply = job.kind === 'text'
-      ? { id: job.id, ok: true, kind: 'text', text: lib.renderMermaidASCII(job.source, { useAscii: job.ascii, colorMode: 'none' }) }
-      : { id: job.id, ok: true, kind: 'svg', light: lib.renderMermaidSVG(job.source, THEMES.light), dark: lib.renderMermaidSVG(job.source, THEMES.dark) }
+    reply = { id: job.id, ok: true, kind: 'svg', light: lib.renderMermaidSVG(job.source, THEMES.light), dark: lib.renderMermaidSVG(job.source, THEMES.dark) }
   } catch (err) {
     reply = { id: job.id, ok: false, reason: 'invalid', error: message(err) }
   }

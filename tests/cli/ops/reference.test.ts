@@ -4,6 +4,7 @@ import { COMMANDS, EXIT } from '../../../src/cli/router'
 import { defaultConfig } from '../../../src/core/config'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import { TXN_STEPS } from '../../../src/engine/txn'
+import { HOST_LIMITS } from '../../../src/adapters/shared/host-limits'
 import { INSTALL_PHASES } from '../../../src/engine/update/install-core'
 import { configDescription, configLeaves, loadCommandInfos, referenceDocs, REFERENCE_DOCS } from '../../../src/engine/update/reference'
 import { withSandbox } from '../../helpers/sandbox'
@@ -130,6 +131,10 @@ describe('reference docs', () => {
     expect(md).toContain('| `~/.buracle/state/health.json` | MCP server and tool health: the last `buracle doctor` and `buracle update` results, and the servers `buracle mcp run` could not start (down for 10 minutes); routing and the capability card skip servers that are `down` |')
     expect(md).toContain('| An enforced key with another value, or removed (the harnesses\' no-approval mode while `permissions.enforce` is on, and the Claude Code env keys in `~/.claude/settings.json`) | Buracle\'s value is written again')
     expect(md).toContain('| A soft key with another value, or removed (the default reasoning effort) | The user\'s value (or removal) is kept and reported as skipped ("kept user value"), not as a conflict')
+    const limits = md.slice(md.indexOf('## Host limits'), md.indexOf('## State files'))
+    expect(limits).toContain('| Record | Harness | Kind | Checked on | What the host lacks | Fallback |')
+    for (const l of HOST_LIMITS.filter(x => x.kind !== 'native')) expect(limits).toContain(`| \`${l.id}\` | ${l.harness} | ${l.kind} | ${l.checkedOn} |`)
+    expect(limits).not.toContain('claude-only-skill-list')
   }))
 
   test('cli.md escapes summaries, plan-format.md lists every status; no doc has machine paths', () => withSandbox(({ root, home }) => {

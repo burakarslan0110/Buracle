@@ -45,10 +45,12 @@ function setParams(view) {
   } catch {  }
 }
 
+// The server names the kind from the document's folder and header (review.ts docKind).
 function docKind(d) {
-  if (d.dir === 'prd') return t('review.kindPrd')
-  if (d.dir === 'builds' || d.type === 'Build') return t('review.kindBuild')
-  if (d.type === 'Bugfix') return t('review.kindBugfix')
+  if (d.kind === 'prd') return t('review.kindPrd')
+  if (d.kind === 'build') return t('review.kindBuild')
+  if (d.kind === 'audit') return t('review.kindAudit')
+  if (d.kind === 'bugfix') return t('review.kindBugfix')
   return t('review.kindPlan')
 }
 

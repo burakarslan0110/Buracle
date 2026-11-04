@@ -21,8 +21,8 @@ also run bounded local commands in the sandbox the skill describes. Hunters, cri
 independent lanes: launch each wave in parallel per the *Parallel agents* rule, one agent per ledger
 unit, and never let the agent that found a candidate verify it. Navigate the source with semble
 (`search`, `find_related`) and codegraph (`codegraph_explore`, callers, impact); narrow long tool
-output in the shell. The report follows the *Plain language* rule, in the language of the
-user's prompt: the findings ordered by severity, with the evidence per finding. Write nothing
+output in the shell. The report follows the *Plain language* rule, in the user's language: the
+findings ordered by severity, with the evidence per finding. Write nothing
 into the target repository unless the user picks an ignored directory.
 
 

@@ -1,9 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative, sep } from 'node:path'
+import { HOST_LIMITS } from '../../src/adapters/shared/host-limits'
 
 const REPO = join(import.meta.dir, '..', '..')
-const HAS_DOCS = existsSync(join(REPO, 'docs'))
+// docs/ is gitignored: a checkout may hold only plans and generated reference files, so the design
+// document decides whether the documentation checks can run (as in tests/adapters/parity.test.ts).
+const HAS_DOCS = existsSync(join(REPO, 'docs', 'DESIGN.md'))
 
 const TURKISH_LETTERS = /[çğıöşüÇĞİÖŞÜ]/u
 
@@ -243,5 +246,21 @@ describe('doc lint: language and links', () => {
     expect(slug('`buracle flow`: live progress')).toBe('buracle-flow-live-progress')
     expect([...anchors('# A\n## B\n```\n# not a heading\n```\n## B\n')]).toEqual(['a', 'b', 'b-1'])
     expect(links('[x](#a) `[y](#b)` [z](reference/cli.md#buracle-flow)\n```\n[w](#c)\n```\n').map(l => l.target)).toEqual(['#a', 'reference/cli.md#buracle-flow'])
+  })
+})
+
+describe('doc lint: host limits (PRD 2026-11-04 R20)', () => {
+  test('both READMEs list every limit and partial record of host-limits.ts in their Host limits table', () => {
+    const recorded = HOST_LIMITS.filter(l => l.kind !== 'native').map(l => l.id)
+    expect(recorded.length).toBeGreaterThanOrEqual(20)
+    for (const [file, heading] of [['README.md', '### Host limits'], ['README.tr.md', '### Harness sınırları']] as const) {
+      const text = read(join(REPO, file))
+      const start = text.indexOf(heading)
+      expect({ file, hasHeading: start >= 0 }).toEqual({ file, hasHeading: true })
+      const table = text.slice(start, text.indexOf('\n## ', start) < 0 ? undefined : text.indexOf('\n## ', start))
+      expect({ file, missing: recorded.filter(id => !table.includes(`\`${id}\``)) }).toEqual({ file, missing: [] })
+      const rows = table.split('\n').filter(l => /^\| `[a-z]+\.[a-z-]+` \|/.test(l))
+      expect({ file, extra: rows.map(r => r.slice(3, r.indexOf('`', 3))).filter(id => !recorded.includes(id)) }).toEqual({ file, extra: [] })
+    }
   })
 })

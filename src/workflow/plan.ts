@@ -1,5 +1,6 @@
 import { openSync, closeSync, writeSync, mkdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { docDirFor } from '../core/plan/doc-dirs'
 import type { PlanStatus, PlanType } from '../core/plan/format'
 import { criteriaTable, planSkeleton, validatePlan, type Finding } from '../core/plan/format'
 import type { SessionState } from '../core/plan/state'
@@ -106,7 +107,7 @@ export async function planInit(o: { type?: string, title?: string, slug?: string
   if (/[\r\n]/.test(title)) return fail('usage', '--title must be a single line')
   if (o.slug !== undefined && !isValidSlug(o.slug)) return fail('usage', `--slug must be kebab-case ASCII (a-z, 0-9, '-'), at most 64 characters (got '${o.slug}')`)
   const root = (await toplevel(ctx.cwd)) ?? ctx.cwd
-  const dir = o.dir !== undefined ? resolve(root, o.dir) : join(root, 'docs', type === 'Build' ? 'builds' : 'plans')
+  const dir = o.dir !== undefined ? resolve(root, o.dir) : join(root, 'docs', docDirFor(type === 'Build' ? 'goal-build' : 'plan-build'))
   const baseSlug = o.slug ?? slugFromTitle(title)
   const created = localDate(ctx.now)
   let content: string

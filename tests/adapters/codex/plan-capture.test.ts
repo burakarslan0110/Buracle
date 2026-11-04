@@ -36,7 +36,7 @@ function rolloutLine(text: string): string {
   return JSON.stringify({ timestamp: '2026-10-08T12:00:00Z', type: 'response_item', payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text }], phase: 'final_answer' } })
 }
 
-describe('Codex H12: an approved <proposed_plan> is saved to docs/plans/', () => {
+describe('Codex H12: an approved <proposed_plan> is saved to docs/plan-build/', () => {
   test('Stop keeps the block (also through a Buracle continuation); Codex\'s "Implement the plan." saves it once, as approved, naming Codex', () => withSandbox(async ({ root }) => {
     const cwd = app(root)
     await stop(cwd, PROPOSED)
@@ -44,14 +44,14 @@ describe('Codex H12: an approved <proposed_plan> is saved to docs/plans/', () =>
     await stop(cwd, 'Continuing as Buracle asked.', { stop_hook_active: true })
     expect(existsSync(join(paths.sessionDir('codex', SID), 'proposed-plan.json'))).toBe(true)
     const r = await prompt(cwd, 'Implement the plan.')
-    expect(contextOf(r.stdout)).toContain(`docs/plans/${SAVED} (H12)`)
-    const text = readFileSync(join(cwd, 'docs', 'plans', SAVED), 'utf8')
+    expect(contextOf(r.stdout)).toContain(`docs/plan-build/${SAVED} (H12)`)
+    const text = readFileSync(join(cwd, 'docs', 'plan-build', SAVED), 'utf8')
     expect(parsePlan(text).header).toMatchObject({ status: 'SAVED', approved: true, type: 'Plan' })
     expect(text).toContain('harness: codex')
     expect(text).toContain('> 2. Test it')
     expect(text).not.toContain('Here is the plan.')
     expect(contextOf((await prompt(cwd, 'Implement the plan.')).stdout)).not.toContain('(H12)')
-    expect(readdirSync(join(cwd, 'docs', 'plans'))).toEqual([SAVED])
+    expect(readdirSync(join(cwd, 'docs', 'plan-build'))).toEqual([SAVED])
   }))
 
   test('in plan mode Codex strips the block from last_assistant_message: the rollout\'s last assistant message still has it', () => withSandbox(async ({ root }) => {
@@ -61,19 +61,19 @@ describe('Codex H12: an approved <proposed_plan> is saved to docs/plans/', () =>
     await stop(cwd, 'Here is the plan.', { transcript_path: rollout })
     expect(existsSync(join(paths.sessionDir('codex', SID), 'proposed-plan.json'))).toBe(false)
     expect(contextOf((await prompt(cwd, 'Implement the plan.', { transcript_path: rollout })).stdout)).toContain('(H12)')
-    expect(existsSync(join(cwd, 'docs', 'plans', SAVED))).toBe(true)
+    expect(existsSync(join(cwd, 'docs', 'plan-build', SAVED))).toBe(true)
   }))
 
   test('the fresh-thread choice carries the plan in its prompt; any other prompt drops the kept plan; a subagent is ignored', () => withSandbox(async ({ root }) => {
     const cwd = app(root)
     expect(contextOf((await prompt(cwd, `${CODEX_FRESH_PLAN_PREFIX}\n\n${PLAN}\n`)).stdout)).toContain('(H12)')
-    expect(existsSync(join(cwd, 'docs', 'plans', SAVED))).toBe(true)
+    expect(existsSync(join(cwd, 'docs', 'plan-build', SAVED))).toBe(true)
     await stop(cwd, PROPOSED)
     expect(contextOf((await prompt(cwd, 'make the cache bigger')).stdout)).not.toContain('(H12)')
     expect(contextOf((await prompt(cwd, 'Implement the plan.')).stdout)).not.toContain('(H12)')
     await handleCodexHook('Stop', payload('Stop', { cwd, last_assistant_message: PROPOSED, agent_id: 'child', agent_type: 'worker' }), ctx(), deps(quiet))
     expect(existsSync(join(paths.sessionDir('codex', SID), 'proposed-plan.json'))).toBe(false)
-    expect(readdirSync(join(cwd, 'docs', 'plans'))).toEqual([SAVED])
+    expect(readdirSync(join(cwd, 'docs', 'plan-build'))).toEqual([SAVED])
   }))
 
   test('plan.nativePlanMode: "Implement the plan." approves the prepared plan-build plan and fills the registered file; no SAVED copy', () => withSandbox(async ({ root }) => {
@@ -86,7 +86,7 @@ describe('Codex H12: an approved <proposed_plan> is saved to docs/plans/', () =>
     expect(parsePlan(text).header).toMatchObject({ type: 'Feature', status: 'PENDING', approved: true })
     expect(parsePlan(text).title).toBe('Add a cache')
     expect(text).not.toContain('Here is the plan.')
-    expect(readdirSync(join(cwd, 'docs', 'plans'))).toEqual([basename(path)])
+    expect(readdirSync(join(cwd, 'docs', 'plan-build'))).toEqual([basename(path)])
     expect(loadState('codex', SID).native).toBeUndefined()
   }))
 

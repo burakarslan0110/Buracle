@@ -21,7 +21,7 @@ No plan is registered, so no stop guard holds this run open: you keep it going y
 5. **Proven means run.** Done requires the original symptom re-run on the real program, not only the new test passing.
 6. **The bug stays yours.** Size or difficulty never hands it to another workflow. Stop only for a real blocker, and name the step that clears it. If the investigation shows the "bug" is missing behavior or a quality gap, say so and keep going toward the end state the user asked for when it is safely inferable; ask only when the new reading needs a product decision.
 7. **Competing hypotheses run in parallel.** When the investigation leaves two or more plausible root causes, give each to a read-only lane whose job is to refute it (*Lanes*), and keep the one that survives with `file:line` evidence. The fix itself stays in your session.
-8. **Report per the *Plain language* rule,** in the language of the user's prompt: the outcome first, and a `sequenceDiagram` of the failure path when the cause sits more than one call away from the symptom.
+8. **Report per the *Plain language* rule,** in the user's language: the outcome first, then the failure path as a numbered list from the symptom to the root cause when the cause sits more than one call away from the symptom. No diagram in the reply.
 
 ## Lanes
 

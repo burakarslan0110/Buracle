@@ -16,7 +16,7 @@ async function docFound(path: string): Promise<Found | CmdResult> {
   const facts = await repoFacts(dirname(path))
   if (facts === undefined) return fail('not_a_repo', `the plan is not in a git repository: ${path}`)
   const target = docTarget(facts, path)
-  if (target === undefined) return fail('not_a_review_doc', `the review page shows files directly under docs/plans, docs/builds or docs/prd of a repository; ${path} is not one`)
+  if (target === undefined) return fail('not_a_review_doc', `the review page shows Markdown files directly under docs/plan-build, docs/goal-build, docs/requirements or docs/dead-code of a repository (or under the old folders docs/plans, docs/builds, docs/prd and docs/cleanup); ${path} is not one`)
   const page = reviewPageUrl({ doc: docId(path) })
   return { target, ...(page !== undefined ? { page } : {}) }
 }

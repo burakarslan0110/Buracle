@@ -52,6 +52,7 @@ const EN = {
   'review.kindBugfix': 'Bugfix plan',
   'review.kindBuild': 'Build contract',
   'review.kindPrd': 'PRD',
+  'review.kindAudit': 'Dead-code audit',
   'review.waiting': 'Waiting for your approval',
   'review.waitingLead': 'The agent asked you to approve this. Pin your notes before you answer; it reads them first.',
   'review.openOne': '{n} open note',

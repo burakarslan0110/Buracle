@@ -89,20 +89,22 @@ PowerShell parser. Run the first after editing `scripts/install.sh`.
   `HOME` (the preload sandboxes `HOME` through `process.env`). `tests/engine/spawn-env.test.ts`
   enforces it under `src/`.
 - **Dependencies.** Add none, with one registered exception: `beautiful-mermaid` (exact pin, MIT;
-  it brings `elkjs` and `entities`) draws Mermaid for `buracle diagram` and the review page. Only
-  `src/workflow/diagram-worker.ts` imports it, inside a Bun `Worker` with a time limit, because its
-  text renderer can hang. The runtime and dev dependencies are pinned exactly in `package.json`;
+  it brings `elkjs` and `entities`) draws the Mermaid blocks of the review page as SVG. Only
+  `src/workflow/diagram-worker.ts` imports it, inside a Bun `Worker` with a time limit, so a slow
+  render never holds the page. The runtime and dev dependencies are pinned exactly in `package.json`;
   Bun built-ins are fine outside `src/core/`.
 - **Language.** Everything is English: code, comments, identifiers, test names, agent-facing prose
   (skills, rules, agents, hook texts), user docs, CLI output, status lines, the mod and the web UI
   (one dictionary in `src/memory/ui/i18n.js`, no language switch). Agents still reply in the
   language the user writes in. The one exception is category D, the recognition of text in the
   user's language (intents, consent and approval phrases, routine questions, receipt claims, memory
-  query stopwords, secret-word redaction, case folding, the skill router's trigger phrases, the plan
-  validator's vague-filler phrases): its Turkish words stay as matching data, behind English
-  identifiers and English comments. A new file that holds category D data needs an entry, with its
+  query stopwords, secret-word redaction, case folding, the skill router's trigger phrases): its
+  Turkish words stay as matching data, behind English identifiers and English comments. A new file
+  that holds category D data needs an entry, with its
   reason, in the allowlist of `tests/workflow/language-guard.test.ts`. The one Turkish document is
-  `README.tr.md`, a translation of `README.md` kept in step with it.
+  `README.tr.md`, a translation of `README.md` kept in step with it. The ab-test fixture under
+  `tests/fixtures/ab-test/plan-format/` holds Turkish prompts and plans in the format before the
+  English standard: they are the measured input of PRD 2026-11-04 R9, allowlisted in the same test.
 
 ## Testing
 

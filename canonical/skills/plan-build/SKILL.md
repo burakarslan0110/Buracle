@@ -1,16 +1,16 @@
 ---
 name: plan-build
 description: >-
-  Plan-driven development through a plan file in docs/plans/: explore and clarify, write and
+  Plan-driven development through a plan file in docs/plan-build/: explore and clarify, write and
   review the plan, get approval, implement task by task with TDD, then verify with real
   evidence until the plan is VERIFIED. Covers features and bugfixes (behavior contract,
   reproduce first, root-cause fix). Also pauses, resumes or continues an existing plan.
   Run only when the user explicitly asks for plan-build.
 when_to_use: >-
-  The user invokes plan-build by name, passes a docs/plans/*.md file, or asks to write a plan and
+  The user invokes plan-build by name, passes a docs/plan-build/*.md file, or asks to write a plan and
   implement it, or to continue a plan.
 invocation: explicit
-argument-hint: "<task | docs/plans/<file>.md | pause | resume> [--worktree | --new-branch | --current-branch]"
+argument-hint: "<task | docs/plan-build/<file>.md | pause | resume> [--worktree | --new-branch | --current-branch]"
 mcp: [semble, codegraph, context7, web-search, web-fetch, grep, chrome-devtools, buracle-memory]
 short-description: Plan, approve, TDD-implement and verify work through a plan file
 ---
@@ -37,7 +37,7 @@ Strip `--worktree`, `--new-branch` or `--current-branch` from the request text: 
    - `pause`, or the user asks you to stop or wait: run `buracle plan pause --kind discussion --reason "<their words>"`, give a status of at most 5 lines, end the turn.
    - `resume`, or the user says to continue: run `buracle plan resume`, then step 2.
    - A plan path (a PRD is handled in the next bullet): read its frontmatter. A captured native plan (`SAVED` or type `Plan`) goes straight to step 3. Otherwise run `buracle plan validate <path>` (fix errors before implementing from it), then `buracle plan register <absolute path> --phase <p>` with the phase its state implies (`plan` while `approved: false`, `verify` when `COMPLETE`, otherwise `implement`), then step 3.
-   - A PRD path (`docs/prd/*.md`, frontmatter `type: prd`), alone or inside the request: requirements input, not a plan. Treat it as the task description in step 2; [references/plan.md](references/plan.md) P2 says how to carry it into the plan.
+   - A PRD path (`docs/requirements/*.md` or the old `docs/prd/*.md`, frontmatter `type: prd`), alone or inside the request: requirements input, not a plan. Treat it as the task description in step 2; [references/plan.md](references/plan.md) P2 says how to carry it into the plan.
    - Abandon (`abandon`, or the user cancels the plan): confirm with {{ask_user}}, then `buracle plan unregister` and `buracle flow end --outcome cancelled`. The file stays as it is.
    - A task description: step 2.
 2. Run `buracle plan status --json`. After a resume, route the bound plan in step 3. For a new task, if an unfinished plan is already bound to this session, ask with {{ask_user}}: continue that plan, or start the new one (`buracle plan unregister` first; the old plan can be resumed later by its path).
@@ -76,7 +76,7 @@ Buracle shows the run live, in the workflow band above the prompt and in the sta
 
 ## Talking to the user
 
-Reply and write the plan in the language of the user's prompt. Keep the markers Buracle reads (listed in the *Plain language* rule; `## Inventory` and `## Deviations` among them, which the validator and `buracle plan audit` read by these English names), commands and identifiers verbatim; every other heading and sentence follows the user's language.
+Write the plan in English, in the ASD-STE100 structural style of the *Plain language* rule, whatever language the user writes in. Reply in the user's language. Keep the markers Buracle reads (listed in the *Plain language* rule; `## Inventory` and `## Deviations` among them, which the validator and `buracle plan audit` read by these English names), commands and identifiers verbatim.
 
 **Escape hatch:** while a registered plan is not VERIFIED, the stop guard keeps your turn going. The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user saying "stop", "wait" or "hold on" (or the same in their language), which Buracle records as a pause (run `buracle plan pause --kind discussion` too). The user's "continue" or `buracle plan resume` ends it.
 
@@ -120,12 +120,12 @@ Tasks that share files or build on each other stay in your session, in order. On
 
 **Parallel plans.** Independent features or fixes can each run as a whole workflow (plan-build, goal-build, bugfix) in a plan lane:
 
-1. Per lane: `buracle worktree create <slug> --lane --json` (it records your session as the lane's owner). The lane's plan file stays in your checkout, never in the lane worktree: `worktree sync` refuses a worktree with uncommitted changes, and `plan verify` rewrites the file's header after the merge. Create it from your checkout (`buracle plan init --type feature|bugfix|build --title "<t>" --slug <slug> --json`), or let the lane create it with `--dir <your checkout>/docs/plans` (`plan init` takes no `--lane`). Then brief the lane with the workflow, the task, the worktree path, the plan file's absolute path and the rule: register that path with `--lane <slug>` and pass `--lane <slug>` on every other `buracle plan` command, change code only in that worktree (the plan file is the one exception), skip `buracle flow`, launch no agents, ask the user nothing.
+1. Per lane: `buracle worktree create <slug> --lane --json` (it records your session as the lane's owner). The lane's plan file stays in your checkout, never in the lane worktree: `worktree sync` refuses a worktree with uncommitted changes, and `plan verify` rewrites the file's header after the merge. Create it from your checkout (`buracle plan init --type feature|bugfix|build --title "<t>" --slug <slug> --json`), or let the lane create it with `--dir <your checkout>/docs/plan-build` (`plan init` takes no `--lane`). Then brief the lane with the workflow, the task, the worktree path, the plan file's absolute path and the rule: register that path with `--lane <slug>` and pass `--lane <slug>` on every other `buracle plan` command, change code only in that worktree (the plan file is the one exception), skip `buracle flow`, launch no agents, ask the user nothing.
 2. The lane keeps its own binding (`buracle plan register <path> --lane <slug>`), so yours stays as it is; `buracle plan status --json` lists each lane under `lanes`. No stop guard holds a lane: check its report and its plan.
 3. At a gate (plan approval, a goal-build lock, a real question, the result review) the lane pauses its own binding and returns `blocked` with its plan path. A goal-build lock is the run's own commitment, but `buracle plan set approved true` is still yours to run. You run the reviewers on its plan or diff (recorded with `--lane <slug>` too, so your compaction texts name them), ask the user where the gate needs them, record the result with the same `--lane <slug>` (`buracle plan set approved true --lane <slug>`, `buracle plan approve-result --lane <slug>`), and continue the lane or brief a new one.
 4. Merge each lane in dependency order with `buracle worktree sync <slug>` and run the checks after every merge. Then `buracle plan verify --lane <slug>` while the lane worktree still exists (it needs the lane's worktree metadata, not its plan file), and only then `buracle worktree cleanup <slug>`.
 
-Write the plan and the final report per the *Plain language* rule, in the language of the user's prompt: the main message first, and a flow diagram when the change touches more than two modules. The user approves the plan file itself; the final report goes in the reply.
+Write the plan per the *Plain language* rule: English, the main message first, and a Mermaid diagram of the change's flow in the file when the change touches more than two modules. The user approves the plan file itself. The final report goes in the reply, in the user's language, with a flow shown as a numbered list or a table.
 
 ## Review agents
 
@@ -133,7 +133,7 @@ Launch reviewers with {{spawn_agent}} and pass inputs as labeled lines. In the i
 
 ```text
 {{agent:changes-review}}
-plan_file: /abs/repo/docs/plans/2026-10-08-rate-limit.md
+plan_file: /abs/repo/docs/plan-build/2026-10-08-rate-limit.md
 slug: rate-limit
 base_ref: main
 diff_range: main...HEAD

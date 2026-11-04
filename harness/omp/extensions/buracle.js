@@ -9623,10 +9623,8 @@ var EN_WORDS = new Set([
   "an",
   "a"
 ]);
-function profilePromptLanguage(text) {
+function languageHits(text) {
   const words = text.replace(/\u0130/g, "i").toLowerCase().split(/[^\p{L}']+/u).filter((w) => w !== "");
-  if (words.length < 3)
-    return;
   let tr = 0;
   let en = 0;
   for (const w of words) {
@@ -9635,11 +9633,16 @@ function profilePromptLanguage(text) {
     if (EN_WORDS.has(w))
       en++;
   }
-  if (/[\u011F\u0131\u015F\u0130\u015E\u011E]/.test(text))
-    tr += 2;
-  if (tr === en)
+  return { words: words.length, tr, en, letters: /[\u011F\u0131\u015F\u0130\u015E\u011E]/.test(text) };
+}
+function profilePromptLanguage(text) {
+  const h = languageHits(text);
+  if (h.words < 3)
     return;
-  return tr > en ? "tr" : "en";
+  const tr = h.tr + (h.letters ? 2 : 0);
+  if (tr === h.en)
+    return;
+  return tr > h.en ? "tr" : "en";
 }
 var TRIGGER_LEAD = uw(/^(?:please\s+|l\u00FCtfen\s+|lutfen\s+)?(?:always|never|from now on|going forward|in (?:the )?future|every time|whenever|her zaman|daima|asla|hi\u00E7bir zaman|hicbir zaman|hi\u00E7 bir zaman|bundan sonra|bundan b\u00F6yle|bundan boyle|art\u0131k|artik|sak\u0131n|sakin|unutma|akl\u0131nda tut|aklinda tut)\b/i);
 var TRIGGER_ANY = uw(/\b(?:always|never|from now on|going forward|i(?:'d| would)? prefer|i (?:want|need) you to|i (?:don'?t|do not) (?:want|like)|(?:don'?t|do not) ever|stop (?:doing|using|adding|writing|asking)|remember (?:that|to)|keep in mind|make sure (?:to|you))\b|(?:^|\s)(?:her zaman|daima|asla|hi\u00E7bir zaman|hicbir zaman|bundan sonra|bundan b\u00F6yle|tercih ederim|tercihim|istemiyorum|bir daha)(?=[\s.,!?]|$)/i);
@@ -21794,7 +21797,6 @@ var BURACLE_READ = {
   "review-scope": true,
   version: true,
   help: true,
-  diagram: true,
   plan: ["status", "validate"],
   worktree: ["detect", "status", "diff"],
   mem: ["search", "get", "status", "context"],
@@ -27668,8 +27670,34 @@ async function checkFiles(host, files, added, cwd, cfg, opts = {}) {
   return notes;
 }
 
+// src/core/plan/doc-dirs.ts
+var DOC_DIRS = [
+  { dir: "requirements", workflow: "requirements", legacy: "prd" },
+  { dir: "plan-build", workflow: "plan-build", legacy: "plans" },
+  { dir: "goal-build", workflow: "goal-build", legacy: "builds" },
+  { dir: "dead-code", workflow: "dead-code", legacy: "cleanup" }
+];
+var LEGACY_DOC_DIRS = ["prd", "plans", "builds", "cleanup"];
+var ALL_DOC_DIRS = ["requirements", "plan-build", "goal-build", "dead-code", "prd", "plans", "builds", "cleanup"];
+var NAMES2 = ALL_DOC_DIRS.join("|");
+var DOC_FILE = new RegExp(`^docs/(${NAMES2})/([^/]+\\.md)$`, "u");
+var DOC_DIR_PREFIX = new RegExp(`(?:^|/)docs/(?:${NAMES2})/`);
+function docDirFor(workflow) {
+  const row = DOC_DIRS.find((d) => d.workflow === workflow);
+  return row === undefined ? workflow : row.dir;
+}
+function docDirOf(rel) {
+  const dir = DOC_FILE.exec(rel.replace(/\\/g, "/"))?.[1];
+  if (dir === undefined)
+    return;
+  const row = DOC_DIRS.find((d) => d.dir === dir || d.legacy === dir);
+  if (row === undefined)
+    return;
+  return { dir, workflow: row.workflow, legacy: row.legacy === dir };
+}
+
 // src/core/plan/notes.ts
-var REVIEW_DOC_DIRS = ["plans", "builds", "prd"];
+var REVIEW_DOC_DIRS = ALL_DOC_DIRS;
 var NOTE_TEXT_MAX = 4000;
 var NOTE_QUOTE_MAX = 1200;
 var NOTE_PATH_MAX = 1024;
@@ -27679,7 +27707,7 @@ var NOTES_DONE_KEEP = 100;
 var NOTE_ID_RE = /^n-[0-9a-f]{8}$/;
 var NOTES_INBOX_MAX = 60;
 function reviewDocOf(rel) {
-  const m = /^docs\/(plans|builds|prd)\/([^/]+\.md)$/u.exec(rel.replace(/\\/g, "/"));
+  const m = DOC_FILE.exec(rel.replace(/\\/g, "/"));
   if (m === null)
     return;
   const name = m[2];
@@ -27872,7 +27900,7 @@ function inboxFor(entries, s, since) {
     if (e.doc !== undefined) {
       if (s.plan !== undefined)
         return norm(e.doc) === norm(s.plan);
-      return reviewDocOf(e.rel ?? "")?.dir === "prd" && roots.some((r) => within4(r, e.root));
+      return docDirOf(e.rel ?? "")?.workflow === "requirements" && roots.some((r) => within4(r, e.root));
     }
     if (s.plan !== undefined)
       return roots.some((r) => within4(r, e.root) || e.checkout !== undefined && within4(r, e.checkout));
@@ -28726,12 +28754,7 @@ var VAGUE_PHRASES = [
   /\bdetails below\b/i,
   /\b(?:similar to|same as) task \d+\b/i,
   /\b(?:add )?appropriate error handling\b/i,
-  /\bhandle (?:the |all |any )?edge cases\b/i,
-  /(?<!\p{L})(?:daha )?sonra (?:uygulan|yap[\u0131i]l|eklen|doldurul)\p{L}*/iu,
-  /(?<!\p{L})(?:ayr[\u0131i]nt[\u0131i]|detay)\p{L}* (?:sonra|doldur)\p{L}*/iu,
-  /(?<!\p{L})(?:task|g[\u00F6o]rev) \d+(?:'\p{L}+)?(?: ile)? (?:benzer|gibi)(?!\p{L})/iu,
-  /(?<!\p{L})uygun (?:bir )?hata (?:y[\u00F6o]netim|i[\u015Fs]le|ele al)\p{L}*/iu,
-  /(?<!\p{L})(?:u[\u00E7c]|kenar|s[\u0131i]n[\u0131i]r) durum\p{L}* (?:ele al|i[\u015Fs]le)\p{L}*/iu
+  /\bhandle (?:the |all |any )?edge cases\b/i
 ];
 function vaguePhrase(text) {
   for (const re of VAGUE_PHRASES) {
@@ -28840,7 +28863,7 @@ var EXTENSIONS = new Set([
   "pdf",
   "wasm"
 ]);
-var FILE_NAMES = new Set(["Makefile", "Dockerfile", "Containerfile", "Justfile", "Procfile", "Gemfile", "Rakefile"]);
+var FILE_NAMES = new Set(["Makefile", "Dockerfile", "Containerfile", "Justfile", "Procfile", "Gemfile", "Rakefile", ".gitignore"]);
 var AFTER_RUN = new Set(["deviations", "follow-ups", "followups", "review notes", "gaps", "evidence", "e2e results", "dod audit", "unverified", "red evidence"]);
 var IDENT3 = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 var MAX_DRIFT = 5;
@@ -29108,16 +29131,145 @@ function authoringFindings(o) {
   return [...filesIncomplete(o), ...vagueFindings(o), ...inventoryFindings(o), ...identifierDrift(o)];
 }
 
+// src/core/plan/document.ts
+var MAX_SENTENCE_WORDS = 25;
+var HEADING = /^\s{0,3}#{1,6}\s/;
+var LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s+/;
+var BLOCKQUOTE = /^\s*(?:>\s?)+/;
+var CONTINUATION = /^\s{2,}\S/;
+var TABLE_ROW = /^\s*\|.*\|\s*$/;
+var TABLE_RULE = /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$/;
+var VERIFY_LINE2 = /^\s*[-*+]\s+\**Verify:/;
+var CODE_SPAN = /`[^`]*`/g;
+var LINK = /\[([^\]]*)\]\([^)]*\)/g;
+var URL = /https?:\/\/[^\s)\]>"']+/g;
+var LABEL = /^\*\*[^*]+:\*\*\s*/;
+var EMPHASIS = /\*\*|__|(?<![\w`])[*_](?=\S)|(?<=\S)[*_](?![\w`])/g;
+var SENTENCE_END = /(?<=[.!?])\s+/;
+var LEGACY_PATH = new RegExp(`docs/(${LEGACY_DOC_DIRS.join("|")})/`);
+function at2(line, code, message) {
+  return { level: "warning", code, message, line: line + 1 };
+}
+function skippedLines(o) {
+  const skip = new Set;
+  for (const s of o.sections)
+    if (AFTER_RUN.has(s.text.trim().toLowerCase()))
+      for (let i = s.line;i < s.end; i++)
+        skip.add(i);
+  return skip;
+}
+function units(o) {
+  const out = [];
+  const skip = skippedLines(o);
+  let current;
+  let inComment = false;
+  const flush = () => {
+    if (current !== undefined) {
+      out.push({ ...current, cell: false });
+      current = undefined;
+    }
+  };
+  for (let i = o.body;i < o.lines.length; i++) {
+    const line = o.lines[i] ?? "";
+    if (inComment) {
+      flush();
+      if (line.includes("-->"))
+        inComment = false;
+      continue;
+    }
+    if (o.code[i] === true || skip.has(i)) {
+      flush();
+      continue;
+    }
+    const bare = line.replace(CODE_SPAN, "");
+    if (bare.includes("<!--")) {
+      flush();
+      inComment = bare.lastIndexOf("<!--") > bare.lastIndexOf("-->");
+      continue;
+    }
+    if (line.trim() === "" || HEADING.test(line) || VERIFY_LINE2.test(line) || TABLE_RULE.test(line)) {
+      flush();
+      continue;
+    }
+    if (TABLE_ROW.test(line)) {
+      flush();
+      for (const cell of line.trim().replace(/^\||\|$/g, "").split("|"))
+        if (cell.trim() !== "")
+          out.push({ first: i, lines: [cell.trim()], cell: true });
+      continue;
+    }
+    if (LIST_ITEM.test(line)) {
+      flush();
+      current = { first: i, lines: [line] };
+      continue;
+    }
+    if (current !== undefined && CONTINUATION.test(line) && LIST_ITEM.test(current.lines[0] ?? "")) {
+      current.lines.push(line);
+      continue;
+    }
+    if (current === undefined)
+      current = { first: i, lines: [line] };
+    else
+      current.lines.push(line);
+  }
+  flush();
+  return out;
+}
+function plain(u) {
+  return u.lines.map((l) => l.replace(BLOCKQUOTE, "").replace(LIST_ITEM, "").replace(LABEL, "")).join(" ").replace(CODE_SPAN, "code").replace(LINK, "$1").replace(URL, "url").replace(EMPHASIS, "").trim();
+}
+function words3(sentence) {
+  return sentence.split(/\s+/).filter((w) => w !== "").length;
+}
+function readsAsTurkish(text) {
+  const h = languageHits(text);
+  if (h.words < 3)
+    return false;
+  if (h.letters)
+    return h.tr >= h.en;
+  return h.tr >= 2 && h.tr - h.en >= 2;
+}
+function legacyMessage(path) {
+  const legacy = LEGACY_PATH.exec(path)?.[1];
+  const fresh = DOC_DIRS.find((d) => d.legacy === legacy)?.dir ?? "plan-build";
+  return `\`docs/${legacy}/\` is an old document folder, new documents go to \`docs/${fresh}/\``;
+}
+function documentFindings(o) {
+  const out = [];
+  for (const u of units(o)) {
+    for (const [k, raw] of u.lines.entries()) {
+      if (LEGACY_PATH.test(raw)) {
+        out.push(at2(u.first + k, "legacy-folder", legacyMessage(raw)));
+        break;
+      }
+    }
+    const text = plain(u);
+    if (text === "")
+      continue;
+    const semi = u.lines.findIndex((l) => l.replace(CODE_SPAN, "").includes(";"));
+    if (semi >= 0)
+      out.push(at2(u.first + semi, "semicolon", "a semicolon joins two statements: write two sentences or a list"));
+    if (readsAsTurkish(text))
+      out.push(at2(u.first, "not-english", "this paragraph reads as Turkish: a document under docs is English"));
+    for (const sentence of u.cell ? [text] : text.split(SENTENCE_END)) {
+      const n = words3(sentence);
+      if (n > MAX_SENTENCE_WORDS)
+        out.push(at2(u.first, "long-sentence", `a sentence has ${n} words (the limit is ${MAX_SENTENCE_WORDS}): split it, one idea per sentence`));
+    }
+  }
+  return out.sort((a, b) => (a.line ?? 0) - (b.line ?? 0));
+}
+
 // src/core/plan/format.ts
 var PLAN_STATUSES = ["PENDING", "APPROVED", "IN_PROGRESS", "COMPLETE", "VERIFIED", "SAVED"];
 var PLAN_TYPES = ["Feature", "Bugfix", "Build", "Plan"];
 var FILE_VERBS = ["Create", "Modify", "Delete", "Rename", "Test"];
 var FENCE = /^ {0,3}(`{3,}|~{3,})/;
-var HEADING = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
+var HEADING2 = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
 var TASK_HEADING = /^Task\s+(\d+)\s*[:.\-\u2013\u2014]\s*(.*)$/i;
 var CHECKBOX = /^\s*[-*+]\s+\[([ xX])\]\s+Task\s+(\d+)\s+done\b/i;
-var LABEL = /^\s*\*\*([^*]+?)\*\*\s*(.*)$/;
-var LIST_ITEM = /^\s*[-*+]\s+(.*)$/;
+var LABEL2 = /^\s*\*\*([^*]+?)\*\*\s*(.*)$/;
+var LIST_ITEM2 = /^\s*[-*+]\s+(.*)$/;
 var PLACEHOLDER2 = /\b(TBD|TODO|FIXME)\b/;
 function scan(markdown) {
   const lines = markdown.replace(/^\uFEFF/, "").split(/\r\n|\r|\n/);
@@ -29149,7 +29301,7 @@ function scan(markdown) {
       code[i] = true;
       continue;
     }
-    const h = HEADING.exec(line);
+    const h = HEADING2.exec(line);
     if (h)
       headings.push({ level: h[1].length, text: h[2].trim(), line: i });
   }
@@ -29206,7 +29358,7 @@ function readCard(doc, card) {
       block = undefined;
       continue;
     }
-    const lab = LABEL.exec(line);
+    const lab = LABEL2.exec(line);
     if (lab) {
       let name = lab[1].trim();
       let rest = lab[2];
@@ -29258,7 +29410,7 @@ function readCard(doc, card) {
       if (/^\s*(?:[-*+]\s+)?\**verify\**\s*:/i.test(line))
         verify = true;
     } else if (block === "files") {
-      const li = LIST_ITEM.exec(line);
+      const li = LIST_ITEM2.exec(line);
       if (!li)
         continue;
       const item = li[1].trim();
@@ -29374,6 +29526,25 @@ function fmLine(doc, key) {
     if (new RegExp(`^${key}\\s*:`).test(doc.lines[i] ?? ""))
       return i;
   return;
+}
+var PRD_STATUSES = ["draft", "approved"];
+function checkPrdHeader(doc, out) {
+  const fm = doc.fm;
+  const missing = (k) => fm[k] === undefined || fm[k] === null || fm[k] === "";
+  for (const k of ["created", "status", "approved"]) {
+    if (missing(k))
+      out.push(err("missing-field", `frontmatter field \`${k}\` is missing`, 0));
+  }
+  const created = fm["created"];
+  if (!missing("created") && !(typeof created === "string" && CREATED.test(created.trim()))) {
+    out.push(err("bad-field", "`created` must be a date such as 2026-11-04", fmLine(doc, "created")));
+  }
+  const status = fm["status"];
+  if (!missing("status") && !(typeof status === "string" && PRD_STATUSES.includes(status))) {
+    out.push(err("bad-status", `a PRD's \`status\` must be one of ${PRD_STATUSES.join(", ")} (got ${JSON.stringify(status)})`, fmLine(doc, "status")));
+  }
+  if (!missing("approved") && typeof fm["approved"] !== "boolean")
+    out.push(err("bad-field", `\`approved\` must be true or false (got ${JSON.stringify(fm["approved"])})`, fmLine(doc, "approved")));
 }
 function checkHeader(doc, out) {
   if (!doc.hasFrontmatter) {
@@ -29503,6 +29674,11 @@ function validatePlan(markdown, opts) {
     out.push(err("crlf", "use LF line endings only (the file contains CR characters)", markdown.slice(0, cr).split(`
 `).length - 1));
   const doc = scan(markdown);
+  if (doc.hasFrontmatter && doc.fm["type"] === "prd") {
+    checkPrdHeader(doc, out);
+    out.push(...documentFindings(outlineOf(doc)));
+    return out;
+  }
   const type = checkHeader(doc, out);
   if (!doc.title || doc.title.text === "")
     out.push(err("missing-title", "add a `# Title` heading after the frontmatter", doc.body));
@@ -29551,6 +29727,8 @@ function validatePlan(markdown, opts) {
   }
   if (type === "Feature" || type === "Bugfix")
     out.push(...authoringFindings(outlineOf(doc)));
+  if (type === "Feature" || type === "Bugfix" || type === "Build")
+    out.push(...documentFindings(outlineOf(doc)));
   const skeleton = skeletonPlaceholders();
   let skel = 0;
   let firstSkel = -1;
@@ -29771,7 +29949,7 @@ ${body.replace(/\n+$/, "")}
 var OBJECTIVE_GOAL_MAX = 500;
 var OBJECTIVE_ITEMS_MAX = 5;
 var ITEM_MAX = 200;
-function plain(line) {
+function plain2(line) {
   return line.replace(/<!--[\s\S]*?(?:-->|$)/g, " ").replace(/\*\*|__|`/g, "").replace(/\s+/g, " ").trim();
 }
 function clip6(s, max) {
@@ -29807,12 +29985,12 @@ var BULLET = /^\s*(?:[-*+]|\d+[.)])\s+(.*)$/;
 function bullets(lines) {
   return lines.flatMap((l) => {
     const m = BULLET.exec(l);
-    const t = m ? plain(m[1]) : "";
+    const t = m ? plain2(m[1]) : "";
     return t !== "" ? [clip6(t, ITEM_MAX)] : [];
   });
 }
 function prose(lines) {
-  const t = plain(lines.filter((l) => !BULLET.test(l)).join(" "));
+  const t = plain2(lines.filter((l) => !BULLET.test(l)).join(" "));
   return t === "" ? undefined : clip6(t, OBJECTIVE_GOAL_MAX);
 }
 function featureObjective(o) {
@@ -29821,7 +29999,7 @@ function featureObjective(o) {
     return;
   const at = lines.findIndex((l) => /^\s*(?:\*\*)?done when(?:\*\*)?\s*:?/i.test(l));
   const head = at < 0 ? lines : lines.slice(0, at);
-  const tail = at < 0 ? [] : [plain(lines[at]).replace(/^done when\s*:?\s*/i, ""), ...lines.slice(at + 1)];
+  const tail = at < 0 ? [] : [plain2(lines[at]).replace(/^done when\s*:?\s*/i, ""), ...lines.slice(at + 1)];
   const items = bullets(at < 0 ? [] : tail.slice(1));
   const inline = at < 0 ? "" : tail[0] ?? "";
   if (inline !== "")
@@ -29845,7 +30023,7 @@ function buildObjective(o) {
     const t = line.trim();
     if (!t.startsWith("|"))
       continue;
-    const cells = t.replace(/^\||\|$/g, "").split("|").map((c) => plain(c));
+    const cells = t.replace(/^\||\|$/g, "").split("|").map((c) => plain2(c));
     const id = /^C\d{1,3}\b/i.exec(cells[0] ?? "")?.[0];
     const text = cells[1] ?? "";
     if (id === undefined || text === "")
@@ -30596,7 +30774,7 @@ function compactPrompt() {
     "Compact this conversation into a handoff summary so that another agent can continue the work in a fresh context. That agent sees only your summary, the files on disk and its tools; it has not seen this conversation.",
     "Write short Markdown sections: the goal and what the user asked for; what is done; what is in progress and the exact next step; what is still open, unanswered questions to the user included.",
     `${compactInstructionsWith(undefined, emptyState(), {})}
-- If a plan file is active (under docs/plans/ or docs/builds/), keep its path verbatim and which task is in progress; the file holds the real progress and is re-read after compaction.`
+- If a plan file is active (under docs/plan-build/ or docs/goal-build/), keep its path verbatim and which task is in progress; the file holds the real progress and is re-read after compaction.`
   ].join(`
 
 `);
@@ -32139,10 +32317,9 @@ function promptInteraction(state, control, text, opts) {
 }
 // src/core/plan/plan-mode.ts
 var FILE_WRITING_WORKFLOWS = {
-  "plan-build": "its plan file under docs/plans/",
-  bugfix: "its plan file under docs/plans/",
-  "goal-build": "its run file under docs/builds/",
-  requirements: "its PRD under docs/prd/"
+  "plan-build": "its plan file under docs/plan-build/",
+  "goal-build": "its run file under docs/goal-build/",
+  requirements: "its PRD under docs/requirements/"
 };
 var READ_ONLY_MODE = {
   claude: { name: "Claude Code's plan mode", leave: "leave plan mode (Shift+Tab)" },
@@ -32158,7 +32335,7 @@ function readOnlyStartNotice(workflow, harness) {
   const native = workflow === "plan-build" ? " With plan.nativePlanMode on, the workflow asks the user to return to plan mode after it has registered and prepared its plan file; a plan already prepared that way (`buracle plan prepare-native`) keeps planning here and ignores this note." : "";
   return `Buracle: ${workflow} was started while the session is in ${mode.name}, which allows no file edits, and the workflow's first phase writes ${writes}. Ask the user to ${mode.leave} first, then continue the workflow. Until then only discuss the task in the conversation: do not run \`buracle plan init\` or \`buracle plan register\`.${native}`;
 }
-var PLAN_DIRS = /(?:^|\/)docs\/(?:plans|builds|prd)\//;
+var PLAN_DIRS = DOC_DIR_PREFIX;
 function norm2(p) {
   return p.replace(/\\/g, "/").replace(/\/+/g, "/");
 }
@@ -34405,7 +34582,7 @@ async function capturePlanFile(i) {
   const base = slugFromTitle(title, 60) || "plan";
   const approved = i.approved ?? true;
   const content = capturedPlanMarkdown(text, { created, harness: i.harness, approved, title, ...i.via !== undefined ? { via: i.via } : {} });
-  const dir = join13(root, "docs", "plans");
+  const dir = join13(root, "docs", docDirFor("plan-build"));
   mkdirSync5(dir, { recursive: true });
   for (let n = 1;n <= CAPTURE_SLOTS; n++) {
     const slug = n === 1 ? base : `${base}-${n}`;
@@ -34669,7 +34846,7 @@ var ASSETS_CONTEXT_MAX_SKILLS = 40;
 var ASSETS_DESCRIPTION_MAX = 160;
 var ASSETS_BLOCK_MAX_CHARS = 2400;
 var DASH2 = "\u2014";
-var HEADING2 = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
+var HEADING3 = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
 var ITEM = /^\s*[-*+]\s+(.*)$/;
 var CODE2 = /`([^`]+)`/g;
 var LINK_TARGET = /\]\(\s*<?((?:\.\/)?\.claude\/rules\/[^)>\s]+\.md)>?\s*\)/;
@@ -34721,7 +34898,7 @@ function parseScopedRules(agentsText) {
     }
     if (fence)
       continue;
-    const h = HEADING2.exec(raw);
+    const h = HEADING3.exec(raw);
     if (h !== null) {
       const depth = (h[1] ?? "").length;
       if (inSection && depth <= level)
@@ -37599,7 +37776,7 @@ function workflowOfExpanded(prompt) {
 
 // src/adapters/omp/runtime/generated-data.ts
 var GENERATED = {
-  buracleVersion: "0.6.0",
+  buracleVersion: "0.7.0",
   commands: [
     "ab-test",
     "bugfix",
@@ -37870,6 +38047,12 @@ var GENERATED = {
       message: "Buracle's CLI is smaller: run `buracle` in a terminal for a main menu you drive with the keyboard. `buracle install` now does what `init` and `sync` did, `buracle install` and `buracle update` apply in a terminal without a question and show each step as it runs, and the rare cases flags used to cover are questions in a terminal. `buracle help --all` lists the commands your agents use.",
       since: "0.5.0",
       until: "0.6.0"
+    },
+    {
+      id: "0.7.0-one-standard",
+      message: "One standard on every harness: `buracle diagram` is gone, a chat reply shows a flow as a list or a table, and workflow documents under docs/ are English in ASD-STE100 style (`buracle plan validate` checks them). New documents go to docs/requirements/, docs/plan-build/, docs/goal-build/ and docs/dead-code/; the old folders docs/prd/, docs/plans/, docs/builds/ and docs/cleanup/ stay readable.",
+      since: "0.7.0",
+      until: "0.8.0"
     }
   ],
   plugins: [],
@@ -38416,7 +38599,7 @@ var GENERATED = {
       userInvocable: true
     },
     {
-      description: "Goal-and-loop workflow for a clear end state whose path is found while building: agree on a goal, tasks sized as the largest slices you can finish and verify, and at least 3 pass/fail acceptance criteria (one of them the oracle), have them reviewed, lock the contract, then build in rounds judged on running evidence (at most four), verify and hand back. Tracked in docs/builds/. Run only when the user explicitly asks for goal-build.",
+      description: "Goal-and-loop workflow for a clear end state whose path is found while building: agree on a goal, tasks sized as the largest slices you can finish and verify, and at least 3 pass/fail acceptance criteria (one of them the oracle), have them reviewed, lock the contract, then build in rounds judged on running evidence (at most four), verify and hand back. Tracked in docs/goal-build/. Run only when the user explicitly asks for goal-build.",
       id: "goal-build",
       invocation: "explicit",
       short: "Lock a goal and pass/fail criteria, then build in judged rounds",
@@ -38534,7 +38717,7 @@ var GENERATED = {
       userInvocable: true
     },
     {
-      description: "Plan-driven development through a plan file in docs/plans/: explore and clarify, write and review the plan, get approval, implement task by task with TDD, then verify with real evidence until the plan is VERIFIED. Covers features and bugfixes (behavior contract, reproduce first, root-cause fix). Also pauses, resumes or continues an existing plan. Run only when the user explicitly asks for plan-build.",
+      description: "Plan-driven development through a plan file in docs/plan-build/: explore and clarify, write and review the plan, get approval, implement task by task with TDD, then verify with real evidence until the plan is VERIFIED. Covers features and bugfixes (behavior contract, reproduce first, root-cause fix). Also pauses, resumes or continues an existing plan. Run only when the user explicitly asks for plan-build.",
       id: "plan-build",
       invocation: "explicit",
       short: "Plan, approve, TDD-implement and verify work through a plan file",
@@ -38593,7 +38776,7 @@ var GENERATED = {
       userInvocable: true
     },
     {
-      description: "Requirements workflow for ideas whose problem, audience or scope is still unclear. Grounds the idea in the codebase and memory, runs tiered research through the research skill, explores directions, asks a few decision questions, proposes approaches, converges on scope, writes an approved PRD to docs/prd/YYYY-MM-DD-<slug>.md and prints the plan-build or goal-build hand-off. No code is written before the PRD is approved.",
+      description: "Requirements workflow for ideas whose problem, audience or scope is still unclear. Grounds the idea in the codebase and memory, runs tiered research through the research skill, explores directions, asks a few decision questions, proposes approaches, converges on scope, writes an approved PRD to docs/requirements/YYYY-MM-DD-<slug>.md and prints the plan-build or goal-build hand-off. No code is written before the PRD is approved.",
       id: "requirements",
       invocation: "explicit",
       short: "Interview, research and write an approved PRD before any code",
@@ -38809,7 +38992,7 @@ var READ_ONLY_TOOLS = new Set(["chrome-devtools/upload_file"]);
 function keyOf2(k) {
   return k.toLowerCase().replace(/[_-]/g, "");
 }
-function plain2(v) {
+function plain3(v) {
   return v !== null && typeof v === "object" && !Array.isArray(v) ? v : undefined;
 }
 function mcpParts(tool) {
@@ -38838,13 +39021,13 @@ function mcpWritePaths(tool, input, mcp) {
       if (WRITE_PATH_KEYS.has(keyOf2(k)))
         add(v);
       else if (depth === 0) {
-        const inner = plain2(v);
+        const inner = plain3(v);
         if (inner !== undefined)
           scan(inner, 1);
       }
     }
   };
-  const top = plain2(input);
+  const top = plain3(input);
   if (top !== undefined)
     scan(top, 0);
   return out;

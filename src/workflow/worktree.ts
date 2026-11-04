@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, readdirSync, rmSync, unlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative, sep } from 'node:path'
+import { DOC_FILE } from '../core/plan/doc-dirs'
 import type { PlanType } from '../core/plan/format'
 import { isPlanFinished } from '../core/plan/state'
 import { loadConfigSync } from '../engine/config'
@@ -140,7 +141,7 @@ function findPlanFor(facts: RepoFacts, m: WorktreeMeta, s: ResolvedSession | und
       if (p) return p
     }
   }
-  for (const d of ['docs/plans', 'docs/builds']) {
+  for (const d of ['docs/plan-build', 'docs/goal-build', 'docs/plans', 'docs/builds']) {
     let names: string[] = []
     try { names = readdirSync(join(facts.mainRoot, d)) } catch { continue }
     const hit = names.filter(n => new RegExp(`^\\d{4}-\\d{2}-\\d{2}-${m.slug.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.md$`).test(n)).sort().pop()
@@ -471,7 +472,8 @@ async function undoPartialPop(cwd: string, stash: string): Promise<void> {
   }
 }
 
-const PLAN_DIR_FILE = /^docs\/(?:plans|builds)\/[^/]+\.md$/
+// A plan or document file under any document folder, new or legacy, is never stashed away.
+const PLAN_DIR_FILE = DOC_FILE
 
 async function planFilesKeptOut(facts: RepoFacts, where: string, m: WorktreeMeta, tracked: readonly string[], planPath: string | undefined): Promise<{ paths: string[] } | { conflict: string }> {
   const planRel = planPath !== undefined ? relative(where, realish(planPath)).split('\\').join('/') : undefined

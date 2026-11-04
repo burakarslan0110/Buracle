@@ -587,14 +587,15 @@ describe('read-only plan modes and edits before approval (HOOKS-WORKFLOW-5)', ()
     for (const h of ['claude', 'codex', 'opencode', 'omp'] as const) {
       const text = readOnlyStartNotice('plan-build', h) as string
       expect(text).toContain('plan-build')
-      expect(text).toContain('docs/plans/')
+      expect(text).toContain('docs/plan-build/')
+      expect(text).not.toContain('docs/plans/')
       expect(text).toContain('buracle plan init')
     }
-    expect(readOnlyStartNotice('goal-build', 'codex')).toContain('docs/builds/')
-    expect(readOnlyStartNotice('requirements', 'omp')).toContain('docs/prd/')
-    expect(readOnlyStartNotice('bugfix', 'opencode')).toContain('build agent (Tab)')
+    expect(readOnlyStartNotice('goal-build', 'codex')).toContain('docs/goal-build/')
+    expect(readOnlyStartNotice('requirements', 'omp')).toContain('docs/requirements/')
+    expect(readOnlyStartNotice('goal-build', 'opencode')).toContain('build agent (Tab)')
     expect(readOnlyStartNotice('plan-build', 'claude')).toContain('Shift+Tab')
-    for (const w of ['research', 'inspect', 'dead-code', 'nope', '__proto__']) expect(readOnlyStartNotice(w, 'claude')).toBeUndefined()
+    for (const w of ['bugfix', 'research', 'inspect', 'dead-code', 'nope', '__proto__']) expect({ w, r: readOnlyStartNotice(w, 'claude') }).toEqual({ w, r: undefined })
   })
 
   const draft = (over: Partial<NonNullable<SessionState['plan']>> = {}, rest: Partial<SessionState> = {}): SessionState => withPlan({ status: 'PENDING', phase: 'plan', ...over }, rest)
@@ -610,8 +611,11 @@ describe('read-only plan modes and edits before approval (HOOKS-WORKFLOW-5)', ()
     expect(stopVerdictDetailed(r.next, input({ readOnly: true }), CFG).next.guard.earlyEditNoted).toBe(true)
   })
 
-  test('the plan file, docs/plans, docs/builds and docs/prd never trip it', () => {
-    for (const f of ['docs/plans/2026-10-08-rate-limit.md', '/repo/docs/plans/2026-10-08-rate-limit.md', './docs/plans/other.md', 'docs/builds/2026-x.md', 'docs/prd/x.md', '/elsewhere/docs/plans/a.md']) {
+  test('the plan file and every document folder, new or legacy, never trip it, files below a folder included', () => {
+    for (const f of [
+      'docs/plans/2026-10-08-rate-limit.md', '/repo/docs/plans/2026-10-08-rate-limit.md', './docs/plans/other.md', 'docs/builds/2026-x.md', 'docs/prd/x.md', '/elsewhere/docs/plans/a.md',
+      'docs/plan-build/2026-11-04-x.md', 'docs/goal-build/y.md', 'docs/requirements/z.md', 'docs/dead-code/w.md', 'docs/cleanup/v.md', 'docs/plan-build/assets/x.png',
+    ]) {
       expect({ f, r: preApprovalEdit(draft(), [f], opts).note }).toEqual({ f, r: undefined })
     }
     expect(preApprovalEdit(draft(), ['docs/plans/a.md', 'src/b.ts'], opts).note).toContain('src/b.ts')

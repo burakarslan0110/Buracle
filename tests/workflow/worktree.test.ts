@@ -343,6 +343,27 @@ describe('worktree sync', () => {
     expect(readFileSync(join(repo, 'notes.txt'), 'utf8')).toBe('untracked\n')
   }))
 
+  test('unregistered plan files under a new or a legacy document folder stay out of the stash', () => sandbox(async root => {
+    const { repo } = await setup(root)
+    const ctx = ctxAt(repo)
+    const fresh = join(repo, 'docs', 'plan-build', '2026-11-04-other.md')
+    const old = join(repo, 'docs', 'plans', '2026-10-09-old.md')
+    write(fresh, planDoc({ title: 'Other' }))
+    write(old, planDoc({ title: 'Old' }))
+    await g(repo, 'add', '-A')
+    await g(repo, 'commit', '-q', '-m', 'docs: two more plans')
+    const wt = String((await worktreeCreate('rate-limit', {}, ctx, S)).data['path'])
+    await commitIn(wt, 'src/app.ts', 'export const a = 2\n', 'task 1')
+    write(join(repo, 'src', 'app.ts'), 'export const a = 3 // local\n')
+    write(fresh, '# Other\n\nlocal edit\n')
+    write(old, '# Old\n\nlocal edit\n')
+    const r = await worktreeSync('rate-limit', ctx, S)
+    expect(r.code).toBe(2)
+    expect(await g(repo, 'stash', 'show', '--name-only', 'stash@{0}')).toBe('src/app.ts')
+    expect(readFileSync(fresh, 'utf8')).toBe('# Other\n\nlocal edit\n')
+    expect(readFileSync(old, 'utf8')).toBe('# Old\n\nlocal edit\n')
+  }))
+
   test('exit 2 when the merge landed but the local changes conflict: the stash stays, the checkout is clean', () => sandbox(async root => {
     const { repo } = await setup(root)
     const ctx = ctxAt(repo)

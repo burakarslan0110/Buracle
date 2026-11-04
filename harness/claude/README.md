@@ -36,7 +36,7 @@ For a single session while developing: `claude --plugin-dir harness/claude`.
 | SessionStart | H07 restores the plan state (after a compaction), H13 memory index, H15 capability card, H16 session upkeep, H17 profile warning and the one-time notices of this version (at startup), H21 code indexes (in the background) |
 | UserPromptSubmit | H10 pause/continue intents and the `memory_search` reminder for history questions, H20 consent the user gives in their own words, H05 context warning |
 | PreToolUse | Bash/Monitor/PowerShell: H01 destructive-command guard (denies when it fails), H20 consent gate, H03 `grep -r` advice; write tools: H02 write guard (denies when it fails); WebSearch/WebFetch: H03 routing; AskUserQuestion: H09; SubagentHandback: H19 checks a review agent's handed-back report (auto mode) and denies an invalid one once; every answer that does not deny a main-agent call carries the H05 context warning once per band |
-| PostToolUse | Write tools: H04 file checks; ExitPlanMode: H12 saves the plan under `docs/plans/`; TodoWrite and the task tools: open work for the handoff note; shell, web and MCP tools: H14 spool (in the background) |
+| PostToolUse | Write tools: H04 file checks; ExitPlanMode: H12 saves the plan under `docs/plan-build/`; TodoWrite and the task tools: open work for the handoff note; shell, web and MCP tools: H14 spool (in the background) |
 | PostToolUseFailure | Buracle's MCP tools: H24 (two failures in a row and the server is down for the session) |
 | PreCompact / PostCompact | H06 handoff note (without one, the open todos stay in the session's record for H07) / H14 compaction summary |
 | Stop | H08 + H11 stop guard (until the plan is VERIFIED), H14 answer excerpt |
@@ -90,7 +90,7 @@ bar, 5-hour and 7-day usage; Buracle and Claude Code versions and, while it runs
 
 The command hooks also write `sessions/claude/<session>/{state.json,telemetry.json,work.json}`,
 `state/memory/spool/`, handoff memories in the project's brain (`~/.buracle/brain`) and
-`docs/plans/` in the project; `buracle flow` and `buracle plan` keep `flow.json` current.
+`docs/plan-build/` in the project; `buracle flow` and `buracle plan` keep `flow.json` current.
 `BURACLE_HOME` moves these paths. `BURACLE_NO_CAPTURE=1` turns memory capture off,
 `BURACLE_NO_AUTOSTART=1` the background indexes and the memory web UI's start. With `memory.ui.autostart` (the default) a session start opens the web UI when it is not running, and it stops when the last harness session ends; otherwise it runs after `buracle mem ui`.
 

@@ -1,5 +1,5 @@
 ---
-description: "Read-only reviewer for a Buracle goal-build contract (the Buildout) before the build loop starts. Launch it from the goal-build workflow after drafting docs/builds/YYYY-MM-DD-<slug>.md, passing the file path, the user's goal verbatim and the clarifications. It checks that the tasks and acceptance criteria are measurable, complete and correctly ordered, and returns strict JSON findings with ready-to-paste replacement wording."
+description: "Read-only reviewer for a Buracle goal-build contract (the Buildout) before the build loop starts. Launch it from the goal-build workflow after drafting docs/goal-build/YYYY-MM-DD-<slug>.md, passing the file path, the user's goal verbatim and the clarifications. It checks that the tasks and acceptance criteria are measurable, complete and correctly ordered, and returns strict JSON findings with ready-to-paste replacement wording."
 mode: "subagent"
 permissions:
   - { action: "*", resource: "*", effect: "deny" }
@@ -62,7 +62,7 @@ You audit the contract of a build run before any building starts. A build run re
 
 The launching prompt provides these as labeled lines:
 
-- `plan_file`: the Buildout file, normally `docs/builds/YYYY-MM-DD-<slug>.md` (`plan_path` is accepted as the same thing).
+- `plan_file`: the Buildout file, normally `docs/goal-build/YYYY-MM-DD-<slug>.md` (`plan_path` is accepted as the same thing).
 - `user_request`: the user's goal, verbatim. It may be in any language.
 - `clarifications`: questions and answers from scoping, and the assumptions the run made. May be empty.
 - `notes` (optional): constraints such as a reference to match, a platform, or a deadline. The goal-build workflow passes `oracle is <Cn>; false pass: <the line>; reference: <name, or none>` here.
@@ -143,7 +143,7 @@ Rules:
 - `verdict` is `needs_changes` exactly when at least one finding is `must_fix` or `should_fix`; otherwise it is `pass`.
 - Sort findings by severity, then by position in the Buildout. Merge duplicates. Report at most 15; if there are more, keep the most severe and say so in `summary`.
 - Leave out optional fields that don't apply; never set them to `null` or `""`.
-- Write in English. When the user's own words matter, quote them verbatim, in whatever language they wrote. Replacement wording in `suggested_fix` that goes into the Buildout is in the Buildout's own language, and it keeps the markers the validator reads.
+- Write in English. When the user's own words matter, quote them verbatim, in whatever language they wrote. Replacement wording in `suggested_fix` that goes into the Buildout is English, in the ASD-STE100 structural style of the run file (short sentences, the active voice, no semicolons), and it keeps the markers the validator reads.
 - Do not ask questions. If something is ambiguous, state your assumption inside the finding.
 - If your output is rejected as invalid, reply again with only the corrected JSON object.
 
@@ -154,13 +154,13 @@ Example:
 ```json
 {
   "verdict": "needs_changes",
-  "summary": "docs/builds/2026-10-08-md-to-pdf-cli.md: criterion 2 cannot be judged as written, and nothing checks the finished CLI end to end.",
+  "summary": "docs/goal-build/2026-10-08-md-to-pdf-cli.md: criterion 2 cannot be judged as written, and nothing checks the finished CLI end to end.",
   "findings": [
     {
       "severity": "must_fix",
       "category": "criterion_unobservable",
       "title": "Criterion 2 has no observable check",
-      "file": "docs/builds/2026-10-08-md-to-pdf-cli.md",
+      "file": "docs/goal-build/2026-10-08-md-to-pdf-cli.md",
       "line": 22,
       "evidence": "Criterion 2: \"PDF output looks correct.\" It names no command, file property or threshold.",
       "suggested_fix": "Running `mdpdf examples/report.md -o /tmp/report.pdf` exits 0 and `pdfinfo /tmp/report.pdf` reports 3 pages with the title \"Quarterly Report\"."
@@ -169,7 +169,7 @@ Example:
       "severity": "must_fix",
       "category": "no_end_to_end_check",
       "title": "No criterion runs the installed CLI the way the user will",
-      "file": "docs/builds/2026-10-08-md-to-pdf-cli.md",
+      "file": "docs/goal-build/2026-10-08-md-to-pdf-cli.md",
       "line": 20,
       "evidence": "Criteria 1-5 call internal functions or unit tests; user_request: \"I should be able to make a PDF with one command from the terminal\".",
       "suggested_fix": "After `bun link`, running `mdpdf README.md` in a fresh shell writes README.pdf next to the input and prints its path."

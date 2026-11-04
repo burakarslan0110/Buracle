@@ -211,6 +211,25 @@ describe('buracle doctor', () => {
     })
   }))
 
+  test('`doctor <harness>` lists the recorded host limits with their fallbacks also when the harness is not installed', () => withSandbox(async ({ root }) => {
+    const repo = makeRepo(root)
+    const omp = fakeAdapter('omp', { installed: false })
+    await withDeps({ repoRoot: () => repo, adapters: async () => [omp] }, async () => {
+      const io = memoryIO({ json: true })
+      await doctorRun(['omp', '--json'], io)
+      const checks = (JSON.parse(io.out()) as { checks: Array<{ section: string, level: string, check: string, detail: string }> }).checks.filter(c => c.section === 'omp')
+      expect(checks[0]).toEqual({ section: 'omp', level: 'warn', check: 'installed', detail: 'not installed; skipped' })
+      const limits = checks.filter(c => c.check.startsWith('omp.') && c.check !== 'omp.limits')
+      expect(limits.length).toBeGreaterThan(0)
+      expect(limits.map(c => c.check)).toContain('omp.companion-shell')
+      for (const c of limits) {
+        expect(c.level).toBe('ok')
+        expect(c.detail).toContain('Fallback:')
+      }
+      expect(omp.calls).not.toContain('doctor')
+    })
+  }))
+
   test('the index section shows the code indexes of the project in the current folder', () => withSandbox(async ({ root, home }) => {
     const repo = makeRepo(root)
     const cfg = defaultConfig()

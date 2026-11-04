@@ -80,7 +80,7 @@ describe('H12 plan.capture', () => {
       const { repo, sub } = await repoWithSub(root)
       const said = await exitPlan(sub)
       expect(said).toContain('(H12)')
-      const file = join(repo, 'docs', 'plans', `${DAY}-giris-sayfasi-ekle.md`)
+      const file = join(repo, 'docs', 'plan-build', `${DAY}-giris-sayfasi-ekle.md`)
       expect(said).toContain(file)
       const text = readFileSync(file, 'utf8')
       expect(validatePlan(text).filter(f => f.level === 'error')).toEqual([])
@@ -90,7 +90,7 @@ describe('H12 plan.capture', () => {
       expect(plan.tasks).toEqual([])
       expect(text).toContain('> 1. Formu yaz')
       await exitPlan(sub)
-      expect(readdirSync(join(repo, 'docs', 'plans')).sort()).toEqual([`${DAY}-giris-sayfasi-ekle-2.md`, `${DAY}-giris-sayfasi-ekle.md`])
+      expect(readdirSync(join(repo, 'docs', 'plan-build')).sort()).toEqual([`${DAY}-giris-sayfasi-ekle-2.md`, `${DAY}-giris-sayfasi-ekle.md`])
     })
   })
 
@@ -98,8 +98,8 @@ describe('H12 plan.capture', () => {
     await withSandbox(async ({ root }) => {
       const { repo } = await repoWithSub(root)
       const edited = '# Edited plan\n\n1. Changed step\n'
-      expect(await exitPlan(repo, { tool_input: { plan: PLAN }, tool_response: { plan: edited, filePath: '/x/plan.md' } })).toContain(`docs/plans/${DAY}-edited-plan.md`)
-      const text = readFileSync(join(repo, 'docs', 'plans', `${DAY}-edited-plan.md`), 'utf8')
+      expect(await exitPlan(repo, { tool_input: { plan: PLAN }, tool_response: { plan: edited, filePath: '/x/plan.md' } })).toContain(`docs/plan-build/${DAY}-edited-plan.md`)
+      const text = readFileSync(join(repo, 'docs', 'plan-build', `${DAY}-edited-plan.md`), 'utf8')
       expect(text).toContain('> 1. Changed step')
       expect(text).not.toContain('Formu yaz')
       expect(text).toContain('\nharness: claude\n')
@@ -120,7 +120,7 @@ describe('H12 plan.capture', () => {
       expect(parsePlan(text).header).toMatchObject({ type: 'Feature', status: 'PENDING', approved: true })
       expect(text).toContain('\nharness: claude\n')
       expect(text).toContain('Clients get a cached answer')
-      expect(readdirSync(join(repo, 'docs', 'plans'))).toEqual([basename(path)])
+      expect(readdirSync(join(repo, 'docs', 'plan-build'))).toEqual([basename(path)])
       expect(loadState('claude', SID).approvals?.planApprovedAt).toBe(NOW)
       expect(await exitPlan(sub)).toContain('the approved plan was saved to')
     })
@@ -132,7 +132,7 @@ describe('H12 plan.capture', () => {
       expect(await exitPlan(repo, { agent_id: 'a1', agent_type: 'Plan' })).toBe('')
       expect(await exitPlan(repo, { tool_response: { plan: PLAN, awaitingLeaderApproval: true } })).toBe('')
       expect(await exitPlan(repo, { tool_response: { success: false, error: 'rejected' } })).toBe('')
-      expect(existsSync(join(repo, 'docs', 'plans'))).toBe(false)
+      expect(existsSync(join(repo, 'docs', 'plan-build'))).toBe(false)
     })
   })
 

@@ -145,8 +145,8 @@ the session's tool results (the ledger in [references/evidence.md](references/ev
 `buracle flow phase report`. Use the report template in [references/evidence.md](references/evidence.md):
 answer first (with the outcome of every enumerated case), then confidence, the numbered trace with `path:line`, the evidence table (observed,
 inferred, executed), the counter-check, what is not verified, relevant history, and an optional next
-step. Present it per the *Plain language* rule, in the language of the user's prompt, with the
-trace as a `flowchart` or `sequenceDiagram` when it has more than three hops. If you found a defect, suggest {{skill:bugfix}}; if the answer reveals a
+step. Present it per the *Plain language* rule, in the user's language, with the trace as a
+numbered list of hops (`path:line` each) or a table, never as a diagram in the reply. If you found a defect, suggest {{skill:bugfix}}; if the answer reveals a
 missing requirement, suggest {{skill:requirements}}. Never start either yourself.
 
 ## Phase 6: Postflight

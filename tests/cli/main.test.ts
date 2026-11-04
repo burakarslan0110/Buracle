@@ -7,7 +7,7 @@ import { withSandbox } from '../helpers/sandbox'
 
 const REPO = join(import.meta.dir, '..', '..')
 const CONTRACT_COMMANDS = ['build', 'install', 'uninstall', 'rollback', 'doctor', 'index', 'update', 'config', 'hook',
-  'statusline', 'usage', 'mem', 'mcp', 'lsp', 'plan', 'flow', 'worktree', 'review-scope', 'notify', 'consent', 'project', 'skills', 'rules', 'diagram']
+  'statusline', 'usage', 'mem', 'mcp', 'lsp', 'plan', 'flow', 'worktree', 'review-scope', 'notify', 'consent', 'project', 'skills', 'rules']
 
 export function memoryIO(stdin = ''): Omit<CommandIO, 'flags'> & { out(): string, err(): string } {
   let out = ''
@@ -127,6 +127,14 @@ describe('router', () => {
     const sync = memoryIO()
     expect(await main(['sync', '--dry-run'], sync)).toBe(1)
     expect(sync.err()).toBe('buracle sync was removed; use `buracle install`\n')
+  })
+
+  test('diagram is no command any more: it is unknown, and help --all does not list it', async () => {
+    const io = memoryIO('flowchart TD\n  A --> B\n')
+    expect(await main(['diagram'], io)).toBe(1)
+    expect(io.out()).toBe('')
+    expect(io.err()).toBe("buracle: unknown command 'diagram'. Run 'buracle --help' for the list of commands.\n")
+    expect(await helpText(true)).not.toMatch(/^  diagram /m)
   })
 
   test('an unknown command exits 1 with a hint on stderr and nothing on stdout, whatever the flags', async () => {

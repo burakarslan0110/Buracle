@@ -1,6 +1,7 @@
 import type { FmData, FmValue } from '../frontmatter'
 import { parseYamlBlock, renderYamlBlock } from '../frontmatter'
 import { authoringFindings, type PlanOutline } from './authoring'
+import { documentFindings } from './document'
 
 export type PlanStatus = 'PENDING' | 'APPROVED' | 'IN_PROGRESS' | 'COMPLETE' | 'VERIFIED' | 'SAVED'
 export type PlanType = 'Feature' | 'Bugfix' | 'Build' | 'Plan'
@@ -254,6 +255,27 @@ function fmLine(doc: Doc, key: string): number | undefined {
   return undefined
 }
 
+const PRD_STATUSES = ['draft', 'approved'] as const
+
+// A PRD (type: prd) is a document, not a plan: its header needs only a date, a PRD status and the
+// approval flag, and the plan checks (tasks, cards, placeholders) do not apply.
+function checkPrdHeader(doc: Doc, out: Finding[]): void {
+  const fm = doc.fm
+  const missing = (k: string): boolean => fm[k] === undefined || fm[k] === null || fm[k] === ''
+  for (const k of ['created', 'status', 'approved']) {
+    if (missing(k)) out.push(err('missing-field', `frontmatter field \`${k}\` is missing`, 0))
+  }
+  const created = fm['created']
+  if (!missing('created') && !(typeof created === 'string' && CREATED.test(created.trim()))) {
+    out.push(err('bad-field', '`created` must be a date such as 2026-11-04', fmLine(doc, 'created')))
+  }
+  const status = fm['status']
+  if (!missing('status') && !(typeof status === 'string' && (PRD_STATUSES as readonly string[]).includes(status))) {
+    out.push(err('bad-status', `a PRD's \`status\` must be one of ${PRD_STATUSES.join(', ')} (got ${JSON.stringify(status)})`, fmLine(doc, 'status')))
+  }
+  if (!missing('approved') && typeof fm['approved'] !== 'boolean') out.push(err('bad-field', `\`approved\` must be true or false (got ${JSON.stringify(fm['approved'])})`, fmLine(doc, 'approved')))
+}
+
 function checkHeader(doc: Doc, out: Finding[]): PlanType | undefined {
   if (!doc.hasFrontmatter) {
     out.push(err('missing-frontmatter', 'the plan must start with a --- frontmatter block (created, status, approved, worktree, type)', 0))
@@ -378,6 +400,11 @@ export function validatePlan(markdown: string, opts?: { strict?: boolean }): Fin
   const cr = markdown.indexOf('\r')
   if (cr >= 0) out.push(err('crlf', 'use LF line endings only (the file contains CR characters)', markdown.slice(0, cr).split('\n').length - 1))
   const doc = scan(markdown)
+  if (doc.hasFrontmatter && doc.fm['type'] === 'prd') {
+    checkPrdHeader(doc, out)
+    out.push(...documentFindings(outlineOf(doc)))
+    return out
+  }
   const type = checkHeader(doc, out)
   if (!doc.title || doc.title.text === '') out.push(err('missing-title', 'add a `# Title` heading after the frontmatter', doc.body))
   for (const line of doc.duplicateTasks) out.push(err('duplicate-section', 'only one `## Tasks` section is allowed', line))
@@ -415,6 +442,8 @@ export function validatePlan(markdown: string, opts?: { strict?: boolean }): Fin
   }
 
   if (type === 'Feature' || type === 'Bugfix') out.push(...authoringFindings(outlineOf(doc)))
+  // A captured native plan (type Plan) holds the harness's own text and is not a Buracle document.
+  if (type === 'Feature' || type === 'Bugfix' || type === 'Build') out.push(...documentFindings(outlineOf(doc)))
 
   const skeleton = skeletonPlaceholders()
   let skel = 0

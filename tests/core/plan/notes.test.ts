@@ -13,15 +13,22 @@ function filled(): ReviewNotesFile {
 }
 
 describe('which files take notes', () => {
-  test('only Markdown files directly under docs/plans, docs/builds and docs/prd', () => {
+  test('only Markdown files directly under a document folder, new (plan-build, goal-build, requirements, dead-code) or legacy (plans, builds, prd, cleanup)', () => {
     expect(reviewDocOf('docs/plans/2026-10-18-x.md')).toEqual({ dir: 'plans', name: '2026-10-18-x.md' })
+    expect(reviewDocOf('docs/plan-build/2026-11-04-x.md')).toEqual({ dir: 'plan-build', name: '2026-11-04-x.md' })
     expect(reviewDocOf('docs/prd/a.md')?.dir).toBe('prd')
+    expect(reviewDocOf('docs/requirements/a.md')?.dir).toBe('requirements')
     expect(reviewDocOf('docs\\builds\\b.md')?.dir).toBe('builds')
-    for (const bad of ['docs/plans/sub/x.md', 'docs/plans/x.txt', 'src/x.md', 'docs/plans/.annotations.md', '../docs/plans/x.md', 'docs/notes/x.md']) expect(reviewDocOf(bad)).toBeUndefined()
+    expect(reviewDocOf('docs/goal-build/b.md')?.dir).toBe('goal-build')
+    expect(reviewDocOf('docs/cleanup/c.md')?.dir).toBe('cleanup')
+    expect(reviewDocOf('docs/dead-code/c.md')?.dir).toBe('dead-code')
+    for (const bad of ['docs/plans/sub/x.md', 'docs/plan-build/sub/x.md', 'docs/plans/x.txt', 'src/x.md', 'docs/plans/.annotations.md', '../docs/plans/x.md', 'docs/notes/x.md']) expect({ bad, r: reviewDocOf(bad) }).toEqual({ bad, r: undefined })
   })
 
-  test('a doc and a branch get distinct, file-safe keys', () => {
+  test('a doc and a branch get distinct, file-safe keys; the key keeps the file\'s own folder, so notes on a legacy file stay attached', () => {
     expect(docNotesKey('docs/plans/2026-10-18-x.md')).toBe('plans--2026-10-18-x.md')
+    expect(docNotesKey('docs/plan-build/2026-10-18-x.md')).toBe('plan-build--2026-10-18-x.md')
+    expect(docNotesKey('docs/requirements/a.md')).toBe('requirements--a.md')
     expect(docNotesKey('src/x.md')).toBeUndefined()
     expect(changesNotesKey('plan-build/rate-limit')).toBe('changes--plan-build~rate-limit')
     expect(changesNotesKey('plan-build-rate-limit')).not.toBe(changesNotesKey('plan-build/rate-limit'))
@@ -35,11 +42,11 @@ describe('which files take notes', () => {
       docNotesKey('docs/prd/my plan.md'), docNotesKey('docs/prd/my-plan.md'), docNotesKey('docs/prd/my_plan.md'),
       docNotesKey('docs/prd/çalışma planı.md'), docNotesKey('docs/prd/şalışma planı.md'),
       docNotesKey(`docs/plans/${'a'.repeat(130)}.md`), docNotesKey(`docs/plans/${'a'.repeat(131)}.md`),
-      docNotesKey('docs/plans/-x.md'), docNotesKey('docs/plans/x.md'),
+      docNotesKey('docs/plans/-x.md'), docNotesKey('docs/plans/x.md'), docNotesKey('docs/plan-build/x.md'), docNotesKey('docs/goal-build/x.md'),
       changesNotesKey('feature/my branch'), changesNotesKey('feature/my-branch'), changesNotesKey('feature/my?branch'),
     ]
     expect(new Set(keys).size).toBe(keys.length)
-    for (const k of keys) expect(k).toMatch(/^[a-z]+--[A-Za-z0-9._~-]{1,160}$/)
+    for (const k of keys) expect(k).toMatch(/^[a-z-]+--[A-Za-z0-9._~-]{1,160}$/)
     expect(docNotesKey('docs/prd/my-plan.md')).toBe('prd--my-plan.md')
     expect(docNotesKey('docs/prd/my plan.md')).toMatch(/^prd--my-plan\.md-[0-9a-f]{16}$/)
     expect(docNotesKey('docs/prd/my plan.md')).toBe(docNotesKey('docs/prd/my plan.md'))
@@ -95,6 +102,7 @@ describe('a note from the page', () => {
 describe('telling a session about new notes', () => {
   const doc: NotesInboxEntry = { at: 100, root: '/repo', key: 'k/plans--p.md', open: 2, doc: '/repo/docs/plans/p.md', rel: 'docs/plans/p.md' }
   const prd: NotesInboxEntry = { at: 110, root: '/repo', key: 'k/prd--x.md', open: 1, doc: '/repo/docs/prd/x.md', rel: 'docs/prd/x.md' }
+  const req: NotesInboxEntry = { at: 115, root: '/repo', key: 'k/requirements--y.md', open: 1, doc: '/repo/docs/requirements/y.md', rel: 'docs/requirements/y.md' }
   const code: NotesInboxEntry = { at: 120, root: '/repo', key: 'k/changes--plan-build~p', open: 1, checkout: '/repo/.worktrees/p', branch: 'plan-build/p' }
 
   test('a session hears about its own plan, its repository\'s changes, and only notes newer than the last notice', () => {
@@ -105,9 +113,9 @@ describe('telling a session about new notes', () => {
     expect(inboxFor([doc], { plan: '/repo/docs/plans/other.md', roots: ['/repo'] }, 0)).toEqual([])
   })
 
-  test('a session without a plan hears about PRDs of its repository and the changes of its own checkout only', () => {
-    expect(inboxFor([doc, prd, code], { roots: ['/repo'] }, 0)).toEqual([prd])
-    expect(inboxFor([doc, prd, code], { roots: ['/repo/.worktrees/p'] }, 0)).toEqual([prd, code])
+  test('a session without a plan hears about PRDs of its repository (new or legacy folder) and the changes of its own checkout only', () => {
+    expect(inboxFor([doc, prd, req, code], { roots: ['/repo'] }, 0)).toEqual([prd, req])
+    expect(inboxFor([doc, prd, req, code], { roots: ['/repo/.worktrees/p'] }, 0)).toEqual([prd, req, code])
     expect(inboxFor([doc, prd, code], { roots: ['/elsewhere', '/repo-2'] }, 0)).toEqual([])
   })
 

@@ -39,7 +39,7 @@ function register(slug: string, repo: string): void {
   writeFileSync(projectsFile(), JSON.stringify({ v: 1, projects: { [slug]: { slug, scope: 'project', roots: [repo], commonDir: join(repo, '.git') } } }))
 }
 
-interface Doc { id: string, rel: string, dir: string, title: string, open: number, changes: string, session?: { paused: boolean, phase: string, reason?: string } }
+interface Doc { id: string, rel: string, dir: string, kind: string, title: string, open: number, changes: string, session?: { paused: boolean, phase: string, reason?: string } }
 interface Repo { name: string, docs: Doc[], checkouts: Array<{ id: string, branch?: string, main: boolean, open: number }> }
 
 async function setup(root: string): Promise<{ repo: string, plan: string }> {
@@ -47,6 +47,9 @@ async function setup(root: string): Promise<{ repo: string, plan: string }> {
   const plan = join(repo, 'docs', 'plans', '2026-10-18-limit.md')
   write(plan, planDoc({ title: 'Rate limit the API' }))
   write(join(repo, 'docs', 'prd', '2026-10-17-search.md'), '# Search items\n\nUsers search by name.\n')
+  write(join(repo, 'docs', 'plan-build', '2026-11-04-folders.md'), planDoc({ title: 'Rename the folders' }))
+  write(join(repo, 'docs', 'goal-build', '2026-11-04-offline.md'), '---\ntype: Build\nstatus: PENDING\napproved: false\n---\n# Offline mode\n')
+  write(join(repo, 'docs', 'dead-code', '2026-11-04-audit.md'), '# Dead code audit\n\nNothing to remove.\n')
   write(join(repo, 'docs', 'plans', 'nested', 'skip.md'), '# not listed\n')
   write(join(repo, 'src', 'app.ts'), 'export const a = 2\nexport const b = 3\n')
   write(join(repo, 'src', 'new.ts'), 'export const fresh = true\n')
@@ -83,7 +86,8 @@ describe('the review page', () => {
       const repos = r.body['repos'] as Repo[]
       expect(repos.map(x => x.name)).toEqual(['shop'])
       const docs = repos[0]!.docs
-      expect(docs.map(d => d.rel).sort()).toEqual(['docs/plans/2026-10-18-limit.md', 'docs/prd/2026-10-17-search.md'])
+      expect(docs.map(d => d.rel).sort()).toEqual(['docs/dead-code/2026-11-04-audit.md', 'docs/goal-build/2026-11-04-offline.md', 'docs/plan-build/2026-11-04-folders.md', 'docs/plans/2026-10-18-limit.md', 'docs/prd/2026-10-17-search.md'])
+      expect(Object.fromEntries(docs.map(d => [d.dir, d.kind]))).toEqual({ 'dead-code': 'audit', 'goal-build': 'build', 'plan-build': 'plan', plans: 'plan', prd: 'prd' })
       const p = docs.find(d => d.dir === 'plans')!
       expect(p.title).toBe('Rate limit the API')
       expect(p.session).toMatchObject({ paused: true, phase: 'plan', reason: 'plan approval' })

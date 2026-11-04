@@ -555,7 +555,7 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary end to
     const plan = '# Add a cache\n\n1. Cache the index\n2. Test it'
     const answer = `Here is the plan.\n\n<proposed_plan>\n${plan}\n</proposed_plan>`
     const model = mockModel([{ say: answer }, { say: 'Implementing.' }, { say: answer }, { say: 'Implementing again.' }])
-    const plans = (): string[] => (existsSync(join(work, 'docs', 'plans')) ? readdirSync(join(work, 'docs', 'plans')).sort() : [])
+    const plans = (): string[] => (existsSync(join(work, 'docs', 'plan-build')) ? readdirSync(join(work, 'docs', 'plan-build')).sort() : [])
     try {
       expect((await codexExec(env, work, model, ['-c', 'model="gpt-5.5"'], 'draft a cache change')).code).toBe(0)
       const [sid] = codexSessions(buracleHome)
@@ -563,7 +563,7 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary end to
       expect(existsSync(kept)).toBe(true)
       expect((await codexResume(env, work, model, CODEX_IMPLEMENT_PROMPT)).code).toBe(0)
       expect(plans().map(f => f.replace(/^\d{4}-\d{2}-\d{2}-/, ''))).toEqual(['add-a-cache.md'])
-      const text = readFileSync(join(work, 'docs', 'plans', plans()[0] as string), 'utf8')
+      const text = readFileSync(join(work, 'docs', 'plan-build', plans()[0] as string), 'utf8')
       expect(text).toContain('harness: codex')
       expect(text).toContain('> 2. Test it')
       expect((await codexResume(env, work, model, 'draft it again')).code).toBe(0)
@@ -597,7 +597,7 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary end to
       expect(proposedPlanOf(lastAssistantText(rollout) ?? '')).toBe(plan)
       await server.request('turn/start', { threadId: thread.id, input: [{ type: 'text', text: CODEX_IMPLEMENT_PROMPT, text_elements: [] }], collaborationMode: { mode: 'default', settings } })
       await server.until('turn/completed')
-      const dir = join(work, 'docs', 'plans')
+      const dir = join(work, 'docs', 'plan-build')
       const files = existsSync(dir) ? readdirSync(dir).sort() : []
       expect(files.map(f => f.replace(/^\d{4}-\d{2}-\d{2}-/, ''))).toEqual(['add-a-cache.md'])
       const text = readFileSync(join(dir, files[0] as string), 'utf8')

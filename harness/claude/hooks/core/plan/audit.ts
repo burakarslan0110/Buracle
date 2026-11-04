@@ -1,4 +1,5 @@
 import { deviationPaths, filePaths, inventoryRows, listedPaths, pathCovered } from './authoring'
+import { DOC_FILE } from './doc-dirs'
 import { planOutline } from './format'
 
 export type AuditCode = 'unimplemented' | 'delete-pending' | 'rename-mismatch' | 'unplanned' | 'inventory-open'
@@ -6,7 +7,7 @@ export interface DiffEntry { status: string, path: string, from?: string }
 export interface AuditFinding { level: 'warning' | 'info', code: AuditCode, message: string, path?: string, task?: number }
 export interface AuditOptions { exists: (path: string) => boolean, ignore?: readonly string[] }
 
-const PLAN_FILE = /^docs\/(?:plans|builds)\/[^/]+\.md$/
+const PLAN_FILE = DOC_FILE
 
 export function parseNameStatus(z: string): DiffEntry[] {
   const parts = z.split('\0')

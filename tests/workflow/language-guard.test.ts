@@ -30,7 +30,6 @@ const ALLOWED: Readonly<Record<string, Allowed>> = {
   'src/core/memory/stem.ts': { why: 'Turkish inflection endings that memory search strips from query words' },
   'src/core/memory/text.ts': { why: 'secret-word redaction and case folding' },
   'src/core/plan/state.ts': { why: 'the plan approval question', only: /onayl\[ıi\]yor musun/ },
-  'src/core/plan/vague.ts': { why: "the validator's vague-filler phrases in Turkish plans (plan prose follows the user's language)", only: /\/\(\?<!\\p\{L\}\)/ },
   'src/core/receipt.ts': { why: 'success claims', only: /\bCLAIM = / },
   'src/engine/git.ts': { why: 'slug folding', only: /\.replace\(\/[İıçğöşü]\/g/ },
   'src/engine/update/deps.ts': { why: "the update prompt's Turkish yes", only: /\|evet\)/ },
@@ -42,6 +41,12 @@ const ALLOWED: Readonly<Record<string, Allowed>> = {
   'src/adapters/omp/runtime/generated-data.ts': { why: 'canonical data baked into the omp bundle' },
   'src/adapters/opencode/runtime/server.ts': { why: 'canonical data baked into the OpenCode bundle', only: /contentHash: "/ },
   'src/adapters/opencode/runtime/tui.tsx': { why: 'canonical data baked into the OpenCode TUI bundle', only: /contentHash: "/ },
+  // The ab-test fixture of PRD 2026-11-04 R9: Turkish prompts and plans in the format before the standard are the
+  // measured input of the comparison, not text Buracle ships.
+  'tests/fixtures/ab-test/plan-format/cases.json': { why: 'ab-test fixture: Turkish prompts, typed the way the user types' },
+  ...Object.fromEntries(['slugify', 'duration', 'window', 'bytes', 'frontmatter'].map(c => [`tests/fixtures/ab-test/plan-format/fixtures/${c}/docs/plan-build/baseline.md`, { why: 'ab-test fixture: a plan in the prompt-language format before the standard, the baseline arm of PRD R9' }])),
+  ...Object.fromEntries(['slugify', 'duration', 'window', 'bytes', 'frontmatter'].map(c => [`tests/fixtures/ab-test/plan-format/fixtures/${c}/docs/plan-build/candidate.md`, { why: 'ab-test fixture: the English plan quotes the Turkish input its test uses', only: /Kurulum Başlar|ı, ş, ğ, ü, ö, ç and İ/ }])),
+  ...Object.fromEntries(['slugify'].map(c => [`tests/fixtures/ab-test/plan-format/fixtures/${c}/tests/${c}.test.ts`, { why: 'ab-test fixture: the slug test folds Turkish letters' }])),
 }
 
 const EVAL_CASES = /(?:^|\/)skills\/[^/]+\/evals\/cases\.json$/
@@ -123,6 +128,13 @@ describe('language guard (R1): what Buracle ships is English', () => {
   test('src/ carries Turkish only in the category D modules', () => {
     const r = scan(join(REPO, 'src'), REPO)
     expect(r.files).toBeGreaterThanOrEqual(250)
+    expect(r.hits).toEqual([])
+  })
+
+  test('the ab-test plan-format fixture carries Turkish only in its prompts, its baseline plans and the slug test', () => {
+    const r = scan(join(REPO, 'tests', 'fixtures', 'ab-test', 'plan-format'), REPO)
+    // cases.json, four files per fixture repo and the ten plans under their docs/plan-build/ folders
+    expect(r.files).toBeGreaterThanOrEqual(30)
     expect(r.hits).toEqual([])
   })
 

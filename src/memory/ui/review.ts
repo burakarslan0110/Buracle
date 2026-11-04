@@ -1,6 +1,7 @@
 import { existsSync, lstatSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { HARNESSES } from '../../core/events'
+import { docDirOf } from '../../core/plan/doc-dirs'
 import { dropNote, editNote, openNotes, parseNoteInput, withNote, type ReviewNotesFile, REVIEW_DOC_DIRS } from '../../core/plan/notes'
 import * as paths from '../../engine/paths'
 import { tilde } from '../../engine/update/output'
@@ -22,11 +23,14 @@ const DIAGRAMS_PER_DOC = 30
 
 export interface ReviewSessionMark { harness: string, session: string, status: string, phase: string, paused: boolean, reason?: string, since?: string }
 
+export type ReviewDocKind = 'prd' | 'build' | 'audit' | 'bugfix' | 'plan'
+
 export interface ReviewDoc {
   id: string
   path: string
   rel: string
   dir: string
+  kind: ReviewDocKind
   title: string
   type?: string
   status?: string
@@ -139,6 +143,16 @@ function counts(t: NotesTarget): { open: number, done: number } {
   return { open, done: f.notes.length - open }
 }
 
+// What the page calls the document: by its folder's workflow first, then by the plan type in its header.
+function docKind(rel: string, type: string | undefined): ReviewDocKind {
+  const workflow = docDirOf(rel)?.workflow
+  if (workflow === 'requirements') return 'prd'
+  if (workflow === 'goal-build' || type === 'Build') return 'build'
+  if (workflow === 'dead-code') return 'audit'
+  if (type === 'Bugfix') return 'bugfix'
+  return 'plan'
+}
+
 function docEntry(path: string, facts: RepoFacts, marks: Map<string, ReviewSessionMark>, asks: Map<string, string>): { doc: ReviewDoc, facts: RepoFacts } | undefined {
   const t = docTarget(facts, path)
   if (t === undefined || t.doc === undefined) return undefined
@@ -157,7 +171,7 @@ function docEntry(path: string, facts: RepoFacts, marks: Map<string, ReviewSessi
   const mark = marks.get(t.doc.path)
   const ask = asks.get(t.doc.path)
   const doc: ReviewDoc = {
-    id: docId(t.doc.path), path: t.doc.path, rel, dir: rel.split('/')[1] ?? '', title: info.title ?? name, modified, ...counts(t), changes,
+    id: docId(t.doc.path), path: t.doc.path, rel, dir: rel.split('/')[1] ?? '', kind: docKind(rel, info.type), title: info.title ?? name, modified, ...counts(t), changes,
     ...(info.type !== undefined ? { type: info.type } : {}),
     ...(info.status !== undefined ? { status: info.status } : {}),
     ...(info.approved !== undefined ? { approved: info.approved } : {}),

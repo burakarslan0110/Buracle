@@ -24,7 +24,7 @@ Outcome: an approved plan in which every task has a known location, a chosen app
 
    - **Wide refactor:** expand, migrate, contract. Add the new path beside the old one, move callers in batches, delete the old path last.
    - **Builds on a VERIFIED plan:** write a new plan and link the old one in `## Context`.
-   - **From an approved PRD** (`docs/prd/*.md`): link it in `## Context`. Its Must requirements become "Done when" lines of the Goal, its *Out of scope* list becomes Scope → Out, and its open questions are answered in P4 or recorded under `## Assumptions`. Do not re-ask what the PRD already settled.
+   - **From an approved PRD** (`docs/requirements/*.md`, or the old `docs/prd/*.md`): link it in `## Context`. Its Must requirements become "Done when" lines of the Goal, its *Out of scope* list becomes Scope → Out, and its open questions are answered in P4 or recorded under `## Assumptions`. Do not re-ask what the PRD already settled.
    - **More than about 12 tasks:** propose sequential plans and ask which part comes first.
 3. `buracle plan init --type feature --title "<short title>" --json` prints `{path, slug}`. Then `buracle plan register <absolute path> --phase plan`. From here on, write findings into the plan as you go: the file survives a compaction, your context does not.
 
@@ -58,7 +58,7 @@ Ask only when the answer changes the plan: behavior the user would notice, scope
 
 ## P6. Write the plan
 
-Fill the file that `buracle plan init` created and keep its frontmatter and layout. If its task layout differs from the example below, the CLI's layout wins. The markers the validator reads stay exactly as shown (`## Tasks`, `### Task N:`, `**Objective:**`, `**Files:**`, `**Definition of Done:**`, `Verify:`, the checkbox line, `## E2E Scenarios`, `## Evidence`, `## DoD Audit`, `## E2E Results`; the full list is in the *Plain language* rule), and so do `## Inventory` and `## Deviations`, which the validator and `buracle plan audit` read by these English names. Write every other heading, the task titles and all prose in the language of the user's prompt.
+Fill the file that `buracle plan init` created and keep its frontmatter and layout. If its task layout differs from the example below, the CLI's layout wins. The markers the validator reads stay exactly as shown (`## Tasks`, `### Task N:`, `**Objective:**`, `**Files:**`, `**Definition of Done:**`, `Verify:`, the checkbox line, `## E2E Scenarios`, `## Evidence`, `## DoD Audit`, `## E2E Results`; the full list is in the *Plain language* rule), and so do `## Inventory` and `## Deviations`, which the validator and `buracle plan audit` read by these English names. Write every other heading, the task titles and all prose in English, in the ASD-STE100 structural style of the *Plain language* rule: short sentences, the active voice, no semicolons. `buracle plan validate` warns about a sentence over 25 words, a semicolon in prose, Turkish prose and a path in an old document folder.
 
 ```markdown
 ---
@@ -78,7 +78,7 @@ Done when:
 - Requests from other keys are unaffected.
 
 ## Context
-- Requests enter at `src/server.ts:41` (`createServer`); middleware order is set at `src/server.ts:58`.
+- Requests enter at `src/server.ts:41` (`createServer`). The middleware order is set at `src/server.ts:58`.
 - Commands: tests `bun test` · types `bunx tsc --noEmit` · run `bun run dev` (port 3000).
 
 ## Scope
@@ -88,7 +88,7 @@ Done when:
 ## Approach
 An in-memory counter as middleware in front of the router.
 Key decisions:
-- Fixed window over sliding window: simple and enough for the stated limit; the price is short bursts at window edges.
+- Fixed window over sliding window: simple and enough for the stated limit. The price is short bursts at window edges.
 
 ## Tasks
 
@@ -102,7 +102,7 @@ Key decisions:
 - Test: `tests/middleware/rate-limit.test.ts`
 
 **Definition of Done:**
-- Requests 1 to 100 in a window pass; the 101st gets 429 with `Retry-After`.
+- Requests 1 to 100 in a window pass. The 101st gets 429 with `Retry-After`.
 - A request without a key gets 401 and is not counted.
 - Expired windows are dropped, so memory does not grow with old keys.
 - Verify: `bun test tests/middleware/rate-limit.test.ts`
@@ -110,7 +110,7 @@ Key decisions:
 - [ ] Task 1 done
 
 ## E2E Scenarios
-**SC-1: Burst from one key** (priority high; covers Task 1)
+**SC-1: Burst from one key** (priority high, covers Task 1)
 
 | Step | Action | Expected |
 |---|---|---|

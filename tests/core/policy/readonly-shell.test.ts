@@ -4,11 +4,12 @@ import { readOnlyShellProblem, reviewerShellDenial } from '../../../src/core/pol
 const problem = (command: string): string | undefined => readOnlyShellProblem(command)
 
 describe('buracle commands in a read-only shell', () => {
-  test('buracle diagram only draws, so it passes; a command that writes does not', () => {
-    for (const command of ['buracle diagram --ascii', 'buracle diagram flow.mmd', "printf 'flowchart TD\\n  A --> B\\n' | buracle diagram"]) {
+  test('a buracle command that only reads passes; one that writes or no longer exists does not', () => {
+    for (const command of ['buracle plan status --json', 'buracle mem search caching', 'buracle review-scope --json', 'buracle worktree detect', 'buracle help --all']) {
       expect({ command, problem: problem(command) }).toEqual({ command, problem: undefined })
     }
     expect(problem('buracle plan set approved true')).toContain('is not one of its read-only commands')
+    expect(problem('buracle diagram --ascii')).toContain('is not one of its read-only commands')
   })
 })
 

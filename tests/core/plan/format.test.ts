@@ -223,7 +223,7 @@ describe('validatePlan: finding codes', () => {
     const run = (criteria: number, tasks: number): string => {
       const rows = Array.from({ length: criteria }, (_, i) => `| C${i + 1}${i === 0 ? ' (oracle)' : ''} | claim ${i + 1} | check | open |`)
       const cards = Array.from({ length: tasks }, (_, i) => `### Task ${i + 1}: t${i + 1}\n\n**Objective:** o (C1).\n\n- [ ] Task ${i + 1} done\n`)
-      return `---\ncreated: 2026-10-08\nstatus: PENDING\napproved: false\nworktree: false\ntype: Build\nrounds: 0\n---\n# B\n\n## Acceptance Criteria\n| # | Criterion | Evidence | Status |\n|---|---|---|---|\n${rows.join('\n')}\n\n**False pass:** a cached copy; C1 catches it.\n\n## Tasks\n\n${cards.join('\n')}`
+      return `---\ncreated: 2026-10-08\nstatus: PENDING\napproved: false\nworktree: false\ntype: Build\nrounds: 0\n---\n# B\n\n## Acceptance Criteria\n| # | Criterion | Evidence | Status |\n|---|---|---|---|\n${rows.join('\n')}\n\n**False pass:** a cached copy. C1 catches it.\n\n## Tasks\n\n${cards.join('\n')}`
     }
     expect(codes(validatePlan(run(7, 8), { strict: true }))).toEqual([])
     expect(codes(validatePlan(run(10, 12), { strict: true }))).toEqual([])
@@ -346,16 +346,6 @@ describe('validatePlan: plan-build authoring checks', () => {
     expect(at(FEATURE.replace('README explains the limit.', 'README quotes `handle edge cases` from the old docs.'), 'vague-placeholder')).toEqual([])
   })
 
-  test('vague-placeholder recognizes the Turkish forms of the same filler', () => {
-    for (const text of ["Task 1'deki gibi yap.", 'Uç durumları ele al.', 'Uygun hata yönetimi ekle.', 'Ayrıntıları sonra doldur.', 'Daha sonra uygulanacak.', 'Görev 1 ile benzer şekilde.']) {
-      const md = FEATURE.replace('README explains the limit.', text)
-      expect({ text, levels: at(md, 'vague-placeholder').map(f => f.level) }).toEqual({ text, levels: ['warning'] })
-    }
-    for (const text of ['Task 1 ile aynı dosyayı okur.', 'Sınır değeri 100 istektir.', 'Sonradan eklenen anahtarlar sayılmaz.']) {
-      expect({ text, n: at(FEATURE.replace('README explains the limit.', text), 'vague-placeholder').length }).toEqual({ text, n: 0 })
-    }
-  })
-
   test('inventory-unmapped: every Inventory row names an existing task or a reason for dropping it', () => {
     const inv = (rows: string) => `${FEATURE}\n## Inventory\n| Replaced | Kept by | Reason if dropped |\n|---|---|---|\n${rows}\n`
     expect(at(inv('| `GET /v1/limits` | Task 1 | |\n| `--legacy` flag | | unused since 2024 |\n| `oldLimit()` | 2 | |'), 'inventory-unmapped')).toEqual([])
@@ -391,6 +381,91 @@ describe('validatePlan: plan-build authoring checks', () => {
       const md = skillExample(file)
       expect({ file, findings: validatePlan(md, { strict: true }) }).toEqual({ file, findings: [] })
     }
+  })
+})
+
+describe('validatePlan: document checks (English, STE structure, document folders)', () => {
+  const DOC_CODES = ['not-english', 'long-sentence', 'semicolon', 'legacy-folder']
+  const doc = (md: string, strict = false) => validatePlan(md, { strict }).filter(f => DOC_CODES.includes(f.code)).sort((a, b) => (a.line ?? 0) - (b.line ?? 0))
+  const LONG = '**Objective:** Middleware counts the requests of every key in a window of sixty seconds and rejects the request that goes over the limit with a 429 answer that names the key.'
+  const PRD = `---
+type: prd
+title: Teams share saved searches
+status: draft
+approved: false
+created: 2026-11-04
+updated: 2026-11-04
+---
+# Teams share saved searches
+
+## Summary
+A team member saves a search once. Every member sees it.
+`
+
+  test('a Turkish paragraph, a sentence over 25 words, a semicolon in prose and an old folder path each give one warning with its line, also without --strict', () => {
+    const md = FEATURE
+      .replace('Clients get 429.', 'İstekler sınırı aşarsa istemciler 429 alır ve sunucu yük altında kalmaz.')
+      .replace('**Objective:** Middleware counts requests per key.', LONG)
+      .replace('README explains the limit.', 'README explains the limit; it names the window.')
+      .replace('- Modify: README.md', '- Modify: README.md\n- Modify: `docs/plans/2026-10-08-limits.md`')
+    expect(doc(md).map(f => [f.code, f.level, f.line])).toEqual([['not-english', 'warning', 12], ['long-sentence', 'warning', 18], ['semicolon', 'warning', 33], ['legacy-folder', 'warning', 37]])
+    expect(doc(md)[1]?.message).toContain('30 words')
+    expect(doc(md)[3]?.message).toContain('docs/plan-build/')
+  })
+
+  test('25 words, a semicolon in a code span or a heading, an HTML comment, an old path inside a fence and a two-word paragraph give no finding', () => {
+    const cases: Record<string, string> = {
+      'exactly 25 words': FEATURE.replace('- The 101st request gets 429.', '- The limiter counts every request of a key in a window of sixty seconds and rejects the request that goes over the limit with 429.'),
+      'semicolon in a code span': FEATURE.replace('README explains the limit.', 'README shows `a; b` as the example.'),
+      'semicolon in a heading': FEATURE.replace('## Goal', '## Goal; the short form'),
+      'HTML comment': FEATURE.replace('Clients get 429.', 'Clients get 429.\n<!-- an old note; keep it -->'),
+      'old path in a fence': FEATURE.replace('Clients get 429.', 'Clients get 429.\n\n```text\ndocs/plans/x.md; docs/builds/y.md\n```'),
+      'two-word paragraph': FEATURE.replace('Clients get 429.', 'Tamam mı.'),
+      'a URL in parentheses ends its sentence': FEATURE.replace('Clients get 429.', 'The hooks doc says so (https://developers.openai.com/codex/hooks). The Stop schema in the source carries no task data and nothing wakes a turn when a background command ends, so the guard holds it.'),
+    }
+    for (const [name, md] of Object.entries(cases)) expect({ name, findings: doc(md, true) }).toEqual({ name, findings: [] })
+  })
+
+  test('the check covers Build files and skips a captured Plan and the after-run sections', () => {
+    const build = `---\ncreated: 2026-10-08\nstatus: APPROVED\napproved: true\nworktree: false\ntype: Build\nrounds: 1\n---\n# Offline notes\n\n## Tasks\n\n### Task 1: Queue writes\n\n**Objective:** Writes go to \`src/queue.ts\`; they survive a reload.\n\n- [ ] Task 1 done\n`
+    expect(doc(build).map(f => [f.code, f.line])).toEqual([['semicolon', 15]])
+    const captured = FEATURE.replace('type: Feature', 'type: Plan').replace('status: PENDING', 'status: SAVED').replace('README explains the limit.', 'README explains the limit; it names the window.')
+    expect(doc(captured)).toEqual([])
+    const afterRun = FEATURE.replace('## Deviations\n- none', '## Deviations\n- Task 2: moved the docs; the README was too long.\n\n## Evidence\n- `bun test` → 12 pass; 0 fail')
+    expect(doc(afterRun)).toEqual([])
+  })
+
+  test('a PRD (type: prd) gets the document check and a small header check instead of the plan checks', () => {
+    expect(validatePlan(PRD, { strict: true })).toEqual([])
+    const turkish = PRD.replace('A team member saves a search once. Every member sees it.', 'Bir ekip üyesi aramayı bir kez kaydeder ve herkes bu aramayı görür.')
+    expect(validatePlan(turkish).map(f => [f.code, f.level, f.line])).toEqual([['not-english', 'warning', 12]])
+    expect(codes(validatePlan(PRD.replace('status: draft', 'status: open')))).toEqual(['bad-status'])
+    expect(codes(validatePlan(PRD.replace('approved: false', 'approved: maybe')))).toEqual(['bad-field'])
+    expect(codes(validatePlan(PRD.replace('created: 2026-11-04\n', '')))).toEqual(['missing-field'])
+  })
+
+  test('plain English with a word the prompt-language signal counts as Turkish ("once", "de") gives no not-english finding', () => {
+    const md = FEATURE
+      .replace('README explains the limit.', 'Retry once per key.')
+      .replace('Clients get 429.', 'Re-run de-duplication per key.\n\n| Step | Expected |\n|---|---|\n| 1 | Runs once per file |')
+    expect(doc(md, true)).toEqual([])
+    // Two Turkish function words with no English ones still count, also without a Turkish-only letter.
+    expect(doc(FEATURE.replace('Clients get 429.', 'Bu plan bir test ve bunu yakalar.')).map(f => f.code)).toEqual(['not-english'])
+  })
+
+  test('blockquote markers are not words, and a comment over several lines is skipped', () => {
+    const S25 = 'The limiter counts every request of a key in a window of sixty seconds and rejects the request that goes over the limit with 429.'
+    expect(doc(FEATURE.replace('Clients get 429.', `> ${S25}`), true)).toEqual([])
+    expect(doc(FEATURE.replace('Clients get 429.', `> One more ${S25}`)).map(f => f.code)).toEqual(['long-sentence'])
+    const comment = FEATURE.replace('Clients get 429.', 'Clients get 429.\n<!--\nBu satır Türkçe ve yorum içinde; sayılmaz.\n-->\nStill English here.')
+    expect(doc(comment, true)).toEqual([])
+    // A comment opener inside a code span is text: the check goes on and still sees the semicolon below it.
+    const spanOpener = FEATURE.replace('Clients get 429.', 'Use `<!--` to open a note.\n\nThe window is short; it resets.')
+    expect(doc(spanOpener).map(f => f.code)).toEqual(['semicolon'])
+  })
+
+  test('the Build example in the goal-build skill gives no document finding', () => {
+    expect(doc(skillExample('skills/goal-build/references/goal-and-contract.md'), true)).toEqual([])
   })
 })
 

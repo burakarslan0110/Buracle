@@ -21,6 +21,7 @@ const DONE: DiffEntry[] = [
   { status: 'D', path: 'src/old.ts' },
   { status: 'R', path: 'src/y.ts', from: 'src/x.ts' },
   { status: 'M', path: 'docs/plans/2026-10-08-parser.md' },
+  { status: 'A', path: 'docs/plan-build/2026-11-04-folders.md' },
 ]
 const ON_DISK = new Set(['src/a.ts', 'src/b.ts', 'tests/a.test.ts', 'src/y.ts', 'src/stray.ts', 'src/helper.ts', 'src/c.ts'])
 const exists = (p: string) => ON_DISK.has(p)
@@ -93,6 +94,9 @@ describe('auditPlan', () => {
     expect(codes(auditPlan(withDeviation, changes, { exists, ignore: ['notes/plan.md'] }))).toEqual(['info unimplemented src/c.ts'])
     const underDir = plan().replace('- Create: `src/c.ts`', '- Create: `src/cache/`')
     expect(auditPlan(underDir, [...DONE, { status: 'A', path: 'src/cache/index.ts' }], { exists }).filter(x => x.code !== 'inventory-open')).toEqual([])
+    // A dotfile without an extension is a path too, so a Deviations line can name it.
+    const dotfile = plan({ extra: '## Deviations\n- Task 1: re-included the fixture docs (files: `.gitignore`)' })
+    expect(codes(auditPlan(dotfile, [...DONE, { status: 'M', path: '.gitignore' }], { exists }))).toEqual(['info unimplemented src/c.ts'])
   })
 
   test('inventory-open: a row kept by an unticked or missing task, or with no task and no reason', () => {

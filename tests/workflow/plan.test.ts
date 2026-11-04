@@ -26,12 +26,12 @@ function withPlanRepo(fn: (o: { repo: string, plan: string }) => Promise<void>, 
 }
 
 describe('plan init', () => {
-  test('writes docs/plans/<date>-<slug>.md with a PENDING header and prints {path, slug}', () => withSandbox(async ({ root }) => {
+  test('writes docs/plan-build/<date>-<slug>.md with a PENDING header and prints {path, slug}', () => withSandbox(async ({ root }) => {
     const repo = await makeRepo(root)
     const ctx = ctxAt(join(repo, 'src'))
     const r = await planInit({ type: 'feature', title: 'Rate-limit the public API' }, ctx)
     expect(r.code).toBe(0)
-    const path = join(repo, 'docs', 'plans', `${localDate(ctx.now)}-rate-limit-the-public-api.md`)
+    const path = join(repo, 'docs', 'plan-build', `${localDate(ctx.now)}-rate-limit-the-public-api.md`)
     expect(r.data['path']).toBe(path)
     expect(r.data['slug']).toBe('rate-limit-the-public-api')
     expect(r.lines[0]).toBe(path)
@@ -49,11 +49,13 @@ describe('plan init', () => {
     expect(existsSync(String(again.data['path']))).toBe(true)
   }))
 
-  test('build plans go to docs/builds with rounds; --slug and --dir are honored', () => withSandbox(async ({ root }) => {
+  test('build plans go to docs/goal-build with rounds, a bugfix plan to docs/plan-build; --slug and --dir are honored', () => withSandbox(async ({ root }) => {
     const repo = await makeRepo(root)
     const ctx = ctxAt(repo)
     const b = await planInit({ type: 'build', title: 'Offline mode' }, ctx)
-    expect(String(b.data['path'])).toBe(join(repo, 'docs', 'builds', `${localDate(ctx.now)}-offline-mode.md`))
+    expect(String(b.data['path'])).toBe(join(repo, 'docs', 'goal-build', `${localDate(ctx.now)}-offline-mode.md`))
+    const bug = await planInit({ type: 'bugfix', title: 'Fix: totals' }, ctx)
+    expect(String(bug.data['path'])).toBe(join(repo, 'docs', 'plan-build', `${localDate(ctx.now)}-fix-totals.md`))
     const info = analyzePlan(readFileSync(String(b.data['path']), 'utf8'))
     expect(info.type).toBe('Build')
     expect(info.rounds).toBe(0)
@@ -73,7 +75,7 @@ describe('plan init', () => {
   test('outside git the plan goes under the current directory', () => withSandbox(async ({ root }) => {
     const ctx = ctxAt(root)
     const r = await planInit({ type: 'feature', title: 'Solo' }, ctx)
-    expect(String(r.data['path'])).toBe(join(root, 'docs', 'plans', `${localDate(ctx.now)}-solo.md`))
+    expect(String(r.data['path'])).toBe(join(root, 'docs', 'plan-build', `${localDate(ctx.now)}-solo.md`))
   }))
 
   test('with a session, the header records the harness that wrote the plan; the validator ignores the key', () => withSandbox(async ({ root }) => {
@@ -117,6 +119,16 @@ describe('plan validate', () => {
     const crlf = planValidate(plan, false, ctxAt(repo))
     expect(crlf.code).toBe(1)
     expect(Array.isArray(crlf.data['findings'])).toBe(true)
+  }))
+
+  test('a Turkish paragraph is a warning with its line: exit 0 without --strict, exit 2 with it', () => withPlanRepo(async ({ repo, plan }) => {
+    writeFileSync(plan, planDoc().replace('Clients get 429 instead of overloading the server.', 'İstemciler sunucuyu yormak yerine 429 cevabı alır ve bekler.'))
+    const plain = planValidate(plan, false, ctxAt(repo))
+    expect(plain.code).toBe(0)
+    const strict = planValidate(plan, true, ctxAt(repo))
+    expect(strict.code).toBe(2)
+    expect((strict.data['findings'] as Array<{ code: string, line?: number }>).filter(f => f.code === 'not-english').map(f => f.line)).toEqual([12])
+    expect(strict.lines.join('\n')).toContain(':12: warning not-english:')
   }))
 
   test('init writes the core planSkeleton; validate reports its unfilled placeholders and --strict never passes it', () => withSandbox(async ({ root }) => {

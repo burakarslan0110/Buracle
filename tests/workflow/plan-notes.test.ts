@@ -34,6 +34,28 @@ async function notes(repo: string, args: string[], session?: string): Promise<{ 
   return { code, body: io.out() === '' ? {} : io.json(), err: io.err() }
 }
 
+describe('buracle plan notes on the document folders', () => {
+  test('a file in a new folder and one in a legacy folder both resolve; another file is refused with the new folder names', async () => {
+    await withSandbox(async ({ root }) => {
+      const repo = await makeRepo(root)
+      const fresh = join(repo, 'docs', 'plan-build', '2026-11-04-folders.md')
+      write(fresh, planDoc({ title: 'Rename the folders' }))
+      const legacy = await plan(repo)
+      for (const path of [fresh, legacy]) {
+        const r = await notes(repo, [path])
+        expect({ path, code: r.code, open: r.body['open'] }).toEqual({ path, code: 0, open: 0 })
+      }
+      expect((await notes(repo, [fresh])).body['doc']).toEqual({ path: fresh, rel: 'docs/plan-build/2026-11-04-folders.md' })
+      write(join(repo, 'src', 'x.md'), '# not a document\n')
+      const other = await notes(repo, [join(repo, 'src', 'x.md')])
+      expect(other.code).toBe(1)
+      expect(other.body['error']).toBe('not_a_review_doc')
+      expect(String(other.body['message'])).toContain('docs/plan-build')
+      expect(String(other.body['message'])).not.toContain('docs/plans, docs/builds or docs/prd')
+    })
+  })
+})
+
 describe('buracle plan notes', () => {
   test('lists the open plan notes of a plan and the code notes of the checkout, and marks applied ones', async () => {
     await withSandbox(async ({ root }) => {

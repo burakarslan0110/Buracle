@@ -23,7 +23,7 @@ describe('the shared plan writer (H12)', () => {
   test('saves at the checkout root as a valid SAVED Plan that names the harness, quoting the text', () => withSandbox(async ({ root }) => {
     const repo = await makeRepo(root)
     const r = await capturePlanFile({ plan: PLAN, cwd: join(repo, 'src'), now: NOW, harness: 'codex' })
-    expect(r?.path).toBe(join(repo, 'docs', 'plans', `${DAY}-add-a-cache.md`))
+    expect(r?.path).toBe(join(repo, 'docs', 'plan-build', `${DAY}-add-a-cache.md`))
     const text = readFileSync(r?.path as string, 'utf8')
     expect(validatePlan(text).filter(f => f.level === 'error')).toEqual([])
     expect(parsePlan(text).header).toMatchObject({ status: 'SAVED', approved: true, type: 'Plan', created: DAY })
@@ -36,13 +36,13 @@ describe('the shared plan writer (H12)', () => {
 
   test('never overwrites: a taken name gets -2, -3, and the earlier file keeps its bytes', () => withSandbox(async ({ root }) => {
     const repo = await makeRepo(root)
-    const first = join(repo, 'docs', 'plans', `${DAY}-add-a-cache.md`)
+    const first = join(repo, 'docs', 'plan-build', `${DAY}-add-a-cache.md`)
     write(first, 'mine\n')
     const a = await capturePlanFile({ plan: PLAN, cwd: repo, now: NOW, harness: 'omp' })
     const b = await capturePlanFile({ plan: PLAN, cwd: repo, now: NOW, harness: 'omp' })
     expect([a?.slug, b?.slug]).toEqual(['add-a-cache-2', 'add-a-cache-3'])
     expect(readFileSync(first, 'utf8')).toBe('mine\n')
-    expect(readdirSync(join(repo, 'docs', 'plans')).sort()).toEqual([`${DAY}-add-a-cache-2.md`, `${DAY}-add-a-cache-3.md`, `${DAY}-add-a-cache.md`])
+    expect(readdirSync(join(repo, 'docs', 'plan-build')).sort()).toEqual([`${DAY}-add-a-cache-2.md`, `${DAY}-add-a-cache-3.md`, `${DAY}-add-a-cache.md`])
   }))
 
   test('a draft is SAVED with approved false and says why; an empty plan writes nothing', () => withSandbox(async ({ root }) => {
@@ -68,14 +68,14 @@ describe('a plan path shown to the agent', () => {
   // The alias stands in for Windows' 8.3 spelling of the cwd next to git's long one.
   test('is relative to the cwd with / between the parts; on Windows also when the cwd is spelled another way', () => withSandbox(async ({ root }) => {
     const repo = join(root, 'repo')
-    mkdirSync(join(repo, 'docs', 'plans'), { recursive: true })
-    const plan = join(repo, 'docs', 'plans', 'p.md')
-    expect(shownPath(plan, repo)).toBe('docs/plans/p.md')
+    mkdirSync(join(repo, 'docs', 'plan-build'), { recursive: true })
+    const plan = join(repo, 'docs', 'plan-build', 'p.md')
+    expect(shownPath(plan, repo)).toBe('docs/plan-build/p.md')
     expect(shownPath(join(root, 'elsewhere.md'), repo)).toBe(join(root, 'elsewhere.md'))
     const alias = join(root, 'alias')
     symlinkSync(repo, alias)
     if (process.platform !== 'win32') expect(shownPath(plan, alias)).toBe(plan)
-    await withEnv({ BURACLE_PLATFORM: 'win32' }, () => { expect(shownPath(plan, alias)).toBe('docs/plans/p.md') })
+    await withEnv({ BURACLE_PLATFORM: 'win32' }, () => { expect(shownPath(plan, alias)).toBe('docs/plan-build/p.md') })
   }))
 })
 
@@ -89,7 +89,7 @@ describe('buracle plan capture', () => {
     expect(readFileSync(out.path, 'utf8')).toContain('harness: codex')
     const draft = withStdin(memIO(true), PLAN)
     expect(await runPlan(['capture', '--harness', 'opencode', '--draft', '--title', 'Cache plan'], draft, ctxAt(repo))).toBe(0)
-    expect(draft.json<{ path: string }>().path).toBe(join(repo, 'docs', 'plans', `${DAY}-cache-plan.md`))
+    expect(draft.json<{ path: string }>().path).toBe(join(repo, 'docs', 'plan-build', `${DAY}-cache-plan.md`))
     expect(parsePlan(readFileSync(draft.json<{ path: string }>().path, 'utf8')).header.approved).toBe(false)
   }))
 
@@ -155,7 +155,7 @@ describe('native plan mode (plan.nativePlanMode): H12 fills the registered plan'
     expect([st.native, st.approvals?.planApprovedAt, st.plan?.path]).toEqual([undefined, NOW + 60_000, path])
     const again = await capture(repo, PLAN)
     expect(again?.native).toBeUndefined()
-    expect(again?.path).toBe(join(repo, 'docs', 'plans', `${DAY}-add-a-cache-2.md`))
+    expect(again?.path).toBe(join(repo, 'docs', 'plan-build', `${DAY}-add-a-cache-2.md`))
   }))
 
   test('OpenCode\'s draft fills the plan without approving it; the note asks for the approval gate', () => withSandbox(async ({ root }) => {
@@ -175,7 +175,7 @@ describe('native plan mode (plan.nativePlanMode): H12 fills the registered plan'
     const mine = readFileSync(path, 'utf8')
     const r = await capture(repo)
     expect(r?.native).toBe('conflict')
-    expect(r?.path).toBe(join(repo, 'docs', 'plans', `${DAY}-add-a-cache-2.md`))
+    expect(r?.path).toBe(join(repo, 'docs', 'plan-build', `${DAY}-add-a-cache-2.md`))
     expect(r?.note).toContain('changed after `buracle plan prepare-native`')
     expect(readFileSync(path, 'utf8')).toBe(mine)
     expect(parsePlan(readFileSync(r?.path as string, 'utf8')).header.status).toBe('SAVED')
@@ -213,7 +213,7 @@ describe('native plan mode (plan.nativePlanMode): H12 fills the registered plan'
     expect(off.reasons.join('\n')).toContain('plan.nativePlanMode is off')
     expect(off.reasons.join('\n')).toContain('plan.planApproval is off')
     write(userConfigFile(), 'version: 1\nplan:\n  nativePlanMode: "on"\n')
-    expect((await prepare([join(repo, 'docs', 'plans', 'other.md')])).reasons.join('\n')).toContain('prepare the registered plan')
+    expect((await prepare([join(repo, 'docs', 'plan-build', 'other.md')])).reasons.join('\n')).toContain('prepare the registered plan')
     const cancel = memIO(true)
     expect(await runPlan(['prepare-native', '--cancel', ...session], cancel, ctxAt(repo))).toBe(0)
     expect(cancel.json<{ cancelled: boolean }>().cancelled).toBe(true)

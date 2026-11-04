@@ -46,7 +46,7 @@ async function runtime(dir: string) {
 }
 
 function saved(root: string): string[] {
-  const dir = join(root, 'docs', 'plans')
+  const dir = join(root, 'docs', 'plan-build')
   return existsSync(dir) ? readdirSync(dir).sort() : []
 }
 
@@ -60,11 +60,11 @@ describe('OpenCode H12: the plan agent has no approval step, so leaving it saves
     const said = await request('build')
     const files = saved(root)
     expect(files.map(f => f.replace(/^\d{4}-\d{2}-\d{2}-/, ''))).toEqual(['add-a-cache.md'])
-    const text = readFileSync(join(root, 'docs', 'plans', files[0] as string), 'utf8')
+    const text = readFileSync(join(root, 'docs', 'plan-build', files[0] as string), 'utf8')
     expect(parsePlan(text).header).toMatchObject({ status: 'SAVED', approved: false, type: 'Plan' })
     expect(text).toContain('harness: opencode')
     expect(text).toContain('> 3. Ship it')
-    expect(said.join('\n')).toContain(`docs/plans/${files[0]} (H12; OpenCode has no approval step, so it is not marked approved)`)
+    expect(said.join('\n')).toContain(`docs/plan-build/${files[0]} (H12; OpenCode has no approval step, so it is not marked approved)`)
     expect(mem.appended.flatMap(a => a.entries).some(e => e.ev === 'note')).toBe(true)
     expect((await request('build')).join('\n')).not.toContain('(H12')
     expect(saved(root)).toEqual(files)

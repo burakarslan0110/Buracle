@@ -230,7 +230,7 @@ describe('PostToolUse', () => {
     })
   })
 
-  test('ExitPlanMode saves the approved plan under docs/plans with status SAVED', async () => {
+  test('ExitPlanMode saves the approved plan under docs/plan-build with status SAVED', async () => {
     await withSandbox(async ({ root }) => {
       mkdirSync(join(root, 'proj'))
       const file = (await capturePlanFile({ plan: '# Add caching\n\n1. Cache the index\n2. Test it\n', cwd: join(root, 'proj'), now: NOW, harness: 'claude' }))?.path
@@ -238,7 +238,7 @@ describe('PostToolUse', () => {
       const text = readFileSync(file as string, 'utf8')
       expect(text).toContain('status: SAVED')
       expect(text).toContain('> 1. Cache the index')
-      expect(file).toContain(join('proj', 'docs', 'plans'))
+      expect(file).toContain(join('proj', 'docs', 'plan-build'))
     })
   })
 })
