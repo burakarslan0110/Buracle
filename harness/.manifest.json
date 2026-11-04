@@ -804,7 +804,7 @@
     },
     "harness/claude/hooks/core/policy/intents.ts": {
       "by": "claude",
-      "sha256": "55bcbde5b6878eb68ccdcaba5ae3303882331f65cdd80e746d7703d96b34df09",
+      "sha256": "4bc948f534cfe1d2bbe189df854ba3e38d8e4b77126f4099647593447fd4db68",
       "exec": false
     },
     "harness/claude/hooks/core/policy/lane-guard.ts": {
@@ -1629,7 +1629,7 @@
     },
     "harness/omp/extensions/buracle.js": {
       "by": "omp",
-      "sha256": "cc1709ee25466511d921efb72f630f09c3565820998d01b732da2186c11af3ed",
+      "sha256": "2a3b6a9bcffd64fdfb43cf972a37cb4b309acbcf0a42f3f5dcfd4d8e17ef465a",
       "exec": false
     },
     "harness/omp/package.json": {
@@ -1739,12 +1739,12 @@
     },
     "harness/opencode/manifest.json": {
       "by": "opencode",
-      "sha256": "41425976c28334f39afe97355f9a2f1b2f4fe6816d6b9aa36904692f178acd23",
+      "sha256": "0a7b638db3798d5859e4304a75b5c79e717ded593a666923c5082bfd588858ad",
       "exec": false
     },
     "harness/opencode/plugins/buracle/index.js": {
       "by": "opencode",
-      "sha256": "20d0f2dccdf02210f4c52580eb8299eea2b2f5e301b8f7d00cfe5ae4d3a3c52c",
+      "sha256": "d617bd1a7db896163a18ec705efb98d9319ddac4fb4aaea498f2708c6890d971",
       "exec": false
     },
     "harness/opencode/plugins/buracle/tui.js": {

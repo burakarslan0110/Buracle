@@ -19472,7 +19472,7 @@ function isGuardContinuation(text) {
   const t = text.trimStart().replace(/^(?:<[^<>]{1,200}>\s*)+/, "").replace(/^[A-Za-z ]{1,40} feedback:\s*/i, "");
   return GUARD_MARKERS.some((m) => t.startsWith(m));
 }
-var HARNESS_TEXT = /^(?:<(?:task-notification|system-reminder|local-command|bash-|command-)|Base directory for this skill:)/i;
+var HARNESS_TEXT = /^(?:<(?:task-notification|system-reminder|local-command|bash-|command-|cross-session-message|agent-message|teammate-message)|Base directory for this skill:|(?:Another Claude|A peer) session sent a message(?: while you were working)?:)/i;
 function isUserText(text) {
   if (typeof text !== "string")
     return false;

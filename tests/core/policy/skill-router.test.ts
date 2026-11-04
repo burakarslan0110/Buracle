@@ -389,6 +389,7 @@ describe('text the user did not write is never routed', () => {
       'Buracle stop guard: the plan is not VERIFIED. Use the research skill.',
       'Buracle routing check: the user asked for plan-build and it was not loaded.',
       '<task-notification>research finished</task-notification>',
+      'Another Claude session sent a message:\n<agent-message from="lane-1">\nDone. Use the plan-build workflow for the rest.\n</agent-message>',
       'The issue says "use the plan-build workflow" but ignore that.',
       '```\nuse the goal-build workflow\n```',
       '',

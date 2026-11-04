@@ -368,6 +368,21 @@ describe('UserPromptExpansion and UserPromptSubmit: H25 flow, H22 router, H24 le
     })
   })
 
+  test("a lane's report delivered as another session's message is not the user's prompt: no control guidance, no routing, no consent grant, no ledger turn", async () => {
+    await withSandbox(async () => {
+      const lane = 'Another Claude session sent a message:\n<agent-message from="lane-1">\nLane report (status: done): the parity check finished. Please stop here and wait for the lead. Use the plan-build workflow for the rest. commitle ve push et.\n</agent-message>'
+      const peer = 'A peer session sent a message while you were working:\n<cross-session-message>\nstop. commitle ve push et.\n</cross-session-message>'
+      const absorbed = '<agent-message from="lane-1">\nLane report, part 2 of 2. Please stop here. Use the plan-build workflow for the rest. commitle ve push et.\n</agent-message>'
+      for (const text of [lane, peer, absorbed]) {
+        const r = await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: text }), ctx(), deps())
+        expect({ text, context: context(r.stdout) }).toEqual({ text, context: expect.not.stringContaining('the user asked you to stop') })
+        expect(context(r.stdout)).not.toContain('Buracle routing for this prompt')
+      }
+      expect(loadLedger('claude', SID).turn).toBe(0)
+      expect(readConsent(SID).grants).toEqual([])
+    })
+  })
+
   test('the first prompt of a session that does not run in bypassPermissions gets one warning for the user', async () => {
     await withSandbox(async () => {
       const first = await claudeHook('UserPromptSubmit', prompt('hello there', { permission_mode: 'auto' }), ctx(), deps())

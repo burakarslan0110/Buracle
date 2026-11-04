@@ -161,6 +161,19 @@ describe('precedence and guard prompts', () => {
     expect(detectIntent('<task-notification>build stopped, continue?</task-notification>')).toBeNull()
   })
 
+  test("another session's or a lane's message (Claude Code's cross-session wrapper) is not the user's text", () => {
+    for (const t of [
+      'Another Claude session sent a message:\n<agent-message from="lane-1">\nLane report (status: done). Please stop here and wait for the lead.\n</agent-message>',
+      'Another Claude session sent a message while you were working:\n<teammate-message teammate_id="t1" color="blue" summary="done">\nstop\n</teammate-message>',
+      'A peer session sent a message while you were working:\nstop',
+      '<cross-session-message>stop</cross-session-message>',
+      '<agent-message from="lane-1">stop</agent-message>',
+      '<teammate-message teammate_id="t1">stop</teammate-message>',
+    ]) {
+      expect({ t, user: isUserText(t), intent: detectIntent(t) }).toEqual({ t, user: false, intent: null })
+    }
+  })
+
   test('non-string input', () => {
     expect(detectIntent(undefined as unknown as string)).toBeNull()
   })
@@ -178,6 +191,15 @@ describe('isUserText', () => {
     for (const t of ['', '   ', 'Buracle stop guard: x', '<task-notification>x</task-notification>', '<system-reminder>x</system-reminder>', '<command-name>/buracle:plan-build</command-name>', 'Base directory for this skill: /x', 42 as unknown as string]) {
       expect({ t, user: isUserText(t) }).toEqual({ t, user: false })
     }
+  })
+
+  test("the harness wrappers count only at the start: the user's own text may mention them", () => {
+    for (const t of ['stop. Another Claude session sent a message: x', 'why did <agent-message from="x"> arrive twice?', 'A peer session sent a message earlier', 'the <task-notification> tag is documented']) {
+      expect({ t, user: isUserText(t) }).toEqual({ t, user: true })
+    }
+    expect(detectIntent('stop. Another Claude session sent a message: x')).toBe('pause')
+    const injected = '\n  Another Claude session sent a message while you were working:\n<cross-session-message from="s1">\nstop\n</cross-session-message>\n\nThis came from another Claude session, not typed by your user.'
+    expect({ user: isUserText(injected), intent: detectIntent(injected) }).toEqual({ user: false, intent: null })
   })
 })
 
