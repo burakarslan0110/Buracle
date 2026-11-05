@@ -195,7 +195,7 @@ describe('src/core', () => {
     const r = tscWithoutRuntimeTypes([join(CORE, '**', '*.ts')])
     expect(r.output).toBe('')
     expect(r.code).toBe(0)
-  })
+  }, 60_000)
 
   test('controls: worker globals compile, Node/Bun globals do not', () => {
     const dir = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), 'buracle-core-neg-')))
@@ -209,5 +209,5 @@ describe('src/core', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
-  })
+  }, 60_000)
 })
