@@ -7501,7 +7501,7 @@ function windowsArgv(argv, env) {
 }
 function killTreeWindows(pid) {
   try {
-    Bun.spawnSync(["taskkill", "/pid", String(pid), "/T", "/F"], { stdin: "ignore", stdout: "ignore", stderr: "ignore", timeout: 5000, env: { ...process.env } });
+    Bun.spawnSync(["taskkill", "/pid", String(pid), "/T", "/F"], { stdin: "ignore", stdout: "ignore", stderr: "ignore", timeout: 5000, env: { ...process.env }, windowsHide: true });
   } catch {}
 }
 async function run(argv, opts = {}) {
@@ -7526,6 +7526,7 @@ async function run(argv, opts = {}) {
     proc = Bun.spawn(spawned, {
       cwd: opts.cwd,
       env,
+      windowsHide: true,
       windowsVerbatimArguments: viaCmd,
       stdin: opts.stdin === undefined ? "ignore" : typeof opts.stdin === "string" ? new TextEncoder().encode(opts.stdin) : opts.stdin,
       stdout: "pipe",
@@ -7799,7 +7800,7 @@ function readMarker(dir) {
 }
 function git2(dir, args) {
   try {
-    const r = Bun.spawnSync(["git", "-C", dir, ...args], { stdout: "pipe", stderr: "ignore", env: { ...process.env, GIT_OPTIONAL_LOCKS: "0", LC_ALL: "C", GIT_TERMINAL_PROMPT: "0" } });
+    const r = Bun.spawnSync(["git", "-C", dir, ...args], { stdout: "pipe", stderr: "ignore", env: { ...process.env, GIT_OPTIONAL_LOCKS: "0", LC_ALL: "C", GIT_TERMINAL_PROMPT: "0" }, windowsHide: true });
     return r.exitCode === 0 ? r.stdout.toString().trim() : undefined;
   } catch {
     return;
@@ -34221,7 +34222,7 @@ function spawnUsageRefresh(h, opts = {}) {
     } catch {}
     const argv = opts.argv ?? defaultRefreshArgv(h);
     const [cmd, ...args] = argv;
-    const child = spawn(cmd, args, { detached: true, stdio: "ignore", env: process.env });
+    const child = spawn(cmd, args, { detached: true, stdio: "ignore", env: process.env, windowsHide: true });
     child.on("error", (e) => log("warn", "usage refresh spawn failed", { h, error: e }));
     child.unref();
     return true;
@@ -35535,7 +35536,7 @@ function assetsContextFacts(rootIn) {
 var ASSETS_SPAWN_THROTTLE_MS = 30000;
 var spawnDetached = (argv, cwd) => {
   const spawned = spawnArgv(argv);
-  const child = Bun.spawn(spawned, { stdin: "ignore", stdout: "ignore", stderr: "ignore", detached: true, cwd, env: { ...process.env }, windowsVerbatimArguments: windowsVerbatim(spawned) });
+  const child = Bun.spawn(spawned, { stdin: "ignore", stdout: "ignore", stderr: "ignore", detached: true, cwd, env: { ...process.env }, windowsHide: true, windowsVerbatimArguments: windowsVerbatim(spawned) });
   child.unref();
 };
 function assetsRoot(root) {
@@ -35599,7 +35600,7 @@ function assetsContext(rootIn, harness) {
 var CONTEXT_KEY = Symbol.for("buracle.project-assets.context");
 function ignoredRules(root) {
   try {
-    const r = Bun.spawnSync(["git", "ls-files", "--others", "--ignored", "--exclude-standard", "-z", "--", ".claude/rules"], { cwd: root, stdin: "ignore", stdout: "pipe", stderr: "ignore", env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" } });
+    const r = Bun.spawnSync(["git", "ls-files", "--others", "--ignored", "--exclude-standard", "-z", "--", ".claude/rules"], { cwd: root, stdin: "ignore", stdout: "pipe", stderr: "ignore", env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" }, windowsHide: true });
     if (r.exitCode !== 0)
       return new Set;
     return new Set(r.stdout.toString().split("\x00").map((s) => s.trim()).filter((s) => s !== ""));
@@ -35718,7 +35719,7 @@ function spawnNotify(cli, title, message) {
   if (cli === undefined || cli.length === 0)
     return false;
   try {
-    const child = Bun.spawn([...cli, "notify", "info", title, message], { stdin: "ignore", stdout: "ignore", stderr: "ignore", detached: true, env: { ...process.env } });
+    const child = Bun.spawn([...cli, "notify", "info", title, message], { stdin: "ignore", stdout: "ignore", stderr: "ignore", detached: true, env: { ...process.env }, windowsHide: true });
     child.unref();
     return true;
   } catch (e) {
@@ -36255,6 +36256,7 @@ function spawnCli(args, env = {}) {
     const proc = Bun.spawn([...cliArgv(), ...args], {
       cwd: checkout !== undefined ? checkout : existsSync12(home()) ? home() : "/",
       env: { ...process.env, ...env },
+      windowsHide: true,
       stdio: ["ignore", "ignore", "ignore"],
       detached: true
     });
@@ -36527,7 +36529,7 @@ function buracleCli(shim, repoRoot) {
 }
 function spawnDetached2(argv, env = {}) {
   try {
-    const p = Bun.spawn(argv, { stdin: "ignore", stdout: "ignore", stderr: "ignore", env: { ...process.env, ...env }, detached: true });
+    const p = Bun.spawn(argv, { stdin: "ignore", stdout: "ignore", stderr: "ignore", env: { ...process.env, ...env }, windowsHide: true, detached: true });
     p.unref();
     return true;
   } catch (e) {
@@ -37776,7 +37778,7 @@ function workflowOfExpanded(prompt) {
 
 // src/adapters/omp/runtime/generated-data.ts
 var GENERATED = {
-  buracleVersion: "0.7.0",
+  buracleVersion: "0.7.1",
   commands: [
     "ab-test",
     "bugfix",

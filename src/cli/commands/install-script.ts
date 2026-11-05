@@ -1,6 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { isHarness } from '../../core/events'
+import { sanitizeText } from '../../core/status/format'
 import * as paths from '../../engine/paths'
 import { isWindows } from '../../engine/platform'
 import { cortexdbBinary } from '../../engine/toolchain/cortexdb'
@@ -74,6 +75,26 @@ export function withoutInstallHint(text: string): string {
     .replace(/[,;]?\s*(?:then\s+)?run `buracle install[^`]*`(?:\s+(?:again|in a terminal))?/g, '')
     .replace(/\s*\(`buracle install[^)]*\)/g, '')
     .trim()
+}
+
+// Doctor's errors give their advice in many phrasings; each starts at one of these.
+const INSTALL_ADVICE = /`?buracle install\b|install Buracle again|main\.ts install\b/i
+// Where a clause starts: the advice is cut from the nearest one before it.
+const CLAUSE = /; |\. | \(| until |, then /g
+
+/**
+ * One doctor detail as one terminal line: its first line, without colours and control characters (a server's raw
+ * stderr ends up in some details, as `buracle doctor` knows too), and without the clause that tells the reader to run
+ * the install that just ran.
+ */
+function doctorLine(detail: string): string {
+  const first = sanitizeText(stripAnsi(detail.split('\n').map(l => l.trim()).find(l => l !== '') ?? '')).trim()
+  const at = first.search(INSTALL_ADVICE)
+  if (at < 0) return first
+  let cut = 0
+  for (const m of first.slice(0, at).matchAll(CLAUSE)) cut = m.index
+  const kept = first.slice(0, cut).replace(/[\s,;:.]+$/, '')
+  return kept !== '' ? kept : 'details in the log'
 }
 
 type Declined = 'busy' | 'links' | 'ledger' | 'removed'
@@ -179,7 +200,8 @@ export function scriptSession(io: CommandIO, opts: ScriptOptions): ScriptSession
     let checks: DoctorCheck[] = []
     try { checks = await scriptDeps.doctor() } catch (e) { log(`FAIL buracle doctor: ${e instanceof Error ? e.message : String(e)}`) }
     log(`-- buracle doctor\n${table([['SECTION', 'CHECK', 'STATUS', 'DETAIL'], ...checks.map(c => [c.section, c.check, c.level, c.detail.replace(/\s*\n\s*/g, ' / ')])])}`)
-    const errors = checks.filter(c => c.level === 'error').length
+    const failed = checks.filter(c => c.level === 'error')
+    const errors = failed.length
     let path: string | undefined
     if (opts.pathNote !== undefined && opts.pathNote !== '') path = opts.pathNote
     else {
@@ -187,7 +209,7 @@ export function scriptSession(io: CommandIO, opts: ScriptOptions): ScriptSession
       if (p.changed && p.file !== undefined) path = `added in ${tilde(p.file)}`
       else if (p.skipped === 'unsafe' || p.skipped === 'error') log(`warn PATH: ${p.reason ?? 'not added'}`)
     }
-    sections.push(resultSection(r, { declined, interactive: opts.interactive, errors, path, secs: Math.max(0, Math.round((scriptDeps.now() - opts.startedMs) / 1000)), log: opts.log, ...(columns !== undefined ? { columns } : {}) }))
+    sections.push(resultSection(r, { declined, interactive: opts.interactive, failed, path, secs: Math.max(0, Math.round((scriptDeps.now() - opts.startedMs) / 1000)), log: opts.log, ...(columns !== undefined ? { columns } : {}) }))
     printer.stop()
     for (const s of sections) printer.done(s)
     log(`exit ${r.code}${errors > 0 ? ` (doctor: ${errors} errors)` : ''}`)
@@ -210,6 +232,7 @@ function harnessSection(r: InstallFlowResult, interactive: boolean, declined: Re
   for (const h of r.busyHarnesses ?? []) {
     items.push({ status: 'warn', name: h, detail: interactive && declined.has('busy') ? 'skipped · still running (you said no)' : 'skipped · running' })
   }
+  for (const o of r.tooOldHarnesses ?? []) items.push({ status: 'warn', name: o.harness, detail: `skipped · ${o.version} is older than ${o.min}, the oldest supported` })
   const failed = new Set<string>()
   for (const t of r.txns) if (t.error !== undefined && isHarness(t.plan)) failed.add(t.plan)
   for (const e of r.errors) if (isHarness(e.source)) failed.add(e.source)
@@ -254,15 +277,20 @@ function memorySection(brain: { ok: boolean, detail: string }, ui: UiStartOutcom
   return { name: 'Memory', status: worst(items, brain.ok ? 'ok' : 'warn'), detail: `${brain.detail} · ${uiText}`, items }
 }
 
-function resultSection(r: InstallFlowResult, o: { declined: ReadonlySet<Declined>, interactive: boolean, errors: number, path?: string, secs: number, log: string, columns?: number }): SectionResult {
+function resultSection(r: InstallFlowResult, o: { declined: ReadonlySet<Declined>, interactive: boolean, failed: readonly DoctorCheck[], path?: string, secs: number, log: string, columns?: number }): SectionResult {
   const items: SectionItem[] = []
-  const doctor = o.errors > 0 ? ` · doctor: ${o.errors} ${o.errors === 1 ? 'error' : 'errors'}` : ''
+  const errors = o.failed.length
+  const doctor = errors > 0 ? ` · doctor: ${errors} ${errors === 1 ? 'error' : 'errors'}` : ''
   const done = `done in ${o.secs} s${doctor}`
   // A terminal cuts a line to its width (sections.ts), but the log path must stay whole: when the Result line would not
   // fit, the path gets a line of its own.
   const inline = `${done} · log ${tilde(o.log)}`
   const fits = o.columns === undefined || [...`${'Result'.padEnd(NAME_WIDTH)}${inline}`].length <= o.columns - 3
   if (!fits) items.push({ status: 'info', name: 'log', detail: tilde(o.log) })
+  // Each check the health report failed, by section, name and the first line of its detail: a bare count sent the
+  // reader to the log to learn what broke, and one name can stand in two sections (codegraph is a tool and an MCP
+  // server). The full detail and the warnings stay in the log.
+  const failedItems: SectionItem[] = o.failed.map(c => ({ status: 'fail', name: c.check, detail: `${c.section} · ${doctorLine(tildeText(c.detail))}` }))
   if (o.path !== undefined) items.push({ status: 'info', name: 'PATH', detail: `${tilde(paths.localBinDir())} ${o.path} · open a new terminal` })
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
   // Without a terminal nobody answered the install's questions: each case it would have asked is listed with its command.
@@ -276,9 +304,14 @@ function resultSection(r: InstallFlowResult, o: { declined: ReadonlySet<Declined
     if (o.declined.has('links')) items.push({ status: 'warn', name: 'links', detail: `${plural(r.outsideLinks ?? 0, 'link', 'links')} out of your home folder left alone (you said no)` })
     if (o.declined.has('ledger')) items.push({ status: 'warn', name: 'ledger', detail: 'values equal to Buracle\'s stay yours (you said no)' })
   }
+  // A harness too old for Buracle needs its own update first, terminal or not.
+  for (const o of r.tooOldHarnesses ?? []) items.push({ status: 'warn', name: o.harness, detail: `later: ${o.update}, then buracle install ${o.harness}` })
   for (const e of r.errors) if (!isHarness(e.source)) items.push({ status: 'fail', name: e.source, detail: withoutInstallHint(tildeText(e.error)) })
   // The one next step the user has to take by hand: Codex runs only the hooks it trusts.
   for (const s of r.steps) if (s.startsWith('Codex: open Codex and trust')) items.push({ status: 'info', name: 'codex', detail: 'open Codex and trust the Buracle hooks once with /hooks' })
-  const base: SectionStatus = r.code === 1 ? 'fail' : o.errors > 0 ? 'warn' : 'ok'
-  return { name: 'Result', status: worst(items, base), detail: fits ? inline : done, items }
+  const base: SectionStatus = r.code === 1 ? 'fail' : errors > 0 ? 'warn' : 'ok'
+  // The install itself finished: failed health checks keep Result a warning, as the count did before.
+  const status = worst(items, base)
+  const at = fits ? 0 : 1
+  return { name: 'Result', status, detail: fits ? inline : done, items: [...items.slice(0, at), ...failedItems, ...items.slice(at)] }
 }

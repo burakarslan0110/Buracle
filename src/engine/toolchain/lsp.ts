@@ -134,7 +134,7 @@ export async function probeLsp(argv: readonly string[], opts: { rootDir: string,
   let proc: ReturnType<typeof Bun.spawn<'pipe', 'pipe', 'pipe'>>
   try {
     const spawned = spawnArgv(argv)
-    proc = Bun.spawn(spawned, { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', cwd: opts.rootDir, env: { ...process.env }, windowsVerbatimArguments: windowsVerbatim(spawned) })
+    proc = Bun.spawn(spawned, { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', cwd: opts.rootDir, env: { ...process.env }, windowsHide: true, windowsVerbatimArguments: windowsVerbatim(spawned) })
   } catch (e) {
     return down(`cannot start ${argv[0] ?? '?'}: ${e instanceof Error ? e.message : String(e)}`)
   }

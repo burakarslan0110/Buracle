@@ -113,6 +113,7 @@ export async function memDoctor(opts: { cwd: string, mcp?: boolean, leak?: boole
     : `${backups.length} in ${brainBackupsDir()}, the newest ${newest.id} (${newest.trigger}); \`buracle mem backup --list\` shows them, \`buracle mem restore <id>\` puts one back`)
   const excludeProblem = memoryExcludeConfig().problem
   if (excludeProblem !== undefined) add('warn', 'memory.exclude', memoryExcludeProblemText(excludeProblem))
+  let answered = false
   if (bin.status === 'ok') {
     const rec = await resolveProject(opts.cwd).catch(() => undefined)
     try {
@@ -127,6 +128,8 @@ export async function memDoctor(opts: { cwd: string, mcp?: boolean, leak?: boole
         add('info', 'project memory', excluded !== undefined ? `${opts.cwd} is ${excluded}` : `${opts.cwd} is not a project`)
       }
       for (const c of captureChecks(Date.now())) checks.push(c)
+      // Only a brain whose every read above went through counts as answering.
+      answered = true
     } catch (e) {
       add('error', 'brain', `CortexDB did not answer: ${(e as Error).message}`)
     }
@@ -138,7 +141,10 @@ export async function memDoctor(opts: { cwd: string, mcp?: boolean, leak?: boole
   checks.push(...migrationChecks())
   if (bin.status === 'ok' && existsSync(db)) {
     const t = await brainSelfTest(db)
-    if (t.status === 'failed') add('error', 'brain file', `CortexDB's self-test failed on ${db}: ${t.detail}; restore a backup (buracle mem backup --list)`)
+    // The self-test passed and the brain answered just now: the file is readable, and a restore would drop every memory
+    // newer than the backup, so only a failed self-test names it.
+    if (t.status === 'failed' && t.selfTestPassed === true && answered) add('warn', 'brain file', `CortexDB's check of ${db} reported a problem although its self-test passed and the memory answers: ${t.detail}. Close every harness and run \`buracle mem doctor\` again; when it stays, report it with that output`)
+    else if (t.status === 'failed') add('error', 'brain file', `CortexDB's check of ${db} failed: ${t.detail}; restore a backup (buracle mem backup --list)`)
     else if (t.status === 'passed') add('ok', 'brain file', `CortexDB's self-test passed (${t.detail})`)
   }
   if (opts.mcp !== false) {

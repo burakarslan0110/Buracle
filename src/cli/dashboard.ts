@@ -498,7 +498,7 @@ export function dashboardFits(o: { stdinTTY: boolean, stdoutTTY: boolean, json: 
 
 function spawnChild(argv: readonly string[], env: Record<string, string | undefined>): ChildHandle {
   const spawned = spawnArgv([...argv])
-  const p = Bun.spawn(spawned, { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit', env: { ...env }, windowsVerbatimArguments: windowsVerbatim(spawned) })
+  const p = Bun.spawn(spawned, { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit', env: { ...env }, windowsHide: true, windowsVerbatimArguments: windowsVerbatim(spawned) })
   const SIGNALS: Readonly<Record<string, number>> = { SIGHUP: 1, SIGINT: 2, SIGTERM: 15 }
   return {
     exited: p.exited.then(code => (p.signalCode ? 128 + (SIGNALS[p.signalCode] ?? 15) : code)),

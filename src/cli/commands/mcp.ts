@@ -80,7 +80,7 @@ async function backgroundInstall(id: string): Promise<void> {
   const main = join(import.meta.dir, '..', 'main.ts')
   try {
     const child = Bun.spawn(backgroundInstallArgv(main, id), {
-      stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, cwd: paths.home(), env: { ...process.env, BURACLE_TOOLCHAIN_BACKGROUND: '1' },
+      stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, cwd: paths.home(), env: { ...process.env, BURACLE_TOOLCHAIN_BACKGROUND: '1' }, windowsHide: true,
     })
     child.unref()
   } catch {  }
@@ -178,7 +178,7 @@ async function spawnServer(id: string, argv: readonly string[], env: Record<stri
   let child: ReturnType<typeof Bun.spawn>
   try {
     const spawned = spawnArgv(argv)
-    child = Bun.spawn(spawned, { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit', env, windowsVerbatimArguments: windowsVerbatim(spawned) })
+    child = Bun.spawn(spawned, { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit', env, windowsHide: true, windowsVerbatimArguments: windowsVerbatim(spawned) })
   } catch (e) {
     const error = `cannot start ${argv[0] ?? id}: ${errText(e)}`
     io.stderr.write(`buracle mcp run: ${error}\n`)

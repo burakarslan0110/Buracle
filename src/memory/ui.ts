@@ -413,7 +413,7 @@ export async function ensureUi(argv: string[] | undefined, opts: { port?: number
   if (live !== undefined && (argv === undefined || sameUiBuild(live.health.build, uiBuildId()))) return { url: live.url, started: false }
   if (argv === undefined) return undefined
   const spawned = spawnArgv([...argv, 'mem', 'ui', '--serve', ...(opts.port !== undefined ? ['--port', String(opts.port)] : [])])
-  const child = Bun.spawn(spawned, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, cwd: paths.home(), env: { ...process.env }, windowsVerbatimArguments: windowsVerbatim(spawned) })
+  const child = Bun.spawn(spawned, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, cwd: paths.home(), env: { ...process.env }, windowsHide: true, windowsVerbatimArguments: windowsVerbatim(spawned) })
   child.unref()
   const deadline = Date.now() + (opts.waitMs ?? 8_000)
   while (Date.now() < deadline) {
@@ -446,7 +446,9 @@ export function openInBrowser(url: string): boolean {
     const argv = browserArgv(url)
     if (argv === undefined) return false
     const spawned = spawnArgv(argv)
-    const p = Bun.spawn(spawned, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, env: { ...process.env }, windowsVerbatimArguments: windowsVerbatim(spawned) })
+    // The browser must show: rundll32 is a GUI program (no console window to hide) and hands the show state it was
+    // started with to ShellExecute, so windowsHide: true would open the browser hidden.
+    const p = Bun.spawn(spawned, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, env: { ...process.env }, windowsHide: false, windowsVerbatimArguments: windowsVerbatim(spawned) })
     p.unref()
     return true
   } catch { return false }

@@ -50,7 +50,8 @@ export async function checkCortexdbBinary(bin: string, timeoutMs = 30_000): Prom
   }
 }
 
-export interface SelfTest { status: 'passed' | 'failed' | 'unavailable', detail: string }
+/** `selfTestPassed`: the self-test itself passed; a `failed` status then comes from the binary's check of the file alone. */
+export interface SelfTest { status: 'passed' | 'failed' | 'unavailable', detail: string, selfTestPassed?: boolean }
 
 /**
  * The binary's own `--doctor --self-test` against the brain file: one JSON line (status, self_test, error), exit 0 or 1.
@@ -67,7 +68,7 @@ export async function brainSelfTest(db: string, timeoutMs = 10_000): Promise<Sel
   if (r.timedOut || j === undefined || typeof j !== 'object' || j === null) return { status: 'unavailable', detail: r.timedOut ? `no answer within ${timeoutMs / 1000} s` : 'this CortexDB prints no self-test' }
   const status = typeof j.status === 'string' ? j.status : 'unknown'
   const err = typeof j.error === 'string' && j.error !== '' ? `: ${j.error}` : ''
-  if (r.code !== 0 || status === 'failed' || j.self_test === 'failed') return { status: 'failed', detail: `status ${status}, self-test ${String(j.self_test ?? 'not run')}${err}` }
+  if (r.code !== 0 || status === 'failed' || j.self_test === 'failed') return { status: 'failed', detail: `status ${status}, self-test ${String(j.self_test ?? 'not run')}${err}`, selfTestPassed: j.self_test === 'passed' }
   return { status: 'passed', detail: `status ${status}, self-test ${String(j.self_test ?? 'not run')}` }
 }
 

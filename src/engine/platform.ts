@@ -37,7 +37,7 @@ const posixAbsolute = (p: string | undefined): p is string => p !== undefined &&
 
 function lookupOutput(argv: string[]): string | undefined {
   try {
-    const r = Bun.spawnSync(argv, { stdin: 'ignore', stdout: 'pipe', stderr: 'ignore', timeout: ACCOUNT_LOOKUP_MS, killSignal: 'SIGKILL', maxBuffer: 64 * 1024, env: { ...process.env } })
+    const r = Bun.spawnSync(argv, { stdin: 'ignore', stdout: 'pipe', stderr: 'ignore', timeout: ACCOUNT_LOOKUP_MS, killSignal: 'SIGKILL', maxBuffer: 64 * 1024, env: { ...process.env }, windowsHide: true })
     return r.exitCode === 0 && r.exitedDueToTimeout !== true ? r.stdout.toString() : undefined
   } catch {
     return undefined

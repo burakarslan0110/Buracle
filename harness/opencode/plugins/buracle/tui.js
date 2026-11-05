@@ -127,7 +127,7 @@ function windowsArgv(argv, env) {
 }
 function killTreeWindows(pid) {
   try {
-    Bun.spawnSync(["taskkill", "/pid", String(pid), "/T", "/F"], { stdin: "ignore", stdout: "ignore", stderr: "ignore", timeout: 5000, env: { ...process.env } });
+    Bun.spawnSync(["taskkill", "/pid", String(pid), "/T", "/F"], { stdin: "ignore", stdout: "ignore", stderr: "ignore", timeout: 5000, env: { ...process.env }, windowsHide: true });
   } catch {}
 }
 async function run(argv, opts = {}) {
@@ -152,6 +152,7 @@ async function run(argv, opts = {}) {
     proc = Bun.spawn(spawned, {
       cwd: opts.cwd,
       env,
+      windowsHide: true,
       windowsVerbatimArguments: viaCmd,
       stdin: opts.stdin === undefined ? "ignore" : typeof opts.stdin === "string" ? new TextEncoder().encode(opts.stdin) : opts.stdin,
       stdout: "pipe",
@@ -7692,7 +7693,7 @@ function readMarker(dir) {
 }
 function git2(dir, args) {
   try {
-    const r = Bun.spawnSync(["git", "-C", dir, ...args], { stdout: "pipe", stderr: "ignore", env: { ...process.env, GIT_OPTIONAL_LOCKS: "0", LC_ALL: "C", GIT_TERMINAL_PROMPT: "0" } });
+    const r = Bun.spawnSync(["git", "-C", dir, ...args], { stdout: "pipe", stderr: "ignore", env: { ...process.env, GIT_OPTIONAL_LOCKS: "0", LC_ALL: "C", GIT_TERMINAL_PROMPT: "0" }, windowsHide: true });
     return r.exitCode === 0 ? r.stdout.toString().trim() : undefined;
   } catch {
     return;
@@ -13329,7 +13330,7 @@ function spawnUsageRefresh(h, opts = {}) {
     } catch {}
     const argv = opts.argv ?? defaultRefreshArgv(h);
     const [cmd, ...args] = argv;
-    const child = spawn(cmd, args, { detached: true, stdio: "ignore", env: process.env });
+    const child = spawn(cmd, args, { detached: true, stdio: "ignore", env: process.env, windowsHide: true });
     child.on("error", (e) => log("warn", "usage refresh spawn failed", { h, error: e }));
     child.unref();
     return true;

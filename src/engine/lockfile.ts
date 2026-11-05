@@ -19,7 +19,7 @@ function parseEtime(s: string): number | undefined {
 
 function runForText(argv: string[]): string | undefined {
   try {
-    const r = Bun.spawnSync(argv, { stdin: 'ignore', stdout: 'pipe', stderr: 'ignore', timeout: PROCESS_LOOKUP_MS, env: { ...process.env } })
+    const r = Bun.spawnSync(argv, { stdin: 'ignore', stdout: 'pipe', stderr: 'ignore', timeout: PROCESS_LOOKUP_MS, env: { ...process.env }, windowsHide: true })
     return r.exitCode === 0 ? r.stdout.toString() : undefined
   } catch {
     return undefined

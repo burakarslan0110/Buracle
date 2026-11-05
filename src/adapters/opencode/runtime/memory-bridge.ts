@@ -53,7 +53,7 @@ export function spawnShimFinalizer(sid: string): boolean {
   if (argv === undefined) return false
   try {
     const proc = Bun.spawn(argv, {
-      env: { ...process.env, BURACLE_FINALIZER: '1' },
+      env: { ...process.env, BURACLE_FINALIZER: '1' }, windowsHide: true,
       windowsVerbatimArguments: windowsVerbatim(argv),
       stdio: ['ignore', 'ignore', 'ignore'],
       detached: true,
@@ -74,7 +74,7 @@ async function runCliJson(args: string[], opts: { cwd: string, stdin?: string, t
   try {
     const proc = Bun.spawn([...cli(), ...args], {
       cwd: existsSync(opts.cwd) ? opts.cwd : paths.home(),
-      env: { ...process.env },
+      env: { ...process.env }, windowsHide: true,
       stdin: opts.stdin !== undefined ? new TextEncoder().encode(opts.stdin) : 'ignore',
       stdout: 'pipe',
       stderr: 'ignore',

@@ -45,7 +45,7 @@ async function pump(stream: ReadableStream<Uint8Array> | number | undefined | nu
 export async function runCommand(shell: string, command: string, io: CommandIO): Promise<number> {
   const inherit = io.stdout.fd === 1 && io.stderr.fd === 2
   const child = Bun.spawn([shell, '-lc', command], {
-    cwd: process.cwd(), env: { ...process.env }, stdin: inherit ? 'inherit' : 'ignore', stdout: inherit ? 'inherit' : 'pipe', stderr: inherit ? 'inherit' : 'pipe',
+    cwd: process.cwd(), env: { ...process.env }, windowsHide: true, stdin: inherit ? 'inherit' : 'ignore', stdout: inherit ? 'inherit' : 'pipe', stderr: inherit ? 'inherit' : 'pipe',
   })
   await Promise.all([pump(child.stdout as ReadableStream<Uint8Array> | undefined, io.stdout), pump(child.stderr as ReadableStream<Uint8Array> | undefined, io.stderr)])
   const code = await child.exited

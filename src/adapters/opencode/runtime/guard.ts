@@ -98,7 +98,7 @@ export function shimNotify(title: string, message: string): void {
   const argv = shimArgv(['notify', 'info', title, message])
   if (argv === undefined) return
   try {
-    const proc = Bun.spawn(argv, { stdio: ['ignore', 'ignore', 'ignore'], env: process.env, detached: true, windowsVerbatimArguments: windowsVerbatim(argv) })
+    const proc = Bun.spawn(argv, { stdio: ['ignore', 'ignore', 'ignore'], env: process.env, windowsHide: true, detached: true, windowsVerbatimArguments: windowsVerbatim(argv) })
     proc.unref()
   } catch (e) {
     log('warn', 'opencode: notify spawn failed', { error: e instanceof Error ? e.message : String(e) })

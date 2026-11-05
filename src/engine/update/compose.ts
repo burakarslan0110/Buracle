@@ -38,7 +38,11 @@ export interface ComposeResult {
   errors: Array<{ source: string, error: string }>
   warnings: string[]
   busy: Array<{ harness: Harness, message: string }>
+  /** Harnesses older than the oldest version Buracle supports: left as they are (the adapter's HARNESS_TOO_OLD). */
+  tooOld: TooOldHarness[]
 }
+
+export interface TooOldHarness { harness: Harness, version: string, min: string, update: string, message: string }
 
 export interface ComposeOptions {
   repoRoot: string
@@ -55,6 +59,13 @@ function isPlanLike(x: unknown): x is Plan {
 export function isHarnessBusy(e: unknown): boolean {
   const x = e as { code?: unknown, name?: unknown } | null
   return x !== null && typeof x === 'object' && (x.code === 'HARNESS_BUSY' || x.name === 'HarnessBusyError')
+}
+
+function harnessTooOld(e: unknown): Pick<TooOldHarness, 'version' | 'min' | 'update'> | undefined {
+  const x = e as { code?: unknown, version?: unknown, min?: unknown, update?: unknown } | null
+  if (x === null || typeof x !== 'object' || x.code !== 'HARNESS_TOO_OLD') return undefined
+  if (typeof x.version !== 'string' || typeof x.min !== 'string' || typeof x.update !== 'string') return undefined
+  return { version: x.version, min: x.min, update: x.update }
 }
 
 export async function renderPathRules(canonical: Pick<CanonicalBundle, 'rules' | 'skills' | 'agents'>): Promise<PathRuleFile[]> {
@@ -85,7 +96,7 @@ export async function detectHarnesses(adapters: readonly Adapter[], live: LiveCo
 }
 
 export async function composeInstall(opts: ComposeOptions): Promise<ComposeResult> {
-  const res: ComposeResult = { plans: [], harnesses: [], errors: [], warnings: [], busy: [] }
+  const res: ComposeResult = { plans: [], harnesses: [], errors: [], warnings: [], busy: [], tooOld: [] }
   const { record, warning } = readInstallRecord()
   if (warning) res.warnings.push(warning)
   const ledger = await readLedger()
@@ -118,10 +129,15 @@ export async function composeInstall(opts: ComposeOptions): Promise<ComposeResul
         if (Array.isArray(plan.cleanupKeys) && plan.cleanupKeys.length > 0) composed.cleanupKeys = [...plan.cleanupKeys]
         raw.push({ key: h, plan: composed })
       } catch (e) {
+        const old = harnessTooOld(e)
         if (isHarnessBusy(e)) {
           res.busy.push({ harness: h, message: errText(e) })
           const st = res.harnesses.find(x => x.harness === h)
           if (st) { st.included = false; st.reason = 'running; not changed' }
+        } else if (old !== undefined) {
+          res.tooOld.push({ harness: h, ...old, message: errText(e) })
+          const st = res.harnesses.find(x => x.harness === h)
+          if (st) { st.included = false; st.reason = `older than ${old.min}; not changed` }
         } else res.errors.push({ source: h, error: errText(e) })
       }
     }
