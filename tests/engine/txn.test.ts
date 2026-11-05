@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
-import { dirname, join, win32 } from 'node:path'
+import { dirname, join } from 'node:path'
 import { applyPlans, diffPlan, ledgerKey, listTxns, markExecsUndone, readJournal, readLedger, rollback, rollbackTxn, TXN_STEPS, type Op, type Plan } from '../../src/engine/txn'
 import { tomlParse } from '../../src/engine/merge'
 import { snapshotTree } from '../helpers/fs-snapshot'
-import { KEEPS_MODES } from '../helpers/fake-exe'
+
 import { withEnv, withSandbox, type Sandbox } from '../helpers/sandbox'
 
 const OWNER = 'test'
@@ -21,7 +21,7 @@ function write(path: string, text: string, mode?: number): void {
 
 // The path a link target names: Windows reports a rooted target ('/x') on the current drive, with backslashes.
 function onDisk(target: string): string {
-  return process.platform === 'win32' ? win32.resolve(target).toLowerCase() : target
+  return target
 }
 
 function read(path: string): string {
@@ -40,7 +40,7 @@ describe('file ops and the merge law', () => {
     expect(r1.conflicts).toEqual([])
     expect(r1.txn).not.toBe('')
     expect(read(p)).toBe('v1\n')
-    if (KEEPS_MODES) expect(statSync(p).mode & 0o777).toBe(0o644)
+    expect(statSync(p).mode & 0o777).toBe(0o644)
     const led = await readLedger()
     expect(led[p]).toMatchObject({ owner: OWNER, path: p, kind: 'file' })
     const j = await readJournal(r1.txn)
@@ -54,7 +54,7 @@ describe('file ops and the merge law', () => {
     const r3 = await applyPlans([plan([{ kind: 'file', path: p, content: 'v2\n', mode: 0o755, owner: OWNER }])])
     expect(r3.applied).toBe(1)
     expect(read(p)).toBe('v2\n')
-    if (KEEPS_MODES) expect(statSync(p).mode & 0o777).toBe(0o755)
+    expect(statSync(p).mode & 0o777).toBe(0o755)
   }))
 
   test('a user-modified file is kept and reported as a conflict', () => withSandbox(async (sb) => {
@@ -469,7 +469,7 @@ describe('dry run and validation', () => {
     expect(d).toContain('+  "env": {')
     expect(d).toContain(`--- /dev/null\n+++ ${join(sb.home, 'new.txt')}\n@@ -0,0 +1,1 @@\n+hello`)
     // On Windows a rooted target names that folder on the current drive, and the preview says which.
-    const shown = process.platform === 'win32' ? win32.resolve('/t').replace(/\\/g, '/') : '/t'
+    const shown = '/t'
     expect(d).toContain(`# symlink ${join(sb.home, 'link')} -> ${shown}`)
     expect(d).toContain('# exec: true')
     expect(d).toContain('# conflict: ')

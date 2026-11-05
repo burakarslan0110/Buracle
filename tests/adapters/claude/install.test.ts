@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { announcementOps, claudeInstallPlan, defaultInstallDeps, effortKeys, effortOps, envOps, LSP_DISABLED_KEY, LSP_NEVER_KEY, lspRecommendationPlan, permissionOps, renderRule, retiredDenyOps, ruleOps, statusLineOp, teamsOps, windowsCliCommand } from '../../../src/adapters/claude/install'
+import { announcementOps, claudeInstallPlan, defaultInstallDeps, effortKeys, effortOps, envOps, LSP_DISABLED_KEY, LSP_NEVER_KEY, lspRecommendationPlan, permissionOps, renderRule, retiredDenyOps, ruleOps, statusLineOp, teamsOps } from '../../../src/adapters/claude/install'
 import { buracleInstalledPlugin, KEPT_EXIT, marketplaceHolds, parseList, pluginInstalled, pluginsFrom } from '../../../src/adapters/claude/check'
 import type { AdapterContext } from '../../../src/adapters/registry'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
@@ -43,17 +43,10 @@ type ExecOp = Extract<Op, { kind: 'exec' }>
 const execs = (ops: Op[]) => ops.filter((o): o is ExecOp => o.kind === 'exec')
 
 describe('install plan as data', () => {
-  test('Windows status lines: one command line that Git Bash and PowerShell both parse (bare program, single-quoted path), bun running the plugin launcher', async () => {
+  test('the status line runs the shim, and only the user-level statusLine key is set', async () => {
     await withSandbox(async () => {
-      const ctx = (repoRoot: string): AdapterContext => ({ ...ctxFor(), repoRoot, buracleBin: 'C:\\Users\\Ann Lee\\.buracle\\bin\\buracle.cmd' })
       const set = (op: Op) => (op as Extract<Op, { kind: 'json-merge' }>).set as Record<string, { type?: string, command: string }>
-      const spaced = set(statusLineOp(ctx('C:\\Users\\Ann Lee\\buracle'), 'C:\\Users\\Ann Lee\\.bun\\bin\\bun.exe', true))
-      expect(spaced['statusLine']).toEqual({ type: 'command', command: "bun 'C:/Users/Ann Lee/buracle/harness/claude/bin/buracle.ts' statusline claude", padding: 0, refreshInterval: 60 } as never)
-      expect(spaced['subagentStatusLine']).toEqual({ type: 'command', command: "bun 'C:/Users/Ann Lee/buracle/harness/claude/bin/buracle.ts' statusline claude --subagent" })
-      const plain = set(statusLineOp(ctx('C:\\Users\\RUNNER~1\\buracle'), 'C:\\Users\\RUNNER~1\\.bun\\bin\\bun.exe', true))
-      expect(plain['statusLine']?.command).toBe('C:/Users/RUNNER~1/.bun/bin/bun.exe C:/Users/RUNNER~1/buracle/harness/claude/bin/buracle.ts statusline claude')
-      expect(windowsCliCommand({ repoRoot: "C:\\it's", buracleBin: 'C:\\h\\.buracle\\bin\\buracle.cmd' }, 'bun', 'statusline claude')).toBe('C:/h/.buracle/bin/buracle.cmd statusline claude')
-      const posix = set(statusLineOp(ctxFor(), '/x/bun', false))
+      const posix = set(statusLineOp(ctxFor()))
       expect(Object.keys(posix)).toEqual(['statusLine'])
       expect(posix['statusLine']?.command).toMatch(/^\S*buracle\S* statusline claude$/)
     })
@@ -91,8 +84,7 @@ describe('install plan as data', () => {
       expect(merges[3]?.soft).toEqual(['env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS'])
       expect(merges[3]?.enforce).toBeUndefined()
       expect(merges.every(m => m.path === join(sb.home, '.claude', 'settings.json'))).toBe(true)
-      if (process.platform !== 'win32') expect(merges[0]?.set).toEqual({ statusLine: { type: 'command', command: `${join(sb.buracleHome, 'bin', 'buracle')} statusline claude`, padding: 0, refreshInterval: 60 } })
-      else expect((merges[0]?.set['statusLine'] as { command: string }).command).toMatch(/^(?:\/x\/bun|bun) '?[^']*\/harness\/claude\/bin\/buracle\.ts'? statusline claude$/)
+      expect(merges[0]?.set).toEqual({ statusLine: { type: 'command', command: `${join(sb.buracleHome, 'bin', 'buracle')} statusline claude`, padding: 0, refreshInterval: 60 } })
       expect(merges[1]?.set).toEqual({ 'permissions.defaultMode': 'bypassPermissions', skipDangerousModePermissionPrompt: true })
       expect(merges[1]?.enforce).toEqual(['permissions.defaultMode', 'skipDangerousModePermissionPrompt'])
       expect(merges[1]?.soft).toBeUndefined()

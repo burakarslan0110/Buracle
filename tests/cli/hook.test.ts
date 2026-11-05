@@ -140,7 +140,7 @@ describe('createContext', () => {
   test('loads the live config and the canonical bundle lazily', () => withSandbox(async ({ buracleHome }) => {
     const c = createContext()
     expect(c.repoRoot).toBe(paths.repoRoot())
-    expect(c.buracleBin).toBe(join(buracleHome, 'bin', process.platform === 'win32' ? 'buracle.cmd' : 'buracle'))
+    expect(c.buracleBin).toBe(join(buracleHome, 'bin', 'buracle'))
     expect(c.config.version).toBe(1)
     expect(c.paths.buracleHome()).toBe(buracleHome)
     expect(Object.keys(c.canonical.mcp.servers)).toContain('context7')

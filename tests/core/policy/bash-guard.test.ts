@@ -696,3 +696,41 @@ describe('checkBash: relative paths after a literal cd', () => {
     }
   })
 })
+
+describe('checkBash in WSL: Windows drives under /mnt/<letter>', () => {
+  const WSL: BashGuardOptions = { extraDeny: [], home: '/home/me', cwd: '/home/me/proj', vault: '/home/me/Documents/Buracle', protect: [] }
+  // The reason after the command as written, which each deny quotes first.
+  const reason = (cmd: string, o: Partial<BashGuardOptions> = {}): string | undefined => checkBash(cmd, { ...WSL, ...o }).deny?.replace(/^`[^`]*` /, '')
+
+  test('a protected Windows place under /mnt/<letter> gets the verdict of its drive spelling', () => {
+    const pairs: Array<[string, string]> = [
+      ['rm -rf /mnt/c/Windows', 'rm -rf C:\\Windows'], ['rm -rf /mnt/c/Windows/System32', 'rm -rf C:\\Windows\\System32'], ['rm -rf /mnt/d', 'rm -rf D:\\'],
+      ['rm -rf /mnt/c/Users/me', 'rm -rf C:\\Users\\me'], ['rm -rf /mnt/c/*', 'rm -rf C:/*'], ['echo k >> /mnt/c/Users/me/.ssh/authorized_keys', 'echo k >> /c/Users/me/.ssh/authorized_keys'],
+    ]
+    for (const [mnt, drive] of pairs) {
+      expect(reason(drive)).toBeDefined()
+      expect({ mnt, reason: reason(mnt) }).toEqual({ mnt, reason: reason(drive) })
+    }
+    expect(reason('echo k >> /mnt/c/Users/me/.ssh/authorized_keys')).toContain('~/.ssh')
+  })
+
+  test('., .., doubled and leading doubled slashes do not hide the drive', () => {
+    const want = reason('rm -rf C:\\Windows')
+    for (const cmd of ['rm -rf /tmp/../mnt/c/Windows', 'rm -rf /mnt/./c/Windows', 'rm -rf /mnt//c/Windows', 'rm -rf /mnt/c/Users/me/../../Windows', 'rm -rf /tmp/../c/Windows', 'rm -rf //mnt/c/Windows', 'rm -rf ///mnt/c/Windows', 'rm -rf //c/Windows', 'rm -rf /c/../Windows']) {
+      expect({ cmd, reason: reason(cmd) }).toEqual({ cmd, reason: want })
+    }
+  })
+
+  test('the PowerShell tool gets the same verdicts for /mnt/<letter> as for the drive', () => {
+    const ps: Partial<BashGuardOptions> = { shell: 'powershell' }
+    expect(reason('Remove-Item -Recurse -Force C:\\Windows', ps)).toBeDefined()
+    expect(reason('Remove-Item -Recurse -Force /mnt/c/Windows', ps)).toBe(reason('Remove-Item -Recurse -Force C:\\Windows', ps))
+  })
+
+  test('the WSL folders under /mnt, other mounts, project folders on a drive and reading a key stay allowed; /mnt itself is still refused', () => {
+    for (const cmd of ['rm -rf /mnt/wsl/x', 'rm -rf /mnt/wslg/x', 'rm -rf /mnt/data/x', 'rm -rf /mnt/c/Users/me/proj/build', 'cat /mnt/c/Users/me/.ssh/id_rsa', 'ls /mnt/c', 'rm -rf //srv/share/x']) {
+      expect({ cmd, reason: reason(cmd) }).toEqual({ cmd, reason: undefined })
+    }
+    expect(reason('rm -rf /mnt')).toBeDefined()
+  })
+})

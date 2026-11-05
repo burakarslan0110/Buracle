@@ -11,7 +11,7 @@ import { opsDeps } from '../../src/engine/update/deps'
 import type { FetchResult } from '../../src/engine/update/fetch'
 import { run as rollbackCommand } from '../../src/cli/commands/rollback'
 import { memoryIO } from '../cli/ops/helpers'
-import { fakeExe, pathOf, unwrapCmd } from '../helpers/fake-exe'
+import { fakeExe, pathOf } from '../helpers/fake-exe'
 import { withEnv, withSandbox } from '../helpers/sandbox'
 
 const DAY = 86_400_000
@@ -56,7 +56,7 @@ async function withFakes<T>(root: string, fake: FakeNpm, fn: () => Promise<T>, o
   const saved = { run: opsDeps.run, fetch: opsDeps.fetch }
   opsDeps.fetch = async url => (url.includes('acme') ? packument() : { ok: false, status: 404, error: 'not found' })
   opsDeps.run = async (spawned, opts) => {
-    const argv = unwrapCmd(spawned)
+    const argv = [...spawned]
     const at = argv.indexOf('--prefix')
     if (argv.includes('install') && at > 0) {
       const prefix = argv[at + 1] as string

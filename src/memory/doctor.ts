@@ -143,8 +143,7 @@ export async function memDoctor(opts: { cwd: string, mcp?: boolean, leak?: boole
     const t = await brainSelfTest(db)
     // The self-test passed and the brain answered just now: the file is readable, and a restore would drop every memory
     // newer than the backup, so only a failed self-test names it.
-    if (t.status === 'failed' && t.selfTestPassed === true && answered && t.openFailed === true) add('info', 'brain file', `CortexDB's own file check could not open ${db} (${t.detail}: CortexDB builds an invalid \`file:\` URI from a Windows path, an upstream bug), so it says nothing about the file; its self-test passed and the memory answers`)
-    else if (t.status === 'failed' && t.selfTestPassed === true && answered) add('warn', 'brain file', `CortexDB's check of ${db} reported a problem although its self-test passed and the memory answers: ${t.detail}. Close every harness and run \`buracle mem doctor\` again; when it stays, report it with that output`)
+    if (t.status === 'failed' && t.selfTestPassed === true && answered) add('warn', 'brain file', `CortexDB's check of ${db} reported a problem although its self-test passed and the memory answers: ${t.detail}. Close every harness and run \`buracle mem doctor\` again; when it stays, report it with that output`)
     else if (t.status === 'failed') add('error', 'brain file', `CortexDB's check of ${db} failed: ${t.detail}; restore a backup (buracle mem backup --list)`)
     else if (t.status === 'passed') add('ok', 'brain file', `CortexDB's self-test passed (${t.detail})`)
   }

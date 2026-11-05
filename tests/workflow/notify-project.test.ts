@@ -36,7 +36,7 @@ describe('notify', () => {
     const lines = readFileSync(notificationsFile(), 'utf8').trim().split('\n')
     expect(lines.length).toBe(NOTIFICATIONS_KEEP)
     expect(JSON.parse(lines[lines.length - 1] as string)).toMatchObject({ title: 'newest' })
-    if (process.platform !== 'win32') expect(statSync(notificationsFile()).mode & 0o777).toBe(0o600)
+    expect(statSync(notificationsFile()).mode & 0o777).toBe(0o600)
     expect((await notify('info', 'one more', 'm', {}, ctxAt(root), undefined)).code).toBe(0)
     expect(readFileSync(notificationsFile(), 'utf8').trim().split('\n').length).toBe(NOTIFICATIONS_KEEP + 1)
   }))
@@ -63,7 +63,7 @@ describe('notify', () => {
     writeFileSync(notificationsFile(), readFileSync(notificationsFile(), 'utf8').split('\n').filter(l => !l.includes('older Buracle')).join('\n'))
     markNotificationsRead([])
     expect(JSON.parse(readFileSync(notificationsReadFile(), 'utf8'))).toEqual({ v: 1, read: [idb, ida] })
-    if (process.platform !== 'win32') expect(statSync(notificationsReadFile()).mode & 0o777).toBe(0o600)
+    expect(statSync(notificationsReadFile()).mode & 0o777).toBe(0o600)
   }))
 
   test('buracle notify list and read: the unread ones, a limit, JSON, and usage errors', () => sandbox(async root => {

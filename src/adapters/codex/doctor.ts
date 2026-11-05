@@ -33,11 +33,10 @@ export function defaultDoctorDeps(): DoctorDeps {
 
 export const PROBE_COMMAND = 'rm -rf ~'
 
-// On Windows the command is the handler's commandWindows, which cmd.exe runs (/s drops the outer pair of quotes).
-export async function guardProbe(command: string, run: NonNullable<DoctorDeps['probe']>, cwd: string, platform: NodeJS.Platform = process.platform): Promise<DoctorItem> {
+export async function guardProbe(command: string, run: NonNullable<DoctorDeps['probe']>, cwd: string): Promise<DoctorItem> {
   const check = 'codex.hooks.probe'
   const payload = JSON.stringify({ session_id: 'buracle-doctor-probe', turn_id: 't0', transcript_path: null, cwd, hook_event_name: 'PreToolUse', model: 'probe', permission_mode: 'bypassPermissions', tool_name: 'Bash', tool_use_id: 'probe', tool_input: { command: PROBE_COMMAND } })
-  const argv = platform === 'win32' ? ['cmd.exe', '/d', '/s', '/c', `"${command}"`] : ['/bin/sh', '-c', command]
+  const argv = ['/bin/sh', '-c', command]
   const r = await run(argv, { stdin: payload, cwd, timeoutMs: 30_000, env: { BURACLE_NO_CAPTURE: '1', BURACLE_NO_MEMORY: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_NO_NOTIFY: '1' } })
   let decision: unknown
   try { decision = rec(rec(JSON.parse(r.stdout) as unknown)['hookSpecificOutput'])['permissionDecision'] } catch { decision = undefined }

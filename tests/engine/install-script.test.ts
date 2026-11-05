@@ -12,7 +12,7 @@ import { withSandbox } from '../helpers/sandbox'
 
 const SCRIPT = join(import.meta.dir, '..', '..', 'scripts', 'install.sh')
 const BASH = Bun.which('bash')
-const run = process.platform !== 'win32' && BASH !== null
+const run = BASH !== null
 
 function stub(dir: string, name: string, body: string): void {
   writeFileSync(join(dir, name), `#!/bin/sh\n${body}\n`)
@@ -220,10 +220,9 @@ describe.skipIf(!run)('install.sh: two sections, the log and the hand-over to `b
   })
 })
 
-// Both install scripts open with the logo of the buracle command. They run before Bun exists, so they cannot import it:
-// each keeps its own copy, written with # (full block), _ (lower half) and ^ (upper half) so that the files stay ASCII
-// (Windows PowerShell 5.1 reads a file without a BOM in the ANSI code page), and these tests keep the copies in step.
-const PS1 = join(import.meta.dir, '..', '..', 'scripts', 'install.ps1')
+// The install script opens with the logo of the buracle command. It runs before Bun exists, so it cannot import it:
+// it keeps its own copy, written with # (full block), _ (lower half) and ^ (upper half) so that the file stays ASCII,
+// and these tests keep the copy in step.
 const ASCII_LOGO = LOGO.map(l => l.trimEnd().replaceAll('█', '#').replaceAll('▄', '_').replaceAll('▀', '^'))
 
 function quotedRows(text: string, opening: RegExp): string[] {
@@ -232,53 +231,12 @@ function quotedRows(text: string, opening: RegExp): string[] {
   return start < 0 || end < 0 ? [] : [...text.slice(start, end).matchAll(/'([^']*)'/g)].map(m => m[1] as string)
 }
 
-describe('the logo the install scripts show', () => {
-  test('both scripts carry the logo and the tagline of the buracle command, and stay ASCII', () => {
+describe('the logo the install script shows', () => {
+  test('the script carries the logo and the tagline of the buracle command, and stays ASCII', () => {
     const sh = readFileSync(SCRIPT, 'utf8')
-    const ps = readFileSync(PS1, 'utf8')
     expect(quotedRows(sh, /^LOGO_ROWS=\(/m)).toEqual(ASCII_LOGO)
-    expect(quotedRows(ps, /^\$LogoRows = @\(/m)).toEqual(ASCII_LOGO)
     expect(/^TAGLINE='([^']*)'/m.exec(sh)?.[1]).toBe(TAGLINE)
-    expect(/^\$Tagline = '([^']*)'/m.exec(ps)?.[1]).toBe(TAGLINE)
     expect(/[^\x00-\x7f]/.test(sh)).toBe(false)
-    expect(/[^\x00-\x7f]/.test(ps)).toBe(false)
-  })
-
-  test('install.ps1 prints the same sections as install.sh: the same names in the same order, the same widths and icons, and hands over to `install --script`', () => {
-    const ps = readFileSync(PS1, 'utf8')
-    const sh = readFileSync(SCRIPT, 'utf8')
-    const order = /^\$SectionOrder = @\(([^)]*)\)/m.exec(ps)?.[1]?.split(',').map(s => s.trim().replace(/'/g, ''))
-    expect(order).toEqual([...SECTION_ORDER])
-    expect(ps).toContain(`$Name.PadRight(${NAME_WIDTH})`)
-    expect(ps).toContain(`$Name.PadRight(${ITEM_NAME_WIDTH}) + ' '`)
-    // The icons: the same code points in both scripts, the same ASCII fallback.
-    const shIcons = /I_OK=\$'([^']*)'; I_WARN=\$'([^']*)'; I_FAIL=\$'([^']*)'; I_INFO=\$'([^']*)'/.exec(sh)?.slice(1).map(esc => Buffer.from(esc.split('\\x').filter(Boolean).map(h => Number.parseInt(h, 16))).toString('utf8'))
-    const psIcons = /ok = \[string\]\[char\]0x([0-9A-F]+); warn = \[string\]\[char\]0x([0-9A-F]+); fail = \[string\]\[char\]0x([0-9A-F]+); info = \[string\]\[char\]0x([0-9A-F]+)/.exec(ps)?.slice(1).map(h => String.fromCodePoint(Number.parseInt(h, 16)))
-    expect(shIcons).toEqual(['✔', '▲', '✖', 'ℹ'])
-    expect(psIcons).toEqual(shIcons as string[])
-    expect(sh).toContain("I_OK='+' I_WARN='!' I_FAIL='x' I_INFO='i'")
-    expect(ps).toContain("@{ ok = '+'; warn = '!'; fail = 'x'; info = 'i'")
-    // Both hand over to the same command; Node.js, uv, ripgrep and jq are the toolchain's job now, not the script's.
-    expect(ps).toContain("@('src/cli/main.ts', 'install', '--script', '--log', $Log, '--started', \"$Started\")")
-    expect(sh).toContain('(src/cli/main.ts install --script --log "$LOG" --started "$started")')
-    expect(ps).not.toMatch(/OpenJS\.NodeJS|astral-sh\.uv|BurntSushi\.ripgrep|jqlang\.jq/)
-    expect(ps).toMatch(/Write-Item 'warn' 'vcredist'/)
-    expect(ps).not.toMatch(/buracle doctor|install --yes/)
-  })
-
-  test('install.ps1 never calls exit: README runs it as `irm … | iex`, where exit closes the user\'s PowerShell window', () => {
-    const ps = readFileSync(PS1, 'utf8')
-    const code = ps.split('\n').filter(l => !/^\s*#/.test(l)).join('\n')
-    expect(code).not.toMatch(/(^|[\s;{(])exit(\s+-?\d+)?\s*($|[;})])/m)
-    // A failure throws instead: the script ends, the session stays, and `pwsh -File` still exits 1.
-    expect(code).toMatch(/^function Stop-Install \{ throw /m)
-    expect(code).toMatch(/Write-Item 'fail' 'install' .*\n\s+Stop-Install/)
-  })
-
-  test('install.ps1 shows it before it installs or changes anything', () => {
-    const ps = readFileSync(PS1, 'utf8')
-    expect(ps).toMatch(/^Show-Banner$/m)
-    expect(ps.search(/^Show-Banner$/m)).toBeLessThan(ps.search(/^Refresh-Path$/m))
   })
 })
 
@@ -331,6 +289,8 @@ describe.skipIf(!run)('install.sh shows the logo', () => {
     expect(code).toBe(1)
     expect(out).toBe(PLAIN)
     expect(err).toContain('this script is for macOS and Linux')
+    expect(err).toContain('WSL 2')
+    expect(err).not.toContain('install.ps1')
     const help = Bun.spawn([BASH as string, SCRIPT, '--help'], { env: { ...process.env, PATH: process.env['PATH'] ?? '', HOME: root, LANG: 'en_US.UTF-8' }, stdout: 'pipe', stderr: 'pipe' })
     const [helpOut, helpCode] = await Promise.all([new Response(help.stdout).text(), help.exited])
     expect(helpCode).toBe(0)

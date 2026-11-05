@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { mkdirSync, symlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { run } from '../../../src/engine/proc'
-import { IS_WINDOWS } from '../../helpers/fake-exe'
+
 import { withSandbox } from '../../helpers/sandbox'
 import { GIT_TEST_ENV } from '../../workflow/fixture'
 
@@ -30,7 +30,7 @@ async function statusUnder(shell: string, cwd: string, env: Record<string, strin
 const INHERITED_CLAUDE = { BURACLE_SESSION_ID: 'claude-parent', BURACLE_HARNESS: 'claude', CLAUDE_CODE_SESSION_ID: 'claude-parent' }
 
 // A harness here is /bin/sh under the harness's name, and the session is read from that shell's process: POSIX only.
-describe.skipIf(IS_WINDOWS)('nested harness shells, end to end', () => {
+describe('nested harness shells, end to end', () => {
   test('a Codex started from a Claude Code shell binds to its own session', () => withSandbox(async ({ root, home, buracleHome }) => {
     const codex = fakeHarness(join(root, 'bin-codex'), 'codex')
     const r = await statusUnder(codex, root, { HOME: home, BURACLE_HOME: buracleHome, ...INHERITED_CLAUDE, CODEX_THREAD_ID: 'codex-root', CODEX_SESSION_ID: 'codex-root' })
@@ -51,7 +51,7 @@ describe.skipIf(IS_WINDOWS)('nested harness shells, end to end', () => {
 })
 
 // Windows cannot remove the working directory of a running process.
-describe.skipIf(IS_WINDOWS)('a removed working directory (WF-11)', () => {
+describe('a removed working directory (WF-11)', () => {
   test('session-only commands still run, from the nearest existing parent, with one warning', () => withSandbox(async ({ root, home, buracleHome }) => {
     const gone = join(root, 'repo', '.worktrees', 'inside-probe')
     mkdirSync(gone, { recursive: true })

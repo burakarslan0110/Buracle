@@ -4,14 +4,12 @@ import type { Ledger, Op, Plan } from '../../engine/txn'
 import { readLedger } from '../../engine/txn'
 import { bunExecutable } from '../../engine/config'
 import * as paths from '../../engine/paths'
-import { isWindows } from '../../engine/platform'
 import { which } from '../../engine/proc'
 import type { AdapterContext } from '../registry'
-import { OWNER, PACKAGE_NAME, ompCommandSkills, ompLspServers, ompMcpServerIds, ompThinkingLevel } from './generated'
+import { OWNER, PACKAGE_NAME, ompCommandSkills, ompLspServers, ompThinkingLevel } from './generated'
 import { OMP_BRAIN_COMMAND, OMP_REMEMBER_COMMAND, OMP_STATUS_ALIAS, OMP_STATUS_COMMAND } from './runtime/commands'
 import { ompConfigPath } from './runtime/config'
 import { ompPlanSettings } from './runtime/plan-capture'
-import { mcpEntry } from './build'
 import { ompStatusLine } from './statusline'
 
 export const AGENTS_BLOCK_ID = 'omp'
@@ -112,15 +110,6 @@ export function linkCheckArgv(repoRoot: string, pluginDir: string, ompBin: strin
   return argv
 }
 
-export function windowsMcpOp(ctx: AdapterContext, agentDir: string): Op {
-  const set: Record<string, unknown> = {}
-  for (const id of ompMcpServerIds(ctx.canonical)) {
-    const spec = ctx.canonical.mcp.servers[id]
-    if (spec !== undefined) set[`mcpServers.${JSON.stringify(id)}`] = mcpEntry(id, spec, ctx.buracleBin)
-  }
-  return { kind: 'json-merge', path: join(agentDir, 'mcp.json'), set, owner: OWNER }
-}
-
 export function ompLspFile(): string {
   return join(paths.ompHome(), 'agent', 'lsp.json')
 }
@@ -171,7 +160,6 @@ export async function installPlan(ctx: AdapterContext): Promise<Plan> {
       owner: OWNER,
     },
   ]
-  if (isWindows()) ops.splice(ops.length - 1, 0, windowsMcpOp(ctx, agentDir))
   return { id: 'omp', harness: 'omp', ops }
 }
 

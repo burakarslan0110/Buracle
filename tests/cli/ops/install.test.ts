@@ -10,11 +10,10 @@ import { yamlParse } from '../../../src/engine/merge'
 import { applyPlans, listLedgerKey, readLedger, txnTestHooks, type Plan } from '../../../src/engine/txn'
 import { run as procRun } from '../../../src/engine/proc'
 import { renderPathRules } from '../../../src/engine/update/compose'
-import { bunPath, pathLink, readInstallRecord, shellQuote, shimContent, shimPlanOps, windowsShimContent, writeInstallRecord } from '../../../src/engine/update/install-core'
+import { bunPath, readInstallRecord, shellQuote, shimContent, shimPlanOps, writeInstallRecord } from '../../../src/engine/update/install-core'
 import { parseShimText } from '../../../src/engine/update/runtime'
-import { windowsLauncher } from '../../../src/engine/toolchain/links'
 import * as paths from '../../../src/engine/paths'
-import { fakeExe, IS_WINDOWS, narrowPath, pathOf } from '../../helpers/fake-exe'
+import { fakeExe, narrowPath, pathOf } from '../../helpers/fake-exe'
 import { snapshotTree } from '../../helpers/fs-snapshot'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
 import { fakeAdapter, fakeCli, fullCheckout, makeRepo, memoryIO, noNetwork, REAL_REPO, withDeps } from './helpers'
@@ -143,21 +142,14 @@ describe('buracle install', () => {
     await withDeps({ repoRoot: () => repo, adapters: async () => [fakeAdapter('claude', { installed: false })], runCli: cli.runCli, fetch: noNetwork }, async () => {
       const io = memoryIO()
       expect(await installRun(['--yes'], io)).toBe(0)
-      // The sh shim is written on every platform (Git Bash runs it on Windows), with '/' in its paths there.
       const shim = join(buracleHome, 'bin', 'buracle')
-      const fwd = (p: string) => (IS_WINDOWS ? p.replace(/\\/g, '/') : p)
       const lines = read(shim).split('\n')
       expect(lines).toContain('# buracle-shim: checkout')
-      expect(lines.find(l => l.startsWith('b='))).toMatch(/^b='[^']*bun(\.exe)?'$/)
-      expect(lines).toContain(`m=${shellQuote(fwd(join(repo, 'src/cli/main.ts')))}`)
-      expect(parseShimText(read(shim))).toMatchObject({ mode: 'checkout', main: fwd(join(repo, 'src/cli/main.ts')), checkout: repo })
-      if (IS_WINDOWS) {
-        expect(read(paths.shimPath())).toBe(windowsShimContent({ bun: bunPath(), repoRoot: repo }))
-        expect(read(`${pathLink()}.cmd`)).toBe(windowsLauncher(paths.shimPath()))
-      } else {
-        expect(statSync(shim).mode & 0o777).toBe(0o755)
-        expect(readlinkSync(join(home, '.local/bin/buracle'))).toBe(shim)
-      }
+      expect(lines.find(l => l.startsWith('b='))).toMatch(/^b='[^']*bun'$/)
+      expect(lines).toContain(`m=${shellQuote(join(repo, 'src/cli/main.ts'))}`)
+      expect(parseShimText(read(shim))).toMatchObject({ mode: 'checkout', main: join(repo, 'src/cli/main.ts'), checkout: repo })
+      expect(statSync(shim).mode & 0o777).toBe(0o755)
+      expect(readlinkSync(join(home, '.local/bin/buracle'))).toBe(shim)
       expect(read(join(buracleHome, 'config.yaml'))).toBe(`repo: ${repo}\n`)
       expect(existsSync(join(buracleHome, 'state/runtime-config.json'))).toBe(true)
       expect(Object.keys(readInstallRecord().record.plans)).toEqual(['core'])
@@ -331,7 +323,7 @@ describe('buracle install', () => {
       expect(io.out()).toContain('+++ ~/.codex/hooks.json')
       expect(io.out()).toContain('+{"hooks":1}')
       // Windows has a launcher file for PATH, not a symlink.
-      expect(io.out()).toContain(process.platform === 'win32' ? '+++ ~/.local/bin/buracle.cmd' : '# symlink ~/.local/bin/buracle -> ~/.buracle/bin/buracle')
+      expect(io.out()).toContain('# symlink ~/.local/bin/buracle -> ~/.buracle/bin/buracle')
       expect(snapshotTree(home)).toEqual(before)
 
       const noYes = memoryIO()
@@ -476,7 +468,7 @@ describe('buracle install', () => {
       withDeps({ repoRoot: () => repo, adapters: async () => [], runCli: fakeCli().runCli }, async () => {
         expect(await installRun(['--yes'], memoryIO())).toBe(0)
         const snap = JSON.parse(read(join(buracleHome, 'state/runtime-config.json'))) as { v: number, config: { repo?: string }, resolved: Record<string, string> }
-        const shim = join(buracleHome, process.platform === 'win32' ? 'bin/buracle.cmd' : 'bin/buracle')
+        const shim = join(buracleHome, 'bin/buracle')
         const shimBun = parseShimText(read(shim))?.bun
         expect(snap.v).toBe(1)
         expect(snap.config.repo).toBe(repo)

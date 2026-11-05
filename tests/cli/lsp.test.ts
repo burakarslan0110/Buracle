@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { fakeExe, IS_WINDOWS, pathOf } from '../helpers/fake-exe'
+import { fakeExe, pathOf } from '../helpers/fake-exe'
 import { withSandbox } from '../helpers/sandbox'
 
 const MAIN = join(import.meta.dir, '..', '..', 'src', 'cli', 'main.ts')
@@ -35,9 +35,9 @@ async function textIn(file: string): Promise<string> {
   throw new Error(`nothing in ${file}`)
 }
 
-// execve and POSIX signals: Windows has neither, so there the launcher runs the server as its child (the third case).
+// execve and POSIX signals: the language server takes over the launcher process.
 describe('buracle lsp run: the language server becomes the launcher process', () => {
-  test.skipIf(IS_WINDOWS)('it keeps the launcher\'s pid, and its exit code is the exit code', async () => {
+  test('it keeps the launcher\'s pid, and its exit code is the exit code', async () => {
     await withSandbox(async ({ root }) => {
       const bin = join(root, 'bin')
       const pidFile = join(root, 'server.pid')
@@ -50,7 +50,7 @@ describe('buracle lsp run: the language server becomes the launcher process', ()
     })
   })
 
-  test.skipIf(IS_WINDOWS)('the harness\'s signal reaches the server itself: SIGTERM ends the process by that signal', async () => {
+  test('the harness\'s signal reaches the server itself: SIGTERM ends the process by that signal', async () => {
     await withSandbox(async ({ root }) => {
       const bin = join(root, 'bin')
       const pidFile = join(root, 'server.pid')
@@ -63,39 +63,24 @@ describe('buracle lsp run: the language server becomes the launcher process', ()
     })
   })
 
-  test('without execve (Windows) it runs as the launcher\'s child and its exit code is passed on', async () => {
-    await withSandbox(async ({ root }) => {
-      const bin = join(root, 'bin')
-      const pidFile = join(root, 'server.pid')
-      goplsServer(bin, pidFile, 5)
-      const proc = launch(bin, { BURACLE_PLATFORM: 'win32' })
-      expect(Number(await textIn(pidFile))).not.toBe(proc.pid)
-      proc.stdin.write('x\n')
-      await proc.stdin.end()
-      expect(await proc.exited).toBe(5)
-    })
-  })
-
-  test.skipIf(PYTHON === null || IS_WINDOWS)('its stdio stays blocking (the launcher never opened its streams), as a child too', async () => {
+  test.skipIf(PYTHON === null)('its stdio stays blocking (the launcher never opened its streams)', async () => {
     await withSandbox(async ({ root }) => {
       const code = 'import fcntl, os, sys\nflags = [bool(fcntl.fcntl(fd, fcntl.F_GETFL) & os.O_NONBLOCK) for fd in (0, 1, 2)]\nopen(sys.argv[1], "w").write(" ".join(map(str, flags)))\nsys.stdin.readline()\n'
-      for (const [i, env] of [{}, { BURACLE_PLATFORM: 'win32' }].entries()) {
-        const bin = join(root, `bin-${i}`)
-        const flagsFile = join(root, `flags-${i}.txt`)
-        goplsScript(bin, `exec "${PYTHON ?? 'python3'}" -I -c '${code}' "${flagsFile}"\n`)
-        const proc = launch(bin, env)
-        try {
-          expect({ env, flags: await textIn(flagsFile) }).toEqual({ env, flags: 'False False False' })
-        } finally {
-          proc.stdin.write('done\n')
-          await proc.stdin.end()
-        }
-        expect(await proc.exited).toBe(0)
+      const bin = join(root, 'bin')
+      const flagsFile = join(root, 'flags.txt')
+      goplsScript(bin, `exec "${PYTHON ?? 'python3'}" -I -c '${code}' "${flagsFile}"\n`)
+      const proc = launch(bin)
+      try {
+        expect(await textIn(flagsFile)).toBe('False False False')
+      } finally {
+        proc.stdin.write('done\n')
+        await proc.stdin.end()
       }
+      expect(await proc.exited).toBe(0)
     })
   })
 
-  test.skipIf(process.platform === 'win32')('`buracle lsp mcp` answers MCP on stdio, runs gopls for a .go file in its module root, and stops it when stdin closes', async () => {
+  test('`buracle lsp mcp` answers MCP on stdio, runs gopls for a .go file in its module root, and stops it when stdin closes', async () => {
     await withSandbox(async ({ root }) => {
       const bin = join(root, 'bin')
       const log = join(root, 'stub.log')

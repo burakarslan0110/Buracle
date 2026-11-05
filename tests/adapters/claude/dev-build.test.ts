@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { syncTree } from '../../../src/adapters/claude/dev-build'
-import { KEEPS_MODES } from '../../helpers/fake-exe'
+
 import { withSandbox } from '../../helpers/sandbox'
 
 describe('syncTree', () => {
@@ -16,10 +16,8 @@ describe('syncTree', () => {
       ]
       const first = syncTree(out, files)
       expect(first.written.sort()).toEqual(['a.json', 'bin/x', 'deep/dir/y.md'])
-      if (KEEPS_MODES) {
-        expect(statSync(join(out, 'bin/x')).mode & 0o777).toBe(0o755)
-        expect(statSync(join(out, 'a.json')).mode & 0o777).toBe(0o644)
-      }
+      expect(statSync(join(out, 'bin/x')).mode & 0o777).toBe(0o755)
+      expect(statSync(join(out, 'a.json')).mode & 0o777).toBe(0o644)
 
       mkdirSync(join(out, '.claude-plugin', 'types', 'claude-code'), { recursive: true })
       writeFileSync(join(out, '.claude-plugin', 'types', 'claude-code', 'index.d.ts'), '// engine\n')
@@ -42,14 +40,13 @@ describe('syncTree', () => {
     })
   })
 
-  test('where the file system keeps no mode (Windows), a file with the same content is unchanged', async () => {
+  test('a file with the same content but another mode is rewritten', async () => {
     await withSandbox(async sb => {
       const out = join(sb.root, 'plugin')
       const files = [{ path: 'bin/x', content: '#!/bin/sh\n', mode: 0o755 }]
       syncTree(out, files)
       chmodSync(join(out, 'bin/x'), 0o644)
-      expect(syncTree(out, files, { check: true, keepsModes: false })).toEqual({ written: [], removed: [], unchanged: 1 })
-      if (KEEPS_MODES) expect(syncTree(out, files, { check: true }).written).toEqual(['bin/x'])
+      expect(syncTree(out, files, { check: true }).written).toEqual(['bin/x'])
     })
   })
 })

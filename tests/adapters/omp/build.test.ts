@@ -12,7 +12,7 @@ import { buracleVersion, OMP_MIN_VERSION, OMP_TESTED_WITH, ompGeneratedData } fr
 import { expandPlaceholders, filterHarnessBlocks, firstHeading, frontmatter, renderForOmp } from '../../../src/adapters/omp/render'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import * as paths from '../../../src/engine/paths'
-import { KEEPS_MODES } from '../../helpers/fake-exe'
+
 import { firstLineDiff } from '../../helpers/text-diff'
 import { withSandbox } from '../../helpers/sandbox'
 import { fakeCtx, fakePi } from './fakes'
@@ -67,7 +67,7 @@ describe('omp build: golden output for the fixture canonical', () => {
     })
   })
 
-  test.skipIf(process.platform === 'win32')('I8 / SEC-10: the buracle-memory command reaches the shim under a custom BURACLE_HOME, whether or not omp pre-expands it (POSIX; on Windows the agent dir\'s mcp.json runs the servers)', () => withSandbox(async ({ root, home }) => {
+  test('I8 / SEC-10: the buracle-memory command reaches the shim under a custom BURACLE_HOME, whether or not omp pre-expands it (POSIX; on Windows the agent dir\'s mcp.json runs the servers)', () => withSandbox(async ({ root, home }) => {
     const entry = JSON.parse(byPath(await buildOmp(fixtureCtx()))['.mcp.json'] as string).mcpServers['buracle-memory'] as { command: string, args: string[] }
     const ompExpand = (s: string, env: Record<string, string | undefined>) => s.replace(/\$\{([^}:]+)(?::-([^}]*))?\}/g, (_m, v: string, d?: string) => {
       const e = env[v]
@@ -106,7 +106,6 @@ describe('omp build: golden output for the fixture canonical', () => {
     }
     const env = { SHARED: '1', TOKEN: '${SAMPLE_TOKEN}', WHO: 'omp' }
     expect(mcpEntry('sample', sample)).toEqual({ type: 'stdio', ...mcpShimArgv(['mcp', 'run', 'sample']), env, timeout: 90_000 })
-    expect(mcpEntry('sample', sample, 'C:\\Users\\me\\.buracle\\bin\\buracle.cmd')).toEqual({ type: 'stdio', command: 'C:\\Users\\me\\.buracle\\bin\\buracle.cmd', args: ['mcp', 'run', 'sample'], env, timeout: 90_000 })
     expect(mcpEntry('remote', { ...base, transport: 'http', url: 'https://mcp.example.com', tool_timeout_sec: 5 })).toEqual({ type: 'http', url: 'https://mcp.example.com', timeout: 5_000 })
   })
 
@@ -244,11 +243,6 @@ describe('omp build: determinism and machine independence (live canonical)', () 
     expect(repoRelativeModuleComments('// ../src/a.ts\n', '/w/repo', '/w/repo/tests')).toBe('// src/a.ts\n')
     expect(repoRelativeModuleComments('// src/a.ts\n', '/w/repo', '/w/repo')).toBe('// src/a.ts\n')
   })
-
-  test('module comments across Windows drives (repo on D:, cwd on C:) carry the absolute path, with either separator; both become repo-relative', () => {
-    const text = '// D:/a/Buracle/src/a.ts\n// D:\\a\\Buracle\\src\\b.ts\ncode // D:/a/Buracle/x\n// d:/other/src/c.ts\n// d:/a/Buracle/src/e.ts\n// ../../../D:/a/Buracle/node_modules/y.js\n'
-    expect(repoRelativeModuleComments(text, 'D:\\a\\Buracle', 'C:\\Users\\me')).toBe('// src/a.ts\n// src/b.ts\ncode // D:/a/Buracle/x\n// d:/other/src/c.ts\n// src/e.ts\n// node_modules/y.js\n')
-  })
 })
 
 describe('omp build: the generated bundle loads and wires the extension', () => {
@@ -317,7 +311,7 @@ describe('omp dev-build helper', () => {
     writeTree(dir, files)
     expect(listFiles(dir)).toEqual(['a.md', 'rules/b.md'])
     expect(existsSync(join(dir, 'old'))).toBe(false)
-    if (KEEPS_MODES) expect(statSync(join(dir, 'a.md')).mode & 0o777).toBe(0o644)
+    expect(statSync(join(dir, 'a.md')).mode & 0o777).toBe(0o644)
     expect(diffTree(dir, files)).toEqual([])
     writeFileSync(join(dir, 'a.md'), 'changed\n')
     expect(diffTree(dir, files)).toEqual(['changed a.md'])

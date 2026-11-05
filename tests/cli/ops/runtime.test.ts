@@ -7,9 +7,8 @@ import { run as procRun } from '../../../src/engine/proc'
 import { BIN_BURACLE, BIN_BURACLE_TS } from '../../../src/adapters/claude/plugin'
 import { runtimeBehindForStatus } from '../../../src/engine/hook-health'
 import { RUNTIME_MARKER } from '../../../src/engine/paths'
-import { windowsShimContent } from '../../../src/engine/update/install-core'
 import { parseShimText, planRuntime, readMarker, runtimeDirOf, runtimeHealth, runtimePackages } from '../../../src/engine/update/runtime'
-import { IS_WINDOWS } from '../../helpers/fake-exe'
+
 import { withEnv, withSandbox } from '../../helpers/sandbox'
 import { fakeCli, fullCheckout, memoryIO, noNetwork, REAL_REPO, withDeps } from './helpers'
 
@@ -20,7 +19,7 @@ function shimOf(buracleHome: string) {
 }
 
 // The sh shim runs under /bin/sh; on Windows under Git's sh (what Git Bash runs the hooks with).
-const SH = IS_WINDOWS ? (Bun.which('sh') ?? '/bin/sh') : '/bin/sh'
+const SH = '/bin/sh'
 
 const PROBE_ENV = { BURACLE_NO_CAPTURE: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_NO_NOTIFY: '1' }
 
@@ -203,30 +202,18 @@ describe('the frozen runtime', () => {
     mkdirSync(bin, { recursive: true })
     writeFileSync(join(bin, 'buracle'), BIN_BURACLE)
     writeFileSync(join(bin, 'buracle.ts'), BIN_BURACLE_TS)
-    // The sh launcher needs /bin/sh; the Bun launcher below is what runs without a shell (Windows).
-    if (!IS_WINDOWS) {
-      const noBun = { PATH: '/usr/bin:/bin', BURACLE_HOME: join(buracleHome, 'none') }
-      const pre = await procRun(['/bin/sh', join(bin, 'buracle'), 'hook', 'claude', 'PreToolUse'], { stdin: '{}', timeoutMs: 30_000, env: noBun })
-      expect(pre.code).toBe(0)
-      const d = JSON.parse(pre.stdout) as { hookSpecificOutput: { permissionDecision: string, permissionDecisionReason: string } }
-      expect(d.hookSpecificOutput.permissionDecision).toBe('deny')
-      expect(d.hookSpecificOutput.permissionDecisionReason).toContain('claude plugin uninstall buracle@buracle')
-      const stop = await procRun(['/bin/sh', join(bin, 'buracle'), 'hook', 'claude', 'Stop'], { stdin: '{}', timeoutMs: 30_000, env: noBun })
-      expect(stop).toMatchObject({ code: 0, stdout: '' })
-    }
+    // The sh launcher runs through /bin/sh; the Bun launcher below runs without a shell.
+    const noBun = { PATH: '/usr/bin:/bin', BURACLE_HOME: join(buracleHome, 'none') }
+    const pre = await procRun(['/bin/sh', join(bin, 'buracle'), 'hook', 'claude', 'PreToolUse'], { stdin: '{}', timeoutMs: 30_000, env: noBun })
+    expect(pre.code).toBe(0)
+    const d = JSON.parse(pre.stdout) as { hookSpecificOutput: { permissionDecision: string, permissionDecisionReason: string } }
+    expect(d.hookSpecificOutput.permissionDecision).toBe('deny')
+    expect(d.hookSpecificOutput.permissionDecisionReason).toContain('claude plugin uninstall buracle@buracle')
+    const stop = await procRun(['/bin/sh', join(bin, 'buracle'), 'hook', 'claude', 'Stop'], { stdin: '{}', timeoutMs: 30_000, env: noBun })
+    expect(stop).toMatchObject({ code: 0, stdout: '' })
     const ts = await procRun([process.execPath, join(bin, 'buracle.ts'), 'hook', 'codex', 'PreToolUse'], { stdin: '{}', timeoutMs: 30_000, env: { BURACLE_HOME: join(buracleHome, 'none') } })
     expect((JSON.parse(ts.stdout) as { hookSpecificOutput: { permissionDecision: string } }).hookSpecificOutput.permissionDecision).toBe('deny')
     const tsStop = await procRun([process.execPath, join(bin, 'buracle.ts'), 'hook', 'codex', 'Stop'], { stdin: '{}', timeoutMs: 30_000, env: { BURACLE_HOME: join(buracleHome, 'none') } })
     expect(tsStop).toMatchObject({ code: 0, stdout: '' })
   }), 60_000)
-
-  test('the Windows shim runs the runtime, falls back to the checkout for commands and denies a guard hook it cannot run', () => {
-    const cmd = windowsShimContent({ bun: 'C:\\bun\\bun.exe', repoRoot: 'C:\\src\\buracle', runtime: 'C:\\h\\.buracle\\runtime\\0123456789abcdef' }).split('\r\n')
-    expect(cmd).toContain('rem buracle-shim: frozen')
-    expect(cmd.some(l => l.startsWith('"C:\\bun\\bun.exe" "C:\\h\\.buracle\\runtime\\0123456789abcdef'))).toBe(true)
-    expect(cmd.some(l => l.startsWith('if exist "C:\\src\\buracle') && l.includes('%*'))).toBe(true)
-    const deny = cmd[cmd.indexOf(':deny') + 1] ?? ''
-    expect(deny.startsWith('echo {"hookSpecificOutput":')).toBe(true)
-    expect(deny).not.toMatch(/[<>|&^%]/)
-  })
 })

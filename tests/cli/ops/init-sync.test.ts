@@ -4,11 +4,8 @@ import { join } from 'node:path'
 import { run as installRun } from '../../../src/cli/commands/install'
 import { main } from '../../../src/cli/router'
 import { yamlParse } from '../../../src/engine/merge'
-import * as paths from '../../../src/engine/paths'
 import { run as procRun } from '../../../src/engine/proc'
-import { windowsLauncher } from '../../../src/engine/toolchain/links'
-import { pathLink } from '../../../src/engine/update/install-core'
-import { IS_WINDOWS, narrowPath } from '../../helpers/fake-exe'
+import { narrowPath } from '../../helpers/fake-exe'
 import { snapshotTree } from '../../helpers/fs-snapshot'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
 import { fakeAdapter, fakeCli, makeRepo, memoryIO, noNetwork, REAL_REPO, withDeps } from './helpers'
@@ -28,17 +25,13 @@ describe('buracle install sets Buracle up on a clean home', () => {
         const io = memoryIO()
         expect(await installRun(['--yes'], io)).toBe(0)
         expect(yamlParse(read(join(buracleHome, 'config.yaml')))).toEqual({ repo })
-        // The PATH link: a symlink to the shim, or on Windows a launcher .cmd that runs it.
-        if (IS_WINDOWS) expect(read(`${pathLink()}.cmd`)).toBe(windowsLauncher(paths.shimPath()))
-        else expect(readlinkSync(join(home, '.local/bin/buracle'))).toBe(join(buracleHome, 'bin/buracle'))
+        // The PATH link: a symlink to the shim.
+        expect(readlinkSync(join(home, '.local/bin/buracle'))).toBe(join(buracleHome, 'bin/buracle'))
         expect(io.out()).toContain('claude  -  skipped: not installed')
-        // POSIX: the install puts ~/.local/bin on PATH in the shell's startup file itself; Windows leaves it to install.ps1.
-        if (IS_WINDOWS) expect(io.out()).toContain('Add ~/.local/bin to PATH')
-        else {
-          expect(io.out()).toContain('Added ~/.local/bin to PATH in ~/.zshrc; open a new terminal to use buracle.')
-          expect(io.out()).not.toContain('Add ~/.local/bin to PATH')
-          expect(read(join(home, '.zshrc'))).toBe('# >>> buracle >>>\nexport PATH="$HOME/.local/bin:$PATH"\n# <<< buracle <<<\n')
-        }
+        // The install puts ~/.local/bin on PATH in the shell's startup file itself.
+        expect(io.out()).toContain('Added ~/.local/bin to PATH in ~/.zshrc; open a new terminal to use buracle.')
+        expect(io.out()).not.toContain('Add ~/.local/bin to PATH')
+        expect(read(join(home, '.zshrc'))).toBe('# >>> buracle >>>\nexport PATH="$HOME/.local/bin:$PATH"\n# <<< buracle <<<\n')
         expect(io.out()).toContain('No enabled harness was found; install one of Claude Code, Codex, OpenCode or Oh My Pi, then run `buracle install`.')
 
         const before = snapshotTree(home, rel => rel.startsWith('.buracle/journal') || rel.startsWith('.buracle/backups') || rel.startsWith('.buracle/logs') || rel.startsWith('.buracle/state'))

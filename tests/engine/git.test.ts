@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import { mkdirSync, realpathSync, symlinkSync } from 'node:fs'
 import { basename, join } from 'node:path'
-import { commonDir, currentBranch, gitStatusPorcelainV2, isRepo, ownerRepoFromUrl, projectIdentity, projectSlug, remoteUrl, revParse, slugPart, toplevel } from '../../src/engine/git'
+import { commonDir, currentBranch, gitStatusPorcelainV2, isRepo, ownerRepoFromUrl, projectIdentity, projectSlug, remoteUrl, revParse, slugPart } from '../../src/engine/git'
 import { sha256 } from '../../src/engine/fsx'
 import { run } from '../../src/engine/proc'
-import { withEnv, withSandbox } from '../helpers/sandbox'
+import { withSandbox } from '../helpers/sandbox'
 
 const GIT_ENV = { GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@example.com', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@example.com' }
 
@@ -61,21 +61,13 @@ describe('git queries', () => {
     expect(realpathSync((await projectIdentity(wt)).root)).toBe(repo)
   }))
 
-  // A symlinked alias stands in for Windows' second spelling of one folder (git's C:/Users/runneradmin/x
-  // against a cwd C:\Users\RUNNER~1\x): on Windows every path from git, and the cwd, comes back as the real path.
-  test('on Windows the toplevel, the common dir and the project root are real paths, whatever the cwd spelling', () => withSandbox(async ({ root }) => {
+  test('the common dir keeps the spelling of the cwd: a symlinked alias is not resolved', () => withSandbox(async ({ root }) => {
     const repo = join(root, 'repo')
     mkdirSync(join(repo, 'src'), { recursive: true })
     await git(repo, 'init', '-q', '-b', 'main')
     const alias = join(root, 'alias')
     symlinkSync(repo, alias)
-    if (process.platform !== 'win32') expect(await commonDir(alias)).toBe(join(alias, '.git'))
-    await withEnv({ BURACLE_PLATFORM: 'win32' }, async () => {
-      expect(await commonDir(alias)).toBe(join(repo, '.git'))
-      expect(await toplevel(join(alias, 'src'))).toBe(repo)
-      expect((await projectIdentity(alias)).root).toBe(repo)
-      expect((await projectIdentity(join(root, 'alias-missing'))).root).toBe(join(root, 'alias-missing'))
-    })
+    expect(await commonDir(alias)).toBe(join(alias, '.git'))
   }))
 
   test('outside git: folder name plus a short hash', () => withSandbox(async ({ root }) => {

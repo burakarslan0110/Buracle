@@ -122,7 +122,7 @@ function defaultSpawnRunner(jobPath: string): number | undefined {
     const checkout = moduleCheckout() ?? paths.configuredRepoRoot()
     const proc = Bun.spawn([...cliArgv(), 'plan', 'review', 'companion', 'run', '--job', jobPath], {
       cwd: checkout !== undefined ? checkout : existsSync(paths.home()) ? paths.home() : '/',
-      env: { ...childEnv() }, windowsHide: true,
+      env: { ...childEnv() },
       stdio: ['ignore', 'ignore', 'ignore'],
       detached: true,
     })

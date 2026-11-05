@@ -14,7 +14,7 @@ import { adapter } from '../../../src/adapters/codex/index'
 import { codexBuildFiles } from '../../../src/adapters/codex/generate'
 import { codexProcessesUsing, HarnessBusyError, hookCommandPrefixFor, hooksJsonOps, installTestHooks, parseLsofFields, tildePath, tuiOps } from '../../../src/adapters/codex/install'
 import { codexArtifacts } from '../../../src/adapters/codex/generate'
-import { buracleHooksFile, CODEX_HOOK_EVENTS, findBuracleHandlers, HOOK_COMMAND_PREFIX, HOOK_GROUP_IDENTITY, hookCommand, hookTrustHash, hookTrustKey, LEGACY_HOOK_COMMAND_PREFIX, POST_MASK_HANDLER, POST_MASK_MATCHER, PRE_TOOL_MATCHER, windowsHookPrefix } from '../../../src/adapters/codex/hooks-config'
+import { buracleHooksFile, CODEX_HOOK_EVENTS, findBuracleHandlers, HOOK_COMMAND_PREFIX, HOOK_GROUP_IDENTITY, hookCommand, hookTrustHash, hookTrustKey, LEGACY_HOOK_COMMAND_PREFIX, POST_MASK_HANDLER, POST_MASK_MATCHER, PRE_TOOL_MATCHER } from '../../../src/adapters/codex/hooks-config'
 import { BYPASS_KEYS, bypassUnitBlocked, codexTrustPlan, trustTables } from '../../../src/adapters/codex/trust'
 import { BYPASS_APPROVAL_POLICY } from '../../../src/adapters/codex/config'
 import { CODEX_ENUMS, codexEnumProblem, codexValueProblems, SUBAGENT_EFFORTS, subagentEffort } from '../../../src/adapters/codex/config'
@@ -34,10 +34,7 @@ async function install(ctx = context()) {
 
 const read = (p: string) => readFileSync(p, 'utf8')
 
-// On Windows the install gives every handler a commandWindows too: the buracle.cmd line Codex runs there.
-const windowsPrefix = (): string | undefined => (process.platform === 'win32' ? windowsHookPrefix(paths.shimPath()) : undefined)
-const installedHooks = () => buracleHooksFile(HOOK_COMMAND_PREFIX, windowsPrefix()).hooks
-const cw = (event: string): { commandWindows?: string } => { const w = windowsPrefix(); return w !== undefined ? { commandWindows: hookCommand(event, w) } : {} }
+const installedHooks = () => buracleHooksFile().hooks
 
 beforeEach(() => { installTestHooks.codexPids = async () => []; installTestHooks.codexVersion = async () => undefined })
 afterEach(() => { delete installTestHooks.codexPids; delete installTestHooks.openFiles; delete installTestHooks.codexVersion })
@@ -73,7 +70,7 @@ describe('codex installPlan', () => {
     const codex = join(home, '.codex')
     const build = codexBuildFiles(canonical).files
     const builtHooks = JSON.parse((build.find(f => f.path === 'hooks.json') as { content: string }).content)
-    expect(JSON.parse(read(join(codex, 'hooks.json')))).toEqual({ hooks: process.platform === 'win32' ? installedHooks() : builtHooks.hooks })
+    expect(JSON.parse(read(join(codex, 'hooks.json')))).toEqual({ hooks: builtHooks.hooks })
     const toml = Bun.TOML.parse(read(join(codex, 'config.toml'))) as Record<string, any>
     expect(toml['mcp_servers']['buracle-memory']).toEqual({ command: paths.shimPath(), args: ['mcp', 'memory'], omit_tools_from: ['deferred', 'code_mode'], default_tools_approval_mode: 'approve' })
     expect(toml['mcp_servers']['context7']).toMatchObject({ command: paths.shimPath(), args: ['mcp', 'run', 'context7'] })
@@ -367,7 +364,7 @@ describe('codex installPlan', () => {
     const r = await install()
     expect(r.conflicts).toEqual([])
     const after = JSON.parse(read(hooksPath)).hooks
-    expect(after.PreToolUse).toEqual([{ matcher: PRE_TOOL_MATCHER, hooks: [{ type: 'command', command: hookCommand('PreToolUse', LEGACY_HOOK_COMMAND_PREFIX), ...cw('PreToolUse'), timeout: 10 }] }, userGroup])
+    expect(after.PreToolUse).toEqual([{ matcher: PRE_TOOL_MATCHER, hooks: [{ type: 'command', command: hookCommand('PreToolUse', LEGACY_HOOK_COMMAND_PREFIX), timeout: 10 }] }, userGroup])
     expect(after.SubagentStart[0].hooks[0].command).toBe(hookCommand('SubagentStart', LEGACY_HOOK_COMMAND_PREFIX))
     await withEnv({ BURACLE_HOME: join(root, 'custom-home') }, async () => {
       expect(hookCommandPrefixFor(context(), await readLedger())).toBe(HOOK_COMMAND_PREFIX)
@@ -639,7 +636,7 @@ describe('config.toml keys for routing, effort and the no-approval mode (phase 2
     writeFileSync(join(codex, 'config.toml'), `[hooks.state.${JSON.stringify(hookTrustKey(hooksPath, 'PreToolUse', 0, 0))}]\ntrusted_hash = ${JSON.stringify(hookTrustHash('PreToolUse', old, old.hooks[0] as Record<string, unknown>))}\n`)
     expect((await install()).conflicts).toEqual([])
     const after = JSON.parse(read(hooksPath)).hooks.PreToolUse
-    expect(after).toEqual([{ matcher: PRE_TOOL_MATCHER, hooks: [{ type: 'command', command: hookCommand('PreToolUse'), ...cw('PreToolUse'), timeout: 10 }] }, user])
+    expect(after).toEqual([{ matcher: PRE_TOOL_MATCHER, hooks: [{ type: 'command', command: hookCommand('PreToolUse'), timeout: 10 }] }, user])
     const r = await applyPlans([codexTrustPlan(context()) as NonNullable<ReturnType<typeof codexTrustPlan>>])
     expect(r.conflicts).toEqual([])
     expect(r.warnings).toEqual([expect.stringContaining('pre_tool_use:0:0')])

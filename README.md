@@ -20,7 +20,7 @@ Shared memory, workflows that finish with proof, and the same tools and guards i
 
 [Install](#install) · [Why Buracle](#why-buracle) · [Workflows](#workflows) · [The brain](#the-brain) · [Settings](#settings) · [Harnesses](#what-each-harness-gets)
 
-macOS · Linux · Windows, on x64 and arm64
+macOS · Linux · Windows through WSL 2, on x64 and arm64
 
 </div>
 
@@ -41,7 +41,7 @@ Buracle sets all four up from one source and keeps them in step:
 
 ### Before you start
 
-Install at least one harness: [Claude Code](https://code.claude.com/docs/en/quickstart), [Codex CLI](https://developers.openai.com/codex/cli), [OpenCode](https://opencode.ai) or [Oh My Pi](https://www.npmjs.com/package/@oh-my-pi/pi-coding-agent). Buracle sets up every harness it finds and skips the rest. The script installs Bun when it is missing, and Git on Windows. Git and curl (on Linux also unzip, and libatomic1 when Node.js is missing, for the Node.js the install downloads) are yours to install: the script never runs sudo or a package manager, and on Linux it prints the command for your distribution when one is missing. Node.js, uv, ripgrep and jq come through Homebrew, winget or scoop when you have one; otherwise the install downloads a version Buracle pins, checks it against the sha256 pinned with it and keeps it in `~/.buracle/toolchain/system`.
+Install at least one harness: [Claude Code](https://code.claude.com/docs/en/quickstart), [Codex CLI](https://developers.openai.com/codex/cli), [OpenCode](https://opencode.ai) or [Oh My Pi](https://www.npmjs.com/package/@oh-my-pi/pi-coding-agent). Buracle sets up every harness it finds and skips the rest. The script installs Bun when it is missing. Git and curl (on Linux also unzip, and libatomic1 when Node.js is missing, for the Node.js the install downloads) are yours to install: the script never runs sudo or a package manager, and on Linux it prints the command for your distribution when one is missing. Node.js, uv, ripgrep and jq come through Homebrew when you have it; otherwise the install downloads a version Buracle pins, checks it against the sha256 pinned with it and keeps it in `~/.buracle/toolchain/system`.
 
 ### Install
 
@@ -51,13 +51,17 @@ macOS and Linux:
 curl -fsSL https://github.com/burakarslan0110/buracle/releases/latest/download/install.sh | bash
 ```
 
-Windows (PowerShell):
+Windows: Buracle runs inside WSL 2, together with your harnesses.
 
-```powershell
-irm https://github.com/burakarslan0110/buracle/releases/latest/download/install.ps1 | iex
-```
+1. In PowerShell, run `wsl --install` to get WSL 2 with Ubuntu, and restart when Windows asks.
+2. Open the Ubuntu shell and install your harnesses there, not on Windows.
+3. In the Ubuntu shell, run the macOS and Linux command above.
+4. Keep your projects in the Linux file system, for example `~/projects`. Linux tools read a Windows drive under `/mnt/c` slowly, and `buracle doctor` warns about such a project.
+5. Run `buracle doctor` and check that it reports no error.
 
-Both scripts come from the latest GitHub release. On Windows everything installs for your user, without administrator rights: tools through `winget --scope user` (or scoop), and directory links as junctions. The one exception is the Visual C++ runtime, which codegraph and ast-grep need and most Windows machines already have; when it is missing, the script installs it only from an administrator terminal and otherwise prints the command. The script clones Buracle's `main` branch into `~/buracle`, installs its dependencies, then runs `buracle install`, which asks its rare questions right in the terminal (also under `curl … | bash`), puts `~/.local/bin` on your PATH (a marked block in your shell's startup file; the user PATH on Windows) and starts the memory web UI. It ends with a short summary, one line each for Prerequisites, Buracle, Harnesses, Tools, Memory and Result, plus a line for anything that did not pass; every detail, the health check included, goes to `~/.buracle/logs/install-<date>.log`, which the Result line names. `main` holds the released files: CI writes it, without the test suite, only when it publishes a release, and `buracle update` follows it. Running the script again updates the checkout and repairs the setup. Both scripts are short enough to read first: [`install.sh`](scripts/install.sh), [`install.ps1`](scripts/install.ps1).
+In WSL, `buracle mem ui --open` opens the page in your Windows browser, and `buracle notify` shows a Windows notification. If the page does not open, check that `localhostForwarding` is not `false` in the `.wslconfig` file of your Windows user.
+
+The script comes from the latest GitHub release. It clones Buracle's `main` branch into `~/buracle`, installs its dependencies, then runs `buracle install`, which asks its rare questions right in the terminal (also under `curl … | bash`), puts `~/.local/bin` on your PATH (a marked block in your shell's startup file) and starts the memory web UI. It ends with a short summary, one line each for Prerequisites, Buracle, Harnesses, Tools, Memory and Result, plus a line for anything that did not pass; every detail, the health check included, goes to `~/.buracle/logs/install-<date>.log`, which the Result line names. `main` holds the released files: CI writes it, without the test suite, only when it publishes a release, and `buracle update` follows it. Running the script again updates the checkout and repairs the setup. The script is short enough to read first: [`install.sh`](scripts/install.sh).
 
 After the install:
 
@@ -70,7 +74,7 @@ After the install:
 
 1. Build. It generates the harness files from `canonical/` and `src/`. A failed build installs nothing.
 2. Runtime. It copies the checkout into `~/.buracle/runtime/<id>` and tests the copy: `--version` must run, and the Claude Code and Codex hooks must deny `rm -rf ~` and allow `ls`. Only then does the `buracle` command switch to it. The previous runtime is kept for rollback.
-3. Toolchain. It installs missing system tools through Homebrew (macOS, and Linux when Homebrew is installed), winget or scoop (Windows). Node.js, uv, ripgrep and jq that none of them can install are downloaded at a pinned version, checked against the pinned sha256, run once, and linked into `~/.local/bin`; on Linux without Homebrew any other missing tool is only reported with the command for your distribution. It installs every MCP server and language server into `~/.buracle/toolchain`. Everything comes in its newest release, CortexDB included (a new CortexDB is used only after it passed the memory's check, with the brains backed up first). `update.minReleaseAgeDays` (0 by default) can make Buracle wait some days after a release.
+3. Toolchain. It installs missing system tools through Homebrew (macOS, and Linux when Homebrew is installed). Node.js, uv, ripgrep and jq that Homebrew cannot install are downloaded at a pinned version, checked against the pinned sha256, run once, and linked into `~/.local/bin`; on Linux without Homebrew any other missing tool is only reported with the command for your distribution. It installs every MCP server and language server into `~/.buracle/toolchain`. Everything comes in its newest release, CortexDB included (a new CortexDB is used only after it passed the memory's check, with the brains backed up first). `update.minReleaseAgeDays` (0 by default) can make Buracle wait some days after a release.
 4. Core. The `~/.buracle/bin/buracle` command, its `~/.local/bin/buracle` link, `~/.buracle/config.yaml` and the shared skills in `~/.agents/skills`.
 5. Harnesses. Each harness gets its own transaction: backup, atomic writes, journal, commands, verification, ownership ledger and commit. If one harness fails, only that harness rolls back.
 6. Memory. It creates `~/.buracle/brain`.
@@ -341,7 +345,7 @@ T=$(mktemp -d) && HOME=$T BURACLE_HOME=$T/.buracle bun src/cli/main.ts build --c
 bun test
 ```
 
-CI runs these checks on macOS (arm64), Linux (x64) and Windows (x64). Work lands on `dev`, so clone that branch to develop. When every check passes there and the released files changed, CI picks the next version by itself (0.5.0, 0.5.1, 0.5.2 and so on), writes that commit to `main` at that version and without the test suite (`tests/` and `bunfig.toml`), then publishes `v<version>` from it on GitHub with both install scripts attached. Nothing runs on `main`. To start a new line, raise the major or minor version in `package.json`.
+CI runs these checks on macOS (arm64) and Linux (x64). Work lands on `dev`, so clone that branch to develop. When every check passes there and the released files changed, CI picks the next version by itself (0.5.0, 0.5.1, 0.5.2 and so on), writes that commit to `main` at that version and without the test suite (`tests/` and `bunfig.toml`), then publishes `v<version>` from it on GitHub with the install script attached. Nothing runs on `main`. To start a new line, raise the major or minor version in `package.json`.
 
 Read [`AGENTS.md`](AGENTS.md), [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`SECURITY.md`](SECURITY.md) before you send a change. Found a bug or missing a feature? [Open an issue](https://github.com/burakarslan0110/buracle/issues).
 

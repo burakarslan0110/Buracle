@@ -72,7 +72,7 @@ describe('buracle mem backup and restore', () => {
       expect(r.manifest).toMatchObject({ v: 2, trigger: 'manual', file: { name: 'brain.db' }, buckets: { person: 1, projects: { demo: 1 } } })
       expect(r.manifest && backupBuckets(r.manifest)).toEqual(['person', 'demo'])
       const file = join(brainBackupsDir(), '20261017-100000', 'brain.db')
-      if (process.platform !== 'win32') expect(statSync(file).mode & 0o777).toBe(0o600)
+      expect(statSync(file).mode & 0o777).toBe(0o600)
       expect(listBackups().map(m => m.id)).toEqual(['20261017-100000'])
 
       const later = await write(agentCtx(repo), { type: 'gotcha', title: 'A gotcha written after the backup', summary: 'later', body: '' })
@@ -189,7 +189,7 @@ describe('buracle mem backup and restore', () => {
     })
   })
 
-  test.skipIf(process.platform === 'win32')('a restore of the whole file stops the CortexDB readers other processes registered for the brain, and no other process', async () => {
+  test('a restore of the whole file stops the CortexDB readers other processes registered for the brain, and no other process', async () => {
     await withBrain(async ({ repo, root }) => {
       await write(agentCtx(repo), { type: 'decision', title: 'Readers are stopped before a restore', summary: 'no foreign WAL', body: '' })
       const r = await backupBrains({ all: true })
@@ -247,7 +247,7 @@ describe('buracle mem backup and restore', () => {
     })
   })
 
-  test.skipIf(process.platform === 'win32')('a memory server stopped by a signal closes its reader and leaves no reader entry behind', async () => {
+  test('a memory server stopped by a signal closes its reader and leaves no reader entry behind', async () => {
     await withBrain(async ({ repo }) => {
       const proc = Bun.spawn([process.execPath, MAIN, 'mcp', 'memory'], { cwd: repo, stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', env: { ...process.env } })
       const lines = readLines(proc.stdout)
@@ -350,7 +350,6 @@ describe('buracle mem backup and restore', () => {
   }, 60_000)
 })
 
-
 describe('buracle mem export and import', () => {
   test('an export holds the live durable memories, secrets masked again; an import goes through memory_write once', async () => {
     await withBrain(async ({ repo, root }) => {
@@ -437,7 +436,7 @@ describe('buracle mem export and import', () => {
       const ex = await cli(['mem', 'export', '--cwd', repo, '--out', file])
       expect(ex.code).toBe(0)
       expect(ex.out).toContain('Exported 1 memories of project demo')
-      if (process.platform !== 'win32') expect(statSync(file).mode & 0o777).toBe(0o600)
+      expect(statSync(file).mode & 0o777).toBe(0o600)
       const piped = await cli(['mem', 'export', '--cwd', repo, '--type', 'reference'])
       expect(piped.out.split('\n').slice(1)).toEqual(readFileSync(file, 'utf8').split('\n').slice(1))
       expect(JSON.parse(piped.out.split('\n')[0] ?? '{}').kinds).toEqual(['reference'])

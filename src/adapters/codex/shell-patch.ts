@@ -37,10 +37,8 @@ function runsApplyPatch(script: string, depth: number): boolean {
 const CD_WORD = String.raw`[^\s'"$\x60\\;&|<>()*?[\]{}#]+`
 const CD_DQ = String.raw`"[^"$\x60\\\n]*"`
 const CD_SQ = String.raw`'[^'\n]*'`
-// A Windows drive path keeps its backslashes, as PowerShell and cmd.exe read them.
-const CD_WIN = String.raw`[A-Za-z]:\\[^\s'"$\x60;&|<>()*?[\]{}#]*|"[A-Za-z]:\\[^"$\x60\n]*"`
 const DELIM = String.raw`'[^'\n]+'|"[^"\n]+"|[A-Za-z0-9_.-]+`
-const HEADER = new RegExp(String.raw`^(?:cd[ \t]+(${CD_WIN}|${CD_WORD}|${CD_DQ}|${CD_SQ})[ \t]*&&[ \t]*)?(?:apply_patch|applypatch)[ \t]*<<(-?)[ \t]*(${DELIM})[ \t]*$`)
+const HEADER = new RegExp(String.raw`^(?:cd[ \t]+(${CD_WORD}|${CD_DQ}|${CD_SQ})[ \t]*&&[ \t]*)?(?:apply_patch|applypatch)[ \t]*<<(-?)[ \t]*(${DELIM})[ \t]*$`)
 
 function unquote(s: string): string {
   return (s.startsWith("'") && s.endsWith("'")) || (s.startsWith('"') && s.endsWith('"')) ? s.slice(1, -1) : s

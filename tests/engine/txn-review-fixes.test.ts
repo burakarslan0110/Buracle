@@ -6,7 +6,7 @@ import {
   type Op, type Plan,
 } from '../../src/engine/txn'
 import { yamlParse } from '../../src/engine/merge'
-import { fakeExe, IS_WINDOWS, KEEPS_MODES } from '../helpers/fake-exe'
+import { fakeExe } from '../helpers/fake-exe'
 import { withSandbox, type Sandbox } from '../helpers/sandbox'
 
 const REPO = join(import.meta.dir, '..', '..')
@@ -291,7 +291,7 @@ describe('F06: an interrupted transaction', () => {
   }
 
   // Bun's SIGINT and SIGTERM end a Windows process outright; no handler runs there.
-  test.skipIf(IS_WINDOWS)('Ctrl-C (SIGINT) and SIGTERM roll back in-process: files, the half-run command, the lock', async () => {
+  test('Ctrl-C (SIGINT) and SIGTERM roll back in-process: files, the half-run command, the lock', async () => {
     for (const [sig, code] of [['SIGINT', 130], ['SIGTERM', 143]] as const) {
       await withSandbox(async (sb) => {
         const p = join(sb.home, '.claude', 'settings.json')
@@ -456,14 +456,12 @@ describe('F23: retention and private backups', () => {
     write(f, 'user\n')
     const first = await applyPlans([plan([{ kind: 'json-merge', path: join(sb.home, 's.json'), set: { a: 0 }, owner: O }])])
     const backups = join(sb.buracleHome, 'backups')
-    if (KEEPS_MODES) {
-      expect(statSync(backups).mode & 0o777).toBe(0o700)
-      expect(statSync(join(backups, first.txn)).mode & 0o777).toBe(0o700)
-      expect(statSync(join(sb.buracleHome, 'journal')).mode & 0o777).toBe(0o700)
-    }
+    expect(statSync(backups).mode & 0o777).toBe(0o700)
+    expect(statSync(join(backups, first.txn)).mode & 0o777).toBe(0o700)
+    expect(statSync(join(sb.buracleHome, 'journal')).mode & 0o777).toBe(0o700)
     const second = await applyPlans([plan([{ kind: 'json-merge', path: join(sb.home, 's.json'), set: { a: 1 }, owner: O }])])
     expect(existsSync(join(backups, second.txn, 'files', '0'))).toBe(true)
-    if (KEEPS_MODES) expect(statSync(join(backups, second.txn, 'files', '0')).mode & 0o777).toBe(0o600)
+    expect(statSync(join(backups, second.txn, 'files', '0')).mode & 0o777).toBe(0o600)
     for (let i = 2; i < RETENTION.journals + 5; i++) {
       await applyPlans([plan([{ kind: 'json-merge', path: join(sb.home, 's.json'), set: { a: i }, owner: O }])])
     }

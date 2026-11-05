@@ -3,7 +3,6 @@ import { dirname, join } from 'node:path'
 import { isHarness } from '../../core/events'
 import { sanitizeText } from '../../core/status/format'
 import * as paths from '../../engine/paths'
-import { isWindows } from '../../engine/platform'
 import { cortexdbBinary } from '../../engine/toolchain/cortexdb'
 import { opsDeps } from '../../engine/update/deps'
 import type { DoctorCheck } from '../../engine/update/doctor'
@@ -17,8 +16,8 @@ import type { Steps } from '../ui/steps'
 import { stripAnsi } from '../ui/style'
 import type { InstallFlowResult } from './install'
 
-// `buracle install --script`: the part of the install the scripts hand over to (scripts/install.sh and
-// scripts/install.ps1 print the logo, Prerequisites and Buracle themselves). It prints Harnesses, Tools, Memory and
+// `buracle install --script`: the part of the install scripts/install.sh hands over to (the script prints the
+// logo, Prerequisites and Buracle itself). It prints Harnesses, Tools, Memory and
 // Result in the layout of src/cli/ui/sections.ts, one line each unless something did not pass, and writes every
 // detail (the toolchain, the steps, the health check) to the install log the scripts started.
 
@@ -62,7 +61,7 @@ export const scriptDeps: ScriptDeps = {
   },
   addPath: () => {
     // Only once the install made the ~/.local/bin/buracle link: before that, the folder holds nothing of Buracle's.
-    if (!existsSync(join(paths.localBinDir(), isWindows() ? 'buracle.cmd' : 'buracle'))) return { changed: false, skipped: 'error', reason: 'the buracle link in ~/.local/bin is missing' }
+    if (!existsSync(join(paths.localBinDir(), 'buracle'))) return { changed: false, skipped: 'error', reason: 'the buracle link in ~/.local/bin is missing' }
     return addLocalBinToPath()
   },
   brain: () => (cortexdbBinary() !== undefined ? { ok: true, detail: 'brain ok' } : { ok: false, detail: 'brain: CortexDB is missing' }),
@@ -119,13 +118,11 @@ export interface ScriptSession {
 export interface ScriptOptions {
   log: string
   startedMs: number
-  /** install.ps1 put ~/.local/bin on the user PATH and says how (the Result line shows it). */
-  pathNote?: string
   /** A terminal answers the install's questions; without one every answer is no and Result names the command. */
   interactive: boolean
 }
 
-// Local time, as the scripts write the `== install.ps1 <date> <time>` line above it and the log file's date.
+// Local time, as install.sh writes the `== install.sh <date> <time>` line above it and the log file's date.
 function localClock(ms: number): string {
   const d = new Date(ms)
   return [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2, '0')).join(':')
@@ -209,12 +206,9 @@ export function scriptSession(io: CommandIO, opts: ScriptOptions): ScriptSession
     const failed = checks.filter(c => c.level === 'error')
     const errors = failed.length
     let path: string | undefined
-    if (opts.pathNote !== undefined && opts.pathNote !== '') path = opts.pathNote
-    else {
-      const p = scriptDeps.addPath()
-      if (p.changed && p.file !== undefined) path = `added in ${tilde(p.file)}`
-      else if (p.skipped === 'unsafe' || p.skipped === 'error') log(`warn PATH: ${p.reason ?? 'not added'}`)
-    }
+    const p = scriptDeps.addPath()
+    if (p.changed && p.file !== undefined) path = `added in ${tilde(p.file)}`
+    else if (p.skipped === 'unsafe' || p.skipped === 'error') log(`warn PATH: ${p.reason ?? 'not added'}`)
     sections.push(resultSection(r, { declined, interactive: opts.interactive, failed, path, secs: Math.max(0, Math.round((scriptDeps.now() - opts.startedMs) / 1000)), log: opts.log, ...(columns !== undefined ? { columns } : {}) }))
     printer.stop()
     for (const s of sections) printer.done(s)

@@ -1,7 +1,7 @@
-import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import { isFailClosedReason } from '../hook-fail'
-import { renameRetrySync, sha256 } from '../fsx'
+import { sha256 } from '../fsx'
 import * as paths from '../paths'
 import { readShim, type ShimInfo } from '../shim'
 import { run } from '../proc'
@@ -141,7 +141,7 @@ export function readMarker(dir: string): RuntimeMarker | undefined {
 
 function git(dir: string, args: string[]): string | undefined {
   try {
-    const r = Bun.spawnSync(['git', '-C', dir, ...args], { stdout: 'pipe', stderr: 'ignore', env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C', GIT_TERMINAL_PROMPT: '0' }, windowsHide: true })
+    const r = Bun.spawnSync(['git', '-C', dir, ...args], { stdout: 'pipe', stderr: 'ignore', env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C', GIT_TERMINAL_PROMPT: '0' } })
     return r.exitCode === 0 ? r.stdout.toString().trim() : undefined
   } catch { return undefined }
 }
@@ -229,7 +229,7 @@ export async function stageRuntime(plan: RuntimePlan, opts: { bun: string, versi
     marker.verifiedAt = opts.nowIso
     writeFileSync(join(staging, paths.RUNTIME_MARKER), JSON.stringify(marker, null, 2) + '\n')
     if (existsSync(plan.dir)) rmSync(plan.dir, { recursive: true, force: true })
-    renameRetrySync(staging, plan.dir)
+    renameSync(staging, plan.dir)
     return { plan, marker, reused: false }
   } finally {
     rmSync(staging, { recursive: true, force: true })

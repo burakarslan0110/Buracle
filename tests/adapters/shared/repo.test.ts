@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { run } from '../../../src/engine/proc'
 import { buracleRepoFor } from '../../../src/adapters/shared/repo'
-import { withEnv, withSandbox } from '../../helpers/sandbox'
+import { withSandbox } from '../../helpers/sandbox'
 
 async function repo(dir: string, name?: string): Promise<string> {
   mkdirSync(join(dir, 'src', 'deep'), { recursive: true })
@@ -36,12 +36,9 @@ describe('buracleRepoFor', () => {
     expect(await buracleRepoFor(join(link, 'src'))).toBe(link)
   }), 20_000)
 
-  test('on Windows a known checkout matches whatever the case of its spelling', async () => {
+  test('a known checkout matches only in the case of its own spelling', async () => {
     const toplevel = async () => '/NoSuch/Checkout'
-    if (process.platform !== 'win32') expect(await buracleRepoFor('/nosuch/checkout/src', { known: ['/nosuch/checkout'], toplevel })).toBeUndefined()
-    await withEnv({ BURACLE_PLATFORM: 'win32' }, async () => {
-      expect(await buracleRepoFor('/nosuch/checkout/src', { known: ['/nosuch/checkout'], toplevel })).toBe(resolve('/nosuch/checkout'))
-    })
+    expect(await buracleRepoFor('/nosuch/checkout/src', { known: ['/nosuch/checkout'], toplevel })).toBeUndefined()
   })
 
   test('outside git, relative or missing cwds and failing lookups give undefined', () => withSandbox(async ({ root }) => {

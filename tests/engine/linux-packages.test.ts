@@ -6,11 +6,11 @@ import { installAdvice, installSources } from '../../src/engine/toolchain/system
 const osRelease = (id: string, idLike = '') => `NAME="x"\nID=${id}\n${idLike === '' ? '' : `ID_LIKE="${idLike}"\n`}VERSION_ID="1"\n`
 const env = (onPath: string[], text?: string, root = false): LinuxEnv => ({ have: c => onPath.includes(c), osRelease: text, root })
 
-const node: ToolSpec = { name: 'node', check: ['node', '--version'], version_regex: 'v(\\d+)', required: true, brew: 'node', winget: 'OpenJS.NodeJS.LTS', scoop: 'nodejs-lts' }
-const uv: ToolSpec = { name: 'uv', check: ['uv', '--version'], version_regex: 'uv (\\d+)', required: true, brew: 'uv', winget: 'astral-sh.uv', scoop: 'uv' }
-const rg: ToolSpec = { name: 'rg', check: ['rg', '--version'], version_regex: 'ripgrep (\\d+)', required: true, brew: 'ripgrep', winget: 'BurntSushi.ripgrep.MSVC', scoop: 'ripgrep' }
+const node: ToolSpec = { name: 'node', check: ['node', '--version'], version_regex: 'v(\\d+)', required: true, brew: 'node' }
+const uv: ToolSpec = { name: 'uv', check: ['uv', '--version'], version_regex: 'uv (\\d+)', required: true, brew: 'uv' }
+const rg: ToolSpec = { name: 'rg', check: ['rg', '--version'], version_regex: 'ripgrep (\\d+)', required: true, brew: 'ripgrep' }
 const astGrep: ToolSpec = { name: 'ast-grep', check: ['ast-grep', '--version'], version_regex: 'ast-grep (\\d+)', required: false, brew: 'ast-grep', npm: '@ast-grep/cli' }
-const gh: ToolSpec = { name: 'gh', check: ['gh', '--version'], version_regex: 'gh version (\\d+)', required: false, brew: 'gh', winget: 'GitHub.cli' }
+const gh: ToolSpec = { name: 'gh', check: ['gh', '--version'], version_regex: 'gh version (\\d+)', required: false, brew: 'gh' }
 
 describe('linuxPackageManager', () => {
   test('follows the distribution named in os-release, through ID_LIKE, when its manager is installed', () => {
@@ -85,11 +85,9 @@ describe('installAdvice and installSources on Linux', () => {
     expect(installAdvice(node, 'linux', none, env([]))).toBe('install it with your package manager')
   })
 
-  test('with Homebrew on Linux, and on macOS and Windows, the advice is what it was', () => {
+  test('with Homebrew on Linux, and on macOS, the advice is what it was', () => {
     expect(installAdvice(node, 'linux', c => c === 'brew', apt)).toBe('brew install node')
     expect(installAdvice(node, 'darwin', none, apt)).toBe('brew install node')
-    expect(installAdvice(node, 'win32', none)).toBe('winget install --id OpenJS.NodeJS.LTS -e --scope user')
-    expect(installAdvice(uv, 'win32', none)).toBe('winget install --id astral-sh.uv -e --scope user')
   })
 
   test('Buracle never runs the Linux package manager: without Homebrew a missing pinned tool is downloaded, any other is only reported', () => {

@@ -51,10 +51,8 @@ export interface ToolSpec {
   required: boolean
   purpose?: string
   kind?: 'runtime' | 'cli' | 'lsp'
-  platforms?: Array<'darwin' | 'win32' | 'linux'>
+  platforms?: Array<'darwin' | 'linux'>
   brew?: string
-  winget?: string
-  scoop?: string
   npm?: string
   npm_with?: string[]
   pypi?: string
@@ -377,7 +375,7 @@ export function validateToolsCatalog(x: unknown): string[] {
   x['tools'].forEach((t, i) => {
     const at = `tools[${i}]`
     if (!isObj(t)) { errors.push(`${at}: expected a mapping`); return }
-    unknownKeys(t, ['name', 'check', 'version_regex', 'brew', 'winget', 'scoop', 'npm', 'npm_with', 'pypi', 'go', 'dotnet', 'rustup', 'bins', 'kind', 'platforms', 'install', 'requires', 'required', 'purpose', 'prefer', 'lsp'], at, errors)
+    unknownKeys(t, ['name', 'check', 'version_regex', 'brew', 'npm', 'npm_with', 'pypi', 'go', 'dotnet', 'rustup', 'bins', 'kind', 'platforms', 'install', 'requires', 'required', 'purpose', 'prefer', 'lsp'], at, errors)
     if (t['prefer'] !== undefined && t['prefer'] !== 'toolchain' && t['prefer'] !== 'path') errors.push(`${at}.prefer: expected toolchain | path`)
     if (t['prefer'] === 'toolchain' && t['npm'] === undefined && t['pypi'] === undefined) errors.push(`${at}.prefer: toolchain needs an npm or pypi source`)
     const lsp = t['lsp']
@@ -398,12 +396,12 @@ export function validateToolsCatalog(x: unknown): string[] {
         if (startup !== undefined && (typeof startup !== 'number' || !Number.isInteger(startup) || startup <= 0)) errors.push(`${at}.lsp.startup_timeout_ms: expected a positive integer`)
       }
     }
-    for (const k of ['winget', 'scoop', 'npm', 'pypi', 'go', 'dotnet', 'rustup'] as const) if (t[k] !== undefined && !isStr(t[k])) errors.push(`${at}.${k}: expected string`)
+    for (const k of ['npm', 'pypi', 'go', 'dotnet', 'rustup'] as const) if (t[k] !== undefined && !isStr(t[k])) errors.push(`${at}.${k}: expected string`)
     if (t['npm_with'] !== undefined && !isStrArr(t['npm_with'])) errors.push(`${at}.npm_with: expected a list of package names`)
     if (t['bins'] !== undefined && (!isStrArr(t['bins']) || t['bins'].length === 0)) errors.push(`${at}.bins: expected a non-empty list of executable names`)
     if (t['requires'] !== undefined && (!isStrArr(t['requires']) || t['requires'].length === 0 || t['requires'].some(c => c.trim() === ''))) errors.push(`${at}.requires: expected a non-empty list of command names`)
     if (t['kind'] !== undefined && t['kind'] !== 'runtime' && t['kind'] !== 'cli' && t['kind'] !== 'lsp') errors.push(`${at}.kind: expected runtime | cli | lsp`)
-    if (t['platforms'] !== undefined && (!Array.isArray(t['platforms']) || t['platforms'].length === 0 || !t['platforms'].every(p => p === 'darwin' || p === 'win32' || p === 'linux'))) errors.push(`${at}.platforms: expected a list of darwin | win32 | linux`)
+    if (t['platforms'] !== undefined && (!Array.isArray(t['platforms']) || t['platforms'].length === 0 || !t['platforms'].every(p => p === 'darwin' || p === 'linux'))) errors.push(`${at}.platforms: expected a list of darwin | linux`)
     if (!isStr(t['name'])) errors.push(`${at}.name: required string`)
     else if (names.has(t['name'])) errors.push(`${at}.name: duplicate ${JSON.stringify(t['name'])}`)
     else names.add(t['name'])

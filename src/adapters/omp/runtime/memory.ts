@@ -66,7 +66,7 @@ export function buracleCli(shim: string, repoRoot: string | undefined): string[]
 
 export function spawnDetached(argv: string[], env: Record<string, string> = {}): boolean {
   try {
-    const p = Bun.spawn(argv, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', env: { ...process.env, ...env }, windowsHide: true, detached: true })
+    const p = Bun.spawn(argv, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', env: { ...process.env, ...env }, detached: true })
     p.unref()
     return true
   } catch (e) {

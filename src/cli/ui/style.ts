@@ -15,7 +15,7 @@ export function colorLevel(stream: { isTTY?: boolean } = process.stdout, env: Re
   if (tp === 'Apple_Terminal') return 2
   if (/-256(color)?$/.test(env['TERM'] ?? '')) return 2
   if (force !== undefined && force !== '') return force === '3' ? 3 : force === '2' ? 2 : 1
-  return process.platform === 'win32' ? 3 : 1
+  return 1
 }
 
 export interface Rgb { r: number; g: number; b: number }

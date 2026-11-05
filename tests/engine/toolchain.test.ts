@@ -6,12 +6,12 @@ import * as paths from '../../src/engine/paths'
 import { serverRequest } from '../../src/engine/toolchain/index'
 import { fallbackNpmCache, launchPlan, serverEnvFor } from '../../src/engine/toolchain/launch'
 import { toolchainLinks } from '../../src/engine/toolchain/links'
-import { claudeLspJson, lspLaunch, lspServers, probeLsp, readToolsCatalog, shortVersion } from '../../src/engine/toolchain/lsp'
+import { claudeLspJson, lspLaunch, lspServers, probeLsp, shortVersion } from '../../src/engine/toolchain/lsp'
 import { binArgv, installNpm, isNodeScript, npmBins, npmInstalledVersion, npmPrefix, npmStagingPrefix, pypiSpec, safeName, toolchainEnv, toolRequest, UV_PYTHON } from '../../src/engine/toolchain/packages'
 import { opsDeps } from '../../src/engine/update/deps'
 import { emptyToolchainState, packageKey, readToolchainState, updateToolchainState, writeToolchainState } from '../../src/engine/toolchain/state'
 import { installAdvice, installSources, installTool, toolApplies, toolchainBinDirs } from '../../src/engine/toolchain/system'
-import { exePath, fakeExe, IS_WINDOWS, onlyPath, pathOf, unwrapCmd } from '../helpers/fake-exe'
+import { fakeExe, onlyPath, pathOf } from '../helpers/fake-exe'
 import { withEnv, withSandbox } from '../helpers/sandbox'
 
 function exe(path: string, text: string): string {
@@ -104,7 +104,7 @@ describe('installing a package server', () => {
     const savedPath = process.env['PATH']
     process.env['PATH'] = pathOf(bin, savedPath ?? '')
     opsDeps.run = async (argv, opts) => {
-      calls.push(unwrapCmd(argv))
+      calls.push([...argv])
       const dir = join(opts?.cwd ?? '', 'node_modules', 'open-websearch')
       mkdirSync(dir, { recursive: true })
       writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'open-websearch', version: '9.9.9', bin: { 'open-websearch': './cli.js' } }))
@@ -127,24 +127,21 @@ describe('installing a package server', () => {
 })
 
 describe('install sources', () => {
-  const t: ToolSpec = { name: 'rg', check: ['rg', '--version'], version_regex: 'ripgrep (\\d+)', required: true, brew: 'ripgrep', winget: 'BurntSushi.ripgrep.MSVC', scoop: 'ripgrep' }
-  test('macOS uses Homebrew; Windows winget, then scoop; the pinned download last; advice when none is there', () => {
+  const t: ToolSpec = { name: 'rg', check: ['rg', '--version'], version_regex: 'ripgrep (\\d+)', required: true, brew: 'ripgrep' }
+  test('macOS uses Homebrew; the pinned download last; advice when none is there', () => {
     expect(installSources(t, 'darwin', () => true, 'arm64').map(s => s.kind)).toEqual(['brew', 'download'])
     expect(installSources(t, 'darwin', () => true, 'arm64')[0]?.label).toBe('brew install ripgrep')
-    expect(installSources(t, 'win32', () => true, 'x64').map(s => s.kind)).toEqual(['winget', 'scoop', 'download'])
-    expect(installSources(t, 'win32', c => c === 'scoop', 'x64').map(s => s.kind)).toEqual(['scoop', 'download'])
     expect(installSources(t, 'darwin', () => false, 'arm64').map(s => s.kind)).toEqual(['download'])
-    expect(installSources(t, 'win32', () => false, 'arm64')).toEqual([])
-    expect(installAdvice(t, 'win32')).toBe('winget install --id BurntSushi.ripgrep.MSVC -e --scope user')
+    expect(installSources(t, 'linux', () => false, 'riscv64')).toEqual([])
     expect(installAdvice(t, 'darwin')).toBe('brew install ripgrep')
-    expect(toolApplies({ ...t, platforms: ['win32'] }, 'darwin')).toBe(false)
+    expect(toolApplies({ ...t, platforms: ['linux'] }, 'darwin')).toBe(false)
     expect(toolApplies(t, 'darwin')).toBe(true)
   })
 
   test('a tool that needs another command (requires) is installed only where that command is', () => {
-    const lint: ToolSpec = { name: 'golangci-lint', check: ['golangci-lint', '--version'], version_regex: 'version v?(\\d+\\.\\d+\\.\\d+)', required: false, brew: 'golangci-lint', winget: 'GolangCI.golangci-lint', go: 'github.com/golangci/golangci-lint/v2/cmd/golangci-lint', requires: ['go'] }
+    const lint: ToolSpec = { name: 'golangci-lint', check: ['golangci-lint', '--version'], version_regex: 'version v?(\\d+\\.\\d+\\.\\d+)', required: false, brew: 'golangci-lint', go: 'github.com/golangci/golangci-lint/v2/cmd/golangci-lint', requires: ['go'] }
     expect(installSources(lint, 'darwin', c => c !== 'go')).toEqual([])
-    expect(installSources(lint, 'win32', c => c !== 'go')).toEqual([])
+    expect(installSources(lint, 'linux', c => c !== 'go')).toEqual([])
     expect(installSources(lint, 'darwin', () => true).map(s => s.kind)).toEqual(['brew', 'go'])
     expect(installAdvice(lint, 'darwin', c => c !== 'go')).toBe('golangci-lint needs go on PATH; install it first, then run `buracle install`')
     expect(installAdvice(lint, 'darwin', () => true)).toBe('brew install golangci-lint')
@@ -153,7 +150,7 @@ describe('install sources', () => {
   test('a .NET tool installs with `dotnet tool install` into the toolchain, only where dotnet is', () => withSandbox(async () => {
     const cs: ToolSpec = { name: 'csharp-ls', check: ['csharp-ls', '--version'], version_regex: '(\\d+\\.\\d+\\.\\d+)', required: false, dotnet: 'csharp-ls', install: 'Install the .NET SDK' }
     expect(installSources(cs, 'darwin', () => true).map(s => s.label)).toEqual(['dotnet tool install csharp-ls (Buracle toolchain)'])
-    expect(installSources(cs, 'win32', () => true).map(s => s.kind)).toEqual(['dotnet'])
+    expect(installSources(cs, 'linux', () => true).map(s => s.kind)).toEqual(['dotnet'])
     expect(installSources(cs, 'darwin', c => c !== 'dotnet')).toEqual([])
     expect(installAdvice(cs, 'darwin')).toBe('Install the .NET SDK')
     const toolPath = join(paths.toolchainDir(), 'dotnet', 'tools')
@@ -161,7 +158,7 @@ describe('install sources', () => {
     const calls: string[][] = []
     const savedRun = opsDeps.run
     opsDeps.run = async spawned => {
-      const argv = unwrapCmd(spawned)
+      const argv = [...spawned]
       calls.push(argv)
       if (argv.includes('tool')) fakeExe(join(toolPath, 'csharp-ls'), "console.log('0.21.0')")
       return { code: 0, stdout: '', stderr: '', timedOut: false }
@@ -171,7 +168,7 @@ describe('install sources', () => {
     try {
       await withEnv({ PATH: onlyPath(bin) }, async () => {
         const r = await installTool(cs, Date.parse('2026-10-12T00:00:00Z'))
-        expect(r).toMatchObject({ ok: true, source: { kind: 'dotnet' }, record: { via: 'dotnet', path: exePath(join(toolPath, 'csharp-ls')) } })
+        expect(r).toMatchObject({ ok: true, source: { kind: 'dotnet' }, record: { via: 'dotnet', path: join(toolPath, 'csharp-ls') } })
       })
     } finally {
       opsDeps.run = savedRun
@@ -180,15 +177,14 @@ describe('install sources', () => {
   }))
 
   test('a rustup component installs with `rustup component add` before any package manager, only where rustup is', () => withSandbox(async () => {
-    const ra: ToolSpec = { name: 'rust-analyzer', check: ['rust-analyzer', '--version'], version_regex: '(\\d+)', required: false, rustup: 'rust-analyzer', brew: 'rust-analyzer', scoop: 'rust-analyzer' }
+    const ra: ToolSpec = { name: 'rust-analyzer', check: ['rust-analyzer', '--version'], version_regex: '(\\d+)', required: false, rustup: 'rust-analyzer', brew: 'rust-analyzer' }
     expect(installSources(ra, 'darwin', () => true).map(s => s.kind)).toEqual(['rustup', 'brew'])
-    expect(installSources(ra, 'win32', c => c === 'rustup').map(s => s.label)).toEqual(['rustup component add rust-analyzer'])
-    expect(installSources(ra, 'win32', () => false)).toEqual([])
-    expect(installAdvice(ra, 'win32', c => c === 'rustup')).toBe('rustup component add rust-analyzer')
-    expect(installAdvice(ra, 'win32', () => false)).toBe('scoop install rust-analyzer')
+    expect(installSources(ra, 'linux', c => c === 'rustup').map(s => s.label)).toEqual(['rustup component add rust-analyzer'])
+    expect(installSources(ra, 'linux', () => false)).toEqual([])
+    expect(installAdvice(ra, 'linux', c => c === 'rustup')).toBe('rustup component add rust-analyzer')
     const calls: string[][] = []
     const savedRun = opsDeps.run
-    opsDeps.run = async spawned => { calls.push(unwrapCmd(spawned)); return { code: 0, stdout: '', stderr: '', timedOut: false } }
+    opsDeps.run = async spawned => { calls.push([...spawned]); return { code: 0, stdout: '', stderr: '', timedOut: false } }
     const bin = join(paths.toolchainDir(), 'fake-bin')
     const rustup = fakeExe(join(bin, 'rustup'), '')
     try {
@@ -201,29 +197,6 @@ describe('install sources', () => {
     }
     expect(calls).toEqual([[rustup, 'component', 'add', 'rust-analyzer']])
   }))
-
-  test('winget installs for the user only (--scope user), so no install needs administrator rights', () => withSandbox(async () => {
-    const calls: string[][] = []
-    const savedRun = opsDeps.run
-    opsDeps.run = async spawned => { calls.push(unwrapCmd(spawned)); return { code: 0, stdout: '', stderr: '', timedOut: false } }
-    const bin = join(paths.toolchainDir(), 'fake-bin')
-    const winget = fakeExe(join(bin, 'winget'), '')
-    try {
-      await withEnv({ PATH: onlyPath(bin), BURACLE_PLATFORM: 'win32' }, async () => {
-        const r = await installTool({ ...t, scoop: undefined }, Date.parse('2026-10-12T00:00:00Z'))
-        expect(r).toMatchObject({ ok: true, source: { kind: 'winget' }, record: { via: 'winget' } })
-      })
-    } finally {
-      opsDeps.run = savedRun
-    }
-    expect(calls).toEqual([[winget, 'install', '--id', 'BurntSushi.ripgrep.MSVC', '--exact', '--scope', 'user', '--silent', '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity']])
-  }))
-
-  test('ast-grep never comes from winget, whose package installs only sg, so Windows gets the ast-grep command from scoop or the toolchain', () => {
-    const astGrep = readToolsCatalog(join(import.meta.dir, '..', '..', 'canonical', 'tools.yaml')).tools.find(t => t.name === 'ast-grep') as ToolSpec
-    expect(installSources(astGrep, 'win32', () => true).map(s => s.kind)).toEqual(['scoop', 'npm'])
-    expect(installSources(astGrep, 'win32', c => c !== 'scoop').map(s => s.kind)).toEqual(['npm'])
-  })
 })
 
 const FAKE_LSP = `
@@ -249,7 +222,7 @@ for await (const chunk of Bun.stdin.stream()) {
 `
 
 describe('language servers', () => {
-  test.skipIf(process.platform === 'win32')('PATH links: an npm bin, and what `go install` and `dotnet tool install` put into the toolchain folders (omp and the shell find them on PATH)', () => withSandbox(async ({ root }) => {
+  test('PATH links: an npm bin, and what `go install` and `dotnet tool install` put into the toolchain folders (omp and the shell find them on PATH)', () => withSandbox(async ({ root }) => {
     const s = emptyToolchainState()
     const npmDir = join(paths.toolchainDir(), 'npm', 'pyright')
     const npmBin = exe(join(npmDir, 'node_modules', '.bin', 'pyright-langserver'), '#!/bin/sh\n')
@@ -317,7 +290,7 @@ describe('the tools Buracle downloaded', () => {
   test('toolchainEnv puts their folders first on PATH, only the ones that exist', () => withSandbox(async () => {
     const [nodeBin, uvDir] = paths.systemToolBinDirs() as [string, string]
     mkdirSync(nodeBin, { recursive: true })
-    const parts = (toolchainEnv().PATH as string).split(IS_WINDOWS ? ';' : ':')
+    const parts = (toolchainEnv().PATH as string).split(':')
     expect(parts[0]).toBe(nodeBin)
     expect(parts).not.toContain(uvDir)
   }))
@@ -350,7 +323,7 @@ describe('the tools Buracle downloaded', () => {
 
   test('the downloaded programs are linked into ~/.local/bin, only for a download record', () => withSandbox(async () => {
     const nodeDir = join(paths.systemToolsDir(), 'node')
-    const bins = IS_WINDOWS ? ['node.exe', 'npm.cmd', 'npx.cmd'] : ['bin/node', 'bin/npm', 'bin/npx']
+    const bins = ['bin/node', 'bin/npm', 'bin/npx']
     for (const b of bins) exe(join(nodeDir, b), 'x')
     const state = emptyToolchainState()
     state.system['node'] = { via: 'download', version: '26.13.0', path: join(nodeDir, bins[0] as string), installed_at: 't' }

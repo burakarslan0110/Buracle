@@ -2,7 +2,6 @@ import os from 'node:os'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import type { Harness } from '../core/events'
-import { osName } from './platform'
 import { parseYaml } from './yaml'
 
 export function env(name: string): string | undefined {
@@ -149,7 +148,7 @@ export function harnessDir(h?: Harness): string {
 export function userConfigFile(): string { return join(buracleHome(), 'config.yaml') }
 export function secretsDir(): string { return join(buracleHome(), 'secrets') }
 export function binDir(): string { return join(buracleHome(), 'bin') }
-export function shimPath(): string { return join(binDir(), osName() === 'win32' ? 'buracle.cmd' : 'buracle') }
+export function shimPath(): string { return join(binDir(), 'buracle') }
 export function stateDir(): string { return join(buracleHome(), 'state') }
 export function ownedLedgerFile(): string { return join(stateDir(), 'owned.json') }
 export function healthFile(): string { return join(stateDir(), 'health.json') }
@@ -163,10 +162,10 @@ export function pathRulesDir(): string { return join(buracleHome(), 'rules', 'pa
 export function toolchainDir(): string { return join(buracleHome(), 'toolchain') }
 /** The system tools Buracle downloaded itself (node, uv, rg, jq), one folder each (src/engine/toolchain/system-download.ts). */
 export function systemToolsDir(): string { return join(toolchainDir(), 'system') }
-/** The folders that hold the downloaded tools' programs: Node keeps them in bin/ except on Windows. */
+/** The folders that hold the downloaded tools' programs: Node keeps them in bin/. */
 export function systemToolBinDirs(): string[] {
   const root = systemToolsDir()
-  return [osName() === 'win32' ? join(root, 'node') : join(root, 'node', 'bin'), join(root, 'uv'), join(root, 'rg'), join(root, 'jq')]
+  return [join(root, 'node', 'bin'), join(root, 'uv'), join(root, 'rg'), join(root, 'jq')]
 }
 export function toolchainBinDirs(): string[] { return [join(toolchainDir(), 'go', 'bin'), join(toolchainDir(), 'dotnet', 'tools'), ...systemToolBinDirs()] }
 export function toolchainStateFile(): string { return join(stateDir(), 'toolchain.json') }

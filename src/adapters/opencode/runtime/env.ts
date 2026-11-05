@@ -47,7 +47,7 @@ export function applyEnv(resolved: ResolvedEnv): string[] {
   return changed
 }
 
-// Windows moves a file's mtime in clock ticks of about 15 ms, so two quick writes can share one: the size tells them apart.
+// Two quick writes can share one mtime on a coarse clock: the size tells them apart.
 function mtimeOf(path: string): string | undefined {
   try { const st = statSync(path); return `${st.mtimeMs}:${st.size}` } catch { return undefined }
 }

@@ -79,7 +79,7 @@ describe('runtime config snapshot', () => {
     expect(snap.v).toBe(1)
     expect(snap.config).toEqual(cfg)
     expect(snap.resolved).toEqual({
-      buracleHome, brain: join(buracleHome, 'brain'), shim: join(buracleHome, 'bin', process.platform === 'win32' ? 'buracle.cmd' : 'buracle'), repoRoot: paths.repoRoot(),
+      buracleHome, brain: join(buracleHome, 'brain'), shim: join(buracleHome, 'bin', 'buracle'), repoRoot: paths.repoRoot(),
       claudeDir: join(home, '.claude'), codexHome: join(home, '.codex'), opencodeConfigDir: join(home, '.config', 'opencode'), ompAgentDir: join(home, '.omp', 'agent'),
       bun: Bun.which('bun') ?? process.execPath,
     })

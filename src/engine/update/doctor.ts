@@ -9,7 +9,6 @@ import { listTxns, readLedgerSync as loadLedgerForDoctor } from '../txn'
 import { readTextSync, sha256 } from '../fsx'
 import { DAY_MS, scanHookFailures } from '../hook-health'
 import * as paths from '../paths'
-import { exeName, isWindows, spawnArgv } from '../platform'
 import type { LiveContext } from './context'
 import { opsDeps } from './deps'
 import { buracleHomeProblem, pathLink } from './install-core'
@@ -17,7 +16,6 @@ import { probeServers, writeHealth, type McpHealthEntry, type ToolHealthEntry } 
 import { errText, tilde, tildeText } from './output'
 import { checkoutGitState, packagesProblem, parseShimText, runtimeDirOf, runtimeHealth, type ShimInfo } from './runtime'
 import { readUpdatesCache } from './updates-cache'
-import { windowsLauncher } from '../toolchain/links'
 import { binArgv } from '../toolchain/packages'
 import { readToolchainState, type ToolchainState } from '../toolchain/state'
 import { toolPackage } from '../toolchain/index'
@@ -84,20 +82,11 @@ export function configChecks(live: LiveContext, bundle: { bundle: CanonicalBundl
     const c = shimCheck(parseShimText(shim.value), repoRoot)
     add(c.level, 'shim', c.detail)
   }
-  if (isWindows()) {
-    // Windows has a launcher file on PATH instead of a symlink.
-    const launcher = `${pathLink()}.cmd`
-    const text = readTextSync(launcher)
-    if (!text.ok) add('warn', 'path-link', `${tilde(launcher)} is missing; run \`buracle install\``)
-    else if (text.value !== windowsLauncher(paths.shimPath())) add('warn', 'path-link', `${tilde(launcher)} does not start ${tilde(paths.shimPath())}; run \`buracle install\``)
-    else add('ok', 'path-link', `${tilde(launcher)} → shim`)
-  } else {
-    let link: string | undefined
-    try { if (lstatSync(pathLink()).isSymbolicLink()) link = readlinkSync(pathLink()) } catch {  }
-    if (link === undefined) add('warn', 'path-link', `${tilde(pathLink())} is missing or not a symlink`)
-    else if (resolve(paths.localBinDir(), link) !== paths.shimPath()) add('warn', 'path-link', `${tilde(pathLink())} points to ${link}, not the shim`)
-    else add('ok', 'path-link', `${tilde(pathLink())} → shim`)
-  }
+  let link: string | undefined
+  try { if (lstatSync(pathLink()).isSymbolicLink()) link = readlinkSync(pathLink()) } catch {  }
+  if (link === undefined) add('warn', 'path-link', `${tilde(pathLink())} is missing or not a symlink`)
+  else if (resolve(paths.localBinDir(), link) !== paths.shimPath()) add('warn', 'path-link', `${tilde(pathLink())} points to ${link}, not the shim`)
+  else add('ok', 'path-link', `${tilde(pathLink())} → shim`)
   const onPath = (process.env['PATH'] ?? '').split(delimiter).some(d => d !== '' && resolve(d) === paths.localBinDir())
   if (!onPath) add('warn', 'PATH', `${tilde(paths.localBinDir())} is not on PATH; add it or call ${tilde(paths.shimPath())} directly`)
   const brain = paths.brainDir()
@@ -115,7 +104,7 @@ const SHIM_REF = /(\$\{[A-Za-z_][A-Za-z0-9_]*(?::-[^}]*)?\}|\$[A-Za-z_][A-Za-z0-
 export function expandShellWord(word: string, env: Readonly<Record<string, string | undefined>> = process.env): { value: string, missing: string[] } {
   const missing: string[] = []
   const get = (name: string): string | undefined => {
-    const v = env[name] ?? (name === 'HOME' ? env['USERPROFILE'] : undefined)
+    const v = env[name]
     return v === undefined || v === '' ? undefined : v
   }
   let out = word.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}|\$([A-Za-z_][A-Za-z0-9_]*)/g, (_m, braced: string | undefined, dflt: string | undefined, bare: string | undefined) => {
@@ -304,9 +293,7 @@ function versionOf(t: ToolSpec, out: { stdout: string, stderr: string }): string
   try { return new RegExp(t.version_regex, 'm').exec(`${out.stdout}\n${out.stderr}`)?.[1] } catch { return undefined }
 }
 
-// A tool's first start on Windows (Python compiling its modules, an antivirus scan of a new binary) takes longer
-// than 5 s, so its version check gets 20 s there.
-const TOOL_CHECK_MS = process.platform === 'win32' ? 20_000 : 5000
+const TOOL_CHECK_MS = 5000
 
 export async function checkTools(tools: readonly ToolSpec[], timeoutMs = TOOL_CHECK_MS, state: ToolchainState = readToolchainState()): Promise<ToolResult[]> {
   // The first start after an install or upgrade can outlast the limit where the next one does not, so a check that
@@ -330,9 +317,9 @@ export async function checkTools(tools: readonly ToolSpec[], timeoutMs = TOOL_CH
     const r = await check(t.check)
     if (r.code === 127) {
       // The toolchain's folders, then ~/.bun/bin: the Bun the install script put there is not on PATH before a new terminal.
-      const local = pkg === undefined ? [...paths.toolchainBinDirs(), join(paths.home(), '.bun', 'bin')].map(d => join(d, exeName(t.check[0] ?? t.name))).find(p => existsSync(p)) : undefined
+      const local = pkg === undefined ? [...paths.toolchainBinDirs(), join(paths.home(), '.bun', 'bin')].map(d => join(d, t.check[0] ?? t.name)).find(p => existsSync(p)) : undefined
       if (local !== undefined) {
-        const rr = await check(spawnArgv([local, ...t.check.slice(1)]))
+        const rr = await check([local, ...t.check.slice(1)])
         const v = versionOf(t, rr)
         if (rr.code !== 0 && v === undefined) return { name: t.name, status: 'error', detail: `the Buracle toolchain copy (${tilde(local)}) does not run: exit ${rr.code}${rr.timedOut ? ' (timed out)' : ''}; run \`buracle install\`` }
         return v !== undefined ? { name: t.name, status: 'ok', version: v, detail: `${v} (Buracle toolchain, ${tilde(local)})` } : { name: t.name, status: 'ok', detail: `present (version not recognized; Buracle toolchain, ${tilde(local)})` }

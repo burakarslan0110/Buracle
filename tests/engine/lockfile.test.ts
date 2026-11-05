@@ -33,17 +33,7 @@ afterEach(() => {
 })
 
 describe('who holds a lock', () => {
-  test('on Windows the start time and image name come from PowerShell, since there is no ps', () => {
-    const calls: string[][] = []
-    const seen = lookUpProcess(4242, { os: 'win32', run: argv => { calls.push(argv); return '1729281234567 bun\r\n' } })
-    expect(seen).toEqual({ startedAt: 1729281234567, command: 'bun' })
-    expect(calls[0]?.[0]).toBe('powershell.exe')
-    expect(calls[0]?.at(-1)).toContain('Get-Process -Id 4242')
-    expect(lookUpProcess(4242, { os: 'win32', run: () => undefined })).toBeUndefined()
-    expect(lookUpProcess(4242, { os: 'win32', run: () => 'Get-Process : Cannot find a process\r\n' })).toBeUndefined()
-  })
-
-  test('elsewhere ps gives the elapsed time and the command line', () => {
+  test('ps gives the elapsed time and the command line', () => {
     expect(lookUpProcess(7, { os: 'darwin', nowMs: 100_000_000, run: () => '  01:01:05 bun /x/main.ts install\n' })).toEqual({ startedAt: 100_000_000 - 3665_000, command: 'bun /x/main.ts install' })
     expect(lookUpProcess(7, { os: 'linux', run: () => '' })).toBeUndefined()
   })

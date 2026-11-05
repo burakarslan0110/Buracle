@@ -22,15 +22,8 @@ const PACKAGES: Record<keyof typeof TESTED_WITH, string> = {
 }
 
 describe.skipIf(!HAS_CI)('ci.yml', () => {
-  test('a harness version written out in a job is the tested one in tested-with.ts', () => {
-    const found: string[] = []
-    for (const [harness, pkg] of Object.entries(PACKAGES) as Array<[keyof typeof TESTED_WITH, string]>) {
-      for (const m of text.matchAll(new RegExp(`${pkg.replace(/[/@]/g, c => `\\${c}`)}@(\\d+\\.\\d+\\.\\d+)`, 'g'))) {
-        found.push(harness)
-        expect({ harness, version: m[1] }).toEqual({ harness, version: TESTED_WITH[harness].tested })
-      }
-    }
-    expect(new Set(found)).toEqual(new Set(['claude', 'codex', 'opencode', 'omp']))
+  test('no job writes a harness version out: the install job reads them from tested-with.ts', () => {
+    for (const pkg of Object.values(PACKAGES)) expect(text).not.toMatch(new RegExp(`${pkg.replace(/[/@]/g, c => `\\${c}`)}@\\d`))
   })
 
   test('the POSIX install job reads the versions from tested-with.ts instead of copying them', () => {
@@ -40,11 +33,12 @@ describe.skipIf(!HAS_CI)('ci.yml', () => {
     for (const pkg of Object.values(PACKAGES)) expect(script).not.toMatch(new RegExp(`${pkg.replace(/[/@]/g, c => `\\${c}`)}@\\d`))
   })
 
-  test('the checks keep their three operating systems and the release waits for every install job', () => {
+  test('the checks and the install job run on macOS and Linux only, and the release waits for both', () => {
     const include = workflow.jobs['checks']?.strategy?.matrix?.include ?? []
-    expect(include.map(i => i['name'])).toEqual(['macOS arm64', 'Linux x64', 'Windows x64'])
-    expect(workflow.jobs['windows-install']?.name).toBe('Windows install')
+    expect(include.map(i => i['name'])).toEqual(['macOS arm64', 'Linux x64'])
     expect((workflow.jobs['posix-install']?.strategy?.matrix?.include ?? []).map(i => i['runner'])).toEqual(['macos-latest', 'ubuntu-latest'])
-    expect(workflow.jobs['release']?.needs).toEqual(['checks', 'windows-install', 'posix-install'])
+    expect(Object.keys(workflow.jobs).sort()).toEqual(['checks', 'posix-install', 'release'])
+    expect(text).not.toMatch(/windows-latest|pwsh|install\.ps1/)
+    expect(workflow.jobs['release']?.needs).toEqual(['checks', 'posix-install'])
   })
 })

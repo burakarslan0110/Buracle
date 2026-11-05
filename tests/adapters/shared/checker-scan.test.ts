@@ -53,16 +53,14 @@ describe('scanUpward: the same project facts on every harness', () => {
     expect(scanUpward(nodeCheckFs, join(repo, 'svc/app/main.py'), repo).map(s => s.dir)).toEqual([join(repo, 'svc/app'), join(repo, 'svc'), repo])
   }))
 
-  test('Windows shims: eslint.cmd wins over the sh shim on Windows and is ignored elsewhere', () => withSandbox(async ({ root }) => {
+  test('a Windows eslint.cmd next to the sh shim is ignored', () => withSandbox(async ({ root }) => {
     put(root, {
       'node_modules/.bin/eslint': '#!/bin/sh\n',
       'node_modules/.bin/eslint.cmd': '@echo off\n',
       'eslint.config.js': 'export default []\n',
       'src/a.ts': 'export const a = 1\n',
     })
-    const bin = (windows: boolean) => checkers.checkerFacts(scanUpward(nodeCheckFs, join(root, 'src/a.ts'), root, undefined, windows), root).eslintBin
-    expect(bin(true)).toBe(join(root, 'node_modules/.bin/eslint.cmd'))
-    expect(bin(false)).toBe(join(root, 'node_modules/.bin/eslint'))
+    expect(checkers.checkerFacts(scanUpward(nodeCheckFs, join(root, 'src/a.ts'), root), root).eslintBin).toBe(join(root, 'node_modules/.bin/eslint'))
   }))
 })
 
@@ -73,11 +71,7 @@ describe('checkerArgv: the binary a checker runs', () => {
     expect(checkerArgv(['shellcheck', '-f', 'gcc', 'a.sh'], () => undefined)).toEqual(['shellcheck', '-f', 'gcc', 'a.sh'])
   })
 
-  test('on Windows a .cmd shim runs through cmd.exe', () => withEnv({ BURACLE_PLATFORM: 'win32' }, () => {
-    expect(checkerArgv(['C:\\r\\node_modules\\.bin\\eslint.cmd', '--format', 'json', 'C:\\r\\a.ts'])).toEqual(['cmd.exe', '/d', '/s', '/c', 'C:\\r\\node_modules\\.bin\\eslint.cmd --format json C:\\r\\a.ts'])
-  }))
-
-  test.skipIf(process.platform === 'win32')('golangci-lint installed by `go install` into the toolchain runs from there and is not named missing', () => withSandbox(async ({ root, buracleHome }) => {
+  test('golangci-lint installed by `go install` into the toolchain runs from there and is not named missing', () => withSandbox(async ({ root, buracleHome }) => {
     put(root, { 'go.mod': 'module x\n', '.golangci.yml': 'version: "2"\n', 'pkg/a.go': 'package pkg\n', 'pkg/a_test.go': 'package pkg\n', 'empty/.keep': '' })
     const lint = join(buracleHome, 'toolchain', 'go', 'bin', 'golangci-lint')
     put(dirname(lint), { 'golangci-lint': '#!/bin/sh\necho "a.go:1:6: exported func should have comment (revive)"\nexit 1\n' })

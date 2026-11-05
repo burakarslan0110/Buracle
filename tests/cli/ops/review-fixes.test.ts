@@ -10,7 +10,7 @@ import { yamlParse } from '../../../src/engine/merge'
 import { cleanupLedgerKey, listTxns, readLedger, type Plan } from '../../../src/engine/txn'
 import { readInstallRecord } from '../../../src/engine/update/install-core'
 import { sortOutUndos } from '../../../src/engine/update/uninstall'
-import { fakeExe, IS_WINDOWS } from '../../helpers/fake-exe'
+import { fakeExe } from '../../helpers/fake-exe'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
 import { fakeAdapter, fakeCli, makeRepo, memoryIO, withDeps } from './helpers'
 
@@ -508,7 +508,7 @@ describe('WF-06: a hand edit of config.yaml reaches the runtime snapshot', () =>
 
 describe('F06: Ctrl-C during `buracle install`', () => {
   // A SIGINT that Bun sends on Windows ends the process outright; no handler runs there.
-  test.skipIf(IS_WINDOWS)('rolls back the running harness transaction, keeps the committed ones, exits 130', () => withSandbox(async ({ root, home }) => {
+  test('rolls back the running harness transaction, keeps the committed ones, exits 130', () => withSandbox(async ({ root, home }) => {
     const repo = makeRepo(root)
     const marker = join(root, 'registered')
     const script = join(root, 'scripts', 'install.ts')

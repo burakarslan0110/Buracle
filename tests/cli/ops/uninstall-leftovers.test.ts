@@ -6,7 +6,7 @@ import { run as uninstallRun } from '../../../src/cli/commands/uninstall'
 import * as paths from '../../../src/engine/paths'
 import { VAULT_PRE_COMMIT_MARKER } from '../../../src/engine/update/uninstall'
 import { git } from '../../memory/helpers'
-import { IS_WINDOWS, narrowPath } from '../../helpers/fake-exe'
+import { narrowPath } from '../../helpers/fake-exe'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
 import { fakeAdapter, fakeCli, makeRepo, memoryIO, withDeps } from './helpers'
 
@@ -75,7 +75,7 @@ describe('uninstall leftovers (O8)', () => {
     })
   }))
 
-  test.skipIf(IS_WINDOWS)('a plain uninstall takes out the PATH block the install added and the system tools it downloaded; the npm and uv packages stay', () => withSandbox(async ({ root, home }) => {
+  test('a plain uninstall takes out the PATH block the install added and the system tools it downloaded; the npm and uv packages stay', () => withSandbox(async ({ root, home }) => {
     const repo = makeRepo(root)
     await withDeps({ repoRoot: () => repo, adapters: async () => [], runCli: fakeCli().runCli }, async () => {
       await withEnv({ PATH: narrowPath(), SHELL: '/bin/zsh', ZDOTDIR: undefined }, async () => {

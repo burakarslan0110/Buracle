@@ -37,7 +37,6 @@ export interface ArtifactInput {
   config?: ArtifactConfig
   home?: string
   hookCommandPrefix?: string
-  hookCommandPrefixWindows?: string
 }
 
 export class CodexValueError extends Error {
@@ -60,7 +59,7 @@ export function codexArtifacts(input: ArtifactInput): CodexArtifacts {
   const problems = codexValueProblems({ mcpTables, rootKeys, ...(effort !== undefined ? { effort } : {}), ...(bypassKeys !== undefined ? { bypass: bypassKeys } : {}) })
   if (problems.length > 0) throw new CodexValueError(problems)
   const out: CodexArtifacts = {
-    hooksFile: buracleHooksFile(input.hookCommandPrefix, input.hookCommandPrefixWindows),
+    hooksFile: buracleHooksFile(input.hookCommandPrefix),
     mcpTables,
     tui: codexTui(c.statusline, warnings),
     rootKeys,

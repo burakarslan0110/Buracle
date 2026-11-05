@@ -1,4 +1,4 @@
-import { nativePath, pathRoot } from '../events'
+import { nativePath, normalizePath, pathRoot } from '../events'
 
 // Windows spellings of the places the shell guard protects. Paths reach these helpers normalized
 // (forward slashes, an uppercase drive root, a `\\srv\share` UNC root).
@@ -9,11 +9,18 @@ const HOME_FOLDERS = new Set(['applications', 'desktop', 'documents', 'downloads
   'appdata', 'onedrive', 'videos', 'favorites', 'contacts', 'links', 'saved games', 'searches'])
 const RAW_DEVICE = /^[\\/]{2}[.?][\\/](?:physicaldrive\d|harddisk\d|cdrom\d|tape\d|[a-z]:(?:$|[\\/])|volume\{|globalroot)/i
 
-// Git Bash spells C:\x as /c/x (Cygwin as /cygdrive/c/x); no POSIX system keeps a one-letter
-// top-level folder, so reading it as a drive only adds denials there.
+// Git Bash spells C:\x as /c/x, Cygwin as /cygdrive/c/x and WSL as /mnt/c/x. A POSIX system rarely keeps a one-letter
+// folder at the top or under /mnt, and reading one as a drive only adds denials for the Windows places below.
+// The path as written is read first, then normalized, so `.`, `..` and doubled slashes cannot hide the drive; any other
+// path comes back as written.
+const DRIVE_SPELLING = /^\/(?:cygdrive\/|mnt\/)?([A-Za-z])(?=\/|$)/
+
 export function msysPath(t: string): string {
-  const m = /^\/(?:cygdrive\/)?([A-Za-z])(?=\/|$)/.exec(t)
-  return m ? `${(m[1] as string).toUpperCase()}:${t.slice(m[0].length) || '/'}` : t
+  for (const p of t.startsWith('/') ? [t, normalizePath(t)] : [t]) {
+    const m = DRIVE_SPELLING.exec(p)
+    if (m) return `${(m[1] as string).toUpperCase()}:${p.slice(m[0].length) || '/'}`
+  }
+  return t
 }
 
 export function windowsRawDevice(p: string): boolean {

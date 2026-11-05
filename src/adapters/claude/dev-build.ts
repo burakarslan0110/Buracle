@@ -44,10 +44,8 @@ function removeEmptyDirs(dir: string, isRoot = true): boolean {
 
 export interface SyncReport { written: string[]; removed: string[]; unchanged: number }
 
-export function syncTree(outDir: string, files: readonly GenFile[], opts: { check?: boolean, keepsModes?: boolean } = {}): SyncReport {
+export function syncTree(outDir: string, files: readonly GenFile[], opts: { check?: boolean } = {}): SyncReport {
   const report: SyncReport = { written: [], removed: [], unchanged: 0 }
-  // Windows keeps no POSIX mode (a file reads back as 0o666), so there only the content counts.
-  const keepsModes = opts.keepsModes ?? process.platform !== 'win32'
   const want = new Map(files.map(f => [f.path, f]))
   for (const f of files) {
     const abs = join(outDir, f.path)
@@ -55,7 +53,7 @@ export function syncTree(outDir: string, files: readonly GenFile[], opts: { chec
     let same = false
     try {
       const st = statSync(abs)
-      same = st.isFile() && (!keepsModes || (st.mode & 0o777) === mode) && readFileSync(abs, 'utf8') === f.content
+      same = st.isFile() && (st.mode & 0o777) === mode && readFileSync(abs, 'utf8') === f.content
     } catch { same = false }
     if (same) { report.unchanged++; continue }
     report.written.push(f.path)

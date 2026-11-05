@@ -79,9 +79,8 @@ describe('findings', () => {
     expect(guardHook(doc('Bash|Monitor'), 'PowerShell')).toBeUndefined()
     const shellForm = { command: '"${CLAUDE_PLUGIN_ROOT}/bin/buracle" hook claude PreToolUse' }
     expect(guardHook(JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', ...shellForm }] }] } }))).toEqual(shellForm)
-    expect(hookArgv(shellForm, '/p', () => undefined, false)).toEqual(['/bin/sh', '-c', '"/p/bin/buracle" hook claude PreToolUse'])
-    expect(hookArgv(shellForm, '/p', () => undefined, true)).toBeUndefined()
-    expect(hookArgv({ command: 'bun', args: exec.args }, '/p', n => (n === 'bun' ? '/opt/bun' : undefined), true)).toEqual(['/opt/bun', '/p/bin/buracle.ts', 'hook', 'claude', 'PreToolUse'])
+    expect(hookArgv(shellForm, '/p', () => undefined)).toEqual(['/bin/sh', '-c', '"/p/bin/buracle" hook claude PreToolUse'])
+    expect(hookArgv({ command: 'bun', args: exec.args }, '/p', n => (n === 'bun' ? '/opt/bun' : undefined))).toEqual(['/opt/bun', '/p/bin/buracle.ts', 'hook', 'claude', 'PreToolUse'])
 
     const seen: Array<{ argv: string[], opts?: RunOptions }> = []
     const deny = JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'no' } })
@@ -97,19 +96,6 @@ describe('findings', () => {
     expect(silent.detail).toContain('unguarded')
     const powershellOpen = await guardProbeFinding(FOLDER, { which, run: async (_argv, opts) => ok(String(opts?.stdin).includes('"PowerShell"') ? '' : deny) })
     expect(powershellOpen.detail).toContain('from the PowerShell tool')
-  })
-
-  test('the guard probe on Windows: a shell-form hook (which PowerShell cannot parse) is an error, nothing runs', async () => {
-    await withSandbox(async sb => {
-      const folder = join(sb.root, 'plugin')
-      mkdirSync(join(folder, 'hooks'), { recursive: true })
-      writeFileSync(join(folder, 'hooks', 'hooks.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash|PowerShell', hooks: [{ type: 'command', command: '"${CLAUDE_PLUGIN_ROOT}/bin/buracle" hook claude PreToolUse' }] }] } }))
-      const calls: string[][] = []
-      const f = await guardProbeFinding(folder, { which: () => undefined, run: async argv => { calls.push(argv); return ok('') } }, true)
-      expect(f.level).toBe('error')
-      expect(f.detail).toContain('PowerShell cannot parse')
-      expect(calls).toEqual([])
-    })
   })
 
   test('the guard probe end to end: the generated plugin denies through bin/buracle.ts (no shim here: the checkout runs)', async () => {
@@ -243,7 +229,7 @@ describe('commands (I8): every hook, MCP, language server and statusLine command
     })
   })
 
-  test.skipIf(process.platform === 'win32')('a shell-form hook whose program is not executable is an error (POSIX modes)', async () => {
+  test('a shell-form hook whose program is not executable is an error (POSIX modes)', async () => {
     await withSandbox(async sb => {
       const folder = plugin(sb.root)
       shim(paths.shimPath())
@@ -267,7 +253,7 @@ describe('commands (I8): every hook, MCP, language server and statusLine command
     })
   })
 
-  test('a statusLine that names bun (the Windows form) needs bun on PATH', async () => {
+  test('a statusLine that names bun needs bun on PATH', async () => {
     await withSandbox(async sb => {
       const folder = plugin(sb.root)
       shim(paths.shimPath())

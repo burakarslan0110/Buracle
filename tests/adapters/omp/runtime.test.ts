@@ -6,7 +6,6 @@ import { defaultDeps } from '../../../src/adapters/omp/runtime/extension'
 import { buracleCli, capText, createMemoryBridge, readMemoryStatus } from '../../../src/adapters/omp/runtime/memory'
 import { defaultConfig } from '../../../src/core/config'
 import * as paths from '../../../src/engine/paths'
-import { windowsShimContent } from '../../../src/engine/update/install-core'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
 
 const SID = '01a118a8-8d01-740c-9360-f4f796699f4b'
@@ -79,19 +78,8 @@ describe('omp runtime: memory bridge', () => {
     if (Bun.which('bun') !== null) expect(viaBun).toEqual([Bun.which('bun') as string, join(repo, 'src', 'cli', 'main.ts')])
     writeFileSync(shim, '#!/bin/sh\n')
     chmodSync(shim, 0o755)
-    expect(buracleCli(shim, repo)).toEqual(process.platform === 'win32' ? viaBun : [shim])
+    expect(buracleCli(shim, repo)).toEqual([shim])
     expect(buracleCli(join(sb.root, 'absent'), undefined)).toBeUndefined()
-  }))
-
-  test('on Windows buracleCli starts what buracle.cmd runs, never the .cmd itself', () => withSandbox(async sb => {
-    const checkout = join(sb.root, 'checkout')
-    mkdirSync(join(checkout, 'src', 'cli'), { recursive: true })
-    writeFileSync(join(checkout, 'src', 'cli', 'main.ts'), '')
-    const shim = join(sb.root, 'buracle.cmd')
-    writeFileSync(shim, windowsShimContent({ bun: process.execPath, repoRoot: checkout }))
-    await withEnv({ BURACLE_PLATFORM: 'win32' }, () => {
-      expect(buracleCli(shim, undefined)).toEqual([process.execPath, join(checkout, 'src', 'cli', 'main.ts')])
-    })
   }))
 
   test('the bundled appendSpool (memory task) writes the session spool', () => withSandbox(async sb => {
@@ -112,7 +100,7 @@ describe('omp runtime: live config and MCP health', () => {
     expect(live.config.context.warnPct).toBe(85)
     expect(live.repoRoot).toBe('/r')
     expect(live.vault).toBe(join(sb.home, 'Documents', 'Buracle'))
-    expect(live.shim).toBe(join(sb.buracleHome, 'bin', process.platform === 'win32' ? 'buracle.cmd' : 'buracle'))
+    expect(live.shim).toBe(join(sb.buracleHome, 'bin', 'buracle'))
     expect(live.source).toBe('runtime-config')
     const other = parseRuntimeConfig(JSON.stringify({ v: 2, config: { ...d, routing: { strictness: 'off' } }, resolved: { repoRoot: '/r' } }), d)
     expect(other.source).toBe('defaults')

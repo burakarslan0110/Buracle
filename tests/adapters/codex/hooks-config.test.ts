@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   buracleHooksFile, CODEX_HOOK_EVENTS, duplicateBuracleHandlers, findBuracleHandlers, HOOK_COMMAND_PREFIX, HOOK_GROUP_IDENTITY, hookCommand, hookTrustHash, hookTrustKey, isBuracleCommand,
-  LEGACY_HOOK_COMMAND_PREFIXES, POST_ANSWER_MATCHER, POST_CAPTURE_MATCHER, POST_MASK_HANDLER, POST_MASK_MATCHER, PRE_TOOL_MATCHER, windowsHookPrefix,
+  LEGACY_HOOK_COMMAND_PREFIXES, POST_ANSWER_MATCHER, POST_CAPTURE_MATCHER, POST_MASK_HANDLER, POST_MASK_MATCHER, PRE_TOOL_MATCHER,
 } from '../../../src/adapters/codex/hooks-config'
 
 function codexMatches(pattern: string, tool: string, aliases: readonly string[] = []): boolean {
@@ -62,16 +62,9 @@ describe('trust identity (matches Codex 0.161.0)', () => {
     expect(hookTrustHash('PreToolUse', {}, { type: 'mcp_tool', server: 's', tool: 't' })).toBeUndefined()
   })
 
-  test('Windows: commandWindows is the command Codex hashes there; elsewhere it changes nothing (checked with hooks/list)', () => {
+  test('the hooks file has one command per handler, and the trust hash is the one Codex computes for it (checked with hooks/list)', () => {
     const plain = { type: 'command', command: `${NOW_CMD}PreToolUse`, timeout: 10 }
-    const win = { ...plain, commandWindows: `${windowsHookPrefix('C:/Users/me/.buracle/bin/buracle.cmd')}PreToolUse` }
-    expect(win.commandWindows).toBe('"C:\\Users\\me\\.buracle\\bin\\buracle.cmd" hook codex PreToolUse')
-    expect(hookTrustHash('PreToolUse', { matcher: 'Bash' }, win, 'darwin')).toBe(hookTrustHash('PreToolUse', { matcher: 'Bash' }, plain, 'darwin'))
-    expect(hookTrustHash('PreToolUse', { matcher: 'Bash' }, plain, 'darwin')).toBe('sha256:d1ec728a5b6776fc0ff5580aeafbe8659c8148c48f9d6601ed9acf7e418d8af9')
-    expect(hookTrustHash('PreToolUse', { matcher: 'Bash' }, win, 'win32')).toBe(hookTrustHash('PreToolUse', { matcher: 'Bash' }, { ...plain, command: win.commandWindows }, 'darwin'))
-    expect(hookTrustHash('PreToolUse', { matcher: 'Bash' }, win, 'win32')).not.toBe(hookTrustHash('PreToolUse', { matcher: 'Bash' }, plain, 'win32'))
-    const file = buracleHooksFile(HOOK_COMMAND_PREFIX, windowsHookPrefix('C:\\b\\buracle.cmd'))
-    for (const e of CODEX_HOOK_EVENTS) for (const g of file.hooks[e] ?? []) for (const h of g.hooks) expect(h.commandWindows).toBe(`"C:\\b\\buracle.cmd" hook codex ${e === 'PostToolUse' && g.matcher === POST_MASK_MATCHER ? POST_MASK_HANDLER : e}`)
+    expect(hookTrustHash('PreToolUse', { matcher: 'Bash' }, plain)).toBe('sha256:d1ec728a5b6776fc0ff5580aeafbe8659c8148c48f9d6601ed9acf7e418d8af9')
     expect(JSON.stringify(buracleHooksFile())).not.toContain('commandWindows')
   })
 

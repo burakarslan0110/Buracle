@@ -23,11 +23,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # One runner per operating system: macOS on arm64, Linux and Windows on x64.
+        # One runner per operating system: macOS on arm64, Linux on x64.
         include:
           - { name: macOS arm64, runner: macos-latest, platform: darwin-arm64 }
           - { name: Linux x64, runner: ubuntu-latest, platform: linux-x64 }
-          - { name: Windows x64, runner: windows-latest, platform: win32-x64 }
     runs-on: ${{ matrix.runner }}
     # Every platform runs the same checks, and every job has to pass.
     timeout-minutes: 40
@@ -65,107 +64,15 @@ jobs:
       # operating system: the hook must deny a destructive command, and every buracle-memory entry must answer
       # initialize and tools/list and leave no process behind. They also run again inside "Tests" below.
       - name: Generated hook and MCP commands run
-        run: bun test tests/adapters/hook-wire.test.ts tests/adapters/mcp-wire.test.ts ${{ runner.os == 'Windows' && '--timeout 60000' || '' }}
+        run: bun test tests/adapters/hook-wire.test.ts tests/adapters/mcp-wire.test.ts
 
-      # Windows starts a process many times slower than macOS and Linux, and a test that spawns a few
-      # takes 5 to 15 s there: past Bun's default 5 s per test, so Windows gets 60 s.
       - name: Tests
-        run: bun test ${{ runner.os == 'Windows' && '--timeout 60000' || '' }}
+        run: bun test
 
-      - name: Install scripts parse
-        run: |
-          bash -n scripts/install.sh
-          pwsh -NoProfile -Command '$t = $null; $e = $null; [System.Management.Automation.Language.Parser]::ParseFile("scripts/install.ps1", [ref]$t, [ref]$e) | Out-Null; if ($e.Count) { $e | ForEach-Object { $_.ToString() }; exit 1 }'
+      - name: Install script parses
+        run: bash -n scripts/install.sh
 
-  # A clean Windows runner installs the release tree (this commit without RELEASE_DROPS) the way a
-  # user does (scripts/install.ps1), into all four harnesses at their tested versions, and uses it
-  # once: every MCP server must answer its handshake.
-  windows-install:
-    name: Windows install
-    if: github.event_name == 'push'
-    runs-on: windows-latest
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          persist-credentials: false
-
-      - name: The release tree on a local branch
-        shell: bash
-        run: |
-          git switch -q -c release-tree
-          git rm -r -q --ignore-unmatch -- $RELEASE_DROPS
-          git -c user.name=ci -c user.email=ci@localhost commit -q -m 'release tree'
-          test ! -e tests
-
-      - name: Harnesses to install into
-        shell: pwsh
-        run: npm install -g @anthropic-ai/claude-code@2.1.302 @openai/codex@0.162.1 @opencode/cli@2.0.30
-
-      # The install must end in one step: its output never tells the user to run `buracle install`, and a successful
-      # install prints at most 40 lines (the details are in the install log, printed here when the install fails).
-      - name: scripts/install.ps1 from this commit
-        shell: pwsh
-        env:
-          BURACLE_REPO: ${{ github.workspace }}
-          BURACLE_BRANCH: release-tree
-          BURACLE_CHECKOUT: ${{ runner.temp }}\buracle
-        run: |
-          $out = Join-Path $env:RUNNER_TEMP 'install.out'
-          pwsh -NoProfile -File ./scripts/install.ps1 *>&1 | Tee-Object -FilePath $out
-          $code = $LASTEXITCODE
-          $lines = @(Get-Content $out).Count
-          Write-Host "install.ps1 exited $code and printed $lines lines"
-          if ($code -ne 0) { Get-ChildItem (Join-Path $HOME '.buracle\logs') -Filter 'install-*.log' | Get-Content; exit $code }
-          $hits = @(Select-String -Path $out -Pattern 'buracle install' -SimpleMatch)
-          if ($hits.Count -gt 0) { $hits | ForEach-Object { $_.Line }; throw 'the install output tells the user to run buracle install' }
-          if ($lines -gt 40) { throw 'a successful install printed more than 40 lines' }
-
-      # GitHub's runner has winget, so the install above never downloads a tool; this checks the pinned downloads
-      # (sha256, the .zip unpacked with tar.exe, the program run) with the product's own code.
-      - name: Pinned system tools download and run
-        shell: pwsh
-        run: |
-          $env:Path = [Environment]::GetEnvironmentVariable('Path', 'User') + ';' + $env:Path
-          bun scripts/pin-system-tools.ts --verify
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      # A user without administrator rights or Developer Mode cannot make a symbolic link, so every directory
-      # link Buracle makes on Windows must be a junction.
-      - name: Directory links are junctions
-        shell: pwsh
-        run: |
-          $links = @(Get-ChildItem -Force -LiteralPath (Join-Path $HOME '.agents\skills') | Where-Object { $_.LinkType })
-          if ($links.Count -eq 0) { throw 'no links in ~/.agents/skills' }
-          $bad = @($links | Where-Object { $_.LinkType -ne 'Junction' })
-          if ($bad.Count -gt 0) { $bad | ForEach-Object { "$($_.Name): $($_.LinkType)" }; throw 'directory links that are not junctions' }
-          "$($links.Count) junctions in ~/.agents/skills"
-
-      - name: Oh My Pi, installed after Bun
-        shell: pwsh
-        run: |
-          $env:Path = [Environment]::GetEnvironmentVariable('Path', 'User') + ';' + $env:Path
-          bun add -g @oh-my-pi/pi-coding-agent@18.10.1
-          buracle install omp --yes
-          if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 2) { exit $LASTEXITCODE }
-          exit 0
-
-      - name: The installed buracle works
-        shell: pwsh
-        run: |
-          $env:Path = [Environment]::GetEnvironmentVariable('Path', 'User') + ';' + $env:Path
-          buracle --version
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          foreach ($topic in 'config', 'runtime', 'claude', 'codex', 'opencode', 'omp', 'mcp', 'lsp', 'tools', 'memory') {
-            Write-Host "`n==> buracle doctor $topic"
-            buracle doctor $topic
-            $code = $LASTEXITCODE
-            Write-Host "buracle doctor $topic exited $code"
-            if ($code -eq 1) { throw "buracle doctor $topic reported errors" }
-          }
-          exit 0
-
-  # The POSIX twin of windows-install: a clean macOS and Linux runner installs the release tree the way a
+  # A clean macOS and Linux runner installs the release tree (this commit without RELEASE_DROPS) the way a
   # user does (scripts/install.sh, in a throwaway HOME), into the harnesses at their tested versions
   # (read from src/engine/update/tested-with.ts, not copied here), then checks the installed buracle:
   # `buracle doctor` on the config, runtime and mcp topics (the mcp topic runs every server's handshake
@@ -258,13 +165,13 @@ jobs:
   # A push to dev that passes on every platform publishes a release when the released files change.
   # The release tree is the tested commit at the release's version, rebuilt (harness/ carries the
   # version), without RELEASE_DROPS. main gets it as one commit per release (the first has no
-  # parent), and v<version> points at that commit with both install scripts attached. The version
+  # parent), and v<version> points at that commit with the install script attached. The version
   # counts up by itself: the next patch after the newest v<major.minor>.* tag, or package.json's
   # version when its line has no release yet, so raising major or minor there starts a new line.
   # The scripts clone main and `buracle update` follows it, so an install holds the released files.
   release:
     name: Release
-    needs: [checks, windows-install, posix-install]
+    needs: [checks, posix-install]
     if: github.event_name == 'push' && github.ref_name == 'dev'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -330,5 +237,5 @@ jobs:
             fi
             git push origin "$commit:refs/heads/main"
           fi
-          gh release view "v$version" >/dev/null 2>&1 || gh release create "v$version" scripts/install.sh scripts/install.ps1 \
+          gh release view "v$version" >/dev/null 2>&1 || gh release create "v$version" scripts/install.sh \
             --target "$commit" --title "Buracle $version" --generate-notes

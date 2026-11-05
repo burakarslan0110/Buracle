@@ -61,11 +61,8 @@ describe('command resolution (I8 doctor checks)', () => {
     expect(resolveArgv([process.execPath], env).executable).toBe(process.execPath)
   })
 
-  test('a Windows command line (commandWindows) may name its program by an unquoted drive or UNC path', () => {
-    expect(firstWord('C:\\Users\\me\\.buracle\\bin\\buracle.cmd hook codex PreToolUse', env)).toBe('C:\\Users\\me\\.buracle\\bin\\buracle.cmd')
-    expect(firstWord('"C:\\Program Files\\x\\buracle.cmd" hook codex Stop', env)).toBe('C:\\Program Files\\x\\buracle.cmd')
-    expect(firstWord('\\\\server\\share\\buracle.cmd mcp', env)).toBe('\\\\server\\share\\buracle.cmd')
+  test('an unquoted word with a backslash names no program: a shell would read the backslashes as escapes', () => {
     expect(firstWord('bin\\buracle hook', env)).toBeUndefined()
-    expect(resolveCommandLine('C:\\definitely\\missing\\buracle.cmd hook codex Stop', env)).toEqual({ program: 'C:\\definitely\\missing\\buracle.cmd' })
+    expect(firstWord('C:\\Users\\me\\buracle hook codex PreToolUse', env)).toBeUndefined()
   })
 })

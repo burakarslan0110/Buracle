@@ -363,7 +363,7 @@ describe('real repository build', () => {
     expect(launcher.content).toContain('process.exit(await runProcess(argv))')
     expect(launcher.content).toContain('const root = shimTree() ?? checkout()')
     expect(launcher.content).toContain("if (argv[0] === 'hook') failHook('no Buracle runtime or checkout was found')")
-    expect(file(files, 'bin/buracle.cmd').content).toContain('bun "%~dp0buracle.ts" %*\r\n')
+    expect(files.some(f => f.path === 'bin/buracle.cmd')).toBe(false)
     expect(files.some(f => f.path === 'bin/buracle-hook')).toBe(false)
   })
 

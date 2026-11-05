@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
-import { dirname, join, win32 } from 'node:path'
+import { dirname, join } from 'node:path'
 import { applyPlans, diffPlan, ledgerKey, listTxns, readJournal, readLedger, rollback, rollbackTxn, txnTestHooks, type Op, type Plan } from '../../src/engine/txn'
 import { jsoncParse, tomlParse, yamlParse } from '../../src/engine/merge'
 import { snapshotTree } from '../helpers/fs-snapshot'
@@ -18,7 +18,7 @@ function write(path: string, text: string): void {
 }
 // The path a link target names: Windows reports a rooted target ('/x') on the current drive, with backslashes.
 function onDisk(target: string): string {
-  return process.platform === 'win32' ? win32.resolve(target).toLowerCase() : target
+  return target
 }
 
 function read(path: string): string {

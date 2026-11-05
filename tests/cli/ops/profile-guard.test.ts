@@ -27,15 +27,6 @@ describe('H17 profile.guard', () => {
     expect(profileGuard('codex', { resolved: { codexHome: '/tmp/cx' } }, { HOME })).toContain(`reads ${HOME}/.codex`)
   })
 
-  test('Windows paths: drive letters count as absolute, case and separators do not make another folder', () => {
-    const win = { resolved: { codexHome: 'C:\\Users\\Ann\\.codex', opencodeConfigDir: 'C:\\Users\\Ann\\.config\\opencode' } }
-    expect(profileGuard('codex', win, { HOME: 'C:\\Users\\Ann' })).toBeUndefined()
-    expect(profileGuard('codex', win, { HOME: 'C:\\Users\\Ann', CODEX_HOME: 'c:/users/ann/.codex/' })).toBeUndefined()
-    expect(profileGuard('codex', win, { HOME: 'C:\\Users\\Ann', CODEX_HOME: 'D:\\other-codex' })).toContain('reads D:\\other-codex (CODEX_HOME)')
-    expect(profileGuard('opencode', win, { HOME: 'C:\\Users\\Ann', XDG_CONFIG_HOME: 'D:\\xdg' })).toContain('reads D:\\xdg\\opencode (XDG_CONFIG_HOME)')
-    expect(liveHarnessDir('omp', { HOME: 'C:\\Users\\Ann' })).toBe('C:\\Users\\Ann\\.omp\\agent')
-  })
-
   test('says nothing when it cannot tell: no snapshot, no recorded dir, no HOME, relative overrides', () => {
     expect(profileGuard('claude', undefined, { HOME })).toBeUndefined()
     expect(profileGuard('claude', null, { HOME })).toBeUndefined()
