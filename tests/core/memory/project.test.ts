@@ -25,26 +25,27 @@ describe('memExclusion', () => {
   })
 })
 
-describe('Windows paths: project roots and the folders that are never a project', () => {
-  const env = { home: 'C:\\Users\\Me', vault: 'C:\\Users\\Me\\Documents\\Buracle', buracleHome: 'C:\\Users\\Me\\.buracle', claudeDir: 'C:\\Users\\Me\\.claude', tempRoots: ['C:\\Users\\Me\\AppData\\Local\\Temp'] }
+describe('project roots and the folders that are never a project', () => {
+  const env = { home: '/Users/me', vault: '/Users/me/Documents/Buracle', buracleHome: '/Users/me/.buracle', claudeDir: '/Users/me/.claude', tempRoots: ['/private/tmp'] }
 
-  test('a session folder below a root, in either separator and any case, maps to its project', () => {
+  test('a session folder below a root maps to its project; a sibling or another case does not', () => {
     const cache = memEmptyProjects()
-    cache.projects['app'] = { slug: 'app', scope: 'project', roots: ['C:\\Users\\Me\\code\\app'] }
-    cache.projects['notes'] = { slug: 'notes', scope: 'adhoc', roots: ['C:\\Users\\Me\\notes'] }
-    for (const cwd of ['C:\\Users\\Me\\code\\app', 'C:\\Users\\Me\\code\\app\\src', 'c:/users/me/code/app/src', 'C:\\Users\\Me\\code\\app\\']) expect({ cwd, slug: memLookupProject(cache, cwd)?.slug }).toEqual({ cwd, slug: 'app' })
-    expect(memLookupProject(cache, 'C:\\Users\\Me\\code\\app2')).toBeUndefined()
-    expect(memLookupProject(cache, 'c:\\users\\me\\notes')?.slug).toBe('notes')
-    expect(memLookupProject(cache, 'C:\\Users\\Me\\notes\\x')).toBeUndefined()
+    cache.projects['app'] = { slug: 'app', scope: 'project', roots: ['/Users/me/code/app'] }
+    cache.projects['notes'] = { slug: 'notes', scope: 'adhoc', roots: ['/Users/me/notes'] }
+    for (const cwd of ['/Users/me/code/app', '/Users/me/code/app/src', '/Users/me/code/app/']) expect({ cwd, slug: memLookupProject(cache, cwd)?.slug }).toEqual({ cwd, slug: 'app' })
+    expect(memLookupProject(cache, '/Users/me/code/app2')).toBeUndefined()
+    expect(memLookupProject(cache, '/users/me/code/app')).toBeUndefined()
+    expect(memLookupProject(cache, '/Users/me/notes')?.slug).toBe('notes')
+    expect(memLookupProject(cache, '/Users/me/notes/x')).toBeUndefined()
   })
 
-  test('the drive root, the home folder, the vault, Buracle\'s state, job, scratchpad and temp folders are refused', () => {
+  test('the root, the home folder, the vault, Buracle\'s state, job, scratchpad and temp folders are refused', () => {
     const cases: Array<[string, string]> = [
-      ['C:\\', 'the filesystem root'], ['\\\\srv\\share', 'the filesystem root'], ['c:\\users\\me', 'your home folder'], ['C:\\Users\\Me\\Documents\\Buracle\\x', 'inside the memory vault'],
-      ['C:\\Users\\Me\\.buracle\\brain', "inside Buracle's state folder"], ['C:/Users/Me/.claude/jobs/j1', 'a Claude Code job folder'],
-      ['C:\\x\\Scratchpad\\y', 'a scratchpad folder'], ['C:\\Users\\Me\\AppData\\Local\\Temp\\buracle-x', 'a temporary folder'],
+      ['/', 'the filesystem root'], ['/Users/me', 'your home folder'], ['/Users/me/Documents/Buracle/x', 'inside the memory vault'],
+      ['/Users/me/.buracle/brain', "inside Buracle's state folder"], ['/Users/me/.claude/jobs/j1', 'a Claude Code job folder'],
+      ['/x/Scratchpad/y', 'a scratchpad folder'], ['/private/tmp/buracle-x', 'a temporary folder'],
     ]
     for (const [dir, why] of cases) expect({ dir, why: memNonProjectReason(dir, env) }).toEqual({ dir, why })
-    expect(memNonProjectReason('C:\\Users\\Me\\code\\app', env)).toBeUndefined()
+    expect(memNonProjectReason('/Users/me/code/app', env)).toBeUndefined()
   })
 })

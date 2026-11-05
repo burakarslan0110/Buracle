@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { realPath } from '../../engine/fsx'
 import { revParse } from '../../engine/git'
-import { isWindows } from '../../engine/platform'
 
 export interface BuracleRepoOptions {
   known?: ReadonlyArray<string | undefined>
@@ -10,11 +9,8 @@ export interface BuracleRepoOptions {
   toplevel?: (cwd: string) => Promise<string | undefined>
 }
 
-// Windows paths compare without case (the file system ignores it, and git and harnesses may spell a drive or folder differently).
 function real(p: string): string {
-  let r: string
-  try { r = realPath(p) } catch { r = resolve(p) }
-  return isWindows() ? r.toLowerCase() : r
+  try { return realPath(p) } catch { return resolve(p) }
 }
 
 function expand(p: string, home: string | undefined): string | undefined {

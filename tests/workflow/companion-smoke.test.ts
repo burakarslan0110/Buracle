@@ -12,7 +12,7 @@ import { claudeVersionGate, claudeVersionText } from '../helpers/claude-version'
 import { withEnv, withSandbox } from '../helpers/sandbox'
 import { ctxAt, makeRepo, planDoc, write } from './fixture'
 
-const SKIP = process.env['BURACLE_SKIP_SMOKE'] === '1' || process.platform === 'win32'
+const SKIP = process.env['BURACLE_SKIP_SMOKE'] === '1'
 const BIN = (h: Harness): string | undefined => (SKIP ? undefined : Bun.which(h, { PATH: process.env['PATH'] ?? '' }) ?? undefined)
 const CLAUDE_RUNS = BIN('claude') !== undefined && claudeVersionGate(claudeVersionText(BIN('claude') as string)).runs
 

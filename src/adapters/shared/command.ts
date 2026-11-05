@@ -1,6 +1,5 @@
 import { accessSync, constants, statSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
-import { isWindows } from '../../engine/platform'
 import { which } from '../../engine/proc'
 
 export type Env = Record<string, string | undefined>
@@ -27,9 +26,6 @@ export function expandParams(text: string, env: Env, depth = 0): string | undefi
   return out
 }
 
-// A shell would read C:\Users\me unquoted as C:Usersme; the commandWindows lines cmd.exe runs keep it literal.
-const WINDOWS_ABSOLUTE = /^(?:[A-Za-z]:\\|\\\\)/
-
 export function firstWord(command: string, env: Env): string | undefined {
   let t = command.trim()
   if (t.startsWith('exec ')) t = t.slice(5).trimStart()
@@ -42,15 +38,14 @@ export function firstWord(command: string, env: Env): string | undefined {
     return q === "'" ? inner : expandParams(inner, env)
   }
   const word = t.split(/\s+/)[0] as string
-  if (/["']/.test(word) || (word.includes('\\') && !WINDOWS_ABSOLUTE.test(word))) return undefined
+  if (/["']/.test(word) || word.includes('\\')) return undefined
   const home = env['HOME']
   const tilde = word === '~' || word.startsWith('~/') ? (home !== undefined ? home + word.slice(1) : undefined) : word
   return tilde === undefined ? undefined : expandParams(tilde, env)
 }
 
-// Windows has no execute bit: a file that exists (buracle.cmd, an .exe) is what a harness can start.
 export function isExecutableFile(p: string): boolean {
-  try { return statSync(p).isFile() && (isWindows() || (accessSync(p, constants.X_OK), true)) } catch { return false }
+  try { return statSync(p).isFile() && (accessSync(p, constants.X_OK), true) } catch { return false }
 }
 
 export interface ResolvedCommand {
@@ -60,7 +55,7 @@ export interface ResolvedCommand {
 
 export function resolveProgram(program: string | undefined, cwd?: string): ResolvedCommand {
   if (program === undefined || program === '') return {}
-  if (program.includes('/') || WINDOWS_ABSOLUTE.test(program)) {
+  if (program.includes('/')) {
     const abs = isAbsolute(program) ? program : cwd !== undefined ? join(cwd, program) : undefined
     return abs !== undefined && isExecutableFile(abs) ? { program, executable: abs } : { program }
   }

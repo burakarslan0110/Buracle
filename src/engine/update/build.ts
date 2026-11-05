@@ -1,10 +1,8 @@
 import { lstatSync, readdirSync, readFileSync, rmdirSync, statSync, unlinkSync } from 'node:fs'
-import * as nodePath from 'node:path'
 import { dirname, isAbsolute, join, posix } from 'node:path'
 import type { Adapter, AdapterContext } from '../../adapters/registry'
 import type { CanonicalBundle } from '../../core/catalog'
 import type { Harness } from '../../core/events'
-import { knownExecutableBit } from '../exec-bit'
 import { atomicWriteSync, readTextSync, realPath, sha256 } from '../fsx'
 import * as paths from '../paths'
 import { buildContext, inCheckout, loadBundle } from './context'
@@ -74,15 +72,15 @@ function isRecord(x: unknown): x is Record<string, unknown> {
   return x !== null && typeof x === 'object' && !Array.isArray(x)
 }
 
-// An absolute path is native (on Windows C:\repo\.claude-plugin\x.json); a path inside the output tree uses '/' only.
-export function normalizeOutputPath(raw: unknown, h: Harness, repoRoot: string, native: typeof posix = nodePath): { rel: string } | { error: string } {
-  const absolute = typeof raw === 'string' && native.isAbsolute(raw)
-  if (typeof raw !== 'string' || raw.trim() === '' || raw.includes('\0') || (raw.includes('\\') && !(absolute && native.sep === '\\'))) return { error: `invalid path ${JSON.stringify(raw)}` }
+// A path in the output tree uses '/' only.
+export function normalizeOutputPath(raw: unknown, h: Harness, repoRoot: string): { rel: string } | { error: string } {
+  const absolute = typeof raw === 'string' && posix.isAbsolute(raw)
+  if (typeof raw !== 'string' || raw.trim() === '' || raw.includes('\0') || raw.includes('\\')) return { error: `invalid path ${JSON.stringify(raw)}` }
   let rel: string
   if (absolute) {
-    const r = native.relative(repoRoot, raw)
-    if (r === '' || r.startsWith('..') || native.isAbsolute(r)) return { error: `${raw} is outside the repository` }
-    rel = r.split(native.sep).join('/')
+    const r = posix.relative(repoRoot, raw)
+    if (r === '' || r.startsWith('..') || posix.isAbsolute(r)) return { error: `${raw} is outside the repository` }
+    rel = r
   } else {
     rel = raw.startsWith('harness/') ? raw : `harness/${h}/${raw}`
   }
@@ -120,7 +118,7 @@ function safeManifestPath(p: string): boolean {
   return p.startsWith('harness/') || p.startsWith('docs/reference/') || p === '.claude-plugin/marketplace.json'
 }
 
-// exec is undefined where the file system keeps no bit and the git index does not track the file (Windows).
+// exec is undefined for a path that is not a regular file.
 interface DiskState { exists: boolean; content?: string; exec?: boolean; symlink?: boolean }
 
 const sameExec = (d: DiskState, f: GeneratedFile): boolean => d.exec === undefined || d.exec === f.exec
@@ -130,8 +128,7 @@ function readDisk(abs: string): DiskState {
   try { st = lstatSync(abs) } catch { return { exists: false } }
   if (st.isSymbolicLink()) return { exists: true, symlink: true }
   if (!st.isFile()) return { exists: true }
-  const exec = knownExecutableBit(abs, st.mode)
-  return exec === undefined ? { exists: true, content: readFileSync(abs, 'utf8') } : { exists: true, content: readFileSync(abs, 'utf8'), exec }
+  return { exists: true, content: readFileSync(abs, 'utf8'), exec: (st.mode & 0o111) !== 0 }
 }
 
 function assertInsideRepo(abs: string, repoReal: string): void {
@@ -176,8 +173,6 @@ function machinePaths(repoRoot: string): RegExp[] {
   if (home.length > 1) out.add(home)
   out.add(repoRoot)
   try { out.add(realPath(repoRoot)) } catch {  }
-  // A Windows path may also appear with '/' or JSON-escaped (two backslashes), and a backslash may follow it.
-  for (const p of [...out]) if (p.includes('\\')) { out.add(p.replace(/\\/g, '/')); out.add(p.replace(/\\/g, '\\\\')) }
   return [...out].filter(p => p.length > 1).map(p => new RegExp(`(?<![\\w.-])${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=[/\\\\"'\\s:;,)\\]}]|$)`, 'm'))
 }
 

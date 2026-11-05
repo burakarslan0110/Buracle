@@ -1,14 +1,13 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
 import { defaultConfig } from '../../core/config'
 import { loadConfigSync } from '../config'
-import { renameRetrySync } from '../fsx'
 import { opsDeps } from '../update/deps'
 import { errText } from '../update/output'
 import { npmVersions, pypiVersions } from '../update/updates'
 import { pickUpdate } from '../update/versions'
 import * as paths from '../paths'
-import { augmentedPath, exeName, findExecutable, pathDelimiter, spawnArgv } from '../platform'
+import { augmentedPath, findExecutable } from '../platform'
 import type { ToolSpec } from '../../core/catalog'
 import type { InstalledPackage, PackageRegistry } from './state'
 
@@ -63,10 +62,9 @@ export function uvBinDir(): string {
  * the ones that exist: npm and npx are `#!/usr/bin/env node` scripts, so the node they need must be on PATH.
  */
 export function withSystemTools(base: string | undefined): string {
-  const sep = pathDelimiter()
-  const have = (base ?? '').split(sep).filter(s => s !== '')
+  const have = (base ?? '').split(':').filter(s => s !== '')
   const add = paths.systemToolBinDirs().filter(d => !have.includes(d) && existsSync(d))
-  return [...add, ...have].join(sep)
+  return [...add, ...have].join(':')
 }
 
 export function toolchainEnv(extra: Record<string, string> = {}): Record<string, string> {
@@ -148,12 +146,12 @@ function prefixVersion(prefix: string, name: string): string | undefined {
 export function swapPrefix(live: string, next: string, prev: string): void {
   removeDir(prev)
   const hadLive = existsSync(live)
-  if (hadLive) renameRetrySync(live, prev)
+  if (hadLive) renameSync(live, prev)
   try {
-    renameRetrySync(next, live)
+    renameSync(next, live)
   } catch (e) {
     if (hadLive && !existsSync(live)) {
-      try { renameRetrySync(prev, live) } catch {  }
+      try { renameSync(prev, live) } catch {  }
     }
     throw e
   }
@@ -179,7 +177,7 @@ export async function installNpm(req: PackageRequest, version: string, nowIso: s
     return { ok: false, error: `cannot prepare ${stage}: ${errText(e)}` }
   }
   const fail = (error: string): InstallFailure => { removeDir(stage); return { ok: false, error } }
-  const argv = spawnArgv([npm, 'install', '--prefix', stage, '--no-audit', '--no-fund', '--omit=dev', '--loglevel=error', '--no-package-lock'])
+  const argv = [npm, 'install', '--prefix', stage, '--no-audit', '--no-fund', '--omit=dev', '--loglevel=error', '--no-package-lock']
   const r = await opsDeps.run(argv, { cwd: stage, env: toolchainEnv(), timeoutMs: opts.timeoutMs ?? 300_000 })
   if (r.code !== 0) return fail(`npm install ${req.name}@${version} failed (exit ${r.code}): ${tail(r.stderr || r.stdout)}`)
   const installed = npmInstalledVersion(stage, req.name)
@@ -204,7 +202,7 @@ export function pypiSpec(name: string, extras: readonly string[] | undefined, ve
 function uvBins(req: PackageRequest): Record<string, string> {
   const bins: Record<string, string> = {}
   for (const b of req.bins ?? [req.name]) {
-    const p = join(uvBinDir(), exeName(b))
+    const p = join(uvBinDir(), b)
     if (existsSync(p)) bins[b] = p
   }
   return bins

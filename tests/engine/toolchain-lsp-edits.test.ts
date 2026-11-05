@@ -5,7 +5,7 @@ import type { ToolSpec } from '../../src/core/catalog'
 import { type LspServer, lspServers } from '../../src/engine/toolchain/lsp'
 import { askBridge, editDiagnostics, type LspBridgeEntry, liveBridges, lspBridgeDir, pickBridge, serveEditRequests } from '../../src/engine/toolchain/lsp-edits'
 import { createLspBridge } from '../../src/engine/toolchain/lsp-mcp'
-import { withEnv, withSandbox } from '../helpers/sandbox'
+import { withSandbox } from '../helpers/sandbox'
 
 const STUB = join(import.meta.dir, '..', 'fixtures', 'lsp', 'stub-lsp.ts')
 
@@ -22,7 +22,7 @@ describe('lsp bridge: diagnostics after an edit for the harness hooks', () => {
     expect(served).toBeDefined()
     try {
       const file = join(lspBridgeDir(), `${process.pid}.json`)
-      if (process.platform !== 'win32') expect((statSync(file).mode & 0o777).toString(8)).toBe('600')
+      expect((statSync(file).mode & 0o777).toString(8)).toBe('600')
       const [live] = liveBridges()
       expect(live).toMatchObject({ pid: process.pid, ppid: process.ppid, cwd: root, startedAt: 42 })
       expect(await askBridge(live!, join(root, 'a.ts'), 1234, 5000)).toEqual({ state: 'report', text: `${join(root, 'a.ts')} after 1234 ms` })
@@ -48,12 +48,9 @@ describe('lsp bridge: diagnostics after an edit for the harness hooks', () => {
     expect(pickBridge(bridges.slice(0, 2), '/x/a.ts', { cwd: '/x', parents: [] })).toBeUndefined()
   })
 
-  test('on Windows a bridge folder spelled with another case is the same folder', async () => {
+  test('a bridge folder spelled with another case is another folder', () => {
     const bridges = [entry({ pid: 20, ppid: 1, cwd: '/Work/Proj', startedAt: 1 }), entry({ pid: 21, ppid: 2, cwd: '/', startedAt: 9 })]
-    if (process.platform !== 'win32') expect(pickBridge(bridges, '/work/proj/a.ts', { cwd: '/work/proj', parents: [] })?.pid).toBe(21)
-    await withEnv({ BURACLE_PLATFORM: 'win32' }, () => {
-      expect(pickBridge(bridges, '/work/proj/a.ts', { cwd: '/work/proj', parents: [] })?.pid).toBe(20)
-    })
+    expect(pickBridge(bridges, '/work/proj/a.ts', { cwd: '/work/proj', parents: [] })?.pid).toBe(21)
   })
 
   test('through a real bridge: the first edit starts the server, later edits come back with the problems only, a clean file adds nothing', () => withSandbox(async ({ root }) => {

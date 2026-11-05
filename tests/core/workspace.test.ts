@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { HARNESSES } from '../../src/core/events'
 import {
   describeIndexState, indexExclusion, indexHealth, indexRetryDelayMs, indexState, indexToolDue, isCorruptIndexError, isPathWithin, pathKey,
-  workspaceContext, workspaceNotice, type IndexExclusionContext, type ProjectIndex, type WorkspaceInfo,
+  workspaceContext, workspaceNotice, wslDrive, type IndexExclusionContext, type ProjectIndex, type WorkspaceInfo,
 } from '../../src/core/workspace'
 
 const MIN = 60_000
@@ -241,5 +241,14 @@ describe('workspaceNotice: the first prompt after the background build', () => {
       childIndex: { '/w/a': { codegraph: a, semble: { state: 'ready' } }, '/w/b': { codegraph: b, semble: { state: 'ready' } } },
     })
     expect(workspaceNotice(kids({ state: 'building' }, { state: 'building' }), kids({ state: 'ready' }, { state: 'ready' }))).toBe('The codegraph indexes of /w/a, /w/b are ready now: call codegraph with the project as `projectPath`.')
+  })
+})
+
+describe('wslDrive: the Windows drive WSL mounts a path from', () => {
+  test('/mnt/<letter> is a drive; other /mnt folders, other roots and other spellings are not', () => {
+    expect(wslDrive('/mnt/c/Users/me')).toBe('c')
+    expect(wslDrive('/mnt/d')).toBe('d')
+    expect(wslDrive('/mnt/D/data')).toBe('D')
+    for (const p of ['/mnt/wsl/x', '/mnt/wslg', '/mnt/data', '/mnt', '/mnt/', '/home/me', '/MNT/c', 'mnt/c/x', '/x/mnt/c', 'C:\\Users\\me', '']) expect(wslDrive(p)).toBeUndefined()
   })
 })

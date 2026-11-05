@@ -16,12 +16,11 @@ import * as paths from '../../../src/engine/paths'
 import { styledReport } from '../../../src/cli/commands/doctor'
 import { makeStyle, stripAnsi } from '../../../src/cli/ui/style'
 import { symlinkSync } from 'node:fs'
-import { pathLink, shimContent } from '../../../src/engine/update/install-core'
-import { windowsLauncher } from '../../../src/engine/toolchain/links'
+import { shimContent } from '../../../src/engine/update/install-core'
 import { mcpHealthMap, probeHttp, probeServers, probeStdio, readHealth, writeHealth } from '../../../src/engine/update/mcp'
 import { installAdvice } from '../../../src/engine/toolchain/system'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
-import { fakeExe, IS_WINDOWS, onlyPath } from '../../helpers/fake-exe'
+import { fakeExe, onlyPath } from '../../helpers/fake-exe'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
 import { fakeAdapter, fakeCli, fakeFetch, makeRepo, memoryIO, REAL_REPO as REAL_REPO_DIR, withDeps } from './helpers'
 
@@ -148,10 +147,9 @@ describe('buracle doctor', () => {
         const find = (section: string, check: string) => r.checks.find(c => c.section === section && c.check === check)
         expect(find('tools', 'jq')).toMatchObject({ level: 'error' })
         expect(jq).toBeDefined()
-        expect(find('tools', 'jq')?.detail).toContain(`suggestion: ${installAdvice(jq as ToolSpec, IS_WINDOWS ? 'win32' : 'darwin', () => true)}`)
+        expect(find('tools', 'jq')?.detail).toContain(`suggestion: ${installAdvice(jq as ToolSpec, 'darwin', () => true)}`)
         // tmux exists for macOS and Linux only (canonical/tools.yaml platforms).
-        if (IS_WINDOWS) expect(find('tools', 'tmux')).toBeUndefined()
-        else expect(find('tools', 'tmux')).toMatchObject({ level: 'warn' })
+        expect(find('tools', 'tmux')).toMatchObject({ level: 'warn' })
         expect(find('tools', 'git')).toMatchObject({ level: 'ok', detail: '2.50.1' })
         expect(find('claude', 'installed')).toMatchObject({ level: 'ok' })
         expect(find('claude', 'mod')).toMatchObject({ level: 'warn', detail: 'heartbeat stale in ~/.buracle/run' })
@@ -402,7 +400,7 @@ describe('buracle doctor', () => {
     })
   }))
 
-  test.skipIf(process.platform === 'win32')('F3-4: a tool `go install` or `dotnet tool install` put only into the toolchain counts, as H04 and `buracle lsp run` find it there', () => withSandbox(async () => {
+  test('F3-4: a tool `go install` or `dotnet tool install` put only into the toolchain counts, as H04 and `buracle lsp run` find it there', () => withSandbox(async () => {
     const golangci: ToolSpec = { name: 'golangci-lint', check: ['golangci-lint', '--version'], version_regex: 'version v?(\\d+\\.\\d+\\.\\d+)', required: false, go: 'github.com/golangci/golangci-lint/v2/cmd/golangci-lint' }
     const csharp: ToolSpec = { name: 'csharp-ls', check: ['csharp-ls', '--version'], version_regex: 'csharp-ls,? (\\d+\\.\\d+\\.\\d+)', required: false, dotnet: 'csharp-ls' }
     const broken: ToolSpec = { name: 'gopls', check: ['gopls', 'version'], version_regex: 'v(\\d+\\.\\d+\\.\\d+)', required: false, go: 'golang.org/x/tools/gopls' }
@@ -426,7 +424,7 @@ describe('buracle doctor', () => {
     })
   }))
 
-  test.skipIf(process.platform === 'win32')('the Bun the install script put in ~/.bun/bin counts though a new terminal has it not on PATH yet', () => withSandbox(async ({ home }) => {
+  test('the Bun the install script put in ~/.bun/bin counts though a new terminal has it not on PATH yet', () => withSandbox(async ({ home }) => {
     const bun: ToolSpec = { name: 'bun', check: ['bun', '--version'], version_regex: '(\\d+\\.\\d+\\.\\d+)', required: true }
     mkdirSync(join(home, '.bun', 'bin'), { recursive: true })
     writeFileSync(join(home, '.bun', 'bin', 'bun'), '#!/bin/sh\necho 1.4.3\n', { mode: 0o755 })
@@ -537,14 +535,6 @@ describe('buracle doctor runtime: unsettled transactions, stale locks, generated
   test('generated files that differ from the manifest or from canonical/, and node_modules that does not match package.json', () => withSandbox(async ({ root }) => {
     const repo = join(root, 'repo')
     for (const d of ['canonical', 'harness']) cpSync(join(REAL_REPO_DIR, d), join(repo, d), { recursive: true })
-    if (IS_WINDOWS) {
-      // Windows keeps the executable bit only in the git index: the copy gets the checkout's.
-      await runProcess(['git', 'init', '-q'], { cwd: repo })
-      await runProcess(['git', 'add', '-A', 'canonical', 'harness'], { cwd: repo })
-      const index = await runProcess(['git', 'ls-files', '--stage', '--', 'canonical', 'harness'], { cwd: REAL_REPO_DIR })
-      const executables = index.stdout.split('\n').filter(l => l.startsWith('100755 ')).map(l => l.slice(l.indexOf('\t') + 1))
-      if (executables.length > 0) await runProcess(['git', 'update-index', '--chmod=+x', '--', ...executables], { cwd: repo })
-    }
     writeFileSync(join(repo, 'package.json'), '{"name":"buracle-test","version":"0.0.0","dependencies":{"yaml":"1.0.0"}}\n')
     symlinkSync(join(REAL_REPO_DIR, 'node_modules'), join(repo, 'node_modules'))
     await withDeps({ repoRoot: () => repo, adapters: async () => [] }, async () => {
@@ -565,22 +555,6 @@ describe('buracle doctor runtime: unsettled transactions, stale locks, generated
       expect(drifted.some(c => c.check === 'generated' && c.detail.includes('canonical/ changed after the last `buracle build`'))).toBe(true)
     })
   }), 60_000)
-})
-
-describe('buracle doctor: the PATH entry on Windows', () => {
-  test('is a launcher file that starts the shim, not a symlink', () => withSandbox(async ({ root }) => {
-    const repo = makeRepo(root)
-    await withEnv({ BURACLE_PLATFORM: 'win32' }, () => {
-      const link = () => configChecks(liveContext(repo), { error: 'not loaded', problems: [] }, repo).find(c => c.check === 'path-link')
-      const launcher = `${pathLink()}.cmd`
-      expect(link()).toMatchObject({ level: 'warn', detail: expect.stringContaining('buracle.cmd is missing') })
-      mkdirSync(paths.localBinDir(), { recursive: true })
-      writeFileSync(launcher, windowsLauncher(join(root, 'other', 'buracle.cmd')))
-      expect(link()).toMatchObject({ level: 'warn', detail: expect.stringContaining('does not start') })
-      writeFileSync(launcher, windowsLauncher(paths.shimPath()))
-      expect(link()).toMatchObject({ level: 'ok', detail: expect.stringContaining('→ shim') })
-    })
-  }))
 })
 
 describe('buracle doctor: renamed config keys', () => {

@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
-import { join, posix, relative, win32 } from 'node:path'
+import { join, relative } from 'node:path'
 import { run as buildRun } from '../../../src/cli/commands/build'
 import { MANIFEST_REL, normalizeOutputPath, runBuild, type BuildOptions } from '../../../src/engine/update/build'
-import { KEEPS_MODES } from '../../helpers/fake-exe'
+
 import { withSandbox } from '../../helpers/sandbox'
 import { fakeAdapter, makeRepo, memoryIO, withDeps } from './helpers'
 
@@ -33,7 +33,7 @@ describe('runBuild', () => {
     expect(r.ok).toBe(true)
     expect(r.producers).toEqual(['claude', 'codex', 'docs'])
     expect(read(join(repo, 'harness/claude/hooks/hooks.json'))).toBe('{"hooks":{}}\n')
-    if (KEEPS_MODES) expect(statSync(join(repo, 'harness/claude/bin/buracle-hook')).mode & 0o111).not.toBe(0)
+    expect(statSync(join(repo, 'harness/claude/bin/buracle-hook')).mode & 0o111).not.toBe(0)
     expect(read(join(repo, 'harness/claude/abs.txt'))).toBe('abs\n')
     expect(read(join(repo, 'harness/agents-skills/plan-build/SKILL.md'))).toBe('# spec\n')
     expect(read(join(repo, 'harness/codex/config.toml'))).toBe('a = 1\n')
@@ -83,7 +83,7 @@ describe('runBuild', () => {
     expect(r.drift).toEqual([
       { path: 'harness/omp/a.txt', kind: 'changed', by: 'omp' },
       // Windows reads an executable bit only from the git index, and this repo's index does not track c.sh.
-      ...(KEEPS_MODES ? [{ path: 'harness/omp/c.sh', kind: 'mode' as const, by: 'omp' }] : []),
+      { path: 'harness/omp/c.sh', kind: 'mode' as const, by: 'omp' },
       { path: 'harness/omp/e.txt', kind: 'missing', by: 'omp' },
       { path: 'harness/omp/b.txt', kind: 'stale', by: 'omp' },
       { path: MANIFEST_REL, kind: 'manifest' },
@@ -109,13 +109,9 @@ describe('runBuild', () => {
     expect(Object.keys(manifest.files)).toContain('harness/codex/x.txt')
   }))
 
-  test('an absolute output path is native: on Windows it may use backslashes, a path inside the tree may not', () => {
-    const repo = 'C:\\work\\buracle'
-    expect(normalizeOutputPath('C:\\work\\buracle\\.claude-plugin\\marketplace.json', 'claude', repo, win32)).toEqual({ rel: '.claude-plugin/marketplace.json' })
-    expect(normalizeOutputPath('C:\\work\\buracle\\harness\\claude\\abs.txt', 'claude', repo, win32)).toEqual({ rel: 'harness/claude/abs.txt' })
-    expect('error' in normalizeOutputPath('harness\\claude\\x', 'claude', repo, win32)).toBe(true)
-    expect('error' in normalizeOutputPath('C:\\elsewhere\\x', 'claude', repo, win32)).toBe(true)
-    expect('error' in normalizeOutputPath('/repo/harness/claude/a\\b', 'claude', '/repo', posix)).toBe(true)
+  test('an output path with a backslash is refused', () => {
+    expect('error' in normalizeOutputPath('harness\\claude\\x', 'claude', '/repo')).toBe(true)
+    expect('error' in normalizeOutputPath('/repo/harness/claude/a\\b', 'claude', '/repo')).toBe(true)
   })
 
   test('rejects unsafe paths, foreign trees, machine-specific content and conflicting duplicates', () => withSandbox(async ({ root, home }) => {
@@ -167,7 +163,7 @@ describe('runBuild', () => {
     const r = await runBuild(opts(repo, { sharedSkills }))
     expect(r.producers).toEqual(['agents-skills', 'docs'])
     expect(read(join(repo, 'harness/agents-skills/plan-build/SKILL.md'))).toBe('# spec\n')
-    if (KEEPS_MODES) expect(statSync(join(repo, 'harness/agents-skills/plan-build/scripts/run.sh')).mode & 0o111).not.toBe(0)
+    expect(statSync(join(repo, 'harness/agents-skills/plan-build/scripts/run.sh')).mode & 0o111).not.toBe(0)
     files = files.filter(f => !f.path.startsWith('old/'))
     const claudeOnly = await runBuild(opts(repo, { sharedSkills, harnesses: ['claude'] }))
     expect(claudeOnly.producers).toEqual(['docs'])
@@ -207,10 +203,8 @@ describe('runBuild', () => {
     expect(scoped.producers).toEqual(['docs', 'hook-data'])
     expect(scoped.written).toEqual([snapshot])
     expect(read(join(repo, snapshot))).toBe(content)
-    if (KEEPS_MODES) {
-      chmodSync(join(repo, snapshot), 0o755)
-      expect((await runBuild(opts(repo, { adapters: [omp], hookData, check: true }))).drift).toEqual([{ path: snapshot, kind: 'mode', by: 'hook-data' }])
-    }
+    chmodSync(join(repo, snapshot), 0o755)
+    expect((await runBuild(opts(repo, { adapters: [omp], hookData, check: true }))).drift).toEqual([{ path: snapshot, kind: 'mode', by: 'hook-data' }])
 
     for (const bad of [() => { throw new Error('boom') }, () => ({ path: 'harness/codex/hook-data.json', content: '{}' }), () => ({ path: MANIFEST_REL, content: '{}' })]) {
       const failed = await runBuild(opts(repo, { hookData: bad }))

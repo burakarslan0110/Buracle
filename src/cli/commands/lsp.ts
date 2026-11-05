@@ -12,8 +12,8 @@ export const usage = `Usage: buracle lsp run <id>
 run <id>   Starts language server <id> (pyright, typescript, gopls, rust-analyzer, csharp-ls,
            jdtls) on stdin/stdout: Buracle's toolchain copy for servers marked prefer: toolchain
            (installed by \`buracle install\`), else the one on PATH or in the toolchain's go and
-           dotnet folders. The server takes over this process (no launcher stays behind; on
-           Windows it runs as a child). The Claude plugin's .lsp.json starts them this way.
+           dotnet folders. The server takes over this process (no launcher stays behind).
+           The Claude plugin's .lsp.json starts them this way.
 mcp        Starts the lsp MCP server on stdin/stdout (newline-delimited JSON-RPC 2.0) for the
            harnesses without a language-server client of their own (Codex, OpenCode). Tools:
            diagnostics, hover, definition, references, symbols. It starts the server for a file's
@@ -38,7 +38,7 @@ async function runServer(id: string | undefined, io: CommandIO): Promise<number>
   if (id === undefined) { io.stderr.write(`buracle lsp run: missing <id>\n\n${usage}\n`); return 1 }
   const { lspLaunch, lspServers, readToolsCatalog } = await import('../../engine/toolchain/lsp')
   const { readToolchainState } = await import('../../engine/toolchain/state')
-  const { execServer, spawnArgv, windowsVerbatim } = await import('../../engine/platform')
+  const { execServer } = await import('../../engine/platform')
   let server
   try {
     server = lspServers(readToolsCatalog()).find(s => s.id === id)
@@ -61,8 +61,7 @@ async function runServer(id: string | undefined, io: CommandIO): Promise<number>
   }
   let child: ReturnType<typeof Bun.spawn>
   try {
-    const spawned = spawnArgv(plan.argv)
-    child = Bun.spawn(spawned, { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit', env: { ...process.env }, windowsHide: true, windowsVerbatimArguments: windowsVerbatim(spawned) })
+    child = Bun.spawn([...plan.argv], { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit', env: { ...process.env } })
   } catch (e) {
     io.stderr.write(`buracle lsp run: cannot start ${plan.argv[0]}: ${e instanceof Error ? e.message : String(e)}\n`)
     return 1

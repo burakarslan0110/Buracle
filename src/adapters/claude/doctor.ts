@@ -7,7 +7,6 @@ import { compileTriggers } from '../../core/policy/skill-router'
 import { describeIndexState, indexHealth } from '../../core/workspace'
 import { readJsonSafeSync } from '../../engine/fsx'
 import * as paths from '../../engine/paths'
-import { isWindows } from '../../engine/platform'
 import { parseVersion, run as runProc, which, type RunOptions, type RunResult } from '../../engine/proc'
 import { indexSummary, projectRootFor } from '../../workflow/workspace'
 import type { AdapterContext } from '../registry'
@@ -145,17 +144,17 @@ export function guardHook(hooksJsonText: string, tool = 'Bash'): HookLaunch | un
 export const PROBE_COMMAND = 'rm -rf ~'
 export const PROBE_TOOLS: readonly string[] = ['Bash', 'PowerShell']
 
-/** The argv Claude Code spawns for a hook: exec form as is (a bare name found on PATH), shell form through `sh -c`, which exists only off Windows. */
-export function hookArgv(l: HookLaunch, folder: string, which: (name: string) => string | undefined, windows: boolean): string[] | undefined {
+/** The argv Claude Code spawns for a hook: exec form as is (a bare name found on PATH), shell form through `sh -c`. */
+export function hookArgv(l: HookLaunch, folder: string, which: (name: string) => string | undefined): string[] {
   const expand = (s: string) => s.replaceAll('${CLAUDE_PLUGIN_ROOT}', folder)
   if (l.args !== undefined) {
     const command = expand(l.command)
     return [/[\\/]/.test(command) ? command : which(command) ?? command, ...l.args.map(expand)]
   }
-  return windows ? undefined : ['/bin/sh', '-c', expand(l.command)]
+  return ['/bin/sh', '-c', expand(l.command)]
 }
 
-export async function guardProbeFinding(folder: string, d: Pick<DoctorDeps, 'run' | 'which'>, windows = isWindows()): Promise<Finding> {
+export async function guardProbeFinding(folder: string, d: Pick<DoctorDeps, 'run' | 'which'>): Promise<Finding> {
   const check = 'hooks (guard probe)'
   const file = join(folder, 'hooks', 'hooks.json')
   const text = readJsonSafeSync<unknown>(file)
@@ -163,8 +162,7 @@ export async function guardProbeFinding(folder: string, d: Pick<DoctorDeps, 'run
   const unmatched = hooks.filter(h => h.hook === undefined).map(h => h.tool)
   if (unmatched.length > 0) return { level: 'error', check, detail: `no PreToolUse hook for ${unmatched.join(' and ')} in ${file}; run \`buracle build\` and \`buracle install claude\`` }
   for (const { tool, hook } of hooks) {
-    const argv = hookArgv(hook as HookLaunch, folder, d.which, windows)
-    if (argv === undefined) return { level: 'error', check, detail: `${file} starts the PreToolUse hook through a shell, which PowerShell cannot parse; run \`buracle build\` and \`buracle install claude\`` }
+    const argv = hookArgv(hook as HookLaunch, folder, d.which)
     const payload = JSON.stringify({ session_id: 'buracle-doctor-probe', hook_event_name: 'PreToolUse', tool_name: tool, tool_input: { command: PROBE_COMMAND }, cwd: folder, permission_mode: 'bypassPermissions' })
     const r = await d.run(argv, {
       stdin: payload, timeoutMs: 30_000, cwd: folder,
@@ -217,7 +215,7 @@ export function commandsFinding(folder: string, settingsPath: string, which: (na
   const missing: string[] = []
   const launchers: string[] = []
   let count = 0
-  // A path in the platform's own spelling (Claude Code substitutes the plugin root with forward slashes on Windows); a bare name stays a name.
+  // A path in its normalized spelling; a bare name stays a name.
   const expand = (c: string) => { const s = c.replaceAll('${CLAUDE_PLUGIN_ROOT}', folder).replaceAll('${HOME}', paths.home()); return isPathLike(s) ? normalize(s) : s }
   const need = (what: string, path: string) => {
     count++

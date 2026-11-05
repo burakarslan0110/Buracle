@@ -38,7 +38,7 @@ describe('one-time notices: acknowledged once per machine (H17)', () => {
     expect(noticesOff({ BURACLE_MEMORY_RUNNER: '1' })).toBe(true)
     expect(noticesOff({})).toBe(false)
     expect(existsSync(paths.noticesDir())).toBe(false)
-    if (process.platform !== 'win32' && process.getuid?.() !== 0) {
+    if (process.getuid?.() !== 0) {
       mkdirSync(paths.noticesDir(), { recursive: true })
       chmodSync(paths.noticesDir(), 0o500)
       try {

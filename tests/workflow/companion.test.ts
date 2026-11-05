@@ -112,7 +112,7 @@ function sandbox(fn: (root: string) => Promise<void>): Promise<void> {
   return withSandbox(({ root }) => withEnv({ BURACLE_NO_MEMORY: '1', BURACLE_LOCK_TIMEOUT_MS: '2000', FAKE_DIR: join(root, 'fake'), PATH: `${join(root, 'fake', 'bin')}:${process.env['PATH'] ?? ''}` }, () => fn(root)))
 }
 
-describe.skipIf(process.platform === 'win32')('second opinion (plan.reviews.companion)', () => {
+describe('second opinion (plan.reviews.companion)', () => {
   test('off by default: start launches nothing, records nothing, and no gate warns about it', () => sandbox(async root => {
     const w = await world(root)
     const deps = inline(w)

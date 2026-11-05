@@ -640,7 +640,7 @@ async function runtime($: EngineInterface, S: ModState): Promise<Runtime> {
   const now = Date.now()
   const cached = S.rt
   if (cached !== undefined && now - cached.checkedAt < 2_000) return cached.value
-  const home = S.home ??= trimSlash(str(await $.env.get('HOME').catch(() => undefined)) ?? str(await $.env.get('USERPROFILE').catch(() => undefined)) ?? '')
+  const home = S.home ??= trimSlash(str(await $.env.get('HOME').catch(() => undefined)) ?? '')
   const bh = str(await $.env.get('BURACLE_HOME').catch(() => undefined))
   const buracleHome = bh !== undefined ? trimSlash(expandHome(bh, home)) : home !== '' ? `${home}/.buracle` : ''
   const path = buracleHome !== '' ? `${buracleHome}/state/runtime-config.json` : ''
@@ -667,10 +667,7 @@ async function runtime($: EngineInterface, S: ModState): Promise<Runtime> {
   const brain = str(resolved['brain']) ?? (buracleHome !== '' ? `${buracleHome}/brain` : '')
   const shim = str(resolved['shim']) ?? (buracleHome !== '' ? `${buracleHome}/bin/buracle` : '')
   const bun = str(resolved['bun']) ?? 'bun'
-  // The process API runs argv without a shell and the Windows shim (buracle.cmd) needs cmd.exe: the plugin's bun launcher
-  // (in the checkout's harness/claude, where Claude Code reads the plugin) runs the same CLI.
-  const repo = str(resolved['repoRoot'])
-  const cli = /\.(?:cmd|bat)$/i.test(shim) && repo !== undefined ? [bun, `${trimSlash(repo)}/harness/claude/bin/buracle.ts`] : [shim]
+  const cli = [shim]
   const value: Runtime = { home, buracleHome, brain: trimSlash(brain), shim, bun, cli, cfg }
   S.rt = { path, mtimeMs, checkedAt: now, value }
   return value

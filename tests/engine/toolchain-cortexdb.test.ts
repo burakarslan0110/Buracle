@@ -30,7 +30,7 @@ const supported = cortexdbPlatform() !== undefined
 describe('cortexdb toolchain: the newest release', () => {
   test('every supported platform has a cortexdb-mcp asset', () => {
     for (const [plat, asset] of Object.entries(CORTEXDB_ASSETS)) {
-      expect(plat).toMatch(/^(darwin|linux|win32)-(arm64|x64)$/)
+      expect(plat).toMatch(/^(darwin|linux)-(arm64|x64)$/)
       expect(asset.startsWith('cortexdb-mcp-')).toBe(true)
     }
   })

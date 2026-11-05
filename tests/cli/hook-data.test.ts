@@ -11,7 +11,7 @@ import type { Harness } from '../../src/core/events'
 import { loadCanonicalSync } from '../../src/engine/canonical'
 import * as paths from '../../src/engine/paths'
 import { MANIFEST_REL } from '../../src/engine/update/build'
-import { KEEPS_MODES } from '../helpers/fake-exe'
+
 import { withEnv, withSandbox } from '../helpers/sandbox'
 import { git } from '../memory/helpers'
 import { fakeAdapter, makeRepo, memoryIO, withDeps } from './ops/helpers'
@@ -168,13 +168,11 @@ describe('buracle build', () => {
       expect(await buildRun([], memoryIO())).toBe(0)
       expect(readHookData(repo)?.mcp.servers['context7']?.description).toBe('Library documentation')
 
-      // A mode can drift only where the file system keeps one.
-      if (KEEPS_MODES) {
-        chmodSync(file, 0o755)
-        const mode = memoryIO({ json: true })
-        expect(await buildRun(['--check', '--json'], mode)).toBe(1)
-        expect((JSON.parse(mode.out()) as { drift: unknown[] }).drift).toEqual([{ path: HOOK_DATA_REL, kind: 'mode', by: 'hook-data' }])
-      }
+      // A mode drifts too.
+      chmodSync(file, 0o755)
+      const mode = memoryIO({ json: true })
+      expect(await buildRun(['--check', '--json'], mode)).toBe(1)
+      expect((JSON.parse(mode.out()) as { drift: unknown[] }).drift).toEqual([{ path: HOOK_DATA_REL, kind: 'mode', by: 'hook-data' }])
 
       writeFileSync(mcp, 'servers: [')
       const broken = memoryIO({ json: true })

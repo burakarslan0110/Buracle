@@ -10,7 +10,7 @@
 # sets up every harness, starts the memory web UI and prints the summary. Nothing runs sudo.
 # Variables: BURACLE_CHECKOUT (default ~/buracle), BURACLE_REPO, BURACLE_BRANCH (default main),
 # BURACLE_HOME (default ~/.buracle). The details go to ~/.buracle/logs/install-<date>.log.
-# Windows: scripts/install.ps1.
+# Windows: run this script inside WSL 2.
 set -euo pipefail
 
 REPO_URL="${BURACLE_REPO:-https://github.com/burakarslan0110/buracle.git}"
@@ -254,7 +254,7 @@ main() {
   case "$(uname -s)" in
     Darwin) os=macos ;;
     Linux) os=linux ;;
-    *) die "this script is for macOS and Linux; on Windows run scripts/install.ps1 in PowerShell" ;;
+    *) die "this script is for macOS and Linux; on Windows run it inside WSL 2 (wsl --install, then this script in the Linux shell)" ;;
   esac
 
   setup_output

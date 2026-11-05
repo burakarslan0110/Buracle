@@ -16,7 +16,7 @@ memory    Starts the buracle-memory MCP server on stdin/stdout (newline-delimite
           stdin closes.
 run <id>  Starts package server <id> of canonical/mcp.yaml with stdio passed through: the copy
           \`buracle install\` put in ~/.buracle/toolchain (newest release), which takes over this
-          process (no launcher stays behind; on Windows it runs as a child), else the package
+          process (no launcher stays behind), else the package
           runner (npx with Buracle's own npm cache, or uvx on Python 3.12) as a child while a
           background install fills the toolchain for the next start. codegraph in a project
           without an index first starts Buracle's index run (index.auto) and waits up to 4 s while
@@ -80,7 +80,7 @@ async function backgroundInstall(id: string): Promise<void> {
   const main = join(import.meta.dir, '..', 'main.ts')
   try {
     const child = Bun.spawn(backgroundInstallArgv(main, id), {
-      stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, cwd: paths.home(), env: { ...process.env, BURACLE_TOOLCHAIN_BACKGROUND: '1' }, windowsHide: true,
+      stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, cwd: paths.home(), env: { ...process.env, BURACLE_TOOLCHAIN_BACKGROUND: '1' },
     })
     child.unref()
   } catch {  }
@@ -173,12 +173,10 @@ export async function expireLaunchFailures(nowMs: number): Promise<void> {
 }
 
 async function spawnServer(id: string, argv: readonly string[], env: Record<string, string | undefined>, io: CommandIO): Promise<number> {
-  const { spawnArgv, windowsVerbatim } = await import('../../engine/platform')
   const started = Date.now()
   let child: ReturnType<typeof Bun.spawn>
   try {
-    const spawned = spawnArgv(argv)
-    child = Bun.spawn(spawned, { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit', env, windowsHide: true, windowsVerbatimArguments: windowsVerbatim(spawned) })
+    child = Bun.spawn([...argv], { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit', env })
   } catch (e) {
     const error = `cannot start ${argv[0] ?? id}: ${errText(e)}`
     io.stderr.write(`buracle mcp run: ${error}\n`)

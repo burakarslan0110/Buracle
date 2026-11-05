@@ -5,7 +5,7 @@ import { runSkills } from '../../src/cli/commands/skills'
 import * as paths from '../../src/engine/paths'
 import { auditSkillDir, discoverSkills, parseSkillSource, readInstalled, skillsAdd, skillsRemove, skillsUpdate } from '../../src/workflow/skill-install'
 import type { WorkflowCtx } from '../../src/workflow/result'
-import { KEEPS_MODES } from '../helpers/fake-exe'
+
 import { withSandbox } from '../helpers/sandbox'
 import { g, makeRepo, memIO, write } from './fixture'
 
@@ -92,7 +92,7 @@ describe('skills add, remove, update', () => {
       expect(r.code).toBe(0)
       const dest = join(home, '.agents', 'skills', 'beta')
       expect(readFileSync(join(dest, 'SKILL.md'), 'utf8')).toBe(skillMd('beta', 'allowed-tools: Bash(curl:*)\n'))
-      if (KEEPS_MODES) expect(lstatSync(join(dest, 'scripts', 'fetch.sh')).mode & 0o111).not.toBe(0)
+      expect(lstatSync(join(dest, 'scripts', 'fetch.sh')).mode & 0o111).not.toBe(0)
       const link = join(home, '.claude', 'skills', 'beta')
       expect(lstatSync(link).isSymbolicLink()).toBe(true)
       expect(readlinkSync(link)).toBe(dest)

@@ -3,12 +3,12 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, symli
 import { join } from 'node:path'
 import * as paths from '../../src/engine/paths'
 import { addLocalBinToPath, removeLocalBinFromPath, startupFile } from '../../src/engine/update/shell-path'
-import { IS_WINDOWS, KEEPS_MODES } from '../helpers/fake-exe'
+
 import { withSandbox } from '../helpers/sandbox'
 
 const BLOCK = '# >>> buracle >>>\nexport PATH="$HOME/.local/bin:$PATH"\n# <<< buracle <<<\n'
 
-describe.skipIf(IS_WINDOWS)('the PATH line in the shell startup file', () => {
+describe('the PATH line in the shell startup file', () => {
   test('the startup file follows the shell', () => {
     const home = '/h'
     expect(startupFile({ SHELL: '/bin/zsh' }, 'darwin', home)).toBe('/h/.zshrc')
@@ -86,7 +86,7 @@ describe.skipIf(IS_WINDOWS)('the PATH line in the shell startup file', () => {
     expect(readFileSync(outside, 'utf8')).toBe('# mine\n')
   }))
 
-  test.skipIf(!KEEPS_MODES)('the file keeps its mode', () => withSandbox(({ home }) => {
+  test('the file keeps its mode', () => withSandbox(({ home }) => {
     const rc = join(home, '.zshrc')
     writeFileSync(rc, 'x\n')
     chmodSync(rc, 0o600)
@@ -112,11 +112,5 @@ describe.skipIf(IS_WINDOWS)('the PATH line in the shell startup file', () => {
     expect(readFileSync(rc, 'utf8')).toBe(before)
     rmSync(paths.shellPathStateFile())
     expect(removeLocalBinFromPath()).toEqual({ removed: false })
-  }))
-})
-
-describe.skipIf(!IS_WINDOWS)('on Windows', () => {
-  test('install.ps1 owns the user PATH, so nothing happens here', () => withSandbox(() => {
-    expect(addLocalBinToPath({ env: { PATH: 'C:\\Windows' } })).toMatchObject({ changed: false, skipped: 'windows' })
   }))
 })

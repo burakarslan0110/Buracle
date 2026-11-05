@@ -6,11 +6,10 @@ import type { Ledger, Op, Plan } from '../../engine/txn'
 import { LIST_IDENTITY_HASH, readLedger } from '../../engine/txn'
 import { bunExecutable } from '../../engine/config'
 import { log } from '../../engine/log'
-import { isWindows } from '../../engine/platform'
 import { run, which } from '../../engine/proc'
 import type { AdapterContext } from '../registry'
 import { parseList, samePath } from './check'
-import { CLAUDE_MANAGED_MARKETPLACES, EFFORT_MODELS, HARNESS_REL, MARKETPLACE_NAME, OWNER, PLUGIN_ID } from './constants'
+import { CLAUDE_MANAGED_MARKETPLACES, EFFORT_MODELS, MARKETPLACE_NAME, OWNER, PLUGIN_ID } from './constants'
 import { renderClaudeMarkdown, withFrontmatter, type FrontmatterValue } from './render'
 
 export interface InstallDeps {
@@ -72,26 +71,8 @@ function shellWord(s: string): string {
   return /^[A-Za-z0-9_@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`
 }
 
-const BOTH_SHELLS_PLAIN = /^[A-Za-z0-9_][A-Za-z0-9_./:~-]*$/
-
-/**
- * The status line's command on Windows, where Claude Code runs it in Git Bash or, without Git Bash, in PowerShell.
- * Both parse `<bare program> '<literal>' …` alike (PowerShell refuses a quoted program name), so the program is bun's
- * plain path or bun on PATH, and bun runs the plugin's launcher, not buracle.cmd.
- */
-export function windowsCliCommand(ctx: Pick<AdapterContext, 'repoRoot' | 'buracleBin'>, bun: string, args: string): string {
-  const fwd = (p: string) => p.replace(/\\/g, '/')
-  const launcher = fwd(join(ctx.repoRoot, HARNESS_REL, 'bin', 'buracle.ts'))
-  if (launcher.includes("'")) return `${shellWord(fwd(ctx.buracleBin))} ${args}`
-  const program = BOTH_SHELLS_PLAIN.test(fwd(bun)) ? fwd(bun) : 'bun'
-  return `${program} ${BOTH_SHELLS_PLAIN.test(launcher) ? launcher : `'${launcher}'`} ${args}`
-}
-
-export function statusLineOp(ctx: AdapterContext, bun: string = bunExecutable(), windows: boolean = isWindows()): Op {
-  const command = (args: string) => (windows ? windowsCliCommand(ctx, bun, args) : `${shellWord(ctx.buracleBin)} ${args}`)
-  const set: Record<string, unknown> = { statusLine: { type: 'command', command: command('statusline claude'), padding: 0, refreshInterval: 60 } }
-  // The plugin's subagentStatusLine is a POSIX shell line (Git Bash runs it); on Windows the user-level key wins over it and also runs in PowerShell.
-  if (windows) set['subagentStatusLine'] = { type: 'command', command: command('statusline claude --subagent') }
+export function statusLineOp(ctx: AdapterContext): Op {
+  const set: Record<string, unknown> = { statusLine: { type: 'command', command: `${shellWord(ctx.buracleBin)} statusline claude`, padding: 0, refreshInterval: 60 } }
   return { kind: 'json-merge', path: join(ctx.paths.claudeDir(), 'settings.json'), set, owner: OWNER }
 }
 
@@ -261,7 +242,7 @@ export async function claudeInstallPlan(ctx: AdapterContext, deps: Partial<Insta
   return {
     id: 'claude',
     harness: 'claude',
-    ops: [...ruleOps(ctx, ledger), statusLineOp(ctx, tools.bun), ...permissionOps(ctx), ...effortOps(ctx), ...teamsOps(ctx), ...envOps(ctx), ...autoMemoryOps(ctx), ...announcementOps(ctx), ...retiredDenyOps(ctx), ...execOps(ctx, tools)],
+    ops: [...ruleOps(ctx, ledger), statusLineOp(ctx), ...permissionOps(ctx), ...effortOps(ctx), ...teamsOps(ctx), ...envOps(ctx), ...autoMemoryOps(ctx), ...announcementOps(ctx), ...retiredDenyOps(ctx), ...execOps(ctx, tools)],
     cleanupKeys: cleanupKeys(ctx),
   }
 }

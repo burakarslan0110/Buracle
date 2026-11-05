@@ -4,7 +4,6 @@ import { isAbsolute, join, relative, resolve } from 'node:path'
 import { comparablePath } from '../fsx'
 import { log } from '../log'
 import * as paths from '../paths'
-import { isWindows } from '../platform'
 
 export type EditReportState = 'report' | 'clean' | 'pending' | 'starting' | 'none' | 'error'
 export interface EditReport { state: EditReportState; text?: string }
@@ -98,10 +97,9 @@ export function liveBridges(dir: string = lspBridgeDir()): LspBridgeEntry[] {
   return out
 }
 
-// A bridge's folder and the hook's cwd may be spelled differently on Windows (case, 8.3 names, '/'): both are keyed alike.
+// A bridge's folder and the hook's cwd are keyed in one spelling.
 function pathKey(p: string): string {
-  const abs = comparablePath(p)
-  return isWindows() ? abs.toLowerCase() : abs
+  return comparablePath(p)
 }
 
 function inside(file: string, dir: string): boolean {

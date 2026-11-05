@@ -1,70 +1,19 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { closeSync, constants, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readlinkSync, realpathSync, renameSync, statSync, symlinkSync, unlinkSync, writeSync, chmodSync } from 'node:fs'
+import { closeSync, constants, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readlinkSync, realpathSync, renameSync, statSync, unlinkSync, writeSync, chmodSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
-import { isWindows } from './platform'
 
 export type ReadResult<T> =
   | { ok: true; value: T }
   | { ok: false; error: string; code: 'missing' | 'parse' | 'io' }
 
-// The one spelling of a path that Buracle compares: links resolved and, on Windows, 8.3 short names such as
-// C:\Users\RUNNER~1 expanded to the long ones (only the .native variant does that). Throws like realpathSync.
+// The one spelling of a path that Buracle compares: links resolved. Throws like realpathSync.
 export function realPath(p: string): string {
   return realpathSync.native(p)
 }
 
-// A path from another source (git prints C:/Users/runneradmin/x on Windows, a harness may pass the cwd as
-// C:\Users\RUNNER~1\x) in the form Buracle compares: resolved and, on Windows, the real path when it exists.
+// A path from another source (git, a harness's cwd) in the form Buracle compares: resolved against base or the cwd.
 export function comparablePath(p: string, base?: string): string {
-  const abs = base !== undefined ? resolve(base, p) : resolve(p)
-  if (!isWindows()) return abs
-  try { return realPath(abs) } catch { return abs }
-}
-
-// Windows refuses to rename a folder while another process (an antivirus scan, the search indexer) still reads a
-// file in it, as it does right after npm wrote one; npm's own file layer retries for the same reason. Windows
-// retries for up to budgetMs; elsewhere the first error stands.
-export interface RenameRetryOptions {
-  budgetMs?: number
-  platform?: NodeJS.Platform
-  rename?: (a: string, b: string) => void
-  sleep?: (ms: number) => void
-}
-
-export function renameRetrySync(from: string, to: string, opts: RenameRetryOptions = {}): void {
-  const rename = opts.rename ?? renameSync
-  const sleep = opts.sleep ?? Bun.sleepSync
-  const start = Date.now()
-  for (let delay = 50; ; delay = Math.min(delay * 2, 1000)) {
-    try { rename(from, to); return } catch (e) {
-      const code = (e as { code?: string }).code
-      if ((opts.platform ?? process.platform) !== 'win32' || (code !== 'EPERM' && code !== 'EACCES' && code !== 'EBUSY') || Date.now() - start >= (opts.budgetMs ?? 30_000)) throw e
-      sleep(delay)
-    }
-  }
-}
-
-// atomicWriteSync also runs inside hooks, which have a time budget: a few tries (50, 100, 200, 400, 800 ms apart)
-// ride out a scanner or indexer holding the target on Windows, then the error stands.
-const ATOMIC_RENAME_BUDGET_MS = 1500
-
-// Windows lets a user create a symbolic link only with administrator rights or Developer Mode, and a junction
-// always, so a link to a directory is a junction there: one with an absolute target at once, one with a relative
-// target (it stays relative in a repository) when the symbolic link is refused.
-export function linkDirSync(target: string, link: string): void {
-  const abs = resolve(dirname(link), target)
-  let dir = false
-  try { dir = statSync(abs).isDirectory() } catch {  }
-  if (process.platform !== 'win32' || !dir) { symlinkSync(target, link); return }
-  if (!isAbsolute(target)) {
-    try { symlinkSync(target, link); return } catch (e) { if ((e as { code?: string }).code !== 'EPERM') throw e }
-  }
-  symlinkSync(abs, link, 'junction')
-}
-
-// A link's target without the \\?\ prefix Windows gives the target of a junction.
-export function readLinkSync(link: string): string {
-  return readlinkSync(link).replace(/^\\(?:\\\?|\?\?)\\/, '')
+  return base !== undefined ? resolve(base, p) : resolve(p)
 }
 
 export function sha256(data: string | Uint8Array): string {
@@ -146,8 +95,6 @@ export function fileMode(path: string): number | undefined {
 
 export interface AtomicWriteOptions {
   mode?: number
-  /** Replaces the rename and its retry policy; for tests. */
-  renameRetry?: RenameRetryOptions
 }
 
 export async function atomicWrite(path: string, data: string | Uint8Array, opts: AtomicWriteOptions = {}): Promise<void> {
@@ -170,7 +117,7 @@ export function atomicWriteSync(path: string, data: string | Uint8Array, opts: A
     closeSync(fd)
     fd = undefined
     chmodSync(tmp, mode)
-    renameRetrySync(tmp, target, { budgetMs: ATOMIC_RENAME_BUDGET_MS, ...opts.renameRetry })
+    renameSync(tmp, target)
   } catch (e) {
     if (fd !== undefined) { try { closeSync(fd) } catch {  } }
     try { unlinkSync(tmp) } catch {  }

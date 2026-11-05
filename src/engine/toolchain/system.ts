@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import type { ToolSpec } from '../../core/catalog'
 import { opsDeps } from '../update/deps'
 import * as paths from '../paths'
-import { exeName, findExecutable, osName, spawnArgv, type OsName } from '../platform'
+import { findExecutable, osName, type OsName } from '../platform'
 import { defaultLinuxEnv, linuxInstallHint, type LinuxEnv } from './linux-packages'
 import { installPackage, toolchainEnv, toolRequest } from './packages'
 import type { InstalledPackage, InstalledSystemTool } from './state'
@@ -12,7 +12,7 @@ import { installPinnedTool, isPinnedTool, pinnedAsset, type PinnedInstallOptions
 export interface ToolCheck { name: string; status: 'ok' | 'missing' | 'error'; version?: string; path?: string; detail: string }
 
 export function toolApplies(t: ToolSpec, os: OsName = osName()): boolean {
-  return t.platforms === undefined || t.platforms.includes(os)
+  return t.platforms === undefined || t.platforms.some(p => p === os)
 }
 
 export { toolchainBinDirs } from '../paths'
@@ -22,7 +22,7 @@ export async function checkTool(t: ToolSpec, timeoutMs = 8000): Promise<ToolChec
   if (cmd === undefined) return { name: t.name, status: 'error', detail: 'empty check command' }
   const path = findExecutable(cmd, { extra: paths.toolchainBinDirs() })
   if (path === undefined) return { name: t.name, status: 'missing', detail: 'not found' }
-  const r = await opsDeps.run(spawnArgv([path, ...args]), { timeoutMs })
+  const r = await opsDeps.run([path, ...args], { timeoutMs })
   if (r.code === 127) return { name: t.name, status: 'missing', path, detail: 'not found' }
   const text = `${r.stdout}\n${r.stderr}`
   let version: string | undefined
@@ -31,7 +31,7 @@ export async function checkTool(t: ToolSpec, timeoutMs = 8000): Promise<ToolChec
   return version !== undefined ? { name: t.name, status: 'ok', version, path, detail: version } : { name: t.name, status: 'ok', path, detail: 'present (version not recognized)' }
 }
 
-export type SourceKind = 'rustup' | 'brew' | 'winget' | 'scoop' | 'download' | 'npm' | 'pypi' | 'go' | 'dotnet'
+export type SourceKind = 'rustup' | 'brew' | 'download' | 'npm' | 'pypi' | 'go' | 'dotnet'
 
 export interface InstallSource { kind: SourceKind; ref: string; label: string }
 
@@ -44,9 +44,7 @@ export function installSources(t: ToolSpec, os: OsName = osName(), have: (cmd: s
   if (missingRequirements(t, have).length > 0) return out
   // rustup's proxy for a component shadows any other copy on PATH until the component is added, so it comes first.
   if (t.rustup !== undefined && have('rustup')) out.push({ kind: 'rustup', ref: t.rustup, label: `rustup component add ${t.rustup}` })
-  if (os !== 'win32' && t.brew !== undefined && have('brew')) out.push({ kind: 'brew', ref: t.brew, label: `brew install ${t.brew}` })
-  if (os === 'win32' && t.winget !== undefined && have('winget')) out.push({ kind: 'winget', ref: t.winget, label: `winget install ${t.winget}` })
-  if (os === 'win32' && t.scoop !== undefined && have('scoop')) out.push({ kind: 'scoop', ref: t.scoop, label: `scoop install ${t.scoop}` })
+  if (t.brew !== undefined && have('brew')) out.push({ kind: 'brew', ref: t.brew, label: `brew install ${t.brew}` })
   // node, uv, rg and jq at the pinned version, sha256-checked, into the Buracle toolchain: no sudo, no package manager.
   const pinned = pinnedAsset(t.name, os, arch)
   if (pinned !== undefined) out.push({ kind: 'download', ref: `${t.name}@${pinned.version}`, label: `${t.name} ${pinned.version} download (Buracle toolchain)` })
@@ -63,8 +61,6 @@ export function installAdvice(t: ToolSpec, os: OsName = osName(), have: (cmd: st
   const needs = missingRequirements(t, have)
   if (needs.length > 0) return `${t.name} needs ${needs.join(' and ')} on PATH; install ${needs.length === 1 ? 'it' : 'them'} first, then run \`buracle install\``
   if (t.rustup !== undefined && have('rustup')) return `rustup component add ${t.rustup}`
-  if (os === 'win32' && t.winget !== undefined) return `winget install --id ${t.winget} -e --scope user`
-  if (os === 'win32' && t.scoop !== undefined) return `scoop install ${t.scoop}`
   const brewHere = os === 'darwin' || (os === 'linux' && have('brew'))
   if (os === 'linux' && !brewHere) {
     const hint = linuxInstallHint(t.name, linux ?? defaultLinuxEnv(have))
@@ -131,27 +127,24 @@ async function runInstaller(s: InstallSource, timeoutMs: number): Promise<{ ok: 
   let argv: string[]
   const env = toolchainEnv()
   switch (s.kind) {
-    case 'rustup': argv = [findExecutable('rustup') ?? exeName('rustup'), 'component', 'add', s.ref]; break
+    case 'rustup': argv = [findExecutable('rustup') ?? 'rustup', 'component', 'add', s.ref]; break
     case 'brew': argv = [findExecutable('brew') ?? 'brew', 'install', s.ref]; break
-    // --scope user: an install for this user only, which needs no administrator rights (no UAC prompt).
-    case 'winget': argv = [findExecutable('winget') ?? 'winget', 'install', '--id', s.ref, '--exact', '--scope', 'user', '--silent', '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity']; break
-    case 'scoop': argv = [findExecutable('scoop') ?? 'scoop', 'install', s.ref]; break
     case 'go': {
       const gobin = join(paths.toolchainDir(), 'go', 'bin')
       mkdirSync(gobin, { recursive: true })
       env['GOBIN'] = gobin
-      argv = [findExecutable('go') ?? exeName('go'), 'install', `${s.ref}@latest`]
+      argv = [findExecutable('go') ?? 'go', 'install', `${s.ref}@latest`]
       break
     }
     case 'dotnet': {
       const toolPath = join(paths.toolchainDir(), 'dotnet', 'tools')
       mkdirSync(toolPath, { recursive: true })
-      argv = [findExecutable('dotnet') ?? exeName('dotnet'), 'tool', 'install', '--tool-path', toolPath, s.ref]
+      argv = [findExecutable('dotnet') ?? 'dotnet', 'tool', 'install', '--tool-path', toolPath, s.ref]
       break
     }
     default: return { ok: false, error: `unsupported installer ${s.kind}` }
   }
-  const r = await opsDeps.run(spawnArgv(argv), { env, timeoutMs })
+  const r = await opsDeps.run([...argv], { env, timeoutMs })
   if (r.code === 0) return { ok: true }
   const text = `${r.stderr}\n${r.stdout}`.trim().split('\n').slice(-3).join(' / ').slice(0, 300)
   return { ok: false, error: `${s.label} failed (exit ${r.code}${r.timedOut ? ', timed out' : ''})${text !== '' ? `: ${text}` : ''}` }

@@ -18,8 +18,8 @@ export interface CheckerFacts {
   dotnetDir?: string
 }
 
-const ESLINT_BINS = ['node_modules/.bin/eslint.exe', 'node_modules/.bin/eslint.cmd', 'node_modules/.bin/eslint']
-const RUFF_BINS = ['.venv/Scripts/ruff.exe', '.venv/bin/ruff', 'venv/Scripts/ruff.exe', 'venv/bin/ruff']
+const ESLINT_BINS = ['node_modules/.bin/eslint']
+const RUFF_BINS = ['.venv/bin/ruff', 'venv/bin/ruff']
 
 export const CHECKER_PROBES: readonly string[] = [...ESLINT_BINS, ...RUFF_BINS]
 export const CHECKER_SCAN_MAX_DIRS = 20

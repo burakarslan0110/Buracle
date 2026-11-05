@@ -37,7 +37,7 @@ export function opencodeReceiptChanges(tool: string, input: Record<string, unkno
 export function spawnNotify(cli: readonly string[] | undefined, title: string, message: string): boolean {
   if (cli === undefined || cli.length === 0) return false
   try {
-    const child = Bun.spawn([...cli, 'notify', 'info', title, message], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, env: { ...process.env }, windowsHide: true })
+    const child = Bun.spawn([...cli, 'notify', 'info', title, message], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, env: { ...process.env } })
     child.unref()
     return true
   } catch (e) {

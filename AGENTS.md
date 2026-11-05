@@ -24,13 +24,13 @@ Oh My Pi. TypeScript on Bun ≥ 1.4, ESM only, strict TypeScript; the CLI runs f
 | Typecheck | `bunx tsc --noEmit -p .` (must stay clean for the whole repo) |
 | Build `harness/` | `T=$(mktemp -d) && HOME=$T BURACLE_HOME=$T/.buracle bun src/cli/main.ts build` |
 | Drift check | the same with `build --check` |
-| All tests | `bun test` (on Windows `bun test --timeout 60000`, as CI does) |
+| All tests | `bun test` |
 | One test file | `bun test tests/engine/txn.test.ts` |
 | Skill lint | `bun src/cli/main.ts skills lint canonical/skills` |
 | CLI help | `bun src/cli/main.ts --help` |
 
 Release checks: run all three before every commit. GitHub Actions runs them on every push to a
-branch other than `main`, on macOS arm64, Linux x64 and Windows x64, with the Bun in
+branch other than `main`, on macOS arm64 and Linux x64, with the Bun in
 `.bun-version`, and every job has to pass.
 
 ```sh
@@ -39,8 +39,8 @@ T=$(mktemp -d) && HOME=$T BURACLE_HOME=$T/.buracle bun src/cli/main.ts build --c
 bun test                                                                 # 0 fail
 ```
 
-CI also parses the install scripts: `bash -n scripts/install.sh`, and `scripts/install.ps1` with the
-PowerShell parser. Run the first after editing `scripts/install.sh`.
+CI also parses the install script: `bash -n scripts/install.sh`. Run it after editing
+`scripts/install.sh`.
 
 ## Layout
 
@@ -121,12 +121,12 @@ PowerShell parser. Run the first after editing `scripts/install.sh`.
   CI never runs on `main`.
 - When every job passes on a push to `dev` and the released files changed, CI publishes the next
   patch after the newest `v<major.minor>.*` tag (or the version in `package.json` while that
-  version has no release): one commit on `main` and a `v<version>` release with both install
-  scripts. Raise major or minor in `package.json` to start a new line. A push that changes only the
+  version has no release): one commit on `main` and a `v<version>` release with the install
+  script. Raise major or minor in `package.json` to start a new line. A push that changes only the
   test suite releases nothing.
 - The released tree leaves out `RELEASE_DROPS` (`tests/` and `bunfig.toml`, in
-  `.github/workflows/ci.yml`), so released code must not depend on them. The `windows-install` and
-  `posix-install` jobs install that tree before the release. The install scripts clone `main`, and
+  `.github/workflows/ci.yml`), so released code must not depend on them. The `posix-install` job
+  installs that tree before the release. The install script clones `main`, and
   `buracle update` follows the checkout's upstream.
 
 ## Gotchas

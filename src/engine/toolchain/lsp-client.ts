@@ -2,7 +2,7 @@ import { readFileSync, statSync } from 'node:fs'
 import { basename, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { realPath } from '../fsx'
-import { spawnArgv, windowsVerbatim } from '../platform'
+
 import { type FileChange, type FileWatcher, watcherWants, watchersOf } from './lsp-watch'
 
 export interface LspPosition { line: number; character: number }
@@ -24,7 +24,7 @@ export function uriPath(uri: string): string | undefined {
 export function pathKey(path: string): string {
   let p = resolve(path)
   try { p = realPath(p) } catch {  }
-  return process.platform === 'win32' ? p.toLowerCase() : p
+  return p
 }
 
 export function encodeMessage(msg: unknown): Uint8Array {
@@ -148,8 +148,7 @@ export class LspClient {
     this.rootUri = fileUri(opts.rootDir)
     this.startedAt = this.now()
     this.lastUsed = this.startedAt
-    const spawned = spawnArgv(opts.argv)
-    this.proc = Bun.spawn(spawned, { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', cwd: opts.rootDir, env: { ...process.env, ...(opts.env ?? {}) }, windowsHide: true, windowsVerbatimArguments: windowsVerbatim(spawned) })
+    this.proc = Bun.spawn([...opts.argv], { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', cwd: opts.rootDir, env: { ...process.env, ...(opts.env ?? {}) } })
     void this.readStdout()
     void this.readStderr()
     void this.proc.exited.then(code => this.onExit(code))

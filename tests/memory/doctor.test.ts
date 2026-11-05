@@ -123,24 +123,6 @@ describe('mem doctor', () => {
     })
   })
 
-  test.skipIf(REAL_CORTEXDB)('a file check that cannot open a Windows path (CortexDB\'s "out of memory") is an info row, not a problem with the brain', async () => {
-    await withBrain(async ({ repo }) => {
-      await saveItem(projectRef('demo'), { id: 'decision-a', kind: 'decision', layer: 'project', title: 'A', summary: '', body: '', tags: [], sources: [], about: [], status: 'active', review: 'pending', importance: 3, created: '2026-10-13T10:00:00Z', updated: '2026-10-13T10:00:00Z', author: 'agent', version: 1, history: [] })
-      await withEnv({ FAKE_CORTEXDB_DOCTOR: 'windows-uri' }, async () => {
-        const file = (await memDoctor({ cwd: repo, mcp: false, leak: false })).find(c => c.check === 'brain file')
-        expect(file).toMatchObject({ level: 'info' })
-        expect(file?.detail).toContain('could not open')
-        expect(file?.detail).toContain('SQL logic error: out of memory (1)')
-        expect(file?.detail).not.toContain('restore')
-        expect(file?.detail).not.toContain('Close every harness')
-      })
-      // A self-test that fails with it is still an error with the restore.
-      await withEnv({ FAKE_CORTEXDB_DOCTOR: 'self-test' }, async () => {
-        expect((await memDoctor({ cwd: repo, mcp: false, leak: false })).find(c => c.check === 'brain file')).toMatchObject({ level: 'error' })
-      })
-    })
-  })
-
   test.skipIf(REAL_CORTEXDB)('a brain that does not answer keeps the error and the restore, also when the self-test passed', async () => {
     await withBrain(async ({ repo }) => {
       await saveItem(projectRef('demo'), { id: 'decision-a', kind: 'decision', layer: 'project', title: 'A', summary: '', body: '', tags: [], sources: [], about: [], status: 'active', review: 'pending', importance: 3, created: '2026-10-13T10:00:00Z', updated: '2026-10-13T10:00:00Z', author: 'agent', version: 1, history: [] })

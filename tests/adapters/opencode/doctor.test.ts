@@ -9,7 +9,7 @@ import type { RunResult } from '../../../src/engine/proc'
 import * as paths from '../../../src/engine/paths'
 import { applyPlans } from '../../../src/engine/txn'
 import { fakeExe } from '../../helpers/fake-exe'
-import { withEnv, withSandbox } from '../../helpers/sandbox'
+import { withSandbox } from '../../helpers/sandbox'
 import { adapterContext } from './helpers'
 
 function ok(stdout: string): RunResult { return { code: 0, stdout, stderr: '', timedOut: false } }
@@ -26,17 +26,17 @@ function level(items: DoctorItem[], check: string): string | undefined {
 }
 
 describe('MCP server commands OpenCode starts', () => {
-  test('a missing Windows path (the buracle.cmd shim) is an error; a bare name off PATH is a warning; an existing file is fine', () => withSandbox(async ({ root }) => {
-    const shim = join(root, 'buracle.cmd')
-    writeFileSync(shim, '@echo off\r\n')
+  test('a missing path is an error; a bare name off PATH is a warning; an existing executable is fine', () => withSandbox(async ({ root }) => {
+    const shim = join(root, 'buracle')
+    writeFileSync(shim, '#!/bin/sh\n')
     chmodSync(shim, 0o755)
     const found = mcpCommandFindings({
-      gone: { type: 'local', command: ['C:\\Users\\me\\.buracle\\bin\\buracle.cmd', 'mcp', 'memory'] },
+      gone: { type: 'local', command: ['/definitely/missing/buracle', 'mcp', 'memory'] },
       runner: { type: 'local', command: ['definitely-not-a-runner-xyz', 'pkg'] },
       ok: { type: 'local', command: [shim, 'mcp', 'run', 'codegraph'] },
     }, {})
     expect(found.map(f => f.level).sort()).toEqual(['error', 'warn'])
-    expect(found.find(f => f.level === 'error')?.detail).toContain('gone: C:\\Users\\me\\.buracle\\bin\\buracle.cmd does not exist')
+    expect(found.find(f => f.level === 'error')?.detail).toContain('gone: /definitely/missing/buracle does not exist')
     expect(found.find(f => f.level === 'warn')?.detail).toContain('runner: `definitely-not-a-runner-xyz` is not on PATH')
   }))
 })
@@ -80,12 +80,15 @@ describe('opencode doctor', () => {
   }))
 
   test('a v1 is told the way to v2 for the installer that installed it, not only the Homebrew tap', () => withSandbox(async ({ root }) => {
-    // npm on Windows: the %APPDATA%\npm\opencode.cmd shim of `npm i -g opencode-ai`.
-    const prefix = join(root, 'AppData', 'Roaming', 'npm')
-    mkdirSync(prefix, { recursive: true })
-    const shim = join(prefix, 'opencode.cmd')
-    writeFileSync(shim, '@ECHO off\r\nGOTO start\r\n:start\r\nSETLOCAL\r\n"%_prog%"  "%dp0%\\node_modules\\opencode-ai\\bin\\opencode" %*\r\n')
-    const npm = await doctor(adapterContext(), { detect: async () => ({ installed: true, version: '1.18.29', path: shim }), run: async () => ok('') })
+    // npm: `npm i -g opencode-ai` links <prefix>/bin/opencode to the package's own launcher.
+    const prefix = join(root, 'npm-global')
+    const launcher = join(prefix, 'lib', 'node_modules', 'opencode-ai', 'bin', 'opencode')
+    mkdirSync(dirname(launcher), { recursive: true })
+    writeFileSync(launcher, '#!/usr/bin/env node\n')
+    mkdirSync(join(prefix, 'bin'), { recursive: true })
+    const link = join(prefix, 'bin', 'opencode')
+    symlinkSync(launcher, link)
+    const npm = await doctor(adapterContext(), { detect: async () => ({ installed: true, version: '1.18.29', path: link }), run: async () => ok('') })
     const row = npm.find(i => i.check === 'opencode.version')
     expect(row?.level).toBe('error')
     expect(row?.detail).toContain('Move to v2: `npm uninstall -g opencode-ai`, then `npm install -g @opencode/cli`, then `buracle install opencode`')
@@ -183,14 +186,14 @@ describe('opencode doctor', () => {
   }))
 })
 
-describe('opencode doctor: MCP commands on Windows', () => {
-  test('a buracle.cmd shim by its Windows path is checked by existence (OpenCode starts a .cmd through cross-spawn and cmd.exe)', () => withSandbox(async ({ root }) => {
-    const cmd = join(root, 'bin', 'buracle.cmd')
+describe('opencode doctor: MCP command files', () => {
+  test('a command file without the executable bit is an error', () => withSandbox(async ({ root }) => {
+    const cmd = join(root, 'bin', 'buracle')
     mkdirSync(dirname(cmd), { recursive: true })
-    writeFileSync(cmd, '@echo off\r\n')
+    writeFileSync(cmd, '#!/bin/sh\n')
     const servers = (command: string) => ({ 'buracle-memory': { type: 'local', command: [command, 'mcp', 'memory'] } })
-    expect(mcpCommandFindings(servers('C:\\Users\\Ann Lee\\.buracle\\bin\\buracle.cmd'), {})).toEqual([{ level: 'error', detail: expect.stringContaining('buracle-memory: C:\\Users\\Ann Lee\\.buracle\\bin\\buracle.cmd does not exist') }])
-    await withEnv({ BURACLE_PLATFORM: 'win32' }, () => { expect(mcpCommandFindings(servers(cmd), {})).toEqual([]) })
-    if (process.platform !== 'win32') expect(mcpCommandFindings(servers(cmd), {})[0]?.detail).toContain(`buracle-memory: ${cmd} does not exist or is not executable`)
+    expect(mcpCommandFindings(servers(cmd), {})[0]?.detail).toContain(`buracle-memory: ${cmd} does not exist or is not executable`)
+    chmodSync(cmd, 0o755)
+    expect(mcpCommandFindings(servers(cmd), {})).toEqual([])
   }))
 })

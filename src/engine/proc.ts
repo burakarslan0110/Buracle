@@ -1,5 +1,3 @@
-import { isWindows, spawnArgv, windowsVerbatim } from './platform'
-
 export interface RunOptions {
   cwd?: string
   env?: Record<string, string | undefined>
@@ -35,36 +33,17 @@ function delay(ms: number): Promise<void> {
   return new Promise(res => setTimeout(res, ms))
 }
 
-// On Windows a program found on the child's PATH as a .cmd or .bat (npm's shims for claude, codex and opencode)
-// starts through cmd.exe; every other argv is spawned as given.
-function windowsArgv(argv: string[], env: Record<string, string>): string[] {
-  const [cmd, ...rest] = argv as [string, ...string[]]
-  if (!isWindows()) return argv
-  const PATH = Object.entries(env).find(([k]) => k.toUpperCase() === 'PATH')?.[1] ?? ''
-  const resolved = /[\\/]/.test(cmd) ? cmd : (Bun.which(cmd, { PATH }) ?? cmd)
-  return /\.(cmd|bat)$/i.test(resolved) ? spawnArgv([resolved, ...rest]) : argv
-}
-
-// Windows has no process groups: taskkill /T ends a process and every process it started.
-export function killTreeWindows(pid: number): void {
-  try { Bun.spawnSync(['taskkill', '/pid', String(pid), '/T', '/F'], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', timeout: 5000, env: { ...process.env }, windowsHide: true }) } catch {  }
-}
-
 export async function run(argv: string[], opts: RunOptions = {}): Promise<RunResult> {
   if (argv.length === 0 || argv[0] === undefined || argv[0] === '') return { code: 127, stdout: '', stderr: 'run: empty argv', timedOut: false }
   const env: Record<string, string> = {}
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v
   if (opts.env) for (const [k, v] of Object.entries(opts.env)) { if (v === undefined) delete env[k]; else env[k] = v }
-  const group = opts.processGroup === true && process.platform !== 'win32'
-  const spawned = windowsArgv(argv, env)
-  const viaCmd = windowsVerbatim(spawned)
+  const group = opts.processGroup === true
   let proc
   try {
-    proc = Bun.spawn(spawned, {
+    proc = Bun.spawn(argv, {
       cwd: opts.cwd,
       env,
-      windowsHide: true,
-      windowsVerbatimArguments: viaCmd,
       stdin: opts.stdin === undefined ? 'ignore' : typeof opts.stdin === 'string' ? new TextEncoder().encode(opts.stdin) : opts.stdin,
       stdout: 'pipe',
       stderr: 'pipe',
@@ -85,8 +64,6 @@ export async function run(argv: string[], opts: RunOptions = {}): Promise<RunRes
     if (group) {
       try { process.kill(-p.pid, sig); return } catch {  }
     }
-    // Killing cmd.exe leaves the program it started running: on Windows the whole tree goes.
-    if (viaCmd) killTreeWindows(p.pid)
     try { p.kill(sig) } catch {  }
   }
   const stop = () => {

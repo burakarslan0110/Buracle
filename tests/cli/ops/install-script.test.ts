@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { readFileSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { run as installRun } from '../../../src/cli/commands/install'
 import { scriptDeps, scriptSession, type ScriptDeps } from '../../../src/cli/commands/install-script'
@@ -7,11 +7,11 @@ import type { ToolchainItem } from '../../../src/engine/toolchain/index'
 import { emptyToolchainState } from '../../../src/engine/toolchain/state'
 import * as paths from '../../../src/engine/paths'
 import type { Plan } from '../../../src/engine/txn'
-import { IS_WINDOWS } from '../../helpers/fake-exe'
+
 import { withEnv, withSandbox } from '../../helpers/sandbox'
 import { fakeAdapter, fakeCli, makeRepo, memoryIO, withDeps } from './helpers'
 
-// `buracle install --script`: what scripts/install.sh and scripts/install.ps1 hand over to after their own two lines.
+// `buracle install --script`: what scripts/install.sh hands over to after its own two lines.
 
 const STARTED = 1_800_000_000_000
 
@@ -58,7 +58,7 @@ describe('buracle install --script', () => {
       expect(text).toContain('buracle doctor')
       expect(text).toContain('node')
       // The log holds the health report: readable by this user only when the install creates it.
-      if (!IS_WINDOWS) expect(statSync(log).mode & 0o777).toBe(0o600)
+      expect(statSync(log).mode & 0o777).toBe(0o600)
     }))
   }))
 
@@ -145,16 +145,14 @@ describe('buracle install --script', () => {
       await installRun(args(join(root, 'r.log'), ['--yes']), removed)
       expect(lines(removed.out()).filter(l => l.includes('buracle install'))).toEqual(['    ▲ removed      1 Buracle item you removed · buracle install (in a terminal)'])
 
-      if (!IS_WINDOWS) {
-        const outside = join(root, 'elsewhere.json')
-        writeFileSync(outside, '{}\n')
-        rmSync(target, { force: true })
-        symlinkSync(outside, target)
-        const links = memoryIO()
-        await installRun(args(join(root, 'l.log'), ['--yes']), links)
-        expect(lines(links.out()).filter(l => l.includes('buracle install'))).toEqual(['    ▲ links        1 link out of your home folder · buracle install (in a terminal)'])
-        unlinkSync(target)
-      }
+      const outside = join(root, 'elsewhere.json')
+      writeFileSync(outside, '{}\n')
+      rmSync(target, { force: true })
+      symlinkSync(outside, target)
+      const links = memoryIO()
+      await installRun(args(join(root, 'l.log'), ['--yes']), links)
+      expect(lines(links.out()).filter(l => l.includes('buracle install'))).toEqual(['    ▲ links        1 link out of your home folder · buracle install (in a terminal)'])
+      unlinkSync(target)
 
       rmSync(paths.ownedLedgerFile(), { force: true })
       rmSync(paths.journalDir(), { recursive: true, force: true })
@@ -215,8 +213,9 @@ describe('buracle install --script', () => {
       expect(io.out()).not.toMatch(/[\u001b\r]/)
       expect(out[12]).toBe('    ℹ PATH         ~/.local/bin added in ~/.zshrc · open a new terminal')
       const note = memoryIO()
-      await withScript({ addPath: () => ({ changed: false, skipped: 'windows' as const }) }, () => installRun(args(join(home, 'w.log'), ['--yes', '--path-note', 'added to your user PATH']), note))
-      expect(lines(note.out())).toContain('    ℹ PATH         ~/.local/bin added to your user PATH · open a new terminal')
+      expect(await installRun(args(join(home, 'w.log'), ['--yes', '--path-note', 'added to your user PATH']), note)).toBe(1)
+      expect(note.err()).toContain('unknown option --path-note')
+      expect(existsSync(join(home, 'w.log'))).toBe(false)
     }))
   }))
 

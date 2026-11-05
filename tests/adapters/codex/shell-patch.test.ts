@@ -79,10 +79,8 @@ describe('shellPatchTargets: the files a shell patch writes', () => {
       .toMatchObject({ paths: ['/w/a.txt', '/w/b.txt'] })
   })
 
-  test('Windows: a drive `cd` anchors relative paths, drive paths need none, the paths keep the Windows spelling', () => {
+  test('drive paths in a patch need no cd and keep their Windows spelling; a drive cd anchors relative paths', () => {
     const body = patch('a.txt')
-    expect(shellApplyPatch(heredoc(body, 'cd C:\\Users\\me\\.ssh && apply_patch'))).toEqual({ kind: 'patch', body, cd: 'C:\\Users\\me\\.ssh', expands: false })
-    expect(shellApplyPatch(heredoc(body, 'cd "D:\\a b" && applypatch'))).toEqual({ kind: 'patch', body, cd: 'D:\\a b', expands: false })
     expect(shellPatchTargets({ kind: 'patch', body, cd: 'C:\\Users\\me\\.ssh', expands: false }, parse)).toMatchObject({ paths: ['C:\\Users\\me\\.ssh\\a.txt'] })
     expect(shellPatchTargets({ kind: 'patch', body: patch('C:\\w\\a.txt'), expands: false }, parse)).toMatchObject({ paths: ['C:\\w\\a.txt'] })
     expect(shellPatchTargets({ kind: 'patch', body: patch('a.txt'), cd: 'C:', expands: false }, parse)).toMatchObject({ paths: ['C:\\a.txt'] })

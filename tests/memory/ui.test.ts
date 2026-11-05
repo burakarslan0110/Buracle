@@ -11,7 +11,7 @@ import { MemoryError } from '../../src/memory/api'
 import { readProjectsCache } from '../../src/memory/project'
 import { refreshStatus } from '../../src/memory/status'
 import { bucketExists, getStored, personRef, projectRef, recordEvent, saveItem } from '../../src/memory/store'
-import { browserArgv, clearUiRecord, handle, healthy, localHost, PAGE_CSP, readUiRecord, serveUi, UI_ASSETS, UI_IDLE_MS, uiContext, uiIdleMs, type UiContext, type UiStopReason } from '../../src/memory/ui'
+import { clearUiRecord, handle, healthy, localHost, PAGE_CSP, readUiRecord, serveUi, UI_ASSETS, UI_IDLE_MS, uiContext, uiIdleMs, type UiContext, type UiStopReason } from '../../src/memory/ui'
 import { MAX_BODY_BYTES, readBody, uiErrorOf } from '../../src/memory/ui/actions'
 import { eventInScope, parseEventLine } from '../../src/memory/ui/events'
 import { installLegacyBrain, REAL_CORTEXDB } from './helpers'
@@ -1104,26 +1104,5 @@ describe('how long the server lives', () => {
     expect(uiIdleMs({ BURACLE_UI_IDLE_MS: '5000', BURACLE_UI_STOP_AFTER_MS: '7000' })).toBe(5000)
     for (const bad of ['', ' ', '0', '-3', 'soon', 'NaN']) expect(uiIdleMs({ BURACLE_UI_IDLE_MS: bad })).toBe(UI_IDLE_MS)
     expect(uiIdleMs({ BURACLE_UI_IDLE_MS: 'soon', BURACLE_UI_STOP_AFTER_MS: '7000' })).toBe(7000)
-  })
-})
-
-describe('opening the page in a browser', () => {
-  test('macOS runs `open`, Linux `xdg-open`, each with the address as one argument', () => {
-    expect(browserArgv('http://127.0.0.1:41777/?scope=project%3Ashop', 'darwin')).toEqual(['open', 'http://127.0.0.1:41777/?scope=project%3Ashop'])
-    expect(browserArgv('http://127.0.0.1:41777/review?doc=a&x=b', 'linux')).toEqual(['xdg-open', 'http://127.0.0.1:41777/review?doc=a&x=b'])
-  })
-
-  test('Windows goes through rundll32, never cmd.exe: & and spaces in the address stay inside one argument', () => {
-    const argv = browserArgv('http://127.0.0.1:41777/review?doc=my plan&x=1%252', 'win32')
-    expect(argv).toEqual(['rundll32', 'url.dll,FileProtocolHandler', 'http://127.0.0.1:41777/review?doc=my%20plan&x=1%252'])
-    expect(argv?.join(' ')).not.toMatch(/cmd|start/i)
-    expect(argv).toHaveLength(3)
-  })
-
-  test('only an http(s) address is opened: a file, a script, a command or garbage is not', () => {
-    for (const os of ['darwin', 'linux', 'win32'] as const) {
-      for (const bad of ['file:///etc/passwd', 'javascript:alert(1)', 'calc.exe', '', 'C:\\Windows\\system32\\calc.exe', 'ftp://x/y', '-a Calculator']) expect(browserArgv(bad, os)).toBeUndefined()
-      expect(browserArgv('https://example.com/a', os)?.at(-1)).toBe('https://example.com/a')
-    }
   })
 })

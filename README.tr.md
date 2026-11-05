@@ -20,7 +20,7 @@ Kullandığın her kodlama ajanında ortak hafıza, kanıtla biten workflow'lar,
 
 [Kurulum](#kurulum) · [Neden Buracle](#neden-buracle) · [Workflow'lar](#workflowlar) · [Beyin](#beyin) · [Ayarlar](#ayarlar) · [Harness'lar](#her-harnessa-ne-gelir)
 
-macOS · Linux · Windows, x64 ve arm64
+macOS · Linux · WSL 2 ile Windows, x64 ve arm64
 
 </div>
 
@@ -41,7 +41,7 @@ Buracle dördünü tek bir kaynaktan kurar ve aynı çizgide tutar.
 
 ### Başlamadan önce
 
-En az bir harness kur: [Claude Code](https://code.claude.com/docs/en/quickstart), [Codex CLI](https://developers.openai.com/codex/cli), [OpenCode](https://opencode.ai) ya da [Oh My Pi](https://www.npmjs.com/package/@oh-my-pi/pi-coding-agent). Buracle bulduğu her harness'ı kurar, olmayanları atlar. Betik eksikse Bun'ı, Windows'ta da Git'i kurar. Git ve curl'ü (Linux'ta unzip'i ve Node.js yoksa, kurulumun indirdiği Node.js için libatomic1'i de) sen kurarsın: betik sudo'yu ya da paket yöneticisini asla çalıştırmaz, Linux'ta eksik olanı dağıtımında hangi komutla kuracağını yazar. Node.js, uv, ripgrep ve jq Homebrew, winget ya da scoop varsa onunla gelir; yoksa kurulum Buracle'ın sabitlediği sürümü indirir, birlikte sabitlenen sha256 ile doğrular ve `~/.buracle/toolchain/system` altında tutar.
+En az bir harness kur: [Claude Code](https://code.claude.com/docs/en/quickstart), [Codex CLI](https://developers.openai.com/codex/cli), [OpenCode](https://opencode.ai) ya da [Oh My Pi](https://www.npmjs.com/package/@oh-my-pi/pi-coding-agent). Buracle bulduğu her harness'ı kurar, olmayanları atlar. Betik eksikse Bun'ı kurar. Git ve curl'ü (Linux'ta unzip'i ve Node.js yoksa, kurulumun indirdiği Node.js için libatomic1'i de) sen kurarsın: betik sudo'yu ya da paket yöneticisini asla çalıştırmaz, Linux'ta eksik olanı dağıtımında hangi komutla kuracağını yazar. Node.js, uv, ripgrep ve jq Homebrew varsa onunla gelir; yoksa kurulum Buracle'ın sabitlediği sürümü indirir, birlikte sabitlenen sha256 ile doğrular ve `~/.buracle/toolchain/system` altında tutar.
 
 ### Kurulum komutları
 
@@ -51,13 +51,17 @@ macOS ve Linux:
 curl -fsSL https://github.com/burakarslan0110/buracle/releases/latest/download/install.sh | bash
 ```
 
-Windows (PowerShell):
+Windows: Buracle, harness'larınla birlikte WSL 2 içinde çalışır.
 
-```powershell
-irm https://github.com/burakarslan0110/buracle/releases/latest/download/install.ps1 | iex
-```
+1. PowerShell'de `wsl --install` çalıştırıp Ubuntu ile WSL 2'yi kur, Windows isterse yeniden başlat.
+2. Ubuntu kabuğunu aç ve harness'larını Windows'a değil oraya kur.
+3. Ubuntu kabuğunda yukarıdaki macOS ve Linux komutunu çalıştır.
+4. Projelerini Linux dosya sisteminde tut, örneğin `~/projects`. Linux araçları `/mnt/c` altındaki bir Windows sürücüsünü yavaş okur, `buracle doctor` da böyle bir proje için uyarır.
+5. `buracle doctor` çalıştır ve hata bildirmediğini kontrol et.
 
-İki betik de GitHub'daki en son release'den gelir. Windows'ta her şey senin kullanıcına, yönetici izni olmadan kurulur. Araçlar `winget --scope user` (ya da scoop) ile gelir, dizin bağlantıları junction olur. Tek istisna Visual C++ çalışma zamanıdır. Bunu codegraph ve ast-grep ister ve çoğu Windows makinesinde zaten vardır. Eksikse betik onu yalnızca yönetici olarak açılmış bir terminalde kurar, aksi hâlde kurulum komutunu yazar. Betik Buracle'ın `main` dalını `~/buracle` klasörüne klonlar, bağımlılıklarını kurar, ardından `buracle install` çalıştırır. Bu komut nadir sorularını doğrudan terminalde sorar (`curl … | bash` altında da), `~/.local/bin` klasörünü PATH'e ekler (kabuğunun başlangıç dosyasına işaretli bir blok; Windows'ta kullanıcı PATH'i) ve hafıza web arayüzünü başlatır. Sonunda kısa bir özet gösterir: Prerequisites, Buracle, Harnesses, Tools, Memory ve Result için birer satır, geçmeyen her şey için de bir satır. Sağlık denetimi dahil her ayrıntı `~/.buracle/logs/install-<tarih>.log` dosyasına gider; Result satırı bu dosyayı gösterir. `main` dalı yayımlanan dosyaları tutar. CI bu dala yalnızca bir release yayımlarken ve test paketi olmadan yazar. `buracle update` de bu dalı izler. Betiği yeniden çalıştırırsan depo güncellenir ve kurulum onarılır. İki betik de çalıştırmadan önce okunacak kadar kısa ([`install.sh`](scripts/install.sh), [`install.ps1`](scripts/install.ps1)).
+WSL'de `buracle mem ui --open` sayfayı Windows tarayıcında açar, `buracle notify` da bir Windows bildirimi gösterir. Sayfa açılmazsa Windows kullanıcının `.wslconfig` dosyasında `localhostForwarding` değerinin `false` olmadığını kontrol et.
+
+Betik GitHub'daki en son release'den gelir. Betik Buracle'ın `main` dalını `~/buracle` klasörüne klonlar, bağımlılıklarını kurar, ardından `buracle install` çalıştırır. Bu komut nadir sorularını doğrudan terminalde sorar (`curl … | bash` altında da), `~/.local/bin` klasörünü PATH'e ekler (kabuğunun başlangıç dosyasına işaretli bir blok) ve hafıza web arayüzünü başlatır. Sonunda kısa bir özet gösterir: Prerequisites, Buracle, Harnesses, Tools, Memory ve Result için birer satır, geçmeyen her şey için de bir satır. Sağlık denetimi dahil her ayrıntı `~/.buracle/logs/install-<tarih>.log` dosyasına gider; Result satırı bu dosyayı gösterir. `main` dalı yayımlanan dosyaları tutar. CI bu dala yalnızca bir release yayımlarken ve test paketi olmadan yazar. `buracle update` de bu dalı izler. Betiği yeniden çalıştırırsan depo güncellenir ve kurulum onarılır. Betik çalıştırmadan önce okunacak kadar kısa ([`install.sh`](scripts/install.sh)).
 
 Kurulumdan sonra:
 
@@ -70,7 +74,7 @@ Kurulumdan sonra:
 
 1. Önce harness dosyalarını `canonical/` ve `src/` klasörlerinden üretir. Derleme başarısız olursa hiçbir şey kurulmaz.
 2. Depoyu `~/.buracle/runtime/<id>` altına kopyalar ve kopyayı sınar. `--version` çalışmalı, Claude Code ve Codex hook'ları da `rm -rf ~` komutunu reddedip `ls` komutuna izin vermelidir. `buracle` komutu ancak bundan sonra yeni kopyaya geçer. Önceki kopya geri alma için saklanır.
-3. Eksik sistem araçlarını Homebrew (macOS'ta, Homebrew kuruluysa Linux'ta da), winget ya da scoop (Windows) ile kurar. Bunların hiçbiri kuramıyorsa Node.js, uv, ripgrep ve jq sabitlenmiş sürümüyle indirilir, sabitlenen sha256 ile doğrulanır, bir kez çalıştırılır ve `~/.local/bin` altına bağlanır. Linux'ta Homebrew yoksa eksik diğer araçları yalnızca dağıtımın komutuyla birlikte bildirir. Her MCP sunucusunu ve dil sunucusunu `~/.buracle/toolchain` altına kurar. CortexDB dahil her şey en yeni sürümüyle gelir. Yeni bir CortexDB sürümü yalnızca hafızanın denetiminden geçtikten sonra ve beyinler yedeklendikten sonra kullanılır. `update.minReleaseAgeDays` (varsayılan 0) bir sürümden sonra birkaç gün beklemeyi sağlar.
+3. Eksik sistem araçlarını Homebrew (macOS'ta, Homebrew kuruluysa Linux'ta da) ile kurar. Homebrew kuramıyorsa Node.js, uv, ripgrep ve jq sabitlenmiş sürümüyle indirilir, sabitlenen sha256 ile doğrulanır, bir kez çalıştırılır ve `~/.local/bin` altına bağlanır. Linux'ta Homebrew yoksa eksik diğer araçları yalnızca dağıtımın komutuyla birlikte bildirir. Her MCP sunucusunu ve dil sunucusunu `~/.buracle/toolchain` altına kurar. CortexDB dahil her şey en yeni sürümüyle gelir. Yeni bir CortexDB sürümü yalnızca hafızanın denetiminden geçtikten sonra ve beyinler yedeklendikten sonra kullanılır. `update.minReleaseAgeDays` (varsayılan 0) bir sürümden sonra birkaç gün beklemeyi sağlar.
 4. `~/.buracle/bin/buracle` komutunu, onun `~/.local/bin/buracle` bağlantısını, `~/.buracle/config.yaml` dosyasını ve `~/.agents/skills` altındaki ortak skill'leri yazar.
 5. Her harness'ı kendi işlemiyle (transaction) kurar. İşlem yedek, atomik yazma, günlük, komutlar, doğrulama, sahiplik kaydı ve onay adımlarından geçer. Bir harness başarısız olursa yalnızca o harness geri alınır.
 6. Son olarak `~/.buracle/brain` hafıza klasörünü oluşturur.
@@ -341,7 +345,7 @@ T=$(mktemp -d) && HOME=$T BURACLE_HOME=$T/.buracle bun src/cli/main.ts build --c
 bun test
 ```
 
-CI bu denetimleri macOS (arm64), Linux (x64) ve Windows (x64) üzerinde çalıştırır. Geliştirme `dev` dalında yapılır, bu yüzden geliştirmek için o dalı klonla. Orada bütün denetimler geçtiğinde ve yayımlanan dosyalar değiştiğinde CI bir sonraki sürümü kendisi seçer (0.5.0, 0.5.1, 0.5.2 ve devamı). O commit'i bu sürümle ve test paketi olmadan (`tests/` ve `bunfig.toml`) `main` dalına yazar. Ardından `v<sürüm>` release'ini bu commit'ten, iki kurulum betiği ekli olarak GitHub'da yayımlar. `main` dalında hiçbir denetim çalışmaz. Yeni bir sürüm serisi başlatmak için `package.json` içindeki ana ya da ara sürümü yükseltmen yeterli.
+CI bu denetimleri macOS (arm64) ve Linux (x64) üzerinde çalıştırır. Geliştirme `dev` dalında yapılır, bu yüzden geliştirmek için o dalı klonla. Orada bütün denetimler geçtiğinde ve yayımlanan dosyalar değiştiğinde CI bir sonraki sürümü kendisi seçer (0.5.0, 0.5.1, 0.5.2 ve devamı). O commit'i bu sürümle ve test paketi olmadan (`tests/` ve `bunfig.toml`) `main` dalına yazar. Ardından `v<sürüm>` release'ini bu commit'ten, kurulum betiği ekli olarak GitHub'da yayımlar. `main` dalında hiçbir denetim çalışmaz. Yeni bir sürüm serisi başlatmak için `package.json` içindeki ana ya da ara sürümü yükseltmen yeterli.
 
 Değişiklik göndermeden önce [`AGENTS.md`](AGENTS.md), [`CONTRIBUTING.md`](CONTRIBUTING.md) ve [`SECURITY.md`](SECURITY.md) dosyalarını oku. Bir hata mı buldun ya da bir özellik mi eksik? [Bir issue aç](https://github.com/burakarslan0110/buracle/issues).
 

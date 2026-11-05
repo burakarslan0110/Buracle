@@ -25,6 +25,13 @@ describe('withSandbox', () => {
     for (const k of ['HOMEBREW_NO_AUTO_UPDATE', 'HOMEBREW_NO_ENV_HINTS']) expect(ISOLATED_ENV).toContain(k)
   })
 
+  test('a WSL shell or a platform override does not reach the tests: each test that wants WSL sets it itself', () => {
+    for (const k of ['WSL_DISTRO_NAME', 'WSL_INTEROP', 'WSLENV', 'BURACLE_PLATFORM']) {
+      expect(ISOLATED_ENV).toContain(k)
+      expect(process.env[k]).toBeUndefined()
+    }
+  })
+
   test('the preload sets the quiet defaults; withSandbox keeps them and child processes inherit them', async () => {
     expect(TEST_DEFAULT_ENV).toEqual({ BURACLE_NO_NOTIFY: '1', BURACLE_NO_CAPTURE: '1', BURACLE_NO_TOOLCHAIN: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_NO_DISTILL: '1', BURACLE_NO_NOTICES: '1', BURACLE_RUNTIME: 'checkout', BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0', GIT_CONFIG_NOSYSTEM: '1' })
     for (const [k, v] of Object.entries(TEST_DEFAULT_ENV)) {

@@ -5,12 +5,11 @@ import * as paths from '../paths'
 
 // The `buracle` command lives in ~/.local/bin. When PATH lacks that folder, the install adds one marked block to the
 // startup file of the user's shell, once, and records which file; `buracle uninstall` takes the same block out again.
-// Windows is left to scripts/install.ps1, which puts the folder on the user PATH.
 
 const START = '# >>> buracle >>>'
 const END = '# <<< buracle <<<'
 
-export type ShellPathSkip = 'on-path' | 'in-file' | 'unsafe' | 'windows' | 'error'
+export type ShellPathSkip = 'on-path' | 'in-file' | 'unsafe' | 'error'
 export interface ShellPathResult { changed: boolean, file?: string, skipped?: ShellPathSkip, reason?: string }
 
 interface ShellPathRecord { v: 1, file: string }
@@ -62,7 +61,6 @@ function writeTarget(file: string, home: string): { path: string } | { unsafe: s
 export function addLocalBinToPath(opts: { env?: Readonly<Record<string, string | undefined>>, os?: string, home?: string } = {}): ShellPathResult {
   const env = opts.env ?? process.env
   const os = opts.os ?? process.platform
-  if (os === 'win32') return { changed: false, skipped: 'windows' }
   const home = opts.home ?? paths.home()
   const localBin = join(home, '.local', 'bin')
   if (onPath(localBin, env['PATH'])) return { changed: false, skipped: 'on-path' }

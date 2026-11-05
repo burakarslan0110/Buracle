@@ -1,8 +1,8 @@
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { renameRetrySync, sha256 } from '../fsx'
+import { sha256 } from '../fsx'
 import * as paths from '../paths'
-import { exeName, osName } from '../platform'
+import { osName } from '../platform'
 
 // CortexDB is installed from its newest GitHub release. Each release publishes `<asset>.sha256` next to the binary:
 // the download must match it, and the hash is kept beside the binary for later checks.
@@ -11,8 +11,6 @@ export const CORTEXDB_ASSETS: Readonly<Record<string, string>> = {
   'darwin-x64': 'cortexdb-mcp-darwin-amd64',
   'linux-x64': 'cortexdb-mcp-linux-amd64',
   'linux-arm64': 'cortexdb-mcp-linux-arm64',
-  'win32-x64': 'cortexdb-mcp-windows-amd64.exe',
-  'win32-arm64': 'cortexdb-mcp-windows-arm64.exe',
 }
 
 export const CORTEXDB_BIN_ENV = 'BURACLE_CORTEXDB_BIN'
@@ -30,7 +28,7 @@ export function cortexdbPlatform(arch: string = process.arch): string | undefine
 export function cortexdbDir(): string { return join(paths.toolchainDir(), 'cortexdb') }
 
 export function cortexdbBinPath(version: string): string {
-  return join(cortexdbDir(), version, exeName('cortexdb-mcp'))
+  return join(cortexdbDir(), version, 'cortexdb-mcp')
 }
 
 function shaPath(version: string): string { return join(cortexdbDir(), version, SHA_FILE) }
@@ -157,7 +155,7 @@ export async function installCortexdb(opts: CortexdbInstallOptions = {}): Promis
   try {
     mkdirSync(join(cortexdbDir(), latest.version), { recursive: true })
     writeFileSync(staging, bytes, { mode: 0o755 })
-    if (osName() !== 'win32') chmodSync(staging, 0o755)
+    chmodSync(staging, 0o755)
   } catch (e) {
     try { rmSync(staging, { force: true }) } catch {  }
     return keep(`cannot write ${target}: ${(e as Error).message}`, latest.version)
@@ -170,7 +168,7 @@ export async function installCortexdb(opts: CortexdbInstallOptions = {}): Promis
   if (have !== undefined && opts.beforeSwitch !== undefined) await opts.beforeSwitch(have.version, latest.version)
   try {
     writeFileSync(shaPath(latest.version), `${latest.sha256}\n`)
-    renameRetrySync(staging, target)
+    renameSync(staging, target)
   } catch (e) {
     try { rmSync(staging, { force: true }) } catch {  }
     try { rmSync(shaPath(latest.version), { force: true }) } catch {  }

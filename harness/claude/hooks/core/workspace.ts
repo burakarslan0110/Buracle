@@ -20,6 +20,11 @@ export function isPathWithin(child: string, parent: string, caseInsensitive: boo
   return withinKey(pathKey(child, caseInsensitive), pathKey(parent, caseInsensitive))
 }
 
+/** The Windows drive letter WSL mounts a path from (`/mnt/c/x` → `c`), or undefined for a Linux path. */
+export function wslDrive(p: string): string | undefined {
+  return /^\/mnt\/([A-Za-z])(?:\/|$)/.exec(p)?.[1]
+}
+
 export interface IndexExclusionContext {
   home: string
   buracleHome: string

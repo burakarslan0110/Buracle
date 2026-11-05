@@ -363,6 +363,10 @@ describe('catalog validators', () => {
     expect(validateToolsCatalog(ls({ replaces: 'pyright-lsp@claude-plugins-official' }))).toEqual(['tools[0].lsp.replaces: expected a list of <plugin>@<marketplace>'])
     expect(validateToolsCatalog(ls({}, { requires: ['go'] }))).toEqual([])
     for (const requires of [[], 'go', [''], [1]]) expect(validateToolsCatalog(ls({}, { requires }))).toEqual(['tools[0].requires: expected a non-empty list of command names'])
+    const tool = (extra: Record<string, unknown>) => ({ tools: [{ name: 'x', check: ['x'], version_regex: '(x)', required: false, ...extra }] })
+    expect(validateToolsCatalog(tool({ platforms: ['darwin', 'linux'] }))).toEqual([])
+    expect(validateToolsCatalog(tool({ platforms: ['win32'] }))).toEqual(['tools[0].platforms: expected a list of darwin | linux'])
+    for (const key of ['winget', 'scoop']) expect(validateToolsCatalog(tool({ [key]: 'x' })).join('\n')).toContain(`tools[0].${key}`)
   })
 
   test('envRef', () => {

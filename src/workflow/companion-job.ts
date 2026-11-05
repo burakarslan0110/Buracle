@@ -102,7 +102,7 @@ export function alive(pid: number | undefined): boolean {
 
 export function killTree(pid: number | undefined): void {
   if (pid === undefined || !Number.isInteger(pid) || pid <= 0) return
-  for (const target of process.platform === 'win32' ? [pid] : [-pid, pid]) {
+  for (const target of [-pid, pid]) {
     try { process.kill(target, 'SIGTERM') } catch {  }
   }
 }
@@ -136,7 +136,7 @@ async function drain(stream: ReadableStream<Uint8Array> | null | undefined): Pro
 export async function runChild(argv: string[], o: { cwd: string, stdin: string, env: Record<string, string>, timeoutMs: number, onPid?: (pid: number) => void }): Promise<ChildResult> {
   let proc: ReturnType<typeof Bun.spawn>
   try {
-    proc = Bun.spawn(argv, { cwd: o.cwd, env: { ...o.env }, windowsHide: true, stdin: new TextEncoder().encode(o.stdin), stdout: 'pipe', stderr: 'pipe', detached: process.platform !== 'win32' })
+    proc = Bun.spawn(argv, { cwd: o.cwd, env: { ...o.env }, stdin: new TextEncoder().encode(o.stdin), stdout: 'pipe', stderr: 'pipe', detached: true })
   } catch (e) {
     return { code: 127, stdout: '', stderr: e instanceof Error ? e.message : String(e), timedOut: false }
   }
@@ -147,7 +147,7 @@ export async function runChild(argv: string[], o: { cwd: string, stdin: string, 
     timedOut = true
     killTree(proc.pid)
     hard = setTimeout(() => {
-      for (const t of process.platform === 'win32' ? [proc.pid] : [-proc.pid, proc.pid]) { try { process.kill(t, 'SIGKILL') } catch {  } }
+      for (const t of [-proc.pid, proc.pid]) { try { process.kill(t, 'SIGKILL') } catch {  } }
     }, 5_000)
   }, Math.max(1_000, o.timeoutMs))
   const [stdout, stderr, code] = await Promise.all([drain(proc.stdout as ReadableStream<Uint8Array>), drain(proc.stderr as ReadableStream<Uint8Array>), proc.exited])

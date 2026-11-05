@@ -27,7 +27,7 @@ describe('paths', () => {
     expect(paths.runtimeConfigFile()).toBe(join(buracleHome, 'state', 'runtime-config.json'))
     expect(paths.journalFile('t1')).toBe(join(buracleHome, 'journal', 't1.json'))
     expect(paths.logFile()).toBe(join(buracleHome, 'logs', 'buracle.log'))
-    expect(paths.shimPath()).toBe(join(buracleHome, 'bin', process.platform === 'win32' ? 'buracle.cmd' : 'buracle'))
+    expect(paths.shimPath()).toBe(join(buracleHome, 'bin', 'buracle'))
     expect(paths.brainDir()).toBe(join(buracleHome, 'brain'))
     expect(paths.userConfigFile()).toBe(join(buracleHome, 'config.yaml'))
   }))

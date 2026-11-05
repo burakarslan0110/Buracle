@@ -151,15 +151,8 @@ describe('opencode TUI usage refresh', () => {
     const viaRepo = usageRefreshArgv()
     if (bun !== null) expect(viaRepo).toEqual([bun, join(paths.repoRoot(), 'src', 'cli', 'main.ts'), ...tail])
     mkdirSync(paths.binDir(), { recursive: true })
-    if (process.platform !== 'win32') {
-      writeFileSync(paths.shimPath(), '#!/bin/sh\n')
-      expect(usageRefreshArgv()).toEqual([paths.shimPath(), ...tail])
-    } else {
-      // Bun does not start a .cmd reliably: the refresh runs the bun and main.ts buracle.cmd names.
-      const main = join(paths.repoRoot(), 'src', 'cli', 'main.ts')
-      writeFileSync(paths.shimPath(), `@echo off\r\nrem buracle-shim: checkout\r\n"${process.execPath}" "${main}" %*\r\n`)
-      expect(usageRefreshArgv()).toEqual([process.execPath, main, ...tail])
-    }
+    writeFileSync(paths.shimPath(), '#!/bin/sh\n')
+    expect(usageRefreshArgv()).toEqual([paths.shimPath(), ...tail])
   }))
 })
 

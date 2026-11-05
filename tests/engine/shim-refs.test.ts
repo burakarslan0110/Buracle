@@ -8,10 +8,6 @@ describe('expandShellWord: the shim reference in hook and config files', () => {
     expect(expandShellWord(SHIM, { HOME: '/home/me' })).toEqual({ value: '/home/me/.buracle/bin/buracle', missing: [] })
   })
 
-  test('on Windows, where only USERPROFILE names the home, $HOME takes its value as Git Bash does', () => {
-    expect(expandShellWord(SHIM, { USERPROFILE: 'C:\\Users\\me' })).toEqual({ value: 'C:\\Users\\me/.buracle/bin/buracle', missing: [] })
-  })
-
   test('a variable missing inside a default is reported, so the check names it instead of a path that does not exist', () => {
     expect(expandShellWord(SHIM, {}).missing).toEqual(['HOME'])
   })

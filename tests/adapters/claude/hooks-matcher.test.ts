@@ -26,7 +26,7 @@ describe('hooks.json: PreToolUse matchers', () => {
     expect({ name: 'TodoWrite', fires: matchers.some(m => fires(m, 'TodoWrite')) }).toEqual({ name: 'TodoWrite', fires: false })
   })
 
-  test('the PowerShell tool (Windows) starts the same PreToolUse guard hook as Bash, in exec form that blocks when the hook fails, and the spool after it', async () => {
+  test('the PowerShell tool starts the same PreToolUse guard hook as Bash, in exec form that blocks when the hook fails, and the spool after it', async () => {
     const files = await buildClaude(devContext())
     type Handler = { command?: string, args?: string[], onFailure?: string }
     const doc = JSON.parse(files.find(f => f.path === 'hooks/hooks.json')?.content ?? '{}') as { hooks: Record<string, Array<{ matcher?: string, hooks: Handler[] }>> }

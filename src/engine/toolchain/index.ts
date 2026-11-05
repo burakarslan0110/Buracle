@@ -1,4 +1,4 @@
-import { closeSync, existsSync, mkdirSync, openSync, rmSync, statSync, writeSync } from 'node:fs'
+import { closeSync, existsSync, mkdirSync, openSync, renameSync, rmSync, statSync, writeSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { breakStaleLock, lockSnapshot, lockToken, releaseLockFile } from '../lockfile'
 import { fallbackNpmCache } from './launch'
@@ -6,7 +6,6 @@ import type { CanonicalBundle, McpServerSpec, ToolSpec } from '../../core/catalo
 import { isPackageServer, mcpPackageBin } from '../../core/catalog'
 import { compareVersions } from '../update/versions'
 import { errText } from '../update/output'
-import { renameRetrySync } from '../fsx'
 import * as paths from '../paths'
 import { configuredMinAgeDays, installPackage, installPypi, latestVersion, npmBins, npmInstalledVersion, npmPrefix, npmPreviousPrefix, pypiStillThere, toolRequest, type PackageRequest } from './packages'
 import { packageKey, readToolchainState, updateToolchainState, type InstalledPackage, type ToolchainState } from './state'
@@ -181,7 +180,7 @@ export async function runToolchain(bundle: Pick<CanonicalBundle, 'mcp' | 'tools'
           item.detail = `${check.detail}; ${installAdvice(t)}`
         } else {
           item.source = sources[0]?.label
-          const r = await installTool({ ...t, ...(opts.system ? {} : { brew: undefined, winget: undefined, scoop: undefined, go: undefined, dotnet: undefined }) } as ToolSpec, opts.nowMs(), { minAgeDays, ...(opts.system ? {} : { download: false }) })
+          const r = await installTool({ ...t, ...(opts.system ? {} : { brew: undefined, go: undefined, dotnet: undefined }) } as ToolSpec, opts.nowMs(), { minAgeDays, ...(opts.system ? {} : { download: false }) })
           if (r.ok) {
             const after = await checkTool(t)
             item.status = 'installed'
@@ -379,14 +378,14 @@ export async function rollbackPackages(packages: readonly InstalledPackage[], no
         if (restored === undefined) { res.error = `the previous copy (${want}) is no longer in ${prev}`; continue }
         const aside = `${live}.rollback`
         rmSync(aside, { recursive: true, force: true })
-        if (existsSync(live)) renameRetrySync(live, aside)
+        if (existsSync(live)) renameSync(live, aside)
         try {
-          renameRetrySync(prev, live)
+          renameSync(prev, live)
         } catch (e) {
-          if (existsSync(aside)) renameRetrySync(aside, live)
+          if (existsSync(aside)) renameSync(aside, live)
           throw e
         }
-        if (existsSync(aside)) renameRetrySync(aside, prev)
+        if (existsSync(aside)) renameSync(aside, prev)
         const all = npmBins(live, p.name)
         const bins: Record<string, string> = {}
         for (const b of Object.keys(p.bins)) if (all[b] !== undefined) bins[b] = all[b] as string

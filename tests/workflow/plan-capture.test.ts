@@ -8,7 +8,7 @@ import { capturePlanFile, shownPath } from '../../src/workflow/plan-capture'
 import { localDate } from '../../src/workflow/plan-file'
 import { captureSessionPlan } from '../../src/workflow/plan-native'
 import { loadState } from '../../src/workflow/session-store'
-import { withEnv, withSandbox } from '../helpers/sandbox'
+import { withSandbox } from '../helpers/sandbox'
 import { ctxAt, makeRepo, memIO, NATIVE_PLAN_BODY, prepareNativePlan, write } from './fixture'
 
 const NOW = Date.UTC(2026, 9, 8, 12, 0, 0)
@@ -65,8 +65,7 @@ describe('the shared plan writer (H12)', () => {
 })
 
 describe('a plan path shown to the agent', () => {
-  // The alias stands in for Windows' 8.3 spelling of the cwd next to git's long one.
-  test('is relative to the cwd with / between the parts; on Windows also when the cwd is spelled another way', () => withSandbox(async ({ root }) => {
+  test('is relative to the cwd with / between the parts; a cwd spelled through a symlink is not resolved', () => withSandbox(async ({ root }) => {
     const repo = join(root, 'repo')
     mkdirSync(join(repo, 'docs', 'plan-build'), { recursive: true })
     const plan = join(repo, 'docs', 'plan-build', 'p.md')
@@ -74,8 +73,7 @@ describe('a plan path shown to the agent', () => {
     expect(shownPath(join(root, 'elsewhere.md'), repo)).toBe(join(root, 'elsewhere.md'))
     const alias = join(root, 'alias')
     symlinkSync(repo, alias)
-    if (process.platform !== 'win32') expect(shownPath(plan, alias)).toBe(plan)
-    await withEnv({ BURACLE_PLATFORM: 'win32' }, () => { expect(shownPath(plan, alias)).toBe('docs/plan-build/p.md') })
+    expect(shownPath(plan, alias)).toBe(plan)
   }))
 })
 

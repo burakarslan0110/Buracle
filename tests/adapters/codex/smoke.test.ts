@@ -19,7 +19,7 @@ import { CODEX_FRESH_PLAN_PREFIX, CODEX_IMPLEMENT_PROMPT, lastAssistantText, pro
 import { codexTrustPlan } from '../../../src/adapters/codex/trust'
 import { renderNeutralSkills } from '../../../src/adapters/shared/skills'
 import { hostLimitsOf, probeClosers, probeMisses } from '../../../src/adapters/shared/host-limits'
-import { pathOf, systemPathDirs } from '../../helpers/fake-exe'
+import { pathOf, SYSTEM_PATH_DIRS } from '../../helpers/fake-exe'
 import { withSandbox } from '../../helpers/sandbox'
 
 const REPO = join(import.meta.dir, '..', '..', '..')
@@ -33,7 +33,7 @@ afterEach(() => { delete installTestHooks.codexPids })
 function isolatedEnv(root: string, home: string, codexHome = join(home, '.codex')): Record<string, string> {
   for (const d of ['config', 'data', 'state', 'cache']) mkdirSync(join(root, 'xdg', d), { recursive: true })
   return {
-    PATH: pathOf(...systemPathDirs(), '/usr/sbin', '/sbin', '/opt/homebrew/bin', '/usr/local/bin'),
+    PATH: pathOf(...SYSTEM_PATH_DIRS, '/usr/sbin', '/sbin', '/opt/homebrew/bin', '/usr/local/bin'),
     HOME: home, CODEX_HOME: codexHome, TERM: 'dumb',
     XDG_CONFIG_HOME: join(root, 'xdg', 'config'), XDG_DATA_HOME: join(root, 'xdg', 'data'),
     XDG_STATE_HOME: join(root, 'xdg', 'state'), XDG_CACHE_HOME: join(root, 'xdg', 'cache'),

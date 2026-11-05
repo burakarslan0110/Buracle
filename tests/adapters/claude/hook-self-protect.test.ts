@@ -130,7 +130,7 @@ describe('G13: a payload without a valid session_id still meets the PreToolUse g
   }
 })
 
-describe('the PowerShell tool (Windows) meets the shell guards like Bash', () => {
+describe('the PowerShell tool meets the shell guards like Bash', () => {
   test('its tool_input.command reaches H01 and H20; an ordinary command passes', () => withSandbox(async ({ root }) => {
     const proj = join(root, 'proj')
     mkdirSync(proj, { recursive: true })

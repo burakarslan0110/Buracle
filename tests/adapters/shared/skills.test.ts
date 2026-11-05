@@ -6,7 +6,6 @@ import { parse as parseYaml } from 'yaml'
 import type { CanonicalBundle, SkillDoc } from '../../../src/core/catalog'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import { parseFrontmatter } from '../../../src/engine/canonical'
-import { fileMode } from '../../../src/engine/exec-bit'
 import { buildAgentsSkills, neutralDescription, openaiYaml, renderNeutralSkills } from '../../../src/adapters/shared/skills'
 
 const REPO = join(import.meta.dir, '..', '..', '..')
@@ -130,9 +129,8 @@ describe('neutral skill render (harness/agents-skills)', () => {
 
   test('committed files have the generated modes', () => {
     for (const f of rendered.files) {
-      // On Windows the mode is the one git records (the file system keeps none).
       const p = join(REPO, 'harness', 'agents-skills', f.path)
-      const mode = fileMode(p, statSync(p).mode)
+      const mode = statSync(p).mode & 0o777
       expect({ path: f.path, mode }).toEqual({ path: f.path, mode: f.mode ?? 0o644 })
     }
   })

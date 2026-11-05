@@ -157,7 +157,7 @@ export class CortexClient {
     try { mkdirSync(dirname(this.dbPath), { recursive: true, mode: 0o700 }) } catch {  }
     let proc: ReturnType<typeof Bun.spawn>
     try {
-      proc = Bun.spawn(cortexdbLaunch(bin), { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', env: cortexEnv(this.dbPath, this.envBase), windowsHide: true })
+      proc = Bun.spawn(cortexdbLaunch(bin), { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', env: cortexEnv(this.dbPath, this.envBase) })
     } catch (e) {
       return Promise.reject(new CortexError('start_failed', `cannot start ${bin.path}: ${(e as Error).message}`, { cause: e }))
     }

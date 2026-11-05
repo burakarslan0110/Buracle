@@ -85,7 +85,7 @@ describe('H05 mid-turn: the context warning reaches the model with the next PreT
     expect(out((await claudeHook('PreToolUse', bash('ls'), ctx(), deps())).stdout).context).toContain('88% full')
   }))
 
-  test.skipIf(process.platform === 'win32')('parallel tool calls: six PreToolUse hook processes at once give the warning exactly once', () => withSandbox(async () => {
+  test('parallel tool calls: six PreToolUse hook processes at once give the warning exactly once', () => withSandbox(async () => {
     writeTelemetry('claude', SID, { at: Date.now(), ctx: { pct: 87, tokens: 87_000, window: 100_000 } })
     const procs = Array.from({ length: 6 }, () => Bun.spawn([process.execPath, join(REPO, 'src', 'cli', 'main.ts'), 'hook', 'claude', 'PreToolUse'], {
       stdin: new Blob([bash('ls')]), env: { ...process.env }, stdout: 'pipe', stderr: 'pipe',

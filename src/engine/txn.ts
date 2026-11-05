@@ -1,8 +1,8 @@
-import { chmodSync, closeSync, copyFileSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, readlinkSync, rmdirSync, rmSync, statSync, unlinkSync, writeSync } from 'node:fs'
-import { basename, dirname, isAbsolute, join, resolve, win32 } from 'node:path'
+import { chmodSync, closeSync, copyFileSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, readlinkSync, rmdirSync, rmSync, statSync, symlinkSync, unlinkSync, writeSync } from 'node:fs'
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import type { Harness } from '../core/events'
-import { atomicWriteSync, linkDirSync, readJsonSafeSync, realPath, sha256 } from './fsx'
+import { atomicWriteSync, readJsonSafeSync, realPath, sha256 } from './fsx'
 import { unifiedDiff } from './diff'
 import { breakStaleLock, lockSnapshot, lockToken, lookUpProcess, releaseLockFile } from './lockfile'
 import {
@@ -214,7 +214,7 @@ export async function historyCreatedDirs(): Promise<string[]> {
 type Node =
   | { type: 'absent' }
   | { type: 'file'; content: string; mode: number }
-  | { type: 'symlink'; target: string; raw?: string; content?: string; mode?: number }
+  | { type: 'symlink'; target: string; content?: string; mode?: number }
   | { type: 'dir' }
   | { type: 'other' }
 
@@ -222,9 +222,7 @@ function readNode(path: string): Node {
   let st
   try { st = lstatSync(path) } catch { return { type: 'absent' } }
   if (st.isSymbolicLink()) {
-    const raw = readlinkSync(path)
-    const target = linkTarget(raw)
-    const link = raw === target ? { target } : { target, raw }
+    const link = { target: readlinkSync(path) }
     try {
       const real = statSync(path)
       if (real.isFile()) return { type: 'symlink', ...link, content: readFileSync(path, 'utf8'), mode: real.mode & 0o7777 }
@@ -242,31 +240,9 @@ function fingerprint(n: Node): string | undefined {
   return undefined
 }
 
-const windowsLinks = (): boolean => txnTestHooks.windowsLinks ?? process.platform === 'win32'
-
-// Windows stores a link target with backslashes, an absolute one maybe behind the \\?\ prefix, and a rooted one
-// without a drive ('/shim') on the current drive: there every target is kept, hashed and compared as the path
-// it names, with '/' between the parts.
-function linkTarget(target: string): string {
-  if (!windowsLinks()) return target
-  let t = target.replace(/^\\(?:\\\?|\?\?)\\/, '')
-  if (/^[\\/](?![\\/])/.test(t)) t = win32.resolve(t)
-  return t.replace(/\\/g, '/').replace(/^([a-z]):/, (_m, d: string) => `${d.toUpperCase()}:`)
-}
-
-// The spelling a link is created with: Windows wants backslashes in a target.
-function nativeLinkTarget(target: string): string {
-  return windowsLinks() ? target.replace(/\//g, '\\') : target
-}
-
-// Windows keeps no POSIX mode: a file reads back as 0o666 (0o444 when read-only) whatever was written.
-function sameMode(a: number | undefined, b: number | undefined): boolean {
-  return !(txnTestHooks.keepsModes ?? process.platform !== 'win32') || a === b
-}
-
 function sameNode(a: Node, b: Node): boolean {
   if (a.type !== b.type) return false
-  if (a.type === 'file' && b.type === 'file') return a.content === b.content && sameMode(a.mode, b.mode)
+  if (a.type === 'file' && b.type === 'file') return a.content === b.content && a.mode === b.mode
   if (a.type === 'symlink' && b.type === 'symlink') return a.target === b.target && a.content === b.content
   return true
 }
@@ -759,7 +735,7 @@ function opFile(c: Computed, op: Extract<Op, { kind: 'file' }>, own: OwnFn): voi
   const cur = fingerprint(node) as string
   if (node.type === 'file' && cur === want) {
     own(op, 'file', want, undefined, undefined, false)
-    if (op.mode !== undefined && !sameMode(node.mode, op.mode)) {
+    if (op.mode !== undefined && node.mode !== op.mode) {
       const ro = readOnlyReason(node, op.path)
       if (ro !== undefined) { c.conflicts.push({ op, detail: ro }); return }
       c.vfs.set(op.path, { type: 'file', content: node.content, mode: op.mode })
@@ -780,7 +756,7 @@ function opFile(c: Computed, op: Extract<Op, { kind: 'file' }>, own: OwnFn): voi
 
 function opSymlink(c: Computed, op: Extract<Op, { kind: 'symlink' }>, own: OwnFn): void {
   const node = c.vfs.get(op.path)
-  const target = linkTarget(op.target)
+  const { target } = op
   const want = sha256(`symlink:${target}`)
   const entry = c.ledger[ledgerKey(op.path)]
   if (node.type === 'absent') {
@@ -1616,7 +1592,7 @@ function snapOf(n: Node, linkOnly = false): NodeSnap {
   if (n.type === 'file') return { type: 'file', mode: n.mode, sha256: sha256(n.content) }
   if (n.type === 'symlink') {
     // The journal keeps the target as the file system spells it, so a rollback recreates exactly that link.
-    const s: NodeSnap = { type: 'symlink', target: n.raw ?? n.target }
+    const s: NodeSnap = { type: 'symlink', target: n.target }
     if (linkOnly) return s
     if (n.content !== undefined) s.sha256 = sha256(n.content)
     if (n.mode !== undefined) s.mode = n.mode
@@ -1836,14 +1812,14 @@ function writeNode(path: string, before: Node, after: Node, tick: (w: string) =>
     if (before.type === 'file' || before.type === 'symlink') { tick(`unlink ${path}`); unlinkSync(path) }
     mkdirSync(dirname(path), { recursive: true })
     tick(`symlink ${path}`)
-    linkDirSync(nativeLinkTarget(after.target), path)
+    symlinkSync(after.target, path)
     if (after.content !== undefined) { tick(`write ${path}`); atomicWriteSync(path, after.content) }
   }
 }
 
 function nodeIs(got: Node, want: Node): boolean {
   return want.type === 'absent' ? got.type === 'absent'
-    : want.type === 'file' ? got.type === 'file' && got.content === want.content && sameMode(got.mode, want.mode)
+    : want.type === 'file' ? got.type === 'file' && got.content === want.content && got.mode === want.mode
     : want.type === 'symlink' ? got.type === 'symlink' && got.target === want.target && (want.content === undefined || got.content === want.content)
     : true
 }
@@ -1916,8 +1892,8 @@ function backupRel(i: number): string {
 
 function matchesSnap(n: Node, s: NodeSnap, withMode = false): boolean {
   if (s.type === 'absent') return n.type === 'absent'
-  if (s.type === 'file') return n.type === 'file' && sha256(n.content) === s.sha256 && (!withMode || s.mode === undefined || sameMode(n.mode, s.mode))
-  return n.type === 'symlink' && n.target === linkTarget(s.target ?? '') && (s.sha256 === undefined || (n.content !== undefined && sha256(n.content) === s.sha256))
+  if (s.type === 'file') return n.type === 'file' && sha256(n.content) === s.sha256 && (!withMode || s.mode === undefined || n.mode === s.mode)
+  return n.type === 'symlink' && n.target === (s.target ?? '') && (s.sha256 === undefined || (n.content !== undefined && sha256(n.content) === s.sha256))
 }
 
 function restoreFromJournal(txnDir: string, f: JournalFile): void {
@@ -1935,10 +1911,10 @@ function restoreFromJournal(txnDir: string, f: JournalFile): void {
     atomicWriteSync(f.path, data, { mode: b.mode ?? 0o644 })
     return
   }
-  if (!(cur.type === 'symlink' && cur.target === linkTarget(b.target ?? ''))) {
+  if (!(cur.type === 'symlink' && cur.target === (b.target ?? ''))) {
     if (cur.type === 'file' || cur.type === 'symlink') unlinkSync(f.path)
     mkdirSync(dirname(f.path), { recursive: true })
-    linkDirSync(nativeLinkTarget(b.target as string), f.path)
+    symlinkSync(b.target as string, f.path)
   }
   if (b.backup !== undefined && !matchesSnap(readNode(f.path), b)) {
     atomicWriteSync(f.path, readFileSync(join(txnDir, b.backup)))
@@ -2316,7 +2292,7 @@ async function recoverInterrupted(except?: string): Promise<string[]> {
   return recovered
 }
 
-export const txnTestHooks: { afterCompute?: () => void, beforeWrite?: (path: string) => void, keepsModes?: boolean, windowsLinks?: boolean } = {}
+export const txnTestHooks: { afterCompute?: () => void, beforeWrite?: (path: string) => void } = {}
 
 export const RETENTION = { backups: 20, backgroundBackups: 10, journals: 50 } as const
 
@@ -2696,7 +2672,7 @@ export async function diffPlan(plan: Plan, opts: Pick<ApplyOptions, 'restore' | 
     const newLabel = after.type === 'absent' ? '/dev/null' : path
     const d = unifiedDiff(oldText, newText, { oldLabel, newLabel })
     if (d !== '') out.push(diffOrSummary(d, path, before, after))
-    else if (before.type === 'file' && after.type === 'file' && !sameMode(before.mode, after.mode)) out.push(`# chmod ${after.mode.toString(8)} ${path}`)
+    else if (before.type === 'file' && after.type === 'file' && before.mode !== after.mode) out.push(`# chmod ${after.mode.toString(8)} ${path}`)
     const via = c.vfs.via.get(path)
     if (via !== undefined && via.length > 0) out.push(`# (also reached through ${via.join(', ')})`)
   }

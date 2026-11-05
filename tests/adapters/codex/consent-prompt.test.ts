@@ -9,7 +9,7 @@ import { runConsent } from '../../../src/cli/commands/consent'
 import { defaultConfig } from '../../../src/core/config'
 import * as paths from '../../../src/engine/paths'
 import { run } from '../../../src/engine/proc'
-import { pathOf, systemPathDirs } from '../../helpers/fake-exe'
+import { pathOf, SYSTEM_PATH_DIRS } from '../../helpers/fake-exe'
 import { withSandbox } from '../../helpers/sandbox'
 import { ctx, deps, payload, SID } from './hook-helpers'
 
@@ -18,16 +18,14 @@ const quiet = { checkBash: () => ({}), checkWrite: () => ({}), checkQuestion: ()
 const guarded = { checkWrite: () => ({}), checkQuestion: () => ({}), routeTool: () => ({ action: 'allow' as const }), detectIntent: () => null, capabilityCard: () => 'c', restoreContext: () => undefined }
 const ID = '0123456789abcdef'
 const CODEX_ENV = { CODEX_THREAD_ID: SID, SHELL: '/bin/sh' }
-// The prompt needs a shim path Codex's prefix rules can match literally (an absolute POSIX path). The
-// installed shim on Windows (buracle.cmd) is not one, so there the prompt is off and the plain denial
-// stays (the Windows case below). With this path the prompt's own logic runs the same on every host.
+// The prompt needs a shim path Codex's prefix rules can match literally (an absolute POSIX path). A shim
+// path that is not one turns the prompt off, so the plain denial stays (the case below).
 const SHIM = '/home/u/.buracle/bin/buracle'
 const hctx = (config = defaultConfig()) => ({ ...ctx(config), buracleBin: SHIM })
 
 function withId(id = ID, over: Partial<typeof guarded> | typeof quiet = quiet) {
   const d = deps(over)
   d.newId = () => id
-  d.platform = 'darwin'
   return d
 }
 
@@ -90,15 +88,12 @@ describe('Codex H20: a held command asks in Codex\'s own approval prompt', () =>
     expect((await handleCodexHook('PreToolUse', bash('git status'), hctx(), withId())).stdout).toBe('')
   }))
 
-  test('the no-approval policy (codex exec, --yolo), a subagent, Windows or another shell keep the plain denial', () => withSandbox(async () => {
+  test('the no-approval policy (codex exec, --yolo), a subagent, a shim path that is not literal or another shell keep the plain denial', () => withSandbox(async () => {
     const denied = async (p: string, d = withId()) => out((await handleCodexHook('PreToolUse', p, hctx(), d)).stdout)['permissionDecision']
     expect(await denied(bash('git push origin main', { permission_mode: 'bypassPermissions' }))).toBe('deny')
     expect(await denied(bash('git push origin main', { agent_id: 'a1', agent_type: 'worker' }))).toBe('deny')
-    const win = withId()
-    win.platform = 'win32'
-    expect(await denied(bash('git push origin main'), win)).toBe('deny')
-    const cmdShim = out((await handleCodexHook('PreToolUse', bash('git push origin main'), { ...hctx(), buracleBin: 'C:\\Users\\u\\.buracle\\bin\\buracle.cmd' }, withId())).stdout)
-    expect(cmdShim['permissionDecision']).toBe('deny')
+    const relativeShim = out((await handleCodexHook('PreToolUse', bash('git push origin main'), { ...hctx(), buracleBin: 'bin/buracle' }, withId())).stdout)
+    expect(relativeShim['permissionDecision']).toBe('deny')
     const fish = deps(quiet, {}, { SHELL: '/opt/homebrew/bin/fish' })
     fish.newId = () => ID
     expect(await denied(bash('git push origin main'), fish)).toBe('deny')
@@ -132,8 +127,6 @@ describe('Codex H20: a held command asks in Codex\'s own approval prompt', () =>
     postConsentAsk('codex', SID, "echo 'ok' > done.txt", ID, Date.now())
     expect((await handleCodexHook('PermissionRequest', permission('Bash', { command: wrapper }), hctx(), withId())).stdout).toBe('')
     expect(typeof readConsentAsk(ID)?.asked).toBe('number')
-    // consent run starts a POSIX shell; Windows turns the Codex consent prompt off (consent-prompt.ts), so it never gets there.
-    if (process.platform === 'win32') return
     const t = io()
     const cwd = process.cwd()
     process.chdir(root)
@@ -276,7 +269,7 @@ describe.skipIf(CODEX === null || CODEX === undefined)('the consent rule against
     writeFileSync(rules, renderRulesFile({ home, shim }))
     const env: Record<string, string | undefined> = {}
     for (const k of Object.keys(process.env)) env[k] = undefined
-    Object.assign(env, { PATH: pathOf(...systemPathDirs(), '/opt/homebrew/bin', '/usr/local/bin'), HOME: home, CODEX_HOME: join(home, '.codex') })
+    Object.assign(env, { PATH: pathOf(...SYSTEM_PATH_DIRS, '/opt/homebrew/bin', '/usr/local/bin'), HOME: home, CODEX_HOME: join(home, '.codex') })
     const check = async (argv: string[]) => JSON.parse((await run([CODEX as string, 'execpolicy', 'check', '--rules', rules, '--', ...argv], { env, timeoutMs: 30_000 })).stdout) as { decision?: string }
     expect((await check([shim, 'consent', 'run', ID, 'git push origin main'])).decision).toBe('prompt')
     expect((await check(['buracle', 'consent', 'run', ID, 'git push'])).decision).toBeUndefined()

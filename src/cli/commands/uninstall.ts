@@ -55,8 +55,8 @@ Options:
                         are kept.
                         Skipped when anything failed, so the records stay for a retry. When
                         BURACLE_HOME is not a directory of Buracle's own, only Buracle's files
-                        are removed there. System tools installed with Homebrew, winget or
-                        scoop stay installed.
+                        are removed there. System tools installed with Homebrew stay
+                        installed.
   --dry-run            show what would be removed and which undo commands would run
   --yes, -y             do not ask for confirmation (required when stdin is not a terminal)
   --json                machine-readable result

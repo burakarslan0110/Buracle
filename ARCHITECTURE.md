@@ -50,10 +50,9 @@ was installed.
 
 ### Cross-platform findings
 
-Confirmed defects: no honest Linux system-tool path (installer advice was Homebrew-only), a Windows `.cmd` shim
-that did not fail closed the way the POSIX shim does, plain `rename` for atomic writes on Windows, and POSIX-only
-smoke tests. CI ran typecheck, the build check and the tests on three operating systems, but never executed a
-generated hook command or MCP entry on any of them. The full list is in [COMPATIBILITY.md](COMPATIBILITY.md).
+Confirmed defects: no honest Linux system-tool path (installer advice was Homebrew-only) and POSIX-only smoke tests.
+CI ran typecheck, the build check and the tests, but never executed a generated hook command or MCP entry. Since
+0.8.0 Buracle runs on macOS and Linux only, and Windows users run it inside WSL 2. The full list is in [COMPATIBILITY.md](COMPATIBILITY.md).
 
 ## Part 2: target architecture
 
@@ -234,7 +233,7 @@ amount. Fewer tests pass than before because the tests of deleted features went 
 
 ### Known limits and remaining work
 
-- Only macOS was executed. Linux and Windows are covered by the CI definition and by portable-API review
+- Only macOS was executed. Linux and WSL 2 are covered by the CI definition and by portable-API review
   ([COMPATIBILITY.md](COMPATIBILITY.md)); nothing was pushed, so the CI jobs have been parsed, not run.
 - A tool call that the capture hook records still costs one short hook process (about 40 ms). Narrowing those hooks, or
   reading the harness transcript once at the end of the session instead, would remove it; it was left alone because it

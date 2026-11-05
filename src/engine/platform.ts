@@ -1,29 +1,74 @@
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 
-export type OsName = 'darwin' | 'win32' | 'linux'
+export type OsName = 'darwin' | 'linux'
 
+// BURACLE_PLATFORM=darwin or linux makes a test run as that host; any other value is ignored.
 export function osName(): OsName {
   const forced = process.env['BURACLE_PLATFORM']
-  if (forced === 'darwin' || forced === 'win32' || forced === 'linux') return forced
-  return process.platform === 'win32' ? 'win32' : process.platform === 'darwin' ? 'darwin' : 'linux'
+  if (forced === 'darwin' || forced === 'linux') return forced
+  return process.platform === 'darwin' ? 'darwin' : 'linux'
 }
 
-export function isWindows(): boolean {
-  return osName() === 'win32'
+const PROC_VERSION = '/proc/version'
+const BINFMT_DIR = '/proc/sys/fs/binfmt_misc'
+let wslKernel: boolean | undefined
+
+function microsoftKernel(versionFile: string): boolean {
+  try {
+    const v = readFileSync(versionFile, 'utf8').toLowerCase()
+    return v.includes('microsoft') || v.includes('wsl')
+  } catch { return false }
 }
 
-export function pathDelimiter(): string {
-  return isWindows() ? ';' : ':'
+// WSL is Linux with a Microsoft kernel; its shells carry WSL_DISTRO_NAME and WSL_INTEROP, which a process started
+// outside such a shell (a service, a hook) may lack, so the kernel's version text decides then.
+export function isWsl(env: Readonly<Record<string, string | undefined>> = process.env, versionFile = PROC_VERSION): boolean {
+  if (osName() !== 'linux') return false
+  if ((env['WSL_DISTRO_NAME'] ?? '') !== '' || (env['WSL_INTEROP'] ?? '') !== '') return true
+  if (versionFile !== PROC_VERSION) return microsoftKernel(versionFile)
+  wslKernel ??= microsoftKernel(versionFile)
+  return wslKernel
 }
 
-export function exeName(name: string): string {
-  return isWindows() && !/\.(exe|cmd|bat|ps1)$/i.test(name) ? `${name}.exe` : name
+// WSL starts Windows programs through a binfmt_misc entry: WSLInterop, or WSLInterop-late in a distribution that runs
+// systemd. Interop turned off in wsl.conf (or by writing 0 to the entry) leaves it missing or disabled.
+export function wslInterop(dir = BINFMT_DIR): boolean {
+  for (const name of ['WSLInterop', 'WSLInterop-late']) {
+    try {
+      if (readFileSync(join(dir, name), 'utf8').split('\n')[0]?.trim() === 'enabled') return true
+    } catch {  }
+  }
+  return false
+}
+
+/** Where a page or a notification reaches the person: the macOS or Linux desktop, or Windows from inside WSL. */
+export type DesktopHost = 'darwin' | 'linux' | 'wsl' | 'wsl-no-interop'
+
+export function desktopHost(env: Readonly<Record<string, string | undefined>> = process.env, versionFile = PROC_VERSION, binfmtDir = BINFMT_DIR): DesktopHost {
+  if (osName() === 'darwin') return 'darwin'
+  if (!isWsl(env, versionFile)) return 'linux'
+  return wslInterop(binfmtDir) ? 'wsl' : 'wsl-no-interop'
+}
+
+// The Windows programs Buracle starts from WSL, at their usual place on drive C: for a shell whose PATH lacks the
+// Windows folders (appendWindowsPath = false in wsl.conf).
+const WINDOWS_PROGRAMS: Readonly<Record<string, string>> = {
+  'rundll32.exe': '/mnt/c/Windows/System32/rundll32.exe',
+  'powershell.exe': '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe',
+}
+
+/** A program a WSL process can start: on PATH, else a known Windows program at its usual place. */
+export function findWslProgram(name: string, places: Readonly<Record<string, string>> = WINDOWS_PROGRAMS): string | undefined {
+  const hit = findExecutable(name)
+  if (hit !== undefined) return hit
+  const fixed = places[name]
+  return fixed !== undefined && isFile(fixed) ? fixed : undefined
 }
 
 function homeDir(): string {
-  const h = process.env['HOME'] ?? process.env['USERPROFILE']
+  const h = process.env['HOME']
   return h !== undefined && h.trim() !== '' ? h : homedir()
 }
 
@@ -37,7 +82,7 @@ const posixAbsolute = (p: string | undefined): p is string => p !== undefined &&
 
 function lookupOutput(argv: string[]): string | undefined {
   try {
-    const r = Bun.spawnSync(argv, { stdin: 'ignore', stdout: 'pipe', stderr: 'ignore', timeout: ACCOUNT_LOOKUP_MS, killSignal: 'SIGKILL', maxBuffer: 64 * 1024, env: { ...process.env }, windowsHide: true })
+    const r = Bun.spawnSync(argv, { stdin: 'ignore', stdout: 'pipe', stderr: 'ignore', timeout: ACCOUNT_LOOKUP_MS, killSignal: 'SIGKILL', maxBuffer: 64 * 1024, env: { ...process.env } })
     return r.exitCode === 0 && r.exitedDueToTimeout !== true ? r.stdout.toString() : undefined
   } catch {
     return undefined
@@ -55,7 +100,6 @@ function passwdHome(text: string | undefined, uid: number): string | undefined {
 }
 
 function lookUpAccountHome(): string | undefined {
-  if (process.platform === 'win32') return undefined
   const uid = process.getuid?.()
   if (uid === undefined) return undefined
   const entry = process.platform === 'darwin' ? lookupOutput(['id', '-P']) : lookupOutput(['getent', 'passwd', String(uid)])
@@ -79,71 +123,24 @@ export function extraBinDirs(): string[] {
   const dirs: string[] = [join(home, '.local', 'bin'), join(home, '.bun', 'bin'), join(home, 'go', 'bin'), join(home, '.cargo', 'bin')]
   if (osName() === 'darwin') dirs.push('/opt/homebrew/bin', '/usr/local/bin')
   if (osName() === 'linux') dirs.push('/home/linuxbrew/.linuxbrew/bin', '/usr/local/bin')
-  if (osName() === 'win32') {
-    const local = process.env['LOCALAPPDATA'] ?? join(home, 'AppData', 'Local')
-    const programs = process.env['ProgramFiles'] ?? 'C:\\Program Files'
-    dirs.push(
-      join(local, 'Microsoft', 'WinGet', 'Links'),
-      join(home, 'scoop', 'shims'),
-      join(programs, 'nodejs'),
-      join(programs, 'Git', 'cmd'),
-      join(local, 'Programs', 'Git', 'cmd'),
-      join(programs, 'GitHub CLI'),
-      join(programs, 'Go', 'bin'),
-      join(local, 'Programs', 'uv'),
-    )
-  }
   return dirs
 }
 
-const WIN_EXTS = ['.exe', '.cmd', '.bat', '.com']
-
 export function findExecutable(name: string, opts: { extra?: readonly string[] } = {}): string | undefined {
-  const PATH = process.env['PATH'] ?? process.env['Path']
+  const PATH = process.env['PATH']
   const hit = PATH !== undefined ? Bun.which(name, { PATH }) : Bun.which(name)
   if (hit !== null && hit !== undefined) return hit
-  const exts = isWindows() && !/\.[a-z0-9]+$/i.test(name) ? WIN_EXTS : ['']
   for (const dir of [...(opts.extra ?? []), ...extraBinDirs()]) {
-    for (const ext of exts) {
-      const p = join(dir, name + ext)
-      if (isFile(p)) return p
-    }
+    const p = join(dir, name)
+    if (isFile(p)) return p
   }
   return undefined
 }
 
-export function augmentedPath(base: string | undefined = process.env['PATH'] ?? process.env['Path']): string {
-  const sep = pathDelimiter()
-  const have = (base ?? '').split(sep).filter(s => s !== '')
+export function augmentedPath(base: string | undefined = process.env['PATH']): string {
+  const have = (base ?? '').split(':').filter(s => s !== '')
   const add = extraBinDirs().filter(d => !have.includes(d) && existsSync(d))
-  return [...have, ...add].join(sep)
-}
-
-// A .cmd or .bat (npm installs claude, codex and opencode as .cmd shims) runs through cmd.exe. With /s cmd.exe
-// drops the first and the last quote of the line, so a line that holds quotes gets one more pair around it; such
-// a line must reach cmd.exe as written: spawn it with windowsVerbatimArguments: windowsVerbatim(argv).
-export function spawnArgv(argv: readonly string[]): string[] {
-  const [cmd, ...rest] = argv
-  if (cmd === undefined) return []
-  if (!isWindows()) return [...argv]
-  const resolved = /[\\/]/.test(cmd) ? cmd : (findExecutable(cmd) ?? cmd)
-  if (/\.(cmd|bat)$/i.test(resolved)) {
-    const line = [quoteCmd(resolved), ...rest.map(quoteCmd)].join(' ')
-    return ['cmd.exe', '/d', '/s', '/c', line.includes('"') ? `"${line}"` : line]
-  }
-  return [resolved, ...rest]
-}
-
-// libuv quotes every argument by the C runtime's rules (a " becomes \"), which cmd.exe does not read.
-export function windowsVerbatim(argv: readonly string[]): boolean {
-  return isWindows() && /(^|[\\/])cmd(\.exe)?$/i.test(argv[0] ?? '') && argv.slice(1, 5).some(a => /^\/c$/i.test(a))
-}
-
-// cmd.exe expands %NAME% even inside quotes: each % is left outside them behind a caret, so no variable name can
-// follow it ("a"^%"PATH"^%"b" reaches the program as a%PATH%b).
-export function quoteCmd(arg: string): string {
-  if (arg !== '' && !/[\s"&|<>^()%!]/.test(arg)) return arg
-  return `"${arg.replace(/"/g, '""').replace(/%/g, '"^%"')}"`
+  return [...have, ...add].join(':')
 }
 
 type ExecveFn = (file: string, args: readonly string[], env: Record<string, string | undefined>) => never
@@ -151,7 +148,7 @@ type ExecveFn = (file: string, args: readonly string[], env: Record<string, stri
 export function execServer(argv: readonly string[], env: Record<string, string | undefined>): string | undefined {
   const execve = (process as { execve?: ExecveFn }).execve
   const file = argv[0]
-  if (typeof execve !== 'function' || isWindows() || file === undefined || !isAbsolute(file)) return undefined
+  if (typeof execve !== 'function' || file === undefined || !isAbsolute(file)) return undefined
   const noop = () => {  }
   const reset: NodeJS.Signals[] = []
   for (const s of ['SIGPIPE', 'SIGXFSZ'] as NodeJS.Signals[]) { try { process.on(s, noop); reset.push(s) } catch {  } }

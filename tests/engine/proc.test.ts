@@ -1,5 +1,4 @@
 import { describe, expect, test } from 'bun:test'
-import { chmodSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { detectBinary, parseVersion, run, which } from '../../src/engine/proc'
 import { fakeExe, narrowPath } from '../helpers/fake-exe'
@@ -48,7 +47,7 @@ describe('proc.run', () => {
     expect(Date.now() - t0).toBeLessThan(3000)
   })
 
-  test.skipIf(process.platform === 'win32')('processGroup: a timeout also stops the children the process started', async () => {
+  test('processGroup: a timeout also stops the children the process started', async () => {
     const alive = (pid: number) => { try { process.kill(pid, 0); return true } catch { return false } }
     const r = await run(['sh', '-c', 'sleep 30 & echo $!; wait'], { timeoutMs: 300, processGroup: true })
     const child = Number(r.stdout.trim())
@@ -60,37 +59,6 @@ describe('proc.run', () => {
     } finally {
       if (alive(child)) process.kill(child, 'SIGKILL')
     }
-  })
-})
-
-describe('proc.run on Windows', () => {
-  async function spawnedBy(argv: string[], env: Record<string, string> = {}): Promise<{ argv: string[], verbatim: unknown }> {
-    const original = Bun.spawn
-    let seen: { argv: string[], verbatim: unknown } | undefined
-    Bun.spawn = ((cmd: string[], o: { windowsVerbatimArguments?: boolean }) => {
-      seen = { argv: cmd, verbatim: o.windowsVerbatimArguments }
-      throw new Error('not spawned in this test')
-    }) as unknown as typeof Bun.spawn
-    try {
-      expect((await withEnv({ BURACLE_PLATFORM: 'win32' }, () => run(argv, { env }))).code).toBe(127)
-    } finally {
-      Bun.spawn = original
-    }
-    if (seen === undefined) throw new Error('Bun.spawn was not called')
-    return seen
-  }
-
-  test('an npm .cmd shim, by path or found on the PATH, starts through cmd.exe with its line passed verbatim', () => withSandbox(async ({ root }) => {
-    expect(await spawnedBy(['C:\\npm\\claude.cmd', '-p', '--tools', ''])).toEqual({ argv: ['cmd.exe', '/d', '/s', '/c', '"C:\\npm\\claude.cmd -p --tools """'], verbatim: true })
-    const bin = join(root, 'bin')
-    mkdirSync(bin)
-    writeFileSync(join(bin, 'codex.cmd'), '@echo off\n')
-    chmodSync(join(bin, 'codex.cmd'), 0o755)
-    expect(await spawnedBy(['codex.cmd', '--version'], { PATH: bin })).toEqual({ argv: ['cmd.exe', '/d', '/s', '/c', `${join(bin, 'codex.cmd')} --version`], verbatim: true })
-  }))
-
-  test('any other program is spawned as given', async () => {
-    expect(await spawnedBy(['git', 'status'])).toEqual({ argv: ['git', 'status'], verbatim: false })
   })
 })
 

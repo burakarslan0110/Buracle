@@ -46,7 +46,7 @@ export function unquoteSingle(quoted: string): string | undefined {
   return out
 }
 
-export interface PromptEnv { platform: string, shell: string | undefined }
+export interface PromptEnv { shell: string | undefined }
 
 export function userAnswersApprovals(ctx: Pick<AdapterContext, 'paths'>): boolean {
   let text: string
@@ -68,7 +68,7 @@ export function userAnswersApprovals(ctx: Pick<AdapterContext, 'paths'>): boolea
 export function canPromptConsent(p: Payload, ctx: Pick<AdapterContext, 'buracleBin' | 'paths'>, command: string, env: PromptEnv): boolean {
   if (isSubagentPayload(p) || str(p['permission_mode']) === 'bypassPermissions' || str(p['permission_mode']) === undefined) return false
   if (!userAnswersApprovals(ctx)) return false
-  if (env.platform === 'win32' || !literalProgram(ctx.buracleBin)) return false
+  if (!literalProgram(ctx.buracleBin)) return false
   if (env.shell !== undefined && env.shell !== '' && !PROMPT_SHELLS.has(basename(env.shell))) return false
   return command.length <= MAX_PROMPT_COMMAND && !command.includes('\u0000')
 }

@@ -82,21 +82,20 @@ describe('section printer', () => {
 describe('section mode', () => {
   test('a terminal gets the live line and colour; NO_COLOR, TERM=dumb and a pipe get plain text', () => {
     const utf = { LANG: 'en_US.UTF-8' }
-    expect(sectionMode({ isTTY: true }, { ...utf, TERM: 'xterm-256color' }, 'darwin')).toMatchObject({ live: true, unicode: true })
-    expect(sectionMode({ isTTY: true }, { ...utf, NO_COLOR: '1' }, 'darwin')).toMatchObject({ live: false })
-    expect(sectionMode({ isTTY: true }, { ...utf, NO_COLOR: '1' }, 'darwin').style.level).toBe(0)
-    expect(sectionMode({ isTTY: true }, { ...utf, TERM: 'dumb' }, 'darwin')).toMatchObject({ live: false })
-    expect(sectionMode({ isTTY: false }, utf, 'linux')).toMatchObject({ live: false })
-    expect(sectionMode({ isTTY: false }, utf, 'linux').style.level).toBe(0)
+    expect(sectionMode({ isTTY: true }, { ...utf, TERM: 'xterm-256color' })).toMatchObject({ live: true, unicode: true })
+    expect(sectionMode({ isTTY: true }, { ...utf, NO_COLOR: '1' })).toMatchObject({ live: false })
+    expect(sectionMode({ isTTY: true }, { ...utf, NO_COLOR: '1' }).style.level).toBe(0)
+    expect(sectionMode({ isTTY: true }, { ...utf, TERM: 'dumb' })).toMatchObject({ live: false })
+    expect(sectionMode({ isTTY: false }, utf)).toMatchObject({ live: false })
+    expect(sectionMode({ isTTY: false }, utf).style.level).toBe(0)
   })
 
-  test('block symbols only in a UTF-8 locale; Windows always', () => {
-    expect(unicodeLocale({ LANG: 'C.UTF-8' }, 'linux')).toBe(true)
-    expect(unicodeLocale({ LC_ALL: 'tr_TR.utf8' }, 'linux')).toBe(true)
-    expect(unicodeLocale({ LANG: 'C' }, 'linux')).toBe(false)
-    expect(unicodeLocale({}, 'darwin')).toBe(false)
-    expect(unicodeLocale({ LC_ALL: 'C', LANG: 'en_US.UTF-8' }, 'linux')).toBe(false)
-    expect(unicodeLocale({}, 'win32')).toBe(true)
+  test('block symbols only in a UTF-8 locale', () => {
+    expect(unicodeLocale({ LANG: 'C.UTF-8' })).toBe(true)
+    expect(unicodeLocale({ LC_ALL: 'tr_TR.utf8' })).toBe(true)
+    expect(unicodeLocale({ LANG: 'C' })).toBe(false)
+    expect(unicodeLocale({})).toBe(false)
+    expect(unicodeLocale({ LC_ALL: 'C', LANG: 'en_US.UTF-8' })).toBe(false)
   })
 })
 

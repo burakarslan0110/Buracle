@@ -9,10 +9,10 @@ import { installPinnedTool, pinPlatform } from '../../src/engine/toolchain/syste
 import { SYSTEM_TOOL_PINS, type PinnedAsset, type PinnedTool, type PinnedToolName } from '../../src/engine/toolchain/system-pins'
 import { installAdvice, installSources, installTool } from '../../src/engine/toolchain/system'
 import { readToolchainState } from '../../src/engine/toolchain/state'
-import { IS_WINDOWS, launcherText } from '../helpers/fake-exe'
+import { launcherText } from '../helpers/fake-exe'
 import { withSandbox } from '../helpers/sandbox'
 
-const PLATFORMS = ['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64', 'win32-x64'] as const
+const PLATFORMS = ['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64'] as const
 const sha = (b: Uint8Array): string => createHash('sha256').update(b).digest('hex')
 const enc = (s: string): Uint8Array => new TextEncoder().encode(s)
 
@@ -39,7 +39,7 @@ function program(dir: string, out: string, code = 0): Uint8Array {
 
 const nodeCheck = { argv: ['node', '--version'], regex: 'v(\\d+\\.\\d+\\.\\d+)' }
 const here = pinPlatform() as NonNullable<ReturnType<typeof pinPlatform>>
-const binName = IS_WINDOWS ? 'node.cmd' : 'node'
+const binName = 'node'
 
 function pins(asset: PinnedAsset, version = '26.13.0'): Readonly<Record<PinnedToolName, PinnedTool>> {
   return { ...SYSTEM_TOOL_PINS, node: { version, assets: { [here]: asset } } }
@@ -51,11 +51,10 @@ describe('the pin table', () => {
     for (const [name, tool] of Object.entries(SYSTEM_TOOL_PINS)) {
       expect(tool.version).toMatch(/^\d+\.\d+(\.\d+)?$/)
       expect(Object.keys(tool.assets).sort()).toEqual([...PLATFORMS].sort())
-      for (const [plat, a] of Object.entries(tool.assets)) {
+      for (const a of Object.values(tool.assets)) {
         expect(a?.url).toStartWith('https://')
         expect(a?.sha256).toMatch(/^[0-9a-f]{64}$/)
-        expect(['tar.gz', 'zip', 'bin']).toContain(a?.format as string)
-        expect(a?.format === 'zip').toBe(plat === 'win32-x64' && name !== 'jq')
+        expect(['tar.gz', 'bin']).toContain(a?.format as string)
         expect(Object.keys(a?.bins ?? {})).toContain(name)
       }
     }
@@ -64,24 +63,22 @@ describe('the pin table', () => {
 
   test('the platform key; an unknown one has none', () => {
     expect(pinPlatform('darwin', 'arm64')).toBe('darwin-arm64')
-    expect(pinPlatform('win32', 'x64')).toBe('win32-x64')
-    expect(pinPlatform('win32', 'arm64')).toBeUndefined()
+    expect(pinPlatform('linux', 'riscv64')).toBeUndefined()
     expect(pinPlatform('freebsd', 'x64')).toBeUndefined()
   })
 })
 
 describe('install sources with a download', () => {
-  const node: ToolSpec = { name: 'node', check: ['node', '--version'], version_regex: 'v(\\d+\\.\\d+\\.\\d+)', required: true, brew: 'node', winget: 'OpenJS.NodeJS.LTS', scoop: 'nodejs-lts' }
+  const node: ToolSpec = { name: 'node', check: ['node', '--version'], version_regex: 'v(\\d+\\.\\d+\\.\\d+)', required: true, brew: 'node' }
   test('a package manager comes first; without one the pinned download is the source', () => {
     expect(installSources(node, 'linux', () => false, 'x64').map(s => s.kind)).toEqual(['download'])
     expect(installSources(node, 'linux', c => c === 'brew', 'x64').map(s => s.kind)).toEqual(['brew', 'download'])
     expect(installSources(node, 'darwin', () => false, 'arm64').map(s => s.label)).toEqual([`node ${SYSTEM_TOOL_PINS.node.version} download (Buracle toolchain)`])
-    expect(installSources(node, 'win32', c => c === 'winget', 'x64').map(s => s.kind)).toEqual(['winget', 'download'])
   })
 
   test('no pin for the platform: no download source; the advice stays the package manager command', () => {
-    expect(installSources(node, 'win32', () => false, 'arm64')).toEqual([])
-    expect(installAdvice(node, 'win32', () => false)).toBe('winget install --id OpenJS.NodeJS.LTS -e --scope user')
+    expect(installSources(node, 'linux', () => false, 'riscv64')).toEqual([])
+    expect(installAdvice(node, 'darwin', () => false)).toBe('brew install node')
   })
 })
 
@@ -94,7 +91,7 @@ describe('installing a pinned tool', () => {
     expect(r).toMatchObject({ ok: true, version: '26.13.0', check: '26.13.0' })
     const bin = join(paths.systemToolsDir(), 'node', binName)
     expect(existsSync(bin)).toBe(true)
-    if (!IS_WINDOWS) expect(statSync(bin).mode & 0o111).not.toBe(0)
+    expect(statSync(bin).mode & 0o111).not.toBe(0)
     expect(readdirSync(paths.systemToolsDir())).toEqual(['node'])
   }))
 
@@ -144,34 +141,13 @@ describe('installing a pinned tool', () => {
 
   test('a platform without a pin downloads nothing', () => withSandbox(async () => {
     const f = fakeFetch({})
-    const r = await installPinnedTool('node', { fetch: f.fetch, os: 'win32', arch: 'arm64', check: nodeCheck })
-    expect(r.ok ? '' : r.error).toBe('no download for win32-arm64')
+    const r = await installPinnedTool('node', { fetch: f.fetch, os: 'linux', arch: 'riscv64', check: nodeCheck })
+    expect(r.ok ? '' : r.error).toBe('no download for linux-riscv64')
     expect(f.calls).toEqual([])
-  }))
-
-  test('a Windows zip is unpacked with the system tar', () => withSandbox(async () => {
-    const bytes = enc('PK fake zip')
-    const url = 'https://example.test/node.zip'
-    const ran: string[][] = []
-    const run = async (argv: string[]) => {
-      ran.push(argv)
-      if (argv[1] === '-tf') return { code: 0, stdout: 'node-v26.13.0-win-x64/\nnode-v26.13.0-win-x64/node.exe\n', stderr: '' }
-      if (argv[1] === '-xf') {
-        const dest = argv[argv.indexOf('-C') + 1] as string
-        mkdirSync(join(dest, 'node-v26.13.0-win-x64'), { recursive: true })
-        writeFileSync(join(dest, 'node-v26.13.0-win-x64', 'node.exe'), 'MZ')
-        return { code: 0, stdout: '', stderr: '' }
-      }
-      return { code: 0, stdout: 'v26.13.0\n', stderr: '' }
-    }
-    const r = await installPinnedTool('node', { fetch: fakeFetch({ [url]: bytes }).fetch, pins: pins({ url, sha256: sha(bytes), format: 'zip', bins: { node: 'node.exe' } }), check: nodeCheck, run })
-    expect(r).toMatchObject({ ok: true })
-    expect(ran.filter(a => a[0]?.endsWith('tar') || a[0]?.endsWith('tar.exe')).map(a => a[1])).toEqual(['-tf', '-xf'])
-    expect(existsSync(join(paths.systemToolsDir(), 'node', 'node.exe'))).toBe(true)
   }))
 })
 
-describe.skipIf(IS_WINDOWS)('unpacking a tarball', () => {
+describe('unpacking a tarball', () => {
   test('the single top folder is stripped and the program keeps its exec bit', () => withSandbox(async ({ root }) => {
     const launcher = new TextDecoder().decode(program(join(root, 'scripts'), 'v26.13.0'))
     const tar = new Bun.Archive({ 'node-v26.13.0-darwin-arm64/bin/node': launcher, 'node-v26.13.0-darwin-arm64/README.md': 'hi' }, { compress: 'gzip' })

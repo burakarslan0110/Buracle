@@ -124,7 +124,7 @@ describe('buracle index ensure / rebuild', () => {
     })
   }))
 
-  test.skipIf(process.platform === 'win32')('Ctrl-C stops ensure together with the codegraph processes it started, releases the lock and exits 130', () => withSandbox(async ({ root }) => {
+  test('Ctrl-C stops ensure together with the codegraph processes it started, releases the lock and exits 130', () => withSandbox(async ({ root }) => {
     fakeTools(root)
     const pids = join(root, 'pids')
     writeFileSync(join(root, 'tools', 'codegraph'), `#!/bin/sh\nif [ "$1" = init ]; then sleep 30 & echo "$$ $!" > '${pids}'; wait; fi\nexit 0\n`, { mode: 0o755 })

@@ -37,7 +37,6 @@ const SESSION_END_MAX_TIMEOUT = 3
 export interface CodexCommandHandler {
   type: 'command'
   command: string
-  commandWindows?: string
   timeout: number
   async?: boolean
   statusMessage?: string
@@ -53,18 +52,12 @@ export const POST_MASK_HANDLER = 'PostToolUseMask'
 export const POST_ANSWER_MATCHER = 'request_user_input'
 export const PERMISSION_MATCHER = '^(Bash|mcp__.+)$'
 
-function handler(prefix: string, event: string, timeout: number, extra: Partial<CodexCommandHandler> = {}, windowsPrefix?: string): CodexCommandHandler {
-  const h: CodexCommandHandler = { type: 'command', command: hookCommand(event, prefix), timeout, ...extra }
-  if (windowsPrefix !== undefined) h.commandWindows = hookCommand(event, windowsPrefix)
-  return h
+function handler(prefix: string, event: string, timeout: number, extra: Partial<CodexCommandHandler> = {}): CodexCommandHandler {
+  return { type: 'command', command: hookCommand(event, prefix), timeout, ...extra }
 }
 
-export function windowsHookPrefix(shim: string): string {
-  return `"${shim.replace(/\//g, '\\')}" hook codex `
-}
-
-export function buracleHookGroups(prefix: string = HOOK_COMMAND_PREFIX, windowsPrefix?: string): Record<CodexHookEvent, CodexMatcherGroup[]> {
-  const h = (event: CodexHookEvent | typeof POST_MASK_HANDLER, timeout: number, extra: Partial<CodexCommandHandler> = {}) => handler(prefix, event, timeout, extra, windowsPrefix)
+export function buracleHookGroups(prefix: string = HOOK_COMMAND_PREFIX): Record<CodexHookEvent, CodexMatcherGroup[]> {
+  const h = (event: CodexHookEvent | typeof POST_MASK_HANDLER, timeout: number, extra: Partial<CodexCommandHandler> = {}) => handler(prefix, event, timeout, extra)
   return {
     SessionStart: [{ hooks: [h('SessionStart', 15)] }],
     UserPromptSubmit: [{ hooks: [h('UserPromptSubmit', 10)] }],
@@ -85,8 +78,8 @@ export function buracleHookGroups(prefix: string = HOOK_COMMAND_PREFIX, windowsP
   }
 }
 
-export function buracleHooksFile(prefix: string = HOOK_COMMAND_PREFIX, windowsPrefix?: string): CodexHooksFile {
-  const groups = buracleHookGroups(prefix, windowsPrefix)
+export function buracleHooksFile(prefix: string = HOOK_COMMAND_PREFIX): CodexHooksFile {
+  const groups = buracleHookGroups(prefix)
   const hooks: CodexHooksFile['hooks'] = {}
   for (const e of CODEX_HOOK_EVENTS) hooks[e] = groups[e]
   return {
@@ -123,9 +116,9 @@ function sortKeys(v: unknown): unknown {
   return v
 }
 
-export function hookTrustHash(event: string, group: { matcher?: unknown }, h: Record<string, unknown>, platform: string = process.platform): string | undefined {
+export function hookTrustHash(event: string, group: { matcher?: unknown }, h: Record<string, unknown>): string | undefined {
   if (h['type'] !== 'command' || typeof h['command'] !== 'string') return undefined
-  const command = platform === 'win32' && typeof h['commandWindows'] === 'string' && h['commandWindows'].trim() !== '' ? h['commandWindows'] : h['command']
+  const command = h['command']
   const label = hookEventLabel(event)
   if (label === undefined) return undefined
   const raw = typeof h['timeout'] === 'number' && Number.isInteger(h['timeout']) && h['timeout'] >= 0 ? h['timeout'] : undefined
@@ -152,8 +145,7 @@ export function findBuracleHandlers(parsed: unknown, sourcePath: string): FoundH
       if (!isRecord(g) || !Array.isArray(g['hooks'])) return
       g['hooks'].forEach((h, hi) => {
         if (!isRecord(h) || !isBuracleCommand(h['command'])) return
-        const command = process.platform === 'win32' && typeof h['commandWindows'] === 'string' ? h['commandWindows'] : h['command']
-        out.push({ event, groupIndex: gi, handlerIndex: hi, key: hookTrustKey(sourcePath, event, gi, hi), hash: hookTrustHash(event, g, h), command: String(command) })
+        out.push({ event, groupIndex: gi, handlerIndex: hi, key: hookTrustKey(sourcePath, event, gi, hi), hash: hookTrustHash(event, g, h), command: String(h['command']) })
       })
     })
   }

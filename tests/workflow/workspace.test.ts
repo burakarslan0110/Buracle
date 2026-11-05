@@ -211,11 +211,11 @@ describe('projectRootFor and resolveWorkspace', () => {
     })
   })
 
-  test('home spelled in another case is still home on macOS and Windows', async () => {
+  test('home spelled in another case is still home on macOS', async () => {
     await withSandbox(async ({ home }) => {
       const vault = join(home, 'Documents', 'Buracle')
       const swapped = home.replace(/home$/, 'HOME')
-      await withEnv({ BURACLE_PLATFORM: 'win32' }, async () => {
+      await withEnv({ BURACLE_PLATFORM: 'darwin' }, async () => {
         expect(caseInsensitivePaths()).toBe(true)
         expect(excludedReason(swapped, vault)).toBe('your home folder')
       })
@@ -260,6 +260,18 @@ describe('index records, locks and states', () => {
       expect(codegraphDataDir(root, { CODEGRAPH_DIR: '../elsewhere' })).toBe('.codegraph')
       expect(codegraphDataDir(root, { CODEGRAPH_DIR: '/abs' })).toBe('.codegraph')
     })
+  })
+
+  test('in WSL a project on a Windows drive keeps its codegraph index apart, in .codegraph-wsl', async () => {
+    const wsl = { WSL_DISTRO_NAME: 'Ubuntu' }
+    await withEnv({ BURACLE_PLATFORM: 'linux' }, () => {
+      expect(codegraphDataDir('/mnt/c/Users/me/shop', wsl)).toBe('.codegraph-wsl')
+      expect(codegraphDataDir('/mnt/d', wsl)).toBe('.codegraph-wsl')
+      expect(codegraphDataDir('/home/me/shop', wsl)).toBe('.codegraph')
+      expect(codegraphDataDir('/mnt/wsl/shop', wsl)).toBe('.codegraph')
+      expect(codegraphDataDir('/mnt/c/Users/me/shop', { ...wsl, CODEGRAPH_DIR: '.cg' })).toBe('.cg')
+    })
+    await withEnv({ BURACLE_PLATFORM: 'darwin' }, () => expect(codegraphDataDir('/mnt/c/Users/me/shop', wsl)).toBe('.codegraph'))
   })
 
   test('a live codegraph server is read from writer.pid', async () => {
@@ -746,6 +758,23 @@ describe('what a session start reports', () => {
         { level: 'info', check: 'index.auto', detail: 'off: no code index is built automatically (`buracle index ensure` builds them by hand)' },
         { level: 'info', check: 'index', detail: `${home} is your home folder: nothing is indexed here` },
       ])
+    })
+  })
+
+  test('indexChecks in WSL: a project on a Windows drive gets a warning to move it into the Linux file system', async () => {
+    await withSandbox(async ({ home }) => {
+      const location = async (cwd: string) => (await indexChecks(cwd, defaultConfig(), 1_000)).filter(c => c.check === 'location')
+      await withEnv({ BURACLE_PLATFORM: 'linux', WSL_DISTRO_NAME: 'Ubuntu' }, async () => {
+        const rows = await location('/mnt/c/Users/me/shop')
+        expect(rows).toHaveLength(1)
+        expect(rows[0]?.level).toBe('warn')
+        expect(rows[0]?.detail).toContain('/mnt/c')
+        expect(rows[0]?.detail).toContain('Move the project into the Linux file system')
+        expect(await location('/mnt/d')).toHaveLength(1)
+        expect(await location(join(home, 'shop'))).toEqual([])
+        expect(await location('/mnt/wsl/shop')).toEqual([])
+      })
+      await withEnv({ BURACLE_PLATFORM: 'darwin', WSL_DISTRO_NAME: 'Ubuntu' }, async () => expect(await location('/mnt/c/Users/me/shop')).toEqual([]))
     })
   })
 })

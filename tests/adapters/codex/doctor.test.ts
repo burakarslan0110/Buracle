@@ -13,7 +13,7 @@ import { installTestHooks } from '../../../src/adapters/codex/install'
 import { BYPASS_APPROVAL_POLICY } from '../../../src/adapters/codex/config'
 import { codexDoctor, compareVersions, configLoadCheck, effortCheck, featureEnabled, guardProbe, hookCommandProblems, hookTrustReport, mcpCommandProblems, permissionCheck, PROBE_COMMAND, routingCheck, TESTED_CODEX, type DoctorDeps, type DoctorItem } from '../../../src/adapters/codex/doctor'
 import { run as runProcess } from '../../../src/engine/proc'
-import { HOOK_COMMAND_PREFIX, hookCommand, windowsHookPrefix } from '../../../src/adapters/codex/hooks-config'
+import { HOOK_COMMAND_PREFIX, hookCommand } from '../../../src/adapters/codex/hooks-config'
 import { buracleHooksFile, findBuracleHandlers } from '../../../src/adapters/codex/hooks-config'
 import { hostLimitsOf } from '../../../src/adapters/shared/host-limits'
 import { pathRuleFiles } from '../../../src/adapters/shared/rules'
@@ -115,18 +115,15 @@ describe('codex doctor', () => {
     const deny = JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'H01' } })
     const seen: Array<{ argv: string[], stdin: string }> = []
     const fake = async (argv: string[], opts?: { stdin?: string | Uint8Array }) => { seen.push({ argv, stdin: String(opts?.stdin) }); return { code: 0, stdout: deny, stderr: '', timedOut: false } }
-    const ok = await guardProbe('x hook codex PreToolUse', fake, home, 'linux')
+    const ok = await guardProbe('x hook codex PreToolUse', fake, home)
     expect(ok.level).toBe('ok')
     expect(seen[0]?.argv).toEqual(['/bin/sh', '-c', 'x hook codex PreToolUse'])
     expect(seen[0]?.stdin).toContain(PROBE_COMMAND)
-    expect((await guardProbe('"C:\\b\\buracle.cmd" hook codex PreToolUse', fake, home, 'win32')).level).toBe('ok')
-    expect(seen[1]?.argv).toEqual(['cmd.exe', '/d', '/s', '/c', '""C:\\b\\buracle.cmd" hook codex PreToolUse"'])
     expect((await guardProbe('x', async () => ({ code: 0, stdout: '', stderr: '', timedOut: false }), home)).level).toBe('error')
-    // A shim that runs this checkout's CLI with the hook's arguments (buracle.cmd on Windows).
+    // A shim that runs this checkout's CLI with the hook's arguments.
     const router = pathToFileURL(join(REPO, 'src', 'cli', 'router.ts')).href
     expect(fakeExe(join(paths.binDir(), 'buracle'), `const { runProcess } = await import(${JSON.stringify(router)})\nprocess.exit(await runProcess(argv))`)).toBe(paths.shimPath())
-    const prefix = process.platform === 'win32' ? windowsHookPrefix(paths.shimPath()) : HOOK_COMMAND_PREFIX
-    const real = await guardProbe(hookCommand('PreToolUse', prefix), (argv, opts) => runProcess(argv, opts ?? {}), home)
+    const real = await guardProbe(hookCommand('PreToolUse', HOOK_COMMAND_PREFIX), (argv, opts) => runProcess(argv, opts ?? {}), home)
     expect(real).toEqual({ level: 'ok', check: 'codex.hooks.probe', detail: expect.stringContaining('denies') })
   }), 60_000)
 
@@ -183,13 +180,8 @@ describe('codex doctor', () => {
     await applyPlans([await adapter.installPlan({ ...ctx(), buracleBin: shim })])
     expect(by(await codexDoctor(ctx(), fake({ env })), 'codex.hooks.command').map(i => i.level)).toEqual(['ok'])
     const lost = by(await codexDoctor(ctx(), fake({ env: { HOME: home, PATH: process.env['PATH'] } })), 'codex.hooks.command')
-    if (process.platform === 'win32') {
-      // On Windows Codex runs commandWindows, which names the shim by its absolute path: an unset BURACLE_HOME changes nothing.
-      expect(lost.map(i => i.level)).toEqual(['ok'])
-    } else {
-      expect(lost.map(i => i.level)).toEqual(['error'])
-      expect(lost[0]?.detail).toContain(join(home, '.buracle', 'bin', 'buracle'))
-    }
+    expect(lost.map(i => i.level)).toEqual(['error'])
+    expect(lost[0]?.detail).toContain(join(home, '.buracle', 'bin', 'buracle'))
     const legacy = [{ event: 'PreToolUse', groupIndex: 0, handlerIndex: 0, key: 'k', hash: undefined, command: '"$HOME/.buracle/bin/buracle" hook codex PreToolUse' }]
     // The message spells the program as the command does: $HOME expanded, the rest as written.
     expect(hookCommandProblems(legacy, env)).toEqual([`PreToolUse: ${home}/.buracle/bin/buracle does not exist or is not executable`])

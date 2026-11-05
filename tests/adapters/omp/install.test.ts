@@ -7,15 +7,15 @@ import type { AdapterContext } from '../../../src/adapters/registry'
 import { adapter, uninstallPlan } from '../../../src/adapters/omp/index'
 import { linkStatus } from '../../../src/adapters/omp/check-link'
 import { compareVersions, configFindings, effortFindings, mcpCommandFindings, permissionFinding, sharedAgentsFinding, userEffortFinding } from '../../../src/adapters/omp/doctor'
-import { agentsPointer, AGENTS_BLOCK_ID, linkCheckArgv, ompConfigKeys, ompConfigKeysFor, ompConfigPath, ompLspLayout, SHARED_AGENTS_IMPORT, userPlanAutosave, userStatusPreset, windowsMcpOp } from '../../../src/adapters/omp/install'
+import { agentsPointer, AGENTS_BLOCK_ID, linkCheckArgv, ompConfigKeys, ompConfigKeysFor, ompConfigPath, ompLspLayout, SHARED_AGENTS_IMPORT, userPlanAutosave, userStatusPreset } from '../../../src/adapters/omp/install'
 import { DEFAULT_BAND_LAYOUT, DEFAULT_OMP_SEGMENTS, ompStatusData, ompStatusLine } from '../../../src/adapters/omp/statusline'
-import { OMP_TESTED_WITH, ompCommandSkills, ompMcpServerIds } from '../../../src/adapters/omp/generated'
+import { OMP_TESTED_WITH, ompCommandSkills } from '../../../src/adapters/omp/generated'
 import { devContext } from '../../../src/adapters/omp/dev-build'
 import { loadConfigSync } from '../../../src/engine/config'
 import { mdBlockGet } from '../../../src/engine/merge'
 import * as paths from '../../../src/engine/paths'
 import { applyPlans, rollbackTxn, type Plan } from '../../../src/engine/txn'
-import { exePath, fakeExe, IS_WINDOWS, narrowPath, pathOf } from '../../helpers/fake-exe'
+import { fakeExe, narrowPath, pathOf } from '../../helpers/fake-exe'
 import { withEnv, withSandbox, type Sandbox } from '../../helpers/sandbox'
 
 const REPO = paths.repoRoot()
@@ -72,10 +72,7 @@ describe('omp installPlan', () => {
       const agentDir = join(sb.home, '.omp', 'agent')
       expect(plan.id).toBe('omp')
       expect(plan.harness).toBe('omp')
-      // On Windows omp gets the MCP servers in its own mcp.json too, just before the link.
-      const windowsOps = IS_WINDOWS ? [windowsMcpOp(ctxFor(), agentDir)] : []
-      expect(plan.ops.map(o => o.kind)).toEqual(['yaml-merge', 'md-block', 'json-merge', ...windowsOps.map(o => o.kind), 'exec'])
-      expect(plan.ops.slice(3, -1)).toEqual(windowsOps)
+      expect(plan.ops.map(o => o.kind)).toEqual(['yaml-merge', 'md-block', 'json-merge', 'exec'])
       expect(plan.ops[0]).toEqual({ kind: 'yaml-merge', path: join(agentDir, 'config.yml'), owner: 'omp', set: {
         'statusLine.preset': 'custom', 'statusLine.leftSegments': ['model', 'path', 'git', 'pr', 'subagents'],
         'statusLine.rightSegments': ['usage', 'context_pct', 'cost', 'status'], 'statusLine.showHookStatus': false,
@@ -90,28 +87,17 @@ describe('omp installPlan', () => {
         'servers.csharp-ls': { command: 'csharp-ls', args: [], fileTypes: ['.cs'], rootMarkers: ['*.sln', '*.slnx', '*.csproj', '.git'], languageId: 'csharp' },
       } })
       const exec = plan.ops.at(-1) as Extract<Plan['ops'][number], { kind: 'exec' }>
-      const omp = exePath(join(bin, 'omp'))
+      const omp = join(bin, 'omp')
       expect(exec.argv).toEqual([omp, 'plugin', 'link', join(REPO, 'harness', 'omp')])
       expect(exec.undo).toEqual([omp, 'plugin', 'uninstall', 'buracle-omp'])
       expect(exec.idempotentCheck).toEqual([Bun.which('bun') ?? process.execPath, join(REPO, 'src', 'adapters', 'omp', 'check-link.ts'), join(REPO, 'harness', 'omp'), '--omp', omp])
     })
   }))
 
-  test('Windows: the agent dir\'s mcp.json gets the Buracle servers run by buracle.cmd (omp starts a .cmd through cmd.exe; it cannot start the plugin\'s /bin/sh entries)', () => withSandbox(async sb => {
+  test('no MCP config op goes to the agent dir: omp reads the plugin\'s .mcp.json', () => withSandbox(async () => {
     if (!HARNESS_BUILT) return
-    const shim = 'C:\\Users\\Ann Lee\\.buracle\\bin\\buracle.cmd'
-    await withEnv({ BURACLE_PLATFORM: 'win32' }, async () => {
-      const plan = await adapter.installPlan(ctxFor({ buracleBin: shim }))
-      expect(plan.ops.map(o => o.kind)).toEqual(['yaml-merge', 'md-block', 'json-merge', 'json-merge', 'exec'])
-      const mcp = plan.ops[3] as Extract<Plan['ops'][number], { kind: 'json-merge' }>
-      expect(mcp.path).toBe(join(sb.home, '.omp', 'agent', 'mcp.json'))
-      expect(mcp.set['mcpServers."buracle-memory"']).toEqual({ type: 'stdio', command: shim, args: ['mcp', 'memory'] })
-      for (const entry of Object.values(mcp.set) as Array<{ type: string, command?: string }>) if (entry.type === 'stdio') expect(entry.command).not.toBe('/bin/sh')
-    })
-    await withEnv({ BURACLE_PLATFORM: 'darwin' }, async () => {
-      const plan = await adapter.installPlan(ctxFor())
-      expect(plan.ops.some(o => o.kind === 'json-merge' && o.path.endsWith('mcp.json'))).toBe(false)
-    })
+    const plan = await adapter.installPlan(ctxFor())
+    expect(plan.ops.some(o => o.kind === 'json-merge' && o.path.endsWith('mcp.json'))).toBe(false)
   }))
 
   test('honors PI_CODING_AGENT_DIR and an existing config.yaml', () => withSandbox(async sb => {
@@ -138,7 +124,7 @@ describe('omp installPlan', () => {
       const plan = await adapter.installPlan(ctxFor())
       const first = await applyPlans([plan])
       expect(first.conflicts).toEqual([])
-      expect(first.applied).toBe(IS_WINDOWS ? 5 : 4) // Windows: also the MCP servers in the agent dir's mcp.json
+      expect(first.applied).toBe(4)
       expect(JSON.parse(readFileSync(join(agentDir, 'lsp.json'), 'utf8'))).toEqual({ servers: { 'csharp-ls': { command: 'csharp-ls', args: [], fileTypes: ['.cs'], rootMarkers: ['*.sln', '*.slnx', '*.csproj', '.git'], languageId: 'csharp' } } })
       const text = readFileSync(join(agentDir, 'config.yml'), 'utf8')
       expect(text).toContain('# my omp settings')
@@ -285,10 +271,9 @@ describe('omp installPlan', () => {
       const config = join(agentDir, 'config.yml')
       expect(plan.ops.filter(o => o.kind === 'remove').map(o => o.path)).toEqual([
         ...Object.keys(ompConfigKeys(ctxFor(), { planStaging: paths.ompPlanStagingDir() })).map(k => `${config}#${k}`), `${join(agentDir, 'AGENTS.md')}#md:${AGENTS_BLOCK_ID}`, `${join(agentDir, 'lsp.json')}#servers.csharp-ls`,
-        ...(IS_WINDOWS ? ompMcpServerIds(ctxFor().canonical).map(id => `${join(agentDir, 'mcp.json')}#mcpServers.${id}`) : []),
       ].sort())
       const unlink = plan.ops.at(-1) as Extract<Plan['ops'][number], { kind: 'exec' }>
-      expect(unlink.argv).toEqual([exePath(join(bin, 'omp')), 'plugin', 'uninstall', 'buracle-omp'])
+      expect(unlink.argv).toEqual([join(bin, 'omp'), 'plugin', 'uninstall', 'buracle-omp'])
       expect(unlink.idempotentCheck?.at(-1)).toBe('--absent')
       const r = await applyPlans([plan])
       expect(r.conflicts).toEqual([])
@@ -427,23 +412,6 @@ describe('omp link check and doctor', () => {
     expect(mcpCommandFindings(undefined, env, '/p/.mcp.json')[0]?.level).toBe('error')
   }))
 
-  test('I8 on Windows: the entries of the agent dir\'s mcp.json win over the plugin\'s /bin/sh ones; a server still on /bin/sh is an error', () => withSandbox(async ({ root, home }) => {
-    const cmd = join(root, 'bin', 'buracle.cmd')
-    mkdirSync(join(root, 'bin'), { recursive: true })
-    writeFileSync(cmd, '@echo off\r\n')
-    const shell = { type: 'stdio', command: '/bin/sh', args: ['-c', 'exec "${BURACLE_HOME:-$HOME/.buracle}/bin/buracle" "$@"', 'buracle', 'mcp', 'memory'] }
-    const plugin = JSON.stringify({ mcpServers: { 'buracle-memory': shell, codegraph: { ...shell, args: [...shell.args.slice(0, 3), 'mcp', 'run', 'codegraph'] }, grep: { type: 'http', url: 'https://x' } } })
-    const env = { HOME: home, PATH: '' }
-    const file = join(home, '.omp', 'agent', 'mcp.json')
-    const none = mcpCommandFindings(plugin, env, '/p/.mcp.json', { text: undefined, file })
-    expect(none.map(f => f.level)).toEqual(['error'])
-    expect(none[0]?.detail).toContain(`buracle-memory: /bin/sh does not exist on Windows; \`buracle install omp\` writes this server into ${file}`)
-    const user = (command: string) => JSON.stringify({ mcpServers: { 'buracle-memory': { type: 'stdio', command, args: ['mcp', 'memory'] }, codegraph: { type: 'stdio', command, args: ['mcp', 'run', 'codegraph'] } } })
-    expect(mcpCommandFindings(plugin, env, '/p/.mcp.json', { text: user(cmd), file })).toEqual([{ level: 'ok', check: 'omp mcp', detail: '3 plugin MCP server commands resolve' }])
-    const gone = mcpCommandFindings(plugin, env, '/p/.mcp.json', { text: user(join(root, 'gone', 'buracle.cmd')), file })
-    expect(gone[0]?.detail).toContain(`buracle-memory: ${join(root, 'gone', 'buracle.cmd')} does not exist`)
-  }))
-
   test('permission mode (PLAN §2.7): yolo under permissions.bypass; a changed value is explained with what writes it back', () => {
     const cfg = (bypass: boolean, enforce: boolean) => ({ permissions: { bypass, enforce } })
     expect(permissionFinding({ tools: { approvalMode: 'yolo' } }, cfg(true, true), '/f')).toMatchObject({ level: 'ok', check: 'omp permission mode' })
@@ -529,7 +497,6 @@ describe('omp link check and doctor', () => {
       mkdirSync(join(sb.buracleHome, 'bin'), { recursive: true })
       writeFileSync(join(sb.buracleHome, 'bin', 'buracle'), '#!/bin/sh\nexit 0\n')
       chmodSync(join(sb.buracleHome, 'bin', 'buracle'), 0o755)
-      if (IS_WINDOWS) writeFileSync(paths.shimPath(), '@echo off\r\n') // omp runs the agent dir's mcp.json there, which names buracle.cmd
       const findings = await adapter.doctor(ctxFor())
       const by = Object.fromEntries(findings.map(f => [f.check, f]))
       expect(by['omp version']).toMatchObject({ level: 'ok', detail: `omp ${OMP_TESTED_WITH} (tested ${OMP_TESTED_WITH})` })

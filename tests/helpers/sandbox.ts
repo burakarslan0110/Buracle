@@ -16,6 +16,7 @@ export const ISOLATED_ENV: readonly string[] = [
   'CLAUDE_CODE_SESSION_ID', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'OPENCODE_SESSION_ID', 'OMP_SESSION_ID', 'CLAUDE_PID',
   'CLAUDE_PROJECT_DIR', 'CLAUDE_PLUGIN_ROOT', 'CLAUDE_PLUGIN_DATA', 'CLAUDE_ENV_FILE',
   'HOMEBREW_NO_AUTO_UPDATE', 'HOMEBREW_NO_ENV_HINTS',
+  'WSL_DISTRO_NAME', 'WSL_INTEROP', 'WSLENV', 'BURACLE_PLATFORM',
 ]
 
 export const TEST_DEFAULT_ENV: Readonly<Record<string, string>> = {
@@ -38,19 +39,16 @@ function clearedKeys(): string[] {
 // Keys a running withEnv has set or unset, with how many withEnv calls hold each.
 const overridden = new Map<string, number>()
 
-// Puts back a quiet default that went missing (on Windows a value deleted and set again was seen to vanish),
-// leaving the keys a running withEnv controls alone.
+// Puts back a quiet default that went missing, leaving the keys a running withEnv controls alone.
 function reapplyDefaults(): void {
   for (const [k, v] of Object.entries(TEST_DEFAULT_ENV)) {
     if ((overridden.get(k) ?? 0) === 0 && process.env[k] !== v) process.env[k] = v
   }
 }
 
-// The path the product sees for `p`: resolved through links, with Windows 8.3 short names (RUNNER~1)
-// expanded. The plain realpathSync is the fallback if the native one keeps a short name.
+// The path the product sees for `p`: resolved through links.
 export function realPath(p: string): string {
-  const native = realpathSync.native(p)
-  return process.platform === 'win32' && native.includes('~') ? realpathSync(p) : native
+  return realpathSync.native(p)
 }
 
 export function makeSandboxDirs(prefix = 'buracle-sb-'): Sandbox {
@@ -60,7 +58,7 @@ export function makeSandboxDirs(prefix = 'buracle-sb-'): Sandbox {
   return { root, home, buracleHome: join(home, '.buracle') }
 }
 
-const RM_RETRIES = process.platform === 'win32' ? { maxRetries: 20, retryDelay: 250 } : { maxRetries: 5, retryDelay: 100 }
+const RM_RETRIES = { maxRetries: 5, retryDelay: 100 }
 
 export async function withSandbox<T>(fn: (sb: Sandbox) => T | Promise<T>): Promise<T> {
   const sb = makeSandboxDirs()
@@ -79,24 +77,12 @@ export async function withSandbox<T>(fn: (sb: Sandbox) => T | Promise<T>): Promi
       else process.env[k] = v
     }
     reapplyDefaults()
-    // The retries only cover Windows' brief locks (an antivirus scan, a child that just exited), for up to 5 s there;
-    // a handle a test leaves open still fails here.
     if (process.env['BURACLE_KEEP_SANDBOX'] !== '1') removeSandbox(sb.root)
   }
 }
 
-// When Windows still refuses, the error names the processes whose command line holds the sandbox path.
 function removeSandbox(root: string): void {
-  try {
-    rmSync(root, { recursive: true, force: true, ...RM_RETRIES })
-  } catch (e) {
-    if (process.platform !== 'win32') throw e
-    const ps = Bun.spawnSync(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command',
-      `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*${root.replace(/'/g, "''")}*' } | ForEach-Object { "$($_.ProcessId) $($_.CommandLine)" }`],
-    { stdout: 'pipe', stderr: 'ignore', timeout: 15_000, env: { ...process.env } })
-    const holders = ps.stdout.toString().trim()
-    throw new Error(`${e instanceof Error ? e.message : String(e)}; processes naming the sandbox: ${holders === '' ? 'none (a handle this test process keeps open?)' : holders}`, { cause: e })
-  }
+  rmSync(root, { recursive: true, force: true, ...RM_RETRIES })
 }
 
 export async function withEnv<T>(vars: Record<string, string | undefined>, fn: () => T | Promise<T>): Promise<T> {

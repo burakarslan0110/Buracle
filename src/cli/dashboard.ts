@@ -4,7 +4,6 @@ import type { McpCatalog, McpServerSpec, ToolSpec } from '../core/catalog'
 import type { BuracleConfig } from '../core/config'
 import { HARNESSES, type Harness } from '../core/events'
 import * as paths from '../engine/paths'
-import { spawnArgv, windowsVerbatim } from '../engine/platform'
 import type { HealthFile } from '../engine/update/mcp'
 import { errText } from '../engine/update/output'
 import { staleServers, staleTools, updatesStale, type Verifier } from '../engine/update/refresh'
@@ -497,8 +496,7 @@ export function dashboardFits(o: { stdinTTY: boolean, stdoutTTY: boolean, json: 
 }
 
 function spawnChild(argv: readonly string[], env: Record<string, string | undefined>): ChildHandle {
-  const spawned = spawnArgv([...argv])
-  const p = Bun.spawn(spawned, { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit', env: { ...env }, windowsHide: true, windowsVerbatimArguments: windowsVerbatim(spawned) })
+  const p = Bun.spawn([...argv], { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit', env: { ...env } })
   const SIGNALS: Readonly<Record<string, number>> = { SIGHUP: 1, SIGINT: 2, SIGTERM: 15 }
   return {
     exited: p.exited.then(code => (p.signalCode ? 128 + (SIGNALS[p.signalCode] ?? 15) : code)),

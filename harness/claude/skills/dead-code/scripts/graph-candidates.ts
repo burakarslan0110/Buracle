@@ -160,7 +160,7 @@ function platformDir(sdk: string): string {
 }
 
 function bundledNode(sdk: string): string | undefined {
-  const bin = join(platformDir(sdk), process.platform === 'win32' ? 'node.exe' : 'node')
+  const bin = join(platformDir(sdk), 'node')
   try { return statSync(bin).isFile() ? bin : undefined } catch { return undefined }
 }
 

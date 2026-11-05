@@ -113,12 +113,12 @@ export function renderCommand(skill: SkillDoc): BuildFile {
   return { path: `commands/${id}.md`, content: fm + workflowCommandBody(id) }
 }
 
-export function mcpEntry(id: string, spec: McpServerSpec, shim?: string): Record<string, unknown> {
+export function mcpEntry(id: string, spec: McpServerSpec): Record<string, unknown> {
   const timeout = spec.tool_timeout_sec !== undefined ? { timeout: spec.tool_timeout_sec * 1000 } : {}
   if (spec.transport === 'http') return { type: 'http', url: spec.url ?? '', ...timeout }
   const expanded = expandMcpCommand(spec, { buracle: MCP_BURACLE_SHIM, id })
   const viaShim = expanded.command === MCP_BURACLE_SHIM
-  const { command, args } = viaShim ? (shim !== undefined ? { command: shim, args: expanded.args } : mcpShimArgv(expanded.args)) : expanded
+  const { command, args } = viaShim ? mcpShimArgv(expanded.args) : expanded
   const entry: Record<string, unknown> = { type: 'stdio', command }
   if (args.length > 0) entry['args'] = args
   const env = mcpEnvFor(spec, 'omp')

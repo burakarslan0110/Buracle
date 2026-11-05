@@ -6,7 +6,7 @@ import ts from 'typescript'
 import { buildClaude } from '../../../src/adapters/claude/build'
 import { devContext } from '../../../src/adapters/claude/dev-build'
 import { assembleFiles, driftOf, writeAssembly } from '../../../src/adapters/claude/template/dev-assemble'
-import { KEEPS_MODES } from '../../helpers/fake-exe'
+
 import { withSandbox } from '../../helpers/sandbox'
 
 const REPO = join(import.meta.dir, '..', '..', '..')
@@ -40,7 +40,7 @@ describe('dev-assemble', () => {
       const files = walk(a)
       expect(walk(b)).toEqual(files)
       for (const file of files) expect(readFileSync(join(b, file))).toEqual(readFileSync(join(a, file)))
-      if (KEEPS_MODES) expect(statSync(join(a, 'bin', 'buracle')).mode & 0o111).not.toBe(0)
+      expect(statSync(join(a, 'bin', 'buracle')).mode & 0o111).not.toBe(0)
     })
   })
 

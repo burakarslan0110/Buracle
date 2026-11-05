@@ -1,14 +1,14 @@
 import { closeSync, cpSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, rmSync, writeSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path'
 import type { BuracleConfig } from '../core/config'
-import { describeIndexState, indexHealth, indexToolDue, isCorruptIndexError, type IndexState, type ProjectIndex } from '../core/workspace'
+import { describeIndexState, indexHealth, indexToolDue, isCorruptIndexError, wslDrive, type IndexState, type ProjectIndex } from '../core/workspace'
 import { loadConfigSync } from '../engine/config'
 import { atomicWriteSync } from '../engine/fsx'
 import { revParse } from '../engine/git'
 import { breakStaleLock, lockSnapshot, lockToken, releaseLockFile } from '../engine/lockfile'
 import { log } from '../engine/log'
 import * as paths from '../engine/paths'
-import { findExecutable, spawnArgv } from '../engine/platform'
+import { findExecutable, isWsl } from '../engine/platform'
 import { run, type RunResult } from '../engine/proc'
 import { binArgv } from '../engine/toolchain/packages'
 import { packageKey, readToolchainState } from '../engine/toolchain/state'
@@ -263,7 +263,7 @@ async function warmSemble(root: string, o: ToolRun): Promise<IndexToolRecord> {
 export async function ensureIndexes(root: string, opts: EnsureOptions, nowMs: () => number = Date.now): Promise<EnsureResult> {
   const release = takeLock(root, nowMs())
   if (release === undefined) return { root, skipped: 'another Buracle process is indexing this project' }
-  const exec: Runner = opts.runner ?? ((argv, o) => run(spawnArgv(argv), { ...o, processGroup: true }))
+  const exec: Runner = opts.runner ?? ((argv, o) => run([...argv], { ...o, processGroup: true }))
   const env = { ...INDEX_ENV }
   const timeoutMs = opts.timeoutMs ?? 15 * 60_000
   const live = opts.liveWriter ?? codegraphLiveWriter
@@ -410,8 +410,17 @@ function levelOf(s: IndexState): IndexCheck['level'] {
   return 'warn'
 }
 
+// WSL reaches a Windows drive through a network file system: git, the indexers and the harnesses read it many times slower.
+function wslLocationCheck(cwd: string): IndexCheck | undefined {
+  const drive = isWsl() ? wslDrive(cwd) : undefined
+  if (drive === undefined) return undefined
+  return { level: 'warn', check: 'location', detail: `${cwd} is on the Windows drive ${drive.toUpperCase()}: (/mnt/${drive}), where Linux tools read files slowly. Move the project into the Linux file system, for example ~/projects.` }
+}
+
 export async function indexChecks(cwd: string, cfg: BuracleConfig, nowMs: number): Promise<IndexCheck[]> {
   const out: IndexCheck[] = []
+  const location = wslLocationCheck(cwd)
+  if (location !== undefined) out.push(location)
   if (!cfg.index.auto) out.push({ level: 'info', check: 'index.auto', detail: 'off: no code index is built automatically (`buracle index ensure` builds them by hand)' })
   const info = await workspaceInfo(cwd, cfg, nowMs)
   const tools = (pi: ProjectIndex): Array<[string, IndexState]> => [['codegraph', pi.codegraph], ['semble', pi.semble]]

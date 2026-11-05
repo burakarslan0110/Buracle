@@ -13,8 +13,8 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
-type Platform = 'darwin-arm64' | 'darwin-x64' | 'linux-x64' | 'linux-arm64' | 'win32-x64'
-const PLATFORMS: readonly Platform[] = ['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64', 'win32-x64']
+type Platform = 'darwin-arm64' | 'darwin-x64' | 'linux-x64' | 'linux-arm64'
+const PLATFORMS: readonly Platform[] = ['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64']
 type Tool = 'node' | 'uv' | 'rg' | 'jq'
 const TOOLS: readonly Tool[] = ['node', 'uv', 'rg', 'jq']
 
@@ -51,47 +51,39 @@ function hashIn(sums: string, name: string, source: string): string {
   throw new Error(`${source} has no sha256 for ${name}`)
 }
 
-interface Asset { url: string, sha256: string, format: 'tar.gz' | 'zip' | 'bin', bins: Record<string, string> }
-
-const win = (p: Platform) => p === 'win32-x64'
+interface Asset { url: string, sha256: string, format: 'tar.gz' | 'bin', bins: Record<string, string> }
 
 async function nodeAssets(v: string): Promise<Record<Platform, Asset>> {
   const base = `https://nodejs.org/dist/v${v}`
   const sums = await text(`${base}/SHASUMS256.txt`)
-  const name = (p: Platform) => (win(p) ? `node-v${v}-win-x64.zip` : `node-v${v}-${p}.tar.gz`)
+  const name = (p: Platform) => `node-v${v}-${p}.tar.gz`
   const out = {} as Record<Platform, Asset>
   for (const p of PLATFORMS) {
     out[p] = {
-      url: `${base}/${name(p)}`, sha256: hashIn(sums, name(p), `${base}/SHASUMS256.txt`), format: win(p) ? 'zip' : 'tar.gz',
-      bins: win(p) ? { node: 'node.exe', npm: 'npm.cmd', npx: 'npx.cmd' } : { node: 'bin/node', npm: 'bin/npm', npx: 'bin/npx' },
+      url: `${base}/${name(p)}`, sha256: hashIn(sums, name(p), `${base}/SHASUMS256.txt`), format: 'tar.gz',
+      bins: { node: 'bin/node', npm: 'bin/npm', npx: 'bin/npx' },
     }
   }
   return out
 }
 
 const TRIPLES: Record<'uv' | 'rg', Record<Platform, string>> = {
-  uv: { 'darwin-arm64': 'aarch64-apple-darwin', 'darwin-x64': 'x86_64-apple-darwin', 'linux-x64': 'x86_64-unknown-linux-gnu', 'linux-arm64': 'aarch64-unknown-linux-gnu', 'win32-x64': 'x86_64-pc-windows-msvc' },
+  uv: { 'darwin-arm64': 'aarch64-apple-darwin', 'darwin-x64': 'x86_64-apple-darwin', 'linux-x64': 'x86_64-unknown-linux-gnu', 'linux-arm64': 'aarch64-unknown-linux-gnu' },
   // ripgrep publishes no glibc build for x86_64 Linux; the static musl build runs everywhere.
-  rg: { 'darwin-arm64': 'aarch64-apple-darwin', 'darwin-x64': 'x86_64-apple-darwin', 'linux-x64': 'x86_64-unknown-linux-musl', 'linux-arm64': 'aarch64-unknown-linux-gnu', 'win32-x64': 'x86_64-pc-windows-msvc' },
+  rg: { 'darwin-arm64': 'aarch64-apple-darwin', 'darwin-x64': 'x86_64-apple-darwin', 'linux-x64': 'x86_64-unknown-linux-musl', 'linux-arm64': 'aarch64-unknown-linux-gnu' },
 }
 
-// A per-asset file holds `<hash>  <name>`, or (ripgrep's Windows builds) PowerShell's "SHA256 hash of <name>:" with the
-// hash on the next line: one 64-digit hash in a file that names the asset.
+// A per-asset file holds `<hash>  <name>`.
 async function perAssetSha(url: string, name: string): Promise<string> {
-  const body = await text(`${url}.sha256`)
-  try { return hashIn(body, name, `${url}.sha256`) } catch (e) {
-    const hashes = body.match(/\b[0-9a-f]{64}\b/gi) ?? []
-    if (body.includes(name) && hashes.length === 1) return (hashes[0] as string).toLowerCase()
-    throw e
-  }
+  return hashIn(await text(`${url}.sha256`), name, `${url}.sha256`)
 }
 
 async function uvAssets(v: string): Promise<Record<Platform, Asset>> {
   const out = {} as Record<Platform, Asset>
   for (const p of PLATFORMS) {
-    const name = `uv-${TRIPLES.uv[p]}.${win(p) ? 'zip' : 'tar.gz'}`
+    const name = `uv-${TRIPLES.uv[p]}.tar.gz`
     const url = `https://github.com/astral-sh/uv/releases/download/${v}/${name}`
-    out[p] = { url, sha256: await perAssetSha(url, name), format: win(p) ? 'zip' : 'tar.gz', bins: win(p) ? { uv: 'uv.exe', uvx: 'uvx.exe' } : { uv: 'uv', uvx: 'uvx' } }
+    out[p] = { url, sha256: await perAssetSha(url, name), format: 'tar.gz', bins: { uv: 'uv', uvx: 'uvx' } }
   }
   return out
 }
@@ -99,21 +91,21 @@ async function uvAssets(v: string): Promise<Record<Platform, Asset>> {
 async function rgAssets(v: string): Promise<Record<Platform, Asset>> {
   const out = {} as Record<Platform, Asset>
   for (const p of PLATFORMS) {
-    const name = `ripgrep-${v}-${TRIPLES.rg[p]}.${win(p) ? 'zip' : 'tar.gz'}`
+    const name = `ripgrep-${v}-${TRIPLES.rg[p]}.tar.gz`
     const url = `https://github.com/BurntSushi/ripgrep/releases/download/${v}/${name}`
-    out[p] = { url, sha256: await perAssetSha(url, name), format: win(p) ? 'zip' : 'tar.gz', bins: { rg: win(p) ? 'rg.exe' : 'rg' } }
+    out[p] = { url, sha256: await perAssetSha(url, name), format: 'tar.gz', bins: { rg: 'rg' } }
   }
   return out
 }
 
-const JQ_NAMES: Record<Platform, string> = { 'darwin-arm64': 'jq-macos-arm64', 'darwin-x64': 'jq-macos-amd64', 'linux-x64': 'jq-linux-amd64', 'linux-arm64': 'jq-linux-arm64', 'win32-x64': 'jq-windows-amd64.exe' }
+const JQ_NAMES: Record<Platform, string> = { 'darwin-arm64': 'jq-macos-arm64', 'darwin-x64': 'jq-macos-amd64', 'linux-x64': 'jq-linux-amd64', 'linux-arm64': 'jq-linux-arm64' }
 
 async function jqAssets(v: string): Promise<Record<Platform, Asset>> {
   const base = `https://github.com/jqlang/jq/releases/download/jq-${v}`
   const sums = await text(`${base}/sha256sum.txt`)
   const out = {} as Record<Platform, Asset>
   for (const p of PLATFORMS) {
-    out[p] = { url: `${base}/${JQ_NAMES[p]}`, sha256: hashIn(sums, JQ_NAMES[p], `${base}/sha256sum.txt`), format: 'bin', bins: { jq: win(p) ? 'jq.exe' : 'jq' } }
+    out[p] = { url: `${base}/${JQ_NAMES[p]}`, sha256: hashIn(sums, JQ_NAMES[p], `${base}/sha256sum.txt`), format: 'bin', bins: { jq: 'jq' } }
   }
   return out
 }
@@ -122,10 +114,10 @@ function render(pins: Record<Tool, { version: string, assets: Record<Platform, A
   const lines: string[] = [
     '// Generated by scripts/pin-system-tools.ts: do not edit by hand. Run `bun scripts/pin-system-tools.ts` to move the pins.',
     '// node, uv, rg and jq at fixed versions, with the sha256 their projects published for each download. Buracle',
-    '// downloads one only when it is missing and no package manager (Homebrew, winget, scoop) can install it.',
+    '// downloads one only when it is missing and no package manager (Homebrew) can install it.',
     '',
-    "export type PinPlatform = 'darwin-arm64' | 'darwin-x64' | 'linux-x64' | 'linux-arm64' | 'win32-x64'",
-    "export type PinFormat = 'tar.gz' | 'zip' | 'bin'",
+    "export type PinPlatform = 'darwin-arm64' | 'darwin-x64' | 'linux-x64' | 'linux-arm64'",
+    "export type PinFormat = 'tar.gz' | 'bin'",
     "export type PinnedToolName = 'node' | 'uv' | 'rg' | 'jq'",
     '',
     '/** One download: its URL, its sha256, how it is packed and where each program sits in the unpacked tool folder. */',
@@ -174,7 +166,6 @@ async function verify(): Promise<number> {
   const { installPinnedTool, pinPlatform } = await import('../src/engine/toolchain/system-download')
   const { SYSTEM_TOOL_PINS } = await import('../src/engine/toolchain/system-pins')
   const { readToolsCatalog } = await import('../src/engine/toolchain/lsp')
-  const { spawnArgv, windowsVerbatim } = await import('../src/engine/platform')
   const catalog = readToolsCatalog(join(import.meta.dir, '..', 'canonical', 'tools.yaml'))
   const platform = pinPlatform()
   if (platform === undefined) { console.error(`no pins for ${process.platform}-${process.arch}`); return 1 }
@@ -191,10 +182,9 @@ async function verify(): Promise<number> {
       const npm = r.bins['npm']
       const nodeBin = r.bins['node']
       if (t === 'node' && npm !== undefined && nodeBin !== undefined) {
-        const PATH = `${dirname(nodeBin)}${process.platform === 'win32' ? ';' : ':'}${process.env['PATH'] ?? ''}`
-        // npm.cmd on Windows: the product's own launcher builds the cmd.exe line and keeps its quotes intact.
-        const argv = spawnArgv([npm, '--version'])
-        const out = Bun.spawnSync(argv, { env: { ...process.env, PATH }, stdout: 'pipe', stderr: 'pipe', windowsVerbatimArguments: windowsVerbatim(argv) })
+        const PATH = `${dirname(nodeBin)}:${process.env['PATH'] ?? ''}`
+        const argv = [npm, '--version']
+        const out = Bun.spawnSync(argv, { env: { ...process.env, PATH }, stdout: 'pipe', stderr: 'pipe' })
         if (out.exitCode === 0) console.log(`ok   npm with node ${SYSTEM_TOOL_PINS[t].version}: ${out.stdout.toString().trim()}`)
         else { failed++; console.error(`FAIL npm with node ${SYSTEM_TOOL_PINS[t].version}: ${out.stderr.toString().trim()}`) }
       }

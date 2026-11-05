@@ -11,7 +11,7 @@ import { emptyToolchainState, updateToolchainState } from '../../src/engine/tool
 import type { ToolchainItem, ToolchainOptions } from '../../src/engine/toolchain/index'
 import { COMMANDS } from '../../src/cli/router'
 import { indexLockFile } from '../../src/workflow/workspace'
-import { fakeExe, IS_WINDOWS, pathOf } from '../helpers/fake-exe'
+import { fakeExe, pathOf } from '../helpers/fake-exe'
 import { withEnv, withSandbox } from '../helpers/sandbox'
 import { memoryIO, withDeps } from './ops/helpers'
 import { g } from '../workflow/fixture'
@@ -121,9 +121,9 @@ const webSearch = (h: 'claude' | 'opencode' | 'omp') => {
   return { harness: h, sessionId: 's', cwd: '/w', tool, input: { query: 'bun 1.4 changelog' }, ...classifyTool(h, tool, { query: 'bun 1.4 changelog' }, '/w') }
 }
 
-// execve and POSIX signals: Windows has neither, so there the launcher runs the server as its child (the last case).
+// A toolchain copy takes over the launcher through execve; a server from the package runner runs as its child (the last case).
 describe('buracle mcp run: the launcher becomes the server (PERF-5)', () => {
-  test.skipIf(IS_WINDOWS)('a toolchain copy replaces the launcher process: the server has its pid and its exit code is the exit code', async () => {
+  test('a toolchain copy replaces the launcher process: the server has its pid and its exit code is the exit code', async () => {
     await withSandbox(async ({ root }) => {
       const pidFile = join(root, 'server.pid')
       installWebSearch(fakeExe(join(root, 'tc', 'open-websearch'), `fs.writeFileSync(${q(pidFile)}, String(process.pid))\nawait Bun.stdin.text()\nprocess.exit(7)`))
@@ -136,7 +136,7 @@ describe('buracle mcp run: the launcher becomes the server (PERF-5)', () => {
     })
   })
 
-  test.skipIf(IS_WINDOWS)('the harness\'s signal reaches the server itself: SIGTERM ends the process by that signal', async () => {
+  test('the harness\'s signal reaches the server itself: SIGTERM ends the process by that signal', async () => {
     await withSandbox(async ({ root }) => {
       const pidFile = join(root, 'server.pid')
       installWebSearch(fakeExe(join(root, 'tc', 'open-websearch'), `fs.writeFileSync(${q(pidFile)}, String(process.pid))\nsetTimeout(() => {}, 30_000)`))
@@ -148,14 +148,17 @@ describe('buracle mcp run: the launcher becomes the server (PERF-5)', () => {
     })
   })
 
-  test.skipIf(PYTHON === null || IS_WINDOWS)('the server gets the stdio the harness gave the launcher: fds 0-2 stay blocking, as a child too', async () => {
+  test.skipIf(PYTHON === null)('the server gets the stdio the harness gave the launcher: fds 0-2 stay blocking, as a child too', async () => {
     await withSandbox(async ({ root }) => {
-      for (const [i, env] of [{}, { BURACLE_PLATFORM: 'win32' }].entries()) {
-        const flagsFile = join(root, `flags-${i}.txt`)
-        installWebSearch(fdProbe(join(root, `tc-${i}`), flagsFile))
+      for (const via of ['runner', 'toolchain'] as const) {
+        const flagsFile = join(root, `flags-${via}.txt`)
+        const probe = fdProbe(join(root, `tc-${via}`), flagsFile)
+        let env: Record<string, string> = {}
+        if (via === 'toolchain') installWebSearch(probe)
+        else env = { PATH: pathOf(script(join(root, 'bin'), 'npx', `exec "${probe}"\n`).replace(/\/npx$/, ''), process.env['PATH'] ?? '') }
         const proc = launch(env)
         try {
-          expect({ env, flags: await textIn(flagsFile) }).toEqual({ env, flags: 'False False False' })
+          expect({ via, flags: await textIn(flagsFile) }).toEqual({ via, flags: 'False False False' })
         } finally {
           proc.stdin.write('done\n')
           await proc.stdin.end()
@@ -176,15 +179,16 @@ describe('buracle mcp run: the launcher becomes the server (PERF-5)', () => {
       proc.stdin.write('x\n')
       await proc.stdin.end()
       await proc.exited
-      expect(seen.split(IS_WINDOWS ? ';' : ':')[0]).toBe(nodeBin)
+      expect(seen.split(':')[0]).toBe(nodeBin)
     })
   })
 
-  test('without execve (Windows) the server runs as the launcher\'s child and its exit code is passed on', async () => {
+  test('a server from the package runner runs as the launcher\'s child and its exit code is passed on', async () => {
     await withSandbox(async ({ root }) => {
       const pidFile = join(root, 'server.pid')
-      installWebSearch(fakeExe(join(root, 'tc', 'open-websearch'), `fs.writeFileSync(${q(pidFile)}, String(process.pid))\nawait Bun.stdin.text()\nprocess.exit(5)`))
-      const proc = launch({ BURACLE_PLATFORM: 'win32' })
+      const bin = join(root, 'bin')
+      fakeExe(join(bin, 'npx'), `fs.writeFileSync(${q(pidFile)}, String(process.pid))\nawait Bun.stdin.text()\nprocess.exit(5)`)
+      const proc = launch({ PATH: pathOf(bin, process.env['PATH'] ?? '') })
       expect(await pidIn(pidFile)).not.toBe(proc.pid)
       proc.stdin.write('x\n')
       await proc.stdin.end()
@@ -235,7 +239,7 @@ describe('buracle mcp run: a failed start makes the built-in fallback reachable 
     })
   })
 
-  test.skipIf(IS_WINDOWS)('a signal the launcher forwards ends the server without a failed start', async () => {
+  test('a signal the launcher forwards ends the server without a failed start', async () => {
     await withSandbox(async ({ root }) => {
       const bin = join(root, 'bin')
       const pidFile = join(root, 'server.pid')

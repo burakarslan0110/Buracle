@@ -6,7 +6,7 @@ import type { OpsDeps } from '../../../src/engine/update/deps'
 import { readHealth } from '../../../src/engine/update/mcp'
 import { brewUpgradeCommand, npmUrl } from '../../../src/engine/update/updates'
 import { skillsAdd } from '../../../src/workflow/skill-install'
-import { fakeExe, IS_WINDOWS, narrowPath } from '../../helpers/fake-exe'
+import { fakeExe, narrowPath } from '../../helpers/fake-exe'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
 import { behindRemote, daysAgo, fakeAdapter, fakeCli, fakeFetch, fakeMcpServer, git, makeRepo, memoryIO, noNetwork, withDeps } from './helpers'
 
@@ -38,7 +38,7 @@ if (two === 'upgrade --cask' && ${q(opts.upgrades)}) fs.writeFileSync(${q(state)
   }
 
   // Homebrew casks exist only on macOS and Linux.
-  test.skipIf(IS_WINDOWS)('a Homebrew cask install is checked against the Homebrew API and upgraded with brew; the version is measured again', () => withSandbox(async ({ root, buracleHome }) => {
+  test('a Homebrew cask install is checked against the Homebrew API and upgraded with brew; the version is measured again', () => withSandbox(async ({ root, buracleHome }) => {
     const repo = makeRepo(root)
     const c = caskCodex(root, { upgrades: true })
     mkdirSync(join(buracleHome, 'cache'), { recursive: true })
@@ -68,7 +68,7 @@ if (two === 'upgrade --cask' && ${q(opts.upgrades)}) fs.writeFileSync(${q(state)
   }), 60_000)
 
   // Homebrew casks exist only on macOS and Linux.
-  test.skipIf(IS_WINDOWS)('a brew upgrade that leaves the old version is a failure, and no doctor runs', () => withSandbox(async ({ root }) => {
+  test('a brew upgrade that leaves the old version is a failure, and no doctor runs', () => withSandbox(async ({ root }) => {
     const repo = makeRepo(root)
     const c = caskCodex(root, { upgrades: false })
     const codex = fakeAdapter('codex', { version: c.version, path: c.path })
@@ -83,7 +83,7 @@ if (two === 'upgrade --cask' && ${q(opts.upgrades)}) fs.writeFileSync(${q(state)
   }), 60_000)
 
   // Homebrew casks exist only on macOS and Linux.
-  test.skipIf(IS_WINDOWS)('a formula from another tap uses the local brew data; an unreachable Homebrew API falls back to it too', () => withSandbox(async ({ root }) => {
+  test('a formula from another tap uses the local brew data; an unreachable Homebrew API falls back to it too', () => withSandbox(async ({ root }) => {
     const repo = makeRepo(root)
     const c = caskCodex(root, { upgrades: true, tap: 'someone/tap' })
     const codex = fakeAdapter('codex', { version: c.version, path: c.path })
@@ -110,7 +110,7 @@ if (two === 'upgrade --cask' && ${q(opts.upgrades)}) fs.writeFileSync(${q(state)
   }), 60_000)
 
   // Homebrew casks exist only on macOS and Linux.
-  test.skipIf(IS_WINDOWS)('text from brew reaches the terminal without escape sequences: a tap name in the table note, an Error: line on stderr', () => withSandbox(async ({ root }) => {
+  test('text from brew reaches the terminal without escape sequences: a tap name in the table note, an Error: line on stderr', () => withSandbox(async ({ root }) => {
     const repo = makeRepo(root)
     const c = caskCodex(root, { upgrades: true, tap: 'evil/\u001b[2Jtap' })
     const codex = fakeAdapter('codex', { version: c.version, path: c.path })

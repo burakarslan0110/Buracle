@@ -6,7 +6,7 @@ import { defaultConfig } from '../../../src/core/config'
 import { CATASTROPHIC_RULES, CATASTROPHIC_SETS, catastrophicPolicy, catastrophicTargets, matchesPrefixRule, recursiveForceFlags, renderRulesFile, type PrefixRule, type RuleSets } from '../../../src/adapters/codex/execpolicy'
 import { run } from '../../../src/engine/proc'
 import { testWhenImplemented } from '../../helpers/not-implemented'
-import { pathOf, systemPathDirs } from '../../helpers/fake-exe'
+import { pathOf, SYSTEM_PATH_DIRS } from '../../helpers/fake-exe'
 import { withSandbox } from '../../helpers/sandbox'
 
 function tokens(cmd: string): string[] {
@@ -99,7 +99,7 @@ describe.skipIf(CODEX === null || CODEX === undefined)('execpolicy rules against
     mkdirSync(join(home, '.codex'), { recursive: true })
     const env: Record<string, string | undefined> = {}
     for (const k of Object.keys(process.env)) env[k] = undefined
-    Object.assign(env, { PATH: pathOf(...systemPathDirs(), '/opt/homebrew/bin', '/usr/local/bin'), HOME: home, CODEX_HOME: join(home, '.codex') })
+    Object.assign(env, { PATH: pathOf(...SYSTEM_PATH_DIRS, '/opt/homebrew/bin', '/usr/local/bin'), HOME: home, CODEX_HOME: join(home, '.codex') })
     const check = async (argv: string[]) => {
       const r = await run([CODEX as string, 'execpolicy', 'check', '--rules', rules, '--', ...argv], { env, timeoutMs: 30_000 })
       expect({ argv, code: r.code, stderr: r.stderr.trim() }).toEqual({ argv, code: 0, stderr: '' })

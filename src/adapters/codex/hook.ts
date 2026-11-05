@@ -81,7 +81,6 @@ export interface CodexHookDeps {
   resolveChecker?: (argv: readonly string[]) => string[]
   env?: () => Record<string, string | undefined>
   newId?: () => string
-  platform?: string
   prepareWorkspace?: (cwd: string, ctx: AdapterContext, nowMs: number) => Promise<WorkspaceInfo | undefined>
   workspaceInfo?: (cwd: string, ctx: AdapterContext, nowMs: number) => Promise<WorkspaceInfo | undefined>
   refreshWorkspace?: (info: WorkspaceInfo, ctx: AdapterContext, nowMs: number) => WorkspaceInfo
@@ -418,7 +417,7 @@ async function onPreToolUse(p: Payload, sid: string, sessionCwd: string, ctx: Ad
     if (lane !== undefined) return denyOutput(lane)
     const consent = await step(ev, 'H20 consent', undefined as string | undefined, () => consentGate(H, sid, command, now, deps.core.consentVerdict))
     if (consent !== undefined) {
-      const env = { platform: deps.platform ?? process.platform, shell: envOf(deps)['SHELL'] }
+      const env = { shell: envOf(deps)['SHELL'] }
       if (!await step(ev, 'H20 consent prompt', false, () => canPromptConsent(p, ctx, command, env) && !unaskedConsent(sid, command, now))) return denyOutput(denyReason('H20', consent))
       held = { command, reason: consent, env }
     }
@@ -774,7 +773,7 @@ async function onSessionEnd(sid: string, ctx: AdapterContext, deps: CodexHookDep
     const m = await deps.memory()
     if (m.spawnFinalizer) { await m.spawnFinalizer(H, sid); return }
     if (!existsSync(ctx.buracleBin)) return
-    const child = Bun.spawn([ctx.buracleBin, 'mem', 'finalize', '--harness', H, '--session', sid, '--detach'], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', env: { ...process.env }, windowsHide: true })
+    const child = Bun.spawn([ctx.buracleBin, 'mem', 'finalize', '--harness', H, '--session', sid, '--detach'], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', env: { ...process.env } })
     child.unref()
   })
   return NOTHING

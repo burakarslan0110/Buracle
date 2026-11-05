@@ -2,9 +2,8 @@ import { existsSync, lstatSync, readdirSync, statSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { Harness } from '../../core/events'
 import { bunExecutable } from '../config'
-import { isWindows } from '../platform'
 import { denyJson, failClosedReason } from '../hook-fail'
-import { windowsLauncher, type ToolLink } from '../toolchain/links'
+import type { ToolLink } from '../toolchain/links'
 import { atomicWriteSync, readJsonSafeSync, realPath } from '../fsx'
 import { parseKeyPath } from '../merge'
 import * as paths from '../paths'
@@ -24,7 +23,7 @@ export interface InstallPhase { id: string; title: string; detail: string }
 
 export const INSTALL_PHASES: readonly InstallPhase[] = [
   { id: 'preflight', title: 'Preflight', detail: '`HOME` must be an absolute path other than `/`. `BURACLE_HOME` cannot be the home directory itself, a directory that contains it, or a directory other programs share (such as `~/.local`, `~/.config` or `~/Library`). The configuration is loaded live.' },
-  { id: 'toolchain', title: 'Toolchain', detail: 'Installs everything the harnesses need: missing system tools (git, Node.js, uv, rg, ast-grep, jq, gh) through Homebrew on macOS and winget or scoop on Windows; MCP server packages and the pyright and typescript-language-server language servers under `~/.buracle/toolchain`; the gopls, rust-analyzer, csharp-ls and jdtls language servers through Homebrew, scoop, `go install` or `dotnet tool install`. npm and PyPI packages, CortexDB and the system tools take their newest release, and packages that are already installed move to it (`toolchain.upgrade`); a new CortexDB is used only after it passed the memory check, with the brains backed up first. `update.minReleaseAgeDays` (0 by default) can make Buracle wait that many days after an npm or PyPI release, as `buracle update` does then too. An npm package is installed into a staging folder and swapped in only after it passed its check, so a server that starts meanwhile never sees a half-written copy; the copy it replaced is kept for `buracle rollback toolchain`. `--dry-run` only reports; `toolchain.autoInstall: false` or `BURACLE_NO_TOOLCHAIN=1` skips this step.' },
+  { id: 'toolchain', title: 'Toolchain', detail: 'Installs everything the harnesses need: missing system tools (git, Node.js, uv, rg, ast-grep, jq, gh) through Homebrew; MCP server packages and the pyright and typescript-language-server language servers under `~/.buracle/toolchain`; the gopls, rust-analyzer, csharp-ls and jdtls language servers through Homebrew, `go install` or `dotnet tool install`. npm and PyPI packages, CortexDB and the system tools take their newest release, and packages that are already installed move to it (`toolchain.upgrade`); a new CortexDB is used only after it passed the memory check, with the brains backed up first. `update.minReleaseAgeDays` (0 by default) can make Buracle wait that many days after an npm or PyPI release, as `buracle update` does then too. An npm package is installed into a staging folder and swapped in only after it passed its check, so a server that starts meanwhile never sees a half-written copy; the copy it replaced is kept for `buracle rollback toolchain`. `--dry-run` only reports; `toolchain.autoInstall: false` or `BURACLE_NO_TOOLCHAIN=1` skips this step.' },
   { id: 'detect', title: 'Harness detection', detail: 'Every harness enabled in the configuration is looked up with `detect()`. A harness that is not installed or is turned off is skipped and reported.' },
   { id: 'compose', title: 'Composing the plans', detail: 'Collects the core plan (the shim, the `~/.local/bin/buracle` link, `repo` in `config.yaml`, and the path rules Codex and OpenCode read, `~/.buracle/rules/paths/<id>.md`), the shared skills plan when Codex, OpenCode or Oh My Pi is installed (the symlinks `~/.agents/skills/<id>` → `harness/agents-skills/<id>`), and the `installPlan()` output of every harness adapter. While a harness that rewrites its own configuration is running (Codex, for example), its adapter skips it and asks you to quit it and try again; in a terminal `buracle install` asks whether to write its configuration anyway. A Codex older than the oldest version Buracle supports is left as it is without a question, also when forced, because it could not load the configuration Buracle writes; the next steps name `buracle update codex`, then `buracle install codex` (exit 2). Items an earlier install wrote that no plan produces any more get removal operations. When a target inside HOME passes through a symlink that leads outside HOME (a dotfiles repository elsewhere, for example), only that file is skipped and reported as a conflict; in a terminal `buracle install` asks whether to write through such links.' },
   { id: 'preview', title: 'Preview', detail: '`--dry-run` prints a unified diff for each plan and stops here; a plan that a running harness would skip shows as a warning. Otherwise the changes are counted: in a terminal they are applied at once, without a question, while each step shows on the screen; without a terminal nothing is written unless `--yes` is given, and the summary says how many changes wait.' },
@@ -43,7 +42,6 @@ export interface ShimOptions { bun: string, repoRoot: string, buracleHome?: stri
 export const SHIM_DENY_DETAIL = "the hook process failed, or the shim's bun or Buracle's runtime is missing"
 
 export function shimContent(opts: ShimOptions): string {
-  const fwd = (p: string) => (isWindows() ? p.replace(/\\/g, '/') : p)
   const frozen = opts.runtime !== undefined
   const main = join(opts.runtime ?? opts.repoRoot, 'src', 'cli', 'main.ts')
   const deny = denyJson(failClosedReason(SHIM_DENY_DETAIL)).trimEnd()
@@ -55,11 +53,11 @@ export function shimContent(opts: ShimOptions): string {
       ? '# It runs the frozen runtime `buracle install` copied from the checkout: edits in the checkout go live with `buracle install`.'
       : '# It runs the checkout directly (BURACLE_RUNTIME=checkout): every edit there is live at once.',
   ]
-  if (opts.buracleHome !== undefined) lines.push(`if [ -z "\${BURACLE_HOME:-}" ]; then BURACLE_HOME=${shellQuote(fwd(opts.buracleHome))}; export BURACLE_HOME; fi`)
-  lines.push(`b=${shellQuote(fwd(opts.bun))}`, `m=${shellQuote(fwd(main))}`)
+  if (opts.buracleHome !== undefined) lines.push(`if [ -z "\${BURACLE_HOME:-}" ]; then BURACLE_HOME=${shellQuote(opts.buracleHome)}; export BURACLE_HOME; fi`)
+  lines.push(`b=${shellQuote(opts.bun)}`, `m=${shellQuote(main)}`)
   if (frozen) {
     lines.push(
-      `c=${shellQuote(fwd(join(opts.repoRoot, 'src', 'cli', 'main.ts')))}`,
+      `c=${shellQuote(join(opts.repoRoot, 'src', 'cli', 'main.ts'))}`,
       'case "$1" in doctor|install|update|uninstall|rollback)',
       '  if [ -x "$b" ] && [ -f "$c" ] && ! "$b" "$m" "$1" --help >/dev/null 2>&1; then',
       '    echo "buracle: the runtime $m cannot run \\`buracle $1\\`; running the checkout instead (\\`buracle install\\` replaces the runtime)" >&2',
@@ -98,60 +96,6 @@ export function shimContent(opts: ShimOptions): string {
   return lines.join('\n') + '\n'
 }
 
-function cmdSafe(s: string): string {
-  return s.replace(/[<>|&^%!]/g, ' ')
-}
-
-export function windowsShimContent(opts: ShimOptions): string {
-  const main = join(opts.runtime ?? opts.repoRoot, 'src', 'cli', 'main.ts')
-  const checkoutMain = join(opts.repoRoot, 'src', 'cli', 'main.ts')
-  const lines = ['@echo off', 'rem Buracle CLI shim written by `buracle install`. Re-run `buracle install` instead of editing it.', `rem buracle-shim: ${opts.runtime !== undefined ? 'frozen' : 'checkout'}`]
-  if (opts.buracleHome !== undefined) lines.push(`if not defined BURACLE_HOME set "BURACLE_HOME=${opts.buracleHome}"`)
-  const deny = cmdSafe(denyJson(failClosedReason(SHIM_DENY_DETAIL)).trimEnd())
-  lines.push(
-    `if not exist "${main}" goto missing`,
-    // A guard hook (PreToolUse) runs like the sh shim's: stdout is held back, an exit other than 0 or 2 (a crashed bun,
-    // a missing bun.exe) is answered with the deny JSON instead, so the call is not let through.
-    'if /i not "%~1"=="hook" goto run',
-    'if /i not "%~3"=="PreToolUse" goto run',
-    'if /i "%~2"=="claude" goto guard',
-    'if /i "%~2"=="codex" goto guard',
-    ':run',
-    `"${opts.bun}" "${main}" %*`,
-    'exit /b %ERRORLEVEL%',
-    ':guard',
-    'setlocal',
-    'set "BURACLE_HOOK_OUT=%TEMP%\\buracle-hook-%RANDOM%%RANDOM%%RANDOM%.out"',
-    `"${opts.bun}" "${main}" %* > "%BURACLE_HOOK_OUT%"`,
-    'set "BURACLE_HOOK_RC=%ERRORLEVEL%"',
-    'if "%BURACLE_HOOK_RC%"=="0" goto guardok',
-    'if "%BURACLE_HOOK_RC%"=="2" goto guardok',
-    'del "%BURACLE_HOOK_OUT%" 2>nul',
-    `echo ${deny}`,
-    'exit /b 0',
-    ':guardok',
-    'type "%BURACLE_HOOK_OUT%"',
-    'del "%BURACLE_HOOK_OUT%" 2>nul',
-    'exit /b %BURACLE_HOOK_RC%',
-    ':missing',
-    'if /i "%~1"=="hook" goto hook',
-  )
-  if (opts.runtime !== undefined) lines.push(`if exist "${checkoutMain}" "${opts.bun}" "${checkoutMain}" %*`, `if exist "${checkoutMain}" exit /b %ERRORLEVEL%`)
-  lines.push(
-    `echo buracle: ${cmdSafe(main)} is missing; run "bun src\\cli\\main.ts install" in the Buracle checkout 1>&2`,
-    'exit /b 127',
-    ':hook',
-    'if /i not "%~3"=="PreToolUse" exit /b 0',
-    'if /i "%~2"=="claude" goto deny',
-    'if /i "%~2"=="codex" goto deny',
-    'exit /b 0',
-    ':deny',
-    `echo ${deny}`,
-    'exit /b 0',
-  )
-  return lines.join('\r\n') + '\r\n'
-}
-
 export function bunPath(): string {
   return bunExecutable()
 }
@@ -175,9 +119,7 @@ export function corePlan(opts: { repoRoot: string, bun: string, configExists: bo
   const set: Record<string, unknown> = { repo: opts.repoRoot }
   const rules = [...(opts.pathRules ?? [])].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   const shimOps = shimPlanOps(opts.runtime === undefined ? { bun: opts.bun, repoRoot: opts.repoRoot } : { bun: opts.bun, repoRoot: opts.repoRoot, runtime: opts.runtime })
-  const linkOps: Op[] = (opts.links ?? []).map((l): Op => (isWindows()
-    ? { kind: 'file', path: l.path, content: windowsLauncher(l.target), owner: CORE_OWNER }
-    : { kind: 'symlink', path: l.path, target: l.target, owner: CORE_OWNER }))
+  const linkOps: Op[] = (opts.links ?? []).map((l): Op => ({ kind: 'symlink', path: l.path, target: l.target, owner: CORE_OWNER }))
   return {
     id: 'core',
     harness: 'core',
@@ -193,16 +135,10 @@ export function corePlan(opts: { repoRoot: string, bun: string, configExists: bo
 export function shimPlanOps(target: { bun: string, repoRoot: string, runtime?: string }): Op[] {
   const home = shimBuracleHome()
   const shimOpts: ShimOptions = { ...target, ...(home !== undefined ? { buracleHome: home } : {}) }
-  return isWindows()
-    ? [
-        { kind: 'file', path: paths.shimPath(), content: windowsShimContent(shimOpts), owner: CORE_OWNER },
-        { kind: 'file', path: join(paths.binDir(), 'buracle'), content: shimContent(shimOpts), mode: 0o755, owner: CORE_OWNER },
-        { kind: 'file', path: `${pathLink()}.cmd`, content: windowsLauncher(paths.shimPath()), owner: CORE_OWNER },
-      ]
-    : [
-        { kind: 'file', path: paths.shimPath(), content: shimContent(shimOpts), mode: 0o755, owner: CORE_OWNER },
-        { kind: 'symlink', path: pathLink(), target: paths.shimPath(), owner: CORE_OWNER },
-      ]
+  return [
+    { kind: 'file', path: paths.shimPath(), content: shimContent(shimOpts), mode: 0o755, owner: CORE_OWNER },
+    { kind: 'symlink', path: pathLink(), target: paths.shimPath(), owner: CORE_OWNER },
+  ]
 }
 
 export function retargetShim(plan: Plan, target: { bun: string, repoRoot: string, runtime?: string }): Plan {
@@ -344,7 +280,7 @@ export function dropMixedRemovals(plans: Plan[], prunes: ReadonlySet<Op>): { pla
   return { plans: out, dropped }
 }
 
-// '/', or on Windows a drive root such as C:\\ (HOME=/ resolves to the current drive's root there).
+// '/', the root of the file system.
 const isFsRoot = (p: string): boolean => dirname(resolve(p)) === resolve(p)
 
 export function checkHome(): string | undefined {

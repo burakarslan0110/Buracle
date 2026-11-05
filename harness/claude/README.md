@@ -6,8 +6,7 @@ This folder is Buracle's Claude Code side. `buracle build` generates it from `ca
 - **Command hooks** (`hooks/hooks.json`) are the backbone: guards, the consent gate, the plan stop
   guard, memory, compaction, file checks and code indexes. They always run: in the terminal, the
   desktop app, VS Code and `claude -p`. Each runs the plugin's launcher in exec form,
-  `bun ${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts hook claude <Event>` (`command` plus `args`, no shell), so
-  it starts the same way under sh, Git Bash and PowerShell; the launcher runs the runtime the shim
+  `bun ${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts hook claude <Event>` (`command` plus `args`, no shell); the launcher runs the runtime the shim
   `buracle install` wrote runs, else the checkout. bun must be on Claude Code's PATH, as for the MCP
   servers (the desktop app reads it from the shell profile). PreToolUse sets `onFailure: "block"`:
   when the hook cannot start or times out, the tool call is blocked, not run unguarded.

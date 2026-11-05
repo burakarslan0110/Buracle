@@ -44,9 +44,6 @@ export function tryLock(path: string, staleMs = 60_000, opts: { heartbeat?: bool
       }
     } catch (e) {
       const code = (e as { code?: string }).code
-      // Windows refuses to create a file another process is still deleting (delete pending) with EPERM or
-      // EACCES: the lock is being released, so it is busy for now, not broken.
-      if (process.platform === 'win32' && (code === 'EPERM' || code === 'EACCES')) return undefined
       if (code !== 'EEXIST') throw e
       const seen = lockSnapshot(path)
       if (seen === undefined) continue
