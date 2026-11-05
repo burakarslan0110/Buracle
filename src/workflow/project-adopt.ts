@@ -1,6 +1,5 @@
-import { lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync } from 'node:fs'
+import { lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, symlinkSync } from 'node:fs'
 import { join, relative } from 'node:path'
-import { linkDirSync } from '../engine/fsx'
 import { agentSkills, assetLayout, claudeSkills, SKILL_DIR_RE, type ClaudeSkill } from './project-assets'
 import { lintProjectSkill } from './skills'
 
@@ -96,7 +95,7 @@ export async function adoptSkills(root: string, opts: AdoptOptions): Promise<Ado
         report.linked.push(c.id)
         if (!dryRun) {
           mkdirSync(layout.agentsSkills, { recursive: true })
-          linkDirSync(relative(layout.agentsSkills, c.path), dest)
+          symlinkSync(relative(layout.agentsSkills, c.path), dest)
         }
       }
       touched.push(c.id)

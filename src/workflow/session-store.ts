@@ -1,5 +1,5 @@
 import { existsSync, lstatSync, readdirSync, rmSync, statSync, unlinkSync } from 'node:fs'
-import { join, posix, win32 } from 'node:path'
+import { join, posix } from 'node:path'
 import type { Harness } from '../core/events'
 import { HARNESSES } from '../core/events'
 import type { SessionState } from '../core/plan/state'
@@ -219,22 +219,17 @@ const PROFILE_DIR: Readonly<Record<Harness, { key: 'claudeDir' | 'codexHome' | '
   omp: { key: 'ompAgentDir', label: 'Oh My Pi', variable: 'PI_CODING_AGENT_DIR' },
 }
 
-// A drive-letter or UNC path is read the Windows way, any other the POSIX way, so the same text names the same folder on every host.
-function flavor(p: string): typeof posix {
-  return /^(?:[A-Za-z]:[\\/]|\\\\)/.test(p) ? win32 : posix
-}
-
 function absoluteEnv(env: Record<string, string | undefined>, name: string): string | undefined {
   const v = env[name]
-  return typeof v === 'string' && v.trim() !== '' && flavor(v.trim()).isAbsolute(v.trim()) ? v.trim() : undefined
+  return typeof v === 'string' && v.trim() !== '' && posix.isAbsolute(v.trim()) ? v.trim() : undefined
 }
 
 function under(dir: string, ...parts: string[]): string {
-  return flavor(dir).join(dir, ...parts)
+  return posix.join(dir, ...parts)
 }
 
 export function liveHarnessDir(h: Harness, env: Record<string, string | undefined>): string | undefined {
-  const home = absoluteEnv(env, 'HOME') ?? (process.platform === 'win32' ? absoluteEnv(env, 'USERPROFILE') : undefined)
+  const home = absoluteEnv(env, 'HOME')
   switch (h) {
     case 'claude': return absoluteEnv(env, 'CLAUDE_CONFIG_DIR') ?? (home !== undefined ? under(home, '.claude') : undefined)
     case 'codex': return absoluteEnv(env, 'CODEX_HOME') ?? (home !== undefined ? under(home, '.codex') : undefined)
@@ -247,11 +242,7 @@ export function liveHarnessDir(h: Harness, env: Record<string, string | undefine
 }
 
 function samePath(a: string, b: string): boolean {
-  const norm = (p: string) => {
-    const f = flavor(p)
-    if (f === posix) return posix.normalize(p).replace(/(.)\/+$/, '$1')
-    return win32.normalize(p).replace(/(.)\\+$/, '$1').toLowerCase()
-  }
+  const norm = (p: string) => posix.normalize(p).replace(/(.)\/+$/, '$1')
   return norm(a) === norm(b)
 }
 
@@ -260,7 +251,7 @@ export function profileGuard(h: Harness, runtimeCfg: unknown, env: Record<string
   if (spec === undefined) return undefined
   const resolved = runtimeCfg !== null && typeof runtimeCfg === 'object' ? (runtimeCfg as { resolved?: unknown }).resolved : undefined
   const installed = resolved !== null && typeof resolved === 'object' ? (resolved as Record<string, unknown>)[spec.key] : undefined
-  if (typeof installed !== 'string' || !flavor(installed).isAbsolute(installed)) return undefined
+  if (typeof installed !== 'string' || !posix.isAbsolute(installed)) return undefined
   const live = liveHarnessDir(h, env)
   if (live === undefined || samePath(installed, live)) return undefined
   return `Buracle was installed for ${spec.label} into ${installed}, but this session reads ${live} (${spec.variable}), where Buracle's hooks, rules and settings are missing. Run \`buracle install ${h}\` with this environment, or start ${spec.label} without the override.`
@@ -402,7 +393,7 @@ export function harnessOfProcess(comm: string, pid?: number, env: Record<string,
   const base = (c.split('/').pop() ?? '').replace(/^-/, '')
   if (base === 'claude' || base === 'omp') return base
   if (/^codex(?:-(?:aarch64|arm64|x86_64|x64|amd64)\b[\w.-]*)?$/.test(base)) return 'codex'
-  if (/^opencode(?:-(?:darwin|linux|windows)\b[\w.-]*)?$/.test(base)) return 'opencode'
+  if (/^opencode(?:-(?:darwin|linux)\b[\w.-]*)?$/.test(base)) return 'opencode'
   return undefined
 }
 
@@ -410,7 +401,7 @@ function psRow(pid: number): { ppid: number, comm: string } | undefined {
   try {
     const r = Bun.spawnSync(['ps', '-o', 'ppid=,comm=', '-p', String(pid)], {
       stdin: 'ignore', stdout: 'pipe', stderr: 'ignore', timeout: 1000,
-      env: { PATH: process.env['PATH'] ?? '/usr/bin:/bin', LC_ALL: 'C' }, windowsHide: true,
+      env: { PATH: process.env['PATH'] ?? '/usr/bin:/bin', LC_ALL: 'C' },
     })
     if (r.exitCode !== 0) return undefined
     const m = /^\s*(\d+)\s+(.+?)\s*$/.exec(new TextDecoder().decode(r.stdout).split('\n')[0] ?? '')

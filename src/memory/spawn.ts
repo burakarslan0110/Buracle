@@ -43,7 +43,7 @@ export function spawnCli(args: readonly string[], env: Record<string, string> = 
     const checkout = moduleCheckout() ?? paths.configuredRepoRoot()
     const proc = Bun.spawn([...cliArgv(), ...args], {
       cwd: checkout !== undefined ? checkout : existsSync(paths.home()) ? paths.home() : '/',
-      env: { ...process.env, ...env }, windowsHide: true,
+      env: { ...process.env, ...env },
       stdio: ['ignore', 'ignore', 'ignore'],
       detached: true,
     })

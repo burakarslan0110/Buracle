@@ -253,8 +253,6 @@
         ],
         "version_regex": "^(\\d+\\.\\d+\\.\\d+)",
         "brew": "oven-sh/bun/bun",
-        "winget": "Oven-sh.Bun",
-        "scoop": "bun",
         "required": true,
         "purpose": "Buracle runtime"
       },
@@ -267,8 +265,6 @@
         ],
         "version_regex": "git version (\\d+\\.\\d+\\.\\d+)",
         "brew": "git",
-        "winget": "Git.Git",
-        "scoop": "git",
         "required": true,
         "purpose": "Projects, worktrees and the code review scope"
       },
@@ -281,8 +277,6 @@
         ],
         "version_regex": "v(\\d+\\.\\d+\\.\\d+)",
         "brew": "node",
-        "winget": "OpenJS.NodeJS.LTS",
-        "scoop": "nodejs-lts",
         "required": true,
         "purpose": "Runs the npm MCP servers and language servers of the toolchain"
       },
@@ -295,8 +289,6 @@
         ],
         "version_regex": "uv (\\d+\\.\\d+\\.\\d+)",
         "brew": "uv",
-        "winget": "astral-sh.uv",
-        "scoop": "uv",
         "required": true,
         "purpose": "Installs the PyPI MCP servers of the toolchain (semble) on Python 3.12"
       },
@@ -309,8 +301,6 @@
         ],
         "version_regex": "ripgrep (\\d+\\.\\d+\\.\\d+)",
         "brew": "ripgrep",
-        "winget": "BurntSushi.ripgrep.MSVC",
-        "scoop": "ripgrep",
         "required": true,
         "purpose": "Exhaustive exact-match search"
       },
@@ -323,7 +313,6 @@
         ],
         "version_regex": "ast-grep (\\d+\\.\\d+\\.\\d+)",
         "brew": "ast-grep",
-        "scoop": "ast-grep",
         "npm": "@ast-grep/cli",
         "bins": [
           "ast-grep",
@@ -341,8 +330,6 @@
         ],
         "version_regex": "jq-(\\d+\\.\\d+(?:\\.\\d+)?)",
         "brew": "jq",
-        "winget": "jqlang.jq",
-        "scoop": "jq",
         "required": true,
         "purpose": "JSON processing in skills and scripts"
       },
@@ -355,8 +342,6 @@
         ],
         "version_regex": "gh version (\\d+\\.\\d+\\.\\d+)",
         "brew": "gh",
-        "winget": "GitHub.cli",
-        "scoop": "gh",
         "required": false,
         "purpose": "GitHub pull requests and issues"
       },
@@ -385,8 +370,6 @@
         ],
         "version_regex": "ruff (\\d+\\.\\d+\\.\\d+)",
         "brew": "ruff",
-        "winget": "astral-sh.ruff",
-        "scoop": "ruff",
         "pypi": "ruff",
         "required": false,
         "purpose": "Python linter the file checks (H04) run in projects that configure ruff"
@@ -400,8 +383,6 @@
         ],
         "version_regex": "version: (\\d+\\.\\d+\\.\\d+)",
         "brew": "shellcheck",
-        "winget": "koalaman.shellcheck",
-        "scoop": "shellcheck",
         "install": "Install ShellCheck with your package manager (apt install shellcheck, dnf install ShellCheck)",
         "required": false,
         "purpose": "Shell script linter the file checks (H04) run on .sh and .bash files"
@@ -415,8 +396,6 @@
         ],
         "version_regex": "version v?(\\d+\\.\\d+\\.\\d+)",
         "brew": "golangci-lint",
-        "winget": "GolangCI.golangci-lint",
-        "scoop": "golangci-lint",
         "go": "github.com/golangci/golangci-lint/v2/cmd/golangci-lint",
         "requires": [
           "go"
@@ -563,7 +542,6 @@
         "version_regex": "rust-analyzer \\S+ \\(\\w+ (\\d{4}-\\d{2}-\\d{2})\\)",
         "rustup": "rust-analyzer",
         "brew": "rust-analyzer",
-        "scoop": "rust-analyzer",
         "install": "rustup component add rust-analyzer",
         "required": false,
         "purpose": "Rust language server; needs a Rust toolchain (cargo)",
@@ -616,7 +594,6 @@
         ],
         "version_regex": "jdt-language-server-(\\d+\\.\\d+\\.\\d+)",
         "brew": "jdtls",
-        "scoop": "jdtls",
         "required": false,
         "purpose": "Java language server (Eclipse JDT LS); needs Java 21 or newer",
         "lsp": {

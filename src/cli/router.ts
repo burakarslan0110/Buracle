@@ -115,7 +115,7 @@ async function runInCheckout(command: string, argv: readonly string[], io: Omit<
   const stdinText = inherit || io.stdin.isTTY ? undefined : await io.stdin.text()
   const child = Bun.spawn([process.execPath, join(checkout, 'src', 'cli', 'main.ts'), ...argv], {
     cwd: process.cwd(),
-    env: { ...process.env, BURACLE_REEXEC: '1' }, windowsHide: true,
+    env: { ...process.env, BURACLE_REEXEC: '1' },
     stdin: inherit || io.stdin.isTTY ? 'inherit' : new TextEncoder().encode(stdinText ?? ''),
     stdout: inherit ? 'inherit' : 'pipe',
     stderr: inherit ? 'inherit' : 'pipe',

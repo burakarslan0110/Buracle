@@ -4,7 +4,7 @@ import { parse as parseYaml } from 'yaml'
 import type { LspSpec, ToolSpec, ToolsCatalog } from '../../core/catalog'
 import { validateToolsCatalog } from '../../core/catalog'
 import * as paths from '../paths'
-import { exeName, findExecutable, spawnArgv, windowsVerbatim } from '../platform'
+import { findExecutable } from '../platform'
 import { binArgv, toolRequest } from './packages'
 import { packageKey, type ToolchainState } from './state'
 import { installAdvice, toolchainBinDirs } from './system'
@@ -99,7 +99,7 @@ export function lspLaunch(s: LspServer, state: ToolchainState, opts: { node?: st
     const r = f()
     if (r !== undefined) return r
   }
-  return { error: `${s.id}: ${exeName(bin)} is not installed (${installAdvice(s.tool)})` }
+  return { error: `${s.id}: ${bin} is not installed (${installAdvice(s.tool)})` }
 }
 
 export function claudeLspJson(servers: readonly LspServer[], launcher: { command: string, args: readonly string[] }): Record<string, unknown> {
@@ -133,8 +133,7 @@ export async function probeLsp(argv: readonly string[], opts: { rootDir: string,
   const down = (error: string): LspProbe => ({ status: 'down', error, ms: Date.now() - started })
   let proc: ReturnType<typeof Bun.spawn<'pipe', 'pipe', 'pipe'>>
   try {
-    const spawned = spawnArgv(argv)
-    proc = Bun.spawn(spawned, { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', cwd: opts.rootDir, env: { ...process.env }, windowsHide: true, windowsVerbatimArguments: windowsVerbatim(spawned) })
+    proc = Bun.spawn([...argv], { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', cwd: opts.rootDir, env: { ...process.env } })
   } catch (e) {
     return down(`cannot start ${argv[0] ?? '?'}: ${e instanceof Error ? e.message : String(e)}`)
   }

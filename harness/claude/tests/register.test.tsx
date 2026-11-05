@@ -274,19 +274,6 @@ describe('H20 consent dialog', () => {
     expect(world.reached).toEqual([])
   })
 
-  test('without HOME (Windows) the runtime comes from USERPROFILE; the .cmd shim runs through the plugin\'s bun launcher', async ($, on) => {
-    const cmd = `${BURACLE_HOME}/bin/buracle.cmd`
-    const world = worldOf(on, { [cmd]: '@echo off\r\n' }, { env: { USERPROFILE: HOME }, shim: cmd, answer: 'Allow once', shell: true })
-    await $.session.start(SESSION)
-    expect(denyOf(await $.tool.call({ tool: 'Bash', command: 'git push origin feature' }))).toBeUndefined()
-    expect(world.trail).toEqual([`take ${CONSENT}.lock`, `write ${CONSENT}`, `drop ${CONSENT}.lock`])
-    await $.command.run(command('remember', 'a note'))
-    const remember = world.runs.find(r => r.includes('remember'))
-    expect(remember?.[0]).toBe(BUN)
-    expect(remember?.[1]).toBe(`${REPO_ROOT}/harness/claude/bin/buracle.ts`)
-    expect(remember?.slice(2)).toEqual(['mem', 'remember', '--', 'a note'])
-  })
-
   test('a lock a command hook keeps: the dialog tries a while, then writes without it and leaves the hook\'s lock alone', async ($, on) => {
     const world = worldOf(on, { [`${CONSENT}.lock`]: '{"pid":1}' }, { answer: 'Allow once', shell: true })
     await $.session.start(SESSION)

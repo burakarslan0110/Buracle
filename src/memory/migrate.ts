@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path'
 import { isLive, similarMemories, type MemItem, type MemLayer } from '../core/memory/brain'
 import { memIsSlug } from '../core/memory/note'
 import { memClip, memOneLine, slugify } from '../core/memory/text'
-import { readJsonSafeSync, renameRetrySync, sha256 } from '../engine/fsx'
+import { readJsonSafeSync, sha256 } from '../engine/fsx'
 import { log } from '../engine/log'
 import * as paths from '../engine/paths'
 import { updateToolchainState, readToolchainState } from '../engine/toolchain/state'
@@ -384,7 +384,7 @@ function moveOne(from: string, to: string): void {
   mkdirSync(dirname(to), { recursive: true, mode: 0o700 })
   let dest = to
   for (let n = 2; existsSync(dest); n++) dest = `${to}.${n}`
-  renameRetrySync(from, dest, { budgetMs: 5_000 })
+  renameSync(from, dest)
 }
 
 function moveAside(files: readonly LegacyFile[], opened: string[]): { moved: string[], leftover: string[] } {
@@ -489,7 +489,7 @@ export async function rollback(opts: { force?: boolean, waitMs?: number } = {}):
     }
     if (sources.size === 0) throw new MigrationError('read', 'there are no Buracle 0.5 files to put back (brain/legacy-0.5 and the pre-migrate backup are gone)')
     await closeCortex(brainDbFile()).catch(() => undefined)
-    // Readers other processes hold open on brain.db would keep the file in place on Windows: stop them while it moves.
+    // Readers other processes hold open on brain.db must not write to it while it moves: stop them first.
     return await withBrainStopped(10_000, () => putBack(sources, opts.force === true)).then(r => r.value)
   } finally {
     release()
@@ -502,7 +502,7 @@ function putBack(sources: Map<string, string>, force: boolean): RollbackReport {
     const to = join(brainDir(), ...rel.split('/'))
     if (existsSync(to)) continue
     mkdirSync(dirname(to), { recursive: true, mode: 0o700 })
-    if (from.startsWith(legacyBrainDir())) renameRetrySync(from, to, { budgetMs: 5_000 })
+    if (from.startsWith(legacyBrainDir())) renameSync(from, to)
     else copyFileSync(from, to)
     if (!rel.endsWith('-wal') && !rel.endsWith('-shm') && !rel.endsWith('-journal')) out.restored.push(rel)
   }
@@ -510,7 +510,7 @@ function putBack(sources: Map<string, string>, force: boolean): RollbackReport {
     const to = join(memStateDir(), ...rel.split('/'))
     if (existsSync(to)) continue
     mkdirSync(dirname(to), { recursive: true })
-    renameRetrySync(join(legacyStateDir(), ...rel.split('/')), to, { budgetMs: 5_000 })
+    renameSync(join(legacyStateDir(), ...rel.split('/')), to)
     out.stateRestored.push(rel)
   }
   pruneEmpty(legacyBrainDir())

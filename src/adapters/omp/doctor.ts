@@ -1,9 +1,8 @@
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import { effortConfigValues, resolveEffort } from '../../core/effort'
 import { mdBlockGet } from '../../engine/merge'
-import { isWindows } from '../../engine/platform'
 import { detectBinary, parseVersion, run, which } from '../../engine/proc'
 import type { AdapterContext } from '../registry'
 import { resolveArgv, type Env } from '../shared/command'
@@ -18,10 +17,6 @@ export type DoctorFinding = { level: 'ok' | 'warn' | 'error', check: string, det
 
 function realOr(p: string): string {
   try { return realPath(p) } catch { return p }
-}
-
-function isFileAt(p: string): boolean {
-  try { return statSync(p).isFile() } catch { return false }
 }
 
 export function compareVersions(a: string, b: string): number {
@@ -69,28 +64,15 @@ function serversOf(text: string): Record<string, unknown> | undefined {
   }
 }
 
-/** On Windows the user's agent-dir mcp.json (`buracle install omp` writes Buracle's servers there) wins over the plugin's POSIX entries, as omp ranks its sources. */
-export interface WindowsMcp { text: string | undefined, file: string }
-
-export function mcpCommandFindings(mcpJsonText: string | undefined, env: Env, file: string, windows?: WindowsMcp): DoctorFinding[] {
+export function mcpCommandFindings(mcpJsonText: string | undefined, env: Env, file: string): DoctorFinding[] {
   if (mcpJsonText === undefined) return [{ level: 'error', check: 'omp mcp', detail: `${file} is missing; run \`buracle build\`` }]
   const servers = serversOf(mcpJsonText)
   if (servers === undefined) return [{ level: 'error', check: 'omp mcp', detail: `${file} is not valid JSON` }]
-  const user = windows?.text !== undefined ? serversOf(windows.text) ?? {} : {}
   const errors: string[] = []
   const warnings: string[] = []
   for (const [id, plugin] of Object.entries(servers)) {
-    const raw = windows !== undefined && Object.prototype.hasOwnProperty.call(user, id) ? user[id] : plugin
-    const s = raw !== null && typeof raw === 'object' ? raw as Record<string, unknown> : {}
+    const s = plugin !== null && typeof plugin === 'object' ? plugin as Record<string, unknown> : {}
     if (typeof s['command'] !== 'string') continue
-    if (windows !== undefined) {
-      const command = s['command']
-      const isPath = /[\\/]/.test(command)
-      if (raw === plugin && command.startsWith('/')) errors.push(`${id}: ${command} does not exist on Windows; \`buracle install omp\` writes this server into ${windows.file}`)
-      else if (isPath && !isFileAt(command)) errors.push(`${id}: ${command} does not exist`)
-      else if (!isPath && which(command) === undefined) warnings.push(`${id}: \`${command}\` is not on PATH`)
-      continue
-    }
     const args = Array.isArray(s['args']) ? s['args'].filter((a): a is string => typeof a === 'string') : []
     const r = resolveArgv([s['command'], ...args], env)
     if (r.executable !== undefined) continue
@@ -198,10 +180,7 @@ export async function doctor(ctx: AdapterContext, deps: DoctorDeps = {}): Promis
   if (!existsSync(join(pluginDir, EXTENSION_PATH))) out.push({ level: 'error', check: 'omp extension', detail: `${join(pluginDir, EXTENSION_PATH)} is missing; run \`buracle build\`` })
   let mcpText: string | undefined
   try { mcpText = readFileSync(join(pluginDir, '.mcp.json'), 'utf8') } catch { mcpText = undefined }
-  const userMcp = join(ctx.paths.ompAgentDir(), 'mcp.json')
-  let userMcpText: string | undefined
-  if (isWindows()) { try { userMcpText = readFileSync(userMcp, 'utf8') } catch { userMcpText = undefined } }
-  out.push(...mcpCommandFindings(mcpText, process.env, join(pluginDir, '.mcp.json'), isWindows() ? { text: userMcpText, file: userMcp } : undefined))
+  out.push(...mcpCommandFindings(mcpText, process.env, join(pluginDir, '.mcp.json')))
   const link = await checkLink(pluginDir, ompBin)
   switch (link.state) {
     case 'linked': out.push({ level: 'ok', check: 'omp plugin', detail: `${PACKAGE_NAME} linked to ${pluginDir}` }); break

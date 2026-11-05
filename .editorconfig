@@ -11,9 +11,6 @@ trim_trailing_whitespace = true
 [*.md]
 trim_trailing_whitespace = false
 
-[*.cmd]
-end_of_line = crlf
-
 [*.snap]
 end_of_line = unset
 insert_final_newline = unset

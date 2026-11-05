@@ -8,7 +8,6 @@ import { validateNotices, type Notice, type NoticeCatalog } from '../core/notice
 import { validateHooksMatrix } from '../core/policy/hooks-matrix'
 import type { RoutingPolicy } from '../core/policy/routing'
 import { validateRoutingPolicy } from '../core/policy/routing'
-import { fileMode } from './exec-bit'
 import type { SkillTriggerTable } from '../core/policy/skill-router'
 import { parseSkillTriggers, validateSkillTriggers } from '../core/policy/skill-router'
 import type { PricingTable } from '../core/usage'
@@ -58,7 +57,7 @@ function walkFiles(dir: string, rel = ''): CanonicalFile[] {
     const relPath = rel === '' ? name : `${rel}/${name}`
     const st = statSync(abs)
     if (st.isDirectory()) out.push(...walkFiles(abs, relPath))
-    else if (st.isFile()) out.push({ path: relPath, content: readFileSync(abs, 'utf8'), mode: fileMode(abs, st.mode) })
+    else if (st.isFile()) out.push({ path: relPath, content: readFileSync(abs, 'utf8'), mode: st.mode & 0o777 })
   }
   return out
 }

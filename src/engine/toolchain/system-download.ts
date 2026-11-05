@@ -1,8 +1,7 @@
-import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
-import { renameRetrySync, sha256 } from '../fsx'
+import { sha256 } from '../fsx'
 import * as paths from '../paths'
-import { findExecutable, spawnArgv } from '../platform'
 import { opsDeps } from '../update/deps'
 import { SYSTEM_TOOL_PINS, type PinnedAsset, type PinnedTool, type PinnedToolName, type PinPlatform } from './system-pins'
 
@@ -15,7 +14,7 @@ type RunFn = (argv: string[]) => Promise<{ code: number, stdout: string, stderr:
 
 const DOWNLOAD_TIMEOUT_MS = 300_000
 const MAX_BYTES = 200 * 1024 * 1024
-const PLATFORM_KEYS: ReadonlySet<string> = new Set<PinPlatform>(['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64', 'win32-x64'])
+const PLATFORM_KEYS: ReadonlySet<string> = new Set<PinPlatform>(['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64'])
 
 export function isPinnedTool(name: string): name is PinnedToolName {
   return Object.prototype.hasOwnProperty.call(SYSTEM_TOOL_PINS, name)
@@ -54,7 +53,7 @@ export type PinnedInstall =
   | { ok: false, error: string }
 
 const defaultRun: RunFn = async argv => {
-  const r = await opsDeps.run(spawnArgv(argv), { timeoutMs: 60_000 })
+  const r = await opsDeps.run([...argv], { timeoutMs: 60_000 })
   return { code: r.code, stdout: r.stdout, stderr: r.stderr }
 }
 
@@ -115,39 +114,19 @@ function contentRoot(dir: string): string {
   return entries.length === 1 && only !== undefined && only.isDirectory() ? join(dir, only.name) : dir
 }
 
-async function unpack(name: string, asset: PinnedAsset, bytes: Uint8Array, into: string, run: RunFn): Promise<string | undefined> {
+async function unpack(name: string, asset: PinnedAsset, bytes: Uint8Array, into: string): Promise<string | undefined> {
   if (asset.format === 'bin') {
     const bin = Object.values(asset.bins)[0]
     if (bin === undefined) return `${name}: the pin names no program`
     writeFileSync(join(into, bin), bytes, { mode: 0o755 })
     return undefined
   }
-  if (asset.format === 'tar.gz') {
-    const archive = new Bun.Archive(bytes)
-    const names = [...(await archive.files()).keys()]
-    const bad = names.find(climbsOut)
-    if (bad !== undefined) return `${name}: the archive has an entry outside its folder (${bad})`
-    await archive.extract(into)
-    return undefined
-  }
-  // A .zip (the Windows builds): Windows' own tar (bsdtar, in System32 since Windows 10 1803) lists and unpacks it. Git for
-  // Windows puts a GNU tar on PATH that cannot read a zip, so System32 comes first.
-  const system32 = join(process.env['SystemRoot'] ?? 'C:\\Windows', 'System32', 'tar.exe')
-  const tar = process.platform === 'win32' && existsSync(system32) ? system32 : findExecutable('tar')
-  if (tar === undefined) return `${name}: tar was not found to unpack ${asset.url}`
-  const file = join(dirname(into), `${name}.zip`)
-  writeFileSync(file, bytes)
-  try {
-    const listed = await run([tar, '-tf', file])
-    if (listed.code !== 0) return `${name}: tar could not read the archive (${listed.stderr.trim() || `exit ${listed.code}`})`
-    const bad = listed.stdout.split(/\r?\n/).filter(l => l !== '').find(climbsOut)
-    if (bad !== undefined) return `${name}: the archive has an entry outside its folder (${bad})`
-    const out = await run([tar, '-xf', file, '-C', into])
-    if (out.code !== 0) return `${name}: tar could not unpack the archive (${out.stderr.trim() || `exit ${out.code}`})`
-    return undefined
-  } finally {
-    rmSync(file, { force: true })
-  }
+  const archive = new Bun.Archive(bytes)
+  const names = [...(await archive.files()).keys()]
+  const bad = names.find(climbsOut)
+  if (bad !== undefined) return `${name}: the archive has an entry outside its folder (${bad})`
+  await archive.extract(into)
+  return undefined
 }
 
 /**
@@ -188,7 +167,7 @@ export async function installPinnedTool(name: PinnedToolName, opts: PinnedInstal
   try {
     cleanup()
     mkdirSync(join(staging, 'x'), { recursive: true })
-    const why = await unpack(name, asset, bytes, join(staging, 'x'), run)
+    const why = await unpack(name, asset, bytes, join(staging, 'x'))
     if (why !== undefined) { cleanup(); return { ok: false, error: why } }
     const content = contentRoot(join(staging, 'x'))
     const escaped = linkOutside(content)
@@ -196,7 +175,7 @@ export async function installPinnedTool(name: PinnedToolName, opts: PinnedInstal
     for (const [bin, rel] of Object.entries(asset.bins)) {
       const p = join(content, rel)
       try { lstatSync(p) } catch { cleanup(); return { ok: false, error: `${name}: the download has no ${rel} (${bin})` } }
-      if (os !== 'win32' && !lstatSync(p).isSymbolicLink()) chmodSync(p, 0o755)
+      if (!lstatSync(p).isSymbolicLink()) chmodSync(p, 0o755)
     }
     // The program runs from the staging folder first: a build that cannot run here (wrong libc, for one) is never kept.
     const [prog, ...args] = opts.check.argv
@@ -211,11 +190,11 @@ export async function installPinnedTool(name: PinnedToolName, opts: PinnedInstal
       return { ok: false, error: `${name} ${version} did not run here: \`${opts.check.argv.join(' ')}\` exited ${r.code}${out !== '' ? ` (${out})` : ''}` }
     }
     const old = `${target}.old-${process.pid}`
-    if (existsSync(target)) renameRetrySync(target, old)
+    if (existsSync(target)) renameSync(target, old)
     try {
-      renameRetrySync(content, target)
+      renameSync(content, target)
     } catch (e) {
-      if (existsSync(old)) renameRetrySync(old, target)
+      if (existsSync(old)) renameSync(old, target)
       throw e
     }
     try { rmSync(old, { recursive: true, force: true }) } catch {  }

@@ -4,6 +4,7 @@ import { atomicWriteSync } from '../engine/fsx'
 import { stateDir } from '../engine/paths'
 import { run } from '../engine/proc'
 import { log } from '../engine/log'
+import { desktopHost, findWslProgram, type DesktopHost } from '../engine/platform'
 import type { ResolvedSession } from './session-store'
 import type { NotifyType } from './memory-bridge'
 import { newNotificationId, notificationsFile } from './notify-inbox'
@@ -13,7 +14,6 @@ import { docId, reviewPageUrl } from './review-notes'
 export { notificationsFile } from './notify-inbox'
 
 export const NOTIFY_TYPES: readonly NotifyType[] = ['info', 'plan_approval', 'prd_approval', 'attention_needed', 'verification_complete']
-
 
 const SOUND: Partial<Record<NotifyType, string>> = { plan_approval: 'Glass', prd_approval: 'Glass', attention_needed: 'Sosumi', verification_complete: 'Hero' }
 
@@ -55,27 +55,44 @@ const POWERSHELL_BALLOON = [
   '$n.Dispose()',
 ].join('; ')
 
-export function desktopNotification(platform: string, type: NotifyType, title: string, message: string, have: (cmd: string) => boolean): { argv: string[], env?: Record<string, string>, detached?: boolean } | undefined {
-  if (platform === 'darwin') {
+// A Windows program started from WSL sees only the variables WSLENV names; /w passes one in that direction only.
+const BALLOON_WSLENV = ['BURACLE_NOTIFY_TITLE/w', 'BURACLE_NOTIFY_MESSAGE/w']
+
+function withBalloonWslenv(old: string | undefined): string {
+  const have = (old ?? '').split(':').filter(e => e !== '')
+  return [...have, ...BALLOON_WSLENV.filter(e => !have.includes(e))].join(':')
+}
+
+/**
+ * The command that shows a desktop notification, or undefined when the desktop has none. `find` returns the path of a
+ * program or undefined. In WSL the Windows PowerShell shows a tray balloon; its texts travel in the environment only.
+ */
+export function desktopNotification(host: DesktopHost, type: NotifyType, title: string, message: string, find: (cmd: string) => string | undefined, wslenv?: string): { argv: string[], env?: Record<string, string>, detached?: boolean } | undefined {
+  if (host === 'darwin') {
     const argv = ['osascript', ...APPLESCRIPT.flatMap(l => ['-e', l]), 'Buracle', clip(title, 120), clip(message, 400)]
     const sound = SOUND[type]
     if (sound !== undefined) argv.push(sound)
     return { argv }
   }
-  if (platform === 'win32') {
-    return { argv: ['powershell.exe', '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', POWERSHELL_BALLOON], env: { BURACLE_NOTIFY_TITLE: `Buracle: ${clip(title, 100)}`, BURACLE_NOTIFY_MESSAGE: clip(message, 240) }, detached: true }
+  if (host === 'wsl') {
+    const ps = find('powershell.exe')
+    if (ps === undefined) return undefined
+    return { argv: [ps, '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', POWERSHELL_BALLOON], env: { BURACLE_NOTIFY_TITLE: `Buracle: ${clip(title, 100)}`, BURACLE_NOTIFY_MESSAGE: clip(message, 240), WSLENV: withBalloonWslenv(wslenv) }, detached: true }
   }
-  if (have('notify-send')) return { argv: ['notify-send', '--app-name=Buracle', `Buracle: ${clip(title, 120)}`, clip(message, 400)] }
+  if (host === 'wsl-no-interop') return undefined
+  if (find('notify-send') !== undefined) return { argv: ['notify-send', '--app-name=Buracle', `Buracle: ${clip(title, 120)}`, clip(message, 400)] }
   return undefined
 }
 
 async function showDesktopNotification(type: NotifyType, title: string, message: string, env: Record<string, string | undefined>): Promise<{ status: Delivery, error?: string }> {
   if (env['BURACLE_NO_NOTIFY'] === '1') return { status: 'skipped' }
-  const n = desktopNotification(process.platform, type, title, message, cmd => Bun.which(cmd) !== null)
+  const host = desktopHost(env)
+  const find = host === 'wsl' ? findWslProgram : (cmd: string) => Bun.which(cmd) ?? undefined
+  const n = desktopNotification(host, type, title, message, find, process.env['WSLENV'])
   if (n === undefined) return { status: 'unsupported' }
   if (n.detached === true) {
     try {
-      const child = Bun.spawn(n.argv, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, env: { ...process.env, ...n.env }, windowsHide: true })
+      const child = Bun.spawn(n.argv, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, env: { ...process.env, ...n.env } })
       child.unref()
       return { status: 'shown' }
     } catch (e) {

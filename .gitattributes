@@ -1,7 +1,5 @@
-# Line endings: LF in the repository and on checkout, except the two files that carry CRLF on purpose
+# Line endings: LF in the repository and on checkout
 * text=auto eol=lf
-harness/claude/bin/buracle.cmd -text
-tests/adapters/claude/fixtures/golden-mini.snap -text
 
 # Generated output: collapsed in pull-request diffs and left out of GitHub's language statistics
 harness/** linguist-generated=true

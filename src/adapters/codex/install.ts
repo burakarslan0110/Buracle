@@ -9,7 +9,7 @@ import { detectBinary, run } from '../../engine/proc'
 import { TESTED_WITH } from '../../engine/update/tested-with'
 import { compareVersions } from '../../engine/update/versions'
 import { AGENTS_BLOCK_ID, codexArtifacts, OWNER, RULES_FILE, type CodexArtifacts } from './generate'
-import { CODEX_HOOK_EVENTS, HOOK_COMMAND_PREFIX, HOOK_GROUP_IDENTITY, LEGACY_HOOK_COMMAND_PREFIX, trustMigration, windowsHookPrefix, type TrustMigration } from './hooks-config'
+import { CODEX_HOOK_EVENTS, HOOK_COMMAND_PREFIX, HOOK_GROUP_IDENTITY, LEGACY_HOOK_COMMAND_PREFIX, trustMigration, type TrustMigration } from './hooks-config'
 import { UPDATE_PLAN_TABLE, updatePlanTable } from './config'
 import { bypassOp, bypassUnitBlocked } from './trust'
 import { realPath } from '../../engine/fsx'
@@ -287,7 +287,6 @@ export async function codexInstallPlan(ctx: AdapterContext, opts: { ledger?: Led
   await assertCodexIdle(ctx)
   const a = codexArtifacts({
     hookCommandPrefix: hookCommandPrefixFor(ctx, ledger),
-    ...(process.platform === 'win32' ? { hookCommandPrefixWindows: windowsHookPrefix(ctx.buracleBin) } : {}),
     canonical: ctx.canonical,
     buracle: ctx.buracleBin,
     pathRulesDir: tildePath(join(p.buracleHome(), 'rules', 'paths'), p.home()),

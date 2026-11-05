@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { atomicWriteSync } from '../engine/fsx'
 import { log } from '../engine/log'
 import * as paths from '../engine/paths'
-import { osName, spawnArgv, windowsVerbatim, type OsName } from '../engine/platform'
+import { desktopHost, findWslProgram, type DesktopHost } from '../engine/platform'
 import { closeAllCortex, idleCortex, pruneDeadReaders } from './cortex'
 import { brainDir } from './layout'
 import { sameUiBuild, uiBuildId } from './ui-build'
@@ -301,7 +301,7 @@ export async function liveUi(): Promise<(UiRecord & { health: UiHealth }) | unde
 
 export type UiStopOutcome = 'stopped' | 'not-running' | 'unconfirmed' | 'still-running'
 
-/** The server is gone. On Windows a SIGTERM ends a process outright, so its exit handler never removed its CortexDB reader entries. */
+/** The server is gone. A process killed outright never ran its exit handler, so its CortexDB reader entries may remain. */
 function serverGone(pid: number): void {
   clearUiRecord(pid)
   pruneDeadReaders()
@@ -412,8 +412,7 @@ export async function ensureUi(argv: string[] | undefined, opts: { port?: number
   const live = await liveUi()
   if (live !== undefined && (argv === undefined || sameUiBuild(live.health.build, uiBuildId()))) return { url: live.url, started: false }
   if (argv === undefined) return undefined
-  const spawned = spawnArgv([...argv, 'mem', 'ui', '--serve', ...(opts.port !== undefined ? ['--port', String(opts.port)] : [])])
-  const child = Bun.spawn(spawned, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, cwd: paths.home(), env: { ...process.env }, windowsHide: true, windowsVerbatimArguments: windowsVerbatim(spawned) })
+  const child = Bun.spawn([...argv, 'mem', 'ui', '--serve', ...(opts.port !== undefined ? ['--port', String(opts.port)] : [])], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, cwd: paths.home(), env: { ...process.env } })
   child.unref()
   const deadline = Date.now() + (opts.waitMs ?? 8_000)
   while (Date.now() < deadline) {
@@ -425,30 +424,33 @@ export async function ensureUi(argv: string[] | undefined, opts: { port?: number
 }
 
 /**
- * The command that opens a page in the browser of the person's desktop, or undefined for an address that is not http(s).
- * Windows goes through `rundll32 url.dll,FileProtocolHandler`, which takes the address as one argument and never runs it through
- * cmd.exe (where `&` and `%` in an address would be read as shell syntax); the address is normalised, so a space becomes %20.
+ * The command that opens a page in the browser of the person's desktop, or undefined for an address that is not http(s)
+ * and for a desktop with no way to open it. The address is normalised, so a space becomes %20.
+ * In WSL the page opens in the Windows browser through `rundll32.exe url.dll,FileProtocolHandler`, which takes the address
+ * as one argument and never runs it through cmd.exe (where `&` and `%` in an address would be read as shell syntax);
+ * `wslview` is the fallback. xdg-open there finds no Linux browser, and explorer.exe exits 1 even when it opened the page.
  */
-export function browserArgv(url: string, os: OsName = osName()): string[] | undefined {
+export function browserArgv(url: string, host: DesktopHost = desktopHost(), find: (name: string) => string | undefined = findWslProgram): string[] | undefined {
   let href: string
   try {
     const u = new URL(url)
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return undefined
     href = u.href
   } catch { return undefined }
-  if (os === 'darwin') return ['open', href]
-  if (os === 'win32') return ['rundll32', 'url.dll,FileProtocolHandler', href]
-  return ['xdg-open', href]
+  if (host === 'darwin') return ['open', href]
+  if (host === 'linux') return ['xdg-open', href]
+  if (host === 'wsl-no-interop') return undefined
+  const rundll = find('rundll32.exe')
+  if (rundll !== undefined) return [rundll, 'url.dll,FileProtocolHandler', href]
+  const wslview = find('wslview')
+  return wslview !== undefined ? [wslview, href] : undefined
 }
 
-export function openInBrowser(url: string): boolean {
+export function openInBrowser(url: string, host: DesktopHost = desktopHost()): boolean {
   try {
-    const argv = browserArgv(url)
+    const argv = browserArgv(url, host)
     if (argv === undefined) return false
-    const spawned = spawnArgv(argv)
-    // The browser must show: rundll32 is a GUI program (no console window to hide) and hands the show state it was
-    // started with to ShellExecute, so windowsHide: true would open the browser hidden.
-    const p = Bun.spawn(spawned, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, env: { ...process.env }, windowsHide: false, windowsVerbatimArguments: windowsVerbatim(spawned) })
+    const p = Bun.spawn(argv, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, env: { ...process.env } })
     p.unref()
     return true
   } catch { return false }

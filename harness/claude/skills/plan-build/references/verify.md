@@ -74,7 +74,7 @@ For each changed surface, collect the evidence that matches it:
 | Data migration | run it on a copy or fixture; check counts and a sample; run the rollback if there is one |
 | Docs only | render and link check |
 
-**Prove you are running the new code.** Before starting a server, check that its port is free (`lsof -i :<port>`, or `netstat -ano` on Windows): a busy port means an old process would answer. Stop it if this run started it, otherwise use another port. Rebuild and restart, then confirm through something only the new code produces (a new field, a log line, a version string). Evidence from a stale process is no evidence.
+**Prove you are running the new code.** Before starting a server, check that its port is free (`lsof -i :<port>`): a busy port means an old process would answer. Stop it if this run started it, otherwise use another port. Rebuild and restart, then confirm through something only the new code produces (a new field, a log line, a version string). Evidence from a stale process is no evidence.
 
 Never point at production or shared environments without the user's explicit permission.
 

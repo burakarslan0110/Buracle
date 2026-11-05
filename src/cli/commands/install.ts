@@ -22,7 +22,6 @@ import {
 import { discardRuntime, planRuntime, pruneRuntimes, readShim, runtimeDirOf, runtimeModeFromEnv, stageRuntime, type RuntimeMode, type RuntimePlan } from '../../engine/update/runtime'
 import { errText, isInside, table, tilde, tildeText, writeJson } from '../../engine/update/output'
 import { addLocalBinToPath } from '../../engine/update/shell-path'
-import { isWindows } from '../../engine/platform'
 import type { ToolchainItem } from '../../engine/toolchain/index'
 import { lspRecommendationPlan } from '../../adapters/claude/install'
 import { codexTrustPlan } from '../../adapters/codex/trust'
@@ -34,7 +33,7 @@ import { heading, padEnd, styleFor, wordmark, type Style } from '../ui/style'
 export const name = 'install'
 export const summary = 'Set up or repair Buracle in every detected harness (first setup included)'
 export const usage = `Usage: buracle install [<harness>…] [--dry-run] [--yes] [--json]
-       buracle install --script --log <file> [--started <epoch ms>] [--path-note <text>] [--yes]
+       buracle install --script --log <file> [--started <epoch ms>] [--yes]
 
 Sets Buracle up, repairs it, and makes edits in the checkout live, in one command. With
 harness names (${HARNESSES.join(', ')}) only those harnesses are installed.
@@ -44,11 +43,11 @@ On a new machine it creates ~/.buracle/config.yaml (repo: this checkout), the
 lacks it (macOS and Linux; one marked block, \`buracle uninstall\` takes it out), and says
 what is left (a harness to install).
 
---script is what scripts/install.sh and scripts/install.ps1 run: it prints the Harnesses,
+--script is what scripts/install.sh runs: it prints the Harnesses,
 Tools, Memory and Result sections, one line each unless something did not pass, starts the
 memory web UI (memory.ui.autostart), runs the checks of \`buracle doctor\` and writes every
 detail to the install log (--log). --started is when the script began (the Result line
-shows the time taken); --path-note says how install.ps1 put ~/.local/bin on PATH.
+shows the time taken).
 
 It first regenerates harness/ from canonical/ and src/ (\`buracle build\`); a failed build
 installs nothing. --dry-run only checks the generated files and prints the diff of every
@@ -63,7 +62,7 @@ kept for \`buracle rollback\`. BURACLE_RUNTIME=checkout makes the shim run the c
 directly (tests, debugging).
 
 Then it installs the toolchain (toolchain.autoInstall; false skips it): missing system tools through
-Homebrew (macOS, or Linux with Homebrew) or winget/scoop (Windows), and every MCP server package and language server
+Homebrew (macOS, or Linux with Homebrew), and every MCP server package and language server
 at its newest release (update.minReleaseAgeDays, 0 by default, can wait days) into ~/.buracle/toolchain, staged
 and swapped in with the previous copy kept for \`buracle rollback toolchain\`. Then composes:
   - the core plan: ~/.buracle/bin/buracle shim, ~/.local/bin/buracle link, repo: in
@@ -762,7 +761,7 @@ export function pathAddedText(file: string): string {
 // ~/.local/bin on PATH is fixed in the shell's startup file (POSIX); the hint stays only when that cannot be done.
 function firstRunSteps(r: InstallFlowResult): void {
   const hint = `Add ${tilde(paths.localBinDir())} to PATH (e.g. in ~/.zshrc: export PATH="$HOME/.local/bin:$PATH").`
-  if (!onPath(paths.localBinDir()) && existsSync(join(paths.localBinDir(), isWindows() ? 'buracle.cmd' : 'buracle'))) {
+  if (!onPath(paths.localBinDir()) && existsSync(join(paths.localBinDir(), 'buracle'))) {
     const p = addLocalBinToPath()
     if (p.changed && p.file !== undefined) r.pathAdded = p.file
     else if (p.skipped !== 'in-file') r.steps.push(p.reason !== undefined ? `${hint} (${tildeText(p.reason)})` : hint)
@@ -773,7 +772,7 @@ function firstRunSteps(r: InstallFlowResult): void {
 export async function run(argv: string[], io: CommandIO): Promise<number> {
   const removed = removedFlags(argv, REMOVED_FLAGS)
   if (removed.length > 0) { io.stderr.write(`buracle install: ${removed.join('; ')}\n`); return 1 }
-  const p = parseFlags(argv, { flags: { 'dry-run': 'bool', yes: 'bool', json: 'bool', script: 'bool', log: 'string', started: 'string', 'path-note': 'string' }, aliases: { y: 'yes' } })
+  const p = parseFlags(argv, { flags: { 'dry-run': 'bool', yes: 'bool', json: 'bool', script: 'bool', log: 'string', started: 'string' }, aliases: { y: 'yes' } })
   const json = io.flags.json || p.bools.has('json')
   const bad = p.positionals.filter(h => !isHarness(h))
   if (p.errors.length > 0 || bad.length > 0) {
@@ -788,7 +787,6 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     ? (await import('./install-script')).scriptSession(io, {
       log: p.strings.get('log') ?? paths.installLogFile(new Date(opsDeps.now())),
       startedMs: Number.isFinite(started) && started > 0 ? started : opsDeps.now(),
-      ...(p.strings.get('path-note') !== undefined ? { pathNote: p.strings.get('path-note') as string } : {}),
       interactive,
     })
     : undefined

@@ -2,14 +2,14 @@ import { existsSync, readdirSync, readFileSync, rmSync, statSync, unlinkSync, ty
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import type { BuracleConfig } from '../core/config'
 import {
-  indexExclusion, indexState, indexToolDue, isPathWithin, pathKey,
+  indexExclusion, indexState, indexToolDue, isPathWithin, pathKey, wslDrive,
   type IndexExclusionContext, type ProjectIndex, type WorkspaceInfo,
 } from '../core/workspace'
 import { readJsonSafeSync, realPath, sha256 } from '../engine/fsx'
 import { revParse } from '../engine/git'
 import { log } from '../engine/log'
 import * as paths from '../engine/paths'
-import { osName, spawnArgv, windowsVerbatim } from '../engine/platform'
+import { isWsl, osName } from '../engine/platform'
 
 const PROJECT_MARKERS = [
   'package.json', 'pyproject.toml', 'setup.py', 'requirements.txt', 'Pipfile', 'go.mod', 'go.work', 'Cargo.toml', 'pom.xml',
@@ -264,23 +264,10 @@ export function indexLockHolder(root: string, nowMs: number): { pid: number, at:
   return pidAlive(pid) ? { pid, at } : undefined
 }
 
-let wslCache: boolean | undefined
-function isWsl(env: Readonly<Record<string, string | undefined>>): boolean {
-  if (osName() !== 'linux') return false
-  if ((env['WSL_DISTRO_NAME'] ?? '') !== '' || (env['WSL_INTEROP'] ?? '') !== '') return true
-  if (wslCache === undefined) {
-    try {
-      const v = readFileSync('/proc/version', 'utf8').toLowerCase()
-      wslCache = v.includes('microsoft') || v.includes('wsl')
-    } catch { wslCache = false }
-  }
-  return wslCache
-}
-
 export function codegraphDataDir(root: string, env: Readonly<Record<string, string | undefined>> = process.env): string {
   const raw = (env['CODEGRAPH_DIR'] ?? '').trim()
   if (raw !== '' && raw !== '.' && !raw.includes('..') && !/[\\/]/.test(raw) && !isAbsolute(raw)) return raw
-  if (isWsl(env) && /^\/mnt\/[a-z](?:\/|$)/i.test(root)) {
+  if (isWsl(env) && wslDrive(root) !== undefined) {
     try { if (statSync(join(root, '.codegraph-wsl')).isDirectory()) return '.codegraph-wsl' } catch {  }
     return existsSync(join(root, '.codegraph', 'codegraph.db')) ? '.codegraph' : '.codegraph-wsl'
   }
@@ -346,8 +333,7 @@ export function refreshWorkspaceInfo(info: WorkspaceInfo, cfg: BuracleConfig, no
 export type IndexSpawner = (argv: string[], cwd: string) => void
 
 const spawnDetached: IndexSpawner = (argv, cwd) => {
-  const spawned = spawnArgv(argv)
-  const child = Bun.spawn(spawned, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, cwd, env: { ...process.env }, windowsHide: true, windowsVerbatimArguments: windowsVerbatim(spawned) })
+  const child = Bun.spawn([...argv], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, cwd, env: { ...process.env } })
   child.unref()
 }
 

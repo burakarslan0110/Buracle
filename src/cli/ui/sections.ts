@@ -2,7 +2,7 @@ import { truncateToWidth } from '../../core/status/format'
 import { colorLevel, makeStyle, type Style } from './style'
 
 // The install summary: one line per section in a fixed order, and under it only the items that did not pass.
-// scripts/install.sh and scripts/install.ps1 print the first two sections in the same layout themselves
+// scripts/install.sh prints the first two sections in the same layout itself
 // (tests/engine/install-script.test.ts compares them with this file).
 
 export const SECTION_ORDER = ['Prerequisites', 'Buracle', 'Harnesses', 'Tools', 'Memory', 'Result'] as const
@@ -47,9 +47,8 @@ export function renderSection(r: SectionResult, opts: { style: Style, columns?: 
   return out
 }
 
-/** Block symbols need a UTF-8 locale (the first of LC_ALL, LC_CTYPE, LANG that is set, as a shell reads it); Windows always has them. */
-export function unicodeLocale(env: Readonly<Record<string, string | undefined>> = process.env, platform: string = process.platform): boolean {
-  if (platform === 'win32') return true
+/** Block symbols need a UTF-8 locale (the first of LC_ALL, LC_CTYPE, LANG that is set, as a shell reads it). */
+export function unicodeLocale(env: Readonly<Record<string, string | undefined>> = process.env): boolean {
   const locale = [env['LC_ALL'], env['LC_CTYPE'], env['LANG']].find(v => v !== undefined && v !== '')
   return locale !== undefined && /utf-?8/i.test(locale)
 }
@@ -57,10 +56,10 @@ export function unicodeLocale(env: Readonly<Record<string, string | undefined>> 
 export interface SectionMode { live: boolean, unicode: boolean, style: Style }
 
 /** A live line only on a terminal that takes control codes; NO_COLOR, TERM=dumb and a pipe get plain lines. */
-export function sectionMode(stream: { isTTY?: boolean }, env: Readonly<Record<string, string | undefined>> = process.env, platform: string = process.platform): SectionMode {
+export function sectionMode(stream: { isTTY?: boolean }, env: Readonly<Record<string, string | undefined>> = process.env): SectionMode {
   const noCodes = (env['NO_COLOR'] !== undefined && env['NO_COLOR'] !== '') || env['TERM'] === 'dumb'
   const live = stream.isTTY === true && !noCodes
-  const unicode = unicodeLocale(env, platform)
+  const unicode = unicodeLocale(env)
   return { live, unicode, style: makeStyle(live ? colorLevel(stream, { ...env }) : 0, { unicode }) }
 }
 

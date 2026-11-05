@@ -4,7 +4,7 @@ import type { BuracleConfig } from '../../core/config'
 import type { CheckerFacts, CheckerPlan, DirScan, TddEdit, TestCandidates } from '../../core/checkers'
 import { CHECKER_PROBES, TEST_DIR_NAMES, checkerDirs, checkerFacts, checkerTool, importsModule, isDotnetTestProjectName, isTestFileName, missingToolKey, missingToolNote, skippedNote } from '../../core/checkers'
 import * as paths from '../../engine/paths'
-import { findExecutable, isWindows, spawnArgv } from '../../engine/platform'
+import { findExecutable } from '../../engine/platform'
 
 export interface CheckFs {
   list(dir: string): Array<{ name: string, dir: boolean }>
@@ -34,16 +34,13 @@ const IMPORTER_MAX_BYTES = 256_000
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'out', 'bin', 'obj', '.venv', 'venv', '__pycache__', 'coverage', '.next', '.turbo', 'target', 'vendor', 'fixtures', '__fixtures__', 'snapshots', '__snapshots__'])
 const SOURCE_ROOTS = new Set(['src', 'lib', 'app', 'pkg', 'internal', 'source'])
 
-const WINDOWS_PROBE = /\.(?:exe|cmd)$/i
-
-export function scanUpward(fs: CheckFs, file: string, root: string | undefined, home?: string, windows: boolean = isWindows()): DirScan[] {
-  const probes = CHECKER_PROBES.filter(p => windows || !WINDOWS_PROBE.test(p))
+export function scanUpward(fs: CheckFs, file: string, root: string | undefined, home?: string): DirScan[] {
   return checkerDirs(file, root, home).map(dir => {
     const names = fs.list(dir).map(e => e.name)
     const scan: DirScan = { dir, names }
     if (names.includes('pyproject.toml')) { const t = fs.read(join(dir, 'pyproject.toml'), MANIFEST_MAX_BYTES); if (t !== undefined) scan.pyproject = t }
     if (names.includes('package.json')) { const t = fs.read(join(dir, 'package.json'), MANIFEST_MAX_BYTES); if (t !== undefined) scan.packageJson = t }
-    const present = probes.filter(p => names.includes(p.split('/')[0] as string) && fs.exists(join(dir, ...p.split('/'))))
+    const present = CHECKER_PROBES.filter(p => names.includes(p.split('/')[0] as string) && fs.exists(join(dir, ...p.split('/'))))
     if (present.length > 0) scan.present = present
     return scan
   })
@@ -156,7 +153,7 @@ export function checkerArgv(argv: readonly string[], find: (name: string) => str
   const [cmd, ...rest] = argv
   if (cmd === undefined || cmd === '') return [...argv]
   const resolved = /[\\/]/.test(cmd) ? cmd : find(cmd) ?? cmd
-  return spawnArgv([resolved, ...rest])
+  return [resolved, ...rest]
 }
 
 export interface FileCheckTarget {

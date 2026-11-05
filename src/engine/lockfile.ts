@@ -19,23 +19,17 @@ function parseEtime(s: string): number | undefined {
 
 function runForText(argv: string[]): string | undefined {
   try {
-    const r = Bun.spawnSync(argv, { stdin: 'ignore', stdout: 'pipe', stderr: 'ignore', timeout: PROCESS_LOOKUP_MS, env: { ...process.env }, windowsHide: true })
+    const r = Bun.spawnSync(argv, { stdin: 'ignore', stdout: 'pipe', stderr: 'ignore', timeout: PROCESS_LOOKUP_MS, env: { ...process.env } })
     return r.exitCode === 0 ? r.stdout.toString() : undefined
   } catch {
     return undefined
   }
 }
 
-// When a live process started (epoch ms) and what it runs; undefined when no lookup answers (no ps, no
-// PowerShell, a timeout). Windows has no ps: PowerShell's Get-Process gives the start time and the image name.
+// When a live process started (epoch ms) and what it runs; undefined when no lookup answers (no ps, a timeout).
 export function lookUpProcess(pid: number, opts: { os?: NodeJS.Platform, run?: (argv: string[]) => string | undefined, nowMs?: number } = {}): ProcessSeen | undefined {
   if (opts.os === undefined && lockTestHooks.lookUpProcess !== undefined) return lockTestHooks.lookUpProcess(pid)
   const run = opts.run ?? runForText
-  if ((opts.os ?? process.platform) === 'win32') {
-    const script = `$p = Get-Process -Id ${pid} -ErrorAction Stop; '{0} {1}' -f ([DateTimeOffset]$p.StartTime).ToUnixTimeMilliseconds(), $p.ProcessName`
-    const m = /^(\d+) (.+)$/.exec((run(['powershell.exe', '-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script]) ?? '').trim())
-    return m ? { startedAt: Number(m[1]), command: m[2] as string } : undefined
-  }
   const line = (run(['ps', '-o', 'etime=,command=', '-p', String(pid)]) ?? '').trim()
   if (line === '') return undefined
   const space = line.search(/\s/)

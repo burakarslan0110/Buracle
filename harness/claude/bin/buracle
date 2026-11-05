@@ -2,7 +2,7 @@
 # Buracle's launcher in the plugin: the buracle CLI on the Bash tool's PATH while the plugin is
 # enabled (the command hooks run bin/buracle.ts with bun, no shell). Runs the shim `buracle install` writes
 # (~/.buracle/bin/buracle, or $BURACLE_HOME/bin/buracle; it names bun by its absolute path), else bun
-# with bin/buracle.ts next to this file (Windows, where the shim is buracle.cmd, and a missing shim).
+# with bin/buracle.ts next to this file when the shim is missing.
 b="${BURACLE_HOME:-$HOME/.buracle}/bin/buracle"
 if [ -x "$b" ]; then exec "$b" "$@"; fi
 d=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

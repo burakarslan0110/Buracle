@@ -211,27 +211,19 @@ function pruneNow(keep: number, protect: readonly string[], nowMs: number): stri
 }
 
 function zombie(pid: number): boolean {
-  if (process.platform === 'win32') return false
   try {
-    const r = Bun.spawnSync(['ps', '-o', 'stat=', '-p', String(pid)], { stdout: 'pipe', stderr: 'ignore', env: { ...process.env }, windowsHide: true })
+    const r = Bun.spawnSync(['ps', '-o', 'stat=', '-p', String(pid)], { stdout: 'pipe', stderr: 'ignore', env: { ...process.env } })
     return r.stdout.toString().trim().startsWith('Z')
   } catch {
     return false
   }
 }
 
-interface ProcIdentity { ppid?: number, name: string }
+interface ProcIdentity { ppid: number, name: string }
 
 function processIdentity(pid: number): ProcIdentity | 'gone' | undefined {
   try {
-    if (process.platform === 'win32') {
-      const r = Bun.spawnSync(['tasklist', '/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'], { stdout: 'pipe', stderr: 'ignore', env: { ...process.env }, windowsHide: true })
-      if (r.exitCode !== 0) return undefined
-      const row = r.stdout.toString().split(/\r?\n/).map(l => /^"([^"]*)","(\d+)"/.exec(l.trim())).find(m => m !== null && Number(m[2]) === pid)
-      if (row) return { name: row[1] as string }
-      return pidAlive(pid) ? undefined : 'gone'
-    }
-    const r = Bun.spawnSync(['ps', '-o', 'ppid=', '-o', 'comm=', '-p', String(pid)], { stdout: 'pipe', stderr: 'ignore', env: { ...process.env }, windowsHide: true })
+    const r = Bun.spawnSync(['ps', '-o', 'ppid=', '-o', 'comm=', '-p', String(pid)], { stdout: 'pipe', stderr: 'ignore', env: { ...process.env } })
     const m = /^\s*(\d+)\s+(.+?)\s*$/.exec(r.stdout.toString().split('\n')[0] ?? '')
     if (m) return { ppid: Number(m[1]), name: m[2] as string }
     return pidAlive(pid) ? undefined : 'gone'
@@ -242,13 +234,13 @@ function processIdentity(pid: number): ProcIdentity | 'gone' | undefined {
 
 function readerNames(): string[] {
   const bin = cortexdbBinary()
-  return [...new Set(['cortexdb-mcp', ...(bin !== undefined ? [basename(bin.path)] : [])].map(n => n.replace(/\.exe$/i, '').toLowerCase()))]
+  return [...new Set(['cortexdb-mcp', ...(bin !== undefined ? [basename(bin.path)] : [])].map(n => n.toLowerCase()))]
 }
 
 function isReader(id: ProcIdentity, owner: number, names: readonly string[]): boolean {
-  const name = basename(id.name.replace(/\\/g, '/')).replace(/\.exe$/i, '').toLowerCase()
+  const name = basename(id.name).toLowerCase()
   if (name === '' || !names.some(n => n === name || (name.length >= 15 && n.startsWith(name)))) return false
-  return id.ppid === undefined ? process.platform === 'win32' : id.ppid === owner
+  return id.ppid === owner
 }
 
 function readersToStop(db: string, seen: ReadonlySet<number>): Array<{ child: number, file: string }> {

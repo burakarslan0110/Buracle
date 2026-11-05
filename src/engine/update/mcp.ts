@@ -4,8 +4,7 @@ import type { McpHealth } from '../../core/policy/routing'
 import { mcpHealthOf } from '../../core/policy/routing'
 import { atomicWriteSync, readJsonSafeSync } from '../fsx'
 import * as paths from '../paths'
-import { spawnArgv, windowsVerbatim } from '../platform'
-import { killTreeWindows } from '../proc'
+
 import { shimArgv } from '../shim'
 import type { Fetcher } from './fetch'
 import { errText } from './output'
@@ -140,9 +139,8 @@ export async function probeStdio(argv: string[], opts: { env?: Record<string, st
   Object.assign(env, opts.env ?? {})
   let proc: ReturnType<typeof Bun.spawn<'pipe', 'pipe', 'pipe'>>
   try {
-    // POSIX: its own process group, so the cleanup ends the server's children too. Windows ends the tree with
-    // taskkill instead: a detached cmd.exe has no console, so a program it starts would get a new one in place of these pipes.
-    proc = Bun.spawn(argv, { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', env, windowsHide: true, cwd: opts.cwd ?? paths.home(), detached: process.platform !== 'win32', windowsVerbatimArguments: windowsVerbatim(argv) })
+    // Its own process group, so the cleanup ends the server's children too.
+    proc = Bun.spawn(argv, { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', env, cwd: opts.cwd ?? paths.home(), detached: true })
   } catch (e) {
     return down(`cannot start ${argv[0]}: ${errText(e)}`)
   }
@@ -215,7 +213,6 @@ export async function probeStdio(argv: string[], opts: { env?: Record<string, st
     try { child.stdin.end() } catch {  }
     const killGroup = (sig: 'SIGTERM' | 'SIGKILL') => {
       if (exited) return
-      if (process.platform === 'win32') { killTreeWindows(child.pid); return }
       try { process.kill(-child.pid, sig) } catch { try { child.kill(sig) } catch {  } }
     }
     killGroup('SIGTERM')
@@ -275,11 +272,10 @@ export interface ProbeOptions {
   http?: boolean
 }
 
-// Bun does not start a .cmd reliably on Windows: the Buracle shim runs as what buracle.cmd would run, any
-// other .cmd through cmd.exe.
+// The Buracle shim runs through shimArgv; any other server as its catalog command.
 export function mcpLaunchArgv(command: string, args: readonly string[], shim: string): string[] {
   if (command === shim) return shimArgv(args, shim) ?? [command, ...args]
-  return spawnArgv([command, ...args])
+  return [command, ...args]
 }
 
 export async function probeServers(catalog: McpCatalog, opts: ProbeOptions, nowIso: () => string): Promise<Record<string, McpHealthEntry>> {

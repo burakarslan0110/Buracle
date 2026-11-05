@@ -1,5 +1,5 @@
-import { isRootPath, isWindowsPath } from '../events'
-import { indexExclusion, pathKey } from '../workspace'
+import { isRootPath } from '../events'
+import { indexExclusion } from '../workspace'
 
 export interface MemProjectRecord {
   slug: string
@@ -30,9 +30,8 @@ function trimSlash(p: string): string {
   return p.length > 1 ? p.replace(/\/+$/, '') : p
 }
 
-// Windows paths compare in one slash form and in any case, as the file system does; POSIX paths as written.
 function key(p: string): string {
-  return isWindowsPath(p) ? pathKey(p, true) : trimSlash(p)
+  return trimSlash(p)
 }
 
 function same(a: string, b: string): boolean {
@@ -79,7 +78,7 @@ export function memNonProjectReason(dir: string, env: MemHygieneEnv): string | u
   if (env.vault !== undefined && env.vault !== '' && inside(d, env.vault)) return 'inside the memory vault'
   if (env.buracleHome !== undefined && env.buracleHome !== '' && inside(d, env.buracleHome)) return "inside Buracle's state folder"
   if (env.claudeDir !== undefined && env.claudeDir !== '' && inside(d, `${trimSlash(env.claudeDir)}/jobs`)) return 'a Claude Code job folder'
-  if (d.split(isWindowsPath(d) ? /[\\/]/ : '/').some(seg => seg.toLowerCase() === 'scratchpad')) return 'a scratchpad folder'
+  if (d.split('/').some(seg => seg.toLowerCase() === 'scratchpad')) return 'a scratchpad folder'
   const temp = env.tempRoots.filter(r => r !== '' && !isRootPath(r))
   const homeIsTemp = temp.some(r => inside(trimSlash(env.home), r))
   if (!homeIsTemp && temp.some(r => inside(d, r))) return 'a temporary folder'
