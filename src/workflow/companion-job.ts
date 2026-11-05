@@ -136,7 +136,7 @@ async function drain(stream: ReadableStream<Uint8Array> | null | undefined): Pro
 export async function runChild(argv: string[], o: { cwd: string, stdin: string, env: Record<string, string>, timeoutMs: number, onPid?: (pid: number) => void }): Promise<ChildResult> {
   let proc: ReturnType<typeof Bun.spawn>
   try {
-    proc = Bun.spawn(argv, { cwd: o.cwd, env: { ...o.env }, stdin: new TextEncoder().encode(o.stdin), stdout: 'pipe', stderr: 'pipe', detached: process.platform !== 'win32' })
+    proc = Bun.spawn(argv, { cwd: o.cwd, env: { ...o.env }, windowsHide: true, stdin: new TextEncoder().encode(o.stdin), stdout: 'pipe', stderr: 'pipe', detached: process.platform !== 'win32' })
   } catch (e) {
     return { code: 127, stdout: '', stderr: e instanceof Error ? e.message : String(e), timedOut: false }
   }

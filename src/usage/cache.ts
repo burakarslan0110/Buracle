@@ -114,7 +114,7 @@ export function spawnUsageRefresh(h: Harness, opts: { argv?: string[] } = {}): b
     try { utimesSync(marker, now / 1000, now / 1000) } catch {  }
     const argv = opts.argv ?? defaultRefreshArgv(h)
     const [cmd, ...args] = argv as [string, ...string[]]
-    const child = spawn(cmd, args, { detached: true, stdio: 'ignore', env: process.env })
+    const child = spawn(cmd, args, { detached: true, stdio: 'ignore', env: process.env, windowsHide: true })
     child.on('error', e => log('warn', 'usage refresh spawn failed', { h, error: e }))
     child.unref()
     return true

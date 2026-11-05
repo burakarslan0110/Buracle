@@ -62,7 +62,7 @@ async function runServer(id: string | undefined, io: CommandIO): Promise<number>
   let child: ReturnType<typeof Bun.spawn>
   try {
     const spawned = spawnArgv(plan.argv)
-    child = Bun.spawn(spawned, { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit', env: { ...process.env }, windowsVerbatimArguments: windowsVerbatim(spawned) })
+    child = Bun.spawn(spawned, { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit', env: { ...process.env }, windowsHide: true, windowsVerbatimArguments: windowsVerbatim(spawned) })
   } catch (e) {
     io.stderr.write(`buracle lsp run: cannot start ${plan.argv[0]}: ${e instanceof Error ? e.message : String(e)}\n`)
     return 1

@@ -774,7 +774,7 @@ async function onSessionEnd(sid: string, ctx: AdapterContext, deps: CodexHookDep
     const m = await deps.memory()
     if (m.spawnFinalizer) { await m.spawnFinalizer(H, sid); return }
     if (!existsSync(ctx.buracleBin)) return
-    const child = Bun.spawn([ctx.buracleBin, 'mem', 'finalize', '--harness', H, '--session', sid, '--detach'], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', env: { ...process.env } })
+    const child = Bun.spawn([ctx.buracleBin, 'mem', 'finalize', '--harness', H, '--session', sid, '--detach'], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', env: { ...process.env }, windowsHide: true })
     child.unref()
   })
   return NOTHING

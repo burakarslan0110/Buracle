@@ -149,7 +149,7 @@ export class LspClient {
     this.startedAt = this.now()
     this.lastUsed = this.startedAt
     const spawned = spawnArgv(opts.argv)
-    this.proc = Bun.spawn(spawned, { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', cwd: opts.rootDir, env: { ...process.env, ...(opts.env ?? {}) }, windowsVerbatimArguments: windowsVerbatim(spawned) })
+    this.proc = Bun.spawn(spawned, { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', cwd: opts.rootDir, env: { ...process.env, ...(opts.env ?? {}) }, windowsHide: true, windowsVerbatimArguments: windowsVerbatim(spawned) })
     void this.readStdout()
     void this.readStderr()
     void this.proc.exited.then(code => this.onExit(code))

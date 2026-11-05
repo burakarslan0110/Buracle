@@ -47,7 +47,7 @@ function windowsArgv(argv: string[], env: Record<string, string>): string[] {
 
 // Windows has no process groups: taskkill /T ends a process and every process it started.
 export function killTreeWindows(pid: number): void {
-  try { Bun.spawnSync(['taskkill', '/pid', String(pid), '/T', '/F'], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', timeout: 5000, env: { ...process.env } }) } catch {  }
+  try { Bun.spawnSync(['taskkill', '/pid', String(pid), '/T', '/F'], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', timeout: 5000, env: { ...process.env }, windowsHide: true }) } catch {  }
 }
 
 export async function run(argv: string[], opts: RunOptions = {}): Promise<RunResult> {
@@ -63,6 +63,7 @@ export async function run(argv: string[], opts: RunOptions = {}): Promise<RunRes
     proc = Bun.spawn(spawned, {
       cwd: opts.cwd,
       env,
+      windowsHide: true,
       windowsVerbatimArguments: viaCmd,
       stdin: opts.stdin === undefined ? 'ignore' : typeof opts.stdin === 'string' ? new TextEncoder().encode(opts.stdin) : opts.stdin,
       stdout: 'pipe',

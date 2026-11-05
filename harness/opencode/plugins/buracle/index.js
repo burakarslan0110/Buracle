@@ -8097,7 +8097,7 @@ function windowsArgv(argv, env) {
 }
 function killTreeWindows(pid) {
   try {
-    Bun.spawnSync(["taskkill", "/pid", String(pid), "/T", "/F"], { stdin: "ignore", stdout: "ignore", stderr: "ignore", timeout: 5000, env: { ...process.env } });
+    Bun.spawnSync(["taskkill", "/pid", String(pid), "/T", "/F"], { stdin: "ignore", stdout: "ignore", stderr: "ignore", timeout: 5000, env: { ...process.env }, windowsHide: true });
   } catch {}
 }
 async function run(argv, opts = {}) {
@@ -8122,6 +8122,7 @@ async function run(argv, opts = {}) {
     proc = Bun.spawn(spawned, {
       cwd: opts.cwd,
       env,
+      windowsHide: true,
       windowsVerbatimArguments: viaCmd,
       stdin: opts.stdin === undefined ? "ignore" : typeof opts.stdin === "string" ? new TextEncoder().encode(opts.stdin) : opts.stdin,
       stdout: "pipe",
@@ -12675,6 +12676,7 @@ function spawnCli(args, env = {}) {
     const proc = Bun.spawn([...cliArgv(), ...args], {
       cwd: checkout !== undefined ? checkout : existsSync5(home()) ? home() : "/",
       env: { ...process.env, ...env },
+      windowsHide: true,
       stdio: ["ignore", "ignore", "ignore"],
       detached: true
     });
@@ -12958,6 +12960,7 @@ function spawnShimFinalizer(sid) {
   try {
     const proc = Bun.spawn(argv, {
       env: { ...process.env, BURACLE_FINALIZER: "1" },
+      windowsHide: true,
       windowsVerbatimArguments: windowsVerbatim(argv),
       stdio: ["ignore", "ignore", "ignore"],
       detached: true
@@ -12977,6 +12980,7 @@ async function runCliJson(args, opts) {
     const proc = Bun.spawn([...cli(), ...args], {
       cwd: existsSync6(opts.cwd) ? opts.cwd : home(),
       env: { ...process.env },
+      windowsHide: true,
       stdin: opts.stdin !== undefined ? new TextEncoder().encode(opts.stdin) : "ignore",
       stdout: "pipe",
       stderr: "ignore"
@@ -30195,7 +30199,7 @@ var ASSETS_CONTEXT_TTL_MS = 60000;
 var CONTEXT_CACHE_MAX = 64;
 var spawnDetached = (argv, cwd) => {
   const spawned = spawnArgv(argv);
-  const child = Bun.spawn(spawned, { stdin: "ignore", stdout: "ignore", stderr: "ignore", detached: true, cwd, env: { ...process.env }, windowsVerbatimArguments: windowsVerbatim(spawned) });
+  const child = Bun.spawn(spawned, { stdin: "ignore", stdout: "ignore", stderr: "ignore", detached: true, cwd, env: { ...process.env }, windowsHide: true, windowsVerbatimArguments: windowsVerbatim(spawned) });
   child.unref();
 };
 function assetsRoot(root) {
@@ -30282,7 +30286,7 @@ function assetsContextCached(root, harness, nowMs) {
 }
 function ignoredRules(root) {
   try {
-    const r = Bun.spawnSync(["git", "ls-files", "--others", "--ignored", "--exclude-standard", "-z", "--", ".claude/rules"], { cwd: root, stdin: "ignore", stdout: "pipe", stderr: "ignore", env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" } });
+    const r = Bun.spawnSync(["git", "ls-files", "--others", "--ignored", "--exclude-standard", "-z", "--", ".claude/rules"], { cwd: root, stdin: "ignore", stdout: "pipe", stderr: "ignore", env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" }, windowsHide: true });
     if (r.exitCode !== 0)
       return new Set;
     return new Set(r.stdout.toString().split("\x00").map((s) => s.trim()).filter((s) => s !== ""));
@@ -34199,7 +34203,7 @@ function shimNotify(title, message) {
   if (argv === undefined)
     return;
   try {
-    const proc = Bun.spawn(argv, { stdio: ["ignore", "ignore", "ignore"], env: process.env, detached: true, windowsVerbatimArguments: windowsVerbatim(argv) });
+    const proc = Bun.spawn(argv, { stdio: ["ignore", "ignore", "ignore"], env: process.env, windowsHide: true, detached: true, windowsVerbatimArguments: windowsVerbatim(argv) });
     proc.unref();
   } catch (e) {
     log("warn", "opencode: notify spawn failed", { error: e instanceof Error ? e.message : String(e) });

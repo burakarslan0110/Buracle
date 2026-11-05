@@ -142,7 +142,7 @@ export async function probeStdio(argv: string[], opts: { env?: Record<string, st
   try {
     // POSIX: its own process group, so the cleanup ends the server's children too. Windows ends the tree with
     // taskkill instead: a detached cmd.exe has no console, so a program it starts would get a new one in place of these pipes.
-    proc = Bun.spawn(argv, { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', env, cwd: opts.cwd ?? paths.home(), detached: process.platform !== 'win32', windowsVerbatimArguments: windowsVerbatim(argv) })
+    proc = Bun.spawn(argv, { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', env, windowsHide: true, cwd: opts.cwd ?? paths.home(), detached: process.platform !== 'win32', windowsVerbatimArguments: windowsVerbatim(argv) })
   } catch (e) {
     return down(`cannot start ${argv[0]}: ${errText(e)}`)
   }

@@ -410,7 +410,7 @@ function psRow(pid: number): { ppid: number, comm: string } | undefined {
   try {
     const r = Bun.spawnSync(['ps', '-o', 'ppid=,comm=', '-p', String(pid)], {
       stdin: 'ignore', stdout: 'pipe', stderr: 'ignore', timeout: 1000,
-      env: { PATH: process.env['PATH'] ?? '/usr/bin:/bin', LC_ALL: 'C' },
+      env: { PATH: process.env['PATH'] ?? '/usr/bin:/bin', LC_ALL: 'C' }, windowsHide: true,
     })
     if (r.exitCode !== 0) return undefined
     const m = /^\s*(\d+)\s+(.+?)\s*$/.exec(new TextDecoder().decode(r.stdout).split('\n')[0] ?? '')

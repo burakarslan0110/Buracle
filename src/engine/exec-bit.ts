@@ -23,7 +23,7 @@ function indexModes(root: string): IndexModes | undefined {
   if (known !== undefined) return known ?? undefined
   let modes: IndexModes | null = null
   try {
-    const r = Bun.spawnSync(['git', '-C', root, 'ls-files', '--stage', '-z'], { env: { ...process.env }, stdout: 'pipe', stderr: 'ignore' })
+    const r = Bun.spawnSync(['git', '-C', root, 'ls-files', '--stage', '-z'], { env: { ...process.env }, windowsHide: true, stdout: 'pipe', stderr: 'ignore' })
     if (r.exitCode === 0) {
       const executables = new Set<string>()
       const tracked = new Set<string>()

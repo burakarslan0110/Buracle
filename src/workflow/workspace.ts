@@ -347,7 +347,7 @@ export type IndexSpawner = (argv: string[], cwd: string) => void
 
 const spawnDetached: IndexSpawner = (argv, cwd) => {
   const spawned = spawnArgv(argv)
-  const child = Bun.spawn(spawned, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, cwd, env: { ...process.env }, windowsVerbatimArguments: windowsVerbatim(spawned) })
+  const child = Bun.spawn(spawned, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, cwd, env: { ...process.env }, windowsHide: true, windowsVerbatimArguments: windowsVerbatim(spawned) })
   child.unref()
 }
 

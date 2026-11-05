@@ -32,7 +32,7 @@ const CONTEXT_CACHE_MAX = 64
 
 const spawnDetached: AssetsSpawner = (argv, cwd) => {
   const spawned = spawnArgv(argv)
-  const child = Bun.spawn(spawned, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, cwd, env: { ...process.env }, windowsVerbatimArguments: windowsVerbatim(spawned) })
+  const child = Bun.spawn(spawned, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, cwd, env: { ...process.env }, windowsHide: true, windowsVerbatimArguments: windowsVerbatim(spawned) })
   child.unref()
 }
 
@@ -123,7 +123,7 @@ export function clearAssetsContextCache(): void {
 
 function ignoredRules(root: string): Set<string> {
   try {
-    const r = Bun.spawnSync(['git', 'ls-files', '--others', '--ignored', '--exclude-standard', '-z', '--', '.claude/rules'], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'ignore', env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
+    const r = Bun.spawnSync(['git', 'ls-files', '--others', '--ignored', '--exclude-standard', '-z', '--', '.claude/rules'], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'ignore', env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' }, windowsHide: true })
     if (r.exitCode !== 0) return new Set()
     return new Set(r.stdout.toString().split('\0').map(s => s.trim()).filter(s => s !== ''))
   } catch { return new Set() }

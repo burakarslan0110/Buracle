@@ -147,18 +147,43 @@ describe('buracle install --script', () => {
     })
   }))
 
-  test('doctor errors make Result a warning that points at the log; a PATH added is one info line', () => withSandbox(async ({ root, home }) => {
+  test('doctor errors make Result a warning that names each failed check; warnings stay in the log; a PATH added is one info line', () => withSandbox(async ({ root, home }) => {
     const repo = makeRepo(root)
     await withDeps({ repoRoot: () => repo, adapters: async () => [], runCli: fakeCli().runCli }, () => withScript({
-      doctor: async () => [{ section: 'mcp', level: 'error', check: 'context7', detail: 'no answer' }, { section: 'mcp', level: 'error', check: 'semble', detail: 'no answer' }],
+      doctor: async () => [
+        { section: 'mcp', level: 'error', check: 'context7', detail: 'no answer' },
+        { section: 'tools', level: 'warn', check: 'gopls', detail: 'optional, not found' },
+        { section: 'hooks', level: 'error', check: 'claude hooks', detail: `the hook command ${join(home, '.buracle', 'bin', 'buracle')} does not start\nrun \`buracle install\` again` },
+        { section: 'tools', level: 'error', check: 'codegraph', detail: 'not found on PATH or in the Buracle toolchain (required); suggestion: `buracle install` (into ~/.buracle/toolchain) (Code graph CLI)' },
+        { section: 'mcp', level: 'error', check: 'cortexdb', detail: 'cortexdb-mcp is not in the toolchain (buracle install)' },
+        // The other forms doctor's errors give the advice in (engine/update/runtime.ts, adapters/codex/doctor.ts).
+        { section: 'runtime', level: 'error', check: 'runtime', detail: 'the live runtime R is missing: hooks deny every tool call (fail closed) until `buracle install` (or `bun src/cli/main.ts install` in the checkout) restores it' },
+        { section: 'runtime', level: 'error', check: 'fingerprint', detail: 'the files of R changed after it was checked (damaged or edited by hand); run `buracle install` to replace it' },
+        { section: 'codex', level: 'error', check: 'codex.hooks', detail: 'Codex cannot start the hooks: P. BURACLE_HOME is H here; install Buracle again (`buracle install codex`) and make sure Codex starts with it.' },
+        // A server's raw stderr: colours and a carriage return must not reach the terminal.
+        { section: 'mcp', level: 'error', check: 'web-fetch', detail: 'down: \u001b[31mboom\u001b[0m\rX' },
+      ],
       addPath: () => ({ changed: true, file: join(home, '.zshrc') }),
     }, async () => {
       const io = memoryIO()
       expect(await installRun(args(join(home, 'd.log'), ['--yes']), io)).toBe(2)
       const out = lines(io.out())
-      expect(out).toHaveLength(5)
-      expect(out[3]).toBe('▲ Result          done in 48 s · doctor: 2 errors · log ~/d.log')
-      expect(out[4]).toBe('    ℹ PATH         ~/.local/bin added in ~/.zshrc · open a new terminal')
+      expect(out).toHaveLength(13)
+      expect(out[3]).toBe('▲ Result          done in 48 s · doctor: 8 errors · log ~/d.log')
+      expect(out.slice(4, 12)).toEqual([
+        '    ✖ context7     mcp · no answer',
+        '    ✖ claude hooks hooks · the hook command ~/.buracle/bin/buracle does not start',
+        '    ✖ codegraph    tools · not found on PATH or in the Buracle toolchain (required)',
+        '    ✖ cortexdb     mcp · cortexdb-mcp is not in the toolchain',
+        '    ✖ runtime      runtime · the live runtime R is missing: hooks deny every tool call (fail closed)',
+        '    ✖ fingerprint  runtime · the files of R changed after it was checked (damaged or edited by hand)',
+        '    ✖ codex.hooks  codex · Codex cannot start the hooks: P. BURACLE_HOME is H here',
+        '    ✖ web-fetch    mcp · down: boom X',
+      ])
+      expect(io.out()).not.toContain('gopls')
+      expect(io.out()).not.toMatch(/buracle install|install Buracle|main\.ts install/)
+      expect(io.out()).not.toMatch(/[\u001b\r]/)
+      expect(out[12]).toBe('    ℹ PATH         ~/.local/bin added in ~/.zshrc · open a new terminal')
       const note = memoryIO()
       await withScript({ addPath: () => ({ changed: false, skipped: 'windows' as const }) }, () => installRun(args(join(home, 'w.log'), ['--yes', '--path-note', 'added to your user PATH']), note))
       expect(lines(note.out())).toContain('    ℹ PATH         ~/.local/bin added to your user PATH · open a new terminal')
@@ -193,8 +218,13 @@ describe('buracle install --script', () => {
     const short = await run(0)
     expect(short.find(l => l.startsWith('✔ Result'))).toBe('✔ Result          done in 48 s · log ~/.buracle/logs/install-2026-11-01.log')
     const long = await run(4)
-    expect(long.find(l => l.startsWith('▲ Result'))).toBe('▲ Result          done in 48 s · doctor: 4 errors')
-    expect(long).toContain('    ℹ log          ~/.buracle/logs/install-2026-11-01.log')
+    // The path first, then the failed checks.
+    const at = long.findIndex(l => l.startsWith('▲ Result'))
+    expect(long.slice(at, at + 6)).toEqual([
+      '▲ Result          done in 48 s · doctor: 4 errors',
+      '    ℹ log          ~/.buracle/logs/install-2026-11-01.log',
+      ...[0, 1, 2, 3].map(i => `    ✖ s${i}           mcp · no answer`),
+    ])
     expect(Math.max(...long.map(l => [...l].length))).toBeLessThanOrEqual(79)
   }))
 

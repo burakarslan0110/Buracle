@@ -75,7 +75,7 @@ async function showDesktopNotification(type: NotifyType, title: string, message:
   if (n === undefined) return { status: 'unsupported' }
   if (n.detached === true) {
     try {
-      const child = Bun.spawn(n.argv, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, env: { ...process.env, ...n.env } })
+      const child = Bun.spawn(n.argv, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, env: { ...process.env, ...n.env }, windowsHide: true })
       child.unref()
       return { status: 'shown' }
     } catch (e) {

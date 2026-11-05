@@ -141,7 +141,7 @@ export function readMarker(dir: string): RuntimeMarker | undefined {
 
 function git(dir: string, args: string[]): string | undefined {
   try {
-    const r = Bun.spawnSync(['git', '-C', dir, ...args], { stdout: 'pipe', stderr: 'ignore', env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C', GIT_TERMINAL_PROMPT: '0' } })
+    const r = Bun.spawnSync(['git', '-C', dir, ...args], { stdout: 'pipe', stderr: 'ignore', env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C', GIT_TERMINAL_PROMPT: '0' }, windowsHide: true })
     return r.exitCode === 0 ? r.stdout.toString().trim() : undefined
   } catch { return undefined }
 }
