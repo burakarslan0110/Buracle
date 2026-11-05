@@ -56,7 +56,11 @@ describe('codex doctor', () => {
     expect(compareVersions('0.154.0', '0.154.0')).toBe(0)
     expect(compareVersions('0.99.9', '0.154.0')).toBe(-1)
     await withSandbox(async () => {
-      expect(by(await codexDoctor(ctx(), fake({ version: '0.150.0' })), 'codex.version')[0]?.level).toBe('error')
+      const old = by(await codexDoctor(ctx(), fake({ version: '0.150.0' })), 'codex.version')[0]
+      expect(old?.level).toBe('error')
+      // `codex update` needs the Codex to start, which an old one with Buracle's config.toml does not.
+      expect(old?.detail).toContain('run `buracle update codex`')
+      expect(old?.detail).not.toContain('`codex update`')
       const newer = TESTED_CODEX.replace(/\d+$/, p => String(Number(p) + 1))
       expect(by(await codexDoctor(ctx(), fake({ version: newer })), 'codex.version')[0]?.level).toBe('warn')
       expect(by(await codexDoctor(ctx(), fake()), 'codex.version')[0]?.level).toBe('ok')
@@ -250,6 +254,11 @@ describe('codex doctor', () => {
     expect(ignored.detail).toContain('`web_searchh` is ignored')
     expect(configLoadCheck(r(doctorJson({ status: 'fail', summary: 'config could not be loaded', details: { error: 'invalid data' }, remediation: 'Fix the reported config error, then rerun codex doctor.' })))).toEqual({ level: 'error', check: 'codex.config', detail: expect.stringContaining('does not start: invalid data') })
     expect(configLoadCheck({ code: -1, stdout: '', stderr: '', timedOut: true })).toEqual({ level: 'warn', check: 'codex.config', detail: expect.stringContaining('timed out') })
+    // A Codex older than the minimum: the cause and the way out replace Codex's generic advice.
+    const tooOld = configLoadCheck(r(doctorJson({ status: 'fail', summary: 'config could not be loaded', details: { error: 'invalid type: string "xhigh", expected struct AgentRoleToml' }, remediation: 'Fix the reported config error, then rerun codex doctor.' })), '0.154.0')
+    expect(tooOld.level).toBe('error')
+    expect(tooOld.detail).toContain('older than 0.154.0 and cannot read the keys Buracle writes: run `buracle update codex`, then `buracle install codex`')
+    expect(tooOld.detail).not.toContain('Fix the reported config error')
   })
 
   test('I8: Buracle MCP commands must resolve (the shim is an error, a missing package runner a warning)', () => {

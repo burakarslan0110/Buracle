@@ -7,7 +7,8 @@ import { CONFIG_RENAMES, defaultConfig, type ConfigRename } from '../../../src/c
 import { liveContext } from '../../../src/engine/update/context'
 import { indexChecks } from '../../../src/workflow/workspace-index'
 import type { McpCatalog } from '../../../src/core/catalog'
-import { checkTools, configChecks, doctorExit, parseShim, skillChecks } from '../../../src/engine/update/doctor'
+import { checkTools, configChecks, doctorExit, parseShim, skillChecks, updateChecks } from '../../../src/engine/update/doctor'
+import { writeUpdatesCache } from '../../../src/engine/update/updates-cache'
 import { emptyToolchainState } from '../../../src/engine/toolchain/state'
 import type { ToolSpec } from '../../../src/core/catalog'
 import { run as runProcess } from '../../../src/engine/proc'
@@ -362,6 +363,42 @@ describe('buracle doctor', () => {
       const [cg, sb] = await checkTools([tool, absent], 5000, state)
       expect(cg).toEqual({ name: 'codegraph', status: 'ok', version: '1.6.2', detail: '1.6.2 (Buracle toolchain)' })
       expect(sb).toMatchObject({ status: 'missing' })
+    })
+  }))
+
+  test('a tool the toolchain provides is reported as that copy, which Buracle runs, though PATH has another version', () => withSandbox(async ({ root }) => {
+    const bin = fakeExe(join(root, 'tc', 'codegraph'), "console.log('1.6.2')")
+    const state = emptyToolchainState()
+    state.packages['npm:@colbymchenry/codegraph'] = { registry: 'npm', name: '@colbymchenry/codegraph', version: '1.6.2', dir: join(root, 'tc'), bins: { codegraph: bin }, installed_at: 'x' }
+    const tool: ToolSpec = { name: 'codegraph', check: ['codegraph', '--version'], version_regex: '(\\d+\\.\\d+\\.\\d+)', required: true, npm: '@colbymchenry/codegraph' }
+    // A global `npm i -g @colbymchenry/codegraph` of an older release, first on PATH (the Windows report showed 1.6.0).
+    await withDeps({ run: async (argv, opts) => (argv[0] === 'codegraph' ? { code: 0, stdout: '1.6.0\n', stderr: '', timedOut: false } : runProcess(argv, opts ?? {})) }, async () => {
+      expect((await checkTools([tool], 5000, state))[0]).toEqual({ name: 'codegraph', status: 'ok', version: '1.6.2', detail: '1.6.2 (Buracle toolchain)' })
+    })
+  }))
+
+  test('updates: a part whose check failed is named as not checked next to the available ones', () => withSandbox(async () => {
+    const at = '2026-11-05T06:00:00.000Z'
+    writeUpdatesCache({ checked_at: at, kinds: ['harness'], held: [], items: [{ kind: 'harness', id: 'claude', current: '2.1.311', latest: '2.1.312', action: 'npm-global', risk: 'low' }], errors: [{ kind: 'harness', id: 'codex', error: 'npm @openai/codex: fetch failed\nmore' }] })
+    const rows = updateChecks(Date.parse(at) + 2 * 3_600_000)
+    expect(rows.map(r => r.check)).toEqual(['cache', 'available', 'not checked'])
+    expect(rows[1]?.detail).toContain('harness:claude')
+    expect(rows[2]).toEqual({ section: 'updates', level: 'info', check: 'not checked', detail: '1 part(s) whose check failed: harness:codex (npm @openai/codex: fetch failed); `buracle update --check` tries again' })
+  }))
+
+  test('a version check that times out once (a first start after an upgrade) runs again before it counts as failed', () => withSandbox(async ({ root }) => {
+    const bin = fakeExe(join(root, 'tc', 'semble'), "console.log('semble 0.7.2')")
+    const state = emptyToolchainState()
+    state.packages['pypi:semble'] = { registry: 'pypi', name: 'semble', version: '0.7.2', dir: join(root, 'tc'), bins: { semble: bin }, installed_at: 'x' }
+    const tool: ToolSpec = { name: 'semble', check: ['semble', '--version'], version_regex: '(\\d+\\.\\d+\\.\\d+)', required: true, pypi: 'semble[mcp]' }
+    const slow = { code: 124, stdout: '', stderr: '', timedOut: true }
+    let runs = 0
+    await withDeps({ run: async (argv, opts) => (runs++ === 0 ? slow : runProcess(argv, opts ?? {})) }, async () => {
+      expect((await checkTools([tool], 5000, state))[0]).toEqual({ name: 'semble', status: 'ok', version: '0.7.2', detail: '0.7.2 (Buracle toolchain)' })
+    })
+    expect(runs).toBe(2)
+    await withDeps({ run: async () => slow }, async () => {
+      expect((await checkTools([tool], 5000, state))[0]).toMatchObject({ status: 'error', detail: expect.stringContaining('exit 124 (timed out twice after 5 s)') })
     })
   }))
 

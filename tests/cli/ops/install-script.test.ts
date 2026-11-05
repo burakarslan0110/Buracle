@@ -62,6 +62,18 @@ describe('buracle install --script', () => {
     }))
   }))
 
+  test('log lines carry the local time, as the scripts\' header line above them does', () => withSandbox(async ({ root, home }) => {
+    const repo = makeRepo(root)
+    const log = join(root, 'tz.log')
+    const adapters = [fakeAdapter('claude', { plan: () => filePlan('claude', home, '.claude/x.json') })]
+    // STARTED + 48 s is 08:00:48 UTC, 11:00:48 in Istanbul (UTC+3, no daylight saving time).
+    await withEnv({ TZ: 'Europe/Istanbul' }, () => withDeps({ repoRoot: () => repo, adapters: async () => adapters, runCli: fakeCli().runCli }, () => withScript({}, async () => {
+      expect(await installRun(args(log, ['--yes']), memoryIO())).toBe(0)
+    })))
+    const stamps = new Set(readFileSync(log, 'utf8').split('\n').filter(l => l !== '').map(l => l.slice(0, 10)))
+    expect([...stamps]).toEqual(['[11:00:48]'])
+  }))
+
   test('the toolchain: n of m ready, a failed required tool and a missing optional one are listed under Tools', () => withSandbox(async ({ root, home }) => {
     const repo = makeRepo(root)
     const items: ToolchainItem[] = [

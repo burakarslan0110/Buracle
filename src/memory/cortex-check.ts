@@ -50,8 +50,16 @@ export async function checkCortexdbBinary(bin: string, timeoutMs = 30_000): Prom
   }
 }
 
-/** `selfTestPassed`: the self-test itself passed; a `failed` status then comes from the binary's check of the file alone. */
-export interface SelfTest { status: 'passed' | 'failed' | 'unavailable', detail: string, selfTestPassed?: boolean }
+/**
+ * `selfTestPassed`: the self-test itself passed; a `failed` status then comes from the binary's check of the file alone.
+ * `openFailed`: that check could not open the file at all, so it says nothing about the file.
+ */
+export interface SelfTest { status: 'passed' | 'failed' | 'unavailable', detail: string, selfTestPassed?: boolean, openFailed?: boolean }
+
+// CortexDB 2.145 opens the brain for its file check as `file:` + the absolute path (cmd/cortexdb-mcp-stdio/doctor.go,
+// checkSQLite). A Windows path (C:\…) makes that URI invalid, and the SQLite driver, which reads the message of a
+// connection it never got, reports "out of memory" with code 1. The self-test opens a plain path, so it still runs.
+const CHECK_OPEN_FAILED = /SQL logic error: out of memory \(1\)/
 
 /**
  * The binary's own `--doctor --self-test` against the brain file: one JSON line (status, self_test, error), exit 0 or 1.
@@ -68,7 +76,10 @@ export async function brainSelfTest(db: string, timeoutMs = 10_000): Promise<Sel
   if (r.timedOut || j === undefined || typeof j !== 'object' || j === null) return { status: 'unavailable', detail: r.timedOut ? `no answer within ${timeoutMs / 1000} s` : 'this CortexDB prints no self-test' }
   const status = typeof j.status === 'string' ? j.status : 'unknown'
   const err = typeof j.error === 'string' && j.error !== '' ? `: ${j.error}` : ''
-  if (r.code !== 0 || status === 'failed' || j.self_test === 'failed') return { status: 'failed', detail: `status ${status}, self-test ${String(j.self_test ?? 'not run')}${err}`, selfTestPassed: j.self_test === 'passed' }
+  if (r.code !== 0 || status === 'failed' || j.self_test === 'failed') {
+    const openFailed = typeof j.error === 'string' && CHECK_OPEN_FAILED.test(j.error)
+    return { status: 'failed', detail: `status ${status}, self-test ${String(j.self_test ?? 'not run')}${err}`, selfTestPassed: j.self_test === 'passed', ...(openFailed ? { openFailed } : {}) }
+  }
   return { status: 'passed', detail: `status ${status}, self-test ${String(j.self_test ?? 'not run')}` }
 }
 

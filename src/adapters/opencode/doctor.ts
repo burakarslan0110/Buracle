@@ -14,6 +14,23 @@ import { POINTER_FILE } from './runtime/env'
 import { configPermissions, opencodeServers } from './render'
 import { resolveArgv, type Env } from '../shared/command'
 import { hostLimitRows } from '../shared/host-limits'
+import { detectOrigin, resolveBinary } from '../../engine/update/origin'
+
+export const MIGRATE_V1_URL = 'https://opencode.ai/v2/docs/migrate-v1'
+
+/**
+ * The way from an OpenCode v1 to v2, for the installer that installed v1 (`opencode-ai` on npm is v1, `@opencode/cli`
+ * is v2). Both install the `opencode` command, so a v1 that a package manager installed goes first; `opencode upgrade
+ * --major` arrived in v1.19.0.
+ */
+export function v2Advice(binPath: string | undefined): string {
+  const real = resolveBinary(binPath)
+  const origin = real !== undefined ? detectOrigin(real) : { method: 'unknown' as const }
+  if (origin.method === 'npm') return `\`npm uninstall -g ${origin.name ?? 'opencode-ai'}\`, then \`npm install -g @opencode/cli\``
+  if (origin.method === 'bun') return `\`bun remove -g ${origin.name ?? 'opencode-ai'}\`, then \`bun add -g @opencode/cli\``
+  if (origin.method === 'brew-formula' || origin.method === 'brew-cask') return `\`brew uninstall ${origin.method === 'brew-cask' ? '--cask ' : ''}${origin.name ?? 'opencode'}\`, then \`brew install anomalyco/tap/opencode-v2\``
+  return '`opencode upgrade` (to 1.19.0 or newer), then `opencode upgrade --major`'
+}
 
 export interface DoctorItem { level: 'ok' | 'warn' | 'error', check: string, detail: string }
 
@@ -171,11 +188,11 @@ export async function doctor(ctx: AdapterContext, opts: DoctorOptions = {}): Pro
 
   const bin = await (opts.detect ?? (() => detectBinary('opencode')))()
   if (!bin.installed || bin.path === undefined) {
-    add('warn', 'opencode.binary', 'opencode is not on PATH; install OpenCode v2 (brew install anomalyco/tap/opencode-v2) to use this adapter')
+    add('warn', 'opencode.binary', 'opencode is not on PATH; install OpenCode v2 (`npm install -g @opencode/cli` on every system, or `brew install anomalyco/tap/opencode-v2`) to use this adapter')
   } else if (bin.version === undefined) {
     add('error', 'opencode.version', `${bin.path}: could not read \`opencode --version\``)
   } else if (compareVersions(bin.version, '2.0.0') < 0) {
-    add('error', 'opencode.version', `OpenCode ${bin.version} is v1; Buracle targets v2 (≥ ${MIN_VERSION}). Install anomalyco/tap/opencode-v2`)
+    add('error', 'opencode.version', `OpenCode ${bin.version} is v1; Buracle targets v2 (≥ ${MIN_VERSION}). Move to v2: ${v2Advice(bin.path)}, then \`buracle install opencode\` (${MIGRATE_V1_URL})`)
   } else if (compareVersions(bin.version, MIN_VERSION) < 0) {
     add('error', 'opencode.version', `OpenCode ${bin.version} is older than ${MIN_VERSION}; run \`opencode upgrade\``)
   } else if (bin.version !== TESTED_WITH) {

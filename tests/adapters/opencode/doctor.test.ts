@@ -1,6 +1,6 @@
 import { Database } from 'bun:sqlite'
 import { describe, expect, test } from 'bun:test'
-import { chmodSync, mkdirSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { claudeSubscriptionSigns, commandFindings, doctor, effortFinding, mcpCommandFindings, permissionFinding, rememberedVariants, type DoctorItem, type DoctorOptions } from '../../../src/adapters/opencode/doctor'
 import { TESTED_WITH } from '../../../src/adapters/opencode/constants'
@@ -77,6 +77,30 @@ describe('opencode doctor', () => {
     expect(level(await doctor(ctx, fake('2.0.10', {})), 'opencode.version')).toBe('error')
     expect(level(await doctor(ctx, fake(TESTED_WITH, {})), 'opencode.version')).toBe('ok')
     expect(level(await doctor(ctx, fake(TESTED_WITH.replace(/\d+$/, n => String(Number(n) + 1)), {})), 'opencode.version')).toBe('warn')
+  }))
+
+  test('a v1 is told the way to v2 for the installer that installed it, not only the Homebrew tap', () => withSandbox(async ({ root }) => {
+    // npm on Windows: the %APPDATA%\npm\opencode.cmd shim of `npm i -g opencode-ai`.
+    const prefix = join(root, 'AppData', 'Roaming', 'npm')
+    mkdirSync(prefix, { recursive: true })
+    const shim = join(prefix, 'opencode.cmd')
+    writeFileSync(shim, '@ECHO off\r\nGOTO start\r\n:start\r\nSETLOCAL\r\n"%_prog%"  "%dp0%\\node_modules\\opencode-ai\\bin\\opencode" %*\r\n')
+    const npm = await doctor(adapterContext(), { detect: async () => ({ installed: true, version: '1.18.29', path: shim }), run: async () => ok('') })
+    const row = npm.find(i => i.check === 'opencode.version')
+    expect(row?.level).toBe('error')
+    expect(row?.detail).toContain('Move to v2: `npm uninstall -g opencode-ai`, then `npm install -g @opencode/cli`, then `buracle install opencode`')
+    expect(row?.detail).toContain('https://opencode.ai/v2/docs/migrate-v1')
+    // Homebrew, by the Cellar folder the PATH link leads to.
+    const cellar = join(root, 'Cellar', 'opencode', '1.18.29', 'bin')
+    mkdirSync(cellar, { recursive: true })
+    writeFileSync(join(cellar, 'opencode'), '#!/bin/sh\n')
+    mkdirSync(join(root, 'bin'))
+    symlinkSync(join(cellar, 'opencode'), join(root, 'bin', 'opencode'))
+    const brew = await doctor(adapterContext(), { detect: async () => ({ installed: true, version: '1.18.29', path: join(root, 'bin', 'opencode') }), run: async () => ok('') })
+    expect(brew.find(i => i.check === 'opencode.version')?.detail).toContain('`brew uninstall opencode`, then `brew install anomalyco/tap/opencode-v2`')
+    // Any other installer: OpenCode's own updater, which reaches v2 from 1.19.0 on.
+    const other = await doctor(adapterContext(), fake('1.18.29', {}))
+    expect(other.find(i => i.check === 'opencode.version')?.detail).toContain('`opencode upgrade` (to 1.19.0 or newer), then `opencode upgrade --major`')
   }))
 
   test('host limits (PARITY-10): the version row is ok on the checked version and warns on a newer one; each limit is a row with its fallback and the README pointer', () => withSandbox(async () => {

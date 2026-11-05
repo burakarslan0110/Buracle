@@ -186,7 +186,8 @@ export function routingCheck(toml: Record<string, unknown>, ctx: Pick<AdapterCon
   return { level: 'ok', check, detail: `critical MCP tools are top-level from the first turn${ctx.config.routing.strictness === 'enforce' ? '; the built-in web search is off (routing enforced)' : ''}` }
 }
 
-export function configLoadCheck(r: RunResult): DoctorItem {
+/** `tooOld`: the oldest supported Codex, given when the installed one is older (it cannot read the keys Buracle writes). */
+export function configLoadCheck(r: RunResult, tooOld?: string): DoctorItem {
   const check = 'codex.config'
   let report: unknown
   try { report = JSON.parse(r.stdout) } catch { report = undefined }
@@ -197,7 +198,10 @@ export function configLoadCheck(r: RunResult): DoctorItem {
   }
   const details = rec(load['details'])
   if (load['status'] === 'fail') {
-    return { level: 'error', check, detail: `Codex cannot load its config, so it does not start: ${String(details['error'] ?? load['summary'] ?? 'unknown error')}${typeof load['remediation'] === 'string' ? ` (${load['remediation']})` : ''}` }
+    const cause = tooOld !== undefined
+      ? `; this Codex is older than ${tooOld} and cannot read the keys Buracle writes: run \`buracle update codex\`, then \`buracle install codex\``
+      : typeof load['remediation'] === 'string' ? ` (${load['remediation']})` : ''
+    return { level: 'error', check, detail: `Codex cannot load its config, so it does not start: ${String(details['error'] ?? load['summary'] ?? 'unknown error')}${cause}` }
   }
   const warning = typeof details['startup warning'] === 'string' ? details['startup warning'].replace(/\s+/g, ' ').trim() : ''
   if (load['status'] === 'warning' || warning !== '') return { level: 'warn', check, detail: `Codex startup warning: ${warning !== '' ? warning.slice(0, 400) : String(load['summary'] ?? 'see codex doctor')}` }
@@ -228,7 +232,7 @@ export async function codexDoctor(ctx: AdapterContext, deps: DoctorDeps = defaul
   } else if (found.version === undefined) {
     add('warn', 'codex.version', `could not read \`codex --version\` (${found.path ?? 'codex'})`)
   } else if (compareVersions(found.version, MIN_CODEX) < 0) {
-    add('error', 'codex.version', `codex ${found.version} is older than ${MIN_CODEX}; run \`codex update\``)
+    add('error', 'codex.version', `codex ${found.version} is older than ${MIN_CODEX}, the oldest Codex Buracle supports: run \`buracle update codex\` (it uses the installer that installed Codex, also while this Codex does not start), then \`buracle install codex\``)
   } else if (compareVersions(found.version, TESTED_CODEX) > 0) {
     add('warn', 'codex.version', `codex ${found.version} is newer than the tested ${TESTED_CODEX}; hooks and rollout parsing may need a check`)
   } else {
@@ -333,6 +337,7 @@ export async function codexDoctor(ctx: AdapterContext, deps: DoctorDeps = defaul
   if (toml === undefined) add('error', 'codex.config', `${join(codexHome, 'config.toml')} is not valid TOML, so Codex does not start`)
   else items.push(permissionCheck(toml, ctx.config), effortCheck(toml, ctx.config), routingCheck(toml, ctx))
 
-  if (found.installed && toml !== undefined) items.push(configLoadCheck(await deps.run([codex, 'doctor', '--json'], { timeoutMs: 60_000 })))
+  const tooOld = found.version !== undefined && compareVersions(found.version, MIN_CODEX) < 0 ? MIN_CODEX : undefined
+  if (found.installed && toml !== undefined) items.push(configLoadCheck(await deps.run([codex, 'doctor', '--json'], { timeoutMs: 60_000 }), tooOld))
   return items
 }

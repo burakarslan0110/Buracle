@@ -346,6 +346,23 @@ describe('ensureIndexes', () => {
     })
   })
 
+  test('a sync that finds the database locked by another process is skipped, and a failure reads without the progress frame', async () => {
+    await withSandbox(async ({ root }) => {
+      fakeTools(root)
+      const repo = join(root, 'repo')
+      await gitInit(repo)
+      writeDb(repo)
+      // What codegraph 1.6 printed on Windows while another session's codegraph wrote the index (no writer.pid seen).
+      const locked = fakeRunner(c => (c.args[0] === 'sync' ? { code: 1, stderr: '┌  CodeGraph sync\n│\n■  Failed: store worker: database is locked\n' } : undefined))
+      const r = await ensureIndexes(repo, { codegraph: true, semble: false, runner: locked.runner, liveWriter: () => undefined }, () => 5_000)
+      expect(r.codegraph).toMatchObject({ ok: true, mode: 'sync', note: 'skipped: another codegraph process was writing the index (database is locked)' })
+      expect(locked.calls.map(c => c.args[0])).toEqual(['sync'])
+      const failed = fakeRunner(c => (c.args[0] === 'sync' ? { code: 1, stderr: '┌  CodeGraph sync\n│\n■  Failed: store worker: disk I/O error\n' } : undefined))
+      const f = await ensureIndexes(repo, { codegraph: true, semble: false, runner: failed.runner, liveWriter: () => undefined }, () => 6_000 + 24 * 60 * MIN)
+      expect(f.codegraph).toMatchObject({ ok: false, error: 'CodeGraph sync / Failed: store worker: disk I/O error' })
+    })
+  })
+
   test('a failed run is recorded and retried after a wait that grows with each failure', async () => {
     await withSandbox(async ({ root }) => {
       fakeTools(root)

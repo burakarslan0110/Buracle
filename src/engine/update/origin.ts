@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import type { Harness } from '../../core/events'
 import { realPath } from '../fsx'
 
@@ -23,9 +25,19 @@ export function isBrewName(name: string): boolean {
   return BREW_NAME.test(name)
 }
 
+// npm on Windows puts a cmd-shim on PATH (`%APPDATA%\npm\codex.cmd`), not a link: the shim runs
+// `"%dp0%\node_modules\<package>\…"`, the file in the package that the origin is read from.
+const CMD_SHIM_TARGET = /"%dp0%\\(node_modules\\[^"]+)"/i
+
 export function resolveBinary(path: string | undefined): string | undefined {
   if (path === undefined || path === '') return undefined
-  try { return realPath(path) } catch { return undefined }
+  let real: string
+  try { real = realPath(path) } catch { return undefined }
+  if (!/\.cmd$/i.test(real)) return real
+  let text: string
+  try { text = readFileSync(real, 'utf8') } catch { return real }
+  const target = CMD_SHIM_TARGET.exec(text)?.[1]
+  return target !== undefined ? join(dirname(real), ...target.split('\\')) : real
 }
 
 function packageAfter(segments: readonly string[], at: number): string | undefined {

@@ -85,8 +85,18 @@ export interface EnsureOptions {
 }
 export interface EnsureResult { root: string; skipped?: string; codegraph?: IndexToolRecord; semble?: IndexToolRecord }
 
+// codegraph frames its progress the way clack does: a lone `│` between steps and a mark (■ ▲ ◆ ◇ └ …) before a line.
+const PROGRESS_FRAME = /^[\s│┃┆┌└├─◆◇■□▲△●○◒◐◓◑✔✖✓✗⚠]+/u
+
 function errLine(r: RunResult): string {
-  return `${r.stderr || r.stdout}`.trim().split('\n').slice(-2).join(' / ').slice(0, 300) || `exit ${r.code}${r.timedOut ? ' (timed out)' : ''}`
+  const lines = `${r.stderr || r.stdout}`.split('\n').map(l => l.replace(PROGRESS_FRAME, '').trim()).filter(l => l !== '')
+  return lines.slice(-2).join(' / ').slice(0, 300) || `exit ${r.code}${r.timedOut ? ' (timed out)' : ''}`
+}
+
+// SQLite answers "database is locked" (SQLITE_BUSY) while another process writes: a codegraph server, or the index run
+// of another session. That process holds the lock only while it lives, so the index is being refreshed already.
+function lockedByAnother(r: RunResult): boolean {
+  return /database is locked|SQLITE_BUSY/i.test(`${r.stderr}\n${r.stdout}`)
 }
 
 function lastJson(text: string): Record<string, unknown> | undefined {
@@ -230,6 +240,7 @@ async function ensureCodegraph(root: string, force: boolean, o: ToolRun): Promis
   if (r.code !== 0) {
     const late = o.live(root)
     if (late !== undefined) return okRecord(t0, o, 'sync', `skipped: a codegraph server (pid ${late.pid}) took the index over`)
+    if (lockedByAnother(r)) return okRecord(t0, o, 'sync', 'skipped: another codegraph process was writing the index (database is locked)')
     const why = await brokenIndex(root, r, o)
     return why !== undefined ? recoverIndex(root, why, false, t0, o) : failRecord(t0, o, 'sync', errLine(r))
   }

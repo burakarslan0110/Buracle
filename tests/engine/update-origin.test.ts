@@ -51,6 +51,23 @@ describe('resolveBinary', () => {
     expect(resolveBinary(join(root, 'bin', 'gone'))).toBeUndefined()
     expect(resolveBinary(undefined)).toBeUndefined()
   }))
+
+  test('an npm cmd-shim on Windows (%APPDATA%\\npm\\codex.cmd) leads to the package it runs, so the update uses npm', () => withSandbox(({ root }) => {
+    const prefix = join(root, 'AppData', 'Roaming', 'npm')
+    mkdirSync(prefix, { recursive: true })
+    // What npm's cmd-shim writes for a bin with a `#!/usr/bin/env node` line (npm/cmd-shim lib/index.js).
+    writeFileSync(join(prefix, 'codex.cmd'), [
+      '@ECHO off', 'GOTO start', ':find_dp0', 'SET dp0=%~dp0', 'EXIT /b', ':start', 'SETLOCAL', 'CALL :find_dp0', '',
+      'IF EXIST "%dp0%\\node.exe" (', '  SET "_prog=%dp0%\\node.exe"', ') ELSE (', '  SET "_prog=node"', ')', '',
+      'endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & set PATHEXT=%PATHEXT:;.JS;=;% & "%_prog%"  "%dp0%\\node_modules\\@openai\\codex\\bin\\codex.js" %*', '',
+    ].join('\r\n'))
+    const resolved = resolveBinary(join(prefix, 'codex.cmd'))
+    expect(detectOrigin(resolved as string)).toEqual({ method: 'npm', name: '@openai/codex', prefix })
+    expect(harnessUpdate('codex', detectOrigin(resolved as string), '0.166.0')).toMatchObject({ command: ['npm', 'install', '-g', '--prefix', prefix, '@openai/codex@0.166.0'] })
+    // A .cmd that is no npm shim (Buracle's own buracle.cmd) stays itself, so its origin stays unknown.
+    writeFileSync(join(root, 'buracle.cmd'), '@echo off\r\n"C:\\Users\\a\\.bun\\bin\\bun.exe" "C:\\Users\\a\\.buracle\\runtime\\x\\src\\cli\\main.ts" %*\r\n')
+    expect(detectOrigin(resolveBinary(join(root, 'buracle.cmd')) as string)).toEqual({ method: 'unknown' })
+  }))
 })
 
 describe('harnessUpdate', () => {

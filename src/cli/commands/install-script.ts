@@ -125,6 +125,12 @@ export interface ScriptOptions {
   interactive: boolean
 }
 
+// Local time, as the scripts write the `== install.ps1 <date> <time>` line above it and the log file's date.
+function localClock(ms: number): string {
+  const d = new Date(ms)
+  return [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2, '0')).join(':')
+}
+
 export function scriptSession(io: CommandIO, opts: ScriptOptions): ScriptSession {
   const mode = sectionMode(io.stdout)
   // A terminal gets lines cut to its width; a pipe (a CI log, a file) keeps them whole. A pty that reports no size
@@ -135,7 +141,7 @@ export function scriptSession(io: CommandIO, opts: ScriptOptions): ScriptSession
   const log = (text: string): void => {
     try {
       mkdirSync(dirname(opts.log), { recursive: true })
-      const at = new Date(scriptDeps.now()).toISOString().slice(11, 19)
+      const at = localClock(scriptDeps.now())
       // Readable by this user only when this call creates it (the scripts create it so already).
       appendFileSync(opts.log, stripAnsi(text).split('\n').map(l => `[${at}] ${l}`).join('\n') + '\n', { mode: 0o600 })
     } catch {  }

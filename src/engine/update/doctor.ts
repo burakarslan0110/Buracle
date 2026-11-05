@@ -309,25 +309,36 @@ function versionOf(t: ToolSpec, out: { stdout: string, stderr: string }): string
 const TOOL_CHECK_MS = process.platform === 'win32' ? 20_000 : 5000
 
 export async function checkTools(tools: readonly ToolSpec[], timeoutMs = TOOL_CHECK_MS, state: ToolchainState = readToolchainState()): Promise<ToolResult[]> {
+  // The first start after an install or upgrade can outlast the limit where the next one does not, so a check that
+  // timed out runs once more before it counts.
+  const check = async (argv: string[]) => {
+    const r = await opsDeps.run(argv, { timeoutMs })
+    return r.timedOut ? opsDeps.run(argv, { timeoutMs }) : r
+  }
   return Promise.all(tools.map(async (t): Promise<ToolResult> => {
-    const r = await opsDeps.run(t.check, { timeoutMs })
+    const pkg = toolPackage(t, state)
+    const entry = pkg?.bins[(t.bins ?? [t.name])[0] ?? t.name]
+    const copy = entry !== undefined ? binArgv(entry) : undefined
+    // Buracle runs its toolchain copy when it has one (the index runs, the MCP servers, the language servers), also
+    // when PATH has another version, so that copy is the one to report.
+    if (pkg !== undefined && copy !== undefined) {
+      const rr = await check([...copy, ...t.check.slice(1)])
+      const v = versionOf(t, rr)
+      if (rr.code !== 0 && v === undefined) return { name: t.name, status: 'error', detail: `the Buracle toolchain copy (${pkg.registry} ${pkg.name} ${pkg.version}) does not run: exit ${rr.code}${rr.timedOut ? ` (timed out twice after ${Math.round(timeoutMs / 1000)} s)` : ''}; run \`buracle install\`` }
+      return { name: t.name, status: 'ok', version: v ?? pkg.version, detail: `${v ?? pkg.version} (Buracle toolchain)` }
+    }
+    const r = await check(t.check)
     if (r.code === 127) {
-      const pkg = toolPackage(t, state)
       // The toolchain's folders, then ~/.bun/bin: the Bun the install script put there is not on PATH before a new terminal.
       const local = pkg === undefined ? [...paths.toolchainBinDirs(), join(paths.home(), '.bun', 'bin')].map(d => join(d, exeName(t.check[0] ?? t.name))).find(p => existsSync(p)) : undefined
       if (local !== undefined) {
-        const rr = await opsDeps.run(spawnArgv([local, ...t.check.slice(1)]), { timeoutMs })
+        const rr = await check(spawnArgv([local, ...t.check.slice(1)]))
         const v = versionOf(t, rr)
         if (rr.code !== 0 && v === undefined) return { name: t.name, status: 'error', detail: `the Buracle toolchain copy (${tilde(local)}) does not run: exit ${rr.code}${rr.timedOut ? ' (timed out)' : ''}; run \`buracle install\`` }
         return v !== undefined ? { name: t.name, status: 'ok', version: v, detail: `${v} (Buracle toolchain, ${tilde(local)})` } : { name: t.name, status: 'ok', detail: `present (version not recognized; Buracle toolchain, ${tilde(local)})` }
       }
       if (pkg === undefined) return { name: t.name, status: 'missing', detail: 'not found on PATH or in the Buracle toolchain' }
-      const entry = pkg.bins[(t.bins ?? [t.name])[0] ?? t.name]
-      const argv = entry !== undefined ? binArgv(entry) : undefined
-      const rr = argv !== undefined ? await opsDeps.run([...argv, ...t.check.slice(1)], { timeoutMs }) : undefined
-      const v = rr !== undefined ? versionOf(t, rr) ?? pkg.version : pkg.version
-      if (rr !== undefined && rr.code !== 0 && versionOf(t, rr) === undefined) return { name: t.name, status: 'error', detail: `the Buracle toolchain copy (${pkg.registry} ${pkg.name} ${pkg.version}) does not run: exit ${rr.code}; run \`buracle install\`` }
-      return { name: t.name, status: 'ok', version: v, detail: `${v} (Buracle toolchain)` }
+      return { name: t.name, status: 'ok', version: pkg.version, detail: `${pkg.version} (Buracle toolchain)` }
     }
     const version = versionOf(t, r)
     if (r.code !== 0 && version === undefined) return { name: t.name, status: 'error', detail: `\`${t.check.join(' ')}\` exited ${r.code}${r.timedOut ? ' (timed out)' : ''}` }
@@ -492,5 +503,10 @@ export function updateChecks(nowMs: number): DoctorCheck[] {
   if (ageDays > UPDATE_CACHE_MAX_AGE_DAYS) out.push({ section: 'updates', level: 'warn', check: 'cache', detail: `last checked ${age} ago; run \`buracle update --check\`` })
   else out.push({ section: 'updates', level: 'ok', check: 'cache', detail: `last checked ${age} ago` })
   if (c.items.length > 0) out.push({ section: 'updates', level: 'info', check: 'available', detail: `${c.items.length} update(s): ${c.items.slice(0, 6).map(i => `${i.kind}:${i.id}`).join(', ')}${c.items.length > 6 ? ', …' : ''} (\`buracle update --yes\`)` })
+  // A part whose check failed may have an update too: named as not checked, never left out as if up to date.
+  if (c.errors.length > 0) {
+    const named = c.errors.slice(0, 3).map(e => `${e.kind}${e.id !== undefined ? `:${e.id}` : ''} (${e.error.split('\n')[0]?.slice(0, 120) ?? ''})`)
+    out.push({ section: 'updates', level: 'info', check: 'not checked', detail: `${c.errors.length} part(s) whose check failed: ${named.join('; ')}${c.errors.length > 3 ? '; …' : ''}; \`buracle update --check\` tries again` })
+  }
   return out
 }

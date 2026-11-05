@@ -300,6 +300,24 @@ describe('codex installPlan', () => {
     expect((await adapter.installPlan(context())).ops.length).toBeGreaterThan(0)
   }))
 
+  test('a Codex too old for the config.toml an earlier install wrote is told it does not start until updated', () => withSandbox(async ({ home }) => {
+    mkdirSync(join(home, '.codex'), { recursive: true })
+    installTestHooks.codexVersion = async () => '0.142.0'
+    const fresh = await adapter.installPlan(context()).then(() => undefined, (e: unknown) => e)
+    expect(fresh).toMatchObject({ code: 'HARNESS_TOO_OLD', written: false })
+    expect((fresh as Error).message).toContain('left Codex as it is')
+    // An install by an older Buracle (no version gate) wrote config.toml; the Codex then got no newer.
+    installTestHooks.codexVersion = async () => TESTED_WITH.codex.min
+    await install()
+    const config = read(join(home, '.codex', 'config.toml'))
+    installTestHooks.codexVersion = async () => '0.142.0'
+    const err = await adapter.installPlan(context()).then(() => undefined, (e: unknown) => e)
+    expect(err).toMatchObject({ code: 'HARNESS_TOO_OLD', version: '0.142.0', written: true, update: 'buracle update codex' })
+    expect((err as Error).message).toContain('cannot load the config.toml an earlier Buracle install wrote, so it does not start until you update it')
+    expect((err as Error).message).not.toContain('left Codex as it is')
+    expect(read(join(home, '.codex', 'config.toml'))).toBe(config)
+  }))
+
   test('refuses while Codex runs against this CODEX_HOME, unless forced', () => withSandbox(async ({ home }) => {
     installTestHooks.codexPids = async () => [4242]
     installTestHooks.openFiles = async () => new Map([[4242, [join(home, '.codex', 'state_5.sqlite'), join(home, '.codex', 'tmp', 'arg0', 'codex-arg0x', '.lock')]]])

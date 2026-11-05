@@ -26,10 +26,12 @@ interface Rec {
 interface Db { v: 1, seq: number, records: Record<string, Rec & { seq: number }> }
 
 if (process.argv.includes('--doctor')) {
-  // fail: the status check of the file fails while the self-test passes; self-test: the self-test fails too.
+  // fail: the status check of the file fails while the self-test passes; self-test: the self-test fails too;
+  // windows-uri: the status check cannot open the file, as CortexDB 2.145 answers for every Windows path.
   const mode = process.env['FAKE_CORTEXDB_DOCTOR']
-  const failed = mode === 'fail' || mode === 'self-test'
-  process.stdout.write(JSON.stringify({ version: '0.0.0-fake', mode: 'local', database: process.env['CORTEXDB_PATH'] ?? '', status: failed ? 'failed' : 'ready', self_test: mode === 'self-test' ? 'failed' : 'passed', ...(failed ? { error: 'injected failure' } : {}) }) + '\n')
+  const failed = mode === 'fail' || mode === 'self-test' || mode === 'windows-uri'
+  const error = mode === 'windows-uri' ? 'SQL logic error: out of memory (1)' : 'injected failure'
+  process.stdout.write(JSON.stringify({ version: '0.0.0-fake', mode: 'local', database: process.env['CORTEXDB_PATH'] ?? '', status: failed ? 'failed' : 'ready', self_test: mode === 'self-test' ? 'failed' : 'passed', ...(failed ? { error } : {}) }) + '\n')
   process.exit(failed ? 1 : 0)
 }
 
