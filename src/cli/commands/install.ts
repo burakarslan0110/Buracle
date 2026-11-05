@@ -75,7 +75,9 @@ then applies the core and shared plans as one transaction and each harness as it
 own: backup -> atomic writes -> journal -> commands -> verify -> ledger -> commit,
 rolling that transaction back on failure (or on Ctrl-C). A harness that fails is
 reported (exit 2); the others stay installed. Values you changed are kept and
-reported as conflicts; items you deleted stay deleted (reported).
+reported as conflicts; items you deleted stay deleted (reported). A Codex older
+than the oldest version Buracle supports is left as it is, also under BURACLE_FORCE=1
+(it could not load the config Buracle writes); the next steps name its update (exit 2).
 
 In a terminal it applies at once, without a confirmation question, and shows each step while it
 runs: the generated files, the toolchain, the plan, the runtime check, each transaction and the
@@ -154,6 +156,8 @@ export interface InstallFlowResult {
   toolchain?: ToolchainItem[]
   runtime?: { mode: RuntimeMode, id?: string, dir?: string, reused?: boolean, pruned?: string[] }
   busyHarnesses?: Harness[]
+  /** Harnesses left as they are because they are older than the oldest version Buracle supports. */
+  tooOldHarnesses?: Array<{ harness: Harness, version: string, min: string, update: string }>
   removedItems?: number
   outsideLinks?: number
   ledgerLost?: boolean
@@ -365,6 +369,7 @@ export async function runInstallFlow(opts: InstallFlowOptions, io: CommandIO): P
       const c = await composeInstall(composeOpts)
       steps.done('plan', c.harnesses.some(h => h.included) || opts.coreOnly === true ? 'ok' : 'warn', foundLine(c))
       for (const b of c.busy) steps.done(`busy:${b.harness}`, 'warn', `${HARNESS_TITLE[b.harness]} is running, so it is left out`)
+      for (const o of c.tooOld) steps.done(`old:${o.harness}`, 'warn', `${HARNESS_TITLE[o.harness]} ${o.version} is older than ${o.min}, so it is left out: ${o.update}`)
       return c
     } catch (e) {
       steps.done('plan', 'err', `Planning failed: ${errText(e)}`)
@@ -397,7 +402,9 @@ export async function runInstallFlow(opts: InstallFlowOptions, io: CommandIO): P
     result.steps.push(`${b.message} (\`buracle install ${b.harness}\` afterwards, or run \`buracle install\` in a terminal to write it anyway)`)
     if (opts.dryRun) result.warnings.push(`${b.harness} is running, so its plan is not part of this preview and \`buracle install\` would skip it now (exit 2): ${b.message}`)
   }
-  const requestedButSkipped = composed.busy.length > 0 || (opts.harnesses !== undefined && composed.harnesses.some(h => h.inScope && !h.included))
+  result.tooOldHarnesses = composed.tooOld.map(({ harness, version, min, update }) => ({ harness, version, min, update }))
+  for (const o of composed.tooOld) result.steps.push(o.message)
+  const requestedButSkipped = composed.busy.length > 0 || composed.tooOld.length > 0 || (opts.harnesses !== undefined && composed.harnesses.some(h => h.inScope && !h.included))
 
   let escapes = partitionEscapes(composed.plans.map(p => p.plan), opts.allowOutsideHome === true)
   result.outsideLinks = escapes.conflicts.length

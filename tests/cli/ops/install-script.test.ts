@@ -104,6 +104,24 @@ describe('buracle install --script', () => {
     }))
   }))
 
+  test('a harness older than the oldest supported version is left out without a question: Harnesses says why, Result names the update', () => withSandbox(async ({ root, home }) => {
+    const repo = makeRepo(root)
+    const tooOld = () => { throw Object.assign(new Error('Codex 0.142.0 is older than 0.154.0, the oldest Codex Buracle supports'), { code: 'HARNESS_TOO_OLD', exitCode: 2, harness: 'codex', version: '0.142.0', min: '0.154.0', update: 'buracle update codex' }) }
+    const adapters = [fakeAdapter('claude', { plan: () => filePlan('claude', home, '.claude/x.json') }), fakeAdapter('codex', { version: '0.142.0', plan: tooOld })]
+    let asked = 0
+    await withDeps({ repoRoot: () => repo, adapters: async () => adapters, runCli: fakeCli().runCli, confirm: async () => { asked++; return true } }, () => withScript({}, async () => {
+      for (const io of [memoryIO({ tty: true }), memoryIO()]) {
+        expect(await installRun(args(join(root, `o${asked}.log`), io.stdout.isTTY === true ? [] : ['--yes']), io)).toBe(2)
+        const out = lines(io.out().split('\n').map(l => l.split('\r').pop() ?? '').join('\n').replace(/\u001b\[[0-9;]*[mK]/g, ''))
+        expect(out).toContain('▲ Harnesses       claude')
+        expect(out).toContain('    ▲ codex        skipped · 0.142.0 is older than 0.154.0, the oldest supported')
+        expect(out).toContain('    ▲ codex        later: buracle update codex, then buracle install codex')
+        expect(out.join('\n')).not.toContain('rolled back')
+      }
+      expect(asked).toBe(0)
+    }))
+  }))
+
   test('removed items, links outside the home folder and a lost ledger: without a terminal each is listed once with `buracle install` in a terminal', () => withSandbox(async ({ root, home }) => {
     const repo = makeRepo(root)
     const target = join(home, '.claude', 'settings.json')

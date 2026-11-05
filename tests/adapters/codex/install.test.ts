@@ -18,6 +18,7 @@ import { buracleHooksFile, CODEX_HOOK_EVENTS, findBuracleHandlers, HOOK_COMMAND_
 import { BYPASS_KEYS, bypassUnitBlocked, codexTrustPlan, trustTables } from '../../../src/adapters/codex/trust'
 import { BYPASS_APPROVAL_POLICY } from '../../../src/adapters/codex/config'
 import { CODEX_ENUMS, codexEnumProblem, codexValueProblems, SUBAGENT_EFFORTS, subagentEffort } from '../../../src/adapters/codex/config'
+import { TESTED_WITH } from '../../../src/engine/update/tested-with'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
 
 const REPO = join(import.meta.dir, '..', '..', '..')
@@ -38,8 +39,8 @@ const windowsPrefix = (): string | undefined => (process.platform === 'win32' ? 
 const installedHooks = () => buracleHooksFile(HOOK_COMMAND_PREFIX, windowsPrefix()).hooks
 const cw = (event: string): { commandWindows?: string } => { const w = windowsPrefix(); return w !== undefined ? { commandWindows: hookCommand(event, w) } : {} }
 
-beforeEach(() => { installTestHooks.codexPids = async () => [] })
-afterEach(() => { delete installTestHooks.codexPids; delete installTestHooks.openFiles })
+beforeEach(() => { installTestHooks.codexPids = async () => []; installTestHooks.codexVersion = async () => undefined })
+afterEach(() => { delete installTestHooks.codexPids; delete installTestHooks.openFiles; delete installTestHooks.codexVersion })
 
 const USER_CONFIG = `# My Codex settings
 model = "gpt-6.1-sol"   # keep this model
@@ -279,6 +280,24 @@ describe('codex installPlan', () => {
       expect(existsSync(join(custom, 'hooks.json'))).toBe(true)
       expect(existsSync(join(custom, 'config.toml'))).toBe(true)
     })
+  }))
+
+  test('leaves a Codex older than the oldest supported version alone, forced or not: it could not load the config.toml Buracle writes', () => withSandbox(async ({ home }) => {
+    mkdirSync(join(home, '.codex'), { recursive: true })
+    const min = TESTED_WITH.codex.min
+    installTestHooks.codexVersion = async () => '0.142.0'
+    const err = await adapter.installPlan(context()).then(() => undefined, (e: unknown) => e)
+    expect(err).toMatchObject({ exitCode: 2, code: 'HARNESS_TOO_OLD', harness: 'codex', version: '0.142.0', min, update: 'buracle update codex' })
+    expect((err as Error).message).toContain('buracle update codex')
+    expect(await adapter.installPlan({ ...context(), force: true } as AdapterContext).then(() => 'planned', (e: unknown) => (e as { code?: string }).code)).toBe('HARNESS_TOO_OLD')
+    // The oldest supported version (a prerelease of it too, as doctor reads it), and a version that cannot be read,
+    // are installed as before.
+    installTestHooks.codexVersion = async () => min
+    expect((await adapter.installPlan(context())).ops.length).toBeGreaterThan(0)
+    installTestHooks.codexVersion = async () => `${min}-alpha.2`
+    expect((await adapter.installPlan(context())).ops.length).toBeGreaterThan(0)
+    installTestHooks.codexVersion = async () => undefined
+    expect((await adapter.installPlan(context())).ops.length).toBeGreaterThan(0)
   }))
 
   test('refuses while Codex runs against this CODEX_HOME, unless forced', () => withSandbox(async ({ home }) => {

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { mkdirSync, readdirSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { closeAllCortex } from '../../src/memory/cortex'
 import { captureChecks, doctorExitCode, memDoctor, runLeakCheck } from '../../src/memory/doctor'
 import { finalize } from '../../src/memory/finalize'
 import { sessionStart } from '../../src/memory/session-record'
@@ -94,15 +95,46 @@ describe('mem doctor', () => {
     })
   })
 
-  test.skipIf(REAL_CORTEXDB)('CortexDB\'s own self-test of the brain file is part of the report, and its failure is an error', async () => {
+  test.skipIf(REAL_CORTEXDB)('CortexDB\'s own self-test of the brain file is part of the report: a failed self-test is an error that names the restore', async () => {
     await withBrain(async ({ repo }) => {
       await saveItem(projectRef('demo'), { id: 'decision-a', kind: 'decision', layer: 'project', title: 'A', summary: '', body: '', tags: [], sources: [], about: [], status: 'active', review: 'pending', importance: 3, created: '2026-10-13T10:00:00Z', updated: '2026-10-13T10:00:00Z', author: 'agent', version: 1, history: [] })
       const ok = await memDoctor({ cwd: repo, mcp: false, leak: false })
       expect(ok.find(c => c.check === 'brain file')).toMatchObject({ level: 'ok' })
+      await withEnv({ FAKE_CORTEXDB_DOCTOR: 'self-test' }, async () => {
+        const bad = (await memDoctor({ cwd: repo, mcp: false, leak: false })).find(c => c.check === 'brain file')
+        expect(bad).toMatchObject({ level: 'error' })
+        expect(bad?.detail).toContain('injected failure')
+        expect(bad?.detail).toContain('restore a backup')
+      })
+    })
+  })
+
+  test.skipIf(REAL_CORTEXDB)('a failed status with a passing self-test, on a brain that answers, is a warning that names no restore (a restore drops the newer memories)', async () => {
+    await withBrain(async ({ repo }) => {
+      await saveItem(projectRef('demo'), { id: 'decision-a', kind: 'decision', layer: 'project', title: 'A', summary: '', body: '', tags: [], sources: [], about: [], status: 'active', review: 'pending', importance: 3, created: '2026-10-13T10:00:00Z', updated: '2026-10-13T10:00:00Z', author: 'agent', version: 1, history: [] })
       await withEnv({ FAKE_CORTEXDB_DOCTOR: 'fail' }, async () => {
-        const bad = await memDoctor({ cwd: repo, mcp: false, leak: false })
-        expect(bad.find(c => c.check === 'brain file')).toMatchObject({ level: 'error' })
-        expect(bad.find(c => c.check === 'brain file')?.detail).toContain('injected failure')
+        const checks = await memDoctor({ cwd: repo, mcp: false, leak: false })
+        const file = checks.find(c => c.check === 'brain file')
+        expect(file).toMatchObject({ level: 'warn' })
+        expect(file?.detail).toContain('injected failure')
+        expect(file?.detail).not.toContain('restore')
+        expect(checks.find(c => c.check === 'project memory')).toMatchObject({ level: 'ok' })
+      })
+    })
+  })
+
+  test.skipIf(REAL_CORTEXDB)('a brain that does not answer keeps the error and the restore, also when the self-test passed', async () => {
+    await withBrain(async ({ repo }) => {
+      await saveItem(projectRef('demo'), { id: 'decision-a', kind: 'decision', layer: 'project', title: 'A', summary: '', body: '', tags: [], sources: [], about: [], status: 'active', review: 'pending', importance: 3, created: '2026-10-13T10:00:00Z', updated: '2026-10-13T10:00:00Z', author: 'agent', version: 1, history: [] })
+      await withEnv({ FAKE_CORTEXDB_DOCTOR: 'fail', FAKE_CORTEXDB_FAIL: 'memory_list_all' }, async () => {
+        // The running CortexDB child started without the failure; the next one starts with it.
+        await closeAllCortex()
+        const checks = await memDoctor({ cwd: repo, mcp: false, leak: false })
+        expect(checks.filter(c => c.check === 'brain').map(c => c.level)).toContain('error')
+        const file = checks.find(c => c.check === 'brain file')
+        expect(file).toMatchObject({ level: 'error' })
+        expect(file?.detail).toContain('restore a backup')
+        expect(file?.detail).not.toContain('self-test failed')
       })
     })
   })

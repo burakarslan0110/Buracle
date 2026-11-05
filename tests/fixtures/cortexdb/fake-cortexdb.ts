@@ -26,8 +26,10 @@ interface Rec {
 interface Db { v: 1, seq: number, records: Record<string, Rec & { seq: number }> }
 
 if (process.argv.includes('--doctor')) {
-  const failed = process.env['FAKE_CORTEXDB_DOCTOR'] === 'fail'
-  process.stdout.write(JSON.stringify({ version: '0.0.0-fake', mode: 'local', database: process.env['CORTEXDB_PATH'] ?? '', status: failed ? 'failed' : 'ready', self_test: 'passed', ...(failed ? { error: 'injected failure' } : {}) }) + '\n')
+  // fail: the status check of the file fails while the self-test passes; self-test: the self-test fails too.
+  const mode = process.env['FAKE_CORTEXDB_DOCTOR']
+  const failed = mode === 'fail' || mode === 'self-test'
+  process.stdout.write(JSON.stringify({ version: '0.0.0-fake', mode: 'local', database: process.env['CORTEXDB_PATH'] ?? '', status: failed ? 'failed' : 'ready', self_test: mode === 'self-test' ? 'failed' : 'passed', ...(failed ? { error: 'injected failure' } : {}) }) + '\n')
   process.exit(failed ? 1 : 0)
 }
 

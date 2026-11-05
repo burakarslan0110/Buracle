@@ -5,7 +5,9 @@ import type { Ledger, Op, Plan } from '../../engine/txn'
 import { readLedger } from '../../engine/txn'
 import { valueHash } from '../../engine/merge'
 import { log } from '../../engine/log'
-import { run } from '../../engine/proc'
+import { detectBinary, run } from '../../engine/proc'
+import { TESTED_WITH } from '../../engine/update/tested-with'
+import { compareVersions } from '../../engine/update/versions'
 import { AGENTS_BLOCK_ID, codexArtifacts, OWNER, RULES_FILE, type CodexArtifacts } from './generate'
 import { CODEX_HOOK_EVENTS, HOOK_COMMAND_PREFIX, HOOK_GROUP_IDENTITY, LEGACY_HOOK_COMMAND_PREFIX, trustMigration, windowsHookPrefix, type TrustMigration } from './hooks-config'
 import { UPDATE_PLAN_TABLE, updatePlanTable } from './config'
@@ -22,10 +24,41 @@ export class HarnessBusyError extends Error {
   }
 }
 
+/**
+ * Codex older than the oldest version Buracle supports: it stops at a config.toml key it does not know (0.142 reads
+ * `[agents] default_subagent_reasoning_effort` as an agent role and does not start), so the install leaves it alone.
+ */
+export class HarnessTooOldError extends Error {
+  readonly exitCode = 2
+  readonly code = 'HARNESS_TOO_OLD'
+  readonly harness = 'codex'
+  // Through the installer that installed Codex, so it works also while an earlier install left a config.toml this
+  // Codex cannot load.
+  readonly update = 'buracle update codex'
+  constructor(readonly version: string, readonly min: string) {
+    super(`Codex ${version} is older than ${min}, the oldest Codex Buracle supports: it could not load the config.toml Buracle writes and would not start, so Buracle left Codex as it is. Update Codex (\`buracle update codex\` uses the installer that installed it, also while this Codex does not start), then run \`buracle install codex\`.`)
+    this.name = 'HarnessTooOldError'
+  }
+}
+
 export const installTestHooks: {
   codexPids?: () => Promise<number[]>
   openFiles?: (pids: readonly number[]) => Promise<Map<number, string[]> | undefined>
+  codexVersion?: () => Promise<string | undefined>
 } = {}
+
+async function codexVersion(): Promise<string | undefined> {
+  if (installTestHooks.codexVersion) return installTestHooks.codexVersion()
+  return (await detectBinary('codex')).version
+}
+
+// A version that cannot be read is installed as before; forcing never writes into a Codex that cannot read the result.
+async function assertCodexSupported(): Promise<void> {
+  const version = await codexVersion()
+  // The numeric core only, as `buracle doctor codex` compares: a 0.154.0 prerelease counts as 0.154.0 in both.
+  const core = version?.split('-')[0]
+  if (version !== undefined && core !== undefined && compareVersions(core, TESTED_WITH.codex.min) < 0) throw new HarnessTooOldError(version, TESTED_WITH.codex.min)
+}
 
 async function codexPids(): Promise<number[]> {
   if (installTestHooks.codexPids) return installTestHooks.codexPids()
@@ -239,6 +272,7 @@ export function hookCommandPrefixFor(ctx: Pick<AdapterContext, 'paths'>, ledger:
 }
 
 export async function codexInstallPlan(ctx: AdapterContext, opts: { ledger?: Ledger } = {}): Promise<Plan> {
+  await assertCodexSupported()
   await assertCodexIdle(ctx)
   const p = ctx.paths
   const codexHome = p.codexHome()

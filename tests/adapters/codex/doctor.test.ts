@@ -25,8 +25,9 @@ const REPO = join(import.meta.dir, '..', '..', '..')
 const canonical: CanonicalBundle = loadCanonicalSync(join(REPO, 'canonical'))
 const ctx = (): AdapterContext => ({ repoRoot: REPO, config: defaultConfig(), canonical, paths, buracleBin: paths.shimPath() })
 
-beforeEach(() => { installTestHooks.codexPids = async () => [] })
-afterEach(() => { delete installTestHooks.codexPids })
+// The install plan reads the Codex version; these tests must not depend on the Codex this machine has.
+beforeEach(() => { installTestHooks.codexPids = async () => []; installTestHooks.codexVersion = async () => undefined })
+afterEach(() => { delete installTestHooks.codexPids; delete installTestHooks.codexVersion })
 
 const FEATURES = 'apps                                     stable             true\nhooks                                    stable             true\nmemories                                 stable             false\n'
 const mcpList = (names: string[]) => JSON.stringify(names.map(name => ({ name, enabled: true, transport: { type: 'stdio', command: 'npx' } })))

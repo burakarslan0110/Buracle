@@ -232,6 +232,7 @@ function harnessSection(r: InstallFlowResult, interactive: boolean, declined: Re
   for (const h of r.busyHarnesses ?? []) {
     items.push({ status: 'warn', name: h, detail: interactive && declined.has('busy') ? 'skipped · still running (you said no)' : 'skipped · running' })
   }
+  for (const o of r.tooOldHarnesses ?? []) items.push({ status: 'warn', name: o.harness, detail: `skipped · ${o.version} is older than ${o.min}, the oldest supported` })
   const failed = new Set<string>()
   for (const t of r.txns) if (t.error !== undefined && isHarness(t.plan)) failed.add(t.plan)
   for (const e of r.errors) if (isHarness(e.source)) failed.add(e.source)
@@ -303,6 +304,8 @@ function resultSection(r: InstallFlowResult, o: { declined: ReadonlySet<Declined
     if (o.declined.has('links')) items.push({ status: 'warn', name: 'links', detail: `${plural(r.outsideLinks ?? 0, 'link', 'links')} out of your home folder left alone (you said no)` })
     if (o.declined.has('ledger')) items.push({ status: 'warn', name: 'ledger', detail: 'values equal to Buracle\'s stay yours (you said no)' })
   }
+  // A harness too old for Buracle needs its own update first, terminal or not.
+  for (const o of r.tooOldHarnesses ?? []) items.push({ status: 'warn', name: o.harness, detail: `later: ${o.update}, then buracle install ${o.harness}` })
   for (const e of r.errors) if (!isHarness(e.source)) items.push({ status: 'fail', name: e.source, detail: withoutInstallHint(tildeText(e.error)) })
   // The one next step the user has to take by hand: Codex runs only the hooks it trusts.
   for (const s of r.steps) if (s.startsWith('Codex: open Codex and trust')) items.push({ status: 'info', name: 'codex', detail: 'open Codex and trust the Buracle hooks once with /hooks' })
