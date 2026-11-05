@@ -37778,7 +37778,7 @@ function workflowOfExpanded(prompt) {
 
 // src/adapters/omp/runtime/generated-data.ts
 var GENERATED = {
-  buracleVersion: "0.7.1",
+  buracleVersion: "0.7.2",
   commands: [
     "ab-test",
     "bugfix",

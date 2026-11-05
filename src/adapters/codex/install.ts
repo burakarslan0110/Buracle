@@ -35,8 +35,11 @@ export class HarnessTooOldError extends Error {
   // Through the installer that installed Codex, so it works also while an earlier install left a config.toml this
   // Codex cannot load.
   readonly update = 'buracle update codex'
-  constructor(readonly version: string, readonly min: string) {
-    super(`Codex ${version} is older than ${min}, the oldest Codex Buracle supports: it could not load the config.toml Buracle writes and would not start, so Buracle left Codex as it is. Update Codex (\`buracle update codex\` uses the installer that installed it, also while this Codex does not start), then run \`buracle install codex\`.`)
+  /** `written`: an earlier Buracle install already wrote config.toml, so this Codex does not start now. */
+  constructor(readonly version: string, readonly min: string, readonly written = false) {
+    super(written
+      ? `Codex ${version} is older than ${min}, the oldest Codex Buracle supports, and cannot load the config.toml an earlier Buracle install wrote, so it does not start until you update it. Buracle changed nothing in Codex this time. Update Codex (\`buracle update codex\` uses the installer that installed it, also while this Codex does not start), then run \`buracle install codex\`.`
+      : `Codex ${version} is older than ${min}, the oldest Codex Buracle supports: it could not load the config.toml Buracle writes and would not start, so Buracle left Codex as it is. Update Codex (\`buracle update codex\` uses the installer that installed it, also while this Codex does not start), then run \`buracle install codex\`.`)
     this.name = 'HarnessTooOldError'
   }
 }
@@ -53,11 +56,13 @@ async function codexVersion(): Promise<string | undefined> {
 }
 
 // A version that cannot be read is installed as before; forcing never writes into a Codex that cannot read the result.
-async function assertCodexSupported(): Promise<void> {
+async function assertCodexSupported(configPath: string, ledger: Ledger | undefined): Promise<void> {
   const version = await codexVersion()
   // The numeric core only, as `buracle doctor codex` compares: a 0.154.0 prerelease counts as 0.154.0 in both.
   const core = version?.split('-')[0]
-  if (version !== undefined && core !== undefined && compareVersions(core, TESTED_WITH.codex.min) < 0) throw new HarnessTooOldError(version, TESTED_WITH.codex.min)
+  if (version === undefined || core === undefined || compareVersions(core, TESTED_WITH.codex.min) >= 0) return
+  const written = ledger !== undefined && Object.values(ledger).some(e => e.owner === OWNER && resolve(e.path) === resolve(configPath))
+  throw new HarnessTooOldError(version, TESTED_WITH.codex.min, written)
 }
 
 async function codexPids(): Promise<number[]> {
@@ -272,14 +277,14 @@ export function hookCommandPrefixFor(ctx: Pick<AdapterContext, 'paths'>, ledger:
 }
 
 export async function codexInstallPlan(ctx: AdapterContext, opts: { ledger?: Ledger } = {}): Promise<Plan> {
-  await assertCodexSupported()
-  await assertCodexIdle(ctx)
   const p = ctx.paths
   const codexHome = p.codexHome()
   let ledger: Ledger | undefined = opts.ledger
   if (ledger === undefined) {
     try { ledger = await readLedger() } catch { ledger = undefined }
   }
+  await assertCodexSupported(join(codexHome, 'config.toml'), ledger)
+  await assertCodexIdle(ctx)
   const a = codexArtifacts({
     hookCommandPrefix: hookCommandPrefixFor(ctx, ledger),
     ...(process.platform === 'win32' ? { hookCommandPrefixWindows: windowsHookPrefix(ctx.buracleBin) } : {}),
