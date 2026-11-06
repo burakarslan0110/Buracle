@@ -11,7 +11,7 @@ import type { AdapterContext } from '../../../src/adapters/registry'
 import { adapter } from '../../../src/adapters/codex/index'
 import { installTestHooks } from '../../../src/adapters/codex/install'
 import { BYPASS_APPROVAL_POLICY } from '../../../src/adapters/codex/config'
-import { codexDoctor, compareVersions, configLoadCheck, effortCheck, featureEnabled, guardProbe, hookCommandProblems, hookTrustReport, mcpCommandProblems, permissionCheck, PROBE_COMMAND, routingCheck, TESTED_CODEX, type DoctorDeps, type DoctorItem } from '../../../src/adapters/codex/doctor'
+import { codexDoctor, compareVersions, configLoadCheck, effortCheck, featureEnabled, guardProbe, hookCommandProblems, hookTrustReport, mcpCommandProblems, permissionCheck, PROBE_COMMAND, routingCheck, MIN_CODEX, type DoctorDeps, type DoctorItem } from '../../../src/adapters/codex/doctor'
 import { run as runProcess } from '../../../src/engine/proc'
 import { HOOK_COMMAND_PREFIX, hookCommand } from '../../../src/adapters/codex/hooks-config'
 import { buracleHooksFile, findBuracleHandlers } from '../../../src/adapters/codex/hooks-config'
@@ -61,14 +61,19 @@ describe('codex doctor', () => {
       // `codex update` needs the Codex to start, which an old one with Buracle's config.toml does not.
       expect(old?.detail).toContain('run `buracle update codex`')
       expect(old?.detail).not.toContain('`codex update`')
-      const newer = TESTED_CODEX.replace(/\d+$/, p => String(Number(p) + 1))
-      expect(by(await codexDoctor(ctx(), fake({ version: newer })), 'codex.version')[0]?.level).toBe('warn')
+      // A Codex far newer than any Buracle knows is fine: only the minimum gates it.
+      for (const v of [MIN_CODEX, '0.999.0', '1.0.0']) {
+        expect(by(await codexDoctor(ctx(), fake({ version: v })), 'codex.version')[0]).toMatchObject({ level: 'ok', detail: `codex ${v} (minimum ${MIN_CODEX})` })
+      }
       expect(by(await codexDoctor(ctx(), fake()), 'codex.version')[0]?.level).toBe('ok')
-      expect(by(await codexDoctor(ctx(), fake({ installed: false })), 'codex.version')[0]?.level).toBe('error')
+      const missing = by(await codexDoctor(ctx(), fake({ installed: false })), 'codex.version')[0]
+      expect(missing?.level).toBe('error')
+      expect(missing?.detail).toContain(`needs ${MIN_CODEX} or newer`)
+      expect(missing?.detail).not.toMatch(/tested/i)
     })
   })
 
-  test('host limits (PARITY-10) and the workflow view (PARITY-9): the version row is ok on the checked version and warns on a newer one, each limit is a row with its fallback and the README pointer; the tmux line is named', () => withSandbox(async () => {
+  test('host limits (PARITY-10) and the workflow view (PARITY-9): the summary row is ok on every version, each limit is a row with its fallback and the README pointer; the tmux line is named', () => withSandbox(async () => {
     const limits = () => by(items, 'codex.limits')[0]
     let items = await codexDoctor(ctx(), fake({ version: '0.166.0' }))
     expect(limits()).toMatchObject({ level: 'ok' })
@@ -79,9 +84,9 @@ describe('codex doctor', () => {
     expect(items.filter(i => i.check.startsWith('codex.') && hostLimitsOf('codex').some(l => l.id === i.check)).map(i => i.level)).toEqual(hostLimitsOf('codex').map(() => 'ok'))
     expect(items.filter(i => i.detail.includes('DESIGN §4.5'))).toEqual([])
     expect(by(items, 'codex.workflow-view')[0]?.detail).toContain('`buracle statusline codex`')
-    items = await codexDoctor(ctx(), fake({ version: '0.167.0' }))
-    expect(limits()?.level).toBe('warn')
-    expect(limits()?.detail).toContain('bun test tests/adapters/codex/smoke.test.ts -t "host limits"')
+    items = await codexDoctor(ctx(), fake({ version: '9.0.0' }))
+    expect(limits()?.level).toBe('ok')
+    expect(limits()?.detail).not.toMatch(/newer than/i)
     expect(by(items, 'codex.custom-status-line')[0]?.level).toBe('ok')
   }))
 

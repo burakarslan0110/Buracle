@@ -23,7 +23,7 @@ export interface UtilityHost {
   toast(message: string, variant: TuiToastVariant, title?: string): void
   alert(title: string, message: string): Promise<void>
   band(sessionID: string | undefined): BandView
-  about(): { opencode?: string, testedWith: string, workflows: readonly string[] }
+  about(): { opencode?: string, workflows: readonly string[] }
   slashCommand(name: string): ((input: string) => unknown) | undefined
   pane?(title: string, lines: () => string[]): boolean
 }
@@ -107,7 +107,7 @@ export function statusLines(host: UtilityHost): string[] {
   const sid = host.sessionID()
   const level = effortLevel(cfg)
   const lines = [
-    `Buracle on OpenCode ${about.opencode ?? '?'} (tested with ${about.testedWith})`,
+    `Buracle on OpenCode${about.opencode !== undefined && about.opencode !== '' ? ` ${about.opencode}` : ''}`,
     `session: ${sid ?? '-'}`,
     `permissions: ${cfg.permissions.bypass ? "no approval prompts (Buracle's guards and consent gate still deny)" : 'as OpenCode is configured'}`,
     `routing: ${cfg.routing.strictness} · skill router: ${cfg.routing.skills} · workflow band: ${cfg.workflow.band ? 'on' : 'off'}`,

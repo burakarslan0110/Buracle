@@ -6,7 +6,7 @@ import { sha256 } from '../../engine/fsx'
 import { accountHome } from '../../engine/platform'
 import { runtimeVersion } from '../shared/notices'
 import { bundleEntry } from './bundle'
-import { MIN_VERSION, PLUGIN_DIR, PORTABLE_SHIM, TESTED_WITH, UTILITY_COMMANDS } from './constants'
+import { MIN_VERSION, PLUGIN_DIR, PORTABLE_SHIM, UTILITY_COMMANDS } from './constants'
 import { agentsBlock, bakedData, cliFragmentText, configFragmentText, contentHash, renderAgent } from './render'
 import { workflowCommandSkills } from './runtime/commands'
 
@@ -92,7 +92,6 @@ export async function buildFiles(ctx: AdapterContext): Promise<BuiltFile[]> {
   files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
   const manifest = {
     harness: 'opencode',
-    testedWith: TESTED_WITH,
     minVersion: MIN_VERSION,
     contentHash: contentHash(c),
     commands: commandNames(c),

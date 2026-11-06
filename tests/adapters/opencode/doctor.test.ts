@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { claudeSubscriptionSigns, commandFindings, doctor, effortFinding, mcpCommandFindings, permissionFinding, rememberedVariants, type DoctorItem, type DoctorOptions } from '../../../src/adapters/opencode/doctor'
-import { TESTED_WITH } from '../../../src/adapters/opencode/constants'
+import { MIN_VERSION } from '../../../src/adapters/opencode/constants'
 import { installPlan } from '../../../src/adapters/opencode/install'
 import type { RunResult } from '../../../src/engine/proc'
 import * as paths from '../../../src/engine/paths'
@@ -11,6 +11,9 @@ import { applyPlans } from '../../../src/engine/txn'
 import { fakeExe } from '../../helpers/fake-exe'
 import { withSandbox } from '../../helpers/sandbox'
 import { adapterContext } from './helpers'
+
+// Any OpenCode 2 at or above the minimum is healthy.
+const HEALTHY = '2.0.30'
 
 function ok(stdout: string): RunResult { return { code: 0, stdout, stderr: '', timedOut: false } }
 
@@ -50,16 +53,16 @@ describe('opencode doctor', () => {
     expect(level(items, 'opencode.claude-subscription')).toBe('ok')
   }))
 
-  test('a fresh install with the tested version is healthy; live checks use the running service', () => withSandbox(async ({ buracleHome }) => {
+  test('a fresh install with a supported version is healthy; live checks use the running service', () => withSandbox(async ({ buracleHome }) => {
     const ctx = adapterContext()
     await applyPlans([await installPlan(ctx, { opencode: null })])
-    expect((await doctor(ctx, fake(TESTED_WITH, { 'service status': 'stopped\n' }))).find(i => i.check === 'opencode.mcp.command' && i.level === 'error')?.detail).toContain(ctx.buracleBin)
+    expect((await doctor(ctx, fake(HEALTHY, { 'service status': 'stopped\n' }))).find(i => i.check === 'opencode.mcp.command' && i.level === 'error')?.detail).toContain(ctx.buracleBin)
     expect(fakeExe(join(dirname(ctx.buracleBin), 'buracle'), '')).toBe(ctx.buracleBin)
-    const stopped = await doctor(ctx, fake(TESTED_WITH, { 'service get env BURACLE_HOME': `${buracleHome}\n`, 'service status': 'stopped\n' }))
+    const stopped = await doctor(ctx, fake(HEALTHY, { 'service get env BURACLE_HOME': `${buracleHome}\n`, 'service status': 'stopped\n' }))
     expect(stopped.filter(i => i.level === 'error')).toEqual([])
     for (const c of ['opencode.version', 'opencode.config', 'opencode.cli', 'opencode.permissions', 'opencode.effort', 'opencode.files', 'opencode.commands', 'opencode.pointer', 'opencode.agents-md', 'opencode.service-env', 'opencode.live']) expect(level(stopped, c)).toBe('ok')
     expect(stopped.find(i => i.check === 'opencode.effort')?.detail).toContain('default effort xhigh')
-    const live = await doctor(ctx, fake(TESTED_WITH, {
+    const live = await doctor(ctx, fake(HEALTHY, {
       'service get env BURACLE_HOME': buracleHome,
       'service status': 'http://127.0.0.1:49374\n',
       'plugin list': `ID       VERSION  SOURCE\nburacle  local    ${join(paths.opencodeConfigDir(), 'plugins', 'buracle', 'index.js')}\n`,
@@ -67,16 +70,18 @@ describe('opencode doctor', () => {
     }))
     expect(level(live, 'opencode.live.plugin')).toBe('ok')
     expect(level(live, 'opencode.live.config')).toBe('ok')
-    const unset = await doctor(ctx, fake(TESTED_WITH, { 'service status': 'stopped' }))
+    const unset = await doctor(ctx, fake(HEALTHY, { 'service status': 'stopped' }))
     expect(level(unset, 'opencode.service-env')).toBe('warn')
   }), 60_000)
 
-  test('version gates: v1 and old v2 are errors, an untested newer v2 is a warning', () => withSandbox(async () => {
+  test('version gates: v1 and a v2 below the minimum are errors, every v2 at or above it is ok', () => withSandbox(async () => {
     const ctx = adapterContext()
     expect(level(await doctor(ctx, fake('1.18.35', {})), 'opencode.version')).toBe('error')
     expect(level(await doctor(ctx, fake('2.0.10', {})), 'opencode.version')).toBe('error')
-    expect(level(await doctor(ctx, fake(TESTED_WITH, {})), 'opencode.version')).toBe('ok')
-    expect(level(await doctor(ctx, fake(TESTED_WITH.replace(/\d+$/, n => String(Number(n) + 1)), {})), 'opencode.version')).toBe('warn')
+    for (const v of [MIN_VERSION, '2.0.25', HEALTHY, '2.9.0']) {
+      const row = (await doctor(ctx, fake(v, {}))).find(i => i.check === 'opencode.version')
+      expect(row).toMatchObject({ level: 'ok', detail: `OpenCode ${v} (minimum ${MIN_VERSION})` })
+    }
   }))
 
   test('a v1 is told the way to v2 for the installer that installed it, not only the Homebrew tap', () => withSandbox(async ({ root }) => {
@@ -106,7 +111,7 @@ describe('opencode doctor', () => {
     expect(other.find(i => i.check === 'opencode.version')?.detail).toContain('`opencode upgrade` (to 1.19.0 or newer), then `opencode upgrade --major`')
   }))
 
-  test('host limits (PARITY-10): the version row is ok on the checked version and warns on a newer one; each limit is a row with its fallback and the README pointer', () => withSandbox(async () => {
+  test('host limits (PARITY-10): the summary row is ok on every version; each limit is a row with its fallback and the README pointer', () => withSandbox(async () => {
     const ctx = adapterContext()
     const items = await doctor(ctx, fake('2.0.30', {}))
     expect(level(items, 'opencode.limits')).toBe('ok')
@@ -114,8 +119,8 @@ describe('opencode doctor', () => {
     expect(row?.level).toBe('ok')
     expect(row?.detail).toContain('. Fallback: a capped re-prompt after `session.execution.succeeded`. See the Host limits table in README.md.')
     expect(items.filter(i => i.detail.includes('DESIGN §4.5'))).toEqual([])
-    const newer = (await doctor(ctx, fake('2.0.31', {}))).find(i => i.check === 'opencode.limits')
-    expect(newer?.level).toBe('warn')
+    const newer = (await doctor(ctx, fake('2.9.0', {}))).find(i => i.check === 'opencode.limits')
+    expect(newer?.level).toBe('ok')
     expect(newer?.detail).toContain('stop-veto')
   }))
 
@@ -163,7 +168,7 @@ describe('opencode doctor', () => {
     const dir = paths.opencodeConfigDir()
     mkdirSync(dir, { recursive: true })
     writeFileSync(join(dir, 'cli.json'), '{ "plugins": ["-buracle"] }')
-    expect(level(await doctor(adapterContext(), fake(TESTED_WITH, {})), 'opencode.cli')).toBe('warn')
+    expect(level(await doctor(adapterContext(), fake(HEALTHY, {})), 'opencode.cli')).toBe('warn')
   }))
 
   test('detects Claude subscription auth: v1 auth.json, v2 credential rows, auth plugins; never reads secrets', () => withSandbox(async ({ root }) => {

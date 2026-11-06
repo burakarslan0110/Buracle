@@ -1,13 +1,14 @@
 import { describe, expect, test } from 'bun:test'
 import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { run as doctorRun, indexSection } from '../../../src/cli/commands/doctor'
+import { run as doctorRun, indexSection, usage as doctorUsage } from '../../../src/cli/commands/doctor'
+import { cliVersion } from '../../../src/cli/router'
 import { run as installRun } from '../../../src/cli/commands/install'
 import { CONFIG_RENAMES, defaultConfig, type ConfigRename } from '../../../src/core/config'
 import { liveContext } from '../../../src/engine/update/context'
 import { indexChecks } from '../../../src/workflow/workspace-index'
 import type { McpCatalog } from '../../../src/core/catalog'
-import { checkTools, configChecks, doctorExit, parseShim, skillChecks, updateChecks } from '../../../src/engine/update/doctor'
+import { checkTools, configChecks, doctorExit, parseShim, skillChecks, updateChecks, type DoctorCheck } from '../../../src/engine/update/doctor'
 import { writeUpdatesCache } from '../../../src/engine/update/updates-cache'
 import { emptyToolchainState } from '../../../src/engine/toolchain/state'
 import type { ToolSpec } from '../../../src/core/catalog'
@@ -185,6 +186,32 @@ describe('buracle doctor', () => {
       await doctorRun(['config', '--json'], json)
       expect(json.err()).toBe('')
     })
+  }), 60_000)
+
+  test('in a terminal the report starts with one header line; a pipe and --json get none; NO_COLOR writes no escape code', () => withSandbox(async ({ root }) => {
+    const repo = makeRepo(root)
+    const header = `  buracle v${cliVersion()} · doctor config`
+    const first = (s: string) => stripAnsi(s).split('\n').find(l => l.trim() !== '')
+    const count = (s: string) => stripAnsi(s).split('\n').filter(l => /^ {2}(◉ )?buracle v\S+ · doctor config$/.test(l)).length
+    await withDeps({ repoRoot: () => repo, adapters: async () => [], now: () => Date.parse('2026-10-08T00:00:00Z') }, () => withEnv({ TERM: 'xterm-256color', NO_COLOR: undefined, FORCE_COLOR: undefined, COLORTERM: undefined }, async () => {
+      const live = memoryIO({ liveErr: true, ttyOut: true })
+      await doctorRun(['config'], live)
+      expect(first(live.err())).toBe(header.replace('  buracle', '  ◉ buracle'))
+      expect(count(live.err()) + count(live.out())).toBe(1)
+      const piped = memoryIO()
+      await doctorRun(['config'], piped)
+      expect(count(piped.out()) + count(piped.err())).toBe(0)
+      const json = memoryIO({ json: true, liveErr: true, ttyOut: true })
+      await doctorRun(['config', '--json'], json)
+      expect(count(json.out()) + count(json.err())).toBe(0)
+      await withEnv({ NO_COLOR: '1' }, async () => {
+        const plain = memoryIO({ liveErr: true, ttyOut: true })
+        await doctorRun(['config'], plain)
+        expect(plain.out() + plain.err()).not.toContain('\u001b')
+        expect(first(plain.out())).toBe(header)
+        expect(count(plain.out()) + count(plain.err())).toBe(1)
+      })
+    }))
   }), 60_000)
 
   test('`doctor <harness>` checks config and that harness only; an unavailable memory doctor is skipped', () => withSandbox(async ({ root }) => {
@@ -464,26 +491,87 @@ describe('buracle doctor', () => {
     expect(await shared(true)).toMatchObject({ level: 'error' })
   }), 60_000)
 
-  test('the terminal report: one block per section, a symbol per check, the summary in English', () => {
-    const text = styledReport(makeStyle(0), [
+  test('the terminal report: one line per section with its counts, then only the warning and error rows', () => {
+    const st = makeStyle(0)
+    const checks = [
       { section: 'tools', level: 'ok', check: 'bun', detail: '1.4.2' },
-      { section: 'mcp', level: 'error', check: 'context7', detail: 'down: no answer' },
+      { section: 'tools', level: 'info', check: 'toolchain.autoInstall', detail: 'off' },
+      { section: 'mcp', level: 'error', check: 'context7', detail: 'down: no answer; run `buracle doctor mcp`' },
       { section: 'mcp', level: 'warn', check: 'grep', detail: 'slow' },
-    ], 100)
-    expect(text).toContain('Tools')
-    expect(text).toContain('MCP servers')
-    expect(text).toMatch(/✔ bun +1\.4\.2/)
-    expect(text).toMatch(/✖ context7 +down: no answer/)
-    expect(text).toContain('1 ok · 1 warning · 1 error')
-    const many = styledReport(makeStyle(0), [
-      { section: 'memory', level: 'warn', check: 'inbox', detail: 'full' },
-      { section: 'memory', level: 'warn', check: 'index', detail: 'stale' },
-      { section: 'config', level: 'info', check: 'snapshot', detail: 'n/a' },
-    ], 100)
-    expect(many).toContain('Memory')
-    expect(many).toContain('Configuration')
-    expect(many).toContain('0 ok · 2 warnings · 1 note')
+      { section: 'mcp', level: 'ok', check: 'semble', detail: 'handshake ok' },
+    ] satisfies DoctorCheck[]
+    const lines = styledReport(st, checks, 100).split('\n').filter(l => l.trim() !== '')
+    expect(lines).toEqual([
+      '  ✔ Tools        1 ok · 1 note',
+      '  ✖ MCP servers  1 ok · 1 warning · 1 error',
+      '    ✖ context7  down: no answer; run `buracle doctor mcp`',
+      '    ▲ grep      slow',
+      '  ✖ 2 ok · 1 warning · 1 error · 1 note',
+      '  buracle doctor --all shows every row',
+    ])
+    const all = styledReport(st, checks, 100, { all: true }).split('\n').filter(l => l.trim() !== '')
+    expect(all).toEqual([
+      '  ✔ Tools        1 ok · 1 note',
+      '    ✔ bun                    1.4.2',
+      '    ℹ toolchain.autoInstall  off',
+      '  ✖ MCP servers  1 ok · 1 warning · 1 error',
+      '    ✖ context7               down: no answer; run `buracle doctor mcp`',
+      '    ▲ grep                   slow',
+      '    ✔ semble                 handshake ok',
+      '  ✖ 2 ok · 1 warning · 1 error · 1 note',
+    ])
+    const warnOnly = styledReport(st, [{ section: 'memory', level: 'warn', check: 'inbox', detail: 'full' }, { section: 'memory', level: 'warn', check: 'index', detail: 'stale' }], 100)
+    expect(warnOnly.split('\n')).toContain('  ▲ Memory  0 ok · 2 warnings')
+    // Rows of one section that are not next to each other still get one section line.
+    const apart = styledReport(st, [checks[0], checks[2], checks[1]] as DoctorCheck[], 100).split('\n').filter(l => /^ {2}\S+ (Tools|MCP servers) /.test(l))
+    expect(apart).toEqual(['  ✔ Tools        1 ok · 1 note', '  ✖ MCP servers  0 ok · 1 error'])
   })
+
+  test('a long fix wraps at the width, its next lines 6 columns in, and is never cut; 14 sections and 5 such problems fit in 40 rows at 80 columns', () => {
+    const fix = 'codex 0.150.0 is older than 0.154.0, the oldest Codex Buracle supports: run `buracle update codex` (it uses the installer that installed Codex, also while this Codex does not start), then `buracle install codex`'
+    const sections = ['config', 'runtime', 'tools', 'skills', 'claude', 'codex', 'opencode', 'omp', 'mcp', 'lsp', 'memory', 'index', 'updates', 'harness']
+    const checks: DoctorCheck[] = sections.flatMap(section => Array.from({ length: 6 }, (_, i) => ({ section, level: 'ok' as const, check: `${section}.ok${i}`, detail: 'fine, and a long ok detail that only --all would show at all' })))
+    for (const section of ['codex', 'opencode', 'omp', 'mcp', 'memory']) checks.push({ section, level: 'error', check: 'codex.version', detail: fix })
+    const text = styledReport(makeStyle(0), checks, 80)
+    const rows = text.split('\n')
+    for (const r of rows) expect(r.length).toBeLessThanOrEqual(79)
+    expect(rows.length).toBeLessThanOrEqual(40)
+    // The fix is whole: its words come back when the wrapped lines are joined.
+    const first = rows.findIndex(r => r.includes('codex.version'))
+    const joined = rows.slice(first, first + 4).map((r, i) => (i === 0 ? r.slice(r.indexOf('codex 0.150.0')) : r)).map(r => r.trim()).join(' ')
+    expect(joined.startsWith(fix)).toBe(true)
+    expect(rows[first + 1]?.startsWith('      ') && !rows[first + 1]?.startsWith('       ')).toBe(true)
+  })
+
+  test('--all shows every row in a terminal; with --json it changes nothing; the piped table keeps every row; the help names it', () => withSandbox(async ({ root }) => {
+    const repo = makeRepo(root)
+    await withDeps({ repoRoot: () => repo, adapters: async () => [], now: () => Date.parse('2026-10-08T00:00:00Z') }, async () => {
+      const short = memoryIO({ ttyOut: true })
+      const code = await doctorRun(['config'], short)
+      const full = memoryIO({ ttyOut: true })
+      expect(await doctorRun(['config', '--all'], full)).toBe(code)
+      const json = memoryIO({ json: true })
+      await doctorRun(['config', '--json'], json)
+      const okRows = (JSON.parse(json.out()) as { checks: DoctorCheck[] }).checks.filter(c => c.level === 'ok')
+      expect(okRows.length).toBeGreaterThan(0)
+      // An ok row shows with --all only; its detail (the start of it, as --all cuts long ok details) tells it apart.
+      for (const c of okRows) {
+        const start = c.detail.replace(/\s*\n\s*/g, ' / ').trim().slice(0, 24)
+        expect(stripAnsi(full.out())).toContain(start)
+        expect(stripAnsi(short.out())).not.toContain(start)
+      }
+      expect(stripAnsi(short.out())).toContain('buracle doctor --all shows every row')
+      const jsonAll = memoryIO({ json: true })
+      await doctorRun(['config', '--all', '--json'], jsonAll)
+      const strip = (s: string) => (JSON.parse(s) as { checks: DoctorCheck[] }).checks.map(c => `${c.section}/${c.check}/${c.level}`)
+      expect(strip(jsonAll.out())).toEqual(strip(json.out()))
+      const piped = memoryIO()
+      await doctorRun(['config'], piped)
+      expect(piped.out()).toMatch(/SECTION\s+CHECK\s+STATUS\s+DETAIL/)
+      for (const c of okRows) expect(piped.out()).toContain(c.check)
+    })
+    expect(doctorUsage).toContain('--all')
+  }), 60_000)
 
   test('a server\'s own output in a detail reaches the terminal without escape sequences', () => {
     const text = styledReport(makeStyle(0), [{ section: 'mcp', level: 'error', check: 'web-search', detail: 'exited: \u001b[2J\u001b[31mboom\u001b[0m' }], 100)

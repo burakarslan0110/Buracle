@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from 'node:path'
 import { run as installRun } from '../../../src/cli/commands/install'
 import { run as uninstallRun } from '../../../src/cli/commands/uninstall'
+import { cliVersion } from '../../../src/cli/router'
 import { readJournal, readLedger, rollbackTxn, type Plan } from '../../../src/engine/txn'
 import { readInstallRecord } from '../../../src/engine/update/install-core'
 import { execUndos } from '../../../src/engine/update/uninstall'
@@ -68,6 +69,26 @@ describe('buracle uninstall', () => {
       expect(res.prunedDirs).not.toContain('~/.codex')
       expect(res.prunedDirs.some(d => d.startsWith('~/.config'))).toBe(false)
     })
+  }))
+
+  test('in a terminal the report starts with one header line and marks each result; a pipe keeps the old lines', () => withSandbox(async ({ root, home }) => {
+    const env = setup(root, home)
+    const plan: Plan = { id: 'codex', harness: 'codex', ops: [{ kind: 'file', path: join(home, '.codex/agents/review.toml'), content: 'x = 1\n', owner: 'codex' }] }
+    const codex = fakeAdapter('codex', { plan: () => plan })
+    const strip = (s: string): string => s.replace(/\u001b\[[0-9;?]*[A-Za-z]/g, '')
+    await withDeps({ repoRoot: () => env.repo, adapters: async () => [codex], runCli: fakeCli().runCli }, () => withEnv({ TERM: 'xterm-256color', NO_COLOR: undefined, FORCE_COLOR: undefined, COLORTERM: undefined }, async () => {
+      expect(await installRun(['--yes'], memoryIO())).toBe(0)
+      const io = memoryIO({ ttyOut: true })
+      expect(await uninstallRun(['--yes'], io)).toBe(0)
+      const lines = strip(io.out()).split('\n').filter(l => l.trim() !== '')
+      expect(lines[0]).toBe(`  ◉ buracle v${cliVersion()} · uninstall`)
+      expect(lines.some(l => /^ {2}✔ Removed \d+ change\(s\)/.test(l))).toBe(true)
+      expect(await installRun(['--yes'], memoryIO())).toBe(0)
+      const piped = memoryIO()
+      expect(await uninstallRun(['--yes'], piped)).toBe(0)
+      expect(piped.out()).toMatch(/^(Undid|Removed) /)
+      expect(piped.out()).not.toContain('buracle v')
+    }))
   }))
 
   test('removes what Buracle wrote, undoes its commands once, keeps user data and the vault', () => withSandbox(async ({ root, home, buracleHome }) => {

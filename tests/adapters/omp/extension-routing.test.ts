@@ -533,7 +533,10 @@ describe('omp utility commands', () => {
   test('/buracle-status views: status (also /buracle), flow, plan, memory; anything else gets the usage', () => withSandbox(async sb => {
     const { fp, ctx } = setup(sb)
     const show = async (name: string, args: string) => { await fp.commands.get(name)!.handler(args, ctx); return String(ctx.uiCalls.at(-1)?.args[0]) }
-    expect(await show('buracle-status', '')).toStartWith('Buracle 0.1.0 · Oh My Pi (tested 18.8.3, minimum 18.8.0)')
+    expect((await show('buracle-status', '')).split('\n')[0]).toBe('Buracle 0.1.0 · Oh My Pi')
+    mkdirSync(join(paths.buracleHome(), 'cache'), { recursive: true })
+    writeFileSync(join(paths.buracleHome(), 'cache', 'harness-versions.json'), JSON.stringify({ omp: { v: '18.10.4', at: 1_791_400_000_000 - 60_000 } }))
+    expect((await show('buracle-status', '')).split('\n')[0]).toBe('Buracle 0.1.0 · Oh My Pi 18.10.4')
     expect(await show('buracle', '')).toContain('commands: /plan-build /goal-build · /remember <text> · /brain · /aside <question> · /buracle-status [status|memory|plan|flow] · /buracle-ping')
     expect(await show('buracle-status', 'flow')).toBe('No workflow is running.')
     await fp.emit('input', input('/plan-build add rate limiting'), ctx)

@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test'
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { readTemplate, readTree, packageVersion } from '../../../src/adapters/claude/build'
-import { TESTED_WITH } from '../../../src/adapters/claude/constants'
 import { devContext, syncTree } from '../../../src/adapters/claude/dev-build'
 import { generatePlugin } from '../../../src/adapters/claude/plugin'
 import * as paths from '../../../src/engine/paths'
@@ -184,7 +183,7 @@ async function eventually<T>(fn: () => T | undefined, ms = 8_000): Promise<T | u
 
 const smoke = RUNS ? describe : describe.skip
 
-smoke(`Claude Code ${OVERRIDE !== undefined ? '(BURACLE_CLAUDE_BIN)' : (GATE?.version || TESTED_WITH)} runs the plugin's command hooks`, () => {
+smoke(`Claude Code ${OVERRIDE !== undefined ? '(BURACLE_CLAUDE_BIN)' : (GATE?.version || 'CLI')} runs the plugin's command hooks`, () => {
   test('session start context, alwaysLoad, a typed workflow, the router and the turn-end check, the permission warning, the Skill tool', async () => {
     await withSandbox(async sb => {
       const w = await setUp(sb)

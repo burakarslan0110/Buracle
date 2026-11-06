@@ -1,7 +1,8 @@
-import { sanitizeText, textWidth, truncateToWidth } from '../../core/status/format'
+import { textWidth, truncateToWidth } from '../../core/status/format'
+import { clean, fitLine, footerLine, headerHeight, headerLines, MARGIN, sectionHeading, type Hint, type Summary } from './frame'
 import type { Key } from './keys'
-import type { Style } from './style'
-import { padEnd, stripAnsi, visibleWidth, wordmark } from './style'
+import type { ColorLevel, Style } from './style'
+import { padEnd } from './style'
 
 export type RowState = 'ok' | 'warn' | 'err' | 'off'
 export type SectionId = 'buracle' | 'harnesses' | 'mcp' | 'tools' | 'lsp' | 'memory'
@@ -39,18 +40,18 @@ export interface DashView {
   scroll: number // the first visible item
   help: boolean
   message?: string
-  summary: { updates: number; problems: number; checkedAt?: string; working?: string } // working: what is being verified right now
+  summary: Summary
+  headerRows: number // the lines of the shared header at this size and color level (frame.ts headerHeight)
 }
 
 export type DashAction = { kind: 'run'; argv: string[] } | { kind: 'reload' } | { kind: 'back' } | { kind: 'quit' }
 
-const MARGIN = '  '
 const GAP = '  '
 const GAP_WIDTH = GAP.length
 // The margin, the pointer and the space after it.
 const ROW_INDENT = MARGIN.length + 2
-// The title, the line under it, the line above the detail, the detail and the key hints.
-const CHROME_LINES = 5
+// Under the header: the line above the list, the line below it, the detail and the key hints.
+const CHROME_LINES = 4
 
 interface Widths { label: number; version: number; status: number; update: number; source: number }
 
@@ -83,17 +84,10 @@ const HELP: ReadonlyArray<readonly [string, string]> = [
   ['q', 'quit'],
 ]
 
-interface Hint { key: string; word: string; drop?: number } // drop: the order in which hints go when the line is too narrow
-
-const BIDI_CONTROLS = /[\u202a-\u202e\u2066-\u2069]/gu
-
-// Every value that comes from outside goes through here before it reaches the screen.
-export function clean(s: string | undefined): string {
-  return s === undefined ? '' : sanitizeText(s).replace(BIDI_CONTROLS, '').trim()
-}
+const HELP_HINTS: readonly Hint[] = [{ key: 'any key', word: 'close' }, { key: 'q', word: 'quit' }]
 
 const clamp = (n: number, lo: number, hi: number): number => Math.min(Math.max(n, lo), hi)
-const listHeight = (rows: number): number => Math.max(1, rows - CHROME_LINES)
+const listHeight = (v: Pick<DashView, 'rows' | 'headerRows'>): number => Math.max(1, v.rows - v.headerRows - CHROME_LINES)
 
 type ListLine = { kind: 'gap' } | { kind: 'heading'; section: SectionId } | { kind: 'item'; index: number }
 
@@ -224,32 +218,11 @@ function rowLine(st: Style, row: DashRow, c: Cells, w: Widths, selected: boolean
   return parts.join(GAP).trimEnd()
 }
 
-function titleLine(st: Style, view: DashView, width: number): string {
-  const head = `${MARGIN}${st.level === 0 ? st.bold('buracle') : wordmark(st)}`
-  const version = truncateToWidth(clean(view.version), width - visibleWidth(head) - 1)
-  const left = version === '' ? head : `${head} ${st.muted(version)}`
-  const { updates, problems } = view.summary
-  const count = (n: number, noun: string, color: (s: string) => string) => {
-    const text = `${n} ${noun}${n === 1 ? '' : 's'}`
-    return n > 0 ? color(text) : st.muted(text)
-  }
-  const counts = updates === 0 && problems === 0 ? [st.ok('all good')] : [count(updates, 'update', st.accent), count(problems, 'problem', st.warn)]
-  const checked = clean(view.summary.checkedAt)
-  const working = clean(view.summary.working)
-  const tail = working !== '' ? st.accent(working) : checked !== '' ? st.muted(`checked ${checked}`) : ''
-  for (const parts of tail === '' ? [counts] : [[...counts, tail], counts]) {
-    const right = parts.join(st.muted(' · '))
-    const pad = width - visibleWidth(left) - visibleWidth(right)
-    if (pad >= 2) return `${left}${' '.repeat(pad)}${right}`
-  }
-  return left
-}
-
-function hintLine(st: Style, row: DashRow | undefined, width: number): string {
+function hints(row: DashRow | undefined): Hint[] {
   const action = clean(row?.action?.label)
-  const all: Hint[] = [
+  return [
     { key: '↑↓', word: 'move', drop: 6 },
-    { key: 'enter', word: action === '' ? 'check this' : action },
+    { key: 'enter', word: action === '' ? 'check this' : action, shrink: true },
     { key: 'u', word: 'update', drop: 5 },
     { key: 'c', word: 'check', drop: 4 },
     { key: 'i', word: 'install', drop: 3 },
@@ -260,19 +233,11 @@ function hintLine(st: Style, row: DashRow | undefined, width: number): string {
     { key: '?', word: 'keys' },
     { key: 'q', word: 'quit' },
   ]
-  const sep = ' · '
-  const widthOf = (hints: readonly Hint[]) =>
-    MARGIN.length + hints.reduce((n, h) => n + textWidth(h.key) + 1 + textWidth(h.word), 0) + sep.length * Math.max(0, hints.length - 1)
-  let hints = all
-  for (let order = 1; order <= 7 && widthOf(hints) > width; order++) hints = hints.filter(h => h.drop !== order)
-  const over = widthOf(hints) - width
-  if (over > 0) hints = hints.map(h => (h.key === 'enter' ? { ...h, word: truncateToWidth(h.word, textWidth(h.word) - over) } : h))
-  return MARGIN + hints.map(h => (h.word === '' ? h.key : `${h.key} ${st.muted(h.word)}`)).join(st.muted(sep))
 }
 
 function detailLine(st: Style, view: DashView, row: DashRow | undefined, width: number): string {
   const room = width - MARGIN.length
-  if (view.help) return `${MARGIN}${st.muted(truncateToWidth('Esc or any key closes this help · q quits', room))}`
+  if (view.help) return ''
   const message = clean(view.message)
   if (message !== '') return `${MARGIN}${truncateToWidth(message, room)}`
   if (row === undefined) return ''
@@ -292,17 +257,13 @@ function helpLines(st: Style, width: number): string[] {
   })]
 }
 
-// Lines are built to fit; this only guards the corner cases (a terminal narrower than the fixed parts).
-export function fitLine(line: string, width: number): string {
-  return visibleWidth(line) <= width ? line : truncateToWidth(stripAnsi(line), width)
-}
-
 export function renderDashboard(st: Style, view: DashView): string[] {
   // The last column stays empty: an erase to the end of the line right after a full line clears its last character on many terminals.
   const width = Math.max(0, view.columns - 1)
-  const height = listHeight(view.rows)
+  const height = listHeight(view)
   const selected = clamp(view.selected, 0, Math.max(0, view.items.length - 1))
   const row = view.items[selected]
+  const header = headerLines(st, view)
   let above = ''
   let below = ''
   const area: string[] = []
@@ -314,7 +275,7 @@ export function renderDashboard(st: Style, view: DashView): string[] {
     const { start, end } = visibleLines(layout, height, selected, fitScroll(layout, height, selected, view.scroll))
     for (const line of layout.lines.slice(start, end)) {
       if (line.kind === 'gap') area.push('')
-      else if (line.kind === 'heading') area.push(`${MARGIN}${st.bold(SECTION_TITLES[line.section])}`)
+      else if (line.kind === 'heading') area.push(sectionHeading(st, SECTION_TITLES[line.section], width))
       else {
         const item = view.items[line.index]
         const c = cells[line.index]
@@ -327,8 +288,8 @@ export function renderDashboard(st: Style, view: DashView): string[] {
     if (hiddenBelow > 0) below = `${MARGIN}${st.muted(`${hiddenBelow} more below`)}`
   }
   while (area.length < height) area.push('')
-  const hint = fitLine(hintLine(st, row, width), width)
-  const lines = [titleLine(st, view, width), above, ...area, below, detailLine(st, view, row, width)].map(l => fitLine(l, width))
+  const hint = footerLine(st, view.help ? HELP_HINTS : hints(row), width)
+  const lines = [...header, above, ...area, below, detailLine(st, view, row, width)].map(l => fitLine(l, width))
   lines.push(hint)
   if (lines.length <= view.rows) return lines
   return view.rows <= 0 ? [] : [...lines.slice(0, view.rows - 1), hint]
@@ -336,7 +297,7 @@ export function renderDashboard(st: Style, view: DashView): string[] {
 
 export function dashboardStep(view: DashView, key: Key): { view: DashView; action?: DashAction } {
   const count = view.items.length
-  const height = listHeight(view.rows)
+  const height = listHeight(view)
   const layout = layoutList(view.items)
   const at = (selected: number): DashView => {
     const s = clamp(selected, 0, Math.max(0, count - 1))
@@ -373,7 +334,7 @@ export function dashboardStep(view: DashView, key: Key): { view: DashView; actio
   return argv === undefined ? { view: current } : { view: current, action: { kind: 'run', argv: [...argv] } }
 }
 
-function summarize(items: readonly DashRow[]): DashView['summary'] {
+function summarize(items: readonly DashRow[]): Summary {
   const hasUpdate = (r: DashRow) => clean(r.update) !== ''
   return {
     updates: items.filter(hasUpdate).length,
@@ -381,8 +342,9 @@ function summarize(items: readonly DashRow[]): DashView['summary'] {
   }
 }
 
-export function initialView(version: string, items: DashRow[], size: { columns: number; rows: number }): DashView {
+// `level` is the color level of the style the view is drawn with: it sets the header's size and so the list height.
+export function initialView(version: string, items: DashRow[], size: { columns: number; rows: number }, level: ColorLevel = 3): DashView {
   const rank = (r: DashRow) => SECTION_ORDER.indexOf(r.section)
   const sorted = [...items].sort((a, b) => rank(a) - rank(b))
-  return { version, columns: size.columns, rows: size.rows, items: sorted, selected: 0, scroll: 0, help: false, summary: summarize(sorted) }
+  return { version, columns: size.columns, rows: size.rows, items: sorted, selected: 0, scroll: 0, help: false, summary: summarize(sorted), headerRows: headerHeight(size.columns, size.rows, level) }
 }

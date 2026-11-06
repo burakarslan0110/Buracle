@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { join } from 'node:path'
 import { devContext } from '../../../src/adapters/omp/dev-build'
 import { doctor } from '../../../src/adapters/omp/doctor'
-import { OMP_TESTED_WITH } from '../../../src/adapters/omp/generated'
+import { OMP_MIN_VERSION } from '../../../src/adapters/omp/generated'
 import { hostLimitsOf } from '../../../src/adapters/shared/host-limits'
 import { withSandbox } from '../../helpers/sandbox'
 
@@ -27,13 +27,12 @@ describe('omp doctor: host limits (PARITY-10)', () => {
     expect(items.filter(i => hostLimitsOf('omp').some(l => l.id === i.check)).map(i => i.check)).toEqual(hostLimitsOf('omp').map(l => l.id))
   }))
 
-  test('with a newer omp: only the version row warns and names the re-check; the limit rows stay ok', () => withSandbox(async () => {
-    const newer = OMP_TESTED_WITH.replace(/\d+$/, n => String(Number(n) + 1))
+  test('with an omp far newer than any Buracle knows: the version row and the limit rows are ok', () => withSandbox(async () => {
+    const newer = '99.0.0'
     const items = await doctor(devContext(REPO), { detect: detect(newer) })
-    const limits = items.find(i => i.check === 'omp.limits')
-    expect(limits?.level).toBe('warn')
-    expect(limits?.detail).toContain(`${newer} is newer than`)
+    expect(items.find(i => i.check === 'omp.limits')?.level).toBe('ok')
     expect(items.find(i => i.check === 'omp.companion-shell')?.level).toBe('ok')
-    expect(items.find(i => i.check === 'omp version')?.level).toBe('warn')
+    expect(items.find(i => i.check === 'omp version')).toMatchObject({ level: 'ok', detail: `omp ${newer} (minimum ${OMP_MIN_VERSION})` })
+    expect(items.filter(i => /tested|newer than/i.test(i.detail))).toEqual([])
   }), 60_000)
 })

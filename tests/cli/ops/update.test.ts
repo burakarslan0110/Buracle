@@ -2,10 +2,12 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { checkSummary, run as updateRun } from '../../../src/cli/commands/update'
+import { cliVersion } from '../../../src/cli/router'
+import { toolchainProgress } from '../../../src/cli/ui/toolchain-live'
 import { run as procRun } from '../../../src/engine/proc'
 import { readHealth } from '../../../src/engine/update/mcp'
 import { readUpdatesCache, writeUpdatesCache } from '../../../src/engine/update/updates-cache'
-import { npmUrl, pypiUrl, TESTED_WITH } from '../../../src/engine/update/updates'
+import { npmUrl, pypiUrl } from '../../../src/engine/update/updates'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
 import { fakeExe, narrowPath } from '../../helpers/fake-exe'
 import { behindRemote, daysAgo, FAKE_MCP_MAIN as FAKE_MAIN, fakeAdapter, fakeCli, fakeFetch, git, makeRepo, memoryIO, withDeps } from './helpers'
@@ -143,8 +145,8 @@ if (argv[0] === 'outdated') console.log(${q('{"formulae":[{"name":"ripgrep","ins
       fakeAdapter('opencode', { version: '2.0.20' }),
       fakeAdapter('omp', { version: '18.8.3' }),
     ]
-    const [maj, min, patch] = TESTED_WITH.claude.tested.split('.').map(Number) as [number, number, number]
-    const newer = `${maj}.${min}.${patch + 1}`
+    // A patch far above every version Buracle knows: only the step and the release age set its risk.
+    const newer = '2.1.999'
     const f = fakeFetch({
       [npmUrl('@anthropic-ai/claude-code')]: { 'dist-tags': { latest: newer }, time: { [newer]: daysAgo(NOW, 5) }, versions: { [newer]: {} } },
       [npmUrl('@openai/codex')]: { 'dist-tags': { latest: '0.161.0' }, time: { '0.161.0': daysAgo(NOW, 1) }, versions: { '0.161.0': {}, '0.162.0-alpha.1': {} } },
@@ -158,9 +160,9 @@ if (argv[0] === 'outdated') console.log(${q('{"formulae":[{"name":"ripgrep","ins
         const r = JSON.parse(io.out()) as { items: Array<{ kind: string, id: string, current: string, latest: string, action: string, risk: string, note?: string, command?: string[] }> }
         const byId = Object.fromEntries(r.items.map(i => [`${i.kind}:${i.id}`, i]))
         expect(Object.keys(byId).sort()).toEqual(['harness:claude', 'harness:codex', 'harness:opencode', 'plugins:marketplace:claude-plugins-official', 'plugins:pyright-lsp@claude-plugins-official', 'tools:rg'])
-        expect(byId['harness:claude']).toMatchObject({ action: 'self-update', command: ['claude', 'update'], source: 'its own updater (claude update)', current: '2.1.290', latest: newer, risk: 'medium' })
-        expect(byId['harness:claude']?.note).toContain('newer than the version Buracle was tested with')
-        expect(byId['harness:claude']?.note).not.toContain('report only')
+        expect(byId['harness:claude']).toMatchObject({ action: 'self-update', command: ['claude', 'update'], source: 'its own updater (claude update)', current: '2.1.290', latest: newer, risk: 'low' })
+        expect(byId['harness:claude']?.note ?? '').not.toMatch(/tested/i)
+        expect(byId['harness:claude']?.note ?? '').not.toContain('report only')
         expect(byId['harness:codex']).toMatchObject({ action: 'self-update', command: ['codex', 'update'], risk: 'high' })
         expect(byId['harness:codex']?.note).toContain('released 1 day(s) ago')
         expect(byId['harness:opencode']).toMatchObject({ latest: '2.0.24', command: ['opencode', 'upgrade'], risk: 'low' })
@@ -532,6 +534,48 @@ if (argv[0] === 'outdated') console.log(${q(RG_OUTDATED)})`)
       })
     })
   }), 60_000)
+})
+
+describe('update in a terminal: one header line, the shared symbols; a pipe keeps its bytes', () => {
+  const strip = (s: string): string => s.replace(/\u001b\[[0-9;?]*[A-Za-z]/g, '')
+
+  test('the header goes first, once, and the tally carries its symbol at the margin', () => withSandbox(async ({ root }) => {
+    const repo = makeRepo(root)
+    const bin = join(root, 'bin')
+    fakeExe(join(bin, 'brew'), `if (argv[0] === 'outdated') console.log(${q(RG_OUTDATED)})`)
+    await withDeps({ repoRoot: () => repo, adapters: async () => [], now: () => NOW, confirm: async () => { throw new Error('update must not ask') } }, async () => {
+      await withEnv({ PATH: narrowPath(bin), ...{ TERM: 'xterm-256color', NO_COLOR: undefined, FORCE_COLOR: undefined, COLORTERM: undefined } }, async () => {
+        const io = memoryIO({ tty: true, liveErr: true, ttyOut: true })
+        expect(await updateRun(['tools'], io)).toBe(0)
+        expect(strip(io.err()).split('\n').find(l => l.trim() !== '')).toBe(`  ◉ buracle v${cliVersion()} · update`)
+        expect(strip(io.out())).toBe('\n  ✔ 1 updated · 0 skipped · 0 failed\n')
+      })
+    })
+  }))
+
+  test('with NO_COLOR a terminal gets no escape code: no live steps, the header on stdout, plain symbols', () => withSandbox(async ({ root }) => {
+    const repo = makeRepo(root)
+    const bin = join(root, 'bin')
+    fakeExe(join(bin, 'brew'), `if (argv[0] === 'outdated') console.log(${q(RG_OUTDATED)})`)
+    await withDeps({ repoRoot: () => repo, adapters: async () => [], now: () => NOW, confirm: async () => { throw new Error('update must not ask') } }, async () => {
+      await withEnv({ PATH: narrowPath(bin), NO_COLOR: '1' }, async () => {
+        const io = memoryIO({ tty: true, liveErr: true, ttyOut: true })
+        expect(await updateRun(['tools'], io)).toBe(0)
+        expect(io.err() + io.out()).not.toContain('\u001b')
+        expect(io.out().split('\n').find(l => l.trim() !== '')).toBe(`  buracle v${cliVersion()} · update`)
+        expect(io.out()).toContain('  + applied  tools rg')
+      })
+    })
+  }))
+
+  test('a piped stderr keeps the Unicode check mark in the toolchain progress lines, as before', () => {
+    const io = memoryIO()
+    const progress = toolchainProgress(io, { quiet: false })
+    progress.onEvent({ phase: 'done', item: { id: 'tool:rg', group: 'cli', label: 'rg', required: true, status: 'installed', detail: '14.1.1' } })
+    progress.stop()
+    expect(io.err()).toContain('✔ rg')
+    expect(io.err()).not.toContain('\u001b')
+  })
 })
 
 describe('update progress on a terminal', () => {

@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { dashboardFits, fileSource, REEXEC_ENV, resultLine, runDashboard, type ChildHandle, type DashData, type DashSource } from '../../src/cli/dashboard'
+import { dashboardFits, fileSource, REEXEC_ENV, resultLine, runDashboard, type ChildHandle, type DashData, type DashSource, type PtyRequest } from '../../src/cli/dashboard'
+import { footerLine, headerLines } from '../../src/cli/ui/frame'
+import { initialMenu, renderMenu } from '../../src/cli/ui/menu'
+import { enterSequence, fallbackSequence, MAX_COPY_BYTES, redrawSequence, repaintSequence } from '../../src/cli/ui/run-screen'
 import type { DashRow } from '../../src/cli/ui/dashboard'
 import type { Key } from '../../src/cli/ui/keys'
 import { makeStyle } from '../../src/cli/ui/style'
@@ -35,19 +38,26 @@ function fakeTerm(size = { columns: 100, rows: 30 }) {
   const frames: string[][] = []
   const events: string[] = []
   const keys: Key[] = []
+  let pass: ((d: Buffer | string) => void) | undefined
+  const closers: Array<() => void> = []
+  const resizers: Array<() => void> = []
+  let current = size
   let waiter: ((k: Key) => void) | undefined
   const next = (): Promise<Key> => {
     const k = keys.shift()
     return k !== undefined ? Promise.resolve(k) : new Promise<Key>(r => { waiter = r })
   }
   const term: Terminal = {
-    size: () => size,
+    size: () => current,
     draw: l => { frames.push(l); events.push('draw') },
     nextKey: () => { events.push('nextKey'); return next() },
     anyKey: () => { events.push('anyKey'); return next() },
-    onResize: () => {  },
+    onResize: f => { resizers.push(f) },
     suspend: () => { events.push('suspend') },
     resume: () => { events.push('resume') },
+    passthrough: f => { pass = f; events.push(f === undefined ? 'passthrough off' : 'passthrough on') },
+    onClose: f => { closers.push(f); return () => { closers.splice(closers.indexOf(f), 1) } },
+    region: rows => { events.push(rows === undefined ? 'region reset' : `region ${rows.top}-${rows.bottom}`) },
     close: () => { events.push('close') },
   }
   const press = (k: Key): void => {
@@ -56,7 +66,8 @@ function fakeTerm(size = { columns: 100, rows: 30 }) {
     if (w !== undefined) w(k)
     else keys.push(k)
   }
-  return { term, frames, events, press, waiting: () => waiter !== undefined }
+  const resize = (next: { columns: number, rows: number }): void => { current = next; for (const f of [...resizers]) f() }
+  return { term, frames, events, press, closers, resize, typeIn: (d: string) => { pass?.(d) }, waiting: () => waiter !== undefined }
 }
 
 function fakeSource(rows: DashRow[] = ROWS): DashSource & { reads: number } {
@@ -64,15 +75,22 @@ function fakeSource(rows: DashRow[] = ROWS): DashSource & { reads: number } {
   return s
 }
 
-function fakeSpawn() {
-  const calls: Array<{ argv: string[], env: Record<string, string | undefined> }> = []
-  const children: Array<{ exit(code: number): void, kills: string[] }> = []
-  const spawn = (argv: readonly string[], env: Record<string, string | undefined>): ChildHandle => {
-    calls.push({ argv: [...argv], env })
+// With `pty`, the children answer a PTY request as a real PTY spawn does: they take input and can print.
+function fakeSpawn(o: { pty?: boolean } = {}) {
+  const calls: Array<{ argv: string[], env: Record<string, string | undefined>, pty?: { cols: number, rows: number } }> = []
+  const children: Array<{ exit(code: number): void, kills: string[], input: Array<Uint8Array | string>, resizes: Array<[number, number]>, print(s: string): void, closed: () => boolean }> = []
+  const spawn = (argv: readonly string[], env: Record<string, string | undefined>, pty?: PtyRequest): ChildHandle => {
+    calls.push({ argv: [...argv], env, ...(pty !== undefined ? { pty: { cols: pty.cols, rows: pty.rows } } : {}) })
     let exit!: (code: number) => void
     const kills: string[] = []
-    children.push({ exit: code => exit(code), kills })
-    return { exited: new Promise<number>(r => { exit = r }), kill: sig => { kills.push(sig) } }
+    const input: Array<Uint8Array | string> = []
+    const resizes: Array<[number, number]> = []
+    let closed = false
+    const exited = new Promise<number>(r => { exit = r })
+    children.push({ exit: code => exit(code), kills, input, resizes, print: text => { pty?.output(new TextEncoder().encode(text)) }, closed: () => closed })
+    const base: ChildHandle = { exited, kill: sig => { kills.push(sig) } }
+    if (o.pty !== true || pty === undefined) return base
+    return { ...base, write: d => { input.push(d) }, resize: (cols, rows) => { resizes.push([cols, rows]) }, ended: exited.then(() => undefined), close: () => { closed = true } }
   }
   return { spawn, calls, children }
 }
@@ -82,14 +100,14 @@ function fakeSignals() {
   return { host: { on: (_s: 'SIGINT', f: () => void) => { handlers.add(f) }, off: (_s: 'SIGINT', f: () => void) => { handlers.delete(f) } }, emit: () => { for (const f of [...handlers]) f() }, count: () => handlers.size }
 }
 
-function start(o: { source?: DashSource, env?: Record<string, string | undefined>, shim?: () => { path: string, main: string } | undefined } = {}) {
-  const t = fakeTerm()
-  const sp = fakeSpawn()
+function start(o: { source?: DashSource, env?: Record<string, string | undefined>, shim?: () => { path: string, main: string } | undefined, pty?: boolean, size?: { columns: number, rows: number }, style?: typeof plain } = {}) {
+  const t = fakeTerm(o.size)
+  const sp = fakeSpawn({ pty: o.pty === true })
   const sig = fakeSignals()
   let out = ''
   const done = runDashboard({
-    terminal: t.term, spawn: sp.spawn, now: () => 0, source: o.source ?? fakeSource(), command: COMMAND, style: plain,
-    shim: o.shim ?? (() => ({ path: SHIM, main: '/rt/a/src/cli/main.ts' })), env: o.env ?? { PATH: '/usr/bin' }, signals: sig.host, write: s => { out += s },
+    terminal: t.term, spawn: sp.spawn, now: () => 0, source: o.source ?? fakeSource(), command: COMMAND, style: o.style ?? plain,
+    shim: o.shim ?? (() => ({ path: SHIM, main: '/rt/a/src/cli/main.ts' })), env: o.env ?? { PATH: '/usr/bin' }, signals: sig.host, write: s => { out += typeof s === 'string' ? s : new TextDecoder().decode(s) },
   })
   return { ...t, ...sp, sig, done, out: () => out }
 }
@@ -162,8 +180,7 @@ describe('the dashboard runs actions as child commands', () => {
     expect(d.events).toContain('suspend')
     d.children[0]?.exit(0)
     await until(() => d.events.includes('anyKey'), 'the key prompt')
-    expect(d.out()).toContain('\nburacle doctor runtime\n')
-    expect(d.out()).toContain('\ndone\npress any key to return\n')
+    expect(d.out()).toContain('\r\n  + buracle doctor runtime: done\r\n  any key return\r\n')
     d.press({ char: 'x' })
     await until(() => d.events.filter(e => e === 'nextKey').length === 3, 'the dashboard again')
     expect(d.events.slice(d.events.indexOf('anyKey'))).toEqual(['anyKey', 'resume', 'draw', 'nextKey'])
@@ -195,7 +212,7 @@ describe('the dashboard runs actions as child commands', () => {
     expect(d.events).not.toContain('close')
     d.children[0]?.exit(130)
     await until(() => d.events.includes('anyKey'), 'the key prompt')
-    expect(d.out()).toContain('\nfailed (exit code 130)\npress any key to return\n')
+    expect(d.out()).toContain('\r\n  x buracle update: failed (exit code 130)\r\n  any key return\r\n')
     d.press('ctrl-c')
     await until(() => d.events.filter(e => e === 'nextKey').length === 2, 'the dashboard again')
     expect(d.sig.count()).toBe(0)
@@ -217,8 +234,8 @@ describe('the dashboard runs actions as child commands', () => {
       await until(() => d.events.filter(e => e === 'anyKey').length === n + 1, 'the key prompt')
       d.press({ char: 'x' })
     }
-    expect(d.out()).toContain('done, with points that need your attention (exit code 2)\npress any key to return')
-    expect(d.out()).toContain('failed (exit code 1)\npress any key to return')
+    expect(d.out()).toContain('  ! buracle doctor: done, with points that need your attention (exit code 2)\r\n  any key return')
+    expect(d.out()).toContain('  x buracle doctor: failed (exit code 1)\r\n  any key return')
     await until(d.waiting, 'a key')
     d.press({ char: 'q' })
     expect(await d.done).toBe(0)
@@ -277,6 +294,251 @@ describe('the dashboard runs actions as child commands', () => {
     expect(r.calls).toHaveLength(1)
     r.press({ char: 'q' })
     expect(await r.done).toBe(0)
+  })
+})
+
+describe('a command from the menu runs in a PTY under the pinned header', () => {
+  const ESC = '\u001b'
+  const SUMMARY = { updates: 1, problems: 0 }
+  // The fake terminal is 100 by 30 and the style plain, so the header is the 5-line wordmark header.
+  const header = headerLines(plain, { version: '0.5.0', columns: 100, rows: 30, summary: SUMMARY })
+  const layout = (footer: string) => ({ header, footer, columns: 100, rows: 30 })
+  const RUN_FOOTER = footerLine(plain, [{ key: 'ctrl-c', word: 'stop' }], 99)
+  const RESULT_FOOTER = footerLine(plain, [{ key: 'any key', word: 'return' }, { key: 'o', word: 'full output' }], 99)
+
+  test('the header of the run screen is the menu\'s header; the PTY gets the size of the area between it and the footer', async () => {
+    const d = start({ pty: true })
+    await until(d.waiting, 'the first key')
+    d.press({ char: 'd' })
+    await until(() => d.calls.length === 1, 'the doctor child')
+    expect(d.calls[0]?.pty).toEqual({ cols: 100, rows: 30 - header.length - 1 })
+    expect(renderMenu(plain, initialMenu('0.5.0', SUMMARY, { columns: 100, rows: 30 })).slice(0, header.length)).toEqual(header)
+    expect(d.out()).toContain(enterSequence(layout(RUN_FOOTER)))
+    expect(d.events.slice(d.events.indexOf('suspend'))).toEqual(['suspend', `region ${header.length + 1}-29`, 'passthrough on'])
+    expect(d.out()).not.toContain('\nburacle doctor\n')
+    d.children[0]?.exit(0)
+    await until(() => d.events.includes('anyKey'), 'the key prompt')
+    d.press({ char: 'x' })
+    await until(() => d.events.filter(e => e === 'nextKey').length === 2, 'the menu again')
+    expect(d.events.slice(d.events.indexOf('passthrough on'))).toEqual(['passthrough on', 'passthrough off', 'anyKey', 'region reset', 'resume', 'draw', 'nextKey'])
+    expect(d.children[0]?.closed()).toBe(true)
+    d.press({ char: 'q' })
+    expect(await d.done).toBe(0)
+  })
+
+  test('at 40 by 10, 80 by 24 and 120 by 40, with and without color, the run screen draws the menu\'s header lines', async () => {
+    for (const st of [plain, makeStyle(3)]) {
+      for (const size of [{ columns: 40, rows: 10 }, { columns: 80, rows: 24 }, { columns: 120, rows: 40 }]) {
+        const d = start({ pty: true, size, style: st })
+        await until(d.waiting, 'the first key')
+        const menuHeader = headerLines(st, { version: '0.5.0', ...size, summary: SUMMARY })
+        expect(renderMenu(st, initialMenu('0.5.0', SUMMARY, size)).slice(0, menuHeader.length)).toEqual(menuHeader)
+        d.press({ char: 'd' })
+        await until(() => d.calls.length === 1, 'the doctor child')
+        const footer = footerLine(st, [{ key: 'ctrl-c', word: 'stop' }], size.columns - 1)
+        expect(d.out()).toContain(enterSequence({ header: menuHeader, footer, ...size }))
+        d.children[0]?.exit(0)
+        await until(() => d.events.includes('anyKey'), 'the key prompt')
+        d.press({ char: 'x' })
+        await until(() => d.events.filter(e => e === 'nextKey').length === 2, 'the menu again')
+        d.press({ char: 'q' })
+        expect(await d.done).toBe(0)
+      }
+    }
+  })
+
+  test('keys go to the command as they are, Ctrl-C included; its output reaches the terminal unchanged', async () => {
+    const d = start({ pty: true })
+    await until(d.waiting, 'the first key')
+    d.press({ char: 'i' })
+    await until(() => d.calls.length === 1, 'the install child')
+    d.typeIn('y\r')
+    d.typeIn('\u0003')
+    expect(d.children[0]?.input).toEqual(['y\r', '\u0003'])
+    d.children[0]?.print('Install Buracle? [Y/n] y\r\n')
+    expect(d.out()).toContain('Install Buracle? [Y/n] y\r\n')
+    d.children[0]?.exit(130)
+    await until(() => d.events.includes('anyKey'), 'the key prompt')
+    expect(d.out()).toContain('\r\n  x buracle install: failed (exit code 130)\r\n')
+    d.press('enter')
+    await until(() => d.events.filter(e => e === 'nextKey').length === 2, 'the menu again')
+    d.press({ char: 'q' })
+    expect(await d.done).toBe(0)
+  })
+
+  test('an erase in the output repaints the footer; the result swaps the footer for the way back', async () => {
+    const d = start({ pty: true })
+    await until(d.waiting, 'the first key')
+    d.press({ char: 'd' })
+    await until(() => d.calls.length === 1, 'the doctor child')
+    d.children[0]?.print(`checking${ESC}[1A${ESC}[0J`)
+    expect(d.out().endsWith(`checking${ESC}[1A${ESC}[0J${repaintSequence(layout(RUN_FOOTER), 'footer')}`)).toBe(true)
+    d.children[0]?.print(`${ESC}[2J`)
+    expect(d.out().endsWith(repaintSequence(layout(RUN_FOOTER), 'all'))).toBe(true)
+    d.children[0]?.exit(2)
+    await until(() => d.events.includes('anyKey'), 'the key prompt')
+    expect(d.out()).toContain('  ! buracle doctor: done, with points that need your attention (exit code 2)\r\n')
+    expect(d.out()).toContain(repaintSequence(layout(RESULT_FOOTER), 'footer'))
+    d.press({ char: 'x' })
+    await until(() => d.events.filter(e => e === 'nextKey').length === 2, 'the menu again')
+    expect(d.out().endsWith(`${ESC}[30;1H${ESC}[2K`)).toBe(true)
+    d.press({ char: 'q' })
+    expect(await d.done).toBe(0)
+  })
+
+  test('when the terminal closes during a run, the command gets SIGHUP', async () => {
+    const d = start({ pty: true })
+    await until(d.waiting, 'the first key')
+    d.press({ char: 'u' })
+    await until(() => d.calls.length === 1, 'the update child')
+    expect(d.closers).toHaveLength(1)
+    for (const f of [...d.closers]) f()
+    expect(d.children[0]?.kills).toEqual(['SIGHUP'])
+    d.children[0]?.exit(129)
+    await until(() => d.events.includes('anyKey'), 'the key prompt')
+    d.press({ char: 'x' })
+    await until(() => d.events.filter(e => e === 'nextKey').length === 2, 'the menu again')
+    expect(d.closers).toHaveLength(0)
+    d.press({ char: 'q' })
+    expect(await d.done).toBe(0)
+  })
+})
+
+describe('the run screen follows a resize, shows the whole output again with o, and has a fallback without a PTY', () => {
+  const ESC = '\u001b'
+  const SUMMARY = { updates: 1, problems: 0 }
+  const headerAt = (size: { columns: number, rows: number }) => headerLines(plain, { version: '0.5.0', ...size, summary: SUMMARY })
+  const RUN_FOOTER = (columns: number) => footerLine(plain, [{ key: 'ctrl-c', word: 'stop' }], columns - 1)
+
+  test('a resize erases the rows the old frame used and the new one does not: a shorter header, a footer now inside the area', async () => {
+    const d = start({ pty: true, size: { columns: 80, rows: 24 }, style: makeStyle(3) })
+    await until(d.waiting, 'the first key')
+    d.press({ char: 'd' })
+    await until(() => d.calls.length === 1, 'the doctor child')
+    // 80x24 has the 11-row logo header; 80x15 the 3-row wordmark header, so rows 4 to 11 held the old logo.
+    let before = d.out().length
+    d.resize({ columns: 80, rows: 15 })
+    const shrink = d.out().slice(before)
+    for (let row = 4; row <= 11; row++) expect(shrink).toContain(`${ESC}[${row};1H${ESC}[2K`)
+    expect(shrink.indexOf(`${ESC}[4;1H${ESC}[2K`)).toBeLessThan(shrink.indexOf(`${ESC}[15;1H`))
+    // Growing to 40 rows: the old footer on row 15 is now inside the output area.
+    before = d.out().length
+    d.resize({ columns: 80, rows: 40 })
+    expect(d.out().slice(before)).toContain(`${ESC}[15;1H${ESC}[2K`)
+    d.children[0]?.exit(0)
+    await until(() => d.events.includes('anyKey'), 'the key prompt')
+    d.press({ char: 'x' })
+    await until(() => d.events.filter(e => e === 'nextKey').length === 2, 'the menu again')
+    d.press({ char: 'q' })
+    expect(await d.done).toBe(0)
+  })
+
+  test('a resize while o shows the whole output draws no pinned frame over it', async () => {
+    const d = start({ pty: true })
+    await until(d.waiting, 'the first key')
+    d.press({ char: 'd' })
+    await until(() => d.calls.length === 1, 'the doctor child')
+    d.children[0]?.exit(0)
+    await until(() => d.events.includes('anyKey'), 'the key prompt')
+    d.press({ char: 'o' })
+    await until(() => d.events.filter(e => e === 'anyKey').length === 2, 'the second key prompt')
+    const before = d.out().length
+    const regions = d.events.length
+    d.resize({ columns: 60, rows: 30 })
+    expect(d.out().length).toBe(before)
+    expect(d.events.slice(regions).filter(e => e.startsWith('region '))).toEqual([])
+    d.press({ char: 'x' })
+    await until(() => d.events.filter(e => e === 'nextKey').length === 2, 'the menu again')
+    d.press({ char: 'q' })
+    expect(await d.done).toBe(0)
+  })
+
+  test('a resize resizes the PTY and draws the header and the footer for the new size, then the new region', async () => {
+    const d = start({ pty: true })
+    await until(d.waiting, 'the first key')
+    d.press({ char: 'd' })
+    await until(() => d.calls.length === 1, 'the doctor child')
+    const next = { columns: 50, rows: 15 }
+    const header = headerAt(next)
+    d.resize(next)
+    expect(d.children[0]?.resizes).toEqual([[50, next.rows - header.length - 1]])
+    expect(d.out()).toContain(redrawSequence({ header, footer: RUN_FOOTER(50), ...next }))
+    expect(d.events.at(-1)).toBe(`region ${header.length + 1}-14`)
+    expect(d.out().endsWith(`${ESC}[14;1H`)).toBe(true)
+    // Too low for the header and the footer: no redraw, and the PTY keeps one row.
+    const before = d.out().length
+    d.resize({ columns: 40, rows: 3 })
+    expect(d.children[0]?.resizes.at(-1)).toEqual([40, 1])
+    expect(d.out().length).toBe(before)
+    d.children[0]?.exit(0)
+    await until(() => d.events.includes('anyKey'), 'the key prompt')
+    d.press({ char: 'x' })
+    await until(() => d.events.filter(e => e === 'nextKey').length === 2, 'the menu again')
+    d.press({ char: 'q' })
+    expect(await d.done).toBe(0)
+  })
+
+  test('o resets the region and replays the whole output under the header once, without terminal queries', async () => {
+    const d = start({ pty: true })
+    await until(d.waiting, 'the first key')
+    d.press({ char: 'd' })
+    await until(() => d.calls.length === 1, 'the doctor child')
+    d.children[0]?.print(`first line\r\n${ESC}[6nsecond line\r\n`)
+    d.children[0]?.exit(0)
+    await until(() => d.events.includes('anyKey'), 'the key prompt')
+    expect(d.out()).toContain(footerLine(plain, [{ key: 'any key', word: 'return' }, { key: 'o', word: 'full output' }], 99))
+    const live = d.out().length
+    d.press({ char: 'o' })
+    await until(() => d.events.filter(e => e === 'anyKey').length === 2, 'the second key prompt')
+    const replay = d.out().slice(live)
+    expect(d.events.slice(d.events.indexOf('anyKey'))).toEqual(['anyKey', 'region reset', 'anyKey'])
+    expect(replay.startsWith(`${ESC}[H${ESC}[2J${headerAt({ columns: 100, rows: 30 }).join('\r\n')}\r\n`)).toBe(true)
+    expect(replay).toContain('first line\r\nsecond line\r\n')
+    expect(replay).not.toContain(`${ESC}[6n`)
+    expect(replay).toContain('  + buracle doctor: done\r\n')
+    expect(replay.endsWith('  any key return\r\n')).toBe(true)
+    d.press({ char: 'x' })
+    await until(() => d.events.filter(e => e === 'nextKey').length === 2, 'the menu again')
+    d.press({ char: 'q' })
+    expect(await d.done).toBe(0)
+  })
+
+  test('a copy over 4 MiB replays its first 4 MiB and says the rest was not kept', async () => {
+    const d = start({ pty: true })
+    await until(d.waiting, 'the first key')
+    d.press({ char: 'd' })
+    await until(() => d.calls.length === 1, 'the doctor child')
+    d.children[0]?.print('x'.repeat(MAX_COPY_BYTES + 10))
+    d.children[0]?.exit(0)
+    await until(() => d.events.includes('anyKey'), 'the key prompt')
+    const live = d.out().length
+    d.press({ char: 'o' })
+    await until(() => d.events.filter(e => e === 'anyKey').length === 2, 'the second key prompt')
+    const replay = d.out().slice(live)
+    expect(replay.split('x').length - 1).toBe(MAX_COPY_BYTES)
+    expect(replay).toContain('the output after the first 4 MiB was not kept')
+    d.press({ char: 'x' })
+    await until(() => d.events.filter(e => e === 'nextKey').length === 2, 'the menu again')
+    d.press({ char: 'q' })
+    expect(await d.done).toBe(0)
+  })
+
+  test('without a PTY the screen clears, the header shows once and the output follows; o is not offered', async () => {
+    const d = start()
+    await until(d.waiting, 'the first key')
+    d.press({ char: 'd' })
+    await until(() => d.calls.length === 1, 'the doctor child')
+    const header = headerAt({ columns: 100, rows: 30 })
+    expect(d.out()).toBe(fallbackSequence({ header, footer: '', columns: 100, rows: 30 }))
+    expect(d.events).not.toContain('region 6-29')
+    d.children[0]?.exit(0)
+    await until(() => d.events.includes('anyKey'), 'the key prompt')
+    expect(d.out().endsWith('\r\n  + buracle doctor: done\r\n  any key return\r\n')).toBe(true)
+    d.press({ char: 'o' })
+    await until(() => d.events.filter(e => e === 'nextKey').length === 2, 'the menu again')
+    expect(d.events.filter(e => e === 'anyKey')).toHaveLength(1)
+    d.press({ char: 'q' })
+    expect(await d.done).toBe(0)
   })
 })
 

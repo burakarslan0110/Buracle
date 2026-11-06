@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { renderInstallStyled, run as installRun, runInstallFlow } from '../../../src/cli/commands/install'
+import { cliVersion } from '../../../src/cli/router'
 import { makeStyle } from '../../../src/cli/ui/style'
 import { CONFIG_RENAMES, type ConfigRename } from '../../../src/core/config'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
@@ -45,6 +46,42 @@ describe('install output for a terminal', () => {
   }))
 })
 
+describe('install starts with one header line in a terminal', () => {
+  const strip = (s: string): string => s.replace(/\u001b\[[0-9;?]*[A-Za-z]/g, '').replace(/\u001b\]8;;[^\u001b]*\u001b\\/g, '')
+  const firstLine = (s: string): string => strip(s).split('\n').find(l => l.trim() !== '') ?? ''
+  const headers = (s: string): number => strip(s).split('\n').filter(l => /^ {2}(◉ )?buracle v\S+ · /.test(l)).length
+
+  test('live steps put the wordmark, the version and the command first, once; a pipe gets no header', () => withSandbox(async ({ root, home }) => {
+    const repo = makeRepo(root)
+    const codex = fakeAdapter('codex', { plan: () => codexPlan(home, { '.codex/hooks.json': '{}\n' }) })
+    await withDeps({ repoRoot: () => repo, adapters: async () => [codex], runCli: fakeCli().runCli, confirm: async () => false }, () => withEnv({ TERM: 'xterm-256color', NO_COLOR: undefined, FORCE_COLOR: undefined, COLORTERM: undefined }, async () => {
+      const live = memoryIO({ tty: true, liveErr: true, ttyOut: true })
+      expect(await installRun([], live)).toBe(0)
+      expect(firstLine(live.err())).toBe(`  ◉ buracle v${cliVersion()} · install`)
+      expect(headers(live.err()) + headers(live.out())).toBe(1)
+      const piped = memoryIO()
+      expect(await installRun([], piped)).toBe(0)
+      expect(headers(piped.err()) + headers(piped.out())).toBe(0)
+      expect(piped.out()).not.toContain('\u001b')
+    }))
+  }))
+
+  test('with NO_COLOR the steps go quiet, nothing writes an escape code, and the summary names the command first', () => withSandbox(async ({ root, home }) => {
+    const repo = makeRepo(root)
+    const codex = fakeAdapter('codex', { plan: () => codexPlan(home, { '.codex/hooks.json': '{}\n' }) })
+    await withDeps({ repoRoot: () => repo, adapters: async () => [codex], runCli: fakeCli().runCli, confirm: async () => false }, async () => {
+      await withEnv({ NO_COLOR: '1' }, async () => {
+        const io = memoryIO({ tty: true, liveErr: true, ttyOut: true })
+        expect(await installRun([], io)).toBe(0)
+        expect(io.err() + io.out()).not.toContain('\u001b')
+        expect(firstLine(io.out())).toBe(`  buracle v${cliVersion()} · install`)
+        expect(headers(io.err()) + headers(io.out())).toBe(1)
+        expect(io.out()).toContain(`  -- Result `)
+      })
+    })
+  }))
+})
+
 // The lines a live step list leaves on the screen: the spinner frames are drawn and erased, the finished steps stay.
 function finishedSteps(err: string): string[] {
   const plain = err.replace(/\u001b\[[0-9;?]*[A-Za-z]/g, '')
@@ -69,7 +106,7 @@ describe('install progress on a terminal', () => {
       expect(rest[4]).toBe('✔ Codex: 1 change')
       expect(rest[5]).toMatch(/^✔ Memory (ready|checked \(see the next steps\))$/)
       expect(rest).toHaveLength(6)
-      expect(first.err().replace(/\u001b\[[0-9;]*m/g, '')).toStartWith('\n  ◉ buracle install\n')
+      expect(first.err().replace(/\u001b\[[0-9;]*m/g, '')).toStartWith(`\n  ◉ buracle v${cliVersion()} · install\n`)
       expect(read(join(home, '.codex/hooks.json'))).toBe('{}\n')
       expect(first.out()).not.toContain('Rebuilt the generated files (')
 

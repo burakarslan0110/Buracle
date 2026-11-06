@@ -105,8 +105,10 @@ export function makeStyle(level: ColorLevel, opts: { unicode?: boolean } = {}): 
   }
 }
 
+// The menu's rule for a terminal: no color means the plain symbols (+ ! x i). A pipe keeps the Unicode symbols it always had.
 export function styleFor(stream: { isTTY?: boolean } = process.stdout): Style {
-  return makeStyle(colorLevel(stream))
+  const level = colorLevel(stream)
+  return makeStyle(level, { unicode: !(stream.isTTY === true && level === 0) })
 }
 
 export function stripAnsi(s: string): string {
@@ -144,13 +146,9 @@ export const LOGO: readonly string[] = [
 
 export const LOGO_EYE: ReadonlyArray<readonly [number, number]> = [[3, 3], [3, 4], [4, 3], [4, 4]]
 
-const ICON_WIDTH = 8
-
-export const ICON: readonly string[] = LOGO.map(l => l.slice(0, ICON_WIDTH))
+export const ICON: readonly string[] = LOGO.map(l => l.slice(0, 8))
 
 const LOGO_WIDTH = Math.max(...LOGO.map(l => [...l].length))
-const ICON_LAYOUT_MIN = ICON_WIDTH + 35
-const HARNESSES = 'Claude Code · Codex · OpenCode · Oh My Pi'
 
 export function paintLogo(st: Style, rows: readonly string[] = LOGO): string[] {
   const eye = new Set(LOGO_EYE.map(([r, c]) => `${r}:${c}`))
@@ -165,37 +163,3 @@ export function wordmark(st: Style): string {
 }
 
 export const TAGLINE = 'everything your coding agents need, in one place'
-
-function wrapWords(text: string, width: number, maxLines: number): string[] | undefined {
-  const lines: string[] = []
-  let line = ''
-  for (const word of text.split(' ')) {
-    if (line === '') line = word
-    else if (line.length + 1 + word.length <= width) line = `${line} ${word}`
-    else { lines.push(line); line = word }
-  }
-  lines.push(line)
-  return lines.length <= maxLines && lines.every(l => l.length <= width) ? lines : undefined
-}
-
-export function banner(st: Style, opts: { version: string, columns?: number, tagline?: string }): string {
-  const cols = opts.columns ?? 100
-  const tagline = opts.tagline ?? TAGLINE
-  if (st.level !== 0 && cols >= LOGO_WIDTH + 3) {
-    const full = `v${opts.version}  ·  ${tagline}  ·  ${HARNESSES}`
-    const meta = visibleWidth(full) + 2 <= cols ? full : `v${opts.version}  ·  ${tagline}`
-    return [...paintLogo(st).map(l => `  ${l}`), `  ${st.muted(meta)}`].join('\n')
-  }
-  const wrapped = st.level !== 0 && cols >= ICON_LAYOUT_MIN ? wrapWords(tagline, cols - ICON_WIDTH - 5, 2) : undefined
-  if (wrapped !== undefined) {
-    const beside = ['', '', st.bold(st.gradient('buracle')), st.muted(`v${opts.version}`), ...wrapped.map(l => st.muted(l)), '']
-    return paintLogo(st, ICON).map((l, i) => (beside[i] !== undefined && beside[i] !== '' ? `  ${padEnd(l, ICON_WIDTH)}   ${beside[i]}` : `  ${l}`)).join('\n')
-  }
-  const line = `${wordmark(st)} ${st.muted(`v${opts.version} · ${tagline}`)}`
-  return visibleWidth(line) <= cols ? line : `${wordmark(st)} ${st.muted(`v${opts.version}`)}`
-}
-
-export function heading(st: Style, title: string, columns = 72): string {
-  const rest = Math.max(4, Math.min(columns, 72) - visibleWidth(title) - 4)
-  return `${st.muted('──')} ${st.bold(st.accent(title))} ${st.muted('─'.repeat(rest))}`
-}

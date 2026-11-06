@@ -95,8 +95,6 @@ export interface OmpExtensionAPI {
 export interface OmpGenerated {
   v: 1
   buracleVersion: string
-  testedWith: string
-  minOmp: string
   config: BuracleConfig
   routing: RoutingPolicy
   mcp: CatalogMcp[]

@@ -219,7 +219,7 @@ describe('the OpenCode TUI side: notices, the resume hint and the live panes (PA
     const base: UtilityHost = {
       cli: () => ['/shim'], run: async () => ({ code: 0, stdout: '', stderr: '' }), cfg: () => testBaked().defaults, sessionID: () => SID,
       toast: () => undefined, alert: async title => { alerts.push(title) }, band: () => hidden,
-      about: () => ({ testedWith: '2.0.30', workflows: [] }), slashCommand: () => undefined,
+      about: () => ({ workflows: [] }), slashCommand: () => undefined,
     }
     await status({ ...base, pane: (title, lines) => { panes.push({ title, lines }); return true } }, 'memory')
     await status({ ...base, pane: (title, lines) => { panes.push({ title, lines }); return true } }, 'plan')

@@ -18,7 +18,7 @@ import { buracleHooksFile, CODEX_HOOK_EVENTS, findBuracleHandlers, HOOK_COMMAND_
 import { BYPASS_KEYS, bypassUnitBlocked, codexTrustPlan, trustTables } from '../../../src/adapters/codex/trust'
 import { BYPASS_APPROVAL_POLICY } from '../../../src/adapters/codex/config'
 import { CODEX_ENUMS, codexEnumProblem, codexValueProblems, SUBAGENT_EFFORTS, subagentEffort } from '../../../src/adapters/codex/config'
-import { TESTED_WITH } from '../../../src/engine/update/tested-with'
+import { MIN_VERSIONS } from '../../../src/engine/update/min-versions'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
 
 const REPO = join(import.meta.dir, '..', '..', '..')
@@ -281,7 +281,7 @@ describe('codex installPlan', () => {
 
   test('leaves a Codex older than the oldest supported version alone, forced or not: it could not load the config.toml Buracle writes', () => withSandbox(async ({ home }) => {
     mkdirSync(join(home, '.codex'), { recursive: true })
-    const min = TESTED_WITH.codex.min
+    const min = MIN_VERSIONS.codex
     installTestHooks.codexVersion = async () => '0.142.0'
     const err = await adapter.installPlan(context()).then(() => undefined, (e: unknown) => e)
     expect(err).toMatchObject({ exitCode: 2, code: 'HARNESS_TOO_OLD', harness: 'codex', version: '0.142.0', min, update: 'buracle update codex' })
@@ -304,7 +304,7 @@ describe('codex installPlan', () => {
     expect(fresh).toMatchObject({ code: 'HARNESS_TOO_OLD', written: false })
     expect((fresh as Error).message).toContain('left Codex as it is')
     // An install by an older Buracle (no version gate) wrote config.toml; the Codex then got no newer.
-    installTestHooks.codexVersion = async () => TESTED_WITH.codex.min
+    installTestHooks.codexVersion = async () => MIN_VERSIONS.codex
     await install()
     const config = read(join(home, '.codex', 'config.toml'))
     installTestHooks.codexVersion = async () => '0.142.0'

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { Key } from '../../../src/cli/ui/keys'
 import { initialMenu, MENU, menuStep, renderMenu, type MenuView } from '../../../src/cli/ui/menu'
+import { headerLines } from '../../../src/cli/ui/frame'
 import { ICON, LOGO, makeStyle, stripAnsi, visibleWidth, type ColorLevel } from '../../../src/cli/ui/style'
 
 const plain = makeStyle(0, { unicode: false })
@@ -27,7 +28,7 @@ describe('main menu frames', () => {
   test('80 by 24 at color level 0: the title, the status, every choice with what it does, and the key hints', () => {
     expect(renderMenu(plain, menu(80, 24))).toEqual([
       '',
-      '  buracle 0.5.0 · everything your coding agents need, in one place',
+      '  buracle v0.5.0 · everything your coding agents need, in one place',
       '',
       '  + All good · no update check yet',
       '',
@@ -57,14 +58,27 @@ describe('main menu frames', () => {
     expect(shown(color, press(v, 'end')).at(-3)).toBe('')
   })
 
-  test('a lower window drops the logo first, then the empty lines, then the status line', () => {
+  test('the header follows the terminal size and never leaves; below 40 by 10 only the list stays', () => {
     const at = (rows: number) => shown(color, menu(80, rows))
+    const TITLE = '  ◉ buracle v0.5.0 · everything your coding agents need, in one place'
+    const STATUS = '  ✔ All good · no update check yet'
+    const ITEMS = ITEMS_80.map(l => l.replace('  > ', '  ❯ '))
     expect(at(20)[1]).toBe(`  ${LOGO[0]}`.trimEnd())
-    expect(at(19)[0]).toBe(`  ${LOGO[0]}`.trimEnd())
-    expect(at(17).slice(0, 4)).toEqual(['', '  ◉ buracle 0.5.0 · everything your coding agents need, in one place', '', '  ✔ All good · no update check yet'])
-    expect(at(10)).toEqual(['  ◉ buracle 0.5.0 · everything your coding agents need, in one place', '  ✔ All good · no update check yet', ...ITEMS_80.map(l => l.replace('  > ', '  ❯ ')), '', HINT])
-    expect(at(9)).toEqual(['  ◉ buracle 0.5.0 · everything your coding agents need, in one place', ...ITEMS_80.map(l => l.replace('  > ', '  ❯ ')), '', HINT])
+    expect(at(19).slice(0, 5)).toEqual(['', TITLE, '', STATUS, ''])
+    expect(at(12)).toEqual([TITLE, STATUS, '', ...ITEMS, '', '', HINT])
+    expect(at(10)).toEqual([TITLE, STATUS, ...ITEMS, '', HINT])
+    expect(at(9)).toEqual([TITLE, STATUS, ...ITEMS, HINT])
     expect(shown(plain, { ...menu(80, 4), selected: 5 })).toEqual([...ITEMS_80.slice(3, 5), '  > Quit', HINT])
+  })
+
+  test('from 40 by 10 the menu starts with the shared header lines of its size and color level', () => {
+    for (const level of [0, 1, 2, 3] as const) {
+      for (const [columns, rows] of [[40, 10], [42, 18], [43, 20], [62, 20], [63, 20], [80, 24], [100, 30], [120, 40]] as const) {
+        const v = menu(columns, rows, { updates: 2, problems: 1, checkedAt: '5 min ago' })
+        const header = headerLines(style(level), v)
+        expect(renderMenu(style(level), v).slice(0, header.length)).toEqual(header)
+      }
+    }
   })
 
   test('every line fits the width and the frame never has more lines than the terminal', () => {

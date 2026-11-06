@@ -8,7 +8,7 @@ import type { AdapterContext } from '../registry'
 import { resolveArgv, type Env } from '../shared/command'
 import { hostLimitRows } from '../shared/host-limits'
 import { checkLink } from './check-link'
-import { BUN_MIN_VERSION, OMP_MIN_VERSION, OMP_TESTED_WITH, OMP_THINKING_LEVELS, PACKAGE_NAME, ompCommandSkills, ompThinkingLevel } from './generated'
+import { BUN_MIN_VERSION, OMP_MIN_VERSION, OMP_THINKING_LEVELS, PACKAGE_NAME, ompCommandSkills, ompThinkingLevel } from './generated'
 import { AGENTS_BLOCK_ID, APPROVAL_KEY, ompConfigKeysFor, ompConfigPath, PLAN_AUTOSAVE_DIR_KEY, PLAN_AUTOSAVE_KEY, SHARED_AGENTS_IMPORT, THINKING_KEY } from './install'
 import { EXTENSION_PATH } from './build'
 import { realPath } from '../../engine/fsx'
@@ -158,13 +158,12 @@ export async function doctor(ctx: AdapterContext, deps: DoctorDeps = {}): Promis
   const out: DoctorFinding[] = []
   const found = await (deps.detect ?? (() => detectBinary('omp')))()
   // The host limits and their fallbacks hold whether or not omp is installed here.
-  out.push(...hostLimitRows('omp', found.installed ? found.version : undefined, 'tests/adapters/omp/smoke.test.ts'))
+  out.push(...hostLimitRows('omp'))
   if (!found.installed) return [{ level: 'warn', check: 'omp', detail: 'omp is not on PATH; omp checks skipped' }, ...out]
   const ompBin = found.path ?? 'omp'
   if (found.version === undefined) out.push({ level: 'warn', check: 'omp version', detail: '`omp --version` printed no version' })
   else if (compareVersions(found.version, OMP_MIN_VERSION) < 0) out.push({ level: 'error', check: 'omp version', detail: `omp ${found.version} is older than ${OMP_MIN_VERSION}; run \`omp update\`` })
-  else if (compareVersions(found.version, OMP_TESTED_WITH) > 0) out.push({ level: 'warn', check: 'omp version', detail: `omp ${found.version} is newer than the tested ${OMP_TESTED_WITH}; the extension API changes often — rerun \`buracle doctor omp\` after the first session` })
-  else out.push({ level: 'ok', check: 'omp version', detail: `omp ${found.version} (tested ${OMP_TESTED_WITH})` })
+  else out.push({ level: 'ok', check: 'omp version', detail: `omp ${found.version} (minimum ${OMP_MIN_VERSION})` })
 
   const bun = which('bun')
   if (bun === undefined) out.push({ level: 'warn', check: 'bun', detail: `bun is not on PATH (omp plugin installs and uninstalls run bun ≥ ${BUN_MIN_VERSION})` })

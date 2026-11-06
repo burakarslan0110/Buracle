@@ -30,16 +30,33 @@ export function planPaneLines(v: BandView, state: SessionState): FlowPaneLine[] 
 }
 
 export interface ModStatusInfo {
-  version: string; testedWith: string; minClaude: string
+  version: string
+  claude?: string // the installed Claude Code version, when the version cache knows it
   sid: string; interactive: boolean
   bypass: boolean; strictness: string; redact: boolean; band: boolean
   commands: readonly string[]
   uiUrl?: string
 }
 
+/** How long an entry of Buracle's harness version cache ($BURACLE_HOME/cache/harness-versions.json) counts. */
+export const HARNESS_VERSION_TTL_MS = 12 * 60 * 60_000
+
+/** The cached version of a harness from the cache file's text, or undefined when it is missing, malformed or stale. */
+export function cachedHarnessVersionOf(text: string | undefined, harness: string, nowMs: number): string | undefined {
+  if (text === undefined) return undefined
+  let raw: unknown
+  try { raw = JSON.parse(text) } catch { return undefined }
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const hit: unknown = (raw as Record<string, unknown>)[harness]
+  if (hit === null || typeof hit !== 'object') return undefined
+  const { v, at } = hit as { v?: unknown, at?: unknown }
+  if (typeof v !== 'string' || v === '' || typeof at !== 'number' || nowMs < at || nowMs - at >= HARNESS_VERSION_TTL_MS) return undefined
+  return v
+}
+
 export function modStatusLines(i: ModStatusInfo): string[] {
   const lines = [
-    `Buracle ${i.version} · Claude Code (tested ${i.testedWith}, minimum ${i.minClaude})`,
+    `Buracle ${i.version} · Claude Code${i.claude !== undefined && i.claude !== '' ? ` ${i.claude}` : ''}`,
     `session: ${i.sid !== '' ? i.sid : '-'} · ${i.interactive ? 'interactive' : 'non-interactive'}`,
     `permissions: ${i.bypass ? "bypass (no approval prompts; Buracle's guards and consent gate protect)" : 'the harness setting'}`,
     `routing: ${i.strictness} · secret masking: ${i.redact ? 'on' : 'off'} · workflow band: ${i.band ? 'on' : 'off'}`,

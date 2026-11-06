@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Harness } from '../core/events'
+import { HARNESS_VERSION_TTL_MS as VERSION_TTL_MS } from '../core/flow/panes'
 import type { BarInfo } from '../core/status/bar'
 import { atomicWriteSync, readJsonSafeSync } from '../engine/fsx'
 import * as paths from '../engine/paths'
@@ -48,7 +49,6 @@ export function claudePlan(): string | undefined {
   return plan
 }
 
-const VERSION_TTL_MS = 12 * 60 * 60_000
 const VERSION_CMD: Readonly<Record<Harness, string>> = { claude: 'claude', codex: 'codex', opencode: 'opencode', omp: 'omp' }
 
 function versionCacheFile(): string {

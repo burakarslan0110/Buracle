@@ -11,7 +11,7 @@ import { parseVersion, run as runProc, which, type RunOptions, type RunResult } 
 import { indexSummary, projectRootFor } from '../../workflow/workspace'
 import type { AdapterContext } from '../registry'
 import { parseList, samePath, type PluginEntry } from './check'
-import { EFFORT_MODELS, HARNESS_REL, MIN_CLAUDE, PLUGIN_ID, TESTED_WITH } from './constants'
+import { EFFORT_MODELS, HARNESS_REL, MIN_CLAUDE, PLUGIN_ID } from './constants'
 import { lastSessionMode } from './hook-route'
 
 export type Finding = { level: 'ok' | 'warn' | 'error', check: string, detail: string }
@@ -47,10 +47,7 @@ export function versionFinding(version: string | undefined): Finding {
   const check = 'claude version'
   if (version === undefined) return { level: 'error', check, detail: '`claude --version` printed no version' }
   if (compareVersions(version, MIN_CLAUDE) < 0) return { level: 'error', check, detail: `${version} is older than the minimum ${MIN_CLAUDE}; update Claude Code` }
-  if (compareVersions(version, TESTED_WITH) > 0) {
-    return { level: 'warn', check, detail: `${version} is newer than the tested ${TESTED_WITH}; mods may have changed: run \`claude plugin validate --strict harness/claude\` and \`claude plugin test harness/claude\`` }
-  }
-  return { level: 'ok', check, detail: `${version} (supported ${MIN_CLAUDE}–${TESTED_WITH})` }
+  return { level: 'ok', check, detail: `${version} (minimum ${MIN_CLAUDE})` }
 }
 
 export function pluginFinding(list: unknown[] | undefined, expectedFolder: string): Finding {

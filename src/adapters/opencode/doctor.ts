@@ -8,7 +8,7 @@ import { getIn, jsoncParse, mdBlockGet } from '../../engine/merge'
 import type { RunResult } from '../../engine/proc'
 import { detectBinary, run, which } from '../../engine/proc'
 import { buildFiles, commandNames } from './build'
-import { AGENTS_BLOCK_ID, CONFIG_SCHEMA_URL, MIN_VERSION, PLUGIN_DIR, PLUGIN_ID, TESTED_WITH } from './constants'
+import { AGENTS_BLOCK_ID, CONFIG_SCHEMA_URL, MIN_VERSION, PLUGIN_DIR, PLUGIN_ID } from './constants'
 import { compareVersions, configTarget } from './install'
 import { POINTER_FILE } from './runtime/env'
 import { configPermissions, opencodeServers } from './render'
@@ -195,12 +195,10 @@ export async function doctor(ctx: AdapterContext, opts: DoctorOptions = {}): Pro
     add('error', 'opencode.version', `OpenCode ${bin.version} is v1; Buracle targets v2 (≥ ${MIN_VERSION}). Move to v2: ${v2Advice(bin.path)}, then \`buracle install opencode\` (${MIGRATE_V1_URL})`)
   } else if (compareVersions(bin.version, MIN_VERSION) < 0) {
     add('error', 'opencode.version', `OpenCode ${bin.version} is older than ${MIN_VERSION}; run \`opencode upgrade\``)
-  } else if (bin.version !== TESTED_WITH) {
-    add('warn', 'opencode.version', `OpenCode ${bin.version} (tested with ${TESTED_WITH}); run \`buracle doctor\` again after checking the plugin works`)
   } else {
-    add('ok', 'opencode.version', `OpenCode ${bin.version} (tested)`)
+    add('ok', 'opencode.version', `OpenCode ${bin.version} (minimum ${MIN_VERSION})`)
   }
-  out.push(...hostLimitRows('opencode', bin.installed ? bin.version : undefined, 'tests/adapters/opencode/smoke.test.ts'))
+  out.push(...hostLimitRows('opencode'))
 
   const target = configTarget(configDir)
   const both = pathExistsSync(join(configDir, 'opencode.json')) && pathExistsSync(join(configDir, 'opencode.jsonc'))
