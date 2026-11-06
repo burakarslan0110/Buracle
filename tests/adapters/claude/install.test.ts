@@ -1,15 +1,15 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { announcementOps, claudeInstallPlan, defaultInstallDeps, effortKeys, effortOps, envOps, LSP_DISABLED_KEY, LSP_NEVER_KEY, lspRecommendationPlan, permissionOps, renderRule, retiredDenyOps, ruleOps, statusLineOp, teamsOps } from '../../../src/adapters/claude/install'
+import { announcementOps, claudeInstallPlan, defaultInstallDeps, effortKeys, effortOps, envOps, LSP_DISABLED_KEY, LSP_NEVER_KEY, lspRecommendationPlan, permissionOps, renderRule, retiredDenyOps, ruleOps, statusLineOp } from '../../../src/adapters/claude/install'
 import { buracleInstalledPlugin, KEPT_EXIT, marketplaceHolds, parseList, pluginInstalled, pluginsFrom } from '../../../src/adapters/claude/check'
 import type { AdapterContext } from '../../../src/adapters/registry'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import { defaultConfig } from '../../../src/core/config'
 import * as paths from '../../../src/engine/paths'
 import { run } from '../../../src/engine/proc'
-import { applyPlans, LIST_IDENTITY_HASH, listTxns, readLedger, type Ledger, type Op } from '../../../src/engine/txn'
-import { emptyRecord } from '../../../src/engine/update/install-core'
+import { applyPlans, LIST_IDENTITY_HASH, listTxns, readLedger, type Ledger, type Op, type Plan } from '../../../src/engine/txn'
+import { emptyRecord, planKeys, pruneOps } from '../../../src/engine/update/install-core'
 import { composeUninstall, execUndos, runExecUndos } from '../../../src/engine/update/uninstall'
 import { pathToFileURL } from 'node:url'
 import { fakeExe } from '../../helpers/fake-exe'
@@ -71,18 +71,15 @@ describe('install plan as data', () => {
       expect(files[1]?.content).toBe('---\npaths:\n  - "**/*.py"\n  - "**/pyproject.toml"\n---\n\n# Python\n\nUse the project\'s environment and lockfile.\n')
 
       const merges = plan.ops.filter(o => o.kind === 'json-merge') as Array<Extract<Op, { kind: 'json-merge' }>>
-      expect(merges).toHaveLength(7)
-      expect(merges[6]?.set).toEqual({ companyAnnouncements: ['Buracle · Memory UI: http://127.0.0.1:41777 (buracle mem ui) · /buracle:plan-build plans and builds a change'] })
-      expect(merges[6]?.soft).toEqual(['companyAnnouncements'])
-      expect(merges[6]?.enforce).toBeUndefined()
-      expect(merges[5]?.set).toEqual({ autoMemoryEnabled: false })
-      expect(merges[5]?.soft).toEqual(['autoMemoryEnabled'])
-      expect(merges[4]?.set).toEqual(CLAUDE_ENV)
-      expect(merges[4]?.enforce).toEqual(Object.keys(CLAUDE_ENV))
-      expect(merges[4]?.soft).toBeUndefined()
-      expect(merges[3]?.set).toEqual({ 'env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS': '1' })
-      expect(merges[3]?.soft).toEqual(['env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS'])
-      expect(merges[3]?.enforce).toBeUndefined()
+      expect(merges).toHaveLength(6)
+      expect(merges[5]?.set).toEqual({ companyAnnouncements: ['Buracle · Memory UI: http://127.0.0.1:41777 (buracle mem ui) · /buracle:plan-build plans and builds a change'] })
+      expect(merges[5]?.soft).toEqual(['companyAnnouncements'])
+      expect(merges[5]?.enforce).toBeUndefined()
+      expect(merges[4]?.set).toEqual({ autoMemoryEnabled: false })
+      expect(merges[4]?.soft).toEqual(['autoMemoryEnabled'])
+      expect(merges[3]?.set).toEqual(CLAUDE_ENV)
+      expect(merges[3]?.enforce).toEqual(Object.keys(CLAUDE_ENV))
+      expect(merges[3]?.soft).toBeUndefined()
       expect(merges.every(m => m.path === join(sb.home, '.claude', 'settings.json'))).toBe(true)
       expect(merges[0]?.set).toEqual({ statusLine: { type: 'command', command: `${join(sb.buracleHome, 'bin', 'buracle')} statusline claude`, padding: 0, refreshInterval: 60 } })
       expect(merges[1]?.set).toEqual({ 'permissions.defaultMode': 'bypassPermissions', skipDangerousModePermissionPrompt: true })
@@ -167,15 +164,50 @@ describe('install plan as data', () => {
     })
   })
 
-  test('agents.teams: on writes the agent-teams switch as a soft key; off writes nothing (an earlier value is pruned)', () => {
-    const ctx = ctxFor()
-    const on = teamsOps(ctx)[0] as Extract<Op, { kind: 'json-merge' }>
-    expect(on.path).toBe(join(ctx.paths.claudeDir(), 'settings.json'))
-    expect(on.set).toEqual({ 'env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS': '1' })
-    expect(on.soft).toEqual(['env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS'])
-    expect(on.enforce).toBeUndefined()
-    ctx.config.agents.teams = false
-    expect(teamsOps(ctx)).toEqual([])
+  // With agent teams on, Claude Code starts a named Agent call as a teammate: it reports through mailbox messages
+  // and once more in its idle notice, so Buracle's lanes (one result each) arrive late, in pieces and twice.
+  const teamsKey = 'env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS'
+  const planDeps = { claudeBin: () => '/x/claude', bunBin: () => '/x/bun', marketplaces: async () => [], ledger: async () => ({}) }
+
+  test('the install never turns Claude Code agent teams on, whatever agents.teams says', async () => {
+    await withSandbox(async () => {
+      for (const teams of [true, false]) {
+        const ctx = ctxFor()
+        ctx.config.agents.teams = teams
+        const plan = await claudeInstallPlan(ctx, planDeps)
+        expect(JSON.stringify(plan.ops)).not.toContain('CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS')
+      }
+    })
+  })
+
+  test('the next install removes the agent-teams switch an earlier Buracle wrote; a value the user set stays', async () => {
+    // An earlier Buracle install (the old soft teams op), then the current install with its stale-key prune, as compose runs them.
+    const overEarlier = (startEnv: Record<string, string> | undefined, edit?: (env: Record<string, string>) => void) => withSandbox(async sb => {
+      const settings = join(sb.home, '.claude', 'settings.json')
+      mkdirSync(join(sb.home, '.claude'), { recursive: true })
+      const envOf = () => (JSON.parse(readFileSync(settings, 'utf8')) as { env?: Record<string, string> }).env ?? {}
+      writeFileSync(settings, JSON.stringify(startEnv === undefined ? { theme: 'dark' } : { theme: 'dark', env: startEnv }, null, 2))
+      const earlier: Plan = { id: 'claude', harness: 'claude', ops: [{ kind: 'json-merge', path: settings, set: { [teamsKey]: '1' }, owner: 'claude', soft: [teamsKey] }] }
+      await applyPlans([earlier])
+      if (edit !== undefined) {
+        const env = envOf()
+        edit(env)
+        writeFileSync(settings, JSON.stringify({ theme: 'dark', env }, null, 2))
+      }
+      const plan = await claudeInstallPlan(ctxFor(), planDeps)
+      const record = { ...emptyRecord(), plans: { claude: { keys: planKeys(earlier) } } }
+      const prunes = pruneOps('claude', plan, record, await readLedger())
+      await applyPlans([{ ...plan, ops: [...prunes, ...plan.ops.filter(op => op.kind !== 'exec')] }])
+      return envOf()
+    })
+
+    const written = await overEarlier(undefined)
+    expect(written['CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS']).toBeUndefined()
+    expect(written['CLAUDE_CODE_ENABLE_TASKS']).toBe('true')
+    const adopted = await overEarlier({ CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1' })
+    expect(adopted['CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS']).toBe('1')
+    const changed = await overEarlier(undefined, env => { env['CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS'] = '0' })
+    expect(changed['CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS']).toBe('0')
   })
 
   test('the Claude Code env keys are written as enforced keys whatever the config says (agents.teams and permissions off too)', () => {
@@ -553,19 +585,18 @@ describe("the env keys Claude Code needs under Buracle (~/.claude/settings.json 
     })
   })
 
-  test("the task-tools switch an earlier Buracle wrote as \"1\" (agents.teams) becomes \"true\" without a conflict", async () => {
+  test("the task-tools switch an earlier Buracle wrote as \"1\" becomes \"true\" without a conflict", async () => {
     await withSandbox(async sb => {
       const settings = settingsOf(sb.home)
       mkdirSync(join(sb.home, '.claude'), { recursive: true })
       writeFileSync(settings, JSON.stringify({ theme: 'dark' }, null, 2))
       const earlier: Op = { kind: 'json-merge', path: settings, set: { 'env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS': '1', 'env.CLAUDE_CODE_ENABLE_TODO_TOOLS': '1' }, owner: 'claude', soft: ['env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS', 'env.CLAUDE_CODE_ENABLE_TODO_TOOLS'] }
       await applyPlans([{ id: 'claude', harness: 'claude', ops: [earlier] }])
-      const r = await applyPlans([{ id: 'claude', harness: 'claude', ops: [...teamsOps(ctxFor()), ...envOps(ctxFor())] }])
+      const r = await applyPlans([{ id: 'claude', harness: 'claude', ops: envOps(ctxFor()) }])
       expect(r.conflicts).toEqual([])
       expect(r.warnings).toEqual([])
       const env = (JSON.parse(readFileSync(settings, 'utf8')) as { env: Record<string, string> }).env
       expect(env['CLAUDE_CODE_ENABLE_TODO_TOOLS']).toBe('true')
-      expect(env['CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS']).toBe('1')
     })
   })
 })

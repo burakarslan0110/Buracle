@@ -101,14 +101,6 @@ export function effortOps(ctx: AdapterContext): Op[] {
   return [op]
 }
 
-export const TEAMS_KEY = 'env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS'
-export const TEAMS_KEYS = { [TEAMS_KEY]: '1' } as const
-
-export function teamsOps(ctx: AdapterContext): Op[] {
-  if (!ctx.config.agents.teams) return []
-  return [{ kind: 'json-merge', path: join(ctx.paths.claudeDir(), 'settings.json'), set: { ...TEAMS_KEYS }, owner: OWNER, soft: Object.keys(TEAMS_KEYS) }]
-}
-
 export const ENV_KEYS = {
   'env.CLAUDE_CODE_DISABLE_1M_CONTEXT': 'false',
   'env.CLAUDE_CODE_WORKFLOWS': 'true',
@@ -242,7 +234,10 @@ export async function claudeInstallPlan(ctx: AdapterContext, deps: Partial<Insta
   return {
     id: 'claude',
     harness: 'claude',
-    ops: [...ruleOps(ctx, ledger), statusLineOp(ctx), ...permissionOps(ctx), ...effortOps(ctx), ...teamsOps(ctx), ...envOps(ctx), ...autoMemoryOps(ctx), ...announcementOps(ctx), ...retiredDenyOps(ctx), ...execOps(ctx, tools)],
+    // No op turns on Claude Code's agent teams (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS): while they are on, a named Agent
+    // call starts a teammate, whose report arrives late, in pieces and once more in its idle notice. Lanes run as
+    // background subagents. The next install prunes the value an earlier Buracle wrote; a value the user set stays.
+    ops: [...ruleOps(ctx, ledger), statusLineOp(ctx), ...permissionOps(ctx), ...effortOps(ctx), ...envOps(ctx), ...autoMemoryOps(ctx), ...announcementOps(ctx), ...retiredDenyOps(ctx), ...execOps(ctx, tools)],
     cleanupKeys: cleanupKeys(ctx),
   }
 }
