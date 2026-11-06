@@ -29,7 +29,7 @@ tips:
   - id: why-question
     text: "Ask \"why did we…\" or \"what did we decide…\": the agent searches the memory before it answers"
   - id: brain-ui
-    text: "/brain opens the Buracle Brain web UI: browse, search and fix the memory of this project and yours"
+    text: "/brain opens the Buracle Console: browse, search and fix the memory of this project and yours"
   - id: brain-review
     text: "/brain review opens the review page: pin notes on a plan, and the agent applies them before approval"
   - id: aside

@@ -100,7 +100,7 @@ describe('the utility commands (tui-commands.ts): no model turn, output as a toa
     expect(none.runs).toEqual([])
   })
 
-  test('/brain opens the memory web UI (or says it is off)', async () => {
+  test('/brain opens the Buracle Console (or says it is off)', async () => {
     const h = host({ result: { code: 0, stdout: JSON.stringify({ url: 'http://localhost:41777' }), stderr: '' } })
     await brain(h)
     expect(h.runs).toEqual([['/shim', 'mem', 'ui', '--open', '--json']])

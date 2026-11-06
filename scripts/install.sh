@@ -194,14 +194,14 @@ print_install_help() {
 # The logo of the buracle command (LOGO in src/cli/ui/style.ts), with # for a full block, _ for a lower half and ^ for an
 # upper half, so that this file stays ASCII; tests/engine/install-script.test.ts compares the two.
 LOGO_ROWS=(
-  '##                                             ##'
-  '##                                             ##'
-  '######_   ##    ##  ##_###   _######   _#####  ##   _####_'
-  '## __ ##  ##    ##  ##^     ##    ##  ##       ##  ##____##'
-  '## ^^ ##  ##    ##  ##      ##    ##  ##       ##  ##^^^^^^'
-  '######^    ^######  ##       ^######   ^#####  ##   ^#####'
+  '##                                       ##'
+  '##                                       ##'
+  '##^^^^#_  ##  ##  ##_#^   ^^^#_  _#^^^^  ##  _#^^#_'
+  '## ## ##  ##  ##  ##      ___##  ##      ##  ##__##'
+  '## ## ##  ##  ##  ##     ##  ##  ##      ##  ##'
+  '##____#^  ^#__##  ##     ^#__##  ^#____  ##  ^#____'
 )
-TAGLINE='everything your coding agents need, in one place'
+TAGLINE='One engineering setup, one memory, every coding agent'
 
 # A row of the logo in block characters (when banner found a UTF-8 locale) or as it is written above.
 glyphs() {
@@ -210,29 +210,36 @@ glyphs() {
   printf '%s' "$s"
 }
 
-# The logo in the three shades of the buracle command (violet, indigo, cyan) when the output is a terminal with colours
-# (FORCE_COLOR asks for them, NO_COLOR and TERM=dumb refuse them), in block characters when the locale is UTF-8 and in
-# ASCII otherwise. A terminal narrower than the logo gets one line.
+# The logo in the brand colours of the buracle command (ANSI16 in src/cli/ui/style.ts: brand on the left, brandEnd on
+# the right, the eye in the bowl of the "b" in its own colour) when the output is a terminal with colours (FORCE_COLOR
+# asks for them, NO_COLOR and TERM=dumb refuse them), in block characters when the locale is UTF-8 and in ASCII
+# otherwise. A terminal narrower than the logo gets one line.
 banner() {
-  local full='#' lower='_' upper='^' violet='' indigo='' cyan='' dim='' reset='' cols row
+  local full='#' lower='_' upper='^' brand='' brand_end='' eye='' dim='' reset='' cols row i=0
   case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
     *[Uu][Tt][Ff]-8*|*[Uu][Tt][Ff]8*) full=$'\xe2\x96\x88'; lower=$'\xe2\x96\x84'; upper=$'\xe2\x96\x80' ;;
   esac
   if [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != dumb ]; then
     if [ -t 1 ] || { [ -n "${FORCE_COLOR:-}" ] && [ "${FORCE_COLOR:-}" != 0 ] && [ "${FORCE_COLOR:-}" != false ]; }; then
-      violet=$'\033[95m'; indigo=$'\033[94m'; cyan=$'\033[96m'; dim=$'\033[2m'; reset=$'\033[0m'
+      brand=$'\033[35m'; brand_end=$'\033[95m'; eye=$'\033[33m'; dim=$'\033[2m'; reset=$'\033[0m'
     fi
   fi
   cols="${COLUMNS:-}"
   [ -n "$cols" ] || cols=$(tput cols 2>/dev/null) || cols=80
   case "$cols" in ''|*[!0-9]*) cols=80 ;; esac
-  if [ "$cols" -lt 62 ]; then
-    printf '\n  %sburacle%s  %s\n\n' "$violet" "$reset" "$TAGLINE"
+  if [ "$cols" -lt 54 ]; then
+    printf '\n  %sburacle%s  %s\n\n' "$brand" "$reset" "$TAGLINE"
     return 0
   fi
   printf '\n'
   for row in "${LOGO_ROWS[@]}"; do
-    printf '  %s%s%s%s%s%s%s\n' "$violet" "$(glyphs "${row:0:20}")" "$indigo" "$(glyphs "${row:20:20}")" "$cyan" "$(glyphs "${row:40}")" "$reset"
+    if [ "$i" -eq 3 ] || [ "$i" -eq 4 ]; then
+      # The eye: columns 3 and 4 of rows 3 and 4 (LOGO_EYE).
+      printf '  %s%s%s%s%s%s%s%s%s\n' "$brand" "$(glyphs "${row:0:3}")" "$eye" "$(glyphs "${row:3:2}")" "$brand" "$(glyphs "${row:5:20}")" "$brand_end" "$(glyphs "${row:25}")" "$reset"
+    else
+      printf '  %s%s%s%s%s\n' "$brand" "$(glyphs "${row:0:25}")" "$brand_end" "$(glyphs "${row:25}")" "$reset"
+    fi
+    i=$((i + 1))
   done
   printf '  %s%s%s\n\n' "$dim" "$TAGLINE" "$reset"
 }

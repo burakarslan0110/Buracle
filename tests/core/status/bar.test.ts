@@ -68,7 +68,7 @@ describe('barLines', () => {
     const lines = barLines(bar(), INFO, LAYOUT, 200, NOW)
     const text = renderPlainLines(lines).split('\n')
     expect(text[0]).toBe('Opus 5.5 [xhigh] [1M] | ██░░░░░░ 24% | 5h: 2% ↓ 4h | 7d: 32% ↓ 2d | +120 -30 | ⎇ main ✚3')
-    expect(text[1]).toBe('Buracle 0.2.0 · CC 2.1.294 (Max) · Buracle Brain: localhost:41777')
+    expect(text[1]).toBe('Buracle 0.2.0 · CC 2.1.294 (Max) · Buracle Console: localhost:41777')
     expect(text).toHaveLength(2)
   })
 
@@ -99,7 +99,7 @@ describe('barLines', () => {
     expect(text).toEqual([
       'Opus 5.5 [xhigh] [1M] | ██░░░░░░ 24% | 5h: 2% ↓ 4h | 7d: 32% ↓ 2d | +120 -30 | ⎇ main ✚3',
       'plan-build ● Implement 3/7 | Rate limit the public API | ▸ Running middleware tests | ⟳ plan-build-review | 12m',
-      'Buracle 0.2.0 · CC 2.1.294 (Max) · Buracle Brain: localhost:41777',
+      'Buracle 0.2.0 · CC 2.1.294 (Max) · Buracle Console: localhost:41777',
     ])
     expect(renderAnsiLines(barLines(bar({ flow: specRun() }), INFO, LAYOUT, 200, NOW))).toContain('\u001b]8;;http://localhost:41777\u001b\\')
     expect(renderPlainLines(barLines(bar({ plan, flow: { ...specRun(), visible: false } }), INFO, LAYOUT, 200, NOW)).split('\n')[1]).toBe('Plan: auth-fix [implement] ▰▰▰▱▱▱ 3/6')
@@ -114,15 +114,15 @@ describe('barLines', () => {
 
   test('the footer shows the code index state after the memory status', () => {
     const footer = (b: BarModel) => renderPlainLines(barLines(b, INFO, LAYOUT, 200, NOW)).split('\n').at(-1)
-    expect(footer(bar({ index: 'ready' }))).toBe('Buracle 0.2.0 · CC 2.1.294 (Max) · Buracle Brain: localhost:41777 · idx ready')
-    expect(footer(bar({ index: 'building', updates: 2 }))).toBe('Buracle 0.2.0 · CC 2.1.294 (Max) · Buracle Brain: localhost:41777 · idx building · ⬆2')
-    expect(footer(bar())).toBe('Buracle 0.2.0 · CC 2.1.294 (Max) · Buracle Brain: localhost:41777')
+    expect(footer(bar({ index: 'ready' }))).toBe('Buracle 0.2.0 · CC 2.1.294 (Max) · Buracle Console: localhost:41777 · idx ready')
+    expect(footer(bar({ index: 'building', updates: 2 }))).toBe('Buracle 0.2.0 · CC 2.1.294 (Max) · Buracle Console: localhost:41777 · idx building · ⬆2')
+    expect(footer(bar())).toBe('Buracle 0.2.0 · CC 2.1.294 (Max) · Buracle Console: localhost:41777')
   })
 
   test('the footer shows the month estimate and the updates after the index state; the updates go first when space runs out', () => {
     const month = { tokens: 0, usd: 212.4, estimate: true }
     const footer = (b: BarModel, w = 200) => renderPlainLines(barLines(b, INFO, LAYOUT, w, NOW)).split('\n').at(-1) ?? ''
-    expect(footer(bar({ index: 'ready', month, updates: 2 }))).toBe('Buracle 0.2.0 · CC 2.1.294 (Max) · Buracle Brain: localhost:41777 · idx ready · mo ≈$212 · ⬆2')
+    expect(footer(bar({ index: 'ready', month, updates: 2 }))).toBe('Buracle 0.2.0 · CC 2.1.294 (Max) · Buracle Console: localhost:41777 · idx ready · mo ≈$212 · ⬆2')
     const full = bar({ index: 'ready', month, updates: 2 })
     const widths: Record<string, number> = {}
     for (let w = 200; w >= 20; w--) {
@@ -136,8 +136,8 @@ describe('barLines', () => {
   test('O3: failing hooks and a runtime behind the checkout show in the footer, red and yellow; nothing while all is well', () => {
     const footer = (b: BarModel, w = 200) => barLines(b, INFO, LAYOUT, w, NOW).at(-1) ?? []
     const text = (b: BarModel, w = 200) => footer(b, w).map(s => s.text).join('')
-    expect(text(bar({ hooks: { failures: 0, failClosed: 0 } }))).toBe('Buracle 0.2.0 · CC 2.1.294 (Max) · Buracle Brain: localhost:41777')
-    expect(text(bar({ hooks: { failures: 3, failClosed: 1 }, index: 'ready' }))).toBe('Buracle 0.2.0 · CC 2.1.294 (Max) · hooks ✗3 (1 denied) · Buracle Brain: localhost:41777 · idx ready')
+    expect(text(bar({ hooks: { failures: 0, failClosed: 0 } }))).toBe('Buracle 0.2.0 · CC 2.1.294 (Max) · Buracle Console: localhost:41777')
+    expect(text(bar({ hooks: { failures: 3, failClosed: 1 }, index: 'ready' }))).toBe('Buracle 0.2.0 · CC 2.1.294 (Max) · hooks ✗3 (1 denied) · Buracle Console: localhost:41777 · idx ready')
     expect(footer(bar({ hooks: { failures: 3, failClosed: 1 } })).find(s => s.id === 'hooks')?.color).toBe('red')
     expect(footer(bar({ hooks: { failures: 0, failClosed: 0, runtimeBehind: true } })).find(s => s.id === 'hooks')).toMatchObject({ text: 'runtime behind: buracle install', color: 'yellow' })
     const narrow = text(bar({ hooks: { failures: 3, failClosed: 1 }, index: 'ready', updates: 2 }), 12)
@@ -178,7 +178,7 @@ describe('barLines', () => {
   test('emoji off keeps the spaces around values', () => {
     const plain = renderPlainLines(barLines(bar(), INFO, { ...LAYOUT, emoji: false }, 200, NOW))
     expect(plain).toContain('Buracle 0.2.0 · CC 2.1.294 (Max)')
-    expect(plain).toContain('Buracle Brain: localhost:41777')
+    expect(plain).toContain('Buracle Console: localhost:41777')
   })
 
   test('the memory address is an OSC 8 link only in ANSI', () => {
@@ -199,7 +199,7 @@ describe('barOneLine', () => {
     const one = barOneLine(bar(), INFO, LAYOUT, 400, NOW)
     const text = one.map(s => s.text).join('')
     expect(text).toContain('Opus 5.5')
-    expect(text).toContain('Buracle Brain: localhost:41777')
+    expect(text).toContain('Buracle Console: localhost:41777')
     expect(text).not.toContain('Buracle 0.2.0')
     const tight = barOneLine(bar(), INFO, LAYOUT, 70, NOW).map(s => s.text).join('')
     expect(textWidth(tight)).toBeLessThanOrEqual(70)
@@ -208,7 +208,7 @@ describe('barOneLine', () => {
   test('a running workflow shares the one line with the first line\'s parts and outranks the weekly window', () => {
     const wide = barOneLine(bar({ flow: specRun() }), INFO, LAYOUT, 400, NOW).map(s => s.text).join('')
     expect(wide).toContain('| plan-build ● Implement 3/7 | Rate limit the public API |')
-    expect(wide).toContain('Buracle Brain: localhost:41777')
+    expect(wide).toContain('Buracle Console: localhost:41777')
     const tight = barOneLine(bar({ flow: specRun() }), INFO, LAYOUT, 80, NOW).map(s => s.text).join('')
     expect(tight).toBe('Opus 5.5 [xhigh] [1M] | ██░░░░░░ 24% | 5h: 2% ↓ 4h | plan-build ● Implement 3/7')
   })

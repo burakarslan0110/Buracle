@@ -25,17 +25,20 @@ function hex(h: string): Rgb {
   return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }
 }
 
+// The brand roles: the wordmark runs from brand to brandEnd, its eye is eye. The web UI (tokens.css, logo.js), the
+// install script and the README badges carry the same brand; tests/cli/ui/brand.test.ts holds them together.
 export const PALETTE = {
-  violet: hex('#8B5CF6'),
-  indigo: hex('#6366F1'),
-  sky: hex('#38BDF8'),
-  cyan: hex('#22D3EE'),
+  brand: hex('#8B5CF6'),
+  brandEnd: hex('#D946EF'),
+  eye: hex('#D97706'),
   green: hex('#22C55E'),
   yellow: hex('#EAB308'),
   red: hex('#EF4444'),
   gray: hex('#6B7280'),
-  white: hex('#E5E7EB'),
 } as const
+
+// The brand roles as 16-color SGR codes, for scripts/install.sh, which cannot import this file.
+export const ANSI16 = { brand: 35, brandEnd: 95, eye: 33 } as const
 
 const ESC = '\u001b['
 
@@ -79,7 +82,7 @@ export function makeStyle(level: ColorLevel, opts: { unicode?: boolean } = {}): 
     const code = level === 3 ? `38;2;${c.r};${c.g};${c.b}` : level === 2 ? `38;5;${to256(c)}` : String(to16(c))
     return `${ESC}${code}m${s}${ESC}39m`
   }
-  const gradient = (s: string, from: Rgb = PALETTE.violet, to: Rgb = PALETTE.cyan): string => {
+  const gradient = (s: string, from: Rgb = PALETTE.brand, to: Rgb = PALETTE.brandEnd): string => {
     if (level === 0) return s
     const chars = [...s]
     const n = Math.max(1, chars.length - 1)
@@ -96,7 +99,7 @@ export function makeStyle(level: ColorLevel, opts: { unicode?: boolean } = {}): 
     ok: s => fg(PALETTE.green, s),
     warn: s => fg(PALETTE.yellow, s),
     err: s => fg(PALETTE.red, s),
-    accent: s => fg(PALETTE.cyan, s),
+    accent: s => fg(PALETTE.brand, s),
     muted: s => fg(PALETTE.gray, s),
     link: (text, url) => (level === 0 ? text : `\u001b]8;;${url}\u001b\\${text}\u001b]8;;\u001b\\`),
     sym: uni
@@ -135,13 +138,14 @@ export function box(lines: readonly string[], st: Style, opts: { title?: string,
   return [top, ...body, paint('╰' + '─'.repeat(inner) + '╯')].join('\n')
 }
 
+// The wordmark: lowercase "buracle" on a pixel grid, the bowl of the "b" holding the oracle's slit eye (LOGO_EYE).
 export const LOGO: readonly string[] = [
-  '██                                             ██          ',
-  '██                                             ██          ',
-  '██████▄   ██    ██  ██▄███   ▄██████   ▄█████  ██   ▄████▄ ',
-  '██ ▄▄ ██  ██    ██  ██▀     ██    ██  ██       ██  ██▄▄▄▄██',
-  '██ ▀▀ ██  ██    ██  ██      ██    ██  ██       ██  ██▀▀▀▀▀▀',
-  '██████▀    ▀██████  ██       ▀██████   ▀█████  ██   ▀█████ ',
+  '██                                       ██        ',
+  '██                                       ██        ',
+  '██▀▀▀▀█▄  ██  ██  ██▄█▀   ▀▀▀█▄  ▄█▀▀▀▀  ██  ▄█▀▀█▄',
+  '██ ██ ██  ██  ██  ██      ▄▄▄██  ██      ██  ██▄▄██',
+  '██ ██ ██  ██  ██  ██     ██  ██  ██      ██  ██    ',
+  '██▄▄▄▄█▀  ▀█▄▄██  ██     ▀█▄▄██  ▀█▄▄▄▄  ██  ▀█▄▄▄▄',
 ]
 
 export const LOGO_EYE: ReadonlyArray<readonly [number, number]> = [[3, 3], [3, 4], [4, 3], [4, 4]]
@@ -154,7 +158,7 @@ export function paintLogo(st: Style, rows: readonly string[] = LOGO): string[] {
   const eye = new Set(LOGO_EYE.map(([r, c]) => `${r}:${c}`))
   return rows.map((row, r) => [...row.trimEnd()].map((ch, c) => {
     if (ch === ' ') return ch
-    return st.fg(eye.has(`${r}:${c}`) ? PALETTE.cyan : mix(PALETTE.violet, PALETTE.cyan, c / (LOGO_WIDTH - 1)), ch)
+    return st.fg(eye.has(`${r}:${c}`) ? PALETTE.eye : mix(PALETTE.brand, PALETTE.brandEnd, c / (LOGO_WIDTH - 1)), ch)
   }).join(''))
 }
 
@@ -162,4 +166,4 @@ export function wordmark(st: Style): string {
   return `${st.accent('◉')} ${st.bold(st.gradient('buracle'))}`
 }
 
-export const TAGLINE = 'everything your coding agents need, in one place'
+export const TAGLINE = 'One engineering setup, one memory, every coding agent'

@@ -201,7 +201,7 @@ export function renderReadme(canonical: CanonicalBundle): BuildFile {
     `- The running workflow shows above the editor (widget \`${FLOW_WIDGET_KEY}\`, \`workflow.band\`): its phases, progress`,
     '  and current step.',
     `- Extension commands (no model turn): \`/${OMP_STATUS_COMMAND} [status|memory|plan|flow]\` (alias \`/${OMP_STATUS_ALIAS}\`),`,
-    '  `/remember <text>` (a note in the memory inbox), `/brain` (starts and opens the memory web UI) and',
+    '  `/remember <text>` (a note in the memory inbox), `/brain` (starts and opens the Buracle Console) and',
     `  \`/${OMP_PING_COMMAND}\` (answers \`${PING_ANSWER}\`); \`/${OMP_ASIDE_COMMAND} <question>\` asks a read-only side question (one side`,
     '  turn of the model, never added to the session, like omp\'s own `/btw`).',
     `- \`rules/\`: always-on rules, and path rules injected when matching files are edited (TTSR): ${list(rules)}.`,

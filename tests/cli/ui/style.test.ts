@@ -2,26 +2,28 @@ import { describe, expect, test } from 'bun:test'
 import { ICON, LOGO, LOGO_EYE, makeStyle, paintLogo } from '../../../src/cli/ui/style'
 
 const color = makeStyle(3)
-const CYAN = '\u001b[38;2;34;211;238m'
-const VIOLET = '\u001b[38;2;139;92;246m'
+const EYE = '\u001b[38;2;217;119;6m'
+const BRAND = '\u001b[38;2;139;92;246m'
+const BRAND_END = '\u001b[38;2;217;70;239m'
 
 describe('logo', () => {
-  test('the art: six rows of equal width drawn only with blocks, the icon is the first letter, the eye sits inside it', () => {
+  test('the art: six rows of 51 columns drawn only with blocks; the icon is the first letter, 8 by 6, with the eye in its bowl', () => {
     expect(LOGO).toHaveLength(6)
-    const width = [...LOGO[0]!].length
     for (const row of LOGO) {
-      expect([...row]).toHaveLength(width)
+      expect([...row]).toHaveLength(51)
       expect(row).toMatch(/^[█▀▄ ]+$/)
     }
     expect(ICON).toEqual(LOGO.map(r => r.slice(0, 8)))
-    for (const [r, c] of LOGO_EYE) expect('▀▄').toContain([...ICON[r]!][c]!)
+    expect(ICON).toHaveLength(6)
+    expect(LOGO_EYE.map(c => [...c])).toEqual([[3, 3], [3, 4], [4, 3], [4, 4]])
+    for (const [r, c] of LOGO_EYE) expect([...ICON[r]!][c]).toBe('█')
   })
 
-  test('the eye is cyan and nothing else in the icon is; the stem starts violet', () => {
+  test('the eye is amber and nothing else in the icon is; the stem starts violet and the last letter ends fuchsia', () => {
     const rows = paintLogo(color, ICON)
-    const cyan = rows.flatMap(r => [...r.matchAll(new RegExp(`${CYAN.replace('[', '\\[')}(.)`, 'gu'))].map(m => m[1]))
-    expect(cyan).toEqual(['▄', '▄', '▀', '▀'])
-    expect(rows[0]!.startsWith(`${VIOLET}█`)).toBe(true)
-    expect(paintLogo(color)[3]!.endsWith(`${CYAN}█\u001b[39m`)).toBe(true)
+    const eye = rows.flatMap(r => [...r.matchAll(new RegExp(`${EYE.replace('[', '\\[')}(.)`, 'gu'))].map(m => m[1]))
+    expect(eye).toEqual(['█', '█', '█', '█'])
+    expect(rows[0]!.startsWith(`${BRAND}█`)).toBe(true)
+    expect(paintLogo(color)[3]!.endsWith(`${BRAND_END}█\u001b[39m`)).toBe(true)
   })
 })

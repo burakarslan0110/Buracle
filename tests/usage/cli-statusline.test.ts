@@ -126,11 +126,11 @@ describe('statusline claude', () => {
     const gone = Bun.spawn(['bun', '-e', '0'], { env: { ...process.env }, stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' })
     await gone.exited
     atomicWriteSync(memoryUiStateFile(), JSON.stringify({ v: 1, pid: gone.pid, port: 41777, host: '127.0.0.1', url: 'http://localhost:41777', startedAt: '', version: '0', brain: '' }))
-    expect(await footer()).not.toContain('Buracle Brain')
+    expect(await footer()).not.toContain('Buracle Console')
     runningUi()
-    expect(await footer()).toMatch(/Buracle Brain: localhost:41777$/)
+    expect(await footer()).toMatch(/Buracle Console: localhost:41777$/)
     atomicWriteSync(memoryUiStateFile(), '{}\n')
-    expect(await footer()).not.toContain('Buracle Brain')
+    expect(await footer()).not.toContain('Buracle Console')
   }))
 
   test('the default Buracle bar: model, context bar, both windows and the folder; the footer names Buracle, Claude Code and the memory UI as a link', () => withSandbox(async () => {
@@ -140,7 +140,7 @@ describe('statusline claude', () => {
     const lines = plainLines(r.rows)
     // The folder as this platform resolves '/tmp' (on Windows it gets the current drive).
     expect(lines[0]).toBe(`Opus 5.5 [max] [1M] | ███░░░░░ 37% | 5h: 42% ↓ 1h20m | 7d: 18% ↓ 1d6h | ${resolve('/tmp')}`)
-    expect(lines[1]).toMatch(/^Buracle \d+\.\d+\.\d+ · CC 2\.1\.293 · Buracle Brain: localhost:41777$/)
+    expect(lines[1]).toMatch(/^Buracle \d+\.\d+\.\d+ · CC 2\.1\.293 · Buracle Console: localhost:41777$/)
     const io = memIO(JSON.stringify(claudePayload()))
     expect(await run(['claude'], io, deps())).toBe(0)
     expect(io.out()).toMatch(/\u001b\]8;;http:\/\/localhost:41777\u001b\\(?:\u001b\[[0-9;]*m)*localhost:41777(?:\u001b\[[0-9;]*m)*\u001b\]8;;\u001b\\/)
@@ -228,7 +228,7 @@ describe('statusline claude', () => {
     expect(await shown()).toEqual([
       expect.stringMatching(/^Opus 5\.5 \[max\] \[1M\] \| /),
       'plan-build ● Implement 1/3 | Rate limit | ▸ Task 2: CLI | 10m',
-      expect.stringMatching(/^Buracle \S+ · CC 2\.1\.293 · Buracle Brain: localhost:41777 · idx none$/),
+      expect.stringMatching(/^Buracle \S+ · CC 2\.1\.293 · Buracle Console: localhost:41777 · idx none$/),
     ])
     const full = await build(['claude', '--style', 'full'], JSON.stringify(claudePayload({}, repo)), d)
     expect(full.rows[1]?.map(s => s.id)).toEqual(['git', 'index', 'flow'])
@@ -272,7 +272,7 @@ describe('statusline claude', () => {
     writeFileSync(join(logs, 'buracle.log'), `${fail(NOW - 3_600_000, 'fail-closed')}\n${fail(NOW - 60_000, 'fail-open')}\n`)
     const later = NOW + 61_000
     const shown = await build(['claude'], JSON.stringify(claudePayload()), deps({ nowMs: later }))
-    expect(plainLines(shown.rows).at(-1)).toMatch(/^Buracle \d+\.\d+\.\d+ · CC 2\.1\.293 · hooks ✗2 \(1 denied\) · Buracle Brain: localhost:41777$/)
+    expect(plainLines(shown.rows).at(-1)).toMatch(/^Buracle \d+\.\d+\.\d+ · CC 2\.1\.293 · hooks ✗2 \(1 denied\) · Buracle Console: localhost:41777$/)
     const full = await build(['claude', '--style', 'full'], JSON.stringify(claudePayload()), deps({ nowMs: later }))
     expect(flat(full)).toContain('hooks')
     expect(renderPlain(full.rows)).toContain('hooks ✗2 (1 denied)')
@@ -372,7 +372,7 @@ describe('statusline codex / opencode / omp', () => {
     expect(pline.split('\n').filter(Boolean).length).toBe(1)
     const text = pline.replace(/#\[[^\]]*\]/g, '')
     expect(text).toContain('gpt-6.1-sol [high] [272k] | █░░░░░░░ 3% | 5h: 22% ↓ 2h | 7d: 41%')
-    expect(text).toContain('Buracle Brain: localhost:41777')
+    expect(text).toContain('Buracle Console: localhost:41777')
   }))
 
   test('without telemetry the usage cache\'s latest session fills in; stale cache starts a refresh', () => withSandbox(async ({ root }) => {
@@ -470,7 +470,7 @@ describe('statusline codex / opencode / omp', () => {
     expect(await run(['opencode', '--cwd', root, '--format', 'plain'], pio, deps())).toBe(0)
     const lines = pio.out().trim().split('\n')
     expect(lines[0]).toContain('--%')
-    expect(lines.at(-1)).toMatch(/^Buracle \S+ · OpenCode( \S+)? · Buracle Brain: localhost:41777$/)
+    expect(lines.at(-1)).toMatch(/^Buracle \S+ · OpenCode( \S+)? · Buracle Console: localhost:41777$/)
   }))
 })
 

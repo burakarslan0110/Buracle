@@ -121,7 +121,7 @@ describe('uninstall leftovers (O8)', () => {
     })
   }))
 
-  test('the memory web UI is stopped; the old vault pre-commit hook an older Buracle installed is removed, one the user wrote stays', () => withSandbox(async ({ root, home }) => {
+  test('the Buracle Console is stopped; the old vault pre-commit hook an older Buracle installed is removed, one the user wrote stays', () => withSandbox(async ({ root, home }) => {
     const repo = makeRepo(root)
     const vault = join(home, 'Documents', 'Buracle')
     mkdirSync(vault, { recursive: true })
@@ -138,7 +138,7 @@ describe('uninstall leftovers (O8)', () => {
         expect(await uninstallRun(['--yes'], io)).toBe(0)
         await ui.proc.exited
         expect(alive(ui.proc.pid)).toBe(false)
-        expect(io.out()).toContain('Stopped the memory web UI')
+        expect(io.out()).toContain('Stopped the Buracle Console')
         expect(existsSync(hook)).toBe(false)
         expect(io.out()).toContain('Removed the old vault\'s pre-commit hook')
         expect(existsSync(join(vault, '.git'))).toBe(true)

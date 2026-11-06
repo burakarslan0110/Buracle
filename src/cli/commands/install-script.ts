@@ -193,7 +193,7 @@ export function scriptSession(io: CommandIO, opts: ScriptOptions): ScriptSession
     const sections: SectionResult[] = [harnessSection(r, opts.interactive, declined), toolsSection(r.toolchain)]
 
     phase = 'Memory'
-    printer.start('Memory', 'starting the memory web UI')
+    printer.start('Memory', 'starting the Buracle Console')
     const brain = scriptDeps.brain()
     let ui: UiStartOutcome
     try { ui = await scriptDeps.startUi() } catch (e) { ui = { state: 'failed', why: e instanceof Error ? e.message : String(e) } }

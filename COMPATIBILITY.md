@@ -45,7 +45,7 @@ Recorded limits that matter for memory and the hooks:
 
 What a memory-enabled terminal runs in 0.6 (one session, `buracle mcp memory`): the Bun MCP server and one
 CortexDB child over a single brain file. Session start, a prompt and a tool call start no detached process beyond
-the hook process itself; session end starts one bounded `buracle mem finalize` child. The brain web UI runs only when
+the hook process itself; session end starts one bounded `buracle mem finalize` child. The Buracle Console runs only when
 you start it with `buracle mem ui`.
 
 ## Platforms

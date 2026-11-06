@@ -375,7 +375,7 @@ export function pluginJson(withTypes: boolean, version: string): Record<string, 
   const out: Record<string, unknown> = {
     name: PLUGIN_NAME,
     version,
-    description: 'Buracle for Claude Code, everything your coding agents need, in one place: command hooks for guards, consent, the stop guard, prompt routing, workflow tracking, memory and code indexes; a mod that adds the workflow band above the prompt, the consent dialog, turn receipts, panes and commands; plan-build/goal-build/bugfix workflows and other skills; read-only review agents; MCP servers and language servers from Buracle\'s toolchain; the buracle CLI on PATH',
+    description: 'Buracle for Claude Code. One engineering setup, one memory, every coding agent: command hooks for guards, consent, the stop guard, prompt routing, workflow tracking, memory and code indexes; a mod that adds the workflow band above the prompt, the consent dialog, turn receipts, panes and commands; plan-build/goal-build/bugfix workflows and other skills; read-only review agents; MCP servers and language servers from Buracle\'s toolchain; the buracle CLI on PATH',
     author: { name: OWNER_NAME },
   }
   if (withTypes) out['types'] = './types/index.d.ts'

@@ -46,7 +46,7 @@ what is left (a harness to install).
 
 --script is what scripts/install.sh runs: it prints the Harnesses,
 Tools, Memory and Result sections, one line each unless something did not pass, starts the
-memory web UI (memory.ui.autostart), runs the checks of \`buracle doctor\` and writes every
+Buracle Console (memory.ui.autostart), runs the checks of \`buracle doctor\` and writes every
 detail to the install log (--log). --started is when the script began (the Result line
 shows the time taken).
 

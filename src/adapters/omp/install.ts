@@ -94,7 +94,7 @@ export function agentsPointer(opts: { commands?: readonly string[] } = {}): stri
   return [
     '## Buracle',
     '',
-    `Buracle is active through the \`${PACKAGE_NAME}\` plugin: its always-on rules (working rules, tool routing, memory) load as plugin rules, ${workflows}\`/${OMP_STATUS_COMMAND}\` (or \`/${OMP_STATUS_ALIAS}\`) shows status, \`/${OMP_REMEMBER_COMMAND} <text>\` saves a memory note and \`/${OMP_BRAIN_COMMAND}\` opens the memory web UI. The \`buracle\` CLI is the helper for plans, worktrees, reviews and memory.`,
+    `Buracle is active through the \`${PACKAGE_NAME}\` plugin: its always-on rules (working rules, tool routing, memory) load as plugin rules, ${workflows}\`/${OMP_STATUS_COMMAND}\` (or \`/${OMP_STATUS_ALIAS}\`) shows status, \`/${OMP_REMEMBER_COMMAND} <text>\` saves a memory note and \`/${OMP_BRAIN_COMMAND}\` opens the Buracle Console. The \`buracle\` CLI is the helper for plans, worktrees, reviews and memory.`,
     '',
     SHARED_AGENTS_IMPORT,
   ].join('\n')

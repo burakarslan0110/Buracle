@@ -30,10 +30,10 @@ describe('web logo', () => {
     expect(logo.MARK).toEqual(LOGO.map(r => r.slice(0, 8)))
   })
 
-  test('the pixel paths cover every lit half block once: a full block is two pixels, a half block one; the eye is four', () => {
+  test('the pixel paths cover every lit half block once: a full block is two pixels, a half block one; the eye is eight', () => {
     const lit = LOGO.join('').split('').reduce((n, ch) => n + (ch === '█' ? 2 : ch === '▀' || ch === '▄' ? 1 : 0), 0)
     const p = logo.pixelPaths(logo.LOGO)
-    expect(area(p.eye)).toBe(4)
+    expect(area(p.eye)).toBe(8)
     expect(area(p.body) + area(p.eye)).toBe(lit)
     expect([p.width, p.height]).toEqual([[...LOGO[0]!].length, LOGO.length * 2])
     const scaled = logo.pixelPaths(logo.LOGO, { scale: 2 })

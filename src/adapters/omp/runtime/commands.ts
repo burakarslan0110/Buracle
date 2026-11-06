@@ -148,7 +148,7 @@ export function registerUtilityCommands(pi: OmpExtensionAPI, host: CommandHost):
     handler: safe(OMP_REMEMBER_COMMAND, (args, ctx) => remember(host, args, ctx)),
   })
   pi.registerCommand(OMP_BRAIN_COMMAND, {
-    description: 'Open the Buracle memory web UI (starts it when it is not running); /brain review opens the plan and change review page',
+    description: 'Open the Buracle Console (starts it when it is not running); /brain review opens the plan and change review page',
     handler: safe(OMP_BRAIN_COMMAND, (args, ctx) => brain(host, args, ctx)),
   })
   pi.registerCommand(OMP_ASIDE_COMMAND, {

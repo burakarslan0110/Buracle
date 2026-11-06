@@ -39,7 +39,7 @@ Skills are not in this package: omp reads the shared neutral render in `~/.agent
 - The running workflow shows above the editor (widget `buracle.flow`, `workflow.band`): its phases, progress
   and current step.
 - Extension commands (no model turn): `/buracle-status [status|memory|plan|flow]` (alias `/buracle`),
-  `/remember <text>` (a note in the memory inbox), `/brain` (starts and opens the memory web UI) and
+  `/remember <text>` (a note in the memory inbox), `/brain` (starts and opens the Buracle Console) and
   `/buracle-ping` (answers `buracle: pong`); `/aside <question>` asks a read-only side question (one side
   turn of the model, never added to the session, like omp's own `/btw`).
 - `rules/`: always-on rules, and path rules injected when matching files are edited (TTSR): `buracle-backend.md`, `buracle-blazor.md`, `buracle-browser-automation.md`, `buracle-core.md`, `buracle-dotnet.md`, `buracle-explain.md`, `buracle-frontend.md`, `buracle-go.md`, `buracle-memory.md`, `buracle-mobile.md`, `buracle-python.md`, `buracle-tooling.md`, `buracle-typescript.md`.

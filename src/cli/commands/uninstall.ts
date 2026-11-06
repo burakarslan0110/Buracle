@@ -33,7 +33,7 @@ the transaction lock. The memory (~/.buracle/brain, the CortexDB files) is never
 touched, not even by --purge-state; neither is the old Obsidian vault
 (~/Documents/Buracle).
 
-Outside the ledger: the memory web UI is stopped; the old vault's pre-commit hook
+Outside the ledger: the Buracle Console is stopped; the old vault's pre-commit hook
 is removed when it is Buracle's (an older Buracle's secret scan, which would refuse
 every commit once Buracle is gone; a hook you wrote stays); the PATH lines the install
 added to your shell's startup file are taken out; the system tools the install
@@ -310,7 +310,7 @@ async function uninstallFlow(res: UninstallResult, o: FlowOptions, io: CommandIO
     res.projectLeftovers = projectLeftovers()
     const ui = await stopMemoryUi()
     res.memoryUi = ui.status
-    if (ui.status === 'still-running') res.warnings.push(`the memory web UI at ${ui.url ?? '?'} did not stop; end its process by hand`)
+    if (ui.status === 'still-running') res.warnings.push(`the Buracle Console at ${ui.url ?? '?'} did not stop; end its process by hand`)
     if (!coreFailed) {
       res.vaultHook = await removeVaultPreCommitHook(vault)
       const shell = removeLocalBinFromPath()
@@ -387,7 +387,7 @@ function render(r: UninstallResult, io: CommandIO, t: ResultLines): void {
     top('err', 'Undo commands that failed (fix the cause, then run `buracle uninstall` again):')
     for (const f of r.undoFailed) item(`${tildeText(f.command)}: ${tildeText(f.detail)}`)
   }
-  if (r.memoryUi === 'stopped') top('ok', 'Stopped the memory web UI.')
+  if (r.memoryUi === 'stopped') top('ok', 'Stopped the Buracle Console.')
   if (r.vaultHook === 'removed') top('ok', 'Removed the old vault\'s pre-commit hook (an older Buracle\'s secret scan).')
   else if (r.vaultHook === 'foreign') top('info', 'Kept the old vault\'s pre-commit hook: it is not Buracle\'s.')
   if (r.projectLeftovers.length > 0) {

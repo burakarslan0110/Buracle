@@ -173,7 +173,7 @@ export async function helpText(all = false): Promise<string> {
   const cmds = new Map((await Promise.all(names.map(async n => [n, await loadCommand(n)] as const))))
   const width = Math.max(...names.map(n => n.length)) + 2
   const lines = [
-    'buracle: everything your coding agents need, in one place (Claude Code, Codex CLI, OpenCode and Oh My Pi)',
+    'buracle: one engineering setup, one memory, every coding agent',
     '',
     'Usage: buracle <command> [args…] [--json]',
   ]

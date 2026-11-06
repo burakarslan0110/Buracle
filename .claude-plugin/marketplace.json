@@ -8,7 +8,7 @@
     {
       "name": "buracle",
       "source": "./harness/claude",
-      "description": "Buracle for Claude Code, everything your coding agents need, in one place: guard, memory and status-band mod, workflow skills, read-only review agents, pinned MCP servers and the buracle CLI on PATH"
+      "description": "Buracle for Claude Code. One engineering setup, one memory, every coding agent: guard, memory and status-band mod, workflow skills, read-only review agents, pinned MCP servers and the buracle CLI on PATH"
     }
   ]
 }

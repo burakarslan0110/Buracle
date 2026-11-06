@@ -119,7 +119,7 @@ local model, no API key and no resident service. Agents write explicit memories 
 | Each prompt | a detached tick (first prompt) | none |
 | Tool call | hook process + an asynchronous capture process | hook process + the same asynchronous capture |
 | Session end | detached chain: profile, distil, 2 reflections, verify, tick | one bounded `mem finalize` |
-| Brain web UI | started by sessions, resident, serves embeddings | only when you run `buracle mem ui`; stops by itself |
+| Buracle Console (web UI) | started by sessions, resident, serves embeddings | only when you run `buracle mem ui`; stops by itself |
 | Timers | parked wake-up process up to 6 h | none |
 
 ### Components removed and kept
@@ -134,7 +134,7 @@ local model, no API key and no resident service. Agents write explicit memories 
 | Client-side expiry, supersede bookkeeping, recall counting | replaced by CortexDB fields | native, and they work for every client of the file |
 | MCP server, session context, handoff, spool, finalize | kept (shrunk) | the product-specific behaviour |
 | Runner and model choice for the harness CLI | kept | the review companion and capture both use them |
-| Brain web UI | kept, on demand | browsing, graph, provenance, edit, retire and delete |
+| Buracle Console (web UI) | kept, on demand | browsing, graph, provenance, edit, retire and delete |
 | Backup, export, import, vault import | kept | the owner's data must stay portable and recoverable |
 | Hook layer per harness | kept, thinner | real lifecycle differences between harnesses need adapters |
 
@@ -171,8 +171,8 @@ part of the repository.
 | Processes, 4 concurrent sessions | 12 | 8 |
 | RSS, 4 concurrent sessions | 566.1 MB | 357.9 MB |
 | RSS, 4 sessions that each wrote 4 and read 12 memories | 659 MB (12 processes) | 522 MB (8 processes) |
-| Brain web UI, idle RSS | 60.4 MB | 33.6 MB |
-| Brain web UI, after its first requests | 132.4 MB (the embedder loads) | 36.0 MB |
+| Buracle Console (web UI), idle RSS | 60.4 MB | 33.6 MB |
+| Buracle Console (web UI), after its first requests | 132.4 MB (the embedder loads) | 36.0 MB |
 | Brain file on disk (32 memories) | 1,024 KB | 688 KB |
 | Processes a session start spawns / leaves running | 8 / 3 (UI server, repair job, CortexDB reader) | 0 / 0 |
 | Other hook events: spawned | PreCompact 1, session end 2 | PreCompact 1 (a CortexDB reader inside the hook for the handoff), session end 2 (the one finalize child and its reader) |
