@@ -95,7 +95,7 @@ describe('codex build (harness/codex)', () => {
     expect(Object.keys(toml['mcp_servers']).sort()).toEqual(Object.keys(canonical.mcp.servers).filter(id => canonical.mcp.servers[id]?.harnesses.includes('codex')).sort())
     const top = { omit_tools_from: [...CRITICAL_OMIT_TOOLS_FROM], default_tools_approval_mode: 'approve' }
     expect(toml['mcp_servers']['context7']).toEqual({ command: '{buracle}', args: ['mcp', 'run', 'context7'], startup_timeout_sec: 30, ...top })
-    expect(toml['mcp_servers']['codegraph']['env']).toEqual({ CODEGRAPH_TELEMETRY: '0', CODEGRAPH_NO_UPDATE_CHECK: '1', CODEGRAPH_MCP_TOOLS: 'explore,search,node,callers,callees,impact,status,files' })
+    expect(toml['mcp_servers']['codegraph']['env']).toEqual({ CODEGRAPH_TELEMETRY: '0', CODEGRAPH_NO_UPDATE_CHECK: '1', CODEGRAPH_MCP_TOOLS: 'explore,search,node,callers,callees,impact,status,files', CODEGRAPH_NO_WATCHDOG: '1' })
     expect(toml['mcp_servers']['grep']).toEqual({ url: 'https://mcp.grep.app', default_tools_approval_mode: 'approve' })
     expect(toml['mcp_servers']['buracle-memory']).toEqual({ command: '{buracle}', args: ['mcp', 'memory'], ...top })
     expect(toml['mcp_servers']['web-fetch']['tool_timeout_sec']).toBe(180)

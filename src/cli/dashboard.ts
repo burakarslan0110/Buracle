@@ -73,7 +73,7 @@ interface Facts {
   versions: Partial<Record<Harness, string | null>> // null: read, but no version found; missing: still reading
   updates?: UpdatesCache
   health?: HealthFile
-  mcpHealth: Record<string, 'ok' | 'down' | 'unknown'>
+  mcpHealth: Record<string, 'ok' | 'down' | 'unknown' | 'off'>
   toolchain: ToolchainState
   mcp?: McpCatalog
   tools: ToolSpec[]

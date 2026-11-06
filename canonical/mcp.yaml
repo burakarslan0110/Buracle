@@ -7,6 +7,7 @@ servers:
     pin: latest
     critical: true
     routing: [library-docs]
+    backend: shared
 
   codegraph:
     description: Code structure graph (symbols, callers, impact) for the current repository
@@ -17,6 +18,7 @@ servers:
       CODEGRAPH_TELEMETRY: "0"
       CODEGRAPH_NO_UPDATE_CHECK: "1"
       CODEGRAPH_MCP_TOOLS: "explore,search,node,callers,callees,impact,status,files"
+      CODEGRAPH_NO_WATCHDOG: "1"
     harnesses: [claude, codex, opencode, omp]
     pin: latest
     critical: true
@@ -33,6 +35,7 @@ servers:
     pin: latest
     critical: true
     routing: [web-search]
+    backend: shared
 
   web-fetch:
     description: Fetch and extract web pages with a headless browser
@@ -44,6 +47,7 @@ servers:
     pin: latest
     critical: true
     routing: [web-fetch]
+    backend: shared
 
   grep:
     description: Search public GitHub code for real-world usage examples
@@ -64,6 +68,7 @@ servers:
     pin: latest
     critical: true
     routing: [code-search]
+    backend: shared
 
   chrome-devtools:
     description: Drive and inspect a Chrome browser (DevTools protocol)
@@ -74,6 +79,7 @@ servers:
     pin: latest
     critical: false
     routing: [browser]
+    backend: lazy
 
   buracle-memory:
     description: Buracle memory, the CortexDB brains of the project and the person (search, get, write, update, status)

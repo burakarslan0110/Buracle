@@ -183,7 +183,7 @@ Buracle'ın hafızası tek bir [CortexDB](https://github.com/liliang-cn/cortexdb
 - Oturum bitince tek bir `buracle mem finalize` çalışması oturumun hafıza kaydını yazar, söylediğin tercihleri hiçbir model kullanmadan açık (explicit) kayıtlar olarak dosyalar ve kullandığın harness'ın modeline saklamaya değer kararları, tuzakları ve prosedürleri sorar. Modelin cevabı, bir şey yazılmadan önce bütün olarak denetlenir. Emin olunan bulgular modelin güven puanıyla birlikte çıkarım (inferred) olarak işaretlenmiş hafıza kaydı olur, gerisi dosyalanmayı bekler. Senin bir kaydına (açık, sabitlenmiş ya da doğrulanmış) benzeyen bir bulgu o kaydı asla değiştirmez: yanına, çelişiyor diye işaretlenerek yazılır. Aynı çalışma, yakalaması hâlâ bekleyen en fazla üç eski oturumu da alır.
 - `buracle mem capture` aynı işi istediğin an yapar, `buracle mem doctor` hâlâ bekleyenleri listeler.
 
-Arka planda başka hiçbir şey çalışmaz: zamanlayıcı, açılış işi, onarım ya da temizlik turu yok. Oturumlar ve devir notları kendiliğinden silinir, çünkü CortexDB onları 45 ve 14 gün sonra düşürür. `buracle mem backup` istediğinde beyin dosyasının tamamını kopyalar; bir oturum bittiğinde de en yeni kopya bir günden eskiyse bir kopya daha alınır (en yeni 10 kopya tutulur).
+Bellek arka planda başka hiçbir şey çalıştırmaz: zamanlayıcı, açılış işi, onarım ya da temizlik turu yok. Oturumlar ve devir notları kendiliğinden silinir, çünkü CortexDB onları 45 ve 14 gün sonra düşürür. `buracle mem backup` istediğinde beyin dosyasının tamamını kopyalar; bir oturum bittiğinde de en yeni kopya bir günden eskiyse bir kopya daha alınır (en yeni 10 kopya tutulur).
 
 Model çağrıları zaten kullandığın bir harness'ın CLI'ı üzerinden yapılır, bu yüzden API anahtarı gerekmez. Önce oturumun kendi harness'ı denenir. 5 saatlik kullanımı %75'i ya da haftalık kullanımı %85'i aşan harness atlanır. Arama kelimelerle yapılır ve İngilizce ile Türkçe kelime biçimlerini bilir.
 
@@ -310,6 +310,15 @@ Buracle harness'ları onay soruları olmadan çalıştırır ve korumayı kendi 
 | [`grep`](https://grep.app) | Açık GitHub depolarından kod örnekleri |
 | [`chrome-devtools`](https://github.com/ChromeDevTools/chrome-devtools-mcp) | Bir Chrome tarayıcısını yönetir |
 | `lsp` | Codex ve OpenCode için dil sunucusu tanılamaları ve kod içinde gezinme |
+
+Her harness oturumu her sunucu için tam bir kopya değil, ince bir aracı çalıştırır:
+
+- `context7`, `semble`, `web-search` ve `web-fetch` makinede bir kez çalışır ve her harness'ın her oturumu onu paylaşır. Paylaşılan sunucu ilk gerçek çağrıda başlar ve son oturum bittikten 60 saniye sonra durur. 10 dakika çağrı yapmayan bir oturum onu bırakır, sonraki çağrısında yeniden bağlanır.
+- `chrome-devtools` oturumun kendisinindir ve Chrome'uyla birlikte ilk çağrıda başlar. 10 dakika boşta kalınca ve oturum bitince durur.
+- `codegraph` oturum başına tek süreç olarak çalışır, dizin süreç (daemon) proje başına paylaşılır.
+- Bir harness ölürse onun Buracle MCP süreçleri 10 saniye içinde kapanır.
+
+`buracle mcp disable <id>` bir sunucuyu her harness'ta, `--harness <h>` ile tek birinde kapatır. Sonraki oturum onun hiçbir aracını listelemez ve onun için süreç başlatmaz, yönlendirme de yerini tuttuğu yerleşik araca izin verir. `buracle mcp enable` onu yeniden açar, `buracle mcp list` her harness'taki durumu gösterir. `buracle mcp status` çalışan Buracle MCP süreçlerini listeler, `buracle mcp stop` paylaşılanları hemen durdurur. `buracle config set mcp.shared false` her oturuma her sunucunun kendi kopyasını geri getirir. Paylaşılan sunucu onu başlatan oturumun ortamını taşır, bu yüzden `CONTEXT7_API_KEY` gibi bir değişken her oturumda aynı olmalıdır. `BURACLE_MCP_LINGER_MS`, `BURACLE_MCP_IDLE_MS` ve `BURACLE_MCP_PARENT_POLL_MS` (milisaniye) üç bekleme süresini değiştirir.
 
 Araç zinciri ayrıca `rg`, `ast-grep`, `jq`, `gh`, `tmux`, `ruff`, `shellcheck` ve `golangci-lint` araçlarını ve altı dil sunucusunu (pyright, typescript-language-server, gopls, rust-analyzer, csharp-ls ve jdtls) getirir. Oturum başlangıcı hiçbir dizinleme çalıştırmaz: Buracle bir projenin ilk codegraph dizinini codegraph sunucusu orada başlarken kurar, sonrasında codegraph ve semble kendi dizinlerini kendileri güncel tutar. Birden çok proje barındıran bir klasörde ajan, ihtiyaç duyduğu projenin dizinini `buracle index ensure --cwd <project>` ile kurar. Her düzenlemeden sonra ilgili denetleyici çalışır ve bulguları ajana geri döner.
 

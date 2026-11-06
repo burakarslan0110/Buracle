@@ -122,7 +122,7 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary (isola
     expect(servers.map(s => s.name).sort()).toEqual(codexServers)
     expect(servers.find(s => s.name === 'buracle-memory')?.transport).toMatchObject({ type: 'stdio', command: paths.shimPath(), args: ['mcp', 'memory'] })
     expect(servers.find(s => s.name === 'grep')?.transport).toMatchObject({ type: 'streamable_http', url: 'https://mcp.grep.app' })
-    expect(servers.find(s => s.name === 'codegraph')?.transport['env']).toEqual({ CODEGRAPH_TELEMETRY: '0', CODEGRAPH_NO_UPDATE_CHECK: '1', CODEGRAPH_MCP_TOOLS: 'explore,search,node,callers,callees,impact,status,files' })
+    expect(servers.find(s => s.name === 'codegraph')?.transport['env']).toEqual({ CODEGRAPH_TELEMETRY: '0', CODEGRAPH_NO_UPDATE_CHECK: '1', CODEGRAPH_MCP_TOOLS: 'explore,search,node,callers,callees,impact,status,files', CODEGRAPH_NO_WATCHDOG: '1' })
     expect(servers.every(s => s.enabled)).toBe(true)
 
     const features = await codex(env, work, 'features', 'list')

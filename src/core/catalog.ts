@@ -9,6 +9,9 @@ import type { PricingTable } from './usage'
 
 export type McpTransport = 'stdio' | 'http'
 export type PinPolicy = 'latest' | 'hard' | 'soft' | 'monitor'
+/** shared: one backend on the machine serves every session; lazy: the session's own server starts on its first real call. */
+export type McpBackend = 'shared' | 'lazy'
+export const MCP_BACKENDS: readonly McpBackend[] = ['shared', 'lazy']
 export interface McpPackage {
   registry: 'npm' | 'pypi' | 'none'
   name: string
@@ -33,6 +36,7 @@ export interface McpServerSpec {
   critical: boolean
   routing: string[]
   health?: { tool: string, args: Record<string, unknown> }
+  backend?: McpBackend
 }
 export interface McpCatalog { servers: Record<string, McpServerSpec> }
 
@@ -207,7 +211,7 @@ const SERVER_ID = /^[a-z0-9][a-z0-9-]*$/
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:[-+.][0-9A-Za-z.-]+)?$/
 const BIN_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
-const SERVER_KEYS = ['description', 'transport', 'package', 'command', 'args', 'env', 'harness_env', 'tool_timeout_sec', 'tool_timeout_hard', 'url', 'harnesses', 'pin', 'pin_reason', 'critical', 'routing', 'health'] as const
+const SERVER_KEYS = ['description', 'transport', 'package', 'command', 'args', 'env', 'harness_env', 'tool_timeout_sec', 'tool_timeout_hard', 'url', 'harnesses', 'pin', 'pin_reason', 'critical', 'routing', 'health', 'backend'] as const
 const PACKAGE_KEYS = ['registry', 'name', 'version', 'bin', 'extras'] as const
 const PIN_POLICIES: readonly string[] = ['latest', 'hard', 'soft', 'monitor']
 
@@ -303,6 +307,11 @@ export function validateMcpCatalog(x: unknown): string[] {
     if (!isStrArr(raw['routing'])) errors.push(`${at}.routing: expected a list of category ids`)
     const health = raw['health']
     if (health !== undefined && (!isObj(health) || !isStr(health['tool']) || !isObj(health['args']))) errors.push(`${at}.health: expected { tool: string, args: mapping }`)
+    const backend = raw['backend']
+    if (backend !== undefined) {
+      if (typeof backend !== 'string' || !(MCP_BACKENDS as readonly string[]).includes(backend)) errors.push(`${at}.backend: expected ${MCP_BACKENDS.join(' | ')}`)
+      else if (transport !== 'stdio' || command !== undefined || !registryPkg) errors.push(`${at}.backend: only a package server (npm or PyPI, started by \`buracle mcp run\`) has a backend`)
+    }
   }
   return errors
 }

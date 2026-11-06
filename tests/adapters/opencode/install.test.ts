@@ -11,6 +11,19 @@ import { fakeExe } from '../../helpers/fake-exe'
 import { withSandbox } from '../../helpers/sandbox'
 import { adapterContext, canonical } from './helpers'
 
+describe('mcp.off.opencode: OpenCode\'s own off setting', () => {
+  test('an off server\'s mcp.servers entry gets disabled: true; the others are as before', () => withSandbox(async () => {
+    const base = adapterContext()
+    const ctx = { ...base, config: { ...base.config, mcp: { shared: true, off: { ...base.config.mcp.off, opencode: ['web-fetch'] } } } }
+    const plan = await installPlan(ctx)
+    const set = Object.assign({}, ...plan.ops.flatMap(o => (o.kind === 'jsonc-merge' ? [o.set] : []))) as Record<string, Record<string, unknown>>
+    expect(set['mcp.servers.web-fetch']?.['disabled']).toBe(true)
+    expect(set['mcp.servers.web-search']?.['disabled']).toBeUndefined()
+    const plain = Object.assign({}, ...(await installPlan(base)).ops.flatMap(o => (o.kind === 'jsonc-merge' ? [o.set] : []))) as Record<string, Record<string, unknown>>
+    expect(plain['mcp.servers.web-fetch']?.['disabled']).toBeUndefined()
+  }))
+})
+
 const USER_JSONC = `{
   // my default model
   "model": "openai/gpt-5.5",

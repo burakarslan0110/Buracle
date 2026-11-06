@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createBuracleExtension, defaultDeps, type ExtensionDeps } from '../../../src/adapters/omp/runtime/extension'
 import { FLOW_WIDGET_KEY } from '../../../src/adapters/omp/runtime/flow-widget'
@@ -292,6 +292,34 @@ describe('omp H24 MCP results: the session failure rule (tool_result isError) an
     await fp.emit('tool_result', result('mcp__web_search_search', false), ctx)
     expect(loadLedger('omp', SID).mcpErrors).toEqual({ 'web-fetch': 2 })
     expect((await search(fp, ctx))?.reason).toContain('mcp__web_search_search')
+  }))
+
+  test('servers in mcp.off.omp are unavailable for good: web_search goes to web-fetch, and with both off it is allowed with an "off" note', () => withSandbox(async sb => {
+    const snapshot = join(sb.buracleHome, 'state', 'runtime-config.json')
+    const writeOff = (omp: string[], when: number) => {
+      mkdirSync(join(sb.buracleHome, 'state'), { recursive: true })
+      writeFileSync(snapshot, JSON.stringify({ v: 1, config: { mcp: { off: { omp, codex: ['web-fetch'] } } } }))
+      utimesSync(snapshot, when, when)
+    }
+    writeOff(['web-search'], 1_000)
+    const { fp, ctx } = setup(sb, { policy: realPolicy({ routeTool }) }, {}, data)
+    const redirected = await search(fp, ctx)
+    expect(redirected?.block).toBe(true)
+    expect(redirected?.reason).toContain('mcp__web_fetch_fetch_url')
+    writeOff(['web-search', 'web-fetch'], 2_000)
+    const allowed = await search(fp, ctx)
+    expect(allowed?.block).toBeUndefined()
+    expect(allowed?.additionalContext).toContain('MCP server is off, so the built-in web search is allowed as a fallback')
+  }))
+
+  test('Oh My Pi\'s own disabledServers count too, in the user\'s agent MCP file', () => withSandbox(async sb => {
+    const { fp, ctx } = setup(sb, { policy: realPolicy({ routeTool }) }, {}, data)
+    expect((await search(fp, ctx))?.reason).toContain('mcp__web_search_search')
+    mkdirSync(paths.ompAgentDir(), { recursive: true })
+    writeFileSync(join(paths.ompAgentDir(), 'mcp.json'), JSON.stringify({ disabledServers: ['web-search', 'web-fetch'] }))
+    const allowed = await search(fp, ctx)
+    expect(allowed?.block).toBeUndefined()
+    expect(allowed?.additionalContext).toContain('MCP server is off')
   }))
 
   test('the outer device write of an MCP call is not counted (the inner mcp__ call is)', () => withSandbox(async sb => {

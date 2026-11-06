@@ -474,7 +474,7 @@
     },
     "harness/claude/.mcp.json": {
       "by": "claude",
-      "sha256": "244fb51593b3336ceaf6ea80055bb15ed35a0d29ae08015ed1543dec9b549572",
+      "sha256": "2cdf527bba326faf0f4b80d8c9ea65a9c3003091eb7c4b316def27d1618047d1",
       "exec": false
     },
     "harness/claude/README.md": {
@@ -509,7 +509,7 @@
     },
     "harness/claude/hooks/core/catalog.ts": {
       "by": "claude",
-      "sha256": "bd2339206595bbd2bdebc0dc3e66527ac9759200148bbfc250a27db826a96e27",
+      "sha256": "35f89948b654fa43a80da3211ae62668d4b1c03550589c93ae08a1fe2140a728",
       "exec": false
     },
     "harness/claude/hooks/core/charset.ts": {
@@ -534,7 +534,7 @@
     },
     "harness/claude/hooks/core/config.ts": {
       "by": "claude",
-      "sha256": "b714a8c6d2d44dcdcca9b30cab9ffed87f7a8f15e3b2db6d99f937eb3296b37d",
+      "sha256": "4d0b49db9278d80c753e37cac6ae88644544cf429ace8043d99def5561cea351",
       "exec": false
     },
     "harness/claude/hooks/core/effort.ts": {
@@ -804,7 +804,7 @@
     },
     "harness/claude/hooks/core/policy/index.ts": {
       "by": "claude",
-      "sha256": "ab2e194eff5bb9d897085dcb1b5aaf3ec849bf5c62bfb966e84cb0c72e41a772",
+      "sha256": "3214f221ca796bd8f17d163677f5a19ae6029fbc5b87300467f340d55e20033c",
       "exec": false
     },
     "harness/claude/hooks/core/policy/intents.ts": {
@@ -820,6 +820,11 @@
     "harness/claude/hooks/core/policy/launchers.ts": {
       "by": "claude",
       "sha256": "261e438ef4961641a99f617011c61b74ee0b0dea03d6a226e98c4aede264d27a",
+      "exec": false
+    },
+    "harness/claude/hooks/core/policy/mcp-off.ts": {
+      "by": "claude",
+      "sha256": "d4429063c4bcac2ca760fda2b6d426b7ac80f75d2036a4b4716101b10de83475",
       "exec": false
     },
     "harness/claude/hooks/core/policy/mcp-paths.ts": {
@@ -854,7 +859,7 @@
     },
     "harness/claude/hooks/core/policy/routing.ts": {
       "by": "claude",
-      "sha256": "757ce053c11eb4f5ade09a7b93ef19cb564709ef0690ede38c097b68e8663bc7",
+      "sha256": "d8a75688c6ac42c56cae1a15ab47b3bc47bb932b67724b1a7e0e99410cf102bd",
       "exec": false
     },
     "harness/claude/hooks/core/policy/self-disable.ts": {
@@ -894,7 +899,7 @@
     },
     "harness/claude/hooks/core/policy/usage.ts": {
       "by": "claude",
-      "sha256": "2613efdcda133e4cfd6f8f7e5324f149795670a1212fd5ad9bde5c18d52acff6",
+      "sha256": "1cbc1e341aba67e1b11b0a280164386190b37bd1b5967e7eb9ada1c302f20c43",
       "exec": false
     },
     "harness/claude/hooks/core/policy/windows-paths.ts": {
@@ -989,7 +994,7 @@
     },
     "harness/claude/hooks/generated/meta.ts": {
       "by": "claude",
-      "sha256": "13caae6d5f2ec5ed9865423c80534b920f61261c627efc7dc4a83cce0ceda075",
+      "sha256": "a0d841ffa87f3c4db9ec9611270f9ec78c4d7035e3d3059fc63afcd0167f0afd",
       "exec": false
     },
     "harness/claude/hooks/hooks.json": {
@@ -1464,7 +1469,7 @@
     },
     "harness/codex/AGENTS.md": {
       "by": "codex",
-      "sha256": "587cc59f28b0e1461dbca9ccc6de29aeb029bf379d3491cf3857670942613503",
+      "sha256": "8e880be2a44394ee7da3fe488d571e8b329310397b02114236c692e6bbbb8e92",
       "exec": false
     },
     "harness/codex/agents/changes-review.toml": {
@@ -1484,7 +1489,7 @@
     },
     "harness/codex/config.fragment.toml": {
       "by": "codex",
-      "sha256": "804f9c775cc3b7a57dde424d9f3eadc8245e0d06d60cf91b803707ff46fd9430",
+      "sha256": "e449c80f1b49d29f71e1fdd2fb87614242e38b938a99ed819d27eed720184a48",
       "exec": false
     },
     "harness/codex/hooks.json": {
@@ -1544,12 +1549,12 @@
     },
     "harness/hook-data.json": {
       "by": "hook-data",
-      "sha256": "44f5eb83ada50bc8a445568a00b87b272d5daa277b21f3e5a2205a94fe42b743",
+      "sha256": "ae338c89ddf0a077a99b488ac221b0deb65bdeb83ca50d28cc5659753f6c0a07",
       "exec": false
     },
     "harness/omp/.mcp.json": {
       "by": "omp",
-      "sha256": "18d5fcc88a523a2aa04f6ddf0a77b272cdfba9064c98801057010a94559308cf",
+      "sha256": "e95025759742f51778bdfb77f6bf91060dcdc4dedf9a46d428dda34014fe9e5e",
       "exec": false
     },
     "harness/omp/README.md": {
@@ -1634,7 +1639,7 @@
     },
     "harness/omp/extensions/buracle.js": {
       "by": "omp",
-      "sha256": "14c7be5eb418e64563354103b14072ae0c056917a6567b99b1d46897a5194352",
+      "sha256": "147516eda80bf841a282196017770c7918a603ab240def99c443cf89f63e8a00",
       "exec": false
     },
     "harness/omp/package.json": {
@@ -1699,7 +1704,7 @@
     },
     "harness/omp/rules/buracle-tooling.md": {
       "by": "omp",
-      "sha256": "228f7765f6f77e01992cd3d23ed02056c21219d253984195b7e1ec5ea5902185",
+      "sha256": "6a04c09f7e047d2bf5aa16f00546011bd35a976892c5b2220f16c82339bdf937",
       "exec": false
     },
     "harness/omp/rules/buracle-typescript.md": {
@@ -1709,7 +1714,7 @@
     },
     "harness/opencode/AGENTS.block.md": {
       "by": "opencode",
-      "sha256": "384ab2d38595c53abe8bdf5393343d176687170d0f78afc121125cae5789db86",
+      "sha256": "c73fe1d6744dfab3d68788474bb34cf2b8cd9fd52582a116d85d7287dcdbc191",
       "exec": false
     },
     "harness/opencode/README.md": {
@@ -1739,22 +1744,22 @@
     },
     "harness/opencode/config/opencode.fragment.jsonc": {
       "by": "opencode",
-      "sha256": "71f22e16799140748c4297b68e02f02ed89f0a0a82cc4998048764f6823384cb",
+      "sha256": "2c8b57c81aae397d9de241fe8bca38822fc9a1bf9e7199fe88db85c4498bd9d7",
       "exec": false
     },
     "harness/opencode/manifest.json": {
       "by": "opencode",
-      "sha256": "147192e6d097b012dc4e072a0e893183301c888607065dbafab4a04ff2f9318f",
+      "sha256": "e404723c48d9f0b48e5e8d84022f4125009686a998d0453d04b6bb7ef83f8911",
       "exec": false
     },
     "harness/opencode/plugins/buracle/index.js": {
       "by": "opencode",
-      "sha256": "dbfd30296474f5d0505a72e619d272d931bd96fdc53903c32524b2fecec6f41d",
+      "sha256": "c48f21ac0c423906118825615802fddf637b0841ef290eab1d8acfe1d033079b",
       "exec": false
     },
     "harness/opencode/plugins/buracle/tui.js": {
       "by": "opencode",
-      "sha256": "a2a3bdf6d77b75d0b52ee4a8d3753b79c6d50664ba8507fdacff90b5b5aef8b4",
+      "sha256": "e4423b38c051757d661fb2b32bee4e8e697b86bd71b2f65006ad449e44f1350e",
       "exec": false
     }
   }

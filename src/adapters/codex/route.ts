@@ -13,6 +13,7 @@ import { flowViewFor, recordFlowStart } from '../../workflow/flow'
 import { loadLedger, updateLedger } from '../../workflow/ledger'
 import { canonicalDir, codegraphIndexPresent, exclusionContext } from '../../workflow/workspace'
 import type { AdapterContext } from '../registry'
+import { codexOffServers } from '../shared/native-off'
 import { pathRuleSource } from '../shared/path-rules'
 
 type CoreFns = typeof CoreNs
@@ -77,11 +78,26 @@ export function fitParts(parts: readonly string[], max: number): string[] {
 }
 
 export function availableServers(ctx: Pick<AdapterContext, 'canonical'>, core: CoreFns, health: McpHealth): string[] {
-  return core.catalogMcp(ctx.canonical.mcp, H).filter(m => health[m.id] !== 'down').map(m => m.id)
+  return core.catalogMcp(ctx.canonical.mcp, H).filter(m => !core.mcpUnavailable(health[m.id])).map(m => m.id)
 }
 
-export function sessionHealth(ctx: Pick<AdapterContext, 'paths'>, core: CoreFns, sid: string, nowMs: number): McpHealth {
-  return core.sessionMcpHealth(readMcpHealth(ctx, nowMs), loadLedger(H, sid))
+/**
+ * The servers that are off in Codex: Buracle's `mcp.off.codex`, and with `native` also `enabled = false` in
+ * Codex's own config.toml. That file is read only for the calls whose route depends on it (web search and
+ * fetch, the capability card, the routing note).
+ */
+export function offServers(ctx: Pick<AdapterContext, 'config'>, core: CoreFns, native = false): string[] {
+  const own = core.offServersFor(ctx.config, H)
+  return native ? [...new Set([...own, ...codexOffServers()])] : own
+}
+
+/** health.json with the servers that are off folded in: what routing uses outside a session. */
+export function harnessHealth(ctx: Pick<AdapterContext, 'paths' | 'config'>, core: CoreFns, nowMs: number, native = false): McpHealth {
+  return core.withOffServers(readMcpHealth(ctx, nowMs), offServers(ctx, core, native))
+}
+
+export function sessionHealth(ctx: Pick<AdapterContext, 'paths' | 'config'>, core: CoreFns, sid: string, nowMs: number, native = false): McpHealth {
+  return core.withOffServers(core.sessionMcpHealth(readMcpHealth(ctx, nowMs), loadLedger(H, sid)), offServers(ctx, core, native))
 }
 
 export function recordMcpResult(core: CoreFns, sid: string, server: string, ok: boolean): void {

@@ -1,5 +1,6 @@
 import { FILE_AS_KINDS, MEM_KINDS, WRITABLE_KINDS } from '../core/memory/brain'
 import { log } from '../engine/log'
+import { watchParent } from '../engine/parent-watch'
 import {
   get, MemoryError, search, update, write,
   type MemoryCtx, type SearchInput, type UpdateInput, type WriteInput,
@@ -336,6 +337,7 @@ export async function runMemoryMcpServer(opts: {
   }
   const signals: NodeJS.Signals[] = opts.input === undefined ? ['SIGTERM', 'SIGHUP', 'SIGINT'] : []
   for (const s of signals) process.on(s, onSignal)
+  const parent = opts.input === undefined ? watchParent({ onGone: () => onSignal('SIGHUP') }) : undefined
   try {
     for await (const chunk of input) {
       buf += typeof chunk === 'string' ? chunk : decoder.decode(chunk, { stream: true })
@@ -351,6 +353,7 @@ export async function runMemoryMcpServer(opts: {
     await Promise.all([...pending])
   } finally {
     clearInterval(idle)
+    parent?.stop()
     for (const s of signals) process.off(s, onSignal)
     await closeAllCortex()
     log('info', 'memory mcp: server stopped', { pid: process.pid })

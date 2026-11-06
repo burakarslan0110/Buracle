@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { announcementOps, claudeInstallPlan, defaultInstallDeps, effortKeys, effortOps, envOps, LSP_DISABLED_KEY, LSP_NEVER_KEY, lspRecommendationPlan, permissionOps, renderRule, retiredDenyOps, ruleOps, statusLineOp } from '../../../src/adapters/claude/install'
+import { announcementOps, claudeInstallPlan, defaultInstallDeps, effortKeys, effortOps, envOps, LSP_DISABLED_KEY, LSP_NEVER_KEY, lspRecommendationPlan, mcpOffOps, permissionOps, renderRule, retiredDenyOps, ruleOps, statusLineOp } from '../../../src/adapters/claude/install'
 import { buracleInstalledPlugin, KEPT_EXIT, marketplaceHolds, parseList, pluginInstalled, pluginsFrom } from '../../../src/adapters/claude/check'
 import type { AdapterContext } from '../../../src/adapters/registry'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
@@ -41,6 +41,36 @@ function ctxFor(over: { bypass?: boolean, enforce?: boolean, effort?: string, re
 
 type ExecOp = Extract<Op, { kind: 'exec' }>
 const execs = (ops: Op[]) => ops.filter((o): o is ExecOp => o.kind === 'exec')
+
+describe('mcp.off.claude: Claude Code\'s own off setting', () => {
+  const realCtx = (off: string[]): AdapterContext => {
+    const config = defaultConfig()
+    config.mcp.off.claude = off
+    return { repoRoot: REPO, config, canonical: loadCanonicalSync(paths.canonicalDir()), paths, buracleBin: paths.shimPath() }
+  }
+
+  test('each off server gets a name entry and its exact command (a URL for a remote one) in deniedMcpServers, through an owned list merge; none off writes an empty owned list', () => {
+    const ctx = realCtx(['web-fetch', 'grep'])
+    expect(mcpOffOps(ctx)).toEqual([{
+      kind: 'json-list-merge', path: join(paths.claudeDir(), 'settings.json'), pointer: 'deniedMcpServers', identity: LIST_IDENTITY_HASH, owner: expect.any(String), format: 'json',
+      items: [
+        { serverName: 'plugin:buracle:grep' }, { serverUrl: 'https://mcp.grep.app' },
+        { serverName: 'plugin:buracle:web-fetch' }, { serverCommand: ['bun', join(REPO, 'harness', 'claude', 'bin', 'buracle.ts'), 'mcp', 'run', 'web-fetch'] },
+      ],
+    }])
+    expect((mcpOffOps(realCtx([]))[0] as Extract<Op, { kind: 'json-list-merge' }>).items).toEqual([])
+  })
+
+  test('enable removes exactly the entries Buracle wrote and keeps the user\'s own', () => withSandbox(async () => {
+    const settings = join(paths.claudeDir(), 'settings.json')
+    mkdirSync(paths.claudeDir(), { recursive: true })
+    writeFileSync(settings, JSON.stringify({ deniedMcpServers: [{ serverName: 'their-server' }] }))
+    await applyPlans([{ id: 't-off', harness: 'claude', ops: mcpOffOps(realCtx(['web-fetch'])) }])
+    expect((JSON.parse(readFileSync(settings, 'utf8')) as { deniedMcpServers: unknown[] }).deniedMcpServers).toContainEqual({ serverName: 'plugin:buracle:web-fetch' })
+    await applyPlans([{ id: 't-off', harness: 'claude', ops: mcpOffOps(realCtx([])) }])
+    expect((JSON.parse(readFileSync(settings, 'utf8')) as { deniedMcpServers: unknown[] }).deniedMcpServers).toEqual([{ serverName: 'their-server' }])
+  }))
+})
 
 describe('install plan as data', () => {
   test('the status line runs the shim, and only the user-level statusLine key is set', async () => {
@@ -110,7 +140,7 @@ describe('install plan as data', () => {
     await withSandbox(async () => {
       const plan = await claudeInstallPlan(ctxFor({ bypass: false }), { claudeBin: () => '/x/claude', bunBin: () => '/x/bun', marketplaces: async () => [], ledger: async () => ({}) })
       expect(JSON.stringify(plan.ops.filter(o => o.kind !== 'json-list-merge'))).not.toMatch(/permissions|defaultMode|skipDangerous/)
-      expect(plan.ops.filter(o => o.kind === 'json-list-merge').map(o => (o as { pointer: string }).pointer)).toEqual(['permissions.deny'])
+      expect(plan.ops.filter(o => o.kind === 'json-list-merge').map(o => (o as { pointer: string }).pointer)).toEqual(['permissions.deny', 'deniedMcpServers'])
     })
   })
 
@@ -506,7 +536,7 @@ describe('retired permissions.deny entries: Buracle hides no MCP tool any more, 
       const real = { ...ctxFor(), canonical: loadCanonicalSync(join(REPO, 'canonical')) }
       const plan = await claudeInstallPlan(real, { claudeBin: () => '/x/claude', bunBin: () => '/x/bun', marketplaces: async () => [], ledger: async () => ({}) })
       const lists: Op[] = plan.ops.filter(o => o.kind === 'json-list-merge')
-      expect(lists).toEqual(retiredDenyOps(real))
+      expect(lists).toEqual([...retiredDenyOps(real), ...mcpOffOps(real)])
     })
   })
 
