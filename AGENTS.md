@@ -45,7 +45,7 @@ CI also parses the install script: `bash -n scripts/install.sh`. Run it after ed
 ## Layout
 
 - `canonical/` — the single source of truth: YAML data and English prose (rules, skills, agents).
-  `skill-triggers.yaml` holds the skill router's trigger phrases (data, any language);
+  `skill-triggers.yaml` holds the MCP routing categories' trigger phrases (data, any language);
   `notices.yaml` holds one-time release notices, shown once per machine.
 - `src/core/` — pure logic, copied verbatim into the Claude plugin (`harness/claude/hooks/core/`).
 - `src/engine/` — IO: paths, files, processes, git, log, config and canonical loaders, the
@@ -96,9 +96,12 @@ CI also parses the install script: `bash -n scripts/install.sh`. Run it after ed
 - **Language.** Everything is English: code, comments, identifiers, test names, agent-facing prose
   (skills, rules, agents, hook texts), user docs, CLI output, status lines, the mod and the web UI
   (one dictionary in `src/memory/ui/i18n.js`, no language switch). Agents still reply in the
-  language the user writes in. The one exception is category D, the recognition of text in the
-  user's language (intents, consent and approval phrases, routine questions, receipt claims, memory
-  query stopwords, secret-word redaction, case folding, the skill router's trigger phrases): its
+  language the user writes in, and the workflow documents under `docs/` (PRDs, plans, build
+  contracts, audits) follow the user's language too, with the markers Buracle reads in English
+  (PRD 2026-11-06). The one exception is category D, the recognition of text in the
+  user's language (whole-message control words, the reply to a held consent question, memory query
+  stopwords and inflections, secret-word redaction, case folding, the MCP categories' trigger
+  phrases): its
   Turkish words stay as matching data, behind English identifiers and English comments. A new file
   that holds category D data needs an entry, with its
   reason, in the allowlist of `tests/workflow/language-guard.test.ts`. The one Turkish document is

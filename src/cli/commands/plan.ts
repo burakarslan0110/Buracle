@@ -22,6 +22,7 @@ export const usage = `Usage: buracle plan <subcommand> [args…] [--json]
 
   init --type feature|bugfix|build --title "<t>" [--slug <s>] [--dir <d>]
                           write docs/plan-build/YYYY-MM-DD-<slug>.md (build: docs/goal-build/…); prints {path, slug};
+                          --slug is required when the title has no Latin letters (error slug_required);
                           when a session resolves, the header also records its harness (harness: <h>)
   capture [--title "<t>"] [--file <path>] [--draft] [--harness <h>]
                           save a plan from a harness's own plan mode (the text on stdin, or --file)

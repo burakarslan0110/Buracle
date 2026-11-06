@@ -43,10 +43,10 @@ Memories (CLI twins of the MCP tools)
 
 Capture (the model-assisted writing, on demand)
   capture [--session SID [--harness H]] [--pending] [--limit N] [--force]
-                                             the same work a session end does, now: the session memory, the
-                                             user's explicit statements as preference memories (no model),
-                                             and one bounded model call over the session for its durable
-                                             decisions, gotchas and procedures. Without --session it takes
+                                             the same work a session end does, now: the session memory and
+                                             one bounded model call over the session for its durable
+                                             decisions, gotchas, procedures and preferences (a preference
+                                             quoted in the user's own words is filed as explicit). Without --session it takes
                                              the newest session of this project. --pending also takes up to
                                              N (default 3) stale sessions whose capture is owed; --force
                                              distills again although the same material was distilled. A

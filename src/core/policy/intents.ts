@@ -22,97 +22,43 @@ export function isUserText(text: string): boolean {
 }
 
 type Control = 'pause' | 'resume' | 'stop'
-interface Hit { intent: Control, at: number, end: number }
 
 const re = (body: string): RegExp => new RegExp(word(body), 'g')
 
-const NEGATIONS: Array<[RegExp, Control | null]> = [
-  [re("devam etme(?:yin|yelim|yiniz|sin)?|don'?t (?:continue|proceed|resume)|do not (?:continue|proceed|resume)"), 'pause'],
-  [re("durma(?:yin|yiniz|dan|sin)?|don'?t (?:stop|pause|wait)|do not (?:stop|pause|wait)|never stop"), 'resume'],
-  [re("iptal etme(?:yin|yelim)?|vazgecme(?:yin)?|don'?t (?:cancel|abort)|do not (?:cancel|abort)"), null],
-]
+// H10 reads a control word only when it is the whole message (PRD follow-up 2026-11-06): the user's
+// message, folded, minus punctuation and the polite or filler words around it, must be one of these
+// phrases. A control word inside a longer sentence, or a control word in another language, is the
+// agent's call under its rules (core rule *Autonomy*), so a bug report or a request that only mentions
+// "stop" or "devam" never pauses or resumes a plan by itself.
+const LEADING = /^(?:(?:ok(?:ay)?|tamam(?:dir)?|peki|evet|yes|yeah|yep|lutfen|please|pls|hey|claude|codex|buracle|simdi|now|just|sadece|artik|haydi|hadi|neyse|o zaman|oyleyse|anyway|alright)(?![a-z0-9_'-])[ ,.!:;-]*)+/
+const TRAILING = /(?:[ ,]+(?:lutfen|please|pls|now|simdi|artik|hemen))+$/
+const EDGE_PUNCTUATION = /^[\s.,!?;:…-]+|[\s.,!?;:…-]+$/g
 
-const PAUSE_ANYWHERE = re('du+r+(?:un|sana)?|duraklat(?:in|iniz|sana)?|durur musun|durabilir misin|durdurur musun|durdurabilir misin|bekler misin|bekleyebilir misin|hold on|hold up')
-const PAUSE_OBJECT_SENSITIVE = re('durdur(?:un|sana)?|bekle(?:yin|sene)?')
-const DEVAM_REQUEST = [
-  'devam (?:et|edin|ediniz|etsene|etsenize|edelim|edersin|edersiniz|edersen|ederseniz|edebilirsin|edebilirsiniz|edebiliriz|etmelisin|etmelisiniz|etmiyorsun|etmiyorsunuz|etsen|etseniz|etmen|etmeniz|etmeni|etmenizi)',
-  'devam (?:eder|edebilir|edecek) mi(?:sin|siniz|yiz)',
-  String.raw`(?<!hala |halen )devam(?=$|[.,!?;:\n]| (?:lutfen|please|dedim|diyorum|bakalim|o zaman|oyleyse|hadi|haydi|ama|fakat|ancak|yalniz)(?![a-z0-9_'-]))`,
-  'devamke',
-].join('|')
-const RESUME_ANYWHERE = re(`${DEVAM_REQUEST}|surdur(?:un|elim|sene)?|kaldigin yerden|kaldigimiz yerden|keep going|carry on|go on|go ahead`)
-const STOP_ANYWHERE = re('vazgec(?:tim|elim|in|iyorum)?|(?:cancel|abort|abandon) (?:the |this )?(?:plan|task|work|run)')
+const PAUSE_WHOLE = new RegExp(`^(?:${[
+  'du+r+(?:un|sana)?', 'durdur(?:un|sana)?', 'duraklat(?:in|iniz|sana)?', 'bekle(?:yin|sene)?', 'biraz bekle', '(?:bi|bir) (?:dakika|saniye|sn|dk)(?: bekle)?',
+  'dur (?:bi|bir) (?:dakika|saniye)', 'simdilik (?:dur|bekle)', 'durur musun', 'durabilir misin', 'durdurur musun', 'bekler misin', 'bekleyebilir misin',
+  'devam etme(?:yin|yiniz|yelim)?', 'stop(?: it| here| for now)?', 'pause', 'halt', 'freeze', 'wait(?: a (?:sec|second|moment|minute|bit))?', 'hold on', 'hold up',
+  'one sec(?:ond)?', '(?:just )?a (?:sec|second|moment|minute)', "don'?t (?:continue|proceed)", 'do not (?:continue|proceed)',
+].join('|')})$`)
+const RESUME_WHOLE = new RegExp(`^(?:${[
+  'devam(?: et| edin| ediniz| edelim| ediyoruz| edebilirsin| edebilirsiniz)?', 'devamke', 'surdur(?:un|elim|sene)?',
+  'kaldigin yerden(?: devam(?: et| edin)?)?', 'kaldigimiz yerden(?: devam(?: edelim)?)?', 'durma(?:yin|yiniz)?',
+  'continue', 'resume', 'proceed', 'go on', 'go ahead', 'carry on', 'keep going', "don'?t stop", 'do not stop',
+].join('|')})$`)
+const STOP_WHOLE = new RegExp(`^(?:${[
+  'iptal(?: et| edin| edelim| ediyorum)?', 'vazgec(?:tim|elim|in|iyorum)?', 'birak(?:alim|in|sana)?', 'bos ?ver(?:in|elim|sene)?', 'unut(?: gitsin)?',
+  'cancel', 'abort', 'abandon', '(?:cancel|abort|abandon) (?:the |this )?(?:plan|task|work|run)', 'forget it', 'never ?mind', 'drop it',
+].join('|')})$`)
 
-const THING_EN = 'button|btn|key|keyboard|hotkey|shortcut|icon|menu|screen|modal|dialog|popup|overlay|banner|toast|toolbar|tab|label|link|card|option|state|status|mode|flag|event|signal|handler|listener|callback|condition|time|timer|timeout|delay|interval|duration|word|token|statement|keyword|sign|animation|spinner|indicator|widget|gesture|click|sound|message|prompt|notification|list|queue|loss|order|motion'
-const THING_TR = 'buton|dugme|tus|ekran|isaret|simge|ikon|menu|pencere|sayfa|sinyal|komut|modu|yazi|animasyon|bildirim|secene[kg]|ozelli[kg]|fonksiyon|islev|olay|kosul|nokta|zamanlayici'
-const THING = new RegExp(`^ (?:(?:${THING_EN})(?:e?s)?(?:'[a-z]*)?|(?:${THING_TR})[a-z]*)(?![a-z0-9_'-])`)
-
-function namesThing(t: string, end: number): boolean {
-  return THING.test(t.slice(end))
-}
-
-const COMMAND: Array<[RegExp, Control]> = [
-  [/^(?:stop|pause|halt|freeze|wait)(?![a-z0-9_'-])/, 'pause'],
-  [/^(?:bi|bir) (?:dakika|saniye|sn|dk)(?![a-z0-9_'-])/, 'pause'],
-  [/^(?:one|just a|a) (?:sec|second|moment|minute)(?![a-z0-9_'-])/, 'pause'],
-  [/^(?:continue|resume|proceed|go on|carry on|keep going|move on)(?![a-z0-9_'-])/, 'resume'],
-  [/^devam (?:ediyoruz|ederiz|edecegiz)(?![a-z0-9_'-])/, 'resume'],
-  [/^(?:cancel|abort|abandon|forget it|never ?mind|drop it|scrap (?:it|that))(?![a-z0-9_'-])/, 'stop'],
-  [/^iptal (?:et|edin|edelim|ettim|ediyorum|etsene)(?![a-z0-9_'-])/, 'stop'],
-  [/^iptal(?=$|[.,!?;:])/, 'stop'],
-  [/^birak(?:alim|in|sana)?(?=$|[.,!?;:])/, 'stop'],
-  [/^birak (?:bunu|sunu|onu|isi|o isi|gitsin|artik|simdilik)(?![a-z0-9_'-])/, 'stop'],
-  [/^(?:bunu|sunu|isi|o isi|bu isi) birak(?:alim|in)?(?![a-z0-9_'-])/, 'stop'],
-  [/^bos ?ver(?:in|elim|sene)?(?=$|[.,!?;:])/, 'stop'],
-  [/^bos ?ver(?:in|elim|sene)? (?:bunu|sunu|onu|gitsin|artik|simdilik|ya|be)(?![a-z0-9_'-])/, 'stop'],
-  [/^unut(?:alim)?(?=$|[.,!?;:])/, 'stop'],
-  [/^unut (?:gitsin|bunu|sunu|onu|artik)(?![a-z0-9_'-])/, 'stop'],
-  [/^(?:bunu|sunu|onu) unut(?:alim)?(?![a-z0-9_'-])/, 'stop'],
-]
-const FILLERS = /^(?:(?:ok(?:ay)?|tamam(?:dir)?|peki|evet|hayir|yok|no|yes|lutfen|please|pls|hey|claude|codex|buracle|simdi|now|just|sadece|artik|haydi|hadi|neyse|o zaman|oyleyse|anyway|actually)(?![a-z0-9_'-])[ ,.!:;-]*)+/
-const STEERING_AFTER_STOP = /^(?:stop|pause|halt) (?:(?!(?:every|any|no|some)thing\b)\w+ing\b|(?:(?:the|this|that|those|these|all|my|your) )?(?:dev ?server|server|process(?:es)?|container|watcher|watch|tests?|build|job|daemon|service|script|loop|timer|spinner|animation|worker|app|application|emulator|simulator|music|video|stream|recording)s?(?![a-z0-9_'-]))/
-const STEERING_AFTER_WAIT = /^wait (?:for(?! (?:me|us|(?:my|our) (?:answer|approval|confirmation|reply|response|go-?ahead|ok|okay|input|feedback|review|decision|instructions?|signal))\b)|until|till|on|while|a bit longer for)\b/
-const STEERING_AFTER_CANCEL = /^(?:cancel|abort) (?:the |this |that |my |a )?(?:button|order|subscription|request|token|signal|event|timer|job|build|deploy(?:ment)?|pr|pull request|workflow|upload|download|query|controller)\b/
-const STEERING_AFTER_RESUME = /^(?:continue|resume) (?:(?:the|this|that|my|your|a) )?(?:upload|download|sync|transfer|playback|video|audio|music|song|stream|recording|animation|timer|countdown|slideshow|carousel)s?(?![a-z0-9_'-])/
-
-const FIRST_PERSON_OBJECT = /^(?:beni|bizi)$|(?:imi|umu|imizi|umuzu)$/
-const WORK_OBJECTS = new Set(['seyi', 'herseyi', 'hepsini', 'tumunu', 'plani', 'isi', 'isleri', 'gorevi', 'gorevleri', 'calismayi', 'calismani', 'akisi', 'isini'])
-
-const HISTORY = re([
-  'gecen (?:sefer|hafta|gun|ay|oturum)', 'daha once', 'onceden', 'onceki (?:oturum|konusma|calisma|plan)[a-z]*', 'neden boyle', 'niye boyle',
-  'neden bu sekilde', 'hatirl[a-z]*', 'ne karar', 'neye karar', 'karar ver(?:dik|mistik|mistin|mistiniz)', 'konusmustuk', 'demistik',
-  'yapmistik', 'en son ne', 'son oturum',
-  'last time', 'previously', 'earlier session', 'previous session', 'why did we', "remember(?! to)", 'recall', 'what did we decide',
-  'did we decide', 'we decided', 'we discussed', 'as discussed',
-].join('|'))
-
-function previousWord(t: string, at: number): string {
-  const m = /([a-z0-9_']+)[ ,]*$/.exec(t.slice(0, at))
-  return m ? (m[1] as string).replace(/'.*$/, '') : ''
-}
-
-function commandHits(t: string, short: boolean): Hit[] {
-  const hits: Hit[] = []
-  const starts = [0]
-  for (const m of t.matchAll(/[.!?;\n]+ ?/g)) starts.push((m.index ?? 0) + m[0].length)
-  if (short) for (const m of t.matchAll(/(?<=[ ,])(?=[a-z])/g)) starts.push(m.index ?? 0)
-  for (const s of starts) {
-    let pos = s
-    const rest = t.slice(pos)
-    const filler = FILLERS.exec(rest)
-    if (filler) pos += filler[0].length
-    const clause = t.slice(pos)
-    if (clause === '') continue
-    if ([STEERING_AFTER_STOP, STEERING_AFTER_WAIT, STEERING_AFTER_CANCEL, STEERING_AFTER_RESUME].some(rx => rx.test(clause))) continue
-    for (const [rx, intent] of COMMAND) {
-      const m = rx.exec(clause)
-      if (m) {
-        if (!namesThing(clause, m[0].length)) hits.push({ intent, at: pos, end: pos + m[0].length })
-        break
-      }
-    }
-  }
-  return hits
+function controlOf(t: string): Control | null {
+  // No control phrase is long: a message over 200 characters is never one, and the edge trims stay cheap.
+  if (t.length > 200) return null
+  const whole = t.replace(EDGE_PUNCTUATION, '').replace(LEADING, '').replace(TRAILING, '').replace(EDGE_PUNCTUATION, '').replace(/\s+/g, ' ')
+  if (whole === '' || whole.length > 60) return null
+  if (STOP_WHOLE.test(whole)) return 'stop'
+  if (PAUSE_WHOLE.test(whole)) return 'pause'
+  if (RESUME_WHOLE.test(whole)) return 'resume'
+  return null
 }
 
 function userWords(text: string): string | undefined {
@@ -127,48 +73,7 @@ function userWords(text: string): string | undefined {
 export function detectIntent(text: string): Intent {
   const t = userWords(text)
   if (t === undefined) return null
-  const control = controlOf(t)
-  if (control !== null) return control
-  HISTORY.lastIndex = 0
-  RECALL.lastIndex = 0
-  return HISTORY.test(t) || RECALL.test(t) ? 'history' : null
-}
-
-function controlOf(t: string): Control | null {
-  const hits: Hit[] = []
-  const hidden: Array<[number, number]> = []
-  for (const [rx, intent] of NEGATIONS) {
-    for (const m of t.matchAll(rx)) {
-      const at = m.index ?? 0
-      hidden.push([at, at + m[0].length])
-      if (intent) hits.push({ intent, at, end: at + m[0].length })
-    }
-  }
-  const isHidden = (at: number): boolean => hidden.some(([a, b]) => at >= a && at < b)
-  const add = (rx: RegExp, intent: Control): void => {
-    for (const m of t.matchAll(rx)) {
-      const at = m.index ?? 0
-      const end = at + m[0].length
-      if (!isHidden(at) && !namesThing(t, end)) hits.push({ intent, at, end })
-    }
-  }
-  add(PAUSE_ANYWHERE, 'pause')
-  add(RESUME_ANYWHERE, 'resume')
-  add(STOP_ANYWHERE, 'stop')
-  for (const m of t.matchAll(PAUSE_OBJECT_SENSITIVE)) {
-    const at = m.index ?? 0
-    if (isHidden(at) || namesThing(t, at + m[0].length)) continue
-    const prev = previousWord(t, at)
-    const isObject = /[iu]$/.test(prev) && !FIRST_PERSON_OBJECT.test(prev) && !WORK_OBJECTS.has(prev)
-    if (!isObject) hits.push({ intent: 'pause', at, end: at + m[0].length })
-  }
-  const words = t.split(/[^a-z0-9_']+/).filter(w => w !== '')
-  for (const h of commandHits(t, words.length <= 3)) if (!isHidden(h.at)) hits.push(h)
-
-  if (hits.some(h => h.intent === 'stop')) return 'stop'
-  if (hits.length === 0) return null
-  hits.sort((a, b) => a.at - b.at)
-  return (hits[0] as Hit).intent
+  return controlOf(t)
 }
 
 export const CONTROL_GUIDANCE = {
@@ -274,6 +179,8 @@ export function pausedReply(i: HeldInteraction | undefined, text: string): strin
       ? `Buracle: the user reports the manual step${quoted(i.reason)} done. Check its result, then run \`buracle plan resume\` and continue.`
       : `Buracle: the plan is paused on a manual step${quoted(i.reason)}. Answer the user; the run goes on after they say the step is done and you have checked it (\`buracle plan resume\`).`
   }
+  // A pause plan.autoPause recorded is no stop request: it gets no note, as before.
+  if (i.kind === 'discussion' && i.reason?.includes('(plan.autoPause)') !== true) return 'Buracle: the plan is paused because the user asked to stop. If this message means go on, in any language, run `buracle plan resume` and continue; otherwise answer the user and keep waiting.'
   if (i.kind !== 'decision') return undefined
   if (isResultReview(i)) return `Buracle: the plan is paused on the result review. ${REVIEW_RULE} A bare "continue", silence or green checks are no approval.`
   if (isModelSwitch(i)) return 'Buracle: the plan is paused so the user can switch models before the implementation. Answer the user; when their message means go on, run `buracle plan resume` and start the implementation.'
@@ -293,36 +200,6 @@ export function reportsWaiting(text: string | undefined): boolean {
   return WAITING.test(fold(text))
 }
 
-const QUESTION_TAIL = String.raw`(?:[^.!?\n]{0,160}\?|(?:[^.!?\n]{0,120} )?(?:hangi|neden|niye|nasil|nerede|ne zaman)(?![a-z0-9_'-]))`
-
-const RECALL = re([
-  'gecen (?:sefer|hafta|gun|ay|oturum)', 'onceki (?:oturum|konusma|calisma|plan)[a-z]*', 'son oturum[a-z]*', 'en son ne',
-  'neden boyle', 'niye boyle', 'neden bu sekilde', 'ne karar', 'neye karar', 'karar ver(?:dik|mistik|mistin|mistiniz)',
-  'hatirliyor mu(?:sun|sunuz)?', 'hatirlamiyor mu(?:sun|sunuz)?',
-  '(?:sebeb|neden|gerekce)(?:i|si) (?:neydi|ne idi|neymis)',
-  "neden (?:[a-z0-9.'-]+ ){0,5}(?:sectik|secmistik|kullaniyoruz|kullandik|kullanmistik|calistiriyoruz|yapiyoruz|yaptik|tercih ettik|karar verdik)",
-  'nerede kal(?:mistik|dik|mistim|mistin|diniz|mistiniz)', 'kaldigimiz yer[a-z]*',
-  '[a-z]+(?<!opti|pesi)m[iu]st[iu]k', '[a-z]+m[iu]s m[iu]yd[iu]k', String.raw`[a-z]+[iu]yord[iu]k(?=[^.!\n]{0,80}\?)`,
-  String.raw`(?:daha once|onceden) (?:[^.!?\n]{0,80} )?[a-z]+[dt][iu](?:k|n|niz) m[iu](?:y[iu]z|s[iu]n|s[iu]n[iu]z)?`,
-  `hatirla(?:sana|yin|yiniz)?[,:]? ${QUESTION_TAIL}`,
-  'last time', 'last session', 'earlier session', 'previous session', '(?:how|what|when|where|why) did we',
-  "(?:which|what) (?:[a-z0-9.'-]+ ){1,3}did we", 'did we decide', '(?:did|have) we ever',
-  String.raw`(?:have|had|did) we (?:[^.!?\n]{1,80} )?before(?= ?[?.!]|$)`,
-  'we (?:had )?decided', 'we discussed', 'as discussed',
-  '(?:what|which) (?:was|were) (?:our|the) (?:[a-z-]+ )?(?:decision|choice|plan|approach|idea|reasoning|rationale|conclusion|agreement|reason)s?',
-  'where were we', 'where we left off', 'pick up where', 'do you remember', 'remember (?:when|how we|why we|what we)',
-  'remember the [^.!?\\n]{1,60}\\?', String.raw`remember(?:[,:]| that| this) [^.!?\n]{0,160}\?`,
-].join('|'))
-
-const WRITE = re([
-  String.raw`(?<!m[ae]yi (?:d[ae] )?)unutma(?:yin|yiniz|yalim)?`, 'bunu hatirla', 'hatirla bunu', `hatirla(?=[,:])(?![,:] ?${QUESTION_TAIL})`,
-  '(?:bunu )?aklinda tut', 'aklinizda tutun',
-  'not al(?:in)?', 'not et(?:in)?', 'not dus', '(?:hafiza|kasa)(?:ya|na) (?:kaydet|yaz|ekle|al|not et)', 'bundan boyle',
-  String.raw`remember (?:this|that)(?![^.!?\n]{0,160}\?)`, String.raw`don'?t forget(?! to(?![a-z0-9_'-]))`,
-  String.raw`do not forget(?! to(?![a-z0-9_'-]))`, 'note (?:this|that) down', 'take a note', 'make a note', 'keep in mind',
-  'save (?:this|that|it) (?:to|in) (?:memory|the vault)', 'write (?:this|that|it) down', 'for future reference', 'from now on',
-].join('|'))
-
 export interface PromptSignals {
   control: 'pause' | 'resume' | 'stop' | null
   recall: boolean
@@ -332,7 +209,7 @@ export interface PromptSignals {
 export function detectSignals(text: string): PromptSignals {
   const t = userWords(text)
   if (t === undefined) return { control: null, recall: false, write: false }
-  RECALL.lastIndex = 0
-  WRITE.lastIndex = 0
-  return { control: controlOf(t), recall: RECALL.test(t), write: WRITE.test(t) }
+  // History questions and "remember this" are the agent's call under its rules (memory rule), so the
+  // recall and write signals stay false; the fields remain for the PromptSignals contract.
+  return { control: controlOf(t), recall: false, write: false }
 }

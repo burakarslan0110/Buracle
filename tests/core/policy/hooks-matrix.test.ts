@@ -38,9 +38,9 @@ describe('canonical/hooks.yaml', () => {
     ])
   })
 
-  test('only H01, H02, H03, H08, H09, H11, H20 and H23 block', () => {
-    expect([...BLOCKING_HOOKS]).toEqual(['H01', 'H02', 'H03', 'H08', 'H09', 'H11', 'H20', 'H23'])
-    expect(RAW.hooks.filter(h => h.blocking !== 'none').map(h => h.id)).toEqual(['H01', 'H02', 'H03', 'H08', 'H09', 'H11', 'H20', 'H23'])
+  test('only H01, H02, H03, H08, H11, H20 and H23 block', () => {
+    expect([...BLOCKING_HOOKS]).toEqual(['H01', 'H02', 'H03', 'H08', 'H11', 'H20', 'H23'])
+    expect(RAW.hooks.filter(h => h.blocking !== 'none').map(h => h.id)).toEqual(['H01', 'H02', 'H03', 'H08', 'H11', 'H20', 'H23'])
     expect(RAW.hooks.filter(h => h.blocking === 'stop').map(h => h.id)).toEqual(['H08', 'H11', 'H23'])
     expect(RAW.hooks.find(h => h.id === 'H20')).toMatchObject({ blocking: 'deny', failure: 'open' })
     expect(RAW.hooks.find(h => h.id === 'H23')).toMatchObject({ blocking: 'stop', failure: 'open' })
@@ -249,8 +249,8 @@ describe('validateHooksMatrix: negative cases', () => {
   const hook = (m: HooksMatrix, id: string): HookSpec => m.hooks.find(h => h.id === id) as HookSpec
 
   test('a non-allowlisted hook may not block, and allowlisted hooks keep their kind', () => {
-    expect(errs(m => { hook(m, 'H04').blocking = 'deny' })).toContain('only H01, H02, H03, H08, H09, H11, H20, H23 may block')
-    expect(errs(m => { hook(m, 'H22').blocking = 'deny' })).toContain('only H01, H02, H03, H08, H09, H11, H20, H23 may block')
+    expect(errs(m => { hook(m, 'H04').blocking = 'deny' })).toContain('only H01, H02, H03, H08, H11, H20, H23 may block')
+    expect(errs(m => { hook(m, 'H22').blocking = 'deny' })).toContain('only H01, H02, H03, H08, H11, H20, H23 may block')
     expect(errs(m => { hook(m, 'H08').blocking = 'deny' })).toContain('expected stop')
     expect(errs(m => { hook(m, 'H23').blocking = 'deny' })).toContain('expected stop')
     expect(errs(m => { (hook(m, 'H23').bindings.codex as HookBinding).event = 'UserPromptSubmit' })).toContain('cannot keep a turn going')

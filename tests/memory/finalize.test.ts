@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { promptSignals } from '../../src/core/memory/signals'
 import { contextText } from '../../src/memory/context'
 import { cortexFor } from '../../src/memory/cortex'
-import type { DistillRunner } from '../../src/memory/distill'
+import { checkReply, statedByUser, type DistillRunner } from '../../src/memory/distill'
 import { capturePending, finalize } from '../../src/memory/finalize'
 import { brainDbFile, locksDir } from '../../src/memory/layout'
 import { writeHandoff } from '../../src/memory/handoff'
@@ -159,33 +159,56 @@ describe('finalize', () => {
     })
   })
 
-  test('the user\'s explicit statements become person preference memories without a model: explicit, confidence 1, filed once', async () => {
+  // A lasting preference comes from the session-end model call in any language (PRD follow-up 2026-11-06):
+  // it is explicit only when the user's own words it quotes appear in the session's prompts.
+  const STATED = 'Schreib Commit-Nachrichten ab jetzt immer auf Deutsch.'
+  const preference = (stated?: string) => ({ summary: 'Agreed on the commit language.', candidates: [{ type: 'preference', scope: 'person', title: 'Write commit messages in German', description: 'the commit language', body: '', confidence: 0.8, sources: [], ...(stated !== undefined ? { stated } : {}) }] })
+
+  test('a preference the user stated in any language is filed as explicit when its quote is in the prompts', async () => {
     await withBrain(async ({ repo }) => {
-      await spooled(repo, SID, statement('Always run the tests before you commit.'))
-      const r = await finalize('codex', SID, { pending: false })
-      expect(r.capture?.preferences.written).toHaveLength(1)
+      await spooled(repo, SID, [{ ts: Date.now() + 1, ev: 'prompt', excerpt: STATED }])
+      const r = await finalize('codex', SID, { pending: false, runner: answer(preference(STATED)) })
+      expect(r.capture).toMatchObject({ state: 'done', distill: { ran: true } })
       const [pref] = (await listAll(personRef())).filter(i => i.kind === 'preference')
-      expect(pref).toMatchObject({ layer: 'person', origin: 'explicit', confidence: 1, review: 'ok', status: 'active' })
-      expect(pref?.body).toContain('Always run the tests before you commit.')
-      expect(pref?.sources.some(src => src.startsWith('signal:'))).toBe(true)
-      expect((await contextText({ cwd: repo }))).toContain('run the tests before you commit')
-      await spooled(repo, OTHER, statement('Always run the tests before you commit.'))
-      const again = await finalize('codex', OTHER, { pending: false })
-      expect(again.capture?.preferences).toMatchObject({ written: [], skipped: 1 })
-      expect((await listAll(personRef())).filter(i => i.kind === 'preference')).toHaveLength(1)
+      expect(pref).toMatchObject({ layer: 'person', origin: 'explicit', confidence: 1, review: 'ok', status: 'active', title: 'Write commit messages in German' })
+      expect(pref?.body).toContain(STATED)
     })
   })
 
-  test('a newer statement in an exclusive group (the reply language) replaces the older preference; a different group does not', async () => {
+  test('a quote the user never typed, or no quote, keeps the preference inferred', async () => {
     await withBrain(async ({ repo }) => {
-      await spooled(repo, SID, statement('From now on reply in Turkish.'))
-      await finalize('codex', SID, { pending: false })
-      await spooled(repo, OTHER, [...statement('From now on reply in English.'), ...statement('Never use emojis.')])
-      const r = await finalize('codex', OTHER, { pending: false })
-      expect(r.capture?.preferences.written).toHaveLength(2)
-      expect(r.capture?.preferences.superseded).toHaveLength(1)
-      const live = (await listAll(personRef())).filter(i => i.kind === 'preference' && i.status === 'active')
-      expect(live.map(i => i.title).sort()).toEqual(['No emojis in replies or files', 'Reply in English'])
+      await spooled(repo, SID, [{ ts: Date.now() + 1, ev: 'prompt', excerpt: 'Fix the parser.' }])
+      await finalize('codex', SID, { pending: false, runner: answer(preference(STATED)) })
+      expect((await listAll(personRef())).find(i => i.kind === 'preference')).toMatchObject({ origin: 'inferred', confidence: 0.8 })
+    })
+    await withBrain(async ({ repo }) => {
+      await spooled(repo, SID, [{ ts: Date.now() + 1, ev: 'prompt', excerpt: STATED }])
+      await finalize('codex', SID, { pending: false, runner: answer(preference()) })
+      expect((await listAll(personRef())).find(i => i.kind === 'preference')).toMatchObject({ origin: 'inferred', confidence: 0.8 })
+    })
+  })
+
+  test('statedByUser: a quote of at least 20 characters and 3 words, matched with case, spacing and quote marks folded', () => {
+    const prompts = ['Fix the parser.', 'From now on, ALWAYS   write the failing test "first".']
+    expect(statedByUser('from now on, always write the failing test first.', prompts)).toBe(true)
+    expect(statedByUser('always write', prompts)).toBe(false)
+    expect(statedByUser('Fix the parser.', prompts)).toBe(false)
+    expect(statedByUser('never push to main without a review', prompts)).toBe(false)
+    expect(statedByUser(undefined, prompts)).toBe(false)
+  })
+
+  test('an over-long stated quote is dropped, not the whole reply: the candidate stays, inferred', () => {
+    const r = checkReply(JSON.stringify(preference('x'.repeat(400))))
+    expect(r.ok).toBe(true)
+    expect(r.ok ? r.reply.candidates[0]?.stated : 'bad').toBeUndefined()
+  })
+
+  test('without a model, a standing rule in the prompts files nothing: no word list reads it', async () => {
+    await withBrain(async ({ repo }) => {
+      await spooled(repo, SID, statement('Always run the tests before you commit.'))
+      const r = await finalize('codex', SID, { pending: false })
+      expect(r.capture?.preferences.written).toEqual([])
+      expect((await listAll(personRef())).filter(i => i.kind === 'preference')).toEqual([])
     })
   })
 
@@ -263,7 +286,8 @@ describe('finalize', () => {
   test('a session whose harness died before its end hook ran is finalized by a later session end', async () => {
     await withBrain(async ({ repo }) => {
       const t0 = Date.now()
-      await spooled(repo, SID, statement('Never amend published commits.'))
+      // A spool written before PRD follow-up 2026-11-06 still holds the H26 statement; finalize files it.
+      await spooled(repo, SID, [{ ts: Date.now() + 1, ev: 'prompt-signal', signal: { kind: 'statement', key: 'said:amend-commits-published', polarity: -1, category: 'avoid', text: 'Never amend published commits', quote: 'Never amend published commits.' } }])
       expect(readSessionRecord('codex', SID)?.status).toBe('active')
       await spooled(repo, OTHER)
       const r = await finalize('codex', OTHER, { nowMs: t0 + 4 * HOUR })

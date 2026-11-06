@@ -1,7 +1,7 @@
-// The document check of a plan, a build file or a PRD: every document under docs/ is English and
-// follows the structural rules of ASD-STE100 (PRD 2026-11-04). It reads the prose units of the
-// Markdown (paragraphs, list items, table cells) and reports, as warnings with their line:
-//   not-english    a paragraph that reads as Turkish
+// The document check of a plan, a build file or a PRD: a document under docs/ follows the structural
+// rules of ASD-STE100 (PRD 2026-11-04) in whatever language it is written (PRD 2026-11-06). It reads
+// the prose units of the Markdown (paragraphs, list items, table cells) and reports, as warnings with
+// their line:
 //   long-sentence  a sentence over MAX_SENTENCE_WORDS words
 //   semicolon      a semicolon in prose
 //   legacy-folder  a path under an old document folder
@@ -12,9 +12,8 @@
 import { AFTER_RUN, type PlanOutline } from './authoring'
 import { DOC_DIRS, LEGACY_DOC_DIRS } from './doc-dirs'
 import type { Finding } from './format'
-import { languageHits } from '../memory/signals'
 
-export const DOCUMENT_CODES = ['not-english', 'long-sentence', 'semicolon', 'legacy-folder'] as const
+export const DOCUMENT_CODES = ['long-sentence', 'semicolon', 'legacy-folder'] as const
 export const MAX_SENTENCE_WORDS = 25
 
 const HEADING = /^\s{0,3}#{1,6}\s/
@@ -30,7 +29,15 @@ const LINK = /\[([^\]]*)\]\([^)]*\)/g
 const URL = /https?:\/\/[^\s)\]>"']+/g
 const LABEL = /^\*\*[^*]+:\*\*\s*/
 const EMPHASIS = /\*\*|__|(?<![\w`])[*_](?=\S)|(?<=\S)[*_](?![\w`])/g
-const SENTENCE_END = /(?<=[.!?])\s+/
+// A sentence ends at any Unicode sentence terminal: `.`, `!` and `?` when a space follows (so `v1.2.3`
+// stays one word), the others (`。`, `؟`, `।`, …) also with no space, as scripts like Japanese write
+// them. The Greek question mark is `;` (U+037E, which NFC turns into U+003B), so in Greek text a `;`
+// ends a question instead of joining two statements. A unit counts as Greek only when Greek letters
+// outnumber Latin ones, so one symbol such as `μs` in English prose keeps its semicolon check.
+const SENTENCE_END = /(?<=[.!?])\s+|(?<=[^\P{Sentence_Terminal}.!?])\s*(?=\S)/u
+const GREEK = /\p{Script=Greek}/gu
+const LATIN = /\p{Script=Latin}/gu
+const GREEK_QUESTION = /[;\u037e](?=\s|$)/gu
 const LEGACY_PATH = new RegExp(`docs/(${LEGACY_DOC_DIRS.join('|')})/`)
 
 interface Unit { first: number, lines: readonly string[], cell: boolean }
@@ -90,16 +97,6 @@ function words(sentence: string): number {
   return sentence.split(/\s+/).filter(w => w !== '').length
 }
 
-// Stronger evidence than the prompt-language signal, which calls "Retry once per key." Turkish on the
-// one word `once`: a letter only Turkish uses with no English majority, or two Turkish function words
-// with a margin of two over the English ones.
-function readsAsTurkish(text: string): boolean {
-  const h = languageHits(text)
-  if (h.words < 3) return false
-  if (h.letters) return h.tr >= h.en
-  return h.tr >= 2 && h.tr - h.en >= 2
-}
-
 function legacyMessage(path: string): string {
   const legacy = LEGACY_PATH.exec(path)?.[1]
   const fresh = DOC_DIRS.find(d => d.legacy === legacy)?.dir ?? 'plan-build'
@@ -112,11 +109,13 @@ export function documentFindings(o: PlanOutline): Finding[] {
     for (const [k, raw] of u.lines.entries()) {
       if (LEGACY_PATH.test(raw)) { out.push(at(u.first + k, 'legacy-folder', legacyMessage(raw))); break }
     }
-    const text = plain(u)
+    // Letters of the prose only: labels, code spans, link targets and URLs do not vote.
+    const prose = u.lines.map(l => l.replace(BLOCKQUOTE, '').replace(LIST_ITEM, '').replace(LABEL, '')).join(' ').replace(CODE_SPAN, '').replace(LINK, '$1').replace(URL, '')
+    const greek = (prose.match(GREEK)?.length ?? 0) > (prose.match(LATIN)?.length ?? 0)
+    const text = greek ? plain(u).replace(GREEK_QUESTION, '?') : plain(u)
     if (text === '') continue
-    const semi = u.lines.findIndex(l => l.replace(CODE_SPAN, '').includes(';'))
+    const semi = greek ? -1 : u.lines.findIndex(l => l.replace(CODE_SPAN, '').includes(';'))
     if (semi >= 0) out.push(at(u.first + semi, 'semicolon', 'a semicolon joins two statements: write two sentences or a list'))
-    if (readsAsTurkish(text)) out.push(at(u.first, 'not-english', 'this paragraph reads as Turkish: a document under docs is English'))
     for (const sentence of u.cell ? [text] : text.split(SENTENCE_END)) {
       const n = words(sentence)
       if (n > MAX_SENTENCE_WORDS) out.push(at(u.first, 'long-sentence', `a sentence has ${n} words (the limit is ${MAX_SENTENCE_WORDS}): split it, one idea per sentence`))

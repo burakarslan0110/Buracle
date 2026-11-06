@@ -5,7 +5,6 @@ import { existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createBuracleExtension, defaultDeps, STATUS_KEYS, stopReason, WIDGET_KEY, type ExtensionDeps } from '../../../src/adapters/omp/runtime/extension'
 import { createMemoryBridge } from '../../../src/adapters/omp/runtime/memory'
-import { PROMPT_MESSAGE_TYPE } from '../../../src/adapters/omp/runtime/prompt'
 import { AUTO_PAUSE_REASON } from '../../../src/adapters/opencode/runtime/adapter-rules'
 import { withDeadline } from '../../../src/adapters/omp/runtime/util'
 import { checkBash } from '../../../src/core/policy/bash-guard'
@@ -230,11 +229,11 @@ describe('omp extension: tool_call (H01/H02/H03/H09)', () => {
 
   test('H09 runs for the main agent only and uses the session state', () => withSandbox(async sb => {
     const states: unknown[] = []
-    const policy = { ...testDeps().deps.policy!, routeTool: () => ({ action: 'allow' as const }), checkQuestion: (s: unknown) => { states.push(s); return { deny: 'keep working; the plan is approved' } } }
+    const policy = { ...testDeps().deps.policy!, routeTool: () => ({ action: 'allow' as const }), checkQuestion: (s: unknown) => { states.push(s); return { context: 'pause first' } } }
     const main = setup(sb, { policy })
     saveState('omp', SID, planState())
-    expect(await main.fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'ask', input: { questions: [{ question: 'Devam edeyim mi?' }] } }, main.ctx))
-      .toEqual({ block: true, reason: 'Buracle H09: keep working; the plan is approved' })
+    const r = await main.fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'ask', input: { questions: [{ question: 'Devam edeyim mi?' }] } }, main.ctx) as { block?: boolean } | undefined
+    expect(r?.block).toBeUndefined()
     expect(states).toEqual([planState()])
     const sub = setup(sb, { policy }, { kind: 'sub' })
     expect(await sub.fp.emit('tool_call', { type: 'tool_call', toolCallId: '2', toolName: 'ask', input: {} }, sub.ctx)).toBeUndefined()
@@ -425,17 +424,12 @@ describe('omp extension: input (H10) and before_agent_start (H13/H15)', () => {
     expect(bare.systemPrompt[0]).toBe('<buracle-context>\n\nCARD\n\n</buracle-context>')
   }))
 
-  test('a history question gets the router\'s memory line as a hidden message, once (H22 replaces the old nudge)', () => withSandbox(async sb => {
-    const { fp, ctx } = setup(sb, { policy: { ...testDeps().deps.policy!, detectIntent: t => (t.includes('geçen sefer') ? 'history' : null), capabilityCard: () => '' } })
+  test('a history question gets no hidden routing message: the agent searches memory under its rules', () => withSandbox(async sb => {
+    const { fp, ctx } = setup(sb, { policy: { ...testDeps().deps.policy!, capabilityCard: () => '' } })
     await fp.emit('input', { type: 'input', text: 'geçen sefer ne karar vermiştik?', source: 'interactive' }, ctx)
-    const r = await fp.emit('before_agent_start', { type: 'before_agent_start', prompt: 'geçen sefer ne karar vermiştik?', systemPrompt: [] }, ctx) as { message: { customType: string, content: string, display: boolean } }
-    expect(r.message.customType).toBe(PROMPT_MESSAGE_TYPE)
-    expect(r.message.display).toBe(false)
-    expect(r.message.content).toBe('Buracle routing for this prompt:\n- Earlier work: search memory first (memory_search, then memory_get on the relevant notes) and cite the note ids you use.')
-    expect(await fp.emit('before_agent_start', { type: 'before_agent_start', prompt: 'geçen sefer ne karar vermiştik?', systemPrompt: [] }, ctx)).toEqual(r)
-    await fp.emit('turn_end', { type: 'turn_end', turnIndex: 0 }, ctx)
-    expect(await fp.emit('before_agent_start', { type: 'before_agent_start', prompt: 'next', systemPrompt: [] }, ctx)).toBeUndefined()
+    expect(await fp.emit('before_agent_start', { type: 'before_agent_start', prompt: 'geçen sefer ne karar vermiştik?', systemPrompt: [] }, ctx)).toBeUndefined()
   }))
+
 
   test('fails open when card and memory index both fail; subagents get nothing', () => withSandbox(async sb => {
     const { fp, ctx } = setup(sb, { projectSlug: async () => { throw new Error('git missing') } })

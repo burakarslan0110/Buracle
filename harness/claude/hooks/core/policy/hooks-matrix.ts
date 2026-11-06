@@ -1,8 +1,8 @@
 import type { Harness, HookId } from '../events'
 import { HARNESSES, HOOK_IDS } from '../events'
 
-export const BLOCKING_HOOKS: readonly HookId[] = ['H01', 'H02', 'H03', 'H08', 'H09', 'H11', 'H20', 'H23']
-const BLOCKING_KIND: Partial<Record<HookId, 'deny' | 'stop'>> = { H01: 'deny', H02: 'deny', H03: 'deny', H09: 'deny', H08: 'stop', H11: 'stop', H20: 'deny', H23: 'stop' }
+export const BLOCKING_HOOKS: readonly HookId[] = ['H01', 'H02', 'H03', 'H08', 'H11', 'H20', 'H23']
+const BLOCKING_KIND: Partial<Record<HookId, 'deny' | 'stop'>> = { H01: 'deny', H02: 'deny', H03: 'deny', H08: 'stop', H11: 'stop', H20: 'deny', H23: 'stop' }
 
 export const CLAUDE_CLASSIC_EVENTS: readonly string[] = [
   'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'PostToolBatch', 'PermissionDenied', 'Notification', 'UserPromptSubmit',

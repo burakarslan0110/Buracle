@@ -119,15 +119,11 @@ describe('consentNeeded', () => {
 describe('grantsFromPrompt', () => {
   const kinds = (text: string, pending?: Parameters<typeof grantsFromPrompt>[1]) => grantsFromPrompt(text, pending, NOW).map(g => g.kind).sort()
 
-  test('a request in Turkish or English grants the kind it names', () => {
-    expect(kinds('push et')).toEqual(['push'])
-    expect(kinds('değişiklikleri commitle ve pushla')).toEqual(['push'])
-    expect(kinds('force push yapabilirsin')).toEqual(['force-push'])
-    expect(consentVerdict('git push origin feat', applyPromptGrants(emptyConsent(), 'force push yapabilirsin', NOW), NOW).allow).toBe(true)
-    expect(kinds('main\'e rebase et')).toEqual(['history-rewrite'])
-    expect(kinds('push it to origin')).toEqual(['push'])
-    expect(kinds('reset to origin/main please')).toEqual(['history-rewrite'])
-    expect(kinds('eski dalı sil')).toContain('branch-delete')
+  test('a request that names an operation grants nothing before H20 holds a command: the gate asks first', () => {
+    for (const p of ['push et', 'değişiklikleri commitle ve pushla', 'force push yapabilirsin', "main'e rebase et", 'push it to origin', 'reset to origin/main please', 'eski dalı sil']) {
+      expect({ p, kinds: kinds(p) }).toEqual({ p, kinds: [] })
+    }
+    expect(consentVerdict('git push origin feat', applyPromptGrants(emptyConsent(), 'force push yapabilirsin', NOW), NOW).allow).toBe(false)
   })
 
   test('negations and questions grant nothing', () => {
@@ -140,11 +136,9 @@ describe('grantsFromPrompt', () => {
   })
 
   test('capital letters are folded without a Turkish locale (an English I stays an i)', () => {
-    expect(kinds('PUBLISH IT')).toEqual(['publish'])
-    expect(kinds('DISCARD THE CHANGES, PLEASE')).toEqual(['discard-changes'])
-    expect(kinds('Push It')).toEqual(['push'])
     expect(kinds('DO IT', { kind: 'push', summary: 's', command: 'git push', at: NOW })).toEqual(['push'])
-    expect(kinds('DALI SİL')).toContain('branch-delete')
+    expect(kinds('PUSH IT', { kind: 'push', summary: 's', command: 'git push', at: NOW })).toEqual(['push'])
+    expect(kinds('SİL', { kind: 'recursive-delete', summary: 's', command: 'rm -rf x', at: NOW })).toEqual(['recursive-delete'])
     expect(kinds('PUSH ETME')).toEqual([])
     expect(kinds('HAYIR', { kind: 'push', summary: 's', command: 'git push', at: NOW })).toEqual([])
   })
@@ -178,14 +172,16 @@ describe('consentVerdict', () => {
   })
 
   test('a grant allows a few uses for a while, then runs out', () => {
-    let s = applyPromptGrants(emptyConsent(), 'push et', NOW)
+    // The gate holds the push, the user says yes: that grant has a few uses and a time limit.
+    const held = consentVerdict('git push', emptyConsent(), NOW)
+    let s = applyPromptGrants(held.next, 'evet', NOW)
     for (let i = 0; i < GRANT_USES; i++) {
       const v = consentVerdict('git push', s, NOW + 1000)
       expect(v.allow).toBe(true)
       s = v.next
     }
     expect(consentVerdict('git push', s, NOW + 1000).allow).toBe(false)
-    const fresh = applyPromptGrants(emptyConsent(), 'push et', NOW)
+    const fresh = applyPromptGrants(held.next, 'evet', NOW)
     expect(consentVerdict('git push', fresh, NOW + GRANT_TTL_MS + 1).allow).toBe(false)
   })
 
@@ -238,7 +234,7 @@ describe('consentVerdictAll: a call that runs several commands', () => {
     }
     const s = applyPromptGrants(emptyConsent(), 'purge the redis cache and rerun the tests', NOW)
     for (const cmd of ['dropdb app', 'npx prisma migrate reset --force']) expect({ cmd, allow: consentVerdict(cmd, s, NOW + 1_000).allow }).toEqual({ cmd, allow: false })
-    expect(grantsFromPrompt('drop the test database', undefined, NOW).map(g => g.kind)).toContain('db-destroy')
+    expect(grantsFromPrompt('drop the test database', undefined, NOW)).toEqual([])
   })
 })
 
@@ -338,68 +334,22 @@ describe('consentNeeded: recursive deletes by other routes', () => {
   })
 })
 
-describe('grantsFromPrompt: everyday coding requests grant nothing', () => {
-  test.each([
-    'bu fonksiyonu kaldır', 'kullanılmayan importu sil', 'test yardımcılarını temizle', 'remove the unused import please', 'merge these two functions into one',
-    'reset the form state after submit', 'please remove the unused import', 'merge these two functions please',
-    'push the new item onto the stack in addItem()', 'sonucu listeye push et', "OrderCreated event'ini publish et", 'clean up the test helpers', "state'i resetle",
-    'drop the unused column from the type', 'publish an event when the user logs in', 'bu iki fonksiyonu merge et', 'gereksiz dosyaları temizle', 'eski kodu sil',
-    'git push --force failed with an error, why', 'rebase failed with conflicts, fix them', 'delete the unused branch coverage config', 'remove the release notes section',
-    'tabloyu README\'den sil', 'push notification servisini düzelt', 'hard reset butonunu ekle', 'discard edilen kayıtları logla',
-    '```\ngit push --force origin main\n```\nbu çıktıyı açıkla', '> git reset --hard\nbunu neden önerdin',
-    'git push yapmadan önce testleri çalıştır', 'push etmeden önce lint çalıştır', 'run the tests before git push', 'node_modules klasörünü sil', 'dist klasörünü sil',
-    'delete the dist folder', 'iki listeyi merge et', 'clean up the imports', 'reset the counter when the modal closes', 'rebase the docker image on alpine',
-    'abort the fetch when the component unmounts', 'merge abort handling ekle', 'abort the merge of the two config objects',
-  ])('%s grants nothing', p => {
-    expect({ p, grants: grantsFromPrompt(p, undefined, NOW) }).toEqual({ p, grants: [] })
+describe('grantsFromPrompt: without a held command nothing grants', () => {
+  test('no pending hold means no grant, whatever the prompt names', () => {
+    for (const p of ['push et', 'force push yap', 'git push --force', 'delete the old folder', 'npm publish', 'evet', 'yes go ahead']) {
+      expect({ p, grants: grantsFromPrompt(p, undefined, NOW) }).toEqual({ p, grants: [] })
+    }
+  })
+
+  test('a held push: a yes with more words still grants; an everyday request that names the operation does not', () => {
+    const pending = { kind: 'push' as const, summary: 's', command: 'git push', at: NOW - 1_000 }
+    expect(grantsFromPrompt('evet, ama önce testleri çalıştır', pending, NOW).map(g => g.kind)).toEqual(['push'])
+    expect(grantsFromPrompt('push the new item onto the stack in addItem()', pending, NOW)).toEqual([])
+    expect(grantsFromPrompt('sonucu listeye push et', pending, NOW)).toEqual([])
   })
 })
 
-describe('grantsFromPrompt: naming the gated operation grants its kind', () => {
-  test.each([
-    ['force push yap', ['force-push']],
-    ['git push --force', ['force-push']],
-    ['push et', ['push']],
-    ['npm publish', ['publish']],
-    ['git clean -fd çalıştır', ['discard-changes']],
-    ['git reset --hard yap', ['history-rewrite']],
-    ['drop table users', ['db-destroy']],
-    ['rm -rf src/legacy sil', ['recursive-delete']],
-    ['run `git push --force-with-lease origin feat`', ['force-push']],
-    ['commit and push', ['push']],
-    ['testleri düzelt, sonra push et', ['push']],
-    ["PR'ı merge et", ['publish']],
-    ['merge the PR', ['publish']],
-    ['src/old klasörünü sil', ['recursive-delete']],
-    ['eski klasörü sil', ['recursive-delete']],
-    ['git checkout . yap', ['discard-changes']],
-    ['run git restore . please', ['discard-changes']],
-    ['delete the old folder', ['recursive-delete']],
-    ['clean up the imports and push the changes', ['push']],
-    ['delete the old feature branch', ['branch-delete']],
-    ['hard reset at', ['history-rewrite']],
-    ['force push to the feature branch', ['force-push']],
-    ['you can force push', ['force-push']],
-    ['rebase onto main', ['history-rewrite']],
-    ['amend the last commit', ['history-rewrite']],
-    ['squash the last 3 commits', ['history-rewrite']],
-    ['discard my local changes', ['discard-changes']],
-    ['yerel değişiklikleri at', ['discard-changes']],
-    ['--no-verify ile commit et', ['skip-hooks']],
-    ['commit with --no-verify', ['skip-hooks']],
-    ['paketi npm\'e yayınla', ['publish']],
-    ['veritabanını sıfırla', ['db-destroy']],
-    ['migrate reset çalıştır', ['db-destroy']],
-    ['pushlayabilirsin', ['push']],
-    ["origin'e pushla", ['push']],
-    ['force push\'a izin veriyorum', ['force-push']],
-    ['abort the merge', ['discard-changes']],
-    ['abort the current rebase', ['discard-changes']],
-    ['git merge --abort', ['discard-changes']],
-    ["rebase'i abort et", ['discard-changes']],
-  ])('%s grants %p', (p, want) => {
-    expect(grantsFromPrompt(p, undefined, NOW).map(g => g.kind).sort()).toEqual([...want].sort() as never)
-  })
+describe('grantsFromPrompt: naming a gated operation without a held command grants nothing', () => {
 
   test('stays bounded and never throws on hostile prompts', () => {
     const pending = { kind: 'push' as const, summary: 's', command: 'git push', at: NOW }
@@ -414,10 +364,6 @@ describe('grantsFromPrompt: naming the gated operation grants its kind', () => {
 
   test('rm -rf of build output asks for nothing, so naming it grants nothing', () => {
     expect(grantsFromPrompt('rm -rf build/ sil', undefined, NOW)).toEqual([])
-  })
-
-  test('a grant from named words has no command targets (it covers the kind)', () => {
-    expect(grantsFromPrompt('push et', undefined, NOW)).toEqual([{ kind: 'push', until: NOW + GRANT_TTL_MS, uses: GRANT_USES, source: 'prompt' }])
   })
 })
 
@@ -466,7 +412,7 @@ describe('a yes answers the command H20 held, and only the next prompt can give 
     }
     const push = { kind: 'push' as const, summary: 's', command: 'git push', at: NOW - 1_000, targets: ['t2'] }
     expect(grantsFromPrompt('delete it', push, NOW)).toEqual([])
-    expect(grantsFromPrompt('push it', del, NOW).map(g => g.kind)).toEqual(['push'])
+    expect(grantsFromPrompt('push it', del, NOW)).toEqual([])
     expect(grantsFromPrompt('push it', push, NOW)).toEqual([{ kind: 'push', until: NOW + GRANT_TTL_MS, uses: GRANT_USES, source: 'prompt', targets: ['t2'] }])
     expect(grantsFromPrompt('delete it', undefined, NOW)).toEqual([])
     expect(grantsFromPrompt('sil', undefined, NOW)).toEqual([])

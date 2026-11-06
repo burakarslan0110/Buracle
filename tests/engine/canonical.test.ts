@@ -118,10 +118,10 @@ describe('the real canonical/ tree', () => {
     expect(skills.map(s => s.id)).toEqual(bundle.skills.map(s => s.id).sort())
   })
 
-  test('skills carry their short description, invocation and router triggers', () => {
+  test('skills carry their short description and invocation, and no phrase triggers (PRD follow-up 2026-11-06)', () => {
     const skills = catalogSkills(bundle.skills)
     for (const s of skills) {
-      expect({ id: s.id, short: typeof s.short === 'string', invocation: s.invocation === 'explicit' || s.invocation === 'implicit', triggers: (s.triggers?.ask?.length ?? 0) > 0 }).toEqual({ id: s.id, short: true, invocation: true, triggers: true })
+      expect({ id: s.id, short: typeof s.short === 'string', invocation: s.invocation === 'explicit' || s.invocation === 'implicit', phrases: s.triggers?.ask === undefined && s.triggers?.topic === undefined }).toEqual({ id: s.id, short: true, invocation: true, phrases: true })
     }
     expect(bundle.triggers).toBeDefined()
     expect(bundle.routing.categories.filter(c => c.triggers !== undefined).map(c => c.id).sort()).toEqual(['browser', 'code-examples', 'code-search', 'code-structure', 'language-server', 'library-docs', 'memory', 'web-search'])
@@ -172,7 +172,8 @@ describe('loader on fixture trees', () => {
     expect(b.routing.categories[0]?.triggers).toEqual({ topic: ['official docs'], deps: ['api'] })
     expect(b.routing.categories[0]?.reminder).toBe('use context7')
     expect(catalogSkills(b.skills)[0]).toEqual({ id: 'alpha', description: 'Alpha workflow', userInvocable: true, invocation: 'explicit', triggers: { ask: ['run alpha now', 'alpha ile yap'] } })
-    expect(b.warnings.filter(w => w.startsWith('skill-triggers.yaml'))).toEqual(['skill-triggers.yaml: skills.ghost: no canonical skill has this id'])
+    const removed = (id: string) => `skill-triggers.yaml: skills.${id}: skill phrase triggers were removed; a skill loads from an exact invocation only`
+    expect(b.warnings.filter(w => w.startsWith('skill-triggers.yaml'))).toEqual([removed('alpha'), removed('ghost'), 'skill-triggers.yaml: skills.ghost: no canonical skill has this id'])
 
     writeFileSync(join(dir, 'skill-triggers.yaml'), '- not a mapping\n')
     expect(problemsOf(() => loadCanonicalSync(dir))).toContain('skill-triggers.yaml: expected a mapping with version, skills and categories')

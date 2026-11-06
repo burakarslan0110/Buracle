@@ -56,31 +56,26 @@ describe('canonical/skill-triggers.yaml', () => {
     expect(parseSkillTriggers(raw).errors).toEqual([])
   })
 
-  test('every workflow skill has explicit requests in English and Turkish; explicit-only skills have no topics', () => {
-    const skills = (raw as { skills: Record<string, { ask?: Record<string, string[]>, topic?: unknown }> }).skills
-    for (const s of SKILLS.filter(x => x.userInvocable)) {
-      expect({ id: s.id, en: (skills[s.id]?.ask?.['en'] ?? []).length > 0, tr: (skills[s.id]?.ask?.['tr'] ?? []).length > 0 }).toEqual({ id: s.id, en: true, tr: true })
-    }
-    for (const id of EXPLICIT) expect(skills[id]?.topic).toBeUndefined()
+  test('the file holds no skill phrases: a skill loads from an exact invocation only (PRD follow-up 2026-11-06)', () => {
+    expect((raw as Record<string, unknown>)['skills']).toBeUndefined()
     expect(EXPLICIT.sort()).toEqual(['bugfix', 'dead-code', 'goal-build', 'inspect', 'plan-build', 'requirements'])
+    for (const s of T.skills) expect({ id: s.id, ask: s.ask, topic: s.topic, not: s.not }).toEqual({ id: s.id, ask: undefined, topic: undefined, not: undefined })
   })
 
-  test('the loader attaches the triggers to skills and routing categories (routing.yaml holds no vocabulary)', () => {
-    expect(BUNDLE.triggers?.skills['plan-build']?.ask?.length).toBeGreaterThan(0)
-    expect(SKILLS.find(s => s.id === 'research')?.triggers?.topic?.length).toBeGreaterThan(0)
+  test('the loader attaches the category triggers to the routing categories (routing.yaml holds no vocabulary)', () => {
     expect(POLICY.categories.find(c => c.id === 'library-docs')?.triggers?.deps?.length).toBeGreaterThan(0)
     const yaml = parseYaml(readFileSync(join(CANON, 'routing.yaml'), 'utf8')) as RoutingPolicy
     for (const c of yaml.categories) expect(c.triggers).toBeUndefined()
     expect(readFileSync(join(CANON, 'routing.yaml'), 'utf8')).not.toMatch(TURKISH)
   })
 
-  test('validation reports unknown ids, bad phrases, topics on explicit skills and missing languages', () => {
+  test('validation reports unknown ids, bad phrases and topics on explicit skills', () => {
     const errs = validateSkillTriggers({
       version: 1, extra: true,
       skills: { ghost: { ask: ['x'] }, 'plan-build': { ask: { en: ['Use Plan-build'], tr: ['plan-build ile'] }, topic: ['plan'] }, bugfix: { ask: { en: ['re:(unclosed', 'a*b'] } } },
       categories: { nowhere: { topic: ['x'] }, 'library-docs': { deps: 'api' } },
     }, { skills: [{ id: 'plan-build', invocation: 'explicit' }, { id: 'bugfix', invocation: 'explicit' }], categories: ['library-docs'] }).join('\n')
-    for (const needle of ['(root).extra: unknown key', 'skills.ghost: no canonical skill', 'lower case', 'skills.plan-build.topic: plan-build is explicit-only', 'invalid regular expression', '* may only end a word', 'skills.bugfix.ask.tr: every workflow skill', 'categories.nowhere: no routing category', 'categories.library-docs.deps: expected a list']) {
+    for (const needle of ['(root).extra: unknown key', 'skills.ghost: no canonical skill', 'lower case', 'skills.plan-build.topic: plan-build is explicit-only', 'invalid regular expression', '* may only end a word', 'skills.bugfix: skill phrase triggers were removed', 'categories.nowhere: no routing category', 'categories.library-docs.deps: expected a list']) {
       expect(errs).toContain(needle)
     }
     expect(parseSkillTriggers(null).errors).toEqual(['(root): expected a mapping with version, skills and categories'])
@@ -100,14 +95,12 @@ describe('the skill evals as routing fixtures', () => {
         for (const [probe, want] of Object.entries(c.expect)) {
           const [kind, rest] = [probe.slice(0, probe.indexOf(':')), probe.slice(probe.indexOf(':') + 1)]
           const yes = want === true || (typeof want === 'string' && want.startsWith('>='))
-          if (kind === 'skill') expect({ h, probe, offered: offered(r).includes(rest) }).toEqual({ h, probe, offered: yes })
+          // Plain prompts never load or suggest a skill and never raise a memory line: the agent decides.
+          if (kind === 'skill' || (kind === 'cmd' && rest.startsWith('buracle '))) expect({ h, probe, offered: offered(r) }).toEqual({ h, probe, offered: [] })
+          else if (kind === 'mcp' && rest === 'buracle-memory') expect({ h, probe, memory: r.memory }).toEqual({ h, probe, memory: { recall: false, write: false } })
           else if (kind === 'mcp') {
             const cat = categoryOf(rest)
-            const hit = (cat !== undefined && r.categories.includes(cat)) || (rest === 'buracle-memory' && (r.memory.recall || r.memory.write))
-            expect({ h, probe, routed: hit }).toEqual({ h, probe, routed: yes })
-          } else if (kind === 'cmd' && rest.startsWith('buracle ')) {
-            if (yes && !offered(r).some(id => id !== 'buracle')) expect({ h, probe, offered: offered(r).includes('buracle') }).toEqual({ h, probe, offered: true })
-            if (!yes) expect({ h, probe, offered: offered(r).includes('buracle') }).toEqual({ h, probe, offered: false })
+            expect({ h, probe, routed: cat !== undefined && r.categories.includes(cat) }).toEqual({ h, probe, routed: yes })
           }
         }
       }
@@ -115,7 +108,7 @@ describe('the skill evals as routing fixtures', () => {
   }
 })
 
-describe('T1: explicit requests load the workflow (and nothing else does)', () => {
+describe('T1: a request in words loads no workflow; only an exact invocation does', () => {
   const LOADS: Array<[string, string]> = [
     ["Let's do this plan-driven: add OAuth login to the dashboard.", 'plan-build'],
     ['Write a plan and implement it: export invoices as CSV.', 'plan-build'],
@@ -154,10 +147,8 @@ describe('T1: explicit requests load the workflow (and nothing else does)', () =
     ['Benchmark the skill change before we keep it.', 'ab-test'],
   ]
   for (const [text, id] of LOADS) {
-    test(`${id} <- ${text}`, () => {
-      const r = route(text)
-      expect(r.load).toEqual([id])
-      if (EXPLICIT.includes(id)) expect(r.candidates).toEqual([])
+    test(`no load of ${id} <- ${text}`, () => {
+      expect(offered(route(text))).toEqual([])
     })
   }
 
@@ -241,25 +232,25 @@ describe('caps, dedupe and availability', () => {
   })
 
   test('a new request for a workflow loaded earlier in the session loads it again (each request starts a run)', () => {
-    for (const h of HARNESSES) expect(route('plan-build ile yap: add an audit log', { harness: h, loaded: ['plan-build'] }).load).toEqual(['plan-build'])
     expect(route('$goal-build the goal is a green lint run', { harness: 'claude', loaded: ['goal-build'] }).load).toEqual(['goal-build'])
-    expect(routeText(route('Use the bugfix workflow: the parser crashes.', { loaded: ['bugfix', 'research'] }), 'claude', POLICY, { triggers: T })).toContain('The user asked for the bugfix workflow')
+    expect(route('/plan-build add an audit log', { harness: 'codex', loaded: ['plan-build'] }).load).toEqual(['plan-build'])
+    expect(routeText(route('$bugfix the parser crashes.', { loaded: ['bugfix', 'research'] }), 'claude', POLICY, { triggers: T })).toContain('The user asked for the bugfix workflow')
   })
 
   test('H23 holds the second request to a new load of the workflow, through the usage ledger', () => {
     const read: ToolCall = { harness: 'claude', sessionId: 's', cwd: '/p', tool: 'Read', kind: 'read', input: { file_path: '/plugin/skills/plan-build/SKILL.md' }, paths: ['/plugin/skills/plan-build/SKILL.md'] }
-    let l = ledgerCall(ledgerPrompt(emptyLedger(), route('plan-build ile yap: rate limiting'), 1), read)
+    let l = ledgerCall(ledgerPrompt(emptyLedger(), route('$plan-build rate limiting'), 1), read)
     expect(turnAudit(l).action).toBe('allow')
-    l = ledgerPrompt(l, route('plan-build ile yap: add an audit log', { loaded: Object.keys(l.skills) }), 2)
+    l = ledgerPrompt(l, route('$plan-build add an audit log', { loaded: Object.keys(l.skills) }), 2)
     expect(turnAudit(l)).toMatchObject({ action: 'block', reason: expect.stringContaining('the user asked for plan-build and it was not loaded') })
     expect(turnAudit(ledgerCall(l, read)).action).toBe('allow')
   })
 
-  test('categories need their preferred server; memory falls back to the CLI', () => {
+  test('categories need their preferred server; a history question raises no memory line', () => {
     const text = 'Express 5: verify in the docs whether async errors reach the error middleware.'
     expect(route(text).categories).toContain('library-docs')
     expect(route(text, { available: ALL_SERVERS.filter(s => s !== 'context7') }).categories).not.toContain('library-docs')
-    expect(route('What did we decide last time about the plan file format?', { available: [] }).memory).toEqual({ recall: true, write: false, cli: true })
+    expect(route('What did we decide last time about the plan file format?', { available: [] }).memory).toEqual({ recall: false, write: false })
   })
 
   test('type and compile errors call for the lsp server, and only where it is installed (Codex and OpenCode)', () => {
@@ -380,7 +371,7 @@ describe('trigger words in everyday coding prompts (R6-08)', () => {
     ['Open the settings page in the browser and check the console errors.', { category: 'browser' }],
     ['Sayfayı tarayıcıda aç ve konsol hatalarına bak.', { category: 'browser' }],
   ]
-  for (const [text, w] of STILL) test(`still ${w.skill ?? w.category}: ${text}`, () => check(text, w, true))
+  for (const [text, w] of STILL) test(`${w.skill !== undefined ? 'no skill phrase routing' : 'still'} ${w.skill ?? w.category}: ${text}`, () => check(text, w, w.skill === undefined))
 })
 
 describe('text the user did not write is never routed', () => {
@@ -470,7 +461,7 @@ describe('compileTriggers', () => {
     const bad: CatalogSkill[] = [{ id: 'x', description: '', userInvocable: true, triggers: { ask: ['re:(', ''], topic: ['ok'] } }, { id: 'Bad Id', description: '', userInvocable: true }]
     const t = compileTriggers(bad, { strictness: 'enforce', categories: [] })
     expect(t.skills.map(s => s.id)).toEqual(['x'])
-    expect(routePrompt('ok then', t, { harness: 'claude', loaded: [], available: [] }).candidates).toEqual(['x'])
+    expect(routePrompt('ok then', t, { harness: 'claude', loaded: [], available: [] }).candidates).toEqual([])
     expect(routePrompt(undefined as unknown as string, t, { harness: 'claude', loaded: [], available: [] }).load).toEqual([])
   })
 

@@ -471,20 +471,16 @@ export function commandTarget(command: string): string {
   return `${fnv1a(t, 0x811c9dc5)}${fnv1a(t, 0x050c5d1f)}:${t.length}`
 }
 
+// A prompt grants only one thing: the user's yes to the command H20 is holding right now, for the
+// commands it held (PRD follow-up 2026-11-06). Naming an operation in free text ("push et", "delete
+// the old folder") grants nothing in advance: the gate holds the command and asks first.
 export function grantsFromPrompt(text: string, pending: ConsentState['pending'] | undefined, now: number): ConsentGrant[] {
-  const r = readPrompt(text, command => consentNeeded(command)?.kind)
-  if (r === undefined || r.negated) return []
-  const out: ConsentGrant[] = []
-  const held = pending !== undefined ? heldKinds(pending) : []
-  if (pending !== undefined && now - pending.at <= PENDING_TTL_MS && !r.question && (r.approves || held.some(k => r.confirms.has(k)))) {
-    for (const kind of held) out.push({ kind, until: now + GRANT_TTL_MS, uses: GRANT_USES, source: 'prompt', ...(pending.targets !== undefined ? { targets: [...pending.targets] } : {}) })
-  }
-  if (r.question && !r.permits) return out
-  for (const kind of CONSENT_KINDS) {
-    if (!r.kinds.has(kind) || out.some(g => g.kind === kind)) continue
-    out.push({ kind, until: now + GRANT_TTL_MS, uses: GRANT_USES, source: 'prompt' })
-  }
-  return out
+  if (pending === undefined || now - pending.at > PENDING_TTL_MS) return []
+  const r = readPrompt(text)
+  if (r === undefined || r.negated || r.question) return []
+  const held = heldKinds(pending)
+  if (!r.approves && !held.some(k => r.confirms.has(k))) return []
+  return held.map(kind => ({ kind, until: now + GRANT_TTL_MS, uses: GRANT_USES, source: 'prompt' as const, ...(pending.targets !== undefined ? { targets: [...pending.targets] } : {}) }))
 }
 
 export function liveGrants(s: ConsentState, now: number): ConsentGrant[] {
@@ -534,7 +530,7 @@ function consentReason(needs: readonly ConsentNeed[]): string {
   const shown = command.length > 80 ? `${command.slice(0, 77)}...` : command
   const summary = needs.map(n => n.summary).join(' and ')
   const label = needs.map(n => CONSENT_LABEL[n.kind]).join(' and ')
-  return `this command ${summary}, and the user has not allowed that in this session. Ask the user first, in their language, naming the exact command and what it changes (for example: "May I run \`${shown}\`? It will ${label}."), then retry once they say yes. Do not look for another way to do the same thing.`
+  return `this command ${summary}, and the user has not allowed that in this session. Ask the user first, in their language, naming the exact command and what it changes (for example: "May I run \`${shown}\`? It will ${label}."), then retry once they say yes. Buracle records the answer only when the user's reply starts with yes, ok, go ahead (or evet, tamam) or is the held verb ("delete it"), so if they answered in another language, ask them to reply "yes". Do not look for another way to do the same thing.`
 }
 
 export function consentVerdictAll(commands: readonly string[], s: ConsentState, now: number): ConsentVerdict & { need?: ConsentNeed } {

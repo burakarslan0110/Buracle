@@ -250,18 +250,11 @@ describe('opencode smoke (real binary, isolated)', () => {
       expect(latestWindows('opencode', Date.now()).map(w => `${w.label} ${w.pct}`)).toEqual(['5h 42', '7d 18'])
 
       const s2 = await newSession(server, project)
-      await api(server, 'POST', `/api/session/${s2}/prompt`, project, { text: 'use the research skill to compare bun and node for scripts' })
+      await api(server, 'POST', `/api/session/${s2}/prompt`, project, { text: '$research compare bun and node for scripts' })
       const askReq = await requestWith(provider, t => t.includes('compare bun and node for scripts'))
       expect(lastUserText(askReq)).toContain('<skill_content name="research">')
       expect(systemTexts(askReq).join('\n')).toContain('Buracle routing for this prompt:')
       expect(readFlow('opencode', s2)?.stack[0]).toMatchObject({ workflow: 'research', source: 'prompt' })
-
-      const s3 = await newSession(server, project)
-      await api(server, 'POST', `/api/session/${s3}/prompt`, project, { text: 'what did we decide last time about the cache?' })
-      const auditReq = await requestWith(provider, t => t.includes('Buracle routing check:'))
-      expect(lastUserText(auditReq)).toContain('memory was not searched')
-      await Bun.sleep(4000)
-      expect(provider.requests.filter(r => primary(r.body) && lastUserText(r.body).includes('Buracle routing check:')).length).toBe(1)
 
       const s4 = await newSession(server, project)
       await api(server, 'POST', `/api/session/${s4}/prompt`, project, { text: `${REVIEW_MARK} please` })
@@ -270,7 +263,7 @@ describe('opencode smoke (real binary, isolated)', () => {
       const s5 = await newSession(server, project)
       await api(server, 'POST', `/api/session/${s5}/prompt`, project, { text: `${BUSY_MARK} please start` })
       await requestWith(provider, t => t.includes(BUSY_MARK))
-      await api(server, 'POST', `/api/session/${s5}/prompt`, project, { text: `use the research skill to compare bun and deno ${QUEUED_MARK}`, delivery: 'queue' })
+      await api(server, 'POST', `/api/session/${s5}/prompt`, project, { text: `$research compare bun and deno ${QUEUED_MARK}`, delivery: 'queue' })
       const queuedReq = await requestWith(provider, t => t.includes(QUEUED_MARK))
       expect(lastUserText(queuedReq)).toContain('<skill_content name="research">')
       expect(systemTexts(queuedReq).join('\n')).toContain('The user asked for the research skill: its skill is attached to this message')

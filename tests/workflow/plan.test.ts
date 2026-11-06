@@ -64,6 +64,22 @@ describe('plan init', () => {
     expect(analyzePlan(readFileSync(String(c.data['path']), 'utf8')).type).toBe('Bugfix')
   }))
 
+  test('a title with no Latin letters needs --slug (slug_required, no file and no folder); a Latin title still names the file', () => withSandbox(async ({ root }) => {
+    const repo = await makeRepo(root)
+    const ctx = ctxAt(repo)
+    for (const title of ['検索を保存する', 'Сохранённый поиск', 'البحث المحفوظ']) {
+      const r = await planInit({ type: 'feature', title }, ctx)
+      expect({ title, code: r.code, error: r.data['error'] }).toEqual({ title, code: 1, error: 'slug_required' })
+      expect(r.errors.join('\n')).toContain('--slug')
+    }
+    expect(existsSync(join(repo, 'docs', 'plan-build'))).toBe(false)
+    const named = await planInit({ type: 'feature', title: '検索を保存する', slug: 'saved-search' }, ctx)
+    expect(String(named.data['path'])).toBe(join(repo, 'docs', 'plan-build', `${localDate(ctx.now)}-saved-search.md`))
+    expect((await planInit({ type: 'feature', title: 'Ödeme sayfası' }, ctx)).data['slug']).toBe('odeme-sayfasi')
+    expect((await planInit({ type: 'feature', title: 'Größe ändern' }, ctx)).data['slug']).toBe('grosse-andern')
+    expect((await planInit({ type: 'feature', title: 'Plan' }, ctx)).data['slug']).toBe('plan')
+  }))
+
   test('usage errors exit 1', () => withSandbox(async ({ root }) => {
     const ctx = ctxAt(root)
     expect((await planInit({ type: 'epic', title: 'x' }, ctx)).code).toBe(1)
@@ -121,14 +137,20 @@ describe('plan validate', () => {
     expect(Array.isArray(crlf.data['findings'])).toBe(true)
   }))
 
-  test('a Turkish paragraph is a warning with its line: exit 0 without --strict, exit 2 with it', () => withPlanRepo(async ({ repo, plan }) => {
+  test('a Turkish paragraph gives no finding; a semicolon in prose is a warning with its line: exit 0 without --strict, exit 2 with it', () => withPlanRepo(async ({ repo, plan }) => {
+    const base = planValidate(plan, true, ctxAt(repo))
     writeFileSync(plan, planDoc().replace('Clients get 429 instead of overloading the server.', 'İstemciler sunucuyu yormak yerine 429 cevabı alır ve bekler.'))
+    const turkish = planValidate(plan, true, ctxAt(repo))
+    // The fixture plan carries two files-incomplete warnings of its own; the Turkish paragraph adds nothing.
+    expect({ code: turkish.code, findings: turkish.data['findings'] }).toEqual({ code: base.code, findings: base.data['findings'] })
+    expect((base.data['findings'] as Array<{ code: string }>).map(f => f.code)).toEqual(['files-incomplete', 'files-incomplete'])
+    writeFileSync(plan, planDoc().replace('Clients get 429 instead of overloading the server.', 'Clients get 429; the server stays up.'))
     const plain = planValidate(plan, false, ctxAt(repo))
     expect(plain.code).toBe(0)
     const strict = planValidate(plan, true, ctxAt(repo))
     expect(strict.code).toBe(2)
-    expect((strict.data['findings'] as Array<{ code: string, line?: number }>).filter(f => f.code === 'not-english').map(f => f.line)).toEqual([12])
-    expect(strict.lines.join('\n')).toContain(':12: warning not-english:')
+    expect((strict.data['findings'] as Array<{ code: string, line?: number }>).filter(f => f.code === 'semicolon').map(f => f.line)).toEqual([12])
+    expect(strict.lines.join('\n')).toContain(':12: warning semicolon:')
   }))
 
   test('init writes the core planSkeleton; validate reports its unfilled placeholders and --strict never passes it', () => withSandbox(async ({ root }) => {

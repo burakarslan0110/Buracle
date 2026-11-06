@@ -21,107 +21,57 @@ function ask(questions: Array<{ question: string, options?: Array<string | { lab
   return { harness, sessionId: 's', cwd: '/r', tool, input, ...classifyTool(harness, tool, input, '/r') }
 }
 
-const ROUTINE: Array<[string, string[]]> = [
+// H09 reads no question wording: every question passes, and while an approved plan runs unpaused it
+// carries the reminder to pause first. Whether a question is routine is the agent's call (its rules).
+const QUESTIONS: Array<[string, string[]]> = [
   ['Should I continue?', []],
   ['Should I keep waiting for the build?', ['Keep waiting', 'Stop']],
-  ['The test suite is still running. Shall I proceed?', ['Yes', 'No']],
-  ['Do you want me to continue with Task 3?', ['Yes, continue', 'No, stop']],
-  ['Would you like me to keep going?', []],
-  ['Is it ok if I continue?', ['Continue (Recommended)', 'Pause']],
-  ['Let me know if I should proceed.', []],
-  ['Continue?', ['Continue', 'Stop']],
-  ['Should I keep waiting or stop?', ['Keep waiting', 'Stop']],
   ['Devam edeyim mi?', ['Evet', 'Hayır']],
-  ['Build hâlâ çalışıyor, beklemeye devam edeyim mi?', ['Beklemeye devam et', 'Dur']],
-  ['Testler sürüyor. Bekleyeyim mi?', []],
-  ['Bir sonraki göreve geçeyim mi?', ['Evet', 'Hayır']],
-  ['Devam etmemi ister misin?', ['Devam', 'İptal']],
-  ['Sürdüreyim mi?', []],
-]
-
-const GENUINE: Array<[string, string[]]> = [
-  ['Should I continue with Redis or switch to the in-memory store?', ['Redis', 'In-memory store']],
+  ['Soll ich weitermachen?', ['Ja', 'Nein']],
   ['Which approach should I take?', ['Fixed window (recommended)', 'Sliding window']],
-  ['Should I continue?', ['Continue with approach A', 'Switch to approach B']],
   ['Should I proceed with deleting the old table?', ['Yes', 'No']],
-  ['Should I continue and push to origin?', ['Yes', 'No']],
-  ['The deploy is still running; keep waiting?', ['Keep waiting', 'Stop']],
-  ['Tests fail for an unrelated reason. Should I continue?', ['Continue', 'Stop']],
-  ['Should I continue? This will cost about $40 in API usage.', ['Yes', 'No']],
-  ['Devam edeyim mi, yoksa önce migration mı yazayım?', ['Devam', 'Önce migration']],
-  ['Eski dosyaları sileyim mi?', ['Evet', 'Hayır']],
-  ['API anahtarını nereye koyayım?', []],
-  ['Commit mesajı ne olsun?', []],
   ['Do you approve the plan?', ['Approve', 'Request changes']],
 ]
 
 describe('checkQuestion: running approved plan', () => {
-  for (const [question, options] of ROUTINE) {
-    test(`denies routine: ${question}`, () => {
-      const r = checkQuestion(running(), ask([{ question, options }]), 10)
-      expect(r.deny).toBeDefined()
-      expect(r.deny).toContain('buracle plan pause --kind decision')
-    })
-  }
-  for (const [question, options] of GENUINE) {
-    test(`allows genuine, with the pause reminder: ${question}`, () => {
+  for (const [question, options] of QUESTIONS) {
+    test(`never denies, and adds the pause reminder: ${question}`, () => {
       expect(checkQuestion(running(), ask([{ question, options }]), 10)).toEqual({ context: QUESTION_PAUSE_NOTE })
     })
   }
 
-  test('a mixed batch is denied with the routine items named, so the agent asks the rest again', () => {
-    const mixed = ask([{ question: 'Should I continue?', options: ['Yes', 'No'] }, { question: 'Which database?', options: ['Postgres', 'SQLite'] }])
-    const r = checkQuestion(running(), mixed, 10)
-    expect(r.deny).toContain('drop "Should I continue?" and ask the remaining question again')
-    const all = ask([{ question: 'Should I continue?' }, { question: 'Keep waiting?', options: ['Keep waiting', 'Stop'] }])
-    expect(checkQuestion(running(), all, 10).deny).toContain('buracle plan pause --kind decision')
-  })
-
-  test('works for every harness question tool', () => {
+  test('a batch of questions passes with one reminder, on every harness question tool', () => {
+    const batch = ask([{ question: 'Should I continue?', options: ['Yes', 'No'] }, { question: 'Which database?', options: ['Postgres', 'SQLite'] }])
+    expect(checkQuestion(running(), batch, 10)).toEqual({ context: QUESTION_PAUSE_NOTE })
     for (const h of ['claude', 'codex', 'opencode', 'omp'] as const) {
-      expect(checkQuestion(running(), ask([{ question: 'Should I continue?' }], h), 10).deny).toBeDefined()
+      expect(checkQuestion(running(), ask([{ question: 'Should I continue?' }], h), 10)).toEqual({ context: QUESTION_PAUSE_NOTE })
     }
   })
 
   test('omp string options and a single-question shape are understood', () => {
     const call: ToolCall = { harness: 'omp', sessionId: 's', cwd: '/r', tool: 'ask', kind: 'ask_user', paths: [], input: { question: 'Devam edeyim mi?', options: ['Evet', 'Hayır'] } }
-    expect(checkQuestion(running(), call, 1).deny).toBeDefined()
-    const omp: ToolCall = { ...call, input: { questions: [{ question: 'Devam edeyim mi?', options: [{ label: 'Evet' }, { label: 'Hayır' }] }] } }
-    expect(checkQuestion(running(), omp, 1).deny).toBeDefined()
+    expect(checkQuestion(running(), call, 1)).toEqual({ context: QUESTION_PAUSE_NOTE })
   })
 })
 
-describe('checkQuestion: when questions always pass', () => {
-  const routine = ask([{ question: 'Should I keep waiting?', options: ['Keep waiting', 'Stop'] }])
+describe('checkQuestion: when there is nothing to add', () => {
+  const q = ask([{ question: 'Should I keep waiting?', options: ['Keep waiting', 'Stop'] }])
 
-  test('a decision pause lets every question through; a user or manual hold denies only the routine ones', () => {
-    const genuine = ask([{ question: 'Which database?', options: ['Postgres', 'SQLite'] }])
-    expect(checkQuestion(running({}, { state: 'paused', kind: 'decision', since: 1 }), routine, 10)).toEqual({})
-    for (const kind of ['discussion', 'manual'] as const) {
-      expect(checkQuestion(running({}, { state: 'paused', kind, since: 1 }), routine, 10).deny).toContain('The plan is held for the user')
-      expect(checkQuestion(running({}, { state: 'paused', kind, since: 1 }), genuine, 10)).toEqual({})
-    }
-    expect(checkQuestion(running({}, { state: 'paused', since: 1 }), routine, 10).deny).toContain('held for the user')
-    expect(checkQuestion(running({}, { state: 'running', since: 1 }), routine, 10).deny).toBeDefined()
+  test('a paused plan of any kind: the pause already holds the run', () => {
+    for (const kind of ['decision', 'discussion', 'manual'] as const) expect(checkQuestion(running({}, { state: 'paused', kind, since: 1 }), q, 10)).toEqual({})
+    expect(checkQuestion(running({}, { state: 'paused', since: 1 }), q, 10)).toEqual({})
+    expect(checkQuestion(running({}, { state: 'running', since: 1 }), q, 10)).toEqual({ context: QUESTION_PAUSE_NOTE })
   })
 
   test('no plan, or a plan that is neither approved and running nor being verified', () => {
-    expect(checkQuestion(emptyState(), routine, 10)).toEqual({})
-    for (const status of ['PENDING', 'VERIFIED', 'SAVED'] as const) expect(checkQuestion(running({ status }), routine, 10)).toEqual({})
-    for (const status of ['APPROVED', 'COMPLETE'] as const) expect(checkQuestion(running({ status }), routine, 10).deny).toBeDefined()
-    expect(checkQuestion(running({ status: 'COMPLETE', phase: 'verify' }), routine, 10).deny).toBeDefined()
-  })
-
-  test('real verify questions (the merge, the result review, a failing gap) still pass at COMPLETE', () => {
-    for (const question of ['Squash-merge into main and remove the worktree?', 'Do you approve this verified result?', 'SC-2 still fails after three iterations. How should I proceed?']) {
-      expect(checkQuestion(running({ status: 'COMPLETE', phase: 'verify' }), ask([{ question, options: ['Yes', 'No'] }]), 10).deny).toBeUndefined()
-    }
+    expect(checkQuestion(emptyState(), q, 10)).toEqual({})
+    for (const status of ['PENDING', 'VERIFIED', 'SAVED'] as const) expect(checkQuestion(running({ status }), q, 10)).toEqual({})
+    for (const status of ['APPROVED', 'COMPLETE'] as const) expect(checkQuestion(running({ status }), q, 10)).toEqual({ context: QUESTION_PAUSE_NOTE })
   })
 
   test('phase plan or done', () => {
-    expect(checkQuestion(running({ phase: 'plan' }), routine, 10)).toEqual({})
-    expect(checkQuestion(running({ phase: 'done' }), routine, 10)).toEqual({})
-    expect(checkQuestion(running({ phase: 'verify' }), routine, 10).deny).toBeDefined()
+    expect(checkQuestion(running({ phase: 'plan' }), q, 10)).toEqual({})
+    expect(checkQuestion(running({ phase: 'done' }), q, 10)).toEqual({})
   })
 
   test('other tools and empty question lists', () => {

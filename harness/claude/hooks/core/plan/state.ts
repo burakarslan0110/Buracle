@@ -31,7 +31,7 @@ export function goalVerificationOf(state: SessionState, live: boolean | undefine
   return typeof locked === 'boolean' ? locked : live !== false
 }
 
-export const STOP_GUARD_ESCAPE = 'The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user saying "stop", "wait" or "hold on" (or the same in their language), which Buracle records as a pause (run `buracle plan pause --kind discussion` too).'
+export const STOP_GUARD_ESCAPE = 'The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user asking you to stop, wait or hold on, in any language. Buracle records it only when the whole message is such a word in English or Turkish, so otherwise run `buracle plan pause --kind discussion` yourself.'
 
 export type StopWhy = 'disabled' | 'no-plan' | 'finished' | 'paused' | 'awaiting-approval' | 'question' | 'runaway-plan' | 'runaway-chain' | 'blocked' | 'plan-invalid'
   | 'background-wait' | 'read-only-mode' | 'runaway-escalate' | 'decision-answered'

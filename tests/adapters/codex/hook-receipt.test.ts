@@ -31,7 +31,7 @@ describe('Codex turn receipt (PARITY-3)', () => {
     expect(keys(await hook('PostToolUse', { cwd, tool_name: 'apply_patch', tool_input: { command: PATCH }, tool_response: 'Success.' }, d))).not.toContain('systemMessage')
     const stop = await hook('Stop', { cwd, last_assistant_message: 'Done, it works now.' }, d)
     expect(keys(stop)).toEqual(['systemMessage'])
-    expect(stop['systemMessage']).toBe('Buracle · 1 file (+1 −1) · ⚠ success claimed without evidence: no test or check ran after the change')
+    expect(stop['systemMessage']).toBe('Buracle · 1 file (+1 −1) · ⚠ unverified change')
     expect(await hook('Stop', { cwd }, d)).toEqual({})
 
     await hook('UserPromptSubmit', { cwd, prompt: 'again' }, d)

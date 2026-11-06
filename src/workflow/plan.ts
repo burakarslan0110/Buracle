@@ -106,6 +106,11 @@ export async function planInit(o: { type?: string, title?: string, slug?: string
   if (title === '') return fail('usage', '--title "<title>" is required')
   if (/[\r\n]/.test(title)) return fail('usage', '--title must be a single line')
   if (o.slug !== undefined && !isValidSlug(o.slug)) return fail('usage', `--slug must be kebab-case ASCII (a-z, 0-9, '-'), at most 64 characters (got '${o.slug}')`)
+  // A title in a script without Latin letters (Japanese, Cyrillic, Arabic, …) would fold to the bare
+  // fallback `plan`, so the file and branch name would not name the topic (PRD 2026-11-06 R13).
+  if (o.slug === undefined && !/[a-z0-9]/i.test(title.normalize('NFKD'))) {
+    return fail('slug_required', `the title "${title}" has no Latin letters to name the file: pass --slug with two to four short English kebab-case words (for example --slug saved-search)`)
+  }
   const root = (await toplevel(ctx.cwd)) ?? ctx.cwd
   const dir = o.dir !== undefined ? resolve(root, o.dir) : join(root, 'docs', docDirFor(type === 'Build' ? 'goal-build' : 'plan-build'))
   const baseSlug = o.slug ?? slugFromTitle(title)

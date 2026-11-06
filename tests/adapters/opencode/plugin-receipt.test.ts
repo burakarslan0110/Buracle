@@ -72,7 +72,7 @@ describe('OpenCode turn receipt, loop alarms and the long-turn notification (PAR
     await prompt(rt, 'change a')
     await rt.onToolAfter(done('edit', { filePath: join(root, 'src', 'a.ts'), oldString: 'export const a = 1', newString: 'export const a = 2' }, { diff: '' }, 'c1'))
     await endTurn(rt, 'It works now.')
-    expect(board()).toEqual(['Buracle · 1 file (+1 −1) · ⚠ success claimed without evidence: no test or check ran after the change'])
+    expect(board()).toEqual(['Buracle · 1 file (+1 −1) · ⚠ unverified change'])
     await prompt(rt, 'again')
     await rt.onToolAfter(done('edit', { filePath: join(root, 'src', 'a.ts'), oldString: 'export const a = 2', newString: 'export const a = 3' }, { diff: '' }, 'c2'))
     await rt.onToolAfter(done('shell', { command: 'bun test' }, { output: '3 pass', exit: 0 }, 'c3'))

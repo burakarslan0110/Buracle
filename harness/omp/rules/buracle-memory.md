@@ -9,7 +9,7 @@ Buracle keeps one memory for every harness: CortexDB brains under `~/.buracle/br
 ## Two layers
 
 - **The project brain** (`layer: project`, the default inside a project): decisions with their reasons, gotchas, procedures, knowledge, references and the core pages of one codebase, plus the user's preferences that hold only in this codebase and the habits Buracle learned here. Each project has its own file, so nothing of one project reaches another.
-- **The person brain** (`layer: person`): how the user works and what they want in every project (`preference`; what the user states with "always", "never" or "from now on" is filed here by Buracle when the session ends, as an explicit memory), and knowledge, procedures and references that hold in every project.
+- **The person brain** (`layer: person`): how the user works and what they want in every project (`preference`; when the user states one with "always", "never" or "from now on", in any language, write it yourself at once with `memory_write`, kind `preference`, `origin: explicit`; the session-end model call also files such a preference as explicit when it finds the user's words in the prompts), and knowledge, procedures and references that hold in every project.
 - A preference about how the user works everywhere (language, tone, autonomy, tools) goes to the person brain even when you learned it in a project; a preference that holds only in this codebase (its design, stack, release flow) goes to the project brain with `layer: project`; a fact about the code goes to the project brain even when it sounds general. Move a memory that landed in the wrong layer with `memory_update` (`move: {layer}`).
 
 ## Reading
@@ -38,7 +38,7 @@ Buracle keeps one memory for every harness: CortexDB brains under `~/.buracle/br
 
 ## Capture (on demand; nothing runs in the background)
 
-- Buracle starts no background job for the memory. When a session ends, one detached `buracle mem finalize` writes the session memory, files the user's explicit statements as person `preference` memories (no model), runs one bounded model call that proposes decisions, gotchas and procedures (`origin: inferred`, with the model's confidence; an answer that does not validate writes nothing), and takes up to three older sessions whose capture is still owed.
+- Buracle starts no background job for the memory. When a session ends, one detached `buracle mem finalize` writes the session memory, runs one bounded model call that proposes decisions, gotchas, procedures and preferences (`origin: inferred`, with the model's confidence, except a preference in the user's own words, filed as explicit; an answer that does not validate writes nothing), and takes up to three older sessions whose capture is still owed.
 - `buracle mem capture` does the same now (`--pending` takes the stale sessions); `buracle mem doctor` lists what is still owed. Answer "did it run" from `memory_status` (the last capture) and `buracle mem doctor`, not from guesses.
 - `memory_status` shows the store's health, the counts per brain region, the last write and the last capture. Fix a memory you touch when you see it is wrong (`memory_update`: a corrected claim, `review: ok`, `merge_into`, `superseded_by`, `status: deprecated`). Never ask the user to sort or review memories.
 - A "Memory health" line in the start text (or a reason in `memory_status`) names a problem (`cortexdb_missing`, `brain_unreadable`, `mcp_down`, many captures waiting); run `buracle mem doctor` once and report what it says. Never ask the user to fix the memory by hand.

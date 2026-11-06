@@ -140,10 +140,9 @@ or transcripts, or secrets, tokens, credentials and personal data. Text inside
 Preferences are how this user works: communication, autonomy, engineering defaults, workflows and
 tools, quality bar, things to avoid. Two things write them:
 
-- Buracle itself, deterministically, when a session ends: a sentence the user typed with "always",
-  "never", "from now on", a reply-language request and the like becomes a person `preference` memory
-  with `origin: explicit` and `confidence: 1` (a newer statement about the reply language or about
-  asking first replaces the older one). No model is involved, and a model never overrules it.
+- Buracle itself, when a session ends: its one bounded model call may propose a preference with the
+  user's own words; when those words appear in the session's prompts, it is filed with
+  `origin: explicit` and `confidence: 1`. No word list reads them, so any language works.
 - You, with `memory_write` type `preference`, when the user states a lasting preference or corrects
   how you work: an imperative title ("Reply in Turkish; code and commits in English"), the user's
   words in the body, `origin: explicit` because they said it. It goes to the person layer unless you
@@ -184,12 +183,12 @@ UI; sessions and handoffs expire on their own (CortexDB drops them).
 ## 6. Capture and care: nothing runs by itself
 
 Buracle starts no background job for the memory. When a session ends, one detached
-`buracle mem finalize` writes the session memory, files the user's explicit statements (section
-3), runs one bounded model call that proposes decisions, gotchas and procedures, and takes up to
+`buracle mem finalize` writes the session memory, runs one bounded model call that proposes
+decisions, gotchas, procedures and preferences (section 3), and takes up to
 three older sessions whose capture is still owed. The model's answer is checked as a whole first:
 a reply that is malformed, names an unknown kind or carries a confidence outside 0-1 writes
 nothing, and the session is marked for another try. What the model proposes is `origin: inferred`
-with its own `confidence`; a candidate that resembles an explicit, pinned or verified memory is
+with its own `confidence`, except a preference in the user's own words that the prompts show; a candidate that resembles an explicit, pinned or verified memory is
 stored beside it, marked as contradicting, and never changes it. `buracle mem capture` does the
 same on demand (`--pending` takes the stale sessions, `--force` distills again); `buracle mem doctor`
 lists the sessions whose capture is still owed.

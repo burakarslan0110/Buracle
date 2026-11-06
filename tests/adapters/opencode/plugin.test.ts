@@ -337,13 +337,12 @@ describe('opencode server plugin: permission.evaluate guards', () => {
     expect(allowed.effect).toBe('allow')
   }))
 
-  test('H09 denies a routine "should I continue?" question while an approved plan runs', () => withSandbox(async ({ root }) => {
+  test('H09 denies no question while an approved plan runs: "should I continue?" and a real question are both allowed', () => withSandbox(async ({ root }) => {
     saveState('opencode', SID, planState())
     const { f } = await runtime(root)
     await f.trigger('tool.execute.before', { tool: 'question', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_q', input: { questions: [{ question: 'Should I continue?', options: [{ label: 'Yes' }, { label: 'No' }] }] } })
     const ev = await f.trigger('permission.evaluate', evaluation('question', ['*'], 'call_q'))
-    expect(ev.effect).toBe('deny')
-    expect(ev.message).toStartWith('[Buracle H09 plan.question] ')
+    expect(ev.effect).toBe('allow')
     await f.trigger('tool.execute.before', { tool: 'question', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_q2', input: { questions: [{ question: 'Use Postgres or SQLite for the cache?', options: [{ label: 'Postgres' }, { label: 'SQLite' }] }] } })
     const real = await f.trigger('permission.evaluate', evaluation('question', ['*'], 'call_q2'))
     expect(real.effect).toBe('allow')
@@ -514,7 +513,7 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
     expect(mem.handoffs[0]?.markdown).toContain('None.')
   }))
 
-  test('prompt hook records pause and resume intents and a history hint; guard continuations are skipped', () => withSandbox(async ({ root }) => {
+  test('prompt hook records pause and resume intents and no history hint; guard continuations are skipped', () => withSandbox(async ({ root }) => {
     saveState('opencode', SID, planState())
     const { f } = await runtime(root)
     const prompt = (text: string, metadata?: Record<string, unknown>) => ({ sessionID: SID, messageID: 'msg_p', prompt: { text }, delivery: 'steer' as const, ...(metadata ? { metadata } : {}) })
@@ -527,7 +526,7 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
     await f.trigger('session.prompt', prompt('geçen sefer ne karar vermiştik?'))
     const ev: SessionContextEvent = { sessionID: SID, model: { id: 'm1', providerID: 'p' }, agent: 'build', system: [], messages: [], options: {}, tools: {} }
     await f.trigger('session.context', ev)
-    expect(ev.system.some(p => p.text.includes('memory_search'))).toBe(true)
+    expect(ev.system.some(p => p.text.includes('Earlier work'))).toBe(false)
   }))
 
   test('shell.create.before exports the session of the correlated call and clears foreign session ids', () => withSandbox(async ({ root }) => {

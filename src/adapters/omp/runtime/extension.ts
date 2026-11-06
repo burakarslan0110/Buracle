@@ -332,7 +332,6 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
         const state = guarded('H09 state', () => deps.state.load(sid))
         if (state !== undefined) {
           const r = guarded('H09 checkQuestion', () => deps.policy.checkQuestion(state, call, deps.now()))
-          if (r?.deny) return deny(r.deny, 'H09')
           if (r?.context !== undefined) questionContext.push(r.context)
         }
       }
@@ -681,7 +680,7 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
     registerStopGuard(pi, {
       deps, live, guarded, report: (what, e) => report(what, e), spool,
       turnEnded: sid => { guarded('H28 project assets', () => deps.projectAssets.link(memo(sid).workspaceInfo?.root, deps.now())) },
-      released: (sid, ctx, last) => receipts.end(sid, ctx, last, live().config),
+      released: (sid, ctx) => receipts.end(sid, ctx, live().config),
       noticed: { get: sid => memo(sid).noticed === true, set: sid => { memo(sid).noticed = true } },
     })
 

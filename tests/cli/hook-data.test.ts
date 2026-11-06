@@ -39,7 +39,7 @@ describe('hookBundle', () => {
     expect(b.agents.map(a => ({ id: a.id, file: a.file, frontmatter: a.frontmatter }))).toEqual(full.agents.map(a => ({ id: a.id, file: a.file, frontmatter: a.frontmatter })))
     expect(catalogSkills(b.skills)).toEqual(catalogSkills(full.skills))
     for (const h of ['claude', 'codex'] as Harness[]) expect(catalogMcp(b.mcp, h)).toEqual(catalogMcp(full.mcp, h))
-    expect(b.skills.some(s => s.triggers !== undefined)).toBe(true)
+    expect(b.skills.some(s => s.triggers?.ask !== undefined || s.triggers?.topic !== undefined)).toBe(false)
     expect(b.routing.categories.some(c => c.triggers !== undefined)).toBe(true)
     expect(b.agents.filter(a => a.frontmatter['output'] === 'json').map(a => a.id)).toEqual(full.agents.filter(a => a.frontmatter['output'] === 'json').map(a => a.id))
     expect(b.rules.map(r => ({ id: r.id, scope: r.scope, file: r.file, frontmatter: r.frontmatter }))).toEqual(full.rules.map(r => ({ id: r.id, scope: r.scope, file: r.file, frontmatter: r.frontmatter })))

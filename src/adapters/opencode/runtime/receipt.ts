@@ -61,11 +61,11 @@ export class TurnReceipts {
     if (alarm !== undefined) this.host.post(sid, `Buracle: ${alarm}`, 'warning')
   }
 
-  end(sid: string, answer: string, cfg: Pick<BuracleConfig, 'workflow'>, notify = true): void {
+  end(sid: string, cfg: Pick<BuracleConfig, 'workflow'>, notify = true): void {
     const t = this.turns.get(sid)
     if (t === undefined) return
     this.turns.set(sid, { receipt: emptyReceipt() })
-    const summary = receiptLine(t.receipt, answer)
+    const summary = receiptLine(t.receipt)
     if (summary?.warn === true) this.host.post(sid, summary.line, 'warning')
     else if (summary !== undefined) this.host.log('turn receipt', { sid, line: summary.line })
     if (t.startedAt === undefined || !notify) return

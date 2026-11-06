@@ -124,9 +124,11 @@ describe('PreToolUse', () => {
   test('H09 sees the session state for request_user_input', () => withSandbox(async () => {
     saveState('codex', SID, planState())
     const r = await handleCodexHook('PreToolUse', payload('PreToolUse', { tool_name: 'request_user_input', tool_input: { questions: [{ question: 'Should I keep waiting?' }] } }), ctx(), deps({
-      ...quiet, checkQuestion: s => (s.plan?.status === 'IN_PROGRESS' ? { deny: 'keep working' } : {}),
+      ...quiet, checkQuestion: s => (s.plan?.status === 'IN_PROGRESS' ? { context: 'pause first' } : {}),
     }))
-    expect(JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason).toBe('Buracle H09: keep working')
+    const out = JSON.parse(r.stdout).hookSpecificOutput
+    expect(out.permissionDecision).toBeUndefined()
+    expect(out.additionalContext).toContain('pause first')
   }))
 
   test('H03: a routing denial names its hook; routeTool owns the nudge (bashNudge is never called separately)', () => withSandbox(async () => {
@@ -367,26 +369,19 @@ describe('UserPromptSubmit', () => {
     expect(runner.rec.spool).toEqual([])
   }))
 
-  test('H22: a question about earlier work gets the router\'s memory line (English); a question is no statement, so only the prompt itself is spooled', () => withSandbox(async () => {
+  test('H22: a question about earlier work gets no memory line (the agent searches memory under its rules); only the prompt itself is spooled', () => withSandbox(async () => {
     const d = deps(quiet)
     const r = await handleCodexHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'geçen sefer neden böyle yapmıştık?' }), ctx(), d)
-    const out = JSON.parse(r.stdout)
-    expect(keys(out.hookSpecificOutput)).toEqual(['additionalContext', 'hookEventName'])
-    const text: string = out.hookSpecificOutput.additionalContext
-    expect(text).toStartWith('Buracle routing for this prompt:')
-    expect(text).toContain('Earlier work: search memory first (memory_search, then memory_get')
-    expect(text).not.toMatch(/[çğıöşüÇĞİÖŞÜ]/)
+    const text: string = r.stdout === '' ? '' : String(JSON.parse(r.stdout).hookSpecificOutput?.additionalContext ?? '')
+    expect(text).not.toContain('Earlier work')
     expect(d.rec.spool).toEqual([{ ts: NOW, ev: 'prompt', excerpt: 'geçen sefer neden böyle yapmıştık?' }])
   }))
 
-  test('H26: an explicit standing rule is spooled as a prompt-signal statement before the prompt; a workflow command or a language alone is not', () => withSandbox(async () => {
+  test('H26: a standing rule spools only the prompt (no word list reads it); a workflow command spools the prompt too', () => withSandbox(async () => {
     const d = deps(quiet)
     const rule = 'Bundan sonra her zaman Türkçe yanıt ver.'
     await handleCodexHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: rule }), ctx(), d)
-    expect(d.rec.spool).toEqual([
-      { ts: NOW, ev: 'prompt-signal', signal: { kind: 'statement', key: 'communication.reply_language=tr', category: 'communication', text: 'Reply in Turkish', quote: rule } },
-      { ts: NOW, ev: 'prompt', excerpt: rule },
-    ])
+    expect(d.rec.spool).toEqual([{ ts: NOW, ev: 'prompt', excerpt: rule }])
     const plain = deps(quiet)
     await handleCodexHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: '$plan-build Bu projede testleri çalıştır' }), ctx(), plain)
     expect(plain.rec.spool.map(e => e.ev)).toEqual(['prompt'])

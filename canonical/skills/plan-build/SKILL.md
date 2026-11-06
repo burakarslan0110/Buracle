@@ -76,13 +76,13 @@ Buracle shows the run live, in the workflow band above the prompt and in the sta
 
 ## Talking to the user
 
-Write the plan in English, in the ASD-STE100 structural style of the *Plain language* rule, whatever language the user writes in. Reply in the user's language. Keep the markers Buracle reads (listed in the *Plain language* rule; `## Inventory` and `## Deviations` among them, which the validator and `buracle plan audit` read by these English names), commands and identifiers verbatim.
+Write the plan and the reply in the user's language, chosen as *Language* in the *Plain language* rule says, in the ASD-STE100 structural style of that rule. A plan you revise keeps its own language. Keep the markers Buracle reads (listed in the *Plain language* rule; `## Inventory` and `## Deviations` among them, which the validator and `buracle plan audit` read by these English names), commands and identifiers verbatim.
 
-**Escape hatch:** while a registered plan is not VERIFIED, the stop guard keeps your turn going. The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user saying "stop", "wait" or "hold on" (or the same in their language), which Buracle records as a pause (run `buracle plan pause --kind discussion` too). The user's "continue" or `buracle plan resume` ends it.
+**Escape hatch:** while a registered plan is not VERIFIED, the stop guard keeps your turn going. The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user asking you to stop, wait or hold on, in any language. Buracle records it only when the whole message is such a word in English or Turkish, so otherwise run `buracle plan pause --kind discussion` yourself. The user's "continue" or `buracle plan resume` ends it.
 
 **Pause before you ask.** Once a plan is registered, before any question that may end your turn (plan approval, a material decision, a step only the user can do), run `buracle plan pause --kind decision --reason "<the question>"` (use `--kind manual` for a user action). Then ask with {{ask_user}}: 2 to 4 concrete options, your recommendation first. If {{ask_user}} is unavailable, ask in plain text with numbered options and end the turn. After the answer, run `buracle plan resume` and act on it.
 
-Not questions: progress updates, waiting for a build, choosing between equivalent internals. Decide, record the choice if it matters, keep going. If Buracle denies a question as routine, don't rephrase it; decide and continue.
+Not questions: progress updates, waiting for a build, choosing between equivalent internals. Decide, record the choice if it matters, keep going.
 
 Go by the meaning of the reply, in whatever language it comes:
 
@@ -125,7 +125,7 @@ Tasks that share files or build on each other stay in your session, in order. On
 3. At a gate (plan approval, a goal-build lock, a real question, the result review) the lane pauses its own binding and returns `blocked` with its plan path. A goal-build lock is the run's own commitment, but `buracle plan set approved true` is still yours to run. You run the reviewers on its plan or diff (recorded with `--lane <slug>` too, so your compaction texts name them), ask the user where the gate needs them, record the result with the same `--lane <slug>` (`buracle plan set approved true --lane <slug>`, `buracle plan approve-result --lane <slug>`), and continue the lane or brief a new one.
 4. Merge each lane in dependency order with `buracle worktree sync <slug>` and run the checks after every merge. Then `buracle plan verify --lane <slug>` while the lane worktree still exists (it needs the lane's worktree metadata, not its plan file), and only then `buracle worktree cleanup <slug>`.
 
-Write the plan per the *Plain language* rule: English, the main message first, and a Mermaid diagram of the change's flow in the file when the change touches more than two modules. The user approves the plan file itself. The final report goes in the reply, in the user's language, with a flow shown as a numbered list or a table.
+Write the plan per the *Plain language* rule: in the user's language, the main message first, and a Mermaid diagram of the change's flow in the file when the change touches more than two modules. The user approves the plan file itself. The final report goes in the reply, in the user's language, with a flow shown as a numbered list or a table.
 
 ## Review agents
 

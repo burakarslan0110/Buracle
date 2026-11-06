@@ -1222,3 +1222,28 @@ describe('parity: the same instructions on every harness (PRD R13)', () => {
     expect(new Set(RECORDED_HARNESS_BLOCKS.map(r => key(r.skill, r.firstLine))).size).toBe(RECORDED_HARNESS_BLOCKS.length)
   })
 })
+
+describe('parity: documents follow the user\'s language (PRD 2026-11-06 R18)', () => {
+  // The language order of the plain-language rule, with no sentence that makes a document English.
+  const ORDER = [
+    'An explicit request in this conversation',
+    'A language rule of the project for this output',
+    "The harness's own language setting, where the harness has one.",
+    'An explicit language preference in memory.',
+    "The language of the user's messages. A message with no language signal",
+  ]
+  const holds = (text: string) => ORDER.every(s => text.includes(s)) && !/\bis English\b|English section titles/.test(text)
+
+  test('the rendered explain rule carries the same language order on all four harnesses', async () => {
+    const { canonical, files } = await built()
+    const explain = canonical.rules.find(r => r.id === 'explain')
+    if (explain === undefined) throw new Error('canonical has no explain rule')
+    const has: Record<Harness, boolean> = {
+      claude: holds(renderClaudeRule(explain)),
+      codex: holds(file(files.codex, 'AGENTS.md')),
+      opencode: holds(file(files.opencode, 'AGENTS.block.md')),
+      omp: holds(file(files.omp, 'rules/buracle-explain.md')),
+    }
+    expect(has).toEqual({ claude: true, codex: true, opencode: true, omp: true })
+  })
+})

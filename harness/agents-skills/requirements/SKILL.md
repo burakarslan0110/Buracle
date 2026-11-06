@@ -27,9 +27,9 @@ Turn a fuzzy idea into an approved product requirements document, then hand off 
 5. **Cite.** Statements about existing code carry `path:line`; external facts carry a research citation
    `[n]`. The PRD contains no `TBD`, `TODO` or `FIXME`: an unresolved item is an *Open question* with an
    owner.
-6. **Language.** Talk to the user in the language they write in. Write the PRD in English, in the
-   ASD-STE100 structural style of the *Plain language* rule, whatever that language is. Keep
-   identifiers, paths and commands verbatim.
+6. **Language.** Talk to the user and write the PRD in the user's language, chosen as *Language* in
+   the *Plain language* rule says, in the ASD-STE100 structural style of that rule. A PRD you revise
+   keeps its own language. Keep identifiers, paths, commands and the frontmatter verbatim.
 7. **Be a thought partner, not an order taker.** Challenge assumptions, surface trade-offs, and name red
    flags and scope-creep risks while they are still cheap to fix. Ask of every proposed feature whether
    it needs to exist at all: the cheapest scope to cut is the scope never specified.
@@ -155,16 +155,17 @@ experiences, gains, costs and risks, effort (S, M or L), and a recommendation wi
 
 1. `buracle flow phase write`. Path: `docs/requirements/YYYY-MM-DD-<slug>.md` at the repository root, with
    today's date. The slug is lowercase kebab-case ASCII from the title (letters with diacritics folded
-   to their base letter, the dotless i to i), at most 60 characters. If the file exists, append `-2`,
+   to their base letter, the dotless i to i), at most 60 characters. When the title has no Latin
+   letters, use two to four short English words for the topic. If the file exists, append `-2`,
    `-3`. Never overwrite another PRD.
 2. Fill the template, then run its self-review and fix every failure before showing anything. Write
-   it per the *Plain language* rule, in English: the problem and the decision first, and a Mermaid
+   it per the *Plain language* rule, in the user's language: the problem and the decision first, and a Mermaid
    diagram of the user flow or the system boundary in the file, after the text, when either carries
    the meaning. The Markdown file is the PRD; there is no page. Set the frontmatter's `harness` to the
    `session.harness` that Phase 0's `buracle plan status --json` printed; without a session, leave
    the line out. Then run `buracle plan validate docs/requirements/<file>.md --strict` and fix every
-   warning it reports (Turkish prose, a sentence over 25 words, a semicolon in prose, a path in an old
-   document folder) before the next step.
+   warning it reports (a sentence over 25 words, a semicolon in prose, a path in an old document
+   folder) before the next step.
 3. `buracle notify prd_approval "<PRD title>" "docs/requirements/<file>.md" --plan docs/requirements/<file>.md` (best
    effort; ignore failures). When the web UI runs it prints `Review page: <url>`, where the user reads
    the PRD and pins notes to passages.

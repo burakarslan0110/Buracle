@@ -340,7 +340,7 @@ export function slugFromTitle(title: string, max = 50): string {
   const folded = title
     .replace(/İ/g, 'i').replace(/I/g, 'i').replace(/ı/g, 'i')
     .toLowerCase()
-    .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's').replace(/ö/g, 'o').replace(/ç/g, 'c')
+    .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's').replace(/ö/g, 'o').replace(/ç/g, 'c').replace(/ß/g, 'ss')
     .normalize('NFKD').replace(/[̀-ͯ]/g, '')
   let slug = folded.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
   if (slug.length > max) {

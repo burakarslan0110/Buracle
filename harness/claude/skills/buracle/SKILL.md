@@ -92,10 +92,10 @@ VERIFIED plan only: `buracle plan set phase done` runs the same checks as `burac
   decision, a step only the user can do), record it:
   `buracle plan pause --kind decision --reason "<question>"` (`--kind manual` when the user must do
   something by hand). Then ask with `AskUserQuestion`. After the answer, `buracle plan resume`.
-- **Escape hatch:** while a registered plan is not VERIFIED, the stop guard keeps your turn going. The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user saying "stop", "wait" or "hold on" (or the same in their language), which Buracle records as a pause (run `buracle plan pause --kind discussion` too). The user's "continue" or `buracle plan resume` ends it. Use it for real waits, never to dodge remaining work.
+- **Escape hatch:** while a registered plan is not VERIFIED, the stop guard keeps your turn going. The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user asking you to stop, wait or hold on, in any language. Buracle records it only when the whole message is such a word in English or Turkish, so otherwise run `buracle plan pause --kind discussion` yourself. The user's "continue" or `buracle plan resume` ends it. Use it for real waits, never to dodge remaining work.
 - **No routine questions.** In an approved run, never ask "should I continue?" or "should I keep
-  waiting?". The question guard rejects them; keep working, or wait on the job with `TodoWrite` (or `TaskCreate`/`TaskUpdate`, whichever this session has, if any) and
-  your harness's background facilities.
+  waiting?". No guard rejects them any more, so this is yours to keep: keep working, or wait on the
+  job with `TodoWrite` (or `TaskCreate`/`TaskUpdate`, whichever this session has, if any) and your harness's background facilities.
 - **Approval belongs to the user.** Run `buracle plan set approved true` only after the user
   approves in answer to the approval question ("approve", "yes", "ok", "lgtm", or the same in their
   language). Outside that question, a bare "ok" is an acknowledgment, not approval.
@@ -105,7 +105,8 @@ VERIFIED plan only: `buracle plan set phase done` runs the same checks as `burac
   and passed. It refuses a plan without a filled `## Evidence` section (Feature: also
   `## DoD Audit`, and `## E2E Results` when the plan has `SC-n` scenarios; Bugfix: also
   `## RED Evidence`), but the content is yours to make true.
-- **Stop words.** "stop", "wait", "hold on" (Buracle also recognizes them in the user's language):
+- **Stop words.** "stop", "wait", "hold on", in any language (Buracle's hook acts only on a whole
+  message in English or Turkish):
   run `buracle plan pause --kind discussion --reason "<their words>"` (harmless if the prompt hook
   already recorded it), give a status of at most five lines, end the turn. "Continue", "go on",
   "pick up where you left off": check `buracle plan status --json` and run `buracle plan resume` if

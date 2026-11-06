@@ -19,125 +19,67 @@ describe('contract minimum (CONTRACTS §10.1)', () => {
   expectAll([['dur', 'pause'], ['bekle', 'pause'], ['stop', 'pause'], ['devam', 'resume']])
 })
 
-describe('pause', () => {
+// H10 reads a control word only when it is the whole message (PRD follow-up 2026-11-06), after the
+// punctuation and the polite or filler words around it. A control word inside a longer sentence, or in
+// any other language, is the agent's call under its rules.
+describe('pause: the whole message is a pause word', () => {
   expectAll([
     ['dur!', 'pause'], ['DUR', 'pause'], ['Dur.', 'pause'], ['durr', 'pause'], ['duuur', 'pause'], ['dur bir dakika', 'pause'], ['lütfen dur', 'pause'],
-    ['tamam dur', 'pause'], ['durun', 'pause'], ['dursana', 'pause'], ['Burada dur ve bana sor', 'pause'], ['şimdilik dur, akşam bakarız', 'pause'],
-    ['durdur', 'pause'], ['her şeyi durdur', 'pause'], ['planı durdur', 'pause'], ['duraklat', 'pause'], ['duraklatın lütfen', 'pause'],
-    ['bekle', 'pause'], ['bekleyin', 'pause'], ['biraz bekle', 'pause'], ['bir dakika bekle', 'pause'], ['beni bekle', 'pause'], ['cevabımı bekle', 'pause'],
-    ['onayımı bekle, sonra devam', 'pause'], ['bi dakika', 'pause'], ['bir saniye, bir şey soracağım', 'pause'], ['durur musun', 'pause'],
-    ['durabilir misin?', 'pause'], ['bekler misin', 'pause'],
+    ['tamam dur', 'pause'], ['durun', 'pause'], ['dursana', 'pause'], ['durdur', 'pause'], ['duraklat', 'pause'], ['duraklatın lütfen', 'pause'],
+    ['bekle', 'pause'], ['bekleyin', 'pause'], ['biraz bekle', 'pause'], ['bir dakika bekle', 'pause'], ['bi dakika', 'pause'], ['bir saniye', 'pause'],
+    ['şimdilik dur', 'pause'], ['durur musun', 'pause'], ['durabilir misin?', 'pause'], ['bekler misin', 'pause'], ['o zaman dur', 'pause'],
     ['Stop', 'pause'], ['STOP!!!', 'pause'], ['stop it', 'pause'], ['please stop', 'pause'], ['ok stop', 'pause'], ['stop now', 'pause'], ['pause', 'pause'],
-    ['Pause the plan for now', 'pause'], ['wait', 'pause'], ['wait, that is wrong', 'pause'], ['Wait! Which file is this?', 'pause'], ['hold on', 'pause'],
-    ['hold on, I need to check something', 'pause'], ['Hold up.', 'pause'], ['halt', 'pause'], ['one sec', 'pause'], ['just a moment', 'pause'],
-    ['That looks wrong. Stop.', 'pause'], ['stop everything', 'pause'], ['That is not what I asked for at all\nstop', 'pause'],
-    ['Tamam, anladım.\nŞimdilik bekle', 'pause'], ['I checked the output and it looks fine now\n\ncontinue', 'resume'], ['devam etme', 'pause'], ['devam etmeyin', 'pause'], ["don't continue", 'pause'],
-    ['do not proceed', 'pause'], ['/plan-build pause', 'pause'], ['/buracle:plan-build dur', 'pause'], ['$plan-build pause', 'pause'],
-    ['Stop! The button is broken.', 'pause'], ['wait, the stop button is fine', 'pause'], ['Dur, bu butonu değil diğerini düzelt', 'pause'],
-    ['o zaman dur', 'pause'],
-    ['wait for me', 'pause'], ['wait for my approval before you push', 'pause'], ['Wait for our answer.', 'pause'],
+    ['wait', 'pause'], ['hold on', 'pause'], ['Hold up.', 'pause'], ['halt', 'pause'], ['one sec', 'pause'], ['just a moment', 'pause'],
+    ['devam etme', 'pause'], ['devam etmeyin', 'pause'], ["don't continue", 'pause'], ['do not proceed', 'pause'],
+    ['/plan-build pause', 'pause'], ['/buracle:plan-build dur', 'pause'], ['$plan-build pause', 'pause'],
   ])
 })
 
-describe('resume', () => {
+describe('resume: the whole message is a resume word', () => {
   expectAll([
     ['devam', 'resume'], ['Devam et', 'resume'], ['devam edelim', 'resume'], ['devam ediyoruz', 'resume'], ['devam edebilirsin', 'resume'],
     ['tamam devam', 'resume'], ['evet devam et', 'resume'], ['hadi devam', 'resume'], ['devamke', 'resume'], ['sürdür', 'resume'], ['surdur', 'resume'],
-    ['kaldığın yerden devam et', 'resume'], ['kaldigin yerden', 'resume'], ['kaldığımız yerden', 'resume'], ['durma', 'resume'], ['durmadan devam et', 'resume'],
-    ['neden devam etmiyorsun?', 'resume'], ['devam edebilir miyiz', 'resume'],
-    ['devam edin', 'resume'], ['devam eder misin', 'resume'], ['devam lütfen', 'resume'], ['devam dedim', 'resume'], ['Tamam, devam ediyoruz', 'resume'],
-    ['Testler geçti, devam', 'resume'], ['devam ama önce testleri çalıştır', 'resume'], ['çalışmaya devam et', 'resume'], ['peki o zaman devam ediyoruz', 'resume'],
-    ['continue', 'resume'], ['Continue.', 'resume'], ['resume', 'resume'], ['proceed', 'resume'], ['go on', 'resume'], ['go ahead', 'resume'],
-    ['keep going', 'resume'], ['carry on', 'resume'], ["don't stop", 'resume'], ['do not stop', 'resume'], ['Looks good. Continue.', 'resume'],
-    ['ok, continue with task 3', 'resume'], ['/plan-build resume', 'resume'], ['/goal-build devam', 'resume'], ['DEVAM', 'resume'],
+    ['kaldığın yerden devam et', 'resume'], ['kaldigin yerden', 'resume'], ['durma', 'resume'], ['devam edin', 'resume'], ['devam lütfen', 'resume'],
+    ['Tamam, devam ediyoruz', 'resume'], ['continue', 'resume'], ['Continue.', 'resume'], ['resume', 'resume'], ['proceed', 'resume'], ['go on', 'resume'],
+    ['go ahead', 'resume'], ['keep going', 'resume'], ['carry on', 'resume'], ["don't stop", 'resume'], ['do not stop', 'resume'],
+    ['/plan-build resume', 'resume'], ['/goal-build devam', 'resume'], ['DEVAM', 'resume'],
   ])
 })
 
-describe('stop (cancel)', () => {
+describe('stop: the whole message is a cancel word', () => {
   expectAll([
-    ['iptal', 'stop'], ['iptal et', 'stop'], ['İptal edelim.', 'stop'], ['vazgeç', 'stop'], ['vazgeçtim', 'stop'], ['bundan vazgeçelim', 'stop'],
-    ['vazgec', 'stop'], ['bırak', 'stop'], ['bırak bunu', 'stop'], ['bunu bırak', 'stop'], ['bırakalım', 'stop'], ['cancel', 'stop'], ['abort', 'stop'],
-    ['abandon the plan', 'stop'], ['cancel the plan', 'stop'], ['never mind', 'stop'], ['forget it', 'stop'], ['iptal et ve dur', 'stop'],
-    ['drop it', 'stop'],
-    ['boşver', 'stop'], ['Boş ver.', 'stop'], ['boşverin', 'stop'], ['boş verelim', 'stop'], ['Boşver bunu', 'stop'], ['unut gitsin', 'stop'],
-    ['bunu unut', 'stop'], ['Unut gitsin, başka bir şey yapalım.', 'stop'], ['Neyse, boşver.', 'stop'], ['Tamam, bunu unut.', 'stop'],
+    ['iptal', 'stop'], ['iptal et', 'stop'], ['İptal edelim.', 'stop'], ['vazgeç', 'stop'], ['vazgeçtim', 'stop'], ['vazgec', 'stop'], ['bırak', 'stop'],
+    ['bırakalım', 'stop'], ['cancel', 'stop'], ['abort', 'stop'], ['abandon the plan', 'stop'], ['cancel the plan', 'stop'], ['never mind', 'stop'],
+    ['forget it', 'stop'], ['drop it', 'stop'], ['boşver', 'stop'], ['Boş ver.', 'stop'], ['boşverin', 'stop'], ['unut gitsin', 'stop'], ['Neyse, boşver.', 'stop'],
   ])
 })
 
-describe('history', () => {
+describe('a control word inside a longer message is no command: the agent decides', () => {
   expectAll([
-    ['geçen sefer ne yapmıştık?', 'history'], ['daha önce bunu konuşmuştuk', 'history'], ['önceki oturumda ne oldu', 'history'],
-    ['neden böyle yaptık?', 'history'], ['hatırla, bu projede pnpm kullanıyoruz', 'history'], ['hatırlıyor musun', 'history'], ['ne karar vermiştik?', 'history'],
-    ['last time we used redis', 'history'], ['Why did we pick FTS5?', 'history'], ['What did we decide about auth?', 'history'], ['remember the rate limit issue?', 'history'],
-    ['previously this failed', 'history'],
+    ['Burada dur ve bana sor', null], ['şimdilik dur, akşam bakarız', null], ['her şeyi durdur', null], ['planı durdur', null], ['beni bekle', null],
+    ['onayımı bekle, sonra devam', null], ['bir saniye, bir şey soracağım', null], ['Pause the plan for now', null], ['wait, that is wrong', null],
+    ['Wait! Which file is this?', null], ['hold on, I need to check something', null], ['That looks wrong. Stop.', null], ['stop everything', null],
+    ['Stop! The button is broken.', null], ['wait for my approval before you push', null], ['devam dedim', null], ['Testler geçti, devam', null],
+    ['devam ama önce testleri çalıştır', null], ['çalışmaya devam et', null], ['neden devam etmiyorsun?', null], ['ok, continue with task 3', null],
+    ['Looks good. Continue.', null], ['bundan vazgeçelim', null], ['bırak bunu', null], ['iptal et ve dur', null], ['Unut gitsin, başka bir şey yapalım.', null],
+    ['dur, iptal et', null], ['bekle, sonra devam edersin', null],
+    ['Halt! Warte bitte.', null], ['Stopp', null], ['待って', null],
   ])
 })
 
 describe('no intent (false-positive corpus)', () => {
   expectAll([
-    ['durum nedir?', null], ['Durumu özetle', null], ['durum raporu yaz', null], ['otobüs durağı', null], ['durak ekranını düzelt', null],
-    ['devamlı hata veriyor', null], ['bu devamlı oluyor', null], ['devamı var mı', null], ['devamında ne var', null], ['dosyanın devamını oku', null],
-    ['beklenen sonuç 35', null], ['beklenmedik bir hata var', null], ['beklentim bu değildi', null], ['bekleniyor', null], ['dürüst ol', null],
-    ['neden durdu?', null], ['durduk yere hata verdi', null], ['süreç duruyor', null], ['build’in bitmesini bekle sonra testleri çalıştır', null],
-    ['sunucuyu durdur ve testleri çalıştır', null], ['testleri bekle', null], ['sonucu bekle', null], ['iptal butonunu düzelt', null],
-    ['siparişi iptal eden endpoint yaz', null], ['dosyayı olduğu gibi bırak', null], ['bu satırı boş bırak', null], ['vazgeçilmez bir özellik', null],
-    ['add a stop button', null], ['stop using grep, use rg', null], ['stop the dev server and run the tests', null], ['the parser should stop at EOF', null],
-    ['wait for the build to finish', null], ['make the loop continue on errors', null], ['fix the cancel button', null], ['cancel the order when payment fails', null],
-    ['abort controller does not work', null], ['add a pause button to the player', null], ['the stopwatch is broken', null], ['nonstop', null],
-    ['stop_words listesini güncelle', null], ['remember to run the tests', null], ['dur-kalk trafiğini simüle et', null],
-    ['Kullanıcı "dur" yazınca ne oluyor?', null], ['`devam` komutunu belgele', null], ['> dur\nbunu alıntıladım', null], ['', null], ['   ', null],
-    ['```\nstop\n```', null], ['bu kodu düzelt', null], ['testleri çalıştır', null], ['refactor the parser', null],
-    ['boş veri döndürüyor', null], ['testleri boş verme', null], ['şifremi unuttum ekranı', null], ['kullanıcı şifreyi unutursa ne olacak', null],
-  ])
-})
-
-describe('bug reports and status questions are not commands', () => {
-  expectAll([
-    ['Hata hâlâ devam ediyor, loglara bakar mısın?', null], ['Bu sorun devam ederse rollback yaparız.', null],
-    ['Devam eden testlerde timeout var.', null], ['Login sorunu devam ediyor mu?', null], ['Testler hâlâ devam ediyor mu?', null],
-    ['Devam eden görevler neler?', null], ['Migration devam edecek mi?', null], ['/buracle:plan-build devam eden siparişler için filtre ekle', null],
-    ['Testlerin devam etmesi lazım', null], ['Sorun hâlâ devam.', null], ['hata almaya devam ediyoruz, neden?', null],
-    ['Video kaldığı yerden devam etmiyor', null],
-    ['Are the tests still running?', null], ['What are the ongoing tasks?', null], ['Will the migration continue?', null],
-    ['The tests need to continue', null],
-    ['Continue button is disabled after login.', null], ['Continue button is disabled after login. Is that caused by the auth change?', null],
-    ['Stop button does not respond on iOS, please fix it.', null], ['/bugfix stop button does not work on the player page', null],
-    ['Pause menu crashes when I press escape.', null], ['/plan-build wait time on the upload page is too long', null],
-    ['Cancel button should close the dialog.', null], ['Resume button stays grey', null], ['Stop words are not filtered', null],
-    ['Dur butonu çalışmıyor, düzeltir misin?', null], ['Oynatıcıya bir dur butonu ekle', null], ['Bekle ekranı hiç kapanmıyor.', null],
-    ['Devam butonunun rengini değiştir', null], ['Devam butonu login sonrası pasif kalıyor.', null], ['Devam et butonu çalışmıyor', null],
-    ['Durdur tuşuna basınca uygulama donuyor', null], ['Stop butonu çalışmıyor', null], ["Continue button'una basınca hata veriyor", null],
-    ['Add a stop button to the player', null], ['Change the color of the continue button', null], ['fix stop button', null],
-    ['stop server and run the tests', null], ['pause video when the tab is hidden', null],
-    ['resume upload after the network comes back', null], ['Resume the video when the user returns', null], ['continue playback on the next device', null],
-  ])
-})
-
-describe('the control phrases every harness relies on', () => {
-  expectAll([
-    ['dur', 'pause'], ['bekle', 'pause'], ['durdur', 'pause'], ['dur bir dakika', 'pause'], ['bir saniye', 'pause'],
-    ['stop', 'pause'], ['wait', 'pause'], ['hold on', 'pause'],
-    ['devam', 'resume'], ['devam et', 'resume'], ['devam edin', 'resume'], ['devam edelim', 'resume'], ['kaldığın yerden devam', 'resume'],
-    ['hadi devam', 'resume'], ['sürdür', 'resume'], ['continue', 'resume'], ['go ahead', 'resume'],
-    ['vazgeç', 'stop'], ['iptal', 'stop'], ['never mind', 'stop'], ['forget it', 'stop'], ['drop it', 'stop'],
+    ['durum nedir?', null], ['Durumu özetle', null], ['otobüs durağı', null], ['devamlı hata veriyor', null], ['devamı var mı', null], ['beklenen sonuç 35', null],
+    ['neden durdu?', null], ['sunucuyu durdur ve testleri çalıştır', null], ['testleri bekle', null], ['iptal butonunu düzelt', null], ['dosyayı olduğu gibi bırak', null],
+    ['add a stop button', null], ['stop using grep, use rg', null], ['stop the dev server and run the tests', null], ['wait for the build to finish', null],
+    ['fix the cancel button', null], ['the stopwatch is broken', null], ['nonstop', null], ['Kullanıcı "dur" yazınca ne oluyor?', null], ['`devam` komutunu belgele', null],
+    ['> dur\nbunu alıntıladım', null], ['', null], ['   ', null], ['```\nstop\n```', null], ['Hata hâlâ devam ediyor, loglara bakar mısın?', null],
+    ['Continue button is disabled after login.', null], ['Dur butonu çalışmıyor, düzeltir misin?', null], ['Stop button does not respond on iOS, please fix it.', null],
+    ['geçen sefer ne yapmıştık?', null], ['Why did we pick FTS5?', null], ['remember the rate limit issue?', null],
   ])
 })
 
 describe('precedence and guard prompts', () => {
-  test('stop wins over pause and resume', () => {
-    expect(detectIntent('dur, iptal et')).toBe('stop')
-    expect(detectIntent('devam etme, vazgeçtim')).toBe('stop')
-  })
-
-  test('the earliest control word wins between pause and resume', () => {
-    expect(detectIntent('bekle, sonra devam edersin')).toBe('pause')
-    expect(detectIntent('devam et ama sonra dur')).toBe('resume')
-  })
-
-  test('control words win over history', () => {
-    expect(detectIntent('dur, geçen sefer ne yapmıştık?')).toBe('pause')
-  })
-
   test("Buracle's own stop-guard text is never read as the user's intent", () => {
     const { decision } = stopVerdict(
       { ...emptyState(), plan: { path: 'docs/plans/x.md', slug: 'x', status: 'IN_PROGRESS', type: 'Feature', phase: 'implement', registeredAt: 1 } },
@@ -197,84 +139,26 @@ describe('isUserText', () => {
     for (const t of ['stop. Another Claude session sent a message: x', 'why did <agent-message from="x"> arrive twice?', 'A peer session sent a message earlier', 'the <task-notification> tag is documented']) {
       expect({ t, user: isUserText(t) }).toEqual({ t, user: true })
     }
-    expect(detectIntent('stop. Another Claude session sent a message: x')).toBe('pause')
+    expect(detectIntent('stop. Another Claude session sent a message: x')).toBeNull()
+    expect(detectIntent(`stop${'.'.repeat(5000)}`)).toBeNull()
     const injected = '\n  Another Claude session sent a message while you were working:\n<cross-session-message from="s1">\nstop\n</cross-session-message>\n\nThis came from another Claude session, not typed by your user.'
     expect({ user: isUserText(injected), intent: detectIntent(injected) }).toEqual({ user: false, intent: null })
   })
 })
 
-describe('detectSignals (H22 memory signals)', () => {
+describe('detectSignals: control words only; no history or remember phrases (the agent decides)', () => {
   const sig = (text: string): PromptSignals => detectSignals(text)
-  test('the memory eval prompts', () => {
-    expect(sig('Nerede kalmıştık? Kaldığımız yerden devam edelim.')).toEqual({ control: 'resume', recall: true, write: false })
-    expect(sig('Testleri neden bun test ile çalıştırıyoruz, bunun sebebi neydi?')).toEqual({ control: null, recall: true, write: false })
-    expect(sig('Bunu unutma: bu projede commit mesajları İngilizce yazılıyor.')).toEqual({ control: null, recall: false, write: true })
-    expect(sig('remember this: we deploy on Fridays only after the smoke test.')).toEqual({ control: null, recall: false, write: true })
-    expect(sig('Geçen sefer bu projede önbellek katmanı için hangi kararı vermiştik?').recall).toBe(true)
-    expect(sig('What did we decide last time about the plan file format?').recall).toBe(true)
-  })
-
-  test('recall: questions about earlier work and its reasons', () => {
-    for (const t of ['Why did we pick FTS5?', 'where were we?', 'Do you remember the rate limit issue?', 'remember the token bug?', 'önceki oturumda ne oldu', 'neden böyle yaptık?', 'Bunu neden seçmiştik?', 'what was the reason for the cache?']) {
-      expect({ t, recall: sig(t).recall }).toEqual({ t, recall: true })
-    }
-  })
-
-  test('recall: "how did we", "have we ... before", "our decision" and the Turkish past forms of "we"', () => {
-    for (const t of [
-      'daha önce bu hatayı nasıl çözmüştük?', 'Bu konuda daha önce bir karar almış mıydık?', 'geçen sefer neden FTS5 seçmiştik?',
-      'Bu hatayı daha önce gördün mü?', 'daha önce bunu denedik mi?', 'Bu projede hangi test runner kullanıyorduk?', 'Ne yapıyorduk?',
-      'What was our decision on the lockfile policy?', 'Have we seen this error before?', 'How did we fix the codegraph timeout last week?',
-      'Did we ever add retries to the client?', 'Which ORM did we choose?', 'When did we switch to pnpm?', 'What was our plan for the migration?',
-    ]) {
-      expect({ t, recall: sig(t).recall }).toEqual({ t, recall: true })
-    }
-  })
-
-  test('"remember, ...?" with a question (English and Turkish) is a recall, not a write', () => {
-    expect(sig("hatırla, bu projede hangi test runner'ı kullanıyorduk?")).toEqual({ control: null, recall: true, write: false })
-    expect(sig('Hatırla, neden pnpm kullanıyoruz')).toEqual({ control: null, recall: true, write: false })
-    expect(sig('Remember, which test runner were we using?')).toEqual({ control: null, recall: true, write: false })
-    expect(sig('Remember that bug from the login page?')).toEqual({ control: null, recall: true, write: false })
-  })
-
-  test('write: requests to keep something', () => {
-    for (const t of ['not al: staging veritabanı her pazar sıfırlanıyor', 'hatırla, bu projede pnpm kullanıyoruz', 'Keep in mind that the API is rate limited.', "don't forget: tests run in CI only", 'From now on use pnpm in this repo.', 'take a note: the vault lives in ~/Documents/Buracle', "Don't forget that the staging DB resets every Sunday.", 'Unutma, staging her pazar sıfırlanıyor.', 'remember that for every project']) {
-      expect({ t, write: sig(t).write }).toEqual({ t, write: true })
-    }
-  })
-
-  test('no write: "don\'t forget to <verb>" and its Turkish twin are instructions', () => {
-    for (const t of ['testleri çalıştırmayı unutma', "don't forget to run the linter before you commit", 'Do not forget to bump the version.', 'PR açmayı da unutmayın', 'commit atmayı unutma lütfen']) {
-      expect({ t, write: sig(t).write }).toEqual({ t, write: false })
-    }
-  })
-
-  test('no recall: "last week" in feature talk, "optimistic" in Turkish, a decision table', () => {
-    for (const t of ["Show last week's sales on the dashboard", 'optimistik güncelleme ekle', 'Our decision table needs a new column', 'Optimistik kilitleme nasıl çalışır?']) {
-      expect({ t, recall: sig(t).recall }).toEqual({ t, recall: false })
-    }
-  })
-
-  test('a control word does not hide the memory signals', () => {
-    expect(sig('dur, geçen sefer ne yapmıştık?')).toEqual({ control: 'pause', recall: true, write: false })
-    expect(sig('stop. what did we decide about auth?')).toEqual({ control: 'pause', recall: true, write: false })
-  })
-
-  test('no signals: code tasks, feature talk, "before" as a plain word', () => {
-    for (const t of ['17 ile 23\'ü çarp.', 'Write a bash one-liner that counts the lines of every .md file in this folder.', 'remember the last selected tab in localStorage', 'daha önce bu fonksiyonu çağır', 'remember to run the tests', 'Note that the function returns null.', 'refactor the parser']) {
+  test('history questions and remember requests give no memory signal', () => {
+    for (const t of ['Nerede kalmıştık?', 'Why did we pick FTS5?', 'Geçen sefer hangi kararı vermiştik?', 'Bunu unutma: commit mesajları İngilizce.', 'remember this: we deploy on Fridays.', 'From now on use pnpm in this repo.', 'refactor the parser']) {
       expect({ t, s: sig(t) }).toEqual({ t, s: { control: null, recall: false, write: false } })
     }
-    expect(sig('Buracle stop guard: where were we?')).toEqual({ control: null, recall: false, write: false })
-    expect(sig('<task-notification>remember this</task-notification>')).toEqual({ control: null, recall: false, write: false })
-    expect(sig('"remember this" is a phrase users type')).toEqual({ control: null, recall: false, write: false })
   })
 
   test('control signals agree with detectIntent', () => {
-    for (const t of ['dur', 'devam', 'iptal', 'stop', 'continue', 'vazgeç', 'wait, that is wrong', 'stop using grep, use rg', 'geçen sefer ne yapmıştık?']) {
-      const i = detectIntent(t)
-      expect({ t, control: sig(t).control }).toEqual({ t, control: i === 'history' ? null : i })
+    for (const t of ['dur', 'devam', 'iptal', 'stop', 'continue', 'vazgeç', 'wait, that is wrong', 'stop using grep, use rg']) {
+      expect({ t, control: sig(t).control as Intent }).toEqual({ t, control: detectIntent(t) })
     }
+    expect(sig('Buracle stop guard: dur')).toEqual({ control: null, recall: false, write: false })
   })
 })
 
@@ -331,8 +215,9 @@ describe('H10 replies while the plan is paused (pausedReply, isResultApproval, i
     expect(isManualDone('not done yet')).toBe(false)
   })
 
-  test('no guidance for a discussion pause or a running plan', () => {
-    expect(pausedReply({ state: 'paused', kind: 'discussion' }, 'what next?')).toBeUndefined()
+  test('a discussion pause gets a meaning-based note (no word list); a running plan gets none', () => {
+    expect(pausedReply({ state: 'paused', kind: 'discussion' }, 'ok devam edelim, önce testleri çalıştır')).toBe('Buracle: the plan is paused because the user asked to stop. If this message means go on, in any language, run `buracle plan resume` and continue; otherwise answer the user and keep waiting.')
+    expect(pausedReply({ state: 'paused', kind: 'discussion', reason: 'the user sent a message while the plan was running (plan.autoPause)' }, 'what next?')).toBeUndefined()
     expect(pausedReply({ state: 'running' }, 'done')).toBeUndefined()
     expect(pausedReply(undefined, 'done')).toBeUndefined()
   })

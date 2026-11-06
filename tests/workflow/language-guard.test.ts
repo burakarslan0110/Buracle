@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
-import { promptSignals } from '../../src/core/memory/signals'
 import { finalize } from '../../src/memory/finalize'
 import { projectInit } from '../../src/memory/project-init'
 import { sessionStart } from '../../src/memory/session-record'
@@ -18,19 +17,16 @@ interface Allowed { why: string, only?: RegExp }
 
 const ALLOWED: Readonly<Record<string, Allowed>> = {
   'canonical/skill-triggers.yaml': { why: "the skill router's trigger phrases" },
-  'src/core/policy/intents.ts': { why: 'H10 control words and the H22 memory signals' },
-  'src/core/policy/questions.ts': { why: 'H09 routine questions' },
+  'src/core/policy/intents.ts': { why: 'H10 whole-message control words and the result-review approval' },
   'src/core/policy/consent.ts': { why: 'H20 consent and approval phrases' },
   'src/core/policy/consent-words.ts': { why: 'H20 approval words and the requests that name a gated operation' },
-  'src/core/policy/skill-router.ts': { why: 'the Turkish forms of an explicit skill request' },
   'src/core/policy/text.ts': { why: 'case folding' },
   'src/core/memory/brain.ts': { why: 'search folding of the terms line CortexDB indexes', only: /ı→i|`yanıtları` →|the dotless ı/ },
-  'src/core/memory/signals.ts': { why: 'the explicit preference statements in what the user types' },
+  'src/core/memory/signals.ts': { why: 'the topic words that sort a person preference into its region' },
   'src/core/memory/query.ts': { why: 'memory query stopwords' },
   'src/core/memory/stem.ts': { why: 'Turkish inflection endings that memory search strips from query words' },
   'src/core/memory/text.ts': { why: 'secret-word redaction and case folding' },
   'src/core/plan/state.ts': { why: 'the plan approval question', only: /onayl\[ıi\]yor musun/ },
-  'src/core/receipt.ts': { why: 'success claims', only: /\bCLAIM = / },
   'src/engine/git.ts': { why: 'slug folding', only: /\.replace\(\/[İıçğöşü]\/g/ },
   'src/engine/update/deps.ts': { why: "the update prompt's Turkish yes", only: /\|evet\)/ },
   'src/workflow/plan-file.ts': { why: 'slug folding', only: /Turkish folding \(|\.replace\(\/[İıçğöşü]\/g/ },
@@ -47,6 +43,9 @@ const ALLOWED: Readonly<Record<string, Allowed>> = {
   ...Object.fromEntries(['slugify', 'duration', 'window', 'bytes', 'frontmatter'].map(c => [`tests/fixtures/ab-test/plan-format/fixtures/${c}/docs/plan-build/baseline.md`, { why: 'ab-test fixture: a plan in the prompt-language format before the standard, the baseline arm of PRD R9' }])),
   ...Object.fromEntries(['slugify', 'duration', 'window', 'bytes', 'frontmatter'].map(c => [`tests/fixtures/ab-test/plan-format/fixtures/${c}/docs/plan-build/candidate.md`, { why: 'ab-test fixture: the English plan quotes the Turkish input its test uses', only: /Kurulum Başlar|ı, ş, ğ, ü, ö, ç and İ/ }])),
   ...Object.fromEntries(['slugify'].map(c => [`tests/fixtures/ab-test/plan-format/fixtures/${c}/tests/${c}.test.ts`, { why: 'ab-test fixture: the slug test folds Turkish letters' }])),
+  // The ab-test fixture of PRD 2026-11-06 G1 to G5: prompts in the user's languages (Turkish, German with
+  // its ü and ö, Japanese, Arabic) are the measured input, not text Buracle ships.
+  'tests/fixtures/ab-test/user-language/cases.json': { why: 'ab-test fixture: prompts in the user\'s languages, typed the way users type' },
 }
 
 const EVAL_CASES = /(?:^|\/)skills\/[^/]+\/evals\/cases\.json$/
@@ -138,6 +137,13 @@ describe('language guard (R1): what Buracle ships is English', () => {
     expect(r.hits).toEqual([])
   })
 
+  test('the ab-test user-language fixture carries Turkish only in its Turkish prompt', () => {
+    const r = scan(join(REPO, 'tests', 'fixtures', 'ab-test', 'user-language'), REPO)
+    // cases.json, three files per fixture app and the German plan of the stop case
+    expect(r.files).toBeGreaterThanOrEqual(11)
+    expect(r.hits).toEqual([])
+  })
+
   test('the generated harness/ output, the JS bundles decoded, carries Turkish only in category D', () => {
     const r = scan(join(REPO, 'harness'), REPO)
     expect(r.files).toBeGreaterThanOrEqual(200)
@@ -148,12 +154,13 @@ describe('language guard (R1): what Buracle ships is English', () => {
     }
   })
 
-  test('the memories Buracle itself writes are English: the session memory, a handoff and a preference filed from an English statement', () => withBrain(async ({ repo }) => {
+  test('the memories Buracle itself writes are English: the session memory, a handoff and a preference filed from an English statement of an older spool', () => withBrain(async ({ repo }) => {
     const sid = '0199a213-81c0-7800-8aa1-bbab2a035a99'
     await sessionStart('claude', sid, repo)
     appendSpool('claude', sid, [
       { ts: Date.now(), ev: 'prompt' },
-      ...promptSignals('Always run the tests before you commit.').map(signal => ({ ts: Date.now() + 1, ev: 'prompt-signal' as const, signal })),
+      // A statement from a spool written before PRD follow-up 2026-11-06 (H26 reads none now); finalize still files it.
+      { ts: Date.now() + 1, ev: 'prompt-signal' as const, signal: { kind: 'statement' as const, key: 'said:commit-run-tests', category: 'quality' as const, text: 'Run the tests before you commit', quote: 'Always run the tests before you commit.' } },
       { ts: Date.now() + 2, ev: 'stop', excerpt: 'Done.' },
     ])
     await finalize('claude', sid, { pending: false })
@@ -174,7 +181,7 @@ describe('language guard (R1): what Buracle ships is English', () => {
     expect(findings('harness/omp/extensions/buracle.js', bundle)).toEqual(['harness/omp/extensions/buracle.js :: src/adapters/omp/runtime/extension.ts:4: var B = "Kısa özet";'])
     expect(findings('src/core/policy/intents.ts', "const X = re('devam|dur')")).toEqual([])
     expect(findings('harness/claude/hooks/core/policy/intents.ts', "// ı to i\nconst X = re('devam')")).toEqual([])
-    expect(findings('src/core/receipt.ts', "const CLAIM = /duzeltildi|calisiyor/\nconst LINE = 'işlem tamam'")).toEqual(["src/core/receipt.ts:2: const LINE = 'işlem tamam'"])
+    expect(findings('src/engine/update/deps.ts', "const YES = /^(y|yes|evet)$/\nconst LINE = 'işlem tamam'")).toEqual(["src/engine/update/deps.ts:2: const LINE = 'işlem tamam'"])
     expect(findings('harness/claude/skills/memory/evals/cases.json', '{"prompt": "Geçen sefer ne yapmıştık?"}')).toEqual([])
   })
 })

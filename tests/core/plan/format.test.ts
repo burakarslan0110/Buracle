@@ -384,7 +384,8 @@ describe('validatePlan: plan-build authoring checks', () => {
   })
 })
 
-describe('validatePlan: document checks (English, STE structure, document folders)', () => {
+describe('validatePlan: document checks (STE structure in any language, document folders)', () => {
+  // `not-english` is gone (PRD 2026-11-06); it stays in the filter so a test fails if the code ever comes back.
   const DOC_CODES = ['not-english', 'long-sentence', 'semicolon', 'legacy-folder']
   const doc = (md: string, strict = false) => validatePlan(md, { strict }).filter(f => DOC_CODES.includes(f.code)).sort((a, b) => (a.line ?? 0) - (b.line ?? 0))
   const LONG = '**Objective:** Middleware counts the requests of every key in a window of sixty seconds and rejects the request that goes over the limit with a 429 answer that names the key.'
@@ -402,15 +403,15 @@ updated: 2026-11-04
 A team member saves a search once. Every member sees it.
 `
 
-  test('a Turkish paragraph, a sentence over 25 words, a semicolon in prose and an old folder path each give one warning with its line, also without --strict', () => {
+  test('a sentence over 25 words, a semicolon in prose and an old folder path each give one warning with its line, also without --strict; a Turkish paragraph gives none', () => {
     const md = FEATURE
       .replace('Clients get 429.', 'İstekler sınırı aşarsa istemciler 429 alır ve sunucu yük altında kalmaz.')
       .replace('**Objective:** Middleware counts requests per key.', LONG)
       .replace('README explains the limit.', 'README explains the limit; it names the window.')
       .replace('- Modify: README.md', '- Modify: README.md\n- Modify: `docs/plans/2026-10-08-limits.md`')
-    expect(doc(md).map(f => [f.code, f.level, f.line])).toEqual([['not-english', 'warning', 12], ['long-sentence', 'warning', 18], ['semicolon', 'warning', 33], ['legacy-folder', 'warning', 37]])
-    expect(doc(md)[1]?.message).toContain('30 words')
-    expect(doc(md)[3]?.message).toContain('docs/plan-build/')
+    expect(doc(md).map(f => [f.code, f.level, f.line])).toEqual([['long-sentence', 'warning', 18], ['semicolon', 'warning', 33], ['legacy-folder', 'warning', 37]])
+    expect(doc(md)[0]?.message).toContain('30 words')
+    expect(doc(md)[2]?.message).toContain('docs/plan-build/')
   })
 
   test('25 words, a semicolon in a code span or a heading, an HTML comment, an old path inside a fence and a two-word paragraph give no finding', () => {
@@ -438,19 +439,41 @@ A team member saves a search once. Every member sees it.
   test('a PRD (type: prd) gets the document check and a small header check instead of the plan checks', () => {
     expect(validatePlan(PRD, { strict: true })).toEqual([])
     const turkish = PRD.replace('A team member saves a search once. Every member sees it.', 'Bir ekip üyesi aramayı bir kez kaydeder ve herkes bu aramayı görür.')
-    expect(validatePlan(turkish).map(f => [f.code, f.level, f.line])).toEqual([['not-english', 'warning', 12]])
+    expect(validatePlan(turkish, { strict: true })).toEqual([])
     expect(codes(validatePlan(PRD.replace('status: draft', 'status: open')))).toEqual(['bad-status'])
     expect(codes(validatePlan(PRD.replace('approved: false', 'approved: maybe')))).toEqual(['bad-field'])
     expect(codes(validatePlan(PRD.replace('created: 2026-11-04\n', '')))).toEqual(['missing-field'])
   })
 
-  test('plain English with a word the prompt-language signal counts as Turkish ("once", "de") gives no not-english finding', () => {
-    const md = FEATURE
-      .replace('README explains the limit.', 'Retry once per key.')
-      .replace('Clients get 429.', 'Re-run de-duplication per key.\n\n| Step | Expected |\n|---|---|\n| 1 | Runs once per file |')
-    expect(doc(md, true)).toEqual([])
-    // Two Turkish function words with no English ones still count, also without a Turkish-only letter.
-    expect(doc(FEATURE.replace('Clients get 429.', 'Bu plan bir test ve bunu yakalar.')).map(f => f.code)).toEqual(['not-english'])
+  test('prose in any language or script gives no finding only for its language', () => {
+    const cases: Record<string, string> = {
+      'Turkish': 'Bu plan bir test ve bunu yakalar.',
+      'German': 'Der Begrenzer zählt die Anfragen jedes Schlüssels. Die 101. Anfrage bekommt 429.',
+      'English words the prompt-language signal counts as Turkish': 'Retry once per key. Re-run de-duplication per key.',
+    }
+    for (const [name, text] of Object.entries(cases)) expect({ name, findings: doc(FEATURE.replace('Clients get 429.', text), true) }).toEqual({ name, findings: [] })
+  })
+
+  test('sentence ends of other scripts split sentences, the Greek question mark is no semicolon, and text without spaces is no long sentence', () => {
+    // Each paragraph holds three short sentences that together have more than 25 space-separated words.
+    const cases: Record<string, string> = {
+      'Japanese 。 with Latin terms between spaces': 'この ミドルウェア は API の キー ごとに 要求 を 数える。 窓 は 六十 秒 で 古い 窓 は 消える。 百一 番目 の 要求 は 429 を 受け取る。',
+      'Japanese ！ and ？': 'この ミドルウェア は API の キー ごとに 要求 を 数える！ 窓 は 六十 秒 で 古い 窓 は 消える？ 百一 番目 の 要求 は 429 を 受け取る。',
+      'Arabic ؟': 'هل يعد هذا البرنامج طلبات كل مفتاح في النافذة؟ هل تنتهي النافذة بعد ستين ثانية من البداية؟ هل يحصل الطلب الزائد على الرمز 429 دائما؟ هل تحذف النوافذ القديمة من الذاكرة بعد انتهائها؟',
+      'Hindi danda': 'यह मिडलवेयर हर कुंजी के अनुरोध गिनता है। खिड़की साठ सेकंड की होती है और फिर खत्म होती है। सीमा से ऊपर का अनुरोध 429 पाता है।',
+      'Greek question mark as U+003B': 'Πώς μετράει το όριο τα αιτήματα κάθε κλειδιού; Το όριο μετράει τα αιτήματα σε παράθυρο εξήντα δευτερολέπτων.',
+      'Greek question mark as U+037E, also with no space after it': 'Πώς μετράει το όριο τα αιτήματα κάθε κλειδιού στο παράθυρο\u037e Πότε λήγει το παράθυρο των εξήντα δευτερολέπτων\u037e Τι παίρνει το αίτημα που περνάει το όριο\u037eΠαίρνει πάντα 429.',
+      'Greek next to a long URL': 'Πώς μετράει το όριο τα αιτήματα; Δες https://example.com/docs/rate-limits/fixed-window-counter-explained-in-detail για τις λεπτομέρειες.',
+      'Japanese without spaces': 'このミドルウェアはキーごとに六十秒の窓で要求を数えて百一番目の要求を拒否し古い窓を消してメモリが増えないようにする。',
+    }
+    for (const [name, text] of Object.entries(cases)) expect({ name, findings: doc(FEATURE.replace('Clients get 429.', text), true) }).toEqual({ name, findings: [] })
+    // English keeps both checks.
+    expect(doc(FEATURE.replace('Clients get 429.', 'The window is short; it resets.')).map(f => f.code)).toEqual(['semicolon'])
+    expect(doc(FEATURE.replace('Clients get 429.', 'One more word: the limiter counts every request of a key in a window of sixty seconds and rejects the request that goes over the limit with 429.')).map(f => f.code)).toEqual(['long-sentence'])
+    // One Greek symbol in English prose does not make the paragraph Greek: its semicolon is still one.
+    expect(doc(FEATURE.replace('Clients get 429.', 'A lookup takes 50 μs; the cache hits.')).map(f => f.code)).toEqual(['semicolon'])
+    // A dot inside a version or a decimal is no sentence end.
+    expect(doc(FEATURE.replace('Clients get 429.', 'Since v1.2.3 the limiter counts every request of a key in a window of 60.5 seconds and rejects each request that goes over the limit with a 429 answer.')).map(f => f.code)).toEqual(['long-sentence'])
   })
 
   test('blockquote markers are not words, and a comment over several lines is skipped', () => {

@@ -334,11 +334,11 @@ describe('permission mode, effort, code indexes and the prompt router', () => {
     })
   })
 
-  test('router: the canonical triggers are loaded and every workflow has request phrases', () => {
+  test('router: the canonical category triggers are loaded; skills load from an exact invocation only', () => {
     const withCanonical = (dir: string): AdapterContext => ({ repoRoot: REPO, config: defaultConfig(), paths, buracleBin: paths.shimPath(), canonical: loadCanonicalSync(dir) })
     const found = routerFinding(withCanonical(join(REPO, 'canonical')))
     expect(found.level).toBe('ok')
-    expect(found.detail).toMatch(/^\d+ of \d+ skills with request phrases, \d+ MCP categories with triggers$/)
+    expect(found.detail).toMatch(/^\d+ MCP categories with triggers; skills load from an exact invocation only$/)
     const off = withCanonical(join(REPO, 'canonical'))
     off.config.routing.skills = 'off'
     expect(routerFinding(off)).toMatchObject({ level: 'ok', detail: expect.stringContaining('routing.skills is off') })

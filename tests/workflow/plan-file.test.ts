@@ -110,6 +110,7 @@ describe('slugs and dates', () => {
   test('Turkish folding, kebab case, length cap at a word boundary', () => {
     expect(slugFromTitle('Ödeme sayfasında İçerik Güncelleme')).toBe('odeme-sayfasinda-icerik-guncelleme')
     expect(slugFromTitle('Fix: invoice totals drop the last line item')).toBe('fix-invoice-totals-drop-the-last-line-item')
+    expect(slugFromTitle('Größe der Straße ändern')).toBe('grosse-der-strasse-andern')
     const long = slugFromTitle('a very long title that keeps going and going well beyond fifty characters')
     expect(long.length).toBeLessThanOrEqual(50)
     expect(long.endsWith('-')).toBe(false)

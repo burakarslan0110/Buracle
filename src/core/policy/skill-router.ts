@@ -85,6 +85,8 @@ export function parseSkillTriggers(x: unknown): { table: SkillTriggerTable, erro
 
 export function validateSkillTriggers(x: unknown, known: { skills?: ReadonlyArray<{ id: string, invocation?: string, userInvocable?: boolean }>, categories?: readonly string[] } = {}): string[] {
   const { table, errors } = parseSkillTriggers(x)
+  // Skill phrases are read by nothing since PRD follow-up 2026-11-06: say so instead of ignoring them.
+  for (const id of Object.keys(table.skills)) errors.push(`skills.${id}: skill phrase triggers were removed; a skill loads from an exact invocation only`)
   const skills = known.skills
   if (skills !== undefined) {
     const byId = new Map(skills.map(s => [s.id, s]))
@@ -92,15 +94,6 @@ export function validateSkillTriggers(x: unknown, known: { skills?: ReadonlyArra
       const s = byId.get(id)
       if (s === undefined) errors.push(`skills.${id}: no canonical skill has this id`)
       else if (s.invocation === 'explicit' && table.skills[id]?.topic !== undefined) errors.push(`skills.${id}.topic: ${id} is explicit-only, so topics never load it (use ask)`)
-    }
-    const raw = isObj(x) && isObj(x['skills']) ? x['skills'] : {}
-    for (const s of skills) {
-      if (s.userInvocable === false) continue
-      const ask = isObj(raw[s.id]) ? (raw[s.id] as Record<string, unknown>)['ask'] : undefined
-      for (const lang of ['en', 'tr']) {
-        const list = isObj(ask) ? ask[lang] : undefined
-        if (!Array.isArray(list) || list.length === 0) errors.push(`skills.${s.id}.ask.${lang}: every workflow skill needs explicit-request phrases in ${lang === 'en' ? 'English' : 'Turkish'}`)
-      }
     }
   }
   if (known.categories !== undefined) {
@@ -142,21 +135,6 @@ function compileList(phrases: readonly string[] | undefined): RegExp | undefined
   if (sources.length === 0) return undefined
   sources.sort((a, b) => b.length - a.length || (a < b ? -1 : a > b ? 1 : 0))
   try { return new RegExp(sources.join('|')) } catch { return undefined }
-}
-
-function generatedAsks(id: string): string[] {
-  const x = escapeRe(id)
-  const verbsTr = '(?:yap|coz|duzelt|hallet|gelistir|uygula)'
-  const name = `(?:the\\s+|a\\s+|buracle(?:'s)?\\s+)?${x}\\s+(?:skill|workflow)${B1}`
-  const byWay = `(?:^|[\\n.!?;:]\\s*|${B0}(?:do|handle|solve|tackle|implement|build|fix|approach|go|proceed|continue|work|run|start)\\s+(?:(?:it|this|that|them|these|those|on\\s+(?:it|this|that))\\s+)?)`
-  return [
-    `re:${B0}(?:use|run|start|invoke|launch|follow|apply)\\s+${name}`,
-    `re:${byWay}(?:with|via|through|using)\\s+${name}`,
-    `re:${B0}${x}\\s+(?:skill|workflow)'?(?:i|ini|u|unu|yi|yu)?\\s+(?:kullan|calistir|baslat)[a-z']*`,
-    `re:${B0}${x}\\s+ile\\s+${verbsTr}[a-z']*`,
-    `re:${B0}${x}\\s+(?:skill|workflow)'?(?:i|u)?(?:yla|yle|la|le)${B1}`,
-    `re:${B0}${x}\\s+akis(?:iyla|ini\\s+(?:kullan|baslat|calistir|izle|takip)[a-z']*)`,
-  ]
 }
 
 export interface CompiledSkill {
@@ -201,15 +179,10 @@ export function compileTriggers(skills: readonly CatalogSkill[], policy: Routing
     if (seen.has(s.id)) continue
     seen.add(s.id)
     const explicit = s.invocation === 'explicit'
-    const t = s.triggers ?? {}
-    const entry: CompiledSkill = { id: s.id, explicit, userInvocable: s.userInvocable !== false, short: shortOf(s) }
-    const ask = compileList([...generatedAsks(s.id), ...(t.ask ?? [])])
-    if (ask) entry.ask = ask
-    const topic = explicit ? undefined : compileList(t.topic)
-    if (topic) entry.topic = topic
-    const not = compileList(t.not)
-    if (not) entry.not = not
-    out.skills.push(entry)
+    // A skill loads from an exact invocation only (a slash, `$` or `@` command): phrases in the
+    // prompt no longer load or suggest a skill (PRD follow-up 2026-11-06), so no ask, topic or not
+    // pattern is compiled. The agent picks skills from their descriptions under its rules.
+    out.skills.push({ id: s.id, explicit, userInvocable: s.userInvocable !== false, short: shortOf(s) })
   }
   for (const cat of Array.isArray(policy?.categories) ? policy.categories : []) {
     const t = cat.triggers
@@ -345,31 +318,16 @@ export function routePrompt(text: string, t: CompiledTriggers, o: RouteOptions):
   const loaded = new Set(Array.isArray(o.loaded) ? o.loaded : [])
   const available = new Set(Array.isArray(o.available) ? o.available : [])
 
-  const asks: Array<{ id: string, at: number }> = syntax.asked.map(id => ({ id, at: -1 }))
-  const topics: Array<{ id: string, at: number }> = []
-  for (const s of skills) {
-    if (route.invoked.includes(s.id) || asks.some(a => a.id === s.id)) continue
-    if (s.not?.test(f)) continue
-    const a = s.ask?.exec(f)
-    if (a) { asks.push({ id: s.id, at: a.index }); continue }
-    const tp = s.explicit ? null : s.topic?.exec(f)
-    if (tp) topics.push({ id: s.id, at: tp.index })
-  }
-  const order = (a: { id: string, at: number }, b: { id: string, at: number }): number => a.at - b.at || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
-  asks.sort(order)
-  topics.sort(order)
+  // Only an exact invocation the harness did not run itself (syntax.asked) loads a skill.
   const candidates: string[] = []
-  for (const a of asks) {
-    const s = byId.get(a.id)
-    if (loaded.has(a.id) && s?.explicit !== true) continue
-    if (route.load.length < ROUTE_CAPS.load) route.load.push(a.id)
-    else if (s !== undefined && !s.explicit) candidates.push(a.id)
+  for (const id of syntax.asked) {
+    const s = byId.get(id)
+    if (loaded.has(id) && s?.explicit !== true) continue
+    if (route.load.length < ROUTE_CAPS.load) route.load.push(id)
+    else if (s !== undefined && !s.explicit) candidates.push(id)
   }
   const workflow = [...route.invoked, ...route.load].some(id => byId.get(id)?.explicit === true)
-  if (!workflow) {
-    for (const tp of topics) if (!loaded.has(tp.id) && !route.load.includes(tp.id) && !candidates.includes(tp.id)) candidates.push(tp.id)
-    route.candidates = candidates.slice(0, ROUTE_CAPS.candidates)
-  }
+  if (!workflow) route.candidates = candidates.slice(0, ROUTE_CAPS.candidates)
 
   const signals = detectSignals(raw)
   route.memory = { recall: signals.recall, write: signals.write }
