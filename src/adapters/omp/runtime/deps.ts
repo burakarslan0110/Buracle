@@ -296,7 +296,7 @@ export function emptyGenerated(): OmpGenerated {
   const setStatus: Record<string, string[]> = {}
   for (const [k, v] of Object.entries(DEFAULT_SET_STATUS)) setStatus[k] = [...v]
   return {
-    v: 1, buracleVersion: '0.0.0', testedWith: '', minOmp: '', config: defaultConfig(), routing: { strictness: 'enforce', categories: [] },
+    v: 1, buracleVersion: '0.0.0', config: defaultConfig(), routing: { strictness: 'enforce', categories: [] },
     mcp: [], mcpIds: [], skills: [], plugins: [], commands: [], status: { layout: DEFAULT_BAND_LAYOUT, setStatus },
   }
 }

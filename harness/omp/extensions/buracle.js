@@ -33673,10 +33673,73 @@ function barLines(bar, info, layout, width, nowMs) {
 }
 
 // src/usage/bar-info.ts
-init_fsx();
-init_paths();
 import { existsSync as existsSync5, readFileSync as readFileSync10, statSync as statSync10 } from "fs";
 import { join as join8 } from "path";
+
+// src/core/flow/panes.ts
+function planPaneLines(v, state) {
+  const lines = v.visible ? bandText(v).map((text, i) => i === 0 ? { text, bold: true } : { text }) : [];
+  const plan = state.plan;
+  if (plan === undefined) {
+    lines.push({ text: "No plan is bound to this session.", bold: lines.length === 0 });
+    lines.push({ text: "A new plan: /plan-build <task> \xB7 an existing one: buracle plan register <path>", dim: true });
+    return lines;
+  }
+  lines.push({ text: `plan: ${plan.slug} (${plan.type})`, bold: true });
+  lines.push({ text: `status ${plan.status} \xB7 phase ${plan.phase}` });
+  lines.push({ text: `file: ${plan.path}`, dim: true });
+  if (state.interaction?.state === "paused")
+    lines.push({ text: 'paused: the stop guard lets the turn end; say "continue" to resume', color: "warning" });
+  lines.push({ text: `stop guard blocks: plan ${state.guard.blocksForPlan} \xB7 chain ${state.guard.blocksInChain}`, dim: true });
+  return lines;
+}
+var HARNESS_VERSION_TTL_MS = 12 * 60 * 60000;
+function cachedHarnessVersionOf(text, harness, nowMs) {
+  if (text === undefined)
+    return;
+  let raw;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return;
+  }
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw))
+    return;
+  const hit = raw[harness];
+  if (hit === null || typeof hit !== "object")
+    return;
+  const { v, at } = hit;
+  if (typeof v !== "string" || v === "" || typeof at !== "number" || nowMs < at || nowMs - at >= HARNESS_VERSION_TTL_MS)
+    return;
+  return v;
+}
+function count3(x) {
+  return typeof x === "number" && Number.isFinite(x) ? x : 0;
+}
+function memoryPaneLines(status, url, brain) {
+  const lines = [];
+  const s = status !== null && typeof status === "object" && !Array.isArray(status) && status["v"] === 3 ? status : undefined;
+  if (s === undefined) {
+    lines.push({ text: "No memory status yet.", bold: true });
+    lines.push({ text: "`buracle mem status` and memory writes create the status file.", dim: true });
+  } else {
+    const health = typeof s["health"] === "string" && s["health"] !== "" ? s["health"] : "?";
+    const counts = s["counts"] !== null && typeof s["counts"] === "object" ? s["counts"] : {};
+    const project = typeof s["project"] === "string" ? s["project"] : undefined;
+    lines.push({ text: `memory: ${health}`, color: health === "ok" ? "success" : health === "warn" ? "warning" : "error", bold: true });
+    lines.push({ text: `${project !== undefined ? `project ${project} ${count3(counts["project"])} \xB7 ` : ""}person ${count3(counts["person"])}` });
+    const last = s["last_capture"] !== null && typeof s["last_capture"] === "object" ? s["last_capture"]["at"] : undefined;
+    lines.push({ text: `inbox ${count3(s["captures"])} \xB7 last capture ${typeof last === "string" ? last.slice(0, 16).replace("T", " ") : "none yet"}` });
+  }
+  if (url !== undefined)
+    lines.push({ text: `web UI: ${url}  (w)`, dim: true });
+  lines.push({ text: `brain: ${brain}`, dim: true });
+  return lines;
+}
+
+// src/usage/bar-info.ts
+init_fsx();
+init_paths();
 init_shim();
 var HARNESS_LABEL2 = { claude: "CC", codex: "Codex", opencode: "OpenCode", omp: "OMP" };
 function isRecord3(x) {
@@ -33732,7 +33795,6 @@ function claudePlan() {
   } catch {}
   return plan;
 }
-var VERSION_TTL_MS = 12 * 60 * 60000;
 var VERSION_CMD = { claude: "claude", codex: "codex", opencode: "opencode", omp: "omp" };
 function versionCacheFile() {
   return join8(buracleHome(), "cache", "harness-versions.json");
@@ -33742,7 +33804,7 @@ async function harnessVersion(h, nowMs) {
   const r = readJsonSafeSync(cacheFile);
   const all = r.ok && isRecord3(r.value) ? r.value : {};
   const hit = all[h];
-  if (hit !== undefined && typeof hit.at === "number" && nowMs - hit.at < VERSION_TTL_MS && nowMs >= hit.at)
+  if (hit !== undefined && typeof hit.at === "number" && nowMs - hit.at < HARNESS_VERSION_TTL_MS && nowMs >= hit.at)
     return hit.v;
   const bin = findExecutable(VERSION_CMD[h]);
   if (bin === undefined)
@@ -37090,8 +37152,6 @@ function emptyGenerated() {
   return {
     v: 1,
     buracleVersion: "0.0.0",
-    testedWith: "",
-    minOmp: "",
     config: defaultConfig(),
     routing: { strictness: "enforce", categories: [] },
     mcp: [],
@@ -37642,7 +37702,7 @@ function workflowOfExpanded(prompt) {
 
 // src/adapters/omp/runtime/generated-data.ts
 var GENERATED = {
-  buracleVersion: "0.8.0",
+  buracleVersion: "0.8.1",
   commands: [
     "ab-test",
     "bugfix",
@@ -37900,7 +37960,6 @@ var GENERATED = {
     "web-fetch",
     "web-search"
   ],
-  minOmp: "18.8.0",
   notices: [
     {
       id: "0.5.0-project-assets",
@@ -38827,7 +38886,6 @@ var GENERATED = {
       ]
     }
   },
-  testedWith: "18.10.1",
   v: 1
 };
 
@@ -39352,48 +39410,7 @@ function resumedSession(ev, event, ctx, isFile) {
 }
 
 // src/adapters/omp/runtime/status.ts
-import { isAbsolute as isAbsolute12, resolve as resolve20 } from "path";
-
-// src/core/flow/panes.ts
-function planPaneLines(v, state) {
-  const lines = v.visible ? bandText(v).map((text, i) => i === 0 ? { text, bold: true } : { text }) : [];
-  const plan = state.plan;
-  if (plan === undefined) {
-    lines.push({ text: "No plan is bound to this session.", bold: lines.length === 0 });
-    lines.push({ text: "A new plan: /plan-build <task> \xB7 an existing one: buracle plan register <path>", dim: true });
-    return lines;
-  }
-  lines.push({ text: `plan: ${plan.slug} (${plan.type})`, bold: true });
-  lines.push({ text: `status ${plan.status} \xB7 phase ${plan.phase}` });
-  lines.push({ text: `file: ${plan.path}`, dim: true });
-  if (state.interaction?.state === "paused")
-    lines.push({ text: 'paused: the stop guard lets the turn end; say "continue" to resume', color: "warning" });
-  lines.push({ text: `stop guard blocks: plan ${state.guard.blocksForPlan} \xB7 chain ${state.guard.blocksInChain}`, dim: true });
-  return lines;
-}
-function count3(x) {
-  return typeof x === "number" && Number.isFinite(x) ? x : 0;
-}
-function memoryPaneLines(status, url, brain) {
-  const lines = [];
-  const s = status !== null && typeof status === "object" && !Array.isArray(status) && status["v"] === 3 ? status : undefined;
-  if (s === undefined) {
-    lines.push({ text: "No memory status yet.", bold: true });
-    lines.push({ text: "`buracle mem status` and memory writes create the status file.", dim: true });
-  } else {
-    const health = typeof s["health"] === "string" && s["health"] !== "" ? s["health"] : "?";
-    const counts = s["counts"] !== null && typeof s["counts"] === "object" ? s["counts"] : {};
-    const project = typeof s["project"] === "string" ? s["project"] : undefined;
-    lines.push({ text: `memory: ${health}`, color: health === "ok" ? "success" : health === "warn" ? "warning" : "error", bold: true });
-    lines.push({ text: `${project !== undefined ? `project ${project} ${count3(counts["project"])} \xB7 ` : ""}person ${count3(counts["person"])}` });
-    const last = s["last_capture"] !== null && typeof s["last_capture"] === "object" ? s["last_capture"]["at"] : undefined;
-    lines.push({ text: `inbox ${count3(s["captures"])} \xB7 last capture ${typeof last === "string" ? last.slice(0, 16).replace("T", " ") : "none yet"}` });
-  }
-  if (url !== undefined)
-    lines.push({ text: `web UI: ${url}  (w)`, dim: true });
-  lines.push({ text: `brain: ${brain}`, dim: true });
-  return lines;
-}
+import { isAbsolute as isAbsolute12, join as join35, resolve as resolve20 } from "path";
 
 // src/engine/hook-health.ts
 init_fsx();
@@ -39683,7 +39700,8 @@ function createStatusTexts(host) {
       out.splice(Math.max(0, out.length - 1), 0, ui !== undefined ? `web UI: ${ui.url} (/brain opens it)` : "web UI: not running (/brain starts and opens it)");
       return out;
     }
-    const out = [`Buracle ${data.buracleVersion} \xB7 Oh My Pi (tested ${data.testedWith || "unknown"}, minimum ${data.minOmp || "unknown"})`];
+    const omp = guarded("version cache", () => cachedHarnessVersionOf(deps.readText(join35(buracleHome(), "cache", "harness-versions.json")), "omp", now));
+    const out = [`Buracle ${data.buracleVersion} \xB7 Oh My Pi${omp !== undefined ? ` ${omp}` : ""}`];
     out.push(`session ${sid ?? "-"} \xB7 ${ctx.mode} \xB7 config ${lc.source}`);
     out.push(`permissions: ${lc.config.permissions.bypass ? "bypass (tools.approvalMode yolo; Buracle's guards and consent gate protect)" : "the harness setting"}`);
     out.push(`routing: ${lc.config.routing.strictness} \xB7 skill router: ${lc.config.routing.skills} \xB7 workflow band: ${lc.config.workflow.band ? "on" : "off"}`);

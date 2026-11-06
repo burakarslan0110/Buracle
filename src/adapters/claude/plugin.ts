@@ -4,7 +4,7 @@ import { mcpServerToken } from '../../core/events'
 import { stableStringify, valueHash } from '../../engine/merge'
 import { denyJson, failClosedReason } from '../../engine/hook-fail'
 import {
-  CLASSIC_HOOKS, MIN_CLAUDE, OWNER_NAME, PLUGIN_NAME, READ_ONLY_DISALLOWED, SHELL_TOOLS, TESTED_WITH,
+  CLASSIC_HOOKS, MIN_CLAUDE, OWNER_NAME, PLUGIN_NAME, READ_ONLY_DISALLOWED, SHELL_TOOLS,
 } from './constants'
 import { RenderError, claudePlaceholderFor, expandPlaceholders, renderClaudeMarkdown, withFrontmatter, type FrontmatterValue } from './render'
 
@@ -350,13 +350,13 @@ export function generatedModules(c: CanonicalBundle, buracleVersion: string): Ge
     plugins: claudePlugins(c),
     criticalToolPatterns: mcp.filter(s => s.critical).map(s => pluginMcpRegex(s.id)),
   }
-  const meta = { buracleVersion, testedWith: TESTED_WITH, minClaude: MIN_CLAUDE, contentHash: canonicalContentHash(c) }
+  const meta = { buracleVersion, contentHash: canonicalContentHash(c) }
   return [
     {
       path: 'hooks/generated/meta.ts',
       content: tsModule({
-        name: 'META', type: '{ buracleVersion: string, testedWith: string, minClaude: string, contentHash: string }', value: meta,
-        note: 'Versions; contentHash is the sha256 of the parsed canonical/ tree.',
+        name: 'META', type: '{ buracleVersion: string, contentHash: string }', value: meta,
+        note: 'The Buracle version; contentHash is the sha256 of the parsed canonical/ tree.',
       }),
     },
     {
@@ -499,7 +499,7 @@ The repository's \`.claude-plugin/marketplace.json\` declares a local marketplac
 plugin in place from this folder (\`claude plugin marketplace add <repo>\` and
 \`claude plugin install buracle@buracle --scope user\`; \`buracle install claude\` runs both).
 
-- Tested with Claude Code ${TESTED_WITH} (oldest supported: ${MIN_CLAUDE}).
+- Needs Claude Code ${MIN_CLAUDE} or newer.
 - \`hooks/hooks.json\`: the command hooks, Buracle's backbone (${fallbacks}); each runs
   \`bun \${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts hook claude <Event>\` in exec form (no shell) and always runs; PreToolUse blocks the tool call when the hook cannot start or times out.
 - \`hooks/register.tsx\`: the mod, the experience layer (the workflow band above the prompt, the consent dialog, turn receipts, output masking, commands, panes)${hasTemplate ? '' : '; there is no template yet, so this build loads no mod'}.

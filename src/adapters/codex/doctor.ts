@@ -5,7 +5,7 @@ import type { BuracleConfig } from '../../core/config'
 import { resolveEffort } from '../../core/effort'
 import { mdBlockGet } from '../../engine/merge'
 import { detectBinary, run as runProcess, type RunOptions, type RunResult } from '../../engine/proc'
-import { TESTED_WITH } from '../../engine/update/tested-with'
+import { MIN_VERSIONS } from '../../engine/update/min-versions'
 import { hostLimitRows } from '../shared/host-limits'
 import { resolveArgv, resolveCommandLine, type Env } from '../shared/command'
 import { pathRuleFiles } from '../shared/rules'
@@ -14,8 +14,7 @@ import { BYPASS_KEYS, CRITICAL_OMIT_TOOLS_FROM, SUBAGENT_EFFORTS } from './confi
 import { AGENTS_BLOCK_ID, codexArtifacts, RULES_FILE } from './generate'
 import { CODEX_HOOK_EVENTS, duplicateBuracleHandlers, findBuracleHandlers, type FoundHandler } from './hooks-config'
 
-export const MIN_CODEX = TESTED_WITH.codex.min
-export const TESTED_CODEX = TESTED_WITH.codex.tested
+export const MIN_CODEX = MIN_VERSIONS.codex
 
 export type DoctorLevel = 'ok' | 'warn' | 'error'
 export interface DoctorItem { level: DoctorLevel, check: string, detail: string }
@@ -227,17 +226,15 @@ export async function codexDoctor(ctx: AdapterContext, deps: DoctorDeps = defaul
 
   const found = await deps.detect()
   if (!found.installed) {
-    add('error', 'codex.version', `codex is not on PATH (needs ${MIN_CODEX} or newer; tested ${TESTED_CODEX}). Install it with \`brew install --cask codex\`.`)
+    add('error', 'codex.version', `codex is not on PATH (needs ${MIN_CODEX} or newer). Install it with \`brew install --cask codex\`.`)
   } else if (found.version === undefined) {
     add('warn', 'codex.version', `could not read \`codex --version\` (${found.path ?? 'codex'})`)
   } else if (compareVersions(found.version, MIN_CODEX) < 0) {
     add('error', 'codex.version', `codex ${found.version} is older than ${MIN_CODEX}, the oldest Codex Buracle supports: run \`buracle update codex\` (it uses the installer that installed Codex, also while this Codex does not start), then \`buracle install codex\``)
-  } else if (compareVersions(found.version, TESTED_CODEX) > 0) {
-    add('warn', 'codex.version', `codex ${found.version} is newer than the tested ${TESTED_CODEX}; hooks and rollout parsing may need a check`)
   } else {
-    add('ok', 'codex.version', `codex ${found.version} (minimum ${MIN_CODEX}, tested ${TESTED_CODEX})`)
+    add('ok', 'codex.version', `codex ${found.version} (minimum ${MIN_CODEX})`)
   }
-  items.push(...hostLimitRows('codex', found.installed ? found.version : undefined, 'tests/adapters/codex/smoke.test.ts'))
+  items.push(...hostLimitRows('codex'))
   add('ok', 'codex.workflow-view', ctx.config.workflow.codexNotices
     ? 'Codex has no surface above the prompt: a workflow that waits, pauses or ends and failing Buracle hooks show as one warning line (workflow.codexNotices); the tmux status line (`buracle statusline codex`, USAGE §6) shows the full bar'
     : 'workflow.codexNotices is off: the tmux status line (`buracle statusline codex`, USAGE §6) is the only live view of a workflow and of failing Buracle hooks')

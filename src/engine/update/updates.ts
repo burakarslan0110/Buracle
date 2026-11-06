@@ -16,12 +16,9 @@ import * as gitops from './gitops'
 import { bunPath } from './install-core'
 import { detectOrigin, harnessUpdate, isBrewName, resolveBinary, type Origin } from './origin'
 import { errText, isInside } from './output'
-import { TESTED_WITH } from './tested-with'
 import type { HeldItem, UpdateError, UpdateItem, UpdateKind } from './updates-cache'
 import { bumpRisk, compareVersions, parseVersionString, pickUpdate, type PublishedVersion, type Risk } from './versions'
 import { setYamlValue } from './yaml-edit'
-
-export { TESTED_WITH }
 
 interface HarnessSource { npm?: string; url?: string }
 export const HARNESS_SOURCES: Readonly<Record<Harness, HarnessSource>> = {
@@ -373,7 +370,6 @@ export async function checkHarness(env: UpdateEnv, res: CheckResult): Promise<vo
     if ('error' in plan) { res.errors.push({ kind: 'harness', id: h, error: plan.error }); return }
     if (latest.note !== undefined) notes.unshift(latest.note)
     let risk = bumpRisk(det.version, latest.version)
-    if (compareVersions(latest.version, TESTED_WITH[h].tested) > 0) { risk = maxRisk(risk, 'medium'); notes.push(`newer than the version Buracle was tested with (${TESTED_WITH[h].tested}); run \`buracle doctor ${h}\` afterwards`) }
     if (latest.publishedAt !== undefined) {
       const age = (env.nowMs - Date.parse(latest.publishedAt)) / DAY_MS
       if (age < env.config.update.minReleaseAgeDays) { risk = maxRisk(risk, 'medium'); notes.push(`released ${Math.max(0, Math.round(age * 10) / 10)} day(s) ago`) }

@@ -13,6 +13,7 @@ import {
   removedKeys, removeDownloadedTools, removeVaultPreCommitHook, runExecUndos, stopMemoryUi, type AdapterUninstall, type ProjectLeftover,
 } from '../../engine/update/uninstall'
 import { removeLocalBinFromPath } from '../../engine/update/shell-path'
+import { resultLines, type ResultLines, type ResultState } from '../ui/steps'
 
 export const name = 'uninstall'
 export const summary = 'Remove everything Buracle installed (ledger-proven), undo its commands; never touches the memory'
@@ -128,11 +129,13 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
   }
   const purge = p.bools.has('purge-state')
   const dryRun = p.bools.has('dry-run')
+  const t = resultLines({ flags: { ...io.flags, json } }, io.stdout)
+  io.stdout.write(t.header(dryRun ? 'uninstall --dry-run' : 'uninstall'))
   const ask = !dryRun && !p.bools.has('yes') && !json && io.stdin.isTTY ? (q: string) => opsDeps.confirm(q) : undefined
   const res: UninstallResult = { ok: true, code: 0, dryRun, txns: [], run: '', removed: 0, kept: [], adopted: [], protected: [], harnesses: [], busy: [], undone: [], undoFailed: [], undoSkipped: [], pendingUndos: [], purged: [], purgeKept: [], prunedDirs: [], memoryUi: 'none', vaultHook: 'missing', projectLeftovers: [], errors: [], warnings: [], notes: [] }
   const finish = (): number => {
     if (json) writeJson(io.stdout, res)
-    else render(res, io)
+    else render(res, io, t)
     return res.code
   }
   const fail = (msg: string): number => { res.ok = false; res.code = 1; res.errors.push(msg); return finish() }
@@ -344,52 +347,55 @@ async function uninstallFlow(res: UninstallResult, o: FlowOptions, io: CommandIO
   res.ok = res.errors.length === 0 && res.interrupted === undefined
 }
 
-function render(r: UninstallResult, io: CommandIO): void {
+// `t` marks the lines in a terminal; elsewhere it gives back the text this report always had.
+function render(r: UninstallResult, io: CommandIO, t: ResultLines): void {
   const out = io.stdout
+  const top = (state: ResultState, text: string): void => { out.write(`${t.top(state, text)}\n`) }
+  const item = (text: string): void => { out.write(`${t.sub(`- ${text}`)}\n`) }
   if (r.dryRun) {
-    out.write('buracle uninstall --dry-run: nothing was removed.\n')
+    top('info', 'buracle uninstall --dry-run: nothing was removed.')
     out.write(r.diff && r.diff !== '' ? tildeText(r.diff) : '(no owned files or keys)\n')
     if (r.pendingUndos.length > 0) {
-      out.write('Undo commands that would run:\n')
-      for (const c of r.pendingUndos) out.write(`  - ${tildeText(c)}\n`)
+      top('info', 'Undo commands that would run:')
+      for (const c of r.pendingUndos) item(tildeText(c))
     }
   } else {
     if (r.undone.length > 0) {
-      out.write(`Undid ${r.undone.length} command(s):\n`)
-      for (const c of r.undone) out.write(`  - ${tildeText(c)}\n`)
+      top('ok', `Undid ${r.undone.length} command(s):`)
+      for (const c of r.undone) item(tildeText(c))
     }
-    out.write(r.removed > 0 ? `Removed ${r.removed} change(s)${r.txns.length > 0 ? ` (transaction ${r.txns.join(', ')})` : ''}.\n` : 'Nothing owned by Buracle needed removing.\n')
-    if (r.prunedDirs.length > 0) out.write(`Removed ${r.prunedDirs.length} empty folder(s) Buracle had created.\n`)
+    top('ok', r.removed > 0 ? `Removed ${r.removed} change(s)${r.txns.length > 0 ? ` (transaction ${r.txns.join(', ')})` : ''}.` : 'Nothing owned by Buracle needed removing.')
+    if (r.prunedDirs.length > 0) top('ok', `Removed ${r.prunedDirs.length} empty folder(s) Buracle had created.`)
   }
   if (r.undoSkipped.length > 0) {
-    out.write(`Undo commands not needed${r.dryRun ? '' : ' (recorded as done)'}:\n`)
-    for (const s of r.undoSkipped) out.write(`  - ${tildeText(s.command)}: ${tildeText(s.detail)}\n`)
+    top('info', `Undo commands not needed${r.dryRun ? '' : ' (recorded as done)'}:`)
+    for (const s of r.undoSkipped) item(`${tildeText(s.command)}: ${tildeText(s.detail)}`)
   }
   if (r.kept.length > 0) {
-    out.write('Kept (changed since Buracle wrote them, or not Buracle\'s to change):\n')
-    for (const k of r.kept) out.write(`  - ${tildeText(k.detail)}\n`)
+    top('warn', 'Kept (changed since Buracle wrote them, or not Buracle\'s to change):')
+    for (const k of r.kept) item(tildeText(k.detail))
   }
   if (r.adopted.length > 0) {
-    out.write(`Left in place (already yours before Buracle; adopted)${r.dryRun ? ' would be' : ''}:\n`)
-    for (const a of r.adopted) out.write(`  - ${a}\n`)
+    top('info', `Left in place (already yours before Buracle; adopted)${r.dryRun ? ' would be' : ''}:`)
+    for (const a of r.adopted) item(a)
   }
   if (r.protected.length > 0) {
-    out.write('Never touched (inside the old memory vault):\n')
-    for (const a of r.protected) out.write(`  - ${a}\n`)
+    top('info', 'Never touched (inside the old memory vault):')
+    for (const a of r.protected) item(a)
   }
   if (r.undoFailed.length > 0) {
-    out.write('Undo commands that failed (fix the cause, then run `buracle uninstall` again):\n')
-    for (const f of r.undoFailed) out.write(`  - ${tildeText(f.command)}: ${tildeText(f.detail)}\n`)
+    top('err', 'Undo commands that failed (fix the cause, then run `buracle uninstall` again):')
+    for (const f of r.undoFailed) item(`${tildeText(f.command)}: ${tildeText(f.detail)}`)
   }
-  if (r.memoryUi === 'stopped') out.write('Stopped the memory web UI.\n')
-  if (r.vaultHook === 'removed') out.write('Removed the old vault\'s pre-commit hook (an older Buracle\'s secret scan).\n')
-  else if (r.vaultHook === 'foreign') out.write('Kept the old vault\'s pre-commit hook: it is not Buracle\'s.\n')
+  if (r.memoryUi === 'stopped') top('ok', 'Stopped the memory web UI.')
+  if (r.vaultHook === 'removed') top('ok', 'Removed the old vault\'s pre-commit hook (an older Buracle\'s secret scan).')
+  else if (r.vaultHook === 'foreign') top('info', 'Kept the old vault\'s pre-commit hook: it is not Buracle\'s.')
   if (r.projectLeftovers.length > 0) {
-    out.write(`Left in your projects (not in the ownership ledger; remove them by hand if you want)${r.dryRun ? '' : ':'}\n`)
-    for (const l of r.projectLeftovers) out.write(`  - ${l.path}: ${l.what}; ${l.remove}\n`)
+    top('info', `Left in your projects (not in the ownership ledger; remove them by hand if you want)${r.dryRun ? '' : ':'}`)
+    for (const l of r.projectLeftovers) item(`${l.path}: ${l.what}; ${l.remove}`)
   }
-  if (r.purged.length > 0) out.write(`Purged: ${r.purged.join(', ')}\n`)
-  if (r.purgeKept.length > 0) out.write(`Not purged: ${r.purgeKept.join(', ')}\n`)
+  if (r.purged.length > 0) top('ok', `Purged: ${r.purged.join(', ')}`)
+  if (r.purgeKept.length > 0) top('info', `Not purged: ${r.purgeKept.join(', ')}`)
   for (const w of r.warnings) io.stderr.write(`warning: ${tildeText(w)}\n`)
   for (const e of r.errors) io.stderr.write(`error: ${tildeText(e)}\n`)
   for (const n of r.notes) out.write(`${n}\n`)

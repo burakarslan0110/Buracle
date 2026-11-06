@@ -1,7 +1,6 @@
-import { TESTED_WITH as HARNESS_VERSIONS } from '../../engine/update/tested-with'
+import { MIN_VERSIONS } from '../../engine/update/min-versions'
 
-export const TESTED_WITH = HARNESS_VERSIONS.opencode.tested
-export const MIN_VERSION = HARNESS_VERSIONS.opencode.min
+export const MIN_VERSION = MIN_VERSIONS.opencode
 
 export const PLUGIN_ID = 'buracle'
 export const PLUGIN_DIR = `plugins/${PLUGIN_ID}`

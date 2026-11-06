@@ -73,8 +73,8 @@ jobs:
         run: bash -n scripts/install.sh
 
   # A clean macOS and Linux runner installs the release tree (this commit without RELEASE_DROPS) the way a
-  # user does (scripts/install.sh, in a throwaway HOME), into the harnesses at their tested versions
-  # (read from src/engine/update/tested-with.ts, not copied here), then checks the installed buracle:
+  # user does (scripts/install.sh, in a throwaway HOME), into the latest release of each harness,
+  # then checks the installed buracle:
   # `buracle doctor` on the config, runtime and mcp topics (the mcp topic runs every server's handshake
   # through the installed shim). Nothing installs the system tools by hand: what the runner lacks, the install
   # downloads (pinned, sha256-checked); the runners' own Node.js, jq and Homebrew mean it rarely has to, so a step
@@ -98,7 +98,7 @@ jobs:
         with:
           persist-credentials: false
 
-      # bun reads src/engine/update/tested-with.ts below; scripts/install.sh finds it on PATH.
+      # scripts/install.sh finds this bun on PATH.
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: .bun-version
@@ -110,10 +110,6 @@ jobs:
           git -c user.name=ci -c user.email=ci@localhost commit -q -m 'release tree'
           test ! -e tests
 
-      - name: Harness versions from tested-with.ts
-        run: |
-          bun -e 'import { TESTED_WITH as T } from "./src/engine/update/tested-with.ts"; console.log(`CLAUDE_VERSION=${T.claude.tested}\nCODEX_VERSION=${T.codex.tested}\nOPENCODE_VERSION=${T.opencode.tested}\nOMP_VERSION=${T.omp.tested}`)' | tee -a "$GITHUB_ENV"
-
       # Everything after this step runs in a home folder that holds nothing but what the install creates.
       - name: Throwaway HOME
         run: |
@@ -122,10 +118,11 @@ jobs:
           echo "$RUNNER_TEMP/home/.bun/bin" >> "$GITHUB_PATH"
           echo "$RUNNER_TEMP/home/.local/bin" >> "$GITHUB_PATH"
 
+      # The latest release of each harness: a release that breaks Buracle shows here before it reaches users.
       - name: Harnesses to install into
         run: |
-          npm install -g "@anthropic-ai/claude-code@$CLAUDE_VERSION" "@openai/codex@$CODEX_VERSION" "@opencode/cli@$OPENCODE_VERSION"
-          bun add -g "@oh-my-pi/pi-coding-agent@$OMP_VERSION"
+          npm install -g @anthropic-ai/claude-code @openai/codex @opencode/cli
+          bun add -g @oh-my-pi/pi-coding-agent
 
       # The download path the install takes for node, uv, rg and jq when no package manager can install them.
       - name: Pinned system tools download and run

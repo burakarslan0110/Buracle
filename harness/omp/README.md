@@ -49,4 +49,4 @@ Skills are not in this package: omp reads the shared neutral render in `~/.agent
 
 ## Version
 
-Verified with omp 18.10.1; needs at least 18.8.0. `buracle doctor omp` checks the version, the link and the settings.
+Needs omp 18.8.0 or newer. `buracle doctor omp` checks the version, the link and the settings.

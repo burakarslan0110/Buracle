@@ -4,14 +4,13 @@ import type { CanonicalBundle, CatalogMcp } from '../../core/catalog'
 import { catalogMcp, catalogSkills } from '../../core/catalog'
 import type { BuracleConfig } from '../../core/config'
 import { resolveEffort } from '../../core/effort'
-import { TESTED_WITH } from '../../engine/update/tested-with'
+import { MIN_VERSIONS } from '../../engine/update/min-versions'
 import { OMP_BUILTIN_COMMANDS, OMP_UTILITY_COMMANDS } from './runtime/commands'
 import type { OmpGenerated } from './runtime/types'
 import { ompStatusData } from './statusline'
 
 export const PACKAGE_NAME = 'buracle-omp'
-export const OMP_TESTED_WITH = TESTED_WITH.omp.tested
-export const OMP_MIN_VERSION = TESTED_WITH.omp.min
+export const OMP_MIN_VERSION = MIN_VERSIONS.omp
 export const BUN_MIN_VERSION = '1.3.14'
 export const OWNER = 'omp'
 
@@ -77,8 +76,6 @@ export function ompGeneratedData(canonical: CanonicalBundle, version: string): O
   const out: OmpGenerated = {
     v: 1,
     buracleVersion: version,
-    testedWith: OMP_TESTED_WITH,
-    minOmp: OMP_MIN_VERSION,
     config: canonical.config,
     routing: canonical.routing,
     mcp,

@@ -12,7 +12,11 @@ import type { UpdateItem, UpdateKind, UpdatesCache } from '../engine/update/upda
 import type { ToolchainState } from '../engine/toolchain/state'
 import { dashboardStep, initialView, renderDashboard, type DashAction, type DashRow, type DashView, type RowState } from './ui/dashboard'
 import { initialMenu, menuStep, renderMenu, type MenuAction, type MenuView } from './ui/menu'
-import { colorLevel, makeStyle, type Style } from './ui/style'
+import { footerLine, headerHeight, headerLines, MARGIN, type Hint } from './ui/frame'
+import {
+  createForwarder, cursorToArea, cursorToBottom, enterSequence, fallbackSequence, outputArea, ptySize, redrawSequence, repaintSequence, replayBytes, replayStart, staleRowsSequence, type RunLayout,
+} from './ui/run-screen'
+import { colorLevel, makeStyle, type ColorLevel, type Style } from './ui/style'
 import type { Terminal } from './ui/terminal'
 
 export const REEXEC_ENV = 'BURACLE_DASHBOARD_REEXEC'
@@ -32,19 +36,30 @@ export interface DashSource {
   fill(changed: (d: DashData) => void, opts?: { force?: boolean }): Promise<void>
 }
 
-export interface ChildHandle { exited: Promise<number>; kill(sig: 'SIGINT' | 'SIGTERM'): void }
+// A child in a PTY also has `write` (its input), `resize`, `ended` (its output is done) and `close`; without them it
+// inherits the terminal.
+export interface ChildHandle {
+  exited: Promise<number>
+  kill(sig: 'SIGINT' | 'SIGTERM' | 'SIGHUP'): void
+  write?(data: Uint8Array | string): void
+  resize?(cols: number, rows: number): void
+  ended?: Promise<void>
+  close?(): void
+}
+// Asks for a PTY of this size whose output goes to `output`; a spawn that cannot open one inherits the terminal instead.
+export interface PtyRequest { cols: number; rows: number; output(data: Uint8Array): void }
 export interface SigintHost { on(sig: 'SIGINT', f: () => void): unknown; off(sig: 'SIGINT', f: () => void): unknown }
 
 export interface DashboardDeps {
   terminal: Terminal
-  spawn: (argv: readonly string[], env: Record<string, string | undefined>) => ChildHandle
+  spawn?: (argv: readonly string[], env: Record<string, string | undefined>, pty?: PtyRequest) => ChildHandle
   now: () => number
   source?: DashSource
   command?: readonly string[] // how a Buracle command runs: [bun, main.ts]
   shim?: () => { path: string, main: string } | undefined
   env?: Readonly<Record<string, string | undefined>>
   signals?: SigintHost
-  write?: (s: string) => void
+  write?: (s: string | Uint8Array) => void
   style?: Style
 }
 
@@ -352,14 +367,27 @@ export async function fileSource(now: () => number, verifier?: Verifier): Promis
   }
 }
 
+const RUN_HINTS: readonly Hint[] = [{ key: 'ctrl-c', word: 'stop' }]
+const RESULT_HINTS: readonly Hint[] = [{ key: 'any key', word: 'return' }, { key: 'o', word: 'full output', drop: 1 }]
+const BACK_HINTS: readonly Hint[] = [{ key: 'any key', word: 'return' }]
+// After a command exits, its PTY can still hold output on its way; it gets this long to arrive.
+const CHILD_OUTPUT_GRACE_MS = 250
+
+async function atMost(p: Promise<unknown> | undefined, ms: number): Promise<void> {
+  if (p === undefined) return
+  let timer: ReturnType<typeof setTimeout> | undefined
+  await Promise.race([p.then(() => undefined, () => undefined), new Promise<void>(r => { timer = setTimeout(r, ms) })])
+  if (timer !== undefined) clearTimeout(timer)
+}
+
 export function resultLine(code: number): string {
   if (code === 0) return 'done'
   if (code === 2) return 'done, with points that need your attention (exit code 2)'
   return `failed (exit code ${code})`
 }
 
-function viewOf(prev: DashView | undefined, data: DashData, size: { columns: number, rows: number }): DashView {
-  const next = initialView(data.version, data.rows, size)
+function viewOf(prev: DashView | undefined, data: DashData, size: { columns: number, rows: number }, level: ColorLevel): DashView {
+  const next = initialView(data.version, data.rows, size, level)
   if (data.checkedAt !== undefined) next.summary = { ...next.summary, checkedAt: data.checkedAt }
   if (data.working !== undefined) next.summary = { ...next.summary, working: data.working }
   if (prev === undefined) return next
@@ -389,10 +417,11 @@ async function dashboardLoop(d: DashboardDeps): Promise<number> {
   const shim = d.shim ?? currentShim
   const env = d.env ?? process.env
   const signals: SigintHost = d.signals ?? process
-  const write = d.write ?? ((s: string) => { process.stdout.write(s) })
+  const write = d.write ?? ((s: string | Uint8Array) => { process.stdout.write(s) })
+  const spawn = d.spawn ?? spawnChild
   const st = d.style ?? dashboardStyle()
   const startMain = shim()?.main
-  let view = viewOf(undefined, source.read(), d.terminal.size())
+  let view = viewOf(undefined, source.read(), d.terminal.size(), st.level)
   // The main menu comes first; its Detailed view is the dashboard, and Esc there returns to the menu.
   let menu = initialMenu(view.version, view.summary, d.terminal.size())
   let screen: 'menu' | 'detail' = 'menu'
@@ -400,7 +429,7 @@ async function dashboardLoop(d: DashboardDeps): Promise<number> {
   let fills = 0
   const draw = (): void => { if (!busy) d.terminal.draw(screen === 'menu' ? renderMenu(st, menu) : renderDashboard(st, view)) }
   const show = (data: DashData): void => {
-    view = viewOf(view, data, d.terminal.size())
+    view = viewOf(view, data, d.terminal.size(), st.level)
     menu = menuOf(menu, view)
     draw()
   }
@@ -409,27 +438,93 @@ async function dashboardLoop(d: DashboardDeps): Promise<number> {
     void Promise.resolve().then(() => source.fill(data => { if (n === fills) show(data) }, force ? { force: true } : undefined)).catch(() => {  })
   }
 
+  // A command from the menu runs in a PTY under the pinned header; without a PTY it gets the terminal itself.
+  let onRunResize: (() => void) | undefined
   const runChild = async (argv: readonly string[]): Promise<number> => {
     busy = true
-    d.terminal.suspend()
-    write(`\n${st.bold(`buracle ${argv.join(' ')}`)}\n\n`)
     let child: ChildHandle | undefined
-    // Ctrl-C belongs to the command while it runs; the dashboard stays open.
+    // Ctrl-C belongs to the command while it runs; the dashboard stays open. In a PTY the key reaches the
+    // command as input; this handler covers a SIGINT sent to Buracle itself.
     const onInt = (): void => { try { child?.kill('SIGINT') } catch {  } }
     signals.on('SIGINT', onInt)
-    let code: number
-    try {
-      child = d.spawn([...command, ...argv], { ...env })
-      code = await child.exited
-    } catch (e) {
-      write(`${e instanceof Error ? e.message : String(e)}\n`)
-      code = 1
+    const offClose = d.terminal.onClose(() => { try { child?.kill('SIGHUP') } catch {  } })
+    let hints = RUN_HINTS
+    const layoutAt = (size: { columns: number, rows: number }): RunLayout => ({
+      header: headerLines(st, { ...size, version: view.version, summary: view.summary }), footer: footerLine(st, hints, Math.max(0, size.columns - 1)), ...size,
+    })
+    let layout = layoutAt(d.terminal.size())
+    let pinned = false
+    // The frame on the screen right now; a resize too small to draw one leaves it there.
+    let drawn = layout
+    const fwd = createForwarder({ write, repaint: what => { if (pinned) write(repaintSequence(layout, what)) } })
+    // A resize draws the header and the footer for the new size; the command's PTY takes the new area.
+    onRunResize = () => {
+      if (!pinned) return
+      layout = layoutAt(d.terminal.size())
+      const pty = ptySize(layout)
+      const fits = layout.rows >= layout.header.length + 2
+      try { child?.resize?.(pty.cols, fits ? pty.rows : 1) } catch {  }
+      if (!fits) return
+      write(staleRowsSequence(drawn, layout) + redrawSequence(layout))
+      drawn = layout
+      d.terminal.region(outputArea(layout))
+      write(cursorToBottom(layout))
     }
-    const line = resultLine(code)
-    write(`\n${code === 0 ? st.ok(line) : code === 2 ? st.warn(line) : st.err(line)}\n${st.muted('press any key to return')}\n`)
+    const label = `buracle ${argv.join(' ')}`
+    let code = 1
+    d.terminal.suspend()
     try {
-      await d.terminal.anyKey()
+      try {
+        const pty = ptySize(layout)
+        const started = spawn([...command, ...argv], { ...env }, { cols: pty.cols, rows: pty.rows, output: data => { fwd.feed(data) } })
+        child = started
+        if (started.write !== undefined) {
+          pinned = true
+          write(enterSequence(layout))
+          d.terminal.region(outputArea(layout))
+          write(cursorToArea(layout))
+          d.terminal.passthrough(data => { try { started.write?.(data) } catch {  } })
+        } else write(fallbackSequence(layout))
+        code = await started.exited
+      } catch (e) {
+        write(`${e instanceof Error ? e.message : String(e)}\r\n`)
+        code = 1
+      }
+      if (pinned) {
+        d.terminal.passthrough(undefined)
+        await atMost(child?.ended, CHILD_OUTPUT_GRACE_MS)
+        fwd.flush()
+      }
+      const paint = code === 0 ? st.ok : code === 2 ? st.warn : st.err
+      const sym = code === 0 ? st.sym.ok : code === 2 ? st.sym.warn : st.sym.err
+      const result = `\r\n${MARGIN}${paint(`${sym} ${label}: ${resultLine(code)}`)}\r\n`
+      write(result)
+      if (pinned) {
+        hints = RESULT_HINTS
+        layout = { ...layout, footer: footerLine(st, hints, Math.max(0, layout.columns - 1)) }
+        write(repaintSequence(layout, 'footer'))
+      } else write(`${footerLine(st, BACK_HINTS, Math.max(0, layout.columns - 1))}\r\n`)
+      const key = await d.terminal.anyKey()
+      if (pinned && typeof key === 'object' && key.char === 'o') {
+        // The whole output again on the normal screen without a region: the terminal's own scrollback keeps all of it.
+        // From here a resize draws nothing, so no pinned frame lands on the replayed text.
+        onRunResize = undefined
+        d.terminal.region()
+        write(replayStart(layout))
+        write(replayBytes(fwd.copy()))
+        if (fwd.truncated()) write(`\r\n${MARGIN}${st.muted(`${st.sym.info} the output after the first 4 MiB was not kept`)}\r\n`)
+        write(`${result}${footerLine(st, BACK_HINTS, Math.max(0, layout.columns - 1))}\r\n`)
+        await d.terminal.anyKey()
+      }
     } finally {
+      onRunResize = undefined
+      if (pinned) {
+        d.terminal.region()
+        // The shell's prompt comes back on the last row once Buracle quits, under the output, not on the header.
+        write(`\u001b[${d.terminal.size().rows};1H\u001b[2K`)
+      }
+      try { child?.close?.() } catch {  }
+      offClose()
       signals.off('SIGINT', onInt)
       busy = false
       d.terminal.resume()
@@ -439,8 +534,9 @@ async function dashboardLoop(d: DashboardDeps): Promise<number> {
 
   d.terminal.onResize(() => {
     const size = d.terminal.size()
-    view = { ...view, ...size }
+    view = { ...view, ...size, headerRows: headerHeight(size.columns, size.rows, st.level) }
     menu = { ...menu, ...size }
+    onRunResize?.()
     draw()
   })
   draw()
@@ -466,7 +562,7 @@ async function dashboardLoop(d: DashboardDeps): Promise<number> {
     const now = shim()
     if (env[REEXEC_ENV] !== '1' && now !== undefined && now.main !== startMain && now.main !== command[1]) {
       d.terminal.close()
-      return await d.spawn([now.path], { ...env, [REEXEC_ENV]: '1' }).exited
+      return await spawn([now.path], { ...env, [REEXEC_ENV]: '1' }).exited
     }
     const message = `buracle ${action.argv.join(' ')}: ${resultLine(code)}`
     if (screen === 'menu') menu = { ...menu, message }
@@ -495,16 +591,42 @@ export function dashboardFits(o: { stdinTTY: boolean, stdoutTTY: boolean, json: 
     && (o.columns ?? 0) >= MIN_SIZE.columns && (o.rows ?? 0) >= MIN_SIZE.rows
 }
 
-function spawnChild(argv: readonly string[], env: Record<string, string | undefined>): ChildHandle {
-  const p = Bun.spawn([...argv], { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit', env: { ...env } })
-  const SIGNALS: Readonly<Record<string, number>> = { SIGHUP: 1, SIGINT: 2, SIGTERM: 15 }
-  return {
-    exited: p.exited.then(code => (p.signalCode ? 128 + (SIGNALS[p.signalCode] ?? 15) : code)),
-    kill: sig => { p.kill(sig) },
+const SIGNAL_NUMBERS: Readonly<Record<string, number>> = { SIGHUP: 1, SIGINT: 2, SIGTERM: 15 }
+
+function exitCodeOf(p: { exited: Promise<number>, signalCode: string | null }): Promise<number> {
+  return p.exited.then(code => (p.signalCode ? 128 + (SIGNAL_NUMBERS[p.signalCode] ?? 15) : code))
+}
+
+// With `pty` the child gets a pseudo-terminal of that size (it sees a TTY, so its questions and progress lines work)
+// and its output goes to `pty.output`; when Bun cannot open one, the child inherits the terminal.
+function spawnChild(argv: readonly string[], env: Record<string, string | undefined>, pty?: PtyRequest): ChildHandle {
+  // A Bun without PTY support never gets the option, so the command starts once, with the terminal inherited.
+  if (pty !== undefined && typeof Bun.Terminal === 'function') {
+    let ended: () => void = () => {  }
+    const done = new Promise<void>(r => { ended = r })
+    try {
+      const p = Bun.spawn([...argv], { env: { ...env }, terminal: { cols: pty.cols, rows: pty.rows, data: (_t, data) => { pty.output(data) }, exit: () => { ended() } } })
+      const t = p.terminal
+      if (t !== undefined) {
+        return {
+          exited: exitCodeOf(p),
+          kill: sig => { p.kill(sig) },
+          write: data => { t.write(data) },
+          resize: (cols, rows) => { t.resize(Math.max(1, cols), Math.max(1, rows)) },
+          ended: done,
+          close: () => { if (!t.closed) t.close() },
+        }
+      }
+      p.kill('SIGTERM')
+    } catch {
+      // No PTY here: the child inherits the terminal below.
+    }
   }
+  const p = Bun.spawn([...argv], { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit', env: { ...env } })
+  return { exited: exitCodeOf(p), kill: sig => { p.kill(sig) } }
 }
 
 export async function openDashboard(): Promise<number> {
   const [{ openTerminal }, { liveVerifier }] = await Promise.all([import('./ui/terminal'), import('../engine/update/refresh')])
-  return runDashboard({ terminal: openTerminal({ input: process.stdin, output: process.stdout }), spawn: spawnChild, now: Date.now, source: await fileSource(Date.now, liveVerifier()) })
+  return runDashboard({ terminal: openTerminal({ input: process.stdin, output: process.stdout }), now: Date.now, source: await fileSource(Date.now, liveVerifier()) })
 }

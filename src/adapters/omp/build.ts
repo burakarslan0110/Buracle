@@ -2,7 +2,7 @@ import type { AgentDoc, CanonicalBundle, McpServerSpec, RuleDoc, SkillDoc } from
 import { envRef, expandMcpCommand, mcpEnvFor } from '../../core/catalog'
 import type { AdapterContext } from '../registry'
 import { bundleExtension } from './bundle'
-import { buracleVersion, ompCommandSkills, ompGeneratedData, ompMcpServerIds, OMP_MIN_VERSION, OMP_TESTED_WITH, PACKAGE_NAME } from './generated'
+import { buracleVersion, ompCommandSkills, ompGeneratedData, ompMcpServerIds, OMP_MIN_VERSION, PACKAGE_NAME } from './generated'
 import { firstHeading, frontmatter, oneLine, renderForOmp, withFinalNewline } from './render'
 import { OMP_ASIDE_COMMAND, OMP_PING_COMMAND, OMP_STATUS_ALIAS, OMP_STATUS_COMMAND, PING_ANSWER } from './runtime/commands'
 import { FLOW_WIDGET_KEY } from './runtime/flow-widget'
@@ -211,7 +211,7 @@ export function renderReadme(canonical: CanonicalBundle): BuildFile {
     '',
     '## Version',
     '',
-    `Verified with omp ${OMP_TESTED_WITH}; needs at least ${OMP_MIN_VERSION}. \`buracle doctor omp\` checks the version, the link and the settings.`,
+    `Needs omp ${OMP_MIN_VERSION} or newer. \`buracle doctor omp\` checks the version, the link and the settings.`,
     '',
   ]
   return { path: 'README.md', content: lines.join('\n') }

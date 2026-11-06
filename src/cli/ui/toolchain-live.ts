@@ -2,7 +2,9 @@ import type { CommandIO } from '../router'
 import { loadBundle } from '../../engine/update/context'
 import { opsDeps } from '../../engine/update/deps'
 import type { ToolchainEvent, ToolchainItem, ToolchainOptions, ToolchainResult } from '../../engine/toolchain/index'
-import { heading, styleFor, type Style } from './style'
+import { sectionHeading } from './frame'
+import { sectionMode } from './sections'
+import { styleFor, type Style } from './style'
 import { liveList, type LiveList, type Outcome } from './live'
 
 const GROUP_TITLE: Readonly<Record<ToolchainItem['group'], string>> = {
@@ -26,16 +28,18 @@ export function itemText(st: Style, i: ToolchainItem): string {
 
 // With `live`, the items go into that list (the one the command's own steps use), and stop() leaves it to its owner.
 export function toolchainProgress(io: CommandIO, view: { quiet: boolean, title?: boolean, live?: LiveList }): { onEvent: (e: ToolchainEvent) => void, stop: () => void } {
-  const st = styleFor(process.stderr)
-  const tty = !view.quiet && !io.flags.json && Boolean(process.stderr.isTTY)
-  const live = view.live ?? liveList(io.stderr, st, { tty, columns: process.stderr.columns ?? 100 })
+  // The command's own stderr decides, as for its steps: a terminal that takes control codes gets live lines.
+  const st = styleFor(io.stderr)
+  const tty = !view.quiet && !io.flags.json && sectionMode(io.stderr).live
+  const columns = io.stderr.columns ?? 100
+  const live = view.live ?? liveList(io.stderr, st, { tty, columns })
   let group: string | undefined
   const onEvent = (e: ToolchainEvent): void => {
     if (view.quiet || io.flags.json) return
     if (e.phase === 'start') { live.start(e.item.id, `${e.item.label}${e.item.source !== undefined ? st.muted(`  ${e.item.source}`) : ''}`); return }
     if (view.title !== false && group !== e.item.group) {
       group = e.item.group
-      live.note(heading(st, GROUP_TITLE[e.item.group]))
+      live.note(sectionHeading(st, GROUP_TITLE[e.item.group], columns - 1))
     }
     live.finish(e.item.id, outcomeOf(e.item), itemText(st, e.item))
   }

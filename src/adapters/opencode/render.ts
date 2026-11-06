@@ -7,7 +7,7 @@ import { sha256 } from '../../engine/fsx'
 import { stableStringify } from '../../engine/merge'
 import {
   CLI_SCHEMA_URL, CONFIG_SCHEMA_URL, GLOBAL_PERMISSIONS, MCP_STARTUP_TIMEOUT_MS, READONLY_SHELL_ALLOW,
-  READONLY_SHELL_DENY, TESTED_WITH,
+  READONLY_SHELL_DENY,
 } from './constants'
 import type { BakedData, BakedHook } from './runtime/baked'
 import { DEFAULT_HOOK_FAILURE } from './runtime/baked'
@@ -251,7 +251,6 @@ export function bakedData(canonical: CanonicalBundle, opts: { withLayout: boolea
   const baked: BakedData = {
     v: 1,
     contentHash: contentHash(canonical),
-    testedWith: TESTED_WITH,
     defaults: canonical.config,
     routing: canonical.routing,
     mcp: catalogMcp(canonical.mcp, 'opencode'),

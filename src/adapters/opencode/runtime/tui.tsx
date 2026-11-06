@@ -190,7 +190,7 @@ export function createTuiPlugin(baked: BakedData, pluginDir: string | undefined)
           else ctx.ui.toast?.show({ title, message, variant: 'info', duration: 15_000 })
         },
         band: sid => band.view(sid, config.get().config.workflow.foldAfterSec),
-        about: () => ({ ...(ctx.app?.version !== undefined ? { opencode: ctx.app.version } : {}), testedWith: baked.testedWith, workflows: workflowCommandSkills(baked.skills).map(s => s.id) }),
+        about: () => ({ ...(ctx.app?.version !== undefined ? { opencode: ctx.app.version } : {}), workflows: workflowCommandSkills(baked.skills).map(s => s.id) }),
         pane: (title, lines) => {
           const dialog = ctx.ui.dialog
           if (dialog?.show === undefined) return false

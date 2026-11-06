@@ -13,7 +13,7 @@ This folder is Buracle's Claude Code side. `buracle build` generates it from `ca
 - **The mod** (`hooks/register.tsx`) is the experience layer: it adds only what a mod alone can do
   and never repeats the hooks' work. If the mod fails or is turned off, the hooks keep guarding.
 
-Tested Claude Code version: **2.1.302**. After a Claude Code update, run `buracle doctor claude`;
+Minimum Claude Code version: **2.1.290**. After a Claude Code update, run `buracle doctor claude`;
 it runs the validation and the tests again.
 
 ## Install

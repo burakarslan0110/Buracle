@@ -249,7 +249,7 @@ Dört harness da aynı 27 hook'u, skill'leri, inceleme ajanlarını, kuralları,
 | Dil sunucuları | Claude Code'un LSP'si | Buracle'ın `lsp` MCP sunucusu | Buracle'ın `lsp` MCP sunucusu | omp'nin kendi LSP'si |
 | Tarayıcı | chrome-devtools | chrome-devtools | chrome-devtools | omp'nin yerleşik tarayıcısı |
 
-Buracle Claude Code, Codex ve Oh My Pi'nin yerleşik hafızasını kapatır. Böylece dört harness'ın paylaştığı tek hafıza beyin olur. İnceleme ajanları her zaman salt okunur çalışır. Bir harness'ta Buracle'ın ihtiyaç duyduğu bir mekanizma yoksa [`src/adapters/shared/host-limits.ts`](src/adapters/shared/host-limits.ts) bu eksiği ve yerine ne yapıldığını kaydeder. `buracle doctor <harness>` her kaydı listeler ve daha yeni bir harness sürümü bir eksiği kapatabilecekse bunu söyler. Aşağıdaki tablo bu listedir.
+Buracle Claude Code, Codex ve Oh My Pi'nin yerleşik hafızasını kapatır. Böylece dört harness'ın paylaştığı tek hafıza beyin olur. İnceleme ajanları her zaman salt okunur çalışır. Bir harness'ta Buracle'ın ihtiyaç duyduğu bir mekanizma yoksa [`src/adapters/shared/host-limits.ts`](src/adapters/shared/host-limits.ts) bu eksiği ve yerine ne yapıldığını kaydeder. `buracle doctor <harness> --all` her kaydı listeler. Aşağıdaki tablo bu listedir.
 
 ### Harness sınırları
 
@@ -276,12 +276,14 @@ Buracle Claude Code, Codex ve Oh My Pi'nin yerleşik hafızasını kapatır. Bö
 | `opencode.rate-windows` | OpenCode | Kota API'si yok, pencereler sağlayıcı cevaplarının başlıklarından gelir | 5 saatlik ve 7 günlük bölümler bir cevap taşıyana kadar boş kalır |
 | `omp.companion-shell` | Oh My Pi | Print modu bash'i salt okunur komutlarla sınırlayamaz | İkinci görüş yalnızca read, grep ve glob ile çalışır, diff istemine konur |
 
-| Harness | Test edilen sürüm |
+Buracle en az şu harness sürümlerini ister (`src/engine/update/min-versions.ts`). Daha yeni bir sürüm ayrıca bir kontrol istemez. Asgari sürümün altında `buracle doctor` bir hata bildirir.
+
+| Harness | Asgari sürüm |
 |---|---|
-| Claude Code | 2.1.302 |
-| Codex CLI | 0.162.1 |
-| OpenCode | 2.0.30 |
-| Oh My Pi | 18.10.1 |
+| Claude Code | 2.1.290 |
+| Codex CLI | 0.154.0 |
+| OpenCode | 2.0.20 |
+| Oh My Pi | 18.8.0 |
 
 ## Korumalar
 
@@ -323,13 +325,15 @@ Buracle 0.5.0 · CC 2.1.296 (Max) · Memory: localhost:41777 · brain 142 ✓ ·
 
 Terminalde `buracle` yazınca bir menü açılır. Menüde logo, her şeyin yolunda olup olmadığını söyleyen bir satır ve altı seçenek bulunur. Seçenekler kurulum ya da onarım, güncelleme, sağlık kontrolü, hafıza, her parçayı sürümü ve bekleyen güncellemesiyle gösteren ayrıntılı görünüm ve çıkıştır. Ok tuşları ya da j/k ile gezinir, Enter ile seçimi çalıştırırsın. Her seçeneğin kendi kısayol tuşu da var.
 
+Her ekranın en üstünde aynı logo başlığı durur: 63'e 20'den itibaren tam logo, daha dar bir pencerede adıyla birlikte simge, alçak ya da dar bir pencerede tek satır. Menüden başlattığın komut bu başlığın altında çalışır. Soruları ve ilerleme satırları her zamanki gibidir, Ctrl-C menüyü değil komutu durdurur. Komut bitince sonucu çıktının altında görünür: herhangi bir tuş seni geri götürür, `o` ise bütün çıktıyı terminalinin kendi kaydırmasıyla yeniden gösterir.
+
 Menü açıkken Buracle, son doğrulaması altı saatten eski olanları yeniler. MCP sunucuları canlı olarak yoklanır, araçlar sürümünü bildirir, güncelleme denetimi yeniden çalışır. Sonucu gelene kadar satırda `checking…` yazar. Kontrol hiçbir şey indirmez. Paketi araç zincirinde olmayan sunucu `buracle install` komutunu bekler. Ayrıntılı görünümde `n` bakılması gereken sonraki satıra atlar, `r` her şeyi hemen yeniden kontrol eder.
 
 | Komut | Ne yapar |
 |---|---|
 | `buracle install [<harness>…]` | Bulduğu her harness için ya da adını verdiklerin için ilk kurulumu ve onarımı yapar |
 | `buracle update [--check]` | Her parçayı kendi kaynağından günceller |
-| `buracle doctor [<konu>]` | Hook'ları, MCP sunucularını, hafızayı ve kod dizinlerini denetler. `mcp` ya da `memory` gibi bir konu verirsen yalnızca o parçaya bakar |
+| `buracle doctor [<konu>] [--all]` | Hook'ları, MCP sunucularını, hafızayı ve kod dizinlerini denetler. Her bölüm için bir satır ve yalnızca sorunları, her birini düzeltme yoluyla gösterir; `--all` her satırı gösterir. `mcp` ya da `memory` gibi bir konu verirsen yalnızca o parçaya bakar |
 | `buracle config` | Yapılandırmayı `get`, `set` ve `unset` ile okur ya da değiştirir |
 | `buracle rollback` | En son kurulumu geri alır |
 | `buracle uninstall` | Buracle'ın kurduğu her şeyi kaldırır ve hafızaya dokunmaz |

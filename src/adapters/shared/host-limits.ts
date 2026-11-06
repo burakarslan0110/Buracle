@@ -238,22 +238,19 @@ export function probeClosers(text: string, probe: HostProbe): string[] {
   return probeNames(text, probe).filter(n => re.test(n))
 }
 
-export interface HostLimitRow { level: 'ok' | 'warn'; check: string; detail: string }
+export interface HostLimitRow { level: 'ok'; check: string; detail: string }
 
 const README_POINTER = 'See the Host limits table in README.md.'
 
 /**
- * The doctor rows for a harness's host limits: the version row first (`<h>.limits`, a warning when the installed host is
- * newer than the newest check), then one `ok` row per limit or partial record with its reason and Buracle's fallback.
+ * The doctor rows for a harness's host limits: a summary row first (`<h>.limits`), then one `ok` row per limit or
+ * partial record with its reason and Buracle's fallback. None warns: a newer host version is no problem by itself.
  */
-export function hostLimitRows(h: Harness, version: string | undefined, smokeTest: string): HostLimitRow[] {
+export function hostLimitRows(h: Harness): HostLimitRow[] {
   const limits = hostLimitsOf(h)
   if (limits.length === 0) return []
   const checkedOn = limits.map(l => l.checkedOn).sort(compareVersions).at(-1) ?? ''
   const ids = limits.map(l => l.id.replace(`${h}.`, '')).join(', ')
-  const check = `${h}.limits`
-  const versionRow: HostLimitRow = version !== undefined && checkedOn !== '' && compareVersions(version, checkedOn) > 0
-    ? { level: 'warn', check, detail: `${version} is newer than ${checkedOn}, the newest check of the ${limits.length} host limits Buracle recorded (${ids}); from the Buracle checkout, \`bun test ${smokeTest} -t "host limits"\` runs the probes, and each record names where to re-check the rest` }
-    : { level: 'ok', check, detail: `${limits.length} host limits recorded, last checked on ${checkedOn} (${ids}); each follows with its fallback` }
-  return [versionRow, ...limits.map((l): HostLimitRow => ({ level: 'ok', check: l.id, detail: `${l.reason}. Fallback: ${l.fallback}. ${README_POINTER}` }))]
+  const summary: HostLimitRow = { level: 'ok', check: `${h}.limits`, detail: `${limits.length} host limits recorded, last checked on ${checkedOn} (${ids}); each follows with its fallback` }
+  return [summary, ...limits.map((l): HostLimitRow => ({ level: 'ok', check: l.id, detail: `${l.reason}. Fallback: ${l.fallback}. ${README_POINTER}` }))]
 }
