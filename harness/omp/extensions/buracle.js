@@ -27326,7 +27326,7 @@ function registerUtilityCommands(pi, host) {
     handler: safe(OMP_REMEMBER_COMMAND, (args, ctx) => remember(host, args, ctx))
   });
   pi.registerCommand(OMP_BRAIN_COMMAND, {
-    description: "Open the Buracle memory web UI (starts it when it is not running); /brain review opens the plan and change review page",
+    description: "Open the Buracle Console (starts it when it is not running); /brain review opens the plan and change review page",
     handler: safe(OMP_BRAIN_COMMAND, (args, ctx) => brain(host, args, ctx))
   });
   pi.registerCommand(OMP_ASIDE_COMMAND, {
@@ -32754,7 +32754,7 @@ function footerParts(bar, info, nowMs, emoji) {
     out.push(hooks);
   if (info.memoryUrl !== undefined) {
     const host = memoryHost(info.memoryUrl);
-    out.push({ priority: 70, variants: [[seg3("memui", "Buracle Brain: ", "gray"), seg3("memui", host, "gray", { link: info.memoryUrl })], [seg3("memui", host, "gray", { link: info.memoryUrl })]] });
+    out.push({ priority: 70, variants: [[seg3("memui", "Buracle Console: ", "gray"), seg3("memui", host, "gray", { link: info.memoryUrl })], [seg3("memui", host, "gray", { link: info.memoryUrl })]] });
   }
   if (bar.mem !== undefined) {
     try {
@@ -36892,7 +36892,7 @@ function workflowOfExpanded(prompt) {
 
 // src/adapters/omp/runtime/generated-data.ts
 var GENERATED = {
-  buracleVersion: "0.8.5",
+  buracleVersion: "0.8.6",
   commands: [
     "ab-test",
     "bugfix",

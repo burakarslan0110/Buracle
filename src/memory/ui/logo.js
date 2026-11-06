@@ -1,12 +1,12 @@
 import { svg } from './dom.js'
 
 export const LOGO = [
-  '██                                             ██          ',
-  '██                                             ██          ',
-  '██████▄   ██    ██  ██▄███   ▄██████   ▄█████  ██   ▄████▄ ',
-  '██ ▄▄ ██  ██    ██  ██▀     ██    ██  ██       ██  ██▄▄▄▄██',
-  '██ ▀▀ ██  ██    ██  ██      ██    ██  ██       ██  ██▀▀▀▀▀▀',
-  '██████▀    ▀██████  ██       ▀██████   ▀█████  ██   ▀█████ ',
+  '██                                       ██        ',
+  '██                                       ██        ',
+  '██▀▀▀▀█▄  ██  ██  ██▄█▀   ▀▀▀█▄  ▄█▀▀▀▀  ██  ▄█▀▀█▄',
+  '██ ██ ██  ██  ██  ██      ▄▄▄██  ██      ██  ██▄▄██',
+  '██ ██ ██  ██  ██  ██     ██  ██  ██      ██  ██    ',
+  '██▄▄▄▄█▀  ▀█▄▄██  ██     ▀█▄▄██  ▀█▄▄▄▄  ██  ▀█▄▄▄▄',
 ]
 
 export const EYE = [[3, 3], [3, 4], [4, 3], [4, 4]]
@@ -59,15 +59,15 @@ export function markTile() {
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">',
     '  <rect width="32" height="32" rx="7" fill="#0b0d14" shape-rendering="geometricPrecision"/>',
     `  <path fill="#a78bfa" d="${body}"/>`,
-    `  <path fill="#22d3ee" d="${eye}"/>`,
+    `  <path fill="#fbbf24" d="${eye}"/>`,
     '</svg>',
     '',
   ].join('\n')
 }
 
 export const WORDMARK_THEMES = {
-  dark: { from: '#a78bfa', to: '#22d3ee', eye: '#22d3ee' },
-  light: { from: '#7c3aed', to: '#0891b2', eye: '#0891b2' },
+  dark: { from: '#a78bfa', to: '#e879f9', eye: '#fbbf24' },
+  light: { from: '#6d28d9', to: '#a21caf', eye: '#b45309' },
 }
 
 export function wordmarkSvg(theme) {

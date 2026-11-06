@@ -69,7 +69,7 @@ the reply to the question the denial told the agent to ask, or in the consent di
 
 **Commands:** `/buracle-ping` (`pong` without a model call), `/buracle-status [status|memory|plan|flow]`
 (the plugin's `buracle` skill holds the name `/buracle`), `/remember <text>` (a memory capture
-the next harness files), `/brain` (opens the brain web UI in the browser), `/aside <question>` (a read-only side
+the next harness files), `/brain` (opens the Buracle Console in the browser), `/aside <question>` (a read-only side
 question that leaves the session untouched). When Claude Code refuses a name, the command is
 registered as `/buracle-<name>` instead (`/buracle-remember`, `/buracle-brain`, `/buracle-aside`).
 The mod answers only the names Claude Code accepted; a refused name goes to its owner unchanged.
@@ -77,7 +77,7 @@ The mod answers only the names Claude Code accepted; a refused name goes to its 
 **Panes:** memory (`buracle-memory`) and plan (`buracle-plan`, also the band's "details").
 
 The status line is not the mod's: `buracle statusline claude` draws it (two lines: model, context
-bar, 5-hour and 7-day usage; Buracle and Claude Code versions and, while it runs, the memory web UI link).
+bar, 5-hour and 7-day usage; Buracle and Claude Code versions and, while it runs, the Buracle Console link).
 
 ## Files it reads and writes
 
@@ -91,7 +91,7 @@ The command hooks also write `sessions/claude/<session>/{state.json,telemetry.js
 `state/memory/spool/`, handoff memories in the project's brain (`~/.buracle/brain`) and
 `docs/plan-build/` in the project; `buracle flow` and `buracle plan` keep `flow.json` current.
 `BURACLE_HOME` moves these paths. `BURACLE_NO_CAPTURE=1` turns memory capture off,
-`BURACLE_NO_AUTOSTART=1` the background indexes and the memory web UI's start. With `memory.ui.autostart` (the default) a session start opens the web UI when it is not running, and it stops when the last harness session ends; otherwise it runs after `buracle mem ui`.
+`BURACLE_NO_AUTOSTART=1` the background indexes and the Buracle Console's start. With `memory.ui.autostart` (the default) a session start opens the web UI when it is not running, and it stops when the last harness session ends; otherwise it runs after `buracle mem ui`.
 
 ## Known limits
 

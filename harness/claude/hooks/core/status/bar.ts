@@ -208,7 +208,7 @@ function footerParts(bar: BarModel, info: BarInfo, nowMs: number, emoji: boolean
   if (hooks !== undefined) out.push(hooks)
   if (info.memoryUrl !== undefined) {
     const host = memoryHost(info.memoryUrl)
-    out.push({ priority: 70, variants: [[seg('memui', 'Buracle Brain: ', 'gray'), seg('memui', host, 'gray', { link: info.memoryUrl })], [seg('memui', host, 'gray', { link: info.memoryUrl })]] })
+    out.push({ priority: 70, variants: [[seg('memui', 'Buracle Console: ', 'gray'), seg('memui', host, 'gray', { link: info.memoryUrl })], [seg('memui', host, 'gray', { link: info.memoryUrl })]] })
   }
   if (bar.mem !== undefined) {
     try {
