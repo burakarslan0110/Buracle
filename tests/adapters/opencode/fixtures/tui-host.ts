@@ -87,11 +87,13 @@ const tree = footer?.render({ sessionID: 'ses_tui1', mode: 'normal', showDetails
 const line = texts(tree).join('')
 const composer = claims.find(c => c.append === 'session.composer.top')
 const band = composer !== undefined && bandSession !== undefined ? rows(composer.render({ sessionID: bandSession })) : []
+const home = claims.find(c => c.append === 'home.footer')
+const tip = home !== undefined ? texts(home.render(undefined)).join('') : ''
 const commands = layers.flatMap(f => f().commands ?? []).map(c => ({ id: c.id, slash: c.slash }))
 if (runCommand !== undefined) {
   const cmd = layers.flatMap(f => f().commands ?? []).find(c => c.slash?.name === runCommand || c.slash?.aliases?.includes(runCommand) === true)
   await cmd?.run(runInput)
 }
 if (typeof cleanup === 'function') await (cleanup as () => unknown)()
-process.stdout.write(JSON.stringify({ id: mod.default.id, slots: claims.map(c => c.append), root: tree?.type, line, band, commands, toasts, alerts, btw }) + '\n')
+process.stdout.write(JSON.stringify({ id: mod.default.id, slots: claims.map(c => c.append), root: tree?.type, line, tip, band, commands, toasts, alerts, btw }) + '\n')
 process.exit(0)

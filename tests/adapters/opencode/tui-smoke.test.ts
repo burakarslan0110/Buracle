@@ -9,6 +9,7 @@ import { applyPlans } from '../../../src/engine/txn'
 import { bucketCounts, listAll, personRef, projectRef } from '../../../src/memory/store'
 import { readFlow, writeFlow } from '../../../src/workflow/flow'
 import { flowPhase } from '../../../src/core/flow/record'
+import { TIPS_LABEL } from '../../../src/core/tips'
 import { narrowPath, pathOf } from '../../helpers/fake-exe'
 import { withSandbox } from '../../helpers/sandbox'
 import { lastUserText, startFakeProvider, type ToolRule } from './fake-provider'
@@ -125,6 +126,7 @@ describe('opencode TUI (real binary in tmux, opt-in)', () => {
     expect(start.exitCode).toBe(0)
     try {
       await waitFor(s => s.includes('Ask anything') && s.includes(FOOTER_MARK), 'home')
+      await waitFor(s => s.includes(`${TIPS_LABEL}: `), 'home-tip', 15_000)
 
       const before = agentRequests()
       await submit('/remember buracle tui smoke note')

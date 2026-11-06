@@ -102,19 +102,30 @@ describe('H05 mid-turn: the context warning reaches the model with the next PreT
 })
 
 describe('H17 one-time notices at a Claude Code session start', () => {
-  test('the first startup claims the notice: one user line, one model line; later sessions, resumes and subagents get nothing', () => withSandbox(() => withEnv({ BURACLE_NO_NOTICES: undefined }, async () => {
+  test('the first startup claims the notice for the model only (no SessionStart user message); later sessions, resumes and subagents get nothing', () => withSandbox(() => withEnv({ BURACLE_NO_NOTICES: undefined }, async () => {
     const sub = out((await claudeHook('SessionStart', payload('SessionStart', { source: 'startup', agent_id: 'agent-1' }), ctx([NOTICE]), deps())).stdout)
-    expect(sub.system).toBe('')
+    expect(sub.context).not.toContain('Buracle notice')
     const resumed = out((await claudeHook('SessionStart', payload('SessionStart', { source: 'resume' }), ctx([NOTICE]), deps())).stdout)
-    expect(resumed.system).toBe('')
+    expect(resumed.context).not.toContain('Buracle notice')
     const first = out((await claudeHook('SessionStart', payload('SessionStart', { source: 'startup' }), ctx([NOTICE]), deps())).stdout)
-    expect(first.system).toBe('Buracle 0.0.1: Hello from the notice test.')
+    expect(first.system).toBe('')
     expect(first.context).toContain('Buracle notice, shown once on this machine.')
     expect(first.context).toContain('- Hello from the notice test.')
     expect(existsSync(join(paths.noticesDir(), 'test-notice.ack'))).toBe(true)
     const again = out((await claudeHook('SessionStart', payload('SessionStart', { source: 'startup', session_id: 'sess-session-2' }), ctx([NOTICE]), deps())).stdout)
     expect(again.system).toBe('')
     expect(again.context).not.toContain('Buracle notice')
+  })))
+
+  test('a profile mismatch reaches the model as a line to pass on, never as a SessionStart user message', () => withSandbox(() => withEnv({ CLAUDE_CONFIG_DIR: '/work/profile-b' }, async () => {
+    mkdirSync(paths.stateDir(), { recursive: true })
+    writeFileSync(paths.runtimeConfigFile(), JSON.stringify({ v: 1, resolved: { claudeDir: '/work/profile-a' } }))
+    const first = out((await claudeHook('SessionStart', payload('SessionStart', { source: 'startup' }), ctx(), deps())).stdout)
+    expect(first.system).toBe('')
+    expect(first.context).toContain('Buracle setup warning. Tell the user')
+    expect(first.context).toContain('this session reads /work/profile-b (CLAUDE_CONFIG_DIR)')
+    const resumed = out((await claudeHook('SessionStart', payload('SessionStart', { source: 'resume' }), ctx(), deps())).stdout)
+    expect(resumed.context).not.toContain('Buracle setup warning')
   })))
 })
 

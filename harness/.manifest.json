@@ -509,7 +509,7 @@
     },
     "harness/claude/hooks/core/catalog.ts": {
       "by": "claude",
-      "sha256": "66f35fd5b7c48e9d91f81d82fb0c2865716f5ceafa37e4f3539470b7500a92be",
+      "sha256": "c7986fedd5dba1bbdcf8a8ccbd9d43922638afd323bcb8f554b7f5ecb5f7ec3b",
       "exec": false
     },
     "harness/claude/hooks/core/charset.ts": {
@@ -977,6 +977,11 @@
       "sha256": "99619128e493d8484fb9179e618498924e0fa662630d9e055d2ff79ed5da4c46",
       "exec": false
     },
+    "harness/claude/hooks/core/tips.ts": {
+      "by": "claude",
+      "sha256": "55bbfdd8626e2f68e8ca60223ed0b23a59f689ce4f413351aa437370c7557376",
+      "exec": false
+    },
     "harness/claude/hooks/core/usage.ts": {
       "by": "claude",
       "sha256": "4a54db761f11158b93dc3e0051429e25f75d4b3e5609a0c3dea1a4bdfde705c8",
@@ -994,7 +999,7 @@
     },
     "harness/claude/hooks/generated/meta.ts": {
       "by": "claude",
-      "sha256": "7316d5da67d732f75b3e3292ef4057f20bb47b61ced7baebd3d95adaeb249209",
+      "sha256": "9aaf6df750e86142aca799a1a823294c8178033a2a44aaa650a033d9591714db",
       "exec": false
     },
     "harness/claude/hooks/hooks.json": {
@@ -1749,17 +1754,17 @@
     },
     "harness/opencode/manifest.json": {
       "by": "opencode",
-      "sha256": "c511f10a64fabf7d44b2b1b78161c4fae54d6aa5d5ac6c4714667e4315117961",
+      "sha256": "5cbe1b60a6baf88ff0490d4a3d6faaa59fe27fac50210e04f401dd5acd88c246",
       "exec": false
     },
     "harness/opencode/plugins/buracle/index.js": {
       "by": "opencode",
-      "sha256": "5eee3212ed4c5848166a2d5238865d73f6b0c0d1dedb4693883fcd5d18b8b8ca",
+      "sha256": "f2c5407be971e67ca3bd55a331c50df934642dda7a57538bad86bfa3460154cb",
       "exec": false
     },
     "harness/opencode/plugins/buracle/tui.js": {
       "by": "opencode",
-      "sha256": "ff094d846a282778c6165062820c497b0eb99ba57615cdc2c66a6927249752fb",
+      "sha256": "34b9223bab84fcd51e206db21c22aa82815e5f4f742824cc8838cf6adc97c1fa",
       "exec": false
     }
   }

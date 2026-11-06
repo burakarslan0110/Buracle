@@ -245,6 +245,7 @@ All four get the same 27 hooks, skills, review agents, rules, memory, guards and
 | Consent | A dialog inside Claude Code | Codex's own approval prompt | A TUI dialog, or the question tool on web and desktop | omp's select dialog |
 | Workflow progress | A band above the prompt, memory and plan panes | The status bar in tmux and `buracle plan status` | A band above the composer and a dialog | A widget above the editor and a pane below it |
 | Status line | Buracle's own status line | Codex's native items and a tmux bar | The prompt footer | omp's native preset with Buracle entries |
+| Usage tips | In the spinner rotation, as `Buracle: …` | None (Codex's tips are fixed) | One on the home screen | None (no place for them) |
 | Plan mode | Saved to `docs/plan-build/` | Saved when you choose to implement the plan | Saved as a draft | Saved on approval |
 | Language servers | Claude Code's LSP | Buracle's `lsp` MCP server | Buracle's `lsp` MCP server | omp's own LSP |
 | Browser | chrome-devtools | chrome-devtools | chrome-devtools | omp's built-in browser |

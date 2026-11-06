@@ -167,9 +167,11 @@ describe('opencode build', () => {
       const [out, err, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited])
       expect(err).toBe('')
       expect(code).toBe(0)
-      const r = JSON.parse(out) as { id: string, slots: string[], root: string, line: string, band: string[], commands: Array<{ id: string, slash: { name: string, aliases?: string[], arguments?: boolean } }> }
+      const r = JSON.parse(out) as { id: string, slots: string[], root: string, line: string, tip: string, band: string[], commands: Array<{ id: string, slash: { name: string, aliases?: string[], arguments?: boolean } }> }
       expect(r.id).toBe('buracle')
-      expect(r.slots).toEqual(['prompt.footer.status', 'session.composer.top'])
+      expect(r.slots).toEqual(['prompt.footer.status', 'home.footer', 'session.composer.top'])
+      expect(r.tip.startsWith('Buracle: ')).toBe(true)
+      expect((canonical().tips ?? []).map(t => `Buracle: ${t.text}`)).toContain(r.tip)
       expect(r.root).toBe('box')
       expect(r.line).toContain('big')
       expect(r.line).toContain('30%')
