@@ -41,7 +41,7 @@ If the memory tools are not visible, load them with ToolSearch before concluding
 unavailable. Claude Code's own auto memory is off: Buracle's memory is the only store, so never
 write `MEMORY.md` files.
 
-The user can type `/remember <text>` to store a capture and `/brain` to open the brain web UI
+The user can type `/remember <text>` to store a capture and `/brain` to open the Buracle Console
 (Codex has no custom commands: `buracle mem remember "<text>"` instead).
 
 ## 1. Reading: the quick pass

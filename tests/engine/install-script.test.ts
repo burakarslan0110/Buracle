@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ITEM_NAME_WIDTH, NAME_WIDTH, SECTION_ORDER } from '../../src/cli/ui/sections'
-import { LOGO, TAGLINE } from '../../src/cli/ui/style'
+import { ANSI16, LOGO, TAGLINE } from '../../src/cli/ui/style'
 import { linuxInstallPlan, type LinuxPackageManager } from '../../src/engine/toolchain/linux-packages'
 import { withSandbox } from '../helpers/sandbox'
 
@@ -263,21 +263,25 @@ describe.skipIf(!run)('install.sh shows the logo', () => {
     expect(/[^\x00-\x7f]/.test(out)).toBe(false)
   }))
 
-  test('colour is three shades along each row, only when asked for or on a terminal, and never with NO_COLOR or a dumb terminal', () => withSandbox(async ({ root }) => {
+  test('colour is the brand along each row and the eye in its own colour, only when asked for or on a terminal, and never with NO_COLOR or a dumb terminal', () => withSandbox(async ({ root }) => {
     expect(await banner(root)).not.toContain('\u001b')
     const colored = await banner(root, { FORCE_COLOR: '1' })
-    expect(colored).toContain('\u001b[95m')
-    expect(colored).toContain('\u001b[94m')
-    expect(colored).toContain('\u001b[96m')
+    const sgr = (n: number) => `\u001b[${n}m`
+    const rows = colored.split('\n').slice(1, 7)
+    for (const row of rows) expect(row.startsWith(`  ${sgr(ANSI16.brand)}█`)).toBe(true)
+    expect(rows[3]).toContain(`${sgr(ANSI16.brandEnd)}`)
+    for (const r of [3, 4]) expect(rows[r]).toContain(`${sgr(ANSI16.eye)}██${sgr(ANSI16.brand)}`)
+    expect(rows.filter(r => r.includes(sgr(ANSI16.eye)))).toHaveLength(2)
     expect(colored.replace(ESC, '')).toBe(PLAIN)
     expect(await banner(root, { FORCE_COLOR: '1', NO_COLOR: '1' })).toBe(PLAIN)
     expect(await banner(root, { FORCE_COLOR: '1', TERM: 'dumb' })).toBe(PLAIN)
     expect(await banner(root, { FORCE_COLOR: '0' })).toBe(PLAIN)
   }))
 
-  test('a terminal too narrow for the logo gets one line', () => withSandbox(async ({ root }) => {
-    const out = await banner(root, { COLUMNS: '50' })
-    expect(out).toBe(`\n  buracle  ${TAGLINE}\n\n`)
+  test('a terminal too narrow for the logo gets one line; 54 columns hold the logo', () => withSandbox(async ({ root }) => {
+    expect(await banner(root, { COLUMNS: '50' })).toBe(`\n  buracle  ${TAGLINE}\n\n`)
+    expect(await banner(root, { COLUMNS: '53' })).toBe(`\n  buracle  ${TAGLINE}\n\n`)
+    expect(await banner(root, { COLUMNS: '54' })).toBe(PLAIN)
   }))
 
   test('it is the first thing the installer prints, and --help does not print it', () => withSandbox(async ({ root }) => {

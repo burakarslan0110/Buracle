@@ -1,6 +1,6 @@
 # Buracle: repository guide for coding agents
 
-Buracle: everything your coding agents need, in one place. One canonical set of skills, rules,
+Buracle: one engineering setup, one memory, every coding agent. One canonical set of skills, rules,
 agents, MCP servers, hooks and status lines, generated for Claude Code, Codex CLI, OpenCode (v2) and
 Oh My Pi. TypeScript on Bun ≥ 1.4, ESM only, strict TypeScript; the CLI runs from source.
 

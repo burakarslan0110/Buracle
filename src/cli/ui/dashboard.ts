@@ -77,7 +77,7 @@ const HELP: ReadonlyArray<readonly [string, string]> = [
   ['c', 'check for updates'],
   ['i', 'install or repair'],
   ['d', 'health check'],
-  ['m', 'open the memory web UI'],
+  ['m', 'open the Buracle Console'],
   ['r', 'recheck everything now'],
   ['esc', 'back to the main menu'],
   ['?', 'close this help'],

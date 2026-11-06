@@ -38,7 +38,7 @@ memories, preferences first. Each line is a title, a summary and the memory id; 
 demand. `(unverified)` marks a memory nobody checked yet. When that text is missing, call
 `memory_context` once.
 
-The user can type `/remember <text>` to store a capture and `/brain` to open the brain web UI
+The user can type `/remember <text>` to store a capture and `/brain` to open the Buracle Console
 (Codex has no custom commands: `buracle mem remember "<text>"` instead).
 
 ## 1. Reading: the quick pass

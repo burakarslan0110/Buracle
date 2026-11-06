@@ -17,7 +17,7 @@ export interface HeaderView { version: string; columns: number; rows: number; su
 
 export interface Hint { key: string; word: string; drop?: number; shrink?: boolean } // drop: the order in which hints go when the line is too narrow; shrink: this word is cut before the line is
 
-const LOGO_MIN = { columns: 63, rows: 20 } as const
+const LOGO_MIN = { columns: 55, rows: 20 } as const // the 51-column logo, its margin and room to spare
 const ICON_MIN_COLUMNS = 43
 const ICON_WIDTH = 8
 const ICON_GAP = '   '

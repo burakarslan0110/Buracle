@@ -631,7 +631,7 @@ describe('omp extension: session lifecycle, status and telemetry (H05/H14/H16/H1
     const widget = ctx.uiCalls.filter(c => c.method === 'setWidget' && c.args[0] === WIDGET_KEY).at(-1)
     expect(widget?.args[0]).toBe(WIDGET_KEY)
     const lines = widget?.args[1] as string[]
-    expect(lines.at(-1)).toBe('Buracle 9.9.9 · OMP 18.8.3 · Buracle Brain: localhost:41777')
+    expect(lines.at(-1)).toBe('Buracle 9.9.9 · OMP 18.8.3 · Buracle Console: localhost:41777')
     expect(widget?.args[2]).toEqual({ placement: 'belowEditor' })
   }))
 

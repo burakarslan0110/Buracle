@@ -176,7 +176,7 @@ export function utilityCommands(host: UtilityHost, names: UtilityNames): TuiKeym
       slash: { name: names.remember, arguments: true }, run: guarded(`/${names.remember}`, input => remember(host, input, names.remember)),
     },
     {
-      id: 'buracle.brain', title: 'Open the memory web UI', description: 'Buracle: start and open the memory web UI (review: the plan and change review page)', group: 'Buracle', palette: true,
+      id: 'buracle.brain', title: 'Open the Buracle Console', description: 'Buracle: start and open the Buracle Console (review: the plan and change review page)', group: 'Buracle', palette: true,
       slash: { name: names.brain, arguments: true }, run: guarded(`/${names.brain}`, input => brain(host, input ?? '', names.brain)),
     },
     {

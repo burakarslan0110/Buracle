@@ -18,7 +18,7 @@ const ITEMS_80 = [
   '  > Install or repair  set Buracle up in your coding agents, or repair it',
   '    Update             look for new versions and apply them, step by step',
   '    Health check       check every part and see how to fix what is broken',
-  '    Memory             open the memory web UI in your browser',
+  '    Memory             open the Buracle Console in your browser',
   '    Detailed view      every part with its version, state and waiting update',
   '    Quit',
 ]
@@ -28,7 +28,7 @@ describe('main menu frames', () => {
   test('80 by 24 at color level 0: the title, the status, every choice with what it does, and the key hints', () => {
     expect(renderMenu(plain, menu(80, 24))).toEqual([
       '',
-      '  buracle v0.5.0 · everything your coding agents need, in one place',
+      '  buracle v0.5.0 · One engineering setup, one memory, every coding agent',
       '',
       '  + All good · no update check yet',
       '',
@@ -41,14 +41,14 @@ describe('main menu frames', () => {
   test('with color and room, the pixel logo stands on top with the version and the tagline under it', () => {
     const lines = shown(color, menu(80, 24))
     expect(lines.slice(1, 7)).toEqual(LOGO.map(l => `  ${l}`.trimEnd()))
-    expect(lines[7]).toBe('  v0.5.0  ·  everything your coding agents need, in one place')
+    expect(lines[7]).toBe('  v0.5.0  ·  One engineering setup, one memory, every coding agent')
     expect(lines.slice(11, 17)).toEqual(ITEMS_80.map(l => l.replace('  > ', '  ❯ ')))
     expect(lines).toHaveLength(24)
     expect(lines.at(-1)).toBe(HINT)
   })
 
-  test('below 62 columns the icon stands for the logo; descriptions that do not all fit move under the list, for the selected choice only', () => {
-    const v = menu(60, 20)
+  test('below 55 columns the icon stands for the logo; descriptions that do not all fit move under the list, for the selected choice only', () => {
+    const v = menu(54, 20)
     const lines = shown(color, v)
     expect(lines.slice(1, 7).map(l => l.slice(0, 10).trimEnd())).toEqual(ICON.map(l => `  ${l}`.trimEnd()))
     expect(lines.join('\n')).toContain('buracle')
@@ -60,7 +60,7 @@ describe('main menu frames', () => {
 
   test('the header follows the terminal size and never leaves; below 40 by 10 only the list stays', () => {
     const at = (rows: number) => shown(color, menu(80, rows))
-    const TITLE = '  ◉ buracle v0.5.0 · everything your coding agents need, in one place'
+    const TITLE = '  ◉ buracle v0.5.0 · One engineering setup, one memory, every coding agent'
     const STATUS = '  ✔ All good · no update check yet'
     const ITEMS = ITEMS_80.map(l => l.replace('  > ', '  ❯ '))
     expect(at(20)[1]).toBe(`  ${LOGO[0]}`.trimEnd())
@@ -73,7 +73,7 @@ describe('main menu frames', () => {
 
   test('from 40 by 10 the menu starts with the shared header lines of its size and color level', () => {
     for (const level of [0, 1, 2, 3] as const) {
-      for (const [columns, rows] of [[40, 10], [42, 18], [43, 20], [62, 20], [63, 20], [80, 24], [100, 30], [120, 40]] as const) {
+      for (const [columns, rows] of [[40, 10], [42, 18], [43, 20], [54, 20], [55, 20], [80, 24], [100, 30], [120, 40]] as const) {
         const v = menu(columns, rows, { updates: 2, problems: 1, checkedAt: '5 min ago' })
         const header = headerLines(style(level), v)
         expect(renderMenu(style(level), v).slice(0, header.length)).toEqual(header)
@@ -83,7 +83,7 @@ describe('main menu frames', () => {
 
   test('every line fits the width and the frame never has more lines than the terminal', () => {
     for (const level of [0, 1, 2, 3] as const) {
-      for (const [columns, rows] of [[120, 40], [100, 30], [80, 24], [62, 20], [61, 20], [50, 12], [43, 18], [42, 18], [40, 10], [30, 8], [20, 6], [12, 4], [1, 1]] as const) {
+      for (const [columns, rows] of [[120, 40], [100, 30], [80, 24], [55, 20], [54, 20], [50, 12], [43, 18], [42, 18], [40, 10], [30, 8], [20, 6], [12, 4], [1, 1]] as const) {
         for (const v of [menu(columns, rows), press(menu(columns, rows, { updates: 12, problems: 3, checkedAt: '48 min ago' }), 'end'), { ...menu(columns, rows), message: 'buracle update: done, with points that need your attention (exit code 2)' }]) {
           const lines = renderMenu(style(level), v)
           expect(lines.length).toBe(rows)

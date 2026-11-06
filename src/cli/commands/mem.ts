@@ -84,7 +84,7 @@ Backups and moving a brain (the brain stays on this machine; nothing is synced)
                                              brains once (the vault is only read)
   doctor [--no-mcp]                          CortexDB binary, the brain file and its migration, leak check, MCP handshake
                                              (--json: {"checks":[{level,check,detail}]}; exit 1 errors, 2 warnings)
-  ui [--open] [--port N] [--stop]            the brain web UI (http://localhost:41777): starts it in the
+  ui [--open] [--port N] [--stop]            the Buracle Console (http://localhost:41777): starts it in the
                                              background when it does not run, prints its address. With
                                              memory.ui.autostart (the default) the install and every harness
                                              session start it too, and it runs until the last harness session

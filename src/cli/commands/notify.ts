@@ -18,7 +18,7 @@ brain. Best effort: a delivery failure is reported as a warning and never fails 
 record is written.
 
   list    the recorded notifications, newest first (default ${NOTIFY_LIST_LIMIT}); * marks an unread one
-  read    mark notifications read (the brain web UI's bell shows the same list and the same marks;
+  read    mark notifications read (the Buracle Console's bell shows the same list and the same marks;
           ~/.buracle/state/notifications-read.json keeps them)`
 
 function runInbox(argv: string[], io: CommandIO, ctx: WorkflowCtx): number {

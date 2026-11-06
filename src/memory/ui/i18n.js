@@ -1,6 +1,6 @@
 const EN = {
-  'app.title': 'Buracle Brain',
-  'brand.name': 'Buracle Brain',
+  'app.title': 'Buracle Console',
+  'brand.name': 'Buracle Console',
   'brand.powered': 'Powered by',
   'brand.person': 'Person brain',
   'brand.project': 'Project brain',
@@ -39,7 +39,7 @@ const EN = {
   'count.items.one': '{n} item',
   'count.items.other': '{n} items',
   'btn.review': 'Review plans and changes',
-  'review.title': 'Buracle Review',
+  'review.title': 'Buracle Console · Review',
   'review.word': 'Review',
   'review.tagline': 'Notes for the agent on plans and changes',
   'review.toBrain': 'Brain',

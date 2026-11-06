@@ -176,7 +176,7 @@ describe('commands', () => {
     expect((await $.command.run(command('remember', '  '))).text).toBe('Usage: /remember <text>')
   })
 
-  test('/brain starts and opens the memory web UI', async ($, on) => {
+  test('/brain starts and opens the Buracle Console', async ($, on) => {
     const world = worldOf(on, { [SHIM]: '#!/bin/sh\n' })
     await $.session.start(SESSION)
     const answer = await $.command.run(command('brain'))
