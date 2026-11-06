@@ -29,6 +29,11 @@ export interface BackendOptions {
    * listens on the key the forwarder polls, even when the toolchain changed between the two reads.
    */
   packageVersion?: string
+  /**
+   * The variable that holds the API key the forwarder resolved (`--api-key-env`): the backend reads the key
+   * from its own environment for the socket key, and its server inherits the variable.
+   */
+  apiKeyEnv?: string
 }
 
 function identity(path: string): string | undefined {
@@ -109,7 +114,7 @@ export async function runMcpBackend(id: string, opts: BackendOptions): Promise<n
   }
   const serverSpec: McpServerSpec = spec
   const version = opts.packageVersion === undefined ? installedVersion(serverSpec) : opts.packageVersion === 'latest' ? undefined : opts.packageVersion
-  const key = backendKey(id, version)
+  const key = backendKey(id, version, opts.apiKeyEnv !== undefined ? process.env[opts.apiKeyEnv] : undefined)
   const files = backendFiles(key)
   const problem = ensurePrivateDir(files.dir)
   if (problem !== undefined) {

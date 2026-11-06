@@ -12,6 +12,7 @@ import { watchParent } from '../parent-watch'
 import * as paths from '../paths'
 import { freshMcpCache, type McpCache, writeMcpCache } from './cache'
 import { backendFiles, backendKey, idleMs, installedVersion, ownedByMe } from './common'
+import { apiKeyFor } from './keys'
 import { LineSplitter } from './lines'
 import { LEGACY_PROTOCOL_VERSIONS } from './mux'
 
@@ -323,11 +324,13 @@ export async function connectSocket(path: string, h: LinkHandlers): Promise<Link
   }
 }
 
-function startBackend(id: string, packageVersion: string, env: Readonly<Record<string, string | undefined>>): ReturnType<typeof Bun.spawn> | undefined {
+function startBackend(id: string, packageVersion: string, env: Readonly<Record<string, string | undefined>>, apiKeyEnv: string | undefined): ReturnType<typeof Bun.spawn> | undefined {
   const main = join(import.meta.dir, '..', '..', 'cli', 'main.ts')
+  // The name of the key's variable, never its value: the backend reads the value from its environment.
+  const keyArg = apiKeyEnv !== undefined ? [`--api-key-env=${apiKeyEnv}`] : []
   try {
     // Its own process group: a harness that kills the group of its server must not stop the shared backend.
-    const child = Bun.spawn([process.execPath, main, 'mcp', 'backend', id, `--package-version=${packageVersion}`], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, cwd: paths.home(), env: { ...env } })
+    const child = Bun.spawn([process.execPath, main, 'mcp', 'backend', id, `--package-version=${packageVersion}`, ...keyArg], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, cwd: paths.home(), env: { ...env } })
     child.unref()
     return child
   } catch {
@@ -343,7 +346,11 @@ export function sharedConnector(id: string, spec: McpServerSpec, env: Readonly<R
   return async h => {
     // Read at each connect, and handed to the backend it starts: both sides use one key even after a toolchain update.
     const installed = installedVersion(spec)
-    const files = backendFiles(backendKey(id, installed))
+    // The API key too, so a key set during the session (`buracle mcp key`) reaches its next connect, and a session
+    // with another key gets a backend of its own instead of one whose server runs without it.
+    const apiKey = apiKeyFor(id, spec, env)
+    const backendEnv = apiKey === undefined ? env : { ...env, [apiKey.name]: apiKey.value }
+    const files = backendFiles(backendKey(id, installed, apiKey?.value))
     const deadline = Date.now() + BACKEND_START_WAIT_MS
     let backend: ReturnType<typeof Bun.spawn> | undefined
     let silentSince: number | undefined
@@ -356,14 +363,14 @@ export function sharedConnector(id: string, spec: McpServerSpec, env: Readonly<R
           return l
         }
       }
-      if (backend === undefined) backend = startBackend(id, installed ?? 'latest', env)
+      if (backend === undefined) backend = startBackend(id, installed ?? 'latest', backendEnv, apiKey?.name)
       else if (backend.exitCode !== null || backend.signalCode !== null) {
         // A signal or any exit but 0: the backend refused to start.
         if (backend.signalCode !== null || backend.exitCode !== 0) return undefined
         // Exit 0: another backend holds the lock. It listens soon, or it is on its way out (a call at the end of the
         // linger time, or right after `buracle mcp stop`): then a later backend takes the lock over. Each try waits twice as long.
         silentSince ??= Date.now()
-        if (Date.now() - silentSince >= retryMs) { backend = startBackend(id, installed ?? 'latest', env); silentSince = undefined; retryMs *= 2 }
+        if (Date.now() - silentSince >= retryMs) { backend = startBackend(id, installed ?? 'latest', backendEnv, apiKey?.name); silentSince = undefined; retryMs *= 2 }
       }
       if (Date.now() > deadline) return undefined
       await Bun.sleep(40)

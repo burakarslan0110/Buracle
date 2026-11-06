@@ -8,6 +8,7 @@ servers:
     critical: true
     routing: [library-docs]
     backend: shared
+    api_key: { env: CONTEXT7_API_KEY, url: "https://context7.com/dashboard" }
 
   codegraph:
     description: Code structure graph (symbols, callers, impact) for the current repository
