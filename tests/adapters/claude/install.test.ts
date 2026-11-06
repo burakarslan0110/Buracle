@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { announcementOps, claudeInstallPlan, defaultInstallDeps, effortKeys, effortOps, envOps, LSP_DISABLED_KEY, LSP_NEVER_KEY, lspRecommendationPlan, mcpOffOps, permissionOps, renderRule, retiredDenyOps, ruleOps, statusLineOp } from '../../../src/adapters/claude/install'
+import { announcementOps, claudeInstallPlan, defaultInstallDeps, effortKeys, effortOps, envOps, LSP_DISABLED_KEY, LSP_NEVER_KEY, lspRecommendationPlan, mcpOffOps, permissionOps, renderRule, retiredDenyOps, ruleOps, statusLineOp, tipOps } from '../../../src/adapters/claude/install'
 import { buracleInstalledPlugin, KEPT_EXIT, marketplaceHolds, parseList, pluginInstalled, pluginsFrom } from '../../../src/adapters/claude/check'
 import type { AdapterContext } from '../../../src/adapters/registry'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
@@ -179,6 +179,35 @@ describe('install plan as data', () => {
       const group = composeUninstall(await readLedger(), [], emptyRecord(), paths.oldVaultRoot()).groups.find(g => g.owner === 'claude')
       await applyPlans([group!.content])
       expect(read()).toEqual({ model: 'opus', companyAnnouncements: ['Mine now'] })
+    })
+  })
+
+  test('the spinner tips: every canonical tip under the Buracle label, a user override stays, uninstall takes back only ours', async () => {
+    const shipped = loadCanonicalSync(join(REPO, 'canonical'))
+    const ctx = (): AdapterContext => ({ ...ctxFor(), canonical: shipped })
+    const op = tipOps(ctx())[0] as Extract<Op, { kind: 'json-merge' }>
+    const set = op.set['spinnerTipsOverride'] as { label: string, tips: Array<{ id: string, text: string }>, excludeDefault?: boolean }
+    expect(set.label).toBe('Buracle')
+    expect(set.excludeDefault).toBeUndefined()
+    expect(set.tips.map(t => t.id)).toContain('plan-build')
+    expect(set.tips).toEqual((shipped.tips ?? []).map(t => ({ id: t.id, text: t.text })))
+    expect(set.tips.length).toBeGreaterThan(0)
+    expect(tipOps(ctxFor())).toEqual([])
+    await withSandbox(async sb => {
+      const file = join(sb.home, '.claude', 'settings.json')
+      mkdirSync(join(sb.home, '.claude'), { recursive: true })
+      const read = () => JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>
+      const plan = { id: 'claude', harness: 'claude' as const, ops: tipOps(ctx()) }
+      const mine = { tips: ['Team tip'], excludeDefault: true }
+      writeFileSync(file, JSON.stringify({ model: 'opus', spinnerTipsOverride: mine }, null, 2))
+      expect((await applyPlans([plan])).conflicts).toEqual([])
+      expect(read()).toEqual({ model: 'opus', spinnerTipsOverride: mine })
+      writeFileSync(file, JSON.stringify({ model: 'opus' }, null, 2))
+      expect((await applyPlans([plan])).conflicts).toEqual([])
+      expect(read()['spinnerTipsOverride']).toEqual(set)
+      const group = composeUninstall(await readLedger(), [], emptyRecord(), paths.oldVaultRoot()).groups.find(g => g.owner === 'claude')
+      await applyPlans([group!.content])
+      expect(read()).toEqual({ model: 'opus' })
     })
   })
 

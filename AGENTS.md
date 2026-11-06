@@ -46,7 +46,8 @@ CI also parses the install script: `bash -n scripts/install.sh`. Run it after ed
 
 - `canonical/` — the single source of truth: YAML data and English prose (rules, skills, agents).
   `skill-triggers.yaml` holds the MCP routing categories' trigger phrases (data, any language);
-  `notices.yaml` holds one-time release notices, shown once per machine.
+  `notices.yaml` holds one-time release notices, shown once per machine; `tips.yaml` holds the usage
+  tips in Claude Code's spinner and on OpenCode's home screen.
 - `src/core/` — pure logic, copied verbatim into the Claude plugin (`harness/claude/hooks/core/`).
 - `src/engine/` — IO: paths, files, processes, git, log, config and canonical loaders, the
   transaction engine, merge, diff.

@@ -2,6 +2,7 @@ import type { Harness, HookId } from './events'
 import { HARNESSES } from './events'
 import type { BuracleConfig } from './config'
 import type { Notice } from './notices'
+import type { Tip } from './tips'
 import type { RoutingPolicy } from './policy/routing'
 import type { SkillTriggerTable, Triggers } from './policy/skill-router'
 import type { StatusLayout } from './status/model'
@@ -131,6 +132,7 @@ export interface CanonicalBundle {
   agents: AgentDoc[]
   triggers?: SkillTriggerTable
   notices?: Notice[]
+  tips?: Tip[]
   missing: string[]
   warnings: string[]
 }

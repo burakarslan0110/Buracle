@@ -2,6 +2,7 @@ import type { BuracleConfig } from '../../../core/config'
 import type { CatalogMcp, CatalogSkill } from '../../../core/catalog'
 import type { HookId } from '../../../core/events'
 import type { Notice } from '../../../core/notices'
+import type { Tip } from '../../../core/tips'
 import type { PathRuleIndex } from '../../../core/policy/path-rules'
 import type { RoutingPolicy } from '../../../core/policy/routing'
 import type { StatusLayout } from '../../../core/status/model'
@@ -22,6 +23,7 @@ export interface BakedData {
   layout?: StatusLayout
   version?: string
   notices?: Notice[]
+  tips?: Tip[]
 }
 
 export const DEFAULT_HOOK_FAILURE: Readonly<Partial<Record<HookId, 'open' | 'closed'>>> = {

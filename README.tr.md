@@ -245,6 +245,7 @@ Dört harness da aynı 27 hook'u, skill'leri, inceleme ajanlarını, kuralları,
 | Onay | Claude Code içinde bir pencere | Codex'in kendi onay sorusu | Bir TUI penceresi, web ve masaüstünde question aracı | omp'nin seçim penceresi |
 | Workflow ilerlemesi | İstem alanının üstünde bir bant, hafıza ve plan panelleri | tmux'taki durum çubuğu ve `buracle plan status` | Yazma alanının üstünde bir bant ve bir pencere | Editörün üstünde bir widget, altında bir panel |
 | Durum satırı | Buracle'ın kendi durum satırı | Codex'in yerleşik öğeleri ve bir tmux çubuğu | İstem alanının alt satırı | omp'nin yerleşik düzeni ve Buracle girdileri |
+| Kullanım ipuçları | Bekleme göstergesinin ipucu döngüsünde, `Buracle: …` olarak | Yok (Codex'in ipuçları sabit) | Ana ekranda bir tane | Yok (yeri yok) |
 | Plan modu | `docs/plan-build/` altına kaydedilir | Planı uygulamayı seçtiğinde kaydedilir | Taslak olarak kaydedilir | Onaylandığında kaydedilir |
 | Dil sunucuları | Claude Code'un LSP'si | Buracle'ın `lsp` MCP sunucusu | Buracle'ın `lsp` MCP sunucusu | omp'nin kendi LSP'si |
 | Tarayıcı | chrome-devtools | chrome-devtools | chrome-devtools | omp'nin yerleşik tarayıcısı |

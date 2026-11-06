@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { join, sep } from 'node:path'
 import type { RuleDoc } from '../../core/catalog'
 import { resolveEffort } from '../../core/effort'
+import { TIPS_LABEL } from '../../core/tips'
 import type { Ledger, Op, Plan } from '../../engine/txn'
 import { LIST_IDENTITY_HASH, readLedger } from '../../engine/txn'
 import { bunExecutable } from '../../engine/config'
@@ -133,6 +134,17 @@ export function announcementOps(ctx: AdapterContext): Op[] {
   return [{ kind: 'json-merge', path: join(ctx.paths.claudeDir(), 'settings.json'), set: { [ANNOUNCEMENTS_KEY]: [text] }, owner: OWNER, soft: [ANNOUNCEMENTS_KEY] }]
 }
 
+export const TIPS_KEY = 'spinnerTipsOverride'
+
+// Claude Code puts these tips in its spinner rotation next to its own, under the "Buracle" prefix (tip objects and
+// `label` need Claude Code 2.1.247, below the minimum version). The ids keep each tip's show history across edits.
+// A soft key: an override the user or their company set stays theirs.
+export function tipOps(ctx: Pick<AdapterContext, 'canonical' | 'paths'>): Op[] {
+  const tips = (ctx.canonical.tips ?? []).map(t => ({ id: t.id, text: t.text }))
+  if (tips.length === 0) return []
+  return [{ kind: 'json-merge', path: join(ctx.paths.claudeDir(), 'settings.json'), set: { [TIPS_KEY]: { label: TIPS_LABEL, tips } }, owner: OWNER, soft: [TIPS_KEY] }]
+}
+
 /**
  * Buracle no longer hides any MCP tool through `permissions.deny` (the last ones belonged to a server retired in
  * 0.6.0). The empty list makes the transaction engine remove the entries an earlier install wrote and leaves a
@@ -258,7 +270,7 @@ export async function claudeInstallPlan(ctx: AdapterContext, deps: Partial<Insta
     // No op turns on Claude Code's agent teams (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS): while they are on, a named Agent
     // call starts a teammate, whose report arrives late, in pieces and once more in its idle notice. Lanes run as
     // background subagents. The next install prunes the value an earlier Buracle wrote; a value the user set stays.
-    ops: [...ruleOps(ctx, ledger), statusLineOp(ctx), ...permissionOps(ctx), ...effortOps(ctx), ...envOps(ctx), ...autoMemoryOps(ctx), ...announcementOps(ctx), ...retiredDenyOps(ctx), ...mcpOffOps(ctx), ...execOps(ctx, tools)],
+    ops: [...ruleOps(ctx, ledger), statusLineOp(ctx), ...permissionOps(ctx), ...effortOps(ctx), ...envOps(ctx), ...autoMemoryOps(ctx), ...announcementOps(ctx), ...tipOps(ctx), ...retiredDenyOps(ctx), ...mcpOffOps(ctx), ...execOps(ctx, tools)],
     cleanupKeys: cleanupKeys(ctx),
   }
 }

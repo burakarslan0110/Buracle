@@ -1,0 +1,64 @@
+# Usage tips: Claude Code shows them in its spinner rotation (spinnerTipsOverride, labeled "Buracle"), OpenCode
+# shows one on its home screen. One line each, at most 160 characters, the same wording on every harness.
+# Write a command the way Claude Code and OpenCode spell it (`/plan-build`); Codex and Oh My Pi show no tips.
+tips:
+  - id: plan-build
+    text: "/plan-build writes a reviewed plan to docs/plan-build/, waits for your approval, then builds it test-first"
+  - id: goal-build
+    text: "/goal-build locks pass/fail criteria first, then builds in rounds a judge scores against them"
+  - id: bugfix
+    text: "/bugfix reproduces the failure, names the root cause as file:line and writes a failing test before the fix"
+  - id: requirements
+    text: "Scope still unclear? /requirements asks a few rounds of questions and writes a PRD before any code"
+  - id: direct-work
+    text: "No workflow needed for small changes: ask directly and the agent still verifies before it reports done"
+  - id: stop-words
+    text: "Say stop, wait or hold on at any time: the agent finishes the current step and pauses the plan"
+  - id: worktree-flag
+    text: "Add --worktree after a workflow request to build it in its own worktree, squash-merged back when done"
+  - id: research
+    text: "/research <question> answers from sources it actually read: web, library docs, public code and memory"
+  - id: inspect
+    text: "/inspect <question> traces how the code really behaves, cites every hop as path:line and changes nothing"
+  - id: dead-code
+    text: "/dead-code reports unused code only when two independent signals agree, with a staged removal plan"
+  - id: project-rules
+    text: "Run /project-rules once per repository: it writes an AGENTS.md from commands it ran, for every harness"
+  - id: remember
+    text: "/remember <text> saves a note to the memory that Claude Code, Codex, OpenCode and Oh My Pi all share"
+  - id: why-question
+    text: "Ask \"why did we…\" or \"what did we decide…\": the agent searches the memory before it answers"
+  - id: brain-ui
+    text: "/brain opens the Buracle Brain web UI: browse, search and fix the memory of this project and yours"
+  - id: brain-review
+    text: "/brain review opens the review page: pin notes on a plan, and the agent applies them before approval"
+  - id: aside
+    text: "/aside <question> answers a side question without derailing the running task"
+  - id: status
+    text: "/buracle-status shows the active plan, the running workflow and the memory at a glance"
+  - id: find-skill
+    text: "Need a skill for a recurring task? /find-skill searches the registry, audits the pick and installs it everywhere"
+  - id: new-skill
+    text: "Did a procedure twice? /new-skill turns it into a skill every harness can load"
+  - id: security-audit
+    text: "/security-audit gives focused security guidance, or a six-phase audit with findings and a report"
+  - id: doctor
+    text: "Something feels off? `buracle doctor` checks config, hooks, MCP and LSP servers, memory and code indexes"
+  - id: update
+    text: "`buracle update` updates Buracle and everything it connects, each part from its own source"
+  - id: rollback
+    text: "`buracle rollback` undoes the newest install; values you changed by hand always stay yours"
+  - id: config
+    text: "`buracle config set plan.<key> <value>` tunes how workflows run: worktrees, questions, reviews"
+  - id: companion-review
+    text: "Turn on plan.reviews.companion to get the same review from another installed harness as a second opinion"
+  - id: one-standard
+    text: "The same skills, rules, guards and memory run in Claude Code, Codex, OpenCode and Oh My Pi"
+  - id: mcp-status
+    text: "`buracle mcp status` shows Buracle's shared MCP servers; one backend serves every open session"
+  - id: index
+    text: "codegraph and semble index each project in the background, so the agent finds callers without grep loops"
+  - id: plan-audit
+    text: "`buracle plan audit` compares the diff with the files each task named and flags unplanned changes"
+  - id: language
+    text: "Plans, PRDs and reports follow the language you write in; only the markers Buracle reads stay English"

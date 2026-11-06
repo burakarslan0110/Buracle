@@ -103,6 +103,7 @@ export interface TuiComposerInput { readonly sessionID: string }
 export type TuiSlotClaim =
   | { readonly append: 'prompt.footer.status'; readonly render: (input: TuiPromptFooterInput) => unknown }
   | { readonly append: 'session.composer.top'; readonly render: (input: TuiComposerInput) => unknown }
+  | { readonly append: 'home.footer'; readonly render: () => unknown }
 export type TuiColor = unknown
 export interface TuiTheme {
   readonly text: { readonly base: TuiColor; readonly muted: TuiColor; readonly feedback: Readonly<Record<'error' | 'warning' | 'success' | 'info', { readonly base: TuiColor }>> }

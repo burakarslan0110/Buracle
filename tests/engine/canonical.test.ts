@@ -144,7 +144,7 @@ describe('loader on fixture trees', () => {
   test('minimal tree: optional data files are listed as missing', () => withSandbox(({ root }) => {
     const dir = fixture(root)
     const b = loadCanonicalSync(dir)
-    expect(b.missing).toEqual(['hooks.yaml', 'routing.yaml', 'skill-triggers.yaml', 'statusline.yaml', 'pricing.yaml', 'notices.yaml'])
+    expect(b.missing).toEqual(['hooks.yaml', 'routing.yaml', 'skill-triggers.yaml', 'statusline.yaml', 'pricing.yaml', 'notices.yaml', 'tips.yaml'])
     expect(b.notices).toEqual([])
     expect(b.routing).toEqual({ strictness: 'enforce', categories: [] })
     expect(b.hooks).toEqual({ hooks: [] })
