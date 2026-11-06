@@ -989,7 +989,7 @@
     },
     "harness/claude/hooks/generated/meta.ts": {
       "by": "claude",
-      "sha256": "0d779e2df498fb64c250c3a1b219f4424c7d662acec2729da7b75d3691f1460d",
+      "sha256": "13caae6d5f2ec5ed9865423c80534b920f61261c627efc7dc4a83cce0ceda075",
       "exec": false
     },
     "harness/claude/hooks/hooks.json": {
@@ -1464,7 +1464,7 @@
     },
     "harness/codex/AGENTS.md": {
       "by": "codex",
-      "sha256": "dcfb52ef0ab95e772df5027d01508a4c152a8c3aee7bde16685a69113db67c33",
+      "sha256": "587cc59f28b0e1461dbca9ccc6de29aeb029bf379d3491cf3857670942613503",
       "exec": false
     },
     "harness/codex/agents/changes-review.toml": {
@@ -1659,7 +1659,7 @@
     },
     "harness/omp/rules/buracle-core.md": {
       "by": "omp",
-      "sha256": "1370608650b445e649f853e83c5b8cbc58d2249a33a1bd23572a7a0865b4bef1",
+      "sha256": "8934e777ee4a1aaf31f67546fe93f1780087a4f5ee17010980ffaa300c1514f3",
       "exec": false
     },
     "harness/omp/rules/buracle-dotnet.md": {
@@ -1709,7 +1709,7 @@
     },
     "harness/opencode/AGENTS.block.md": {
       "by": "opencode",
-      "sha256": "527ba56c938ecbe4322361178afb0a0e14d3fd3b4883ea4e84c456976cb52e21",
+      "sha256": "384ab2d38595c53abe8bdf5393343d176687170d0f78afc121125cae5789db86",
       "exec": false
     },
     "harness/opencode/README.md": {
@@ -1744,17 +1744,17 @@
     },
     "harness/opencode/manifest.json": {
       "by": "opencode",
-      "sha256": "d2ca933f0bac25360adbf1e73eefa9b0869ef771204c3e65ba92d777f99da2b4",
+      "sha256": "147192e6d097b012dc4e072a0e893183301c888607065dbafab4a04ff2f9318f",
       "exec": false
     },
     "harness/opencode/plugins/buracle/index.js": {
       "by": "opencode",
-      "sha256": "9390e6198e353b98e2033eda548b048ff1433385e99dc2d3d7bec8acf78e65e3",
+      "sha256": "dbfd30296474f5d0505a72e619d272d931bd96fdc53903c32524b2fecec6f41d",
       "exec": false
     },
     "harness/opencode/plugins/buracle/tui.js": {
       "by": "opencode",
-      "sha256": "e1e30053cbbd4b74356adf3d2dbe4ee3c63151594a3a4bedeb6e71cbb39bb08f",
+      "sha256": "a2a3bdf6d77b75d0b52ee4a8d3753b79c6d50664ba8507fdacff90b5b5aef8b4",
       "exec": false
     }
   }
