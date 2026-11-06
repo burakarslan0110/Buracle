@@ -1,6 +1,7 @@
 /** @jsx h */
 
 import type { Segment } from '../../../core/status/model'
+import { pickTip, TIPS_LABEL } from '../../../core/tips'
 import { run } from '../../../engine/proc'
 import type { BakedData } from './baked'
 import { bandLines, BandFeeder, estimatedWidth } from './band'
@@ -141,6 +142,22 @@ export function createTuiPlugin(baked: BakedData, pluginDir: string | undefined)
           )
         },
       }))
+
+      // One Buracle usage tip under OpenCode's home screen, a new one each time the TUI starts.
+      const tip = pickTip(baked.tips, Math.floor(Math.random() * 1_000_000))
+      if (tip !== undefined) {
+        offs.push(ctx.ui.slot({
+          append: 'home.footer',
+          render: () => (
+            <box flexShrink={0} paddingLeft={2} paddingRight={2}>
+              <text wrapMode="word">
+                <span style={{ fg: ctx.theme.hue.accent[500] ?? ctx.theme.text.base, attributes: BOLD }}>{`${TIPS_LABEL}: `}</span>
+                <span style={{ fg: ctx.theme.text.muted }}>{tip.text}</span>
+              </text>
+            </box>
+          ),
+        }))
+      }
 
       offs.push(ctx.ui.slot({
         append: 'session.composer.top',

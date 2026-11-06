@@ -267,5 +267,6 @@ export function bakedData(canonical: CanonicalBundle, opts: { withLayout: boolea
   if (opts.withLayout && layout !== undefined) baked.layout = layout
   if (opts.version !== undefined) baked.version = opts.version
   if ((canonical.notices ?? []).length > 0) baked.notices = (canonical.notices ?? []).map(n => ({ ...n }))
+  if ((canonical.tips ?? []).length > 0) baked.tips = (canonical.tips ?? []).map(t => ({ id: t.id, text: t.text }))
   return baked
 }

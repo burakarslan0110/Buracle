@@ -210,7 +210,17 @@ async function sessionStart(p: Record<string, unknown>, sid: string, ctx: Adapte
   const notice = source === 'startup' && !sub && !noticesOff()
     ? await step('H17 notices', undefined as NoticeTexts | undefined, () => startupNotices(ctx.canonical.notices, { version: runtimeVersion(ctx.repoRoot), nowMs: now, harness: H }))
     : undefined
-  const fixed = [restore, notice?.model ?? '', workspace, assets, card].filter(s => s.trim() !== '')
+  // Claude Code prints a SessionStart systemMessage as "SessionStart:startup says: …" at the top of every session, so
+  // nothing goes there: the profile warning and the notices reach the user through the model's first reply.
+  let warning = ''
+  if (source === 'startup') {
+    const text = await step('H17 profile guard', undefined as string | undefined, () => {
+      const r = readJsonSafeSync<unknown>(paths.runtimeConfigFile())
+      return profileGuard(H, r.ok ? r.value : undefined, process.env)
+    })
+    if (text !== undefined) warning = `Buracle setup warning. Tell the user at the start of your next reply, in one short line, then carry on with their request:\n- ${text}`
+  }
+  const fixed = [warning, restore, notice?.model ?? '', workspace, assets, card].filter(s => s.trim() !== '')
   const room = CONTEXT_BUDGET_BYTES - byteLength(fixed.join('\n\n')) - 64
   let memory = ''
   if (room > 400 && d.env('BURACLE_NO_MEMORY') !== '1') {
@@ -222,16 +232,8 @@ async function sessionStart(p: Record<string, unknown>, sid: string, ctx: Adapte
       return text.trim() === '' ? '' : clipBytes(text.trim(), room)
     })
   }
-  let warning: string | undefined
-  if (source === 'startup') {
-    warning = await step('H17 profile guard', undefined as string | undefined, () => {
-      const r = readJsonSafeSync<unknown>(paths.runtimeConfigFile())
-      return profileGuard(H, r.ok ? r.value : undefined, process.env)
-    })
-    await step('H16 session maintenance', undefined, () => { d.sessionMaint(now, [sid]) })
-  }
-  const user = [warning, notice?.user].filter((s): s is string => s !== undefined).join('\n')
-  return contextOut('SessionStart', [restore, notice?.model ?? '', memory, workspace, assets, card], user !== '' ? user : undefined)
+  if (source === 'startup') await step('H16 session maintenance', undefined, () => { d.sessionMaint(now, [sid]) })
+  return contextOut('SessionStart', [warning, restore, notice?.model ?? '', memory, workspace, assets, card])
 }
 
 async function workspaceStart(cwd: string, sid: string, sub: boolean, ctx: AdapterContext, d: HookDeps, now: number): Promise<string> {

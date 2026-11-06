@@ -218,7 +218,7 @@ hooks:
 
   - id: H17
     name: profile.guard
-    description: "Warn when the active harness config directory differs from the one Buracle installed into, and show the one-time notices of this Buracle version (canonical/notices.yaml, at most 3): the first freshly started main session of any harness on the machine (never a resumed one) claims each notice (an acknowledgement file under ~/.buracle/state/notices, created exclusively before it is shown), tells the user (Claude Code and Codex: the hook's user message; OpenCode: a desktop notification; omp: a TUI notice) and gives the model one line to pass it on without asking. BURACLE_NO_NOTICES=1 turns them off."
+    description: "Warn when the active harness config directory differs from the one Buracle installed into, and show the one-time notices of this Buracle version (canonical/notices.yaml, at most 3): the first freshly started main session of any harness on the machine (never a resumed one) claims each notice (an acknowledgement file under ~/.buracle/state/notices, created exclusively before it is shown), tells the user (Claude Code: through the model's first reply, with no SessionStart user message; Codex: the hook's user message; OpenCode: a desktop notification; omp: a TUI notice) and gives the model one line to pass it on without asking. BURACLE_NO_NOTICES=1 turns them off."
     blocking: none
     failure: open
     contract_test: tests/cli/ops/profile-guard.test.ts

@@ -5,6 +5,7 @@ import { validateMcpCatalog, validatePluginsCatalog, validateToolsCatalog } from
 import type { BuracleConfig } from '../core/config'
 import { defaultConfig, mergeConfig } from '../core/config'
 import { validateNotices, type Notice, type NoticeCatalog } from '../core/notices'
+import { validateTips, type Tip, type TipCatalog } from '../core/tips'
 import { validateHooksMatrix } from '../core/policy/hooks-matrix'
 import type { RoutingPolicy } from '../core/policy/routing'
 import { validateRoutingPolicy } from '../core/policy/routing'
@@ -158,6 +159,13 @@ export function loadCanonicalSync(root: string = paths.canonicalDir()): Canonica
     if (errs.length > 0) problems.push(...errs.map(e => `notices.yaml: ${e}`))
     else notices = (rawNotices as NoticeCatalog).notices
   }
+  let tips: Tip[] = []
+  const rawTips = readData('tips.yaml', false)
+  if (rawTips !== undefined) {
+    const errs = validateTips(rawTips)
+    if (errs.length > 0) problems.push(...errs.map(e => `tips.yaml: ${e}`))
+    else tips = (rawTips as TipCatalog).tips
+  }
 
   if (rawHooks !== undefined && hooks === rawHooks) for (const e of validateHooksMatrix(rawHooks)) warnings.push(`hooks.yaml: ${e}`)
   if (rawRouting !== undefined && routing === rawRouting) for (const e of validateRoutingPolicy(rawRouting, Object.keys(mcp.servers))) warnings.push(`routing.yaml: ${e}`)
@@ -232,7 +240,7 @@ export function loadCanonicalSync(root: string = paths.canonicalDir()): Canonica
   }
 
   if (problems.length > 0) throw new CanonicalError(root, problems)
-  const bundle: CanonicalBundle = { root, config, mcp, plugins, tools, hooks, routing, statusline, pricing, rules, skills, agents, notices, missing, warnings }
+  const bundle: CanonicalBundle = { root, config, mcp, plugins, tools, hooks, routing, statusline, pricing, rules, skills, agents, notices, tips, missing, warnings }
   if (triggers !== undefined) bundle.triggers = triggers
   return bundle
 }

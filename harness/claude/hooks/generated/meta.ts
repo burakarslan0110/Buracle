@@ -2,6 +2,6 @@
 // The Buracle version; contentHash is the sha256 of the parsed canonical/ tree.
 
 export const META: { buracleVersion: string, contentHash: string } = {
-  "buracleVersion": "0.8.4",
-  "contentHash": "8e60151e393f4017f9b626c6be287b5c5246850d85be38af06a509598bcb4ded"
+  "buracleVersion": "0.8.5",
+  "contentHash": "7cb52a723e4266e5331810b7f8e189255989ea5d54126f694dc69b0b3e6ef834"
 }
