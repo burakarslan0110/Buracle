@@ -241,6 +241,12 @@ describe('codex doctor', () => {
     const nudge = defaultConfig()
     nudge.routing.strictness = 'nudge'
     expect(routingCheck({ ...toml, web_search: 'live' }, { ...ctx(), config: nudge }).level).toBe('ok')
+    const bothOff = defaultConfig()
+    bothOff.mcp.off.codex = ['web-search', 'web-fetch']
+    expect(routingCheck(rest, { ...ctx(), config: bothOff }).detail).not.toContain('web_search is unset')
+    const searchOff = defaultConfig()
+    searchOff.mcp.off.codex = ['web-search']
+    expect(routingCheck(rest, { ...ctx(), config: searchOff }).detail).toContain('web_search is unset')
   }))
 
   test('Codex\'s own config check: a config it cannot load is an error, ignored keys are warnings (read from config.load only)', () => {

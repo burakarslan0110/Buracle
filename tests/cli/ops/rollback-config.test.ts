@@ -171,7 +171,7 @@ describe('buracle config', () => {
       const j = memoryIO()
       expect(await configRun(['set', 'effort.codex', 'high', '--json'], j)).toBe(0)
       expect(JSON.parse(j.out())).toMatchObject({ ok: true, key: 'effort.codex', value: 'high', changed: true, sync: true, hint })
-      for (const [key, value] of [['harnesses.omp.enabled', 'false'], ['routing.strictness', 'nudge'], ['agents.teams', 'false']] as const) {
+      for (const [key, value] of [['harnesses.omp.enabled', 'false'], ['routing.strictness', 'nudge'], ['agents.teams', 'false'], ['mcp.off.codex', '[web-fetch]']] as const) {
         const io = memoryIO()
         expect(await configRun(['set', key, value], io)).toBe(0)
         expect(io.out()).toContain(hint)
@@ -179,7 +179,7 @@ describe('buracle config', () => {
       const same = memoryIO()
       expect(await configRun(['set', 'permissions.bypass', 'false'], same)).toBe(0)
       expect(same.out()).toBe('permissions.bypass is already false\n')
-      for (const [key, value] of [['statusline.emoji', 'false'], ['routing.reminders', 'false']] as const) {
+      for (const [key, value] of [['statusline.emoji', 'false'], ['routing.reminders', 'false'], ['mcp.shared', 'false']] as const) {
         const io = memoryIO()
         expect(await configRun(['set', key, value], io)).toBe(0)
         expect(io.out()).not.toContain('buracle install')

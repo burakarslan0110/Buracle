@@ -98,3 +98,11 @@ index:
   exclude: []
   children: true
   maxChildren: 8
+
+mcp:
+  shared: true
+  off:
+    claude: []
+    codex: []
+    opencode: []
+    omp: []

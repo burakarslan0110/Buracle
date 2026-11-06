@@ -26,6 +26,7 @@
       "env": {
         "CODEGRAPH_MCP_TOOLS": "explore,search,node,callers,callees,impact,status,files",
         "CODEGRAPH_NO_UPDATE_CHECK": "1",
+        "CODEGRAPH_NO_WATCHDOG": "1",
         "CODEGRAPH_TELEMETRY": "0"
       }
     },

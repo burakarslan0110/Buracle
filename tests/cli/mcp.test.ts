@@ -23,6 +23,129 @@ async function gitInit(dir: string): Promise<void> {
   await g(dir, 'init', '-q')
 }
 
+describe('buracle mcp disable and enable', () => {
+  type RunCall = { argv: string[], env?: Record<string, string | undefined> }
+  type HarnessRow = { harness: string, installed: boolean, included: boolean, reason?: string }
+  const installAnswers = (answer: { code: number, ok?: boolean, busy?: string[], conflicts?: Array<{ path: string, detail: string }>, harnesses?: HarnessRow[], errors?: Array<{ source: string, error: string }> }, calls: RunCall[]) => ({
+    run: async (argv: string[], opts?: { env?: Record<string, string | undefined> }) => {
+      calls.push({ argv, ...(opts?.env !== undefined ? { env: opts.env } : {}) })
+      return { code: answer.code, stdout: JSON.stringify({ code: answer.code, ok: answer.ok ?? answer.code === 0, conflicts: (answer.conflicts ?? []).map(c => ({ ...c, kind: 'toml-tables', owner: 'buracle' })), busyHarnesses: answer.busy ?? [], harnesses: answer.harnesses ?? [], errors: answer.errors ?? [] }), stderr: '', timedOut: false }
+    },
+  })
+  const offList = async (h: 'claude' | 'codex' | 'opencode' | 'omp') => (await import('../../src/engine/config')).loadConfigSync().config.mcp.off[h]
+
+  test('one harness: the config list changes, that harness is installed without the toolchain, and enable reverses it; the same state again changes nothing', () => withSandbox(async () => {
+    const calls: RunCall[] = []
+    await withDeps(installAnswers({ code: 0 }, calls), async () => {
+      const io = memoryIO()
+      expect(await mcpRun(['disable', 'web-fetch', '--harness', 'codex'], io)).toBe(0)
+      expect(await offList('codex')).toEqual(['web-fetch'])
+      expect(await offList('claude')).toEqual([])
+      expect(calls).toHaveLength(1)
+      expect(calls[0]?.argv.slice(2)).toEqual(['install', 'codex', '--yes', '--json'])
+      expect(calls[0]?.env?.['BURACLE_NO_TOOLCHAIN']).toBe('1')
+      expect(io.out()).toContain('web-fetch is now off in codex')
+      expect(io.out()).toContain('next session')
+      const again = memoryIO()
+      expect(await mcpRun(['disable', 'web-fetch', '--harness', 'codex'], again)).toBe(0)
+      expect(again.out()).toContain('already off')
+      expect(calls).toHaveLength(1)
+      expect(await mcpRun(['enable', 'web-fetch', '--harness=codex'], memoryIO())).toBe(0)
+      expect(await offList('codex')).toEqual([])
+      expect(calls[1]?.argv.slice(2)).toEqual(['install', 'codex', '--yes', '--json'])
+    })
+  }))
+
+  test('without --harness: every harness the server ships to (chrome-devtools does not ship to omp); bad input exits 1 and changes nothing', () => withSandbox(async () => {
+    const calls: RunCall[] = []
+    await withDeps(installAnswers({ code: 0 }, calls), async () => {
+      expect(await mcpRun(['disable', 'chrome-devtools'], memoryIO())).toBe(0)
+      for (const h of ['claude', 'codex', 'opencode'] as const) expect(await offList(h)).toEqual(['chrome-devtools'])
+      expect(await offList('omp')).toEqual([])
+      expect(calls[0]?.argv.slice(2)).toEqual(['install', 'claude', 'codex', 'opencode', '--yes', '--json'])
+      for (const bad of [['disable', 'nope'], ['disable', 'web-fetch', '--harness', 'cursor'], ['disable', 'chrome-devtools', '--harness', 'omp'], ['enable']]) {
+        const io = memoryIO()
+        expect(await mcpRun(bad, io)).toBe(1)
+        expect(io.err()).toMatch(/\S/)
+      }
+      expect(calls).toHaveLength(1)
+    })
+  }))
+
+  test('a running harness and a conflict exit 2 and say what to do; the config change stays', () => withSandbox(async () => {
+    const calls: RunCall[] = []
+    await withDeps(installAnswers({ code: 2, busy: ['codex'], conflicts: [{ path: '/x/.codex/config.toml', detail: 'you edited mcp_servers.web-fetch' }] }, calls), async () => {
+      const io = memoryIO()
+      expect(await mcpRun(['disable', 'web-fetch', '--harness', 'codex'], io)).toBe(2)
+      expect(io.err()).toContain('close it and run `buracle install codex`')
+      expect(io.err()).toContain('/x/.codex/config.toml')
+      expect(await offList('codex')).toEqual(['web-fetch'])
+    })
+  }))
+
+  test('a harness the install skips (not installed, disabled in config) is no failure: the others get their setting, and the skipped one is named with its reason', () => withSandbox(async () => {
+    const calls: RunCall[] = []
+    const harnesses = [
+      { harness: 'claude', installed: true, included: true },
+      { harness: 'codex', installed: true, included: true },
+      { harness: 'opencode', installed: true, included: false, reason: 'disabled in config' },
+      { harness: 'omp', installed: false, included: false, reason: 'not installed' },
+    ]
+    await withDeps(installAnswers({ code: 2, ok: true, harnesses }, calls), async () => {
+      const io = memoryIO()
+      expect(await mcpRun(['disable', 'web-fetch'], io)).toBe(0)
+      expect(io.err()).toBe('')
+      expect(io.out()).toContain('web-fetch is now off in claude, codex. It applies')
+      expect(io.out()).toContain('opencode was skipped (disabled in config)')
+      expect(io.out()).toContain('omp was skipped (not installed)')
+      expect(await offList('omp')).toEqual(['web-fetch'])
+    })
+    await withDeps(installAnswers({ code: 2, ok: false, harnesses, errors: [{ source: 'claude', error: 'the plugin could not be written' }] }, calls), async () => {
+      const io = memoryIO()
+      expect(await mcpRun(['enable', 'web-fetch'], io)).toBe(2)
+      expect(io.err()).toContain('the plugin could not be written')
+    })
+  }))
+})
+
+describe('buracle mcp list: the on or off state per harness (R18)', () => {
+  test('one column per harness with on, off or - (does not ship there); --json adds harnesses with on, off or none', () => withSandbox(async () => {
+    const { setConfigValue } = await import('../../src/engine/config-edit')
+    expect((await setConfigValue('mcp.off.codex', ['web-fetch'])).ok).toBe(true)
+    const j = memoryIO()
+    expect(await mcpRun(['list', '--json'], j)).toBe(0)
+    const rows = (JSON.parse(j.out()) as { servers: Array<{ id: string, harnesses: Record<string, string> }> }).servers
+    expect(rows.find(r => r.id === 'web-fetch')?.harnesses).toEqual({ claude: 'on', codex: 'off', opencode: 'on', omp: 'on' })
+    expect(rows.find(r => r.id === 'chrome-devtools')?.harnesses['omp']).toBe('none')
+    expect(rows.find(r => r.id === 'lsp')?.harnesses['claude']).toBe('none')
+    const t = memoryIO()
+    expect(await mcpRun(['list'], t)).toBe(0)
+    const lines = t.out().split('\n')
+    expect(lines[0]).toMatch(/^server\s+claude\s+codex\s+opencode\s+omp\s+source\s+start/)
+    expect(lines.find(l => l.startsWith('web-fetch '))).toMatch(/^web-fetch\s+on\s+off\s+on\s+on\s/)
+    expect(lines.find(l => l.startsWith('chrome-devtools '))).toMatch(/^chrome-devtools\s+on\s+on\s+on\s+-\s/)
+  }))
+})
+
+describe('buracle mcp run: a server that is off in the harness that starts it', () => {
+  test('with BURACLE_HARNESS set (the Claude plugin entries) and the server in mcp.off of that harness, it exits at once and starts nothing; another harness is not affected', () => withSandbox(async ({ root }) => {
+    mkdirSync(paths.stateDir(), { recursive: true })
+    writeFileSync(paths.runtimeConfigFile(), JSON.stringify({ v: 1, config: { mcp: { off: { claude: ['web-search', 'codegraph'] } } } }))
+    const pidFile = join(root, 'server.pid')
+    installWebSearch(fakeExe(join(root, 'tc', 'open-websearch'), `fs.writeFileSync(${q(pidFile)}, String(process.pid))\nawait Bun.stdin.text()`))
+    for (const id of ['web-search', 'codegraph']) {
+      const off = Bun.spawn([process.execPath, MAIN, 'mcp', 'run', id], { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', env: { ...process.env, BURACLE_HARNESS: 'claude' } })
+      expect(await off.exited).toBe(0)
+      expect(await new Response(off.stderr as ReadableStream).text()).toContain(`${id} is off in claude`)
+    }
+    expect(existsSync(pidFile)).toBe(false)
+    const other = Bun.spawn([process.execPath, MAIN, 'mcp', 'run', 'web-search'], { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', env: { ...process.env, BURACLE_HARNESS: 'codex' } })
+    await Bun.sleep(1_000)
+    expect(other.exitCode).toBeNull()
+    other.kill('SIGKILL')
+  }), 30_000)
+})
+
 describe('buracle mcp run codegraph: start gate', () => {
   test('a run that keeps building is given 4 s, then the server starts anyway', async () => {
     await withSandbox(async ({ root }) => {
@@ -80,7 +203,12 @@ function installWebSearch(entry: string): void {
   }, new Date(0).toISOString())
 }
 
+// These cases are about the direct start, where the server takes over `buracle mcp run`: web-search is
+// shared by default (tests/engine/mcp-share/forwarder.test.ts), so they turn sharing off, as `mcp.shared:
+// false` does for a user.
 function launch(env: Record<string, string | undefined> = {}) {
+  mkdirSync(paths.stateDir(), { recursive: true })
+  writeFileSync(paths.runtimeConfigFile(), JSON.stringify({ v: 1, config: { mcp: { shared: false } } }))
   return Bun.spawn([process.execPath, MAIN, 'mcp', 'run', 'web-search'], { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', env: { ...process.env, ...env } })
 }
 

@@ -75,7 +75,7 @@ describe('omp installPlan', () => {
       const agentDir = join(sb.home, '.omp', 'agent')
       expect(plan.id).toBe('omp')
       expect(plan.harness).toBe('omp')
-      expect(plan.ops.map(o => o.kind)).toEqual(['yaml-merge', 'md-block', 'json-merge', 'exec'])
+      expect(plan.ops.map(o => o.kind)).toEqual(['yaml-merge', 'md-block', 'json-merge', 'json-list-merge', 'exec'])
       expect(plan.ops[0]).toEqual({ kind: 'yaml-merge', path: join(agentDir, 'config.yml'), owner: 'omp', set: {
         'statusLine.preset': 'custom', 'statusLine.leftSegments': ['model', 'path', 'git', 'pr', 'subagents'],
         'statusLine.rightSegments': ['usage', 'context_pct', 'cost', 'status'], 'statusLine.showHookStatus': false,
@@ -101,6 +101,23 @@ describe('omp installPlan', () => {
     if (!HARNESS_BUILT) return
     const plan = await adapter.installPlan(ctxFor())
     expect(plan.ops.some(o => o.kind === 'json-merge' && o.path.endsWith('mcp.json'))).toBe(false)
+  }))
+
+  test('mcp.off.omp: the off servers go into disabledServers of the agent MCP file through an owned list merge; the user\'s own entries stay when they go away', () => withSandbox(async () => {
+    if (!HARNESS_BUILT) return
+    const cfg = defaultConfig()
+    cfg.mcp.off.omp = ['web-fetch']
+    const op = (await adapter.installPlan(ctxFor({ config: cfg }))).ops.find(o => o.kind === 'json-list-merge' && o.pointer === 'disabledServers')
+    expect(op).toMatchObject({ path: join(paths.ompAgentDir(), 'mcp.json'), items: ['web-fetch'] })
+    const none = (await adapter.installPlan(ctxFor())).ops.find(o => o.kind === 'json-list-merge' && o.pointer === 'disabledServers')
+    expect(none).toMatchObject({ items: [] })
+    const file = join(paths.ompAgentDir(), 'mcp.json')
+    mkdirSync(paths.ompAgentDir(), { recursive: true })
+    writeFileSync(file, JSON.stringify({ disabledServers: ['their-server'] }))
+    await applyPlans([{ id: 't-omp-off', harness: 'omp', ops: [op as Plan['ops'][number]] }])
+    expect((JSON.parse(readFileSync(file, 'utf8')) as { disabledServers: string[] }).disabledServers.sort()).toEqual(['their-server', 'web-fetch'])
+    await applyPlans([{ id: 't-omp-off', harness: 'omp', ops: [none as Plan['ops'][number]] }])
+    expect((JSON.parse(readFileSync(file, 'utf8')) as { disabledServers: string[] }).disabledServers).toEqual(['their-server'])
   }))
 
   test('honors PI_CODING_AGENT_DIR and an existing config.yaml', () => withSandbox(async sb => {

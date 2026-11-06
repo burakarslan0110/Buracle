@@ -165,6 +165,47 @@ describe('routing (H21-H26)', () => {
     expect(String((await search()).permissionDecisionReason)).toContain('mcp__web_search__search')
   }))
 
+  test('H03: a server in mcp.off.codex is unavailable for good: its built-in fallback is allowed with an "off" note, and the card and the router leave it out; off in another harness only changes nothing here', () => withSandbox(async ({ root }) => {
+    const d = deps({})
+    const search = async (c: ReturnType<typeof defaultConfig>): Promise<Record<string, unknown>> => {
+      const out = (await handleCodexHook('PreToolUse', payload('PreToolUse', { tool_name: 'webrun', tool_input: { search_query: [{ q: 'bun 1.4 release notes' }] } }), ctx(c), d)).stdout
+      return out === '' ? {} : JSON.parse(out).hookSpecificOutput as Record<string, unknown>
+    }
+    const card = async (c: ReturnType<typeof defaultConfig>) => contextOf(await handleCodexHook('SessionStart', payload('SessionStart', { cwd: root, source: 'resume' }), ctx(c), d))
+    const route = async (c: ReturnType<typeof defaultConfig>) => contextOf(await handleCodexHook('UserPromptSubmit', prompt('search the web for the bun 1.4 release notes'), ctx(c), d))
+    const elsewhere = defaultConfig()
+    elsewhere.mcp.off.claude = ['web-search', 'web-fetch']
+    expect(String((await search(elsewhere)).permissionDecisionReason)).toContain('mcp__web_search__search')
+    const searchOff = defaultConfig()
+    searchOff.mcp.off.codex = ['web-search']
+    expect(String((await search(searchOff)).permissionDecisionReason)).toContain('mcp__web_fetch__fetch_url')
+    expect(await card(searchOff)).not.toContain('\n- web-search')
+    expect(await route(searchOff)).not.toContain('mcp__web_search__search')
+    const bothOff = defaultConfig()
+    bothOff.mcp.off.codex = ['web-search', 'web-fetch']
+    const allowed = await search(bothOff)
+    expect(allowed.permissionDecision).toBeUndefined()
+    expect(String(allowed.additionalContext)).toContain('MCP server is off, so the built-in web search is allowed as a fallback')
+    expect(await card(bothOff)).not.toContain('\n- web-fetch')
+  }))
+
+  test('H03: Codex\'s own `enabled = false` counts too, for web calls and the capability card', () => withSandbox(async ({ root }) => {
+    const d = deps({})
+    const search = async (): Promise<Record<string, unknown>> => {
+      const out = (await handleCodexHook('PreToolUse', payload('PreToolUse', { tool_name: 'webrun', tool_input: { search_query: [{ q: 'bun 1.4 release notes' }] } }), ctx(), d)).stdout
+      return out === '' ? {} : JSON.parse(out).hookSpecificOutput as Record<string, unknown>
+    }
+    mkdirSync(paths.codexHome(), { recursive: true })
+    writeFileSync(join(paths.codexHome(), 'config.toml'), '[mcp_servers.web-search]\ncommand = "x"\nenabled = false\n\n[mcp_servers.web-fetch]\ncommand = "y"\nenabled = false\n')
+    const allowed = await search()
+    expect(allowed.permissionDecision).toBeUndefined()
+    expect(String(allowed.additionalContext)).toContain('MCP server is off')
+    const card = contextOf(await handleCodexHook('SessionStart', payload('SessionStart', { cwd: root, source: 'resume' }), ctx(), d))
+    expect(card).not.toContain('\n- web-search')
+    writeFileSync(join(paths.codexHome(), 'config.toml'), '[mcp_servers.web-search]\ncommand = "x"\nenabled = true\n')
+    expect(String((await search()).permissionDecisionReason)).toContain('mcp__web_search__search')
+  }))
+
   test('H24/H03: the root check is the one every harness uses: a folder of projects, a parent of home and index.exclude names are denied', () => withSandbox(async ({ root }) => {
     const c = defaultConfig()
     c.index.exclude = ['vendor']

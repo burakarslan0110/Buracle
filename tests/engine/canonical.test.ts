@@ -35,7 +35,7 @@ describe('the real canonical/ tree', () => {
     })
     for (const s of Object.values(bundle.mcp.servers)) if (s.package !== undefined) expect(s.pin).toBe('latest')
     expect(bundle.mcp.servers['grep']?.pin).toBe('monitor')
-    expect(bundle.mcp.servers['codegraph']?.env).toEqual({ CODEGRAPH_TELEMETRY: '0', CODEGRAPH_NO_UPDATE_CHECK: '1', CODEGRAPH_MCP_TOOLS: 'explore,search,node,callers,callees,impact,status,files' })
+    expect(bundle.mcp.servers['codegraph']?.env).toEqual({ CODEGRAPH_TELEMETRY: '0', CODEGRAPH_NO_UPDATE_CHECK: '1', CODEGRAPH_MCP_TOOLS: 'explore,search,node,callers,callees,impact,status,files', CODEGRAPH_NO_WATCHDOG: '1' })
     expect(bundle.mcp.servers['semble']?.package?.extras).toEqual(['mcp'])
     expect(expandMcpCommand(bundle.mcp.servers['codegraph']!, { buracle: '/b', id: 'codegraph' })).toEqual({ command: '/b', args: ['mcp', 'run', 'codegraph'] })
     expect(expandMcpCommand(bundle.mcp.servers['semble']!, { buracle: '/b', id: 'semble' })).toEqual({ command: '/b', args: ['mcp', 'run', 'semble'] })
@@ -323,6 +323,25 @@ describe('catalog validators', () => {
       'servers.retired.package.runtime: unknown key',
       'servers.retired.package.scripts: unknown key',
     ]))
+  })
+
+  test('mcp.yaml: backend is shared or lazy, and only a package server has one; the four web and search servers share, chrome-devtools starts lazily', () => {
+    const base = { description: 'x', transport: 'stdio', package: { registry: 'npm', name: 'p', version: 'latest' }, harnesses: ['claude'], pin: 'latest', critical: false, routing: [] }
+    expect(validateMcpCatalog({ servers: { a: { ...base, backend: 'shared' }, b: { ...base, backend: 'lazy' }, c: base } })).toEqual([])
+    const errors = validateMcpCatalog({
+      servers: {
+        odd: { ...base, backend: 'pool' },
+        own: { description: 'x', transport: 'stdio', command: '{buracle}', args: ['mcp', 'memory'], harnesses: ['claude'], pin: 'hard', critical: true, routing: [], backend: 'shared' },
+        remote: { description: 'x', transport: 'http', url: 'https://x.y', harnesses: ['claude'], pin: 'monitor', critical: false, routing: [], backend: 'lazy' },
+      },
+    })
+    expect(errors).toEqual(expect.arrayContaining([
+      'servers.odd.backend: expected shared | lazy',
+      'servers.own.backend: only a package server (npm or PyPI, started by `buracle mcp run`) has a backend',
+      'servers.remote.backend: only a package server (npm or PyPI, started by `buracle mcp run`) has a backend',
+    ]))
+    const modes = Object.fromEntries(Object.entries(loadCanonicalSync(REAL).mcp.servers).flatMap(([id, s]) => (s.backend !== undefined ? [[id, s.backend]] : [])))
+    expect(modes).toEqual({ context7: 'shared', semble: 'shared', 'web-search': 'shared', 'web-fetch': 'shared', 'chrome-devtools': 'lazy' })
   })
 
   test('mcpEnvFor: env plus the harness\'s own variables, in key order; nothing of another harness', () => {

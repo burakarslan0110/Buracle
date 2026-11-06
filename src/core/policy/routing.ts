@@ -7,7 +7,13 @@ import type { Triggers } from './skill-router'
 
 export interface RoutingPolicy { strictness: 'enforce'|'nudge'|'off'; categories: RoutingCategory[] }
 export interface RoutingCategory { id: string; intent: string; prefer: string[]; fallback: string[]; deny_builtin: string[]; nudge?: string; reminder?: string; triggers?: Triggers }
-export type McpHealth = Record<string, 'ok' | 'down' | 'unknown'>
+/** `off`: turned off for this harness (Buracle's `mcp.off` or the harness's own setting); never stored in health.json. */
+export type McpHealth = Record<string, 'ok' | 'down' | 'unknown' | 'off'>
+
+/** Whether routing must not send a call to this server: it is down, or it is off. */
+export function mcpUnavailable(state: McpHealth[string] | undefined): boolean {
+  return state === 'down' || state === 'off'
+}
 
 function isObj(x: unknown): x is Record<string, unknown> {
   return x !== null && typeof x === 'object' && !Array.isArray(x)
@@ -110,21 +116,27 @@ const BUILTIN_LABEL: Record<string, string> = { web_search: 'built-in web search
 
 function code(s: string): string { return '`' + s + '`' }
 
-interface Choice { ref?: RouteRef; down: string[] }
+interface Choice { ref?: RouteRef; down: string[]; off: string[] }
 
 function choose(cat: RoutingCategory, kind: string, health: McpHealth): Choice {
   const down: string[] = []
+  const off: string[] = []
   const refs = [...(Array.isArray(cat.prefer) ? cat.prefer : []), ...(Array.isArray(cat.fallback) ? cat.fallback : [])]
   for (const raw of refs) {
     const ref = parseRouteRef(raw)
     if (!ref) continue
     if (ref.kind === 'mcp') {
-      if (health[ref.server] === 'down') { if (!down.includes(ref.server)) down.push(ref.server); continue }
-      return { ref, down }
+      const state = health[ref.server]
+      if (mcpUnavailable(state)) {
+        const list = state === 'off' ? off : down
+        if (!list.includes(ref.server)) list.push(ref.server)
+        continue
+      }
+      return { ref, down, off }
     }
-    if (ref.kind === 'builtin' && ref.tool === kind) return { ref, down }
+    if (ref.kind === 'builtin' && ref.tool === kind) return { ref, down, off }
   }
-  return { down }
+  return { down, off }
 }
 
 function mcpTools(cat: RoutingCategory, server: string, harness: Harness): string[] {
@@ -178,7 +190,7 @@ function docsFetchRoute(call: ToolCall, policy: RoutingPolicy, health: McpHealth
   const cat = (Array.isArray(policy.categories) ? policy.categories : []).find(c => c.id === 'library-docs')
   if (!cat) return undefined
   const first = (Array.isArray(cat.prefer) ? cat.prefer : []).map(parseRouteRef).find((r): r is Extract<RouteRef, { kind: 'mcp' }> => r?.kind === 'mcp')
-  if (first === undefined || health[first.server] === 'down') return undefined
+  if (first === undefined || mcpUnavailable(health[first.server])) return undefined
   const docs = serverLabel(cat, first, call.harness)
   const fetchCat = policy.categories.find(c => Array.isArray(c.deny_builtin) && c.deny_builtin.includes('web_fetch'))
   const fallback = fetchCat ? choose(fetchCat, 'web_fetch', health).ref : undefined
@@ -210,8 +222,12 @@ export function routeTool(call: ToolCall, policy: RoutingPolicy, health: McpHeal
     if (choice.ref?.kind === 'mcp') {
       redirects.push(serverLabel(cat, choice.ref, call.harness))
       if (typeof cat.nudge === 'string' && cat.nudge.trim() !== '') nudges.push(cat.nudge.trim())
-    } else if (choice.down.length > 0) {
-      notes.push(`The ${choice.down.map(code).join(', ')} MCP server is down, so the ${builtin} is allowed as a fallback; mention the fallback in your report.`)
+    } else if (choice.down.length > 0 || choice.off.length > 0) {
+      const why = [
+        ...(choice.down.length > 0 ? [`The ${choice.down.map(code).join(', ')} MCP server is down`] : []),
+        ...(choice.off.length > 0 ? [`the ${choice.off.map(code).join(', ')} MCP server is off`] : []),
+      ].join(' and ')
+      notes.push(`${why.charAt(0).toUpperCase()}${why.slice(1)}, so the ${builtin} is allowed as a fallback; mention the fallback in your report.`)
     }
   }
   if (redirects.length === 0) return notes.length > 0 ? { action: 'allow', context: notes } : { action: 'allow' }

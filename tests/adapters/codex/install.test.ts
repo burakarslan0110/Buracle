@@ -24,6 +24,22 @@ import { withEnv, withSandbox } from '../../helpers/sandbox'
 const REPO = join(import.meta.dir, '..', '..', '..')
 const canonical: CanonicalBundle = loadCanonicalSync(join(REPO, 'canonical'))
 
+describe('mcp.off.codex: Codex\'s own off setting', () => {
+  test('the table of an off server gets enabled = false; the hosted web search stays disabled under enforce unless web-search and web-fetch are both off', () => {
+    const cfg = defaultConfig()
+    cfg.mcp.off.codex = ['web-fetch']
+    const one = codexArtifacts({ canonical, buracle: '/b', pathRulesDir: '/r', config: cfg })
+    expect(one.mcpTables['mcp_servers.web-fetch']?.['enabled']).toBe(false)
+    expect(one.mcpTables['mcp_servers.web-search']?.['enabled']).toBeUndefined()
+    expect(one.rootKeys['web_search']).toBe('disabled')
+    cfg.mcp.off.codex = ['web-search', 'web-fetch']
+    const both = codexArtifacts({ canonical, buracle: '/b', pathRulesDir: '/r', config: cfg })
+    expect(both.mcpTables['mcp_servers.web-search']?.['enabled']).toBe(false)
+    expect(both.rootKeys['web_search']).toBeUndefined()
+    expect(codexArtifacts({ canonical, buracle: '/b', pathRulesDir: '/r', config: defaultConfig() }).mcpTables['mcp_servers.web-fetch']?.['enabled']).toBeUndefined()
+  })
+})
+
 function context(over: Partial<AdapterContext> = {}): AdapterContext {
   return { repoRoot: REPO, config: defaultConfig(), canonical, paths, buracleBin: paths.shimPath(), ...over }
 }

@@ -4,8 +4,9 @@ import type { CatalogSkill } from '../../core/catalog'
 import { catalogMcp, catalogSkills } from '../../core/catalog'
 import type { BuracleConfig } from '../../core/config'
 import type { ToolCall } from '../../core/events'
+import { offServersFor, withOffServers } from '../../core/policy/mcp-off'
 import type { McpHealth, RoutingPolicy } from '../../core/policy/routing'
-import { capabilityCard, mcpHealthOf } from '../../core/policy/routing'
+import { capabilityCard, mcpHealthOf, mcpUnavailable } from '../../core/policy/routing'
 import type { CompiledTriggers, PromptRoute } from '../../core/policy/skill-router'
 import { compileTriggers, routePrompt, routeText } from '../../core/policy/skill-router'
 import type { ReminderContext, ReminderResult, UsageLedger, WorkspaceFacts } from '../../core/policy/usage'
@@ -17,6 +18,7 @@ import * as paths from '../../engine/paths'
 import { loadLedger, updateLedger } from '../../workflow/ledger'
 import { canonicalDir, codegraphIndexPresent, exclusionContext } from '../../workflow/workspace'
 import type { AdapterContext } from '../registry'
+import { claudeOffServers } from '../shared/native-off'
 import { projectDeps as readProjectDeps } from '../shared/project-deps'
 import { HARNESS_REL } from './constants'
 
@@ -42,12 +44,27 @@ export function readHealth(nowMs: number = Date.now()): McpHealth {
   return r.ok ? mcpHealthOf(r.value, nowMs) : {}
 }
 
-export function sessionHealth(sid: string, nowMs: number): McpHealth {
-  return sessionMcpHealth(readHealth(nowMs), loadLedger(H, sid))
+/** Where Claude Code's own off settings are read: the session's folder and the plugin root. */
+export interface NativeOffScope { project: string, pluginRoot: string }
+
+/**
+ * The servers that are off in Claude Code: Buracle's `mcp.off.claude`, and with `native` also Claude Code's
+ * own settings (`deniedMcpServers`, the `/mcp` toggle). Those files are read only for the calls whose route
+ * depends on them (web search and fetch, the capability card, the routing note).
+ */
+export function offServers(ctx: Pick<AdapterContext, 'config'>, native?: NativeOffScope): string[] {
+  const own = offServersFor(ctx.config, H)
+  return native === undefined ? own : [...new Set([...own, ...claudeOffServers(native.project, native.pluginRoot)])]
 }
 
-export function capabilityCardText(ctx: AdapterContext, health: McpHealth = readHealth()): string {
-  const mcp = catalogMcp(ctx.canonical.mcp, H).filter(m => health[m.id] !== 'down')
+/** health.json, the session's own failures, and the servers that are off (which nothing turns back on). */
+export function sessionHealth(sid: string, nowMs: number, ctx?: Pick<AdapterContext, 'config'>, native?: NativeOffScope): McpHealth {
+  const health = sessionMcpHealth(readHealth(nowMs), loadLedger(H, sid))
+  return ctx === undefined ? health : withOffServers(health, offServers(ctx, native))
+}
+
+export function capabilityCardText(ctx: AdapterContext, health: McpHealth = withOffServers(readHealth(), offServers(ctx))): string {
+  const mcp = catalogMcp(ctx.canonical.mcp, H).filter(m => !mcpUnavailable(health[m.id]))
   const plugins = ctx.canonical.plugins.claude.plugins.filter(x => x.enabled).map(x => x.id)
   const lsp = ctx.canonical.tools.tools.flatMap(t => (t.lsp !== undefined ? [t.lsp.id] : []))
   const policy: RoutingPolicy = { ...ctx.canonical.routing, strictness: ctx.config.routing.strictness }
@@ -67,7 +84,7 @@ export function pluginServers(root: string): string[] | undefined {
 
 export function availableServers(root: string, health: McpHealth, ctx: AdapterContext): string[] {
   const installed = pluginServers(root) ?? catalogMcp(ctx.canonical.mcp, H).map(m => m.id)
-  return installed.filter(id => health[id] !== 'down')
+  return installed.filter(id => !mcpUnavailable(health[id]))
 }
 
 export function workspacePath(sid: string): string {

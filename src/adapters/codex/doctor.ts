@@ -10,7 +10,7 @@ import { hostLimitRows } from '../shared/host-limits'
 import { resolveArgv, resolveCommandLine, type Env } from '../shared/command'
 import { pathRuleFiles } from '../shared/rules'
 import { valueHash } from '../../engine/merge'
-import { BYPASS_KEYS, CRITICAL_OMIT_TOOLS_FROM, SUBAGENT_EFFORTS } from './config'
+import { BYPASS_KEYS, CRITICAL_OMIT_TOOLS_FROM, hostedSearchOff, SUBAGENT_EFFORTS } from './config'
 import { AGENTS_BLOCK_ID, codexArtifacts, RULES_FILE } from './generate'
 import { CODEX_HOOK_EVENTS, duplicateBuracleHandlers, findBuracleHandlers, type FoundHandler } from './hooks-config'
 
@@ -179,7 +179,7 @@ export function routingCheck(toml: Record<string, unknown>, ctx: Pick<AdapterCon
   })
   if (hidden.length > 0) problems.push(`the tools of ${hidden.join(', ')} can hide behind tool_search or code mode (omit_tools_from lacks ${CRITICAL_OMIT_TOOLS_FROM.join(' or ')})`)
   if (toml['mcp_optional_startup_grace_ms'] !== 0) problems.push(`mcp_optional_startup_grace_ms is ${toml['mcp_optional_startup_grace_ms'] === undefined ? 'unset (1 s)' : JSON.stringify(toml['mcp_optional_startup_grace_ms'])}, so an MCP server still starting misses the first turn`)
-  if (ctx.config.routing.strictness === 'enforce' && toml['web_search'] !== 'disabled') problems.push(`web_search is ${toml['web_search'] === undefined ? 'unset (cached)' : JSON.stringify(toml['web_search'])} while routing is enforced, so the built-in web search competes with the web-search MCP server`)
+  if (hostedSearchOff(ctx.config) && toml['web_search'] !== 'disabled') problems.push(`web_search is ${toml['web_search'] === undefined ? 'unset (cached)' : JSON.stringify(toml['web_search'])} while routing is enforced, so the built-in web search competes with the web-search MCP server`)
   if (problems.length > 0) return { level: 'warn', check, detail: `${problems.join('; ')}; run \`buracle install codex\` (a value you set yourself is kept)` }
   return { level: 'ok', check, detail: `critical MCP tools are top-level from the first turn${ctx.config.routing.strictness === 'enforce' ? '; the built-in web search is off (routing enforced)' : ''}` }
 }
@@ -297,7 +297,8 @@ export async function codexDoctor(ctx: AdapterContext, deps: DoctorDeps = defaul
     else {
       const byName = new Map(list.map(x => [String(rec(x)['name']), rec(x)] as const))
       const missing = expected.filter(id => !byName.has(id))
-      const disabled = expected.filter(id => byName.get(id)?.['enabled'] === false)
+      // A server the user turned off through Buracle (mcp.off.codex) is meant to be disabled: no warning for it.
+      const disabled = expected.filter(id => byName.get(id)?.['enabled'] === false && !ctx.config.mcp.off.codex.includes(id))
       if (missing.length > 0) add('error', 'codex.mcp', `MCP servers missing from Codex: ${missing.join(', ')}`)
       else if (disabled.length > 0) add('warn', 'codex.mcp', `MCP servers disabled in Codex: ${disabled.join(', ')}`)
       else add('ok', 'codex.mcp', `${expected.length} Buracle MCP servers configured`)

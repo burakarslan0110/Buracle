@@ -185,6 +185,45 @@ export function installedSkillsFile(): string { return join(stateDir(), 'skills.
 export function skillsCacheDir(): string { return join(buracleHome(), 'cache', 'skills') }
 export function sessionsDir(h?: Harness): string { return h === undefined ? join(buracleHome(), 'sessions') : join(buracleHome(), 'sessions', h) }
 export function runDir(h?: Harness): string { return h === undefined ? join(buracleHome(), 'run') : join(buracleHome(), 'run', h) }
+/** Claude Code's managed (organization) settings file, which can hold `deniedMcpServers` too. */
+export function claudeManagedSettingsFile(): string {
+  return process.platform === 'darwin' ? '/Library/Application Support/ClaudeCode/managed-settings.json' : '/etc/claude-code/managed-settings.json'
+}
+/** The shared MCP backends' sockets, locks and state files (src/engine/mcp-share/backend.ts). */
+export function mcpRunDir(): string { return join(runDir(), 'mcp') }
+/** Per server: the upstream's initialize result and tool list, which forwarders answer from. */
+export function mcpCacheDir(): string { return join(stateDir(), 'mcp-cache') }
+export function mcpCacheFile(id: string): string { return join(mcpCacheDir(), `${id}.json`) }
+/** The stderr of a shared backend's upstream server. */
+export function mcpLogFile(id: string): string { return join(logsDir(), `mcp-${id}.log`) }
+/** The longest socket path used as is: macOS allows 103 bytes, Linux 107. */
+export const MCP_SOCKET_PATH_MAX = 100
+/**
+ * The directory for sockets whose path under `mcpRunDir()` would be too long: short and per user and Buracle
+ * home. `/tmp`, not `$TMPDIR`: the macOS `$TMPDIR` alone takes about 50 of the 103 bytes.
+ */
+export function mcpFallbackRunDir(base = '/tmp'): string {
+  const uid = process.getuid?.() ?? 0
+  return join(base, `buracle-${uid}-${fnv1a(mcpRunDir())}`)
+}
+
+/**
+ * 8 hex digits of the FNV-1a hash of `text`: a short, stable name, not a security measure (the directory
+ * checks are). node:crypto would add about 5 MB to every process that loads this module.
+ */
+function fnv1a(text: string): string {
+  let h = 0x811c9dc5
+  for (const byte of new TextEncoder().encode(text)) {
+    h ^= byte
+    h = Math.imul(h, 0x01000193) >>> 0
+  }
+  return h.toString(16).padStart(8, '0')
+}
+/** Where the socket, lock and state file of a backend key live. */
+export function mcpSocketDir(key: string, base = '/tmp'): string {
+  const primary = mcpRunDir()
+  return Buffer.byteLength(join(primary, `${key}.sock`)) <= MCP_SOCKET_PATH_MAX ? primary : mcpFallbackRunDir(base)
+}
 export function backupsDir(): string { return join(buracleHome(), 'backups') }
 export function journalDir(): string { return join(buracleHome(), 'journal') }
 export function journalFile(txn: string): string { return join(journalDir(), `${txn}.json`) }

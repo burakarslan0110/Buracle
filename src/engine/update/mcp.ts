@@ -1,7 +1,9 @@
 import type { McpCatalog, McpServerSpec } from '../../core/catalog'
 import { envRef, expandMcpCommand } from '../../core/catalog'
+import { offEverywhere } from '../../core/policy/mcp-off'
 import type { McpHealth } from '../../core/policy/routing'
 import { mcpHealthOf } from '../../core/policy/routing'
+import { loadConfigSync } from '../config'
 import { atomicWriteSync, readJsonSafeSync } from '../fsx'
 import * as paths from '../paths'
 
@@ -279,7 +281,9 @@ export function mcpLaunchArgv(command: string, args: readonly string[], shim: st
 }
 
 export async function probeServers(catalog: McpCatalog, opts: ProbeOptions, nowIso: () => string): Promise<Record<string, McpHealthEntry>> {
-  const ids = Object.keys(catalog.servers).sort().filter(id => opts.ids === undefined || opts.ids.includes(id))
+  // A server that is off in every harness it ships to starts no process, a probe included.
+  const off = new Set(offEverywhere(catalog, loadConfigSync().config))
+  const ids = Object.keys(catalog.servers).sort().filter(id => (opts.ids === undefined || opts.ids.includes(id)) && !off.has(id))
   const entries = await Promise.all(ids.map(async (id): Promise<[string, McpHealthEntry] | undefined> => {
     const spec = catalog.servers[id] as McpServerSpec
     if (spec.transport === 'http') {
@@ -289,7 +293,8 @@ export async function probeServers(catalog: McpCatalog, opts: ProbeOptions, nowI
     }
     const { command, args } = expandMcpCommand(spec, { buracle: opts.buracle, id })
     const { env, missing } = serverEnv(spec)
-    const p = await probeStdio(mcpLaunchArgv(command, args, opts.buracle), { env, timeoutMs: opts.timeoutMs })
+    // A probe checks the server itself: a forwarder must not answer it from its cache.
+    const p = await probeStdio(mcpLaunchArgv(command, args, opts.buracle), { env: { ...env, BURACLE_MCP_NO_CACHE: '1' }, timeoutMs: opts.timeoutMs })
     if (p.status === 'down' && missing.length > 0) p.error = `${p.error ?? 'down'} (unset environment: ${missing.join(', ')})`
     return [id, { ...p, transport: 'stdio', checked_at: nowIso() }]
   }))

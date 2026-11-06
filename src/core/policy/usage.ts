@@ -283,7 +283,8 @@ export function sessionMcpHealth(health: McpHealth, l: UsageLedger): McpHealth {
   const failing = Object.entries(l.mcpErrors ?? {}).filter(([, n]) => n >= MCP_SESSION_DOWN_ERRORS).map(([id]) => id)
   if (failing.length === 0) return health
   const out: McpHealth = { ...health }
-  for (const id of failing) out[id] = 'down'
+  // A server that is off stays off: errors from calls made before it was turned off do not bring it back as down.
+  for (const id of failing) if (out[id] !== 'off') out[id] = 'down'
   return out
 }
 

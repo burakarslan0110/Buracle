@@ -108,7 +108,7 @@ export async function installPlan(ctx: AdapterContext, opts: InstallOptions = {}
     ops.push({ kind: 'remove', path: entry.path, owner: OWNER })
   }
 
-  ops.push(...configOps(configDir, configSet(ctx.canonical, shim)))
+  ops.push(...configOps(configDir, configSet(ctx.canonical, shim, ctx.config.mcp.off.opencode)))
   const cliPath = join(configDir, 'cli.json')
   const enforce = ctx.config.permissions.bypass && ctx.config.permissions.enforce ? { enforce: [CLI_PERMISSIONS_KEY] } : {}
   ops.push({ kind: 'jsonc-merge', path: cliPath, set: cliKeys(cliPath, owned, join(configDir, PLUGIN_DIR), ctx.config.permissions.bypass), owner: OWNER, ...enforce })

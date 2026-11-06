@@ -8,7 +8,7 @@ import type { CatalogMcp, CatalogSkill } from '../../../src/core/catalog'
 import { catalogMcp, catalogSkills } from '../../../src/core/catalog'
 import type { McpHealth, RoutingPolicy } from '../../../src/core/policy/routing'
 import {
-  CAPABILITY_CARD_MAX_LINES, bashNudge, capabilityCard, harnessMcpPattern, harnessMcpToolName, isDocsUrl, mcpHealthOf, parseRouteRef, routeTool, validateRoutingPolicy,
+  CAPABILITY_CARD_MAX_LINES, bashNudge, capabilityCard, harnessMcpPattern, harnessMcpToolName, isDocsUrl, mcpHealthOf, mcpUnavailable, parseRouteRef, routeTool, validateRoutingPolicy,
 } from '../../../src/core/policy/routing'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import * as paths from '../../../src/engine/paths'
@@ -161,6 +161,32 @@ describe('routeTool: built-in web tools', () => {
     const text = nudge.action === 'allow' ? nudge.context?.join(' ') ?? '' : ''
     expect(text).toContain('mcp__plugin_buracle_web-fetch__fetch_url')
     expect(text).toContain('search results page')
+  })
+
+  test('a server that is off counts as unavailable: its fallback built-in is allowed with a note that says "off", and web-search falls back to web-fetch first', () => {
+    for (const h of ['claude', 'opencode', 'omp'] as const) {
+      const fetch = routeTool(call(h, WEB_FETCH[h], { url: 'https://example.com/blog/post' }), POLICY, { 'web-fetch': 'off' })
+      expect({ h, action: fetch.action }).toEqual({ h, action: 'allow' })
+      const note = fetch.action === 'allow' ? fetch.context?.join(' ') ?? '' : ''
+      expect(note).toContain('MCP server is off')
+      expect(note).not.toContain('is down')
+    }
+    for (const h of HARNESSES) {
+      const search = call(h, WEB_SEARCH[h], { query: 'bun 1.4 changelog' })
+      const viaFetch = routeTool(search, POLICY, { 'web-search': 'off' })
+      expect({ h, action: viaFetch.action }).toEqual({ h, action: 'deny' })
+      if (viaFetch.action === 'deny') expect(viaFetch.reason).toContain(harnessMcpToolName(h, 'web-fetch', 'fetch_url'))
+      const both = routeTool(search, POLICY, { 'web-search': 'off', 'web-fetch': 'off' })
+      expect({ h, action: both.action }).toEqual({ h, action: 'allow' })
+      const mixed = routeTool(search, POLICY, { 'web-search': 'off', 'web-fetch': 'down' })
+      expect(mixed.action === 'allow' ? mixed.context?.join(' ') ?? '' : '').toMatch(/web-fetch.*is down[\s\S]*web-search.*is off|web-search.*is off[\s\S]*web-fetch.*is down/)
+    }
+    const docs = call('claude', 'WebFetch', { url: 'https://bun.sh/docs/api/spawn' })
+    expect(routeTool(docs, POLICY, { context7: 'off', 'web-fetch': 'off' }).action).toBe('allow')
+    expect(mcpUnavailable('off')).toBe(true)
+    expect(mcpUnavailable('down')).toBe(true)
+    expect(mcpUnavailable('ok')).toBe(false)
+    expect(mcpUnavailable(undefined)).toBe(false)
   })
 
   test('built-in fetch follows web-fetch health; claude.ai pages need the built-in session', () => {

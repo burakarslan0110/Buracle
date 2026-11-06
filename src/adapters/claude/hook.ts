@@ -8,7 +8,7 @@ import { promptSignals } from '../../core/memory/signals'
 import { checkBash, type BashGuardOptions } from '../../core/policy/bash-guard'
 import { checkWrite } from '../../core/policy/write-guard'
 import { validateReviewJson } from '../../core/policy/review'
-import { routeTool } from '../../core/policy/routing'
+import { mcpUnavailable, routeTool } from '../../core/policy/routing'
 import { checkQuestion, questionAnswered } from '../../core/policy/questions'
 import type { PromptSignals } from '../../core/policy/intents'
 import { detectSignals, isGuardContinuation, isUserText } from '../../core/policy/intents'
@@ -204,7 +204,7 @@ async function sessionStart(p: Record<string, unknown>, sid: string, ctx: Adapte
   }
   if (!sub) await step('H14 memory UI', undefined, () => (source === 'compact' ? d.ui.seen(H, sid, now) : d.ui.started(H, sid, now)))
   const restore = source === 'compact' ? await step('H07 restore', '', () => restoreText(p, sid, d, now)) : ''
-  const card = await step('H15 capability card', '', () => capabilityCardText(ctx, sessionHealth(sid, now)))
+  const card = await step('H15 capability card', '', () => capabilityCardText(ctx, sessionHealth(sid, now, ctx, { project: cwd, pluginRoot: pluginRoot(ctx.repoRoot, d.env) })))
   const workspace = await step('H21 workspace', '', () => workspaceStart(cwd, sid, sub, ctx, d, now))
   const assets = sub ? '' : await step('H28 project assets', '', () => assetsSessionStart(readWorkspace(sid)?.root, H, assetsOptions(now, d.assetsSpawn)))
   const notice = source === 'startup' && !sub && !noticesOff()
@@ -327,9 +327,9 @@ function controlNotice(control: PromptSignals['control'], prompt: string, sid: s
   return guidance
 }
 
-async function promptRoute(prompt: string, signals: PromptSignals, sid: string, ctx: AdapterContext, d: HookDeps, now: number, invoked: string[] = []): Promise<string | undefined> {
+async function promptRoute(prompt: string, signals: PromptSignals, sid: string, ctx: AdapterContext, d: HookDeps, now: number, invoked: string[] = [], cwd?: string): Promise<string | undefined> {
   const root = pluginRoot(ctx.repoRoot, d.env)
-  const available = availableServers(root, sessionHealth(sid, now), ctx)
+  const available = availableServers(root, sessionHealth(sid, now, ctx, { project: cwd ?? process.cwd(), pluginRoot: root }), ctx)
   let data: RouterData | undefined
   try { data = routerData(ctx) } catch (e) { log('warn', 'claude hook: the prompt router has no canonical data; routing memory signals only', { error: e }) }
   let routing: PromptRouting
@@ -389,7 +389,7 @@ async function userPromptSubmit(p: Record<string, unknown>, sid: string, ctx: Ad
     const typed = workflowOfPrompt(prompt)
     if (typed !== undefined) await flowStart(sid, typed.workflow, typed.args, 'prompt', now)
     const invoked: string[] = []
-    routed = await step('H22 route.prompt', undefined as string | undefined, () => promptRoute(prompt, signals, sid, ctx, d, now, invoked))
+    routed = await step('H22 route.prompt', undefined as string | undefined, () => promptRoute(prompt, signals, sid, ctx, d, now, invoked, str(p['cwd'])))
     planMode = await step('H10 read-only start', undefined as string | undefined, () => readOnlyStart(H, p['permission_mode'] === 'plan', [typed?.workflow, ...invoked]))
     system = await step('permission mode', undefined as string | undefined, () => permissionNotice(sid, p['permission_mode'], ctx.config, now))
     if (!captureOff(d)) {
@@ -483,7 +483,8 @@ async function preToolDecision(p: Record<string, unknown>, sid: string, ctx: Ada
   if (WEB_TOOLS.includes(tool)) {
     return step('H03 routing', QUIET, () => {
       const call: ToolCall = { harness: H, sessionId: sid, cwd, tool, input, ...classifyTool(H, tool, input, cwd) }
-      const r = d.core.routeTool(call, routingPolicy(ctx), sessionHealth(sid, now))
+      const web = call.kind === 'web_search' || call.kind === 'web_fetch'
+      const r = d.core.routeTool(call, routingPolicy(ctx), sessionHealth(sid, now, ctx, web ? { project: cwd, pluginRoot: pluginRoot(ctx.repoRoot, d.env) } : undefined))
       if (r.action === 'deny') return deny(`Buracle ${r.hook} (route.tools): ${r.reason}`)
       return preContext(r.context ?? [])
     })
@@ -567,9 +568,9 @@ async function usageGate(sid: string, ctx: AdapterContext, d: HookDeps, call: To
     }
     const facts = workspaceFacts(info, cfg)
     const servers = pluginServers(pluginRoot(ctx.repoRoot, d.env)) ?? []
-    const health = sessionHealth(sid, d.now())
+    const health = sessionHealth(sid, d.now(), ctx)
     const rctx: Parameters<typeof usageReminders>[2] = {
-      strictness: cfg.routing.strictness, reminders: cfg.routing.reminders, available: servers.filter(id => health[id] !== 'down'),
+      strictness: cfg.routing.strictness, reminders: cfg.routing.reminders, available: servers.filter(id => !mcpUnavailable(health[id])),
       policy: routingPolicy(ctx), facts,
     }
     if (call.kind === 'edit' || call.kind === 'write') {

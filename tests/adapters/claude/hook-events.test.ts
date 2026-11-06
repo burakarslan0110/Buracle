@@ -576,6 +576,37 @@ describe('PostToolUseFailure and PostToolUse: H24 MCP results, the session failu
   const success = (tool: string) => payload('PostToolUse', { tool_name: tool, tool_input: { query: 'bun 1.4 release notes' }, tool_response: [{ type: 'text', text: 'results' }] })
   const webSearch = async () => decision((await claudeHook('PreToolUse', payload('PreToolUse', { tool_name: 'WebSearch', tool_input: { query: 'bun 1.4 release notes' } }), ctx(), deps())).stdout)
 
+  test('servers in mcp.off.claude are unavailable for good: the built-in web search is allowed with an "off" note and the router leaves them out; off only in Codex changes nothing here', async () => {
+    await withSandbox(async () => {
+      const off = (claude: string[], codex: string[] = []) => ctx({ mcp: { shared: true, off: { claude, codex, opencode: [], omp: [] } } })
+      const search = async (c: AdapterContext) => decision((await claudeHook('PreToolUse', payload('PreToolUse', { tool_name: 'WebSearch', tool_input: { query: 'bun 1.4 release notes' } }), c, deps())).stdout)
+      const route = async (c: AdapterContext) => context((await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'search the web for the bun 1.4 release notes' }), c, deps())).stdout)
+      expect(String((await search(off([], ['web-search', 'web-fetch']))).permissionDecisionReason)).toContain(WS)
+      expect(String((await search(off(['web-search']))).permissionDecisionReason)).toContain(WF)
+      expect(await route(off(['web-search']))).not.toContain(WS)
+      const allowed = await search(off(['web-search', 'web-fetch']))
+      expect(allowed.permissionDecision).toBeUndefined()
+      expect(String(allowed.additionalContext)).toContain('MCP server is off, so the built-in web search is allowed as a fallback')
+      const fetch = decision((await claudeHook('PreToolUse', payload('PreToolUse', { tool_name: 'WebFetch', tool_input: { url: 'https://example.com/blog/post', prompt: 'x' } }), off(['web-fetch']), deps())).stdout)
+      expect(fetch.permissionDecision).toBeUndefined()
+    })
+  })
+
+  test('Claude Code\'s own off settings count too: deniedMcpServers in the user settings, the /mcp toggle of this project; a file over 4 MB counts as nothing', async () => {
+    await withSandbox(async () => {
+      const search = async () => decision((await claudeHook('PreToolUse', payload('PreToolUse', { tool_name: 'WebSearch', tool_input: { query: 'bun 1.4 release notes' } }), ctx(), deps())).stdout)
+      mkdirSync(paths.claudeDir(), { recursive: true })
+      writeFileSync(join(paths.claudeDir(), 'settings.json'), JSON.stringify({ deniedMcpServers: [{ serverName: 'plugin:buracle:web-search' }] }))
+      expect(String((await search()).permissionDecisionReason)).toContain(WF)
+      writeFileSync(paths.claudeJson(), JSON.stringify({ projects: { '/tmp/project': { disabledMcpServers: ['web-fetch'] }, '/tmp/other': { disabledMcpServers: ['context7'] } } }))
+      const allowed = await search()
+      expect(allowed.permissionDecision).toBeUndefined()
+      expect(String(allowed.additionalContext)).toContain('MCP server is off')
+      writeFileSync(join(paths.claudeDir(), 'settings.json'), JSON.stringify({ deniedMcpServers: [{ serverName: 'plugin:buracle:web-search' }], pad: 'x'.repeat(4 * 1024 * 1024) }))
+      expect(String((await search()).permissionDecisionReason)).toContain(WS)
+    })
+  })
+
   test('two failing web-search calls send the built-in web search to web-fetch, two failing web-fetch calls let it through with the fallback note; a success resets the count', async () => {
     await withSandbox(async () => {
       const route = async () => context((await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'search the web for the bun 1.4 release notes' }), ctx(), deps())).stdout)

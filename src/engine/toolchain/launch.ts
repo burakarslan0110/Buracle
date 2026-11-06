@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { accessSync, constants, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import type { McpCatalog, McpServerSpec } from '../../core/catalog'
@@ -38,6 +38,27 @@ export function fallbackNpmCache(): string {
   return join(paths.buracleHome(), 'cache', 'npm')
 }
 
+function isExecutableFile(p: string): boolean {
+  try {
+    accessSync(p, constants.X_OK)
+    return statSync(p).isFile()
+  } catch {
+    return false
+  }
+}
+
+/**
+ * The launcher of codegraph's per-platform package, which replaces itself with the bundled node: one process
+ * per session, where the npm entry (npm-shim.js) stays as a second process around it.
+ * SHORTCUT: follows the package layout of @colbymchenry/codegraph 1.6.x (npm-shim.js resolves
+ * `@colbymchenry/codegraph-<platform>-<arch>/bin/codegraph`); a layout change falls back to the npm entry.
+ * Revisit when codegraph moves its launcher or offers a single-process mode of its own.
+ */
+function codegraphLauncher(installedDir: string): string | undefined {
+  const p = join(installedDir, 'node_modules', '@colbymchenry', `codegraph-${process.platform}-${process.arch}`, 'bin', 'codegraph')
+  return isExecutableFile(p) ? p : undefined
+}
+
 export function launchPlan(id: string, spec: McpServerSpec, state: ToolchainState, opts: { node?: string, npx?: string, uvx?: string } = {}): LaunchPlan | LaunchError {
   const pkg = spec.package
   if (spec.transport !== 'stdio' || pkg === undefined || (pkg.registry !== 'npm' && pkg.registry !== 'pypi')) return { error: `${id} is not a package server` }
@@ -46,6 +67,10 @@ export function launchPlan(id: string, spec: McpServerSpec, state: ToolchainStat
   const env = serverEnvFor(spec)
   const installed = state.packages[packageKey(pkg.registry, pkg.name)]
   const entry = installed?.bins[bin]
+  if (installed !== undefined && entry !== undefined && pkg.registry === 'npm' && pkg.name === '@colbymchenry/codegraph') {
+    const direct = codegraphLauncher(installed.dir)
+    if (direct !== undefined) return { argv: [direct, ...args], env, source: 'toolchain', version: installed.version }
+  }
   if (installed !== undefined && entry !== undefined) {
     const run = binArgv(entry, opts.node ?? findExecutable('node', { extra: paths.toolchainBinDirs() }))
     if (run !== undefined) return { argv: [...run, ...args], env, source: 'toolchain', version: installed.version }

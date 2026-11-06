@@ -28,7 +28,7 @@ export interface CodexArtifacts {
   warnings: string[]
 }
 
-export type ArtifactConfig = Pick<BuracleConfig, 'routing' | 'effort' | 'permissions' | 'agents'>
+export type ArtifactConfig = Pick<BuracleConfig, 'routing' | 'effort' | 'permissions' | 'agents'> & { mcp?: Pick<BuracleConfig['mcp'], 'off'> }
 
 export interface ArtifactInput {
   canonical: Pick<CanonicalBundle, 'mcp' | 'rules' | 'skills' | 'agents' | 'statusline'>
@@ -52,7 +52,7 @@ export function codexArtifacts(input: ArtifactInput): CodexArtifacts {
   const cfg = input.config
   const refs = { skills: c.skills.map(s => s.id), agents: c.agents.map(a => a.id) }
   const bypass = cfg?.permissions.bypass === true
-  const mcpTables = codexMcpTables(c.mcp, input.buracle, warnings, { approve: bypass })
+  const mcpTables = codexMcpTables(c.mcp, input.buracle, warnings, { approve: bypass, off: cfg?.mcp?.off.codex ?? [] })
   const rootKeys = cfg !== undefined ? routingRootKeys(cfg) : {}
   const effort = cfg !== undefined ? effortKeys(cfg) : undefined
   const bypassKeys = bypass ? { ...BYPASS_KEYS } : undefined

@@ -173,11 +173,14 @@ export function mcpServerEntry(spec: McpServerSpec, shim: string, id?: string): 
   return out
 }
 
-export function opencodeServers(canonical: CanonicalBundle, shim: string): Array<[string, Record<string, unknown>]> {
+/** `off`: the servers that are off in OpenCode (`mcp.off.opencode`); their entry says `disabled: true`, so OpenCode starts no process. */
+export function opencodeServers(canonical: CanonicalBundle, shim: string, off: readonly string[] = []): Array<[string, Record<string, unknown>]> {
   return Object.keys(canonical.mcp.servers).sort().flatMap((id): Array<[string, Record<string, unknown>]> => {
     const spec = canonical.mcp.servers[id]
     if (spec === undefined || !spec.harnesses.includes('opencode')) return []
-    return [[id, mcpServerEntry(spec, shim, id)]]
+    const entry = mcpServerEntry(spec, shim, id)
+    if (off.includes(id)) entry['disabled'] = true
+    return [[id, entry]]
   })
 }
 
@@ -185,13 +188,13 @@ export function configPermissions(): PermissionRule[] {
   return GLOBAL_PERMISSIONS.map(r => ({ ...r }))
 }
 
-export function configSet(canonical: CanonicalBundle, shim: string): Record<string, unknown> {
+export function configSet(canonical: CanonicalBundle, shim: string, off: readonly string[] = []): Record<string, unknown> {
   const set: Record<string, unknown> = {
     '$schema': CONFIG_SCHEMA_URL,
     share: 'disabled',
     permissions: configPermissions(),
   }
-  for (const [id, entry] of opencodeServers(canonical, shim)) set[`mcp.servers.${id}`] = entry
+  for (const [id, entry] of opencodeServers(canonical, shim, off)) set[`mcp.servers.${id}`] = entry
   return set
 }
 

@@ -22,7 +22,8 @@
         "critical": true,
         "routing": [
           "library-docs"
-        ]
+        ],
+        "backend": "shared"
       },
       "codegraph": {
         "description": "Code structure graph (symbols, callers, impact) for the current repository",
@@ -40,7 +41,8 @@
         "env": {
           "CODEGRAPH_TELEMETRY": "0",
           "CODEGRAPH_NO_UPDATE_CHECK": "1",
-          "CODEGRAPH_MCP_TOOLS": "explore,search,node,callers,callees,impact,status,files"
+          "CODEGRAPH_MCP_TOOLS": "explore,search,node,callers,callees,impact,status,files",
+          "CODEGRAPH_NO_WATCHDOG": "1"
         },
         "harnesses": [
           "claude",
@@ -77,7 +79,8 @@
         "critical": true,
         "routing": [
           "web-search"
-        ]
+        ],
+        "backend": "shared"
       },
       "web-fetch": {
         "description": "Fetch and extract web pages with a headless browser",
@@ -100,7 +103,8 @@
         "critical": true,
         "routing": [
           "web-fetch"
-        ]
+        ],
+        "backend": "shared"
       },
       "grep": {
         "description": "Search public GitHub code for real-world usage examples",
@@ -143,7 +147,8 @@
         "critical": true,
         "routing": [
           "code-search"
-        ]
+        ],
+        "backend": "shared"
       },
       "chrome-devtools": {
         "description": "Drive and inspect a Chrome browser (DevTools protocol)",
@@ -168,7 +173,8 @@
         "critical": false,
         "routing": [
           "browser"
-        ]
+        ],
+        "backend": "lazy"
       },
       "buracle-memory": {
         "description": "Buracle memory, the CortexDB brains of the project and the person (search, get, write, update, status)",
@@ -728,7 +734,7 @@
         "deny_builtin": [
           "web_search"
         ],
-        "nudge": "Search the web with the web-search MCP server; while it is down, fetch a search results page (https://html.duckduckgo.com/html/?q=<query>) with web-fetch, and use the built-in web search only when both are down.",
+        "nudge": "Search the web with the web-search MCP server; while it is down or off, fetch a search results page (https://html.duckduckgo.com/html/?q=<query>) with web-fetch, and use the built-in web search only when both are down or off.",
         "reminder": "search with the web-search MCP server (search), then read the sources with web-fetch (fetch_url)",
         "triggers": {
           "topic": [
@@ -783,7 +789,7 @@
         "deny_builtin": [
           "web_fetch"
         ],
-        "nudge": "Fetch pages with the web-fetch MCP server, and use the built-in fetch only while it is down.",
+        "nudge": "Fetch pages with the web-fetch MCP server, and use the built-in fetch only while it is down or off.",
         "reminder": "read the page with the web-fetch MCP server (fetch_url)"
       },
       {

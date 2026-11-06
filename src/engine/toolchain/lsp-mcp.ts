@@ -1,6 +1,7 @@
 import { readFileSync, statSync } from 'node:fs'
 import { extname, isAbsolute, resolve } from 'node:path'
 import { log } from '../log'
+import { watchParent } from '../parent-watch'
 import { augmentedPath } from '../platform'
 import { type LspLaunch, type LspServer, lspLaunch, lspRoot, lspServerFor, lspServers, readToolsCatalog } from './lsp'
 import { LspClient, type LspDiagnostic, type LspDocument, LspError, pathKey, uriPath } from './lsp-client'
@@ -593,6 +594,7 @@ export async function runLspMcpServer(opts: {
   }
   const signals: NodeJS.Signals[] = opts.input === undefined ? ['SIGTERM', 'SIGHUP', 'SIGINT'] : []
   for (const s of signals) process.on(s, onSignal)
+  const parent = opts.input === undefined ? watchParent({ onGone: () => onSignal('SIGHUP') }) : undefined
   try {
     for await (const chunk of input) {
       buf += typeof chunk === 'string' ? chunk : decoder.decode(chunk, { stream: true })
@@ -608,6 +610,7 @@ export async function runLspMcpServer(opts: {
     await Promise.all([...pending])
   } finally {
     clearInterval(idle)
+    parent?.stop()
     for (const s of signals) process.off(s, onSignal)
     edits?.close()
     await bridge.close()

@@ -37,7 +37,7 @@ import {
 } from './hook-io'
 import { reviewErrors } from './review'
 import {
-  availableServers, codexPathRules, fitParts, knownServers, loadWorkspaceInfo, readMcpHealth, recordMcpResult, recordPrompt, recordWorkflowStart, resumeNotice,
+  availableServers, codexPathRules, fitParts, harnessHealth, knownServers, loadWorkspaceInfo, recordMcpResult, recordPrompt, recordWorkflowStart, resumeNotice,
   routeUserPrompt, routingPolicy, saveWorkspaceInfo, sessionHealth, stopAudit, usageReminders, workflowStart, workspaceFacts, workspaceNoticeFor,
 } from './route'
 import { POST_MASK_HANDLER } from './hooks-config'
@@ -214,8 +214,8 @@ function readIfFile(path: string): string | undefined {
 }
 
 export function capabilityCardText(ctx: AdapterContext, deps: CodexHookDeps, sid?: string): string {
-  const health = sid !== undefined ? sessionHealth(ctx, deps.core, sid, deps.now()) : readMcpHealth(ctx, deps.now())
-  const mcp = deps.core.catalogMcp(ctx.canonical.mcp, H).filter(m => health[m.id] !== 'down')
+  const health = sid !== undefined ? sessionHealth(ctx, deps.core, sid, deps.now(), true) : harnessHealth(ctx, deps.core, deps.now(), true)
+  const mcp = deps.core.catalogMcp(ctx.canonical.mcp, H).filter(m => !deps.core.mcpUnavailable(health[m.id]))
   return deps.core.capabilityCard({ policy: routingPolicy(ctx), mcp, skills: deps.core.catalogSkills(ctx.canonical.skills), plugins: [], harness: H })
 }
 
@@ -303,7 +303,7 @@ async function routePromptStep(prompt: string, sid: string, cwd: string, ctx: Ad
   const info = loadWorkspaceInfo(ctx, sid)
   const depsOf = deps.projectDeps ?? readProjectDeps
   const routed = await step(ev, 'H22 route', undefined, () => routeUserPrompt(prompt, {
-    ctx, core: deps.core, policy, ledger: loadLedger(H, sid), available: availableServers(ctx, deps.core, sessionHealth(ctx, deps.core, sid, now)), deps: depsOf(info?.root ?? cwd),
+    ctx, core: deps.core, policy, ledger: loadLedger(H, sid), available: availableServers(ctx, deps.core, sessionHealth(ctx, deps.core, sid, now, true)), deps: depsOf(info?.root ?? cwd),
   }))
   if (routed === undefined) return undefined
   invoked.push(...routed.route.invoked, ...routed.route.load)
@@ -444,7 +444,7 @@ async function onPreToolUse(p: Payload, sid: string, sessionCwd: string, ctx: Ad
       else if (r.context !== undefined) questionContext.push(r.context)
     }
   }
-  const health = sessionHealth(ctx, deps.core, sid, now)
+  const health = sessionHealth(ctx, deps.core, sid, now, call.kind === 'web_search' || call.kind === 'web_fetch')
   const decision = await step(ev, 'H03 routeTool', undefined as ReturnType<CoreFns['routeTool']> | undefined, () => deps.core.routeTool(call, routingPolicy(ctx), health))
   if (decision?.action === 'deny') return denyOutput(denyReason(decision.hook, decision.reason))
   const context = decision?.action === 'allow' && decision.context ? [...decision.context, ...questionContext] : [...questionContext]

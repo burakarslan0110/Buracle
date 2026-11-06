@@ -36,6 +36,8 @@ export const BYPASS_TOOLS_APPROVAL_MODE = 'approve'
 
 export interface McpTableOptions {
   approve?: boolean
+  /** Servers that are off in Codex (`mcp.off.codex`): their table says `enabled = false`, so Codex starts no process for them. */
+  off?: readonly string[]
 }
 
 export function codexMcpTables(mcp: McpCatalog, buracle: string, warnings: string[] = [], opts: McpTableOptions = {}): Record<string, McpTable> {
@@ -68,14 +70,25 @@ export function codexMcpTables(mcp: McpCatalog, buracle: string, warnings: strin
     if (spec.tool_timeout_sec !== undefined) table['tool_timeout_sec'] = spec.tool_timeout_sec
     if (spec.critical) table['omit_tools_from'] = [...CRITICAL_OMIT_TOOLS_FROM]
     if (opts.approve === true) table['default_tools_approval_mode'] = BYPASS_TOOLS_APPROVAL_MODE
+    if (opts.off?.includes(id) === true) table['enabled'] = false
     out[`mcp_servers.${id}`] = table
   }
   return out
 }
 
-export function routingRootKeys(cfg: Pick<BuracleConfig, 'routing'>): Record<string, unknown> {
+/**
+ * Whether Codex's hosted web search is turned off: under `enforce`, unless web-search and web-fetch are both
+ * off in Codex (then the hosted search is the only way left to search, and Codex's hosted calls never reach
+ * the hooks, so routing could not send them elsewhere anyway).
+ */
+export function hostedSearchOff(cfg: Pick<BuracleConfig, 'routing'> & { mcp?: Pick<BuracleConfig['mcp'], 'off'> }): boolean {
+  const off = cfg.mcp?.off?.codex ?? []
+  return cfg.routing.strictness === 'enforce' && !(off.includes('web-search') && off.includes('web-fetch'))
+}
+
+export function routingRootKeys(cfg: Pick<BuracleConfig, 'routing'> & { mcp?: Pick<BuracleConfig['mcp'], 'off'> }): Record<string, unknown> {
   const keys: Record<string, unknown> = { mcp_optional_startup_grace_ms: 0 }
-  if (cfg.routing.strictness === 'enforce') keys['web_search'] = 'disabled'
+  if (hostedSearchOff(cfg)) keys['web_search'] = 'disabled'
   return keys
 }
 

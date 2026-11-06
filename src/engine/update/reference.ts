@@ -175,6 +175,7 @@ function cliDoc(commands: readonly CommandInfo[], exitCodes: Readonly<Record<str
 }
 
 const HARNESS_ENABLED = /^harnesses\.([a-z]+)\.enabled$/
+const MCP_OFF = /^mcp\.off\.([a-z]+)$/
 
 export const CONFIG_DESCRIPTIONS: Readonly<Record<string, string>> = {
   version: 'Version of the configuration schema. Always `1`.',
@@ -235,6 +236,7 @@ export const CONFIG_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'index.exclude': 'Folders that are never indexed: absolute or `~` paths (everything inside them too), globs, or bare folder names (a folder of that name anywhere).',
   'index.children': 'In a folder that only holds projects (no repository or manifest of its own), index each child project.',
   'index.maxChildren': 'The most child projects indexed in one such folder, the most recently active first.',
+  'mcp.shared': 'Share one copy of context7, semble, web-search and web-fetch between all harness sessions on the machine. Each session runs a thin forwarder in its place; the first real call starts the shared backend, and the backend stops 60 seconds after its last session ends. A session that makes no call for 10 minutes lets go of the backend, and its next call connects again. chrome-devtools starts on its first call and stops after 10 idle minutes. `false`: every session starts its own copy of each server again, as before (no restart of a harness needed; the next server start uses it).',
 }
 
 export function configDescription(key: string): string | undefined {
@@ -242,6 +244,11 @@ export function configDescription(key: string): string | undefined {
   if (h && h[1] !== undefined) {
     const label = (HARNESS_LABEL as Record<string, string>)[h[1]] ?? h[1]
     return `Turns ${label} support on or off. A disabled harness gets nothing installed: \`buracle install\` skips it.`
+  }
+  const off = MCP_OFF.exec(key)
+  if (off && off[1] !== undefined) {
+    const label = (HARNESS_LABEL as Record<string, string>)[off[1]] ?? off[1]
+    return `The MCP servers that are off in ${label} (server ids of \`canonical/mcp.yaml\`). \`buracle install\` writes ${label}'s own off setting for each one, so its next session lists none of their tools and starts no process for them, and the routing allows the built-in tool each one stands in for. \`buracle mcp disable <id> --harness ${off[1]}\` and \`buracle mcp enable <id> --harness ${off[1]}\` change this list and run that install.`
   }
   return CONFIG_DESCRIPTIONS[key]
 }
@@ -574,7 +581,7 @@ function installDoc(): string {
     [code(stateRel(paths.txnLockFile())), 'The lock that lets one transaction run at a time (PID and the process start time; a lock whose process is gone, or whose PID now belongs to another program, is taken over)'],
     [code(`~/.buracle/${INSTALL_RECORD_REL}`), 'Which items each plan wrote in the last install (to clean up leftovers)'],
     [code(stateRel(paths.runtimeConfigFile())), 'The configuration snapshot the in-process adapters read; `resolved.*` holds the absolute paths the install saw (repository, brain, harness folders, bun)'],
-    [code(stateRel(paths.healthFile())), 'MCP server and tool health: the last `buracle doctor` and `buracle update` results, and the servers `buracle mcp run` could not start (down for 10 minutes); routing and the capability card skip servers that are `down`'],
+    [code(stateRel(paths.healthFile())), 'MCP server and tool health: the last `buracle doctor` and `buracle update` results, and the servers `buracle mcp run` could not start (down for 10 minutes); routing and the capability card skip servers that are `down`, and those that are off for the harness (`mcp.off.<harness>` or the harness\'s own setting); `off` is never written to this file'],
     [code(stateRel(paths.shimPath())), 'The CLI shim that the hooks, MCP servers and status lines run'],
     [code(`~/${relative(paths.home(), paths.localBinDir()).split(sep).join('/')}/buracle`), 'A symlink to the shim (for PATH)'],
     [code(`${stateRel(pathRulesDir())}/<id>.md`), 'The path rules Codex and OpenCode read through the rule list in their AGENTS.md block and that the H03 path-rule gate delivers on the first edit of a matching file (written by the core plan, so uninstalling one harness does not remove them)'],

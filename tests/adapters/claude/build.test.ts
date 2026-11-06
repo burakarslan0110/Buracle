@@ -417,7 +417,7 @@ describe('real repository build', () => {
         longer: { command: 'long-mcp', timeout: 100_001_000 },
         remote: { type: 'http', url: 'https://mcp.example.com' },
         softCap: { type: 'http', url: 'https://s.example.com' },
-        sandbox: { command: 'bun', args: ['${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts', 'mcp', 'run', 'sandbox'], env: { SHARED: '1', TOKEN: '${SANDBOX_TOKEN}', WHO: 'claude' } },
+        sandbox: { command: 'bun', args: ['${CLAUDE_PLUGIN_ROOT}/bin/buracle.ts', 'mcp', 'run', 'sandbox'], env: { SHARED: '1', TOKEN: '${SANDBOX_TOKEN}', WHO: 'claude', BURACLE_HARNESS: 'claude' } },
       },
     })
   })

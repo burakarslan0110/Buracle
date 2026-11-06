@@ -230,11 +230,12 @@ function knownEntry(dir: string, name: string): boolean {
   if (TMP_FILE.test(name)) return true
   switch (dir) {
     case paths.binDir(): return name === 'buracle'
-    case paths.stateDir(): return ['owned.json', 'health.json', 'updates.json', 'usage.json', 'runtime-config.json', 'txn.lock', 'install-record.json', 'memory', 'usage.lock', 'notifications.jsonl', 'notifications-read.json', 'toolchain.json', 'toolchain.json.lock', 'memory-ui.json', 'memory-ui.spawn', 'ui-sessions', 'shell-path.json', 'index', 'skills.json'].includes(name) || name.startsWith('usage.spawn.') || name.startsWith('toolchain.spawn.')
+    case paths.stateDir(): return ['owned.json', 'health.json', 'updates.json', 'usage.json', 'runtime-config.json', 'txn.lock', 'install-record.json', 'memory', 'usage.lock', 'notifications.jsonl', 'notifications-read.json', 'toolchain.json', 'toolchain.json.lock', 'memory-ui.json', 'memory-ui.spawn', 'ui-sessions', 'shell-path.json', 'index', 'skills.json', 'mcp-cache'].includes(name) || name.startsWith('usage.spawn.') || name.startsWith('toolchain.spawn.')
     case paths.toolchainDir(): return ['npm', 'uv', 'go', 'dotnet', 'cortexdb', 'system'].includes(name)
-    case paths.sessionsDir(): case paths.runDir(): return HARNESS_DIRS.includes(name)
+    case paths.sessionsDir(): return HARNESS_DIRS.includes(name)
+    case paths.runDir(): return HARNESS_DIRS.includes(name) || name === 'mcp'
     case join(paths.buracleHome(), 'cache'): return CACHE_ENTRIES.includes(name)
-    case paths.logsDir(): return /^buracle\.log(\.\d+)?$/.test(name) || paths.INSTALL_LOG_RE.test(name)
+    case paths.logsDir(): return /^buracle\.log(\.\d+)?$/.test(name) || /^mcp-[a-z0-9-]+\.log$/.test(name) || paths.INSTALL_LOG_RE.test(name)
     case paths.backupsDir(): return TXN_DIR.test(name)
     case paths.journalDir(): return /^\d{8}T\d{9}Z-[0-9a-f]{6}\.json$/.test(name) || name === '_checkpoint.json'
     case legacyContextModeHome(): return LEGACY_CONTEXT_MODE_DIRS.includes(name)

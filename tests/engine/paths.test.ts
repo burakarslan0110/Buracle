@@ -32,6 +32,23 @@ describe('paths', () => {
     expect(paths.userConfigFile()).toBe(join(buracleHome, 'config.yaml'))
   }))
 
+  test('shared MCP backends: the run directory, the cache and log files, and a short /tmp directory when a socket path would be too long', () => withSandbox(async ({ buracleHome, root }) => {
+    expect(paths.mcpRunDir()).toBe(join(buracleHome, 'run', 'mcp'))
+    expect(paths.mcpCacheFile('context7')).toBe(join(buracleHome, 'state', 'mcp-cache', 'context7.json'))
+    expect(paths.mcpLogFile('semble')).toBe(join(buracleHome, 'logs', 'mcp-semble.log'))
+    expect(paths.MCP_SOCKET_PATH_MAX).toBe(100)
+    const key = 'web-search-2.2.0-p1'
+    expect(await withEnv({ BURACLE_HOME: '/b' }, () => paths.mcpSocketDir(key))).toBe('/b/run/mcp')
+    const long = join(root, 'x'.repeat(120))
+    const fromLong = await withEnv({ BURACLE_HOME: long }, () => ({ dir: paths.mcpSocketDir(key), fallback: paths.mcpFallbackRunDir(), based: paths.mcpSocketDir(key, join(root, 'base')) }))
+    expect(fromLong.dir).toBe(fromLong.fallback)
+    expect(fromLong.dir).toMatch(new RegExp(`^/tmp/buracle-${process.getuid?.() ?? 0}-[0-9a-f]{8}$`))
+    expect(Buffer.byteLength(join(fromLong.dir, `${key}.sock`))).toBeLessThanOrEqual(paths.MCP_SOCKET_PATH_MAX)
+    expect(fromLong.based).toMatch(new RegExp(`^${join(root, 'base')}/buracle-\\d+-[0-9a-f]{8}$`))
+    expect(await withEnv({ BURACLE_HOME: join(root, 'y'.repeat(120)) }, () => paths.mcpFallbackRunDir())).not.toBe(fromLong.fallback)
+    expect(paths.buracleHome()).toBe(buracleHome)
+  }))
+
   test('harness overrides', () => withSandbox(({ root }) => withEnv({
     CLAUDE_CONFIG_DIR: join(root, 'cc'),
     CODEX_HOME: join(root, 'cx'),

@@ -107,6 +107,26 @@ describe('MCP handshake', () => {
     expect(entries['broken']?.error).toContain('boom: missing API key')
     expect(mcpHealthMap(catalog, { v: 1, checked_at: '', mcp: entries })).toEqual({ broken: 'down', mem: 'ok', web: 'unknown' })
   }), 60_000)
+
+  test('a server that is off in every harness it ships to is not started by a probe, and doctor lists it as off; off in one harness of two it is still probed', () => withSandbox(async ({ root }) => {
+    const marker = join(root, 'started.txt')
+    const shim = fakeExe(join(root, 'shim'), `fs.appendFileSync(${JSON.stringify(marker)}, argv.join(' ') + '\\n')\n${FAKE_SERVER}`)
+    const catalog: McpCatalog = {
+      servers: {
+        quiet: { description: 'q', transport: 'stdio', command: '{buracle}', args: ['ok', 'quiet'], harnesses: ['claude', 'codex'], pin: 'hard', critical: true, routing: [] },
+        half: { description: 'h', transport: 'stdio', command: '{buracle}', args: ['ok', 'half'], harnesses: ['claude', 'codex'], pin: 'hard', critical: true, routing: [] },
+      },
+    }
+    const { setConfigValue } = await import('../../../src/engine/config-edit')
+    await setConfigValue('mcp.off.claude', ['quiet', 'half'])
+    await setConfigValue('mcp.off.codex', ['quiet'])
+    const entries = await probeServers(catalog, { timeoutMs: 15_000, fetcher: fakeFetch({}), buracle: shim, http: false }, () => '2026-10-08T00:00:00.000Z')
+    expect(Object.keys(entries)).toEqual(['half'])
+    expect(readFileSync(marker, 'utf8')).not.toContain('quiet')
+    const { mcpChecks } = await import('../../../src/engine/update/doctor')
+    const checks = (await mcpChecks(catalog, 15_000, () => '2026-10-08T00:00:00.000Z')).checks
+    expect(checks.find(c => c.check === 'quiet')).toMatchObject({ level: 'ok', detail: expect.stringContaining('off in every harness') })
+  }), 60_000)
 })
 
 describe('buracle doctor', () => {

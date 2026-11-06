@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { BuracleRuntime, createBuraclePlugin, REGISTRY_KEY, type PluginDeps } from '../../../src/adapters/opencode/runtime/plugin'
 import { clearRepoCache } from '../../../src/adapters/opencode/runtime/adapter-rules'
@@ -481,6 +481,36 @@ describe('H24 MCP results and the session\'s health (core ledgerMcpResult, sessi
     await call(f, 'web-search_search', { query: 'bun 1.4 release notes' }, true)
     expect(loadLedger('opencode', SID).mcpErrors).toEqual({ 'web-fetch': 2 })
     expect((await webSearch(f)).ev.message).toContain('web-search_search')
+  }))
+
+  test('servers in mcp.off.opencode are unavailable for good: websearch goes to web-fetch, and with both off it is allowed with an "off" note', () => withSandbox(async ({ root, buracleHome }) => {
+    const snapshot = join(buracleHome, 'state', 'runtime-config.json')
+    const writeOff = (opencode: string[], when: number) => {
+      mkdirSync(join(buracleHome, 'state'), { recursive: true })
+      writeFileSync(snapshot, JSON.stringify({ v: 1, config: { mcp: { off: { opencode, claude: ['web-fetch'] } } } }))
+      utimesSync(snapshot, when, when)
+    }
+    writeOff(['web-search'], 1_000)
+    const { f } = await runtime(root)
+    const redirected = (await webSearch(f)).ev
+    expect(redirected.effect).toBe('deny')
+    expect(redirected.message).toContain('web-fetch_fetch_url')
+    writeOff(['web-search', 'web-fetch'], 2_000)
+    const { ev, after } = await webSearch(f)
+    expect(ev.effect).toBe('allow')
+    expect(after.status === 'completed' ? JSON.stringify(after.result.content) : '').toContain('MCP server is off, so the built-in web search is allowed as a fallback')
+  }))
+
+  test('OpenCode\'s own `disabled: true` counts too, in the project\'s opencode.jsonc (comments allowed) and in the global config', () => withSandbox(async ({ root }) => {
+    writeFileSync(join(root, 'opencode.jsonc'), '{\n  // the user turned web-search off\n  "mcp": { "servers": { "web-search": { "type": "local", "command": ["x"], "disabled": true, }, }, },\n}\n')
+    const { f } = await runtime(root)
+    const redirected = (await webSearch(f)).ev
+    expect(redirected.effect).toBe('deny')
+    expect(redirected.message).toContain('web-fetch_fetch_url')
+    mkdirSync(paths.opencodeConfigDir(), { recursive: true })
+    writeFileSync(join(paths.opencodeConfigDir(), 'opencode.json'), JSON.stringify({ mcp: { servers: { 'web-fetch': { type: 'local', command: ['y'], disabled: true } } } }))
+    const { ev } = await webSearch(f)
+    expect(ev.effect).toBe('allow')
   }))
 
   test('a call Buracle denied fails at the host too, but it is no failure of the server', () => withSandbox(async ({ root, home }) => {

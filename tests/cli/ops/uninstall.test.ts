@@ -225,6 +225,7 @@ describe('buracle uninstall', () => {
       join(h, 'runtime', '0123456789abcdef', 'src', 'cli', 'main.ts'), join(h, 'runtime', '.staging-123-abc', 'package.json'),
       join(h, 'cache', 'hook-health.json'), join(h, 'cache', 'runtime-drift.json'),
       join(h, 'cache', 'claude-plan.json'), join(h, 'cache', 'harness-versions.json'), join(h, 'cache', 'skills', 'x', 'SKILL.md'), join(h, 'cache', 'npm', '_cacache', 'x'),
+      join(h, 'state', 'mcp-cache', 'web-search.json'), join(h, 'run', 'mcp', 'web-search-1.0.0-p1.state.json'), join(h, 'logs', 'mcp-web-search.log'),
     ]
     await withDeps({ repoRoot: () => env.repo, adapters: async () => [codex], runCli: fakeCli().runCli }, async () => {
       expect(await installRun(['--yes'], memoryIO())).toBe(0)
@@ -247,6 +248,8 @@ describe('buracle uninstall', () => {
         const kept = (JSON.parse(io.out()) as { purgeKept: string[] }).purgeKept
         expect(kept).toContain('~/tools/runtime (not Buracle\'s: my-notes.txt)')
         expect(kept).toContain('~/tools/cache (not Buracle\'s: other.json)')
+        expect(kept.filter(k => k.includes('mcp'))).toEqual([])
+        for (const gone of [join(tools, 'state', 'mcp-cache'), join(tools, 'run', 'mcp'), join(tools, 'logs', 'mcp-web-search.log')]) expect(existsSync(gone)).toBe(false)
       })
     })
   }))

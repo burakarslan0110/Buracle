@@ -183,7 +183,7 @@ Upgrading from 0.5: [MIGRATION.md](MIGRATION.md) (what the migration does, how t
 - When a session ends, one `buracle mem finalize` run writes the session memory, files your stated preferences as explicit memories without any model, and asks the model of the harness you used for the decisions, gotchas and procedures worth keeping. Its answer is checked as a whole before anything is written. Confident findings become memories marked as inferred, with the model's confidence, and the rest wait as captures to be filed. A finding that resembles a memory of yours (explicit, pinned or verified) never changes it: it is stored beside it, marked as contradicting. The same run takes up to three older sessions whose capture is still owed.
 - `buracle mem capture` does the same on demand, and `buracle mem doctor` lists what is still owed.
 
-Nothing else runs in the background: no timers, no start-up jobs, no repair or cleanup passes. Sessions and handoffs expire by themselves, because CortexDB drops them after 45 and 14 days. `buracle mem backup` copies the whole brain file when you ask, and a session end takes one copy whenever the newest is more than a day old (the newest 10 are kept).
+The memory runs nothing else in the background: no timers, no start-up jobs, no repair or cleanup passes. Sessions and handoffs expire by themselves, because CortexDB drops them after 45 and 14 days. `buracle mem backup` copies the whole brain file when you ask, and a session end takes one copy whenever the newest is more than a day old (the newest 10 are kept).
 
 Model calls go through the CLI of a harness you already use, so no API key is needed. The session's own harness goes first, and a harness whose 5-hour usage is above 75% or whose weekly usage is above 85% is skipped. Search is by words, with the English and Turkish word forms.
 
@@ -310,6 +310,15 @@ Buracle runs the harnesses without approval prompts and lets its hooks do the gu
 | [`grep`](https://grep.app) | Code examples from public GitHub repositories |
 | [`chrome-devtools`](https://github.com/ChromeDevTools/chrome-devtools-mcp) | Drives a Chrome browser |
 | `lsp` | Language-server diagnostics and navigation for Codex and OpenCode |
+
+Each harness session runs a thin forwarder for each server, not a full copy:
+
+- `context7`, `semble`, `web-search` and `web-fetch` run once on the machine, shared by every session of every harness. A shared server starts on its first real call and stops 60 seconds after its last session ends. A session that makes no call for 10 minutes lets go of it, and its next call connects again.
+- `chrome-devtools` is the session's own and starts on its first call, together with its Chrome. It stops after 10 idle minutes and when the session ends.
+- `codegraph` runs as one process per session and shares its index daemon per project.
+- When a harness dies, its Buracle MCP processes exit within 10 seconds.
+
+`buracle mcp disable <id>` turns a server off in every harness, and `--harness <h>` in one. The next session lists none of its tools and starts no process for it, and the routing allows the built-in tool it stands in for. `buracle mcp enable` turns it on again, and `buracle mcp list` shows the state per harness. `buracle mcp status` lists the running Buracle MCP processes, and `buracle mcp stop` stops the shared ones at once. `buracle config set mcp.shared false` brings back one copy of each server per session. A shared server keeps the environment of the session that started it, so a variable such as `CONTEXT7_API_KEY` must be the same in every session. `BURACLE_MCP_LINGER_MS`, `BURACLE_MCP_IDLE_MS` and `BURACLE_MCP_PARENT_POLL_MS` (milliseconds) change the three wait times.
 
 The toolchain also brings `rg`, `ast-grep`, `jq`, `gh`, `tmux`, `ruff`, `shellcheck` and `golangci-lint`, and six language servers: pyright, typescript-language-server, gopls, rust-analyzer, csharp-ls and jdtls. A session start runs no indexing: Buracle builds a project's first codegraph index when the codegraph server starts there, after that codegraph and semble keep their own indexes fresh, and in a folder that holds several projects the agent builds the index of the project it needs with `buracle index ensure --cwd <project>`. After every edit, the matching checker runs and its findings go back to the agent.
 

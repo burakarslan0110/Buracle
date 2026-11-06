@@ -4,6 +4,7 @@ import { flowDef } from '../../../core/flow/catalog'
 import { promptSignals } from '../../../core/memory/signals'
 import type { SpoolEntry } from '../../../core/memory/spool'
 import type { McpHealth, RoutingPolicy } from '../../../core/policy/routing'
+import { mcpUnavailable } from '../../../core/policy/routing'
 import type { CompiledTriggers, PromptRoute } from '../../../core/policy/skill-router'
 import { compileTriggers, PROMPT_CONTEXT_MAX_CHARS, routePrompt, routeText } from '../../../core/policy/skill-router'
 import type { ReminderContext, UsageLedger } from '../../../core/policy/usage'
@@ -32,7 +33,7 @@ export function withinBudget(parts: ReadonlyArray<string | undefined>, max = PRO
 }
 
 export function availableServers(baked: Pick<BakedData, 'mcp'>, health: McpHealth): string[] {
-  return baked.mcp.map(m => m.id).filter(id => health[id] !== 'down').sort()
+  return baked.mcp.map(m => m.id).filter(id => !mcpUnavailable(health[id])).sort()
 }
 
 const compiledCache = new WeakMap<BakedData, CompiledTriggers>()

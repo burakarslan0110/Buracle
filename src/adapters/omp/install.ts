@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Ledger, Op, Plan } from '../../engine/txn'
-import { readLedger } from '../../engine/txn'
+import { LIST_IDENTITY_HASH, readLedger } from '../../engine/txn'
 import { bunExecutable } from '../../engine/config'
 import * as paths from '../../engine/paths'
 import { which } from '../../engine/proc'
@@ -152,6 +152,8 @@ export async function installPlan(ctx: AdapterContext): Promise<Plan> {
     { kind: 'yaml-merge', path: configFile, set, owner: OWNER, ...ompKeyPolicy(set, ctx.config) },
     { kind: 'md-block', path: join(agentDir, 'AGENTS.md'), id: AGENTS_BLOCK_ID, content: agentsPointer({ commands }), owner: OWNER },
     ...(Object.keys(lsp).length > 0 ? [{ kind: 'json-merge', path: ompLspFile(), set: lsp, owner: OWNER } as Op] : []),
+    // The servers that are off in omp (mcp.off.omp) go into its user-level denylist; an empty owned list removes Buracle's earlier entries only.
+    { kind: 'json-list-merge', path: join(agentDir, 'mcp.json'), pointer: 'disabledServers', items: ctx.config.mcp.off.omp.filter(id => ctx.canonical.mcp.servers[id]?.harnesses.includes('omp') === true), identity: LIST_IDENTITY_HASH, owner: OWNER, format: 'json' },
     {
       kind: 'exec',
       argv: [omp, 'plugin', 'link', pluginDir],

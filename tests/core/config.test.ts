@@ -136,6 +136,29 @@ describe('configSchemaLeaves', () => {
   })
 })
 
+describe('the mcp section', () => {
+  test('sharing is on and no server is off by default; shared must be a boolean and each harness list a list of server ids', () => {
+    expect(defaultConfig().mcp).toEqual({ shared: true, off: { claude: [], codex: [], opencode: [], omp: [] } })
+    expect(configSchemaLeaves('mcp')).toEqual([
+      { key: 'mcp.shared', t: 'bool' },
+      { key: 'mcp.off.claude', t: 'list' }, { key: 'mcp.off.codex', t: 'list' }, { key: 'mcp.off.opencode', t: 'list' }, { key: 'mcp.off.omp', t: 'list' },
+    ])
+    const bad = defaultConfig() as unknown as Record<string, any>
+    bad.mcp.shared = 'yes'
+    bad.mcp.off.codex = 'web-fetch'
+    bad.mcp.off.omp = [1]
+    bad.mcp.off.cursor = []
+    const r = validateConfig(bad)
+    expect(r.ok ? [] : r.errors).toEqual(expect.arrayContaining([
+      'mcp.shared: expected boolean, got string "yes"',
+      'mcp.off.codex: expected array, got string "web-fetch"',
+      'mcp.off.omp[0]: expected string, got number 1',
+      'mcp.off.cursor: unknown key',
+    ]))
+    expect(mergeConfigLenient(defaultConfig(), { mcp: { shared: false, off: { codex: ['web-fetch'] } } }).config.mcp).toEqual({ shared: false, off: { claude: [], codex: ['web-fetch'], opencode: [], omp: [] } })
+  })
+})
+
 describe('validateConfig', () => {
   test('reports dotted paths for every problem', () => {
     const bad = defaultConfig() as unknown as Record<string, any>
