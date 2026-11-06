@@ -37,7 +37,10 @@ export interface McpServerSpec {
   routing: string[]
   health?: { tool: string, args: Record<string, unknown> }
   backend?: McpBackend
+  api_key?: McpApiKey
 }
+/** The variable a package server reads its API key from, and the page that issues one (`buracle mcp key`). */
+export interface McpApiKey { env: string, url?: string }
 export interface McpCatalog { servers: Record<string, McpServerSpec> }
 
 export interface MarketplaceSpec { id: string; source: string }
@@ -211,8 +214,9 @@ const SERVER_ID = /^[a-z0-9][a-z0-9-]*$/
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:[-+.][0-9A-Za-z.-]+)?$/
 const BIN_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
-const SERVER_KEYS = ['description', 'transport', 'package', 'command', 'args', 'env', 'harness_env', 'tool_timeout_sec', 'tool_timeout_hard', 'url', 'harnesses', 'pin', 'pin_reason', 'critical', 'routing', 'health', 'backend'] as const
+const SERVER_KEYS = ['description', 'transport', 'package', 'command', 'args', 'env', 'harness_env', 'tool_timeout_sec', 'tool_timeout_hard', 'url', 'harnesses', 'pin', 'pin_reason', 'critical', 'routing', 'health', 'backend', 'api_key'] as const
 const PACKAGE_KEYS = ['registry', 'name', 'version', 'bin', 'extras'] as const
+const API_KEY_KEYS = ['env', 'url'] as const
 const PIN_POLICIES: readonly string[] = ['latest', 'hard', 'soft', 'monitor']
 
 function validateEnvMap(env: unknown, at: string, errors: string[]): void {
@@ -311,6 +315,19 @@ export function validateMcpCatalog(x: unknown): string[] {
     if (backend !== undefined) {
       if (typeof backend !== 'string' || !(MCP_BACKENDS as readonly string[]).includes(backend)) errors.push(`${at}.backend: expected ${MCP_BACKENDS.join(' | ')}`)
       else if (transport !== 'stdio' || command !== undefined || !registryPkg) errors.push(`${at}.backend: only a package server (npm or PyPI, started by \`buracle mcp run\`) has a backend`)
+    }
+    const apiKey = raw['api_key']
+    if (apiKey !== undefined) {
+      if (!isObj(apiKey)) errors.push(`${at}.api_key: expected { env: NAME, url?: https URL }`)
+      else {
+        unknownKeys(apiKey, API_KEY_KEYS, `${at}.api_key`, errors)
+        const name = apiKey['env']
+        if (typeof name !== 'string' || !ENV_NAME.test(name)) errors.push(`${at}.api_key.env: invalid variable name`)
+        else if (isObj(env) && Object.prototype.hasOwnProperty.call(env, name)) errors.push(`${at}.api_key.env: also in env (the key comes from api_key only)`)
+        const page = apiKey['url']
+        if (page !== undefined && (!isStr(page) || !/^https:\/\//.test(page))) errors.push(`${at}.api_key.url: expected an https URL`)
+        if (transport !== 'stdio' || command !== undefined || !registryPkg) errors.push(`${at}.api_key: only a package server (npm or PyPI, started by \`buracle mcp run\`) takes an API key`)
+      }
     }
   }
   return errors

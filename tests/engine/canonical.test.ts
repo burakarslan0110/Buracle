@@ -325,6 +325,32 @@ describe('catalog validators', () => {
     ]))
   })
 
+  test('mcp.yaml: api_key names the variable a package server reads its key from and an https page that issues one; context7 takes CONTEXT7_API_KEY', () => {
+    const base = { description: 'x', transport: 'stdio', package: { registry: 'npm', name: 'p', version: 'latest' }, harnesses: ['claude'], pin: 'latest', critical: false, routing: [] }
+    expect(validateMcpCatalog({ servers: { a: { ...base, api_key: { env: 'P_API_KEY', url: 'https://p.example/keys' } }, b: { ...base, api_key: { env: 'P_KEY' } } } })).toEqual([])
+    const errors = validateMcpCatalog({
+      servers: {
+        shape: { ...base, api_key: 'P_API_KEY' },
+        name: { ...base, api_key: { env: 'bad-name' } },
+        missing: { ...base, api_key: { url: 'https://p.example' } },
+        page: { ...base, api_key: { env: 'P_KEY', url: 'http://p.example' } },
+        extra: { ...base, api_key: { env: 'P_KEY', header: 'x' } },
+        both: { ...base, env: { P_KEY: '1' }, api_key: { env: 'P_KEY' } },
+        remote: { description: 'x', transport: 'http', url: 'https://x.y', harnesses: ['claude'], pin: 'monitor', critical: false, routing: [], api_key: { env: 'P_KEY' } },
+      },
+    })
+    expect(errors).toEqual(expect.arrayContaining([
+      'servers.shape.api_key: expected { env: NAME, url?: https URL }',
+      'servers.name.api_key.env: invalid variable name',
+      'servers.missing.api_key.env: invalid variable name',
+      'servers.page.api_key.url: expected an https URL',
+      'servers.extra.api_key.header: unknown key',
+      'servers.both.api_key.env: also in env (the key comes from api_key only)',
+      'servers.remote.api_key: only a package server (npm or PyPI, started by `buracle mcp run`) takes an API key',
+    ]))
+    expect(loadCanonicalSync(REAL).mcp.servers['context7']?.api_key).toEqual({ env: 'CONTEXT7_API_KEY', url: 'https://context7.com/dashboard' })
+  })
+
   test('mcp.yaml: backend is shared or lazy, and only a package server has one; the four web and search servers share, chrome-devtools starts lazily', () => {
     const base = { description: 'x', transport: 'stdio', package: { registry: 'npm', name: 'p', version: 'latest' }, harnesses: ['claude'], pin: 'latest', critical: false, routing: [] }
     expect(validateMcpCatalog({ servers: { a: { ...base, backend: 'shared' }, b: { ...base, backend: 'lazy' }, c: base } })).toEqual([])

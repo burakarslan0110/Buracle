@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import type { McpCatalog, McpServerSpec } from '../../core/catalog'
 import { envRef, mcpPackageBin, validateMcpCatalog } from '../../core/catalog'
+import { apiKeyFor } from '../mcp-share/keys'
 import * as paths from '../paths'
 import { findExecutable } from '../platform'
 import { binArgv, pypiSpec, toolchainEnv, UV_PYTHON } from './packages'
@@ -65,6 +66,9 @@ export function launchPlan(id: string, spec: McpServerSpec, state: ToolchainStat
   const bin = mcpPackageBin(pkg)
   const args = spec.args ?? []
   const env = serverEnvFor(spec)
+  // A key `buracle mcp key` stored reaches a server whose environment has none (mcp.shared false, a lazy server).
+  const apiKey = apiKeyFor(id, spec, process.env)
+  if (apiKey?.source === 'stored') env[apiKey.name] = apiKey.value
   const installed = state.packages[packageKey(pkg.registry, pkg.name)]
   const entry = installed?.bins[bin]
   if (installed !== undefined && entry !== undefined && pkg.registry === 'npm' && pkg.name === '@colbymchenry/codegraph') {

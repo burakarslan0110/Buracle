@@ -13,6 +13,7 @@ export const VERSION = '9.9.9'
 const PACKAGES: Record<string, { key: string, name: string, bin: string }> = {
   'web-search': { key: 'npm:open-websearch', name: 'open-websearch', bin: 'open-websearch' },
   'chrome-devtools': { key: 'npm:chrome-devtools-mcp', name: 'chrome-devtools-mcp', bin: 'chrome-devtools-mcp' },
+  'context7': { key: 'npm:@upstash/context7-mcp', name: '@upstash/context7-mcp', bin: 'context7-mcp' },
 }
 
 /** Puts the stub server in the toolchain as the package of `id` (web-search or chrome-devtools). */

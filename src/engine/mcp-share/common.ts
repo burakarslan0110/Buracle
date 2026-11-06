@@ -2,7 +2,7 @@
 import { existsSync, lstatSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { McpServerSpec } from '../../core/catalog'
-import { mcpSocketDir, toolchainStateFile } from '../paths'
+import { fnv1a, mcpSocketDir, toolchainStateFile } from '../paths'
 
 /** The packages of ~/.buracle/state/toolchain.json, read without the toolchain module (it loads node:crypto). */
 export interface InstalledPackages { [key: string]: { version: string, bins: Record<string, string> } | undefined }
@@ -52,10 +52,15 @@ export function installedVersion(spec: McpServerSpec, packages: InstalledPackage
   return installed !== undefined && typeof installed.version === 'string' && entry !== undefined && existsSync(entry) ? installed.version : undefined
 }
 
-/** `<id>-<package version or latest>-p<protocol>`: one backend per server, package version and protocol. */
-export function backendKey(id: string, version: string | undefined): string {
+/**
+ * `<id>-<package version or latest>-p<protocol>[-k<hash>]`: one backend per server, package version, protocol
+ * and API key, so a session never reaches a server that runs with another key (or none). The hash is 8 hex
+ * digits of FNV-1a: it tells keys apart in a private folder and gives nothing of the key away.
+ */
+export function backendKey(id: string, version: string | undefined, apiKey?: string): string {
   const v = (version === undefined || version === '' ? 'latest' : version).replace(/[^A-Za-z0-9._-]/g, '_')
-  return `${id}-${v}-p${MUX_PROTOCOL}`
+  const k = apiKey !== undefined && apiKey.trim() !== '' ? `-k${fnv1a(apiKey)}` : ''
+  return `${id}-${v}-p${MUX_PROTOCOL}${k}`
 }
 
 export interface BackendFiles { dir: string, socket: string, lock: string, state: string }
