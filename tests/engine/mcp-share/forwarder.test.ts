@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { backendFiles, backendKey } from '../../../src/engine/mcp-share/common'
+import { backendStates } from '../../../src/engine/mcp-share/procs'
 import { probeServers } from '../../../src/engine/update/mcp'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import * as paths from '../../../src/engine/paths'
@@ -37,6 +38,74 @@ async function withForwarders(fn: (ctx: { root: string, starts: string, drivers:
     }
   })
 }
+
+describe('buracle mcp run: the API key of a shared server', () => {
+  async function withKeyed(fn: (ctx: { drivers: Driver[] }) => Promise<void>): Promise<void> {
+    await withSandbox(async ({ root }) => {
+      const drivers: Driver[] = []
+      try {
+        installStub(root, 'context7')
+        await fn({ drivers })
+      } finally {
+        for (const d of drivers) { try { d.proc.kill('SIGKILL') } catch { /* gone */ } }
+        for (const s of backendStates()) for (const pid of [s.pid, s.upstreamPid]) if (pid !== undefined) { try { process.kill(pid, 'SIGKILL') } catch { /* gone */ } }
+        rmSync(paths.mcpFallbackRunDir(), { recursive: true, force: true })
+      }
+    })
+  }
+  /** The CONTEXT7_API_KEY the session's server runs with; one retry covers a call sent while its backend was stopping. */
+  async function keyOf(d: Driver, id: number): Promise<string> {
+    for (const n of [id, id + 1000]) {
+      d.send(call(n, 'env', { name: 'CONTEXT7_API_KEY' }))
+      const m = await d.wait(x => x['id'] === n, 25_000)
+      if (m['error'] === undefined) return textOf(m)
+    }
+    throw new Error('the call failed twice')
+  }
+  const live = () => backendStates().filter(s => s.id === 'context7' && alive(s.pid))
+  const mcpKey = (...args: string[]) => Bun.spawnSync([process.execPath, MAIN, 'mcp', 'key', 'context7', ...args], { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe', env: { ...process.env } })
+
+  test('a session whose environment has the key gets a server that runs with it, also while a backend without the key serves other sessions', () => withKeyed(async ({ drivers }) => {
+    const a = drive('context7')
+    drivers.push(a)
+    a.send(initialize(0))
+    expect(await keyOf(a, 1)).toBe('<unset>')
+    const b = drive('context7', { CONTEXT7_API_KEY: 'key-of-session-b' })
+    const c = drive('context7', { CONTEXT7_API_KEY: 'key-of-session-b' })
+    drivers.push(b, c)
+    for (const d of [b, c]) d.send(initialize(0))
+    expect(await keyOf(b, 1)).toBe('key-of-session-b')
+    expect(await keyOf(c, 1)).toBe('key-of-session-b')
+    expect(await keyOf(a, 2)).toBe('<unset>')
+    // One backend per key: b and c share theirs, and no file name, state file or command line holds the key.
+    expect(live()).toHaveLength(2)
+    const args = (pid: number) => Bun.spawnSync(['ps', '-o', 'args=', '-p', String(pid)], { stdout: 'pipe', env: { ...process.env } }).stdout.toString()
+    for (const s of live()) {
+      expect(s.file).not.toContain('key-of-session-b')
+      expect(readFileSync(s.file, 'utf8')).not.toContain('key-of-session-b')
+      expect(args(s.pid)).not.toContain('key-of-session-b')
+    }
+    expect(live().map(s => args(s.pid).includes('--api-key-env=CONTEXT7_API_KEY')).sort()).toEqual([false, true])
+  }), 60_000)
+
+  test('`buracle mcp key` stores the key: a running session gets it on its next call, the variable wins over it, and --clear takes it away', () => withKeyed(async ({ drivers }) => {
+    const a = drive('context7')
+    drivers.push(a)
+    a.send(initialize(0))
+    expect(await keyOf(a, 1)).toBe('<unset>')
+    const set = mcpKey('stored-key-0123456789')
+    expect(set.exitCode).toBe(0)
+    expect(set.stdout.toString()).not.toContain('stored-key-0123456789')
+    expect(await keyOf(a, 2)).toBe('stored-key-0123456789')
+    const b = drive('context7', { CONTEXT7_API_KEY: 'key-from-the-environment' })
+    drivers.push(b)
+    b.send(initialize(0))
+    expect(await keyOf(b, 1)).toBe('key-from-the-environment')
+    expect(mcpKey('--clear').exitCode).toBe(0)
+    expect(await keyOf(a, 3)).toBe('<unset>')
+    expect(await keyOf(b, 2)).toBe('key-from-the-environment')
+  }), 90_000)
+})
 
 describe('buracle mcp run: the forwarder of a shared server', () => {
   test('initialize and tools/list come from the cache, so an idle session starts no backend; discover, ping and an early request are answered here', () => withForwarders(async ({ drivers, env }) => {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { backgroundInstallArgv, CODEGRAPH_GATE_MS, codegraphGate, expireLaunchFailures, LAUNCH_DOWN_TTL_MS, recordLaunchFailure, run as mcpRun } from '../../src/cli/commands/mcp'
 import { defaultConfig } from '../../src/core/config'
@@ -440,4 +440,49 @@ describe('buracle mcp install', () => {
     })
     expect(runs).toBe(1)
   })))
+})
+
+describe('buracle mcp key', () => {
+  const KEYS = () => join(paths.secretsDir(), 'mcp-keys.json')
+  const piped = (text: string) => ({ ...memoryIO(), stdin: { isTTY: false, text: async () => text } })
+  const listed = async () => {
+    const io = memoryIO({ json: true })
+    expect(await mcpRun(['key'], io)).toBe(0)
+    return JSON.parse(io.out()) as { servers: Array<Record<string, unknown>> }
+  }
+
+  test('stores the key in a private file without printing it; the list says where each key comes from, and --clear removes it', () => withSandbox(async () => {
+    expect(await listed()).toEqual({ servers: [{ id: 'context7', env: 'CONTEXT7_API_KEY', source: 'none', url: 'https://context7.com/dashboard' }] })
+    const io = memoryIO()
+    expect(await mcpRun(['key', 'context7', 'ctx7sk-test-0123456789'], io)).toBe(0)
+    expect(io.out() + io.err()).not.toContain('ctx7sk-test-0123456789')
+    expect(io.out()).toContain('…6789')
+    expect(statSync(KEYS()).mode & 0o777).toBe(0o600)
+    expect(statSync(paths.secretsDir()).mode & 0o777).toBe(0o700)
+    expect((await listed()).servers[0]?.['source']).toBe('stored')
+    await withEnv({ CONTEXT7_API_KEY: 'from-the-shell' }, async () => {
+      expect((await listed()).servers[0]?.['source']).toBe('env')
+    })
+    const clear = memoryIO()
+    expect(await mcpRun(['key', 'context7', '--clear'], clear)).toBe(0)
+    expect(clear.out()).toContain('removed')
+    expect(readFileSync(KEYS(), 'utf8')).not.toContain('ctx7sk-test-0123456789')
+    expect((await listed()).servers[0]?.['source']).toBe('none')
+  }))
+
+  test('reads the key from piped input; a server without an API key, an unknown server and an empty key exit 1 and store nothing', () => withSandbox(async () => {
+    expect(await mcpRun(['key', 'context7'], piped('ctx7sk-from-stdin-4242\n'))).toBe(0)
+    expect(JSON.parse(readFileSync(KEYS(), 'utf8'))).toEqual({ v: 1, keys: { context7: 'ctx7sk-from-stdin-4242' } })
+    for (const [argv, why] of [
+      [['key', 'web-search', 'x'], 'web-search takes no API key'],
+      [['key', 'nope', 'x'], "unknown server 'nope'"],
+      [['key', 'context7', '  '], 'empty key'],
+      [['key', 'context7', 'x'.repeat(4097)], 'longer than 4096 characters'],
+    ] as const) {
+      const io = memoryIO()
+      expect(await mcpRun([...argv], io)).toBe(1)
+      expect(io.err()).toContain(why)
+    }
+    expect(JSON.parse(readFileSync(KEYS(), 'utf8'))).toEqual({ v: 1, keys: { context7: 'ctx7sk-from-stdin-4242' } })
+  }))
 })

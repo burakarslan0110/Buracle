@@ -57,6 +57,8 @@ function handle(m: Msg): void {
       const args = (params['arguments'] ?? {}) as Msg
       if (name === 'ping') return text(id, 'pong')
       if (name === 'echo') return text(id, String(args['text'] ?? ''))
+      // Not in the tool list, so the lists other tests compare stay as they are.
+      if (name === 'env') return text(id, env[String(args['name'] ?? '')] ?? '<unset>')
       if (name === 'crash') process.exit(3)
       if (name === 'noise') {
         const line = `${'x'.repeat(1023)}\n`

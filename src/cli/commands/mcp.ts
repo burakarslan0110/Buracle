@@ -4,7 +4,7 @@ import type { StartGate, StartGateOptions } from '../../workflow/workspace-index
 import type { CommandIO } from '../router'
 
 export const name = 'mcp'
-export const summary = 'Run, share, turn off and inspect Buracle\'s MCP servers (buracle mcp run <id>, disable, status)'
+export const summary = 'Run, share, turn off and inspect Buracle\'s MCP servers and set their API keys (buracle mcp run <id>, disable, status, key)'
 export const usage = `Usage: buracle mcp memory
        buracle mcp run <id>
        buracle mcp disable <id> [--harness <h>]
@@ -12,8 +12,9 @@ export const usage = `Usage: buracle mcp memory
        buracle mcp list [--json]
        buracle mcp status [--json]
        buracle mcp stop [<id>]
+       buracle mcp key [<id> [<key>]] [--clear] [--json]
        buracle mcp install <id>
-       buracle mcp backend <id> [--package-version=<v>]
+       buracle mcp backend <id> [--package-version=<v>] [--api-key-env=<name>]
 
 memory    Starts the buracle-memory MCP server on stdin/stdout (newline-delimited JSON-RPC 2.0)
           over the CortexDB brains of the current project and the person. Tools: memory_search,
@@ -50,10 +51,21 @@ list      Every server, its state per harness (on, off, - when it does not ship 
 status    Every running Buracle MCP process: server, role (forwarder, backend, upstream,
           lazy, session, codegraph), sessions, memory and uptime.
 stop [<id>]  Stops the shared backends (or the one of <id>) now; the next call starts them again.
+key <id> [<key>]  Stores the API key of server <id> (context7: CONTEXT7_API_KEY) in
+          ~/.buracle/secrets/mcp-keys.json, which only this user can read, and stops the running
+          backends of <id>, so the next call of every session starts the server with the key (a
+          call that runs at that moment fails once). Without <key> it reads the key from piped
+          input (pbpaste | buracle mcp key context7; on Linux wl-paste or xclip -o), which keeps
+          it out of the shell history. The variable in a session's environment wins over the
+          stored key, and sessions with different keys get separate backends. --clear
+          removes the stored key. Without <id> it lists the servers that take a key and where
+          each key comes from: env, stored or none.
 backend <id>  The shared backend a forwarder starts: one upstream for every session, on a
           private Unix socket; it stops 60 s after its last client (BURACLE_MCP_LINGER_MS).
           --package-version is the version the forwarder read (latest for none): the socket
-          key both sides use, even when the toolchain changed in between.
+          key both sides use, even when the toolchain changed in between. --api-key-env names
+          the variable that holds the API key the forwarder resolved; the key is part of the
+          socket key too.
 `
 
 function version(): string {
@@ -312,16 +324,86 @@ async function statusCmd(argv: string[], io: CommandIO): Promise<number> {
   return 0
 }
 
-async function stopCmd(id: string | undefined, io: CommandIO): Promise<number> {
+/** Stops the live shared backends (all, or the ones of `id`): SIGTERM, then SIGKILL after 5 s. Returns them as `<id> backend <pid>`. */
+async function stopBackends(id: string | undefined): Promise<string[]> {
   const { backendStates, signalBackends } = await import('../../engine/mcp-share/procs')
   const { pidAlive } = await import('../../engine/mcp-share/common')
   const ids = new Map(backendStates().map(s => [s.pid, s.id]))
   const pids = signalBackends(id)
-  if (pids.length === 0) { io.stdout.write(id !== undefined ? `no shared backend of ${id} runs\n` : 'no shared backend runs\n'); return 0 }
   const end = Date.now() + 5_000
   while (Date.now() < end && pids.some(pidAlive)) await Bun.sleep(50)
   for (const pid of pids) if (pidAlive(pid)) { try { process.kill(pid, 'SIGKILL') } catch {  } }
-  io.stdout.write(`stopped ${pids.map(p => `${ids.get(p) ?? '?'} backend ${p}`).join(', ')}; the next call starts it again\n`)
+  return pids.map(p => `${ids.get(p) ?? '?'} backend ${p}`)
+}
+
+async function stopCmd(id: string | undefined, io: CommandIO): Promise<number> {
+  const stopped = await stopBackends(id)
+  if (stopped.length === 0) { io.stdout.write(id !== undefined ? `no shared backend of ${id} runs\n` : 'no shared backend runs\n'); return 0 }
+  io.stdout.write(`stopped ${stopped.join(', ')}; the next call starts it again\n`)
+  return 0
+}
+
+/** Far above any real API key; a longer value is a paste gone wrong and would only fail later, as an environment variable. */
+const MAX_API_KEY_LENGTH = 4096
+
+async function keyCmd(argv: string[], io: CommandIO): Promise<number> {
+  const json = io.flags.json || argv.includes('--json')
+  const [, id, given] = argv.filter(a => !a.startsWith('-'))
+  const { readMcpCatalog } = await import('../../engine/toolchain/launch')
+  const { apiKeyFor, maskKey, writeStoredKey } = await import('../../engine/mcp-share/keys')
+  const { mcpKeysFile } = await import('../../engine/paths')
+  let catalog
+  try {
+    catalog = readMcpCatalog()
+  } catch (e) {
+    io.stderr.write(`buracle mcp key: ${errText(e)}\n`)
+    return 1
+  }
+  const servers = catalog.servers
+  const describe = (s: string) => {
+    const spec = servers[s]!
+    const key = apiKeyFor(s, spec, process.env)
+    const row = { id: s, env: spec.api_key?.env ?? '', source: key?.source ?? 'none', ...(spec.api_key?.url !== undefined ? { url: spec.api_key.url } : {}) }
+    const text = key === undefined ? `not set${row.url !== undefined ? `; get one at ${row.url}` : ''}` : `${key.source === 'env' ? 'from the environment' : 'stored'} (${maskKey(key.value)})`
+    return { row, line: `${s.padEnd(12)}${row.env.padEnd(20)}${text}\n` }
+  }
+  if (id === undefined) {
+    const keyed = Object.keys(servers).sort().filter(s => servers[s]?.api_key !== undefined).map(describe)
+    if (json) { io.stdout.write(JSON.stringify({ servers: keyed.map(k => k.row) }, null, 2) + '\n'); return 0 }
+    io.stdout.write(`${'server'.padEnd(12)}${'variable'.padEnd(20)}key\n${keyed.map(k => k.line).join('')}`)
+    return 0
+  }
+  const spec = servers[id]
+  if (spec === undefined) { io.stderr.write(`buracle mcp key: unknown server '${id}'\n`); return 1 }
+  const name = spec.api_key?.env
+  if (name === undefined) { io.stderr.write(`buracle mcp key: ${id} takes no API key\n`); return 1 }
+  const clear = argv.includes('--clear')
+  let value: string | undefined
+  if (!clear) {
+    if (given === undefined && io.stdin.isTTY) {
+      io.stdout.write(`${describe(id).line}Set it with \`buracle mcp key ${id} <key>\`, or pipe it in to keep it out of the shell history: pbpaste | buracle mcp key ${id}\n`)
+      return 0
+    }
+    value = (given ?? await io.stdin.text()).trim()
+    if (value === '') { io.stderr.write('buracle mcp key: empty key; nothing stored\n'); return 1 }
+    if (/[\s\u0000-\u001f\u007f]/.test(value)) { io.stderr.write('buracle mcp key: the key holds spaces or control characters; nothing stored\n'); return 1 }
+    if (value.length > MAX_API_KEY_LENGTH) { io.stderr.write(`buracle mcp key: the key is longer than ${MAX_API_KEY_LENGTH} characters; nothing stored\n`); return 1 }
+  }
+  let changed: boolean
+  try {
+    changed = writeStoredKey(id, value)
+  } catch (e) {
+    io.stderr.write(`buracle mcp key: cannot write ${mcpKeysFile()}: ${errText(e)}\n`)
+    return 1
+  }
+  if (!changed && value === undefined) { io.stdout.write(`no stored ${id} API key\n`); return 0 }
+  // Also when the same key was stored already: a run stopped between the write and this step left the old backends.
+  const stopped = await stopBackends(id)
+  const next = stopped.length > 0 ? `; stopped ${stopped.join(', ')}, so the next call starts ${id} ${value === undefined ? 'without a stored key' : 'with this key'}` : `; the next call of ${id} uses ${value === undefined ? 'no stored key' : 'it'}`
+  const done = value === undefined ? `removed the stored ${id} API key` : changed ? `stored the ${id} API key (${maskKey(value)}) in ${mcpKeysFile()}` : `the ${id} API key (${maskKey(value)}) was already stored`
+  io.stdout.write(`${done}${next}\n`)
+  const shell = process.env[name]
+  if (shell !== undefined && shell.trim() !== '' && shell !== value) io.stdout.write(`note: ${name} is set in this environment; a session that has it uses it instead of the stored key\n`)
   return 0
 }
 
@@ -329,8 +411,9 @@ async function runBackend(argv: string[], io: CommandIO): Promise<number> {
   const id = argv.filter(a => !a.startsWith('-'))[1]
   if (id === undefined) { io.stderr.write(`buracle mcp backend: missing <id>\n\n${usage}`); return 1 }
   const pinned = argv.find(a => a.startsWith('--package-version='))?.slice('--package-version='.length)
+  const keyEnv = argv.find(a => a.startsWith('--api-key-env='))?.slice('--api-key-env='.length)
   const { runMcpBackend } = await import('../../engine/mcp-share/backend')
-  return runMcpBackend(id, { stderr: io.stderr, version: version(), ...(pinned !== undefined && pinned !== '' ? { packageVersion: pinned } : {}), recordFailure: (error, nowMs) => recordLaunchFailure(id, error, nowMs), onFallback: () => backgroundInstall(id) })
+  return runMcpBackend(id, { stderr: io.stderr, version: version(), ...(pinned !== undefined && pinned !== '' ? { packageVersion: pinned } : {}), ...(keyEnv !== undefined && keyEnv !== '' ? { apiKeyEnv: keyEnv } : {}), recordFailure: (error, nowMs) => recordLaunchFailure(id, error, nowMs), onFallback: () => backgroundInstall(id) })
 }
 
 export async function run(argv: string[], io: CommandIO): Promise<number> {
@@ -339,6 +422,7 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
   if (server === 'backend') return runBackend(argv, io)
   if (server === 'status') return statusCmd(argv, io)
   if (server === 'stop') return stopCmd(argv.filter(a => !a.startsWith('-'))[1], io)
+  if (server === 'key') return keyCmd(argv, io)
   if (server === 'disable' || server === 'enable') {
     const at = argv.indexOf('--harness')
     const eq = argv.find(a => a.startsWith('--harness='))

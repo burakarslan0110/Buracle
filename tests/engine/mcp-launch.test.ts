@@ -5,8 +5,9 @@ import { loadCanonicalSync } from '../../src/engine/canonical'
 import * as paths from '../../src/engine/paths'
 import { launchPlan } from '../../src/engine/toolchain/launch'
 import { emptyToolchainState } from '../../src/engine/toolchain/state'
+import { writeStoredKey } from '../../src/engine/mcp-share/keys'
 import { mcpLaunchArgv } from '../../src/engine/update/mcp'
-import { withSandbox } from '../helpers/sandbox'
+import { withEnv, withSandbox } from '../helpers/sandbox'
 
 describe('mcpLaunchArgv: how the handshake probe starts a stdio server', () => {
   test('the shim and other commands start as written', () => withSandbox(({ root }) => {
@@ -52,5 +53,24 @@ describe('launchPlan: codegraph runs as one process per session (R3)', () => {
     const notExecutable = file(join(dir, 'node_modules', '@colbymchenry', `codegraph-${process.platform}-${process.arch}`, 'bin', 'codegraph'), '#!/bin/sh\n', 0o644)
     expect(launchPlan('codegraph', spec, state, { node: '/opt/node/bin/node' })).toMatchObject({ argv: ['/opt/node/bin/node', shim, 'serve', '--mcp'] })
     expect(notExecutable).toContain('bin/codegraph')
+  }))
+})
+
+describe('launchPlan: the API key of a server that takes one', () => {
+  const spec = loadCanonicalSync(paths.canonicalDir()).mcp.servers['context7']!
+  const planEnv = (): Record<string, string> => {
+    const p = launchPlan('context7', spec, emptyToolchainState(), { npx: '/opt/node/bin/npx' })
+    if ('error' in p) throw new Error(p.error)
+    return p.env
+  }
+
+  test('a stored key reaches a server started without the shared backend; the variable in the environment wins over it; with no stored key nothing is added', () => withSandbox(async () => {
+    expect(planEnv()['CONTEXT7_API_KEY']).toBeUndefined()
+    writeStoredKey('context7', 'stored-key-0123456789')
+    expect(planEnv()['CONTEXT7_API_KEY']).toBe('stored-key-0123456789')
+    await withEnv({ CONTEXT7_API_KEY: 'from-the-shell' }, () => {
+      // Left out of the plan, so the session's own variable reaches the server unchanged.
+      expect(planEnv()['CONTEXT7_API_KEY']).toBeUndefined()
+    })
   }))
 })

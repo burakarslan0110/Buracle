@@ -147,6 +147,8 @@ export function harnessDir(h?: Harness): string {
 
 export function userConfigFile(): string { return join(buracleHome(), 'config.yaml') }
 export function secretsDir(): string { return join(buracleHome(), 'secrets') }
+/** The API keys `buracle mcp key` stores for MCP servers (src/engine/mcp-share/keys.ts). */
+export function mcpKeysFile(): string { return join(secretsDir(), 'mcp-keys.json') }
 export function binDir(): string { return join(buracleHome(), 'bin') }
 export function shimPath(): string { return join(binDir(), 'buracle') }
 export function stateDir(): string { return join(buracleHome(), 'state') }
@@ -211,7 +213,7 @@ export function mcpFallbackRunDir(base = '/tmp'): string {
  * 8 hex digits of the FNV-1a hash of `text`: a short, stable name, not a security measure (the directory
  * checks are). node:crypto would add about 5 MB to every process that loads this module.
  */
-function fnv1a(text: string): string {
+export function fnv1a(text: string): string {
   let h = 0x811c9dc5
   for (const byte of new TextEncoder().encode(text)) {
     h ^= byte

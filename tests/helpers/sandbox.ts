@@ -17,6 +17,8 @@ export const ISOLATED_ENV: readonly string[] = [
   'CLAUDE_PROJECT_DIR', 'CLAUDE_PLUGIN_ROOT', 'CLAUDE_PLUGIN_DATA', 'CLAUDE_ENV_FILE',
   'HOMEBREW_NO_AUTO_UPDATE', 'HOMEBREW_NO_ENV_HINTS',
   'WSL_DISTRO_NAME', 'WSL_INTEROP', 'WSLENV', 'BURACLE_PLATFORM',
+  // An MCP server's API key in the developer's shell would change which backend a forwarder uses.
+  'CONTEXT7_API_KEY',
 ]
 
 export const TEST_DEFAULT_ENV: Readonly<Record<string, string>> = {
