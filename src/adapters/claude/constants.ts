@@ -1,12 +1,11 @@
-import { TESTED_WITH as HARNESS_VERSIONS } from '../../engine/update/tested-with'
+import { MIN_VERSIONS } from '../../engine/update/min-versions'
 
 export const PLUGIN_NAME = 'buracle'
 export const MARKETPLACE_NAME = 'buracle'
 export const PLUGIN_ID = `${PLUGIN_NAME}@${MARKETPLACE_NAME}`
 export const OWNER_NAME = 'burakarslan0110'
 
-export const TESTED_WITH = HARNESS_VERSIONS.claude.tested
-export const MIN_CLAUDE = HARNESS_VERSIONS.claude.min
+export const MIN_CLAUDE = MIN_VERSIONS.claude
 
 export const HARNESS_REL = 'harness/claude'
 export const TEMPLATE_REL = 'src/adapters/claude/template'

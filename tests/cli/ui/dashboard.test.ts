@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { dashboardStep, initialView, renderDashboard, SECTION_TITLES, type DashRow, type DashView } from '../../../src/cli/ui/dashboard'
+import { headerLines, sectionHeading } from '../../../src/cli/ui/frame'
+import { initialMenu, renderMenu } from '../../../src/cli/ui/menu'
 import type { Key } from '../../../src/cli/ui/keys'
 import { makeStyle, stripAnsi, visibleWidth, type ColorLevel } from '../../../src/cli/ui/style'
 import { textWidth } from '../../../src/core/status/format'
@@ -23,91 +25,86 @@ const SAMPLE: DashRow[] = [
   { id: 'memory', section: 'memory', label: 'Memory', state: 'ok', status: '412 memories', source: 'cortexdb 0.8.0' },
 ]
 
-const view = (columns: number, rows: number, items: DashRow[] = SAMPLE): DashView => initialView('0.4.0', items, { columns, rows })
+// The views are drawn at color level 0 unless a test passes another level; the level sets the header's height.
+const view = (columns: number, rows: number, items: DashRow[] = SAMPLE, level: ColorLevel = 0): DashView => initialView('0.4.0', items, { columns, rows }, level)
+const H = (title: string, width: number): string => sectionHeading(plain, title, width)
+const headerOf = (v: DashView): string[] => headerLines(plain, v)
 
 const press = (v: DashView, ...keys: Key[]): DashView => keys.reduce((acc, k) => dashboardStep(acc, k).view, v)
 const ch = (c: string): Key => ({ char: c })
 
-const FRAME_100_30 = [
-  '  buracle 0.4.0                                                               1 update · 2 problems',
+const FRAME_100_30 = (): string[] => [
+  ...headerOf(view(100, 30)),
   '',
-  '  Buracle',
+  H('Buracle', 99),
   '  > Buracle                   0.4.0    + up to date                    git checkout',
   '',
-  '  Harnesses',
+  H('Harnesses', 99),
   '    Claude Code               2.1.294  + ready                         native installer',
   '    Codex                     0.164.0  ! update available  -> 0.165.0  Homebrew cask codex',
   '    OpenCode                  1.2.27   + ready                         npm opencode-ai',
   '    Oh My Pi                           * not installed',
   '',
-  '  MCP servers',
+  H('MCP servers', 99),
   '    context7                  2.1.0    + running                       npm @upstash/context7-mcp',
   '    semble                    0.3.1    x down                          uv tool semble',
   '    web-fetch                 1.0.4    + running                       npm',
   '',
-  '  Tools',
+  H('Tools', 99),
   '    codegraph                 0.9.2    + installed                     npm',
   '    ast-grep                           x missing',
   '    typescript-language-ser…  5.1.3    + installed                     npm',
   '',
-  '  Memory',
+  H('Memory', 99),
   '    Memory                             + 412 memories                  cortexdb 0.8.0',
-  '',
-  '',
-  '',
-  '',
   '',
   '  runs from ~/Code/buracle',
   '  ↑↓ move · enter check this · u update · c check · i install · esc menu · ? keys · q quit',
 ]
 
-const FRAME_60_20 = [
-  '  buracle 0.4.0                       1 update · 2 problems',
+const FRAME_60_20 = (): string[] => [
+  ...headerOf(view(60, 20)),
   '',
-  '  Buracle',
+  H('Buracle', 59),
   '  > Buracle         0.4.0    + up to date',
   '',
-  '  Harnesses',
+  H('Harnesses', 59),
   '    Claude Code     2.1.294  + ready',
   '    Codex           0.164.0  ! update available  -> 0.165.0',
   '    OpenCode        1.2.27   + ready',
   '    Oh My Pi                 * not installed',
   '',
-  '  MCP servers',
+  H('MCP servers', 59),
   '    context7        2.1.0    + running',
-  '    semble          0.3.1    x down',
-  '    web-fetch       1.0.4    + running',
-  '',
-  '',
-  '  4 more below',
+  '  6 more below',
   '  runs from ~/Code/buracle',
   '  ↑↓ move · enter check this · esc menu · ? keys · q quit',
 ]
 
-const FRAME_40_10 = [
-  '  buracle 0.4.0   1 update · 2 problems',
+const FRAME_40_10 = (): string[] => [
+  '  buracle v0.4.0',
+  '  ! 1 update waiting · 2 problems',
   '',
-  '  Buracle',
+  H('Buracle', 39),
   '  > Buracle             + up to date',
   '',
-  '  Harnesses',
-  '    Claude Code         + ready',
-  '  10 more below',
+  '',
+  '  11 more below',
   '  runs from ~/Code/buracle',
   '  enter check this · ? keys · q quit',
 ]
 
 describe('dashboard frames at color level 0', () => {
   test('100 by 30: every column, the summary, the detail and the key hints', () => {
-    expect(renderDashboard(plain, view(100, 30)).join('\n')).toBe(FRAME_100_30.join('\n'))
+    expect(renderDashboard(plain, view(100, 30)).join('\n')).toBe(FRAME_100_30().join('\n'))
   })
 
   test('60 by 20: no source column, the list scrolls below the fold', () => {
-    expect(renderDashboard(plain, view(60, 20)).join('\n')).toBe(FRAME_60_20.join('\n'))
+    expect(renderDashboard(plain, view(60, 20)).join('\n')).toBe(FRAME_60_20().join('\n'))
   })
 
   test('40 by 10: no version or source, the update moves into the status column', () => {
-    expect(renderDashboard(plain, view(40, 10)).join('\n')).toBe(FRAME_40_10.join('\n'))
+    expect(renderDashboard(plain, view(40, 10)).join('\n')).toBe(FRAME_40_10().join('\n'))
     const codex = renderDashboard(plain, press(view(40, 10), 'down', 'down'))
     expect(codex).toContain('  > Codex               ! -> 0.165.0')
   })
@@ -168,15 +165,14 @@ describe('dashboard rendering', () => {
     }
   })
 
-  test('headings are bold, in sentence case and without letter-spacing; the selected row carries the pointer', () => {
-    const lines = renderDashboard(color, view(100, 30))
-    for (const id of ['buracle', 'harnesses', 'mcp', 'tools', 'memory'] as const) {
-      expect(lines).toContain(`  ${color.bold(SECTION_TITLES[id])}`)
-    }
+  test('section headings use the shared heading, in sentence case; the selected row carries the pointer', () => {
+    const v = view(100, 40, SAMPLE, 3)
+    const lines = renderDashboard(color, v)
+    for (const id of ['buracle', 'harnesses', 'mcp', 'tools', 'memory'] as const) expect(lines).toContain(sectionHeading(color, SECTION_TITLES[id], 99))
     expect(Object.values(SECTION_TITLES)).toEqual(['Buracle', 'Harnesses', 'MCP servers', 'Tools', 'Language servers', 'Memory'])
-    expect(stripAnsi(lines[3] ?? '')).toStartWith('  ❯ Buracle')
-    expect(stripAnsi(lines[7] ?? '')).toContain('▲ update available  → 0.165.0')
-    expect(stripAnsi(lines[0] ?? '')).toStartWith('  ◉ buracle 0.4.0')
+    const shown = lines.map(l => stripAnsi(l))
+    expect(shown.some(l => l.startsWith('  ❯ Buracle'))).toBe(true)
+    expect(shown.some(l => l.includes('▲ update available  → 0.165.0'))).toBe(true)
   })
 
   test('the version column goes below 60 columns and the source column below 50', () => {
@@ -190,21 +186,23 @@ describe('dashboard rendering', () => {
     expect(at(55)).toContain('-> 0.165.0')
   })
 
-  test('the summary: plural, singular, all good, and the time of the last check', () => {
-    const title = (summary: DashView['summary']) => stripAnsi(renderDashboard(plain, { ...view(100, 30), summary })[0] ?? '')
-    expect(title({ updates: 2, problems: 3 })).toEndWith('2 updates · 3 problems')
-    expect(title({ updates: 1, problems: 1 })).toEndWith('1 update · 1 problem')
-    expect(title({ updates: 0, problems: 0 })).toEndWith('all good')
-    expect(title({ updates: 0, problems: 0, checkedAt: '10:42' })).toEndWith('all good · checked 10:42')
+  test('the counts and the last check are in the header status line, and every screen shows the same header', () => {
+    const status = (summary: DashView['summary']) => stripAnsi(renderDashboard(plain, { ...view(100, 30), summary })[3] ?? '')
+    expect(status({ updates: 2, problems: 3 })).toBe('  ! 2 updates waiting · 3 problems · no update check yet')
+    expect(status({ updates: 0, problems: 0, checkedAt: '10:42' })).toBe('  + All good · updates checked 10:42')
+    expect(status({ updates: 1, problems: 0, working: 'checking for updates' })).toBe('  i 1 update waiting · checking for updates')
     expect(initialView('1', SAMPLE, { columns: 80, rows: 24 }).summary).toEqual({ updates: 1, problems: 2 })
-  })
-
-  test('while parts are being verified the title says so in place of the time of the last check', () => {
-    const title = (summary: DashView['summary'], columns = 100) => stripAnsi(renderDashboard(plain, { ...view(columns, 30), summary })[0] ?? '')
-    expect(title({ updates: 0, problems: 0, checkedAt: '10:42', working: 'verifying 4 parts' })).toEndWith('all good · verifying 4 parts')
-    expect(title({ updates: 1, problems: 0, working: 'checking for updates' })).toEndWith('1 update · 0 problems · checking for updates')
-    // Too narrow for both, the counts stay and the activity goes.
-    expect(title({ updates: 2, problems: 3, working: 'verifying 12 parts · checking for updates' }, 40)).toEndWith('2 updates · 3 problems')
+    for (const level of [0, 1, 2, 3] as const) {
+      for (const [columns, rows] of [[40, 10], [80, 24], [120, 40]] as const) {
+        const v = view(columns, rows, SAMPLE, level)
+        const menu = renderMenu(style(level), initialMenu('0.4.0', v.summary, { columns, rows }))
+        const header = headerLines(style(level), v)
+        expect(header).toHaveLength(v.headerRows)
+        expect(menu.slice(0, header.length)).toEqual(header)
+        expect(renderDashboard(style(level), v).slice(0, header.length)).toEqual(header)
+        expect(renderDashboard(style(level), press(v, ch('?'))).slice(0, header.length)).toEqual(header)
+      }
+    }
   })
 
   test('a row being checked shows its state without a verdict', () => {
@@ -221,8 +219,8 @@ describe('dashboard rendering', () => {
       { id: 'tool:pyright', section: 'lsp', label: 'pyright', state: 'ok', status: 'installed' },
       { id: 'memory', section: 'memory', label: 'Memory', state: 'ok', status: 'ready' },
     ]
-    const lines = renderDashboard(plain, initialView('1', rows, { columns: 80, rows: 24 })).map(stripAnsi)
-    const at = (title: string) => lines.findIndex(l => l.trim() === title)
+    const lines = renderDashboard(plain, initialView('1', rows, { columns: 80, rows: 24 }, 0)).map(stripAnsi)
+    const at = (title: string) => lines.findIndex(l => l === H(title, 79))
     expect(at('Tools')).toBeGreaterThan(-1)
     expect(at('Language servers')).toBeGreaterThan(at('Tools'))
     expect(at('Memory')).toBeGreaterThan(at('Language servers'))
@@ -257,7 +255,7 @@ describe('dashboard rendering', () => {
     for (let i = 0; i < SAMPLE.length; i++) {
       const lines = renderDashboard(plain, v).map(l => stripAnsi(l))
       expect(lines).toHaveLength(10)
-      expect(lines[0]).toStartWith('  buracle 0.4.0')
+      expect(lines[0]).toBe('  buracle v0.4.0')
       expect(lines[9]).toEndWith('? keys · q quit')
       const selected = SAMPLE[v.selected]
       expect(lines.some(l => l.startsWith('  > ') && l.includes((selected?.label ?? '?').slice(0, 10)))).toBe(true)
@@ -266,16 +264,16 @@ describe('dashboard rendering', () => {
     expect(v.selected).toBe(SAMPLE.length - 1)
     expect(v.scroll).toBeGreaterThan(0)
     const bottom = renderDashboard(plain, v).map(l => stripAnsi(l))
-    expect(bottom[1]).toBe('  9 more above')
-    expect(bottom.slice(2, 7)).toEqual(['    ast-grep            x missing', '    typescript-langua…  + installed', '', '  Memory', '  > Memory              + 412 memories'])
+    expect(bottom[2]).toBe('  10 more above')
+    expect(bottom.slice(3, 7)).toEqual(['    typescript-langua…  + installed', '', H('Memory', 39), '  > Memory              + 412 memories'])
     const top = press(v, 'home')
     expect(top.scroll).toBe(0)
-    expect(renderDashboard(plain, top).map(l => stripAnsi(l))[2]).toBe('  Buracle')
+    expect(renderDashboard(plain, top).map(l => stripAnsi(l))[3]).toBe(H('Buracle', 39))
   })
 
   test('the help overlay replaces the list with one key per line', () => {
     const lines = renderDashboard(plain, press(view(100, 30), ch('?')))
-    expect(lines.slice(2, 16)).toEqual([
+    expect(lines.slice(6, 20)).toEqual([
       '  Keys',
       '  ↑ ↓ or k j                move',
       '  PgUp PgDn, Home End, g G  jump',
@@ -292,7 +290,8 @@ describe('dashboard rendering', () => {
       '  q                         quit',
     ])
     expect(lines.join('\n')).not.toContain('Harnesses')
-    expect(lines.at(-2)).toBe('  Esc or any key closes this help · q quits')
+    expect(lines.at(-2)).toBe('')
+    expect(lines.at(-1)).toBe('  any key close · q quit')
     const narrow = renderDashboard(plain, press(view(40, 30), ch('?')))
     expect(narrow).toContain('  enter  run the action of the selecte…')
   })
@@ -308,11 +307,14 @@ describe('dashboard keys', () => {
     expect(press(v, 'end', ch('k')).selected).toBe(SAMPLE.length - 2)
   })
 
-  test('Page Up and Down move by the visible height, Home and g go first, End and G go last', () => {
+  test('Page Up and Down move by the list height under the header, Home and g go first, End and G go last', () => {
     const v = view(40, 10)
-    expect(press(v, 'pagedown').selected).toBe(5)
+    expect(press(v, 'pagedown').selected).toBe(4)
     expect(press(v, 'pagedown', 'pagedown', 'pagedown').selected).toBe(SAMPLE.length - 1)
-    expect(press(v, 'end', 'pageup').selected).toBe(SAMPLE.length - 6)
+    expect(press(v, 'end', 'pageup').selected).toBe(SAMPLE.length - 5)
+    // At 80 by 24 the plain header has 5 lines and the logo header 11: rows - headerRows - 4.
+    expect(press(view(80, 24, SAMPLE, 0), 'pagedown').selected).toBe(Math.min(SAMPLE.length - 1, 24 - 5 - 4))
+    expect(press(view(80, 24, SAMPLE, 3), 'pagedown').selected).toBe(24 - 11 - 4)
     expect(press(v, ch('G')).selected).toBe(SAMPLE.length - 1)
     expect(press(v, ch('G'), ch('g')).selected).toBe(0)
     expect(press(v, 'end', 'home').selected).toBe(0)
@@ -362,7 +364,7 @@ describe('dashboard keys', () => {
     const v = { ...view(40, 10), message: 'update finished' }
     expect(dashboardStep(v, 'down').view.message).toBeUndefined()
     const end = press(v, 'end')
-    expect(end.scroll).toBe(9)
+    expect(end.scroll).toBe(10)
     expect(press(end, 'up', 'up', 'up').scroll).toBe(8)
     expect(press(end, 'home').scroll).toBe(0)
   })

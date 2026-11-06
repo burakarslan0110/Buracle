@@ -9,7 +9,7 @@ import { linkStatus } from '../../../src/adapters/omp/check-link'
 import { compareVersions, configFindings, effortFindings, mcpCommandFindings, permissionFinding, sharedAgentsFinding, userEffortFinding } from '../../../src/adapters/omp/doctor'
 import { agentsPointer, AGENTS_BLOCK_ID, linkCheckArgv, ompConfigKeys, ompConfigKeysFor, ompConfigPath, ompLspLayout, SHARED_AGENTS_IMPORT, userPlanAutosave, userStatusPreset } from '../../../src/adapters/omp/install'
 import { DEFAULT_BAND_LAYOUT, DEFAULT_OMP_SEGMENTS, ompStatusData, ompStatusLine } from '../../../src/adapters/omp/statusline'
-import { OMP_TESTED_WITH, ompCommandSkills } from '../../../src/adapters/omp/generated'
+import { OMP_MIN_VERSION, ompCommandSkills } from '../../../src/adapters/omp/generated'
 import { devContext } from '../../../src/adapters/omp/dev-build'
 import { loadConfigSync } from '../../../src/engine/config'
 import { mdBlockGet } from '../../../src/engine/merge'
@@ -17,6 +17,9 @@ import * as paths from '../../../src/engine/paths'
 import { applyPlans, rollbackTxn, type Plan } from '../../../src/engine/txn'
 import { fakeExe, narrowPath, pathOf } from '../../helpers/fake-exe'
 import { withEnv, withSandbox, type Sandbox } from '../../helpers/sandbox'
+
+// The version the fake omp prints unless a test asks for another: any release at or above the minimum.
+const FAKE_OMP = '18.10.1'
 
 const REPO = paths.repoRoot()
 const HARNESS_BUILT = existsSync(join(REPO, 'harness', 'omp', 'package.json'))
@@ -39,7 +42,7 @@ if (two === 'plugin list') {
 if (two === 'plugin uninstall') { fs.rmSync(state, { force: true }); console.log('removed'); process.exit(0) }
 if (two === 'usage --json') { console.log(${JSON.stringify(usage)}); process.exit(0) }
 if (two === 'config path') { console.log(${opts.configPath !== undefined ? JSON.stringify(opts.configPath) : "process.env.PI_CODING_AGENT_DIR || join(home, '.omp', 'agent')"}); process.exit(0) }
-if (argv[0] === '--version') { console.log(${JSON.stringify(`omp/${opts.version ?? OMP_TESTED_WITH}`)}); process.exit(0) }
+if (argv[0] === '--version') { console.log(${JSON.stringify(`omp/${opts.version ?? FAKE_OMP}`)}); process.exit(0) }
 console.error('unexpected: ' + argv.join(' '))
 process.exit(3)`)
   return bin
@@ -499,7 +502,7 @@ describe('omp link check and doctor', () => {
       chmodSync(join(sb.buracleHome, 'bin', 'buracle'), 0o755)
       const findings = await adapter.doctor(ctxFor())
       const by = Object.fromEntries(findings.map(f => [f.check, f]))
-      expect(by['omp version']).toMatchObject({ level: 'ok', detail: `omp ${OMP_TESTED_WITH} (tested ${OMP_TESTED_WITH})` })
+      expect(by['omp version']).toMatchObject({ level: 'ok', detail: `omp ${FAKE_OMP} (minimum ${OMP_MIN_VERSION})` })
       expect(by['omp plugin']).toMatchObject({ level: 'ok' })
       expect(by['omp config']).toMatchObject({ level: 'ok' })
       expect(by['omp permission mode']).toMatchObject({ level: 'ok' })

@@ -1,10 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Harness } from '../../../src/core/events'
 import { HOST_LIMITS, hostLimitRows, hostLimitsOf, probeClosers, probeMisses, probeNames, splitRun } from '../../../src/adapters/shared/host-limits'
-import { compareVersions } from '../../../src/engine/update/versions'
-import { TESTED_WITH } from '../../../src/engine/update/tested-with'
 
 const REPO = join(import.meta.dir, '..', '..', '..')
 
@@ -145,18 +142,9 @@ describe('host limits (PARITY-10)', () => {
     }
   })
 
-  test('the record moves with TESTED_WITH: a tested version newer than every checkedOn of a harness fails here before users see a re-probe warning', () => {
-    for (const h of ['claude', 'codex', 'opencode', 'omp'] satisfies Harness[]) {
-      const checked = HOST_LIMITS.filter(l => l.harness === h).map(l => l.checkedOn).sort(compareVersions).at(-1)
-      if (checked === undefined) continue
-      expect({ harness: h, recordBehindTested: compareVersions(TESTED_WITH[h].tested, checked) > 0 }).toEqual({ harness: h, recordBehindTested: false })
-      expect(hostLimitRows(h, TESTED_WITH[h].tested, 't.ts')[0]?.level ?? 'ok').toBe('ok')
-    }
-  })
-
-  test('doctor rows: the version row, then one ok row per limit with its fallback and the README pointer; only the version row warns, on a newer host; nothing for a harness without limits', () => {
+  test('doctor rows: the summary row, then one ok row per limit with its fallback and the README pointer; no row warns; nothing for a harness without limits', () => {
     expect(hostLimitsOf('codex').map(l => l.id)).toEqual(expect.arrayContaining(['codex.live-exec-mask', 'codex.failed-mcp-mask', 'codex.custom-status-line']))
-    const codex = hostLimitRows('codex', '0.162.1', 't.ts')
+    const codex = hostLimitRows('codex')
     expect(codex[0]).toMatchObject({ level: 'ok', check: 'codex.limits' })
     expect(codex.slice(1).map(r => r.check)).toEqual(hostLimitsOf('codex').map(l => l.id))
     for (const r of codex.slice(1)) {
@@ -165,14 +153,11 @@ describe('host limits (PARITY-10)', () => {
     }
     expect(codex.find(r => r.check === 'codex.commands-without-turn')?.detail).toContain('. Fallback: `$memory`, the CLI twins')
     expect(codex.filter(r => r.detail.includes('DESIGN'))).toEqual([])
-    expect(hostLimitRows('codex', undefined, 't.ts')[0]?.level).toBe('ok')
-    // Asserted field by field: Bun's toMatchObject with an asymmetric matcher writes the matcher into the received object.
-    const newer = hostLimitRows('opencode', '2.1.0', 'tests/adapters/opencode/smoke.test.ts')
-    expect([newer[0]?.level, newer[0]?.check]).toEqual(['warn', 'opencode.limits'])
-    expect(newer[0]?.detail).toContain('2.1.0 is newer than 2.0.30')
-    expect(newer[0]?.detail).toContain('bun test tests/adapters/opencode/smoke.test.ts -t "host limits"')
-    expect(newer.slice(1).map(r => r.level)).toEqual(hostLimitsOf('opencode').map(() => 'ok'))
-    expect(hostLimitRows('omp', '18.10.1', 't.ts').map(r => r.check)).toEqual(['omp.limits', 'omp.companion-shell'])
-    expect(hostLimitRows('claude', '9.0.0', 't.ts')).toEqual([])
+    const opencode = hostLimitRows('opencode')
+    expect([opencode[0]?.level, opencode[0]?.check]).toEqual(['ok', 'opencode.limits'])
+    expect(opencode[0]?.detail).not.toMatch(/newer than/i)
+    expect(opencode.map(r => r.level)).toEqual(opencode.map(() => 'ok'))
+    expect(hostLimitRows('omp').map(r => r.check)).toEqual(['omp.limits', 'omp.companion-shell'])
+    expect(hostLimitRows('claude')).toEqual([])
   })
 })

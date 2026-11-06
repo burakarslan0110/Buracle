@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { bandView } from '../../../src/core/flow/band'
-import { memoryPaneLines, modStatusLines, planPaneLines, themeOf } from '../../../src/core/flow/panes'
+import { cachedHarnessVersionOf, memoryPaneLines, modStatusLines, planPaneLines, themeOf } from '../../../src/core/flow/panes'
 import { flowPhase, flowStart } from '../../../src/core/flow/record'
 import { emptyState } from '../../../src/core/plan/state'
 
@@ -42,16 +42,31 @@ describe('panes', () => {
   })
 
   test('/buracle-status lines and the theme of segment colors', () => {
-    expect(modStatusLines({ version: '0.3.0', testedWith: '2.1.295', minClaude: '2.1.290', sid: 's1', interactive: true, bypass: true, strictness: 'enforce', redact: true, band: false, commands: ['buracle-ping', 'brain'], uiUrl: 'http://localhost:1' })).toEqual([
-      'Buracle 0.3.0 · Claude Code (tested 2.1.295, minimum 2.1.290)',
+    expect(modStatusLines({ version: '0.3.0', claude: '2.1.318', sid: 's1', interactive: true, bypass: true, strictness: 'enforce', redact: true, band: false, commands: ['buracle-ping', 'brain'], uiUrl: 'http://localhost:1' })).toEqual([
+      'Buracle 0.3.0 · Claude Code 2.1.318',
       'session: s1 · interactive',
       "permissions: bypass (no approval prompts; Buracle's guards and consent gate protect)",
       'routing: enforce · secret masking: on · workflow band: off',
       'commands: /buracle-ping /brain',
       'memory UI: http://localhost:1',
     ])
+    expect(modStatusLines({ version: '0.3.0', sid: '', interactive: false, bypass: false, strictness: 'warn', redact: false, band: true, commands: [] })[0]).toBe('Buracle 0.3.0 · Claude Code')
     expect(themeOf('green')).toBe('success')
     expect(themeOf('magenta')).toBe('claude')
     expect(themeOf(undefined)).toBeUndefined()
+  })
+
+  test('the installed harness version comes from the version cache only while the entry is fresh', () => {
+    const at = T - 60_000
+    const text = JSON.stringify({ claude: { v: '2.1.318', at }, omp: { v: '18.10.4', at: T - 13 * 60 * 60_000 }, codex: { v: 7, at }, opencode: { at } })
+    expect(cachedHarnessVersionOf(text, 'claude', T)).toBe('2.1.318')
+    expect(cachedHarnessVersionOf(text, 'omp', T)).toBeUndefined() // older than 12 hours
+    expect(cachedHarnessVersionOf(text, 'claude', at - 1)).toBeUndefined() // written after now
+    expect(cachedHarnessVersionOf(text, 'codex', T)).toBeUndefined() // not a string
+    expect(cachedHarnessVersionOf(text, 'opencode', T)).toBeUndefined() // no version
+    expect(cachedHarnessVersionOf(text, 'gemini', T)).toBeUndefined()
+    expect(cachedHarnessVersionOf('{not json', 'claude', T)).toBeUndefined()
+    expect(cachedHarnessVersionOf('[1,2]', 'claude', T)).toBeUndefined()
+    expect(cachedHarnessVersionOf(undefined, 'claude', T)).toBeUndefined()
   })
 })

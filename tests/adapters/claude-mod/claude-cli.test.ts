@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { assembleFiles, TESTED_WITH, writeAssembly } from '../../../src/adapters/claude/template/dev-assemble'
+import { assembleFiles, writeAssembly } from '../../../src/adapters/claude/template/dev-assemble'
 import { claudeVersionGate, claudeVersionText } from '../../helpers/claude-version'
 import { withSandbox } from '../../helpers/sandbox'
 
@@ -18,7 +18,7 @@ function isolatedEnv(home: string, xdg: string): Record<string, string> {
   return { ...env, HOME: home, XDG_CONFIG_HOME: xdg, XDG_DATA_HOME: xdg, XDG_STATE_HOME: xdg, XDG_CACHE_HOME: xdg }
 }
 
-describe(`claude ${GATE?.version || TESTED_WITH} checks on the assembled mod`, () => {
+describe(`claude ${GATE?.version || 'CLI'} checks on the assembled mod`, () => {
   (RUNS ? test : test.skip)('claude plugin validate --strict and claude plugin test pass', async () => {
     await withSandbox(({ root, home }) => {
       const dir = join(root, 'plugin')

@@ -294,11 +294,15 @@ async function statusCommand($: EngineInterface, S: ModState, args: string): Pro
     return Core.bandText(Core.bandView(Core.bandInputOf(await read($, BAND)))).join('\n')
   }
   if (what !== '' && what !== 'status') return 'Usage: /buracle-status [status|memory|plan|flow]'
-  const { cfg } = await runtime($, S)
+  const { cfg, buracleHome } = await runtime($, S)
   const info: Core.ModStatusInfo = {
-    version: META.buracleVersion, testedWith: META.testedWith, minClaude: META.minClaude, sid: S.sid, interactive: S.interactive,
+    version: META.buracleVersion, sid: S.sid, interactive: S.interactive,
     bypass: cfg.permissions.bypass, strictness: cfg.routing.strictness, redact: cfg.guards.redact, band: cfg.workflow.band, commands: [...S.registered],
   }
+  // The installed Claude Code version, as Buracle's harness version cache last read it; the mod API has none.
+  const versions = buracleHome !== '' ? await $.fs.read(`${buracleHome}/cache/harness-versions.json`).catch(() => undefined) : undefined
+  const claude = Core.cachedHarnessVersionOf(typeof versions === 'string' ? versions : undefined, 'claude', Date.now())
+  if (claude !== undefined) info.claude = claude
   const url = await memoryUiUrl($, S)
   if (url !== undefined) info.uiUrl = url
   return Core.modStatusLines(info).join('\n')

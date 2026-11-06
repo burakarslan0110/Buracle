@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path'
 import { adapter } from '../../../src/adapters/omp/index'
 import { buildOmp } from '../../../src/adapters/omp/build'
 import { checkLink } from '../../../src/adapters/omp/check-link'
-import { buracleVersion, OMP_MIN_VERSION, OMP_TESTED_WITH, ompCommandSkills } from '../../../src/adapters/omp/generated'
+import { buracleVersion, ompCommandSkills } from '../../../src/adapters/omp/generated'
 import { OMP_UTILITY_COMMANDS } from '../../../src/adapters/omp/runtime/commands'
 import { OMP_PLAN_APPROVED, OMP_PLAN_CLOSE, OMP_PLAN_OPEN } from '../../../src/adapters/omp/runtime/plan-capture'
 import { devContext, writeTree } from '../../../src/adapters/omp/dev-build'
@@ -212,7 +212,8 @@ smoke('omp smoke (real binary, sandboxed)', () => {
       const names = frames.find(f => f.id === 'c1' && f.type === 'response')?.data?.commands?.map(c => c.name) ?? []
       for (const n of [...ompCommandSkills(ctx.canonical), ...OMP_UTILITY_COMMANDS]) expect(names).toContain(n)
       const notices = frames.filter(f => f.type === 'extension_ui_request' && f.method === 'notify').map(f => f.message ?? '')
-      expect(notices[0]).toStartWith(`Buracle ${buracleVersion(REPO)} · Oh My Pi (tested ${OMP_TESTED_WITH}, minimum ${OMP_MIN_VERSION})`)
+      expect(notices[0]).toStartWith(`Buracle ${buracleVersion(REPO)} · Oh My Pi`)
+      expect(notices[0]?.split('\n')[0]).not.toMatch(/tested|minimum/i)
       expect(notices).toContain('Remembered: capture-smoke-note')
       expect(notices).toContain('Memory UI: http://127.0.0.1:41777')
       expect(notices).toContain('No workflow is running.')

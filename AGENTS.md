@@ -152,4 +152,4 @@ Read the matching rule before editing those files.
 - `.claude/rules/pure-core.md` — `src/core/**` — what pure code may import and use
 - `.claude/rules/harness-writes.md` — `src/engine/**`, `src/adapters/**`, `src/cli/commands/**` — transaction engine, ownership ledger, paths and hook failure modes
 - `.claude/rules/tests.md` — `tests/**` — sandbox, fake CortexDB, fault injection and test guards
-- `.claude/rules/host-versions.md` — `.bun-version`, `src/engine/update/tested-with.ts`, `src/adapters/shared/host-limits.ts`, `tests/adapters/*/smoke.test.ts`, `tests/adapters/parity.test.ts`, `tests/cli/ops/repo-drift.test.ts` — Bun upgrades, tested harness versions and host limits
+- `.claude/rules/host-versions.md` — `.bun-version`, `src/engine/update/min-versions.ts`, `src/adapters/shared/host-limits.ts`, `tests/adapters/*/smoke.test.ts`, `tests/adapters/parity.test.ts`, `tests/cli/ops/repo-drift.test.ts` — Bun upgrades, minimum harness versions and host limits

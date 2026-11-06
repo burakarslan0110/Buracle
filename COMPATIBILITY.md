@@ -14,9 +14,10 @@ capability a harness lacks is written down (and, in the code, recorded with a fa
 
 ## Capabilities by harness
 
-Versions are the ones Buracle was last checked against (`src/engine/update/tested-with.ts`): Claude Code 2.1.302,
-Codex CLI 0.162.1, OpenCode 2.0.30, Oh My Pi 18.10.1. Newer hosts are reported by `buracle doctor`; the limits below
-are recorded, with their fallback, in `src/adapters/shared/host-limits.ts` and pinned by `tests/adapters/parity.test.ts`.
+Buracle needs at least these versions (`src/engine/update/min-versions.ts`): Claude Code 2.1.290, Codex CLI 0.154.0,
+OpenCode 2.0.20, Oh My Pi 18.8.0. Below them `buracle doctor` reports an error, the install leaves an older Codex
+alone, and it skips the OpenCode service step. A newer release needs no check of its own. The limits below are recorded, with their fallback, in
+`src/adapters/shared/host-limits.ts` and pinned by `tests/adapters/parity.test.ts`.
 
 | Capability | Claude Code | Codex CLI | OpenCode | Oh My Pi |
 | --- | --- | --- | --- | --- |

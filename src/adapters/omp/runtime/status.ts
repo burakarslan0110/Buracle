@@ -1,11 +1,11 @@
-import { isAbsolute, resolve } from 'node:path'
+import { isAbsolute, join, resolve } from 'node:path'
 import type { BandView } from '../../../core/flow/band'
 import { bandSummary, bandText } from '../../../core/flow/band'
-import { memoryPaneLines, planPaneLines } from '../../../core/flow/panes'
+import { cachedHarnessVersionOf, memoryPaneLines, planPaneLines } from '../../../core/flow/panes'
 import { indexStatusOf } from '../../../core/status/live'
 import type { BarModel, HookHealth, IndexStatus } from '../../../core/status/model'
 import { statusHealth } from '../../../engine/hook-health'
-import { brainDir } from '../../../engine/paths'
+import { brainDir, buracleHome } from '../../../engine/paths'
 import { monthFromEntry } from '../../../usage/bar'
 import { isStale } from '../../../usage/cache'
 import { OMP_ASIDE_COMMAND, OMP_PING_COMMAND, OMP_STATUS_COMMAND, type StatusView } from './commands'
@@ -164,7 +164,8 @@ export function createStatusTexts(host: StatusHost): StatusTexts {
       out.splice(Math.max(0, out.length - 1), 0, ui !== undefined ? `web UI: ${ui.url} (/brain opens it)` : 'web UI: not running (/brain starts and opens it)')
       return out
     }
-    const out = [`Buracle ${data.buracleVersion} · Oh My Pi (tested ${data.testedWith || 'unknown'}, minimum ${data.minOmp || 'unknown'})`]
+    const omp = guarded('version cache', () => cachedHarnessVersionOf(deps.readText(join(buracleHome(), 'cache', 'harness-versions.json')), 'omp', now))
+    const out = [`Buracle ${data.buracleVersion} · Oh My Pi${omp !== undefined ? ` ${omp}` : ''}`]
     out.push(`session ${sid ?? '-'} · ${ctx.mode} · config ${lc.source}`)
     out.push(`permissions: ${lc.config.permissions.bypass ? "bypass (tools.approvalMode yolo; Buracle's guards and consent gate protect)" : 'the harness setting'}`)
     out.push(`routing: ${lc.config.routing.strictness} · skill router: ${lc.config.routing.skills} · workflow band: ${lc.config.workflow.band ? 'on' : 'off'}`)

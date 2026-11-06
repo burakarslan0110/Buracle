@@ -6,6 +6,7 @@ import { isBackgroundJournal, listTxns, rollbackTxn, withTxnLock, type Journal, 
 import { parseFlags } from '../../engine/update/args'
 import { errText, table, tilde, tildeText, writeJson } from '../../engine/update/output'
 import { isUninstallJournal } from '../../engine/update/uninstall'
+import { resultLines } from '../ui/steps'
 
 export const name = 'rollback'
 export const summary = 'Undo the newest install, a given transaction, or the last toolchain upgrade'
@@ -114,8 +115,10 @@ async function runToolchainRollback(only: readonly string[], io: CommandIO, json
     writeJson(io.stdout, { ok: failed.length === 0, items: results })
     return failed.length === 0 ? 0 : 1
   }
-  for (const r of results) io.stdout.write(r.ok ? `rolled back ${r.name}: ${r.from} → ${r.to ?? '?'}\n` : `failed ${r.name}: ${r.error ?? 'failed'}\n`)
-  if (failed.length === 0) io.stdout.write('Installs and updates keep these versions until a newer release than the one rolled back is out; run `buracle rollback toolchain` again to undo this.\n')
+  const t = resultLines(io, io.stdout)
+  io.stdout.write(t.header('rollback toolchain'))
+  for (const r of results) io.stdout.write(`${r.ok ? t.top('ok', `rolled back ${r.name}: ${r.from} → ${r.to ?? '?'}`) : t.top('err', `failed ${r.name}: ${r.error ?? 'failed'}`)}\n`)
+  if (failed.length === 0) io.stdout.write(`${t.top('info', 'Installs and updates keep these versions until a newer release than the one rolled back is out; run `buracle rollback toolchain` again to undo this.')}\n`)
   return failed.length === 0 ? 0 : 1
 }
 
@@ -129,8 +132,10 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
   }
   if (p.bools.has('list')) {
     const txns = await listTxns()
-    if (json) writeJson(io.stdout, txns.map(j => ({ txn: j.txn, status: j.status, run: j.run, startedAt: j.startedAt, finishedAt: j.finishedAt, rolledBackAt: j.rolledBackAt, plans: j.plans, files: j.files?.length ?? 0, execs: j.execs?.length ?? 0, backupsPruned: j.backupsPruned === true })))
-    else if (txns.length === 0) io.stdout.write('No transactions recorded.\n')
+    if (json) { writeJson(io.stdout, txns.map(j => ({ txn: j.txn, status: j.status, run: j.run, startedAt: j.startedAt, finishedAt: j.finishedAt, rolledBackAt: j.rolledBackAt, plans: j.plans, files: j.files?.length ?? 0, execs: j.execs?.length ?? 0, backupsPruned: j.backupsPruned === true }))); return 0 }
+    const t = resultLines(io, io.stdout)
+    io.stdout.write(t.header('rollback --list'))
+    if (txns.length === 0) io.stdout.write(`${t.top('info', 'No transactions recorded.')}\n`)
     else io.stdout.write(table([['TXN', 'STATUS', 'STARTED', 'FILES', 'EXECS', 'PLANS', 'RUN'], ...txns.map(journalRow)]))
     return 0
   }
@@ -158,12 +163,14 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     writeJson(io.stdout, { ok: code === 0, code, ...report })
     return code
   }
-  io.stdout.write(`Rolled back ${report.txns.join(', ')}: restored ${report.restored.length} path(s)${report.undone.length > 0 ? `, undid ${report.undone.length} command(s)` : ''}.\n`)
-  for (const r of report.restored) io.stdout.write(`  restored ${tilde(r)}\n`)
-  for (const u of report.undone) io.stdout.write(`  undid ${u}\n`)
+  const t = resultLines(io, io.stdout)
+  io.stdout.write(t.header('rollback'))
+  io.stdout.write(`${t.top(code === 0 ? 'ok' : code === 2 ? 'warn' : 'err', `Rolled back ${report.txns.join(', ')}: restored ${report.restored.length} path(s)${report.undone.length > 0 ? `, undid ${report.undone.length} command(s)` : ''}.`)}\n`)
+  for (const r of report.restored) io.stdout.write(`${t.sub(`restored ${tilde(r)}`)}\n`)
+  for (const u of report.undone) io.stdout.write(`${t.sub(`undid ${u}`)}\n`)
   if (report.skipped.length > 0) {
-    io.stdout.write('Left as is (changed after the transaction):\n')
-    for (const s of report.skipped) io.stdout.write(`  - ${tilde(s.path)}: ${s.reason}\n`)
+    io.stdout.write(`${t.top('warn', 'Left as is (changed after the transaction):')}\n`)
+    for (const s of report.skipped) io.stdout.write(`${t.sub(`- ${tilde(s.path)}: ${s.reason}`)}\n`)
   }
   for (const w of report.warnings) io.stderr.write(`warning: ${tildeText(w)}\n`)
   for (const e of report.errors) io.stderr.write(`error: ${tildeText(e)}\n`)

@@ -8,7 +8,7 @@ import type { McpServerSpec } from '../../../src/core/catalog'
 import type { Harness } from '../../../src/core/events'
 import { bundleExtension, BUNDLE_BANNER, repoRelativeModuleComments } from '../../../src/adapters/omp/bundle'
 import { devContext, diffTree, listFiles, writeTree } from '../../../src/adapters/omp/dev-build'
-import { buracleVersion, OMP_MIN_VERSION, OMP_TESTED_WITH, ompGeneratedData } from '../../../src/adapters/omp/generated'
+import { buracleVersion, OMP_MIN_VERSION, ompGeneratedData } from '../../../src/adapters/omp/generated'
 import { expandPlaceholders, filterHarnessBlocks, firstHeading, frontmatter, renderForOmp } from '../../../src/adapters/omp/render'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import * as paths from '../../../src/engine/paths'
@@ -143,7 +143,8 @@ describe('omp build: golden output for the fixture canonical', () => {
     expect(readme).toContain('`buracle-core.md`, `buracle-docker.md`, `buracle-python.md`')
     expect(readme).toContain('one workflow command per user-invocable skill: `/plan-build`, `/research`.')
     expect(readme).toContain('`buracle-memory`, `context7`, `grep`, `secretive`')
-    expect(readme).toContain(`Verified with omp ${OMP_TESTED_WITH}; needs at least ${OMP_MIN_VERSION}.`)
+    expect(readme).toContain(`Needs omp ${OMP_MIN_VERSION} or newer.`)
+    expect(readme).not.toMatch(/tested|verified with/i)
     expect(readme).toContain('`tools.approvalMode: yolo` with `permissions.bypass`')
     expect(readme).toContain('`tools.xdev: false`')
     expect(readme).toContain('`/buracle-status [status|memory|plan|flow]` (alias `/buracle`)')
@@ -250,7 +251,8 @@ describe('omp build: the generated bundle loads and wires the extension', () => 
     const ctx = fixtureCtx()
     const code = await bundleExtension(REPO, ompGeneratedData(ctx.canonical, '0.1.0'))
     expect(code).toContain('var GENERATED = {')
-    expect(code).toContain(`testedWith: "${OMP_TESTED_WITH}"`)
+    expect(code).toContain('buracleVersion: "0.1.0"')
+    expect(code).not.toMatch(/tested|minOmp/i)
     const file = join(sb.root, 'buracle.js')
     writeFileSync(file, code)
     const mod = await import(file) as { default: (pi: unknown) => void }

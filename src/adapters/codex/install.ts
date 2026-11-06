@@ -6,7 +6,7 @@ import { readLedger } from '../../engine/txn'
 import { valueHash } from '../../engine/merge'
 import { log } from '../../engine/log'
 import { detectBinary, run } from '../../engine/proc'
-import { TESTED_WITH } from '../../engine/update/tested-with'
+import { MIN_VERSIONS } from '../../engine/update/min-versions'
 import { compareVersions } from '../../engine/update/versions'
 import { AGENTS_BLOCK_ID, codexArtifacts, OWNER, RULES_FILE, type CodexArtifacts } from './generate'
 import { CODEX_HOOK_EVENTS, HOOK_COMMAND_PREFIX, HOOK_GROUP_IDENTITY, LEGACY_HOOK_COMMAND_PREFIX, trustMigration, type TrustMigration } from './hooks-config'
@@ -60,9 +60,9 @@ async function assertCodexSupported(configPath: string, ledger: Ledger | undefin
   const version = await codexVersion()
   // The numeric core only, as `buracle doctor codex` compares: a 0.154.0 prerelease counts as 0.154.0 in both.
   const core = version?.split('-')[0]
-  if (version === undefined || core === undefined || compareVersions(core, TESTED_WITH.codex.min) >= 0) return
+  if (version === undefined || core === undefined || compareVersions(core, MIN_VERSIONS.codex) >= 0) return
   const written = ledger !== undefined && Object.values(ledger).some(e => e.owner === OWNER && resolve(e.path) === resolve(configPath))
-  throw new HarnessTooOldError(version, TESTED_WITH.codex.min, written)
+  throw new HarnessTooOldError(version, MIN_VERSIONS.codex, written)
 }
 
 async function codexPids(): Promise<number[]> {

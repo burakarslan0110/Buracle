@@ -11,7 +11,6 @@ export interface BakedHook { id: HookId; blocking: 'none' | 'deny' | 'stop'; fai
 export interface BakedData {
   v: 1
   contentHash: string
-  testedWith: string
   defaults: BuracleConfig
   routing: RoutingPolicy
   mcp: CatalogMcp[]

@@ -73,7 +73,7 @@ function host(over: Partial<UtilityHost> & { result?: CliResult } = {}): Utility
     toast: (message, variant) => { rec.toasts.push({ message, variant }) },
     alert: async (title, message) => { rec.alerts.push({ title, message }) },
     band: () => hidden,
-    about: () => ({ opencode: '2.0.24', testedWith: '2.0.24', workflows: ['goal-build', 'plan-build'] }),
+    about: () => ({ opencode: '2.0.24', workflows: ['goal-build', 'plan-build'] }),
     slashCommand: name => (name === 'btw' ? (input: string) => { rec.btw.push(input) } : undefined),
     ...over,
   }
@@ -117,7 +117,11 @@ describe('the utility commands (tui-commands.ts): no model turn, output as a toa
     const h = host({ band: () => running })
     await status(h, '')
     expect(h.alerts[0]?.title).toBe('Buracle status')
-    expect(h.alerts[0]?.message).toContain('Buracle on OpenCode 2.0.24 (tested with 2.0.24)')
+    expect(h.alerts[0]?.message.split('\n')[0]).toBe('Buracle on OpenCode 2.0.24')
+    expect(h.alerts[0]?.message).not.toMatch(/tested|minimum/i)
+    const unknown = host({ band: () => running, about: () => ({ workflows: [] }) })
+    await status(unknown, '')
+    expect(unknown.alerts[0]?.message.split('\n')[0]).toBe('Buracle on OpenCode')
     expect(h.alerts[0]?.message).toContain('default effort: xhigh (effort.opencode auto)')
     expect(h.alerts[0]?.message).toContain('workflows: /goal-build /plan-build')
     await status(h, 'flow')

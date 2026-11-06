@@ -15,7 +15,7 @@ import { applyUpdates, checkUpdates, knownPluginNames, partName, revertCheckout,
 import { runBuildFlow } from './build'
 import type { BuildReport } from '../../engine/update/build'
 import { runInstallFlow, type InstallFlowResult } from './install'
-import { progressSteps, type Steps } from '../ui/steps'
+import { progressSteps, resultLines, type Steps } from '../ui/steps'
 import { toolchainProgress } from '../ui/toolchain-live'
 
 export const name = 'update'
@@ -129,6 +129,7 @@ function checkStepReporter(steps: Steps, names: Targets['names']): (e: CheckStep
 }
 
 const firstOf = (s: string): string => s.trim().split('\n')[0] ?? ''
+
 
 function renderCheck(io: CommandIO, kinds: readonly UpdateKind[], check: CheckResult, names: Targets['names'], minAgeDays: number): void {
   io.stdout.write(`${checkSummary(kinds, check)}\n`)
@@ -335,16 +336,19 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
       writeJson(io.stdout, { ok: code === 0, code, checked_at: checkedAt, kinds, check, ...outcome, sync: sync ?? null, handshakes, rollbacks })
       return code
     }
+    // In a terminal the result lines carry the shared symbol at the margin; a pipe gets the lines it always had.
+    const mark = resultLines(io, io.stdout).top
     if (steps.live) {
       // Each part already has its line above; this is the tally.
       const n = outcome.applied.length + outcome.skipped.length + outcome.failed.length
-      io.stdout.write(n === 0 ? `\nNothing was applied. ${checkSummary(kinds, check)}\n` : `\n${outcome.applied.length} updated · ${outcome.skipped.length} skipped · ${outcome.failed.length} failed\n`)
+      const tally = `${outcome.applied.length} updated · ${outcome.skipped.length} skipped · ${outcome.failed.length} failed`
+      io.stdout.write(n === 0 ? `\n${mark('ok', `Nothing was applied. ${checkSummary(kinds, check)}`)}\n` : `\n${mark(outcome.failed.length > 0 ? 'err' : outcome.skipped.length > 0 ? 'warn' : 'ok', tally)}\n`)
       for (const h of check.held) io.stdout.write(`held back: ${h.kind} ${line(h.id)} ${line(h.version)} (released ${h.ageDays} day(s) ago; minimum age ${minAge})\n`)
     } else {
-      if (outcome.applied.length === 0 && outcome.failed.length === 0 && outcome.skipped.length === 0) io.stdout.write(`Nothing to apply. ${checkSummary(kinds, check)}\n`)
-      for (const a of outcome.applied) io.stdout.write(`applied  ${a.kind} ${line(a.id)}: ${lines(a.detail)}\n`)
-      for (const s of outcome.skipped) io.stdout.write(`skipped  ${s.kind} ${line(s.id)}: ${lines(s.reason)}\n`)
-      for (const f of outcome.failed) io.stderr.write(`failed   ${f.kind} ${line(f.id)}: ${lines(f.error)}\n`)
+      if (outcome.applied.length === 0 && outcome.failed.length === 0 && outcome.skipped.length === 0) io.stdout.write(`${mark('ok', `Nothing to apply. ${checkSummary(kinds, check)}`)}\n`)
+      for (const a of outcome.applied) io.stdout.write(`${mark('ok', `applied  ${a.kind} ${line(a.id)}: ${lines(a.detail)}`)}\n`)
+      for (const s of outcome.skipped) io.stdout.write(`${mark('warn', `skipped  ${s.kind} ${line(s.id)}: ${lines(s.reason)}`)}\n`)
+      for (const f of outcome.failed) io.stderr.write(`${resultLines(io, io.stderr).top('err', `failed   ${f.kind} ${line(f.id)}: ${lines(f.error)}`)}\n`)
     }
     for (const c of outcome.harnessChecks) io.stderr.write(`${c.level === 'error' ? 'error' : 'warning'}: ${c.harness} ${line(c.check)}: ${lines(c.detail)}\n`)
     if (sync && (!steps.live || sync.code !== 0)) io.stdout.write(`${lines(sync.message)}\n`)

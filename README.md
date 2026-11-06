@@ -249,7 +249,7 @@ All four get the same 27 hooks, skills, review agents, rules, memory, guards and
 | Language servers | Claude Code's LSP | Buracle's `lsp` MCP server | Buracle's `lsp` MCP server | omp's own LSP |
 | Browser | chrome-devtools | chrome-devtools | chrome-devtools | omp's built-in browser |
 
-Buracle switches off the built-in memory of Claude Code, Codex and Oh My Pi, so the brain is the one memory all four share. Review agents always run read-only. Where a host lacks a mechanism Buracle needs, [`src/adapters/shared/host-limits.ts`](src/adapters/shared/host-limits.ts) records the gap and the fallback, `buracle doctor <harness>` lists each record, and it tells you when a newer harness version may close one. The table below is that list.
+Buracle switches off the built-in memory of Claude Code, Codex and Oh My Pi, so the brain is the one memory all four share. Review agents always run read-only. Where a host lacks a mechanism Buracle needs, [`src/adapters/shared/host-limits.ts`](src/adapters/shared/host-limits.ts) records the gap and the fallback, and `buracle doctor <harness> --all` lists each record. The table below is that list.
 
 ### Host limits
 
@@ -276,12 +276,14 @@ Buracle switches off the built-in memory of Claude Code, Codex and Oh My Pi, so 
 | `opencode.rate-windows` | OpenCode | No quota API, so the windows come from provider response headers | The 5-hour and 7-day segments stay empty until a response carries them |
 | `omp.companion-shell` | Oh My Pi | Print mode cannot hold bash to read-only commands | The second opinion runs with read, grep and glob only, with the diff in its prompt |
 
-| Harness | Tested with |
+Buracle needs at least these harness versions (`src/engine/update/min-versions.ts`). A newer release needs no check of its own. Below the minimum, `buracle doctor` reports an error.
+
+| Harness | Minimum version |
 |---|---|
-| Claude Code | 2.1.302 |
-| Codex CLI | 0.162.1 |
-| OpenCode | 2.0.30 |
-| Oh My Pi | 18.10.1 |
+| Claude Code | 2.1.290 |
+| Codex CLI | 0.154.0 |
+| OpenCode | 2.0.20 |
+| Oh My Pi | 18.8.0 |
 
 ## Guards
 
@@ -323,13 +325,15 @@ Buracle 0.5.0 · CC 2.1.296 (Max) · Memory: localhost:41777 · brain 142 ✓ ·
 
 Run `buracle` in a terminal and it opens a menu with the logo, one line that says whether all is well, and six choices: install or repair, update, health check, memory, a detailed view of every part with its version and pending update, and quit. Arrow keys or j/k move, Enter runs the choice, and each choice has its own key.
 
+Every screen keeps the same logo header at the top: the full logo from 63 by 20, the icon with the name in a narrower window, and one line in a low or narrow one. A command you start from the menu runs below that header, with its questions and progress lines as usual, and Ctrl-C stops the command, not the menu. When it ends, its result shows under the output: any key takes you back, and `o` shows the whole output again with your terminal's own scrollback.
+
 While the menu is open, Buracle re-checks what was last verified more than six hours ago: the MCP servers answer a live handshake, the tools report their version and the update check runs again. A row says `checking…` until its result is in. A check never downloads anything, so a server whose package is not in the toolchain waits for `buracle install`. In the detailed view, `n` jumps to the next row that needs a look and `r` rechecks everything now.
 
 | Command | What it does |
 |---|---|
 | `buracle install [<harness>…]` | First setup and repair, for every harness it finds or the ones you name |
 | `buracle update [--check]` | Updates each part from its own source |
-| `buracle doctor [<topic>]` | Checks hooks, MCP servers, memory and code indexes. A topic such as `mcp` or `memory` checks one part |
+| `buracle doctor [<topic>] [--all]` | Checks hooks, MCP servers, memory and code indexes. It shows one line per section and only the problems, each with its fix; `--all` shows every row. A topic such as `mcp` or `memory` checks one part |
 | `buracle config` | Reads or changes the configuration with `get`, `set` and `unset` |
 | `buracle rollback` | Undoes the newest install |
 | `buracle uninstall` | Removes everything Buracle installed and leaves the memory alone |

@@ -5,7 +5,7 @@ import {
   claudeDoctor, commandProgram, commandsFinding, compareVersions, effortFinding, guardHook, guardProbeFinding, hookArgv, indexFinding, permissionFinding, pluginFinding, PROBE_COMMAND,
   routerFinding, statusLineFinding, validateFinding, versionFinding,
 } from '../../../src/adapters/claude/doctor'
-import { TESTED_WITH } from '../../../src/adapters/claude/constants'
+import { MIN_CLAUDE } from '../../../src/adapters/claude/constants'
 import type { AdapterContext } from '../../../src/adapters/registry'
 import { defaultConfig } from '../../../src/core/config'
 import type { CanonicalBundle } from '../../../src/core/catalog'
@@ -38,10 +38,9 @@ describe('findings', () => {
     expect(versionFinding('2.1.291').level).toBe('ok')
     expect(versionFinding('2.1.293').level).toBe('ok')
     expect(versionFinding('2.1.294').level).toBe('ok')
-    const [maj, min, patch] = TESTED_WITH.split('.').map(Number) as [number, number, number]
-    expect(versionFinding(TESTED_WITH).level).toBe('ok')
-    expect(versionFinding(`${maj}.${min}.${patch + 1}`).level).toBe('warn')
-    expect(versionFinding('2.2.0').level).toBe('warn')
+    // Every version at or above the minimum is fine, also one far newer than any Buracle knows.
+    for (const v of [MIN_CLAUDE, '2.1.999', '2.2.0', '9.0.0']) expect(versionFinding(v)).toMatchObject({ level: 'ok', detail: `${v} (minimum ${MIN_CLAUDE})` })
+    expect(versionFinding('9.0.0').detail).not.toMatch(/tested/i)
     expect(versionFinding('2.1.289').level).toBe('error')
     expect(versionFinding(undefined).level).toBe('error')
   })

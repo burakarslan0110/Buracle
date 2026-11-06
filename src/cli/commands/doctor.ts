@@ -14,11 +14,14 @@ import * as paths from '../../engine/paths'
 import { writeHealth } from '../../engine/update/mcp'
 import { errText, table, writeJson } from '../../engine/update/output'
 import { progressSteps } from '../ui/steps'
-import { heading, makeStyle, colorLevel, padEnd, type Style } from '../ui/style'
+import { padEnd, styleFor, type Style } from '../ui/style'
 
 export const name = 'doctor'
 export const summary = 'Health checks: config, tools, harness adapters and their hooks, MCP and LSP handshakes, memory, code indexes and the update cache'
-export const usage = `Usage: buracle doctor [<harness>|runtime|mcp|lsp|tools|memory|index|config] [--json]
+export const usage = `Usage: buracle doctor [<harness>|runtime|mcp|lsp|tools|memory|index|config] [--all] [--json]
+
+In a terminal the report shows one line per section with its counts, and under it only the warnings and
+errors, each with its fix; --all shows every row. A pipe gets a table of every row, --json every row as JSON.
 
 Without a topic every section runs:
   config   ~/.buracle/config.yaml, canonical/ data, runtime-config.json, shim (and what it
@@ -55,6 +58,7 @@ Without a topic every section runs:
 With <harness> (${HARNESSES.join(', ')}) only config, runtime and that harness are checked.
 
 Options:
+  --all    in a terminal, every row of every section, the ok rows too
   --json   machine-readable result
 
 Exit codes: 0 all ok, 1 errors, 2 warnings.`
@@ -93,8 +97,9 @@ async function withLiveProbes<T>(on: boolean, fn: () => Promise<T>): Promise<T> 
 export async function run(argv: string[], io: CommandIO): Promise<number> {
   const removed = removedFlags(argv, REMOVED_FLAGS)
   if (removed.length > 0) { io.stderr.write(`buracle doctor: ${removed.join('; ')}\n`); return 1 }
-  const p = parseFlags(argv, { flags: { json: 'bool' } })
+  const p = parseFlags(argv, { flags: { json: 'bool', all: 'bool' } })
   const json = io.flags.json || p.bools.has('json')
+  const all = p.bools.has('all')
   const topic = p.positionals[0]
   const problems = [...p.errors]
   if (p.positionals.length > 1) problems.push('at most one topic')
@@ -115,6 +120,7 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
   const nowIso = () => new Date(opsDeps.now()).toISOString()
   // One rolling line names the section that runs (the handshakes take up to 30 s); it is gone before the report.
   const steps = progressSteps(io, json)
+  steps.title(topic !== undefined ? `doctor ${topic}` : 'doctor')
   let working = false
   const checking = (what: string): void => {
     if (!steps.live) return
@@ -186,7 +192,7 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
   }
   if (io.stdout.isTTY === true) {
     const cols = io.stdout.columns !== undefined && io.stdout.columns >= 40 ? io.stdout.columns : 100
-    io.stdout.write(styledReport(makeStyle(colorLevel({ isTTY: true })), checks, cols))
+    io.stdout.write(styledReport(styleFor({ isTTY: true }), checks, cols, { all }))
     return code
   }
   const mark: Record<DoctorCheck['level'], string> = { ok: 'ok', info: 'info', warn: 'WARN', error: 'ERROR' }
@@ -201,26 +207,67 @@ const SECTION_TITLE: Readonly<Record<string, string>> = {
   mcp: 'MCP servers', lsp: 'Language servers', memory: 'Memory', index: 'Code indexes', updates: 'Updates', harness: 'Harnesses',
 }
 
-export function styledReport(st: Style, checks: readonly DoctorCheck[], columns: number): string {
-  const sym = (l: DoctorCheck['level']) => (l === 'ok' ? st.ok(st.sym.ok) : l === 'warn' ? st.warn(st.sym.warn) : l === 'error' ? st.err(st.sym.err) : st.accent(st.sym.info))
-  const width = Math.min(30, Math.max(8, ...checks.map(c => c.check.length)))
-  const lines: string[] = []
-  let section: string | undefined
-  for (const c of checks) {
-    if (c.section !== section) {
-      section = c.section
-      lines.push('', heading(st, SECTION_TITLE[c.section] ?? c.section, columns))
-    }
-    const detail = sanitizeText(c.detail.replace(/\s*\n\s*/g, ' / ')).trim()
-    const room = Math.max(20, columns - width - 8)
-    const shown = detail.length > room && c.level === 'ok' ? `${detail.slice(0, room - 1)}…` : detail
-    const text = c.level === 'ok' || c.level === 'info' ? st.muted(shown) : c.level === 'warn' ? st.warn(shown) : st.err(shown)
-    lines.push(`  ${sym(c.level)} ${padEnd(st.bold(c.check), width)}  ${text}`)
+// Words that fit `first` columns on the first line and `next` on the ones after; a word too long for a line is split.
+function wrapWords(text: string, first: number, next: number): string[] {
+  const out: string[] = []
+  let line = ''
+  let room = Math.max(1, first)
+  const push = (): void => { out.push(line); line = ''; room = Math.max(1, next) }
+  for (let word of text.split(' ')) {
+    while (word.length > room && line === '') { out.push(word.slice(0, room)); word = word.slice(room); room = Math.max(1, next) }
+    if (line === '') line = word
+    else if (line.length + 1 + word.length <= room) line = `${line} ${word}`
+    else { push(); line = word }
   }
-  const n = (l: DoctorCheck['level']) => checks.filter(c => c.level === l).length
-  const count = (l: DoctorCheck['level'], noun: string) => `${n(l)} ${noun}${n(l) === 1 ? '' : 's'}`
-  const summary = [`${n('ok')} ok`, ...(n('warn') > 0 ? [count('warn', 'warning')] : []), ...(n('error') > 0 ? [count('error', 'error')] : []), ...(n('info') > 0 ? [count('info', 'note')] : [])].join(' · ')
-  const head = n('error') > 0 ? st.err(st.sym.err) : n('warn') > 0 ? st.warn(st.sym.warn) : st.ok(st.sym.ok)
-  lines.push('', `${head} ${st.bold(summary)}`, '')
+  if (line !== '' || out.length === 0) out.push(line)
+  return out
+}
+
+/**
+ * The doctor report for a terminal: one line per section with its worst state and its counts, then its warning and
+ * error rows with their whole detail (the fix), wrapped. With `all`, every row. The JSON and the piped table keep
+ * every row in their own formats.
+ */
+export function styledReport(st: Style, checks: readonly DoctorCheck[], columns: number, opts: { all?: boolean } = {}): string {
+  const all = opts.all === true
+  const width = Math.max(20, columns - 1)
+  const sym = (l: DoctorCheck['level']) => (l === 'ok' ? st.ok(st.sym.ok) : l === 'warn' ? st.warn(st.sym.warn) : l === 'error' ? st.err(st.sym.err) : st.accent(st.sym.info))
+  const paint = (l: DoctorCheck['level'], s: string) => (l === 'ok' || l === 'info' ? st.muted(s) : l === 'warn' ? st.warn(s) : st.err(s))
+  const n = (rows: readonly DoctorCheck[], l: DoctorCheck['level']) => rows.filter(c => c.level === l).length
+  const counts = (rows: readonly DoctorCheck[]): string => {
+    const count = (l: DoctorCheck['level'], noun: string) => `${n(rows, l)} ${noun}${n(rows, l) === 1 ? '' : 's'}`
+    return [`${n(rows, 'ok')} ok`, ...(n(rows, 'warn') > 0 ? [count('warn', 'warning')] : []), ...(n(rows, 'error') > 0 ? [count('error', 'error')] : []), ...(n(rows, 'info') > 0 ? [count('info', 'note')] : [])].join(' · ')
+  }
+  const worst = (rows: readonly DoctorCheck[]): DoctorCheck['level'] => (n(rows, 'error') > 0 ? 'error' : n(rows, 'warn') > 0 ? 'warn' : 'ok')
+  // One line per section, in the order the sections first appear, also when a section's rows are not next to each other.
+  const sections: Array<{ id: string, rows: DoctorCheck[] }> = []
+  for (const c of checks) {
+    const known = sections.find(s => s.id === c.section)
+    if (known !== undefined) known.rows.push(c)
+    else sections.push({ id: c.section, rows: [c] })
+  }
+  const title = (id: string) => SECTION_TITLE[id] ?? id
+  const titleWidth = Math.max(0, ...sections.map(s => title(s.id).length))
+  const shown = (rows: readonly DoctorCheck[]) => (all ? rows : rows.filter(c => c.level === 'warn' || c.level === 'error'))
+  const checkWidth = Math.min(30, Math.max(0, ...sections.flatMap(s => shown(s.rows).map(c => c.check.length))))
+  const lines: string[] = []
+  for (const s of sections) {
+    lines.push(`  ${sym(worst(s.rows))} ${padEnd(st.bold(title(s.id)), titleWidth)}  ${st.muted(counts(s.rows))}`)
+    for (const c of shown(s.rows)) {
+      const detail = sanitizeText(c.detail.replace(/\s*\n\s*/g, ' / ')).trim()
+      const head = `    ${sym(c.level)} ${padEnd(st.bold(c.check), checkWidth)}  `
+      const room = width - (6 + Math.max(checkWidth, c.check.length) + 2)
+      if (c.level === 'ok' || c.level === 'info') {
+        lines.push(`${head}${paint(c.level, detail.length > room ? `${detail.slice(0, Math.max(1, room - 1))}…` : detail)}`)
+        continue
+      }
+      // A problem's detail is its fix: it wraps, its next lines 6 columns in, and is never cut.
+      const wrapped = wrapWords(detail, room, width - 6)
+      lines.push(`${head}${paint(c.level, wrapped[0] ?? '')}`, ...wrapped.slice(1).map(l => `      ${paint(c.level, l)}`))
+    }
+  }
+  lines.push('', `  ${sym(worst(checks))} ${st.bold(counts(checks))}`)
+  if (!all && checks.some(c => c.level === 'ok' || c.level === 'info')) lines.push(`  ${st.muted('buracle doctor --all shows every row')}`)
+  lines.push('')
   return lines.join('\n')
 }

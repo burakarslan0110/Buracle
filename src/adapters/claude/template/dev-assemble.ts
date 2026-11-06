@@ -5,8 +5,6 @@ import { loadCanonicalSync } from '../../../engine/canonical'
 import { packageVersion, readTemplate, readTree } from '../build'
 import { generatePlugin, type GenFile } from '../plugin'
 
-export { TESTED_WITH } from '../constants'
-
 export type AssembledFile = GenFile
 
 function repoRootOf(start: string): string {

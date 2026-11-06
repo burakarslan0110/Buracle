@@ -28,7 +28,8 @@ import { codexTrustPlan } from '../../adapters/codex/trust'
 import { cliVersion } from '../router'
 import { runBuildFlow } from './build'
 import { NO_STEPS, progressSteps, type Steps } from '../ui/steps'
-import { heading, padEnd, styleFor, wordmark, type Style } from '../ui/style'
+import { commandHeader, sectionHeading } from '../ui/frame'
+import { padEnd, styleFor, type Style } from '../ui/style'
 
 export const name = 'install'
 export const summary = 'Set up or repair Buracle in every detected harness (first setup included)'
@@ -662,9 +663,10 @@ const HARNESS_TITLE: Readonly<Record<Harness, string>> = { claude: 'Claude Code'
 
 // header: false when the live steps already printed the title.
 export function renderInstallStyled(r: InstallFlowResult, st: Style, columns = 100, header = true): string {
-  const lines: string[] = header ? ['', `  ${wordmark(st)} ${st.muted(r.dryRun ? 'install preview' : 'install')}`, ''] : ['']
+  const lines: string[] = header ? ['', commandHeader(st, cliVersion(), r.dryRun ? 'install preview' : 'install'), ''] : ['']
+  const width = Math.max(0, columns - 1)
   if (r.harnesses.length > 0) {
-    lines.push(heading(st, 'Harnesses', columns))
+    lines.push(sectionHeading(st, 'Harnesses', width))
     const w = Math.max(...r.harnesses.map(h => HARNESS_TITLE[h.harness].length))
     for (const h of r.harnesses) {
       const icon = h.included ? st.ok(st.sym.ok) : h.installed ? st.warn(st.sym.warn) : st.muted('-')
@@ -673,7 +675,7 @@ export function renderInstallStyled(r: InstallFlowResult, st: Style, columns = 1
     }
     lines.push('')
   }
-  lines.push(heading(st, 'Result', columns))
+  lines.push(sectionHeading(st, 'Result', width))
   if (r.dryRun) lines.push(`  ${st.accent(st.sym.info)} Preview: nothing was written (${r.plans.reduce((n, p) => n + p.ops, 0)} operations planned; --json for details)`)
   else if (r.applied > 0) lines.push(`  ${st.ok(st.sym.ok)} Applied ${r.applied} change${r.applied === 1 ? '' : 's'}${r.unchanged > 0 ? st.muted(` · ${r.unchanged} already up to date`) : ''}${r.retried ? st.muted(' · retried once because a file changed') : ''}`)
   else if (r.errors.length === 0) lines.push(`  ${st.ok(st.sym.ok)} Everything is already up to date`)
@@ -686,7 +688,7 @@ export function renderInstallStyled(r: InstallFlowResult, st: Style, columns = 1
   for (const w of r.warnings) lines.push(`  ${st.warn(st.sym.warn)} ${tildeText(w)}`)
   for (const e of r.errors) lines.push(`  ${st.err(st.sym.err)} ${e.source}: ${tildeText(e.error)}`)
   if (r.steps.length > 0) {
-    lines.push('', heading(st, 'Next steps', columns))
+    lines.push('', sectionHeading(st, 'Next steps', width))
     for (const s of r.steps) lines.push(`  ${st.accent(st.sym.arrow)} ${s}`)
   }
   lines.push('')
@@ -824,7 +826,8 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     if (json) writeJson(io.stdout, { ...r, build: built.report })
     else {
       if (!opts.dryRun && rebuilt && !steps.live) io.stdout.write(`Rebuilt the generated files (${built.report.written.length} written, ${built.report.removed.length} removed).\n`)
-      renderInstall(r, io, undefined, !steps.live)
+      // steps.title already put the header line first, on stderr or on a terminal stdout.
+      renderInstall(r, io, undefined, false)
     }
     return r.code
   } finally {

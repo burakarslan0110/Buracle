@@ -13,12 +13,12 @@ export const REAL_REPO = join(import.meta.dir, '..', '..', '..')
 
 export type TestIO = CommandIO & { out(): string, err(): string }
 
-// liveErr: stderr is a terminal, so install and update draw their live steps there.
-export function memoryIO(opts: { tty?: boolean, json?: boolean, verbose?: boolean, liveErr?: boolean } = {}): TestIO {
+// liveErr: stderr is a terminal, so install and update draw their live steps there. ttyOut: stdout is a terminal.
+export function memoryIO(opts: { tty?: boolean, json?: boolean, verbose?: boolean, liveErr?: boolean, ttyOut?: boolean } = {}): TestIO {
   let out = ''
   let err = ''
   return {
-    stdout: { write: (s: string) => { out += s } },
+    stdout: { write: (s: string) => { out += s }, ...(opts.ttyOut === true ? { isTTY: true, columns: 100 } : {}) },
     stderr: { write: (s: string) => { err += s }, ...(opts.liveErr === true ? { isTTY: true, columns: 160 } : {}) },
     stdin: { isTTY: opts.tty === true, text: async () => '' },
     flags: { json: opts.json === true, verbose: opts.verbose === true },

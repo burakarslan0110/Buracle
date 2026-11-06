@@ -9,6 +9,7 @@ import * as paths from '../../engine/paths'
 import { parseFlags } from '../../engine/update/args'
 import { opsDeps } from '../../engine/update/deps'
 import { errText, tilde, writeJson } from '../../engine/update/output'
+import { resultLines } from '../ui/steps'
 
 export { setConfigValue } from '../../engine/config-edit'
 
@@ -106,7 +107,10 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
       if (!r.ok) return fail(r.error)
       const hint = r.changed ? syncHint(path) : undefined
       if (json) writeJson(io.stdout, { ok: true, key, value, changed: r.changed, file: paths.userConfigFile(), ...(hint !== undefined ? { sync: true, hint } : {}) })
-      else io.stdout.write((r.changed ? `${key} = ${scalarText(value)} (${tilde(paths.userConfigFile())})\n` : `${key} is already ${scalarText(value)}\n`) + (hint !== undefined ? `Next: ${hint}.\n` : ''))
+      else {
+        const t = resultLines(io, io.stdout)
+        io.stdout.write(t.header('config set') + `${t.top('ok', r.changed ? `${key} = ${scalarText(value)} (${tilde(paths.userConfigFile())})` : `${key} is already ${scalarText(value)}`)}\n` + (hint !== undefined ? `${t.top('info', `Next: ${hint}.`)}\n` : ''))
+      }
       return 0
     }
     case 'unset': {
@@ -117,7 +121,10 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
       let hint: string | undefined
       try { hint = r.changed ? syncHint(parseKeyPath(key)) : undefined } catch { hint = undefined }
       if (json) writeJson(io.stdout, { ok: true, key, changed: r.changed, ...(hint !== undefined ? { sync: true, hint } : {}) })
-      else io.stdout.write((r.changed ? `${key} removed from ${tilde(paths.userConfigFile())}; the default applies.\n` : `${key} is not set in ${tilde(paths.userConfigFile())}.\n`) + (hint !== undefined ? `Next: ${hint}.\n` : ''))
+      else {
+        const t = resultLines(io, io.stdout)
+        io.stdout.write(t.header('config unset') + `${t.top('ok', r.changed ? `${key} removed from ${tilde(paths.userConfigFile())}; the default applies.` : `${key} is not set in ${tilde(paths.userConfigFile())}.`)}\n` + (hint !== undefined ? `${t.top('info', `Next: ${hint}.`)}\n` : ''))
+      }
       return 0
     }
     case 'path': {

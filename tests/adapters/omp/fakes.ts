@@ -208,7 +208,7 @@ export function planState(over: Partial<NonNullable<SessionState['plan']>> = {},
 
 export function testGenerated(over: Partial<OmpGenerated> = {}): OmpGenerated {
   return {
-    v: 1, buracleVersion: '0.1.0', testedWith: '18.8.3', minOmp: '18.8.0', config: defaultConfig(),
+    v: 1, buracleVersion: '0.1.0', config: defaultConfig(),
     routing: { strictness: 'enforce', categories: [{ id: 'web-search', intent: 'web search', prefer: ['web-search'], fallback: [], deny_builtin: ['web_search'] }] },
     mcp: [
       { id: 'buracle-memory', description: 'Memory', transport: 'stdio', critical: true, routing: ['memory'], harnesses: ['omp'] },
