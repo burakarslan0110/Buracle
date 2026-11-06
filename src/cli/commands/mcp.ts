@@ -4,19 +4,29 @@ import type { StartGate, StartGateOptions } from '../../workflow/workspace-index
 import type { CommandIO } from '../router'
 
 export const name = 'mcp'
-export const summary = 'Run Buracle\'s stdio MCP servers (buracle mcp memory, buracle mcp run <id>)'
+export const summary = 'Run, share, turn off and inspect Buracle\'s MCP servers (buracle mcp run <id>, disable, status)'
 export const usage = `Usage: buracle mcp memory
        buracle mcp run <id>
-       buracle mcp install <id>
+       buracle mcp disable <id> [--harness <h>]
+       buracle mcp enable <id> [--harness <h>]
        buracle mcp list [--json]
+       buracle mcp status [--json]
+       buracle mcp stop [<id>]
+       buracle mcp install <id>
+       buracle mcp backend <id> [--package-version=<v>]
 
 memory    Starts the buracle-memory MCP server on stdin/stdout (newline-delimited JSON-RPC 2.0)
           over the CortexDB brains of the current project and the person. Tools: memory_search,
           memory_get, memory_write, memory_update, memory_status, memory_context. It stops when
           stdin closes.
-run <id>  Starts package server <id> of canonical/mcp.yaml with stdio passed through: the copy
+run <id>  A server with a shared backend (context7, semble, web-search, web-fetch) stays a thin
+          forwarder: it answers initialize and tools/list from a cache and connects to the one
+          backend of the machine on the first real call (starting it when none runs); after 10
+          idle minutes (BURACLE_MCP_IDLE_MS) it lets go of it. chrome-devtools starts as this
+          process's child on its first call and stops after 10 idle minutes. Every other package
+          server, and every server with mcp.shared: false, starts as before: the copy
           \`buracle install\` put in ~/.buracle/toolchain (newest release), which takes over this
-          process (no launcher stays behind), else the package
+          process, else the package
           runner (npx with Buracle's own npm cache, or uvx on Python 3.12) as a child while a
           background install fills the toolchain for the next start. codegraph in a project
           without an index first starts Buracle's index run (index.auto) and waits up to 4 s while
@@ -29,7 +39,21 @@ run <id>  Starts package server <id> of canonical/mcp.yaml with stdio passed thr
 install <id>  Installs package server <id> into ~/.buracle/toolchain, as \`buracle install\`
           would (the background install of \`run\` uses it). Quiet; BURACLE_NO_TOOLCHAIN=1 skips it.
           Exit codes: 0 installed or already there, 1 error, 2 the install failed.
-list      Every server and the command that starts it now.
+disable <id> [--harness <h>]  Turns server <id> off in every harness it ships to, or in <h>
+          only: mcp.off.<harness> in config.yaml, then \`buracle install\` of those harnesses writes
+          each one's own setting. Their next session lists none of its tools and starts no
+          process for it, and routing allows the built-in tool it stands in for. Exit codes: 0
+          done or nothing to change, 1 bad input, 2 a harness was running or a file conflicts.
+enable <id> [--harness <h>]   Turns it on again, the same way.
+list      Every server, its state per harness (on, off, - when it does not ship there) and
+          the command that starts it now.
+status    Every running Buracle MCP process: server, role (forwarder, backend, upstream,
+          lazy, session, codegraph), sessions, memory and uptime.
+stop [<id>]  Stops the shared backends (or the one of <id>) now; the next call starts them again.
+backend <id>  The shared backend a forwarder starts: one upstream for every session, on a
+          private Unix socket; it stops 60 s after its last client (BURACLE_MCP_LINGER_MS).
+          --package-version is the version the forwarder read (latest for none): the socket
+          key both sides use, even when the toolchain changed in between.
 `
 
 function version(): string {
@@ -155,10 +179,10 @@ function launchRecordExpired(v: unknown, nowMs: number): boolean {
 
 export async function expireLaunchFailures(nowMs: number): Promise<void> {
   try {
+    // A plain read first: a shared server's forwarder lives for the whole session, and the file helpers load node:crypto.
     const paths = await import('../../engine/paths')
-    const { readJsonSafeSync } = await import('../../engine/fsx')
-    const r = readJsonSafeSync<unknown>(paths.healthFile())
-    if (!r.ok || !isRecord(r.value) || !isRecord(r.value['mcp']) || !Object.values(r.value['mcp']).some(v => launchRecordExpired(v, nowMs))) return
+    const value = JSON.parse(readFileSync(paths.healthFile(), 'utf8')) as unknown
+    if (!isRecord(value) || !isRecord(value['mcp']) || !Object.values(value['mcp']).some(v => launchRecordExpired(v, nowMs))) return
   } catch { return }
   await editMcpHealth(nowMs, mcp => {
     let changed = false
@@ -197,8 +221,12 @@ async function spawnServer(id: string, argv: readonly string[], env: Record<stri
 }
 
 async function runServer(id: string | undefined, io: CommandIO): Promise<number> {
-  const { log } = await import('../../engine/log')
   if (id === undefined) { io.stderr.write(`buracle mcp run: missing <id>\n\n${usage}`); return 1 }
+  // The process entry takes this path before the router (src/cli/router.ts, runProcess); here for a caller of run().
+  const { fastMcpRun } = await import('../mcp-run')
+  const fast = await fastMcpRun(['mcp', 'run', id], line => io.stdout.write(line))
+  if (fast !== undefined) return fast
+  const { log } = await import('../../engine/log')
   const { launchPlan, readMcpCatalog } = await import('../../engine/toolchain/launch')
   const { readToolchainState } = await import('../../engine/toolchain/state')
   const { isPackageServer } = await import('../../core/catalog')
@@ -241,24 +269,84 @@ async function listServers(argv: string[], io: CommandIO): Promise<number> {
   const { launchPlan, readMcpCatalog } = await import('../../engine/toolchain/launch')
   const { readToolchainState } = await import('../../engine/toolchain/state')
   const { isPackageServer } = await import('../../core/catalog')
+  const { HARNESSES } = await import('../../core/events')
+  const { loadConfigSync } = await import('../../engine/config')
   const catalog = readMcpCatalog()
   const state = readToolchainState()
+  const off = loadConfigSync().config.mcp.off
   const rows = Object.keys(catalog.servers).sort().map(id => {
     const spec = catalog.servers[id]!
-    if (spec.transport === 'http') return { id, transport: 'http', source: 'remote', start: spec.url ?? '' }
-    if (!isPackageServer(spec)) return { id, transport: 'stdio', source: 'buracle', start: [spec.command ?? '', ...(spec.args ?? [])].join(' ') }
+    const harnesses = Object.fromEntries(HARNESSES.map(h => [h, !spec.harnesses.includes(h) ? 'none' : off[h].includes(id) ? 'off' : 'on']))
+    if (spec.transport === 'http') return { id, transport: 'http', source: 'remote', start: spec.url ?? '', harnesses }
+    if (!isPackageServer(spec)) return { id, transport: 'stdio', source: 'buracle', start: [spec.command ?? '', ...(spec.args ?? [])].join(' '), harnesses }
     const p = launchPlan(id, spec, state)
-    return 'error' in p ? { id, transport: 'stdio', source: 'missing', start: p.error } : { id, transport: 'stdio', source: p.source === 'toolchain' ? `toolchain ${p.version ?? ''}`.trim() : 'fallback', start: p.argv.join(' ') }
+    return 'error' in p ? { id, transport: 'stdio', source: 'missing', start: p.error, harnesses } : { id, transport: 'stdio', source: p.source === 'toolchain' ? `toolchain ${p.version ?? ''}`.trim() : 'fallback', start: p.argv.join(' '), harnesses }
   })
   if (json) { io.stdout.write(JSON.stringify({ servers: rows }, null, 2) + '\n'); return 0 }
-  const w = Math.max(...rows.map(r => r.id.length)) + 2
-  for (const r of rows) io.stdout.write(`${r.id.padEnd(w)}${r.source.padEnd(18)}${r.start}\n`)
+  const w = Math.max('server'.length, ...rows.map(r => r.id.length)) + 2
+  const cols = HARNESSES.map(h => h.length + 2)
+  const cell = (v: string) => (v === 'none' ? '-' : v)
+  io.stdout.write(`${'server'.padEnd(w)}${HARNESSES.map((h, i) => h.padEnd(cols[i] as number)).join('')}${'source'.padEnd(18)}start\n`)
+  for (const r of rows) io.stdout.write(`${r.id.padEnd(w)}${HARNESSES.map((h, i) => cell(String(r.harnesses[h])).padEnd(cols[i] as number)).join('')}${r.source.padEnd(18)}${r.start}\n`)
   return 0
+}
+
+async function statusCmd(argv: string[], io: CommandIO): Promise<number> {
+  const json = io.flags.json || argv.includes('--json')
+  const { readMcpCatalog } = await import('../../engine/toolchain/launch')
+  const { backendStates, listMcpProcesses } = await import('../../engine/mcp-share/procs')
+  const { nearestHarnessAncestor } = await import('../../workflow/session-store')
+  const catalog = readMcpCatalog()
+  const lazy = new Set(Object.keys(catalog.servers).filter(id => catalog.servers[id]?.backend === 'lazy'))
+  const states = new Map(backendStates().map(s => [s.pid, s]))
+  const rows = listMcpProcesses(lazy).map(p => {
+    const st = p.role === 'backend' ? states.get(p.pid) : undefined
+    const sessions: number[] | string = st !== undefined ? st.clients : p.ppid <= 1 ? 'none' : (nearestHarnessAncestor(process.env, { startPid: p.ppid }) ?? 'none')
+    return { server: p.server, role: p.role, pid: p.pid, ppid: p.ppid, sessions, rssMb: Math.round(p.rssKb / 102.4) / 10, uptime: p.etime, ...(st?.log !== undefined ? { log: st.log } : {}) }
+  })
+  if (json) { io.stdout.write(JSON.stringify({ processes: rows }, null, 2) + '\n'); return 0 }
+  if (rows.length === 0) { io.stdout.write('no Buracle MCP process runs\n'); return 0 }
+  const w = Math.max(...rows.map(r => r.server.length)) + 2
+  io.stdout.write(`${'server'.padEnd(w)}${'role'.padEnd(11)}${'pid'.padEnd(8)}${'sessions'.padEnd(14)}${'MB'.padEnd(8)}${'uptime'.padEnd(12)}log\n`)
+  for (const r of rows) io.stdout.write(`${r.server.padEnd(w)}${r.role.padEnd(11)}${String(r.pid).padEnd(8)}${(Array.isArray(r.sessions) ? `${r.sessions.length} session(s)` : r.sessions).padEnd(14)}${String(r.rssMb).padEnd(8)}${r.uptime.padEnd(12)}${r.log ?? ''}\n`)
+  return 0
+}
+
+async function stopCmd(id: string | undefined, io: CommandIO): Promise<number> {
+  const { backendStates, signalBackends } = await import('../../engine/mcp-share/procs')
+  const { pidAlive } = await import('../../engine/mcp-share/common')
+  const ids = new Map(backendStates().map(s => [s.pid, s.id]))
+  const pids = signalBackends(id)
+  if (pids.length === 0) { io.stdout.write(id !== undefined ? `no shared backend of ${id} runs\n` : 'no shared backend runs\n'); return 0 }
+  const end = Date.now() + 5_000
+  while (Date.now() < end && pids.some(pidAlive)) await Bun.sleep(50)
+  for (const pid of pids) if (pidAlive(pid)) { try { process.kill(pid, 'SIGKILL') } catch {  } }
+  io.stdout.write(`stopped ${pids.map(p => `${ids.get(p) ?? '?'} backend ${p}`).join(', ')}; the next call starts it again\n`)
+  return 0
+}
+
+async function runBackend(argv: string[], io: CommandIO): Promise<number> {
+  const id = argv.filter(a => !a.startsWith('-'))[1]
+  if (id === undefined) { io.stderr.write(`buracle mcp backend: missing <id>\n\n${usage}`); return 1 }
+  const pinned = argv.find(a => a.startsWith('--package-version='))?.slice('--package-version='.length)
+  const { runMcpBackend } = await import('../../engine/mcp-share/backend')
+  return runMcpBackend(id, { stderr: io.stderr, version: version(), ...(pinned !== undefined && pinned !== '' ? { packageVersion: pinned } : {}), recordFailure: (error, nowMs) => recordLaunchFailure(id, error, nowMs), onFallback: () => backgroundInstall(id) })
 }
 
 export async function run(argv: string[], io: CommandIO): Promise<number> {
   const server = argv.find(a => !a.startsWith('-'))
   if (server === 'run') return runServer(argv.filter(a => !a.startsWith('-'))[1], io)
+  if (server === 'backend') return runBackend(argv, io)
+  if (server === 'status') return statusCmd(argv, io)
+  if (server === 'stop') return stopCmd(argv.filter(a => !a.startsWith('-'))[1], io)
+  if (server === 'disable' || server === 'enable') {
+    const at = argv.indexOf('--harness')
+    const eq = argv.find(a => a.startsWith('--harness='))
+    const harness = eq !== undefined ? eq.slice('--harness='.length) : at >= 0 ? argv[at + 1] : undefined
+    const pos = argv.filter((a, i) => !a.startsWith('-') && !(at >= 0 && i === at + 1))
+    const { setMcpOff } = await import('../../engine/mcp-off')
+    return setMcpOff({ id: pos[1], turnOff: server === 'disable', ...(harness !== undefined ? { harness } : {}) }, io)
+  }
   if (server === 'list') return listServers(argv, io)
   if (server === 'install') return installServer(argv.filter(a => !a.startsWith('-'))[1], io)
   if (server !== 'memory') {

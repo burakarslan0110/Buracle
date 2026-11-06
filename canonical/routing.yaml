@@ -13,7 +13,7 @@ categories:
     prefer: [mcp:web-search/search]
     fallback: [mcp:web-fetch/fetch_url, builtin:web_search]
     deny_builtin: [web_search]
-    nudge: Search the web with the web-search MCP server; while it is down, fetch a search results page (https://html.duckduckgo.com/html/?q=<query>) with web-fetch, and use the built-in web search only when both are down.
+    nudge: Search the web with the web-search MCP server; while it is down or off, fetch a search results page (https://html.duckduckgo.com/html/?q=<query>) with web-fetch, and use the built-in web search only when both are down or off.
     reminder: search with the web-search MCP server (search), then read the sources with web-fetch (fetch_url)
 
   - id: web-fetch
@@ -21,7 +21,7 @@ categories:
     prefer: [mcp:web-fetch/fetch_url]
     fallback: [builtin:web_fetch]
     deny_builtin: [web_fetch]
-    nudge: Fetch pages with the web-fetch MCP server, and use the built-in fetch only while it is down.
+    nudge: Fetch pages with the web-fetch MCP server, and use the built-in fetch only while it is down or off.
     reminder: read the page with the web-fetch MCP server (fetch_url)
 
   - id: code-examples

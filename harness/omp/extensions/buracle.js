@@ -7254,8 +7254,8 @@ var init_paths = __esm(() => {
 
 // src/engine/fsx.ts
 import { createHash, randomBytes } from "crypto";
-import { closeSync, constants, fsyncSync, lstatSync, mkdirSync as mkdirSync2, openSync, readFileSync as readFileSync2, readlinkSync, realpathSync, renameSync as renameSync2, statSync as statSync2, unlinkSync, writeSync, chmodSync } from "fs";
-import { basename, dirname as dirname2, isAbsolute as isAbsolute2, join as join2, resolve as resolve2 } from "path";
+import { closeSync, constants, fsyncSync, lstatSync, mkdirSync as mkdirSync2, openSync, readFileSync as readFileSync3, readlinkSync, realpathSync, renameSync as renameSync2, statSync as statSync3, unlinkSync, writeSync, chmodSync } from "fs";
+import { basename, dirname as dirname2, isAbsolute as isAbsolute2, join as join3, resolve as resolve2 } from "path";
 function realPath(p) {
   return realpathSync.native(p);
 }
@@ -7276,7 +7276,7 @@ function ensureDirSync(path) {
 }
 function readTextSync(path) {
   try {
-    return { ok: true, value: readFileSync2(path, "utf8") };
+    return { ok: true, value: readFileSync3(path, "utf8") };
   } catch (e) {
     const code = errCode(e);
     if (code === "ENOENT" || code === "ENOTDIR")
@@ -7312,7 +7312,7 @@ function resolveWriteTarget(path) {
 }
 function fileMode(path) {
   try {
-    const st = statSync2(path);
+    const st = statSync3(path);
     return st.isFile() ? st.mode & 4095 : undefined;
   } catch {
     return;
@@ -7323,7 +7323,7 @@ function atomicWriteSync(path, data, opts = {}) {
   const dir = dirname2(target);
   mkdirSync2(dir, { recursive: true });
   const mode = opts.mode ?? fileMode(target) ?? 420;
-  const tmp = join2(dir, `.${basename(target)}.buracle-${process.pid}-${randomBytes(4).toString("hex")}.tmp`);
+  const tmp = join3(dir, `.${basename(target)}.buracle-${process.pid}-${randomBytes(4).toString("hex")}.tmp`);
   let fd;
   try {
     fd = openSync(tmp, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL, mode);
@@ -7469,7 +7469,7 @@ async function run(argv, opts = {}) {
 }
 
 // src/engine/shim.ts
-import { readFileSync as readFileSync9, statSync as statSync9 } from "fs";
+import { readFileSync as readFileSync10, statSync as statSync10 } from "fs";
 import { resolve as resolve5 } from "path";
 function parseShimText(text) {
   const legacy = new RegExp(`^exec '${SQ}' '${SQ}' "\\$@"$`, "m").exec(text);
@@ -7492,14 +7492,14 @@ function parseShimText(text) {
 }
 function readShim(shim = shimPath()) {
   try {
-    return parseShimText(readFileSync9(shim, "utf8"));
+    return parseShimText(readFileSync10(shim, "utf8"));
   } catch {
     return;
   }
 }
 function isFile2(p) {
   try {
-    return statSync9(p).isFile();
+    return statSync10(p).isFile();
   } catch {
     return false;
   }
@@ -7516,21 +7516,21 @@ var init_shim = __esm(() => {
 var init_hook_fail = () => {};
 
 // src/engine/update/runtime.ts
-import { chmodSync as chmodSync2, cpSync, existsSync as existsSync13, mkdirSync as mkdirSync13, readFileSync as readFileSync22, readdirSync as readdirSync12, renameSync as renameSync3, rmSync as rmSync5, statSync as statSync22, writeFileSync as writeFileSync2 } from "fs";
-import { basename as basename10, dirname as dirname16, join as join33, relative as relative5, resolve as resolve19, sep as sep5 } from "path";
+import { chmodSync as chmodSync2, cpSync, existsSync as existsSync13, mkdirSync as mkdirSync13, readFileSync as readFileSync23, readdirSync as readdirSync12, renameSync as renameSync3, rmSync as rmSync5, statSync as statSync23, writeFileSync as writeFileSync2 } from "fs";
+import { basename as basename10, dirname as dirname16, join as join34, relative as relative5, resolve as resolve19, sep as sep5 } from "path";
 function runtimeFiles(checkout) {
   const out = [];
   const walk = (rel) => {
     let entries;
     try {
-      entries = readdirSync12(join33(checkout, rel), { withFileTypes: true });
+      entries = readdirSync12(join34(checkout, rel), { withFileTypes: true });
     } catch {
       return;
     }
     for (const e of entries) {
       if (SKIP_NAMES.has(e.name))
         continue;
-      const r = join33(rel, e.name);
+      const r = join34(rel, e.name);
       if (e.isDirectory())
         walk(r);
       else if (e.isFile())
@@ -7540,13 +7540,13 @@ function runtimeFiles(checkout) {
   for (const d of RUNTIME_DIRS)
     walk(d);
   for (const f of RUNTIME_FILES)
-    if (existsSync13(join33(checkout, f)))
+    if (existsSync13(join34(checkout, f)))
       out.push(f);
   return out.map((p) => p.split(sep5).join("/")).sort();
 }
 function readJson(path) {
   try {
-    const v = JSON.parse(readFileSync22(path, "utf8"));
+    const v = JSON.parse(readFileSync23(path, "utf8"));
     return v !== null && typeof v === "object" && !Array.isArray(v) ? v : undefined;
   } catch {
     return;
@@ -7563,12 +7563,12 @@ function depsOf(pkg) {
   return out;
 }
 function runtimePackages(checkout) {
-  const root = readJson(join33(checkout, "package.json"));
+  const root = readJson(join34(checkout, "package.json"));
   if (root === undefined)
-    return { error: `${join33(checkout, "package.json")} cannot be read` };
+    return { error: `${join34(checkout, "package.json")} cannot be read` };
   let lock = "";
   try {
-    lock = readFileSync22(join33(checkout, "bun.lock"), "utf8");
+    lock = readFileSync23(join34(checkout, "bun.lock"), "utf8");
   } catch {}
   const locked = (name) => {
     const esc = name.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
@@ -7581,8 +7581,8 @@ function runtimePackages(checkout) {
     const [name, want] = queue.shift();
     if (found.has(name))
       continue;
-    const dir = join33(checkout, "node_modules", ...name.split("/"));
-    const pkg = readJson(join33(dir, "package.json"));
+    const dir = join34(checkout, "node_modules", ...name.split("/"));
+    const pkg = readJson(join34(dir, "package.json"));
     const have = typeof pkg?.["version"] === "string" ? pkg["version"] : undefined;
     if (have === undefined) {
       problems.push(`${name} is not installed`);
@@ -7607,9 +7607,9 @@ function fileEntry(rel, content, mode) {
 function checkoutFingerprint(checkout, deps) {
   const parts = [];
   for (const rel of runtimeFiles(checkout)) {
-    const abs = join33(checkout, rel);
+    const abs = join34(checkout, rel);
     try {
-      parts.push(fileEntry(rel, readFileSync22(abs), statSync22(abs).mode));
+      parts.push(fileEntry(rel, readFileSync23(abs), statSync23(abs).mode));
     } catch {
       parts.push(`${rel}\x00missing
 `);
@@ -7625,7 +7625,7 @@ function runtimeDirFingerprint(dir) {
   return "error" in pk ? undefined : checkoutFingerprint(dir, pk.deps);
 }
 function readMarker(dir) {
-  const m = readJson(join33(dir, RUNTIME_MARKER));
+  const m = readJson(join34(dir, RUNTIME_MARKER));
   if (m === undefined || m["v"] !== 1 || typeof m["id"] !== "string" || typeof m["fingerprint"] !== "string" || typeof m["checkout"] !== "string")
     return;
   return m;
@@ -7791,7 +7791,9 @@ __export(exports_policy, {
   checkEval: () => checkEval,
   checkQuestion: () => checkQuestion,
   checkWrite: () => checkWrite,
+  claudeNativeOff: () => claudeNativeOff,
   codeLang: () => codeLang,
+  codexNativeOff: () => codexNativeOff,
   commandTarget: () => commandTarget,
   companionAgent: () => companionAgent,
   companionToolDenial: () => companionToolDenial,
@@ -7838,7 +7840,13 @@ __export(exports_policy, {
   matchPathRules: () => matchPathRules,
   matchesCatastrophicRule: () => matchesCatastrophicRule,
   mcpHealthOf: () => mcpHealthOf,
+  mcpUnavailable: () => mcpUnavailable,
+  offEverywhere: () => offEverywhere,
+  offServersFor: () => offServersFor,
+  ompNativeOff: () => ompNativeOff,
+  opencodeNativeOff: () => opencodeNativeOff,
   parseConsent: () => parseConsent,
+  parseJsoncLoose: () => parseJsoncLoose,
   parseLedger: () => parseLedger,
   parseManifestDeps: () => parseManifestDeps,
   parseRouteRef: () => parseRouteRef,
@@ -7877,7 +7885,8 @@ __export(exports_policy, {
   validateReviewJson: () => validateReviewJson,
   validateRoutingPolicy: () => validateRoutingPolicy,
   validateSkillTriggers: () => validateSkillTriggers,
-  visitShellCommands: () => visitShellCommands
+  visitShellCommands: () => visitShellCommands,
+  withOffServers: () => withOffServers
 });
 
 // src/core/checkers.ts
@@ -18545,6 +18554,9 @@ function matchesCatastrophicRule(tokens, rule) {
   return rule.pattern.every((p, i) => typeof p === "string" ? tokens[i] === p : p.includes(tokens[i]));
 }
 // src/core/policy/routing.ts
+function mcpUnavailable(state) {
+  return state === "down" || state === "off";
+}
 function isObj(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
@@ -18650,23 +18662,26 @@ function code3(s) {
 }
 function choose(cat, kind, health) {
   const down = [];
+  const off = [];
   const refs = [...Array.isArray(cat.prefer) ? cat.prefer : [], ...Array.isArray(cat.fallback) ? cat.fallback : []];
   for (const raw of refs) {
     const ref = parseRouteRef(raw);
     if (!ref)
       continue;
     if (ref.kind === "mcp") {
-      if (health[ref.server] === "down") {
-        if (!down.includes(ref.server))
-          down.push(ref.server);
+      const state = health[ref.server];
+      if (mcpUnavailable(state)) {
+        const list = state === "off" ? off : down;
+        if (!list.includes(ref.server))
+          list.push(ref.server);
         continue;
       }
-      return { ref, down };
+      return { ref, down, off };
     }
     if (ref.kind === "builtin" && ref.tool === kind)
-      return { ref, down };
+      return { ref, down, off };
   }
-  return { down };
+  return { down, off };
 }
 function mcpTools(cat, server, harness) {
   const names = [];
@@ -18727,7 +18742,7 @@ function docsFetchRoute(call, policy, health) {
   if (!cat)
     return;
   const first = (Array.isArray(cat.prefer) ? cat.prefer : []).map(parseRouteRef).find((r) => r?.kind === "mcp");
-  if (first === undefined || health[first.server] === "down")
+  if (first === undefined || mcpUnavailable(health[first.server]))
     return;
   const docs = serverLabel(cat, first, call.harness);
   const fetchCat = policy.categories.find((c) => Array.isArray(c.deny_builtin) && c.deny_builtin.includes("web_fetch"));
@@ -18765,8 +18780,12 @@ function routeTool(call, policy, health) {
       redirects.push(serverLabel(cat, choice.ref, call.harness));
       if (typeof cat.nudge === "string" && cat.nudge.trim() !== "")
         nudges.push(cat.nudge.trim());
-    } else if (choice.down.length > 0) {
-      notes.push(`The ${choice.down.map(code3).join(", ")} MCP server is down, so the ${builtin} is allowed as a fallback; mention the fallback in your report.`);
+    } else if (choice.down.length > 0 || choice.off.length > 0) {
+      const why = [
+        ...choice.down.length > 0 ? [`The ${choice.down.map(code3).join(", ")} MCP server is down`] : [],
+        ...choice.off.length > 0 ? [`the ${choice.off.map(code3).join(", ")} MCP server is off`] : []
+      ].join(" and ");
+      notes.push(`${why.charAt(0).toUpperCase()}${why.slice(1)}, so the ${builtin} is allowed as a fallback; mention the fallback in your report.`);
     }
   }
   if (redirects.length === 0)
@@ -19026,6 +19045,116 @@ function validateRoutingPolicy(x, knownServers) {
       errors.push(`${at}.nudge: expected a non-empty string`);
   });
   return errors;
+}
+// src/core/policy/mcp-off.ts
+function isObj2(x) {
+  return x !== null && typeof x === "object" && !Array.isArray(x);
+}
+function ids(x) {
+  return Array.isArray(x) ? x.filter((v) => typeof v === "string" && v !== "") : [];
+}
+function offServersFor(config, harness) {
+  const mcp = config.mcp;
+  if (!isObj2(mcp) || !isObj2(mcp["off"]))
+    return [];
+  return ids(mcp["off"][harness]);
+}
+function union(lists) {
+  return [...new Set(lists.flat())];
+}
+function sameArgv(a, b) {
+  return Array.isArray(a) && a.length === b.length && a.every((v, i) => v === b[i]);
+}
+var PLUGIN_PREFIX = "plugin:buracle:";
+var serverOfName = (name) => name.startsWith(PLUGIN_PREFIX) ? name.slice(PLUGIN_PREFIX.length) : name;
+function claudeNativeOff(input) {
+  const known = Object.keys(input.servers);
+  const off = new Set;
+  for (const doc of input.settings) {
+    if (!isObj2(doc) || !Array.isArray(doc["deniedMcpServers"]))
+      continue;
+    for (const entry of doc["deniedMcpServers"]) {
+      if (!isObj2(entry))
+        continue;
+      const name = entry["serverName"];
+      if (typeof name === "string" && known.includes(serverOfName(name)))
+        off.add(serverOfName(name));
+      for (const id of known) {
+        const s = input.servers[id];
+        if (entry["serverCommand"] !== undefined && s.commands.some((c) => sameArgv(entry["serverCommand"], c)))
+          off.add(id);
+        if (typeof entry["serverUrl"] === "string" && s.url !== undefined && entry["serverUrl"] === s.url)
+          off.add(id);
+      }
+    }
+  }
+  const projects = isObj2(input.state) && isObj2(input.state["projects"]) ? input.state["projects"] : undefined;
+  const here = projects !== undefined && isObj2(projects[input.project]) ? projects[input.project] : undefined;
+  for (const name of ids(here?.["disabledMcpServers"]))
+    if (known.includes(serverOfName(name)))
+      off.add(serverOfName(name));
+  return [...off];
+}
+function codexNativeOff(config) {
+  if (!isObj2(config) || !isObj2(config["mcp_servers"]))
+    return [];
+  return Object.entries(config["mcp_servers"]).flatMap(([id, t]) => isObj2(t) && t["enabled"] === false ? [id] : []);
+}
+function opencodeNativeOff(configs) {
+  return union(configs.map((c) => {
+    const mcp = isObj2(c) && isObj2(c["mcp"]) ? c["mcp"] : undefined;
+    if (mcp === undefined)
+      return [];
+    const servers = isObj2(mcp["servers"]) ? Object.entries(mcp["servers"]).flatMap(([id, s]) => isObj2(s) && s["disabled"] === true ? [id] : []) : [];
+    const older = Object.entries(mcp).flatMap(([id, s]) => id !== "servers" && id !== "timeout" && isObj2(s) && s["enabled"] === false ? [id] : []);
+    return [...servers, ...older];
+  }));
+}
+function ompNativeOff(docs) {
+  return union(docs.map((d) => isObj2(d) ? ids(d["disabledServers"]) : []));
+}
+function parseJsoncLoose(text) {
+  let out = "";
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === '"') {
+      let j = i + 1;
+      while (j < text.length && text[j] !== '"')
+        j += text[j] === "\\" ? 2 : 1;
+      out += text.slice(i, j + 1);
+      i = j + 1;
+    } else if (ch === "/" && text[i + 1] === "/") {
+      while (i < text.length && text[i] !== `
+`)
+        i++;
+    } else if (ch === "/" && text[i + 1] === "*") {
+      const end = text.indexOf("*/", i + 2);
+      i = end < 0 ? text.length : end + 2;
+    } else {
+      out += ch;
+      i++;
+    }
+  }
+  try {
+    return JSON.parse(out.replace(/,(\s*[}\]])/g, "$1"));
+  } catch {
+    return;
+  }
+}
+function offEverywhere(catalog, config) {
+  return Object.keys(catalog.servers).sort().filter((id) => {
+    const hs = catalog.servers[id]?.harnesses ?? [];
+    return hs.length > 0 && hs.every((h) => offServersFor(config, h).includes(id));
+  });
+}
+function withOffServers(health, off) {
+  if (off.length === 0)
+    return health;
+  const out = { ...health };
+  for (const id of off)
+    out[id] = "off";
+  return out;
 }
 // src/core/policy/text.ts
 function fold2(s) {
@@ -19701,7 +19830,7 @@ function agentOf(x) {
   const id = x.trim().replace(/^.*:/, "");
   return id in REVIEW_CATEGORIES ? id : undefined;
 }
-function isObj2(x) {
+function isObj3(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 function nonEmpty(x) {
@@ -19769,7 +19898,7 @@ function validateReviewJson(text, opts) {
     if (parsed === undefined)
       return { ok: false, errors: [...errors, "the final message is not valid JSON"] };
   }
-  if (!isObj2(parsed))
+  if (!isObj3(parsed))
     return { ok: false, errors: [...errors, "expected one JSON object"] };
   const agent = agentOf(opts?.agent);
   const allowed = agent ? REVIEW_CATEGORIES[agent] : [...new Set(Object.values(REVIEW_CATEGORIES).flat())];
@@ -19800,7 +19929,7 @@ function validateReviewJson(text, opts) {
     let lastRank = 0;
     findings.forEach((f, i) => {
       const at = `findings[${i}]`;
-      if (!isObj2(f)) {
+      if (!isObj3(f)) {
         errors.push(`${at} must be an object`);
         return;
       }
@@ -19853,7 +19982,7 @@ function validateReviewJson(text, opts) {
       let failed = 0;
       truths.forEach((t, i) => {
         const at = `truths[${i}]`;
-        if (!isObj2(t)) {
+        if (!isObj3(t)) {
           errors.push(`${at} must be an object`);
           return;
         }
@@ -20098,7 +20227,7 @@ var STOP_EVENTS = {
 };
 var BINDING_KEYS = ["event", "matcher", "async", "timeoutMs", "also", "fallback"];
 var HOOK_KEYS = ["id", "name", "description", "blocking", "failure", "bindings", "contract_test"];
-function isObj3(x) {
+function isObj4(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 function checkMatcher(m, h, at, errors, event) {
@@ -20111,7 +20240,7 @@ function checkMatcher(m, h, at, errors, event) {
     return;
   }
   if (h === "claude") {
-    if (!isObj3(m) || Object.keys(m).length === 0)
+    if (!isObj4(m) || Object.keys(m).length === 0)
       errors.push(`${at}.matcher: Claude mod matchers are partial objects such as { tool: Bash }`);
     return;
   }
@@ -20124,7 +20253,7 @@ function checkMatcher(m, h, at, errors, event) {
     errors.push(`${at}.matcher: expected a tool name or a list of tool names`);
 }
 function checkBinding(b, h, at, errors, nested) {
-  if (!isObj3(b)) {
+  if (!isObj4(b)) {
     errors.push(`${at}: expected a binding or { unsupported: reason }`);
     return;
   }
@@ -20177,7 +20306,7 @@ function checkBinding(b, h, at, errors, nested) {
       const seen = new Set;
       list.forEach((f, i) => {
         const fat = Array.isArray(fb) ? `${at}.fallback[${i}]` : `${at}.fallback`;
-        if (!isObj3(f)) {
+        if (!isObj4(f)) {
           errors.push(`${fat}: expected { event, matcher?, timeoutMs? }`);
           return;
         }
@@ -20200,18 +20329,18 @@ function checkBinding(b, h, at, errors, nested) {
 }
 function validateHooksMatrix(x) {
   const errors = [];
-  if (!isObj3(x) || !Array.isArray(x["hooks"]))
+  if (!isObj4(x) || !Array.isArray(x["hooks"]))
     return ["(root): expected { hooks: [...] }"];
   for (const k of Object.keys(x))
     if (k !== "hooks")
       errors.push(`(root).${k}: unknown key`);
   const hooks = x["hooks"];
-  const ids = hooks.map((h) => isObj3(h) ? h["id"] : undefined);
+  const ids = hooks.map((h) => isObj4(h) ? h["id"] : undefined);
   if (ids.length !== HOOK_IDS.length || ids.some((id, i) => id !== HOOK_IDS[i]))
     errors.push(`hooks: expected exactly ${HOOK_IDS[0]}\u2026${HOOK_IDS[HOOK_IDS.length - 1]} in order (got ${ids.map(String).join(", ")})`);
   hooks.forEach((hk, i) => {
     const at = `hooks[${i}]`;
-    if (!isObj3(hk)) {
+    if (!isObj4(hk)) {
       errors.push(`${at}: expected a mapping`);
       return;
     }
@@ -20237,7 +20366,7 @@ function validateHooksMatrix(x) {
     if (typeof hk["contract_test"] !== "string" || !/^tests\/[\w./-]+\.test\.ts$/.test(hk["contract_test"]))
       errors.push(`${where}.contract_test: expected a tests/**/*.test.ts path`);
     const bindings = hk["bindings"];
-    if (!isObj3(bindings)) {
+    if (!isObj4(bindings)) {
       errors.push(`${where}.bindings: expected a mapping per harness`);
       return;
     }
@@ -20251,7 +20380,7 @@ function validateHooksMatrix(x) {
         continue;
       }
       checkBinding(b, h, `${where}.bindings.${h}`, errors, false);
-      if (kind !== undefined && isObj3(b) && !("unsupported" in b)) {
+      if (kind !== undefined && isObj4(b) && !("unsupported" in b)) {
         const ev = b["event"];
         const allowed = kind === "deny" ? DENY_EVENTS[h] : STOP_EVENTS[h];
         if (typeof ev === "string" && !allowed.includes(ev))
@@ -21711,7 +21840,7 @@ function companionToolDenial(harness, agent, tool, input) {
 }
 // src/core/policy/skill-router.ts
 var LANG = /^[a-z]{2}$/;
-function isObj4(x) {
+function isObj5(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 function phraseList(x, at, errors) {
@@ -21733,7 +21862,7 @@ function phraseList(x, at, errors) {
         out.push(p.trim());
     });
   };
-  if (isObj4(x)) {
+  if (isObj5(x)) {
     for (const [lang, list] of Object.entries(x)) {
       if (!LANG.test(lang))
         errors.push(`${at}.${lang}: expected a two-letter language code`);
@@ -21762,7 +21891,7 @@ function phraseProblem(p) {
 }
 function triggersOf(x, at, errors, allowed) {
   const out = {};
-  if (!isObj4(x)) {
+  if (!isObj5(x)) {
     errors.push(`${at}: expected a mapping of ${allowed.join(", ")}`);
     return out;
   }
@@ -21781,7 +21910,7 @@ function triggersOf(x, at, errors, allowed) {
 function parseSkillTriggers(x) {
   const errors = [];
   const table = { skills: {}, categories: {} };
-  if (!isObj4(x))
+  if (!isObj5(x))
     return { table, errors: ["(root): expected a mapping with version, skills and categories"] };
   for (const k of Object.keys(x))
     if (!["version", "skills", "categories"].includes(k))
@@ -21792,7 +21921,7 @@ function parseSkillTriggers(x) {
     const raw = x[section];
     if (raw === undefined)
       continue;
-    if (!isObj4(raw)) {
+    if (!isObj5(raw)) {
       errors.push(`${section}: expected a mapping of id -> triggers`);
       continue;
     }
@@ -21818,13 +21947,13 @@ function validateSkillTriggers(x, known = {}) {
       else if (s.invocation === "explicit" && table.skills[id]?.topic !== undefined)
         errors.push(`skills.${id}.topic: ${id} is explicit-only, so topics never load it (use ask)`);
     }
-    const raw = isObj4(x) && isObj4(x["skills"]) ? x["skills"] : {};
+    const raw = isObj5(x) && isObj5(x["skills"]) ? x["skills"] : {};
     for (const s of skills) {
       if (s.userInvocable === false)
         continue;
-      const ask = isObj4(raw[s.id]) ? raw[s.id]["ask"] : undefined;
+      const ask = isObj5(raw[s.id]) ? raw[s.id]["ask"] : undefined;
       for (const lang of ["en", "tr"]) {
-        const list = isObj4(ask) ? ask[lang] : undefined;
+        const list = isObj5(ask) ? ask[lang] : undefined;
         if (!Array.isArray(list) || list.length === 0)
           errors.push(`skills.${s.id}.ask.${lang}: every workflow skill needs explicit-request phrases in ${lang === "en" ? "English" : "Turkish"}`);
       }
@@ -23725,24 +23854,24 @@ function emptyTurn() {
 function emptyLedger() {
   return { v: 1, turn: 0, mcp: {}, skills: {}, turnTools: emptyTurn(), streak: { search: 0 }, symbols: [], libs: [], shown: {}, usedOnce: [] };
 }
-function isObj5(x) {
+function isObj6(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 var isNum = (x) => typeof x === "number" && Number.isFinite(x) && x >= 0;
 var strList = (x, max) => Array.isArray(x) ? x.filter((s) => typeof s === "string").slice(-max) : [];
 function counts(x) {
   const out = {};
-  if (!isObj5(x))
+  if (!isObj6(x))
     return out;
   for (const [k, v] of Object.entries(x).slice(0, MAP_MAX))
-    if (isObj5(v) && isNum(v["n"]) && isNum(v["turn"]))
+    if (isObj6(v) && isNum(v["n"]) && isNum(v["turn"]))
       out[k] = { n: v["n"], turn: v["turn"] };
   return out;
 }
 function routeOf(x) {
-  if (!isObj5(x))
+  if (!isObj6(x))
     return;
-  const mem = isObj5(x["memory"]) ? x["memory"] : {};
+  const mem = isObj6(x["memory"]) ? x["memory"] : {};
   const r = {
     invoked: strList(x["invoked"], 8),
     load: strList(x["load"], 1),
@@ -23759,12 +23888,12 @@ function routeOf(x) {
 }
 function parseLedger(raw) {
   const l = emptyLedger();
-  if (!isObj5(raw) || raw["v"] !== 1)
+  if (!isObj6(raw) || raw["v"] !== 1)
     return l;
   if (isNum(raw["turn"]))
     l.turn = Math.floor(raw["turn"]);
   const p = raw["prompt"];
-  if (isObj5(p) && isNum(p["turn"]) && isNum(p["at"])) {
+  if (isObj6(p) && isNum(p["turn"]) && isNum(p["at"])) {
     const route = routeOf(p["route"]);
     if (route !== undefined)
       l.prompt = { turn: p["turn"], at: p["at"], route, ...p["audited"] === true ? { audited: true } : {} };
@@ -23772,7 +23901,7 @@ function parseLedger(raw) {
   l.mcp = counts(raw["mcp"]);
   l.skills = counts(raw["skills"]);
   const t = raw["turnTools"];
-  if (isObj5(t)) {
+  if (isObj6(t)) {
     l.turnTools = {
       calls: isNum(t["calls"]) ? t["calls"] : 0,
       search: isNum(t["search"]) ? t["search"] : 0,
@@ -23781,17 +23910,17 @@ function parseLedger(raw) {
       memory: isNum(t["memory"]) ? t["memory"] : 0
     };
   }
-  if (isObj5(raw["streak"]) && isNum(raw["streak"]["search"]))
+  if (isObj6(raw["streak"]) && isNum(raw["streak"]["search"]))
     l.streak = { search: raw["streak"]["search"] };
   l.symbols = strList(raw["symbols"], LIST_MAX);
   l.libs = strList(raw["libs"], LIST_MAX);
-  if (isObj5(raw["shown"])) {
+  if (isObj6(raw["shown"])) {
     for (const [k, v] of Object.entries(raw["shown"]).slice(0, MAP_MAX))
-      if (isObj5(v) && isNum(v["turn"]) && isNum(v["n"]))
+      if (isObj6(v) && isNum(v["turn"]) && isNum(v["n"]))
         l.shown[k] = { turn: v["turn"], n: v["n"] };
   }
   l.usedOnce = strList(raw["usedOnce"], LIST_MAX);
-  if (isObj5(raw["mcpErrors"])) {
+  if (isObj6(raw["mcpErrors"])) {
     const errors = {};
     for (const [k, v] of Object.entries(raw["mcpErrors"]).slice(0, MAP_MAX))
       if (isNum(v) && v >= 1)
@@ -23876,7 +24005,7 @@ function shellArgv(command, word = (w) => w.text) {
   }
 }
 function skillOf(call, harness) {
-  const input = isObj5(call.input) ? call.input : {};
+  const input = isObj6(call.input) ? call.input : {};
   if (harness === "claude" && call.tool === "Skill")
     return skillName(input["skill"] ?? input["name"] ?? input["command"]);
   if (harness === "opencode" && call.tool === "skill")
@@ -23953,7 +24082,7 @@ function ledgerCall(l, call) {
   if (skill !== undefined)
     next.skills = bump(l.skills, skill, turn);
   const server = call.kind === "mcp" ? call.mcp?.server : undefined;
-  const input = isObj5(call.input) ? call.input : {};
+  const input = isObj6(call.input) ? call.input : {};
   if (server !== undefined && server !== "") {
     next.mcp = bump(l.mcp, server, turn);
     if (server === "semble" || server === "codegraph") {
@@ -24009,7 +24138,8 @@ function sessionMcpHealth(health, l) {
     return health;
   const out = { ...health };
   for (const id of failing)
-    out[id] = "down";
+    if (out[id] !== "off")
+      out[id] = "down";
   return out;
 }
 var FALLBACK_REMINDER = {
@@ -24044,13 +24174,13 @@ function str4(x) {
 }
 var PATCH_TEXT = /^(?:\*\*\* |--- |\+\+\+ )/m;
 function patchText(call) {
-  const input = isObj5(call.input) ? call.input : {};
+  const input = isObj6(call.input) ? call.input : {};
   return [input["patchText"], input["patch"], input["input"], input["diff"], input["command"]].find((v) => typeof v === "string" && PATCH_TEXT.test(v));
 }
 function editsOf(call, ctx) {
   if (ctx.edits !== undefined)
     return [...ctx.edits];
-  const input = isObj5(call.input) ? call.input : {};
+  const input = isObj6(call.input) ? call.input : {};
   const file = call.paths[0] ?? str4(input["file_path"]) ?? str4(input["filePath"]) ?? str4(input["path"]) ?? "";
   if (call.kind === "edit") {
     const out = [];
@@ -24064,7 +24194,7 @@ function editsOf(call, ctx) {
     const edits = input["edits"];
     if (Array.isArray(edits)) {
       for (const e of edits)
-        if (isObj5(e))
+        if (isObj6(e))
           one(e);
     }
     return out;
@@ -24166,7 +24296,7 @@ function ruleFileReads(call, src, ci) {
       out.push(id);
   };
   if (call.kind === "read") {
-    const input = isObj5(call.input) ? call.input : {};
+    const input = isObj6(call.input) ? call.input : {};
     for (const p of [...call.paths, input["file_path"], input["filePath"], input["path"]])
       add(p);
   }
@@ -24199,7 +24329,7 @@ function pendingRules(l, call, ctx, src, files) {
   return first !== undefined ? { file: first, ids } : undefined;
 }
 function editTargets(call, ctx) {
-  const input = isObj5(call.input) ? call.input : {};
+  const input = isObj6(call.input) ? call.input : {};
   const edited = editsOf(call, ctx).map((e) => e.file);
   const more = [call.command, ...Array.isArray(input["command"]) ? input["command"] : []];
   const text = call.kind === "patch" ? patchText(call) ?? more.find((v) => typeof v === "string" && PATCH_TEXT.test(v)) : undefined;
@@ -24252,7 +24382,7 @@ function reminders(l, call, ctx) {
   const enforce = ctx.strictness === "enforce";
   const remind = ctx.reminders !== false;
   const available = new Set(ctx.available);
-  const input = isObj5(call.input) ? call.input : {};
+  const input = isObj6(call.input) ? call.input : {};
   const rules = ctx.pathRules;
   const ruleReads = rules !== undefined ? ruleFileReads(call, rules, caseInsensitiveOf(ctx)) : [];
   const recorded = ruleReads.length > 0 ? markRules(counted, ruleReads) : counted;
@@ -24459,9 +24589,41 @@ function laneCodeDenial(code, language) {
     return;
   }
 }
+// src/adapters/shared/native-off.ts
+import { readFileSync as readFileSync2, statSync } from "fs";
+import { join as join2 } from "path";
+init_paths();
+var NATIVE_OFF_MAX_BYTES = 4 * 1024 * 1024;
+var cache = new Map;
+function readCapped(file, parse = JSON.parse) {
+  let key;
+  try {
+    const st = statSync(file);
+    if (!st.isFile() || st.size > NATIVE_OFF_MAX_BYTES)
+      return;
+    key = `${st.mtimeMs}:${st.size}`;
+  } catch {
+    return;
+  }
+  const hit = cache.get(file);
+  if (hit !== undefined && hit.key === key)
+    return hit.value;
+  let value;
+  try {
+    value = parse(readFileSync2(file, "utf8"));
+  } catch {
+    value = undefined;
+  }
+  cache.set(file, { key, value });
+  return value;
+}
+function ompOffServers(project) {
+  return ompNativeOff([join2(ompAgentDir(), "mcp.json"), join2(project, ".omp", "mcp.json")].map((f) => readCapped(f)));
+}
+
 // src/engine/log.ts
 init_paths();
-import { appendFileSync, mkdirSync, renameSync, statSync } from "fs";
+import { appendFileSync, mkdirSync, renameSync, statSync as statSync2 } from "fs";
 var RANK = { debug: 10, info: 20, warn: 30, error: 40 };
 var LOG_MAX_BYTES = 5 * 1024 * 1024;
 function threshold() {
@@ -24482,7 +24644,7 @@ function serializable(data) {
 function rotate(file, maxBytes = LOG_MAX_BYTES, measured) {
   let st;
   try {
-    st = measured ?? statSync(file);
+    st = measured ?? statSync2(file);
   } catch {
     return;
   }
@@ -24495,7 +24657,7 @@ function rotate(file, maxBytes = LOG_MAX_BYTES, measured) {
     return;
   }
   try {
-    if (statSync(mine).ino === st.ino)
+    if (statSync2(mine).ino === st.ino)
       renameSync(mine, `${file}.1`);
     else
       renameSync(mine, file);
@@ -24526,8 +24688,8 @@ function log(level, msg, data) {
 init_paths();
 
 // src/workflow/workspace.ts
-import { existsSync as existsSync3, readdirSync, readFileSync as readFileSync4, rmSync, statSync as statSync4, unlinkSync as unlinkSync2 } from "fs";
-import { dirname as dirname4, isAbsolute as isAbsolute4, join as join4, resolve as resolve3 } from "path";
+import { existsSync as existsSync3, readdirSync, readFileSync as readFileSync5, rmSync, statSync as statSync5, unlinkSync as unlinkSync2 } from "fs";
+import { dirname as dirname4, isAbsolute as isAbsolute4, join as join5, resolve as resolve3 } from "path";
 init_fsx();
 
 // src/engine/git.ts
@@ -24616,9 +24778,9 @@ async function projectSlug(cwd) {
 init_paths();
 
 // src/engine/platform.ts
-import { existsSync as existsSync2, readFileSync as readFileSync3, statSync as statSync3 } from "fs";
+import { existsSync as existsSync2, readFileSync as readFileSync4, statSync as statSync4 } from "fs";
 import { homedir } from "os";
-import { isAbsolute as isAbsolute3, join as join3 } from "path";
+import { isAbsolute as isAbsolute3, join as join4 } from "path";
 function osName() {
   const forced = process.env["BURACLE_PLATFORM"];
   if (forced === "darwin" || forced === "linux")
@@ -24629,7 +24791,7 @@ var PROC_VERSION = "/proc/version";
 var wslKernel;
 function microsoftKernel(versionFile) {
   try {
-    const v = readFileSync3(versionFile, "utf8").toLowerCase();
+    const v = readFileSync4(versionFile, "utf8").toLowerCase();
     return v.includes("microsoft") || v.includes("wsl");
   } catch {
     return false;
@@ -24651,14 +24813,14 @@ function homeDir() {
 }
 function isFile(p) {
   try {
-    return statSync3(p).isFile();
+    return statSync4(p).isFile();
   } catch {
     return false;
   }
 }
 function extraBinDirs() {
   const home = homeDir();
-  const dirs = [join3(home, ".local", "bin"), join3(home, ".bun", "bin"), join3(home, "go", "bin"), join3(home, ".cargo", "bin")];
+  const dirs = [join4(home, ".local", "bin"), join4(home, ".bun", "bin"), join4(home, "go", "bin"), join4(home, ".cargo", "bin")];
   if (osName() === "darwin")
     dirs.push("/opt/homebrew/bin", "/usr/local/bin");
   if (osName() === "linux")
@@ -24671,7 +24833,7 @@ function findExecutable(name, opts = {}) {
   if (hit !== null && hit !== undefined)
     return hit;
   for (const dir of [...opts.extra ?? [], ...extraBinDirs()]) {
-    const p = join3(dir, name);
+    const p = join4(dir, name);
     if (isFile(p))
       return p;
   }
@@ -24756,7 +24918,7 @@ function markerEntries(dir) {
       files.add(e.name);
     else if (e.isSymbolicLink()) {
       try {
-        if (statSync4(join4(dir, e.name)).isFile())
+        if (statSync5(join5(dir, e.name)).isFile())
           files.add(e.name);
       } catch {}
     }
@@ -24795,13 +24957,13 @@ function markerRoot(dir, ctx) {
   return found;
 }
 function isProjectDir(dir) {
-  return existsSync3(join4(dir, ".git")) || hasMarker(dir);
+  return existsSync3(join5(dir, ".git")) || hasMarker(dir);
 }
 function activity(dir, mtimeMs) {
   let t = mtimeMs;
-  for (const f of [".git", join4(".git", "index"), join4(".git", "HEAD")]) {
+  for (const f of [".git", join5(".git", "index"), join5(".git", "HEAD")]) {
     try {
-      t = Math.max(t, statSync4(join4(dir, f)).mtimeMs);
+      t = Math.max(t, statSync5(join5(dir, f)).mtimeMs);
     } catch {}
   }
   return t;
@@ -24819,10 +24981,10 @@ function childProjects(dir, ctx, max) {
   for (const name of names) {
     if (name.startsWith(".") || name === "node_modules")
       continue;
-    const p = join4(dir, name);
+    const p = join5(dir, name);
     let mtimeMs;
     try {
-      const st = statSync4(p);
+      const st = statSync5(p);
       if (!st.isDirectory())
         continue;
       mtimeMs = st.mtimeMs;
@@ -24873,7 +25035,7 @@ function indexTag(root) {
   return sha256(canonicalDir(root)).slice(0, 16);
 }
 function indexRecordFile(root) {
-  return join4(indexStateDir(), `${indexTag(root)}.json`);
+  return join5(indexStateDir(), `${indexTag(root)}.json`);
 }
 var CORRUPT_KEEP_MS = 14 * 86400000;
 function indexLockFile(root) {
@@ -24894,7 +25056,7 @@ function pidAlive(pid) {
 function indexLockHolder(root, nowMs) {
   let held;
   try {
-    held = JSON.parse(readFileSync4(indexLockFile(root), "utf8"));
+    held = JSON.parse(readFileSync5(indexLockFile(root), "utf8"));
   } catch {
     return;
   }
@@ -24911,15 +25073,15 @@ function codegraphDataDir(root, env = process.env) {
     return raw;
   if (isWsl(env) && wslDrive(root) !== undefined) {
     try {
-      if (statSync4(join4(root, ".codegraph-wsl")).isDirectory())
+      if (statSync5(join5(root, ".codegraph-wsl")).isDirectory())
         return ".codegraph-wsl";
     } catch {}
-    return existsSync3(join4(root, ".codegraph", "codegraph.db")) ? ".codegraph" : ".codegraph-wsl";
+    return existsSync3(join5(root, ".codegraph", "codegraph.db")) ? ".codegraph" : ".codegraph-wsl";
   }
   return ".codegraph";
 }
 function codegraphIndexPresent(root) {
-  return existsSync3(join4(root, codegraphDataDir(root), "codegraph.db"));
+  return existsSync3(join5(root, codegraphDataDir(root), "codegraph.db"));
 }
 function projectIndex(root, cfg, nowMs, building = false) {
   const rec = readIndexRecord(root);
@@ -25001,7 +25163,7 @@ function selfPaths(configuredRepo, source) {
 }
 
 // src/adapters/shared/write-content.ts
-import { readFileSync as readFileSync5, statSync as statSync5 } from "fs";
+import { readFileSync as readFileSync6, statSync as statSync6 } from "fs";
 
 // node_modules/jsonc-parser/lib/esm/impl/scanner.js
 function createScanner(text, ignoreTrivia = false) {
@@ -25864,10 +26026,10 @@ var CONFIG_PARSERS = {
 };
 function currentText(file) {
   try {
-    const st = statSync5(file);
+    const st = statSync6(file);
     if (!st.isFile() || st.size > WRITE_CONTENT_MAX_BYTES)
       return;
-    return readFileSync5(file, "utf8");
+    return readFileSync6(file, "utf8");
   } catch (e) {
     return e.code === "ENOENT" ? "" : undefined;
   }
@@ -26198,8 +26360,8 @@ function guardedContents(changes, paths, home, opts = {}) {
 }
 
 // src/adapters/shared/checker-scan.ts
-import { readdirSync as readdirSync2, readFileSync as readFileSync6, statSync as statSync6 } from "fs";
-import { basename as basename5, dirname as dirname7, join as join5, relative, sep } from "path";
+import { readdirSync as readdirSync2, readFileSync as readFileSync7, statSync as statSync7 } from "fs";
+import { basename as basename5, dirname as dirname7, join as join6, relative, sep } from "path";
 
 // src/core/checker-facts.ts
 var ESLINT_BINS = ["node_modules/.bin/eslint"];
@@ -27190,15 +27352,15 @@ var nodeCheckFs = {
   },
   read: (path, maxBytes) => {
     try {
-      const st = statSync6(path);
-      return st.isFile() && st.size <= maxBytes ? readFileSync6(path, "utf8") : undefined;
+      const st = statSync7(path);
+      return st.isFile() && st.size <= maxBytes ? readFileSync7(path, "utf8") : undefined;
     } catch {
       return;
     }
   },
   exists: (path) => {
     try {
-      statSync6(path);
+      statSync7(path);
       return true;
     } catch {
       return false;
@@ -27218,16 +27380,16 @@ function scanUpward(fs, file, root, home) {
     const names = fs.list(dir).map((e) => e.name);
     const scan = { dir, names };
     if (names.includes("pyproject.toml")) {
-      const t = fs.read(join5(dir, "pyproject.toml"), MANIFEST_MAX_BYTES);
+      const t = fs.read(join6(dir, "pyproject.toml"), MANIFEST_MAX_BYTES);
       if (t !== undefined)
         scan.pyproject = t;
     }
     if (names.includes("package.json")) {
-      const t = fs.read(join5(dir, "package.json"), MANIFEST_MAX_BYTES);
+      const t = fs.read(join6(dir, "package.json"), MANIFEST_MAX_BYTES);
       if (t !== undefined)
         scan.packageJson = t;
     }
-    const present = CHECKER_PROBES.filter((p) => names.includes(p.split("/")[0]) && fs.exists(join5(dir, ...p.split("/"))));
+    const present = CHECKER_PROBES.filter((p) => names.includes(p.split("/")[0]) && fs.exists(join6(dir, ...p.split("/"))));
     if (present.length > 0)
       scan.present = present;
     return scan;
@@ -27245,9 +27407,9 @@ function mirrorDirs(file, testDir, owner) {
     return [];
   const segs = rel.split(sep);
   const stem = basename5(file).replace(/\.[^.]+$/, "");
-  const out = [join5(testDir, ...segs), join5(testDir, ...segs, stem)];
+  const out = [join6(testDir, ...segs), join6(testDir, ...segs, stem)];
   if (segs.length > 0 && SOURCE_ROOTS.has(segs[0]))
-    out.push(join5(testDir, ...segs.slice(1)), join5(testDir, ...segs.slice(1), stem));
+    out.push(join6(testDir, ...segs.slice(1)), join6(testDir, ...segs.slice(1), stem));
   return out;
 }
 function testFilesNear(fs, file, scans, now) {
@@ -27259,10 +27421,10 @@ function testFilesNear(fs, file, scans, now) {
   const queue = [];
   for (const s of scans) {
     for (const n of s.names) {
-      if (n === basename5(dirname7(file)) && join5(s.dir, n) === dirname7(file))
+      if (n === basename5(dirname7(file)) && join6(s.dir, n) === dirname7(file))
         continue;
       if (TEST_DIR_NAMES.includes(n) || family === "cs" && isDotnetTestProjectName(n)) {
-        const t = join5(s.dir, n);
+        const t = join6(s.dir, n);
         if (roots.includes(t))
           continue;
         roots.push(t);
@@ -27283,10 +27445,10 @@ function testFilesNear(fs, file, scans, now) {
       visited++;
       if (e.dir) {
         if (!SKIP_DIRS.has(e.name) && !e.name.startsWith("."))
-          queue.push(join5(d, e.name));
+          queue.push(join6(d, e.name));
         continue;
       }
-      const p = join5(d, e.name);
+      const p = join6(d, e.name);
       if (FAMILY[extOf(e.name)] !== family || found.includes(p))
         continue;
       if (isTestFileName(e.name) || family === "cs")
@@ -27312,7 +27474,7 @@ function lastFailed(fs, scans) {
   for (const s of scans) {
     if (!s.names.includes(".pytest_cache"))
       continue;
-    const text = fs.read(join5(s.dir, ".pytest_cache", "v", "cache", "lastfailed"), MANIFEST_MAX_BYTES);
+    const text = fs.read(join6(s.dir, ".pytest_cache", "v", "cache", "lastfailed"), MANIFEST_MAX_BYTES);
     if (text === undefined)
       continue;
     try {
@@ -27623,14 +27785,14 @@ function changesNotesKey(branch) {
 function emptyNotesFile(root, extra = {}) {
   return { v: 1, root, ...extra.doc !== undefined ? { doc: extra.doc } : {}, ...extra.branch !== undefined ? { branch: extra.branch } : {}, notes: [] };
 }
-function isObj6(x) {
+function isObj7(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 function posInt(x) {
   return typeof x === "number" && Number.isInteger(x) && x >= 1 && x <= 1e7;
 }
 function isReviewNote(x) {
-  if (!isObj6(x))
+  if (!isObj7(x))
     return false;
   if (typeof x["id"] !== "string" || !NOTE_ID_RE.test(x["id"]))
     return false;
@@ -27643,7 +27805,7 @@ function isReviewNote(x) {
   return true;
 }
 function isReviewNotesFile(x) {
-  return isObj6(x) && x["v"] === 1 && typeof x["root"] === "string" && Array.isArray(x["notes"]);
+  return isObj7(x) && x["v"] === 1 && typeof x["root"] === "string" && Array.isArray(x["notes"]);
 }
 function cleanNotesFile(x) {
   return { ...x, notes: x.notes.filter(isReviewNote) };
@@ -27758,7 +27920,7 @@ function noteLines(n) {
 `).map((l) => `    ${l}`)];
 }
 function isInboxEntry(x) {
-  return isObj6(x) && typeof x["at"] === "number" && typeof x["root"] === "string" && typeof x["key"] === "string" && typeof x["open"] === "number";
+  return isObj7(x) && typeof x["at"] === "number" && typeof x["root"] === "string" && typeof x["key"] === "string" && typeof x["open"] === "number";
 }
 function inboxWith(entries, e, bump) {
   const prev = entries.find((x) => x.root === e.root && x.key === e.key);
@@ -30877,23 +31039,23 @@ async function fenceActiveTools(pi, agent) {
 }
 
 // src/adapters/shared/consent-store.ts
-import { join as join7 } from "path";
+import { join as join8 } from "path";
 init_fsx();
 init_paths();
 
 // src/workflow/session-store.ts
-import { existsSync as existsSync4, lstatSync as lstatSync2, readdirSync as readdirSync3, rmSync as rmSync2, statSync as statSync8, unlinkSync as unlinkSync4 } from "fs";
-import { join as join6, posix } from "path";
+import { existsSync as existsSync4, lstatSync as lstatSync2, readdirSync as readdirSync3, rmSync as rmSync2, statSync as statSync9, unlinkSync as unlinkSync4 } from "fs";
+import { join as join7, posix } from "path";
 init_fsx();
 init_paths();
 
 // src/memory/lock.ts
-import { closeSync as closeSync3, mkdirSync as mkdirSync3, openSync as openSync3, readFileSync as readFileSync8, utimesSync, writeSync as writeSync2 } from "fs";
+import { closeSync as closeSync3, mkdirSync as mkdirSync3, openSync as openSync3, readFileSync as readFileSync9, utimesSync, writeSync as writeSync2 } from "fs";
 import { dirname as dirname8 } from "path";
 
 // src/engine/lockfile.ts
 import { randomBytes as randomBytes2 } from "crypto";
-import { closeSync as closeSync2, openSync as openSync2, readFileSync as readFileSync7, statSync as statSync7, unlinkSync as unlinkSync3 } from "fs";
+import { closeSync as closeSync2, openSync as openSync2, readFileSync as readFileSync8, statSync as statSync8, unlinkSync as unlinkSync3 } from "fs";
 var lockTestHooks = {};
 var BREAKER_STALE_MS = 5000;
 function lockToken() {
@@ -30901,8 +31063,8 @@ function lockToken() {
 }
 function lockSnapshot(path) {
   try {
-    const st = statSync7(path);
-    return { dev: st.dev, ino: st.ino, mtimeMs: st.mtimeMs, text: readFileSync7(path, "utf8") };
+    const st = statSync8(path);
+    return { dev: st.dev, ino: st.ino, mtimeMs: st.mtimeMs, text: readFileSync8(path, "utf8") };
   } catch {
     return;
   }
@@ -30921,7 +31083,7 @@ function breakStaleLock(path, seen) {
   } catch (e) {
     if (e.code === "EEXIST") {
       try {
-        if (Date.now() - statSync7(breaker).mtimeMs > BREAKER_STALE_MS)
+        if (Date.now() - statSync8(breaker).mtimeMs > BREAKER_STALE_MS)
           unlinkSync3(breaker);
       } catch {}
     }
@@ -30947,7 +31109,7 @@ function breakStaleLock(path, seen) {
 function releaseLockFile(path, text) {
   let cur;
   try {
-    cur = readFileSync7(path, "utf8");
+    cur = readFileSync8(path, "utf8");
   } catch {
     return;
   }
@@ -30976,7 +31138,7 @@ function ownerAlive(text) {
 }
 function touchOwn(path, text) {
   try {
-    if (readFileSync8(path, "utf8") !== text)
+    if (readFileSync9(path, "utf8") !== text)
       return;
     const now = new Date;
     utimesSync(path, now, now);
@@ -31026,10 +31188,10 @@ function freshState() {
   return { v: 1, guard: { blocksForPlan: 0, blocksInChain: 0 } };
 }
 function statePath(h, sid) {
-  return join6(sessionDir(h, sid), "state.json");
+  return join7(sessionDir(h, sid), "state.json");
 }
 function telemetryPath(h, sid) {
-  return join6(sessionDir(h, sid), "telemetry.json");
+  return join7(sessionDir(h, sid), "telemetry.json");
 }
 function isSessionState(x) {
   if (x === null || typeof x !== "object")
@@ -31113,7 +31275,7 @@ var SESSION_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 function newestMtime(dir) {
   let newest = 0;
   try {
-    newest = statSync8(dir).mtimeMs;
+    newest = statSync9(dir).mtimeMs;
   } catch {
     return 0;
   }
@@ -31125,7 +31287,7 @@ function newestMtime(dir) {
   }
   for (const n of names) {
     try {
-      newest = Math.max(newest, lstatSync2(join6(dir, n)).mtimeMs);
+      newest = Math.max(newest, lstatSync2(join7(dir, n)).mtimeMs);
     } catch {}
   }
   return newest;
@@ -31152,12 +31314,12 @@ function pruneSessions(h, opts) {
   for (const sid of names) {
     if (!isValidSessionId(sid) || keep.has(sid))
       continue;
-    const dir = join6(sessions, sid);
+    const dir = join7(sessions, sid);
     try {
       const st = lstatSync2(dir);
       if (!st.isDirectory() || st.isSymbolicLink())
         continue;
-      const activity = Math.max(newestMtime(dir), mtimeOf(join6(run, `${sid}.json`)) ?? 0);
+      const activity = Math.max(newestMtime(dir), mtimeOf(join7(run, `${sid}.json`)) ?? 0);
       if (opts.nowMs - activity < maxAge)
         continue;
       rmSync2(dir, { recursive: true, force: true });
@@ -31175,12 +31337,12 @@ function pruneSessions(h, opts) {
     const sid = name.slice(0, -".json".length);
     if (!isValidSessionId(sid) || keep.has(sid))
       continue;
-    const file = join6(run, name);
+    const file = join7(run, name);
     try {
       const st = lstatSync2(file);
       if (!st.isFile())
         continue;
-      const activity = Math.max(st.mtimeMs, mtimeOf(join6(sessions, sid)) ?? 0);
+      const activity = Math.max(st.mtimeMs, mtimeOf(join7(sessions, sid)) ?? 0);
       if (opts.nowMs - activity < maxAge)
         continue;
       unlinkSync4(file);
@@ -31190,13 +31352,13 @@ function pruneSessions(h, opts) {
   return removed;
 }
 function spoolActiveDir() {
-  return join6(memoryStateDir(), "spool");
+  return join7(memoryStateDir(), "spool");
 }
 function spoolDoneDir() {
-  return join6(spoolActiveDir(), "done");
+  return join7(spoolActiveDir(), "done");
 }
 function sessionRecordPath(h, sid) {
-  return join6(memoryStateDir(), "sessions", `${h}-${sid}.json`);
+  return join7(memoryStateDir(), "sessions", `${h}-${sid}.json`);
 }
 function pruneSpoolFiles(dir, h, nowMs, maxAgeMs, keep, removed) {
   let names = [];
@@ -31208,7 +31370,7 @@ function pruneSpoolFiles(dir, h, nowMs, maxAgeMs, keep, removed) {
   for (const name of names) {
     if (!name.startsWith(`${h}-`) || !name.endsWith(".jsonl"))
       continue;
-    const file = join6(dir, name);
+    const file = join7(dir, name);
     try {
       const st = lstatSync2(file);
       if (!st.isFile() || nowMs - st.mtimeMs < maxAgeMs || keep(name.slice(h.length + 1, -".jsonl".length)))
@@ -31283,7 +31445,7 @@ function profileGuard(h, runtimeCfg, env) {
   return `Buracle was installed for ${spec.label} into ${installed}, but this session reads ${live} (${spec.variable}), where Buracle's hooks, rules and settings are missing. Run \`buracle install ${h}\` with this environment, or start ${spec.label} without the override.`;
 }
 function sessionAliasesPath(h) {
-  return join6(sessionsDir(h), "aliases.json");
+  return join7(sessionsDir(h), "aliases.json");
 }
 function readSessionAliases(h) {
   const r = readJsonSafeSync(sessionAliasesPath(h));
@@ -31342,7 +31504,7 @@ function pruneSessionAliases(h) {
 var LOCK_WAIT_MS = 1500;
 var LOCK_STALE_MS = 1e4;
 function consentFile(h, sid) {
-  return join7(sessionDir(h, sid), "consent.json");
+  return join8(sessionDir(h, sid), "consent.json");
 }
 function readConsentState(h, sid) {
   const r = readJsonSafeSync(consentFile(h, sid));
@@ -31461,8 +31623,8 @@ function heldConsentNeed(sid, command) {
 }
 
 // src/adapters/omp/runtime/deps.ts
-import { readdirSync as readdirSync10, readFileSync as readFileSync21, rmSync as rmSync4, statSync as statSync21 } from "fs";
-import { join as join30, resolve as resolve16 } from "path";
+import { readdirSync as readdirSync10, readFileSync as readFileSync22, rmSync as rmSync4, statSync as statSync22 } from "fs";
+import { join as join31, resolve as resolve16 } from "path";
 
 // src/core/config.ts
 var COMPANION_SETTINGS = ["off", "auto", ...HARNESSES];
@@ -31505,7 +31667,8 @@ function defaultConfig() {
     agents: { teams: true },
     workflow: { band: true, foldAfterSec: 8, notifyAfterSec: 120, codexNotices: true },
     toolchain: { autoInstall: true, system: true, upgrade: true },
-    index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 }
+    index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 },
+    mcp: { shared: true, off: { claude: [], codex: [], opencode: [], omp: [] } }
   };
 }
 var bool = { t: "bool" };
@@ -31526,6 +31689,9 @@ var EFFORT_VALUES = {
 var effortFields = {};
 for (const h of HARNESSES)
   effortFields[h] = { t: "enum", values: EFFORT_VALUES[h] };
+var mcpOffFields = {};
+for (const h of HARNESSES)
+  mcpOffFields[h] = strList2;
 var CONFIG_SCHEMA = {
   t: "obj",
   optional: ["repo"],
@@ -31598,7 +31764,8 @@ var CONFIG_SCHEMA = {
     agents: { t: "obj", fields: { teams: bool } },
     workflow: { t: "obj", fields: { band: bool, foldAfterSec: count(0), notifyAfterSec: count(0), codexNotices: bool } },
     toolchain: { t: "obj", fields: { autoInstall: bool, system: bool, upgrade: bool } },
-    index: { t: "obj", fields: { auto: bool, codegraph: bool, semble: bool, minIntervalMin: count(0), exclude: strList2, children: bool, maxChildren: count(0) } }
+    index: { t: "obj", fields: { auto: bool, codegraph: bool, semble: bool, minIntervalMin: count(0), exclude: strList2, children: bool, maxChildren: count(0) } },
+    mcp: { t: "obj", fields: { shared: bool, off: { t: "obj", fields: mcpOffFields } } }
   }
 };
 function isPlainObject(x) {
@@ -32475,11 +32642,11 @@ function count2(x) {
   const n = num(x);
   return n !== undefined && n >= 0 ? Math.floor(n) : undefined;
 }
-function isObj7(x) {
+function isObj8(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 function entryOf(raw) {
-  if (!isObj7(raw))
+  if (!isObj8(raw))
     return;
   const workflow = raw["workflow"];
   const startedAt = num(raw["startedAt"]);
@@ -32490,13 +32657,13 @@ function entryOf(raw) {
   if (typeof raw["title"] === "string" && raw["title"].trim() !== "")
     e.title = flowText(raw["title"], FLOW_TITLE_MAX);
   const p = raw["phase"];
-  if (isObj7(p) && typeof p["id"] === "string" && FLOW_ID_RE.test(p["id"]) && num(p["since"]) !== undefined) {
+  if (isObj8(p) && typeof p["id"] === "string" && FLOW_ID_RE.test(p["id"]) && num(p["since"]) !== undefined) {
     e.phase = { id: p["id"], since: num(p["since"]) };
     if (typeof p["note"] === "string" && p["note"].trim() !== "")
       e.phase.note = flowText(p["note"], FLOW_NOTE_MAX);
   }
   const s = raw["step"];
-  if (isObj7(s) && typeof s["text"] === "string" && num(s["at"]) !== undefined) {
+  if (isObj8(s) && typeof s["text"] === "string" && num(s["at"]) !== undefined) {
     e.step = { text: flowText(s["text"], FLOW_STEP_MAX), at: num(s["at"]) };
     const done = count2(s["done"]);
     const total = count2(s["total"]);
@@ -32506,13 +32673,13 @@ function entryOf(raw) {
       e.step.total = total;
   }
   const x = raw["ended"];
-  if (isObj7(x) && FLOW_OUTCOMES.includes(x["outcome"]) && num(x["at"]) !== undefined) {
+  if (isObj8(x) && FLOW_OUTCOMES.includes(x["outcome"]) && num(x["at"]) !== undefined) {
     e.ended = { outcome: x["outcome"], at: num(x["at"]) };
   }
   return e;
 }
 function parseFlow(raw) {
-  if (!isObj7(raw) || raw["v"] !== 1 || !Array.isArray(raw["stack"]))
+  if (!isObj8(raw) || raw["v"] !== 1 || !Array.isArray(raw["stack"]))
     return;
   const stack = [];
   for (const item of raw["stack"]) {
@@ -33673,8 +33840,8 @@ function barLines(bar, info, layout, width, nowMs) {
 }
 
 // src/usage/bar-info.ts
-import { existsSync as existsSync5, readFileSync as readFileSync10, statSync as statSync10 } from "fs";
-import { join as join8 } from "path";
+import { existsSync as existsSync5, readFileSync as readFileSync11, statSync as statSync11 } from "fs";
+import { join as join9 } from "path";
 
 // src/core/flow/panes.ts
 function planPaneLines(v, state) {
@@ -33747,7 +33914,7 @@ function isRecord3(x) {
 }
 function buracleVersion(repoRoot = repoRoot2()) {
   try {
-    const v = JSON.parse(readFileSync10(join8(repoRoot, "package.json"), "utf8")).version;
+    const v = JSON.parse(readFileSync11(join9(repoRoot, "package.json"), "utf8")).version;
     return typeof v === "string" ? v : "?";
   } catch {
     return "?";
@@ -33757,17 +33924,17 @@ function claudePlan() {
   const file = claudeJson();
   let mtime;
   try {
-    mtime = statSync10(file).mtimeMs;
+    mtime = statSync11(file).mtimeMs;
   } catch {
     return;
   }
-  const cacheFile = join8(buracleHome(), "cache", "claude-plan.json");
+  const cacheFile = join9(buracleHome(), "cache", "claude-plan.json");
   const cached = readJsonSafeSync(cacheFile);
   if (cached.ok && cached.value?.mtime === mtime)
     return cached.value.plan ?? undefined;
   let plan;
   try {
-    const j = JSON.parse(readFileSync10(file, "utf8"));
+    const j = JSON.parse(readFileSync11(file, "utf8"));
     const oa = isRecord3(j) && isRecord3(j["oauthAccount"]) ? j["oauthAccount"] : undefined;
     if (oa === undefined)
       plan = "API";
@@ -33797,7 +33964,7 @@ function claudePlan() {
 }
 var VERSION_CMD = { claude: "claude", codex: "codex", opencode: "opencode", omp: "omp" };
 function versionCacheFile() {
-  return join8(buracleHome(), "cache", "harness-versions.json");
+  return join9(buracleHome(), "cache", "harness-versions.json");
 }
 async function harnessVersion(h, nowMs) {
   const cacheFile = versionCacheFile();
@@ -33837,7 +34004,7 @@ function liveMemoryUi() {
   return v;
 }
 function buracleArgv() {
-  const main = join8(repoRoot2(), "src", "cli", "main.ts");
+  const main = join9(repoRoot2(), "src", "cli", "main.ts");
   const bun = findExecutable("bun");
   if (bun !== undefined && existsSync5(main))
     return [bun, main];
@@ -33875,7 +34042,7 @@ init_paths();
 init_paths();
 
 // src/workflow/flow.ts
-import { join as join9 } from "path";
+import { join as join10 } from "path";
 init_fsx();
 init_paths();
 
@@ -33885,7 +34052,7 @@ var NO_SESSION_HINT = "no session: no harness session id was found. Buracle read
 // src/workflow/flow.ts
 var DEFAULT_FOLD_SEC = 8;
 function flowPath(h, sid) {
-  return join9(sessionDir(h, sid), "flow.json");
+  return join10(sessionDir(h, sid), "flow.json");
 }
 function readFlow(h, sid) {
   const r = readJsonSafeSync(flowPath(h, sid));
@@ -33990,18 +34157,18 @@ var TELEMETRY_FRESH_MS = 60 * 60000;
 
 // src/usage/cache.ts
 import { spawn } from "child_process";
-import { closeSync as closeSync4, existsSync as existsSync6, mkdirSync as mkdirSync4, openSync as openSync4, statSync as statSync12, utimesSync as utimesSync2, writeSync as writeSync3 } from "fs";
-import { dirname as dirname9, join as join11 } from "path";
+import { closeSync as closeSync4, existsSync as existsSync6, mkdirSync as mkdirSync4, openSync as openSync4, statSync as statSync13, utimesSync as utimesSync2, writeSync as writeSync3 } from "fs";
+import { dirname as dirname9, join as join12 } from "path";
 
 // src/engine/config.ts
-import { readFileSync as readFileSync11, statSync as statSync11 } from "fs";
-import { join as join10 } from "path";
+import { readFileSync as readFileSync12, statSync as statSync12 } from "fs";
+import { join as join11 } from "path";
 init_fsx();
 init_paths();
 var UNKNOWN_KEY_HINT = "(ignored; misspelled, renamed or removed? `buracle config get` prints the valid keys)";
 function readText(path) {
   try {
-    return { kind: "ok", text: readFileSync11(path, "utf8") };
+    return { kind: "ok", text: readFileSync12(path, "utf8") };
   } catch (e) {
     const code = e.code;
     if (code === "ENOENT" || code === "ENOTDIR")
@@ -34026,7 +34193,7 @@ function inputsStamp(canonical, user) {
 }
 function snapshotConfig(stamp) {
   try {
-    const snap = JSON.parse(readFileSync11(runtimeConfigFile(), "utf8"));
+    const snap = JSON.parse(readFileSync12(runtimeConfigFile(), "utf8"));
     if (snap === null || typeof snap !== "object" || snap.v !== 1 || snap.stamp !== stamp)
       return;
     return mergeConfig(defaultConfig(), snap.config);
@@ -34048,7 +34215,7 @@ function mergeLayer(base, override, file, errors, warnings, renames) {
   }
 }
 function loadConfigSync(opts = {}) {
-  const canonicalPath = join10(opts.repoRoot ?? repoRoot2(), "canonical", "buracle.yaml");
+  const canonicalPath = join11(opts.repoRoot ?? repoRoot2(), "canonical", "buracle.yaml");
   const userPath = opts.userConfigPath ?? userConfigFile();
   const errors = [];
   const warnings = [];
@@ -34121,26 +34288,26 @@ function isStale(entry, nowMs, ttlMs = USAGE_TTL_MS) {
   return !Number.isFinite(at) || nowMs - at > ttlMs || at - nowMs > 60000;
 }
 function lockFile() {
-  return join11(stateDir(), "usage.lock");
+  return join12(stateDir(), "usage.lock");
 }
 function spawnMarker(h) {
-  return join11(stateDir(), `usage.spawn.${h}`);
+  return join12(stateDir(), `usage.spawn.${h}`);
 }
 function defaultRefreshArgv(h) {
   const tail = ["usage", "refresh", "--harness", h, "--background"];
-  const main = join11(repoRoot2(), "src", "cli", "main.ts");
+  const main = join12(repoRoot2(), "src", "cli", "main.ts");
   return existsSync6(main) ? [bunExecutable(), main, ...tail] : [...shimLaunch() ?? [shimPath()], ...tail];
 }
 function spawnUsageRefresh(h, opts = {}) {
   try {
     const now = Date.now();
     try {
-      if (now - statSync12(lockFile()).mtimeMs <= LOCK_STALE_MS2)
+      if (now - statSync13(lockFile()).mtimeMs <= LOCK_STALE_MS2)
         return false;
     } catch {}
     const marker = spawnMarker(h);
     try {
-      if (now - statSync12(marker).mtimeMs < SPAWN_INTERVAL_MS)
+      if (now - statSync13(marker).mtimeMs < SPAWN_INTERVAL_MS)
         return false;
     } catch {}
     mkdirSync4(dirname9(marker), { recursive: true });
@@ -34167,12 +34334,12 @@ init_fsx();
 init_paths();
 
 // src/workflow/plan-capture.ts
-import { closeSync as closeSync5, mkdirSync as mkdirSync5, openSync as openSync5, readFileSync as readFileSync13, writeSync as writeSync4 } from "fs";
-import { isAbsolute as isAbsolute6, join as join12, relative as relative2, resolve as resolve6, sep as sep2 } from "path";
+import { closeSync as closeSync5, mkdirSync as mkdirSync5, openSync as openSync5, readFileSync as readFileSync14, writeSync as writeSync4 } from "fs";
+import { isAbsolute as isAbsolute6, join as join13, relative as relative2, resolve as resolve6, sep as sep2 } from "path";
 init_fsx();
 
 // src/workflow/plan-file.ts
-import { readFileSync as readFileSync12 } from "fs";
+import { readFileSync as readFileSync13 } from "fs";
 init_fsx();
 var PLAN_STATUSES2 = ["PENDING", "APPROVED", "IN_PROGRESS", "COMPLETE", "VERIFIED", "SAVED"];
 var PLAN_TYPES2 = ["Feature", "Bugfix", "Build", "Plan"];
@@ -34356,7 +34523,7 @@ function analyzePlan(markdown) {
 function readPlanFile(path) {
   let text;
   try {
-    text = readFileSync12(path, "utf8");
+    text = readFileSync13(path, "utf8");
   } catch (e) {
     const code = e.code;
     if (code === "ENOENT" || code === "ENOTDIR")
@@ -34513,11 +34680,11 @@ async function capturePlanFile(i) {
   const base = slugFromTitle(title, 60) || "plan";
   const approved = i.approved ?? true;
   const content = capturedPlanMarkdown(text, { created, harness: i.harness, approved, title, ...i.via !== undefined ? { via: i.via } : {} });
-  const dir = join12(root, "docs", docDirFor("plan-build"));
+  const dir = join13(root, "docs", docDirFor("plan-build"));
   mkdirSync5(dir, { recursive: true });
   for (let n = 1;n <= CAPTURE_SLOTS; n++) {
     const slug = n === 1 ? base : `${base}-${n}`;
-    const path = join12(dir, `${created}-${slug}.md`);
+    const path = join13(dir, `${created}-${slug}.md`);
     if (claim(path, content))
       return { path, slug, title, created, approved };
   }
@@ -34589,11 +34756,11 @@ async function captureSessionPlan(i) {
 }
 
 // src/workflow/ledger.ts
-import { join as join13 } from "path";
+import { join as join14 } from "path";
 init_fsx();
 init_paths();
 function ledgerPath(h, sid) {
-  return join13(sessionDir(h, sid), "ledger.json");
+  return join14(sessionDir(h, sid), "ledger.json");
 }
 function loadLedger(h, sid) {
   const r = readJsonSafeSync(ledgerPath(h, sid));
@@ -34622,16 +34789,16 @@ function updateLedger(h, sid, fn, opts = {}) {
 }
 
 // src/adapters/opencode/runtime/adapter-rules.ts
-import { existsSync as existsSync7, readFileSync as readFileSync14 } from "fs";
-import { dirname as dirname10, join as join14, resolve as resolve7 } from "path";
+import { existsSync as existsSync7, readFileSync as readFileSync15 } from "fs";
+import { dirname as dirname10, join as join15, resolve as resolve7 } from "path";
 init_fsx();
 var CACHE_TTL_MS = 30000;
 var CACHE_MAX = 64;
-var cache = new Map;
+var cache2 = new Map;
 function gitToplevel(dir) {
   let d = resolve7(dir);
   for (let i = 0;i < 128; i++) {
-    if (existsSync7(join14(d, ".git")))
+    if (existsSync7(join15(d, ".git")))
       return d;
     const up = dirname10(d);
     if (up === d)
@@ -34642,7 +34809,7 @@ function gitToplevel(dir) {
 }
 function packageName(dir) {
   try {
-    const pkg = JSON.parse(readFileSync14(join14(dir, "package.json"), "utf8"));
+    const pkg = JSON.parse(readFileSync15(join15(dir, "package.json"), "utf8"));
     return pkg !== null && typeof pkg === "object" && typeof pkg.name === "string" ? pkg.name : undefined;
   } catch {
     return;
@@ -34656,14 +34823,14 @@ function real(p) {
   }
 }
 function lookup(cwd, nowMs) {
-  const hit = cache.get(cwd);
+  const hit = cache2.get(cwd);
   if (hit !== undefined && nowMs - hit.at >= 0 && nowMs - hit.at < CACHE_TTL_MS)
     return hit;
   const top = gitToplevel(cwd) ?? null;
   const entry = { at: nowMs, top, name: top !== null ? packageName(top) : undefined };
-  if (cache.size >= CACHE_MAX)
-    cache.clear();
-  cache.set(cwd, entry);
+  if (cache2.size >= CACHE_MAX)
+    cache2.clear();
+  cache2.set(cwd, entry);
   return entry;
 }
 function buracleRepoFor(cwd, configured, nowMs = Date.now()) {
@@ -34688,7 +34855,7 @@ function buracleRepoFor(cwd, configured, nowMs = Date.now()) {
 
 // src/adapters/shared/review-notes.ts
 import { mkdirSync as mkdirSync6 } from "fs";
-import { dirname as dirname11, join as join15 } from "path";
+import { dirname as dirname11, join as join16 } from "path";
 init_fsx();
 init_paths();
 function real2(p) {
@@ -34710,7 +34877,7 @@ function reviewNotesNotice(h, sid, o) {
   const entries = inbox();
   if (entries.length === 0)
     return;
-  const file = join15(sessionDir(h, sid), "review-notes.json");
+  const file = join16(sessionDir(h, sid), "review-notes.json");
   const seen = readJsonSafeSync(file);
   const since = seen.ok && typeof seen.value?.at === "number" ? seen.value.at : 0;
   const s = { ...o.plan !== undefined && o.plan !== "" ? { plan: real2(o.plan) } : {}, roots: [...new Set(o.roots.filter((r) => typeof r === "string" && r !== "").map(real2))] };
@@ -34730,7 +34897,7 @@ function reviewNotesNotice(h, sid, o) {
 // src/adapters/shared/realpath.ts
 init_fsx();
 import { lstatSync as lstatSync3, readlinkSync as readlinkSync2 } from "fs";
-import { basename as basename6, dirname as dirname12, isAbsolute as isAbsolute7, join as join16, resolve as resolve8 } from "path";
+import { basename as basename6, dirname as dirname12, isAbsolute as isAbsolute7, join as join17, resolve as resolve8 } from "path";
 var MAX_HOPS = 40;
 function resolveFrom(p, hops) {
   if (hops > MAX_HOPS)
@@ -34757,7 +34924,7 @@ function resolveFrom(p, hops) {
   if (parent === p)
     return p;
   const real = resolveFrom(parent, hops + 1);
-  return real === undefined ? undefined : join16(real, basename6(p));
+  return real === undefined ? undefined : join17(real, basename6(p));
 }
 function realWriteTarget(p) {
   if (typeof p !== "string" || !isAbsolute7(p))
@@ -34766,8 +34933,8 @@ function realWriteTarget(p) {
 }
 
 // src/adapters/shared/project-assets.ts
-import { existsSync as existsSync9, mkdirSync as mkdirSync8, statSync as statSync14, utimesSync as utimesSync3, writeFileSync } from "fs";
-import { basename as basename7, dirname as dirname14, join as join18, relative as relative4, resolve as resolve11, sep as sep4 } from "path";
+import { existsSync as existsSync9, mkdirSync as mkdirSync8, statSync as statSync15, utimesSync as utimesSync3, writeFileSync } from "fs";
+import { basename as basename7, dirname as dirname14, join as join19, relative as relative4, resolve as resolve11, sep as sep4 } from "path";
 
 // src/core/project-assets.ts
 var RULES_DIR = ".claude/rules";
@@ -35143,8 +35310,8 @@ function nonProjectReason(dir) {
 }
 
 // src/workflow/project-assets.ts
-import { existsSync as existsSync8, lstatSync as lstatSync4, mkdirSync as mkdirSync7, readdirSync as readdirSync4, readFileSync as readFileSync15, readlinkSync as readlinkSync3, statSync as statSync13, symlinkSync, unlinkSync as unlinkSync5 } from "fs";
-import { dirname as dirname13, isAbsolute as isAbsolute8, join as join17, relative as relative3, resolve as resolve10, sep as sep3 } from "path";
+import { existsSync as existsSync8, lstatSync as lstatSync4, mkdirSync as mkdirSync7, readdirSync as readdirSync4, readFileSync as readFileSync16, readlinkSync as readlinkSync3, statSync as statSync14, symlinkSync, unlinkSync as unlinkSync5 } from "fs";
+import { dirname as dirname13, isAbsolute as isAbsolute8, join as join18, relative as relative3, resolve as resolve10, sep as sep3 } from "path";
 init_fsx();
 var SKILL_DIR_RE = /^[a-z0-9][a-z0-9._-]*$/;
 var RULES_MAX_FILES = 500;
@@ -35170,14 +35337,14 @@ function kindOf(p) {
 }
 function targetKind(p) {
   try {
-    const st = statSync13(p);
+    const st = statSync14(p);
     return st.isDirectory() ? "dir" : st.isFile() ? "file" : "other";
   } catch {
     return "missing";
   }
 }
 function pathFacts(root, rel) {
-  const p = join17(root, ...rel.split("/"));
+  const p = join18(root, ...rel.split("/"));
   const kind = kindOf(p);
   if (kind === "missing")
     return { rel, kind, inside: true };
@@ -35198,15 +35365,15 @@ function assetLayout(rootIn) {
       blocked.push(`${f.rel} is a dangling symlink; Buracle does not write through it`);
     else if (f.kind === "link" && !f.inside)
       blocked.push(`${f.rel} is a symlink to ${f.real ?? "?"}, outside the repository; Buracle does not write through it`);
-    else if (f.kind === "link" && targetKind(join17(root, f.rel)) !== "dir")
+    else if (f.kind === "link" && targetKind(join18(root, f.rel)) !== "dir")
       blocked.push(`${f.rel} is a symlink to a file, not a folder`);
     else if (f.kind === "file" || f.kind === "other")
       blocked.push(`${f.rel} is a file, not a folder`);
   }
-  const agentsSkills = realOr2(join17(root, ".agents", "skills"));
-  const claudeDir = realOr2(join17(root, ".claude"));
-  const claudeSkills = existsSync8(join17(root, ".claude", "skills")) ? realOr2(join17(root, ".claude", "skills")) : join17(claudeDir, "skills");
-  const alias = existsSync8(join17(root, ".claude", "skills")) && existsSync8(join17(root, ".agents", "skills")) && claudeSkills === agentsSkills;
+  const agentsSkills = realOr2(join18(root, ".agents", "skills"));
+  const claudeDir = realOr2(join18(root, ".claude"));
+  const claudeSkills = existsSync8(join18(root, ".claude", "skills")) ? realOr2(join18(root, ".claude", "skills")) : join18(claudeDir, "skills");
+  const alias = existsSync8(join18(root, ".claude", "skills")) && existsSync8(join18(root, ".agents", "skills")) && claudeSkills === agentsSkills;
   return { root, agentsSkills, claudeSkills, alias, blocked, facts };
 }
 function list2(dir) {
@@ -35219,7 +35386,7 @@ function list2(dir) {
 function agentSkills(layout) {
   const out = [];
   for (const id of list2(layout.agentsSkills)) {
-    const dir = join17(layout.agentsSkills, id);
+    const dir = join18(layout.agentsSkills, id);
     const kind = kindOf(dir);
     if (kind === "link") {
       let target;
@@ -35228,7 +35395,7 @@ function agentSkills(layout) {
       } catch {
         target = undefined;
       }
-      const claudeOwned = existsSync8(join17(layout.claudeSkills, id)) && kindOf(join17(layout.claudeSkills, id)) === "dir" && realOr2(dir) === realOr2(join17(layout.claudeSkills, id));
+      const claudeOwned = existsSync8(join18(layout.claudeSkills, id)) && kindOf(join18(layout.claudeSkills, id)) === "dir" && realOr2(dir) === realOr2(join18(layout.claudeSkills, id));
       out.push({ id, dir, state: "link", ...target !== undefined ? { target } : {}, ...claudeOwned ? { claudeOwned } : {} });
       continue;
     }
@@ -35238,14 +35405,14 @@ function agentSkills(layout) {
       out.push({ id, dir, state: "bad-id" });
       continue;
     }
-    out.push({ id, dir, state: existsSync8(join17(dir, "SKILL.md")) ? "skill" : "no-skill-md" });
+    out.push({ id, dir, state: existsSync8(join18(dir, "SKILL.md")) ? "skill" : "no-skill-md" });
   }
   return out;
 }
 function skillMeta(dir) {
   let text;
   try {
-    text = readFileSync15(join17(dir, "SKILL.md"), "utf8");
+    text = readFileSync16(join18(dir, "SKILL.md"), "utf8");
   } catch {
     return;
   }
@@ -35261,9 +35428,9 @@ function claudeSkills(layout, withMeta = true) {
   const out = [];
   if (layout.alias)
     return out;
-  const agentsPlain = join17(layout.root, ".agents", "skills");
+  const agentsPlain = join18(layout.root, ".agents", "skills");
   for (const id of list2(layout.claudeSkills)) {
-    const path = join17(layout.claudeSkills, id);
+    const path = join18(layout.claudeSkills, id);
     const kind = kindOf(path);
     if (kind === "link") {
       let target = "";
@@ -35273,7 +35440,7 @@ function claudeSkills(layout, withMeta = true) {
       const abs = isAbsolute8(target) ? target : resolve10(dirname13(path), target);
       const intoAgents = within5(agentsPlain, abs) || within5(layout.agentsSkills, abs);
       const dangling = !existsSync8(abs);
-      const ours = !dangling && realOr2(abs) === realOr2(join17(layout.agentsSkills, id)) && kindOf(join17(layout.agentsSkills, id)) !== "link";
+      const ours = !dangling && realOr2(abs) === realOr2(join18(layout.agentsSkills, id)) && kindOf(join18(layout.agentsSkills, id)) !== "link";
       out.push({ id, path, kind, target, ours, dangling, intoAgents });
       continue;
     }
@@ -35318,7 +35485,7 @@ function linkPlan(layout, agents = agentSkills(layout), claude = claudeSkills(la
       continue;
     }
     wanted.add(a.id);
-    const link = join17(layout.claudeSkills, a.id);
+    const link = join18(layout.claudeSkills, a.id);
     const c = byId.get(a.id);
     if (c === undefined) {
       plan.create.push({ id: a.id, link, target: relative3(layout.claudeSkills, a.dir) });
@@ -35362,7 +35529,7 @@ function walkRules(dir, root, depth, out) {
       return;
     if (e.name.startsWith("."))
       continue;
-    const p = join17(dir, e.name);
+    const p = join18(dir, e.name);
     let isDir = e.isDirectory();
     let isFile = e.isFile();
     if (e.isSymbolicLink()) {
@@ -35384,7 +35551,7 @@ function ruleFiles(rootIn) {
   const claude = pathFacts(root, ".claude");
   if (claude.kind === "link" && !claude.inside)
     return [];
-  const dir = join17(root, ...RULES_DIR.split("/"));
+  const dir = join18(root, ...RULES_DIR.split("/"));
   const out = [];
   walkRules(dir, root, 0, out);
   return out.map((p) => relative3(root, p).split(sep3).join("/"));
@@ -35394,7 +35561,7 @@ function ruleFacts(rootIn, privatePaths = new Set) {
   return ruleFiles(root).map((path) => {
     let text = "";
     try {
-      text = readFileSync15(join17(root, ...path.split("/")), "utf8");
+      text = readFileSync16(join18(root, ...path.split("/")), "utf8");
     } catch {}
     const g = ruleGlobsOf(text);
     const r = { path, globs: g.globs };
@@ -35408,7 +35575,7 @@ function ruleFacts(rootIn, privatePaths = new Set) {
 function readRuleIndex(rootIn) {
   let text;
   try {
-    text = readFileSync15(join17(realOr2(rootIn), "AGENTS.md"), "utf8");
+    text = readFileSync16(join18(realOr2(rootIn), "AGENTS.md"), "utf8");
   } catch {
     return { exists: false, found: false, entries: [] };
   }
@@ -35421,11 +35588,11 @@ function rulesParity(rootIn, privatePaths) {
 }
 function claudeRouting(rootIn) {
   const root = realOr2(rootIn);
-  const agents = join17(root, "AGENTS.md");
+  const agents = join18(root, "AGENTS.md");
   const agentsReal = existsSync8(agents) ? realOr2(agents) : undefined;
   const out = [];
   for (const name of ["CLAUDE.md", "CLAUDE.local.md", DOT_CLAUDE_MD]) {
-    const path = join17(root, ...name.split("/"));
+    const path = join18(root, ...name.split("/"));
     const kind = kindOf(path);
     if (kind === "missing")
       continue;
@@ -35437,7 +35604,7 @@ function claudeRouting(rootIn) {
     if (!sharedLink) {
       let text;
       try {
-        text = readFileSync15(path, "utf8");
+        text = readFileSync16(path, "utf8");
       } catch {
         text = undefined;
       }
@@ -35474,17 +35641,17 @@ function assetsRoot(root) {
   return nonProjectReason(real) === undefined ? real : undefined;
 }
 function markerFile(root) {
-  return join18(stateDir(), "project-assets", `${sha256(root).slice(0, 16)}.spawn`);
+  return join19(stateDir(), "project-assets", `${sha256(root).slice(0, 16)}.spawn`);
 }
 function throttled(root, nowMs) {
   const file = markerFile(root);
   try {
-    const age = nowMs - statSync14(file).mtimeMs;
+    const age = nowMs - statSync15(file).mtimeMs;
     if (age >= 0 && age < ASSETS_SPAWN_THROTTLE_MS)
       return true;
   } catch {}
   try {
-    mkdirSync8(join18(stateDir(), "project-assets"), { recursive: true });
+    mkdirSync8(join19(stateDir(), "project-assets"), { recursive: true });
     writeFileSync(file, String(nowMs));
     const t = new Date(nowMs);
     utimesSync3(file, t, t);
@@ -35517,7 +35684,7 @@ function assetsContext(rootIn, harness) {
     if (root === undefined)
       return "";
     if (harness === "claude")
-      return existsSync9(join18(root, "AGENTS.md")) ? claudeParityText(rulesParity(root, ignoredRules(root))) : "";
+      return existsSync9(join19(root, "AGENTS.md")) ? claudeParityText(rulesParity(root, ignoredRules(root))) : "";
     const facts = assetsContextFacts(root);
     return assetsContextText({ harness, rules: facts.rules, claudeOnly: facts.claudeOnly });
   } catch (e) {
@@ -35546,7 +35713,7 @@ function realPathOf(file) {
     rest.unshift(basename7(dir));
     dir = parent;
   }
-  return join18(realOr2(dir), ...rest);
+  return join19(realOr2(dir), ...rest);
 }
 var CLAUDE_SKILL_MD = /^\.claude\/skills\/([^/]+)\/SKILL\.md$/;
 function relIn(root, file) {
@@ -35580,7 +35747,7 @@ function assetsAfterEdit(rootIn, files, o) {
           notes.push(claudeOnlySkillNote(id));
     }
     const claudeFiles = rels.filter((r) => r === "CLAUDE.md" || r === "CLAUDE.local.md" || r === DOT_CLAUDE_MD);
-    if (claudeFiles.length > 0 && existsSync9(join18(root, "AGENTS.md"))) {
+    if (claudeFiles.length > 0 && existsSync9(join19(root, "AGENTS.md"))) {
       const routing = claudeRouting(root);
       const dot = routing.find((c) => c.name === DOT_CLAUDE_MD);
       if (claudeFiles.includes(DOT_CLAUDE_MD) && dot !== undefined && !dot.importsAgents)
@@ -35602,7 +35769,7 @@ function assetsAfterEdit(rootIn, files, o) {
           const gone = [];
           for (const rel of ruleRels) {
             const rule = rules.find((r) => r.path === rel);
-            if (rule === undefined && !existsSync9(join18(root, ...rel.split("/"))))
+            if (rule === undefined && !existsSync9(join19(root, ...rel.split("/"))))
               gone.push(rel);
             const n = rule !== undefined ? ruleEditNote(rule, index) : undefined;
             if (n !== undefined)
@@ -35657,8 +35824,8 @@ function spawnNotify(cli, title, message) {
 }
 
 // src/adapters/omp/runtime/config.ts
-import { existsSync as existsSync10, readFileSync as readFileSync16, statSync as statSync15 } from "fs";
-import { join as join19 } from "path";
+import { existsSync as existsSync10, readFileSync as readFileSync17, statSync as statSync16 } from "fs";
+import { join as join20 } from "path";
 init_paths();
 var configCache;
 var healthCache;
@@ -35671,15 +35838,15 @@ function warnOnce(key, msg, data) {
 }
 function stat(path) {
   try {
-    const st = statSync15(path);
+    const st = statSync16(path);
     return st.isFile() ? { mtimeMs: st.mtimeMs, size: st.size } : undefined;
   } catch {
     return;
   }
 }
 function ompConfigPath(agentDir) {
-  const yml = join19(agentDir, "config.yml");
-  const yaml = join19(agentDir, "config.yaml");
+  const yml = join20(agentDir, "config.yml");
+  const yaml = join20(agentDir, "config.yaml");
   return !existsSync10(yml) && existsSync10(yaml) ? yaml : yml;
 }
 function fromDefaults(defaults) {
@@ -35716,7 +35883,7 @@ function liveConfig(defaults) {
     return c.value;
   let value;
   try {
-    value = parseRuntimeConfig(readFileSync16(file, "utf8"), defaults);
+    value = parseRuntimeConfig(readFileSync17(file, "utf8"), defaults);
   } catch (e) {
     warnOnce(`rc-parse:${file}:${st.mtimeMs}`, "omp: runtime-config.json unreadable; using canonical defaults", { error: e instanceof Error ? e.message : String(e) });
     value = fromDefaults(defaults);
@@ -35750,7 +35917,7 @@ function mcpHealth(nowMs = Date.now()) {
     return parseHealth(c.value, nowMs);
   let value;
   try {
-    value = JSON.parse(readFileSync16(file, "utf8"));
+    value = JSON.parse(readFileSync17(file, "utf8"));
   } catch (e) {
     warnOnce(`health:${file}:${st.mtimeMs}`, "omp: health.json unreadable; MCP health unknown", { error: e instanceof Error ? e.message : String(e) });
   }
@@ -35760,37 +35927,37 @@ function mcpHealth(nowMs = Date.now()) {
 
 // src/adapters/omp/runtime/memory.ts
 init_paths();
-import { readFileSync as readFileSync19, statSync as statSync19 } from "fs";
-import { join as join27 } from "path";
+import { readFileSync as readFileSync20, statSync as statSync20 } from "fs";
+import { join as join28 } from "path";
 init_shim();
 
 // src/memory/spool.ts
-import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync9, readdirSync as readdirSync5, readFileSync as readFileSync17, statSync as statSync16, unlinkSync as unlinkSync6 } from "fs";
-import { join as join21 } from "path";
+import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync9, readdirSync as readdirSync5, readFileSync as readFileSync18, statSync as statSync17, unlinkSync as unlinkSync6 } from "fs";
+import { join as join22 } from "path";
 init_fsx();
 init_paths();
 
 // src/memory/layout.ts
-import { join as join20 } from "path";
+import { join as join21 } from "path";
 init_fsx();
 init_paths();
 function memStateDir() {
   return memoryStateDir();
 }
 function spoolDir() {
-  return join20(memStateDir(), "spool");
+  return join21(memStateDir(), "spool");
 }
 function projectsFile() {
-  return join20(memStateDir(), "projects.json");
+  return join21(memStateDir(), "projects.json");
 }
 function sessionRecordsDir() {
-  return join20(memStateDir(), "sessions");
+  return join21(memStateDir(), "sessions");
 }
 function sessionRecordFile(h, sid) {
-  return join20(sessionRecordsDir(), `${h}-${sid}.json`);
+  return join21(sessionRecordsDir(), `${h}-${sid}.json`);
 }
 function redactionsFile() {
-  return join20(memStateDir(), "redactions.jsonl");
+  return join21(memStateDir(), "redactions.jsonl");
 }
 
 // src/memory/spool.ts
@@ -35802,7 +35969,7 @@ function recordRedactions(count, kinds, where, nowMs = Date.now()) {
     return;
   try {
     const file = redactionsFile();
-    mkdirSync9(join21(file, ".."), { recursive: true });
+    mkdirSync9(join22(file, ".."), { recursive: true });
     appendFileSync2(file, JSON.stringify({ ts: nowMs, count, kinds, where }) + `
 `, { mode: 384 });
   } catch (e) {
@@ -35827,10 +35994,10 @@ function appendSpool(h, sid, entries, opts = {}) {
       return;
     const dir = spoolDir();
     mkdirSync9(dir, { recursive: true, mode: 448 });
-    const file = join21(dir, spoolFileName(h, sid, opts.suffix));
+    const file = join22(dir, spoolFileName(h, sid, opts.suffix));
     let size = 0;
     try {
-      size = statSync16(file).size;
+      size = statSync17(file).size;
     } catch {}
     let text = "";
     let redacted = 0;
@@ -35860,16 +36027,16 @@ function appendSpool(h, sid, entries, opts = {}) {
 
 // src/memory/session-record.ts
 import { mkdirSync as mkdirSync10, utimesSync as utimesSync4 } from "fs";
-import { join as join24, resolve as resolve13 } from "path";
+import { join as join25, resolve as resolve13 } from "path";
 init_paths();
 
 // src/memory/project.ts
 import { existsSync as existsSync11, readdirSync as readdirSync6 } from "fs";
-import { basename as basename8, dirname as dirname15, join as join22, resolve as resolve12 } from "path";
+import { basename as basename8, dirname as dirname15, join as join23, resolve as resolve12 } from "path";
 init_fsx();
 init_paths();
 function oldVaultDir() {
-  return join22(home(), "Documents", "Buracle");
+  return join23(home(), "Documents", "Buracle");
 }
 function isoNow(ms = Date.now()) {
   return new Date(ms).toISOString();
@@ -35944,7 +36111,7 @@ function childRepos(dir) {
   const dirs = entries.filter((e) => e.isDirectory() && !e.name.startsWith(".") && !NOT_CHILDREN.has(e.name));
   if (dirs.length > MAX_CONTAINER_DIRS)
     return [];
-  const repos = dirs.map((e) => join22(dir, e.name)).filter((p) => existsSync11(join22(p, ".git")));
+  const repos = dirs.map((e) => join23(dir, e.name)).filter((p) => existsSync11(join23(p, ".git")));
   if (repos.length === 0)
     return [];
   const exclude = indexExcludePatterns();
@@ -36145,8 +36312,8 @@ function writeSessionRecord(rec) {
 var STALE_ACTIVE_MS = 2 * 3600000;
 
 // src/memory/spawn.ts
-import { existsSync as existsSync12, statSync as statSync17 } from "fs";
-import { basename as basename9, join as join23 } from "path";
+import { existsSync as existsSync12, statSync as statSync18 } from "fs";
+import { basename as basename9, join as join24 } from "path";
 init_paths();
 init_shim();
 function bunBinary() {
@@ -36157,7 +36324,7 @@ function bunBinary() {
 }
 function isFile3(p) {
   try {
-    return statSync17(p).isFile();
+    return statSync18(p).isFile();
   } catch {
     return false;
   }
@@ -36169,7 +36336,7 @@ function cliArgv() {
   const shim = shimLaunch();
   if (shim !== undefined && moduleCheckout() === undefined)
     return shim;
-  const main = join23(repoRoot2(), "src", "cli", "main.ts");
+  const main = join24(repoRoot2(), "src", "cli", "main.ts");
   const bun = bunBinary();
   if (bun !== undefined && isFile3(main))
     return [bun, main];
@@ -36246,12 +36413,12 @@ function promptSeen(h, sid, opts = {}) {
 // src/memory/ui-build.ts
 init_paths();
 import { createHash as createHash2 } from "crypto";
-import { readdirSync as readdirSync7, readFileSync as readFileSync18 } from "fs";
-import { join as join25 } from "path";
+import { readdirSync as readdirSync7, readFileSync as readFileSync19 } from "fs";
+import { join as join26 } from "path";
 function uiSources(memoryDir) {
   const out = readdirSync7(memoryDir).filter((n) => /^ui.*\.ts$/u.test(n)).sort();
   const walk = (rel) => {
-    const entries = readdirSync7(join25(memoryDir, rel), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+    const entries = readdirSync7(join26(memoryDir, rel), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
     for (const e of entries) {
       if (e.name.startsWith("."))
         continue;
@@ -36267,13 +36434,13 @@ function uiSources(memoryDir) {
 }
 function uiBuildId(repoRoot = repoRoot2()) {
   try {
-    const raw = JSON.parse(readFileSync18(join25(repoRoot, "package.json"), "utf8")).version;
-    const dir = join25(repoRoot, "src", "memory");
+    const raw = JSON.parse(readFileSync19(join26(repoRoot, "package.json"), "utf8")).version;
+    const dir = join26(repoRoot, "src", "memory");
     const h = createHash2("sha256");
     for (const rel of uiSources(dir)) {
       h.update(rel);
       h.update("\x00");
-      h.update(readFileSync18(join25(dir, rel)));
+      h.update(readFileSync19(join26(dir, rel)));
       h.update("\x00");
     }
     return `${typeof raw === "string" ? raw : "?"}+${h.digest("hex").slice(0, 12)}`;
@@ -36283,8 +36450,8 @@ function uiBuildId(repoRoot = repoRoot2()) {
 }
 
 // src/memory/ui-presence.ts
-import { closeSync as closeSync6, mkdirSync as mkdirSync11, openSync as openSync6, readdirSync as readdirSync8, rmSync as rmSync3, statSync as statSync18, utimesSync as utimesSync5 } from "fs";
-import { join as join26 } from "path";
+import { closeSync as closeSync6, mkdirSync as mkdirSync11, openSync as openSync6, readdirSync as readdirSync8, rmSync as rmSync3, statSync as statSync19, utimesSync as utimesSync5 } from "fs";
+import { join as join27 } from "path";
 init_paths();
 
 // src/memory/ui-record.ts
@@ -36314,7 +36481,7 @@ function quiet(env) {
   return env["BURACLE_NO_AUTOSTART"] === "1" || env["BURACLE_MEMORY_RUNNER"] === "1";
 }
 function recordFile(h, sid) {
-  return isHarness(h) && isValidSessionId(sid) ? join26(uiSessionsDir(), `${h}-${sid}`) : undefined;
+  return isHarness(h) && isValidSessionId(sid) ? join27(uiSessionsDir(), `${h}-${sid}`) : undefined;
 }
 function touch(file, nowMs) {
   mkdirSync11(uiSessionsDir(), { recursive: true });
@@ -36344,7 +36511,7 @@ function sessionSeen(h, sid, nowMs = Date.now(), env = process.env) {
     return "fresh";
   let mtime;
   try {
-    mtime = statSync18(file).mtimeMs;
+    mtime = statSync19(file).mtimeMs;
   } catch {
     mtime = undefined;
   }
@@ -36392,7 +36559,7 @@ function startUiSoon(opts = {}) {
     } catch {
       let stale = false;
       try {
-        stale = now - statSync18(marker).mtimeMs >= UI_SPAWN_MARKER_MS;
+        stale = now - statSync19(marker).mtimeMs >= UI_SPAWN_MARKER_MS;
       } catch {
         stale = true;
       }
@@ -36440,7 +36607,7 @@ var ompUiBridge = {
 };
 function isFile4(p) {
   try {
-    return statSync19(p).isFile();
+    return statSync20(p).isFile();
   } catch {
     return false;
   }
@@ -36449,7 +36616,7 @@ function buracleCli(shim, repoRoot) {
   const viaShim = shimLaunch(shim);
   if (viaShim !== undefined)
     return viaShim;
-  const main = repoRoot !== undefined ? join27(repoRoot, "src", "cli", "main.ts") : undefined;
+  const main = repoRoot !== undefined ? join28(repoRoot, "src", "cli", "main.ts") : undefined;
   const bun = Bun.which("bun");
   return main !== undefined && bun !== null && isFile4(main) ? [bun, main] : undefined;
 }
@@ -36561,15 +36728,15 @@ function createMemoryBridge(opts) {
 }
 function readIf(path) {
   try {
-    return readFileSync19(path, "utf8");
+    return readFileSync20(path, "utf8");
   } catch {
     return;
   }
 }
 function readMemoryStatus(slug) {
-  const dir = join27(memoryStateDir(), "status");
+  const dir = join28(memoryStateDir(), "status");
   for (const name of slug !== undefined ? [`${slug}.json`, "_global.json"] : ["_global.json"]) {
-    const t = readIf(join27(dir, name));
+    const t = readIf(join28(dir, name));
     if (t === undefined)
       continue;
     try {
@@ -36583,7 +36750,7 @@ function readMemoryStatus(slug) {
 
 // src/adapters/omp/runtime/plan-capture.ts
 var import_yaml5 = __toESM(require_dist(), 1);
-import { isAbsolute as isAbsolute9, join as join28, normalize, resolve as resolve14 } from "path";
+import { isAbsolute as isAbsolute9, join as join29, normalize, resolve as resolve14 } from "path";
 var OMP_PLAN_APPROVED = "Plan approved.";
 var OMP_PLAN_OPEN = '<plan path="';
 var OMP_PLAN_CLOSE = "</plan>";
@@ -36611,8 +36778,8 @@ function ompAutosaveDir(configText, cwd, home) {
     return;
   const raw = typeof p["autosaveDir"] === "string" ? p["autosaveDir"].trim() : "";
   if (raw === "")
-    return join28(cwd, ".omp", "plans");
-  const dir = raw === "~" ? home : raw.startsWith("~/") ? join28(home, raw.slice(2)) : raw;
+    return join29(cwd, ".omp", "plans");
+  const dir = raw === "~" ? home : raw.startsWith("~/") ? join29(home, raw.slice(2)) : raw;
   return isAbsolute9(dir) ? normalize(dir) : resolve14(cwd, dir);
 }
 function proposeDetails(details) {
@@ -36637,7 +36804,7 @@ function planFileOf(details, artifactsDir, cwd) {
   const parts = rel.split("/").filter((p) => p !== "" && p !== ".");
   if (parts.length === 0 || parts.includes(".."))
     return;
-  return join28(resolve14(artifactsDir, "local"), ...parts);
+  return join29(resolve14(artifactsDir, "local"), ...parts);
 }
 function approvedPlanOf(prompt) {
   const text = prompt.replace(/\r\n?/g, `
@@ -36707,18 +36874,18 @@ function planSavedNote(saved, cwd) {
 }
 
 // src/adapters/shared/project-deps.ts
-import { readdirSync as readdirSync9, readFileSync as readFileSync20, statSync as statSync20 } from "fs";
-import { join as join29, resolve as resolve15 } from "path";
+import { readdirSync as readdirSync9, readFileSync as readFileSync21, statSync as statSync21 } from "fs";
+import { join as join30, resolve as resolve15 } from "path";
 var ROOT_MANIFESTS = ["package.json", "pyproject.toml", "Pipfile", "go.mod", "Cargo.toml", "composer.json", "Gemfile"];
 var REQUIREMENTS = /^(?:requirements|constraints)[\w.-]*\.(?:txt|in)$/i;
 var WORKSPACE_MEMBERS_MAX = 32;
 var PROJECT_DEPS_MAX = 400;
 var CACHE_MAX2 = 16;
 var READ_MAX_BYTES = 1024 * 1024;
-var cache2 = new Map;
+var cache3 = new Map;
 function stamp2(path) {
   try {
-    const st = statSync20(path);
+    const st = statSync21(path);
     return st.isFile() ? `${st.size}:${Math.trunc(st.mtimeMs)}` : undefined;
   } catch {
     return;
@@ -36726,14 +36893,14 @@ function stamp2(path) {
 }
 function readSmall(path) {
   try {
-    if (statSync20(path).size > READ_MAX_BYTES)
+    if (statSync21(path).size > READ_MAX_BYTES)
       return;
-    return readFileSync20(path, "utf8");
+    return readFileSync21(path, "utf8");
   } catch {
     return;
   }
 }
-function isObj8(x) {
+function isObj9(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 function workspacePatterns(root, pkgText) {
@@ -36741,14 +36908,14 @@ function workspacePatterns(root, pkgText) {
   if (pkgText !== undefined) {
     try {
       const j = JSON.parse(pkgText);
-      const ws = isObj8(j) ? j["workspaces"] : undefined;
-      const list = Array.isArray(ws) ? ws : isObj8(ws) && Array.isArray(ws["packages"]) ? ws["packages"] : [];
+      const ws = isObj9(j) ? j["workspaces"] : undefined;
+      const list = Array.isArray(ws) ? ws : isObj9(ws) && Array.isArray(ws["packages"]) ? ws["packages"] : [];
       for (const p of list)
         if (typeof p === "string")
           out.push(p);
     } catch {}
   }
-  const pnpm = readSmall(join29(root, "pnpm-workspace.yaml"));
+  const pnpm = readSmall(join30(root, "pnpm-workspace.yaml"));
   if (pnpm !== undefined) {
     let inPackages = false;
     for (const raw of pnpm.split(`
@@ -36776,7 +36943,7 @@ function memberDirs(root, patterns) {
     if (p === "" || p.startsWith("!") || p.startsWith("/") || p.split("/").includes(".."))
       continue;
     if (p.endsWith("/*") && !/[*?[{]/.test(p.slice(0, -2))) {
-      const base = join29(root, p.slice(0, -2));
+      const base = join30(root, p.slice(0, -2));
       let names = [];
       try {
         names = readdirSync9(base).sort();
@@ -36785,9 +36952,9 @@ function memberDirs(root, patterns) {
       }
       for (const n of names)
         if (!n.startsWith(".") && n !== "node_modules")
-          dirs.add(join29(base, n));
+          dirs.add(join30(base, n));
     } else if (!/[*?[{]/.test(p)) {
-      dirs.add(join29(root, p));
+      dirs.add(join30(root, p));
     }
   }
   return [...dirs].sort();
@@ -36806,30 +36973,30 @@ function projectDeps(root) {
     ...ROOT_MANIFESTS.filter((n) => names.includes(n)),
     ...names.filter((n) => REQUIREMENTS.test(n)).sort()
   ];
-  const pkgText = files.includes("package.json") ? readSmall(join29(dir, "package.json")) : undefined;
-  const members = pkgText !== undefined || names.includes("pnpm-workspace.yaml") ? memberDirs(dir, workspacePatterns(dir, pkgText)).map((m) => join29(m, "package.json")).filter((p) => stamp2(p) !== undefined).slice(0, WORKSPACE_MEMBERS_MAX) : [];
-  const paths = [...files.map((n) => join29(dir, n)), ...members];
-  const sig = [...paths.map((p) => `${p}=${stamp2(p) ?? ""}`), names.includes("pnpm-workspace.yaml") ? `pnpm=${stamp2(join29(dir, "pnpm-workspace.yaml")) ?? ""}` : ""].join(`
+  const pkgText = files.includes("package.json") ? readSmall(join30(dir, "package.json")) : undefined;
+  const members = pkgText !== undefined || names.includes("pnpm-workspace.yaml") ? memberDirs(dir, workspacePatterns(dir, pkgText)).map((m) => join30(m, "package.json")).filter((p) => stamp2(p) !== undefined).slice(0, WORKSPACE_MEMBERS_MAX) : [];
+  const paths = [...files.map((n) => join30(dir, n)), ...members];
+  const sig = [...paths.map((p) => `${p}=${stamp2(p) ?? ""}`), names.includes("pnpm-workspace.yaml") ? `pnpm=${stamp2(join30(dir, "pnpm-workspace.yaml")) ?? ""}` : ""].join(`
 `);
-  const hit = cache2.get(dir);
+  const hit = cache3.get(dir);
   if (hit !== undefined && hit.sig === sig)
     return [...hit.deps];
   const deps = new Set;
   for (const p of paths) {
-    const text = p === join29(dir, "package.json") ? pkgText : readSmall(p);
+    const text = p === join30(dir, "package.json") ? pkgText : readSmall(p);
     if (text === undefined)
       continue;
     for (const d of parseManifestDeps(p, text))
       deps.add(d);
   }
   const out = [...deps].sort().slice(0, PROJECT_DEPS_MAX);
-  cache2.delete(dir);
-  cache2.set(dir, { sig, deps: out });
-  while (cache2.size > CACHE_MAX2) {
-    const oldest = cache2.keys().next().value;
+  cache3.delete(dir);
+  cache3.set(dir, { sig, deps: out });
+  while (cache3.size > CACHE_MAX2) {
+    const oldest = cache3.keys().next().value;
     if (oldest === undefined)
       break;
-    cache2.delete(oldest);
+    cache3.delete(oldest);
   }
   return [...out];
 }
@@ -36857,7 +37024,7 @@ function mergeRoutes(routes, compiled) {
   return merged;
 }
 function availableServers(mcp, health) {
-  return mcp.map((s) => s.id).filter((id) => health[id] !== "down");
+  return mcp.map((s) => s.id).filter((id) => !mcpUnavailable(health[id]));
 }
 function isDeviceWrite(toolName, input) {
   const p = input["path"];
@@ -36954,7 +37121,7 @@ function coreEvalGuard() {
 }
 function readText2(path) {
   try {
-    return readFileSync21(path, "utf8");
+    return readFileSync22(path, "utf8");
   } catch {
     return;
   }
@@ -36968,9 +37135,9 @@ function planFiles(dir) {
   }
   const out = [];
   for (const name of names) {
-    const path = join30(dir, name);
+    const path = join31(dir, name);
     try {
-      const st = statSync21(path);
+      const st = statSync22(path);
       if (st.isFile())
         out.push({ path, mtimeMs: st.mtimeMs });
     } catch {}
@@ -36992,7 +37159,7 @@ function recentPlans(dir, nowMs, maxAgeMs) {
     if (nowMs - f.mtimeMs > maxAgeMs)
       continue;
     try {
-      out.push({ ...f, text: readFileSync21(f.path, "utf8") });
+      out.push({ ...f, text: readFileSync22(f.path, "utf8") });
     } catch {}
   }
   return out;
@@ -37099,7 +37266,7 @@ function defaultDeps() {
     },
     isFile: (path) => {
       try {
-        return statSync21(path).isFile();
+        return statSync22(path).isFile();
       } catch {
         return false;
       }
@@ -37164,7 +37331,7 @@ function emptyGenerated() {
 }
 
 // src/adapters/omp/runtime/edits.ts
-import { isAbsolute as isAbsolute10, join as join31, resolve as resolve17 } from "path";
+import { isAbsolute as isAbsolute10, join as join32, resolve as resolve17 } from "path";
 var READ_MAX2 = 512 * 1024;
 var SECTION = /^\[(.+)#([0-9A-Fa-f]{4})\]\s*$/;
 var RANGE = /^(?:PUT|CUT)\s+(\d+)\s*\.=\s*(\d+)/;
@@ -37175,7 +37342,7 @@ var SLOPPY_PART = /^\*\*\* (Find|Replace|Insert Before|Insert After)\s*$/;
 function abs(cwd, p, home) {
   const t = p.trim();
   if (home !== undefined && (t === "~" || t.startsWith("~/")))
-    return join31(home, t.slice(2));
+    return join32(home, t.slice(2));
   return isAbsolute10(t) ? resolve17(t) : resolve17(cwd, t);
 }
 function hashline(text, cwd, read, home) {
@@ -37702,7 +37869,7 @@ function workflowOfExpanded(prompt) {
 
 // src/adapters/omp/runtime/generated-data.ts
 var GENERATED = {
-  buracleVersion: "0.8.1",
+  buracleVersion: "0.8.2",
   commands: [
     "ab-test",
     "bugfix",
@@ -37774,6 +37941,15 @@ var GENERATED = {
       maxChildren: 8,
       minIntervalMin: 10,
       semble: true
+    },
+    mcp: {
+      off: {
+        claude: [],
+        codex: [],
+        omp: [],
+        opencode: []
+      },
+      shared: true
     },
     memory: {
       exclude: [],
@@ -38088,7 +38264,7 @@ var GENERATED = {
         ],
         id: "web-search",
         intent: "Web search for errors, releases, changelogs and comparisons",
-        nudge: "Search the web with the web-search MCP server; while it is down, fetch a search results page (https://html.duckduckgo.com/html/?q=<query>) with web-fetch, and use the built-in web search only when both are down.",
+        nudge: "Search the web with the web-search MCP server; while it is down or off, fetch a search results page (https://html.duckduckgo.com/html/?q=<query>) with web-fetch, and use the built-in web search only when both are down or off.",
         prefer: [
           "mcp:web-search/search"
         ],
@@ -38143,7 +38319,7 @@ var GENERATED = {
         ],
         id: "web-fetch",
         intent: "Read a known URL, including JavaScript-rendered pages",
-        nudge: "Fetch pages with the web-fetch MCP server, and use the built-in fetch only while it is down.",
+        nudge: "Fetch pages with the web-fetch MCP server, and use the built-in fetch only while it is down or off.",
         prefer: [
           "mcp:web-fetch/fetch_url"
         ],
@@ -39216,13 +39392,13 @@ function contextWatch(warned, pct, cfg) {
 
 // src/adapters/shared/notices.ts
 import { closeSync as closeSync7, mkdirSync as mkdirSync12, openSync as openSync7, readdirSync as readdirSync11, writeSync as writeSync5 } from "fs";
-import { join as join32 } from "path";
+import { join as join33 } from "path";
 
 // src/core/notices.ts
 var NOTICE_ID = /^[a-z0-9][a-z0-9.-]{0,63}$/;
 var NOTICES_PER_SESSION = 3;
 var DATE = /^\d{4}-\d{2}-\d{2}$/;
-function isObj9(x) {
+function isObj10(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 function versionOrder(a, b) {
@@ -39257,7 +39433,7 @@ function current(n, version, nowMs) {
   return versionOrder(version, n.until) < 0;
 }
 function pendingNotices(notices, o) {
-  return (Array.isArray(notices) ? notices : []).filter((n) => isObj9(n) && typeof n.id === "string" && NOTICE_ID.test(n.id) && typeof n.since === "string" && (n.until === undefined || typeof n.until === "string") && typeof n.message === "string" && n.message.trim() !== "").filter((n) => !o.acked.has(n.id) && current(n, o.version, o.nowMs)).slice(0, NOTICES_PER_SESSION);
+  return (Array.isArray(notices) ? notices : []).filter((n) => isObj10(n) && typeof n.id === "string" && NOTICE_ID.test(n.id) && typeof n.since === "string" && (n.until === undefined || typeof n.until === "string") && typeof n.message === "string" && n.message.trim() !== "").filter((n) => !o.acked.has(n.id) && current(n, o.version, o.nowMs)).slice(0, NOTICES_PER_SESSION);
 }
 function oneLine4(s) {
   return s.replace(/\s+/g, " ").trim();
@@ -39305,7 +39481,7 @@ function claimNotices(list, o) {
   const claimed = [];
   for (const n of pending) {
     try {
-      const fd = openSync7(join32(dir, `${n.id}.ack`), "wx", 384);
+      const fd = openSync7(join33(dir, `${n.id}.ack`), "wx", 384);
       try {
         writeSync5(fd, `${JSON.stringify({ at: o.nowMs, version: o.version, harness: o.harness })}
 `);
@@ -39410,13 +39586,13 @@ function resumedSession(ev, event, ctx, isFile) {
 }
 
 // src/adapters/omp/runtime/status.ts
-import { isAbsolute as isAbsolute12, join as join35, resolve as resolve20 } from "path";
+import { isAbsolute as isAbsolute12, join as join36, resolve as resolve20 } from "path";
 
 // src/engine/hook-health.ts
 init_fsx();
 init_paths();
-import { existsSync as existsSync14, readFileSync as readFileSync23, rmSync as rmSync6, statSync as statSync23 } from "fs";
-import { join as join34 } from "path";
+import { existsSync as existsSync14, readFileSync as readFileSync24, rmSync as rmSync6, statSync as statSync24 } from "fs";
+import { join as join35 } from "path";
 var HOOK_FAILURE_MESSAGES = ["hook handler failed", "hook command failed before dispatch", "hook runtime failed"];
 var DAY_MS = 86400000;
 function str6(x) {
@@ -39466,7 +39642,7 @@ function scanHookFailures(nowMs, windowMs = DAY_MS, file = logFile()) {
   for (const f of [`${file}.1`, file]) {
     let text;
     try {
-      text = readFileSync23(f, "utf8");
+      text = readFileSync24(f, "utf8");
     } catch {
       continue;
     }
@@ -39485,12 +39661,12 @@ function scanHookFailures(nowMs, windowMs = DAY_MS, file = logFile()) {
   return out;
 }
 function hookHealthCacheFile() {
-  return join34(buracleHome(), "cache", "hook-health.json");
+  return join35(buracleHome(), "cache", "hook-health.json");
 }
 function hookHealthForStatus(nowMs, maxAgeMs = 60000) {
   const file = hookHealthCacheFile();
   try {
-    const c = JSON.parse(readFileSync23(file, "utf8"));
+    const c = JSON.parse(readFileSync24(file, "utf8"));
     if (typeof c.at === "number" && nowMs - c.at >= 0 && nowMs - c.at < maxAgeMs && c.summary !== undefined && typeof c.summary.failures === "number")
       return c.summary;
   } catch {}
@@ -39507,11 +39683,11 @@ function hookHealthForStatus(nowMs, maxAgeMs = 60000) {
   return summary;
 }
 function runtimeDriftCacheFile() {
-  return join34(buracleHome(), "cache", "runtime-drift.json");
+  return join35(buracleHome(), "cache", "runtime-drift.json");
 }
 function shimStamp() {
   try {
-    const s = statSync23(join34(binDir(), "buracle"));
+    const s = statSync24(join35(binDir(), "buracle"));
     return `${s.size}:${s.mtimeMs}`;
   } catch {
     return "";
@@ -39521,7 +39697,7 @@ async function runtimeBehindForStatus(nowMs, maxAgeMs = 300000) {
   const file = runtimeDriftCacheFile();
   const stamp = shimStamp();
   try {
-    const c = JSON.parse(readFileSync23(file, "utf8"));
+    const c = JSON.parse(readFileSync24(file, "utf8"));
     if (typeof c.at === "number" && nowMs - c.at >= 0 && nowMs - c.at < maxAgeMs && typeof c.behind === "boolean" && c.shim === stamp)
       return c.behind;
   } catch {}
@@ -39700,7 +39876,7 @@ function createStatusTexts(host) {
       out.splice(Math.max(0, out.length - 1), 0, ui !== undefined ? `web UI: ${ui.url} (/brain opens it)` : "web UI: not running (/brain starts and opens it)");
       return out;
     }
-    const omp = guarded("version cache", () => cachedHarnessVersionOf(deps.readText(join35(buracleHome(), "cache", "harness-versions.json")), "omp", now));
+    const omp = guarded("version cache", () => cachedHarnessVersionOf(deps.readText(join36(buracleHome(), "cache", "harness-versions.json")), "omp", now));
     const out = [`Buracle ${data.buracleVersion} \xB7 Oh My Pi${omp !== undefined ? ` ${omp}` : ""}`];
     out.push(`session ${sid ?? "-"} \xB7 ${ctx.mode} \xB7 config ${lc.source}`);
     out.push(`permissions: ${lc.config.permissions.bypass ? "bypass (tools.approvalMode yolo; Buracle's guards and consent gate protect)" : "the harness setting"}`);
@@ -39905,9 +40081,11 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
         router = { strictness, data: routerData(data.skills, data.routing, strictness) };
       return router.data;
     };
-    const healthFor = (lsid) => {
+    const healthFor = (lsid, cwd) => {
       const health = guarded("health", () => deps.health()) ?? {};
-      return guarded("H24 session health", () => sessionHealth(health, deps.ledger, lsid)) ?? health;
+      const merged = guarded("H24 session health", () => sessionHealth(health, deps.ledger, lsid)) ?? health;
+      const native = guarded("omp disabledServers", () => ompOffServers(cwd ?? process.cwd())) ?? [];
+      return withOffServers(merged, [...new Set([...offServersFor(liveOrDefaults().config, "omp"), ...native])]);
     };
     const availableNow = (lsid) => availableServers(data.mcp, healthFor(lsid));
     const workspaceOf = (sid, ctx) => {
@@ -40151,7 +40329,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
       const context = [...questionContext];
       if (lc.config.routing.strictness !== "off") {
         const policy = { ...data.routing, strictness: lc.config.routing.strictness };
-        const d = guarded("H03 routeTool", () => deps.policy.routeTool(call, policy, healthFor(spoolSid(ctx))));
+        const d = guarded("H03 routeTool", () => deps.policy.routeTool(call, policy, healthFor(spoolSid(ctx), ctx.cwd)));
         if (d?.action === "deny")
           return deny(d.reason, d.hook);
         if (d?.action === "allow" && d.context)
@@ -40435,8 +40613,8 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
     });
     const promptBlock = async (sid, ctx) => {
       const lc = live();
-      const health = healthFor(spoolSid(ctx));
-      const mcp = data.mcp.filter((s) => health[s.id] !== "down");
+      const health = healthFor(spoolSid(ctx), ctx.cwd);
+      const mcp = data.mcp.filter((s) => !mcpUnavailable(health[s.id]));
       const policy = { ...data.routing, strictness: lc.config.routing.strictness };
       const card = guarded("H15 capabilityCard", () => deps.policy.capabilityCard({ policy, mcp, skills: data.skills, plugins: data.plugins, harness: "omp" })) ?? "";
       const m = memo(sid);

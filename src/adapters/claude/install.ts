@@ -9,7 +9,8 @@ import { log } from '../../engine/log'
 import { run, which } from '../../engine/proc'
 import type { AdapterContext } from '../registry'
 import { parseList, samePath } from './check'
-import { CLAUDE_MANAGED_MARKETPLACES, EFFORT_MODELS, MARKETPLACE_NAME, OWNER, PLUGIN_ID } from './constants'
+import { CLAUDE_MANAGED_MARKETPLACES, EFFORT_MODELS, HARNESS_REL, MARKETPLACE_NAME, OWNER, PLUGIN_ID } from './constants'
+import { mcpJson } from './plugin'
 import { renderClaudeMarkdown, withFrontmatter, type FrontmatterValue } from './render'
 
 export interface InstallDeps {
@@ -101,14 +102,6 @@ export function effortOps(ctx: AdapterContext): Op[] {
   return [op]
 }
 
-export const TEAMS_KEY = 'env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS'
-export const TEAMS_KEYS = { [TEAMS_KEY]: '1' } as const
-
-export function teamsOps(ctx: AdapterContext): Op[] {
-  if (!ctx.config.agents.teams) return []
-  return [{ kind: 'json-merge', path: join(ctx.paths.claudeDir(), 'settings.json'), set: { ...TEAMS_KEYS }, owner: OWNER, soft: Object.keys(TEAMS_KEYS) }]
-}
-
 export const ENV_KEYS = {
   'env.CLAUDE_CODE_DISABLE_1M_CONTEXT': 'false',
   'env.CLAUDE_CODE_WORKFLOWS': 'true',
@@ -147,6 +140,26 @@ export function announcementOps(ctx: AdapterContext): Op[] {
  */
 export function retiredDenyOps(ctx: AdapterContext): Op[] {
   return [{ kind: 'json-list-merge', path: join(ctx.paths.claudeDir(), 'settings.json'), pointer: 'permissions.deny', items: [], identity: LIST_IDENTITY_HASH, owner: OWNER, format: 'json' }]
+}
+
+/**
+ * The servers that are off in Claude Code (`mcp.off.claude`) go into `deniedMcpServers` of the user settings,
+ * so Claude Code never connects them: a `serverName` entry in the plugin form and the exact command line (the
+ * plugin root written out), or the URL of a remote server. The owned list keeps the user's own entries.
+ */
+export function mcpOffOps(ctx: Pick<AdapterContext, 'config' | 'canonical' | 'paths' | 'repoRoot'>): Op[] {
+  const off = new Set(ctx.config.mcp.off.claude)
+  const root = join(ctx.repoRoot, HARNESS_REL)
+  const servers = mcpJson(ctx.canonical.mcp)['mcpServers'] as Record<string, { command?: string, args?: string[], url?: string }>
+  const items: unknown[] = []
+  for (const id of Object.keys(servers).sort()) {
+    if (!off.has(id)) continue
+    const s = servers[id] as { command?: string, args?: string[], url?: string }
+    items.push({ serverName: `plugin:buracle:${id}` })
+    if (s.url !== undefined) items.push({ serverUrl: s.url })
+    else if (s.command !== undefined) items.push({ serverCommand: [s.command, ...(s.args ?? [])].map(a => a.split('${CLAUDE_PLUGIN_ROOT}').join(root)) })
+  }
+  return [{ kind: 'json-list-merge', path: join(ctx.paths.claudeDir(), 'settings.json'), pointer: 'deniedMcpServers', items, identity: LIST_IDENTITY_HASH, owner: OWNER, format: 'json' }]
 }
 
 export type ClaudeExecOp = Extract<Op, { kind: 'exec' }>
@@ -242,7 +255,10 @@ export async function claudeInstallPlan(ctx: AdapterContext, deps: Partial<Insta
   return {
     id: 'claude',
     harness: 'claude',
-    ops: [...ruleOps(ctx, ledger), statusLineOp(ctx), ...permissionOps(ctx), ...effortOps(ctx), ...teamsOps(ctx), ...envOps(ctx), ...autoMemoryOps(ctx), ...announcementOps(ctx), ...retiredDenyOps(ctx), ...execOps(ctx, tools)],
+    // No op turns on Claude Code's agent teams (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS): while they are on, a named Agent
+    // call starts a teammate, whose report arrives late, in pieces and once more in its idle notice. Lanes run as
+    // background subagents. The next install prunes the value an earlier Buracle wrote; a value the user set stays.
+    ops: [...ruleOps(ctx, ledger), statusLineOp(ctx), ...permissionOps(ctx), ...effortOps(ctx), ...envOps(ctx), ...autoMemoryOps(ctx), ...announcementOps(ctx), ...retiredDenyOps(ctx), ...mcpOffOps(ctx), ...execOps(ctx, tools)],
     cleanupKeys: cleanupKeys(ctx),
   }
 }

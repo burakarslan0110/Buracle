@@ -8,7 +8,10 @@ import * as corePolicy from '../../../core/policy/index'
 import type { BashGuardOptions } from '../../../core/policy/bash-guard'
 import type { PromptRoute } from '../../../core/policy/skill-router'
 import { PROMPT_CONTEXT_MAX_CHARS, routeText } from '../../../core/policy/skill-router'
+import { offServersFor, withOffServers } from '../../../core/policy/mcp-off'
+import { ompOffServers } from '../../shared/native-off'
 import type { McpHealth } from '../../../core/policy/routing'
+import { mcpUnavailable } from '../../../core/policy/routing'
 import type { ReminderContext, ReminderResult } from '../../../core/policy/usage'
 import { ledgerCall, ledgerPrompt, reminders, skillOf } from '../../../core/policy/usage'
 import type { WriteGuardContext } from '../../../core/policy/write-guard'
@@ -144,9 +147,13 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       if (router === undefined || router.strictness !== strictness) router = { strictness, data: routerData(data.skills, data.routing, strictness) }
       return router.data
     }
-    const healthFor = (lsid: string | undefined): McpHealth => {
+    const healthFor = (lsid: string | undefined, cwd?: string): McpHealth => {
       const health = guarded('health', () => deps.health()) ?? {}
-      return guarded('H24 session health', () => sessionHealth(health, deps.ledger, lsid)) ?? health
+      const merged = guarded('H24 session health', () => sessionHealth(health, deps.ledger, lsid)) ?? health
+      // The servers that are off in Oh My Pi (mcp.off.omp, or its own `disabledServers`, read through an
+      // mtime cache): routing treats them as unavailable for good.
+      const native = guarded('omp disabledServers', () => ompOffServers(cwd ?? process.cwd())) ?? []
+      return withOffServers(merged, [...new Set([...offServersFor(liveOrDefaults().config, 'omp'), ...native])])
     }
     const availableNow = (lsid: string | undefined): string[] => availableServers(data.mcp, healthFor(lsid))
 
@@ -345,7 +352,7 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       const context: string[] = [...questionContext]
       if (lc.config.routing.strictness !== 'off') {
         const policy = { ...data.routing, strictness: lc.config.routing.strictness }
-        const d = guarded('H03 routeTool', () => deps.policy.routeTool(call, policy, healthFor(spoolSid(ctx))))
+        const d = guarded('H03 routeTool', () => deps.policy.routeTool(call, policy, healthFor(spoolSid(ctx), ctx.cwd)))
         if (d?.action === 'deny') return deny(d.reason, d.hook)
         if (d?.action === 'allow' && d.context) context.push(...d.context.filter(c => c.trim() !== ''))
       }
@@ -584,8 +591,8 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
 
     const promptBlock = async (sid: string, ctx: OmpContext): Promise<string> => {
       const lc = live()
-      const health = healthFor(spoolSid(ctx))
-      const mcp = data.mcp.filter(s => health[s.id] !== 'down')
+      const health = healthFor(spoolSid(ctx), ctx.cwd)
+      const mcp = data.mcp.filter(s => !mcpUnavailable(health[s.id]))
       const policy = { ...data.routing, strictness: lc.config.routing.strictness }
       const card = guarded('H15 capabilityCard', () => deps.policy.capabilityCard({ policy, mcp, skills: data.skills, plugins: data.plugins, harness: 'omp' })) ?? ''
       const m = memo(sid)

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { isatty } from 'node:tty'
+// node:tty costs about 2 MB of memory; loaded on first use, so `buracle mcp run`'s forwarder, which never calls it, does not pay.
+const isatty = (fd: number): boolean => (require('node:tty') as typeof import('node:tty')).isatty(fd)
 
 export interface Writer {
   write(chunk: string): void
@@ -321,6 +322,12 @@ export async function escapedErrorExit(argv: readonly string[], e: unknown, io: 
 }
 
 export async function runProcess(argv: readonly string[]): Promise<number> {
+  if (argv[0] === 'mcp' && argv[1] === 'run') {
+    // A shared or lazy server's forwarder lives for the whole harness session: keep it light (src/cli/mcp-run.ts).
+    const { fastMcpRun } = await import('./mcp-run')
+    const code = await fastMcpRun(argv)
+    if (code !== undefined) return code
+  }
   const io = processIO({ bindNow: parseArgs(argv).command === 'hook' })
   let code: number
   try {

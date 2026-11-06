@@ -26,6 +26,7 @@ export interface BuracleConfig {
   workflow: { band: boolean, foldAfterSec: number, notifyAfterSec: number, codexNotices: boolean }
   toolchain: { autoInstall: boolean, system: boolean, upgrade: boolean }
   index: { auto: boolean, codegraph: boolean, semble: boolean, minIntervalMin: number, exclude: string[], children: boolean, maxChildren: number }
+  mcp: { shared: boolean, off: Record<Harness, string[]> }
 }
 
 export function defaultConfig(): BuracleConfig {
@@ -68,6 +69,7 @@ export function defaultConfig(): BuracleConfig {
     workflow: { band: true, foldAfterSec: 8, notifyAfterSec: 120, codexNotices: true },
     toolchain: { autoInstall: true, system: true, upgrade: true },
     index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 },
+    mcp: { shared: true, off: { claude: [], codex: [], opencode: [], omp: [] } },
   }
 }
 
@@ -97,6 +99,8 @@ export const EFFORT_VALUES: Readonly<Record<Harness, readonly string[]>> = {
 }
 const effortFields: Record<string, Schema> = {}
 for (const h of HARNESSES) effortFields[h] = { t: 'enum', values: EFFORT_VALUES[h] }
+const mcpOffFields: Record<string, Schema> = {}
+for (const h of HARNESSES) mcpOffFields[h] = strList
 
 const CONFIG_SCHEMA: Schema = {
   t: 'obj',
@@ -171,6 +175,7 @@ const CONFIG_SCHEMA: Schema = {
     workflow: { t: 'obj', fields: { band: bool, foldAfterSec: count(0), notifyAfterSec: count(0), codexNotices: bool } },
     toolchain: { t: 'obj', fields: { autoInstall: bool, system: bool, upgrade: bool } },
     index: { t: 'obj', fields: { auto: bool, codegraph: bool, semble: bool, minIntervalMin: count(0), exclude: strList, children: bool, maxChildren: count(0) } },
+    mcp: { t: 'obj', fields: { shared: bool, off: { t: 'obj', fields: mcpOffFields } } },
   },
 }
 

@@ -11,7 +11,10 @@ import type { FlowSource } from '../../../core/flow/record'
 import { capabilityCard, checkBash, checkQuestion, checkWrite, isGuardContinuation, laneStateDenial, reviewerShellDenial, routeTool, skillOf } from '../../../core/policy/index'
 import type { BashGuardOptions } from '../../../core/policy/bash-guard'
 import { mcpWritePaths } from '../../../core/policy/mcp-paths'
+import { offServersFor, withOffServers } from '../../../core/policy/mcp-off'
+import { opencodeOffServers } from '../../shared/native-off'
 import type { McpHealth } from '../../../core/policy/routing'
+import { mcpUnavailable } from '../../../core/policy/routing'
 import type { ReminderContext } from '../../../core/policy/usage'
 import { ledgerOnce } from '../../../core/policy/usage'
 import type { WriteGuardContext } from '../../../core/policy/write-guard'
@@ -615,7 +618,11 @@ export class BuracleRuntime {
 
   private sessionHealth(sid: string | undefined): McpHealth {
     const health = this.health.get()
-    return sid !== undefined && paths.isValidSessionId(sid) ? sessionHealth(this.ledger, sid, health) : health
+    const merged = sid !== undefined && paths.isValidSessionId(sid) ? sessionHealth(this.ledger, sid, health) : health
+    // The servers that are off in OpenCode (mcp.off.opencode, or `disabled: true` in its own config, read
+    // through an mtime cache): routing treats them as unavailable for good.
+    const project = this.ctx.location.project.directory || this.ctx.location.directory
+    return withOffServers(merged, [...new Set([...offServersFor(this.cfg(), HARNESS), ...opencodeOffServers(project)])])
   }
 
   private reminderContext(s: SessionRuntime, call: ToolCall, cfg: BuracleConfig): ReminderContext {
@@ -952,7 +959,7 @@ export class BuracleRuntime {
     if (this.card?.key === key) return this.card.text
     let text: string | undefined
     try {
-      const mcp = this.baked.mcp.filter(m => health[m.id] !== 'down')
+      const mcp = this.baked.mcp.filter(m => !mcpUnavailable(health[m.id]))
       text = capabilityCard({ policy: { ...this.baked.routing, strictness: cfg.routing.strictness }, mcp, skills: this.baked.skills, plugins: this.baked.plugins, harness: HARNESS })
     } catch (e) {
       this.logFn('warn', 'capability card failed', { error: errText(e) })

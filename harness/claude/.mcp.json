@@ -16,7 +16,10 @@
         "mcp",
         "run",
         "chrome-devtools"
-      ]
+      ],
+      "env": {
+        "BURACLE_HARNESS": "claude"
+      }
     },
     "codegraph": {
       "command": "bun",
@@ -29,7 +32,9 @@
       "env": {
         "CODEGRAPH_MCP_TOOLS": "explore,search,node,callers,callees,impact,status,files",
         "CODEGRAPH_NO_UPDATE_CHECK": "1",
-        "CODEGRAPH_TELEMETRY": "0"
+        "CODEGRAPH_NO_WATCHDOG": "1",
+        "CODEGRAPH_TELEMETRY": "0",
+        "BURACLE_HARNESS": "claude"
       },
       "alwaysLoad": true
     },
@@ -41,6 +46,9 @@
         "run",
         "context7"
       ],
+      "env": {
+        "BURACLE_HARNESS": "claude"
+      },
       "alwaysLoad": true
     },
     "grep": {
@@ -56,7 +64,8 @@
         "semble"
       ],
       "env": {
-        "HF_HUB_DISABLE_TELEMETRY": "1"
+        "HF_HUB_DISABLE_TELEMETRY": "1",
+        "BURACLE_HARNESS": "claude"
       },
       "alwaysLoad": true
     },
@@ -68,6 +77,9 @@
         "run",
         "web-fetch"
       ],
+      "env": {
+        "BURACLE_HARNESS": "claude"
+      },
       "timeout": 180000,
       "alwaysLoad": true
     },
@@ -81,7 +93,8 @@
       ],
       "env": {
         "DEFAULT_SEARCH_ENGINE": "duckduckgo",
-        "MODE": "stdio"
+        "MODE": "stdio",
+        "BURACLE_HARNESS": "claude"
       },
       "alwaysLoad": true
     }

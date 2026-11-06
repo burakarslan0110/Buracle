@@ -4,7 +4,8 @@ import type { Adapter } from '../../adapters/registry'
 import { hostLimitRows } from '../../adapters/shared/host-limits'
 import type { CanonicalBundle, McpCatalog, ToolSpec } from '../../core/catalog'
 import type { Harness } from '../../core/events'
-import { runtimeConfigSnapshot } from '../config'
+import { offEverywhere } from '../../core/policy/mcp-off'
+import { loadConfigSync, runtimeConfigSnapshot } from '../config'
 import { listTxns, readLedgerSync as loadLedgerForDoctor } from '../txn'
 import { readTextSync, sha256 } from '../fsx'
 import { DAY_MS, scanHookFailures } from '../hook-health'
@@ -433,7 +434,25 @@ export async function mcpChecks(catalog: McpCatalog, timeoutMs: number, nowIso: 
       checks.push({ section: 'mcp', level: spec?.critical ? 'error' : 'warn', check: id, detail: `down: ${tildeText(e.error ?? 'no answer')}` })
     }
   }
+  for (const id of offEverywhere(catalog, loadConfigSync().config)) {
+    checks.push({ section: 'mcp', level: 'ok', check: id, detail: `off in every harness it ships to, so not started (\`buracle mcp enable ${id}\` turns it on)` })
+  }
   return { checks, entries }
+}
+
+/**
+ * The `processes` check of `buracle doctor mcp`: every Buracle MCP process without a live harness, and the
+ * command that stops it. `hasHarness(ppid)` says whether a harness runs at or above that parent pid (the CLI
+ * passes the ancestor walk of src/workflow/session-store.ts).
+ */
+export async function mcpProcessChecks(catalog: McpCatalog, hasHarness: (ppid: number) => boolean): Promise<DoctorCheck[]> {
+  const { backendStates, listMcpProcesses, orphanChecks } = await import('../mcp-share/procs')
+  const { lingerMs, pidAlive } = await import('../mcp-share/common')
+  const lazy = new Set(Object.keys(catalog.servers).filter(id => catalog.servers[id]?.backend === 'lazy'))
+  const procs = listMcpProcesses(lazy)
+  const ppidOf = new Map(procs.map(p => [p.pid, p.ppid]))
+  return orphanChecks(procs, backendStates(), { now: opsDeps.now(), lingerMs: lingerMs(), hasHarness: pid => hasHarness(ppidOf.get(pid) ?? 1), alive: pidAlive })
+    .map(c => ({ section: 'mcp', level: c.level, check: c.check, detail: c.detail }))
 }
 
 export async function runMcpDoctor(catalog: McpCatalog, timeoutMs: number): Promise<DoctorCheck[]> {

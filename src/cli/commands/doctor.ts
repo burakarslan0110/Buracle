@@ -47,7 +47,9 @@ Without a topic every section runs:
            \`claude -p /buracle-ping\` itself, without a model call)
   mcp      spawn every stdio MCP server (HTTP servers are called) and run
            initialize + tools/list, each within 30 s; results go to
-           ~/.buracle/state/health.json, which routing enforcement and the capability card read
+           ~/.buracle/state/health.json, which routing enforcement and the capability card read;
+           a server off in every harness is not started. The processes check names each
+           Buracle MCP process without a live harness and the command that stops it
   lsp      start every language server (Buracle's toolchain copy) and run the LSP
            initialize handshake, each within 30 s
   memory   \`buracle mem doctor\` (CortexDB, the project and person brains, the sessions whose
@@ -163,8 +165,12 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     }
     if (wants('mcp')) {
       checking('MCP servers')
-      if ('bundle' in bundle) checks.push(...await runMcpDoctor(bundle.bundle.mcp, HANDSHAKE_TIMEOUT_MS))
-      else checks.push({ section: 'mcp', level: 'error', check: 'mcp.yaml', detail: 'canonical data could not be loaded' })
+      if ('bundle' in bundle) {
+        checks.push(...await runMcpDoctor(bundle.bundle.mcp, HANDSHAKE_TIMEOUT_MS))
+        const { mcpProcessChecks } = await import('../../engine/update/doctor')
+        const { nearestHarnessAncestor } = await import('../../workflow/session-store')
+        checks.push(...await mcpProcessChecks(bundle.bundle.mcp, ppid => ppid > 1 && nearestHarnessAncestor(process.env, { startPid: ppid }) !== undefined))
+      } else checks.push({ section: 'mcp', level: 'error', check: 'mcp.yaml', detail: 'canonical data could not be loaded' })
     }
     if (wants('lsp')) {
       checking('language servers')

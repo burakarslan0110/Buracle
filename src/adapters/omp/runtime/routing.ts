@@ -2,6 +2,7 @@ import type { CatalogMcp, CatalogSkill } from '../../../core/catalog'
 import type { BuracleConfig } from '../../../core/config'
 import type { ToolCall } from '../../../core/events'
 import type { McpHealth, RoutingPolicy } from '../../../core/policy/routing'
+import { mcpUnavailable } from '../../../core/policy/routing'
 import type { CompiledTriggers, PromptRoute } from '../../../core/policy/skill-router'
 import { compileTriggers, ROUTE_CAPS, routePrompt, routeText } from '../../../core/policy/skill-router'
 import type { UsageLedger, WorkspaceFacts } from '../../../core/policy/usage'
@@ -31,7 +32,7 @@ export function mergeRoutes(routes: readonly PromptRoute[], compiled: CompiledTr
 }
 
 export function availableServers(mcp: readonly CatalogMcp[], health: McpHealth): string[] {
-  return mcp.map(s => s.id).filter(id => health[id] !== 'down')
+  return mcp.map(s => s.id).filter(id => !mcpUnavailable(health[id]))
 }
 
 export function isDeviceWrite(toolName: string, input: Record<string, unknown>): boolean {

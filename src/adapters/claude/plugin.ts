@@ -166,7 +166,8 @@ export function mcpJson(mcp: CanonicalBundle['mcp']): Record<string, unknown> {
       const args = viaLauncher ? [LAUNCHER_ARG, ...expanded.args] : expanded.args
       entry = { command }
       if (args.length > 0) entry['args'] = args
-      const env = mcpEnv(spec)
+      // `mcp run` learns its harness, so a server in mcp.off.claude exits at once even if Claude Code started it.
+      const env = viaLauncher && expanded.args[0] === 'mcp' && expanded.args[1] === 'run' ? { ...(mcpEnv(spec) ?? {}), BURACLE_HARNESS: 'claude' } : mcpEnv(spec)
       if (env !== undefined) entry['env'] = env
     }
     if (spec.tool_timeout_sec !== undefined && (spec.tool_timeout_hard === true || spec.tool_timeout_sec * 1000 > CLAUDE_MCP_TOOL_TIMEOUT_MS)) entry['timeout'] = spec.tool_timeout_sec * 1000
