@@ -11,6 +11,11 @@ function safeHref(url) {
   return /^https?:\/\//i.test(url) ? url : null
 }
 
+// English markers keep their direction and do not decide the direction of the block around them
+// (`dir="auto"` skips elements with their own `dir`): a code span, and a bold label such as
+// `**Objective:**` that every plan keeps in English (PRD 2026-11-06 R2, R14).
+const LABEL_RE = /^[A-Za-z][A-Za-z ]*:$/
+
 export function inline(text) {
   const out = []
   const re = /`([^`\n]+)`|\*\*([^*\n]+)\*\*|__([^_\n]+)__|\*([^*\n]+)\*|(?<![\w])_([^_\n]+)_(?![\w])|\[([^\]\n]+)\]\(([^)\s]+)\)/g
@@ -18,8 +23,14 @@ export function inline(text) {
   let m
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) out.push(text.slice(last, m.index))
-    if (m[1] !== undefined) out.push(h('code', null, m[1]))
-    else if (m[2] !== undefined || m[3] !== undefined) out.push(h('strong', null, inline(m[2] ?? m[3])))
+    if (m[1] !== undefined) out.push(h('code', { dir: 'ltr' }, m[1]))
+    else if (m[2] !== undefined || m[3] !== undefined) {
+      const bold = m[2] ?? m[3]
+      // `**SC-1: <title>**`: the scenario id sits in a `bdi`, so the title after it sets the direction.
+      const sc = /^(SC-\d+:)\s*(.*)$/.exec(bold)
+      if (sc !== null) out.push(h('strong', null, h('bdi', null, sc[1]), ' ', ...inline(sc[2])))
+      else out.push(h('strong', LABEL_RE.test(bold) ? { dir: 'ltr' } : null, inline(bold)))
+    }
     else if (m[4] !== undefined || m[5] !== undefined) out.push(h('em', null, inline(m[4] ?? m[5])))
     else {
       const href = safeHref(m[7])
@@ -41,6 +52,14 @@ function joined(parent, children, sep = '\n') {
 
 function block(tag, line, end, attrs, ...children) {
   return h(tag, { ...(attrs ?? {}), 'data-line': line, 'data-end': end }, ...children)
+}
+
+// A text block takes its direction from its first strong letter, so a paragraph in Arabic or Hebrew
+// reads from right to left next to English ones (PRD 2026-11-06 R14). Code and diagrams stay left to right.
+// A list item inherits the direction of its list: `dir="auto"` skips children with a `dir` of their own,
+// so an item with one would leave the list, and its bullets, left to right.
+function textBlock(tag, line, end, attrs, ...children) {
+  return block(tag, line, end, { ...(attrs ?? {}), dir: 'auto' }, ...children)
 }
 
 function cells(row) {
@@ -106,7 +125,7 @@ function renderList(lines, i, baseIndent) {
     items.push({ el: li })
     while (i < lines.length && (lines[i] ?? '').trim() === '' && (LIST_RE.exec(lines[i + 1] ?? '')?.[1].length ?? -1) >= baseIndent) i++
   }
-  const list = block(ordered ? 'ol' : 'ul', start + 1, i)
+  const list = textBlock(ordered ? 'ol' : 'ul', start + 1, i)
   joined(list, items.map((x) => x.el))
   return { el: list, next: i }
 }
@@ -172,7 +191,10 @@ export function renderDoc(text, diagrams) {
     }
     const head = HEAD_RE.exec(line)
     if (head !== null) {
-      blocks.push(block(`h${Math.min(6, head[1].length + 1)}`, i + 1, i + 1, null, ...inline(head[2])))
+      // The `Task N:` marker of a task card sits in a `bdi`, so the title after it sets the direction.
+      const task = /^(Task \d+:)\s*(.*)$/.exec(head[2])
+      const content = task !== null ? [h('bdi', null, task[1]), ' ', ...inline(task[2])] : inline(head[2])
+      blocks.push(textBlock(`h${Math.min(6, head[1].length + 1)}`, i + 1, i + 1, null, ...content))
       i++
       continue
     }
@@ -186,7 +208,7 @@ export function renderDoc(text, diagrams) {
       const thead = h('thead', null, joined(h('tr'), header.map((c) => h('th', null, ...inline(c))), ' '))
       const tbody = h('tbody')
       joined(tbody, rows.map((r) => joined(h('tr', { 'data-line': r.line }), r.cells.map((c) => h('td', null, ...inline(c))), ' ')))
-      blocks.push(block('div', start + 1, i, { class: 'table-wrap' }, h('table', null, thead, document.createTextNode('\n'), tbody)))
+      blocks.push(textBlock('div', start + 1, i, { class: 'table-wrap' }, h('table', null, thead, document.createTextNode('\n'), tbody)))
       continue
     }
     if (LIST_RE.test(line)) {
@@ -199,7 +221,7 @@ export function renderDoc(text, diagrams) {
       const start = i
       const quote = []
       while (i < lines.length && /^\s*>/.test(lines[i] ?? '')) quote.push((lines[i++] ?? '').replace(/^\s*>\s?/, ''))
-      blocks.push(block('blockquote', start + 1, i, null, ...inline(quote.join(' '))))
+      blocks.push(textBlock('blockquote', start + 1, i, null, ...inline(quote.join(' '))))
       continue
     }
     const start = i
@@ -210,7 +232,7 @@ export function renderDoc(text, diagrams) {
       para.push(l.trim())
       i++
     }
-    blocks.push(block('p', start + 1, i, null, ...inline(para.join(' '))))
+    blocks.push(textBlock('p', start + 1, i, null, ...inline(para.join(' '))))
   }
   joined(root, blocks)
   return root

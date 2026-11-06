@@ -26,7 +26,7 @@ Outcome: an approved plan in which every task has a known location, a chosen app
    - **Builds on a VERIFIED plan:** write a new plan and link the old one in `## Context`.
    - **From an approved PRD** (`docs/requirements/*.md`, or the old `docs/prd/*.md`): link it in `## Context`. Its Must requirements become "Done when" lines of the Goal, its *Out of scope* list becomes Scope → Out, and its open questions are answered in P4 or recorded under `## Assumptions`. Do not re-ask what the PRD already settled.
    - **More than about 12 tasks:** propose sequential plans and ask which part comes first.
-3. `buracle plan init --type feature --title "<short title>" --json` prints `{path, slug}`. Then `buracle plan register <absolute path> --phase plan`. From here on, write findings into the plan as you go: the file survives a compaction, your context does not.
+3. `buracle plan init --type feature --title "<short title>" --json` prints `{path, slug}`. When the title has no Latin letters, add `--slug` with two to four short English kebab-case words for the topic (`--slug saved-search`): without it, init stops with `slug_required`. Then `buracle plan register <absolute path> --phase plan`. From here on, write findings into the plan as you go: the file survives a compaction, your context does not.
 
 ## P3. Explore (read-only)
 
@@ -58,7 +58,7 @@ Ask only when the answer changes the plan: behavior the user would notice, scope
 
 ## P6. Write the plan
 
-Fill the file that `buracle plan init` created and keep its frontmatter and layout. If its task layout differs from the example below, the CLI's layout wins. The markers the validator reads stay exactly as shown (`## Tasks`, `### Task N:`, `**Objective:**`, `**Files:**`, `**Definition of Done:**`, `Verify:`, the checkbox line, `## E2E Scenarios`, `## Evidence`, `## DoD Audit`, `## E2E Results`; the full list is in the *Plain language* rule), and so do `## Inventory` and `## Deviations`, which the validator and `buracle plan audit` read by these English names. Write every other heading, the task titles and all prose in English, in the ASD-STE100 structural style of the *Plain language* rule: short sentences, the active voice, no semicolons. `buracle plan validate` warns about a sentence over 25 words, a semicolon in prose, Turkish prose and a path in an old document folder.
+Fill the file that `buracle plan init` created and keep its frontmatter and layout. If its task layout differs from the example below, the CLI's layout wins. The markers the validator reads stay exactly as shown (`## Goal` with its `Done when:` line, which the stop guard reads, `## Tasks`, `### Task N:`, `**Objective:**`, `**Files:**`, `**Definition of Done:**`, `Verify:`, the checkbox line, `## E2E Scenarios`, `## Evidence`, `## DoD Audit`, `## E2E Results`; the full list is in the *Plain language* rule), and so do `## Inventory` and `## Deviations`, which the validator and `buracle plan audit` read by these English names. Write every other heading, the task titles and the prose in the user's language (*Language* in the *Plain language* rule), in the ASD-STE100 structural style of that rule: short sentences, the active voice, no semicolons. `buracle plan validate` warns about a sentence over 25 words, a semicolon in prose and a path in an old document folder, in any language.
 
 ```markdown
 ---

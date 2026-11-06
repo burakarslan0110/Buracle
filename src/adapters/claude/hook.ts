@@ -476,7 +476,6 @@ async function preToolDecision(p: Record<string, unknown>, sid: string, ctx: Ada
     return step('H09 checkQuestion', QUIET, () => {
       const call: ToolCall = { harness: H, sessionId: sid, cwd, tool, input, ...classifyTool(H, tool, input, cwd) }
       const v = d.core.checkQuestion(loadState(H, sid), call, now)
-      if (v.deny !== undefined) return deny(`Buracle H09 (plan.question): ${v.deny}`)
       return isSubagent(p) || v.context === undefined ? QUIET : preContext([v.context])
     })
   }

@@ -36,13 +36,12 @@ Use the purpose-built tool for each need. A fallback is allowed only when the pr
 
 ## Skills, workflows and the per-prompt routing note
 
-- The user starts a workflow with `/<id>`, `$<id>` on Codex (for example `/plan-build`, Codex: `$plan-build`), or by asking for it in words. Start a workflow only then.
+- The user starts a workflow with `/<id>`, `$<id>` on Codex (for example `/plan-build`, Codex: `$plan-build`), or by asking for it in words, in any language. Start a workflow only then.
 - A prompt may come with a "Buracle routing for this prompt" note. Act on it before anything else:
   - "The user asked for the <id> workflow" (or skill): load it the way the note says and follow it.
   - "Skills to evaluate first": decide YES or NO for each with a one-line reason, then load every YES before any other tool.
-  - "Earlier work": search memory first. "The user wants this remembered": write it to memory.
   - Every other line names the MCP server the prompt calls for: use it for that part of the work.
 - Buracle holds a few calls until the right tool has run. An edit that changes an exported signature before codegraph was asked about the symbol, or that adds an import of a library context7 has not been asked about, is denied once: check, then retry (the retry is allowed, also when context7 does not know the library).
-- At the end of a turn Buracle checks once whether a requested workflow was loaded and whether a history question searched memory. If not, do it, or say in one line why it does not apply.
+- At the end of a turn Buracle checks once whether a workflow the user asked for by an exact invocation was loaded. If not, load it, or say in one line why it does not apply. The note names no skill from the prompt's words and raises no memory line: decide those yourself (a history question still starts with `memory_search`, a request to remember still gets a `memory_write`).
 - Prefer skills for workflows: when a skill covers the job (research, memory, planning, worktrees, reviews), load it and follow it instead of improvising.
 - History questions ("last time", "why did we", "what did we decide", "where were we", in any language) start with `memory_search`.

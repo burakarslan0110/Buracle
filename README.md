@@ -124,7 +124,7 @@ flowchart LR
 
 What holds these workflows together:
 
-- A stop guard keeps the turn open until the plan is verified. Only a pause ends it, and you can pause at any time by saying stop, wait or hold on, in English or Turkish.
+- A stop guard keeps the turn open until the plan is verified. Only a pause ends it, and you can pause at any time by saying stop, wait or hold on. Buracle pauses the plan itself when the whole message is such a word in English or Turkish; in any other case the agent pauses it.
 - `--worktree`, `--new-branch` or `--current-branch` after the request decide where the work happens. A worktree run is squash-merged back when it is done.
 - Before any approval, the agent reads the notes you pinned on the review page and marks each one applied.
 - `buracle plan audit` compares the diff with the files each task named and flags changes no task planned.
@@ -155,7 +155,7 @@ You decide how these workflows run in the web UI's [settings](#settings) or with
 
 ### Rules
 
-Four rules load in every session: core (autonomy, evidence before "done", testing, change discipline, debugging), tooling (which tool answers which question), memory and plain language. Path rules load when the agent touches matching files: TypeScript, Python, Go, .NET, Blazor, frontend, browser automation, backend and mobile.
+Four rules load in every session: core (autonomy, evidence before "done", testing, change discipline, debugging), tooling (which tool answers which question), memory and plain language. The plain-language rule keeps one language per session: plans, PRDs, reports and review findings follow your language, and only the markers Buracle reads stay English. Path rules load when the agent touches matching files: TypeScript, Python, Go, .NET, Blazor, frontend, browser automation, backend and mobile.
 
 ## The brain
 
@@ -178,9 +178,9 @@ Upgrading from 0.5: [MIGRATION.md](MIGRATION.md) (what the migration does, how t
 ### What it does, and when
 
 - When a session starts, the agent gets your preferences, the project's key memories and, if work was cut off, a handoff saying where it stopped. Reading is all that happens at that moment.
-- While you work, the preferences you state ("always", "never", "from now on") are noted in the session's spool, with a short redacted quote.
+- While you work, the agent saves a preference you state ("always", "never", "from now on"), in any language, as an explicit memory right away.
 - Before the context is compacted, the plan, task and todo state go into a handoff memory, and they come back right after.
-- When a session ends, one `buracle mem finalize` run writes the session memory, files your stated preferences as explicit memories without any model, and asks the model of the harness you used for the decisions, gotchas and procedures worth keeping. Its answer is checked as a whole before anything is written. Confident findings become memories marked as inferred, with the model's confidence, and the rest wait as captures to be filed. A finding that resembles a memory of yours (explicit, pinned or verified) never changes it: it is stored beside it, marked as contradicting. The same run takes up to three older sessions whose capture is still owed.
+- When a session ends, one `buracle mem finalize` run writes the session memory and asks the model of the harness you used for the decisions, gotchas, procedures and preferences worth keeping. A preference it quotes in your own words, which your prompts show, is filed as explicit. Its answer is checked as a whole before anything is written. Confident findings become memories marked as inferred, with the model's confidence, and the rest wait as captures to be filed. A finding that resembles a memory of yours (explicit, pinned or verified) never changes it: it is stored beside it, marked as contradicting. The same run takes up to three older sessions whose capture is still owed.
 - `buracle mem capture` does the same on demand, and `buracle mem doctor` lists what is still owed.
 
 The memory runs nothing else in the background: no timers, no start-up jobs, no repair or cleanup passes. Sessions and handoffs expire by themselves, because CortexDB drops them after 45 and 14 days. `buracle mem backup` copies the whole brain file when you ask, and a session end takes one copy whenever the newest is more than a day old (the newest 10 are kept).

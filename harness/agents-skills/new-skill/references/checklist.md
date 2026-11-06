@@ -20,7 +20,7 @@ whether the skill will actually be picked and followed.
 
 - [ ] Says what it does **and** when to use it; the "when" part carries the triggers.
 - [ ] Contains the phrases users really type, in English; phrases in the user's language are in
-      `canonical/skill-triggers.yaml` (Buracle repo) or in `when_to_use` (elsewhere).
+      `when_to_use`.
 - [ ] Names what it is not for when a neighboring skill is close.
 - [ ] Concrete nouns and verbs; no adjectives like "powerful" or "comprehensive".
 - [ ] Explicit skills say the user starts them; implicit skills name the situations.
@@ -78,7 +78,7 @@ whether the skill will actually be picked and followed.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| The skill never triggers | The description says what, not when; no trigger phrases | Add situations and real phrases (the user's language goes into `canonical/skill-triggers.yaml`), then run the trigger cases |
+| The skill never triggers | The description says what, not when; no trigger phrases | Add situations and real phrases (the user's language goes into `when_to_use`), then run the trigger cases |
 | It triggers on near misses | The description is broad or overlaps another skill | Name what it is not for; sharpen the boundary in both descriptions |
 | The agent skips a step | The step sits deep in a long body or has no gate | Move it into a numbered phase with a check the agent must show |
 | The agent improvises a tool | The step does not name the MCP server or command | Name it; add a script for fragile steps |

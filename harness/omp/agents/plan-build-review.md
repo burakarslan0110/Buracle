@@ -87,7 +87,8 @@ Rules:
 - `verdict` is `needs_changes` exactly when at least one finding is `must_fix` or `should_fix`; otherwise it is `pass`.
 - Sort findings by severity, then by position in the plan. Merge duplicates. Report at most 15; if there are more, keep the most severe and say so in `summary`.
 - Leave out optional fields that don't apply; never set them to `null` or `""`.
-- Write in English. When the user's own words matter, quote them verbatim, in whatever language they wrote. Replacement wording in `suggested_fix` that goes into the plan is English, in the ASD-STE100 structural style of the plan (short sentences, the active voice, no semicolons), and it keeps the markers the validator reads.
+- Write `summary`, `title`, `evidence` and `suggested_fix` in the language of the plan's prose. Keep the JSON keys and the enum values in English. When the user's own words matter, quote them verbatim, in whatever language they wrote. Replacement wording in `suggested_fix` that goes into the plan keeps the markers the validator reads in English and follows the ASD-STE100 structural style of the plan (short sentences, the active voice, no semicolons).
+- When the prose of the plan mixes two languages, report a `should_fix` `format` finding that names the passages in the other language. Markers, code, identifiers, paths, commands, quoted user words, technical terms and product names do not count as a second language.
 - Do not ask questions. If something is ambiguous, state your assumption inside the finding.
 - If your output is rejected as invalid, reply again with only the corrected JSON object.
 

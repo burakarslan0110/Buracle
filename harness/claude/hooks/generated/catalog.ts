@@ -140,40 +140,6 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "id": "ab-test",
       "invocation": "implicit",
       "short": "Paired before/after evals of skills and rules with tool-use evidence",
-      "triggers": {
-        "ask": [
-          "benchmark the skill",
-          "benchmark this skill",
-          "benchmark the rule",
-          "benchmark the routing",
-          "a/b test the skill",
-          "a/b test the rule",
-          "ab-test the skill",
-          "skill'i* benchmark*",
-          "skill'i* olc*",
-          "kurali benchmark*"
-        ],
-        "not": [
-          "operations per second",
-          "ops/sec",
-          "ops per second",
-          "throughput",
-          "latency"
-        ],
-        "topic": [
-          "activation rate",
-          "trigger rate",
-          "really makes the agent",
-          "re:\\bbefore(?:/|\\s+and\\s+)after\\b.{0,60}\\b(?:skill|rule|routing|prompt|agents\\.md|claude\\.md|hook|mcp|description)",
-          "re:\\b(?:skill|rule|routing|prompt|agents\\.md|claude\\.md|hook|description)\\S*\\b.{0,60}\\bbefore(?:/|\\s+and\\s+)after\\b",
-          "re:\\b(?:agents?|models?|claude|codex|opencode|omp)\\b.{0,30}\\breally\\s+(?:calls?|uses?|loads?|triggers?|reads?)\\b",
-          "re:\\bbenchmark\\w*\\b.{0,80}\\b(?:skill|rule|routing|agents\\.md|claude\\.md|hook|prompt|mcp)",
-          "re:\\b(?:skill|rule|routing)\\S*\\b.{0,80}\\bbenchmark",
-          "re:\\b(?:skill|kural|routing|prompt|agents\\.md|claude\\.md|hook|aciklama)\\S*\\b.{0,80}\\b(?:once/?\\s?sonra karsilastir|tetikleniyor mu|gercekten cagriliyor mu)",
-          "re:\\b(?:once/?\\s?sonra karsilastir\\w*|tetikleniyor mu|gercekten cagriliyor mu)\\b.{0,80}\\b(?:skill|kural|routing|prompt|agents\\.md|claude\\.md|hook)",
-          "re:\\bskill\\S*\\b.{0,80}\\b(?:eskisiyle|oncekiyle|onceki surumuyle)"
-        ]
-      },
       "userInvocable": true
     },
     {
@@ -181,21 +147,6 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "id": "bugfix",
       "invocation": "explicit",
       "short": "Reproduce, root-cause, RED test, fix at the source, prove it end to end",
-      "triggers": {
-        "ask": [
-          "re:(?<!\\b(?:the|that|this|your|my|our|its)\\s)\\broot[- ]cause\\s+fix\\b",
-          "fix it test-first",
-          "fix it with a failing test first",
-          "reproduce it first and fix it",
-          "kok nedenini bulup duzelt",
-          "once test yazip duzelt"
-        ],
-        "not": [
-          "workflow file",
-          "github actions",
-          "ci workflow"
-        ]
-      },
       "userInvocable": true
     },
     {
@@ -203,42 +154,6 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "id": "buracle",
       "invocation": "implicit",
       "short": "When and how to call the buracle helper CLI",
-      "triggers": {
-        "ask": [
-          "use the buracle cli",
-          "buracle cli ile"
-        ],
-        "topic": [
-          "re:\\bplan status\\b(?!\\s+(?:endpoint|field|column|code|enum|value|page|api|route|handler|query|badge|label|filter|check|type)s?\\b)",
-          "how many tasks are left",
-          "tasks left in the plan",
-          "diff range",
-          "re:(?<!\\b(?:add|added|adding|new)\\s(?:a\\s|an\\s|the\\s)?)\\breview scope\\b(?!\\s+(?:option|flag|field|param\\w*|column|setting|config\\w*|endpoint|api|type|enum|value)s?\\b)",
-          "what should i review",
-          "re:\\b(?:my|our|claude(?:\\s+code)?|codex|opencode|omp|subscription)(?:'s)?\\s+(?:usage|rate|weekly|5h|5-hour)\\s+limits?\\b",
-          "rate limit headroom",
-          "5h window",
-          "5-hour window",
-          "create a worktree",
-          "merge the worktree",
-          "buracle doctor",
-          "planin durumu",
-          "re:\\bplan durumu\\b(?!\\s+(?:alan|endpoint|kolon|sutun|enum|deger|sayfa|api|kod)\\w*)",
-          "kac gorev kaldi",
-          "kullanim limitim*",
-          "kullanim limitlerim*",
-          "re:\\bkullanim limit\\w*\\s+ne durumda",
-          "5 saatlik pencere*",
-          "5 saatlik limit*",
-          "haftalik limitim*",
-          "haftalik limitlerim*",
-          "re:\\b(?:claude|codex|opencode|omp)\\S*\\s+(?:kullanim\\s+|haftalik\\s+)?limit\\w*",
-          "worktree olustur*",
-          "worktree ac",
-          "worktree'yi birlestir*",
-          "buracle doctor"
-        ]
-      },
       "userInvocable": false
     },
     {
@@ -246,23 +161,6 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "id": "dead-code",
       "invocation": "explicit",
       "short": "Report-only dead-code audit with two-signal evidence and a removal plan",
-      "triggers": {
-        "ask": [
-          "dead code audit",
-          "dead-code audit",
-          "unused code report",
-          "dead code report",
-          "re:(?:^|[\\n.!?;:]\\s*|\\b(?:please|pls|can you|could you|would you|and|then|just)\\s+)find\\s+(?:all\\s+|the\\s+)?(?:dead|unused)\\s+(?:code|exports|files)\\b",
-          "olu kod analizi",
-          "olu kod raporu",
-          "olu kodlari bul",
-          "olu kod tara*",
-          "kullanilmayan kod* bul",
-          "kullanilmayan kod* tespit",
-          "kullanilmayan export* bul",
-          "temizlik raporu"
-        ]
-      },
       "userInvocable": true
     },
     {
@@ -270,47 +168,6 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "id": "find-skill",
       "invocation": "implicit",
       "short": "Find a skill for a need and install it for every harness",
-      "triggers": {
-        "ask": [
-          "find a skill",
-          "find me a skill",
-          "find skills for",
-          "is there a skill",
-          "re:\\b(?:install|add|get)\\s+(?:a|the|an)\\s+(?:\\S+\\s+){0,3}skill\\b",
-          "re:\\b(?:update|upgrade|remove|uninstall)\\s+(?:my|the|an?)\\s+(?:\\S+\\s+){0,2}skills?\\b",
-          "search for a skill",
-          "skill marketplace",
-          "skill bul",
-          "skill ara",
-          "skill var mi",
-          "bir skill var mi",
-          "re:\\bskill\\w*\\s+(?:kur|yukle|ekle|indir)",
-          "re:\\b(?:kur|yukle|ekle|indir)\\w*\\s+(?:\\S+\\s+){0,2}skill",
-          "skilleri guncelle",
-          "skill guncelle*",
-          "skill kaldir*",
-          "skill sil"
-        ],
-        "not": [
-          "create a skill",
-          "write a skill",
-          "new skill",
-          "turn this into a skill",
-          "buracle skill",
-          "the skill is",
-          "skill triggers",
-          "skills lint",
-          "new-skill",
-          "in the skill",
-          "skill file",
-          "skill id",
-          "skill yaz",
-          "skill olustur",
-          "skille donustur",
-          "yeni skill",
-          "skill dosyasi"
-        ]
-      },
       "userInvocable": true
     },
     {
@@ -318,27 +175,6 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "id": "goal-build",
       "invocation": "explicit",
       "short": "Lock a goal and pass/fail criteria, then build in judged rounds",
-      "triggers": {
-        "ask": [
-          "goal-and-loop",
-          "goal and loop",
-          "find the way yourself",
-          "re:\\byou find the way(?: there)?\\s*(?:[.!;:]|$)",
-          "re:(?:^|[\\n.!?;:]\\s*|\\b(?:and|then|just|please)\\s+)(?:keep\\s+)?loop(?:ing)?\\s+until\\s+it\\s+(?:works|passes)\\b",
-          "yolunu sen bul",
-          "bitene kadar dongu*",
-          "hedef odakli dongu*"
-        ],
-        "not": [
-          "github actions",
-          "ci workflow",
-          "ci pipeline",
-          "workflow file",
-          "workflow run",
-          ".github/workflows",
-          "workflow yaml"
-        ]
-      },
       "userInvocable": true
     },
     {
@@ -346,30 +182,6 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "id": "inspect",
       "invocation": "explicit",
       "short": "Read-only trace of one code question with file:line evidence",
-      "triggers": {
-        "ask": [
-          "inspect how",
-          "inspect why",
-          "inspect where",
-          "investigate how",
-          "investigate why",
-          "investigate where",
-          "dig into how",
-          "trace how",
-          "re:(?:^|[\\n.!?;:]\\s*|\\b(?:please|pls|can you|could you|would you)\\s+)investigate\\s+(?:this|that|it)\\b",
-          "nasil calistigini incele*",
-          "nasil calistigini arastir*",
-          "neden boyle davrandigini incele*",
-          "neden boyle davrandigini arastir*",
-          "nereden cagrildigini incele*"
-        ],
-        "not": [
-          "and fix",
-          "fix it",
-          "then fix",
-          "duzelt"
-        ]
-      },
       "userInvocable": true
     },
     {
@@ -377,22 +189,6 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "id": "memory",
       "invocation": "implicit",
       "short": "When and how to read, write and keep Buracle's CortexDB memory",
-      "triggers": {
-        "ask": [
-          "use the memory protocol",
-          "hafiza protokolu*"
-        ],
-        "topic": [
-          "memory note*",
-          "vault note*",
-          "the memory vault",
-          "the memory brain",
-          "hafiza not*",
-          "hafiza kayd*",
-          "kasa not*",
-          "kasadaki not*"
-        ]
-      },
       "userInvocable": false
     },
     {
@@ -400,35 +196,6 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "id": "new-skill",
       "invocation": "implicit",
       "short": "Capture a repeatable procedure as a canonical Buracle skill",
-      "triggers": {
-        "ask": [
-          "turn this into a skill",
-          "turn it into a skill",
-          "into a reusable skill",
-          "make it a skill",
-          "save it as a skill",
-          "new skill for",
-          "re:\\b(?:create|write|add|make) (?:a |an |the )?(?:new )?(?:[a-z-]+ ){0,2}skill\\b",
-          "skill yap",
-          "bunu skill yap",
-          "yeni skill olustur*",
-          "yeni bir skill olustur*",
-          "yeni skill yaz*",
-          "skill olustur*",
-          "skill olarak kaydet*",
-          "skill'e donustur*",
-          "skill'i guncelle*",
-          "tekrar kullanilabilir bir skill"
-        ],
-        "topic": [
-          "reusable skill",
-          "skill trigger*",
-          "skill description",
-          "re:\\bskill\\S*\\b.{0,60}\\b(?:never triggers|does not trigger|doesn't trigger|misfires|triggers too often)",
-          "re:\\bskill\\S*\\b.{0,60}\\btetiklen(?:miyor|mez)",
-          "re:\\bskill\\S*\\b.{0,60}\\bdevreye girmiyor"
-        ]
-      },
       "userInvocable": true
     },
     {
@@ -436,19 +203,6 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "id": "plan-build",
       "invocation": "explicit",
       "short": "Plan, approve, TDD-implement and verify work through a plan file",
-      "triggers": {
-        "ask": [
-          "write a plan and implement*",
-          "plan and implement it",
-          "plan it and implement*",
-          "re:\\b(?:do|build|implement|handle|tackle)\\s+(?:it|this|that|them|the\\s+\\S+)\\s+plan[- ]driven\\b",
-          "re:\\b(?:go|let's go)\\s+plan[- ]driven\\b",
-          "re:(?:^|[\\n.!?;]\\s*)plan[- ]driven(?:\\s*,?\\s*please)?\\s*[:,]",
-          "plan yaz ve uygula",
-          "plan yazip uygula",
-          "planla ve uygula"
-        ]
-      },
       "userInvocable": true
     },
     {
@@ -456,38 +210,6 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "id": "project-rules",
       "invocation": "implicit",
       "short": "Generate and verify AGENTS.md and path-scoped rules for a repo",
-      "triggers": {
-        "ask": [
-          "set up agent guidance",
-          "set up agents.md",
-          "write agents.md",
-          "create agents.md",
-          "update agents.md",
-          "audit agents.md",
-          "refresh agents.md",
-          "slim down agents.md",
-          "set up the project rules",
-          "audit the agent instructions",
-          "agents.md hazirla*",
-          "agents.md olustur*",
-          "agents.md guncelle*",
-          "agents.md yaz",
-          "proje kurallarini kur",
-          "talimatlari guncelle*",
-          "kurallari sadelestir*"
-        ],
-        "topic": [
-          "agent instructions",
-          "agent guidance",
-          "path rules",
-          "path-scoped rules",
-          "re:\\b(?:agents|claude)\\.md\\b.{0,40}\\b(?:stale|outdated|bloated|too long|wrong|out of date)",
-          "proje talimatlari",
-          "ajan talimatlari",
-          "proje kurallari",
-          "re:\\b(?:agents|claude)\\.md\\b.{0,40}\\b(?:eskimis|guncel degil|cok uzun|yanlis)"
-        ]
-      },
       "userInvocable": true
     },
     {
@@ -495,37 +217,6 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "id": "requirements",
       "invocation": "explicit",
       "short": "Interview, research and write an approved PRD before any code",
-      "triggers": {
-        "ask": [
-          "write a prd",
-          "write the prd",
-          "draft a prd",
-          "draft the prd",
-          "create a prd",
-          "prepare a prd",
-          "make a prd",
-          "need a prd",
-          "re:\\b(?:write|draft|create|prepare|make|produce|need|want)\\s+(?:me\\s+|us\\s+)?(?:a|an|the)\\s+(?:new\\s+|short\\s+|proper\\s+)?(?:product\\s+)?requirements\\s+doc(?:ument)?\\b",
-          "re:(?:^|[\\n.!?;:]\\s*)(?:a\\s+)?prd\\s+for\\b",
-          "prd yaz*",
-          "prd hazirla*",
-          "prd olustur*",
-          "prd cikar*",
-          "gereksinimleri cikar*",
-          "re:\\bgereksinim\\s+(?:dokuman|belge)\\w*\\s+(?:yaz|hazirla|olustur|cikar|lazim|gerek)\\w*",
-          "bu fikri netlestir*",
-          "fikri netlestir*"
-        ],
-        "not": [
-          "do we need a prd",
-          "is there a prd",
-          "do we have a prd",
-          "is a prd needed",
-          "prd gerekli mi",
-          "prd lazim mi",
-          "prd var mi"
-        ]
-      },
       "userInvocable": true
     },
     {
@@ -533,58 +224,6 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "id": "research",
       "invocation": "implicit",
       "short": "Cited, MCP-backed research across web, library docs, public code and memory",
-      "triggers": {
-        "ask": [
-          "research this",
-          "research it",
-          "do research on",
-          "research whether",
-          "research which",
-          "deep research",
-          "find sources",
-          "cite sources",
-          "arastir",
-          "arastirin",
-          "arastiralim",
-          "arastirir misin",
-          "arastirabilir*",
-          "arastirma yap*",
-          "derinlemesine arastir*",
-          "kaynak goster*",
-          "kaynaklarla karsilastir*"
-        ],
-        "not": [
-          "vs code",
-          "vscode",
-          "visual studio",
-          "compare function",
-          "comparator"
-        ],
-        "topic": [
-          "still maintained",
-          "is it maintained",
-          "current sources",
-          "which is better",
-          "re:(?<!\\b(?:follow|following|use|using|apply|applying|with|keep|keeping|per)\\s(?:the\\s|our\\s|these\\s)?)\\bbest\\s+practices?\\s+(?:for|in|of|on|around|when\\s+using)\\b",
-          "re:\\b(?:what|which)(?:'s|\\s+(?:is|are))\\s+(?:the\\s+)?(?:current\\s+|modern\\s+|recommended\\s+)?best\\s+practices?\\b",
-          "re:\\bbest\\s+practices?\\s*\\?",
-          "pros and cons",
-          "alternatives to",
-          "state of the art",
-          "latest version of",
-          "re:\\bcompare\\b.{0,60}\\b(?:librar|framework|tool|package|approach|option|vendor|provider|service|database|orm|solution|sdk)",
-          "re:\\b(?:librar|framework|tool|package|approach|provider|service|database|sdk)\\w*\\b.{0,40}\\bcompar",
-          "re:\\b(?!(?:actual|expected|got|received|before|after|old|new|left|right|input|output|tabs|spaces|this|that|it|one)\\b)[a-z][a-z0-9.-]+ (?:vs\\.?|versus) (?!(?:actual|expected|got|received|before|after|old|new|left|right|input|output|tabs|spaces|this|that|it|one)\\b)[a-z][a-z0-9.-]+",
-          "hangisi daha iyi",
-          "guncel mi",
-          "guncel kaynak*",
-          "re:\\ben iyi (?:pratik|uygulama)\\w*\\b(?!\\s+(?:uy|uygun|izle|takip))",
-          "artilari ve eksileri",
-          "alternatifleri neler",
-          "re:\\b\\S+ mu \\S+ mu (?:kullan|sec|tercih)",
-          "re:\\b(?:kutuphane|framework|arac|paket|yaklasim|secenek|servis|veritaban|sdk)\\w*\\b.{0,60}\\bkarsilastir"
-        ]
-      },
       "userInvocable": true
     },
     {
@@ -592,55 +231,6 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "id": "security-audit",
       "invocation": "implicit",
       "short": "Cloudflare's security-audit skill, Buracle's default security review",
-      "triggers": {
-        "ask": [
-          "security audit",
-          "audit the security",
-          "re:\\baudit\\s+(?:this|the|my|our)\\s+(?:\\S+\\s+){0,2}(?:codebase|repo|repository|project|service|app|application|api)\\b.{0,40}\\bsecur",
-          "re:\\bsecur\\w*\\s+(?:review|assessment|analysis|scan)\\b",
-          "pen test",
-          "pentest",
-          "penetration test",
-          "find vulnerabilities",
-          "find security vulnerabilities",
-          "look for vulnerabilities",
-          "threat model",
-          "guvenlik denetimi",
-          "guvenlik taramasi",
-          "guvenlik incelemesi",
-          "guvenlik analizi",
-          "re:\\bguvenlik ac(?:ik|ig)\\w*",
-          "re:\\bzafiyet\\w*\\s+(?:bul|tara|ara)",
-          "sizma testi",
-          "pentest yap*",
-          "tehdit modeli"
-        ],
-        "not": [
-          "audit log",
-          "audit trail",
-          "accessibility audit",
-          "performance audit",
-          "lighthouse audit",
-          "dead code audit",
-          "cleanup audit",
-          "dependency audit only",
-          "npm audit",
-          "security.md",
-          "security headers test",
-          "erisilebilirlik denetimi",
-          "performans denetimi",
-          "olu kod"
-        ],
-        "topic": [
-          "re:\\bis (?:this|it|that) (?:secure|safe|vulnerable|exploitable)\\b",
-          "re:\\b(?:sql|command|prompt|shell|code)\\s+injection\\b",
-          "re:\\b(?:xss|csrf|ssrf|rce|idor)\\b",
-          "re:\\btrust boundar",
-          "re:\\b(?:auth(?:entication|orization)?|session|token|secret|credential)\\w*\\s+(?:bypass|leak|exposure|handling)\\b",
-          "re:\\bguvenli mi\\b",
-          "re:\\b(?:sql|komut|prompt|kod)\\s+enjeksiyon"
-        ]
-      },
       "userInvocable": true
     }
   ]

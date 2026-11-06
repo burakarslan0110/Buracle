@@ -33,7 +33,7 @@ For a single session while developing: `claude --plugin-dir harness/claude`.
 | Event | Hooks |
 |---|---|
 | SessionStart | H07 restores the plan state (after a compaction), H13 memory index, H15 capability card, H16 session upkeep, H17 profile warning and the one-time notices of this version (at startup), H21 code indexes (in the background) |
-| UserPromptSubmit | H10 pause/continue intents and the `memory_search` reminder for history questions, H20 consent the user gives in their own words, H05 context warning |
+| UserPromptSubmit | H10 pause/continue when the whole message is such a word, H20 consent the user gives as a yes to a held command, H05 context warning |
 | PreToolUse | Bash/Monitor/PowerShell: H01 destructive-command guard (denies when it fails), H20 consent gate, H03 `grep -r` advice; write tools: H02 write guard (denies when it fails); WebSearch/WebFetch: H03 routing; AskUserQuestion: H09; SubagentHandback: H19 checks a review agent's handed-back report (auto mode) and denies an invalid one once; every answer that does not deny a main-agent call carries the H05 context warning once per band |
 | PostToolUse | Write tools: H04 file checks; ExitPlanMode: H12 saves the plan under `docs/plan-build/`; TodoWrite and the task tools: open work for the handoff note; shell, web and MCP tools: H14 spool (in the background) |
 | PostToolUseFailure | Buracle's MCP tools: H24 (two failures in a row and the server is down for the session) |
@@ -48,8 +48,8 @@ In Buracle's review agents (`buracle:*-review`) the shell is read-only (rg, git 
 **Consent gate (H20).** Every harness runs without approval prompts (`permissions.bypass`);
 commands that are hard to undo or reach outside the machine (push, force push, `reset --hard`,
 rebase, amend, branch delete, `git clean`, `--no-verify`, publishing, database drops, recursive
-deletes) run only when the user allowed them in this session: in their own words ("push it", "yes,
-delete it") or by answering the question the denial told the agent to ask.
+deletes) run only when the user allowed them in this session: by a yes (or the held verb, "delete it") in
+the reply to the question the denial told the agent to ask, or in the consent dialog.
 
 ## The mod
 
@@ -61,7 +61,7 @@ delete it") or by answering the question the denial told the agent to ask.
 | `tool.call` Bash/Monitor/PowerShell | In an interactive session, asks right away about a command the consent gate would stop ("Allow once", "Allow for this session", "Refuse") and writes the answer to the consent record the command hook reads. Tracks commands and their results for the turn receipt and the loop alarms; a `buracle flow` or `buracle plan` command refreshes the band. |
 | `tool.call` write tools | Track edits for the turn receipt (file, +/− lines) and the "same change undone and redone" alarm; an edit of the bound plan file refreshes the band. |
 | `tool.call` read and MCP tools | With `guards.redact` on, mask secrets (keys, tokens) in tool output before the model reads it. |
-| `turn.complete` | The turn receipt: a toast for unverified changes, a failed check or a success claim without evidence; after an edit-only turn, the suggestion "run the checks …" (Tab takes it); a native notification when a turn longer than `workflow.notifyAfterSec` ends. |
+| `turn.complete` | The turn receipt: a toast for unverified changes or a failed check; after an edit-only turn, the suggestion "run the checks …" (Tab takes it); a native notification when a turn longer than `workflow.notifyAfterSec` ends. |
 | `session.start` | Registers the commands; in a session that holds an unfinished run, suggests continuing it. |
 | `session.measure` | One toast per context threshold (85%, 95%). |
 | `session.compact` | The summary keeps the active plan, the running workflow, decisions with their reasons, rejected approaches, verification commands and results, touched files and background work (the hook writes the handoff note). |

@@ -59,12 +59,12 @@ export function filesChanged(ctx: AdapterContext, sid: string, changes: readonly
   })
 }
 
-export interface TurnEndOptions { answer: string; now: number; notify?: (title: string, message: string) => void }
+export interface TurnEndOptions { now: number; notify?: (title: string, message: string) => void }
 
 export function turnEnded(ctx: AdapterContext, sid: string, o: TurnEndOptions): string | undefined {
   if (!existsSync(turnFile(ctx, sid))) return undefined
   const t = updateTurn(ctx, sid, cur => ({ next: { v: 1, receipt: emptyReceipt() }, out: cur }))
-  const summary = receiptLine(t.receipt, o.answer)
+  const summary = receiptLine(t.receipt)
   if (summary !== undefined && !summary.warn) log('debug', 'codex: turn receipt', { sid, line: summary.line })
   if (t.startedAt !== undefined && o.notify !== undefined) {
     const run = bandSummary(flowViewFor(H, sid, o.now, ctx.config.workflow.foldAfterSec))

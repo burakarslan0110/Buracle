@@ -380,17 +380,12 @@ export function routerFinding(ctx: AdapterContext): Finding {
   if (ctx.config.routing.skills === 'off') return { level: 'ok', check, detail: 'routing.skills is off: the prompt router names no skills (memory and MCP lines stay)' }
   let canonical: AdapterContext['canonical']
   try { canonical = ctx.canonical } catch (e) { return { level: 'warn', check, detail: `canonical/ could not be loaded: ${e instanceof Error ? e.message : String(e)}` } }
-  if (canonical.triggers === undefined) return { level: 'warn', check, detail: 'canonical/skill-triggers.yaml was not loaded: the router knows only the generated requests ("use the <id> workflow")' }
+  if (canonical.triggers === undefined) return { level: 'warn', check, detail: 'canonical/skill-triggers.yaml was not loaded: the router names no MCP server for a prompt' }
   const skills = catalogSkills(canonical.skills)
   const compiled = compileTriggers(skills, { ...canonical.routing, strictness: ctx.config.routing.strictness })
-  const workflows = skills.filter(s => s.userInvocable && s.invocation === 'explicit')
-  const bare = workflows.filter(s => (s.triggers?.ask ?? []).length === 0).map(s => s.id)
   const problems = canonical.warnings.filter(w => w.startsWith('skill-triggers.yaml'))
-  const counts = `${skills.filter(s => (s.triggers?.ask ?? []).length > 0).length} of ${skills.length} skills with request phrases, ${compiled.categories.length} MCP categories with triggers`
-  if (bare.length > 0 || problems.length > 0) {
-    const parts = [...(bare.length > 0 ? [`workflows without request phrases: ${bare.join(', ')}`] : []), ...problems.slice(0, 3)]
-    return { level: 'warn', check, detail: `${counts}; ${parts.join('; ')}${problems.length > 3 ? ` (+${problems.length - 3} more)` : ''}` }
-  }
+  const counts = `${compiled.categories.length} MCP categories with triggers; skills load from an exact invocation only`
+  if (problems.length > 0) return { level: 'warn', check, detail: `${counts}; ${problems.slice(0, 3).join('; ')}${problems.length > 3 ? ` (+${problems.length - 3} more)` : ''}` }
   return { level: 'ok', check, detail: counts }
 }
 

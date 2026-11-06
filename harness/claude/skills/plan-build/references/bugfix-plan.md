@@ -34,7 +34,7 @@ Each sibling you find either joins Expected (so the Task 1 test covers it) or go
 
 ## B3. Create the plan file
 
-`buracle plan init --type bugfix --title "Fix: <symptom>" --json`, then `buracle plan register <absolute path> --phase plan`. Write the behavior contract into `## Behavior Contract` immediately and add findings as you go.
+`buracle plan init --type bugfix --title "Fix: <symptom>" --json` (with `--slug` when the title has no Latin letters, as in the feature plan), then `buracle plan register <absolute path> --phase plan`. Write the behavior contract into `## Behavior Contract` immediately and add findings as you go.
 
 ## B4. Reproduce first
 

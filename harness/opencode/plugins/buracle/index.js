@@ -9839,9 +9839,6 @@ function slugify(title) {
   }
   return cut.replace(/-+$/g, "");
 }
-function normalizeForSearch(text) {
-  return text.replace(/[\u0130I]/g, "i").replace(/\u0131/g, "i").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036F]/g, "");
-}
 function memOneLine(text) {
   return text.replace(/\s+/g, " ").trim();
 }
@@ -11700,12 +11697,6 @@ var SIMILARITY_STOPWORDS = new Set([
   "kadar",
   "artik"
 ]);
-function memQueryWords(query) {
-  const words = normalizeForSearch(query).split(/[^\p{L}\p{N}_]+/u).filter((w) => w !== "");
-  const kept = words.filter((w) => !STOPWORDS.has(w));
-  const list = kept.length > 0 ? kept : words;
-  return [...new Set(list)].slice(0, 16);
-}
 
 // src/core/memory/signals.ts
 var PROFILE_CATEGORIES = ["communication", "autonomy", "engineering", "workflow", "quality", "avoid", "other"];
@@ -11739,411 +11730,6 @@ function sanitizePromptSignal(x, scrub) {
   if (typeof o["quote"] === "string" && o["quote"].trim() !== "")
     s.quote = clipText(o["quote"], scrub);
   return s;
-}
-var TR_WORDS2 = new Set([
-  "ve",
-  "bir",
-  "bu",
-  "\u015Fu",
-  "i\xE7in",
-  "icin",
-  "ile",
-  "de\u011Fil",
-  "degil",
-  "mi",
-  "m\u0131",
-  "mu",
-  "m\xFC",
-  "ne",
-  "ama",
-  "\xE7ok",
-  "cok",
-  "olarak",
-  "gibi",
-  "daha",
-  "\u015Fimdi",
-  "simdi",
-  "l\xFCtfen",
-  "lutfen",
-  "neden",
-  "nas\u0131l",
-  "nasil",
-  "evet",
-  "hay\u0131r",
-  "hayir",
-  "tamam",
-  "de",
-  "da",
-  "ki",
-  "var",
-  "yok",
-  "sonra",
-  "\xF6nce",
-  "once",
-  "her",
-  "hep",
-  "bunu",
-  "\u015Funu",
-  "olsun",
-  "misin",
-  "m\u0131s\u0131n",
-  "musun",
-  "m\xFCs\xFCn",
-  "\u015Fey",
-  "yap",
-  "yapma",
-  "yapal\u0131m",
-  "yapalim",
-  "kontrol",
-  "art\u0131k",
-  "artik",
-  "bana",
-  "sen",
-  "ben",
-  "biz",
-  "onu",
-  "burada",
-  "\u015F\xF6yle"
-]);
-var EN_WORDS = new Set([
-  "the",
-  "and",
-  "is",
-  "are",
-  "to",
-  "of",
-  "in",
-  "it",
-  "that",
-  "this",
-  "for",
-  "with",
-  "please",
-  "can",
-  "you",
-  "what",
-  "how",
-  "why",
-  "do",
-  "does",
-  "not",
-  "be",
-  "on",
-  "we",
-  "i",
-  "my",
-  "should",
-  "would",
-  "could",
-  "will",
-  "make",
-  "use",
-  "from",
-  "then",
-  "now",
-  "let",
-  "let's",
-  "just",
-  "also",
-  "there",
-  "here",
-  "when",
-  "which",
-  "your",
-  "me",
-  "have",
-  "has",
-  "was",
-  "were",
-  "an",
-  "a"
-]);
-function languageHits(text) {
-  const words = text.replace(/\u0130/g, "i").toLowerCase().split(/[^\p{L}']+/u).filter((w) => w !== "");
-  let tr = 0;
-  let en = 0;
-  for (const w of words) {
-    if (TR_WORDS2.has(w))
-      tr++;
-    if (EN_WORDS.has(w))
-      en++;
-  }
-  return { words: words.length, tr, en, letters: /[\u011F\u0131\u015F\u0130\u015E\u011E]/.test(text) };
-}
-function profilePromptLanguage(text) {
-  const h = languageHits(text);
-  if (h.words < 3)
-    return;
-  const tr = h.tr + (h.letters ? 2 : 0);
-  if (tr === h.en)
-    return;
-  return tr > h.en ? "tr" : "en";
-}
-var TRIGGER_LEAD = uw(/^(?:please\s+|l\u00FCtfen\s+|lutfen\s+)?(?:always|never|from now on|going forward|in (?:the )?future|every time|whenever|her zaman|daima|asla|hi\u00E7bir zaman|hicbir zaman|hi\u00E7 bir zaman|bundan sonra|bundan b\u00F6yle|bundan boyle|art\u0131k|artik|sak\u0131n|sakin|unutma|akl\u0131nda tut|aklinda tut)\b/i);
-var TRIGGER_ANY = uw(/\b(?:always|never|from now on|going forward|i(?:'d| would)? prefer|i (?:want|need) you to|i (?:don'?t|do not) (?:want|like)|(?:don'?t|do not) ever|stop (?:doing|using|adding|writing|asking)|remember (?:that|to)|keep in mind|make sure (?:to|you))\b|(?:^|\s)(?:her zaman|daima|asla|hi\u00E7bir zaman|hicbir zaman|bundan sonra|bundan b\u00F6yle|tercih ederim|tercihim|istemiyorum|bir daha)(?=[\s.,!?]|$)/i);
-var ADDRESSED = uw(/\b(?:you|your|please|we|let'?s|i want|i prefer|i'd like|i like)\b|(?:^|\s)(?:l\u00FCtfen|lutfen|sen|senden|istiyorum|tercih)/i);
-var NEGATIVE = uw(/\b(?:never|don'?t|do not|stop|avoid|no more|without)\b|(?:^|\s)(?:asla|hi\u00E7bir zaman|hicbir zaman|sak\u0131n|sakin|istemiyorum|bir daha|yapma|etme|kullanma|ekleme|yazma|sorma|de\u011Fi\u015Ftirme|degistirme|silme|koyma)(?=[\s.,!?]|$)/i);
-var NOT_A_RULE = uw(/^(?:never ?mind|nevermind)\b/i);
-var STRIP_LEAD = uw(/^(?:(?:please|l\u00FCtfen|lutfen|ok(?:ay)?|so|and|also|but)[\s,]+)*(?:from now on|going forward|in (?:the )?future|bundan sonra|bundan b\u00F6yle|bundan boyle|art\u0131k|artik)[\s,:-]*/i);
-var PERSONAL_LEAD = /^(?:i(?:'d| would)? (prefer) |i (?:want|need) you to |i(?:'d| would) like you to )/i;
-var QUESTION_LEAD = uw(/^(?:(?:please|ok(?:ay)?|so|and|but)[\s,]+)*(?:what|why|how|where|who|which|whose|is (?:it|this|that|there)|are (?:you|we|they|there)|do (?:you|we|i|they)|does|did|can (?:you|we|i)|could (?:you|we|i)|would (?:you|we)|will (?:you|we)|should (?:i|we)|shall (?:i|we))\b/i);
-var TR_QUESTION = uw(/(?:^|\s)(?:m[\u0131iu\u00FC](?:y[\u0131iu\u00FC]m|s[\u0131iu\u00FC]n|y[\u0131iu\u00FC]z|s[\u0131iu\u00FC]n[\u0131iu\u00FC]z|d[\u0131iu\u00FC]r|yd[\u0131iu\u00FC]|ym[\u0131iu\u00FC][\u015Fs])?|neden|niye|nas[\u0131i]l|nerede|hangi)(?=[\s.,!?]|$)/i);
-var THANKS = uw(/\b(?:thanks|thank you|thx|cheers)\b|(?:^|\s)(?:te[\u015Fs]ekk[\u00FCu]r(?:ler|ederim)?|sa[\u011Fg] ?ol(?:un)?|eyvallah|eline sa[\u011Fg]l[\u0131i]k)(?=[\s.,!?]|$)/i);
-var DIRECTIVE = uw(/\b(?:i (?:want|need) you to|i(?:'d| would) like you to|i(?:'d| would)? prefer|i (?:don'?t|do not) (?:want|like)|make sure|keep in mind|remember (?:to|that)|(?:you|we) (?:should|must|need to|have to|ought to)|(?:you|we)(?:'ll| will) (?:always|never)|let'?s)\b/i);
-var RULE_LEAD = uw(/^(?:(?:please|l\u00FCtfen|lutfen|ok(?:ay)?|so|and|also|but|just|simply|then|from now on|going forward|in (?:the )?future|from here on|bundan sonra|bundan b\u00F6yle|bundan boyle|art\u0131k|artik|bir daha|unutma|akl\u0131nda tut|aklinda tut|sak\u0131n|sakin|her zaman|daima|hep|asla|hi\u00E7bir zaman|hicbir zaman|hi\u00E7 bir zaman)\b[\s,]*)+/i);
-var CONDITION_LEAD = uw(/^(?:whenever|every ?time|each time|when|if|once|after|before|as soon as|her seferinde|ne zaman)\b/i);
-var EN_NOT_IMPERATIVE = new Set([
-  "i",
-  "i'm",
-  "i've",
-  "i'd",
-  "i'll",
-  "it",
-  "it's",
-  "its",
-  "this",
-  "that",
-  "these",
-  "those",
-  "the",
-  "a",
-  "an",
-  "there",
-  "there's",
-  "he",
-  "she",
-  "they",
-  "we",
-  "you",
-  "you're",
-  "we're",
-  "they're",
-  "my",
-  "our",
-  "your",
-  "his",
-  "her",
-  "their",
-  "everything",
-  "nothing",
-  "something",
-  "someone",
-  "everyone",
-  "all",
-  "some",
-  "any",
-  "now",
-  "still",
-  "yes",
-  "no",
-  "ok",
-  "okay",
-  "thanks",
-  "same",
-  "one",
-  "had",
-  "has",
-  "have",
-  "was",
-  "were",
-  "is",
-  "are",
-  "am",
-  "be",
-  "been",
-  "seen",
-  "got",
-  "gotten",
-  "did",
-  "done",
-  "went",
-  "gone",
-  "came",
-  "made",
-  "said",
-  "can",
-  "could",
-  "would",
-  "should",
-  "will",
-  "might",
-  "must",
-  "may",
-  "when",
-  "if",
-  "what",
-  "why",
-  "how",
-  "where",
-  "which",
-  "who",
-  "with",
-  "without",
-  "for",
-  "in",
-  "on",
-  "at",
-  "by",
-  "of",
-  "to",
-  "from",
-  "after",
-  "before",
-  "during",
-  "because",
-  "since",
-  "until",
-  "unless",
-  "even",
-  "as",
-  "like",
-  "about",
-  "again",
-  "today",
-  "yesterday",
-  "here",
-  "too",
-  "very",
-  "really",
-  "quite",
-  "not",
-  "ever",
-  "only"
-]);
-var EN_FILLERS = new Set(["please", "just", "simply", "also", "ever", "kindly", "then", "so", "and", "but", "ok", "okay"]);
-var TR_RULE_WORDS = new Set([
-  "istiyorum",
-  "istemiyorum",
-  "isterim",
-  "istemem",
-  "ederim",
-  "lazim",
-  "gerek",
-  "gerekir",
-  "gerekiyor",
-  "sart",
-  "zorunlu"
-]);
-var TR_IMPERATIVE_STEMS = new Set([
-  "kullan",
-  "yaz",
-  "yap",
-  "calistir",
-  "ekle",
-  "sor",
-  "et",
-  "ver",
-  "tut",
-  "koy",
-  "oku",
-  "basla",
-  "baslat",
-  "bekle",
-  "soyle",
-  "yanitla",
-  "cevapla",
-  "acikla",
-  "duzelt",
-  "sil",
-  "degistir",
-  "guncelle",
-  "gonder",
-  "at",
-  "al",
-  "bak",
-  "uygula",
-  "ozetle",
-  "goster",
-  "anlat",
-  "kisalt",
-  "bitir",
-  "olustur",
-  "cevir",
-  "sec",
-  "kaldir",
-  "tasi",
-  "ayir",
-  "birlestir",
-  "dene",
-  "dogrula",
-  "incele",
-  "arastir",
-  "belgele",
-  "hazirla",
-  "dusun",
-  "birak",
-  "kapat",
-  "ac",
-  "sakla",
-  "kur",
-  "yukle",
-  "derle",
-  "kos",
-  "gec",
-  "ol",
-  "dur",
-  "durdur",
-  "onayla",
-  "iste",
-  "sorgula",
-  "commitle",
-  "pushla",
-  "yolla",
-  "kontrol",
-  "test"
-]);
-var TR_IMPERATIVE_ENDING = /(?:m[ae](?:yin(?:iz)?)?|m[ae]l[ie](?:sin(?:iz)?|yiz|dir)?|s[iu]n(?:lar)?|[ae]lim|y[ae]lim)$/;
-var TR_TRAILING = /(?:\s+(?:l\u00FCtfen|lutfen|please|tamam|ok))+$/i;
-function foldTurkish(s) {
-  return s.replace(/\u0130/g, "i").toLowerCase().replace(/\u00E7/g, "c").replace(/\u011F/g, "g").replace(/\u0131/g, "i").replace(/\u00F6/g, "o").replace(/\u015F/g, "s").replace(/\u00FC/g, "u");
-}
-function enImperativeStart(clause) {
-  const words = clause.toLowerCase().replace(/\u2019/g, "'").split(/\s+/).map((w) => w.replace(/^[^a-z']+|[^a-z']+$/g, "")).filter((w) => w !== "");
-  let i = 0;
-  while (i < words.length && EN_FILLERS.has(words[i]))
-    i++;
-  if (words[i] === "always" || words[i] === "never") {
-    i++;
-    while (i < words.length && EN_FILLERS.has(words[i]))
-      i++;
-  }
-  const w = words[i];
-  if (w === undefined)
-    return false;
-  if (w === "don't" || w === "dont" || w === "do" && words[i + 1] === "not")
-    return true;
-  if (EN_NOT_IMPERATIVE.has(w) || !/^[a-z][a-z'-]*$/.test(w) || /(?:ed|ing)$/.test(w))
-    return false;
-  return !(w.endsWith("s") && !/(?:ss|us|is)$/.test(w));
-}
-function trImperativeEnd(clause) {
-  const words = foldTurkish(clause.replace(TR_TRAILING, "")).split(/\s+/).map((w) => w.replace(/^[^a-z']+|[^a-z']+$/g, "")).filter((w) => w !== "");
-  const last = (words.at(-1) ?? "").replace(/^.*'/, "");
-  if (last.length < 2)
-    return false;
-  if (TR_RULE_WORDS.has(last) || TR_IMPERATIVE_STEMS.has(last))
-    return true;
-  for (const stem of TR_IMPERATIVE_STEMS)
-    if (stem.length >= 3 && /^(?:y?[iu]n(?:[iu]z)?)$/.test(last.slice(stem.length)) && last.startsWith(stem))
-      return true;
-  return last.length >= 4 && TR_IMPERATIVE_ENDING.test(last);
-}
-function ruleShaped(sentence) {
-  const s = sentence.trim();
-  if (/\?\s*$/.test(s) || QUESTION_LEAD.test(s) || TR_QUESTION.test(s))
-    return false;
-  if (DIRECTIVE.test(s))
-    return true;
-  const lang = profilePromptLanguage(s);
-  const turkish = lang === "tr" || lang === undefined && /[\u00E7\u011F\u0131\u00F6\u015F\u00FC\u0130]/i.test(s);
-  for (const raw of s.replace(/[.!]+$/, "").split(/[,;:]/)) {
-    const clause = raw.trim().replace(RULE_LEAD, "").trim();
-    if (clause === "" || CONDITION_LEAD.test(clause) || THANKS.test(clause))
-      continue;
-    if (turkish ? trImperativeEnd(clause) : enImperativeStart(clause))
-      return true;
-  }
-  return false;
 }
 var SIGNATURE_STOP = new Set([
   "always",
@@ -12198,57 +11784,6 @@ var SIGNATURE_STOP = new Set([
   "should",
   "would"
 ]);
-function negatedReply(en, tr) {
-  return uw(new RegExp([
-    String.raw`\b(?:never|don'?t|dont|do not|no longer|stop|avoid)(?:,?\s+ever)?,?\s+(?:reply|respond|answer|talk|speak)(?:ing)?(?:\s+(?:to\s+)?me)?\s+in\s+${en}\b`,
-    String.raw`${tr}\s+(?:yan[\u0131i]t|cevap)\s+(?:verme|istemiyorum)\b`
-  ].join("|"), "i"));
-}
-var CANONICAL = [
-  {
-    key: "communication.reply_language=tr",
-    text: "Reply in Turkish",
-    category: "communication",
-    test: uw(/\b(?:reply|respond|answer|write|talk|speak|explain)\b[^.!?\n]{0,40}\bturkish\b|t[\u00FCu]rk[\u00E7c]e\s+(?:yan[\u0131i]t|cevap|yaz|konu[\u015Fs]|a[\u00E7c][\u0131i]kla)/i),
-    opposite: { text: "Do not reply in Turkish", test: negatedReply("turkish", "t[\xFCu]rk[\xE7c]e") }
-  },
-  {
-    key: "communication.reply_language=en",
-    text: "Reply in English",
-    category: "communication",
-    test: uw(/\b(?:reply|respond|answer|talk|speak|explain)\b[^.!?\n]{0,40}\benglish\b|[\u0130Ii]ngilizce\s+(?:yan[\u0131i]t|cevap|konu[\u015Fs]|a[\u00E7c][\u0131i]kla)/i),
-    opposite: { text: "Do not reply in English", test: negatedReply("english", "[\u0130Ii]ngilizce") }
-  },
-  { key: "communication.emoji=never", text: "No emojis in replies or files", category: "communication", prohibition: true, test: uw(/\b(?:no|without|don'?t use|do not use|never use|stop using)\s+emojis?\b|emoji\s+(?:kullanma|koyma|ekleme)|emojisiz/i) },
-  { key: "communication.length=short", text: "Keep answers short and to the point", category: "communication", test: uw(/\b(?:short|concise|brief|terse)\s+(?:answers|replies|responses)\b|\bbe (?:concise|brief)\b|k[\u0131i]sa\s+(?:yan[\u0131i]t|cevap|tut)/i) },
-  { key: "autonomy.ask=never", text: "Work autonomously; do not stop to ask for confirmation", category: "autonomy", prohibition: true, test: uw(/\b(?:don'?t|do not|no need to|stop)\s+ask(?:ing)?(?:\s+me)?\b|\bbana\s+sorma\b|\bsormana gerek yok\b|\bonay\s+(?:bekleme|isteme)\b/i) },
-  { key: "autonomy.ask=never", text: "Work autonomously; do not stop to ask for confirmation", category: "autonomy", test: uw(/\bwithout asking\b|\bsormadan\b/i), unless: uw(/\b(?:never|don'?t|do not|asla|hi[\u00E7c]bir zaman|etme|yapma)\b/i) },
-  { key: "autonomy.ask=first", text: "Ask before acting on anything significant", category: "autonomy", test: uw(/\b(?:ask|check with)\s+(?:me\s+)?(?:first|before)\b|[\u00F6o]nce\s+(?:bana\s+)?sor\b/i) },
-  { key: "quality.tests=always", text: "Write and run tests for every change", category: "quality", test: uw(/\b(?:write|add|run)\s+(?:the\s+)?tests?\b|\btdd\b|test(?:leri)?\s+(?:yaz|[\u00E7c]al[\u0131i][\u015Fs]t[\u0131i]r|ko[\u015Fs])/i) }
-];
-var TR_NEGATIVE_VERBS = String.raw`istemiyorum|yapma|etme|kullanma|ekleme|yazma|sorma|de[\u011Fg]i[\u015Fs]tirme|silme|koyma|verme|[\u00E7c]al[\u0131i][\u015Fs]t[\u0131i]rma|ko[\u015Fs]ma`;
-var TR_NEGATIVE_VERB = uw(new RegExp(String.raw`(?:^|\s)(?:${TR_NEGATIVE_VERBS})(?=[\s.,!?;:]|$)`, "i"));
-var CANON_NEGATOR = uw(new RegExp(String.raw`\b(?:never|don'?t|dont|do not|does not|doesn'?t|should not|shouldn'?t|must not|mustn'?t|no longer|no more|no need to|avoid|(?:stop|quit)\s+\p{L}+ing)\b|(?<!\bor\s)\bnot\b|(?:^|\s)(?:asla|hi[\u00E7c]\s?bir\s+zaman|sak[\u0131i]n|${TR_NEGATIVE_VERBS})(?=[\s.,!?;:]|$)`, "iu"));
-var LEAD_NEGATOR = uw(/^(?:(?:please|l\u00FCtfen|lutfen|from now on|going forward|bundan sonra|art\u0131k|artik|and|so|also)[\s,]+)*(?:i\s+)?(?:never|don'?t|dont|do not|asla|hi[\u00E7c]\s?bir\s+zaman|sak[\u0131i]n)\b/i);
-var DOUBLE_NEGATIVE = uw(/\b(?:never|don'?t|dont|do not|no longer)\s+(?:ever\s+)?(?:stop|quit)\b/i);
-var CLAUSE_STOPS = [",", ";", ":"];
-var WORD_CHAR = /[\p{L}\p{N}_']/u;
-function negatesClaim(sentence, c) {
-  if (c.prohibition)
-    return DOUBLE_NEGATIVE.test(sentence);
-  if (LEAD_NEGATOR.test(sentence))
-    return true;
-  const m = c.test.exec(sentence);
-  if (!m)
-    return false;
-  let end = m.index + m[0].length;
-  while (end < sentence.length && WORD_CHAR.test(sentence.charAt(end)))
-    end++;
-  const start = Math.max(...CLAUSE_STOPS.map((ch) => sentence.lastIndexOf(ch, m.index))) + 1;
-  const stops = CLAUSE_STOPS.map((ch) => sentence.indexOf(ch, end)).filter((i) => i >= 0);
-  const stop = stops.length > 0 ? Math.min(...stops) : sentence.length;
-  return CANON_NEGATOR.test(sentence.slice(start, end)) || TR_NEGATIVE_VERB.test(sentence.slice(end, stop));
-}
 var CATEGORY_WORDS = [
   ["communication", uw(/\b(?:reply|replies|respond|answer|answers|language|english|turkish|emojis?|tone|concise|short|brief|explain|explanations?|format|markdown|tables?|summary|summaries|wording|verbose)\b|\b(?:t[\u00FCu]rk[\u00E7c]e|ingilizce|yan[\u0131i]t|cevap|a[\u00E7c][\u0131i]kla|k[\u0131i]sa|uzun|tablo|[\u00F6o]zet|dil)/i)],
   ["autonomy", uw(/\b(?:ask|asking|approval|approve|permission|confirm|confirmation|autonomous|autonomously|check[- ]in|wait|interrupt)\b|\b(?:sor|sorma|sormadan|sormak|sorar|onay[\p{L}]*|izin[\p{L}]*|otonom[\p{L}]*|bekle[\p{L}]*)\b/iu)],
@@ -12256,63 +11791,8 @@ var CATEGORY_WORDS = [
   ["workflow", uw(/\b(?:plan|plans|spec|workflow|workflows|commits?|branch|branches|worktrees?|pull request|prs?|push|merge|release|deploy|skills?|mcp)\b|\b(?:dal[\u0131i]?|birle[\u015Fs]tir)\b/i)],
   ["engineering", uw(/\b(?:bun|npm|pnpm|yarn|typescript|javascript|python|go|rust|library|libraries|dependenc(?:y|ies)|framework|code|api|architecture|database|sql|docker|runtime|package)\b|\b(?:k[\u00FCu]t[\u00FCu]phane|ba[\u011Fg][\u0131i]ml[\u0131i]l[\u0131i]k|kod|mimari)/i)]
 ];
-function profileCategory(text, polarity = 1) {
-  if (polarity === -1)
-    return "avoid";
-  for (const [cat, re] of CATEGORY_WORDS)
-    if (re.test(text))
-      return cat;
-  return "other";
-}
-function sentencesOf(text) {
-  return text.split(/(?<=[.!?])\s+|\n+/).map((s) => s.trim()).filter((s) => s !== "");
-}
-function capitalize(s) {
-  return s === "" ? s : s.charAt(0).toUpperCase() + s.slice(1);
-}
-function profileSignature(text) {
-  const words = memQueryWords(text).map((w) => normalizeForSearch(w).replace(/[^a-z0-9]/g, "")).filter((w) => w.length >= 3 && !SIGNATURE_STOP.has(w));
-  return [...new Set(words.map((w) => w.length > 8 ? w.slice(0, 8) : w))].sort().slice(0, 6).join("-");
-}
-function statementOf(sentence) {
-  if (sentence.length < 8 || sentence.length > 400 || NOT_A_RULE.test(sentence))
-    return;
-  const lead = TRIGGER_LEAD.test(sentence);
-  if (!lead && !(TRIGGER_ANY.test(sentence) && ADDRESSED.test(sentence)))
-    return;
-  if (!ruleShaped(sentence))
-    return;
-  const quote = { quote: sentence };
-  const known = CANONICAL.filter((c) => c.test.test(sentence) && !(c.unless?.test(sentence) ?? false));
-  const affirmed = known.find((c) => !negatesClaim(sentence, c));
-  if (affirmed)
-    return { kind: "statement", key: affirmed.key, category: affirmed.category, text: affirmed.text, ...quote };
-  const opposite = known.find((c) => c.opposite?.test.test(sentence));
-  if (opposite?.opposite)
-    return { kind: "statement", key: opposite.key, polarity: -1, category: opposite.category, text: opposite.opposite.text, ...quote };
-  const polarity = known.length > 0 || NEGATIVE.test(sentence) ? -1 : 1;
-  const signature = profileSignature(sentence);
-  if (signature === "")
-    return;
-  const cleaned = capitalize(sentence.replace(STRIP_LEAD, "").replace(/^[\s,:-]+/, "").replace(PERSONAL_LEAD, (_m, prefer) => prefer !== undefined ? "Prefer " : "").replace(/[\s.!]+$/, ""));
-  const s = { kind: "statement", key: `said:${signature}`, category: profileCategory(cleaned, polarity), text: cleaned, quote: sentence };
-  if (polarity === -1)
-    s.polarity = -1;
-  return s;
-}
 function promptSignals(text) {
-  const t = redactClip(text, 4000).text.trim();
-  if (t === "" || t.startsWith("<"))
-    return [];
-  const cmd = /^(?:\/(?:buracle:)?|\$)([a-z][a-z0-9-]{1,40})(?=\s|$)/.exec(t);
-  const body = cmd ? t.slice(cmd[0].length).trim() : t;
-  const out = [];
-  for (const sentence of sentencesOf(body).slice(0, 40)) {
-    const s = statementOf(sentence);
-    if (s && !out.some((o) => o.key === s.key))
-      out.push(s);
-  }
-  return out.slice(0, 12).map((s) => sanitizePromptSignal(s));
+  return [];
 }
 
 // src/core/memory/spool.ts
@@ -13324,7 +12804,10 @@ var LINK = /\[([^\]]*)\]\([^)]*\)/g;
 var URL2 = /https?:\/\/[^\s)\]>"']+/g;
 var LABEL = /^\*\*[^*]+:\*\*\s*/;
 var EMPHASIS = /\*\*|__|(?<![\w`])[*_](?=\S)|(?<=\S)[*_](?![\w`])/g;
-var SENTENCE_END = /(?<=[.!?])\s+/;
+var SENTENCE_END = /(?<=[.!?])\s+|(?<=[^\P{Sentence_Terminal}.!?])\s*(?=\S)/u;
+var GREEK = /\p{Script=Greek}/gu;
+var LATIN = /\p{Script=Latin}/gu;
+var GREEK_QUESTION = /[;\u037e](?=\s|$)/gu;
 var LEGACY_PATH = new RegExp(`docs/(${LEGACY_DOC_DIRS.join("|")})/`);
 function at2(line, code, message) {
   return { level: "warning", code, message, line: line + 1 };
@@ -13400,14 +12883,6 @@ function plain(u) {
 function words(sentence) {
   return sentence.split(/\s+/).filter((w) => w !== "").length;
 }
-function readsAsTurkish(text) {
-  const h = languageHits(text);
-  if (h.words < 3)
-    return false;
-  if (h.letters)
-    return h.tr >= h.en;
-  return h.tr >= 2 && h.tr - h.en >= 2;
-}
 function legacyMessage(path) {
   const legacy = LEGACY_PATH.exec(path)?.[1];
   const fresh = DOC_DIRS.find((d) => d.legacy === legacy)?.dir ?? "plan-build";
@@ -13422,14 +12897,14 @@ function documentFindings(o) {
         break;
       }
     }
-    const text = plain(u);
+    const prose = u.lines.map((l) => l.replace(BLOCKQUOTE, "").replace(LIST_ITEM, "").replace(LABEL, "")).join(" ").replace(CODE_SPAN, "").replace(LINK, "$1").replace(URL2, "");
+    const greek = (prose.match(GREEK)?.length ?? 0) > (prose.match(LATIN)?.length ?? 0);
+    const text = greek ? plain(u).replace(GREEK_QUESTION, "?") : plain(u);
     if (text === "")
       continue;
-    const semi = u.lines.findIndex((l) => l.replace(CODE_SPAN, "").includes(";"));
+    const semi = greek ? -1 : u.lines.findIndex((l) => l.replace(CODE_SPAN, "").includes(";"));
     if (semi >= 0)
       out.push(at2(u.first + semi, "semicolon", "a semicolon joins two statements: write two sentences or a list"));
-    if (readsAsTurkish(text))
-      out.push(at2(u.first, "not-english", "this paragraph reads as Turkish: a document under docs is English"));
     for (const sentence of u.cell ? [text] : text.split(SENTENCE_END)) {
       const n = words(sentence);
       if (n > MAX_SENTENCE_WORDS)
@@ -22455,18 +21930,6 @@ function withOffServers(health, off) {
     out[id] = "off";
   return out;
 }
-// src/core/policy/text.ts
-function fold2(s) {
-  return s.replace(/[\u0130I\u0131]/g, "i").toLowerCase().normalize("NFD").replace(/[\u0300-\u036F]/g, "").replace(/[\u2019\u2018\u02BC\u00B4`]/g, "'").replace(/\u00DF/g, "ss").replace(/[\u00F8\u0153]/g, "o").replace(/\u00E6/g, "ae").replace(/[^\S\n]+/g, " ").replace(/ *\n[\s]*/g, `
-`).trim();
-}
-function stripQuoted(s) {
-  return s.replace(/(^|\n)\s*(```|~~~)[\s\S]*?(\n\s*\2|$)/g, "$1 ").replace(/`[^`\n]*`/g, " ").replace(/"[^"\n]{0,400}"/g, " ").replace(/\u201C[^\u201D\n]{0,400}\u201D/g, " ").replace(/\u00AB[^\u00BB\n]{0,400}\u00BB/g, " ").replace(/(^|\n)\s*>[^\n]*/g, "$1 ");
-}
-function word2(body) {
-  return `(?<![a-z0-9_'-])(?:${body})(?![a-z0-9_'-])`;
-}
-
 // src/core/policy/questions.ts
 function str4(x) {
   return typeof x === "string" && x.trim() !== "" ? x : undefined;
@@ -22519,126 +21982,7 @@ function questionsOf(input) {
   }
   return out;
 }
-var ROUTINE_TEXT = new RegExp(word2([
-  "devam (?:ede(?:yim|lim|bilir miyim|bilir miyiz|cek miyim|cek miyiz)|etme(?:mi|li mi(?:yim|yiz))|edilsin|etsem|mi)",
-  "beklemeye devam",
-  "bekle(?:yeyim|yelim|meli mi(?:yim|yiz)|memi|sem)",
-  "surdur(?:eyim|elim)",
-  "ilerle(?:yeyim|yelim)",
-  "gec(?:eyim|elim) mi",
-  "(?:tekrar|sonra|biraz sonra|daha sonra) kontrol (?:edeyim|edelim)",
-  "hala bekle(?:yeyim|yelim)",
-  "(?:should|shall|can|may) (?:i|we) (?:still )?(?:continue|proceed|keep going|keep waiting|wait|go ahead|carry on|move on|resume|check back|check again|keep monitoring|keep polling)",
-  "(?:do|would) you (?:want|like) me to (?:continue|proceed|keep going|keep waiting|wait|go ahead|carry on|move on)",
-  "want me to (?:continue|proceed|keep going|keep waiting)",
-  "(?:ok|okay|alright|fine) (?:if i|to) (?:continue|proceed|keep (?:going|waiting))",
-  "ready (?:for me )?to (?:continue|proceed)",
-  "(?:let me know|tell me) (?:if|when|whether) (?:i should|to) (?:continue|proceed|keep)",
-  "is it (?:ok|okay|fine|alright) (?:if i|to) (?:continue|proceed|keep)"
-].join("|")));
-var BARE_ROUTINE = /^(?:continue|proceed|keep (?:going|waiting)|wait longer|devam(?: edeyim)?|devam mi|beklemeye devam(?: edeyim)?|bekleyeyim mi)\s*\?*$/;
-var ROUTINE_OPTION = /^(?:yes|no|ok|okay|sure|continue|proceed|keep (?:going|waiting)|wait(?: longer| more)?|stop|abort|cancel|pause|check (?:later|again|back)|retry later|later|not now|yes,? (?:continue|proceed|keep (?:going|waiting))|no,? (?:stop|wait)|continue waiting|stop waiting|evet|hayir|tamam|olur|devam(?: et)?|evet,? devam(?: et)?|beklemeye devam(?: et)?|bekle|dur|durdur|iptal|vazgec|sonra|daha sonra|sonra kontrol et|tekrar kontrol et|simdilik dur)$/;
-var MATERIAL = new RegExp(word2([
-  "sil|silin|sileyim|silelim|silinsin|silmek|silme|silinecek|silmemi",
-  "delet[a-z]*",
-  "remov[a-z]*",
-  "kaldir[a-z]*",
-  "drop[a-z]*",
-  "destroy[a-z]*",
-  "wip(?:e|es|ed|ing)",
-  "purg[a-z]*",
-  "eras[a-z]*",
-  "deploy[a-z]*",
-  "publish[a-z]*",
-  "releas[a-z]*",
-  "yayin[a-z]*",
-  "merg[a-z]*",
-  "birlestir[a-z]*",
-  "push[a-z]*",
-  "commit[a-z]*",
-  "credential[a-z]*",
-  "sifre[a-z]*",
-  "parola[a-z]*",
-  "password[a-z]*",
-  "secret[a-z]*",
-  "gizli",
-  "token[a-z]*",
-  "api key",
-  "anahtar[a-z]*",
-  "permission[a-z]*",
-  "izin[a-z]*",
-  "approv[a-z]*",
-  "onay[a-z]*",
-  "cost[a-z]*",
-  "maliyet[a-z]*",
-  "ucret[a-z]*",
-  "fiyat[a-z]*",
-  "pric[a-z]*",
-  "pay",
-  "payment[a-z]*",
-  "odeme[a-z]*",
-  "quota",
-  "kota[a-z]*",
-  "budget",
-  "butce[a-z]*",
-  "billing",
-  "fatura[a-z]*",
-  "credit[a-z]*",
-  "kredi[a-z]*",
-  "deadline",
-  "son tarih",
-  "prod",
-  "production",
-  "canli",
-  "database",
-  "veritaban[a-z]*",
-  "migrat[a-z]*",
-  "fail[a-z]*",
-  "error[a-z]*",
-  "hata[a-z]*",
-  "basarisiz[a-z]*",
-  "broken",
-  "bozul[a-z]*",
-  "manual[a-z]*",
-  "manuel",
-  "elle",
-  "by hand",
-  "your (?:input|decision|choice|call)",
-  "senin (?:karar[a-z]*|tercih[a-z]*|fikr[a-z]*)"
-].join("|")));
-var MONEY = /[$\u20AC\u20BA\u00A3]\s?\d|\d\s?(?:usd|tl|eur|try|dolar)(?![a-z])/;
-var ROUTINE_ALTERNATIVE = /\b(?:or|ya da|veya|yoksa) (?:should i |shall i )?(?:stop|wait|not|abort|cancel|pause|keep waiting|check (?:back )?later|dur(?:ayim|alim)?|bekle(?:yeyim|yelim)?|hayir)\b/g;
-var ALTERNATIVE = /\b(?:or|ya da|veya|yoksa)\b/;
-function cleanLabel(s) {
-  return fold2(s).replace(/\((?:recommended|onerilen|tavsiye edilen)\)/g, "").replace(/[.!?:;"'()[\]]+/g, " ").replace(/\s+/g, " ").trim();
-}
-function isRoutine(q) {
-  const text = fold2(q.text);
-  if (text === "")
-    return false;
-  const all = [text, ...q.options.map(fold2), ...q.details.map(fold2)].join(` 
- `);
-  MATERIAL.lastIndex = 0;
-  if (MATERIAL.test(all) || MONEY.test(all))
-    return false;
-  ROUTINE_TEXT.lastIndex = 0;
-  if (!ROUTINE_TEXT.test(text) && !BARE_ROUTINE.test(text))
-    return false;
-  if (ALTERNATIVE.test(text.replace(ROUTINE_ALTERNATIVE, " ")))
-    return false;
-  return q.options.every((o) => ROUTINE_OPTION.test(cleanLabel(o)));
-}
-var REASON = 'A routine "should I continue / keep waiting?" question is not allowed while an approved plan runs: keep working and poll long jobs yourself, or for a real decision run `buracle plan pause --kind decision --reason "<question>"` first and then ask.';
-var HELD = "The plan is held for the user, so no keep-waiting question is needed: say where things stand and end the turn; the user resumes the plan.";
 var QUESTION_PAUSE_NOTE = 'Buracle H09: the plan is running, not paused. If the answer to this question may come in a later turn, run `buracle plan pause --kind decision --reason "<question>"` first; after the answer, run `buracle plan resume`.';
-function clip3(s, max) {
-  const t = s.replace(/\s+/g, " ").trim();
-  return t.length <= max ? t : `${t.slice(0, max - 3).trimEnd()}...`;
-}
-function mixedReason(routine) {
-  const named = routine.slice(0, 2).map((q) => `"${clip3(q.text, 80)}"`).join(" and ");
-  return `A routine "should I continue / keep waiting?" question is not allowed while an approved plan runs: drop ${named} and ask the remaining question${routine.length === 1 ? "" : "s"} again.`;
-}
 function guarded(plan) {
   if (plan === undefined)
     return false;
@@ -22652,20 +21996,10 @@ function checkQuestion(state, call, now) {
   if (!guarded(state?.plan))
     return {};
   const input = call.input !== null && typeof call.input === "object" ? call.input : {};
-  const qs = questionsOf(input);
-  if (qs.length === 0)
+  if (questionsOf(input).length === 0)
     return {};
-  const routine = qs.filter(isRoutine);
-  const i = state.interaction;
-  if (i?.state === "paused") {
-    if (i.kind === "decision" || routine.length === 0)
-      return {};
-    return { deny: routine.length === qs.length ? HELD : mixedReason(routine) };
-  }
-  if (routine.length === qs.length)
-    return { deny: REASON };
-  if (routine.length > 0)
-    return { deny: mixedReason(routine) };
+  if (state.interaction?.state === "paused")
+    return {};
   return { context: QUESTION_PAUSE_NOTE };
 }
 var CANCELLED = /^(?:(?:the )?user (?:cancel+ed|declined|dismissed|skipped|did not (?:select|answer)|chose to chat)|ask tool was cancel+ed|cancel+ed|dismissed|declined|no answer|\(no answer\))/i;
@@ -22724,6 +22058,18 @@ function questionAnswered(response, depth = 0) {
       return questionAnswered(rec[k], depth + 1);
   return false;
 }
+// src/core/policy/text.ts
+function fold2(s) {
+  return s.replace(/[\u0130I\u0131]/g, "i").toLowerCase().normalize("NFD").replace(/[\u0300-\u036F]/g, "").replace(/[\u2019\u2018\u02BC\u00B4`]/g, "'").replace(/\u00DF/g, "ss").replace(/[\u00F8\u0153]/g, "o").replace(/\u00E6/g, "ae").replace(/[^\S\n]+/g, " ").replace(/ *\n[\s]*/g, `
+`).trim();
+}
+function stripQuoted(s) {
+  return s.replace(/(^|\n)\s*(```|~~~)[\s\S]*?(\n\s*\2|$)/g, "$1 ").replace(/`[^`\n]*`/g, " ").replace(/"[^"\n]{0,400}"/g, " ").replace(/\u201C[^\u201D\n]{0,400}\u201D/g, " ").replace(/\u00AB[^\u00BB\n]{0,400}\u00BB/g, " ").replace(/(^|\n)\s*>[^\n]*/g, "$1 ");
+}
+function word2(body) {
+  return `(?<![a-z0-9_'-])(?:${body})(?![a-z0-9_'-])`;
+}
+
 // src/core/policy/intents.ts
 var GUARD_MARKERS = ["Buracle stop guard:", "Buracle plan check:", "Buracle routing check:"];
 function isGuardContinuation(text) {
@@ -22740,115 +22086,80 @@ function isUserText(text) {
   return trimmed !== "" && !isGuardContinuation(trimmed) && !HARNESS_TEXT.test(trimmed);
 }
 var re = (body) => new RegExp(word2(body), "g");
-var NEGATIONS = [
-  [re("devam etme(?:yin|yelim|yiniz|sin)?|don'?t (?:continue|proceed|resume)|do not (?:continue|proceed|resume)"), "pause"],
-  [re("durma(?:yin|yiniz|dan|sin)?|don'?t (?:stop|pause|wait)|do not (?:stop|pause|wait)|never stop"), "resume"],
-  [re("iptal etme(?:yin|yelim)?|vazgecme(?:yin)?|don'?t (?:cancel|abort)|do not (?:cancel|abort)"), null]
-];
-var PAUSE_ANYWHERE = re("du+r+(?:un|sana)?|duraklat(?:in|iniz|sana)?|durur musun|durabilir misin|durdurur musun|durdurabilir misin|bekler misin|bekleyebilir misin|hold on|hold up");
-var PAUSE_OBJECT_SENSITIVE = re("durdur(?:un|sana)?|bekle(?:yin|sene)?");
-var DEVAM_REQUEST = [
-  "devam (?:et|edin|ediniz|etsene|etsenize|edelim|edersin|edersiniz|edersen|ederseniz|edebilirsin|edebilirsiniz|edebiliriz|etmelisin|etmelisiniz|etmiyorsun|etmiyorsunuz|etsen|etseniz|etmen|etmeniz|etmeni|etmenizi)",
-  "devam (?:eder|edebilir|edecek) mi(?:sin|siniz|yiz)",
-  String.raw`(?<!hala |halen )devam(?=$|[.,!?;:\n]| (?:lutfen|please|dedim|diyorum|bakalim|o zaman|oyleyse|hadi|haydi|ama|fakat|ancak|yalniz)(?![a-z0-9_'-]))`,
-  "devamke"
-].join("|");
-var RESUME_ANYWHERE = re(`${DEVAM_REQUEST}|surdur(?:un|elim|sene)?|kaldigin yerden|kaldigimiz yerden|keep going|carry on|go on|go ahead`);
-var STOP_ANYWHERE = re("vazgec(?:tim|elim|in|iyorum)?|(?:cancel|abort|abandon) (?:the |this )?(?:plan|task|work|run)");
-var THING_EN = "button|btn|key|keyboard|hotkey|shortcut|icon|menu|screen|modal|dialog|popup|overlay|banner|toast|toolbar|tab|label|link|card|option|state|status|mode|flag|event|signal|handler|listener|callback|condition|time|timer|timeout|delay|interval|duration|word|token|statement|keyword|sign|animation|spinner|indicator|widget|gesture|click|sound|message|prompt|notification|list|queue|loss|order|motion";
-var THING_TR = "buton|dugme|tus|ekran|isaret|simge|ikon|menu|pencere|sayfa|sinyal|komut|modu|yazi|animasyon|bildirim|secene[kg]|ozelli[kg]|fonksiyon|islev|olay|kosul|nokta|zamanlayici";
-var THING = new RegExp(`^ (?:(?:${THING_EN})(?:e?s)?(?:'[a-z]*)?|(?:${THING_TR})[a-z]*)(?![a-z0-9_'-])`);
-function namesThing(t, end) {
-  return THING.test(t.slice(end));
-}
-var COMMAND = [
-  [/^(?:stop|pause|halt|freeze|wait)(?![a-z0-9_'-])/, "pause"],
-  [/^(?:bi|bir) (?:dakika|saniye|sn|dk)(?![a-z0-9_'-])/, "pause"],
-  [/^(?:one|just a|a) (?:sec|second|moment|minute)(?![a-z0-9_'-])/, "pause"],
-  [/^(?:continue|resume|proceed|go on|carry on|keep going|move on)(?![a-z0-9_'-])/, "resume"],
-  [/^devam (?:ediyoruz|ederiz|edecegiz)(?![a-z0-9_'-])/, "resume"],
-  [/^(?:cancel|abort|abandon|forget it|never ?mind|drop it|scrap (?:it|that))(?![a-z0-9_'-])/, "stop"],
-  [/^iptal (?:et|edin|edelim|ettim|ediyorum|etsene)(?![a-z0-9_'-])/, "stop"],
-  [/^iptal(?=$|[.,!?;:])/, "stop"],
-  [/^birak(?:alim|in|sana)?(?=$|[.,!?;:])/, "stop"],
-  [/^birak (?:bunu|sunu|onu|isi|o isi|gitsin|artik|simdilik)(?![a-z0-9_'-])/, "stop"],
-  [/^(?:bunu|sunu|isi|o isi|bu isi) birak(?:alim|in)?(?![a-z0-9_'-])/, "stop"],
-  [/^bos ?ver(?:in|elim|sene)?(?=$|[.,!?;:])/, "stop"],
-  [/^bos ?ver(?:in|elim|sene)? (?:bunu|sunu|onu|gitsin|artik|simdilik|ya|be)(?![a-z0-9_'-])/, "stop"],
-  [/^unut(?:alim)?(?=$|[.,!?;:])/, "stop"],
-  [/^unut (?:gitsin|bunu|sunu|onu|artik)(?![a-z0-9_'-])/, "stop"],
-  [/^(?:bunu|sunu|onu) unut(?:alim)?(?![a-z0-9_'-])/, "stop"]
-];
-var FILLERS = /^(?:(?:ok(?:ay)?|tamam(?:dir)?|peki|evet|hayir|yok|no|yes|lutfen|please|pls|hey|claude|codex|buracle|simdi|now|just|sadece|artik|haydi|hadi|neyse|o zaman|oyleyse|anyway|actually)(?![a-z0-9_'-])[ ,.!:;-]*)+/;
-var STEERING_AFTER_STOP = /^(?:stop|pause|halt) (?:(?!(?:every|any|no|some)thing\b)\w+ing\b|(?:(?:the|this|that|those|these|all|my|your) )?(?:dev ?server|server|process(?:es)?|container|watcher|watch|tests?|build|job|daemon|service|script|loop|timer|spinner|animation|worker|app|application|emulator|simulator|music|video|stream|recording)s?(?![a-z0-9_'-]))/;
-var STEERING_AFTER_WAIT = /^wait (?:for(?! (?:me|us|(?:my|our) (?:answer|approval|confirmation|reply|response|go-?ahead|ok|okay|input|feedback|review|decision|instructions?|signal))\b)|until|till|on|while|a bit longer for)\b/;
-var STEERING_AFTER_CANCEL = /^(?:cancel|abort) (?:the |this |that |my |a )?(?:button|order|subscription|request|token|signal|event|timer|job|build|deploy(?:ment)?|pr|pull request|workflow|upload|download|query|controller)\b/;
-var STEERING_AFTER_RESUME = /^(?:continue|resume) (?:(?:the|this|that|my|your|a) )?(?:upload|download|sync|transfer|playback|video|audio|music|song|stream|recording|animation|timer|countdown|slideshow|carousel)s?(?![a-z0-9_'-])/;
-var FIRST_PERSON_OBJECT = /^(?:beni|bizi)$|(?:imi|umu|imizi|umuzu)$/;
-var WORK_OBJECTS = new Set(["seyi", "herseyi", "hepsini", "tumunu", "plani", "isi", "isleri", "gorevi", "gorevleri", "calismayi", "calismani", "akisi", "isini"]);
-var HISTORY = re([
-  "gecen (?:sefer|hafta|gun|ay|oturum)",
-  "daha once",
-  "onceden",
-  "onceki (?:oturum|konusma|calisma|plan)[a-z]*",
-  "neden boyle",
-  "niye boyle",
-  "neden bu sekilde",
-  "hatirl[a-z]*",
-  "ne karar",
-  "neye karar",
-  "karar ver(?:dik|mistik|mistin|mistiniz)",
-  "konusmustuk",
-  "demistik",
-  "yapmistik",
-  "en son ne",
-  "son oturum",
-  "last time",
-  "previously",
-  "earlier session",
-  "previous session",
-  "why did we",
-  "remember(?! to)",
-  "recall",
-  "what did we decide",
-  "did we decide",
-  "we decided",
-  "we discussed",
-  "as discussed"
-].join("|"));
-function previousWord(t, at) {
-  const m = /([a-z0-9_']+)[ ,]*$/.exec(t.slice(0, at));
-  return m ? m[1].replace(/'.*$/, "") : "";
-}
-function commandHits(t, short) {
-  const hits = [];
-  const starts = [0];
-  for (const m of t.matchAll(/[.!?;\n]+ ?/g))
-    starts.push((m.index ?? 0) + m[0].length);
-  if (short)
-    for (const m of t.matchAll(/(?<=[ ,])(?=[a-z])/g))
-      starts.push(m.index ?? 0);
-  for (const s of starts) {
-    let pos = s;
-    const rest = t.slice(pos);
-    const filler = FILLERS.exec(rest);
-    if (filler)
-      pos += filler[0].length;
-    const clause = t.slice(pos);
-    if (clause === "")
-      continue;
-    if ([STEERING_AFTER_STOP, STEERING_AFTER_WAIT, STEERING_AFTER_CANCEL, STEERING_AFTER_RESUME].some((rx) => rx.test(clause)))
-      continue;
-    for (const [rx, intent] of COMMAND) {
-      const m = rx.exec(clause);
-      if (m) {
-        if (!namesThing(clause, m[0].length))
-          hits.push({ intent, at: pos, end: pos + m[0].length });
-        break;
-      }
-    }
-  }
-  return hits;
+var LEADING = /^(?:(?:ok(?:ay)?|tamam(?:dir)?|peki|evet|yes|yeah|yep|lutfen|please|pls|hey|claude|codex|buracle|simdi|now|just|sadece|artik|haydi|hadi|neyse|o zaman|oyleyse|anyway|alright)(?![a-z0-9_'-])[ ,.!:;-]*)+/;
+var TRAILING = /(?:[ ,]+(?:lutfen|please|pls|now|simdi|artik|hemen))+$/;
+var EDGE_PUNCTUATION = /^[\s.,!?;:\u2026-]+|[\s.,!?;:\u2026-]+$/g;
+var PAUSE_WHOLE = new RegExp(`^(?:${[
+  "du+r+(?:un|sana)?",
+  "durdur(?:un|sana)?",
+  "duraklat(?:in|iniz|sana)?",
+  "bekle(?:yin|sene)?",
+  "biraz bekle",
+  "(?:bi|bir) (?:dakika|saniye|sn|dk)(?: bekle)?",
+  "dur (?:bi|bir) (?:dakika|saniye)",
+  "simdilik (?:dur|bekle)",
+  "durur musun",
+  "durabilir misin",
+  "durdurur musun",
+  "bekler misin",
+  "bekleyebilir misin",
+  "devam etme(?:yin|yiniz|yelim)?",
+  "stop(?: it| here| for now)?",
+  "pause",
+  "halt",
+  "freeze",
+  "wait(?: a (?:sec|second|moment|minute|bit))?",
+  "hold on",
+  "hold up",
+  "one sec(?:ond)?",
+  "(?:just )?a (?:sec|second|moment|minute)",
+  "don'?t (?:continue|proceed)",
+  "do not (?:continue|proceed)"
+].join("|")})$`);
+var RESUME_WHOLE = new RegExp(`^(?:${[
+  "devam(?: et| edin| ediniz| edelim| ediyoruz| edebilirsin| edebilirsiniz)?",
+  "devamke",
+  "surdur(?:un|elim|sene)?",
+  "kaldigin yerden(?: devam(?: et| edin)?)?",
+  "kaldigimiz yerden(?: devam(?: edelim)?)?",
+  "durma(?:yin|yiniz)?",
+  "continue",
+  "resume",
+  "proceed",
+  "go on",
+  "go ahead",
+  "carry on",
+  "keep going",
+  "don'?t stop",
+  "do not stop"
+].join("|")})$`);
+var STOP_WHOLE = new RegExp(`^(?:${[
+  "iptal(?: et| edin| edelim| ediyorum)?",
+  "vazgec(?:tim|elim|in|iyorum)?",
+  "birak(?:alim|in|sana)?",
+  "bos ?ver(?:in|elim|sene)?",
+  "unut(?: gitsin)?",
+  "cancel",
+  "abort",
+  "abandon",
+  "(?:cancel|abort|abandon) (?:the |this )?(?:plan|task|work|run)",
+  "forget it",
+  "never ?mind",
+  "drop it"
+].join("|")})$`);
+function controlOf(t) {
+  if (t.length > 200)
+    return null;
+  const whole = t.replace(EDGE_PUNCTUATION, "").replace(LEADING, "").replace(TRAILING, "").replace(EDGE_PUNCTUATION, "").replace(/\s+/g, " ");
+  if (whole === "" || whole.length > 60)
+    return null;
+  if (STOP_WHOLE.test(whole))
+    return "stop";
+  if (PAUSE_WHOLE.test(whole))
+    return "pause";
+  if (RESUME_WHOLE.test(whole))
+    return "resume";
+  return null;
 }
 function userWords(text) {
   if (!isUserText(text))
@@ -22858,49 +22169,6 @@ function userWords(text) {
   const body = slash ? slash[1] ?? "" : trimmed;
   const t = fold2(stripQuoted(body));
   return t === "" ? undefined : t;
-}
-function controlOf(t) {
-  const hits = [];
-  const hidden = [];
-  for (const [rx, intent] of NEGATIONS) {
-    for (const m of t.matchAll(rx)) {
-      const at = m.index ?? 0;
-      hidden.push([at, at + m[0].length]);
-      if (intent)
-        hits.push({ intent, at, end: at + m[0].length });
-    }
-  }
-  const isHidden = (at) => hidden.some(([a, b]) => at >= a && at < b);
-  const add = (rx, intent) => {
-    for (const m of t.matchAll(rx)) {
-      const at = m.index ?? 0;
-      const end = at + m[0].length;
-      if (!isHidden(at) && !namesThing(t, end))
-        hits.push({ intent, at, end });
-    }
-  };
-  add(PAUSE_ANYWHERE, "pause");
-  add(RESUME_ANYWHERE, "resume");
-  add(STOP_ANYWHERE, "stop");
-  for (const m of t.matchAll(PAUSE_OBJECT_SENSITIVE)) {
-    const at = m.index ?? 0;
-    if (isHidden(at) || namesThing(t, at + m[0].length))
-      continue;
-    const prev = previousWord(t, at);
-    const isObject = /[iu]$/.test(prev) && !FIRST_PERSON_OBJECT.test(prev) && !WORK_OBJECTS.has(prev);
-    if (!isObject)
-      hits.push({ intent: "pause", at, end: at + m[0].length });
-  }
-  const words = t.split(/[^a-z0-9_']+/).filter((w) => w !== "");
-  for (const h of commandHits(t, words.length <= 3))
-    if (!isHidden(h.at))
-      hits.push(h);
-  if (hits.some((h) => h.intent === "stop"))
-    return "stop";
-  if (hits.length === 0)
-    return null;
-  hits.sort((a, b) => a.at - b.at);
-  return hits[0].intent;
 }
 var CONTROL_GUIDANCE = {
   pausePlan: 'Buracle: the user asked you to stop. Finish only the current atomic step, say where you stopped, and wait. The active plan is now paused; the user saying "continue" (in any language) or `buracle plan resume` continues it. Also stop the background commands and subagents this session started (with the harness\'s stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.',
@@ -22989,6 +22257,8 @@ function pausedReply(i, text) {
   if (i.kind === "manual") {
     return isManualDone(text) ? `Buracle: the user reports the manual step${quoted(i.reason)} done. Check its result, then run \`buracle plan resume\` and continue.` : `Buracle: the plan is paused on a manual step${quoted(i.reason)}. Answer the user; the run goes on after they say the step is done and you have checked it (\`buracle plan resume\`).`;
   }
+  if (i.kind === "discussion" && i.reason?.includes("(plan.autoPause)") !== true)
+    return "Buracle: the plan is paused because the user asked to stop. If this message means go on, in any language, run `buracle plan resume` and continue; otherwise answer the user and keep waiting.";
   if (i.kind !== "decision")
     return;
   if (isResultReview(i))
@@ -23017,81 +22287,11 @@ function reportsWaiting(text) {
   WAITING.lastIndex = 0;
   return WAITING.test(fold2(text));
 }
-var QUESTION_TAIL = String.raw`(?:[^.!?\n]{0,160}\?|(?:[^.!?\n]{0,120} )?(?:hangi|neden|niye|nasil|nerede|ne zaman)(?![a-z0-9_'-]))`;
-var RECALL = re([
-  "gecen (?:sefer|hafta|gun|ay|oturum)",
-  "onceki (?:oturum|konusma|calisma|plan)[a-z]*",
-  "son oturum[a-z]*",
-  "en son ne",
-  "neden boyle",
-  "niye boyle",
-  "neden bu sekilde",
-  "ne karar",
-  "neye karar",
-  "karar ver(?:dik|mistik|mistin|mistiniz)",
-  "hatirliyor mu(?:sun|sunuz)?",
-  "hatirlamiyor mu(?:sun|sunuz)?",
-  "(?:sebeb|neden|gerekce)(?:i|si) (?:neydi|ne idi|neymis)",
-  "neden (?:[a-z0-9.'-]+ ){0,5}(?:sectik|secmistik|kullaniyoruz|kullandik|kullanmistik|calistiriyoruz|yapiyoruz|yaptik|tercih ettik|karar verdik)",
-  "nerede kal(?:mistik|dik|mistim|mistin|diniz|mistiniz)",
-  "kaldigimiz yer[a-z]*",
-  "[a-z]+(?<!opti|pesi)m[iu]st[iu]k",
-  "[a-z]+m[iu]s m[iu]yd[iu]k",
-  String.raw`[a-z]+[iu]yord[iu]k(?=[^.!\n]{0,80}\?)`,
-  String.raw`(?:daha once|onceden) (?:[^.!?\n]{0,80} )?[a-z]+[dt][iu](?:k|n|niz) m[iu](?:y[iu]z|s[iu]n|s[iu]n[iu]z)?`,
-  `hatirla(?:sana|yin|yiniz)?[,:]? ${QUESTION_TAIL}`,
-  "last time",
-  "last session",
-  "earlier session",
-  "previous session",
-  "(?:how|what|when|where|why) did we",
-  "(?:which|what) (?:[a-z0-9.'-]+ ){1,3}did we",
-  "did we decide",
-  "(?:did|have) we ever",
-  String.raw`(?:have|had|did) we (?:[^.!?\n]{1,80} )?before(?= ?[?.!]|$)`,
-  "we (?:had )?decided",
-  "we discussed",
-  "as discussed",
-  "(?:what|which) (?:was|were) (?:our|the) (?:[a-z-]+ )?(?:decision|choice|plan|approach|idea|reasoning|rationale|conclusion|agreement|reason)s?",
-  "where were we",
-  "where we left off",
-  "pick up where",
-  "do you remember",
-  "remember (?:when|how we|why we|what we)",
-  "remember the [^.!?\\n]{1,60}\\?",
-  String.raw`remember(?:[,:]| that| this) [^.!?\n]{0,160}\?`
-].join("|"));
-var WRITE = re([
-  String.raw`(?<!m[ae]yi (?:d[ae] )?)unutma(?:yin|yiniz|yalim)?`,
-  "bunu hatirla",
-  "hatirla bunu",
-  `hatirla(?=[,:])(?![,:] ?${QUESTION_TAIL})`,
-  "(?:bunu )?aklinda tut",
-  "aklinizda tutun",
-  "not al(?:in)?",
-  "not et(?:in)?",
-  "not dus",
-  "(?:hafiza|kasa)(?:ya|na) (?:kaydet|yaz|ekle|al|not et)",
-  "bundan boyle",
-  String.raw`remember (?:this|that)(?![^.!?\n]{0,160}\?)`,
-  String.raw`don'?t forget(?! to(?![a-z0-9_'-]))`,
-  String.raw`do not forget(?! to(?![a-z0-9_'-]))`,
-  "note (?:this|that) down",
-  "take a note",
-  "make a note",
-  "keep in mind",
-  "save (?:this|that|it) (?:to|in) (?:memory|the vault)",
-  "write (?:this|that|it) down",
-  "for future reference",
-  "from now on"
-].join("|"));
 function detectSignals(text) {
   const t = userWords(text);
   if (t === undefined)
     return { control: null, recall: false, write: false };
-  RECALL.lastIndex = 0;
-  WRITE.lastIndex = 0;
-  return { control: controlOf(t), recall: RECALL.test(t), write: WRITE.test(t) };
+  return { control: controlOf(t), recall: false, write: false };
 }
 // src/core/policy/review.ts
 var REVIEW_CATEGORIES = {
@@ -23511,113 +22711,10 @@ var CONFIRMS = [
 ];
 var NEGATION = /\b(?:yapma|etme|silme|atma|pushlama|gonderme|dokunma|hayir|asla|iptal|vazgec|don'?t|do\s+not|never|nope|stop|cancel|without)\b|(?<![\w-])no(?![\w-])|\S(?:ma|me)(?:yin|yiniz)?\s*[.!]*\s*$/u;
 var QUESTION = /\?|\s(?:mi|mu|misin|musun|miyiz)\b/u;
-var CLAUSE_SPLIT = /\n+|[;!?]+|(?<=\S)[.,](?=\s|$)|\s(?:and\s+then|and|then|after\s+that|ve\s+sonra|ve\s+ardindan|ve|sonra|ardindan|daha\s+sonra|sonrasinda)\s/u;
-var LEAD = /^(?:(?:please|pls|lutfen|ok(?:ay)?|tamam|tmm|evet|yes|yep|yeah|sure|alright|now|simdi|hadi|haydi|then|sonra|ardindan|also|ayrica|just|sadece|artik|bir\s+de|once|first|finally|son\s+olarak|go\s+ahead\s+and|feel\s+free\s+to|you\s+can|you\s+may|you(?:re|\s+are)?\s+allowed\s+to|you\s+have\s+my\s+permission\s+to|i\s+allow\s+you\s+to|can\s+you|could\s+you|would\s+you|kindly)(?![a-z0-9_-])[\s,:-]*)+/u;
-var EN_DO = /^(?:run|execute|do|perform|proceed\s+with|go\s+ahead\s+with|try)\s+(?:(?:a|an|the)\s+)?/u;
 var TAIL = /(?:\s+(?:please|pls|lutfen|now|simdi|artik|hemen|too|as\s+well|again|tekrar|for\s+me|da|de|bakalim))+$/u;
-var NARRATIVE = /(?:^|\s)(?:failed|fails|failing|error|errors|errored|broke|broken|crash\w*|hata\w*|verdi|veriyor|calismiyor|calismadi|patladi|bozuldu|why|neden|niye|nasil|nedir|ne|hangi|how|didnt|doesnt|wasnt|wont|cant|cannot|was|were|returned|gave|said|showed|output|logs?|happened|oldu|olmuyor)(?=\s|$)/u;
-var TR_DO = "(?:et|edin|ediniz|edelim|etsene|edebilirsin|edebilirsiniz|yap|yapin|yapiniz|yapalim|yapsana|yapabilirsin|yapabilirsiniz|calistir|calistirin|calistiralim|calistirsana|calistirabilirsin|calistirabilirsiniz|kos|kosun|kosalim|kosabilirsin|at|atin|atalim|atsana|atabilirsin|uygula|uygulayin|uygulayalim|uygulayabilirsin|gerceklestir|gerceklestirin|gerceklestirebilirsin)";
-var TR_ALLOW = "(?:a|e|ya|ye)?\\s+izin\\s+ver(?:iyorum|iyoruz|dim|ebilirim)?";
-var LOAN = "(?:la|le)(?:yabilirsin|yebilirsin|yabilirsiniz|yebilirsiniz|yin|yiniz|yalim|yelim|sana|sene)?";
-var TR_DELETE = "(?:sil|silin|silelim|silebilirsin|silebilirsiniz|kaldir|kaldirin|kaldiralim|kaldirabilirsin)";
-var PERMIT = "(?:\\s+(?:is|are)\\s+(?:ok|okay|fine|allowed|alright|approved))?";
-var REF2 = "(?:(?:origin|upstream)(?:\\/[\\w./-]+)?|main|master|develop|trunk|head(?:~\\d*|\\^+)?|[0-9a-f]{7,40}|[\\w.-]+\\/[\\w./-]+)";
-var TR_PUSH_OBJECT = "(?:origin\\S*|remote\\S*|uzak\\S*|depo\\S*|github\\S*|gitlab\\S*|bitbucket\\S*|main\\S*|master\\S*|develop\\S*|upstream\\S*|dal\\S*|branch\\S*|degisiklik\\S*|commit\\S*|kod\\S*|her\\s?sey\\S*|hepsi\\S*|bunlari|bunu|onu|onlari|sunu|feat\\S*|feature\\S*|fix\\S*|hotfix\\S*|release\\S*|[\\w.-]+\\/[\\w./-]+)";
-var TR_PUBLISH_OBJECT = "(?:npm\\S*|paket\\S*|surum\\S*|versiyon\\S*|release\\S*|crate\\S*|imaj\\S*|image\\S*|kutuphane\\S*|modul\\S*|v?\\d[\\w.-]*)";
-var re2 = (src) => new RegExp(src, "u");
-var TR_REQUEST_END = re2(`(?:\\s+${TR_DO}|(?:commit|push)${LOAN})$`);
 var MAX_CLAUSE = 1000;
-var OPERATIONS = [
-  ["force-push", re2(`^(?:a\\s+)?force[\\s-]?push(?:\\s+(?:it|this|that|them|everything|the\\s+(?:branch|changes|commits|fix)|(?:to|into|onto)\\s+(?:the\\s+)?(?!the\\s)[\\w./-]+(?:\\s+branch)?|origin(?:\\s+[\\w./-]+)?)){0,3}${PERMIT}$`)],
-  ["force-push", re2(`^push\\s+(?:-f|--force\\S*)(?:\\s+[\\w./:+-]+)*$`)],
-  ["force-push", re2(`(?:^|\\s)(?:force[\\s-]?push|zorla\\s+push)(?:\\s+${TR_DO}|${TR_ALLOW}|${LOAN})$`)],
-  ["force-push", re2(`(?:^|\\s)push\\s+(?:-f|--force\\S*)\\s+${TR_DO}$`)],
-  ["push", re2(`^push(?:\\s+(?:-u|--set-upstream))?(?:\\s+(?:it|this|that|them|everything|all|(?:(?:the|my|your|our|these|those|all(?:\\s+the)?|all\\s+my)\\s+)?(?:changes?|commits?|branch(?:es)?|work|code|fix(?:es)?|updates?|tags?|feature)))?(?:\\s+(?:(?:to|into|onto|up\\s+to)\\s+(?:the\\s+)?(?:remote|origin|upstream|github|gitlab|bitbucket|server|repo|repository|${REF2})(?:\\s+branch)?|(?:origin|upstream)(?:\\s+[\\w./-]+)?))?${PERMIT}$`)],
-  ["push", re2(`^(?:${TR_PUSH_OBJECT}\\s+){0,3}push(?:\\s+${TR_DO}|${TR_ALLOW}|${LOAN})$`)],
-  ["history-rewrite", re2(`^(?:git\\s+)?rebase(?:\\s+(?:-i|--interactive|interactively))?(?:\\s+(?:it|this|that|(?:the|this|my)\\s+(?:feature\\s+)?branch|(?:the\\s+)?feat\\S*|(?:the|my|these)\\s+commits?))?(?:\\s+(?:on|onto|on\\s+top\\s+of|against|over|with)\\s+(?:the\\s+)?(?:latest\\s+)?${REF2}(?:\\s+branch)?)?${PERMIT}$`)],
-  ["history-rewrite", re2(`^(?:a\\s+)?(?:hard\\s+reset|reset\\s+--hard|reset\\s+hard)(?:\\s+(?:it|everything|(?:the|this)\\s+(?:branch|repo)))?(?:\\s+(?:to\\s+)?(?:the\\s+)?(?:${REF2}|(?:last|previous)\\s+commit))?${PERMIT}$`)],
-  ["history-rewrite", re2(`^reset\\s+(?:(?:the|this|my)\\s+)?(?:(?:branch|repo|repository|it|everything|head)\\s+)?(?:back\\s+)?to\\s+(?:the\\s+)?(?:${REF2}|(?:last|previous)\\s+commit)$`)],
-  ["history-rewrite", re2(`^amend\\s+(?:(?:the|that|this|my)\\s+)?(?:(?:last|previous|latest)\\s+)?commit(?:\\s+message)?(?:\\s+.*)?$`)],
-  ["history-rewrite", re2(`^squash\\s+(?:(?:the|these|those|all|my|our)\\s+)*(?:(?:last\\s+)?\\d+\\s+)?commits?(?:\\s+(?:into\\s+one|together))?$`)],
-  ["history-rewrite", re2(`^rewrite\\s+(?:the\\s+)?(?:git\\s+)?history$`)],
-  ["history-rewrite", re2(`(?:^|\\s)(?:rebase|amend|squash)(?:\\s+${TR_DO}|${LOAN})$`)],
-  ["history-rewrite", re2(`(?:^|\\s)(?:hard\\s+reset|reset\\s+--hard|reset\\s+hard)(?:\\s+${TR_DO}|${LOAN})$`)],
-  ["history-rewrite", re2(`(?:^|\\s)gecmis\\S*\\s+(?:yeniden\\s+)?yaz(?:in|abilirsin)?$`)],
-  ["discard-changes", re2(`^(?:discard|throw\\s+away|revert|undo|wipe(?:\\s+out)?)\\s+(?:(?:all|the|my|your|our|any|local|uncommitted|unstaged|working[\\s-]tree|pending|current)\\s+)*changes(?:\\s+(?:in|to|on)\\s+\\S+)?$`)],
-  ["discard-changes", re2(`^(?:drop|clear)\\s+(?:the\\s+)?stash(?:es)?$`)],
-  ["discard-changes", re2(`^clean\\s+(?:the\\s+)?(?:working\\s+tree|worktree|untracked\\s+files)$`)],
-  ["discard-changes", re2(`^(?:\\S+\\s+){0,2}degisiklik\\S*\\s+(?:at|atin|atabilirsin|sil|silin|silebilirsin|geri\\s+al|geri\\s+alin|geri\\s+alabilirsin|discard\\s+${TR_DO})$`)],
-  ["discard-changes", re2(`(?:^|\\s)stash\\S*\\s+(?:sil|silin|temizle|drop\\s+${TR_DO}|dropla\\S*)$`)],
-  ["discard-changes", re2(`^abort\\s+(?:(?:the|this|current|ongoing|in-progress)\\s+)*(?:merge|rebase|cherry[\\s-]?pick|revert|am)$`)],
-  ["discard-changes", re2(`(?:^|\\s)(?:merge|rebase|cherry-pick|revert)\\S*\\s+abort\\s+${TR_DO}$`)],
-  ["branch-delete", re2(`^(?:delete|remove)\\s+(?:(?:the|this|that|old|local|remote|merged|stale|my)\\s+)*(?:[\\w./-]+\\s+)?(?:branch(?:es)?|tags?)(?:\\s+[\\w./-]+)?$`)],
-  ["branch-delete", re2(`(?:^|\\s)(?:dal|dali|dalini|dallari|dallarini|branch|branchi|branchini|branchleri|branchlerini|etiket|etiketi|etiketleri|tag|tagi|tagleri)\\s+${TR_DELETE}$`)],
-  ["skip-hooks", re2(`^(?:commit|push|merge)\\b.*(?:--no-verify|no[\\s-]verify)`)],
-  ["skip-hooks", re2(`^skip\\s+(?:the\\s+)?(?:git\\s+|pre-commit\\s+|commit\\s+)?hooks$`)],
-  ["skip-hooks", { test: (c) => /(?:--no-verify|no[\s-]verify)/u.test(c) && TR_REQUEST_END.test(c) }],
-  ["skip-hooks", re2(`(?:^|\\s)hook(?:lar)?(?:i|lari)?\\s+atla(?:yabilirsin|yin|yalim)?$`)],
-  ["publish", re2(`^publish(?:\\s+(?:it|this|that|the\\s+(?:package|crate|module|library|release|image|new\\s+version|gem|wheel)|(?:to|on)\\s+(?:npm|crates\\.io|pypi|the\\s+registry|docker\\s+hub|ghcr)|v?\\d[\\w.-]*|(?:a\\s+)?(?:new\\s+)?(?:release|version))){0,3}${PERMIT}$`)],
-  ["publish", re2(`^(?:create|cut|make|ship|tag)\\s+(?:(?:a|the)\\s+)?(?:new\\s+)?(?:github\\s+|gh\\s+)?release(?:\\s+v?\\d[\\w.-]*)?$`)],
-  ["publish", re2(`^merge\\s+(?:(?:the|this|that|my|your)\\s+)?(?:pr|pull\\s+request|mr|merge\\s+request)(?:\\s+#?\\d+)?(?:\\s+(?:into|to)\\s+\\S+)?$`)],
-  ["publish", re2(`^push\\s+(?:the\\s+)?(?:docker\\s+|container\\s+)?image(?:\\s+to\\s+\\S+)?$`)],
-  ["publish", re2(`^(?:${TR_PUBLISH_OBJECT}\\s+){0,2}publish(?:\\s+${TR_DO}|${LOAN})$`)],
-  ["publish", re2(`^(?:${TR_PUBLISH_OBJECT}\\s+){1,2}yayinla(?:yabilirsin|yin|yalim|sana)?$`)],
-  ["publish", re2(`(?:^|\\s)(?:pr|pull\\s+request\\S*|mr|merge\\s+request\\S*)(?:\\s+#?\\d+)?\\s+merge(?:\\s+${TR_DO}|${LOAN})$`)],
-  ["db-destroy", re2(`^drop\\s+(?:(?:the|this|that)\\s+)?(?:[\\w.-]+\\s+)?(?:table|database|db|schema|collection)s?(?:\\s+[\\w.-]+)?$`)],
-  ["db-destroy", re2(`^truncate\\s+(?:(?:the|this)\\s+)?(?:[\\w.-]+\\s+)?table(?:\\s+[\\w.-]+)?$`)],
-  ["db-destroy", re2(`^(?:reset|wipe|nuke|destroy|delete|drop)\\s+(?:(?:the|this|that)\\s+)?(?:[\\w.-]+\\s+)?(?:database|db)$`)],
-  ["db-destroy", re2(`^(?:prisma\\s+)?migrate\\s+reset$`)],
-  ["db-destroy", re2(`(?:^|\\s)(?:veritaban\\S*|database\\S*|db|dbyi|dbleri)\\s+(?:sil|silin|sifirla|sifirlayin|sifirlayabilirsin|drop\\s+${TR_DO}|dropla\\S*)$`)],
-  ["db-destroy", re2(`(?:^|\\s)(?:tablo\\S*|table\\S*|sema\\S*|schema\\S*|koleksiyon\\S*|collection\\S*)\\s+(?:drop(?:\\s+${TR_DO}|${LOAN})|truncate\\s+${TR_DO})$`)],
-  ["db-destroy", re2(`(?:^|\\s)migrate\\s+reset\\s+${TR_DO}$`)]
-];
-var FOLDER_DELETE = [
-  re2(`^(?:delete|remove)\\s+(?:(?:the|this|that|whole|entire|old)\\s+)*(?:([\\w./~-]+)\\s+)?(?:folder|directory|dir)(?:\\s+([\\w./~-]+))?$`),
-  re2(`(?:^|\\s)(?:([\\w./~-]+)\\s+)?(?:klasor|dizin|folder|directory)\\S*\\s+${TR_DELETE}$`)
-];
-var LITERAL = /^(?:sudo\s+)?(?:git|npm|pnpm|yarn|bun|bunx|npx|cargo|gh|docker|podman|rm|dropdb|prisma|rails|rake|bin\/rails|psql|mysql|mariadb|sqlite3?|duckdb|mongosh|find|xargs)(?![a-z0-9_-])/u;
-var LITERAL_VERB = re2(`^(.*?)(?:\\s+(?:${TR_DO}|${TR_DELETE})|${TR_ALLOW})$`);
-var SUBORDINATE = /(?:^|\s)(?:\S+(?:madan|meden|dikten|dukten|diktan|duktan)|once|before|after|without|until|unless|if|when|while|eger|iken)(?=\s|$)/u;
-function plainCommandLine(literal) {
-  const plain = literal.split(/\s+/u).slice(1).filter((w) => !/^[-+:~./]|[/.:~=@+]|\d/u.test(w));
-  return plain.length <= 3;
-}
-function clauseKinds(raw, classify) {
-  if (raw.length > MAX_CLAUSE)
-    return [];
-  let c = raw.trim().replace(LEAD, "").replace(TAIL, "").trim();
-  if (c === "")
-    return [];
-  const out = [];
-  const asked = EN_DO.test(c);
-  if (asked)
-    c = c.replace(EN_DO, "").trim();
-  if (LITERAL.test(c)) {
-    const m = LITERAL_VERB.exec(c);
-    const literal = m !== null ? m[1].trim() : c;
-    if (!SUBORDINATE.test(literal) && (m !== null || asked || !NARRATIVE.test(c) && plainCommandLine(literal))) {
-      const kind = classify(literal);
-      if (kind !== undefined)
-        out.push(kind);
-    }
-    return out;
-  }
-  if (NARRATIVE.test(c))
-    return out;
-  for (const [kind, pattern] of OPERATIONS)
-    if (pattern.test(c) && !out.includes(kind))
-      out.push(kind);
-  for (const pattern of FOLDER_DELETE) {
-    const f = pattern.exec(c);
-    if (f === null)
-      continue;
-    const name = f[1] ?? f[2];
-    if ((name === undefined || classify(`rm -rf ${name}`) !== undefined) && !out.includes("recursive-delete"))
-      out.push("recursive-delete");
-  }
-  return out;
-}
-function readPrompt(text, classify) {
+var CLAUSE_SPLIT = /\n+|[;!?]+|(?<=\S)[.,](?=\s|$)|\s(?:and\s+then|and|then|after\s+that|ve\s+sonra|ve\s+ardindan|ve|sonra|ardindan|daha\s+sonra|sonrasinda)\s/u;
+function readPrompt(text) {
   if (typeof text !== "string")
     return;
   const own = ownWords(text);
@@ -23625,20 +22722,15 @@ function readPrompt(text, classify) {
   if (t.trim() === "")
     return;
   const negated = NEGATION.test(t);
-  const kinds = new Set;
   const confirms = new Set;
   if (!negated) {
-    const clauses = foldStem(own).split(CLAUSE_SPLIT);
-    for (const clause of clauses)
-      for (const k of clauseKinds(clause, classify))
-        kinds.add(k);
-    const first = (clauses[0] ?? "").trim().replace(TAIL, "").trim();
+    const first = (foldStem(own).split(CLAUSE_SPLIT)[0] ?? "").trim().replace(TAIL, "").trim();
     for (const [pattern, ks] of CONFIRMS)
       if (first.length <= MAX_CLAUSE && pattern.test(first))
         for (const k of ks)
           confirms.add(k);
   }
-  return { negated, question: QUESTION.test(t), permits: /\bizin\b|\ballowed\b/u.test(t), approves: APPROVAL.test(t), confirms, kinds };
+  return { negated, question: QUESTION.test(t), approves: APPROVAL.test(t), confirms };
 }
 
 // src/core/policy/consent.ts
@@ -24123,9 +23215,6 @@ function commandNeed(argv, st) {
     return "recursive-delete";
   return;
 }
-function consentNeeded(command, opts) {
-  return consentNeeds(command, opts)[0];
-}
 function consentNeeds(command, opts) {
   if (typeof command !== "string")
     return [];
@@ -24160,23 +23249,15 @@ function commandTarget(command) {
   return `${fnv1a(t, 2166136261)}${fnv1a(t, 84696351)}:${t.length}`;
 }
 function grantsFromPrompt(text, pending, now) {
-  const r = readPrompt(text, (command) => consentNeeded(command)?.kind);
-  if (r === undefined || r.negated)
+  if (pending === undefined || now - pending.at > PENDING_TTL_MS)
     return [];
-  const out = [];
-  const held = pending !== undefined ? heldKinds(pending) : [];
-  if (pending !== undefined && now - pending.at <= PENDING_TTL_MS && !r.question && (r.approves || held.some((k) => r.confirms.has(k)))) {
-    for (const kind of held)
-      out.push({ kind, until: now + GRANT_TTL_MS, uses: GRANT_USES, source: "prompt", ...pending.targets !== undefined ? { targets: [...pending.targets] } : {} });
-  }
-  if (r.question && !r.permits)
-    return out;
-  for (const kind of CONSENT_KINDS) {
-    if (!r.kinds.has(kind) || out.some((g) => g.kind === kind))
-      continue;
-    out.push({ kind, until: now + GRANT_TTL_MS, uses: GRANT_USES, source: "prompt" });
-  }
-  return out;
+  const r = readPrompt(text);
+  if (r === undefined || r.negated || r.question)
+    return [];
+  const held = heldKinds(pending);
+  if (!r.approves && !held.some((k) => r.confirms.has(k)))
+    return [];
+  return held.map((kind) => ({ kind, until: now + GRANT_TTL_MS, uses: GRANT_USES, source: "prompt", ...pending.targets !== undefined ? { targets: [...pending.targets] } : {} }));
 }
 function liveGrants(s, now) {
   return s.grants.filter((g) => g.until > now && g.uses > 0);
@@ -24219,7 +23300,7 @@ function consentReason(needs) {
   const shown = command.length > 80 ? `${command.slice(0, 77)}...` : command;
   const summary = needs.map((n) => n.summary).join(" and ");
   const label = needs.map((n) => CONSENT_LABEL[n.kind]).join(" and ");
-  return `this command ${summary}, and the user has not allowed that in this session. Ask the user first, in their language, naming the exact command and what it changes (for example: "May I run \`${shown}\`? It will ${label}."), then retry once they say yes. Do not look for another way to do the same thing.`;
+  return `this command ${summary}, and the user has not allowed that in this session. Ask the user first, in their language, naming the exact command and what it changes (for example: "May I run \`${shown}\`? It will ${label}."), then retry once they say yes. Buracle records the answer only when the user's reply starts with yes, ok, go ahead (or evet, tamam) or is the held verb ("delete it"), so if they answered in another language, ask them to reply "yes". Do not look for another way to do the same thing.`;
 }
 function applyPromptGrants(s, text, now) {
   const fresh = grantsFromPrompt(text, s.pending, now);
@@ -24915,20 +23996,6 @@ function compileList(phrases) {
     return;
   }
 }
-function generatedAsks(id) {
-  const x = escapeRe2(id);
-  const verbsTr = "(?:yap|coz|duzelt|hallet|gelistir|uygula)";
-  const name = `(?:the\\s+|a\\s+|buracle(?:'s)?\\s+)?${x}\\s+(?:skill|workflow)${B1}`;
-  const byWay = `(?:^|[\\n.!?;:]\\s*|${B0}(?:do|handle|solve|tackle|implement|build|fix|approach|go|proceed|continue|work|run|start)\\s+(?:(?:it|this|that|them|these|those|on\\s+(?:it|this|that))\\s+)?)`;
-  return [
-    `re:${B0}(?:use|run|start|invoke|launch|follow|apply)\\s+${name}`,
-    `re:${byWay}(?:with|via|through|using)\\s+${name}`,
-    `re:${B0}${x}\\s+(?:skill|workflow)'?(?:i|ini|u|unu|yi|yu)?\\s+(?:kullan|calistir|baslat)[a-z']*`,
-    `re:${B0}${x}\\s+ile\\s+${verbsTr}[a-z']*`,
-    `re:${B0}${x}\\s+(?:skill|workflow)'?(?:i|u)?(?:yla|yle|la|le)${B1}`,
-    `re:${B0}${x}\\s+akis(?:iyla|ini\\s+(?:kullan|baslat|calistir|izle|takip)[a-z']*)`
-  ];
-}
 function shortOf(s) {
   const src = (typeof s.short === "string" && s.short.trim() !== "" ? s.short : s.description ?? "").replace(/\s+/g, " ").trim();
   const cut = /^(.{20,}?)(?:\. |: |; )/.exec(src)?.[1] ?? src;
@@ -24953,18 +24020,7 @@ function compileTriggers(skills, policy) {
       continue;
     seen.add(s.id);
     const explicit = s.invocation === "explicit";
-    const t = s.triggers ?? {};
-    const entry = { id: s.id, explicit, userInvocable: s.userInvocable !== false, short: shortOf(s) };
-    const ask = compileList([...generatedAsks(s.id), ...t.ask ?? []]);
-    if (ask)
-      entry.ask = ask;
-    const topic = explicit ? undefined : compileList(t.topic);
-    if (topic)
-      entry.topic = topic;
-    const not = compileList(t.not);
-    if (not)
-      entry.not = not;
-    out.skills.push(entry);
+    out.skills.push({ id: s.id, explicit, userInvocable: s.userInvocable !== false, short: shortOf(s) });
   }
   for (const cat of Array.isArray(policy?.categories) ? policy.categories : []) {
     const t = cat.triggers;
@@ -25136,42 +24192,19 @@ ${text.slice(-2000)}` : text;
   const f = fold2(stripQuoted(body));
   const loaded = new Set(Array.isArray(o.loaded) ? o.loaded : []);
   const available = new Set(Array.isArray(o.available) ? o.available : []);
-  const asks = syntax.asked.map((id) => ({ id, at: -1 }));
-  const topics = [];
-  for (const s of skills) {
-    if (route.invoked.includes(s.id) || asks.some((a) => a.id === s.id))
-      continue;
-    if (s.not?.test(f))
-      continue;
-    const a = s.ask?.exec(f);
-    if (a) {
-      asks.push({ id: s.id, at: a.index });
-      continue;
-    }
-    const tp = s.explicit ? null : s.topic?.exec(f);
-    if (tp)
-      topics.push({ id: s.id, at: tp.index });
-  }
-  const order = (a, b) => a.at - b.at || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-  asks.sort(order);
-  topics.sort(order);
   const candidates = [];
-  for (const a of asks) {
-    const s = byId.get(a.id);
-    if (loaded.has(a.id) && s?.explicit !== true)
+  for (const id of syntax.asked) {
+    const s = byId.get(id);
+    if (loaded.has(id) && s?.explicit !== true)
       continue;
     if (route.load.length < ROUTE_CAPS.load)
-      route.load.push(a.id);
+      route.load.push(id);
     else if (s !== undefined && !s.explicit)
-      candidates.push(a.id);
+      candidates.push(id);
   }
   const workflow = [...route.invoked, ...route.load].some((id) => byId.get(id)?.explicit === true);
-  if (!workflow) {
-    for (const tp of topics)
-      if (!loaded.has(tp.id) && !route.load.includes(tp.id) && !candidates.includes(tp.id))
-        candidates.push(tp.id);
+  if (!workflow)
     route.candidates = candidates.slice(0, ROUTE_CAPS.candidates);
-  }
   const signals = detectSignals(raw);
   route.memory = { recall: signals.recall, write: signals.write };
   if ((signals.recall || signals.write) && !available.has("buracle-memory"))
@@ -27380,7 +26413,7 @@ var ITEM_MAX = 200;
 function plain3(line) {
   return line.replace(/<!--[\s\S]*?(?:-->|$)/g, " ").replace(/\*\*|__|`/g, "").replace(/\s+/g, " ").trim();
 }
-function clip4(s, max) {
+function clip3(s, max) {
   return s.length <= max ? s : `${s.slice(0, max - 3).trimEnd()}...`;
 }
 function sectionLines(o, name) {
@@ -27414,12 +26447,12 @@ function bullets(lines) {
   return lines.flatMap((l) => {
     const m = BULLET.exec(l);
     const t = m ? plain3(m[1]) : "";
-    return t !== "" ? [clip4(t, ITEM_MAX)] : [];
+    return t !== "" ? [clip3(t, ITEM_MAX)] : [];
   });
 }
 function prose(lines) {
   const t = plain3(lines.filter((l) => !BULLET.test(l)).join(" "));
-  return t === "" ? undefined : clip4(t, OBJECTIVE_GOAL_MAX);
+  return t === "" ? undefined : clip3(t, OBJECTIVE_GOAL_MAX);
 }
 function featureObjective(o) {
   const lines = sectionLines(o, /^goal$/i);
@@ -27431,7 +26464,7 @@ function featureObjective(o) {
   const items = bullets(at < 0 ? [] : tail.slice(1));
   const inline = at < 0 ? "" : tail[0] ?? "";
   if (inline !== "")
-    items.unshift(clip4(inline, ITEM_MAX));
+    items.unshift(clip3(inline, ITEM_MAX));
   const goal = prose(head);
   return goal === undefined && items.length === 0 ? undefined : { ...goal !== undefined ? { goal } : {}, label: "Done when", items: items.slice(0, OBJECTIVE_ITEMS_MAX) };
 }
@@ -27458,7 +26491,7 @@ function buildObjective(o) {
       continue;
     const status = (cells[cells.length - 1] ?? "").toLowerCase();
     const open = !/^(?:pass|passed|ok|\u2713)/u.test(status);
-    rows.push({ text: clip4(`${id.toUpperCase()} ${text} (${open ? status || "open" : "pass"})`, ITEM_MAX), open });
+    rows.push({ text: clip3(`${id.toUpperCase()} ${text} (${open ? status || "open" : "pass"})`, ITEM_MAX), open });
   }
   const items = [...rows.filter((r) => r.open), ...rows.filter((r) => !r.open)].map((r) => r.text);
   return goal === undefined && items.length === 0 ? undefined : { ...goal !== undefined ? { goal } : {}, label: "Acceptance criteria", items: items.slice(0, OBJECTIVE_ITEMS_MAX) };
@@ -27484,7 +26517,7 @@ function objectiveLine(obj, budget) {
     text = render();
   }
   if (text.length > budget)
-    text = clip4(text, budget);
+    text = clip3(text, budget);
   return text === "." || text === "" ? undefined : text;
 }
 function tickedTasks(o) {
@@ -27626,7 +26659,7 @@ function goalVerificationOf(state, live) {
   const locked = state?.approvals?.switches?.goalVerification;
   return typeof locked === "boolean" ? locked : live !== false;
 }
-var STOP_GUARD_ESCAPE = 'The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user saying "stop", "wait" or "hold on" (or the same in their language), which Buracle records as a pause (run `buracle plan pause --kind discussion` too).';
+var STOP_GUARD_ESCAPE = "The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user asking you to stop, wait or hold on, in any language. Buracle records it only when the whole message is such a word in English or Turkish, so otherwise run `buracle plan pause --kind discussion` yourself.";
 var ROUTE_AUDIT_AFTER = ["finished", "no-plan", "disabled"];
 function routeAuditAllowed(why, strictness) {
   return strictness !== "off" && why !== undefined && ROUTE_AUDIT_AFTER.includes(why);
@@ -28031,6 +27064,7 @@ function compactInstructionsWith(base, state, extra) {
   if (paused)
     lines.push(`- ${paused}`);
   lines.push("- Keep the user's requests and corrections in their own words and language, and every decision with its reason.");
+  lines.push('- Name the language you use with the user in one line ("Working language: German") and keep using it after compaction: for replies, documents and reports alike.');
   lines.push("- Keep the approaches that were tried and rejected, each with why it failed, so they are not tried again.");
   lines.push("- Keep the verification commands that ran and their results (pass or fail, with the key output lines), and the commands that failed with their key error lines.");
   const touched = list(extra?.touched, 30);
@@ -28975,7 +28009,7 @@ function updateFrontmatterText(markdown, updates) {
   return out;
 }
 function slugFromTitle(title, max = 50) {
-  const folded = title.replace(/\u0130/g, "i").replace(/I/g, "i").replace(/\u0131/g, "i").toLowerCase().replace(/\u011F/g, "g").replace(/\u00FC/g, "u").replace(/\u015F/g, "s").replace(/\u00F6/g, "o").replace(/\u00E7/g, "c").normalize("NFKD").replace(/[\u0300-\u036F]/g, "");
+  const folded = title.replace(/\u0130/g, "i").replace(/I/g, "i").replace(/\u0131/g, "i").toLowerCase().replace(/\u011F/g, "g").replace(/\u00FC/g, "u").replace(/\u015F/g, "s").replace(/\u00F6/g, "o").replace(/\u00E7/g, "c").replace(/\u00DF/g, "ss").normalize("NFKD").replace(/[\u0300-\u036F]/g, "");
   let slug = folded.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   if (slug.length > max) {
     const cut = slug.slice(0, max);
@@ -29476,14 +28510,10 @@ function unverified(s) {
   const code = Object.keys(s.edits).some(needsVerification);
   return code && s.lastCheckSeq <= s.lastEditSeq;
 }
-var CLAIM = /\b(?:tests?\s+(?:pass|passed|are\s+green|green)|all\s+(?:tests\s+)?pass(?:es|ed)?|fixed|works\s+now|it\s+works|verified|done\s+and\s+verified)\b|\b(?:testler(?:in\s+tamami)?\s+(?:gecti|geciyor|yesil)|duzeltildi|calisiyor|dogrulandi|tamamlandi)\b(?!\s+m[iu]\b)/;
-function claimsSuccess(answer) {
-  return CLAIM.test(fold2(answer));
-}
 function plural(n, one, many) {
   return `${n} ${n === 1 ? one : many}`;
 }
-function receiptLine(s, answer = "") {
+function receiptLine(s) {
   const files = Object.entries(s.edits);
   const cmds = s.commands;
   if (files.length === 0 && cmds.length === 0)
@@ -29502,7 +28532,7 @@ function receiptLine(s, answer = "") {
   let warn = false;
   if (unverified(s)) {
     warn = true;
-    parts.push(claimsSuccess(answer) ? "\u26A0 success claimed without evidence: no test or check ran after the change" : "\u26A0 unverified change");
+    parts.push("\u26A0 unverified change");
   } else if (checks.length > 0) {
     const lastCheck = checks[checks.length - 1];
     parts.push(lastCheck.failed ? "\u2717 last check failed" : "\u2713 checked");
@@ -34754,12 +33784,12 @@ class TurnReceipts {
     if (alarm !== undefined)
       this.host.post(sid, `Buracle: ${alarm}`, "warning");
   }
-  end(sid, answer, cfg, notify = true) {
+  end(sid, cfg, notify = true) {
     const t = this.turns.get(sid);
     if (t === undefined)
       return;
     this.turns.set(sid, { receipt: emptyReceipt() });
-    const summary = receiptLine(t.receipt, answer);
+    const summary = receiptLine(t.receipt);
     if (summary?.warn === true)
       this.host.post(sid, summary.line, "warning");
     else if (summary !== undefined)
@@ -35416,7 +34446,7 @@ class BuracleRuntime {
     if (s.parentID === undefined)
       await this.resolveParent(s);
     if (s.parentID === null)
-      this.receipts.end(s.sid, outcome === "succeeded" ? s.lastAssistantText ?? "" : "", this.cfg(), outcome !== "interrupted");
+      this.receipts.end(s.sid, this.cfg(), outcome !== "interrupted");
   }
   async registerTransforms() {
     try {
@@ -35822,10 +34852,13 @@ class BuracleRuntime {
     if (denied === undefined && call.kind === "mcp")
       denied = this.guard("H02", () => this.mcpWriteVerdict(call, cfg));
     if (denied === undefined && call.kind === "ask_user") {
-      let question;
-      denied = this.guard("H09", () => question = checkQuestion(loadState(HARNESS7, call.sessionId), call, this.now()));
-      const note = question?.context;
-      if (denied === undefined && note !== undefined && e.source?.type === "tool" && typeof this.sessions.get(call.sessionId)?.parentID !== "string") {
+      let note;
+      try {
+        note = checkQuestion(loadState(HARNESS7, call.sessionId), call, this.now()).context;
+      } catch (err) {
+        this.logFn("error", "H09 checkQuestion failed", { error: errText(err) });
+      }
+      if (note !== undefined && e.source?.type === "tool" && typeof this.sessions.get(call.sessionId)?.parentID !== "string") {
         this.nudges.set(e.source.id, [...this.nudges.get(e.source.id) ?? [], note]);
       }
     }
@@ -36551,7 +35584,7 @@ function createBuraclePlugin(deps) {
 }
 
 // src/adapters/opencode/runtime/server.ts
-var server_default = createBuraclePlugin({ baked: { v: 1, contentHash: "9360bec8c769e0a82805ef61d6bd7242a9bdee965f1af13a473ba0a7eb7331ec", defaults: { version: 1, harnesses: { claude: { enabled: true }, codex: { enabled: true }, opencode: { enabled: true }, omp: { enabled: true } }, routing: { strictness: "enforce", skills: "router", reminders: true }, guards: { bash: { extraDeny: [] }, write: { protect: [] }, redact: true }, plan: { stopGuard: true, runaway: { perPlan: 30, perChain: 5 }, autoPause: false, planApproval: true, resultApproval: true, branchIsolation: true, worktreeDir: ".worktrees", questions: true, reviews: { plan: true, changes: true, goal: true, companion: "off" }, goalVerification: true, modelSwitch: "off", nativePlanMode: "off" }, context: { warnPct: 85, criticalPct: 95 }, checkers: { enabled: true, timeoutMs: 20000, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] }, memory: { ui: { port: 41777, autostart: true }, exclude: [] }, statusline: { style: "buracle", emoji: true, monthly: "estimate" }, skills: { sources: [{ name: "buracle", path: "canonical/skills" }] }, update: { minReleaseAgeDays: 0 }, permissions: { bypass: true, enforce: true }, effort: { claude: "auto", codex: "auto", opencode: "auto", omp: "auto" }, agents: { teams: true }, workflow: { band: true, foldAfterSec: 8, notifyAfterSec: 120, codexNotices: true }, toolchain: { autoInstall: true, system: true, upgrade: true }, index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 }, mcp: { shared: true, off: { claude: [], codex: [], opencode: [], omp: [] } } }, routing: { strictness: "enforce", categories: [{ id: "library-docs", intent: "Library, framework, SDK or CLI documentation at the installed version (APIs, options, config, migrations)", prefer: ["mcp:context7/resolve-library-id", "mcp:context7/query-docs"], fallback: ["mcp:web-fetch/fetch_url"], deny_builtin: [], nudge: "For library or framework APIs, resolve the library with context7 and query its docs at the version in the lockfile.", reminder: "resolve the library with context7 (resolve-library-id), then query-docs at the version in the lockfile", triggers: { topic: ["official docs", "official documentation", "library docs", "framework docs", "according to the docs", "per the docs", "from the docs", "verify in the docs", "api reference", "api docs", "migration guide", "upgrade guide", "re:\\bcheck the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:look|looked|looking|search|searched|searching)\\b(?:\\s+(?:it|this|that|them)\\s+up)?\\s+in the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:says?|said|mentioned|documented|described)\\s+in the docs\\b", "re:\\b(?!(?:the|our|my|your|their|this|that|an?|its|new|own|same|internal|custom|official|public|private|client|server|web|mobile)\\b)[a-z][a-z0-9.-]{2,}\\s+sdk\\b", "belgelerden", "belgelere gore", "resmi belge*", "dokumantasyondan", "dokumantasyona gore", "api referans*", "goc rehberi", "re:\\b(?:belgelerde|dokumantasyonda)\\b(?!.{0,40}\\b(?:ekle|guncelle|duzelt|kaldir|sil)\\w*)"], not: ["docs folder", "docs directory", "docs klasor*"], deps: ["api", "apis", "config", "configure", "configuration", "option*", "migrat*", "upgrade*", "version*", "deprecat*", "breaking change*", "hook*", "middleware", "plugin*", "setup", "set up", "install*", "usage", "how to use", "how to", "how do", "how does", "how can", "why does", "why do", "why is", "what does", "what options", "which options", "by default", "syntax", "integrat*", "method*", "signature", "type*", "re:\\bv\\d+(?:\\.\\d+)*\\b", "re:\\b\\d+\\.\\d+(?:\\.\\d+)?\\b", "nasil", "yapilandir*", "ayar*", "surum*", "guncelle*", "kurulum*", "entegre*", "goc*", "tip*"] } }, { id: "web-search", intent: "Web search for errors, releases, changelogs and comparisons", prefer: ["mcp:web-search/search"], fallback: ["mcp:web-fetch/fetch_url", "builtin:web_search"], deny_builtin: ["web_search"], nudge: "Search the web with the web-search MCP server; while it is down or off, fetch a search results page (https://html.duckduckgo.com/html/?q=<query>) with web-fetch, and use the built-in web search only when both are down or off.", reminder: "search with the web-search MCP server (search), then read the sources with web-fetch (fetch_url)", triggers: { topic: ["latest version", "latest release", "latest stable", "release notes", "what's new in", "whats new in", "still maintained", "search the web", "look it up online", "re:\\b(?:read|check|see|look at|according to|per)\\s+(?:the\\s+|its\\s+|their\\s+)?(?:upstream\\s+|official\\s+)?changelog\\b", "re:\\bchangelog\\s+(?:of|for)\\b", "re:\\b(?:is|was)\\s+(?:this|it|that|there)\\s+a\\s+known\\s+(?:issue|bug)\\b", "re:\\b(?:any|are there)\\s+known\\s+(?:issues?|bugs?)\\b", "re:\\bknown\\s+(?:issues?|bugs?)\\s+(?:with|in|of)\\s+(?!(?:our|my|this|the)\\b)", "son surum*", "guncel surum*", "en son surum*", "surum notlari", "degisiklik gunlugu", "hala bakimi yapiliyor", "webde ara*", "internette ara*"], not: ["draft* release notes", "write* release notes", "generate* release notes", "release notes from", "our release notes", "our changelog", "update the changelog", "changelog entry", "surum notlari yaz*", "surum notlarini yaz*", "surum notlari hazirla*", "degisiklik gunlugunu guncelle*"] } }, { id: "web-fetch", intent: "Read a known URL, including JavaScript-rendered pages", prefer: ["mcp:web-fetch/fetch_url"], fallback: ["builtin:web_fetch"], deny_builtin: ["web_fetch"], nudge: "Fetch pages with the web-fetch MCP server, and use the built-in fetch only while it is down or off.", reminder: "read the page with the web-fetch MCP server (fetch_url)" }, { id: "code-examples", intent: "How public code uses an API (GitHub examples)", prefer: ["mcp:grep/searchGitHub"], fallback: ["mcp:web-search/search"], deny_builtin: [], reminder: "look up real usage in public code with the grep MCP server (searchGitHub)", triggers: { topic: ["examples on github", "github examples", "real-world usage", "real world usage", "real-world examples", "how do other projects", "how others use", "open-source examples", "open source examples", "github'da*", "gercek projelerde", "acik kaynak projelerde", "ornek kullanim*", "baska projeler nasil"] } }, { id: "code-search", intent: "Find code by intent or concept, or code similar to a snippet", prefer: ["mcp:semble/search", "mcp:semble/find_related"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Search code with semble (intent) or rg (exact text), never grep -r or find | xargs grep.", reminder: "find code by intent with semble search (repo = the project root); rg stays right for exact text", triggers: { topic: ["which file", "find the code that", "find where", "locate the code", "re:\\bwhere (?:is|are|do we|does) (?:the |our |we )?\\S+ (?:defined|implemented|handled|configured|loaded|set|parsed|created)", "re:\\bhow (?:does|do) .{1,60}\\bwork\\b", "nerede tanimli", "nerede yapiliyor", "nerede uygulan*", "hangi dosyada", "nasil calisiyor", "kodu bul"], not: ["where were we", "where did we leave", "nerede kalmistik", "nerede kaldik"] } }, { id: "code-structure", intent: "Definitions, callers and callees, and the impact of changing a symbol", prefer: ["mcp:codegraph/codegraph_explore"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Before changing a shared function, type or endpoint, get its callers from codegraph.", reminder: "ask codegraph (callers, callees, impact; projectPath = the project root) before you change a shared symbol", triggers: { topic: ["who calls", "what calls", "callers of", "call sites", "call graph", "find usages", "all usages", "references to", "impact of chang*", "blast radius", "what breaks if", "what depends on", "re:\\bwhere (?:is|are) \\S+ (?:called|used|invoked|referenced)", "nereden cagriliyor", "nerelerde cagriliyor", "kim cagiriyor", "cagiranlar*", "cagri grafi*", "nerelerde kullaniliyor", "etki analizi", "neyi bozar", "neler etkilenir"] } }, { id: "language-server", intent: "Diagnostics of an edited file, a symbol's type and docs, its definition and references from the language server (Codex and OpenCode; Claude Code and omp use their own LSP tools)", prefer: ["mcp:lsp/diagnostics", "mcp:lsp/hover", "mcp:lsp/definition", "mcp:lsp/references"], fallback: ["mcp:codegraph/codegraph_explore", "cli:rg"], deny_builtin: [], reminder: "check an edited Python, TypeScript, Go, Rust, C# or Java file with the lsp server's diagnostics, and ask its hover or definition for a symbol's type", triggers: { topic: ["type error*", "typecheck error*", "type-check error*", "compile error*", "compiler error*", "compilation error*", "lsp diagnostics", "language server", "go to definition", "jump to definition", "re:\\bwhat(?:'s| is) the type of\\b", "tip hata*", "derleme hata*", "tanima git", "tanimina git"] } }, { id: "browser", intent: "Drive and inspect a real browser (DOM, console, network, performance)", prefer: ["mcp:chrome-devtools"], fallback: [], deny_builtin: [], reminder: "drive and inspect the real browser with chrome-devtools (navigate_page, take_snapshot, list_console_messages)", triggers: { topic: ["open the page", "take a screenshot", "screenshot of", "console errors", "browser console", "network tab", "lighthouse", "devtools", "re:\\b(?:open|test|check|verify|look|see|load|reproduce|try|view|inspect|debug|click|watch|preview)\\w*\\b.{0,40}\\bin the browser\\b", "ekran goruntusu", "konsol hata*", "sayfayi ac*", "re:\\btarayicida\\b.{0,30}\\b(?:ac|test et|kontrol et|dene|bak|gor|incele)\\w*"] } }, { id: "memory", intent: "Past decisions, gotchas, earlier sessions and preferences", prefer: ["mcp:buracle-memory/memory_search", "mcp:buracle-memory/memory_get"], fallback: ["cli:buracle"], deny_builtin: [], nudge: "History questions start with memory_search on the buracle-memory server.", reminder: "search memory with memory_search, then memory_get the relevant memories, and cite their ids", triggers: { topic: ["memory note*", "vault note*", "the memory vault", "the memory brain", "hafiza not*", "hafiza kayd*", "kasa not*"] } }] }, mcp: [{ id: "buracle-memory", description: "Buracle memory, the CortexDB brains of the project and the person (search, get, write, update, status)", transport: "stdio", critical: true, routing: ["memory"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "chrome-devtools", description: "Drive and inspect a Chrome browser (DevTools protocol)", transport: "stdio", critical: false, routing: ["browser"], harnesses: ["claude", "codex", "opencode"] }, { id: "codegraph", description: "Code structure graph (symbols, callers, impact) for the current repository", transport: "stdio", critical: true, routing: ["code-structure"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "context7", description: "Up-to-date library and framework documentation", transport: "stdio", critical: true, routing: ["library-docs"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "grep", description: "Search public GitHub code for real-world usage examples", transport: "http", critical: false, routing: ["code-examples"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "lsp", description: "Language-server diagnostics, hover, definitions, references and symbols", transport: "stdio", critical: true, routing: ["language-server"], harnesses: ["codex", "opencode"] }, { id: "semble", description: "Fast semantic code search over local or remote repositories", transport: "stdio", critical: true, routing: ["code-search"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-fetch", description: "Fetch and extract web pages with a headless browser", transport: "stdio", critical: true, routing: ["web-fetch"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-search", description: "Web search without an API key (DuckDuckGo by default)", transport: "stdio", critical: true, routing: ["web-search"], harnesses: ["claude", "codex", "opencode", "omp"] }], mcpIds: ["buracle-memory", "chrome-devtools", "codegraph", "context7", "grep", "lsp", "semble", "web-fetch", "web-search"], skills: [{ id: "ab-test", description: "Measure whether a change to a skill, rule, AGENTS.md section or routing policy really changes agent behavior. Defines falsifiable cases, runs paired baseline and candidate trials in throwaway config directories (never hiding or renaming the user's real skills or settings), captures tool-use evidence such as whether the agent loaded the skill or called context7, then scores pass rates and reports per-case deltas. Use when the user asks to benchmark, evaluate, A/B test or compare a skill or rule change, or to check that agents really use an MCP server or skill.", userInvocable: true, short: "Paired before/after evals of skills and rules with tool-use evidence", invocation: "implicit", triggers: { ask: ["benchmark the skill", "benchmark this skill", "benchmark the rule", "benchmark the routing", "a/b test the skill", "a/b test the rule", "ab-test the skill", "skill'i* benchmark*", "skill'i* olc*", "kurali benchmark*"], topic: ["activation rate", "trigger rate", "really makes the agent", "re:\\bbefore(?:/|\\s+and\\s+)after\\b.{0,60}\\b(?:skill|rule|routing|prompt|agents\\.md|claude\\.md|hook|mcp|description)", "re:\\b(?:skill|rule|routing|prompt|agents\\.md|claude\\.md|hook|description)\\S*\\b.{0,60}\\bbefore(?:/|\\s+and\\s+)after\\b", "re:\\b(?:agents?|models?|claude|codex|opencode|omp)\\b.{0,30}\\breally\\s+(?:calls?|uses?|loads?|triggers?|reads?)\\b", "re:\\bbenchmark\\w*\\b.{0,80}\\b(?:skill|rule|routing|agents\\.md|claude\\.md|hook|prompt|mcp)", "re:\\b(?:skill|rule|routing)\\S*\\b.{0,80}\\bbenchmark", "re:\\b(?:skill|kural|routing|prompt|agents\\.md|claude\\.md|hook|aciklama)\\S*\\b.{0,80}\\b(?:once/?\\s?sonra karsilastir|tetikleniyor mu|gercekten cagriliyor mu)", "re:\\b(?:once/?\\s?sonra karsilastir\\w*|tetikleniyor mu|gercekten cagriliyor mu)\\b.{0,80}\\b(?:skill|kural|routing|prompt|agents\\.md|claude\\.md|hook)", "re:\\bskill\\S*\\b.{0,80}\\b(?:eskisiyle|oncekiyle|onceki surumuyle)"], not: ["operations per second", "ops/sec", "ops per second", "throughput", "latency"] } }, { id: "bugfix", description: "Plan-less bug workflow that owns one defect end to end: reproduce it first, trace the root cause to file:line, write a failing test, fix at the source, prove the fix on the real program, then pass the quality gate. With branch isolation on it asks where to work: the current branch, a bugfix/<slug> branch or a worktree squash-merged once the fix is proven; no plan file. Run only when the user explicitly asks for bugfix.", userInvocable: true, short: "Reproduce, root-cause, RED test, fix at the source, prove it end to end", invocation: "explicit", triggers: { ask: ["re:(?<!\\b(?:the|that|this|your|my|our|its)\\s)\\broot[- ]cause\\s+fix\\b", "fix it test-first", "fix it with a failing test first", "reproduce it first and fix it", "kok nedenini bulup duzelt", "once test yazip duzelt"], not: ["workflow file", "github actions", "ci workflow"] } }, { id: "buracle", description: "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan \u2026`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, notifications, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.", userInvocable: false, short: "When and how to call the buracle helper CLI", invocation: "implicit", triggers: { ask: ["use the buracle cli", "buracle cli ile"], topic: ["re:\\bplan status\\b(?!\\s+(?:endpoint|field|column|code|enum|value|page|api|route|handler|query|badge|label|filter|check|type)s?\\b)", "how many tasks are left", "tasks left in the plan", "diff range", "re:(?<!\\b(?:add|added|adding|new)\\s(?:a\\s|an\\s|the\\s)?)\\breview scope\\b(?!\\s+(?:option|flag|field|param\\w*|column|setting|config\\w*|endpoint|api|type|enum|value)s?\\b)", "what should i review", "re:\\b(?:my|our|claude(?:\\s+code)?|codex|opencode|omp|subscription)(?:'s)?\\s+(?:usage|rate|weekly|5h|5-hour)\\s+limits?\\b", "rate limit headroom", "5h window", "5-hour window", "create a worktree", "merge the worktree", "buracle doctor", "planin durumu", "re:\\bplan durumu\\b(?!\\s+(?:alan|endpoint|kolon|sutun|enum|deger|sayfa|api|kod)\\w*)", "kac gorev kaldi", "kullanim limitim*", "kullanim limitlerim*", "re:\\bkullanim limit\\w*\\s+ne durumda", "5 saatlik pencere*", "5 saatlik limit*", "haftalik limitim*", "haftalik limitlerim*", "re:\\b(?:claude|codex|opencode|omp)\\S*\\s+(?:kullanim\\s+|haftalik\\s+)?limit\\w*", "worktree olustur*", "worktree ac", "worktree'yi birlestir*", "buracle doctor"] } }, { id: "dead-code", description: "Report-only dead-code audit. Collects candidate unused files and exports from the project's own analyzers, a bundled rg-based script and a read-only codegraph snapshot, checks every candidate against independent signals (codegraph references, exact and dynamic-usage search, analyzers), rules out a public role (API, entry points, config, registries), and returns a ranked report with evidence and a staged removal plan. Never deletes or edits code.", userInvocable: true, short: "Report-only dead-code audit with two-signal evidence and a removal plan", invocation: "explicit", triggers: { ask: ["dead code audit", "dead-code audit", "unused code report", "dead code report", "re:(?:^|[\\n.!?;:]\\s*|\\b(?:please|pls|can you|could you|would you|and|then|just)\\s+)find\\s+(?:all\\s+|the\\s+)?(?:dead|unused)\\s+(?:code|exports|files)\\b", "olu kod analizi", "olu kod raporu", "olu kodlari bul", "olu kod tara*", "kullanilmayan kod* bul", "kullanilmayan kod* tespit", "kullanilmayan export* bul", "temizlik raporu"] } }, { id: "find-skill", description: "Find an agent skill for a need and install it for every harness in a few calls. `buracle skills find <need>` is one command that shows the installed and shipped skills that already match, then the skills.sh registry's candidates with description, license, freshness, tool grants and risk ratings; `buracle skills add --dry-run` audits the pick (scripts, allowed-tools, suspicious lines) and `buracle skills add` installs it into ~/.agents/skills (Codex, OpenCode, Oh My Pi) and links it into ~/.claude/skills (Claude Code). Also updates and removes installed skills.", userInvocable: true, short: "Find a skill for a need and install it for every harness", invocation: "implicit", triggers: { ask: ["find a skill", "find me a skill", "find skills for", "is there a skill", "re:\\b(?:install|add|get)\\s+(?:a|the|an)\\s+(?:\\S+\\s+){0,3}skill\\b", "re:\\b(?:update|upgrade|remove|uninstall)\\s+(?:my|the|an?)\\s+(?:\\S+\\s+){0,2}skills?\\b", "search for a skill", "skill marketplace", "skill bul", "skill ara", "skill var mi", "bir skill var mi", "re:\\bskill\\w*\\s+(?:kur|yukle|ekle|indir)", "re:\\b(?:kur|yukle|ekle|indir)\\w*\\s+(?:\\S+\\s+){0,2}skill", "skilleri guncelle", "skill guncelle*", "skill kaldir*", "skill sil"], not: ["create a skill", "write a skill", "new skill", "turn this into a skill", "buracle skill", "the skill is", "skill triggers", "skills lint", "new-skill", "in the skill", "skill file", "skill id", "skill yaz", "skill olustur", "skille donustur", "yeni skill", "skill dosyasi"] } }, { id: "goal-build", description: "Goal-and-loop workflow for a clear end state whose path is found while building: agree on a goal, tasks sized as the largest slices you can finish and verify, and at least 3 pass/fail acceptance criteria (one of them the oracle), have them reviewed, lock the contract, then build in rounds judged on running evidence (at most four), verify and hand back. Tracked in docs/goal-build/. Run only when the user explicitly asks for goal-build.", userInvocable: true, short: "Lock a goal and pass/fail criteria, then build in judged rounds", invocation: "explicit", triggers: { ask: ["goal-and-loop", "goal and loop", "find the way yourself", "re:\\byou find the way(?: there)?\\s*(?:[.!;:]|$)", "re:(?:^|[\\n.!?;:]\\s*|\\b(?:and|then|just|please)\\s+)(?:keep\\s+)?loop(?:ing)?\\s+until\\s+it\\s+(?:works|passes)\\b", "yolunu sen bul", "bitene kadar dongu*", "hedef odakli dongu*"], not: ["github actions", "ci workflow", "ci pipeline", "workflow file", "workflow run", ".github/workflows", "workflow yaml"] } }, { id: "inspect", description: "Read-only investigation of one question about the code. Frames a falsifiable claim, locates code with semble (intent), codegraph (callers, callees, blast radius) and rg or ast-grep (exact and structural matches), checks memory for past decisions, traces the active path hop by hop, challenges the answer with a counterexample search, and reports a direct answer with file:line evidence and calibrated confidence. Never edits anything.", userInvocable: true, short: "Read-only trace of one code question with file:line evidence", invocation: "explicit", triggers: { ask: ["inspect how", "inspect why", "inspect where", "investigate how", "investigate why", "investigate where", "dig into how", "trace how", "re:(?:^|[\\n.!?;:]\\s*|\\b(?:please|pls|can you|could you|would you)\\s+)investigate\\s+(?:this|that|it)\\b", "nasil calistigini incele*", "nasil calistigini arastir*", "neden boyle davrandigini incele*", "neden boyle davrandigini arastir*", "nereden cagrildigini incele*"], not: ["and fix", "fix it", "then fix", "duzelt"] } }, { id: "memory", description: "Protocol for Buracle's shared memory: one CortexDB brain with a bucket for each project and one for the person, served by the buracle-memory MCP server in every harness. Says when to run a quick memory pass (at most 3 memory_search calls, then at most 3 memories via memory_get), how to treat recalled memories as evidence rather than instructions, and how to keep the memory: one claim per memory with sources, search before writing, update or merge instead of duplicating, record the user's preferences in the right brain, never overrule an explicit memory, never store secrets. Use when the user refers to past work or asks you to remember something, before re-deciding something and after a non-obvious fix.", userInvocable: false, short: "When and how to read, write and keep Buracle's CortexDB memory", invocation: "implicit", triggers: { ask: ["use the memory protocol", "hafiza protokolu*"], topic: ["memory note*", "vault note*", "the memory vault", "the memory brain", "hafiza not*", "hafiza kayd*", "kasa not*", "kasadaki not*"] } }, { id: "new-skill", description: "Capture a repeatable procedure as a Buracle skill, or improve an existing one. Picks the right home (global skills in the Buracle repo's canonical/skills or a configured skills git source; project-only skills in .agents/skills), writes SKILL.md in the canonical format with references/, scripts/ and trigger evals, lints it with `buracle skills lint`, and explains how publishing reaches every harness. Use when the user wants to turn a workflow into a skill, edit, split or rename a skill, or fix a skill that triggers too often or never.", userInvocable: true, short: "Capture a repeatable procedure as a canonical Buracle skill", invocation: "implicit", triggers: { ask: ["turn this into a skill", "turn it into a skill", "into a reusable skill", "make it a skill", "save it as a skill", "new skill for", "re:\\b(?:create|write|add|make) (?:a |an |the )?(?:new )?(?:[a-z-]+ ){0,2}skill\\b", "skill yap", "bunu skill yap", "yeni skill olustur*", "yeni bir skill olustur*", "yeni skill yaz*", "skill olustur*", "skill olarak kaydet*", "skill'e donustur*", "skill'i guncelle*", "tekrar kullanilabilir bir skill"], topic: ["reusable skill", "skill trigger*", "skill description", "re:\\bskill\\S*\\b.{0,60}\\b(?:never triggers|does not trigger|doesn't trigger|misfires|triggers too often)", "re:\\bskill\\S*\\b.{0,60}\\btetiklen(?:miyor|mez)", "re:\\bskill\\S*\\b.{0,60}\\bdevreye girmiyor"] } }, { id: "plan-build", description: "Plan-driven development through a plan file in docs/plan-build/: explore and clarify, write and review the plan, get approval, implement task by task with TDD, then verify with real evidence until the plan is VERIFIED. Covers features and bugfixes (behavior contract, reproduce first, root-cause fix). Also pauses, resumes or continues an existing plan. Run only when the user explicitly asks for plan-build.", userInvocable: true, short: "Plan, approve, TDD-implement and verify work through a plan file", invocation: "explicit", triggers: { ask: ["write a plan and implement*", "plan and implement it", "plan it and implement*", "re:\\b(?:do|build|implement|handle|tackle)\\s+(?:it|this|that|them|the\\s+\\S+)\\s+plan[- ]driven\\b", "re:\\b(?:go|let's go)\\s+plan[- ]driven\\b", "re:(?:^|[\\n.!?;]\\s*)plan[- ]driven(?:\\s*,?\\s*please)?\\s*[:,]", "plan yaz ve uygula", "plan yazip uygula", "planla ve uygula"] } }, { id: "project-rules", description: "Create, refresh or audit a repository's agent guidance so Claude Code, Codex, OpenCode and omp follow the same verified instructions: the root AGENTS.md, optional nested AGENTS.md files for subprojects, and path-scoped rules for specific file types. Discovers commands and conventions from the code (package scripts, CI jobs, linter and test configs, test layout), runs commands before documenting them, keeps every file short, then runs `buracle project sync` and `buracle project check`. Use when the user asks to set up, write, update, slim down or check AGENTS.md, CLAUDE.md or project rules.", userInvocable: true, short: "Generate and verify AGENTS.md and path-scoped rules for a repo", invocation: "implicit", triggers: { ask: ["set up agent guidance", "set up agents.md", "write agents.md", "create agents.md", "update agents.md", "audit agents.md", "refresh agents.md", "slim down agents.md", "set up the project rules", "audit the agent instructions", "agents.md hazirla*", "agents.md olustur*", "agents.md guncelle*", "agents.md yaz", "proje kurallarini kur", "talimatlari guncelle*", "kurallari sadelestir*"], topic: ["agent instructions", "agent guidance", "path rules", "path-scoped rules", "re:\\b(?:agents|claude)\\.md\\b.{0,40}\\b(?:stale|outdated|bloated|too long|wrong|out of date)", "proje talimatlari", "ajan talimatlari", "proje kurallari", "re:\\b(?:agents|claude)\\.md\\b.{0,40}\\b(?:eskimis|guncel degil|cok uzun|yanlis)"] } }, { id: "requirements", description: "Requirements workflow for ideas whose problem, audience or scope is still unclear. Grounds the idea in the codebase and memory, runs tiered research through the research skill, explores directions, asks a few decision questions, proposes approaches, converges on scope, writes an approved PRD to docs/requirements/YYYY-MM-DD-<slug>.md and prints the plan-build or goal-build hand-off. No code is written before the PRD is approved.", userInvocable: true, short: "Interview, research and write an approved PRD before any code", invocation: "explicit", triggers: { ask: ["write a prd", "write the prd", "draft a prd", "draft the prd", "create a prd", "prepare a prd", "make a prd", "need a prd", "re:\\b(?:write|draft|create|prepare|make|produce|need|want)\\s+(?:me\\s+|us\\s+)?(?:a|an|the)\\s+(?:new\\s+|short\\s+|proper\\s+)?(?:product\\s+)?requirements\\s+doc(?:ument)?\\b", "re:(?:^|[\\n.!?;:]\\s*)(?:a\\s+)?prd\\s+for\\b", "prd yaz*", "prd hazirla*", "prd olustur*", "prd cikar*", "gereksinimleri cikar*", "re:\\bgereksinim\\s+(?:dokuman|belge)\\w*\\s+(?:yaz|hazirla|olustur|cikar|lazim|gerek)\\w*", "bu fikri netlestir*", "fikri netlestir*"], not: ["do we need a prd", "is there a prd", "do we have a prd", "is a prd needed", "prd gerekli mi", "prd lazim mi", "prd var mi"] } }, { id: "research", description: "Evidence-backed research that must use MCP tools instead of recall: web-search to discover sources, web-fetch to read them in full, context7 for library and framework documentation, grep for real-world code on GitHub, and buracle-memory for prior decisions. Produces a cited research note (answer, findings, options, conflicts, gaps, confidence) and can save durable findings to memory as knowledge memories pending review.", userInvocable: true, short: "Cited, MCP-backed research across web, library docs, public code and memory", invocation: "implicit", triggers: { ask: ["research this", "research it", "do research on", "research whether", "research which", "deep research", "find sources", "cite sources", "arastir", "arastirin", "arastiralim", "arastirir misin", "arastirabilir*", "arastirma yap*", "derinlemesine arastir*", "kaynak goster*", "kaynaklarla karsilastir*"], topic: ["still maintained", "is it maintained", "current sources", "which is better", "re:(?<!\\b(?:follow|following|use|using|apply|applying|with|keep|keeping|per)\\s(?:the\\s|our\\s|these\\s)?)\\bbest\\s+practices?\\s+(?:for|in|of|on|around|when\\s+using)\\b", "re:\\b(?:what|which)(?:'s|\\s+(?:is|are))\\s+(?:the\\s+)?(?:current\\s+|modern\\s+|recommended\\s+)?best\\s+practices?\\b", "re:\\bbest\\s+practices?\\s*\\?", "pros and cons", "alternatives to", "state of the art", "latest version of", "re:\\bcompare\\b.{0,60}\\b(?:librar|framework|tool|package|approach|option|vendor|provider|service|database|orm|solution|sdk)", "re:\\b(?:librar|framework|tool|package|approach|provider|service|database|sdk)\\w*\\b.{0,40}\\bcompar", "re:\\b(?!(?:actual|expected|got|received|before|after|old|new|left|right|input|output|tabs|spaces|this|that|it|one)\\b)[a-z][a-z0-9.-]+ (?:vs\\.?|versus) (?!(?:actual|expected|got|received|before|after|old|new|left|right|input|output|tabs|spaces|this|that|it|one)\\b)[a-z][a-z0-9.-]+", "hangisi daha iyi", "guncel mi", "guncel kaynak*", "re:\\ben iyi (?:pratik|uygulama)\\w*\\b(?!\\s+(?:uy|uygun|izle|takip))", "artilari ve eksileri", "alternatifleri neler", "re:\\b\\S+ mu \\S+ mu (?:kullan|sec|tercih)", "re:\\b(?:kutuphane|framework|arac|paket|yaklasim|secenek|servis|veritaban|sdk)\\w*\\b.{0,60}\\bkarsilastir"], not: ["vs code", "vscode", "visual studio", "compare function", "comparator"] } }, { id: "security-audit", description: "Security guidance and vulnerability review for codebases, APIs, services, CLI tools, libraries and daemons: Cloudflare's security-audit skill (MIT), vendored as Buracle's default security skill. Guidance mode answers security questions, focused reviews and triage with the relevant parts only; full audit mode runs six phases (reconnaissance, coverage-led hunting with parallel isolated agents, validation by fresh verifiers, structured findings.json, independent record verification, a target-neutral report) when the user asks for an audit, a pen test, a full security review or report artifacts.", userInvocable: true, short: "Cloudflare's security-audit skill, Buracle's default security review", invocation: "implicit", triggers: { ask: ["security audit", "audit the security", "re:\\baudit\\s+(?:this|the|my|our)\\s+(?:\\S+\\s+){0,2}(?:codebase|repo|repository|project|service|app|application|api)\\b.{0,40}\\bsecur", "re:\\bsecur\\w*\\s+(?:review|assessment|analysis|scan)\\b", "pen test", "pentest", "penetration test", "find vulnerabilities", "find security vulnerabilities", "look for vulnerabilities", "threat model", "guvenlik denetimi", "guvenlik taramasi", "guvenlik incelemesi", "guvenlik analizi", "re:\\bguvenlik ac(?:ik|ig)\\w*", "re:\\bzafiyet\\w*\\s+(?:bul|tara|ara)", "sizma testi", "pentest yap*", "tehdit modeli"], topic: ["re:\\bis (?:this|it|that) (?:secure|safe|vulnerable|exploitable)\\b", "re:\\b(?:sql|command|prompt|shell|code)\\s+injection\\b", "re:\\b(?:xss|csrf|ssrf|rce|idor)\\b", "re:\\btrust boundar", "re:\\b(?:auth(?:entication|orization)?|session|token|secret|credential)\\w*\\s+(?:bypass|leak|exposure|handling)\\b", "re:\\bguvenli mi\\b", "re:\\b(?:sql|komut|prompt|kod)\\s+enjeksiyon"], not: ["audit log", "audit trail", "accessibility audit", "performance audit", "lighthouse audit", "dead code audit", "cleanup audit", "dependency audit only", "npm audit", "security.md", "security headers test", "erisilebilirlik denetimi", "performans denetimi", "olu kod"] } }], plugins: [], hooks: [{ id: "H01", blocking: "deny", failure: "closed" }, { id: "H02", blocking: "deny", failure: "closed" }, { id: "H03", blocking: "deny", failure: "open" }, { id: "H04", blocking: "none", failure: "open" }, { id: "H05", blocking: "none", failure: "open" }, { id: "H06", blocking: "none", failure: "open" }, { id: "H07", blocking: "none", failure: "open" }, { id: "H08", blocking: "stop", failure: "open" }, { id: "H09", blocking: "deny", failure: "open" }, { id: "H10", blocking: "none", failure: "open" }, { id: "H11", blocking: "stop", failure: "open" }, { id: "H12", blocking: "none", failure: "open" }, { id: "H13", blocking: "none", failure: "open" }, { id: "H14", blocking: "none", failure: "open" }, { id: "H15", blocking: "none", failure: "open" }, { id: "H16", blocking: "none", failure: "open" }, { id: "H17", blocking: "none", failure: "open" }, { id: "H18", blocking: "none", failure: "open" }, { id: "H19", blocking: "none", failure: "open" }, { id: "H20", blocking: "deny", failure: "open" }, { id: "H21", blocking: "none", failure: "open" }, { id: "H22", blocking: "none", failure: "open" }, { id: "H23", blocking: "stop", failure: "open" }, { id: "H24", blocking: "none", failure: "open" }, { id: "H25", blocking: "none", failure: "open" }, { id: "H26", blocking: "none", failure: "open" }, { id: "H28", blocking: "none", failure: "open" }], pathRules: [{ id: "backend", globs: ["**/api/**", "**/routes/**", "**/handlers/**", "**/controllers/**", "**/endpoints/**", "**/middleware/**", "**/models/**", "**/models.py", "**/entities/**", "**/schema/**", "**/schemas/**", "**/queries/**", "**/repository/**", "**/repositories/**", "**/dao/**", "**/migrations/**", "**/migrate/**", "**/alembic/**", "**/db/**", "**/*.sql", "**/*.prisma", "**/*.graphql", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json"] }, { id: "blazor", globs: ["**/*.razor", "**/*.razor.cs", "**/*.razor.css"] }, { id: "browser-automation", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.razor", "**/e2e/**", "**/playwright/**", "**/cypress/**", "**/__tests__/**", "**/playwright.config.*", "**/cypress.config.*"] }, { id: "dotnet", globs: ["**/*.cs", "**/*.csproj", "**/*.sln", "**/*.slnx", "**/global.json", "**/Directory.Build.props", "**/Directory.Packages.props"] }, { id: "frontend", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.sass", "**/*.less", "**/*.razor", "**/*.razor.css"] }, { id: "go", globs: ["**/*.go", "**/go.mod", "**/go.sum", "**/go.work"] }, { id: "mobile", globs: ["**/capacitor.config.*", "**/ionic.config.json", "**/android/app/build.gradle*", "**/android/app/src/main/AndroidManifest.xml", "**/*.xcodeproj/project.pbxproj", "**/*.xcworkspace/contents.xcworkspacedata", "**/Podfile", "**/pubspec.yaml", "**/react-native.config.*", "**/metro.config.*", "**/expo.json", "**/eas.json", "**/app.config.{js,ts}"] }, { id: "python", globs: ["**/*.py", "**/*.pyi", "**/pyproject.toml", "**/requirements*.txt", "**/uv.lock", "**/setup.cfg"] }, { id: "typescript", globs: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts", "**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs", "**/package.json", "**/tsconfig*.json"] }], version: "0.8.3", notices: [{ id: "0.5.0-project-assets", since: "0.5.0", until: "0.6.0", message: "When a session starts in a repository, Buracle now links the skills in .agents/skills into .claude/skills so Claude Code sees them too, and checks that AGENTS.md lists the path rules in .claude/rules. Run `buracle project check` to see what it would change." }, { id: "0.5.0-smaller-cli", since: "0.5.0", until: "0.6.0", message: "Buracle's CLI is smaller: run `buracle` in a terminal for a main menu you drive with the keyboard. `buracle install` now does what `init` and `sync` did, `buracle install` and `buracle update` apply in a terminal without a question and show each step as it runs, and the rare cases flags used to cover are questions in a terminal. `buracle help --all` lists the commands your agents use." }, { id: "0.7.0-one-standard", since: "0.7.0", until: "0.8.0", message: "One standard on every harness: `buracle diagram` is gone, a chat reply shows a flow as a list or a table, and workflow documents under docs/ are English in ASD-STE100 style (`buracle plan validate` checks them). New documents go to docs/requirements/, docs/plan-build/, docs/goal-build/ and docs/dead-code/; the old folders docs/prd/, docs/plans/, docs/builds/ and docs/cleanup/ stay readable." }] }, memory: memoryBridge, pluginDir: import.meta.dir });
+var server_default = createBuraclePlugin({ baked: { v: 1, contentHash: "33a0cf8bcc3eed0817f59b8e7b299fc90eec0d90ac9981333fb8778b9cfcce70", defaults: { version: 1, harnesses: { claude: { enabled: true }, codex: { enabled: true }, opencode: { enabled: true }, omp: { enabled: true } }, routing: { strictness: "enforce", skills: "router", reminders: true }, guards: { bash: { extraDeny: [] }, write: { protect: [] }, redact: true }, plan: { stopGuard: true, runaway: { perPlan: 30, perChain: 5 }, autoPause: false, planApproval: true, resultApproval: true, branchIsolation: true, worktreeDir: ".worktrees", questions: true, reviews: { plan: true, changes: true, goal: true, companion: "off" }, goalVerification: true, modelSwitch: "off", nativePlanMode: "off" }, context: { warnPct: 85, criticalPct: 95 }, checkers: { enabled: true, timeoutMs: 20000, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] }, memory: { ui: { port: 41777, autostart: true }, exclude: [] }, statusline: { style: "buracle", emoji: true, monthly: "estimate" }, skills: { sources: [{ name: "buracle", path: "canonical/skills" }] }, update: { minReleaseAgeDays: 0 }, permissions: { bypass: true, enforce: true }, effort: { claude: "auto", codex: "auto", opencode: "auto", omp: "auto" }, agents: { teams: true }, workflow: { band: true, foldAfterSec: 8, notifyAfterSec: 120, codexNotices: true }, toolchain: { autoInstall: true, system: true, upgrade: true }, index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 }, mcp: { shared: true, off: { claude: [], codex: [], opencode: [], omp: [] } } }, routing: { strictness: "enforce", categories: [{ id: "library-docs", intent: "Library, framework, SDK or CLI documentation at the installed version (APIs, options, config, migrations)", prefer: ["mcp:context7/resolve-library-id", "mcp:context7/query-docs"], fallback: ["mcp:web-fetch/fetch_url"], deny_builtin: [], nudge: "For library or framework APIs, resolve the library with context7 and query its docs at the version in the lockfile.", reminder: "resolve the library with context7 (resolve-library-id), then query-docs at the version in the lockfile", triggers: { topic: ["official docs", "official documentation", "library docs", "framework docs", "according to the docs", "per the docs", "from the docs", "verify in the docs", "api reference", "api docs", "migration guide", "upgrade guide", "re:\\bcheck the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:look|looked|looking|search|searched|searching)\\b(?:\\s+(?:it|this|that|them)\\s+up)?\\s+in the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:says?|said|mentioned|documented|described)\\s+in the docs\\b", "re:\\b(?!(?:the|our|my|your|their|this|that|an?|its|new|own|same|internal|custom|official|public|private|client|server|web|mobile)\\b)[a-z][a-z0-9.-]{2,}\\s+sdk\\b", "belgelerden", "belgelere gore", "resmi belge*", "dokumantasyondan", "dokumantasyona gore", "api referans*", "goc rehberi", "re:\\b(?:belgelerde|dokumantasyonda)\\b(?!.{0,40}\\b(?:ekle|guncelle|duzelt|kaldir|sil)\\w*)"], not: ["docs folder", "docs directory", "docs klasor*"], deps: ["api", "apis", "config", "configure", "configuration", "option*", "migrat*", "upgrade*", "version*", "deprecat*", "breaking change*", "hook*", "middleware", "plugin*", "setup", "set up", "install*", "usage", "how to use", "how to", "how do", "how does", "how can", "why does", "why do", "why is", "what does", "what options", "which options", "by default", "syntax", "integrat*", "method*", "signature", "type*", "re:\\bv\\d+(?:\\.\\d+)*\\b", "re:\\b\\d+\\.\\d+(?:\\.\\d+)?\\b", "nasil", "yapilandir*", "ayar*", "surum*", "guncelle*", "kurulum*", "entegre*", "goc*", "tip*"] } }, { id: "web-search", intent: "Web search for errors, releases, changelogs and comparisons", prefer: ["mcp:web-search/search"], fallback: ["mcp:web-fetch/fetch_url", "builtin:web_search"], deny_builtin: ["web_search"], nudge: "Search the web with the web-search MCP server; while it is down or off, fetch a search results page (https://html.duckduckgo.com/html/?q=<query>) with web-fetch, and use the built-in web search only when both are down or off.", reminder: "search with the web-search MCP server (search), then read the sources with web-fetch (fetch_url)", triggers: { topic: ["latest version", "latest release", "latest stable", "release notes", "what's new in", "whats new in", "still maintained", "search the web", "look it up online", "re:\\b(?:read|check|see|look at|according to|per)\\s+(?:the\\s+|its\\s+|their\\s+)?(?:upstream\\s+|official\\s+)?changelog\\b", "re:\\bchangelog\\s+(?:of|for)\\b", "re:\\b(?:is|was)\\s+(?:this|it|that|there)\\s+a\\s+known\\s+(?:issue|bug)\\b", "re:\\b(?:any|are there)\\s+known\\s+(?:issues?|bugs?)\\b", "re:\\bknown\\s+(?:issues?|bugs?)\\s+(?:with|in|of)\\s+(?!(?:our|my|this|the)\\b)", "son surum*", "guncel surum*", "en son surum*", "surum notlari", "degisiklik gunlugu", "hala bakimi yapiliyor", "webde ara*", "internette ara*"], not: ["draft* release notes", "write* release notes", "generate* release notes", "release notes from", "our release notes", "our changelog", "update the changelog", "changelog entry", "surum notlari yaz*", "surum notlarini yaz*", "surum notlari hazirla*", "degisiklik gunlugunu guncelle*"] } }, { id: "web-fetch", intent: "Read a known URL, including JavaScript-rendered pages", prefer: ["mcp:web-fetch/fetch_url"], fallback: ["builtin:web_fetch"], deny_builtin: ["web_fetch"], nudge: "Fetch pages with the web-fetch MCP server, and use the built-in fetch only while it is down or off.", reminder: "read the page with the web-fetch MCP server (fetch_url)" }, { id: "code-examples", intent: "How public code uses an API (GitHub examples)", prefer: ["mcp:grep/searchGitHub"], fallback: ["mcp:web-search/search"], deny_builtin: [], reminder: "look up real usage in public code with the grep MCP server (searchGitHub)", triggers: { topic: ["examples on github", "github examples", "real-world usage", "real world usage", "real-world examples", "how do other projects", "how others use", "open-source examples", "open source examples", "github'da*", "gercek projelerde", "acik kaynak projelerde", "ornek kullanim*", "baska projeler nasil"] } }, { id: "code-search", intent: "Find code by intent or concept, or code similar to a snippet", prefer: ["mcp:semble/search", "mcp:semble/find_related"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Search code with semble (intent) or rg (exact text), never grep -r or find | xargs grep.", reminder: "find code by intent with semble search (repo = the project root); rg stays right for exact text", triggers: { topic: ["which file", "find the code that", "find where", "locate the code", "re:\\bwhere (?:is|are|do we|does) (?:the |our |we )?\\S+ (?:defined|implemented|handled|configured|loaded|set|parsed|created)", "re:\\bhow (?:does|do) .{1,60}\\bwork\\b", "nerede tanimli", "nerede yapiliyor", "nerede uygulan*", "hangi dosyada", "nasil calisiyor", "kodu bul"], not: ["where were we", "where did we leave", "nerede kalmistik", "nerede kaldik"] } }, { id: "code-structure", intent: "Definitions, callers and callees, and the impact of changing a symbol", prefer: ["mcp:codegraph/codegraph_explore"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Before changing a shared function, type or endpoint, get its callers from codegraph.", reminder: "ask codegraph (callers, callees, impact; projectPath = the project root) before you change a shared symbol", triggers: { topic: ["who calls", "what calls", "callers of", "call sites", "call graph", "find usages", "all usages", "references to", "impact of chang*", "blast radius", "what breaks if", "what depends on", "re:\\bwhere (?:is|are) \\S+ (?:called|used|invoked|referenced)", "nereden cagriliyor", "nerelerde cagriliyor", "kim cagiriyor", "cagiranlar*", "cagri grafi*", "nerelerde kullaniliyor", "etki analizi", "neyi bozar", "neler etkilenir"] } }, { id: "language-server", intent: "Diagnostics of an edited file, a symbol's type and docs, its definition and references from the language server (Codex and OpenCode; Claude Code and omp use their own LSP tools)", prefer: ["mcp:lsp/diagnostics", "mcp:lsp/hover", "mcp:lsp/definition", "mcp:lsp/references"], fallback: ["mcp:codegraph/codegraph_explore", "cli:rg"], deny_builtin: [], reminder: "check an edited Python, TypeScript, Go, Rust, C# or Java file with the lsp server's diagnostics, and ask its hover or definition for a symbol's type", triggers: { topic: ["type error*", "typecheck error*", "type-check error*", "compile error*", "compiler error*", "compilation error*", "lsp diagnostics", "language server", "go to definition", "jump to definition", "re:\\bwhat(?:'s| is) the type of\\b", "tip hata*", "derleme hata*", "tanima git", "tanimina git"] } }, { id: "browser", intent: "Drive and inspect a real browser (DOM, console, network, performance)", prefer: ["mcp:chrome-devtools"], fallback: [], deny_builtin: [], reminder: "drive and inspect the real browser with chrome-devtools (navigate_page, take_snapshot, list_console_messages)", triggers: { topic: ["open the page", "take a screenshot", "screenshot of", "console errors", "browser console", "network tab", "lighthouse", "devtools", "re:\\b(?:open|test|check|verify|look|see|load|reproduce|try|view|inspect|debug|click|watch|preview)\\w*\\b.{0,40}\\bin the browser\\b", "ekran goruntusu", "konsol hata*", "sayfayi ac*", "re:\\btarayicida\\b.{0,30}\\b(?:ac|test et|kontrol et|dene|bak|gor|incele)\\w*"] } }, { id: "memory", intent: "Past decisions, gotchas, earlier sessions and preferences", prefer: ["mcp:buracle-memory/memory_search", "mcp:buracle-memory/memory_get"], fallback: ["cli:buracle"], deny_builtin: [], nudge: "History questions start with memory_search on the buracle-memory server.", reminder: "search memory with memory_search, then memory_get the relevant memories, and cite their ids", triggers: { topic: ["memory note*", "vault note*", "the memory vault", "the memory brain", "hafiza not*", "hafiza kayd*", "kasa not*"] } }] }, mcp: [{ id: "buracle-memory", description: "Buracle memory, the CortexDB brains of the project and the person (search, get, write, update, status)", transport: "stdio", critical: true, routing: ["memory"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "chrome-devtools", description: "Drive and inspect a Chrome browser (DevTools protocol)", transport: "stdio", critical: false, routing: ["browser"], harnesses: ["claude", "codex", "opencode"] }, { id: "codegraph", description: "Code structure graph (symbols, callers, impact) for the current repository", transport: "stdio", critical: true, routing: ["code-structure"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "context7", description: "Up-to-date library and framework documentation", transport: "stdio", critical: true, routing: ["library-docs"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "grep", description: "Search public GitHub code for real-world usage examples", transport: "http", critical: false, routing: ["code-examples"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "lsp", description: "Language-server diagnostics, hover, definitions, references and symbols", transport: "stdio", critical: true, routing: ["language-server"], harnesses: ["codex", "opencode"] }, { id: "semble", description: "Fast semantic code search over local or remote repositories", transport: "stdio", critical: true, routing: ["code-search"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-fetch", description: "Fetch and extract web pages with a headless browser", transport: "stdio", critical: true, routing: ["web-fetch"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-search", description: "Web search without an API key (DuckDuckGo by default)", transport: "stdio", critical: true, routing: ["web-search"], harnesses: ["claude", "codex", "opencode", "omp"] }], mcpIds: ["buracle-memory", "chrome-devtools", "codegraph", "context7", "grep", "lsp", "semble", "web-fetch", "web-search"], skills: [{ id: "ab-test", description: "Measure whether a change to a skill, rule, AGENTS.md section or routing policy really changes agent behavior. Defines falsifiable cases, runs paired baseline and candidate trials in throwaway config directories (never hiding or renaming the user's real skills or settings), captures tool-use evidence such as whether the agent loaded the skill or called context7, then scores pass rates and reports per-case deltas. Use when the user asks to benchmark, evaluate, A/B test or compare a skill or rule change, or to check that agents really use an MCP server or skill.", userInvocable: true, short: "Paired before/after evals of skills and rules with tool-use evidence", invocation: "implicit" }, { id: "bugfix", description: "Plan-less bug workflow that owns one defect end to end: reproduce it first, trace the root cause to file:line, write a failing test, fix at the source, prove the fix on the real program, then pass the quality gate. With branch isolation on it asks where to work: the current branch, a bugfix/<slug> branch or a worktree squash-merged once the fix is proven; no plan file. Run only when the user explicitly asks for bugfix.", userInvocable: true, short: "Reproduce, root-cause, RED test, fix at the source, prove it end to end", invocation: "explicit" }, { id: "buracle", description: "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan \u2026`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, notifications, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.", userInvocable: false, short: "When and how to call the buracle helper CLI", invocation: "implicit" }, { id: "dead-code", description: "Report-only dead-code audit. Collects candidate unused files and exports from the project's own analyzers, a bundled rg-based script and a read-only codegraph snapshot, checks every candidate against independent signals (codegraph references, exact and dynamic-usage search, analyzers), rules out a public role (API, entry points, config, registries), and returns a ranked report with evidence and a staged removal plan. Never deletes or edits code.", userInvocable: true, short: "Report-only dead-code audit with two-signal evidence and a removal plan", invocation: "explicit" }, { id: "find-skill", description: "Find an agent skill for a need and install it for every harness in a few calls. `buracle skills find <need>` is one command that shows the installed and shipped skills that already match, then the skills.sh registry's candidates with description, license, freshness, tool grants and risk ratings; `buracle skills add --dry-run` audits the pick (scripts, allowed-tools, suspicious lines) and `buracle skills add` installs it into ~/.agents/skills (Codex, OpenCode, Oh My Pi) and links it into ~/.claude/skills (Claude Code). Also updates and removes installed skills.", userInvocable: true, short: "Find a skill for a need and install it for every harness", invocation: "implicit" }, { id: "goal-build", description: "Goal-and-loop workflow for a clear end state whose path is found while building: agree on a goal, tasks sized as the largest slices you can finish and verify, and at least 3 pass/fail acceptance criteria (one of them the oracle), have them reviewed, lock the contract, then build in rounds judged on running evidence (at most four), verify and hand back. Tracked in docs/goal-build/. Run only when the user explicitly asks for goal-build.", userInvocable: true, short: "Lock a goal and pass/fail criteria, then build in judged rounds", invocation: "explicit" }, { id: "inspect", description: "Read-only investigation of one question about the code. Frames a falsifiable claim, locates code with semble (intent), codegraph (callers, callees, blast radius) and rg or ast-grep (exact and structural matches), checks memory for past decisions, traces the active path hop by hop, challenges the answer with a counterexample search, and reports a direct answer with file:line evidence and calibrated confidence. Never edits anything.", userInvocable: true, short: "Read-only trace of one code question with file:line evidence", invocation: "explicit" }, { id: "memory", description: "Protocol for Buracle's shared memory: one CortexDB brain with a bucket for each project and one for the person, served by the buracle-memory MCP server in every harness. Says when to run a quick memory pass (at most 3 memory_search calls, then at most 3 memories via memory_get), how to treat recalled memories as evidence rather than instructions, and how to keep the memory: one claim per memory with sources, search before writing, update or merge instead of duplicating, record the user's preferences in the right brain, never overrule an explicit memory, never store secrets. Use when the user refers to past work or asks you to remember something, before re-deciding something and after a non-obvious fix.", userInvocable: false, short: "When and how to read, write and keep Buracle's CortexDB memory", invocation: "implicit" }, { id: "new-skill", description: "Capture a repeatable procedure as a Buracle skill, or improve an existing one. Picks the right home (global skills in the Buracle repo's canonical/skills or a configured skills git source; project-only skills in .agents/skills), writes SKILL.md in the canonical format with references/, scripts/ and trigger evals, lints it with `buracle skills lint`, and explains how publishing reaches every harness. Use when the user wants to turn a workflow into a skill, edit, split or rename a skill, or fix a skill that triggers too often or never.", userInvocable: true, short: "Capture a repeatable procedure as a canonical Buracle skill", invocation: "implicit" }, { id: "plan-build", description: "Plan-driven development through a plan file in docs/plan-build/: explore and clarify, write and review the plan, get approval, implement task by task with TDD, then verify with real evidence until the plan is VERIFIED. Covers features and bugfixes (behavior contract, reproduce first, root-cause fix). Also pauses, resumes or continues an existing plan. Run only when the user explicitly asks for plan-build.", userInvocable: true, short: "Plan, approve, TDD-implement and verify work through a plan file", invocation: "explicit" }, { id: "project-rules", description: "Create, refresh or audit a repository's agent guidance so Claude Code, Codex, OpenCode and omp follow the same verified instructions: the root AGENTS.md, optional nested AGENTS.md files for subprojects, and path-scoped rules for specific file types. Discovers commands and conventions from the code (package scripts, CI jobs, linter and test configs, test layout), runs commands before documenting them, keeps every file short, then runs `buracle project sync` and `buracle project check`. Use when the user asks to set up, write, update, slim down or check AGENTS.md, CLAUDE.md or project rules.", userInvocable: true, short: "Generate and verify AGENTS.md and path-scoped rules for a repo", invocation: "implicit" }, { id: "requirements", description: "Requirements workflow for ideas whose problem, audience or scope is still unclear. Grounds the idea in the codebase and memory, runs tiered research through the research skill, explores directions, asks a few decision questions, proposes approaches, converges on scope, writes an approved PRD to docs/requirements/YYYY-MM-DD-<slug>.md and prints the plan-build or goal-build hand-off. No code is written before the PRD is approved.", userInvocable: true, short: "Interview, research and write an approved PRD before any code", invocation: "explicit" }, { id: "research", description: "Evidence-backed research that must use MCP tools instead of recall: web-search to discover sources, web-fetch to read them in full, context7 for library and framework documentation, grep for real-world code on GitHub, and buracle-memory for prior decisions. Produces a cited research note (answer, findings, options, conflicts, gaps, confidence) and can save durable findings to memory as knowledge memories pending review.", userInvocable: true, short: "Cited, MCP-backed research across web, library docs, public code and memory", invocation: "implicit" }, { id: "security-audit", description: "Security guidance and vulnerability review for codebases, APIs, services, CLI tools, libraries and daemons: Cloudflare's security-audit skill (MIT), vendored as Buracle's default security skill. Guidance mode answers security questions, focused reviews and triage with the relevant parts only; full audit mode runs six phases (reconnaissance, coverage-led hunting with parallel isolated agents, validation by fresh verifiers, structured findings.json, independent record verification, a target-neutral report) when the user asks for an audit, a pen test, a full security review or report artifacts.", userInvocable: true, short: "Cloudflare's security-audit skill, Buracle's default security review", invocation: "implicit" }], plugins: [], hooks: [{ id: "H01", blocking: "deny", failure: "closed" }, { id: "H02", blocking: "deny", failure: "closed" }, { id: "H03", blocking: "deny", failure: "open" }, { id: "H04", blocking: "none", failure: "open" }, { id: "H05", blocking: "none", failure: "open" }, { id: "H06", blocking: "none", failure: "open" }, { id: "H07", blocking: "none", failure: "open" }, { id: "H08", blocking: "stop", failure: "open" }, { id: "H09", blocking: "none", failure: "open" }, { id: "H10", blocking: "none", failure: "open" }, { id: "H11", blocking: "stop", failure: "open" }, { id: "H12", blocking: "none", failure: "open" }, { id: "H13", blocking: "none", failure: "open" }, { id: "H14", blocking: "none", failure: "open" }, { id: "H15", blocking: "none", failure: "open" }, { id: "H16", blocking: "none", failure: "open" }, { id: "H17", blocking: "none", failure: "open" }, { id: "H18", blocking: "none", failure: "open" }, { id: "H19", blocking: "none", failure: "open" }, { id: "H20", blocking: "deny", failure: "open" }, { id: "H21", blocking: "none", failure: "open" }, { id: "H22", blocking: "none", failure: "open" }, { id: "H23", blocking: "stop", failure: "open" }, { id: "H24", blocking: "none", failure: "open" }, { id: "H25", blocking: "none", failure: "open" }, { id: "H26", blocking: "none", failure: "open" }, { id: "H28", blocking: "none", failure: "open" }], pathRules: [{ id: "backend", globs: ["**/api/**", "**/routes/**", "**/handlers/**", "**/controllers/**", "**/endpoints/**", "**/middleware/**", "**/models/**", "**/models.py", "**/entities/**", "**/schema/**", "**/schemas/**", "**/queries/**", "**/repository/**", "**/repositories/**", "**/dao/**", "**/migrations/**", "**/migrate/**", "**/alembic/**", "**/db/**", "**/*.sql", "**/*.prisma", "**/*.graphql", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json"] }, { id: "blazor", globs: ["**/*.razor", "**/*.razor.cs", "**/*.razor.css"] }, { id: "browser-automation", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.razor", "**/e2e/**", "**/playwright/**", "**/cypress/**", "**/__tests__/**", "**/playwright.config.*", "**/cypress.config.*"] }, { id: "dotnet", globs: ["**/*.cs", "**/*.csproj", "**/*.sln", "**/*.slnx", "**/global.json", "**/Directory.Build.props", "**/Directory.Packages.props"] }, { id: "frontend", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.sass", "**/*.less", "**/*.razor", "**/*.razor.css"] }, { id: "go", globs: ["**/*.go", "**/go.mod", "**/go.sum", "**/go.work"] }, { id: "mobile", globs: ["**/capacitor.config.*", "**/ionic.config.json", "**/android/app/build.gradle*", "**/android/app/src/main/AndroidManifest.xml", "**/*.xcodeproj/project.pbxproj", "**/*.xcworkspace/contents.xcworkspacedata", "**/Podfile", "**/pubspec.yaml", "**/react-native.config.*", "**/metro.config.*", "**/expo.json", "**/eas.json", "**/app.config.{js,ts}"] }, { id: "python", globs: ["**/*.py", "**/*.pyi", "**/pyproject.toml", "**/requirements*.txt", "**/uv.lock", "**/setup.cfg"] }, { id: "typescript", globs: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts", "**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs", "**/package.json", "**/tsconfig*.json"] }], version: "0.8.4", notices: [{ id: "0.5.0-project-assets", since: "0.5.0", until: "0.6.0", message: "When a session starts in a repository, Buracle now links the skills in .agents/skills into .claude/skills so Claude Code sees them too, and checks that AGENTS.md lists the path rules in .claude/rules. Run `buracle project check` to see what it would change." }, { id: "0.5.0-smaller-cli", since: "0.5.0", until: "0.6.0", message: "Buracle's CLI is smaller: run `buracle` in a terminal for a main menu you drive with the keyboard. `buracle install` now does what `init` and `sync` did, `buracle install` and `buracle update` apply in a terminal without a question and show each step as it runs, and the rare cases flags used to cover are questions in a terminal. `buracle help --all` lists the commands your agents use." }, { id: "0.7.0-one-standard", since: "0.7.0", until: "0.8.0", message: "One standard on every harness: `buracle diagram` is gone, a chat reply shows a flow as a list or a table, and workflow documents under docs/ are English in ASD-STE100 style (`buracle plan validate` checks them). New documents go to docs/requirements/, docs/plan-build/, docs/goal-build/ and docs/dead-code/; the old folders docs/prd/, docs/plans/, docs/builds/ and docs/cleanup/ stay readable." }, { id: "0.8.1-documents-follow-language", since: "0.8.1", until: "0.9.0", message: "Documents now follow your language: plans, PRDs, build contracts, saved audits, reports and review findings use the language you write in (or the one your project or memory pins), and only the markers Buracle reads stay English. `buracle plan validate` no longer warns about prose that is not English." }] }, memory: memoryBridge, pluginDir: import.meta.dir });
 export {
   server_default as default
 };

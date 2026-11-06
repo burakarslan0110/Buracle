@@ -1,7 +1,7 @@
 {
   "harness": "opencode",
   "minVersion": "2.0.20",
-  "contentHash": "9360bec8c769e0a82805ef61d6bd7242a9bdee965f1af13a473ba0a7eb7331ec",
+  "contentHash": "33a0cf8bcc3eed0817f59b8e7b299fc90eec0d90ac9981333fb8778b9cfcce70",
   "commands": {
     "workflow": [
       "ab-test",
@@ -27,14 +27,14 @@
     ]
   },
   "files": {
-    "AGENTS.block.md": "c73fe1d6744dfab3d68788474bb34cf2b8cd9fd52582a116d85d7287dcdbc191",
+    "AGENTS.block.md": "ecfa24ef1c9b8ac17d41e001968304872883800514f011b812aeec482e03fdfc",
     "README.md": "e7504d1fb3c1421b916141bfb0735b096da95ecc0714eee57c6b4d6076220b92",
-    "agents/changes-review.md": "133c6158b57acc475affd7277555157dd8ae675cdad412b0b12820585f832a0a",
-    "agents/goal-build-review.md": "c12b31e9e1b47e88bc470524b8b4a59238781a5fee06c330e2241e640fafffe9",
-    "agents/plan-build-review.md": "aaf65175e104d2415322e35cff90f19dd4880180978c67e15cba6755edd6ee1f",
+    "agents/changes-review.md": "5ff33c9ad976bd2a047bfe3b13b84fe06d1082e7aed009cd6f8d6c533e37d92a",
+    "agents/goal-build-review.md": "4c029d6201050e023e266ed531ae8a5932ecb26dc3cdf7122610d8870eb3409e",
+    "agents/plan-build-review.md": "85ca6bcd9a9bd3b9971201985a557570eb7490fcd6f41a9f030663d0a33cbb07",
     "config/cli.fragment.jsonc": "7abce0d2fbf834485923e1b7361d33717d5df4ef7638a001f7b0310f3b565629",
     "config/opencode.fragment.jsonc": "2c8b57c81aae397d9de241fe8bca38822fc9a1bf9e7199fe88db85c4498bd9d7",
-    "plugins/buracle/index.js": "362d3b963e955ccc53868eda9b10a0e4ff130e3965ad9e4999e4686330ee4558",
-    "plugins/buracle/tui.js": "c80a807b7ea3e742d6c2c26e752c28076aba55544172de7bb0ffa7ba9cbb008f"
+    "plugins/buracle/index.js": "9f263a25125358b0d3b4e998d1ce4b121b869667274702ac2a9463a723333b62",
+    "plugins/buracle/tui.js": "ff094d846a282778c6165062820c497b0eb99ba57615cdc2c66a6927249752fb"
   }
 }

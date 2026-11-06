@@ -45,7 +45,7 @@ interface Turn { receipt: ReceiptState; startedAt?: number }
 export interface TurnReceipts {
   prompt(sid: string): void
   tool(sid: string, ctx: OmpContext, event: OmpToolResultEvent, facts: OmpToolFacts): void
-  end(sid: string, ctx: OmpContext, answer: string, cfg: Pick<BuracleConfig, 'workflow'>): void
+  end(sid: string, ctx: OmpContext, cfg: Pick<BuracleConfig, 'workflow'>): void
   resumed(sid: string, ctx: OmpContext, cfg: Pick<BuracleConfig, 'workflow'>): void
 }
 
@@ -83,11 +83,11 @@ export function createTurnReceipts(host: OmpReceiptHost): TurnReceipts {
       }
       if (alarm !== undefined) show(ctx, `Buracle: ${alarm}`, 'warning')
     },
-    end(sid, ctx, answer, cfg) {
+    end(sid, ctx, cfg) {
       const t = turns.get(sid)
       if (t === undefined) return
       turns.set(sid, { receipt: emptyReceipt() })
-      const summary = receiptLine(t.receipt, answer)
+      const summary = receiptLine(t.receipt)
       if (summary?.warn === true) show(ctx, summary.line, 'warning')
       else if (summary !== undefined) host.log('turn receipt', { sid, line: summary.line })
       if (t.startedAt === undefined || !hasTui(ctx)) return

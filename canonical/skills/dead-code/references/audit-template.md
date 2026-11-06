@@ -1,8 +1,7 @@
 # Cleanup audit template
 
-Fill every section and keep the section titles as they are, in English. In the reply, write the prose
-in the user's language; a file saved under docs/dead-code is English, in the ASD-STE100 structural
-style. Keep paths, symbols and commands verbatim. Keep the audit scannable: one table row per item,
+Fill every section, in the user's language, the section titles included. A file saved under
+docs/dead-code is in the same language, in the ASD-STE100 structural style. Keep paths, symbols and commands verbatim. Keep the audit scannable: one table row per item,
 details only for items that need them.
 
 ```markdown

@@ -158,7 +158,7 @@ export const register: Register = on => {
       return done
     }
     try {
-      await turnEnded($, S, e.answer, e.durationMs, e.reason)
+      await turnEnded($, S, e.durationMs, e.reason)
     } catch (err) {
       debug($, `turn: ${errText(err)}`)
     }
@@ -452,8 +452,8 @@ async function workToolRan($: EngineInterface, S: ModState, tool: string, input:
   }
 }
 
-async function turnEnded($: EngineInterface, S: ModState, answer: string, durationMs: number, reason: string): Promise<void> {
-  const summary = Core.receiptLine(S.receipt, answer)
+async function turnEnded($: EngineInterface, S: ModState, durationMs: number, reason: string): Promise<void> {
+  const summary = Core.receiptLine(S.receipt)
   if (summary !== undefined && summary.warn) $.ui.toast(summary.line, { timeoutMs: 8_000 })
   else if (summary !== undefined) $.ui.log(summary.line, { to: 'debug' })
   const unverified = Core.unverified(S.receipt)

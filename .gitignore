@@ -14,6 +14,8 @@ coverage/
 docs/
 # The ab-test fixture repos carry their measured plans under docs/plan-build/ (PRD 2026-11-04 R9)
 !tests/fixtures/ab-test/plan-format/fixtures/*/docs/
+# … and the user-language fixture carries the German plan of its stop case (PRD 2026-11-06 G5)
+!tests/fixtures/ab-test/user-language/fixtures/*/docs/
 
 # Per-machine state the buracle CLI and the code indexes write into a checkout
 .codegraph/

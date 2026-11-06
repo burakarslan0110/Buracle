@@ -1,7 +1,6 @@
 # Research note template
 
-Write the prose in the language the user writes in, and keep the section titles below as they are, in
-English. Keep it as short as the question allows; a quick lookup may be five lines. Omit sections that
+Write the note in the user's language, the section titles below included. Keep it as short as the question allows; a quick lookup may be five lines. Omit sections that
 do not apply, except *Sources*.
 
 ```markdown

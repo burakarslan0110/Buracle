@@ -124,7 +124,7 @@ flowchart LR
 
 Bu workflow'ları bir arada tutan parçalar şunlar:
 
-- Durdurma koruması (stop guard), plan doğrulanana kadar turun bitmesine izin vermez. Turu yalnızca bir duraklatma bitirir. İstediğin an "dur" ya da "bekle" diyerek duraklatabilir, "devam et" diyerek sürdürebilirsin. İngilizce karşılıkları da çalışır.
+- Durdurma koruması (stop guard), plan doğrulanana kadar turun bitmesine izin vermez. Turu yalnızca bir duraklatma bitirir. İstediğin an "dur" ya da "bekle" diyerek duraklatabilir, "devam et" diyerek sürdürebilirsin. Mesajın tamamı Türkçe ya da İngilizce böyle bir sözcükse planı Buracle kendisi duraklatır, diğer her durumda ajan duraklatır.
 - İstekten sonra `--worktree`, `--new-branch` ya da `--current-branch` yazarak işin nerede yapılacağını belirlersin. Worktree'de yapılan iş bitince çıktığı dala squash merge ile birleştirilir.
 - Ajan her onaydan önce inceleme sayfasına iliştirdiğin notları okur ve her birini uygulandı olarak işaretler.
 - `buracle plan audit` diff'i her görevin adını verdiği dosyalarla karşılaştırır ve hiçbir görevin planlamadığı değişiklikleri işaretler.
@@ -155,7 +155,7 @@ Bu workflow'ların nasıl çalışacağını web arayüzünün [ayarlarından](#
 
 ### Kurallar
 
-Her oturumda dört kural yüklenir. Bunlar core (otonomi, "bitti" demeden önce kanıt, test, değişiklik disiplini, hata ayıklama), tooling (hangi sorunun hangi araçla yanıtlanacağı), memory ve plain language (sade dil) kurallarıdır. Yol kuralları ise ajan eşleşen dosyalara dokunduğunda yüklenir. TypeScript, Python, Go, .NET, Blazor, frontend, tarayıcı otomasyonu, backend ve mobil için yol kuralı var.
+Her oturumda dört kural yüklenir. Bunlar core (otonomi, "bitti" demeden önce kanıt, test, değişiklik disiplini, hata ayıklama), tooling (hangi sorunun hangi araçla yanıtlanacağı), memory ve plain language (sade dil) kurallarıdır. Sade dil kuralı oturum boyunca tek dil kullanır: planlar, PRD'ler, raporlar ve inceleme bulguları senin dilinde yazılır, yalnızca Buracle'ın okuduğu işaretler İngilizce kalır. Yol kuralları ise ajan eşleşen dosyalara dokunduğunda yüklenir. TypeScript, Python, Go, .NET, Blazor, frontend, tarayıcı otomasyonu, backend ve mobil için yol kuralı var.
 
 ## Beyin
 
@@ -178,9 +178,9 @@ Buracle'ın hafızası tek bir [CortexDB](https://github.com/liliang-cn/cortexdb
 ### Ne yapar, ne zaman
 
 - Bir oturum başladığında ajan tercihlerini, projenin önemli hafıza kayıtlarını ve iş yarım kaldıysa nerede durduğunu anlatan bir devir notunu alır. O anda yalnızca okuma yapılır.
-- Sen çalışırken söylediğin tercihler ("her zaman", "asla", "bundan sonra") kısa ve maskelenmiş bir alıntıyla oturumun spool dosyasına not edilir.
+- Sen çalışırken söylediğin bir tercihi ("her zaman", "asla", "bundan sonra"), hangi dilde olursa olsun, ajan hemen açık (explicit) bir hafıza kaydı olarak saklar.
 - Bağlam sıkıştırılmadan önce plan, görev ve yapılacaklar durumu bir devir notuna yazılır ve sıkıştırmadan hemen sonra geri gelir.
-- Oturum bitince tek bir `buracle mem finalize` çalışması oturumun hafıza kaydını yazar, söylediğin tercihleri hiçbir model kullanmadan açık (explicit) kayıtlar olarak dosyalar ve kullandığın harness'ın modeline saklamaya değer kararları, tuzakları ve prosedürleri sorar. Modelin cevabı, bir şey yazılmadan önce bütün olarak denetlenir. Emin olunan bulgular modelin güven puanıyla birlikte çıkarım (inferred) olarak işaretlenmiş hafıza kaydı olur, gerisi dosyalanmayı bekler. Senin bir kaydına (açık, sabitlenmiş ya da doğrulanmış) benzeyen bir bulgu o kaydı asla değiştirmez: yanına, çelişiyor diye işaretlenerek yazılır. Aynı çalışma, yakalaması hâlâ bekleyen en fazla üç eski oturumu da alır.
+- Oturum bitince tek bir `buracle mem finalize` çalışması oturumun hafıza kaydını yazar ve kullandığın harness'ın modeline saklamaya değer kararları, tuzakları, prosedürleri ve tercihleri sorar. Modelin senin kendi sözlerinle alıntıladığı ve istemlerinde geçen bir tercih açık (explicit) kayıt olarak dosyalanır. Modelin cevabı, bir şey yazılmadan önce bütün olarak denetlenir. Emin olunan bulgular modelin güven puanıyla birlikte çıkarım (inferred) olarak işaretlenmiş hafıza kaydı olur, gerisi dosyalanmayı bekler. Senin bir kaydına (açık, sabitlenmiş ya da doğrulanmış) benzeyen bir bulgu o kaydı asla değiştirmez: yanına, çelişiyor diye işaretlenerek yazılır. Aynı çalışma, yakalaması hâlâ bekleyen en fazla üç eski oturumu da alır.
 - `buracle mem capture` aynı işi istediğin an yapar, `buracle mem doctor` hâlâ bekleyenleri listeler.
 
 Bellek arka planda başka hiçbir şey çalıştırmaz: zamanlayıcı, açılış işi, onarım ya da temizlik turu yok. Oturumlar ve devir notları kendiliğinden silinir, çünkü CortexDB onları 45 ve 14 gün sonra düşürür. `buracle mem backup` istediğinde beyin dosyasının tamamını kopyalar; bir oturum bittiğinde de en yeni kopya bir günden eskiyse bir kopya daha alınır (en yeni 10 kopya tutulur).

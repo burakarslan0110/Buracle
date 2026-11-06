@@ -181,8 +181,8 @@ export const CONFIG_DESCRIPTIONS: Readonly<Record<string, string>> = {
   version: 'Version of the configuration schema. Always `1`.',
   repo: 'Absolute path of the Buracle checkout. `buracle install` writes it; the shim runs the CLI of this checkout.',
   'routing.strictness': 'How strictly tool routing is applied. `enforce`: a built-in tool (web search, web fetch, …) is denied while a healthy preferred MCP server exists, and the deny-once gates of the usage ledger apply. `nudge`: the call is allowed with a routing note. `off`: no routing.',
-  'routing.skills': 'The prompt-time skill router (H22). `router`: every prompt is matched against `canonical/skill-triggers.yaml`; an explicit workflow request loads that workflow, and matching model-invocable skills are listed for the agent to evaluate (and load) before any other tool. `off`: the agent chooses skills on its own.',
-  'routing.reminders': 'Tool-time reminders driven by the per-session usage ledger (H24): search memory first, use semble for questions about intent, codegraph after many reads or searches, context7 for library documentation. Each one appears at most once per category in a session unless the topic comes back.',
+  'routing.skills': 'The prompt-time skill router (H22). `router`: an exact invocation of another harness\'s syntax (`/id`, `$id`, `@id`) gets a load instruction; no phrase in the prompt loads or suggests a skill. `off`: no load instruction either. The agent chooses skills from their descriptions in both cases.',
+  'routing.reminders': 'Tool-time reminders driven by the per-session usage ledger (H24): use semble for questions about intent, codegraph after many reads or searches, context7 for library documentation. Each one appears at most once per category in a session unless the topic comes back.',
   'guards.bash.extraDeny': 'Extra deny patterns on top of the built-in list of destructive shell commands (H01). They also hold for Oh My Pi\'s `eval` cells.',
   'guards.write.protect': 'Extra path globs protected from writes, on top of secrets and generated files (H02).',
   'guards.redact': 'Masks secrets (keys, tokens, passwords) in what tools return (Read, Bash, Grep, MCP) before the model reads it, on every harness.',
@@ -470,11 +470,10 @@ const AUTHORING_CHECKS: ReadonlyArray<readonly [string, string, string]> = [
   ['identifier-drift', 'info', 'Two backticked names that differ only in case or underscores, or by one or two letters when both are 8 or more characters long (a plural `s` aside), such as `clearLayers` and `clear_layers`. At most 5 are reported, from the first 400 distinct names.'],
 ]
 
-// The document check (PRD 2026-11-04): every document under docs/ is English in ASD-STE100 structural style.
+// The document check (PRD 2026-11-04, 2026-11-06): a document under docs/ follows the ASD-STE100 structural style in any language.
 const DOCUMENT_CHECKS: ReadonlyArray<readonly [string, string, string]> = [
-  ['not-english', 'warning', 'A paragraph, list item or table cell that reads as Turkish (function words and letters). A document under docs/ is English, whatever language the user writes in.'],
-  ['long-sentence', 'warning', 'A sentence over 25 words. A sentence ends at `.`, `!` or `?` followed by a space or the line end, a code span counts as one word, and a table cell is one sentence.'],
-  ['semicolon', 'warning', 'A semicolon in prose. Code spans, fenced code and headings are skipped.'],
+  ['long-sentence', 'warning', 'A sentence over 25 words. A sentence ends at `.`, `!` or `?` followed by a space or the line end, or at any other Unicode sentence terminal (`。`, `？`, `؟`, `।`, …) also with no space after it. Words are counted by spaces, so text without spaces between words counts as one word. A code span counts as one word, and a table cell is one sentence.'],
+  ['semicolon', 'warning', 'A semicolon in prose. Code spans, fenced code and headings are skipped. In a paragraph with more Greek than Latin letters, `;` is the Greek question mark and ends a sentence instead.'],
   ['legacy-folder', 'warning', 'A path under an old document folder (`docs/prd/`, `docs/plans/`, `docs/builds/`, `docs/cleanup/`). New documents go to `docs/requirements/`, `docs/plan-build/`, `docs/goal-build/` and `docs/dead-code/`.'],
 ]
 
@@ -527,7 +526,7 @@ function planDoc(): string {
   out += 'Besides the format, `buracle plan validate` reports these findings. Warnings fail `--strict` (exit 2); infos never do. The stop guard (H11) blocks on errors only.\n\n'
   out += mdTable(['Code', 'Level', 'Reported when'], AUTHORING_CHECKS.map(([c, l, t]) => [code(c), cell(l), cell(t)]))
   out += '\n## Document checks (all plan types)\n\n'
-  out += 'Every document under docs/ is English in ASD-STE100 structural style (PRD 2026-11-04). `buracle plan validate` runs these checks on Feature, Bugfix and Build files and on a PRD (`type: prd`), as warnings with their line; a captured native plan (type Plan) is skipped.\n\n'
+  out += 'A document under docs/ is written in the user\'s language, with the markers above in English, and follows the ASD-STE100 structural style (PRD 2026-11-04, 2026-11-06). No check depends on the language of the prose. `buracle plan validate` runs these checks on Feature, Bugfix and Build files and on a PRD (`type: prd`), as warnings with their line; a captured native plan (type Plan) is skipped.\n\n'
   out += mdTable(['Code', 'Level', 'Reported when'], DOCUMENT_CHECKS.map(([c, l, t]) => [code(c), cell(l), cell(t)]))
   out += '\n## Plan against diff (`buracle plan audit`)\n\n'
   out += '`buracle plan audit [<path>] [--base <ref>] [--slug <s>]` compares every task\'s `**Files:**` lines with the diff that `buracle review-scope` picks (`git diff --name-status -M`, plus untracked files in `working-tree` mode). A finding of a task that is not ticked yet is an info; every other finding is a warning, and any warning makes it exit 2.\n\n'

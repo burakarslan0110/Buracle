@@ -459,7 +459,7 @@ export class BuracleRuntime {
 
   private async turnEnded(s: SessionRuntime, outcome: 'succeeded' | 'failed' | 'interrupted' = 'succeeded'): Promise<void> {
     if (s.parentID === undefined) await this.resolveParent(s)
-    if (s.parentID === null) this.receipts.end(s.sid, outcome === 'succeeded' ? s.lastAssistantText ?? '' : '', this.cfg(), outcome !== 'interrupted')
+    if (s.parentID === null) this.receipts.end(s.sid, this.cfg(), outcome !== 'interrupted')
   }
 
   async registerTransforms(): Promise<void> {
@@ -795,10 +795,13 @@ export class BuracleRuntime {
     }
     if (denied === undefined && call.kind === 'mcp') denied = this.guard('H02', () => this.mcpWriteVerdict(call, cfg))
     if (denied === undefined && call.kind === 'ask_user') {
-      let question: { deny?: string, context?: string } | undefined
-      denied = this.guard('H09', () => (question = checkQuestion(loadState(HARNESS, call.sessionId), call, this.now())))
-      const note = (question as { context?: string } | undefined)?.context
-      if (denied === undefined && note !== undefined && e.source?.type === 'tool' && typeof this.sessions.get(call.sessionId)?.parentID !== 'string') {
+      let note: string | undefined
+      try {
+        note = checkQuestion(loadState(HARNESS, call.sessionId), call, this.now()).context
+      } catch (err) {
+        this.logFn('error', 'H09 checkQuestion failed', { error: errText(err) })
+      }
+      if (note !== undefined && e.source?.type === 'tool' && typeof this.sessions.get(call.sessionId)?.parentID !== 'string') {
         this.nudges.set(e.source.id, [...(this.nudges.get(e.source.id) ?? []), note])
       }
     }
