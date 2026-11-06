@@ -57,8 +57,8 @@ const flowWidgets = (ctx: FakeCtx) => ctx.uiCalls.filter(c => c.method === 'setW
 describe('omp H22 route.prompt and H23 route.audit', () => {
   test('an explicit ask loads the skill (hidden message), the ledger keeps the route, and the stop is held once until it is loaded', () => withSandbox(async sb => {
     const { fp, ctx } = setup(sb)
-    await fp.emit('input', input('use the plan-build workflow to add rate limiting'), ctx)
-    const text = await hidden(fp, ctx, 'use the plan-build workflow to add rate limiting')
+    await fp.emit('input', input('$plan-build add rate limiting'), ctx)
+    const text = await hidden(fp, ctx, '$plan-build add rate limiting')
     expect(text).toBe('Buracle routing for this prompt:\n- The user asked for the plan-build skill: load it before any other step and follow it (read skill://plan-build); the rest of the prompt is its input.')
     expect(loadLedger('omp', SID).prompt?.route.load).toEqual(['plan-build'])
     const held = await fp.emit('session_stop', stop, ctx) as { decision: string, reason: string }
@@ -69,27 +69,27 @@ describe('omp H22 route.prompt and H23 route.audit', () => {
 
   test('the stop goes through once the model read skill://<id>; routing.strictness off never audits', () => withSandbox(async sb => {
     const { fp, ctx } = setup(sb)
-    await fp.emit('input', input('use the plan-build workflow to add rate limiting'), ctx)
+    await fp.emit('input', input('$plan-build add rate limiting'), ctx)
     await fp.emit('tool_call', toolCall('read', { path: 'skill://plan-build' }), ctx)
     expect(loadLedger('omp', SID).skills['plan-build']?.n).toBe(1)
     expect(await fp.emit('session_stop', stop, ctx)).toBeUndefined()
     const off = setup(sb, { config: d => ({ config: { ...d, routing: { ...d.routing, strictness: 'off' } }, vault: '/v', shim: '/s', source: 'defaults' }) }, { sid: '01a118a8-8d01-740c-9360-cccccccccccc' })
-    await off.fp.emit('input', input('use the plan-build workflow now'), off.ctx)
+    await off.fp.emit('input', input('$plan-build now'), off.ctx)
     expect(await off.fp.emit('session_stop', { ...stop, session_id: '01a118a8-8d01-740c-9360-cccccccccccc' }, off.ctx)).toBeUndefined()
   }))
 
   test('H23 runs only where the plan does not hold the session (core routeAuditAllowed): never after the user paused it, while it waits for the user, or after a runaway release', () => withSandbox(async sb => {
     const { fp, ctx } = setup(sb, { plan: { ...testDeps().deps.plan!, applyIntent, stopGuardVerdict } })
     saveState('omp', SID, planState())
-    await fp.emit('input', input('stop, what did we decide last time?'), ctx)
+    await fp.emit('input', input('stop'), ctx)
     expect(loadState('omp', SID).interaction?.state).toBe('paused')
     expect(await fp.emit('session_stop', stop, ctx)).toBeUndefined()
     const after = async (why: StopWhy, n: number): Promise<unknown> => {
       const sid = `01a118a8-8d01-740c-9360-${String(n).padStart(12, '0')}`
       const t = setup(sb, { plan: { ...testDeps().deps.plan!, applyIntent, stopGuardVerdict: s => ({ decision: { action: 'allow' }, next: s, why }) } }, { sid })
       saveState('omp', sid, planState())
-      await t.fp.emit('input', input('why did we pick bun over node last time?'), t.ctx)
-      await t.fp.emit('before_agent_start', agentStart('why did we pick bun over node last time?'), t.ctx)
+      await t.fp.emit('input', input('$plan-build add rate limiting'), t.ctx)
+      await t.fp.emit('before_agent_start', agentStart('$plan-build add rate limiting'), t.ctx)
       return t.fp.emit('session_stop', { ...stop, session_id: sid, stop_hook_active: true }, t.ctx)
     }
     let n = 0
@@ -97,19 +97,19 @@ describe('omp H22 route.prompt and H23 route.audit', () => {
     for (const why of ['finished', 'disabled'] as StopWhy[]) {
       const out = await after(why, ++n) as { decision?: string, reason?: string } | undefined
       expect({ why, decision: out?.decision }).toEqual({ why, decision: 'block' })
-      expect(out?.reason).toStartWith('Buracle routing check: this prompt asks about earlier work and memory was not searched.')
+      expect(out?.reason).toStartWith('Buracle routing check: the user asked for plan-build and it was not loaded.')
     }
   }))
 
   test('a pause with a plan gets the English guidance first, then the route; routing.skills off drops the skill line', () => withSandbox(async sb => {
     const { fp, ctx } = setup(sb)
     saveState('omp', SID, planState())
-    await fp.emit('input', input('dur, use the plan-build workflow afterwards'), ctx)
+    await fp.emit('input', input('$plan-build dur'), ctx)
     const text = await hidden(fp, ctx, 'x') as string
     expect(text.startsWith(CONTROL_GUIDANCE.pausePlan)).toBe(true)
     expect(text).toContain('read skill://plan-build')
     const off = setup(sb, { config: d => ({ config: { ...d, routing: { ...d.routing, skills: 'off' } }, vault: '/v', shim: '/s', source: 'defaults' }) }, { sid: '01a118a8-8d01-740c-9360-dddddddddddd' })
-    await off.fp.emit('input', input('use the plan-build workflow to add rate limiting'), off.ctx)
+    await off.fp.emit('input', input('$plan-build add rate limiting'), off.ctx)
     expect(await hidden(off.fp, off.ctx, 'x')).toBeUndefined()
   }))
 
@@ -123,10 +123,11 @@ describe('omp H22 route.prompt and H23 route.audit', () => {
 
   test('print mode has no input event: before_agent_start routes the prompt itself, and an expanded workflow command starts its run', () => withSandbox(async sb => {
     const { fp, ctx } = setup(sb, {}, { mode: 'print' })
-    const r = await fp.emit('before_agent_start', agentStart('geçen sefer ne karar vermiştik?'), ctx) as { message: { content: string } }
-    expect(r.message.content).toContain('Earlier work: search memory first')
-    expect(await fp.emit('before_agent_start', agentStart('geçen sefer ne karar vermiştik?'), ctx)).toEqual(r)
-    expect(loadLedger('omp', SID).turn).toBe(1)
+    expect(await fp.emit('before_agent_start', agentStart('geçen sefer ne karar vermiştik?'), ctx)).toBeUndefined()
+    const r = await fp.emit('before_agent_start', agentStart('$plan-build add rate limiting'), ctx) as { message: { content: string } }
+    expect(r.message.content).toContain('read skill://plan-build')
+    expect(await fp.emit('before_agent_start', agentStart('$plan-build add rate limiting'), ctx)).toEqual(r)
+    expect(loadLedger('omp', SID).turn).toBe(2)
     const expanded = "Run Buracle's `bugfix` workflow for the request below; the user asked for it explicitly.\nFirst read `skill://bugfix` ...\n\nRequest: the parser crashes\n"
     await fp.emit('before_agent_start', agentStart(expanded), ctx)
     expect(readFlow('omp', SID)?.stack.at(-1)).toMatchObject({ workflow: 'bugfix', title: 'the parser crashes', source: 'command' })
@@ -140,15 +141,15 @@ describe('omp H22 prompt delivery: input at submission, before_agent_start when 
   test('two prompts typed while the agent works: their delivery carries the routing of both, and the ledger turn moves only then', () => withSandbox(async sb => {
     const { fp, ctx } = setup(sb, {}, {}, research())
     ctx.isIdle = () => false
-    await fp.emit('input', input('use the research skill to compare bun and deno'), ctx)
+    await fp.emit('input', input('$research compare bun and deno'), ctx)
     await fp.emit('input', input('and what did we decide last time about the runtime?'), ctx)
     expect(loadLedger('omp', SID).turn).toBe(0)
-    const text = await hidden(fp, ctx, 'use the research skill to compare bun and deno') as string
+    const text = await hidden(fp, ctx, '$research compare bun and deno') as string
     expect(text).toContain('- The user asked for the research skill: load it before any other step and follow it (read skill://research)')
-    expect(text).toContain('- Earlier work: search memory first')
+    expect(text).not.toContain('Earlier work')
     const l = loadLedger('omp', SID)
     expect(l.turn).toBe(1)
-    expect(l.prompt?.route).toMatchObject({ invoked: [], load: ['research'], memory: { recall: true, write: false } })
+    expect(l.prompt?.route).toMatchObject({ invoked: [], load: ['research'], memory: { recall: false, write: false } })
     expect(await hidden(fp, ctx, 'and what did we decide last time about the runtime?')).toBeUndefined()
     expect(loadLedger('omp', SID).turn).toBe(1)
     const held = await fp.emit('session_stop', stop, ctx) as { decision: string, reason: string }
@@ -158,9 +159,9 @@ describe('omp H22 prompt delivery: input at submission, before_agent_start when 
   test('two queued asks keep core\'s caps: the first one loads, the second is a skill to evaluate', () => withSandbox(async sb => {
     const { fp, ctx } = setup(sb, {}, {}, research())
     ctx.isIdle = () => false
-    await fp.emit('input', input('use the research skill to compare bun and deno'), ctx)
-    await fp.emit('input', input('then use the plan-build skill to plan the migration'), ctx)
-    const text = await hidden(fp, ctx, 'use the research skill to compare bun and deno') as string
+    await fp.emit('input', input('$research compare bun and deno'), ctx)
+    await fp.emit('input', input('$plan-build plan the migration'), ctx)
+    const text = await hidden(fp, ctx, '$research compare bun and deno') as string
     expect(text).toContain('- The user asked for the research skill')
     expect(text).toContain('- Skills to evaluate first: plan-build (')
     expect(loadLedger('omp', SID).prompt?.route).toMatchObject({ load: ['research'], candidates: ['plan-build'] })
@@ -169,10 +170,10 @@ describe('omp H22 prompt delivery: input at submission, before_agent_start when 
   test('Buracle\'s own continuation takes no queued prompt: the prompt waits for its own delivery', () => withSandbox(async sb => {
     const { fp, ctx } = setup(sb, {}, {}, research())
     ctx.isIdle = () => false
-    await fp.emit('input', input('use the research skill to compare bun and deno'), ctx)
+    await fp.emit('input', input('$research compare bun and deno'), ctx)
     expect(await hidden(fp, ctx, 'Buracle routing check: the user asked for plan-build and it was not loaded.')).toBeUndefined()
     expect(loadLedger('omp', SID).turn).toBe(0)
-    expect(await hidden(fp, ctx, 'use the research skill to compare bun and deno')).toContain('read skill://research')
+    expect(await hidden(fp, ctx, '$research compare bun and deno')).toContain('read skill://research')
     expect(loadLedger('omp', SID).turn).toBe(1)
   }))
 
@@ -180,7 +181,7 @@ describe('omp H22 prompt delivery: input at submission, before_agent_start when 
     const { fp, ctx } = setup(sb, {}, {}, research())
     ctx.isIdle = () => false
     ctx.hasPendingMessages = () => true
-    await fp.emit('input', input('use the research skill to compare bun and deno'), ctx)
+    await fp.emit('input', input('$research compare bun and deno'), ctx)
     ctx.isIdle = () => true
     ctx.hasPendingMessages = () => false
     await fp.emit('input', input('run the unit tests'), ctx)
@@ -193,21 +194,21 @@ describe('omp H22 prompt delivery: input at submission, before_agent_start when 
     const { fp, ctx } = setup(sb, {}, {}, research())
     ctx.isIdle = () => false
     ctx.hasPendingMessages = () => true
-    await fp.emit('input', input('use the research skill to compare bun and deno'), ctx)
+    await fp.emit('input', input('$research compare bun and deno'), ctx)
     ctx.isIdle = () => true
     await fp.emit('input', input('and what did we decide last time about the runtime?'), ctx)
-    const text = await hidden(fp, ctx, 'use the research skill to compare bun and deno') as string
+    const text = await hidden(fp, ctx, '$research compare bun and deno') as string
     expect(text).toContain('- The user asked for the research skill: load it before any other step and follow it (read skill://research)')
-    expect(text).toContain('- Earlier work: search memory first')
-    expect(loadLedger('omp', SID).prompt?.route).toMatchObject({ load: ['research'], memory: { recall: true, write: false } })
+    expect(text).not.toContain('Earlier work')
+    expect(loadLedger('omp', SID).prompt?.route).toMatchObject({ load: ['research'], memory: { recall: false, write: false } })
   }))
 
   test('a retry of the same delivery (omp runs before_agent_start again when the system prompt changed meanwhile) gets the same text; the turn moves once', () => withSandbox(async sb => {
     const { fp, ctx } = setup(sb, {}, {}, research())
-    await fp.emit('input', input('use the research skill to compare bun and deno'), ctx)
-    const first = await hidden(fp, ctx, 'use the research skill to compare bun and deno')
+    await fp.emit('input', input('$research compare bun and deno'), ctx)
+    const first = await hidden(fp, ctx, '$research compare bun and deno')
     expect(first).toContain('read skill://research')
-    expect(await hidden(fp, ctx, 'use the research skill to compare bun and deno')).toBe(first)
+    expect(await hidden(fp, ctx, '$research compare bun and deno')).toBe(first)
     expect(loadLedger('omp', SID).turn).toBe(1)
     expect(await hidden(fp, ctx, 'Buracle routing check: the user asked for research and it was not loaded.')).toBeUndefined()
   }))
@@ -440,7 +441,7 @@ describe('omp H25 workflow tracking and the band above the editor', () => {
 })
 
 describe('omp H26 prompt signals, H05 context watch, H17 profile guard', () => {
-  test('a prompt spools an explicit rule as a prompt-signal statement next to the prompt entry; a /skill: workflow or a question adds none', () => withSandbox(async sb => {
+  test('a prompt spools only the prompt entry: a standing rule, a /skill: workflow or a question add no signal', () => withSandbox(async sb => {
     const { fp, ctx, memory } = setup(sb)
     await fp.emit('input', input('From now on always use bun for scripts.'), ctx)
     await fp.emit('input', input('/skill:research compare zod and valibot'), ctx)
@@ -448,7 +449,7 @@ describe('omp H26 prompt signals, H05 context watch, H17 profile guard', () => {
     await Bun.sleep(0)
     const evs = memory.spool.map(s => s.entries.map(e => e.ev === 'prompt-signal' ? `${e.signal?.kind}:${e.signal?.text}` : e.ev))
     expect(evs[0]?.[0]).toBe('prompt')
-    expect(evs[0]?.slice(1)).toEqual(['statement:Always use bun for scripts'])
+    expect(evs[0]?.slice(1)).toEqual([])
     expect(evs[1]).toEqual(['prompt'])
     expect(evs[2]).toEqual(['prompt'])
   }))
@@ -670,11 +671,11 @@ describe('w2 plan state on omp: the lane guard, the H09 reminder and the H08 rec
     const { fp, ctx, cwd } = setup(sb)
     const branch: unknown[] = [{ type: 'mode_change', mode: 'plan' }]
     ctx.sessionManager = { ...ctx.sessionManager, getBranch: () => branch }
-    await fp.emit('input', input('use the plan-build workflow to add rate limiting'), ctx)
-    expect(await hidden(fp, ctx, 'use the plan-build workflow to add rate limiting')).toContain("plan-build was started while the session is in Oh My Pi's plan mode")
+    await fp.emit('input', input('$plan-build add rate limiting'), ctx)
+    expect(await hidden(fp, ctx, '$plan-build add rate limiting')).toContain("plan-build was started while the session is in Oh My Pi's plan mode")
     branch.push({ type: 'mode_change', mode: 'none' })
-    await fp.emit('input', input('use the plan-build workflow to add caching'), ctx)
-    expect(await hidden(fp, ctx, 'use the plan-build workflow to add caching')).not.toContain('was started while')
+    await fp.emit('input', input('$plan-build add caching'), ctx)
+    expect(await hidden(fp, ctx, '$plan-build add caching')).not.toContain('was started while')
     saveState('omp', SID, { ...planState(), plan: { ...planState().plan!, path: join(cwd, 'docs', 'plans', 'p.md'), status: 'PENDING', phase: 'plan' } })
     const write = (path: string, id: string) => fp.emit('tool_call', toolCall('write', { path, content: 'x' }, id), ctx) as Promise<{ additionalContext?: string } | undefined>
     expect((await write(join(cwd, 'docs', 'plans', 'p.md'), 'w1'))?.additionalContext ?? '').not.toContain('plan phase')

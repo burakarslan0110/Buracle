@@ -26,7 +26,7 @@ Pick another workflow when the idea is still vague (`/requirements`), when somet
 
 An active build keeps going until hand-back.
 
-**Escape hatch:** while a registered plan is not VERIFIED, the stop guard keeps your turn going. The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user saying "stop", "wait" or "hold on" (or the same in their language), which Buracle records as a pause (run `buracle plan pause --kind discussion` too). The user's "continue" or `buracle plan resume` ends it.
+**Escape hatch:** while a registered plan is not VERIFIED, the stop guard keeps your turn going. The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user asking you to stop, wait or hold on, in any language. Buracle records it only when the whole message is such a word in English or Turkish, so otherwise run `buracle plan pause --kind discussion` yourself. The user's "continue" or `buracle plan resume` ends it.
 
 - The user asks you to stop, wait or pause (in any language): Buracle records the pause. Run `buracle plan pause --kind discussion --reason "user asked to stop"` as well (harmless if already paused), give a status of at most five lines (round, criteria passing, work in progress), and end the turn.
 - You must stop (a hand-back or a blocker): `buracle plan pause --kind decision --reason "build hand-back: <why>"`, report, end the turn. The prefix lets the user's "continue" end this pause.
@@ -91,7 +91,7 @@ Re-read the run file and the reference of the phase you land in. Do the same aft
 
 ## Talking to the user
 
-Write the run file in English, in the ASD-STE100 structural style of the *Plain language* rule, whatever language the user writes in. Reply in the user's language. Keep the markers Buracle reads (listed in the *Plain language* rule; `## Unverified` among them, which `buracle plan verify` reads), commands and identifiers verbatim.
+Write the run file and the reply in the user's language, chosen as *Language* in the *Plain language* rule says, in the ASD-STE100 structural style of that rule. A run file you revise keeps its own language. Keep the markers Buracle reads (listed in the *Plain language* rule; `## Unverified` among them, which `buracle plan verify` reads), commands and identifiers verbatim.
 
 Phase 1 is the only planned conversation. Ask with `AskUserQuestion`: 2 to 4 concrete options, your recommendation first; if it is unavailable, ask in plain text with numbered options. Once the run file is registered, pause before any question that could end your turn (`buracle plan pause --kind decision --reason "<question>"`), and run `buracle plan resume` after the answer.
 
@@ -136,7 +136,7 @@ A build round is made for parallel work per the *Parallel agents* rule: you are 
 
 Lanes never write the run file. Tasks that share files or build on each other stay in your session, in order.
 
-The contract and the run file follow the *Plain language* rule in English. When more than two modules took part, the run file gets a Mermaid diagram of the flow you built, after the text. The hand-back goes in the reply, in the user's language: it opens with the outcome, then the criteria table with its verdicts and the evidence per row.
+The contract and the run file follow the *Plain language* rule, in the user's language. When more than two modules took part, the run file gets a Mermaid diagram of the flow you built, after the text. The hand-back goes in the reply, in the user's language: it opens with the outcome, then the criteria table with its verdicts and the evidence per row.
 
 ## Review agents
 

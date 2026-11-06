@@ -54,16 +54,18 @@ function explained(rel: string, line: string): number {
   return LEGACY_EXPLAINED.findIndex(a => a.file === rel && a.re.test(line))
 }
 
-// Sentences that bound a document, a heading or a task title to the user's prompt language, or that
-// asked for a diagram in a chat reply. A document under docs/ is English, a reply shows a flow as a
-// list or a table, and only the sentences below may still name the user's language for a reply.
+// Sentences that bound a document, a heading, a report or a review to English, or that asked for a
+// diagram in a chat reply. A document, a report and a review follow the user's language with only the
+// markers Buracle reads in English (PRD 2026-11-06), and a reply shows a flow as a list or a table.
 const DOCUMENT_BINDINGS: ReadonlyArray<RegExp> = [
-  /language of the\s+user's prompt/,
-  /follows the user's language/,
-  /Write (?:in|the note in) the user's language/,
-  /in the (?:plan|Buildout)'s own language/,
-  /write the PRD in the language they write in/,
-  /Translate the\s+section titles/,
+  /\bis English\b/,
+  /English section titles/,
+  /section titles (?:below )?as they are,? in\s+English/,
+  /Write (?:the (?:plan|PRD|run file) )?in English/,
+  /the English (?:plan|contract|PRD)/,
+  /an English file/,
+  /all prose in English/,
+  /Turkish prose/,
 ]
 const DIAGRAMS_IN_REPLIES: ReadonlyArray<RegExp> = [
   /buracle diagram/,
@@ -83,8 +85,8 @@ function canonicalTexts(): string[] {
   return files(join(REPO, 'canonical'), r => /\.(?:md|yaml)$/.test(r) && r !== 'canonical/notices.yaml')
 }
 
-describe('the standard: English documents, no diagram in a chat reply', () => {
-  test('no rule, skill, agent or template binds a document to the prompt language or asks for a diagram in a reply', () => {
+describe('the standard: documents in the user\'s language, no diagram in a chat reply', () => {
+  test('no rule, skill, agent or template binds a document, a report or a review to English or asks for a diagram in a reply', () => {
     const hits: string[] = []
     for (const f of canonicalTexts()) {
       const rel = relative(REPO, f).split(sep).join('/')

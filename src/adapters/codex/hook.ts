@@ -430,8 +430,7 @@ async function onPreToolUse(p: Payload, sid: string, sessionCwd: string, ctx: Ad
   if (mcpDenied !== undefined) return denyOutput(mcpDenied)
   const questionContext: string[] = []
   if (call.kind === 'ask_user') {
-    const r = await step(ev, 'H09 checkQuestion', {} as { deny?: string, context?: string }, () => deps.core.checkQuestion(loadState(H, sid), call, now))
-    if (r.deny) return denyOutput(denyReason('H09', r.deny))
+    const r = await step(ev, 'H09 checkQuestion', {} as { context?: string }, () => deps.core.checkQuestion(loadState(H, sid), call, now))
     if (!isSubagentPayload(p)) {
       const paused = call.tool === 'request_user_input_async' && r.context !== undefined
         ? await step(ev, 'H09 async question pause', false, () => {
@@ -733,8 +732,7 @@ async function auditOutcome(p: Payload, sid: string, ctx: AdapterContext, deps: 
   const reason = audit ? await step('Stop', 'H23 turnAudit', undefined as string | undefined, () => stopAudit(sid, deps.core)) : undefined
   const ended = reason === undefined && !isSubagentPayload(p)
   const now = deps.now()
-  const answer = typeof p['last_assistant_message'] === 'string' ? p['last_assistant_message'] : ''
-  const receipt = ended ? await step('Stop', 'turn receipt', undefined as string | undefined, () => turnEnded(ctx, sid, { answer, now, notify: notifier(ctx, deps) })) : undefined
+  const receipt = ended ? await step('Stop', 'turn receipt', undefined as string | undefined, () => turnEnded(ctx, sid, { now, notify: notifier(ctx, deps) })) : undefined
   const flow = ended ? await step('Stop', 'workflow notice', undefined as string | undefined, () => flowNotice(ctx, sid, now)) : undefined
   const message = joinNotices(notice, receipt, flow)
   const out: Record<string, unknown> = {}

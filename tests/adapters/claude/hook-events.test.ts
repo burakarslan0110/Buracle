@@ -107,17 +107,17 @@ describe('UserPromptSubmit', () => {
     })
   })
 
-  test('a history question gets the memory_search nudge', async () => {
+  test('a history question gets no memory line: the agent searches memory under its rules', async () => {
     await withSandbox(async () => {
       const r = await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'geçen sefer neden böyle yapmıştık?' }), ctx(), deps())
-      expect(context(r.stdout)).toContain('memory_search')
+      expect(context(r.stdout)).not.toContain('memory_search')
     })
   })
 
-  test('the user granting a push in their words records a consent grant', async () => {
+  test('naming a push in a request grants nothing in advance: the gate holds the push and asks first', async () => {
     await withSandbox(async () => {
       await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'commitle ve push et' }), ctx(), deps())
-      expect(readConsent(SID).grants.map(g => g.kind)).toContain('push')
+      expect(readConsent(SID).grants).toEqual([])
     })
   })
 })
@@ -189,12 +189,14 @@ describe('PreToolUse: routing and questions', () => {
     })
   })
 
-  test('a routine keep-waiting question is denied while an approved plan runs', async () => {
+  test('a keep-waiting question is not denied while an approved plan runs: it gets the pause reminder', async () => {
     await withSandbox(async () => {
       saveState('claude', SID, { ...freshState(), plan: { path: 'docs/plans/p.md', slug: 'p', status: 'IN_PROGRESS', type: 'Feature', phase: 'implement', registeredAt: NOW - 1000 } })
       const q = { questions: [{ question: 'Should I keep waiting for the build?', header: 'Wait', options: [{ label: 'Yes, keep waiting', description: '' }, { label: 'No', description: '' }], multiSelect: false }] }
       const r = await claudeHook('PreToolUse', payload('PreToolUse', { tool_name: 'AskUserQuestion', tool_input: q }), ctx(), deps())
-      expect((json(r.stdout)['hookSpecificOutput'] as Record<string, unknown>)['permissionDecision']).toBe('deny')
+      const out = json(r.stdout)['hookSpecificOutput'] as Record<string, unknown>
+      expect(out['permissionDecision']).toBeUndefined()
+      expect(String(out['additionalContext'])).toContain('buracle plan pause --kind decision')
     })
   })
 })
@@ -325,14 +327,14 @@ describe('UserPromptExpansion and UserPromptSubmit: H25 flow, H22 router, H24 le
 
   test('an explicit request for a workflow: the load instruction names its SKILL.md in the plugin; the ledger keeps the route', async () => {
     await withSandbox(async () => {
-      const r = await claudeHook('UserPromptSubmit', prompt('use the plan-build workflow to add rate limiting'), ctx(), deps())
+      const r = await claudeHook('UserPromptSubmit', prompt('$plan-build add rate limiting'), ctx(), deps())
       const text = context(r.stdout)
       expect(text).toContain('Buracle routing for this prompt:')
       expect(text).toContain(`read ${join(PLUGIN, 'skills', 'plan-build', 'SKILL.md')}`)
       const l = loadLedger('claude', SID)
       expect(l.turn).toBe(1)
       expect(l.prompt?.route.load).toEqual(['plan-build'])
-      const inPlugin = await claudeHook('UserPromptSubmit', prompt('use the bugfix workflow for the flaky test'), ctx(), deps({ env: n => (n === 'CLAUDE_PLUGIN_ROOT' ? '/opt/buracle-plugin' : undefined) }))
+      const inPlugin = await claudeHook('UserPromptSubmit', prompt('$bugfix the flaky test'), ctx(), deps({ env: n => (n === 'CLAUDE_PLUGIN_ROOT' ? '/opt/buracle-plugin' : undefined) }))
       expect(context(inPlugin.stdout)).toContain(`read ${join('/opt/buracle-plugin', 'skills', 'bugfix', 'SKILL.md')}`)
     })
   })
@@ -340,9 +342,9 @@ describe('UserPromptExpansion and UserPromptSubmit: H25 flow, H22 router, H24 le
   test('a memory runner child (BURACLE_MEMORY_RUNNER=1) gets no context: its one-shot prompt is answered as written', async () => {
     await withSandbox(async () => {
       const runner = deps({ env: n => (n === 'BURACLE_MEMORY_RUNNER' ? '1' : undefined) })
-      expect(await claudeHook('UserPromptSubmit', prompt('use the bugfix workflow: check these memories and reply with JSON only'), ctx(), runner)).toEqual({ stdout: '', exitCode: 0 })
+      expect(await claudeHook('UserPromptSubmit', prompt('$bugfix check these memories and reply with JSON only'), ctx(), runner)).toEqual({ stdout: '', exitCode: 0 })
       expect(await claudeHook('SessionStart', payload('SessionStart', { source: 'startup' }), ctx(), runner)).toEqual({ stdout: '', exitCode: 0 })
-      expect(context((await claudeHook('UserPromptSubmit', prompt('use the bugfix workflow: check these memories and reply with JSON only'), ctx(), deps())).stdout)).toContain('Buracle routing for this prompt:')
+      expect(context((await claudeHook('UserPromptSubmit', prompt('$bugfix check these memories and reply with JSON only'), ctx(), deps())).stdout)).toContain('Buracle routing for this prompt:')
     })
   })
 
@@ -358,7 +360,7 @@ describe('UserPromptExpansion and UserPromptSubmit: H25 flow, H22 router, H24 le
     await withSandbox(async () => {
       const off = defaultConfig()
       off.routing.skills = 'off'
-      expect(context((await claudeHook('UserPromptSubmit', prompt('use the plan-build workflow to add rate limiting'), ctx(off), deps())).stdout)).not.toContain('plan-build')
+      expect(context((await claudeHook('UserPromptSubmit', prompt('$plan-build add rate limiting'), ctx(off), deps())).stdout)).not.toContain('plan-build')
       expect(loadLedger('claude', SID).turn).toBe(1)
       for (const extra of [{ prompt: 'Buracle routing check: the user asked for plan-build and it was not loaded.' }, { prompt: '<task-notification>build done</task-notification>' }, { prompt: 'use the plan-build workflow', agent_id: 'a1' }]) {
         const r = await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', extra), ctx(), deps())
@@ -401,13 +403,13 @@ describe('UserPromptExpansion and UserPromptSubmit: H25 flow, H22 router, H24 le
     })
   })
 
-  test('H26: an explicit rule becomes a prompt-signal statement in the spool, unless capture is off; a workflow command or a question adds none', async () => {
+  test('H26: a standing rule spools only the prompt (no word list reads it), unless capture is off; a workflow command or a question adds nothing either', async () => {
     await withSandbox(async () => {
       const s = spoolStub()
       await claudeHook('UserPromptSubmit', prompt('From now on always write the failing test first.'), ctx(), deps({ importModule: s.importModule }))
       const entries = (s.appended[0]?.[2] ?? []) as Array<Record<string, unknown>>
       expect(entries[0]).toEqual({ ts: NOW, ev: 'prompt', excerpt: 'From now on always write the failing test first.' })
-      expect(entries.slice(1).map(e => [e['ev'], (e['signal'] as { kind?: string }).kind, (e['signal'] as { text?: string }).text])).toEqual([['prompt-signal', 'statement', 'Always write the failing test first']])
+      expect(entries.slice(1)).toEqual([])
       const plain = spoolStub()
       await claudeHook('UserPromptSubmit', prompt('/buracle:plan-build add rate limiting'), ctx(), deps({ importModule: plain.importModule }))
       await claudeHook('UserPromptSubmit', prompt('Why does the parser fail on empty input?'), ctx(), deps({ importModule: plain.importModule }))
@@ -666,27 +668,27 @@ describe('Stop: H23 route.audit once per prompt, after the stop guard', () => {
 
   test('an explicitly asked workflow that was not loaded holds the stop once; loading it, or strictness off, lets it through', async () => {
     await withSandbox(async () => {
-      await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'use the plan-build workflow to add rate limiting' }), ctx(), deps())
+      await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: '$plan-build add rate limiting' }), ctx(), deps())
       const first = json((await claudeHook('Stop', stopPayload, ctx(), deps())).stdout)
       expect(first['decision']).toBeUndefined()
       expect(String((first['hookSpecificOutput'] as Record<string, unknown>)['additionalContext'])).toStartWith('Buracle routing check: the user asked for plan-build and it was not loaded.')
       expect(await claudeHook('Stop', stopPayload, ctx(), deps())).toEqual({ stdout: '', exitCode: 0 })
 
-      await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'use the plan-build workflow to add a cache' }), ctx(), deps())
+      await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: '$plan-build add a cache' }), ctx(), deps())
       await claudeHook('PostToolUse', payload('PostToolUse', { tool_name: 'Read', tool_input: { file_path: join(PLUGIN, 'skills', 'plan-build', 'SKILL.md') }, tool_response: { type: 'text' } }), ctx(), deps())
       expect(await claudeHook('Stop', stopPayload, ctx(), deps())).toEqual({ stdout: '', exitCode: 0 })
 
       const off = defaultConfig()
       off.routing.strictness = 'off'
-      await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'use the bugfix workflow for the flaky test' }), ctx(off), deps())
+      await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: '$bugfix the flaky test' }), ctx(off), deps())
       expect(await claudeHook('Stop', stopPayload, ctx(off), deps())).toEqual({ stdout: '', exitCode: 0 })
     })
   })
 
-  test('a question about earlier work without a memory search holds the stop once', async () => {
+  test('a question about earlier work holds no stop: H23 reads no history phrases', async () => {
     await withSandbox(async () => {
       await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'why did we pick bun over node last time?' }), ctx(), deps())
-      expect(String((json((await claudeHook('Stop', stopPayload, ctx(), deps())).stdout)['hookSpecificOutput'] as Record<string, unknown>)['additionalContext'])).toContain('memory was not searched')
+      expect(await claudeHook('Stop', stopPayload, ctx(), deps())).toEqual({ stdout: '', exitCode: 0 })
     })
   })
 
@@ -694,12 +696,12 @@ describe('Stop: H23 route.audit once per prompt, after the stop guard', () => {
     await withSandbox(async () => {
       const plan = { path: '/tmp/project/docs/plans/p.md', slug: 'p', status: 'IN_PROGRESS' as const, type: 'Feature' as const, phase: 'implement' as const, registeredAt: NOW - 1000 }
       saveState('claude', SID, { ...freshState(), plan })
-      await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'Stop. Where were we?' }), ctx(), deps())
+      await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'Stop.' }), ctx(), deps())
       expect(loadState('claude', SID).interaction?.state).toBe('paused')
       expect(await claudeHook('Stop', payload('Stop', { last_assistant_message: 'Stopped after task 2.', stop_hook_active: false }), ctx(), deps())).toEqual({ stdout: '', exitCode: 0 })
       const after = async (why: StopWhy): Promise<Record<string, unknown>> => {
         saveState('claude', SID, { ...freshState(), plan, guard: { blocksForPlan: 3, blocksInChain: 2 } })
-        await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'why did we pick bun over node last time?' }), ctx(), deps())
+        await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: '$plan-build add rate limiting' }), ctx(), deps())
         const release: HookDeps['core']['stopGuardVerdict'] = s => ({ decision: { action: 'allow' }, next: { ...s, guard: { ...s.guard, blocksInChain: 0 } }, why })
         const out = (await claudeHook('Stop', payload('Stop', { stop_hook_active: true }), ctx(), deps({ core: { ...defaultHookDeps.core, stopGuardVerdict: release } }))).stdout
         return out === '' ? {} : json(out)
@@ -710,7 +712,7 @@ describe('Stop: H23 route.audit once per prompt, after the stop guard', () => {
         const out = await after(why)
         const context = (out['hookSpecificOutput'] as Record<string, unknown> | undefined)?.['additionalContext']
         expect({ why, decision: out['decision'] }).toEqual({ why, decision: undefined })
-        expect(String(context)).toStartWith('Buracle routing check: this prompt asks about earlier work and memory was not searched.')
+        expect(String(context)).toStartWith('Buracle routing check: the user asked for plan-build and it was not loaded.')
       }
     })
   })
@@ -799,14 +801,14 @@ describe('w2 plan state on Claude: H10 holds, H09 notes, the H08 receipt, the la
     })
   })
 
-  test('H09: a real question while the plan runs gets the pause reminder; a routine one at COMPLETE is denied', async () => {
+  test('H09: a question while the plan runs gets the pause reminder, also at COMPLETE; none is denied', async () => {
     await withSandbox(async () => {
       saveState('claude', SID, { ...freshState(), plan: plan() })
       const ask = (question: string, options: string[]) => payload('PreToolUse', { tool_name: 'AskUserQuestion', tool_input: { questions: [{ question, header: 'Q', options: options.map(label => ({ label, description: '' })), multiSelect: false }] } })
       const real = await claudeHook('PreToolUse', ask('Redis or the in-memory store?', ['Redis', 'In-memory']), ctx(), deps())
       expect(context(real.stdout)).toContain('buracle plan pause --kind decision')
       saveState('claude', SID, { ...freshState(), plan: plan({ status: 'COMPLETE', phase: 'verify' }) })
-      expect(deny((await claudeHook('PreToolUse', ask('Should I keep waiting for the tests?', ['Keep waiting', 'Stop']), ctx(), deps())).stdout)).toContain('Buracle H09')
+      expect(context((await claudeHook('PreToolUse', ask('Should I keep waiting for the tests?', ['Keep waiting', 'Stop']), ctx(), deps())).stdout)).toContain('buracle plan pause --kind decision')
     })
   })
 

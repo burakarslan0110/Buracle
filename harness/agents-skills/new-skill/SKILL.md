@@ -72,9 +72,8 @@ the user has the publish steps. The calls are cheap and best effort; a failing o
    it from [references/template.md](references/template.md):
    - **Description** = what it does + when to use it (situations and trigger phrases) + what it is
      not for. Together with `when_to_use`, at most 1,024 characters; `short-description` at most 80.
-     Write it in English. Trigger phrases in the user's language: for a skill in the Buracle repo they
-     go into that skill's entry in `canonical/skill-triggers.yaml` (the prompt router's vocabulary,
-     so skill prose stays English); elsewhere, add them to `when_to_use`.
+     Write it in English. Trigger phrases in the user's language go into `when_to_use`: the agent
+     picks a skill from its description, and no prompt router matches phrases.
    - **Body:** purpose, outputs and "done" criteria, ground rules, numbered phases with gates,
      failure handling, one short example. Imperative mood, written by the four principles of the
      *Plain language* rule (ISO 24495-1): the outcome first, one term for one thing, steps the agent
@@ -123,10 +122,9 @@ the user has the publish steps. The calls are cheap and best effort; a failing o
 
 - Keep its `invocation` value, and the scripts, references and evals it already has, unless the
   user asks for a change; say so in the report when one changes. Turning `explicit` into
-  `implicit` lets the model pick up a workflow with side effects by itself, because the prompt
-  router then lists it for a YES/NO evaluation.
+  `implicit` lets the model pick up a workflow with side effects by itself.
 - Scale the test to the change: a wording-only edit needs lint; a description, `when_to_use` or
-  trigger change (also its entry in `canonical/skill-triggers.yaml`) needs the trigger cases with
+  trigger change needs the trigger cases with
   `/ab-test` (Codex: `$ab-test`); a change of phases or outputs needs its behavior cases.
 - A skill that misfires: find the symptom in the iteration signals of
   [references/checklist.md](references/checklist.md) before you rewrite it.

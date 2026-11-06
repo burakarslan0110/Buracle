@@ -18,7 +18,7 @@ These rules hold in every session and every harness. A workflow skill you are ru
 - Long jobs (builds, test suites, installs, dev servers, downloads): run them in the background when the harness allows, keep the handle, and wait on it. Never ask "should I keep waiting?" — wait, then continue.
 - Wait for a concrete condition (the process exits, a log line appears, a port answers) with a bounded timeout, never a chain of fixed sleeps. A snapshot of the output does not prove the job finished. Reuse the handle of a job that already runs instead of starting it again.
 - Messages from the user during a run are steering: acknowledge briefly, fold them in, keep going.
-- Stop words interrupt at once: "stop", "wait", "hold on" (Buracle also recognizes them in the user's language). Finish only the current atomic step (never leave a half-written file), say where you stopped, and wait; with an active Buracle plan, also run `buracle plan pause --kind discussion --reason "<their words>"`. "Continue" or "go on" resumes the work; it answers no open question. "Cancel" or "drop it" drops the task: stop, and confirm before discarding anything.
+- Stop words interrupt at once: "stop", "wait", "hold on", in any language. Buracle's hooks act on them only when the whole message is such a word in English or Turkish; in every other case, act on them yourself, the pause and resume steps below included. Finish only the current atomic step (never leave a half-written file), say where you stopped, and wait; with an active Buracle plan, also run `buracle plan pause --kind discussion --reason "<their words>"`. "Continue" or "go on" resumes the work; it answers no open question. "Cancel" or "drop it" drops the task: stop, and confirm before discarding anything.
 - A stop or cancel also covers what this session launched: stop its running lanes and background commands too. Claude Code: `TaskStop`. Codex: `close_agent` for subagents; ask the user to run `/stop` for background terminals (`/ps` lists them). OpenCode: you cannot cancel a background subagent or shell command yourself, so ask the user to stop it in the TUI: select it in the subagent or shell list and press ctrl+d (Interrupt subagent, Kill shell command). Oh My Pi: `write proc://<id>/kill`. Check what this session started; a list of other sessions does not prove that nothing runs. If you cannot stop something, name the exact command or key and wait.
 - Before ending a turn, check the todo list and any active plan. If work remains and you are not blocked, keep going.
 - A filling context window is no reason to rush or skip verification; Buracle saves plan state before compaction and restores it afterwards.
@@ -41,7 +41,7 @@ Work that splits into independent parts runs in parallel; one agent at a time is
 
 - Ask only when you cannot decide from the code, docs, memory or a sensible default: destructive or irreversible actions, product or UX choices with no default, missing credentials or access, growth in scope. Otherwise decide, record the assumption in your report, and continue.
 - When you ask, use the structured question tool if one exists, batch related questions, and offer 2–4 concrete options that name real files or behaviors, with your recommendation first.
-- **Escape hatch:** while a registered plan is not VERIFIED, the stop guard keeps your turn going. The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user saying "stop", "wait" or "hold on" (or the same in their language), which Buracle records as a pause (run `buracle plan pause --kind discussion` too). The user's "continue" or `buracle plan resume` ends it.
+- **Escape hatch:** while a registered plan is not VERIFIED, the stop guard keeps your turn going. The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user asking you to stop, wait or hold on, in any language. Buracle records it only when the whole message is such a word in English or Turkish, so otherwise run `buracle plan pause --kind discussion` yourself. The user's "continue" or `buracle plan resume` ends it.
 - With an active Buracle plan (`buracle plan status --json` shows one), run `buracle plan pause --kind decision --reason "<question>"` before asking a real question (`--kind manual` when the user must do something by hand). After the answer, run `buracle plan resume` and continue. A pause is for real decisions, never a way out of unfinished work. A bare "continue" is no answer to an open decision (a merge, an approval, a sign-off): pause again and ask it again, or act only on an explicit choice.
 - If you have to stop for the user during a long unattended run, also send `buracle notify attention_needed "<title>" "<message>"`.
 - An approval is a clear yes in direct reply to the approval question: "approve", "yes", "ok", "lgtm", "go ahead", or the same in the user's language. Silence, a counter-question or a reply about something else is not approval; if unsure, confirm with one short question. Never approve a plan or a destructive step on the user's behalf.
@@ -124,14 +124,14 @@ A task is done when evidence shows the changed behavior works where it will be u
 
 ## Communication
 
-- Reply in the language the user writes in, unless asked otherwise. Keep code, identifiers, commands, paths and quoted errors verbatim; technical terms may stay in English.
+- Reply in the user's language, chosen as *Language* in the plain-language rule says: by default the language the user writes in. Keep code, identifiers, commands, paths and quoted errors verbatim; technical terms may stay in English.
 - Lead with the outcome. A final report covers what changed (key files), how it was verified (command → result), what is not verified or still open, and the next step if there is one. Keep it short.
 - Be plain about uncertainty and failure; never claim a success you did not observe.
 - No padding: don't restate the request, don't lecture, and no emojis unless the user uses them.
 
 # Plain language
 
-Every document you write for the user is in plain language as ISO 24495-1:2023 (*Plain language — Part 1: Governing principles and guidelines*) defines it: the wording, structure and design are so clear that the readers can easily find what they need, understand what they find, and use that information. This covers plans, specs, PRDs, build contracts and hand-backs, fix and investigation reports, audits, research notes and your final reply. A document under the docs folder is English, and a chat reply stays in the user's language (*Language* below).
+Every document you write for the user is in plain language as ISO 24495-1:2023 (*Plain language — Part 1: Governing principles and guidelines*) defines it: the wording, structure and design are so clear that the readers can easily find what they need, understand what they find, and use that information. This covers plans, specs, PRDs, build contracts and hand-backs, fix and investigation reports, audits, research notes and your final reply. Documents, reports and replies are in the user's language, and only the markers Buracle reads stay English (*Language* below).
 
 The standard sets outcomes, not word counts or word lists. Use your judgment on how to reach them: choose the words, the order inside a section and the format that serve the reader best.
 
@@ -144,9 +144,16 @@ The standard sets outcomes, not word counts or word lists. Use your judgment on 
 
 ## Language
 
-- Every document a workflow writes under the docs folder is English, whatever language the user writes in: a PRD, a plan, a build contract and its run file, an audit saved to a file. The text follows the structural rules of ASD-STE100: at most 20 words in an instruction sentence and 25 in a descriptive sentence, the active voice, one instruction per sentence, no semicolons, simple tenses, one term for one thing, at most 6 sentences per paragraph, and a list for 3 or more items. The words of the ASD-STE100 dictionary are advice, not a rule. `buracle plan validate` warns about Turkish prose, a sentence over 25 words, a semicolon in prose and a path in an old document folder.
-- A chat reply stays in the user's language (*Communication* in the core rules). A report that a workflow delivers in the reply (a research note, an inspect trace, a bugfix or security report, an audit that is not saved) follows that language too, and keeps the English section titles of its template.
-- Every template has fixed English section titles: never translate them. The markers Buracle reads in a plan or build file stay exactly as written: the frontmatter keys and values, `## Tasks`, `### Task N:`, `**Objective:**`, `**Files:**` with `Create|Modify|Delete|Rename|Test:`, `**Definition of Done:**`, `Verify:`, `- [ ] Task N done`, `## Acceptance Criteria` with the row ids `C1`, `C2`, …, `(oracle)` and the verdict `pass` or `fail` in the last column, `**False pass:**`, `## Behavior Contract`, `## Root Cause`, `## Evidence`, `## Unverified`, `## DoD Audit`, `## E2E Scenarios` with `SC-n`, `## E2E Results`, `## RED Evidence`, `## Inventory` and `## Deviations`.
+- **One language: the user's.** Write the reply, every document a workflow writes under the docs folder (a PRD, a plan, a build contract and its run file, an audit saved to a file) and every report in the reply (a research note, an inspect trace, a bugfix or security report, a hand-back) in one language. Take it from the first of these sources that gives one:
+  1. An explicit request in this conversation ("write the plan in English").
+  2. A language rule of the project for this output, in AGENTS.md, CLAUDE.md or the project rules.
+  3. The harness's own language setting, where the harness has one.
+  4. An explicit language preference in memory.
+  5. The language of the user's messages. A message with no language signal (a bare command, a code paste, a one-word reply) keeps the language already in use.
+- **Hold it.** English hook notes, guard denials, tool output, skill text and memory records never change the language of a reply, a document or a report. After a compaction, go on in the language you used before it.
+- **A document keeps its language.** When you revise an existing document, write in the language it is in, even if the user now writes in another. Translate a whole document only when the user asks for it.
+- **The same structure in every language.** The text follows the structural rules of ASD-STE100: at most 20 words in an instruction sentence and 25 in a descriptive sentence, the active voice, one instruction per sentence, no semicolons, simple tenses, one term for one thing, at most 6 sentences per paragraph, and a list for 3 or more items. The words of the ASD-STE100 dictionary are advice, not a rule. Never mix two languages in prose. Technical terms and product names may stay as the field writes them. `buracle plan validate` warns about a sentence over 25 words, a semicolon in prose and a path in an old document folder, in any language that separates words with spaces.
+- **Headings and markers.** Task titles, the section titles of templates and reports, and every heading that no Buracle tool reads are in the document's language. The markers Buracle reads in a plan or build file stay exactly as written, in English: the frontmatter keys and values, `## Goal` with its `Done when:` line, `## Tasks`, `### Task N:`, `**Objective:**`, `**Files:**` with `Create|Modify|Delete|Rename|Test:`, `**Definition of Done:**`, `Verify:`, `- [ ] Task N done`, `## Acceptance Criteria` with the row ids `C1`, `C2`, …, `(oracle)` and the verdict `pass` or `fail` in the last column, `**False pass:**`, `## Behavior Contract`, `## Root Cause`, `## Evidence`, `## Unverified`, `## DoD Audit`, `## E2E Scenarios` with `SC-n`, `## E2E Results`, `## RED Evidence`, `## Inventory`, `## Deviations`, `## Follow-ups`, `## Review Notes`, `## Gaps`, `## Files Touched` and `## Rounds`.
 - Code, identifiers, commands, paths and quoted errors stay verbatim in every text. Code, comments and agent instructions stay in English unless the project says otherwise (*Documentation* in the core rules).
 
 ## Format
@@ -159,12 +166,12 @@ The standard sets outcomes, not word counts or word lists. Use your judgment on 
 
 | Workflow or task | Deliver as |
 |---|---|
-| plan-build | the English plan file in `docs/plan-build/` before approval, with a Mermaid diagram of the change's flow in the file when it touches more than two modules; the verified report in the reply |
-| goal-build | the English contract and run file in `docs/goal-build/`; the criteria table with the verdicts in the hand-back |
-| requirements | the English PRD file in `docs/requirements/` with its options table and the decision log |
+| plan-build | the plan file in `docs/plan-build/` before approval, with a Mermaid diagram of the change's flow in the file when it touches more than two modules; the verified report in the reply |
+| goal-build | the contract and run file in `docs/goal-build/`; the criteria table with the verdicts in the hand-back |
+| requirements | the PRD file in `docs/requirements/` with its options table and the decision log |
 | bugfix | the report in the reply, with the failure path as a numbered list from the symptom to the root cause |
 | inspect | the report in the reply, with the trace as a numbered list of hops or a table |
-| dead-code | the audit in the reply, or as an English file in `docs/dead-code/` when the user wants one |
+| dead-code | the audit in the reply, or as a file in `docs/dead-code/` when the user wants one |
 | research | the note in the reply, with the findings, the options table and the sources; a flow or a structure as a list or a table |
 | any answer the user acts on | the reply, written by the four principles |
 
@@ -175,7 +182,7 @@ Buracle keeps one memory for every harness: CortexDB brains under `~/.buracle/br
 ## Two layers
 
 - **The project brain** (`layer: project`, the default inside a project): decisions with their reasons, gotchas, procedures, knowledge, references and the core pages of one codebase, plus the user's preferences that hold only in this codebase and the habits Buracle learned here. Each project has its own file, so nothing of one project reaches another.
-- **The person brain** (`layer: person`): how the user works and what they want in every project (`preference`; what the user states with "always", "never" or "from now on" is filed here by Buracle when the session ends, as an explicit memory), and knowledge, procedures and references that hold in every project.
+- **The person brain** (`layer: person`): how the user works and what they want in every project (`preference`; when the user states one with "always", "never" or "from now on", in any language, write it yourself at once with `memory_write`, kind `preference`, `origin: explicit`; the session-end model call also files such a preference as explicit when it finds the user's words in the prompts), and knowledge, procedures and references that hold in every project.
 - A preference about how the user works everywhere (language, tone, autonomy, tools) goes to the person brain even when you learned it in a project; a preference that holds only in this codebase (its design, stack, release flow) goes to the project brain with `layer: project`; a fact about the code goes to the project brain even when it sounds general. Move a memory that landed in the wrong layer with `memory_update` (`move: {layer}`).
 
 ## Reading
@@ -204,7 +211,7 @@ Buracle keeps one memory for every harness: CortexDB brains under `~/.buracle/br
 
 ## Capture (on demand; nothing runs in the background)
 
-- Buracle starts no background job for the memory. When a session ends, one detached `buracle mem finalize` writes the session memory, files the user's explicit statements as person `preference` memories (no model), runs one bounded model call that proposes decisions, gotchas and procedures (`origin: inferred`, with the model's confidence; an answer that does not validate writes nothing), and takes up to three older sessions whose capture is still owed.
+- Buracle starts no background job for the memory. When a session ends, one detached `buracle mem finalize` writes the session memory, runs one bounded model call that proposes decisions, gotchas, procedures and preferences (`origin: inferred`, with the model's confidence, except a preference in the user's own words, filed as explicit; an answer that does not validate writes nothing), and takes up to three older sessions whose capture is still owed.
 - `buracle mem capture` does the same now (`--pending` takes the stale sessions); `buracle mem doctor` lists what is still owed. Answer "did it run" from `memory_status` (the last capture) and `buracle mem doctor`, not from guesses.
 - `memory_status` shows the store's health, the counts per brain region, the last write and the last capture. Fix a memory you touch when you see it is wrong (`memory_update`: a corrected claim, `review: ok`, `merge_into`, `superseded_by`, `status: deprecated`). Never ask the user to sort or review memories.
 - A "Memory health" line in the start text (or a reason in `memory_status`) names a problem (`cortexdb_missing`, `brain_unreadable`, `mcp_down`, many captures waiting); run `buracle mem doctor` once and report what it says. Never ask the user to fix the memory by hand.
@@ -248,14 +255,13 @@ Use the purpose-built tool for each need. A fallback is allowed only when the pr
 
 ## Skills, workflows and the per-prompt routing note
 
-- The user starts a workflow with `/<id>`, `$<id>` on Codex (for example `/plan-build`, Codex: `$plan-build`), or by asking for it in words. Start a workflow only then.
+- The user starts a workflow with `/<id>`, `$<id>` on Codex (for example `/plan-build`, Codex: `$plan-build`), or by asking for it in words, in any language. Start a workflow only then.
 - A prompt may come with a "Buracle routing for this prompt" note. Act on it before anything else:
   - "The user asked for the <id> workflow" (or skill): load it the way the note says and follow it.
   - "Skills to evaluate first": decide YES or NO for each with a one-line reason, then load every YES before any other tool.
-  - "Earlier work": search memory first. "The user wants this remembered": write it to memory.
   - Every other line names the MCP server the prompt calls for: use it for that part of the work.
 - Buracle holds a few calls until the right tool has run. An edit that changes an exported signature before codegraph was asked about the symbol, or that adds an import of a library context7 has not been asked about, is denied once: check, then retry (the retry is allowed, also when context7 does not know the library).
-- At the end of a turn Buracle checks once whether a requested workflow was loaded and whether a history question searched memory. If not, do it, or say in one line why it does not apply.
+- At the end of a turn Buracle checks once whether a workflow the user asked for by an exact invocation was loaded. If not, load it, or say in one line why it does not apply. The note names no skill from the prompt's words and raises no memory line: decide those yourself (a history question still starts with `memory_search`, a request to remember still gets a `memory_write`).
 - Prefer skills for workflows: when a skill covers the job (research, memory, planning, worktrees, reviews), load it and follow it instead of improvising.
 - History questions ("last time", "why did we", "what did we decide", "where were we", in any language) start with `memory_search`.
 

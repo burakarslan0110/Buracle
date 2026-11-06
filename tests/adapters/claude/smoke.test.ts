@@ -211,7 +211,7 @@ smoke(`Claude Code ${OVERRIDE !== undefined ? '(BURACLE_CLAUDE_BIN)' : (GATE?.ve
 
         settings(w, undefined)
         w.mock.requests.length = 0
-        const asked = await claude(w, 'use the plan-build workflow to add rate limiting')
+        const asked = await claude(w, '$plan-build add rate limiting')
         expect(asked.code, asked.stderr).toBe(0)
         const ups = hookOutputs(asked, 'UserPromptSubmit')[0] ?? {}
         expect(contextOf(ups)).toContain('Buracle routing for this prompt:')

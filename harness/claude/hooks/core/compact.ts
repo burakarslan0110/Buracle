@@ -67,6 +67,7 @@ export function compactInstructionsWith(base: string | undefined, state: Session
   const paused = interactionLine(state)
   if (paused) lines.push(`- ${paused}`)
   lines.push("- Keep the user's requests and corrections in their own words and language, and every decision with its reason.")
+  lines.push('- Name the language you use with the user in one line ("Working language: German") and keep using it after compaction: for replies, documents and reports alike.')
   lines.push('- Keep the approaches that were tried and rejected, each with why it failed, so they are not tried again.')
   lines.push('- Keep the verification commands that ran and their results (pass or fail, with the key output lines), and the commands that failed with their key error lines.')
   const touched = list(extra?.touched, 30)

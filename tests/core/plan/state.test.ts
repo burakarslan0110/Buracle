@@ -38,8 +38,8 @@ describe('the escape sentence', () => {
     }
   })
 
-  test('names the English stop words and defers other languages to the prompt hook', () => {
-    expect(STOP_GUARD_ESCAPE).toBe('The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user saying "stop", "wait" or "hold on" (or the same in their language), which Buracle records as a pause (run `buracle plan pause --kind discussion` too).')
+  test('names the stop request in any language and says the hook records only a whole-message English or Turkish word', () => {
+    expect(STOP_GUARD_ESCAPE).toBe('The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user asking you to stop, wait or hold on, in any language. Buracle records it only when the whole message is such a word in English or Turkish, so otherwise run `buracle plan pause --kind discussion` yourself.')
   })
 })
 

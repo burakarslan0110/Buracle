@@ -43,7 +43,7 @@ describe('omp turn receipt, loop alarms, the long-turn notification and the resu
     await fp.emit('input', { type: 'input', text: 'change a', source: 'interactive' }, ctx)
     await fp.emit('tool_result', { type: 'tool_result', toolCallId: 'e1', toolName: 'edit', input: { path: join(cwd, 'a.ts'), old_string: 'export const a = 1', new_string: 'export const a = 2' }, content: [{ type: 'text', text: 'ok' }], isError: false }, ctx)
     expect(await fp.emit('session_stop', stop('It works now.'), ctx)).toBeUndefined()
-    expect(notices(ctx)).toContain('Buracle · 1 file (+1 −1) · ⚠ success claimed without evidence: no test or check ran after the change')
+    expect(notices(ctx)).toContain('Buracle · 1 file (+1 −1) · ⚠ unverified change')
     const before = notices(ctx).length
     await fp.emit('input', { type: 'input', text: 'again', source: 'interactive' }, ctx)
     await fp.emit('tool_result', { type: 'tool_result', toolCallId: 'e2', toolName: 'write', input: { path: join(cwd, 'b.ts'), content: 'export const b = 1\n' }, content: [{ type: 'text', text: 'ok' }], isError: false }, ctx)

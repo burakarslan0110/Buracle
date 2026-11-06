@@ -85,7 +85,7 @@ function planState(): SessionState {
 describe('H22 route.prompt: explicit asks are attached, the rest is routing text', () => {
   test('an explicit ask for a skill the host knows is attached to the prompt and announced in the request', () => withSandbox(async ({ root }) => {
     const { f } = await runtime(root, { skills: ['research', 'plan-build'] })
-    const ev = await f.trigger('session.prompt', prompt('use the research skill to compare bun and node'))
+    const ev = await f.trigger('session.prompt', prompt('$research compare bun and node'))
     expect(ev.prompt.skills).toEqual([{ id: 'research' }])
     const text = (await contextTexts(f)).find(t => t.startsWith('Buracle routing for this prompt:')) ?? ''
     expect(text).toContain('The user asked for the research skill: its skill is attached to this message')
@@ -94,7 +94,7 @@ describe('H22 route.prompt: explicit asks are attached, the rest is routing text
 
   test('a skill the host does not know is never attached (it would reject the prompt): the model is told to load it', () => withSandbox(async ({ root }) => {
     const { f } = await runtime(root, { skills: ['plan-build'] })
-    const ev = await f.trigger('session.prompt', prompt('use the research skill to compare bun and node'))
+    const ev = await f.trigger('session.prompt', prompt('$research compare bun and node'))
     expect(ev.prompt.skills).toBeUndefined()
     const text = (await contextTexts(f)).find(t => t.startsWith('Buracle routing for this prompt:')) ?? ''
     expect(text).toContain('load it before any other step and follow it (skill tool, research)')
@@ -103,29 +103,29 @@ describe('H22 route.prompt: explicit asks are attached, the rest is routing text
 
   test('an unavailable skill list attaches nothing and never blocks the prompt', () => withSandbox(async ({ root }) => {
     const { f } = await runtime(root, { skills: undefined })
-    const ev = await f.trigger('session.prompt', prompt('use the research skill to compare bun and node'))
+    const ev = await f.trigger('session.prompt', prompt('$research compare bun and node'))
     expect(ev.prompt.skills).toBeUndefined()
     expect((await contextTexts(f)).some(t => t.includes('skill tool, research'))).toBe(true)
   }))
 
   test('a workflow asked for again later in the session is attached again (a new run)', () => withSandbox(async ({ root }) => {
     const { f } = await runtime(root, { skills: ['plan-build'] })
-    expect((await f.trigger('session.prompt', prompt('use the plan-build workflow to add rate limiting'))).prompt.skills).toEqual([{ id: 'plan-build' }])
+    expect((await f.trigger('session.prompt', prompt('$plan-build add rate limiting'))).prompt.skills).toEqual([{ id: 'plan-build' }])
     await requestTexts(f, ['msg_p'])
     expect(loadLedger('opencode', SID).skills['plan-build']).toBeDefined()
-    const again = await f.trigger('session.prompt', prompt('use the plan-build workflow to add an audit log', { messageID: 'msg_q' }))
+    const again = await f.trigger('session.prompt', prompt('$plan-build add an audit log', { messageID: 'msg_q' }))
     expect(again.prompt.skills).toEqual([{ id: 'plan-build' }])
     expect((await contextTexts(f)).find(t => t.startsWith('Buracle routing for this prompt:'))).toContain('The user asked for the plan-build workflow: its skill is attached to this message')
   }))
 
   test('the attach line counts toward the route text budget (core ROUTE_TEXT_MAX_BYTES)', () => {
     const baked = testBaked()
-    const prompt = 'research this: last time we decided on zod, remember this. Which is the latest version of zod and how do I configure it? Also check the agent instructions and do a before and after comparison.'
+    const prompt = '$research this: last time we decided on zod, remember this. Which is the latest version of zod and how do I configure it? Also check the agent instructions and do a before and after comparison.'
     const r = routeUserPrompt({ text: prompt, attached: [], loaded: [], available: baked.mcp.map(m => m.id), deps: ['zod'], known: new Set(baked.skills.map(s => s.id)) }, baked, defaultConfig())
     expect(r.attach).toEqual(['research'])
     const text = r.text ?? ''
     expect(text.split('\n')[1]).toBe('- The user asked for the research skill: its skill is attached to this message; follow it, and treat the rest of the prompt as its input.')
-    expect(text).toContain('- Earlier work: search memory first')
+    expect(text).not.toContain('Earlier work')
     expect(utf8Bytes(text)).toBeLessThanOrEqual(ROUTE_TEXT_MAX_BYTES)
   })
 
@@ -139,7 +139,7 @@ describe('H22 route.prompt: explicit asks are attached, the rest is routing text
     const { f, rt } = await runtime(root, { skills: ['research'] })
     const child = 'ses_child9'
     await rt.handleEvent({ type: 'session.created', data: { sessionID: child, parentID: SID, location: { directory: root } } })
-    const ev = await f.trigger('session.prompt', prompt('push et. use the research skill to compare bun and node', { sessionID: child }))
+    const ev = await f.trigger('session.prompt', prompt('$research compare bun and node. push et.', { sessionID: child }))
     expect(ev.prompt.skills).toBeUndefined()
     expect((await contextTexts(f, child)).some(t => t.startsWith('Buracle routing'))).toBe(false)
     const push = await f.trigger('permission.evaluate', evaluation('shell', ['git push origin main'], 'call_p1', child))
@@ -148,24 +148,26 @@ describe('H22 route.prompt: explicit asks are attached, the rest is routing text
 })
 
 describe('H22 prompt delivery: a prompt takes effect at the request that carries it (steer at the next step, queue when the run is done)', () => {
-  const research = 'use the research skill to compare bun and deno'
-  const history = 'what did we decide last time about the runtime?'
+  const research = '$research compare bun and deno'
+  // A second prompt with its own routing: an exact request for a skill the host does not attach.
+  const history = '$plan-build add an audit log'
+  const PB = 'The user asked for the plan-build workflow'
 
   test('a prompt queued while the agent works leaves the running prompt its routing and turn until the request that carries it', () => withSandbox(async ({ root }) => {
     const { f } = await runtime(root, { skills: ['research'] })
     await f.trigger('session.prompt', prompt(history, { messageID: 'msg_1' }))
-    expect(await requestTexts(f, ['msg_1'])).toContain('- Earlier work: search memory first')
-    expect(loadLedger('opencode', SID)).toMatchObject({ turn: 1, prompt: { route: { memory: { recall: true } } } })
+    expect(await requestTexts(f, ['msg_1'])).toContain(PB)
+    expect(loadLedger('opencode', SID)).toMatchObject({ turn: 1, prompt: { route: { load: ['plan-build'] } } })
     const queued = await f.trigger('session.prompt', prompt(research, { messageID: 'msg_2', delivery: 'queue' }))
     expect(queued.prompt.skills).toEqual([{ id: 'research' }])
     const running = await requestTexts(f, ['msg_1'])
-    expect(running).toContain('- Earlier work: search memory first')
+    expect(running).toContain(PB)
     expect(running).not.toContain('research skill')
-    expect(loadLedger('opencode', SID)).toMatchObject({ turn: 1, prompt: { route: { invoked: [], memory: { recall: true } } } })
+    expect(loadLedger('opencode', SID)).toMatchObject({ turn: 1, prompt: { route: { invoked: [], load: ['plan-build'] } } })
     const next = await requestTexts(f, ['msg_1', 'msg_2'])
     expect(next).toContain('- The user asked for the research skill: its skill is attached to this message')
-    expect(next).not.toContain('Earlier work')
-    expect(loadLedger('opencode', SID)).toMatchObject({ turn: 2, prompt: { route: { invoked: ['research'], memory: { recall: false } } } })
+    expect(next).not.toContain(PB)
+    expect(loadLedger('opencode', SID)).toMatchObject({ turn: 2, prompt: { route: { invoked: ['research'], load: [] } } })
   }))
 
   test('two prompts queued during a run keep their own routing: each takes effect when its request comes', () => withSandbox(async ({ root }) => {
@@ -177,12 +179,12 @@ describe('H22 prompt delivery: a prompt takes effect at the request that carries
     expect(await requestTexts(f, ['msg_1'])).not.toContain('Buracle routing')
     const second = await requestTexts(f, ['msg_1', 'msg_2'])
     expect(second).toContain('research skill')
-    expect(second).not.toContain('Earlier work')
+    expect(second).not.toContain(PB)
     expect(loadLedger('opencode', SID)).toMatchObject({ turn: 2, prompt: { route: { invoked: ['research'] } } })
     const third = await requestTexts(f, ['msg_1', 'msg_2', 'msg_3'])
-    expect(third).toContain('- Earlier work: search memory first')
+    expect(third).toContain(PB)
     expect(third).not.toContain('research skill')
-    expect(loadLedger('opencode', SID)).toMatchObject({ turn: 3, prompt: { route: { invoked: [], memory: { recall: true } } } })
+    expect(loadLedger('opencode', SID)).toMatchObject({ turn: 3, prompt: { route: { invoked: [], load: ['plan-build'] } } })
   }))
 
   test('steer prompts sent during one step arrive together: one routing text and one ledger turn for both', () => withSandbox(async ({ root }) => {
@@ -194,8 +196,8 @@ describe('H22 prompt delivery: a prompt takes effect at the request that carries
     const both = await requestTexts(f, ['msg_1', 'msg_2', 'msg_3'])
     expect(both.match(/Buracle routing for this prompt:/g)?.length).toBe(1)
     expect(both).toContain('- The user asked for the research skill: its skill is attached to this message')
-    expect(both).toContain('- Earlier work: search memory first')
-    expect(loadLedger('opencode', SID)).toMatchObject({ turn: 2, prompt: { route: { invoked: ['research'], memory: { recall: true } } } })
+    expect(both).toContain('plan-build')
+    expect(loadLedger('opencode', SID)).toMatchObject({ turn: 2, prompt: { route: { invoked: ['research'] } } })
   }))
 
   test('the inbox\'s events: a cancelled prompt never takes effect, a delivered one does (also when a compaction folded its message), a moved one follows its new delivery', () => withSandbox(async ({ root }) => {
@@ -205,7 +207,7 @@ describe('H22 prompt delivery: a prompt takes effect at the request that carries
     await f.trigger('session.prompt', prompt(history, { messageID: 'msg_3', delivery: 'queue' }))
     await rt.handleEvent({ type: 'session.inbox.delivered', data: { sessionID: SID, inboxID: 'msg_3' } })
     const folded = await requestTexts(f, ['msg_checkpoint'])
-    expect(folded).toContain('- Earlier work: search memory first')
+    expect(folded).toContain(PB)
     expect(folded).not.toContain('research skill')
     expect(loadLedger('opencode', SID).turn).toBe(1)
     await f.trigger('session.prompt', prompt(research, { messageID: 'msg_4' }))
@@ -226,12 +228,12 @@ describe('H22 prompt delivery: a prompt takes effect at the request that carries
     await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: root } } })
     await f.trigger('session.prompt', prompt('please add a cache', { messageID: 'msg_1' }))
     await requestTexts(f, ['msg_1'])
-    await f.trigger('session.prompt', prompt('what did we decide last time about the cache?', { messageID: 'msg_2', delivery: 'queue' }))
+    await f.trigger('session.prompt', prompt('$research compare bun and deno', { messageID: 'msg_2', delivery: 'queue' }))
     await cycle()
     expect(f.prompts).toEqual([])
     await requestTexts(f, ['msg_1', 'msg_2'])
     await cycle()
-    expect(f.prompts.map(p => p.text.split('\n')[0])).toEqual(['Buracle routing check: this prompt asks about earlier work and memory was not searched. Run memory_search (buracle-memory) now, or say in one line why memory cannot help.'])
+    expect(f.prompts.map(p => p.text.split('\n')[0])).toEqual(['Buracle routing check: the user asked for research and it was not loaded. Load it now and follow it, or say in one line why it does not apply.'])
   }))
 })
 
@@ -277,8 +279,8 @@ describe('H25 flow.track and the workflow commands', () => {
 
   test('an explicit ask in a prompt and a model skill load start the workflow too (source prompt / skill)', () => withSandbox(async ({ root }) => {
     const { f } = await runtime(root, { skills: ['ab-test', 'research'] })
-    await f.trigger('session.prompt', prompt('use the ab-test skill on the router'))
-    expect(readFlow('opencode', SID)?.stack[0]).toMatchObject({ workflow: 'ab-test', source: 'prompt', title: 'use the ab-test skill on the router' })
+    await f.trigger('session.prompt', prompt('$ab-test the router'))
+    expect(readFlow('opencode', SID)?.stack[0]).toMatchObject({ workflow: 'ab-test', source: 'prompt' })
     const other = 'ses_route02'
     await f.trigger('tool.execute.before', { tool: 'skill', sessionID: other, agent: 'build', messageID: 'msg_1', id: 'call_sk', input: { id: 'research' } })
     expect(readFlow('opencode', other)?.stack[0]).toMatchObject({ workflow: 'research', source: 'skill' })
@@ -299,16 +301,16 @@ describe('H25 flow.track and the workflow commands', () => {
 })
 
 describe('H26 prompt signals and H14 capture', () => {
-  test('a user prompt spools an explicit rule as a prompt-signal statement; a workflow command adds no usage signal', () => withSandbox(async ({ root }) => {
+  test('a user prompt spools no statement (no word list reads it); a workflow command adds no usage signal', () => withSandbox(async ({ root }) => {
     const { f, mem } = await runtime(root, { skills: ['plan-build'] })
     await f.trigger('session.prompt', prompt('from now on always run the tests before you commit'))
     const signals = () => mem.appended.flatMap(a => a.entries).filter(e => e.ev === 'prompt-signal').map(e => e.signal)
-    expect(signals().map(s => [s?.kind, s?.key])).toEqual([['statement', 'quality.tests=always']])
+    expect(signals()).toEqual([])
     const spec = f.commands.get('plan-build') as CommandDefinition
     await spec.execute({ sessionID: SID, prompt: { text: 'add rate limiting' }, delivery: 'steer' })
     const sent = f.prompts[0] as PromptInput
     await f.trigger('session.prompt', { sessionID: SID, messageID: 'msg_c', prompt: { text: sent.text, skills: sent.skills ?? [] }, delivery: 'steer', ...(sent.metadata !== undefined ? { metadata: sent.metadata } : {}) })
-    expect(signals().map(s => s?.key)).toEqual(['quality.tests=always'])
+    expect(signals()).toEqual([])
     expect(mem.appended.flatMap(a => a.entries).filter(e => e.ev === 'prompt')).toHaveLength(2)
   }))
 
@@ -432,7 +434,7 @@ describe('H24 usage ledger: reminders and the deny-once gates (reported as H03)'
     expect((await f.trigger('permission.evaluate', evaluation('edit', [go.filePath], 'call_pw2'))).effect).toBe('allow')
   }))
 
-  test('a reminder goes into the tool result: a history question whose turn starts without memory', () => withSandbox(async ({ root }) => {
+  test('a history question gets no reminder in the tool result: H24 reads no history phrases', () => withSandbox(async ({ root }) => {
     const { f } = await runtime(root)
     await f.trigger('session.prompt', prompt('what did we decide last time about the cache?'))
     await requestTexts(f, ['msg_p'])
@@ -441,7 +443,7 @@ describe('H24 usage ledger: reminders and the deny-once gates (reported as H03)'
     await f.trigger('tool.execute.after', after)
     const texts = after.status === 'completed' ? (after.result.content as unknown as Array<{ text: string }>).map(c => c.text) : []
     expect(texts[0]).toBe('content')
-    expect(texts.join('\n')).toContain('Buracle: this prompt asks about earlier work; before anything else')
+    expect(texts.join('\n')).not.toContain('asks about earlier work')
   }))
 })
 
@@ -541,26 +543,25 @@ describe('H23 route.audit: one re-prompt after the turn', () => {
     await rt.idle()
   }
 
-  test('a history question answered without memory gets one routing check; the next stop of the same prompt is free', () => withSandbox(async ({ root }) => {
+  test('an explicitly asked skill the model did not load gets one routing check; the next stop of the same prompt is free', () => withSandbox(async ({ root }) => {
     const { f, rt } = await runtime(root)
     await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: root } } })
-    await f.trigger('session.prompt', prompt('what did we decide last time about the cache?'))
+    await f.trigger('session.prompt', prompt('$research compare bun and deno'))
     await requestTexts(f, ['msg_p'])
     await cycle(rt)
     expect(f.prompts.length).toBe(1)
-    expect(f.prompts[0]?.text).toStartWith('Buracle routing check: this prompt asks about earlier work and memory was not searched.')
+    expect(f.prompts[0]?.text).toStartWith('Buracle routing check: the user asked for research and it was not loaded.')
     expect(f.prompts[0]?.metadata).toMatchObject({ 'buracle.continue': true, hook: 'H23' })
     await f.trigger('session.prompt', prompt(f.prompts[0]?.text ?? '', { metadata: f.prompts[0]?.metadata ?? {} }))
     await cycle(rt)
     expect(f.prompts.length).toBe(1)
   }))
 
-  test('memory searched in the turn: no routing check', () => withSandbox(async ({ root }) => {
+  test('a history question gets no routing check: H23 reads no history phrases', () => withSandbox(async ({ root }) => {
     const { f, rt } = await runtime(root)
     await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: root } } })
     await f.trigger('session.prompt', prompt('what did we decide last time about the cache?'))
     await requestTexts(f, ['msg_p'])
-    await f.trigger('tool.execute.before', { tool: 'buracle-memory_memory_search', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_m', input: { query: 'cache decision' } })
     await cycle(rt)
     expect(f.prompts).toEqual([])
   }))
@@ -569,7 +570,7 @@ describe('H23 route.audit: one re-prompt after the turn', () => {
     saveState('opencode', SID, planState())
     const { f, rt } = await runtime(root)
     await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: root } } })
-    await f.trigger('session.prompt', prompt('stop, what did we decide last time?'))
+    await f.trigger('session.prompt', prompt('stop'))
     expect(loadState('opencode', SID).interaction?.state).toBe('paused')
     await requestTexts(f, ['msg_p'])
     await cycle(rt)
@@ -580,10 +581,10 @@ describe('H23 route.audit: one re-prompt after the turn', () => {
     saveState('opencode', SID, { v: 1, plan: { path: 'docs/plans/x.md', slug: 'x', status: 'VERIFIED', type: 'Feature', phase: 'done', registeredAt: 1 }, guard: { blocksForPlan: 0, blocksInChain: 0 } })
     const { f, rt } = await runtime(root)
     await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: root } } })
-    await f.trigger('session.prompt', prompt('what did we decide last time about the cache?'))
+    await f.trigger('session.prompt', prompt('$research compare bun and deno'))
     await requestTexts(f, ['msg_p'])
     await cycle(rt)
-    expect(f.prompts.map(p => p.text.split('\n')[0])).toEqual(['Buracle routing check: this prompt asks about earlier work and memory was not searched. Run memory_search (buracle-memory) now, or say in one line why memory cannot help.'])
+    expect(f.prompts.map(p => p.text.split('\n')[0])).toEqual(['Buracle routing check: the user asked for research and it was not loaded. Load it now and follow it, or say in one line why it does not apply.'])
   }))
 })
 

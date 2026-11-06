@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { claimsSuccess, editOf, emptyReceipt, isCheckCommand, lineDelta, longTurnText, maskSecrets, noteChanges, noteCommand, noteEdit, parseReceipt, receiptLine, shellFailed, unverified } from '../../src/core/receipt'
+import { editOf, emptyReceipt, isCheckCommand, lineDelta, longTurnText, maskSecrets, noteChanges, noteCommand, noteEdit, parseReceipt, receiptLine, shellFailed, unverified } from '../../src/core/receipt'
 
 describe('isCheckCommand', () => {
   test.each(['bun test', 'bun test tests/a.test.ts', 'bunx tsc --noEmit -p .', 'npm test', 'pnpm run lint', 'pytest -q', 'python -m pytest', 'go test ./...', 'cargo check', 'claude plugin test harness/claude', 'buracle build --check', 'make test', 'ruff check .'])('%s verifies', c => {
@@ -41,23 +41,9 @@ describe('receipt', () => {
     expect(receiptLine(s)?.line).toBe('Buracle · 2 files (+3 −1) · 2 commands (1 failed) · ✗ last check failed')
   })
 
-  test('a success claim without evidence is flagged', () => {
+  test('an unverified change gets the same warning whatever the answer says: the receipt reads no claims', () => {
     const s = noteEdit(emptyReceipt(), { path: 'src/a.py', added: 1, removed: 1 }).state
-    expect(receiptLine(s, 'Fixed, tests pass now.')?.line).toBe('Buracle · 1 file (+1 −1) · ⚠ success claimed without evidence: no test or check ran after the change')
-    expect(claimsSuccess('Düzeltildi, testler geçiyor.')).toBe(true)
-    expect(claimsSuccess('I will run the tests next.')).toBe(false)
-  })
-
-  test('Turkish success claims are recognized, with or without Turkish letters', () => {
-    for (const a of ['Artık çalışıyor.', 'Çalışıyor.', 'ÇALIŞIYOR', 'Değişiklik doğrulandı.', 'Görev tamamlandı.', 'Tamamlandı, testler yeşil.', 'Testler geçti.', 'Testlerin tamamı geçti.', 'Tüm testler geçiyor.', 'Hata düzeltildi.', 'artik calisiyor']) {
-      expect({ a, claim: claimsSuccess(a) }).toEqual({ a, claim: true })
-    }
-    for (const a of ['Testler geç kalıyor.', 'Şu an çalışıyorum.', 'Tamamlandığında haber veririm.', 'Doğrulandıktan sonra birleştir.', 'Testleri çalıştırmadım.', 'Çalışıyor mu?']) {
-      expect({ a, claim: claimsSuccess(a) }).toEqual({ a, claim: false })
-    }
-    const s = noteEdit(emptyReceipt(), { path: 'src/a.ts', added: 3, removed: 1 }).state
-    expect(receiptLine(s, 'Artık çalışıyor.')?.line).toContain('success claimed without evidence: no test or check ran after the change')
-    expect(receiptLine(s, 'Artık çalışıyor.')).toEqual(receiptLine(s, 'It works now.'))
+    expect(receiptLine(s)).toEqual({ line: 'Buracle · 1 file (+1 −1) · ⚠ unverified change', warn: true })
   })
 
   test('the third same failure in a row raises a loop alarm; an edit resets the streak', () => {

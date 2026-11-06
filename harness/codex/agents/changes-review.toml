@@ -103,7 +103,7 @@ Rules:
 - `verdict` is `needs_changes` exactly when at least one finding is `must_fix` or `should_fix`; otherwise it is `pass`.
 - Sort findings by severity, then by file and line. Merge duplicates. Report at most 15; if there are more, keep the most severe and say so in `summary`.
 - Leave out optional fields that don't apply; never set them to `null` or `""`.
-- Write in English. When the user's own words matter, quote them verbatim, in whatever language they wrote.
+- Write `summary`, `title`, `evidence`, `suggested_fix` and the `truths` in the language of the plan file's prose, or of `user_request` when there is no plan. Keep the JSON keys, the enum values and the first word of `summary` (the plan path, or the English word goal) as they are. When the user's own words matter, quote them verbatim, in whatever language they wrote.
 - Do not ask questions. If something is ambiguous, state your assumption inside the finding.
 - If your output is rejected as invalid, reply again with only the corrected JSON object.
 

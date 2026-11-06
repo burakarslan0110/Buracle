@@ -72,7 +72,7 @@ export interface DistillResult {
 export const CANDIDATE_TYPES = ['decision', 'gotcha', 'procedure', 'knowledge', 'preference'] as const
 export type CandidateType = typeof CANDIDATE_TYPES[number]
 
-const LIMITS = { summary: 1200, title: 200, description: 300, body: 4000, source: 300, sources: 3 } as const
+const LIMITS = { summary: 1200, title: 200, description: 300, body: 4000, source: 300, sources: 3, stated: 300 } as const
 
 function buildPrompt(material: string, maxOutputTokens: number): string {
   return [
@@ -81,6 +81,7 @@ function buildPrompt(material: string, maxOutputTokens: number): string {
     '{"summary": "<= 120 words: what was done, decisions made, open threads>", "candidates": [{"type": "decision|gotcha|procedure|knowledge|preference", "scope": "project|person", "title": "<one-line claim>", "description": "<one line>", "body": "<markdown, <= 120 words>", "confidence": 0.0, "sources": ["<repository path from the material>"]}]}',
     `At most ${DISTILL_BUDGET.maxCandidates} candidates, only facts worth remembering beyond this session: decisions with their reasons, non-obvious root causes, reusable procedures, and preferences the user stated or confirmed about how to work. No secrets, no file lists, nothing git already records.`,
     'Scope (preferences only): project when the preference holds only in this codebase (its design, stack, files, release flow); person when it is about how the user works in every project (language, tone, autonomy, tools, review habits). When unsure, person.',
+    'Stated (preferences only): when the user stated the preference as a lasting rule ("always", "never", "from now on", in any language), add "stated": the user\'s own words, copied verbatim from one prompt in the material. Leave it out for anything the user did not say that way.',
     'Confidence is a number from 0 to 1: about 0.9 when the user said it or a check verified it, 0.6 to 0.8 for a strong inference, under 0.5 for a guess.',
     'Sources: at most 3 repository paths named in the material that the claim is about (files the session changed or read); leave the list empty when unsure.',
     '<material>',
@@ -97,6 +98,8 @@ export interface Candidate {
   body: string
   confidence: number
   sources: string[]
+  /** A preference only: the user's own words, verbatim, when they stated it as a lasting rule. */
+  stated?: string
 }
 
 export interface Reply { summary: string, candidates: Candidate[] }
@@ -145,7 +148,12 @@ export function checkReply(text: string, maxCandidates: number = DISTILL_BUDGET.
     if (!Array.isArray(sources) || sources.length > LIMITS.sources || sources.some(s => typeof s !== 'string' || s.length > LIMITS.source)) {
       return { ok: false, why: `${at}: sources must be a list of at most ${LIMITS.sources} short strings` }
     }
-    candidates.push({ type: type as CandidateType, scope, title, description, body, confidence: Math.round(confidence * 1000) / 1000, sources: sources as string[] })
+    const stated = c['stated']
+    if (stated !== undefined && typeof stated !== 'string') return { ok: false, why: `${at}: stated must be a string` }
+    const candidate: Candidate = { type: type as CandidateType, scope, title, description, body, confidence: Math.round(confidence * 1000) / 1000, sources: sources as string[] }
+    // An over-long quote is dropped, not the reply: the candidate stays, as an inferred preference.
+    if (typeof stated === 'string' && stated.trim() !== '' && stated.length <= LIMITS.stated && type === 'preference') candidate.stated = stated.trim()
+    candidates.push(candidate)
   }
   return { ok: true, reply: { summary, candidates } }
 }
@@ -259,7 +267,7 @@ export async function distillSession(h: Harness, sid: string, opts: DistillOptio
   const ctx: MemoryCtx = { cwd: rec?.cwd ?? paths.home(), harness: 'buracle', generatedBy: 'process:buracle-capture', agent: true, session: sid, project: slug ?? null, now: () => now }
   const existing = [...await listAll(ref), ...await listAll(personRef())].filter(i => isLive(i, now) && !KIND_INFO[i.kind].generated && i.kind !== 'capture')
   for (const c of reply.candidates) {
-    try { res.decisions.push(await applyCandidate(ctx, c, { sessionId, ref, existing, nowMs: now, promoteAt: config.promoteAt, files: d.files }, res)) } catch (e) {
+    try { res.decisions.push(await applyCandidate(ctx, c, { sessionId, ref, existing, nowMs: now, promoteAt: config.promoteAt, files: d.files, prompts: d.userPrompts.map(p => p.text) }, res)) } catch (e) {
       log('warn', 'memory: a distilled candidate was not written', { title: c.title, error: e })
     }
   }
@@ -285,7 +293,19 @@ export function pickCandidateSources(named: readonly string[], sessionFiles: rea
   return out.slice(0, SOURCES_MAX_FILES)
 }
 
-async function applyCandidate(ctx: MemoryCtx, c: Candidate, o: { sessionId: string, ref: BrainRef, existing: readonly MemItem[], nowMs: number, promoteAt: number, files: readonly string[] }, res: DistillResult): Promise<DistillDecision> {
+function sameWords(s: string): string {
+  return memOneLine(s).toLowerCase().replace(/[\s"'`“”‘’«»]+/g, ' ').trim()
+}
+
+/** The user stated this preference: the model quoted at least 20 characters and 3 words that appear in one of the user's prompts. */
+export function statedByUser(stated: string | undefined, prompts: readonly string[]): boolean {
+  if (stated === undefined) return false
+  const quote = sameWords(stated).replace(/[.!?…]+$/, '')
+  if (quote.length < 20 || quote.split(' ').length < 3) return false
+  return prompts.some(p => sameWords(p).includes(quote))
+}
+
+async function applyCandidate(ctx: MemoryCtx, c: Candidate, o: { sessionId: string, ref: BrainRef, existing: readonly MemItem[], nowMs: number, promoteAt: number, files: readonly string[], prompts: readonly string[] }, res: DistillResult): Promise<DistillDecision> {
   const title = redact(memOneLine(c.title)).text.slice(0, 200)
   const description = redact(memOneLine(c.description)).text.slice(0, 300)
   const body = redact(c.body).text
@@ -293,6 +313,17 @@ async function applyCandidate(ctx: MemoryCtx, c: Candidate, o: { sessionId: stri
   const choice = distillDecision({ type: c.type, title }, o.existing.map(i => ({ id: i.id, type: i.kind, title: i.title })))
   const target = choice.target !== undefined ? o.existing.find(i => i.id === choice.target) : undefined
   if (choice.op === 'noop' && target) return { ...decision, op: 'noop', target: target.id }
+  // A preference in the user's own words, which the session's prompts show: an explicit person or project
+  // preference, as the user's word (PRD follow-up 2026-11-06). It is written beside a similar older one.
+  if (c.type === 'preference' && statedByUser(c.stated, o.prompts)) {
+    const quote = redact(memClip(memOneLine(c.stated ?? ''), 300)).text
+    const w = await write(ctx, {
+      kind: 'preference', layer: c.scope, title, force: true, importance: 4, tags: ['explicit'], sources: [`session:${o.sessionId}`],
+      body: `The user said: "${quote}"${body.trim() !== '' ? `\n\n${body.trim()}` : ''}`, ...(description !== '' ? { summary: description } : {}),
+    }, { internal: true, author: 'buracle', origin: 'explicit', confidence: 1, review: 'ok' })
+    if (w.action !== 'duplicate_suspected') res.candidates.push(w.id)
+    return { ...decision, op: 'add', promoted: true, id: w.id, confidence: 1 }
+  }
   let against: MemoryConflict[] | undefined
   if (choice.op === 'update' && target) {
     if (memProtected(target)) {

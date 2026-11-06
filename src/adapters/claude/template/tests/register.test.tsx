@@ -328,7 +328,7 @@ describe('turn receipt and loop alarms', () => {
     await $.session.start(SESSION)
     await $.tool.call({ tool: 'Edit', file_path: `${CWD}/src/a.ts`, old_string: 'a', new_string: 'b' } as never)
     await $.turn.complete({ answer: 'Fixed it.', durationMs: 1000, turnId: 't1', reason: 'answer' } as never)
-    expect(world.toasts).toEqual(['Buracle · 1 file (+1 −1) · ⚠ success claimed without evidence: no test or check ran after the change'])
+    expect(world.toasts).toEqual(['Buracle · 1 file (+1 −1) · ⚠ unverified change'])
   })
 
   test('a passing check after the edit leaves no toast', async ($, on) => {

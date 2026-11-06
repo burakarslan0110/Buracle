@@ -65,6 +65,13 @@ describe('compactInstructions', () => {
     expect(compactInstructionsWith(undefined, emptyState(), {})).toBe(compactInstructions(undefined, emptyState()))
   })
 
+  test('the summary names the working language, and both the instructions and the prompt say to continue in it', () => {
+    const line = '- Name the language you use with the user in one line ("Working language: German") and keep using it after compaction: for replies, documents and reports alike.'
+    expect(compactInstructions(undefined, emptyState())).toContain(line)
+    expect(compactInstructions('Base.', withPlan())).toContain(line)
+    expect(compactPrompt()).toContain(line)
+  })
+
   test('the compaction prompt names the document folders a plan file can live in', () => {
     expect(compactPrompt()).toContain('under docs/plan-build/ or docs/goal-build/')
     expect(compactPrompt()).not.toContain('docs/plans/')

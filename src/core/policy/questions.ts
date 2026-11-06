@@ -1,6 +1,5 @@
 import type { ToolCall } from '../events'
 import type { SessionState } from '../plan/state'
-import { fold, word } from './text'
 
 interface Question { text: string; options: string[]; details: string[] }
 
@@ -48,65 +47,12 @@ function questionsOf(input: Record<string, unknown>): Question[] {
   return out
 }
 
-const ROUTINE_TEXT = new RegExp(word([
-  'devam (?:ede(?:yim|lim|bilir miyim|bilir miyiz|cek miyim|cek miyiz)|etme(?:mi|li mi(?:yim|yiz))|edilsin|etsem|mi)',
-  'beklemeye devam', 'bekle(?:yeyim|yelim|meli mi(?:yim|yiz)|memi|sem)', 'surdur(?:eyim|elim)', 'ilerle(?:yeyim|yelim)',
-  'gec(?:eyim|elim) mi', '(?:tekrar|sonra|biraz sonra|daha sonra) kontrol (?:edeyim|edelim)', 'hala bekle(?:yeyim|yelim)',
-  '(?:should|shall|can|may) (?:i|we) (?:still )?(?:continue|proceed|keep going|keep waiting|wait|go ahead|carry on|move on|resume|check back|check again|keep monitoring|keep polling)',
-  '(?:do|would) you (?:want|like) me to (?:continue|proceed|keep going|keep waiting|wait|go ahead|carry on|move on)',
-  'want me to (?:continue|proceed|keep going|keep waiting)', '(?:ok|okay|alright|fine) (?:if i|to) (?:continue|proceed|keep (?:going|waiting))',
-  'ready (?:for me )?to (?:continue|proceed)', '(?:let me know|tell me) (?:if|when|whether) (?:i should|to) (?:continue|proceed|keep)',
-  'is it (?:ok|okay|fine|alright) (?:if i|to) (?:continue|proceed|keep)',
-].join('|')))
-const BARE_ROUTINE = /^(?:continue|proceed|keep (?:going|waiting)|wait longer|devam(?: edeyim)?|devam mi|beklemeye devam(?: edeyim)?|bekleyeyim mi)\s*\?*$/
-
-const ROUTINE_OPTION = /^(?:yes|no|ok|okay|sure|continue|proceed|keep (?:going|waiting)|wait(?: longer| more)?|stop|abort|cancel|pause|check (?:later|again|back)|retry later|later|not now|yes,? (?:continue|proceed|keep (?:going|waiting))|no,? (?:stop|wait)|continue waiting|stop waiting|evet|hayir|tamam|olur|devam(?: et)?|evet,? devam(?: et)?|beklemeye devam(?: et)?|bekle|dur|durdur|iptal|vazgec|sonra|daha sonra|sonra kontrol et|tekrar kontrol et|simdilik dur)$/
-
-const MATERIAL = new RegExp(word([
-  'sil|silin|sileyim|silelim|silinsin|silmek|silme|silinecek|silmemi', 'delet[a-z]*', 'remov[a-z]*', 'kaldir[a-z]*', 'drop[a-z]*',
-  'destroy[a-z]*', 'wip(?:e|es|ed|ing)', 'purg[a-z]*', 'eras[a-z]*', 'deploy[a-z]*', 'publish[a-z]*', 'releas[a-z]*', 'yayin[a-z]*', 'merg[a-z]*',
-  'birlestir[a-z]*', 'push[a-z]*', 'commit[a-z]*', 'credential[a-z]*', 'sifre[a-z]*', 'parola[a-z]*', 'password[a-z]*', 'secret[a-z]*',
-  'gizli', 'token[a-z]*', 'api key', 'anahtar[a-z]*', 'permission[a-z]*', 'izin[a-z]*', 'approv[a-z]*', 'onay[a-z]*', 'cost[a-z]*',
-  'maliyet[a-z]*', 'ucret[a-z]*', 'fiyat[a-z]*', 'pric[a-z]*', 'pay', 'payment[a-z]*', 'odeme[a-z]*', 'quota', 'kota[a-z]*',
-  'budget', 'butce[a-z]*', 'billing', 'fatura[a-z]*', 'credit[a-z]*', 'kredi[a-z]*', 'deadline', 'son tarih', 'prod', 'production',
-  'canli', 'database', 'veritaban[a-z]*', 'migrat[a-z]*', 'fail[a-z]*', 'error[a-z]*', 'hata[a-z]*', 'basarisiz[a-z]*', 'broken',
-  'bozul[a-z]*', 'manual[a-z]*', 'manuel', 'elle', 'by hand', 'your (?:input|decision|choice|call)', 'senin (?:karar[a-z]*|tercih[a-z]*|fikr[a-z]*)',
-].join('|')))
-const MONEY = /[$€₺£]\s?\d|\d\s?(?:usd|tl|eur|try|dolar)(?![a-z])/
-
-const ROUTINE_ALTERNATIVE = /\b(?:or|ya da|veya|yoksa) (?:should i |shall i )?(?:stop|wait|not|abort|cancel|pause|keep waiting|check (?:back )?later|dur(?:ayim|alim)?|bekle(?:yeyim|yelim)?|hayir)\b/g
-const ALTERNATIVE = /\b(?:or|ya da|veya|yoksa)\b/
-
-function cleanLabel(s: string): string {
-  return fold(s).replace(/\((?:recommended|onerilen|tavsiye edilen)\)/g, '').replace(/[.!?:;"'()[\]]+/g, ' ').replace(/\s+/g, ' ').trim()
-}
-
-function isRoutine(q: Question): boolean {
-  const text = fold(q.text)
-  if (text === '') return false
-  const all = [text, ...q.options.map(fold), ...q.details.map(fold)].join(' \n ')
-  MATERIAL.lastIndex = 0
-  if (MATERIAL.test(all) || MONEY.test(all)) return false
-  ROUTINE_TEXT.lastIndex = 0
-  if (!ROUTINE_TEXT.test(text) && !BARE_ROUTINE.test(text)) return false
-  if (ALTERNATIVE.test(text.replace(ROUTINE_ALTERNATIVE, ' '))) return false
-  return q.options.every(o => ROUTINE_OPTION.test(cleanLabel(o)))
-}
-
-const REASON = 'A routine "should I continue / keep waiting?" question is not allowed while an approved plan runs: keep working and poll long jobs yourself, or for a real decision run `buracle plan pause --kind decision --reason "<question>"` first and then ask.'
-const HELD = 'The plan is held for the user, so no keep-waiting question is needed: say where things stand and end the turn; the user resumes the plan.'
-
 export const QUESTION_PAUSE_NOTE = 'Buracle H09: the plan is running, not paused. If the answer to this question may come in a later turn, run `buracle plan pause --kind decision --reason "<question>"` first; after the answer, run `buracle plan resume`.'
 export const ASYNC_QUESTION_PAUSED = 'Buracle H09: this question returns before the user answers, so Buracle recorded a decision pause for it. The answer arrives as the user\'s next message: act on it and run `buracle plan resume`.'
 
 function clip(s: string, max: number): string {
   const t = s.replace(/\s+/g, ' ').trim()
   return t.length <= max ? t : `${t.slice(0, max - 3).trimEnd()}...`
-}
-
-function mixedReason(routine: readonly Question[]): string {
-  const named = routine.slice(0, 2).map(q => `"${clip(q.text, 80)}"`).join(' and ')
-  return `A routine "should I continue / keep waiting?" question is not allowed while an approved plan runs: drop ${named} and ask the remaining question${routine.length === 1 ? '' : 's'} again.`
 }
 
 type Plan = NonNullable<SessionState['plan']>
@@ -117,21 +63,16 @@ function guarded(plan: Plan | undefined): plan is Plan {
   return plan.phase === 'implement' || plan.phase === 'verify'
 }
 
+// H09 reads no question wording (PRD follow-up 2026-11-06): whether a question is routine is the
+// agent's call, under its rules. While an approved plan runs unpaused, a question carries the reminder
+// to pause first, so an answer that comes in a later turn finds the run paused.
 export function checkQuestion(state: SessionState, call: ToolCall, now: number): { deny?: string, context?: string } {
   void now
   if (!call || call.kind !== 'ask_user') return {}
   if (!guarded(state?.plan)) return {}
   const input = call.input !== null && typeof call.input === 'object' ? call.input : {}
-  const qs = questionsOf(input)
-  if (qs.length === 0) return {}
-  const routine = qs.filter(isRoutine)
-  const i = state.interaction
-  if (i?.state === 'paused') {
-    if (i.kind === 'decision' || routine.length === 0) return {}
-    return { deny: routine.length === qs.length ? HELD : mixedReason(routine) }
-  }
-  if (routine.length === qs.length) return { deny: REASON }
-  if (routine.length > 0) return { deny: mixedReason(routine) }
+  if (questionsOf(input).length === 0) return {}
+  if (state.interaction?.state === 'paused') return {}
   return { context: QUESTION_PAUSE_NOTE }
 }
 

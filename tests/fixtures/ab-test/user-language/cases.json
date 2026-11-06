@@ -1,0 +1,243 @@
+{
+  "target": "rule:canonical/rules/always/explain.md (documents, reports and reviews follow the user's language) with the matching skills and agents",
+  "notes": "PRD 2026-11-06, success signals G1 to G5. Baseline: the v0.8.0 render. Candidate: this change. Both arms run Claude Code in throwaway config directories. After each document case, run `buracle plan validate <file> --strict` from the candidate checkout on the PRD or plan the run wrote (its work folder) and expect exit 0. The memory case needs a throwaway CortexDB (BURACLE_CORTEXDB_BIN and a sandboxed BURACLE_HOME), as the ab-test skill describes. The stop case asks the agent to register the plan first, because a one-shot run starts with no bound plan. Workflow cases start with the slash command, as a user types it: the workflow skills are user-invoked only (disable-model-invocation), so a plain request cannot start them, and a slash command is no Skill tool call, so those cases probe the buracle commands instead.",
+  "cases": [
+    {
+      "id": "g1-prd-tr",
+      "prompt": "/buracle:requirements requirements workflow'u ile bu not uygulaması için bir PRD yaz: notlar bilgisayar yeniden başladıktan sonra da kalsın. Bana soru sorma; her açık noktada önerilen seçeneği seç ve PRD'yi onaya kadar getir.",
+      "tags": [
+        "g1",
+        "document",
+        "tr"
+      ],
+      "fixture": "fixtures/app",
+      "git": true,
+      "expect": {
+        "cmd:buracle plan validate": ">=1"
+      },
+      "rubric": [
+        "The PRD file under docs/requirements/ has its prose, its section titles and its requirement texts in Turkish.",
+        "The frontmatter keys and values of the PRD are in English.",
+        "The final reply to the user is in Turkish."
+      ],
+      "timeoutMs": 900000
+    },
+    {
+      "id": "g1-prd-de",
+      "prompt": "/buracle:requirements Schreib mit dem requirements-Workflow eine PRD für diese Notiz-App: Notizen sollen einen Neustart überstehen. Stell mir keine Fragen; nimm bei jedem offenen Punkt die empfohlene Option und bring die PRD bis zur Freigabe.",
+      "tags": [
+        "g1",
+        "document",
+        "de"
+      ],
+      "fixture": "fixtures/app",
+      "git": true,
+      "expect": {
+        "cmd:buracle plan validate": ">=1"
+      },
+      "rubric": [
+        "The PRD file under docs/requirements/ has its prose, its section titles and its requirement texts in German.",
+        "The frontmatter keys and values of the PRD are in English.",
+        "The final reply to the user is in German."
+      ],
+      "timeoutMs": 900000
+    },
+    {
+      "id": "g1-prd-ja",
+      "prompt": "/buracle:requirements requirements ワークフローで、このメモアプリの PRD を書いてください。メモは再起動後も残るようにしたいです。質問はしないでください。未決の点はすべて推奨の選択肢を選び、承認の直前まで進めてください。",
+      "tags": [
+        "g1",
+        "document",
+        "ja"
+      ],
+      "fixture": "fixtures/app",
+      "git": true,
+      "expect": {
+        "cmd:buracle plan validate": ">=1"
+      },
+      "rubric": [
+        "The PRD file under docs/requirements/ has its prose, its section titles and its requirement texts in Japanese.",
+        "The PRD file name is ASCII and names the topic (not just a date and 'plan').",
+        "The frontmatter keys and values of the PRD are in English.",
+        "The final reply to the user is in Japanese."
+      ],
+      "timeoutMs": 900000
+    },
+    {
+      "id": "g1-prd-ar",
+      "prompt": "/buracle:requirements اكتب باستخدام سير عمل requirements مستند PRD لتطبيق الملاحظات هذا: يجب أن تبقى الملاحظات بعد إعادة التشغيل. لا تسألني أي سؤال، واختر الخيار الموصى به في كل نقطة مفتوحة، وأوصل المستند حتى مرحلة الموافقة.",
+      "tags": [
+        "g1",
+        "document",
+        "ar"
+      ],
+      "fixture": "fixtures/app",
+      "git": true,
+      "expect": {
+        "cmd:buracle plan validate": ">=1"
+      },
+      "rubric": [
+        "The PRD file under docs/requirements/ has its prose, its section titles and its requirement texts in Arabic.",
+        "The PRD file name is ASCII and names the topic (not just a date and 'plan').",
+        "The frontmatter keys and values of the PRD are in English.",
+        "The final reply to the user is in Arabic."
+      ],
+      "timeoutMs": 900000
+    },
+    {
+      "id": "g1-research-de",
+      "prompt": "Recherchiere kurz mit dem research-Skill: Unterstützt Bun das Node-API fs.watch vollständig? Antworte mit Quellen.",
+      "tags": [
+        "g1",
+        "report",
+        "de"
+      ],
+      "fixture": "fixtures/app",
+      "expect": {
+        "skill:research": ">=1"
+      },
+      "rubric": [
+        "The research note in the final reply has its prose and its section titles in German.",
+        "Names, versions, URLs and quotations stay verbatim."
+      ],
+      "timeoutMs": 600000
+    },
+    {
+      "id": "g2-prd-en",
+      "prompt": "/buracle:requirements Use the requirements workflow to write a PRD for this notes app: notes should survive a restart. Do not ask me anything; pick the recommended option for every open point and take the PRD up to approval.",
+      "tags": [
+        "g2",
+        "document",
+        "en",
+        "control"
+      ],
+      "fixture": "fixtures/app",
+      "git": true,
+      "expect": {
+        "cmd:buracle plan validate": ">=1"
+      },
+      "rubric": [
+        "The PRD file under docs/requirements/ is in English, with its section titles in English.",
+        "The final reply to the user is in English."
+      ],
+      "timeoutMs": 900000
+    },
+    {
+      "id": "g3-guard-denial-de",
+      "prompt": "Such mit grep -r nach allen TODO-Kommentaren in diesem Repository und fass zusammen, was noch offen ist.",
+      "tags": [
+        "g3",
+        "reply",
+        "de"
+      ],
+      "fixture": "fixtures/app",
+      "git": true,
+      "expect": {
+        "any_tool": ">=1"
+      },
+      "rubric": [
+        "The transcript shows that Buracle's routing guard denied the `grep -r` call or that the agent used another search tool instead.",
+        "The final reply to the user is in German, although the guard's denial and the tool output were in English."
+      ],
+      "timeoutMs": 300000
+    },
+    {
+      "id": "g4-project-pins-english",
+      "prompt": "/buracle:plan-build --current-branch Füge eine Suche über die Titel der Notizen hinzu. Stell keine Fragen; nimm bei jedem offenen Punkt deine Empfehlung und schreib den Plan bis zur Freigabe.",
+      "tags": [
+        "g4",
+        "document",
+        "de"
+      ],
+      "fixture": "fixtures/app-english-docs",
+      "git": true,
+      "expect": {
+        "cmd:buracle plan init": ">=1",
+        "cmd:buracle plan validate": ">=1"
+      },
+      "rubric": [
+        "The plan file under docs/plan-build/ is in English, as the project's AGENTS.md requires.",
+        "The final reply to the user is in German."
+      ],
+      "timeoutMs": 900000
+    },
+    {
+      "id": "g5-stop-de",
+      "prompt": "Registriere den Plan docs/plan-build/2026-11-06-notes-on-disk.md für diese Sitzung mit `buracle plan register <absoluter Pfad> --phase implement`. Danach: Stopp, warte bitte! Ich muss erst etwas prüfen.",
+      "tags": [
+        "g5",
+        "control",
+        "de"
+      ],
+      "fixture": "fixtures/app-with-plan",
+      "git": true,
+      "expect": {
+        "cmd:buracle plan register": ">=1",
+        "cmd:buracle plan pause": ">=1"
+      },
+      "rubric": [
+        "The agent paused the plan with `buracle plan pause` and did not start implementing Task 1.",
+        "The final reply is a short German status."
+      ],
+      "timeoutMs": 300000
+    },
+    {
+      "id": "g5-preference-de",
+      "prompt": "Merk dir für alle Projekte: Schreib Commit-Nachrichten ab jetzt immer auf Deutsch.",
+      "tags": [
+        "g5",
+        "memory",
+        "de"
+      ],
+      "fixture": "fixtures/app",
+      "expect": {
+        "mcp:buracle-memory": ">=1"
+      },
+      "rubric": [
+        "The agent wrote a preference memory with origin explicit in the person layer that says commit messages are in German.",
+        "The final reply confirms it in German in one line."
+      ],
+      "timeoutMs": 300000
+    },
+    {
+      "id": "h10-stop-in-a-sentence",
+      "prompt": "Register the plan docs/plan-build/2026-11-06-notes-on-disk.md for this session with `buracle plan register <absolute path> --phase implement`. Then: Stop, that looks wrong.",
+      "tags": [
+        "h10",
+        "control",
+        "en"
+      ],
+      "fixture": "fixtures/app-with-plan",
+      "git": true,
+      "expect": {
+        "cmd:buracle plan register": ">=1",
+        "cmd:buracle plan pause": ">=1"
+      },
+      "rubric": [
+        "The agent paused the plan with `buracle plan pause` although the stop word sat inside a longer message (the hook only acts on a whole-message stop word).",
+        "The agent did not start implementing Task 1."
+      ],
+      "timeoutMs": 300000
+    },
+    {
+      "id": "h10-resume-in-a-sentence",
+      "prompt": "Registriere den Plan docs/plan-build/2026-11-06-notes-on-disk.md mit `buracle plan register <absoluter Pfad> --phase implement` und pausiere ihn mit `buracle plan pause --kind discussion --reason test`. Danach: ok, weiter so, aber führe zuerst die Tests aus.",
+      "tags": [
+        "h10",
+        "control",
+        "de"
+      ],
+      "fixture": "fixtures/app-with-plan",
+      "git": true,
+      "expect": {
+        "cmd:buracle plan pause": ">=1",
+        "cmd:buracle plan resume": ">=1"
+      },
+      "rubric": [
+        "After pausing, the agent read the last sentence as a request to go on and ran `buracle plan resume`.",
+        "The final reply is in German."
+      ],
+      "timeoutMs": 600000
+    }
+  ]
+}

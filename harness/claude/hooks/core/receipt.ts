@@ -1,5 +1,4 @@
 import { redact } from './memory/index'
-import { fold } from './policy/text'
 
 export interface ReceiptEdit { path: string; added: number; removed: number }
 export interface ReceiptCommand { command: string; failed: boolean; check: boolean }
@@ -156,19 +155,15 @@ export function unverified(s: ReceiptState): boolean {
   return code && s.lastCheckSeq <= s.lastEditSeq
 }
 
-const CLAIM = /\b(?:tests?\s+(?:pass|passed|are\s+green|green)|all\s+(?:tests\s+)?pass(?:es|ed)?|fixed|works\s+now|it\s+works|verified|done\s+and\s+verified)\b|\b(?:testler(?:in\s+tamami)?\s+(?:gecti|geciyor|yesil)|duzeltildi|calisiyor|dogrulandi|tamamlandi)\b(?!\s+m[iu]\b)/
-
-export function claimsSuccess(answer: string): boolean {
-  return CLAIM.test(fold(answer))
-}
-
 export interface ReceiptSummary { line: string; warn: boolean }
 
 function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`
 }
 
-export function receiptLine(s: ReceiptState, answer = ''): ReceiptSummary | undefined {
+// The receipt states what happened in the turn. It never reads the answer's wording: a change with no
+// check after it is an unverified change, whatever the answer claims.
+export function receiptLine(s: ReceiptState): ReceiptSummary | undefined {
   const files = Object.entries(s.edits)
   const cmds = s.commands
   if (files.length === 0 && cmds.length === 0) return undefined
@@ -186,7 +181,7 @@ export function receiptLine(s: ReceiptState, answer = ''): ReceiptSummary | unde
   let warn = false
   if (unverified(s)) {
     warn = true
-    parts.push(claimsSuccess(answer) ? '⚠ success claimed without evidence: no test or check ran after the change' : '⚠ unverified change')
+    parts.push('⚠ unverified change')
   } else if (checks.length > 0) {
     const lastCheck = checks[checks.length - 1] as ReceiptCommand
     parts.push(lastCheck.failed ? '✗ last check failed' : '✓ checked')

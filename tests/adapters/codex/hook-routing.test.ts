@@ -76,7 +76,7 @@ describe('routing (H21-H26)', () => {
   }))
 
   test('H22: an explicit ask tells the model to read the skill\'s SKILL.md (context cannot load a skill on Codex); the prompt is in the ledger', () => withSandbox(async () => {
-    const text = contextOf(await handleCodexHook('UserPromptSubmit', prompt('use the research skill to compare bun and deno'), ctx(), deps(quiet)))
+    const text = contextOf(await handleCodexHook('UserPromptSubmit', prompt('/buracle:research compare bun and deno'), ctx(), deps(quiet)))
     expect(text).toContain('The user asked for the research skill')
     expect(text).toContain('read ~/.agents/skills/research/SKILL.md')
     const l = loadLedger('codex', SID)
@@ -96,12 +96,12 @@ describe('routing (H21-H26)', () => {
     expect(d2.rec.spool.filter(e => e.ev === 'prompt-signal')).toEqual([])
   }))
 
-  test('routing.skills off drops the skill lines (the memory line stays); routing.strictness off drops the MCP lines', () => withSandbox(async () => {
+  test('routing.skills off drops the skill lines; a history question raises no memory line', () => withSandbox(async () => {
     const c = defaultConfig()
     c.routing.skills = 'off'
-    const text = contextOf(await handleCodexHook('UserPromptSubmit', prompt('use the research skill: what did we decide last time?'), ctx(c), deps(quiet)))
+    const text = contextOf(await handleCodexHook('UserPromptSubmit', prompt('/buracle:research what did we decide last time?'), ctx(c), deps(quiet)))
     expect(text).not.toContain('research')
-    expect(text).toContain('Earlier work')
+    expect(text).not.toContain('Earlier work')
   }))
 
   test('H21: a codegraph index that became ready since the session start is announced once', () => withSandbox(async ({ root }) => {
@@ -253,13 +253,13 @@ describe('routing (H21-H26)', () => {
 
   test('H24/H23: a Bash read of a SKILL.md loads the skill; an explicitly requested skill that was not loaded holds the stop once', () => withSandbox(async () => {
     const d = deps(quiet)
-    await handleCodexHook('UserPromptSubmit', prompt('use the research skill to compare bun and deno'), ctx(), d)
+    await handleCodexHook('UserPromptSubmit', prompt('/buracle:research compare bun and deno'), ctx(), d)
     const blocked = JSON.parse((await handleCodexHook('Stop', payload('Stop'), ctx(), d)).stdout)
     expect(keys(blocked)).toEqual(['decision', 'reason'])
     expect(blocked.reason).toStartWith('Buracle routing check: the user asked for research')
     expect(core.isGuardContinuation(blocked.reason)).toBe(true)
     expect((await handleCodexHook('Stop', payload('Stop', { stop_hook_active: true }), ctx(), d)).stdout).toBe('')
-    await handleCodexHook('UserPromptSubmit', prompt('use the research skill to compare zod and yup'), ctx(), d)
+    await handleCodexHook('UserPromptSubmit', prompt('/buracle:research compare zod and yup'), ctx(), d)
     expect((await handleCodexHook('PreToolUse', payload('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'cat ~/.agents/skills/research/SKILL.md' } }), ctx(), d)).stdout).toBe('')
     expect(loadLedger('codex', SID).skills['research']?.n).toBe(1)
     expect(d.rec.spool.filter(e => e.ev === 'prompt-signal')).toEqual([])
@@ -279,12 +279,12 @@ describe('routing (H21-H26)', () => {
 
   test('H23 runs only where the plan does not hold the session (core routeAuditAllowed): never after the user paused it, while it waits for the user, or after a runaway release', () => withSandbox(async ({ root }) => {
     saveState('codex', SID, planState())
-    await handleCodexHook('UserPromptSubmit', prompt('Stop. Where were we?'), ctx(), deps({}))
+    await handleCodexHook('UserPromptSubmit', prompt('Stop.'), ctx(), deps({}))
     expect(loadState('codex', SID).interaction?.state).toBe('paused')
     expect((await handleCodexHook('Stop', payload('Stop', { cwd: root, last_assistant_message: 'Stopped after task 2.' }), ctx(), deps({}))).stdout).toBe('')
     const after = async (why: StopWhy): Promise<Record<string, unknown>> => {
       const d = deps({ stopGuardVerdict: s => ({ decision: { action: 'allow' }, next: s, why }) })
-      await handleCodexHook('UserPromptSubmit', prompt('why did we pick bun over node last time?'), ctx(), d)
+      await handleCodexHook('UserPromptSubmit', prompt('/buracle:research compare bun and deno'), ctx(), d)
       const out = (await handleCodexHook('Stop', payload('Stop', { cwd: root, stop_hook_active: true }), ctx(), d)).stdout
       return out === '' ? {} : JSON.parse(out) as Record<string, unknown>
     }
@@ -297,13 +297,13 @@ describe('routing (H21-H26)', () => {
     for (const why of ['finished', 'disabled'] as StopWhy[]) {
       const out = await after(why)
       expect({ why, decision: out['decision'] }).toEqual({ why, decision: 'block' })
-      expect(String(out['reason'])).toStartWith('Buracle routing check: this prompt asks about earlier work and memory was not searched.')
+      expect(String(out['reason'])).toStartWith('Buracle routing check: the user asked for research')
     }
   }))
 
   test('H25: a workflow the model loads by reading its installed SKILL.md (the router\'s T1 line) starts its run', () => withSandbox(async ({ home }) => {
     const d = deps(quiet)
-    const text = contextOf(await handleCodexHook('UserPromptSubmit', prompt('plan-build ile yap: add rate limiting to the upload endpoint'), ctx(), d))
+    const text = contextOf(await handleCodexHook('UserPromptSubmit', prompt('/buracle:plan-build add rate limiting to the upload endpoint'), ctx(), d))
     expect(text).toContain('read ~/.agents/skills/plan-build/SKILL.md')
     expect(readFlow('codex', SID)).toBeUndefined()
     const read = (command: string) => handleCodexHook('PreToolUse', payload('PreToolUse', { tool_name: 'Bash', tool_input: { command } }), ctx(), d)
