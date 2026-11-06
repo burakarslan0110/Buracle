@@ -245,9 +245,13 @@ describe('buracle mcp backend', () => {
     a.send({ jsonrpc: '2.0', method: 'buracle/hello', params: { pid: 1111 } })
     a.send({ jsonrpc: '2.0', id: 'init', method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test' } } })
     expect(JSON.stringify((await a.wait(m => m['id'] === 'init'))['error'])).toContain('no browser here')
+    // The boot start fails either before or after the client's initialize arrives, so 1 or 2 starts are
+    // already counted here; what matters is that the next request starts exactly one new upstream.
+    const before = lineCount(starts)
+    expect([1, 2]).toContain(before)
     a.send(call(1, 'ping'))
     expect(JSON.stringify((await a.wait(m => m['id'] === 1, 8_000))['error'])).toContain('no browser here')
-    expect(lineCount(starts)).toBe(2)
+    expect(lineCount(starts)).toBe(before + 1)
     a.close()
   }), 30_000)
 
