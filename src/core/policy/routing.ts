@@ -96,7 +96,7 @@ export function harnessMcpPattern(harness: Harness, server: string): string {
 const HARNESS_LABEL: Record<Harness, string> = { claude: 'Claude Code', codex: 'Codex', opencode: 'OpenCode', omp: 'Oh My Pi' }
 const SKILL_HOWTO: Record<Harness, string> = {
   claude: 'the user starts a workflow with /<id>; you load the others with the Skill tool as buracle:<id>',
-  codex: 'the user starts a workflow with $<id>; you load one by reading ~/.agents/skills/<id>/SKILL.md',
+  codex: 'the user starts a workflow with $<id>; you load one by reading ${CODEX_HOME:-~/.codex}/skills/<id>/SKILL.md',
   opencode: 'the user starts a workflow with /<id>; you load one with the skill tool',
   omp: 'the user starts a workflow with /<id>; you load one by reading skill://<id>',
 }

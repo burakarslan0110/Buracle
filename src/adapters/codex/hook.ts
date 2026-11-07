@@ -503,7 +503,11 @@ async function usageStep(p: Payload, call: ToolCall, sid: string, ledgerId: stri
 
 function skillLoad(call: ToolCall, sid: string, deps: CodexHookDeps, now: number): void {
   const id = deps.core.skillOf(call, H)
-  const installed = id !== undefined && new RegExp(`\\.agents[/\\\\]skills[/\\\\]${id}[/\\\\]SKILL\\.md`).test(call.command ?? '')
+  // Buracle installs its skills in $CODEX_HOME/skills; .agents covers a link an older install left.
+  const command = call.command ?? ''
+  const codexHome = envOf(deps)['CODEX_HOME']
+  const installed = id !== undefined && (new RegExp(`(?:\\.agents|\\.codex\\}?|CODEX_HOME\\}?)[/\\\\]skills[/\\\\]${id}[/\\\\]SKILL\\.md`).test(command)
+    || (codexHome !== undefined && codexHome !== '' && command.includes(join(codexHome, 'skills', id, 'SKILL.md'))))
   const workflow = installed ? deps.core.workflowOfSkill(`buracle:${id}`) : undefined
   if (workflow !== undefined) recordFlowStart(H, sid, { workflow, source: 'skill' }, now)
 }

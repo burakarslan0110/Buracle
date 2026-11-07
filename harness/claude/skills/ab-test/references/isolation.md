@@ -75,10 +75,11 @@ must be inside `<root>`; only then repeat it without `--dry-run`.
 
 ## Codex CLI
 
-- **Isolate:** `HOME=<arm>/home` (user skills come from `$HOME/.agents/skills`) and
-  `CODEX_HOME=<arm>/home/.codex`; create that directory first, Codex requires it to exist.
+- **Isolate:** `HOME=<arm>/home` (user skills come from `$HOME/.agents/skills` and
+  `$CODEX_HOME/skills`) and `CODEX_HOME=<arm>/home/.codex`; create that directory first, Codex
+  requires it to exist.
 - **Place the variant:** neutral skill render `harness/agents-skills/<id>/` into
-  `<arm>/home/.agents/skills/<id>/`; global guidance into `<arm>/home/.codex/AGENTS.md`; project
+  `<arm>/home/.codex/skills/<id>/`, where Buracle installs it for Codex; global guidance into `<arm>/home/.codex/AGENTS.md`; project
   guidance into the fixture. MCP servers come from `<arm>/home/.codex/config.toml`; install them
   with Buracle into the arm (above) rather than copying the real file.
 - **Credentials:** `--env CODEX_API_KEY=…`, or, only with the user's consent, a copy of
@@ -94,6 +95,8 @@ must be inside `<root>`; only then repeat it without `--dry-run`.
 - **Isolate:** `HOME=<arm>/home`, `XDG_CONFIG_HOME=<arm>/home/.config`,
   `XDG_DATA_HOME=<arm>/home/.local/share`. OpenCode also reads `~/.claude/skills` and
   `~/.agents/skills`; the moved `HOME` covers both.
+- **Place the variant:** `<arm>/home/.config/opencode/skills/<id>/`, where Buracle installs it
+  for OpenCode.
 - **Always `opencode run --standalone`:** without it the run attaches to the background service,
   which carries the user's real configuration.
 - **Credentials:** provider API key variables, or, with consent, a copy of the OpenCode auth file
@@ -106,7 +109,8 @@ must be inside `<root>`; only then repeat it without `--dry-run`.
 
 - **Isolate:** `HOME=<arm>/home` and `PI_CODING_AGENT_DIR=<arm>/home/.omp/agent`. omp reads
   `~/.agents` (skills and rules) by default, so the moved `HOME` matters.
-- **Place the variant:** `<arm>/home/.agents/skills/<id>/`; project rules in the fixture's
+- **Place the variant:** `<arm>/home/.omp/agent/skills/<id>/`, where Buracle installs it for
+  omp; project rules in the fixture's
   `.agents/rules/` or `.omp/rules/` (omp does not read `.claude/rules/`).
 - **Flags** (profile): `omp -p --mode json --no-session --cwd {work} "{prompt}"`. A without-arm
   can use `--append-arg --no-skills` or `--append-arg --skills=<glob>`.

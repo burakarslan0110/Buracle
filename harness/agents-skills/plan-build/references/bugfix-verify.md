@@ -6,7 +6,7 @@ As in [verify.md](verify.md): every code fix, review findings included, lands be
 
 ## BV0. Setup
 
-Same as [verify.md](verify.md) V0: status COMPLETE, phase `verify`, `buracle flow phase verify`, re-read the plan, `buracle review-scope --json` (with `--slug <slug>` in a worktree run), resolve any `warning`, run `buracle plan audit --json` and explain every changed file. Track BV1 to BV9 in your plan/todo tool where available (`update_plan` in Codex, the todo tool in Oh My Pi; OpenCode v2 has none).
+Same as [verify.md](verify.md) V0: status COMPLETE, phase `verify`, `buracle flow phase verify`, re-read the plan, `buracle review-scope --json` (with `--slug <slug>` in a worktree run), resolve any `warning`, run `buracle plan audit --json` and explain every changed file. Track BV1 to BV9 in your plan/todo tool (`update_plan` in Codex, `todowrite` in OpenCode, the todo tool in Oh My Pi).
 
 ## BV1. Launch the changes review
 

@@ -92,13 +92,13 @@ once with harness-only blocks and reuse it:
 `${CLAUDE_SKILL_DIR}`
 «/harness»
 «harness:codex»
-`~/.agents/skills/<id>`
+`${CODEX_HOME:-$HOME/.codex}/skills/<id>`
 «/harness»
 «harness:opencode»
-`~/.agents/skills/<id>`
+`${XDG_CONFIG_HOME:-$HOME/.config}/opencode/skills/<id>`
 «/harness»
 «harness:omp»
-`~/.agents/skills/<id>`
+`${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}/skills/<id>`
 «/harness»
 If that path does not exist, use the folder that holds this SKILL.md.
 

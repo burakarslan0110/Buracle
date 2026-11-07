@@ -95,7 +95,7 @@ VERIFIED plan only: `buracle plan set phase done` runs the same checks as `burac
 - **Escape hatch:** while a registered plan is not VERIFIED, the stop guard keeps your turn going. The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user asking you to stop, wait or hold on, in any language. Buracle records it only when the whole message is such a word in English or Turkish, so otherwise run `buracle plan pause --kind discussion` yourself. The user's "continue" or `buracle plan resume` ends it. Use it for real waits, never to dodge remaining work.
 - **No routine questions.** In an approved run, never ask "should I continue?" or "should I keep
   waiting?". No guard rejects them any more, so this is yours to keep: keep working, or wait on the
-  job with your plan/todo tool where available (`update_plan` in Codex, the todo tool in Oh My Pi; OpenCode v2 has none) and your harness's background facilities.
+  job with your plan/todo tool (`update_plan` in Codex, `todowrite` in OpenCode, the todo tool in Oh My Pi) and your harness's background facilities.
 - **Approval belongs to the user.** Run `buracle plan set approved true` only after the user
   approves in answer to the approval question ("approve", "yes", "ok", "lgtm", or the same in their
   language). Outside that question, a bare "ok" is an acknowledgment, not approval.

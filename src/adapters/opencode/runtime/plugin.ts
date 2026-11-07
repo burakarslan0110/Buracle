@@ -81,6 +81,7 @@ import type {
 } from './types'
 import { ModelFacts } from './models'
 import { openingNotice } from './notices'
+import { OPENCODE_TODO_TOOL, openTodosOf } from './todos'
 import { actionMatchesTool, asRecord, errText, num, skillIdsOf, str, stringifyOutput, tokenTotal, within } from './util'
 import type { WorkspaceFn } from './workspace'
 import { prepareOnce, profileWarning, workspaceFacts } from './workspace'
@@ -125,6 +126,8 @@ const RESUME_AFTER_MS = 60_000
 interface SessionRuntime {
   sid: string
   cwd?: string
+  /** The open items of the session's last todowrite call, carried into the handoff note. */
+  todos?: string[]
   parentID?: string | null
   createdAt?: number
   capture: boolean
@@ -311,6 +314,7 @@ export class BuracleRuntime {
         s.compacted = saved.compacted === true
         if (typeof saved.handoffPath === 'string') s.handoffPath = saved.handoffPath
         if (saved.ctxWarned === 'ok' || saved.ctxWarned === 'warn' || saved.ctxWarned === 'critical') s.ctxWarned = saved.ctxWarned
+        if (Array.isArray(saved.todos)) s.todos = saved.todos.filter((t): t is string => typeof t === 'string')
       }
     }
     return s
@@ -320,9 +324,9 @@ export class BuracleRuntime {
     return join(paths.sessionDir(HARNESS, sid), 'opencode.json')
   }
 
-  private readPersisted(sid: string): { compacted?: boolean, handoffPath?: string, ctxWarned?: unknown } | undefined {
+  private readPersisted(sid: string): { compacted?: boolean, handoffPath?: string, ctxWarned?: unknown, todos?: unknown[] } | undefined {
     try {
-      const r = readJsonSafeSync<{ compacted?: boolean, handoffPath?: string, ctxWarned?: unknown }>(this.persistFile(sid))
+      const r = readJsonSafeSync<{ compacted?: boolean, handoffPath?: string, ctxWarned?: unknown, todos?: unknown[] }>(this.persistFile(sid))
       return r.ok ? r.value : undefined
     } catch { return undefined }
   }
@@ -332,6 +336,7 @@ export class BuracleRuntime {
       const data: Record<string, unknown> = { v: 1, compacted: s.compacted }
       if (s.handoffPath !== undefined) data['handoffPath'] = s.handoffPath
       if (s.ctxWarned !== undefined) data['ctxWarned'] = s.ctxWarned
+      if (s.todos !== undefined) data['todos'] = s.todos
       ensureDirSync(paths.sessionDir(HARNESS, s.sid))
       atomicWriteSync(this.persistFile(s.sid), JSON.stringify(data) + '\n')
     } catch (e) { this.logFn('warn', 'could not persist session data', { sid: s.sid, error: errText(e) }) }
@@ -871,6 +876,10 @@ export class BuracleRuntime {
     if (e.status === 'completed') this.maskResult(e, cls.kind)
     else this.maskError(e, cls.kind)
     if (!denied && e.tool === 'question' && e.status === 'completed') await this.answerReceipt(s, e.input, e.result)
+    if (!denied && e.tool === OPENCODE_TODO_TOOL && e.status === 'completed') {
+      const open = openTodosOf(e.input)
+      if (open !== undefined) { s.todos = open; this.persist(s) }
+    }
 
     if (e.status !== 'completed') return
     const job = denied ? undefined : backgroundStart(e.tool, input, e.result, this.now())
@@ -1087,6 +1096,7 @@ export class BuracleRuntime {
       const input: Parameters<typeof handoffNote>[0] = { state, project: basename(cwd), harness: HARNESS, sessionId: s.sid, now }
       const branch = await currentBranch(cwd)
       if (branch !== undefined) input.branch = branch
+      if (s.todos !== undefined && s.todos.length > 0) input.todo = s.todos
       const note = handoffNote(input)
       const req: Parameters<MemoryBridge['handoff']>[0] = { sessionId: s.sid, cwd, slug: note.slug, markdown: note.markdown, now }
       if (branch !== undefined) req.branch = branch

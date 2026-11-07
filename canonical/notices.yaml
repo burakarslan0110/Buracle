@@ -15,3 +15,11 @@ notices:
     since: 0.8.1
     until: 0.9.0
     message: "Documents now follow your language: plans, PRDs, build contracts, saved audits, reports and review findings use the language you write in (or the one your project or memory pins), and only the markers Buracle reads stay English. `buracle plan validate` no longer warns about prose that is not English."
+  - id: 0.8.6-skills-own-folders
+    since: 0.8.6
+    until: 0.9.0
+    message: "Buracle's skills now live only in the skills folder of each harness it supports (~/.codex/skills, ~/.config/opencode/skills, ~/.omp/agent/skills); `buracle install` removes its old links from the shared ~/.agents/skills, so other agents no longer see them. Third-party skills from `buracle skills add` stay in ~/.agents/skills."
+  - id: 0.8.6-opencode-todos
+    since: 0.8.6
+    until: 0.9.0
+    message: "OpenCode now gets its todo tool: `buracle install` sets `experimental.todo: true` in opencode.jsonc, and the open items of `todowrite` go into the handoff memory before a compaction, as on the other harnesses."

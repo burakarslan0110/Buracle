@@ -83,7 +83,7 @@ current with `buracle flow`; the calls are cheap and best effort, so a failing o
 
 ## Phases
 
-Track the phases with your plan/todo tool where available (`update_plan` in Codex, the todo tool in Oh My Pi; OpenCode v2 has none).
+Track the phases with your plan/todo tool (`update_plan` in Codex, `todowrite` in OpenCode, the todo tool in Oh My Pi).
 
 ### 1. Inventory
 
@@ -101,7 +101,7 @@ Track the phases with your plan/todo tool where available (`update_plan` in Code
   `rg --files --hidden -g 'AGENTS.md' -g 'CLAUDE.md' -g '**/.claude/rules/**' -g '**/.agents/**' -g '**/.cursor/rules/**' -g '.github/copilot-instructions.md' -g 'GEMINI.md' -g 'CONTRIBUTING.md'`.
   `CLAUDE.local.md` is usually gitignored, so `rg` skips it: check for it directly with
   `ls CLAUDE.local.md`.
-- Quick memory pass (the `memory` skill: read `~/.agents/skills/memory/SKILL.md` in Codex, load it with the `skill` tool in OpenCode, read `skill://memory` in Oh My Pi): at most 3 `memory_search` queries such as
+- Quick memory pass (the `memory` skill: read `${CODEX_HOME:-~/.codex}/skills/memory/SKILL.md` in Codex, load it with the `skill` tool in OpenCode, read `skill://memory` in Oh My Pi): at most 3 `memory_search` queries such as
   `conventions`, `test command`, `<repo name> decision`.
 - Pick the mode: **create** (no guidance yet), **refresh** (guidance exists), **audit** (the user
   asked only for a review: write nothing but the report).

@@ -18120,7 +18120,7 @@ function harnessMcpPattern(harness, server) {
 var HARNESS_LABEL = { claude: "Claude Code", codex: "Codex", opencode: "OpenCode", omp: "Oh My Pi" };
 var SKILL_HOWTO = {
   claude: "the user starts a workflow with /<id>; you load the others with the Skill tool as buracle:<id>",
-  codex: "the user starts a workflow with $<id>; you load one by reading ~/.agents/skills/<id>/SKILL.md",
+  codex: "the user starts a workflow with $<id>; you load one by reading ${CODEX_HOME:-~/.codex}/skills/<id>/SKILL.md",
   opencode: "the user starts a workflow with /<id>; you load one with the skill tool",
   omp: "the user starts a workflow with /<id>; you load one by reading skill://<id>"
 };
@@ -21371,7 +21371,7 @@ function loadHow(h, id, explicit, file) {
         return `Skill tool, buracle:${id}`;
       return `read ${file ?? `skills/${id}/SKILL.md in the Buracle plugin`}`;
     case "codex":
-      return `read ~/.agents/skills/${id}/SKILL.md`;
+      return `read \${CODEX_HOME:-~/.codex}/skills/${id}/SKILL.md`;
     case "opencode":
       return `skill tool, ${id}`;
     case "omp":
@@ -21380,7 +21380,7 @@ function loadHow(h, id, explicit, file) {
 }
 var CANDIDATE_HOW = {
   claude: "Skill tool, buracle:<id>",
-  codex: "read ~/.agents/skills/<id>/SKILL.md",
+  codex: "read ${CODEX_HOME:-~/.codex}/skills/<id>/SKILL.md",
   opencode: "skill tool",
   omp: "read skill://<id>"
 };
@@ -36892,7 +36892,7 @@ function workflowOfExpanded(prompt) {
 
 // src/adapters/omp/runtime/generated-data.ts
 var GENERATED = {
-  buracleVersion: "0.8.6",
+  buracleVersion: "0.8.7",
   commands: [
     "ab-test",
     "bugfix",
@@ -37182,6 +37182,18 @@ var GENERATED = {
       id: "0.8.1-documents-follow-language",
       message: "Documents now follow your language: plans, PRDs, build contracts, saved audits, reports and review findings use the language you write in (or the one your project or memory pins), and only the markers Buracle reads stay English. `buracle plan validate` no longer warns about prose that is not English.",
       since: "0.8.1",
+      until: "0.9.0"
+    },
+    {
+      id: "0.8.6-skills-own-folders",
+      message: "Buracle's skills now live only in the skills folder of each harness it supports (~/.codex/skills, ~/.config/opencode/skills, ~/.omp/agent/skills); `buracle install` removes its old links from the shared ~/.agents/skills, so other agents no longer see them. Third-party skills from `buracle skills add` stay in ~/.agents/skills.",
+      since: "0.8.6",
+      until: "0.9.0"
+    },
+    {
+      id: "0.8.6-opencode-todos",
+      message: "OpenCode now gets its todo tool: `buracle install` sets `experimental.todo: true` in opencode.jsonc, and the open items of `todowrite` go into the handoff memory before a compaction, as on the other harnesses.",
+      since: "0.8.6",
       until: "0.9.0"
     }
   ],
