@@ -131,8 +131,7 @@ describe('buracle mcp backend', () => {
       expect(r['error']).toMatchObject({ code: -32603 })
     }
     expect(lineCount(starts)).toBe(4)
-    const health = readJson(paths.healthFile())
-    expect((health?.['mcp'] as Msg | undefined)?.['web-search']).toMatchObject({ status: 'down', source: 'launch' })
+    expect(await until(() => (readJson(paths.healthFile())?.['mcp'] as Msg | undefined)?.['web-search'])).toMatchObject({ status: 'down', source: 'launch' })
     c.close()
   }), 40_000)
 
@@ -145,7 +144,8 @@ describe('buracle mcp backend', () => {
     c.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } })
     const r = await c.wait(m => m['id'] === 1)
     expect(r['error']).toMatchObject({ code: -32603, message: expect.stringContaining('cannot start') })
-    expect((readJson(paths.healthFile())?.['mcp'] as Msg | undefined)?.['web-search']).toMatchObject({ status: 'down' })
+    // The backend answers first and records the failure in health.json asynchronously, so wait for the record.
+    expect(await until(() => (readJson(paths.healthFile())?.['mcp'] as Msg | undefined)?.['web-search'])).toMatchObject({ status: 'down' })
     c.close()
   }), 30_000)
 
