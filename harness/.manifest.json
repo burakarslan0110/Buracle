@@ -199,7 +199,7 @@
     },
     "harness/agents-skills/memory/SKILL.md": {
       "by": "agents-skills",
-      "sha256": "fb628dab251e5dd86eec6a5a24fee1e1f92b6c150d02b49a0a51305574a0108a",
+      "sha256": "b6d634d4415832aa265bcf7711cdcda161feed2298ee5dc0f418cad7857d3a1c",
       "exec": false
     },
     "harness/agents-skills/memory/agents/openai.yaml": {
@@ -464,7 +464,7 @@
     },
     "harness/claude/.claude-plugin/plugin.json": {
       "by": "claude",
-      "sha256": "0e2febc6e8e845e94cca9f28f1bb2a55f862f15eecc02f7c3c9c890f72a422ed",
+      "sha256": "a875f07137150ff8355b483f30b8e6b196b0e01ce8c579ea7a4172b9f401323a",
       "exec": false
     },
     "harness/claude/.lsp.json": {
@@ -589,7 +589,7 @@
     },
     "harness/claude/hooks/core/memory/brain.ts": {
       "by": "claude",
-      "sha256": "ce1c1fb0500109218e67db69087826a9fdffad2b06a5ca4ce43ef2d408eb105c",
+      "sha256": "17765f406d07a0f9cd1ae48b3d49308170d6a0ea98b20b9744186d348c20c1ef",
       "exec": false
     },
     "harness/claude/hooks/core/memory/budgets.ts": {
@@ -624,7 +624,7 @@
     },
     "harness/claude/hooks/core/memory/project.ts": {
       "by": "claude",
-      "sha256": "dab56eab804194490d4b344df236fa27e103f4b7fa1cb528f093f295a26ec13a",
+      "sha256": "0614e458c5caf8bdda690cb56f2f4ecef12f9fbbc36d10807fcf72eeaadee345",
       "exec": false
     },
     "harness/claude/hooks/core/memory/query.ts": {
@@ -659,7 +659,7 @@
     },
     "harness/claude/hooks/core/memory/stem.ts": {
       "by": "claude",
-      "sha256": "c885e1bb0c71e9089efc91f34315b9959a7f99a7ee27ffc0dac098401c4ba32f",
+      "sha256": "36f73a79afac3fc137066d7253b6c1b596c9974696ec9f302c3f97afe48c721d",
       "exec": false
     },
     "harness/claude/hooks/core/memory/text.ts": {
@@ -999,7 +999,7 @@
     },
     "harness/claude/hooks/generated/meta.ts": {
       "by": "claude",
-      "sha256": "ffdb856d3bea6a65a021f11a5edcd3f83d5481ed6ff4ca2599abb6fdb844028e",
+      "sha256": "4e9b7c3f2c40224818b01837f1d52badd5992d4ddb5bc0400250e9dc7b337ae9",
       "exec": false
     },
     "harness/claude/hooks/hooks.json": {
@@ -1189,7 +1189,7 @@
     },
     "harness/claude/skills/memory/SKILL.md": {
       "by": "claude",
-      "sha256": "6d4ace53603f60489c1ff4b138984406817d2f367b6d6d0d662c610f12eefa4c",
+      "sha256": "90e68a03effdb1625bd5d9afd3635d3980efd64b06136059b08d3693074f93e8",
       "exec": false
     },
     "harness/claude/skills/memory/evals/cases.json": {
@@ -1474,7 +1474,7 @@
     },
     "harness/codex/AGENTS.md": {
       "by": "codex",
-      "sha256": "47bd078c5690399ae9e2eca4b079064f2daf828991d139bc973f31589609dc70",
+      "sha256": "f307200125af387407be05ca932606501abc9528cf1a3ae4ac4f4f3359defed5",
       "exec": false
     },
     "harness/codex/agents/changes-review.toml": {
@@ -1644,12 +1644,12 @@
     },
     "harness/omp/extensions/buracle.js": {
       "by": "omp",
-      "sha256": "b736bbe739df3bd9d7880fb39e5f12ae773dc2b95a7a74756f41b965e2f41aaf",
+      "sha256": "91e9952b4b6a2c912c544f3b6324e60ddab9a0dcdad6a407344e2daeff5b3511",
       "exec": false
     },
     "harness/omp/package.json": {
       "by": "omp",
-      "sha256": "ee9a2f5523678325f2b7556a461b27bf4ce4af7feb285c30f942aa449421cfd5",
+      "sha256": "7f57df4777aa8fdc8c5d9c29d85ee3dad28492b19cd4e77b276ddd8deac68a53",
       "exec": false
     },
     "harness/omp/rules/buracle-backend.md": {
@@ -1694,7 +1694,7 @@
     },
     "harness/omp/rules/buracle-memory.md": {
       "by": "omp",
-      "sha256": "4b0f4409bdf557929ae575e94c30b5f2b1879e170049124d52c48b0b4c7e5bb7",
+      "sha256": "8b4dff7b26e8025182c37932abe11489a02a827cb4bda75e267baa45b828a9f4",
       "exec": false
     },
     "harness/omp/rules/buracle-mobile.md": {
@@ -1719,7 +1719,7 @@
     },
     "harness/opencode/AGENTS.block.md": {
       "by": "opencode",
-      "sha256": "ecfa24ef1c9b8ac17d41e001968304872883800514f011b812aeec482e03fdfc",
+      "sha256": "572ab27fee884187aa15d7024f9e79ab4691797cf47a19b9cb38773d20bb6429",
       "exec": false
     },
     "harness/opencode/README.md": {
@@ -1754,17 +1754,17 @@
     },
     "harness/opencode/manifest.json": {
       "by": "opencode",
-      "sha256": "10d4ac4fbf891e3c6cd7f0226d1621ee1b38bca9f7d2684aef729f8740e52bf1",
+      "sha256": "cb6be0c664b2ceef42f39634f71553907c51b857da1b7abeeea2c9b951be4c1b",
       "exec": false
     },
     "harness/opencode/plugins/buracle/index.js": {
       "by": "opencode",
-      "sha256": "5b84b4c1af41a29817af1a94d3e4517c994aaa6bc2cde03b97bfeee13516db02",
+      "sha256": "861917f649255818fb255096362862ea0a3b5eb9d509f7243f866bce65acca0a",
       "exec": false
     },
     "harness/opencode/plugins/buracle/tui.js": {
       "by": "opencode",
-      "sha256": "89409fe17cba0a8f3d7d41eef26ebd0e97cdb1182ca9d42504e7f396355876f9",
+      "sha256": "98d88997643cf8f4d449572a082e03fc30cb3c3c6ec254dde11e63bd7bf67c20",
       "exec": false
     }
   }
