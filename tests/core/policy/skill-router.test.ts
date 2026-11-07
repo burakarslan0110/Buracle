@@ -404,7 +404,7 @@ describe('routeText', () => {
     const spec = r({ load: ['plan-build'] })
     expect(routeText(spec, 'claude', POLICY, { triggers: T, skillFile: id => `/plugins/buracle/skills/${id}/SKILL.md` })).toContain('read /plugins/buracle/skills/plan-build/SKILL.md')
     expect(routeText(r({ load: ['research'] }), 'claude', POLICY, { triggers: T })).toContain('Skill tool, buracle:research')
-    expect(routeText(spec, 'codex', POLICY, { triggers: T })).toContain('read ~/.agents/skills/plan-build/SKILL.md')
+    expect(routeText(spec, 'codex', POLICY, { triggers: T })).toContain('read ${CODEX_HOME:-~/.codex}/skills/plan-build/SKILL.md')
     expect(routeText(spec, 'opencode', POLICY, { triggers: T })).toContain('skill tool, plan-build')
     expect(routeText(spec, 'omp', POLICY, { triggers: T })).toContain('read skill://plan-build')
     expect(routeText(spec, 'claude', POLICY, { triggers: T })).toContain('the plan-build workflow: load it before any other step')

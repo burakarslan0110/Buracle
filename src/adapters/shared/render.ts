@@ -37,7 +37,7 @@ export function placeholderLiteral(p: { name: string, arg?: string }, h: Harness
     case 'ask_user':
       return { claude: 'AskUserQuestion', codex: 'request_user_input', opencode: 'question', omp: 'ask' }[h]
     case 'todo':
-      return { claude: 'TodoWrite', codex: 'update_plan', opencode: undefined, omp: 'todo' }[h]
+      return { claude: 'TodoWrite', codex: 'update_plan', opencode: 'todowrite', omp: 'todo' }[h]
     case 'spawn_agent':
       return { claude: 'Agent', codex: 'spawn_agent', opencode: 'subagent', omp: 'task' }[h]
     case 'skill':
@@ -64,14 +64,14 @@ function neutralProse(p: Placeholder, afterDeterminer: boolean, opts: Pick<Rende
     case 'ask_user':
       return `${owner}structured-question tool (\`request_user_input\` in Codex, \`question\` in OpenCode, \`ask\` in Oh My Pi)`
     case 'todo':
-      return `${owner}plan/todo tool where available (\`update_plan\` in Codex, the todo tool in Oh My Pi; OpenCode v2 has none)`
+      return `${owner}plan/todo tool (\`update_plan\` in Codex, \`todowrite\` in OpenCode, the todo tool in Oh My Pi)`
     case 'spawn_agent':
       return `${owner}subagent tool (\`spawn_agent\` in Codex, \`subagent\` in OpenCode, \`task\` in Oh My Pi)`
     case 'skill': {
       const a = p.arg ?? ''
       if (userInvocable(a, opts)) return inParens ? `\`/${a}\`; Codex: \`$${a}\`` : `\`/${a}\` (Codex: \`$${a}\`)`
       const name = `${afterDeterminer ? '' : 'the '}\`${a}\` skill`
-      const how = `read \`~/.agents/skills/${a}/SKILL.md\` in Codex, load it with the \`skill\` tool in OpenCode, read \`skill://${a}\` in Oh My Pi`
+      const how = `read \`\${CODEX_HOME:-~/.codex}/skills/${a}/SKILL.md\` in Codex, load it with the \`skill\` tool in OpenCode, read \`skill://${a}\` in Oh My Pi`
       return inParens ? `${name}: ${how}` : `${name} (${how})`
     }
     case 'agent':

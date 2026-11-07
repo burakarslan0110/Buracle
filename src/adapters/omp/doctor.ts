@@ -216,11 +216,11 @@ export async function doctor(ctx: AdapterContext, deps: DoctorDeps = {}): Promis
   else if (realOr(used) !== realOr(agentDir)) out.push({ level: 'warn', check: 'omp agent dir', detail: `omp uses ${used} but Buracle installs into ${agentDir} (PI_CODING_AGENT_DIR or OMP_PROFILE differs); rerun \`buracle install omp\` in the same environment` })
   else out.push({ level: 'ok', check: 'omp agent dir', detail: agentDir })
 
-  const skillsDir = join(ctx.paths.agentsDir(), 'skills')
+  const skillsDir = join(agentDir, 'skills')
   const missingSkills = ompCommandSkills(ctx.canonical).filter(id => !existsSync(join(skillsDir, id, 'SKILL.md')))
   out.push(missingSkills.length === 0
-    ? { level: 'ok', check: 'shared skills', detail: `workflow skills present in ${skillsDir}` }
-    : { level: 'warn', check: 'shared skills', detail: `${missingSkills.join(', ')} missing in ${skillsDir}; the omp shortcuts (${missingSkills.map(s => `/${s}`).join(' ')}) need them — run \`buracle install\`` })
+    ? { level: 'ok', check: 'omp skills', detail: `workflow skills present in ${skillsDir}` }
+    : { level: 'warn', check: 'omp skills', detail: `${missingSkills.join(', ')} missing in ${skillsDir}; the omp shortcuts (${missingSkills.map(s => `/${s}`).join(' ')}) need them — run \`buracle install\`` })
 
   if (process.env['CLAUDE_CONFIG_DIR'] !== undefined && process.env['CLAUDE_CONFIG_DIR'] !== '') {
     out.push({ level: 'warn', check: 'CLAUDE_CONFIG_DIR', detail: 'CLAUDE_CONFIG_DIR is exported: omp then also loads everything under the Claude config dir (skills, commands, MCP)' })

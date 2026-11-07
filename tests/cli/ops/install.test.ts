@@ -243,9 +243,12 @@ describe('buracle install', () => {
       const r = JSON.parse(io.out()) as { harnesses: Array<{ harness: string, included: boolean, reason?: string }>, steps: string[] }
       expect(r.harnesses.map(h => [h.harness, h.included, h.reason ?? ''])).toEqual([['codex', true, ''], ['opencode', false, 'not installed'], ['omp', false, 'disabled in config']])
       expect(read(join(home, '.codex/hooks.json'))).toBe('{}\n')
-      expect(readlinkSync(join(home, '.agents/skills/plan-build'))).toBe(join(repo, 'harness/agents-skills/plan-build'))
-      expect(readlinkSync(join(home, '.agents/skills/bugfix'))).toBe(join(repo, 'harness/agents-skills/bugfix'))
-      expect(existsSync(join(home, '.agents/skills/empty'))).toBe(false)
+      expect(readlinkSync(join(home, '.codex/skills/plan-build'))).toBe(join(repo, 'harness/agents-skills/plan-build'))
+      expect(readlinkSync(join(home, '.codex/skills/bugfix'))).toBe(join(repo, 'harness/agents-skills/bugfix'))
+      expect(existsSync(join(home, '.codex/skills/empty'))).toBe(false)
+      expect(existsSync(join(home, '.agents'))).toBe(false)
+      expect(existsSync(join(home, '.config/opencode/skills'))).toBe(false)
+      expect(existsSync(join(home, '.omp/agent/skills'))).toBe(false)
       expect(r.steps.some(s => s.includes('/hooks'))).toBe(true)
       expect(omp.calls).not.toContain('installPlan')
       expect(yamlParse(read(join(buracleHome, 'config.yaml')))).toEqual({ harnesses: { omp: { enabled: false } }, repo })
@@ -253,6 +256,39 @@ describe('buracle install', () => {
       const only = memoryIO()
       expect(await installRun(['--yes', 'opencode'], only)).toBe(2)
       expect(only.out()).toContain('opencode  -  skipped: not installed')
+    })
+  }))
+
+  test('Buracle skills are linked into each installed harness\'s own folder, never into ~/.agents/skills', () => withSandbox(async ({ root, home }) => {
+    const repo = makeRepo(root, { 'harness/agents-skills/plan-build/SKILL.md': '# spec\n', 'harness/agents-skills/bugfix/SKILL.md': '# fix\n' })
+    const own = { codex: join(home, '.codex/skills'), opencode: join(home, '.config/opencode/skills'), omp: join(home, '.omp/agent/skills') }
+    const adapters = async () => [fakeAdapter('codex'), fakeAdapter('opencode'), fakeAdapter('omp')]
+    await withDeps({ repoRoot: () => repo, adapters, runCli: fakeCli().runCli, fetch: noNetwork }, async () => {
+      mkdirSync(join(home, '.agents/skills/mine'), { recursive: true })
+      writeFileSync(join(home, '.agents/skills/mine/SKILL.md'), '# third party\n')
+      expect(await installRun(['--yes'], memoryIO())).toBe(0)
+      for (const dir of Object.values(own)) {
+        for (const id of ['plan-build', 'bugfix']) expect(readlinkSync(join(dir, id))).toBe(join(repo, 'harness/agents-skills', id))
+      }
+      expect(readdirSync(join(home, '.agents/skills'))).toEqual(['mine'])
+      expect(read(join(home, '.agents/skills/mine/SKILL.md'))).toBe('# third party\n')
+
+      expect(await installRun(['--yes', 'codex'], memoryIO())).toBe(0)
+      for (const dir of Object.values(own)) expect(readlinkSync(join(dir, 'plan-build'))).toBe(join(repo, 'harness/agents-skills/plan-build'))
+    })
+  }))
+
+  test('an upgrade removes the ~/.agents/skills links an earlier install recorded', () => withSandbox(async ({ root, home }) => {
+    const repo = makeRepo(root, { 'harness/agents-skills/plan-build/SKILL.md': '# spec\n' })
+    const old = join(home, '.agents/skills/plan-build')
+    const res = await applyPlans([{ id: 'agents-skills', harness: 'core', ops: [{ kind: 'symlink', path: old, target: join(repo, 'harness/agents-skills/plan-build'), owner: 'agents-skills' }] }])
+    expect(res.conflicts).toEqual([])
+    writeInstallRecord({ v: 1, plans: { 'agents-skills': { keys: [old] } }, execUndone: {} })
+    await withDeps({ repoRoot: () => repo, adapters: async () => [fakeAdapter('codex')], runCli: fakeCli().runCli, fetch: noNetwork }, async () => {
+      expect(await installRun(['--yes'], memoryIO())).toBe(0)
+      expect(existsSync(old)).toBe(false)
+      expect(readlinkSync(join(home, '.codex/skills/plan-build'))).toBe(join(repo, 'harness/agents-skills/plan-build'))
+      expect(readInstallRecord().record.plans['agents-skills']?.keys).toEqual([join(home, '.codex/skills/plan-build')])
     })
   }))
 

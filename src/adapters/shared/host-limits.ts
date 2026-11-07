@@ -22,7 +22,6 @@ export interface HostLimit {
 }
 
 const OPENCODE_TRIGGERS = String.raw`\.trigger\("([a-z]+)","([a-zA-Z.]+)"`
-const OPENCODE_TOOL_SET = String.raw`new Set\(\["shell","glob","read",([^\]]*)\]\)`
 const OPENCODE_SLASH = String.raw`slash:\{name:"([a-z][a-z0-9-]*)"`
 const OPENCODE_CORE_TRIGGERS = ['permission.evaluate', 'tool.execute.after', 'tool.execute.before']
 // The plugin detail Codex reports (its serde field run): `shareUrl`, `description`, the manifest parts, `scheduledTasks`.
@@ -113,12 +112,6 @@ export const HOST_LIMITS: readonly HostLimit[] = [
     reason: 'leaving the plan agent is no approval: OpenCode has no approval tool or event for it', fallback: 'H12 fills the prepared plan as a draft (`approved: false`) and plan-build asks the user to approve it',
     probe: { kind: 'binary-names', pattern: OPENCODE_TRIGGERS, closedBy: String.raw`^(?:session|agent)\.plan`, expect: OPENCODE_CORE_TRIGGERS },
     recheck: `packages/core/src/plugin/plan.ts subscribes only session.created and session.agent.selected (v2.0.30, no approval event); ${CHECKED}`,
-  },
-  {
-    id: 'opencode.todo-handoff', harness: 'opencode', feature: 'todoHandoff', kind: 'limit', checkedOn: '2.0.30',
-    reason: 'OpenCode 2.x has no todo tool (the v1 `todowrite` is dropped by the v2 migration)', fallback: 'the handoff memory carries the plan and its open tasks, without todos',
-    probe: { kind: 'binary-list', pattern: OPENCODE_TOOL_SET, closedBy: 'todo', expect: ['edit', 'grep', 'write'] },
-    recheck: `packages/core/src/plugin/internal.ts registers no TodoTool at v2.0.30 and v2.0.32; v2.1.2 registers TodoTool.Plugin again, so the limit closes with that release; ${CHECKED}`,
   },
   {
     id: 'opencode.goal-command', harness: 'opencode', feature: 'goalCommand', kind: 'limit', checkedOn: '2.0.30',

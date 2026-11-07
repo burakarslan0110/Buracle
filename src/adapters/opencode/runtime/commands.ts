@@ -22,7 +22,7 @@ export function workflowPromptText(id: string, args: string, attached: boolean):
   const request = args.trim()
   const note = attached
     ? `(Run this with the Buracle ${id} workflow: its skill is attached above; follow it.)`
-    : `(Run this with the Buracle ${id} workflow: load the \`${id}\` skill with the \`skill\` tool first and follow it; if the tool does not offer it, read ~/.agents/skills/${id}/SKILL.md.)`
+    : `(Run this with the Buracle ${id} workflow: load the \`${id}\` skill with the \`skill\` tool first and follow it; if the tool does not offer it, read \${XDG_CONFIG_HOME:-~/.config}/opencode/skills/${id}/SKILL.md.)`
   if (request !== '') return `${request}\n\n${note}`
   return `${note.slice(1, -1)} Take the task from the conversation; if it is not clear, ask for it.`
 }

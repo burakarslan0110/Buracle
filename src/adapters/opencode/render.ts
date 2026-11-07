@@ -7,7 +7,7 @@ import { sha256 } from '../../engine/fsx'
 import { stableStringify } from '../../engine/merge'
 import {
   CLI_SCHEMA_URL, CONFIG_SCHEMA_URL, GLOBAL_PERMISSIONS, MCP_STARTUP_TIMEOUT_MS, READONLY_SHELL_ALLOW,
-  READONLY_SHELL_DENY,
+  READONLY_SHELL_DENY, TODO_FLAG_KEY,
 } from './constants'
 import type { BakedData, BakedHook } from './runtime/baked'
 import { DEFAULT_HOOK_FAILURE } from './runtime/baked'
@@ -19,7 +19,7 @@ export function expandPlaceholders(text: string): string {
   return text
     .replace(/\\\{\{/g, LIT)
     .replace(/\{\{ask_user\}\}/g, 'the `question` tool')
-    .replace(/\{\{todo\}\}/g, 'a short checklist in your messages (OpenCode v2 has no todo tool)')
+    .replace(/\{\{todo\}\}/g, 'the `todowrite` tool')
     .replace(/\{\{spawn_agent\}\}/g, 'the `subagent` tool')
     .replace(/\{\{skill:([a-z0-9][a-z0-9._-]*)\}\}/g, (_m, id: string) => `the \`${id}\` skill (load it with the \`skill\` tool)`)
     .replace(/\{\{agent:([a-z0-9][a-z0-9._-]*)\}\}/g, (_m, id: string) => `the \`${id}\` subagent`)
@@ -193,6 +193,9 @@ export function configSet(canonical: CanonicalBundle, shim: string, off: readonl
     '$schema': CONFIG_SCHEMA_URL,
     share: 'disabled',
     permissions: configPermissions(),
+    // OpenCode ships its todo tool (`todowrite`) behind this flag from TODO_MIN_VERSION on; the plugin carries its open
+    // items into the handoff. installPlan drops the key for an older OpenCode.
+    [TODO_FLAG_KEY]: true,
   }
   for (const [id, entry] of opencodeServers(canonical, shim, off)) set[`mcp.servers.${id}`] = entry
   return set
@@ -201,10 +204,11 @@ export function configSet(canonical: CanonicalBundle, shim: string, off: readonl
 export function configFragmentText(canonical: CanonicalBundle, shim: string): string {
   const servers: Record<string, unknown> = {}
   for (const [id, entry] of opencodeServers(canonical, shim)) servers[id] = entry
-  const doc = { $schema: CONFIG_SCHEMA_URL, share: 'disabled', permissions: configPermissions(), mcp: { servers } }
+  const doc = { $schema: CONFIG_SCHEMA_URL, share: 'disabled', permissions: configPermissions(), experimental: { todo: true }, mcp: { servers } }
   return [
     '// Buracle keys for ~/.config/opencode/opencode.jsonc (OpenCode v2). `buracle install` merges them key by key',
-    '// (mcp.servers.<id>, permissions, share, $schema) and keeps every other key and comment of the user.',
+    '// (mcp.servers.<id>, permissions, share, experimental.todo from OpenCode 2.1.2 on, $schema) and keeps every',
+    '// other key and comment of the user.',
     '// {env:HOME}/.buracle/bin/buracle is replaced with the absolute shim path at install time.',
     JSON.stringify(doc, null, 2),
   ].join('\n') + '\n'

@@ -41,6 +41,17 @@ function codexPlan(env: Env, home: string, extra: Plan['ops'] = []): Plan {
 }
 
 describe('buracle uninstall', () => {
+  test('removes the skill links install made in each harness\'s own folder', () => withSandbox(async ({ root, home }) => {
+    const repo = makeRepo(root, { 'harness/agents-skills/plan-build/SKILL.md': '# spec\n' })
+    const links = [join(home, '.codex/skills/plan-build'), join(home, '.config/opencode/skills/plan-build'), join(home, '.omp/agent/skills/plan-build')]
+    await withDeps({ repoRoot: () => repo, adapters: async () => [fakeAdapter('codex'), fakeAdapter('opencode'), fakeAdapter('omp')], runCli: fakeCli().runCli }, async () => {
+      expect(await installRun(['--yes'], memoryIO())).toBe(0)
+      for (const l of links) expect(existsSync(join(l, 'SKILL.md'))).toBe(true)
+      expect(await uninstallRun(['--yes'], memoryIO())).toBe(0)
+      for (const l of links) expect(existsSync(l)).toBe(false)
+    })
+  }))
+
   test('folders Buracle created are removed once empty; folders the user had or filled stay', () => withSandbox(async ({ root, home }) => {
     const env = setup(root, home)
     mkdirSync(join(home, '.codex'), { recursive: true })

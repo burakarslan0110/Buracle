@@ -521,7 +521,7 @@ const EN = {
   'ext.offLine': 'Turned off in the config: {list}.',
   'ext.missingLine': '{n} item(s) are missing on a harness. Run',
   'ext.skills': 'Skills ({n})',
-  'ext.skillsLead': 'Buracle\'s skills and your sources reach Claude Code through the plugin and the other three through ~/.agents/skills; installed skills are copied there and linked for Claude Code; a project\'s skills come from its .agents/skills.',
+  'ext.skillsLead': 'Buracle\'s skills and your sources reach Claude Code through the plugin and the other three through their own skills folders; installed skills are copied to ~/.agents/skills and linked for Claude Code; a project\'s skills come from its .agents/skills.',
   'ext.agents': 'Agents ({n})',
   'ext.agentsLead': 'The read-only review agents the workflows launch.',
   'ext.rules': 'Rules ({n})',

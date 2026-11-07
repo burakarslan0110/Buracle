@@ -79,7 +79,7 @@ After the install:
 1. Build. It generates the harness files from `canonical/` and `src/`. A failed build installs nothing.
 2. Runtime. It copies the checkout into `~/.buracle/runtime/<id>` and tests the copy: `--version` must run, and the Claude Code and Codex hooks must deny `rm -rf ~` and allow `ls`. Only then does the `buracle` command switch to it. The previous runtime is kept for rollback.
 3. Toolchain. It installs missing system tools through Homebrew (macOS, and Linux when Homebrew is installed). Node.js, uv, ripgrep and jq that Homebrew cannot install are downloaded at a pinned version, checked against the pinned sha256, run once, and linked into `~/.local/bin`; on Linux without Homebrew any other missing tool is only reported with the command for your distribution. It installs every MCP server and language server into `~/.buracle/toolchain`. Everything comes in its newest release, CortexDB included (a new CortexDB is used only after it passed the memory's check, with the brains backed up first). `update.minReleaseAgeDays` (0 by default) can make Buracle wait some days after a release.
-4. Core. The `~/.buracle/bin/buracle` command, its `~/.local/bin/buracle` link, `~/.buracle/config.yaml` and the shared skills in `~/.agents/skills`.
+4. Core. The `~/.buracle/bin/buracle` command, its `~/.local/bin/buracle` link, `~/.buracle/config.yaml` and the skill links in each installed harness's own skills folder (`~/.codex/skills`, `~/.config/opencode/skills`, `~/.omp/agent/skills`). Nothing goes to the shared `~/.agents/skills`, so agents Buracle does not support never see its skills.
 5. Harnesses. Each harness gets its own transaction: backup, atomic writes, journal, commands, verification, ownership ledger and commit. If one harness fails, only that harness rolls back.
 6. Memory. It creates `~/.buracle/brain`.
 
@@ -323,7 +323,6 @@ Buracle switches off the built-in memory of Claude Code, Codex and Oh My Pi, so 
 | `opencode.consent-dialog` | OpenCode | The dialog needs the TUI plugin, which web, desktop, the server API and `opencode run` do not load | The denial tells the agent to ask with the `question` tool |
 | `opencode.approved-plan-capture` | OpenCode | The plan agent has no approval tool or event | A draft plan (`approved: false`) when the session leaves the plan agent |
 | `opencode.native-plan-approval` | OpenCode | Leaving the plan agent is no approval | The prepared plan is filled as a draft, and plan-build asks the user |
-| `opencode.todo-handoff` | OpenCode | OpenCode 2.x has no todo tool | The handoff memory carries the plan and its open tasks |
 | `opencode.goal-command` | OpenCode | No native goal command | The goal-build brief states the condition in its first sentence |
 | `opencode.quiet-stop-feedback` | OpenCode | No plugin hook runs before a session stops | A capped re-prompt after the session ends |
 | `opencode.stop-veto` | OpenCode | No plugin hook can hold a session that is about to stop | A capped re-prompt after the session ends |

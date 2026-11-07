@@ -8,6 +8,7 @@ import { ompConfigKeys } from '../../src/adapters/omp/install'
 import { HOST_LIMITS } from '../../src/adapters/shared/host-limits'
 import { OMP_BUILTIN_COMMANDS } from '../../src/adapters/omp/runtime/commands'
 import { openTodosOf } from '../../src/adapters/omp/runtime/tool-output'
+import { openTodosOf as opencodeOpenTodos } from '../../src/adapters/opencode/runtime/todos'
 import { renderRule as renderClaudeRule } from '../../src/adapters/claude/install'
 import { CLAUDE_TODO, renderClaudeMarkdown } from '../../src/adapters/claude/render'
 import { allAdapters } from '../../src/adapters/registry'
@@ -284,7 +285,7 @@ describe('parity: every user-invocable skill is a workflow on every harness', ()
     expect(protocolSkills(canonical).map(skill)).toEqual(protocolSkills(canonical).map(id => ({ id, name: id, hidden: true })))
   })
 
-  test('codex: $<id> for every workflow from the shared ~/.agents/skills render', async () => {
+  test('codex: $<id> for every workflow from the shared neutral render', async () => {
     const { canonical, agentsSkills } = await built()
     const skill = (id: string) => ({ id, name: frontmatter(agentsSkills.get(`${id}/SKILL.md`) ?? '')['name'], openaiYaml: agentsSkills.has(`${id}/agents/openai.yaml`) })
     expect(userInvocable(canonical).map(skill)).toEqual(userInvocable(canonical).map(id => ({ id, name: id, openaiYaml: true })))
@@ -521,7 +522,7 @@ const FEATURES: Readonly<Record<'consentDialog' | 'readOnlyStartNotice' | 'early
   summaryKeepList: { claude: true, codex: true, opencode: true, omp: true },
   pathRules: { claude: true, codex: true, opencode: true, omp: true },
   rateWindows: { claude: true, codex: true, opencode: true, omp: true },
-  todoHandoff: { claude: true, codex: true, opencode: false, omp: true },
+  todoHandoff: { claude: true, codex: true, opencode: true, omp: true },
   goalCommand: { claude: true, codex: true, opencode: false, omp: true },
   projectRuleList: { claude: false, codex: true, opencode: true, omp: true },
   claudeOnlySkillList: { claude: false, codex: true, opencode: false, omp: false },
@@ -769,7 +770,7 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
     expect({ claude: has(claude), codex: has(codex), opencode: has(opencode), omp: has(omp) }).toEqual(FEATURES.rateWindows)
   }))
 
-  test('open todos carried into the handoff note: Claude Code, Codex and omp; not OpenCode', () => withSandbox(async ({ root }) => {
+  test('open todos carried into the handoff note on all four (OpenCode through its experimental todowrite tool)', () => withSandbox(async ({ root }) => {
     const hooksJson = file((await built()).files.claude, 'hooks/hooks.json')
     const claude = /TodoWrite\|TaskCreate\|TaskUpdate/.test(hooksJson) && /handoffNote\(\{[^\n]*\btodo\b/.test(readFileSync(join(REPO, 'src/adapters/claude/hook-end.ts'), 'utf8'))
     const rollout = join(root, 'rollout.jsonl')
@@ -780,7 +781,8 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
     const todos = openTodosOf({ toolName: 'todo', input: {}, isError: false, content: [{ type: 'text', text: 'Remaining items (2):\n  - Write the parser [in_progress]\n  - Old item [completed]' }] })
     const omp = JSON.stringify(todos) === JSON.stringify(['Write the parser'])
       && /handoffNote\(\{[^\n]*\btodo\b/.test(readFileSync(join(REPO, 'src/adapters/omp/runtime/compaction.ts'), 'utf8'))
-    const opencode = /\btodo/i.test(sources('src/adapters/opencode/runtime'))
+    const opencode = JSON.stringify(opencodeOpenTodos({ todos: [{ content: 'Write the parser', status: 'in_progress' }, { content: 'Old item', status: 'completed' }] })) === JSON.stringify(['Write the parser'])
+      && /input\.todo = s\.todos/.test(readFileSync(join(REPO, 'src/adapters/opencode/runtime/plugin.ts'), 'utf8'))
     expect({ claude, codex, opencode, omp }).toEqual(FEATURES.todoHandoff)
   }))
 

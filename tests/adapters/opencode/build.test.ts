@@ -106,6 +106,7 @@ describe('opencode build', () => {
     expect(v['$schema']).toBe(CONFIG_SCHEMA_URL)
     expect(v['share']).toBe('disabled')
     expect(v['permissions']).toEqual(GLOBAL_PERMISSIONS)
+    expect(v['experimental']).toEqual({ todo: true })
     const servers = v['mcp']['servers'] as Record<string, Record<string, unknown>>
     const expectIds = Object.entries(canonical().mcp.servers).filter(([, s]) => s.harnesses.includes('opencode')).map(([id]) => id).sort()
     expect(Object.keys(servers).sort()).toEqual(expectIds)

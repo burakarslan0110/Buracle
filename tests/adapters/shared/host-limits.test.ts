@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { HOST_LIMITS, hostLimitRows, hostLimitsOf, probeClosers, probeMisses, probeNames, splitRun } from '../../../src/adapters/shared/host-limits'
+import { HOST_LIMITS, hostLimitRows, hostLimitsOf, probeClosers, probeMisses, probeNames, splitRun, type HostProbe } from '../../../src/adapters/shared/host-limits'
 
 const REPO = join(import.meta.dir, '..', '..', '..')
 
@@ -36,7 +36,6 @@ const FALLBACK_TESTS: Readonly<Record<string, { file: string, title: string }>> 
   'opencode.consent-dialog': { file: 'tests/adapters/parity.test.ts', title: 'the immediate consent question on all four: the Claude mod, Codex\'s own approval prompt (an execpolicy prompt rule), the OpenCode TUI and the omp TUI' },
   'opencode.approved-plan-capture': { file: 'tests/adapters/parity.test.ts', title: 'H12 saves an approved native plan on Claude Code, Codex and omp; OpenCode has no approval step, so it saves a draft (approved: false)' },
   'opencode.native-plan-approval': { file: 'tests/adapters/parity.test.ts', title: 'native plan mode (w4): every H12 path fills a prepared plan-build plan, each harness has its way into plan mode, and leaving plan mode approves the plan everywhere but OpenCode' },
-  'opencode.todo-handoff': { file: 'tests/adapters/opencode/plugin.test.ts', title: 'compaction saves a handoff and steers the summary; compaction.ended spools it and restores the plan' },
   'opencode.goal-command': { file: 'tests/adapters/parity.test.ts', title: 'goal-build\'s portable brief opens with the native /goal command on Claude Code, Codex and omp; OpenCode has none' },
   'opencode.quiet-stop-feedback': { file: 'tests/adapters/opencode/plugin.test.ts', title: 'an unfinished plan is continued with the core reason, once per stop, until the chain cap and its one escalation' },
   'opencode.stop-veto': { file: 'tests/adapters/opencode/plugin.test.ts', title: 'an unfinished plan is continued with the core reason, once per stop, until the chain cap and its one escalation' },
@@ -58,9 +57,10 @@ describe('host limits (PARITY-10)', () => {
   })
 
   test('the list probes read the TUI\'s tool set and slash commands', () => {
-    expect(probeClosers('PPt=new Set(["shell","glob","read","grep","edit","write"]);', probe('opencode.todo-handoff'))).toEqual([])
-    expect(probeMisses('PPt=new Set(["shell","glob","read","grep","edit","write"]);', probe('opencode.todo-handoff'))).toEqual([])
-    expect(probeClosers('PPt=new Set(["shell","glob","read","grep","todo","edit"]);', probe('opencode.todo-handoff'))).toEqual(['todo'])
+    const toolSet: HostProbe = { kind: 'binary-list', pattern: String.raw`new Set\(\["shell","glob","read",([^\]]*)\]\)`, closedBy: 'todo', expect: ['edit', 'grep', 'write'] }
+    expect(probeClosers('PPt=new Set(["shell","glob","read","grep","edit","write"]);', toolSet)).toEqual([])
+    expect(probeMisses('PPt=new Set(["shell","glob","read","grep","edit","write"]);', toolSet)).toEqual([])
+    expect(probeClosers('PPt=new Set(["shell","glob","read","grep","todo","edit"]);', toolSet)).toEqual(['todo'])
     expect(probeClosers('slash:{name:"btw",arguments:!0} slash:{name:"goal"}', probe('opencode.goal-command'))).toEqual(['goal'])
   })
 
@@ -127,7 +127,7 @@ describe('host limits (PARITY-10)', () => {
       const r = l.recheck ?? ''
       expect({ id: l.id, dated: /\b20\d\d-\d\d-\d\d\b/.test(r), sourced: /https?:\/\/\S+|\b[\w/-]+\.(?:rs|ts|md|mdx)\b/.test(r) }).toEqual({ id: l.id, dated: true, sourced: true })
     }
-    expect(HOST_LIMITS.filter(l => l.kind !== 'native')).toHaveLength(20)
+    expect(HOST_LIMITS.filter(l => l.kind !== 'native')).toHaveLength(19)
   })
 
   test('every limit and partial record names the test that proves its fallback, and that file holds the test', () => {

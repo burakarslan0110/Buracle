@@ -2,6 +2,10 @@ import { MIN_VERSIONS } from '../../engine/update/min-versions'
 
 export const MIN_VERSION = MIN_VERSIONS.opencode
 
+/** The opencode.jsonc key that turns on OpenCode's todo tool (`todowrite`), and the first release that knows it (v2.1.2 registers TodoTool.Plugin again). */
+export const TODO_FLAG_KEY = 'experimental.todo'
+export const TODO_MIN_VERSION = '2.1.2'
+
 export const PLUGIN_ID = 'buracle'
 export const PLUGIN_DIR = `plugins/${PLUGIN_ID}`
 

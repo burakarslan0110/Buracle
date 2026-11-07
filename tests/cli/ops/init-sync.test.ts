@@ -70,7 +70,7 @@ describe('buracle install builds the generated files first', () => {
       expect(await installRun(['--yes'], io)).toBe(0)
       expect(read(join(repo, 'harness/agents-skills/plan-build/SKILL.md'))).toBe('# spec\n')
       expect(read(join(home, '.codex/AGENTS.md'))).toBe('rules\n')
-      expect(readlinkSync(join(home, '.agents/skills/plan-build'))).toBe(join(repo, 'harness/agents-skills/plan-build'))
+      expect(readlinkSync(join(home, '.codex/skills/plan-build'))).toBe(join(repo, 'harness/agents-skills/plan-build'))
 
       broken = true
       writeFileSync(join(home, '.codex/AGENTS.md'), 'changed by hand\n')

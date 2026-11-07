@@ -25,7 +25,9 @@ baseline, on cases that could have failed?
 - **Honest reporting.** Small samples are noisy; say so. Never round "unclear" up to "improved".
 
 `<skill-dir>` below means this skill's folder:
-**Codex, OpenCode and Oh My Pi:** `~/.agents/skills/ab-test`
+**Codex:** `${CODEX_HOME:-$HOME/.codex}/skills/ab-test`
+**OpenCode:** `${XDG_CONFIG_HOME:-$HOME/.config}/opencode/skills/ab-test`
+**Oh My Pi:** `${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}/skills/ab-test`
 If that path does not exist, use the folder that holds this SKILL.md.
 
 ## Progress
@@ -43,7 +45,7 @@ current with `buracle flow`; the calls are cheap and best effort, so a failing o
 
 ## Phases
 
-Track the phases with your plan/todo tool where available (`update_plan` in Codex, the todo tool in Oh My Pi; OpenCode v2 has none).
+Track the phases with your plan/todo tool (`update_plan` in Codex, `todowrite` in OpenCode, the todo tool in Oh My Pi).
 
 ### 1. Frame
 

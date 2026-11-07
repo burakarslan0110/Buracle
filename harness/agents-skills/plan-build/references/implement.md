@@ -10,13 +10,13 @@ Outcome: every task ticked with its DoD proven, full checks green, status COMPLE
    - **If create or detect fails**, read the `error` code in its JSON (`path_in_use`, `path_exists`, `branch_checked_out`, `inside_worktree`, `locked`, …), fix what it names and retry once. Still failing: `buracle plan pause --kind decision --reason "<code>: <message>"` and ask: fix it by hand / switch to a new branch (`buracle worktree branch <slug> --json`, then `buracle plan set worktree false` and the `## Assumptions` isolation line from [plan.md](plan.md) P9) / stop. Never edit in the main checkout while the plan says `worktree: true`.
    - Branch runs (the `## Assumptions` isolation line names a new branch): compare `git branch --show-current` with the branch on that line. Same branch: carry on. Another branch: `git switch <that branch>` (commit or stash first if git refuses). Do not re-run `buracle worktree branch` for this: without this session's plan binding it cannot tell the run's branch apart and creates a new `-2` branch.
 4. `buracle plan set status IN_PROGRESS` unless it already is.
-5. Your plan/todo tool where available (`update_plan` in Codex, the todo tool in Oh My Pi; OpenCode v2 has none): one item per unticked task, in plan order. The plan stays authoritative; the todo list is your working view of it.
+5. Your plan/todo tool (`update_plan` in Codex, `todowrite` in OpenCode, the todo tool in Oh My Pi): one item per unticked task, in plan order. The plan stays authoritative; the todo list is your working view of it.
 
 ## I1. Task loop
 
 Repeat for each unticked task, in order. When 2 or more unticked tasks have no file in common and wait for no unfinished task, run them as lanes instead (SKILL.md, *Lanes and documents*): each lane runs steps 2 to 8 in its own `--lane` worktree and commits there; you sync each lane, run the full checks after every merge, then do step 9 for its tasks. A lane whose worktree cannot be created does not start: run its tasks yourself, in order. Never run an editing lane in the shared checkout. The tasks that remain follow the loop below.
 
-1. Mark the task in progress in your plan/todo tool where available (`update_plan` in Codex, the todo tool in Oh My Pi; OpenCode v2 has none) and re-read its card.
+1. Mark the task in progress in your plan/todo tool (`update_plan` in Codex, `todowrite` in OpenCode, the todo tool in Oh My Pi) and re-read its card.
 2. Prepare with the routed tools: codegraph for callers of anything shared you will change (they must keep working), context7 for every library call you will write, semble `find_related` for the local pattern to follow.
 3. **RED.** Write the test for the first DoD behavior and run only that test. It must fail because the behavior is missing, not because of a typo, an import error or a wrong path. Keep the key failing line.
 4. **GREEN.** Write the smallest code that makes it pass. Run the test, then the tests of every module you touched.
@@ -24,7 +24,7 @@ Repeat for each unticked task, in order. When 2 or more unticked tasks have no f
 6. Repeat steps 3 to 5 for the remaining DoD behaviors.
 7. **Prove.** Run the task's `Verify:` command. If the task changes something you can run (a CLI, an endpoint, a page), exercise it once for real now instead of leaving everything to verification.
 8. **Diagnostics.** Fix type and lint errors in touched files; Buracle's edit checker may already have reported them.
-9. **Tick.** Change the task's line to `- [x] Task N done` immediately and complete its item in your plan/todo tool where available (`update_plan` in Codex, the todo tool in Oh My Pi; OpenCode v2 has none). In a worktree run, commit the task on the worktree branch: `git add <task files>` and `git commit -m "task N: <title>"`. Outside a worktree, commit only if the user asked for commits.
+9. **Tick.** Change the task's line to `- [x] Task N done` immediately and complete its item in your plan/todo tool (`update_plan` in Codex, `todowrite` in OpenCode, the todo tool in Oh My Pi). In a worktree run, commit the task on the worktree branch: `git add <task files>` and `git commit -m "task N: <title>"`. Outside a worktree, commit only if the user asked for commits.
 10. Move to the next task without checking in.
 
 Exceptions:

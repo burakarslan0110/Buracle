@@ -10,7 +10,7 @@ import { toolchainLinks } from '../toolchain/links'
 import { readToolchainState } from '../toolchain/state'
 import { inCheckout, type LiveContext } from './context'
 import {
-  AGENTS_SKILLS_CONSUMERS, agentsSkillsPlan, bunPath, corePlan, dropMixedRemovals, keyPath, pathRulesDir, planKeys, pruneOps,
+  AGENTS_SKILLS_CONSUMERS, agentsSkillsPlan, bunPath, corePlan, dropMixedRemovals, harnessSkillsDir, keyPath, pathRulesDir, planKeys, pruneOps,
   readInstallRecord, type PathRuleFile,
 } from './install-core'
 import { errText, isInside } from './output'
@@ -119,7 +119,13 @@ export async function composeInstall(opts: ComposeOptions): Promise<ComposeResul
   if (!opts.coreOnly) {
     res.harnesses = await detectHarnesses(opts.adapters, opts.live, opts.only)
     const included = res.harnesses.filter(h => h.included).map(h => h.harness)
-    if (included.some(h => AGENTS_SKILLS_CONSUMERS.includes(h))) raw.push({ key: 'agents-skills', plan: agentsSkillsPlan(opts.repoRoot) })
+    // A harness this run did not look at (not selected, or its detection failed) keeps its skill
+    // links; every other recorded link that no plan produces is pruned, the old ~/.agents/skills ones too.
+    const untouched = res.harnesses.filter(h => !h.inScope || (h.reason ?? '').startsWith('detect failed')).map(h => harnessSkillsDir(h.harness)).filter((d): d is string => d !== undefined).map(d => resolve(d))
+    const skillCarried = (record.plans['agents-skills']?.keys ?? []).filter(k => untouched.some(d => isInside(resolve(keyPath(k)), d)))
+    if (included.some(h => AGENTS_SKILLS_CONSUMERS.includes(h)) || record.plans['agents-skills'] !== undefined) {
+      raw.push({ key: 'agents-skills', plan: agentsSkillsPlan(opts.repoRoot, included), carried: skillCarried })
+    }
     for (const h of included) {
       const adapter = opts.adapters.find(a => a.harness === h) as Adapter
       try {

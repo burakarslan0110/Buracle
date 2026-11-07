@@ -121,8 +121,9 @@ async function launch(root: string, home: string, buracleHome: string, rules: To
   mkdirSync(join(root, 'tmp'), { recursive: true })
   const project = join(root, 'project')
   mkdirSync(project, { recursive: true })
-  mkdirSync(join(paths.agentsDir(), 'skills'), { recursive: true })
-  for (const id of ['plan-build', 'research']) symlinkSync(join(REPO, 'harness', 'agents-skills', id), join(paths.agentsDir(), 'skills', id))
+  mkdirSync(join(paths.opencodeConfigDir(), 'skills'), { recursive: true })
+  for (const id of ['plan-build', 'research']) symlinkSync(join(REPO, 'harness', 'agents-skills', id), join(paths.opencodeConfigDir(), 'skills', id))
+  expect(existsSync(join(paths.agentsDir(), 'skills'))).toBe(false)
 
   const res = await applyPlans([await installPlan(adapterContext(), { opencode: null })])
   expect(res.conflicts).toEqual([])
@@ -212,7 +213,8 @@ describe('opencode smoke (real binary, isolated)', () => {
     try {
       const ours = plugins.find(p => p.id === 'buracle')
       expect(ours).toMatchObject({ source: { type: 'local' }, features: { server: true, tui: true }, state: { status: 'active' } })
-      expect(ours.source.path).toBe(join(paths.opencodeConfigDir(), 'plugins', 'buracle', 'index.js'))
+      // OpenCode 2.2.5 reports the plugin's folder; earlier 2.x releases reported its index.js.
+      expect([join(paths.opencodeConfigDir(), 'plugins', 'buracle'), join(paths.opencodeConfigDir(), 'plugins', 'buracle', 'index.js')]).toContain(ours.source.path)
 
       const agents = (await api(server, 'GET', '/api/agent', project)).data as any[]
       for (const a of canonical().agents) {
@@ -244,6 +246,7 @@ describe('opencode smoke (real binary, isolated)', () => {
       const specReq = await requestWith(provider, t => t.includes('add a health check endpoint'))
       const specText = lastUserText(specReq)
       expect(specText).toContain('<skill_content name="plan-build">')
+      expect(JSON.stringify(specReq['tools'] ?? [])).toContain('"todowrite"')
       expect(specText).toContain('Run this with the Buracle plan-build workflow')
       expect(specReq['output_config']).toEqual({ effort: 'xhigh' })
       await until(() => latestWindows('opencode', Date.now()).length === 2, 15_000)

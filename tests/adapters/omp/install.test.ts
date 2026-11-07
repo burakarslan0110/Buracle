@@ -527,7 +527,7 @@ describe('omp link check and doctor', () => {
       expect(by['omp AGENTS.md']).toMatchObject({ level: 'ok' })
       expect(by['omp usage']).toMatchObject({ level: 'warn' })
       expect(by['omp agent dir']).toMatchObject({ level: 'ok', detail: join(sb.home, '.omp', 'agent') })
-      expect(by['shared skills']).toMatchObject({ level: 'warn' })
+      expect(by['omp skills']).toMatchObject({ level: 'warn' })
       expect(findings.filter(f => f.level === 'error')).toEqual([])
     })
     for (const id of ompCommandSkills(ctxFor().canonical)) {
@@ -535,7 +535,14 @@ describe('omp link check and doctor', () => {
       writeFileSync(join(sb.home, '.agents', 'skills', id, 'SKILL.md'), '---\nname: x\n---\n')
     }
     await withEnv({ PATH: pathOf(bin, process.env['PATH'] ?? '') }, async () => {
-      expect((await adapter.doctor(ctxFor())).find(f => f.check === 'shared skills')?.level).toBe('ok')
+      expect((await adapter.doctor(ctxFor())).find(f => f.check === 'omp skills')?.level).toBe('warn')
+    })
+    for (const id of ompCommandSkills(ctxFor().canonical)) {
+      mkdirSync(join(sb.home, '.omp', 'agent', 'skills', id), { recursive: true })
+      writeFileSync(join(sb.home, '.omp', 'agent', 'skills', id, 'SKILL.md'), '---\nname: x\n---\n')
+    }
+    await withEnv({ PATH: pathOf(bin, process.env['PATH'] ?? '') }, async () => {
+      expect((await adapter.doctor(ctxFor())).find(f => f.check === 'omp skills')?.level).toBe('ok')
     })
   }))
 

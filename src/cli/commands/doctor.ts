@@ -39,7 +39,7 @@ Without a topic every section runs:
            version of every package in ~/.buracle/toolchain with the one it keeps for
            \`buracle rollback toolchain\`
   skills   every skill is where each enabled harness reads it (the Claude plugin's skills/,
-           ~/.agents/skills for Codex, OpenCode and Oh My Pi)
+           $CODEX_HOME/skills, ~/.config/opencode/skills and ~/.omp/agent/skills)
   <h>      each enabled harness: installed version and the adapter's own checks; Claude
            Code and Codex also run their PreToolUse hook the way the harness does and
            expect it to deny a destructive command (the guards really run). With a harness
@@ -156,10 +156,10 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
       }
       if ('bundle' in bundle) {
         const enabled = (h: Harness) => live.config.harnesses[h].enabled && (!isHarness(topic) || topic === h)
-        // Install links ~/.agents/skills only for an installed Codex, OpenCode or Oh My Pi (compose.ts), so only then is a missing link an error.
+        // Install links a harness's own skills folder only while that Codex, OpenCode or Oh My Pi is installed (compose.ts), so only then is a missing link an error.
         const installed = (h: Harness) => found.some(c => c.section === h && c.check === 'installed' && c.level === 'ok')
         const ids = bundle.bundle.skills.filter(s => s.frontmatter['harnesses'] === undefined || !Array.isArray(s.frontmatter['harnesses']) || (s.frontmatter['harnesses'] as unknown[]).length > 0).map(s => s.id)
-        checks.push(...skillChecks(ids, repoRoot, { claude: enabled('claude'), shared: AGENTS_SKILLS_CONSUMERS.some(h => enabled(h) && installed(h)) }))
+        checks.push(...skillChecks(ids, repoRoot, { claude: enabled('claude'), linked: AGENTS_SKILLS_CONSUMERS.filter(h => enabled(h) && installed(h)) }))
       }
       checks.push(...found)
     }

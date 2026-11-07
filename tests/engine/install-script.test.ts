@@ -134,10 +134,12 @@ const BUN_STUB = [
   'esac',
 ].join('\n')
 
+// The script runs with TZ: 'UTC' and the expected date is read in UTC: `bun test` runs in UTC without
+// putting TZ into the environment, so without both the dates differ near midnight.
 function today(): string {
   const d = new Date()
   const two = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`
+  return `${d.getUTCFullYear()}-${two(d.getUTCMonth() + 1)}-${two(d.getUTCDate())}`
 }
 
 async function installRun(root: string, env: Record<string, string> = {}): Promise<{ out: string, err: string, code: number }> {
@@ -145,7 +147,7 @@ async function installRun(root: string, env: Record<string, string> = {}): Promi
   stub(bin, 'git', GIT_STUB)
   stub(bin, 'bun', BUN_STUB)
   const proc = Bun.spawn([BASH as string, SCRIPT], {
-    env: { ...process.env, PATH: bin, HOME: root, STUB_ROOT: root, BURACLE_CHECKOUT: join(root, 'co'), BURACLE_REPO: 'https://example.test/buracle.git', BURACLE_HOME: '', LANG: 'C.UTF-8', LC_ALL: '', LC_CTYPE: '', NO_COLOR: '', FORCE_COLOR: '', TERM: 'xterm', COLUMNS: '100', ...env },
+    env: { ...process.env, PATH: bin, HOME: root, STUB_ROOT: root, BURACLE_CHECKOUT: join(root, 'co'), BURACLE_REPO: 'https://example.test/buracle.git', BURACLE_HOME: '', TZ: 'UTC', LANG: 'C.UTF-8', LC_ALL: '', LC_CTYPE: '', NO_COLOR: '', FORCE_COLOR: '', TERM: 'xterm', COLUMNS: '100', ...env },
     stdin: 'ignore', stdout: 'pipe', stderr: 'pipe',
   })
   const [out, err, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited])
@@ -196,7 +198,7 @@ describe.skipIf(!run)('install.sh: two sections, the log and the hand-over to `b
     stub(bin, 'curl', 'echo "curl: (6) Could not resolve host: bun.sh" >&2; exit 6')
     symlinkSync(BASH as string, join(bin, 'bash'))
     const proc = Bun.spawn([BASH as string, SCRIPT], {
-      env: { ...process.env, PATH: bin, HOME: root, STUB_ROOT: root, BURACLE_CHECKOUT: join(root, 'co'), BURACLE_REPO: 'https://example.test/buracle.git', BURACLE_HOME: '', LANG: 'C.UTF-8', LC_ALL: '', LC_CTYPE: '', NO_COLOR: '', FORCE_COLOR: '', TERM: 'xterm', COLUMNS: '100' },
+      env: { ...process.env, PATH: bin, HOME: root, STUB_ROOT: root, BURACLE_CHECKOUT: join(root, 'co'), BURACLE_REPO: 'https://example.test/buracle.git', BURACLE_HOME: '', TZ: 'UTC', LANG: 'C.UTF-8', LC_ALL: '', LC_CTYPE: '', NO_COLOR: '', FORCE_COLOR: '', TERM: 'xterm', COLUMNS: '100' },
       stdin: 'ignore', stdout: 'pipe', stderr: 'pipe',
     })
     const [out, code] = await Promise.all([new Response(proc.stdout).text(), proc.exited])

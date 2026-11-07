@@ -252,7 +252,7 @@ describe('doc lint: language and links', () => {
 describe('doc lint: host limits (PRD 2026-11-04 R20)', () => {
   test('both READMEs list every limit and partial record of host-limits.ts in their Host limits table', () => {
     const recorded = HOST_LIMITS.filter(l => l.kind !== 'native').map(l => l.id)
-    expect(recorded.length).toBeGreaterThanOrEqual(20)
+    expect(recorded.length).toBeGreaterThanOrEqual(19)
     for (const [file, heading] of [['README.md', '### Host limits'], ['README.tr.md', '### Harness sınırları']] as const) {
       const text = read(join(REPO, file))
       const start = text.indexOf(heading)

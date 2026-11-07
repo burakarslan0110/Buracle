@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { CanonicalBundle } from '../../../src/core/catalog'
 import { defaultConfig } from '../../../src/core/config'
@@ -19,8 +19,9 @@ import { CODEX_FRESH_PLAN_PREFIX, CODEX_IMPLEMENT_PROMPT, lastAssistantText, pro
 import { codexTrustPlan } from '../../../src/adapters/codex/trust'
 import { renderNeutralSkills } from '../../../src/adapters/shared/skills'
 import { hostLimitsOf, probeClosers, probeMisses } from '../../../src/adapters/shared/host-limits'
+import { agentsSkillsPlan } from '../../../src/engine/update/install-core'
 import { pathOf, SYSTEM_PATH_DIRS } from '../../helpers/fake-exe'
-import { withSandbox } from '../../helpers/sandbox'
+import { withEnv, withSandbox } from '../../helpers/sandbox'
 
 const REPO = join(import.meta.dir, '..', '..', '..')
 const canonical: CanonicalBundle = loadCanonicalSync(join(REPO, 'canonical'))
@@ -187,7 +188,7 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary (isola
     expect(after.find(l => l['key'] === `${hooksPath}:pre_tool_use:0:0`)?.['trustStatus']).toBe('untrusted')
   }), 120_000)
 
-  test('the model-visible prompt carries the AGENTS.md block and the neutral skills linked into ~/.agents/skills (explicit skills stay out of the catalog)', () => withSandbox(async ({ root, home }) => {
+  test('the model-visible prompt carries the AGENTS.md block and the neutral skills linked into $CODEX_HOME/skills, never ~/.agents/skills (explicit skills stay out of the catalog)', () => withSandbox(async ({ root, home }) => {
     const ctx: AdapterContext = { repoRoot: REPO, config: defaultConfig(), canonical, paths, buracleBin: paths.shimPath() }
     await applyPlans([await adapter.installPlan(ctx)])
     const tree = join(root, 'repo', 'harness', 'agents-skills')
@@ -197,11 +198,11 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary (isola
       writeFileSync(dest, f.content)
       if (f.mode !== undefined) chmodSync(dest, f.mode)
     }
-    mkdirSync(join(paths.agentsDir(), 'skills'), { recursive: true })
-    for (const s of canonical.skills) symlinkSync(join(tree, s.id), join(paths.agentsDir(), 'skills', s.id))
     const promptHome = join(root, 'prompt-codex')
     mkdirSync(promptHome)
     cpSync(join(home, '.codex', 'AGENTS.md'), join(promptHome, 'AGENTS.md'))
+    await withEnv({ CODEX_HOME: promptHome }, () => applyPlans([agentsSkillsPlan(join(root, 'repo'), ['codex'])]))
+    expect(existsSync(join(paths.agentsDir(), 'skills'))).toBe(false)
     const env = isolatedEnv(root, home, promptHome)
     const work = join(root, 'work')
     mkdirSync(work)
@@ -212,9 +213,17 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary (isola
     expect(text).toContain('# Core working rules')
     expect(text).toContain('# Path-scoped rules')
     const catalog = [...text.matchAll(/\\n- ([a-z0-9-]+): /g)].map(m => m[1])
+    const roots = new Map([...text.matchAll(/\\n- `(r\d+)` = `([^`]+)`/g)].map(m => [m[1], m[2]]))
+    const fileOf = (id: string): string | undefined => {
+      const m = new RegExp(`\\(file: (r\\d+)/${id}/SKILL\\.md\\)`).exec(text)
+      return m === null ? undefined : `${roots.get(m[1] as string)}/${id}/SKILL.md`
+    }
+    const own = realpathSync(join(promptHome, 'skills'))
     for (const s of canonical.skills) {
       const explicit = s.frontmatter['invocation'] === 'explicit'
-      expect({ skill: s.id, listed: catalog.includes(s.id) }).toEqual({ skill: s.id, listed: !explicit })
+      const file = fileOf(s.id)
+      const where = file === undefined ? undefined : realpathSync(file).startsWith(`${realpathSync(tree)}/`) && file.startsWith(own) ? 'codex-home' : file
+      expect({ skill: s.id, listed: catalog.includes(s.id), where }).toEqual({ skill: s.id, listed: !explicit, where: explicit ? undefined : 'codex-home' })
     }
   }), 120_000)
 })
@@ -657,7 +666,7 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary end to
     try {
       const r = await codexExec(env, work, model, ['-c', 'model="gpt-5.5"'], '/buracle:research compare bun and deno')
       expect(r.code).toBe(0)
-      expect(developerTexts(model.requests[0] as Record<string, any>)).toContain('read ~/.agents/skills/research/SKILL.md')
+      expect(developerTexts(model.requests[0] as Record<string, any>)).toContain('read ${CODEX_HOME:-~/.codex}/skills/research/SKILL.md')
       expect(model.requests.length).toBe(2)
       expect(JSON.stringify(model.requests[1])).toContain('Buracle routing check: the user asked for research')
     } finally { model.stop() }
