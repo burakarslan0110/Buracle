@@ -56,8 +56,8 @@ describe('stemmed query terms (finding M3)', () => {
   test('a word also matches through its stem, in both passes', () => {
     expect(memFtsQuery('hataları', 'and')).toBe('"hatalari"* OR "hata"*')
     expect(memFtsQuery('hataları', 'or')).toBe('"hatalari"* OR "hata"*')
-    expect(memFtsQuery('caching tests', 'and')).toBe('("caching"* OR "cach"*) AND ("tests"* OR "test"*)')
-    expect(memFtsQuery('caching tests', 'or')).toBe('"caching"* OR "cach"* OR "tests"* OR "test"*')
+    expect(memFtsQuery('caching tests', 'and')).toBe('("caching"* OR "cach"* OR "cache"*) AND ("tests"* OR "test"*)')
+    expect(memFtsQuery('caching tests', 'or')).toBe('"caching"* OR "cach"* OR "cache"* OR "tests"* OR "test"*')
     expect(memFtsQuery('kitabı', 'and')).toBe('"kitabi"* OR "kitab"* OR "kitap"*')
     expect(memFtsQuery('güncelleme', 'or')).toBe('"guncelleme"* OR "gunce"*')
     expect(memFtsQuery('güncelleme', 'and')).toBe('"guncelleme"*')

@@ -7,6 +7,8 @@ export interface MemProjectRecord {
   ownerRepo?: string
   remote?: string
   commonDir?: string
+  /** The first commit of the repository: a repo without a remote keeps its identity in it (PRD R17). */
+  rootCommit?: string
   roots: string[]
   parents?: string[]
   merged?: string[]

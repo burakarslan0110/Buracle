@@ -275,8 +275,10 @@ describe('distill', () => {
 
   test('without a session memory there is nothing to distill, and the default runner never runs in tests', async () => {
     await withBrain(async ({ repo }) => {
-      expect((await distillSession('codex', 'no-such-session', { runner: runner({ summary: 'x' }) })).skipped).toBe('no-session-memory')
-      expect((await distillSession('codex', SID, {})).skipped).toBe('no-session-memory')
+      // A session with no spool material is nothing-to-distill even before the session memory is
+      // required (PRD R2): an empty session is done at once instead of burning retries.
+      expect((await distillSession('codex', 'no-such-session', { runner: runner({ summary: 'x' }) })).skipped).toBe('nothing-to-distill')
+      expect((await distillSession('codex', SID, {})).skipped).toBe('nothing-to-distill')
       await finishedSession(repo)
       expect((await distillSession('codex', SID, {})).skipped).toBe('disabled')
     })
@@ -341,6 +343,186 @@ describe('distill', () => {
     expect(currentWindows([{ label: '5h', pct: 90 }], now - 6 * hour, now)).toEqual([])
     expect(currentWindows([{ label: '5h', pct: 90 }], now - 2 * hour, now).map(w => w.label)).toEqual(['5h'])
     expect(latestWindows('codex', now)).toEqual([])
+  })
+
+  test('the prompt carries the live memories of both layers, so the model can target them instead of restating (PRD R3)', async () => {
+    await withBrain(async ({ repo }) => {
+      await write(agentCtx(repo), { type: 'decision', title: 'Orders live in CockroachDB', summary: 'moved from PostgreSQL', body: '' })
+      await write(agentCtx(repo), { type: 'preference', title: 'Answer in short paragraphs', summary: 'no long lists', body: '', scope: 'person' })
+      await finishedSession(repo)
+      const prompts: string[] = []
+      const seen: DistillRunner = async p => { prompts.push(p); return { ok: true, text: JSON.stringify({ summary: 's' }) } }
+      await distillSession('codex', SID, { runner: seen })
+      const prompt = prompts[0] ?? ''
+      expect(prompt).toContain('Orders live in CockroachDB')
+      expect(prompt).toContain('Answer in short paragraphs')
+      expect(prompt).toContain('decision-orders-live-in-cockroachdb')
+      expect(prompt).toContain('Existing memories')
+    })
+  })
+
+  test('a candidate the model aims at an existing memory updates it, and nothing new is written (PRD R3)', async () => {
+    await withBrain(async ({ repo }) => {
+      const existing = await write(agentCtx(repo), { type: 'gotcha', title: 'The flaky test needs the server to be up', summary: 'await the start', body: 'Await it.' })
+      await finishedSession(repo)
+      const r = await distillSession('codex', SID, { runner: runner({ summary: 's', candidates: [
+        { type: 'gotcha', title: 'The flaky test needs the server to be up', description: 'also after a rebuild', body: 'Restart after a rebuild too.', confidence: 0.8, update: existing.id },
+      ] }) })
+      expect(r.decisions).toMatchObject([{ op: 'update', target: existing.id }])
+      expect(r.candidates).toEqual([])
+      expect((await getStored(projectRef('demo'), existing.id))?.item.body).toContain('also after a rebuild')
+      expect((await listAll(projectRef('demo'))).filter(i => i.kind === 'gotcha')).toHaveLength(1)
+    })
+  })
+
+  test('the comparison list holds captures too, and a claim written in the same run is not written twice (PRD R3)', async () => {
+    await withBrain(async ({ repo }) => {
+      await finishedSession(repo)
+      await distillSession('codex', SID, { runner: runner({ summary: 's', candidates: [
+        { type: 'procedure', title: 'Rotate the signing key every quarter', description: 'a guess', body: '', confidence: 0.3 },
+      ] }) })
+      const r = await distillSession('codex', SID, { runner: runner({ summary: 's', candidates: [
+        { type: 'procedure', title: 'Rotate the signing key every quarter', description: 'the same claim, promoted now', body: '', confidence: 0.9 },
+        { type: 'procedure', title: 'Rotate the signing key every quarter', description: 'the same claim again', body: '', confidence: 0.9 },
+      ] }) })
+      expect(r.decisions.map(d => d.op)).toEqual(['noop', 'noop'])
+      expect((await listAll(projectRef('demo'))).filter(i => i.kind === 'procedure')).toHaveLength(0)
+    })
+  })
+
+  test('a candidate the write-level duplicate check refuses is a noop in the decisions, not an add (PRD R3)', async () => {
+    await withBrain(async ({ repo }) => {
+      const existing = await write(agentCtx(repo), { type: 'knowledge', title: 'Rotate the signing key every quarter', summary: 'the key rotation schedule', body: 'x' })
+      await finishedSession(repo)
+      const r = await distillSession('codex', SID, { runner: runner({ summary: 's', candidates: [
+        { type: 'knowledge', title: 'Rotate the cache before the quarter', description: 'the key rotation schedule', body: 'y', confidence: 0.9 },
+      ] }) })
+      expect(r.decisions[0]).toMatchObject({ op: 'noop', target: existing.id })
+      expect(r.candidates).toEqual([])
+      expect((await listAll(projectRef('demo'))).filter(i => i.kind === 'knowledge')).toHaveLength(1)
+    })
+  })
+
+  test('a stated preference close to an existing one is not written beside it (PRD R3)', async () => {    await withBrain(async ({ repo }) => {
+      await write(agentCtx(repo), { type: 'preference', title: 'Write commit messages in German', summary: 'the commit language', body: '', scope: 'person' })
+      await sessionStart('codex', SID, repo)
+      appendSpool('codex', SID, [{ ts: Date.now(), ev: 'prompt', excerpt: 'Schreib Commit-Nachrichten ab jetzt immer auf Deutsch.' }, { ts: Date.now() + 1, ev: 'stop', excerpt: 'Done.' }])
+      await finalize('codex', SID, { pending: false })
+      const r = await distillSession('codex', SID, { runner: runner({ summary: 's', candidates: [
+        { type: 'preference', scope: 'person', title: 'Write commit messages in German please', description: 'the commit language', body: '', confidence: 0.8, stated: 'Schreib Commit-Nachrichten ab jetzt immer auf Deutsch.' },
+      ] }) })
+      const prefs = (await listAll(personRef())).filter(i => i.kind === 'preference')
+      expect(prefs).toHaveLength(1)
+      expect(r.candidates).toEqual([])
+      // A candidate 0.6-0.9 similar to an existing inferred preference takes the update path:
+      // its evidence is appended, nothing new is written (PRD R3).
+      expect(r.decisions[0]).toMatchObject({ op: 'update', target: 'preference-write-commit-messages-in-german' })
+      expect((await getStored(personRef(), 'preference-write-commit-messages-in-german'))?.item.body).toContain('Evidence:')
+    })
+  })
+
+  test('the prompt demands English and names what to leave out (PRD R5, R6)', async () => {
+    await withBrain(async ({ repo }) => {
+      await finishedSession(repo)
+      const prompts: string[] = []
+      const seen: DistillRunner = async p => { prompts.push(p); return { ok: true, text: JSON.stringify({ summary: 's' }) } }
+      await distillSession('codex', SID, { runner: seen })
+      const prompt = prompts[0] ?? ''
+      expect(prompt).toContain('English')
+      expect(prompt).toContain('feature request')
+      expect(prompt).toContain('unfinished work')
+    })
+  })
+
+  test('a candidate written in Turkish is dropped, the others are written (PRD R5)', async () => {
+    await withBrain(async ({ repo }) => {
+      await finishedSession(repo)
+      const r = await distillSession('codex', SID, { runner: runner({ summary: 's', candidates: [
+        { type: 'gotcha', title: 'Bellek kaydı Türkçe yazılmamalı', description: 'özet', body: 'Gövde Türkçe.', confidence: 0.9 },
+        { type: 'procedure', title: 'Run the migration before the deploy', description: 'two steps', body: '1. migrate', confidence: 0.9 },
+      ] }) })
+      expect(r.candidates).toHaveLength(1)
+      expect((await listAll(projectRef('demo'))).find(i => i.kind === 'gotcha')).toBeUndefined()
+      expect((await listAll(projectRef('demo'))).find(i => i.kind === 'procedure')).toBeDefined()
+    })
+  })
+
+  test('a Turkish summary rejects the whole answer, so the capture is tried again (PRD R5)', async () => {
+    await withBrain(async ({ repo }) => {
+      await finishedSession(repo)
+      const r = await distillSession('codex', SID, { runner: runner({ summary: 'Oturum özeti Türkçe kaldı.', candidates: [candidate()] }) })
+      expect(r).toMatchObject({ ran: false, skipped: 'invalid-reply' })
+      expect((await listAll(projectRef('demo'))).find(i => i.kind === 'procedure')).toBeUndefined()
+    })
+  })
+
+  test('the stored session summary keeps the model\'s full length, cut at a sentence boundary (PRD R7)', async () => {
+    await withBrain(async ({ repo }) => {
+      await finishedSession(repo)
+      const long = 'Moved orders to CockroachDB and fixed the flaky test that had slowed the pipeline for weeks. The migration now runs before the deploy, and the cache TTL was raised after the load test showed the old value was too short for the queue workers to finish their retry window, which had made every deploy fail twice before it succeeded.'
+      const r = await distillSession('codex', SID, { runner: runner({ summary: long, candidates: [] }) })
+      expect(r.summary).toBe(long)
+      const session = (await listAll(projectRef('demo'))).find(i => i.kind === 'session')
+      expect(session?.summary).toBe(long)
+    })
+  })
+
+  test('a stated quote in the user\'s language survives the English rule (PRD R5)', async () => {
+    await withBrain(async ({ repo }) => {
+      await sessionStart('codex', SID, repo)
+      appendSpool('codex', SID, [{ ts: Date.now(), ev: 'prompt', excerpt: 'Bundan sonra commit mesajlarını Türkçe yaz.' }, { ts: Date.now() + 1, ev: 'stop', excerpt: 'Done.' }])
+      await finalize('codex', SID, { pending: false })
+      await distillSession('codex', SID, { runner: runner({ summary: 's', candidates: [
+        { type: 'preference', scope: 'person', title: 'Write commit messages in Turkish', description: 'the commit language', body: '', confidence: 0.8, stated: 'Bundan sonra commit mesajlarını Türkçe yaz.' },
+      ] }) })
+      const pref = (await listAll(personRef())).find(i => i.kind === 'preference')
+      expect(pref?.body).toContain('Bundan sonra commit mesajlarını Türkçe yaz.')
+    })
+  })
+
+  test('the prompt asks for a scope on every candidate kind (PRD R8)', async () => {
+    await withBrain(async ({ repo }) => {
+      await finishedSession(repo)
+      const prompts: string[] = []
+      const seen: DistillRunner = async p => { prompts.push(p); return { ok: true, text: JSON.stringify({ summary: 's' }) } }
+      await distillSession('codex', SID, { runner: seen })
+      expect(prompts[0] ?? '').toContain('Scope (every candidate)')
+    })
+  })
+
+  test('a gotcha that holds in every project is written to the person brain; one tied to this codebase stays in the project (PRD R8)', async () => {
+    await withBrain(async ({ repo }) => {
+      await finishedSession(repo)
+      const r = await distillSession('codex', SID, { runner: runner({ summary: 's', candidates: [
+        { type: 'gotcha', scope: 'person', title: 'A dotless i breaks case folding in Turkish', description: 'locale-sensitive casing', body: 'Fold the case with the locale, not blindly.', confidence: 0.9 },
+        { type: 'procedure', scope: 'project', title: 'Run the migration before the deploy', description: 'two steps', body: '1. migrate', confidence: 0.9 },
+      ] }) })
+      expect(r.decisions.map(d => d.op)).toEqual(['add', 'add'])
+      const person = await listAll(personRef())
+      expect(person.find(i => i.kind === 'gotcha')?.title).toBe('A dotless i breaks case folding in Turkish')
+      const project = (await listAll(projectRef('demo'))).filter(i => i.kind !== 'session')
+      expect(project.find(i => i.kind === 'procedure')).toBeDefined()
+      expect(project.find(i => i.kind === 'gotcha')).toBeUndefined()
+    })
+  })
+
+  test('every distilled record carries a tag, the model name and Buracle as the author (PRD R9)', async () => {
+    await withBrain(async ({ repo }) => {
+      await finishedSession(repo)
+      writeTelemetry('codex', SID, { at: Date.now(), model: 'gpt-6-luna', modelId: 'gpt-6-luna' })
+      const r = await distillSession('codex', SID, { runner: runner({ summary: 's', candidates: [
+        { type: 'procedure', scope: 'project', title: 'Run the migration before the deploy', description: 'two steps', body: '1. migrate', confidence: 0.9 },
+        { type: 'knowledge', scope: 'project', title: 'Rotate the signing key every quarter', description: 'a guess', body: '', confidence: 0.3 },
+      ] }) })
+      expect(r.model).toBe('gpt-6-luna')
+      const procedure = (await listAll(projectRef('demo'))).find(i => i.kind === 'procedure')
+      expect(procedure?.tags.length ?? 0).toBeGreaterThan(0)
+      expect(procedure?.model).toBe('gpt-6-luna')
+      expect(procedure?.author).toBe('buracle')
+      const capture = (await listAll(projectRef('demo'))).find(i => i.kind === 'capture')
+      expect(capture?.tags.length ?? 0).toBeGreaterThan(0)
+      expect(capture?.model).toBe('gpt-6-luna')
+    })
   })
 })
 

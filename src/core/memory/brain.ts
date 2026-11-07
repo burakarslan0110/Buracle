@@ -387,9 +387,11 @@ export function memLocked(i: Pick<MemItem, 'origin' | 'pinned'>): boolean {
   return i.origin === 'explicit' || i.pinned === true
 }
 
-/** Locked, or verified: a model or an agent never retires, merges or replaces such a memory. */
-export function memProtected(i: Pick<MemItem, 'origin' | 'pinned' | 'review'>): boolean {
-  return memLocked(i) || i.review === 'ok'
+/** Locked, or verified, or verified once before: a model or an agent never retires, merges, replaces or moves such a memory.
+ *  A record that was ever verified keeps its protection even after an inferred change flipped its review back to
+ *  pending (PRD R10): no sequence of inferred updates unlocks it. */
+export function memProtected(i: Pick<MemItem, 'origin' | 'pinned' | 'review' | 'verifiedAt'>): boolean {
+  return memLocked(i) || i.review === 'ok' || i.verifiedAt !== undefined
 }
 
 export function isLive(item: MemItem, nowMs: number): boolean {
@@ -483,8 +485,12 @@ export function utf8Length(s: string): number {
 
 function indexLine(i: MemItem): string {
   const summary = i.summary !== '' ? ` — ${memClip(memOneLine(i.summary), 140)}` : ''
-  const unverified = i.review === 'pending' && !KIND_INFO[i.kind].generated ? ' (unverified)' : ''
-  return `- ${memClip(memOneLine(i.title), 120)}${summary} (${i.id})${unverified}`
+  const flags = [
+    i.review === 'pending' && !KIND_INFO[i.kind].generated ? 'unverified' : '',
+    i.origin === 'explicit' ? 'explicit' : '',
+    i.contradictedAt !== undefined ? 'contradicts' : '',
+  ].filter(Boolean)
+  return `- ${memClip(memOneLine(i.title), 120)}${summary} (${i.id})${flags.length > 0 ? ` (${flags.join(', ')})` : ''}`
 }
 
 function projectGroups(items: readonly MemItem[], nowMs: number): Array<{ title: string, lines: string[] }> {

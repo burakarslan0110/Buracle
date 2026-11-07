@@ -80,6 +80,8 @@ describe('buracle mem', () => {
       })
       const cap = await cli(['mem', 'capture', '--harness', 'codex', '--session', 'abc-123', '--json'])
       expect(cap.code).toBe(0)
+      // The session spooled no material, so the capture completes as nothing-to-distill at once
+      // instead of burning retries on the disabled distill (PRD R2).
       expect(JSON.parse(cap.out).capture).toMatchObject({ state: 'done', preferences: { written: [] } })
       const latest = await cli(['mem', 'capture', '--cwd', repo, '--json'])
       expect(latest.code).toBe(0)

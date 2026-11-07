@@ -294,9 +294,19 @@ async function finalizePass(h: Harness, sid: string, opts: FinalizeOptions): Pro
  */
 async function captureStep(h: Harness, sid: string, pass: FinalizePass, opts: FinalizeOptions): Promise<CaptureSummary | undefined> {
   const { project, digest } = pass
-  if (!project) return undefined
   const now = opts.nowMs ?? Date.now()
   const rec = readSessionRecord(h, sid) ?? pass.rec
+  const prior = rec.capture
+  const tries = prior?.tries ?? 0
+  // A session without a project bucket has nothing to capture (a home directory or a memory.exclude folder):
+  // a done mark keeps every pending scan from listing it as owed (PRD R1).
+  if (!project) {
+    writeSessionRecord({ ...rec, capture: { state: 'done', tries, lastTryMs: now, detail: 'no project memory for this session' } })
+    return undefined
+  }
+  // The capture is owed from here on: a death during the model call leaves a retry the pending scan takes up (PRD R1).
+  // The sha of a completed distill survives, so a retry of the same material still lands on already-distilled.
+  writeSessionRecord({ ...rec, capture: { state: 'retry', tries, lastTryMs: now, ...(prior?.sha !== undefined ? { sha: prior.sha } : {}), detail: 'the model call is running' } })
   let preferences: PreferenceResult = { written: [], superseded: [], skipped: 0 }
   try {
     preferences = await capturePreferences(digest.signals, { harness: h, sid, cwd: rec.cwd, nowMs: now })
@@ -307,15 +317,13 @@ async function captureStep(h: Harness, sid: string, pass: FinalizePass, opts: Fi
   } catch (e) {
     log('warn', 'memory: the distillation of a session failed', { h, sid, error: e })
   }
-  const prior = rec.capture
-  const tries = prior?.tries ?? 0
   let next: MemCaptureState
   const skipped = distill?.skipped
   if (distill === undefined) next = { state: 'retry', tries: tries + 1, lastTryMs: now, detail: 'the distillation threw' }
   else if (distill.ran) next = { state: 'done', tries, lastTryMs: now, ...(distill.sha !== undefined ? { sha: distill.sha } : {}) }
-  else if (skipped === 'runner-failed' || skipped === 'invalid-reply') {
+  else if (skipped === 'runner-failed' || skipped === 'invalid-reply' || skipped === 'no-session-memory') {
     next = { state: tries + 1 >= CAPTURE_BUDGET.maxTries ? 'gave-up' : 'retry', tries: tries + 1, lastTryMs: now, ...(distill.detail !== undefined ? { detail: memClip(distill.detail, 300) } : {}) }
-  } else if (skipped === 'rate-limit' || skipped === 'no-harness' || skipped === 'runner-unavailable' || skipped === 'busy') {
+  } else if (skipped === 'rate-limit' || skipped === 'no-harness' || skipped === 'runner-unavailable' || skipped === 'busy' || skipped === 'disabled') {
     next = { state: 'retry', tries, lastTryMs: now, ...(distill.detail !== undefined ? { detail: memClip(distill.detail, 300) } : {}) }
   } else next = { state: 'done', tries, lastTryMs: now, ...(distill?.sha !== undefined ? { sha: distill.sha } : prior?.sha !== undefined ? { sha: prior.sha } : {}) }
   writeSessionRecord({ ...rec, capture: next })

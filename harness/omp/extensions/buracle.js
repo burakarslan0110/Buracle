@@ -7516,7 +7516,7 @@ var init_shim = __esm(() => {
 var init_hook_fail = () => {};
 
 // src/engine/update/runtime.ts
-import { chmodSync as chmodSync2, cpSync, existsSync as existsSync13, mkdirSync as mkdirSync13, readFileSync as readFileSync23, readdirSync as readdirSync12, renameSync as renameSync3, rmSync as rmSync5, statSync as statSync23, writeFileSync as writeFileSync2 } from "fs";
+import { chmodSync as chmodSync2, cpSync, existsSync as existsSync13, mkdirSync as mkdirSync13, readFileSync as readFileSync23, readdirSync as readdirSync12, renameSync as renameSync3, rmSync as rmSync5, statSync as statSync24, writeFileSync as writeFileSync2 } from "fs";
 import { basename as basename10, dirname as dirname16, join as join34, relative as relative5, resolve as resolve19, sep as sep5 } from "path";
 function runtimeFiles(checkout) {
   const out = [];
@@ -7609,7 +7609,7 @@ function checkoutFingerprint(checkout, deps) {
   for (const rel of runtimeFiles(checkout)) {
     const abs = join34(checkout, rel);
     try {
-      parts.push(fileEntry(rel, readFileSync23(abs), statSync23(abs).mode));
+      parts.push(fileEntry(rel, readFileSync23(abs), statSync24(abs).mode));
     } catch {
       parts.push(`${rel}\x00missing
 `);
@@ -23784,6 +23784,13 @@ function slugPart(s) {
   const slug = folded.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60).replace(/-+$/g, "");
   return slug === "" ? "project" : slug;
 }
+async function firstCommit(cwd) {
+  const out = await git(cwd, ["rev-list", "--max-parents=0", "HEAD"]);
+  if (out === undefined)
+    return;
+  return out.split(`
+`).map((l) => l.trim()).filter((l) => /^[0-9a-f]{7,40}$/.test(l)).sort()[0];
+}
 async function projectIdentity(cwd) {
   const abs = comparablePath(cwd);
   const common = await commonDir(abs);
@@ -23799,6 +23806,9 @@ async function projectIdentity(cwd) {
     id.remote = remote;
   if (parsed?.owner !== undefined)
     id.ownerRepo = `${parsed.owner}/${parsed.repo}`;
+  const first = await firstCommit(abs);
+  if (first !== undefined)
+    id.rootCommit = first;
   return id;
 }
 async function projectSlug(cwd) {
@@ -30650,7 +30660,7 @@ function heldConsentNeed(sid, command) {
 }
 
 // src/adapters/omp/runtime/deps.ts
-import { readdirSync as readdirSync10, readFileSync as readFileSync22, rmSync as rmSync4, statSync as statSync22 } from "fs";
+import { readdirSync as readdirSync10, readFileSync as readFileSync22, rmSync as rmSync4, statSync as statSync23 } from "fs";
 import { join as join31, resolve as resolve16 } from "path";
 
 // src/core/config.ts
@@ -34954,7 +34964,7 @@ function mcpHealth(nowMs = Date.now()) {
 
 // src/adapters/omp/runtime/memory.ts
 init_paths();
-import { readFileSync as readFileSync20, statSync as statSync20 } from "fs";
+import { readFileSync as readFileSync20, statSync as statSync21 } from "fs";
 import { join as join28 } from "path";
 init_shim();
 
@@ -35058,7 +35068,7 @@ import { join as join25, resolve as resolve13 } from "path";
 init_paths();
 
 // src/memory/project.ts
-import { existsSync as existsSync11, readdirSync as readdirSync6 } from "fs";
+import { copyFileSync, existsSync as existsSync11, readdirSync as readdirSync6, statSync as statSync18 } from "fs";
 import { basename as basename8, dirname as dirname15, join as join23, resolve as resolve12 } from "path";
 init_fsx();
 init_paths();
@@ -35072,9 +35082,41 @@ function readProjectsCache() {
   const r = readJsonSafeSync(projectsFile());
   if (r.ok && memIsProjectsCache(r.value))
     return r.value;
-  if (!r.ok && r.code !== "missing")
+  if (!r.ok && r.code !== "missing") {
     log("warn", "memory: projects cache unreadable; starting empty", { error: r.error });
+    backupCorruptProjectsCache();
+  } else if (r.ok && !memIsProjectsCache(r.value)) {
+    backupCorruptProjectsCache();
+  }
   return memEmptyProjects();
+}
+function backupCorruptProjectsCache() {
+  const file = projectsFile();
+  const dir = dirname15(file);
+  const base = basename8(file);
+  let newest = 0;
+  try {
+    for (const n of readdirSync6(dir)) {
+      if (!n.startsWith(`${base}.corrupt-`))
+        continue;
+      try {
+        newest = Math.max(newest, statSync18(join23(dir, n)).mtimeMs);
+      } catch {}
+    }
+  } catch {
+    return;
+  }
+  try {
+    if (statSync18(file).mtimeMs <= newest)
+      return;
+  } catch {
+    return;
+  }
+  try {
+    copyFileSync(file, join23(dir, `${base}.corrupt-${Date.now()}`));
+  } catch (e) {
+    log("warn", "memory: cannot back up the corrupt projects cache", { error: e });
+  }
 }
 function writeProjectsCache(cache) {
   atomicWriteSync(projectsFile(), JSON.stringify(cache, null, 2) + `
@@ -35082,7 +35124,7 @@ function writeProjectsCache(cache) {
 }
 function updateProjectsCache(fn) {
   const lock = `${projectsFile()}.lock`;
-  const deadline = Date.now() + 1000;
+  const deadline = Date.now() + 3000;
   let release = tryLock(lock, 1e4);
   while (!release && Date.now() < deadline) {
     Bun.sleepSync(10);
@@ -35115,6 +35157,8 @@ function sameIdentity(rec, id) {
   if (rec.commonDir !== undefined && id.commonDir !== undefined && rec.commonDir === id.commonDir)
     return true;
   if (rec.ownerRepo !== undefined && id.ownerRepo !== undefined && rec.ownerRepo.toLowerCase() === id.ownerRepo.toLowerCase())
+    return true;
+  if (rec.ownerRepo === undefined && id.ownerRepo === undefined && rec.rootCommit !== undefined && id.rootCommit !== undefined && rec.rootCommit === id.rootCommit)
     return true;
   return rec.roots.includes(id.root);
 }
@@ -35238,6 +35282,16 @@ async function projectExclusion(cwd, patterns = memoryExcludePatterns()) {
     return;
   return exclusionOf(abs, patterns);
 }
+var commonDirMemo = new Map;
+async function ownCommonDir(abs) {
+  const hit = commonDirMemo.get(abs);
+  if (hit !== undefined)
+    return hit;
+  const d = await commonDir(abs);
+  if (d !== undefined)
+    commonDirMemo.set(abs, d);
+  return d;
+}
 async function resolveProject(cwd) {
   const abs = existingDir(cwd);
   if (isNonProjectDir(abs))
@@ -35246,23 +35300,33 @@ async function resolveProject(cwd) {
     return;
   const now = Date.now();
   const hit = memLookupProject(readProjectsCache(), abs);
-  if (hit && !(hit.scope === "adhoc" && hit.roots.includes(abs) && now - (hit.checkedMs ?? 0) > CHILD_RECHECK_MS))
-    return hit;
-  if (hit) {
-    const children = childRepos(abs);
-    if (children.length === 1) {
-      const mapped = await mapToChild(abs, children[0]);
-      if (mapped)
-        return mapped;
+  if (hit && !(hit.scope === "adhoc" && hit.roots.includes(abs) && now - (hit.checkedMs ?? 0) > CHILD_RECHECK_MS)) {
+    const own = hit.roots.includes(abs) || hit.commonDir === undefined ? undefined : await ownCommonDir(abs);
+    if (own === undefined || own === hit.commonDir) {
+      const children = childRepos(abs);
+      if (children.length === 1) {
+        const mapped = await mapToChild(abs, children[0]);
+        if (mapped)
+          return mapped;
+      }
+      updateProjectsCache((cache) => {
+        const r = cache.projects[hit.slug];
+        if (r)
+          r.checkedMs = now;
+      });
+      if (hit.scope === "project" && hit.commonDir !== undefined && hit.rootCommit === undefined) {
+        const id = await projectIdentity(abs);
+        if (id.rootCommit !== undefined)
+          updateProjectsCache((cache) => {
+            const r = cache.projects[hit.slug];
+            if (r !== undefined && r.rootCommit === undefined)
+              r.rootCommit = id.rootCommit;
+          });
+      }
+      if (children.length > 1)
+        await registerChildren(children);
+      return hit;
     }
-    updateProjectsCache((cache) => {
-      const r = cache.projects[hit.slug];
-      if (r)
-        r.checkedMs = now;
-    });
-    if (children.length > 1)
-      await registerChildren(children);
-    return hit;
   }
   const id = await projectIdentity(abs);
   if (id.commonDir === undefined) {
@@ -35281,11 +35345,15 @@ async function resolveProject(cwd) {
   const remote = id.remote !== undefined ? repoDisplay(id.remote) : undefined;
   let chosen;
   updateProjectsCache((cache) => {
-    const existing = Object.values(cache.projects).find((r) => sameIdentity(r, { ...id.commonDir !== undefined ? { commonDir: id.commonDir } : {}, ...id.ownerRepo !== undefined ? { ownerRepo: id.ownerRepo } : {}, root: id.root }));
+    const existing = Object.values(cache.projects).find((r) => sameIdentity(r, { ...id.commonDir !== undefined ? { commonDir: id.commonDir } : {}, ...id.ownerRepo !== undefined ? { ownerRepo: id.ownerRepo } : {}, ...id.rootCommit !== undefined ? { rootCommit: id.rootCommit } : {}, root: id.root }));
     if (existing) {
       for (const r of roots)
         if (!existing.roots.includes(r))
           existing.roots.push(r);
+      if (id.rootCommit !== undefined && existing.rootCommit === undefined)
+        existing.rootCommit = id.rootCommit;
+      if (id.commonDir !== undefined && existing.commonDir === undefined)
+        existing.commonDir = id.commonDir;
       existing.updated = isoNow();
       if (scope === "adhoc")
         existing.checkedMs = now;
@@ -35297,7 +35365,7 @@ async function resolveProject(cwd) {
     if (taken(slug) && id.ownerRepo !== undefined)
       slug = slugify(id.ownerRepo.replace("/", "-"));
     if (taken(slug))
-      slug = `${slug.slice(0, 52)}-${sha256(id.commonDir ?? abs).slice(0, 6)}`;
+      slug = `${slug.slice(0, 52)}-${sha256(id.rootCommit ?? id.commonDir ?? abs).slice(0, 6)}`;
     const rec = { slug, scope, roots, updated: isoNow() };
     if (id.ownerRepo !== undefined)
       rec.ownerRepo = id.ownerRepo;
@@ -35305,6 +35373,8 @@ async function resolveProject(cwd) {
       rec.remote = remote;
     if (id.commonDir !== undefined)
       rec.commonDir = id.commonDir;
+    if (id.rootCommit !== undefined)
+      rec.rootCommit = id.rootCommit;
     if (scope === "adhoc")
       rec.checkedMs = now;
     cache.projects[slug] = rec;
@@ -35339,7 +35409,7 @@ function writeSessionRecord(rec) {
 var STALE_ACTIVE_MS = 2 * 3600000;
 
 // src/memory/spawn.ts
-import { existsSync as existsSync12, statSync as statSync18 } from "fs";
+import { existsSync as existsSync12, statSync as statSync19 } from "fs";
 import { basename as basename9, join as join24 } from "path";
 init_paths();
 init_shim();
@@ -35351,7 +35421,7 @@ function bunBinary() {
 }
 function isFile3(p) {
   try {
-    return statSync18(p).isFile();
+    return statSync19(p).isFile();
   } catch {
     return false;
   }
@@ -35477,7 +35547,7 @@ function uiBuildId(repoRoot = repoRoot2()) {
 }
 
 // src/memory/ui-presence.ts
-import { closeSync as closeSync6, mkdirSync as mkdirSync11, openSync as openSync6, readdirSync as readdirSync8, rmSync as rmSync3, statSync as statSync19, utimesSync as utimesSync5 } from "fs";
+import { closeSync as closeSync6, mkdirSync as mkdirSync11, openSync as openSync6, readdirSync as readdirSync8, rmSync as rmSync3, statSync as statSync20, utimesSync as utimesSync5 } from "fs";
 import { join as join27 } from "path";
 init_paths();
 
@@ -35538,7 +35608,7 @@ function sessionSeen(h, sid, nowMs = Date.now(), env = process.env) {
     return "fresh";
   let mtime;
   try {
-    mtime = statSync19(file).mtimeMs;
+    mtime = statSync20(file).mtimeMs;
   } catch {
     mtime = undefined;
   }
@@ -35586,7 +35656,7 @@ function startUiSoon(opts = {}) {
     } catch {
       let stale = false;
       try {
-        stale = now - statSync19(marker).mtimeMs >= UI_SPAWN_MARKER_MS;
+        stale = now - statSync20(marker).mtimeMs >= UI_SPAWN_MARKER_MS;
       } catch {
         stale = true;
       }
@@ -35634,7 +35704,7 @@ var ompUiBridge = {
 };
 function isFile4(p) {
   try {
-    return statSync20(p).isFile();
+    return statSync21(p).isFile();
   } catch {
     return false;
   }
@@ -35901,7 +35971,7 @@ function planSavedNote(saved, cwd) {
 }
 
 // src/adapters/shared/project-deps.ts
-import { readdirSync as readdirSync9, readFileSync as readFileSync21, statSync as statSync21 } from "fs";
+import { readdirSync as readdirSync9, readFileSync as readFileSync21, statSync as statSync22 } from "fs";
 import { join as join30, resolve as resolve15 } from "path";
 var ROOT_MANIFESTS = ["package.json", "pyproject.toml", "Pipfile", "go.mod", "Cargo.toml", "composer.json", "Gemfile"];
 var REQUIREMENTS = /^(?:requirements|constraints)[\w.-]*\.(?:txt|in)$/i;
@@ -35912,7 +35982,7 @@ var READ_MAX_BYTES = 1024 * 1024;
 var cache3 = new Map;
 function stamp2(path) {
   try {
-    const st = statSync21(path);
+    const st = statSync22(path);
     return st.isFile() ? `${st.size}:${Math.trunc(st.mtimeMs)}` : undefined;
   } catch {
     return;
@@ -35920,7 +35990,7 @@ function stamp2(path) {
 }
 function readSmall(path) {
   try {
-    if (statSync21(path).size > READ_MAX_BYTES)
+    if (statSync22(path).size > READ_MAX_BYTES)
       return;
     return readFileSync21(path, "utf8");
   } catch {
@@ -36164,7 +36234,7 @@ function planFiles(dir) {
   for (const name of names) {
     const path = join31(dir, name);
     try {
-      const st = statSync22(path);
+      const st = statSync23(path);
       if (st.isFile())
         out.push({ path, mtimeMs: st.mtimeMs });
     } catch {}
@@ -36293,7 +36363,7 @@ function defaultDeps() {
     },
     isFile: (path) => {
       try {
-        return statSync22(path).isFile();
+        return statSync23(path).isFile();
       } catch {
         return false;
       }
@@ -38222,7 +38292,7 @@ import { isAbsolute as isAbsolute12, join as join36, resolve as resolve20 } from
 // src/engine/hook-health.ts
 init_fsx();
 init_paths();
-import { existsSync as existsSync14, readFileSync as readFileSync24, rmSync as rmSync6, statSync as statSync24 } from "fs";
+import { existsSync as existsSync14, readFileSync as readFileSync24, rmSync as rmSync6, statSync as statSync25 } from "fs";
 import { join as join35 } from "path";
 var HOOK_FAILURE_MESSAGES = ["hook handler failed", "hook command failed before dispatch", "hook runtime failed"];
 var DAY_MS = 86400000;
@@ -38318,7 +38388,7 @@ function runtimeDriftCacheFile() {
 }
 function shimStamp() {
   try {
-    const s = statSync24(join35(binDir(), "buracle"));
+    const s = statSync25(join35(binDir(), "buracle"));
     return `${s.size}:${s.mtimeMs}`;
   } catch {
     return "";

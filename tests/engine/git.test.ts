@@ -46,6 +46,8 @@ describe('git queries', () => {
     expect(await remoteUrl(repo)).toBeUndefined()
 
     expect(await projectSlug(repo)).toBe('my-project')
+    // A repo without a remote keeps its identity in its first commit (PRD R17).
+    expect((await projectIdentity(repo)).rootCommit).toMatch(/^[0-9a-f]{7,40}$/)
 
     await git(repo, 'remote', 'add', 'origin', 'git@github.com:burak/Buracle-Core.git')
     expect(await remoteUrl(repo)).toBe('git@github.com:burak/Buracle-Core.git')

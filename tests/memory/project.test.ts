@@ -1,13 +1,15 @@
 import { describe, expect, test } from 'bun:test'
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { applyPlans } from '../../src/engine/txn'
+import { sha256 } from '../../src/engine/fsx'
+import { projectIdentity } from '../../src/engine/git'
 import { MemoryError, write } from '../../src/memory/api'
 import { contextText } from '../../src/memory/context'
 import { finalize } from '../../src/memory/finalize'
 import { brainDir, projectsFile } from '../../src/memory/layout'
 import { loadConfigSync, writeRuntimeConfig } from '../../src/engine/config'
-import { forgetProject, isNonProjectDir, memoryExcludeConfig, oldVaultDir, projectExclusion, readProjectsCache, repoDisplay, resolveProject, slugExclusion } from '../../src/memory/project'
+import { corruptProjectsBackups, forgetProject, isNonProjectDir, memoryExcludeConfig, oldVaultDir, projectExclusion, readProjectsCache, repoDisplay, resolveProject, slugExclusion } from '../../src/memory/project'
 import { projectInit } from '../../src/memory/project-init'
 import { memoryStatusReport } from '../../src/memory/status-report'
 import { sessionStart } from '../../src/memory/session-record'
@@ -113,14 +115,98 @@ describe('resolveProject', () => {
     })
   })
 
-  test('a broken cache is rebuilt instead of failing', async () => {
+  test('a broken cache is backed up, then rebuilt instead of failing (PRD R14)', async () => {
     await withBrain(async ({ repo }) => {
       mkdirSync(join(projectsFile(), '..'), { recursive: true })
       writeFileSync(projectsFile(), '{ nope')
       expect((await resolveProject(repo))?.slug).toBe('demo')
       expect(JSON.parse(readFileSync(projectsFile(), 'utf8')).v).toBe(1)
+      // The corrupt original is kept, so the records can be restored by hand (PRD R14).
+      const backups = corruptProjectsBackups()
+      expect(backups).toHaveLength(1)
+      expect(readFileSync(backups[0] ?? '', 'utf8')).toBe('{ nope')
     })
   })
+
+  test('a record from before the identity fields existed gains them on one resolution, so a move finds the old bucket (PRD R17)', async () => {
+    await withBrain(async ({ root }) => {
+      const dir = makeRepo(join(root, 'legacy'), '')
+      expect((await resolveProject(dir))?.slug).toBe('legacy')
+      // A record in the old format: no rootCommit (the field this change introduced).
+      const cache = JSON.parse(readFileSync(projectsFile(), 'utf8'))
+      delete cache.projects['legacy'].rootCommit
+      writeFileSync(projectsFile(), JSON.stringify(cache))
+      await resolveProject(dir)
+      const healed = JSON.parse(readFileSync(projectsFile(), 'utf8'))
+      expect(healed.projects['legacy'].rootCommit).toBeDefined()
+      const moved = join(root, 'legacy-moved')
+      renameSync(dir, moved)
+      expect((await resolveProject(moved))?.slug).toBe('legacy')
+    })
+  })
+
+  test('a repo without a remote keeps its bucket when it is moved or renamed (PRD R17)', async () => {
+    await withBrain(async ({ root }) => {
+      const dir = makeRepo(join(root, 'no-remote'), '')
+      const first = await resolveProject(dir)
+      expect(first?.slug).toBe('no-remote')
+      const moved = join(root, 'renamed-home')
+      renameSync(dir, moved)
+      const again = await resolveProject(moved)
+      expect(again?.slug).toBe('no-remote')
+      expect(again?.roots).toContain(moved)
+    })
+  })
+
+  test('a deleted projects cache is rebuilt and the repo reopens its own bucket (PRD R13)', async () => {
+    await withBrain(async ({ repo }) => {
+      const first = await resolveProject(repo)
+      expect(first?.slug).toBe('demo')
+      rmSync(projectsFile())
+      const again = await resolveProject(repo)
+      expect(again?.slug).toBe('demo')
+    })
+  })
+
+  test('a separate repository nested inside a registered root gets its own bucket; a plain subfolder keeps the parent (PRD R15)', async () => {
+    await withBrain(async ({ repo }) => {
+      expect((await resolveProject(repo))?.slug).toBe('demo')
+      // Not a direct subdirectory, so the container mapping (a root whose one child repo it is) stays out of the way.
+      const nested = makeRepo(join(repo, 'vendor-work', 'nested-repo'), 'git@github.com:me/nested.git')
+      mkdirSync(join(repo, 'src'), { recursive: true })
+      expect((await resolveProject(join(repo, 'src')))?.slug).toBe('demo')
+      expect((await resolveProject(nested))?.slug).toBe('nested')
+      expect((await resolveProject(repo))?.slug).toBe('demo')
+    })
+  })
+
+  test('a contested slug gets a suffix from the first commit, the same one on every re-registration (PRD R13)', async () => {
+    await withBrain(async ({ root }) => {
+      const a = makeRepo(join(root, 'twin'), '')
+      const b = makeRepo(join(root, 'other', 'twin'), '')
+      git(b, 'commit', '-q', '--amend', '-m', 'twin b')
+      expect((await resolveProject(a))?.slug).toBe('twin')
+      const second = await resolveProject(b)
+      const rootCommit = (await projectIdentity(b)).rootCommit
+      expect(second?.slug).toBe(`twin-${sha256(rootCommit ?? '').slice(0, 6)}`)
+      rmSync(projectsFile())
+      // The same contest rebuilt in the same order derives the same names (PRD R13).
+      expect((await resolveProject(a))?.slug).toBe('twin')
+      const again = await resolveProject(b)
+      expect(again?.slug).toBe(second?.slug)
+    })
+  })
+
+  test('two projects that register in the same second both keep their record (PRD R16)', async () => {
+    await withBrain(async ({ root }) => {
+      const dirs = ['alpha', 'beta', 'gamma', 'delta'].map(name => makeRepo(join(root, name), `git@github.com:me/${name}.git`))
+      const script = (dir: string) => `const { resolveProject } = await import(${JSON.stringify(join(import.meta.dir, '..', '..', 'src', 'memory', 'project'))}); await resolveProject(${JSON.stringify(dir)})`
+      const kids = dirs.map(dir => Bun.spawn(['bun', '-e', script(dir)], { stdout: 'pipe', stderr: 'pipe', env: { ...process.env } }))
+      for (const k of kids) expect(await k.exited).toBe(0)
+      const cache = readProjectsCache()
+      for (const name of ['alpha', 'beta', 'gamma', 'delta']) expect(cache.projects[name]).toBeDefined()
+    })
+  }, 30_000)
 
   test('repoDisplay strips users and credentials', () => {
     expect(repoDisplay('git@github.com:me/demo.git')).toBe('github.com/me/demo')

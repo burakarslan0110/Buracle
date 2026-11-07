@@ -33,18 +33,20 @@ describe('memStemForms (query stemming, finding M3)', () => {
   test('English plural, -ing and -ed come off', () => {
     expect(forms('tests')).toEqual(['test'])
     expect(forms('tokens')).toEqual(['token'])
-    expect(forms('caching')).toEqual(['cach'])
-    expect(forms('caches')).toEqual(['cach'])
+    // PRD R18: the silent-e base rides along, so cache/caches and merge/merged meet in the index.
+    expect(forms('caching')).toEqual(['cach', 'cache'])
+    expect(forms('caches')).toEqual(['cach', 'cache'])
     expect(forms('classes')).toEqual(['class'])
-    expect(forms('policies')).toEqual(['polic'])
+    expect(forms('policies')).toEqual(['policy'])
     expect(forms('running')).toEqual(['run'])
     expect(forms('stopped')).toEqual(['stop'])
-    expect(forms('indexing')).toEqual(['index'])
+    expect(forms('indexing')).toEqual(['index', 'indexe'])
   })
 
   test('words Turkish could not inflect that way, short stems and names stay whole', () => {
+    // 'using' left this list: it now stems to 'use', so use/using meet (PRD R18).
     for (const w of ['hata', 'kalite', 'chain', 'domain', 'table', 'update', 'delete', 'write', 'route', 'module', 'handler', 'login', 'plugin',
-      'string', 'thing', 'using', 'speed', 'need', 'menu', 'emoji', 'status', 'analysis', 'garden', 'hafıza', 'güncelleme', 'near', 'fts5', 'max_tokens', 'db']) {
+      'string', 'thing', 'speed', 'need', 'menu', 'emoji', 'status', 'analysis', 'garden', 'hafıza', 'güncelleme', 'near', 'fts5', 'max_tokens', 'db']) {
       expect([w, forms(w)]).toEqual([w, []])
     }
     expect(memStem('hata')).toBe('hata')
@@ -59,6 +61,14 @@ describe('memStemForms (query stemming, finding M3)', () => {
         expect(s.length).toBeGreaterThanOrEqual(3)
         expect(s).toMatch(/[aeiou]/)
       }
+    }
+  })
+
+  test('the five word-form pairs of the PRD come to the same stem (PRD R18)', () => {
+    const pairs: Array<[string, string]> = [['policy', 'policies'], ['cache', 'caches'], ['merge', 'merged'], ['configure', 'configured'], ['use', 'using']]
+    for (const [base, inflected] of pairs) {
+      // The base form's stem appears among the inflected form's stems, so the index and the query meet.
+      expect([base, inflected, forms(inflected).includes(memStem(base))]).toEqual([base, inflected, true])
     }
   })
 })

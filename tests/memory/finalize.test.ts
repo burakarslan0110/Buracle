@@ -3,7 +3,9 @@ import { existsSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { promptSignals } from '../../src/core/memory/signals'
 import { contextText } from '../../src/memory/context'
-import { cortexFor } from '../../src/memory/cortex'
+import { pendingSessions } from '../../src/memory/capture'
+import { closeAllCortex, cortexFor } from '../../src/memory/cortex'
+import { captureChecks } from '../../src/memory/doctor'
 import { checkReply, statedByUser, type DistillRunner } from '../../src/memory/distill'
 import { capturePending, finalize } from '../../src/memory/finalize'
 import { brainDbFile, locksDir } from '../../src/memory/layout'
@@ -37,13 +39,14 @@ describe('finalize', () => {
     await withBrain(async ({ repo }) => {
       await sessionStart('codex', SID, repo)
       appendSpool('codex', SID, [{ ts: Date.now(), ev: 'prompt' }, { ts: Date.now() + 1, ev: 'stop', excerpt: 'Fixed the flaky test.' }])
-      const running = finalize('codex', SID, { settleMs: 600 })
+      // A working runner, because a disabled distill now owes the capture instead of finishing it (PRD R2).
+      const running = finalize('codex', SID, { settleMs: 600, runner: answer(PROCEDURE) })
       for (let i = 0; i < 200 && readSessionRecord('codex', SID)?.status !== 'ended'; i++) await Bun.sleep(25)
       appendSpool('codex', SID, [{ ts: Date.now() + 2, ev: 'stop', excerpt: 'Also renamed the helper.' }], { suffix: 'late' })
       const r = await running
       expect(r.memoryId).toBeDefined()
       const mem = await getStored(projectRef('demo'), r.memoryId as string)
-      expect(mem?.item.history.map(h => h.what)).toEqual(['session ended', 'finalized again'])
+      expect(mem?.item.history.map(h => h.what)).toEqual(['session ended', 'finalized again', 'distilled'])
       expect(mem?.item.body).toContain('Also renamed the helper.')
       expect(r.capture?.state).toBe('done')
     })
@@ -63,13 +66,14 @@ describe('finalize', () => {
     await withBrain(async ({ repo }) => {
       await sessionStart('codex', SID, repo)
       appendSpool('codex', SID, [{ ts: Date.now(), ev: 'prompt' }, { ts: Date.now() + 1, ev: 'stop', excerpt: 'Fixed the flaky test.' }])
-      const first = await finalize('codex', SID)
+      // A working runner, because a disabled distill now owes the capture instead of finishing it (PRD R2).
+      const first = await finalize('codex', SID, { runner: answer(PROCEDURE) })
       expect(first.memoryId).toBeDefined()
       const again = await Promise.all([finalize('codex', SID), finalize('codex', SID), finalize('codex', SID)])
       expect(again.map(r => r.skipped)).toEqual(['already-finalized', 'already-finalized', 'already-finalized'])
       expect(again[0]).toMatchObject({ slug: 'demo', memoryId: first.memoryId })
       appendSpool('codex', SID, [{ ts: Date.now() + 2, ev: 'stop', excerpt: 'Resumed and renamed the helper.' }], { suffix: 'resume' })
-      const resumed = await finalize('codex', SID)
+      const resumed = await finalize('codex', SID, { runner: answer(PROCEDURE) })
       expect(resumed.skipped).toBeUndefined()
       expect((await getStored(projectRef('demo'), first.memoryId as string))?.item.body).toContain('Resumed and renamed the helper.')
     })
@@ -334,6 +338,112 @@ describe('finalize', () => {
       expect(r.capture?.distill).toMatchObject({ ran: false, skipped: 'disabled' })
       const names = readdirSync(paths.memoryStateDir())
       for (const gone of ['jobs.jsonl', 'tick.json', 'sweep.json', 'heal.json', 'upkeep', 'distinct', 'profile', 'reflect', 'verify', 'distill', 'scan']) expect(names).not.toContain(gone)
+    })
+  })
+
+  test('the capture state says retry while the model call runs, so a death mid-call leaves a session the pending scan can finish (PRD R1)', async () => {
+    await withBrain(async ({ repo }) => {
+      await spooled(repo, SID)
+      let release!: (r: { ok: true, text: string }) => void
+      const gate = new Promise<{ ok: true, text: string }>(resolve => { release = resolve })
+      const running = finalize('codex', SID, { pending: false, runner: () => gate })
+      let mid: string | undefined
+      for (let i = 0; i < 160 && mid === undefined; i++) {
+        await Bun.sleep(25)
+        const c = readSessionRecord('codex', SID)?.capture
+        if (c !== undefined) mid = c.state
+      }
+      release({ ok: true, text: JSON.stringify(PROCEDURE) })
+      const r = await running
+      expect(mid).toBe('retry')
+      expect(r.capture?.state).toBe('done')
+      expect(readSessionRecord('codex', SID)?.capture).toMatchObject({ state: 'done', tries: 0 })
+    })
+  })
+
+  test('an ended session whose capture state was never written is listed as pending and captured from its done spool (PRD R1)', async () => {
+    await withBrain(async ({ repo }) => {
+      const t0 = Date.now()
+      await spooled(repo, SID)
+      await finalize('codex', SID, { pending: false, runner: answer(PROCEDURE), nowMs: t0 })
+      // A crash before any capture state was written: the state is missing, the spool already sits in done.
+      const { capture: _c, ...rec } = readSessionRecord('codex', SID) as NonNullable<ReturnType<typeof readSessionRecord>>
+      writeSessionRecord(rec)
+      expect(pendingSessions(t0 + HOUR, { afterMs: 0 }).map(p => [p.sid, p.why])).toEqual([[SID, 'retry']])
+      const done = await capturePending({ runner: answer(PROCEDURE), nowMs: t0 + 4 * HOUR })
+      expect(done.map(d => [d.sid, d.result.capture?.state])).toEqual([[SID, 'done']])
+      expect((await listAll(projectRef('demo'))).filter(i => i.kind === 'procedure')).toHaveLength(1)
+    })
+  })
+
+  test('a session that ends outside any project bucket is marked done and never listed as pending (PRD R1)', async () => {
+    await withBrain(async ({ repo, buracleHome }) => {
+      await sessionStart('codex', SID, repo)
+      writeFileSync(join(buracleHome, 'config.yaml'), `memory:\n  exclude:\n    - ${repo}\n`)
+      appendSpool('codex', SID, [{ ts: Date.now(), ev: 'prompt' }, { ts: Date.now() + 1, ev: 'stop', excerpt: 'Done.' }])
+      await finalize('codex', SID, { pending: false })
+      const rec = readSessionRecord('codex', SID)
+      expect(rec?.status).toBe('ended')
+      expect(rec?.capture).toMatchObject({ state: 'done' })
+      expect(pendingSessions(Date.now(), { afterMs: 0 }).find(p => p.sid === SID)).toBeUndefined()
+      expect(captureChecks(Date.now())).toEqual([{ level: 'ok', check: 'capture', detail: 'no session waits for its capture' }])
+    })
+  })
+
+  test('a session whose distill is disabled owes its capture: the state stays retry without spending a try (PRD R2)', async () => {
+    await withBrain(async ({ repo }) => {
+      await spooled(repo, SID)
+      const r = await finalize('codex', SID, { pending: false })
+      expect(r.capture?.distill).toMatchObject({ ran: false, skipped: 'disabled' })
+      expect(r.capture?.state).toBe('retry')
+      expect(readSessionRecord('codex', SID)?.capture).toMatchObject({ state: 'retry', tries: 0 })
+    })
+  })
+
+  test('a brain that cannot read the session memory owes a retry that spends a try, not a done capture (PRD R2)', async () => {
+    await withBrain(async ({ repo }) => {
+      const t0 = Date.now()
+      await spooled(repo, SID)
+      await finalize('codex', SID, { pending: false, runner: answer(PROCEDURE), nowMs: t0 })
+      await withEnv({ FAKE_CORTEXDB_FAIL: 'memory_get' }, async () => {
+        await closeAllCortex()
+        const again = await finalize('codex', SID, { pending: false, runner: answer(PROCEDURE), force: true, nowMs: t0 + HOUR })
+        expect(again.capture?.distill).toMatchObject({ ran: false, skipped: 'no-session-memory' })
+        expect(again.capture?.state).toBe('retry')
+        expect(readSessionRecord('codex', SID)?.capture).toMatchObject({ state: 'retry', tries: 1 })
+      })
+    })
+  })
+
+  test('an empty session with no session memory is done at once, not a retry that burns tries (PRD R2)', async () => {
+    await withBrain(async ({ repo }) => {
+      await sessionStart('codex', SID, repo)
+      appendSpool('codex', SID, [{ ts: Date.now(), ev: 'prompt' }, { ts: Date.now() + 1, ev: 'stop', excerpt: '' }])
+      const r = await finalize('codex', SID, { pending: false })
+      expect(r.empty).toBe(true)
+      expect(r.capture?.state).toBe('done')
+      expect(readSessionRecord('codex', SID)?.capture).toMatchObject({ state: 'done', tries: 0 })
+    })
+  })
+
+  test('the doctor does not count a session whose model call is running right now (PRD R1)', async () => {
+    await withBrain(async ({ repo }) => {
+      await spooled(repo, SID)
+      let release!: (r: { ok: true, text: string }) => void
+      const gate = new Promise<{ ok: true, text: string }>(resolve => { release = resolve })
+      const running = finalize('codex', SID, { pending: false, runner: () => gate })
+      let mid: string | undefined
+      for (let i = 0; i < 160 && mid === undefined; i++) {
+        await Bun.sleep(25)
+        const c = readSessionRecord('codex', SID)?.capture
+        if (c !== undefined) mid = c.state
+      }
+      expect(mid).toBe('retry')
+      const midCall = captureChecks(Date.now())
+      release({ ok: true, text: JSON.stringify(PROCEDURE) })
+      const r = await running
+      expect(midCall).toEqual([{ level: 'ok', check: 'capture', detail: 'no session waits for its capture' }])
+      expect(r.capture?.state).toBe('done')
     })
   })
 })

@@ -414,6 +414,20 @@ function cleanText(v: string | undefined, max: number, oneLine: boolean): { text
   return { text: memClip(t, max), count: r.count, kinds: r.kinds }
 }
 
+/** Masks every element of a list field (sources, tags, about): a secret in any of them is redacted like one in a body (PRD R19). */
+function maskList(v: unknown, field: string, max: number): { list: string[], count: number, kinds: string[] } {
+  const raw = strArray(v, field, max) ?? []
+  let count = 0
+  const kinds: string[] = []
+  const list = raw.map(s => {
+    const r = redact(s)
+    count += r.count
+    for (const k of r.kinds) kinds.push(k)
+    return r.text
+  })
+  return { list, count, kinds }
+}
+
 export async function write(ctx: MemoryCtx, input: WriteInput, trusted: TrustedWrite = {}): Promise<WriteResult> {
   const kindRaw = input.kind ?? input.type
   if (!isMemKind(kindRaw)) throw new MemoryError('invalid_input', `type must be one of: ${WRITABLE_KINDS.join(', ')}`)
@@ -430,23 +444,27 @@ export async function write(ctx: MemoryCtx, input: WriteInput, trusted: TrustedW
   const asked = layerArg(input as Record<string, unknown>)
   const layer: MemLayer = asked === undefined || asked === 'all' ? (KIND_INFO[kind].layers[0] as MemLayer) : asked
   if (!KIND_INFO[kind].layers.includes(layer)) throw new MemoryError('invalid_input', `a ${kind} memory lives in the ${KIND_INFO[kind].layers.join(' or ')} layer`)
-  const sources = strArray(input.sources, 'sources', 20) ?? []
-  const tags = (strArray(input.tags, 'tags', 12) ?? []).map(t => t.toLowerCase().slice(0, 40))
-  const about = strArray(input.about, 'about', 12) ?? []
+  const sourcesM = maskList(input.sources, 'sources', 20)
+  const tagsM = maskList(input.tags, 'tags', 12)
+  const aboutM = maskList(input.about, 'about', 12)
+  const sources = sourcesM.list
+  const tags = tagsM.list.map(t => t.toLowerCase().slice(0, 40))
+  const about = aboutM.list
   const supersedes = strArray(input.supersedes, 'supersedes', 10) ?? []
   const importance = intArg(input.importance, 'importance', 3, 1, 5)
   const origin: MemOrigin = originArg(input.origin) ?? trusted.origin ?? (ctx.agent ? 'inferred' : 'explicit')
   const confidence = confidenceArg(input.confidence) ?? trusted.confidence ?? (origin === 'explicit' ? 1 : undefined)
   const now = nowOf(ctx)
   const ref = await writeRef(ctx, layer)
-  const redactions = title.count + summary.count + body.count
-  if (redactions > 0) recordRedactions(redactions, [...new Set([...title.kinds, ...summary.kinds, ...body.kinds])], 'memory_write', now)
+  const redactions = title.count + summary.count + body.count + sourcesM.count + tagsM.count + aboutM.count
+  if (redactions > 0) recordRedactions(redactions, [...new Set([...title.kinds, ...summary.kinds, ...body.kinds, ...sourcesM.kinds, ...tagsM.kinds, ...aboutM.kinds])], 'memory_write', now)
   const prov = await gitProvenance(ctx.cwd).catch(() => ({} as { branch?: string, commit?: string }))
   return guard(() => withBrainLock(ref, async () => {
     const all = await listAll(ref)
     const taken = new Set(all.map(i => i.id))
     const cand = { title: title.text, summary: summary.text, kind }
-    if (input.force !== true && trusted.internal !== true && trusted.id === undefined) {
+    // A deliberate contradiction (against) is not a duplicate: the caller already checked the protected twin.
+    if (input.force !== true && trusted.internal !== true && trusted.id === undefined && (trusted.against ?? []).length === 0) {
       const similar = similarMemories(cand, all, now, 0.6).filter(s => !supersedes.includes(s.item.id) && (s.item.kind === kind || s.score >= 0.9)).slice(0, 3)
       if (similar.length > 0) {
         return {
@@ -568,6 +586,14 @@ export async function update(ctx: MemoryCtx, input: UpdateInput): Promise<Update
       if (memLocked(cur) && claimEdit) refuse(cur, 'rewrites')
       if (memLocked(cur) && (patch.status !== undefined || patch.pin === false)) refuse(cur, patch.pin === false ? 'unpins' : 'retires or restores')
       if (memProtected(cur) && (patch.status === 'deprecated' || replacedBy !== undefined)) refuse(cur, patch.status === 'deprecated' ? 'retires' : 'replaces')
+      // A protected memory is never moved out of its kind or layer either (PRD R11). A capture is the filing
+      // inbox, so the documented file-a-capture move stays open; every other protected kind refuses.
+      if (patch.move !== undefined && cur.kind !== 'capture' && memProtected(cur)) refuse(cur, 'moves')
+      // A locked memory keeps its sources: an inferred update may add, never drop (PRD R12).
+      if (memLocked(cur) && patch.sources !== undefined) {
+        const next = strArray(patch.sources, 'sources', 20) ?? []
+        if (!cur.sources.every(s => next.includes(s))) refuse(cur, 'drops sources of')
+      }
       if (patch.merge_into !== undefined && replacedBy !== undefined) {
         const into = await getStored(ref, replacedBy)
         if (into !== undefined && memProtected(into.item)) refuse(into.item, 'merges into')
@@ -577,10 +603,12 @@ export async function update(ctx: MemoryCtx, input: UpdateInput): Promise<Update
     const changed: string[] = []
     let claimChanged = false
     let redactions = 0
+    const maskKinds: string[] = []
     const setText = (field: 'title' | 'summary' | 'body', v: string | undefined, max: number, oneLine: boolean) => {
       if (v === undefined) return
       const c = cleanText(v, max, oneLine)
       redactions += c.count
+      for (const kind of c.kinds) maskKinds.push(kind)
       if (field === 'title' && c.text === '') throw new MemoryError('invalid_input', 'title cannot be empty')
       if (next[field] !== c.text) { next[field] = c.text; changed.push(field); claimChanged = true }
     }
@@ -590,14 +618,19 @@ export async function update(ctx: MemoryCtx, input: UpdateInput): Promise<Update
     if (typeof patch.append === 'string' && patch.append.trim() !== '') {
       const c = cleanText(patch.append, LIMITS.body, false)
       redactions += c.count
+      for (const kind of c.kinds) maskKinds.push(kind)
       next.body = memClip(next.body === '' ? c.text : `${next.body}\n\n${c.text}`, LIMITS.body)
       changed.push('body')
       claimChanged = true
     }
     if (patch.importance !== undefined) { next.importance = intArg(patch.importance, 'importance', cur.importance, 1, 5); changed.push('importance') }
     const list = (k: 'sources' | 'tags' | 'about', max: number) => {
-      const v = strArray(patch[k], k, max)
-      if (v !== undefined) { next[k] = k === 'tags' ? v.map(t => t.toLowerCase().slice(0, 40)) : v; changed.push(k) }
+      if (patch[k] === undefined) return
+      const m = maskList(patch[k], k, max)
+      redactions += m.count
+      for (const kind of m.kinds) maskKinds.push(kind)
+      next[k] = k === 'tags' ? m.list.map(t => t.toLowerCase().slice(0, 40)) : m.list
+      changed.push(k)
     }
     list('sources', 20)
     list('tags', 12)
@@ -627,7 +660,7 @@ export async function update(ctx: MemoryCtx, input: UpdateInput): Promise<Update
         changed.push('status')
       } else throw new MemoryError('invalid_input', 'status must be deprecated or active (superseding goes through superseded_by or merge_into)')
     }
-    if (redactions > 0) recordRedactions(redactions, ['memory_update'], 'memory_update', now)
+    if (redactions > 0) recordRedactions(redactions, [...new Set(maskKinds)], 'memory_update', now)
     const moveTo = patch.move !== undefined && patch.move !== null && typeof patch.move === 'object' ? patch.move : undefined
     if (patch.review === 'ok' || claimChanged || patch.status === 'deprecated' || replacedBy !== undefined) {
       delete next.contradictedAt
@@ -635,7 +668,13 @@ export async function update(ctx: MemoryCtx, input: UpdateInput): Promise<Update
     }
     next.version = cur.version + 1
     next.updated = iso(now)
-    const what = str(input.reason) ?? (replacedBy !== undefined ? `${patch.merge_into !== undefined ? 'merged into' : 'superseded by'} ${replacedBy}` : moveTo !== undefined ? 'moved' : changed.join(', '))
+    // The reason is text a reader sees in the history: a secret in it is masked like one in a body (PRD R19).
+    const reasonGiven = str(input.reason)
+    const reasonMasked = reasonGiven !== undefined ? redact(reasonGiven) : undefined
+    if (reasonMasked !== undefined && reasonMasked.count > 0) {
+      recordRedactions(reasonMasked.count, reasonMasked.kinds, 'memory_update', now)
+    }
+    const what = reasonMasked !== undefined ? memClip(memOneLine(reasonMasked.text), 200) : (replacedBy !== undefined ? `${patch.merge_into !== undefined ? 'merged into' : 'superseded by'} ${replacedBy}` : moveTo !== undefined ? 'moved' : changed.join(', '))
     next.history = [...next.history, { at: iso(now), by: ctx.harness, what: memClip(memOneLine(what), 200) }].slice(-8)
     if (replacedBy !== undefined) {
       const target = await getStored(ref, replacedBy)

@@ -60,14 +60,31 @@ function undouble(stem: string): string {
   return /([bdgkmnprt])\1$/.test(stem) ? stem.slice(0, -1) : stem
 }
 
-function stripEnglish(w: string): string | undefined {
-  const cut = (n: number): string | undefined => { const s = w.slice(0, w.length - n); return stemOk(s) ? s : undefined }
-  if (w.endsWith('ies')) return cut(3)
-  if (w.endsWith('sses')) return cut(2)
-  if (/(?:x|ch|sh|z)es$/.test(w)) return cut(2)
-  if (/[^siu]s$/.test(w)) return cut(1)
-  if (w.endsWith('ing')) { const s = cut(3); return s !== undefined ? undouble(s) : undefined }
-  if (w.endsWith('ed') && !w.endsWith('eed')) { const s = cut(2); return s !== undefined ? undouble(s) : undefined }
+/**
+ * The English inflections, each returning every stem the word could come from (PRD R18):
+ * -ies is -y (policies → policy); -es after a sibilant is watch+es or cach-e+s, so both candidates stay;
+ * -ing and -ed cut the suffix and, when no consonant was undoubled, also offer the silent-e base
+ * (merging → merg + merge, using → use). A candidate keeps three letters and a vowel.
+ */
+function stripEnglish(w: string): string[] | undefined {
+  const ok = (s: string): boolean => stemOk(s)
+  const uniq = (list: readonly string[]): string[] | undefined => {
+    const out = [...new Set(list.filter(ok))]
+    return out.length > 0 ? out : undefined
+  }
+  const withE = (raw: string, undoubled: string): string => (raw === undoubled && VOWELS.test(raw) ? `${raw}e` : '')
+  if (w.endsWith('ies')) return uniq([`${w.slice(0, w.length - 3)}y`])
+  if (w.endsWith('sses')) return uniq([w.slice(0, w.length - 2)])
+  if (/(?:x|ch|sh|z)es$/.test(w)) return uniq([w.slice(0, w.length - 2), w.slice(0, w.length - 1)])
+  if (/[^siu]s$/.test(w)) return uniq([w.slice(0, w.length - 1)])
+  if (w.endsWith('ing')) {
+    const raw = w.slice(0, w.length - 3)
+    return uniq([undouble(raw), withE(raw, undouble(raw))])
+  }
+  if (w.endsWith('ed') && !w.endsWith('eed')) {
+    const raw = w.slice(0, w.length - 2)
+    return uniq([undouble(raw), withE(raw, undouble(raw))])
+  }
   return undefined
 }
 
@@ -78,7 +95,7 @@ export function memStem(word: string): string {
 export function memStemForms(word: string): string[] {
   if (word.length < MEM_MIN_STEM + 1 || !/^[a-z]+$/.test(word)) return []
   const en = stripEnglish(word)
-  if (en !== undefined) return en === word ? [] : [en]
+  if (en !== undefined) return en
   let stem = word
   let last = ''
   let below = CASE + 1
