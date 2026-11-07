@@ -10311,6 +10311,7 @@ import { join as join4 } from "path";
 
 // src/core/config.ts
 var COMPANION_SETTINGS = ["off", "auto", ...HARNESSES];
+var BOARD_MODES = ["off", "ask", "on"];
 function defaultConfig() {
   return {
     version: 1,
@@ -10334,7 +10335,8 @@ function defaultConfig() {
       reviews: { plan: true, changes: true, goal: true, companion: "off" },
       goalVerification: true,
       modelSwitch: "off",
-      nativePlanMode: "off"
+      nativePlanMode: "off",
+      board: { mode: "ask", maxWorkers: 6, leaseSec: 300 }
     },
     context: { warnPct: 85, criticalPct: 95 },
     checkers: { enabled: true, timeoutMs: 20000, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] },
@@ -10412,7 +10414,8 @@ var CONFIG_SCHEMA = {
         reviews: { t: "obj", fields: { plan: bool, changes: bool, goal: bool, companion: { t: "enum", values: COMPANION_SETTINGS } } },
         goalVerification: bool,
         modelSwitch: { t: "enum", values: ["off", "manual"] },
-        nativePlanMode: { t: "enum", values: ["off", "on"] }
+        nativePlanMode: { t: "enum", values: ["off", "on"] },
+        board: { t: "obj", fields: { mode: { t: "enum", values: BOARD_MODES }, maxWorkers: count(1), leaseSec: count(10) } }
       }
     },
     context: { t: "obj", fields: { warnPct: pct, criticalPct: pct } },
@@ -12443,12 +12446,217 @@ var memoryBridge = {
 };
 
 // src/adapters/opencode/runtime/plugin.ts
-import { existsSync as existsSync12, readFileSync as readFileSync24, statSync as statSync22 } from "fs";
-import { basename as basename12, isAbsolute as isAbsolute12, join as join33, resolve as resolve16 } from "path";
+import { existsSync as existsSync13, readFileSync as readFileSync25, statSync as statSync23 } from "fs";
+import { basename as basename13, isAbsolute as isAbsolute13, join as join35, resolve as resolve18 } from "path";
 
 // src/core/memory/budgets.ts
 var MEMORY_INJECT = { maxLines: 150, maxBytes: 12288 };
 var CAPTURE_BUDGET = { pendingPerRun: 3, pendingAfterMs: 3 * 3600000, maxTries: 3 };
+
+// src/core/board/model.ts
+var TASK_STATUSES = ["open", "claimed", "waiting", "done", "merged", "stale"];
+function fail(code, message) {
+  return { ok: false, code, message };
+}
+function okBoard(board) {
+  return { ok: true, board };
+}
+function pathsOf(file) {
+  const raw = file.path.trim().replace(/`/g, "");
+  const parts = file.verb === "Rename" ? raw.split(/\s*->\s*/) : [raw];
+  return parts.map(normalizePlanPath).filter((p) => p !== "");
+}
+function normalizePlanPath(p) {
+  let s = p.trim().replace(/\\/g, "/").replace(/\/{2,}/g, "/");
+  while (s.startsWith("./"))
+    s = s.slice(2);
+  return s;
+}
+function pathsOverlap(a, b) {
+  if (a === b)
+    return true;
+  if (a.endsWith("/") && b.startsWith(a))
+    return true;
+  if (b.endsWith("/") && a.startsWith(b))
+    return true;
+  return false;
+}
+function sharedPath(a, b) {
+  const right = b.flatMap(pathsOf);
+  for (const p of a.flatMap(pathsOf)) {
+    const hit = right.find((q) => pathsOverlap(p, q));
+    if (hit !== undefined)
+      return p.length <= hit.length ? p : hit;
+  }
+  return;
+}
+function event(board, kind, at, extra = {}) {
+  const seq = board.seq + 1;
+  return { ...board, seq, updatedAt: at, events: [...board.events, { seq, kind, at, ...extra }] };
+}
+function sessionFields(s) {
+  return s === undefined ? {} : { session: s.session, harness: s.harness };
+}
+function sweep(board, now) {
+  let out = board;
+  for (const t of board.tasks) {
+    if (t.status !== "claimed" || t.leaseUntil === undefined || t.leaseUntil >= now)
+      continue;
+    const { worker, token: _token, leaseUntil: _lease, claimedAt: _c, heartbeatAt: _h, ...rest } = t;
+    const stale = { ...rest, status: "stale", ...worker !== undefined ? { lastWorker: worker } : {} };
+    out = event({ ...out, tasks: out.tasks.map((x) => x.n === t.n ? stale : x) }, "stale", now, { task: t.n, ...sessionFields(worker) });
+  }
+  return out;
+}
+var ACTIVE = ["claimed", "waiting", "done"];
+function blocker(board, t) {
+  const unmerged = t.deps.filter((d) => board.tasks.find((x) => x.n === d)?.status !== "merged");
+  if (unmerged.length > 0)
+    return { n: t.n, reason: "deps", detail: `waits for ${unmerged.map((d) => `Task ${d}`).join(", ")}` };
+  for (const other of board.tasks) {
+    if (other.n === t.n || !ACTIVE.includes(other.status))
+      continue;
+    const shared = sharedPath(t.files, other.files);
+    if (shared !== undefined)
+      return { n: t.n, reason: "files", detail: `shares ${shared} with Task ${other.n}` };
+  }
+  return;
+}
+function claimable(board) {
+  const view = { ready: [], blocked: [] };
+  for (const t of [...board.tasks].sort((a, b) => a.n - b.n)) {
+    if (t.status !== "open" && t.status !== "stale")
+      continue;
+    const b = blocker(board, t);
+    if (b === undefined)
+      view.ready.push(t.n);
+    else
+      view.blocked.push(b);
+  }
+  return view;
+}
+function activeWorkers(board) {
+  const out = [];
+  for (const t of board.tasks) {
+    if (t.status !== "claimed" && t.status !== "waiting" || t.worker === undefined)
+      continue;
+    if (!out.some((w) => w.harness === t.worker?.harness && w.session === t.worker.session))
+      out.push(t.worker);
+  }
+  return out;
+}
+function find(board, n) {
+  return board.tasks.find((t) => t.n === n);
+}
+function replace(board, next) {
+  return { ...board, tasks: board.tasks.map((t) => t.n === next.n ? next : t) };
+}
+function owned(board, n, token, statuses) {
+  const t = find(board, n);
+  if (t === undefined)
+    return fail("not_found", `the board has no Task ${n}`);
+  if (!statuses.includes(t.status))
+    return fail("task_not_open", `Task ${n} is ${t.status}, not ${statuses.join(" or ")}`);
+  if (t.token !== token)
+    return fail("not_claimed_by_you", `Task ${n} is claimed by ${t.worker !== undefined ? `${t.worker.harness} ${t.worker.session}` : "another session"}, not by this session`);
+  return t;
+}
+function isTask(x) {
+  return "n" in x;
+}
+function heartbeat(board, n, token, now) {
+  const t = find(board, n);
+  if (t === undefined)
+    return fail("not_found", `the board has no Task ${n}`);
+  if (t.status !== "claimed" || t.token !== token)
+    return fail("reassigned", `Task ${n} is ${t.status === "claimed" ? `claimed by ${t.worker?.harness ?? "?"} ${t.worker?.session ?? "?"}` : t.status}; this session's claim is over`);
+  return okBoard({ ...replace(board, { ...t, heartbeatAt: now, leaseUntil: now + board.leaseSec * 1000 }), updatedAt: now });
+}
+function resume(board, n, token, now) {
+  const t = owned(board, n, token, ["waiting"]);
+  if (!isTask(t))
+    return t;
+  const { question: _q, ...rest } = t;
+  return okBoard(event(replace(board, { ...rest, status: "claimed", heartbeatAt: now, leaseUntil: now + board.leaseSec * 1000 }), "resumed", now, { task: n, ...sessionFields(t.worker) }));
+}
+function release(board, n, token, now, reason) {
+  const t = owned(board, n, token, ["claimed", "waiting"]);
+  if (!isTask(t))
+    return t;
+  const { worker, token: _k, leaseUntil: _l, claimedAt: _c, heartbeatAt: _h, question: _q, ...rest } = t;
+  const next = { ...rest, status: "open", ...worker !== undefined ? { lastWorker: worker } : {} };
+  return okBoard(event(replace(board, next), "released", now, { task: n, ...sessionFields(worker), ...reason !== undefined ? { text: reason } : {} }));
+}
+function notesFor(board, session, role) {
+  return board.notes.filter((n) => !n.deliveredTo.includes(session) && n.from.session !== session && (n.to === "all" || n.to === session || n.to === "lead" && role === "lead"));
+}
+function markDelivered(board, seqs, session) {
+  if (seqs.length === 0)
+    return board;
+  return { ...board, notes: board.notes.map((n) => seqs.includes(n.seq) && !n.deliveredTo.includes(session) ? { ...n, deliveredTo: [...n.deliveredTo, session] } : n) };
+}
+function boardSummary(board) {
+  const s = { open: 0, claimed: 0, waiting: 0, done: 0, merged: 0, stale: 0, workers: activeWorkers(board).length, total: board.tasks.length };
+  for (const t of board.tasks)
+    s[t.status]++;
+  return s;
+}
+function lower3(s) {
+  return s.toLowerCase();
+}
+function within2(p, dir) {
+  const a = lower3(p);
+  const b = lower3(dir.replace(/\/+$/, ""));
+  return b !== "" && (a === b || a.startsWith(b + "/"));
+}
+function joinPath(root, rel) {
+  return `${root.replace(/\/+$/, "")}/${rel.replace(/^\/+/, "")}`;
+}
+function boardWriteDenial(view, absPath) {
+  if (typeof absPath !== "string" || absPath === "" || !within2(absPath, view.repoRoot))
+    return;
+  if (view.role === "worker") {
+    if (view.task === undefined || view.worktree === undefined) {
+      return "Buracle board guard: this session is a board worker without a claimed task, so it does not edit the repository. Run `buracle work join <slug>` to take a task, then work inside the worktree it prints.";
+    }
+    if (within2(absPath, view.worktree))
+      return;
+    return `Buracle board guard: a board worker edits only inside its own lane worktree (${view.worktree}, Task ${view.task}). ${absPath} is outside it: the main checkout and the other worktrees belong to the lead and the other workers.`;
+  }
+  for (const t of view.board.tasks) {
+    if (t.status !== "claimed" && t.status !== "waiting")
+      continue;
+    for (const rel of t.files.flatMap(pathsOf)) {
+      const target = joinPath(view.repoRoot, rel);
+      const hit = rel.endsWith("/") ? within2(absPath, target) : lower3(absPath) === lower3(target);
+      if (!hit)
+        continue;
+      const who = t.worker !== undefined ? `${t.worker.harness} ${t.worker.session}` : "a worker";
+      return `Buracle board guard: ${absPath} belongs to Task ${t.n} (${t.status} by ${who}) on the board. The lead does not implement a claimed task: wait with \`buracle work wait --json\`, merge done tasks with \`buracle work merge --json\`, or take the task back with \`buracle work reopen ${t.n}\` first.`;
+    }
+  }
+  return;
+}
+function boardParts(b) {
+  return [`${b.claimed} claimed`, ...b.waiting > 0 ? [`${b.waiting} waiting`] : [], ...b.done > 0 ? [`${b.done} done`] : [], ...b.stale > 0 ? [`${b.stale} stale`] : [], `${b.merged}/${b.total} merged`];
+}
+function boardLeadStep(b) {
+  if (b === undefined || b.role !== "lead")
+    return;
+  const s = b.summary;
+  if (s.total - s.merged <= 0)
+    return;
+  if (s.claimed + s.waiting > 0) {
+    return `wait on the board with \`buracle work wait --json\` (${s.claimed} claimed, ${s.waiting} waiting${s.done > 0 ? `, ${s.done} done` : ""}): merge each done task with \`buracle work merge --json\`, run the checks after every merge, and do not implement a claimed task yourself`;
+  }
+  if (s.done > 0)
+    return `merge the done tasks with \`buracle work merge --json\` in dependency order (${s.done} done) and run the checks after every merge`;
+  return `the remaining ${s.open + s.stale} task(s) are open for workers on the board ${b.slug}: do not implement them yourself; wait with \`buracle work wait --json\`, or ask the user to open more terminals and run \`/buracle-join ${b.slug}\``;
+}
+function boardWorkerBlockReason(b) {
+  const n = b.task?.n ?? 0;
+  return `this session holds Task ${n} of the board ${b.slug} (claimed), so the turn cannot end with the task idle. Finish it: commit on the lane branch and run \`buracle work done --verify "<command \u2192 result>"\`; or ask the user with \`buracle work ask "<question>"\` and then the question tool; or give it back with \`buracle work release --reason "<why>"\`. The lease expires without heartbeats and the task would be reassigned.`;
+}
 
 // src/core/plan/vague.ts
 var VAGUE_PHRASES = [
@@ -12995,6 +13203,16 @@ var CHECKBOX = /^\s*[-*+]\s+\[([ xX])\]\s+Task\s+(\d+)\s+done\b/i;
 var LABEL2 = /^\s*\*\*([^*]+?)\*\*\s*(.*)$/;
 var LIST_ITEM2 = /^\s*[-*+]\s+(.*)$/;
 var PLACEHOLDER2 = /\b(TBD|TODO|FIXME)\b/;
+var DEPENDS_TASK = /(?:task\s*)?(\d+)/gi;
+function dependsOnNumbers(rest) {
+  const out = [];
+  for (const m of rest.replace(/`/g, "").matchAll(DEPENDS_TASK)) {
+    const n = Number(m[1]);
+    if (Number.isInteger(n) && n > 0 && !out.includes(n))
+      out.push(n);
+  }
+  return out;
+}
 function scan(markdown) {
   const lines = markdown.replace(/^\uFEFF/, "").split(/\r\n|\r|\n/);
   let fmEnd = -1;
@@ -13065,6 +13283,7 @@ function readCard(doc, card) {
   let hasDod = false;
   let verify = false;
   let checkbox;
+  let dependsOn;
   const prose = [];
   for (let i = card.head + 1;i < card.end; i++) {
     const line = doc.lines[i];
@@ -13116,6 +13335,9 @@ function readCard(doc, card) {
           verify = true;
           block = "other";
           prose.push(i);
+        } else if (key === "depends on") {
+          dependsOn = dependsOnNumbers(rest);
+          block = "other";
         } else
           block = "other";
         continue;
@@ -13155,6 +13377,8 @@ function readCard(doc, card) {
 `).trim();
   if (d !== "")
     task.dod = d;
+  if (dependsOn !== undefined)
+    task.dependsOn = dependsOn;
   return {
     task,
     hasObjective,
@@ -13854,6 +14078,11 @@ function planFlowPhase(workflow, plan, current) {
 }
 
 // src/core/flow/band.ts
+function boardNoteText(b) {
+  if (b === undefined || b.total <= 0)
+    return;
+  return `board: ${boardParts(b).join(" \xB7 ")}`;
+}
 var STATUS_TEXT = {
   starting: "starting",
   running: "running",
@@ -13984,6 +14213,11 @@ function bandView(i) {
     view.note = flowText(reason, 120);
   else if (entry.phase?.note !== undefined && entry.ended === undefined)
     view.note = entry.phase.note;
+  else if (entry.ended === undefined) {
+    const board = boardNoteText(i.board);
+    if (board !== undefined)
+      view.note = board;
+  }
   if (entry.startedAt > 0) {
     view.startedAt = entry.startedAt;
     view.elapsedMin = Math.max(0, Math.floor(((entry.ended?.at ?? now) - entry.startedAt) / 60000));
@@ -15892,7 +16126,7 @@ function textOf(v) {
     return v.s;
   return DYN;
 }
-function joinPath(parts) {
+function joinPath2(parts) {
   let out = "";
   for (const p of parts) {
     if (p === "")
@@ -15962,7 +16196,7 @@ function applyFn(callee, receiver, args, _kwargs, scope) {
     if (name === "resolve" || name === "absolute" || name === "strip" || name === "rstrip" || name === "lstrip" || name === "trim" || name === "toString" || name === "as_posix" || name === "normalize")
       return receiver;
     if (name === "joinpath" || name === "concat")
-      return str3(name === "concat" ? receiver.s + args.map(textOf).join("") : joinPath([receiver.s, ...args.map(textOf)]));
+      return str3(name === "concat" ? receiver.s + args.map(textOf).join("") : joinPath2([receiver.s, ...args.map(textOf)]));
     if (name === "join" && a0?.t === "list" && scope.lang !== "js")
       return str3(a0.items.map(textOf).join(receiver.s));
     if (name === "with_name" || name === "with_suffix" || name === "parent")
@@ -15998,12 +16232,12 @@ function applyFn(callee, receiver, args, _kwargs, scope) {
     return a0 !== undefined ? envValue(a0) : UNKNOWN;
   if (["join", "resolve"].includes(name) && /(?:^|\.)(?:path|posixpath|ntpath|File)$/.test(path.slice(0, -(name.length + 1)))) {
     if (args.some((a) => a.t !== "str"))
-      return args.length > 0 && args[0]?.t === "str" ? str3(joinPath([...args.map(textOf)])) : UNKNOWN;
-    return str3(joinPath(args.map(textOf)));
+      return args.length > 0 && args[0]?.t === "str" ? str3(joinPath2([...args.map(textOf)])) : UNKNOWN;
+    return str3(joinPath2(args.map(textOf)));
   }
   if (["abspath", "realpath", "normpath", "normalize", "fspath", "str", "String", "toString", "resolve", "file", "Path", "PurePath", "PosixPath", "PurePosixPath", "URL"].includes(name)) {
     if (name === "Path" || name === "PurePath" || name === "PosixPath" || name === "PurePosixPath")
-      return args.length === 0 ? str3(".") : str3(joinPath(args.map(textOf)));
+      return args.length === 0 ? str3(".") : str3(joinPath2(args.map(textOf)));
     return a0 ?? UNKNOWN;
   }
   if (name === "fileURLToPath" || name === "dirname" || name === "basename")
@@ -16054,7 +16288,7 @@ class Evaluator {
         if (t.v === "+") {
           left = left.t === "list" && right.t === "list" ? { t: "list", items: [...left.items, ...right.items] } : left.t === "str" || right.t === "str" ? str3(textOf(left) + textOf(right)) : UNKNOWN;
         } else if (t.v === "/" && this.scope.lang === "python" && left.t === "str" && right.t === "str")
-          left = str3(joinPath([left.s, right.s]));
+          left = str3(joinPath2([left.s, right.s]));
         else if ((t.v === "??" || t.v === "||") && left.t !== "unknown") {} else if (t.v === "??" || t.v === "||")
           left = right;
         else
@@ -18488,7 +18722,7 @@ function redirectsOf(c, opts) {
 function rm(targets, recursive, redirects) {
   return cmdOf([sw("rm"), ...recursive ? [sw("-r")] : [], sw("-f"), sw("--"), ...targets], redirects);
 }
-function joinPath2(dir, leaf) {
+function joinPath3(dir, leaf) {
   const t = `${dir.text.replace(/[\\/]+$/, "")}/${leaf}`;
   return sw(t, t.includes(DYN) ? dir.raw : t, dir.quoted);
 }
@@ -18542,7 +18776,7 @@ function translateStage(c, prev, st) {
       let recursive = b.flags.has("recurse") || cmdFlags.some((t) => /s/i.test(t.text)) || b.unknown.some((u) => u.includes("r"));
       const filter = vals(b, "filter", "include").map((w) => substitute(w, opts).text)[0];
       if (filter !== undefined)
-        targets = targets.map((t) => /[*?]$/.test(t.text) ? joinPath2(sw(t.text.replace(/[\\/][^\\/]*$/, "")), filter) : joinPath2(t, filter));
+        targets = targets.map((t) => /[*?]$/.test(t.text) ? joinPath3(sw(t.text.replace(/[\\/][^\\/]*$/, "")), filter) : joinPath3(t, filter));
       if (targets.length === 0 && prev !== undefined && !prev.processes) {
         if (prev.paths.length === 0)
           return {};
@@ -18550,7 +18784,7 @@ function translateStage(c, prev, st) {
         if (prev.filtered || prev.filter !== undefined) {
           return { cmd: cmdOf([sw("find"), ...prev.paths, sw("-name"), sw(prev.filter ?? "*"), sw("-type"), sw("f"), sw("-delete")], redirects) };
         }
-        targets = prev.paths.map((p) => joinPath2(p, "*"));
+        targets = prev.paths.map((p) => joinPath3(p, "*"));
       }
       if (targets.length === 0)
         return {};
@@ -18568,7 +18802,7 @@ function translateStage(c, prev, st) {
     case "move-item": {
       const src = [...vals(b, "path").map((w) => pathWord(w, opts)), ...vals(b, "literalpath").map((w) => pathWord(w, opts, true))];
       const dest = vals(b, "destination").map((w) => pathWord(w, opts, true))[0] ?? sw(".");
-      const from = src.length > 0 ? src : prev !== undefined ? prev.paths.map((p) => joinPath2(p, "*")) : [];
+      const from = src.length > 0 ? src : prev !== undefined ? prev.paths.map((p) => joinPath3(p, "*")) : [];
       if (from.length === 0)
         return {};
       return { cmd: cmdOf([sw(name === "copy-item" ? "cp" : "mv"), ...name === "copy-item" && b.flags.has("recurse") ? [sw("-r")] : [], sw("--"), ...from, dest], redirects) };
@@ -18578,7 +18812,7 @@ function translateStage(c, prev, st) {
       const to = vals(b, "newname").map((w) => pathWord(w, opts, true))[0];
       if (path === undefined || to === undefined)
         return {};
-      const dest = /[\\/]/.test(to.text) || to.text.startsWith(HOME) ? to : joinPath2(sw(path.text.replace(/[\\/][^\\/]*$/, "") || ".", path.raw), to.text);
+      const dest = /[\\/]/.test(to.text) || to.text.startsWith(HOME) ? to : joinPath3(sw(path.text.replace(/[\\/][^\\/]*$/, "") || ".", path.raw), to.text);
       return { cmd: cmdOf([sw("mv"), sw("--"), path, dest], redirects) };
     }
     case "set-content":
@@ -18599,7 +18833,7 @@ function translateStage(c, prev, st) {
     case "new-item": {
       const dir = vals(b, "path").map((w) => pathWord(w, opts))[0];
       const leaf = vals(b, "name").map((w) => substitute(w, opts).text)[0];
-      const target = dir !== undefined && leaf !== undefined ? joinPath2(dir, leaf) : dir ?? (leaf !== undefined ? sw(leaf) : undefined);
+      const target = dir !== undefined && leaf !== undefined ? joinPath3(dir, leaf) : dir ?? (leaf !== undefined ? sw(leaf) : undefined);
       if (target === undefined)
         return {};
       const env = /^env:[\\/]?([A-Za-z_][\w]*)$/i.exec(target.text);
@@ -18667,7 +18901,7 @@ function translateStage(c, prev, st) {
     case "foreach-object":
     case "invoke-command": {
       const blocks = [...vals(b, "process", "scriptblock"), ...b.pos.flat()].filter((w) => w.kind === "block" && w.src !== undefined);
-      const item = prev !== undefined && !prev.processes && prev.paths.length > 0 && !prev.filtered && prev.filter === undefined ? joinPath2(prev.paths[0], "*").text : undefined;
+      const item = prev !== undefined && !prev.processes && prev.paths.length > 0 && !prev.filtered && prev.filter === undefined ? joinPath3(prev.paths[0], "*").text : undefined;
       for (const blk of blocks)
         st.nested.push({ dialect: "powershell", src: blk.src, ...item !== undefined && name === "foreach-object" ? { item } : {} });
       return {};
@@ -18871,7 +19105,7 @@ function cmdBuiltin(words, redirects, nested) {
       const [from, to] = operands;
       if (from === undefined || to === undefined)
         return;
-      return cmdOf([sw("mv"), sw("--"), from, joinPath2(sw(from.text.replace(/[\\/][^\\/]*$/, "") || "."), to.text)], redirects);
+      return cmdOf([sw("mv"), sw("--"), from, joinPath3(sw(from.text.replace(/[\\/][^\\/]*$/, "") || "."), to.text)], redirects);
     }
     case "cd":
     case "chdir":
@@ -25354,7 +25588,7 @@ function area(dir) {
   const d = lexical(dir).replace(/\/+$/, "");
   return d === "" || /^[A-Za-z]:$/.test(d) ? undefined : d;
 }
-function within2(p, d) {
+function within3(p, d) {
   if (d === undefined)
     return false;
   const ci = /^[A-Za-z]:/.test(d);
@@ -25409,12 +25643,12 @@ function outsideProject(text, scope) {
   }
   const root = area(scope?.root);
   const cwd = area(scope?.cwd);
-  const ownRoot = root !== undefined && root !== home && within2(target, root);
-  if (home !== undefined && within2(target, home) && !ownRoot && target.slice(home.length + 1).startsWith("."))
+  const ownRoot = root !== undefined && root !== home && within3(target, root);
+  if (home !== undefined && within3(target, home) && !ownRoot && target.slice(home.length + 1).startsWith("."))
     return true;
   if (root === undefined && cwd === undefined)
     return SYSTEM_PREFIX.test(target) || TEMP_PREFIX.test(target);
-  return !(within2(target, root) || within2(target, cwd));
+  return !(within3(target, root) || within3(target, cwd));
 }
 function projectTemp(w, scope) {
   const t = w.text;
@@ -25423,7 +25657,7 @@ function projectTemp(w, scope) {
   const target = lexical(t);
   return [scope?.root, scope?.cwd].some((d) => {
     const a = area(d);
-    return a !== undefined && !TEMP_ROOT.test(a) && within2(target, a);
+    return a !== undefined && !TEMP_ROOT.test(a) && within3(target, a);
   });
 }
 function foundFile(w, scope) {
@@ -26317,7 +26551,41 @@ function ledgerAudited(l, _decision) {
 var LANE_PLAN_COMMANDS = ["pause", "resume", "set", "complete", "verify", "register", "unregister", "approve-result", "review", "prepare-native"];
 var LANE_FLOW_COMMANDS = ["start", "phase", "end"];
 var LANE_WORKTREE_COMMANDS = ["sync", "cleanup"];
-var LANE_VALUE_FLAGS = ["session", "harness", "kind", "reason", "phase", "base", "prefix", "slug", "type", "title", "dir", "outcome", "note", "done", "total", "lane", "role", "handle", "provider", "verdict", "on", "input", "goal", "timeout-min", "wait", "job"];
+var LANE_WORK_COMMANDS = ["publish", "merge", "reopen", "close"];
+var LANE_VALUE_FLAGS = [
+  "session",
+  "harness",
+  "kind",
+  "reason",
+  "phase",
+  "base",
+  "prefix",
+  "slug",
+  "type",
+  "title",
+  "dir",
+  "outcome",
+  "note",
+  "done",
+  "total",
+  "lane",
+  "role",
+  "handle",
+  "provider",
+  "verdict",
+  "on",
+  "input",
+  "goal",
+  "timeout-min",
+  "wait",
+  "job",
+  "max-workers",
+  "lease-sec",
+  "task",
+  "timeout",
+  "verify",
+  "to"
+];
 var MENTIONS_BURACLE = /buracle|src\/cli\/main\.ts|bin\/buracle/;
 function positionals(args) {
   const out = [];
@@ -26360,6 +26628,8 @@ function stateCommand(args) {
     return `buracle flow ${sub}`;
   if (group === "worktree" && LANE_WORKTREE_COMMANDS.includes(sub))
     return `buracle worktree ${sub}`;
+  if (group === "work" && LANE_WORK_COMMANDS.includes(sub))
+    return `buracle work ${sub}`;
   return;
 }
 function laneStateDenial(command) {
@@ -26373,7 +26643,7 @@ function laneStateDenial(command) {
   });
   if (hit === undefined)
     return;
-  return `Buracle lane guard: a lane (subagent) does not run \`${hit}\`, because the plan, the workflow state and the worktree merges belong to the lead. Return status \`blocked\` with the question and its options; the lead asks the user and changes the state. Read-only commands such as \`buracle plan status\`, \`buracle plan review status\` and \`buracle plan validate\` stay allowed, and so does a plan lane's own binding: \`buracle plan <command> --lane <slug>\` for the lane worktree the lead created (the user's approvals, \`set approved\` and \`approve-result\`, stay with the lead).`;
+  return `Buracle lane guard: a lane (subagent) does not run \`${hit}\`, because the plan, the workflow state, the worktree merges and the task board belong to the lead. Return status \`blocked\` with the question and its options; the lead asks the user and changes the state. Read-only commands such as \`buracle plan status\`, \`buracle plan review status\` and \`buracle plan validate\` stay allowed, and so does a plan lane's own binding: \`buracle plan <command> --lane <slug>\` for the lane worktree the lead created (the user's approvals, \`set approved\` and \`approve-result\`, stay with the lead).`;
 }
 // src/core/policy/mcp-paths.ts
 var WRITE_PATH_KEYS = new Set([
@@ -26799,8 +27069,11 @@ function asksUserQuestion(text) {
 var VERIFICATION_OFF_STEP = `verification is off (plan.goalVerification): once every criterion passes, write "Verification: disabled (plan.goalVerification)" under \`## Unverified\` and hand back with \`buracle plan pause --kind decision --reason "${VERIFICATION_OFF_REASON}"\` (the run stays COMPLETE)`;
 var APPROVAL_ANSWERED_STEP = "if the answer approves the plan, run `buracle plan set approved true`, `buracle plan set status APPROVED` and `buracle plan set phase implement`; otherwise fold the answer into the plan, validate it again and ask for approval once it is ready (pause first)";
 var REVIEW_STEP = 'once every check is green, show the result to the user for review (`buracle plan pause --kind decision --reason "result review"`, then ask), and after their explicit approval run `buracle plan approve-result`';
-function nextStep(state, cfg, answered = false) {
+function nextStep(state, cfg, answered = false, board) {
   const p = state.plan;
+  const lead = boardLeadStep(board);
+  if (lead !== undefined)
+    return lead;
   if (p.type === "Build") {
     if (p.phase === "plan")
       return isApproved(state) ? "the contract is locked: run `buracle plan set phase implement` and start build round 1" : "finish the run file, have it reviewed and lock the contract";
@@ -26904,13 +27177,30 @@ function answered(state, prep, input, cfg) {
   const approval = isResultReview(i) ? " An explicit approval of the result is recorded with `buracle plan approve-result`, which also resumes the plan." : "";
   const what = typeof i.reason === "string" && i.reason.trim() !== "" ? ` (${i.reason.trim().slice(0, 160)})` : "";
   const path = state.plan.path;
-  const reason = `${GUARD_MARKERS[0]} the pending decision${what} was answered in the question tool, but the plan ${path} is still paused. Act on the answer, run \`buracle plan resume\` and continue: ${nextStep(state, cfg, true)}.${approval} If the answer asks you to wait or stop, keep the hold (\`buracle plan pause --kind discussion\`) and end the turn.`;
+  const reason = `${GUARD_MARKERS[0]} the pending decision${what} was answered in the question tool, but the plan ${path} is still paused. Act on the answer, run \`buracle plan resume\` and continue: ${nextStep(state, cfg, true, input.board)}.${approval} If the answer asks you to wait or stop, keep the hold (\`buracle plan pause --kind discussion\`) and end the turn.`;
   return blockWith(base, chain, input, reason, "H08", "decision-answered", {}, true);
+}
+function workerVerdict(base, input, cfg) {
+  const b = input.board;
+  if (b === undefined || b.role !== "worker" || b.task?.status !== "claimed")
+    return;
+  if (input.readOnly === true)
+    return readOnlyRelease(base);
+  if (input.backgroundWait === true)
+    return allowWith(base, "background-wait");
+  const chain = chainOf(base, input);
+  const perChain = Math.max(1, Math.floor(cfg.runaway?.perChain ?? 5));
+  if (chain >= perChain)
+    return allowWith(base, "runaway-chain");
+  return blockWith(base, chain, input, `${GUARD_MARKERS[0]} ${boardWorkerBlockReason(b)}`, "H08", "board-worker");
 }
 function h08(state, prep, input, cfg) {
   const base = prep.base;
   if (!cfg || cfg.stopGuard === false)
     return allowWith(base, "disabled");
+  const worker = workerVerdict(base, input, cfg);
+  if (worker !== undefined)
+    return worker;
   const plan = state.plan;
   if (!plan)
     return allowWith(base, "no-plan");
@@ -26934,7 +27224,7 @@ function h08(state, prep, input, cfg) {
   const cap = capHit(base, chain, cfg);
   if (cap)
     return escalation(base, chain, input, cap, cfg);
-  const head = `${GUARD_MARKERS[0]} the plan ${plan.path} is ${plan.status} (type ${plan.type}, phase ${plan.phase}) and not VERIFIED, so keep working: ${nextStep(state, cfg)}.`;
+  const head = `${GUARD_MARKERS[0]} the plan ${plan.path} is ${plan.status} (type ${plan.type}, phase ${plan.phase}) and not VERIFIED, so keep working: ${nextStep(state, cfg, false, input.board)}.`;
   const objective = objectiveLine(prep.objective, STOP_REASON_MAX - head.length - STOP_GUARD_ESCAPE.length - 2);
   const reason = [head, objective, STOP_GUARD_ESCAPE].filter((s) => s !== undefined && s !== "").join(" ");
   return blockWith(base, chain, input, reason, "H08", "blocked");
@@ -27401,7 +27691,7 @@ async function editDiagnostics(files, opts) {
 }
 
 // src/workflow/flow.ts
-import { join as join16 } from "path";
+import { join as join17 } from "path";
 
 // src/workflow/session-store.ts
 import { existsSync as existsSync7, lstatSync as lstatSync2, readdirSync as readdirSync7, rmSync as rmSync4, statSync as statSync13, unlinkSync as unlinkSync5 } from "fs";
@@ -27725,67 +28015,9 @@ function pruneSessionAliases(h) {
 // src/workflow/result.ts
 var NO_SESSION_HINT = "no session: no harness session id was found. Buracle reads it from --session <id> (with --harness <h>), or from " + "BURACLE_SESSION_ID with BURACLE_HARNESS, CLAUDE_CODE_SESSION_ID, CODEX_SESSION_ID/CODEX_THREAD_ID, OPENCODE_SESSION_ID or OMP_SESSION_ID; " + "when several harnesses set them (one started from the shell of another), only the ids of the nearest harness process count. " + "Without a session the stop guard is not protecting this run; continue from the plan file and run 'buracle doctor' to check the harness integration.";
 
-// src/workflow/flow.ts
-var DEFAULT_FOLD_SEC = 8;
-function flowPath(h, sid) {
-  return join16(sessionDir(h, sid), "flow.json");
-}
-function readFlow(h, sid) {
-  const r = readJsonSafeSync(flowPath(h, sid));
-  if (!r.ok) {
-    if (r.code !== "missing")
-      log("warn", "flow record unreadable; starting a new one", { h, sid, error: r.error });
-    return;
-  }
-  const rec = parseFlow(r.value);
-  if (rec === undefined)
-    log("warn", "flow record has an unexpected shape; starting a new one", { h, sid });
-  return rec;
-}
-function writeFlow(h, sid, rec) {
-  atomicWriteSync(flowPath(h, sid), JSON.stringify(rec, null, 2) + `
-`);
-}
-function bandInputFor(h, sid, nowMs, foldAfterSec = DEFAULT_FOLD_SEC) {
-  const input = { nowMs, foldAfterSec };
-  const flow = readFlow(h, sid);
-  if (flow !== undefined)
-    input.flow = flow;
-  const state = loadState(h, sid);
-  if (state.plan !== undefined) {
-    const text = readTextSync(state.plan.path);
-    const plan = bandPlanOf(state, text.ok ? text.value : undefined);
-    if (plan !== undefined)
-      input.plan = plan;
-  }
-  const it = state.interaction;
-  if (it !== undefined) {
-    input.interaction = { state: it.state };
-    if (it.kind !== undefined)
-      input.interaction.kind = it.kind;
-    if (it.reason !== undefined)
-      input.interaction.reason = it.reason;
-  }
-  return input;
-}
-function flowViewFor(h, sid, nowMs, foldAfterSec = DEFAULT_FOLD_SEC) {
-  return bandView(bandInputFor(h, sid, nowMs, foldAfterSec));
-}
-function recordFlowStart(h, sid, input, now) {
-  try {
-    const r = flowStart(readFlow(h, sid), input, now);
-    if (r.changed)
-      writeFlow(h, sid, r.record);
-    return r.changed;
-  } catch (e) {
-    log("warn", "recording a flow start failed", { h, sid, error: e instanceof Error ? e.message : String(e) });
-    return false;
-  }
-}
-
-// src/workflow/plan-capture.ts
-import { closeSync as closeSync5, mkdirSync as mkdirSync8, openSync as openSync5, readFileSync as readFileSync14, writeSync as writeSync3 } from "fs";
-import { isAbsolute as isAbsolute6, join as join17, relative as relative2, resolve as resolve8, sep } from "path";
+// src/workflow/board-store.ts
+import { readFileSync as readFileSync14, readdirSync as readdirSync8, statSync as statSync14, unlinkSync as unlinkSync6 } from "fs";
+import { dirname as dirname7, join as join16, resolve as resolve8 } from "path";
 
 // src/workflow/plan-file.ts
 import { readFileSync as readFileSync13 } from "fs";
@@ -28094,7 +28326,271 @@ function localDate(now) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+// src/workflow/board-store.ts
+var BOARD_LOCK_TIMEOUT_MS = 5000;
+var BOARD_LOCK_STALE_MS = 15000;
+function boardDir(commonDir) {
+  return join16(commonDir, "buracle", "board");
+}
+function realish(p) {
+  try {
+    return realPath(p);
+  } catch {
+    return p;
+  }
+}
+function commonDirOf(cwd) {
+  let dir = resolve8(cwd);
+  for (;; ) {
+    const dotGit = join16(dir, ".git");
+    let st;
+    try {
+      st = statSync14(dotGit);
+    } catch {
+      st = undefined;
+    }
+    if (st !== undefined) {
+      let gitDir;
+      if (st.isDirectory())
+        gitDir = dotGit;
+      else {
+        let text = "";
+        try {
+          text = readFileSync14(dotGit, "utf8");
+        } catch {
+          return;
+        }
+        const m = /^gitdir:\s*(.+?)\s*$/m.exec(text);
+        if (m === null || m[1] === undefined)
+          return;
+        gitDir = resolve8(dir, m[1]);
+      }
+      let common = gitDir;
+      try {
+        const c = readFileSync14(join16(gitDir, "commondir"), "utf8").trim();
+        if (c !== "")
+          common = resolve8(gitDir, c);
+      } catch {}
+      return realish(common);
+    }
+    const parent = dirname7(dir);
+    if (parent === dir)
+      return;
+    dir = parent;
+  }
+}
+function checkoutRootOf(cwd) {
+  let dir = resolve8(cwd);
+  for (;; ) {
+    let found = false;
+    try {
+      statSync14(join16(dir, ".git"));
+      found = true;
+    } catch {
+      found = false;
+    }
+    if (found)
+      return realish(dir);
+    const parent = dirname7(dir);
+    if (parent === dir)
+      return;
+    dir = parent;
+  }
+}
+function isSession(x) {
+  return x !== null && typeof x === "object" && typeof x.harness === "string" && typeof x.session === "string";
+}
+function isBoard(x) {
+  if (x === null || typeof x !== "object")
+    return false;
+  const b = x;
+  if (b["v"] !== 1 || typeof b["slug"] !== "string" || typeof b["plan"] !== "string" || typeof b["base"] !== "string")
+    return false;
+  if (!isSession(b["lead"]) || typeof b["maxWorkers"] !== "number" || typeof b["leaseSec"] !== "number" || typeof b["seq"] !== "number")
+    return false;
+  if (!Array.isArray(b["tasks"]) || !Array.isArray(b["notes"]) || !Array.isArray(b["events"]) || !Array.isArray(b["constraints"]) || typeof b["context"] !== "string")
+    return false;
+  return b["tasks"].every((t) => t !== null && typeof t === "object" && typeof t.n === "number" && TASK_STATUSES.includes(String(t.status)));
+}
+function readBoardFile(path) {
+  const r = readJsonSafeSync(path);
+  if (!r.ok) {
+    if (r.code === "missing")
+      return { ok: false, code: "missing", error: `no board at ${path}` };
+    log("warn", "board: the board file is unreadable", { path, error: r.error });
+    return { ok: false, code: "invalid", error: `the board file ${path} is unreadable: ${String(r.error)}` };
+  }
+  if (!isBoard(r.value)) {
+    log("warn", "board: the board file has an unexpected shape", { path });
+    return { ok: false, code: "invalid", error: `the board file ${path} has an unexpected shape (not a v1 board)` };
+  }
+  return { ok: true, board: r.value };
+}
+function readBoard(path) {
+  const r = readBoardFile(path);
+  return r.ok ? r.board : undefined;
+}
+function writeBoard(path, board) {
+  ensureDirSync(dirname7(path));
+  atomicWriteSync(path, JSON.stringify(board, null, 2) + `
+`);
+}
+function lockTimeoutMs() {
+  const raw = process.env["BURACLE_LOCK_TIMEOUT_MS"];
+  const n = raw !== undefined ? Number(raw) : Number.NaN;
+  return Number.isFinite(n) && n > 0 ? n : BOARD_LOCK_TIMEOUT_MS;
+}
+function locked(path, fn) {
+  try {
+    return withFileLock(path, fn, lockTimeoutMs(), BOARD_LOCK_STALE_MS);
+  } catch (e) {
+    return { ok: false, code: "locked", message: `the board ${path} is busy: ${e instanceof Error ? e.message : String(e)}; try again` };
+  }
+}
+function updateBoard(path, now, fn) {
+  return locked(path, () => {
+    const r = readBoardFile(path);
+    if (!r.ok)
+      return { ok: false, code: r.code === "missing" ? "no_board" : "unreadable", message: r.error };
+    const swept = sweep(r.board, now);
+    const res = fn(swept);
+    if (!res.ok) {
+      if (swept !== r.board)
+        writeBoard(path, swept);
+      return res;
+    }
+    const changed = res.board !== r.board;
+    if (changed)
+      writeBoard(path, res.board);
+    return { ok: true, board: res.board, changed };
+  });
+}
+function listBoards(commonDir) {
+  let names = [];
+  try {
+    names = readdirSync8(boardDir(commonDir)).filter((n) => n.endsWith(".json")).sort();
+  } catch {
+    return [];
+  }
+  return names.map((n) => {
+    const slug = n.slice(0, -5);
+    const path = join16(boardDir(commonDir), n);
+    const board = readBoard(path);
+    return board !== undefined ? { slug, path, board } : { slug, path };
+  });
+}
+function boardCountsFor(h, sid, now) {
+  if (sid === undefined || !isValidSessionId(sid))
+    return;
+  const binding = sessionBoard(h, sid);
+  if (binding === undefined)
+    return;
+  const board = readBoard(binding.path);
+  if (board === undefined)
+    return;
+  return { slug: board.slug, role: binding.role, summary: boardSummary(sweep(board, now)) };
+}
+function sessionBoard(h, sid) {
+  return loadState(h, sid).board;
+}
+function setSessionBoard(h, sid, binding) {
+  updateState(h, sid, (st) => {
+    const { board: _b, ...rest } = st;
+    return binding === undefined ? rest : { ...rest, board: binding };
+  });
+}
+var ASKED_MAX_MS = 60000;
+function askedFile(h, sid) {
+  return isValidSessionId(sid) ? join16(sessionDir(h, sid), "board-asked.json") : undefined;
+}
+function takeAsked(h, sid, now) {
+  const file = askedFile(h, sid);
+  if (file === undefined)
+    return false;
+  const r = readJsonSafeSync(file);
+  try {
+    unlinkSync6(file);
+  } catch {}
+  return r.ok && typeof r.value?.at === "number" && now - r.value.at <= ASKED_MAX_MS;
+}
+function patchSessionBoard(h, sid, patch) {
+  let out;
+  updateState(h, sid, (st) => {
+    if (st.board === undefined)
+      return st;
+    out = { ...st.board, ...patch };
+    for (const k of Object.keys(patch))
+      if (patch[k] === undefined)
+        delete out[k];
+    return { ...st, board: out };
+  });
+  return out;
+}
+
+// src/workflow/flow.ts
+var DEFAULT_FOLD_SEC = 8;
+function flowPath(h, sid) {
+  return join17(sessionDir(h, sid), "flow.json");
+}
+function readFlow(h, sid) {
+  const r = readJsonSafeSync(flowPath(h, sid));
+  if (!r.ok) {
+    if (r.code !== "missing")
+      log("warn", "flow record unreadable; starting a new one", { h, sid, error: r.error });
+    return;
+  }
+  const rec = parseFlow(r.value);
+  if (rec === undefined)
+    log("warn", "flow record has an unexpected shape; starting a new one", { h, sid });
+  return rec;
+}
+function writeFlow(h, sid, rec) {
+  atomicWriteSync(flowPath(h, sid), JSON.stringify(rec, null, 2) + `
+`);
+}
+function bandInputFor(h, sid, nowMs, foldAfterSec = DEFAULT_FOLD_SEC) {
+  const input = { nowMs, foldAfterSec };
+  const flow = readFlow(h, sid);
+  if (flow !== undefined)
+    input.flow = flow;
+  const state = loadState(h, sid);
+  if (state.plan !== undefined) {
+    const text = readTextSync(state.plan.path);
+    const plan = bandPlanOf(state, text.ok ? text.value : undefined);
+    if (plan !== undefined)
+      input.plan = plan;
+  }
+  const it = state.interaction;
+  if (it !== undefined) {
+    input.interaction = { state: it.state };
+    if (it.kind !== undefined)
+      input.interaction.kind = it.kind;
+    if (it.reason !== undefined)
+      input.interaction.reason = it.reason;
+  }
+  const board = boardCountsFor(h, sid, nowMs);
+  if (board !== undefined)
+    input.board = board.summary;
+  return input;
+}
+function flowViewFor(h, sid, nowMs, foldAfterSec = DEFAULT_FOLD_SEC) {
+  return bandView(bandInputFor(h, sid, nowMs, foldAfterSec));
+}
+function recordFlowStart(h, sid, input, now) {
+  try {
+    const r = flowStart(readFlow(h, sid), input, now);
+    if (r.changed)
+      writeFlow(h, sid, r.record);
+    return r.changed;
+  } catch (e) {
+    log("warn", "recording a flow start failed", { h, sid, error: e instanceof Error ? e.message : String(e) });
+    return false;
+  }
+}
+
 // src/workflow/plan-capture.ts
+import { closeSync as closeSync5, mkdirSync as mkdirSync8, openSync as openSync5, readFileSync as readFileSync15, writeSync as writeSync3 } from "fs";
+import { isAbsolute as isAbsolute6, join as join18, relative as relative2, resolve as resolve9, sep } from "path";
 var CAPTURE_SLOTS = 99;
 function claim(path, content) {
   let fd;
@@ -28128,11 +28624,11 @@ async function capturePlanFile(i) {
   const base = slugFromTitle(title, 60) || "plan";
   const approved = i.approved ?? true;
   const content = capturedPlanMarkdown(text, { created, harness: i.harness, approved, title, ...i.via !== undefined ? { via: i.via } : {} });
-  const dir = join17(root, "docs", docDirFor("plan-build"));
+  const dir = join18(root, "docs", docDirFor("plan-build"));
   mkdirSync8(dir, { recursive: true });
   for (let n = 1;n <= CAPTURE_SLOTS; n++) {
     const slug = n === 1 ? base : `${base}-${n}`;
-    const path = join17(dir, `${created}-${slug}.md`);
+    const path = join18(dir, `${created}-${slug}.md`);
     if (claim(path, content))
       return { path, slug, title, created, approved };
   }
@@ -28204,11 +28700,11 @@ async function captureSessionPlan(i) {
 }
 
 // src/adapters/shared/consent-store.ts
-import { join as join18 } from "path";
+import { join as join19 } from "path";
 var LOCK_WAIT_MS = 1500;
 var LOCK_STALE_MS = 1e4;
 function consentFile(h, sid) {
-  return join18(sessionDir(h, sid), "consent.json");
+  return join19(sessionDir(h, sid), "consent.json");
 }
 function readConsentState(h, sid) {
   const r = readJsonSafeSync(consentFile(h, sid));
@@ -28258,8 +28754,8 @@ function recordUserGrants(h, sid, grants, now) {
 }
 
 // src/adapters/shared/path-rules.ts
-import { readFileSync as readFileSync15 } from "fs";
-import { join as join19 } from "path";
+import { readFileSync as readFileSync16 } from "fs";
+import { join as join20 } from "path";
 function tilde(dir, home) {
   if (home === undefined || home === "")
     return;
@@ -28274,7 +28770,7 @@ function pathRuleSource(rules, dir, opts = {}) {
     dir,
     body: (id) => {
       try {
-        return readFileSync15(join19(dir, `${id}.md`), "utf8");
+        return readFileSync16(join20(dir, `${id}.md`), "utf8");
       } catch {
         return;
       }
@@ -28290,7 +28786,7 @@ function pathRuleSource(rules, dir, opts = {}) {
 
 // src/adapters/shared/realpath.ts
 import { lstatSync as lstatSync3, readlinkSync as readlinkSync2 } from "fs";
-import { basename as basename5, dirname as dirname7, isAbsolute as isAbsolute7, join as join20, resolve as resolve9 } from "path";
+import { basename as basename5, dirname as dirname8, isAbsolute as isAbsolute7, join as join21, resolve as resolve10 } from "path";
 var MAX_HOPS = 40;
 function resolveFrom(p, hops) {
   if (hops > MAX_HOPS)
@@ -28311,23 +28807,23 @@ function resolveFrom(p, hops) {
     } catch {
       return;
     }
-    return resolveFrom(isAbsolute7(target) ? target : resolve9(dirname7(p), target), hops + 1);
+    return resolveFrom(isAbsolute7(target) ? target : resolve10(dirname8(p), target), hops + 1);
   }
-  const parent = dirname7(p);
+  const parent = dirname8(p);
   if (parent === p)
     return p;
   const real = resolveFrom(parent, hops + 1);
-  return real === undefined ? undefined : join20(real, basename5(p));
+  return real === undefined ? undefined : join21(real, basename5(p));
 }
 function realWriteTarget(p) {
   if (typeof p !== "string" || !isAbsolute7(p))
     return;
-  return resolveFrom(resolve9(p), 0);
+  return resolveFrom(resolve10(p), 0);
 }
 
 // src/adapters/shared/review-notes.ts
 import { mkdirSync as mkdirSync9 } from "fs";
-import { dirname as dirname8, join as join21 } from "path";
+import { dirname as dirname9, join as join22 } from "path";
 
 // src/core/plan/notes.ts
 function isObj7(x) {
@@ -28339,7 +28835,7 @@ function isInboxEntry(x) {
 function norm(p) {
   return p.replace(/\\/g, "/").replace(/\/+$/, "");
 }
-function within3(child, parent) {
+function within4(child, parent) {
   const c = norm(child);
   const p = norm(parent);
   return c === p || p !== "" && c.startsWith(`${p}/`);
@@ -28352,11 +28848,11 @@ function inboxFor(entries, s, since) {
     if (e.doc !== undefined) {
       if (s.plan !== undefined)
         return norm(e.doc) === norm(s.plan);
-      return docDirOf(e.rel ?? "")?.workflow === "requirements" && roots.some((r) => within3(r, e.root));
+      return docDirOf(e.rel ?? "")?.workflow === "requirements" && roots.some((r) => within4(r, e.root));
     }
     if (s.plan !== undefined)
-      return roots.some((r) => within3(r, e.root) || e.checkout !== undefined && within3(r, e.checkout));
-    return e.checkout !== undefined && roots.some((r) => within3(r, e.checkout));
+      return roots.some((r) => within4(r, e.root) || e.checkout !== undefined && within4(r, e.checkout));
+    return e.checkout !== undefined && roots.some((r) => within4(r, e.checkout));
   });
 }
 function singleLine(text) {
@@ -28409,7 +28905,7 @@ function reviewNotesNotice(h, sid, o) {
   const entries = inbox();
   if (entries.length === 0)
     return;
-  const file = join21(sessionDir(h, sid), "review-notes.json");
+  const file = join22(sessionDir(h, sid), "review-notes.json");
   const seen = readJsonSafeSync(file);
   const since = seen.ok && typeof seen.value?.at === "number" ? seen.value.at : 0;
   const s = { ...o.plan !== undefined && o.plan !== "" ? { plan: real(o.plan) } : {}, roots: [...new Set(o.roots.filter((r) => typeof r === "string" && r !== "").map(real))] };
@@ -28417,7 +28913,7 @@ function reviewNotesNotice(h, sid, o) {
   if (hits.length === 0)
     return;
   try {
-    mkdirSync9(dirname8(file), { recursive: true });
+    mkdirSync9(dirname9(file), { recursive: true });
     atomicWriteSync(file, JSON.stringify({ at: Math.max(...hits.map((e) => e.at)), noticedAt: o.now }) + `
 `);
   } catch (e) {
@@ -28426,13 +28922,244 @@ function reviewNotesNotice(h, sid, o) {
   return notesNoticeText(hits, s);
 }
 
+// src/adapters/shared/board.ts
+import { existsSync as existsSync8 } from "fs";
+import { basename as basename6, dirname as dirname10, isAbsolute as isAbsolute8, join as join23, resolve as resolve11 } from "path";
+var HEARTBEAT_EVERY_MS = 30000;
+function offerFile(h, sid) {
+  return isValidSessionId(sid) ? join23(sessionDir(h, sid), "board-offer.json") : undefined;
+}
+function repoRootOf(commonDir) {
+  return basename6(commonDir) === ".git" ? dirname10(commonDir) : commonDir;
+}
+function boardJoinOffer(h, sid, cwd, now, joinCommand = "/buracle-join") {
+  try {
+    if (sessionBoard(h, sid) !== undefined)
+      return;
+    const mark = offerFile(h, sid);
+    if (mark === undefined || existsSync8(mark))
+      return;
+    const common = commonDirOf(cwd);
+    if (common === undefined)
+      return;
+    const ready = [];
+    for (const b of listBoards(common)) {
+      if (b.board === undefined)
+        continue;
+      const board = sweep(b.board, now);
+      if (board.lead.harness === h && board.lead.session === sid)
+        continue;
+      const n = claimable(board).ready.length;
+      if (n > 0)
+        ready.push(`\`${board.slug}\` (${n} task(s) ready, ${boardSummary(board).workers} worker(s) on it, lead ${board.lead.harness} ${board.lead.session})`);
+    }
+    if (ready.length === 0)
+      return;
+    atomicWriteSync(mark, JSON.stringify({ at: now }) + `
+`);
+    const slug = ready.length === 1 ? listBoards(common).find((b) => b.board !== undefined && claimable(sweep(b.board, now)).ready.length > 0)?.slug ?? "<slug>" : "<slug>";
+    return `Buracle task board: this repository has a board with tasks waiting for a worker: ${ready.join("; ")}. Tell the user in one line and offer to join: \`${joinCommand} ${slug}\` takes one task and works on it in its own worktree while the lead merges. Join only when the user says yes.`;
+  } catch (e) {
+    log("warn", "board: the join offer failed", { error: e });
+    return;
+  }
+}
+function sessionPath(sid) {
+  return sid.length > 12 ? `${sid.slice(0, 12)}\u2026` : sid;
+}
+function noteText(n) {
+  return `- [${n.kind}] from the ${n.role} (${n.from.harness} ${sessionPath(n.from.session)}): ${n.text}`;
+}
+function notesBlock(notes, slug) {
+  return `Buracle task board ${slug}: ${notes.length} new note(s):
+${notes.map(noteText).join(`
+`)}`;
+}
+function dropClaim(h, sid) {
+  patchSessionBoard(h, sid, { task: undefined, token: undefined, worktree: undefined, heartbeatAt: undefined });
+}
+function touch2(h, sid, binding, now, o) {
+  const seen = { context: [] };
+  const peek = readBoard(binding.path);
+  if (peek === undefined) {
+    if (!existsSync8(binding.path)) {
+      setSessionBoard(h, sid, undefined);
+      if (binding.role === "worker")
+        seen.context.push(`Buracle task board ${binding.slug}: the board was closed; this session is no longer a worker.`);
+    }
+    return seen;
+  }
+  const task = binding.task !== undefined ? peek.tasks.find((t) => t.n === binding.task) : undefined;
+  const mine = task !== undefined && task.token === binding.token;
+  const due = o.always || now - (binding.heartbeatAt ?? 0) >= HEARTBEAT_EVERY_MS;
+  const pending = notesFor(peek, sid, binding.role);
+  const needsWrite = pending.length > 0 || binding.role === "worker" && task !== undefined && (!mine || task.status === "waiting" && o.resume || task.status === "claimed" && due);
+  if (!needsWrite)
+    return seen;
+  let delivered = [];
+  let renewed = false;
+  const r = updateBoard(binding.path, now, (b) => {
+    let board = b;
+    const t = binding.task !== undefined ? board.tasks.find((x) => x.n === binding.task) : undefined;
+    if (binding.role === "worker" && t !== undefined && binding.token !== undefined) {
+      if (t.token !== binding.token) {
+        seen.deny = `Buracle board guard: your task ${t.n} of ${board.slug} was reassigned (it is ${t.status}${t.worker !== undefined ? ` by ${t.worker.harness} ${t.worker.session}` : ""}): stop, then run \`buracle work join ${board.slug}\` for a new task.`;
+      } else if (t.status === "waiting" && o.resume) {
+        const res = resume(board, t.n, binding.token, now);
+        if (res.ok) {
+          board = res.board;
+          renewed = true;
+          seen.context.push(`Buracle task board: Task ${t.n} is claimed again (resumed after the question).`);
+        }
+      } else if (t.status === "claimed" && due) {
+        const hb = heartbeat(board, t.n, binding.token, now);
+        if (hb.ok) {
+          board = hb.board;
+          renewed = true;
+        }
+      }
+    }
+    delivered = notesFor(board, sid, binding.role);
+    return { ok: true, board: markDelivered(board, delivered.map((n) => n.seq), sid) };
+  });
+  if (!r.ok) {
+    log("debug", "board: the touch did not write", { code: r.code });
+    return seen;
+  }
+  if (seen.deny !== undefined)
+    dropClaim(h, sid);
+  else if (renewed)
+    patchSessionBoard(h, sid, { heartbeatAt: now });
+  if (delivered.length > 0)
+    seen.context.push(notesBlock(delivered, binding.slug));
+  if (seen.deny !== undefined && !o.write) {
+    seen.context.push(seen.deny);
+    delete seen.deny;
+  }
+  return seen;
+}
+function boardPromptNotice(h, sid, cwd, now) {
+  try {
+    const binding = sessionBoard(h, sid);
+    if (binding === undefined)
+      return;
+    takeAsked(h, sid, now);
+    const seen = touch2(h, sid, binding, now, { write: false, always: true, resume: true });
+    return seen.context.length > 0 ? seen.context.join(`
+
+`) : undefined;
+  } catch (e) {
+    log("warn", "board: the prompt notice failed", { cwd, error: e });
+    return;
+  }
+}
+function boardToolSeen(h, sid, cwd, now, write, phase) {
+  try {
+    const binding = sessionBoard(h, sid);
+    if (binding === undefined)
+      return;
+    const resume = phase === "after" && !takeAsked(h, sid, now);
+    const seen = touch2(h, sid, binding, now, { write, always: false, resume });
+    const out = {};
+    if (seen.context.length > 0)
+      out.context = seen.context.join(`
+
+`);
+    if (seen.deny !== undefined)
+      out.deny = seen.deny;
+    return out.context === undefined && out.deny === undefined ? undefined : out;
+  } catch (e) {
+    log("warn", "board: the tool-call heartbeat failed", { cwd, error: e });
+    return;
+  }
+}
+function absolute3(p, cwd, realpath) {
+  const abs = isAbsolute8(p) ? resolve11(p) : resolve11(cwd === "" ? "/" : cwd, p);
+  const real = realpath(abs);
+  return (real !== undefined && real !== "" ? real : abs).replace(/\\/g, "/");
+}
+function boardWriteDenial2(h, sid, cwd, pathsToWrite, realpath = () => {
+  return;
+}) {
+  try {
+    const binding = sessionBoard(h, sid);
+    if (binding === undefined || pathsToWrite.length === 0)
+      return;
+    const common = commonDirOf(cwd) ?? commonDirOf(dirname10(binding.path));
+    if (common === undefined)
+      return;
+    const repoRoot = repoRootOf(common);
+    if (binding.role === "worker") {
+      const wt = binding.worktree !== undefined ? absolute3(binding.worktree, cwd, realpath) : undefined;
+      const view = { role: "worker", repoRoot, ...binding.task !== undefined ? { task: binding.task } : {}, ...wt !== undefined ? { worktree: wt } : {} };
+      for (const p of pathsToWrite) {
+        const d = boardWriteDenial(view, absolute3(p, cwd, realpath));
+        if (d !== undefined)
+          return d;
+      }
+      return;
+    }
+    const board = readBoard(binding.path);
+    if (board === undefined)
+      return;
+    const checkout = checkoutRootOf(cwd);
+    const roots = checkout !== undefined && checkout !== repoRoot ? [checkout, repoRoot] : [repoRoot];
+    for (const p of pathsToWrite) {
+      const abs = absolute3(p, cwd, realpath);
+      for (const root of roots) {
+        const d = boardWriteDenial({ role: "lead", repoRoot: root, board }, abs);
+        if (d !== undefined)
+          return d;
+      }
+    }
+    return;
+  } catch (e) {
+    log("warn", "board: the write rule failed; allowing", { cwd, error: e });
+    return;
+  }
+}
+function boardStopInput(h, sid, now) {
+  try {
+    const binding = sessionBoard(h, sid);
+    if (binding === undefined)
+      return;
+    const stored = readBoard(binding.path);
+    if (stored === undefined)
+      return;
+    const board = sweep(stored, now);
+    const out = { slug: board.slug, role: binding.role, summary: boardSummary(board) };
+    const t = binding.task !== undefined ? board.tasks.find((x) => x.n === binding.task) : undefined;
+    if (binding.role === "worker" && t !== undefined && t.token === binding.token && (t.status === "claimed" || t.status === "waiting"))
+      out.task = { n: t.n, status: t.status };
+    return out;
+  } catch (e) {
+    log("warn", "board: the stop input failed", { error: e });
+    return;
+  }
+}
+function boardSessionEnd(h, sid, now) {
+  try {
+    const binding = sessionBoard(h, sid);
+    if (binding === undefined || binding.role !== "worker")
+      return;
+    if (binding.task !== undefined && binding.token !== undefined) {
+      const task = binding.task;
+      const token = binding.token;
+      updateBoard(binding.path, now, (b) => release(b, task, token, now, "the worker session ended"));
+    }
+    setSessionBoard(h, sid, undefined);
+  } catch (e) {
+    log("warn", "board: the session end failed", { error: e });
+  }
+}
+
 // src/adapters/shared/self-paths.ts
-import { isAbsolute as isAbsolute8, resolve as resolve10 } from "path";
+import { isAbsolute as isAbsolute9, resolve as resolve12 } from "path";
 var ROOTS = ["buracleHome", "localBinDir", "claudeDir", "codexHome", "opencodeConfigDir", "ompAgentDir", "ompHome"];
 function attempt(fn) {
   try {
     const v = fn();
-    return typeof v === "string" && isAbsolute8(v) ? v : undefined;
+    return typeof v === "string" && isAbsolute9(v) ? v : undefined;
   } catch {
     return;
   }
@@ -28440,7 +29167,7 @@ function attempt(fn) {
 function installedCheckout(p, configured) {
   if (typeof configured === "string" && configured.trim() !== "") {
     const expanded = p.expandHome(configured.trim());
-    const dir = isAbsolute8(expanded) ? resolve10(expanded) : resolve10(p.home(), expanded);
+    const dir = isAbsolute9(expanded) ? resolve12(expanded) : resolve12(p.home(), expanded);
     if (p.isCheckout(dir))
       return dir;
   }
@@ -28699,8 +29426,8 @@ async function prepareWorkspace(cwd, cfg, nowMs) {
 }
 
 // src/adapters/shared/project-assets.ts
-import { existsSync as existsSync10, mkdirSync as mkdirSync11, statSync as statSync16, utimesSync as utimesSync4, writeFileSync as writeFileSync2 } from "fs";
-import { basename as basename6, dirname as dirname10, join as join24, relative as relative4, resolve as resolve12, sep as sep3 } from "path";
+import { existsSync as existsSync11, mkdirSync as mkdirSync11, statSync as statSync17, utimesSync as utimesSync4, writeFileSync as writeFileSync2 } from "fs";
+import { basename as basename7, dirname as dirname12, join as join26, relative as relative4, resolve as resolve14, sep as sep3 } from "path";
 
 // src/core/project-assets.ts
 var RULES_DIR = ".claude/rules";
@@ -28925,24 +29652,24 @@ function indexEditNote(p, max = 5) {
 }
 
 // src/usage/bar-info.ts
-import { existsSync as existsSync8, readFileSync as readFileSync16, statSync as statSync14 } from "fs";
-import { join as join22 } from "path";
+import { existsSync as existsSync9, readFileSync as readFileSync17, statSync as statSync15 } from "fs";
+import { join as join24 } from "path";
 
 // src/core/flow/panes.ts
 var HARNESS_VERSION_TTL_MS = 12 * 60 * 60000;
 
 // src/usage/bar-info.ts
 function buracleArgv() {
-  const main = join22(repoRoot(), "src", "cli", "main.ts");
+  const main = join24(repoRoot(), "src", "cli", "main.ts");
   const bun = findExecutable("bun");
-  if (bun !== undefined && existsSync8(main))
+  if (bun !== undefined && existsSync9(main))
     return [bun, main];
   return shimLaunch();
 }
 
 // src/workflow/project-assets.ts
-import { existsSync as existsSync9, lstatSync as lstatSync4, mkdirSync as mkdirSync10, readdirSync as readdirSync8, readFileSync as readFileSync17, readlinkSync as readlinkSync3, statSync as statSync15, symlinkSync, unlinkSync as unlinkSync6 } from "fs";
-import { dirname as dirname9, isAbsolute as isAbsolute9, join as join23, relative as relative3, resolve as resolve11, sep as sep2 } from "path";
+import { existsSync as existsSync10, lstatSync as lstatSync4, mkdirSync as mkdirSync10, readdirSync as readdirSync9, readFileSync as readFileSync18, readlinkSync as readlinkSync3, statSync as statSync16, symlinkSync, unlinkSync as unlinkSync7 } from "fs";
+import { dirname as dirname11, isAbsolute as isAbsolute10, join as join25, relative as relative3, resolve as resolve13, sep as sep2 } from "path";
 var SKILL_DIR_RE = /^[a-z0-9][a-z0-9._-]*$/;
 var RULES_MAX_FILES = 500;
 var RULES_MAX_DEPTH = 8;
@@ -28950,12 +29677,12 @@ function realOr2(p) {
   try {
     return realPath(p);
   } catch {
-    return resolve11(p);
+    return resolve13(p);
   }
 }
-function within4(root, p) {
+function within5(root, p) {
   const rel = relative3(root, p);
-  return rel === "" || !rel.startsWith(`..${sep2}`) && rel !== ".." && !isAbsolute9(rel);
+  return rel === "" || !rel.startsWith(`..${sep2}`) && rel !== ".." && !isAbsolute10(rel);
 }
 function kindOf(p) {
   try {
@@ -28967,14 +29694,14 @@ function kindOf(p) {
 }
 function targetKind(p) {
   try {
-    const st = statSync15(p);
+    const st = statSync16(p);
     return st.isDirectory() ? "dir" : st.isFile() ? "file" : "other";
   } catch {
     return "missing";
   }
 }
 function pathFacts(root, rel) {
-  const p = join23(root, ...rel.split("/"));
+  const p = join25(root, ...rel.split("/"));
   const kind = kindOf(p);
   if (kind === "missing")
     return { rel, kind, inside: true };
@@ -28984,7 +29711,7 @@ function pathFacts(root, rel) {
   } catch {
     real = undefined;
   }
-  return real !== undefined ? { rel, kind, real, inside: within4(root, real) } : { rel, kind, inside: false };
+  return real !== undefined ? { rel, kind, real, inside: within5(root, real) } : { rel, kind, inside: false };
 }
 function assetLayout(rootIn) {
   const root = realOr2(rootIn);
@@ -28995,20 +29722,20 @@ function assetLayout(rootIn) {
       blocked.push(`${f.rel} is a dangling symlink; Buracle does not write through it`);
     else if (f.kind === "link" && !f.inside)
       blocked.push(`${f.rel} is a symlink to ${f.real ?? "?"}, outside the repository; Buracle does not write through it`);
-    else if (f.kind === "link" && targetKind(join23(root, f.rel)) !== "dir")
+    else if (f.kind === "link" && targetKind(join25(root, f.rel)) !== "dir")
       blocked.push(`${f.rel} is a symlink to a file, not a folder`);
     else if (f.kind === "file" || f.kind === "other")
       blocked.push(`${f.rel} is a file, not a folder`);
   }
-  const agentsSkills = realOr2(join23(root, ".agents", "skills"));
-  const claudeDir = realOr2(join23(root, ".claude"));
-  const claudeSkills = existsSync9(join23(root, ".claude", "skills")) ? realOr2(join23(root, ".claude", "skills")) : join23(claudeDir, "skills");
-  const alias = existsSync9(join23(root, ".claude", "skills")) && existsSync9(join23(root, ".agents", "skills")) && claudeSkills === agentsSkills;
+  const agentsSkills = realOr2(join25(root, ".agents", "skills"));
+  const claudeDir = realOr2(join25(root, ".claude"));
+  const claudeSkills = existsSync10(join25(root, ".claude", "skills")) ? realOr2(join25(root, ".claude", "skills")) : join25(claudeDir, "skills");
+  const alias = existsSync10(join25(root, ".claude", "skills")) && existsSync10(join25(root, ".agents", "skills")) && claudeSkills === agentsSkills;
   return { root, agentsSkills, claudeSkills, alias, blocked, facts };
 }
 function list2(dir) {
   try {
-    return readdirSync8(dir).filter((n) => !n.startsWith(".")).sort();
+    return readdirSync9(dir).filter((n) => !n.startsWith(".")).sort();
   } catch {
     return [];
   }
@@ -29016,7 +29743,7 @@ function list2(dir) {
 function agentSkills(layout) {
   const out = [];
   for (const id of list2(layout.agentsSkills)) {
-    const dir = join23(layout.agentsSkills, id);
+    const dir = join25(layout.agentsSkills, id);
     const kind = kindOf(dir);
     if (kind === "link") {
       let target;
@@ -29025,7 +29752,7 @@ function agentSkills(layout) {
       } catch {
         target = undefined;
       }
-      const claudeOwned = existsSync9(join23(layout.claudeSkills, id)) && kindOf(join23(layout.claudeSkills, id)) === "dir" && realOr2(dir) === realOr2(join23(layout.claudeSkills, id));
+      const claudeOwned = existsSync10(join25(layout.claudeSkills, id)) && kindOf(join25(layout.claudeSkills, id)) === "dir" && realOr2(dir) === realOr2(join25(layout.claudeSkills, id));
       out.push({ id, dir, state: "link", ...target !== undefined ? { target } : {}, ...claudeOwned ? { claudeOwned } : {} });
       continue;
     }
@@ -29035,14 +29762,14 @@ function agentSkills(layout) {
       out.push({ id, dir, state: "bad-id" });
       continue;
     }
-    out.push({ id, dir, state: existsSync9(join23(dir, "SKILL.md")) ? "skill" : "no-skill-md" });
+    out.push({ id, dir, state: existsSync10(join25(dir, "SKILL.md")) ? "skill" : "no-skill-md" });
   }
   return out;
 }
 function skillMeta(dir) {
   let text;
   try {
-    text = readFileSync17(join23(dir, "SKILL.md"), "utf8");
+    text = readFileSync18(join25(dir, "SKILL.md"), "utf8");
   } catch {
     return;
   }
@@ -29058,19 +29785,19 @@ function claudeSkills(layout, withMeta = true) {
   const out = [];
   if (layout.alias)
     return out;
-  const agentsPlain = join23(layout.root, ".agents", "skills");
+  const agentsPlain = join25(layout.root, ".agents", "skills");
   for (const id of list2(layout.claudeSkills)) {
-    const path = join23(layout.claudeSkills, id);
+    const path = join25(layout.claudeSkills, id);
     const kind = kindOf(path);
     if (kind === "link") {
       let target = "";
       try {
         target = readlinkSync3(path);
       } catch {}
-      const abs = isAbsolute9(target) ? target : resolve11(dirname9(path), target);
-      const intoAgents = within4(agentsPlain, abs) || within4(layout.agentsSkills, abs);
-      const dangling = !existsSync9(abs);
-      const ours = !dangling && realOr2(abs) === realOr2(join23(layout.agentsSkills, id)) && kindOf(join23(layout.agentsSkills, id)) !== "link";
+      const abs = isAbsolute10(target) ? target : resolve13(dirname11(path), target);
+      const intoAgents = within5(agentsPlain, abs) || within5(layout.agentsSkills, abs);
+      const dangling = !existsSync10(abs);
+      const ours = !dangling && realOr2(abs) === realOr2(join25(layout.agentsSkills, id)) && kindOf(join25(layout.agentsSkills, id)) !== "link";
       out.push({ id, path, kind, target, ours, dangling, intoAgents });
       continue;
     }
@@ -29115,7 +29842,7 @@ function linkPlan(layout, agents = agentSkills(layout), claude = claudeSkills(la
       continue;
     }
     wanted.add(a.id);
-    const link = join23(layout.claudeSkills, a.id);
+    const link = join25(layout.claudeSkills, a.id);
     const c = byId.get(a.id);
     if (c === undefined) {
       plan.create.push({ id: a.id, link, target: relative3(layout.claudeSkills, a.dir) });
@@ -29150,7 +29877,7 @@ function walkRules(dir, root, depth, out) {
     return;
   let entries;
   try {
-    entries = readdirSync8(dir, { withFileTypes: true });
+    entries = readdirSync9(dir, { withFileTypes: true });
   } catch {
     return;
   }
@@ -29159,12 +29886,12 @@ function walkRules(dir, root, depth, out) {
       return;
     if (e.name.startsWith("."))
       continue;
-    const p = join23(dir, e.name);
+    const p = join25(dir, e.name);
     let isDir = e.isDirectory();
     let isFile = e.isFile();
     if (e.isSymbolicLink()) {
       const real = realOr2(p);
-      if (!within4(root, real))
+      if (!within5(root, real))
         continue;
       const k = targetKind(p);
       isDir = k === "dir";
@@ -29181,7 +29908,7 @@ function ruleFiles(rootIn) {
   const claude = pathFacts(root, ".claude");
   if (claude.kind === "link" && !claude.inside)
     return [];
-  const dir = join23(root, ...RULES_DIR.split("/"));
+  const dir = join25(root, ...RULES_DIR.split("/"));
   const out = [];
   walkRules(dir, root, 0, out);
   return out.map((p) => relative3(root, p).split(sep2).join("/"));
@@ -29191,7 +29918,7 @@ function ruleFacts(rootIn, privatePaths = new Set) {
   return ruleFiles(root).map((path) => {
     let text = "";
     try {
-      text = readFileSync17(join23(root, ...path.split("/")), "utf8");
+      text = readFileSync18(join25(root, ...path.split("/")), "utf8");
     } catch {}
     const g = ruleGlobsOf(text);
     const r = { path, globs: g.globs };
@@ -29205,7 +29932,7 @@ function ruleFacts(rootIn, privatePaths = new Set) {
 function readRuleIndex(rootIn) {
   let text;
   try {
-    text = readFileSync17(join23(realOr2(rootIn), "AGENTS.md"), "utf8");
+    text = readFileSync18(join25(realOr2(rootIn), "AGENTS.md"), "utf8");
   } catch {
     return { exists: false, found: false, entries: [] };
   }
@@ -29218,23 +29945,23 @@ function rulesParity(rootIn, privatePaths) {
 }
 function claudeRouting(rootIn) {
   const root = realOr2(rootIn);
-  const agents = join23(root, "AGENTS.md");
-  const agentsReal = existsSync9(agents) ? realOr2(agents) : undefined;
+  const agents = join25(root, "AGENTS.md");
+  const agentsReal = existsSync10(agents) ? realOr2(agents) : undefined;
   const out = [];
   for (const name of ["CLAUDE.md", "CLAUDE.local.md", DOT_CLAUDE_MD]) {
-    const path = join23(root, ...name.split("/"));
+    const path = join25(root, ...name.split("/"));
     const kind = kindOf(path);
     if (kind === "missing")
       continue;
-    const real = existsSync9(path) ? realOr2(path) : undefined;
+    const real = existsSync10(path) ? realOr2(path) : undefined;
     const sharedLink = agentsReal !== undefined && real !== undefined && real === agentsReal && (kind === "link" || kindOf(agents) === "link");
     const entry = { name, path, importsAgents: sharedLink, sharedLink };
-    if (kind === "link" && real !== undefined && !within4(root, real))
+    if (kind === "link" && real !== undefined && !within5(root, real))
       entry.outside = real;
     if (!sharedLink) {
       let text;
       try {
-        text = readFileSync17(path, "utf8");
+        text = readFileSync18(path, "utf8");
       } catch {
         text = undefined;
       }
@@ -29270,23 +29997,23 @@ var spawnDetached = (argv, cwd) => {
   child.unref();
 };
 function assetsRoot(root) {
-  if (root === undefined || root === "" || !existsSync10(root))
+  if (root === undefined || root === "" || !existsSync11(root))
     return;
   const real = realOr2(root);
   return nonProjectReason(real) === undefined ? real : undefined;
 }
 function markerFile(root) {
-  return join24(stateDir(), "project-assets", `${sha256(root).slice(0, 16)}.spawn`);
+  return join26(stateDir(), "project-assets", `${sha256(root).slice(0, 16)}.spawn`);
 }
 function throttled(root, nowMs) {
   const file = markerFile(root);
   try {
-    const age = nowMs - statSync16(file).mtimeMs;
+    const age = nowMs - statSync17(file).mtimeMs;
     if (age >= 0 && age < ASSETS_SPAWN_THROTTLE_MS)
       return true;
   } catch {}
   try {
-    mkdirSync11(join24(stateDir(), "project-assets"), { recursive: true });
+    mkdirSync11(join26(stateDir(), "project-assets"), { recursive: true });
     writeFileSync2(file, String(nowMs));
     const t = new Date(nowMs);
     utimesSync4(file, t, t);
@@ -29319,7 +30046,7 @@ function assetsContext(rootIn, harness) {
     if (root === undefined)
       return "";
     if (harness === "claude")
-      return existsSync10(join24(root, "AGENTS.md")) ? claudeParityText(rulesParity(root, ignoredRules(root))) : "";
+      return existsSync11(join26(root, "AGENTS.md")) ? claudeParityText(rulesParity(root, ignoredRules(root))) : "";
     const facts = assetsContextFacts(root);
     return assetsContextText({ harness, rules: facts.rules, claudeOnly: facts.claudeOnly });
   } catch (e) {
@@ -29363,20 +30090,20 @@ function ignoredRules(root) {
 }
 function realPathOf(file) {
   const rest = [];
-  let dir = resolve12(file);
-  while (!existsSync10(dir)) {
-    const parent = dirname10(dir);
+  let dir = resolve14(file);
+  while (!existsSync11(dir)) {
+    const parent = dirname12(dir);
     if (parent === dir)
-      return resolve12(file);
-    rest.unshift(basename6(dir));
+      return resolve14(file);
+    rest.unshift(basename7(dir));
     dir = parent;
   }
-  return join24(realOr2(dir), ...rest);
+  return join26(realOr2(dir), ...rest);
 }
 var CLAUDE_SKILL_MD = /^\.claude\/skills\/([^/]+)\/SKILL\.md$/;
 function relIn(root, file) {
   const abs = realPathOf(file);
-  if (!within4(root, abs))
+  if (!within5(root, abs))
     return;
   return relative4(root, abs).split(sep3).join("/");
 }
@@ -29405,7 +30132,7 @@ function assetsAfterEdit(rootIn, files, o) {
           notes.push(claudeOnlySkillNote(id));
     }
     const claudeFiles = rels.filter((r) => r === "CLAUDE.md" || r === "CLAUDE.local.md" || r === DOT_CLAUDE_MD);
-    if (claudeFiles.length > 0 && existsSync10(join24(root, "AGENTS.md"))) {
+    if (claudeFiles.length > 0 && existsSync11(join26(root, "AGENTS.md"))) {
       const routing = claudeRouting(root);
       const dot = routing.find((c) => c.name === DOT_CLAUDE_MD);
       if (claudeFiles.includes(DOT_CLAUDE_MD) && dot !== undefined && !dot.importsAgents)
@@ -29427,7 +30154,7 @@ function assetsAfterEdit(rootIn, files, o) {
           const gone = [];
           for (const rel of ruleRels) {
             const rule = rules.find((r) => r.path === rel);
-            if (rule === undefined && !existsSync10(join24(root, ...rel.split("/"))))
+            if (rule === undefined && !existsSync11(join26(root, ...rel.split("/"))))
               gone.push(rel);
             const n = rule !== undefined ? ruleEditNote(rule, index) : undefined;
             if (n !== undefined)
@@ -29451,7 +30178,7 @@ function assetsAfterEdit(rootIn, files, o) {
 }
 
 // src/adapters/shared/write-content.ts
-import { readFileSync as readFileSync18, statSync as statSync17 } from "fs";
+import { readFileSync as readFileSync19, statSync as statSync18 } from "fs";
 
 // node_modules/jsonc-parser/lib/esm/impl/scanner.js
 function createScanner(text, ignoreTrivia = false) {
@@ -30314,10 +31041,10 @@ var CONFIG_PARSERS = {
 };
 function currentText(file) {
   try {
-    const st = statSync17(file);
+    const st = statSync18(file);
     if (!st.isFile() || st.size > WRITE_CONTENT_MAX_BYTES)
       return;
-    return readFileSync18(file, "utf8");
+    return readFileSync19(file, "utf8");
   } catch (e) {
     return e.code === "ENOENT" ? "" : undefined;
   }
@@ -30662,17 +31389,17 @@ function guardedContents(changes, paths, home, opts = {}) {
 }
 
 // src/adapters/opencode/runtime/adapter-rules.ts
-import { existsSync as existsSync11, readFileSync as readFileSync19 } from "fs";
-import { dirname as dirname11, join as join25, resolve as resolve13 } from "path";
+import { existsSync as existsSync12, readFileSync as readFileSync20 } from "fs";
+import { dirname as dirname13, join as join27, resolve as resolve15 } from "path";
 var CACHE_TTL_MS = 30000;
 var CACHE_MAX = 64;
 var cache2 = new Map;
 function gitToplevel(dir) {
-  let d = resolve13(dir);
+  let d = resolve15(dir);
   for (let i = 0;i < 128; i++) {
-    if (existsSync11(join25(d, ".git")))
+    if (existsSync12(join27(d, ".git")))
       return d;
-    const up = dirname11(d);
+    const up = dirname13(d);
     if (up === d)
       return;
     d = up;
@@ -30681,7 +31408,7 @@ function gitToplevel(dir) {
 }
 function packageName(dir) {
   try {
-    const pkg = JSON.parse(readFileSync19(join25(dir, "package.json"), "utf8"));
+    const pkg = JSON.parse(readFileSync20(join27(dir, "package.json"), "utf8"));
     return pkg !== null && typeof pkg === "object" && typeof pkg.name === "string" ? pkg.name : undefined;
   } catch {
     return;
@@ -30691,7 +31418,7 @@ function real2(p) {
   try {
     return realPath(p);
   } catch {
-    return resolve13(p);
+    return resolve15(p);
   }
 }
 function lookup(cwd, nowMs) {
@@ -30916,8 +31643,8 @@ function hookFailure(baked, id) {
 }
 
 // src/adapters/opencode/runtime/checks.ts
-import { statSync as statSync19 } from "fs";
-import { basename as basename10 } from "path";
+import { statSync as statSync20 } from "fs";
+import { basename as basename11 } from "path";
 
 // src/core/checker-facts.ts
 var ESLINT_BINS = ["node_modules/.bin/eslint"];
@@ -30957,7 +31684,7 @@ function parentOf(p) {
 function samePath2(a, b) {
   return trimSep(a).replace(/\\/g, "/") === trimSep(b).replace(/\\/g, "/");
 }
-function within5(p, dir) {
+function within6(p, dir) {
   const a = trimSep(p).replace(/\\/g, "/");
   const d = trimSep(dir).replace(/\\/g, "/");
   return a === d || a.startsWith(d.endsWith("/") ? d : `${d}/`);
@@ -30965,7 +31692,7 @@ function within5(p, dir) {
 function checkerDirs(file, root, home) {
   if (typeof file !== "string" || file === "")
     return [];
-  const inRoot = typeof root === "string" && root !== "" && within5(file, root);
+  const inRoot = typeof root === "string" && root !== "" && within6(file, root);
   const out = [];
   let dir = parentOf(file);
   while (dir !== undefined && out.length < CHECKER_SCAN_MAX_DIRS) {
@@ -30979,7 +31706,7 @@ function checkerDirs(file, root, home) {
   }
   return out;
 }
-function joinPath3(dir, rel) {
+function joinPath4(dir, rel) {
   const s = dir.includes("\\") && !dir.includes("/") ? "\\" : "/";
   return `${dir.replace(/[\\/]+$/, "")}${s}${s === "\\" ? rel.replace(/\//g, "\\") : rel}`;
 }
@@ -31013,10 +31740,10 @@ function checkerFacts(scans, cwd) {
     const present = Array.isArray(s.present) ? s.present : [];
     const ruff = RUFF_BINS.find((p) => present.includes(p));
     if (facts.ruffBin === undefined && ruff !== undefined)
-      facts.ruffBin = joinPath3(s.dir, ruff);
+      facts.ruffBin = joinPath4(s.dir, ruff);
     const eslint = ESLINT_BINS.find((p) => present.includes(p));
     if (facts.eslintBin === undefined && eslint !== undefined)
-      facts.eslintBin = joinPath3(s.dir, eslint);
+      facts.eslintBin = joinPath4(s.dir, eslint);
   }
   if (eslintAt >= 0) {
     facts.hasEslintConfig = true;
@@ -31026,15 +31753,15 @@ function checkerFacts(scans, cwd) {
   return facts;
 }
 // src/core/tdd.ts
-function basename7(p) {
+function basename8(p) {
   return p.slice(Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\")) + 1);
 }
-function dirname12(p) {
+function dirname14(p) {
   const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
   return i <= 0 ? i === 0 ? p.slice(0, 1) : "." : p.slice(0, i);
 }
 function ext(p) {
-  const b = basename7(p);
+  const b = basename8(p);
   const i = b.lastIndexOf(".");
   return i <= 0 ? "" : b.slice(i + 1).toLowerCase();
 }
@@ -31050,7 +31777,7 @@ var DOTNET_TEST_DIR = /(?:^|\/)(?:[^/]+\.(?:Unit|Integration|Functional|Acceptan
 var NON_SOURCE_FILE = /(?:\.d\.ts|\.config\.[cm]?[jt]s|\.stories\.[jt]sx?|^conftest\.py|^setup\.py|^__init__\.py|^manage\.py|^__main__\.py|^vite-env\.d\.ts|^index\.d\.ts|\.(?:designer|g|g\.i|generated)\.cs|^AssemblyInfo\.cs|^GlobalUsings\.cs)$/i;
 var TEST_DIR_NAMES = ["tests", "test", "__tests__", "spec", "specs", "Tests"];
 function isTestFileName(name) {
-  const base = basename7(name);
+  const base = basename8(name);
   return /^test_.*\.py$/i.test(base) || /_test\.(?:py|go)$/i.test(base) || /\.(?:test|spec)\.[cm]?[jt]sx?$/i.test(base) || /Tests?\.cs$/.test(base);
 }
 function isDotnetTestProjectName(name) {
@@ -31185,7 +31912,7 @@ function importsModule(text, testPath, modulePath) {
   if (typeof text !== "string" || text === "" || typeof modulePath !== "string" || modulePath === "")
     return false;
   const e = ext(modulePath);
-  const base = basename7(modulePath);
+  const base = basename8(modulePath);
   const stem = base.slice(0, base.length - e.length - 1);
   if (stem === "")
     return false;
@@ -31201,12 +31928,12 @@ function importsModule(text, testPath, modulePath) {
   if (!JS_FAMILY.has(e))
     return false;
   const target = slash(modulePath).replace(JS_EXT, "");
-  const dir = slash(dirname12(modulePath));
-  const parent = basename7(dir);
+  const dir = slash(dirname14(modulePath));
+  const parent = basename8(dir);
   for (const m of text.matchAll(JS_SPEC)) {
     const spec = m[1].replace(JS_EXT, "");
     if (spec.startsWith("./") || spec.startsWith("../")) {
-      const resolved = normalizeRel(dirname12(testPath), spec);
+      const resolved = normalizeRel(dirname14(testPath), spec);
       if (resolved === target || stem === "index" && resolved === dir)
         return true;
       continue;
@@ -31247,9 +31974,9 @@ function tddHint(path, candidates, edit) {
   if (typeof path !== "string" || path === "")
     return;
   const p = slash(path);
-  const base = basename7(p);
+  const base = basename8(p);
   const e = ext(p);
-  const dir = dirname12(p);
+  const dir = dirname14(p);
   if (!TDD_EXT.has(e) || isTestFileName(base) || TEST_DIR.test(dir) || NON_SOURCE_DIR.test(p) || NON_SOURCE_FILE.test(base))
     return;
   if (e === "cs" && (DOTNET_BUILD_DIR.test(dir) || DOTNET_TEST_DIR.test(dir)))
@@ -31259,16 +31986,16 @@ function tddHint(path, candidates, edit) {
   const c = Array.isArray(candidates) ? { siblings: candidates } : candidates ?? { siblings: [] };
   const str = (xs) => Array.isArray(xs) ? xs.filter((s) => typeof s === "string") : [];
   const stem = base.slice(0, base.length - e.length - 1);
-  const parentDir = basename7(dir);
-  const siblings = str(c.siblings).map(basename7);
+  const parentDir = basename8(dir);
+  const siblings = str(c.siblings).map(basename8);
   if (e === "go" && siblings.some((s) => /_test\.go$/i.test(s)))
     return;
-  if (nameMatches(e, stem, parentDir, [...siblings, ...str(c.testFiles).map(basename7)]))
+  if (nameMatches(e, stem, parentDir, [...siblings, ...str(c.testFiles).map(basename8)]))
     return;
   if (str(c.importers).length > 0)
     return;
   if ((e === "py" || e === "pyi") && str(c.failing).some((f) => {
-    const b = basename7(f).replace(/\.py$/i, "");
+    const b = basename8(f).replace(/\.py$/i, "");
     return b === `test_${stem}` || b === `${stem}_test`;
   }))
     return;
@@ -31699,15 +32426,15 @@ function charsetFindings(addedText, path, fileText) {
 var FINDINGS_MAX_LINES = 20;
 var SLOW_CHECKER_MIN_MS = 4000;
 var DOTNET_FORMAT_ENV = { LC_ALL: "en_US.UTF-8", DOTNET_CLI_UI_LANGUAGE: "en" };
-function basename8(p) {
+function basename9(p) {
   return p.slice(Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\")) + 1);
 }
-function dirname13(p) {
+function dirname15(p) {
   const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
   return i <= 0 ? i === 0 ? p.slice(0, 1) : "." : p.slice(0, i);
 }
 function ext2(p) {
-  const b = basename8(p);
+  const b = basename9(p);
   const i = b.lastIndexOf(".");
   return i <= 0 ? "" : b.slice(i + 1).toLowerCase();
 }
@@ -31724,7 +32451,7 @@ function checkersFor(path, facts, cfg) {
     return [];
   const langs = new Set(Array.isArray(cfg.languages) ? cfg.languages : []);
   const timeoutMs = typeof cfg.timeoutMs === "number" && cfg.timeoutMs > 0 ? cfg.timeoutMs : 20000;
-  const cwd = facts.cwd || dirname13(path);
+  const cwd = facts.cwd || dirname15(path);
   const e = ext2(path);
   if ((e === "py" || e === "pyi") && langs.has("python") && facts.hasRuffConfig) {
     return [{ argv: [facts.ruffBin ?? "ruff", "check", "--output-format=concise", path], cwd, timeoutMs, parser: "ruff" }];
@@ -31734,11 +32461,11 @@ function checkersFor(path, facts, cfg) {
   }
   if (e === "go" && langs.has("go") && facts.isGoModule) {
     const plans = [
-      { argv: ["go", "vet", "."], cwd: dirname13(path), timeoutMs, parser: "go-vet" },
+      { argv: ["go", "vet", "."], cwd: dirname15(path), timeoutMs, parser: "go-vet" },
       { argv: ["gofmt", "-l", path], cwd, timeoutMs, parser: "generic" }
     ];
     if (facts.golangci === true)
-      plans.push({ argv: ["golangci-lint", "run", "."], cwd: dirname13(path), timeoutMs, parser: "golangci", minMs: SLOW_CHECKER_MIN_MS });
+      plans.push({ argv: ["golangci-lint", "run", "."], cwd: dirname15(path), timeoutMs, parser: "golangci", minMs: SLOW_CHECKER_MIN_MS });
     return plans;
   }
   if ((e === "sh" || e === "bash") && langs.has("shell")) {
@@ -31768,7 +32495,7 @@ function note2(title, items, cwd) {
 `);
 }
 function tool(plan) {
-  const a0 = basename8(plan.argv[0] ?? "");
+  const a0 = basename9(plan.argv[0] ?? "");
   return a0 === "" ? plan.parser : a0;
 }
 var ANSI = /\x1b\[[0-9;?]*[A-Za-z]/g;
@@ -31897,27 +32624,27 @@ function lengthNote(lineCount) {
 }
 
 // src/adapters/shared/checker-scan.ts
-import { readdirSync as readdirSync9, readFileSync as readFileSync20, statSync as statSync18 } from "fs";
-import { basename as basename9, dirname as dirname14, join as join26, relative as relative5, sep as sep4 } from "path";
+import { readdirSync as readdirSync10, readFileSync as readFileSync21, statSync as statSync19 } from "fs";
+import { basename as basename10, dirname as dirname16, join as join28, relative as relative5, sep as sep4 } from "path";
 var nodeCheckFs = {
   list: (dir) => {
     try {
-      return readdirSync9(dir, { withFileTypes: true }).map((d) => ({ name: d.name, dir: d.isDirectory() })).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+      return readdirSync10(dir, { withFileTypes: true }).map((d) => ({ name: d.name, dir: d.isDirectory() })).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
     } catch {
       return [];
     }
   },
   read: (path, maxBytes) => {
     try {
-      const st = statSync18(path);
-      return st.isFile() && st.size <= maxBytes ? readFileSync20(path, "utf8") : undefined;
+      const st = statSync19(path);
+      return st.isFile() && st.size <= maxBytes ? readFileSync21(path, "utf8") : undefined;
     } catch {
       return;
     }
   },
   exists: (path) => {
     try {
-      statSync18(path);
+      statSync19(path);
       return true;
     } catch {
       return false;
@@ -31937,36 +32664,36 @@ function scanUpward(fs, file, root, home) {
     const names = fs.list(dir).map((e) => e.name);
     const scan = { dir, names };
     if (names.includes("pyproject.toml")) {
-      const t = fs.read(join26(dir, "pyproject.toml"), MANIFEST_MAX_BYTES);
+      const t = fs.read(join28(dir, "pyproject.toml"), MANIFEST_MAX_BYTES);
       if (t !== undefined)
         scan.pyproject = t;
     }
     if (names.includes("package.json")) {
-      const t = fs.read(join26(dir, "package.json"), MANIFEST_MAX_BYTES);
+      const t = fs.read(join28(dir, "package.json"), MANIFEST_MAX_BYTES);
       if (t !== undefined)
         scan.packageJson = t;
     }
-    const present = CHECKER_PROBES.filter((p) => names.includes(p.split("/")[0]) && fs.exists(join26(dir, ...p.split("/"))));
+    const present = CHECKER_PROBES.filter((p) => names.includes(p.split("/")[0]) && fs.exists(join28(dir, ...p.split("/"))));
     if (present.length > 0)
       scan.present = present;
     return scan;
   });
 }
 function extOf(p) {
-  const b = basename9(p);
+  const b = basename10(p);
   const i = b.lastIndexOf(".");
   return i <= 0 ? "" : b.slice(i + 1).toLowerCase();
 }
 var FAMILY = { py: "py", pyi: "py", go: "go", cs: "cs", ts: "js", tsx: "js", mts: "js", cts: "js", js: "js", jsx: "js", mjs: "js", cjs: "js" };
 function mirrorDirs(file, testDir, owner) {
-  const rel = relative5(owner, dirname14(file));
+  const rel = relative5(owner, dirname16(file));
   if (rel === "" || rel.startsWith(".."))
     return [];
   const segs = rel.split(sep4);
-  const stem = basename9(file).replace(/\.[^.]+$/, "");
-  const out = [join26(testDir, ...segs), join26(testDir, ...segs, stem)];
+  const stem = basename10(file).replace(/\.[^.]+$/, "");
+  const out = [join28(testDir, ...segs), join28(testDir, ...segs, stem)];
   if (segs.length > 0 && SOURCE_ROOTS.has(segs[0]))
-    out.push(join26(testDir, ...segs.slice(1)), join26(testDir, ...segs.slice(1), stem));
+    out.push(join28(testDir, ...segs.slice(1)), join28(testDir, ...segs.slice(1), stem));
   return out;
 }
 function testFilesNear(fs, file, scans, now) {
@@ -31978,10 +32705,10 @@ function testFilesNear(fs, file, scans, now) {
   const queue = [];
   for (const s of scans) {
     for (const n of s.names) {
-      if (n === basename9(dirname14(file)) && join26(s.dir, n) === dirname14(file))
+      if (n === basename10(dirname16(file)) && join28(s.dir, n) === dirname16(file))
         continue;
       if (TEST_DIR_NAMES.includes(n) || family === "cs" && isDotnetTestProjectName(n)) {
-        const t = join26(s.dir, n);
+        const t = join28(s.dir, n);
         if (roots.includes(t))
           continue;
         roots.push(t);
@@ -32002,10 +32729,10 @@ function testFilesNear(fs, file, scans, now) {
       visited++;
       if (e.dir) {
         if (!SKIP_DIRS.has(e.name) && !e.name.startsWith("."))
-          queue.push(join26(d, e.name));
+          queue.push(join28(d, e.name));
         continue;
       }
-      const p = join26(d, e.name);
+      const p = join28(d, e.name);
       if (FAMILY[extOf(e.name)] !== family || found.includes(p))
         continue;
       if (isTestFileName(e.name) || family === "cs")
@@ -32031,7 +32758,7 @@ function lastFailed(fs, scans) {
   for (const s of scans) {
     if (!s.names.includes(".pytest_cache"))
       continue;
-    const text = fs.read(join26(s.dir, ".pytest_cache", "v", "cache", "lastfailed"), MANIFEST_MAX_BYTES);
+    const text = fs.read(join28(s.dir, ".pytest_cache", "v", "cache", "lastfailed"), MANIFEST_MAX_BYTES);
     if (text === undefined)
       continue;
     try {
@@ -32081,7 +32808,7 @@ async function tddNote(env, t, scans, source) {
   if (source !== undefined && extOf(t.file) === "cs")
     edit.source = source;
   const first = scans[0];
-  const siblings = first !== undefined && first.dir === dirname14(t.file) ? [...first.names] : fs.list(dirname14(t.file)).map((e) => e.name);
+  const siblings = first !== undefined && first.dir === dirname16(t.file) ? [...first.names] : fs.list(dirname16(t.file)).map((e) => e.name);
   const quick = await guard("tddHint", undefined, () => api.tddHint(t.file, { siblings }, edit));
   if (quick === undefined)
     return;
@@ -32198,7 +32925,7 @@ function editTexts(kind, files, input, cwd, home) {
 }
 function isFile4(path) {
   try {
-    return statSync19(path).isFile();
+    return statSync20(path).isFile();
   } catch {
     return false;
   }
@@ -32213,7 +32940,7 @@ async function fileChecks(kind, files, input, cfg, deps) {
   for (const file of files.slice(0, MAX_CHECKED_FILES)) {
     if (!isFile4(file))
       continue;
-    const name = basename10(file);
+    const name = basename11(file);
     const found = await checkOneFile({
       api: { checkersFor, findingsOf, tddHint, charsetFindings, lengthNote },
       fs: deps.fs ?? nodeCheckFs,
@@ -32247,9 +32974,9 @@ async function lspEditNotes(files, cfg, deps) {
 }
 
 // src/workflow/ledger.ts
-import { join as join27 } from "path";
+import { join as join29 } from "path";
 function ledgerPath(h, sid) {
-  return join27(sessionDir(h, sid), "ledger.json");
+  return join29(sessionDir(h, sid), "ledger.json");
 }
 function loadLedger(h, sid) {
   const r = readJsonSafeSync(ledgerPath(h, sid));
@@ -32640,8 +33367,8 @@ function deliveredPrompts(taken, compiled, policy, readOnly = false) {
 }
 
 // src/adapters/shared/project-deps.ts
-import { readdirSync as readdirSync10, readFileSync as readFileSync21, statSync as statSync20 } from "fs";
-import { join as join28, resolve as resolve14 } from "path";
+import { readdirSync as readdirSync11, readFileSync as readFileSync22, statSync as statSync21 } from "fs";
+import { join as join30, resolve as resolve16 } from "path";
 var ROOT_MANIFESTS = ["package.json", "pyproject.toml", "Pipfile", "go.mod", "Cargo.toml", "composer.json", "Gemfile"];
 var REQUIREMENTS = /^(?:requirements|constraints)[\w.-]*\.(?:txt|in)$/i;
 var WORKSPACE_MEMBERS_MAX = 32;
@@ -32651,7 +33378,7 @@ var READ_MAX_BYTES = 1024 * 1024;
 var cache3 = new Map;
 function stamp2(path) {
   try {
-    const st = statSync20(path);
+    const st = statSync21(path);
     return st.isFile() ? `${st.size}:${Math.trunc(st.mtimeMs)}` : undefined;
   } catch {
     return;
@@ -32659,9 +33386,9 @@ function stamp2(path) {
 }
 function readSmall(path) {
   try {
-    if (statSync20(path).size > READ_MAX_BYTES)
+    if (statSync21(path).size > READ_MAX_BYTES)
       return;
-    return readFileSync21(path, "utf8");
+    return readFileSync22(path, "utf8");
   } catch {
     return;
   }
@@ -32681,7 +33408,7 @@ function workspacePatterns(root, pkgText) {
           out.push(p);
     } catch {}
   }
-  const pnpm = readSmall(join28(root, "pnpm-workspace.yaml"));
+  const pnpm = readSmall(join30(root, "pnpm-workspace.yaml"));
   if (pnpm !== undefined) {
     let inPackages = false;
     for (const raw of pnpm.split(`
@@ -32709,18 +33436,18 @@ function memberDirs(root, patterns) {
     if (p === "" || p.startsWith("!") || p.startsWith("/") || p.split("/").includes(".."))
       continue;
     if (p.endsWith("/*") && !/[*?[{]/.test(p.slice(0, -2))) {
-      const base = join28(root, p.slice(0, -2));
+      const base = join30(root, p.slice(0, -2));
       let names = [];
       try {
-        names = readdirSync10(base).sort();
+        names = readdirSync11(base).sort();
       } catch {
         continue;
       }
       for (const n of names)
         if (!n.startsWith(".") && n !== "node_modules")
-          dirs.add(join28(base, n));
+          dirs.add(join30(base, n));
     } else if (!/[*?[{]/.test(p)) {
-      dirs.add(join28(root, p));
+      dirs.add(join30(root, p));
     }
   }
   return [...dirs].sort();
@@ -32728,10 +33455,10 @@ function memberDirs(root, patterns) {
 function projectDeps(root) {
   if (typeof root !== "string" || root.trim() === "")
     return [];
-  const dir = resolve14(root);
+  const dir = resolve16(root);
   let names;
   try {
-    names = readdirSync10(dir);
+    names = readdirSync11(dir);
   } catch {
     return [];
   }
@@ -32739,17 +33466,17 @@ function projectDeps(root) {
     ...ROOT_MANIFESTS.filter((n) => names.includes(n)),
     ...names.filter((n) => REQUIREMENTS.test(n)).sort()
   ];
-  const pkgText = files.includes("package.json") ? readSmall(join28(dir, "package.json")) : undefined;
-  const members = pkgText !== undefined || names.includes("pnpm-workspace.yaml") ? memberDirs(dir, workspacePatterns(dir, pkgText)).map((m) => join28(m, "package.json")).filter((p) => stamp2(p) !== undefined).slice(0, WORKSPACE_MEMBERS_MAX) : [];
-  const paths = [...files.map((n) => join28(dir, n)), ...members];
-  const sig = [...paths.map((p) => `${p}=${stamp2(p) ?? ""}`), names.includes("pnpm-workspace.yaml") ? `pnpm=${stamp2(join28(dir, "pnpm-workspace.yaml")) ?? ""}` : ""].join(`
+  const pkgText = files.includes("package.json") ? readSmall(join30(dir, "package.json")) : undefined;
+  const members = pkgText !== undefined || names.includes("pnpm-workspace.yaml") ? memberDirs(dir, workspacePatterns(dir, pkgText)).map((m) => join30(m, "package.json")).filter((p) => stamp2(p) !== undefined).slice(0, WORKSPACE_MEMBERS_MAX) : [];
+  const paths = [...files.map((n) => join30(dir, n)), ...members];
+  const sig = [...paths.map((p) => `${p}=${stamp2(p) ?? ""}`), names.includes("pnpm-workspace.yaml") ? `pnpm=${stamp2(join30(dir, "pnpm-workspace.yaml")) ?? ""}` : ""].join(`
 `);
   const hit = cache3.get(dir);
   if (hit !== undefined && hit.sig === sig)
     return [...hit.deps];
   const deps = new Set;
   for (const p of paths) {
-    const text = p === join28(dir, "package.json") ? pkgText : readSmall(p);
+    const text = p === join30(dir, "package.json") ? pkgText : readSmall(p);
     if (text === undefined)
       continue;
     for (const d of parseManifestDeps(p, text))
@@ -32860,22 +33587,22 @@ async function registerEffort(ctx, cfg, report, onError) {
 }
 
 // src/adapters/opencode/runtime/env.ts
-import { readFileSync as readFileSync22, statSync as statSync21 } from "fs";
+import { readFileSync as readFileSync23, statSync as statSync22 } from "fs";
 import os2 from "os";
-import { isAbsolute as isAbsolute10, join as join29 } from "path";
+import { isAbsolute as isAbsolute11, join as join31 } from "path";
 var POINTER_FILE = "runtime.json";
 function absEnv2(name) {
   const v = process.env[name];
-  return v !== undefined && v.trim() !== "" && isAbsolute10(v) ? v : undefined;
+  return v !== undefined && v.trim() !== "" && isAbsolute11(v) ? v : undefined;
 }
 function readPointer(pluginDir) {
   if (pluginDir === undefined)
     return;
   try {
-    const raw = JSON.parse(readFileSync22(join29(pluginDir, POINTER_FILE), "utf8"));
+    const raw = JSON.parse(readFileSync23(join31(pluginDir, POINTER_FILE), "utf8"));
     if (raw !== null && typeof raw === "object") {
       const bh = raw.buracleHome;
-      if (typeof bh === "string" && isAbsolute10(bh))
+      if (typeof bh === "string" && isAbsolute11(bh))
         return { buracleHome: bh };
     }
   } catch {}
@@ -32889,7 +33616,7 @@ function resolveEnv(pluginDir) {
   const pointer = readPointer(pluginDir);
   if (pointer !== undefined)
     return { home, buracleHome: pointer.buracleHome, source: "pointer" };
-  return { home, buracleHome: join29(home, ".buracle"), source: "default" };
+  return { home, buracleHome: join31(home, ".buracle"), source: "default" };
 }
 function applyEnv(resolved) {
   const changed = [];
@@ -32901,7 +33628,7 @@ function applyEnv(resolved) {
 }
 function mtimeOf2(path) {
   try {
-    const st = statSync21(path);
+    const st = statSync22(path);
     return `${st.mtimeMs}:${st.size}`;
   } catch {
     return;
@@ -32937,7 +33664,7 @@ class MtimeCache {
       return this.value;
     }
     try {
-      this.value = this.parse(JSON.parse(readFileSync22(path, "utf8")));
+      this.value = this.parse(JSON.parse(readFileSync23(path, "utf8")));
     } catch {
       this.value = this.fallback();
     }
@@ -33038,7 +33765,7 @@ function stringifyOutput(output) {
     return String(output);
   }
 }
-function within6(p, ms, fallback) {
+function within7(p, ms, fallback) {
   let timer;
   const late = new Promise((res) => {
     timer = setTimeout(() => res(fallback), ms);
@@ -33098,26 +33825,26 @@ function questionGrant(sid, input, result, now) {
 }
 
 // src/adapters/opencode/runtime/consent-relay.ts
-import { closeSync as closeSync6, openSync as openSync6, readdirSync as readdirSync11, rmSync as rmSync5, writeSync as writeSync4 } from "fs";
-import { join as join30 } from "path";
+import { closeSync as closeSync6, openSync as openSync6, readdirSync as readdirSync12, rmSync as rmSync5, writeSync as writeSync4 } from "fs";
+import { join as join32 } from "path";
 var RELAY_DIR = "consent-relay";
 var TUI_FRESH_MS = 6000;
 var ASK_ID = /^[a-z0-9-]{8,64}$/;
 var RELAY_ANSWERS = ["once", "session", "refuse", "dismiss"];
 function relayDir(sid) {
-  return join30(sessionDir("opencode", sid), RELAY_DIR);
+  return join32(sessionDir("opencode", sid), RELAY_DIR);
 }
 function askFile(sid, id) {
-  return join30(relayDir(sid), `ask-${id}.json`);
+  return join32(relayDir(sid), `ask-${id}.json`);
 }
 function answerFile(sid, id) {
-  return join30(relayDir(sid), `answer-${id}.json`);
+  return join32(relayDir(sid), `answer-${id}.json`);
 }
 function valid(sid, id) {
   return isValidSessionId(sid) && (id === undefined || ASK_ID.test(id));
 }
 function anyTuiFile() {
-  return join30(stateDir(), "opencode-tui.json");
+  return join32(stateDir(), "opencode-tui.json");
 }
 function fresh(file, now) {
   const r = readJsonSafeSync(file);
@@ -33125,7 +33852,7 @@ function fresh(file, now) {
   return typeof at === "number" && now - at <= TUI_FRESH_MS && at - now <= TUI_FRESH_MS;
 }
 function tuiPresent(sid, now) {
-  return valid(sid) && fresh(join30(relayDir(sid), "tui.json"), now);
+  return valid(sid) && fresh(join32(relayDir(sid), "tui.json"), now);
 }
 function anyTuiPresent(now) {
   return fresh(anyTuiFile(), now);
@@ -33153,8 +33880,8 @@ function clearAsk(sid, id) {
 }
 
 // src/adapters/opencode/runtime/guard.ts
-import { readFileSync as readFileSync23 } from "fs";
-import { isAbsolute as isAbsolute11, resolve as resolve15 } from "path";
+import { readFileSync as readFileSync24 } from "fs";
+import { isAbsolute as isAbsolute12, resolve as resolve17 } from "path";
 // src/core/plan/interaction.ts
 function running(s) {
   return s.plan !== undefined && !isPlanFinished(s) && s.interaction?.state !== "paused";
@@ -33313,10 +34040,10 @@ class StopGuard {
     this.settleMs = settleMs;
   }
   planCheck(plan, cwd) {
-    const abs = isAbsolute11(plan.path) ? plan.path : resolve15(cwd, plan.path);
+    const abs = isAbsolute12(plan.path) ? plan.path : resolve17(cwd, plan.path);
     let text;
     try {
-      text = readFileSync23(abs, "utf8");
+      text = readFileSync24(abs, "utf8");
     } catch {
       return { exists: false, findings: [] };
     }
@@ -33386,27 +34113,38 @@ class StopGuard {
     const now = this.host.now();
     const state = cfg.plan.stopGuard ? loadState(HARNESS3, sid) : undefined;
     const plan = state?.plan;
-    if (state === undefined || plan === undefined) {
+    let board;
+    if (state !== undefined) {
+      try {
+        board = boardStopInput(HARNESS3, sid, now);
+      } catch (e) {
+        this.host.log("warn", "board stop input failed", { error: errText2(e) });
+      }
+    }
+    if (state === undefined || plan === undefined && board === undefined) {
       chain.chain = 0;
       await this.routeAudit(sid, cfg.plan.stopGuard ? "no-plan" : "disabled", fresh, claim, false, now);
       return;
     }
     const cwd = this.host.cwd(sid);
-    const doc = this.planCheck(plan, cwd);
+    const doc = plan !== undefined ? this.planCheck(plan, cwd) : undefined;
+    const label = plan?.path ?? `board ${board?.slug ?? ""}`;
     chain.continuations = chain.continuations.filter((t) => now - t >= 0 && now - t < RATE_WINDOW_MS);
-    if (planProgressed(state, doc.text)) {
+    if (plan !== undefined && planProgressed(state, doc?.text)) {
       chain.chain = 0;
       chain.continuations = [];
       chain.noticed = false;
     }
     const chainCap = Math.max(1, cfg.plan.runaway.perChain);
     if (chain.chain > chainCap || chain.continuations.length >= RATE_MAX) {
-      this.runaway(sid, chain, chain.chain > chainCap ? "runaway-chain" : "rate", plan.path);
+      this.runaway(sid, chain, chain.chain > chainCap ? "runaway-chain" : "rate", label);
       return;
     }
     if (claim !== undefined && !claimEvent(claim))
       return;
     const input = { harness: HARNESS3, sessionId: sid, cwd, hookActive: chain.chain > 0, now };
+    if (board !== undefined)
+      input.board = board;
     const session = this.host.session(sid);
     if (session?.lastAssistantText !== undefined)
       input.lastMessage = session.lastAssistantText;
@@ -33417,7 +34155,7 @@ class StopGuard {
     let result;
     try {
       updateState(HARNESS3, sid, (cur) => {
-        const check = cur.plan === undefined ? undefined : cur.plan.path === plan.path && cur.plan.phase === plan.phase ? doc : this.planCheck(cur.plan, cwd);
+        const check = cur.plan === undefined ? undefined : plan !== undefined && cur.plan.path === plan.path && cur.plan.phase === plan.phase ? doc : this.planCheck(cur.plan, cwd);
         const r = stopGuardVerdict(cur, input, cfg.plan, check);
         result = r;
         return r.next;
@@ -33434,7 +34172,7 @@ class StopGuard {
       chain.continuations = [];
     }
     if (r.why === "runaway-plan" || r.why === "runaway-chain")
-      this.runaway(sid, chain, r.why, plan.path);
+      this.runaway(sid, chain, r.why, label);
     if (r.readOnlyNotice === true)
       this.say(sid, READ_ONLY_NOTICE);
     const decision = r.decision;
@@ -33595,13 +34333,13 @@ function maskedError(error, depth = 0) {
 }
 
 // src/adapters/opencode/runtime/notice-board.ts
-import { join as join31 } from "path";
+import { join as join33 } from "path";
 var HARNESS6 = "opencode";
 var KEEP = 20;
 function boardFile(sid) {
-  return join31(sessionDir(HARNESS6, sid), "notices.json");
+  return join33(sessionDir(HARNESS6, sid), "notices.json");
 }
-function readBoard(sid) {
+function readBoard2(sid) {
   const r = readJsonSafeSync(boardFile(sid));
   if (!r.ok || r.value === null || typeof r.value !== "object" || !Array.isArray(r.value.items))
     return { v: 1, items: [] };
@@ -33611,7 +34349,7 @@ function readBoard(sid) {
 function postNotice(sid, text, variant, now) {
   if (!isValidSessionId(sid) || text.trim() === "")
     return;
-  const board = readBoard(sid);
+  const board = readBoard2(sid);
   const seq = (board.items.at(-1)?.seq ?? 0) + 1;
   board.items = [...board.items, { seq, at: now, text: text.trim(), variant }].slice(-KEEP);
   ensureDirSync(sessionDir(HARNESS6, sid));
@@ -33992,8 +34730,8 @@ class ModelFacts {
 }
 
 // src/adapters/shared/notices.ts
-import { closeSync as closeSync7, mkdirSync as mkdirSync12, openSync as openSync7, readdirSync as readdirSync12, writeSync as writeSync5 } from "fs";
-import { join as join32 } from "path";
+import { closeSync as closeSync7, mkdirSync as mkdirSync12, openSync as openSync7, readdirSync as readdirSync13, writeSync as writeSync5 } from "fs";
+import { join as join34 } from "path";
 
 // src/core/notices.ts
 var NOTICE_ID = /^[a-z0-9][a-z0-9.-]{0,63}$/;
@@ -34059,7 +34797,7 @@ function noticesOff(env = process.env) {
 }
 function ackedIds(dir) {
   try {
-    return new Set(readdirSync12(dir).filter((n) => n.endsWith(".ack")).map((n) => n.slice(0, -4)));
+    return new Set(readdirSync13(dir).filter((n) => n.endsWith(".ack")).map((n) => n.slice(0, -4)));
   } catch {
     return new Set;
   }
@@ -34080,7 +34818,7 @@ function claimNotices(list, o) {
   const claimed = [];
   for (const n of pending) {
     try {
-      const fd = openSync7(join32(dir, `${n.id}.ack`), "wx", 384);
+      const fd = openSync7(join34(dir, `${n.id}.ack`), "wx", 384);
       try {
         writeSync5(fd, `${JSON.stringify({ at: o.nowMs, version: o.version, harness: o.harness })}
 `);
@@ -34134,7 +34872,7 @@ function openTodosOf(input) {
 }
 
 // src/adapters/opencode/runtime/workspace.ts
-import { basename as basename11, dirname as dirname15 } from "path";
+import { basename as basename12, dirname as dirname17 } from "path";
 var WORKSPACE_THROTTLE_MS = 60000;
 var MAX_DIRS = 64;
 var WORKSPACE_KEY = Symbol.for("buracle.opencode.workspaces");
@@ -34180,11 +34918,11 @@ function workspaceFacts(info, cfg, home) {
 function profileWarning(pluginDir, runtimeSnapshot, home) {
   if (pluginDir === undefined || pluginDir === "")
     return;
-  const plugins = dirname15(pluginDir);
-  const configDir = dirname15(plugins);
-  if (basename11(plugins) !== "plugins" || basename11(configDir) !== "opencode")
+  const plugins = dirname17(pluginDir);
+  const configDir = dirname17(plugins);
+  if (basename12(plugins) !== "plugins" || basename12(configDir) !== "opencode")
     return;
-  return profileGuard("opencode", runtimeSnapshot, { HOME: home, XDG_CONFIG_HOME: dirname15(configDir) });
+  return profileGuard("opencode", runtimeSnapshot, { HOME: home, XDG_CONFIG_HOME: dirname17(configDir) });
 }
 
 // src/adapters/opencode/runtime/plugin.ts
@@ -34361,7 +35099,7 @@ class BuracleRuntime {
     return s;
   }
   persistFile(sid) {
-    return join33(sessionDir(HARNESS7, sid), "opencode.json");
+    return join35(sessionDir(HARNESS7, sid), "opencode.json");
   }
   readPersisted(sid) {
     try {
@@ -34593,8 +35331,14 @@ class BuracleRuntime {
     this.abort.abort();
     for (const s of this.sessions.values()) {
       this.cancelIdleFinalize(s);
-      if (typeof s.parentID !== "string")
+      if (typeof s.parentID !== "string") {
         this.ui("ended", s.sid);
+        try {
+          boardSessionEnd(HARNESS7, s.sid, this.now());
+        } catch (err) {
+          this.logFn("warn", "board session end failed", { error: errText(err) });
+        }
+      }
       if (!s.activity || typeof s.parentID === "string")
         continue;
       await this.finalize(s.sid, s);
@@ -34676,7 +35420,7 @@ class BuracleRuntime {
   workspaceOf(s) {
     if (s.workspace !== undefined)
       return Promise.resolve(s.workspace);
-    return within6(this.ensureWorkspace(s), WORKSPACE_WAIT_MS, undefined);
+    return within7(this.ensureWorkspace(s), WORKSPACE_WAIT_MS, undefined);
   }
   knownSkills(dir) {
     const now = this.now();
@@ -34692,7 +35436,7 @@ class BuracleRuntime {
     } catch {
       return Promise.resolve(undefined);
     }
-    const ids = within6(listed.then(skillIdsOf), SKILL_LIST_TIMEOUT_MS, undefined);
+    const ids = within7(listed.then(skillIdsOf), SKILL_LIST_TIMEOUT_MS, undefined);
     if (this.skillLists.size >= 64)
       this.skillLists.clear();
     this.skillLists.set(dir, { at: now, ids });
@@ -34716,8 +35460,8 @@ class BuracleRuntime {
       return;
     let removed = "";
     try {
-      if (statSync22(file).size <= WRITE_COMPARE_MAX_BYTES)
-        removed = readFileSync24(file, "utf8");
+      if (statSync23(file).size <= WRITE_COMPARE_MAX_BYTES)
+        removed = readFileSync25(file, "utf8");
       else
         return;
     } catch {
@@ -34743,8 +35487,8 @@ class BuracleRuntime {
     const deps = projectDeps2(info?.root);
     if (deps.length > 0)
       ctx.deps = deps;
-    const read = call.kind === "read" && call.paths.length > 0 && call.paths.every((p) => existsSync12(p));
-    const rules = pathRuleSource(this.baked.pathRules, join33(this.env.buracleHome, "rules", "paths"), { onRead: read, home: this.env.home });
+    const read = call.kind === "read" && call.paths.length > 0 && call.paths.every((p) => existsSync13(p));
+    const rules = pathRuleSource(this.baked.pathRules, join35(this.env.buracleHome, "rules", "paths"), { onRead: read, home: this.env.home });
     if (rules !== undefined)
       ctx.pathRules = rules;
     if (call.kind === "write") {
@@ -34821,7 +35565,7 @@ class BuracleRuntime {
     const cls = classifyTool(HARNESS7, tool, input, cwd, this.baked.mcpIds, { homeTilde: this.env.home });
     let pathsOut = cls.paths;
     if (e.action === "edit") {
-      const fromResources = resources.flatMap((r) => r === "" ? [] : [isAbsolute12(r) ? resolve16(r) : resolve16(cwd, r)]);
+      const fromResources = resources.flatMap((r) => r === "" ? [] : [isAbsolute13(r) ? resolve18(r) : resolve18(cwd, r)]);
       pathsOut = [...new Set([...pathsOut, ...fromResources])];
     }
     const call = { harness: HARNESS7, sessionId: e.sessionID, cwd, tool, kind: cls.kind, input, paths: pathsOut };
@@ -34898,6 +35642,9 @@ class BuracleRuntime {
     this.logFn("info", "denied tool call", { sid, hook: denied.hook, tool });
   }
   async evaluate(e) {
+    const s = typeof e.sessionID === "string" ? this.sessions.get(e.sessionID) : undefined;
+    if (s !== undefined && s.parentID === undefined)
+      await this.resolveParent(s);
     this.onEvaluate(e);
     const held = this.consentHeld.get(e);
     this.consentHeld.delete(e);
@@ -34940,6 +35687,29 @@ class BuracleRuntime {
     }
     if (denied === undefined && (call.kind === "edit" || call.kind === "write" || call.kind === "patch") && call.paths.length > 0) {
       denied = this.guard("H02", () => this.writeVerdict(call, cfg));
+    }
+    const sess = this.sessions.get(call.sessionId);
+    const root = typeof sess?.parentID !== "string" && isValidSessionId(call.sessionId);
+    const writes = (call.kind === "edit" || call.kind === "write" || call.kind === "patch") && call.paths.length > 0;
+    const parent = this.sessions.get(call.sessionId)?.parentID;
+    const boardSid = root ? call.sessionId : typeof parent === "string" && isValidSessionId(parent) ? parent : undefined;
+    if (denied === undefined && writes && boardSid !== undefined) {
+      denied = this.guard("H02", () => {
+        const d = boardWriteDenial2(HARNESS7, boardSid, call.cwd, call.paths, realWriteTarget);
+        return d !== undefined ? { deny: d } : undefined;
+      });
+    }
+    if (denied === undefined && root) {
+      let seen;
+      try {
+        seen = boardToolSeen(HARNESS7, call.sessionId, call.cwd, this.now(), writes, "before");
+      } catch (err) {
+        this.logFn("warn", "board heartbeat failed", { error: errText(err) });
+      }
+      if (seen?.deny !== undefined)
+        denied = { reason: seen.deny, hook: "H02" };
+      else if (seen?.context !== undefined && e.source?.type === "tool")
+        this.nudges.set(e.source.id, [...this.nudges.get(e.source.id) ?? [], seen.context]);
     }
     if (denied === undefined && call.kind === "mcp")
       denied = this.guard("H02", () => this.mcpWriteVerdict(call, cfg));
@@ -35061,6 +35831,15 @@ class BuracleRuntime {
       lsp.push(...await lspEditNotes(cls.paths, this.cfg().checkers, { cwd, ask: this.lspEdits, log: (level, msg, data) => this.logFn(level, msg, data) }));
     }
     const extra = [...new Set([...nudges, ...verdict?.context !== undefined ? [verdict.context] : []].map((n) => n.trim()).filter((n) => n !== ""))];
+    if (typeof s.parentID !== "string" && isValidSessionId(e.sessionID)) {
+      try {
+        const seen = boardToolSeen(HARNESS7, e.sessionID, cwd, this.now(), false, "after");
+        if (seen?.context !== undefined)
+          extra.push(seen.context);
+      } catch (err) {
+        this.logFn("warn", "board heartbeat failed", { error: errText(err) });
+      }
+    }
     if (notes.length > 0)
       extra.push(["Buracle checks (H04):", ...notes.map((n) => `- ${n}`)].join(`
 `));
@@ -35236,6 +36015,15 @@ class BuracleRuntime {
     const notice = await this.sessionNotice(s);
     if (notice !== undefined)
       parts.push(notice);
+    if (s.parentID === null || s.parentID === undefined) {
+      try {
+        const offer = boardJoinOffer(HARNESS7, s.sid, this.cwdOf(s), this.now());
+        if (offer !== undefined)
+          parts.push(offer);
+      } catch (err) {
+        this.logFn("warn", "board offer failed", { error: errText(err) });
+      }
+    }
     const watch = contextWatch(s.ctxWarned, s.ctx?.pct, cfg.context);
     if (watch.warned !== s.ctxWarned) {
       s.ctxWarned = watch.warned;
@@ -35309,7 +36097,7 @@ class BuracleRuntime {
       }
       const cwd = this.cwdOf(s);
       const now = this.now();
-      const input = { state, project: basename12(cwd), harness: HARNESS7, sessionId: s.sid, now };
+      const input = { state, project: basename13(cwd), harness: HARNESS7, sessionId: s.sid, now };
       const branch = await currentBranch(cwd);
       if (branch !== undefined)
         input.branch = branch;
@@ -35370,6 +36158,13 @@ class BuracleRuntime {
 `) || undefined;
     } catch (err) {
       this.logFn("warn", "review notes notice failed", { error: errText(err) });
+    }
+    try {
+      guidance = [guidance, boardPromptNotice(HARNESS7, s.sid, this.cwdOf(s), at)].filter((x) => x !== undefined).join(`
+
+`) || undefined;
+    } catch (err) {
+      this.logFn("warn", "board notice failed", { error: errText(err) });
     }
     let routed;
     try {
@@ -35464,7 +36259,7 @@ class BuracleRuntime {
         const dir = str8(loc["directory"]);
         const sub = str8(data["subpath"]);
         if (dir !== undefined)
-          s.cwd = sub !== undefined && sub !== "" ? join33(dir, sub) : dir;
+          s.cwd = sub !== undefined && sub !== "" ? join35(dir, sub) : dir;
         if (isMemoryRunnerDir(this.cwdOf(s)))
           s.capture = false;
         const parent = str8(data["parentID"]);
@@ -35601,6 +36396,11 @@ class BuracleRuntime {
         if (s !== undefined && s.parentID !== null && s.parentID !== undefined)
           return;
         this.ui("ended", sid);
+        try {
+          boardSessionEnd(HARNESS7, sid, this.now());
+        } catch (err) {
+          this.logFn("warn", "board session end failed", { error: errText(err) });
+        }
         await this.finalize(sid, s);
         return;
       }
@@ -35685,7 +36485,7 @@ function createBuraclePlugin(deps) {
 }
 
 // src/adapters/opencode/runtime/server.ts
-var server_default = createBuraclePlugin({ baked: { v: 1, contentHash: "8eed684adb1be0baff64750cbe31d7b23397573051bfbc19522ce9fee1d016e0", defaults: { version: 1, harnesses: { claude: { enabled: true }, codex: { enabled: true }, opencode: { enabled: true }, omp: { enabled: true } }, routing: { strictness: "enforce", skills: "router", reminders: true }, guards: { bash: { extraDeny: [] }, write: { protect: [] }, redact: true }, plan: { stopGuard: true, runaway: { perPlan: 30, perChain: 5 }, autoPause: false, planApproval: true, resultApproval: true, branchIsolation: true, worktreeDir: ".worktrees", questions: true, reviews: { plan: true, changes: true, goal: true, companion: "off" }, goalVerification: true, modelSwitch: "off", nativePlanMode: "off" }, context: { warnPct: 85, criticalPct: 95 }, checkers: { enabled: true, timeoutMs: 20000, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] }, memory: { ui: { port: 41777, autostart: true }, exclude: [] }, statusline: { style: "buracle", emoji: true, monthly: "estimate" }, skills: { sources: [{ name: "buracle", path: "canonical/skills" }] }, update: { minReleaseAgeDays: 0 }, permissions: { bypass: true, enforce: true }, effort: { claude: "auto", codex: "auto", opencode: "auto", omp: "auto" }, agents: { teams: true }, workflow: { band: true, foldAfterSec: 8, notifyAfterSec: 120, codexNotices: true }, toolchain: { autoInstall: true, system: true, upgrade: true }, index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 }, mcp: { shared: true, off: { claude: [], codex: [], opencode: [], omp: [] } } }, routing: { strictness: "enforce", categories: [{ id: "library-docs", intent: "Library, framework, SDK or CLI documentation at the installed version (APIs, options, config, migrations)", prefer: ["mcp:context7/resolve-library-id", "mcp:context7/query-docs"], fallback: ["mcp:web-fetch/fetch_url"], deny_builtin: [], nudge: "For library or framework APIs, resolve the library with context7 and query its docs at the version in the lockfile.", reminder: "resolve the library with context7 (resolve-library-id), then query-docs at the version in the lockfile", triggers: { topic: ["official docs", "official documentation", "library docs", "framework docs", "according to the docs", "per the docs", "from the docs", "verify in the docs", "api reference", "api docs", "migration guide", "upgrade guide", "re:\\bcheck the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:look|looked|looking|search|searched|searching)\\b(?:\\s+(?:it|this|that|them)\\s+up)?\\s+in the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:says?|said|mentioned|documented|described)\\s+in the docs\\b", "re:\\b(?!(?:the|our|my|your|their|this|that|an?|its|new|own|same|internal|custom|official|public|private|client|server|web|mobile)\\b)[a-z][a-z0-9.-]{2,}\\s+sdk\\b", "belgelerden", "belgelere gore", "resmi belge*", "dokumantasyondan", "dokumantasyona gore", "api referans*", "goc rehberi", "re:\\b(?:belgelerde|dokumantasyonda)\\b(?!.{0,40}\\b(?:ekle|guncelle|duzelt|kaldir|sil)\\w*)"], not: ["docs folder", "docs directory", "docs klasor*"], deps: ["api", "apis", "config", "configure", "configuration", "option*", "migrat*", "upgrade*", "version*", "deprecat*", "breaking change*", "hook*", "middleware", "plugin*", "setup", "set up", "install*", "usage", "how to use", "how to", "how do", "how does", "how can", "why does", "why do", "why is", "what does", "what options", "which options", "by default", "syntax", "integrat*", "method*", "signature", "type*", "re:\\bv\\d+(?:\\.\\d+)*\\b", "re:\\b\\d+\\.\\d+(?:\\.\\d+)?\\b", "nasil", "yapilandir*", "ayar*", "surum*", "guncelle*", "kurulum*", "entegre*", "goc*", "tip*"] } }, { id: "web-search", intent: "Web search for errors, releases, changelogs and comparisons", prefer: ["mcp:web-search/search"], fallback: ["mcp:web-fetch/fetch_url", "builtin:web_search"], deny_builtin: ["web_search"], nudge: "Search the web with the web-search MCP server; while it is down or off, fetch a search results page (https://html.duckduckgo.com/html/?q=<query>) with web-fetch, and use the built-in web search only when both are down or off.", reminder: "search with the web-search MCP server (search), then read the sources with web-fetch (fetch_url)", triggers: { topic: ["latest version", "latest release", "latest stable", "release notes", "what's new in", "whats new in", "still maintained", "search the web", "look it up online", "re:\\b(?:read|check|see|look at|according to|per)\\s+(?:the\\s+|its\\s+|their\\s+)?(?:upstream\\s+|official\\s+)?changelog\\b", "re:\\bchangelog\\s+(?:of|for)\\b", "re:\\b(?:is|was)\\s+(?:this|it|that|there)\\s+a\\s+known\\s+(?:issue|bug)\\b", "re:\\b(?:any|are there)\\s+known\\s+(?:issues?|bugs?)\\b", "re:\\bknown\\s+(?:issues?|bugs?)\\s+(?:with|in|of)\\s+(?!(?:our|my|this|the)\\b)", "son surum*", "guncel surum*", "en son surum*", "surum notlari", "degisiklik gunlugu", "hala bakimi yapiliyor", "webde ara*", "internette ara*"], not: ["draft* release notes", "write* release notes", "generate* release notes", "release notes from", "our release notes", "our changelog", "update the changelog", "changelog entry", "surum notlari yaz*", "surum notlarini yaz*", "surum notlari hazirla*", "degisiklik gunlugunu guncelle*"] } }, { id: "web-fetch", intent: "Read a known URL, including JavaScript-rendered pages", prefer: ["mcp:web-fetch/fetch_url"], fallback: ["builtin:web_fetch"], deny_builtin: ["web_fetch"], nudge: "Fetch pages with the web-fetch MCP server, and use the built-in fetch only while it is down or off.", reminder: "read the page with the web-fetch MCP server (fetch_url)" }, { id: "code-examples", intent: "How public code uses an API (GitHub examples)", prefer: ["mcp:grep/searchGitHub"], fallback: ["mcp:web-search/search"], deny_builtin: [], reminder: "look up real usage in public code with the grep MCP server (searchGitHub)", triggers: { topic: ["examples on github", "github examples", "real-world usage", "real world usage", "real-world examples", "how do other projects", "how others use", "open-source examples", "open source examples", "github'da*", "gercek projelerde", "acik kaynak projelerde", "ornek kullanim*", "baska projeler nasil"] } }, { id: "code-search", intent: "Find code by intent or concept, or code similar to a snippet", prefer: ["mcp:semble/search", "mcp:semble/find_related"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Search code with semble (intent) or rg (exact text), never grep -r or find | xargs grep.", reminder: "find code by intent with semble search (repo = the project root); rg stays right for exact text", triggers: { topic: ["which file", "find the code that", "find where", "locate the code", "re:\\bwhere (?:is|are|do we|does) (?:the |our |we )?\\S+ (?:defined|implemented|handled|configured|loaded|set|parsed|created)", "re:\\bhow (?:does|do) .{1,60}\\bwork\\b", "nerede tanimli", "nerede yapiliyor", "nerede uygulan*", "hangi dosyada", "nasil calisiyor", "kodu bul"], not: ["where were we", "where did we leave", "nerede kalmistik", "nerede kaldik"] } }, { id: "code-structure", intent: "Definitions, callers and callees, and the impact of changing a symbol", prefer: ["mcp:codegraph/codegraph_explore"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Before changing a shared function, type or endpoint, get its callers from codegraph.", reminder: "ask codegraph (callers, callees, impact; projectPath = the project root) before you change a shared symbol", triggers: { topic: ["who calls", "what calls", "callers of", "call sites", "call graph", "find usages", "all usages", "references to", "impact of chang*", "blast radius", "what breaks if", "what depends on", "re:\\bwhere (?:is|are) \\S+ (?:called|used|invoked|referenced)", "nereden cagriliyor", "nerelerde cagriliyor", "kim cagiriyor", "cagiranlar*", "cagri grafi*", "nerelerde kullaniliyor", "etki analizi", "neyi bozar", "neler etkilenir"] } }, { id: "language-server", intent: "Diagnostics of an edited file, a symbol's type and docs, its definition and references from the language server (Codex and OpenCode; Claude Code and omp use their own LSP tools)", prefer: ["mcp:lsp/diagnostics", "mcp:lsp/hover", "mcp:lsp/definition", "mcp:lsp/references"], fallback: ["mcp:codegraph/codegraph_explore", "cli:rg"], deny_builtin: [], reminder: "check an edited Python, TypeScript, Go, Rust, C# or Java file with the lsp server's diagnostics, and ask its hover or definition for a symbol's type", triggers: { topic: ["type error*", "typecheck error*", "type-check error*", "compile error*", "compiler error*", "compilation error*", "lsp diagnostics", "language server", "go to definition", "jump to definition", "re:\\bwhat(?:'s| is) the type of\\b", "tip hata*", "derleme hata*", "tanima git", "tanimina git"] } }, { id: "browser", intent: "Drive and inspect a real browser (DOM, console, network, performance)", prefer: ["mcp:chrome-devtools"], fallback: [], deny_builtin: [], reminder: "drive and inspect the real browser with chrome-devtools (navigate_page, take_snapshot, list_console_messages)", triggers: { topic: ["open the page", "take a screenshot", "screenshot of", "console errors", "browser console", "network tab", "lighthouse", "devtools", "re:\\b(?:open|test|check|verify|look|see|load|reproduce|try|view|inspect|debug|click|watch|preview)\\w*\\b.{0,40}\\bin the browser\\b", "ekran goruntusu", "konsol hata*", "sayfayi ac*", "re:\\btarayicida\\b.{0,30}\\b(?:ac|test et|kontrol et|dene|bak|gor|incele)\\w*"] } }, { id: "memory", intent: "Past decisions, gotchas, earlier sessions and preferences", prefer: ["mcp:buracle-memory/memory_search", "mcp:buracle-memory/memory_get"], fallback: ["cli:buracle"], deny_builtin: [], nudge: "History questions start with memory_search on the buracle-memory server.", reminder: "search memory with memory_search, then memory_get the relevant memories, and cite their ids", triggers: { topic: ["memory note*", "vault note*", "the memory vault", "the memory brain", "hafiza not*", "hafiza kayd*", "kasa not*"] } }] }, mcp: [{ id: "buracle-memory", description: "Buracle memory, the CortexDB brains of the project and the person (search, get, write, update, status)", transport: "stdio", critical: true, routing: ["memory"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "chrome-devtools", description: "Drive and inspect a Chrome browser (DevTools protocol)", transport: "stdio", critical: false, routing: ["browser"], harnesses: ["claude", "codex", "opencode"] }, { id: "codegraph", description: "Code structure graph (symbols, callers, impact) for the current repository", transport: "stdio", critical: true, routing: ["code-structure"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "context7", description: "Up-to-date library and framework documentation", transport: "stdio", critical: true, routing: ["library-docs"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "grep", description: "Search public GitHub code for real-world usage examples", transport: "http", critical: false, routing: ["code-examples"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "lsp", description: "Language-server diagnostics, hover, definitions, references and symbols", transport: "stdio", critical: true, routing: ["language-server"], harnesses: ["codex", "opencode"] }, { id: "semble", description: "Fast semantic code search over local or remote repositories", transport: "stdio", critical: true, routing: ["code-search"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-fetch", description: "Fetch and extract web pages with a headless browser", transport: "stdio", critical: true, routing: ["web-fetch"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-search", description: "Web search without an API key (DuckDuckGo by default)", transport: "stdio", critical: true, routing: ["web-search"], harnesses: ["claude", "codex", "opencode", "omp"] }], mcpIds: ["buracle-memory", "chrome-devtools", "codegraph", "context7", "grep", "lsp", "semble", "web-fetch", "web-search"], skills: [{ id: "ab-test", description: "Measure whether a change to a skill, rule, AGENTS.md section or routing policy really changes agent behavior. Defines falsifiable cases, runs paired baseline and candidate trials in throwaway config directories (never hiding or renaming the user's real skills or settings), captures tool-use evidence such as whether the agent loaded the skill or called context7, then scores pass rates and reports per-case deltas. Use when the user asks to benchmark, evaluate, A/B test or compare a skill or rule change, or to check that agents really use an MCP server or skill.", userInvocable: true, short: "Paired before/after evals of skills and rules with tool-use evidence", invocation: "implicit" }, { id: "bugfix", description: "Plan-less bug workflow that owns one defect end to end: reproduce it first, trace the root cause to file:line, write a failing test, fix at the source, prove the fix on the real program, then pass the quality gate. With branch isolation on it asks where to work: the current branch, a bugfix/<slug> branch or a worktree squash-merged once the fix is proven; no plan file. Run only when the user explicitly asks for bugfix.", userInvocable: true, short: "Reproduce, root-cause, RED test, fix at the source, prove it end to end", invocation: "explicit" }, { id: "buracle", description: "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan \u2026`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, notifications, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.", userInvocable: false, short: "When and how to call the buracle helper CLI", invocation: "implicit" }, { id: "dead-code", description: "Report-only dead-code audit. Collects candidate unused files and exports from the project's own analyzers, a bundled rg-based script and a read-only codegraph snapshot, checks every candidate against independent signals (codegraph references, exact and dynamic-usage search, analyzers), rules out a public role (API, entry points, config, registries), and returns a ranked report with evidence and a staged removal plan. Never deletes or edits code.", userInvocable: true, short: "Report-only dead-code audit with two-signal evidence and a removal plan", invocation: "explicit" }, { id: "find-skill", description: "Find an agent skill for a need and install it for every harness in a few calls. `buracle skills find <need>` is one command that shows the installed and shipped skills that already match, then the skills.sh registry's candidates with description, license, freshness, tool grants and risk ratings; `buracle skills add --dry-run` audits the pick (scripts, allowed-tools, suspicious lines) and `buracle skills add` installs it into ~/.agents/skills (Codex, OpenCode, Oh My Pi) and links it into ~/.claude/skills (Claude Code). Also updates and removes installed skills.", userInvocable: true, short: "Find a skill for a need and install it for every harness", invocation: "implicit" }, { id: "goal-build", description: "Goal-and-loop workflow for a clear end state whose path is found while building: agree on a goal, tasks sized as the largest slices you can finish and verify, and at least 3 pass/fail acceptance criteria (one of them the oracle), have them reviewed, lock the contract, then build in rounds judged on running evidence (at most four), verify and hand back. Tracked in docs/goal-build/. Run only when the user explicitly asks for goal-build.", userInvocable: true, short: "Lock a goal and pass/fail criteria, then build in judged rounds", invocation: "explicit" }, { id: "inspect", description: "Read-only investigation of one question about the code. Frames a falsifiable claim, locates code with semble (intent), codegraph (callers, callees, blast radius) and rg or ast-grep (exact and structural matches), checks memory for past decisions, traces the active path hop by hop, challenges the answer with a counterexample search, and reports a direct answer with file:line evidence and calibrated confidence. Never edits anything.", userInvocable: true, short: "Read-only trace of one code question with file:line evidence", invocation: "explicit" }, { id: "memory", description: "Protocol for Buracle's shared memory: one CortexDB brain with a bucket for each project and one for the person, served by the buracle-memory MCP server in every harness. Says when to run a quick memory pass (at most 3 memory_search calls, then at most 3 memories via memory_get), how to treat recalled memories as evidence rather than instructions, and how to keep the memory: one claim per memory with sources, search before writing, update or merge instead of duplicating, record the user's preferences in the right brain, never overrule an explicit memory, never store secrets. Use when the user refers to past work or asks you to remember something, before re-deciding something and after a non-obvious fix.", userInvocable: false, short: "When and how to read, write and keep Buracle's CortexDB memory", invocation: "implicit" }, { id: "new-skill", description: "Capture a repeatable procedure as a Buracle skill, or improve an existing one. Picks the right home (global skills in the Buracle repo's canonical/skills or a configured skills git source; project-only skills in .agents/skills), writes SKILL.md in the canonical format with references/, scripts/ and trigger evals, lints it with `buracle skills lint`, and explains how publishing reaches every harness. Use when the user wants to turn a workflow into a skill, edit, split or rename a skill, or fix a skill that triggers too often or never.", userInvocable: true, short: "Capture a repeatable procedure as a canonical Buracle skill", invocation: "implicit" }, { id: "plan-build", description: "Plan-driven development through a plan file in docs/plan-build/: explore and clarify, write and review the plan, get approval, implement task by task with TDD, then verify with real evidence until the plan is VERIFIED. Covers features and bugfixes (behavior contract, reproduce first, root-cause fix). Also pauses, resumes or continues an existing plan. Run only when the user explicitly asks for plan-build.", userInvocable: true, short: "Plan, approve, TDD-implement and verify work through a plan file", invocation: "explicit" }, { id: "project-rules", description: "Create, refresh or audit a repository's agent guidance so Claude Code, Codex, OpenCode and omp follow the same verified instructions: the root AGENTS.md, optional nested AGENTS.md files for subprojects, and path-scoped rules for specific file types. Discovers commands and conventions from the code (package scripts, CI jobs, linter and test configs, test layout), runs commands before documenting them, keeps every file short, then runs `buracle project sync` and `buracle project check`. Use when the user asks to set up, write, update, slim down or check AGENTS.md, CLAUDE.md or project rules.", userInvocable: true, short: "Generate and verify AGENTS.md and path-scoped rules for a repo", invocation: "implicit" }, { id: "requirements", description: "Requirements workflow for ideas whose problem, audience or scope is still unclear. Grounds the idea in the codebase and memory, runs tiered research through the research skill, explores directions, asks a few decision questions, proposes approaches, converges on scope, writes an approved PRD to docs/requirements/YYYY-MM-DD-<slug>.md and prints the plan-build or goal-build hand-off. No code is written before the PRD is approved.", userInvocable: true, short: "Interview, research and write an approved PRD before any code", invocation: "explicit" }, { id: "research", description: "Evidence-backed research that must use MCP tools instead of recall: web-search to discover sources, web-fetch to read them in full, context7 for library and framework documentation, grep for real-world code on GitHub, and buracle-memory for prior decisions. Produces a cited research note (answer, findings, options, conflicts, gaps, confidence) and can save durable findings to memory as knowledge memories pending review.", userInvocable: true, short: "Cited, MCP-backed research across web, library docs, public code and memory", invocation: "implicit" }, { id: "security-audit", description: "Security guidance and vulnerability review for codebases, APIs, services, CLI tools, libraries and daemons: Cloudflare's security-audit skill (MIT), vendored as Buracle's default security skill. Guidance mode answers security questions, focused reviews and triage with the relevant parts only; full audit mode runs six phases (reconnaissance, coverage-led hunting with parallel isolated agents, validation by fresh verifiers, structured findings.json, independent record verification, a target-neutral report) when the user asks for an audit, a pen test, a full security review or report artifacts.", userInvocable: true, short: "Cloudflare's security-audit skill, Buracle's default security review", invocation: "implicit" }], plugins: [], hooks: [{ id: "H01", blocking: "deny", failure: "closed" }, { id: "H02", blocking: "deny", failure: "closed" }, { id: "H03", blocking: "deny", failure: "open" }, { id: "H04", blocking: "none", failure: "open" }, { id: "H05", blocking: "none", failure: "open" }, { id: "H06", blocking: "none", failure: "open" }, { id: "H07", blocking: "none", failure: "open" }, { id: "H08", blocking: "stop", failure: "open" }, { id: "H09", blocking: "none", failure: "open" }, { id: "H10", blocking: "none", failure: "open" }, { id: "H11", blocking: "stop", failure: "open" }, { id: "H12", blocking: "none", failure: "open" }, { id: "H13", blocking: "none", failure: "open" }, { id: "H14", blocking: "none", failure: "open" }, { id: "H15", blocking: "none", failure: "open" }, { id: "H16", blocking: "none", failure: "open" }, { id: "H17", blocking: "none", failure: "open" }, { id: "H18", blocking: "none", failure: "open" }, { id: "H19", blocking: "none", failure: "open" }, { id: "H20", blocking: "deny", failure: "open" }, { id: "H21", blocking: "none", failure: "open" }, { id: "H22", blocking: "none", failure: "open" }, { id: "H23", blocking: "stop", failure: "open" }, { id: "H24", blocking: "none", failure: "open" }, { id: "H25", blocking: "none", failure: "open" }, { id: "H26", blocking: "none", failure: "open" }, { id: "H28", blocking: "none", failure: "open" }], pathRules: [{ id: "backend", globs: ["**/api/**", "**/routes/**", "**/handlers/**", "**/controllers/**", "**/endpoints/**", "**/middleware/**", "**/models/**", "**/models.py", "**/entities/**", "**/schema/**", "**/schemas/**", "**/queries/**", "**/repository/**", "**/repositories/**", "**/dao/**", "**/migrations/**", "**/migrate/**", "**/alembic/**", "**/db/**", "**/*.sql", "**/*.prisma", "**/*.graphql", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json"] }, { id: "blazor", globs: ["**/*.razor", "**/*.razor.cs", "**/*.razor.css"] }, { id: "browser-automation", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.razor", "**/e2e/**", "**/playwright/**", "**/cypress/**", "**/__tests__/**", "**/playwright.config.*", "**/cypress.config.*"] }, { id: "dotnet", globs: ["**/*.cs", "**/*.csproj", "**/*.sln", "**/*.slnx", "**/global.json", "**/Directory.Build.props", "**/Directory.Packages.props"] }, { id: "frontend", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.sass", "**/*.less", "**/*.razor", "**/*.razor.css"] }, { id: "go", globs: ["**/*.go", "**/go.mod", "**/go.sum", "**/go.work"] }, { id: "mobile", globs: ["**/capacitor.config.*", "**/ionic.config.json", "**/android/app/build.gradle*", "**/android/app/src/main/AndroidManifest.xml", "**/*.xcodeproj/project.pbxproj", "**/*.xcworkspace/contents.xcworkspacedata", "**/Podfile", "**/pubspec.yaml", "**/react-native.config.*", "**/metro.config.*", "**/expo.json", "**/eas.json", "**/app.config.{js,ts}"] }, { id: "python", globs: ["**/*.py", "**/*.pyi", "**/pyproject.toml", "**/requirements*.txt", "**/uv.lock", "**/setup.cfg"] }, { id: "typescript", globs: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts", "**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs", "**/package.json", "**/tsconfig*.json"] }], version: "0.8.6", notices: [{ id: "0.5.0-project-assets", since: "0.5.0", until: "0.6.0", message: "When a session starts in a repository, Buracle now links the skills in .agents/skills into .claude/skills so Claude Code sees them too, and checks that AGENTS.md lists the path rules in .claude/rules. Run `buracle project check` to see what it would change." }, { id: "0.5.0-smaller-cli", since: "0.5.0", until: "0.6.0", message: "Buracle's CLI is smaller: run `buracle` in a terminal for a main menu you drive with the keyboard. `buracle install` now does what `init` and `sync` did, `buracle install` and `buracle update` apply in a terminal without a question and show each step as it runs, and the rare cases flags used to cover are questions in a terminal. `buracle help --all` lists the commands your agents use." }, { id: "0.7.0-one-standard", since: "0.7.0", until: "0.8.0", message: "One standard on every harness: `buracle diagram` is gone, a chat reply shows a flow as a list or a table, and workflow documents under docs/ are English in ASD-STE100 style (`buracle plan validate` checks them). New documents go to docs/requirements/, docs/plan-build/, docs/goal-build/ and docs/dead-code/; the old folders docs/prd/, docs/plans/, docs/builds/ and docs/cleanup/ stay readable." }, { id: "0.8.1-documents-follow-language", since: "0.8.1", until: "0.9.0", message: "Documents now follow your language: plans, PRDs, build contracts, saved audits, reports and review findings use the language you write in (or the one your project or memory pins), and only the markers Buracle reads stay English. `buracle plan validate` no longer warns about prose that is not English." }, { id: "0.8.6-skills-own-folders", since: "0.8.6", until: "0.9.0", message: "Buracle's skills now live only in the skills folder of each harness it supports (~/.codex/skills, ~/.config/opencode/skills, ~/.omp/agent/skills); `buracle install` removes its old links from the shared ~/.agents/skills, so other agents no longer see them. Third-party skills from `buracle skills add` stay in ~/.agents/skills." }, { id: "0.8.6-opencode-todos", since: "0.8.6", until: "0.9.0", message: "OpenCode now gets its todo tool: `buracle install` sets `experimental.todo: true` in opencode.jsonc, and the open items of `todowrite` go into the handoff memory before a compaction, as on the other harnesses." }], tips: [{ id: "plan-build", text: "/plan-build writes a reviewed plan to docs/plan-build/, waits for your approval, then builds it test-first" }, { id: "goal-build", text: "/goal-build locks pass/fail criteria first, then builds in rounds a judge scores against them" }, { id: "bugfix", text: "/bugfix reproduces the failure, names the root cause as file:line and writes a failing test before the fix" }, { id: "requirements", text: "Scope still unclear? /requirements asks a few rounds of questions and writes a PRD before any code" }, { id: "direct-work", text: "No workflow needed for small changes: ask directly and the agent still verifies before it reports done" }, { id: "stop-words", text: "Say stop, wait or hold on at any time: the agent finishes the current step and pauses the plan" }, { id: "worktree-flag", text: "Add --worktree after a workflow request to build it in its own worktree, squash-merged back when done" }, { id: "research", text: "/research <question> answers from sources it actually read: web, library docs, public code and memory" }, { id: "inspect", text: "/inspect <question> traces how the code really behaves, cites every hop as path:line and changes nothing" }, { id: "dead-code", text: "/dead-code reports unused code only when two independent signals agree, with a staged removal plan" }, { id: "project-rules", text: "Run /project-rules once per repository: it writes an AGENTS.md from commands it ran, for every harness" }, { id: "remember", text: "/remember <text> saves a note to the memory that Claude Code, Codex, OpenCode and Oh My Pi all share" }, { id: "why-question", text: 'Ask "why did we\u2026" or "what did we decide\u2026": the agent searches the memory before it answers' }, { id: "brain-ui", text: "/brain opens the Buracle Console: browse, search and fix the memory of this project and yours" }, { id: "brain-review", text: "/brain review opens the review page: pin notes on a plan, and the agent applies them before approval" }, { id: "aside", text: "/aside <question> answers a side question without derailing the running task" }, { id: "status", text: "/buracle-status shows the active plan, the running workflow and the memory at a glance" }, { id: "find-skill", text: "Need a skill for a recurring task? /find-skill searches the registry, audits the pick and installs it everywhere" }, { id: "new-skill", text: "Did a procedure twice? /new-skill turns it into a skill every harness can load" }, { id: "security-audit", text: "/security-audit gives focused security guidance, or a six-phase audit with findings and a report" }, { id: "doctor", text: "Something feels off? `buracle doctor` checks config, hooks, MCP and LSP servers, memory and code indexes" }, { id: "update", text: "`buracle update` updates Buracle and everything it connects, each part from its own source" }, { id: "rollback", text: "`buracle rollback` undoes the newest install; values you changed by hand always stay yours" }, { id: "config", text: "`buracle config set plan.<key> <value>` tunes how workflows run: worktrees, questions, reviews" }, { id: "companion-review", text: "Turn on plan.reviews.companion to get the same review from another installed harness as a second opinion" }, { id: "one-standard", text: "The same skills, rules, guards and memory run in Claude Code, Codex, OpenCode and Oh My Pi" }, { id: "mcp-status", text: "`buracle mcp status` shows Buracle's shared MCP servers; one backend serves every open session" }, { id: "index", text: "codegraph and semble index each project in the background, so the agent finds callers without grep loops" }, { id: "plan-audit", text: "`buracle plan audit` compares the diff with the files each task named and flags unplanned changes" }, { id: "language", text: "Plans, PRDs and reports follow the language you write in; only the markers Buracle reads stay English" }] }, memory: memoryBridge, pluginDir: import.meta.dir });
+var server_default = createBuraclePlugin({ baked: { v: 1, contentHash: "2a8771b53bfbf08caac9da9f6a34e2603c84ddbc224e3f0b1960fd33035e52b0", defaults: { version: 1, harnesses: { claude: { enabled: true }, codex: { enabled: true }, opencode: { enabled: true }, omp: { enabled: true } }, routing: { strictness: "enforce", skills: "router", reminders: true }, guards: { bash: { extraDeny: [] }, write: { protect: [] }, redact: true }, plan: { stopGuard: true, runaway: { perPlan: 30, perChain: 5 }, autoPause: false, planApproval: true, resultApproval: true, branchIsolation: true, worktreeDir: ".worktrees", questions: true, reviews: { plan: true, changes: true, goal: true, companion: "off" }, goalVerification: true, modelSwitch: "off", nativePlanMode: "off", board: { mode: "ask", maxWorkers: 6, leaseSec: 300 } }, context: { warnPct: 85, criticalPct: 95 }, checkers: { enabled: true, timeoutMs: 20000, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] }, memory: { ui: { port: 41777, autostart: true }, exclude: [] }, statusline: { style: "buracle", emoji: true, monthly: "estimate" }, skills: { sources: [{ name: "buracle", path: "canonical/skills" }] }, update: { minReleaseAgeDays: 0 }, permissions: { bypass: true, enforce: true }, effort: { claude: "auto", codex: "auto", opencode: "auto", omp: "auto" }, agents: { teams: true }, workflow: { band: true, foldAfterSec: 8, notifyAfterSec: 120, codexNotices: true }, toolchain: { autoInstall: true, system: true, upgrade: true }, index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 }, mcp: { shared: true, off: { claude: [], codex: [], opencode: [], omp: [] } } }, routing: { strictness: "enforce", categories: [{ id: "library-docs", intent: "Library, framework, SDK or CLI documentation at the installed version (APIs, options, config, migrations)", prefer: ["mcp:context7/resolve-library-id", "mcp:context7/query-docs"], fallback: ["mcp:web-fetch/fetch_url"], deny_builtin: [], nudge: "For library or framework APIs, resolve the library with context7 and query its docs at the version in the lockfile.", reminder: "resolve the library with context7 (resolve-library-id), then query-docs at the version in the lockfile", triggers: { topic: ["official docs", "official documentation", "library docs", "framework docs", "according to the docs", "per the docs", "from the docs", "verify in the docs", "api reference", "api docs", "migration guide", "upgrade guide", "re:\\bcheck the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:look|looked|looking|search|searched|searching)\\b(?:\\s+(?:it|this|that|them)\\s+up)?\\s+in the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:says?|said|mentioned|documented|described)\\s+in the docs\\b", "re:\\b(?!(?:the|our|my|your|their|this|that|an?|its|new|own|same|internal|custom|official|public|private|client|server|web|mobile)\\b)[a-z][a-z0-9.-]{2,}\\s+sdk\\b", "belgelerden", "belgelere gore", "resmi belge*", "dokumantasyondan", "dokumantasyona gore", "api referans*", "goc rehberi", "re:\\b(?:belgelerde|dokumantasyonda)\\b(?!.{0,40}\\b(?:ekle|guncelle|duzelt|kaldir|sil)\\w*)"], not: ["docs folder", "docs directory", "docs klasor*"], deps: ["api", "apis", "config", "configure", "configuration", "option*", "migrat*", "upgrade*", "version*", "deprecat*", "breaking change*", "hook*", "middleware", "plugin*", "setup", "set up", "install*", "usage", "how to use", "how to", "how do", "how does", "how can", "why does", "why do", "why is", "what does", "what options", "which options", "by default", "syntax", "integrat*", "method*", "signature", "type*", "re:\\bv\\d+(?:\\.\\d+)*\\b", "re:\\b\\d+\\.\\d+(?:\\.\\d+)?\\b", "nasil", "yapilandir*", "ayar*", "surum*", "guncelle*", "kurulum*", "entegre*", "goc*", "tip*"] } }, { id: "web-search", intent: "Web search for errors, releases, changelogs and comparisons", prefer: ["mcp:web-search/search"], fallback: ["mcp:web-fetch/fetch_url", "builtin:web_search"], deny_builtin: ["web_search"], nudge: "Search the web with the web-search MCP server; while it is down or off, fetch a search results page (https://html.duckduckgo.com/html/?q=<query>) with web-fetch, and use the built-in web search only when both are down or off.", reminder: "search with the web-search MCP server (search), then read the sources with web-fetch (fetch_url)", triggers: { topic: ["latest version", "latest release", "latest stable", "release notes", "what's new in", "whats new in", "still maintained", "search the web", "look it up online", "re:\\b(?:read|check|see|look at|according to|per)\\s+(?:the\\s+|its\\s+|their\\s+)?(?:upstream\\s+|official\\s+)?changelog\\b", "re:\\bchangelog\\s+(?:of|for)\\b", "re:\\b(?:is|was)\\s+(?:this|it|that|there)\\s+a\\s+known\\s+(?:issue|bug)\\b", "re:\\b(?:any|are there)\\s+known\\s+(?:issues?|bugs?)\\b", "re:\\bknown\\s+(?:issues?|bugs?)\\s+(?:with|in|of)\\s+(?!(?:our|my|this|the)\\b)", "son surum*", "guncel surum*", "en son surum*", "surum notlari", "degisiklik gunlugu", "hala bakimi yapiliyor", "webde ara*", "internette ara*"], not: ["draft* release notes", "write* release notes", "generate* release notes", "release notes from", "our release notes", "our changelog", "update the changelog", "changelog entry", "surum notlari yaz*", "surum notlarini yaz*", "surum notlari hazirla*", "degisiklik gunlugunu guncelle*"] } }, { id: "web-fetch", intent: "Read a known URL, including JavaScript-rendered pages", prefer: ["mcp:web-fetch/fetch_url"], fallback: ["builtin:web_fetch"], deny_builtin: ["web_fetch"], nudge: "Fetch pages with the web-fetch MCP server, and use the built-in fetch only while it is down or off.", reminder: "read the page with the web-fetch MCP server (fetch_url)" }, { id: "code-examples", intent: "How public code uses an API (GitHub examples)", prefer: ["mcp:grep/searchGitHub"], fallback: ["mcp:web-search/search"], deny_builtin: [], reminder: "look up real usage in public code with the grep MCP server (searchGitHub)", triggers: { topic: ["examples on github", "github examples", "real-world usage", "real world usage", "real-world examples", "how do other projects", "how others use", "open-source examples", "open source examples", "github'da*", "gercek projelerde", "acik kaynak projelerde", "ornek kullanim*", "baska projeler nasil"] } }, { id: "code-search", intent: "Find code by intent or concept, or code similar to a snippet", prefer: ["mcp:semble/search", "mcp:semble/find_related"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Search code with semble (intent) or rg (exact text), never grep -r or find | xargs grep.", reminder: "find code by intent with semble search (repo = the project root); rg stays right for exact text", triggers: { topic: ["which file", "find the code that", "find where", "locate the code", "re:\\bwhere (?:is|are|do we|does) (?:the |our |we )?\\S+ (?:defined|implemented|handled|configured|loaded|set|parsed|created)", "re:\\bhow (?:does|do) .{1,60}\\bwork\\b", "nerede tanimli", "nerede yapiliyor", "nerede uygulan*", "hangi dosyada", "nasil calisiyor", "kodu bul"], not: ["where were we", "where did we leave", "nerede kalmistik", "nerede kaldik"] } }, { id: "code-structure", intent: "Definitions, callers and callees, and the impact of changing a symbol", prefer: ["mcp:codegraph/codegraph_explore"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Before changing a shared function, type or endpoint, get its callers from codegraph.", reminder: "ask codegraph (callers, callees, impact; projectPath = the project root) before you change a shared symbol", triggers: { topic: ["who calls", "what calls", "callers of", "call sites", "call graph", "find usages", "all usages", "references to", "impact of chang*", "blast radius", "what breaks if", "what depends on", "re:\\bwhere (?:is|are) \\S+ (?:called|used|invoked|referenced)", "nereden cagriliyor", "nerelerde cagriliyor", "kim cagiriyor", "cagiranlar*", "cagri grafi*", "nerelerde kullaniliyor", "etki analizi", "neyi bozar", "neler etkilenir"] } }, { id: "language-server", intent: "Diagnostics of an edited file, a symbol's type and docs, its definition and references from the language server (Codex and OpenCode; Claude Code and omp use their own LSP tools)", prefer: ["mcp:lsp/diagnostics", "mcp:lsp/hover", "mcp:lsp/definition", "mcp:lsp/references"], fallback: ["mcp:codegraph/codegraph_explore", "cli:rg"], deny_builtin: [], reminder: "check an edited Python, TypeScript, Go, Rust, C# or Java file with the lsp server's diagnostics, and ask its hover or definition for a symbol's type", triggers: { topic: ["type error*", "typecheck error*", "type-check error*", "compile error*", "compiler error*", "compilation error*", "lsp diagnostics", "language server", "go to definition", "jump to definition", "re:\\bwhat(?:'s| is) the type of\\b", "tip hata*", "derleme hata*", "tanima git", "tanimina git"] } }, { id: "browser", intent: "Drive and inspect a real browser (DOM, console, network, performance)", prefer: ["mcp:chrome-devtools"], fallback: [], deny_builtin: [], reminder: "drive and inspect the real browser with chrome-devtools (navigate_page, take_snapshot, list_console_messages)", triggers: { topic: ["open the page", "take a screenshot", "screenshot of", "console errors", "browser console", "network tab", "lighthouse", "devtools", "re:\\b(?:open|test|check|verify|look|see|load|reproduce|try|view|inspect|debug|click|watch|preview)\\w*\\b.{0,40}\\bin the browser\\b", "ekran goruntusu", "konsol hata*", "sayfayi ac*", "re:\\btarayicida\\b.{0,30}\\b(?:ac|test et|kontrol et|dene|bak|gor|incele)\\w*"] } }, { id: "memory", intent: "Past decisions, gotchas, earlier sessions and preferences", prefer: ["mcp:buracle-memory/memory_search", "mcp:buracle-memory/memory_get"], fallback: ["cli:buracle"], deny_builtin: [], nudge: "History questions start with memory_search on the buracle-memory server.", reminder: "search memory with memory_search, then memory_get the relevant memories, and cite their ids", triggers: { topic: ["memory note*", "vault note*", "the memory vault", "the memory brain", "hafiza not*", "hafiza kayd*", "kasa not*"] } }] }, mcp: [{ id: "buracle-memory", description: "Buracle memory, the CortexDB brains of the project and the person (search, get, write, update, status)", transport: "stdio", critical: true, routing: ["memory"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "chrome-devtools", description: "Drive and inspect a Chrome browser (DevTools protocol)", transport: "stdio", critical: false, routing: ["browser"], harnesses: ["claude", "codex", "opencode"] }, { id: "codegraph", description: "Code structure graph (symbols, callers, impact) for the current repository", transport: "stdio", critical: true, routing: ["code-structure"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "context7", description: "Up-to-date library and framework documentation", transport: "stdio", critical: true, routing: ["library-docs"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "grep", description: "Search public GitHub code for real-world usage examples", transport: "http", critical: false, routing: ["code-examples"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "lsp", description: "Language-server diagnostics, hover, definitions, references and symbols", transport: "stdio", critical: true, routing: ["language-server"], harnesses: ["codex", "opencode"] }, { id: "semble", description: "Fast semantic code search over local or remote repositories", transport: "stdio", critical: true, routing: ["code-search"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-fetch", description: "Fetch and extract web pages with a headless browser", transport: "stdio", critical: true, routing: ["web-fetch"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-search", description: "Web search without an API key (DuckDuckGo by default)", transport: "stdio", critical: true, routing: ["web-search"], harnesses: ["claude", "codex", "opencode", "omp"] }], mcpIds: ["buracle-memory", "chrome-devtools", "codegraph", "context7", "grep", "lsp", "semble", "web-fetch", "web-search"], skills: [{ id: "ab-test", description: "Measure whether a change to a skill, rule, AGENTS.md section or routing policy really changes agent behavior. Defines falsifiable cases, runs paired baseline and candidate trials in throwaway config directories (never hiding or renaming the user's real skills or settings), captures tool-use evidence such as whether the agent loaded the skill or called context7, then scores pass rates and reports per-case deltas. Use when the user asks to benchmark, evaluate, A/B test or compare a skill or rule change, or to check that agents really use an MCP server or skill.", userInvocable: true, short: "Paired before/after evals of skills and rules with tool-use evidence", invocation: "implicit" }, { id: "bugfix", description: "Plan-less bug workflow that owns one defect end to end: reproduce it first, trace the root cause to file:line, write a failing test, fix at the source, prove the fix on the real program, then pass the quality gate. With branch isolation on it asks where to work: the current branch, a bugfix/<slug> branch or a worktree squash-merged once the fix is proven; no plan file. Run only when the user explicitly asks for bugfix.", userInvocable: true, short: "Reproduce, root-cause, RED test, fix at the source, prove it end to end", invocation: "explicit" }, { id: "buracle", description: "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan \u2026`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, notifications, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.", userInvocable: false, short: "When and how to call the buracle helper CLI", invocation: "implicit" }, { id: "buracle-join", description: "Join a plan's task board as a worker: claim the next open task of a plan-build or goal-build run that another session leads, implement it with TDD in its own lane worktree, report it done, and take the next one. The lead merges and ticks the plan. Run only when the user asks to join a board.", userInvocable: true, short: "Take and finish tasks of a shared plan board as a worker", invocation: "explicit" }, { id: "dead-code", description: "Report-only dead-code audit. Collects candidate unused files and exports from the project's own analyzers, a bundled rg-based script and a read-only codegraph snapshot, checks every candidate against independent signals (codegraph references, exact and dynamic-usage search, analyzers), rules out a public role (API, entry points, config, registries), and returns a ranked report with evidence and a staged removal plan. Never deletes or edits code.", userInvocable: true, short: "Report-only dead-code audit with two-signal evidence and a removal plan", invocation: "explicit" }, { id: "find-skill", description: "Find an agent skill for a need and install it for every harness in a few calls. `buracle skills find <need>` is one command that shows the installed and shipped skills that already match, then the skills.sh registry's candidates with description, license, freshness, tool grants and risk ratings; `buracle skills add --dry-run` audits the pick (scripts, allowed-tools, suspicious lines) and `buracle skills add` installs it into ~/.agents/skills (Codex, OpenCode, Oh My Pi) and links it into ~/.claude/skills (Claude Code). Also updates and removes installed skills.", userInvocable: true, short: "Find a skill for a need and install it for every harness", invocation: "implicit" }, { id: "goal-build", description: "Goal-and-loop workflow for a clear end state whose path is found while building: agree on a goal, tasks sized as the largest slices you can finish and verify, and at least 3 pass/fail acceptance criteria (one of them the oracle), have them reviewed, lock the contract, then build in rounds judged on running evidence (at most four), verify and hand back. Tracked in docs/goal-build/. Run only when the user explicitly asks for goal-build.", userInvocable: true, short: "Lock a goal and pass/fail criteria, then build in judged rounds", invocation: "explicit" }, { id: "inspect", description: "Read-only investigation of one question about the code. Frames a falsifiable claim, locates code with semble (intent), codegraph (callers, callees, blast radius) and rg or ast-grep (exact and structural matches), checks memory for past decisions, traces the active path hop by hop, challenges the answer with a counterexample search, and reports a direct answer with file:line evidence and calibrated confidence. Never edits anything.", userInvocable: true, short: "Read-only trace of one code question with file:line evidence", invocation: "explicit" }, { id: "memory", description: "Protocol for Buracle's shared memory: one CortexDB brain with a bucket for each project and one for the person, served by the buracle-memory MCP server in every harness. Says when to run a quick memory pass (at most 3 memory_search calls, then at most 3 memories via memory_get), how to treat recalled memories as evidence rather than instructions, and how to keep the memory: one claim per memory with sources, search before writing, update or merge instead of duplicating, record the user's preferences in the right brain, never overrule an explicit memory, never store secrets. Use when the user refers to past work or asks you to remember something, before re-deciding something and after a non-obvious fix.", userInvocable: false, short: "When and how to read, write and keep Buracle's CortexDB memory", invocation: "implicit" }, { id: "new-skill", description: "Capture a repeatable procedure as a Buracle skill, or improve an existing one. Picks the right home (global skills in the Buracle repo's canonical/skills or a configured skills git source; project-only skills in .agents/skills), writes SKILL.md in the canonical format with references/, scripts/ and trigger evals, lints it with `buracle skills lint`, and explains how publishing reaches every harness. Use when the user wants to turn a workflow into a skill, edit, split or rename a skill, or fix a skill that triggers too often or never.", userInvocable: true, short: "Capture a repeatable procedure as a canonical Buracle skill", invocation: "implicit" }, { id: "plan-build", description: "Plan-driven development through a plan file in docs/plan-build/: explore and clarify, write and review the plan, get approval, implement task by task with TDD, then verify with real evidence until the plan is VERIFIED. Covers features and bugfixes (behavior contract, reproduce first, root-cause fix). Also pauses, resumes or continues an existing plan. Run only when the user explicitly asks for plan-build.", userInvocable: true, short: "Plan, approve, TDD-implement and verify work through a plan file", invocation: "explicit" }, { id: "project-rules", description: "Create, refresh or audit a repository's agent guidance so Claude Code, Codex, OpenCode and omp follow the same verified instructions: the root AGENTS.md, optional nested AGENTS.md files for subprojects, and path-scoped rules for specific file types. Discovers commands and conventions from the code (package scripts, CI jobs, linter and test configs, test layout), runs commands before documenting them, keeps every file short, then runs `buracle project sync` and `buracle project check`. Use when the user asks to set up, write, update, slim down or check AGENTS.md, CLAUDE.md or project rules.", userInvocable: true, short: "Generate and verify AGENTS.md and path-scoped rules for a repo", invocation: "implicit" }, { id: "requirements", description: "Requirements workflow for ideas whose problem, audience or scope is still unclear. Grounds the idea in the codebase and memory, runs tiered research through the research skill, explores directions, asks a few decision questions, proposes approaches, converges on scope, writes an approved PRD to docs/requirements/YYYY-MM-DD-<slug>.md and prints the plan-build or goal-build hand-off. No code is written before the PRD is approved.", userInvocable: true, short: "Interview, research and write an approved PRD before any code", invocation: "explicit" }, { id: "research", description: "Evidence-backed research that must use MCP tools instead of recall: web-search to discover sources, web-fetch to read them in full, context7 for library and framework documentation, grep for real-world code on GitHub, and buracle-memory for prior decisions. Produces a cited research note (answer, findings, options, conflicts, gaps, confidence) and can save durable findings to memory as knowledge memories pending review.", userInvocable: true, short: "Cited, MCP-backed research across web, library docs, public code and memory", invocation: "implicit" }, { id: "security-audit", description: "Security guidance and vulnerability review for codebases, APIs, services, CLI tools, libraries and daemons: Cloudflare's security-audit skill (MIT), vendored as Buracle's default security skill. Guidance mode answers security questions, focused reviews and triage with the relevant parts only; full audit mode runs six phases (reconnaissance, coverage-led hunting with parallel isolated agents, validation by fresh verifiers, structured findings.json, independent record verification, a target-neutral report) when the user asks for an audit, a pen test, a full security review or report artifacts.", userInvocable: true, short: "Cloudflare's security-audit skill, Buracle's default security review", invocation: "implicit" }], plugins: [], hooks: [{ id: "H01", blocking: "deny", failure: "closed" }, { id: "H02", blocking: "deny", failure: "closed" }, { id: "H03", blocking: "deny", failure: "open" }, { id: "H04", blocking: "none", failure: "open" }, { id: "H05", blocking: "none", failure: "open" }, { id: "H06", blocking: "none", failure: "open" }, { id: "H07", blocking: "none", failure: "open" }, { id: "H08", blocking: "stop", failure: "open" }, { id: "H09", blocking: "none", failure: "open" }, { id: "H10", blocking: "none", failure: "open" }, { id: "H11", blocking: "stop", failure: "open" }, { id: "H12", blocking: "none", failure: "open" }, { id: "H13", blocking: "none", failure: "open" }, { id: "H14", blocking: "none", failure: "open" }, { id: "H15", blocking: "none", failure: "open" }, { id: "H16", blocking: "none", failure: "open" }, { id: "H17", blocking: "none", failure: "open" }, { id: "H18", blocking: "none", failure: "open" }, { id: "H19", blocking: "none", failure: "open" }, { id: "H20", blocking: "deny", failure: "open" }, { id: "H21", blocking: "none", failure: "open" }, { id: "H22", blocking: "none", failure: "open" }, { id: "H23", blocking: "stop", failure: "open" }, { id: "H24", blocking: "none", failure: "open" }, { id: "H25", blocking: "none", failure: "open" }, { id: "H26", blocking: "none", failure: "open" }, { id: "H28", blocking: "none", failure: "open" }], pathRules: [{ id: "backend", globs: ["**/api/**", "**/routes/**", "**/handlers/**", "**/controllers/**", "**/endpoints/**", "**/middleware/**", "**/models/**", "**/models.py", "**/entities/**", "**/schema/**", "**/schemas/**", "**/queries/**", "**/repository/**", "**/repositories/**", "**/dao/**", "**/migrations/**", "**/migrate/**", "**/alembic/**", "**/db/**", "**/*.sql", "**/*.prisma", "**/*.graphql", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json"] }, { id: "blazor", globs: ["**/*.razor", "**/*.razor.cs", "**/*.razor.css"] }, { id: "browser-automation", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.razor", "**/e2e/**", "**/playwright/**", "**/cypress/**", "**/__tests__/**", "**/playwright.config.*", "**/cypress.config.*"] }, { id: "dotnet", globs: ["**/*.cs", "**/*.csproj", "**/*.sln", "**/*.slnx", "**/global.json", "**/Directory.Build.props", "**/Directory.Packages.props"] }, { id: "frontend", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.sass", "**/*.less", "**/*.razor", "**/*.razor.css"] }, { id: "go", globs: ["**/*.go", "**/go.mod", "**/go.sum", "**/go.work"] }, { id: "mobile", globs: ["**/capacitor.config.*", "**/ionic.config.json", "**/android/app/build.gradle*", "**/android/app/src/main/AndroidManifest.xml", "**/*.xcodeproj/project.pbxproj", "**/*.xcworkspace/contents.xcworkspacedata", "**/Podfile", "**/pubspec.yaml", "**/react-native.config.*", "**/metro.config.*", "**/expo.json", "**/eas.json", "**/app.config.{js,ts}"] }, { id: "python", globs: ["**/*.py", "**/*.pyi", "**/pyproject.toml", "**/requirements*.txt", "**/uv.lock", "**/setup.cfg"] }, { id: "typescript", globs: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts", "**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs", "**/package.json", "**/tsconfig*.json"] }], version: "0.8.6", notices: [{ id: "0.5.0-project-assets", since: "0.5.0", until: "0.6.0", message: "When a session starts in a repository, Buracle now links the skills in .agents/skills into .claude/skills so Claude Code sees them too, and checks that AGENTS.md lists the path rules in .claude/rules. Run `buracle project check` to see what it would change." }, { id: "0.5.0-smaller-cli", since: "0.5.0", until: "0.6.0", message: "Buracle's CLI is smaller: run `buracle` in a terminal for a main menu you drive with the keyboard. `buracle install` now does what `init` and `sync` did, `buracle install` and `buracle update` apply in a terminal without a question and show each step as it runs, and the rare cases flags used to cover are questions in a terminal. `buracle help --all` lists the commands your agents use." }, { id: "0.7.0-one-standard", since: "0.7.0", until: "0.8.0", message: "One standard on every harness: `buracle diagram` is gone, a chat reply shows a flow as a list or a table, and workflow documents under docs/ are English in ASD-STE100 style (`buracle plan validate` checks them). New documents go to docs/requirements/, docs/plan-build/, docs/goal-build/ and docs/dead-code/; the old folders docs/prd/, docs/plans/, docs/builds/ and docs/cleanup/ stay readable." }, { id: "0.8.1-documents-follow-language", since: "0.8.1", until: "0.9.0", message: "Documents now follow your language: plans, PRDs, build contracts, saved audits, reports and review findings use the language you write in (or the one your project or memory pins), and only the markers Buracle reads stay English. `buracle plan validate` no longer warns about prose that is not English." }, { id: "0.8.6-skills-own-folders", since: "0.8.6", until: "0.9.0", message: "Buracle's skills now live only in the skills folder of each harness it supports (~/.codex/skills, ~/.config/opencode/skills, ~/.omp/agent/skills); `buracle install` removes its old links from the shared ~/.agents/skills, so other agents no longer see them. Third-party skills from `buracle skills add` stay in ~/.agents/skills." }, { id: "0.8.6-opencode-todos", since: "0.8.6", until: "0.9.0", message: "OpenCode now gets its todo tool: `buracle install` sets `experimental.todo: true` in opencode.jsonc, and the open items of `todowrite` go into the handoff memory before a compaction, as on the other harnesses." }], tips: [{ id: "plan-build", text: "/plan-build writes a reviewed plan to docs/plan-build/, waits for your approval, then builds it test-first" }, { id: "goal-build", text: "/goal-build locks pass/fail criteria first, then builds in rounds a judge scores against them" }, { id: "bugfix", text: "/bugfix reproduces the failure, names the root cause as file:line and writes a failing test before the fix" }, { id: "requirements", text: "Scope still unclear? /requirements asks a few rounds of questions and writes a PRD before any code" }, { id: "direct-work", text: "No workflow needed for small changes: ask directly and the agent still verifies before it reports done" }, { id: "stop-words", text: "Say stop, wait or hold on at any time: the agent finishes the current step and pauses the plan" }, { id: "worktree-flag", text: "Add --worktree after a workflow request to build it in its own worktree, squash-merged back when done" }, { id: "research", text: "/research <question> answers from sources it actually read: web, library docs, public code and memory" }, { id: "inspect", text: "/inspect <question> traces how the code really behaves, cites every hop as path:line and changes nothing" }, { id: "dead-code", text: "/dead-code reports unused code only when two independent signals agree, with a staged removal plan" }, { id: "project-rules", text: "Run /project-rules once per repository: it writes an AGENTS.md from commands it ran, for every harness" }, { id: "remember", text: "/remember <text> saves a note to the memory that Claude Code, Codex, OpenCode and Oh My Pi all share" }, { id: "why-question", text: 'Ask "why did we\u2026" or "what did we decide\u2026": the agent searches the memory before it answers' }, { id: "brain-ui", text: "/brain opens the Buracle Console: browse, search and fix the memory of this project and yours" }, { id: "brain-review", text: "/brain review opens the review page: pin notes on a plan, and the agent applies them before approval" }, { id: "aside", text: "/aside <question> answers a side question without derailing the running task" }, { id: "status", text: "/buracle-status shows the active plan, the running workflow and the memory at a glance" }, { id: "find-skill", text: "Need a skill for a recurring task? /find-skill searches the registry, audits the pick and installs it everywhere" }, { id: "new-skill", text: "Did a procedure twice? /new-skill turns it into a skill every harness can load" }, { id: "security-audit", text: "/security-audit gives focused security guidance, or a six-phase audit with findings and a report" }, { id: "doctor", text: "Something feels off? `buracle doctor` checks config, hooks, MCP and LSP servers, memory and code indexes" }, { id: "update", text: "`buracle update` updates Buracle and everything it connects, each part from its own source" }, { id: "rollback", text: "`buracle rollback` undoes the newest install; values you changed by hand always stay yours" }, { id: "config", text: "`buracle config set plan.<key> <value>` tunes how workflows run: worktrees, questions, reviews" }, { id: "companion-review", text: "Turn on plan.reviews.companion to get the same review from another installed harness as a second opinion" }, { id: "one-standard", text: "The same skills, rules, guards and memory run in Claude Code, Codex, OpenCode and Oh My Pi" }, { id: "mcp-status", text: "`buracle mcp status` shows Buracle's shared MCP servers; one backend serves every open session" }, { id: "index", text: "codegraph and semble index each project in the background, so the agent finds callers without grep loops" }, { id: "plan-audit", text: "`buracle plan audit` compares the diff with the files each task named and flags unplanned changes" }, { id: "language", text: "Plans, PRDs and reports follow the language you write in; only the markers Buracle reads stay English" }] }, memory: memoryBridge, pluginDir: import.meta.dir });
 export {
   server_default as default
 };

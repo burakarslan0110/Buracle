@@ -12,6 +12,7 @@ import { sessionDir } from '../engine/paths'
 import { fail, ok, sessionJson, type CmdResult, type WorkflowCtx } from './result'
 import type { ResolvedSession } from './session-store'
 import { loadState } from './session-store'
+import { boardCountsFor } from './board-store'
 
 export const DEFAULT_FOLD_SEC = 8
 
@@ -136,6 +137,8 @@ export function bandInputFor(h: Harness, sid: string, nowMs: number, foldAfterSe
     if (it.kind !== undefined) input.interaction.kind = it.kind
     if (it.reason !== undefined) input.interaction.reason = it.reason
   }
+  const board = boardCountsFor(h, sid, nowMs)
+  if (board !== undefined) input.board = board.summary
   return input
 }
 

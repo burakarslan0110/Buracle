@@ -157,6 +157,13 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "userInvocable": false
     },
     {
+      "description": "Join a plan's task board as a worker: claim the next open task of a plan-build or goal-build run that another session leads, implement it with TDD in its own lane worktree, report it done, and take the next one. The lead merges and ticks the plan. Run only when the user asks to join a board.",
+      "id": "buracle-join",
+      "invocation": "explicit",
+      "short": "Take and finish tasks of a shared plan board as a worker",
+      "userInvocable": true
+    },
+    {
       "description": "Report-only dead-code audit. Collects candidate unused files and exports from the project's own analyzers, a bundled rg-based script and a read-only codegraph snapshot, checks every candidate against independent signals (codegraph references, exact and dynamic-usage search, analyzers), rules out a public role (API, entry points, config, registries), and returns a ranked report with evidence and a staged removal plan. Never deletes or edits code.",
       "id": "dead-code",
       "invocation": "explicit",

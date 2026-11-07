@@ -3,12 +3,12 @@ import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, wri
 import { homedir, tmpdir, userInfo } from 'node:os'
 import { join } from 'node:path'
 import type { AdapterContext } from '../../../src/adapters/registry'
-import { buildOmp, isOmpFileGlob, mcpEntry, mcpShimArgv, renderMcp, renderRule, type BuildFile } from '../../../src/adapters/omp/build'
+import { buildOmp, isOmpFileGlob, mcpEntry, mcpShimArgv, renderCommand, renderMcp, renderRule, type BuildFile } from '../../../src/adapters/omp/build'
 import type { McpServerSpec } from '../../../src/core/catalog'
 import type { Harness } from '../../../src/core/events'
 import { bundleExtension, BUNDLE_BANNER, repoRelativeModuleComments } from '../../../src/adapters/omp/bundle'
 import { devContext, diffTree, listFiles, writeTree } from '../../../src/adapters/omp/dev-build'
-import { buracleVersion, OMP_MIN_VERSION, ompGeneratedData } from '../../../src/adapters/omp/generated'
+import { buracleVersion, OMP_MIN_VERSION, ompCommandName, ompGeneratedData } from '../../../src/adapters/omp/generated'
 import { expandPlaceholders, filterHarnessBlocks, firstHeading, frontmatter, renderForOmp } from '../../../src/adapters/omp/render'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import * as paths from '../../../src/engine/paths'
@@ -135,6 +135,18 @@ describe('omp build: golden output for the fixture canonical', () => {
     ].join('\n'))
     expect(f['commands/research.md']).toStartWith('---\ndescription: "Buracle research: Research with MCP tools."\n---\n')
     expect(f['commands/memory.md']).toBeUndefined()
+  })
+
+  test('commands: a skill named like an omp built-in command gets the buracle- prefix and still loads its own skill', () => {
+    expect(ompCommandName('plan-build')).toBe('plan-build')
+    expect(ompCommandName('join')).toBe('buracle-join')
+    const planBuild = fixtureCtx().canonical.skills.find(s => s.id === 'plan-build')
+    if (planBuild === undefined) throw new Error('fixture: no plan-build skill')
+    const cmd = renderCommand({ ...planBuild, id: 'join' })
+    expect(cmd.path).toBe('commands/buracle-join.md')
+    expect(cmd.content).toContain("Run Buracle's `join` workflow for the request below")
+    expect(cmd.content).toContain('First read `skill://join`')
+    expect(cmd.content).not.toContain('buracle-join')
   })
 
   test('README (English) lists the generated content and what the install writes', async () => {

@@ -8,6 +8,8 @@ import type { HookHealth } from '../../core/status/model'
 import { hooksSegmentTexts } from '../../core/status/hooks'
 import { atomicWriteSync, ensureDirSync, readJsonSafeSync } from '../../engine/fsx'
 import { log } from '../../engine/log'
+import { boardNoteText } from '../../core/flow/band'
+import { boardCountsFor } from '../../workflow/board-store'
 import { flowViewFor } from '../../workflow/flow'
 import { withFileLock } from '../../workflow/session-store'
 import type { AdapterContext } from '../registry'
@@ -81,7 +83,10 @@ export function flowNotice(ctx: AdapterContext, sid: string, now: number, silent
   const s = loadAdapterState(ctx, sid)
   if (s.flowNotified === n.key) return undefined
   saveAdapterState(ctx, sid, { ...s, flowNotified: n.key })
-  return silent ? undefined : n.text
+  if (silent) return undefined
+  // Codex has no Buracle status line: the board's counts ride on the workflow notice.
+  const board = boardNoteText(boardCountsFor(H, sid, now)?.summary)
+  return board !== undefined ? `${n.text}\n${board}` : n.text
 }
 
 export function hooksNotice(ctx: AdapterContext, health: HookHealth | undefined): string | undefined {

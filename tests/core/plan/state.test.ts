@@ -98,6 +98,54 @@ describe('stopVerdict (H08): releases', () => {
   })
 })
 
+describe('stopVerdict (H08): the task board', () => {
+  const summary = (over: Partial<NonNullable<StopInput['board']>['summary']> = {}) => ({ open: 0, claimed: 0, waiting: 0, done: 0, merged: 0, stale: 0, workers: 0, total: 3, ...over })
+  const worker = (status: 'claimed' | 'waiting' | 'done' | undefined): StopInput['board'] => ({ slug: 'rate-limit', role: 'worker', ...(status !== undefined ? { task: { n: 2, status } } : {}), summary: summary({ claimed: status === 'claimed' ? 1 : 0, open: 2 }) })
+  const reasonOf = (r: ReturnType<typeof stopVerdictDetailed>): string => (r.decision.action === 'block' ? r.decision.reason : '')
+
+  test('a worker session without a plan cannot end its turn while its task is claimed: done, ask or release', () => {
+    const r = stopVerdictDetailed(emptyState(), input({ board: worker('claimed') }), CFG)
+    expect([r.decision.action, r.why]).toEqual(['block', 'board-worker'])
+    expect(reasonOf(r)).toStartWith('Buracle stop guard:')
+    for (const part of ['Task 2', 'rate-limit', '`buracle work done', '`buracle work ask', '`buracle work release']) expect(reasonOf(r)).toContain(part)
+    expect(r.next.guard.blocksInChain).toBe(1)
+    for (const status of ['waiting', 'done', undefined] as const) expect(stopVerdictDetailed(emptyState(), input({ board: worker(status) }), CFG).why).toBe('no-plan')
+    expect(stopVerdictDetailed(emptyState(), input({ board: { slug: 'x', role: 'lead', summary: summary({ claimed: 1 }) } }), CFG).why).toBe('no-plan')
+  })
+
+  test('the worker branch honors the guard switch, read-only mode, background waits and the chain cap, and never escalates', () => {
+    expect(stopVerdictDetailed(emptyState(), input({ board: worker('claimed') }), { ...CFG, stopGuard: false }).why).toBe('disabled')
+    expect(stopVerdictDetailed(emptyState(), input({ board: worker('claimed'), readOnly: true }), CFG).why).toBe('read-only-mode')
+    expect(stopVerdictDetailed(emptyState(), input({ board: worker('claimed'), backgroundWait: true }), CFG).why).toBe('background-wait')
+    const capped = stopVerdictDetailed({ ...emptyState(), guard: { blocksForPlan: 4, blocksInChain: 5 } }, input({ board: worker('claimed'), hookActive: true }), CFG)
+    expect([capped.decision.action, capped.why]).toEqual(['allow', 'runaway-chain'])
+    expect(capped.next.guard.escalated).toBeUndefined()
+    const claimedWithPlan = stopVerdictDetailed(withPlan(), input({ board: worker('claimed') }), CFG)
+    expect(claimedWithPlan.why).toBe('board-worker')
+  })
+
+  test('the lead never gets "next unticked task" while the board holds unmerged tasks, for Feature and Build plans', () => {
+    const lead = (over: Partial<ReturnType<typeof summary>>): StopInput['board'] => ({ slug: 'rate-limit', role: 'lead', summary: summary(over) })
+    for (const type of ['Feature', 'Build'] as const) {
+      const state = withPlan({ type })
+      const claimed = reasonOf(stopVerdictDetailed(state, input({ board: lead({ claimed: 1, waiting: 1, open: 1 }) }), CFG))
+      expect(claimed).toContain('buracle work wait --json')
+      expect(claimed).not.toContain('next unticked')
+      const done = reasonOf(stopVerdictDetailed(state, input({ board: lead({ done: 2, merged: 1 }) }), CFG))
+      expect(done).toContain('buracle work merge --json')
+      expect(done).not.toContain('next unticked')
+      expect(done).not.toContain('work the next')
+      const open = reasonOf(stopVerdictDetailed(state, input({ board: lead({ open: 2, stale: 1 }) }), CFG))
+      expect(open).toContain('open for workers')
+      expect(open).toContain('/buracle-join rate-limit')
+      expect(open).not.toContain('next unticked')
+    }
+    const allMerged = reasonOf(stopVerdictDetailed(withPlan(), input({ board: lead({ merged: 3 }) }), CFG))
+    expect(allMerged).toContain('next unticked task')
+    expect(reasonOf(stopVerdictDetailed(withPlan(), input(), CFG))).toContain('next unticked task')
+  })
+})
+
 describe('stopVerdict (H08): blocking', () => {
   test('the reason names the plan, status, phase and the escape sentence, and starts with the guard marker', () => {
     const { decision } = stopVerdict(withPlan(), input(), CFG)

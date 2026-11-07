@@ -42,10 +42,20 @@ export function ompLspServers(canonical: CanonicalBundle): Record<string, Record
   return out
 }
 
+/** The skills that get a workflow command on omp: every user-invocable skill, except one named like a utility command. */
 export function ompCommandSkills(canonical: CanonicalBundle): string[] {
   return catalogSkills(canonical.skills)
-    .filter(s => s.userInvocable && !OMP_BUILTIN_COMMANDS.has(s.id) && !OMP_UTILITY_COMMANDS.includes(s.id))
+    .filter(s => s.userInvocable && !OMP_UTILITY_COMMANDS.includes(s.id))
     .map(s => s.id)
+}
+
+/** The command that runs a skill on omp: its id, or `buracle-<id>` when omp keeps that name for a built-in command (omp has `/join`, `/plan`, `/goal`, … of its own). */
+export function ompCommandName(id: string): string {
+  return OMP_BUILTIN_COMMANDS.has(id) ? `buracle-${id}` : id
+}
+
+export function ompCommandNames(canonical: CanonicalBundle): string[] {
+  return ompCommandSkills(canonical).map(ompCommandName)
 }
 
 export const OMP_THINKING_LEVELS: readonly string[] = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'auto']
@@ -82,7 +92,7 @@ export function ompGeneratedData(canonical: CanonicalBundle, version: string): O
     mcpIds: Object.keys(canonical.mcp.servers).sort(),
     skills: catalogSkills(canonical.skills),
     plugins: canonical.plugins.omp.plugins.filter(p => p.enabled).map(p => p.id).sort(),
-    commands: ompCommandSkills(canonical),
+    commands: ompCommandNames(canonical),
     status: ompStatusData(canonical.statusline.omp),
   }
   if ((canonical.notices ?? []).length > 0) out.notices = (canonical.notices ?? []).map(n => ({ ...n }))

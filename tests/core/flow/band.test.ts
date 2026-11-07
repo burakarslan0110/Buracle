@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { BandInput, BandPlan, BandView } from '../../../src/core/flow/band'
-import { bandPlanOf, bandRows, bandSummary, bandText, bandView, criteriaOf, resumeSuggestion } from '../../../src/core/flow/band'
+import { bandPlanOf, bandRows, bandSummary, bandText, bandView, boardNoteText, criteriaOf, resumeSuggestion } from '../../../src/core/flow/band'
 import type { FlowRecord } from '../../../src/core/flow/record'
 import { flowEnd, flowPhase, flowStart, flowStep } from '../../../src/core/flow/record'
 import { emptyState } from '../../../src/core/plan/state'
@@ -126,6 +126,21 @@ describe('bandView', () => {
     expect(v.current).toBe('Running the e2e scenarios')
     expect(v.agents).toEqual(['changes-review'])
     expect(lines(v, 120)[2]).toBe('▸ Running the e2e scenarios · ⟳ changes-review')
+  })
+})
+
+describe('the board note', () => {
+  test('a running band shows the board counts as its note unless a pause reason or a phase note already fills it', () => {
+    expect(boardNoteText(undefined)).toBeUndefined()
+    const counts = { open: 2, claimed: 2, waiting: 1, done: 0, merged: 3, stale: 0, total: 8 }
+    expect(boardNoteText(counts)).toBe('board: 2 claimed · 1 waiting · 3/8 merged')
+    const v = view({ plan: plan(), board: counts })
+    expect(v.visible).toBe(true)
+    expect(v.note).toBe('board: 2 claimed · 1 waiting · 3/8 merged')
+    expect(bandText(v).some(l => l === 'note: board: 2 claimed · 1 waiting · 3/8 merged')).toBe(true)
+    const paused = view({ plan: plan(), board: counts, interaction: { state: 'paused', kind: 'decision', reason: 'plan approval' } })
+    expect(paused.note).toBe('plan approval')
+    expect(view({ plan: plan() }).note).toBeUndefined()
   })
 })
 

@@ -29,6 +29,10 @@ plan:
   branchIsolation: true
   worktreeDir: .worktrees
   questions: true
+  board:
+    mode: ask
+    maxWorkers: 6
+    leaseSec: 300
   reviews:
     plan: true
     changes: true

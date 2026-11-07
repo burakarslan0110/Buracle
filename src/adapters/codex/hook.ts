@@ -20,10 +20,12 @@ import type { SpoolEntry } from '../../core/memory/spool'
 import type { NoticeTexts } from '../../core/notices'
 import { consentGate, recordPromptGrants } from '../shared/consent-store'
 import { reviewNotesNotice } from '../shared/review-notes'
+import { boardJoinOffer, boardPromptNotice, boardSessionEnd, boardStopInput, boardToolSeen, boardWriteDenial } from '../shared/board'
 import { noticesOff, runtimeVersion, startupNotices } from '../shared/notices'
 import { assetsAfterEdit, assetsOptions, assetsSessionStart, startLinkRun, type AssetsSpawner } from '../shared/project-assets'
 import { earlyEdit, readOnlyStart, startedWorkflow } from '../shared/plan-mode'
 import { projectDeps as readProjectDeps } from '../shared/project-deps'
+import { realWriteTarget } from '../shared/realpath'
 import { reviewAgentIds } from './agents'
 import { removedByFile } from '../shared/checker-scan'
 import { fileCheckNotes, sessionOnce } from '../shared/file-checks'
@@ -270,7 +272,8 @@ async function onSessionStart(p: Payload, sid: string, cwd: string, ctx: Adapter
   const notice = source === 'startup' && !sub && !noticesOff(envOf(deps))
     ? await step(ev, 'H17 notices', undefined as NoticeTexts | undefined, () => startupNotices(ctx.canonical.notices, { version: runtimeVersion(ctx.repoRoot), nowMs: now, harness: H }))
     : undefined
-  const fixed = [restore, notice?.model ?? '', workspace, assets, resumed?.model ?? '', card].filter(s => s.trim() !== '')
+  const offer = sub ? '' : await step(ev, 'H29 board offer', '', () => boardJoinOffer(H, sid, cwd, now, '$buracle-join') ?? '')
+  const fixed = [restore, notice?.model ?? '', workspace, assets, resumed?.model ?? '', offer, card].filter(s => s.trim() !== '')
   const room = CONTEXT_BUDGET_BYTES - byteLength(fixed.join('\n\n')) - 64
   const index = room > 400 && !memoryOff(deps)
     ? await step(ev, 'H13 memory context', undefined as string | undefined, () => memoryContext(deps, cwd, now, room))
@@ -284,7 +287,7 @@ async function onSessionStart(p: Payload, sid: string, cwd: string, ctx: Adapter
     ? await step(ev, 'hooks notice', undefined as string | undefined, async () => hooksNotice(ctx, await hookHealthOf(deps, now)))
     : undefined
   const user = [warning, notice?.user, resumed?.user, health].filter((s): s is string => s !== undefined).join('\n')
-  return contextOutput('SessionStart', [restore, notice?.model ?? '', workspace, assets, resumed?.model ?? '', index !== undefined ? clipBytes(index, room) : '', card], user !== '' ? user : undefined)
+  return contextOutput('SessionStart', [restore, notice?.model ?? '', workspace, assets, resumed?.model ?? '', index !== undefined ? clipBytes(index, room) : '', offer, card], user !== '' ? user : undefined)
 }
 
 async function workspaceStart(p: Payload, sid: string, cwd: string, ctx: AdapterContext, deps: CodexHookDeps, now: number): Promise<string> {
@@ -344,6 +347,8 @@ async function onUserPromptSubmit(p: Payload, sid: string, cwd: string, ctx: Ada
     if (guidance !== undefined) parts.push(guidance)
     const notes = await step(ev, 'H10 review notes', undefined as string | undefined, () => reviewNotesNotice(H, sid, { plan: loadState(H, sid).plan?.path, roots: [loadWorkspaceInfo(ctx, sid)?.root, cwd], now }))
     if (notes !== undefined) parts.push(notes)
+    const board = await step(ev, 'H29 board notice', undefined as string | undefined, () => boardPromptNotice(H, sid, cwd, now))
+    if (board !== undefined) parts.push(board)
     await step(ev, 'H20 grants', undefined, () => { recordPromptGrants(H, sid, prompt, now) })
     const saved = await step(ev, 'H12 plan capture', undefined as string | undefined, () => captureApprovedPlan(ctx, sid, prompt, cwd, str(p['transcript_path']), now))
     if (saved !== undefined) parts.push(saved)
@@ -428,7 +433,15 @@ async function onPreToolUse(p: Payload, sid: string, sessionCwd: string, ctx: Ad
   }
   const mcpDenied = await mcpWriteDenial(call, cwd, ctx, deps.core, ev)
   if (mcpDenied !== undefined) return denyOutput(mcpDenied)
-  const questionContext: string[] = []
+  // A subagent writes under the same session's board rule (a worker's subagent stays inside the lane worktree too).
+  const edits = await step(ev, 'H29 edited paths', [] as string[], () => editedPaths(p, call, deps))
+  if (edits.length > 0) {
+    const board = await step(ev, 'H29 board write rule', undefined as string | undefined, () => boardWriteDenial(H, sid, cwd, edits, q => realWriteTarget(q)))
+    if (board !== undefined) return denyOutput(board)
+  }
+  const seen = isSubagentPayload(p) ? undefined : await step(ev, 'H29 board heartbeat', undefined as ReturnType<typeof boardToolSeen>, () => boardToolSeen(H, sid, cwd, now, edits.length > 0, 'before'))
+  if (seen?.deny !== undefined) return denyOutput(seen.deny)
+  const questionContext: string[] = seen?.context !== undefined ? [seen.context] : []
   if (call.kind === 'ask_user') {
     const r = await step(ev, 'H09 checkQuestion', {} as { context?: string }, () => deps.core.checkQuestion(loadState(H, sid), call, now))
     if (!isSubagentPayload(p)) {
@@ -579,6 +592,8 @@ async function onPostToolUse(p: Payload, sid: string, cwd: string, ctx: AdapterC
     const usage = await updateTelemetry(deps, ev, p, sid)
     const warning = await contextWarning(ctx, ev, sid, usage)
     if (warning) context.push(warning)
+    const seen = await step(ev, 'H29 board heartbeat', undefined as ReturnType<typeof boardToolSeen>, () => boardToolSeen(H, sid, cwd, start, false, 'after'))
+    if (seen?.context !== undefined) context.push(seen.context)
   }
   return contextOutput('PostToolUse', context, alarm !== undefined ? `Buracle: ${alarm}` : undefined)
 }
@@ -701,8 +716,10 @@ async function onStop(p: Payload, sid: string, cwd: string, ctx: AdapterContext,
   }
 
   const state = loadState(H, sid)
-  if (state.plan === undefined) return auditOutcome(p, sid, ctx, deps, 'no-plan')
+  const board = isSubagentPayload(p) ? undefined : await step(ev, 'H29 board stop input', undefined as ReturnType<typeof boardStopInput>, () => boardStopInput(H, sid, now))
+  if (state.plan === undefined && board === undefined) return auditOutcome(p, sid, ctx, deps, 'no-plan')
   const input: StopInput = { harness: H, sessionId: sid, cwd, hookActive: p['stop_hook_active'] === true, now }
+  if (board !== undefined) input.board = board
   if (last !== undefined) input.lastMessage = last
   const rollout = str(p['transcript_path'])
   if (rollout !== undefined && await step(ev, 'read-only mode', false, () => readCollaborationMode(rollout) === 'plan')) input.readOnly = true
@@ -770,6 +787,7 @@ async function onSubagentStart(p: Payload, sid: string, cwd: string, ctx: Adapte
 async function onSessionEnd(sid: string, ctx: AdapterContext, deps: CodexHookDeps): Promise<HookOutcome> {
   const ev = 'SessionEnd'
   await step(ev, 'H14 memory UI', undefined, () => uiOf(deps).ended(H, sid))
+  await step(ev, 'H29 board session end', undefined, () => { boardSessionEnd(H, sid, deps.now()) })
   if (captureOff(deps)) return NOTHING
   await step(ev, 'H14 spawnFinalizer', undefined, async () => {
     const m = await deps.memory()

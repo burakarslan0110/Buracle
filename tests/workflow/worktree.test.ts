@@ -187,6 +187,21 @@ describe('worktree create --lane', () => {
     expect(existsSync(lanePath)).toBe(false)
   }))
 
+  test('an explicit parent is recorded on a lane created from the main checkout (the task board passes the lead\'s worktree)', () => sandbox(async root => {
+    const { repo } = await setup(root)
+    const common = realpathSync(join(repo, '.git'))
+    await worktreeCreate('rate-limit', {}, ctxAt(repo), S)
+    const r = await worktreeCreate('rate-limit-t1', { lane: true, base: 'plan-build/rate-limit', parent: 'rate-limit' }, ctxAt(repo), S)
+    expect(r.code).toBe(0)
+    expect(r.data).toMatchObject({ created: true, branch: 'plan-build/rate-limit-t1', base: 'plan-build/rate-limit', lane: true, parent: 'rate-limit' })
+    expect(readMeta(common, 'rate-limit-t1')).toMatchObject({ lane: true, parent: 'rate-limit', base: 'plan-build/rate-limit', owner: { harness: S.harness, session: S.sessionId } })
+    const plain = await worktreeCreate('rate-limit-t2', { lane: true, base: 'main' }, ctxAt(repo), S)
+    expect(plain.code).toBe(0)
+    expect(readMeta(common, 'rate-limit-t2')?.parent).toBeUndefined()
+    expect((await worktreeCreate('other', { base: 'main', parent: 'rate-limit' }, ctxAt(repo), undefined)).code).toBe(0)
+    expect(readMeta(common, 'other')?.parent).toBeUndefined()
+  }))
+
   test('without --lane, create inside a plan worktree still refuses with inside_worktree', () => sandbox(async root => {
     const { repo } = await setup(root)
     const wt = String((await worktreeCreate('rate-limit', {}, ctxAt(repo), S)).data['path'])

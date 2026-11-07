@@ -54,7 +54,7 @@ describe('canonical/statusline.yaml', () => {
   })
 
   test('claude: full rows (DESIGN §6.3) and compact rows', () => {
-    expect(doc.claude?.rows).toEqual([['model', 'ctx', '5h', '7d', 'month', 'cost'], ['git', 'dir', 'mem', 'index', 'flow', 'plan', 'upd', 'hooks']])
+    expect(doc.claude?.rows).toEqual([['model', 'ctx', '5h', '7d', 'month', 'cost'], ['git', 'dir', 'mem', 'index', 'flow', 'plan', 'board', 'upd', 'hooks']])
     expect(doc.claude?.compact?.length).toBe(1)
   })
 

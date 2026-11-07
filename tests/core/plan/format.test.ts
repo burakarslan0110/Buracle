@@ -63,6 +63,14 @@ Clients get 429.
 `
 
 describe('parsePlan', () => {
+  test('an optional `**Depends on:**` line lists the task numbers; a card without it has no dependsOn field', () => {
+    const doc = FEATURE.replace('**Objective:** README explains the limit.', '**Objective:** README explains the limit.\n\n**Depends on:** Task 1, Task 3')
+    const p = parsePlan(doc)
+    expect(p.tasks[1]?.dependsOn).toEqual([1, 3])
+    expect('dependsOn' in (p.tasks[0] ?? {})).toBe(false)
+    expect(parsePlan(FEATURE.replace('**Objective:** README explains the limit.', '**Objective:** README explains the limit.\n\n**Depends on:** 1, `Task 1`, task 2')).tasks[1]?.dependsOn).toEqual([1, 2])
+  })
+
   test('a heading keeps a trailing `#` that is part of the text (WF-08 in core: C#, F#); a closing sequence after whitespace goes', () => {
     const doc = FEATURE.replace('# Rate-limit the public API', '# Port the client to C#').replace('### Task 1: Count requests per API key', '### Task 1: Support F# ##')
     const p = parsePlan(doc)

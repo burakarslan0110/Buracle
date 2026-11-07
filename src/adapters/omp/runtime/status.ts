@@ -13,6 +13,7 @@ import type { LiveConfig } from './config'
 import type { ExtensionDeps } from './deps'
 import type { OmpContext, OmpGenerated } from './types'
 import { hasTui, isMain, sessionOf, withDeadline } from './util'
+import { boardCountsFor } from '../../../workflow/board-store'
 
 export const WIDGET_KEY = 'buracle'
 export const STATUS_KEYS = { mem: 'buracle.mem', month: 'buracle.budget' } as const
@@ -121,6 +122,8 @@ export function createStatusTexts(host: StatusHost): StatusTexts {
     const wants = (id: string): boolean => keys.some(k => data.status.setStatus[k]?.includes(id)) || (bandRows?.some(r => r.includes(id)) ?? false)
     const bar = await barFor(sid, ctx, lc, { git: wants('git'), index: barStyle || wants('index') })
     if (flow !== undefined) bar.flow = flow
+    const board = guarded('board counts', () => boardCountsFor('omp', sid, deps.now()))
+    if (board !== undefined) bar.board = board.summary
     for (const key of keys) {
       const text = renderIds(bar, [data.status.setStatus[key] ?? []], emoji, Number.POSITIVE_INFINITY)
       ctx.ui.setStatus(key, text.trim() !== '' ? text : undefined)

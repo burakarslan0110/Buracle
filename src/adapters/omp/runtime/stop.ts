@@ -46,7 +46,7 @@ export function promptGuidance(deps: Pick<ExtensionDeps, 'state' | 'plan'>, sid:
 }
 
 export interface StopGuardHost {
-  deps: Pick<ExtensionDeps, 'now' | 'readText' | 'plan' | 'state' | 'ledger'>
+  deps: Pick<ExtensionDeps, 'now' | 'readText' | 'plan' | 'state' | 'ledger' | 'board'>
   live(): LiveConfig
   guarded<T>(what: string, fn: () => T): T | undefined
   report(what: string, e: unknown): void
@@ -70,9 +70,12 @@ export function registerStopGuard(pi: OmpExtensionAPI, host: StopGuardHost): voi
     if (!lc.config.plan.stopGuard) return { why: 'disabled' }
     const state = guarded('state', () => deps.state.load(sid))
     if (state === undefined) return {}
-    if (state.plan === undefined) return { why: 'no-plan' }
     const now = deps.now()
+    // A task-board worker has no plan of its own: the guard reads the board instead.
+    const board = guarded('H29 board stop input', () => deps.board?.stopInput(sid, now))
+    if (state.plan === undefined && board === undefined) return { why: 'no-plan' }
     const input: StopInput = { harness: 'omp', sessionId: sid, cwd: ctx.cwd, now }
+    if (board !== undefined) input.board = board
     if (typeof event.stop_hook_active === 'boolean') input.hookActive = event.stop_hook_active
     if (last !== '') input.lastMessage = last
     if (planModeOn(ctx)) input.readOnly = true
