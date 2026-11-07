@@ -25,6 +25,7 @@ const ALLOWED: Readonly<Record<string, Allowed>> = {
   'src/core/memory/signals.ts': { why: 'the topic words that sort a person preference into its region' },
   'src/core/memory/query.ts': { why: 'memory query stopwords' },
   'src/core/memory/stem.ts': { why: 'Turkish inflection endings that memory search strips from query words' },
+  'src/memory/distill.ts': { why: 'the Turkish letters the English-only distill validator recognizes (PRD R5)', only: /TURKISH_RE/ },
   'src/core/memory/text.ts': { why: 'secret-word redaction and case folding' },
   'src/core/plan/state.ts': { why: 'the plan approval question', only: /onayl\[ıi\]yor musun/ },
   'src/engine/git.ts': { why: 'slug folding', only: /\.replace\(\/[İıçğöşü]\/g/ },

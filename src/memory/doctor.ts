@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { realPath } from '../engine/fsx'
 import * as paths from '../engine/paths'
 import { run } from '../engine/proc'
@@ -13,7 +13,7 @@ import { listBackups } from './backup'
 import { brainSelfTest } from './cortex-check'
 import { brainBackupsDir, brainDbFile } from './layout'
 import { migrationInfo } from './migrate'
-import { memoryExcludeConfig, memoryExcludeProblemText, projectExclusion, readProjectsCache, resolveProject } from './project'
+import { corruptProjectsBackups, memoryExcludeConfig, memoryExcludeProblemText, projectExclusion, projectsCacheProblem, readProjectsCache, resolveProject } from './project'
 import { cliArgv } from './spawn'
 import { bucketCounts, listAll, personRef, projectRef } from './store'
 
@@ -113,6 +113,17 @@ export async function memDoctor(opts: { cwd: string, mcp?: boolean, leak?: boole
     : `${backups.length} in ${brainBackupsDir()}, the newest ${newest.id} (${newest.trigger}); \`buracle mem backup --list\` shows them, \`buracle mem restore <id>\` puts one back`)
   const excludeProblem = memoryExcludeConfig().problem
   if (excludeProblem !== undefined) add('warn', 'memory.exclude', memoryExcludeProblemText(excludeProblem))
+  // Before any project resolution rebuilds it: an unreadable projects cache was backed up (PRD R14).
+  const cacheProblem = projectsCacheProblem()
+  if (cacheProblem !== undefined) {
+    add('warn', 'projects cache', `${cacheProblem}; a backup was kept beside it and the next session rebuilds it; restore records by hand if any are missing`)
+  } else {
+    const kept = corruptProjectsBackups()
+    if (kept.length > 0) {
+      const newest = basename(kept[kept.length - 1] ?? '')
+      add('info', 'projects cache', `an earlier projects.json was unreadable and was rebuilt; ${kept.length} backup(s) kept, the newest ${newest}`)
+    }
+  }
   let answered = false
   if (bin.status === 'ok') {
     const rec = await resolveProject(opts.cwd).catch(() => undefined)

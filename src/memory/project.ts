@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from 'node:fs'
+import { copyFileSync, existsSync, readdirSync, statSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import { memIsSlug } from '../core/memory/note'
 import {
@@ -7,7 +7,7 @@ import {
 import { slugify } from '../core/memory/text'
 import { loadConfigSync } from '../engine/config'
 import { atomicWriteSync, comparablePath, readJsonSafeSync, sha256 } from '../engine/fsx'
-import { projectIdentity, remoteUrl, revParse, toplevel } from '../engine/git'
+import { commonDir, projectIdentity, remoteUrl, revParse, toplevel } from '../engine/git'
 import { log } from '../engine/log'
 import * as paths from '../engine/paths'
 import { nonProjectReason } from '../workflow/non-project'
@@ -35,8 +35,47 @@ export function isoNow(ms = Date.now()): string {
 export function readProjectsCache(): ProjectsCache {
   const r = readJsonSafeSync<unknown>(projectsFile())
   if (r.ok && memIsProjectsCache(r.value)) return r.value
-  if (!r.ok && r.code !== 'missing') log('warn', 'memory: projects cache unreadable; starting empty', { error: r.error })
+  if (!r.ok && r.code !== 'missing') {
+    log('warn', 'memory: projects cache unreadable; starting empty', { error: r.error })
+    // The corrupt original is kept before any write replaces it (PRD R14).
+    backupCorruptProjectsCache()
+  } else if (r.ok && !memIsProjectsCache(r.value)) {
+    backupCorruptProjectsCache()
+  }
   return memEmptyProjects()
+}
+
+/** Copies an unreadable projects.json aside once per corrupt state, so its records can be restored by hand (PRD R14). */
+function backupCorruptProjectsCache(): void {
+  const file = projectsFile()
+  const dir = dirname(file)
+  const base = basename(file)
+  let newest = 0
+  try {
+    for (const n of readdirSync(dir)) {
+      if (!n.startsWith(`${base}.corrupt-`)) continue
+      try { newest = Math.max(newest, statSync(join(dir, n)).mtimeMs) } catch { }
+    }
+  } catch { return }
+  try { if (statSync(file).mtimeMs <= newest) return } catch { return }
+  try { copyFileSync(file, join(dir, `${base}.corrupt-${Date.now()}`)) } catch (e) { log('warn', 'memory: cannot back up the corrupt projects cache', { error: e }) }
+}
+
+/** The backups of unreadable projects.json files, oldest first (PRD R14). */
+export function corruptProjectsBackups(): string[] {
+  const file = projectsFile()
+  const base = basename(file)
+  try {
+    return readdirSync(dirname(file)).filter(n => n.startsWith(`${base}.corrupt-`)).sort().map(n => join(dirname(file), n))
+  } catch { return [] }
+}
+
+/** Why the projects cache cannot be used right now, or undefined when it reads cleanly (PRD R14). */
+export function projectsCacheProblem(): string | undefined {
+  const r = readJsonSafeSync<unknown>(projectsFile())
+  if (!r.ok) return r.code === 'missing' ? undefined : `projects.json cannot be read (${r.error})`
+  if (!memIsProjectsCache(r.value)) return 'projects.json does not hold a projects cache'
+  return undefined
 }
 
 function writeProjectsCache(cache: ProjectsCache): void {
@@ -45,7 +84,7 @@ function writeProjectsCache(cache: ProjectsCache): void {
 
 function updateProjectsCache(fn: (c: ProjectsCache) => void): ProjectsCache {
   const lock = `${projectsFile()}.lock`
-  const deadline = Date.now() + 1000
+  const deadline = Date.now() + 3000
   let release = tryLock(lock, 10_000)
   while (!release && Date.now() < deadline) { Bun.sleepSync(10); release = tryLock(lock, 10_000) }
   try {
@@ -72,9 +111,12 @@ export function isNonProjectDir(dir: string): boolean {
   return nonProjectReason(dir) !== undefined
 }
 
-function sameIdentity(rec: ProjectRecord, id: { commonDir?: string, ownerRepo?: string, root: string }): boolean {
+function sameIdentity(rec: ProjectRecord, id: { commonDir?: string, ownerRepo?: string, rootCommit?: string, root: string }): boolean {
   if (rec.commonDir !== undefined && id.commonDir !== undefined && rec.commonDir === id.commonDir) return true
   if (rec.ownerRepo !== undefined && id.ownerRepo !== undefined && rec.ownerRepo.toLowerCase() === id.ownerRepo.toLowerCase()) return true
+  // A repo without a remote keeps its identity in its first commit, so a move or rename still finds the record
+  // (PRD R17). A repo with a remote identifies by its owner and repo, never by the commit alone.
+  if (rec.ownerRepo === undefined && id.ownerRepo === undefined && rec.rootCommit !== undefined && id.rootCommit !== undefined && rec.rootCommit === id.rootCommit) return true
   return rec.roots.includes(id.root)
 }
 
@@ -223,22 +265,43 @@ export async function slugExclusion(slug: string, patterns: readonly string[] = 
   return undefined
 }
 
+/** The git common dir of a folder, memoized per process for the folders that are repos (PRD R15). */
+const commonDirMemo = new Map<string, string>()
+
+async function ownCommonDir(abs: string): Promise<string | undefined> {
+  const hit = commonDirMemo.get(abs)
+  if (hit !== undefined) return hit
+  const d = await commonDir(abs)
+  if (d !== undefined) commonDirMemo.set(abs, d)
+  return d
+}
+
 export async function resolveProject(cwd: string): Promise<ProjectRecord | undefined> {
   const abs = existingDir(cwd)
   if (isNonProjectDir(abs)) return undefined
   if ((await exclusionOf(abs, memoryExcludePatterns())) !== undefined) return undefined
   const now = Date.now()
   const hit = memLookupProject(readProjectsCache(), abs)
-  if (hit && !(hit.scope === 'adhoc' && hit.roots.includes(abs) && now - (hit.checkedMs ?? 0) > CHILD_RECHECK_MS)) return hit
-  if (hit) {
-    const children = childRepos(abs)
-    if (children.length === 1) {
-      const mapped = await mapToChild(abs, children[0] as string)
-      if (mapped) return mapped
+  if (hit && !(hit.scope === 'adhoc' && hit.roots.includes(abs) && now - (hit.checkedMs ?? 0) > CHILD_RECHECK_MS)) {
+    // A separate repository nested inside a registered root has its own bucket (PRD R15): a path-prefix hit
+    // belongs to the parent, so the folder's own git identity is checked before the hit is taken.
+    const own = hit.roots.includes(abs) || hit.commonDir === undefined ? undefined : await ownCommonDir(abs)
+    if (own === undefined || own === hit.commonDir) {
+      const children = childRepos(abs)
+      if (children.length === 1) {
+        const mapped = await mapToChild(abs, children[0] as string)
+        if (mapped) return mapped
+      }
+      updateProjectsCache(cache => { const r = cache.projects[hit.slug]; if (r) r.checkedMs = now })
+      // A record from before the first-commit identity existed heals itself on one resolution,
+      // so the next move finds it (PRD R17); the cost is one identity probe per legacy record.
+      if (hit.scope === 'project' && hit.commonDir !== undefined && hit.rootCommit === undefined) {
+        const id = await projectIdentity(abs)
+        if (id.rootCommit !== undefined) updateProjectsCache(cache => { const r = cache.projects[hit.slug]; if (r !== undefined && r.rootCommit === undefined) r.rootCommit = id.rootCommit })
+      }
+      if (children.length > 1) await registerChildren(children)
+      return hit
     }
-    updateProjectsCache(cache => { const r = cache.projects[hit.slug]; if (r) r.checkedMs = now })
-    if (children.length > 1) await registerChildren(children)
-    return hit
   }
   const id = await projectIdentity(abs)
   if (id.commonDir === undefined) {
@@ -255,9 +318,13 @@ export async function resolveProject(cwd: string): Promise<ProjectRecord | undef
   const remote = id.remote !== undefined ? repoDisplay(id.remote) : undefined
   let chosen: ProjectRecord | undefined
   updateProjectsCache(cache => {
-    const existing = Object.values(cache.projects).find(r => sameIdentity(r, { ...(id.commonDir !== undefined ? { commonDir: id.commonDir } : {}), ...(id.ownerRepo !== undefined ? { ownerRepo: id.ownerRepo } : {}), root: id.root }))
+    const existing = Object.values(cache.projects).find(r => sameIdentity(r, { ...(id.commonDir !== undefined ? { commonDir: id.commonDir } : {}), ...(id.ownerRepo !== undefined ? { ownerRepo: id.ownerRepo } : {}), ...(id.rootCommit !== undefined ? { rootCommit: id.rootCommit } : {}), root: id.root }))
     if (existing) {
       for (const r of roots) if (!existing.roots.includes(r)) existing.roots.push(r)
+      // Backfill the stable identity on a record registered before it existed, so one resolution
+      // makes an old record move-resistant too (PRD R17).
+      if (id.rootCommit !== undefined && existing.rootCommit === undefined) existing.rootCommit = id.rootCommit
+      if (id.commonDir !== undefined && existing.commonDir === undefined) existing.commonDir = id.commonDir
       existing.updated = isoNow()
       if (scope === 'adhoc') existing.checkedMs = now
       chosen = existing
@@ -266,11 +333,13 @@ export async function resolveProject(cwd: string): Promise<ProjectRecord | undef
     const taken = (slug: string): boolean => cache.projects[slug] !== undefined
     let slug = id.slug
     if (taken(slug) && id.ownerRepo !== undefined) slug = slugify(id.ownerRepo.replace('/', '-'))
-    if (taken(slug)) slug = `${slug.slice(0, 52)}-${sha256(id.commonDir ?? abs).slice(0, 6)}`
+    // The suffix comes from the first commit, so it is the same on every re-registration and survives a move (PRD R13, R17).
+    if (taken(slug)) slug = `${slug.slice(0, 52)}-${sha256(id.rootCommit ?? id.commonDir ?? abs).slice(0, 6)}`
     const rec: ProjectRecord = { slug, scope, roots, updated: isoNow() }
     if (id.ownerRepo !== undefined) rec.ownerRepo = id.ownerRepo
     if (remote !== undefined) rec.remote = remote
     if (id.commonDir !== undefined) rec.commonDir = id.commonDir
+    if (id.rootCommit !== undefined) rec.rootCommit = id.rootCommit
     if (scope === 'adhoc') rec.checkedMs = now
     cache.projects[slug] = rec
     chosen = rec

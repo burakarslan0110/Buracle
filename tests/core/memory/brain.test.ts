@@ -184,23 +184,26 @@ describe('origin and confidence', () => {
 })
 
 describe('locked and protected memories', () => {
-  // [origin, pinned, review, locked, protected]
-  const table: Array<[MemItem['origin'], boolean | undefined, MemItem['review'], boolean, boolean]> = [
-    ['explicit', undefined, 'pending', true, true],
-    ['explicit', false, 'pending', true, true],
-    ['explicit', true, 'ok', true, true],
-    ['inferred', true, 'pending', true, true],
-    [undefined, true, 'pending', true, true],
-    ['inferred', undefined, 'ok', false, true],
-    [undefined, false, 'ok', false, true],
-    ['inferred', undefined, 'pending', false, false],
-    [undefined, undefined, 'pending', false, false],
-    [undefined, false, 'pending', false, false],
+  // [origin, pinned, review, verifiedAt, locked, protected]
+  const table: Array<[MemItem['origin'], boolean | undefined, MemItem['review'], boolean, boolean, boolean]> = [
+    ['explicit', undefined, 'pending', false, true, true],
+    ['explicit', false, 'pending', false, true, true],
+    ['explicit', true, 'ok', false, true, true],
+    ['inferred', true, 'pending', false, true, true],
+    [undefined, true, 'pending', false, true, true],
+    ['inferred', undefined, 'ok', false, false, true],
+    [undefined, false, 'ok', false, false, true],
+    ['inferred', undefined, 'pending', false, false, false],
+    [undefined, undefined, 'pending', false, false, false],
+    [undefined, false, 'pending', false, false, false],
+    // A memory verified once stays protected even after an inferred flip made its review pending again (PRD R10).
+    ['inferred', undefined, 'pending', true, false, true],
+    [undefined, false, 'pending', true, false, true],
   ]
 
-  test('locked is the user\'s own words or pinned; protected is locked or verified', () => {
-    for (const [origin, pinned, review, locked, prot] of table) {
-      const m = item({ id: 'preference-x', title: 'x', review, ...(origin !== undefined ? { origin } : {}), ...(pinned !== undefined ? { pinned } : {}) })
+  test('locked is the user\'s own words or pinned; protected is locked, verified or verified once before', () => {
+    for (const [origin, pinned, review, verified, locked, prot] of table) {
+      const m = item({ id: 'preference-x', title: 'x', review, ...(origin !== undefined ? { origin } : {}), ...(pinned !== undefined ? { pinned } : {}), ...(verified ? { verifiedAt: iso(NOW) } : {}) })
       expect({ origin, pinned, review, locked: memLocked(m), protected: memProtected(m) }).toEqual({ origin, pinned, review, locked, protected: prot })
     }
   })
@@ -253,6 +256,22 @@ describe('the session-start text', () => {
     const text = brainStartText({ nowMs: NOW, maxBytes: 2000, maxLines: 40, project: { slug: 'demo', items: many }, person: [] })
     expect(utf8Length(text)).toBeLessThanOrEqual(2001)
     expect(text.split('\n').length).toBeLessThanOrEqual(41)
+  })
+
+  test('a record the user stated and one that contradicts another carry their marks (PRD R20)', () => {
+    const text = brainStartText({
+      nowMs: NOW, maxBytes: 9600, maxLines: 150,
+      project: { slug: 'demo', items: [
+        item({ id: 'decision-plain', title: 'Plain decision' }),
+        item({ id: 'decision-stated', title: 'Stated decision', origin: 'explicit' }),
+        item({ id: 'gotcha-against', title: 'Gotcha against', contradictedAt: iso(NOW) }),
+      ] },
+      person: [],
+    })
+    expect(text).toContain('(decision-plain)')
+    expect(text).not.toContain('(decision-plain) (')
+    expect(text).toContain('(decision-stated) (explicit)')
+    expect(text).toContain('(gotcha-against) (contradicts)')
   })
 })
 

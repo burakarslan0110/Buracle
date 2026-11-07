@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { get, MemoryError, remember, search, update, write, type WriteInput } from '../../src/memory/api'
-import { brainLockFile } from '../../src/memory/layout'
+import { brainLockFile, redactionsFile } from '../../src/memory/layout'
 import { tryLock } from '../../src/memory/lock'
 import { getStored, listAll, personRef, projectRef, refKey, saveItem } from '../../src/memory/store'
 import { withEnv } from '../helpers/sandbox'
@@ -57,6 +58,32 @@ describe('memory_write', () => {
       const [stored] = await listAll(projectRef('demo'))
       expect(stored?.body).not.toContain(key)
       expect(stored?.body).not.toContain('my home address')
+    })
+  })
+
+  test('secrets are masked in sources, tags, about and the update reason too (PRD R19)', async () => {
+    await withBrain(async sb => {
+      const key = ['sk', 'ant', 'api03', 'B'.repeat(40)].join('-')
+      const ctx = agentCtx(sb.repo)
+      const w = await write(ctx, {
+        type: 'gotcha', title: 'The deploy key', summary: 'used by CI', body: 'x',
+        sources: [`src/deploy.ts ${key}`], tags: [`key-${key.toLowerCase()}`], about: [key],
+      })
+      expect(w.redactions).toBeGreaterThanOrEqual(3)
+      const stored = (await listAll(projectRef('demo'))).find(i => i.id === w.id)
+      expect(JSON.stringify(stored)).not.toContain(key)
+      expect(stored?.sources[0]).toMatch(/redacted/i)
+      expect(stored?.tags[0]).toMatch(/redacted/i)
+      expect(stored?.about[0]).toMatch(/redacted/i)
+      await update(ctx, { id: w.id, patch: { sources: [`src/other.ts ${key}`] }, reason: `rotate the key ${key}` })
+      const after = (await listAll(projectRef('demo'))).find(i => i.id === w.id)
+      expect(JSON.stringify(after)).not.toContain(key)
+      expect(after?.sources[0]).toMatch(/redacted/i)
+      expect(after?.history[after.history.length - 1]?.what).toMatch(/redacted/i)
+      // The redaction log carries the kinds of what was masked, like a write does (PRD R19).
+      const rows = readFileSync(redactionsFile(), 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l) as { where: string, kinds: string[] })
+      const upd = rows.filter(r => r.where === 'memory_update').at(-1)
+      expect(upd?.kinds.length ?? 0).toBeGreaterThan(0)
     })
   })
 
@@ -155,7 +182,9 @@ describe('memory_update', () => {
       expect(cap.id.startsWith('capture-')).toBe(true)
       const filed = await update(ctx, { id: cap.id, patch: { move: { kind: 'gotcha' } } })
       expect(filed.moved_to?.id.startsWith('gotcha-')).toBe(true)
-      const moved = await update(ctx, { id: filed.id, patch: { move: { layer: 'person' } } })
+      // The filed gotcha carries the human's explicit origin, so an inferred move no longer carries it
+      // to another layer (PRD R11); the user's own hand does.
+      const moved = await update(humanCtx(sb.repo), { id: filed.id, patch: { move: { layer: 'person' } } })
       expect(moved.layer).toBe('person')
       expect((await listAll(projectRef('demo'))).map(i => i.kind)).not.toContain('gotcha')
       expect((await listAll(personRef())).map(i => i.kind)).toEqual(['gotcha'])
@@ -318,6 +347,55 @@ describe('memory_update against protected memories', () => {
       await update(humanCtx(sb.repo), { id: w.id, patch: { body: 'It is Redis streams, confirmed by me.' } })
       const got = (await listAll(projectRef('demo'))).find(i => i.id === w.id)
       expect([got?.origin, got?.confidence]).toEqual(['explicit', 1])
+    })
+  })
+
+  test('a verified memory cannot be unlocked by an inferred review flip: retire, merge, replace and move all stay conflicts (PRD R10, R11)', async () => {
+    await withBrain(async sb => {
+      const agent = agentCtx(sb.repo)
+      const verified = await write(agent, { type: 'procedure', title: 'Release with three checks', summary: 'release steps', review: 'ok' })
+      const other = await write(agent, { type: 'procedure', title: 'Write release notes by hand', summary: 'notes', body: '' })
+      // The two-step sequence an unlock used to allow: an inferred flip to pending, then the destructive op (PRD R10).
+      expect((await update(agent, { id: verified.id, patch: { review: 'pending' } })).changed).toContain('review')
+      const code = async (fn: () => Promise<unknown>) => ((await fn().catch((e: unknown) => e)) as MemoryError).code
+      expect(await code(() => update(agent, { id: verified.id, patch: { status: 'deprecated' } }))).toBe('conflict')
+      expect(await code(() => update(agent, { id: verified.id, patch: { merge_into: other.id } }))).toBe('conflict')
+      expect(await code(() => update(agent, { id: verified.id, patch: { superseded_by: other.id } }))).toBe('conflict')
+      expect(await code(() => update(agent, { id: verified.id, patch: { move: { kind: 'knowledge' } } }))).toBe('conflict')
+      const cur = (await listAll(projectRef('demo'))).find(i => i.id === verified.id)
+      expect(cur?.status).toBe('active')
+      expect(cur?.kind).toBe('procedure')
+      expect(cur?.verifiedAt).toBeDefined()
+    })
+  })
+
+  test('an inferred move of an explicit or pinned memory is a conflict; the record and its id stay (PRD R11)', async () => {
+    await withBrain(async sb => {
+      const human = humanCtx(sb.repo)
+      const agent = agentCtx(sb.repo)
+      const explicit = await write(human, { type: 'decision', title: 'Orders live in PostgreSQL', summary: 'storage choice' })
+      const pinned = await write(agent, { type: 'gotcha', title: 'Never push to main', summary: 'git rule', pin: true })
+      const code = async (fn: () => Promise<unknown>) => ((await fn().catch((e: unknown) => e)) as MemoryError).code
+      expect(await code(() => update(agent, { id: explicit.id, patch: { move: { kind: 'knowledge' } } }))).toBe('conflict')
+      expect(await code(() => update(agent, { id: pinned.id, patch: { move: { layer: 'person' } } }))).toBe('conflict')
+      const after = await listAll(projectRef('demo'))
+      expect(after.find(i => i.id === explicit.id)?.kind).toBe('decision')
+      expect(after.find(i => i.id === pinned.id)?.layer).toBe('project')
+      expect((await listAll(personRef())).find(i => i.id === pinned.id)).toBeUndefined()
+    })
+  })
+
+  test('an inferred update never drops an existing source of a locked memory, but may add one (PRD R12)', async () => {
+    await withBrain(async sb => {
+      const human = humanCtx(sb.repo)
+      const agent = agentCtx(sb.repo)
+      const locked = await write(human, { type: 'decision', title: 'Orders live in PostgreSQL', summary: 'storage choice', sources: ['src/orders.ts'] })
+      const code = async (fn: () => Promise<unknown>) => ((await fn().catch((e: unknown) => e)) as MemoryError).code
+      expect(await code(() => update(agent, { id: locked.id, patch: { sources: ['src/other.ts'] } }))).toBe('conflict')
+      const added = await update(agent, { id: locked.id, patch: { sources: ['src/orders.ts', 'src/other.ts'] } })
+      expect(added.changed).toContain('sources')
+      const cur = (await listAll(projectRef('demo'))).find(i => i.id === locked.id)
+      expect(cur?.sources).toEqual(['src/orders.ts', 'src/other.ts'])
     })
   })
 })

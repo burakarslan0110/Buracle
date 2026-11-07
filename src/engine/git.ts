@@ -82,6 +82,15 @@ export interface ProjectIdentity {
   root: string
   commonDir?: string
   remote?: string
+  /** The first commit of the repository: a stable identity for a repo without a remote (PRD R17). */
+  rootCommit?: string
+}
+
+/** The lowest root commit of the repository: a repo without a remote keeps its identity in it across moves and renames (PRD R17). */
+export async function firstCommit(cwd: string): Promise<string | undefined> {
+  const out = await git(cwd, ['rev-list', '--max-parents=0', 'HEAD'])
+  if (out === undefined) return undefined
+  return out.split('\n').map(l => l.trim()).filter(l => /^[0-9a-f]{7,40}$/.test(l)).sort()[0]
 }
 
 export async function projectIdentity(cwd: string): Promise<ProjectIdentity> {
@@ -97,6 +106,8 @@ export async function projectIdentity(cwd: string): Promise<ProjectIdentity> {
   const id: ProjectIdentity = { slug: slugPart(name), root, commonDir: common }
   if (remote !== undefined) id.remote = remote
   if (parsed?.owner !== undefined) id.ownerRepo = `${parsed.owner}/${parsed.repo}`
+  const first = await firstCommit(abs)
+  if (first !== undefined) id.rootCommit = first
   return id
 }
 

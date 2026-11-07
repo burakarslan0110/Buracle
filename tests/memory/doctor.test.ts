@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { closeAllCortex } from '../../src/memory/cortex'
 import { captureChecks, doctorExitCode, memDoctor, runLeakCheck } from '../../src/memory/doctor'
 import { finalize } from '../../src/memory/finalize'
+import { projectsFile } from '../../src/memory/layout'
+import { resolveProject } from '../../src/memory/project'
 import { sessionStart } from '../../src/memory/session-record'
 import { projectRef, saveItem } from '../../src/memory/store'
 import { migrationLockFile, sessionRecordsDir, spoolDir } from '../../src/memory/layout'
@@ -53,6 +55,23 @@ describe('mem doctor', () => {
       }
       const [warn] = captureChecks(Date.now())
       expect(warn).toMatchObject({ level: 'warn', check: 'capture' })
+    })
+  })
+
+  test('the doctor reports an unreadable projects cache and the backup it kept (PRD R14)', async () => {
+    await withBrain(async ({ repo }) => {
+      mkdirSync(join(projectsFile(), '..'), { recursive: true })
+      writeFileSync(projectsFile(), '{ nope')
+      const checks = await memDoctor({ cwd: repo, mcp: false, leak: false })
+      const c = checks.find(x => x.check === 'projects cache')
+      expect(c?.level).toBe('warn')
+      expect(c?.detail).toContain('backup')
+      // After the rebuild the report becomes information that names the kept backup.
+      await resolveProject(repo)
+      const after = await memDoctor({ cwd: repo, mcp: false, leak: false })
+      const info = after.find(x => x.check === 'projects cache')
+      expect(info?.level).toBe('info')
+      expect(info?.detail).toContain('corrupt-')
     })
   })
 

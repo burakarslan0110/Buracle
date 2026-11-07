@@ -9,7 +9,8 @@ import { memClip, memOneLine } from '../core/memory/text'
 import { log } from '../engine/log'
 import * as paths from '../engine/paths'
 import { write, type MemoryCtx } from './api'
-import { sessionRecordFile, sessionRecordsDir, spoolDir } from './layout'
+import { locksDir, sessionRecordFile, sessionRecordsDir, spoolDir } from './layout'
+import { lockHeld } from './lock'
 import { openSessions, readSessionRecord } from './session-open'
 import { listAll, personRef } from './store'
 
@@ -144,6 +145,8 @@ export function pendingSessions(nowMs: number, opts: { skip?: { h: Harness, sid:
     recorded.add(`${h}-${sid}`)
     const rec = readSessionRecord(h, sid)
     if (rec === undefined) continue
+    // A live finalizer owns this session right now (its model call may be running): not owed, not listed.
+    if (lockHeld(join(locksDir(), `finalize-${h}-${sid}.lock`), 5 * 60_000)) continue
     const mine = spools.filter(s => sidOf(s.name, h).includes(sid) && s.name.startsWith(`${h}-`))
     let last = 0
     try { last = statSync(sessionRecordFile(h, sid)).mtimeMs } catch {  }
@@ -154,6 +157,9 @@ export function pendingSessions(nowMs: number, opts: { skip?: { h: Harness, sid:
       const waiting = c?.state === 'retry' && c.tries < CAPTURE_BUDGET.maxTries && nowMs - (rec.finalizedMs ?? 0) < PENDING_GIVE_UP_MS && nowMs - (c.lastTryMs ?? 0) >= afterMs
       if (waiting) add({ h, sid, why: 'retry', lastMs: c.lastTryMs ?? last })
       else if (mine.length > 0) add({ h, sid, why: 'stale', lastMs: last })
+      // A crash before any capture state was written: the spool already sits in done, so only the record
+      // tells the session is owed. Only a session with a project bucket can ever complete its capture (PRD R1).
+      else if (c === undefined && rec.slug !== undefined && nowMs - (rec.finalizedMs ?? 0) < PENDING_GIVE_UP_MS) add({ h, sid, why: 'retry', lastMs: rec.finalizedMs ?? last })
     } else add({ h, sid, why: 'stale', lastMs: last })
   }
   for (const s of spools) {

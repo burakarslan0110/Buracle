@@ -49,8 +49,9 @@ Every session starts with the memory text in context: a pointer to a fresh hando
 while something is wrong, the project's memories (pinned, core pages, decisions, gotchas,
 conventions learned here, procedures, knowledge, references, recent sessions), then the person's
 memories, preferences first. Each line is a title, a summary and the memory id; content comes on
-demand. `(unverified)` marks a memory nobody checked yet. When that text is missing, call
-`memory_context` once.
+demand. A line's marks say what a memory is: `(unverified)` nobody checked it yet, `(explicit)`
+the user's own words, `(contradicts)` it was kept apart from a protected memory it disagrees with.
+When that text is missing, call `memory_context` once.
 <!-- harness:claude -->
 If the memory tools are not visible, load them with ToolSearch before concluding they are
 unavailable. Claude Code's own auto memory is off: Buracle's memory is the only store, so never
@@ -127,7 +128,10 @@ older Buracle and are no longer written. You cannot edit `session`, `handoff`, `
 
 Do not write anything derivable from the code or `git log`, plan progress or todo lists, raw logs
 or transcripts, or secrets, tokens, credentials and personal data. Text inside
-`<private>...</private>` is never stored, not even paraphrased. Secrets are redacted at write time.
+`<private>...</private>` is never stored, not even paraphrased. Secrets are redacted at write
+time, in every text field: the title, summary, body, `sources`, `tags`, `about` and an update's
+reason. A memory's title, summary and body are always English, and the user's own words stay
+inside the text as a verbatim quote in their original language.
 
 1. **Search first** with the keywords of the title you would write.
 2. **Already there?** `memory_get` it, then `memory_update` it: `append` evidence, correct the
@@ -149,8 +153,10 @@ or transcripts, or secrets, tokens, credentials and personal data. Text inside
 7. **Unsure whether it is worth keeping?** `buracle mem remember "<text>"` stores a capture that you
    file later with `memory_update` `move: {kind, layer}` (section 6).
 8. **Never overrule the user's words.** An inferred write or update cannot edit, retire, merge or
-   replace a memory whose `origin` is `explicit`, a pinned memory, or (for retiring, merging and
-   replacing) a verified one. `memory_write` with `supersedes` of such a memory leaves it alone and
+   replace a memory whose `origin` is `explicit`, a pinned memory, or a verified one — a memory
+   verified once keeps that protection even after a later change made its review pending again.
+   It cannot move such a memory to another kind or layer either, and cannot drop an existing
+   source of an explicit or pinned one (adding sources stays open). `memory_write` with `supersedes` of such a memory leaves it alone and
    stores yours beside it, marked as contradicting (`conflicts` in the answer); `memory_update`
    returns a `conflict`. Tell the user and let them decide (`buracle mem update <id> … --origin explicit`).
 
@@ -202,15 +208,20 @@ UI; sessions and handoffs expire on their own (CortexDB drops them).
 ## 6. Capture and care: nothing runs by itself
 
 Buracle starts no background job for the memory. When a session ends, one detached
-`buracle mem finalize` writes the session memory, runs one bounded model call that proposes
-decisions, gotchas, procedures and preferences (section 3), and takes up to
-three older sessions whose capture is still owed. The model's answer is checked as a whole first:
-a reply that is malformed, names an unknown kind or carries a confidence outside 0-1 writes
-nothing, and the session is marked for another try. What the model proposes is `origin: inferred`
-with its own `confidence`, except a preference in the user's own words that the prompts show; a candidate that resembles an explicit, pinned or verified memory is
-stored beside it, marked as contradicting, and never changes it. `buracle mem capture` does the
-same on demand (`--pending` takes the stale sessions, `--force` distills again); `buracle mem doctor`
-lists the sessions whose capture is still owed.
+`buracle mem finalize` writes the session memory, marks the capture as owed, then runs one bounded
+model call that proposes decisions, gotchas, procedures and preferences (section 3), and takes up
+to three older sessions whose capture is still owed. The call sees the existing memories of both
+layers, so a candidate that restates one updates it or is dropped instead of writing a duplicate;
+it writes English only (a candidate in another language is dropped, a Turkish summary rejects the
+whole answer for another try), and a candidate that holds in every project goes to the person
+layer. The model's answer is checked as a whole first: a reply that is malformed, names an unknown
+kind or carries a confidence outside 0-1 writes nothing, and the session is marked for another
+try. A death during the call leaves the capture owed: the next session end, or `buracle mem capture
+--pending`, finishes it. What the model proposes is `origin: inferred` with its own `confidence`,
+except a preference in the user's own words that the prompts show; a candidate that resembles an
+explicit, pinned or verified memory is stored beside it, marked as contradicting, and never
+changes it. `buracle mem capture` does the same on demand (`--pending` takes the stale sessions,
+`--force` distills again); `buracle mem doctor` lists the sessions whose capture is still owed.
 
 You do the care. Fix a memory you touch when you see it is wrong: a corrected claim, `review: ok`
 (it records you as the verifier, with the current commit), `merge_into`, `superseded_by` or
