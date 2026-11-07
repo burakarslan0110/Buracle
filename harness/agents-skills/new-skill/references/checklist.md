@@ -32,7 +32,7 @@ whether the skill will actually be picked and followed.
 - [ ] A "Done means" list of observable evidence.
 - [ ] Numbered phases, each ending with a gate or an output.
 - [ ] Every external step names its tool: the MCP server (and tool) or the exact command.
-- [ ] Only documented `buracle` subcommands (the `buracle` skill (read `~/.agents/skills/buracle/SKILL.md` in Codex, load it with the `skill` tool in OpenCode, read `skill://buracle` in Oh My Pi) lists them).
+- [ ] Only documented `buracle` subcommands (the `buracle` skill (read `${CODEX_HOME:-~/.codex}/skills/buracle/SKILL.md` in Codex, load it with the `skill` tool in OpenCode, read `skill://buracle` in Oh My Pi) lists them).
 - [ ] Failure handling for the failures that will really happen.
 - [ ] One short, realistic example.
 - [ ] Self-contained: no "as discussed above"; the skill runs in fresh sessions.

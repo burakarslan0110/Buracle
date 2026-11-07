@@ -73,15 +73,23 @@ current with `buracle flow`; the calls are cheap and best effort, so a failing o
    generated and vendored directories, test layout, and whether this is a library (public API matters) or
    an application.
 
-Track Phases 0-6 with your plan/todo tool where available (`update_plan` in Codex, the todo tool in Oh My Pi; OpenCode v2 has none).
+Track Phases 0-6 with your plan/todo tool (`update_plan` in Codex, `todowrite` in OpenCode, the todo tool in Oh My Pi).
 
 ## Phase 1: Collect candidates
 
 1. `buracle flow phase collect`. Run the helper script from the project root. It is read-only and
    needs only `bun` and `rg`.
-   **Codex, OpenCode and Oh My Pi:**
+   **Codex:**
    ```bash
-   bun "$HOME/.agents/skills/dead-code/scripts/candidates.ts" --root . --scope <path>
+   bun "${CODEX_HOME:-$HOME/.codex}/skills/dead-code/scripts/candidates.ts" --root . --scope <path>
+   ```
+   **OpenCode:**
+   ```bash
+   bun "${XDG_CONFIG_HOME:-$HOME/.config}/opencode/skills/dead-code/scripts/candidates.ts" --root . --scope <path>
+   ```
+   **Oh My Pi:**
+   ```bash
+   bun "${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}/skills/dead-code/scripts/candidates.ts" --root . --scope <path>
    ```
    If that path does not exist, use the `scripts/` folder next to this SKILL.md.
    Options: `--mode exports|files|all`, `--lang ts,js,py,go`, `--exclude '<glob>'` (repeatable),
@@ -92,9 +100,17 @@ Track Phases 0-6 with your plan/todo tool where available (`update_plan` in Code
 2. Take a graph snapshot of everything the codegraph index says nothing reaches, with the index's
    health. It opens the index read-only, never runs `codegraph init` or sync, and needs the codegraph
    toolchain Buracle installs.
-   **Codex, OpenCode and Oh My Pi:**
+   **Codex:**
    ```bash
-   bun "$HOME/.agents/skills/dead-code/scripts/graph-candidates.ts" --root . --scope <path> --json
+   bun "${CODEX_HOME:-$HOME/.codex}/skills/dead-code/scripts/graph-candidates.ts" --root . --scope <path> --json
+   ```
+   **OpenCode:**
+   ```bash
+   bun "${XDG_CONFIG_HOME:-$HOME/.config}/opencode/skills/dead-code/scripts/graph-candidates.ts" --root . --scope <path> --json
+   ```
+   **Oh My Pi:**
+   ```bash
+   bun "${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}/skills/dead-code/scripts/graph-candidates.ts" --root . --scope <path> --json
    ```
    Options: `--exclude '<glob>'`, `--include-exported`, `--include-tests`, `--limit <n>`, `--help`.
    Its rows are G evidence for the candidates of step 1 and nominate symbols the text script cannot

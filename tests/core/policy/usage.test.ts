@@ -48,7 +48,7 @@ describe('ledger records', () => {
     expect(skillOf(call('claude', 'Skill', { skill: 'anthropic-skills:pdf' }), 'claude')).toBeUndefined()
     expect(skillOf(call('claude', 'Read', { file_path: '/Users/u/.claude/plugins/cache/buracle/skills/plan-build/SKILL.md' }), 'claude')).toBe('plan-build')
     expect(skillOf(call('claude', 'Read', { file_path: '/repo/src/skills.ts' }), 'claude')).toBeUndefined()
-    expect(skillOf(call('codex', 'Bash', { command: 'cat ~/.agents/skills/plan-build/SKILL.md' }), 'codex')).toBe('plan-build')
+    expect(skillOf(call('codex', 'Bash', { command: 'cat ~/.codex/skills/plan-build/SKILL.md' }), 'codex')).toBe('plan-build')
     expect(skillOf(call('codex', 'Bash', { command: "sed -n '1,120p' /Users/u/.agents/skills/bugfix/SKILL.md" }), 'codex')).toBe('bugfix')
     expect(skillOf(call('opencode', 'skill', { id: 'research' }), 'opencode')).toBe('research')
     expect(skillOf(call('omp', 'read', { path: 'skill://research' }), 'omp')).toBe('research')

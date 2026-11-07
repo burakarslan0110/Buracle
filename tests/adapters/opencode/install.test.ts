@@ -24,6 +24,17 @@ describe('mcp.off.opencode: OpenCode\'s own off setting', () => {
   }))
 })
 
+describe('experimental.todo: OpenCode\'s todo tool', () => {
+  test('is turned on for OpenCode 2.1.2 and later and for an unknown version, never for an older one', () => withSandbox(async () => {
+    const keys = async (version: string | undefined) => Object.assign({}, ...(await installPlan(adapterContext(), { opencode: version === undefined ? null : { path: '/fake/opencode', version } })).ops.flatMap(o => (o.kind === 'jsonc-merge' ? [o.set] : []))) as Record<string, unknown>
+    expect((await keys('2.2.5'))['experimental.todo']).toBe(true)
+    expect((await keys('2.1.2'))['experimental.todo']).toBe(true)
+    expect((await keys(undefined))['experimental.todo']).toBe(true)
+    expect('experimental.todo' in await keys('2.1.1')).toBe(false)
+    expect('experimental.todo' in await keys('2.0.20')).toBe(false)
+  }))
+})
+
 const USER_JSONC = `{
   // my default model
   "model": "openai/gpt-5.5",
@@ -65,6 +76,7 @@ describe('opencode installPlan', () => {
     expect(cfg['mcp']['servers']['mine']).toEqual({ type: 'local', command: ['my-mcp', '--stdio'] })
     expect(cfg['$schema']).toBe(CONFIG_SCHEMA_URL)
     expect(cfg['share']).toBe('disabled')
+    expect(cfg['experimental']).toEqual({ todo: true })
     expect(cfg['permissions']).toEqual(GLOBAL_PERMISSIONS)
     expect(cfg['mcp']['servers']['context7']['codemode']).toBe(false)
     expect(cfg['mcp']['servers']['buracle-memory']['command']).toEqual([ctx.buracleBin, 'mcp', 'memory'])

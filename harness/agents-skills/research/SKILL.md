@@ -83,7 +83,7 @@ Earlier decisions and knowledge are dated evidence: cite the memory id, and re-v
 ## Phase 2: Plan
 
 `buracle flow phase plan`. Split the question into 2-6 sub-questions, each with its source type (docs,
-web, code, memory). Track them with your plan/todo tool where available (`update_plan` in Codex, the todo tool in Oh My Pi; OpenCode v2 has none). Issue independent calls in parallel.
+web, code, memory). Track them with your plan/todo tool (`update_plan` in Codex, `todowrite` in OpenCode, the todo tool in Oh My Pi). Issue independent calls in parallel.
 
 ## Phase 3: Gather
 

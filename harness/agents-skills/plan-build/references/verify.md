@@ -17,7 +17,7 @@ Order matters: finish every code fix (review findings included) before you recor
    - `inventory-open`: an `## Inventory` row whose task is missing or not ticked.
 
    Work that is missing is a gap (V8). A file you changed without a reason on record gets a Deviation entry, or you undo your own change. Never revert a file this run did not change: in `working-tree` mode the diff can include the user's own edits. Name those in the report and leave them out of `changed_files`.
-5. Your plan/todo tool where available (`update_plan` in Codex, the todo tool in Oh My Pi; OpenCode v2 has none): one item per step V1 to V10.
+5. Your plan/todo tool (`update_plan` in Codex, `todowrite` in OpenCode, the todo tool in Oh My Pi): one item per step V1 to V10.
 
 ## V1. Launch the changes review
 

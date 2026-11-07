@@ -23,7 +23,7 @@ alone, and it skips the OpenCode service step. A newer release needs no check of
 | --- | --- | --- | --- | --- |
 | MCP servers (the catalog in `canonical/mcp.yaml`) | yes | yes | yes | yes, except the Chrome DevTools and LSP servers |
 | Hooks | command hooks on 12 events, plus in-process mod events | command hooks on 11 events, trust-hashed by Codex | in-process plugin triggers; no stop veto, no subagent-stop, no approval event | in-process extension events |
-| Skills | plugin skills | `~/.agents/skills` | `~/.agents/skills` | `~/.agents/skills` |
+| Skills | plugin skills | `$CODEX_HOME/skills` | `~/.config/opencode/skills` | `~/.omp/agent/skills` |
 | Rules | `~/.claude/rules` | `AGENTS.md` block plus path rules read on first edit | path rules read on first edit | native conditional rules |
 | Review agents | 3 | 3 (TOML) | 3 | 3 |
 | Status line | native `statusLine` plus a band | partial: native items plus a tmux bar | TUI plugin | extension |
@@ -36,8 +36,9 @@ Recorded limits that matter for memory and the hooks:
   footer shows only Codex's own items. `compact_prompt` steers only local compaction, so the memory handoff carries
   the state over when a provider compacts on the server.
 - **OpenCode**: no plugin hook runs before a session stops, so the stop guard re-prompts afterwards, with caps. Leaving
-  the plan agent is not an approval, so the plan is captured as a draft. OpenCode 2.x has no todo tool, so the
-  handoff memory carries the plan without todos.
+  the plan agent is not an approval, so the plan is captured as a draft. OpenCode's todo tool (`todowrite`) is
+  experimental, so Buracle turns it on (`experimental.todo` in `opencode.jsonc`) and carries its open items into the
+  handoff memory.
 - **Oh My Pi**: a second opinion cannot hold bash to read-only commands, so it runs with read, grep and glob only.
 - **Claude Code**: the hooks are plain `bun <plugin>/bin/buracle.ts hook claude <Event>` commands with no shell. They
   need `bun` on the `PATH` of the process that launches Claude Code; a GUI-launched Claude without Bun makes

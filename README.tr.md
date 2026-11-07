@@ -79,7 +79,7 @@ Kurulumdan sonra:
 1. Önce harness dosyalarını `canonical/` ve `src/` klasörlerinden üretir. Derleme başarısız olursa hiçbir şey kurulmaz.
 2. Depoyu `~/.buracle/runtime/<id>` altına kopyalar ve kopyayı sınar. `--version` çalışmalı, Claude Code ve Codex hook'ları da `rm -rf ~` komutunu reddedip `ls` komutuna izin vermelidir. `buracle` komutu ancak bundan sonra yeni kopyaya geçer. Önceki kopya geri alma için saklanır.
 3. Eksik sistem araçlarını Homebrew (macOS'ta, Homebrew kuruluysa Linux'ta da) ile kurar. Homebrew kuramıyorsa Node.js, uv, ripgrep ve jq sabitlenmiş sürümüyle indirilir, sabitlenen sha256 ile doğrulanır, bir kez çalıştırılır ve `~/.local/bin` altına bağlanır. Linux'ta Homebrew yoksa eksik diğer araçları yalnızca dağıtımın komutuyla birlikte bildirir. Her MCP sunucusunu ve dil sunucusunu `~/.buracle/toolchain` altına kurar. CortexDB dahil her şey en yeni sürümüyle gelir. Yeni bir CortexDB sürümü yalnızca hafızanın denetiminden geçtikten sonra ve beyinler yedeklendikten sonra kullanılır. `update.minReleaseAgeDays` (varsayılan 0) bir sürümden sonra birkaç gün beklemeyi sağlar.
-4. `~/.buracle/bin/buracle` komutunu, onun `~/.local/bin/buracle` bağlantısını, `~/.buracle/config.yaml` dosyasını ve `~/.agents/skills` altındaki ortak skill'leri yazar.
+4. `~/.buracle/bin/buracle` komutunu, onun `~/.local/bin/buracle` bağlantısını, `~/.buracle/config.yaml` dosyasını ve kurulu her harness'ın kendi skill klasöründeki skill bağlantılarını (`~/.codex/skills`, `~/.config/opencode/skills`, `~/.omp/agent/skills`) yazar. Ortak `~/.agents/skills` klasörüne hiçbir şey yazmaz. Bu yüzden Buracle'ın desteklemediği araçlar onun skill'lerini görmez.
 5. Her harness'ı kendi işlemiyle (transaction) kurar. İşlem yedek, atomik yazma, günlük, komutlar, doğrulama, sahiplik kaydı ve onay adımlarından geçer. Bir harness başarısız olursa yalnızca o harness geri alınır.
 6. Son olarak `~/.buracle/brain` hafıza klasörünü oluşturur.
 
@@ -323,7 +323,6 @@ Buracle Claude Code, Codex ve Oh My Pi'nin yerleşik hafızasını kapatır. Bö
 | `opencode.consent-dialog` | OpenCode | Pencere TUI eklentisine muhtaç, web, masaüstü, sunucu API'si ve `opencode run` onu yüklemez | Ret mesajı ajana `question` aracıyla sormasını söyler |
 | `opencode.approved-plan-capture` | OpenCode | Plan ajanının onay aracı ya da olayı yok | Oturum plan ajanından çıkınca taslak bir plan (`approved: false`) |
 | `opencode.native-plan-approval` | OpenCode | Plan ajanından çıkmak onay sayılmaz | Hazırlanan plan taslak olarak doldurulur, plan-build kullanıcıya sorar |
-| `opencode.todo-handoff` | OpenCode | OpenCode 2.x'te todo aracı yok | Devir hafızası planı ve açık görevlerini taşır |
 | `opencode.goal-command` | OpenCode | Yerleşik bir goal komutu yok | goal-build özeti koşulu ilk cümlesinde söyler |
 | `opencode.quiet-stop-feedback` | OpenCode | Oturum durmadan önce çalışan bir eklenti hook'u yok | Oturum bitince sınırlı sayıda yeniden istem |
 | `opencode.stop-veto` | OpenCode | Durmak üzere olan bir oturumu tutabilen eklenti hook'u yok | Oturum bitince sınırlı sayıda yeniden istem |

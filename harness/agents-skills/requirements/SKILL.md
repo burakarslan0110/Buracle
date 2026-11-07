@@ -34,7 +34,7 @@ Turn a fuzzy idea into an approved product requirements document, then hand off 
    flags and scope-creep risks while they are still cheap to fix. Ask of every proposed feature whether
    it needs to exist at all: the cheapest scope to cut is the scope never specified.
 
-Track Phases 0-8 with your plan/todo tool where available (`update_plan` in Codex, the todo tool in Oh My Pi; OpenCode v2 has none). Question patterns, the scope checklist and requirement-writing rules are
+Track Phases 0-8 with your plan/todo tool (`update_plan` in Codex, `todowrite` in OpenCode, the todo tool in Oh My Pi). Question patterns, the scope checklist and requirement-writing rules are
 in [references/discovery.md](references/discovery.md). The document format and the self-review are in
 [references/prd-template.md](references/prd-template.md).
 

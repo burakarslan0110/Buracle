@@ -504,6 +504,29 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
     expect(ctxEv.system.some(p => p.text.includes('docs/plans/2026-10-08-x.md'))).toBe(true)
   }))
 
+  test('the open todos of the last todowrite call go into the handoff note; finished and cancelled ones do not', () => withSandbox(async ({ root }) => {
+    const { f, mem } = await runtime(root)
+    const todos = [{ content: 'Write the parser', status: 'in_progress' }, { content: 'Add the tests', status: 'pending' }, { content: 'Old item', status: 'completed' }, { content: 'Dropped', status: 'cancelled' }]
+    await f.trigger('tool.execute.after', { tool: 'todowrite', sessionID: SID, agent: 'build', messageID: 'msg_t1', id: 'call_t1', input: { todos }, status: 'completed', result: { output: {}, content: [{ type: 'text', text: 'Todos updated' }] } } satisfies ToolExecuteAfter)
+    const ev = { sessionID: SID, model: { id: 'm1', providerID: 'p' }, agent: 'compaction', system: [] as Array<{ type: 'text', text: string }>, messages: [], options: {}, tools: {} }
+    await f.trigger('session.compaction', ev)
+    const md = mem.handoffs[0]?.markdown ?? ''
+    expect(md).toContain('## Open todos\n- [ ] Write the parser\n- [ ] Add the tests\n')
+    expect(md).not.toContain('Old item')
+    expect(md).not.toContain('Dropped')
+    await f.trigger('tool.execute.after', { tool: 'todowrite', sessionID: SID, agent: 'build', messageID: 'msg_t2', id: 'call_t2', input: { todos: [] }, status: 'completed', result: { output: {}, content: [{ type: 'text', text: 'Todos cleared' }] } } satisfies ToolExecuteAfter)
+    await f.trigger('session.compaction', { ...ev, system: [] })
+    expect(mem.handoffs[1]?.markdown).toContain('## Open todos\nNone recorded.')
+  }))
+
+  test('the open todos survive a plugin restart: a new runtime still writes them into the handoff', () => withSandbox(async ({ root }) => {
+    const first = await runtime(root)
+    await first.f.trigger('tool.execute.after', { tool: 'todowrite', sessionID: SID, agent: 'build', messageID: 'msg_t1', id: 'call_t1', input: { todos: [{ content: 'Keep me', status: 'pending' }] }, status: 'completed', result: { output: {}, content: [{ type: 'text', text: 'Todos updated' }] } } satisfies ToolExecuteAfter)
+    const { f, mem } = await runtime(root)
+    await f.trigger('session.compaction', { sessionID: SID, model: { id: 'm1', providerID: 'p' }, agent: 'compaction', system: [] as Array<{ type: 'text', text: string }>, messages: [], options: {}, tools: {} })
+    expect(mem.handoffs[0]?.markdown).toContain('## Open todos\n- [ ] Keep me\n')
+  }))
+
   test('compaction without a plan saves a handoff too (the same rule on every harness)', () => withSandbox(async ({ root }) => {
     const { f, mem } = await runtime(root)
     const ev = { sessionID: SID, model: { id: 'm1', providerID: 'p' }, agent: 'compaction', system: [] as Array<{ type: 'text', text: string }>, messages: [], options: {}, tools: {} }

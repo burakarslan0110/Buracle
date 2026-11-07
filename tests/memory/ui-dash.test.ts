@@ -216,6 +216,9 @@ describe('the extensions overview', () => {
     await withSandbox(async ({ home, buracleHome }) => {
       write(join(buracleHome, 'config.yaml'), 'harnesses:\n  codex:\n    enabled: false\n')
       write(join(home, '.agents', 'skills', 'memory', 'SKILL.md'), '---\nname: memory\ndescription: d\n---\n')
+      expect(((await get(ctx(), '/api/extensions?scope=person')).body as { skills: Array<Record<string, unknown>> }).skills.find(s => s['id'] === 'memory' && s['kind'] === 'canonical')).toMatchObject({ where: { opencode: 'missing', omp: 'missing' } })
+      write(join(home, '.config', 'opencode', 'skills', 'memory', 'SKILL.md'), '---\nname: memory\ndescription: d\n---\n')
+      write(join(home, '.omp', 'agent', 'skills', 'memory', 'SKILL.md'), '---\nname: memory\ndescription: d\n---\n')
       const e = (await get(ctx(), '/api/extensions?scope=person')).body as { harnesses: Record<string, boolean>, skills: Array<Record<string, unknown>>, agents: Array<Record<string, unknown>>, rules: Array<Record<string, unknown>> }
       expect(e.harnesses).toEqual({ claude: true, codex: false, opencode: true, omp: true })
       const memory = e.skills.find(s => s['id'] === 'memory' && s['kind'] === 'canonical')

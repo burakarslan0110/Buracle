@@ -119,6 +119,17 @@ describe('skills add, remove, update', () => {
     })
   })
 
+  test('a Buracle skill id is refused while ~/.agents/skills holds no Buracle link', async () => {
+    await withSandbox(async ({ root, home }) => {
+      const repo = await skillsRepo(root)
+      const r = await skillsAdd(`${repo}/skills/alpha`, { id: 'research' }, ctx(root))
+      expect(r.code).toBe(1)
+      expect(r.errors.join('\n')).toContain('research: a Buracle skill has this id')
+      expect(existsSync(join(home, '.agents', 'skills', 'research'))).toBe(false)
+      expect(readInstalled()).toEqual([])
+    })
+  })
+
   test('--all installs every skill; --dry-run changes nothing; a Buracle skill id and a foreign folder are refused', async () => {
     await withSandbox(async ({ root, home }) => {
       const repo = await skillsRepo(root)

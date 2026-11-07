@@ -42,13 +42,13 @@ baseline, on cases that could have failed?
 `${CLAUDE_SKILL_DIR}`
 <!-- /harness -->
 <!-- harness:codex -->
-`~/.agents/skills/ab-test`
+`${CODEX_HOME:-$HOME/.codex}/skills/ab-test`
 <!-- /harness -->
 <!-- harness:opencode -->
-`~/.agents/skills/ab-test`
+`${XDG_CONFIG_HOME:-$HOME/.config}/opencode/skills/ab-test`
 <!-- /harness -->
 <!-- harness:omp -->
-`~/.agents/skills/ab-test`
+`${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}/skills/ab-test`
 <!-- /harness -->
 If that path does not exist, use the folder that holds this SKILL.md.
 

@@ -372,7 +372,7 @@ describe('capabilityCard (H15)', () => {
     expect(card('claude', { plugins: ['lint-lsp@acme-market'] })).toContain('Plugins: lint-lsp')
     expect(capabilityCard({ policy: POLICY, mcp: [], skills: [], plugins: [], harness: 'claude', lsp: ['typescript', 'pyright', 'gopls'] })).toContain('Language servers (LSP tool: definitions, references, hover, diagnostics): gopls, pyright, typescript')
     expect(card('omp')).not.toContain('chrome-devtools')
-    expect(card('codex')).toContain('Skills (the user starts a workflow with $<id>; you load one by reading ~/.agents/skills/<id>/SKILL.md):')
+    expect(card('codex')).toContain('Skills (the user starts a workflow with $<id>; you load one by reading ${CODEX_HOME:-~/.codex}/skills/<id>/SKILL.md):')
     expect(card('omp')).toContain('Skills (the user starts a workflow with /<id>; you load one by reading skill://<id>):')
     expect(c).toContain('Buracle names the skills and MCP servers each prompt calls for')
   })

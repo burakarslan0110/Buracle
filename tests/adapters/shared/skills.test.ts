@@ -65,10 +65,10 @@ describe('neutral skill render (harness/agents-skills)', () => {
     }
     for (const p of ['ab-test/SKILL.md', 'dead-code/SKILL.md']) expect((byPath.get(p) as { content: string }).content).not.toContain('CLAUDE_SKILL_DIR')
     expect((byPath.get('research/SKILL.md') as { content: string }).content).not.toContain('ToolSearch')
-    expect((byPath.get('ab-test/SKILL.md') as { content: string }).content).toContain('**Codex, OpenCode and Oh My Pi:** `~/.agents/skills/ab-test`')
+    expect((byPath.get('ab-test/SKILL.md') as { content: string }).content).toContain('**Codex:** `${CODEX_HOME:-$HOME/.codex}/skills/ab-test`\n**OpenCode:** `${XDG_CONFIG_HOME:-$HOME/.config}/opencode/skills/ab-test`\n**Oh My Pi:** `${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}/skills/ab-test`')
     expect((byPath.get('plan-build/references/plan.md') as { content: string }).content).toContain('`request_user_input` in Codex')
     expect((byPath.get('inspect/SKILL.md') as { content: string }).content).toContain('suggest `/bugfix` (Codex: `$bugfix`)')
-    expect((byPath.get('project-rules/SKILL.md') as { content: string }).content).toContain('the `memory` skill: read `~/.agents/skills/memory/SKILL.md` in Codex')
+    expect((byPath.get('project-rules/SKILL.md') as { content: string }).content).toContain('the `memory` skill: read `${CODEX_HOME:-~/.codex}/skills/memory/SKILL.md` in Codex')
     for (const f of rendered.files) if (f.path.endsWith('.md')) expect({ path: f.path, oldForm: /`@(?:spec|build|fix|prd|research)`|`\/skill:(?:spec|build|fix|prd)`/.test(f.content) }).toEqual({ path: f.path, oldForm: false })
   })
 

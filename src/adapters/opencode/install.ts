@@ -8,7 +8,7 @@ import { bunExecutable } from '../../engine/config'
 import type { Ledger, Op, Plan } from '../../engine/txn'
 import { readLedger } from '../../engine/txn'
 import { buildFiles } from './build'
-import { AGENTS_BLOCK_ID, MIN_VERSION, OWNER, PLUGIN_DIR } from './constants'
+import { AGENTS_BLOCK_ID, MIN_VERSION, OWNER, PLUGIN_DIR, TODO_FLAG_KEY, TODO_MIN_VERSION } from './constants'
 import { POINTER_FILE } from './runtime/env'
 import { agentsBlock, cliSet, configSet } from './render'
 
@@ -108,13 +108,16 @@ export async function installPlan(ctx: AdapterContext, opts: InstallOptions = {}
     ops.push({ kind: 'remove', path: entry.path, owner: OWNER })
   }
 
-  ops.push(...configOps(configDir, configSet(ctx.canonical, shim, ctx.config.mcp.off.opencode)))
+  const bin = opts.opencode !== undefined ? opts.opencode : await detectBinary('opencode').then(d => (d.installed && d.path !== undefined ? { path: d.path, ...(d.version !== undefined ? { version: d.version } : {}) } : null))
+  const set = configSet(ctx.canonical, shim, ctx.config.mcp.off.opencode)
+  // An OpenCode older than TODO_MIN_VERSION has no todo tool and no such flag; it gets no key it does not know.
+  if (bin?.version !== undefined && compareVersions(bin.version, TODO_MIN_VERSION) < 0) delete set[TODO_FLAG_KEY]
+  ops.push(...configOps(configDir, set))
   const cliPath = join(configDir, 'cli.json')
   const enforce = ctx.config.permissions.bypass && ctx.config.permissions.enforce ? { enforce: [CLI_PERMISSIONS_KEY] } : {}
   ops.push({ kind: 'jsonc-merge', path: cliPath, set: cliKeys(cliPath, owned, join(configDir, PLUGIN_DIR), ctx.config.permissions.bypass), owner: OWNER, ...enforce })
   ops.push({ kind: 'md-block', path: join(configDir, 'AGENTS.md'), id: AGENTS_BLOCK_ID, content: agentsBlock(ctx.canonical, displayPath(pathRulesDir, homeDir)), owner: OWNER })
 
-  const bin = opts.opencode !== undefined ? opts.opencode : await detectBinary('opencode').then(d => (d.installed && d.path !== undefined ? { path: d.path, ...(d.version !== undefined ? { version: d.version } : {}) } : null))
   if (bin !== null && bin.version !== undefined && compareVersions(bin.version, MIN_VERSION) >= 0) {
     ops.push({
       kind: 'exec',

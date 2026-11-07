@@ -68,8 +68,9 @@ at its newest release (update.minReleaseAgeDays, 0 by default, can wait days) in
 and swapped in with the previous copy kept for \`buracle rollback toolchain\`. Then composes:
   - the core plan: ~/.buracle/bin/buracle shim, ~/.local/bin/buracle link, repo: in
     config.yaml, and the path rules Codex and OpenCode read (~/.buracle/rules/paths/<id>.md)
-  - the shared skills plan: ~/.agents/skills/<id> -> harness/agents-skills/<id> symlinks
-    (when Codex, OpenCode or Oh My Pi is enabled and installed)
+  - the skills plan: harness/agents-skills/<id> linked into the skills folder of each enabled
+    and installed Codex ($CODEX_HOME/skills), OpenCode (~/.config/opencode/skills) and
+    Oh My Pi (~/.omp/agent/skills); nothing goes to the shared ~/.agents/skills
   - each enabled and detected harness adapter's install plan
 then applies the core and shared plans as one transaction and each harness as its
 own: backup -> atomic writes -> journal -> commands -> verify -> ledger -> commit,

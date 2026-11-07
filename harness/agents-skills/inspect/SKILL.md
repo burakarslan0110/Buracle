@@ -98,7 +98,7 @@ entry point → inputs and configuration (defaults, files, environment, flags) �
 transformations → boundaries (I/O, network, database, other services, libraries) → observable outcome.
 
 For each hop record `path:line`, what happens there, and the condition that selects it. Track open hops
-with your plan/todo tool where available (`update_plan` in Codex, the todo tool in Oh My Pi; OpenCode v2 has none). At a library boundary, read the installed version from the lockfile and query context7
+with your plan/todo tool (`update_plan` in Codex, `todowrite` in OpenCode, the todo tool in Oh My Pi). At a library boundary, read the installed version from the lockfile and query context7
 for that version; read vendored source when it exists. When what runs is a generated, built or
 installed copy (a bundle, generated code, an installed package or plugin), "the source says it, so the
 copy matches" is a shortcut: read the copy itself (*Build output or installed copy* in

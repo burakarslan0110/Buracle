@@ -394,7 +394,7 @@ function loadHow(h: Harness, id: string, explicit: boolean, file: string | undef
     case 'claude':
       if (!explicit) return `Skill tool, buracle:${id}`
       return `read ${file ?? `skills/${id}/SKILL.md in the Buracle plugin`}`
-    case 'codex': return `read ~/.agents/skills/${id}/SKILL.md`
+    case 'codex': return `read \${CODEX_HOME:-~/.codex}/skills/${id}/SKILL.md`
     case 'opencode': return `skill tool, ${id}`
     case 'omp': return `read skill://${id}`
   }
@@ -402,7 +402,7 @@ function loadHow(h: Harness, id: string, explicit: boolean, file: string | undef
 
 const CANDIDATE_HOW: Record<Harness, string> = {
   claude: 'Skill tool, buracle:<id>',
-  codex: 'read ~/.agents/skills/<id>/SKILL.md',
+  codex: 'read ${CODEX_HOME:-~/.codex}/skills/<id>/SKILL.md',
   opencode: 'skill tool',
   omp: 'read skill://<id>',
 }

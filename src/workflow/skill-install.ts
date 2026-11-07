@@ -236,6 +236,9 @@ function linkState(link: string, target: string): 'absent' | 'ours' | 'foreign' 
 }
 
 function destinationState(id: string, installed: InstalledSkill[]): 'free' | 'installed' | 'buracle' | 'foreign' {
+  // Buracle's own skills live in each harness's skills folder, not here, so a third-party copy
+  // under the same id would show the harness two skills with one name.
+  if (existsSync(join(paths.repoRoot(), 'harness', 'agents-skills', id, 'SKILL.md'))) return 'buracle'
   const dir = installedSkillDir(id)
   let st
   try { st = lstatSync(dir) } catch { return 'free' }
@@ -317,7 +320,7 @@ export async function skillsAdd(spec: string, opts: AddOptions, ctx: WorkflowCtx
     const audit = auditSkillDir(f.dir)
     const state = destinationState(id, installed)
     const entry: Record<string, unknown> = { id, source: parsed.display, path: f.rel, lint: { errors: report.errors, warnings: report.warnings }, audit: { scripts: audit.scripts, warnings: audit.warnings }, destination: installedSkillDir(id), state }
-    if (state === 'buracle') { errors.push(`${id}: a Buracle skill has this id (~/.agents/skills/${id} is Buracle's own); choose another with --id`); results.push({ ...entry, installed: false }); continue }
+    if (state === 'buracle') { errors.push(`${id}: a Buracle skill has this id; choose another with --id`); results.push({ ...entry, installed: false }); continue }
     if (state === 'foreign' && opts.force !== true) { errors.push(`${id}: ~/.agents/skills/${id} exists and was not installed by Buracle; --force replaces it`); results.push({ ...entry, installed: false }); continue }
     if (report.errors > 0 && opts.force !== true) {
       errors.push(`${id}: ${report.errors} lint error(s); fix the source or pass --force:`, ...report.findings.filter(x => x.level === 'error').map(formatFinding))

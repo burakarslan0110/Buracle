@@ -107,7 +107,8 @@ the user has the publish steps. The calls are cheap and best effort; a failing o
    - **Buracle repo:** `git add canonical/skills/<id>`, then
      `git commit -m "skill(<id>): <what it does>"`, then `buracle install` (it builds and installs into
      every installed harness). Claude Code picks it up after `/reload-plugins` or a restart; Codex,
-     OpenCode and omp see it in new sessions through `~/.agents/skills`.
+     OpenCode and omp see it in new sessions through their own skills folders
+     (`~/.codex/skills`, `~/.config/opencode/skills`, `~/.omp/agent/skills`).
    - **Personal skills repo:** commit and push there, then `buracle update --check` and
      `buracle update --yes`; the update fast-forwards the checkout, lints, builds and installs the
      skill into every harness.

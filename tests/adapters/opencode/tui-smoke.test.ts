@@ -51,8 +51,8 @@ async function tuiSetup({ root, home, buracleHome }: { root: string, home: strin
   mkdirSync(join(root, 'tmp'), { recursive: true })
   const project = join(root, 'project')
   mkdirSync(project, { recursive: true })
-  mkdirSync(join(paths.agentsDir(), 'skills'), { recursive: true })
-  symlinkSync(join(REPO, 'harness', 'agents-skills', 'plan-build'), join(paths.agentsDir(), 'skills', 'plan-build'))
+  mkdirSync(join(paths.opencodeConfigDir(), 'skills'), { recursive: true })
+  symlinkSync(join(REPO, 'harness', 'agents-skills', 'plan-build'), join(paths.opencodeConfigDir(), 'skills', 'plan-build'))
 
   await applyPlans([await installPlan(adapterContext(), { opencode: null })])
   const provider = startFakeProvider(rules)

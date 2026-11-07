@@ -12,9 +12,9 @@ import { DAY_MS, scanHookFailures } from '../hook-health'
 import * as paths from '../paths'
 import type { LiveContext } from './context'
 import { opsDeps } from './deps'
-import { buracleHomeProblem, pathLink } from './install-core'
+import { AGENTS_SKILLS_CONSUMERS, buracleHomeProblem, harnessSkillsDir, pathLink } from './install-core'
 import { probeServers, writeHealth, type McpHealthEntry, type ToolHealthEntry } from './mcp'
-import { errText, tilde, tildeText } from './output'
+import { errText, isInside, tilde, tildeText } from './output'
 import { checkoutGitState, packagesProblem, parseShimText, runtimeDirOf, runtimeHealth, type ShimInfo } from './runtime'
 import { readUpdatesCache } from './updates-cache'
 import { binArgv } from '../toolchain/packages'
@@ -395,7 +395,7 @@ export async function harnessChecks(adapters: readonly Adapter[], live: LiveCont
   return out
 }
 
-export function skillChecks(skillIds: readonly string[], repoRoot: string, harnesses: { claude: boolean, shared: boolean }): DoctorCheck[] {
+export function skillChecks(skillIds: readonly string[], repoRoot: string, harnesses: { claude: boolean, linked: readonly Harness[] }): DoctorCheck[] {
   const s = 'skills'
   const out: DoctorCheck[] = []
   if (harnesses.claude) {
@@ -404,20 +404,21 @@ export function skillChecks(skillIds: readonly string[], repoRoot: string, harne
       ? { section: s, level: 'ok', check: 'claude plugin', detail: `${skillIds.length} skill(s) in the plugin (/<id> or /buracle:<id>)` }
       : { section: s, level: 'error', check: 'claude plugin', detail: `missing from harness/claude/skills: ${missing.join(', ')}; run \`buracle build\`` })
   }
-  if (harnesses.shared) {
-    const dir = join(paths.agentsDir(), 'skills')
+  for (const h of AGENTS_SKILLS_CONSUMERS.filter(x => harnesses.linked.includes(x))) {
+    const dir = harnessSkillsDir(h) as string
+    const check = `${h} (${tilde(dir)})`
     const absent: string[] = []
     const foreign: string[] = []
     for (const id of skillIds) {
       const link = join(dir, id)
       if (!existsSync(join(link, 'SKILL.md'))) { absent.push(id); continue }
       try {
-        if (lstatSync(link).isSymbolicLink() && !resolve(dir, readlinkSync(link)).startsWith(resolve(repoRoot, 'harness', 'agents-skills'))) foreign.push(id)
+        if (lstatSync(link).isSymbolicLink() && !isInside(resolve(dir, readlinkSync(link)), resolve(repoRoot, 'harness', 'agents-skills'))) foreign.push(id)
       } catch {  }
     }
-    if (absent.length > 0) out.push({ section: s, level: 'error', check: 'shared (~/.agents/skills)', detail: `not readable by Codex, OpenCode and Oh My Pi: ${absent.join(', ')}; run \`buracle install\`` })
-    else out.push({ section: s, level: 'ok', check: 'shared (~/.agents/skills)', detail: `${skillIds.length} skill(s) for Codex, OpenCode and Oh My Pi` })
-    if (foreign.length > 0) out.push({ section: s, level: 'warn', check: 'shared links', detail: `point outside this checkout (kept as yours): ${foreign.join(', ')}` })
+    if (absent.length > 0) out.push({ section: s, level: 'error', check, detail: `not readable by ${h}: ${absent.join(', ')}; run \`buracle install ${h}\`` })
+    else out.push({ section: s, level: 'ok', check, detail: `${skillIds.length} skill(s) for ${h}` })
+    if (foreign.length > 0) out.push({ section: s, level: 'warn', check: `${h} links`, detail: `point outside this checkout (kept as yours): ${foreign.join(', ')}` })
   }
   return out
 }

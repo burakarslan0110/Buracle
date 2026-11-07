@@ -90,7 +90,7 @@ export const SHARED_AGENTS_IMPORT = 'Shared instructions for every harness (when
 
 export function agentsPointer(opts: { commands?: readonly string[] } = {}): string {
   const list = opts.commands ?? []
-  const workflows = list.length > 0 ? `workflows are ${list.map(c => `\`/${c}\``).join(', ')} (skills in \`~/.agents/skills\`), ` : ''
+  const workflows = list.length > 0 ? `workflows are ${list.map(c => `\`/${c}\``).join(', ')} (skills in \`~/.omp/agent/skills\`), ` : ''
   return [
     '## Buracle',
     '',

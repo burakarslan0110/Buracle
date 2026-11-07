@@ -6,6 +6,7 @@ import { parseFrontmatter } from '../../engine/canonical'
 import { loadConfigSync } from '../../engine/config'
 import { mdBlockGet } from '../../engine/merge'
 import * as paths from '../../engine/paths'
+import { harnessSkillsDir } from '../../engine/update/install-core'
 import { tilde } from '../../engine/update/output'
 import type { LintFinding } from '../../workflow/lint'
 import { claudeSkillLink, installedSkillDir } from '../../workflow/skill-install'
@@ -64,7 +65,6 @@ async function skillsPart(scope: UiScope, enabled: Record<Harness, boolean>, now
   const ctx = { cwd: root ?? paths.home(), now: nowMs, env: process.env }
   const listed = (await skillsList(ctx)).data['skills'] as Array<Record<string, unknown>> | undefined
   const lint = (skillsLint([], false, { ...ctx, cwd: repo }).data['findings'] as LintFinding[] | undefined) ?? []
-  const shared = join(paths.agentsDir(), 'skills')
   const out: Array<Record<string, unknown>> = []
   for (const s of listed ?? []) {
     const id = String(s['id'])
@@ -80,7 +80,7 @@ async function skillsPart(scope: UiScope, enabled: Record<Harness, boolean>, now
       } else {
         const base = shown(repo, dir)
         entry['lint'] = lintCounts(lint.filter(f => f.file === base || f.file.startsWith(`${base}/`)))
-        entry['where'] = reach(enabled, h => h === 'claude' ? existsSync(join(repo, 'harness', 'claude', 'skills', id, 'SKILL.md')) : existsSync(join(shared, id, 'SKILL.md')))
+        entry['where'] = reach(enabled, h => h === 'claude' ? existsSync(join(repo, 'harness', 'claude', 'skills', id, 'SKILL.md')) : (dir => dir !== undefined && existsSync(join(dir, id, 'SKILL.md')))(harnessSkillsDir(h)))
       }
     } else if (kind === 'project' && root !== undefined) {
       entry['lint'] = lintCounts(lintProjectSkill(dir, root))

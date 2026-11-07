@@ -16,7 +16,7 @@ faster, safer or more consistent than working it out from scratch each time.
 |---|---|
 | A multi-step procedure started by an intent ("cut a release", "rotate the keys") | A skill: continue here |
 | A constraint for every task, or for certain files | A rule: global ones in Buracle's `canonical/rules/`; project ones via `/project-rules` (Codex: `$project-rules`) |
-| A fact, a decision or a trap | A memory (the `memory` skill: read `~/.agents/skills/memory/SKILL.md` in Codex, load it with the `skill` tool in OpenCode, read `skill://memory` in Oh My Pi) |
+| A fact, a decision or a trap | A memory (the `memory` skill: read `${CODEX_HOME:-~/.codex}/skills/memory/SKILL.md` in Codex, load it with the `skill` tool in OpenCode, read `skill://memory` in Oh My Pi) |
 | A one-off task | Nothing |
 
 If an existing skill already covers most of it, extend that skill. Two skills with overlapping
@@ -35,7 +35,7 @@ scope is unclear, ask with your structured-question tool (`request_user_input` i
 
 ## 3. Phases
 
-Track the phases with your plan/todo tool where available (`update_plan` in Codex, the todo tool in Oh My Pi; OpenCode v2 has none).
+Track the phases with your plan/todo tool (`update_plan` in Codex, `todowrite` in OpenCode, the todo tool in Oh My Pi).
 
 **Progress.** Buracle shows the run live, in the workflow band above the prompt and in the status
 line. Start it with `buracle flow start new-skill --title "<skill id>"`, mark each phase below with
@@ -65,7 +65,7 @@ the user has the publish steps. The calls are cheap and best effort; a failing o
    - inputs, numbered phases with gates, the evidence that proves "done", failure handling;
    - the MCP servers it needs, by id from `canonical/mcp.yaml`: `context7`, `codegraph`,
      `semble`, `web-search`, `web-fetch`, `grep`, `chrome-devtools`, `buracle-memory`;
-   - the buracle CLI calls it makes: only documented subcommands (the `buracle` skill: read `~/.agents/skills/buracle/SKILL.md` in Codex, load it with the `skill` tool in OpenCode, read `skill://buracle` in Oh My Pi);
+   - the buracle CLI calls it makes: only documented subcommands (the `buracle` skill: read `${CODEX_HOME:-~/.codex}/skills/buracle/SKILL.md` in Codex, load it with the `skill` tool in OpenCode, read `skill://buracle` in Oh My Pi);
    - which steps are deterministic or fragile enough to deserve a script.
 4. **Write** (`buracle flow phase write`). For a skill in the Buracle repo, scaffold with
    `buracle skills new <id>` and check the path it prints. Otherwise create the folder by hand. Fill
@@ -107,7 +107,8 @@ the user has the publish steps. The calls are cheap and best effort; a failing o
    - **Buracle repo:** `git add canonical/skills/<id>`, then
      `git commit -m "skill(<id>): <what it does>"`, then `buracle install` (it builds and installs into
      every installed harness). Claude Code picks it up after `/reload-plugins` or a restart; Codex,
-     OpenCode and omp see it in new sessions through `~/.agents/skills`.
+     OpenCode and omp see it in new sessions through their own skills folders
+     (`~/.codex/skills`, `~/.config/opencode/skills`, `~/.omp/agent/skills`).
    - **Personal skills repo:** commit and push there, then `buracle update --check` and
      `buracle update --yes`; the update fast-forwards the checkout, lints, builds and installs the
      skill into every harness.

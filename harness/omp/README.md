@@ -23,7 +23,7 @@ and `src/adapters/omp/`; do not edit it by hand. Change the sources and run `bur
   - `memory.backend: off` and `enabledProviders: []`.
 - `~/.omp/agent/AGENTS.md`: a short managed block that points to the plugin (the rules ship in the plugin).
 
-Skills are not in this package: omp reads the shared neutral render in `~/.agents/skills` itself.
+Skills are not in this package: `buracle install` links the shared neutral render into `~/.omp/agent/skills`.
 
 ## Contents
 
