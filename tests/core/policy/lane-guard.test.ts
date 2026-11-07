@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { LANE_FLOW_COMMANDS, LANE_PLAN_COMMANDS, LANE_WORKTREE_COMMANDS, laneCodeDenial, laneStateDenial, laneStateDenialAll } from '../../../src/core/policy/lane-guard'
+import { LANE_FLOW_COMMANDS, LANE_PLAN_COMMANDS, LANE_WORK_COMMANDS, LANE_WORKTREE_COMMANDS, laneCodeDenial, laneStateDenial, laneStateDenialAll } from '../../../src/core/policy/lane-guard'
 
 describe('laneStateDenial (H01 for subagents)', () => {
   test('denies every state-changing plan and flow command, however the CLI is reached', () => {
@@ -71,6 +71,21 @@ describe('laneStateDenial (H01 for subagents)', () => {
       'buracle plan review --on status companion start --role plan', 'buracle plan review --wait status companion collect', 'buracle plan review --goal status companion start --role changes',
     ]) expect({ command, denied: laneStateDenial(command) !== undefined }).toEqual({ command, denied: true })
     expect(laneStateDenial('buracle plan review companion start --role plan')).toContain('`buracle plan review`')
+  })
+
+  test('the board: a lane never publishes, merges, reopens or closes it, however the flags are placed; the worker commands stay allowed', () => {
+    expect(LANE_WORK_COMMANDS).toEqual(['publish', 'merge', 'reopen', 'close'])
+    for (const command of [
+      'buracle work publish', 'buracle work publish docs/plan-build/x.md --max-workers 6 --json', 'buracle --json work merge --task 2', 'buracle work close --force',
+      'buracle work --force close', 'buracle work --manual merge --task 2', 'buracle work --task 2 merge', 'buracle work reopen 3 --reason "checks failed"',
+      'cd /repo && bun src/cli/main.ts work merge --json',
+    ]) expect({ command, denied: laneStateDenial(command) !== undefined }).toEqual({ command, denied: true })
+    for (const command of [
+      'buracle work join rate-limit --json', 'buracle work join rate-limit --task 2', 'buracle work done --verify "bun test → 3 pass"', 'buracle work heartbeat', 'buracle work ask "which port?"',
+      'buracle work note "rebased" --to lead --kind report', 'buracle work status --json', 'buracle work inbox --json', 'buracle work release --reason "blocked"', 'buracle work resume',
+      'buracle work --timeout 30 wait', 'buracle work --to lead note "x"', 'buracle work --verify "x" done',
+    ]) expect({ command, denied: laneStateDenial(command) !== undefined }).toEqual({ command, denied: false })
+    expect(laneStateDenial('buracle work merge')).toContain('`buracle work merge`')
   })
 
   test('the denial names the command and tells the lane to report blocked to the lead', () => {

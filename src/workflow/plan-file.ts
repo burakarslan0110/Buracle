@@ -174,6 +174,27 @@ export function localTaskProgress(body: string): TaskProgress {
   }
 }
 
+/** Ticks `- [ ] Task N done` in the plan file (outside code fences), or unticks it with `done: false`; returns whether a box changed. */
+export function tickTask(path: string, n: number, done = true): boolean {
+  let text: string
+  try { text = readFileSync(path, 'utf8') } catch { return false }
+  const lines = text.split('\n')
+  const mask = fenceMask(lines)
+  let changed = false
+  for (let i = 0; i < lines.length; i++) {
+    if (mask[i]) continue
+    const line = lines[i] ?? ''
+    const c = TASK_CHECKBOX.exec(line)
+    if (!c || Number(c[2]) !== n) continue
+    const ticked = (c[1] ?? ' ').toLowerCase() === 'x'
+    if (ticked === done) continue
+    lines[i] = done ? line.replace(/\[( )\]/, '[x]') : line.replace(/\[[xX]\]/, '[ ]')
+    changed = true
+  }
+  if (changed) atomicWriteSync(path, lines.join('\n'))
+  return changed
+}
+
 export function taskProgress(markdown: string, body: string): TaskProgress {
   try {
     const plan = parsePlan(markdown)

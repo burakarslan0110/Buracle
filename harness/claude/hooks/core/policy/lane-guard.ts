@@ -5,8 +5,11 @@ import { buracleArgs } from './self-disable'
 export const LANE_PLAN_COMMANDS: readonly string[] = ['pause', 'resume', 'set', 'complete', 'verify', 'register', 'unregister', 'approve-result', 'review', 'prepare-native']
 export const LANE_FLOW_COMMANDS: readonly string[] = ['start', 'phase', 'end']
 export const LANE_WORKTREE_COMMANDS: readonly string[] = ['sync', 'cleanup']
+// The task board's lead commands: a lane joins, reports and asks, but never publishes, merges, reopens or closes.
+export const LANE_WORK_COMMANDS: readonly string[] = ['publish', 'merge', 'reopen', 'close']
 
-const LANE_VALUE_FLAGS: readonly string[] = ['session', 'harness', 'kind', 'reason', 'phase', 'base', 'prefix', 'slug', 'type', 'title', 'dir', 'outcome', 'note', 'done', 'total', 'lane', 'role', 'handle', 'provider', 'verdict', 'on', 'input', 'goal', 'timeout-min', 'wait', 'job']
+const LANE_VALUE_FLAGS: readonly string[] = ['session', 'harness', 'kind', 'reason', 'phase', 'base', 'prefix', 'slug', 'type', 'title', 'dir', 'outcome', 'note', 'done', 'total', 'lane', 'role', 'handle', 'provider', 'verdict', 'on', 'input', 'goal', 'timeout-min', 'wait', 'job',
+  'max-workers', 'lease-sec', 'task', 'timeout', 'verify', 'to']
 const MENTIONS_BURACLE = /buracle|src\/cli\/main\.ts|bin\/buracle/
 
 function positionals(args: readonly string[]): string[] {
@@ -41,6 +44,7 @@ function stateCommand(args: readonly string[]): string | undefined {
   }
   if (group === 'flow' && LANE_FLOW_COMMANDS.includes(sub)) return `buracle flow ${sub}`
   if (group === 'worktree' && LANE_WORKTREE_COMMANDS.includes(sub)) return `buracle worktree ${sub}`
+  if (group === 'work' && LANE_WORK_COMMANDS.includes(sub)) return `buracle work ${sub}`
   return undefined
 }
 
@@ -53,7 +57,7 @@ export function laneStateDenial(command: string): string | undefined {
     return hit !== undefined
   })
   if (hit === undefined) return undefined
-  return `Buracle lane guard: a lane (subagent) does not run \`${hit}\`, because the plan, the workflow state and the worktree merges belong to the lead. Return status \`blocked\` with the question and its options; the lead asks the user and changes the state. Read-only commands such as \`buracle plan status\`, \`buracle plan review status\` and \`buracle plan validate\` stay allowed, and so does a plan lane's own binding: \`buracle plan <command> --lane <slug>\` for the lane worktree the lead created (the user's approvals, \`set approved\` and \`approve-result\`, stay with the lead).`
+  return `Buracle lane guard: a lane (subagent) does not run \`${hit}\`, because the plan, the workflow state, the worktree merges and the task board belong to the lead. Return status \`blocked\` with the question and its options; the lead asks the user and changes the state. Read-only commands such as \`buracle plan status\`, \`buracle plan review status\` and \`buracle plan validate\` stay allowed, and so does a plan lane's own binding: \`buracle plan <command> --lane <slug>\` for the lane worktree the lead created (the user's approvals, \`set approved\` and \`approve-result\`, stay with the lead).`
 }
 
 export function laneStateDenialAll(commands: readonly string[]): string | undefined {

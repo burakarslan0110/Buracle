@@ -2,7 +2,7 @@ import type { AgentDoc, CanonicalBundle, McpServerSpec, RuleDoc, SkillDoc } from
 import { envRef, expandMcpCommand, mcpEnvFor } from '../../core/catalog'
 import type { AdapterContext } from '../registry'
 import { bundleExtension } from './bundle'
-import { buracleVersion, ompCommandSkills, ompGeneratedData, ompMcpServerIds, OMP_MIN_VERSION, PACKAGE_NAME } from './generated'
+import { buracleVersion, ompCommandName, ompCommandNames, ompCommandSkills, ompGeneratedData, ompMcpServerIds, OMP_MIN_VERSION, PACKAGE_NAME } from './generated'
 import { firstHeading, frontmatter, oneLine, renderForOmp, withFinalNewline } from './render'
 import { OMP_ASIDE_COMMAND, OMP_PING_COMMAND, OMP_STATUS_ALIAS, OMP_STATUS_COMMAND, PING_ANSWER } from './runtime/commands'
 import { FLOW_WIDGET_KEY } from './runtime/flow-widget'
@@ -110,7 +110,7 @@ export function renderCommand(skill: SkillDoc): BuildFile {
     ['description', `Buracle ${id}: ${summary}`],
     ['argument-hint', str(skill, 'argument-hint')],
   ])
-  return { path: `commands/${id}.md`, content: fm + workflowCommandBody(id) }
+  return { path: `commands/${ompCommandName(id)}.md`, content: fm + workflowCommandBody(id) }
 }
 
 export function mcpEntry(id: string, spec: McpServerSpec): Record<string, unknown> {
@@ -155,7 +155,9 @@ export function renderPackageJson(version: string): BuildFile {
 
 export function renderReadme(canonical: CanonicalBundle): BuildFile {
   const rules = canonical.rules.map(r => `buracle-${r.id}.md`).sort()
-  const commands = ompCommandSkills(canonical).map(c => `/${c}`)
+  const commands = ompCommandNames(canonical).map(c => `/${c}`)
+  const renamed = ompCommandSkills(canonical).filter(id => ompCommandName(id) !== id)
+    .map(id => ` \`/${ompCommandName(id)}\` runs the \`${id}\` skill, because omp keeps \`/${id}\` for its own command.`).join('')
   const agents = canonical.agents.map(a => a.id).sort()
   const servers = ompMcpServerIds(canonical)
   const list = (xs: string[]) => xs.map(x => `\`${x}\``).join(', ')
@@ -205,7 +207,7 @@ export function renderReadme(canonical: CanonicalBundle): BuildFile {
     `  \`/${OMP_PING_COMMAND}\` (answers \`${PING_ANSWER}\`); \`/${OMP_ASIDE_COMMAND} <question>\` asks a read-only side question (one side`,
     '  turn of the model, never added to the session, like omp\'s own `/btw`).',
     `- \`rules/\`: always-on rules, and path rules injected when matching files are edited (TTSR): ${list(rules)}.`,
-    `- \`commands/\`: one workflow command per user-invocable skill: ${list(commands)}.`,
+    `- \`commands/\`: one workflow command per user-invocable skill: ${list(commands)}.${renamed}`,
     `- \`agents/\`: read-only review agents ${list(agents)}.`,
     `- \`.mcp.json\`: pinned MCP servers ${list(servers)}. \`chrome-devtools\` is left out because omp drops browser MCP servers while its built-in browser is on.`,
     '',

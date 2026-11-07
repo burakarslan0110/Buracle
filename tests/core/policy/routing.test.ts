@@ -384,7 +384,7 @@ describe('capabilityCard (H15)', () => {
       expect(s.short).toBeDefined()
       expect(c).toContain(`- ${s.id}: ${s.short}${s.invocation === 'explicit' ? ' (on request)' : ''}`)
     }
-    expect(skills.filter(s => s.invocation === 'explicit').map(s => s.id)).toEqual(['bugfix', 'dead-code', 'goal-build', 'inspect', 'plan-build', 'requirements'])
+    expect(skills.filter(s => s.invocation === 'explicit').map(s => s.id)).toEqual(['bugfix', 'buracle-join', 'dead-code', 'goal-build', 'inspect', 'plan-build', 'requirements'])
     expect(card('codex', { skills: [{ id: 'x', description: 'Does one thing well. Then more.', userInvocable: true }] })).toContain('- x: Does one thing well')
   })
 

@@ -10,8 +10,11 @@ import { commandOfPrompt, COMMAND_ARGS, COMMAND_MARK, routeUserPrompt, withinBud
 import type { CliResult, UtilityHost } from '../../../src/adapters/opencode/runtime/tui-commands'
 import { aside, brain, ping, remember, status, statusLines, utilityCommands, utilityNames } from '../../../src/adapters/opencode/runtime/tui-commands'
 import type { BandView } from '../../../src/core/flow/band'
+import { workJoin, workPublish } from '../../../src/workflow/board'
 import { flowPath } from '../../../src/workflow/flow'
-import { withSandbox } from '../../helpers/sandbox'
+import type { ResolvedSession } from '../../../src/workflow/session-store'
+import { withEnv, withSandbox } from '../../helpers/sandbox'
+import { ctxAt, makeRepo, planDoc, write } from '../../workflow/fixture'
 import { fakeModelEditor, testBaked } from './helpers'
 
 function writeFlowRecord(sid: string, stack: unknown[]): void {
@@ -45,6 +48,22 @@ describe('the workflow band (band.ts)', () => {
     now += 9_000
     expect(feeder.view(sid, 8).visible).toBe(false)
   }))
+
+  test('the board counts of the lead refresh when a worker changes the board file, while the flow, the state and the plan stay the same', () => withSandbox(({ root }) => withEnv({ BURACLE_NO_MEMORY: '1', BURACLE_LOCK_TIMEOUT_MS: '2000' }, async () => {
+    const now = Date.UTC(2026, 10, 7, 12, 0, 0)
+    const repo = await makeRepo(root)
+    const plan = join(repo, 'docs', 'plan-build', '2026-11-07-rate-limit.md')
+    write(plan, planDoc({ n: 2, status: 'IN_PROGRESS', approved: true }))
+    const lead: ResolvedSession = { harness: 'opencode', sessionId: 'ses_band02', source: '--session' }
+    const pub = await workPublish({ planPath: plan }, ctxAt(repo, now), lead)
+    expect(pub.code).toBe(0)
+    writeFlowRecord(lead.sessionId, [{ workflow: 'plan-build', title: 'rate limit', source: 'command', startedAt: now - 90_000, phase: { id: 'implement', since: now - 30_000 } }])
+    const feeder = new BandFeeder(() => now)
+    expect(feeder.view(lead.sessionId, 8).note).toBe('board: 0 claimed · 0/2 merged')
+    const worker: ResolvedSession = { harness: 'codex', sessionId: 'worker-codex', source: '--session' }
+    expect((await workJoin('rate-limit', {}, ctxAt(repo, now), worker)).code).toBe(0)
+    expect(feeder.view(lead.sessionId, 8).note).toBe('board: 1 claimed · 0/2 merged')
+  })))
 
   test('no session, an invalid id or no record: nothing to draw', () => withSandbox(async () => {
     const feeder = new BandFeeder()

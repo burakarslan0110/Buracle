@@ -9,6 +9,9 @@ export type IndexStatus = 'ready' | 'building' | 'none' | 'failed' | 'off'
 
 export interface HookHealth { failures: number; failClosed: number; runtimeBehind?: boolean }
 
+/** The task board's counts (src/core/board/model.ts boardSummary) for the session's board. */
+export interface BoardCounts { open: number; claimed: number; waiting: number; done: number; merged: number; stale: number; total: number }
+
 export interface BarModel {
   harness: Harness; model?: string; effort?: string
   ctx?: { pct: number; tokens?: number; window?: number; autoCompactAt?: number }
@@ -18,6 +21,7 @@ export interface BarModel {
   git?: GitState; dir?: string
   mem?: MemoryStatus
   plan?: { title: string; phase: string; done: number; total: number }
+  board?: BoardCounts
   flow?: BandView
   index?: IndexStatus
   hooks?: HookHealth

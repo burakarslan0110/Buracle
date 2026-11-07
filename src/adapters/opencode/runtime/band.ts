@@ -3,6 +3,7 @@ import type { BandInput, BandView } from '../../../core/flow/band'
 import { bandRows, bandView } from '../../../core/flow/band'
 import type { Segment } from '../../../core/status/model'
 import * as paths from '../../../engine/paths'
+import { sessionBoard } from '../../../workflow/board-store'
 import { bandInputFor, flowPath } from '../../../workflow/flow'
 import { statePath } from '../../../workflow/session-store'
 
@@ -33,8 +34,10 @@ export class BandFeeder {
 
   constructor(private readonly now: () => number = Date.now) {}
 
+  /** The flow record, the session state, the plan and the task board: the band is recomputed when any of them changes (workers change the board without touching the lead's state). */
   private key(sid: string, planPath: string | undefined): string {
-    return [mtime(flowPath(HARNESS, sid)), mtime(statePath(HARNESS, sid)), planPath ?? '', mtime(planPath)].join('|')
+    const board = sessionBoard(HARNESS, sid)?.path
+    return [mtime(flowPath(HARNESS, sid)), mtime(statePath(HARNESS, sid)), planPath ?? '', mtime(planPath), board ?? '', mtime(board)].join('|')
   }
 
   view(sid: string | undefined, foldAfterSec: number): BandView {

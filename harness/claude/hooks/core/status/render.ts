@@ -1,3 +1,4 @@
+import { boardParts } from '../board/model'
 import { memSegmentWith } from '../memory/status'
 import type { BarModel, GitState, RateWindow, Segment, StatusLayout } from './model'
 import { WINDOW_MINUTES, pace } from './model'
@@ -9,10 +10,24 @@ import { hooksSegmentTexts } from './hooks'
 export const SEGMENT_SEPARATOR = ' │ '
 const SEP_WIDTH = 3
 
-export const SEGMENT_IDS = ['model', 'ctx', 'windows', 'month', 'cost', 'git', 'dir', 'mem', 'index', 'flow', 'plan', 'upd', 'hooks'] as const
+export const SEGMENT_IDS = ['model', 'ctx', 'windows', 'month', 'cost', 'git', 'dir', 'mem', 'index', 'flow', 'plan', 'board', 'upd', 'hooks'] as const
 
 const PRIORITY: Readonly<Record<string, number>> = {
-  ctx: 100, hooks: 95, model: 90, '5h': 85, '7d': 80, window: 75, git: 70, cost: 65, flow: 62, month: 60, plan: 55, mem: 50, index: 35, dir: 30, upd: 20,
+  ctx: 100, hooks: 95, model: 90, '5h': 85, '7d': 80, window: 75, git: 70, cost: 65, flow: 62, month: 60, plan: 55, board: 54, mem: 50, index: 35, dir: 30, upd: 20,
+}
+
+/** `board 2 claimed · 1 waiting · 3/8 merged`: the task board of the session (lead or worker). */
+export function boardText(b: BarModel['board']): string | undefined {
+  if (b === undefined || b.total <= 0) return undefined
+  return `board ${boardParts(b).join(' · ')}`
+}
+
+function boardCandidate(bar: BarModel): Candidate | undefined {
+  const text = boardText(bar.board)
+  const b = bar.board
+  if (text === undefined || b === undefined) return undefined
+  const color: Color = b.waiting > 0 ? 'yellow' : b.merged === b.total ? 'green' : 'magenta'
+  return cand('board', PRIORITY['board'] ?? 0, seg('board', text, color), seg('board', `board ${b.merged}/${b.total}`, color))
 }
 
 interface Candidate { id: string; priority: number; variants: Segment[] }
@@ -219,6 +234,7 @@ function candidatesFor(id: string, bar: BarModel, layout: StatusLayout, nowMs: n
     case 'index': return one(indexCandidate(bar))
     case 'flow': return one(flowCandidate(bar))
     case 'plan': return facts.flowShown ? [] : one(planCandidate(bar))
+    case 'board': return one(boardCandidate(bar))
     case 'upd': return one(updCandidate(bar))
     case 'hooks': return one(hooksCandidate(bar))
     case 'windows':

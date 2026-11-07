@@ -58,7 +58,7 @@ describe('canonical/skill-triggers.yaml', () => {
 
   test('the file holds no skill phrases: a skill loads from an exact invocation only (PRD follow-up 2026-11-06)', () => {
     expect((raw as Record<string, unknown>)['skills']).toBeUndefined()
-    expect(EXPLICIT.sort()).toEqual(['bugfix', 'dead-code', 'goal-build', 'inspect', 'plan-build', 'requirements'])
+    expect(EXPLICIT.sort()).toEqual(['bugfix', 'buracle-join', 'dead-code', 'goal-build', 'inspect', 'plan-build', 'requirements'])
     for (const s of T.skills) expect({ id: s.id, ask: s.ask, topic: s.topic, not: s.not }).toEqual({ id: s.id, ask: undefined, topic: undefined, not: undefined })
   })
 

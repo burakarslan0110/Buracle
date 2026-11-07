@@ -6,7 +6,7 @@ import { bunExecutable } from '../../engine/config'
 import * as paths from '../../engine/paths'
 import { which } from '../../engine/proc'
 import type { AdapterContext } from '../registry'
-import { OWNER, PACKAGE_NAME, ompCommandSkills, ompLspServers, ompThinkingLevel } from './generated'
+import { OWNER, PACKAGE_NAME, ompCommandNames, ompLspServers, ompThinkingLevel } from './generated'
 import { OMP_BRAIN_COMMAND, OMP_REMEMBER_COMMAND, OMP_STATUS_ALIAS, OMP_STATUS_COMMAND } from './runtime/commands'
 import { ompConfigPath } from './runtime/config'
 import { ompPlanSettings } from './runtime/plan-capture'
@@ -144,7 +144,7 @@ export async function installPlan(ctx: AdapterContext): Promise<Plan> {
     throw new Error(`omp: ${pluginDir} is not built (no package.json); run \`buracle build\` first`)
   }
   const omp = ompBinary()
-  const commands = ompCommandSkills(ctx.canonical)
+  const commands = ompCommandNames(ctx.canonical)
   const configFile = ompConfigPath(agentDir)
   const set = ompConfigKeysFor(ctx, configFile)
   const lsp = ompLspSet(ctx, ompLspLayoutOf())

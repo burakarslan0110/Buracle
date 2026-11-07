@@ -128,7 +128,13 @@ describe('configSchemaLeaves', () => {
     expect(plan).toEqual(expect.arrayContaining([
       { key: 'plan.questions', t: 'bool' }, { key: 'plan.reviews.changes', t: 'bool' }, { key: 'plan.goalVerification', t: 'bool' },
       { key: 'plan.modelSwitch', t: 'enum', values: ['off', 'manual'] }, { key: 'plan.runaway.perPlan', t: 'int', min: 1 }, { key: 'plan.worktreeDir', t: 'str' },
+      { key: 'plan.board.mode', t: 'enum', values: ['off', 'ask', 'on'] }, { key: 'plan.board.maxWorkers', t: 'int', min: 1 }, { key: 'plan.board.leaseSec', t: 'int', min: 10 },
     ]))
+    expect(defaultConfig().plan.board).toEqual({ mode: 'ask', maxWorkers: 6, leaseSec: 300 })
+    const base = defaultConfig()
+    expect(validateConfig({ ...base, plan: { ...base.plan, board: { mode: 'ask', maxWorkers: 6, leaseSec: 5 } } }).ok).toBe(false)
+    expect(validateConfig({ ...base, plan: { ...base.plan, board: { mode: 'sometimes', maxWorkers: 6, leaseSec: 300 } } }).ok).toBe(false)
+    expect(validateConfig({ ...base, plan: { ...base.plan, board: { mode: 'on', maxWorkers: 1, leaseSec: 10 } } }).ok).toBe(true)
     expect(configSchemaLeaves('memory.ui')).toEqual([{ key: 'memory.ui.port', t: 'int', min: 1024, max: 65535 }, { key: 'memory.ui.autostart', t: 'bool' }])
     expect(defaultConfig().memory.ui.autostart).toBe(true)
     const notBool = validateConfig({ ...defaultConfig(), memory: { ui: { port: 41777, autostart: 'yes' }, exclude: [] } })

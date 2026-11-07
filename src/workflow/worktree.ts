@@ -221,7 +221,7 @@ function excludeEntryFor(facts: RepoFacts, root: string): string | undefined {
   return `/${rel.split('\\').join('/')}/`
 }
 
-export async function worktreeCreate(slugArg: string | undefined, o: { base?: string, prefix?: string, lane?: boolean }, ctx: WorkflowCtx, s: ResolvedSession | undefined): Promise<CmdResult> {
+export async function worktreeCreate(slugArg: string | undefined, o: { base?: string, prefix?: string, lane?: boolean, parent?: string }, ctx: WorkflowCtx, s: ResolvedSession | undefined): Promise<CmdResult> {
   const bad = checkSlug(slugArg)
   if (bad) return bad
   const slug = slugArg as string
@@ -241,7 +241,7 @@ export async function worktreeCreate(slugArg: string | undefined, o: { base?: st
   const sessionPlan = sessionPlanFor(prefix, lane, s)
   let result: CmdResult
   try {
-    result = await createLocked(facts, slug, prefix, o.base, lane, ctx, sessionPlan.own, lane && s !== undefined ? { harness: s.harness, session: s.sessionId } : undefined)
+    result = await createLocked(facts, slug, prefix, o.base, lane, ctx, sessionPlan.own, lane && s !== undefined ? { harness: s.harness, session: s.sessionId } : undefined, lane ? o.parent : undefined)
   } finally {
     lock.release()
   }
@@ -261,14 +261,17 @@ function laneJson(m: Pick<WorktreeMeta, 'lane' | 'parent'>): Record<string, unkn
   return m.lane === true ? { lane: true, ...(m.parent !== undefined ? { parent: m.parent } : {}) } : {}
 }
 
-async function createLocked(facts: RepoFacts, slug: string, prefix: Prefix, baseArg: string | undefined, lane: boolean, ctx: WorkflowCtx, planPath: string | undefined, owner?: WorktreeMeta['owner']): Promise<CmdResult> {
+// `parent` names the plan worktree a lane belongs to; the task board passes it so that a lane created from the main
+// checkout still merges into the lead's worktree branch. Without it, a lane created inside a plan worktree takes that one.
+async function createLocked(facts: RepoFacts, slug: string, prefix: Prefix, baseArg: string | undefined, lane: boolean, ctx: WorkflowCtx, planPath: string | undefined, owner?: WorktreeMeta['owner'], parent?: string): Promise<CmdResult> {
   const branch = `${prefix}/${slug}`
   const root = worktreeRoot(facts)
   const path = join(root, slug)
   const entries = await listWorktrees(facts.mainRoot)
   const existingMeta = readMeta(facts.commonDir, slug)
   const inside = facts.linked ? listMeta(facts.commonDir).find(x => realish(x.path) === facts.top) : undefined
-  const laneFields: Pick<WorktreeMeta, 'lane' | 'parent' | 'owner'> = lane ? { lane: true, ...(inside !== undefined ? { parent: inside.slug } : {}), ...(owner !== undefined ? { owner } : {}) } : {}
+  const laneParent = parent ?? inside?.slug
+  const laneFields: Pick<WorktreeMeta, 'lane' | 'parent' | 'owner'> = lane ? { lane: true, ...(laneParent !== undefined ? { parent: laneParent } : {}), ...(owner !== undefined ? { owner } : {}) } : {}
 
   const atPath = entries.find(e => e.path === realish(path))
   if (atPath !== undefined) {

@@ -40,6 +40,7 @@ import { consentGate, recordPromptGrants } from '../../shared/consent-store'
 import { pathRuleSource } from '../../shared/path-rules'
 import { realWriteTarget } from '../../shared/realpath'
 import { reviewNotesNotice } from '../../shared/review-notes'
+import { boardJoinOffer, boardPromptNotice, boardSessionEnd, boardToolSeen, boardWriteDenial } from '../../shared/board'
 import { selfPaths } from '../../shared/self-paths'
 import { maskNotice } from '../../shared/tool-output-mask'
 import { prepareWorkspace } from '../../shared/workspace-start'
@@ -508,7 +509,10 @@ export class BuracleRuntime {
     this.abort.abort()
     for (const s of this.sessions.values()) {
       this.cancelIdleFinalize(s)
-      if (typeof s.parentID !== 'string') this.ui('ended', s.sid)
+      if (typeof s.parentID !== 'string') {
+        this.ui('ended', s.sid)
+        try { boardSessionEnd(HARNESS, s.sid, this.now()) } catch (err) { this.logFn('warn', 'board session end failed', { error: errText(err) }) }
+      }
       if (!s.activity || typeof s.parentID === 'string') continue
       await this.finalize(s.sid, s)
     }
@@ -764,6 +768,9 @@ export class BuracleRuntime {
   }
 
   async evaluate(e: PermissionEvaluation): Promise<void> {
+    // The board write rule of a subagent session is its parent's: resolve the parent before the synchronous evaluation.
+    const s = typeof e.sessionID === 'string' ? this.sessions.get(e.sessionID) : undefined
+    if (s !== undefined && s.parentID === undefined) await this.resolveParent(s)
     this.onEvaluate(e)
     const held = this.consentHeld.get(e)
     this.consentHeld.delete(e)
@@ -797,6 +804,21 @@ export class BuracleRuntime {
     }
     if (denied === undefined && (call.kind === 'edit' || call.kind === 'write' || call.kind === 'patch') && call.paths.length > 0) {
       denied = this.guard('H02', () => this.writeVerdict(call, cfg))
+    }
+    const sess = this.sessions.get(call.sessionId)
+    const root = typeof sess?.parentID !== 'string' && paths.isValidSessionId(call.sessionId)
+    const writes = (call.kind === 'edit' || call.kind === 'write' || call.kind === 'patch') && call.paths.length > 0
+    // A subagent session writes under its parent session's board rule too (a worker's subagent stays inside the lane worktree).
+    const parent = this.sessions.get(call.sessionId)?.parentID
+    const boardSid = root ? call.sessionId : typeof parent === 'string' && paths.isValidSessionId(parent) ? parent : undefined
+    if (denied === undefined && writes && boardSid !== undefined) {
+      denied = this.guard('H02', () => { const d = boardWriteDenial(HARNESS, boardSid, call.cwd, call.paths, realWriteTarget); return d !== undefined ? { deny: d } : undefined })
+    }
+    if (denied === undefined && root) {
+      let seen: ReturnType<typeof boardToolSeen>
+      try { seen = boardToolSeen(HARNESS, call.sessionId, call.cwd, this.now(), writes, 'before') } catch (err) { this.logFn('warn', 'board heartbeat failed', { error: errText(err) }) }
+      if (seen?.deny !== undefined) denied = { reason: seen.deny, hook: 'H02' }
+      else if (seen?.context !== undefined && e.source?.type === 'tool') this.nudges.set(e.source.id, [...(this.nudges.get(e.source.id) ?? []), seen.context])
     }
     if (denied === undefined && call.kind === 'mcp') denied = this.guard('H02', () => this.mcpWriteVerdict(call, cfg))
     if (denied === undefined && call.kind === 'ask_user') {
@@ -894,6 +916,12 @@ export class BuracleRuntime {
       lsp.push(...await lspEditNotes(cls.paths, this.cfg().checkers, { cwd, ask: this.lspEdits, log: (level, msg, data) => this.logFn(level, msg, data) }))
     }
     const extra = [...new Set([...nudges, ...(verdict?.context !== undefined ? [verdict.context] : [])].map(n => n.trim()).filter(n => n !== ''))]
+    if (typeof s.parentID !== 'string' && paths.isValidSessionId(e.sessionID)) {
+      try {
+        const seen = boardToolSeen(HARNESS, e.sessionID, cwd, this.now(), false, 'after')
+        if (seen?.context !== undefined) extra.push(seen.context)
+      } catch (err) { this.logFn('warn', 'board heartbeat failed', { error: errText(err) }) }
+    }
     if (notes.length > 0) extra.push(['Buracle checks (H04):', ...notes.map(n => `- ${n}`)].join('\n'))
     if (lsp.length > 0) extra.push(['Buracle language server diagnostics (H04):', ...lsp].join('\n\n'))
     if (cls.kind === 'edit' || cls.kind === 'write' || cls.kind === 'patch') {
@@ -1031,6 +1059,12 @@ export class BuracleRuntime {
     }
     const notice = await this.sessionNotice(s)
     if (notice !== undefined) parts.push(notice)
+    if (s.parentID === null || s.parentID === undefined) {
+      try {
+        const offer = boardJoinOffer(HARNESS, s.sid, this.cwdOf(s), this.now())
+        if (offer !== undefined) parts.push(offer)
+      } catch (err) { this.logFn('warn', 'board offer failed', { error: errText(err) }) }
+    }
     const watch = contextWatch(s.ctxWarned, s.ctx?.pct, cfg.context)
     if (watch.warned !== s.ctxWarned) {
       s.ctxWarned = watch.warned
@@ -1130,6 +1164,7 @@ export class BuracleRuntime {
     try { recordPromptGrants(HARNESS, s.sid, words, at) } catch (err) { this.logFn('warn', 'consent grants failed', { error: errText(err) }) }
     let guidance = promptPlanInteraction(s.sid, words, { autoPause: cfg.plan.autoPause, now: at }, this.logFn)
     try { guidance = [guidance, reviewNotesNotice(HARNESS, s.sid, { plan: loadState(HARNESS, s.sid).plan?.path, roots: [(await this.workspaceOf(s))?.root, this.cwdOf(s)], now: at })].filter(x => x !== undefined).join('\n\n') || undefined } catch (err) { this.logFn('warn', 'review notes notice failed', { error: errText(err) }) }
+    try { guidance = [guidance, boardPromptNotice(HARNESS, s.sid, this.cwdOf(s), at)].filter(x => x !== undefined).join('\n\n') || undefined } catch (err) { this.logFn('warn', 'board notice failed', { error: errText(err) }) }
     let routed: PromptRouteResult | undefined
     try {
       routed = await this.routeWords(s, e, words, cmd?.command, cfg, at)
@@ -1327,6 +1362,7 @@ export class BuracleRuntime {
         registry().chains.delete(sid)
         if (s !== undefined && s.parentID !== null && s.parentID !== undefined) return
         this.ui('ended', sid)
+        try { boardSessionEnd(HARNESS, sid, this.now()) } catch (err) { this.logFn('warn', 'board session end failed', { error: errText(err) }) }
         await this.finalize(sid, s)
         return
       }

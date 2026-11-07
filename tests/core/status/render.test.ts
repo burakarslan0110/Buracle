@@ -5,7 +5,7 @@ import type { FlowRecord } from '../../../src/core/flow/record'
 import { flowEnd, flowPhase, flowStart, flowStep } from '../../../src/core/flow/record'
 import { formatResetIn, textWidth } from '../../../src/core/status/format'
 import type { BarModel, IndexStatus, Segment, StatusLayout } from '../../../src/core/status/model'
-import { SEGMENT_SEPARATOR, renderAnsi, renderPlain, renderTmux, rows } from '../../../src/core/status/render'
+import { SEGMENT_IDS, SEGMENT_SEPARATOR, boardText, renderAnsi, renderPlain, renderTmux, rows } from '../../../src/core/status/render'
 import type { MemoryStatus } from '../../../src/core/memory/status'
 import { memSegment, memSegmentWith } from '../../../src/core/memory/status'
 
@@ -47,6 +47,24 @@ function bar(over: Partial<BarModel> = {}): BarModel {
 
 const texts = (r: Segment[][]) => r.map(row => row.map(s => s.text))
 const ids = (r: Segment[][]) => r.map(row => row.map(s => s.id))
+
+describe('the board segment', () => {
+  test('shows the counts below the plan, in the short form when the width is tight, and nothing without a board', () => {
+    expect(SEGMENT_IDS).toContain('board')
+    expect(boardText(undefined)).toBeUndefined()
+    expect(boardText({ open: 0, claimed: 0, waiting: 0, done: 0, merged: 0, stale: 0, total: 0 })).toBeUndefined()
+    expect(boardText({ open: 2, claimed: 2, waiting: 1, done: 1, merged: 3, stale: 1, total: 8 })).toBe('board 2 claimed · 1 waiting · 1 done · 1 stale · 3/8 merged')
+    expect(boardText({ open: 0, claimed: 0, waiting: 0, done: 0, merged: 8, stale: 0, total: 8 })).toBe('board 0 claimed · 8/8 merged')
+    const layout: StatusLayout = { rows: [['plan', 'board']], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: true }
+    const full = rows(bar({ plan: { title: 'Rate limit', phase: 'implement', done: 3, total: 8 }, board: { open: 2, claimed: 2, waiting: 1, done: 0, merged: 3, stale: 0, total: 8 } }), layout, 200, NOW)
+    const texts = full.flat().map(s => s.text)
+    expect(texts.some(t => t === 'board 2 claimed · 1 waiting · 3/8 merged')).toBe(true)
+    expect(full.flat().find(s => s.id === 'board')?.color).toBe('yellow')
+    const tight = rows(bar({ plan: { title: 'Rate limit', phase: 'implement', done: 3, total: 8 }, board: { open: 2, claimed: 2, waiting: 0, done: 0, merged: 3, stale: 0, total: 8 } }), layout, 34, NOW)
+    expect(tight.flat().map(s => s.text)).toContain('board 3/8')
+    expect(rows(bar({ plan: { title: 'Rate limit', phase: 'implement', done: 3, total: 8 } }), layout, 200, NOW).flat().some(s => s.id === 'board')).toBe(false)
+  })
+})
 
 describe('rows: full layout', () => {
   test('the DESIGN §6.3 bar at a wide terminal', () => {

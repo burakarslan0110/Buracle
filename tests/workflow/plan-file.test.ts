@@ -1,11 +1,37 @@
 import { describe, expect, test } from 'bun:test'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { parseFrontmatter } from '../../src/core/frontmatter'
 import {
   analyzePlan, fenceMask, isValidSlug, localDate, localTaskProgress, normalizeStatus, planTitle, slugFromPlanPath,
-  slugFromTitle, updateFrontmatterText,
+  slugFromTitle, tickTask, updateFrontmatterText,
 } from '../../src/workflow/plan-file'
 import { parseCommandArgs } from '../../src/workflow/args'
 import { planDoc } from './fixture'
+
+describe('tickTask', () => {
+  test('ticks only the named task\'s box, leaves the rest of the file byte-identical, ignores fenced examples, and reports a missing box', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'buracle-tick-'))
+    const path = join(dir, 'plan.md')
+    const doc = planDoc({ n: 3 }).replace('## Risks', '```markdown\n- [ ] Task 2 done\n```\n\n## Risks')
+    writeFileSync(path, doc)
+    expect(tickTask(path, 2)).toBe(true)
+    const next = readFileSync(path, 'utf8')
+    expect(next).toBe(doc.replace('- [ ] Task 2 done\n\n### Task 3', '- [x] Task 2 done\n\n### Task 3'))
+    expect(next).toContain('```markdown\n- [ ] Task 2 done\n```')
+    expect(analyzePlan(next).tasks.done).toBe(1)
+    expect(tickTask(path, 2)).toBe(false)
+    expect(tickTask(path, 9)).toBe(false)
+    expect(readFileSync(path, 'utf8')).toBe(next)
+    expect(tickTask(join(dir, 'missing.md'), 1)).toBe(false)
+    // done: false opens the box again (a merged board task reopened for a fix) and leaves everything else as it is
+    expect(tickTask(path, 2, false)).toBe(true)
+    expect(readFileSync(path, 'utf8')).toBe(doc)
+    expect(tickTask(path, 2, false)).toBe(false)
+    expect(tickTask(path, 1, false)).toBe(false)
+  })
+})
 
 describe('updateFrontmatterText', () => {
   test('changes only the targeted lines and keeps the body byte-identical', () => {

@@ -14,6 +14,7 @@ import type { HookDeps } from './hook'
 import { H, QUIET, captureOff, isObj, isSubagent, out, spool, step, str, type HookOutcome } from './hook-io'
 import { auditTurn, readWorkspace } from './hook-route'
 import { assetsOptions, startLinkRun } from '../shared/project-assets'
+import { boardSessionEnd, boardStopInput } from '../shared/board'
 import { openWork } from './hook-work'
 import { boundSubject, handedBack } from './hook-handback'
 
@@ -51,8 +52,10 @@ function stopGuard(p: Record<string, unknown>, sid: string, ctx: AdapterContext,
   const last = str(p['last_assistant_message'])
   try {
     const state = loadState(H, sid)
-    if (state.plan === undefined) return { why: 'no-plan' }
+    const board = boardStopInput(H, sid, now)
+    if (state.plan === undefined && board === undefined) return { why: 'no-plan' }
     const input: StopInput = { harness: H, sessionId: sid, cwd, now, hookActive: p['stop_hook_active'] === true }
+    if (board !== undefined) input.board = board
     if (last !== undefined) input.lastMessage = last
     if (p['permission_mode'] === 'plan') input.readOnly = true
     if (backgroundWait(last, p['background_tasks'], p['session_crons'])) input.backgroundWait = true
@@ -172,6 +175,7 @@ export function subagentStop(p: Record<string, unknown>, sid: string, d: HookDep
 
 export async function sessionEnd(sid: string, d: HookDeps, now: number): Promise<HookOutcome> {
   await step('H14 memory UI', undefined, () => d.ui.ended(H, sid))
+  await step('H29 board session end', undefined, () => { boardSessionEnd(H, sid, now) })
   if (!captureOff(d)) {
     try {
       const mem = await d.importModule('finalize')

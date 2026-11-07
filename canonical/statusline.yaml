@@ -1,15 +1,15 @@
 claude:
   rows:
     - [model, ctx, 5h, 7d, month, cost]
-    - [git, dir, mem, index, flow, plan, upd, hooks]
+    - [git, dir, mem, index, flow, plan, board, upd, hooks]
   compact:
-    - [model, ctx, 5h, 7d, month, git, mem, index, flow, plan, hooks]
+    - [model, ctx, 5h, 7d, month, git, mem, index, flow, plan, board, hooks]
   thresholds: { ctxWarn: 75, ctxCrit: 90 }
   emoji: true
 
 codex:
   rows:
-    - [ctx, 5h, 7d, month, git, mem, index, flow, plan, upd, hooks]
+    - [ctx, 5h, 7d, month, git, mem, index, flow, plan, board, upd, hooks]
   thresholds: { ctxWarn: 75, ctxCrit: 90 }
   emoji: false
   native:
@@ -18,7 +18,7 @@ codex:
 
 opencode:
   rows:
-    - [model, ctx, windows, month, git, mem, index, flow, plan, hooks]
+    - [model, ctx, windows, month, git, mem, index, flow, plan, board, hooks]
   compact:
     - [ctx, windows, month, git, mem, index, flow, hooks]
   thresholds: { ctxWarn: 75, ctxCrit: 90 }
@@ -28,7 +28,7 @@ opencode:
 
 omp:
   rows:
-    - [month, mem, index, git, flow, plan, upd, hooks]
+    - [month, mem, index, git, flow, plan, board, upd, hooks]
   thresholds: { ctxWarn: 75, ctxCrit: 90 }
   emoji: false
   native:

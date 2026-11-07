@@ -40,6 +40,9 @@ import { reviewNotesNotice } from '../../shared/review-notes'
 import { consentGate, recordPromptGrants } from '../../shared/consent-store'
 import { nodeCheckFs, type CheckFs } from '../../shared/checker-scan'
 import { realWriteTarget } from '../../shared/realpath'
+import type { BoardStopInput } from '../../../core/board/model'
+import { boardJoinOffer, boardPromptNotice, boardSessionEnd, boardStopInput, boardTerminalSequence, boardToolSeen, boardWriteDenial } from '../../shared/board'
+import { writeSequence } from '../../../workflow/terminal-notify'
 import { assetsAfterEdit, assetsContext, startLinkRun } from '../../shared/project-assets'
 import { prepareWorkspace } from '../../shared/workspace-start'
 import { spawnNotify } from '../../shared/turn-receipt'
@@ -122,6 +125,18 @@ export interface ExtensionDeps {
   refreshWorkspace(info: WorkspaceInfo, cfg: BuracleConfig, nowMs: number): WorkspaceInfo
   projectDeps(root: string | undefined): string[] | undefined
   reviewNotes?(sid: string, o: { plan?: string, roots: ReadonlyArray<string | undefined>, now: number }): string | undefined
+  /** The task board (src/adapters/shared/board.ts): the offer, the notes, the heartbeat, the write rule, the stop input, the session end and the terminal sequence. */
+  board?: {
+    offer(sid: string, cwd: string, nowMs: number): string | undefined
+    prompt(sid: string, cwd: string, nowMs: number): string | undefined
+    toolSeen(sid: string, cwd: string, nowMs: number, write: boolean, phase: 'before' | 'after'): { context?: string, deny?: string } | undefined
+    writeDenial(sid: string, cwd: string, files: readonly string[]): string | undefined
+    stopInput(sid: string, nowMs: number): BoardStopInput | undefined
+    sessionEnd(sid: string, nowMs: number): void
+    terminal(sid: string): string | undefined
+    /** Writes an OSC sequence to the controlling terminal (omp owns it); false when none is reachable. */
+    tty(sequence: string): boolean
+  }
   projectAssets: {
     context(root: string | undefined): string
     link(root: string | undefined, nowMs: number): boolean
@@ -277,6 +292,16 @@ export function defaultDeps(): ExtensionDeps {
     refreshWorkspace: (info, cfg, nowMs) => refreshWorkspaceInfo(info, cfg, nowMs),
     projectDeps: createDepsReader(),
     reviewNotes: (sid, o) => reviewNotesNotice('omp', sid, o),
+    board: {
+      offer: (sid, cwd, nowMs) => boardJoinOffer('omp', sid, cwd, nowMs),
+      prompt: (sid, cwd, nowMs) => boardPromptNotice('omp', sid, cwd, nowMs),
+      toolSeen: (sid, cwd, nowMs, write, phase) => boardToolSeen('omp', sid, cwd, nowMs, write, phase),
+      writeDenial: (sid, cwd, files) => boardWriteDenial('omp', sid, cwd, files, realWriteTarget),
+      stopInput: (sid, nowMs) => boardStopInput('omp', sid, nowMs),
+      sessionEnd: (sid, nowMs) => { boardSessionEnd('omp', sid, nowMs) },
+      terminal: sid => boardTerminalSequence('omp', sid),
+      tty: sequence => writeSequence(sequence, process.env),
+    },
     projectAssets: {
       context: root => assetsContext(root, 'omp'),
       link: (root, nowMs) => startLinkRun(root, { nowMs }),

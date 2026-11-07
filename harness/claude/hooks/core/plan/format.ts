@@ -6,7 +6,7 @@ import { documentFindings } from './document'
 export type PlanStatus = 'PENDING' | 'APPROVED' | 'IN_PROGRESS' | 'COMPLETE' | 'VERIFIED' | 'SAVED'
 export type PlanType = 'Feature' | 'Bugfix' | 'Build' | 'Plan'
 export interface PlanHeader { created: string; status: PlanStatus; approved: boolean; worktree: boolean; type: PlanType; iterations?: number; rounds?: number }
-export interface PlanTask { n: number; title: string; done: boolean; objective?: string; files: Array<{ verb: 'Create'|'Modify'|'Delete'|'Rename'|'Test', path: string }>; dod?: string }
+export interface PlanTask { n: number; title: string; done: boolean; objective?: string; files: Array<{ verb: 'Create'|'Modify'|'Delete'|'Rename'|'Test', path: string }>; dod?: string; dependsOn?: number[] }
 export interface Plan { header: PlanHeader; title: string; tasks: PlanTask[]; sections: string[] }
 export interface Finding { level: 'error' | 'warning' | 'info'; code: string; message: string; line?: number }
 
@@ -40,6 +40,17 @@ const CHECKBOX = /^\s*[-*+]\s+\[([ xX])\]\s+Task\s+(\d+)\s+done\b/i
 const LABEL = /^\s*\*\*([^*]+?)\*\*\s*(.*)$/
 const LIST_ITEM = /^\s*[-*+]\s+(.*)$/
 const PLACEHOLDER = /\b(TBD|TODO|FIXME)\b/
+const DEPENDS_TASK = /(?:task\s*)?(\d+)/gi
+
+// `**Depends on:** Task 1, Task 3` (or bare numbers): the tasks that must be merged before this one may start.
+function dependsOnNumbers(rest: string): number[] {
+  const out: number[] = []
+  for (const m of rest.replace(/`/g, '').matchAll(DEPENDS_TASK)) {
+    const n = Number(m[1])
+    if (Number.isInteger(n) && n > 0 && !out.includes(n)) out.push(n)
+  }
+  return out
+}
 
 function scan(markdown: string): Doc {
   const lines = markdown.replace(/^﻿/, '').split(/\r\n|\r|\n/)
@@ -112,6 +123,7 @@ function readCard(doc: Doc, card: Card): CardBody {
   let hasDod = false
   let verify = false
   let checkbox: { n: number, line: number, done: boolean } | undefined
+  let dependsOn: number[] | undefined
   const prose: number[] = []
   for (let i = card.head + 1; i < card.end; i++) {
     const line = doc.lines[i] as string
@@ -136,6 +148,7 @@ function readCard(doc: Doc, card: Card): CardBody {
         else if (key === 'files') { block = 'files'; hasFiles = true }
         else if (key === 'definition of done' || key === 'dod') { block = 'dod'; hasDod = true; if (rest !== '') dod.push(rest); prose.push(i) }
         else if (key === 'verify') { verify = true; block = 'other'; prose.push(i) }
+        else if (key === 'depends on') { dependsOn = dependsOnNumbers(rest); block = 'other' }
         else block = 'other'
         continue
       }
@@ -162,6 +175,7 @@ function readCard(doc: Doc, card: Card): CardBody {
   if (obj !== '') task.objective = obj
   const d = dod.join('\n').trim()
   if (d !== '') task.dod = d
+  if (dependsOn !== undefined) task.dependsOn = dependsOn
   return {
     task,
     hasObjective,

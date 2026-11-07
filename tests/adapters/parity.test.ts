@@ -3,7 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import { readOpenPlanSteps } from '../../src/adapters/codex/rollout'
-import { OMP_BUILTIN_LSP, ompLspServers, ompMcpServerIds } from '../../src/adapters/omp/generated'
+import { OMP_BUILTIN_LSP, ompCommandName, ompLspServers, ompMcpServerIds } from '../../src/adapters/omp/generated'
 import { ompConfigKeys } from '../../src/adapters/omp/install'
 import { HOST_LIMITS } from '../../src/adapters/shared/host-limits'
 import { OMP_BUILTIN_COMMANDS } from '../../src/adapters/omp/runtime/commands'
@@ -268,10 +268,10 @@ function claudeModEvents(register: string): Set<string> {
 }
 
 describe('parity: every user-invocable skill is a workflow on every harness', () => {
-  test('the catalog: ten workflows, and the protocol skills memory and buracle are not user-invocable (PLAN §2.2)', async () => {
+  test('the catalog: eleven workflows, and the protocol skills memory and buracle are not user-invocable (PLAN §2.2)', async () => {
     const { canonical } = await built()
     expect(protocolSkills(canonical)).toEqual(['buracle', 'memory'])
-    const workflows = ['plan-build', 'goal-build', 'bugfix', 'requirements', 'research', 'inspect', 'dead-code', 'project-rules', 'new-skill', 'ab-test']
+    const workflows = ['plan-build', 'goal-build', 'bugfix', 'requirements', 'research', 'inspect', 'dead-code', 'project-rules', 'new-skill', 'ab-test', 'buracle-join']
     expect(workflows.filter(id => !userInvocable(canonical).includes(id))).toEqual([])
   })
 
@@ -299,11 +299,18 @@ describe('parity: every user-invocable skill is a workflow on every harness', ()
     expect(protocolSkills(s.built.canonical).filter(id => workflowEntries.has(id))).toEqual([])
   }, 60_000)
 
-  test('omp: a /<id> command for every workflow (command file or extension command), none for the protocol skills', async () => {
+  test('omp: a /<id> command for every workflow (command file or extension command), none for the protocol skills; a workflow named like an omp built-in gets the buracle- prefix', async () => {
     const s = await surfaces()
     const entries = new Set([...commandFiles(s.built.files.omp), ...s.omp.commands])
-    expect(userInvocable(s.built.canonical).filter(id => !entries.has(id))).toEqual([])
+    expect(userInvocable(s.built.canonical).filter(id => !entries.has(ompCommandName(id)))).toEqual([])
     expect(protocolSkills(s.built.canonical).filter(id => commandFiles(s.built.files.omp).has(id))).toEqual([])
+    // omp keeps `/join` for its collab sessions: the worker skill is named buracle-join on every harness, and a future
+    // skill named like an omp built-in would get the same prefix on omp only.
+    expect(OMP_BUILTIN_COMMANDS.has('join')).toBe(true)
+    expect(ompCommandName('join')).toBe('buracle-join')
+    expect(ompCommandName('buracle-join')).toBe('buracle-join')
+    expect(commandFiles(s.built.files.omp).has('join')).toBe(false)
+    expect(s.built.files.omp.get('commands/buracle-join.md')).toContain('skill://buracle-join')
   }, 60_000)
 })
 

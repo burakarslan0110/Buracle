@@ -10,6 +10,7 @@ export const SKILL_COMMANDS: Readonly<Record<string, CommandSpec>> = {
     nested: { set: ['status', 'phase', 'approved', 'iterations', 'rounds', 'worktree'], review: ['start', 'done', 'status', 'companion'] },
   },
   worktree: { subs: ['create', 'branch', 'detect', 'diff', 'sync', 'cleanup', 'status'] },
+  work: { subs: ['publish', 'status', 'join', 'heartbeat', 'ask', 'resume', 'done', 'release', 'note', 'inbox', 'wait', 'merge', 'reopen', 'close'] },
   'review-scope': { subs: null },
   notify: { subs: ['info', 'plan_approval', 'prd_approval', 'attention_needed', 'verification_complete', 'list', 'read'] },
   project: { subs: ['init', 'sync', 'check'] },

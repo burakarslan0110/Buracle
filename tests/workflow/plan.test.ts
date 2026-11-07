@@ -8,7 +8,9 @@ import {
   planApproveResult, planComplete, planInit, planPause, planRegister, planResume, planSet, planStatus, planUnregister, planValidate, planVerify,
 } from '../../src/workflow/plan'
 import { userConfigFile } from '../../src/engine/paths'
-import { loadState, saveState, freshState } from '../../src/workflow/session-store'
+import { readBoard } from '../../src/workflow/board-store'
+import { workJoin, workMerge, workPublish, workWait } from '../../src/workflow/board'
+import { loadState, saveState, freshState, type ResolvedSession } from '../../src/workflow/session-store'
 import { stillStubbed, testWhenImplemented } from '../helpers/not-implemented'
 import { withEnv, withSandbox } from '../helpers/sandbox'
 import { SESSION, ctxAt, makeRepo, planDoc } from './fixture'
@@ -402,6 +404,45 @@ describe('plan pause / resume', () => {
     const res = planResume({ ...ctx, now: ctx.now + 1 }, S)
     expect(res.data['changed']).toBe(true)
     expect(loadState('claude', S.sessionId)).toMatchObject({ interaction: { state: 'running', since: ctx.now + 1 }, guard: { blocksForPlan: 0, blocksInChain: 0 } })
+  }))
+})
+
+describe('plan and the task board', () => {
+  test('register takes over a live board (R15), status shows its summary, and verify removes the board file and names the worktrees left behind', () => withPlanRepo(async ({ repo, plan }) => {
+    const ctx = ctxAt(repo)
+    writeFileSync(plan, planDoc({ status: 'IN_PROGRESS', approved: true, n: 2 }))
+    const first: ResolvedSession = { harness: 'codex', sessionId: 'first-lead', source: '--session' }
+    expect((await planRegister(plan, undefined, ctx, first)).data['board']).toBeUndefined()
+    const pub = await workPublish({ planPath: plan }, ctx, first)
+    expect(pub.code).toBe(0)
+    const path = String(pub.data['path'])
+    const worker: ResolvedSession = { harness: 'omp', sessionId: 'worker-1', source: '--session' }
+    expect((await workJoin('rate-limit', {}, ctx, worker)).code).toBe(0)
+    const wt = String(readBoard(path)?.tasks[0]?.worktree?.path)
+
+    const taken = await planRegister(plan, undefined, ctx, S)
+    expect(taken.code).toBe(0)
+    expect(taken.data['board']).toEqual({ slug: 'rate-limit', role: 'lead', summary: { open: 1, claimed: 1, waiting: 0, done: 0, merged: 0, stale: 0, workers: 1, total: 2 } })
+    expect(taken.lines.some(l => l.includes('Took over the task board rate-limit'))).toBe(true)
+    expect(readBoard(path)?.lead).toEqual({ harness: 'claude', session: S.sessionId })
+    expect(loadState('claude', S.sessionId).board).toMatchObject({ slug: 'rate-limit', path, role: 'lead', cursor: readBoard(path)?.seq })
+    expect((await workWait({ timeoutSec: 0 }, ctx, first)).data['error']).toBe('not_lead')
+    expect((await workMerge({}, ctx, first)).data['error']).toBe('not_lead')
+    const st = planStatus(ctx, S)
+    expect(st.data['board']).toMatchObject({ slug: 'rate-limit', role: 'lead', summary: { claimed: 1, total: 2 } })
+    expect(st.lines.some(l => l.startsWith('Board: rate-limit (lead)'))).toBe(true)
+
+    writeFileSync(plan, planDoc({ status: 'IN_PROGRESS', approved: true, n: 2, done: 2, evidence: true }))
+    expect((await planComplete(ctx, S)).code).toBe(0)
+    expect((await planApproveResult(ctx, S)).code).toBe(0)
+    const v = await planVerify(ctx, S)
+    expect(v.code).toBe(0)
+    expect(v.lines).toContain('Closed the task board rate-limit.')
+    expect(v.errors.some(e => e.includes('rate-limit-t1'))).toBe(true)
+    expect(existsSync(path)).toBe(false)
+    expect(existsSync(wt)).toBe(true)
+    expect(loadState('claude', S.sessionId).board).toBeUndefined()
+    expect(planStatus(ctx, S).data['board']).toBeUndefined()
   }))
 })
 

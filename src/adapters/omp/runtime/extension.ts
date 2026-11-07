@@ -42,7 +42,7 @@ import { ompMcpWritePaths, ompWriteContents } from './write-check'
 import { fitPrompt, isModelPrompt, PROMPT_MESSAGE_TYPE } from './prompt'
 import { approvingResult, capturePlans, planFileOf, planSavedNote, type PlanSignal, type SavedPlan } from './plan-capture'
 import { earlyEditNote, readOnlyStart } from './plan-mode'
-import { contextCheck, startupNotice } from './session-notes'
+import { BOARD_MESSAGE_TYPE, BOARD_OFFER_NOTICE, BOARD_WAITING_NOTICE, contextCheck, startupNotice } from './session-notes'
 import { reviewAgentOf, reviewProblems, reviewYieldReason, yieldReport } from './review'
 import { availableServers, isDeviceWrite, mergeRoutes, promptRouting, recordMcpResult, rootCheck, routerData, sessionHealth, workspaceFacts, type RouterData, type RootEnv } from './routing'
 import { resumedSession, telemetryOf } from './session-facts'
@@ -305,6 +305,11 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
           return deps.policy.checkWrite(call.paths, Object.keys(contents).length > 0 ? { ...wctx, contents } : wctx)
         })
         if (r.deny) return deny(r.deny, 'H02')
+        // A subagent writes under the same session's board rule (a worker's subagent stays inside the lane worktree too).
+        if (sid !== undefined && !device) {
+          const board = guarded('H29 board write rule', () => deps.board?.writeDenial(sid, cwd, call.paths))
+          if (board !== undefined) return deny(board, 'H02')
+        }
       }
       if (call.kind === 'mcp' || device || event.toolName.startsWith('mcp__')) {
         const r = closedGuard('H02', () => {
@@ -363,6 +368,11 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       }
       const early = WRITE_KINDS.has(call.kind) && sid !== undefined && !device ? guarded('H03 early edit', () => earlyEditNote(deps, sid, callPaths, cwd, lc.config.plan.planApproval)) : undefined
       if (early !== undefined) context.push(early)
+      if (isMain(ctx) && sid !== undefined && !device) {
+        const seen = guarded('H29 board heartbeat', () => deps.board?.toolSeen(sid, cwd, deps.now(), WRITE_KINDS.has(call.kind) && call.paths.length > 0, 'before'))
+        if (seen?.deny !== undefined) return deny(seen.deny, 'H02')
+        if (seen?.context !== undefined) context.push(seen.context)
+      }
       const lines = [...new Set(context.map(c => c.trim()))]
       const result: OmpToolCallResult = {}
       if (lines.length > 0) result.additionalContext = lines.join('\n')
@@ -469,13 +479,31 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       }
       const masked = guarded('mask', () => maskResult(event, ctx, { redact: liveOrDefaults().config.guards.redact, mcpIds: data.mcpIds, home: deps.home() }))
       const withMasked = (r: OmpToolResultResult | undefined): OmpToolResultResult | undefined => (masked === undefined ? r : { ...(r ?? {}), content: masked })
+      // The task board after a tool call: the heartbeat and the notes (context), and the OSC notification `work ask` left.
+      const board = isMain(ctx) ? boardAfterTool(ctx) : undefined
+      const withBoard = (r: OmpToolResultResult | undefined): OmpToolResultResult | undefined => {
+        if (board === undefined) return r
+        const text = [r?.additionalContext, board].filter((t): t is string => t !== undefined && t !== '').join('\n\n')
+        return { ...(r ?? {}), additionalContext: text }
+      }
       try {
-        return withMasked(await withDeadline(toolResult(event, ctx), deps.timings.toolResultMs, undefined))
+        return withMasked(withBoard(await withDeadline(toolResult(event, ctx), deps.timings.toolResultMs, undefined)))
       } catch (e) {
         report('tool_result', e)
-        return withMasked(undefined)
+        return withMasked(withBoard(undefined))
       }
     })
+
+    const boardAfterTool = (ctx: OmpContext): string | undefined => {
+      const sid = sessionOf(ctx)
+      if (sid === undefined) return undefined
+      const sequence = guarded('H29 terminal sequence', () => deps.board?.terminal(sid))
+      if (sequence !== undefined) {
+        guarded('H29 terminal write', () => deps.board?.tty(sequence))
+        if (hasTui(ctx)) guarded('H29 notify', () => ctx.ui.notify(BOARD_WAITING_NOTICE, 'warning'))
+      }
+      return guarded('H29 board heartbeat', () => deps.board?.toolSeen(sid, ctx.cwd, deps.now(), false, 'after'))?.context
+    }
 
     const route = (sid: string, text: string, lc: LiveConfig): PromptRoute => {
       const strictness = lc.config.routing.strictness
@@ -548,6 +576,7 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       const control = intent === 'pause' || intent === 'resume' || intent === 'stop' ? intent : null
       parts.push({ text: guarded('H10 interaction', () => promptGuidance(deps, sid, control, text, { autoPause: lc.config.plan.autoPause, now })), order: 0 })
       parts.push({ text: guarded('H10 review notes', () => deps.reviewNotes?.(sid, { plan: deps.state.load(sid).plan?.path, roots: [m.workspaceInfo?.root, ctx.cwd], now })), order: 0 })
+      parts.push({ text: guarded('H29 board notice', () => deps.board?.prompt(sid, ctx.cwd, now)), order: 0 })
       const routed = text === '' ? undefined : guarded('H22 route.prompt', () => route(sid, literalSkill ? literalSkillAsk(text) : text, lc))
       parts.push({ text: guarded('H21 workspace notice', () => workspaceUpdate(sid, lc, now)), order: 2 })
       if (m.contextWarning !== undefined) {
@@ -715,6 +744,11 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
         if (hasTui(ctx)) guarded('H17 notify', () => ctx.ui.notify(warning, 'warning'))
       }
       if (ev === 'session_start' && !resumed) startupNotice(notes, ctx, data, deps.now())
+      const offer = guarded('H29 board offer', () => deps.board?.offer(sid, ctx.cwd, deps.now()))
+      if (offer !== undefined) {
+        guarded('H29 board offer message', () => pi.sendMessage({ customType: BOARD_MESSAGE_TYPE, content: offer, display: false }, { deliverAs: 'nextTurn' }))
+        if (hasTui(ctx)) guarded('H29 board offer notify', () => ctx.ui.notify(BOARD_OFFER_NOTICE, 'info'))
+      }
       if (hasTui(ctx)) {
         m.flow?.reset()
         refreshSoon(ctx)
@@ -752,6 +786,7 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
         if (!isMain(ctx)) return undefined
         const sid = sessionOf(ctx) ?? currentSid
         if (sid !== undefined) guarded('memory ui', () => deps.memory.ui?.ended(sid))
+        if (sid !== undefined) guarded('H29 board session end', () => deps.board?.sessionEnd(sid, deps.now()))
         if (sid !== undefined) await finalize(sid)
       } catch (e) {
         report('session_shutdown', e)

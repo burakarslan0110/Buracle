@@ -8,6 +8,11 @@ import type { LaneReview, ReviewRecord } from './reviews'
 import type { NativeBinding } from './native'
 import { nativeBinding } from './native'
 import { GUARD_MARKERS, RUNAWAY_REASON, VERIFICATION_OFF_REASON, isResultReview, resumableDecision } from '../policy/intents'
+import type { BoardRole, BoardStopInput } from '../board/model'
+import { boardLeadStep, boardWorkerBlockReason } from '../board/model'
+
+/** The session's place on a task board: the lead that published it, or a worker with (or between) claimed tasks. */
+export interface BoardBinding { slug: string; path: string; role: BoardRole; task?: number; token?: string; worktree?: string; cursor?: number; heartbeatAt?: number }
 
 export interface SessionState {
   v: 1
@@ -18,6 +23,7 @@ export interface SessionState {
   reviews?: ReviewRecord[]
   laneReviews?: LaneReview[]
   native?: NativeBinding
+  board?: BoardBinding
 }
 
 export interface LockedSwitches { goalVerification: boolean; changesReview: boolean }
@@ -34,7 +40,7 @@ export function goalVerificationOf(state: SessionState, live: boolean | undefine
 export const STOP_GUARD_ESCAPE = 'The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user asking you to stop, wait or hold on, in any language. Buracle records it only when the whole message is such a word in English or Turkish, so otherwise run `buracle plan pause --kind discussion` yourself.'
 
 export type StopWhy = 'disabled' | 'no-plan' | 'finished' | 'paused' | 'awaiting-approval' | 'question' | 'runaway-plan' | 'runaway-chain' | 'blocked' | 'plan-invalid'
-  | 'background-wait' | 'read-only-mode' | 'runaway-escalate' | 'decision-answered'
+  | 'background-wait' | 'read-only-mode' | 'runaway-escalate' | 'decision-answered' | 'board-worker'
 
 export const ROUTE_AUDIT_AFTER: readonly StopWhy[] = ['finished', 'no-plan', 'disabled']
 
@@ -115,8 +121,11 @@ const APPROVAL_ANSWERED_STEP = 'if the answer approves the plan, run `buracle pl
 
 const REVIEW_STEP = 'once every check is green, show the result to the user for review (`buracle plan pause --kind decision --reason "result review"`, then ask), and after their explicit approval run `buracle plan approve-result`'
 
-function nextStep(state: SessionState, cfg: BuracleConfig['plan'], answered = false): string {
+function nextStep(state: SessionState, cfg: BuracleConfig['plan'], answered = false, board?: BoardStopInput): string {
   const p = state.plan as NonNullable<SessionState['plan']>
+  // The lead of a task board waits, merges and checks; it never implements a task the board distributes.
+  const lead = boardLeadStep(board)
+  if (lead !== undefined) return lead
   if (p.type === 'Build') {
     if (p.phase === 'plan') return isApproved(state) ? 'the contract is locked: run `buracle plan set phase implement` and start build round 1' : 'finish the run file, have it reviewed and lock the contract'
     const off = !goalVerificationOf(state, cfg?.goalVerification)
@@ -217,13 +226,29 @@ function answered(state: SessionState, prep: Prepared, input: StopInput, cfg: Bu
   const approval = isResultReview(i) ? ' An explicit approval of the result is recorded with `buracle plan approve-result`, which also resumes the plan.' : ''
   const what = typeof i.reason === 'string' && i.reason.trim() !== '' ? ` (${i.reason.trim().slice(0, 160)})` : ''
   const path = (state.plan as NonNullable<SessionState['plan']>).path
-  const reason = `${GUARD_MARKERS[0]} the pending decision${what} was answered in the question tool, but the plan ${path} is still paused. Act on the answer, run \`buracle plan resume\` and continue: ${nextStep(state, cfg, true)}.${approval} If the answer asks you to wait or stop, keep the hold (\`buracle plan pause --kind discussion\`) and end the turn.`
+  const reason = `${GUARD_MARKERS[0]} the pending decision${what} was answered in the question tool, but the plan ${path} is still paused. Act on the answer, run \`buracle plan resume\` and continue: ${nextStep(state, cfg, true, input.board)}.${approval} If the answer asks you to wait or stop, keep the hold (\`buracle plan pause --kind discussion\`) and end the turn.`
   return blockWith(base, chain, input, reason, 'H08', 'decision-answered', {}, true)
+}
+
+// A board worker holds a claimed task: its turn ends only with the task done, waiting (a question for the user) or
+// released. The session usually has no plan, so this runs before the plan checks; it never escalates, the chain cap
+// releases it.
+function workerVerdict(base: SessionState, input: StopInput, cfg: BuracleConfig['plan']): StopGuardResult | undefined {
+  const b = input.board
+  if (b === undefined || b.role !== 'worker' || b.task?.status !== 'claimed') return undefined
+  if (input.readOnly === true) return readOnlyRelease(base)
+  if (input.backgroundWait === true) return allowWith(base, 'background-wait')
+  const chain = chainOf(base, input)
+  const perChain = Math.max(1, Math.floor(cfg.runaway?.perChain ?? 5))
+  if (chain >= perChain) return allowWith(base, 'runaway-chain')
+  return blockWith(base, chain, input, `${GUARD_MARKERS[0]} ${boardWorkerBlockReason(b)}`, 'H08', 'board-worker')
 }
 
 function h08(state: SessionState, prep: Prepared, input: StopInput, cfg: BuracleConfig['plan']): StopGuardResult {
   const base = prep.base
   if (!cfg || cfg.stopGuard === false) return allowWith(base, 'disabled')
+  const worker = workerVerdict(base, input, cfg)
+  if (worker !== undefined) return worker
   const plan = state.plan
   if (!plan) return allowWith(base, 'no-plan')
   if (isFinished(state)) return allowWith(base, 'finished')
@@ -239,7 +264,7 @@ function h08(state: SessionState, prep: Prepared, input: StopInput, cfg: Buracle
   const chain = chainOf(base, input)
   const cap = capHit(base, chain, cfg)
   if (cap) return escalation(base, chain, input, cap, cfg)
-  const head = `${GUARD_MARKERS[0]} the plan ${plan.path} is ${plan.status} (type ${plan.type}, phase ${plan.phase}) and not VERIFIED, so keep working: ${nextStep(state, cfg)}.`
+  const head = `${GUARD_MARKERS[0]} the plan ${plan.path} is ${plan.status} (type ${plan.type}, phase ${plan.phase}) and not VERIFIED, so keep working: ${nextStep(state, cfg, false, input.board)}.`
   const objective = objectiveLine(prep.objective, STOP_REASON_MAX - head.length - STOP_GUARD_ESCAPE.length - 2)
   const reason = [head, objective, STOP_GUARD_ESCAPE].filter((s): s is string => s !== undefined && s !== '').join(' ')
   return blockWith(base, chain, input, reason, 'H08', 'blocked')

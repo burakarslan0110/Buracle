@@ -14,6 +14,7 @@ import type { UtilityHost } from './tui-commands'
 import { defaultCli, PANE_REFRESH_MS, utilityCommands, utilityNames } from './tui-commands'
 import { startConsentRelay } from './tui-consent'
 import { TuiNotices } from './tui-notices'
+import { emitBoardTerminal } from './tui-terminal'
 import { createMemo, createSignal, h, onCleanup, useTerminalDimensions } from './tui-runtime'
 import type { TuiComposerInput, TuiContext, TuiPluginDefinition, TuiPromptFooterInput, TuiTheme } from './types'
 import { profileWarning } from './workspace'
@@ -81,6 +82,7 @@ export function createTuiPlugin(baked: BakedData, pluginDir: string | undefined)
           if (await feeder.refresh(current.cwd, current.sessionID)) setVersion(v => v + 1)
         } catch {  }
         try { notices.poll(current.sessionID) } catch {  }
+        try { emitBoardTerminal(current.sessionID, { toast: message => { ctx.ui.toast?.show({ title: 'Buracle', message, variant: 'warning', duration: 10_000 }) } }) } catch {  }
       }
       const timer = setInterval(() => { void tick() }, REFRESH_MS)
       void tick()
