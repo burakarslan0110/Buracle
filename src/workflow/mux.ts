@@ -9,8 +9,9 @@ import { log } from '../engine/log'
 import { run } from '../engine/proc'
 import type { SplitDirection } from './mux-layout'
 
-export type MuxKind = 'tmux' | 'cmux' | 'herdr'
-export const MUX_KINDS: readonly MuxKind[] = ['tmux', 'cmux', 'herdr']
+/** `herdr-app` is the Herdr desktop app: its terminals run in herdr-core (`hc`), a different program from the `herdr` TUI with its own socket. */
+export type MuxKind = 'tmux' | 'cmux' | 'herdr' | 'herdr-app'
+export const MUX_KINDS: readonly MuxKind[] = ['tmux', 'cmux', 'herdr', 'herdr-app']
 
 type Env = Readonly<Record<string, string | undefined>>
 
@@ -59,6 +60,12 @@ export interface MuxAdapter {
    * when no pane has it, undefined when the multiplexer did not answer. Only a multiplexer with several ids per pane has it.
    */
   handlesOf?(id: string): Promise<string[] | undefined>
+  /**
+   * The pid of the shell the pane `id` runs, from the multiplexer; undefined when it has no such pane or did not answer.
+   * A worker whose environment names a stale pane (Codex replays a shell snapshot taken in an earlier session) is matched
+   * to its pane through this pid: it is an ancestor of the worker's process.
+   */
+  shellPid?(id: string): Promise<string | undefined>
 }
 
 /** What a CLI said when it refused: stderr, else stdout, else its exit code. */
@@ -70,11 +77,20 @@ function refusal(r: MuxExecResult): CloseResult {
 
 export type MuxDetect = { ok: true; kind: MuxKind } | { ok: false; code: 'usage' | 'no_mux'; message: string }
 export type MuxAdapterResult = { ok: true; adapter: MuxAdapter } | { ok: false; code: 'cmux_missing'; message: string }
-export interface MuxDeps { exec?: MuxExec; cmuxBin?: string; appBin?: string }
+/**
+ * `pid`: the calling process (tests pass one; the default is this process), the start of the ancestor walk in `ancestorPids`.
+ * `hcBin`: the herdr-core CLI (`hc` on PATH, else `herdr-core`).
+ */
+export interface MuxDeps { exec?: MuxExec; cmuxBin?: string; appBin?: string; pid?: number; hcBin?: string }
 
 export const MUX_TIMEOUT_MS = 10_000
 export const CMUX_APP_BIN = '/Applications/cmux.app/Contents/Resources/bin/cmux'
-const NO_MUX_HINT = 'no multiplexer detected (TMUX, HERDR_ENV or CMUX_SURFACE_ID): run the lead inside tmux, herdr or cmux, or pass --mux tmux to open a detached tmux session'
+const NO_MUX_HINT = 'no multiplexer detected (TMUX, HERDR_ENV, CMUX_SURFACE_ID or HC_TERMINAL_ID): run the lead inside tmux, herdr, cmux or the Herdr app, or pass --mux tmux to open a detached tmux session'
+/** The herdr-core labels that put a terminal into a space and a tab of the Herdr app. */
+const HC_SPACE_LABEL = 'herdr.space'
+const HC_TAB_LABEL = 'herdr.tab'
+/** herdr-core names: 1 to 32 of a-z, 0-9, `-` and `_`, unique among live terminals. */
+const HC_NAME_MAX = 32
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi
 const CMUX_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 /** Printable ASCII with no space and no leading dash: safe to hand to `herdr pane close` as a single argument. */
@@ -85,18 +101,22 @@ function nonEmpty(v: string | undefined): v is string { return typeof v === 'str
 function isMuxKind(v: string): v is MuxKind { return (MUX_KINDS as readonly string[]).includes(v) }
 function inHerdr(env: Env): boolean { return env['HERDR_ENV'] === '1' && nonEmpty(env['HERDR_PANE_ID']) }
 function inCmux(env: Env): boolean { return nonEmpty(env['CMUX_SURFACE_ID']) }
+/** A terminal that herdr-core runs: the Herdr app's, or one started with `hc run`. The app's `open` checks the space and tab labels. */
+function inHerdrApp(env: Env): boolean { return paneIdOf('herdr-app', env) !== undefined }
 
-/** The multiplexer to use: `explicit` from `--mux`, else the innermost one the environment shows (tmux, then herdr, then cmux). */
+/** The multiplexer to use: `explicit` from `--mux`, else the innermost one the environment shows (tmux, then herdr, then cmux, then the Herdr app). */
 export function detectMux(env: Env, explicit?: string): MuxDetect {
   if (explicit !== undefined) {
     if (!isMuxKind(explicit)) return { ok: false, code: 'usage', message: `--mux must be one of ${MUX_KINDS.join(', ')} (got '${explicit}')` }
     if (explicit === 'herdr' && !inHerdr(env)) return { ok: false, code: 'no_mux', message: '--mux herdr needs a lead that runs inside a herdr pane (HERDR_ENV=1 and HERDR_PANE_ID)' }
     if (explicit === 'cmux' && !inCmux(env)) return { ok: false, code: 'no_mux', message: '--mux cmux needs a lead that runs inside cmux (CMUX_SURFACE_ID): its socket accepts only processes started inside cmux' }
+    if (explicit === 'herdr-app' && !inHerdrApp(env)) return { ok: false, code: 'no_mux', message: '--mux herdr-app needs a lead that runs inside a terminal of the Herdr app (HC_TERMINAL_ID)' }
     return { ok: true, kind: explicit }
   }
   if (nonEmpty(env['TMUX'])) return { ok: true, kind: 'tmux' }
   if (inHerdr(env)) return { ok: true, kind: 'herdr' }
   if (inCmux(env)) return { ok: true, kind: 'cmux' }
+  if (inHerdrApp(env)) return { ok: true, kind: 'herdr-app' }
   return { ok: false, code: 'no_mux', message: NO_MUX_HINT }
 }
 
@@ -109,6 +129,8 @@ export function layoutCaps(kind: MuxKind, env: Env): { exact: boolean; lead: boo
     case 'tmux': return { exact: true, lead: nonEmpty(env['TMUX']) }
     case 'herdr': return { exact: true, lead: true }
     case 'cmux': return { exact: false, lead: true }
+    // The app places an adopted terminal in the lead's tab itself; Buracle neither splits nor sizes.
+    case 'herdr-app': return { exact: false, lead: false }
     default: { const never: never = kind; return never }
   }
 }
@@ -130,20 +152,23 @@ export function validPaneId(kind: MuxKind, id: string): boolean {
     // herdr's ids are opaque handles whose number is written in base 36 (w2:p9, then w2:pA … w2:pZ, observed up to pH), so every letter belongs to the shape.
     case 'herdr': return /^w[0-9a-z]+:p[0-9a-z]+$/i.test(id)
     case 'cmux': return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) || /^surface:\d+$/.test(id)
+    // herdr-core addresses: `t7`, `t1b` (local only; `machine/t7` names another machine and never a pane of the lead's app).
+    case 'herdr-app': return /^t[0-9a-z]+$/i.test(id)
     default: { const never: never = kind; return never }
   }
 }
 
-/** The pane the calling process runs in, for one multiplexer (`TMUX_PANE`, `HERDR_PANE_ID`, `CMUX_SURFACE_ID`). */
+/** The pane the calling process runs in, for one multiplexer (`TMUX_PANE`, `HERDR_PANE_ID`, `CMUX_SURFACE_ID`, `HC_TERMINAL_ID`). */
 export function paneIdOf(kind: MuxKind, env: Env): string | undefined {
-  const v = kind === 'tmux' ? env['TMUX_PANE'] : kind === 'herdr' ? env['HERDR_PANE_ID'] : env['CMUX_SURFACE_ID']
+  const v = kind === 'tmux' ? env['TMUX_PANE'] : kind === 'herdr' ? env['HERDR_PANE_ID'] : kind === 'cmux' ? env['CMUX_SURFACE_ID'] : env['HC_TERMINAL_ID']
   return nonEmpty(v) && validPaneId(kind, v) ? v : undefined
 }
 
-/** The server a herdr or cmux pane belongs to, from the environment; tmux asks the server itself (`#{socket_path}`). */
+/** The server a herdr, cmux or herdr-core pane belongs to, from the environment; tmux asks the server itself (`#{socket_path}`). */
 export function muxServerOf(kind: MuxKind, env: Env): string {
   if (kind === 'herdr') return nonEmpty(env['HERDR_SOCKET_PATH']) ? env['HERDR_SOCKET_PATH'] : 'herdr'
   if (kind === 'cmux') return nonEmpty(env['CMUX_SOCKET_PATH']) ? env['CMUX_SOCKET_PATH'] : 'cmux'
+  if (kind === 'herdr-app') return nonEmpty(env['HC_TERMINAL_SOCKET']) ? env['HC_TERMINAL_SOCKET'] : 'herdr-core'
   return ''
 }
 
@@ -173,6 +198,19 @@ export function cmuxBin(env: Env, appBin = CMUX_APP_BIN): string | undefined {
   return existsSync(appBin) ? appBin : undefined
 }
 
+/** The herdr-core CLI: `hc` on PATH, else `herdr-core` (the same program under its long name). */
+export function hcBin(env: Env): string {
+  return Bun.which('hc', { PATH: env['PATH'] ?? process.env['PATH'] ?? '' }) !== null ? 'hc' : 'herdr-core'
+}
+
+/** A herdr-core terminal name from a pane title and the board slug: `Worker 1 (codex) · …` and `rate-limit` give `worker-1-codex-rate-limit`. */
+export function hcName(title: string, slug: string): string {
+  const slugify = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+  const head = slugify(title.split('·')[0] ?? title)
+  const name = `${head}-${slugify(slug)}`.replace(/-+/g, '-').slice(0, HC_NAME_MAX).replace(/^-+|-+$/g, '')
+  return name === '' ? 'buracle-worker' : name
+}
+
 const defaultExec: MuxExec = async (argv, o) => {
   try {
     const r = await run(argv, { timeoutMs: o.timeoutMs, env: { ...o.env } })
@@ -180,6 +218,26 @@ const defaultExec: MuxExec = async (argv, o) => {
   } catch (e) {
     return { code: 127, stdout: '', stderr: e instanceof Error ? e.message : String(e) }
   }
+}
+
+/** The maximum depth of the ancestor walk: a harness sits a few shells and wrappers below its pane's shell, never dozens. */
+const ANCESTOR_LIMIT = 32
+
+/**
+ * The pids of the process `pid` and its ancestors up to init, nearest first, from `ps -o ppid=`. The walk stops at a pid
+ * `ps` does not know, at 0 or 1, or after `ANCESTOR_LIMIT` steps.
+ */
+export async function ancestorPids(pid: number, env: Env, exec: MuxExec = defaultExec): Promise<string[]> {
+  const out: string[] = []
+  let cur = pid
+  for (let i = 0; i < ANCESTOR_LIMIT && Number.isInteger(cur) && cur > 1; i++) {
+    out.push(String(cur))
+    const r = await exec(['ps', '-o', 'ppid=', '-p', String(cur)], { timeoutMs: MUX_TIMEOUT_MS, env })
+    const next = Number(r.stdout.trim())
+    if (r.code !== 0 || !Number.isInteger(next) || out.includes(String(next))) break
+    cur = next
+  }
+  return out
 }
 
 function writeBell(tty: string): void {
@@ -302,6 +360,11 @@ function tmuxAdapter(env: Env, exec: MuxExec): MuxAdapter {
       const r = await x(['kill-pane', '-t', pane.id])
       return r.code === 0 ? { ok: true } : refusal(r)
     },
+    async shellPid(id) {
+      if (!validPaneId('tmux', id)) return undefined
+      const f = await facts(id)
+      return f !== undefined && f !== 'failed' ? f.pid : undefined
+    },
   }
 }
 
@@ -356,6 +419,100 @@ function herdrAdapter(env: Env, exec: MuxExec): MuxAdapter {
       if (p !== 'ok') return { ok: false, reason: p }
       const r = await x(['pane', 'close', pane.id])
       return r.code === 0 ? { ok: true } : refusal(r)
+    },
+    async shellPid(id) {
+      if (!validPaneId('herdr', id)) return undefined
+      const r = await x(['pane', 'process-info', '--pane', id])
+      if (r.code !== 0) return undefined
+      const pid = field(parseJson(r.stdout), 'result', 'process_info', 'shell_pid')
+      return typeof pid === 'number' && Number.isInteger(pid) ? String(pid) : typeof pid === 'string' && /^\d+$/.test(pid) ? pid : undefined
+    },
+  }
+}
+
+/**
+ * The Herdr desktop app. Its terminals run in herdr-core (`hc`): a terminal carries the labels `herdr.space` and `herdr.tab`
+ * of the space and tab the app shows it in, and a terminal started with the lead's labels appears in the lead's tab as a
+ * pane of its own (the app places it; there is no split to size). A worker terminal's id is its herdr-core address (`t9`),
+ * which the worker sees as HC_TERMINAL_ID. Labels on the terminal carry the title and the mark; the app shows the terminal's
+ * name (`worker-1-codex-<slug>`). `herdr-app` (the app's CLI) focuses a pane; everything else goes through `hc`.
+ */
+function herdrAppAdapter(env: Env, exec: MuxExec, hc: string): MuxAdapter {
+  const x = (args: string[]) => exec([hc, ...args], { timeoutMs: MUX_TIMEOUT_MS, env })
+  const app = (args: string[]) => exec(['herdr-app', ...args], { timeoutMs: MUX_TIMEOUT_MS, env })
+  const server = muxServerOf('herdr-app', env)
+  const lead = paneIdOf('herdr-app', env)
+  const shell = (): string => { const s = env['SHELL']; return nonEmpty(s) && s.startsWith('/') ? s : '/bin/sh' }
+  // Without HC_TERMINAL_SOCKET (a lead command run from a shell outside the app) hc talks to its default session, the one
+  // the records name: the socket check is only possible when the environment names one.
+  const sameServer = (pane: MuxPane): boolean => validPaneId('herdr-app', pane.id) && (pane.server === '' || server === 'herdr-core' || pane.server === server)
+  /**
+   * `hc get <id> --json`: the terminal's record, undefined when hc has no such terminal (`not_found`), `'failed'` when hc
+   * did not answer or refused for another reason (a record is never dropped on a daemon hiccup).
+   */
+  const record = async (id: string): Promise<Record<string, unknown> | 'failed' | undefined> => {
+    const r = await x(['get', id, '--json'])
+    if (r.code !== 0) return !unreachable(r.code) && /not_found/.test(r.stderr + r.stdout) ? undefined : 'failed'
+    const j = parseJson(r.stdout)
+    return j !== null && typeof j === 'object' && !Array.isArray(j) ? (j as Record<string, unknown>) : 'failed'
+  }
+  const presence = async (pane: MuxPane): Promise<Presence> => {
+    if (!sameServer(pane)) return 'stale'
+    const rec = await record(pane.id)
+    if (rec === 'failed') return 'failed'
+    return rec !== undefined && rec['state'] === 'live' ? 'ok' : 'stale'
+  }
+  const label = async (pane: MuxPane, kv: string): Promise<boolean> => (await x(['label', pane.id, kv])).code === 0
+  return {
+    kind: 'herdr-app',
+    async open(spec) {
+      if (lead === undefined) return undefined
+      const me = await record(lead)
+      if (me === 'failed' || me === undefined) return undefined
+      const space = field(me, 'labels', HC_SPACE_LABEL)
+      const tab = field(me, 'labels', HC_TAB_LABEL)
+      // Without the app's labels the lead is a plain hc terminal: a worker started from it would show up in no window.
+      if (typeof space !== 'string' || space === '' || typeof tab !== 'string' || tab === '') return undefined
+      const run = async (name: string | undefined): Promise<MuxExecResult> => x([
+        'run', '--json', '--bg', '--keep', '--outlive-parent', '--no-parent', '--no-notify', '--cwd', spec.cwd,
+        ...(name !== undefined ? ['--name', name] : []),
+        '--label', `${HC_SPACE_LABEL}=${space}`, '--label', `${HC_TAB_LABEL}=${tab}`,
+        '--', shell(), '-lc', spec.command,
+      ])
+      let r = await run(hcName(spec.title, spec.slug))
+      // A live terminal of an earlier run may hold the name: the pane matters more than its name.
+      if (r.code !== 0 && /name_taken/.test(r.stderr + r.stdout)) r = await run(undefined)
+      if (r.code !== 0) return undefined
+      const id = field(parseJson(r.stdout), 'address')
+      if (typeof id !== 'string' || !validPaneId('herdr-app', id)) return undefined
+      return { id, server }
+    },
+    async title(pane, text) { return label(pane, `buracle.label=${text}`) },
+    async mark(pane, text) { return label(pane, `buracle.mark=${text}`) },
+    async clearMark(pane) { return label(pane, 'buracle.mark=') },
+    async focus(pane) { return (await app(['do', 'pane.focus', '--terminal', pane.id])).code === 0 },
+    presence,
+    async alive(pane) { return (await presence(pane)) === 'ok' },
+    async close(pane) {
+      if (!sameServer(pane)) return { ok: false, reason: 'stale' }
+      const rec = await record(pane.id)
+      if (rec === 'failed') return { ok: false, reason: 'failed' }
+      if (rec === undefined) return { ok: false, reason: 'stale' }
+      if (rec['state'] === 'live') {
+        const k = await x(['kill', pane.id, '--json'])
+        if (k.code !== 0) return refusal(k)
+      }
+      // A finished terminal (killed now, or a worker that exited on its own, kept by --keep) stays listed, and in the
+      // app's tab, until it is removed.
+      await x(['rm', pane.id, '--json'])
+      return rec['state'] === 'live' ? { ok: true } : { ok: false, reason: 'stale' }
+    },
+    async shellPid(id) {
+      if (!validPaneId('herdr-app', id)) return undefined
+      const rec = await record(id)
+      if (rec === 'failed' || rec === undefined) return undefined
+      const pid = rec['pid']
+      return typeof pid === 'number' && Number.isInteger(pid) ? String(pid) : undefined
     },
   }
 }
@@ -476,6 +633,7 @@ export function muxAdapter(kind: MuxKind, env: Env, deps: MuxDeps = {}): MuxAdap
   switch (kind) {
     case 'tmux': return { ok: true, adapter: tmuxAdapter(env, exec) }
     case 'herdr': return { ok: true, adapter: herdrAdapter(env, exec) }
+    case 'herdr-app': return { ok: true, adapter: herdrAppAdapter(env, exec, deps.hcBin ?? hcBin(env)) }
     case 'cmux': {
       const bin = deps.cmuxBin ?? cmuxBin(env, deps.appBin)
       if (bin === undefined) return { ok: false, code: 'cmux_missing', message: `the cmux CLI was not found on PATH or at ${deps.appBin ?? CMUX_APP_BIN}; install the cmux CLI (cmux settings) or pass --mux tmux` }

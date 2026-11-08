@@ -245,7 +245,7 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
 
 export const META: { buracleVersion: string, contentHash: string } = {
   "buracleVersion": "9.9.9",
-  "contentHash": "50b81f1c93860ef8c29737b8d00a224c02aa7064d08553e2536a0399cdde7144"
+  "contentHash": "77f6a3ac3695bc506c36509de3c781aa21e76623ebe86c8d9e168c54bff65b0e"
 }
 ===== hooks/hooks.json =====
 {

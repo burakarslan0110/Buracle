@@ -5,7 +5,8 @@
 import { closeSync, openSync, writeSync } from 'node:fs'
 import { run } from '../engine/proc'
 
-export interface TerminalNote { title: string; body: string; agent?: string }
+/** `pane`: the herdr pane the note is about, when the caller knows it better than the environment does (a bound board pane). */
+export interface TerminalNote { title: string; body: string; agent?: string; pane?: string }
 export interface TerminalNotifyDeps { tty?: string; spawn?: (argv: string[]) => Promise<number | undefined> }
 /** Who announces the question: herdr or cmux (they notify on their own), or the terminal itself through an OSC sequence. */
 export type NotifyRoute = 'herdr' | 'cmux' | 'osc'
@@ -99,7 +100,9 @@ export async function notifyTerminal(note: TerminalNote, env: Readonly<Record<st
   } else if (route === 'cmux') {
     out.cmux = (await spawn(['cmux', 'notify', '--title', title, '--body', body])) === 0
   } else {
-    out.herdr = (await spawn(['herdr', 'pane', 'report-agent', env['HERDR_PANE_ID'] as string, '--source', 'buracle', '--agent', note.agent ?? 'buracle', '--state', 'blocked', '--message', body])) === 0
+    // The caller's pane counts only when it is a herdr pane: a worker in tmux inside herdr names a tmux pane instead.
+    const pane = note.pane !== undefined && /^w[0-9a-z]+:p[0-9a-z]+$/i.test(note.pane) ? note.pane : (env['HERDR_PANE_ID'] as string)
+    out.herdr = (await spawn(['herdr', 'pane', 'report-agent', pane, '--source', 'buracle', '--agent', note.agent ?? 'buracle', '--state', 'blocked', '--message', body])) === 0
   }
   return out
 }

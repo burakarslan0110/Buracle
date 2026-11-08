@@ -8,6 +8,7 @@ import type { Harness } from '../../core/events'
 import type { BoardNote, BoardStopInput, BoardTask } from '../../core/board/model'
 import { boardSummary, boardWriteDenial as coreWriteDenial, claimable, heartbeat, markDelivered, notesFor, release, resume, sweep } from '../../core/board/model'
 import type { BoardBinding } from '../../core/plan/state'
+import { loadConfigSync } from '../../engine/config'
 import { atomicWriteSync } from '../../engine/fsx'
 import { log } from '../../engine/log'
 import { isValidSessionId, sessionDir } from '../../engine/paths'
@@ -29,6 +30,11 @@ function repoRootOf(commonDir: string): string {
  * their lead nor a worker. The text asks the model to offer `/buracle-join <slug>` to the user, never to join on its own.
  * `joinCommand` is what the user types in this harness: `/buracle-join`, or `$buracle-join` in Codex.
  */
+/** `plan.board.harnesses.<h>`; true when the config cannot be read (a hook never blocks on it). */
+function swarmHarnessOn(h: Harness): boolean {
+  try { return loadConfigSync().config.plan.board.harnesses[h] !== false } catch { return true }
+}
+
 export function boardJoinOffer(h: Harness, sid: string, cwd: string, now: number, joinCommand = '/buracle-join'): string | undefined {
   try {
     if (sessionBoard(h, sid) !== undefined) return undefined
@@ -36,17 +42,20 @@ export function boardJoinOffer(h: Harness, sid: string, cwd: string, now: number
     if (mark === undefined || existsSync(mark)) return undefined
     const common = commonDirOf(cwd)
     if (common === undefined) return undefined
+    // A harness the user keeps out of the swarm (plan.board.harnesses) is never offered a task.
+    if (swarmHarnessOn(h) === false) return undefined
     const ready: string[] = []
     for (const b of listBoards(common)) {
       if (b.board === undefined) continue
       const board = sweep(b.board, now)
       if (board.lead.harness === h && board.lead.session === sid) continue
-      const n = claimable(board).ready.length
+      // Only tasks this harness may take: one reserved for another harness is no offer.
+      const n = claimable(board, h).ready.length
       if (n > 0) ready.push(`\`${board.slug}\` (${n} task(s) ready, ${boardSummary(board).workers} worker(s) on it, lead ${board.lead.harness} ${board.lead.session})`)
     }
     if (ready.length === 0) return undefined
     atomicWriteSync(mark, JSON.stringify({ at: now }) + '\n')
-    const slug = ready.length === 1 ? listBoards(common).find(b => b.board !== undefined && claimable(sweep(b.board, now)).ready.length > 0)?.slug ?? '<slug>' : '<slug>'
+    const slug = ready.length === 1 ? listBoards(common).find(b => b.board !== undefined && claimable(sweep(b.board, now), h).ready.length > 0)?.slug ?? '<slug>' : '<slug>'
     return `Buracle task board: this repository has a board with tasks waiting for a worker: ${ready.join('; ')}. Tell the user in one line and offer to join: \`${joinCommand} ${slug}\` takes one task and works on it in its own worktree while the lead merges. Join only when the user says yes.`
   } catch (e) {
     log('warn', 'board: the join offer failed', { error: e })

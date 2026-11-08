@@ -1,3 +1,5 @@
+import type { Harness } from '../events'
+import { HARNESSES } from '../events'
 import type { FmData, FmValue } from '../frontmatter'
 import { parseYamlBlock, renderYamlBlock } from '../frontmatter'
 import { authoringFindings, type PlanOutline } from './authoring'
@@ -6,7 +8,7 @@ import { documentFindings } from './document'
 export type PlanStatus = 'PENDING' | 'APPROVED' | 'IN_PROGRESS' | 'COMPLETE' | 'VERIFIED' | 'SAVED'
 export type PlanType = 'Feature' | 'Bugfix' | 'Build' | 'Plan'
 export interface PlanHeader { created: string; status: PlanStatus; approved: boolean; worktree: boolean; type: PlanType; iterations?: number; rounds?: number }
-export interface PlanTask { n: number; title: string; done: boolean; objective?: string; files: Array<{ verb: 'Create'|'Modify'|'Delete'|'Rename'|'Test', path: string }>; dod?: string; dependsOn?: number[] }
+export interface PlanTask { n: number; title: string; done: boolean; objective?: string; files: Array<{ verb: 'Create'|'Modify'|'Delete'|'Rename'|'Test', path: string }>; dod?: string; dependsOn?: number[]; harness?: Harness }
 export interface Plan { header: PlanHeader; title: string; tasks: PlanTask[]; sections: string[] }
 export interface Finding { level: 'error' | 'warning' | 'info'; code: string; message: string; line?: number }
 
@@ -105,6 +107,8 @@ interface CardBody {
   verify: boolean
   badFiles: Array<{ line: number, text: string }>
   checkbox?: { n: number, line: number }
+  /** A `**Harness:**` line whose value is not a harness id. */
+  badHarness?: { line: number, value: string }
   prose: number[]
 }
 
@@ -124,6 +128,8 @@ function readCard(doc: Doc, card: Card): CardBody {
   let verify = false
   let checkbox: { n: number, line: number, done: boolean } | undefined
   let dependsOn: number[] | undefined
+  let harness: Harness | undefined
+  let badHarness: CardBody['badHarness']
   const prose: number[] = []
   for (let i = card.head + 1; i < card.end; i++) {
     const line = doc.lines[i] as string
@@ -149,6 +155,14 @@ function readCard(doc: Doc, card: Card): CardBody {
         else if (key === 'definition of done' || key === 'dod') { block = 'dod'; hasDod = true; if (rest !== '') dod.push(rest); prose.push(i) }
         else if (key === 'verify') { verify = true; block = 'other'; prose.push(i) }
         else if (key === 'depends on') { dependsOn = dependsOnNumbers(rest); block = 'other' }
+        else if (key === 'harness') {
+          // `**Harness:** codex`: the task is reserved for workers of that harness.
+          const value = rest.replace(/`/g, '').trim()
+          const id = value.toLowerCase()
+          if ((HARNESSES as readonly string[]).includes(id)) harness = id as Harness
+          else badHarness = { line: i, value }
+          block = 'other'
+        }
         else block = 'other'
         continue
       }
@@ -176,6 +190,7 @@ function readCard(doc: Doc, card: Card): CardBody {
   const d = dod.join('\n').trim()
   if (d !== '') task.dod = d
   if (dependsOn !== undefined) task.dependsOn = dependsOn
+  if (harness !== undefined) task.harness = harness
   return {
     task,
     hasObjective,
@@ -184,6 +199,7 @@ function readCard(doc: Doc, card: Card): CardBody {
     verify,
     badFiles,
     ...(checkbox ? { checkbox: { n: checkbox.n, line: checkbox.line } } : {}),
+    ...(badHarness !== undefined ? { badHarness } : {}),
     prose,
   }
 }
@@ -451,6 +467,7 @@ export function validatePlan(markdown: string, opts?: { strict?: boolean }): Fin
     for (const b of body.badFiles) {
       out.push(err('bad-file-verb', `${label}: file lines read \`- Create|Modify|Delete|Rename|Test: path\` (got "${b.text.slice(0, 60)}")`, b.line))
     }
+    if (body.badHarness !== undefined) out.push(warn('unknown-harness', `unknown harness \`${body.badHarness.value}\` in ${label}: one of ${HARNESSES.join(', ')}`, body.badHarness.line))
     if (!body.checkbox) out.push(err('missing-checkbox', `${label} needs the checkbox line \`- [ ] Task ${card.n} done\``, card.head))
     else if (body.checkbox.n !== card.n) out.push(err('checkbox-mismatch', `${label}'s checkbox names Task ${body.checkbox.n}`, body.checkbox.line))
   }

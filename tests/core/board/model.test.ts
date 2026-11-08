@@ -89,6 +89,19 @@ describe('claimable and claim', () => {
     expect(deps.ok ? 'ok' : deps.code).toBe('deps_unmerged')
   })
 
+  test('a task reserved for one harness is ready only for that harness; the lead\'s overview without a harness lists it; claim from another harness fails with wrong_harness', () => {
+    const b = fresh([task(1, ['src/a.ts'], { harness: 'codex' }), task(2, ['src/b.ts'])])
+    expect(b.tasks[0]?.harness).toBe('codex')
+    expect('harness' in (b.tasks[1] ?? {})).toBe(false)
+    expect(claimable(b)).toEqual({ ready: [1, 2], blocked: [] })
+    expect(claimable(b, 'codex')).toEqual({ ready: [1, 2], blocked: [] })
+    expect(claimable(b, 'opencode')).toEqual({ ready: [2], blocked: [{ n: 1, reason: 'harness', detail: 'is reserved for codex' }] })
+    const wrong = claim(b, 1, B, NOW, 'tok-b')
+    expect(wrong.ok ? 'ok' : [wrong.code, wrong.message]).toEqual(['wrong_harness', 'Task 1 is reserved for codex workers'])
+    expect(claim(b, 1, A, NOW, 'tok-a').ok).toBe(true)
+    expect(claim(b, 2, B, NOW, 'tok-b').ok).toBe(true)
+  })
+
   test('unclaim restores the pre-claim snapshot when the worktree failed; setWorktree records the lane on a claimed task only', () => {
     const b = fresh()
     const before = b.tasks[0] as (typeof b.tasks)[number]
@@ -203,6 +216,19 @@ describe('mergeBoard', () => {
     expect(board.events.filter(e => e.kind === 'reopened').map(e => e.task)).toEqual([2])
     expect(board.events.at(-1)?.kind).toBe('published')
     expect(board.seq).toBeGreaterThan(old.seq)
+  })
+
+  test('a republish refreshes the harness of open tasks and reports a changed harness on an active task as drift', () => {
+    const old = must(claim(fresh([task(1, ['src/a.ts']), task(2, ['src/b.ts'], { harness: 'codex' }), task(3, ['src/c.ts'], { harness: 'omp' })]), 1, A, NOW, 'tok-a'))
+    const plan = [task(1, ['src/a.ts'], { harness: 'opencode' }), task(2, ['src/b.ts']), task(3, ['src/c.ts'], { harness: 'codex' })]
+    const next = boardFromPlan(plan, { ...OPTS, now: NOW + 100 })
+    if (!next.ok) throw new Error(next.message)
+    const { board, changed } = mergeBoard(old, next.board)
+    expect(changed).toEqual([1])
+    expect(board.tasks[0]?.status).toBe('claimed')
+    expect('harness' in (board.tasks[0] ?? {})).toBe(false)
+    expect('harness' in (board.tasks[1] ?? {})).toBe(false)
+    expect(board.tasks[2]?.harness).toBe('codex')
   })
 })
 

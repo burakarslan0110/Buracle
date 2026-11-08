@@ -10,7 +10,7 @@ describe('work spawn: where the worker panes go', () => {
   test('six workers fill two rows of three under the lead: each column is split down once, and the pane map reads left to right, top to bottom', () => sandbox(async root => {
     const { repo } = await published(root, { n: 6 })
     const h = fakeHerdr()
-    const r = await workSpawn({}, ctxAt(repo, NOW, HERDR_ENV), LEAD, { exec: h.exec, which })
+    const r = await workSpawn({ harness: 'claude' }, ctxAt(repo, NOW, HERDR_ENV), LEAD, { exec: h.exec, which })
     expect(r.errors).toEqual([])
     const cwd = String(r.data['cwd'])
     expect(h.lines().filter(l => l.startsWith('herdr pane split'))).toEqual([
@@ -28,9 +28,9 @@ describe('work spawn: where the worker panes go', () => {
     const { repo } = await published(root, { n: 4 })
     const live = new Set<string>()
     const h = fakeHerdr({ live })
-    expect((await workSpawn({ workers: 1 }, ctxAt(repo, NOW, HERDR_ENV), LEAD, { exec: h.exec, which })).code).toBe(0)
+    expect((await workSpawn({ workers: 1, harness: 'claude' }, ctxAt(repo, NOW, HERDR_ENV), LEAD, { exec: h.exec, which })).code).toBe(0)
     h.reset()
-    const r = await workSpawn({ workers: 2 }, ctxAt(repo, NOW + 1, HERDR_ENV), LEAD, { exec: h.exec, which })
+    const r = await workSpawn({ workers: 2, harness: 'claude' }, ctxAt(repo, NOW + 1, HERDR_ENV), LEAD, { exec: h.exec, which })
     expect(r.errors).toEqual([])
     const cwd = String(r.data['cwd'])
     // The old pane keeps a third of its width and the two new ones take a third each.
@@ -44,7 +44,7 @@ describe('work spawn: where the worker panes go', () => {
     const { repo } = await published(root, { n: 3 })
     // The second split fails: Worker 2 is missing, so Worker 3 (which was to split it) halves the pane opened before.
     const second = fakeHerdr({ failSplit: 2 })
-    const r = await workSpawn({}, ctxAt(repo, NOW, HERDR_ENV), LEAD, { exec: second.exec, which })
+    const r = await workSpawn({ harness: 'claude' }, ctxAt(repo, NOW, HERDR_ENV), LEAD, { exec: second.exec, which })
     expect(r.code).toBe(2)
     const cwd = String(r.data['cwd'])
     expect(second.lines().filter(l => l.startsWith('herdr pane split'))).toEqual([
@@ -55,7 +55,7 @@ describe('work spawn: where the worker panes go', () => {
     // The first split fails: nothing opened yet, so the next pane halves the lead itself.
     const { repo: repo2 } = await published(join(root, 'two'), { n: 2 })
     const first = fakeHerdr({ failSplit: 1 })
-    const late = await workSpawn({}, ctxAt(repo2, NOW, HERDR_ENV), LEAD, { exec: first.exec, which })
+    const late = await workSpawn({ harness: 'claude' }, ctxAt(repo2, NOW, HERDR_ENV), LEAD, { exec: first.exec, which })
     expect(late.code).toBe(2)
     expect(first.lines().filter(l => l.startsWith('herdr pane split')).at(-1)).toBe(`herdr pane split --current --direction right --ratio 0.5 --cwd ${String(late.data['cwd'])} --no-focus`)
   }))
@@ -63,7 +63,7 @@ describe('work spawn: where the worker panes go', () => {
   test('cmux only halves, so three workers open in the order rank 1, 3, 2; the pane map and the opened list still read Worker 1, 2, 3 left to right', () => sandbox(async root => {
     const { repo, commonDir } = await published(root, { n: 3 })
     const c = fakeCmux()
-    const r = await workSpawn({}, ctxAt(repo, NOW, CMUX_ENV), LEAD, { exec: c.exec, cmuxBin: '/opt/cmux', which })
+    const r = await workSpawn({ harness: 'claude' }, ctxAt(repo, NOW, CMUX_ENV), LEAD, { exec: c.exec, cmuxBin: '/opt/cmux', which })
     expect(r.errors).toEqual([])
     const splits = c.lines().filter(l => l.includes(' new-split ')).map(l => l.replace(/ --command .* --focus false$/, ''))
     expect(splits).toEqual([
@@ -95,7 +95,7 @@ describe('work spawn: where the worker panes go', () => {
       if (argv[1] === 'display-message') return { code: 0, stdout: '4242 /private/tmp/tmux-501/default\n', stderr: '' }
       return { code: 0, stdout: '', stderr: '' }
     }
-    const r = await workSpawn({ mux: 'tmux', workers: 4 }, ctxAt(repo, NOW, { TMUX: '/private/tmp/tmux-501/default,812,0', TMUX_PANE: '%3' }), LEAD, { exec, which })
+    const r = await workSpawn({ mux: 'tmux', workers: 4, harness: 'claude' }, ctxAt(repo, NOW, { TMUX: '/private/tmp/tmux-501/default,812,0', TMUX_PANE: '%3' }), LEAD, { exec, which })
     expect(r.errors).toEqual([])
     const lines = calls.map(c => c.join(' '))
     expect(lines.some(l => l.includes('select-layout'))).toBe(false)
@@ -120,7 +120,7 @@ describe('work spawn: where the worker panes go', () => {
       if (argv[1] === 'display-message') return { code: 0, stdout: '4242 /tmp/s\n', stderr: '' }
       return { code: 0, stdout: '', stderr: '' }
     }
-    const r = await workSpawn({ mux: 'tmux', workers: 3 }, ctxAt(repo, NOW), LEAD, { exec, which })
+    const r = await workSpawn({ mux: 'tmux', workers: 3, harness: 'claude' }, ctxAt(repo, NOW), LEAD, { exec, which })
     expect(r.errors).toEqual([])
     const lines = calls.map(c => c.join(' ')).filter(l => /new-session|split-window/.test(l)).map(l => l.replace(/ -c \S+ -P -F #\{pane_id\}/, '').replace(/ claude .*$/, ''))
     expect(lines).toEqual([

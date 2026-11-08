@@ -15,17 +15,19 @@ Lead (the session that registered the plan):
                      keeps every state and warns (exit 2, plan_changed_while_active) when an active task's files
                      or dependencies changed in the plan. Defaults: plan.board.maxWorkers (6), plan.board.leaseSec
                      (300; the flag accepts 1 or more, the config key 10 or more)
-  spawn [--mux tmux|cmux|herdr] [--workers <n>] [--harness <h>[,<h>…]] [--dry-run]
+  spawn [--mux tmux|cmux|herdr|herdr-app] [--workers <n>] [--harness <h>[,<h>…]] [--dry-run]
                      open worker panes in the lead's terminal multiplexer: one per ready task by default (never more
                      than the free worker slots), each running a harness whose first prompt is /buracle-join <slug>.
-                     --mux defaults to the multiplexer the lead runs in (tmux, then herdr, then cmux); --mux tmux
-                     outside tmux opens a detached session buracle-<slug>. The lead keeps the top of its area and
-                     the workers fill a grid of panes below it (one row up to four workers; cmux can only
-                     halve a pane); a later spawn adds panes next to the last worker pane. Here --harness is the
-                     workers' harness list, dealt out in turn (default: the lead's); the lead's own session comes
+                     --mux defaults to the multiplexer the lead runs in (tmux, then herdr, then cmux, then the Herdr
+                     app); --mux tmux outside tmux opens a detached session buracle-<slug>. The lead keeps the top of
+                     its area and the workers fill a grid of panes below it (one row up to four workers; cmux can only
+                     halve a pane; the Herdr app places the panes in the lead's tab itself); a later spawn adds panes
+                     next to the last worker pane. Here --harness is the workers' harness list, dealt out in turn
+                     (default: the swarm harnesses of plan.board.harnesses that are installed); the lead's own session comes
                      from the environment or --session with BURACLE_HARNESS. --dry-run prints the panes it would open
                      (exit 0 even without a board or a multiplexer). The panes are recorded, so that merge and
-                     close can close them; nothing else is ever closed. Error codes: no_mux, mux_mismatch,
+                     close can close them; nothing else is ever closed. --dry-run also prints harnesses, the usable list
+                     (on in plan.board.harnesses and installed). Error codes: no_mux, mux_mismatch, harness_off,
                      harness_missing, cmux_missing, mux_failed
   wait [--timeout <s>]
                      block until the board changes (a task claimed, done, waiting, stale, released, or a note for the
@@ -65,6 +67,7 @@ Any session in the repository:
 Task states: open, claimed, waiting, done, merged, stale. A claimed task whose lease expires without a heartbeat
 turns stale and keeps its worktree; the next join resumes from it. Error codes: no_repo, no_board, not_approved,
 not_lead, lead_cannot_join, already_claimed, nothing_to_claim, max_workers, usage_low, task_not_open, deps_unmerged,
+wrong_harness (the task is reserved for another harness), harness_off (plan.board.harnesses switches this harness off),
 not_claimed_by_you, reassigned, worktree_dirty, merge_conflict, tasks_open. Exit codes: 0 ok · 1 error · 2 partial.
 The session comes from --session <id> with --harness <h>, or from the harness environment (see 'buracle plan --help').`
 
