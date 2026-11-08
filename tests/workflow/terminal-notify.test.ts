@@ -82,6 +82,13 @@ describe('notifyTerminal', () => {
     expect(calls.flat()).not.toContain('notification')
     // herdr that does not answer is reported as such, so the caller can fall back to a desktop banner.
     expect((await notifyTerminal(note, { ...HERDR, BURACLE_TTY_PATH: tty }, { spawn: recorder(1).spawn })).herdr).toBe(false)
+    // The caller's pane (the one the board bound the worker to) wins over a stale HERDR_PANE_ID, but only a herdr-shaped one.
+    const bound = recorder()
+    await notifyTerminal({ ...note, pane: 'w2:p9' }, { ...HERDR, BURACLE_TTY_PATH: tty }, { spawn: bound.spawn })
+    expect(bound.calls[0]?.[3]).toBe('w2:p9')
+    const tmuxPane = recorder()
+    await notifyTerminal({ ...note, pane: '%5' }, { ...HERDR, BURACLE_TTY_PATH: tty }, { spawn: tmuxPane.spawn })
+    expect(tmuxPane.calls[0]?.[3]).toBe('w2:p3')
   }))
 
   test('inside cmux it asks cmux for the notification and writes no OSC sequence (cmux reads OSC 9 too)', () => withSandbox(async ({ root }) => {

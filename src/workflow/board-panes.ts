@@ -6,12 +6,13 @@ import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { Board, BoardSession, BoardTask } from '../core/board/model'
 import { activeWorkers, claimable } from '../core/board/model'
-import type { MuxOnAsk } from '../core/config'
+import { defaultConfig, type MuxOnAsk } from '../core/config'
 import { HARNESSES, type Harness } from '../core/events'
+import { loadConfigSync } from '../engine/config'
 import * as paths from '../engine/paths'
 import { latestWindows } from '../usage/telemetry'
 import { USAGE_CHECK_FROM, USAGE_LOW_PCT, checkoutRootOf, commonDirOf, listBoards, sessionBoard, updateBoard } from './board-store'
-import { detectMux, layoutCaps, muxAdapter, paneIdOf, workerCommand, type MuxAdapter, type MuxDeps, type MuxKind, type MuxPane, type Split } from './mux'
+import { ancestorPids, detectMux, layoutCaps, muxAdapter, paneIdOf, workerCommand, type MuxAdapter, type MuxDeps, type MuxKind, type MuxPane, type Split } from './mux'
 import { planLayout, type Layout, type PanePlan } from './mux-layout'
 import { addPanes, bindPane, findPane, muxStorePath, readMuxStore, removeMuxStore, removePanes, updateMuxStore, type MuxRecord, type MuxStore } from './mux-store'
 import { fail, ok, partial, type CmdResult, type WorkflowCtx } from './result'
@@ -67,12 +68,31 @@ export function paneLabel(name: string, st: PaneStage): string {
   }
 }
 
-function parseHarnesses(spec: string | undefined, fallback: Harness): Harness[] | CmdResult {
-  if (spec === undefined) return [fallback]
+/** `plan.board.harnesses`: which harnesses may run swarm workers (the user sets it in the config or on the Console's settings page). */
+function swarmHarnesses(): Record<Harness, boolean> {
+  try { return loadConfigSync().config.plan.board.harnesses } catch { return defaultConfig().plan.board.harnesses }
+}
+
+/**
+ * The harness list the panes are dealt from. `--harness` names it (an unknown name is a usage error; a harness that
+ * `plan.board.harnesses` switches off is dropped with a warning); without the flag it is every harness that is on and
+ * installed, in Buracle's order. Nothing left is `harness_off`.
+ */
+function parseHarnesses(spec: string | undefined, on: Record<Harness, boolean>, installed: (h: Harness) => boolean): { list: Harness[]; warnings: string[] } | CmdResult {
+  const warnings: string[] = []
+  if (spec === undefined) {
+    const list = HARNESSES.filter(h => on[h] !== false && installed(h))
+    if (list.length === 0) return fail('harness_off', `no harness can run swarm workers: ${HARNESSES.map(h => `${h} ${on[h] === false ? 'off (plan.board.harnesses)' : installed(h) ? 'on' : 'not installed'}`).join(', ')}; turn one on with 'buracle config set plan.board.harnesses.<h> true' or install it`)
+    return { list, warnings }
+  }
   const names = spec.split(',').map(x => x.trim()).filter(x => x !== '')
   const bad = names.filter(n => !(HARNESSES as readonly string[]).includes(n))
   if (names.length === 0 || bad.length > 0) return fail('usage', `--harness takes one or more of ${HARNESSES.join(', ')}, comma-separated${bad.length > 0 ? ` (unknown: ${bad.join(', ')})` : ''}`)
-  return names as Harness[]
+  const off = (names as Harness[]).filter(h => on[h] === false)
+  if (off.length > 0) warnings.push(`${off.join(', ')} dropped from --harness: switched off for swarm workers (${off.map(h => `plan.board.harnesses.${h}`).join(', ')})`)
+  const list = (names as Harness[]).filter(h => on[h] !== false)
+  if (list.length === 0) return fail('harness_off', `every harness in --harness is switched off for swarm workers (${off.map(h => `plan.board.harnesses.${h}`).join(', ')}); turn one on with 'buracle config set plan.board.harnesses.<h> true'`)
+  return { list, warnings }
 }
 
 function isLead(board: Board, s: ResolvedSession): boolean {
@@ -150,7 +170,8 @@ export function panesLine(store: MuxStore, board?: Board): string {
 }
 
 /** One line that says where the panes went, so the lead (and the user) can read the screen. */
-function layoutLine(layout: Layout, lead: boolean, live: number): string {
+function layoutLine(kind: MuxKind, layout: Layout, lead: boolean, live: number): string {
+  if (kind === 'herdr-app') return 'Layout: the Herdr app places the worker panes in the lead\'s tab.'
   if (live > 0) return 'Layout: the new pane(s) share the area of the last worker pane; the panes opened earlier stay as they are.'
   const grid = `${layout.rows} row(s) of up to ${layout.cols} worker pane(s)`
   return lead ? `Layout: the lead keeps the top of its area; the worker panes fill the rest below it in ${grid}.` : `Layout: the worker panes fill ${grid}.`
@@ -165,8 +186,20 @@ export async function workSpawn(o: SpawnOptions, ctx: WorkflowCtx, s: ResolvedSe
   const dry = o.dryRun === true
   const detect = detectMux(ctx.env, o.mux)
   if (!detect.ok && detect.code === 'usage') return fail('usage', detect.message)
-  const harnesses = parseHarnesses(o.harness, s.harness)
-  if (!Array.isArray(harnesses)) return harnesses
+  const on = swarmHarnesses()
+  // A harness is installed when its program is on PATH or in a folder an installer uses (the pane then runs it by its path).
+  const bins0 = new Map<Harness, { path: string; onPath: boolean } | undefined>()
+  const lookup = (h: Harness): { path: string; onPath: boolean } | undefined => {
+    if (!bins0.has(h)) bins0.set(h, deps.which !== undefined ? (deps.which(h) ? { path: h, onPath: true } : undefined) : findHarnessBin(h, ctx.env))
+    return bins0.get(h)
+  }
+  // The harnesses that may run workers now: on in the config and installed. The approval gate reads them from a dry run.
+  const usable = HARNESSES.filter(h => on[h] !== false && lookup(h) !== undefined)
+  const parsed0 = parseHarnesses(o.harness, on, h => lookup(h) !== undefined)
+  // A dry run reports instead of failing: the gate asks its question with whatever is usable.
+  if (!('list' in parsed0) && !dry) return parsed0
+  const parsed = 'list' in parsed0 ? parsed0 : { list: usable, warnings: parsed0.errors }
+  const harnesses = parsed.list
   if (o.workers !== undefined && (!Number.isInteger(o.workers) || o.workers < 0)) return fail('usage', `--workers must be a whole number (got ${String(o.workers)})`)
   const common = commonDirOf(ctx.cwd)
   if (common === undefined) return fail('no_repo', `${ctx.cwd} is not inside a git repository; the board lives in the repository's git common dir`)
@@ -174,7 +207,7 @@ export async function workSpawn(o: SpawnOptions, ctx: WorkflowCtx, s: ResolvedSe
   if (found !== undefined && 'code' in found) return found
   const muxName = detect.ok ? detect.kind : null
   if (found === undefined) {
-    if (dry) return ok({ ok: true, dryRun: true, mux: muxName, board: null }, [`Dry run: ${detect.ok ? `${detect.kind} detected` : 'no multiplexer detected'}; this repository has no task board yet (buracle work publish creates one).`])
+    if (dry) return ok({ ok: true, dryRun: true, mux: muxName, board: null, harnesses: usable }, [`Dry run: ${detect.ok ? `${detect.kind} detected` : 'no multiplexer detected'}; this repository has no task board yet (buracle work publish creates one).`])
     return fail('no_board', 'this repository has no task board; the lead publishes one with buracle work publish')
   }
   const { board } = found
@@ -182,11 +215,11 @@ export async function workSpawn(o: SpawnOptions, ctx: WorkflowCtx, s: ResolvedSe
   const cwd = checkoutRootOf(ctx.cwd) ?? ctx.cwd
   if (!isLead(board, s)) {
     // A dry run only reports what it sees: the approval gate runs it before this session has a board of its own.
-    if (dry) return ok({ ok: true, dryRun: true, mux: muxName, board: null, cwd }, [`Dry run: ${detect.ok ? `${detect.kind} detected` : 'no multiplexer detected'}; the board ${slug} belongs to the lead ${board.lead.harness} ${board.lead.session}, so this session would open nothing.`])
+    if (dry) return ok({ ok: true, dryRun: true, mux: muxName, board: null, cwd, harnesses: usable }, [`Dry run: ${detect.ok ? `${detect.kind} detected` : 'no multiplexer detected'}; the board ${slug} belongs to the lead ${board.lead.harness} ${board.lead.session}, so this session would open nothing.`])
     return fail('not_lead', `the board ${slug} belongs to the lead ${board.lead.harness} ${board.lead.session}; register the plan in this session to take it over`, { slug })
   }
   if (!detect.ok) {
-    if (dry) return ok({ ok: true, dryRun: true, mux: null, board: slug, cwd, panes: [] }, [`Dry run: ${detect.message}`])
+    if (dry) return ok({ ok: true, dryRun: true, mux: null, board: slug, cwd, harnesses: usable, panes: [] }, [`Dry run: ${detect.message}`])
     return fail(detect.code, detect.message, { slug })
   }
   const kind = detect.kind
@@ -194,10 +227,10 @@ export async function workSpawn(o: SpawnOptions, ctx: WorkflowCtx, s: ResolvedSe
   const existing = readMuxStore(storePath)
   if (existing !== undefined && existing.mux !== kind && existing.panes.length > 0) {
     const message = `the panes of ${slug} were opened in ${existing.mux}; close them first before opening panes in ${kind} (buracle work close closes them together with the board; panes closed by hand leave the record on the next spawn, when it finds them gone)`
-    if (dry) return ok({ ok: true, dryRun: true, mux: kind, board: slug, cwd, panes: [] }, [`Dry run: ${message}`])
+    if (dry) return ok({ ok: true, dryRun: true, mux: kind, board: slug, cwd, harnesses: usable, panes: [] }, [`Dry run: ${message}`])
     return fail('mux_mismatch', message, { slug, mux: existing.mux })
   }
-  const warnings: string[] = []
+  const warnings: string[] = [...parsed.warnings]
   let adapter: MuxAdapter | undefined
   // Harnesses the pane's shell may not find by name: they run by their full path.
   const bins = new Map<Harness, string>()
@@ -207,7 +240,7 @@ export async function workSpawn(o: SpawnOptions, ctx: WorkflowCtx, s: ResolvedSe
     adapter = a.adapter
     const missing: Harness[] = []
     for (const h of new Set(harnesses)) {
-      const f = deps.which !== undefined ? (deps.which(h) ? { path: h, onPath: true } : undefined) : findHarnessBin(h, ctx.env)
+      const f = lookup(h)
       if (f === undefined) missing.push(h)
       else if (!f.onPath) bins.set(h, f.path)
     }
@@ -226,7 +259,19 @@ export async function workSpawn(o: SpawnOptions, ctx: WorkflowCtx, s: ResolvedSe
   }
   const active = activeWorkers(board)
   const idle = live.filter(p => !active.some(w => sameSession(p.session, w))).length
-  const ready = claimable(board).ready.length
+  // The ready tasks in order. A task reserved for a harness (`**Harness:**` in the plan) gets a pane of that harness when
+  // it is on and installed; otherwise it gets no pane now and the lead is told why.
+  const readyTasks = claimable(board).ready.map(n => board.tasks.find(t => t.n === n)).filter((t): t is BoardTask => t !== undefined)
+  const reservable: BoardTask[] = []
+  for (const t of readyTasks) {
+    const h = t.harness
+    if (h === undefined) { reservable.push(t); continue }
+    if (on[h] === false) { warnings.push(`Task ${t.n} is reserved for ${h}, which is switched off for swarm workers (plan.board.harnesses.${h}): no pane opened for it`); continue }
+    if (lookup(h) === undefined) { warnings.push(`Task ${t.n} is reserved for ${h}, which is not installed (PATH, ${HARNESS_BIN_DIRS.map(d => `~/${d}`).join(', ')}): no pane opened for it`); continue }
+    if (!dry && !bins.has(h)) { const f = lookup(h); if (f !== undefined && !f.onPath) bins.set(h, f.path) }
+    reservable.push(t)
+  }
+  const ready = reservable.length
   // A pane opened a moment ago that has not joined yet is a worker on its way: it will take one of the ready tasks.
   const starting = live.filter(p => p.session === undefined && ctx.now - p.openedAt < STARTING_MS).length
   const max = board.maxWorkers
@@ -247,18 +292,23 @@ export async function workSpawn(o: SpawnOptions, ctx: WorkflowCtx, s: ResolvedSe
     }
   }
   const start = lastIndex(existing)
+  // The reserved tasks' harnesses come first, so a reserved task gets its pane even when fewer panes open than tasks are
+  // ready; the remaining panes take the harness list in turn. Without a usable harness only reserved tasks get a pane.
+  const reservedSeq = reservable.flatMap(t => (t.harness !== undefined ? [t.harness] : []))
+  if (harnesses.length === 0) n = Math.min(n, reservedSeq.length)
   // plans[rank]: the grid reads left to right and top to bottom, so Worker k sits where its number says.
+  let turn = 0
   const plans = Array.from({ length: n }, (_, rank) => {
-    const harness = harnesses[rank % harnesses.length] as Harness
+    const harness = reservedSeq[rank] ?? (harnesses[turn++ % harnesses.length] as Harness)
     const name = workerName(harness, start + rank + 1)
     return { harness, command: workerCommand(harness, slug, cwd, kind, bins.get(harness)), name, title: paneLabel(name, WAITING) }
   })
   const caps = layoutCaps(kind, ctx.env)
   const layout = planLayout({ count: n, live: live.length, lead: caps.lead, exact: caps.exact })
-  const layoutNote = layoutLine(layout, caps.lead, live.length)
+  const layoutNote = layoutLine(kind, layout, caps.lead, live.length)
   const workers = { requested: n, opened: 0, active: active.length, max }
   if (dry || adapter === undefined) {
-    return ok({ ok: true, dryRun: true, mux: kind, board: slug, cwd, workers, layout: { rows: layout.rows, cols: layout.cols }, panes: plans.map(p => ({ harness: p.harness, command: p.command, title: p.title })) }, [
+    return ok({ ok: true, dryRun: true, mux: kind, board: slug, cwd, harnesses: usable, workers, layout: { rows: layout.rows, cols: layout.cols }, panes: plans.map(p => ({ harness: p.harness, command: p.command, title: p.title })) }, [
       `Dry run: ${n} pane(s) would open in ${kind} for ${slug} (${ready} ready task(s), ${active.length} active worker(s), ${idle} idle pane(s), ${starting} pane(s) starting, limit ${max}).`,
       ...(n > 0 ? [layoutNote] : []),
       ...plans.map(p => `  ${p.title}: ${p.command}`),
@@ -306,7 +356,7 @@ export async function workSpawn(o: SpawnOptions, ctx: WorkflowCtx, s: ResolvedSe
     if (!w.ok) { unrecorded.push(rec.id); recordError = w.message }
   }
   if (unrecorded.length > 0) {
-    const how = kind === 'tmux' ? 'tmux kill-pane -t <id>' : kind === 'herdr' ? 'herdr pane close <id>' : 'cmux close-surface --surface <id> --force'
+    const how = kind === 'tmux' ? 'tmux kill-pane -t <id>' : kind === 'herdr' ? 'herdr pane close <id>' : kind === 'herdr-app' ? 'hc kill <id> && hc rm <id>' : 'cmux close-surface --surface <id> --force'
     warnings.push(`the panes ${unrecorded.join(', ')} opened but were not recorded (${recordError}); buracle work close will not close them, close them by hand with ${how}`)
   }
   workers.opened = opened.length
@@ -346,48 +396,79 @@ export function commonDirOfBoard(boardPath: string): string {
 export async function bindPaneToSession(commonDir: string, slug: string, env: Env, session: BoardSession, deps: MuxDeps = {}): Promise<{ mux: MuxKind; id: string; bound: boolean } | undefined> {
   const { path, store } = paneStoreFor(commonDir, slug)
   if (store === undefined) return undefined
-  const id = paneIdOf(store.mux, env)
-  if (id === undefined) return undefined
+  const envId = paneIdOf(store.mux, env)
+  const a = muxAdapter(store.mux, env, deps)
+  // The environment can lie: Codex replays a shell snapshot, so its pane id may belong to an earlier session, and herdr
+  // reuses ids across sessions. When the multiplexer can name a pane's shell, the pane whose shell this process descends
+  // from wins; the environment's id counts only when no shell matched and the pane it names is free or already ours.
+  const byShell = a.ok ? await paneByShell(store, a.adapter, env, session, deps) : undefined
+  let id: string | undefined = byShell?.id
   let handles: string[] = []
-  if (findPane(store, id) === undefined) {
-    // cmux records a surface by the ref new-split printed, while the pane's CMUX_SURFACE_ID is the UUID: the multiplexer
-    // says which other handles this pane has, and the record learns them.
-    const a = muxAdapter(store.mux, env, deps)
-    handles = (a.ok && a.adapter.handlesOf !== undefined ? await a.adapter.handlesOf(id) : undefined) ?? []
-    if (!handles.some(h => findPane(store, h) !== undefined)) return { mux: store.mux, id, bound: false }
+  if (id === undefined && envId !== undefined) {
+    const free = (p: MuxRecord | undefined): boolean => p !== undefined && (p.session === undefined || sameSession(p.session, session))
+    if (free(findPane(store, envId))) id = envId
+    else if (findPane(store, envId) === undefined) {
+      // cmux records a surface by the ref new-split printed, while the pane's CMUX_SURFACE_ID is the UUID: the multiplexer
+      // says which other handles this pane has, and the record learns them.
+      handles = (a.ok && a.adapter.handlesOf !== undefined ? await a.adapter.handlesOf(envId) : undefined) ?? []
+      if (free(handles.map(h => findPane(store, h)).find(p => p !== undefined))) id = envId
+    }
   }
+  if (id === undefined) return envId === undefined ? undefined : { mux: store.mux, id: envId, bound: false }
+  const paneId = id
   let bound = false
   const r = updateMuxStore(path, st => {
     if (st === undefined) return undefined
-    const b = bindPane(st, id, session, handles)
+    const b = bindPane(st, paneId, session, handles)
     bound = b.bound
     return b.bound ? b.store : undefined
   })
-  return { mux: store.mux, id, bound: r.ok && bound }
+  return { mux: store.mux, id: paneId, bound: r.ok && bound }
 }
 
-/** The pane a worker runs in: the recorded one, else (tmux only) the pane itself, so a hand-opened pane still shows the question. */
-function workerPane(commonDir: string, slug: string, env: Env, harness: Harness): { kind: MuxKind; pane: MuxPane; recorded: boolean } | undefined {
+/**
+ * The recorded pane whose shell is an ancestor of this process, among the panes nobody joined from yet and the one already
+ * bound to `session` (a second join from the same pane); undefined when there is none or the multiplexer cannot say.
+ */
+async function paneByShell(store: MuxStore, adapter: MuxAdapter, env: Env, session: BoardSession, deps: MuxDeps): Promise<MuxRecord | undefined> {
+  if (adapter.shellPid === undefined) return undefined
+  const open = store.panes.filter(p => p.session === undefined || sameSession(p.session, session))
+  if (open.length === 0) return undefined
+  const ancestors = await ancestorPids(deps.pid ?? process.pid, env, deps.exec)
+  for (const p of open) {
+    const shell = await adapter.shellPid(p.id)
+    if (shell !== undefined && ancestors.includes(shell)) return p
+  }
+  return undefined
+}
+
+/**
+ * The pane a worker runs in: the one bound to its session, else the recorded one its environment names, else (tmux only)
+ * the pane itself, so a hand-opened pane still shows the question.
+ */
+function workerPane(commonDir: string, slug: string, env: Env, me: BoardSession): { kind: MuxKind; pane: MuxPane; recorded: boolean } | undefined {
   const { store } = paneStoreFor(commonDir, slug)
   if (store !== undefined) {
+    const mine = store.panes.find(p => sameSession(p.session, me))
+    if (mine !== undefined) return { kind: store.mux, pane: mine, recorded: true }
     const id = paneIdOf(store.mux, env)
     const rec = id !== undefined ? findPane(store, id) : undefined
     if (rec !== undefined) return { kind: store.mux, pane: rec, recorded: true }
   }
   const tmux = paneIdOf('tmux', env)
-  if (tmux !== undefined) return { kind: 'tmux', pane: { id: tmux, harness, title: '', server: '' }, recorded: false }
+  if (tmux !== undefined) return { kind: 'tmux', pane: { id: tmux, harness: me.harness, title: '', server: '' }, recorded: false }
   return undefined
 }
 
 /** The id of the pane a worker runs in, for the note the lead reads (undefined when the worker is not in a pane of the board). */
-export function paneRefOf(commonDir: string, slug: string, env: Env, harness: Harness): string | undefined {
-  return workerPane(commonDir, slug, env, harness)?.pane.id
+export function paneRefOf(commonDir: string, slug: string, env: Env, me: BoardSession): string | undefined {
+  return workerPane(commonDir, slug, env, me)?.pane.id
 }
 
 /** Sets the label of the worker's own pane. Only a pane Buracle opened is renamed; a pane the user opened keeps its title. */
-export async function labelWorkerPane(commonDir: string, slug: string, env: Env, harness: Harness, st: PaneStage, deps: MuxDeps = {}): Promise<{ labeled: boolean }> {
+export async function labelWorkerPane(commonDir: string, slug: string, env: Env, me: BoardSession, st: PaneStage, deps: MuxDeps = {}): Promise<{ labeled: boolean }> {
   if (env['BURACLE_NO_NOTIFY'] === '1') return { labeled: false }
-  const found = workerPane(commonDir, slug, env, harness)
+  const found = workerPane(commonDir, slug, env, me)
   if (found === undefined || !found.recorded) return { labeled: false }
   const a = muxAdapter(found.kind, env, deps)
   if (!a.ok) return { labeled: false }
@@ -398,10 +479,10 @@ export async function labelWorkerPane(commonDir: string, slug: string, env: Env,
  * `work ask`: the worker's pane gets the mark and, with `focus`, the focus. tmux marks with the title, the mark and a bell;
  * herdr and cmux are told by `notifyTerminal`, so their pane list only needs the new label.
  */
-export async function markPaneOnAsk(commonDir: string, slug: string, env: Env, harness: Harness, task: { n: number; title: string }, onAsk: MuxOnAsk, deps: MuxDeps = {}): Promise<{ marked: boolean; focused: boolean }> {
+export async function markPaneOnAsk(commonDir: string, slug: string, env: Env, me: BoardSession, task: { n: number; title: string }, onAsk: MuxOnAsk, deps: MuxDeps = {}): Promise<{ marked: boolean; focused: boolean }> {
   const none = { marked: false, focused: false }
   if (env['BURACLE_NO_NOTIFY'] === '1') return none
-  const found = workerPane(commonDir, slug, env, harness)
+  const found = workerPane(commonDir, slug, env, me)
   if (found === undefined) return none
   const a = muxAdapter(found.kind, env, deps)
   if (!a.ok) return none
@@ -463,12 +544,13 @@ async function closePanes(path: string, store: MuxStore, panes: readonly MuxReco
 export async function closePanesAfterMerge(commonDir: string, board: Board, env: Env, deps: MuxDeps = {}): Promise<ClosedPanes> {
   const { path, store } = paneStoreFor(commonDir, board.slug)
   if (store === undefined) return NO_PANES
-  if (claimable(board).ready.length > 0) return NO_PANES
   const active = activeWorkers(board)
   const idle = store.panes.filter(p => {
     const who = p.session
     // A pane nobody joined from yet may hold a worker that is still starting (or whose bind failed): it waits for `work close`.
     if (who === undefined) return false
+    // A task this pane's harness may still take keeps it open; one reserved for another harness does not.
+    if (claimable(board, who.harness).ready.length > 0) return false
     if (active.some(w => sameSession(who, w))) return false
     return board.tasks.every(t => !sameSession(t.lastWorker, who) || t.status === 'merged')
   })
@@ -490,9 +572,9 @@ export async function closeAllPanes(commonDir: string, slug: string, env: Env, o
 }
 
 /** `work resume`: the mark goes away (tmux title back, herdr state working, cmux notifications cleared) and the label names the task again. */
-export async function clearPaneMark(commonDir: string, slug: string, env: Env, harness: Harness, task: { n: number; title: string }, deps: MuxDeps = {}): Promise<{ cleared: boolean }> {
+export async function clearPaneMark(commonDir: string, slug: string, env: Env, me: BoardSession, task: { n: number; title: string }, deps: MuxDeps = {}): Promise<{ cleared: boolean }> {
   if (env['BURACLE_NO_NOTIFY'] === '1') return { cleared: false }
-  const found = workerPane(commonDir, slug, env, harness)
+  const found = workerPane(commonDir, slug, env, me)
   if (found === undefined) return { cleared: false }
   const a = muxAdapter(found.kind, env, deps)
   if (!a.ok) return { cleared: false }

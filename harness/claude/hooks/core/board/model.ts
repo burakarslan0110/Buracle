@@ -21,6 +21,8 @@ export interface BoardTask {
   files: BoardFile[]
   dod: string
   deps: number[]
+  /** The plan's `**Harness:**` line: only workers of this harness may claim the task. */
+  harness?: Harness
   status: TaskStatus
   worker?: BoardSession
   token?: string
@@ -62,7 +64,7 @@ export interface Board {
 
 export interface BoardSummary { open: number; claimed: number; waiting: number; done: number; merged: number; stale: number; workers: number; total: number }
 
-export type BoardErrorCode = 'usage' | 'task_not_open' | 'deps_unmerged' | 'not_claimed_by_you' | 'reassigned' | 'not_found'
+export type BoardErrorCode = 'usage' | 'task_not_open' | 'deps_unmerged' | 'wrong_harness' | 'not_claimed_by_you' | 'reassigned' | 'not_found'
 export type BoardResult = { ok: true; board: Board } | { ok: false; code: BoardErrorCode; message: string }
 
 export interface BoardFromPlanOptions {
@@ -118,7 +120,10 @@ function sharedPath(a: readonly BoardFile[], b: readonly BoardFile[]): string | 
 }
 
 function taskOf(t: PlanTask, deps: number[]): BoardTask {
-  return { n: t.n, title: t.title, objective: t.objective ?? '', files: t.files.map(f => ({ verb: f.verb, path: f.path })), dod: t.dod ?? '', deps, status: t.done ? 'merged' : 'open' }
+  return {
+    n: t.n, title: t.title, objective: t.objective ?? '', files: t.files.map(f => ({ verb: f.verb, path: f.path })), dod: t.dod ?? '', deps,
+    ...(t.harness !== undefined ? { harness: t.harness } : {}), status: t.done ? 'merged' : 'open',
+  }
 }
 
 function event(board: Board, kind: BoardEventKind, at: number, extra: Omit<BoardEvent, 'seq' | 'kind' | 'at'> = {}): Board {
@@ -165,9 +170,9 @@ function sameDeps(a: readonly number[], b: readonly number[]): boolean {
 }
 
 /**
- * A second publish: the old board keeps every state and worker; open and stale tasks take the plan's current files and
- * deps; an active task whose files or deps changed keeps the board's values and is reported in `changed`; a task the
- * plan unticked while the board says merged reopens (its worktree and report stay). New tasks are added.
+ * A second publish: the old board keeps every state and worker; open and stale tasks take the plan's current files, deps
+ * and harness; an active task whose files, deps or harness changed keeps the board's values and is reported in `changed`;
+ * a task the plan unticked while the board says merged reopens (its worktree and report stay). New tasks are added.
  */
 export function mergeBoard(old: Board, fresh: Board): { board: Board, changed: number[] } {
   const changed: number[] = []
@@ -177,21 +182,22 @@ export function mergeBoard(old: Board, fresh: Board): { board: Board, changed: n
   for (const f of fresh.tasks) {
     const prev = old.tasks.find(t => t.n === f.n)
     if (prev === undefined) { tasks.push(f); continue }
-    const { status: _s, deps: _d, files: _f, title: _t, objective: _o, dod: _dod, ...keep } = prev
+    const { status: _s, deps: _d, files: _f, title: _t, objective: _o, dod: _dod, harness: _hz, ...keep } = prev
     const text = { title: f.title, objective: f.objective, dod: f.dod }
+    const reserved = f.harness !== undefined ? { harness: f.harness } : {}
     if (prev.status === 'open' || prev.status === 'stale') {
-      tasks.push({ ...prev, ...text, files: f.files, deps: f.deps })
+      tasks.push({ ...keep, ...text, files: f.files, deps: f.deps, ...reserved, status: prev.status })
       continue
     }
     if (prev.status === 'merged' && f.status !== 'merged') {
       const { worker: _w, token: _k, leaseUntil: _l, claimedAt: _c, heartbeatAt: _h, question: _q, ...rest } = keep
-      tasks.push({ ...rest, ...text, files: f.files, deps: f.deps, status: 'open' })
+      tasks.push({ ...rest, ...text, files: f.files, deps: f.deps, ...reserved, status: 'open' })
       seq++
       events.push({ seq, kind: 'reopened', at: fresh.updatedAt, task: f.n, text: 'the plan unticked the task' })
       changed.push(f.n)
       continue
     }
-    const drift = !sameFiles(prev.files, f.files) || !sameDeps(prev.deps, f.deps)
+    const drift = !sameFiles(prev.files, f.files) || !sameDeps(prev.deps, f.deps) || prev.harness !== f.harness
     if (drift) changed.push(f.n)
     tasks.push({ ...prev, ...text })
   }
@@ -222,9 +228,11 @@ export function sweep(board: Board, now: number): Board {
 
 const ACTIVE: readonly TaskStatus[] = ['claimed', 'waiting', 'done']
 
-export interface ClaimableView { ready: number[]; blocked: Array<{ n: number, reason: 'deps' | 'files', detail: string }> }
+export interface ClaimableView { ready: number[]; blocked: Array<{ n: number, reason: 'deps' | 'files' | 'harness', detail: string }> }
 
-function blocker(board: Board, t: BoardTask): ClaimableView['blocked'][number] | undefined {
+/** `harness` is the asking worker's; without it (the lead's overview) a reservation blocks nothing. */
+function blocker(board: Board, t: BoardTask, harness?: Harness): ClaimableView['blocked'][number] | undefined {
+  if (harness !== undefined && t.harness !== undefined && t.harness !== harness) return { n: t.n, reason: 'harness', detail: `is reserved for ${t.harness}` }
   const unmerged = t.deps.filter(d => board.tasks.find(x => x.n === d)?.status !== 'merged')
   if (unmerged.length > 0) return { n: t.n, reason: 'deps', detail: `waits for ${unmerged.map(d => `Task ${d}`).join(', ')}` }
   for (const other of board.tasks) {
@@ -235,12 +243,15 @@ function blocker(board: Board, t: BoardTask): ClaimableView['blocked'][number] |
   return undefined
 }
 
-/** The tasks a worker may claim now, in number order, and why the other open ones wait. Run `sweep` first. */
-export function claimable(board: Board): ClaimableView {
+/**
+ * The tasks a worker may claim now, in number order, and why the other open ones wait. Run `sweep` first. With `harness`,
+ * a task reserved for another harness is blocked (`reason: 'harness'`); without it every reserved task counts as ready.
+ */
+export function claimable(board: Board, harness?: Harness): ClaimableView {
   const view: ClaimableView = { ready: [], blocked: [] }
   for (const t of [...board.tasks].sort((a, b) => a.n - b.n)) {
     if (t.status !== 'open' && t.status !== 'stale') continue
-    const b = blocker(board, t)
+    const b = blocker(board, t, harness)
     if (b === undefined) view.ready.push(t.n)
     else view.blocked.push(b)
   }
@@ -279,8 +290,11 @@ export function claim(board: Board, n: number, worker: BoardSession, now: number
   const t = find(board, n)
   if (t === undefined) return fail('not_found', `the board has no Task ${n}`)
   if (t.status !== 'open' && t.status !== 'stale') return fail('task_not_open', `Task ${n} is ${t.status}${t.worker !== undefined ? ` by ${t.worker.harness} ${t.worker.session}` : ''}`)
-  const b = blocker(board, t)
-  if (b !== undefined) return fail(b.reason === 'deps' ? 'deps_unmerged' : 'task_not_open', `Task ${n} ${b.detail}`)
+  const b = blocker(board, t, worker.harness)
+  if (b !== undefined) {
+    if (b.reason === 'harness') return fail('wrong_harness', `Task ${n} is reserved for ${t.harness ?? '?'} workers`)
+    return fail(b.reason === 'deps' ? 'deps_unmerged' : 'task_not_open', `Task ${n} ${b.detail}`)
+  }
   const { lastWorker: _lw, ...rest } = t
   const next: BoardTask = { ...rest, status: 'claimed', worker, token, claimedAt: now, heartbeatAt: now, leaseUntil: now + board.leaseSec * 1000 }
   return okBoard(event(replace(board, next), 'claimed', now, { task: n, ...sessionFields(worker) }))

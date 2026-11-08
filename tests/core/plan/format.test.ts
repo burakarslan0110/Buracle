@@ -71,6 +71,20 @@ describe('parsePlan', () => {
     expect(parsePlan(FEATURE.replace('**Objective:** README explains the limit.', '**Objective:** README explains the limit.\n\n**Depends on:** 1, `Task 1`, task 2')).tasks[1]?.dependsOn).toEqual([1, 2])
   })
 
+  test('an optional `**Harness:**` line reserves the task for one harness; an unknown value is ignored and warned about; a card without it has no harness field', () => {
+    const withLine = (value: string) => FEATURE.replace('**Objective:** README explains the limit.', `**Objective:** README explains the limit.\n\n**Harness:** ${value}`)
+    const p = parsePlan(withLine('codex'))
+    expect(p.tasks[1]?.harness).toBe('codex')
+    expect('harness' in (p.tasks[0] ?? {})).toBe(false)
+    expect(parsePlan(withLine('`OpenCode`')).tasks[1]?.harness).toBe('opencode')
+    expect(parsePlan(withLine('Omp').replace('**Harness:**', '**harness:**')).tasks[1]?.harness).toBe('omp')
+    const unknown = parsePlan(withLine('cursor'))
+    expect('harness' in (unknown.tasks[1] ?? {})).toBe(false)
+    const warnings = validatePlan(withLine('cursor')).filter(f => f.code === 'unknown-harness')
+    expect(warnings).toEqual([{ level: 'warning', code: 'unknown-harness', message: 'unknown harness `cursor` in Task 2: one of claude, codex, opencode, omp', line: expect.any(Number) }])
+    expect(codes(validatePlan(withLine('codex')))).not.toContain('unknown-harness')
+  })
+
   test('a heading keeps a trailing `#` that is part of the text (WF-08 in core: C#, F#); a closing sequence after whitespace goes', () => {
     const doc = FEATURE.replace('# Rate-limit the public API', '# Port the client to C#').replace('### Task 1: Count requests per API key', '### Task 1: Support F# ##')
     const p = parsePlan(doc)

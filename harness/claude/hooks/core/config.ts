@@ -19,7 +19,7 @@ export interface BuracleConfig {
   plan: {
     stopGuard: boolean, runaway: { perPlan: number, perChain: number }, autoPause: boolean, planApproval: boolean, resultApproval: boolean, branchIsolation: boolean, worktreeDir: string
     questions: boolean, reviews: { plan: boolean, changes: boolean, goal: boolean, companion: CompanionSetting }, goalVerification: boolean, modelSwitch: 'off' | 'manual', nativePlanMode: 'off' | 'on'
-    board: { mode: BoardMode, maxWorkers: number, leaseSec: number, mux: BoardMode, muxOnAsk: MuxOnAsk }
+    board: { mode: BoardMode, maxWorkers: number, leaseSec: number, mux: BoardMode, muxOnAsk: MuxOnAsk, harnesses: Record<Harness, boolean> }
   }
   context: { warnPct: number, criticalPct: number }
   checkers: { enabled: boolean, timeoutMs: number, languages: string[] }
@@ -60,7 +60,7 @@ export function defaultConfig(): BuracleConfig {
       goalVerification: true,
       modelSwitch: 'off',
       nativePlanMode: 'off',
-      board: { mode: 'ask', maxWorkers: 6, leaseSec: 300, mux: 'ask', muxOnAsk: 'mark' },
+      board: { mode: 'ask', maxWorkers: 6, leaseSec: 300, mux: 'ask', muxOnAsk: 'mark', harnesses: { claude: true, codex: true, opencode: true, omp: true } },
     },
     context: { warnPct: 85, criticalPct: 95 },
     checkers: { enabled: true, timeoutMs: 20000, languages: ['python', 'typescript', 'javascript', 'go', 'shell', 'dotnet'] },
@@ -109,6 +109,9 @@ const effortFields: Record<string, Schema> = {}
 for (const h of HARNESSES) effortFields[h] = { t: 'enum', values: EFFORT_VALUES[h] }
 const mcpOffFields: Record<string, Schema> = {}
 for (const h of HARNESSES) mcpOffFields[h] = strList
+// plan.board.harnesses.<h>: whether the swarm may run workers of that harness.
+const boardHarnessFields: Record<string, Schema> = {}
+for (const h of HARNESSES) boardHarnessFields[h] = bool
 
 const CONFIG_SCHEMA: Schema = {
   t: 'obj',
@@ -148,7 +151,7 @@ const CONFIG_SCHEMA: Schema = {
         goalVerification: bool,
         modelSwitch: { t: 'enum', values: ['off', 'manual'] },
         nativePlanMode: { t: 'enum', values: ['off', 'on'] },
-        board: { t: 'obj', fields: { mode: { t: 'enum', values: BOARD_MODES }, maxWorkers: count(1), leaseSec: count(10), mux: { t: 'enum', values: BOARD_MODES }, muxOnAsk: { t: 'enum', values: MUX_ON_ASK } } },
+        board: { t: 'obj', fields: { mode: { t: 'enum', values: BOARD_MODES }, maxWorkers: count(1), leaseSec: count(10), mux: { t: 'enum', values: BOARD_MODES }, muxOnAsk: { t: 'enum', values: MUX_ON_ASK }, harnesses: { t: 'obj', fields: boardHarnessFields } } },
       },
     },
     context: { t: 'obj', fields: { warnPct: pct, criticalPct: pct } },

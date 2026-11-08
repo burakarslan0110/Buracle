@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { MuxExec, MuxExecResult, MuxPane } from '../../src/workflow/mux'
-import { cmuxBin, detectMux, layoutCaps, muxAdapter, paneIdOf, validPaneId, workerCommand } from '../../src/workflow/mux'
+import { ancestorPids, cmuxBin, detectMux, layoutCaps, muxAdapter, paneIdOf, validPaneId, workerCommand } from '../../src/workflow/mux'
 import { withSandbox } from '../helpers/sandbox'
 import { onlyPath } from '../helpers/fake-exe'
 
@@ -351,6 +351,116 @@ describe('herdr adapter', () => {
     expect(await a.adapter.alive(other)).toBe(false)
     expect(await a.adapter.close(other)).toEqual({ ok: false, reason: 'stale' })
     expect(f.lines().filter(l => l === 'herdr pane close w2:p5')).toHaveLength(1)
+  })
+})
+
+describe('ancestorPids', () => {
+  test('walks ps -o ppid= up to init, stops at a pid ps does not know, at a cycle and at the depth limit', async () => {
+    const chain = (c: Record<number, number>) => fakeExec(argv => { const p = c[Number(argv.at(-1))]; return p === undefined ? { code: 1 } : `${p}\n` })
+    expect(await ancestorPids(900, {}, chain({ 900: 700, 700: 600, 600: 1 }).exec)).toEqual(['900', '700', '600'])
+    expect(await ancestorPids(900, {}, chain({}).exec)).toEqual(['900'])
+    expect(await ancestorPids(900, {}, fakeExec(() => ({ code: 127, stderr: 'no ps' })).exec)).toEqual(['900'])
+    expect(await ancestorPids(900, {}, chain({ 900: 700, 700: 900 }).exec)).toEqual(['900', '700'])
+    const deep: Record<number, number> = {}
+    for (let i = 1000; i > 900; i--) deep[i] = i - 1
+    expect((await ancestorPids(1000, {}, chain(deep).exec)).length).toBe(32)
+    expect(await ancestorPids(1, {}, chain({}).exec)).toEqual([])
+  })
+})
+
+describe('herdr-app adapter (the Herdr desktop app over herdr-core)', () => {
+  const HC_ENV = { HC_TERMINAL_ID: 't2', HC_TERMINAL_SOCKET: '/Users/me/.local/state/herdr-core/default/default.sock', HC_SCOPE: 'default', SHELL: '/bin/zsh' }
+  const lead = JSON.stringify({ address: 't2', state: 'live', pid: 4100, labels: { 'herdr.space': 'spe1', 'herdr.tab': 'tb1', 'herdr.seen': '0' } })
+  const worker = (state: string, pid = 5200) => JSON.stringify({ address: 't9', state, pid, labels: { 'herdr.space': 'spe1', 'herdr.tab': 'tb1' } })
+
+  test('detect: a terminal of the Herdr app (HC_TERMINAL_ID) is the outermost multiplexer; tmux, herdr and cmux inside it win; --mux herdr-app needs it', () => {
+    expect(detectMux({ ...HC_ENV })).toEqual({ ok: true, kind: 'herdr-app' })
+    expect(detectMux({ ...HC_ENV, ...HERDR_ENV })).toEqual({ ok: true, kind: 'herdr' })
+    expect(detectMux({ ...HC_ENV, ...CMUX_ENV })).toEqual({ ok: true, kind: 'cmux' })
+    expect(detectMux({ ...HC_ENV, ...TMUX_ENV })).toEqual({ ok: true, kind: 'tmux' })
+    expect(detectMux({ ...HC_ENV }, 'herdr-app')).toEqual({ ok: true, kind: 'herdr-app' })
+    expect(detectMux({}, 'herdr-app')).toMatchObject({ ok: false, code: 'no_mux' })
+    const none = detectMux({})
+    if (!none.ok) expect(none.message).toContain('HC_TERMINAL_ID')
+    expect(paneIdOf('herdr-app', { ...HC_ENV })).toBe('t2')
+    for (const id of ['t2', 't7', 't1b', 't10']) expect(validPaneId('herdr-app', id)).toBe(true)
+    for (const id of ['', 't', '-t2', 't 2', 'box/t2', 'w2:p1', 'buracle-probe']) expect(validPaneId('herdr-app', id)).toBe(false)
+    expect(layoutCaps('herdr-app', { ...HC_ENV })).toEqual({ exact: false, lead: false })
+    expect(workerCommand('claude', 'rate-limit', '/repo', 'herdr-app')).toBe(`claude '/buracle-join rate-limit'`)
+  })
+
+  test('open reads the lead terminal\'s space and tab labels and starts a kept herdr-core terminal with them, so the app shows it in the lead\'s tab; a taken name is dropped once; a lead without labels opens nothing', async () => {
+    const f = fakeExec(argv => (argv[1] === 'get' ? lead : argv[1] === 'run' ? JSON.stringify({ address: 't9', state: 'live' }) : undefined))
+    const a = muxAdapter('herdr-app', { ...HC_ENV }, { exec: f.exec, hcBin: 'hc' })
+    if (!a.ok) throw new Error(a.message)
+    const opened = await a.adapter.open({ cwd: '/repo', command: `codex -C '/repo' '$buracle-join rate-limit'`, title: 'Worker 1 (codex) · waiting for a task', slug: 'rate-limit', split: { target: 'lead', direction: 'down', keep: 0.5 } })
+    expect(opened).toEqual({ id: 't9', server: HC_ENV.HC_TERMINAL_SOCKET })
+    expect(f.lines()).toEqual([
+      'hc get t2 --json',
+      `hc run --json --bg --keep --outlive-parent --no-parent --no-notify --cwd /repo --name worker-1-codex-rate-limit --label herdr.space=spe1 --label herdr.tab=tb1 -- /bin/zsh -lc codex -C '/repo' '$buracle-join rate-limit'`,
+    ])
+    let runs = 0
+    const taken = fakeExec(argv => (argv[1] === 'get' ? lead : argv[1] === 'run' ? (++runs === 1 ? { code: 1, stderr: '{"error":{"kind":"name_taken"}}' } : JSON.stringify({ address: 't10' })) : undefined))
+    const b = muxAdapter('herdr-app', { ...HC_ENV }, { exec: taken.exec, hcBin: 'hc' })
+    if (!b.ok) throw new Error(b.message)
+    expect(await b.adapter.open({ cwd: '/repo', command: 'c', title: 'Worker 2 (claude) · waiting for a task', slug: 'rate-limit' })).toEqual({ id: 't10', server: HC_ENV.HC_TERMINAL_SOCKET })
+    expect(taken.lines()[2]).toBe('hc run --json --bg --keep --outlive-parent --no-parent --no-notify --cwd /repo --label herdr.space=spe1 --label herdr.tab=tb1 -- /bin/zsh -lc c')
+    const plain = fakeExec(argv => (argv[1] === 'get' ? JSON.stringify({ address: 't2', state: 'live', labels: {} }) : undefined))
+    const c = muxAdapter('herdr-app', { ...HC_ENV }, { exec: plain.exec, hcBin: 'hc' })
+    if (!c.ok) throw new Error(c.message)
+    expect(await c.adapter.open({ cwd: '/repo', command: 'c', title: 't', slug: 's' })).toBeUndefined()
+    expect(plain.lines()).toEqual(['hc get t2 --json'])
+  })
+
+  test('title and mark are labels on the terminal, focus goes through the app, presence reads the terminal state, close kills and removes it, shellPid is its pid', async () => {
+    const f = fakeExec(argv => (argv[0] === 'hc' && argv[1] === 'get' ? worker('live') : undefined))
+    const a = muxAdapter('herdr-app', { ...HC_ENV }, { exec: f.exec, hcBin: 'hc' })
+    if (!a.ok) throw new Error(a.message)
+    const p = pane({ id: 't9', harness: 'codex', title: 'Worker 1 (codex)', server: HC_ENV.HC_TERMINAL_SOCKET })
+    expect(await a.adapter.title(p, 'Worker 1 (codex) · Task 2: Step 2')).toBe(true)
+    expect(await a.adapter.mark(p, 'Worker 1 (codex) · Task 2 · NEEDS YOU')).toBe(true)
+    expect(await a.adapter.clearMark(p)).toBe(true)
+    expect(await a.adapter.focus(p)).toBe(true)
+    expect(await a.adapter.alive(p)).toBe(true)
+    expect(await a.adapter.shellPid?.('t9')).toBe('5200')
+    expect(await a.adapter.close(p)).toEqual({ ok: true })
+    expect(f.lines()).toEqual([
+      'hc label t9 buracle.label=Worker 1 (codex) · Task 2: Step 2',
+      'hc label t9 buracle.mark=Worker 1 (codex) · Task 2 · NEEDS YOU',
+      'hc label t9 buracle.mark=',
+      'herdr-app do pane.focus --terminal t9',
+      'hc get t9 --json',
+      'hc get t9 --json',
+      'hc get t9 --json',
+      'hc kill t9 --json',
+      'hc rm t9 --json',
+    ])
+    const gone = fakeExec(argv => (argv[1] === 'get' ? { code: 1, stderr: '{"error":{"kind":"not_found"}}' } : undefined))
+    const g = muxAdapter('herdr-app', { ...HC_ENV }, { exec: gone.exec, hcBin: 'hc' })
+    if (!g.ok) throw new Error(g.message)
+    expect(await g.adapter.presence(p)).toBe('stale')
+    // A worker that exited on its own leaves a finished terminal (--keep): close removes it from the tab and reports it stale.
+    const done = fakeExec(argv => (argv[1] === 'get' ? worker('finished') : undefined))
+    const d = muxAdapter('herdr-app', { ...HC_ENV }, { exec: done.exec, hcBin: 'hc' })
+    if (!d.ok) throw new Error(d.message)
+    expect(await d.adapter.close(p)).toEqual({ ok: false, reason: 'stale' })
+    expect(done.lines()).toEqual(['hc get t9 --json', 'hc rm t9 --json'])
+    const down = fakeExec(() => ({ code: 127, stderr: 'spawn failed' }))
+    const x = muxAdapter('herdr-app', { ...HC_ENV }, { exec: down.exec, hcBin: 'hc' })
+    if (!x.ok) throw new Error(x.message)
+    expect(await x.adapter.presence(p)).toBe('failed')
+    // Any hc error other than not_found is "could not ask", never "gone": the record stays and nothing is removed.
+    const hiccup = fakeExec(() => ({ code: 1, stderr: '{"error":{"kind":"daemon_unavailable"}}' }))
+    const y = muxAdapter('herdr-app', { ...HC_ENV }, { exec: hiccup.exec, hcBin: 'hc' })
+    if (!y.ok) throw new Error(y.message)
+    expect(await y.adapter.presence(p)).toBe('failed')
+    expect(await y.adapter.close(p)).toEqual({ ok: false, reason: 'failed' })
+    expect(hiccup.lines().filter(l => l.includes(' rm '))).toEqual([])
+    expect(await a.adapter.alive(pane({ id: 't9', server: '/elsewhere/default.sock' }))).toBe(false)
+    // A lead command run from a shell without HC_TERMINAL_SOCKET still reaches hc's default session, so the record counts.
+    const outside = muxAdapter('herdr-app', { SHELL: '/bin/zsh' }, { exec: f.exec, hcBin: 'hc' })
+    if (!outside.ok) throw new Error(outside.message)
+    expect(await outside.adapter.alive(p)).toBe(true)
   })
 })
 

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { userConfigFile } from '../../src/engine/paths'
 import { readBoard, sessionBoard } from '../../src/workflow/board-store'
 import { workHeartbeat, workJoin, workPublish, workRelease, workStatus } from '../../src/workflow/board'
 import type { ResolvedSession } from '../../src/workflow/session-store'
@@ -30,6 +31,42 @@ async function published(root: string, o: { n?: number, leaseSec?: number, maxWo
   if (pub.code !== 0) throw new Error(pub.errors.join('; '))
   return { repo, plan, path: String(pub.data['path']) }
 }
+
+describe('work join: harness reservations and the swarm harnesses', () => {
+  test('a task reserved for codex is skipped by other harnesses and refused to them with --task; a codex worker takes it', () => sandbox(async root => {
+    const repo = await makeRepo(root)
+    const plan = join(repo, 'docs', 'plan-build', '2026-11-07-rate-limit.md')
+    write(plan, planDoc({ n: 3, status: 'IN_PROGRESS', approved: true }).replace('**Objective:** Do step 1.', '**Objective:** Do step 1.\n\n**Harness:** codex'))
+    expect((await workPublish({ planPath: plan }, ctxAt(repo, NOW), LEAD)).code).toBe(0)
+    const b = await workJoin('rate-limit', {}, ctxAt(repo, NOW), B)
+    expect(b.data).toMatchObject({ task: { n: 2 } })
+    const forced = await workJoin('rate-limit', { task: 1 }, ctxAt(repo, NOW + 1), C)
+    expect(forced.code).toBe(1)
+    expect(forced.data).toMatchObject({ error: 'wrong_harness' })
+    expect(forced.errors[0]).toContain('reserved for codex')
+    const a = await workJoin('rate-limit', {}, ctxAt(repo, NOW + 2, {}), A)
+    expect(a.data).toMatchObject({ task: { n: 1, harness: 'codex' } })
+    // The last task is open; an omp worker finds it, while the reserved one would have been named as blocked.
+    const c = await workJoin('rate-limit', {}, ctxAt(repo, NOW + 3), C)
+    expect(c.data).toMatchObject({ task: { n: 3 } })
+  }))
+
+  test('nothing_to_claim names a reservation; a harness that plan.board.harnesses switches off is refused with harness_off', () => sandbox(async root => {
+    const repo = await makeRepo(root)
+    const plan = join(repo, 'docs', 'plan-build', '2026-11-07-rate-limit.md')
+    write(plan, planDoc({ n: 1, status: 'IN_PROGRESS', approved: true }).replace('**Objective:** Do step 1.', '**Objective:** Do step 1.\n\n**Harness:** codex'))
+    expect((await workPublish({ planPath: plan }, ctxAt(repo, NOW), LEAD)).code).toBe(0)
+    const b = await workJoin('rate-limit', {}, ctxAt(repo, NOW), B)
+    expect(b.data).toMatchObject({ error: 'nothing_to_claim' })
+    expect(b.errors[0]).toContain('Task 1 is reserved for codex')
+    mkdirSync(dirname(userConfigFile()), { recursive: true })
+    writeFileSync(userConfigFile(), 'version: 1\nplan:\n  board:\n    harnesses:\n      codex: false\n')
+    const a = await workJoin('rate-limit', {}, ctxAt(repo, NOW + 1), A)
+    expect(a.code).toBe(1)
+    expect(a.data).toMatchObject({ error: 'harness_off' })
+    expect(a.errors[0]).toContain('plan.board.harnesses.codex')
+  }))
+})
 
 describe('work join', () => {
   test('claims the first ready task, creates its lane worktree from the base branch, binds the session and prints the card with constraints and context', () => sandbox(async root => {

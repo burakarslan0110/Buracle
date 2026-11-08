@@ -7,7 +7,7 @@ import type { Board, BoardEvent, BoardNote, BoardRole, BoardSession, BoardTask, 
 import {
   NOTE_KINDS, activeWorkers, addNote, ask, boardFromPlan, boardSummary, claim, claimable, eventsAfter, heartbeat, markDelivered, markDone, markMerged, mergeBoard, nextMergeable, notesFor, release, reopen, resume, setWorktree, unclaim,
 } from '../core/board/model'
-import type { BuracleConfig } from '../core/config'
+import { defaultConfig, type BuracleConfig } from '../core/config'
 import { parsePlan, planOutline } from '../core/plan/format'
 import { loadConfigSync } from '../engine/config'
 import { latestWindows } from '../usage/telemetry'
@@ -46,7 +46,7 @@ function sectionLines(text: string, name: string): string[] {
 }
 
 export function boardConfig(): BuracleConfig['plan']['board'] {
-  try { return loadConfigSync().config.plan.board } catch { return { mode: 'ask', maxWorkers: 6, leaseSec: 300, mux: 'ask', muxOnAsk: 'mark' } }
+  try { return loadConfigSync().config.plan.board } catch { return defaultConfig().plan.board }
 }
 
 function laneSlugFor(slug: string, n: number): string { return `${slug}-t${n}` }
@@ -108,10 +108,11 @@ export async function workPublish(o: PublishOptions, ctx: WorkflowCtx, s: Resolv
   return ok(data, lines)
 }
 
-export interface TaskView { n: number, title: string, status: BoardTask['status'], deps: number[], files: string[], worker?: { harness: string, session: string, leaseAgeSec?: number }, worktree?: string, question?: string, report?: BoardTask['report'] }
+export interface TaskView { n: number, title: string, status: BoardTask['status'], deps: number[], files: string[], harness?: BoardTask['harness'], worker?: { harness: string, session: string, leaseAgeSec?: number }, worktree?: string, question?: string, report?: BoardTask['report'] }
 
 function taskView(t: BoardTask, now?: number): TaskView {
   const v: TaskView = { n: t.n, title: t.title, status: t.status, deps: t.deps, files: t.files.map(f => f.path) }
+  if (t.harness !== undefined) v.harness = t.harness
   if (t.worker !== undefined) {
     v.worker = { harness: t.worker.harness, session: t.worker.session }
     if (now !== undefined && t.heartbeatAt !== undefined) v.worker.leaseAgeSec = Math.max(0, Math.round((now - t.heartbeatAt) / 1000))
@@ -128,7 +129,7 @@ export function taskLine(t: BoardTask, now: number): string {
   const who = t.worker !== undefined ? `${t.worker.harness} ${short(t.worker.session)}` : undefined
   const lease = t.leaseUntil !== undefined ? ` (lease ${Math.max(0, Math.round((t.leaseUntil - now) / 1000))} s)` : ''
   switch (t.status) {
-    case 'open': return `Task ${t.n} open: ${t.title}`
+    case 'open': return `Task ${t.n} open${t.harness !== undefined ? ` (reserved for ${t.harness})` : ''}: ${t.title}`
     case 'claimed': return `Task ${t.n} claimed by ${who ?? '?'}${lease}: ${t.title}`
     case 'waiting': return `Task ${t.n} waiting by ${who ?? '?'} (question: ${t.question ?? ''}): ${t.title}`
     case 'done': return `Task ${t.n} done${t.report !== undefined ? ` on ${t.report.branch}` : ''}: ${t.title}`
@@ -168,7 +169,7 @@ function isLead(board: Board, s: ResolvedSession): boolean {
 }
 
 function cardView(t: BoardTask): Record<string, unknown> {
-  return { n: t.n, title: t.title, objective: t.objective, files: t.files, deps: t.deps, dod: t.dod }
+  return { n: t.n, title: t.title, objective: t.objective, files: t.files, deps: t.deps, dod: t.dod, ...(t.harness !== undefined ? { harness: t.harness } : {}) }
 }
 
 export interface JoinOptions { task?: number }
@@ -184,6 +185,8 @@ export async function workJoin(slugArg: string | undefined, o: JoinOptions, ctx:
   if ('code' in target) return target
   const binding = sessionBoard(s.harness, s.sessionId)
   const me = sessionOf(s)
+  // The user keeps a harness out of the swarm in the config (also from the Console's settings page).
+  if (boardConfig().harnesses[s.harness] === false) return fail('harness_off', `${s.harness} is switched off for swarm workers (plan.board.harnesses.${s.harness}: false); turn it on with 'buracle config set plan.board.harnesses.${s.harness} true', or join from another harness`, { slug: target.slug, harness: s.harness })
   const token = newToken()
   let picked: BoardTask | undefined
   let previous: BoardTask | undefined
@@ -204,7 +207,7 @@ export async function workJoin(slugArg: string | undefined, o: JoinOptions, ctx:
     }
     let n = o.task
     if (n === undefined) {
-      const view = claimable(b)
+      const view = claimable(b, me.harness)
       n = view.ready[0]
       if (n === undefined) {
         const open = b.tasks.filter(t => t.status === 'open' || t.status === 'stale').length
@@ -238,7 +241,7 @@ export async function workJoin(slugArg: string | undefined, o: JoinOptions, ctx:
   const pane = await bindPaneToSession(fr.commonDir, board.slug, ctx.env, me, deps)
   const task = fin.board.tasks.find(t => t.n === n) ?? picked
   // The pane says which task its worker took, so the user and the lead can tell the panes apart.
-  if (pane?.bound === true) await labelWorkerPane(fr.commonDir, board.slug, ctx.env, s.harness, { stage: 'working', n, title: task.title }, deps)
+  if (pane?.bound === true) await labelWorkerPane(fr.commonDir, board.slug, ctx.env, me, { stage: 'working', n, title: task.title }, deps)
   const created = wt.data['created'] === true
   const lines = [
     `Claimed Task ${n} of ${board.slug}: ${task.title}`,
@@ -300,7 +303,7 @@ export async function workRelease(o: { reason?: string }, ctx: WorkflowCtx, s: R
     return fail(r.code, r.message, { slug: t.slug, task: t.task })
   }
   dropClaim(s)
-  await labelWorkerPane(commonDirOfBoard(t.path), t.slug, ctx.env, s.harness, { stage: 'waiting' }, deps)
+  await labelWorkerPane(commonDirOfBoard(t.path), t.slug, ctx.env, sessionOf(s), { stage: 'waiting' }, deps)
   return ok({ ok: true, slug: t.slug, task: t.task, status: 'open' }, [`Task ${t.task} is open again on ${t.slug}; its worktree stays for the next worker. Take another with 'buracle work join ${t.slug}', or run 'buracle work release' again to leave the board.`])
 }
 
@@ -336,7 +339,7 @@ export async function workDone(o: { verify?: string }, ctx: WorkflowCtx, s: Reso
   })
   if (!r.ok) return fail(r.code, r.message, { slug: t.slug, task: t.task })
   dropClaim(s)
-  await labelWorkerPane(commonDirOfBoard(t.path), t.slug, ctx.env, s.harness, { stage: 'done', n: t.task, title: task.title }, deps)
+  await labelWorkerPane(commonDirOfBoard(t.path), t.slug, ctx.env, sessionOf(s), { stage: 'done', n: t.task, title: task.title }, deps)
   return ok({ ok: true, slug: t.slug, task: t.task, status: 'done', branch, commits, verify, base }, [
     `Task ${t.task} is done on ${branch} (${commits.length} commit${commits.length === 1 ? '' : 's'} beyond ${base}); the lead merges it.`,
     `Next: 'buracle work join ${t.slug}' for another task, or 'buracle work release' to leave the board.`,
@@ -350,7 +353,7 @@ export async function workAsk(question: string | undefined, ctx: WorkflowCtx, s:
   const t = needTask(s)
   if ('code' in t) return t
   // The lead reads this note: it names the pane, so the lead sends the user to the right one.
-  const where = paneRefOf(commonDirOfBoard(t.path), t.slug, ctx.env, s.harness)
+  const where = paneRefOf(commonDirOfBoard(t.path), t.slug, ctx.env, sessionOf(s))
   const r = updateBoard(t.path, ctx.now, b => {
     const a = ask(b, t.task, t.token, q, ctx.now)
     if (!a.ok) return a
@@ -361,8 +364,9 @@ export async function workAsk(question: string | undefined, ctx: WorkflowCtx, s:
     return fail(r.code, r.message, { slug: t.slug, task: t.task })
   }
   const title = `Task ${t.task} of ${t.slug} needs you`
-  const terminal = await notifyTerminal({ title, body: q, agent: s.harness }, ctx.env)
-  const pane = await markPaneOnAsk(commonDirOfBoard(t.path), t.slug, ctx.env, s.harness, { n: t.task, title: r.board.tasks.find(x => x.n === t.task)?.title ?? '' }, boardConfig().muxOnAsk, deps)
+  // herdr is told about the pane the worker is bound to, not the one its environment names (stale for Codex).
+  const terminal = await notifyTerminal({ title, body: q, agent: s.harness, ...(where !== undefined ? { pane: where } : {}) }, ctx.env)
+  const pane = await markPaneOnAsk(commonDirOfBoard(t.path), t.slug, ctx.env, sessionOf(s), { n: t.task, title: r.board.tasks.find(x => x.n === t.task)?.title ?? '' }, boardConfig().muxOnAsk, deps)
   writeTerminalSequence(s.harness, s.sessionId, terminal.sequence, ctx.now)
   markAsked(s.harness, s.sessionId, ctx.now)
   // herdr and cmux announce the question themselves; the desktop banner is only for a terminal that cannot, or for a multiplexer that did not answer.
@@ -388,7 +392,7 @@ export async function workResume(ctx: WorkflowCtx, s: ResolvedSession, deps: Pan
   }
   if (!already) patchSessionBoard(s.harness, s.sessionId, { heartbeatAt: ctx.now })
   const task = r.board.tasks.find(x => x.n === t.task)
-  const pane = await clearPaneMark(commonDirOfBoard(t.path), t.slug, ctx.env, s.harness, { n: t.task, title: task?.title ?? '' }, deps)
+  const pane = await clearPaneMark(commonDirOfBoard(t.path), t.slug, ctx.env, sessionOf(s), { n: t.task, title: task?.title ?? '' }, deps)
   return ok({ ok: true, slug: t.slug, task: t.task, status: 'claimed', already, leaseUntil: task?.leaseUntil ?? null, pane }, [already ? `Task ${t.task} is already claimed by this session (a hook resumed it).` : `Task ${t.task} is claimed again with a fresh lease.`])
 }
 
