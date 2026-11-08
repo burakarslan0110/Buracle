@@ -1,69 +1,22 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { boardFromPlan, claim, markDone, type Board, type BoardSession } from '../../src/core/board/model'
 import { userConfigFile } from '../../src/engine/paths'
 import { workAsk, workClose, workDone, workJoin, workMerge, workPublish, workRelease, workResume, workStatus } from '../../src/workflow/board'
 import { readBoard } from '../../src/workflow/board-store'
-import { workSpawn, type PaneDeps } from '../../src/workflow/board-panes'
+import { panesLine, workSpawn, type PaneDeps } from '../../src/workflow/board-panes'
 import type { MuxExec, MuxExecResult } from '../../src/workflow/mux'
 import { workerCommand } from '../../src/workflow/mux'
-import { muxStorePath, readMuxStore, writeMuxStore } from '../../src/workflow/mux-store'
+import { muxStorePath, readMuxStore, writeMuxStore, type MuxStore } from '../../src/workflow/mux-store'
 import type { ResolvedSession } from '../../src/workflow/session-store'
 import { writeTelemetry } from '../../src/workflow/session-store'
 import { fakeExe } from '../helpers/fake-exe'
-import { withEnv, withSandbox } from '../helpers/sandbox'
+import { HERDR_ENV, LEAD, NOW, fakeHerdr, published, sandbox, which } from './board-panes-helpers'
 import { ctxAt, g, makeRepo, planDoc, write } from './fixture'
 
-const NOW = Date.UTC(2026, 10, 8, 12, 0, 0)
-const LEAD: ResolvedSession = { harness: 'claude', sessionId: 'lead-1', source: '--session' }
 const W = (harness: ResolvedSession['harness'], id: string): ResolvedSession => ({ harness, sessionId: id, source: '--session' })
 const A = W('codex', 'worker-a')
-const HERDR_ENV = { HERDR_ENV: '1', HERDR_PANE_ID: 'w2:p0', HERDR_TAB_ID: 'w2:t1', HERDR_WORKSPACE_ID: 'w2', HERDR_SOCKET_PATH: '/Users/me/.config/herdr/herdr.sock' }
-
-function sandbox<T>(fn: (root: string) => Promise<T>): Promise<T> {
-  return withSandbox(({ root }) => withEnv({ BURACLE_NO_MEMORY: '1', BURACLE_LOCK_TIMEOUT_MS: '2000' }, () => fn(root)))
-}
-
-/** `dep`: Task 3 also modifies the file of Task 1 (`true`) or of the task named, so it cannot start while that task is active. */
-async function published(root: string, o: { n?: number, dep?: boolean | number, maxWorkers?: number, name?: string } = {}): Promise<{ repo: string, plan: string, path: string, commonDir: string }> {
-  const repo = await makeRepo(root, o.name ?? 'repo')
-  const plan = join(repo, 'docs', 'plan-build', '2026-11-08-rate-limit.md')
-  let doc = planDoc({ n: o.n ?? 3, status: 'IN_PROGRESS', approved: true })
-  if (o.dep !== undefined && o.dep !== false) doc = doc.replace('- Modify: `src/s3.ts`', `- Modify: \`src/s${o.dep === true ? 1 : o.dep}.ts\`\n- Modify: \`src/s3.ts\``)
-  write(plan, doc)
-  const pub = await workPublish({ planPath: plan, ...(o.maxWorkers !== undefined ? { maxWorkers: o.maxWorkers } : {}) }, ctxAt(repo, NOW), LEAD)
-  if (pub.code !== 0) throw new Error(pub.errors.join('; '))
-  const path = String(pub.data['path'])
-  return { repo, plan, path, commonDir: join(path, '..', '..', '..') }
-}
-
-/**
- * A fake herdr: `pane split` hands out w2:p1, w2:p2, …; `pane get` answers for the panes in `live`; `failSplit` breaks the n-th split.
- * `from` starts the numbering later, and ids are written in base 36 like the real herdr's (w2:p9, w2:pA, … w2:pH, …).
- */
-function fakeHerdr(o: { live?: Set<string>, failSplit?: number, getCode?: number, from?: number } = {}): { exec: MuxExec, calls: string[][], lines: () => string[], reset: () => void } {
-  const calls: string[][] = []
-  let splits = 0
-  const exec: MuxExec = async argv => {
-    calls.push(argv)
-    const r: MuxExecResult = { code: 0, stdout: '', stderr: '' }
-    if (argv[1] === 'pane' && argv[2] === 'split') {
-      splits++
-      if (o.failSplit === splits) return { code: 1, stdout: '', stderr: '{"error":{"code":"layout_full"}}' }
-      const id = `w2:p${((o.from ?? 1) + splits - 1).toString(36).toUpperCase()}`
-      o.live?.add(id)
-      return { ...r, stdout: JSON.stringify({ ok: true, result: { pane: { pane_id: id } } }) }
-    }
-    if (argv[1] === 'pane' && argv[2] === 'get') {
-      if (o.getCode !== undefined) return { code: o.getCode, stdout: '', stderr: 'timed out' }
-      return o.live === undefined || o.live.has(argv[3] ?? '') ? r : { code: 1, stdout: '', stderr: '{"error":{"code":"not_found"}}' }
-    }
-    return r
-  }
-  return { exec, calls, lines: () => calls.map(c => c.join(' ')), reset: () => { calls.length = 0 } }
-}
-
-const which = (bin: string): boolean => ['claude', 'codex', 'opencode', 'omp'].includes(bin)
 
 describe('work spawn', () => {
   test('opens one pane per ready task by default, round-robins the harness list, titles and records every pane', () => sandbox(async root => {
@@ -81,17 +34,18 @@ describe('work spawn', () => {
       { id: 'w2:p4', harness: 'codex', title: 'Worker 4 (codex) · waiting for a task' },
     ])
     const cwd = String(r.data['cwd'])
+    // The lead keeps the top half; the four workers share the bottom half as one row of four equal columns.
     expect(h.lines()).toEqual([
-      `herdr pane split --current --direction right --cwd ${cwd} --no-focus`,
+      `herdr pane split --current --direction down --ratio 0.5 --cwd ${cwd} --no-focus`,
       'herdr pane rename w2:p1 Worker 1 (claude) · waiting for a task',
       `herdr pane run w2:p1 ${workerCommand('claude', 'rate-limit', cwd, 'herdr')}`,
-      `herdr pane split --pane w2:p1 --direction down --cwd ${cwd} --no-focus`,
+      `herdr pane split --pane w2:p1 --direction right --ratio 0.25 --cwd ${cwd} --no-focus`,
       'herdr pane rename w2:p2 Worker 2 (codex) · waiting for a task',
       `herdr pane run w2:p2 ${workerCommand('codex', 'rate-limit', cwd, 'herdr')}`,
-      `herdr pane split --pane w2:p2 --direction down --cwd ${cwd} --no-focus`,
+      `herdr pane split --pane w2:p2 --direction right --ratio 0.333 --cwd ${cwd} --no-focus`,
       'herdr pane rename w2:p3 Worker 3 (claude) · waiting for a task',
       `herdr pane run w2:p3 ${workerCommand('claude', 'rate-limit', cwd, 'herdr')}`,
-      `herdr pane split --pane w2:p3 --direction down --cwd ${cwd} --no-focus`,
+      `herdr pane split --pane w2:p3 --direction right --ratio 0.5 --cwd ${cwd} --no-focus`,
       'herdr pane rename w2:p4 Worker 4 (codex) · waiting for a task',
       `herdr pane run w2:p4 ${workerCommand('codex', 'rate-limit', cwd, 'herdr')}`,
     ])
@@ -273,6 +227,34 @@ describe('work spawn', () => {
     expect(outside.data['mux']).toBeNull()
     expect(outside.lines.join('\n')).not.toContain('work spawn')
   }))
+})
+
+describe('panesLine: which task a pane holds', () => {
+  const lead: BoardSession = { harness: 'claude', session: 'lead-1' }
+  const A: BoardSession = { harness: 'claude', session: 'a' }
+  const B: BoardSession = { harness: 'codex', session: 'b' }
+  const tasks = [1, 2, 3, 4].map(n => ({ n, title: `Step ${n}`, done: false, objective: `o${n}`, dod: `d${n}`, files: [{ verb: 'Modify' as const, path: `src/s${n}.ts` }] }))
+
+  function finish(b: Board, n: number, who: BoardSession, at: number): Board {
+    const claimed = claim(b, n, who, at, `tok${n}`)
+    if (!claimed.ok) throw new Error(claimed.message)
+    const done = markDone(claimed.board, n, `tok${n}`, { branch: `lane-${n}`, commits: ['c'], verify: 'ok' }, at + 1)
+    if (!done.ok) throw new Error(done.message)
+    return done.board
+  }
+
+  test('a worker that finished several tasks the lead has not merged yet is shown with the one it finished last, not the one with the lowest number', () => {
+    const made = boardFromPlan(tasks, { slug: 'rate-limit', plan: '/repo/docs/plan-build/2026-11-08-rate-limit.md', planType: 'Feature', base: 'main', lead, maxWorkers: 6, leaseSec: 300, constraints: [], context: '', now: 1000 })
+    if (!made.ok) throw new Error(made.message)
+    // A finishes Task 4 and then Task 2; B finishes Task 1 and then Task 3.
+    let board = finish(made.board, 4, A, 2000)
+    board = finish(board, 1, B, 3000)
+    board = finish(board, 2, A, 4000)
+    board = finish(board, 3, B, 5000)
+    const rec = (id: string, who: BoardSession, title: string) => ({ id, harness: who.harness, title, server: 's', openedAt: 0, session: who })
+    const store: MuxStore = { v: 1, slug: 'rate-limit', mux: 'herdr', panes: [rec('w2:p1', A, 'Worker 1 (claude)'), rec('w2:p2', B, 'Worker 2 (codex)')] }
+    expect(panesLine(store, board)).toBe('Panes (herdr): w2:p1 Worker 1 (claude): Task 2 done, w2:p2 Worker 2 (codex): Task 3 done')
+  })
 })
 
 describe('worker side: join binds, ask marks, resume clears', () => {

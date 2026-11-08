@@ -6,6 +6,7 @@ import { closeSync, existsSync, openSync, writeSync } from 'node:fs'
 import type { Harness } from '../core/events'
 import { shellQuote } from '../core/policy/shell-text'
 import { run } from '../engine/proc'
+import type { SplitDirection } from './mux-layout'
 
 export type MuxKind = 'tmux' | 'cmux' | 'herdr'
 export const MUX_KINDS: readonly MuxKind[] = ['tmux', 'cmux', 'herdr']
@@ -18,7 +19,14 @@ export type MuxExec = (argv: string[], opts: { timeoutMs: number; env: Env }) =>
 /** One pane Buracle opened, as the sidecar records it. `server` and `pid` keep a reused id from closing a stranger's pane. */
 export interface MuxPane { id: string; ids?: string[]; harness: Harness; title: string; server: string; pid?: string }
 export interface MuxOpened { id: string; ids?: string[]; server: string; pid?: string; attach?: string }
-export interface OpenSpec { cwd: string; command: string; title: string; slug: string; after?: MuxPane }
+/**
+ * How a new pane is cut out of an existing one: `target` is the pane to split (`lead`: the lead's own pane), `direction`
+ * where the new pane goes, and `keep` the share of the split pane's area that pane keeps (the new pane takes the rest).
+ * A multiplexer whose CLI takes no size (cmux) splits in halves and ignores `keep`.
+ */
+export interface Split { target: 'lead' | MuxPane; direction: SplitDirection; keep: number }
+/** Without a `split` the pane goes to the right of the lead's pane. */
+export interface OpenSpec { cwd: string; command: string; title: string; slug: string; split?: Split }
 /** `stale`: the pane is gone or the id now names another pane (nothing was run). `failed`: the multiplexer did not answer or refused. */
 export type CloseResult = { ok: true } | { ok: false; reason: 'stale' | 'failed' }
 /** `ok`: the recorded pane is there. `stale`: gone or another pane now. `failed`: the multiplexer could not be asked. */
@@ -74,6 +82,29 @@ export function detectMux(env: Env, explicit?: string): MuxDetect {
   if (inHerdr(env)) return { ok: true, kind: 'herdr' }
   if (inCmux(env)) return { ok: true, kind: 'cmux' }
   return { ok: false, code: 'no_mux', message: NO_MUX_HINT }
+}
+
+/**
+ * What a multiplexer offers for the layout of the worker panes: `exact`, a split takes a size (cmux halves every split);
+ * `lead`, the lead's own pane can be split (a detached tmux session, opened from outside tmux, has no lead pane).
+ */
+export function layoutCaps(kind: MuxKind, env: Env): { exact: boolean; lead: boolean } {
+  switch (kind) {
+    case 'tmux': return { exact: true, lead: nonEmpty(env['TMUX']) }
+    case 'herdr': return { exact: true, lead: true }
+    case 'cmux': return { exact: false, lead: true }
+    default: { const never: never = kind; return never }
+  }
+}
+
+/** The share a split gives the new pane, as a whole percentage tmux takes (1 to 99). */
+function newShare(keep: number): number {
+  return Math.min(99, Math.max(1, Math.round((1 - keep) * 100)))
+}
+
+/** The share the split pane keeps, as the short decimal herdr's `--ratio` takes (0.25, 0.333). */
+function keepRatio(keep: number): string {
+  return String(Math.min(0.99, Math.max(0.01, Math.round(keep * 1000) / 1000)))
 }
 
 /** The shape of a pane id per multiplexer; a value that fails this never reaches an argv. */
@@ -161,7 +192,8 @@ function field(x: unknown, ...path: string[]): unknown {
 function tmuxAdapter(env: Env, exec: MuxExec): MuxAdapter {
   const x = (args: string[]) => exec(['tmux', ...args], { timeoutMs: MUX_TIMEOUT_MS, env })
   const inside = nonEmpty(env['TMUX'])
-  const leadPane = env['TMUX_PANE']
+  // The lead's pane goes into an argv as a target, so it must look like a tmux pane id.
+  const leadPane = paneIdOf('tmux', env)
   const facts = async (id: string): Promise<{ pid: string; server: string } | 'failed' | undefined> => {
     const r = await x(['display-message', '-p', '-t', id, '#{pane_pid} #{socket_path}'])
     if (unreachable(r.code)) return 'failed'
@@ -182,23 +214,40 @@ function tmuxAdapter(env: Env, exec: MuxExec): MuxAdapter {
     kind: 'tmux',
     async open(spec) {
       const session = `buracle-${spec.slug}`
-      const common = ['-d', ...(spec.after !== undefined ? ['-v'] : ['-h']), '-c', spec.cwd, '-P', '-F', '#{pane_id}']
-      let argv: string[]
+      const split = spec.split
+      // A pane that is named as the one to split must look like a tmux pane id: it goes into an argv.
+      if (split !== undefined && split.target !== 'lead' && !validPaneId('tmux', split.target.id)) return undefined
+      const pane = split !== undefined && split.target !== 'lead' ? split.target.id : undefined
+      // The size of the new pane: `-l N%` (tmux 3.1 and later), or `-p N` for an older tmux. No `select-layout`: the
+      // window also holds the lead and whatever else the user keeps there.
+      const sizeFlags = (percentSign: boolean): string[] => (split === undefined ? [] : percentSign ? ['-l', `${newShare(split.keep)}%`] : ['-p', String(newShare(split.keep))])
+      const common = (percentSign: boolean): string[] => ['-d', split?.direction === 'down' ? '-v' : '-h', ...sizeFlags(percentSign), '-c', spec.cwd, '-P', '-F', '#{pane_id}']
+      let argvFor: (percentSign: boolean) => string[]
+      let sized = split !== undefined
       let attach: string | undefined
       if (inside) {
-        const target = spec.after !== undefined ? spec.after.id : leadPane
-        argv = ['split-window', ...common, ...(nonEmpty(target) ? ['-t', target] : []), spec.command]
+        const target = pane ?? leadPane
+        argvFor = p => ['split-window', ...common(p), ...(nonEmpty(target) ? ['-t', target] : []), spec.command]
       } else {
         const has = await x(['has-session', '-t', `=${session}`])
-        argv = has.code === 0
-          ? ['split-window', '-d', '-v', '-c', spec.cwd, '-P', '-F', '#{pane_id}', '-t', `${session}:`, spec.command]
-          : ['new-session', '-d', '-s', session, '-c', spec.cwd, '-P', '-F', '#{pane_id}', spec.command]
+        if (has.code === 0 && pane !== undefined) {
+          // The session exists and the plan names the pane to split.
+          argvFor = p => ['split-window', ...common(p), '-t', pane, spec.command]
+        } else if (has.code === 0) {
+          // The session exists and the plan names no pane: split whatever pane its window shows.
+          sized = false
+          argvFor = () => ['split-window', '-d', '-v', '-c', spec.cwd, '-P', '-F', '#{pane_id}', '-t', `${session}:`, spec.command]
+        } else {
+          sized = false
+          argvFor = () => ['new-session', '-d', '-s', session, '-c', spec.cwd, '-P', '-F', '#{pane_id}', spec.command]
+        }
         attach = `tmux attach -t ${session}`
       }
-      const r = await x(argv)
+      let r = await x(argvFor(true))
+      // An older tmux refuses a percent size after -l; it takes the same size through -p.
+      if (r.code !== 0 && sized) r = await x(argvFor(false))
       const id = r.stdout.trim()
       if (r.code !== 0 || !validPaneId('tmux', id)) return undefined
-      await x(['select-layout', '-t', id, 'tiled'])
       await x(['set-option', '-p', '-t', id, 'allow-passthrough', 'on'])
       await x(['select-pane', '-t', id, '-T', spec.title])
       const f = await facts(id)
@@ -253,7 +302,11 @@ function herdrAdapter(env: Env, exec: MuxExec): MuxAdapter {
   return {
     kind: 'herdr',
     async open(spec) {
-      const where = spec.after !== undefined ? ['--pane', spec.after.id, '--direction', 'down'] : ['--current', '--direction', 'right']
+      const split = spec.split
+      if (split !== undefined && split.target !== 'lead' && !validPaneId('herdr', split.target.id)) return undefined
+      const where = split === undefined
+        ? ['--current', '--direction', 'right']
+        : [...(split.target === 'lead' ? ['--current'] : ['--pane', split.target.id]), '--direction', split.direction, '--ratio', keepRatio(split.keep)]
       const r = await x(['pane', 'split', ...where, '--cwd', spec.cwd, '--no-focus'])
       if (r.code !== 0) return undefined
       const id = field(parseJson(r.stdout), 'result', 'pane', 'pane_id')
@@ -323,7 +376,10 @@ function cmuxAdapter(env: Env, exec: MuxExec, bin: string): MuxAdapter {
     async open(spec) {
       const before = await list()
       if (before === undefined) return undefined
-      const where = spec.after !== undefined ? ['down', '--surface', spec.after.id] : ['right']
+      const split = spec.split
+      if (split !== undefined && split.target !== 'lead' && !validPaneId('cmux', split.target.id)) return undefined
+      // new-split takes a direction and a surface but no size: cmux halves the surface it splits (the lead's, by default).
+      const where = split === undefined ? ['right'] : [split.direction, ...(split.target === 'lead' ? [] : ['--surface', split.target.id])]
       const r = await x(['new-split', ...where, '--command', spec.command, '--focus', 'false'])
       if (r.code !== 0) return undefined
       // What cmux printed for the new split counts as well: when the second listing fails the split still exists, and
