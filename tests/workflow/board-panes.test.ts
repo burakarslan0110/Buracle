@@ -12,7 +12,7 @@ import { muxStorePath, readMuxStore, writeMuxStore, type MuxStore } from '../../
 import type { ResolvedSession } from '../../src/workflow/session-store'
 import { writeTelemetry } from '../../src/workflow/session-store'
 import { fakeExe } from '../helpers/fake-exe'
-import { HERDR_ENV, LEAD, NOW, fakeHerdr, published, sandbox, which } from './board-panes-helpers'
+import { CMUX_ENV, CU, HERDR_ENV, LEAD, NOW, fakeCmux, fakeHerdr, published, sandbox, which } from './board-panes-helpers'
 import { ctxAt, g, makeRepo, planDoc, write } from './fixture'
 
 const W = (harness: ResolvedSession['harness'], id: string): ResolvedSession => ({ harness, sessionId: id, source: '--session' })
@@ -390,16 +390,18 @@ describe('worker side: join binds, ask marks, resume clears', () => {
   }))
 })
 
+/** The worker commits its task's file in its lane worktree and reports done. */
+async function finish(repo: string, worker: ResolvedSession, n: number, at: number, o: { env?: Record<string, string>, deps?: PaneDeps } = {}): Promise<void> {
+  const b = readBoard(muxStorePath(join(repo, '.git'), 'rate-limit').replace(join('mux', 'rate-limit.json'), 'rate-limit.json'))
+  const wt = String(b?.tasks.find(t => t.n === n)?.worktree?.path)
+  write(join(wt, `src/s${n}.ts`), `export const s${n} = ${n}\n`)
+  await g(wt, 'add', '-A')
+  await g(wt, 'commit', '-q', '-m', `task ${n}: step ${n}`)
+  const d = await workDone({ verify: `bun test tests/s${n}.test.ts → pass` }, ctxAt(repo, at, o.env), worker, o.deps)
+  if (d.code !== 0) throw new Error(`done ${n}: ${d.errors.join('; ')}`)
+}
+
 describe('lead side: merge and close close the panes, status lists them', () => {
-  async function finish(repo: string, worker: ResolvedSession, n: number, at: number, o: { env?: Record<string, string>, deps?: PaneDeps } = {}): Promise<void> {
-    const b = readBoard(muxStorePath(join(repo, '.git'), 'rate-limit').replace(join('mux', 'rate-limit.json'), 'rate-limit.json'))
-    const wt = String(b?.tasks.find(t => t.n === n)?.worktree?.path)
-    write(join(wt, `src/s${n}.ts`), `export const s${n} = ${n}\n`)
-    await g(wt, 'add', '-A')
-    await g(wt, 'commit', '-q', '-m', `task ${n}: step ${n}`)
-    const d = await workDone({ verify: `bun test tests/s${n}.test.ts → pass` }, ctxAt(repo, at, o.env), worker, o.deps)
-    if (d.code !== 0) throw new Error(`done ${n}: ${d.errors.join('; ')}`)
-  }
 
   test('done labels the worker pane, and the pane stays until its merge: Task n · done', () => sandbox(async root => {
     const { repo } = await published(root, { n: 1 })
@@ -533,6 +535,80 @@ describe('review fixes: unbound panes, dry-run with a foreign board, an unreacha
     expect(r.code).toBe(0)
     expect(r.data).toMatchObject({ ok: true, dryRun: true, mux: 'herdr', board: null })
     expect(r.lines[0]).toContain('belongs to the lead claude lead-1')
+  }))
+
+  test('cmux: a worker whose CMUX_SURFACE_ID is the UUID binds the pane new-split named by its ref; the label follows the task, the merge closes the idle pane with --force', () => sandbox(async root => {
+    const { repo, commonDir } = await published(root, { n: 2 })
+    const c = fakeCmux()
+    const deps = { exec: c.exec, cmuxBin: '/opt/cmux', which }
+    expect((await workSpawn({ workers: 2 }, ctxAt(repo, NOW, CMUX_ENV), LEAD, deps)).errors).toEqual([])
+    // What the real cmux gives: the record carries the ref and the UUID; the worker's pane knows the UUID only.
+    expect(readMuxStore(muxStorePath(commonDir, 'rate-limit'))?.panes.map(p => [p.id, p.ids])).toEqual([[CU(2), ['surface:2', CU(2)]], [CU(3), ['surface:3', CU(3)]]])
+    const B = W('claude', 'worker-b')
+    const envA = { ...CMUX_ENV, CMUX_SURFACE_ID: CU(2), BURACLE_NO_NOTIFY: '0' }
+    const envB = { ...CMUX_ENV, CMUX_SURFACE_ID: CU(3), BURACLE_NO_NOTIFY: '0' }
+    const j = await workJoin('rate-limit', {}, ctxAt(repo, NOW, envA), A, deps)
+    expect(j.data).toMatchObject({ task: { n: 1 }, pane: { mux: 'cmux', id: CU(2), bound: true } })
+    expect((await workJoin('rate-limit', {}, ctxAt(repo, NOW, envB), B, deps)).data).toMatchObject({ task: { n: 2 }, pane: { bound: true } })
+    expect(c.lines().filter(l => l.includes('rename-tab')).slice(-2)).toEqual([
+      `/opt/cmux rename-tab --surface ${CU(2)} -- Worker 1 (claude) · Task 1: Step 1`,
+      `/opt/cmux rename-tab --surface ${CU(3)} -- Worker 2 (claude) · Task 2: Step 2`,
+    ])
+    const st = await workStatus(undefined, ctxAt(repo, NOW + 1, CMUX_ENV), LEAD)
+    expect(st.lines.find(l => l.startsWith('Panes (cmux)'))).toBe(`Panes (cmux): ${CU(2)} Worker 1 (claude): Task 1 claimed, ${CU(3)} Worker 2 (claude): Task 2 claimed`)
+    c.reset()
+    const asked = await workAsk('which color?', ctxAt(repo, NOW + 2, envA), A, deps)
+    expect(asked.data).toMatchObject({ pane: { marked: true } })
+    expect(c.lines()).toContain(`/opt/cmux rename-tab --surface ${CU(2)} -- Worker 1 (claude) · Task 1 · NEEDS YOU`)
+    expect((await workResume(ctxAt(repo, NOW + 3, envA), A, deps)).code).toBe(0)
+    await finish(repo, A, 1, NOW + 4, { env: envA, deps })
+    await finish(repo, B, 2, NOW + 5, { env: envB, deps })
+    c.reset()
+    const m1 = await workMerge({}, ctxAt(repo, NOW + 6, CMUX_ENV), LEAD, deps)
+    expect(m1.data).toMatchObject({ merged: true, task: 1, panes: { closed: [CU(2)], kept: [], stale: [] } })
+    expect(c.lines().filter(l => l.includes('close-surface'))).toEqual([`/opt/cmux close-surface --surface ${CU(2)} --force`])
+    const m2 = await workMerge({}, ctxAt(repo, NOW + 7, CMUX_ENV), LEAD, deps)
+    expect(m2.data).toMatchObject({ merged: true, task: 2, panes: { closed: [CU(3)] } })
+    expect(c.live.size).toBe(0)
+  }))
+
+  test('cmux: a record that holds only the surface ref (an older spawn) still binds, because the worker asks cmux for the handles of its UUID', () => sandbox(async root => {
+    const { repo, commonDir } = await published(root, { n: 1 })
+    const c = fakeCmux()
+    const deps = { exec: c.exec, cmuxBin: '/opt/cmux', which }
+    expect((await workSpawn({ workers: 1 }, ctxAt(repo, NOW, CMUX_ENV), LEAD, deps)).errors).toEqual([])
+    const path = muxStorePath(commonDir, 'rate-limit')
+    const store = readMuxStore(path)
+    if (store === undefined) throw new Error('no store')
+    writeMuxStore(path, { ...store, panes: store.panes.map(p => ({ ...p, id: 'surface:2', ids: ['surface:2'] })) })
+    // cmux may print the UUID in upper case (Swift does) while the listing shows it lower case: the pane still binds.
+    const upper = CU(2).toUpperCase()
+    const j = await workJoin('rate-limit', {}, ctxAt(repo, NOW, { ...CMUX_ENV, CMUX_SURFACE_ID: upper, BURACLE_NO_NOTIFY: '0' }), A, deps)
+    expect(j.data).toMatchObject({ task: { n: 1 }, pane: { id: upper, bound: true } })
+    // The bind adds the UUID (as the worker and as the listing spell it) to the record, so the later label, mark and
+    // close calls match it without asking cmux again.
+    expect(readMuxStore(path)?.panes[0]).toMatchObject({ id: 'surface:2', ids: ['surface:2', upper, CU(2)], session: { harness: 'codex', session: 'worker-a' } })
+    expect(c.lines()).toContain(`/opt/cmux rename-tab --surface surface:2 -- Worker 1 (claude) · Task 1: Step 1`)
+    await finish(repo, A, 1, NOW + 1, { env: { ...CMUX_ENV, CMUX_SURFACE_ID: upper, BURACLE_NO_NOTIFY: '0' }, deps })
+    c.reset()
+    expect((await workMerge({}, ctxAt(repo, NOW + 2, CMUX_ENV), LEAD, deps)).data).toMatchObject({ merged: true, panes: { closed: ['surface:2'] } })
+    expect(c.lines()).toContain(`/opt/cmux close-surface --surface surface:2 --force`)
+  }))
+
+  test('a close the multiplexer refuses is reported as refused with its reason, and the other panes are still asked; only a multiplexer that does not answer stops the round', () => sandbox(async root => {
+    const { repo } = await published(root, { n: 1 })
+    const c = fakeCmux()
+    const deps = { exec: c.exec, cmuxBin: '/opt/cmux', which }
+    expect((await workSpawn({ workers: 2 }, ctxAt(repo, NOW, CMUX_ENV), LEAD, deps)).errors).toEqual([])
+    let closes = 0
+    const refusing: MuxExec = async (argv, o) => (argv[1] === 'close-surface' ? (closes++, { code: 1, stdout: '', stderr: 'Error: surface is pinned' }) : c.exec(argv, o))
+    const r = await workClose({ force: true }, ctxAt(repo, NOW + 1, CMUX_ENV), LEAD, { ...deps, exec: refusing })
+    expect(r.data).toMatchObject({ panes: { closed: [], kept: [CU(2), CU(3)], stale: [], refused: [{ id: CU(2), message: 'Error: surface is pinned' }, { id: CU(3), message: 'Error: surface is pinned' }] } })
+    // A refusal is an answer: the second pane was still asked.
+    expect(closes).toBe(2)
+    expect(r.errors.join('\n')).toContain('cmux refused to close')
+    expect(r.errors.join('\n')).toContain('surface is pinned')
+    expect(r.errors.join('\n')).not.toContain('did not answer')
   }))
 
   test('when the multiplexer does not answer, merge and close keep the records and report the panes as kept, never as closed or stale', () => sandbox(async root => {

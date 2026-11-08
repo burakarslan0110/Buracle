@@ -227,6 +227,21 @@ describe('tmux adapter', () => {
     expect(missing.lines().some(l => l.includes('pane close'))).toBe(false)
   })
 
+  test('a multiplexer that answers but will not close the pane is refused, with what it said (or its exit code); tmux and herdr alike', async () => {
+    const tm = fakeExec(argv => (argv[1] === 'display-message' ? '4242 /tmp/s\n' : argv[1] === 'kill-pane' ? { code: 1, stderr: "can't find pane: %7\nmore" } : undefined))
+    const a = muxAdapter('tmux', { ...TMUX_ENV }, { exec: tm.exec })
+    if (!a.ok) throw new Error(a.message)
+    expect(await a.adapter.close(pane({ id: '%7', pid: '4242', server: '/tmp/s' }))).toEqual({ ok: false, reason: 'refused', message: "can't find pane: %7" })
+    const quiet = fakeExec(argv => (argv[1] === 'display-message' ? '4242 /tmp/s\n' : argv[1] === 'kill-pane' ? { code: 3 } : undefined))
+    const b = muxAdapter('tmux', { ...TMUX_ENV }, { exec: quiet.exec })
+    if (!b.ok) throw new Error(b.message)
+    expect(await b.adapter.close(pane({ id: '%7', pid: '4242', server: '/tmp/s' }))).toEqual({ ok: false, reason: 'refused', message: 'exit 3' })
+    const hd = fakeExec(argv => (argv[1] === 'pane' && argv[2] === 'close' ? { code: 1, stderr: '{"error":{"code":"pinned"}}' } : undefined))
+    const h = muxAdapter('herdr', { ...HERDR_ENV }, { exec: hd.exec })
+    if (!h.ok) throw new Error(h.message)
+    expect(await h.adapter.close(pane({ id: 'w2:p5', server: HERDR_ENV.HERDR_SOCKET_PATH }))).toEqual({ ok: false, reason: 'refused', message: '{"error":{"code":"pinned"}}' })
+  })
+
   test('alive and close compare the recorded pid first: a reused pane id is stale and nothing is killed; a matching one is killed', async () => {
     const f = fakeExec(argv => (argv[1] === 'display-message' ? '4242 /tmp/s\n' : undefined))
     const a = muxAdapter('tmux', { ...TMUX_ENV }, { exec: f.exec })
@@ -396,6 +411,76 @@ describe('cmux adapter', () => {
     expect(await a.adapter.open({ cwd: '/repo', command: 'c', title: 't', slug: 's' })).toEqual({ id: U(4), ids: ['surface:4', U(4)], server: CMUX_ENV.CMUX_SOCKET_PATH })
   }))
 
+  test('new-split names the surface by its ref only: the UUID (what CMUX_SURFACE_ID carries in the pane) comes from the listing line of that ref', () => withSandbox(async ({ root }) => {
+    // The real cmux (0.65) prints the new surface as `surface:N` with no UUID; the worker's environment carries the UUID only.
+    let listed = 0
+    const stranger = `${after}surface:9 ${U(9)} "someone else"\n`
+    const f = fakeExec(argv => {
+      if (isList(argv)) return listed++ === 0 ? before : stranger
+      if (argv[1] === 'new-split') return 'OK surface:4\n'
+      return undefined
+    })
+    const bin = join(root, 'cmux')
+    const a = muxAdapter('cmux', { ...CMUX_ENV }, { exec: f.exec, cmuxBin: bin })
+    if (!a.ok) throw new Error(a.message)
+    expect(await a.adapter.open({ cwd: '/repo', command: 'c', title: 't', slug: 's' })).toEqual({ id: U(4), ids: ['surface:4', U(4)], server: CMUX_ENV.CMUX_SOCKET_PATH })
+    // Without the listing the ref is all there is; it is still recorded, so the pane can be closed.
+    const g = fakeExec(argv => (isList(argv) ? (listed++ === 0 ? before : { code: 1, stderr: 'timed out' }) : argv[1] === 'new-split' ? 'OK surface:4\n' : undefined))
+    listed = 0
+    const b = muxAdapter('cmux', { ...CMUX_ENV }, { exec: g.exec, cmuxBin: bin })
+    if (!b.ok) throw new Error(b.message)
+    expect(await b.adapter.open({ cwd: '/repo', command: 'c', title: 't', slug: 's' })).toEqual({ id: 'surface:4', ids: ['surface:4'], server: CMUX_ENV.CMUX_SOCKET_PATH })
+  }))
+
+  test('a handle inside a quoted title is never a handle: a pane titled with another surface\'s ref does not match that ref', () => withSandbox(async ({ root }) => {
+    // Labels carry task titles, and a title may well say `surface:4`; only the part of a line before its title counts.
+    let listed = 0
+    const titled = `${before}surface:3 ${U(3)} "Worker 1 (claude) · Task 2: close surface:4 ${U(7)}"\nsurface:4 ${U(4)} "claude"\n`
+    const f = fakeExec(argv => {
+      if (isList(argv)) return listed++ === 0 ? before : titled
+      if (argv[1] === 'new-split') return 'OK surface:4\n'
+      return undefined
+    })
+    const bin = join(root, 'cmux')
+    const a = muxAdapter('cmux', { ...CMUX_ENV }, { exec: f.exec, cmuxBin: bin })
+    if (!a.ok) throw new Error(a.message)
+    expect(await a.adapter.open({ cwd: '/repo', command: 'c', title: 't', slug: 's' })).toEqual({ id: U(4), ids: ['surface:4', U(4)], server: CMUX_ENV.CMUX_SOCKET_PATH })
+    expect(await a.adapter.handlesOf?.('surface:4')).toEqual(['surface:4', U(4)])
+    expect(await a.adapter.handlesOf?.(U(7))).toEqual([])
+    expect(await a.adapter.alive(pane({ id: U(7), server: CMUX_ENV.CMUX_SOCKET_PATH }))).toBe(false)
+  }))
+
+  test('handlesOf maps a surface UUID or ref to every handle of its listing line, so a worker finds its pane by whichever id was recorded', () => withSandbox(async ({ root }) => {
+    const f = fakeExec(argv => (isList(argv) ? after : undefined))
+    const bin = join(root, 'cmux')
+    const a = muxAdapter('cmux', { ...CMUX_ENV }, { exec: f.exec, cmuxBin: bin })
+    if (!a.ok) throw new Error(a.message)
+    expect(await a.adapter.handlesOf?.(U(4))).toEqual(['surface:4', U(4)])
+    expect(await a.adapter.handlesOf?.('surface:4')).toEqual(['surface:4', U(4)])
+    expect(await a.adapter.handlesOf?.(U(7))).toEqual([])
+    const down = muxAdapter('cmux', { ...CMUX_ENV }, { exec: fakeExec(() => ({ code: 124 })).exec, cmuxBin: bin })
+    if (!down.ok) throw new Error(down.message)
+    expect(await down.adapter.handlesOf?.(U(4))).toBeUndefined()
+  }))
+
+  test('close forces the surface closed (its worker harness is still running) and tells a refusal from a multiplexer that did not answer', () => withSandbox(async ({ root }) => {
+    const f = fakeExec(argv => (isList(argv) ? after : argv[1] === 'close-surface' && !argv.includes('--force') ? { code: 1, stderr: 'Error: confirmation_required: Surface has a running process; retry with force=true' } : undefined))
+    const bin = join(root, 'cmux')
+    const a = muxAdapter('cmux', { ...CMUX_ENV }, { exec: f.exec, cmuxBin: bin })
+    if (!a.ok) throw new Error(a.message)
+    const p = pane({ id: U(4), ids: ['surface:4', U(4)], server: CMUX_ENV.CMUX_SOCKET_PATH })
+    expect(await a.adapter.close(p)).toEqual({ ok: true })
+    expect(f.lines().at(-1)).toBe(`${bin} close-surface --surface ${U(4)} --force`)
+    const refusing = fakeExec(argv => (isList(argv) ? after : argv[1] === 'close-surface' ? { code: 1, stderr: 'Error: surface is pinned' } : undefined))
+    const b = muxAdapter('cmux', { ...CMUX_ENV }, { exec: refusing.exec, cmuxBin: bin })
+    if (!b.ok) throw new Error(b.message)
+    expect(await b.adapter.close(p)).toEqual({ ok: false, reason: 'refused', message: 'Error: surface is pinned' })
+    const gone = fakeExec(argv => (isList(argv) ? after : argv[1] === 'close-surface' ? { code: 124, stderr: 'timed out' } : undefined))
+    const c = muxAdapter('cmux', { ...CMUX_ENV }, { exec: gone.exec, cmuxBin: bin })
+    if (!c.ok) throw new Error(c.message)
+    expect(await c.adapter.close(p)).toEqual({ ok: false, reason: 'failed' })
+  }))
+
   test('a split spec names the surface to split and the direction; cmux has no size flag, so the share is left to cmux (an even split)', () => withSandbox(async ({ root }) => {
     let listed = 0
     const f = fakeExec(argv => {
@@ -432,7 +517,7 @@ describe('cmux adapter', () => {
       `${bin} focus-panel --panel ${U(4)}`,
       `${bin} ${LIST.join(' ')}`,
       `${bin} ${LIST.join(' ')}`,
-      `${bin} close-surface --surface ${U(4)}`,
+      `${bin} close-surface --surface ${U(4)} --force`,
     ])
     expect(await a.adapter.alive(pane({ id: 'aaaaaaaa-0000-4000-8000-000000000009', server: CMUX_ENV.CMUX_SOCKET_PATH }))).toBe(false)
     expect(await a.adapter.close(pane({ id: p.id, server: '/elsewhere.sock' }))).toEqual({ ok: false, reason: 'stale' })

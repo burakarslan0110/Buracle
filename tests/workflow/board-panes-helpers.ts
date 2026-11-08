@@ -56,22 +56,35 @@ export function fakeHerdr(o: { live?: Set<string>, failSplit?: number, getCode?:
 export const CMUX_ENV = { CMUX_SURFACE_ID: '0f6b2e2a-1111-4222-8333-444455556666', CMUX_WORKSPACE_ID: 'workspace:2', CMUX_SOCKET_PATH: '/Users/me/.local/state/cmux/cmux.sock' }
 export const CU = (n: number): string => `aaaaaaaa-0000-4000-8000-0000000000${String(n).padStart(2, '0')}`
 
-/** A fake cmux: every `new-split` makes the next surface (surface:2 with CU(2), …) and `list-panels` lists them all. */
-export function fakeCmux(): { exec: MuxExec, lines: () => string[] } {
+/**
+ * A fake cmux: every `new-split` makes the next surface (surface:2 with CU(2), …) and answers, like the real cmux, with the
+ * ref only; `--id-format both list-panels` lists them all with their UUIDs. `close-surface` without `--force` is refused
+ * while the surface runs a process (every surface here does); `closeCode` makes every close answer that code instead.
+ */
+export function fakeCmux(o: { closeCode?: number } = {}): { exec: MuxExec, lines: () => string[], reset: () => void, live: Set<string> } {
   const calls: string[][] = []
   const made: string[] = []
+  const live = new Set<string>()
   const exec: MuxExec = async argv => {
     calls.push(argv)
     const r: MuxExecResult = { code: 0, stdout: '', stderr: '' }
-    if (argv[1] === '--id-format') return { ...r, stdout: `workspace:2\nsurface:1 ${CU(1)} "zsh"\n${made.join('\n')}\n` }
+    if (argv[1] === '--id-format') return { ...r, stdout: `workspace:2\nsurface:1 ${CU(1)} "zsh"\n${made.filter(l => live.has(l.split(' ')[0] ?? '')).join('\n')}\n` }
     if (argv[1] === 'new-split') {
       const n = made.length + 2
       made.push(`surface:${n} ${CU(n)} "worker"`)
-      return { ...r, stdout: `OK surface:${n} ${CU(n)}\n` }
+      live.add(`surface:${n}`)
+      return { ...r, stdout: `OK surface:${n}\n` }
+    }
+    if (argv[1] === 'close-surface') {
+      if (o.closeCode !== undefined) return { code: o.closeCode, stdout: '', stderr: 'timed out' }
+      if (!argv.includes('--force')) return { code: 1, stdout: '', stderr: 'Error: confirmation_required: Surface has a running process; retry with force=true' }
+      const id = argv[argv.indexOf('--surface') + 1] ?? ''
+      const line = made.find(l => l.split(' ').includes(id))
+      if (line !== undefined) live.delete(line.split(' ')[0] ?? '')
     }
     return r
   }
-  return { exec, lines: () => calls.map(c => c.join(' ')) }
+  return { exec, lines: () => calls.map(c => c.join(' ')), reset: () => { calls.length = 0 }, live }
 }
 
 export const which = (bin: string): boolean => ['claude', 'codex', 'opencode', 'omp'].includes(bin)

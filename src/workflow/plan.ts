@@ -19,7 +19,7 @@ import {
 } from './plan-file'
 import { syncFlowFromPlan } from './flow'
 import { boardSummary } from '../core/board/model'
-import { closeAllPanes, commonDirOfBoard, type PaneDeps } from './board-panes'
+import { closeAllPanes, commonDirOfBoard, keptPanesWarnings, type PaneDeps } from './board-panes'
 import { boardPath, commonDirOf, readBoard, removeBoard, sessionBoard, setSessionBoard, updateBoard } from './board-store'
 import { existsSync } from 'node:fs'
 import { shownPath } from './plan-capture'
@@ -290,7 +290,7 @@ async function closeBoardAfterVerify(b: Binding, ctx: WorkflowCtx, s: ResolvedSe
   const left = (board?.tasks ?? []).filter(t => t.worktree !== undefined && existsSync(t.worktree.path)).map(t => t.worktree?.slug ?? '')
   const warnings: string[] = []
   if (left.length > 0) warnings.push(`lane worktree(s) still exist: ${left.join(', ')}; remove them with 'buracle worktree cleanup <slug>' (run 'buracle work close' before 'plan verify' next time)`)
-  if (panes.kept.length > 0) warnings.push(`pane(s) ${panes.kept.join(', ')} could not be checked or closed (the multiplexer did not answer); close them by hand`)
+  warnings.push(...keptPanesWarnings(panes))
   if (panes.unreadable === true) warnings.push('the pane record file was unreadable and was removed; the panes it listed are still open, close them by hand')
   return {
     line: `Closed the task board ${b.slug}${panes.closed.length > 0 ? ` and ${panes.closed.length} worker pane(s)` : ''}.`,
