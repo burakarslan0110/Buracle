@@ -219,6 +219,40 @@ describe('herdr adapter', () => {
     expect(norun.lines().at(-1)).toBe('herdr pane close w2:p5')
   })
 
+  test('herdr hands out opaque pane ids written in base 36 (w2:p9, then w2:pA, w2:pH on a real herdr): open, paneIdOf and validPaneId take them; anything that could pass for a flag or a second argument stays out', async () => {
+    for (const id of ['w2:pA', 'w2:pB', 'w2:pF', 'w2:pG', 'w2:pH', 'w2:pZ', 'w2:p10', 'w2:p1f', 'w12:p3']) expect(validPaneId('herdr', id)).toBe(true)
+    for (const id of ['', 'w2:p', 'w2:', 'p5', 'w2:p-1', '-w2:p1', 'w2:p1;ls', 'w2:p1 x', 'w2:p1\n', 'w2:pA/../x', '%1']) expect(validPaneId('herdr', id)).toBe(false)
+    expect(paneIdOf('herdr', { ...HERDR_ENV, HERDR_PANE_ID: 'w2:pB' })).toBe('w2:pB')
+    const hex = JSON.stringify({ ok: true, result: { pane: { pane_id: 'w2:pA', tab_id: 'w2:t1' } } })
+    const f = fakeExec(argv => (argv[2] === 'split' ? hex : undefined))
+    const a = muxAdapter('herdr', { ...HERDR_ENV }, { exec: f.exec })
+    if (!a.ok) throw new Error(a.message)
+    expect(await a.adapter.open({ cwd: '/repo', command: 'c', title: 'Worker 3', slug: 'rate-limit' })).toEqual({ id: 'w2:pA', server: HERDR_ENV.HERDR_SOCKET_PATH })
+    expect(f.lines()).toEqual([
+      'herdr pane split --current --direction right --cwd /repo --no-focus',
+      'herdr pane rename w2:pA Worker 3',
+      'herdr pane run w2:pA c',
+    ])
+    expect(await a.adapter.presence(pane({ id: 'w2:pA', server: HERDR_ENV.HERDR_SOCKET_PATH }))).toBe('ok')
+  })
+
+  test('a split that worked but gave an id Buracle does not know the shape of is closed again, so no empty shell stays behind; an id that could pass for a flag is never handed to a command', async () => {
+    const odd = JSON.stringify({ ok: true, result: { pane: { pane_id: 'w2:p#7' } } })
+    const f = fakeExec(argv => (argv[2] === 'split' ? odd : undefined))
+    const a = muxAdapter('herdr', { ...HERDR_ENV }, { exec: f.exec })
+    if (!a.ok) throw new Error(a.message)
+    expect(await a.adapter.open({ cwd: '/repo', command: 'c', title: 't', slug: 's' })).toBeUndefined()
+    // The pane is closed by the id herdr just gave for it; the command is never run in it, and it is not renamed.
+    expect(f.lines()).toEqual(['herdr pane split --current --direction right --cwd /repo --no-focus', 'herdr pane close w2:p#7'])
+    for (const bad of ['-w2:p1', '', 'w2:p1 x', 12, null]) {
+      const g = fakeExec(argv => (argv[2] === 'split' ? JSON.stringify({ ok: true, result: { pane: { pane_id: bad } } }) : undefined))
+      const b = muxAdapter('herdr', { ...HERDR_ENV }, { exec: g.exec })
+      if (!b.ok) throw new Error(b.message)
+      expect(await b.adapter.open({ cwd: '/repo', command: 'c', title: 't', slug: 's' })).toBeUndefined()
+      expect(g.lines()).toEqual(['herdr pane split --current --direction right --cwd /repo --no-focus'])
+    }
+  })
+
   test('mark is a no-op (notifyTerminal reports blocked), clearMark reports working with the pane harness, focus uses agent focus, alive and close check the socket', async () => {
     const f = fakeExec(argv => (argv[2] === 'get' ? JSON.stringify({ ok: true, result: { pane: { pane_id: 'w2:p5' } } }) : undefined))
     const a = muxAdapter('herdr', { ...HERDR_ENV }, { exec: f.exec })
@@ -245,38 +279,68 @@ describe('herdr adapter', () => {
 })
 
 describe('cmux adapter', () => {
-  const before = JSON.stringify([{ pane: 'pane:1', pane_id: 'aaaaaaaa-0000-4000-8000-000000000001', surfaces: [{ ref: 'surface:1', id: 'aaaaaaaa-0000-4000-8000-000000000002' }] }])
-  const after = JSON.stringify([
-    { pane: 'pane:1', pane_id: 'aaaaaaaa-0000-4000-8000-000000000001', surfaces: [{ ref: 'surface:1', id: 'aaaaaaaa-0000-4000-8000-000000000002' }] },
-    { pane: 'pane:3', pane_id: 'aaaaaaaa-0000-4000-8000-000000000003', surfaces: [{ ref: 'surface:4', id: 'aaaaaaaa-0000-4000-8000-000000000004' }] },
-  ])
+  // `cmux list-panels` lists every surface of the workspace; `list-pane-surfaces` lists the surfaces of the focused pane
+  // only, and a split opened with --focus false is a pane of its own, so that one would never show the new surface.
+  const U = (n: number): string => `aaaaaaaa-0000-4000-8000-00000000000${n}`
+  const before = `workspace:2\nsurface:1 ${U(2)} "zsh"\n`
+  const after = `${before}surface:4 ${U(4)} "claude"\n`
+  const LIST = ['--id-format', 'both', 'list-panels']
+  const isList = (argv: string[]): boolean => argv.slice(1).join(' ') === LIST.join(' ')
 
-  test('open lists surfaces before and after new-split and takes the new ids; the command gets a cd prefix by the caller', () => withSandbox(async ({ root }) => {
+  test('open lists the surfaces of the whole workspace before and after new-split and takes the new ids; the command gets a cd prefix by the caller', () => withSandbox(async ({ root }) => {
     let listed = 0
-    const f = fakeExec(argv => (argv[1] === 'list-pane-surfaces' ? (listed++ === 0 ? before : after) : undefined))
+    const f = fakeExec(argv => (isList(argv) ? (listed++ === 0 ? before : after) : undefined))
     const bin = join(root, 'cmux')
     const a = muxAdapter('cmux', { ...CMUX_ENV }, { exec: f.exec, cmuxBin: bin })
     if (!a.ok) throw new Error(a.message)
-    const opened = await a.adapter.open({ cwd: '/repo', command: `cd '/repo' && claude '/buracle-join rate-limit'`, title: 'buracle rate-limit claude 1', slug: 'rate-limit' })
-    expect(opened).toEqual({ id: 'aaaaaaaa-0000-4000-8000-000000000004', ids: ['pane:3', 'aaaaaaaa-0000-4000-8000-000000000003', 'surface:4', 'aaaaaaaa-0000-4000-8000-000000000004'], server: CMUX_ENV.CMUX_SOCKET_PATH })
+    const opened = await a.adapter.open({ cwd: '/repo', command: `cd '/repo' && claude '/buracle-join rate-limit'`, title: 'Worker 1 (claude) · waiting for a task', slug: 'rate-limit' })
+    expect(opened).toEqual({ id: U(4), ids: ['surface:4', U(4)], server: CMUX_ENV.CMUX_SOCKET_PATH })
     expect(f.lines()).toEqual([
-      `${bin} list-pane-surfaces --json --id-format both`,
+      `${bin} ${LIST.join(' ')}`,
       `${bin} new-split right --command cd '/repo' && claude '/buracle-join rate-limit' --focus false`,
-      `${bin} list-pane-surfaces --json --id-format both`,
-      `${bin} rename-tab --surface aaaaaaaa-0000-4000-8000-000000000004 buracle rate-limit claude 1`,
+      `${bin} ${LIST.join(' ')}`,
+      `${bin} rename-tab --surface ${U(4)} -- Worker 1 (claude) · waiting for a task`,
     ])
-    const same = fakeExec(argv => (argv[1] === 'list-pane-surfaces' ? before : undefined))
+    const same = fakeExec(argv => (isList(argv) ? before : undefined))
     const b = muxAdapter('cmux', { ...CMUX_ENV }, { exec: same.exec, cmuxBin: bin })
     if (!b.ok) throw new Error(b.message)
     expect(await b.adapter.open({ cwd: '/repo', command: 'c', title: 't', slug: 's' })).toBeUndefined()
   }))
 
-  test('mark is a no-op, clearMark clears notifications, focus selects the workspace and the pane of the surface, alive and close use the surface id and the socket', () => withSandbox(async ({ root }) => {
-    const f = fakeExec(argv => (argv[1] === 'list-pane-surfaces' ? after : undefined))
+  test('open takes the new surface from the output of new-split when the second listing fails: the split is never left behind unrecorded', () => withSandbox(async ({ root }) => {
+    let listed = 0
+    const f = fakeExec(argv => {
+      if (isList(argv)) return listed++ === 0 ? before : { code: 1, stderr: 'timed out' }
+      if (argv[1] === 'new-split') return `OK surface:4 ${U(4)} pane:3 workspace:2\n`
+      return undefined
+    })
     const bin = join(root, 'cmux')
     const a = muxAdapter('cmux', { ...CMUX_ENV }, { exec: f.exec, cmuxBin: bin })
     if (!a.ok) throw new Error(a.message)
-    const p = pane({ id: 'aaaaaaaa-0000-4000-8000-000000000004', ids: ['pane:3', 'surface:4', 'aaaaaaaa-0000-4000-8000-000000000004'], server: CMUX_ENV.CMUX_SOCKET_PATH })
+    expect(await a.adapter.open({ cwd: '/repo', command: 'c', title: 't', slug: 's' })).toEqual({ id: U(4), ids: ['surface:4', U(4), 'pane:3'], server: CMUX_ENV.CMUX_SOCKET_PATH })
+  }))
+
+  test('open takes the surface that new-split names, not one a person or another tool opened in the workspace between the two listings', () => withSandbox(async ({ root }) => {
+    let listed = 0
+    const stranger = `${after}surface:9 ${U(9)} "someone else"\n`
+    const f = fakeExec(argv => {
+      if (isList(argv)) return listed++ === 0 ? before : stranger
+      if (argv[1] === 'new-split') return `OK surface:4 ${U(4)}\n`
+      return undefined
+    })
+    const bin = join(root, 'cmux')
+    const a = muxAdapter('cmux', { ...CMUX_ENV }, { exec: f.exec, cmuxBin: bin })
+    if (!a.ok) throw new Error(a.message)
+    // close-surface would later run on this id: it must be the split Buracle made.
+    expect(await a.adapter.open({ cwd: '/repo', command: 'c', title: 't', slug: 's' })).toEqual({ id: U(4), ids: ['surface:4', U(4)], server: CMUX_ENV.CMUX_SOCKET_PATH })
+  }))
+
+  test('mark is a no-op, clearMark clears notifications, focus selects the workspace and the surface, alive and close use the surface id and the socket', () => withSandbox(async ({ root }) => {
+    const f = fakeExec(argv => (isList(argv) ? after : undefined))
+    const bin = join(root, 'cmux')
+    const a = muxAdapter('cmux', { ...CMUX_ENV }, { exec: f.exec, cmuxBin: bin })
+    if (!a.ok) throw new Error(a.message)
+    const p = pane({ id: U(4), ids: ['surface:4', U(4)], server: CMUX_ENV.CMUX_SOCKET_PATH })
     expect(await a.adapter.mark(p, 'x')).toBe(true)
     expect(f.calls).toEqual([])
     expect(await a.adapter.clearMark(p)).toBe(true)
@@ -284,12 +348,12 @@ describe('cmux adapter', () => {
     expect(await a.adapter.alive(p)).toBe(true)
     expect(await a.adapter.close(p)).toEqual({ ok: true })
     expect(f.lines()).toEqual([
-      `${bin} clear-notifications --surface aaaaaaaa-0000-4000-8000-000000000004`,
+      `${bin} clear-notifications --surface ${U(4)}`,
       `${bin} select-workspace --workspace workspace:2`,
-      `${bin} focus-pane --pane pane:3`,
-      `${bin} list-pane-surfaces --json --id-format both`,
-      `${bin} list-pane-surfaces --json --id-format both`,
-      `${bin} close-surface --surface aaaaaaaa-0000-4000-8000-000000000004`,
+      `${bin} focus-panel --panel ${U(4)}`,
+      `${bin} ${LIST.join(' ')}`,
+      `${bin} ${LIST.join(' ')}`,
+      `${bin} close-surface --surface ${U(4)}`,
     ])
     expect(await a.adapter.alive(pane({ id: 'aaaaaaaa-0000-4000-8000-000000000009', server: CMUX_ENV.CMUX_SOCKET_PATH }))).toBe(false)
     expect(await a.adapter.close(pane({ id: p.id, server: '/elsewhere.sock' }))).toEqual({ ok: false, reason: 'stale' })

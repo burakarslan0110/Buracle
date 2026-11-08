@@ -72,7 +72,7 @@ export function valueHash(value: unknown): string {
   return sha256(stableStringify(value))
 }
 
-function preserveEol(original: string, out: string): string {
+export function preserveEol(original: string, out: string): string {
   if (!original.includes('\r\n') || /(^|[^\r])\n/.test(original)) return out
   return out.replace(/(?<!\r)\n/g, '\r\n')
 }
@@ -100,8 +100,9 @@ export function tomlParse(text: string): Record<string, unknown> {
   return Bun.TOML.parse(text) as Record<string, unknown>
 }
 
-type StmtKind = 'blank' | 'comment' | 'table' | 'array' | 'kv'
-interface Stmt { kind: StmtKind; start: number; end: number; key?: string[]; indent?: string; valueEnd?: number }
+// The statements of a TOML file, as the scanner below finds them; src/engine/toml-hoist.ts reads them too.
+export type StmtKind = 'blank' | 'comment' | 'table' | 'array' | 'kv'
+export interface Stmt { kind: StmtKind; start: number; end: number; key?: string[]; indent?: string; valueStart?: number; valueEnd?: number }
 
 class TomlScanError extends Error {}
 
@@ -233,9 +234,10 @@ function scanToml(text: string): Stmt[] {
     const k = parseKey(p)
     const q = skipWs(k.end)
     if (text[q] !== '=') throw new TomlScanError(`expected = at offset ${q}`)
-    const v = scanValue(skipWs(q + 1))
+    const valueStart = skipWs(q + 1)
+    const v = scanValue(valueStart)
     pos = v.end
-    stmts.push({ kind: 'kv', start: lineStart, end: pos, key: k.segs, indent: text.slice(lineStart, p), valueEnd: v.valueEnd })
+    stmts.push({ kind: 'kv', start: lineStart, end: pos, key: k.segs, indent: text.slice(lineStart, p), valueStart, valueEnd: v.valueEnd })
   }
   return stmts
 }
@@ -321,7 +323,7 @@ function headerText(path: readonly string[]): string {
   return path.map(tomlKey).join('.')
 }
 
-function validateToml(text: string, what: string): void {
+export function validateToml(text: string, what: string): void {
   try {
     tomlParse(text)
   } catch (e) {
@@ -329,7 +331,7 @@ function validateToml(text: string, what: string): void {
   }
 }
 
-function scanOrThrow(text: string): Stmt[] {
+export function scanOrThrow(text: string): Stmt[] {
   try {
     return scanToml(text)
   } catch (e) {
@@ -337,9 +339,9 @@ function scanOrThrow(text: string): Stmt[] {
   }
 }
 
-interface Region { header: number; bodyStart: number; contentEnd: number; regionEnd: number }
+export interface Region { header: number; bodyStart: number; contentEnd: number; regionEnd: number }
 
-function regionOf(stmts: Stmt[], h: number, textLen: number): Region {
+export function regionOf(stmts: Stmt[], h: number, textLen: number): Region {
   let next = stmts.length
   for (let i = h + 1; i < stmts.length; i++) {
     const k = (stmts[i] as Stmt).kind
@@ -355,7 +357,7 @@ function regionOf(stmts: Stmt[], h: number, textLen: number): Region {
   return { header: h, bodyStart: header.end, contentEnd, regionEnd }
 }
 
-function ensureNl(s: string): string {
+export function ensureNl(s: string): string {
   return s === '' || s.endsWith('\n') ? s : s + '\n'
 }
 
@@ -441,6 +443,25 @@ function replaceTable(text: string, path: string[], values: Record<string, unkno
   return `${base}[${headerText(path)}]\n${body}`
 }
 
+/** Takes the header of `[key]` out when nothing but blank lines is left under it (before the next header). */
+function dropEmptyTable(text: string, key: readonly string[]): string {
+  const stmts = scanOrThrow(text)
+  const idx = stmts.findIndex(s => s.kind === 'table' && s.key !== undefined && samePath(s.key, key))
+  if (idx < 0) return text
+  for (let i = idx + 1; i < stmts.length; i++) {
+    const s = stmts[i] as Stmt
+    if (s.kind === 'table' || s.kind === 'array') {
+      if (s.key !== undefined && isPrefix(key, s.key)) return text
+      break
+    }
+    if (s.kind !== 'blank') return text
+  }
+  const header = stmts[idx] as Stmt
+  const prev = stmts[idx - 1]
+  const start = prev !== undefined && prev.kind === 'blank' ? prev.start : header.start
+  return text.slice(0, start) + text.slice(header.end)
+}
+
 function setKey(text: string, path: string[], value: unknown): string {
   const stmts = scanOrThrow(text)
   const headerIdx: number[] = []
@@ -455,12 +476,14 @@ function setKey(text: string, path: string[], value: unknown): string {
     return undefined
   }
   let found = tryRegion(0, firstHeader, [])
+  let foundIn: readonly string[] | undefined
   for (let hi = 0; !found && hi < headerIdx.length; hi++) {
     const h = headerIdx[hi] as number
     const hs = stmts[h] as Stmt
     if (hs.kind !== 'table' || !hs.key || !isPrefix(hs.key, path) || hs.key.length >= path.length) continue
     const to = headerIdx[hi + 1] ?? stmts.length
     found = tryRegion(h + 1, to, hs.key)
+    if (found) foundIn = hs.key
   }
   if (found) {
     if (remove) {
@@ -468,7 +491,9 @@ function setKey(text: string, path: string[], value: unknown): string {
       const next = stmts[i + 1]
       const prev = stmts[i - 1]
       const end = next && next.kind === 'blank' && (i === 0 || (prev !== undefined && prev.kind === 'blank')) ? next.end : found.end
-      return text.slice(0, found.start) + text.slice(end)
+      const removed = text.slice(0, found.start) + text.slice(end)
+      // A table the removal emptied goes too: Buracle wrote its key into a table of its own (see below).
+      return foundIn !== undefined ? dropEmptyTable(removed, foundIn) : removed
     }
     const keyText = (found.key as string[]).map(tomlKey).join('.')
     const rest = found.valueEnd !== undefined ? text.slice(found.valueEnd, found.end) : '\n'
@@ -488,6 +513,19 @@ function setKey(text: string, path: string[], value: unknown): string {
     const line = `${rel.map(tomlKey).join('.')} = ${tomlValue(value)}\n`
     const before = ensureNl(text.slice(0, r.contentEnd))
     return before + line + text.slice(r.contentEnd)
+  }
+  // A key whose table does not exist yet gets a [table] of its own, never a dotted key at the root: a dotted key defines
+  // the table, so a tool that later appends the same [table] header (herdr does so for [features]) would make the whole
+  // file invalid, and Codex would not start. A parent that exists some other way (dotted keys, an inline table) is left alone.
+  if (path.length >= 2) {
+    const parent = path.slice(0, -1)
+    let defined = true
+    try { defined = getIn(tomlParse(text), parent).found } catch {  }
+    if (!defined) {
+      let base = ensureNl(text)
+      if (base !== '' && !base.endsWith('\n\n')) base += '\n'
+      return `${base}[${headerText(parent)}]\n${tomlKey(path[path.length - 1] as string)} = ${tomlValue(value)}\n`
+    }
   }
   const line = `${path.map(tomlKey).join('.')} = ${tomlValue(value)}\n`
   let lastRootKv = -1
@@ -521,7 +559,7 @@ export function tomlPatchTables(text: string, tables: Record<string, Record<stri
   return out
 }
 
-function keepMissingFinalNewline(original: string, out: string): string {
+export function keepMissingFinalNewline(original: string, out: string): string {
   if (original === '' || original.endsWith('\n')) return out
   if (out.endsWith('\r\n')) return out.slice(0, -2)
   if (out.endsWith('\n')) return out.slice(0, -1)

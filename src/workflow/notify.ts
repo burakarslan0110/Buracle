@@ -109,7 +109,8 @@ function clip(s: string, n: number): string {
   return one.length > n ? one.slice(0, n - 1) + '…' : one
 }
 
-export async function notify(typeArg: string | undefined, title: string | undefined, message: string | undefined, o: { plan?: string }, ctx: WorkflowCtx, s: ResolvedSession | undefined): Promise<CmdResult> {
+/** `desktop: false` records the notification but shows no desktop banner: a terminal that notifies on its own (herdr, cmux) already did. */
+export async function notify(typeArg: string | undefined, title: string | undefined, message: string | undefined, o: { plan?: string, desktop?: boolean }, ctx: WorkflowCtx, s: ResolvedSession | undefined): Promise<CmdResult> {
   const type = typeArg as NotifyType
   if (typeArg === undefined || !NOTIFY_TYPES.includes(type)) {
     return fail('usage', `notify type must be one of ${NOTIFY_TYPES.join(', ')}${typeArg !== undefined ? ` (got '${typeArg}')` : ''}`)
@@ -120,7 +121,7 @@ export async function notify(typeArg: string | undefined, title: string | undefi
   const warnings: string[] = []
   const page = type === 'plan_approval' || type === 'prd_approval' ? reviewPageUrl(planPath !== undefined ? { doc: docId(planPath) } : {}) : undefined
 
-  const mac = await showDesktopNotification(type, title, message, ctx.env)
+  const mac: { status: Delivery, error?: string } = o.desktop === false ? { status: 'skipped' } : await showDesktopNotification(type, title, message, ctx.env)
   if (mac.status === 'error') warnings.push(`desktop notification failed: ${mac.error}`)
 
   const id = newNotificationId(ctx.now)

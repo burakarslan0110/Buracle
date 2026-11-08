@@ -99,7 +99,7 @@
     },
     "harness/agents-skills/buracle-join/SKILL.md": {
       "by": "agents-skills",
-      "sha256": "bd16717fbac5be8db7358f459da299e0006e08183c08c3777e61a77a1d4ff78a",
+      "sha256": "744166d03581ebce265b624154a050afc3e5fbd07a106556a4b127e046880557",
       "exec": false
     },
     "harness/agents-skills/buracle-join/agents/openai.yaml": {
@@ -119,7 +119,7 @@
     },
     "harness/agents-skills/buracle/references/commands.md": {
       "by": "agents-skills",
-      "sha256": "3bb3e7934a8d961cc39e12de55d5cf58582e1749f66300a461ea1fe561c406d5",
+      "sha256": "4d5c74136bea2b781c7fc8a8c71bac05aede7da0b153e81746444a43a4e1e65e",
       "exec": false
     },
     "harness/agents-skills/buracle/references/recipes.md": {
@@ -269,7 +269,7 @@
     },
     "harness/agents-skills/plan-build/references/implement.md": {
       "by": "agents-skills",
-      "sha256": "7edcc5ebed57540f782b3b479fcf969450eb464cad053638a9d55024716bba0a",
+      "sha256": "bbc6d9cbe393d446d014fce2ea094ffdd1672f4bddb39a3dca66868a260fd609",
       "exec": false
     },
     "harness/agents-skills/plan-build/references/native-plan.md": {
@@ -1014,7 +1014,7 @@
     },
     "harness/claude/hooks/generated/meta.ts": {
       "by": "claude",
-      "sha256": "f0dc2ec671f85264d5a7e66175e9040a4ce63b4b74dca7d1b8d8a8297af10cc7",
+      "sha256": "8fc15887e759df53674bb5766156e89af5ede2dc7b6da00da1150f752751d6f4",
       "exec": false
     },
     "harness/claude/hooks/hooks.json": {
@@ -1124,7 +1124,7 @@
     },
     "harness/claude/skills/buracle-join/SKILL.md": {
       "by": "claude",
-      "sha256": "779b09d6a29bbe3d28c997bb4030925ffa7f741b46ddc44364477a059b6190e5",
+      "sha256": "6312a4523914577990eda4e8b7eab0f2a7cbae2aa7afd71560c0cd5033edf566",
       "exec": false
     },
     "harness/claude/skills/buracle/SKILL.md": {
@@ -1139,7 +1139,7 @@
     },
     "harness/claude/skills/buracle/references/commands.md": {
       "by": "claude",
-      "sha256": "3bb3e7934a8d961cc39e12de55d5cf58582e1749f66300a461ea1fe561c406d5",
+      "sha256": "4d5c74136bea2b781c7fc8a8c71bac05aede7da0b153e81746444a43a4e1e65e",
       "exec": false
     },
     "harness/claude/skills/buracle/references/recipes.md": {
@@ -1264,7 +1264,7 @@
     },
     "harness/claude/skills/plan-build/references/implement.md": {
       "by": "claude",
-      "sha256": "ceef2b7298792c4e711e9a0a8d32fcc2c6298dbf7705272d7444a158743f2baf",
+      "sha256": "dd4dcd7ed0bd60e28a4888962e2203b16236c7f1f3382cd6f1fc8fa9f5eee1ff",
       "exec": false
     },
     "harness/claude/skills/plan-build/references/native-plan.md": {
@@ -1514,7 +1514,7 @@
     },
     "harness/codex/config.fragment.toml": {
       "by": "codex",
-      "sha256": "5758dbf31ed47cd5b4a1ce746c233ad4d818ef5d2eedec1f3280559b89a0664f",
+      "sha256": "ff85224783dc8ec9d8f96a500894a1f9f2dac761e8a1d33b8f443a3e64d468c2",
       "exec": false
     },
     "harness/codex/hooks.json": {

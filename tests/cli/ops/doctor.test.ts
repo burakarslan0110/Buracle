@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { run as doctorRun, indexSection, usage as doctorUsage } from '../../../src/cli/commands/doctor'
 import { cliVersion } from '../../../src/cli/router'
@@ -273,6 +273,29 @@ describe('buracle doctor', () => {
         expect(c.detail).toContain('Fallback:')
       }
       expect(omp.calls).not.toContain('doctor')
+    })
+  }))
+
+  test('a harness found in a folder PATH does not reach (omp under ~/.bun/bin) is reported: it runs for Buracle and is "command not found" for the user', () => withSandbox(async ({ root, home }) => {
+    const repo = makeRepo(root)
+    const bunBin = join(home, '.bun', 'bin', 'omp')
+    mkdirSync(join(home, '.bun', 'bin'), { recursive: true })
+    writeFileSync(bunBin, '#!/bin/sh\n')
+    chmodSync(bunBin, 0o755)
+    const omp = fakeAdapter('omp', { path: bunBin })
+    await withDeps({ repoRoot: () => repo, adapters: async () => [omp] }, async () => {
+      await withEnv({ PATH: join(root, 'empty') }, async () => {
+        const io = memoryIO({ json: true })
+        await doctorRun(['omp', '--json'], io)
+        const checks = (JSON.parse(io.out()) as { checks: Array<{ section: string, level: string, check: string, detail: string }> }).checks.filter(c => c.section === 'omp')
+        expect(checks.find(c => c.check === 'installed')).toMatchObject({ level: 'ok' })
+        expect(checks.find(c => c.check === 'on-path')).toEqual({ section: 'omp', level: 'warn', check: 'on-path', detail: 'omp is at ~/.bun/bin/omp but no shell finds it by name; `buracle install` links it into ~/.local/bin' })
+      })
+      await withEnv({ PATH: join(home, '.bun', 'bin') }, async () => {
+        const io = memoryIO({ json: true })
+        await doctorRun(['omp', '--json'], io)
+        expect((JSON.parse(io.out()) as { checks: Array<{ check: string }> }).checks.some(c => c.check === 'on-path')).toBe(false)
+      })
     })
   }))
 

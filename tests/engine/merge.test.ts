@@ -76,10 +76,26 @@ describe('tomlPatchTables', () => {
       'tui.terminal_title': ['project-name'],
       'features.hooks': true,
     })
-    expect(out).toContain('model = "gpt-x"   # keep my model\nfeatures.hooks = true\n\n[tui]\nstatus_line = ["a", "b"]\nterminal_title = ["project-name"]\n')
+    expect(out).toContain('model = "gpt-x"   # keep my model\n\n[tui]\nstatus_line = ["a", "b"]\nterminal_title = ["project-name"]\n')
+    // A key whose table does not exist yet gets a table of its own at the end, not a dotted root key.
+    expect(out.endsWith('\n[features]\nhooks = true\n')).toBe(true)
     const parsed = tomlParse(out)
     expect(parsed['features']).toEqual({ hooks: true })
     expect(parsed['tui']).toEqual({ status_line: ['a', 'b'], terminal_title: ['project-name'] })
+  })
+
+  test('a new multi-part key never becomes a dotted root key: a tool that appends its own [table] later would make the file invalid', () => {
+    const text = 'model = "x"\n\n[tui]\na = 1\n'
+    const out = tomlPatchTables(text, {}, { 'features.memories': false, 'tools.update_plan.enabled': true })
+    expect(out).toBe('model = "x"\n\n[tui]\na = 1\n\n[features]\nmemories = false\n\n[tools.update_plan]\nenabled = true\n')
+    expect(tomlParse(out)).toEqual({ model: 'x', tui: { a: 1 }, features: { memories: false }, tools: { update_plan: { enabled: true } } })
+    expect(tomlPatchTables(out, {}, { 'features.memories': false, 'tools.update_plan.enabled': true })).toBe(out)
+    // Taking the keys out again leaves the file as it was, without the empty tables.
+    expect(tomlRemove(out, { keys: ['features.memories', 'tools.update_plan.enabled'] })).toBe(text)
+    // A table that holds something else is kept.
+    const shared = tomlPatchTables(text + '\n[features]\nhooks = true\n', {}, { 'features.memories': false })
+    expect(shared).toBe(text + '\n[features]\nhooks = true\nmemories = false\n')
+    expect(tomlRemove(shared, { keys: ['features.memories'] })).toBe(text + '\n[features]\nhooks = true\n')
   })
 
   test('root keys go before the comment block of the first table when the root has no keys', () => {

@@ -170,7 +170,7 @@ describe('structured merges', () => {
     const op = (cmd: string): Op => ({ kind: 'toml-tables', path: p, owner: 'codex', tables: { 'mcp_servers.context7': { command: cmd, args: ['-y'] } }, keys: { 'tools.update_plan.enabled': true } })
     const r1 = await applyPlans([plan([op('npx')])])
     expect(r1.applied).toBe(1)
-    expect(read(p)).toBe('# my codex\nmodel = "gpt-6.1-sol"\ntools.update_plan.enabled = true\n\n[mcp_servers.mine]\ncommand = "x"\n\n[mcp_servers.context7]\ncommand = "npx"\nargs = ["-y"]\n')
+    expect(read(p)).toBe('# my codex\nmodel = "gpt-6.1-sol"\n\n[mcp_servers.mine]\ncommand = "x"\n\n[mcp_servers.context7]\ncommand = "npx"\nargs = ["-y"]\n\n[tools.update_plan]\nenabled = true\n')
     expect(tomlParse(read(p))).toMatchObject({ model: 'gpt-6.1-sol', mcp_servers: { mine: { command: 'x' }, context7: { command: 'npx', args: ['-y'] } }, tools: { update_plan: { enabled: true } } })
     const led = await readLedger()
     expect(led[ledgerKey(p, '[mcp_servers.context7]')]?.kind).toBe('toml-table')

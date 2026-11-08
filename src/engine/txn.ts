@@ -12,6 +12,7 @@ import {
 import * as paths from './paths'
 import { run } from './proc'
 import { log } from './log'
+import { collidingHeads, rootDottedHeads, tomlHoistDotted } from './toml-hoist'
 
 export type Op =
   | { kind: 'file'; path: string; content: string; mode?: number; owner: string }
@@ -879,18 +880,53 @@ function opKeys(c: Computed, op: Extract<Op, { kind: 'json-merge' | 'jsonc-merge
   } else if (conflicted === 0 && kept === 0) c.skipped.push({ op, reason: 'unchanged' })
 }
 
+/** The first parts of the multi-part keys an op writes: the tables whose dotted root keys are moved into a [table]. */
+function hoistTables(op: Extract<Op, { kind: 'toml-tables' }>): string[] {
+  const heads = Object.keys(op.keys ?? {}).map(k => parseKeyPath(k).map(String)).filter(p => p.length >= 2).map(p => p[0] as string)
+  return [...new Set(heads)]
+}
+
+/**
+ * The text with dotted root keys moved into their tables, with the tables that moved, or undefined when there is nothing
+ * to move or the move cannot be made safely. A valid file moves the keys of the tables this op writes. A file that does not
+ * parse is repaired for every dotted key that collides with a [table] header, whatever op meets it first: the ops of one
+ * install each read the file, and only one of them carries the colliding key.
+ */
+function hoistedToml(text: string, op: Extract<Op, { kind: 'toml-tables' }>): { text: string, tables: string[] } | undefined {
+  let valid = true
+  try { tomlParse(text) } catch { valid = false }
+  let tables: string[]
+  try { tables = valid ? hoistTables(op) : [...new Set([...hoistTables(op), ...collidingHeads(text)])] } catch { return undefined }
+  if (tables.length === 0) return undefined
+  let next: string
+  let moved: string[]
+  try {
+    next = tomlHoistDotted(text, tables)
+    moved = rootDottedHeads(text).filter(h => tables.includes(h))
+  } catch { return undefined }
+  if (next === text || moved.length === 0) return undefined
+  // A valid file keeps every value. An invalid one (the collision) cannot be compared; the move itself is checked to parse.
+  if (valid && stableStringify(tomlNormalize(tomlParse(text))) !== stableStringify(tomlNormalize(tomlParse(next)))) return undefined
+  return { text: next, tables: moved }
+}
+
+const movedNote = (path: string, tables: readonly string[]): string => `${path}: moved the dotted keys of ${tables.map(t => `[${t}]`).join(', ')} into their tables (TOML allows one definition of a table, and a tool that appends its own [table] header would make the file invalid)`
+
 function opToml(c: Computed, op: Extract<Op, { kind: 'toml-tables' }>, own: OwnFn): void {
   const tp = c.vfs.textPath(op.path)
   const node = c.vfs.get(tp)
   const editable = editableText(node, op.path)
   if (!editable.ok) { c.conflicts.push({ op, detail: editable.reason }); return }
-  const text = editable.text
+  const ro = readOnlyReason(node, op.path)
+  // Dotted root keys of the tables this op writes (`features.memories = false`) move into their [table]: a dotted key and
+  // a [table] header of one name cannot both be in a TOML file, and a tool that appends the header breaks the file.
+  const hoisted = ro === undefined ? hoistedToml(editable.text, op) : undefined
+  const text = hoisted?.text ?? editable.text
   let parsed: Record<string, unknown>
   try { parsed = tomlParse(text) } catch (e) {
     c.conflicts.push({ op, detail: `${op.path} is not valid TOML (${e instanceof Error ? e.message : String(e)}); not touching it` })
     return
   }
-  const ro = readOnlyReason(node, op.path)
   const enforced = policyKeys(op.enforce)
   const softKeys = policyKeys(op.soft)
   const okTables: Record<string, Record<string, unknown>> = {}
@@ -936,7 +972,11 @@ function opToml(c: Computed, op: Extract<Op, { kind: 'toml-tables' }>, own: OwnF
   for (const [name, values] of Object.entries(op.tables)) consider('toml-table', name, values)
   for (const [name, value] of Object.entries(op.keys ?? {})) consider('toml-key', name, value)
   if (pending.length === 0) {
-    if (conflicted === 0 && kept === 0) c.skipped.push({ op, reason: 'unchanged' })
+    if (hoisted !== undefined) {
+      c.vfs.set(tp, withText(node, hoisted.text))
+      c.applied++
+      c.warnings.push(movedNote(op.path, hoisted.tables))
+    } else if (conflicted === 0 && kept === 0) c.skipped.push({ op, reason: 'unchanged' })
     return
   }
   let next: string
@@ -965,6 +1005,8 @@ function opToml(c: Computed, op: Extract<Op, { kind: 'toml-tables' }>, own: OwnF
   }
   c.vfs.set(tp, withText(node, next))
   c.applied++
+  // Said only now that the moved text is committed: an op that ends in a conflict above leaves the file as it was.
+  if (hoisted !== undefined) c.warnings.push(movedNote(op.path, hoisted.tables))
 }
 
 function ownedTomlValue(v: unknown, ignore: readonly string[] | undefined): unknown {

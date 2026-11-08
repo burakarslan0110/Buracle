@@ -74,11 +74,12 @@ describe('Codex config.toml', () => {
   test('patching touches only the owned tables and keys; every other byte survives', () => {
     const out = tomlPatchTables(CODEX_TOML, TABLES, KEYS)
     const expected = CODEX_TOML
-      .replace('notify = ["bash", "-lc", "afplay /System/Library/Sounds/Glass.aiff"]\n', 'notify = ["bash", "-lc", "afplay /System/Library/Sounds/Glass.aiff"]\ntools.update_plan.enabled = true\n')
       .replace('unified_exec = false\n', 'unified_exec = false\nmemories = false\n')
       .replace('  "approval-requested",\n]\n', '  "approval-requested",\n]\nstatus_line = ["model-with-reasoning", "context-used", "five-hour-limit"]\nterminal_title = ["project-name"]\n')
       + '\n[mcp_servers.context7]\ncommand = "npx"\nargs = ["-y", "@upstash/context7-mcp@4.2.0"]\nstartup_timeout_sec = 20\n'
       + '\n[mcp_servers.buracle-memory]\ncommand = "/Users/me/.buracle/bin/buracle"\nargs = ["mcp", "memory"]\nenv = { MODE = "stdio" }\n'
+      // A key whose table is missing becomes a table of its own, not a dotted root key.
+      + '\n[tools.update_plan]\nenabled = true\n'
     expect(out).toBe(expected)
     const parsed = tomlParse(out) as Record<string, any>
     expect(parsed['profiles']['fast']['description']).toBe('not a table:\n[mcp_servers.context7]\n# not a comment\n')
@@ -197,9 +198,13 @@ describe('setter edge cases', () => {
 
   test('a root key inserted before the first table is removed without leaving a blank line', () => {
     const text = '[features]\nmemories = false\n'
-    const once = tomlPatchTables(text, {}, { 'tools.update_plan.enabled': true })
-    expect(once).toBe('tools.update_plan.enabled = true\n\n[features]\nmemories = false\n')
-    expect(tomlRemove(once, { keys: ['tools.update_plan.enabled'] })).toBe(text)
+    const once = tomlPatchTables(text, {}, { approval: 'never' })
+    expect(once).toBe('approval = "never"\n\n[features]\nmemories = false\n')
+    expect(tomlRemove(once, { keys: ['approval'] })).toBe(text)
+    // A multi-part key goes the other way: into a table at the end, and out again with its empty table.
+    const nested = tomlPatchTables(text, {}, { 'tools.update_plan.enabled': true })
+    expect(nested).toBe('[features]\nmemories = false\n\n[tools.update_plan]\nenabled = true\n')
+    expect(tomlRemove(nested, { keys: ['tools.update_plan.enabled'] })).toBe(text)
     const commented = '# header\n\n# about features\n[features]\nmemories = false\n'
     expect(tomlRemove(tomlPatchTables(commented, {}, { a: 1 }), { keys: ['a'] })).toBe(commented)
   })

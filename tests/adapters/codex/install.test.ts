@@ -154,14 +154,56 @@ describe('codex installPlan', () => {
     const path = join(home, '.codex', 'config.toml')
     await install()
     const text = read(path)
-    expect(text).toMatch(/^tui\.terminal_title = /m)
-    writeFileSync(path, text.replace(/^(tui\.terminal_title = .*\n)/m, '$1tui.theme = "nord"\ntui.model_availability_nux = { seen = true }\n'))
+    // The keys sit in a [tui] table of their own (not as dotted root keys), and each one is owned on its own.
+    expect(text).toMatch(/^\[tui\]\nstatus_line = .*\nterminal_title = /m)
+    expect(text).not.toMatch(/^tui\./m)
+    writeFileSync(path, text.replace(/^(terminal_title = .*\n)/m, '$1theme = "nord"\nmodel_availability_nux = { seen = true }\n'))
     const r = await install()
     expect(r.conflicts).toEqual([])
     const toml = Bun.TOML.parse(read(path)) as Record<string, any>
     expect(toml['tui']['theme']).toBe('nord')
     expect(toml['tui']['model_availability_nux']).toEqual({ seen: true })
     expect(toml['tui']['status_line']).toContain('context-used')
+  }))
+
+  test('a config that herdr broke (a dotted features.memories next to a [features] table) is repaired by the install itself: no conflict, every key lands, the user keeps theirs', () => withSandbox(async ({ home }) => {
+    const path = join(home, '.codex', 'config.toml')
+    mkdirSync(join(home, '.codex'), { recursive: true })
+    writeFileSync(path, 'model = "gpt-x"\nfeatures.memories = false\nagents.enabled = true\n\n[tui]\ntheme = "nord"\n\n[features]\nhooks = true\n')
+    expect(() => Bun.TOML.parse(read(path))).toThrow()
+    const r = await install()
+    // Every op of the real list runs against the collided file, not only the one that carries the colliding key.
+    expect(r.conflicts).toEqual([])
+    const toml = Bun.TOML.parse(read(path)) as Record<string, any>
+    expect(toml['features']).toEqual({ hooks: true, memories: false })
+    expect(toml['agents']['enabled']).toBe(true)
+    expect(toml['tui']['theme']).toBe('nord')
+    expect(toml['tui']['status_line']).toContain('context-used')
+    expect(toml['mcp_servers']['context7']).toBeDefined()
+    expect(read(path)).not.toMatch(/^(features|agents)\./m)
+    // The warnings name what moved: the collision first, then the one dotted key that was valid but could collide later.
+    const moved = r.warnings.filter(w => w.includes('moved the dotted keys')).join('\n')
+    expect(moved).toContain('[features]')
+    expect(moved).toContain('[agents]')
+    expect(moved).not.toContain('[tui]')
+    // The next install has nothing left to repair.
+    const again = await install()
+    expect(again.conflicts).toEqual([])
+    expect(again.warnings.filter(w => w.includes('moved the dotted keys'))).toEqual([])
+  }))
+
+  test('a user\'s own dotted tui.* keys beside Buracle\'s keep their values: all of them move into [tui] with a warning', () => withSandbox(async ({ home }) => {
+    const path = join(home, '.codex', 'config.toml')
+    mkdirSync(join(home, '.codex'), { recursive: true })
+    writeFileSync(path, 'model = "gpt-x"\ntui.theme = "nord"\ntui.model_availability_nux = { seen = true }\n')
+    const r = await install()
+    expect(r.conflicts).toEqual([])
+    const toml = Bun.TOML.parse(read(path)) as Record<string, any>
+    expect(toml['tui']['theme']).toBe('nord')
+    expect(toml['tui']['model_availability_nux']).toEqual({ seen: true })
+    expect(toml['tui']['terminal_title']).toContain('project-name')
+    expect(read(path)).not.toMatch(/^tui\./m)
+    expect(r.warnings.filter(w => w.includes('moved the dotted keys')).join('\n')).toContain('[tui]')
   }))
 
   test('hooks.json: one json-list-merge per event with the matcher+command identity; nothing else', () => {

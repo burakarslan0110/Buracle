@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { run as installRun } from '../../../src/cli/commands/install'
 import { run as uninstallRun } from '../../../src/cli/commands/uninstall'
 import * as paths from '../../../src/engine/paths'
+import { startupFile } from '../../../src/engine/update/shell-path'
 import { VAULT_PRE_COMMIT_MARKER } from '../../../src/engine/update/uninstall'
 import { git } from '../../memory/helpers'
 import { narrowPath } from '../../helpers/fake-exe'
@@ -75,9 +76,29 @@ describe('uninstall leftovers (O8)', () => {
     })
   }))
 
+  test('the install also puts ~/.local/bin on the PATH of the other shell (a bash terminal never reads .zshrc), and uninstall takes both blocks out', () => withSandbox(async ({ root, home }) => {
+    const repo = makeRepo(root)
+    const bashRc = startupFile({ SHELL: '/bin/bash' }, process.platform, home)
+    // zsh is the user's shell; a fresh bash login shell has no ~/.local/bin; zsh is not asked about.
+    await withDeps({ repoRoot: () => repo, adapters: async () => [], runCli: fakeCli().runCli, loginPath: shell => (shell === 'bash' ? '/usr/bin:/bin' : undefined) }, async () => {
+      await withEnv({ PATH: narrowPath(), SHELL: '/bin/zsh', ZDOTDIR: undefined }, async () => {
+        const io = memoryIO()
+        expect(await installRun(['--yes'], io)).toBe(0)
+        expect(readFileSync(join(home, '.zshrc'), 'utf8')).toContain('# >>> buracle >>>')
+        expect(readFileSync(bashRc, 'utf8')).toContain('# >>> buracle >>>')
+        expect(io.out()).toContain(`to PATH in ~/.zshrc, ~/${bashRc.slice(home.length + 1)}; open a new terminal`)
+        const u = memoryIO({ json: true })
+        expect(await uninstallRun(['--yes', '--json'], u)).toBe(0)
+        expect(readFileSync(join(home, '.zshrc'), 'utf8')).toBe('')
+        expect(readFileSync(bashRc, 'utf8')).toBe('')
+        expect((JSON.parse(u.out()) as { notes: string[] }).notes).toContain(`Removed the PATH lines Buracle added to ~/.zshrc, ~/${bashRc.slice(home.length + 1)}.`)
+      })
+    })
+  }))
+
   test('a plain uninstall takes out the PATH block the install added and the system tools it downloaded; the npm and uv packages stay', () => withSandbox(async ({ root, home }) => {
     const repo = makeRepo(root)
-    await withDeps({ repoRoot: () => repo, adapters: async () => [], runCli: fakeCli().runCli }, async () => {
+    await withDeps({ repoRoot: () => repo, adapters: async () => [], runCli: fakeCli().runCli, loginPath: () => undefined }, async () => {
       await withEnv({ PATH: narrowPath(), SHELL: '/bin/zsh', ZDOTDIR: undefined }, async () => {
         put(join(home, '.zshrc'), 'alias ll="ls -l"\n')
         expect(await installRun(['--yes'], memoryIO())).toBe(0)
