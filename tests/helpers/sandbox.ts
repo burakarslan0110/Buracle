@@ -17,6 +17,9 @@ export const ISOLATED_ENV: readonly string[] = [
   'CLAUDE_PROJECT_DIR', 'CLAUDE_PLUGIN_ROOT', 'CLAUDE_PLUGIN_DATA', 'CLAUDE_ENV_FILE',
   'HOMEBREW_NO_AUTO_UPDATE', 'HOMEBREW_NO_ENV_HINTS',
   'WSL_DISTRO_NAME', 'WSL_INTEROP', 'WSLENV', 'BURACLE_PLATFORM',
+  // The developer's terminal multiplexer would make `buracle work` detect panes and reach a real tmux, herdr or cmux.
+  'TMUX', 'TMUX_PANE', 'HERDR_ENV', 'HERDR_PANE_ID', 'HERDR_TAB_ID', 'HERDR_WORKSPACE_ID', 'HERDR_SOCKET_PATH',
+  'CMUX_SURFACE_ID', 'CMUX_WORKSPACE_ID', 'CMUX_TAB_ID', 'CMUX_SOCKET_PATH',
   // An MCP server's API key in the developer's shell would change which backend a forwarder uses.
   'CONTEXT7_API_KEY',
 ]

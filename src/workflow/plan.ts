@@ -19,6 +19,7 @@ import {
 } from './plan-file'
 import { syncFlowFromPlan } from './flow'
 import { boardSummary } from '../core/board/model'
+import { closeAllPanes, commonDirOfBoard, type PaneDeps } from './board-panes'
 import { boardPath, commonDirOf, readBoard, removeBoard, sessionBoard, setSessionBoard, updateBoard } from './board-store'
 import { existsSync } from 'node:fs'
 import { shownPath } from './plan-capture'
@@ -277,18 +278,23 @@ export function planBoardView(slug: string, ctx: WorkflowCtx, s: ResolvedSession
   return { slug, role, summary: boardSummary(board) }
 }
 
-// A verified plan closes its board: the file goes, lane worktrees that still exist are named for cleanup.
-function closeBoardAfterVerify(b: Binding, ctx: WorkflowCtx, s: ResolvedSession): { line?: string, warning?: string } {
+// A verified plan closes its board: the panes spawn opened close, the file goes, lane worktrees that still exist are named for cleanup.
+async function closeBoardAfterVerify(b: Binding, ctx: WorkflowCtx, s: ResolvedSession, deps: PaneDeps): Promise<{ line?: string, warning?: string }> {
   const path = boardFileFor(b.slug, ctx)
   if (path === undefined || !existsSync(path)) return {}
   const board = readBoard(path)
+  const panes = await closeAllPanes(commonDirOfBoard(path), b.slug, ctx.env, {}, deps)
   removeBoard(path)
   const bound = sessionBoard(s.harness, s.sessionId)
   if (bound?.path === path) setSessionBoard(s.harness, s.sessionId, undefined)
   const left = (board?.tasks ?? []).filter(t => t.worktree !== undefined && existsSync(t.worktree.path)).map(t => t.worktree?.slug ?? '')
+  const warnings: string[] = []
+  if (left.length > 0) warnings.push(`lane worktree(s) still exist: ${left.join(', ')}; remove them with 'buracle worktree cleanup <slug>' (run 'buracle work close' before 'plan verify' next time)`)
+  if (panes.kept.length > 0) warnings.push(`pane(s) ${panes.kept.join(', ')} could not be checked or closed (the multiplexer did not answer); close them by hand`)
+  if (panes.unreadable === true) warnings.push('the pane record file was unreadable and was removed; the panes it listed are still open, close them by hand')
   return {
-    line: `Closed the task board ${b.slug}.`,
-    ...(left.length > 0 ? { warning: `lane worktree(s) still exist: ${left.join(', ')}; remove them with 'buracle worktree cleanup <slug>' (run 'buracle work close' before 'plan verify' next time)` } : {}),
+    line: `Closed the task board ${b.slug}${panes.closed.length > 0 ? ` and ${panes.closed.length} worker pane(s)` : ''}.`,
+    ...(warnings.length > 0 ? { warning: warnings.join('; ') } : {}),
   }
 }
 
@@ -515,7 +521,7 @@ export async function planComplete(ctx: WorkflowCtx, s: ResolvedSession): Promis
   return finishTransition('complete', b, res, { status: { from: b.status, to: 'COMPLETE' } }, ctx, s, ["Implementation complete; verification is next ('buracle plan set phase verify').", ...(held ? [DECISION_ACTED] : [])])
 }
 
-export async function planVerify(ctx: WorkflowCtx, s: ResolvedSession, action = 'verify'): Promise<CmdResult> {
+export async function planVerify(ctx: WorkflowCtx, s: ResolvedSession, action = 'verify', deps: PaneDeps = {}): Promise<CmdResult> {
   const bp = boundPlan(s)
   if (isResult(bp)) return bp
   const rb = readBound(bp.plan)
@@ -541,7 +547,7 @@ export async function planVerify(ctx: WorkflowCtx, s: ResolvedSession, action = 
   if (isResult(res)) return res
   const changed: Record<string, { from: unknown, to: unknown }> = { status: { from: b.status, to: 'VERIFIED' } }
   if (b.phase !== 'done') changed['phase'] = { from: b.phase, to: 'done' }
-  const board = closeBoardAfterVerify(b, ctx, s)
+  const board = await closeBoardAfterVerify(b, ctx, s, deps)
   return finishTransition(action, b, res, changed, ctx, s, ['Plan VERIFIED; the stop guard releases this run.', ...(board.line !== undefined ? [board.line] : [])], [...stale, ...(board.warning !== undefined ? [board.warning] : [])])
 }
 

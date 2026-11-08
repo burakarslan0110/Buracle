@@ -1,6 +1,7 @@
 import type { CommandIO } from '../router'
 import { boolFlag, parseCommandArgs, strFlag, type FlagKind } from '../../workflow/args'
 import { workAsk, workClose, workDone, workHeartbeat, workInbox, workJoin, workMerge, workNote, workPublish, workRelease, workReopen, workResume, workStatus, workWait } from '../../workflow/board'
+import { workSpawn } from '../../workflow/board-panes'
 import { emit, needSession, optionalSession, processCtx, usageError, warnCwdGone, type CmdResult, type WorkflowCtx } from '../../workflow/result'
 
 export const name = 'work'
@@ -14,6 +15,16 @@ Lead (the session that registered the plan):
                      keeps every state and warns (exit 2, plan_changed_while_active) when an active task's files
                      or dependencies changed in the plan. Defaults: plan.board.maxWorkers (6), plan.board.leaseSec
                      (300; the flag accepts 1 or more, the config key 10 or more)
+  spawn [--mux tmux|cmux|herdr] [--workers <n>] [--harness <h>[,<h>…]] [--dry-run]
+                     open worker panes in the lead's terminal multiplexer: one per ready task by default (never more
+                     than the free worker slots), each running a harness whose first prompt is /buracle-join <slug>.
+                     --mux defaults to the multiplexer the lead runs in (tmux, then herdr, then cmux); --mux tmux
+                     outside tmux opens a detached session buracle-<slug>. Here --harness is the workers' harness
+                     list, dealt out in turn (default: the lead's); the lead's own session comes from the
+                     environment or --session with BURACLE_HARNESS. --dry-run prints the panes it would open
+                     (exit 0 even without a board or a multiplexer). The panes are recorded, so that merge and
+                     close can close them; nothing else is ever closed. Error codes: no_mux, mux_mismatch,
+                     harness_missing, cmux_missing, mux_failed
   wait [--timeout <s>]
                      block until the board changes (a task claimed, done, waiting, stale, released, or a note for the
                      lead), at most --timeout seconds (default 90), then print the events since the last wait
@@ -25,7 +36,10 @@ Lead (the session that registered the plan):
                      return a done, merged, waiting or claimed task to open; its worktree and report stay. A merged
                      task also gets its plan box opened again and the base merged into its lane worktree (a conflict
                      is undone and reported, exit 2)
-  close [--force]    remove the merged tasks' lane worktrees and the board file; --force while tasks are still open
+  close [--force] [--keep-panes]
+                     remove the merged tasks' lane worktrees, the panes that spawn opened and the board file; --force
+                     while tasks are still open; --keep-panes leaves the panes open. merge also closes the panes of
+                     workers that have nothing left to take, once no task is open
 
 Any session in the repository:
   status [<slug>]    the board: every task with its state, worker, lease age, question and worktree
@@ -55,6 +69,8 @@ The session comes from --session <id> with --harness <h>, or from the harness en
 const SESSION: Record<string, FlagKind> = { session: 'string', harness: 'string' }
 const SPECS: Record<string, Record<string, FlagKind>> = {
   publish: { 'max-workers': 'string', 'lease-sec': 'string', ...SESSION },
+  // spawn's --harness names the workers, not the lead's session (see the usage text).
+  spawn: { mux: 'string', workers: 'string', harness: 'string', 'dry-run': 'bool', session: 'string' },
   status: SESSION,
   join: { task: 'string', ...SESSION },
   heartbeat: SESSION,
@@ -67,7 +83,7 @@ const SPECS: Record<string, Record<string, FlagKind>> = {
   wait: { timeout: 'string', ...SESSION },
   merge: { task: 'string', manual: 'bool', ...SESSION },
   reopen: { reason: 'string', ...SESSION },
-  close: { force: 'bool', ...SESSION },
+  close: { force: 'bool', 'keep-panes': 'bool', ...SESSION },
 }
 const ALL: Record<string, FlagKind> = Object.assign({}, ...Object.values(SPECS)) as Record<string, FlagKind>
 const POSITIONALS: Record<string, number> = { publish: 1, status: 1, join: 1, ask: 1, note: 1, reopen: 1 }
@@ -92,6 +108,7 @@ export async function runWork(argv: string[], io: CommandIO, ctx: WorkflowCtx): 
   const leaseSec = intFlag(parsed.flags, 'lease-sec', problems)
   const taskFlag = intFlag(parsed.flags, 'task', problems)
   const timeout = intFlag(parsed.flags, 'timeout', problems)
+  const workers = intFlag(parsed.flags, 'workers', problems)
   const positionals = POSITIONALS[sub] ?? 0
   if (pos.length > positionals) problems.push(`unexpected argument '${pos[positionals]}'`)
   if (problems.length > 0) return out(usageError(usage, problems))
@@ -99,8 +116,18 @@ export async function runWork(argv: string[], io: CommandIO, ctx: WorkflowCtx): 
   const sid = strFlag(parsed.flags, 'session')
   const h = strFlag(parsed.flags, 'harness')
   if (sid !== undefined) sflags.session = sid
-  if (h !== undefined) sflags.harness = h
+  if (h !== undefined && sub !== 'spawn') sflags.harness = h
   switch (sub) {
+    case 'spawn': {
+      const s = needSession(sflags, ctx.env)
+      if ('code' in s) return out(s)
+      const o: Parameters<typeof workSpawn>[0] = { dryRun: boolFlag(parsed.flags, 'dry-run') }
+      const mux = strFlag(parsed.flags, 'mux')
+      if (mux !== undefined) o.mux = mux
+      if (workers !== undefined) o.workers = workers
+      if (h !== undefined) o.harness = h
+      return out(await workSpawn(o, ctx, s))
+    }
     case 'publish': {
       const s = needSession(sflags, ctx.env)
       if ('code' in s) return out(s)
@@ -140,7 +167,7 @@ export async function runWork(argv: string[], io: CommandIO, ctx: WorkflowCtx): 
     case 'resume': {
       const s = needSession(sflags, ctx.env)
       if ('code' in s) return out(s)
-      return out(workResume(ctx, s))
+      return out(await workResume(ctx, s))
     }
     case 'note': {
       const s = needSession(sflags, ctx.env)
@@ -176,7 +203,7 @@ export async function runWork(argv: string[], io: CommandIO, ctx: WorkflowCtx): 
     case 'close': {
       const s = needSession(sflags, ctx.env)
       if ('code' in s) return out(s)
-      return out(await workClose({ force: boolFlag(parsed.flags, 'force') }, ctx, s))
+      return out(await workClose({ force: boolFlag(parsed.flags, 'force'), keepPanes: boolFlag(parsed.flags, 'keep-panes') }, ctx, s))
     }
     default: return out(await workStatus(pos[0], ctx, optionalSession(sflags, ctx.env)))
   }

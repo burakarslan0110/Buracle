@@ -10,6 +10,7 @@ import {
 import { userConfigFile } from '../../src/engine/paths'
 import { readBoard } from '../../src/workflow/board-store'
 import { workJoin, workMerge, workPublish, workWait } from '../../src/workflow/board'
+import { muxStorePath, writeMuxStore } from '../../src/workflow/mux-store'
 import { loadState, saveState, freshState, type ResolvedSession } from '../../src/workflow/session-store'
 import { stillStubbed, testWhenImplemented } from '../helpers/not-implemented'
 import { withEnv, withSandbox } from '../helpers/sandbox'
@@ -435,14 +436,37 @@ describe('plan and the task board', () => {
     writeFileSync(plan, planDoc({ status: 'IN_PROGRESS', approved: true, n: 2, done: 2, evidence: true }))
     expect((await planComplete(ctx, S)).code).toBe(0)
     expect((await planApproveResult(ctx, S)).code).toBe(0)
-    const v = await planVerify(ctx, S)
+    const sidecar = muxStorePath(join(path, '..', '..', '..'), 'rate-limit')
+    writeMuxStore(sidecar, { v: 1, slug: 'rate-limit', mux: 'herdr', panes: [{ id: 'w2:p5', harness: 'claude', title: 'buracle rate-limit claude 1', server: 'herdr', openedAt: 1, session: { harness: 'omp', session: 'worker-1' } }] })
+    const calls: string[][] = []
+    const v = await planVerify(ctx, S, 'verify', { exec: async argv => { calls.push(argv); return { code: 0, stdout: '', stderr: '' } } })
     expect(v.code).toBe(0)
-    expect(v.lines).toContain('Closed the task board rate-limit.')
+    expect(v.lines).toContain('Closed the task board rate-limit and 1 worker pane(s).')
+    expect(calls.map(c => c.join(' '))).toEqual(['herdr pane get w2:p5', 'herdr pane close w2:p5'])
+    expect(existsSync(sidecar)).toBe(false)
     expect(v.errors.some(e => e.includes('rate-limit-t1'))).toBe(true)
     expect(existsSync(path)).toBe(false)
     expect(existsSync(wt)).toBe(true)
     expect(loadState('claude', S.sessionId).board).toBeUndefined()
     expect(planStatus(ctx, S).data['board']).toBeUndefined()
+  }))
+
+  test('verify warns about the panes it could not check or close when the multiplexer does not answer', () => withPlanRepo(async ({ repo, plan }) => {
+    const ctx = ctxAt(repo)
+    writeFileSync(plan, planDoc({ status: 'IN_PROGRESS', approved: true, n: 2 }))
+    expect((await planRegister(plan, undefined, ctx, S)).code).toBe(0)
+    const pub = await workPublish({ planPath: plan }, ctx, S)
+    expect(pub.code).toBe(0)
+    const sidecar = muxStorePath(join(String(pub.data['path']), '..', '..', '..'), 'rate-limit')
+    writeMuxStore(sidecar, { v: 1, slug: 'rate-limit', mux: 'herdr', panes: [{ id: 'w2:p5', harness: 'claude', title: 't', server: 'herdr', openedAt: 1 }] })
+    writeFileSync(plan, planDoc({ status: 'IN_PROGRESS', approved: true, n: 2, done: 2, evidence: true }))
+    expect((await planComplete(ctx, S)).code).toBe(0)
+    expect((await planApproveResult(ctx, S)).code).toBe(0)
+    const v = await planVerify(ctx, S, 'verify', { exec: async () => ({ code: 124, stdout: '', stderr: 'timed out' }) })
+    expect(v.code).toBe(0)
+    expect(v.lines).toContain('Closed the task board rate-limit.')
+    expect(v.errors.join('\n')).toContain('pane(s) w2:p5 could not be checked or closed')
+    expect(existsSync(sidecar)).toBe(false)
   }))
 })
 

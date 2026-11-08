@@ -129,12 +129,18 @@ describe('configSchemaLeaves', () => {
       { key: 'plan.questions', t: 'bool' }, { key: 'plan.reviews.changes', t: 'bool' }, { key: 'plan.goalVerification', t: 'bool' },
       { key: 'plan.modelSwitch', t: 'enum', values: ['off', 'manual'] }, { key: 'plan.runaway.perPlan', t: 'int', min: 1 }, { key: 'plan.worktreeDir', t: 'str' },
       { key: 'plan.board.mode', t: 'enum', values: ['off', 'ask', 'on'] }, { key: 'plan.board.maxWorkers', t: 'int', min: 1 }, { key: 'plan.board.leaseSec', t: 'int', min: 10 },
+      { key: 'plan.board.mux', t: 'enum', values: ['off', 'ask', 'on'] }, { key: 'plan.board.muxOnAsk', t: 'enum', values: ['mark', 'focus'] },
     ]))
-    expect(defaultConfig().plan.board).toEqual({ mode: 'ask', maxWorkers: 6, leaseSec: 300 })
+    expect(defaultConfig().plan.board).toEqual({ mode: 'ask', maxWorkers: 6, leaseSec: 300, mux: 'ask', muxOnAsk: 'mark' })
     const base = defaultConfig()
-    expect(validateConfig({ ...base, plan: { ...base.plan, board: { mode: 'ask', maxWorkers: 6, leaseSec: 5 } } }).ok).toBe(false)
-    expect(validateConfig({ ...base, plan: { ...base.plan, board: { mode: 'sometimes', maxWorkers: 6, leaseSec: 300 } } }).ok).toBe(false)
-    expect(validateConfig({ ...base, plan: { ...base.plan, board: { mode: 'on', maxWorkers: 1, leaseSec: 10 } } }).ok).toBe(true)
+    const board = (o: Record<string, unknown>) => ({ ...base, plan: { ...base.plan, board: { ...base.plan.board, ...o } } })
+    expect(validateConfig(board({ leaseSec: 5 })).ok).toBe(false)
+    expect(validateConfig(board({ mode: 'sometimes' })).ok).toBe(false)
+    expect(validateConfig(board({ mux: 'sometimes' })).ok).toBe(false)
+    expect(validateConfig(board({ muxOnAsk: 'blink' })).ok).toBe(false)
+    expect(validateConfig(board({ mode: 'on', maxWorkers: 1, leaseSec: 10, mux: 'on', muxOnAsk: 'focus' })).ok).toBe(true)
+    // An older config file without the pane keys gets their defaults.
+    expect(mergeConfigLenient(defaultConfig(), { plan: { board: { mode: 'on', maxWorkers: 2, leaseSec: 60 } } }, []).config.plan.board).toEqual({ mode: 'on', maxWorkers: 2, leaseSec: 60, mux: 'ask', muxOnAsk: 'mark' })
     expect(configSchemaLeaves('memory.ui')).toEqual([{ key: 'memory.ui.port', t: 'int', min: 1024, max: 65535 }, { key: 'memory.ui.autostart', t: 'bool' }])
     expect(defaultConfig().memory.ui.autostart).toBe(true)
     const notBool = validateConfig({ ...defaultConfig(), memory: { ui: { port: 41777, autostart: 'yes' }, exclude: [] } })

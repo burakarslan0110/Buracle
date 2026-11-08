@@ -21,6 +21,14 @@ describe('withSandbox', () => {
     for (const k of SESSION_VARS) expect(process.env[k]).toBeUndefined()
   })
 
+  test('the developer\'s terminal multiplexer does not reach the tests: a test that wants tmux, herdr or cmux sets the variables itself', () => {
+    const MUX_VARS = ['TMUX', 'TMUX_PANE', 'HERDR_ENV', 'HERDR_PANE_ID', 'HERDR_TAB_ID', 'HERDR_WORKSPACE_ID', 'HERDR_SOCKET_PATH', 'CMUX_SURFACE_ID', 'CMUX_WORKSPACE_ID', 'CMUX_TAB_ID', 'CMUX_SOCKET_PATH']
+    for (const k of MUX_VARS) {
+      expect(ISOLATED_ENV).toContain(k)
+      expect(process.env[k]).toBeUndefined()
+    }
+  })
+
   test('a CI runner\'s Homebrew switches do not reach the tests', () => {
     for (const k of ['HOMEBREW_NO_AUTO_UPDATE', 'HOMEBREW_NO_ENV_HINTS']) expect(ISOLATED_ENV).toContain(k)
   })
