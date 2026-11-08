@@ -35,6 +35,11 @@ plan:
     leaseSec: 300
     mux: ask
     muxOnAsk: mark
+    harnesses:
+      claude: true
+      codex: true
+      opencode: true
+      omp: true
   reviews:
     plan: true
     changes: true

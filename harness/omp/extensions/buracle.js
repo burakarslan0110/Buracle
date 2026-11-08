@@ -28472,6 +28472,8 @@ function readCard(doc, card) {
   let verify = false;
   let checkbox;
   let dependsOn;
+  let harness;
+  let badHarness;
   const prose = [];
   for (let i = card.head + 1;i < card.end; i++) {
     const line = doc.lines[i];
@@ -28526,6 +28528,14 @@ function readCard(doc, card) {
         } else if (key === "depends on") {
           dependsOn = dependsOnNumbers(rest);
           block = "other";
+        } else if (key === "harness") {
+          const value = rest.replace(/`/g, "").trim();
+          const id = value.toLowerCase();
+          if (HARNESSES.includes(id))
+            harness = id;
+          else
+            badHarness = { line: i, value };
+          block = "other";
         } else
           block = "other";
         continue;
@@ -28567,6 +28577,8 @@ function readCard(doc, card) {
     task.dod = d;
   if (dependsOn !== undefined)
     task.dependsOn = dependsOn;
+  if (harness !== undefined)
+    task.harness = harness;
   return {
     task,
     hasObjective,
@@ -28575,6 +28587,7 @@ function readCard(doc, card) {
     verify,
     badFiles,
     ...checkbox ? { checkbox: { n: checkbox.n, line: checkbox.line } } : {},
+    ...badHarness !== undefined ? { badHarness } : {},
     prose
   };
 }
@@ -28856,6 +28869,8 @@ function validatePlan(markdown, opts) {
     for (const b of body.badFiles) {
       out.push(err("bad-file-verb", `${label}: file lines read \`- Create|Modify|Delete|Rename|Test: path\` (got "${b.text.slice(0, 60)}")`, b.line));
     }
+    if (body.badHarness !== undefined)
+      out.push(warn("unknown-harness", `unknown harness \`${body.badHarness.value}\` in ${label}: one of ${HARNESSES.join(", ")}`, body.badHarness.line));
     if (!body.checkbox)
       out.push(err("missing-checkbox", `${label} needs the checkbox line \`- [ ] Task ${card.n} done\``, card.head));
     else if (body.checkbox.n !== card.n)
@@ -29397,7 +29412,9 @@ function sweep(board, now) {
   return out;
 }
 var ACTIVE = ["claimed", "waiting", "done"];
-function blocker(board, t) {
+function blocker(board, t, harness) {
+  if (harness !== undefined && t.harness !== undefined && t.harness !== harness)
+    return { n: t.n, reason: "harness", detail: `is reserved for ${t.harness}` };
   const unmerged = t.deps.filter((d) => board.tasks.find((x) => x.n === d)?.status !== "merged");
   if (unmerged.length > 0)
     return { n: t.n, reason: "deps", detail: `waits for ${unmerged.map((d) => `Task ${d}`).join(", ")}` };
@@ -29410,12 +29427,12 @@ function blocker(board, t) {
   }
   return;
 }
-function claimable(board) {
+function claimable(board, harness) {
   const view = { ready: [], blocked: [] };
   for (const t of [...board.tasks].sort((a, b) => a.n - b.n)) {
     if (t.status !== "open" && t.status !== "stale")
       continue;
-    const b = blocker(board, t);
+    const b = blocker(board, t, harness);
     if (b === undefined)
       view.ready.push(t.n);
     else
@@ -30970,7 +30987,7 @@ function defaultConfig() {
       goalVerification: true,
       modelSwitch: "off",
       nativePlanMode: "off",
-      board: { mode: "ask", maxWorkers: 6, leaseSec: 300, mux: "ask", muxOnAsk: "mark" }
+      board: { mode: "ask", maxWorkers: 6, leaseSec: 300, mux: "ask", muxOnAsk: "mark", harnesses: { claude: true, codex: true, opencode: true, omp: true } }
     },
     context: { warnPct: 85, criticalPct: 95 },
     checkers: { enabled: true, timeoutMs: 20000, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] },
@@ -31011,6 +31028,9 @@ for (const h of HARNESSES)
 var mcpOffFields = {};
 for (const h of HARNESSES)
   mcpOffFields[h] = strList2;
+var boardHarnessFields = {};
+for (const h of HARNESSES)
+  boardHarnessFields[h] = bool;
 var CONFIG_SCHEMA = {
   t: "obj",
   optional: ["repo"],
@@ -31049,7 +31069,7 @@ var CONFIG_SCHEMA = {
         goalVerification: bool,
         modelSwitch: { t: "enum", values: ["off", "manual"] },
         nativePlanMode: { t: "enum", values: ["off", "on"] },
-        board: { t: "obj", fields: { mode: { t: "enum", values: BOARD_MODES }, maxWorkers: count(1), leaseSec: count(10), mux: { t: "enum", values: BOARD_MODES }, muxOnAsk: { t: "enum", values: MUX_ON_ASK } } }
+        board: { t: "obj", fields: { mode: { t: "enum", values: BOARD_MODES }, maxWorkers: count(1), leaseSec: count(10), mux: { t: "enum", values: BOARD_MODES }, muxOnAsk: { t: "enum", values: MUX_ON_ASK }, harnesses: { t: "obj", fields: boardHarnessFields } } }
       }
     },
     context: { t: "obj", fields: { warnPct: pct, criticalPct: pct } },
@@ -34511,6 +34531,13 @@ function offerFile(h, sid) {
 function repoRootOf(commonDir) {
   return basename7(commonDir) === ".git" ? dirname14(commonDir) : commonDir;
 }
+function swarmHarnessOn(h) {
+  try {
+    return loadConfigSync().config.plan.board.harnesses[h] !== false;
+  } catch {
+    return true;
+  }
+}
 function boardJoinOffer(h, sid, cwd, now, joinCommand = "/buracle-join") {
   try {
     if (sessionBoard(h, sid) !== undefined)
@@ -34521,6 +34548,8 @@ function boardJoinOffer(h, sid, cwd, now, joinCommand = "/buracle-join") {
     const common = commonDirOf(cwd);
     if (common === undefined)
       return;
+    if (swarmHarnessOn(h) === false)
+      return;
     const ready = [];
     for (const b of listBoards(common)) {
       if (b.board === undefined)
@@ -34528,7 +34557,7 @@ function boardJoinOffer(h, sid, cwd, now, joinCommand = "/buracle-join") {
       const board = sweep(b.board, now);
       if (board.lead.harness === h && board.lead.session === sid)
         continue;
-      const n = claimable(board).ready.length;
+      const n = claimable(board, h).ready.length;
       if (n > 0)
         ready.push(`\`${board.slug}\` (${n} task(s) ready, ${boardSummary(board).workers} worker(s) on it, lead ${board.lead.harness} ${board.lead.session})`);
     }
@@ -34536,7 +34565,7 @@ function boardJoinOffer(h, sid, cwd, now, joinCommand = "/buracle-join") {
       return;
     atomicWriteSync(mark, JSON.stringify({ at: now }) + `
 `);
-    const slug = ready.length === 1 ? listBoards(common).find((b) => b.board !== undefined && claimable(sweep(b.board, now)).ready.length > 0)?.slug ?? "<slug>" : "<slug>";
+    const slug = ready.length === 1 ? listBoards(common).find((b) => b.board !== undefined && claimable(sweep(b.board, now), h).ready.length > 0)?.slug ?? "<slug>" : "<slug>";
     return `Buracle task board: this repository has a board with tasks waiting for a worker: ${ready.join("; ")}. Tell the user in one line and offer to join: \`${joinCommand} ${slug}\` takes one task and works on it in its own worktree while the lead merges. Join only when the user says yes.`;
   } catch (e) {
     log("warn", "board: the join offer failed", { error: e });
@@ -37773,7 +37802,7 @@ function workflowOfExpanded(prompt) {
 
 // src/adapters/omp/runtime/generated-data.ts
 var GENERATED = {
-  buracleVersion: "0.8.12",
+  buracleVersion: "0.8.13",
   commands: [
     "ab-test",
     "bugfix",
@@ -37870,6 +37899,12 @@ var GENERATED = {
     plan: {
       autoPause: false,
       board: {
+        harnesses: {
+          claude: true,
+          codex: true,
+          omp: true,
+          opencode: true
+        },
         leaseSec: 300,
         maxWorkers: 6,
         mode: "ask",
