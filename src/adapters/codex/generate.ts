@@ -96,6 +96,10 @@ export function configFragment(a: CodexArtifacts): string {
     '# permissions.enforce is on; the reasoning-effort keys follow config effort.codex and keep a level',
     '# you (or a Codex model migration) set. {buracle} is replaced with the absolute path of the',
     '# Buracle shim. Secrets are forwarded with env_vars, never written.',
+    '# The keys with a dot below (features.memories, agents.enabled, ...) are listed that way to show where',
+    '# they belong. The install writes them inside the [features] and [agents] tables, never as dotted root',
+    '# keys: a dotted key defines its table, so a [features] header that another tool adds later (herdr',
+    '# does) would make the whole file invalid and Codex would not start. Do not copy them as written.',
   ]
   const roots: string[] = []
   if (Object.keys(a.rootKeys).length > 0) roots.push('# Routing: MCP tools on the first turn; the built-in web search is off while routing is enforced.', ...rootLines(a.rootKeys))

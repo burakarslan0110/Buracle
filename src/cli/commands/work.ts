@@ -151,7 +151,7 @@ export async function runWork(argv: string[], io: CommandIO, ctx: WorkflowCtx): 
       const s = needSession(sflags, ctx.env)
       if ('code' in s) return out(s)
       const reason = strFlag(parsed.flags, 'reason')
-      return out(workRelease(reason !== undefined ? { reason } : {}, ctx, s))
+      return out(await workRelease(reason !== undefined ? { reason } : {}, ctx, s))
     }
     case 'done': {
       const s = needSession(sflags, ctx.env)

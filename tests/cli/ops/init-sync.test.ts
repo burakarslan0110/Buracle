@@ -20,7 +20,7 @@ describe('buracle install sets Buracle up on a clean home', () => {
     const repo = makeRepo(root)
     const cli = fakeCli()
     const adapters = [fakeAdapter('claude', { installed: false }), fakeAdapter('codex', { installed: false })]
-    await withDeps({ repoRoot: () => repo, adapters: async () => adapters, runCli: cli.runCli, fetch: noNetwork }, async () => {
+    await withDeps({ repoRoot: () => repo, adapters: async () => adapters, runCli: cli.runCli, fetch: noNetwork, loginPath: () => undefined }, async () => {
       await withEnv({ PATH: narrowPath(), SHELL: '/bin/zsh', ZDOTDIR: undefined }, async () => {
         const io = memoryIO()
         expect(await installRun(['--yes'], io)).toBe(0)

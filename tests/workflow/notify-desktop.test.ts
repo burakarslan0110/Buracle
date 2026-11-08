@@ -41,6 +41,19 @@ describe('desktop notifications per host', () => {
     expect(desktopNotification('linux', 'info', 'a', 'b', finds('notify-send', 'powershell.exe'))?.argv).toEqual(['notify-send', '--app-name=Buracle', 'Buracle: a', 'b'])
   })
 
+  // `desktop: false` is how a terminal that notifies on its own (herdr, cmux) keeps Buracle's banner from doubling it.
+  test.skipIf(wslInterop())('desktop: false still records the notification and skips only the desktop banner', () => withSandbox(async ({ root }) => {
+    await withEnv({ BURACLE_PLATFORM: 'linux' }, async () => {
+      const env = { BURACLE_NO_NOTIFY: undefined, WSL_DISTRO_NAME: 'Ubuntu' }
+      const quiet = await notify('attention_needed', 'T', 'M', { desktop: false }, ctxAt(root, undefined, env), undefined)
+      expect(quiet.code).toBe(0)
+      expect(quiet.data['delivery']).toEqual({ macos: 'skipped' })
+      expect(quiet.data['recorded']).not.toBeNull()
+      const normal = await notify('attention_needed', 'T', 'M', {}, ctxAt(root, undefined, env), undefined)
+      expect(normal.data['delivery']).toEqual({ macos: 'unsupported' })
+    })
+  }))
+
   // On a real WSL machine with interop on, this would show a balloon; there the test skips.
   test.skipIf(wslInterop())('the notify command in WSL without interop reports the desktop as unsupported, with no error', () => withSandbox(async ({ root }) => {
     await withEnv({ BURACLE_PLATFORM: 'linux' }, async () => {

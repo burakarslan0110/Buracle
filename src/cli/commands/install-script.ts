@@ -7,7 +7,7 @@ import { cortexdbBinary } from '../../engine/toolchain/cortexdb'
 import { opsDeps } from '../../engine/update/deps'
 import type { DoctorCheck } from '../../engine/update/doctor'
 import { table, tilde, tildeText } from '../../engine/update/output'
-import { addLocalBinToPath, type ShellPathResult } from '../../engine/update/shell-path'
+import { addLocalBinToOtherShells, addLocalBinToPath, type ShellPathResult } from '../../engine/update/shell-path'
 import type { ToolchainItem } from '../../engine/toolchain/index'
 import type { CommandIO } from '../router'
 import type { LiveList, Outcome } from '../ui/live'
@@ -62,7 +62,11 @@ export const scriptDeps: ScriptDeps = {
   addPath: () => {
     // Only once the install made the ~/.local/bin/buracle link: before that, the folder holds nothing of Buracle's.
     if (!existsSync(join(paths.localBinDir(), 'buracle'))) return { changed: false, skipped: 'error', reason: 'the buracle link in ~/.local/bin is missing' }
-    return addLocalBinToPath()
+    const first = addLocalBinToPath()
+    // The other of zsh and bash too: a terminal opened in it never reads the first one's file.
+    const more = addLocalBinToOtherShells({ probe: opsDeps.loginPath }).filter(o => o.changed && o.file !== undefined).map(o => o.file as string)
+    if (more.length === 0) return first
+    return { changed: true, file: [...(first.changed && first.file !== undefined ? [first.file] : []), ...more].join(', ') }
   },
   brain: () => (cortexdbBinary() !== undefined ? { ok: true, detail: 'brain ok' } : { ok: false, detail: 'brain: CortexDB is missing' }),
 }
@@ -207,7 +211,7 @@ export function scriptSession(io: CommandIO, opts: ScriptOptions): ScriptSession
     const errors = failed.length
     let path: string | undefined
     const p = scriptDeps.addPath()
-    if (p.changed && p.file !== undefined) path = `added in ${tilde(p.file)}`
+    if (p.changed && p.file !== undefined) path = `added in ${tildeText(p.file)}`
     else if (p.skipped === 'unsafe' || p.skipped === 'error') log(`warn PATH: ${p.reason ?? 'not added'}`)
     sections.push(resultSection(r, { declined, interactive: opts.interactive, failed, path, secs: Math.max(0, Math.round((scriptDeps.now() - opts.startedMs) / 1000)), log: opts.log, ...(columns !== undefined ? { columns } : {}) }))
     printer.stop()

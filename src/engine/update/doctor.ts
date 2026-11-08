@@ -1,5 +1,5 @@
 import { accessSync, constants, existsSync, lstatSync, readFileSync, readlinkSync, statSync } from 'node:fs'
-import { delimiter, join, resolve } from 'node:path'
+import { basename, delimiter, join, resolve } from 'node:path'
 import type { Adapter } from '../../adapters/registry'
 import { hostLimitRows } from '../../adapters/shared/host-limits'
 import type { CanonicalBundle, McpCatalog, ToolSpec } from '../../core/catalog'
@@ -381,6 +381,11 @@ export async function harnessChecks(adapters: readonly Adapter[], live: LiveCont
       continue
     }
     out.push({ section: s, level: 'ok', check: 'installed', detail: `${det.version ?? 'unknown version'}${det.path ? ` (${tilde(det.path)})` : ''}` })
+    // Buracle finds a harness in folders PATH often lacks (omp installed with `bun add -g` sits in ~/.bun/bin), so "installed"
+    // alone hides that the user's terminal says "command not found".
+    if (det.path !== undefined && existsSync(det.path) && Bun.which(basename(det.path), { PATH: process.env['PATH'] ?? '' }) === null) {
+      out.push({ section: s, level: 'warn', check: 'on-path', detail: `${basename(det.path)} is at ${tilde(det.path)} but no shell finds it by name; \`buracle install\` links it into ${tilde(paths.localBinDir())}` })
+    }
     try {
       const found = await a.doctor(live.ctx)
       if (!Array.isArray(found)) throw new Error('doctor() did not return a list')

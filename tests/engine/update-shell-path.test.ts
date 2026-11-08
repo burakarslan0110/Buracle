@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import * as paths from '../../src/engine/paths'
-import { addLocalBinToPath, removeLocalBinFromPath, startupFile } from '../../src/engine/update/shell-path'
+import { addLocalBinToOtherShells, addLocalBinToPath, probeLoginPath, removeLocalBinFromPath, startupFile } from '../../src/engine/update/shell-path'
 
 import { withSandbox } from '../helpers/sandbox'
 
@@ -93,6 +93,82 @@ describe('the PATH line in the shell startup file', () => {
     addLocalBinToPath({ env: { SHELL: '/bin/zsh', PATH: '/usr/bin' } })
     expect(statSync(rc).mode & 0o777).toBe(0o600)
   }))
+
+  // A terminal opened in bash (or zsh) never reads the startup file of the other one. The install ran in zsh, put
+  // ~/.local/bin on PATH there, and `omp`, `codex`, `claude` and `buracle` were "command not found" in a bash terminal.
+  describe('the other shell', () => {
+    const localBin = (home: string): string => join(home, '.local', 'bin')
+    const answers = (paths: Partial<Record<'zsh' | 'bash', string>>) => (shell: 'zsh' | 'bash'): string | undefined => paths[shell]
+
+    test('a shell other than $SHELL whose fresh login PATH lacks ~/.local/bin gets the block in its own startup file; a second run and uninstall are exact', () => withSandbox(({ home }) => {
+      const env = { SHELL: '/bin/zsh', PATH: `/usr/bin:${localBin(home)}` }
+      const probe = answers({ bash: '/usr/bin:/bin' })
+      const bp = join(home, '.bash_profile')
+      expect(addLocalBinToOtherShells({ env, os: 'darwin', probe })).toEqual([{ changed: true, file: bp }])
+      expect(readFileSync(bp, 'utf8')).toBe(BLOCK)
+      expect(addLocalBinToOtherShells({ env, os: 'darwin', probe })).toEqual([{ changed: false, file: bp, skipped: 'in-file' }])
+      expect(readFileSync(bp, 'utf8')).toBe(BLOCK)
+      // The zsh file is the install's own business (addLocalBinToPath); here it is not touched.
+      expect(existsSync(join(home, '.zshrc'))).toBe(false)
+      expect(removeLocalBinFromPath()).toEqual({ removed: true, file: bp })
+      expect(readFileSync(bp, 'utf8')).toBe('')
+      expect(existsSync(paths.shellPathStateFile())).toBe(false)
+    }))
+
+    test('a shell that is not installed, or whose login PATH already has the folder, is left alone', () => withSandbox(({ home }) => {
+      const env = { SHELL: '/bin/zsh', PATH: '/usr/bin' }
+      expect(addLocalBinToOtherShells({ env, os: 'linux', probe: answers({}) })).toEqual([])
+      expect(addLocalBinToOtherShells({ env, os: 'linux', probe: answers({ bash: `/usr/bin:${localBin(home)}` }) })).toEqual([{ changed: false, file: join(home, '.bashrc'), skipped: 'on-path' }])
+      expect(existsSync(join(home, '.bashrc'))).toBe(false)
+    }))
+
+    test('the probe (a login shell that reads the whole rc file) runs only when a block would be written, not on every install', () => withSandbox(({ home }) => {
+      const env = { SHELL: '/bin/zsh', PATH: '/usr/bin' }
+      const asked: string[] = []
+      const probe = (shell: 'zsh' | 'bash'): string | undefined => { asked.push(shell); return '/usr/bin' }
+      const bp = join(home, '.bash_profile')
+      writeFileSync(bp, `alias ll="ls -l"\n${BLOCK}`)
+      expect(addLocalBinToOtherShells({ env, os: 'darwin', probe })).toEqual([{ changed: false, file: bp, skipped: 'in-file' }])
+      // The record of a block whose record is gone comes back without asking a shell either.
+      expect(JSON.parse(readFileSync(paths.shellPathStateFile(), 'utf8'))).toMatchObject({ v: 1, file: bp })
+      writeFileSync(bp, 'export PATH="$HOME/.local/bin:$PATH"\n')
+      expect(addLocalBinToOtherShells({ env, os: 'darwin', probe })).toEqual([{ changed: false, file: bp, skipped: 'in-file' }])
+      expect(asked).toEqual([])
+      // With no block and no PATH line in the file, the shell is asked.
+      writeFileSync(bp, '# nothing\n')
+      addLocalBinToOtherShells({ env, os: 'darwin', probe })
+      expect(asked).toEqual(['bash'])
+    }))
+
+    test('a state record from an earlier Buracle ({v:1,file} alone) still finds and removes its block', () => withSandbox(({ home }) => {
+      const rc = join(home, '.zshrc')
+      writeFileSync(rc, `export A=1\n${BLOCK}`)
+      mkdirSync(dirname(paths.shellPathStateFile()), { recursive: true })
+      writeFileSync(paths.shellPathStateFile(), JSON.stringify({ v: 1, file: rc }) + '\n')
+      expect(removeLocalBinFromPath()).toEqual({ removed: true, file: rc })
+      expect(readFileSync(rc, 'utf8')).toBe('export A=1\n')
+      expect(existsSync(paths.shellPathStateFile())).toBe(false)
+    }))
+
+    test('both blocks are recorded: removal takes out the one of $SHELL and the one of the other shell', () => withSandbox(({ home }) => {
+      const rc = join(home, '.zshrc')
+      const bp = join(home, '.bash_profile')
+      const env = { SHELL: '/bin/zsh', PATH: '/usr/bin:/bin' }
+      expect(addLocalBinToPath({ env, os: 'darwin' })).toEqual({ changed: true, file: rc })
+      expect(addLocalBinToOtherShells({ env, os: 'darwin', probe: answers({ bash: '/usr/bin' }) })).toEqual([{ changed: true, file: bp }])
+      expect(JSON.parse(readFileSync(paths.shellPathStateFile(), 'utf8'))).toEqual({ v: 1, file: rc, others: [bp] })
+      expect(removeLocalBinFromPath()).toEqual({ removed: true, file: rc, also: [bp] })
+      expect([readFileSync(rc, 'utf8'), readFileSync(bp, 'utf8')]).toEqual(['', ''])
+    }))
+
+    test.skipIf(Bun.which('bash') === null)('the real probe asks a clean login shell for its PATH', () => withSandbox(({ home }) => {
+      const got = probeLoginPath('bash', home)
+      expect(got).toContain('/usr/bin')
+      expect(got).not.toContain(join(home, '.local', 'bin'))
+      writeFileSync(join(home, '.bash_profile'), 'export PATH="$HOME/.local/bin:$PATH"\n')
+      expect(probeLoginPath('bash', home)).toContain(join(home, '.local', 'bin'))
+    }))
+  })
 
   test('removal takes out exactly the block, keeps every other line and the last newline; an unmatched marker is left alone', () => withSandbox(({ home }) => {
     const rc = join(home, '.zshrc')

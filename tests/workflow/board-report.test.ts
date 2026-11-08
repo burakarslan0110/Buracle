@@ -91,6 +91,17 @@ describe('work ask and resume', () => {
     expect(sessionBoard('codex', 'worker-a')?.task).toBe(1)
     expect(sessionBoard('codex', 'worker-a')?.heartbeatAt).toBe(NOW + 50)
   }))
+
+  test('inside herdr the hooks get no OSC sequence to emit: herdr announces the blocked pane itself', () => sandbox(async root => {
+    const { repo } = await board(root)
+    const ctx = ctxAt(repo, NOW, { HERDR_ENV: '1', HERDR_PANE_ID: 'w2:p3', HERDR_SOCKET_PATH: '/s/herdr.sock', BURACLE_TTY_PATH: join(root, 'tty.out') })
+    await workJoin('rate-limit', {}, ctx, A)
+    const r = await workAsk('which port?', ctx, A)
+    expect(r.code).toBe(0)
+    expect(r.data).toMatchObject({ status: 'waiting', terminalSequence: '', notified: false })
+    expect(takeTerminalSequence('codex', 'worker-a')).toBeUndefined()
+    expect(existsSync(join(root, 'tty.out'))).toBe(false)
+  }))
 })
 
 describe('notes, inbox and wait', () => {

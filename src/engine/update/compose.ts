@@ -1,12 +1,12 @@
 import { existsSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import type { Adapter } from '../../adapters/registry'
 import type { CanonicalBundle } from '../../core/catalog'
 import type { Harness } from '../../core/events'
 import { HARNESSES } from '../../core/events'
 import * as paths from '../paths'
 import { readLedger, type Op, type Plan } from '../txn'
-import { toolchainLinks } from '../toolchain/links'
+import { harnessLinks, toolchainLinks } from '../toolchain/links'
 import { readToolchainState } from '../toolchain/state'
 import { inCheckout, type LiveContext } from './context'
 import {
@@ -21,6 +21,8 @@ export interface HarnessStatus {
   inScope: boolean
   installed: boolean
   version?: string
+  /** The harness program, as its adapter found it (may be a folder PATH does not reach, such as ~/.bun/bin). */
+  path?: string
   included: boolean
   reason?: string
 }
@@ -84,6 +86,7 @@ export async function detectHarnesses(adapters: readonly Adapter[], live: LiveCo
       const d = await (byHarness.get(h) as Adapter).detect()
       st.installed = d.installed === true
       if (typeof d.version === 'string') st.version = d.version
+      if (typeof d.path === 'string') st.path = d.path
     } catch (e) {
       st.reason = `detect failed: ${errText(e)}`
       return st
@@ -118,6 +121,16 @@ export async function composeInstall(opts: ComposeOptions): Promise<ComposeResul
 
   if (!opts.coreOnly) {
     res.harnesses = await detectHarnesses(opts.adapters, opts.live, opts.only)
+    // A harness program that no shell of the user reaches by name (omp under ~/.bun/bin) gets a link in ~/.local/bin.
+    // A harness this run did not look at (not selected, or its detection failed) keeps the link an earlier run made:
+    // `buracle install codex` must not take omp's link away.
+    const harnessBins = harnessLinks(res.harnesses, process.env['PATH'])
+    const unseen = res.harnesses.filter(h => !h.inScope || (h.reason ?? '').startsWith('detect failed')).map(h => resolve(join(paths.localBinDir(), h.harness)))
+    const linkCarried = (record.plans['core']?.keys ?? []).filter(k => unseen.includes(resolve(keyPath(k))))
+    if (harnessBins.length > 0 || linkCarried.length > 0) {
+      core.links = [...(core.links ?? []), ...harnessBins]
+      raw[0] = { key: 'core', plan: corePlan(core), carried: [...carried, ...linkCarried] }
+    }
     const included = res.harnesses.filter(h => h.included).map(h => h.harness)
     // A harness this run did not look at (not selected, or its detection failed) keeps its skill
     // links; every other recorded link that no plan produces is pruned, the old ~/.agents/skills ones too.

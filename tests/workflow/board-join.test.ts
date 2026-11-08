@@ -114,17 +114,17 @@ describe('heartbeat, release and stale recovery', () => {
     expect(hb.data).toMatchObject({ task: 1, leaseUntil: NOW + 360_000, leaseSec: 300 })
     expect(sessionBoard('codex', 'worker-a')?.heartbeatAt).toBe(NOW + 60_000)
     const wt = String(readBoard(path)?.tasks[0]?.worktree?.path)
-    const rel = workRelease({ reason: 'blocked on the schema' }, ctxAt(repo, NOW + 70_000), A)
+    const rel = await workRelease({ reason: 'blocked on the schema' }, ctxAt(repo, NOW + 70_000), A)
     expect(rel.code).toBe(0)
     const t1 = readBoard(path)?.tasks[0]
     expect([t1?.status, t1?.worker, t1?.lastWorker?.session, t1?.worktree?.path]).toEqual(['open', undefined, 'worker-a', wt])
     expect(existsSync(wt)).toBe(true)
     expect(readBoard(path)?.notes.at(-1)).toMatchObject({ to: 'lead', kind: 'nudge', text: 'released Task 1: blocked on the schema' })
     expect(sessionBoard('codex', 'worker-a')).toEqual({ slug: 'rate-limit', path, role: 'worker' })
-    const left = workRelease({}, ctxAt(repo, NOW + 71_000), A)
+    const left = await workRelease({}, ctxAt(repo, NOW + 71_000), A)
     expect(left.data).toMatchObject({ ok: true, left: true })
     expect(sessionBoard('codex', 'worker-a')).toBeUndefined()
-    expect(workRelease({}, ctxAt(repo, NOW + 72_000), A).data['error']).toBe('usage')
+    expect((await workRelease({}, ctxAt(repo, NOW + 72_000), A)).data['error']).toBe('usage')
   }))
 
   test('a lease that expires without heartbeats turns the task stale; the next worker resumes the same worktree and the old worker is reassigned', () => sandbox(async root => {

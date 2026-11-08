@@ -1,12 +1,15 @@
-// A notification for the terminal pane a worker runs in: OSC 9 and OSC 777 on the controlling terminal (wrapped for
-// tmux), plus the cmux and herdr CLIs when their environment is present. The sequence is also handed back, so a hook
+// A notification for the terminal pane a worker runs in, sent once, by the one that owns the pane: herdr (told that the
+// agent is blocked) or cmux (`cmux notify`) when the pane is theirs, else OSC 9 and OSC 777 on the controlling terminal
+// (wrapped for tmux). The OSC sequence is also handed back, so a hook
 // that cannot reach the terminal (Claude Code's `terminalSequence`) can emit it.
 import { closeSync, openSync, writeSync } from 'node:fs'
 import { run } from '../engine/proc'
 
 export interface TerminalNote { title: string; body: string; agent?: string }
 export interface TerminalNotifyDeps { tty?: string; spawn?: (argv: string[]) => Promise<number | undefined> }
-export interface TerminalNotifyResult { sent: boolean; sequence: string; cmux: boolean; herdr: boolean }
+/** Who announces the question: herdr or cmux (they notify on their own), or the terminal itself through an OSC sequence. */
+export type NotifyRoute = 'herdr' | 'cmux' | 'osc'
+export interface TerminalNotifyResult { sent: boolean; sequence: string; cmux: boolean; herdr: boolean; route: NotifyRoute }
 
 export const TITLE_MAX = 80
 export const BODY_MAX = 200
@@ -66,26 +69,37 @@ export function writeSequence(sequence: string, env: Readonly<Record<string, str
 }
 
 /**
- * Sends the note to the terminal. `sent` says whether the controlling terminal took the sequence (`writeSequence`).
- * BURACLE_NO_NOTIFY=1 sends nothing and runs nothing.
+ * Who announces a question asked in this terminal. herdr and cmux notify on their own (herdr plays its sound, shows its
+ * badge and the toasts the user configured; cmux posts a banner), and both also read OSC sequences, so one alert is
+ * enough: the one they own. The innermost one wins (herdr, then cmux); any other terminal gets the OSC sequence.
+ */
+export function notifyRoute(env: Readonly<Record<string, string | undefined>>): NotifyRoute {
+  const pane = env['HERDR_PANE_ID']
+  if (env['HERDR_ENV'] === '1' && typeof pane === 'string' && pane !== '') return 'herdr'
+  const surface = env['CMUX_SURFACE_ID']
+  if (typeof surface === 'string' && surface !== '') return 'cmux'
+  return 'osc'
+}
+
+/**
+ * Announces the note in this terminal, once (`notifyRoute`): in herdr by telling it the agent is blocked, with the question
+ * (herdr then notifies the way the user set it up); in cmux through `cmux notify`; elsewhere with an OSC sequence on the
+ * controlling terminal, and `sent` says whether it took it. `sequence` is what a hook that owns the terminal should
+ * emit, empty when herdr or cmux took the note. BURACLE_NO_NOTIFY=1 sends nothing and runs nothing.
  */
 export async function notifyTerminal(note: TerminalNote, env: Readonly<Record<string, string | undefined>>, deps: TerminalNotifyDeps = {}): Promise<TerminalNotifyResult> {
-  const sequence = oscSequence(note.title, note.body)
-  const out: TerminalNotifyResult = { sent: false, sequence, cmux: false, herdr: false }
+  const route = notifyRoute(env)
+  const out: TerminalNotifyResult = { sent: false, sequence: route === 'osc' ? oscSequence(note.title, note.body) : '', cmux: false, herdr: false, route }
   if (env['BURACLE_NO_NOTIFY'] === '1') return out
-  out.sent = writeSequence(sequence, env, deps.tty)
   const spawn = deps.spawn ?? spawnQuietly
   const title = cleanText(note.title, TITLE_MAX)
   const body = cleanText(note.body, BODY_MAX)
-  if (typeof env['CMUX_SURFACE_ID'] === 'string' && env['CMUX_SURFACE_ID'] !== '') {
+  if (route === 'osc') {
+    out.sent = writeSequence(out.sequence, env, deps.tty)
+  } else if (route === 'cmux') {
     out.cmux = (await spawn(['cmux', 'notify', '--title', title, '--body', body])) === 0
-  }
-  if (env['HERDR_ENV'] === '1') {
-    out.herdr = (await spawn(['herdr', 'notification', 'show', title, '--body', body])) === 0
-    const pane = env['HERDR_PANE_ID']
-    if (typeof pane === 'string' && pane !== '') {
-      await spawn(['herdr', 'pane', 'report-agent', pane, '--source', 'buracle', '--agent', note.agent ?? 'buracle', '--state', 'blocked', '--message', body])
-    }
+  } else {
+    out.herdr = (await spawn(['herdr', 'pane', 'report-agent', env['HERDR_PANE_ID'] as string, '--source', 'buracle', '--agent', note.agent ?? 'buracle', '--state', 'blocked', '--message', body])) === 0
   }
   return out
 }

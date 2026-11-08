@@ -52,6 +52,9 @@ export const MUX_TIMEOUT_MS = 10_000
 export const CMUX_APP_BIN = '/Applications/cmux.app/Contents/Resources/bin/cmux'
 const NO_MUX_HINT = 'no multiplexer detected (TMUX, HERDR_ENV or CMUX_SURFACE_ID): run the lead inside tmux, herdr or cmux, or pass --mux tmux to open a detached tmux session'
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi
+const CMUX_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+/** Printable ASCII with no space and no leading dash: safe to hand to `herdr pane close` as a single argument. */
+const SAFE_ID = /^[^\s-][\x21-\x7e]*$/
 const REF = /\b(?:pane|surface|workspace):\d+\b/g
 
 function nonEmpty(v: string | undefined): v is string { return typeof v === 'string' && v !== '' }
@@ -77,7 +80,8 @@ export function detectMux(env: Env, explicit?: string): MuxDetect {
 export function validPaneId(kind: MuxKind, id: string): boolean {
   switch (kind) {
     case 'tmux': return /^%\d+$/.test(id)
-    case 'herdr': return /^w\d+:p\d+$/.test(id)
+    // herdr's ids are opaque handles whose number is written in base 36 (w2:p9, then w2:pA … w2:pZ, observed up to pH), so every letter belongs to the shape.
+    case 'herdr': return /^w[0-9a-z]+:p[0-9a-z]+$/i.test(id)
     case 'cmux': return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) || /^surface:\d+$/.test(id)
     default: { const never: never = kind; return never }
   }
@@ -96,15 +100,19 @@ export function muxServerOf(kind: MuxKind, env: Env): string {
   return ''
 }
 
-/** The shell line a worker pane runs: the harness in interactive mode with `/buracle-join <slug>` as its first prompt. */
-export function workerCommand(harness: Harness, slug: string, dir: string, kind: MuxKind): string {
+/**
+ * The shell line a worker pane runs: the harness in interactive mode with `/buracle-join <slug>` as its first prompt.
+ * `bin` is the harness program when the pane's shell may not find it by name (omp installed under ~/.bun/bin, say).
+ */
+export function workerCommand(harness: Harness, slug: string, dir: string, kind: MuxKind, bin?: string): string {
   const prompt = `${harness === 'codex' ? '$' : '/'}buracle-join ${slug}`
+  const exe = bin !== undefined ? shellQuote(bin) : harness
   let cmd: string
   switch (harness) {
-    case 'claude': cmd = `claude ${shellQuote(prompt)}`; break
-    case 'codex': cmd = `codex -C ${shellQuote(dir)} ${shellQuote(prompt)}`; break
-    case 'opencode': cmd = `opencode --prompt ${shellQuote(prompt)} ${shellQuote(dir)}`; break
-    case 'omp': cmd = `omp --cwd=${shellQuote(dir)} ${shellQuote(prompt)}`; break
+    case 'claude': cmd = `${exe} ${shellQuote(prompt)}`; break
+    case 'codex': cmd = `${exe} -C ${shellQuote(dir)} ${shellQuote(prompt)}`; break
+    case 'opencode': cmd = `${exe} --prompt ${shellQuote(prompt)} ${shellQuote(dir)}`; break
+    case 'omp': cmd = `${exe} --cwd=${shellQuote(dir)} ${shellQuote(prompt)}`; break
     default: { const never: never = harness; return never }
   }
   // cmux's new-split has no working-directory flag, so the line changes directory first.
@@ -249,7 +257,13 @@ function herdrAdapter(env: Env, exec: MuxExec): MuxAdapter {
       const r = await x(['pane', 'split', ...where, '--cwd', spec.cwd, '--no-focus'])
       if (r.code !== 0) return undefined
       const id = field(parseJson(r.stdout), 'result', 'pane', 'pane_id')
-      if (typeof id !== 'string' || !validPaneId('herdr', id)) return undefined
+      if (typeof id !== 'string') return undefined
+      if (!validPaneId('herdr', id)) {
+        // The split worked, so a pane exists. An id of a shape Buracle does not know is still the id herdr gave this pane:
+        // take it down again (unless it could pass for a flag) instead of leaving an empty shell nobody records or closes.
+        if (SAFE_ID.test(id)) await x(['pane', 'close', id])
+        return undefined
+      }
       await x(['pane', 'rename', id, spec.title])
       const ran = await x(['pane', 'run', id, spec.command])
       if (ran.code !== 0) {
@@ -290,8 +304,10 @@ function cmuxTokens(text: string): string[] {
 function cmuxAdapter(env: Env, exec: MuxExec, bin: string): MuxAdapter {
   const x = (args: string[]) => exec([bin, ...args], { timeoutMs: MUX_TIMEOUT_MS, env })
   const server = muxServerOf('cmux', env)
+  // Every surface of the workspace, with refs and UUIDs (`--id-format` is a global option, so it comes before the command).
+  // Not `list-pane-surfaces`: that lists the focused pane only, and a split opened unfocused is a pane of its own.
   const list = async (): Promise<string[] | undefined> => {
-    const r = await x(['list-pane-surfaces', '--json', '--id-format', 'both'])
+    const r = await x(['--id-format', 'both', 'list-panels'])
     return r.code === 0 ? cmuxTokens(r.stdout) : undefined
   }
   const handles = (pane: MuxPane): string[] => [pane.id, ...(pane.ids ?? [])]
@@ -310,9 +326,16 @@ function cmuxAdapter(env: Env, exec: MuxExec, bin: string): MuxAdapter {
       const where = spec.after !== undefined ? ['down', '--surface', spec.after.id] : ['right']
       const r = await x(['new-split', ...where, '--command', spec.command, '--focus', 'false'])
       if (r.code !== 0) return undefined
+      // What cmux printed for the new split counts as well: when the second listing fails the split still exists, and
+      // a pane that is not recorded is a pane nobody closes.
       const after = await list()
-      if (after === undefined) return undefined
-      const fresh = after.filter(t => !before.includes(t))
+      const known = new Set(before)
+      const notOld = (t: string): boolean => !known.has(t) && !t.startsWith('workspace:')
+      // The surface new-split names is the one it made. The listing difference is only for output that names none: a
+      // surface a person or another tool opened between the two listings must never be taken for ours (close-surface
+      // would later close it).
+      const named = cmuxTokens(r.stdout).filter(notOld)
+      const fresh = named.some(t => t.startsWith('surface:') || CMUX_UUID.test(t)) ? named : [...new Set([...named, ...(after ?? [])])].filter(notOld)
       if (fresh.length === 0) return undefined
       // The surface's UUID is what CMUX_SURFACE_ID carries in the pane: the one right after the new surface ref, else the last UUID.
       const lastSurface = fresh.map((t, i) => (t.startsWith('surface:') ? i : -1)).filter(i => i >= 0).at(-1)
@@ -320,17 +343,16 @@ function cmuxAdapter(env: Env, exec: MuxExec, bin: string): MuxAdapter {
       const afterRef = lastSurface !== undefined ? fresh.slice(lastSurface + 1).find(t => /^[0-9a-f-]{36}$/i.test(t)) : undefined
       const id = afterRef ?? uuids.at(-1) ?? fresh.find(t => t.startsWith('surface:')) ?? fresh[0]
       if (id === undefined) return undefined
-      await x(['rename-tab', '--surface', id, spec.title])
+      await x(['rename-tab', '--surface', id, '--', spec.title])
       return { id, ids: fresh, server }
     },
-    async title(pane, text) { return (await x(['rename-tab', '--surface', pane.id, text])).code === 0 },
+    async title(pane, text) { return (await x(['rename-tab', '--surface', pane.id, '--', text])).code === 0 },
     async mark() { return true },
     async clearMark(pane) { return (await x(['clear-notifications', '--surface', pane.id])).code === 0 },
     async focus(pane) {
       const ws = env['CMUX_WORKSPACE_ID']
       if (nonEmpty(ws)) await x(['select-workspace', '--workspace', ws])
-      const paneRef = pane.ids?.find(t => t.startsWith('pane:')) ?? pane.id
-      return (await x(['focus-pane', '--pane', paneRef])).code === 0
+      return (await x(['focus-panel', '--panel', pane.id])).code === 0
     },
     presence,
     async alive(pane) { return (await presence(pane)) === 'ok' },

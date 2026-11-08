@@ -29,7 +29,8 @@ export function memoryIO(opts: { tty?: boolean, json?: boolean, verbose?: boolea
 
 export async function withDeps<T>(over: Partial<OpsDeps>, fn: () => T | Promise<T>): Promise<T> {
   const saved: OpsDeps = { ...opsDeps }
-  Object.assign(opsDeps, over)
+  // No test starts the machine's login shells by default (loginPath asks zsh or bash for their PATH); one that cares passes its own.
+  Object.assign(opsDeps, { loginPath: () => undefined }, over)
   try {
     return await fn()
   } finally {

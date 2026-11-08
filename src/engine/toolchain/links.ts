@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { basename, join, sep } from 'node:path'
+import { basename, dirname, join, sep } from 'node:path'
 import * as paths from '../paths'
 import { uvBinDir } from './packages'
 import type { ToolchainState } from './state'
@@ -17,6 +17,32 @@ export function linkTarget(registry: 'npm' | 'pypi', dir: string, bin: string): 
 }
 
 const BIN_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+
+/**
+ * Links for the harness programs the user's shells cannot find by name. A harness installed with `bun add -g` (omp) sits
+ * in ~/.bun/bin, which Homebrew's bun does not put on PATH, and Buracle's own checks find it there anyway; so `omp` ran
+ * for Buracle and printed "command not found" for the user. Such a program gets a link in ~/.local/bin, the folder the
+ * install already puts on PATH. A program PATH finds, or one that already lives in ~/.local/bin, needs none.
+ */
+export function harnessLinks(
+  found: ReadonlyArray<{ harness: string, included: boolean, path?: string }>,
+  pathEnv: string | undefined,
+  which: (bin: string, PATH: string) => string | undefined = (bin, PATH) => Bun.which(bin, { PATH }) ?? undefined,
+): ToolLink[] {
+  const out: ToolLink[] = []
+  for (const h of found) {
+    if (!h.included || h.path === undefined || !existsSync(h.path)) continue
+    const bin = basename(h.path)
+    if (!BIN_NAME.test(bin) || dirname(h.path) === paths.localBinDir()) continue
+    // Only a program in the user's own folders (~/.bun/bin, ~/.npm-global/bin, …): a system folder is on the PATH of the
+    // login shell already, and a link in ~/.local/bin, which comes first on PATH, would pin it past nvm or volta.
+    if (!h.path.startsWith(paths.home() + sep)) continue
+    if (which(bin, pathEnv ?? '') !== undefined) continue
+    const path = join(paths.localBinDir(), bin)
+    if (!out.some(l => l.path === path)) out.push({ bin, path, target: h.path })
+  }
+  return out
+}
 
 export function toolchainLinks(state: ToolchainState): ToolLink[] {
   const out: ToolLink[] = []
