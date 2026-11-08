@@ -84,10 +84,10 @@ describe('work ask and resume', () => {
     expect((await workAsk('and the host?', ctxAt(repo, NOW + 40, { BURACLE_TTY_PATH: tty }), A)).code).toBe(0)
     expect(readBoard(path)?.tasks[0]).toMatchObject({ status: 'waiting', question: 'and the host?' })
     expect(sessionBoard('codex', 'worker-a')?.task).toBe(1)
-    const res = workResume(ctxAt(repo, NOW + 50), A)
+    const res = await workResume(ctxAt(repo, NOW + 50), A)
     expect(res.data).toMatchObject({ ok: true, task: 1, status: 'claimed', already: false, leaseUntil: NOW + 50 + 300_000 })
     // A second resume (the hooks usually resume first) is not an error and keeps the claim.
-    expect(workResume(ctxAt(repo, NOW + 60), A).data).toMatchObject({ ok: true, task: 1, status: 'claimed', already: true, leaseUntil: NOW + 50 + 300_000 })
+    expect((await workResume(ctxAt(repo, NOW + 60), A)).data).toMatchObject({ ok: true, task: 1, status: 'claimed', already: true, leaseUntil: NOW + 50 + 300_000 })
     expect(sessionBoard('codex', 'worker-a')?.task).toBe(1)
     expect(sessionBoard('codex', 'worker-a')?.heartbeatAt).toBe(NOW + 50)
   }))

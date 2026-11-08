@@ -30945,6 +30945,7 @@ import { join as join33, resolve as resolve18 } from "path";
 // src/core/config.ts
 var COMPANION_SETTINGS = ["off", "auto", ...HARNESSES];
 var BOARD_MODES = ["off", "ask", "on"];
+var MUX_ON_ASK = ["mark", "focus"];
 function defaultConfig() {
   return {
     version: 1,
@@ -30969,7 +30970,7 @@ function defaultConfig() {
       goalVerification: true,
       modelSwitch: "off",
       nativePlanMode: "off",
-      board: { mode: "ask", maxWorkers: 6, leaseSec: 300 }
+      board: { mode: "ask", maxWorkers: 6, leaseSec: 300, mux: "ask", muxOnAsk: "mark" }
     },
     context: { warnPct: 85, criticalPct: 95 },
     checkers: { enabled: true, timeoutMs: 20000, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] },
@@ -31048,7 +31049,7 @@ var CONFIG_SCHEMA = {
         goalVerification: bool,
         modelSwitch: { t: "enum", values: ["off", "manual"] },
         nativePlanMode: { t: "enum", values: ["off", "on"] },
-        board: { t: "obj", fields: { mode: { t: "enum", values: BOARD_MODES }, maxWorkers: count(1), leaseSec: count(10) } }
+        board: { t: "obj", fields: { mode: { t: "enum", values: BOARD_MODES }, maxWorkers: count(1), leaseSec: count(10), mux: { t: "enum", values: BOARD_MODES }, muxOnAsk: { t: "enum", values: MUX_ON_ASK } } }
       }
     },
     context: { t: "obj", fields: { warnPct: pct, criticalPct: pct } },
@@ -37871,7 +37872,9 @@ var GENERATED = {
       board: {
         leaseSec: 300,
         maxWorkers: 6,
-        mode: "ask"
+        mode: "ask",
+        mux: "ask",
+        muxOnAsk: "mark"
       },
       branchIsolation: true,
       goalVerification: true,

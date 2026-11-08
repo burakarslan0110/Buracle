@@ -16,6 +16,9 @@ import { loadState, updateState, withFileLock } from './session-store'
 
 export const BOARD_LOCK_TIMEOUT_MS = 5000
 export const BOARD_LOCK_STALE_MS = 15_000
+/** From the fourth worker on, a rate window this full refuses a join or caps a spawn (`usage_low`). */
+export const USAGE_LOW_PCT = 90
+export const USAGE_CHECK_FROM = 3
 
 export function boardDir(commonDir: string): string { return join(commonDir, 'buracle', 'board') }
 

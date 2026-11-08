@@ -97,6 +97,7 @@ buracle worktree status [--json]
 
 ```text
 buracle work publish [<plan path>] [--max-workers <n>] [--lease-sec <s>] [--json]
+buracle work spawn [--mux tmux|cmux|herdr] [--workers <n>] [--harness <h>[,<h>…]] [--dry-run] [--json]
 buracle work status [<slug>] [--json]
 buracle work join <slug> [--task <n>] [--json]
 buracle work heartbeat [--json]
@@ -109,7 +110,7 @@ buracle work inbox [--json]
 buracle work wait [--timeout <s>] [--json]
 buracle work merge [--task <n>] [--manual] [--json]
 buracle work reopen <n> [--reason <text>] [--json]
-buracle work close [--force] [--json]
+buracle work close [--force] [--keep-panes] [--json]
 ```
 
 The board is a file under the repository's git common dir (`buracle/board/<slug>.json`). The lead is
@@ -121,18 +122,19 @@ tool call; an expired lease makes the task `stale`, and the next worker resumes 
 | Command | Who | Effect | Output and exit |
 |---|---|---|---|
 | `publish` | lead | Writes the approved plan's unticked tasks (files, dependencies from file overlap and `**Depends on:**`) to the board; idempotent, keeps states on a re-publish | `{slug, path, lead, base, tasks, summary}`; 2 with `plan_changed_while_active` when an active task's files or dependencies changed |
-| `status` | anyone | Every task with its state, worker, lease age, question and worktree; sweeps expired leases first | `{slug, lead, summary, tasks, notes}` · `no_board` |
+| `spawn` | lead | Opens worker panes in the lead's own multiplexer (tmux, herdr or cmux; `--mux` picks one, else the innermost detected): one per ready task by default, never more than the free worker slots, each running a harness whose first prompt is `/buracle-join <slug>`; `--harness claude,codex` deals out harnesses in turn (here `--harness` is not the session flag: the lead's session comes from the environment or `--session` with `BURACLE_HARNESS`); `--mux tmux` outside tmux opens a detached session `buracle-<slug>`; the panes are recorded, so only they are ever closed | `{mux, opened, failed, workers, attach?}`; 2 with `max_workers` or `usage_low` when it opened fewer; `--dry-run` always 0 with `{mux, board, panes}` · `no_mux`, `mux_mismatch`, `harness_missing`, `cmux_missing`, `mux_failed` |
+| `status` | anyone | Every task with its state, worker, lease age, question and worktree; sweeps expired leases first; `panes` lists the panes `spawn` opened and the sessions bound to them | `{slug, lead, summary, tasks, notes, panes?}` · `no_board` |
 | `join` | worker | Claims the first open task whose dependencies are merged and whose files overlap no active task, creates or resumes the lane worktree `<slug>-t<n>` | the task card, `worktree`, `lease`, `constraints`, `context` · `lead_cannot_join`, `already_claimed`, `max_workers`, `usage_low`, `nothing_to_claim`, `task_not_open`, `deps_unmerged` |
 | `heartbeat` | worker | Renews the lease (the hooks do it too) | `reassigned` (exit 1) once another worker took the task |
-| `ask` | worker | The task waits for the user: a note to the lead, an OSC notification to the terminal, cmux and herdr when present | `{status: waiting, notified, terminalSequence}` |
+| `ask` | worker | The task waits for the user: a note to the lead, an OSC notification to the terminal, cmux and herdr when present, and the pane's mark (tmux title and bell; `plan.board.muxOnAsk` `focus` also focuses the pane); `resume` clears the mark | `{status: waiting, notified, terminalSequence, pane: {marked, focused}}` |
 | `resume` | worker | Claimed again after the user answered (the hooks do it on the next prompt, or at the tool result that follows the question tool) | |
 | `done` | worker | Reports the task done with its branch, commits beyond the base and `--verify` evidence; the worktree must be committed | `worktree_dirty`, `not_claimed_by_you`, `reassigned` |
 | `release` | worker | Gives the task back (open, worktree kept); without a task, leaves the board | |
 | `note`, `inbox` | both | A note to the lead, to everyone or to one session; the notes nothing delivered yet (marked delivered) | |
 | `wait` | lead | Blocks until a task is claimed, done, waiting, stale, released or a note arrives, at most `--timeout` s (90) | `{events, timedOut, summary}` · `not_lead` |
-| `merge` | lead | Squash-merges the next mergeable done task (lowest number whose dependencies are merged) into the base and ticks its box; `--task` picks one; `--manual` records a merge done by hand | `{task, commit, ticked, remaining}` · `merge_conflict` leaves the task done · `deps_unmerged` |
+| `merge` | lead | Squash-merges the next mergeable done task (lowest number whose dependencies are merged) into the base and ticks its box; `--task` picks one; `--manual` records a merge done by hand; once no task is open, it closes the panes `spawn` opened for workers that have nothing left to take | `{task, commit, ticked, remaining, panes}` · `merge_conflict` leaves the task done · `deps_unmerged` |
 | `reopen` | lead | A done, merged, waiting or claimed task back to open; a claimed worker gets a note. A merged task also gets its plan box opened again and the base merged into its lane worktree, so the next merge carries only the fix (`unticked`, `laneCaughtUp` in the output; a conflict is undone and reported as a warning, exit 2) | |
-| `close` | lead | Removes the merged tasks' lane worktrees and the board file; `--force` while tasks are open (their worktrees stay) | `tasks_open` |
+| `close` | lead | Removes the merged tasks' lane worktrees, closes the panes `spawn` opened (`--keep-panes` leaves them open) and removes the board file; `--force` while tasks are open (their worktrees stay) | `{panes: {closed, kept, stale}}` · `tasks_open` |
 
 ## review-scope: what a review must read
 

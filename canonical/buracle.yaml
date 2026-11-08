@@ -33,6 +33,8 @@ plan:
     mode: ask
     maxWorkers: 6
     leaseSec: 300
+    mux: ask
+    muxOnAsk: mark
   reviews:
     plan: true
     changes: true

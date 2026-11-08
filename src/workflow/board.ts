@@ -7,10 +7,13 @@ import type { Board, BoardEvent, BoardNote, BoardRole, BoardSession, BoardTask, 
 import {
   NOTE_KINDS, activeWorkers, addNote, ask, boardFromPlan, boardSummary, claim, claimable, eventsAfter, heartbeat, markDelivered, markDone, markMerged, mergeBoard, nextMergeable, notesFor, release, reopen, resume, setWorktree, unclaim,
 } from '../core/board/model'
+import type { BuracleConfig } from '../core/config'
 import { parsePlan, planOutline } from '../core/plan/format'
 import { loadConfigSync } from '../engine/config'
 import { latestWindows } from '../usage/telemetry'
-import { boardPath, commonDirOf, listBoards, markAsked, newToken, patchSessionBoard, publishBoard, removeBoard, sessionBoard, setSessionBoard, updateBoard, writeTerminalSequence } from './board-store'
+import { USAGE_CHECK_FROM, USAGE_LOW_PCT, boardPath, commonDirOf, listBoards, markAsked, newToken, patchSessionBoard, publishBoard, removeBoard, sessionBoard, setSessionBoard, updateBoard, writeTerminalSequence } from './board-store'
+import { bindPaneToSession, clearPaneMark, closeAllPanes, closePanesAfterMerge, commonDirOfBoard, markPaneOnAsk, paneStoreFor, panesLine, panesView, type PaneDeps } from './board-panes'
+import { detectMux } from './mux'
 import { git, gitError, porcelain, repoFacts, realish, type RepoFacts } from './gitx'
 import { notify } from './notify'
 import { isValidSlug, readPlanFile, slugFromPlanPath, tickTask } from './plan-file'
@@ -23,9 +26,7 @@ export const WAIT_DEFAULT_SEC = 90
 const WAIT_POLL_MS = 1000
 
 export const MAX_SLUG = 64
-/** From the fourth worker on, a rate window this full refuses the join (`usage_low`). */
-export const USAGE_LOW_PCT = 90
-const USAGE_CHECK_FROM = 3
+export { USAGE_LOW_PCT }
 
 function sessionOf(s: ResolvedSession): BoardSession { return { harness: s.harness, session: s.sessionId } }
 
@@ -44,8 +45,8 @@ function sectionLines(text: string, name: string): string[] {
   return o.lines.slice(sec.line + 1, sec.end).map(l => l.replace(/\s+$/, ''))
 }
 
-function boardConfig(): { mode: string, maxWorkers: number, leaseSec: number } {
-  try { return loadConfigSync().config.plan.board } catch { return { mode: 'ask', maxWorkers: 6, leaseSec: 300 } }
+export function boardConfig(): BuracleConfig['plan']['board'] {
+  try { return loadConfigSync().config.plan.board } catch { return { mode: 'ask', maxWorkers: 6, leaseSec: 300, mux: 'ask', muxOnAsk: 'mark' } }
 }
 
 function laneSlugFor(slug: string, n: number): string { return `${slug}-t${n}` }
@@ -89,13 +90,15 @@ export async function workPublish(o: PublishOptions, ctx: WorkflowCtx, s: Resolv
   setSessionBoard(s.harness, s.sessionId, { slug, path, role: 'lead', cursor })
   const board = r.board
   const changedTasks = r.changedTasks ?? []
+  const mux = detectMux(ctx.env)
   const data = {
     ok: true, slug, path, plan: planPath, lead: board.lead, base: board.base, ...(board.parent !== undefined ? { parent: board.parent } : {}), maxWorkers: board.maxWorkers, leaseSec: board.leaseSec,
-    tasks: board.tasks.map(taskView), summary: boardSummary(board), changed: changedTasks, open: open.length,
+    tasks: board.tasks.map(taskView), summary: boardSummary(board), changed: changedTasks, open: open.length, mux: mux.ok ? mux.kind : null,
   }
   const lines = [
     `Published ${board.tasks.length} task(s) of ${slug} to the board (${path}).`,
     `Workers join from any Buracle session in this repository with: /buracle-join ${slug} ($buracle-join ${slug} in Codex; CLI: buracle work join ${slug} --json)`,
+    ...(mux.ok ? [`Open worker panes here: buracle work spawn --json (${mux.kind} detected)`] : []),
     `Lead loop: buracle work wait --json → buracle work merge --json → run the checks; base branch ${board.base}, at most ${board.maxWorkers} workers, lease ${board.leaseSec} s.`,
   ]
   if (changedTasks.length > 0) {
@@ -232,6 +235,7 @@ export async function workJoin(slugArg: string | undefined, o: JoinOptions, ctx:
   const fin = updateBoard(target.path, ctx.now, b => setWorktree(b, n, token, worktree))
   if (!fin.ok) return fail(fin.code, fin.message, { slug: target.slug, task: n })
   setSessionBoard(s.harness, s.sessionId, { slug: board.slug, path: target.path, role: 'worker', task: n, token, worktree: worktree.path, heartbeatAt: ctx.now })
+  const pane = bindPaneToSession(fr.commonDir, board.slug, ctx.env, me)
   const task = fin.board.tasks.find(t => t.n === n) ?? picked
   const created = wt.data['created'] === true
   const lines = [
@@ -243,7 +247,7 @@ export async function workJoin(slugArg: string | undefined, o: JoinOptions, ctx:
   ]
   return ok({
     ok: true, slug: board.slug, task: cardView(task), worktree: { ...worktree, created }, lease: { until: task.leaseUntil ?? null, sec: board.leaseSec },
-    plan: board.plan, base: board.base, constraints: board.constraints, context: board.context, lead: board.lead,
+    plan: board.plan, base: board.base, constraints: board.constraints, context: board.context, lead: board.lead, pane: pane ?? null,
   }, lines, wt.errors.map(e => e.replace(/^warning: /, '')))
 }
 
@@ -335,8 +339,8 @@ export async function workDone(o: { verify?: string }, ctx: WorkflowCtx, s: Reso
   ])
 }
 
-/** The worker needs the user: the task waits (no lease), the lead gets a note, the terminal a notification. */
-export async function workAsk(question: string | undefined, ctx: WorkflowCtx, s: ResolvedSession): Promise<CmdResult> {
+/** The worker needs the user: the task waits (no lease), the lead gets a note, the terminal a notification and the pane its mark. */
+export async function workAsk(question: string | undefined, ctx: WorkflowCtx, s: ResolvedSession, deps: PaneDeps = {}): Promise<CmdResult> {
   const q = question?.trim() ?? ''
   if (q === '') return fail('usage', 'missing "<question>": buracle work ask "<question>"')
   const t = needTask(s)
@@ -352,16 +356,17 @@ export async function workAsk(question: string | undefined, ctx: WorkflowCtx, s:
   }
   const title = `Task ${t.task} of ${t.slug} needs you`
   const terminal = await notifyTerminal({ title, body: q, agent: s.harness }, ctx.env)
+  const pane = await markPaneOnAsk(commonDirOfBoard(t.path), t.slug, ctx.env, s.harness, `Task ${t.task} needs you`, boardConfig().muxOnAsk, deps)
   writeTerminalSequence(s.harness, s.sessionId, terminal.sequence, ctx.now)
   markAsked(s.harness, s.sessionId, ctx.now)
   const desk = await notify('attention_needed', title, q, {}, ctx, s)
-  return ok({ ok: true, slug: t.slug, task: t.task, status: 'waiting', question: q, notified: terminal.sent, terminalSequence: terminal.sequence, cmux: terminal.cmux, herdr: terminal.herdr, desktop: desk.code === 0 }, [
+  return ok({ ok: true, slug: t.slug, task: t.task, status: 'waiting', question: q, notified: terminal.sent, terminalSequence: terminal.sequence, cmux: terminal.cmux, herdr: terminal.herdr, desktop: desk.code === 0, pane }, [
     `Task ${t.task} is waiting for the user${terminal.sent ? ' (terminal notified)' : ''}. Ask the question with the question tool now; after the answer run 'buracle work resume' (the hooks do it on the next prompt, or at the tool result that follows the question tool).`,
   ])
 }
 
-/** Claimed again after the answer. The hooks resume first in most runs, so a task that is already claimed by this session is fine. */
-export function workResume(ctx: WorkflowCtx, s: ResolvedSession): CmdResult {
+/** Claimed again after the answer. The hooks resume first in most runs, so a task that is already claimed by this session is fine; the pane's mark goes either way. */
+export async function workResume(ctx: WorkflowCtx, s: ResolvedSession, deps: PaneDeps = {}): Promise<CmdResult> {
   const t = needTask(s)
   if ('code' in t) return t
   let already = false
@@ -375,8 +380,9 @@ export function workResume(ctx: WorkflowCtx, s: ResolvedSession): CmdResult {
     return fail(r.code, r.message, { slug: t.slug, task: t.task })
   }
   if (!already) patchSessionBoard(s.harness, s.sessionId, { heartbeatAt: ctx.now })
+  const pane = await clearPaneMark(commonDirOfBoard(t.path), t.slug, ctx.env, s.harness, deps)
   const task = r.board.tasks.find(x => x.n === t.task)
-  return ok({ ok: true, slug: t.slug, task: t.task, status: 'claimed', already, leaseUntil: task?.leaseUntil ?? null }, [already ? `Task ${t.task} is already claimed by this session (a hook resumed it).` : `Task ${t.task} is claimed again with a fresh lease.`])
+  return ok({ ok: true, slug: t.slug, task: t.task, status: 'claimed', already, leaseUntil: task?.leaseUntil ?? null, pane }, [already ? `Task ${t.task} is already claimed by this session (a hook resumed it).` : `Task ${t.task} is claimed again with a fresh lease.`])
 }
 
 function roleOf(board: Board, s: ResolvedSession): BoardRole {
@@ -499,7 +505,7 @@ function remaining(board: Board): number {
  * branch into the base, then the plan's checkbox. A conflict leaves the task done for the lead to resolve by hand
  * (`--manual` records that merge).
  */
-export async function workMerge(o: { task?: number, manual?: boolean }, ctx: WorkflowCtx, s: ResolvedSession): Promise<CmdResult> {
+export async function workMerge(o: { task?: number, manual?: boolean }, ctx: WorkflowCtx, s: ResolvedSession, deps: PaneDeps = {}): Promise<CmdResult> {
   const target = boardOfSession(s, ctx.cwd)
   if ('code' in target) return target
   const before = updateBoard(target.path, ctx.now, b => (isLead(b, s) ? { ok: true, board: b } : { ok: false, code: 'not_lead', message: `the board ${b.slug} belongs to the lead ${b.lead.harness} ${b.lead.session}; register the plan in this session to take it over` }))
@@ -543,8 +549,10 @@ export async function workMerge(o: { task?: number, manual?: boolean }, ctx: Wor
   if (!after.ok) return fail(after.code, after.message, { slug: board.slug, task: n })
   const sum = boardSummary(after.board)
   const left = remaining(after.board)
-  return ok({ ok: true, slug: board.slug, task: n, merged: true, manual: o.manual === true, commit: commit ?? null, ticked, remaining: left, summary: sum }, [
+  const panes = await closePanesAfterMerge(commonDirOfBoard(target.path), after.board, ctx.env, deps)
+  return ok({ ok: true, slug: board.slug, task: n, merged: true, manual: o.manual === true, commit: commit ?? null, ticked, remaining: left, summary: sum, panes }, [
     `Task ${n} merged into ${board.base}${commit !== undefined ? ` as ${commit.slice(0, 9)}` : o.manual === true ? ' (by hand)' : ''}; ${ticked ? 'ticked' : 'not ticked'} in the plan. ${left === 0 ? 'Every task is merged: run the checks, then buracle plan complete.' : `${left} task(s) left; run the checks now, then wait again.`}`,
+    ...(panes.closed.length > 0 ? [`Closed pane(s) ${panes.closed.join(', ')}: their workers had nothing left to take.`] : []),
   ], warnings)
 }
 
@@ -593,8 +601,8 @@ export async function workReopen(nArg: string | number | undefined, o: { reason?
   return warn !== undefined ? partial(data, lines, [warn]) : ok(data, lines)
 }
 
-/** Removes the merged tasks' lane worktrees and the board file; open or active tasks need --force and keep their worktrees. */
-export async function workClose(o: { force?: boolean }, ctx: WorkflowCtx, s: ResolvedSession): Promise<CmdResult> {
+/** Removes the merged tasks' lane worktrees, the panes Buracle opened (unless --keep-panes) and the board file; open or active tasks need --force and keep their worktrees. */
+export async function workClose(o: { force?: boolean, keepPanes?: boolean }, ctx: WorkflowCtx, s: ResolvedSession, deps: PaneDeps = {}): Promise<CmdResult> {
   const target = boardOfSession(s, ctx.cwd)
   if ('code' in target) return target
   const r = updateBoard(target.path, ctx.now, b => (isLead(b, s) ? { ok: true, board: b } : { ok: false, code: 'not_lead', message: `the board ${b.slug} belongs to the lead ${b.lead.harness} ${b.lead.session}` }))
@@ -613,9 +621,13 @@ export async function workClose(o: { force?: boolean }, ctx: WorkflowCtx, s: Res
     else { kept.push(t.worktree.slug); warnings.push(`${t.worktree.slug}: ${String(c.data['message'] ?? 'cleanup refused')}`) }
   }
   if (kept.length > 0) warnings.push(`lane worktree(s) kept: ${kept.join(', ')}; remove them with buracle worktree cleanup <slug> (--discard drops unmerged work)`)
+  const panes = await closeAllPanes(commonDirOfBoard(target.path), board.slug, ctx.env, { keep: o.keepPanes === true }, deps)
+  if (o.keepPanes !== true && panes.kept.length > 0) warnings.push(`pane(s) ${panes.kept.join(', ')} could not be checked or closed (the multiplexer did not answer); close them by hand`)
+  if (panes.unreadable === true) warnings.push('the pane record file was unreadable and was removed; the panes it listed are still open, close them by hand')
   removeBoard(target.path)
   setSessionBoard(s.harness, s.sessionId, undefined)
-  return ok({ ok: true, slug: board.slug, closed: true, removedWorktrees: removed, keptWorktrees: kept }, [`Closed the board ${board.slug}: ${removed.length} lane worktree(s) removed${kept.length > 0 ? `, ${kept.length} kept` : ''}.`], warnings)
+  const paneNote = panes.closed.length + panes.kept.length + panes.stale.length === 0 ? '' : `, ${panes.closed.length} pane(s) closed${panes.kept.length > 0 ? `, ${panes.kept.length} kept` : ''}${panes.stale.length > 0 ? `, ${panes.stale.length} stale record(s) dropped` : ''}`
+  return ok({ ok: true, slug: board.slug, closed: true, removedWorktrees: removed, keptWorktrees: kept, panes }, [`Closed the board ${board.slug}: ${removed.length} lane worktree(s) removed${kept.length > 0 ? `, ${kept.length} kept` : ''}${paneNote}.`], warnings)
 }
 
 export async function workStatus(slugArg: string | undefined, ctx: WorkflowCtx, s: ResolvedSession | undefined): Promise<CmdResult> {
@@ -627,10 +639,12 @@ export async function workStatus(slugArg: string | undefined, ctx: WorkflowCtx, 
   if (!r.ok) return fail(r.code, r.message, { slug: target.slug, path: target.path })
   const board = r.board
   const sum = boardSummary(board)
+  const panes = paneStoreFor(fr.commonDir, board.slug).store
   const lines = [
     `Board ${board.slug}: ${sum.total} task(s) · ${sum.open} open · ${sum.claimed} claimed · ${sum.waiting} waiting · ${sum.done} done · ${sum.merged} merged · ${sum.stale} stale · ${sum.workers} worker(s)`,
     `Lead ${board.lead.harness} ${short(board.lead.session)} · base ${board.base} · lease ${board.leaseSec} s · max workers ${board.maxWorkers}`,
     ...board.tasks.map(t => taskLine(t, ctx.now)),
+    ...(panes !== undefined ? [panesLine(panes)] : []),
   ]
-  return ok({ ...statusView(board, ctx.now), boardPath: target.path }, lines)
+  return ok({ ...statusView(board, ctx.now), boardPath: target.path, ...(panes !== undefined ? { panes: panesView(panes) } : {}) }, lines)
 }

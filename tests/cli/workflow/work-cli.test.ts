@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { join } from 'node:path'
 import { run } from '../../../src/engine/proc'
+import { fakeExe, narrowPath } from '../../helpers/fake-exe'
 import { withSandbox } from '../../helpers/sandbox'
 import { GIT_TEST_ENV, makeRepo, planDoc, write } from '../../workflow/fixture'
 
@@ -49,6 +50,36 @@ describe('buracle work, end to end', () => {
     expect((await anon('work')).code).toBe(1)
     const help = await anon('work', '--help')
     expect(help.stdout).toContain('publish [<plan path>]')
+    expect(help.stdout).toContain('spawn [--mux')
+  }))
+
+  test('spawn: --harness names the workers, not the lead session; a fake tmux opens the pane and the id is recorded', () => withSandbox(async ({ root, home, buracleHome }) => {
+    const repo = await makeRepo(root)
+    const plan = join(repo, 'docs', 'plan-build', '2026-11-07-rate-limit.md')
+    write(plan, planDoc({ n: 2, status: 'IN_PROGRESS', approved: true }))
+    const bin = join(root, 'bin')
+    fakeExe(join(bin, 'tmux'), `
+      if (argv[0] === 'has-session') process.exit(1)
+      if (argv[0] === 'split-window' || argv[0] === 'new-session') console.log('%7')
+      else if (argv[0] === 'display-message') console.log(argv.includes('#{pane_tty}') ? '/dev/null' : '4242 /tmp/tmux-test/default')
+    `)
+    fakeExe(join(bin, 'claude'), '')
+    fakeExe(join(bin, 'codex'), '')
+    const base = { HOME: home, BURACLE_HOME: buracleHome, PATH: narrowPath(bin) }
+    const lead = cli(repo, { ...base, CLAUDE_CODE_SESSION_ID: 'lead-e2e' })
+    expect((await lead('work', 'publish', plan, '--json')).code).toBe(0)
+    const dry = await cli(repo, { ...base, BURACLE_HARNESS: 'claude' })('work', 'spawn', '--session', 'lead-e2e', '--mux', 'tmux', '--harness', 'codex', '--dry-run', '--json')
+    expect(dry.stderr).toBe('')
+    expect(dry.code).toBe(0)
+    const panes = dry.json<{ panes: Array<{ command: string }> }>().panes
+    expect(panes).toHaveLength(2)
+    expect(panes[0]?.command.startsWith('codex -C ')).toBe(true)
+    const spawned = await lead('work', 'spawn', '--mux', 'tmux', '--workers', '1', '--harness', 'claude', '--json')
+    expect(spawned.stderr).toBe('')
+    expect(spawned.code).toBe(0)
+    expect(spawned.json()).toMatchObject({ ok: true, mux: 'tmux', opened: [{ id: '%7', harness: 'claude' }], attach: 'tmux attach -t buracle-rate-limit' })
+    const status = await lead('work', 'status', '--json')
+    expect(status.json()).toMatchObject({ panes: { mux: 'tmux', list: [{ id: '%7', harness: 'claude' }] } })
   }))
 
   test('two joins that start at the same moment from different harnesses take different tasks; a third finds nothing', () => withSandbox(async ({ root, home, buracleHome }) => {
