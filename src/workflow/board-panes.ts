@@ -11,7 +11,8 @@ import { HARNESSES, type Harness } from '../core/events'
 import * as paths from '../engine/paths'
 import { latestWindows } from '../usage/telemetry'
 import { USAGE_CHECK_FROM, USAGE_LOW_PCT, checkoutRootOf, commonDirOf, listBoards, sessionBoard, updateBoard } from './board-store'
-import { detectMux, muxAdapter, paneIdOf, workerCommand, type MuxAdapter, type MuxDeps, type MuxKind, type MuxPane } from './mux'
+import { detectMux, layoutCaps, muxAdapter, paneIdOf, workerCommand, type MuxAdapter, type MuxDeps, type MuxKind, type MuxPane, type Split } from './mux'
+import { planLayout, type Layout, type PanePlan } from './mux-layout'
 import { addPanes, bindPane, findPane, muxStorePath, readMuxStore, removeMuxStore, removePanes, updateMuxStore, type MuxRecord, type MuxStore } from './mux-store'
 import { fail, ok, partial, type CmdResult, type WorkflowCtx } from './result'
 import type { ResolvedSession } from './session-store'
@@ -111,8 +112,15 @@ function lastIndex(store: MuxStore | undefined): number {
 function taskOfPane(board: Board | undefined, p: MuxRecord): BoardTask | undefined {
   const who = p.session
   if (board === undefined || who === undefined) return undefined
-  return board.tasks.find(t => (t.status === 'claimed' || t.status === 'waiting') && sameSession(t.worker, who))
-    ?? board.tasks.find(t => t.status === 'done' && (sameSession(t.worker, who) || sameSession(t.lastWorker, who)))
+  const active = board.tasks.find(t => (t.status === 'claimed' || t.status === 'waiting') && sameSession(t.worker, who))
+  if (active !== undefined) return active
+  // A worker may have finished several tasks that the lead has not merged yet: the pane holds the one it reported last.
+  let last: BoardTask | undefined
+  for (const t of board.tasks) {
+    if (t.status !== 'done' || !(sameSession(t.worker, who) || sameSession(t.lastWorker, who))) continue
+    if (last === undefined || (t.report?.at ?? 0) >= (last.report?.at ?? 0)) last = t
+  }
+  return last
 }
 
 /** The pane a task's worker sits in, for the task lines of `work status`. */
@@ -139,6 +147,13 @@ export function panesLine(store: MuxStore, board?: Board): string {
     return t !== undefined ? `Task ${t.n} ${t.status}` : 'idle'
   }
   return `Panes (${store.mux}): ${store.panes.length === 0 ? 'none' : store.panes.map(p => `${p.id} ${p.title}: ${state(p)}`).join(', ')}`
+}
+
+/** One line that says where the panes went, so the lead (and the user) can read the screen. */
+function layoutLine(layout: Layout, lead: boolean, live: number): string {
+  if (live > 0) return 'Layout: the new pane(s) share the area of the last worker pane; the panes opened earlier stay as they are.'
+  const grid = `${layout.rows} row(s) of up to ${layout.cols} worker pane(s)`
+  return lead ? `Layout: the lead keeps the top of its area; the worker panes fill the rest below it in ${grid}.` : `Layout: the worker panes fill ${grid}.`
 }
 
 /**
@@ -232,15 +247,20 @@ export async function workSpawn(o: SpawnOptions, ctx: WorkflowCtx, s: ResolvedSe
     }
   }
   const start = lastIndex(existing)
-  const plans = Array.from({ length: n }, (_, i) => {
-    const harness = harnesses[i % harnesses.length] as Harness
-    const name = workerName(harness, start + i + 1)
+  // plans[rank]: the grid reads left to right and top to bottom, so Worker k sits where its number says.
+  const plans = Array.from({ length: n }, (_, rank) => {
+    const harness = harnesses[rank % harnesses.length] as Harness
+    const name = workerName(harness, start + rank + 1)
     return { harness, command: workerCommand(harness, slug, cwd, kind, bins.get(harness)), name, title: paneLabel(name, WAITING) }
   })
+  const caps = layoutCaps(kind, ctx.env)
+  const layout = planLayout({ count: n, live: live.length, lead: caps.lead, exact: caps.exact })
+  const layoutNote = layoutLine(layout, caps.lead, live.length)
   const workers = { requested: n, opened: 0, active: active.length, max }
   if (dry || adapter === undefined) {
-    return ok({ ok: true, dryRun: true, mux: kind, board: slug, cwd, workers, panes: plans.map(p => ({ harness: p.harness, command: p.command, title: p.title })) }, [
+    return ok({ ok: true, dryRun: true, mux: kind, board: slug, cwd, workers, layout: { rows: layout.rows, cols: layout.cols }, panes: plans.map(p => ({ harness: p.harness, command: p.command, title: p.title })) }, [
       `Dry run: ${n} pane(s) would open in ${kind} for ${slug} (${ready} ready task(s), ${active.length} active worker(s), ${idle} idle pane(s), ${starting} pane(s) starting, limit ${max}).`,
+      ...(n > 0 ? [layoutNote] : []),
       ...plans.map(p => `  ${p.title}: ${p.command}`),
     ], warnings)
   }
@@ -248,19 +268,36 @@ export async function workSpawn(o: SpawnOptions, ctx: WorkflowCtx, s: ResolvedSe
     return ok({ ok: true, slug, mux: kind, cwd, opened: [], failed: [], workers }, [`Nothing to open on ${slug}: ${ready} ready task(s), ${active.length} active worker(s), ${idle} idle pane(s), ${starting} pane(s) starting, limit ${max}.`], warnings)
   }
   const opened: MuxRecord[] = []
+  const rankOf = new Map<string, number>()
+  const byRank = new Map<number, MuxRecord>()
   const failed: Array<{ index: number; harness: Harness; error: string }> = []
   const unrecorded: string[] = []
   let recordError = ''
-  let after: MuxPane | undefined = live.at(-1)
+  let last: MuxPane | undefined = live.at(-1)
   let attach: string | undefined
-  for (const [i, p] of plans.entries()) {
-    const r = await adapter.open({ cwd, command: p.command, title: p.title, slug, ...(after !== undefined ? { after } : {}) })
-    if (r === undefined) { failed.push({ index: i + 1, harness: p.harness, error: 'the multiplexer opened no pane' }); continue }
+  // The pane a step splits. When that pane did not open, the one opened last (else the lead) is split in halves instead.
+  const splitOf = (step: PanePlan): Split | undefined => {
+    const a = step.anchor
+    if (a.kind === 'none') return undefined
+    if (a.kind === 'lead') return { target: 'lead', direction: step.direction, keep: step.keep }
+    const target = a.kind === 'live' ? live.at(-1) : byRank.get(a.rank)
+    if (target !== undefined) return { target, direction: step.direction, keep: step.keep }
+    if (last !== undefined) return { target: last, direction: step.direction, keep: 0.5 }
+    return caps.lead ? { target: 'lead', direction: step.direction, keep: 0.5 } : undefined
+  }
+  for (const step of layout.panes) {
+    const p = plans[step.rank]
+    if (p === undefined) continue
+    const split = splitOf(step)
+    const r = await adapter.open({ cwd, command: p.command, title: p.title, slug, ...(split !== undefined ? { split } : {}) })
+    if (r === undefined) { failed.push({ index: step.rank + 1, harness: p.harness, error: 'the multiplexer opened no pane' }); continue }
     const rec: MuxRecord = { id: r.id, harness: p.harness, title: p.name, server: r.server, openedAt: ctx.now }
     if (r.ids !== undefined) rec.ids = r.ids
     if (r.pid !== undefined) rec.pid = r.pid
     opened.push(rec)
-    after = rec
+    rankOf.set(rec.id, step.rank)
+    byRank.set(step.rank, rec)
+    last = rec
     if (r.attach !== undefined) attach = r.attach
     // Recorded at once: a harness that joins quickly finds its pane in the sidecar, and a spawn that dies leaves no orphan.
     // A record without its server could never be matched or closed safely, so it is not written.
@@ -273,12 +310,15 @@ export async function workSpawn(o: SpawnOptions, ctx: WorkflowCtx, s: ResolvedSe
     warnings.push(`the panes ${unrecorded.join(', ')} opened but were not recorded (${recordError}); buracle work close will not close them, close them by hand with ${how}`)
   }
   workers.opened = opened.length
-  const data = { slug, mux: kind, cwd, opened: opened.map(p => ({ id: p.id, harness: p.harness, title: paneLabel(p.title, WAITING) })), failed, workers, ...(attach !== undefined ? { attach } : {}) }
+  // The pane map reads in grid order, the order the labels number the workers in.
+  const shown = [...opened].sort((a, b) => (rankOf.get(a.id) ?? 0) - (rankOf.get(b.id) ?? 0))
+  const data = { slug, mux: kind, cwd, opened: shown.map(p => ({ id: p.id, harness: p.harness, title: paneLabel(p.title, WAITING) })), failed, workers, layout: { rows: layout.rows, cols: layout.cols }, ...(attach !== undefined ? { attach } : {}) }
   if (opened.length === 0) return fail('mux_failed', `no pane opened in ${kind} (${failed.length} attempt(s) failed); check that ${kind} takes commands from this session`, data)
   const lines = [
-    `Opened ${opened.length} pane(s) in ${kind} for ${slug}: ${opened.map(p => `${p.id} ${p.harness}`).join(', ')}. Each starts its harness with /buracle-join ${slug} ($buracle-join ${slug} in Codex) and takes a task.`,
+    `Opened ${opened.length} pane(s) in ${kind} for ${slug}: ${shown.map(p => `${p.id} ${p.harness}`).join(', ')}. Each starts its harness with /buracle-join ${slug} ($buracle-join ${slug} in Codex) and takes a task.`,
     `Pane map (${kind}):`,
-    ...opened.map(p => `  ${p.id}  ${paneLabel(p.title, WAITING)}`),
+    ...shown.map(p => `  ${p.id}  ${paneLabel(p.title, WAITING)}`),
+    layoutNote,
     'A pane label names its worker and, once it joined, its task (NEEDS YOU while it waits for the user). buracle work status maps every pane to its task.',
     ...(attach !== undefined ? [`Attach with: ${attach}`] : []),
     'Then: buracle work wait --json → buracle work merge --json → run the checks. buracle work close closes the panes Buracle opened.',
