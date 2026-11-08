@@ -314,7 +314,7 @@ async function uninstallFlow(res: UninstallResult, o: FlowOptions, io: CommandIO
     if (!coreFailed) {
       res.vaultHook = await removeVaultPreCommitHook(vault)
       const shell = removeLocalBinFromPath()
-      if (shell.removed && shell.file !== undefined) res.notes.push(`Removed the PATH lines Buracle added to ${tilde(shell.file)}.`)
+      if (shell.removed && shell.file !== undefined) res.notes.push(`Removed the PATH lines Buracle added to ${[shell.file, ...(shell.also ?? [])].map(f => tilde(f)).join(', ')}.`)
       else if (shell.note !== undefined) res.warnings.push(tildeText(shell.note))
       try {
         const tools = await removeDownloadedTools(Date.now())

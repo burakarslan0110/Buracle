@@ -1,6 +1,6 @@
 {
   "name": "buracle",
-  "version": "0.8.9",
+  "version": "0.8.10",
   "private": true,
   "type": "module",
   "description": "One engineering setup, one memory, every coding agent: shared skills, rules, MCP servers, hooks and guards from one source, and workflows that finish with proof",

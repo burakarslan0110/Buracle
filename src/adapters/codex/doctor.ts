@@ -331,7 +331,7 @@ export async function codexDoctor(ctx: AdapterContext, deps: DoctorDeps = defaul
   else add('ok', 'codex.rules', 'execpolicy rules installed')
 
   const toml = parseToml(configText)
-  if (toml === undefined) add('error', 'codex.config', `${join(codexHome, 'config.toml')} is not valid TOML, so Codex does not start`)
+  if (toml === undefined) add('error', 'codex.config', `${join(codexHome, 'config.toml')} is not valid TOML, so Codex does not start; \`buracle install codex\` repairs the usual cause (a dotted key such as features.memories next to a [features] table another tool added), otherwise fix the line the Codex error names`)
   else items.push(permissionCheck(toml, ctx.config), effortCheck(toml, ctx.config), routingCheck(toml, ctx))
 
   const tooOld = found.version !== undefined && compareVersions(found.version, MIN_CODEX) < 0 ? MIN_CODEX : undefined

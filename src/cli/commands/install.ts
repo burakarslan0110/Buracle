@@ -21,7 +21,7 @@ import {
 } from '../../engine/update/install-core'
 import { discardRuntime, planRuntime, pruneRuntimes, readShim, runtimeDirOf, runtimeModeFromEnv, stageRuntime, type RuntimeMode, type RuntimePlan } from '../../engine/update/runtime'
 import { errText, isInside, table, tilde, tildeText, writeJson } from '../../engine/update/output'
-import { addLocalBinToPath } from '../../engine/update/shell-path'
+import { addLocalBinToOtherShells, addLocalBinToPath } from '../../engine/update/shell-path'
 import type { ToolchainItem } from '../../engine/toolchain/index'
 import { lspRecommendationPlan } from '../../adapters/claude/install'
 import { codexTrustPlan } from '../../adapters/codex/trust'
@@ -41,8 +41,10 @@ harness names (${HARNESSES.join(', ')}) only those harnesses are installed.
 On a new machine it creates ~/.buracle/config.yaml (repo: this checkout), the
 ~/.buracle/bin/buracle shim and its ~/.local/bin/buracle link, and the memory folder
 (~/.buracle/brain), puts ~/.local/bin on PATH in the shell's startup file when PATH
-lacks it (macOS and Linux; one marked block, \`buracle uninstall\` takes it out), and says
-what is left (a harness to install).
+lacks it, and in the startup file of the other of zsh and bash when a fresh login shell of
+that kind lacks it (macOS and Linux; one marked block each, \`buracle uninstall\` takes them
+out), links a harness program that PATH does not reach (omp installed with \`bun add -g\`
+sits in ~/.bun/bin) into ~/.local/bin, and says what is left (a harness to install).
 
 --script is what scripts/install.sh runs: it prints the Harnesses,
 Tools, Memory and Result sections, one line each unless something did not pass, starts the
@@ -756,18 +758,28 @@ function onPath(dir: string): boolean {
   return (process.env['PATH'] ?? '').split(delimiter).some(d => d !== '' && resolve(d) === dir)
 }
 
-export function pathAddedText(file: string): string {
-  return `Added ${tilde(paths.localBinDir())} to PATH in ${tilde(file)}; open a new terminal to use buracle`
+/** `files` may name several startup files, separated by commas (the shell of the user and the other of zsh and bash). */
+export function pathAddedText(files: string): string {
+  return `Added ${tilde(paths.localBinDir())} to PATH in ${tildeText(files)}; open a new terminal to use buracle`
 }
 
 // What the first setup of a machine still needs, after the install wrote the shim and its link. A missing
-// ~/.local/bin on PATH is fixed in the shell's startup file (POSIX); the hint stays only when that cannot be done.
+// ~/.local/bin on PATH is fixed in the startup file of the user's shell (POSIX), and of the other of zsh and bash: a
+// terminal opened in it never reads the first one's file. The hint stays only when that cannot be done.
 function firstRunSteps(r: InstallFlowResult): void {
   const hint = `Add ${tilde(paths.localBinDir())} to PATH (e.g. in ~/.zshrc: export PATH="$HOME/.local/bin:$PATH").`
-  if (!onPath(paths.localBinDir()) && existsSync(join(paths.localBinDir(), 'buracle'))) {
-    const p = addLocalBinToPath()
-    if (p.changed && p.file !== undefined) r.pathAdded = p.file
-    else if (p.skipped !== 'in-file') r.steps.push(p.reason !== undefined ? `${hint} (${tildeText(p.reason)})` : hint)
+  if (existsSync(join(paths.localBinDir(), 'buracle'))) {
+    const added: string[] = []
+    if (!onPath(paths.localBinDir())) {
+      const p = addLocalBinToPath()
+      if (p.changed && p.file !== undefined) added.push(p.file)
+      else if (p.skipped !== 'in-file') r.steps.push(p.reason !== undefined ? `${hint} (${tildeText(p.reason)})` : hint)
+    }
+    for (const o of addLocalBinToOtherShells({ probe: opsDeps.loginPath })) {
+      if (o.changed && o.file !== undefined) added.push(o.file)
+      else if ((o.skipped === 'unsafe' || o.skipped === 'error') && o.file !== undefined) r.steps.push(`Add ${tilde(paths.localBinDir())} to PATH in ${tilde(o.file)}, for terminals opened in that shell${o.reason !== undefined ? ` (${tildeText(o.reason)})` : ''}.`)
+    }
+    if (added.length > 0) r.pathAdded = added.join(', ')
   }
   if (r.harnesses.length > 0 && !r.harnesses.some(h => h.installed)) r.steps.push('No enabled harness was found; install one of Claude Code, Codex, OpenCode or Oh My Pi, then run `buracle install`.')
 }
