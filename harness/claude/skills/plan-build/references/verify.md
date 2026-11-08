@@ -140,6 +140,8 @@ Only an explicit approval of this result counts. A bare "continue", silence or g
 
 ## V9. Worktree merge
 
+Board runs first (`Board: on`): `buracle work close --json` removes the merged tasks' lane worktrees, closes the panes `buracle work spawn` opened (`--keep-panes` leaves them open) and removes the board file; a kept worktree in its output is an unmerged task to settle before verification. `buracle plan verify` removes a board file that is still there, closes those panes too, and names the worktrees left behind.
+
 Worktree runs only, before marking anything verified (a run on a branch made with `buracle worktree branch` has nothing to merge; the report names the branch):
 
 1. Commit everything in the worktree; `git -C <worktree> status --porcelain` must print nothing.

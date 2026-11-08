@@ -23,6 +23,7 @@ import type { SessionState } from '../../core/plan/state'
 import { answerReceipt, stopGuardVerdict } from '../../core/plan/state'
 import { promptInteraction } from '../../core/plan/interaction'
 import { reviewNotesNotice } from '../shared/review-notes'
+import { boardJoinOffer, boardPromptNotice, boardTerminalSequence, boardToolSeen, boardWriteDenial } from '../shared/board'
 import { handoffNote, restoreContext } from '../../core/compact'
 import type { NoticeTexts } from '../../core/notices'
 import { contextThresholds, contextWatch, type ContextBand } from '../../core/status/context'
@@ -220,7 +221,8 @@ async function sessionStart(p: Record<string, unknown>, sid: string, ctx: Adapte
     })
     if (text !== undefined) warning = `Buracle setup warning. Tell the user at the start of your next reply, in one short line, then carry on with their request:\n- ${text}`
   }
-  const fixed = [warning, restore, notice?.model ?? '', workspace, assets, card].filter(s => s.trim() !== '')
+  const offer = sub ? '' : await step('H29 board offer', '', () => boardJoinOffer(H, sid, cwd, now) ?? '')
+  const fixed = [warning, restore, notice?.model ?? '', workspace, assets, offer, card].filter(s => s.trim() !== '')
   const room = CONTEXT_BUDGET_BYTES - byteLength(fixed.join('\n\n')) - 64
   let memory = ''
   if (room > 400 && d.env('BURACLE_NO_MEMORY') !== '1') {
@@ -233,7 +235,7 @@ async function sessionStart(p: Record<string, unknown>, sid: string, ctx: Adapte
     })
   }
   if (source === 'startup') await step('H16 session maintenance', undefined, () => { d.sessionMaint(now, [sid]) })
-  return contextOut('SessionStart', [warning, restore, notice?.model ?? '', memory, workspace, assets, card])
+  return contextOut('SessionStart', [warning, restore, notice?.model ?? '', memory, workspace, assets, offer, card])
 }
 
 async function workspaceStart(cwd: string, sid: string, sub: boolean, ctx: AdapterContext, d: HookDeps, now: number): Promise<string> {
@@ -379,6 +381,7 @@ async function userPromptSubmit(p: Record<string, unknown>, sid: string, ctx: Ad
   let system: string | undefined
   let planMode: string | undefined
   let notes: string | undefined
+  let board: string | undefined
   const entries: SpoolEntry[] = []
   if (user) {
     const signals = await step('H10 detectSignals', NO_SIGNALS, () => detectSignals(prompt))
@@ -387,6 +390,7 @@ async function userPromptSubmit(p: Record<string, unknown>, sid: string, ctx: Ad
       const ws = readWorkspace(sid)
       return reviewNotesNotice(H, sid, { plan: loadState(H, sid).plan?.path, roots: [ws?.root, ws?.cwd, typeof p['cwd'] === 'string' ? p['cwd'] : undefined], now })
     })
+    board = await step('H29 board notice', undefined as string | undefined, () => boardPromptNotice(H, sid, str(p['cwd']) ?? '', now))
     await step('H20 grants', undefined, () => { recordPromptGrants(H, sid, prompt, now) })
     const typed = workflowOfPrompt(prompt)
     if (typed !== undefined) await flowStart(sid, typed.workflow, typed.args, 'prompt', now)
@@ -411,7 +415,7 @@ async function userPromptSubmit(p: Record<string, unknown>, sid: string, ctx: Ad
   }
   await step('H14 memory UI', undefined, () => d.ui.seen(H, sid, now))
   const parts = fitPrompt([
-    { text: control, order: 0 }, { text: planMode, order: 0 }, { text: notes, order: 0 }, { text: warning, order: 3 }, { text: routed, order: 1 }, { text: notice, order: 2 },
+    { text: control, order: 0 }, { text: planMode, order: 0 }, { text: notes, order: 0 }, { text: board, order: 0 }, { text: warning, order: 3 }, { text: routed, order: 1 }, { text: notice, order: 2 },
   ], PROMPT_CONTEXT_MAX_CHARS)
   return contextOut('UserPromptSubmit', parts, system)
 }
@@ -446,13 +450,27 @@ function hookOutput(o: HookOutcome): Record<string, unknown> | undefined {
 async function preToolUse(p: Record<string, unknown>, sid: string, ctx: AdapterContext, d: HookDeps, now: number, guardsOnly = false): Promise<HookOutcome> {
   const decided = await preToolDecision(p, sid, ctx, d, now, guardsOnly)
   if (guardsOnly || isSubagent(p)) return decided
+  const enriched = await preToolContext(decided, p, sid, ctx, now)
+  // `work ask` leaves the OSC notification for a hook Claude Code waits for: it emits a top-level terminalSequence
+  // itself (v2.1.141+), but an asynchronous hook (the Bash PostToolUse) delivers only additionalContext and
+  // systemMessage, so the next tool call (normally the question tool) carries it. BURACLE_NO_NOTIFY=1 drops it.
+  const sequence = await step('H29 terminal sequence', undefined as string | undefined, () => boardTerminalSequence(H, sid))
+  if (sequence === undefined || d.env('BURACLE_NO_NOTIFY') === '1') return enriched
+  return out({ ...(hookOutput(enriched) ?? {}), terminalSequence: sequence })
+}
+
+async function preToolContext(decided: HookOutcome, p: Record<string, unknown>, sid: string, ctx: AdapterContext, now: number): Promise<HookOutcome> {
   const j = hookOutput(decided)
   const hso = j !== undefined && isObj(j['hookSpecificOutput']) ? j['hookSpecificOutput'] : {}
   if (j === undefined || hso['permissionDecision'] !== undefined) return decided
+  const tool = str(p['tool_name']) ?? ''
+  const seen = await step('H29 board heartbeat', undefined as ReturnType<typeof boardToolSeen>, () => boardToolSeen(H, sid, str(p['cwd']) ?? '', now, WRITE_TOOLS.includes(tool), 'before'))
+  if (seen?.deny !== undefined) return deny(seen.deny)
   const warning = await step('H05 context warning', undefined as string | undefined, () => contextWarning(ctx, sid, now))
-  if (warning === undefined) return decided
+  const extra = [seen?.context, warning].filter((s): s is string => s !== undefined && s !== '')
+  if (extra.length === 0) return decided
   const before = typeof hso['additionalContext'] === 'string' && hso['additionalContext'] !== '' ? `${hso['additionalContext']}\n` : ''
-  return out({ ...j, hookSpecificOutput: { ...hso, hookEventName: 'PreToolUse', additionalContext: `${before}${warning}` } })
+  return out({ ...j, hookSpecificOutput: { ...hso, hookEventName: 'PreToolUse', additionalContext: `${before}${extra.join('\n')}` } })
 }
 
 async function preToolDecision(p: Record<string, unknown>, sid: string, ctx: AdapterContext, d: HookDeps, now: number, guardsOnly = false): Promise<HookOutcome> {
@@ -464,6 +482,9 @@ async function preToolDecision(p: Record<string, unknown>, sid: string, ctx: Ada
   if (WRITE_TOOLS.includes(tool)) {
     const denied = await preWrite(p, sid, ctx, d)
     if (denied !== undefined) return denied
+    // A subagent writes under the same session's rule: a worker's subagent stays inside the lane worktree too.
+    const board = await step('H29 board write rule', undefined as string | undefined, () => boardWriteDenial(H, sid, cwd, classifyTool(H, tool, input, cwd).paths, q => d.realpath(q)))
+    if (board !== undefined) return deny(board)
     if (tool === 'NotebookEdit' || guardsOnly) return QUIET
     const call: ToolCall = { harness: H, sessionId: sid, cwd, tool, input, ...classifyTool(H, tool, input, cwd) }
     const early = await step('H03 early edit', undefined as ReturnType<typeof earlyEdit>, () => earlyEdit(H, sid, call.paths, cwd, ctx.config.plan.planApproval))
@@ -628,8 +649,8 @@ async function postToolUse(p: Record<string, unknown>, sid: string, ctx: Adapter
       }
     }
   } else if (tool === 'AskUserQuestion') {
+    // No early return: this result is the user's answer, the one tool result that resumes a waiting board task (H29).
     if (!sub && !failed(response) && questionAnswered(response)) await step('H08 answer receipt', undefined, () => { updateState(H, sid, (s: SessionState) => answerReceipt(s, now)) })
-    return QUIET
   } else if (tool === 'TodoWrite' || tool === 'TaskCreate' || tool === 'TaskUpdate') {
     if (!sub) await step('open work', undefined, () => noteWork(sid, tool, input, response))
   } else if (tool === 'Read') {
@@ -655,6 +676,10 @@ async function postToolUse(p: Record<string, unknown>, sid: string, ctx: Adapter
     entries.push({ ts: now, ev: 'tool', tool, kind: kind === 'mcp' || kind === 'web_search' || kind === 'web_fetch' ? kind : 'other' })
   }
   await spool(d, sid, entries)
+  if (!sub) {
+    const seen = await step('H29 board heartbeat', undefined as ReturnType<typeof boardToolSeen>, () => boardToolSeen(H, sid, cwd, now, false, 'after'))
+    if (seen?.context !== undefined) parts.push(seen.context)
+  }
   return contextOut('PostToolUse', parts)
 }
 

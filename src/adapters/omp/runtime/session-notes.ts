@@ -8,6 +8,10 @@ import { hasTui, strAt } from './util'
 
 export const CONTEXT_WARNING_TYPE = 'buracle.context-warning'
 export const NOTICE_MESSAGE_TYPE = 'buracle.notice'
+/** The task board's hidden message to the model (the join offer) and its two visible notices. */
+export const BOARD_MESSAGE_TYPE = 'buracle.board'
+export const BOARD_OFFER_NOTICE = 'Buracle: a task board of this repository has tasks ready for a worker. Run /buracle-join <slug> to take one.'
+export const BOARD_WAITING_NOTICE = 'Buracle: a task board worker in this session waits for your answer (see its question above).'
 
 export interface NotesHost {
   pi: Pick<OmpExtensionAPI, 'sendMessage'>

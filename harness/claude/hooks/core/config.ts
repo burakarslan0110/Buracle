@@ -3,6 +3,12 @@ import { HARNESSES } from './events'
 
 export type CompanionSetting = 'off' | 'auto' | Harness
 export const COMPANION_SETTINGS: readonly CompanionSetting[] = ['off', 'auto', ...HARNESSES]
+/** The task board after a plan's approval: never, ask the user with the approval question, or always publish. */
+export type BoardMode = 'off' | 'ask' | 'on'
+export const BOARD_MODES: readonly BoardMode[] = ['off', 'ask', 'on']
+/** What a worker's `buracle work ask` does to its multiplexer pane: mark it, or mark and focus it. */
+export type MuxOnAsk = 'mark' | 'focus'
+export const MUX_ON_ASK: readonly MuxOnAsk[] = ['mark', 'focus']
 
 export interface BuracleConfig {
   version: 1
@@ -13,6 +19,7 @@ export interface BuracleConfig {
   plan: {
     stopGuard: boolean, runaway: { perPlan: number, perChain: number }, autoPause: boolean, planApproval: boolean, resultApproval: boolean, branchIsolation: boolean, worktreeDir: string
     questions: boolean, reviews: { plan: boolean, changes: boolean, goal: boolean, companion: CompanionSetting }, goalVerification: boolean, modelSwitch: 'off' | 'manual', nativePlanMode: 'off' | 'on'
+    board: { mode: BoardMode, maxWorkers: number, leaseSec: number, mux: BoardMode, muxOnAsk: MuxOnAsk }
   }
   context: { warnPct: number, criticalPct: number }
   checkers: { enabled: boolean, timeoutMs: number, languages: string[] }
@@ -53,6 +60,7 @@ export function defaultConfig(): BuracleConfig {
       goalVerification: true,
       modelSwitch: 'off',
       nativePlanMode: 'off',
+      board: { mode: 'ask', maxWorkers: 6, leaseSec: 300, mux: 'ask', muxOnAsk: 'mark' },
     },
     context: { warnPct: 85, criticalPct: 95 },
     checkers: { enabled: true, timeoutMs: 20000, languages: ['python', 'typescript', 'javascript', 'go', 'shell', 'dotnet'] },
@@ -140,6 +148,7 @@ const CONFIG_SCHEMA: Schema = {
         goalVerification: bool,
         modelSwitch: { t: 'enum', values: ['off', 'manual'] },
         nativePlanMode: { t: 'enum', values: ['off', 'on'] },
+        board: { t: 'obj', fields: { mode: { t: 'enum', values: BOARD_MODES }, maxWorkers: count(1), leaseSec: count(10), mux: { t: 'enum', values: BOARD_MODES }, muxOnAsk: { t: 'enum', values: MUX_ON_ASK } } },
       },
     },
     context: { t: 'obj', fields: { warnPct: pct, criticalPct: pct } },

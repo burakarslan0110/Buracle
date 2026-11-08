@@ -1,3 +1,4 @@
+import { boardParts } from '../board/model'
 import type { PlanStatus, PlanType } from '../plan/format'
 import { parsePlan, planCriteria } from '../plan/format'
 import type { SessionState } from '../plan/state'
@@ -29,10 +30,19 @@ export interface BandTodo { content: string; status: 'pending' | 'in_progress' |
 export interface BandAgent { id: string; agentId?: string; label: string; startedAt: number }
 export interface BandInteraction { state: 'running' | 'paused'; kind?: 'discussion' | 'decision' | 'manual'; reason?: string }
 
+export interface BandBoard { open: number; claimed: number; waiting: number; done: number; merged: number; stale: number; total: number }
+
+/** The note line of a band whose session runs a task board. */
+export function boardNoteText(b: BandBoard | undefined): string | undefined {
+  if (b === undefined || b.total <= 0) return undefined
+  return `board: ${boardParts(b).join(' · ')}`
+}
+
 export interface BandInput {
   nowMs: number
   flow?: FlowRecord
   plan?: BandPlan
+  board?: BandBoard
   interaction?: BandInteraction
   todos?: readonly BandTodo[]
   agents?: readonly BandAgent[]
@@ -179,6 +189,10 @@ export function bandView(i: BandInput): BandView {
   const reason = i.interaction?.state === 'paused' ? i.interaction.reason : undefined
   if (reason !== undefined && reason.trim() !== '' && entry.ended === undefined) view.note = flowText(reason, 120)
   else if (entry.phase?.note !== undefined && entry.ended === undefined) view.note = entry.phase.note
+  else if (entry.ended === undefined) {
+    const board = boardNoteText(i.board)
+    if (board !== undefined) view.note = board
+  }
   if (entry.startedAt > 0) {
     view.startedAt = entry.startedAt
     view.elapsedMin = Math.max(0, Math.floor(((entry.ended?.at ?? now) - entry.startedAt) / 60_000))
