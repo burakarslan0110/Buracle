@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { MuxExec, MuxExecResult, MuxPane } from '../../src/workflow/mux'
-import { cmuxBin, detectMux, muxAdapter, paneIdOf, validPaneId, workerCommand } from '../../src/workflow/mux'
+import { cmuxBin, detectMux, layoutCaps, muxAdapter, paneIdOf, validPaneId, workerCommand } from '../../src/workflow/mux'
 import { withSandbox } from '../helpers/sandbox'
 import { onlyPath } from '../helpers/fake-exe'
 
@@ -64,6 +64,16 @@ describe('detectMux and paneIdOf', () => {
   })
 })
 
+describe('layoutCaps', () => {
+  test('tmux, herdr and cmux differ in what the layout of the worker panes can rely on: sizes, and a lead pane to split', () => {
+    expect(layoutCaps('herdr', { ...HERDR_ENV })).toEqual({ exact: true, lead: true })
+    expect(layoutCaps('cmux', { ...CMUX_ENV })).toEqual({ exact: false, lead: true })
+    expect(layoutCaps('tmux', { ...TMUX_ENV })).toEqual({ exact: true, lead: true })
+    // Opened from outside tmux (--mux tmux), the workers get a session of their own and there is no lead pane in it.
+    expect(layoutCaps('tmux', {})).toEqual({ exact: true, lead: false })
+  })
+})
+
 describe('workerCommand', () => {
   test('builds one quoted shell line per harness; cmux gets a cd prefix; Codex keeps $buracle-join in single quotes', () => {
     const dir = "/Users/me/it's a dir"
@@ -76,7 +86,7 @@ describe('workerCommand', () => {
 })
 
 describe('tmux adapter', () => {
-  test('open inside tmux splits the lead pane, tiles, allows passthrough, titles the pane and records pid and socket', async () => {
+  test('open inside tmux splits the lead pane, allows passthrough, titles the pane and records pid and socket; the window is never re-tiled', async () => {
     const f = fakeExec(argv => {
       if (argv[1] === 'split-window') return '%7\n'
       if (argv[1] === 'display-message') return '4242 /private/tmp/tmux-501/default\n'
@@ -88,14 +98,13 @@ describe('tmux adapter', () => {
     expect(opened).toEqual({ id: '%7', server: '/private/tmp/tmux-501/default', pid: '4242' })
     expect(f.lines()).toEqual([
       `tmux split-window -d -h -c /repo -P -F #{pane_id} -t %3 claude '/buracle-join rate-limit'`,
-      'tmux select-layout -t %7 tiled',
       'tmux set-option -p -t %7 allow-passthrough on',
       'tmux select-pane -t %7 -T buracle rate-limit claude 1',
       'tmux display-message -p -t %7 #{pane_pid} #{socket_path}',
     ])
   })
 
-  test('open after a worker pane splits that pane down; outside tmux the first open creates buracle-<slug> and the next one splits it', async () => {
+  test('a split spec names the pane to split, the direction and the share the new pane takes (percent of the pane it splits); the lead is the pane in TMUX_PANE', async () => {
     const f = fakeExec(argv => {
       if (argv[1] === 'split-window' || argv[1] === 'new-session') return '%9\n'
       if (argv[1] === 'display-message') return '1 /tmp/s\n'
@@ -103,8 +112,11 @@ describe('tmux adapter', () => {
     })
     const inside = muxAdapter('tmux', { ...TMUX_ENV }, { exec: f.exec })
     if (!inside.ok) throw new Error(inside.message)
-    await inside.adapter.open({ cwd: '/repo', command: 'c', title: 't', slug: 'rate-limit', after: pane({ id: '%7' }) })
-    expect(f.lines()[0]).toBe('tmux split-window -d -v -c /repo -P -F #{pane_id} -t %7 c')
+    await inside.adapter.open({ cwd: '/repo', command: 'c', title: 't', slug: 'rate-limit', split: { target: pane({ id: '%7' }), direction: 'right', keep: 0.25 } })
+    expect(f.lines()[0]).toBe('tmux split-window -d -h -l 75% -c /repo -P -F #{pane_id} -t %7 c')
+    await inside.adapter.open({ cwd: '/repo', command: 'c', title: 't', slug: 'rate-limit', split: { target: 'lead', direction: 'down', keep: 0.4 } })
+    expect(f.lines().filter(l => l.startsWith('tmux split-window'))[1]).toBe('tmux split-window -d -v -l 60% -c /repo -P -F #{pane_id} -t %3 c')
+    expect(f.lines().some(l => l.includes('select-layout'))).toBe(false)
 
     let sessions = 0
     const g = fakeExec(argv => {
@@ -128,6 +140,51 @@ describe('tmux adapter', () => {
       'tmux split-window -d -v -c /repo -P -F #{pane_id} -t buracle-rate-limit: d',
     ])
   })
+
+  test('an older tmux that does not take a percent size is asked again with -p; one that refuses both opens no pane', async () => {
+    const old = fakeExec(argv => {
+      if (argv[1] === 'split-window' && argv.includes('-l')) return { code: 1, stderr: 'size invalid' }
+      if (argv[1] === 'split-window') return '%9\n'
+      if (argv[1] === 'display-message') return '1 /tmp/s\n'
+      return undefined
+    })
+    const a = muxAdapter('tmux', { ...TMUX_ENV }, { exec: old.exec })
+    if (!a.ok) throw new Error(a.message)
+    expect(await a.adapter.open({ cwd: '/repo', command: 'c', title: 't', slug: 'rate-limit', split: { target: 'lead', direction: 'down', keep: 0.4 } })).toMatchObject({ id: '%9' })
+    expect(old.lines().filter(l => l.startsWith('tmux split-window'))).toEqual([
+      'tmux split-window -d -v -l 60% -c /repo -P -F #{pane_id} -t %3 c',
+      'tmux split-window -d -v -p 60 -c /repo -P -F #{pane_id} -t %3 c',
+    ])
+    const none = fakeExec(argv => (argv[1] === 'split-window' ? { code: 1, stderr: 'no space for new pane' } : undefined))
+    const b = muxAdapter('tmux', { ...TMUX_ENV }, { exec: none.exec })
+    if (!b.ok) throw new Error(b.message)
+    expect(await b.adapter.open({ cwd: '/repo', command: 'c', title: 't', slug: 'rate-limit', split: { target: 'lead', direction: 'down', keep: 0.4 } })).toBeUndefined()
+  })
+
+  test('a TMUX_PANE that is not a tmux pane id is not handed to tmux as a target', async () => {
+    const f = fakeExec(argv => (argv[1] === 'split-window' ? '%7\n' : argv[1] === 'display-message' ? '1 /tmp/s\n' : undefined))
+    const a = muxAdapter('tmux', { TMUX: '/private/tmp/tmux-501/default,812,0', TMUX_PANE: '%3; touch /tmp/x' }, { exec: f.exec })
+    if (!a.ok) throw new Error(a.message)
+    await a.adapter.open({ cwd: '/repo', command: 'c', title: 't', slug: 'rate-limit', split: { target: 'lead', direction: 'down', keep: 0.5 } })
+    expect(f.lines()[0]).toBe('tmux split-window -d -v -l 50% -c /repo -P -F #{pane_id} c')
+  })
+
+  test('a split target that does not look like a pane id of that multiplexer is refused before any split runs, on all three adapters', () => withSandbox(async ({ root }) => {
+    const cases: Array<[Parameters<typeof muxAdapter>[0], Record<string, string>, string[]]> = [
+      ['tmux', { ...TMUX_ENV }, ['-x', '%7;ls', 'w2:p5', '%7 -t %1']],
+      ['herdr', { ...HERDR_ENV }, ['-x', 'w2:p5 --foo', '%7', 'surface:1']],
+      ['cmux', { ...CMUX_ENV }, ['-x', 'surface:1 --foo', '%7', 'w2:p5']],
+    ]
+    for (const [kind, env, bad] of cases) {
+      for (const id of bad) {
+        const f = fakeExec(argv => (argv.includes('list-panels') ? 'workspace:2\n' : undefined))
+        const a = muxAdapter(kind, env, { exec: f.exec, cmuxBin: join(root, 'cmux') })
+        if (!a.ok) throw new Error(a.message)
+        expect(await a.adapter.open({ cwd: '/repo', command: 'c', title: 't', slug: 's', split: { target: pane({ id }), direction: 'right', keep: 0.5 } })).toBeUndefined()
+        expect(f.lines().filter(l => /split/.test(l))).toEqual([])
+      }
+    }
+  }))
 
   test('mark titles, marks and rings the bell on the pane tty; clearMark restores the title and drops only our mark; focus selects window and pane', () => withSandbox(async ({ root }) => {
     const tty = join(root, 'pane.tty')
@@ -192,20 +249,24 @@ describe('tmux adapter', () => {
 describe('herdr adapter', () => {
   const split = JSON.stringify({ ok: true, result: { pane: { pane_id: 'w2:p5', tab_id: 'w2:t1' } } })
 
-  test('open splits the current pane right (or the previous worker pane down), renames it and runs the command; the server is the socket path', async () => {
+  test('open splits the current pane (or the pane a split spec names) with the share the pane keeps, renames the new one and runs the command; the server is the socket path', async () => {
     const f = fakeExec(argv => (argv[2] === 'split' ? split : undefined))
     const a = muxAdapter('herdr', { ...HERDR_ENV }, { exec: f.exec })
     if (!a.ok) throw new Error(a.message)
     const opened = await a.adapter.open({ cwd: '/repo', command: `claude '/buracle-join rate-limit'`, title: 'buracle rate-limit claude 1', slug: 'rate-limit' })
     expect(opened).toEqual({ id: 'w2:p5', server: HERDR_ENV.HERDR_SOCKET_PATH })
-    await a.adapter.open({ cwd: '/repo', command: 'c2', title: 't2', slug: 'rate-limit', after: pane({ id: 'w2:p5' }) })
+    await a.adapter.open({ cwd: '/repo', command: 'c2', title: 't2', slug: 'rate-limit', split: { target: pane({ id: 'w2:p5' }), direction: 'right', keep: 0.25 } })
+    await a.adapter.open({ cwd: '/repo', command: 'c3', title: 't3', slug: 'rate-limit', split: { target: 'lead', direction: 'down', keep: 1 / 3 } })
     expect(f.lines()).toEqual([
       'herdr pane split --current --direction right --cwd /repo --no-focus',
       'herdr pane rename w2:p5 buracle rate-limit claude 1',
       `herdr pane run w2:p5 claude '/buracle-join rate-limit'`,
-      'herdr pane split --pane w2:p5 --direction down --cwd /repo --no-focus',
+      'herdr pane split --pane w2:p5 --direction right --ratio 0.25 --cwd /repo --no-focus',
       'herdr pane rename w2:p5 t2',
       'herdr pane run w2:p5 c2',
+      'herdr pane split --current --direction down --ratio 0.333 --cwd /repo --no-focus',
+      'herdr pane rename w2:p5 t3',
+      'herdr pane run w2:p5 c3',
     ])
     const broken = fakeExec(argv => (argv[2] === 'split' ? 'not json' : undefined))
     const b = muxAdapter('herdr', { ...HERDR_ENV }, { exec: broken.exec })
@@ -333,6 +394,24 @@ describe('cmux adapter', () => {
     if (!a.ok) throw new Error(a.message)
     // close-surface would later run on this id: it must be the split Buracle made.
     expect(await a.adapter.open({ cwd: '/repo', command: 'c', title: 't', slug: 's' })).toEqual({ id: U(4), ids: ['surface:4', U(4)], server: CMUX_ENV.CMUX_SOCKET_PATH })
+  }))
+
+  test('a split spec names the surface to split and the direction; cmux has no size flag, so the share is left to cmux (an even split)', () => withSandbox(async ({ root }) => {
+    let listed = 0
+    const f = fakeExec(argv => {
+      if (isList(argv)) return listed++ % 2 === 0 ? before : after
+      if (argv[1] === 'new-split') return `OK surface:4 ${U(4)}\n`
+      return undefined
+    })
+    const bin = join(root, 'cmux')
+    const a = muxAdapter('cmux', { ...CMUX_ENV }, { exec: f.exec, cmuxBin: bin })
+    if (!a.ok) throw new Error(a.message)
+    await a.adapter.open({ cwd: '/repo', command: 'c', title: 't', slug: 's', split: { target: 'lead', direction: 'down', keep: 0.5 } })
+    await a.adapter.open({ cwd: '/repo', command: 'd', title: 't', slug: 's', split: { target: pane({ id: 'surface:1' }), direction: 'right', keep: 0.25 } })
+    expect(f.lines().filter(l => l.includes(' new-split '))).toEqual([
+      `${bin} new-split down --command c --focus false`,
+      `${bin} new-split right --surface surface:1 --command d --focus false`,
+    ])
   }))
 
   test('mark is a no-op, clearMark clears notifications, focus selects the workspace and the surface, alive and close use the surface id and the socket', () => withSandbox(async ({ root }) => {

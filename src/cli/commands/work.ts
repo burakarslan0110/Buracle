@@ -19,9 +19,11 @@ Lead (the session that registered the plan):
                      open worker panes in the lead's terminal multiplexer: one per ready task by default (never more
                      than the free worker slots), each running a harness whose first prompt is /buracle-join <slug>.
                      --mux defaults to the multiplexer the lead runs in (tmux, then herdr, then cmux); --mux tmux
-                     outside tmux opens a detached session buracle-<slug>. Here --harness is the workers' harness
-                     list, dealt out in turn (default: the lead's); the lead's own session comes from the
-                     environment or --session with BURACLE_HARNESS. --dry-run prints the panes it would open
+                     outside tmux opens a detached session buracle-<slug>. The lead keeps the top of its area and
+                     the workers fill a grid of panes below it (one row up to four workers; cmux can only
+                     halve a pane); a later spawn adds panes next to the last worker pane. Here --harness is the
+                     workers' harness list, dealt out in turn (default: the lead's); the lead's own session comes
+                     from the environment or --session with BURACLE_HARNESS. --dry-run prints the panes it would open
                      (exit 0 even without a board or a multiplexer). The panes are recorded, so that merge and
                      close can close them; nothing else is ever closed. Error codes: no_mux, mux_mismatch,
                      harness_missing, cmux_missing, mux_failed
