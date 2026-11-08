@@ -5,6 +5,7 @@
 import { closeSync, existsSync, openSync, writeSync } from 'node:fs'
 import type { Harness } from '../core/events'
 import { shellQuote } from '../core/policy/shell-text'
+import { log } from '../engine/log'
 import { run } from '../engine/proc'
 import type { SplitDirection } from './mux-layout'
 
@@ -27,8 +28,11 @@ export interface MuxOpened { id: string; ids?: string[]; server: string; pid?: s
 export interface Split { target: 'lead' | MuxPane; direction: SplitDirection; keep: number }
 /** Without a `split` the pane goes to the right of the lead's pane. */
 export interface OpenSpec { cwd: string; command: string; title: string; slug: string; split?: Split }
-/** `stale`: the pane is gone or the id now names another pane (nothing was run). `failed`: the multiplexer did not answer or refused. */
-export type CloseResult = { ok: true } | { ok: false; reason: 'stale' | 'failed' }
+/**
+ * `stale`: the pane is gone or the id now names another pane (nothing was run). `failed`: the multiplexer did not answer.
+ * `refused`: it answered and would not close the pane; `message` is what it said.
+ */
+export type CloseResult = { ok: true } | { ok: false; reason: 'stale' | 'failed' } | { ok: false; reason: 'refused'; message: string }
 /** `ok`: the recorded pane is there. `stale`: gone or another pane now. `failed`: the multiplexer could not be asked. */
 export type Presence = 'ok' | 'stale' | 'failed'
 
@@ -48,8 +52,20 @@ export interface MuxAdapter {
   presence(pane: MuxPane): Promise<Presence>
   /** `presence` is `ok`. */
   alive(pane: MuxPane): Promise<boolean>
-  /** Closes the pane after the `presence` check; `stale` and `failed` mean nothing was run. */
+  /** Closes the pane after the `presence` check, its running program included; `stale` and `failed` mean nothing was run. */
   close(pane: MuxPane): Promise<CloseResult>
+  /**
+   * Every handle the multiplexer has for the pane `id` names (cmux: the surface ref and its UUID), from its listing; `[]`
+   * when no pane has it, undefined when the multiplexer did not answer. Only a multiplexer with several ids per pane has it.
+   */
+  handlesOf?(id: string): Promise<string[] | undefined>
+}
+
+/** What a CLI said when it refused: stderr, else stdout, else its exit code. */
+function refusal(r: MuxExecResult): CloseResult {
+  if (unreachable(r.code)) return { ok: false, reason: 'failed' }
+  const said = r.stderr.trim() !== '' ? r.stderr.trim() : r.stdout.trim()
+  return { ok: false, reason: 'refused', message: said !== '' ? said.split('\n')[0] ?? said : `exit ${r.code}` }
 }
 
 export type MuxDetect = { ok: true; kind: MuxKind } | { ok: false; code: 'usage' | 'no_mux'; message: string }
@@ -283,7 +299,8 @@ function tmuxAdapter(env: Env, exec: MuxExec): MuxAdapter {
     async close(pane) {
       const p = await presence(pane)
       if (p !== 'ok') return { ok: false, reason: p }
-      return (await x(['kill-pane', '-t', pane.id])).code === 0 ? { ok: true } : { ok: false, reason: 'failed' }
+      const r = await x(['kill-pane', '-t', pane.id])
+      return r.code === 0 ? { ok: true } : refusal(r)
     },
   }
 }
@@ -337,16 +354,21 @@ function herdrAdapter(env: Env, exec: MuxExec): MuxAdapter {
     async close(pane) {
       const p = await presence(pane)
       if (p !== 'ok') return { ok: false, reason: p }
-      return (await x(['pane', 'close', pane.id])).code === 0 ? { ok: true } : { ok: false, reason: 'failed' }
+      const r = await x(['pane', 'close', pane.id])
+      return r.code === 0 ? { ok: true } : refusal(r)
     },
   }
 }
 
-/** Every pane, surface and workspace handle in a cmux listing, in order of appearance, once each. */
+/**
+ * Every pane, surface and workspace handle in a cmux listing, in order of appearance, once each. A quoted part of a
+ * line is a title (`surface:4 <uuid> "Worker 1 · Task 3: close surface:9"`): what it says is never a handle.
+ */
 function cmuxTokens(text: string): string[] {
   const out: string[] = []
   const seen = new Set<string>()
-  const all = [...text.matchAll(UUID), ...text.matchAll(REF)].sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+  const unquoted = text.split('\n').map(l => l.split('"')[0] ?? '').join('\n')
+  const all = [...unquoted.matchAll(UUID), ...unquoted.matchAll(REF)].sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
   for (const m of all) {
     const t = m[0]
     if (!seen.has(t)) { seen.add(t); out.push(t) }
@@ -354,14 +376,25 @@ function cmuxTokens(text: string): string[] {
   return out
 }
 
+/** The handles on the listing line that carries `id`: a surface's ref and its UUID sit on one line of `list-panels`. */
+function cmuxLineOf(listing: string, id: string): string[] {
+  const want = id.toLowerCase()
+  const line = listing.split('\n').find(l => cmuxTokens(l).some(t => t.toLowerCase() === want))
+  return line === undefined ? [] : cmuxTokens(line).filter(t => !t.startsWith('workspace:'))
+}
+
 function cmuxAdapter(env: Env, exec: MuxExec, bin: string): MuxAdapter {
   const x = (args: string[]) => exec([bin, ...args], { timeoutMs: MUX_TIMEOUT_MS, env })
   const server = muxServerOf('cmux', env)
   // Every surface of the workspace, with refs and UUIDs (`--id-format` is a global option, so it comes before the command).
   // Not `list-pane-surfaces`: that lists the focused pane only, and a split opened unfocused is a pane of its own.
-  const list = async (): Promise<string[] | undefined> => {
+  const listing = async (): Promise<string | undefined> => {
     const r = await x(['--id-format', 'both', 'list-panels'])
-    return r.code === 0 ? cmuxTokens(r.stdout) : undefined
+    return r.code === 0 ? r.stdout : undefined
+  }
+  const list = async (): Promise<string[] | undefined> => {
+    const text = await listing()
+    return text === undefined ? undefined : cmuxTokens(text)
   }
   const handles = (pane: MuxPane): string[] => [pane.id, ...(pane.ids ?? [])]
   const sameServer = (pane: MuxPane): boolean => validPaneId('cmux', pane.id) && (pane.server === '' || pane.server === server)
@@ -384,14 +417,24 @@ function cmuxAdapter(env: Env, exec: MuxExec, bin: string): MuxAdapter {
       if (r.code !== 0) return undefined
       // What cmux printed for the new split counts as well: when the second listing fails the split still exists, and
       // a pane that is not recorded is a pane nobody closes.
-      const after = await list()
+      const afterText = await listing()
+      const after = afterText === undefined ? undefined : cmuxTokens(afterText)
       const known = new Set(before)
       const notOld = (t: string): boolean => !known.has(t) && !t.startsWith('workspace:')
       // The surface new-split names is the one it made. The listing difference is only for output that names none: a
       // surface a person or another tool opened between the two listings must never be taken for ours (close-surface
       // would later close it).
       const named = cmuxTokens(r.stdout).filter(notOld)
-      const fresh = named.some(t => t.startsWith('surface:') || CMUX_UUID.test(t)) ? named : [...new Set([...named, ...(after ?? [])])].filter(notOld)
+      let fresh = named.some(t => t.startsWith('surface:') || CMUX_UUID.test(t)) ? named : [...new Set([...named, ...(after ?? [])])].filter(notOld)
+      // cmux prints the new surface as its ref alone (`OK surface:7`), while the pane's CMUX_SURFACE_ID is the UUID: the
+      // worker binds by that UUID, so it comes from the listing line of the named ref. Only that line: a stranger's surface
+      // is never taken for ours.
+      if (afterText !== undefined && !fresh.some(t => CMUX_UUID.test(t))) {
+        const same = fresh.filter(t => t.startsWith('surface:')).flatMap(t => cmuxLineOf(afterText, t))
+        fresh = [...new Set([...fresh, ...same])]
+        // Without the UUID the worker's CMUX_SURFACE_ID can never match the record: worth a line in the log.
+        if (!fresh.some(t => CMUX_UUID.test(t))) log('warn', 'cmux: the listing shows no UUID for the new surface; its worker will have to resolve its pane at join', { fresh, listing: afterText.slice(0, 2000) })
+      }
       if (fresh.length === 0) return undefined
       // The surface's UUID is what CMUX_SURFACE_ID carries in the pane: the one right after the new surface ref, else the last UUID.
       const lastSurface = fresh.map((t, i) => (t.startsWith('surface:') ? i : -1)).filter(i => i >= 0).at(-1)
@@ -415,7 +458,14 @@ function cmuxAdapter(env: Env, exec: MuxExec, bin: string): MuxAdapter {
     async close(pane) {
       const p = await presence(pane)
       if (p !== 'ok') return { ok: false, reason: p }
-      return (await x(['close-surface', '--surface', pane.id])).code === 0 ? { ok: true } : { ok: false, reason: 'failed' }
+      // The worker's harness is still running in the surface (a worker never exits on its own), and without --force cmux
+      // answers `confirmation_required` instead of closing. tmux's kill-pane and herdr's pane close kill the program too.
+      const r = await x(['close-surface', '--surface', pane.id, '--force'])
+      return r.code === 0 ? { ok: true } : refusal(r)
+    },
+    async handlesOf(id) {
+      const text = await listing()
+      return text === undefined ? undefined : cmuxLineOf(text, id)
     },
   }
 }

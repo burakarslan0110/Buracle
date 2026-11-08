@@ -12,7 +12,7 @@ import { parsePlan, planOutline } from '../core/plan/format'
 import { loadConfigSync } from '../engine/config'
 import { latestWindows } from '../usage/telemetry'
 import { USAGE_CHECK_FROM, USAGE_LOW_PCT, boardPath, commonDirOf, listBoards, markAsked, newToken, patchSessionBoard, publishBoard, removeBoard, sessionBoard, setSessionBoard, updateBoard, writeTerminalSequence } from './board-store'
-import { bindPaneToSession, clearPaneMark, closeAllPanes, closePanesAfterMerge, commonDirOfBoard, labelWorkerPane, markPaneOnAsk, paneOfTask, paneRefOf, paneStoreFor, panesLine, panesView, type PaneDeps } from './board-panes'
+import { bindPaneToSession, clearPaneMark, closeAllPanes, closePanesAfterMerge, commonDirOfBoard, keptPanesWarnings, labelWorkerPane, markPaneOnAsk, paneOfTask, paneRefOf, paneStoreFor, panesLine, panesView, type PaneDeps } from './board-panes'
 import { detectMux } from './mux'
 import { git, gitError, porcelain, repoFacts, realish, type RepoFacts } from './gitx'
 import { notify } from './notify'
@@ -235,7 +235,7 @@ export async function workJoin(slugArg: string | undefined, o: JoinOptions, ctx:
   const fin = updateBoard(target.path, ctx.now, b => setWorktree(b, n, token, worktree))
   if (!fin.ok) return fail(fin.code, fin.message, { slug: target.slug, task: n })
   setSessionBoard(s.harness, s.sessionId, { slug: board.slug, path: target.path, role: 'worker', task: n, token, worktree: worktree.path, heartbeatAt: ctx.now })
-  const pane = bindPaneToSession(fr.commonDir, board.slug, ctx.env, me)
+  const pane = await bindPaneToSession(fr.commonDir, board.slug, ctx.env, me, deps)
   const task = fin.board.tasks.find(t => t.n === n) ?? picked
   // The pane says which task its worker took, so the user and the lead can tell the panes apart.
   if (pane?.bound === true) await labelWorkerPane(fr.commonDir, board.slug, ctx.env, s.harness, { stage: 'working', n, title: task.title }, deps)
@@ -557,6 +557,7 @@ export async function workMerge(o: { task?: number, manual?: boolean }, ctx: Wor
   const sum = boardSummary(after.board)
   const left = remaining(after.board)
   const panes = await closePanesAfterMerge(commonDirOfBoard(target.path), after.board, ctx.env, deps)
+  warnings.push(...keptPanesWarnings(panes))
   return ok({ ok: true, slug: board.slug, task: n, merged: true, manual: o.manual === true, commit: commit ?? null, ticked, remaining: left, summary: sum, panes }, [
     `Task ${n} merged into ${board.base}${commit !== undefined ? ` as ${commit.slice(0, 9)}` : o.manual === true ? ' (by hand)' : ''}; ${ticked ? 'ticked' : 'not ticked'} in the plan. ${left === 0 ? 'Every task is merged: run the checks, then buracle plan complete.' : `${left} task(s) left; run the checks now, then wait again.`}`,
     ...(panes.closed.length > 0 ? [`Closed pane(s) ${panes.closed.join(', ')}: their workers had nothing left to take.`] : []),
@@ -629,7 +630,7 @@ export async function workClose(o: { force?: boolean, keepPanes?: boolean }, ctx
   }
   if (kept.length > 0) warnings.push(`lane worktree(s) kept: ${kept.join(', ')}; remove them with buracle worktree cleanup <slug> (--discard drops unmerged work)`)
   const panes = await closeAllPanes(commonDirOfBoard(target.path), board.slug, ctx.env, { keep: o.keepPanes === true }, deps)
-  if (o.keepPanes !== true && panes.kept.length > 0) warnings.push(`pane(s) ${panes.kept.join(', ')} could not be checked or closed (the multiplexer did not answer); close them by hand`)
+  if (o.keepPanes !== true) warnings.push(...keptPanesWarnings(panes))
   if (panes.unreadable === true) warnings.push('the pane record file was unreadable and was removed; the panes it listed are still open, close them by hand')
   removeBoard(target.path)
   setSessionBoard(s.harness, s.sessionId, undefined)

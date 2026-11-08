@@ -306,7 +306,7 @@ export async function workSpawn(o: SpawnOptions, ctx: WorkflowCtx, s: ResolvedSe
     if (!w.ok) { unrecorded.push(rec.id); recordError = w.message }
   }
   if (unrecorded.length > 0) {
-    const how = kind === 'tmux' ? 'tmux kill-pane -t <id>' : kind === 'herdr' ? 'herdr pane close <id>' : 'cmux close-surface --surface <id>'
+    const how = kind === 'tmux' ? 'tmux kill-pane -t <id>' : kind === 'herdr' ? 'herdr pane close <id>' : 'cmux close-surface --surface <id> --force'
     warnings.push(`the panes ${unrecorded.join(', ')} opened but were not recorded (${recordError}); buracle work close will not close them, close them by hand with ${how}`)
   }
   workers.opened = opened.length
@@ -343,16 +343,23 @@ export function commonDirOfBoard(boardPath: string): string {
  * A worker joined: when it runs in a pane Buracle opened (its id is in the environment and in the sidecar), the pane
  * is bound to the worker's session, so that the lead can close it once the worker has nothing left to take.
  */
-export function bindPaneToSession(commonDir: string, slug: string, env: Env, session: BoardSession): { mux: MuxKind; id: string; bound: boolean } | undefined {
+export async function bindPaneToSession(commonDir: string, slug: string, env: Env, session: BoardSession, deps: MuxDeps = {}): Promise<{ mux: MuxKind; id: string; bound: boolean } | undefined> {
   const { path, store } = paneStoreFor(commonDir, slug)
   if (store === undefined) return undefined
   const id = paneIdOf(store.mux, env)
   if (id === undefined) return undefined
-  if (findPane(store, id) === undefined) return { mux: store.mux, id, bound: false }
+  let handles: string[] = []
+  if (findPane(store, id) === undefined) {
+    // cmux records a surface by the ref new-split printed, while the pane's CMUX_SURFACE_ID is the UUID: the multiplexer
+    // says which other handles this pane has, and the record learns them.
+    const a = muxAdapter(store.mux, env, deps)
+    handles = (a.ok && a.adapter.handlesOf !== undefined ? await a.adapter.handlesOf(id) : undefined) ?? []
+    if (!handles.some(h => findPane(store, h) !== undefined)) return { mux: store.mux, id, bound: false }
+  }
   let bound = false
   const r = updateMuxStore(path, st => {
     if (st === undefined) return undefined
-    const b = bindPane(st, id, session)
+    const b = bindPane(st, id, session, handles)
     bound = b.bound
     return b.bound ? b.store : undefined
   })
@@ -405,22 +412,40 @@ export async function markPaneOnAsk(commonDir: string, slug: string, env: Env, h
   return { marked, focused }
 }
 
-/** `kept`: still open (the multiplexer did not answer, or `--keep-panes`). `unreadable`: the sidecar could not be read and was removed. */
-export interface ClosedPanes { closed: string[]; kept: string[]; stale: string[]; unreadable?: boolean }
+/**
+ * `kept`: still open (the multiplexer did not answer or refused, its CLI is missing, or `--keep-panes`). `refused`: the
+ * kept panes the multiplexer answered for, with what it said. `unreadable`: the sidecar could not be read and was removed.
+ */
+export interface ClosedPanes { closed: string[]; kept: string[]; stale: string[]; refused?: Array<{ id: string; message: string }>; mux?: MuxKind; unreadable?: boolean }
 
 const NO_PANES: ClosedPanes = { closed: [], kept: [], stale: [] }
 
+/** The warnings a lead command prints for panes that stayed open: a refusal with the multiplexer's words, else "did not answer". */
+export function keptPanesWarnings(panes: ClosedPanes): string[] {
+  const refused = panes.refused ?? []
+  const unanswered = panes.kept.filter(id => !refused.some(r => r.id === id))
+  const mux = panes.mux ?? 'the multiplexer'
+  const out: string[] = []
+  if (refused.length > 0) out.push(`${mux} refused to close pane(s) ${refused.map(r => `${r.id} (${r.message})`).join(', ')}; close them by hand`)
+  if (unanswered.length > 0) out.push(`pane(s) ${unanswered.join(', ')} could not be checked or closed (${mux} did not answer); close them by hand`)
+  return out
+}
+
 async function closePanes(path: string, store: MuxStore, panes: readonly MuxRecord[], env: Env, deps: MuxDeps): Promise<ClosedPanes> {
-  const out: ClosedPanes = { closed: [], kept: [], stale: [] }
+  const refused: Array<{ id: string; message: string }> = []
+  const out: ClosedPanes = { closed: [], kept: [], stale: [], refused, mux: store.mux }
   if (panes.length === 0) return out
   const a = muxAdapter(store.mux, env, deps)
+  // Without its CLI the multiplexer could not be asked at all: the panes are kept, not refused.
   if (!a.ok) { out.kept.push(...panes.map(p => p.id)); return out }
   let down = false
   for (const p of panes) {
-    // Once the multiplexer stopped answering, the rest would only wait out the same timeout each.
+    // Once the multiplexer stopped answering, the rest would only wait out the same timeout each. A refusal is an answer:
+    // the next pane may well close.
     const r = down ? { ok: false as const, reason: 'failed' as const } : await a.adapter.close(p)
     if (r.ok) out.closed.push(p.id)
     else if (r.reason === 'stale') out.stale.push(p.id)
+    else if (r.reason === 'refused') { out.kept.push(p.id); refused.push({ id: p.id, message: r.message }) }
     else { out.kept.push(p.id); down = true }
   }
   const gone = [...out.closed, ...out.stale]

@@ -118,18 +118,24 @@ export function addPanes(store: MuxStore | undefined, init: { slug: string; mux:
   return { ...base, panes: [...base.panes, ...panes.filter(p => !known.has(p.id))] }
 }
 
-function handles(p: MuxRecord): string[] { return [p.id, ...(p.ids ?? [])] }
+function handlesOf(p: MuxRecord): string[] { return [p.id, ...(p.ids ?? [])] }
 
 /** The pane recorded under `id`, which may be the main id or one of the extra handles (cmux refs). */
 export function findPane(store: MuxStore, id: string): MuxRecord | undefined {
-  return store.panes.find(p => handles(p).includes(id))
+  return store.panes.find(p => handlesOf(p).includes(id))
 }
 
-/** Records that `session` joined from the pane `id`; false when no such pane was opened by Buracle. */
-export function bindPane(store: MuxStore, id: string, session: BoardSession): { store: MuxStore; bound: boolean } {
-  const pane = findPane(store, id)
+/**
+ * Records that `session` joined from the pane `id`; false when no such pane was opened by Buracle. `handles` are other
+ * ids the multiplexer has for that pane (cmux: the ref and the UUID of the worker's CMUX_SURFACE_ID): the record keeps
+ * them, so that the worker's later calls find the pane by its own id without asking the multiplexer again.
+ */
+export function bindPane(store: MuxStore, id: string, session: BoardSession, handles: readonly string[] = []): { store: MuxStore; bound: boolean } {
+  const pane = findPane(store, id) ?? handles.map(h => findPane(store, h)).find(p => p !== undefined)
   if (pane === undefined) return { store, bound: false }
-  return { store: { ...store, panes: store.panes.map(p => (p === pane ? { ...p, session: { harness: session.harness, session: session.session } } : p)) }, bound: true }
+  const ids = [...new Set([...handlesOf(pane), id, ...handles])].filter(h => !h.startsWith('-'))
+  const bound: MuxRecord = { ...pane, session: { harness: session.harness, session: session.session }, ...(ids.length > 1 || pane.ids !== undefined ? { ids } : {}) }
+  return { store: { ...store, panes: store.panes.map(p => (p === pane ? bound : p)) }, bound: true }
 }
 
 export function removePanes(store: MuxStore, ids: readonly string[]): MuxStore {
