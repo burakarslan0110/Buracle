@@ -6,7 +6,7 @@ import { existsSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import type { Harness } from '../../core/events'
 import type { BoardNote, BoardStopInput, BoardTask } from '../../core/board/model'
-import { boardSummary, boardWriteDenial as coreWriteDenial, claimable, heartbeat, markDelivered, notesFor, release, resume, sweep } from '../../core/board/model'
+import { boardSummary, boardWriteDenial as coreWriteDenial, claimable, clearStandby, heartbeat, markDelivered, notesFor, release, remainingFor, resume, standbyWorkers, sweep } from '../../core/board/model'
 import type { BoardBinding } from '../../core/plan/state'
 import { loadConfigSync } from '../../engine/config'
 import { atomicWriteSync } from '../../engine/fsx'
@@ -209,7 +209,12 @@ export function boardWriteDenial(h: Harness, sid: string, cwd: string, pathsToWr
   }
 }
 
-/** The stop guard's view: the session's role, its task (only while claimed with the current token) and the counts. */
+/**
+ * The stop guard's view: the session's role, its task (only while claimed with the current token) and the counts. A
+ * standby worker (no task, and it waited with `join --wait` at least once: the binding carries `standbyAt`) gets the
+ * tasks that may still come for its harness and its last wait; a worker that joined without a wait keeps the plain
+ * view, so its turn ends as before. The lead gets the ready tasks and the standby workers, so it knows when to scale.
+ */
 export function boardStopInput(h: Harness, sid: string, now: number): BoardStopInput | undefined {
   try {
     const binding = sessionBoard(h, sid)
@@ -218,8 +223,19 @@ export function boardStopInput(h: Harness, sid: string, now: number): BoardStopI
     if (stored === undefined) return undefined
     const board = sweep(stored, now)
     const out: BoardStopInput = { slug: board.slug, role: binding.role, summary: boardSummary(board) }
+    if (binding.role === 'lead') {
+      out.ready = claimable(board).ready.length
+      out.waiting = standbyWorkers(board).length
+      return out
+    }
     const t: BoardTask | undefined = binding.task !== undefined ? board.tasks.find(x => x.n === binding.task) : undefined
-    if (binding.role === 'worker' && t !== undefined && t.token === binding.token && (t.status === 'claimed' || t.status === 'waiting')) out.task = { n: t.n, status: t.status }
+    if (t !== undefined && t.token === binding.token && (t.status === 'claimed' || t.status === 'waiting')) {
+      out.task = { n: t.n, status: t.status }
+      return out
+    }
+    if (binding.standbyAt === undefined) return out
+    out.harness = h
+    out.standby = { remaining: remainingFor(board, h), waitedAt: binding.standbyAt }
     return out
   } catch (e) {
     log('warn', 'board: the stop input failed', { error: e })
@@ -228,8 +244,9 @@ export function boardStopInput(h: Harness, sid: string, now: number): BoardStopI
 }
 
 /**
- * The session ends: a worker's claimed or waiting task goes back to open (its worktree stays) and its binding is
- * dropped. The lead keeps its binding: the board still names it as the lead, and the session may be resumed.
+ * The session ends: a worker's claimed or waiting task goes back to open (its worktree stays), a standby worker's
+ * entry leaves the board, and the binding is dropped. The lead keeps its binding: the board still names it as the
+ * lead, and the session may be resumed.
  */
 export function boardSessionEnd(h: Harness, sid: string, now: number): void {
   try {
@@ -239,6 +256,8 @@ export function boardSessionEnd(h: Harness, sid: string, now: number): void {
       const task = binding.task
       const token = binding.token
       updateBoard(binding.path, now, b => release(b, task, token, now, 'the worker session ended'))
+    } else {
+      updateBoard(binding.path, now, b => ({ ok: true, board: clearStandby(b, { harness: h, session: sid }) }))
     }
     setSessionBoard(h, sid, undefined)
   } catch (e) {

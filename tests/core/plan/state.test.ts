@@ -144,6 +144,53 @@ describe('stopVerdict (H08): the task board', () => {
     expect(allMerged).toContain('next unticked task')
     expect(reasonOf(stopVerdictDetailed(withPlan(), input(), CFG))).toContain('next unticked task')
   })
+
+  test('the lead with more ready tasks than waiting workers is told to spawn; with enough workers waiting it is not', () => {
+    const lead = (ready: number, waiting: number): StopInput['board'] => ({ slug: 'rate-limit', role: 'lead', summary: summary({ open: 3 }), ready, waiting })
+    const spawn = reasonOf(stopVerdictDetailed(withPlan(), input({ board: lead(3, 1) }), CFG))
+    expect(spawn).toContain('3 ready task(s) and 1 worker(s) waiting: run `buracle work spawn --json`')
+    expect(spawn).toContain('open for workers')
+    expect(reasonOf(stopVerdictDetailed(withPlan(), input({ board: lead(1, 1) }), CFG))).not.toContain('buracle work spawn')
+  })
+
+  const standby = (remaining: number, waitedAt?: number): NonNullable<StopInput['board']> => ({ slug: 'rate-limit', role: 'worker', harness: 'codex', summary: summary({ open: remaining }), standby: { remaining, ...(waitedAt !== undefined ? { waitedAt } : {}) } })
+
+  test('a standby worker without a task cannot end its turn while tasks may still come for it: wait again or release', () => {
+    const r = stopVerdictDetailed(emptyState(), input({ board: standby(3) }), CFG)
+    expect([r.decision.action, r.why]).toEqual(['block', 'board-standby'])
+    expect(r.decision.action === 'block' ? r.decision.hook : '').toBe('H08')
+    expect(reasonOf(r)).toStartWith('Buracle stop guard:')
+    for (const part of ['standby worker of the board rate-limit', '3 task(s)', 'for codex', '`buracle work join rate-limit --wait --json`', '`buracle work release`']) expect(reasonOf(r)).toContain(part)
+    expect(r.next.guard).toEqual({ blocksForPlan: 1, blocksInChain: 1, lastBlockAt: 1000 })
+    expect(stopVerdictDetailed(withPlan(), input({ board: standby(3) }), CFG).why).toBe('board-standby')
+  })
+
+  test('the standby branch releases like the claimed one (guard off, read-only, background wait, the chain cap); nothing remaining falls through; a claimed task wins', () => {
+    expect(stopVerdictDetailed(emptyState(), input({ board: standby(3) }), { ...CFG, stopGuard: false }).why).toBe('disabled')
+    expect(stopVerdictDetailed(emptyState(), input({ board: standby(3), readOnly: true }), CFG).why).toBe('read-only-mode')
+    expect(stopVerdictDetailed(emptyState(), input({ board: standby(3), backgroundWait: true }), CFG).why).toBe('background-wait')
+    const capped = stopVerdictDetailed({ ...emptyState(), guard: { blocksForPlan: 4, blocksInChain: 5 } }, input({ board: standby(3), hookActive: true }), CFG)
+    expect([capped.decision.action, capped.why, capped.next.guard.escalated]).toEqual(['allow', 'runaway-chain', undefined])
+    expect(stopVerdictDetailed(emptyState(), input({ board: standby(0) }), CFG).why).toBe('no-plan')
+    expect(stopVerdictDetailed(withPlan(), input({ board: standby(0) }), CFG).why).toBe('blocked')
+    const claimedToo = stopVerdictDetailed(emptyState(), input({ board: { ...standby(3), task: { n: 2, status: 'claimed' } } }), CFG)
+    expect(claimedToo.why).toBe('board-worker')
+    expect(reasonOf(claimedToo)).toContain('holds Task 2')
+    expect(stopVerdictDetailed(emptyState(), input({ board: { ...standby(3), task: { n: 2, status: 'done' } } }), CFG).why).toBe('no-plan')
+  })
+
+  test('a join --wait since the last block starts the chain again; an older wait counts on toward the cap', () => {
+    const chained: SessionState = { ...emptyState(), guard: { blocksForPlan: 3, blocksInChain: 4, lastBlockAt: 500 } }
+    const fresh = stopVerdictDetailed(chained, input({ board: standby(2, 600), hookActive: true, now: 700 }), CFG)
+    expect([fresh.decision.action, fresh.why]).toEqual(['block', 'board-standby'])
+    expect(fresh.next.guard).toEqual({ blocksForPlan: 4, blocksInChain: 1, lastBlockAt: 700 })
+    const old = stopVerdictDetailed(chained, input({ board: standby(2, 400), hookActive: true, now: 700 }), CFG)
+    expect([old.why, old.next.guard.blocksInChain]).toEqual(['board-standby', 5])
+    expect(stopVerdictDetailed(old.next, input({ board: standby(2, 400), hookActive: true, now: 800 }), CFG).why).toBe('runaway-chain')
+    const again = stopVerdictDetailed(old.next, input({ board: standby(2, 750), hookActive: true, now: 800 }), CFG)
+    expect([again.why, again.next.guard.blocksInChain]).toEqual(['board-standby', 1])
+    expect(stopVerdictDetailed({ ...emptyState(), guard: { blocksForPlan: 0, blocksInChain: 5 } }, input({ board: standby(2), hookActive: true }), CFG).why).toBe('runaway-chain')
+  })
 })
 
 describe('stopVerdict (H08): blocking', () => {
@@ -365,7 +412,7 @@ describe('stopGuardVerdict (H08 + H11 in one Stop handler)', () => {
 })
 
 describe('routeAuditAllowed (H23 after the stop guard)', () => {
-  const every: StopWhy[] = ['disabled', 'no-plan', 'finished', 'paused', 'awaiting-approval', 'question', 'runaway-plan', 'runaway-chain', 'blocked', 'plan-invalid', 'background-wait', 'read-only-mode', 'runaway-escalate', 'decision-answered']
+  const every: StopWhy[] = ['disabled', 'no-plan', 'finished', 'paused', 'awaiting-approval', 'question', 'runaway-plan', 'runaway-chain', 'blocked', 'plan-invalid', 'background-wait', 'read-only-mode', 'runaway-escalate', 'decision-answered', 'board-worker', 'board-standby']
 
   test('only after no plan, a finished plan or a disabled guard; never after a pause, a wait for the user or a runaway release', () => {
     expect(every.filter(why => routeAuditAllowed(why, 'enforce'))).toEqual(['disabled', 'no-plan', 'finished'])

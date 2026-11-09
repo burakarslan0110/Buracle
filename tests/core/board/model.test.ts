@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import type { PlanTask } from '../../../src/core/plan/format'
-import type { Board, BoardSession } from '../../../src/core/board/model'
+import type { Board, BoardSession, BoardStopInput } from '../../../src/core/board/model'
 import {
-  TASK_STATUSES, activeWorkers, addNote, ask, boardFromPlan, boardSummary, boardWriteDenial, claim, claimable, eventsAfter, filesOverlap, heartbeat, markDelivered, markDone, markMerged,
-  mergeBoard, nextMergeable, notesFor, release, reopen, resume, setWorktree, sweep, unclaim,
+  STANDBY_STALE_MS, TASK_STATUSES, activeWorkers, addNote, ask, boardFromPlan, boardLeadStep, boardSummary, boardWorkerBlockReason, boardWriteDenial, claim, claimable, clearStandby, eventsAfter,
+  filesOverlap, heartbeat, markDelivered, markDone, markMerged, mergeBoard, nextMergeable, notesFor, release, remainingFor, reopen, resume, setStandby, setWorktree, standbyWorkers, sweep, sweepStandby,
+  unclaim,
 } from '../../../src/core/board/model'
 
 const LEAD: BoardSession = { harness: 'claude', session: 'lead-1' }
@@ -154,6 +155,71 @@ describe('sweep', () => {
   })
 })
 
+describe('remainingFor', () => {
+  test('counts the open and stale tasks a harness may still take: blocked ones count, held and merged ones do not, a reservation filters', () => {
+    const b = fresh([task(1, ['src/a.ts']), task(2, ['src/b.ts'], { harness: 'codex' }), task(3, ['src/a.ts']), task(4, ['src/d.ts'], { done: true })])
+    expect(claimable(b, 'omp').ready).toEqual([1])
+    expect(remainingFor(b, 'codex')).toBe(3)
+    expect(remainingFor(b, 'omp')).toBe(2)
+    const c = must(claim(b, 1, A, NOW, 'tok-a'))
+    expect(remainingFor(c, 'codex')).toBe(2)
+    expect(remainingFor(c, 'omp')).toBe(1)
+    const d = must(markDone(c, 1, 'tok-a', { branch: 'x', commits: ['1'], verify: 'v' }, NOW + 1))
+    expect(remainingFor(d, 'omp')).toBe(1)
+    const m = must(markMerged(d, 1, NOW + 2))
+    expect(remainingFor(m, 'omp')).toBe(1)
+    expect(remainingFor(m, 'codex')).toBe(2)
+    const s = sweep(c, NOW + 300_001)
+    expect(s.tasks[0]?.status).toBe('stale')
+    expect(remainingFor(s, 'omp')).toBe(2)
+    const w = must(ask(must(claim(m, 3, B, NOW + 3, 'tok-b')), 3, 'tok-b', 'q', NOW + 4))
+    expect(remainingFor(w, 'opencode')).toBe(0)
+    expect(remainingFor(w, 'codex')).toBe(1)
+  })
+})
+
+describe('standby workers', () => {
+  test('setStandby registers a session once and refreshes `at` while keeping `since`; clearStandby removes it; neither writes an event', () => {
+    const b = fresh()
+    const one = setStandby(b, A, NOW)
+    expect(one.standby).toEqual([{ harness: 'codex', session: 'worker-a', since: NOW, at: NOW }])
+    expect(one.events).toHaveLength(b.events.length)
+    expect(one.seq).toBe(b.seq)
+    const again = setStandby(one, A, NOW + 5_000)
+    expect(again.standby).toEqual([{ harness: 'codex', session: 'worker-a', since: NOW, at: NOW + 5_000 }])
+    const two = setStandby(again, B, NOW + 6_000)
+    expect(standbyWorkers(two).map(s => s.session)).toEqual(['worker-a', 'worker-b'])
+    expect(standbyWorkers(two, A).map(s => s.session)).toEqual(['worker-b'])
+    expect(standbyWorkers(two, { harness: 'omp', session: 'worker-a' })).toHaveLength(2)
+    const cleared = clearStandby(two, A)
+    expect(standbyWorkers(cleared).map(s => s.session)).toEqual(['worker-b'])
+    expect(clearStandby(cleared, A)).toBe(cleared)
+    const empty = clearStandby(cleared, B)
+    expect('standby' in empty).toBe(false)
+    expect(standbyWorkers(empty)).toEqual([])
+    expect(empty.events).toHaveLength(b.events.length)
+    expect(standbyWorkers(fresh())).toEqual([])
+    expect(activeWorkers(two)).toEqual([])
+    expect(boardSummary(two).workers).toBe(0)
+  })
+
+  test('sweep drops a standby entry whose `at` is older than STANDBY_STALE_MS, beside the expired leases; a live entry stays', () => {
+    expect(STANDBY_STALE_MS).toBe(180_000)
+    let b = setStandby(must(claim(fresh(), 1, A, NOW, 'tok-a')), B, NOW)
+    b = setStandby(b, { harness: 'opencode', session: 'worker-c' }, NOW + 100_000)
+    expect(sweepStandby(b, NOW + STANDBY_STALE_MS)).toBe(b)
+    expect(sweep(b, NOW + STANDBY_STALE_MS)).toBe(b)
+    const s = sweep(b, NOW + STANDBY_STALE_MS + 1)
+    expect(standbyWorkers(s).map(x => x.session)).toEqual(['worker-c'])
+    expect(s.tasks[0]?.status).toBe('claimed')
+    expect(s.events).toHaveLength(b.events.length)
+    const later = sweep(b, NOW + 300_001)
+    expect(later.tasks[0]?.status).toBe('stale')
+    expect(standbyWorkers(later)).toEqual([])
+    expect(later.events.at(-1)?.kind).toBe('stale')
+  })
+})
+
 describe('transitions', () => {
   test('ask, resume, done, release and reopen run only from the allowed states', () => {
     const b = must(claim(fresh(), 1, A, NOW, 'tok-a'))
@@ -229,6 +295,55 @@ describe('mergeBoard', () => {
     expect('harness' in (board.tasks[0] ?? {})).toBe(false)
     expect('harness' in (board.tasks[1] ?? {})).toBe(false)
     expect(board.tasks[2]?.harness).toBe('codex')
+  })
+
+  test('a republish keeps the standby workers and takes the fresh harnesses and panes when the plan names them, else keeps the old ones', () => {
+    const old: Board = { ...setStandby(fresh(), A, NOW), harnesses: ['claude', 'codex'], panes: 'tmux' }
+    const plain = boardFromPlan([task(1, ['src/a.ts']), task(2, ['src/b.ts']), task(3, ['src/a.ts', 'src/c.ts'])], { ...OPTS, now: NOW + 100 })
+    if (!plain.ok) throw new Error(plain.message)
+    const kept = mergeBoard(old, plain.board).board
+    expect(kept.standby).toEqual([{ harness: 'codex', session: 'worker-a', since: NOW, at: NOW }])
+    expect([kept.harnesses, kept.panes]).toEqual([['claude', 'codex'], 'tmux'])
+    const next = mergeBoard(old, { ...plain.board, harnesses: ['omp'], panes: 'cmux' }).board
+    expect([next.harnesses, next.panes]).toEqual([['omp'], 'cmux'])
+    expect(next.standby).toEqual(kept.standby)
+    const bare = mergeBoard(fresh(), plain.board).board
+    expect(['standby' in bare, 'harnesses' in bare, 'panes' in bare]).toEqual([false, false, false])
+  })
+})
+
+describe('boardLeadStep and boardWorkerBlockReason', () => {
+  const summary = (over: Partial<BoardStopInput['summary']> = {}): BoardStopInput['summary'] => ({ open: 0, claimed: 0, waiting: 0, done: 0, merged: 0, stale: 0, workers: 0, total: 5, ...over })
+  const lead = (over: Partial<BoardStopInput> = {}): BoardStopInput => ({ slug: 'rate-limit', role: 'lead', summary: summary({ open: 3 }), ...over })
+  const spawn = '2 ready task(s) and 0 worker(s) waiting: run `buracle work spawn --json` (or ask the user for more terminals: `/buracle-join rate-limit`)'
+
+  test('the lead is told to spawn when more tasks are ready than workers wait, in every branch, and not otherwise', () => {
+    expect(boardLeadStep(lead({ ready: 2, waiting: 0 }))).toContain(spawn)
+    expect(boardLeadStep(lead({ ready: 2, waiting: 0 }))).toContain('open for workers')
+    const claimed = boardLeadStep(lead({ summary: summary({ open: 3, claimed: 1 }), ready: 2, waiting: 0 }))
+    expect(claimed).toContain(spawn)
+    expect(claimed).toContain('buracle work wait --json')
+    const done = boardLeadStep(lead({ summary: summary({ open: 3, done: 1 }), ready: 2, waiting: 0 }))
+    expect(done).toContain(spawn)
+    expect(done).toContain('buracle work merge --json')
+    expect(boardLeadStep(lead({ ready: 1, waiting: 1 }))).not.toContain('buracle work spawn')
+    expect(boardLeadStep(lead({ ready: 1, waiting: 2 }))).not.toContain('buracle work spawn')
+    expect(boardLeadStep(lead({ ready: 2 }))).not.toContain('buracle work spawn')
+    expect(boardLeadStep(lead({ waiting: 0 }))).not.toContain('buracle work spawn')
+    expect(boardLeadStep(lead({ summary: summary({ done: 2, merged: 3 }), ready: 2, waiting: 0 }))).not.toContain('buracle work spawn')
+    expect(boardLeadStep(lead({ summary: summary({ merged: 5 }), ready: 1, waiting: 0 }))).toBeUndefined()
+    expect(boardLeadStep({ ...lead({ ready: 2, waiting: 0 }), role: 'worker' })).toBeUndefined()
+    expect(boardLeadStep(lead())).toBe('the remaining 3 task(s) are open for workers on the board rate-limit: do not implement them yourself; wait with `buracle work wait --json`, or ask the user to open more terminals and run `/buracle-join rate-limit`')
+  })
+
+  test('a standby worker without a task is told to wait again or release; a claimed task keeps the claimed text', () => {
+    const standby: BoardStopInput = { slug: 'rate-limit', role: 'worker', summary: summary({ open: 3 }), standby: { remaining: 3, waitedAt: NOW }, harness: 'codex' }
+    expect(boardWorkerBlockReason(standby)).toBe('this session is a standby worker of the board rate-limit: 3 task(s) may still become ready for codex. Run `buracle work join rate-limit --wait --json` again, or leave the board with `buracle work release`.')
+    const { harness: _h, ...unknownHarness } = standby
+    expect(boardWorkerBlockReason(unknownHarness)).toContain('may still become ready for this harness.')
+    const claimed = boardWorkerBlockReason({ ...standby, task: { n: 2, status: 'claimed' } })
+    expect(claimed).toContain('this session holds Task 2 of the board rate-limit (claimed)')
+    expect(claimed).not.toContain('standby')
   })
 })
 
