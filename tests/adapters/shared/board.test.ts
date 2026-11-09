@@ -2,7 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, realpathSync, symlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { HEARTBEAT_EVERY_MS, boardCounts, boardJoinOffer, boardPromptNotice, boardSessionEnd, boardStopInput, boardTerminalSequence, boardToolSeen, boardWriteDenial } from '../../../src/adapters/shared/board'
-import { readBoard, sessionBoard } from '../../../src/workflow/board-store'
+import { STANDBY_STALE_MS, setStandby } from '../../../src/core/board/model'
+import { readBoard, sessionBoard, setSessionBoard, updateBoard } from '../../../src/workflow/board-store'
 import { workAsk, workDone, workJoin, workNote, workPublish } from '../../../src/workflow/board'
 import type { ResolvedSession } from '../../../src/workflow/session-store'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
@@ -189,5 +190,49 @@ describe('boardSessionEnd, boardTerminalSequence and boardCounts', () => {
     expect(again.data).toMatchObject({ task: { n: 1 }, worktree: { path: wt, created: false } })
     await g(wt, 'status')
     expect((await workDone({ verify: 'x' }, ctxAt(repo, NOW + 6), B)).code).toBe(0)
+  }))
+})
+
+describe('standby workers: the stop input and the session end', () => {
+  test('a worker without a task reports the tasks that may still come for its harness and its last wait; the lead sees the ready and waiting counts', () => sandbox(async root => {
+    const { repo, path } = await board(root)
+    await workJoin('rate-limit', {}, ctxAt(repo, NOW), A)
+    // What `buracle work join --wait` leaves for a worker that found nothing ready: the board entry and the binding with the wait.
+    const me = { harness: 'omp' as const, session: 'worker-b' }
+    const reg = updateBoard(path, NOW + 10, b => ({ ok: true, board: setStandby(b, me, NOW + 10) }))
+    expect(reg.ok).toBe(true)
+    setSessionBoard('omp', 'worker-b', { slug: 'rate-limit', path, role: 'worker', standbyAt: NOW + 10 })
+    // A worker between two tasks that never waited (plain `join`, then `work done`) is no standby worker: its stop goes through as before.
+    setSessionBoard('opencode', 'worker-c', { slug: 'rate-limit', path, role: 'worker' })
+    const summary = { open: 1, claimed: 1, waiting: 0, done: 0, merged: 0, stale: 0, workers: 1, total: 2 }
+    expect(boardStopInput('omp', 'worker-b', NOW + 20)).toEqual({ slug: 'rate-limit', role: 'worker', harness: 'omp', summary, standby: { remaining: 1, waitedAt: NOW + 10 } })
+    expect(boardStopInput('opencode', 'worker-c', NOW + 20)).toEqual({ slug: 'rate-limit', role: 'worker', summary })
+    expect(boardStopInput('claude', 'lead-1', NOW + 20)).toEqual({ slug: 'rate-limit', role: 'lead', summary, ready: 1, waiting: 1 })
+    expect(boardStopInput('codex', 'worker-a', NOW + 20)).toEqual({ slug: 'rate-limit', role: 'worker', task: { n: 1, status: 'claimed' }, summary })
+    // A standby entry nobody refreshed for STANDBY_STALE_MS is swept before the counts; the worker's own binding still says it waited.
+    const late = NOW + 10 + STANDBY_STALE_MS + 1
+    expect(boardStopInput('claude', 'lead-1', late)).toMatchObject({ ready: 1, waiting: 0 })
+    expect(boardStopInput('omp', 'worker-b', late)).toMatchObject({ standby: { remaining: 1, waitedAt: NOW + 10 } })
+    expect(readBoard(path)?.standby).toEqual([{ harness: 'omp', session: 'worker-b', since: NOW + 10, at: NOW + 10 }])
+  }))
+
+  test('the session end of a standby worker removes its board entry without an event and drops its binding; the other worker\'s task stays', () => sandbox(async root => {
+    const { repo, path } = await board(root)
+    await workJoin('rate-limit', {}, ctxAt(repo, NOW), A)
+    const me = { harness: 'omp' as const, session: 'worker-b' }
+    updateBoard(path, NOW + 10, b => ({ ok: true, board: setStandby(b, me, NOW + 10) }))
+    setSessionBoard('omp', 'worker-b', { slug: 'rate-limit', path, role: 'worker', standbyAt: NOW + 10 })
+    const events = readBoard(path)?.events.length
+    boardSessionEnd('omp', 'worker-b', NOW + 30)
+    expect(readBoard(path)?.standby ?? []).toEqual([])
+    expect(readBoard(path)?.events).toHaveLength(events ?? -1)
+    expect(readBoard(path)?.tasks[0]).toMatchObject({ status: 'claimed', worker: { session: 'worker-a' } })
+    expect(sessionBoard('omp', 'worker-b')).toBeUndefined()
+    expect(boardStopInput('claude', 'lead-1', NOW + 40)).toMatchObject({ ready: 1, waiting: 0 })
+    // A worker bound without a task and without an entry ends quietly too.
+    setSessionBoard('opencode', 'worker-c', { slug: 'rate-limit', path, role: 'worker' })
+    boardSessionEnd('opencode', 'worker-c', NOW + 50)
+    expect(sessionBoard('opencode', 'worker-c')).toBeUndefined()
+    expect(readBoard(path)?.events).toHaveLength(events ?? -1)
   }))
 })

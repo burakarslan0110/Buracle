@@ -11,8 +11,11 @@ import { GUARD_MARKERS, RUNAWAY_REASON, VERIFICATION_OFF_REASON, isResultReview,
 import type { BoardRole, BoardStopInput } from '../board/model'
 import { boardLeadStep, boardWorkerBlockReason } from '../board/model'
 
-/** The session's place on a task board: the lead that published it, or a worker with (or between) claimed tasks. */
-export interface BoardBinding { slug: string; path: string; role: BoardRole; task?: number; token?: string; worktree?: string; cursor?: number; heartbeatAt?: number }
+/**
+ * The session's place on a task board: the lead that published it, or a worker with (or between) claimed tasks.
+ * `standbyAt` is the last `buracle work join --wait` of a worker without a task; a wait after the last block restarts the stop guard's chain.
+ */
+export interface BoardBinding { slug: string; path: string; role: BoardRole; task?: number; token?: string; worktree?: string; cursor?: number; heartbeatAt?: number; standbyAt?: number }
 
 export interface SessionState {
   v: 1
@@ -40,7 +43,7 @@ export function goalVerificationOf(state: SessionState, live: boolean | undefine
 export const STOP_GUARD_ESCAPE = 'The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user asking you to stop, wait or hold on, in any language. Buracle records it only when the whole message is such a word in English or Turkish, so otherwise run `buracle plan pause --kind discussion` yourself.'
 
 export type StopWhy = 'disabled' | 'no-plan' | 'finished' | 'paused' | 'awaiting-approval' | 'question' | 'runaway-plan' | 'runaway-chain' | 'blocked' | 'plan-invalid'
-  | 'background-wait' | 'read-only-mode' | 'runaway-escalate' | 'decision-answered' | 'board-worker'
+  | 'background-wait' | 'read-only-mode' | 'runaway-escalate' | 'decision-answered' | 'board-worker' | 'board-standby'
 
 export const ROUTE_AUDIT_AFTER: readonly StopWhy[] = ['finished', 'no-plan', 'disabled']
 
@@ -231,17 +234,22 @@ function answered(state: SessionState, prep: Prepared, input: StopInput, cfg: Bu
 }
 
 // A board worker holds a claimed task: its turn ends only with the task done, waiting (a question for the user) or
-// released. The session usually has no plan, so this runs before the plan checks; it never escalates, the chain cap
-// releases it.
+// released. A standby worker (no task; `join --wait` found nothing yet) ends its turn only once nothing can come for
+// its harness: until then it waits again or releases. The session usually has no plan, so this runs before the plan
+// checks; it never escalates, the chain cap releases it, and a `join --wait` since the last block starts the chain again.
 function workerVerdict(base: SessionState, input: StopInput, cfg: BuracleConfig['plan']): StopGuardResult | undefined {
   const b = input.board
-  if (b === undefined || b.role !== 'worker' || b.task?.status !== 'claimed') return undefined
+  if (b === undefined || b.role !== 'worker') return undefined
+  const held = b.task?.status === 'claimed'
+  const standby = b.task === undefined && b.standby !== undefined && b.standby.remaining > 0
+  if (!held && !standby) return undefined
   if (input.readOnly === true) return readOnlyRelease(base)
   if (input.backgroundWait === true) return allowWith(base, 'background-wait')
-  const chain = chainOf(base, input)
+  const waited = standby && (b.standby?.waitedAt ?? 0) > (base.guard.lastBlockAt ?? 0)
+  const chain = waited ? 0 : chainOf(base, input)
   const perChain = Math.max(1, Math.floor(cfg.runaway?.perChain ?? 5))
   if (chain >= perChain) return allowWith(base, 'runaway-chain')
-  return blockWith(base, chain, input, `${GUARD_MARKERS[0]} ${boardWorkerBlockReason(b)}`, 'H08', 'board-worker')
+  return blockWith(base, chain, input, `${GUARD_MARKERS[0]} ${boardWorkerBlockReason(b)}`, 'H08', held ? 'board-worker' : 'board-standby')
 }
 
 function h08(state: SessionState, prep: Prepared, input: StopInput, cfg: BuracleConfig['plan']): StopGuardResult {
