@@ -8036,6 +8036,7 @@ __export(exports_plan, {
   stopGuardVerdict: () => stopGuardVerdict,
   stopVerdict: () => stopVerdict,
   stopVerdictDetailed: () => stopVerdictDetailed,
+  swarmSwitch: () => swarmSwitch,
   tickedTasks: () => tickedTasks,
   validatePlan: () => validatePlan,
   withNativeBinding: () => withNativeBinding,
@@ -19021,9 +19022,9 @@ function detectSignals(text) {
 }
 // src/core/policy/review.ts
 var REVIEW_CATEGORIES = {
-  "plan-build-review": ["requirement_gap", "scope_creep", "risky_assumption", "missing_task", "missing_test", "weak_dod", "task_order", "risk", "format", "review_input"],
+  "plan-build-review": ["requirement_gap", "scope_creep", "risky_assumption", "missing_task", "missing_test", "weak_dod", "task_order", "swarm_shape", "risk", "format", "review_input"],
   "changes-review": ["plan_deviation", "incomplete_task", "correctness", "regression_risk", "error_handling", "security", "data_integrity", "test_gap", "test_quality", "docs_drift", "goal_gap", "needs_runtime_check", "performance", "over_engineering", "maintainability", "review_input"],
-  "goal-build-review": ["criterion_not_binary", "criterion_unobservable", "criterion_describes_work", "criterion_bundled", "criterion_subjective", "criterion_fakeable", "outcome_uncovered", "no_end_to_end_check", "oracle_mismatch", "false_pass_uncaught", "reference_unobtainable", "no_measurable_criterion", "goal_unclear", "scope_creep", "task_gap", "task_order", "task_too_large", "contract_size", "risky_assumption", "format", "review_input"]
+  "goal-build-review": ["criterion_not_binary", "criterion_unobservable", "criterion_describes_work", "criterion_bundled", "criterion_subjective", "criterion_fakeable", "outcome_uncovered", "no_end_to_end_check", "oracle_mismatch", "false_pass_uncaught", "reference_unobtainable", "no_measurable_criterion", "goal_unclear", "scope_creep", "task_gap", "task_order", "task_too_large", "swarm_shape", "contract_size", "risky_assumption", "format", "review_input"]
 };
 var REVIEW_MAX_FINDINGS = 15;
 var SEVERITY_ORDER = ["must_fix", "should_fix", "suggestion"];
@@ -28380,11 +28381,139 @@ function documentFindings(o) {
   return out.sort((a, b) => (a.line ?? 0) - (b.line ?? 0));
 }
 
+// src/core/plan/waves.ts
+var TASK_NUMBER = /(?:task\s*)?(\d+)/gi;
+var FENCE = /^ {0,3}(?:`{3,}|~{3,})/;
+function wavePaths(files) {
+  const out = [];
+  for (const f of files) {
+    for (const part of f.path.trim().replace(/`/g, "").split(/\s*->\s*/)) {
+      let s = part.trim().replace(/\\/g, "/").replace(/\/{2,}/g, "/");
+      while (s.startsWith("./"))
+        s = s.slice(2);
+      if (s !== "")
+        out.push(s);
+    }
+  }
+  return out;
+}
+function pathsOverlap(a, b) {
+  if (a === b)
+    return true;
+  if (a.endsWith("/") && b.startsWith(a))
+    return true;
+  if (b.endsWith("/") && a.startsWith(b))
+    return true;
+  return false;
+}
+function sharedPathOf(a, b) {
+  const right = wavePaths(b);
+  for (const p of wavePaths(a)) {
+    const hit = right.find((q) => pathsOverlap(p, q));
+    if (hit !== undefined)
+      return p.length <= hit.length ? p : hit;
+  }
+  return;
+}
+function ordered(tasks) {
+  const seen = new Set;
+  const out = [];
+  for (const t of tasks) {
+    if (seen.has(t.n))
+      continue;
+    seen.add(t.n);
+    out.push(t);
+  }
+  return out.sort((a, b) => a.n - b.n);
+}
+function depsOfOrdered(tasks) {
+  const known = new Set(tasks.map((t) => t.n));
+  const out = {};
+  for (const t of tasks) {
+    const deps = new Set;
+    for (const earlier of tasks) {
+      if (earlier.n >= t.n)
+        break;
+      if (sharedPathOf(earlier.files, t.files) !== undefined)
+        deps.add(earlier.n);
+    }
+    for (const d of t.dependsOn ?? [])
+      if (known.has(d) && d < t.n)
+        deps.add(d);
+    out[t.n] = [...deps].sort((a, b) => a - b);
+  }
+  return out;
+}
+function wavesOf(tasks) {
+  const list = ordered(tasks);
+  const depsOf = depsOfOrdered(list);
+  const level = new Map;
+  for (const t of list) {
+    let max = 0;
+    for (const d of depsOf[t.n] ?? [])
+      max = Math.max(max, level.get(d) ?? 0);
+    level.set(t.n, max + 1);
+  }
+  const depth = list.length === 0 ? 0 : Math.max(...list.map((t) => level.get(t.n) ?? 1));
+  const waves = [];
+  for (let w = 1;w <= depth; w++)
+    waves.push({ wave: w, tasks: list.filter((t) => level.get(t.n) === w).map((t) => t.n) });
+  const width = waves.reduce((m, w) => Math.max(m, w.tasks.length), 0);
+  const successors = new Map;
+  for (const t of list)
+    for (const d of depsOf[t.n] ?? [])
+      successors.set(d, [...successors.get(d) ?? [], t.n]);
+  const ahead = new Map;
+  for (const t of [...list].reverse()) {
+    let max = 0;
+    for (const s of successors.get(t.n) ?? [])
+      max = Math.max(max, ahead.get(s) ?? 0);
+    ahead.set(t.n, max + 1);
+  }
+  const criticalPath = [];
+  let cursor = list.find((t) => ahead.get(t.n) === depth)?.n;
+  while (cursor !== undefined) {
+    criticalPath.push(cursor);
+    const remaining = (ahead.get(cursor) ?? 1) - 1;
+    cursor = remaining <= 0 ? undefined : (successors.get(cursor) ?? []).sort((a, b) => a - b).find((s) => ahead.get(s) === remaining);
+  }
+  return { waves, width, criticalPath, depsOf };
+}
+function parseSwarmPlan(lines) {
+  const out = new Map;
+  let rows = 0;
+  let fenced = false;
+  for (const raw of lines) {
+    if (FENCE.test(raw)) {
+      fenced = !fenced;
+      continue;
+    }
+    if (fenced)
+      continue;
+    const line = raw.trim();
+    if (!line.startsWith("|"))
+      continue;
+    const cells = line.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+    if (cells.length < 2 || cells.every((c) => /^:?-+:?$/.test(c)))
+      continue;
+    const wave = /^\d+$/.test(cells[0]) ? Number(cells[0]) : undefined;
+    if (wave === undefined || wave < 1)
+      continue;
+    rows++;
+    for (const m of cells[1].matchAll(TASK_NUMBER)) {
+      const n = Number(m[1]);
+      if (Number.isInteger(n) && n > 0 && !out.has(n))
+        out.set(n, wave);
+    }
+  }
+  return rows === 0 ? undefined : out;
+}
+
 // src/core/plan/format.ts
 var PLAN_STATUSES = ["PENDING", "APPROVED", "IN_PROGRESS", "COMPLETE", "VERIFIED", "SAVED"];
 var PLAN_TYPES = ["Feature", "Bugfix", "Build", "Plan"];
 var FILE_VERBS = ["Create", "Modify", "Delete", "Rename", "Test"];
-var FENCE = /^ {0,3}(`{3,}|~{3,})/;
+var FENCE2 = /^ {0,3}(`{3,}|~{3,})/;
 var HEADING2 = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
 var TASK_HEADING = /^Task\s+(\d+)\s*[:.\-\u2013\u2014]\s*(.*)$/i;
 var CHECKBOX = /^\s*[-*+]\s+\[([ xX])\]\s+Task\s+(\d+)\s+done\b/i;
@@ -28419,7 +28548,7 @@ function scan(markdown) {
   let fence;
   for (let i = body;i < lines.length; i++) {
     const line = lines[i];
-    const f = FENCE.exec(line);
+    const f = FENCE2.exec(line);
     if (fence !== undefined) {
       code[i] = true;
       if (f && f[1][0] === fence[0] && f[1].length >= fence.length && line.trim() === f[1])
@@ -28465,7 +28594,9 @@ function readCard(doc, card) {
   const objective = [];
   const dod = [];
   const files = [];
+  const fileLines = [];
   const badFiles = [];
+  let dependsOnLine;
   let hasObjective = false;
   let hasFiles = false;
   let hasDod = false;
@@ -28527,6 +28658,7 @@ function readCard(doc, card) {
           prose.push(i);
         } else if (key === "depends on") {
           dependsOn = dependsOnNumbers(rest);
+          dependsOnLine = i;
           block = "other";
         } else if (key === "harness") {
           const value = rest.replace(/`/g, "").trim();
@@ -28562,6 +28694,7 @@ function readCard(doc, card) {
       const verb = m ? m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase() : "";
       if (m && FILE_VERBS.includes(verb) && m[2].trim() !== "") {
         files.push({ verb, path: m[2].trim().replace(/^`(.*)`$/, "$1").replace(/^["'](.*)["']$/, "$1") });
+        fileLines.push(i);
       } else {
         badFiles.push({ line: i, text: item });
       }
@@ -28581,11 +28714,14 @@ function readCard(doc, card) {
     task.harness = harness;
   return {
     task,
+    head: card.head,
     hasObjective,
     hasFiles,
     hasDod,
     verify,
     badFiles,
+    fileLines,
+    ...dependsOnLine !== undefined ? { dependsOnLine } : {},
     ...checkbox ? { checkbox: { n: checkbox.n, line: checkbox.line } } : {},
     ...badHarness !== undefined ? { badHarness } : {},
     prose
@@ -28639,6 +28775,35 @@ function headerOf(fm) {
     header.rounds = rd;
   return header;
 }
+function sectionRange(doc, name) {
+  const sec = doc.sections.find((s) => s.text.toLowerCase() === name);
+  if (!sec)
+    return;
+  const next = doc.headings.find((h) => h.line > sec.line && h.level <= 2);
+  return { line: sec.line, end: next ? next.line : doc.lines.length };
+}
+var SWARM_SWITCH = /^\s*(?:(?:[-+]|\d+[.)])\s+)?(swarm|board)\s*:\s*(on|off)\b/i;
+function swarmSwitchOf(doc) {
+  const sec = sectionRange(doc, "assumptions");
+  if (!sec)
+    return;
+  let board;
+  for (let i = sec.line + 1;i < sec.end; i++) {
+    if (doc.code[i])
+      continue;
+    const m = SWARM_SWITCH.exec((doc.lines[i] ?? "").replace(/[`*_]/g, ""));
+    if (!m)
+      continue;
+    const hit = { value: m[2].toLowerCase(), line: i };
+    if (m[1].toLowerCase() === "swarm")
+      return hit;
+    board ??= hit;
+  }
+  return board;
+}
+function swarmSwitch(markdown) {
+  return swarmSwitchOf(scan(typeof markdown === "string" ? markdown : ""))?.value;
+}
 function parsePlan(markdown) {
   const doc = scan(typeof markdown === "string" ? markdown : "");
   return {
@@ -28669,6 +28834,9 @@ function err(code, message, line) {
 }
 function warn(code, message, line) {
   return line === undefined ? { level: "warning", code, message } : { level: "warning", code, message, line: line + 1 };
+}
+function info(code, message, line) {
+  return line === undefined ? { level: "info", code, message } : { level: "info", code, message, line: line + 1 };
 }
 function fmLine(doc, key) {
   for (let i = 1;i < doc.fmEnd; i++)
@@ -28813,6 +28981,94 @@ function checkBuildContract(doc, out) {
   else if (doc.cards.length > BUILD_TASKS.max)
     out.push(warn("task-count", `${doc.cards.length} tasks: split the goal into separate runs`, doc.tasks?.head));
 }
+function checkDependencies(doc, bodies, out) {
+  const known = new Set(doc.cards.map((c) => c.n));
+  for (const b of bodies) {
+    const n = b.task.n;
+    for (const d of b.task.dependsOn ?? []) {
+      if (!known.has(d))
+        out.push(err("depends-on-unknown", `Task ${n} depends on Task ${d}, which the plan does not have`, b.dependsOnLine));
+      else if (d === n)
+        out.push(err("depends-on-later", `Task ${n} depends on itself: order the tasks by dependency`, b.dependsOnLine));
+      else if (d > n)
+        out.push(err("depends-on-later", `Task ${n} depends on Task ${d}, a later task: order the tasks by dependency`, b.dependsOnLine));
+    }
+  }
+}
+function fileLineOf(b, path) {
+  const j = b.task.files.findIndex((f) => sharedPathOf([f], [{ path }]) !== undefined);
+  return j >= 0 ? b.fileLines[j] : undefined;
+}
+var PASTE_BLOCK = "run `buracle work publish --dry-run --md` and paste its block";
+function checkSwarmShape(doc, bodies, switchLine, out) {
+  const tasks = bodies.map((b) => b.task);
+  const plan = wavesOf(tasks);
+  const total = doc.cards.length;
+  if (total >= 2) {
+    const path = plan.criticalPath.map((n) => `Task ${n}`).join(" \u2192 ");
+    out.push(info("swarm-shape", `${total} tasks in ${plan.waves.length} wave${plan.waves.length === 1 ? "" : "s"}: width ${plan.width}, critical path ${plan.criticalPath.length} (${path})`, doc.tasks?.head));
+  }
+  if (tasks.filter((t) => !t.done).length >= 3 && plan.width === 1) {
+    out.push(warn("swarm-serial", "every task waits for the one before it; split the work into disjoint tasks or set `Swarm: off`", doc.tasks?.head));
+  }
+  for (const [k, later] of bodies.entries()) {
+    for (const earlier of bodies.slice(0, k)) {
+      if (earlier.task.n >= later.task.n)
+        continue;
+      const shared = sharedPathOf(later.task.files, earlier.task.files);
+      if (shared === undefined || (later.task.dependsOn ?? []).includes(earlier.task.n))
+        continue;
+      out.push(warn("swarm-shared-file", `Task ${later.task.n} shares \`${shared}\` with Task ${earlier.task.n} and names no \`Depends on\`: make the files disjoint (move the shared edit into the foundation task or split the file) or add \`**Depends on:** Task ${earlier.task.n}\``, fileLineOf(later, shared) ?? later.head));
+    }
+  }
+  const owners = new Map;
+  for (const b of bodies) {
+    const seen = new Set;
+    for (const [j, f] of b.task.files.entries()) {
+      for (const p of wavePaths([f])) {
+        if (p.endsWith("/"))
+          out.push(warn("swarm-dir-path", `Task ${b.task.n} lists the directory \`${p}\`: a directory serializes every task under it; name the files`, b.fileLines[j] ?? b.head));
+        if (seen.has(p))
+          continue;
+        seen.add(p);
+        owners.set(p, [...owners.get(p) ?? [], { n: b.task.n, line: b.fileLines[j] ?? b.head }]);
+      }
+    }
+  }
+  for (const [p, list] of owners) {
+    if (list.length >= 3)
+      out.push(warn("swarm-hub", `\`${p}\` is listed by Tasks ${list.map((x) => x.n).join(", ")}: give it one owner (the foundation task) or split it`, list[0]?.line));
+  }
+  const sec = sectionRange(doc, "swarm plan");
+  if (sec === undefined) {
+    out.push(warn("swarm-plan-missing", `add a \`## Swarm Plan\` section: ${PASTE_BLOCK}`, switchLine));
+    return;
+  }
+  const table = parseSwarmPlan(doc.lines.slice(sec.line + 1, sec.end));
+  if (table === undefined) {
+    out.push(warn("swarm-plan-missing", `\`## Swarm Plan\` holds no wave table: ${PASTE_BLOCK}`, sec.line));
+    return;
+  }
+  const want = new Map;
+  for (const w of plan.waves)
+    for (const n of w.tasks)
+      want.set(n, w.wave);
+  for (const n of [...new Set([...want.keys(), ...table.keys()])].sort((a, b) => a - b)) {
+    const got = table.get(n);
+    const expected = want.get(n);
+    if (got === expected)
+      continue;
+    const why = got === undefined ? `Task ${n} is missing from the table` : expected === undefined ? `Task ${n} is in the table but not in the plan` : `Task ${n} is in wave ${got} of the table and in wave ${expected} of the plan`;
+    out.push(warn("swarm-plan-stale", `\`## Swarm Plan\` is stale: ${why}; ${PASTE_BLOCK} again`, sec.line));
+    return;
+  }
+}
+function outsideSwarmPlan(doc, findings) {
+  const sec = sectionRange(doc, "swarm plan");
+  if (sec === undefined)
+    return findings;
+  return findings.filter((f) => f.line === undefined || f.line - 1 <= sec.line || f.line - 1 >= sec.end);
+}
 function validatePlan(markdown, opts) {
   const strict = opts?.strict === true;
   if (typeof markdown !== "string" || markdown.trim() === "")
@@ -28849,10 +29105,12 @@ function validatePlan(markdown, opts) {
     const c = doc.cards[misnumbered];
     out.push(err("task-numbering", `tasks must be numbered 1, 2, 3, \u2026 in order (found Task ${c.n} where Task ${misnumbered + 1} was expected)`, c.head));
   }
+  const bodies = [];
   for (const card of doc.cards) {
     for (let i = card.head;i < card.end; i++)
       inCard.add(i);
     const body = readCard(doc, card);
+    bodies.push(body);
     const label = `Task ${card.n}`;
     if (card.title === "")
       out.push(err("task-heading", `${label} has no title after the colon`, card.head));
@@ -28876,10 +29134,14 @@ function validatePlan(markdown, opts) {
     else if (body.checkbox.n !== card.n)
       out.push(err("checkbox-mismatch", `${label}'s checkbox names Task ${body.checkbox.n}`, body.checkbox.line));
   }
+  checkDependencies(doc, bodies, out);
+  const swarm = swarmSwitchOf(doc);
+  if (swarm?.value === "on" && bodies.length > 0)
+    checkSwarmShape(doc, bodies, swarm.line, out);
   if (type === "Feature" || type === "Bugfix")
     out.push(...authoringFindings(outlineOf(doc)));
   if (type === "Feature" || type === "Bugfix" || type === "Build")
-    out.push(...documentFindings(outlineOf(doc)));
+    out.push(...outsideSwarmPlan(doc, documentFindings(outlineOf(doc))));
   const skeleton = skeletonPlaceholders();
   let skel = 0;
   let firstSkel = -1;
@@ -29358,6 +29620,7 @@ function nativeConflictNote(registered, saved, harness) {
 
 // src/core/board/model.ts
 var TASK_STATUSES = ["open", "claimed", "waiting", "done", "merged", "stale"];
+var STANDBY_STALE_MS = 180000;
 function fail(code, message) {
   return { ok: false, code, message };
 }
@@ -29375,7 +29638,7 @@ function normalizePlanPath(p) {
     s = s.slice(2);
   return s;
 }
-function pathsOverlap(a, b) {
+function pathsOverlap2(a, b) {
   if (a === b)
     return true;
   if (a.endsWith("/") && b.startsWith(a))
@@ -29387,7 +29650,7 @@ function pathsOverlap(a, b) {
 function sharedPath(a, b) {
   const right = b.flatMap(pathsOf);
   for (const p of a.flatMap(pathsOf)) {
-    const hit = right.find((q) => pathsOverlap(p, q));
+    const hit = right.find((q) => pathsOverlap2(p, q));
     if (hit !== undefined)
       return p.length <= hit.length ? p : hit;
   }
@@ -29409,7 +29672,33 @@ function sweep(board, now) {
     const stale = { ...rest, status: "stale", ...worker !== undefined ? { lastWorker: worker } : {} };
     out = event({ ...out, tasks: out.tasks.map((x) => x.n === t.n ? stale : x) }, "stale", now, { task: t.n, ...sessionFields(worker) });
   }
-  return out;
+  return sweepStandby(out, now);
+}
+function sameSession(a, b) {
+  return a.harness === b.harness && a.session === b.session;
+}
+function withStandby(board, standby) {
+  const { standby: _drop, ...rest } = board;
+  return standby.length > 0 ? { ...rest, standby } : rest;
+}
+function remainingFor(board, harness) {
+  return board.tasks.filter((t) => (t.status === "open" || t.status === "stale") && (t.harness === undefined || t.harness === harness)).length;
+}
+function clearStandby(board, who) {
+  const list = board.standby ?? [];
+  if (!list.some((s) => sameSession(s, who)))
+    return board;
+  return withStandby(board, list.filter((s) => !sameSession(s, who)));
+}
+function sweepStandby(board, now) {
+  const list = board.standby;
+  if (list === undefined)
+    return board;
+  const live = list.filter((s) => s.at >= now - STANDBY_STALE_MS);
+  return live.length === list.length ? board : withStandby(board, live);
+}
+function standbyWorkers(board, except) {
+  return (board.standby ?? []).filter((s) => except === undefined || !sameSession(s, except));
 }
 var ACTIVE = ["claimed", "waiting", "done"];
 function blocker(board, t, harness) {
@@ -29551,6 +29840,10 @@ function boardLeadStep(b) {
   const s = b.summary;
   if (s.total - s.merged <= 0)
     return;
+  const scale = b.ready !== undefined && b.waiting !== undefined && b.ready > b.waiting && s.open + s.stale > 0 ? `; ${b.ready} ready task(s) and ${b.waiting} worker(s) waiting: run \`buracle work spawn --json\` (or ask the user for more terminals: \`/buracle-join ${b.slug}\`)` : "";
+  return `${leadStep(b, s)}${scale}`;
+}
+function leadStep(b, s) {
   if (s.claimed + s.waiting > 0) {
     return `wait on the board with \`buracle work wait --json\` (${s.claimed} claimed, ${s.waiting} waiting${s.done > 0 ? `, ${s.done} done` : ""}): merge each done task with \`buracle work merge --json\`, run the checks after every merge, and do not implement a claimed task yourself`;
   }
@@ -29559,6 +29852,9 @@ function boardLeadStep(b) {
   return `the remaining ${s.open + s.stale} task(s) are open for workers on the board ${b.slug}: do not implement them yourself; wait with \`buracle work wait --json\`, or ask the user to open more terminals and run \`/buracle-join ${b.slug}\``;
 }
 function boardWorkerBlockReason(b) {
+  if (b.task === undefined && b.standby !== undefined) {
+    return `this session is a standby worker of the board ${b.slug}: ${b.standby.remaining} task(s) may still become ready for ${b.harness ?? "this harness"}. Run \`buracle work join ${b.slug} --wait --json\` again, or leave the board with \`buracle work release\`.`;
+  }
   const n = b.task?.n ?? 0;
   return `this session holds Task ${n} of the board ${b.slug} (claimed), so the turn cannot end with the task idle. Finish it: commit on the lane branch and run \`buracle work done --verify "<command \u2192 result>"\`; or ask the user with \`buracle work ask "<question>"\` and then the question tool; or give it back with \`buracle work release --reason "<why>"\`. The lease expires without heartbeats and the task would be reassigned.`;
 }
@@ -29757,17 +30053,22 @@ function answered(state, prep, input, cfg) {
 }
 function workerVerdict(base, input, cfg) {
   const b = input.board;
-  if (b === undefined || b.role !== "worker" || b.task?.status !== "claimed")
+  if (b === undefined || b.role !== "worker")
+    return;
+  const held = b.task?.status === "claimed";
+  const standby = b.task === undefined && b.standby !== undefined && b.standby.remaining > 0;
+  if (!held && !standby)
     return;
   if (input.readOnly === true)
     return readOnlyRelease(base);
   if (input.backgroundWait === true)
     return allowWith(base, "background-wait");
-  const chain = chainOf(base, input);
+  const waited = standby && (b.standby?.waitedAt ?? 0) > (base.guard.lastBlockAt ?? 0);
+  const chain = waited ? 0 : chainOf(base, input);
   const perChain = Math.max(1, Math.floor(cfg.runaway?.perChain ?? 5));
   if (chain >= perChain)
     return allowWith(base, "runaway-chain");
-  return blockWith(base, chain, input, `${GUARD_MARKERS[0]} ${boardWorkerBlockReason(b)}`, "H08", "board-worker");
+  return blockWith(base, chain, input, `${GUARD_MARKERS[0]} ${boardWorkerBlockReason(b)}`, "H08", held ? "board-worker" : "board-standby");
 }
 function h08(state, prep, input, cfg) {
   const base = prep.base;
@@ -33803,6 +34104,9 @@ function checkoutRootOf(cwd) {
 function isSession(x) {
   return x !== null && typeof x === "object" && typeof x.harness === "string" && typeof x.session === "string";
 }
+function isStandby(x) {
+  return isSession(x) && typeof x.since === "number" && typeof x.at === "number";
+}
 function isBoard(x) {
   if (x === null || typeof x !== "object")
     return false;
@@ -33812,6 +34116,12 @@ function isBoard(x) {
   if (!isSession(b["lead"]) || typeof b["maxWorkers"] !== "number" || typeof b["leaseSec"] !== "number" || typeof b["seq"] !== "number")
     return false;
   if (!Array.isArray(b["tasks"]) || !Array.isArray(b["notes"]) || !Array.isArray(b["events"]) || !Array.isArray(b["constraints"]) || typeof b["context"] !== "string")
+    return false;
+  if (b["standby"] !== undefined && !(Array.isArray(b["standby"]) && b["standby"].every(isStandby)))
+    return false;
+  if (b["harnesses"] !== undefined && !(Array.isArray(b["harnesses"]) && b["harnesses"].every((h) => HARNESSES.includes(String(h)))))
+    return false;
+  if (b["panes"] !== undefined && typeof b["panes"] !== "string")
     return false;
   return b["tasks"].every((t) => t !== null && typeof t === "object" && typeof t.n === "number" && TASK_STATUSES.includes(String(t.status)));
 }
@@ -34736,9 +35046,20 @@ function boardStopInput(h, sid, now) {
       return;
     const board = sweep(stored, now);
     const out = { slug: board.slug, role: binding.role, summary: boardSummary(board) };
+    if (binding.role === "lead") {
+      out.ready = claimable(board).ready.length;
+      out.waiting = standbyWorkers(board).length;
+      return out;
+    }
     const t = binding.task !== undefined ? board.tasks.find((x) => x.n === binding.task) : undefined;
-    if (binding.role === "worker" && t !== undefined && t.token === binding.token && (t.status === "claimed" || t.status === "waiting"))
+    if (t !== undefined && t.token === binding.token && (t.status === "claimed" || t.status === "waiting")) {
       out.task = { n: t.n, status: t.status };
+      return out;
+    }
+    if (binding.standbyAt === undefined)
+      return out;
+    out.harness = h;
+    out.standby = { remaining: remainingFor(board, h), waitedAt: binding.standbyAt };
     return out;
   } catch (e) {
     log("warn", "board: the stop input failed", { error: e });
@@ -34754,6 +35075,8 @@ function boardSessionEnd(h, sid, now) {
       const task = binding.task;
       const token = binding.token;
       updateBoard(binding.path, now, (b) => release(b, task, token, now, "the worker session ended"));
+    } else {
+      updateBoard(binding.path, now, (b) => ({ ok: true, board: clearStandby(b, { harness: h, session: sid }) }));
     }
     setSessionBoard(h, sid, undefined);
   } catch (e) {
@@ -38508,7 +38831,7 @@ var GENERATED = {
       userInvocable: false
     },
     {
-      description: "Join a plan's task board as a worker: claim the next open task of a plan-build or goal-build run that another session leads, implement it with TDD in its own lane worktree, report it done, and take the next one. The lead merges and ticks the plan. Run only when the user asks to join a board.",
+      description: "Join a plan's task board as a worker: claim the next open task of a plan-build or goal-build run that another session leads, implement it with TDD in its own lane worktree, report it done, and take the next one or wait for it. The lead merges and ticks the plan. Run only when the user asks to join a board.",
       id: "buracle-join",
       invocation: "explicit",
       short: "Take and finish tasks of a shared plan board as a worker",

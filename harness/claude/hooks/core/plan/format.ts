@@ -4,6 +4,7 @@ import type { FmData, FmValue } from '../frontmatter'
 import { parseYamlBlock, renderYamlBlock } from '../frontmatter'
 import { authoringFindings, type PlanOutline } from './authoring'
 import { documentFindings } from './document'
+import { parseSwarmPlan, sharedPathOf, wavePaths, wavesOf } from './waves'
 
 export type PlanStatus = 'PENDING' | 'APPROVED' | 'IN_PROGRESS' | 'COMPLETE' | 'VERIFIED' | 'SAVED'
 export type PlanType = 'Feature' | 'Bugfix' | 'Build' | 'Plan'
@@ -101,11 +102,17 @@ function scan(markdown: string): Doc {
 
 interface CardBody {
   task: PlanTask
+  /** The card's heading line. */
+  head: number
   hasObjective: boolean
   hasFiles: boolean
   hasDod: boolean
   verify: boolean
   badFiles: Array<{ line: number, text: string }>
+  /** The line of each `task.files` entry, in the same order. */
+  fileLines: number[]
+  /** The `**Depends on:**` line, when the card has one. */
+  dependsOnLine?: number
   checkbox?: { n: number, line: number }
   /** A `**Harness:**` line whose value is not a harness id. */
   badHarness?: { line: number, value: string }
@@ -121,7 +128,9 @@ function readCard(doc: Doc, card: Card): CardBody {
   const objective: string[] = []
   const dod: string[] = []
   const files: PlanTask['files'] = []
+  const fileLines: number[] = []
   const badFiles: Array<{ line: number, text: string }> = []
+  let dependsOnLine: number | undefined
   let hasObjective = false
   let hasFiles = false
   let hasDod = false
@@ -154,7 +163,7 @@ function readCard(doc: Doc, card: Card): CardBody {
         else if (key === 'files') { block = 'files'; hasFiles = true }
         else if (key === 'definition of done' || key === 'dod') { block = 'dod'; hasDod = true; if (rest !== '') dod.push(rest); prose.push(i) }
         else if (key === 'verify') { verify = true; block = 'other'; prose.push(i) }
-        else if (key === 'depends on') { dependsOn = dependsOnNumbers(rest); block = 'other' }
+        else if (key === 'depends on') { dependsOn = dependsOnNumbers(rest); dependsOnLine = i; block = 'other' }
         else if (key === 'harness') {
           // `**Harness:** codex`: the task is reserved for workers of that harness.
           const value = rest.replace(/`/g, '').trim()
@@ -179,6 +188,7 @@ function readCard(doc: Doc, card: Card): CardBody {
       const verb = m ? (m[1] as string).charAt(0).toUpperCase() + (m[1] as string).slice(1).toLowerCase() : ''
       if (m && (FILE_VERBS as readonly string[]).includes(verb) && (m[2] as string).trim() !== '') {
         files.push({ verb: verb as FileVerb, path: (m[2] as string).trim().replace(/^`(.*)`$/, '$1').replace(/^["'](.*)["']$/, '$1') })
+        fileLines.push(i)
       } else {
         badFiles.push({ line: i, text: item })
       }
@@ -193,11 +203,14 @@ function readCard(doc: Doc, card: Card): CardBody {
   if (harness !== undefined) task.harness = harness
   return {
     task,
+    head: card.head,
     hasObjective,
     hasFiles,
     hasDod,
     verify,
     badFiles,
+    fileLines,
+    ...(dependsOnLine !== undefined ? { dependsOnLine } : {}),
     ...(checkbox ? { checkbox: { n: checkbox.n, line: checkbox.line } } : {}),
     ...(badHarness !== undefined ? { badHarness } : {}),
     prose,
@@ -248,6 +261,38 @@ function headerOf(fm: FmData): PlanHeader {
   return header
 }
 
+/** A `## <name>` section (case-insensitive): its heading line and the line the next `#`/`##` heading starts (or the end). */
+function sectionRange(doc: Doc, name: string): { line: number, end: number } | undefined {
+  const sec = doc.sections.find(s => s.text.toLowerCase() === name)
+  if (!sec) return undefined
+  const next = doc.headings.find(h => h.line > sec.line && h.level <= 2)
+  return { line: sec.line, end: next ? next.line : doc.lines.length }
+}
+
+// `Swarm: on` / `Swarm: off` under `## Assumptions`, as a plain line, a list item or in emphasis; the value may carry a
+// note (`Swarm: off (chosen at approval)`). The older `Board: on|off` line means the same and loses to a `Swarm:` line.
+const SWARM_SWITCH = /^\s*(?:(?:[-+]|\d+[.)])\s+)?(swarm|board)\s*:\s*(on|off)\b/i
+
+function swarmSwitchOf(doc: Doc): { value: 'on' | 'off', line: number } | undefined {
+  const sec = sectionRange(doc, 'assumptions')
+  if (!sec) return undefined
+  let board: { value: 'on' | 'off', line: number } | undefined
+  for (let i = sec.line + 1; i < sec.end; i++) {
+    if (doc.code[i]) continue
+    const m = SWARM_SWITCH.exec((doc.lines[i] ?? '').replace(/[`*_]/g, ''))
+    if (!m) continue
+    const hit = { value: (m[2] as string).toLowerCase() as 'on' | 'off', line: i }
+    if ((m[1] as string).toLowerCase() === 'swarm') return hit
+    board ??= hit
+  }
+  return board
+}
+
+/** The Swarm switch of a plan: `Swarm: on|off` (or the older `Board: on|off`) under `## Assumptions`; undefined without such a line. */
+export function swarmSwitch(markdown: string): 'on' | 'off' | undefined {
+  return swarmSwitchOf(scan(typeof markdown === 'string' ? markdown : ''))?.value
+}
+
 export function parsePlan(markdown: string): Plan {
   const doc = scan(typeof markdown === 'string' ? markdown : '')
   return {
@@ -279,6 +324,7 @@ const CREATED = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[
 
 function err(code: string, message: string, line?: number): Finding { return line === undefined ? { level: 'error', code, message } : { level: 'error', code, message, line: line + 1 } }
 function warn(code: string, message: string, line?: number): Finding { return line === undefined ? { level: 'warning', code, message } : { level: 'warning', code, message, line: line + 1 } }
+function info(code: string, message: string, line?: number): Finding { return line === undefined ? { level: 'info', code, message } : { level: 'info', code, message, line: line + 1 } }
 
 function fmLine(doc: Doc, key: string): number | undefined {
   for (let i = 1; i < doc.fmEnd; i++) if (new RegExp(`^${key}\\s*:`).test(doc.lines[i] ?? '')) return i
@@ -423,6 +469,85 @@ function checkBuildContract(doc: Doc, out: Finding[]): void {
   else if (doc.cards.length > BUILD_TASKS.max) out.push(warn('task-count', `${doc.cards.length} tasks: split the goal into separate runs`, doc.tasks?.head))
 }
 
+// A `**Depends on:**` must name an earlier task of this plan: the board refuses anything else at publish time.
+function checkDependencies(doc: Doc, bodies: readonly CardBody[], out: Finding[]): void {
+  const known = new Set(doc.cards.map(c => c.n))
+  for (const b of bodies) {
+    const n = b.task.n
+    for (const d of b.task.dependsOn ?? []) {
+      if (!known.has(d)) out.push(err('depends-on-unknown', `Task ${n} depends on Task ${d}, which the plan does not have`, b.dependsOnLine))
+      else if (d === n) out.push(err('depends-on-later', `Task ${n} depends on itself: order the tasks by dependency`, b.dependsOnLine))
+      else if (d > n) out.push(err('depends-on-later', `Task ${n} depends on Task ${d}, a later task: order the tasks by dependency`, b.dependsOnLine))
+    }
+  }
+}
+
+function fileLineOf(b: CardBody, path: string): number | undefined {
+  const j = b.task.files.findIndex(f => sharedPathOf([f], [{ path }]) !== undefined)
+  return j >= 0 ? b.fileLines[j] : undefined
+}
+
+const PASTE_BLOCK = 'run `buracle work publish --dry-run --md` and paste its block'
+
+// The shape checks of a plan the swarm runs (`Swarm: on`): waves, shared files, hubs, directory paths and the pasted
+// `## Swarm Plan` block. Warnings and one info; the plan stays valid.
+function checkSwarmShape(doc: Doc, bodies: readonly CardBody[], switchLine: number, out: Finding[]): void {
+  const tasks = bodies.map(b => b.task)
+  const plan = wavesOf(tasks)
+  const total = doc.cards.length
+  if (total >= 2) {
+    const path = plan.criticalPath.map(n => `Task ${n}`).join(' → ')
+    out.push(info('swarm-shape', `${total} tasks in ${plan.waves.length} wave${plan.waves.length === 1 ? '' : 's'}: width ${plan.width}, critical path ${plan.criticalPath.length} (${path})`, doc.tasks?.head))
+  }
+  if (tasks.filter(t => !t.done).length >= 3 && plan.width === 1) {
+    out.push(warn('swarm-serial', 'every task waits for the one before it; split the work into disjoint tasks or set `Swarm: off`', doc.tasks?.head))
+  }
+  for (const [k, later] of bodies.entries()) {
+    for (const earlier of bodies.slice(0, k)) {
+      if (earlier.task.n >= later.task.n) continue
+      const shared = sharedPathOf(later.task.files, earlier.task.files)
+      if (shared === undefined || (later.task.dependsOn ?? []).includes(earlier.task.n)) continue
+      out.push(warn('swarm-shared-file', `Task ${later.task.n} shares \`${shared}\` with Task ${earlier.task.n} and names no \`Depends on\`: make the files disjoint (move the shared edit into the foundation task or split the file) or add \`**Depends on:** Task ${earlier.task.n}\``, fileLineOf(later, shared) ?? later.head))
+    }
+  }
+  const owners = new Map<string, Array<{ n: number, line: number }>>()
+  for (const b of bodies) {
+    const seen = new Set<string>()
+    for (const [j, f] of b.task.files.entries()) {
+      for (const p of wavePaths([f])) {
+        if (p.endsWith('/')) out.push(warn('swarm-dir-path', `Task ${b.task.n} lists the directory \`${p}\`: a directory serializes every task under it; name the files`, b.fileLines[j] ?? b.head))
+        if (seen.has(p)) continue
+        seen.add(p)
+        owners.set(p, [...(owners.get(p) ?? []), { n: b.task.n, line: b.fileLines[j] ?? b.head }])
+      }
+    }
+  }
+  for (const [p, list] of owners) {
+    if (list.length >= 3) out.push(warn('swarm-hub', `\`${p}\` is listed by Tasks ${list.map(x => x.n).join(', ')}: give it one owner (the foundation task) or split it`, list[0]?.line))
+  }
+  const sec = sectionRange(doc, 'swarm plan')
+  if (sec === undefined) { out.push(warn('swarm-plan-missing', `add a \`## Swarm Plan\` section: ${PASTE_BLOCK}`, switchLine)); return }
+  const table = parseSwarmPlan(doc.lines.slice(sec.line + 1, sec.end))
+  if (table === undefined) { out.push(warn('swarm-plan-missing', `\`## Swarm Plan\` holds no wave table: ${PASTE_BLOCK}`, sec.line)); return }
+  const want = new Map<number, number>()
+  for (const w of plan.waves) for (const n of w.tasks) want.set(n, w.wave)
+  for (const n of [...new Set([...want.keys(), ...table.keys()])].sort((a, b) => a - b)) {
+    const got = table.get(n)
+    const expected = want.get(n)
+    if (got === expected) continue
+    const why = got === undefined ? `Task ${n} is missing from the table` : expected === undefined ? `Task ${n} is in the table but not in the plan` : `Task ${n} is in wave ${got} of the table and in wave ${expected} of the plan`
+    out.push(warn('swarm-plan-stale', `\`## Swarm Plan\` is stale: ${why}; ${PASTE_BLOCK} again`, sec.line))
+    return
+  }
+}
+
+// The `## Swarm Plan` block is generated (renderSwarmPlan in ./waves), not prose: the document check leaves it alone.
+function outsideSwarmPlan(doc: Doc, findings: Finding[]): Finding[] {
+  const sec = sectionRange(doc, 'swarm plan')
+  if (sec === undefined) return findings
+  return findings.filter(f => f.line === undefined || f.line - 1 <= sec.line || f.line - 1 >= sec.end)
+}
+
 export function validatePlan(markdown: string, opts?: { strict?: boolean }): Finding[] {
   const strict = opts?.strict === true
   if (typeof markdown !== 'string' || markdown.trim() === '') return [err('empty', 'the plan file is empty')]
@@ -453,9 +578,11 @@ export function validatePlan(markdown: string, opts?: { strict?: boolean }): Fin
     const c = doc.cards[misnumbered] as Card
     out.push(err('task-numbering', `tasks must be numbered 1, 2, 3, … in order (found Task ${c.n} where Task ${misnumbered + 1} was expected)`, c.head))
   }
+  const bodies: CardBody[] = []
   for (const card of doc.cards) {
     for (let i = card.head; i < card.end; i++) inCard.add(i)
     const body = readCard(doc, card)
+    bodies.push(body)
     const label = `Task ${card.n}`
     if (card.title === '') out.push(err('task-heading', `${label} has no title after the colon`, card.head))
     if (!body.hasObjective || body.task.objective === undefined) out.push(err('missing-objective', `${label} needs an \`**Objective:**\` line`, card.head))
@@ -471,10 +598,13 @@ export function validatePlan(markdown: string, opts?: { strict?: boolean }): Fin
     if (!body.checkbox) out.push(err('missing-checkbox', `${label} needs the checkbox line \`- [ ] Task ${card.n} done\``, card.head))
     else if (body.checkbox.n !== card.n) out.push(err('checkbox-mismatch', `${label}'s checkbox names Task ${body.checkbox.n}`, body.checkbox.line))
   }
+  checkDependencies(doc, bodies, out)
+  const swarm = swarmSwitchOf(doc)
+  if (swarm?.value === 'on' && bodies.length > 0) checkSwarmShape(doc, bodies, swarm.line, out)
 
   if (type === 'Feature' || type === 'Bugfix') out.push(...authoringFindings(outlineOf(doc)))
   // A captured native plan (type Plan) holds the harness's own text and is not a Buracle document.
-  if (type === 'Feature' || type === 'Bugfix' || type === 'Build') out.push(...documentFindings(outlineOf(doc)))
+  if (type === 'Feature' || type === 'Bugfix' || type === 'Build') out.push(...outsideSwarmPlan(doc, documentFindings(outlineOf(doc))))
 
   const skeleton = skeletonPlaceholders()
   let skel = 0
