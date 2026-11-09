@@ -42,6 +42,11 @@ export interface BoardNote { seq: number; from: BoardSession; role: BoardRole; t
 export type BoardEventKind = 'published' | 'claimed' | 'waiting' | 'resumed' | 'done' | 'merged' | 'stale' | 'released' | 'reopened' | 'note'
 export interface BoardEvent { seq: number; kind: BoardEventKind; at: number; task?: number; session?: string; harness?: Harness; text?: string; note?: number }
 
+/** A worker session that holds no task and waits for the next ready one (`buracle work join --wait`); `at` is its last refresh. */
+export interface BoardStandby { harness: Harness; session: string; since: number; at: number }
+/** A standby entry nobody refreshed for this long is dropped by `sweep`: its session is gone, or it stopped waiting. */
+export const STANDBY_STALE_MS = 180_000
+
 export interface Board {
   v: 1
   slug: string
@@ -60,6 +65,12 @@ export interface Board {
   seq: number
   createdAt: number
   updatedAt: number
+  /** The workers that wait for the next ready task; absent when nobody waits (boards written before standby workers have no field). */
+  standby?: BoardStandby[]
+  /** The plan's `Swarm harnesses:` line: the harnesses the lead deals worker panes to. */
+  harnesses?: Harness[]
+  /** The plan's `Panes:` line: the multiplexer the lead opens worker panes in. */
+  panes?: string
 }
 
 export interface BoardSummary { open: number; claimed: number; waiting: number; done: number; merged: number; stale: number; workers: number; total: number }
@@ -172,7 +183,8 @@ function sameDeps(a: readonly number[], b: readonly number[]): boolean {
 /**
  * A second publish: the old board keeps every state and worker; open and stale tasks take the plan's current files, deps
  * and harness; an active task whose files, deps or harness changed keeps the board's values and is reported in `changed`;
- * a task the plan unticked while the board says merged reopens (its worktree and report stay). New tasks are added.
+ * a task the plan unticked while the board says merged reopens (its worktree and report stay). New tasks are added. The
+ * standby workers stay; the harnesses and panes come from the new publish when it names them, else they stay too.
  */
 export function mergeBoard(old: Board, fresh: Board): { board: Board, changed: number[] } {
   const changed: number[] = []
@@ -211,10 +223,15 @@ export function mergeBoard(old: Board, fresh: Board): { board: Board, changed: n
   }
   if (fresh.parent !== undefined) board.parent = fresh.parent
   else delete board.parent
+  if (fresh.harnesses !== undefined) board.harnesses = fresh.harnesses
+  if (fresh.panes !== undefined) board.panes = fresh.panes
   return { board, changed: changed.sort((a, b) => a - b) }
 }
 
-/** Expired leases: the task turns stale and keeps its worktree, so the next worker resumes from it. Waiting tasks keep no lease. */
+/**
+ * Expired leases: the task turns stale and keeps its worktree, so the next worker resumes from it. Waiting tasks keep no
+ * lease. Standby entries nobody refreshed for STANDBY_STALE_MS go too.
+ */
 export function sweep(board: Board, now: number): Board {
   let out = board
   for (const t of board.tasks) {
@@ -223,7 +240,52 @@ export function sweep(board: Board, now: number): Board {
     const stale: BoardTask = { ...rest, status: 'stale', ...(worker !== undefined ? { lastWorker: worker } : {}) }
     out = event({ ...out, tasks: out.tasks.map(x => (x.n === t.n ? stale : x)) }, 'stale', now, { task: t.n, ...sessionFields(worker) })
   }
-  return out
+  return sweepStandby(out, now)
+}
+
+function sameSession(a: BoardSession, b: BoardSession): boolean {
+  return a.harness === b.harness && a.session === b.session
+}
+
+function withStandby(board: Board, standby: BoardStandby[]): Board {
+  const { standby: _drop, ...rest } = board
+  return standby.length > 0 ? { ...rest, standby } : rest
+}
+
+/**
+ * The tasks a worker of `harness` may still get: open and stale ones, blocked by a dependency or not, unless they are
+ * reserved for another harness. A task someone holds (claimed, waiting, done) or a merged one is no longer remaining.
+ */
+export function remainingFor(board: Board, harness: Harness): number {
+  return board.tasks.filter(t => (t.status === 'open' || t.status === 'stale') && (t.harness === undefined || t.harness === harness)).length
+}
+
+/** Registers a worker that waits for the next task, or refreshes its `at` (the `since` stays). No event: a wait is no news for the lead. */
+export function setStandby(board: Board, who: BoardSession, now: number): Board {
+  const list = board.standby ?? []
+  const prev = list.find(s => sameSession(s, who))
+  const entry: BoardStandby = { harness: who.harness, session: who.session, since: prev?.since ?? now, at: now }
+  return { ...withStandby(board, prev === undefined ? [...list, entry] : list.map(s => (s === prev ? entry : s))), updatedAt: now }
+}
+
+/** Removes a worker's standby entry (it claimed a task, left the board or ended); the same board when it has none. No event. */
+export function clearStandby(board: Board, who: BoardSession): Board {
+  const list = board.standby ?? []
+  if (!list.some(s => sameSession(s, who))) return board
+  return withStandby(board, list.filter(s => !sameSession(s, who)))
+}
+
+/** Drops the standby entries nobody refreshed for STANDBY_STALE_MS; `sweep` runs it. The same board when nothing is stale. */
+export function sweepStandby(board: Board, now: number): Board {
+  const list = board.standby
+  if (list === undefined) return board
+  const live = list.filter(s => s.at >= now - STANDBY_STALE_MS)
+  return live.length === list.length ? board : withStandby(board, live)
+}
+
+/** The workers that wait for a task, after a sweep; `except` leaves one session (the asking worker) out. */
+export function standbyWorkers(board: Board, except?: BoardSession): BoardStandby[] {
+  return (board.standby ?? []).filter(s => except === undefined || !sameSession(s, except))
 }
 
 const ACTIVE: readonly TaskStatus[] = ['claimed', 'waiting', 'done']
@@ -453,7 +515,19 @@ export function boardWriteDenial(view: BoardGuardView, absPath: string): string 
   return undefined
 }
 
-export interface BoardStopInput { slug: string; role: BoardRole; task?: { n: number, status: TaskStatus }; summary: BoardSummary }
+export interface BoardStopInput {
+  slug: string
+  role: BoardRole
+  task?: { n: number, status: TaskStatus }
+  summary: BoardSummary
+  /** A worker without a task: the tasks that may still come for its harness, and its last `join --wait` (a wait after the last block restarts the chain). */
+  standby?: { remaining: number; waitedAt?: number }
+  /** The worker's harness, given with `standby`. */
+  harness?: Harness
+  /** The lead: the tasks ready now and the standby workers waiting for one. */
+  ready?: number
+  waiting?: number
+}
 
 /** The parts of a board's count line, as the status line and the band show them: `2 claimed · 1 waiting · 3/8 merged`. */
 export function boardParts(b: { claimed: number, waiting: number, done: number, stale: number, merged: number, total: number }): string[] {
@@ -465,6 +539,14 @@ export function boardLeadStep(b: BoardStopInput | undefined): string | undefined
   if (b === undefined || b.role !== 'lead') return undefined
   const s = b.summary
   if (s.total - s.merged <= 0) return undefined
+  // More tasks are ready than workers wait for one: the lead scales the swarm instead of implementing.
+  const scale = b.ready !== undefined && b.waiting !== undefined && b.ready > b.waiting && s.open + s.stale > 0
+    ? `; ${b.ready} ready task(s) and ${b.waiting} worker(s) waiting: run \`buracle work spawn --json\` (or ask the user for more terminals: \`/buracle-join ${b.slug}\`)`
+    : ''
+  return `${leadStep(b, s)}${scale}`
+}
+
+function leadStep(b: BoardStopInput, s: BoardSummary): string {
   if (s.claimed + s.waiting > 0) {
     return `wait on the board with \`buracle work wait --json\` (${s.claimed} claimed, ${s.waiting} waiting${s.done > 0 ? `, ${s.done} done` : ''}): merge each done task with \`buracle work merge --json\`, run the checks after every merge, and do not implement a claimed task yourself`
   }
@@ -472,7 +554,11 @@ export function boardLeadStep(b: BoardStopInput | undefined): string | undefined
   return `the remaining ${s.open + s.stale} task(s) are open for workers on the board ${b.slug}: do not implement them yourself; wait with \`buracle work wait --json\`, or ask the user to open more terminals and run \`/buracle-join ${b.slug}\``
 }
 
+/** Why a worker's turn cannot end: it holds a claimed task, or it is a standby worker that tasks may still come for. */
 export function boardWorkerBlockReason(b: BoardStopInput): string {
+  if (b.task === undefined && b.standby !== undefined) {
+    return `this session is a standby worker of the board ${b.slug}: ${b.standby.remaining} task(s) may still become ready for ${b.harness ?? 'this harness'}. Run \`buracle work join ${b.slug} --wait --json\` again, or leave the board with \`buracle work release\`.`
+  }
   const n = b.task?.n ?? 0
   return `this session holds Task ${n} of the board ${b.slug} (claimed), so the turn cannot end with the task idle. Finish it: commit on the lane branch and run \`buracle work done --verify "<command → result>"\`; or ask the user with \`buracle work ask "<question>"\` and then the question tool; or give it back with \`buracle work release --reason "<why>"\`. The lease expires without heartbeats and the task would be reassigned.`
 }

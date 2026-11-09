@@ -13,6 +13,8 @@ The launching prompt provides these as labeled lines:
 - `user_request`: the user's request, verbatim. It may be in any language.
 - `clarifications`: questions asked during planning, the user's answers, and the assumptions the planner made. May be empty.
 - `constraints` (optional): the exact project-wide values of the plan's `## Constraints` section (versions, formats, exact strings, platform requirements). Every task must honor them, also a task that never mentions them.
+- `swarm` (optional): `on` or `off`, the plan's `Swarm:` line under `## Assumptions`. Missing means `off`.
+- `swarm_shape` (optional): the `swarm-shape` info line of `buracle plan validate --json` (tasks, waves, width, critical path).
 - `notes` (optional): constraints or risks the orchestrator wants checked.
 
 If `plan_file` is missing or unreadable, return `needs_changes` with a single `must_fix` finding in category `review_input` that says what is missing.
@@ -38,16 +40,24 @@ If `plan_file` is missing or unreadable, return `needs_changes` with a single `m
 9. Definition of Done: each item is observable — a command with its expected result, a concrete behavior, or a measurable threshold — and every task has at least one concrete verification step. Vague items ("works", "handles errors", "clean code") → `should_fix` `weak_dod`, with replacement wording in `suggested_fix`.
 10. Order and size: each task depends only on earlier ones and leaves the project buildable; each is one focused, reviewable change; steps the user must do by hand are explicit tasks. Problems → `task_order`.
 11. Risk: destructive or irreversible steps (data changes, deletions, auth and security changes) come with a safety net — backup, reversible migration, feature flag — and a verification step. Missing → `must_fix` `risk`. When the plan touches a guard, authentication, validation, parsing or config, its DoD also covers: an error in the check fails closed, not open; input size and regular expressions are bounded (no catastrophic backtracking); malformed or hostile config does not fall back silently to a permissive default; and the check cannot be bypassed through symlinks, `..` paths, case or Unicode variants, or another encoding. A missing item that matters → `should_fix` `risk`.
+12. Shape for the swarm (only with `swarm: on`): the plan runs on the task board, where workers take tasks with disjoint files in parallel, and a `**Depends on:**` line means "start after that task is merged". Check the task cards against `swarm_shape` and the `## Swarm Plan` table. Every finding here is in category `swarm_shape`:
+    - a path listed by 2 or more tasks after the foundation task → `should_fix`
+    - a `**Depends on:**` the task does not need, because it uses nothing the named task creates → `should_fix`
+    - a missing `**Depends on:**`: an Objective, DoD or `Verify:` names a symbol, route or file another task creates, and no shared file links the two → `must_fix`
+    - a research card whose Files hold production code, not only docs → `should_fix`
+    - a width of 1 with swarm on, so every task waits for the one before it → `should_fix`, with the fix: restructure the tasks or switch the swarm off
+    - a `**Harness:**` reservation outside the plan's `Swarm harnesses:` line → `should_fix`
+    - generated outputs (`harness/`, lockfiles, built bundles) in a task's Files → `should_fix`
 
 ## Severity
 
 - `must_fix`: the plan would miss a requirement, break existing behavior, rely on something false, or put data or security at risk.
-- `should_fix`: a real gap that weakens delivery or verification — partial coverage, a missing test, a weak DoD, bad ordering, unneeded scope.
+- `should_fix`: a real gap that weakens delivery or verification — partial coverage, a missing test, a weak DoD, bad ordering, unneeded scope, a swarm shape that serializes the workers.
 - `suggestion`: an optional improvement; it never blocks.
 
 ## Categories
 
-`requirement_gap`, `scope_creep`, `risky_assumption`, `missing_task`, `missing_test`, `weak_dod`, `task_order`, `risk`, `format`, `review_input`.
+`requirement_gap`, `scope_creep`, `risky_assumption`, `missing_task`, `missing_test`, `weak_dod`, `task_order`, `swarm_shape`, `risk`, `format`, `review_input`.
 
 ## Output
 
