@@ -6,7 +6,7 @@ Outcome: an approved plan in which every task has a known location, a chosen app
 
 1. If the session is in a read-only plan mode, ask the user to leave it first: this workflow writes its own plan file.
 2. Mark the phase: `buracle flow phase plan`.
-3. Read the switches once: `buracle config get plan` prints them as JSON. This phase uses `planApproval`, `branchIsolation`, `questions`, `reviews.plan`, `reviews.companion`, `modelSwitch` and `nativePlanMode`; verify uses `reviews.changes`. If the command fails, use the shipped defaults (every switch on, `reviews.companion`, `modelSwitch` and `nativePlanMode` off) and mention that in the approval message. `nativePlanMode: on`: after P2, continue with [native-plan.md](native-plan.md), which moves P3 to P7 into the harness's plan mode.
+3. Read the switches once: `buracle config get plan` prints them as JSON. This phase uses `planApproval`, `branchIsolation`, `questions`, `reviews.plan`, `reviews.companion`, `modelSwitch`, `nativePlanMode` and the Buracle Swarm switches `board.mode`, `board.mux` and `board.harnesses`; verify uses `reviews.changes`. If the command fails, use the shipped defaults (every switch on, `reviews.companion`, `modelSwitch` and `nativePlanMode` off, `board.mode` and `board.mux` `ask`) and mention that in the approval message. `nativePlanMode: on`: after P2, continue with [native-plan.md](native-plan.md), which moves P3 to P7 into the harness's plan mode.
 4. Memory pass, at most three queries: `memory_search` for the feature area, the modules you expect to touch, and key terms in the user's own words (any language works). `memory_get` at most three useful hits. They are leads to check against the code, not facts.
 
 ## P2. Frame the work and create the plan file
@@ -30,7 +30,7 @@ Outcome: an approved plan in which every task has a known location, a chosen app
 
 ## P3. Explore (read-only)
 
-Keep going until every future task has a location, an approach and a verification command. When the change touches more than one area, run steps 1 to 7 as 2 to 4 read-only lanes (SKILL.md, *Lanes and documents*) and merge their `path:line` facts yourself.
+Keep going until every future task has a location, an approach and a verification command. When the change touches more than one area, run steps 1 to 8 as 2 to 4 read-only lanes (SKILL.md, *Lanes and documents*) and merge their `path:line` facts yourself.
 
 1. Current behavior and entry points: semble `search` with the intent in plain words, then read the best hits.
 2. Structure: codegraph for every symbol you expect to change (callers, callees, implementations). Callers you could break need test coverage in the plan.
@@ -39,6 +39,7 @@ Keep going until every future task has a location, an approach and a verificatio
 5. Libraries: read the installed version from the lockfile or manifest, then context7 `resolve-library-id` and `query-docs` for that version. Never write signatures or defaults from memory.
 6. Outside facts (protocols, services, release notes): web-search, then web-fetch the primary source. Thin docs: grep for real-world usage.
 7. How to test, type-check, lint, build and run the program (package scripts, Makefile, CI config). Record the exact commands in `## Context`.
+8. **Seam map**, when the change touches 2 or more modules: one explorer lane also returns the files that two or more touched modules share (types, registries, routers, config maps, shared test helpers), the module boundaries and the test file per module, as `path:line`. The swarm recommendation of P4 and the foundation task of P6 are built from it.
 
 ## P4. Clarify
 
@@ -47,6 +48,11 @@ Ask only when the answer changes the plan: behavior the user would notice, scope
 - At most three questions per round and two rounds, batched into one structured-question tool (`request_user_input` in Codex, `question` in OpenCode, `ask` in Oh My Pi) call per round. Pause before asking (SKILL.md, *Talking to the user*), then announce the batch: `buracle notify attention_needed "<title>" "Input needed: <n> questions" --plan <path>`.
 - Each question offers 2 to 4 options that name real files, symbols or behaviors. Put your recommendation first and mark it "(recommended)".
 - If `branchIsolation` is on and the request carried no `--worktree`, `--new-branch` or `--current-branch` flag, add: "Where should implementation run?" with the options separate worktree (recommended) / new branch `plan-build/<slug>` from the current branch / current branch.
+- **Buracle Swarm** is the task board with worker sessions in other harnesses. P6 shapes the plan for it, so the question comes here, not at the approval gate. It applies while `plan.board.mode` is `ask` and the plan type is Feature. Before the first round run `buracle work spawn --dry-run --json` (it works without a board): it prints `mux` (the multiplexer the lead runs in: tmux, herdr, cmux or `herdr-app`, the Herdr desktop app, or `null` when there is none) and `harnesses` (the harnesses that may run workers: on in `plan.board.harnesses` and installed). Then add these two questions to the first round, in the same structured-question tool (`request_user_input` in Codex, `question` in OpenCode, `ask` in Oh My Pi) call as the clarifying and isolation questions. They do not count toward the three-question cap.
+  - Q-A: "Run Buracle Swarm for this plan? I will then cut the plan into waves of tasks with disjoint files, so several worker terminals (at most 6; I pick the count) implement them in parallel while I only merge and check." Options: "Yes, shape the plan for the swarm" / "No, I implement every task in this terminal". The recommendation goes first: Yes when P3 found 2 or more independent areas, else No.
+  - Q-B, only when `harnesses` lists 2 or more: "Which harnesses may run swarm workers?" as a multi-select over exactly those harnesses, all preselected. A free-text answer that names harnesses counts.
+  - `plan.board.mode` `on`: no question. Record `Swarm: on` and every harness that `harnesses` lists. `off`: ask nothing and record nothing. `questions: false`: take the recommendation and mark it "decided without asking (plan.questions off)". An empty `harnesses` list (every harness off or not installed): say so in one line and ask Q-A only. The workers are then terminals the user opens.
+  - Record the answers under `## Assumptions` at once: `Swarm: on` or `Swarm: off`. With `on`, add `Swarm harnesses: <h>, <h>` and, with a `mux` and `plan.board.mux` not `off`, `Panes: <mux>`. Implement reads these lines ([implement.md](implement.md) I0 step 6). Run `buracle usage --json` once: when a chosen harness's window is near its limit, say so and recommend fewer harnesses or No. An older plan's `Board: on` line means `Swarm: on`.
 - No answer, or "you decide" (in any language): take your recommendation and record it under `## Assumptions`.
 - **Questions off** (`questions: false`): ask nothing here. Take your recommendation for every open point, the isolation included (a worktree while `branchIsolation` is on), and record each under `## Assumptions`, marked "decided without asking (plan.questions off)". Only a blocker is still asked: a missing credential or access, or a destructive or irreversible scope.
 
@@ -58,7 +64,7 @@ Ask only when the answer changes the plan: behavior the user would notice, scope
 
 ## P6. Write the plan
 
-Fill the file that `buracle plan init` created and keep its frontmatter and layout. If its task layout differs from the example below, the CLI's layout wins. The markers the validator reads stay exactly as shown (`## Goal` with its `Done when:` line, which the stop guard reads, `## Tasks`, `### Task N:`, `**Objective:**`, `**Files:**`, `**Definition of Done:**`, `Verify:`, the checkbox line, `## E2E Scenarios`, `## Evidence`, `## DoD Audit`, `## E2E Results`; the full list is in the *Plain language* rule), and so do `## Inventory` and `## Deviations`, which the validator and `buracle plan audit` read by these English names. Write every other heading, the task titles and the prose in the user's language (*Language* in the *Plain language* rule), in the ASD-STE100 structural style of that rule: short sentences, the active voice, no semicolons. `buracle plan validate` warns about a sentence over 25 words, a semicolon in prose and a path in an old document folder, in any language.
+Fill the file that `buracle plan init` created and keep its frontmatter and layout. If its task layout differs from the example below, the CLI's layout wins. The markers the validator reads stay exactly as shown (`## Goal` with its `Done when:` line, which the stop guard reads, `## Tasks`, `### Task N:`, `**Objective:**`, `**Files:**`, `**Definition of Done:**`, `Verify:`, the checkbox line, `## E2E Scenarios`, `## Evidence`, `## DoD Audit`, `## E2E Results`; the full list is in the *Plain language* rule), and so do `## Inventory` and `## Deviations`, which the validator and `buracle plan audit` read by these English names, and `## Swarm Plan`, which the validator reads while the plan says `Swarm: on` (*Swarm shape* below). Write every other heading, the task titles and the prose in the user's language (*Language* in the *Plain language* rule), in the ASD-STE100 structural style of that rule: short sentences, the active voice, no semicolons. `buracle plan validate` warns about a sentence over 25 words, a semicolon in prose and a path in an old document folder, in any language.
 
 ```markdown
 ---
@@ -123,6 +129,7 @@ Key decisions:
 
 ## Assumptions
 - 100 requests per minute per key, as stated in the request.
+- Swarm: off (one task)
 ```
 
 Optional sections, when they earn their place:
@@ -136,6 +143,17 @@ Task rules:
 - **Files** lists every path the task touches, one per line, with one verb: Create, Modify, Delete, Rename or Test; a rename reads ``- Rename: `old/path.ts` -> `new/path.ts` ``. A path named in an Objective, DoD or `Verify:` line must appear in some task's Files too; a path the task only points at is written as `path:line`.
 - **Depends on.** Tasks whose Files overlap run in order by themselves. A task that needs an earlier task's code without sharing a file says so with an optional `**Depends on:** Task 1, Task 3` line under its Objective: the task board (`buracle work publish`) and the implement lanes read it, so independent tasks can run in parallel in other terminals.
 - **Harness.** A task that one harness should do (the user asked for it, or the task needs that harness's tools) carries an optional `**Harness:** codex` line under its Objective, one of claude, codex, opencode, omp. Buracle Swarm hands that task only to a worker of that harness and opens a pane of that harness for it; the other tasks go to whichever harness is free. The user may add or change the line in the plan file too; `buracle plan validate` warns about an unknown value.
+- **Swarm shape**, only with `Swarm: on` under `## Assumptions`. The waves of the task graph decide how many workers can run at once, so shape the tasks for them. The rules follow what spec-driven toolkits (a foundational phase first, a parallel mark only for disjoint files) and scheduling theory (the longest dependency chain bounds the run time) agree on:
+  - **Foundation task first.** Task 1 owns every path that 2 or more tasks would touch: stubs, signatures, types and registrations, with the build green. Every later task then edits only its own files.
+  - **Disjoint Files from wave 2 on**, `Test:` lines included, and no directory paths. A directory path serializes every task under it, and a shared file serializes the two tasks that list it.
+  - **Only real `**Depends on:**` lines.** The line means "start after that task is merged", never a reading order. The board holds the task until the named task is merged.
+  - **Depth at most 3**: the foundation, the wide wave, the integration. Inside a wave, number the longest remaining chain first, so that it starts first.
+  - **Task size**: 20 to 90 minutes of work, 1 to 6 files, its own `Verify:`. A smaller task costs more in claims and merges than it saves, and a larger one holds its wave open.
+  - **One closing integration task** owns the wiring, the docs and the changelog, so that no other task has to touch them.
+  - **Generated outputs** (`harness/`, lockfiles, built bundles) belong to no task. Workers never commit them, and the lead regenerates them after each merge as part of the checks.
+  - **Research with a file deliverable** is a normal card whose Files are docs only (`Create: docs/...`), in wave 1. The tasks that use it name it in `Depends on`. Exploration without a deliverable stays in the P3 lanes.
+  - **When not to swarm**: fewer than 3 tasks, a width of 1 after the rules above, a Bugfix plan, or one module or file. Record `Swarm: off (<reason>)` instead and say it in the approval summary.
+  - Then run `buracle work publish --dry-run --md <path>` and paste the block it prints after its first summary line as the `## Swarm Plan` section, an English marker kept verbatim. The table is a picture of the plan, never a runtime barrier: a task starts as soon as its dependencies merge.
 - **Definition of Done** bullets are checkable facts, not qualities: "returns 429 with Retry-After", not "handles limits well". The last bullet is `Verify:` followed by the command that proves the task.
 - **Edge sweep.** For each task, consider failure paths, empty and boundary input (including non-ASCII text and locale-sensitive casing, such as the Turkish dotted and dotless i), timeouts and cancellation, and concurrency. Add a DoD bullet for each one that applies.
 - **Tests.** Extend existing test files and helpers. One test per behavior, no quotas, never assertions on source text. A task with nothing testable (config, docs, pure wiring) says in its DoD which evidence replaces the test.
@@ -152,10 +170,19 @@ Task rules:
    - `vague-placeholder` (warning in a task card, info elsewhere): filler such as "handle edge cases", "appropriate error handling", "implement later" or "similar to Task 2". Name the exact cases, values, files or steps.
    - `inventory-unmapped` (warning): an `## Inventory` row with no `Task N` and no reason, or one that names a task the plan does not have.
    - `identifier-drift` (info, never fails): two backticked names that differ only in case, underscores or one or two letters, such as `clearLayers` and `clear_layers`. Fix real drift; ignore it when both names exist.
+   - `depends-on-unknown` (error): a `**Depends on:**` line names a task the plan does not have. Name an existing task or drop the line.
+   - `depends-on-later` (error): a `**Depends on:**` line names the task itself or a later task. Order the tasks by dependency.
+   - `swarm-shape` (info, with `Swarm: on` and 2 or more tasks): `N tasks in W wave(s): width P, critical path S (Task a → Task b → …)`. Nothing to fix: the line goes to the reviewer (P8) and into the approval summary (P9).
+   - `swarm-serial` (warning, with `Swarm: on`): 3 or more unticked tasks and a width of 1, so every task waits for the one before it. Split the work into disjoint tasks or set `Swarm: off`.
+   - `swarm-shared-file` (warning, with `Swarm: on`): two tasks list the same path and the later one names no `Depends on` for the earlier one. Make the files disjoint (move the shared edit into the foundation task or split the file) or add `**Depends on:** Task 2`.
+   - `swarm-hub` (warning, with `Swarm: on`): a path listed by 3 or more tasks. Give it one owner (the foundation task) or split it.
+   - `swarm-dir-path` (warning, with `Swarm: on`): a Files path that ends with `/`. Name the files.
+   - `swarm-plan-missing` (warning, with `Swarm: on`): no `## Swarm Plan` section. Run `buracle work publish --dry-run --md <path>` and paste its block.
+   - `swarm-plan-stale` (warning, with `Swarm: on`): the table's waves differ from the tasks (the message names the first differing task). Run the dry run again and replace the block.
 
 ## P8. Plan review
 
-**Review off** (`reviews.plan: false`): do not launch it. Check the plan yourself against the concerns in plan-build-review's instructions (requirement gaps, scope creep, risky assumptions, missing tasks and tests, weak DoD, task order), fix what you find, and add "independent review off (plan.reviews.plan)" under `## Unverified`. Then go to step 3.
+**Review off** (`reviews.plan: false`): do not launch it. Check the plan yourself against the concerns in plan-build-review's instructions (requirement gaps, scope creep, risky assumptions, missing tasks and tests, weak DoD, task order and, with `Swarm: on`, the swarm shape), fix what you find, and add "independent review off (plan.reviews.plan)" under `## Unverified`. Then go to step 3.
 
 1. Launch the reviewer with your subagent tool (`spawn_agent` in Codex, `subagent` in OpenCode, `task` in Oh My Pi):
 
@@ -165,10 +192,12 @@ Task rules:
    user_request: <the user's original words, verbatim>
    clarifications: <each question with its answer; every assumption you made>
    constraints: <the lines of ## Constraints; leave this line out when the plan has none>
+   swarm: <on or off, from the Swarm line under ## Assumptions>
+   swarm_shape: <the swarm-shape info line of buracle plan validate --json; leave this line out with swarm: off>
    Return only your JSON report.
    ```
 
-   With `reviews.companion` not `off`, start the second opinion now (SKILL.md, *Review agents*, `--role plan`).
+   With `swarm: on` the reviewer also checks the wave shape (category `swarm_shape`): a path two tasks share after the foundation task, an unnecessary or missing `Depends on`, a research card with production files, a width of 1, a reserved harness outside `Swarm harnesses:`, generated outputs in a task's Files. With `reviews.companion` not `off`, start the second opinion now (SKILL.md, *Review agents*, `--role plan`).
 2. Handle the result as described in SKILL.md, *Review agents* (with the `buracle plan review start` and `done` records); collect the second opinion first and triage both reports the same way.
 3. Re-validate with `--strict`. Launch the reviewer a second time only if you restructured tasks, or when `buracle plan set approved true` warns that the plan changed after the collected review and the change added a task or behavior.
 
@@ -183,9 +212,7 @@ Mark the phase: `buracle flow phase approve`.
 1. `buracle notify plan_approval "<title>" "<one-line summary>" --plan <path>`. When the web UI runs it prints `Review page: <url>`: there the user reads the rendered plan and pins notes to passages.
 2. `buracle plan pause --kind decision --reason "plan approval"`
 3. **Fold in the user's notes:** `buracle plan notes <path> --kind plan --json`. Apply each open note to the plan, or say in the summary why you did not; re-validate after an edit; then mark each applied note with `buracle plan notes --done <id>[,<id>]`. No notes is never an approval.
-4. Show a summary of at most 15 lines: goal, the approach in two lines, numbered task titles, E2E scenario names, assumptions, review findings (fixed and declined), the notes you applied, the plan path and the review page URL from step 1. Ask with your structured-question tool (`request_user_input` in Codex, `question` in OpenCode, `ask` in Oh My Pi): "Approve this plan?" with the options Approve (recommended) / Request changes. A free-text answer counts too; see the phrase table in SKILL.md.
-   **Buracle Swarm** is the task board with worker sessions in other harnesses. Before the question, run `buracle work spawn --dry-run --json`: it prints `mux` (the multiplexer the lead runs in: tmux, herdr, cmux or `herdr-app`, the Herdr desktop app; `null` when there is none) and `harnesses` (the harnesses that may run workers: on in `plan.board.harnesses` and installed). While `plan.board.mode` is `ask`, the same structured-question tool (`request_user_input` in Codex, `question` in OpenCode, `ask` in Oh My Pi) call carries a second question: "Run Buracle Swarm for this plan?" with Yes (the tasks go to the repository's board; worker sessions take them one at a time and you only merge; with a `mux`, Buracle opens one pane per task below you, each joining the board; without one, the user opens terminals and runs `/buracle-join <slug>` in each) / No (you implement every task yourself). While `plan.board.mux` is `off`, the Yes answer opens no panes. When `harnesses` lists more than one harness, the same call carries a third question: "Which harnesses should the swarm use?" as a multi-select over exactly those harnesses, all preselected; a free-text answer that names harnesses counts too. The worker count is yours, never a question: `buracle work spawn` opens one pane per ready task, at most `plan.board.maxWorkers` (6) and fewer when a harness's usage window is nearly used up; pass `--workers <n>` only to open fewer. A task that carries `**Harness:** <h>` (plan.md, *Task rules*) always gets a pane of that harness and is taken only by that harness. An empty `harnesses` list (every harness off or not installed) means no panes and no harness question: say so in one line and offer Swarm only for terminals the user opens.
-   Record the answers under `## Assumptions`: `Swarm: on` or `Swarm: off`; with `on`, `Swarm harnesses: <h>, <h>` (the chosen ones, or the single one listed) and, with a `mux` and `plan.board.mux` not `off`, `Panes: <mux>`. `plan.board.mode` `on` records `Swarm: on` and the listed harnesses without asking (the panes line too while `plan.board.mux` is `on` or `ask` and a `mux` was printed); `off` asks nothing and records nothing. An older plan's `Board: on` line means `Swarm: on`.
+4. Re-run `buracle work spawn --dry-run --json` first: a harness switched off since P4 leaves the `Swarm harnesses:` line, with one line about it in the summary. Show a summary of at most 17 lines: goal, the approach in two lines, numbered task titles, E2E scenario names, assumptions, the Swarm line (`Swarm: on · harnesses: claude, codex · panes: tmux`, or `Swarm: off`), the `swarm-shape` line from `buracle plan validate --json` (waves, width, critical path, workers at the widest wave), review findings (fixed and declined), the notes you applied, the plan path and the review page URL from step 1. Ask with your structured-question tool (`request_user_input` in Codex, `question` in OpenCode, `ask` in Oh My Pi): "Approve this plan?" with the options Approve (recommended) / Approve, but without the swarm / Request changes. The middle option appears only while the plan says `Swarm: on`: it rewrites that line to `Swarm: off (chosen at approval)` and keeps the tasks as they are. The gate asks nothing else about the swarm: P4 did. A free-text answer counts too; see the phrase table in SKILL.md.
 5. Changes requested, in the reply or as new notes on the review page: run step 3 again, edit, re-validate, re-run the reviewer only if tasks changed materially (record it again with `buracle plan review done`), then ask again.
 
 **On approval:**

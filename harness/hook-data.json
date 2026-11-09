@@ -1046,7 +1046,7 @@
       "dir": "skills/buracle-join",
       "frontmatter": {
         "name": "buracle-join",
-        "description": "Join a plan's task board as a worker: claim the next open task of a plan-build or goal-build run that another session leads, implement it with TDD in its own lane worktree, report it done, and take the next one. The lead merges and ticks the plan. Run only when the user asks to join a board.",
+        "description": "Join a plan's task board as a worker: claim the next open task of a plan-build or goal-build run that another session leads, implement it with TDD in its own lane worktree, report it done, and take the next one or wait for it. The lead merges and ticks the plan. Run only when the user asks to join a board.",
         "when_to_use": "The user invokes /buracle-join <slug> ($buracle-join <slug> in Codex) in a terminal of the same repository, or accepts Buracle's offer at session start that a board has tasks ready for a worker.",
         "invocation": "explicit",
         "argument-hint": "<slug> [--task <n>]",

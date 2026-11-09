@@ -45,19 +45,19 @@ If `plan_file` is missing or unreadable, return `needs_changes` with a single `m
    - The Reference: a named reference must be obtainable again by a recorded command, URL or path, and comparable with the result on some property a criterion checks. A reference nobody can reopen or compare → `must_fix` `reference_unobtainable`. "None." is fine.
    - Measurable half: when the goal promises something measurable (a speed, a size, a count, a rate) and no criterion carries a threshold for it → `should_fix` `no_measurable_criterion`.
    - Goal clarity: when the goal names no single end state (several unrelated outcomes, or only an activity) → `should_fix` `goal_unclear`, with `suggested_fix` "run the requirements skill first". The workflow routes vague goals before you run, so this is rare.
-7. Tasks: each has a clear objective and produces something the next task or the judge can use, and together they can satisfy every criterion → otherwise `task_gap`. The order follows dependencies: foundations first, and every task leaves the project buildable → otherwise `task_order`. A task that bundles unrelated changes → `task_too_large`.
+7. Tasks: each has a clear objective and produces something the next task or the judge can use, and together they can satisfy every criterion → otherwise `task_gap`. The order follows dependencies: foundations first, and every task leaves the project buildable → otherwise `task_order`. A task that bundles unrelated changes → `task_too_large`. With `Swarm: on` under `## Assumptions` the tasks go to the task board, where workers take tasks with disjoint files in parallel and a `**Depends on:**` line means "start after that task is merged": also check the shape → `swarm_shape`. A missing `**Depends on:**` (an Objective or DoD names what another task creates, and no shared file links the two) is `must_fix`. The rest is `should_fix`: a path listed by 2 or more tasks after the foundation task, a `**Depends on:**` the task does not need, a research card with production files, a width of 1 (every task waits for the one before it), a `**Harness:**` reservation outside the `Swarm harnesses:` line, and generated outputs (`harness/`, lockfiles, built bundles) in a task's Files.
 8. Feasibility: spot-check the load-bearing assumptions behind the tasks — existing code with semble and codegraph, library capabilities with context7. False or unsupported → `risky_assumption`.
 9. For every criterion finding, `suggested_fix` is the complete replacement criterion, ready to paste, including how it will be checked.
 
 ## Severity
 
 - `must_fix`: a criterion that cannot be judged, an uncovered outcome, no end-to-end check, an oracle that does not prove the goal, a false pass no criterion catches, a reference nobody can obtain or compare, a false load-bearing assumption, or a task list that cannot reach the criteria.
-- `should_fix`: weak but judgeable criteria, a measurable promise without a threshold, a goal without one end state, ordering or sizing problems, fewer than 3 tasks or criteria, scope beyond the request.
+- `should_fix`: weak but judgeable criteria, a measurable promise without a threshold, a goal without one end state, ordering or sizing problems, a swarm shape that serializes the workers, fewer than 3 tasks or criteria, scope beyond the request.
 - `suggestion`: an optional improvement; it never blocks.
 
 ## Categories
 
-`criterion_not_binary`, `criterion_unobservable`, `criterion_describes_work`, `criterion_bundled`, `criterion_subjective`, `criterion_fakeable`, `outcome_uncovered`, `no_end_to_end_check`, `oracle_mismatch`, `false_pass_uncaught`, `reference_unobtainable`, `no_measurable_criterion`, `goal_unclear`, `scope_creep`, `task_gap`, `task_order`, `task_too_large`, `contract_size`, `risky_assumption`, `format`, `review_input`.
+`criterion_not_binary`, `criterion_unobservable`, `criterion_describes_work`, `criterion_bundled`, `criterion_subjective`, `criterion_fakeable`, `outcome_uncovered`, `no_end_to_end_check`, `oracle_mismatch`, `false_pass_uncaught`, `reference_unobtainable`, `no_measurable_criterion`, `goal_unclear`, `scope_creep`, `task_gap`, `task_order`, `task_too_large`, `swarm_shape`, `contract_size`, `risky_assumption`, `format`, `review_input`.
 
 ## Output
 
