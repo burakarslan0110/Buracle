@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
+import { setStandby } from '../../src/core/board/model'
 import { sessionDir } from '../../src/engine/paths'
 import { run } from '../../src/engine/proc'
-import { readBoard, sessionBoard, takeTerminalSequence } from '../../src/workflow/board-store'
+import { readBoard, sessionBoard, takeTerminalSequence, updateBoard } from '../../src/workflow/board-store'
 import { workAsk, workDone, workInbox, workJoin, workNote, workPublish, workResume, workWait } from '../../src/workflow/board'
 import type { ResolvedSession } from '../../src/workflow/session-store'
 import { oscSequence } from '../../src/workflow/terminal-notify'
@@ -121,12 +122,18 @@ describe('notes, inbox and wait', () => {
     expect((workInbox(ctxAt(repo, NOW + 4), A).data['notes'] as unknown[])).toEqual([])
     const w = await workWait({ timeoutSec: 0 }, ctxAt(repo, NOW + 5), LEAD)
     expect(w.code).toBe(0)
+    // The summary tells the lead whether to scale: the tasks ready now and the workers waiting for one.
+    expect(w.data['summary']).toMatchObject({ claimed: 1, open: 1, workers: 1, standby: 0, ready: 1 })
     expect((w.data['events'] as Array<{ kind: string }>).map(e => e.kind)).toEqual(['claimed', 'note'])
     expect((w.data['events'] as Array<{ note?: { text: string } }>)[1]?.note?.text).toBe('schema question is blocking')
     expect((workInbox(ctxAt(repo, NOW + 6), LEAD).data['notes'] as unknown[])).toEqual([])
     const again = await workWait({ timeoutSec: 0 }, ctxAt(repo, NOW + 7), LEAD)
     expect(again.data).toMatchObject({ timedOut: true, events: [] })
     expect((await workWait({ timeoutSec: 0 }, ctxAt(repo, NOW + 8), A)).data['error']).toBe('not_lead')
+    updateBoard(path, NOW + 9, b => ({ ok: true, board: setStandby(b, { harness: 'opencode', session: 'worker-b' }, NOW + 9) }))
+    const standby = await workWait({ timeoutSec: 0 }, ctxAt(repo, NOW + 10), LEAD)
+    expect(standby.data['summary']).toMatchObject({ standby: 1, ready: 1 })
+    expect(standby.lines[0]).toContain('1 standby, 1 ready')
   }))
 
   test('wait returns within a few seconds of a done report written by another process, and reports a stale lease on its own', () => sandbox(async root => {

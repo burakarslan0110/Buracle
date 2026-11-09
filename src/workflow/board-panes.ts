@@ -5,8 +5,8 @@
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { Board, BoardSession, BoardTask } from '../core/board/model'
-import { activeWorkers, claimable } from '../core/board/model'
-import { defaultConfig, type MuxOnAsk } from '../core/config'
+import { activeWorkers, claimable, remainingFor, standbyWorkers } from '../core/board/model'
+import { defaultConfig, type BuracleConfig, type MuxOnAsk } from '../core/config'
 import { HARNESSES, type Harness } from '../core/events'
 import { loadConfigSync } from '../engine/config'
 import * as paths from '../engine/paths'
@@ -68,24 +68,54 @@ export function paneLabel(name: string, st: PaneStage): string {
   }
 }
 
-/** `plan.board.harnesses`: which harnesses may run swarm workers (the user sets it in the config or on the Console's settings page). */
-function swarmHarnesses(): Record<Harness, boolean> {
-  try { return loadConfigSync().config.plan.board.harnesses } catch { return defaultConfig().plan.board.harnesses }
+type SwarmConfig = Pick<BuracleConfig['plan']['board'], 'harnesses' | 'mux'>
+
+/** `plan.board.harnesses` (which harnesses may run swarm workers) and `plan.board.mux` (whether the lead's multiplexer gets panes); the user sets them in the config or on the Console's settings page. */
+function swarmConfig(): SwarmConfig {
+  const pick = (b: BuracleConfig['plan']['board']): SwarmConfig => ({ harnesses: b.harnesses, mux: b.mux })
+  try { return pick(loadConfigSync().config.plan.board) } catch { return pick(defaultConfig().plan.board) }
 }
+
+type HarnessBin = { path: string; onPath: boolean }
+
+/** Where each harness is, looked up once: `deps.which` stands in for PATH in tests. */
+function binLookup(env: Env, deps: PaneDeps): (h: Harness) => HarnessBin | undefined {
+  const cache = new Map<Harness, HarnessBin | undefined>()
+  return h => {
+    if (!cache.has(h)) cache.set(h, deps.which !== undefined ? (deps.which(h) ? { path: h, onPath: true } : undefined) : findHarnessBin(h, env))
+    return cache.get(h)
+  }
+}
+
+/** Where the dealing list comes from: `--harness`, the board (the plan's `Swarm harnesses:` line), or every installed harness that is on. */
+type HarnessSource = { kind: 'flag'; spec: string } | { kind: 'board'; list: readonly Harness[] } | { kind: 'installed' }
+
+const HARNESS_HINT = "turn one on with 'buracle config set plan.board.harnesses.<h> true' or install it"
 
 /**
  * The harness list the panes are dealt from. `--harness` names it (an unknown name is a usage error; a harness that
- * `plan.board.harnesses` switches off is dropped with a warning); without the flag it is every harness that is on and
- * installed, in Buracle's order. Nothing left is `harness_off`.
+ * `plan.board.harnesses` switches off is dropped with a warning). The board's list drops a harness that is off or not
+ * installed, with a warning. Without either it is every harness that is on and installed, in Buracle's order. Nothing
+ * left is `harness_off`.
  */
-function parseHarnesses(spec: string | undefined, on: Record<Harness, boolean>, installed: (h: Harness) => boolean): { list: Harness[]; warnings: string[] } | CmdResult {
+function dealableHarnesses(source: HarnessSource, on: Record<Harness, boolean>, installed: (h: Harness) => boolean): { list: Harness[]; warnings: string[] } | CmdResult {
   const warnings: string[] = []
-  if (spec === undefined) {
+  const state = (h: Harness): string => (on[h] === false ? 'off (plan.board.harnesses)' : installed(h) ? 'on' : 'not installed')
+  if (source.kind === 'installed') {
     const list = HARNESSES.filter(h => on[h] !== false && installed(h))
-    if (list.length === 0) return fail('harness_off', `no harness can run swarm workers: ${HARNESSES.map(h => `${h} ${on[h] === false ? 'off (plan.board.harnesses)' : installed(h) ? 'on' : 'not installed'}`).join(', ')}; turn one on with 'buracle config set plan.board.harnesses.<h> true' or install it`)
+    if (list.length === 0) return fail('harness_off', `no harness can run swarm workers: ${HARNESSES.map(h => `${h} ${state(h)}`).join(', ')}; ${HARNESS_HINT}`)
     return { list, warnings }
   }
-  const names = spec.split(',').map(x => x.trim()).filter(x => x !== '')
+  if (source.kind === 'board') {
+    const off = source.list.filter(h => on[h] === false)
+    const missing = source.list.filter(h => on[h] !== false && !installed(h))
+    if (off.length > 0) warnings.push(`${off.join(', ')} dropped from the plan's Swarm harnesses: switched off for swarm workers (${off.map(h => `plan.board.harnesses.${h}`).join(', ')})`)
+    if (missing.length > 0) warnings.push(`${missing.join(', ')} dropped from the plan's Swarm harnesses: not installed (PATH, ${HARNESS_BIN_DIRS.map(d => `~/${d}`).join(', ')})`)
+    const list = source.list.filter(h => on[h] !== false && installed(h))
+    if (list.length === 0) return fail('harness_off', `none of the plan's Swarm harnesses can run workers here: ${source.list.map(h => `${h} ${state(h)}`).join(', ')}; ${HARNESS_HINT}, or pass --harness`)
+    return { list, warnings }
+  }
+  const names = source.spec.split(',').map(x => x.trim()).filter(x => x !== '')
   const bad = names.filter(n => !(HARNESSES as readonly string[]).includes(n))
   if (names.length === 0 || bad.length > 0) return fail('usage', `--harness takes one or more of ${HARNESSES.join(', ')}, comma-separated${bad.length > 0 ? ` (unknown: ${bad.join(', ')})` : ''}`)
   const off = (names as Harness[]).filter(h => on[h] === false)
@@ -178,33 +208,216 @@ function layoutLine(kind: MuxKind, layout: Layout, lead: boolean, live: number):
 }
 
 /**
- * The lead opens worker panes in its multiplexer: one per ready task by default (never more than the free worker
- * slots), each running a harness whose first prompt is `/buracle-join <slug>`. The panes are recorded in the board's
- * sidecar, so that `work merge` and `work close` can close them later; nothing else is ever closed.
+ * The ready tasks a pane may be opened for: the unreserved ones, and those reserved (`**Harness:**` in the plan) for a
+ * harness that is on and installed. `warnings` gets one line per task left out, so the lead knows why it has no pane.
+ */
+function dealableReady(board: Board, on: Record<Harness, boolean>, lookup: (h: Harness) => HarnessBin | undefined, warnings?: string[]): BoardTask[] {
+  const out: BoardTask[] = []
+  for (const n of claimable(board).ready) {
+    const t = board.tasks.find(x => x.n === n)
+    if (t === undefined) continue
+    const h = t.harness
+    if (h === undefined) { out.push(t); continue }
+    if (on[h] === false) { warnings?.push(`Task ${t.n} is reserved for ${h}, which is switched off for swarm workers (plan.board.harnesses.${h}): no pane opened for it`); continue }
+    if (lookup(h) === undefined) { warnings?.push(`Task ${t.n} is reserved for ${h}, which is not installed (PATH, ${HARNESS_BIN_DIRS.map(d => `~/${d}`).join(', ')}): no pane opened for it`); continue }
+    out.push(t)
+  }
+  return out
+}
+
+/** The numbers of one tick of the scale formula: what is ready, who holds a slot, and what follows for the panes to open. */
+export interface TickCounts { ready: number; active: number; standby: number; starting: number; idle: number; need: number; cap: number; max: number }
+
+/**
+ * The scale formula. `need` is the ready tasks that no standby worker (a `join --wait` on the board) and no starting
+ * pane (opened less than STARTING_MS ago, nobody joined from it yet) covers. `cap` is the worker slots left once the
+ * active workers, the standby workers, the starting panes and the idle panes hold theirs. An idle pane is a live
+ * recorded pane whose worker is neither active nor standby (it stopped without waiting, or it never started): it holds
+ * a slot but takes no task on its own.
+ */
+export function tickCounts(board: Board, live: readonly MuxRecord[], now: number, ready: number): TickCounts {
+  const active = activeWorkers(board)
+  const standby = standbyWorkers(board)
+  const isStarting = (p: MuxRecord): boolean => p.session === undefined && now - p.openedAt < STARTING_MS
+  const starting = live.filter(isStarting).length
+  const idle = live.filter(p => !isStarting(p) && !active.some(w => sameSession(p.session, w)) && !standby.some(w => sameSession(p.session, w))).length
+  const max = board.maxWorkers
+  const need = Math.max(0, ready - standby.length - starting)
+  const cap = Math.max(0, max - active.length - standby.length - starting - idle)
+  return { ready, active: active.length, standby: standby.length, starting, idle, need, cap, max }
+}
+
+interface PaneSpec { harness: Harness; command: string; name: string; title: string }
+
+interface TickInput {
+  board: Board
+  /** The checkout the panes start in. */
+  cwd: string
+  kind: MuxKind
+  storePath: string
+  existing: MuxStore | undefined
+  /** Absent on a dry run: nothing is opened and the recorded panes are not checked. */
+  adapter?: MuxAdapter
+  /** The dealing list; empty when only reserved tasks may get a pane. */
+  harnesses: readonly Harness[]
+  on: Record<Harness, boolean>
+  lookup: (h: Harness) => HarnessBin | undefined
+  /** Harnesses the pane's shell may not find by name: they run by their full path. */
+  bins: Map<Harness, string>
+  /** `--workers`: never opens more than the formula says, only fewer. */
+  workers?: number
+}
+
+interface TickResult {
+  counts: TickCounts
+  /** The panes the tick decided to open. */
+  requested: number
+  plans: PaneSpec[]
+  /** The panes that opened, in grid order. */
+  opened: MuxRecord[]
+  failed: Array<{ index: number; harness: Harness; error: string }>
+  layout: Layout
+  layoutNote: string
+  attach?: string
+  warnings: string[]
+}
+
+/**
+ * One tick of the swarm, shared by `work spawn`, `work publish` and `work merge`: the recorded panes are checked (gone
+ * ones leave the record), the formula gives `open = min(need, cap, usage room)`, `workers` can only lower it, and that
+ * many panes open and are recorded. The reserved tasks' harnesses are dealt first, so a reserved task gets its pane even
+ * when fewer panes open than tasks are ready; the rest take the harness list in turn.
+ */
+async function runTick(input: TickInput, ctx: WorkflowCtx): Promise<TickResult> {
+  const { board, cwd, kind, storePath, existing, adapter, harnesses, on, lookup, bins } = input
+  const slug = board.slug
+  const warnings: string[] = []
+  // The panes of an earlier spawn: gone ones leave the record, the rest (present, or unknown because the multiplexer
+  // did not answer) stay and count as workers already.
+  let live: MuxRecord[] = existing?.panes ?? []
+  if (adapter !== undefined && live.length > 0) {
+    const checked = await Promise.all(live.map(async p => ({ p, state: await adapter.presence(p) })))
+    const dead = checked.filter(c => c.state === 'stale').map(c => c.p.id)
+    live = checked.filter(c => c.state !== 'stale').map(c => c.p)
+    if (dead.length > 0) updateMuxStore(storePath, st => (st === undefined ? undefined : removePanes(st, dead)))
+    const unknown = checked.filter(c => c.state === 'failed').length
+    if (unknown > 0) warnings.push(`${unknown} recorded pane(s) could not be checked (${kind} did not answer); they keep their worker slots`)
+  }
+  const reservable = dealableReady(board, on, lookup, warnings)
+  if (adapter !== undefined) {
+    for (const t of reservable) {
+      const h = t.harness
+      if (h === undefined || bins.has(h)) continue
+      const f = lookup(h)
+      if (f !== undefined && !f.onPath) bins.set(h, f.path)
+    }
+  }
+  const counts = tickCounts(board, live, ctx.now, reservable.length)
+  let n = Math.min(counts.need, counts.cap)
+  if (input.workers !== undefined) {
+    if (input.workers > counts.cap) warnings.push(`max_workers: ${input.workers} worker(s) asked, ${counts.cap} slot(s) free (plan.board.maxWorkers ${counts.max}, ${counts.active} active worker(s), ${counts.standby} standby worker(s), ${counts.starting} pane(s) starting, ${counts.idle} idle pane(s)); opening ${Math.min(n, input.workers)}`)
+    n = Math.min(n, input.workers)
+  }
+  const occupied = counts.active + counts.standby + counts.starting + counts.idle
+  if (occupied + n > USAGE_CHECK_FROM) {
+    const hot = [...new Set(harnesses)].flatMap(h => latestWindows(h, ctx.now).filter(w => w.pct >= USAGE_LOW_PCT).map(w => ({ h, w })))[0]
+    const room = Math.max(0, USAGE_CHECK_FROM - occupied)
+    if (hot !== undefined && n > room) {
+      warnings.push(`usage_low: ${hot.h}'s ${hot.w.label} rate window is at ${hot.w.pct}% (limit ${USAGE_LOW_PCT}% from the ${USAGE_CHECK_FROM + 1}th worker on); opening ${room} instead of ${n}`)
+      n = room
+    }
+  }
+  const start = lastIndex(existing)
+  const reservedSeq = reservable.flatMap(t => (t.harness !== undefined ? [t.harness] : []))
+  if (harnesses.length === 0) n = Math.min(n, reservedSeq.length)
+  // plans[rank]: the grid reads left to right and top to bottom, so Worker k sits where its number says.
+  let turn = 0
+  const plans: PaneSpec[] = Array.from({ length: n }, (_, rank) => {
+    const harness = reservedSeq[rank] ?? (harnesses[turn++ % harnesses.length] as Harness)
+    const name = workerName(harness, start + rank + 1)
+    return { harness, command: workerCommand(harness, slug, cwd, kind, bins.get(harness)), name, title: paneLabel(name, WAITING) }
+  })
+  const caps = layoutCaps(kind, ctx.env)
+  const layout = planLayout({ count: n, live: live.length, lead: caps.lead, exact: caps.exact })
+  const result: TickResult = { counts, requested: n, plans, opened: [], failed: [], layout, layoutNote: layoutLine(kind, layout, caps.lead, live.length), warnings }
+  if (adapter === undefined || n === 0) return result
+  const opened: MuxRecord[] = []
+  const rankOf = new Map<string, number>()
+  const byRank = new Map<number, MuxRecord>()
+  const unrecorded: string[] = []
+  let recordError = ''
+  let last: MuxPane | undefined = live.at(-1)
+  // The pane a step splits. When that pane did not open, the one opened last (else the lead) is split in halves instead.
+  const splitOf = (step: PanePlan): Split | undefined => {
+    const a = step.anchor
+    if (a.kind === 'none') return undefined
+    if (a.kind === 'lead') return { target: 'lead', direction: step.direction, keep: step.keep }
+    const target = a.kind === 'live' ? live.at(-1) : byRank.get(a.rank)
+    if (target !== undefined) return { target, direction: step.direction, keep: step.keep }
+    if (last !== undefined) return { target: last, direction: step.direction, keep: 0.5 }
+    return caps.lead ? { target: 'lead', direction: step.direction, keep: 0.5 } : undefined
+  }
+  for (const step of layout.panes) {
+    const p = plans[step.rank]
+    if (p === undefined) continue
+    const split = splitOf(step)
+    const r = await adapter.open({ cwd, command: p.command, title: p.title, slug, ...(split !== undefined ? { split } : {}) })
+    if (r === undefined) { result.failed.push({ index: step.rank + 1, harness: p.harness, error: 'the multiplexer opened no pane' }); continue }
+    const rec: MuxRecord = { id: r.id, harness: p.harness, title: p.name, server: r.server, openedAt: ctx.now }
+    if (r.ids !== undefined) rec.ids = r.ids
+    if (r.pid !== undefined) rec.pid = r.pid
+    opened.push(rec)
+    rankOf.set(rec.id, step.rank)
+    byRank.set(step.rank, rec)
+    last = rec
+    if (r.attach !== undefined) result.attach = r.attach
+    // Recorded at once: a harness that joins quickly finds its pane in the sidecar, and a spawn that dies leaves no orphan.
+    // A record without its server could never be matched or closed safely, so it is not written.
+    if (rec.server === '') { unrecorded.push(rec.id); recordError = 'the multiplexer did not say which server the pane belongs to'; continue }
+    const w = updateMuxStore(storePath, st => addPanes(st, { slug, mux: kind }, [rec]))
+    if (!w.ok) { unrecorded.push(rec.id); recordError = w.message }
+  }
+  if (unrecorded.length > 0) {
+    const how = kind === 'tmux' ? 'tmux kill-pane -t <id>' : kind === 'herdr' ? 'herdr pane close <id>' : kind === 'herdr-app' ? 'hc kill <id> && hc rm <id>' : 'cmux close-surface --surface <id> --force'
+    warnings.push(`the panes ${unrecorded.join(', ')} opened but were not recorded (${recordError}); buracle work close will not close them, close them by hand with ${how}`)
+  }
+  // The pane map reads in grid order, the order the labels number the workers in.
+  result.opened = [...opened].sort((a, b) => (rankOf.get(a.id) ?? 0) - (rankOf.get(b.id) ?? 0))
+  return result
+}
+
+function countsLine(c: TickCounts): string {
+  return `${c.ready} ready task(s), ${c.active} active worker(s), ${c.standby} standby worker(s), ${c.idle} idle pane(s), ${c.starting} pane(s) starting, limit ${c.max}`
+}
+
+/**
+ * The lead opens worker panes in its multiplexer: one per ready task that no standby worker or starting pane covers
+ * (never more than the free worker slots), each running a harness whose first prompt is `/buracle-join <slug>`. The
+ * panes are recorded in the board's sidecar, so that `work merge` and `work close` can close them later; nothing else
+ * is ever closed.
  */
 export async function workSpawn(o: SpawnOptions, ctx: WorkflowCtx, s: ResolvedSession, deps: PaneDeps = {}): Promise<CmdResult> {
   const dry = o.dryRun === true
   const detect = detectMux(ctx.env, o.mux)
   if (!detect.ok && detect.code === 'usage') return fail('usage', detect.message)
-  const on = swarmHarnesses()
+  const on = swarmConfig().harnesses
   // A harness is installed when its program is on PATH or in a folder an installer uses (the pane then runs it by its path).
-  const bins0 = new Map<Harness, { path: string; onPath: boolean } | undefined>()
-  const lookup = (h: Harness): { path: string; onPath: boolean } | undefined => {
-    if (!bins0.has(h)) bins0.set(h, deps.which !== undefined ? (deps.which(h) ? { path: h, onPath: true } : undefined) : findHarnessBin(h, ctx.env))
-    return bins0.get(h)
-  }
+  const lookup = binLookup(ctx.env, deps)
+  const installed = (h: Harness): boolean => lookup(h) !== undefined
   // The harnesses that may run workers now: on in the config and installed. The approval gate reads them from a dry run.
-  const usable = HARNESSES.filter(h => on[h] !== false && lookup(h) !== undefined)
-  const parsed0 = parseHarnesses(o.harness, on, h => lookup(h) !== undefined)
-  // A dry run reports instead of failing: the gate asks its question with whatever is usable.
-  if (!('list' in parsed0) && !dry) return parsed0
-  const parsed = 'list' in parsed0 ? parsed0 : { list: usable, warnings: parsed0.errors }
-  const harnesses = parsed.list
+  const usable = HARNESSES.filter(h => on[h] !== false && installed(h))
   if (o.workers !== undefined && (!Number.isInteger(o.workers) || o.workers < 0)) return fail('usage', `--workers must be a whole number (got ${String(o.workers)})`)
   const common = commonDirOf(ctx.cwd)
   if (common === undefined) return fail('no_repo', `${ctx.cwd} is not inside a git repository; the board lives in the repository's git common dir`)
   const found = boardOf(common, s, ctx.now)
   if (found !== undefined && 'code' in found) return found
+  // The dealing list: --harness, else the plan's Swarm harnesses the board stores, else every harness that is on and installed.
+  const source: HarnessSource = o.harness !== undefined ? { kind: 'flag', spec: o.harness } : found?.board.harnesses !== undefined ? { kind: 'board', list: found.board.harnesses } : { kind: 'installed' }
+  const parsed0 = dealableHarnesses(source, on, installed)
+  // A dry run reports instead of failing: the gate asks its question with whatever is usable.
+  if (!('list' in parsed0) && !dry) return parsed0
+  const parsed = 'list' in parsed0 ? parsed0 : { list: usable, warnings: parsed0.errors }
+  const harnesses = parsed.list
   const muxName = detect.ok ? detect.kind : null
   if (found === undefined) {
     if (dry) return ok({ ok: true, dryRun: true, mux: muxName, board: null, harnesses: usable }, [`Dry run: ${detect.ok ? `${detect.kind} detected` : 'no multiplexer detected'}; this repository has no task board yet (buracle work publish creates one).`])
@@ -232,7 +445,6 @@ export async function workSpawn(o: SpawnOptions, ctx: WorkflowCtx, s: ResolvedSe
   }
   const warnings: string[] = [...parsed.warnings]
   let adapter: MuxAdapter | undefined
-  // Harnesses the pane's shell may not find by name: they run by their full path.
   const bins = new Map<Harness, string>()
   if (!dry) {
     const a = muxAdapter(kind, ctx.env, deps)
@@ -246,136 +458,89 @@ export async function workSpawn(o: SpawnOptions, ctx: WorkflowCtx, s: ResolvedSe
     }
     if (missing.length > 0) return fail('harness_missing', `${missing.join(', ')} not found on PATH (nor in ${HARNESS_BIN_DIRS.map(d => `~/${d}`).join(', ')}); install it, or pick another harness with --harness`, { slug, missing })
   }
-  // The panes of an earlier spawn: gone ones leave the record, the rest (present, or unknown because the multiplexer
-  // did not answer) stay and count as workers already.
-  let live: MuxRecord[] = existing?.panes ?? []
-  if (adapter !== undefined && live.length > 0) {
-    const checked = await Promise.all(live.map(async p => ({ p, state: await adapter.presence(p) })))
-    const dead = checked.filter(c => c.state === 'stale').map(c => c.p.id)
-    live = checked.filter(c => c.state !== 'stale').map(c => c.p)
-    if (dead.length > 0) updateMuxStore(storePath, st => (st === undefined ? undefined : removePanes(st, dead)))
-    const unknown = checked.filter(c => c.state === 'failed').length
-    if (unknown > 0) warnings.push(`${unknown} recorded pane(s) could not be checked (${kind} did not answer); they keep their worker slots`)
-  }
-  const active = activeWorkers(board)
-  const idle = live.filter(p => !active.some(w => sameSession(p.session, w))).length
-  // The ready tasks in order. A task reserved for a harness (`**Harness:**` in the plan) gets a pane of that harness when
-  // it is on and installed; otherwise it gets no pane now and the lead is told why.
-  const readyTasks = claimable(board).ready.map(n => board.tasks.find(t => t.n === n)).filter((t): t is BoardTask => t !== undefined)
-  const reservable: BoardTask[] = []
-  for (const t of readyTasks) {
-    const h = t.harness
-    if (h === undefined) { reservable.push(t); continue }
-    if (on[h] === false) { warnings.push(`Task ${t.n} is reserved for ${h}, which is switched off for swarm workers (plan.board.harnesses.${h}): no pane opened for it`); continue }
-    if (lookup(h) === undefined) { warnings.push(`Task ${t.n} is reserved for ${h}, which is not installed (PATH, ${HARNESS_BIN_DIRS.map(d => `~/${d}`).join(', ')}): no pane opened for it`); continue }
-    if (!dry && !bins.has(h)) { const f = lookup(h); if (f !== undefined && !f.onPath) bins.set(h, f.path) }
-    reservable.push(t)
-  }
-  const ready = reservable.length
-  // A pane opened a moment ago that has not joined yet is a worker on its way: it will take one of the ready tasks.
-  const starting = live.filter(p => p.session === undefined && ctx.now - p.openedAt < STARTING_MS).length
-  const max = board.maxWorkers
-  const cap = Math.max(0, max - active.length - idle)
-  // An idle pane holds a worker slot but takes no new task on its own (a worker that found nothing stops and cannot be
-  // woken), so it counts against the limit, not against the ready tasks. A starting pane counts against both.
-  let n = o.workers ?? Math.max(0, Math.min(ready - starting, cap))
-  if (o.workers !== undefined && o.workers > cap) {
-    warnings.push(`max_workers: ${o.workers} worker(s) asked, ${cap} slot(s) free (plan.board.maxWorkers ${max}, ${active.length} active worker(s), ${idle} idle pane(s)); opening ${cap}`)
-    n = cap
-  }
-  if (active.length + idle + n > USAGE_CHECK_FROM) {
-    const hot = [...new Set(harnesses)].flatMap(h => latestWindows(h, ctx.now).filter(w => w.pct >= USAGE_LOW_PCT).map(w => ({ h, w })))[0]
-    const room = Math.max(0, USAGE_CHECK_FROM - active.length - idle)
-    if (hot !== undefined && n > room) {
-      warnings.push(`usage_low: ${hot.h}'s ${hot.w.label} rate window is at ${hot.w.pct}% (limit ${USAGE_LOW_PCT}% from the ${USAGE_CHECK_FROM + 1}th worker on); opening ${room} instead of ${n}`)
-      n = room
-    }
-  }
-  const start = lastIndex(existing)
-  // The reserved tasks' harnesses come first, so a reserved task gets its pane even when fewer panes open than tasks are
-  // ready; the remaining panes take the harness list in turn. Without a usable harness only reserved tasks get a pane.
-  const reservedSeq = reservable.flatMap(t => (t.harness !== undefined ? [t.harness] : []))
-  if (harnesses.length === 0) n = Math.min(n, reservedSeq.length)
-  // plans[rank]: the grid reads left to right and top to bottom, so Worker k sits where its number says.
-  let turn = 0
-  const plans = Array.from({ length: n }, (_, rank) => {
-    const harness = reservedSeq[rank] ?? (harnesses[turn++ % harnesses.length] as Harness)
-    const name = workerName(harness, start + rank + 1)
-    return { harness, command: workerCommand(harness, slug, cwd, kind, bins.get(harness)), name, title: paneLabel(name, WAITING) }
-  })
-  const caps = layoutCaps(kind, ctx.env)
-  const layout = planLayout({ count: n, live: live.length, lead: caps.lead, exact: caps.exact })
-  const layoutNote = layoutLine(kind, layout, caps.lead, live.length)
-  const workers = { requested: n, opened: 0, active: active.length, max }
+  const tick = await runTick({ board, cwd, kind, storePath, existing, ...(adapter !== undefined ? { adapter } : {}), harnesses, on, lookup, bins, ...(o.workers !== undefined ? { workers: o.workers } : {}) }, ctx)
+  warnings.push(...tick.warnings)
+  const c = tick.counts
+  const n = tick.requested
+  const workers = { requested: n, opened: tick.opened.length, active: c.active, standby: c.standby, max: c.max }
+  const layout = { rows: tick.layout.rows, cols: tick.layout.cols }
   if (dry || adapter === undefined) {
-    return ok({ ok: true, dryRun: true, mux: kind, board: slug, cwd, harnesses: usable, workers, layout: { rows: layout.rows, cols: layout.cols }, panes: plans.map(p => ({ harness: p.harness, command: p.command, title: p.title })) }, [
-      `Dry run: ${n} pane(s) would open in ${kind} for ${slug} (${ready} ready task(s), ${active.length} active worker(s), ${idle} idle pane(s), ${starting} pane(s) starting, limit ${max}).`,
-      ...(n > 0 ? [layoutNote] : []),
-      ...plans.map(p => `  ${p.title}: ${p.command}`),
+    return ok({ ok: true, dryRun: true, mux: kind, board: slug, cwd, harnesses: usable, workers, layout, panes: tick.plans.map(p => ({ harness: p.harness, command: p.command, title: p.title })) }, [
+      `Dry run: ${n} pane(s) would open in ${kind} for ${slug} (${countsLine(c)}).`,
+      ...(n > 0 ? [tick.layoutNote] : []),
+      ...tick.plans.map(p => `  ${p.title}: ${p.command}`),
     ], warnings)
   }
   if (n === 0) {
-    return ok({ ok: true, slug, mux: kind, cwd, opened: [], failed: [], workers }, [`Nothing to open on ${slug}: ${ready} ready task(s), ${active.length} active worker(s), ${idle} idle pane(s), ${starting} pane(s) starting, limit ${max}.`], warnings)
+    return ok({ ok: true, slug, mux: kind, cwd, opened: [], failed: [], workers }, [`Nothing to open on ${slug}: ${countsLine(c)}.`], warnings)
   }
-  const opened: MuxRecord[] = []
-  const rankOf = new Map<string, number>()
-  const byRank = new Map<number, MuxRecord>()
-  const failed: Array<{ index: number; harness: Harness; error: string }> = []
-  const unrecorded: string[] = []
-  let recordError = ''
-  let last: MuxPane | undefined = live.at(-1)
-  let attach: string | undefined
-  // The pane a step splits. When that pane did not open, the one opened last (else the lead) is split in halves instead.
-  const splitOf = (step: PanePlan): Split | undefined => {
-    const a = step.anchor
-    if (a.kind === 'none') return undefined
-    if (a.kind === 'lead') return { target: 'lead', direction: step.direction, keep: step.keep }
-    const target = a.kind === 'live' ? live.at(-1) : byRank.get(a.rank)
-    if (target !== undefined) return { target, direction: step.direction, keep: step.keep }
-    if (last !== undefined) return { target: last, direction: step.direction, keep: 0.5 }
-    return caps.lead ? { target: 'lead', direction: step.direction, keep: 0.5 } : undefined
-  }
-  for (const step of layout.panes) {
-    const p = plans[step.rank]
-    if (p === undefined) continue
-    const split = splitOf(step)
-    const r = await adapter.open({ cwd, command: p.command, title: p.title, slug, ...(split !== undefined ? { split } : {}) })
-    if (r === undefined) { failed.push({ index: step.rank + 1, harness: p.harness, error: 'the multiplexer opened no pane' }); continue }
-    const rec: MuxRecord = { id: r.id, harness: p.harness, title: p.name, server: r.server, openedAt: ctx.now }
-    if (r.ids !== undefined) rec.ids = r.ids
-    if (r.pid !== undefined) rec.pid = r.pid
-    opened.push(rec)
-    rankOf.set(rec.id, step.rank)
-    byRank.set(step.rank, rec)
-    last = rec
-    if (r.attach !== undefined) attach = r.attach
-    // Recorded at once: a harness that joins quickly finds its pane in the sidecar, and a spawn that dies leaves no orphan.
-    // A record without its server could never be matched or closed safely, so it is not written.
-    if (rec.server === '') { unrecorded.push(rec.id); recordError = 'the multiplexer did not say which server the pane belongs to'; continue }
-    const w = updateMuxStore(storePath, st => addPanes(st, { slug, mux: kind }, [rec]))
-    if (!w.ok) { unrecorded.push(rec.id); recordError = w.message }
-  }
-  if (unrecorded.length > 0) {
-    const how = kind === 'tmux' ? 'tmux kill-pane -t <id>' : kind === 'herdr' ? 'herdr pane close <id>' : kind === 'herdr-app' ? 'hc kill <id> && hc rm <id>' : 'cmux close-surface --surface <id> --force'
-    warnings.push(`the panes ${unrecorded.join(', ')} opened but were not recorded (${recordError}); buracle work close will not close them, close them by hand with ${how}`)
-  }
-  workers.opened = opened.length
-  // The pane map reads in grid order, the order the labels number the workers in.
-  const shown = [...opened].sort((a, b) => (rankOf.get(a.id) ?? 0) - (rankOf.get(b.id) ?? 0))
-  const data = { slug, mux: kind, cwd, opened: shown.map(p => ({ id: p.id, harness: p.harness, title: paneLabel(p.title, WAITING) })), failed, workers, layout: { rows: layout.rows, cols: layout.cols }, ...(attach !== undefined ? { attach } : {}) }
-  if (opened.length === 0) return fail('mux_failed', `no pane opened in ${kind} (${failed.length} attempt(s) failed); check that ${kind} takes commands from this session`, data)
+  const shown = tick.opened
+  const data = { slug, mux: kind, cwd, opened: shown.map(p => ({ id: p.id, harness: p.harness, title: paneLabel(p.title, WAITING) })), failed: tick.failed, workers, layout, ...(tick.attach !== undefined ? { attach: tick.attach } : {}) }
+  if (shown.length === 0) return fail('mux_failed', `no pane opened in ${kind} (${tick.failed.length} attempt(s) failed); check that ${kind} takes commands from this session`, data)
   const lines = [
-    `Opened ${opened.length} pane(s) in ${kind} for ${slug}: ${shown.map(p => `${p.id} ${p.harness}`).join(', ')}. Each starts its harness with /buracle-join ${slug} ($buracle-join ${slug} in Codex) and takes a task.`,
+    `Opened ${shown.length} pane(s) in ${kind} for ${slug}: ${shown.map(p => `${p.id} ${p.harness}`).join(', ')}. Each starts its harness with /buracle-join ${slug} ($buracle-join ${slug} in Codex) and takes a task.`,
     `Pane map (${kind}):`,
     ...shown.map(p => `  ${p.id}  ${paneLabel(p.title, WAITING)}`),
-    layoutNote,
+    tick.layoutNote,
     'A pane label names its worker and, once it joined, its task (NEEDS YOU while it waits for the user). buracle work status maps every pane to its task.',
-    ...(attach !== undefined ? [`Attach with: ${attach}`] : []),
+    ...(tick.attach !== undefined ? [`Attach with: ${tick.attach}`] : []),
     'Then: buracle work wait --json → buracle work merge --json → run the checks. buracle work close closes the panes Buracle opened.',
   ]
-  if (failed.length > 0) warnings.push(`${failed.length} pane(s) did not open: ${failed.map(f => `#${f.index} ${f.harness}`).join(', ')}`)
+  if (tick.failed.length > 0) warnings.push(`${tick.failed.length} pane(s) did not open: ${tick.failed.map(f => `#${f.index} ${f.harness}`).join(', ')}`)
   // A clamp or a pane that did not open is worth exit 2: the lead reads the warning before it waits for workers that are not there.
   return warnings.length > 0 ? partial({ ok: true, ...data }, lines, warnings) : ok({ ok: true, ...data }, lines)
+}
+
+/** What `work publish` and `work merge` report about the tick: the panes it opened, the panes the merge closed, and the advice when there are no panes. */
+export interface ScaleView { opened: Array<{ id: string; harness: Harness; title: string }>; closed: string[]; advice?: string }
+
+/**
+ * The tick after a publish or a merge. The board has panes when a pane store exists, or when the plan asked for them
+ * (`Panes:` under `## Assumptions`, kept on the board) while the lead sits in a multiplexer and `plan.board.mux` is not
+ * off: the ready tasks that no standby worker or starting pane covers get a pane each, dealt from the board's harnesses
+ * (else the installed ones that are on). Without panes the lead is told how many terminals to open for them. `closed`
+ * is what the caller closed before the tick, so the lead reads one object.
+ */
+export async function scaleAfter(commonDir: string, board: Board, closed: readonly string[], ctx: WorkflowCtx, deps: PaneDeps = {}): Promise<{ scale: ScaleView; lines: string[]; warnings: string[] }> {
+  const warnings: string[] = []
+  const scale: ScaleView = { opened: [], closed: [...closed] }
+  const { path: storePath, store } = paneStoreFor(commonDir, board.slug)
+  const cfg = swarmConfig()
+  const lookup = binLookup(ctx.env, deps)
+  const detect = store !== undefined ? detectMux(ctx.env, store.mux) : detectMux(ctx.env)
+  const wantPanes = store !== undefined || (board.panes !== undefined && cfg.mux !== 'off')
+  if (wantPanes && !detect.ok && store !== undefined) warnings.push(`the panes of ${board.slug} were opened in ${store.mux}, which this session cannot reach (${detect.message}); no pane opened`)
+  if (wantPanes && detect.ok) {
+    const kind = detect.kind
+    const a = muxAdapter(kind, ctx.env, deps)
+    if (!a.ok) warnings.push(a.message)
+    else {
+      const source: HarnessSource = board.harnesses !== undefined ? { kind: 'board', list: board.harnesses } : { kind: 'installed' }
+      const parsed = dealableHarnesses(source, cfg.harnesses, h => lookup(h) !== undefined)
+      const harnesses = 'list' in parsed ? parsed.list : []
+      warnings.push(...('list' in parsed ? parsed.warnings : parsed.errors))
+      const bins = new Map<Harness, string>()
+      for (const h of new Set(harnesses)) {
+        const f = lookup(h)
+        if (f !== undefined && !f.onPath) bins.set(h, f.path)
+      }
+      const tick = await runTick({ board, cwd: checkoutRootOf(ctx.cwd) ?? ctx.cwd, kind, storePath, existing: store, adapter: a.adapter, harnesses, on: cfg.harnesses, lookup, bins }, ctx)
+      warnings.push(...tick.warnings)
+      scale.opened = tick.opened.map(p => ({ id: p.id, harness: p.harness, title: paneLabel(p.title, WAITING) }))
+      if (tick.requested > 0 && tick.opened.length === 0) warnings.push(`mux_failed: no pane opened in ${kind} (${tick.failed.length} attempt(s) failed); check that ${kind} takes commands from this session, or run buracle work spawn --json`)
+      const lines = scale.opened.length === 0 ? [] : [
+        `Opened ${scale.opened.length} pane(s) in ${kind} for ${board.slug}: ${scale.opened.map(p => `${p.id} ${p.harness}`).join(', ')}. Each starts its harness with /buracle-join ${board.slug} and takes a task.`,
+        ...(tick.attach !== undefined ? [`Attach with: ${tick.attach}`] : []),
+      ]
+      return { scale, lines, warnings }
+    }
+  }
+  // Without panes: the ready tasks nobody covers need terminals the user opens.
+  const counts = tickCounts(board, store?.panes ?? [], ctx.now, dealableReady(board, cfg.harnesses, lookup).length)
+  const k = Math.min(counts.need, counts.cap)
+  if (k === 0) return { scale, lines: [], warnings }
+  scale.advice = `${counts.ready} task(s) ready, ${counts.standby} worker(s) waiting: open ${k} terminal(s) in this repository and run \`/buracle-join ${board.slug}\` in each (\`$buracle-join ${board.slug}\` in Codex).`
+  return { scale, lines: [scale.advice], warnings }
 }
 
 /** The sidecar of the board a session is on, for the lead-side and worker-side hooks; undefined when there is none. */
@@ -535,26 +700,27 @@ async function closePanes(path: string, store: MuxStore, panes: readonly MuxReco
 }
 
 /**
- * After a merge: while a task is ready to be taken, every pane stays (a worker that just finished joins it). Once none is
- * ready, the panes of idle workers close: a worker is idle when it holds no task and every task it last worked on is
- * merged. A task that is open but blocked (it waits for another task to be merged, or shares a file with an active one)
- * keeps nobody's pane open: a worker that finds nothing to take stops, and the lead opens a new pane for it later
- * (`work spawn`). A pane nobody joined from yet may hold a worker that is still starting; it waits for `work close`.
+ * After a merge: a recorded pane closes when its worker is bound and holds no task, nothing its harness could still take
+ * remains on the board (`remainingFor`: the open and stale tasks not reserved for another harness, blocked ones
+ * included) and every task the worker last held is merged. A blocked task keeps the pane: its worker waits for it
+ * (`join --wait`). A Build board gets new tasks every round, so its panes stay until `work close`. A pane nobody joined
+ * from yet may hold a worker that is still starting; it waits for `work close` too. `workers` names the sessions whose
+ * panes closed, so the caller can drop their standby entries.
  */
-export async function closePanesAfterMerge(commonDir: string, board: Board, env: Env, deps: MuxDeps = {}): Promise<ClosedPanes> {
+export async function closePanesAfterMerge(commonDir: string, board: Board, env: Env, deps: MuxDeps = {}): Promise<ClosedPanes & { workers?: BoardSession[] }> {
   const { path, store } = paneStoreFor(commonDir, board.slug)
-  if (store === undefined) return NO_PANES
+  if (store === undefined || board.planType === 'Build') return NO_PANES
   const active = activeWorkers(board)
   const idle = store.panes.filter(p => {
     const who = p.session
-    // A pane nobody joined from yet may hold a worker that is still starting (or whose bind failed): it waits for `work close`.
     if (who === undefined) return false
-    // A task this pane's harness may still take keeps it open; one reserved for another harness does not.
-    if (claimable(board, who.harness).ready.length > 0) return false
     if (active.some(w => sameSession(who, w))) return false
+    if (remainingFor(board, p.harness) > 0) return false
     return board.tasks.every(t => !sameSession(t.lastWorker, who) || t.status === 'merged')
   })
-  return closePanes(path, store, idle, env, deps)
+  const out = await closePanes(path, store, idle, env, deps)
+  const workers = idle.filter(p => out.closed.includes(p.id)).flatMap(p => (p.session !== undefined ? [p.session] : []))
+  return workers.length > 0 ? { ...out, workers } : out
 }
 
 /** `work close` and `plan verify`: every recorded pane closes (`keep` leaves them open); the sidecar goes either way. */

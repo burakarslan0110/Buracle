@@ -1,13 +1,14 @@
 import { describe, expect, test } from 'bun:test'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { claim } from '../../src/core/board/model'
+import { runWork } from '../../src/cli/commands/work'
+import { STANDBY_STALE_MS, claim, setStandby } from '../../src/core/board/model'
 import { boardPath, commonDirOf, readBoard, sessionBoard, setSessionBoard, updateBoard } from '../../src/workflow/board-store'
 import { resolveBoardPath, workNote, workPublish, workStatus } from '../../src/workflow/board'
 import { repoFacts } from '../../src/workflow/gitx'
 import type { ResolvedSession } from '../../src/workflow/session-store'
 import { withEnv, withSandbox } from '../helpers/sandbox'
-import { ctxAt, makeRepo, planDoc, write } from './fixture'
+import { ctxAt, makeRepo, memIO, planDoc, write } from './fixture'
 
 const LEAD: ResolvedSession = { harness: 'claude', sessionId: 'lead-1', source: '--session' }
 const NOW = Date.UTC(2026, 10, 7, 12, 0, 0)
@@ -20,6 +21,27 @@ function approvedPlan(o: { n?: number, extra?: string } = {}): string {
   const doc = planDoc({ n: o.n ?? 3, status: 'IN_PROGRESS', approved: true })
   return o.extra !== undefined ? doc.replace('## Tasks', `${o.extra}\n\n## Tasks`) : doc
 }
+
+/** A plan shaped for waves: Task 1 is the foundation, Tasks 2 to 4 depend on it, Task 5 closes; `assumptions` goes under `## Assumptions`. */
+function wavePlan(o: { approved?: boolean, type?: string, assumptions?: string[] } = {}): string {
+  let doc = planDoc({ n: 5, status: o.approved === true ? 'IN_PROGRESS' : 'PENDING', approved: o.approved ?? false, type: o.type ?? 'Feature' })
+  for (const n of [2, 3, 4]) doc = doc.replace(`**Objective:** Do step ${n}.`, `**Objective:** Do step ${n}.\n\n**Depends on:** Task 1`)
+  doc = doc.replace('**Objective:** Do step 5.', '**Objective:** Do step 5.\n\n**Depends on:** Task 2, Task 3, Task 4')
+  if (o.assumptions !== undefined) doc = doc.replace('## Tasks', `## Assumptions\n${o.assumptions.map(a => `- ${a}`).join('\n')}\n\n## Tasks`)
+  return doc
+}
+
+const SWARM_PLAN_BLOCK = [
+  '## Swarm Plan',
+  '| Wave | Tasks | Width |',
+  '|---|---|---|',
+  '| 1 | Task 1 | 1 |',
+  '| 2 | Task 2, Task 3, Task 4 | 3 |',
+  '| 3 | Task 5 | 1 |',
+  '',
+  'Critical path: Task 1 → Task 2 → Task 5 (3 of 5 tasks).',
+  'Workers: up to 3 at the widest wave; the lead scales from 1 to 6.',
+]
 
 describe('the lead\'s binding', () => {
   test('a lead whose binding is gone is rebound from the board file; with two boards the registered plan decides, otherwise usage', () => sandbox(async root => {
@@ -44,7 +66,100 @@ describe('the lead\'s binding', () => {
   }))
 })
 
+describe('work publish --dry-run', () => {
+  test('prints the waves and, with --md, the exact Swarm Plan block; writes no board, binds no session, and takes an unapproved plan', () => sandbox(async root => {
+    const repo = await makeRepo(root)
+    const plan = join(repo, 'docs', 'plan-build', '2026-11-07-rate-limit.md')
+    write(plan, wavePlan({ assumptions: ['Swarm: on', 'Swarm harnesses: claude, codex', 'Panes: herdr'] }))
+    const r = await workPublish({ planPath: plan, dryRun: true, md: true }, ctxAt(repo, NOW), LEAD)
+    expect(r.errors).toEqual([])
+    expect(r.code).toBe(0)
+    expect(r.data).toMatchObject({ ok: true, dryRun: true, slug: 'rate-limit', swarm: 'on', harnesses: ['claude', 'codex'], panes: 'herdr' })
+    expect(r.data['waves']).toEqual({
+      waves: [{ wave: 1, tasks: [1] }, { wave: 2, tasks: [2, 3, 4] }, { wave: 3, tasks: [5] }], width: 3, criticalPath: [1, 2, 5],
+      depsOf: { 1: [], 2: [1], 3: [1], 4: [1], 5: [2, 3, 4] },
+    })
+    const tasks = r.data['tasks'] as Array<{ n: number, title: string, deps: number[], files: string[], done: boolean, harness?: string }>
+    expect(tasks.map(t => [t.n, t.deps, t.files, t.done])).toEqual([[1, [], ['src/s1.ts'], false], [2, [1], ['src/s2.ts'], false], [3, [1], ['src/s3.ts'], false], [4, [1], ['src/s4.ts'], false], [5, [2, 3, 4], ['src/s5.ts'], false]])
+    expect(tasks[0]?.title).toBe('Step 1')
+    expect(tasks.every(t => t.harness === undefined)).toBe(true)
+    expect(r.lines[0]).toBe('5 tasks in 3 waves: width 3, critical path 3 (Task 1 → Task 2 → Task 5)')
+    // The lead pastes everything after the summary line into the plan as the `## Swarm Plan` section.
+    expect(r.lines.slice(1)).toEqual(SWARM_PLAN_BLOCK)
+    const common = commonDirOf(repo) as string
+    expect(existsSync(boardPath(common, 'rate-limit'))).toBe(false)
+    expect(sessionBoard('claude', 'lead-1')).toBeUndefined()
+
+    const plain = await workPublish({ planPath: plan, dryRun: true }, ctxAt(repo, NOW), LEAD)
+    expect(plain.code).toBe(0)
+    expect(plain.lines).toEqual([r.lines[0] as string])
+    expect(existsSync(boardPath(common, 'rate-limit'))).toBe(false)
+  }))
+
+  test('a Build file and a plan without a Swarm line work too (swarm null, harnesses null, panes null); a ticked task is listed as done', () => sandbox(async root => {
+    const repo = await makeRepo(root)
+    const build = join(repo, 'docs', 'goal-build', '2026-11-07-cache.md')
+    write(build, planDoc({ type: 'Build', n: 2, done: 1 }))
+    const r = await workPublish({ planPath: build, dryRun: true, md: true }, ctxAt(repo, NOW), LEAD)
+    expect(r.errors).toEqual([])
+    expect(r.code).toBe(0)
+    expect(r.data).toMatchObject({ ok: true, dryRun: true, slug: 'cache', swarm: null, harnesses: null, panes: null })
+    expect((r.data['tasks'] as Array<{ n: number, done: boolean }>).map(t => [t.n, t.done])).toEqual([[1, true], [2, false]])
+    expect(r.data['waves']).toMatchObject({ waves: [{ wave: 1, tasks: [1, 2] }], width: 2, criticalPath: [1] })
+    expect(r.lines[0]).toBe('2 tasks in 1 wave: width 2, critical path 1 (Task 1)')
+    expect(r.lines[1]).toBe('## Swarm Plan')
+    expect(r.lines.at(-1)).toBe('Workers: up to 2 at the widest wave; the lead scales from 1 to 6.')
+    expect(existsSync(boardPath(commonDirOf(repo) as string, 'cache'))).toBe(false)
+    expect((await workPublish({ planPath: join(repo, 'docs', 'nope.md'), dryRun: true }, ctxAt(repo, NOW), LEAD)).data['error']).toBe('not_found')
+    expect((await workPublish({ dryRun: true }, ctxAt(repo, NOW), LEAD)).data['error']).toBe('usage')
+  }))
+
+  test('the CLI: publish --dry-run --md prints the summary line and the block, --json the waves; nothing is written', () => sandbox(async root => {
+    const repo = await makeRepo(root)
+    const plan = join(repo, 'docs', 'plan-build', '2026-11-07-rate-limit.md')
+    write(plan, wavePlan({ assumptions: ['Swarm: on'] }))
+    const session = ['--session', 'lead-1', '--harness', 'claude']
+    const text = memIO(false)
+    expect(await runWork(['publish', plan, '--dry-run', '--md', ...session], text, ctxAt(repo, NOW))).toBe(0)
+    expect(text.out()).toBe(['5 tasks in 3 waves: width 3, critical path 3 (Task 1 → Task 2 → Task 5)', ...SWARM_PLAN_BLOCK].join('\n') + '\n')
+    const json = memIO(true)
+    expect(await runWork(['publish', plan, '--dry-run', '--json', ...session], json, ctxAt(repo, NOW))).toBe(0)
+    expect(json.json()).toMatchObject({ ok: true, dryRun: true, slug: 'rate-limit', swarm: 'on', harnesses: null, panes: null, waves: { width: 3, criticalPath: [1, 2, 5] } })
+    expect(existsSync(boardPath(commonDirOf(repo) as string, 'rate-limit'))).toBe(false)
+    expect(sessionBoard('claude', 'lead-1')).toBeUndefined()
+    const bad = memIO(true)
+    expect(await runWork(['status', '--md', ...session], bad, ctxAt(repo, NOW))).toBe(1)
+    expect(bad.err()).toContain("--md does not apply to 'work status'")
+  }))
+})
+
 describe('work publish', () => {
+  test('stores the plan\'s Swarm harnesses and Panes lines on the board, warns about an unknown harness, and a second publish without the lines keeps them', () => sandbox(async root => {
+    const repo = await makeRepo(root)
+    const plan = join(repo, 'docs', 'plan-build', '2026-11-07-rate-limit.md')
+    write(plan, approvedPlan({ n: 2, extra: '## Assumptions\n- Swarm: on\n- Swarm harnesses: claude, gemini, codex\n- Panes: herdr' }))
+    const r = await workPublish({ planPath: plan }, ctxAt(repo, NOW), LEAD)
+    expect(r.code).toBe(0)
+    expect(r.errors.join('\n')).toContain('gemini')
+    const path = String(r.data['path'])
+    expect(readBoard(path)).toMatchObject({ harnesses: ['claude', 'codex'], panes: 'herdr' })
+    expect(r.data).toMatchObject({ harnesses: ['claude', 'codex'], panes: 'herdr' })
+    // No multiplexer here: the lead is told how many terminals to open instead.
+    expect(r.data['scale']).toMatchObject({ opened: [], closed: [] })
+    expect(String((r.data['scale'] as { advice: string }).advice)).toBe('2 task(s) ready, 0 worker(s) waiting: open 2 terminal(s) in this repository and run `/buracle-join rate-limit` in each (`$buracle-join rate-limit` in Codex).')
+    expect(r.lines).toContain(String((r.data['scale'] as { advice: string }).advice))
+    write(plan, approvedPlan({ n: 2 }))
+    const again = await workPublish({ planPath: plan }, ctxAt(repo, NOW + 1000), LEAD)
+    expect(again.code).toBe(0)
+    expect(readBoard(path)).toMatchObject({ harnesses: ['claude', 'codex'], panes: 'herdr' })
+    const bare = join(repo, 'docs', 'plan-build', '2026-11-07-cache.md')
+    write(bare, approvedPlan({ n: 1 }))
+    const none = await workPublish({ planPath: bare }, ctxAt(repo, NOW + 2000), LEAD)
+    expect(none.code).toBe(0)
+    const b = readBoard(String(none.data['path']))
+    expect([b?.harnesses, b?.panes, b?.standby]).toEqual([undefined, undefined, undefined])
+  }))
+
   test('a plan with every task ticked publishes an all-merged board: exit 0, nothing open, every task merged', () => sandbox(async root => {
     const repo = await makeRepo(root)
     const plan = join(repo, 'docs', 'plan-build', '2026-11-07-rate-limit.md')
@@ -152,5 +267,27 @@ describe('work status', () => {
     if (facts === undefined) throw new Error('no repo facts')
     expect(resolveBoardPath('Not Valid', facts, undefined)).toMatchObject({ data: { error: 'usage' } })
     expect((await workStatus('other', ctxAt(repo, NOW), undefined)).data['error']).toBe('no_board')
+  }))
+
+  test('lists the standby workers on one line and in the JSON, and drops one that stopped refreshing its entry', () => sandbox(async root => {
+    const repo = await makeRepo(root)
+    const plan = join(repo, 'docs', 'plan-build', '2026-11-07-rate-limit.md')
+    write(plan, approvedPlan())
+    const pub = await workPublish({ planPath: plan }, ctxAt(repo, NOW), LEAD)
+    const path = String(pub.data['path'])
+    const none = await workStatus('rate-limit', ctxAt(repo, NOW), undefined)
+    expect(none.data['standby']).toEqual([])
+    expect(none.lines.some(l => l.startsWith('Standby:'))).toBe(false)
+    updateBoard(path, NOW, b => ({ ok: true, board: setStandby(setStandby(b, { harness: 'codex', session: 'worker-codex-1' }, NOW), { harness: 'omp', session: 'w2' }, NOW + 60_000) }))
+    const st = await workStatus('rate-limit', ctxAt(repo, NOW + 120_000), undefined)
+    expect(st.data['standby']).toEqual([
+      { harness: 'codex', session: 'worker-codex-1', since: NOW, at: NOW, waitedSec: 120 },
+      { harness: 'omp', session: 'w2', since: NOW + 60_000, at: NOW + 60_000, waitedSec: 60 },
+    ])
+    expect(st.lines).toContain('Standby: worker (codex worker-codex…, 120 s), worker (omp w2, 60 s)')
+    // The first entry is older than STANDBY_STALE_MS by now: the status sweeps it.
+    const later = await workStatus('rate-limit', ctxAt(repo, NOW + STANDBY_STALE_MS + 1000), undefined)
+    expect((later.data['standby'] as Array<{ session: string }>).map(s => s.session)).toEqual(['w2'])
+    expect(readBoard(path)?.standby?.map(s => s.session)).toEqual(['w2'])
   }))
 })

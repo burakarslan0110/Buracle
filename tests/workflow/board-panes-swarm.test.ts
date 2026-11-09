@@ -3,17 +3,90 @@
 import { describe, expect, test } from 'bun:test'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { setStandby } from '../../src/core/board/model'
 import { userConfigFile } from '../../src/engine/paths'
-import { workJoin, workPublish } from '../../src/workflow/board'
+import { workDone, workJoin, workMerge, workPublish } from '../../src/workflow/board'
+import { readBoard, updateBoard } from '../../src/workflow/board-store'
 import { workSpawn } from '../../src/workflow/board-panes'
 import type { MuxExec } from '../../src/workflow/mux'
 import { workerCommand } from '../../src/workflow/mux'
 import { muxStorePath, readMuxStore } from '../../src/workflow/mux-store'
 import type { ResolvedSession } from '../../src/workflow/session-store'
 import { HERDR_ENV, LEAD, NOW, fakeHerdr, published, sandbox, which } from './board-panes-helpers'
-import { ctxAt, makeRepo, planDoc, write } from './fixture'
+import { ctxAt, g, makeRepo, planDoc, write } from './fixture'
 
 const A: ResolvedSession = { harness: 'codex', sessionId: 'worker-a', source: '--session' }
+const W = (harness: ResolvedSession['harness'], id: string): ResolvedSession => ({ harness, sessionId: id, source: '--session' })
+
+/** The worker commits its task's file in its lane worktree and reports done. */
+async function finish(repo: string, path: string, worker: ResolvedSession, n: number, at: number): Promise<void> {
+  const wt = String(readBoard(path)?.tasks.find(t => t.n === n)?.worktree?.path)
+  write(join(wt, `src/s${n}.ts`), `export const s${n} = ${n}\n`)
+  await g(wt, 'add', '-A')
+  await g(wt, 'commit', '-q', '-m', `task ${n}: step ${n}`)
+  const d = await workDone({ verify: `bun test tests/s${n}.test.ts → pass` }, ctxAt(repo, at), worker)
+  if (d.code !== 0) throw new Error(`done ${n}: ${d.errors.join('; ')}`)
+}
+
+describe('the tick: standby workers, publish and merge open panes', () => {
+  test('spawn subtracts the standby workers from the ready tasks and counts them in the cap; --dry-run prints them; starting panes count too', () => sandbox(async root => {
+    const { repo, path } = await published(root, { n: 5, maxWorkers: 4 })
+    updateBoard(path, NOW, b => ({ ok: true, board: setStandby(setStandby(b, { harness: 'codex', session: 'x' }, NOW), { harness: 'omp', session: 'y' }, NOW) }))
+    const h = fakeHerdr()
+    const dry = await workSpawn({ dryRun: true, harness: 'claude' }, ctxAt(repo, NOW, HERDR_ENV), LEAD, { exec: h.exec, which })
+    // 5 ready − 2 standby = 3 needed; 4 slots − 2 standby = 2 free.
+    expect(dry.data).toMatchObject({ workers: { requested: 2, opened: 0, active: 0, standby: 2, max: 4 } })
+    expect(dry.lines[0]).toBe('Dry run: 2 pane(s) would open in herdr for rate-limit (5 ready task(s), 0 active worker(s), 2 standby worker(s), 0 idle pane(s), 0 pane(s) starting, limit 4).')
+    expect(h.calls).toEqual([])
+    const r = await workSpawn({ harness: 'claude' }, ctxAt(repo, NOW, HERDR_ENV), LEAD, { exec: h.exec, which })
+    expect(r.errors).toEqual([])
+    expect(r.data).toMatchObject({ workers: { requested: 2, opened: 2, active: 0, standby: 2, max: 4 } })
+    // The two panes are starting now: they cover two more tasks and hold the last two slots.
+    const again = await workSpawn({ dryRun: true, harness: 'claude' }, ctxAt(repo, NOW + 1000, HERDR_ENV), LEAD, { exec: h.exec, which })
+    expect(again.data).toMatchObject({ workers: { requested: 0, standby: 2 } })
+    expect(again.lines[0]).toContain('2 pane(s) starting')
+  }))
+
+  test('publish with Panes: and Swarm harnesses: opens the first wave itself, dealt to the plan\'s harnesses; a merge opens a pane for a task that becomes ready while no worker waits, and keeps the pane of a worker whose harness may still take one', () => sandbox(async root => {
+    const h = fakeHerdr({ live: new Set<string>() })
+    const deps = { exec: h.exec, which }
+    const { repo, plan, path, commonDir, pub } = await published(root, { n: 3, dep: true, assumptions: ['Swarm: on', 'Swarm harnesses: codex, claude', 'Panes: herdr'], env: HERDR_ENV, deps })
+    expect(pub.errors).toEqual([])
+    expect(pub.data).toMatchObject({ harnesses: ['codex', 'claude'], panes: 'herdr', scale: { closed: [], opened: [
+      { id: 'w2:p1', harness: 'codex', title: 'Worker 1 (codex) · waiting for a task' },
+      { id: 'w2:p2', harness: 'claude', title: 'Worker 2 (claude) · waiting for a task' },
+    ] } })
+    expect(pub.lines.join('\n')).toContain('Opened 2 pane(s) in herdr for rate-limit: w2:p1 codex, w2:p2 claude')
+    expect(pub.lines.join('\n')).not.toContain('buracle work spawn --json')
+    expect(readMuxStore(muxStorePath(commonDir, 'rate-limit'))?.panes.map(p => [p.id, p.harness])).toEqual([['w2:p1', 'codex'], ['w2:p2', 'claude']])
+    // A re-publish a second later opens nothing: the two panes are starting and cover the two ready tasks.
+    const again = await workPublish({ planPath: plan }, ctxAt(repo, NOW + 1000, HERDR_ENV), LEAD, deps)
+    expect(again.data).toMatchObject({ scale: { opened: [], closed: [] } })
+    expect(readMuxStore(muxStorePath(commonDir, 'rate-limit'))?.panes).toHaveLength(2)
+    const B = W('claude', 'worker-b')
+    expect((await workJoin('rate-limit', {}, ctxAt(repo, NOW + 2000, { ...HERDR_ENV, HERDR_PANE_ID: 'w2:p1' }), A)).data).toMatchObject({ task: { n: 1 }, pane: { bound: true } })
+    expect((await workJoin('rate-limit', {}, ctxAt(repo, NOW + 2000, { ...HERDR_ENV, HERDR_PANE_ID: 'w2:p2' }), B)).data).toMatchObject({ task: { n: 2 }, pane: { bound: true } })
+    await finish(repo, path, A, 1, NOW + 3000)
+    h.reset()
+    // Task 3 becomes ready. A finished without waiting (an idle pane), so the merge opens a pane for Task 3 and keeps A's: Task 3 may still come for codex.
+    const m1 = await workMerge({}, ctxAt(repo, NOW + 4000, HERDR_ENV), LEAD, deps)
+    expect(m1.errors).toEqual([])
+    expect(m1.data).toMatchObject({ merged: true, task: 1, panes: { closed: [] }, scale: { closed: [], opened: [{ id: 'w2:p3', harness: 'codex', title: 'Worker 3 (codex) · waiting for a task' }] } })
+    expect(m1.lines.join('\n')).toContain('Opened 1 pane(s) in herdr for rate-limit: w2:p3 codex')
+    expect(h.lines().filter(l => l.includes('pane close'))).toEqual([])
+    expect(readMuxStore(muxStorePath(commonDir, 'rate-limit'))?.panes.map(p => p.id)).toEqual(['w2:p1', 'w2:p2', 'w2:p3'])
+  }))
+
+  test('plan.board.mux off: a publish with a Panes: line opens nothing and advises the terminals to open instead', () => sandbox(async root => {
+    mkdirSync(dirname(userConfigFile()), { recursive: true })
+    writeFileSync(userConfigFile(), 'version: 1\nplan:\n  board:\n    mux: "off"\n')
+    const h = fakeHerdr()
+    const { pub, commonDir } = await published(root, { n: 2, assumptions: ['Swarm: on', 'Panes: herdr'], env: HERDR_ENV, deps: { exec: h.exec, which } })
+    expect(pub.data).toMatchObject({ panes: 'herdr', scale: { opened: [], closed: [], advice: '2 task(s) ready, 0 worker(s) waiting: open 2 terminal(s) in this repository and run `/buracle-join rate-limit` in each (`$buracle-join rate-limit` in Codex).' } })
+    expect(h.calls.filter(c => c[2] === 'split')).toEqual([])
+    expect(readMuxStore(muxStorePath(commonDir, 'rate-limit'))).toBeUndefined()
+  }))
+})
 
 describe('work spawn: the swarm harnesses and reserved tasks', () => {
   test('without --harness the panes are dealt to the installed harnesses plan.board.harnesses leaves on; an off harness named in --harness is dropped with a warning; all off is harness_off', () => sandbox(async root => {

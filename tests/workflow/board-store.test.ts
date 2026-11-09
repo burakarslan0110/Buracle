@@ -74,6 +74,21 @@ describe('reading and writing', () => {
     expect(isBoard(board)).toBe(true)
   }))
 
+  test('isBoard accepts the optional standby, harnesses and panes fields and they round-trip; a malformed one is refused', () => sandbox(async root => {
+    const path = join(root, 'buracle', 'board', 'rate-limit.json')
+    const board: Board = { ...sample(), standby: [{ harness: 'codex', session: 'w1', since: NOW, at: NOW + 5 }], harnesses: ['claude', 'codex'], panes: 'tmux' }
+    expect(isBoard(board)).toBe(true)
+    writeBoard(path, board)
+    expect(readBoard(path)).toEqual(board)
+    // A board written before standby workers has none of the fields.
+    expect(isBoard(sample())).toBe(true)
+    expect(isBoard({ ...board, standby: 'w1' })).toBe(false)
+    expect(isBoard({ ...board, standby: [{ harness: 'codex', session: 'w1' }] })).toBe(false)
+    expect(isBoard({ ...board, harnesses: 'claude' })).toBe(false)
+    expect(isBoard({ ...board, harnesses: ['gemini'] })).toBe(false)
+    expect(isBoard({ ...board, panes: 3 })).toBe(false)
+  }))
+
   test('updateBoard sweeps first, writes under <slug>.json.lock, keeps the sweep when fn fails, and leaves an unreadable file alone', () => sandbox(async root => {
     const path = join(root, 'buracle', 'board', 'rate-limit.json')
     const claimed = claim(sample(), 1, { harness: 'codex', session: 'w1' }, NOW, 'tok')

@@ -1,14 +1,16 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { runWork } from '../../src/cli/commands/work'
+import { markDone, markMerged } from '../../src/core/board/model'
 import { userConfigFile } from '../../src/engine/paths'
-import { readBoard, sessionBoard } from '../../src/workflow/board-store'
-import { workHeartbeat, workJoin, workPublish, workRelease, workStatus } from '../../src/workflow/board'
+import { readBoard, removeBoard, sessionBoard, updateBoard } from '../../src/workflow/board-store'
+import { JOIN_WAIT_DEFAULT_SEC, workHeartbeat, workJoin, workPublish, workRelease, workStatus, type WaitClock } from '../../src/workflow/board'
 import type { ResolvedSession } from '../../src/workflow/session-store'
 import { writeTelemetry } from '../../src/workflow/session-store'
 import { readMeta } from '../../src/workflow/worktree'
 import { withEnv, withSandbox } from '../helpers/sandbox'
-import { ctxAt, g, makeRepo, planDoc, write } from './fixture'
+import { ctxAt, g, makeRepo, memIO, planDoc, write } from './fixture'
 
 const LEAD: ResolvedSession = { harness: 'claude', sessionId: 'lead-1', source: '--session' }
 const W = (harness: ResolvedSession['harness'], id: string): ResolvedSession => ({ harness, sessionId: id, source: '--session' })
@@ -138,6 +140,185 @@ describe('work join', () => {
     expect(sessionBoard('codex', 'worker-a')).toBeUndefined()
     rmSync(join(repo, '.worktrees', 'rate-limit-t1'), { recursive: true, force: true })
     expect((await workJoin('rate-limit', { task: 1 }, ctxAt(repo, NOW + 1), B)).code).toBe(0)
+  }))
+})
+
+/** A clock that advances by exactly what `join --wait` sleeps, so the standby loop runs instantly; `onSleep` sees every poll. */
+function virtualClock(start: number, onSleep?: (now: number, polls: number) => void): WaitClock & { polls: () => number } {
+  let t = start
+  let polls = 0
+  return { now: () => t, sleep: async (ms: number) => { t += ms; polls++; onSleep?.(t, polls) }, polls: () => polls }
+}
+
+/** The lead merged Task n by hand on the board: done with the holder's token, then merged. */
+function mergeOnBoard(path: string, n: number, now: number): void {
+  const r = updateBoard(path, now, b => {
+    const t = b.tasks.find(x => x.n === n)
+    if (t?.token === undefined) throw new Error(`Task ${n} holds no token`)
+    const done = markDone(b, n, t.token, { branch: `lane-${n}`, commits: ['c'], verify: 'ok' }, now)
+    if (!done.ok) throw new Error(done.message)
+    return markMerged(done.board, n, now)
+  })
+  if (!r.ok) throw new Error(r.message)
+}
+
+describe('work join --wait', () => {
+  test('a dependency merged during the wait: the standby worker claims the task, its binding carries standbyAt and its standby entry is gone', () => sandbox(async root => {
+    const { repo, path } = await published(root)
+    expect((await workJoin('rate-limit', {}, ctxAt(repo, NOW), A)).data).toMatchObject({ task: { n: 1 } })
+    expect((await workJoin('rate-limit', {}, ctxAt(repo, NOW), B)).data).toMatchObject({ task: { n: 2 } })
+    const clock = virtualClock(NOW, (now, polls) => {
+      if (polls === 1) expect(readBoard(path)?.standby).toEqual([{ harness: 'omp', session: 'worker-c', since: NOW, at: NOW }])
+      if (polls === 3) mergeOnBoard(path, 1, now)
+    })
+    const r = await workJoin('rate-limit', { wait: 60 }, ctxAt(repo, NOW), C, { clock })
+    expect(r.errors).toEqual([])
+    expect(r.code).toBe(0)
+    expect(r.data).toMatchObject({ ok: true, slug: 'rate-limit', task: { n: 3 }, worktree: { slug: 'rate-limit-t3', created: true } })
+    // Polls at 1.0 s, 2.5 s and 4.75 s (1000 ms growing by 1.5): the claim happened at the third.
+    expect(clock.polls()).toBe(3)
+    expect(sessionBoard('omp', 'worker-c')).toMatchObject({ slug: 'rate-limit', path, role: 'worker', task: 3, standbyAt: NOW + 4750 })
+    expect(readBoard(path)?.standby).toBeUndefined()
+    expect(readBoard(path)?.tasks[2]).toMatchObject({ status: 'claimed', worker: { harness: 'omp', session: 'worker-c' }, claimedAt: NOW + 4750 })
+  }))
+
+  test('nothing ready until the deadline: standby (exit 2) with the blocked detail; the entry is registered, refreshed at most every 30 s and the binding carries the wait', () => sandbox(async root => {
+    const { repo, path } = await published(root)
+    expect((await workJoin('rate-limit', {}, ctxAt(repo, NOW), A)).code).toBe(0)
+    expect((await workJoin('rate-limit', {}, ctxAt(repo, NOW), B)).code).toBe(0)
+    const seen = new Set<number>()
+    const clock = virtualClock(NOW, () => { const at = readBoard(path)?.standby?.find(s => s.session === 'worker-c')?.at; if (at !== undefined) seen.add(at) })
+    const r = await workJoin('rate-limit', { wait: 60 }, ctxAt(repo, NOW), C, { clock })
+    expect(r.code).toBe(2)
+    expect(r.errors).toEqual([])
+    expect(r.data).toEqual({ ok: true, standby: true, slug: 'rate-limit', waitedSec: 60, remaining: 1, blocked: [{ n: 3, detail: 'waits for Task 1 (claimed by codex worker-a)' }] })
+    expect(r.lines).toEqual(['Nothing ready yet on rate-limit: Task 3 waits for Task 1 (claimed by codex worker-a). 1 task(s) may still come for omp; run `buracle work join rate-limit --wait --json` again.'])
+    expect(sessionBoard('omp', 'worker-c')).toEqual({ slug: 'rate-limit', path, role: 'worker', standbyAt: NOW + 60_000 })
+    // Registered at once, refreshed once after 30 s (the polls run 1, 1.5, 2.25, 3.4 and then 5 s apart), never on every poll.
+    expect([...seen].sort((a, b) => a - b)).toEqual([NOW, NOW + 33_125])
+    expect(readBoard(path)?.standby).toEqual([{ harness: 'omp', session: 'worker-c', since: NOW, at: NOW + 33_125 }])
+    // A worker that gives up leaves the board: its entry goes with the binding.
+    const left = await workRelease({}, ctxAt(repo, NOW + 61_000), C)
+    expect(left.data).toMatchObject({ ok: true, left: true })
+    expect(sessionBoard('omp', 'worker-c')).toBeUndefined()
+    expect(readBoard(path)?.standby).toBeUndefined()
+  }))
+
+  test('retired (no_work) when every remaining task is held or reserved for another harness: standby entry and binding cleared, exit 0', () => sandbox(async root => {
+    const repo = await makeRepo(root)
+    const plan = join(repo, 'docs', 'plan-build', '2026-11-07-rate-limit.md')
+    write(plan, planDoc({ n: 2, status: 'IN_PROGRESS', approved: true }).replace('**Objective:** Do step 2.', '**Objective:** Do step 2.\n\n**Harness:** codex'))
+    const pub = await workPublish({ planPath: plan }, ctxAt(repo, NOW), LEAD)
+    const path = String(pub.data['path'])
+    expect((await workJoin('rate-limit', {}, ctxAt(repo, NOW), A)).data).toMatchObject({ task: { n: 1 } })
+    const clock = virtualClock(NOW)
+    const r = await workJoin('rate-limit', { wait: 5 }, ctxAt(repo, NOW), C, { clock })
+    expect(r.code).toBe(0)
+    expect(r.data).toEqual({ ok: true, retired: true, reason: 'no_work', slug: 'rate-limit' })
+    expect(r.lines).toEqual(['Nothing is left for omp on rate-limit: every remaining task is merged, held by another worker or reserved for another harness.'])
+    expect(clock.now()).toBe(NOW + 5000)
+    expect(sessionBoard('omp', 'worker-c')).toBeUndefined()
+    expect(readBoard(path)?.standby).toBeUndefined()
+    // A codex worker still has the reserved task to wait for, even while another codex worker holds Task 1.
+    const d = W('codex', 'worker-d')
+    const codex = await workJoin('rate-limit', { wait: 5 }, ctxAt(repo, NOW), d, { clock: virtualClock(NOW) })
+    expect(codex.data).toMatchObject({ task: { n: 2, harness: 'codex' } })
+  }))
+
+  test('retired (board_closed) when the board file goes away during the wait: the binding is dropped, exit 0', () => sandbox(async root => {
+    const { repo, path } = await published(root, { n: 1 })
+    expect((await workJoin('rate-limit', {}, ctxAt(repo, NOW), A)).code).toBe(0)
+    const clock = virtualClock(NOW, (_now, polls) => { if (polls === 2) removeBoard(path) })
+    const r = await workJoin('rate-limit', { wait: 30 }, ctxAt(repo, NOW), B, { clock })
+    expect(r.code).toBe(0)
+    expect(r.data).toEqual({ ok: true, retired: true, reason: 'board_closed', slug: 'rate-limit' })
+    expect(r.lines).toEqual(['The board rate-limit was closed; this session is no longer a worker.'])
+    expect(clock.polls()).toBe(2)
+    expect(sessionBoard('opencode', 'worker-b')).toBeUndefined()
+  }))
+
+  test('a Build board publishes new tasks every round: an empty wait is standby (exit 2), never retired', () => sandbox(async root => {
+    const repo = await makeRepo(root)
+    const plan = join(repo, 'docs', 'goal-build', '2026-11-07-rate-limit.md')
+    write(plan, planDoc({ type: 'Build', n: 1, status: 'IN_PROGRESS', approved: true }))
+    const pub = await workPublish({ planPath: plan }, ctxAt(repo, NOW), LEAD)
+    expect(pub.code).toBe(0)
+    const path = String(pub.data['path'])
+    expect((await workJoin('rate-limit', {}, ctxAt(repo, NOW), A)).code).toBe(0)
+    const r = await workJoin('rate-limit', { wait: 5 }, ctxAt(repo, NOW), B, { clock: virtualClock(NOW) })
+    expect(r.code).toBe(2)
+    expect(r.data).toEqual({ ok: true, standby: true, slug: 'rate-limit', waitedSec: 5, remaining: 0, blocked: [] })
+    expect(r.lines[0]).toContain('next round')
+    expect(sessionBoard('opencode', 'worker-b')).toEqual({ slug: 'rate-limit', path, role: 'worker', standbyAt: NOW + 5000 })
+    expect(readBoard(path)?.standby).toEqual([{ harness: 'opencode', session: 'worker-b', since: NOW, at: NOW }])
+  }))
+
+  test('max_workers counts the standby workers of others; a standby worker joins again freely, and its claim clears the entry', () => sandbox(async root => {
+    const repo = await makeRepo(root)
+    const plan = join(repo, 'docs', 'plan-build', '2026-11-07-rate-limit.md')
+    // Task 2 shares a file with Task 1, so it waits until Task 1 is merged.
+    write(plan, planDoc({ n: 2, status: 'IN_PROGRESS', approved: true }).replace('- Modify: `src/s2.ts`', '- Modify: `src/s1.ts`\n- Modify: `src/s2.ts`'))
+    const pub = await workPublish({ planPath: plan, maxWorkers: 2 }, ctxAt(repo, NOW), LEAD)
+    const path = String(pub.data['path'])
+    expect((await workJoin('rate-limit', {}, ctxAt(repo, NOW), A)).data).toMatchObject({ task: { n: 1 } })
+    const first = await workJoin('rate-limit', { wait: 5 }, ctxAt(repo, NOW), B, { clock: virtualClock(NOW) })
+    expect(first.data).toMatchObject({ standby: true, remaining: 1 })
+    // One active worker and one standby worker fill the two slots.
+    const full = await workJoin('rate-limit', {}, ctxAt(repo, NOW + 6000), C)
+    expect(full.data).toMatchObject({ error: 'max_workers' })
+    expect(String(full.data['message'])).toContain('1 standby worker(s)')
+    expect((await workJoin('rate-limit', { wait: 5 }, ctxAt(repo, NOW + 6000), C, { clock: virtualClock(NOW + 6000) })).data).toMatchObject({ error: 'max_workers' })
+    // The standby worker itself is not refused: it waits again (the entry keeps its `since`), and Task 1 merges meanwhile.
+    const clock = virtualClock(NOW + 7000, (now, polls) => { if (polls === 2) mergeOnBoard(path, 1, now) })
+    const again = await workJoin('rate-limit', { wait: 5 }, ctxAt(repo, NOW + 7000), B, { clock })
+    expect(again.code).toBe(0)
+    expect(again.data).toMatchObject({ task: { n: 2 } })
+    expect(readBoard(path)?.standby).toBeUndefined()
+    expect(sessionBoard('opencode', 'worker-b')).toMatchObject({ task: 2, standbyAt: NOW + 7000 + 2500 })
+  }))
+
+  test('--wait with --task waits for that task; a merged task, an unknown one or a reservation is refused at once; harness_off comes first; the range is 5 to 600 s', () => sandbox(async root => {
+    const { repo, path } = await published(root)
+    expect(JOIN_WAIT_DEFAULT_SEC).toBe(90)
+    expect((await workJoin('rate-limit', { wait: 4 }, ctxAt(repo, NOW), A)).data).toMatchObject({ error: 'usage' })
+    expect((await workJoin('rate-limit', { wait: 601 }, ctxAt(repo, NOW), A)).data).toMatchObject({ error: 'usage' })
+    expect((await workJoin('rate-limit', {}, ctxAt(repo, NOW), A)).data).toMatchObject({ task: { n: 1 } })
+    const clock = virtualClock(NOW, (now, polls) => { if (polls === 2) mergeOnBoard(path, 1, now) })
+    const r = await workJoin('rate-limit', { task: 3, wait: 30 }, ctxAt(repo, NOW), C, { clock })
+    expect(r.data).toMatchObject({ task: { n: 3 } })
+    expect((await workJoin('rate-limit', { task: 1, wait: 5 }, ctxAt(repo, NOW + 1), B, { clock: virtualClock(NOW + 1) })).data).toMatchObject({ error: 'task_not_open' })
+    expect((await workJoin('rate-limit', { task: 9, wait: 5 }, ctxAt(repo, NOW + 1), B, { clock: virtualClock(NOW + 1) })).data).toMatchObject({ error: 'not_found' })
+    expect(sessionBoard('opencode', 'worker-b')).toBeUndefined()
+    mkdirSync(dirname(userConfigFile()), { recursive: true })
+    writeFileSync(userConfigFile(), 'version: 1\nplan:\n  board:\n    harnesses:\n      opencode: false\n')
+    expect((await workJoin('rate-limit', { wait: 5 }, ctxAt(repo, NOW + 2), B, { clock: virtualClock(NOW + 2) })).data).toMatchObject({ error: 'harness_off' })
+    expect(readBoard(path)?.standby).toBeUndefined()
+  }))
+
+  test('the CLI: a bare --wait before --json means the default, --wait <sec> and --wait=<sec> set it, an out-of-range or non-numeric value is a usage error', () => sandbox(async root => {
+    const { repo, path } = await published(root, { n: 2, dep: false })
+    const session = ['--session', 'worker-a', '--harness', 'codex']
+    const low = memIO(true)
+    expect(await runWork(['join', 'rate-limit', '--wait', '4', '--json', ...session], low, ctxAt(repo, NOW))).toBe(1)
+    expect(low.json()).toMatchObject({ error: 'usage' })
+    expect(low.err()).toContain('5 to 600')
+    const word = memIO(true)
+    expect(await runWork(['join', 'rate-limit', '--wait', 'soon', '--json', ...session], word, ctxAt(repo, NOW))).toBe(1)
+    expect(word.err()).toContain("unexpected argument 'soon'")
+    // A task is ready, so the join claims at once; the binding still records the wait (standbyAt), so the stop guard holds the worker between tasks.
+    const bare = memIO(true)
+    expect(await runWork(['join', 'rate-limit', '--wait', '--json', ...session], bare, ctxAt(repo, NOW))).toBe(0)
+    expect(bare.json()).toMatchObject({ ok: true, task: { n: 1 } })
+    expect(sessionBoard('codex', 'worker-a')).toMatchObject({ slug: 'rate-limit', path, task: 1, standbyAt: NOW })
+    const valued = memIO(true)
+    expect(await runWork(['join', 'rate-limit', '--wait=30', '--json', '--session', 'worker-b', '--harness', 'opencode'], valued, ctxAt(repo, NOW + 1))).toBe(0)
+    expect(valued.json()).toMatchObject({ ok: true, task: { n: 2 } })
+    expect(sessionBoard('opencode', 'worker-b')).toMatchObject({ task: 2, standbyAt: NOW + 1 })
+    // Without --wait the binding carries no standbyAt: the worker's turn ends as before.
+    const plain = memIO(true)
+    expect(await runWork(['join', 'rate-limit', '--json', '--session', 'worker-c', '--harness', 'omp'], plain, ctxAt(repo, NOW + 2))).toBe(1)
+    expect(plain.json()).toMatchObject({ error: 'nothing_to_claim' })
+    expect(sessionBoard('omp', 'worker-c')).toBeUndefined()
   }))
 })
 
