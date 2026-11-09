@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { boardFromPlan, claim, markDone, type Board, type BoardSession } from '../../src/core/board/model'
+import { boardFromPlan, claim, markDone, setStandby, type Board, type BoardSession } from '../../src/core/board/model'
 import { userConfigFile } from '../../src/engine/paths'
 import { workAsk, workClose, workDone, workJoin, workMerge, workPublish, workRelease, workResume, workStatus } from '../../src/workflow/board'
-import { readBoard } from '../../src/workflow/board-store'
+import { readBoard, updateBoard } from '../../src/workflow/board-store'
 import { panesLine, workSpawn, type PaneDeps } from '../../src/workflow/board-panes'
 import type { MuxExec, MuxExecResult } from '../../src/workflow/mux'
 import { workerCommand } from '../../src/workflow/mux'
@@ -85,13 +85,14 @@ describe('work spawn', () => {
     expect((await workJoin('rate-limit', {}, ctxAt(repo2, NOW, { ...HERDR_ENV, HERDR_PANE_ID: 'w2:pH' }), A)).data['pane']).toEqual({ mux: 'herdr', id: 'w2:pH', bound: true })
   }))
 
-  test('--workers above the free slots is clamped with a max_workers warning; from the fourth worker on a hot rate window clamps to three (usage_low)', () => sandbox(async root => {
+  test('--workers above the free slots is clamped with a max_workers warning and never opens more than the ready tasks need; from the fourth worker on a hot rate window clamps to three (usage_low)', () => sandbox(async root => {
     const { repo } = await published(root, { n: 5 })
     const h = fakeHerdr()
     const r = await workSpawn({ workers: 9, harness: 'claude' }, ctxAt(repo, NOW, HERDR_ENV), LEAD, { exec: h.exec, which })
     expect(r.code).toBe(2)
     expect(r.errors.join('\n')).toContain('max_workers')
-    expect(r.data).toMatchObject({ workers: { requested: 6, opened: 6, active: 0, max: 6 } })
+    // 6 slots are free, but only 5 tasks are ready: --workers lowers the count, it never raises it.
+    expect(r.data).toMatchObject({ workers: { requested: 5, opened: 5, active: 0, standby: 0, max: 6 } })
 
     const { repo: repo2 } = await published(join(root, 'hot'), { n: 5 })
     writeTelemetry('claude', 'lead-1', { at: NOW, windows: [{ pct: 95, label: '5h' }], windowsAt: NOW })
@@ -510,15 +511,21 @@ describe('lead side: merge and close close the panes, status lists them', () => 
     ] })
     expect(status.lines.at(-1)).toBe('Panes (herdr): w2:p1 Worker 1 (claude): Task 1 done, w2:p2 Worker 2 (claude): Task 2 done')
 
+    // Both workers wait for their next task (`join --wait`): standby workers on the board.
+    const boardFile = join(commonDir, 'buracle', 'board', 'rate-limit.json')
+    updateBoard(boardFile, NOW + 2, b => ({ ok: true, board: setStandby(setStandby(b, { harness: 'codex', session: 'worker-a' }, NOW + 2), { harness: 'opencode', session: 'worker-b' }, NOW + 2) }))
     h.reset()
+    // Task 3 is ready after this merge; the standby workers cover it, so the tick opens no pane and closes none.
     const m1 = await workMerge({}, ctxAt(repo, NOW + 3, HERDR_ENV), LEAD, { exec: h.exec })
-    expect(m1.data).toMatchObject({ merged: true, task: 1, panes: { closed: [] } })
-    expect(h.lines().filter(l => l.includes('pane close'))).toEqual([])
+    expect(m1.data).toMatchObject({ merged: true, task: 1, panes: { closed: [] }, scale: { opened: [], closed: [] } })
+    expect(h.lines().filter(l => l.includes('pane close') || l.includes('pane split'))).toEqual([])
     expect((await workJoin('rate-limit', {}, ctxAt(repo, NOW + 4, { ...HERDR_ENV, HERDR_PANE_ID: 'w2:p1' }), A)).data).toMatchObject({ task: { n: 3 } })
     const m2 = await workMerge({}, ctxAt(repo, NOW + 5, HERDR_ENV), LEAD, { exec: h.exec })
-    expect(m2.data).toMatchObject({ merged: true, task: 2, panes: { closed: ['w2:p2'] } })
+    expect(m2.data).toMatchObject({ merged: true, task: 2, panes: { closed: ['w2:p2'] }, scale: { opened: [], closed: ['w2:p2'] } })
     expect(h.lines().filter(l => l.includes('pane close'))).toEqual(['herdr pane close w2:p2'])
     expect(readMuxStore(muxStorePath(commonDir, 'rate-limit'))?.panes.map(p => p.id)).toEqual(['w2:p1'])
+    // The closed pane took its worker with it: its standby entry left the board at once.
+    expect(readBoard(boardFile)?.standby).toBeUndefined()
     await finish(repo, A, 3, NOW + 6)
     const m3 = await workMerge({}, ctxAt(repo, NOW + 7, HERDR_ENV), LEAD, { exec: h.exec })
     expect(m3.data).toMatchObject({ merged: true, task: 3, panes: { closed: ['w2:p1'] } })
@@ -528,8 +535,8 @@ describe('lead side: merge and close close the panes, status lists them', () => 
     expect(readMuxStore(muxStorePath(commonDir, 'rate-limit'))).toBeUndefined()
   }))
 
-  test('a worker with nothing left to take has its pane closed at the merge, even while a task that waits for another worker is still open', () => sandbox(async root => {
-    // Task 3 shares a file with Task 2, so it cannot start while Task 2 is active: the pane of the worker that finished Task 1 has nothing to wait for.
+  test('a blocked task keeps the pane of a worker whose harness may still take it; the panes close once nothing remains for them', () => sandbox(async root => {
+    // Task 3 shares a file with Task 2, so it cannot start while Task 2 is active: the worker that finished Task 1 waits for it.
     const { repo, commonDir } = await published(root, { n: 3, dep: 2 })
     const h = fakeHerdr({ live: new Set<string>() })
     expect((await workSpawn({ workers: 2, harness: 'claude' }, ctxAt(repo, NOW, HERDR_ENV), LEAD, { exec: h.exec, which })).code).toBe(0)
@@ -537,20 +544,41 @@ describe('lead side: merge and close close the panes, status lists them', () => 
     expect((await workJoin('rate-limit', {}, ctxAt(repo, NOW, { ...HERDR_ENV, HERDR_PANE_ID: 'w2:p1' }), A)).data).toMatchObject({ task: { n: 1 } })
     expect((await workJoin('rate-limit', {}, ctxAt(repo, NOW, { ...HERDR_ENV, HERDR_PANE_ID: 'w2:p2' }), B)).data).toMatchObject({ task: { n: 2 } })
     await finish(repo, A, 1, NOW + 1)
+    // A waits for its next task (`join --wait`): Task 3 is blocked by Task 2, but it may still come for A's harness.
+    const boardFile = join(commonDir, 'buracle', 'board', 'rate-limit.json')
+    updateBoard(boardFile, NOW + 1, b => ({ ok: true, board: setStandby(b, { harness: 'codex', session: 'worker-a' }, NOW + 1) }))
     h.reset()
     const m1 = await workMerge({}, ctxAt(repo, NOW + 2, HERDR_ENV), LEAD, { exec: h.exec })
-    expect(m1.data).toMatchObject({ merged: true, task: 1, panes: { closed: ['w2:p1'] } })
-    expect(h.lines().filter(l => l.includes('pane close'))).toEqual(['herdr pane close w2:p1'])
-    // The worker that still holds Task 2 keeps its pane.
-    expect(readMuxStore(muxStorePath(commonDir, 'rate-limit'))?.panes.map(p => p.id)).toEqual(['w2:p2'])
+    expect(m1.data).toMatchObject({ merged: true, task: 1, panes: { closed: [] }, scale: { opened: [], closed: [] } })
+    expect(h.lines().filter(l => l.includes('pane close'))).toEqual([])
+    expect(readMuxStore(muxStorePath(commonDir, 'rate-limit'))?.panes.map(p => p.id)).toEqual(['w2:p1', 'w2:p2'])
     await finish(repo, B, 2, NOW + 3)
-    // Task 2 is merged, so Task 3 is ready now: the pane of the worker that just finished stays, because it takes Task 3.
+    // Task 2 is merged, so Task 3 is ready: the standby worker covers it, so no pane opens, and both panes stay.
     const m2 = await workMerge({}, ctxAt(repo, NOW + 4, HERDR_ENV), LEAD, { exec: h.exec })
-    expect(m2.data).toMatchObject({ merged: true, task: 2, panes: { closed: [] } })
-    expect((await workJoin('rate-limit', {}, ctxAt(repo, NOW + 5, { ...HERDR_ENV, HERDR_PANE_ID: 'w2:p2' }), B)).data).toMatchObject({ task: { n: 3 } })
-    await finish(repo, B, 3, NOW + 6)
+    expect(m2.data).toMatchObject({ merged: true, task: 2, panes: { closed: [] }, scale: { opened: [], closed: [] } })
+    expect((await workJoin('rate-limit', {}, ctxAt(repo, NOW + 5, { ...HERDR_ENV, HERDR_PANE_ID: 'w2:p1' }), A)).data).toMatchObject({ task: { n: 3 } })
+    await finish(repo, A, 3, NOW + 6)
     const m3 = await workMerge({}, ctxAt(repo, NOW + 7, HERDR_ENV), LEAD, { exec: h.exec })
-    expect(m3.data).toMatchObject({ merged: true, task: 3, panes: { closed: ['w2:p2'] } })
+    expect(m3.data).toMatchObject({ merged: true, task: 3, panes: { closed: ['w2:p1', 'w2:p2'] } })
+    expect(readMuxStore(muxStorePath(commonDir, 'rate-limit'))?.panes).toEqual([])
+  }))
+
+  test('a Build board gets new tasks every round: its panes stay through the merges and close only at work close', () => sandbox(async root => {
+    const { repo, commonDir } = await published(root, { n: 2, type: 'Build' })
+    const h = fakeHerdr({ live: new Set<string>() })
+    expect((await workSpawn({ workers: 2, harness: 'claude' }, ctxAt(repo, NOW, HERDR_ENV), LEAD, { exec: h.exec, which })).code).toBe(0)
+    const B = W('opencode', 'worker-b')
+    expect((await workJoin('rate-limit', {}, ctxAt(repo, NOW, { ...HERDR_ENV, HERDR_PANE_ID: 'w2:p1' }), A)).data).toMatchObject({ task: { n: 1 } })
+    expect((await workJoin('rate-limit', {}, ctxAt(repo, NOW, { ...HERDR_ENV, HERDR_PANE_ID: 'w2:p2' }), B)).data).toMatchObject({ task: { n: 2 } })
+    await finish(repo, A, 1, NOW + 1)
+    await finish(repo, B, 2, NOW + 2)
+    h.reset()
+    expect((await workMerge({}, ctxAt(repo, NOW + 3, HERDR_ENV), LEAD, { exec: h.exec })).data).toMatchObject({ merged: true, task: 1, panes: { closed: [] } })
+    expect((await workMerge({}, ctxAt(repo, NOW + 4, HERDR_ENV), LEAD, { exec: h.exec })).data).toMatchObject({ merged: true, task: 2, panes: { closed: [] } })
+    expect(h.lines().filter(l => l.includes('pane close'))).toEqual([])
+    expect(readMuxStore(muxStorePath(commonDir, 'rate-limit'))?.panes.map(p => p.id)).toEqual(['w2:p1', 'w2:p2'])
+    const closed = await workClose({}, ctxAt(repo, NOW + 5, HERDR_ENV), LEAD, { exec: h.exec })
+    expect(closed.data).toMatchObject({ closed: true, panes: { closed: ['w2:p1', 'w2:p2'] } })
   }))
 
   test('close closes every recorded pane, keeps them with --keep-panes, never runs a command for a pane from another server, and drops the sidecar', () => sandbox(async root => {
@@ -674,7 +702,7 @@ describe('review fixes: unbound panes, dry-run with a foreign board, an unreacha
   }))
 
   test('a close the multiplexer refuses is reported as refused with its reason, and the other panes are still asked; only a multiplexer that does not answer stops the round', () => sandbox(async root => {
-    const { repo } = await published(root, { n: 1 })
+    const { repo } = await published(root, { n: 2 })
     const c = fakeCmux()
     const deps = { exec: c.exec, cmuxBin: '/opt/cmux', which }
     expect((await workSpawn({ workers: 2, harness: 'claude' }, ctxAt(repo, NOW, CMUX_ENV), LEAD, deps)).errors).toEqual([])
@@ -690,24 +718,23 @@ describe('review fixes: unbound panes, dry-run with a foreign board, an unreacha
   }))
 
   test('when the multiplexer does not answer, merge and close keep the records and report the panes as kept, never as closed or stale', () => sandbox(async root => {
-    const { repo, commonDir } = await published(root, { n: 1 })
+    const { repo, commonDir } = await published(root, { n: 2 })
     const live = new Set<string>()
     const h = fakeHerdr({ live })
     expect((await workSpawn({ workers: 2, harness: 'claude' }, ctxAt(repo, NOW, HERDR_ENV), LEAD, { exec: h.exec, which })).code).toBe(0)
+    const B = W('opencode', 'worker-b')
     expect((await workJoin('rate-limit', {}, ctxAt(repo, NOW, { ...HERDR_ENV, HERDR_PANE_ID: 'w2:p1' }), A)).code).toBe(0)
-    const b = readBoard(join(commonDir, 'buracle', 'board', 'rate-limit.json'))
-    const wt = String(b?.tasks[0]?.worktree?.path)
-    write(join(wt, 'src/s1.ts'), 'export const s1 = 1\n')
-    await g(wt, 'add', '-A')
-    await g(wt, 'commit', '-q', '-m', 'task 1: step 1')
-    expect((await workDone({ verify: 'x' }, ctxAt(repo, NOW + 1), A)).code).toBe(0)
+    expect((await workJoin('rate-limit', {}, ctxAt(repo, NOW, { ...HERDR_ENV, HERDR_PANE_ID: 'w2:p2' }), B)).code).toBe(0)
+    await finish(repo, A, 1, NOW + 1)
+    await finish(repo, B, 2, NOW + 2)
     let asked = 0
     const down: MuxExec = async () => { asked++; return { code: 124, stdout: '', stderr: 'timed out' } }
-    const m = await workMerge({}, ctxAt(repo, NOW + 2, HERDR_ENV), LEAD, { exec: down })
+    // Task 2 is done, so nothing remains for A's pane: it should close, but herdr does not answer.
+    const m = await workMerge({}, ctxAt(repo, NOW + 3, HERDR_ENV), LEAD, { exec: down })
     expect(m.data).toMatchObject({ merged: true, task: 1, panes: { closed: [], kept: ['w2:p1'], stale: [] } })
     expect(readMuxStore(muxStorePath(commonDir, 'rate-limit'))?.panes.map(p => p.id)).toEqual(['w2:p1', 'w2:p2'])
     asked = 0
-    const c = await workClose({}, ctxAt(repo, NOW + 3, HERDR_ENV), LEAD, { exec: down })
+    const c = await workClose({ force: true }, ctxAt(repo, NOW + 4, HERDR_ENV), LEAD, { exec: down })
     expect(c.data).toMatchObject({ panes: { closed: [], kept: ['w2:p1', 'w2:p2'], stale: [] } })
     // After the first pane timed out, the second is kept without another 10 s wait.
     expect(asked).toBe(1)
@@ -733,7 +760,8 @@ describe('re-review fixes: pruning, multiplexer switch, unreadable sidecar, mux_
   }))
 
   test('once every pane of a board is gone, the next spawn may use another multiplexer and its panes are recorded under it', () => sandbox(async root => {
-    const { repo, commonDir } = await published(root, { n: 1 })
+    // Task 2 is reserved for omp, which is not installed here at first: the claude pane has nothing left once Task 1 is merged.
+    const { repo, commonDir } = await published(root, { n: 2, reserve: { n: 2, harness: 'omp' } })
     const live = new Set<string>()
     const herdr = fakeHerdr({ live })
     const exec: MuxExec = async (argv, o) => {
@@ -744,21 +772,24 @@ describe('re-review fixes: pruning, multiplexer switch, unreadable sidecar, mux_
       if (argv[1] === 'display-message') return { ...r, stdout: '4242 /tmp/s\n' }
       return r
     }
-    expect((await workSpawn({ workers: 1, harness: 'claude' }, ctxAt(repo, NOW, HERDR_ENV), LEAD, { exec, which })).code).toBe(0)
-    expect((await workJoin('rate-limit', {}, ctxAt(repo, NOW, { ...HERDR_ENV, HERDR_PANE_ID: 'w2:p1' }), A)).code).toBe(0)
+    const first = await workSpawn({ harness: 'claude' }, ctxAt(repo, NOW, HERDR_ENV), LEAD, { exec, which: b => b !== 'omp' })
+    expect(first.data).toMatchObject({ opened: [{ id: 'w2:p1', harness: 'claude' }] })
+    expect((await workJoin('rate-limit', {}, ctxAt(repo, NOW, { ...HERDR_ENV, HERDR_PANE_ID: 'w2:p1' }), A)).data).toMatchObject({ task: { n: 1 } })
     const b = readBoard(join(commonDir, 'buracle', 'board', 'rate-limit.json'))
     const wt = String(b?.tasks[0]?.worktree?.path)
     write(join(wt, 'src/s1.ts'), 'export const s1 = 1\n')
     await g(wt, 'add', '-A')
     await g(wt, 'commit', '-q', '-m', 'task 1: step 1')
     expect((await workDone({ verify: 'x' }, ctxAt(repo, NOW + 1), A)).code).toBe(0)
-    expect((await workMerge({}, ctxAt(repo, NOW + 2, HERDR_ENV), LEAD, { exec })).data).toMatchObject({ panes: { closed: ['w2:p1'] } })
+    // Nothing remains for the claude pane, and omp is still not installed, so the merge's tick opens nothing either.
+    expect((await workMerge({}, ctxAt(repo, NOW + 2, HERDR_ENV), LEAD, { exec, which: b => b !== 'omp' })).data).toMatchObject({ panes: { closed: ['w2:p1'] }, scale: { opened: [], closed: ['w2:p1'] } })
     const path = muxStorePath(commonDir, 'rate-limit')
     expect(readMuxStore(path)).toEqual({ v: 1, slug: 'rate-limit', mux: 'herdr', panes: [] })
-    const switched = await workSpawn({ mux: 'tmux', workers: 1, harness: 'claude' }, ctxAt(repo, NOW + 3, { ...HERDR_ENV, ...TMUX_LEAD }), LEAD, { exec, which })
+    // omp is installed now: the reserved task gets its pane, in tmux this time.
+    const switched = await workSpawn({ mux: 'tmux', harness: 'claude' }, ctxAt(repo, NOW + 3, { ...HERDR_ENV, ...TMUX_LEAD }), LEAD, { exec, which })
     expect(switched.errors).toEqual([])
-    expect(switched.data).toMatchObject({ mux: 'tmux', opened: [{ id: '%7' }] })
-    expect(readMuxStore(path)).toMatchObject({ mux: 'tmux', panes: [{ id: '%7', harness: 'claude' }] })
+    expect(switched.data).toMatchObject({ mux: 'tmux', opened: [{ id: '%7', harness: 'omp' }] })
+    expect(readMuxStore(path)).toMatchObject({ mux: 'tmux', panes: [{ id: '%7', harness: 'omp' }] })
   }))
 
   test('an unreadable sidecar is removed by close, so the next spawn records its panes again; a mux_mismatch dry run exits 0', () => sandbox(async root => {

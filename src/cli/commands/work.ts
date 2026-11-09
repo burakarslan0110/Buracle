@@ -1,6 +1,6 @@
 import type { CommandIO } from '../router'
 import { boolFlag, parseCommandArgs, strFlag, type FlagKind } from '../../workflow/args'
-import { workAsk, workClose, workDone, workHeartbeat, workInbox, workJoin, workMerge, workNote, workPublish, workRelease, workReopen, workResume, workStatus, workWait } from '../../workflow/board'
+import { JOIN_WAIT_DEFAULT_SEC, JOIN_WAIT_MAX_SEC, JOIN_WAIT_MIN_SEC, workAsk, workClose, workDone, workHeartbeat, workInbox, workJoin, workMerge, workNote, workPublish, workRelease, workReopen, workResume, workStatus, workWait } from '../../workflow/board'
 import { workSpawn } from '../../workflow/board-panes'
 import { emit, needSession, optionalSession, processCtx, usageError, warnCwdGone, type CmdResult, type WorkflowCtx } from '../../workflow/result'
 
@@ -9,47 +9,70 @@ export const summary = 'The task board: publish a plan\'s tasks, join from anoth
 export const usage = `Usage: buracle work <subcommand> [args…] [--json]
 
 Lead (the session that registered the plan):
-  publish [<plan path>] [--max-workers <n>] [--lease-sec <s>]
+  publish [<plan path>] [--max-workers <n>] [--lease-sec <s>] [--dry-run] [--md]
                      write the approved plan's unticked tasks to the board of this repository
                      (<git common dir>/buracle/board/<slug>.json). Idempotent: a second publish adds new tasks,
                      keeps every state and warns (exit 2, plan_changed_while_active) when an active task's files
                      or dependencies changed in the plan. Defaults: plan.board.maxWorkers (6), plan.board.leaseSec
-                     (300; the flag accepts 1 or more, the config key 10 or more)
+                     (300; the flag accepts 1 or more, the config key 10 or more). The plan's "Swarm harnesses: a, b"
+                     and "Panes: <mux>" lines under ## Assumptions ride on the board (a re-publish without them keeps
+                     the stored ones). Every publish then runs the tick: with panes recorded, or a Panes: line while
+                     the lead sits in a multiplexer and plan.board.mux is not off, it opens a pane per ready task that
+                     no standby worker covers (scale.opened in the JSON, one line); without panes it says how many
+                     terminals to open (scale.advice). --dry-run writes nothing and needs no approval or session
+                     binding: it prints one summary line with the waves (N tasks in W waves: width P, critical path …)
+                     and, with --md, the exact ## Swarm Plan block to paste into the plan; its JSON has tasks (deps,
+                     files, harness, done), waves, swarm (on|off|null), harnesses and panes
   spawn [--mux tmux|cmux|herdr|herdr-app] [--workers <n>] [--harness <h>[,<h>…]] [--dry-run]
-                     open worker panes in the lead's terminal multiplexer: one per ready task by default (never more
-                     than the free worker slots), each running a harness whose first prompt is /buracle-join <slug>.
-                     --mux defaults to the multiplexer the lead runs in (tmux, then herdr, then cmux, then the Herdr
-                     app); --mux tmux outside tmux opens a detached session buracle-<slug>. The lead keeps the top of
-                     its area and the workers fill a grid of panes below it (one row up to four workers; cmux can only
-                     halve a pane; the Herdr app places the panes in the lead's tab itself); a later spawn adds panes
-                     next to the last worker pane. Here --harness is the workers' harness list, dealt out in turn
-                     (default: the swarm harnesses of plan.board.harnesses that are installed); the lead's own session comes
-                     from the environment or --session with BURACLE_HARNESS. --dry-run prints the panes it would open
-                     (exit 0 even without a board or a multiplexer). The panes are recorded, so that merge and
-                     close can close them; nothing else is ever closed. --dry-run also prints harnesses, the usable list
-                     (on in plan.board.harnesses and installed). Error codes: no_mux, mux_mismatch, harness_off,
+                     open worker panes in the lead's terminal multiplexer, one per ready task that no standby worker
+                     (join --wait) or starting pane covers, never more than the free worker slots (the active and
+                     standby workers, the starting panes and the idle panes hold theirs); each runs a harness whose
+                     first prompt is /buracle-join <slug>. --workers only lowers that count. --mux defaults to the
+                     multiplexer the lead runs in (tmux, then herdr, then cmux, then the Herdr app); --mux tmux outside
+                     tmux opens a detached session buracle-<slug>. The lead keeps the top of its area and the workers
+                     fill a grid of panes below it (one row up to four workers; cmux can only halve a pane; the Herdr
+                     app places the panes in the lead's tab itself); a later spawn adds panes next to the last worker
+                     pane. --harness is the workers' harness list, dealt out in turn after the reserved tasks' harnesses
+                     (default: the plan's Swarm harnesses stored on the board, else the harnesses of
+                     plan.board.harnesses that are installed); the lead's own session comes from the environment or
+                     --session with BURACLE_HARNESS. --dry-run prints the panes it would open and the counts (ready,
+                     active, standby, idle, starting; exit 0 even without a board or a multiplexer) and harnesses, the
+                     usable list (on in plan.board.harnesses and installed). The panes are recorded, so that merge and
+                     close can close them; nothing else is ever closed. Error codes: no_mux, mux_mismatch, harness_off,
                      harness_missing, cmux_missing, mux_failed
   wait [--timeout <s>]
                      block until the board changes (a task claimed, done, waiting, stale, released, or a note for the
-                     lead), at most --timeout seconds (default 90), then print the events since the last wait
+                     lead), at most --timeout seconds (default 90), then print the events since the last wait; the
+                     summary carries standby (workers waiting for a task) and ready (tasks ready now): run spawn when
+                     ready exceeds standby
   merge [--task <n>] [--manual]
                      squash-merge the next mergeable done task (lowest number whose dependencies are merged) into the
                      base branch and tick its box in the plan file; --task picks one; --manual records a task the lead
-                     merged by hand. merge_conflict (exit 1) leaves the task done: resolve, then --manual
+                     merged by hand. merge_conflict (exit 1) leaves the task done: resolve, then --manual. After the
+                     merge the panes of workers with nothing left close (panes in the JSON) and the tick runs: panes
+                     open for the tasks the merge made ready that no standby worker covers (scale: opened, closed,
+                     advice), one line when something opened or advice applies
   reopen <n> [--reason <text>]
                      return a done, merged, waiting or claimed task to open; its worktree and report stay. A merged
                      task also gets its plan box opened again and the base merged into its lane worktree (a conflict
                      is undone and reported, exit 2)
   close [--force] [--keep-panes]
                      remove the merged tasks' lane worktrees, the panes that spawn opened and the board file; --force
-                     while tasks are still open; --keep-panes leaves the panes open. merge also closes the panes of
-                     workers that have nothing left to take, once no task is open
+                     while tasks are still open; --keep-panes leaves the panes open. merge closes a worker's pane once
+                     nothing its harness could take remains (a blocked task keeps it); a Build board's panes stay until close
 
 Any session in the repository:
-  status [<slug>]    the board: every task with its state, worker, lease age, question and worktree
-  join <slug> [--task <n>]
+  status [<slug>]    the board: every task with its state, worker, lease age, question and worktree; a Standby: line
+                     names the workers waiting for a task (standby in the JSON)
+  join <slug> [--task <n>] [--wait [<sec>]]
                      claim the first open task whose dependencies are merged and whose files do not overlap an
-                     active task, create or reuse its lane worktree <slug>-t<n>, and print the task card
+                     active task, create or reuse its lane worktree <slug>-t<n>, and print the task card. Without a
+                     ready task: nothing_to_claim (exit 1), or with --wait the session becomes a standby worker of the
+                     board and polls it for ${JOIN_WAIT_DEFAULT_SEC} s (a bare --wait; the value takes ${JOIN_WAIT_MIN_SEC} to ${JOIN_WAIT_MAX_SEC}), claiming the first task that
+                     becomes ready. When the wait ends: standby (exit 2, JSON standby: true with remaining, blocked and
+                     waitedSec; run the same command again), or retired (exit 0, JSON retired: true with reason
+                     no_work when nothing can come for this harness, or board_closed when the board is gone; the
+                     session leaves the board). A Build board always answers standby: its rounds publish new tasks
   heartbeat          renew the lease of this session's task (the hooks do this on every prompt and tool call)
   ask "<question>"   mark the task waiting for the user, leave a note for the lead and notify the terminal
   resume             claimed again after the user answered (the hooks do this on the next prompt, or at the tool
@@ -59,25 +82,27 @@ Any session in the repository:
                      committed (worktree_dirty otherwise)
   release [--reason <text>]
                      give the task back (open); the worktree stays for the next worker. Without a task:
-                     leave the board, so the session edits the repository again
+                     leave the board (a standby entry goes too), so the session edits the repository again
   note "<text>" [--to lead|all|<session id>] [--kind report|question|nudge]
                      leave a note; workers write to the lead by default, the lead to everyone
   inbox              the notes for this session that no hook delivered yet (they are marked delivered)
 
 Task states: open, claimed, waiting, done, merged, stale. A claimed task whose lease expires without a heartbeat
 turns stale and keeps its worktree; the next join resumes from it. Error codes: no_repo, no_board, not_approved,
-not_lead, lead_cannot_join, already_claimed, nothing_to_claim, max_workers, usage_low, task_not_open, deps_unmerged,
-wrong_harness (the task is reserved for another harness), harness_off (plan.board.harnesses switches this harness off),
-not_claimed_by_you, reassigned, worktree_dirty, merge_conflict, tasks_open. Exit codes: 0 ok · 1 error · 2 partial.
+not_lead, lead_cannot_join, already_claimed, nothing_to_claim, max_workers (the active and standby workers count),
+usage_low, task_not_open, deps_unmerged, wrong_harness (the task is reserved for another harness), harness_off
+(plan.board.harnesses switches this harness off), not_claimed_by_you, reassigned, worktree_dirty, merge_conflict,
+tasks_open. Exit codes: 0 ok · 1 error · 2 partial (also join --wait's standby).
 The session comes from --session <id> with --harness <h>, or from the harness environment (see 'buracle plan --help').`
 
 const SESSION: Record<string, FlagKind> = { session: 'string', harness: 'string' }
 const SPECS: Record<string, Record<string, FlagKind>> = {
-  publish: { 'max-workers': 'string', 'lease-sec': 'string', ...SESSION },
+  publish: { 'max-workers': 'string', 'lease-sec': 'string', 'dry-run': 'bool', md: 'bool', ...SESSION },
   // spawn's --harness names the workers, not the lead's session (see the usage text).
   spawn: { mux: 'string', workers: 'string', harness: 'string', 'dry-run': 'bool', session: 'string' },
   status: SESSION,
-  join: { task: 'string', ...SESSION },
+  // join's --wait takes an optional value: `normalizeWait` turns a bare one into `--wait=` before the parse.
+  join: { task: 'string', wait: 'string', ...SESSION },
   heartbeat: SESSION,
   release: { reason: 'string', ...SESSION },
   done: { verify: 'string', ...SESSION },
@@ -100,8 +125,34 @@ function intFlag(flags: Record<string, string | boolean>, name: string, problems
   return Number(v)
 }
 
+/**
+ * `--wait` takes an optional value: `--wait 120` and `--wait=120` set it, a bare `--wait` (followed by another flag,
+ * `--json`, or nothing) means the default. The argument parser knows no optional values, so a bare one becomes
+ * `--wait=` before the parse; arguments after `--` stay as they are.
+ */
+function normalizeWait(argv: readonly string[]): string[] {
+  const out: string[] = []
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i] as string
+    if (a === '--') { out.push(...argv.slice(i)); break }
+    if (a !== '--wait') { out.push(a); continue }
+    const next = argv[i + 1]
+    if (next !== undefined && /^\d+$/.test(next)) { out.push(`--wait=${next}`); i++ } else out.push('--wait=')
+  }
+  return out
+}
+
+/** The seconds `--wait` asks for: the default for a bare flag, else a whole number the workflow checks against its range. */
+function waitFlag(flags: Record<string, string | boolean>, problems: string[]): number | undefined {
+  const v = strFlag(flags, 'wait')
+  if (v === undefined) return undefined
+  if (v === '') return JOIN_WAIT_DEFAULT_SEC
+  if (!/^\d+$/.test(v)) { problems.push(`--wait takes a whole number of seconds, ${JOIN_WAIT_MIN_SEC} to ${JOIN_WAIT_MAX_SEC} (got '${v}')`); return undefined }
+  return Number(v)
+}
+
 export async function runWork(argv: string[], io: CommandIO, ctx: WorkflowCtx): Promise<number> {
-  const parsed = parseCommandArgs(argv, ALL)
+  const parsed = parseCommandArgs(normalizeWait(argv), ALL)
   const [sub, ...pos] = parsed.positional
   const out = (r: CmdResult) => emit(io, io.flags.json, `buracle work${sub !== undefined ? ` ${sub}` : ''}`, r)
   if (sub === undefined) return out(usageError(usage, ['missing subcommand']))
@@ -114,6 +165,7 @@ export async function runWork(argv: string[], io: CommandIO, ctx: WorkflowCtx): 
   const taskFlag = intFlag(parsed.flags, 'task', problems)
   const timeout = intFlag(parsed.flags, 'timeout', problems)
   const workers = intFlag(parsed.flags, 'workers', problems)
+  const wait = waitFlag(parsed.flags, problems)
   const positionals = POSITIONALS[sub] ?? 0
   if (pos.length > positionals) problems.push(`unexpected argument '${pos[positionals]}'`)
   if (problems.length > 0) return out(usageError(usage, problems))
@@ -136,7 +188,7 @@ export async function runWork(argv: string[], io: CommandIO, ctx: WorkflowCtx): 
     case 'publish': {
       const s = needSession(sflags, ctx.env)
       if ('code' in s) return out(s)
-      const o: Parameters<typeof workPublish>[0] = {}
+      const o: Parameters<typeof workPublish>[0] = { dryRun: boolFlag(parsed.flags, 'dry-run'), md: boolFlag(parsed.flags, 'md') }
       if (pos[0] !== undefined) o.planPath = pos[0]
       if (maxWorkers !== undefined) o.maxWorkers = maxWorkers
       if (leaseSec !== undefined) o.leaseSec = leaseSec
@@ -145,7 +197,7 @@ export async function runWork(argv: string[], io: CommandIO, ctx: WorkflowCtx): 
     case 'join': {
       const s = needSession(sflags, ctx.env)
       if ('code' in s) return out(s)
-      return out(await workJoin(pos[0], taskFlag !== undefined ? { task: taskFlag } : {}, ctx, s))
+      return out(await workJoin(pos[0], { ...(taskFlag !== undefined ? { task: taskFlag } : {}), ...(wait !== undefined ? { wait } : {}) }, ctx, s))
     }
     case 'heartbeat': {
       const s = needSession(sflags, ctx.env)

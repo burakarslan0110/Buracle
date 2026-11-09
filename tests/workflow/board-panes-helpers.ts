@@ -1,7 +1,9 @@
 // Shared by the board-panes tests: a published board in a throwaway repository, and fake multiplexer CLIs.
 import { join } from 'node:path'
 import { workPublish } from '../../src/workflow/board'
+import type { PaneDeps } from '../../src/workflow/board-panes'
 import type { MuxExec, MuxExecResult } from '../../src/workflow/mux'
+import type { CmdResult } from '../../src/workflow/result'
 import type { ResolvedSession } from '../../src/workflow/session-store'
 import { withEnv, withSandbox } from '../helpers/sandbox'
 import { ctxAt, makeRepo, planDoc, write } from './fixture'
@@ -14,17 +16,35 @@ export function sandbox<T>(fn: (root: string) => Promise<T>): Promise<T> {
   return withSandbox(({ root }) => withEnv({ BURACLE_NO_MEMORY: '1', BURACLE_LOCK_TIMEOUT_MS: '2000' }, () => fn(root)))
 }
 
-/** `dep`: Task 3 also modifies the file of Task 1 (`true`) or of the task named, so it cannot start while that task is active. */
-export async function published(root: string, o: { n?: number, dep?: boolean | number, maxWorkers?: number, name?: string } = {}): Promise<{ repo: string, plan: string, path: string, commonDir: string }> {
+export interface PublishedOptions {
+  n?: number
+  /** Task 3 also modifies the file of Task 1 (`true`) or of the task named, so it cannot start while that task is active. */
+  dep?: boolean | number
+  maxWorkers?: number
+  name?: string
+  /** The plan's type (`Build` for a goal-build run file); Feature by default. */
+  type?: string
+  /** Lines under `## Assumptions`, such as `Swarm harnesses: claude, codex` and `Panes: herdr`. */
+  assumptions?: string[]
+  /** A `**Harness:**` line on one task. */
+  reserve?: { n: number, harness: string }
+  /** The lead's environment and multiplexer fakes for the publish (its tick may open panes). */
+  env?: Record<string, string>
+  deps?: PaneDeps
+}
+
+export async function published(root: string, o: PublishedOptions = {}): Promise<{ repo: string, plan: string, path: string, commonDir: string, pub: CmdResult }> {
   const repo = await makeRepo(root, o.name ?? 'repo')
   const plan = join(repo, 'docs', 'plan-build', '2026-11-08-rate-limit.md')
-  let doc = planDoc({ n: o.n ?? 3, status: 'IN_PROGRESS', approved: true })
+  let doc = planDoc({ n: o.n ?? 3, status: 'IN_PROGRESS', approved: true, ...(o.type !== undefined ? { type: o.type } : {}) })
   if (o.dep !== undefined && o.dep !== false) doc = doc.replace('- Modify: `src/s3.ts`', `- Modify: \`src/s${o.dep === true ? 1 : o.dep}.ts\`\n- Modify: \`src/s3.ts\``)
+  if (o.reserve !== undefined) doc = doc.replace(`**Objective:** Do step ${o.reserve.n}.`, `**Objective:** Do step ${o.reserve.n}.\n\n**Harness:** ${o.reserve.harness}`)
+  if (o.assumptions !== undefined) doc = doc.replace('## Tasks', `## Assumptions\n${o.assumptions.map(a => `- ${a}`).join('\n')}\n\n## Tasks`)
   write(plan, doc)
-  const pub = await workPublish({ planPath: plan, ...(o.maxWorkers !== undefined ? { maxWorkers: o.maxWorkers } : {}) }, ctxAt(repo, NOW), LEAD)
+  const pub = await workPublish({ planPath: plan, ...(o.maxWorkers !== undefined ? { maxWorkers: o.maxWorkers } : {}) }, ctxAt(repo, NOW, o.env), LEAD, o.deps)
   if (pub.code !== 0) throw new Error(pub.errors.join('; '))
   const path = String(pub.data['path'])
-  return { repo, plan, path, commonDir: join(path, '..', '..', '..') }
+  return { repo, plan, path, commonDir: join(path, '..', '..', '..'), pub }
 }
 
 /**

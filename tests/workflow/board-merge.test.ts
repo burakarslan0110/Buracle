@@ -92,14 +92,21 @@ describe('work merge', () => {
     expect((await workMerge({ task: 3 }, ctxAt(repo, NOW + 4), lead)).data['error']).toBe('task_not_open')
     const m2 = await workMerge({ task: 2 }, ctxAt(repo, NOW + 4), lead)
     expect(m2.data).toMatchObject({ merged: true, task: 2 })
+    // Task 3 still waits for Task 1: nothing is ready, so the tick has no advice and no panes to report.
+    expect(m2.data['scale']).toEqual({ opened: [], closed: [] })
     const after = readFileSync(plan, 'utf8')
     expect(after).toBe(before.replace('- [ ] Task 2 done', '- [x] Task 2 done'))
     expect(await g(repo, 'status', '--porcelain', '--', 'src')).toBe('')
     expect(readFileSync(join(repo, 'src', 's2.ts'), 'utf8')).toBe('export const s2 = 2\n')
     await finish(repo, sess('codex', 'w3'), 1, NOW + 5).catch(() => undefined)
-    expect((await workMerge({}, ctxAt(repo, NOW + 6), lead)).data).toMatchObject({ merged: true, task: 1 })
+    const m1 = await workMerge({}, ctxAt(repo, NOW + 6), lead)
+    expect(m1.data).toMatchObject({ merged: true, task: 1 })
     const done3 = readBoard(path)
     expect(done3?.tasks.map(t => t.status)).toEqual(['merged', 'merged', 'open'])
+    // Task 3 is ready now and nobody waits for it; without a multiplexer the lead is told how many terminals to open.
+    const advice = '1 task(s) ready, 0 worker(s) waiting: open 1 terminal(s) in this repository and run `/buracle-join rate-limit` in each (`$buracle-join rate-limit` in Codex).'
+    expect(m1.data['scale']).toEqual({ opened: [], closed: [], advice })
+    expect(m1.lines).toContain(advice)
   }))
 
   test('a conflict leaves the task done with merge_conflict; the lead merges by hand and records it with --manual', () => sandbox(async root => {

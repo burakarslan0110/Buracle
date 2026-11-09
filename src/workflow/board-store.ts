@@ -4,7 +4,7 @@
 import { randomUUID } from 'node:crypto'
 import { readFileSync, readdirSync, statSync, unlinkSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import type { Harness } from '../core/events'
+import { HARNESSES, type Harness } from '../core/events'
 import type { Board, BoardSummary } from '../core/board/model'
 import { TASK_STATUSES, boardSummary, sweep } from '../core/board/model'
 import type { BoardBinding } from '../core/plan/state'
@@ -84,12 +84,20 @@ function isSession(x: unknown): boolean {
   return x !== null && typeof x === 'object' && typeof (x as { harness?: unknown }).harness === 'string' && typeof (x as { session?: unknown }).session === 'string'
 }
 
+function isStandby(x: unknown): boolean {
+  return isSession(x) && typeof (x as { since?: unknown }).since === 'number' && typeof (x as { at?: unknown }).at === 'number'
+}
+
 export function isBoard(x: unknown): x is Board {
   if (x === null || typeof x !== 'object') return false
   const b = x as Record<string, unknown>
   if (b['v'] !== 1 || typeof b['slug'] !== 'string' || typeof b['plan'] !== 'string' || typeof b['base'] !== 'string') return false
   if (!isSession(b['lead']) || typeof b['maxWorkers'] !== 'number' || typeof b['leaseSec'] !== 'number' || typeof b['seq'] !== 'number') return false
   if (!Array.isArray(b['tasks']) || !Array.isArray(b['notes']) || !Array.isArray(b['events']) || !Array.isArray(b['constraints']) || typeof b['context'] !== 'string') return false
+  // The swarm fields are optional (boards written before standby workers have none), but a present one has to be well-formed.
+  if (b['standby'] !== undefined && !(Array.isArray(b['standby']) && b['standby'].every(isStandby))) return false
+  if (b['harnesses'] !== undefined && !(Array.isArray(b['harnesses']) && b['harnesses'].every(h => (HARNESSES as readonly string[]).includes(String(h))))) return false
+  if (b['panes'] !== undefined && typeof b['panes'] !== 'string') return false
   return (b['tasks'] as unknown[]).every(t => t !== null && typeof t === 'object' && typeof (t as { n?: unknown }).n === 'number' && (TASK_STATUSES as readonly string[]).includes(String((t as { status?: unknown }).status)))
 }
 
