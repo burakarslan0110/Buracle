@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Finding, PlanType } from '../../../src/core/plan/format'
-import { PLAN_TYPES, criteriaTable, parsePlan, planCriteria, planSkeleton, validatePlan } from '../../../src/core/plan/format'
+import { PLAN_TYPES, criteriaTable, parsePlan, planCriteria, planSkeleton, swarmSwitch, validatePlan } from '../../../src/core/plan/format'
 import * as paths from '../../../src/engine/paths'
 
 const codes = (fs: Finding[], level?: Finding['level']): string[] => fs.filter(f => level === undefined || f.level === level).map(f => f.code)
@@ -144,7 +144,7 @@ describe('validatePlan: valid plans', () => {
   })
 
   test('unknown ## sections are accepted', () => {
-    const extra = ['Context', 'Scope', 'Approach', 'Inventory', 'E2E Scenarios', 'E2E Results', 'DoD Audit', 'Evidence', 'Gaps', 'Unverified', 'Follow-ups', 'Review Notes', 'RED Evidence', 'Behavior Contract', 'Root Cause', 'Risks', 'Assumptions', 'Reference', 'Acceptance Criteria', 'Rounds', 'Files Touched', 'Anything Else']
+    const extra = ['Context', 'Scope', 'Approach', 'Inventory', 'E2E Scenarios', 'E2E Results', 'DoD Audit', 'Evidence', 'Gaps', 'Unverified', 'Follow-ups', 'Review Notes', 'RED Evidence', 'Behavior Contract', 'Root Cause', 'Risks', 'Assumptions', 'Reference', 'Acceptance Criteria', 'Rounds', 'Files Touched', 'Swarm Plan', 'Anything Else']
     const md = FEATURE + extra.map(s => `\n## ${s}\ntext\n`).join('')
     expect(validatePlan(md, { strict: true })).toEqual([])
   })
@@ -511,6 +511,122 @@ A team member saves a search once. Every member sees it.
 
   test('the Build example in the goal-build skill gives no document finding', () => {
     expect(doc(skillExample('skills/goal-build/references/goal-and-contract.md'), true)).toEqual([])
+  })
+})
+
+describe('validatePlan: swarm shape checks (Swarm: on under ## Assumptions)', () => {
+  // Every card runs its own test file, listed under `Test:` unless the caller lists one, so files-incomplete stays quiet.
+  const card = (n: number, title: string, objective: string, files: string[], dependsOn?: string): string => [
+    `### Task ${n}: ${title}`, '', `**Objective:** ${objective}`, '',
+    ...(dependsOn !== undefined ? [`**Depends on:** ${dependsOn}`, ''] : []),
+    '**Files:**', ...[...files, ...(files.some(f => f.startsWith('Test:')) ? [] : [`Test: \`tests/import/t${n}.test.ts\``])].map(f => `- ${f}`), '',
+    '**Definition of Done:**', '- The tests of this task pass.', `- Verify: \`bun test tests/import/t${n}.test.ts\``, '',
+    `- [ ] Task ${n} done`, '',
+  ].join('\n')
+  const HEAD = '---\ncreated: 2026-11-09\nstatus: PENDING\napproved: false\nworktree: false\ntype: Feature\niterations: 0\n---\n# Split the importer into readers\n\n## Goal\nThe importer reads three formats.\n\n## Tasks\n\n'
+  const BLOCK = '## Swarm Plan\n| Wave | Tasks | Width |\n|---|---|---|\n| 1 | Task 1 | 1 |\n| 2 | Task 2, Task 3, Task 4 | 3 |\n| 3 | Task 5 | 1 |\n\nCritical path: Task 1 → Task 2 → Task 5 (3 of 5 tasks).\nWorkers: up to 3 at the widest wave; the lead scales from 1 to 6.\n'
+  const STAR_CARDS = [
+    card(1, 'Shared types and registry', 'The reader registry and its types exist.', ['Create: `src/import/types.ts`', 'Create: `src/import/registry.ts`', 'Test: `tests/import/t1.test.ts`']),
+    card(2, 'CSV reader', 'A CSV file becomes rows.', ['Create: `src/import/csv.ts`', 'Test: `tests/import/t2.test.ts`'], 'Task 1'),
+    card(3, 'JSON reader', 'A JSON file becomes rows.', ['Create: `src/import/json.ts`', 'Test: `tests/import/t3.test.ts`'], 'Task 1'),
+    card(4, 'XML reader', 'An XML file becomes rows.', ['Create: `src/import/xml.ts`', 'Test: `tests/import/t4.test.ts`'], 'Task 1'),
+    card(5, 'Wire the readers', 'The CLI picks a reader by extension.', ['Modify: `src/import/index.ts`', 'Modify: README.md', 'Test: `tests/import/t5.test.ts`'], 'Task 2, Task 3, Task 4'),
+  ].join('\n')
+  const SWARM = `${HEAD}${STAR_CARDS}\n${BLOCK}\n## Assumptions\n- Swarm: on\n- Swarm harnesses: claude, codex\n`
+  const SHAPE = '5 tasks in 3 waves: width 3, critical path 3 (Task 1 → Task 2 → Task 5)'
+  const swarm = (md: string) => validatePlan(md, { strict: true }).filter(f => f.code.startsWith('swarm-') || f.code.startsWith('depends-on-'))
+  const only = (md: string, code: string) => validatePlan(md, { strict: true }).filter(f => f.code === code)
+
+  test('swarmSwitch reads `Swarm: on|off` or the older `Board: on` under ## Assumptions only, in any list or emphasis form', () => {
+    expect(swarmSwitch(SWARM)).toBe('on')
+    expect(swarmSwitch(SWARM.replace('- Swarm: on', 'Swarm: off (chosen at approval)'))).toBe('off')
+    expect(swarmSwitch(SWARM.replace('- Swarm: on', '* **swarm:** `ON`'))).toBe('on')
+    expect(swarmSwitch(SWARM.replace('- Swarm: on', '- Board: on'))).toBe('on')
+    expect(swarmSwitch(SWARM.replace('- Swarm: on', '- Board: off'))).toBe('off')
+    expect(swarmSwitch(SWARM.replace('- Swarm: on\n', ''))).toBeUndefined()
+    expect(swarmSwitch(SWARM.replace('- Swarm: on\n', '').replace('The importer reads three formats.', 'The importer reads three formats.\nSwarm: on'))).toBeUndefined()
+    expect(swarmSwitch(SWARM.replace('- Swarm: on', '```\nSwarm: on\n```'))).toBeUndefined()
+    expect(swarmSwitch(SWARM.replace('- Swarm: on', '- Swarm: maybe'))).toBeUndefined()
+    expect(swarmSwitch('')).toBeUndefined()
+  })
+
+  test('a plan shaped for the swarm gets only the swarm-shape info, and its generated block trips no document check', () => {
+    expect(validatePlan(SWARM, { strict: true })).toEqual([{ level: 'info', code: 'swarm-shape', message: SHAPE, line: expect.any(Number) }])
+    expect(parsePlan(SWARM).sections).toEqual(['Goal', 'Tasks', 'Swarm Plan', 'Assumptions'])
+    const longChain = SWARM.replace('Critical path: Task 1 → Task 2 → Task 5 (3 of 5 tasks).', 'Critical path: Task 1 → Task 2 → Task 3 → Task 4 → Task 5 → Task 6 → Task 7 → Task 8 (8 of 8 tasks).')
+    expect(validatePlan(longChain).filter(f => f.code === 'long-sentence' || f.code === 'semicolon')).toEqual([])
+  })
+
+  test('nothing swarm-related fires with Swarm: off or without the line, whatever the shape', () => {
+    const bad = `${HEAD}${[card(1, 'A', 'A exists.', ['Create: `src/a.ts`', 'Modify: `src/shared.ts`']), card(2, 'B', 'B exists.', ['Create: `src/b/`', 'Modify: `src/shared.ts`']), card(3, 'C', 'C exists.', ['Modify: `src/shared.ts`'])].join('\n')}`
+    expect(swarm(`${bad}\n## Assumptions\n- Swarm: off\n`)).toEqual([])
+    expect(swarm(`${bad}\n## Assumptions\n- None.\n`)).toEqual([])
+    expect(swarm(bad)).toEqual([])
+    expect(swarm(`${bad}\n## Assumptions\n- Swarm: on\n`).map(f => f.code).sort()).toEqual(['swarm-dir-path', 'swarm-hub', 'swarm-plan-missing', 'swarm-serial', 'swarm-shape', 'swarm-shared-file', 'swarm-shared-file', 'swarm-shared-file'])
+  })
+
+  test('depends-on-unknown and depends-on-later are errors whatever the switch says, at the Depends on line', () => {
+    const md = (deps: string) => `${HEAD}${[card(1, 'A', 'A exists.', ['Create: `src/a.ts`']), card(2, 'B', 'B exists.', ['Create: `src/b.ts`'], deps), card(3, 'C', 'C exists.', ['Create: `src/c.ts`'])].join('\n')}`
+    const unknown = validatePlan(md('Task 1, Task 9'))
+    expect(unknown).toEqual([{ level: 'error', code: 'depends-on-unknown', message: 'Task 2 depends on Task 9, which the plan does not have', line: 34 }])
+    const later = validatePlan(md('Task 3'))
+    expect(later).toEqual([{ level: 'error', code: 'depends-on-later', message: 'Task 2 depends on Task 3, a later task: order the tasks by dependency', line: 34 }])
+    expect(validatePlan(md('2')).map(f => [f.code, f.message])).toEqual([['depends-on-later', 'Task 2 depends on itself: order the tasks by dependency']])
+    expect(validatePlan(md('Task 1'))).toEqual([])
+    expect(validatePlan(`${md('Task 7')}\n## Assumptions\n- Swarm: off\n`).map(f => f.code)).toEqual(['depends-on-unknown'])
+  })
+
+  test('swarm-serial: three or more unticked tasks in one chain is a warning that disjoint files clear', () => {
+    const chain = (third: string) => `${HEAD}${[card(1, 'A', 'A exists.', ['Create: `src/a.ts`']), card(2, 'B', 'B exists.', ['Modify: `src/a.ts`', 'Create: `src/b.ts`']), card(3, 'C', 'C exists.', [third])].join('\n')}\n## Assumptions\n- Swarm: on\n`
+    const f = only(chain('Modify: `src/b.ts`'), 'swarm-serial')
+    expect(f.map(x => [x.level, x.message])).toEqual([['warning', 'every task waits for the one before it; split the work into disjoint tasks or set `Swarm: off`']])
+    expect(only(chain('Create: `src/c.ts`'), 'swarm-serial')).toEqual([])
+    const ticked = chain('Modify: `src/b.ts`').replace('- [ ] Task 1 done', '- [x] Task 1 done')
+    expect(only(ticked, 'swarm-serial')).toEqual([])
+    const two = `${HEAD}${[card(1, 'A', 'A exists.', ['Create: `src/a.ts`']), card(2, 'B', 'B exists.', ['Modify: `src/a.ts`'])].join('\n')}\n## Assumptions\n- Swarm: on\n`
+    expect(only(two, 'swarm-serial')).toEqual([])
+  })
+
+  test('swarm-shared-file: a path two tasks list without a Depends on between them, one finding per pair, cleared by the line', () => {
+    const shared = SWARM.replace('- Create: `src/import/xml.ts`', '- Create: `src/import/xml.ts`\n- Modify: `src/import/csv.ts`\n- Modify: `tests/import/t2.test.ts`')
+    const f = only(shared, 'swarm-shared-file')
+    expect(f).toEqual([{ level: 'warning', code: 'swarm-shared-file', message: 'Task 4 shares `src/import/csv.ts` with Task 2 and names no `Depends on`: make the files disjoint (move the shared edit into the foundation task or split the file) or add `**Depends on:** Task 2`', line: expect.any(Number) }])
+    expect(only(shared.replace('**Depends on:** Task 1\n\n**Files:**\n- Create: `src/import/xml.ts`', '**Depends on:** Task 1, Task 2\n\n**Files:**\n- Create: `src/import/xml.ts`'), 'swarm-shared-file')).toEqual([])
+    const dir = SWARM.replace('- Create: `src/import/xml.ts`', '- Create: `src/import/xml.ts`\n- Modify: `src/import/`')
+    // Task 4 names Task 1 and Task 5 names Task 4, so only the pairs with Task 2 and Task 3 remain.
+    expect(only(dir, 'swarm-shared-file').map(x => x.message.slice(0, 50))).toEqual(['Task 4 shares `src/import/` with Task 2 and names ', 'Task 4 shares `src/import/` with Task 3 and names '])
+  })
+
+  test('swarm-hub and swarm-dir-path name the path and the tasks', () => {
+    const hub = SWARM.replace('- Create: `src/import/csv.ts`', '- Create: `src/import/csv.ts`\n- Modify: `src/import/types.ts`').replace('- Create: `src/import/json.ts`', '- Create: `src/import/json.ts`\n- Modify: src/import/types.ts')
+    expect(only(hub, 'swarm-hub')).toEqual([{ level: 'warning', code: 'swarm-hub', message: '`src/import/types.ts` is listed by Tasks 1, 2, 3: give it one owner (the foundation task) or split it', line: expect.any(Number) }])
+    expect(only(SWARM.replace('- Create: `src/import/csv.ts`', '- Create: `src/import/csv.ts`\n- Modify: `src/import/types.ts`'), 'swarm-hub')).toEqual([])
+    const dir = SWARM.replace('- Create: `src/import/xml.ts`', '- Create: `src/import/xml/`')
+    expect(only(dir, 'swarm-dir-path')).toEqual([{ level: 'warning', code: 'swarm-dir-path', message: 'Task 4 lists the directory `src/import/xml/`: a directory serializes every task under it; name the files', line: expect.any(Number) }])
+    expect(only(SWARM, 'swarm-dir-path')).toEqual([])
+  })
+
+  test('swarm-plan-missing and swarm-plan-stale compare the ## Swarm Plan table with the plan', () => {
+    const missing = only(SWARM.replace(BLOCK, ''), 'swarm-plan-missing')
+    expect(missing.map(f => [f.level, f.message])).toEqual([['warning', 'add a `## Swarm Plan` section: run `buracle work publish --dry-run --md` and paste its block']])
+    expect(only(SWARM.replace(BLOCK, '## Swarm Plan\nLater.\n'), 'swarm-plan-missing').map(f => f.message)).toEqual(['`## Swarm Plan` holds no wave table: run `buracle work publish --dry-run --md` and paste its block'])
+    expect(only(SWARM, 'swarm-plan-stale')).toEqual([])
+    const moved = SWARM.replace('| 2 | Task 2, Task 3, Task 4 | 3 |\n| 3 | Task 5 | 1 |', '| 2 | Task 2, Task 3 | 2 |\n| 3 | Task 4, Task 5 | 2 |')
+    expect(only(moved, 'swarm-plan-stale')).toEqual([{ level: 'warning', code: 'swarm-plan-stale', message: '`## Swarm Plan` is stale: Task 4 is in wave 3 of the table and in wave 2 of the plan; run `buracle work publish --dry-run --md` and paste its block again', line: expect.any(Number) }])
+    const dropped = SWARM.replace('| 3 | Task 5 | 1 |\n', '')
+    expect(only(dropped, 'swarm-plan-stale').map(f => f.message)).toEqual(['`## Swarm Plan` is stale: Task 5 is missing from the table; run `buracle work publish --dry-run --md` and paste its block again'])
+    const extra = SWARM.replace('| 3 | Task 5 | 1 |', '| 3 | Task 5, Task 6 | 2 |')
+    expect(only(extra, 'swarm-plan-stale').map(f => f.message)).toEqual(['`## Swarm Plan` is stale: Task 6 is in the table but not in the plan; run `buracle work publish --dry-run --md` and paste its block again'])
+    expect(only(SWARM.replace(BLOCK, ''), 'swarm-plan-stale')).toEqual([])
+  })
+
+  test('swarm-shape needs two tasks; a Build file gets the same checks; a PRD gets none', () => {
+    const one = `${HEAD}${card(1, 'A', 'A exists.', ['Create: `src/a.ts`'])}\n## Assumptions\n- Swarm: on\n`
+    expect(swarm(one).map(f => f.code)).toEqual(['swarm-plan-missing'])
+    const build = `---\ncreated: 2026-11-09\nstatus: PENDING\napproved: false\nworktree: false\ntype: Build\nrounds: 0\n---\n# B\n\n## Tasks\n\n### Task 1: Queue\n\n**Objective:** Writes go to a queue (C1).\n\n**Files:**\n- Create: \`src/queue.ts\`\n\n- [ ] Task 1 done\n\n### Task 2: Sync\n\n**Objective:** The queue drains (C2).\n\n**Files:**\n- Create: \`src/sync.ts\`\n\n- [ ] Task 2 done\n\n### Task 3: Retry\n\n**Objective:** A failed drain retries (C3).\n\n**Files:**\n- Modify: \`src/sync.ts\`\n\n- [ ] Task 3 done\n\n## Assumptions\n- Switches: reviews.changes on\n- Swarm: on\n`
+    expect(swarm(build).map(f => [f.code, f.message])).toEqual([['swarm-shape', '3 tasks in 2 waves: width 2, critical path 2 (Task 2 → Task 3)'], ['swarm-shared-file', expect.stringContaining('Task 3 shares `src/sync.ts` with Task 2')], ['swarm-plan-missing', expect.any(String)]])
+    const prd = '---\ntype: prd\ntitle: T\nstatus: draft\napproved: false\ncreated: 2026-11-04\n---\n# T\n\n## Assumptions\n- Swarm: on\n'
+    expect(validatePlan(prd, { strict: true })).toEqual([])
   })
 })
 
