@@ -35,7 +35,7 @@ describe('paths', () => {
 describe('indexExclusion: folders Buracle never indexes', () => {
   test('the filesystem root, the home folder and its parents, the vault and Buracle state', () => {
     expect(indexExclusion('/', ctx())).toBe('the filesystem root')
-    expect(indexExclusion('D:\\', ctx())).toBe('the filesystem root')
+    expect(indexExclusion('D:\\', ctx())).toBeUndefined()
     expect(indexExclusion('/Users/burak', ctx())).toBe('your home folder')
     expect(indexExclusion('/Users', ctx())).toBe('a parent of your home folder')
     expect(indexExclusion('/Users/burak/Documents/Buracle', ctx())).toBe('inside the memory vault')

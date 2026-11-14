@@ -228,9 +228,9 @@ const SHELL_ASSIGN = new RegExp([
   `\\b(?:export|typeset\\s+-\\w*x\\w*|declare\\s+-\\w*x\\w*)\\s+(?:\\w+\\s+)*(?:${NAMES.replace('|HOME|', '|')})\\b`,
 ].join('|'))
 const POWERSHELL_ASSIGN = new RegExp([
-  `\\$env:(?:${NAMES}|USERPROFILE)\\s*\\+?=`,
-  `\\b(?:set-item|si|new-item|ni|set-content|sc|add-content|ac)\\b[^;\\n]*\\benv:\\\\?(?:${NAMES}|USERPROFILE)\\b`,
-  `setenvironmentvariable\\s*\\(\\s*['"](?:${NAMES}|USERPROFILE)['"]`,
+  `\\$env:(?:${NAMES})\\s*\\+?=`,
+  `\\b(?:set-item|si|new-item|ni|set-content|sc|add-content|ac)\\b[^;\\n]*\\benv:\\\\?(?:${NAMES})\\b`,
+  `setenvironmentvariable\\s*\\(\\s*['"](?:${NAMES})['"]`,
 ].join('|'), 'i')
 const PLIST_NAMES = new RegExp(`<(?:key|string)>\\s*(?:${NAMES})\\s*</|\\bsetenv\\s+(?:${NAMES})\\b|\\b(?:${NAMES.replace('|HOME|', '|')})\\b`)
 

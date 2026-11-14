@@ -121,11 +121,12 @@ describe('G3: Buracle and the harness settings cannot be relocated for later ses
     ]) expect({ cmd, reason: denied(cmd) }).toEqual({ cmd, reason: expect.stringMatching(/shell startup file .* set a variable that relocates Buracle/) })
   })
 
-  test('launchctl setenv, fish universal variables, setx and systemd user environments', () => {
+  test('launchctl setenv, fish universal variables and systemd user environments; setx (Windows) is not read', () => {
     for (const cmd of [
       'launchctl setenv BURACLE_HOME /tmp/fb', 'launchctl setenv CLAUDE_CONFIG_DIR /tmp/c', 'launchctl setenv "$V" /tmp/fb', "fish -c 'set -Ux BURACLE_HOME /tmp/fb'",
-      'set --universal CODEX_HOME /tmp/x', 'setx BURACLE_HOME C:\\fb', 'systemctl --user set-environment XDG_CONFIG_HOME=/tmp/x',
+      'set --universal CODEX_HOME /tmp/x', 'systemctl --user set-environment XDG_CONFIG_HOME=/tmp/x',
     ]) expect({ cmd, reason: denied(cmd) }).toEqual({ cmd, reason: expect.stringContaining('relocates Buracle or the harness settings') })
+    expect(denied('setx CODEX_HOME /tmp/x')).toBeUndefined()
   })
 
   test("writes into the shim's folder are refused (SEC-1 already covers $BURACLE_HOME/bin and ~/.buracle/bin)", () => {

@@ -10320,9 +10320,9 @@ var SHELL_ASSIGN = new RegExp([
   `\\b(?:export|typeset\\s+-\\w*x\\w*|declare\\s+-\\w*x\\w*)\\s+(?:\\w+\\s+)*(?:${NAMES.replace("|HOME|", "|")})\\b`
 ].join("|"));
 var POWERSHELL_ASSIGN = new RegExp([
-  `\\$env:(?:${NAMES}|USERPROFILE)\\s*\\+?=`,
-  `\\b(?:set-item|si|new-item|ni|set-content|sc|add-content|ac)\\b[^;\\n]*\\benv:\\\\?(?:${NAMES}|USERPROFILE)\\b`,
-  `setenvironmentvariable\\s*\\(\\s*['"](?:${NAMES}|USERPROFILE)['"]`
+  `\\$env:(?:${NAMES})\\s*\\+?=`,
+  `\\b(?:set-item|si|new-item|ni|set-content|sc|add-content|ac)\\b[^;\\n]*\\benv:\\\\?(?:${NAMES})\\b`,
+  `setenvironmentvariable\\s*\\(\\s*['"](?:${NAMES})['"]`
 ].join("|"), "i");
 var PLIST_NAMES = new RegExp(`<(?:key|string)>\\s*(?:${NAMES})\\s*</|\\bsetenv\\s+(?:${NAMES})\\b|\\b(?:${NAMES.replace("|HOME|", "|")})\\b`);
 var SETTINGS_WORDS = {
@@ -10414,7 +10414,7 @@ function switchOffChange(file, abs, content, parsers) {
 // src/core/policy/write-guard.ts
 var SELF_LAYOUT = [
   { key: "buracleHome", under: ".buracle", entries: [""], area: "buracle" },
-  { key: "localBinDir", under: ".local/bin", entries: ["buracle", "buracle.cmd"], area: "shim" },
+  { key: "localBinDir", under: ".local/bin", entries: ["buracle"], area: "shim" },
   ...HARNESSES.flatMap((h) => harnessProfile(h).protectedDirs.map((d) => ({ key: d.key, under: d.under, entries: d.entries, area: h })))
 ];
 var HOME_PREFIX2 = /^\/(?:(?:users|home)\/[^/]+|root|var\/root)(?=\/|$)/i;
@@ -10911,7 +10911,7 @@ function pathKey(p, caseInsensitive) {
   return caseInsensitive ? out.toLowerCase() : out;
 }
 function isRootKey(k) {
-  return k === "/" || /^[A-Za-z]:\/?$/.test(k) || /^\\\\[^\\/]+(?:\\[^\\/]+)?$/.test(k);
+  return k === "/";
 }
 function withinKey(child, parent) {
   if (parent === "/")
@@ -10927,7 +10927,7 @@ function excludeMatches(pattern, dirKey, ctx) {
   let p = pattern.replace(/\\/g, "/");
   if (p === "~" || p.startsWith("~/"))
     p = ctx.home.replace(/\\/g, "/").replace(/\/+$/, "") + p.slice(1);
-  const absolute = p.startsWith("/") || /^[A-Za-z]:\//.test(p);
+  const absolute = p.startsWith("/");
   if (absolute && !GLOB_CHARS.test(p))
     return withinKey(dirKey, pathKey(p, ctx.caseInsensitive));
   const body = p.replace(/\/{2,}/g, "/").replace(/\/+$/, "");
@@ -15966,9 +15966,9 @@ function expandUser(s) {
   return s;
 }
 function expandVars(s) {
-  return s.replace(/^(?:\$HOME|\$\{HOME\}|%USERPROFILE%|\$env:USERPROFILE|\$env:HOME)(?=[\\/]|$)/i, HOME);
+  return s.replace(/^(?:\$HOME|\$\{HOME\}|\$env:HOME)(?=[\\/]|$)/i, HOME);
 }
-var HOME_ENV = new Set(["HOME", "USERPROFILE"]);
+var HOME_ENV = new Set(["HOME"]);
 function envValue(name) {
   const n = typeof name === "string" ? name : name.t === "str" ? name.s : undefined;
   if (n !== undefined && HOME_ENV.has(n))
@@ -16269,7 +16269,7 @@ class Evaluator {
     }
     if (v.t === "ref") {
       const p = v.path;
-      if (/(?:^|\.)(?:env|environ)\.(?:HOME|USERPROFILE)$/i.test(p) || /(?:^|\.)Dir\.home$/.test(p))
+      if (/(?:^|\.)(?:env|environ)\.HOME$/i.test(p) || /(?:^|\.)Dir\.home$/.test(p))
         return str3(HOME);
       if (/(?:^|\.)env\.PWD$/.test(p))
         return str3(".");
@@ -17511,8 +17511,6 @@ function persistentEnv(name, words) {
   if (name === "launchctl" && pos[0] === "setenv" && named(pos[1]))
     return reason;
   if (name === "set" && args.some((a) => a === "--universal" || /^-[A-Za-z]*U/.test(a)) && named(pos[0]))
-    return reason;
-  if (name === "setx" && named(pos[0]))
     return reason;
   if (name === "systemctl" && pos[0] === "set-environment" && pos.slice(1).some(named))
     return reason;

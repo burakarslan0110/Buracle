@@ -10197,9 +10197,9 @@ var SHELL_ASSIGN = new RegExp([
   `\\b(?:export|typeset\\s+-\\w*x\\w*|declare\\s+-\\w*x\\w*)\\s+(?:\\w+\\s+)*(?:${NAMES2.replace("|HOME|", "|")})\\b`
 ].join("|"));
 var POWERSHELL_ASSIGN = new RegExp([
-  `\\$env:(?:${NAMES2}|USERPROFILE)\\s*\\+?=`,
-  `\\b(?:set-item|si|new-item|ni|set-content|sc|add-content|ac)\\b[^;\\n]*\\benv:\\\\?(?:${NAMES2}|USERPROFILE)\\b`,
-  `setenvironmentvariable\\s*\\(\\s*['"](?:${NAMES2}|USERPROFILE)['"]`
+  `\\$env:(?:${NAMES2})\\s*\\+?=`,
+  `\\b(?:set-item|si|new-item|ni|set-content|sc|add-content|ac)\\b[^;\\n]*\\benv:\\\\?(?:${NAMES2})\\b`,
+  `setenvironmentvariable\\s*\\(\\s*['"](?:${NAMES2})['"]`
 ].join("|"), "i");
 var PLIST_NAMES = new RegExp(`<(?:key|string)>\\s*(?:${NAMES2})\\s*</|\\bsetenv\\s+(?:${NAMES2})\\b|\\b(?:${NAMES2.replace("|HOME|", "|")})\\b`);
 var SETTINGS_WORDS = {
@@ -10212,7 +10212,7 @@ var SETTINGS_WORDS = {
 // src/core/policy/write-guard.ts
 var SELF_LAYOUT = [
   { key: "buracleHome", under: ".buracle", entries: [""], area: "buracle" },
-  { key: "localBinDir", under: ".local/bin", entries: ["buracle", "buracle.cmd"], area: "shim" },
+  { key: "localBinDir", under: ".local/bin", entries: ["buracle"], area: "shim" },
   ...HARNESSES.flatMap((h) => harnessProfile(h).protectedDirs.map((d) => ({ key: d.key, under: d.under, entries: d.entries, area: h })))
 ];
 var SELF_TEXT = {
@@ -10299,7 +10299,7 @@ function pathKey(p, caseInsensitive) {
   return caseInsensitive ? out.toLowerCase() : out;
 }
 function isRootKey(k) {
-  return k === "/" || /^[A-Za-z]:\/?$/.test(k) || /^\\\\[^\\/]+(?:\\[^\\/]+)?$/.test(k);
+  return k === "/";
 }
 function withinKey(child, parent) {
   if (parent === "/")
@@ -10315,7 +10315,7 @@ function excludeMatches(pattern, dirKey, ctx) {
   let p = pattern.replace(/\\/g, "/");
   if (p === "~" || p.startsWith("~/"))
     p = ctx.home.replace(/\\/g, "/").replace(/\/+$/, "") + p.slice(1);
-  const absolute = p.startsWith("/") || /^[A-Za-z]:\//.test(p);
+  const absolute = p.startsWith("/");
   if (absolute && !GLOB_CHARS.test(p))
     return withinKey(dirKey, pathKey(p, ctx.caseInsensitive));
   const body = p.replace(/\/{2,}/g, "/").replace(/\/+$/, "");
@@ -11281,7 +11281,7 @@ var SPOOL_LIMITS = {
 
 // src/core/policy/code-scan.ts
 var REGEX_AFTER = new Set(["(", ",", "=", ":", "[", "!", "&", "|", "?", "{", "}", ";", "+", "-", "*", "%", "<", ">", "~", "^", "=>", "==", "===", "!=", "!==", "&&", "||", "??", "return", "typeof", "case", "do", "else", "in", "of", "new", "void", "throw"]);
-var HOME_ENV = new Set(["HOME", "USERPROFILE"]);
+var HOME_ENV = new Set(["HOME"]);
 var LOOKUPS = new Set(["getattr", "__import__", "import_module", "require", "import"]);
 var GENERIC = new Set(["remove", "copy", "move", "run", "call", "rm", "cp", "rename", "replace", "unlink", "exec", "spawn", "popen", "write", "delete", "open", "system"]);
 var GENERIC_BARE = new Set(["remove", "copy", "move", "run", "call", "rm", "cp", "rename", "unlink", "exec", "spawn", "popen", "write", "delete", "open", "system"]);

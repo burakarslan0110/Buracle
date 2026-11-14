@@ -296,7 +296,6 @@ function persistentEnv(name: string, words: readonly ShellWord[]): string | unde
   const reason = 'it sets a variable that relocates Buracle or the harness settings for every later session, which can run them without the guard hooks'
   if (name === 'launchctl' && pos[0] === 'setenv' && named(pos[1])) return reason
   if (name === 'set' && args.some(a => a === '--universal' || /^-[A-Za-z]*U/.test(a)) && named(pos[0])) return reason
-  if (name === 'setx' && named(pos[0])) return reason
   if (name === 'systemctl' && pos[0] === 'set-environment' && pos.slice(1).some(named)) return reason
   return undefined
 }

@@ -7,7 +7,7 @@ export function pathKey(p: string, caseInsensitive: boolean): string {
 }
 
 function isRootKey(k: string): boolean {
-  return k === '/' || /^[A-Za-z]:\/?$/.test(k) || /^\\\\[^\\/]+(?:\\[^\\/]+)?$/.test(k)
+  return k === '/'
 }
 
 function withinKey(child: string, parent: string): boolean {
@@ -33,7 +33,7 @@ const GLOB_CHARS = /[*?[{]/
 function excludeMatches(pattern: string, dirKey: string, ctx: IndexExclusionContext): boolean {
   let p = pattern.replace(/\\/g, '/')
   if (p === '~' || p.startsWith('~/')) p = ctx.home.replace(/\\/g, '/').replace(/\/+$/, '') + p.slice(1)
-  const absolute = p.startsWith('/') || /^[A-Za-z]:\//.test(p)
+  const absolute = p.startsWith('/')
   if (absolute && !GLOB_CHARS.test(p)) return withinKey(dirKey, pathKey(p, ctx.caseInsensitive))
   const body = p.replace(/\/{2,}/g, '/').replace(/\/+$/, '')
   const glob = absolute ? body : `**/${body.replace(/^(?:\.\/)+/, '')}`
