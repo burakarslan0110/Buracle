@@ -207,28 +207,6 @@ describe('buracle install', () => {
     })
   }))
 
-  test('an old vault with notes is imported by mem import-vault; a failure says how to retry', () => withSandbox(async ({ root, home }) => {
-    const repo = makeRepo(root)
-    const vault = join(home, 'Documents', 'Buracle')
-    mkdirSync(join(vault, 'projects', 'demo', 'decisions'), { recursive: true })
-    writeFileSync(join(vault, 'projects', 'demo', 'decisions', 'x.md'), '---\ntitle: X\n---\nx\n')
-    let answer: { code: number, stdout: string, stderr: string } = { code: 0, stdout: JSON.stringify({ found: true, imported: [{ id: 'decision-x' }, { id: 'gotcha-y' }], skipped: [] }), stderr: '' }
-    const cli = fakeCli(() => answer)
-    await withDeps({ repoRoot: () => repo, adapters: async () => [], runCli: cli.runCli, fetch: noNetwork }, async () => {
-      const steps = async (): Promise<string[]> => {
-        const io = memoryIO({ json: true })
-        expect(await installRun(['--yes', '--json'], io)).toBe(0)
-        return (JSON.parse(io.out()) as { steps: string[] }).steps.filter(s => s.includes('old vault'))
-      }
-      expect(await steps()).toEqual(['Imported 2 memories from the old vault ~/Documents/Buracle into ~/.buracle/brain (the vault was only read; it is yours to keep or delete).'])
-      expect(cli.calls).toEqual([['mem', 'import-vault', '--vault', vault, '--json']])
-      answer = { code: 1, stdout: '', stderr: 'buracle mem import-vault: disk full\n' }
-      expect(await steps()).toEqual(["Import the old vault's notes into the memory: run `buracle mem import-vault` (buracle mem import-vault: disk full)."])
-      expect(cli.calls).toHaveLength(2)
-      expect(readFileSync(join(vault, 'projects', 'demo', 'decisions', 'x.md'), 'utf8')).toBe('---\ntitle: X\n---\nx\n')
-    })
-  }))
-
   test('enabled and detected adapters are installed; disabled or missing ones are skipped and reported', () => withSandbox(async ({ root, home, buracleHome }) => {
     const repo = makeRepo(root, { 'harness/agents-skills/plan-build/SKILL.md': '# spec\n', 'harness/agents-skills/bugfix/SKILL.md': '# fix\n', 'harness/agents-skills/empty/README.md': 'no skill\n' })
     mkdirSync(buracleHome, { recursive: true })

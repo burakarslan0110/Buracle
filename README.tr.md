@@ -191,7 +191,7 @@ Bellek arka planda başka hiçbir şey çalıştırmaz: zamanlayıcı, açılı�
 
 Model çağrıları zaten kullandığın bir harness'ın CLI'ı üzerinden yapılır, bu yüzden API anahtarı gerekmez. Önce oturumun kendi harness'ı denenir. 5 saatlik kullanımı %75'i ya da haftalık kullanımı %85'i aşan harness atlanır. Arama kelimelerle yapılır ve İngilizce ile Türkçe kelime biçimlerini bilir.
 
-Gizli bilgiler yazılmadan önce maskelenir, `<private>…</private>` blokları hiç saklanmaz ve `memory.exclude` listesindeki klasörler hiç kaydedilmez. Devreden çıkarılmış bir kayıt sen silene kadar aramalardan gizli kalır, böylece geri getirebilirsin. `buracle mem export` ve `buracle mem import` kayıtları JSON satırları olarak taşır. `buracle mem restore` bir yedeği geri getirir.
+Gizli bilgiler yazılmadan önce maskelenir, `<private>…</private>` blokları hiç saklanmaz ve `memory.exclude` listesindeki klasörler hiç kaydedilmez. Devreden çıkarılmış bir kayıt sen silene kadar aramalardan gizli kalır, böylece geri getirebilirsin. `buracle mem restore` bir yedeği geri getirir.
 
 ### Buracle Console
 
@@ -202,9 +202,8 @@ Gizli bilgiler yazılmadan önce maskelenir, `<private>…</private>` blokları 
 - Beyin görünümü bölgeleri bir beyin olarak çizer ve yazma ile arama anında burada yanar. `/` arama yapar, `1` ile `7` arasındaki tuşlar bir bölgeyi açar, `G` kayıtların, etiketlerin, dosyaların ve kavramların ağını gösterir.
 - Kayıt ayrıntısında metin, etiketler, kaynaklar, geçmiş, kaydın nereden geldiği (senin sözlerin mi, çıkarım mı, hangi güvenle) ve bağlantılı olduğu kayıtlar görünür. Kaydı buradan düzeltebilir, devreden çıkarabilir, geri getirebilir ya da silebilirsin. Düzeltme senin kendi sözün olarak saklanır.
 - İnceleme sayfası planlarını, geliştirme sözleşmelerini, PRD'lerini ve ajanın diff'ini gösterir. Mermaid blokları diyagram olarak çizilir, kaynakları altında durur. Bir metni seçerek ya da bir satır numarasına tıklayarak ajana not iliştirirsin.
-- Sağlık panelinde (`H`) sorunlar sade bir dille anlatılır. Panel depoyu ve sürümünü, beyin dosyasını boyutu ve kovalarıyla, Buracle 0.5'ten taşımayı, dosyalanmayı bekleyen kayıtları, son yakalamayı ve yedekleri gösterir. Back up düğmesi de buradadır.
-- Oturumlar ve kullanım panelinde (`W`) dört harness'taki son 30 günün oturumları görünür. Burada yalnızca sayılar tutulur, yazdıkların asla tutulmaz. Panel ayrıca giren commit'leri, güne ve modele göre maliyeti ve token'ları, kurulu skill'leri, ajanları ve kuralları gösterir.
-- Bildirimler (`N`) ile koyu ve açık tema (`T`) da arayüzde yer alır.
+- Sağlık panelinde (`H`) sorunlar sade bir dille anlatılır. Panel depoyu ve sürümünü, beyin dosyasını boyutu ve kovalarıyla, dosyalanmayı bekleyen kayıtları, son yakalamayı ve yedekleri gösterir. Back up düğmesi de buradadır.
+- Koyu ve açık tema (`T`) da arayüzde yer alır.
 
 ![İnceleme sayfası: ortada açık bir plan, işaretlenmiş bir bölüm ve ona iliştirilen not "Your notes" altında](assets/brain-review.png)
 

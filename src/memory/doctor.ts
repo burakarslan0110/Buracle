@@ -2,17 +2,14 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } f
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { realPath } from '../engine/fsx'
-import * as paths from '../engine/paths'
 import { run } from '../engine/proc'
 import { checkCortexdb } from '../engine/toolchain/cortexdb'
 import { readLedgerSync } from '../engine/txn'
 import { CAPTURE_BUDGET } from '../core/memory/budgets'
 import { pendingSessions } from './capture'
-import { oldVaultPath, vaultImportDone } from './import-vault'
 import { listBackups } from './backup'
 import { brainSelfTest } from './cortex-check'
 import { brainBackupsDir, brainDbFile } from './layout'
-import { migrationInfo } from './migrate'
 import { corruptProjectsBackups, memoryExcludeConfig, memoryExcludeProblemText, projectExclusion, projectsCacheProblem, readProjectsCache, resolveProject } from './project'
 import { cliArgv } from './spawn'
 import { bucketCounts, listAll, personRef, projectRef } from './store'
@@ -104,7 +101,6 @@ export async function memDoctor(opts: { cwd: string, mcp?: boolean, leak?: boole
   else add('error', 'cortexdb', bin.detail)
   const db = brainDbFile()
   if (existsSync(db)) add('ok', 'brain', `${db} (${Math.max(1, Math.round(statSync(db).size / 1024))} KB)`)
-  else if (migrationInfo().legacy.length > 0) add('info', 'brain', `${db} does not exist yet; the Buracle 0.5 brain files are folded into it at the first memory call`)
   else add('ok', 'brain', `${db} does not exist yet; the first memory write creates it`)
   const backups = listBackups()
   const newest = backups[0]
@@ -149,7 +145,6 @@ export async function memDoctor(opts: { cwd: string, mcp?: boolean, leak?: boole
       add(leak.ok ? 'ok' : 'error', 'leak check', leak.detail)
     }
   }
-  checks.push(...migrationChecks())
   if (bin.status === 'ok' && existsSync(db)) {
     const t = await brainSelfTest(db)
     // The self-test passed and the brain answered just now: the file is readable, and a restore would drop every memory
@@ -162,37 +157,11 @@ export async function memDoctor(opts: { cwd: string, mcp?: boolean, leak?: boole
     const h = await mcpHandshake(opts.cwd)
     add(h.ok ? 'ok' : 'error', 'mcp', h.detail)
   }
-  const vault = oldVaultPath()
-  if (existsSync(join(vault, 'projects')) || existsSync(join(vault, 'global'))) {
-    const done = vaultImportDone()
-    add(done !== undefined ? 'info' : 'warn', 'old vault', done !== undefined
-      ? `${vault} was imported on ${done.at.slice(0, 10)}; Buracle no longer reads or writes it (it is yours to keep or delete)`
-      : `${vault} has notes that are not in the brain yet: run \`buracle mem import-vault\` (the vault is only read)`)
-  }
   try {
     const left = Object.keys(readLedgerSync()).filter(k => k.endsWith('#autoMemoryDirectory'))
     if (left.length > 0) add('warn', 'claude redirect', `${left.length} project(s) still carry the autoMemoryDirectory an older Buracle wrote; \`buracle install\` takes them back`)
   } catch {  }
   return checks
-}
-
-/** Where the migration from Buracle 0.5 stands, and what it left behind. */
-export function migrationChecks(): DoctorCheck[] {
-  const info = migrationInfo()
-  const m = info.marker
-  const out: DoctorCheck[] = []
-  if (info.state === 'none') return out
-  if (info.state === 'complete') {
-    out.push({ level: 'ok', check: 'migration', detail: `complete${m?.finishedAt !== undefined ? ` on ${m.finishedAt.slice(0, 10)}` : ''}: the memory is one file, brain.db` })
-    if (info.keptLegacy) out.push({ level: 'info', check: 'migration', detail: `the Buracle 0.5 brain files are kept in ${paths.brainDir()}/legacy-0.5${info.backup !== undefined ? ` and verified copies in backups/${info.backup}` : ''}; \`buracle mem migrate --purge-legacy\` deletes them` })
-  } else {
-    out.push({
-      level: info.state === 'failed' ? 'error' : 'warn', check: 'migration',
-      detail: `${info.state}: ${info.legacy.length} Buracle 0.5 file(s) wait to be folded into brain.db (${info.legacy.join(', ')})${m?.error !== undefined ? `; the last run stopped: ${m.error}` : ''}; \`buracle mem migrate\` runs it, \`buracle mem migrate --status\` shows where it is`,
-    })
-  }
-  if (m?.leftover !== undefined && m.leftover.length > 0) out.push({ level: 'warn', check: 'migration', detail: `${m.leftover.length} Buracle 0.5 file(s) could not be moved aside (a process still holds them open): ${m.leftover.join(', ')}; they are not migrated again, move them out of ${paths.brainDir()} once that process is gone` })
-  return out
 }
 
 async function bucketChecks(add: (level: DoctorLevel, check: string, detail: string) => void): Promise<void> {

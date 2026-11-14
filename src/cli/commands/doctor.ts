@@ -53,7 +53,7 @@ Without a topic every section runs:
   lsp      start every language server (Buracle's toolchain copy) and run the LSP
            initialize handshake, each within 30 s
   memory   \`buracle mem doctor\` (CortexDB, the project and person brains, the sessions whose
-           capture is owed, the cross-project leak check, the MCP server, the old vault's import)
+           capture is owed, the cross-project leak check, the MCP server)
   index    the codegraph and semble indexes of the project in the current folder (or of
            each child project of a folder of projects), as \`buracle index status\` shows them
   updates  age of the \`buracle update --check\` cache

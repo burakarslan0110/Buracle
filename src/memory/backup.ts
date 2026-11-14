@@ -9,11 +9,10 @@ import { entriesOfBucketRows, entriesOfLegacyRows, importEntries, type Entry } f
 import { closeCortex, pidAlive, readerEntries, RESTORE_HOLD_STALE_MS } from './cortex'
 import { BACKUP_ID_RE, brainBackupDir, brainBackupsDir, brainDbFile, brainHoldFile, locksDir } from './layout'
 import { acquireLock, tryLock } from './lock'
-import { legacyPending } from './migration-state'
 import { refreshStatus } from './status'
 import { snapshotFile, rowsOfCopy } from './snapshot'
 import {
-  bucketCounts, bypassMigrationGate, brainExists, deleteItem, forgetListCache, personRef, projectRef, rawRows, recordEvent, refKey, rowOwner, storedId, withBrainLock,
+  bucketCounts, brainExists, deleteItem, forgetListCache, personRef, projectRef, rawRows, recordEvent, refKey, rowOwner, storedId, withBrainLock,
   type BrainRef,
 } from './store'
 
@@ -117,7 +116,7 @@ async function withBackupsLock<T>(fn: () => Promise<T>): Promise<T> {
 
 async function currentBuckets(): Promise<BackupManifest['buckets']> {
   try {
-    const c = await bypassMigrationGate(() => bucketCounts())
+    const c = await bucketCounts()
     return { person: c.person, projects: Object.fromEntries([...c.projects].sort((a, b) => a[0].localeCompare(b[0]))) }
   } catch (e) {
     log('debug', 'memory: the buckets of a backup were not counted', { error: e })
@@ -133,10 +132,7 @@ function takeSnapshot(partial: string): BackupFile {
 /** Copies brain.db (a SQLite snapshot that takes in the WAL) into backups/<id>/ and keeps the newest `keep` copies. */
 export async function backupBrains(choice: BrainChoice, opts: { trigger?: BackupTrigger, nowMs?: number, keep?: number } = {}): Promise<BackupResult> {
   const now = opts.nowMs ?? Date.now()
-  // Buracle 0.5 files waiting for their migration are the brain: fold them in (verified copies first) rather than report an empty one.
-  if (!brainExists() && legacyPending()) await (await import('./migrate')).ensureMigrated().catch(() => undefined)
   if (!brainExists()) {
-    if (legacyPending()) throw new BackupError('the Buracle 0.5 brain files are not migrated yet, so there is no brain.db to back up; run `buracle mem migrate` (it copies them and checks the copies first)')
     if (!('all' in choice)) throw new BackupError(`${'person' in choice ? 'the person brain' : `the project ${choice.project}`} has no brain file yet; nothing to back up`)
     return { pruned: [] }
   }

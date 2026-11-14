@@ -1,14 +1,14 @@
 import { regionSummaries, REGIONS, type MemItem } from '../core/memory/brain'
 import { memAge, memReasonAdvice, type MemoryStatus } from '../core/memory/status'
 import { statSync } from 'node:fs'
+import { log } from '../engine/log'
 import { cortexdbBinary } from '../engine/toolchain/cortexdb'
 import { tilde } from '../engine/update/output'
 import { currentProject, type MemoryCtx } from './api'
 import { brainDbFile } from './layout'
-import { migrationStatus } from './migrate'
 import { memoryExcludeConfig, memoryExcludeProblemText, projectExclusion } from './project'
 import { computeStatus, writeStatus } from './status'
-import { brainExists, listAll, personRef, projectRef } from './store'
+import { brainExists, bucketCounts, listAll, personRef, projectRef } from './store'
 
 /** The one brain file: where it is, how big, and how many memories each bucket holds (retired ones included). */
 export interface BrainFileInfo { file: string, bytes: number, person: number, projects: Record<string, number> }
@@ -17,8 +17,16 @@ export async function brainFileInfo(): Promise<BrainFileInfo | undefined> {
   if (!brainExists()) return undefined
   let bytes = 0
   try { bytes = statSync(brainDbFile()).size } catch {  }
-  const s = await migrationStatus()
-  return { file: tilde(brainDbFile()), bytes, person: s.brain.person, projects: s.brain.projects }
+  let person = 0
+  let projects: Record<string, number> = {}
+  if (cortexdbBinary() !== undefined) {
+    try {
+      const counts = await bucketCounts()
+      person = counts.person
+      projects = Object.fromEntries([...counts.projects].sort((a, b) => a[0].localeCompare(b[0])))
+    } catch (e) { log('debug', 'memory: the buckets of the brain file could not be counted', { error: e }) }
+  }
+  return { file: tilde(brainDbFile()), bytes, person, projects }
 }
 
 function sizeText(bytes: number): string {
@@ -40,7 +48,7 @@ export async function memoryStatusReport(ctx: MemoryCtx, opts: { nowMs?: number 
   const now = opts.nowMs ?? Date.now()
   const slug = await currentProject(ctx)
   const bin = cortexdbBinary()
-  // A brain that cannot be read (a migration is running, CortexDB does not answer) is reported as unreadable, never as empty.
+  // A brain that cannot be read (CortexDB does not answer) is reported as unreadable, never as empty.
   let items: { project: MemItem[], person: MemItem[] } | undefined
   if (bin !== undefined) {
     try { items = { project: slug !== undefined ? await listAll(projectRef(slug)) : [], person: await listAll(personRef()) } } catch { items = undefined }
