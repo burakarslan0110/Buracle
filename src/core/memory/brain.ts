@@ -34,6 +34,10 @@ export const KIND_INFO: Readonly<Record<MemKind, MemKindInfo>> = {
 }
 
 export const MEM_KINDS = Object.keys(KIND_INFO) as MemKind[]
+/** Kinds of an older Buracle. Their records stay readable and show beside the preferences; nothing writes one any more. */
+export const READ_ONLY_KINDS: readonly MemKind[] = ['convention', 'profile']
+/** The kinds a search can be narrowed to in a tool schema: every kind something still writes. */
+export const LIVE_KINDS: readonly MemKind[] = MEM_KINDS.filter(k => !READ_ONLY_KINDS.includes(k))
 export const WRITABLE_KINDS: readonly MemKind[] = MEM_KINDS.filter(k => KIND_INFO[k].agentWritable && k !== 'core')
 export const FILE_AS_KINDS: readonly MemKind[] = WRITABLE_KINDS
 

@@ -1,6 +1,6 @@
 import { isAbsolute, relative, resolve } from 'node:path'
 import {
-  CONTRADICTED_NOTE_MAX, contradictionNote, FILE_AS_KINDS, hitLine, isMemId, isMemKind, KIND_INFO, memLocked, memoryIdFor, memProtected, rankHits, searchTerms, similarMemories, WRITABLE_KINDS,
+  CONTRADICTED_NOTE_MAX, contradictionNote, FILE_AS_KINDS, hitLine, isMemId, isMemKind, KIND_INFO, memLocked, memoryIdFor, memProtected, rankHits, READ_ONLY_KINDS, searchTerms, similarMemories, WRITABLE_KINDS,
   type MemConflict, type MemItem, type MemKind, type MemLayer, type MemOrigin,
 } from '../core/memory/brain'
 import { memAround, memFilterPath, memMatchesFilter, memMatchesWords, memNewestFirst, memPage, type MemFilter } from '../core/memory/filter'
@@ -430,6 +430,8 @@ export async function write(ctx: MemoryCtx, input: WriteInput, trusted: TrustedW
   const kindRaw = input.kind ?? input.type
   if (!isMemKind(kindRaw)) throw new MemoryError('invalid_input', `type must be one of: ${WRITABLE_KINDS.join(', ')}`)
   const kind: MemKind = kindRaw
+  // Nobody writes a convention or a profile memory any more, Buracle itself included; the stored ones stay readable.
+  if (READ_ONLY_KINDS.includes(kind)) throw new MemoryError('invalid_input', `${kind} memories come from an older Buracle and are no longer written; write a preference memory instead`)
   if (trusted.internal !== true && !WRITABLE_KINDS.includes(kind)) {
     throw new MemoryError('invalid_input', kind === 'core'
       ? 'core pages exist already (core-brief, core-architecture, …): change one with memory_update'

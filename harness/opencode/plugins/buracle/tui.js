@@ -13350,6 +13350,8 @@ var KIND_INFO = {
   capture: { region: "episodes", layers: ["project", "person"], agentWritable: false, generated: false, driftProne: false }
 };
 var MEM_KINDS = Object.keys(KIND_INFO);
+var READ_ONLY_KINDS = ["convention", "profile"];
+var LIVE_KINDS = MEM_KINDS.filter((k) => !READ_ONLY_KINDS.includes(k));
 var WRITABLE_KINDS = MEM_KINDS.filter((k) => KIND_INFO[k].agentWritable && k !== "core");
 var SESSION_KEEP_MS = 45 * 86400000;
 var HANDOFF_KEEP_MS = 14 * 86400000;

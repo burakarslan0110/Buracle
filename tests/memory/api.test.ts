@@ -111,6 +111,31 @@ describe('memory_write', () => {
     })
   })
 
+  test('a convention or a profile memory is written by nobody, Buracle included; a stored one is still found and read', async () => {
+    await withBrain(async sb => {
+      for (const [type, layer] of [['convention', 'project'], ['profile', 'person']] as const) {
+        for (const trusted of [{}, { internal: true, author: 'buracle' as const }]) {
+          const e = await write(agentCtx(sb.repo), { type, layer, title: 'Runs the tests before a commit', summary: 's', body: '' }, trusted).catch(x => x)
+          expect((e as MemoryError).code).toBe('invalid_input')
+          expect((e as MemoryError).message).toBe(`${type} memories come from an older Buracle and are no longer written; write a preference memory instead`)
+        }
+      }
+      const old = { summary: 'kept from an older Buracle', body: '', tags: [], sources: [], about: [], status: 'active' as const, review: 'ok' as const, importance: 3, created: '2026-10-01T10:00:00Z', updated: '2026-10-01T10:00:00Z', author: 'buracle' as const, version: 1, history: [] }
+      await saveItem(projectRef('demo'), { ...old, id: 'convention-commits', kind: 'convention', layer: 'project', title: 'Zebrafinch commits stay small' })
+      await saveItem(personRef(), { ...old, id: 'profile-short', kind: 'profile', layer: 'person', title: 'Zebrafinch answers stay short' })
+      const ctx = agentCtx(sb.repo)
+      expect((await search(ctx, { query: 'zebrafinch' })).rows.map(r => r.id).sort()).toEqual(['convention-commits', 'profile-short'])
+      expect((await search(ctx, { types: ['convention'] })).rows.map(r => r.id)).toEqual(['convention-commits'])
+      expect((await get(ctx, { ids: ['convention-commits', 'person/profile-short'] })).items.map(i => i.kind)).toEqual(['convention', 'profile'])
+      // Nothing is filed under one either, not even by the user.
+      const pref = await write(humanCtx(sb.repo), { type: 'preference', layer: 'project', title: 'Squash before merging here', summary: 's', body: '' })
+      for (const kind of ['convention', 'profile']) {
+        const moved = await update(humanCtx(sb.repo), { id: pref.id, patch: { move: { kind } } }).catch(x => x)
+        expect((moved as MemoryError).code).toBe('invalid_input')
+      }
+    })
+  })
+
   test('the input never carries the internal fields: an input that smuggles them in is written like any other', async () => {
     await withBrain(async sb => {
       const smuggled = (input: Record<string, unknown>) => input as unknown as WriteInput

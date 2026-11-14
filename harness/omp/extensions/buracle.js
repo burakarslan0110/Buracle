@@ -8867,6 +8867,7 @@ __export(exports_core, {
   LANE_FLOW_COMMANDS: () => LANE_FLOW_COMMANDS,
   LANE_PLAN_COMMANDS: () => LANE_PLAN_COMMANDS,
   LANE_WORKTREE_COMMANDS: () => LANE_WORKTREE_COMMANDS,
+  LIVE_KINDS: () => LIVE_KINDS,
   MCP_BACKENDS: () => MCP_BACKENDS,
   MCP_SESSION_DOWN_ERRORS: () => MCP_SESSION_DOWN_ERRORS,
   MEM_HEALTH_LIMITS: () => MEM_HEALTH_LIMITS,
@@ -8904,6 +8905,7 @@ __export(exports_core, {
   PROFILE_QUOTE_MAX: () => PROFILE_QUOTE_MAX,
   PROMPT_CONTEXT_MAX_CHARS: () => PROMPT_CONTEXT_MAX_CHARS,
   QUESTION_PAUSE_NOTE: () => QUESTION_PAUSE_NOTE,
+  READ_ONLY_KINDS: () => READ_ONLY_KINDS,
   RECEIPT_TEXT_MAX: () => RECEIPT_TEXT_MAX,
   REGIONS: () => REGIONS,
   RESTORE_RECORD_MAX_MS: () => RESTORE_RECORD_MAX_MS,
@@ -32483,6 +32485,8 @@ var KIND_INFO = {
   capture: { region: "episodes", layers: ["project", "person"], agentWritable: false, generated: false, driftProne: false }
 };
 var MEM_KINDS = Object.keys(KIND_INFO);
+var READ_ONLY_KINDS = ["convention", "profile"];
+var LIVE_KINDS = MEM_KINDS.filter((k) => !READ_ONLY_KINDS.includes(k));
 var WRITABLE_KINDS = MEM_KINDS.filter((k) => KIND_INFO[k].agentWritable && k !== "core");
 var FILE_AS_KINDS = WRITABLE_KINDS;
 var REGIONS = [

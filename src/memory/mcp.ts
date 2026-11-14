@@ -1,5 +1,5 @@
 import { HARNESSES, harnessProfile, mcpClientMatches } from '../core/harness/index'
-import { FILE_AS_KINDS, MEM_KINDS, WRITABLE_KINDS } from '../core/memory/brain'
+import { FILE_AS_KINDS, LIVE_KINDS, WRITABLE_KINDS } from '../core/memory/brain'
 import { log } from '../engine/log'
 import { watchParent } from '../engine/parent-watch'
 import {
@@ -36,7 +36,7 @@ export function toolDefinitions(): Array<Record<string, unknown>> {
           query: { type: 'string', description: 'Keywords, e.g. "cortexdb store decision". Optional when a filter or around is given' },
           searches: strings('Several keyword queries in one call; results are merged'),
           layer: { type: 'string', enum: ['project', 'person', 'all'], default: 'all' },
-          types: { type: 'array', items: { type: 'string', enum: [...MEM_KINDS] }, description: 'Only these kinds' },
+          types: { type: 'array', items: { type: 'string', enum: [...LIVE_KINDS] }, description: 'Only these kinds' },
           files: strings('Repository paths or folders (path or path:line): only memories whose sources cite one, a file inside a folder given, or a folder holding a file given'),
           tags: strings('Only memories with one of these tags'),
           about: strings('Only memories about one of these tools, libraries or concepts. The search also follows the graph from these topics, so memories linked to them come first (they still have to match the query words)'),
