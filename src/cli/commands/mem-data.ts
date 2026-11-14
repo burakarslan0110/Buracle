@@ -27,7 +27,7 @@ export async function memDataCommand(sub: 'backup' | 'restore', a: MemDataArgs):
   if (sub === 'backup') {
     if (a.has('list')) {
       const list = b.listBackups()
-      a.out({ backups: list }, list.length === 0 ? 'No backups yet: `buracle mem backup` takes one.' : list.map(m => `${m.id}  ${m.at.slice(0, 16).replace('T', ' ')}  ${m.trigger}  ${b.backupBuckets(m).join(', ')}  (${size(b.backupBytes(m))})${m.v === 1 ? '  [Buracle 0.5: restores bucket by bucket]' : ''}`).join('\n'))
+      a.out({ backups: list }, list.length === 0 ? 'No backups yet: `buracle mem backup` takes one.' : list.map(m => `${m.id}  ${m.at.slice(0, 16).replace('T', ' ')}  ${m.trigger}  ${b.backupBuckets(m).join(', ')}  (${size(b.backupBytes(m))})`).join('\n'))
       return 0
     }
     if (a.project() !== undefined || a.has('person')) {

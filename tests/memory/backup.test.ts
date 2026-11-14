@@ -1,18 +1,15 @@
 import { describe, expect, test } from 'bun:test'
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { main } from '../../src/cli/router'
 import { MemoryError, search, update, write } from '../../src/memory/api'
-import { backupBrains, backupBuckets, listBackups, maybeDailyBackup, restoreBackup, type BackupInfo } from '../../src/memory/backup'
+import { backupBrains, backupBuckets, listBackups, maybeDailyBackup, restoreBackup } from '../../src/memory/backup'
 import { CortexError, pidAlive, readerEntries } from '../../src/memory/cortex'
 import { removeDeadLocks } from '../../src/memory/housekeeping'
 import { brainBackupsDir, brainDbFile, brainHoldFile, cortexChildFile } from '../../src/memory/layout'
 import { removeProject } from '../../src/memory/project-remove'
 import { getStored, listAll, personRef, projectRef } from '../../src/memory/store'
-import { agentCtx, makeRepo, REAL_CORTEXDB, withBrain } from './helpers'
-
-// Two brain files as Buracle 0.5 wrote them (one CortexDB file per layer), for the backup of that format.
-const LEGACY_BRAIN = join(import.meta.dir, '..', 'fixtures', 'legacy-brain', 'brain')
+import { agentCtx, makeRepo, withBrain } from './helpers'
 
 async function cli(argv: string[], stdin = ''): Promise<{ code: number, out: string, err: string }> {
   let out = ''
@@ -144,26 +141,18 @@ describe('buracle mem backup and restore', () => {
     })
   })
 
-  test.skipIf(REAL_CORTEXDB)('a backup of Buracle 0.5, one copy per layer, still restores bucket by bucket', async () => {
-    await withBrain(async ({ repo }) => {
+  test('a backup folder in the format of Buracle 0.5 (one copy per layer) is not a backup any more: not listed, not restored', async () => {
+    await withBrain(async () => {
       const dir = join(brainBackupsDir(), '20261001-090000')
-      mkdirSync(join(dir, 'projects'), { recursive: true })
-      copyFileSync(join(LEGACY_BRAIN, 'person.db'), join(dir, 'person.db'))
-      copyFileSync(join(LEGACY_BRAIN, 'projects', 'demo.db'), join(dir, 'projects', 'demo.db'))
+      mkdirSync(dir, { recursive: true })
       writeFileSync(join(dir, 'backup.json'), JSON.stringify({
         v: 1, id: '20261001-090000', at: '2026-10-01T09:00:00.000Z', trigger: 'manual',
-        brains: [{ layer: 'person', file: 'person.db', bytes: 1, method: 'copy' }, { layer: 'project', project: 'demo', file: 'projects/demo.db', bytes: 1, method: 'copy' }],
+        brains: [{ layer: 'person', file: 'person.db', bytes: 1, method: 'copy' }],
       }))
-      expect(listBackups().map(m => [m.id, m.v])).toEqual([['20261001-090000', 1]])
-      expect(backupBuckets(listBackups()[0] as BackupInfo)).toEqual(['person', 'demo'])
-
-      const r = await restoreBackup('20261001-090000', { project: 'demo' })
-      expect(r.restored).toEqual([{ layer: 'project', project: 'demo', memories: 5 }])
-      expect((await search(agentCtx(repo), { query: 'cockroachdb' })).rows.map(x => x.id)).toEqual(['decision-orders-live-in-cockroachdb'])
-      expect((await getStored(projectRef('demo'), 'decision-orders-live-in-postgresql-16'))?.item.status).toBe('superseded')
-      const all = await restoreBackup('20261001-090000', { all: true })
-      expect(all.restored.map(x => x.project ?? x.layer)).toEqual(['person', 'demo'])
-      expect(await ids(personRef())).toHaveLength(3)
+      expect(listBackups()).toEqual([])
+      const e = await restoreBackup('20261001-090000', { all: true }).catch(x => x)
+      expect((e as Error).message).toContain('there is no backup 20261001-090000')
+      expect(existsSync(join(dir, 'backup.json'))).toBe(true)
     })
   })
 
