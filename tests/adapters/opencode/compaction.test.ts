@@ -68,6 +68,6 @@ describe('opencode: H06/H07 keep the compaction state of this compaction only', 
     mem.handoff = async () => undefined
     await f.trigger('session.compaction', compaction())
     expect(await restored()).not.toContain('handoff-none')
-    expect(readFileSync(join(paths.sessionDir('opencode', SID), 'opencode.json'), 'utf8')).not.toContain('handoff-none')
+    expect(JSON.parse(readFileSync(join(paths.sessionDir('opencode', SID), 'compact.json'), 'utf8'))).toEqual({ v: 1, at: expect.any(Number) })
   }))
 })

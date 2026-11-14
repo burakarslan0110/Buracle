@@ -7,7 +7,7 @@ import { projectIdentity } from '../../../src/engine/git'
 import { run } from '../../../src/engine/proc'
 import * as paths from '../../../src/engine/paths'
 import { loadState, readTelemetry, saveState, writeTelemetry } from '../../../src/workflow/session-store'
-import { loadAdapterState, saveAdapterState } from '../../../src/adapters/codex/hook-io'
+import { compactFile, saveCompact } from '../../../src/adapters/shared/pipeline/index'
 import { capabilityCardText, CONTEXT_BUDGET_BYTES, handleCodexHook, MAX_SUBAGENT_ALIASES, recordSubagentAlias, reviewReportErrors, subagentAliasesFile, type CoreFns } from '../../../src/adapters/codex/hook'
 import { fakeExe } from '../../helpers/fake-exe'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
@@ -103,6 +103,24 @@ describe('PreToolUse', () => {
     expect(await verdict(other, 'harness/codex/hooks.json')).toStartWith('Buracle H02: ')
     expect(await verdict(other, 'harness/notes.md', ctx(defaultConfig(), other))).toStartWith('Buracle H02: ')
     expect(await verdict(other, 'harness/notes.md', ctx({ ...defaultConfig(), repo: other }))).toStartWith('Buracle H02: ')
+  }), 30_000)
+
+  test('H01 buracleRepo: a shell command that writes under <repo>/harness of the Buracle checkout it runs in is denied, as on OpenCode', () => withSandbox(async ({ root }) => {
+    const mkRepo = async (name: string, pkg: string) => {
+      const dir = join(root, name)
+      mkdirSync(join(dir, 'src'), { recursive: true })
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: pkg }))
+      expect((await run(['git', 'init', '-q'], { cwd: dir })).code).toBe(0)
+      return dir
+    }
+    const buracle = await mkRepo('buracle-checkout', 'buracle')
+    const other = await mkRepo('app', 'my-app')
+    const d = deps({ ...quiet, checkBash: core.checkBash })
+    const verdict = async (command: string, cwd: string) => JSON.parse((await handleCodexHook('PreToolUse', bash(command, cwd), ctx(), d)).stdout || '{}').hookSpecificOutput?.permissionDecisionReason as string | undefined
+    expect(await verdict('echo x > harness/notes.md', buracle)).toStartWith('Buracle H01: ')
+    expect(await verdict('echo x > ../harness/notes.md', join(buracle, 'src'))).toStartWith('Buracle H01: ')
+    expect(await verdict('echo x > src/notes.md', buracle)).toBeUndefined()
+    expect(await verdict('echo x > harness/notes.md', other)).toBeUndefined()
   }), 30_000)
 
   test('SEC-1 with the real core: a relocated CLAUDE_CONFIG_DIR, and the checkout these hooks run from (from an unrelated session)', () => withSandbox(async ({ root }) => {
@@ -234,6 +252,25 @@ describe('SessionStart', () => {
     await handleCodexHook('SessionStart', payload('SessionStart', { source: 'startup', agent_id: 'a1', agent_type: 'worker' }), ctx(), d)
     expect(prepared).toEqual(['/work/app'])
   }))
+
+  test('a subagent starts with the workspace note alone: no memory context, capability card or profile warning', () => withSandbox(() => withEnv({ CODEX_HOME: '/work/profile-b' }, async () => {
+    mkdirSync(paths.stateDir(), { recursive: true })
+    writeFileSync(paths.runtimeConfigFile(), JSON.stringify({ v: 1, resolved: { codexHome: '/work/profile-a' } }))
+    const info = { cwd: '/work/app', children: [], root: '/work/app', index: { codegraph: { state: 'ready' }, semble: { state: 'ready' } } } as never
+    const d = { ...deps(quiet, memoryText(3), { CODEX_HOME: '/work/profile-b' }), workspaceInfo: async () => info }
+    const sub = { agent_id: '019a1b2c-3d4e-7f60-8a9b-0c1d2e3f4b00', agent_type: 'worker' }
+    const main = JSON.parse((await handleCodexHook('SessionStart', payload('SessionStart', { source: 'startup' }), ctx(), d)).stdout)
+    expect(main.hookSpecificOutput.additionalContext).toContain('Capability card')
+    expect(main.hookSpecificOutput.additionalContext).toContain('## Project memory: proj')
+    expect(main.systemMessage).toContain('/work/profile-a')
+    for (const event of ['SessionStart', 'SubagentStart']) {
+      const out = JSON.parse((await handleCodexHook(event, payload(event, { source: 'startup', ...sub }), ctx(), d)).stdout)
+      expect(keys(out)).toEqual(['hookSpecificOutput'])
+      expect(out.hookSpecificOutput.additionalContext).toStartWith('Project root: /work/app.')
+      expect(out.hookSpecificOutput.additionalContext).not.toContain('Capability card')
+      expect(out.hookSpecificOutput.additionalContext).not.toContain('Buracle memory')
+    }
+  })))
 
   test('H13 memory context + H15 card as additionalContext, the session record started', () => withSandbox(async ({ root }) => {
     const cwd = join(root, 'proj')
@@ -694,11 +731,10 @@ describe('compaction and session end', () => {
     })
     writeFileSync(rollout, planLine('in_progress'))
     await handleCodexHook('PreCompact', payload('PreCompact', { cwd, trigger: 'auto', transcript_path: rollout }), ctx(), d)
-    expect(loadAdapterState(ctx(), SID).lastTodos).toEqual(['Write the parser'])
+    expect(JSON.parse(readFileSync(compactFile(ctx(), 'codex', SID), 'utf8'))).toEqual({ v: 1, at: NOW, todo: ['Write the parser'] })
     writeFileSync(rollout, planLine('completed'))
     await handleCodexHook('PreCompact', payload('PreCompact', { cwd, trigger: 'auto', transcript_path: rollout }), ctx(), d)
-    expect(loadAdapterState(ctx(), SID)).toMatchObject({ lastCompactAt: NOW })
-    expect(loadAdapterState(ctx(), SID).lastTodos).toBeUndefined()
+    expect(JSON.parse(readFileSync(compactFile(ctx(), 'codex', SID), 'utf8'))).toEqual({ v: 1, at: NOW })
     const r = await handleCodexHook('SessionStart', payload('SessionStart', { cwd, source: 'compact' }), ctx(), d)
     expect(r.stdout).not.toContain('Open todos')
     expect(r.stdout).not.toContain('Write the parser')
@@ -711,14 +747,14 @@ describe('compaction and session end', () => {
     mkdirSync(cwd)
     const rollout = join(root, 'rollout.jsonl')
     writeFileSync(rollout, JSON.stringify({ type: 'response_item', payload: { type: 'function_call', name: 'update_plan', call_id: 'c1', arguments: JSON.stringify({ plan: [{ step: 'Write the parser', status: 'in_progress' }] }) } }) + '\n')
-    saveAdapterState(ctx(), SID, { v: 1, lastHandoff: 'handoff-earlier-compaction', lastCompactAt: NOW - 1000 })
+    saveCompact(ctx(), 'codex', SID, NOW - 1000, 'handoff-earlier-compaction', [])
     const during: unknown[] = []
     const d = deps({ ...quiet, handoffNote: () => ({ slug: 's', markdown: '' }) }, {
-      writeHandoff: async () => { during.push(loadAdapterState(ctx(), SID)); return { id: 'handoff-now', path: 'handoff-now', rel: 'handoff-now', title: 't' } },
+      writeHandoff: async () => { during.push(JSON.parse(readFileSync(compactFile(ctx(), 'codex', SID), 'utf8'))); return { id: 'handoff-now', path: 'handoff-now', rel: 'handoff-now', title: 't' } },
     })
     await handleCodexHook('PreCompact', payload('PreCompact', { cwd, trigger: 'auto', transcript_path: rollout }), ctx(), d)
-    expect(during).toEqual([{ v: 1, lastCompactAt: NOW, lastTodos: ['Write the parser'] }])
-    expect(loadAdapterState(ctx(), SID)).toEqual({ v: 1, lastCompactAt: NOW, lastHandoff: 'handoff-now' })
+    expect(during).toEqual([{ v: 1, at: NOW, todo: ['Write the parser'] }])
+    expect(JSON.parse(readFileSync(compactFile(ctx(), 'codex', SID), 'utf8'))).toEqual({ v: 1, at: NOW, handoff: 'handoff-now' })
   }))
 
   test('PostCompact prints nothing and spools the compaction summary from the rollout (else a marker)', () => withSandbox(async ({ root }) => {

@@ -108,7 +108,6 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
     let currentSid: string | undefined
     let statusTimerStarted = false
     let maintScheduled = false
-    let profileWarned = false
     let router: { strictness: string, data: RouterData } | undefined
 
     const report = (what: string, e: unknown, outcome: 'allowed' | 'blocked' = 'allowed') => {
@@ -317,7 +316,6 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
         ...(edit && !device ? { edits: callPaths } : {}),
       }, {
         ...d,
-        guardRepoInShell: true,
         // A reviewer's shell is read-only; a check that cannot run denies, like the guard before it.
         shellDenial: async command => {
           if (isMain(ctx)) return undefined
@@ -620,7 +618,8 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
 
     /**
      * The pipeline's sessionStart for a main session, after the end of the one it replaces. Its context is the block
-     * `before_agent_start` adds to the system prompt; the release notice goes out as omp's own message and toast.
+     * `before_agent_start` adds to the system prompt; the release notice goes out as omp's own message and toast, the
+     * profile warning as a toast.
      */
     const openSession = (sid: string, ctx: OmpContext, source: string, previous?: string): Promise<void> => {
       const m = memo(sid)
@@ -635,13 +634,18 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
           // The usage ledger is reset before the memory UI hears of the session: from there on a tool call may be counted.
           ui: { ...d.ui, started: then(d.ui.started), seen: then(d.ui.seen) },
           capabilityCard: () => card(ctx),
-          compact: { read: () => ({ recent: false }) },
           // The extension is a built copy, so the version that runs is the one baked into it.
           version: () => data.buracleVersion,
           sessionMaint: () => { scheduleMaint(ctx) },
         })
         const notice = r.notice
         m.startContext = r.context.filter(part => part !== notice?.model)
+        // The profile warning (H17) is a toast for the user; it never enters the model's context.
+        const warning = r.profile
+        if (warning !== undefined) {
+          log('warn', 'omp: H17 profile guard', { sid, warning })
+          if (hasTui(ctx)) guarded('H17 notify', () => ctx.ui.notify(warning, 'warning'))
+        }
         if (notice === undefined) return
         guarded('H17 notice', () => pi.sendMessage({ customType: NOTICE_MESSAGE_TYPE, content: notice.model, display: false }, { deliverAs: 'nextTurn' }))
         if (hasTui(ctx)) guarded('H17 notice notify', () => ctx.ui.notify(notice.user, 'info'))
@@ -735,14 +739,6 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       const m = memo(sid)
       void slugOf(sid, ctx.cwd)
       guarded('telemetry', () => writeTelemetryFor(sid, ctx))
-      // The profile warning (H17) is omp's own toast, on the first session event of the process, a resumed one too.
-      const lc = guarded('config', () => live())
-      const warning = lc !== undefined && !profileWarned ? guarded('H17 profileGuard', () => deps.profileGuard(lc)) : undefined
-      if (warning !== undefined) {
-        profileWarned = true
-        log('warn', 'omp: H17 profile guard', { sid, warning })
-        if (hasTui(ctx)) guarded('H17 notify', () => ctx.ui.notify(warning, 'warning'))
-      }
       if (hasTui(ctx)) {
         m.flow?.reset()
         refreshSoon(ctx)

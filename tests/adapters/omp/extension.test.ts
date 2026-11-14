@@ -17,7 +17,7 @@ import { fakeExe } from '../../helpers/fake-exe'
 import { withSandbox, type Sandbox } from '../../helpers/sandbox'
 import { testWhenImplemented } from '../../helpers/not-implemented'
 import { sandboxSelfPaths } from '../shared/self-paths-fixture'
-import { fakeCtx, fakeMemory, fakePi, planState, testDeps, testGenerated } from './fakes'
+import { compactRecord, fakeCtx, fakeMemory, fakePi, planState, testDeps, testGenerated } from './fakes'
 
 const SID = '01a118a8-8d01-740c-9360-f4f796699f4b'
 
@@ -492,18 +492,19 @@ describe('omp extension: session_stop (H08/H11)', () => {
 })
 
 describe('omp extension: compaction (H06/H07)', () => {
-  test('session.compacting returns plan context, writes the handoff memory and preserves its id; session_compact restores', () => withSandbox(async sb => {
+  test('session.compacting returns plan context, writes the handoff memory and records its id; session_compact restores', () => withSandbox(async sb => {
     const { fp, ctx, memory } = setup(sb, { compact: {
       compactInstructions: (_b, s) => `Keep plan ${s.plan?.slug} state`,
       handoffNote: input => ({ slug: `handoff-${input.project}-${input.branch}`, markdown: `# Handoff ${input.sessionId}\n` }),
       restoreContext: (s, handoff) => `Resume plan ${s.plan?.slug}; handoff at ${handoff}`,
     } })
     saveState('omp', SID, planState())
-    const r = await fp.emit('session.compacting', { type: 'session.compacting', sessionId: SID, messages: [] }, ctx) as { context: string[], preserveData: { buracle: Record<string, unknown> } }
+    const r = await fp.emit('session.compacting', { type: 'session.compacting', sessionId: SID, messages: [] }, ctx)
     const id = 'handoff-handoff-demo-main'
-    expect(r).toEqual({ context: ['Keep plan demo state'], preserveData: { buracle: { v: 1, sessionId: SID, plan: 'docs/plans/2026-10-08-demo.md', handoff: id } } })
+    expect(r).toEqual({ context: ['Keep plan demo state'] })
+    expect(compactRecord(SID)).toEqual({ v: 1, at: 1_791_400_000_000, handoff: id })
     expect(memory.handoffs).toEqual([{ sid: SID, cwd: ctx.cwd, slug: 'handoff-demo-main', markdown: `# Handoff ${SID}\n`, branch: 'main' }])
-    await fp.emit('session_compact', { type: 'session_compact', compactionEntry: { summary: 'We built X.', preserveData: r.preserveData }, fromExtension: false }, ctx)
+    await fp.emit('session_compact', { type: 'session_compact', compactionEntry: { summary: 'We built X.' }, fromExtension: false }, ctx)
     expect(fp.sent).toEqual([{ message: { customType: 'buracle.compact-restore', content: `Resume plan demo; handoff at ${id}`, display: false }, options: { deliverAs: 'nextTurn' } }])
     await Bun.sleep(0)
     expect(memory.spool.at(-1)).toEqual({ sid: SID, entries: [{ ts: 1_791_400_000_000, ev: 'compact', excerpt: 'We built X.' }] })
@@ -514,8 +515,8 @@ describe('omp extension: compaction (H06/H07)', () => {
     const { fp, ctx } = setup(sb, { memory: bridge, compact: { compactInstructions: () => 'x', handoffNote: () => ({ slug: 'h', markdown: '' }), restoreContext: () => 'y' } })
     expect(await fp.emit('session.compacting', { type: 'session.compacting', sessionId: SID, messages: [] }, ctx)).toBeUndefined()
     saveState('omp', SID, planState())
-    const r = await fp.emit('session.compacting', { type: 'session.compacting', sessionId: SID, messages: [] }, ctx) as { preserveData: { buracle: Record<string, unknown> } }
-    expect(r.preserveData.buracle['handoff']).toBeUndefined()
+    expect(await fp.emit('session.compacting', { type: 'session.compacting', sessionId: SID, messages: [] }, ctx)).toEqual({ context: ['x'] })
+    expect(compactRecord(SID)).toEqual({ v: 1, at: 1_791_400_000_000 })
   }))
 })
 

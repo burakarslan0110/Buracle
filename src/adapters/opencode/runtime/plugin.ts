@@ -56,7 +56,7 @@ import { answerHeld, type ConsentAskHost, type HeldAnswer } from './consent-ask'
 import { questionGrant } from './consent-question'
 import type { StopSnapshot } from './guard'
 import { CONTINUE_MARK, registry, resetChain, StopGuard } from './guard'
-import { adapterContext, compactStore, memoryFns, NO_UI, readPersisted, uiHooks, updatePersisted } from './host'
+import { adapterContext, memoryFns, NO_UI, readPersisted, uiHooks, updatePersisted } from './host'
 import { maskedError, maskedResult, masksOpencodeTool } from './mask'
 import { postNotice } from './notice-board'
 import { registerRateWindows } from './rate-windows'
@@ -448,7 +448,6 @@ export class BuracleRuntime {
       // A subagent has no memory record of its own: its tool calls are spooled in the root session.
       ...(sub ? { env: { ...d.env, BURACLE_NO_MEMORY: '1' } } : {}),
       capabilityCard: () => (s.card = this.capabilityText(s.sid)),
-      compact: compactStore(s.sid, now),
       // The plugin is a built copy, so the version that runs is the one baked into it.
       version: () => this.baked.version,
       sessionMaint: () => { this.runMaintenance() },
@@ -730,7 +729,6 @@ export class BuracleRuntime {
       ...(edit && id !== undefined ? { edits: call.paths } : {}),
     }, {
       ...this.deps(s),
-      guardRepoInShell: true,
       shellDenial: async command => reviewerShellDenial(e.agent, command),
       // OpenCode's own ask dialog cannot carry Buracle's consent options, so the TUI plugin asks; the call waits for the answer.
       holdConsent: async command => {
@@ -971,7 +969,7 @@ export class BuracleRuntime {
     })
     if (!paths.isValidSessionId(s.sid) || await this.subagentSession(s)) return
     const now = this.now()
-    await preCompact({ harness: HARNESS, sessionId: s.sid, cwd: this.cwdOf(s), now }, { ...this.deps(s), openTodos: () => s.todos ?? [], compact: compactStore(s.sid, now) })
+    await preCompact({ harness: HARNESS, sessionId: s.sid, cwd: this.cwdOf(s), now }, { ...this.deps(s), openTodos: () => s.todos ?? [] })
   }
 
   async onPrompt(e: SessionPromptEvent): Promise<void> {
@@ -1115,6 +1113,14 @@ export class BuracleRuntime {
       }
       case 'session.synthetic': {
         const key = backgroundEnd(data['metadata'])
+        if (key !== undefined) this.sessions.get(sid)?.background?.delete(key)
+        return
+      }
+      // A background subagent's end reaches the parent session as a synthetic inbox item (OpenCode 2.3.0), so the
+      // record is cleared also when this plugin never saw the child session created.
+      case 'session.inbox.enqueued': {
+        const item = asRecord(data['item'])
+        const key = item['type'] === 'synthetic' ? backgroundEnd(asRecord(item['payload'])['metadata']) : undefined
         if (key !== undefined) this.sessions.get(sid)?.background?.delete(key)
         return
       }

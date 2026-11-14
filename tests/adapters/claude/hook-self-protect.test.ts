@@ -7,6 +7,8 @@ import { hookBundle } from '../../../src/cli/hook-data'
 import type { CanonicalBundle } from '../../../src/core/catalog'
 import { defaultConfig } from '../../../src/core/config'
 import * as paths from '../../../src/engine/paths'
+import { run } from '../../../src/engine/proc'
+import { loadLedger } from '../../../src/workflow/ledger'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
 
 const NOW = 1_800_000_000_000
@@ -93,14 +95,15 @@ describe('G12: MCP calls that name a file they write go through H02', () => {
     expect(denied(await claudeHook('PreToolUse', pre(heap, { filePath: join(proj, 'heap.heapsnapshot') }, proj), ctx(), real()))).toBeUndefined()
   }), 20_000)
 
-  test('a server Buracle does not install is judged too, and only by H02 (no usage ledger, no routing)', () => withSandbox(async ({ root, home }) => {
+  test('a server Buracle does not install is judged too, by H02 alone (no routing); its allowed calls are counted like every tool call', () => withSandbox(async ({ root, home }) => {
     const proj = join(root, 'proj')
     mkdirSync(proj, { recursive: true })
     expect(denied(await claudeHook('PreToolUse', pre('mcp__myfiles__save_file', { path: join(home, '.ssh', 'authorized_keys'), content: 'x' }, proj), ctx(), real()))).toStartWith('Buracle H02: ')
     expect(denied(await claudeHook('PreToolUse', pre('mcp__claude_ai_Docs__export', { outputPath: join(home, '.claude', 'settings.json') }, proj), ctx(), real()))).toContain("Claude Code's own configuration")
     expect(await claudeHook('PreToolUse', pre('mcp__myfiles__save_file', { path: join(proj, 'notes.md'), content: 'x' }, proj), ctx(), real())).toEqual({ stdout: '', exitCode: 0 })
     expect(await claudeHook('PreToolUse', pre('mcp__myfiles__list', {}, proj), ctx(), real())).toEqual({ stdout: '', exitCode: 0 })
-    expect(existsSync(join(paths.sessionDir('claude', SID), 'ledger.json'))).toBe(false)
+    expect(existsSync(join(paths.sessionDir('claude', SID), 'ledger.json'))).toBe(true)
+    expect(loadLedger('claude', SID).turnTools.calls).toBe(2)
   }), 20_000)
 
   test('read-only servers are not judged; a throwing guard fails closed', () => withSandbox(async ({ root }) => {
@@ -155,5 +158,24 @@ describe('H01 meets the write context shell writes are judged with (task W1.1)',
     })
     expect(denied(await claudeHook('PreToolUse', pre('Bash', { command: 'echo x > secrets/a.txt' }, proj), ctx(config), real()))).toContain('guards.write.protect')
     expect(denied(await claudeHook('PreToolUse', pre('Bash', { command: 'echo x > notes/a.txt' }, proj), ctx(config), real()))).toBeUndefined()
+  }), 20_000)
+})
+
+describe('H01: the shell guard protects the Buracle checkout the command runs in', () => {
+  test('a command that writes under <repo>/harness is denied inside a Buracle checkout, as on OpenCode, and passes elsewhere', () => withSandbox(async ({ root }) => {
+    const mkRepo = async (name: string, pkg: string) => {
+      const dir = join(root, name)
+      mkdirSync(join(dir, 'src'), { recursive: true })
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: pkg }))
+      expect((await run(['git', 'init', '-q'], { cwd: dir })).code).toBe(0)
+      return dir
+    }
+    const buracle = await mkRepo('buracle-clone', 'buracle')
+    const other = await mkRepo('app', 'my-app')
+    const sh = async (command: string, cwd: string) => denied(await claudeHook('PreToolUse', pre('Bash', { command }, cwd), ctx(), real()))
+    expect(await sh('echo x > harness/notes.md', buracle)).toStartWith('Buracle H01: ')
+    expect(await sh('echo x > ../harness/notes.md', join(buracle, 'src'))).toContain('buracle build')
+    expect(await sh('echo x > src/notes.md', buracle)).toBeUndefined()
+    expect(await sh('echo x > harness/notes.md', other)).toBeUndefined()
   }), 20_000)
 })

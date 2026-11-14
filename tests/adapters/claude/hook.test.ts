@@ -2,10 +2,11 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
-  FALLBACK_SPOOL_SUFFIX, claudeHook, defaultHookDeps, handoffRecordPath, readHealth, reviewNote, runawayNotice,
+  FALLBACK_SPOOL_SUFFIX, claudeHook, defaultHookDeps, readHealth, reviewNote, runawayNotice,
   type HookCore, type HookDeps,
 } from '../../../src/adapters/claude/hook'
 import type { AdapterContext } from '../../../src/adapters/registry'
+import { compactFile } from '../../../src/adapters/shared/pipeline/index'
 import { hookBundle } from '../../../src/cli/hook-data'
 import type { BuracleConfig } from '../../../src/core/config'
 import { defaultConfig } from '../../../src/core/config'
@@ -437,7 +438,7 @@ describe('PreCompact (H06) and SessionStart compact (H07)', () => {
       expect(await claudeHook('PreCompact', fixture('precompact.json'), ctxWith(), d)).toEqual(QUIET)
       expect(inputs).toEqual([{ harness: 'claude', sessionId: SID, cwd: '/tmp/project', project: 'demo', branch: 'main', slug: note.slug, markdown: note.markdown, trigger: 'auto', now: NOW }])
       expect(noteInput).toMatchObject({ project: 'demo', harness: 'claude', sessionId: SID, branch: 'main', now: NOW, state: freshState() })
-      expect(JSON.parse(readFileSync(handoffRecordPath(SID), 'utf8'))).toEqual({ path: 'handoff-2026-10-08-handoff-x', at: NOW })
+      expect(JSON.parse(readFileSync(compactFile({ paths }, 'claude', SID), 'utf8'))).toEqual({ v: 1, at: NOW, handoff: 'handoff-2026-10-08-handoff-x' })
 
       let restoreArgs: unknown[] = []
       const r = await claudeHook('SessionStart', fixture('sessionstart-compact.json'), ctxWith(), deps({}, {
@@ -455,8 +456,8 @@ describe('PreCompact (H06) and SessionStart compact (H07)', () => {
 
   test('a record from an older Buracle (a vault file path) is never offered as a handoff id', async () => {
     await withSandbox(async () => {
-      mkdirSync(join(handoffRecordPath(SID), '..'), { recursive: true })
-      writeFileSync(handoffRecordPath(SID), JSON.stringify({ path: '/home/u/Documents/Buracle/projects/demo/handoffs/h.md', at: NOW }))
+      mkdirSync(join(compactFile({ paths }, 'claude', SID), '..'), { recursive: true })
+      writeFileSync(compactFile({ paths }, 'claude', SID), JSON.stringify({ v: 1, at: NOW, handoff: '/home/u/Documents/Buracle/projects/demo/handoffs/h.md' }))
       let handoff: unknown = 'unset'
       await claudeHook('SessionStart', fixture('sessionstart-compact.json'), ctxWith(), deps({}, { restoreContext: (_s, h) => { handoff = h; return undefined } }))
       expect(handoff).toBeUndefined()
@@ -467,12 +468,12 @@ describe('PreCompact (H06) and SessionStart compact (H07)', () => {
     await withSandbox(async sb => {
       await claudeHook('PreCompact', fixture('precompact.json'), ctxWith(), deps({}, { handoffNote: () => note }))
       expect(existsSync(join(sb.home, 'Documents'))).toBe(false)
-      expect(JSON.parse(readFileSync(handoffRecordPath(SID), 'utf8'))).toEqual({ at: NOW })
+      expect(JSON.parse(readFileSync(compactFile({ paths }, 'claude', SID), 'utf8'))).toEqual({ v: 1, at: NOW })
 
       const inputs: unknown[] = []
       await claudeHook('PreCompact', fixture('precompact.json'), ctxWith(), deps({ env: n => (n === 'BURACLE_NO_MEMORY' ? '1' : undefined), importModule: async n => (n === 'handoff' ? writer(inputs) : undefined) }))
       expect(inputs).toEqual([])
-      expect(JSON.parse(readFileSync(handoffRecordPath(SID), 'utf8'))).toEqual({ at: NOW })
+      expect(JSON.parse(readFileSync(compactFile({ paths }, 'claude', SID), 'utf8'))).toEqual({ v: 1, at: NOW })
     })
   })
 
@@ -495,7 +496,7 @@ describe('PreCompact (H06) and SessionStart compact (H07)', () => {
       await claudeHook('PostToolUse', fixture('precompact.json', { hook_event_name: 'PostToolUse', tool_name: 'TodoWrite', tool_input: { todos: [{ content: 'write the parser', status: 'in_progress' }, { content: 'old', status: 'completed' }] }, tool_response: {} }), ctxWith(), deps())
       const failing = { writeHandoff: async () => undefined }
       await claudeHook('PreCompact', fixture('precompact.json'), ctxWith(), deps({ importModule: async n => (n === 'handoff' ? failing : undefined) }, { handoffNote: () => note }))
-      expect(JSON.parse(readFileSync(handoffRecordPath(SID), 'utf8'))).toEqual({ todo: ['write the parser'], at: NOW })
+      expect(JSON.parse(readFileSync(compactFile({ paths }, 'claude', SID), 'utf8'))).toEqual({ v: 1, at: NOW, todo: ['write the parser'] })
       const asked: unknown[] = []
       const mem = { latestHandoff: async (o: unknown) => { asked.push(o); return undefined } }
       const r = await claudeHook('SessionStart', fixture('sessionstart-compact.json'), ctxWith(), deps({ importModule: async n => (n === 'handoff' ? mem : undefined) }, { restoreContext: defaultHookDeps.core.restoreContext }))
@@ -511,10 +512,10 @@ describe('PreCompact (H06) and SessionStart compact (H07)', () => {
       const todos = (status: string) => fixture('precompact.json', { hook_event_name: 'PostToolUse', tool_name: 'TodoWrite', tool_input: { todos: [{ content: 'write the parser', status }] }, tool_response: {} })
       await claudeHook('PostToolUse', todos('in_progress'), ctxWith(), deps())
       await claudeHook('PreCompact', fixture('precompact.json'), ctxWith(), deps({ importModule: async n => (n === 'handoff' ? failing : undefined) }, { handoffNote: () => note }))
-      expect(JSON.parse(readFileSync(handoffRecordPath(SID), 'utf8'))).toEqual({ todo: ['write the parser'], at: NOW })
+      expect(JSON.parse(readFileSync(compactFile({ paths }, 'claude', SID), 'utf8'))).toEqual({ v: 1, at: NOW, todo: ['write the parser'] })
       await claudeHook('PostToolUse', todos('completed'), ctxWith(), deps())
       await claudeHook('PreCompact', fixture('precompact.json'), ctxWith(), deps({ importModule: async n => (n === 'handoff' ? failing : undefined) }, { handoffNote: () => note }))
-      expect(JSON.parse(readFileSync(handoffRecordPath(SID), 'utf8'))).toEqual({ at: NOW })
+      expect(JSON.parse(readFileSync(compactFile({ paths }, 'claude', SID), 'utf8'))).toEqual({ v: 1, at: NOW })
       const asked: unknown[] = []
       const mem = { latestHandoff: async (o: unknown) => { asked.push(o); return { id: 'handoff-earlier-compaction', path: 'handoff-earlier-compaction', rel: 'handoff-earlier-compaction', title: 'h' } } }
       const r = await claudeHook('SessionStart', fixture('sessionstart-compact.json'), ctxWith(), deps({ importModule: async n => (n === 'handoff' ? mem : undefined) }, { restoreContext: defaultHookDeps.core.restoreContext }))
@@ -527,14 +528,14 @@ describe('PreCompact (H06) and SessionStart compact (H07)', () => {
 
   test('the record is replaced before the handoff is written, so a hook killed during the write leaves this compaction\'s todos', async () => {
     await withSandbox(async () => {
-      mkdirSync(join(handoffRecordPath(SID), '..'), { recursive: true })
-      writeFileSync(handoffRecordPath(SID), JSON.stringify({ path: 'handoff-earlier-compaction', at: NOW - 1000 }))
+      mkdirSync(join(compactFile({ paths }, 'claude', SID), '..'), { recursive: true })
+      writeFileSync(compactFile({ paths }, 'claude', SID), JSON.stringify({ v: 1, at: NOW - 1000, handoff: 'handoff-earlier-compaction' }))
       await claudeHook('PostToolUse', fixture('precompact.json', { hook_event_name: 'PostToolUse', tool_name: 'TodoWrite', tool_input: { todos: [{ content: 'write the parser', status: 'in_progress' }] }, tool_response: {} }), ctxWith(), deps())
       const during: unknown[] = []
-      const slow = { writeHandoff: async () => { during.push(JSON.parse(readFileSync(handoffRecordPath(SID), 'utf8'))); return { id: 'handoff-now', path: 'handoff-now', rel: 'handoff-now', title: 'h' } } }
+      const slow = { writeHandoff: async () => { during.push(JSON.parse(readFileSync(compactFile({ paths }, 'claude', SID), 'utf8'))); return { id: 'handoff-now', path: 'handoff-now', rel: 'handoff-now', title: 'h' } } }
       await claudeHook('PreCompact', fixture('precompact.json'), ctxWith(), deps({ importModule: async n => (n === 'handoff' ? slow : undefined) }, { handoffNote: () => note }))
-      expect(during).toEqual([{ todo: ['write the parser'], at: NOW }])
-      expect(JSON.parse(readFileSync(handoffRecordPath(SID), 'utf8'))).toEqual({ path: 'handoff-now', at: NOW })
+      expect(during).toEqual([{ v: 1, at: NOW, todo: ['write the parser'] }])
+      expect(JSON.parse(readFileSync(compactFile({ paths }, 'claude', SID), 'utf8'))).toEqual({ v: 1, at: NOW, handoff: 'handoff-now' })
     })
   })
 

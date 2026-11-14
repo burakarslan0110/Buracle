@@ -280,6 +280,24 @@ describe('SessionStart and SubagentStart: H21 workspace lines, H24 ledger reset'
       expect(context(other.stdout)).toContain('Project root:')
     })
   })
+
+  test('a subagent starts with the workspace lines alone, at SubagentStart and at a SessionStart that names an agent: no capability card, no memory index', async () => {
+    await withSandbox(async sb => {
+      saveWorkspace(SID, info(sb.root))
+      const loaded: string[] = []
+      const d = deps({ refreshWorkspace: i => i, importModule: async name => { loaded.push(name); return name === 'context' ? { contextText: async () => 'the memory index' } : undefined } })
+      for (const event of ['SubagentStart', 'SessionStart']) {
+        const text = context((await claudeHook(event, payload(event, { source: 'startup', cwd: sb.root, agent_id: 'a1', agent_type: 'Explore' }), ctx(), d)).stdout)
+        expect(text).toStartWith(`Project root: ${sb.root}.`)
+        expect(text).not.toContain('Buracle capabilities')
+        expect(text).not.toContain('the memory index')
+      }
+      expect(loaded).not.toContain('context')
+      const main = context((await claudeHook('SessionStart', payload('SessionStart', { source: 'startup', cwd: sb.root }), ctx(), deps({ prepareWorkspace: async () => info(sb.root), importModule: d.importModule! }))).stdout)
+      expect(main).toContain('Buracle capabilities (Claude Code)')
+      expect(main).toContain('the memory index')
+    })
+  })
 })
 
 describe('UserPromptExpansion and UserPromptSubmit: H25 flow, H22 router, H24 ledger, H26 signals, the permission mode', () => {
@@ -475,11 +493,29 @@ describe('PreToolUse: H24 ledger, the H03 deny-once gates and the semble/codegra
     })
   })
 
-  test('a Skill call is recorded as a load; tools outside the matcher stay untouched', async () => {
+  test('a Skill call is recorded as a load; a tool outside the matcher gets no output', async () => {
     await withSandbox(async () => {
       expect((await claudeHook('PreToolUse', payload('PreToolUse', { tool_name: 'Skill', tool_input: { skill: 'buracle:research', args: 'bun 1.4' } }), ctx(), deps())).stdout).toBe('')
       expect(loadLedger('claude', SID).skills['research']?.n).toBe(1)
       expect((await claudeHook('PreToolUse', payload('PreToolUse', { tool_name: 'Agent', tool_input: { prompt: 'x' } }), ctx(), deps())).stdout).toBe('')
+    })
+  })
+
+  test('H24 counts every tool call the hook receives, as on the other harnesses: no selection by tool name', async () => {
+    await withSandbox(async sb => {
+      const proj = project(sb.root)
+      const calls: Array<[string, Record<string, unknown>]> = [
+        ['Bash', { command: 'ls' }], ['Edit', { file_path: join(proj, 'a.ts'), old_string: 'a', new_string: 'b' }], ['Glob', { pattern: '*.md' }],
+        ['NotebookEdit', { notebook_path: join(proj, 'n.ipynb'), new_source: 'x' }],
+        ['AskUserQuestion', { questions: [] }], ['mcp__myfiles__list', {}], ['Agent', { prompt: 'x' }],
+      ]
+      let n = 0
+      for (const [tool_name, tool_input] of calls) {
+        const r = await claudeHook('PreToolUse', payload('PreToolUse', { cwd: proj, tool_name, tool_input }), ctx(), deps())
+        expect({ tool_name, denied: decision(r.stdout).permissionDecision === 'deny' }).toEqual({ tool_name, denied: false })
+        expect({ tool_name, calls: loadLedger('claude', SID).turnTools.calls }).toEqual({ tool_name, calls: ++n })
+      }
+      expect(loadLedger('claude', SID).mcp['myfiles']?.n).toBe(1)
     })
   })
 })

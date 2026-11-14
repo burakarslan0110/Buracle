@@ -56,8 +56,6 @@ export interface PipelineDeps {
   spoolSuffix?: string
   realpath?(p: string): string | undefined
   buracleRepo?(cwd: string, ctx: AdapterContext): Promise<string | undefined>
-  /** The bash guard (H01) also protects the Buracle repository the command runs in. */
-  guardRepoInShell?: boolean
   assetsSpawn?: AssetsSpawner
 }
 
@@ -130,6 +128,9 @@ export function guardFailed(hook: 'H01' | 'H02', e: unknown): string {
   const what = hook === 'H01' ? 'bash guard could not check this command' : 'write guard could not check the files of this edit'
   return denyReason(hook, `the ${what} (${errText(e)}), so the call is blocked: Buracle's guards fail closed. Ask the user to run it themselves, or have them check \`buracle doctor\`.`)
 }
+
+/** The denial of a second-opinion fence that could not run; it fails closed like the guards. */
+export const FENCE_FAILED = denyReason('H01', 'the read-only check of this second-opinion review failed, so the call was blocked.')
 
 export function byteLength(s: string): number {
   return new TextEncoder().encode(s).length

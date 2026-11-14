@@ -7703,20 +7703,20 @@ var init_hook_fail = () => {};
 
 // src/engine/update/runtime.ts
 import { chmodSync as chmodSync2, cpSync, existsSync as existsSync13, mkdirSync as mkdirSync13, readFileSync as readFileSync23, readdirSync as readdirSync12, renameSync as renameSync3, rmSync as rmSync5, statSync as statSync24, writeFileSync as writeFileSync2 } from "fs";
-import { basename as basename8, dirname as dirname15, join as join36, relative as relative4, resolve as resolve20, sep as sep5 } from "path";
+import { basename as basename8, dirname as dirname15, join as join37, relative as relative4, resolve as resolve20, sep as sep5 } from "path";
 function runtimeFiles(checkout) {
   const out = [];
   const walk = (rel) => {
     let entries;
     try {
-      entries = readdirSync12(join36(checkout, rel), { withFileTypes: true });
+      entries = readdirSync12(join37(checkout, rel), { withFileTypes: true });
     } catch {
       return;
     }
     for (const e of entries) {
       if (SKIP_NAMES.has(e.name))
         continue;
-      const r = join36(rel, e.name);
+      const r = join37(rel, e.name);
       if (e.isDirectory())
         walk(r);
       else if (e.isFile())
@@ -7726,7 +7726,7 @@ function runtimeFiles(checkout) {
   for (const d of RUNTIME_DIRS)
     walk(d);
   for (const f of RUNTIME_FILES)
-    if (existsSync13(join36(checkout, f)))
+    if (existsSync13(join37(checkout, f)))
       out.push(f);
   return out.map((p) => p.split(sep5).join("/")).sort();
 }
@@ -7749,12 +7749,12 @@ function depsOf(pkg) {
   return out;
 }
 function runtimePackages(checkout) {
-  const root = readJson(join36(checkout, "package.json"));
+  const root = readJson(join37(checkout, "package.json"));
   if (root === undefined)
-    return { error: `${join36(checkout, "package.json")} cannot be read` };
+    return { error: `${join37(checkout, "package.json")} cannot be read` };
   let lock = "";
   try {
-    lock = readFileSync23(join36(checkout, "bun.lock"), "utf8");
+    lock = readFileSync23(join37(checkout, "bun.lock"), "utf8");
   } catch {}
   const locked = (name) => {
     const esc = name.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
@@ -7767,8 +7767,8 @@ function runtimePackages(checkout) {
     const [name, want] = queue.shift();
     if (found.has(name))
       continue;
-    const dir = join36(checkout, "node_modules", ...name.split("/"));
-    const pkg = readJson(join36(dir, "package.json"));
+    const dir = join37(checkout, "node_modules", ...name.split("/"));
+    const pkg = readJson(join37(dir, "package.json"));
     const have = typeof pkg?.["version"] === "string" ? pkg["version"] : undefined;
     if (have === undefined) {
       problems.push(`${name} is not installed`);
@@ -7793,7 +7793,7 @@ function fileEntry(rel, content, mode) {
 function checkoutFingerprint(checkout, deps) {
   const parts = [];
   for (const rel of runtimeFiles(checkout)) {
-    const abs = join36(checkout, rel);
+    const abs = join37(checkout, rel);
     try {
       parts.push(fileEntry(rel, readFileSync23(abs), statSync24(abs).mode));
     } catch {
@@ -7811,7 +7811,7 @@ function runtimeDirFingerprint(dir) {
   return "error" in pk ? undefined : checkoutFingerprint(dir, pk.deps);
 }
 function readMarker(dir) {
-  const m = readJson(join36(dir, RUNTIME_MARKER));
+  const m = readJson(join37(dir, RUNTIME_MARKER));
   if (m === undefined || m["v"] !== 1 || typeof m["id"] !== "string" || typeof m["fingerprint"] !== "string" || typeof m["checkout"] !== "string")
     return;
   return m;
@@ -8068,6 +8068,21 @@ __export(exports_policy, {
   validateSkillTriggers: () => validateSkillTriggers,
   visitShellCommands: () => visitShellCommands,
   withOffServers: () => withOffServers
+});
+
+// src/core/compact.ts
+var exports_compact = {};
+__export(exports_compact, {
+  COMPACT_MARKER: () => COMPACT_MARKER,
+  HANDOFF_GENERATED_BY: () => HANDOFF_GENERATED_BY,
+  RESTORE_RECORD_MAX_MS: () => RESTORE_RECORD_MAX_MS,
+  RESTORE_TODOS_MAX: () => RESTORE_TODOS_MAX,
+  compactInstructions: () => compactInstructions,
+  compactInstructionsWith: () => compactInstructionsWith,
+  compactPrompt: () => compactPrompt,
+  handoffNote: () => handoffNote,
+  handoffNoteLocal: () => handoffNoteLocal,
+  restoreContext: () => restoreContext
 });
 
 // src/core/index.ts
@@ -8730,21 +8745,6 @@ __export(exports_plan, {
   withNativeBinding: () => withNativeBinding,
   withNote: () => withNote,
   withoutNativeBinding: () => withoutNativeBinding
-});
-
-// src/core/compact.ts
-var exports_compact = {};
-__export(exports_compact, {
-  COMPACT_MARKER: () => COMPACT_MARKER,
-  HANDOFF_GENERATED_BY: () => HANDOFF_GENERATED_BY,
-  RESTORE_RECORD_MAX_MS: () => RESTORE_RECORD_MAX_MS,
-  RESTORE_TODOS_MAX: () => RESTORE_TODOS_MAX,
-  compactInstructions: () => compactInstructions,
-  compactInstructionsWith: () => compactInstructionsWith,
-  compactPrompt: () => compactPrompt,
-  handoffNote: () => handoffNote,
-  handoffNoteLocal: () => handoffNoteLocal,
-  restoreContext: () => restoreContext
 });
 
 // src/core/checkers.ts
@@ -21149,6 +21149,7 @@ function guardFailed(hook, e) {
   const what = hook === "H01" ? "bash guard could not check this command" : "write guard could not check the files of this edit";
   return denyReason(hook, `the ${what} (${errText(e)}), so the call is blocked: Buracle's guards fail closed. Ask the user to run it themselves, or have them check \`buracle doctor\`.`);
 }
+var FENCE_FAILED = denyReason("H01", "the read-only check of this second-opinion review failed, so the call was blocked.");
 function byteLength(s) {
   return new TextEncoder().encode(s).length;
 }
@@ -26288,73 +26289,44 @@ function assetsAfterEdit(rootIn, files, o) {
   }
 }
 
-// src/adapters/shared/pipeline/session-start.ts
-var MEMORY_CLIP_NOTE = `
-\u2026 (truncated; use memory_search)`;
-async function workspaceStart(input, d) {
-  const { sessionId: sid, cwd, now } = input;
-  const w = d.workspace;
-  let info;
-  if (input.subagent === true) {
-    const saved = readWorkspace(d.ctx, d.harness, sid);
-    info = saved !== undefined && w.refreshWorkspace !== undefined && saved.cwd === canonicalDir2(cwd) ? w.refreshWorkspace(saved, d.ctx, now) : await w.workspaceInfo?.(cwd, d.ctx, now);
-  } else {
-    info = await w.prepareWorkspace?.(cwd, d.ctx, now);
-    if (info !== undefined)
-      saveWorkspace(d.ctx, d.harness, sid, info);
-  }
-  return info !== undefined ? d.core.workspaceContext(info, d.harness) : "";
-}
-async function compactRestore(input, d) {
-  const { sessionId: sid, cwd, now } = input;
-  const own = d.compact.read(now);
-  const todo = own.handoff === undefined && (own.todo?.length ?? 0) > 0 ? own.todo : undefined;
-  const handoff = own.handoff ?? (todo === undefined && !own.recent && !memoryOff(d) ? await latestHandoffId(d, sid, cwd, now) : undefined);
-  return d.core.restoreContext(loadState(d.harness, sid), handoff, todo) ?? "";
-}
-async function sessionStart(input, d) {
-  const { harness: H, sessionId: sid, cwd, source, now } = input;
-  const sub = input.subagent === true;
-  if (source !== "compact" && !captureOff(d)) {
-    await d.step("H14 session record", undefined, async () => {
-      await (await d.memory("sessionStart"))?.(H, sid, cwd, input.model !== undefined ? { nowMs: now, model: input.model } : { nowMs: now });
-    });
-  }
-  if (!sub && (source === "startup" || source === "clear"))
-    await d.step("H24 ledger reset", undefined, () => {
-      resetLedger(H, sid);
-    });
-  if (!sub)
-    await d.step("H14 memory UI", undefined, () => source === "compact" ? d.ui.seen(H, sid, now) : d.ui.started(H, sid, now));
-  const workspace = await d.step("H21 workspace", "", () => workspaceStart(input, d));
-  const assets = sub ? "" : await d.step("H28 project assets", "", () => assetsSessionStart(readWorkspace(d.ctx, H, sid)?.root, H, assetsOptions(now, d.assetsSpawn)));
-  const card = await d.step("H15 capability card", "", () => d.capabilityCard());
-  const restored = source === "compact" ? await d.step("H07 restore", "", () => compactRestore(input, d)) : "";
-  const notice = source === "startup" && !sub && !noticesOff(d.hostEnv ?? d.env) ? await d.step("H17 notices", undefined, () => startupNotices(d.ctx.canonical.notices, { version: d.version !== undefined ? d.version() : runtimeVersion(d.ctx.repoRoot), nowMs: now, harness: H })) : undefined;
-  const profile = source !== "startup" ? undefined : await d.step("H17 profile guard", undefined, () => {
-    const r = readJsonSafeSync(d.ctx.paths.runtimeConfigFile());
-    return profileGuard(H, r.ok ? r.value : undefined, d.hostEnv ?? d.env);
-  });
-  const before = [profile !== undefined ? d.profileNote?.(profile) ?? "" : "", restored, notice?.model ?? "", workspace, assets, ...d.extraContext ?? []];
-  const room = CONTEXT_BUDGET_BYTES - byteLength([...before, card].filter((s) => s.trim() !== "").join(`
+// src/adapters/shared/pipeline/pre-compact.ts
+import { join as join13 } from "path";
 
-`)) - 64;
-  const memory = room <= 400 || memoryOff(d) ? "" : await d.step("H13 memory context", "", async () => {
-    const text = (await (await d.memory("contextText"))?.({ cwd, harness: H, nowMs: now, maxBytes: room }))?.trim() ?? "";
-    return clipBytes(text, room, MEMORY_CLIP_NOTE);
-  });
-  if (source === "startup")
-    await d.step("H16 session maintenance", undefined, () => {
-      (d.sessionMaint ?? ((n, keep) => {
-        sessionMaint(H, n, { keep });
-      }))(now, [sid]);
-    });
-  return {
-    context: [...before, memory, card].filter((s) => s.trim() !== ""),
-    ...notice !== undefined ? { notice } : {},
-    ...profile !== undefined ? { profile } : {}
-  };
+// src/core/memory/note.ts
+var SLUG_RE = /^[a-z0-9][a-z0-9-]{0,79}$/;
+function memIsSlug(v) {
+  return typeof v === "string" && SLUG_RE.test(v);
 }
+function parseNote(markdown) {
+  const parsed = parseFrontmatter(markdown.replace(/\r\n/g, `
+`));
+  return { fm: parsed.data, body: parsed.body };
+}
+function pad(n, w = 2) {
+  return String(n).padStart(w, "0");
+}
+function memLocalParts(ms, offsetMin) {
+  const t = new Date(ms + offsetMin * 60000);
+  return { y: t.getUTCFullYear(), mo: t.getUTCMonth() + 1, d: t.getUTCDate(), h: t.getUTCHours(), mi: t.getUTCMinutes(), s: t.getUTCSeconds() };
+}
+function memIsoLocal(ms, offsetMin) {
+  const p = memLocalParts(ms, offsetMin);
+  const sign = offsetMin < 0 ? "-" : "+";
+  const abs = Math.abs(offsetMin);
+  return `${p.y}-${pad(p.mo)}-${pad(p.d)}T${pad(p.h)}:${pad(p.mi)}:${pad(p.s)}${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
+}
+function memLocalDate(ms, offsetMin) {
+  const p = memLocalParts(ms, offsetMin);
+  return `${p.y}-${pad(p.mo)}-${pad(p.d)}`;
+}
+function memLocalTime(ms, offsetMin) {
+  const p = memLocalParts(ms, offsetMin);
+  return `${pad(p.h)}:${pad(p.mi)}`;
+}
+function memNoteHarness(h) {
+  return h === "claude" ? "claude-code" : h;
+}
+
 // src/core/memory/text.ts
 var TR_FOLD = {
   "\u011F": "g",
@@ -26860,6 +26832,460 @@ function redactClip(text, max) {
   return { text: clipped, count: r.count, kinds: r.kinds };
 }
 
+// src/core/plan/reviews.ts
+var REVIEW_ROLES = ["plan", "changes", "goal"];
+var REVIEW_VERDICTS = ["pass", "needs_changes", "incomplete"];
+var REVIEW_AGENT_OF = { plan: "plan-build-review", changes: "changes-review", goal: "goal-build-review" };
+var REVIEW_FILES_MAX = 2000;
+var REVIEWS_MAX = 12;
+var LABEL_MAX = 120;
+function clean(x) {
+  if (typeof x !== "string")
+    return;
+  const t = x.replace(/\s+/g, " ").trim();
+  return t === "" ? undefined : t.slice(0, LABEL_MAX);
+}
+function isRecord2(x) {
+  if (x === null || typeof x !== "object")
+    return false;
+  const r = x;
+  return REVIEW_ROLES.includes(r["role"]) && typeof r["plan"] === "string" && (r["state"] === "running" || r["state"] === "collected") && typeof r["startedAt"] === "number";
+}
+function reviewRecords(state) {
+  const list = state?.reviews;
+  return Array.isArray(list) ? list.filter(isRecord2) : [];
+}
+function planReviews(state) {
+  const p = state?.plan;
+  return p === undefined ? [] : reviewRecords(state).filter((r) => r.plan === p.path);
+}
+function reviewOf(state, role) {
+  return planReviews(state).find((r) => r.role === role && r.companion !== true);
+}
+function companionOf(state, role) {
+  return planReviews(state).find((r) => r.role === role && r.companion === true);
+}
+function sameSlot(a, b) {
+  return a.plan === b.plan && a.role === b.role && a.companion === true === (b.companion === true);
+}
+function withRecord(state, rec) {
+  const kept = reviewRecords(state).filter((r) => !sameSlot(r, rec));
+  return { ...state, reviews: [...kept, rec].slice(-REVIEWS_MAX) };
+}
+function reviewStarted(state, o, now) {
+  const p = state?.plan;
+  if (p === undefined || !REVIEW_ROLES.includes(o.role))
+    return state;
+  const rec = { role: o.role, plan: p.path, state: "running", startedAt: now };
+  const handle = clean(o.handle);
+  const provider = clean(o.provider);
+  if (handle !== undefined)
+    rec.handle = handle;
+  if (provider !== undefined)
+    rec.provider = provider;
+  if (o.companion === true)
+    rec.companion = true;
+  return withRecord(state, rec);
+}
+function reviewCollected(state, o, now) {
+  const p = state?.plan;
+  if (p === undefined || !REVIEW_ROLES.includes(o.role) || !REVIEW_VERDICTS.includes(o.verdict))
+    return state;
+  const prev = o.companion === true ? companionOf(state, o.role) : reviewOf(state, o.role);
+  const rec = { role: o.role, plan: p.path, state: "collected", startedAt: prev?.startedAt ?? now, collectedAt: now, verdict: o.verdict, fingerprint: o.fingerprint };
+  if (prev?.handle !== undefined)
+    rec.handle = prev.handle;
+  if (prev?.provider !== undefined)
+    rec.provider = prev.provider;
+  if (o.base !== undefined)
+    rec.base = o.base;
+  if (o.dir !== undefined)
+    rec.dir = o.dir;
+  if (o.files !== undefined)
+    rec.files = [...o.files].slice(0, REVIEW_FILES_MAX);
+  if (o.companion === true)
+    rec.companion = true;
+  const note = clean(o.note);
+  if (note !== undefined)
+    rec.note = note;
+  return withRecord(state, rec);
+}
+function reviewsInFlight(state) {
+  return planReviews(state).filter((r) => r.state === "running");
+}
+function handleText(r) {
+  const how = [r.handle !== undefined ? `handle ${r.handle}` : undefined, r.provider].filter((x) => x !== undefined);
+  return how.length > 0 ? ` (${how.join(", ")})` : "";
+}
+function reviewLabel(r) {
+  if (r.companion === true)
+    return `${REVIEW_AGENT_OF[r.role]} second opinion${r.provider !== undefined ? ` on ${r.provider}` : ""}${r.handle !== undefined ? ` (job ${r.handle})` : ""}`;
+  return `${REVIEW_AGENT_OF[r.role]}${handleText(r)}`;
+}
+function isLaneReview(x) {
+  if (x === null || typeof x !== "object")
+    return false;
+  const r = x;
+  return typeof r["lane"] === "string" && r["lane"] !== "" && REVIEW_ROLES.includes(r["role"]) && typeof r["startedAt"] === "number";
+}
+function laneReviewsInFlight(state) {
+  const list = state?.laneReviews;
+  return Array.isArray(list) ? list.filter(isLaneReview) : [];
+}
+function withLaneReviews(state, list) {
+  const out = { ...state };
+  if (list.length > 0)
+    out.laneReviews = list.slice(-REVIEWS_MAX);
+  else
+    delete out.laneReviews;
+  return out;
+}
+function laneReviewStarted(state, o, now) {
+  const lane = clean(o.lane);
+  if (state === null || typeof state !== "object" || lane === undefined || !REVIEW_ROLES.includes(o.role))
+    return state;
+  const rec = { lane, role: o.role, startedAt: now };
+  const handle = clean(o.handle);
+  const provider = clean(o.provider);
+  if (handle !== undefined)
+    rec.handle = handle;
+  if (provider !== undefined)
+    rec.provider = provider;
+  return withLaneReviews(state, [...laneReviewsInFlight(state).filter((r) => !(r.lane === lane && r.role === o.role)), rec]);
+}
+function laneReviewCleared(state, lane, role) {
+  if (state === null || typeof state !== "object")
+    return state;
+  const before = laneReviewsInFlight(state);
+  const after = before.filter((r) => !(r.lane === lane && (role === undefined || r.role === role)));
+  return after.length === before.length ? state : withLaneReviews(state, after);
+}
+function laneReviewLabel(r) {
+  return `${REVIEW_AGENT_OF[r.role]} for lane ${r.lane}${handleText(r)}`;
+}
+function reviewSubjectText(planText) {
+  const body = parseFrontmatter(typeof planText === "string" ? planText : "").body;
+  return body.replace(/\r\n?/g, `
+`).split(`
+`).map((l) => l.replace(/^(\s*[-*]\s*)\[[xX ]\](\s+Task\s+\d+\s+done\b)/, "$1[ ]$2").replace(/\s+$/, "")).join(`
+`).trim();
+}
+function fileListText(files) {
+  return [...files].sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0).map(([p, d]) => `${p}\x00${d}`).join(`
+`);
+}
+function reviewFreshness(rec, current) {
+  if (rec === undefined || rec.state !== "collected" || rec.fingerprint === undefined)
+    return "missing";
+  return current === undefined || current === rec.fingerprint ? "fresh" : "stale";
+}
+
+// src/core/compact.ts
+var COMPACT_MARKER = "Buracle \u2014 keep through compaction:";
+function activePlan(state) {
+  const p = state?.plan;
+  if (!p || p.status === "VERIFIED" || p.status === "SAVED" || p.phase === "done")
+    return;
+  return p;
+}
+function interactionLine(state) {
+  const it = state?.interaction;
+  if (!it || it.state !== "paused")
+    return;
+  const why = it.reason ? `: "${oneLine3(it.reason, 200)}"` : "";
+  return `The run is paused (${it.kind ?? "discussion"})${why}; keep that state and the open question, and wait for the user before resuming.`;
+}
+function reviewsLine(state) {
+  const running = activePlan(state) !== undefined ? reviewsInFlight(state) : [];
+  const own = running.filter((r) => r.companion !== true).map(reviewLabel);
+  const second = running.filter((r) => r.companion === true).map(reviewLabel);
+  const lanes = laneReviewsInFlight(state).map(laneReviewLabel);
+  const out = [];
+  if (own.length + lanes.length > 0)
+    out.push(`Reviewers launched in the background and not collected yet: ${[...own, ...lanes].join("; ")}. Collect each report (wait for it, or read it through the agent tool that launched it) instead of launching a new one; \`buracle plan review done --role <role> --verdict <verdict>\`${lanes.length > 0 ? " (plus `--lane <slug>` for a lane's reviewer)" : ""} records it.`);
+  if (second.length > 0)
+    out.push(`Second opinions running on another harness and not collected yet: ${second.join("; ")}. Collect each with \`buracle plan review companion collect --role <role>\` instead of starting it again.`);
+  return out.length > 0 ? out.join(" ") : undefined;
+}
+function oneLine3(s, max) {
+  const t = s.replace(/\s+/g, " ").trim();
+  return t.length > max ? `${t.slice(0, max - 1)}\u2026` : t;
+}
+function compactInstructions(base, state) {
+  return compactInstructionsWith(base, state, {});
+}
+function list2(items, max) {
+  return (Array.isArray(items) ? items : []).filter((x) => typeof x === "string" && x.trim() !== "").slice(0, max).map((x) => oneLine3(x, 200));
+}
+function compactInstructionsWith(base, state, extra) {
+  let head = typeof base === "string" ? base : "";
+  const at = head.indexOf(COMPACT_MARKER);
+  if (at >= 0)
+    head = head.slice(0, at);
+  head = head.replace(/\s+$/, "");
+  const lines = [COMPACT_MARKER];
+  const p = activePlan(state);
+  if (p) {
+    lines.push(`- Active plan: ${p.path} (type ${p.type}, status ${p.status}, phase ${p.phase}). Keep this path verbatim; the file holds progress as ticked "- [x] Task N done" lines and must be re-read after compaction.`);
+    lines.push("- Keep which task is in progress, what is left of it, and every deviation from the plan with its reason.");
+  }
+  const flow = typeof extra?.flow === "string" ? oneLine3(extra.flow, 240) : "";
+  if (flow !== "")
+    lines.push(`- Running workflow: ${flow}. Continue it after compaction.`);
+  const paused = interactionLine(state);
+  if (paused)
+    lines.push(`- ${paused}`);
+  lines.push("- Keep the user's requests and corrections in their own words and language, and every decision with its reason.");
+  lines.push('- Name the language you use with the user in one line ("Working language: German") and keep using it after compaction: for replies, documents and reports alike.');
+  lines.push("- Keep the approaches that were tried and rejected, each with why it failed, so they are not tried again.");
+  lines.push("- Keep the verification commands that ran and their results (pass or fail, with the key output lines), and the commands that failed with their key error lines.");
+  const touched = list2(extra?.touched, 30);
+  lines.push(touched.length > 0 ? `- Files changed so far (keep these paths and what changed in each): ${touched.join(", ")}.` : "- Keep the paths of the files changed and what changed in each.");
+  const background = list2(extra?.background, 10);
+  if (background.length > 0)
+    lines.push(`- Still running in the background (keep them and how to check on them): ${background.join("; ")}.`);
+  const reviews = reviewsLine(state);
+  if (reviews !== undefined)
+    lines.push(`- ${reviews} Keep each handle verbatim.`);
+  lines.push("- Keep the open todo items. Drop tool output that has already been acted on, but never an unanswered question or an unfinished step.");
+  const block = lines.join(`
+`);
+  return head === "" ? block : `${head}
+
+${block}`;
+}
+function compactPrompt() {
+  return [
+    "Compact this conversation into a handoff summary so that another agent can continue the work in a fresh context. That agent sees only your summary, the files on disk and its tools; it has not seen this conversation.",
+    "Write short Markdown sections: the goal and what the user asked for; what is done; what is in progress and the exact next step; what is still open, unanswered questions to the user included.",
+    `${compactInstructionsWith(undefined, emptyState(), {})}
+- If a plan file is active (under docs/plan-build/ or docs/goal-build/), keep its path verbatim and which task is in progress; the file holds the real progress and is re-read after compaction.`
+  ].join(`
+
+`);
+}
+function pad3(n, w = 2) {
+  return String(n).padStart(w, "0");
+}
+var MAX_OFFSET_MIN = 14 * 60;
+function offsetOf(offsetMin) {
+  return typeof offsetMin === "number" && Number.isFinite(offsetMin) && Math.abs(offsetMin) <= MAX_OFFSET_MIN ? Math.trunc(offsetMin) : 0;
+}
+function stamp(now, offsetMin) {
+  const ms = Number.isFinite(now) ? now : 0;
+  const p = memLocalParts(ms, offsetMin);
+  const date = `${p.y}-${pad3(p.mo)}-${pad3(p.d)}`;
+  return { date, compact: date.replace(/-/g, ""), hm: `${pad3(p.h)}${pad3(p.mi)}`, iso: memIsoLocal(ms, offsetMin), plus14: memLocalDate(ms + 14 * 86400000, offsetMin) };
+}
+function sessionTag(sessionId) {
+  const t = (typeof sessionId === "string" ? sessionId : "").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 6);
+  return t === "" ? "nosess" : t;
+}
+function projectSlugOf(project) {
+  const p = typeof project === "string" ? project.trim() : "";
+  if (p === "")
+    return "unknown";
+  if (/^[a-z0-9][a-z0-9-]{0,79}$/.test(p))
+    return p;
+  const s = slugify(p);
+  return s === "note" && !/note/i.test(p) ? "unknown" : s;
+}
+var HANDOFF_GENERATED_BY = "process:buracle-handoff";
+function handoffNote(input) {
+  return handoffNoteLocal(input, 0);
+}
+function handoffNoteLocal(input, offsetMin) {
+  const t = stamp(input.now, offsetOf(offsetMin));
+  const tag = sessionTag(input.sessionId);
+  const slug = `${t.date}-${t.hm}-${input.harness}-${tag}`;
+  const p = activePlan(input.state);
+  const project = projectSlugOf(input.project);
+  const title = `Handoff: ${project}${p ? ` \xB7 ${p.slug}` : ""}`;
+  const fm = {
+    id: `h-${t.compact}-${t.hm}-${input.harness}-${tag}`,
+    type: "handoff",
+    title,
+    description: p ? `Plan ${p.slug} at ${p.status} (${p.phase}) when the context was compacted.` : "Session state when the context was compacted.",
+    status: "active",
+    scope: "project",
+    project,
+    created: t.iso,
+    updated: t.iso,
+    harness: memNoteHarness(input.harness),
+    ...typeof input.sessionId === "string" && input.sessionId !== "" ? { session: input.sessionId } : {},
+    ...input.branch ? { branch: input.branch } : {},
+    ...p ? { plan: p.path, plan_status: p.status, plan_phase: p.phase, plan_type: p.type } : {},
+    stale_after: t.plus14,
+    generated_by: HANDOFF_GENERATED_BY,
+    review: "ok"
+  };
+  const todos = (Array.isArray(input.todo) ? input.todo : []).filter((x) => typeof x === "string" && x.trim() !== "").slice(0, 30).map((x) => `- [ ] ${oneLine3(x, 200)}`);
+  const body = [`# ${title}`, "", "## Active plan"];
+  if (p) {
+    body.push(`- Path: \`${p.path}\``);
+    body.push(`- Type ${p.type} \xB7 status ${p.status} \xB7 phase ${p.phase}`);
+    const it = input.state.interaction;
+    body.push(`- Interaction: ${it?.state === "paused" ? `paused (${it.kind ?? "discussion"})${it.reason ? `: ${oneLine3(it.reason, 200)}` : ""}` : "running"}`);
+  } else {
+    body.push("None.");
+  }
+  const reviews = reviewsLine(input.state);
+  if (reviews !== undefined)
+    body.push(`- ${reviews}`);
+  body.push("", "## Open todos", ...todos.length > 0 ? todos : ["None recorded."]);
+  body.push("", "## Resume");
+  body.push(p ? "Re-read the plan file and continue with its first unticked task; `buracle plan status --json` shows the live state." : "Continue from the open todos above.");
+  const markdown = `---
+${renderYamlBlock(fm, ["id", "type", "title", "description", "status", "scope", "project", "created", "updated", "harness", "session", "branch", "plan", "plan_status", "plan_phase", "plan_type", "stale_after", "generated_by", "review"])}
+---
+${body.join(`
+`)}
+`;
+  return { slug, markdown };
+}
+var RESTORE_TODOS_MAX = 10;
+var RESTORE_RECORD_MAX_MS = 24 * 3600000;
+function restoreContext(state, handoffPath, todos) {
+  const p = activePlan(state);
+  const hasHandoff = typeof handoffPath === "string" && handoffPath.trim() !== "";
+  const open = hasHandoff ? [] : list2(todos, RESTORE_TODOS_MAX);
+  const reviews = reviewsLine(state);
+  if (!p && !hasHandoff && open.length === 0 && reviews === undefined)
+    return;
+  const lines = ["Buracle: the context was compacted."];
+  if (p) {
+    lines.push(`Active plan: ${p.path} (type ${p.type}, status ${p.status}, phase ${p.phase}). Re-read the whole plan file and the workflow's phase reference now: the ticked "- [x] Task N done" lines are the real progress.`);
+    const paused = interactionLine(state);
+    lines.push(paused ?? "Then continue with the first unticked task without asking whether to continue.");
+  }
+  if (reviews !== undefined)
+    lines.push(reviews);
+  if (hasHandoff)
+    lines.push(`Handoff memory with the open todos and state at compaction time: ${handoffPath.trim()} (read it with memory_get).`);
+  else if (open.length > 0)
+    lines.push("Open todos at compaction time (no handoff memory was written):", ...open.map((t) => `- ${t}`));
+  return lines.join(`
+`);
+}
+
+// src/adapters/shared/pipeline/pre-compact.ts
+init_fsx();
+function compactFile(ctx, h, sid) {
+  return join13(ctx.paths.sessionDir(h, sid), "compact.json");
+}
+function saveCompact(ctx, h, sid, at, handoff, todo) {
+  ensureDirSync(ctx.paths.sessionDir(h, sid));
+  atomicWriteSync(compactFile(ctx, h, sid), JSON.stringify({ v: 1, at, ...handoff !== undefined ? { handoff } : todo.length > 0 ? { todo } : {} }) + `
+`);
+}
+function readCompact(ctx, h, sid, now) {
+  const r = readJsonSafeSync(compactFile(ctx, h, sid));
+  const v = r.ok && r.value !== null && typeof r.value === "object" && !Array.isArray(r.value) ? r.value : {};
+  const at = v["at"];
+  if (v["v"] !== 1 || typeof at !== "number" || now - at > RESTORE_RECORD_MAX_MS)
+    return { recent: false };
+  const { handoff, todo } = v;
+  if (typeof handoff === "string")
+    return { recent: true, .../^handoff-[a-z0-9-]+$/.test(handoff) ? { handoff } : {} };
+  const open = Array.isArray(todo) ? todo.filter((t) => typeof t === "string" && t.trim() !== "").slice(0, RESTORE_TODOS_MAX) : [];
+  return { recent: true, ...open.length > 0 ? { todo: open } : {} };
+}
+async function preCompact(input, d) {
+  const { harness: H, sessionId: sid, cwd, now } = input;
+  const todo = await d.step("H06 todos", [], () => d.openTodos());
+  const mark = (handoff) => d.step("H06 compaction record", undefined, () => {
+    saveCompact(d.ctx, H, sid, now, handoff, todo.slice(0, RESTORE_TODOS_MAX));
+  });
+  await mark();
+  const handoff = memoryOff(d) ? undefined : await d.step("H06 handoff", undefined, async () => {
+    const write = await d.memory("writeHandoff");
+    if (write === undefined)
+      return;
+    const { project, branch } = await projectOf(d, cwd);
+    const where = { project, ...branch !== undefined ? { branch } : {} };
+    const note = d.core.handoffNote({ state: loadState(H, sid), harness: H, sessionId: sid, now, ...where, ...todo.length > 0 ? { todo } : {} });
+    const r = await write({ harness: H, sessionId: sid, cwd, ...where, slug: note.slug, markdown: note.markdown, ...input.trigger !== undefined ? { trigger: input.trigger } : {}, now });
+    return typeof r?.id === "string" ? r.id : undefined;
+  });
+  if (handoff !== undefined)
+    await mark(handoff);
+  return { todo, ...handoff !== undefined ? { handoff } : {} };
+}
+
+// src/adapters/shared/pipeline/session-start.ts
+var MEMORY_CLIP_NOTE = `
+\u2026 (truncated; use memory_search)`;
+async function workspaceStart(input, d) {
+  const { sessionId: sid, cwd, now } = input;
+  const w = d.workspace;
+  let info;
+  if (input.subagent === true) {
+    const saved = readWorkspace(d.ctx, d.harness, sid);
+    info = saved !== undefined && w.refreshWorkspace !== undefined && saved.cwd === canonicalDir2(cwd) ? w.refreshWorkspace(saved, d.ctx, now) : await w.workspaceInfo?.(cwd, d.ctx, now);
+  } else {
+    info = await w.prepareWorkspace?.(cwd, d.ctx, now);
+    if (info !== undefined)
+      saveWorkspace(d.ctx, d.harness, sid, info);
+  }
+  return info !== undefined ? d.core.workspaceContext(info, d.harness) : "";
+}
+async function compactRestore(input, d) {
+  const { sessionId: sid, cwd, now } = input;
+  const own = readCompact(d.ctx, d.harness, sid, now);
+  const todo = own.handoff === undefined && (own.todo?.length ?? 0) > 0 ? own.todo : undefined;
+  const handoff = own.handoff ?? (todo === undefined && !own.recent && !memoryOff(d) ? await latestHandoffId(d, sid, cwd, now) : undefined);
+  return d.core.restoreContext(loadState(d.harness, sid), handoff, todo) ?? "";
+}
+async function sessionStart(input, d) {
+  const { harness: H, sessionId: sid, cwd, source, now } = input;
+  const sub = input.subagent === true;
+  if (source !== "compact" && !captureOff(d)) {
+    await d.step("H14 session record", undefined, async () => {
+      await (await d.memory("sessionStart"))?.(H, sid, cwd, input.model !== undefined ? { nowMs: now, model: input.model } : { nowMs: now });
+    });
+  }
+  if (!sub && (source === "startup" || source === "clear"))
+    await d.step("H24 ledger reset", undefined, () => {
+      resetLedger(H, sid);
+    });
+  if (!sub)
+    await d.step("H14 memory UI", undefined, () => source === "compact" ? d.ui.seen(H, sid, now) : d.ui.started(H, sid, now));
+  const workspace = await d.step("H21 workspace", "", () => workspaceStart(input, d));
+  const maint = async () => {
+    if (source === "startup")
+      await d.step("H16 session maintenance", undefined, () => {
+        (d.sessionMaint ?? ((n, keep) => {
+          sessionMaint(H, n, { keep });
+        }))(now, [sid]);
+      });
+  };
+  if (sub) {
+    await maint();
+    return { context: [workspace].filter((s) => s.trim() !== "") };
+  }
+  const assets = await d.step("H28 project assets", "", () => assetsSessionStart(readWorkspace(d.ctx, H, sid)?.root, H, assetsOptions(now, d.assetsSpawn)));
+  const card = await d.step("H15 capability card", "", () => d.capabilityCard());
+  const restored = source === "compact" ? await d.step("H07 restore", "", () => compactRestore(input, d)) : "";
+  const notice = source === "startup" && !noticesOff(d.hostEnv ?? d.env) ? await d.step("H17 notices", undefined, () => startupNotices(d.ctx.canonical.notices, { version: d.version !== undefined ? d.version() : runtimeVersion(d.ctx.repoRoot), nowMs: now, harness: H })) : undefined;
+  const profile = source !== "startup" ? undefined : await d.step("H17 profile guard", undefined, () => {
+    const r = readJsonSafeSync(d.ctx.paths.runtimeConfigFile());
+    return profileGuard(H, r.ok ? r.value : undefined, d.hostEnv ?? d.env);
+  });
+  const before = [profile !== undefined ? d.profileNote?.(profile) ?? "" : "", restored, notice?.model ?? "", workspace, assets, ...d.extraContext ?? []];
+  const room = CONTEXT_BUDGET_BYTES - byteLength([...before, card].filter((s) => s.trim() !== "").join(`
+
+`)) - 64;
+  const memory = room <= 400 || memoryOff(d) ? "" : await d.step("H13 memory context", "", async () => {
+    const text = (await (await d.memory("contextText"))?.({ cwd, harness: H, nowMs: now, maxBytes: room }))?.trim() ?? "";
+    return clipBytes(text, room, MEMORY_CLIP_NOTE);
+  });
+  await maint();
+  return {
+    context: [...before, memory, card].filter((s) => s.trim() !== ""),
+    ...notice !== undefined ? { notice } : {},
+    ...profile !== undefined ? { profile } : {}
+  };
+}
 // src/core/memory/signals.ts
 var PROFILE_CATEGORIES = ["communication", "autonomy", "engineering", "workflow", "quality", "avoid", "other"];
 var PROFILE_QUOTE_MAX = 160;
@@ -27180,13 +27606,13 @@ function spoolDigest(entries, cwd) {
 }
 
 // src/adapters/shared/consent-store.ts
-import { join as join13 } from "path";
+import { join as join14 } from "path";
 init_fsx();
 init_paths();
 var LOCK_WAIT_MS = 1500;
 var LOCK_STALE_MS = 1e4;
 function consentFile(h, sid) {
-  return join13(sessionDir(h, sid), "consent.json");
+  return join14(sessionDir(h, sid), "consent.json");
 }
 function readConsentState(h, sid) {
   const r = readJsonSafeSync(consentFile(h, sid));
@@ -27316,7 +27742,7 @@ function earlyEdit(h, sid, files, cwd, planApproval) {
 
 // src/adapters/shared/review-notes.ts
 import { mkdirSync as mkdirSync7 } from "fs";
-import { dirname as dirname8, join as join14 } from "path";
+import { dirname as dirname8, join as join15 } from "path";
 
 // src/core/plan/notes.ts
 var REVIEW_DOC_DIRS = ALL_DOC_DIRS;
@@ -27391,7 +27817,7 @@ function safeRelPath(p) {
     return false;
   return !p.replace(/\\/g, "/").split("/").some((s) => s === ".." || s === "");
 }
-function oneLine3(s) {
+function oneLine4(s) {
   return s.replace(/\r\n?/g, `
 `);
 }
@@ -27399,7 +27825,7 @@ function parseNoteInput(raw) {
   const kind = raw["kind"];
   if (kind !== "plan" && kind !== "code")
     return "kind must be plan or code";
-  const text = typeof raw["text"] === "string" ? oneLine3(raw["text"]).trim() : "";
+  const text = typeof raw["text"] === "string" ? oneLine4(raw["text"]).trim() : "";
   if (text === "")
     return "the note is empty";
   if (text.length > NOTE_TEXT_MAX)
@@ -27407,7 +27833,7 @@ function parseNoteInput(raw) {
   const quoteRaw = raw["quote"] === undefined ? "" : raw["quote"];
   if (typeof quoteRaw !== "string")
     return "quote must be text";
-  const quote = oneLine3(quoteRaw).trim().slice(0, NOTE_QUOTE_MAX);
+  const quote = oneLine4(quoteRaw).trim().slice(0, NOTE_QUOTE_MAX);
   if (kind === "plan") {
     if (quote === "")
       return "a plan note needs the passage it is about";
@@ -27451,7 +27877,7 @@ function withNote(f, input, id, at) {
   return { ...f, notes: trimDone([...f.notes, note]) };
 }
 function editNote(f, id, text, at) {
-  const clean = oneLine3(text).trim();
+  const clean = oneLine4(text).trim();
   if (clean === "")
     return { file: f, found: false, problem: "the note is empty" };
   if (clean.length > NOTE_TEXT_MAX)
@@ -27587,7 +28013,7 @@ function reviewNotesNotice(h, sid, o) {
   const entries = inbox();
   if (entries.length === 0)
     return;
-  const file = join14(sessionDir(h, sid), "review-notes.json");
+  const file = join15(sessionDir(h, sid), "review-notes.json");
   const seen = readJsonSafeSync(file);
   const since = seen.ok && typeof seen.value?.at === "number" ? seen.value.at : 0;
   const s = { ...o.plan !== undefined && o.plan !== "" ? { plan: real(o.plan) } : {}, roots: [...new Set(o.roots.filter((r) => typeof r === "string" && r !== "").map(real))] };
@@ -27744,7 +28170,7 @@ function mcpWritePaths(tool, input, mcp) {
 // src/adapters/shared/realpath.ts
 init_fsx();
 import { lstatSync as lstatSync4, readlinkSync as readlinkSync3 } from "fs";
-import { basename as basename4, dirname as dirname9, isAbsolute as isAbsolute6, join as join15, resolve as resolve8 } from "path";
+import { basename as basename4, dirname as dirname9, isAbsolute as isAbsolute6, join as join16, resolve as resolve8 } from "path";
 var MAX_HOPS = 40;
 function resolveFrom(p, hops) {
   if (hops > MAX_HOPS)
@@ -27771,7 +28197,7 @@ function resolveFrom(p, hops) {
   if (parent === p)
     return p;
   const real = resolveFrom(parent, hops + 1);
-  return real === undefined ? undefined : join15(real, basename4(p));
+  return real === undefined ? undefined : join16(real, basename4(p));
 }
 function realWriteTarget(p) {
   if (typeof p !== "string" || !isAbsolute6(p))
@@ -27782,7 +28208,7 @@ function realWriteTarget(p) {
 // src/adapters/shared/repo.ts
 init_fsx();
 import { readFileSync as readFileSync10 } from "fs";
-import { dirname as dirname10, isAbsolute as isAbsolute7, join as join16, resolve as resolve9 } from "path";
+import { dirname as dirname10, isAbsolute as isAbsolute7, join as join17, resolve as resolve9 } from "path";
 function real2(p) {
   try {
     return realPath(p);
@@ -27794,12 +28220,12 @@ function expand(p, home) {
   const t = p.trim();
   if (t === "")
     return;
-  const e = t === "~" ? home : t.startsWith("~/") && home !== undefined ? join16(home, t.slice(2)) : t;
+  const e = t === "~" ? home : t.startsWith("~/") && home !== undefined ? join17(home, t.slice(2)) : t;
   return e !== undefined && isAbsolute7(e) ? resolve9(e) : undefined;
 }
 function packageName(dir) {
   try {
-    const pkg = JSON.parse(readFileSync10(join16(dir, "package.json"), "utf8"));
+    const pkg = JSON.parse(readFileSync10(join17(dir, "package.json"), "utf8"));
     const name = pkg !== null && typeof pkg === "object" ? pkg["name"] : undefined;
     return typeof name === "string" ? name : undefined;
   } catch {
@@ -29126,7 +29552,7 @@ async function preTool(input, d) {
     const command = call.command;
     let verdict;
     try {
-      const repo = d.guardRepoInShell === true ? await repoOf(d, call.cwd) : undefined;
+      const repo = await repoOf(d, call.cwd);
       verdict = d.core.checkBash(command, { ...bashOptions(d.ctx, call.cwd, d.realpath), ...repo !== undefined ? { buracleRepo: repo } : {} });
     } catch (e) {
       return failed("H01", e);
@@ -30120,375 +30546,6 @@ function promptInteraction(state, control, text, opts) {
     return guidance !== undefined ? { next: state, guidance } : { next: state };
   }
   return { next: state };
-}
-// src/core/plan/reviews.ts
-var REVIEW_ROLES = ["plan", "changes", "goal"];
-var REVIEW_VERDICTS = ["pass", "needs_changes", "incomplete"];
-var REVIEW_AGENT_OF = { plan: "plan-build-review", changes: "changes-review", goal: "goal-build-review" };
-var REVIEW_FILES_MAX = 2000;
-var REVIEWS_MAX = 12;
-var LABEL_MAX = 120;
-function clean(x) {
-  if (typeof x !== "string")
-    return;
-  const t = x.replace(/\s+/g, " ").trim();
-  return t === "" ? undefined : t.slice(0, LABEL_MAX);
-}
-function isRecord2(x) {
-  if (x === null || typeof x !== "object")
-    return false;
-  const r = x;
-  return REVIEW_ROLES.includes(r["role"]) && typeof r["plan"] === "string" && (r["state"] === "running" || r["state"] === "collected") && typeof r["startedAt"] === "number";
-}
-function reviewRecords(state) {
-  const list = state?.reviews;
-  return Array.isArray(list) ? list.filter(isRecord2) : [];
-}
-function planReviews(state) {
-  const p = state?.plan;
-  return p === undefined ? [] : reviewRecords(state).filter((r) => r.plan === p.path);
-}
-function reviewOf(state, role) {
-  return planReviews(state).find((r) => r.role === role && r.companion !== true);
-}
-function companionOf(state, role) {
-  return planReviews(state).find((r) => r.role === role && r.companion === true);
-}
-function sameSlot(a, b) {
-  return a.plan === b.plan && a.role === b.role && a.companion === true === (b.companion === true);
-}
-function withRecord(state, rec) {
-  const kept = reviewRecords(state).filter((r) => !sameSlot(r, rec));
-  return { ...state, reviews: [...kept, rec].slice(-REVIEWS_MAX) };
-}
-function reviewStarted(state, o, now) {
-  const p = state?.plan;
-  if (p === undefined || !REVIEW_ROLES.includes(o.role))
-    return state;
-  const rec = { role: o.role, plan: p.path, state: "running", startedAt: now };
-  const handle = clean(o.handle);
-  const provider = clean(o.provider);
-  if (handle !== undefined)
-    rec.handle = handle;
-  if (provider !== undefined)
-    rec.provider = provider;
-  if (o.companion === true)
-    rec.companion = true;
-  return withRecord(state, rec);
-}
-function reviewCollected(state, o, now) {
-  const p = state?.plan;
-  if (p === undefined || !REVIEW_ROLES.includes(o.role) || !REVIEW_VERDICTS.includes(o.verdict))
-    return state;
-  const prev = o.companion === true ? companionOf(state, o.role) : reviewOf(state, o.role);
-  const rec = { role: o.role, plan: p.path, state: "collected", startedAt: prev?.startedAt ?? now, collectedAt: now, verdict: o.verdict, fingerprint: o.fingerprint };
-  if (prev?.handle !== undefined)
-    rec.handle = prev.handle;
-  if (prev?.provider !== undefined)
-    rec.provider = prev.provider;
-  if (o.base !== undefined)
-    rec.base = o.base;
-  if (o.dir !== undefined)
-    rec.dir = o.dir;
-  if (o.files !== undefined)
-    rec.files = [...o.files].slice(0, REVIEW_FILES_MAX);
-  if (o.companion === true)
-    rec.companion = true;
-  const note = clean(o.note);
-  if (note !== undefined)
-    rec.note = note;
-  return withRecord(state, rec);
-}
-function reviewsInFlight(state) {
-  return planReviews(state).filter((r) => r.state === "running");
-}
-function handleText(r) {
-  const how = [r.handle !== undefined ? `handle ${r.handle}` : undefined, r.provider].filter((x) => x !== undefined);
-  return how.length > 0 ? ` (${how.join(", ")})` : "";
-}
-function reviewLabel(r) {
-  if (r.companion === true)
-    return `${REVIEW_AGENT_OF[r.role]} second opinion${r.provider !== undefined ? ` on ${r.provider}` : ""}${r.handle !== undefined ? ` (job ${r.handle})` : ""}`;
-  return `${REVIEW_AGENT_OF[r.role]}${handleText(r)}`;
-}
-function isLaneReview(x) {
-  if (x === null || typeof x !== "object")
-    return false;
-  const r = x;
-  return typeof r["lane"] === "string" && r["lane"] !== "" && REVIEW_ROLES.includes(r["role"]) && typeof r["startedAt"] === "number";
-}
-function laneReviewsInFlight(state) {
-  const list = state?.laneReviews;
-  return Array.isArray(list) ? list.filter(isLaneReview) : [];
-}
-function withLaneReviews(state, list) {
-  const out = { ...state };
-  if (list.length > 0)
-    out.laneReviews = list.slice(-REVIEWS_MAX);
-  else
-    delete out.laneReviews;
-  return out;
-}
-function laneReviewStarted(state, o, now) {
-  const lane = clean(o.lane);
-  if (state === null || typeof state !== "object" || lane === undefined || !REVIEW_ROLES.includes(o.role))
-    return state;
-  const rec = { lane, role: o.role, startedAt: now };
-  const handle = clean(o.handle);
-  const provider = clean(o.provider);
-  if (handle !== undefined)
-    rec.handle = handle;
-  if (provider !== undefined)
-    rec.provider = provider;
-  return withLaneReviews(state, [...laneReviewsInFlight(state).filter((r) => !(r.lane === lane && r.role === o.role)), rec]);
-}
-function laneReviewCleared(state, lane, role) {
-  if (state === null || typeof state !== "object")
-    return state;
-  const before = laneReviewsInFlight(state);
-  const after = before.filter((r) => !(r.lane === lane && (role === undefined || r.role === role)));
-  return after.length === before.length ? state : withLaneReviews(state, after);
-}
-function laneReviewLabel(r) {
-  return `${REVIEW_AGENT_OF[r.role]} for lane ${r.lane}${handleText(r)}`;
-}
-function reviewSubjectText(planText) {
-  const body = parseFrontmatter(typeof planText === "string" ? planText : "").body;
-  return body.replace(/\r\n?/g, `
-`).split(`
-`).map((l) => l.replace(/^(\s*[-*]\s*)\[[xX ]\](\s+Task\s+\d+\s+done\b)/, "$1[ ]$2").replace(/\s+$/, "")).join(`
-`).trim();
-}
-function fileListText(files) {
-  return [...files].sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0).map(([p, d]) => `${p}\x00${d}`).join(`
-`);
-}
-function reviewFreshness(rec, current) {
-  if (rec === undefined || rec.state !== "collected" || rec.fingerprint === undefined)
-    return "missing";
-  return current === undefined || current === rec.fingerprint ? "fresh" : "stale";
-}
-// src/core/memory/note.ts
-var SLUG_RE = /^[a-z0-9][a-z0-9-]{0,79}$/;
-function memIsSlug(v) {
-  return typeof v === "string" && SLUG_RE.test(v);
-}
-function parseNote(markdown) {
-  const parsed = parseFrontmatter(markdown.replace(/\r\n/g, `
-`));
-  return { fm: parsed.data, body: parsed.body };
-}
-function pad(n, w = 2) {
-  return String(n).padStart(w, "0");
-}
-function memLocalParts(ms, offsetMin) {
-  const t = new Date(ms + offsetMin * 60000);
-  return { y: t.getUTCFullYear(), mo: t.getUTCMonth() + 1, d: t.getUTCDate(), h: t.getUTCHours(), mi: t.getUTCMinutes(), s: t.getUTCSeconds() };
-}
-function memIsoLocal(ms, offsetMin) {
-  const p = memLocalParts(ms, offsetMin);
-  const sign = offsetMin < 0 ? "-" : "+";
-  const abs = Math.abs(offsetMin);
-  return `${p.y}-${pad(p.mo)}-${pad(p.d)}T${pad(p.h)}:${pad(p.mi)}:${pad(p.s)}${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
-}
-function memLocalDate(ms, offsetMin) {
-  const p = memLocalParts(ms, offsetMin);
-  return `${p.y}-${pad(p.mo)}-${pad(p.d)}`;
-}
-function memLocalTime(ms, offsetMin) {
-  const p = memLocalParts(ms, offsetMin);
-  return `${pad(p.h)}:${pad(p.mi)}`;
-}
-function memNoteHarness(h) {
-  return h === "claude" ? "claude-code" : h;
-}
-
-// src/core/compact.ts
-var COMPACT_MARKER = "Buracle \u2014 keep through compaction:";
-function activePlan(state) {
-  const p = state?.plan;
-  if (!p || p.status === "VERIFIED" || p.status === "SAVED" || p.phase === "done")
-    return;
-  return p;
-}
-function interactionLine(state) {
-  const it = state?.interaction;
-  if (!it || it.state !== "paused")
-    return;
-  const why = it.reason ? `: "${oneLine4(it.reason, 200)}"` : "";
-  return `The run is paused (${it.kind ?? "discussion"})${why}; keep that state and the open question, and wait for the user before resuming.`;
-}
-function reviewsLine(state) {
-  const running = activePlan(state) !== undefined ? reviewsInFlight(state) : [];
-  const own = running.filter((r) => r.companion !== true).map(reviewLabel);
-  const second = running.filter((r) => r.companion === true).map(reviewLabel);
-  const lanes = laneReviewsInFlight(state).map(laneReviewLabel);
-  const out = [];
-  if (own.length + lanes.length > 0)
-    out.push(`Reviewers launched in the background and not collected yet: ${[...own, ...lanes].join("; ")}. Collect each report (wait for it, or read it through the agent tool that launched it) instead of launching a new one; \`buracle plan review done --role <role> --verdict <verdict>\`${lanes.length > 0 ? " (plus `--lane <slug>` for a lane's reviewer)" : ""} records it.`);
-  if (second.length > 0)
-    out.push(`Second opinions running on another harness and not collected yet: ${second.join("; ")}. Collect each with \`buracle plan review companion collect --role <role>\` instead of starting it again.`);
-  return out.length > 0 ? out.join(" ") : undefined;
-}
-function oneLine4(s, max) {
-  const t = s.replace(/\s+/g, " ").trim();
-  return t.length > max ? `${t.slice(0, max - 1)}\u2026` : t;
-}
-function compactInstructions(base, state) {
-  return compactInstructionsWith(base, state, {});
-}
-function list2(items, max) {
-  return (Array.isArray(items) ? items : []).filter((x) => typeof x === "string" && x.trim() !== "").slice(0, max).map((x) => oneLine4(x, 200));
-}
-function compactInstructionsWith(base, state, extra) {
-  let head = typeof base === "string" ? base : "";
-  const at = head.indexOf(COMPACT_MARKER);
-  if (at >= 0)
-    head = head.slice(0, at);
-  head = head.replace(/\s+$/, "");
-  const lines = [COMPACT_MARKER];
-  const p = activePlan(state);
-  if (p) {
-    lines.push(`- Active plan: ${p.path} (type ${p.type}, status ${p.status}, phase ${p.phase}). Keep this path verbatim; the file holds progress as ticked "- [x] Task N done" lines and must be re-read after compaction.`);
-    lines.push("- Keep which task is in progress, what is left of it, and every deviation from the plan with its reason.");
-  }
-  const flow = typeof extra?.flow === "string" ? oneLine4(extra.flow, 240) : "";
-  if (flow !== "")
-    lines.push(`- Running workflow: ${flow}. Continue it after compaction.`);
-  const paused = interactionLine(state);
-  if (paused)
-    lines.push(`- ${paused}`);
-  lines.push("- Keep the user's requests and corrections in their own words and language, and every decision with its reason.");
-  lines.push('- Name the language you use with the user in one line ("Working language: German") and keep using it after compaction: for replies, documents and reports alike.');
-  lines.push("- Keep the approaches that were tried and rejected, each with why it failed, so they are not tried again.");
-  lines.push("- Keep the verification commands that ran and their results (pass or fail, with the key output lines), and the commands that failed with their key error lines.");
-  const touched = list2(extra?.touched, 30);
-  lines.push(touched.length > 0 ? `- Files changed so far (keep these paths and what changed in each): ${touched.join(", ")}.` : "- Keep the paths of the files changed and what changed in each.");
-  const background = list2(extra?.background, 10);
-  if (background.length > 0)
-    lines.push(`- Still running in the background (keep them and how to check on them): ${background.join("; ")}.`);
-  const reviews = reviewsLine(state);
-  if (reviews !== undefined)
-    lines.push(`- ${reviews} Keep each handle verbatim.`);
-  lines.push("- Keep the open todo items. Drop tool output that has already been acted on, but never an unanswered question or an unfinished step.");
-  const block = lines.join(`
-`);
-  return head === "" ? block : `${head}
-
-${block}`;
-}
-function compactPrompt() {
-  return [
-    "Compact this conversation into a handoff summary so that another agent can continue the work in a fresh context. That agent sees only your summary, the files on disk and its tools; it has not seen this conversation.",
-    "Write short Markdown sections: the goal and what the user asked for; what is done; what is in progress and the exact next step; what is still open, unanswered questions to the user included.",
-    `${compactInstructionsWith(undefined, emptyState(), {})}
-- If a plan file is active (under docs/plan-build/ or docs/goal-build/), keep its path verbatim and which task is in progress; the file holds the real progress and is re-read after compaction.`
-  ].join(`
-
-`);
-}
-function pad3(n, w = 2) {
-  return String(n).padStart(w, "0");
-}
-var MAX_OFFSET_MIN = 14 * 60;
-function offsetOf(offsetMin) {
-  return typeof offsetMin === "number" && Number.isFinite(offsetMin) && Math.abs(offsetMin) <= MAX_OFFSET_MIN ? Math.trunc(offsetMin) : 0;
-}
-function stamp(now, offsetMin) {
-  const ms = Number.isFinite(now) ? now : 0;
-  const p = memLocalParts(ms, offsetMin);
-  const date = `${p.y}-${pad3(p.mo)}-${pad3(p.d)}`;
-  return { date, compact: date.replace(/-/g, ""), hm: `${pad3(p.h)}${pad3(p.mi)}`, iso: memIsoLocal(ms, offsetMin), plus14: memLocalDate(ms + 14 * 86400000, offsetMin) };
-}
-function sessionTag(sessionId) {
-  const t = (typeof sessionId === "string" ? sessionId : "").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 6);
-  return t === "" ? "nosess" : t;
-}
-function projectSlugOf(project) {
-  const p = typeof project === "string" ? project.trim() : "";
-  if (p === "")
-    return "unknown";
-  if (/^[a-z0-9][a-z0-9-]{0,79}$/.test(p))
-    return p;
-  const s = slugify(p);
-  return s === "note" && !/note/i.test(p) ? "unknown" : s;
-}
-var HANDOFF_GENERATED_BY = "process:buracle-handoff";
-function handoffNote(input) {
-  return handoffNoteLocal(input, 0);
-}
-function handoffNoteLocal(input, offsetMin) {
-  const t = stamp(input.now, offsetOf(offsetMin));
-  const tag = sessionTag(input.sessionId);
-  const slug = `${t.date}-${t.hm}-${input.harness}-${tag}`;
-  const p = activePlan(input.state);
-  const project = projectSlugOf(input.project);
-  const title = `Handoff: ${project}${p ? ` \xB7 ${p.slug}` : ""}`;
-  const fm = {
-    id: `h-${t.compact}-${t.hm}-${input.harness}-${tag}`,
-    type: "handoff",
-    title,
-    description: p ? `Plan ${p.slug} at ${p.status} (${p.phase}) when the context was compacted.` : "Session state when the context was compacted.",
-    status: "active",
-    scope: "project",
-    project,
-    created: t.iso,
-    updated: t.iso,
-    harness: memNoteHarness(input.harness),
-    ...typeof input.sessionId === "string" && input.sessionId !== "" ? { session: input.sessionId } : {},
-    ...input.branch ? { branch: input.branch } : {},
-    ...p ? { plan: p.path, plan_status: p.status, plan_phase: p.phase, plan_type: p.type } : {},
-    stale_after: t.plus14,
-    generated_by: HANDOFF_GENERATED_BY,
-    review: "ok"
-  };
-  const todos = (Array.isArray(input.todo) ? input.todo : []).filter((x) => typeof x === "string" && x.trim() !== "").slice(0, 30).map((x) => `- [ ] ${oneLine4(x, 200)}`);
-  const body = [`# ${title}`, "", "## Active plan"];
-  if (p) {
-    body.push(`- Path: \`${p.path}\``);
-    body.push(`- Type ${p.type} \xB7 status ${p.status} \xB7 phase ${p.phase}`);
-    const it = input.state.interaction;
-    body.push(`- Interaction: ${it?.state === "paused" ? `paused (${it.kind ?? "discussion"})${it.reason ? `: ${oneLine4(it.reason, 200)}` : ""}` : "running"}`);
-  } else {
-    body.push("None.");
-  }
-  const reviews = reviewsLine(input.state);
-  if (reviews !== undefined)
-    body.push(`- ${reviews}`);
-  body.push("", "## Open todos", ...todos.length > 0 ? todos : ["None recorded."]);
-  body.push("", "## Resume");
-  body.push(p ? "Re-read the plan file and continue with its first unticked task; `buracle plan status --json` shows the live state." : "Continue from the open todos above.");
-  const markdown = `---
-${renderYamlBlock(fm, ["id", "type", "title", "description", "status", "scope", "project", "created", "updated", "harness", "session", "branch", "plan", "plan_status", "plan_phase", "plan_type", "stale_after", "generated_by", "review"])}
----
-${body.join(`
-`)}
-`;
-  return { slug, markdown };
-}
-var RESTORE_TODOS_MAX = 10;
-var RESTORE_RECORD_MAX_MS = 24 * 3600000;
-function restoreContext(state, handoffPath, todos) {
-  const p = activePlan(state);
-  const hasHandoff = typeof handoffPath === "string" && handoffPath.trim() !== "";
-  const open = hasHandoff ? [] : list2(todos, RESTORE_TODOS_MAX);
-  const reviews = reviewsLine(state);
-  if (!p && !hasHandoff && open.length === 0 && reviews === undefined)
-    return;
-  const lines = ["Buracle: the context was compacted."];
-  if (p) {
-    lines.push(`Active plan: ${p.path} (type ${p.type}, status ${p.status}, phase ${p.phase}). Re-read the whole plan file and the workflow's phase reference now: the ticked "- [x] Task N done" lines are the real progress.`);
-    const paused = interactionLine(state);
-    lines.push(paused ?? "Then continue with the first unticked task without asking whether to continue.");
-  }
-  if (reviews !== undefined)
-    lines.push(reviews);
-  if (hasHandoff)
-    lines.push(`Handoff memory with the open todos and state at compaction time: ${handoffPath.trim()} (read it with memory_get).`);
-  else if (open.length > 0)
-    lines.push("Open todos at compaction time (no handoff memory was written):", ...open.map((t) => `- ${t}`));
-  return lines.join(`
-`);
 }
 // src/core/checker-facts.ts
 var ESLINT_BINS = ["node_modules/.bin/eslint"];
@@ -33185,7 +33242,7 @@ init_paths();
 
 // src/adapters/shared/checker-scan.ts
 import { readdirSync as readdirSync5, readFileSync as readFileSync12, statSync as statSync13 } from "fs";
-import { join as join17 } from "path";
+import { join as join18 } from "path";
 init_paths();
 var nodeCheckFs = {
   list: (dir) => {
@@ -33218,16 +33275,16 @@ function scanUpward(fs, file, root, home) {
     const names = fs.list(dir).map((e) => e.name);
     const scan = { dir, names };
     if (names.includes("pyproject.toml")) {
-      const t = fs.read(join17(dir, "pyproject.toml"), MANIFEST_MAX_BYTES);
+      const t = fs.read(join18(dir, "pyproject.toml"), MANIFEST_MAX_BYTES);
       if (t !== undefined)
         scan.pyproject = t;
     }
     if (names.includes("package.json")) {
-      const t = fs.read(join17(dir, "package.json"), MANIFEST_MAX_BYTES);
+      const t = fs.read(join18(dir, "package.json"), MANIFEST_MAX_BYTES);
       if (t !== undefined)
         scan.packageJson = t;
     }
-    const present = CHECKER_PROBES.filter((p) => names.includes(p.split("/")[0]) && fs.exists(join17(dir, ...p.split("/"))));
+    const present = CHECKER_PROBES.filter((p) => names.includes(p.split("/")[0]) && fs.exists(join18(dir, ...p.split("/"))));
     if (present.length > 0)
       scan.present = present;
     return scan;
@@ -33441,28 +33498,6 @@ async function stop(input, d) {
     }
   }
   return out;
-}
-// src/adapters/shared/pipeline/pre-compact.ts
-async function preCompact(input, d) {
-  const { harness: H, sessionId: sid, cwd, now } = input;
-  const todo = await d.step("H06 todos", [], () => d.openTodos());
-  const mark = (handoff) => d.step("H06 compaction record", undefined, () => {
-    d.compact.save(handoff, todo.slice(0, RESTORE_TODOS_MAX));
-  });
-  await mark();
-  const handoff = memoryOff(d) ? undefined : await d.step("H06 handoff", undefined, async () => {
-    const write = await d.memory("writeHandoff");
-    if (write === undefined)
-      return;
-    const { project, branch } = await projectOf(d, cwd);
-    const where = { project, ...branch !== undefined ? { branch } : {} };
-    const note = d.core.handoffNote({ state: loadState(H, sid), harness: H, sessionId: sid, now, ...where, ...todo.length > 0 ? { todo } : {} });
-    const r = await write({ harness: H, sessionId: sid, cwd, ...where, slug: note.slug, markdown: note.markdown, ...input.trigger !== undefined ? { trigger: input.trigger } : {}, now });
-    return typeof r?.id === "string" ? r.id : undefined;
-  });
-  if (handoff !== undefined)
-    await mark(handoff);
-  return { todo, ...handoff !== undefined ? { handoff } : {} };
 }
 // src/adapters/shared/pipeline/session-end.ts
 async function sessionEnd(input, d) {
@@ -33892,35 +33927,14 @@ function registerUtilityCommands(pi, host) {
 // src/adapters/omp/runtime/compaction.ts
 init_paths();
 var COMPACT_RESTORE_TYPE = "buracle.compact-restore";
-function isRecord3(x) {
-  return x !== null && typeof x === "object" && !Array.isArray(x);
-}
 async function compactSave(sid, ctx, host) {
   const { deps } = host;
-  let saved = { todo: [] };
-  await preCompact({ harness: "omp", sessionId: sid, cwd: ctx.cwd, now: deps.now() }, {
-    ...host.pipe(sid),
-    openTodos: () => host.todos?.(sid) ?? [],
-    compact: { save: (handoff, todo) => {
-      saved = { todo, ...handoff !== undefined ? { handoff } : {} };
-    } }
-  });
+  const saved = await preCompact({ harness: "omp", sessionId: sid, cwd: ctx.cwd, now: deps.now() }, { ...host.pipe(sid), openTodos: () => host.todos?.(sid) ?? [] });
   const state = deps.state.load(sid);
   if (state.plan === undefined && state.interaction === undefined && saved.todo.length === 0 && laneReviewsInFlight(state).length === 0)
     return;
-  const result = {};
   const instructions = host.guarded("H06 compactInstructions", () => deps.compact.compactInstructions(undefined, state));
-  if (instructions && instructions.trim() !== "")
-    result.context = [instructions];
-  const preserve = { v: 1, sessionId: sid };
-  if (state.plan !== undefined)
-    preserve["plan"] = state.plan.path;
-  if (saved.handoff !== undefined)
-    preserve["handoff"] = saved.handoff;
-  else if (saved.todo.length > 0)
-    preserve["todos"] = saved.todo;
-  result.preserveData = { buracle: preserve };
-  return result;
+  return instructions && instructions.trim() !== "" ? { context: [instructions] } : undefined;
 }
 function registerCompaction(pi, host) {
   pi.on("session.compacting", async (event, ctx) => {
@@ -33947,15 +33961,8 @@ function registerCompaction(pi, host) {
       const summary = event.compactionEntry?.summary;
       if (typeof summary === "string" && summary.trim() !== "")
         await host.spool(sid, [{ ts: now, ev: "compact", excerpt: clip6(summary, 8000) }]);
-      const preserved = event.compactionEntry?.preserveData?.["buracle"];
-      const handoff = strAt(preserved, "handoff");
-      const kept = isRecord3(preserved) ? preserved["todos"] : undefined;
-      const todo = Array.isArray(kept) ? kept.filter((t) => typeof t === "string").slice(0, RESTORE_TODOS_MAX) : [];
       const d = host.pipe(sid);
-      const note = await d.step("H07 restore", "", () => compactRestore({ sessionId: sid, cwd: ctx.cwd, now }, {
-        ...d,
-        compact: { read: () => ({ recent: isRecord3(preserved), ...handoff !== undefined ? { handoff } : {}, ...todo.length > 0 ? { todo } : {} }) }
-      }));
+      const note = await d.step("H07 restore", "", () => compactRestore({ sessionId: sid, cwd: ctx.cwd, now }, d));
       if (note.trim() !== "")
         pi.sendMessage({ customType: COMPACT_RESTORE_TYPE, content: note, display: false }, { deliverAs: "nextTurn" });
     } catch (e) {
@@ -33966,7 +33973,6 @@ function registerCompaction(pi, host) {
 }
 
 // src/adapters/omp/runtime/companion-fence.ts
-var FENCE_FAILED = "Buracle H01: the read-only check of this second-opinion review failed, so the call was blocked.";
 function reviewerFenceFromEnv() {
   return companionAgent(process.env[REVIEWER_AGENT_ENV]);
 }
@@ -33976,7 +33982,7 @@ function fenceToolCall(agent, event) {
   try {
     const input = event.input !== null && typeof event.input === "object" ? event.input : {};
     const why = companionToolDenial("omp", agent, String(event.toolName), input);
-    return why === undefined ? undefined : { block: true, reason: `Buracle H01: ${why.replace(/^Buracle:\s*/, "")}` };
+    return why === undefined ? undefined : { block: true, reason: denyReason("H01", why) };
   } catch {
     return { block: true, reason: FENCE_FAILED };
   }
@@ -34065,7 +34071,7 @@ function heldConsentNeed(sid, command) {
 
 // src/adapters/omp/runtime/deps.ts
 import { readdirSync as readdirSync11, readFileSync as readFileSync22, rmSync as rmSync4, statSync as statSync23 } from "fs";
-import { join as join34, resolve as resolve18 } from "path";
+import { join as join35, resolve as resolve18 } from "path";
 init_paths();
 // src/usage/bar.ts
 init_fsx();
@@ -34075,7 +34081,7 @@ init_paths();
 init_paths();
 
 // src/workflow/flow.ts
-import { join as join18 } from "path";
+import { join as join19 } from "path";
 init_fsx();
 init_paths();
 
@@ -34085,7 +34091,7 @@ var NO_SESSION_HINT = "no session: no harness session id was found. Buracle read
 // src/workflow/flow.ts
 var DEFAULT_FOLD_SEC = 8;
 function flowPath(h, sid) {
-  return join18(sessionDir(h, sid), "flow.json");
+  return join19(sessionDir(h, sid), "flow.json");
 }
 function readFlow(h, sid) {
   const r = readJsonSafeSync(flowPath(h, sid));
@@ -34167,11 +34173,11 @@ function pendingUpdates(path = updatesFile()) {
 // src/usage/cache.ts
 import { spawn } from "child_process";
 import { closeSync as closeSync5, existsSync as existsSync8, mkdirSync as mkdirSync8, openSync as openSync5, statSync as statSync15, utimesSync as utimesSync3, writeSync as writeSync4 } from "fs";
-import { dirname as dirname12, join as join20 } from "path";
+import { dirname as dirname12, join as join21 } from "path";
 
 // src/engine/config.ts
 import { readFileSync as readFileSync13, statSync as statSync14 } from "fs";
-import { join as join19 } from "path";
+import { join as join20 } from "path";
 init_fsx();
 init_paths();
 var UNKNOWN_KEY_HINT = "(ignored; misspelled, renamed or removed? `buracle config get` prints the valid keys)";
@@ -34221,7 +34227,7 @@ function mergeLayer(base, override, file, errors) {
   }
 }
 function loadConfigSync(opts = {}) {
-  const canonicalPath = join19(opts.repoRoot ?? repoRoot2(), "canonical", "buracle.yaml");
+  const canonicalPath = join20(opts.repoRoot ?? repoRoot2(), "canonical", "buracle.yaml");
   const userPath = opts.userConfigPath ?? userConfigFile();
   const errors = [];
   const warnings = [];
@@ -34285,14 +34291,14 @@ function readUsageCache(path = usageFile()) {
   return { v: 1, updated_at: typeof r.value.updated_at === "string" ? r.value.updated_at : "", harnesses };
 }
 function lockFile() {
-  return join20(stateDir(), "usage.lock");
+  return join21(stateDir(), "usage.lock");
 }
 function spawnMarker(h) {
-  return join20(stateDir(), `usage.spawn.${h}`);
+  return join21(stateDir(), `usage.spawn.${h}`);
 }
 function defaultRefreshArgv(h) {
   const tail = ["usage", "refresh", "--harness", h, "--background"];
-  const main = join20(repoRoot2(), "src", "cli", "main.ts");
+  const main = join21(repoRoot2(), "src", "cli", "main.ts");
   return existsSync8(main) ? [bunExecutable(), main, ...tail] : [...shimLaunch() ?? [shimPath()], ...tail];
 }
 function spawnUsageRefresh(h, opts = {}) {
@@ -34332,7 +34338,7 @@ init_paths();
 
 // src/workflow/plan-capture.ts
 import { closeSync as closeSync6, mkdirSync as mkdirSync9, openSync as openSync6, readFileSync as readFileSync15, writeSync as writeSync5 } from "fs";
-import { isAbsolute as isAbsolute9, join as join21, relative as relative3, resolve as resolve12, sep as sep4 } from "path";
+import { isAbsolute as isAbsolute9, join as join22, relative as relative3, resolve as resolve12, sep as sep4 } from "path";
 init_fsx();
 
 // src/workflow/plan-file.ts
@@ -34677,11 +34683,11 @@ async function capturePlanFile(i) {
   const base = slugFromTitle(title, 60) || "plan";
   const approved = i.approved ?? true;
   const content = capturedPlanMarkdown(text, { created, harness: i.harness, approved, title, ...i.via !== undefined ? { via: i.via } : {} });
-  const dir = join21(root, "docs", docDirFor("plan-build"));
+  const dir = join22(root, "docs", docDirFor("plan-build"));
   mkdirSync9(dir, { recursive: true });
   for (let n = 1;n <= CAPTURE_SLOTS; n++) {
     const slug = n === 1 ? base : `${base}-${n}`;
-    const path = join21(dir, `${created}-${slug}.md`);
+    const path = join22(dir, `${created}-${slug}.md`);
     if (claim(path, content))
       return { path, slug, title, created, approved };
   }
@@ -34755,14 +34761,14 @@ async function captureSessionPlan(i) {
 // src/adapters/shared/repo-cache.ts
 init_fsx();
 import { existsSync as existsSync9, readFileSync as readFileSync16 } from "fs";
-import { dirname as dirname13, join as join22, resolve as resolve13 } from "path";
+import { dirname as dirname13, join as join23, resolve as resolve13 } from "path";
 var CACHE_TTL_MS = 30000;
 var CACHE_MAX = 64;
 var cache2 = new Map;
 function gitToplevel(dir) {
   let d = resolve13(dir);
   for (let i = 0;i < 128; i++) {
-    if (existsSync9(join22(d, ".git")))
+    if (existsSync9(join23(d, ".git")))
       return d;
     const up = dirname13(d);
     if (up === d)
@@ -34773,7 +34779,7 @@ function gitToplevel(dir) {
 }
 function packageName2(dir) {
   try {
-    const pkg = JSON.parse(readFileSync16(join22(dir, "package.json"), "utf8"));
+    const pkg = JSON.parse(readFileSync16(join23(dir, "package.json"), "utf8"));
     return pkg !== null && typeof pkg === "object" && typeof pkg.name === "string" ? pkg.name : undefined;
   } catch {
     return;
@@ -34836,7 +34842,7 @@ async function prepareWorkspace(cwd, cfg, nowMs) {
 
 // src/adapters/omp/runtime/config.ts
 import { existsSync as existsSync10, readFileSync as readFileSync17, statSync as statSync16 } from "fs";
-import { join as join23 } from "path";
+import { join as join24 } from "path";
 init_paths();
 var configCache;
 var healthCache;
@@ -34856,8 +34862,8 @@ function stat(path) {
   }
 }
 function ompConfigPath(agentDir) {
-  const yml = join23(agentDir, "config.yml");
-  const yaml = join23(agentDir, "config.yaml");
+  const yml = join24(agentDir, "config.yml");
+  const yaml = join24(agentDir, "config.yaml");
   return !existsSync10(yml) && existsSync10(yaml) ? yaml : yml;
 }
 function fromDefaults(defaults) {
@@ -34902,20 +34908,20 @@ function liveConfig(defaults) {
   configCache = { path: file, mtimeMs: st.mtimeMs, size: st.size, value };
   return value;
 }
-function isRecord4(x) {
+function isRecord3(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 function withStatus(v) {
-  if (!isRecord4(v) || v["status"] !== undefined)
+  if (!isRecord3(v) || v["status"] !== undefined)
     return v;
   const s = v["health"] ?? v["state"];
   return s !== undefined ? { ...v, status: s } : v;
 }
 function parseHealth(raw, nowMs = Date.now()) {
-  if (!isRecord4(raw))
+  if (!isRecord3(raw))
     return {};
   const inner = raw["mcp"] ?? raw["servers"];
-  const table = isRecord4(inner) ? inner : raw;
+  const table = isRecord3(inner) ? inner : raw;
   return mcpHealthOf({ mcp: Object.fromEntries(Object.entries(table).map(([id, v]) => [id, withStatus(v)])) }, nowMs);
 }
 function mcpHealth2(nowMs = Date.now()) {
@@ -34939,36 +34945,36 @@ function mcpHealth2(nowMs = Date.now()) {
 // src/adapters/omp/runtime/memory.ts
 init_paths();
 import { readFileSync as readFileSync20, statSync as statSync21 } from "fs";
-import { join as join31 } from "path";
+import { join as join32 } from "path";
 init_shim();
 
 // src/memory/spool.ts
 import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync10, readdirSync as readdirSync6, readFileSync as readFileSync18, statSync as statSync17, unlinkSync as unlinkSync6 } from "fs";
-import { join as join25 } from "path";
+import { join as join26 } from "path";
 init_fsx();
 init_paths();
 
 // src/memory/layout.ts
-import { join as join24 } from "path";
+import { join as join25 } from "path";
 init_fsx();
 init_paths();
 function memStateDir() {
   return memoryStateDir();
 }
 function spoolDir() {
-  return join24(memStateDir(), "spool");
+  return join25(memStateDir(), "spool");
 }
 function projectsFile() {
-  return join24(memStateDir(), "projects.json");
+  return join25(memStateDir(), "projects.json");
 }
 function sessionRecordsDir() {
-  return join24(memStateDir(), "sessions");
+  return join25(memStateDir(), "sessions");
 }
 function sessionRecordFile(h, sid) {
-  return join24(sessionRecordsDir(), `${h}-${sid}.json`);
+  return join25(sessionRecordsDir(), `${h}-${sid}.json`);
 }
 function redactionsFile() {
-  return join24(memStateDir(), "redactions.jsonl");
+  return join25(memStateDir(), "redactions.jsonl");
 }
 
 // src/memory/spool.ts
@@ -34980,7 +34986,7 @@ function recordRedactions(count, kinds, where, nowMs = Date.now()) {
     return;
   try {
     const file = redactionsFile();
-    mkdirSync10(join25(file, ".."), { recursive: true });
+    mkdirSync10(join26(file, ".."), { recursive: true });
     appendFileSync2(file, JSON.stringify({ ts: nowMs, count, kinds, where }) + `
 `, { mode: 384 });
   } catch (e) {
@@ -35005,7 +35011,7 @@ function appendSpool(h, sid, entries, opts = {}) {
       return;
     const dir = spoolDir();
     mkdirSync10(dir, { recursive: true, mode: 448 });
-    const file = join25(dir, spoolFileName(h, sid, opts.suffix));
+    const file = join26(dir, spoolFileName(h, sid, opts.suffix));
     let size = 0;
     try {
       size = statSync17(file).size;
@@ -35038,16 +35044,16 @@ function appendSpool(h, sid, entries, opts = {}) {
 
 // src/memory/session-record.ts
 import { mkdirSync as mkdirSync11, utimesSync as utimesSync4 } from "fs";
-import { join as join28, resolve as resolve15 } from "path";
+import { join as join29, resolve as resolve15 } from "path";
 init_paths();
 
 // src/memory/project.ts
 import { copyFileSync, existsSync as existsSync11, readdirSync as readdirSync7, statSync as statSync18 } from "fs";
-import { basename as basename6, dirname as dirname14, join as join26, resolve as resolve14 } from "path";
+import { basename as basename6, dirname as dirname14, join as join27, resolve as resolve14 } from "path";
 init_fsx();
 init_paths();
 function oldVaultDir() {
-  return join26(home(), "Documents", "Buracle");
+  return join27(home(), "Documents", "Buracle");
 }
 function isoNow(ms = Date.now()) {
   return new Date(ms).toISOString();
@@ -35074,7 +35080,7 @@ function backupCorruptProjectsCache() {
       if (!n.startsWith(`${base}.corrupt-`))
         continue;
       try {
-        newest = Math.max(newest, statSync18(join26(dir, n)).mtimeMs);
+        newest = Math.max(newest, statSync18(join27(dir, n)).mtimeMs);
       } catch {}
     }
   } catch {
@@ -35087,7 +35093,7 @@ function backupCorruptProjectsCache() {
     return;
   }
   try {
-    copyFileSync(file, join26(dir, `${base}.corrupt-${Date.now()}`));
+    copyFileSync(file, join27(dir, `${base}.corrupt-${Date.now()}`));
   } catch (e) {
     log("warn", "memory: cannot back up the corrupt projects cache", { error: e });
   }
@@ -35156,7 +35162,7 @@ function childRepos(dir) {
   const dirs = entries.filter((e) => e.isDirectory() && !e.name.startsWith(".") && !NOT_CHILDREN.has(e.name));
   if (dirs.length > MAX_CONTAINER_DIRS)
     return [];
-  const repos = dirs.map((e) => join26(dir, e.name)).filter((p) => existsSync11(join26(p, ".git")));
+  const repos = dirs.map((e) => join27(dir, e.name)).filter((p) => existsSync11(join27(p, ".git")));
   if (repos.length === 0)
     return [];
   const exclude = indexExcludePatterns();
@@ -35384,7 +35390,7 @@ var STALE_ACTIVE_MS = 2 * 3600000;
 
 // src/memory/spawn.ts
 import { existsSync as existsSync12, statSync as statSync19 } from "fs";
-import { basename as basename7, join as join27 } from "path";
+import { basename as basename7, join as join28 } from "path";
 init_paths();
 init_shim();
 function bunBinary() {
@@ -35407,7 +35413,7 @@ function cliArgv() {
   const shim = shimLaunch();
   if (shim !== undefined && moduleCheckout() === undefined)
     return shim;
-  const main = join27(repoRoot2(), "src", "cli", "main.ts");
+  const main = join28(repoRoot2(), "src", "cli", "main.ts");
   const bun = bunBinary();
   if (bun !== undefined && isFile3(main))
     return [bun, main];
@@ -35485,11 +35491,11 @@ function promptSeen(h, sid, opts = {}) {
 init_paths();
 import { createHash as createHash2 } from "crypto";
 import { readdirSync as readdirSync8, readFileSync as readFileSync19 } from "fs";
-import { join as join29 } from "path";
+import { join as join30 } from "path";
 function uiSources(memoryDir) {
   const out = readdirSync8(memoryDir).filter((n) => /^ui.*\.ts$/u.test(n)).sort();
   const walk = (rel) => {
-    const entries = readdirSync8(join29(memoryDir, rel), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+    const entries = readdirSync8(join30(memoryDir, rel), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
     for (const e of entries) {
       if (e.name.startsWith("."))
         continue;
@@ -35505,13 +35511,13 @@ function uiSources(memoryDir) {
 }
 function uiBuildId(repoRoot = repoRoot2()) {
   try {
-    const raw = JSON.parse(readFileSync19(join29(repoRoot, "package.json"), "utf8")).version;
-    const dir = join29(repoRoot, "src", "memory");
+    const raw = JSON.parse(readFileSync19(join30(repoRoot, "package.json"), "utf8")).version;
+    const dir = join30(repoRoot, "src", "memory");
     const h = createHash2("sha256");
     for (const rel of uiSources(dir)) {
       h.update(rel);
       h.update("\x00");
-      h.update(readFileSync19(join29(dir, rel)));
+      h.update(readFileSync19(join30(dir, rel)));
       h.update("\x00");
     }
     return `${typeof raw === "string" ? raw : "?"}+${h.digest("hex").slice(0, 12)}`;
@@ -35522,7 +35528,7 @@ function uiBuildId(repoRoot = repoRoot2()) {
 
 // src/memory/ui-presence.ts
 import { closeSync as closeSync7, mkdirSync as mkdirSync12, openSync as openSync7, readdirSync as readdirSync9, rmSync as rmSync3, statSync as statSync20, utimesSync as utimesSync5 } from "fs";
-import { join as join30 } from "path";
+import { join as join31 } from "path";
 init_paths();
 
 // src/memory/ui-record.ts
@@ -35552,7 +35558,7 @@ function quiet(env) {
   return env["BURACLE_NO_AUTOSTART"] === "1" || env["BURACLE_MEMORY_RUNNER"] === "1";
 }
 function recordFile(h, sid) {
-  return isHarness(h) && isValidSessionId(sid) ? join30(uiSessionsDir(), `${h}-${sid}`) : undefined;
+  return isHarness(h) && isValidSessionId(sid) ? join31(uiSessionsDir(), `${h}-${sid}`) : undefined;
 }
 function touch(file, nowMs) {
   mkdirSync12(uiSessionsDir(), { recursive: true });
@@ -35687,7 +35693,7 @@ function buracleCli(shim, repoRoot) {
   const viaShim = shimLaunch(shim);
   if (viaShim !== undefined)
     return viaShim;
-  const main = repoRoot !== undefined ? join31(repoRoot, "src", "cli", "main.ts") : undefined;
+  const main = repoRoot !== undefined ? join32(repoRoot, "src", "cli", "main.ts") : undefined;
   const bun = Bun.which("bun");
   return main !== undefined && bun !== null && isFile4(main) ? [bun, main] : undefined;
 }
@@ -35805,9 +35811,9 @@ function readIf(path) {
   }
 }
 function readMemoryStatus(slug) {
-  const dir = join31(memoryStateDir(), "status");
+  const dir = join32(memoryStateDir(), "status");
   for (const name of slug !== undefined ? [`${slug}.json`, "_global.json"] : ["_global.json"]) {
-    const t = readIf(join31(dir, name));
+    const t = readIf(join32(dir, name));
     if (t === undefined)
       continue;
     try {
@@ -35821,7 +35827,7 @@ function readMemoryStatus(slug) {
 
 // src/adapters/omp/runtime/plan-capture.ts
 var import_yaml5 = __toESM(require_dist(), 1);
-import { isAbsolute as isAbsolute10, join as join32, normalize, resolve as resolve16 } from "path";
+import { isAbsolute as isAbsolute10, join as join33, normalize, resolve as resolve16 } from "path";
 var OMP_PLAN_APPROVED = "Plan approved.";
 var OMP_PLAN_OPEN = '<plan path="';
 var OMP_PLAN_CLOSE = "</plan>";
@@ -35849,8 +35855,8 @@ function ompAutosaveDir(configText, cwd, home) {
     return;
   const raw = typeof p["autosaveDir"] === "string" ? p["autosaveDir"].trim() : "";
   if (raw === "")
-    return join32(cwd, ".omp", "plans");
-  const dir = raw === "~" ? home : raw.startsWith("~/") ? join32(home, raw.slice(2)) : raw;
+    return join33(cwd, ".omp", "plans");
+  const dir = raw === "~" ? home : raw.startsWith("~/") ? join33(home, raw.slice(2)) : raw;
   return isAbsolute10(dir) ? normalize(dir) : resolve16(cwd, dir);
 }
 function proposeDetails(details) {
@@ -35875,7 +35881,7 @@ function planFileOf(details, artifactsDir, cwd) {
   const parts = rel.split("/").filter((p) => p !== "" && p !== ".");
   if (parts.length === 0 || parts.includes(".."))
     return;
-  return join32(resolve16(artifactsDir, "local"), ...parts);
+  return join33(resolve16(artifactsDir, "local"), ...parts);
 }
 function approvedPlanOf(prompt) {
   const text = prompt.replace(/\r\n?/g, `
@@ -35946,7 +35952,7 @@ function planSavedNote(saved, cwd) {
 
 // src/adapters/shared/project-deps.ts
 import { readdirSync as readdirSync10, readFileSync as readFileSync21, statSync as statSync22 } from "fs";
-import { join as join33, resolve as resolve17 } from "path";
+import { join as join34, resolve as resolve17 } from "path";
 var ROOT_MANIFESTS = ["package.json", "pyproject.toml", "Pipfile", "go.mod", "Cargo.toml", "composer.json", "Gemfile"];
 var REQUIREMENTS = /^(?:requirements|constraints)[\w.-]*\.(?:txt|in)$/i;
 var WORKSPACE_MEMBERS_MAX = 32;
@@ -35986,7 +35992,7 @@ function workspacePatterns(root, pkgText) {
           out.push(p);
     } catch {}
   }
-  const pnpm = readSmall(join33(root, "pnpm-workspace.yaml"));
+  const pnpm = readSmall(join34(root, "pnpm-workspace.yaml"));
   if (pnpm !== undefined) {
     let inPackages = false;
     for (const raw of pnpm.split(`
@@ -36014,7 +36020,7 @@ function memberDirs(root, patterns) {
     if (p === "" || p.startsWith("!") || p.startsWith("/") || p.split("/").includes(".."))
       continue;
     if (p.endsWith("/*") && !/[*?[{]/.test(p.slice(0, -2))) {
-      const base = join33(root, p.slice(0, -2));
+      const base = join34(root, p.slice(0, -2));
       let names = [];
       try {
         names = readdirSync10(base).sort();
@@ -36023,9 +36029,9 @@ function memberDirs(root, patterns) {
       }
       for (const n of names)
         if (!n.startsWith(".") && n !== "node_modules")
-          dirs.add(join33(base, n));
+          dirs.add(join34(base, n));
     } else if (!/[*?[{]/.test(p)) {
-      dirs.add(join33(root, p));
+      dirs.add(join34(root, p));
     }
   }
   return [...dirs].sort();
@@ -36044,17 +36050,17 @@ function projectDeps(root) {
     ...ROOT_MANIFESTS.filter((n) => names.includes(n)),
     ...names.filter((n) => REQUIREMENTS.test(n)).sort()
   ];
-  const pkgText = files.includes("package.json") ? readSmall(join33(dir, "package.json")) : undefined;
-  const members = pkgText !== undefined || names.includes("pnpm-workspace.yaml") ? memberDirs(dir, workspacePatterns(dir, pkgText)).map((m) => join33(m, "package.json")).filter((p) => stamp2(p) !== undefined).slice(0, WORKSPACE_MEMBERS_MAX) : [];
-  const paths = [...files.map((n) => join33(dir, n)), ...members];
-  const sig = [...paths.map((p) => `${p}=${stamp2(p) ?? ""}`), names.includes("pnpm-workspace.yaml") ? `pnpm=${stamp2(join33(dir, "pnpm-workspace.yaml")) ?? ""}` : ""].join(`
+  const pkgText = files.includes("package.json") ? readSmall(join34(dir, "package.json")) : undefined;
+  const members = pkgText !== undefined || names.includes("pnpm-workspace.yaml") ? memberDirs(dir, workspacePatterns(dir, pkgText)).map((m) => join34(m, "package.json")).filter((p) => stamp2(p) !== undefined).slice(0, WORKSPACE_MEMBERS_MAX) : [];
+  const paths = [...files.map((n) => join34(dir, n)), ...members];
+  const sig = [...paths.map((p) => `${p}=${stamp2(p) ?? ""}`), names.includes("pnpm-workspace.yaml") ? `pnpm=${stamp2(join34(dir, "pnpm-workspace.yaml")) ?? ""}` : ""].join(`
 `);
   const hit = cache3.get(dir);
   if (hit !== undefined && hit.sig === sig)
     return [...hit.deps];
   const deps = new Set;
   for (const p of paths) {
-    const text = p === join33(dir, "package.json") ? pkgText : readSmall(p);
+    const text = p === join34(dir, "package.json") ? pkgText : readSmall(p);
     if (text === undefined)
       continue;
     for (const d of parseManifestDeps(p, text))
@@ -36160,7 +36166,7 @@ function planFiles(dir) {
   }
   const out = [];
   for (const name of names) {
-    const path = join34(dir, name);
+    const path = join35(dir, name);
     try {
       const st = statSync23(path);
       if (st.isFile())
@@ -36313,7 +36319,6 @@ function defaultDeps() {
     workspaceInfo: (cwd, cfg, nowMs) => workspaceInfo(cwd, cfg, nowMs),
     refreshWorkspace: (info, cfg, nowMs) => refreshWorkspaceInfo(info, cfg, nowMs),
     projectDeps: createDepsReader(),
-    profileGuard: (lc) => profileGuard("omp", lc.resolved !== undefined ? { resolved: lc.resolved } : undefined, process.env),
     columns: () => typeof process.stdout.columns === "number" && process.stdout.columns > 0 ? process.stdout.columns : 120,
     setEnv: (name, value) => {
       process.env[name] = value;
@@ -36342,7 +36347,7 @@ function emptyGenerated() {
 }
 
 // src/adapters/omp/runtime/edits.ts
-import { isAbsolute as isAbsolute11, join as join35, resolve as resolve19 } from "path";
+import { isAbsolute as isAbsolute11, join as join36, resolve as resolve19 } from "path";
 var READ_MAX2 = 512 * 1024;
 var SECTION = /^\[(.+)#([0-9A-Fa-f]{4})\]\s*$/;
 var RANGE = /^(?:PUT|CUT)\s+(\d+)\s*\.=\s*(\d+)/;
@@ -36353,7 +36358,7 @@ var SLOPPY_PART = /^\*\*\* (Find|Replace|Insert Before|Insert After)\s*$/;
 function abs(cwd, p, home) {
   const t = p.trim();
   if (home !== undefined && (t === "~" || t.startsWith("~/")))
-    return join35(home, t.slice(2));
+    return join36(home, t.slice(2));
   return isAbsolute11(t) ? resolve19(t) : resolve19(cwd, t);
 }
 function hashline(text, cwd, read, home) {
@@ -37605,13 +37610,13 @@ function resumedSession(ev, event, ctx, isFile) {
 }
 
 // src/adapters/omp/runtime/status.ts
-import { isAbsolute as isAbsolute12, join as join38, resolve as resolve21 } from "path";
+import { isAbsolute as isAbsolute12, join as join39, resolve as resolve21 } from "path";
 
 // src/engine/hook-health.ts
 init_fsx();
 init_paths();
 import { existsSync as existsSync14, readFileSync as readFileSync24, rmSync as rmSync6, statSync as statSync25 } from "fs";
-import { join as join37 } from "path";
+import { join as join38 } from "path";
 var HOOK_FAILURE_MESSAGES = ["hook handler failed", "hook command failed before dispatch", "hook runtime failed"];
 var DAY_MS = 86400000;
 function str8(x) {
@@ -37680,7 +37685,7 @@ function scanHookFailures(nowMs, windowMs = DAY_MS, file = logFile()) {
   return out;
 }
 function hookHealthCacheFile() {
-  return join37(buracleHome(), "cache", "hook-health.json");
+  return join38(buracleHome(), "cache", "hook-health.json");
 }
 function hookHealthForStatus(nowMs, maxAgeMs = 60000) {
   const file = hookHealthCacheFile();
@@ -37702,11 +37707,11 @@ function hookHealthForStatus(nowMs, maxAgeMs = 60000) {
   return summary;
 }
 function runtimeDriftCacheFile() {
-  return join37(buracleHome(), "cache", "runtime-drift.json");
+  return join38(buracleHome(), "cache", "runtime-drift.json");
 }
 function shimStamp() {
   try {
-    const s = statSync25(join37(binDir(), "buracle"));
+    const s = statSync25(join38(binDir(), "buracle"));
     return `${s.size}:${s.mtimeMs}`;
   } catch {
     return "";
@@ -37882,7 +37887,7 @@ function createStatusTexts(host) {
       out.splice(Math.max(0, out.length - 1), 0, ui !== undefined ? `web UI: ${ui.url} (/brain opens it)` : "web UI: not running (/brain starts and opens it)");
       return out;
     }
-    const omp = guarded("version cache", () => cachedHarnessVersionOf(deps.readText(join38(buracleHome(), "cache", "harness-versions.json")), "omp", now));
+    const omp = guarded("version cache", () => cachedHarnessVersionOf(deps.readText(join39(buracleHome(), "cache", "harness-versions.json")), "omp", now));
     const out = [`Buracle ${data.buracleVersion} \xB7 Oh My Pi${omp !== undefined ? ` ${omp}` : ""}`];
     out.push(`session ${sid ?? "-"} \xB7 ${ctx.mode} \xB7 config ${lc.source}`);
     out.push(`permissions: ${lc.config.permissions.bypass ? "bypass (tools.approvalMode yolo; Buracle's guards and consent gate protect)" : "the harness setting"}`);
@@ -38101,7 +38106,6 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
     let currentSid;
     let statusTimerStarted = false;
     let maintScheduled = false;
-    let profileWarned = false;
     let router;
     const report = (what, e, outcome = "allowed") => {
       const message = e instanceof Error ? e.message : String(e);
@@ -38345,7 +38349,6 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
         ...edit && !device ? { edits: callPaths } : {}
       }, {
         ...d,
-        guardRepoInShell: true,
         shellDenial: async (command) => {
           if (isMain(ctx))
             return;
@@ -38683,7 +38686,6 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
           ...d,
           ui: { ...d.ui, started: then(d.ui.started), seen: then(d.ui.seen) },
           capabilityCard: () => card(ctx),
-          compact: { read: () => ({ recent: false }) },
           version: () => data.buracleVersion,
           sessionMaint: () => {
             scheduleMaint(ctx);
@@ -38691,6 +38693,12 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
         });
         const notice = r.notice;
         m.startContext = r.context.filter((part) => part !== notice?.model);
+        const warning = r.profile;
+        if (warning !== undefined) {
+          log("warn", "omp: H17 profile guard", { sid, warning });
+          if (hasTui(ctx))
+            guarded("H17 notify", () => ctx.ui.notify(warning, "warning"));
+        }
         if (notice === undefined)
           return;
         guarded("H17 notice", () => pi.sendMessage({ customType: NOTICE_MESSAGE_TYPE, content: notice.model, display: false }, { deliverAs: "nextTurn" }));
@@ -38810,14 +38818,6 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
       const m = memo(sid);
       slugOf(sid, ctx.cwd);
       guarded("telemetry", () => writeTelemetryFor(sid, ctx));
-      const lc = guarded("config", () => live());
-      const warning = lc !== undefined && !profileWarned ? guarded("H17 profileGuard", () => deps.profileGuard(lc)) : undefined;
-      if (warning !== undefined) {
-        profileWarned = true;
-        log("warn", "omp: H17 profile guard", { sid, warning });
-        if (hasTui(ctx))
-          guarded("H17 notify", () => ctx.ui.notify(warning, "warning"));
-      }
       if (hasTui(ctx)) {
         m.flow?.reset();
         refreshSoon(ctx);

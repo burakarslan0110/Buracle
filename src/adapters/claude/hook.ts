@@ -30,14 +30,14 @@ import { consentFile, readConsentState } from '../shared/consent-store'
 import { claudeOffServers } from '../shared/native-off'
 import type { AssetsSpawner } from '../shared/project-assets'
 import {
-  guardFailed, mcpHealth, postTool, preTool, prompt as promptEvent, recordMcpResult, sessionStart as sessionStartEvent, workspaceStart,
+  denyReason, FENCE_FAILED, guardFailed, mcpHealth, postTool, preTool, prompt as promptEvent, recordMcpResult, sessionStart as sessionStartEvent, workspaceStart,
 } from '../shared/pipeline/index'
 import { realWriteTarget } from '../shared/realpath'
 import { buracleRepoFor } from '../shared/repo'
 import { SHELL_TOOLS } from './constants'
-import { compactStore, postCompact, preCompact, REVIEW_AGENT, sessionEnd, stop, subagentStop } from './hook-end'
+import { postCompact, preCompact, REVIEW_AGENT, sessionEnd, stop, subagentStop } from './hook-end'
 import { HANDBACK_TOOL, subagentHandback } from './hook-handback'
-import { GUARD_FAILED, H, QUIET, contextOut, isObj, isSubagent, out, pipelineDeps, step, str, type HookOutcome } from './hook-io'
+import { H, QUIET, contextOut, isObj, isSubagent, out, pipelineDeps, step, str, type HookOutcome } from './hook-io'
 import {
   availableServers, capabilityCardText, memoryOnlyRouting, permissionNotice, pluginRoot, pluginServers, projectDeps, promptRouting, readWorkspace,
   routerData, type PromptRouting, type RouterData,
@@ -48,8 +48,8 @@ import { writeContents } from './write-content'
 
 export type { HookOutcome } from './hook-io'
 export { CONTEXT_BUDGET_BYTES, clipBytes } from '../shared/pipeline/index'
-export { FALLBACK_SPOOL_SUFFIX, GUARD_FAILED } from './hook-io'
-export { REVIEW_AGENT, handoffRecordPath, reviewNote, runawayNotice } from './hook-end'
+export { FALLBACK_SPOOL_SUFFIX } from './hook-io'
+export { REVIEW_AGENT, reviewNote, runawayNotice } from './hook-end'
 export { capabilityCardText, readHealth } from './hook-route'
 
 export type HookCore = Pick<typeof core, 'checkBash' | 'checkWrite' | 'routeTool' | 'validatePlan' | 'stopGuardVerdict' | 'handoffNote' | 'restoreContext' | 'validateReviewJson' | 'checkQuestion' | 'consentVerdict'>
@@ -77,8 +77,6 @@ export interface HookDeps {
 
 const TELEMETRY_FRESH_MS = 5 * 60_000
 const PLUGIN_MCP_PREFIX = 'mcp__plugin_buracle_'
-const USAGE_TOOLS: readonly string[] = ['Skill', 'Grep', 'Glob']
-const OTHER_TOOLS: readonly string[] = ['AskUserQuestion', 'WebSearch', 'WebFetch', ...USAGE_TOOLS]
 const WRITE_GATE_MAX_BYTES = 2_000_000
 
 const MODULES: Record<MemoryModule, () => Promise<unknown>> = {
@@ -172,7 +170,6 @@ async function sessionStart(p: Record<string, unknown>, sid: string, ctx: Adapte
   const r = await sessionStartEvent({ harness: H, sessionId: sid, cwd, source, subagent: isSubagent(p), now, ...(model !== undefined ? { model } : {}) }, {
     ...pipelineDeps(ctx, d),
     capabilityCard: () => capabilityCardText(ctx, mcpHealth(ctx, H, now, { sid, nativeOff: claudeOffServers(cwd, pluginRoot(ctx.repoRoot, d.env)) })),
-    compact: compactStore(sid, now),
     profileNote: finding => `Buracle setup warning. Tell the user at the start of your next reply, in one short line, then carry on with their request:\n- ${finding}`,
     sessionMaint: (nowMs, keep) => { d.sessionMaint(nowMs, keep) },
   })
@@ -296,7 +293,6 @@ async function preToolDecision(p: Record<string, unknown>, sid: string, ctx: Ada
   if (!write && !shell) {
     if (guardsOnly && !mcp) return []
     if (tool === HANDBACK_TOOL) return subagentHandback(p, sid, REVIEW_AGENT, d, now)
-    if (!mcp && !OTHER_TOOLS.includes(tool)) return []
   }
   const root = pluginRoot(ctx.repoRoot, d.env)
   let call: ToolCall
@@ -314,9 +310,7 @@ async function preToolDecision(p: Record<string, unknown>, sid: string, ctx: Ada
   }
   const edits = write && tool !== 'NotebookEdit'
   const r = await preTool({
-    call, now, subagent: isSubagent(p), guardsOnly, ...(edits ? { edits: call.paths } : {}),
-    // The reminders count the tools Buracle routes: the shell, file edits, searches, skills and its own plugin's MCP servers.
-    usage: shell || edits || USAGE_TOOLS.includes(tool) || tool.startsWith(PLUGIN_MCP_PREFIX),
+    call, now, subagent: isSubagent(p), guardsOnly, usage: true, ...(edits ? { edits: call.paths } : {}),
   }, {
     ...pipelineDeps(ctx, d),
     shellDenial: command => step('reviewer shell', undefined as string | undefined, () => reviewerShellDenial(str(p['agent_type']), command)),
@@ -331,14 +325,16 @@ async function preToolDecision(p: Record<string, unknown>, sid: string, ctx: Ada
   return r.action === 'deny' ? deny(r.reason) : r.context
 }
 
+/** The second-opinion fence's denial, in the one shape of every denial. */
 function companionFence(d: HookDeps, tool: string, input: Record<string, unknown>): string | undefined {
   const agent = companionAgent(d.env(REVIEWER_AGENT_ENV))
   if (agent === undefined) return undefined
   try {
-    return companionToolDenial(H, agent, tool, input)
+    const why = companionToolDenial(H, agent, tool, input)
+    return why !== undefined ? denyReason('H01', why) : undefined
   } catch (e) {
     log('error', 'claude hook PreToolUse: the second-opinion fence failed; denying (fail closed)', { tool, error: e })
-    return GUARD_FAILED
+    return FENCE_FAILED
   }
 }
 

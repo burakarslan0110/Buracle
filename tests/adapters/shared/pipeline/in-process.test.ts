@@ -46,7 +46,7 @@ describe('pipeline: a harness in its own process', () => {
 
   test('the release notices follow the version the harness names, where it runs a built copy', () => withSandbox(() => withEnv({ BURACLE_NO_NOTICES: undefined }, async () => {
     const notice = { id: 'in-process-notice', since: '9.9.0', message: 'Hello from a newer build.' }
-    const ports = { capabilityCard: () => 'Capability card', compact: { read: () => ({ recent: false }) }, sessionMaint: () => {} }
+    const ports = { capabilityCard: () => 'Capability card', sessionMaint: () => {} }
     const input = { harness: H, sessionId: SID, cwd: '/work/app', source: 'startup', now: NOW }
     const o = { canonical: { notices: [notice] } as never }
     expect((await sessionStart(input, { ...fakeDeps(o), ...ports, version: () => undefined })).notice).toBeUndefined()
@@ -54,20 +54,20 @@ describe('pipeline: a harness in its own process', () => {
     expect((await sessionStart(input, { ...fakeDeps(o), ...ports, version: () => '9.9.0' })).notice?.user).toContain('Hello from a newer build.')
   })))
 
-  test('the bash guard gets the Buracle repository only for a harness that asks for it', () => withSandbox(async () => {
+  test('the bash guard gets the Buracle repository the command runs in, and fails closed when it cannot be found', () => withSandbox(async () => {
     const seen: Array<string | undefined> = []
     const core = { checkBash: (_c: string, o?: BashGuardOptions) => { seen.push(o?.buracleRepo); return {} } }
     await preTool({ call: call(), now: NOW, subagent: false, usage: false }, preToolDeps({ core }, {}))
-    await preTool({ call: call(), now: NOW, subagent: false, usage: false }, { ...preToolDeps({ core }), buracleRepo: async () => '/work/buracle', guardRepoInShell: true })
+    await preTool({ call: call(), now: NOW, subagent: false, usage: false }, { ...preToolDeps({ core }), buracleRepo: async () => '/work/buracle' })
     expect(seen).toEqual([undefined, '/work/buracle'])
-    const failing = { ...preToolDeps({ core }), buracleRepo: async () => { throw new Error('no git') }, guardRepoInShell: true }
+    const failing = { ...preToolDeps({ core }), buracleRepo: async () => { throw new Error('no git') } }
     expect(await preTool({ call: call(), now: NOW, subagent: false, usage: false }, failing)).toMatchObject({ action: 'deny', hook: 'H01' })
   }))
 
   test('a memory index that does not fit is clipped with a pointer to memory_search', () => withSandbox(async () => {
     const memory = { contextText: async () => 'line of memory\n'.repeat(2000) }
     const r = await sessionStart({ harness: H, sessionId: SID, cwd: '/work/app', source: 'resume', now: NOW }, {
-      ...fakeDeps({ memory }), capabilityCard: () => 'Capability card', compact: { read: () => ({ recent: false }) },
+      ...fakeDeps({ memory }), capabilityCard: () => 'Capability card',
     })
     expect(MEMORY_CLIP_NOTE).toBe('\n… (truncated; use memory_search)')
     expect(r.context[0]).toEndWith(`line of memory${MEMORY_CLIP_NOTE}`)

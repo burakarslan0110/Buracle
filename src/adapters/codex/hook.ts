@@ -17,7 +17,7 @@ import type { SpoolEntry } from '../../core/memory/spool'
 import type { AssetsSpawner } from '../shared/project-assets'
 import {
   captureOff as pipelineCaptureOff, denyReason, guardFailed, mcpHealth, postTool, preCompact, preTool, prompt as promptEvent, routingPolicy, sessionEnd,
-  sessionStart, spool, stop, workspaceStart, type CompactStore, type MemoryFns, type PipelineDeps, type UsagePlan,
+  sessionStart, spool, stop, workspaceStart, type MemoryFns, type PipelineDeps, type UsagePlan,
 } from '../shared/pipeline/index'
 import { projectDeps as readProjectDeps } from '../shared/project-deps'
 import { reviewAgentIds } from './agents'
@@ -193,27 +193,6 @@ function pipelineDeps(ev: string, ctx: AdapterContext, deps: CodexHookDeps): Pip
   }
 }
 
-/** The session's compaction record in codex.json, for the restore after it. */
-function compactStore(ctx: AdapterContext, sid: string, at: number): CompactStore {
-  return {
-    read(now) {
-      const own = loadAdapterState(ctx, sid)
-      return {
-        recent: own.lastCompactAt !== undefined && now - own.lastCompactAt <= core.RESTORE_RECORD_MAX_MS,
-        ...(own.lastHandoff !== undefined ? { handoff: own.lastHandoff } : {}), ...(own.lastTodos !== undefined ? { todo: own.lastTodos } : {}),
-      }
-    },
-    save(handoff, todo) {
-      const next: CodexSessionState = { ...loadAdapterState(ctx, sid), lastCompactAt: at }
-      delete next.lastHandoff
-      delete next.lastTodos
-      if (handoff !== undefined) next.lastHandoff = handoff
-      else if (todo.length > 0) next.lastTodos = todo
-      saveAdapterState(ctx, sid, next)
-    },
-  }
-}
-
 async function onSessionStart(p: Payload, sid: string, cwd: string, ctx: AdapterContext, deps: CodexHookDeps): Promise<HookOutcome> {
   const ev = 'SessionStart'
   const source = str(p['source']) ?? 'startup'
@@ -225,7 +204,6 @@ async function onSessionStart(p: Payload, sid: string, cwd: string, ctx: Adapter
   const r = await sessionStart({ harness: H, sessionId: sid, cwd, source, subagent: sub, now, ...(model !== undefined ? { model } : {}) }, {
     ...pipelineDeps(ev, ctx, deps),
     capabilityCard: () => capabilityCardText(ctx, deps, sid),
-    compact: compactStore(ctx, sid, now),
     extraContext: [resumed?.model ?? ''],
   })
   const health = !sub && (source === 'startup' || source === 'resume') && ctx.config.workflow.codexNotices
@@ -454,7 +432,6 @@ async function onPreCompact(p: Payload, sid: string, cwd: string, ctx: AdapterCo
       const plan = rollout !== undefined ? readLatestPlan(rollout) : undefined
       return plan !== undefined ? openPlanSteps(plan) : []
     },
-    compact: compactStore(ctx, sid, now),
   })
   await spool(d, sid, [{ ts: now, ev: 'compact', excerpt: `PreCompact (${trigger})` }])
   return NOTHING
