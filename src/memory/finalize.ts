@@ -23,7 +23,7 @@ import { projectExclusion, readProjectsCache, resolveProject, tzOffset, type Pro
 import { readSessionRecord, writeSessionRecord, type SessionRecord } from './session-record'
 import { captureOff, deleteSpool, pruneRedactions, readSpool, recordRedactions, spoolFiles } from './spool'
 import { refreshStatus } from './status'
-import { getStored, projectRef, recordEvent, saveItem, withBrainLock } from './store'
+import { getStored, projectRef, recordEvent, saveItem, sweepExpired, withBrainLock } from './store'
 
 export { bunExecutable, cliArgv, moduleCheckout } from './spawn'
 
@@ -344,6 +344,11 @@ async function finalizeTail(h: Harness, pass: FinalizePass, now: number, capture
     ...(result.changed === true ? { lastWrite: { by: harness, type: 'session' } } : {}),
     ...(capture?.distill?.ran === true || (capture?.preferences.written.length ?? 0) > 0 ? { lastCapture: { by: harness, saved } } : {}),
   })
+  // A time to live only hides a row; the sweep deletes the session and handoff memories whose time is up.
+  try {
+    const swept = await sweepExpired()
+    if (swept > 0) log('info', 'memory: expired memories were deleted', { n: swept })
+  } catch (e) { log('warn', 'memory: expired memories were not swept', { error: e }) }
   pruneRedactions(now)
   pruneSessionRecords(now)
   try { removeDeadLocks(now) } catch (e) { log('warn', 'memory: dead locks were not cleaned', { error: e }) }

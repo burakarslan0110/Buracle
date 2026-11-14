@@ -12,7 +12,7 @@ import { writeHandoff } from '../../src/memory/handoff'
 import { promptSeen, readSessionRecord, sessionStart, writeSessionRecord } from '../../src/memory/session-record'
 import { appendSpool } from '../../src/memory/spool'
 import { readStatus } from '../../src/memory/status'
-import { forgetListCache, getStored, listAll, personRef, projectRef, storedId } from '../../src/memory/store'
+import { forgetListCache, getStored, listAll, personRef, projectRef, storedId, sweepExpired } from '../../src/memory/store'
 import { writeTelemetry } from '../../src/workflow/session-store'
 import * as paths from '../../src/engine/paths'
 import { withEnv } from '../helpers/sandbox'
@@ -46,6 +46,18 @@ describe('finalize', () => {
       expect(mem?.item.history.map(h => h.what)).toEqual(['session ended', 'finalized again', 'distilled'])
       expect(mem?.item.body).toContain('Also renamed the helper.')
       expect(r.capture?.state).toBe('done')
+    })
+  })
+
+  test('a sweep the engine refuses does not fail the session end', async () => {
+    await withBrain(async ({ repo }) => {
+      await spooled(repo, SID)
+      await withEnv({ FAKE_CORTEXDB_FAIL: 'sweep_expired' }, async () => {
+        const r = await finalize('codex', SID, { pending: false })
+        expect(r.memoryId).toBeDefined()
+        expect(readSessionRecord('codex', SID)?.status).toBe('ended')
+        await expect(sweepExpired()).rejects.toThrow('injected failure')
+      })
     })
   })
 
@@ -134,7 +146,7 @@ describe('finalize', () => {
     })
   })
 
-  test('the session memory is saved with CortexDB\'s own time to live (45 days): the engine drops it, no sweep does', async () => {
+  test('the session memory is saved with CortexDB\'s own time to live (45 days): the engine hides it, the sweep of the next session end deletes it', async () => {
     await withBrain(async ({ repo, root }) => {
       const clock = join(root, 'cortex-clock')
       await withEnv({ FAKE_CORTEXDB_CLOCK_FILE: clock }, async () => {
@@ -153,9 +165,15 @@ describe('finalize', () => {
         writeFileSync(clock, String(t0 + 44 * DAY))
         expect(await getStored(projectRef('demo'), id)).toBeDefined()
         writeFileSync(clock, String(t0 + 46 * DAY))
-        expect(await getStored(projectRef('demo'), id)).toBeUndefined()
+        // Past its time the engine only hides the row: a listing leaves it out, memory_get still answers it.
         forgetListCache()
         expect((await listAll(projectRef('demo'))).map(i => i.id)).not.toContain(id)
+        expect(await getStored(projectRef('demo'), id)).toBeDefined()
+        // The next session end sweeps it out of the file; a second sweep finds nothing.
+        await spooled(repo, OTHER)
+        await finalize('codex', OTHER, { pending: false, nowMs: t0 + 46 * DAY })
+        expect(await getStored(projectRef('demo'), id)).toBeUndefined()
+        expect(await sweepExpired()).toBe(0)
       })
     })
   })
