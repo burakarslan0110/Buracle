@@ -6,9 +6,15 @@ import { OMP_BUILTIN_COMMANDS, OMP_UTILITY_COMMANDS, statusViewOf } from '../../
 import { editTargets } from '../../../src/adapters/omp/runtime/edits'
 import { FLOW_WIDGET_KEY, FlowWidget, flowWidgetLines } from '../../../src/adapters/omp/runtime/flow-widget'
 import { workflowCommandBody, workflowOfExpanded, workflowOfInput } from '../../../src/adapters/omp/runtime/flow-track'
-import { fitPrompt, isModelPrompt, noTurnCommand } from '../../../src/adapters/omp/runtime/prompt'
+import { isModelPrompt, noTurnCommand } from '../../../src/adapters/omp/runtime/prompt'
 import { reviewAgentOf, reviewProblems, reviewYieldReason, yieldReport } from '../../../src/adapters/omp/runtime/review'
-import { availableServers, createDepsReader, isDeviceWrite, promptRouting, rootCheck, rootProblem, routerData, workspaceFacts } from '../../../src/adapters/omp/runtime/routing'
+import { availableServers, createDepsReader, isDeviceWrite, promptRouting, routerData } from '../../../src/adapters/omp/runtime/routing'
+import { fitParts, workspaceFacts } from '../../../src/adapters/shared/pipeline/index'
+import { defaultConfig } from '../../../src/core/config'
+import type { RoutingPolicy } from '../../../src/core/policy/routing'
+import { emptyLedger, reminders, rootProblem as coreRootProblem, type WorkspaceFacts } from '../../../src/core/policy/usage'
+import * as paths from '../../../src/engine/paths'
+import { codegraphDataDir } from '../../../src/workflow/workspace'
 import type { BandView } from '../../../src/core/flow/band'
 import { bandView } from '../../../src/core/flow/band'
 import { flowStart } from '../../../src/core/flow/record'
@@ -17,6 +23,24 @@ import type { WorkspaceInfo } from '../../../src/core/workspace'
 import { withSandbox } from '../../helpers/sandbox'
 
 const ESC = String.fromCharCode(27)
+
+// The root check, the workspace facts and the fitting of the prompt context are the shared pipeline's and core's
+// (H24, H10): omp has no copy of them, so these read them the way the extension's calls reach them.
+interface RootEnv { home: string, caseInsensitive: boolean, canonical: (p: string) => string, excluded: (d: string) => string | undefined }
+function rootFacts(info: WorkspaceInfo | undefined, env: RootEnv): WorkspaceFacts {
+  const facts: WorkspaceFacts = { home: env.home, caseInsensitive: env.caseInsensitive, realpath: env.canonical, excludedReason: env.excluded }
+  if (info !== undefined) {
+    facts.cwd = info.cwd
+    if (info.children.length > 0) facts.children = [...info.children]
+    if (info.root !== undefined) facts.root = info.root
+  }
+  return facts
+}
+const rootProblem = (value: string, info: WorkspaceInfo | undefined, env: RootEnv): string | undefined => coreRootProblem(value, rootFacts(info, env))
+function rootCheck(call: ToolCall, info: WorkspaceInfo | undefined, strictness: RoutingPolicy['strictness'], env: RootEnv): { deny?: string, context?: string } {
+  const r = reminders(emptyLedger(), call, { strictness, available: [], facts: rootFacts(info, env) })
+  return { ...(r.deny !== undefined ? { deny: r.deny.reason } : {}), ...(r.context !== undefined ? { context: r.context } : {}) }
+}
 const stripAnsi = (s: string) => s.split(ESC).map((part, i) => (i === 0 ? part : part.replace(/^\[[0-9;]*m/, ''))).join('')
 
 // The workspace and the home folder are this platform's absolute paths, as omp hands them over.
@@ -101,12 +125,12 @@ describe('omp prompt parts (H10, H22)', () => {
     expect(OMP_UTILITY_COMMANDS.every(c => !OMP_BUILTIN_COMMANDS.has(c))).toBe(true)
   })
 
-  test('fitPrompt keeps parts in priority order within the budget and returns them in reading order', () => {
-    const parts = [{ text: 'C'.repeat(10), order: 0 }, { text: 'W'.repeat(10), order: 3 }, { text: 'R'.repeat(100), order: 1 }, { text: undefined, order: 2 }, { text: 'N'.repeat(5), order: 2 }]
-    expect(fitPrompt(parts, 1_000)).toEqual(['C'.repeat(10), 'R'.repeat(100), 'N'.repeat(5), 'W'.repeat(10)])
-    expect(fitPrompt(parts, 31)).toEqual(['C'.repeat(10), 'N'.repeat(5), 'W'.repeat(10)])
-    expect(fitPrompt(parts, 30)).toEqual(['C'.repeat(10), 'W'.repeat(10)])
-    expect(fitPrompt([{ text: 'X'.repeat(50), order: 1 }], 10)).toEqual(['X'.repeat(50)])
+  test('the prompt context is fitted by the pipeline: parts in reading order within the budget, the first always stays', () => {
+    const parts = ['C'.repeat(10), 'R'.repeat(100), ' ', 'N'.repeat(5), 'W'.repeat(10)]
+    expect(fitParts(parts, 1_000)).toEqual(['C'.repeat(10), 'R'.repeat(100), 'N'.repeat(5), 'W'.repeat(10)])
+    expect(fitParts(parts, 31)).toEqual(['C'.repeat(10), 'N'.repeat(5), 'W'.repeat(10)])
+    expect(fitParts(parts, 28)).toEqual(['C'.repeat(10), 'N'.repeat(5)])
+    expect(fitParts(['X'.repeat(50)], 10)).toEqual(['X'.repeat(50)])
   })
 })
 
@@ -157,7 +181,7 @@ describe('omp routing helpers (H03, H22, H24)', () => {
     const folder: WorkspaceInfo = { cwd: '/h/code', children: ['/h/code/a', '/h/code/b'], index: { codegraph: { state: 'none' }, semble: { state: 'none' } } }
     expect(rootProblem('/h/code', folder, env)).toBe('a folder of projects, not a project')
     const call = (input: Record<string, unknown>): ToolCall => ({ harness: 'omp', sessionId: 's', cwd: '/h/code/app', tool: 'mcp__semble_search', kind: 'mcp', input, paths: [], mcp: { server: 'semble', tool: 'search' } })
-    expect(rootCheck(call({ repo: '/h' }), info, 'enforce', env).deny).toBe('semble `repo` is /h, your home folder; indexing it is slow and searches the wrong tree. Pass the project root /h/code/app instead.')
+    expect(rootCheck(call({ repo: '/h' }), info, 'enforce', env).deny).toBe('Buracle: semble `repo` is /h, your home folder; indexing it is slow and searches the wrong tree. Pass the project root /h/code/app instead.')
     expect(rootCheck(call({ repo: '/h' }), info, 'nudge', env).context).toStartWith('Buracle: semble `repo` is /h')
     expect(rootCheck(call({ repo: '/h' }), info, 'off', env)).toEqual({})
     expect(rootCheck(call({ repo: '/h/code' }), folder, 'enforce', env).deny).toContain('Pass one of its projects instead (a, b), as /h/code/<name>.')
@@ -165,11 +189,18 @@ describe('omp routing helpers (H03, H22, H24)', () => {
   })
 
   test('workspace facts: the root, home, excluded folders; codegraph only counts with an index and the tool on', () => {
-    const info: WorkspaceInfo = { cwd: '/w', root: '/w', children: [], index: { codegraph: { state: 'ready' }, semble: { state: 'ready' } } }
-    const env = { home: '/h', excluded: ['/v', '/h/.buracle'], caseInsensitive: true, codegraphIndexed: (r: string) => r === '/w' }
-    expect(workspaceFacts(info, { index: { codegraph: true } } as never, env)).toEqual({ home: '/h', excluded: ['/v', '/h/.buracle'], caseInsensitive: true, codegraphIndexed: true, root: '/w' })
-    expect(workspaceFacts(info, { index: { codegraph: false } } as never, env).codegraphIndexed).toBe(false)
-    expect(workspaceFacts(undefined, { index: { codegraph: true } } as never, env)).toEqual({ home: '/h', excluded: ['/v', '/h/.buracle'], caseInsensitive: true, codegraphIndexed: false })
+    return withSandbox(async sb => {
+      const root = join(sb.root, 'w')
+      mkdirSync(join(root, codegraphDataDir(root)), { recursive: true })
+      writeFileSync(join(root, codegraphDataDir(root), 'codegraph.db'), '')
+      const info: WorkspaceInfo = { cwd: root, root, children: [], index: { codegraph: { state: 'ready' }, semble: { state: 'ready' } } }
+      const ctx = (codegraph: boolean) => ({ paths: { ...paths, home: () => '/h', oldVaultRoot: () => '/v' }, config: { ...defaultConfig(), index: { ...defaultConfig().index, codegraph } } })
+      expect(workspaceFacts(ctx(true), info)).toMatchObject({ home: '/h', codegraphIndexed: true, root, cwd: root })
+      expect(workspaceFacts(ctx(true), info).exclusion?.vault).toBe('/v')
+      expect(workspaceFacts(ctx(false), info).codegraphIndexed).toBe(false)
+      const none = workspaceFacts(ctx(true), undefined)
+      expect({ home: none.home, indexed: none.codegraphIndexed, root: none.root }).toEqual({ home: '/h', indexed: false, root: undefined })
+    })
   })
 
   test('the project deps reader reads the manifests and re-reads only when one changes', () => withSandbox(async sb => {

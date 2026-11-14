@@ -17,7 +17,6 @@ import { loadCanonicalSync } from '../../../src/engine/canonical'
 import * as paths from '../../../src/engine/paths'
 import { loadLedger } from '../../../src/workflow/ledger'
 import { readFlow } from '../../../src/workflow/flow'
-import { reviewNotesNotice } from '../../../src/adapters/shared/review-notes'
 import { loadState, saveState } from '../../../src/workflow/session-store'
 import { withEnv, withSandbox, type Sandbox } from '../../helpers/sandbox'
 import { fakeCtx, fakePi, planState, testDeps, testGenerated, type FakeCtx } from './fakes'
@@ -349,7 +348,7 @@ describe('omp H03 shell notes and H04 checks through the shared planner', () => 
     writeFileSync(join(cwd, 'src', 'core', 'x.ts'), 'export const x = 1\n')
     writeFileSync(join(cwd, 'tests', 'core', 'x.test.ts'), "import { x } from '../../src/core/x'\n")
     const first = await fp.emit('tool_result', toolResult('write', { path: 'run.sh', content: 'echo $1\n' }), ctx) as { additionalContext?: string }
-    expect(first.additionalContext).toBe('shellcheck is not installed, so it did not check this file: run `buracle install`.')
+    expect(first.additionalContext).toBe('run.sh:\n- shellcheck is not installed, so it did not check this file: run `buracle install`.')
     expect(await fp.emit('tool_result', toolResult('write', { path: 'run.sh', content: 'echo $1\n' }), ctx)).toBeUndefined()
     expect(await fp.emit('tool_result', toolResult('write', { path: 'src/core/x.ts', content: 'export const x = 1\n' }), ctx)).toBeUndefined()
   }))
@@ -369,7 +368,7 @@ describe('omp H04 on `~/` paths', () => {
     writeFileSync(file, 'export const x = 1\n')
     const patch = '*** Begin Patch\n*** Add File: ~/notes/a.ts\n+export const x = 1\n*** End Patch'
     const r = await fp.emit('tool_result', { ...toolResult('edit', { input: patch }) }, ctx)
-    expect(r).toEqual({ additionalContext: `checked ${file}` })
+    expect(r).toEqual({ additionalContext: `${file}:\n- checked ${file}` })
   }))
 })
 
@@ -579,7 +578,7 @@ describe('w2 plan state on omp: the lane guard, the H09 reminder and the H08 rec
     const sub = setup(sb, {}, { kind: 'sub' })
     const r = await sub.fp.emit('tool_call', toolCall('bash', { command: 'buracle plan resume' }), sub.ctx) as { block?: boolean, reason?: string }
     expect(r.block).toBe(true)
-    expect(r.reason).toContain('Buracle lane guard')
+    expect(r.reason).toContain('read-only reviewer')
     expect(await sub.fp.emit('tool_call', toolCall('bash', { command: 'buracle plan status --json' }, '2'), sub.ctx)).toBeUndefined()
   }))
 
@@ -625,7 +624,7 @@ describe('w2 plan state on omp: the lane guard, the H09 reminder and the H08 rec
   }))
 
   test('notes the user pinned in the review page on the plan reach the next prompt once (H10)', () => withSandbox(async sb => {
-    const { fp, ctx, cwd } = setup(sb, { reviewNotes: (sid, o) => reviewNotesNotice('omp', sid, o) })
+    const { fp, ctx, cwd } = setup(sb)
     const plan = join(cwd, 'docs', 'plans', 'p.md')
     saveState('omp', SID, { ...planState(), plan: { ...planState().plan!, path: plan, status: 'PENDING', phase: 'plan' } })
     mkdirSync(join(sb.buracleHome, 'state', 'review'), { recursive: true })

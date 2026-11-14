@@ -185,7 +185,6 @@ export function testDeps(overrides: Partial<ExtensionDeps> = {}): { deps: Partia
     refreshWorkspace: info => info,
     profileGuard: () => undefined,
     memoryUi: () => undefined,
-    codegraphIndexed: () => false,
     columns: () => 120,
     ...overrides,
   }

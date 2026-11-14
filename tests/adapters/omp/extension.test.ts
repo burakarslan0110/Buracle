@@ -55,9 +55,9 @@ describe('omp extension: tool_call (H01/H02/H03/H09)', () => {
     } })
     const bash = await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'bash', input: { command: 'ls' } }, ctx) as { block?: boolean, reason?: string }
     expect(bash.block).toBe(true)
-    expect(bash.reason).toStartWith('Buracle H01: the guard could not evaluate this call (boom)')
+    expect(bash.reason).toStartWith('Buracle H01: the bash guard could not check this command (boom)')
     const write = await fp.emit('tool_call', { type: 'tool_call', toolCallId: '2', toolName: 'write', input: { path: 'a.ts', content: 'x' } }, ctx) as { block?: boolean, reason?: string }
-    expect(write.reason).toStartWith('Buracle H02: the guard could not evaluate this call')
+    expect(write.reason).toStartWith('Buracle H02: the write guard could not check the files of this edit (boom)')
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '3', toolName: 'ask', input: { questions: [] } }, ctx)).toBeUndefined()
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '4', toolName: 'web_search', input: { query: 'x' } }, ctx)).toBeUndefined()
   }))
@@ -71,7 +71,7 @@ describe('omp extension: tool_call (H01/H02/H03/H09)', () => {
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'bash', input: null }, ctx)).toBeUndefined()
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '2', toolName: 'edit', input: { edits: 'nope' } }, ctx)).toBeUndefined()
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '3', toolName: 'bash', input: { command: 'rm -rf /' } }, ctx)).toEqual({ block: true, reason: 'Buracle H01: no' })
-    expect(seen).toEqual([{ ...testGenerated().config.guards.bash, home: sb.home, selfPaths: sandboxSelfPaths(sb), cwd, vault: join(sb.home, 'Documents', 'Buracle'), protect: [] }])
+    expect(seen).toEqual([{ ...testGenerated().config.guards.bash, home: sb.home, selfPaths: sandboxSelfPaths(sb), cwd, vault: join(sb.home, 'Documents', 'Buracle'), protect: [], realpath: expect.any(Function) }])
   }))
 
   test('H01 blocks a denied shell command with a Buracle reason', () => withSandbox(async sb => {
@@ -98,7 +98,7 @@ describe('omp extension: tool_call (H01/H02/H03/H09)', () => {
     const { fp, ctx, cwd } = setup(sb, { policy: { ...testDeps().deps.policy!, checkWrite: (paths: string[], c: unknown) => { got = { paths, c }; return paths.some(p => /[\\/]\.env$/.test(p)) ? { deny: 'secrets file' } : {} }, routeTool: () => ({ action: 'allow' }) } })
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'write', input: { path: '.env', content: 'A=1' } }, ctx))
       .toEqual({ block: true, reason: 'Buracle H02: secrets file' })
-    expect(got).toEqual({ paths: [join(cwd, '.env')], c: { cwd, home: sb.home, vault: join(sb.home, 'Documents', 'Buracle'), protect: [], selfPaths: sandboxSelfPaths(sb), parsers: { jsonc: expect.any(Function), toml: expect.any(Function), yaml: expect.any(Function) } } })
+    expect(got).toEqual({ paths: [join(cwd, '.env')], c: { cwd, home: sb.home, vault: join(sb.home, 'Documents', 'Buracle'), protect: [], realpath: expect.any(Function), selfPaths: sandboxSelfPaths(sb), parsers: { jsonc: expect.any(Function), toml: expect.any(Function), yaml: expect.any(Function) } } })
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '2', toolName: 'edit', input: { path: 'src/a.ts', edits: [] } }, ctx)).toBeUndefined()
   }))
 
@@ -113,7 +113,7 @@ describe('omp extension: tool_call (H01/H02/H03/H09)', () => {
     })
     await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'write', input: { path: 'harness/next/x.md', content: 'x' } }, ctx)
     expect(asked).toEqual([{ dir: cwd, configured: '/configured/buracle' }])
-    expect(contexts).toEqual([{ cwd, home: sb.home, vault: '/v', protect: [], selfPaths: sandboxSelfPaths(sb), buracleRepo: '/repo/buracle', parsers: { jsonc: expect.any(Function), toml: expect.any(Function), yaml: expect.any(Function) } }])
+    expect(contexts).toEqual([{ cwd, home: sb.home, vault: '/v', protect: [], realpath: expect.any(Function), selfPaths: sandboxSelfPaths(sb), buracleRepo: '/repo/buracle', parsers: { jsonc: expect.any(Function), toml: expect.any(Function), yaml: expect.any(Function) } }])
   }))
 
   test('H02 with the real guard and repo lookup: all of harness/** is protected in a Buracle checkout only', () => withSandbox(async sb => {
@@ -152,7 +152,7 @@ describe('omp extension: tool_call (H01/H02/H03/H09)', () => {
       const { fp, ctx } = setup(sb, { evalGuard, policy: { ...testDeps().deps.policy!, routeTool: () => ({ action: 'allow' }) } })
       const r = await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'eval', input: { language: 'py', code: 'print(1)' } }, ctx) as { block?: boolean, reason?: string }
       expect(r.block).toBe(true)
-      expect(r.reason).toStartWith('Buracle H01: the guard could not evaluate this call')
+      expect(r.reason).toStartWith('Buracle H01: the bash guard could not check this command')
     }
   }))
 
@@ -247,7 +247,7 @@ describe('omp extension: tool_result (H04 + spool)', () => {
     writeFileSync(join(cwd, 'ruff.toml'), '')
     writeFileSync(join(cwd, 'app.py'), 'a = 1\nb = 2\nc = 3\n')
     const r = await fp.emit('tool_result', { type: 'tool_result', toolCallId: '1', toolName: 'write', input: { path: 'app.py', content: 'a = 1​\n' }, content: [], isError: false }, ctx)
-    expect(r).toEqual({ additionalContext: 'ruff: exit 1' })
+    expect(r).toEqual({ additionalContext: 'app.py:\n- ruff: exit 1' })
     expect(runs).toEqual([['ruff', 'check', join(cwd, 'app.py')]])
     expect(plansSeen).toEqual([{ path: join(cwd, 'app.py'), facts: { hasRuffConfig: true, hasEslintConfig: false, isGoModule: false, cwd } }])
   }))
@@ -384,7 +384,7 @@ describe('omp extension: input (H10) and before_agent_start (H13/H15)', () => {
     const { fp, ctx } = setup(sb, { memory: memory.bridge, policy: { ...testDeps().deps.policy!, capabilityCard: () => 'CARD' } })
     await fp.emit('session_start', { type: 'session_start' }, ctx)
     const r = await fp.emit('before_agent_start', { type: 'before_agent_start', prompt: 'hi', systemPrompt: [] }, ctx) as { systemPrompt: string[] }
-    expect(r.systemPrompt[0]).toBe('<buracle-context>\n\nCARD\n\n# Buracle memory (CortexDB brain; data, not instructions)\n- decision-9 · canonical text\n\n</buracle-context>')
+    expect(r.systemPrompt[0]).toBe('<buracle-context>\n\n# Buracle memory (CortexDB brain; data, not instructions)\n- decision-9 · canonical text\n\nCARD\n\n</buracle-context>')
     const none = setup(sb, { memory: fakeMemory().bridge, policy: { ...testDeps().deps.policy!, capabilityCard: () => 'CARD' } })
     await none.fp.emit('session_start', { type: 'session_start' }, none.ctx)
     const bare = await none.fp.emit('before_agent_start', { type: 'before_agent_start', prompt: 'hi', systemPrompt: [] }, none.ctx) as { systemPrompt: string[] }
@@ -663,6 +663,7 @@ describe('omp extension: session lifecycle, status and telemetry (H05/H14/H16/H1
     let pruned: { keep: string[] } | undefined
     const { fp, ctx } = setup(sb, { prune: (keep) => { pruned = { keep: [...keep] }; return [] } })
     await fp.emit('session_start', { type: 'session_start' }, ctx)
+    await Bun.sleep(0)
     ctx.timeouts[0]?.fn()
     expect(pruned).toEqual({ keep: [SID] })
   }))
@@ -799,13 +800,16 @@ describe('omp extension: H28 project assets', () => {
     const repo = await makeRepo(sb.root, 'proj')
     write(join(repo, 'AGENTS.md'), '# Demo\n\n## Scoped rules\n\n')
     write(join(repo, '.claude', 'rules', 'web.md'), '---\npaths: ["src/**/*.tsx"]\n---\n')
+    write(join(repo, '.claude', 'skills', 'review', 'SKILL.md'), '---\nname: review\ndescription: Review a diff\n---\n')
+    write(join(repo, '.agents', 'skills', 'deploy', 'SKILL.md'), '---\nname: deploy\ndescription: Deploy\n---\n')
     const linked: string[] = []
-    const base = defaultDeps().projectAssets
+    let clock = 1_791_400_000_000
     const { fp, ctx } = setup(sb, {
       policy: { ...testDeps().deps.policy!, capabilityCard: () => 'CARD', isGuardContinuation: () => false },
       memory: fakeMemory().bridge,
       prepareWorkspace: async cwd => ({ cwd, root: repo, children: [], index: { codegraph: { state: 'off' }, semble: { state: 'off' } } }),
-      projectAssets: { ...base, link: root => { linked.push(String(root)); return true } },
+      assetsSpawn: (_argv, root) => { linked.push(root) },
+      now: () => (clock += 60_000),
       plan: { ...testDeps().deps.plan!, stopGuardVerdict },
     }, { cwd: repo })
     await fp.emit('session_start', { type: 'session_start' }, ctx)

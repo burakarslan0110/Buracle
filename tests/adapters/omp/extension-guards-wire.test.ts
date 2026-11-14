@@ -17,7 +17,7 @@ function setup(cwd: string, protect: string[] = [], agent: { kind?: 'main' | 'su
   const policy = { ...testDeps().deps.policy!, checkBash, checkWrite, routeTool: () => ({ action: 'allow' as const }) }
   const config = defaultConfig()
   config.guards.write.protect = protect
-  const t = testDeps({ policy, evalGuard: defaultDeps().evalGuard, realpath: defaultDeps().realpath, consentGate: () => undefined })
+  const t = testDeps({ policy, evalGuard: defaultDeps().evalGuard, realpath: defaultDeps().realpath })
   const fp = fakePi({ thinking: 'high' })
   createBuracleExtension(testGenerated({ config }), t.deps)(fp.pi)
   const ctx = fakeCtx({ cwd, sid: SID, ...agent })

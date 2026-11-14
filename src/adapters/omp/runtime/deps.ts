@@ -33,14 +33,12 @@ import { captureSessionPlan } from '../../../workflow/plan-native'
 import { loadLedger, updateLedger } from '../../../workflow/ledger'
 import { loadState, profileGuard, reviewSubjects, sessionMaint, updateState, writeTelemetry } from '../../../workflow/session-store'
 import type { Telemetry } from '../../../workflow/session-store'
-import { codegraphIndexPresent, refreshWorkspaceInfo, workspaceInfo } from '../../../workflow/workspace'
-import { buracleRepoFor } from '../../opencode/runtime/adapter-rules'
+import { refreshWorkspaceInfo, workspaceInfo } from '../../../workflow/workspace'
 import { recordDialogGrant } from '../../shared/consent-dialog'
-import { reviewNotesNotice } from '../../shared/review-notes'
-import { consentGate, recordPromptGrants } from '../../shared/consent-store'
 import { nodeCheckFs, type CheckFs } from '../../shared/checker-scan'
 import { realWriteTarget } from '../../shared/realpath'
-import { assetsAfterEdit, assetsContext, startLinkRun } from '../../shared/project-assets'
+import type { AssetsSpawner } from '../../shared/project-assets'
+import { buracleRepoFor } from '../../shared/repo-cache'
 import { prepareWorkspace } from '../../shared/workspace-start'
 import { liveConfig, mcpHealth, ompConfigPath, type LiveConfig } from './config'
 import { reviewerFenceFromEnv } from './companion-fence'
@@ -112,20 +110,13 @@ export interface ExtensionDeps {
   updates(): number | undefined
   refreshUsage(): void
   prune(keep: ReadonlySet<string>, nowMs: number): string[]
-  consentGate(sid: string, command: string, nowMs: number): string | undefined
-  recordGrants(sid: string, text: string, nowMs: number): void
   recordAskGrant(sid: string, kind: ConsentKind, answer: 'once' | 'session', nowMs: number): void
   prepareWorkspace(cwd: string, cfg: BuracleConfig, nowMs: number): Promise<WorkspaceInfo>
   workspaceInfo(cwd: string, cfg: BuracleConfig, nowMs: number): Promise<WorkspaceInfo>
   refreshWorkspace(info: WorkspaceInfo, cfg: BuracleConfig, nowMs: number): WorkspaceInfo
   projectDeps(root: string | undefined): string[] | undefined
-  reviewNotes?(sid: string, o: { plan?: string, roots: ReadonlyArray<string | undefined>, now: number }): string | undefined
-  projectAssets: {
-    context(root: string | undefined): string
-    link(root: string | undefined, nowMs: number): boolean
-    afterEdit(root: string | undefined, files: readonly string[], nowMs: number): string | undefined
-  }
-  codegraphIndexed(root: string): boolean
+  /** Starts the project's link run (H28); the pipeline's own spawner by default. */
+  assetsSpawn?: AssetsSpawner
   profileGuard(lc: LiveConfig): string | undefined
   columns(): number
   setEnv(name: string, value: string): void
@@ -266,20 +257,11 @@ export function defaultDeps(): ExtensionDeps {
       if (argv !== undefined) spawnUsageRefresh('omp', { argv: [...argv, 'usage', 'refresh', '--harness', 'omp', '--background'] })
     },
     prune: (keep, nowMs) => sessionMaint('omp', nowMs, { keep }).removed,
-    consentGate: (sid, command, nowMs) => consentGate('omp', sid, command, nowMs),
-    recordGrants: (sid, text, nowMs) => { recordPromptGrants('omp', sid, text, nowMs) },
     recordAskGrant: (sid, kind, answer, nowMs) => { recordDialogGrant('omp', sid, kind, answer, nowMs) },
     prepareWorkspace: (cwd, cfg, nowMs) => prepareWorkspace(cwd, cfg, nowMs),
     workspaceInfo: (cwd, cfg, nowMs) => workspaceInfo(cwd, cfg, nowMs),
     refreshWorkspace: (info, cfg, nowMs) => refreshWorkspaceInfo(info, cfg, nowMs),
     projectDeps: createDepsReader(),
-    reviewNotes: (sid, o) => reviewNotesNotice('omp', sid, o),
-    projectAssets: {
-      context: root => assetsContext(root, 'omp'),
-      link: (root, nowMs) => startLinkRun(root, { nowMs }),
-      afterEdit: (root, files, nowMs) => assetsAfterEdit(root, files, { nowMs }),
-    },
-    codegraphIndexed: root => codegraphIndexPresent(root),
     profileGuard: lc => profileGuard('omp', lc.resolved !== undefined ? { resolved: lc.resolved } : undefined, process.env),
     columns: () => (typeof process.stdout.columns === 'number' && process.stdout.columns > 0 ? process.stdout.columns : 120),
     setEnv: (name, value) => { process.env[name] = value },
