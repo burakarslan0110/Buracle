@@ -1,11 +1,5 @@
 version: 1
 
-harnesses:
-  claude: { enabled: true }
-  codex: { enabled: true }
-  opencode: { enabled: true }
-  omp: { enabled: true }
-
 routing:
   strictness: enforce
   skills: router
@@ -75,8 +69,6 @@ index:
 
 mcp:
   shared: true
-  off:
-    claude: []
-    codex: []
-    opencode: []
-    omp: []
+
+# Per-harness keys are not spelled out here: `harnesses.<id>.enabled` (true) and `mcp.off.<id>` ([]) get
+# their defaults from the harness profiles in src/core/harness/, so a new harness needs no edit of this file.
