@@ -9,13 +9,13 @@ import type { McpHealth, RoutingPolicy } from '../../core/policy/routing'
 import { capabilityCard, mcpHealthOf, mcpUnavailable } from '../../core/policy/routing'
 import type { CompiledTriggers, PromptRoute } from '../../core/policy/skill-router'
 import { compileTriggers, routePrompt, routeText } from '../../core/policy/skill-router'
-import type { ReminderContext, ReminderResult, UsageLedger, WorkspaceFacts } from '../../core/policy/usage'
-import { ledgerAudited, reminders, rootCheckText, rootProblem as coreRootProblem, sessionMcpHealth, turnAudit } from '../../core/policy/usage'
+import type { UsageLedger, WorkspaceFacts } from '../../core/policy/usage'
+import { rootCheckText, rootProblem as coreRootProblem, sessionMcpHealth } from '../../core/policy/usage'
 import type { WorkspaceInfo } from '../../core/workspace'
 import { atomicWriteSync, ensureDirSync, readJsonSafeSync } from '../../engine/fsx'
 import { log } from '../../engine/log'
 import * as paths from '../../engine/paths'
-import { loadLedger, updateLedger } from '../../workflow/ledger'
+import { loadLedger } from '../../workflow/ledger'
 import { canonicalDir, codegraphIndexPresent, exclusionContext } from '../../workflow/workspace'
 import type { AdapterContext } from '../registry'
 import { claudeOffServers } from '../shared/native-off'
@@ -176,31 +176,6 @@ export function memoryOnlyRouting(signals: { recall: boolean, write: boolean }, 
   if ((signals.recall || signals.write) && !available.includes('buracle-memory')) route.memory.cli = true
   const text = routeText(route, H, { strictness, categories: [] })
   return text !== undefined ? { route, text } : { route }
-}
-
-export function usageReminders(sid: string, call: ToolCall, rctx: ReminderContext): Pick<ReminderResult, 'context' | 'deny'> {
-  let result: ReminderResult | undefined
-  updateLedger(H, sid, l => {
-    result = reminders(l, call, rctx)
-    return result.next
-  })
-  const out: Pick<ReminderResult, 'context' | 'deny'> = {}
-  if (result?.context !== undefined) out.context = result.context
-  if (result?.deny !== undefined) out.deny = result.deny
-  return out
-}
-
-export function auditTurn(sid: string): string | undefined {
-  const verdict = turnAudit(loadLedger(H, sid))
-  if (verdict.action !== 'block') return undefined
-  let reason: string | undefined
-  updateLedger(H, sid, l => {
-    const again = turnAudit(l)
-    if (again.action !== 'block') return l
-    reason = again.reason
-    return ledgerAudited(l, again)
-  })
-  return reason
 }
 
 export function permissionPath(sid: string): string {

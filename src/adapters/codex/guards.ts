@@ -1,10 +1,9 @@
-import type { Harness, ToolCall } from '../../core/events'
+import type { ToolCall } from '../../core/events'
 import { isAbsPath, normalizePath } from '../../core/events'
 import type * as core from '../../core/index'
 import type { BashGuardOptions } from '../../core/policy/bash-guard'
-import { mcpWritePaths } from '../../core/policy/mcp-paths'
 import type { WriteGuardContext } from '../../core/policy/write-guard'
-import { log } from '../../engine/log'
+import type { WriteTargets } from '../shared/pipeline/index'
 import type { AdapterContext } from '../registry'
 import { realWriteTarget, withRealpath } from '../shared/realpath'
 import { buracleRepoFor } from '../shared/repo'
@@ -14,7 +13,6 @@ import { denyReason, errText, rec, step, str, type Payload } from './hook-io'
 import { shellApplyPatch, shellPatchTargets, type ShellPatch } from './shell-patch'
 
 type CoreFns = typeof core
-const H: Harness = 'codex'
 
 export const SHELL_TOOL = 'Bash'
 
@@ -59,44 +57,23 @@ function shellPatchText(sp: Extract<ShellPatch, { kind: 'patch' }>): { text: str
   return { text: sp.body, base: sp.cd !== undefined && isAbsPath(sp.cd) ? normalizePath(sp.cd) : '' }
 }
 
-export async function writeDenial(p: Payload, call: ToolCall, cwd: string, ctx: AdapterContext, c: CoreFns, ev: string): Promise<string | undefined> {
-  try {
-    let paths: string[] = []
-    let changes: FileChange[] = []
-    if (call.tool === SHELL_TOOL) {
-      const sp = shellPatchOf(p)
-      if (sp.kind === 'opaque') return denyReason('H02', shellPatchDeny(sp))
-      if (sp.kind === 'patch') {
-        const t = shellPatchTargets(sp, c.parseApplyPatch)
-        if ('undetermined' in t) return denyReason('H02', shellPatchDeny(sp, t.undetermined))
-        paths = t.paths
-        const fed = shellPatchText(sp)
-        if (fed !== undefined) changes = patchChanges(fed.text, fed.base)
-      }
-    } else {
-      paths = call.paths
-      if (call.kind === 'patch') changes = codexPatchChanges(call.input, cwd)
+/** The files a call writes and the text they get, for the pipeline's write guard (H02); a shell apply_patch Buracle cannot follow is denied here. */
+export function writeTargets(p: Payload, call: ToolCall, cwd: string, c: Pick<CoreFns, 'parseApplyPatch'>): WriteTargets | { deny: string } {
+  let paths: string[] = []
+  let changes: FileChange[] = []
+  if (call.tool === SHELL_TOOL) {
+    const sp = shellPatchOf(p)
+    if (sp.kind === 'opaque') return { deny: shellPatchDeny(sp) }
+    if (sp.kind === 'patch') {
+      const t = shellPatchTargets(sp, c.parseApplyPatch)
+      if ('undetermined' in t) return { deny: shellPatchDeny(sp, t.undetermined) }
+      paths = t.paths
+      const fed = shellPatchText(sp)
+      if (fed !== undefined) changes = patchChanges(fed.text, fed.base)
     }
-    if (paths.length === 0) return undefined
-    const wctx = await writeContext(ev, cwd, ctx)
-    const contents = guardedContents(changes, paths, wctx.home, wctx.realpath !== undefined ? { realpath: wctx.realpath } : {})
-    const r = c.checkWrite(paths, Object.keys(contents).length > 0 ? { ...wctx, contents } : wctx)
-    return r.deny ? denyReason('H02', r.deny) : undefined
-  } catch (e) {
-    log('error', 'codex hook PreToolUse: H02 write guard failed; denying (fail closed)', { harness: H, error: e })
-    return guardFailed('H02', e)
+  } else {
+    paths = call.paths
+    if (call.kind === 'patch') changes = codexPatchChanges(call.input, cwd)
   }
-}
-
-export async function mcpWriteDenial(call: ToolCall, cwd: string, ctx: AdapterContext, c: CoreFns, ev: string): Promise<string | undefined> {
-  if (call.kind !== 'mcp') return undefined
-  try {
-    const targets = mcpWritePaths(call.tool, call.input, call.mcp)
-    if (targets.length === 0) return undefined
-    const r = c.checkWrite(targets, await writeContext(ev, cwd, ctx))
-    return r.deny ? denyReason('H02', r.deny) : undefined
-  } catch (e) {
-    log('error', 'codex hook PreToolUse: H02 write guard failed for an MCP call; denying (fail closed)', { tool: call.tool, error: e })
-    return guardFailed('H02', e)
-  }
+  return { paths, contents: g => guardedContents(changes, paths, g.home, g.realpath !== undefined ? { realpath: g.realpath } : {}) }
 }
