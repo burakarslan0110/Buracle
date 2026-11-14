@@ -1,4 +1,4 @@
-import { isAbsPath, isRootPath, isWindowsPath, nativePath, normalizePath, pathRoot, resolveNormalPath } from '../events'
+import { isAbsPath, isRootPath, normalizePath, pathRoot, resolveNormalPath } from '../events'
 import type { ConfigParsers, WriteContent } from './switch-off'
 import { guardedFile, switchOffChange } from './switch-off'
 
@@ -43,7 +43,7 @@ const SELF_LAYOUT: readonly SelfLayout[] = [
   { key: 'ompHome', under: '.omp', entries: ['plugins/'], area: 'omp' },
 ]
 
-const HOME_PREFIX = /^(?:\/(?:(?:users|home)\/[^/]+|root|var\/root)|[A-Za-z]:\/users\/[^/]+)(?=\/|$)/i
+const HOME_PREFIX = /^\/(?:(?:users|home)\/[^/]+|root|var\/root)(?=\/|$)/i
 
 const SELF_TEXT: Readonly<Record<SelfArea, { what: string, remedy: string }>> = {
   buracle: { what: "Buracle's own installation, which runs every guard hook", remedy: 'change Buracle through the buracle CLI (`buracle config set …`, `buracle install`) instead' },
@@ -126,7 +126,7 @@ const GENERATED_HARNESS = /^(.*)\/harness\/(?:claude|codex|opencode|omp|agents-s
 function expandHome(p: string, home: string): string {
   if (home === '') return p
   if (p === '~') return home
-  if (p.startsWith('~/') || (p.startsWith('~\\') && isWindowsPath(home))) return `${home.replace(/[\\/]+$/, '')}/${p.slice(2)}`
+  if (p.startsWith('~/')) return `${home.replace(/[\\/]+$/, '')}/${p.slice(2)}`
   return p
 }
 
@@ -146,12 +146,12 @@ function within(p: string, dir: string): boolean {
 
 function shown(p: string, home: string): string {
   if (home !== '' && within(p, home) && p.length > home.length) return '~' + p.slice(home.replace(/\/+$/, '').length)
-  return nativePath(p)
+  return p
 }
 
 function code(s: string): string { return '`' + s.replace(/`/g, "'") + '`' }
 
-const CREDENTIAL_FOLDER = /^(?:\/(?:(?:users|home)\/[^/]+|root|var\/root)|[A-Za-z]:\/users\/[^/]+)\/\.(ssh|aws|gnupg)(?:\/|$)/i
+const CREDENTIAL_FOLDER = /^\/(?:(?:users|home)\/[^/]+|root|var\/root)\/\.(ssh|aws|gnupg)(?:\/|$)/i
 const CREDENTIAL_WHAT: Readonly<Record<string, string>> = { ssh: "the user's SSH directory", aws: "the user's AWS credentials directory", gnupg: "the user's GnuPG directory" }
 
 const CREDENTIAL_STORES: readonly string[] = ['.netrc', '.git-credentials', '.npmrc', '.pypirc', '.docker/config.json', '.kube/config', '.config/gh/hosts.yml', '.config/gcloud/', '.azure/']
@@ -256,8 +256,8 @@ export function protectGlobToRegExp(glob: string): RegExp | null {
 function protectMatches(pattern: string, abs: string, cwd: string, home: string): boolean {
   const p = pattern.trim()
   if (p === '') return false
-  if (p.startsWith('~') || p.startsWith('/') || isWindowsPath(p)) {
-    const re = protectGlobToRegExp(normalizeGlob(windowsGlob(expandHome(p, home))))
+  if (p.startsWith('~') || p.startsWith('/')) {
+    const re = protectGlobToRegExp(normalizeGlob(expandHome(p, home)))
     return re !== null && (re.test(abs) || re.test(abs + '/'))
   }
   if (p.includes('/')) {
@@ -273,16 +273,6 @@ function protectMatches(pattern: string, abs: string, cwd: string, home: string)
 
 function normalizeGlob(p: string): string {
   return p.replace(/\/{2,}/g, '/').replace(/\/\.(?=\/)/g, '')
-}
-
-// In a drive or UNC pattern a backslash is a separator, not a glob escape; the UNC root keeps its
-// backslashes (escaped for the glob) as the normalized paths do.
-function windowsGlob(p: string): string {
-  if (!isWindowsPath(p)) return p
-  const s = p.replace(/\\/g, '/')
-  if (!s.startsWith('//')) return s
-  const root = pathRoot(p)
-  return root.replace(/\\/g, '\\\\') + s.slice(root.length)
 }
 
 function buracleRepoOf(abs: string, ctx: WriteGuardContext): string | undefined {

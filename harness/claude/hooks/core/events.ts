@@ -191,37 +191,16 @@ function longestPrefixServer(harness: Harness, rest: string, knownServers: reado
   return best ? { server: best.server, tool: best.tool } : undefined
 }
 
-// The pure core cannot read the platform, so a Windows path is known by its shape: a drive
-// letter (`C:\`, `C:/`, `c:`) or a UNC prefix (`\\server\share`, `\\?\`, `\\.\`). Only such
-// paths get `\` read as a separator; on POSIX a backslash stays part of the name.
-const DRIVE = /^[A-Za-z]:(?=[\\/]|$)/
-
-export function isWindowsPath(p: string): boolean {
-  return typeof p === 'string' && (DRIVE.test(p) || p.startsWith('\\\\'))
-}
-
 export function isAbsPath(p: string): boolean {
-  return typeof p === 'string' && (p.startsWith('/') || isWindowsPath(p))
+  return typeof p === 'string' && p.startsWith('/')
 }
 
-// `\\?\C:\x` is `C:\x` and `\\?\UNC\srv\share` is `\\srv\share`; `\\.\` device paths keep their form.
-// A UNC root stays `\\srv\share` in the normalized form, so normalizing it again cannot turn it
-// into the POSIX `/srv/share`.
-function windowsRoot(p: string): { root: string, rest: string } {
-  let s = p.replace(/\\/g, '/')
-  if (/^\/\/\?\/(?:[A-Za-z]:(?:\/|$)|UNC\/)/i.test(s)) s = s.slice(4).replace(/^UNC\//i, '//')
-  if (DRIVE.test(s)) return { root: `${(s[0] as string).toUpperCase()}:/`, rest: s.slice(2) }
-  const m = /^\/*([^/]*)\/*([^/]*)(.*)$/.exec(s) as RegExpExecArray
-  return { root: `\\\\${m[1] ?? ''}${m[2] ? `\\${m[2]}` : ''}`, rest: m[3] ?? '' }
-}
-
+// A backslash is part of a name, never a separator: Buracle runs on macOS and Linux only.
 export function normalizePath(p: string): string {
   if (p === '') return ''
-  const win = isWindowsPath(p)
-  const { root, rest } = win ? windowsRoot(p) : { root: p.startsWith('/') ? '/' : '', rest: p }
-  const abs = root !== ''
+  const abs = p.startsWith('/')
   const out: string[] = []
-  for (const seg of rest.split('/')) {
+  for (const seg of p.split('/')) {
     if (seg === '' || seg === '.') continue
     if (seg === '..') {
       if (out.length > 0 && out[out.length - 1] !== '..') out.pop()
@@ -231,25 +210,17 @@ export function normalizePath(p: string): string {
     out.push(seg)
   }
   const body = out.join('/')
-  if (win) return root.endsWith('/') ? root + body : body === '' ? root : `${root}/${body}`
   if (abs) return '/' + body
   return body === '' ? '.' : body
 }
 
-// The root of a normalized absolute path (`/`, `C:/`, `\\srv\share`), or '' for a relative one.
+// The root of an absolute path (`/`), or '' for a relative one.
 export function pathRoot(p: string): string {
-  if (typeof p !== 'string') return ''
-  if (isWindowsPath(p)) return windowsRoot(p).root
-  return p.startsWith('/') ? '/' : ''
+  return typeof p === 'string' && p.startsWith('/') ? '/' : ''
 }
 
 export function isRootPath(p: string): boolean {
   return typeof p === 'string' && p !== '' && normalizePath(p) === pathRoot(normalizePath(p))
-}
-
-// The form the platform spells a normalized path in: backslashes for drive and UNC paths.
-export function nativePath(p: string): string {
-  return isWindowsPath(p) ? p.replace(/\//g, '\\') : p
 }
 
 export interface ToolPathOptions {
@@ -257,29 +228,23 @@ export interface ToolPathOptions {
 }
 
 export function resolvePath(cwd: string, p: string, home?: string): string | undefined {
-  const r = resolveNormalPath(cwd, p, home)
-  return r === undefined ? undefined : nativePath(r)
+  return resolveNormalPath(cwd, p, home)
 }
 
-// resolvePath in the normalized (forward-slash) form the guards compare; Windows paths keep their
-// uppercase drive root and never climb above it.
+// The normalized form the guards compare.
 export function resolveNormalPath(cwd: string, p: string, home?: string): string | undefined {
   let s = p.trim()
   if (s === '') return undefined
-  const winHome = home !== undefined && isWindowsPath(home)
-  if (home !== undefined && home !== '' && (s === '~' || s.startsWith('~/') || (winHome && s.startsWith('~\\')))) {
+  if (home !== undefined && home !== '' && (s === '~' || s.startsWith('~/'))) {
     return normalizePath(`${home.replace(/[\\/]+$/, '')}/${s.slice(2)}`)
   }
   if (s.startsWith('file://')) {
     s = s.slice('file://'.length)
     try { s = decodeURIComponent(s) } catch {  }
-    if (/^\/[A-Za-z]:/.test(s)) s = s.slice(1)
-    else if (!s.startsWith('/')) s = '/' + s
+    if (!s.startsWith('/')) s = '/' + s
   } else if (/^[A-Za-z][A-Za-z0-9+.-]+:\/\//.test(s)) {
     return undefined
   }
-  if (isWindowsPath(s)) return normalizePath(s)
-  if (isWindowsPath(cwd) && /^[\\/]/.test(s)) return normalizePath(`${windowsRoot(cwd).root.replace(/\/$/, '')}\\${s.slice(1)}`)
   if (s.startsWith('/')) return normalizePath(s)
   if (cwd === '') return normalizePath(s)
   return normalizePath(`${cwd}/${s}`)

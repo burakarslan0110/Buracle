@@ -78,13 +78,6 @@ describe('shellPatchTargets: the files a shell patch writes', () => {
     expect(shellPatchTargets({ kind: 'patch', body: '*** Begin Patch\n*** Update File: /w/a.txt\n*** Move to: b.txt\n@@\n-x\n+y\n*** End Patch', cd: '/w', expands: false }, parse))
       .toMatchObject({ paths: ['/w/a.txt', '/w/b.txt'] })
   })
-
-  test('drive paths in a patch need no cd and keep their Windows spelling; a drive cd anchors relative paths', () => {
-    const body = patch('a.txt')
-    expect(shellPatchTargets({ kind: 'patch', body, cd: 'C:\\Users\\me\\.ssh', expands: false }, parse)).toMatchObject({ paths: ['C:\\Users\\me\\.ssh\\a.txt'] })
-    expect(shellPatchTargets({ kind: 'patch', body: patch('C:\\w\\a.txt'), expands: false }, parse)).toMatchObject({ paths: ['C:\\w\\a.txt'] })
-    expect(shellPatchTargets({ kind: 'patch', body: patch('a.txt'), cd: 'C:', expands: false }, parse)).toMatchObject({ paths: ['C:\\a.txt'] })
-  })
 })
 
 describe('PreToolUse H02 for shell apply_patch (real core, real write guard)', () => {

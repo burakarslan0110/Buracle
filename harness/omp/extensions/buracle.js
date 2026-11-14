@@ -8381,7 +8381,6 @@ __export(exports_core, {
   isRunawayDecision: () => isRunawayDecision,
   isTopLevelFlow: () => isTopLevelFlow,
   isUserText: () => isUserText,
-  isWindowsPath: () => isWindowsPath,
   laneCodeDenial: () => laneCodeDenial,
   laneReviewCleared: () => laneReviewCleared,
   laneReviewLabel: () => laneReviewLabel,
@@ -8461,7 +8460,6 @@ __export(exports_core, {
   nativeBinding: () => nativeBinding,
   nativeConflictNote: () => nativeConflictNote,
   nativeFilledNote: () => nativeFilledNote,
-  nativePath: () => nativePath,
   nativePlanText: () => nativePlanText,
   needsResultApproval: () => needsResultApproval,
   needsVerification: () => needsVerification,
@@ -9001,30 +8999,15 @@ function longestPrefixServer(harness, rest, knownServers) {
   }
   return best ? { server: best.server, tool: best.tool } : undefined;
 }
-var DRIVE = /^[A-Za-z]:(?=[\\/]|$)/;
-function isWindowsPath(p) {
-  return typeof p === "string" && (DRIVE.test(p) || p.startsWith("\\\\"));
-}
 function isAbsPath(p) {
-  return typeof p === "string" && (p.startsWith("/") || isWindowsPath(p));
-}
-function windowsRoot(p) {
-  let s = p.replace(/\\/g, "/");
-  if (/^\/\/\?\/(?:[A-Za-z]:(?:\/|$)|UNC\/)/i.test(s))
-    s = s.slice(4).replace(/^UNC\//i, "//");
-  if (DRIVE.test(s))
-    return { root: `${s[0].toUpperCase()}:/`, rest: s.slice(2) };
-  const m = /^\/*([^/]*)\/*([^/]*)(.*)$/.exec(s);
-  return { root: `\\\\${m[1] ?? ""}${m[2] ? `\\${m[2]}` : ""}`, rest: m[3] ?? "" };
+  return typeof p === "string" && p.startsWith("/");
 }
 function normalizePath(p) {
   if (p === "")
     return "";
-  const win = isWindowsPath(p);
-  const { root, rest } = win ? windowsRoot(p) : { root: p.startsWith("/") ? "/" : "", rest: p };
-  const abs = root !== "";
+  const abs = p.startsWith("/");
   const out = [];
-  for (const seg of rest.split("/")) {
+  for (const seg of p.split("/")) {
     if (seg === "" || seg === ".")
       continue;
     if (seg === "..") {
@@ -9037,35 +9020,24 @@ function normalizePath(p) {
     out.push(seg);
   }
   const body = out.join("/");
-  if (win)
-    return root.endsWith("/") ? root + body : body === "" ? root : `${root}/${body}`;
   if (abs)
     return "/" + body;
   return body === "" ? "." : body;
 }
 function pathRoot(p) {
-  if (typeof p !== "string")
-    return "";
-  if (isWindowsPath(p))
-    return windowsRoot(p).root;
-  return p.startsWith("/") ? "/" : "";
+  return typeof p === "string" && p.startsWith("/") ? "/" : "";
 }
 function isRootPath(p) {
   return typeof p === "string" && p !== "" && normalizePath(p) === pathRoot(normalizePath(p));
 }
-function nativePath(p) {
-  return isWindowsPath(p) ? p.replace(/\//g, "\\") : p;
-}
 function resolvePath(cwd, p, home) {
-  const r = resolveNormalPath(cwd, p, home);
-  return r === undefined ? undefined : nativePath(r);
+  return resolveNormalPath(cwd, p, home);
 }
 function resolveNormalPath(cwd, p, home) {
   let s = p.trim();
   if (s === "")
     return;
-  const winHome = home !== undefined && isWindowsPath(home);
-  if (home !== undefined && home !== "" && (s === "~" || s.startsWith("~/") || winHome && s.startsWith("~\\"))) {
+  if (home !== undefined && home !== "" && (s === "~" || s.startsWith("~/"))) {
     return normalizePath(`${home.replace(/[\\/]+$/, "")}/${s.slice(2)}`);
   }
   if (s.startsWith("file://")) {
@@ -9073,17 +9045,11 @@ function resolveNormalPath(cwd, p, home) {
     try {
       s = decodeURIComponent(s);
     } catch {}
-    if (/^\/[A-Za-z]:/.test(s))
-      s = s.slice(1);
-    else if (!s.startsWith("/"))
+    if (!s.startsWith("/"))
       s = "/" + s;
   } else if (/^[A-Za-z][A-Za-z0-9+.-]+:\/\//.test(s)) {
     return;
   }
-  if (isWindowsPath(s))
-    return normalizePath(s);
-  if (isWindowsPath(cwd) && /^[\\/]/.test(s))
-    return normalizePath(`${windowsRoot(cwd).root.replace(/\/$/, "")}\\${s.slice(1)}`);
   if (s.startsWith("/"))
     return normalizePath(s);
   if (cwd === "")
@@ -11313,7 +11279,7 @@ function joinPath(parts) {
   for (const p of parts) {
     if (p === "")
       continue;
-    if (p.startsWith("/") || p.startsWith(HOME) || isWindowsPath(p)) {
+    if (p.startsWith("/") || p.startsWith(HOME)) {
       out = p;
       continue;
     }
@@ -12608,7 +12574,7 @@ var SYSTEM_STARTUP = new Set(["zshrc", "zprofile", "zshenv", "zlogin", "profile"
 function isStartupFile(path) {
   if (typeof path !== "string" || path === "" || path.includes(DYN))
     return false;
-  const p = (isWindowsPath(path) ? normalizePath(path) : path).replace(/\/+$/, "");
+  const p = path.replace(/\/+$/, "");
   const segs = p.split("/").filter((s) => s !== "");
   const base = (segs[segs.length - 1] ?? "").toLowerCase();
   if (STARTUP_NAMES.has(base))
@@ -12619,9 +12585,9 @@ function isStartupFile(path) {
     return true;
   if (dirs.includes("environment.d"))
     return true;
-  if (/profile\.ps1$/.test(base) && dirs.some((d) => d === "powershell" || d === "windowspowershell"))
+  if (/profile\.ps1$/.test(base) && dirs.includes("powershell"))
     return true;
-  return /\.(?:zsh|sh|bash|fish|ksh)$/.test(base) && (p.startsWith(`${HOME}/.`) || /^(?:\/(?:(?:users|home)\/[^/]+|root|var\/root)|[A-Za-z]:\/users\/[^/]+)\/\.[^./]/i.test(p));
+  return /\.(?:zsh|sh|bash|fish|ksh)$/.test(base) && (p.startsWith(`${HOME}/.`) || /^\/(?:(?:users|home)\/[^/]+|root|var\/root)\/\.[^./]/i.test(p));
 }
 var GUARDED_KEYS = [["guards"], ["permissions"], ["harnesses"], ["routing"], ["plan", "stopguard"], ["plan", "runaway"], ["plan", "planapproval"], ["plan", "resultapproval"], ["plan", "reviews"], ["plan", "goalverification"], ["repo"]];
 function keySegments(key) {
@@ -12919,9 +12885,9 @@ function selfDisabling(argv, shown, assigns = [], env) {
 }
 
 // src/core/policy/switch-off.ts
-var HOME_PREFIX = /^(?:\/(?:(?:users|home)\/[^/]+|root|var\/root)|[A-Za-z]:\/users\/[^/]+)(?=\/|$)/i;
-var POWERSHELL_PROFILE = /^(?:(?:onedrive[^/]*\/)?documents\/(?:windows)?powershell|\.config\/powershell)\/[^/]*profile\.ps1$/;
-var POWERSHELL_PROFILE_DIR = /^(?:(?:onedrive[^/]*\/)?documents\/(?:windows)?powershell|\.config\/powershell)$/;
+var HOME_PREFIX = /^\/(?:(?:users|home)\/[^/]+|root|var\/root)(?=\/|$)/i;
+var POWERSHELL_PROFILE = /^\.config\/powershell\/[^/]*profile\.ps1$/;
+var POWERSHELL_PROFILE_DIR = /^\.config\/powershell$/;
 var SHELL_STARTUP = [
   ".zshrc",
   ".zshenv",
@@ -13272,7 +13238,7 @@ var SELF_LAYOUT = [
   { key: "ompAgentDir", under: ".omp/agent", entries: ["config.yml", "config.yaml", "settings.json", "extensions/", "hooks/"], area: "omp" },
   { key: "ompHome", under: ".omp", entries: ["plugins/"], area: "omp" }
 ];
-var HOME_PREFIX2 = /^(?:\/(?:(?:users|home)\/[^/]+|root|var\/root)|[A-Za-z]:\/users\/[^/]+)(?=\/|$)/i;
+var HOME_PREFIX2 = /^\/(?:(?:users|home)\/[^/]+|root|var\/root)(?=\/|$)/i;
 var SELF_TEXT = {
   buracle: { what: "Buracle's own installation, which runs every guard hook", remedy: "change Buracle through the buracle CLI (`buracle config set \u2026`, `buracle install`) instead" },
   shim: { what: "the `buracle` command on PATH, a link to the shim that runs every guard hook", remedy: "`buracle install` manages it, so ask the user to run that instead" },
@@ -13360,7 +13326,7 @@ function expandHome(p, home) {
     return p;
   if (p === "~")
     return home;
-  if (p.startsWith("~/") || p.startsWith("~\\") && isWindowsPath(home))
+  if (p.startsWith("~/"))
     return `${home.replace(/[\\/]+$/, "")}/${p.slice(2)}`;
   return p;
 }
@@ -13382,12 +13348,12 @@ function within(p, dir) {
 function shown(p, home) {
   if (home !== "" && within(p, home) && p.length > home.length)
     return "~" + p.slice(home.replace(/\/+$/, "").length);
-  return nativePath(p);
+  return p;
 }
 function code2(s) {
   return "`" + s.replace(/`/g, "'") + "`";
 }
-var CREDENTIAL_FOLDER = /^(?:\/(?:(?:users|home)\/[^/]+|root|var\/root)|[A-Za-z]:\/users\/[^/]+)\/\.(ssh|aws|gnupg)(?:\/|$)/i;
+var CREDENTIAL_FOLDER = /^\/(?:(?:users|home)\/[^/]+|root|var\/root)\/\.(ssh|aws|gnupg)(?:\/|$)/i;
 var CREDENTIAL_WHAT = { ssh: "the user's SSH directory", aws: "the user's AWS credentials directory", gnupg: "the user's GnuPG directory" };
 var CREDENTIAL_STORES = [".netrc", ".git-credentials", ".npmrc", ".pypirc", ".docker/config.json", ".kube/config", ".config/gh/hosts.yml", ".config/gcloud/", ".azure/"];
 function credentialStore(abs, home) {
@@ -13517,8 +13483,8 @@ function protectMatches(pattern, abs, cwd, home) {
   const p = pattern.trim();
   if (p === "")
     return false;
-  if (p.startsWith("~") || p.startsWith("/") || isWindowsPath(p)) {
-    const re = protectGlobToRegExp(normalizeGlob(windowsGlob(expandHome(p, home))));
+  if (p.startsWith("~") || p.startsWith("/")) {
+    const re = protectGlobToRegExp(normalizeGlob(expandHome(p, home)));
     return re !== null && (re.test(abs) || re.test(abs + "/"));
   }
   if (p.includes("/")) {
@@ -13534,15 +13500,6 @@ function protectMatches(pattern, abs, cwd, home) {
 }
 function normalizeGlob(p) {
   return p.replace(/\/{2,}/g, "/").replace(/\/\.(?=\/)/g, "");
-}
-function windowsGlob(p) {
-  if (!isWindowsPath(p))
-    return p;
-  const s = p.replace(/\\/g, "/");
-  if (!s.startsWith("//"))
-    return s;
-  const root = pathRoot(p);
-  return root.replace(/\\/g, "\\\\") + s.slice(root.length);
 }
 function buracleRepoOf(abs, ctx) {
   const cwd = ctx.cwd ? normalizePath(ctx.cwd) : "";
@@ -13827,7 +13784,7 @@ var CRITICAL_SECOND_LEVEL = new Set([
 ]);
 var HOME_FOLDERS = new Set(["applications", "desktop", "documents", "downloads", "library", "movies", "music", "pictures", "public", ".config", ".ssh", ".gnupg", ".aws"]);
 var SAFE_DEVICE = /^\/dev\/(?:null|zero|stdin|stdout|stderr|tty[\w.-]*|cu\.[\w.-]+|pts\/\d+|ptmx|random|urandom|fd\/\d+|shm\/.+|tcp\/.+|udp\/.+)$/;
-var CREDENTIAL_DIR = /^(?:\/(?:(?:users|home)\/[^/]+|root|var\/root)|[A-Za-z]:\/users\/[^/]+)\/\.(ssh|aws|gnupg)(?:\/|$)/i;
+var CREDENTIAL_DIR = /^\/(?:(?:users|home)\/[^/]+|root|var\/root)\/\.(ssh|aws|gnupg)(?:\/|$)/i;
 var DOWNLOADERS = new Set(["curl", "wget", "fetch", "http", "https", "xh", "aria2c"]);
 var PROTECTED_BRANCH = /^(?:main|master|release.*)$/i;
 var OUTPUT_REDIRECTS = new Set([">", ">>", ">|", "&>", "&>>", "<>", ">&"]);
@@ -13866,8 +13823,6 @@ function dangerousSpelling(w, mode) {
   let t = pathText(w);
   if (t === undefined)
     return;
-  if (isWindowsPath(t))
-    t = normalizePath(t);
   let glob = false;
   if (/[*?\]/]$/.test(w.raw) && !/['"]$/.test(w.raw) && /[*?]/.test(w.raw)) {
     if (GLOB_ALL.test(t)) {
@@ -13919,10 +13874,8 @@ function dangerousSpelling(w, mode) {
   return;
 }
 function inDir(w, base) {
-  if (base === undefined || w.text === "" || w.text.startsWith(HOME) || w.text.includes(DYN) || isWindowsPath(w.text))
+  if (base === undefined || w.text === "" || w.text.startsWith(HOME) || w.text.includes(DYN))
     return;
-  if (isWindowsPath(base) && /^[\\/](?![\\/])/.test(w.text))
-    return { text: `${pathRoot(normalizePath(base)).replace(/\/$/, "")}${w.text}`, raw: w.raw, quoted: w.quoted, dynamic: false };
   if (w.text.startsWith("/"))
     return;
   return { text: `${base.replace(/\/+$/, "")}/${w.text}`, raw: w.raw, quoted: w.quoted, dynamic: false };
@@ -14948,7 +14901,7 @@ function copyLikeRule(name, argv, walk) {
     operands.push(w);
   }
   const dest = targetDir ?? (operands.length >= 2 ? operands[operands.length - 1] : undefined);
-  const remote = (t) => name === "rsync" && /^[^/]*:/.test(t) && !isWindowsPath(t);
+  const remote = (t) => name === "rsync" && /^[^/]*:/.test(t);
   if (dest && !remote(dest.text)) {
     const bad = forbiddenIn(dest, base);
     if (bad)
@@ -15449,11 +15402,6 @@ function checkCommand(u, cmd, cx) {
   if (name === undefined)
     return;
   const args = argv.slice(1);
-  const native = windowsNative(name, args);
-  if (native === "disk")
-    return `${q(shown)} formats a disk or partition and destroys its data; ask the user to run it themselves if it is really needed.`;
-  if (native !== undefined)
-    return checkCommand(unwrap(native), { assigns: [], words: native, redirects: cmd.redirects }, cx);
   switch (name) {
     case "rm":
       return rmRule(argv, cx.walk);
@@ -15585,34 +15533,6 @@ function analyze(src, depth, walk) {
       return inner;
   }
   return truncated === true ? TOO_DEEP : undefined;
-}
-var ENVIRONMENT_KEY = /^(?:hkcu|hkey_current_user|hklm|hkey_local_machine)[\\/]?(?:system[\\/]currentcontrolset[\\/]control[\\/]session manager[\\/])?environment[\\/]?$/i;
-function windowsNative(name, args) {
-  const flags = args.map((a) => a.text.toLowerCase().replace(/^\/\//, "/"));
-  if (flags.includes("/?"))
-    return;
-  const word = (t) => ({ text: t, raw: t, quoted: false, dynamic: false });
-  if (name === "format" && args.some((a) => /^[a-z]:\\?$/i.test(a.text)))
-    return "disk";
-  if (name === "diskpart")
-    return "disk";
-  if (name === "reg" && flags[0] === "add" && ENVIRONMENT_KEY.test(args[1]?.text ?? "")) {
-    const v = flags.indexOf("/v");
-    const value = v >= 0 ? args[v + 1] : undefined;
-    return value !== undefined ? [word("setx"), value] : undefined;
-  }
-  if (name === "robocopy") {
-    const operands = args.filter((a) => !/^\/{1,2}[a-z]/i.test(a.text));
-    const [src, dst] = operands;
-    if (src === undefined || dst === undefined)
-      return;
-    if (flags.includes("/mir") || flags.includes("/purge"))
-      return [word("rsync"), word("-a"), word("--delete"), src, dst];
-    if (flags.includes("/move") || flags.includes("/mov"))
-      return [word("mv"), src, dst];
-    return [word("cp"), word("-r"), src, dst];
-  }
-  return;
 }
 function echoedText(src) {
   const cmds = simpleCommands(parseShell(src).script);
@@ -15930,7 +15850,7 @@ function compile(pattern) {
   return re;
 }
 function fallbackScreen(command) {
-  if (/\brm\s+(?:-[A-Za-z]*\s+)*-[A-Za-z]*[rR][A-Za-z]*\s+(?:-[A-Za-z-]+\s+)*(?:["']?(?:\/|~|\$HOME|\$\{HOME\}|[A-Za-z]:[\\/]?)[\\/]?["']?)(?:\s|$)/.test(command)) {
+  if (/\brm\s+(?:-[A-Za-z]*\s+)*-[A-Za-z]*[rR][A-Za-z]*\s+(?:-[A-Za-z-]+\s+)*(?:["']?(?:\/|~|\$HOME|\$\{HOME\})[\\/]?["']?)(?:\s|$)/.test(command)) {
     return "This command would recursively delete the filesystem root or your home directory; remove only the specific paths you need.";
   }
   if (/\b(?:curl|wget)\b[^|]*\|\s*(?:sudo\s+)?(?:ba|z|da|k)?sh\b/.test(command)) {
@@ -15941,7 +15861,7 @@ function fallbackScreen(command) {
 function newWalk(opts) {
   const walk = { lines: [], env: new Map([["HOME", HOME], ["PWD", "."]]), budget: MAX_SUBST, home: "" };
   if (typeof opts?.home === "string" && isAbsPath(opts.home))
-    walk.home = isWindowsPath(opts.home) ? normalizePath(opts.home) : opts.home;
+    walk.home = opts.home;
   if (opts?.selfPaths !== null && typeof opts?.selfPaths === "object")
     walk.selfPaths = opts.selfPaths;
   const cwd = opts?.cwd;
@@ -16021,7 +15941,7 @@ function expandHome2(p, home) {
     return p;
   if (p === "~")
     return home;
-  if (p.startsWith("~/") || p.startsWith("~\\") && isWindowsPath(home))
+  if (p.startsWith("~/"))
     return `${home.replace(/[\\/]+$/, "")}/${p.slice(2)}`;
   return p;
 }
@@ -16073,7 +15993,7 @@ function shellOptions(ctx, extraDeny) {
 function resolveIn(base, p, home) {
   if (isAbsPath(p))
     return normalizePath(p);
-  if (home !== "" && (p === "~" || p.startsWith("~/") || p.startsWith("~\\") && isWindowsPath(home)))
+  if (home !== "" && (p === "~" || p.startsWith("~/")))
     return resolveNormalPath("", p, home) ?? p;
   return isAbsPath(base) ? resolveNormalPath(base, p) ?? p : p;
 }
@@ -17383,7 +17303,7 @@ function subjectsOf(subject) {
 }
 var LEADING_WRAPPERS = /^[\s`'"*_([]+/;
 var PATH_END = /^(?:$|[\s`'"*:,;)\]]|[._](?=$|[\s`'"*:,;)\]]))/;
-var PATH_PREFIX = /^(?:[A-Za-z]:\/|[/~.]|[^\s/]+\/)/;
+var PATH_PREFIX = /^(?:[/~.]|[^\s/]+\/)/;
 function pathTails(want) {
   const segs = want.split("/").filter((x) => x !== "" && x !== ".");
   const tails = segs.map((_, i) => segs.slice(i).join("/"));
@@ -19780,7 +19700,7 @@ function routeText(r, h, policy, opts = {}) {
 }
 // src/core/workspace.ts
 function pathKey(p, caseInsensitive) {
-  const out = normalizePath(isWindowsPath(p) ? p : p.replace(/\\/g, "/"));
+  const out = normalizePath(p.replace(/\\/g, "/"));
   return caseInsensitive ? out.toLowerCase() : out;
 }
 function isRootKey(k) {
@@ -20255,7 +20175,7 @@ function ruleGlobs(frontmatter) {
 function pathRuleIndex(rules) {
   return rules.filter((r) => r.scope === "paths").map((r) => ({ id: r.id, globs: ruleGlobs(r.frontmatter) })).filter((r) => r.globs.length > 0).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 }
-var ABSOLUTE = /^(?:\/|[A-Za-z]:\/)/;
+var ABSOLUTE = /^\//;
 function slashes(p) {
   return p.replace(/\\/g, "/");
 }
@@ -20289,7 +20209,7 @@ function projectRelative(file, base) {
     if (rel !== undefined)
       return withoutDot(rel);
   }
-  return f.replace(/^[A-Za-z]:/, "").replace(/^\/+/, "");
+  return f.replace(/^\/+/, "");
 }
 function matchPathRules(relPath, rules) {
   const p = withoutDot(slashes(relPath).replace(/^\/+/, ""));
@@ -20694,7 +20614,7 @@ function editsOf(call, ctx) {
   }
   return [];
 }
-var ABSOLUTE_PATH = /^(?:\/|[A-Za-z]:[\\/]|\\\\)/;
+var ABSOLUTE_PATH = /^\//;
 function rootProblem(value, facts) {
   const f = facts ?? {};
   const home = f.exclusion?.home ?? f.home;

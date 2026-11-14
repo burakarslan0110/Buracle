@@ -9129,27 +9129,12 @@ function mcpServerToken(harness, server) {
       return server.replace(/[^A-Za-z0-9_-]/g, "_");
   }
 }
-var DRIVE = /^[A-Za-z]:(?=[\\/]|$)/;
-function isWindowsPath(p) {
-  return typeof p === "string" && (DRIVE.test(p) || p.startsWith("\\\\"));
-}
-function windowsRoot(p) {
-  let s = p.replace(/\\/g, "/");
-  if (/^\/\/\?\/(?:[A-Za-z]:(?:\/|$)|UNC\/)/i.test(s))
-    s = s.slice(4).replace(/^UNC\//i, "//");
-  if (DRIVE.test(s))
-    return { root: `${s[0].toUpperCase()}:/`, rest: s.slice(2) };
-  const m = /^\/*([^/]*)\/*([^/]*)(.*)$/.exec(s);
-  return { root: `\\\\${m[1] ?? ""}${m[2] ? `\\${m[2]}` : ""}`, rest: m[3] ?? "" };
-}
 function normalizePath(p) {
   if (p === "")
     return "";
-  const win = isWindowsPath(p);
-  const { root, rest } = win ? windowsRoot(p) : { root: p.startsWith("/") ? "/" : "", rest: p };
-  const abs = root !== "";
+  const abs = p.startsWith("/");
   const out = [];
-  for (const seg of rest.split("/")) {
+  for (const seg of p.split("/")) {
     if (seg === "" || seg === ".")
       continue;
     if (seg === "..") {
@@ -9162,8 +9147,6 @@ function normalizePath(p) {
     out.push(seg);
   }
   const body = out.join("/");
-  if (win)
-    return root.endsWith("/") ? root + body : body === "" ? root : `${root}/${body}`;
   if (abs)
     return "/" + body;
   return body === "" ? "." : body;
@@ -9682,7 +9665,7 @@ function protectGlobToRegExp(glob) {
 
 // src/core/workspace.ts
 function pathKey(p, caseInsensitive) {
-  const out = normalizePath(isWindowsPath(p) ? p : p.replace(/\\/g, "/"));
+  const out = normalizePath(p.replace(/\\/g, "/"));
   return caseInsensitive ? out.toLowerCase() : out;
 }
 function isRootKey(k) {

@@ -1,4 +1,3 @@
-import { isWindowsPath } from '../events'
 import { DYN, HOME } from './shell'
 
 export type CodeLang = 'python' | 'js' | 'perl' | 'ruby' | 'php' | 'lua' | 'awk' | 'applescript' | 'tcl' | 'powershell' | 'unknown'
@@ -346,7 +345,7 @@ function joinPath(parts: string[]): string {
   let out = ''
   for (const p of parts) {
     if (p === '') continue
-    if (p.startsWith('/') || p.startsWith(HOME) || isWindowsPath(p)) { out = p; continue }
+    if (p.startsWith('/') || p.startsWith(HOME)) { out = p; continue }
     out = out === '' ? p : /[\\/]$/.test(out) ? out + p : `${out}/${p}`
   }
   return out

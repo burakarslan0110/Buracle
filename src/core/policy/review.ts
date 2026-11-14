@@ -38,7 +38,7 @@ function subjectsOf(subject: string | readonly string[] | undefined): string[] {
 
 const LEADING_WRAPPERS = /^[\s`'"*_([]+/
 const PATH_END = /^(?:$|[\s`'"*:,;)\]]|[._](?=$|[\s`'"*:,;)\]]))/
-const PATH_PREFIX = /^(?:[A-Za-z]:\/|[/~.]|[^\s/]+\/)/
+const PATH_PREFIX = /^(?:[/~.]|[^\s/]+\/)/
 
 function pathTails(want: string): string[] {
   const segs = want.split('/').filter(x => x !== '' && x !== '.')

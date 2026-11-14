@@ -696,3 +696,28 @@ describe('checkBash: relative paths after a literal cd', () => {
     }
   })
 })
+
+describe('macOS and Linux only: a drive letter or a backslash is part of a POSIX name', () => {
+  const at: BashGuardOptions = { extraDeny: [], home: '/Users/u', cwd: '/Users/u/code/app' }
+  const why = (cmd: string): string | undefined => checkBash(cmd, at).deny
+
+  test('a drive spelling names a file in the working folder, and rsync reads `x:` as a remote host', () => {
+    for (const cmd of ["cp key 'C:/Users/u/.ssh/authorized_keys'", "echo x > 'C:\\Users\\u\\.ssh\\config'", "rsync -a x 'C:/Users/u/.ssh/'", 'rsync -a x host:/Users/u/.ssh/', "rm -rf 'C:\\'", "rm -rf 'a:b'", "rm -rf 'dir\\sub'"]) {
+      expect({ cmd, reason: why(cmd) }).toEqual({ cmd, reason: undefined })
+    }
+  })
+
+  test('the POSIX spellings of the same targets are still refused', () => {
+    expect(why('cp key /Users/u/.ssh/authorized_keys')).toContain('~/.ssh')
+    expect(why("echo x > '/Users/u/.ssh/config'")).toContain('~/.ssh')
+    expect(why('rsync -a x /Users/u/.ssh/')).toContain('~/.ssh')
+    expect(why('rm -rf /')).toContain('whole filesystem')
+    expect(why('mkfs.ext4 /dev/sda1')).toContain('formats a disk')
+  })
+
+  test('programs that exist only on Windows are ordinary commands', () => {
+    for (const cmd of ['format C:', 'diskpart /s wipe.txt', "robocopy /mir empty 'C:\\Users\\u'", "reg add 'HKCU\\Environment' /v BURACLE_HOME /d x"]) {
+      expect({ cmd, reason: why(cmd) }).toEqual({ cmd, reason: undefined })
+    }
+  })
+})

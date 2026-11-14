@@ -46,8 +46,7 @@ describe('projectRelative', () => {
     expect(projectRelative('src/a.ts', {})).toBe('src/a.ts')
   })
 
-  test('Windows paths and case-insensitive roots', () => {
-    expect(projectRelative('C:\\Proj\\src\\a.ts', { root: 'C:\\Proj' })).toBe('src/a.ts')
+  test('case-insensitive roots', () => {
     expect(projectRelative('/Users/U/App/src/a.ts', { root: '/users/u/app', caseInsensitive: true })).toBe('src/a.ts')
     expect(projectRelative('/Users/U/App/src/a.ts', { root: '/users/u/app' })).toBe('Users/U/App/src/a.ts')
   })
