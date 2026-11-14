@@ -249,9 +249,9 @@ Use the purpose-built tool for each need. A fallback is allowed only when the pr
 
 ## Code indexes
 
-- Buracle owns indexing: when a session starts it builds or refreshes the codegraph and semble indexes of the project in the background.
+- Buracle owns indexing, and a session start starts no index run: codegraph updates its own index when its server starts, semble re-indexes when it searches, and `buracle index ensure --cwd <root>` builds one on demand.
 - Pass the project root as the codegraph `projectPath` and the semble `repo`. Never pass the home folder, `/` or a folder above the project; Buracle denies those and names the root.
-- If codegraph says a project is not indexed, run `buracle index ensure --cwd <root>` or wait for the background run, then ask codegraph again. Never conclude that codegraph is unusable for the session; use `rg` until the index is ready.
+- If codegraph says a project is not indexed, run `buracle index ensure --cwd <root>`, then ask codegraph again. Never conclude that codegraph is unusable for the session; use `rg` until the index is ready.
 
 ## Skills, workflows and the per-prompt routing note
 
@@ -288,11 +288,9 @@ Before you edit or create a file that matches a pattern below, read that rule fi
 |---|---|---|
 | backend | `api/**`, `routes/**`, `handlers/**`, `controllers/**`, `endpoints/**`, `middleware/**`, `models/**`, `models.py`, `entities/**`, `schema/**`, `schemas/**`, `queries/**`, `repository/**`, `repositories/**`, `dao/**`, `migrations/**`, `migrate/**`, `alembic/**`, `db/**`, `*.sql`, `*.prisma`, `*.graphql`, `*.proto`, `openapi*.yaml`, `openapi*.yml`, `openapi*.json` | `~/.buracle/rules/paths/backend.md` |
 | blazor | `*.razor`, `*.razor.cs`, `*.razor.css` | `~/.buracle/rules/paths/blazor.md` |
-| browser-automation | `*.tsx`, `*.jsx`, `*.vue`, `*.svelte`, `*.astro`, `*.html`, `*.css`, `*.scss`, `*.razor`, `e2e/**`, `playwright/**`, `cypress/**`, `__tests__/**`, `playwright.config.*`, `cypress.config.*` | `~/.buracle/rules/paths/browser-automation.md` |
 | dotnet | `*.cs`, `*.csproj`, `*.sln`, `*.slnx`, `global.json`, `Directory.Build.props`, `Directory.Packages.props` | `~/.buracle/rules/paths/dotnet.md` |
 | frontend | `*.tsx`, `*.jsx`, `*.vue`, `*.svelte`, `*.astro`, `*.html`, `*.css`, `*.scss`, `*.sass`, `*.less`, `*.razor`, `*.razor.css` | `~/.buracle/rules/paths/frontend.md` |
 | go | `*.go`, `go.mod`, `go.sum`, `go.work` | `~/.buracle/rules/paths/go.md` |
-| mobile | `capacitor.config.*`, `ionic.config.json`, `android/app/build.gradle*`, `android/app/src/main/AndroidManifest.xml`, `*.xcodeproj/project.pbxproj`, `*.xcworkspace/contents.xcworkspacedata`, `Podfile`, `pubspec.yaml`, `react-native.config.*`, `metro.config.*`, `expo.json`, `eas.json`, `app.config.{js,ts}` | `~/.buracle/rules/paths/mobile.md` |
 | python | `*.py`, `*.pyi`, `pyproject.toml`, `requirements*.txt`, `uv.lock`, `setup.cfg` | `~/.buracle/rules/paths/python.md` |
 | typescript | `*.ts`, `*.tsx`, `*.mts`, `*.cts`, `*.js`, `*.jsx`, `*.mjs`, `*.cjs`, `package.json`, `tsconfig*.json` | `~/.buracle/rules/paths/typescript.md` |
 <!-- buracle:buracle:end -->

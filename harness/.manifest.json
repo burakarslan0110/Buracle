@@ -149,7 +149,7 @@
     },
     "harness/agents-skills/find-skill/SKILL.md": {
       "by": "agents-skills",
-      "sha256": "7e71db45e6d1f2b654e31152ae0f2659760011779e70d5eb24453447638593f9",
+      "sha256": "7fcc357dfb7a82dab6da3c4392c6067dee560a6286a5346d0b8583a7fb671090",
       "exec": false
     },
     "harness/agents-skills/find-skill/agents/openai.yaml": {
@@ -340,126 +340,6 @@
     "harness/agents-skills/research/references/sources.md": {
       "by": "agents-skills",
       "sha256": "a55a7bedcc08522ac4c80e306a50ca3c06aa78aecbdd947281d927d8cd8704dd",
-      "exec": false
-    },
-    "harness/agents-skills/security-audit/SKILL.md": {
-      "by": "agents-skills",
-      "sha256": "dc95829cbc1c18b3394003ea6af0df2c8b873347b8f1b81cecc023db7f985cd7",
-      "exec": false
-    },
-    "harness/agents-skills/security-audit/agents/openai.yaml": {
-      "by": "agents-skills",
-      "sha256": "cf727e5de7ce012706cc19638cefb34884604d5299cd0c02a0f671fd2c3fb5e9",
-      "exec": false
-    },
-    "harness/agents-skills/security-audit/assets/LICENSE": {
-      "by": "agents-skills",
-      "sha256": "e598e694aa506650c7192d5ea3be0e50aca0d356ea00551c53429f0b01eb6391",
-      "exec": false
-    },
-    "harness/agents-skills/security-audit/assets/NOTICE.md": {
-      "by": "agents-skills",
-      "sha256": "f5d77fb0408e6ffe903bb5973e178e40ceb4856f9cc02dd5f19f4df86ae7f21c",
-      "exec": false
-    },
-    "harness/agents-skills/security-audit/references/AI-AND-LLM.md": {
-      "by": "agents-skills",
-      "sha256": "7335a95c43554eadefcf03ece639291bb0e038c398a179299e3887ffe06bd2ef",
-      "exec": false
-    },
-    "harness/agents-skills/security-audit/references/ATTACK-CLASSES.md": {
-      "by": "agents-skills",
-      "sha256": "3ee4f00c6e8c9dcf6dd02dd5ac2a4ceb322e2085f3e9fbe79cf0c6330bc7ef83",
-      "exec": false
-    },
-    "harness/agents-skills/security-audit/references/CLIENT-SIDE.md": {
-      "by": "agents-skills",
-      "sha256": "613f6b98f86083e045525c5b60154ffdab122bac35f1e05eb17488e6e453370c",
-      "exec": false
-    },
-    "harness/agents-skills/security-audit/references/CLOUD-AND-DEPLOYMENT.md": {
-      "by": "agents-skills",
-      "sha256": "3c80f3088be22345e07b057c056d6ed99fe2b0304f794398964f7ccd5a496ca3",
-      "exec": false
-    },
-    "harness/agents-skills/security-audit/references/DATA-ISOLATION-AND-LIFECYCLE.md": {
-      "by": "agents-skills",
-      "sha256": "307dcb3e24d292715c4a041190e7bb135646a37eb6187619ae01d000a634a4ad",
-      "exec": false
-    },
-    "harness/agents-skills/security-audit/references/DESKTOP-MOBILE-AND-LOCAL-IPC.md": {
-      "by": "agents-skills",
-      "sha256": "58eae8ee0ca6a46611c501ec5a3ab47fdff88dd7db0d8d74789bbf8bb19d8cb2",
-      "exec": false
-    },
-    "harness/agents-skills/security-audit/references/HUNTING.md": {
-      "by": "agents-skills",
-      "sha256": "73b6d4640b2fe759a17f56ab0d40d8824cf4fa22139ba3239b5baf2e8c8e0d26",
-      "exec": false
-    },
-    "harness/agents-skills/security-audit/references/MEMORY-SAFETY-AND-BINARY.md": {
-      "by": "agents-skills",
-      "sha256": "7c8b0dccfb35315cca2455509674d49632b2fe37e1f3aac16c1a496a7e9924a7",
-      "exec": false
-    },
-    "harness/agents-skills/security-audit/references/PROTOCOLS-RPC-AND-MESSAGING.md": {
-      "by": "agents-skills",
-      "sha256": "8b73816fa5b3697c9c40977f0c836b40f01d6e81929ff2720fe83ce089e9a619",
-      "exec": false
-    },
-    "harness/agents-skills/security-audit/references/RECONNAISSANCE.md": {
-      "by": "agents-skills",
-      "sha256": "02ca887aca84de8ae137f1891bd2f0a54f28d3fa6da92a27f54734382b3381a2",
-      "exec": false
-    },
-    "harness/agents-skills/security-audit/references/RESOURCE-EXHAUSTION-AND-AVAILABILITY.md": {
-      "by": "agents-skills",
-      "sha256": "4326fab5c92a0b4c420a70196254040105cd794026562130b59bf1a6db3e4baa",
-      "exec": false
-    },
-    "harness/agents-skills/security-audit/references/SUPPLY-CHAIN-AND-RELEASE.md": {
-      "by": "agents-skills",
-      "sha256": "f372e919940e335468ba1ae09f99026c3986a345f7fe26f8068f132e199f52a5",
-      "exec": false
-    },
-    "harness/agents-skills/security-audit/references/VALIDATION-AND-REPORTING.md": {
-      "by": "agents-skills",
-      "sha256": "f0276b51ca297e9f5bc22866fe21452094f105ef7e6accf03464600eee7f1b71",
-      "exec": false
-    },
-    "harness/agents-skills/security-audit/references/WEB-PROTOCOL-AND-AUTH.md": {
-      "by": "agents-skills",
-      "sha256": "4f3066dffa23c5635859187be9b96c32f2aff29a688186b91ff0c63e47d62b5c",
-      "exec": false
-    },
-    "harness/agents-skills/security-audit/references/full-audit-setup.md": {
-      "by": "agents-skills",
-      "sha256": "7567f8160d80f66b5594b14240334bd8edb26805e6008bf5739c95fea0eae0a8",
-      "exec": false
-    },
-    "harness/agents-skills/security-audit/scripts/report-schema.json": {
-      "by": "agents-skills",
-      "sha256": "6575c9de4a62255699ea052ebf9a49ebfb373a32891bcd89af6f55cc84b35519",
-      "exec": false
-    },
-    "harness/agents-skills/security-audit/scripts/validate-coverage-ledger.cjs": {
-      "by": "agents-skills",
-      "sha256": "42c4d104453a22d0aaf88ac585172e857cc31e07a051ff6766f7128b418e9213",
-      "exec": true
-    },
-    "harness/agents-skills/security-audit/scripts/validate-coverage-ledger.test.cjs": {
-      "by": "agents-skills",
-      "sha256": "cfb9df26b03469a4279a70e7664a2a5434dd6f8c2c204e91f9b0aeb9dd71e648",
-      "exec": false
-    },
-    "harness/agents-skills/security-audit/scripts/validate-findings.cjs": {
-      "by": "agents-skills",
-      "sha256": "7ba14ce3ad6b6b0781db1439d89fd707abad87d347aac294601f2be82f4026fc",
-      "exec": true
-    },
-    "harness/agents-skills/security-audit/scripts/validate-findings.test.cjs": {
-      "by": "agents-skills",
-      "sha256": "b92001117a92c4161d43777a0ba2fa182a8a4d97f2304cc8c0cee5331497b73b",
       "exec": false
     },
     "harness/claude/.claude-plugin/plugin.json": {
@@ -954,12 +834,12 @@
     },
     "harness/claude/hooks/generated/catalog.ts": {
       "by": "claude",
-      "sha256": "ba7003ac1d5b6fd5d0f555c7102b1fce94fb9cfc901b1d027572d05ce4e92b1f",
+      "sha256": "a907d8bf5364190ccfd551568491c9d58445a4825d6812296d1279fd9e8779a6",
       "exec": false
     },
     "harness/claude/hooks/generated/meta.ts": {
       "by": "claude",
-      "sha256": "efd04824b584454162de6131ee8c3cdce2645155bb7d5acfba4b0886f9de0ec1",
+      "sha256": "12657c3d29bdd100796afa6ed08327ab4daad3f1d32db1a28bfbc2c6dbda8104",
       "exec": false
     },
     "harness/claude/hooks/hooks.json": {
@@ -1114,7 +994,7 @@
     },
     "harness/claude/skills/find-skill/SKILL.md": {
       "by": "claude",
-      "sha256": "ee024a8122c923c52ed671edb19660de66b824215bc5634722b5fb8f01349595",
+      "sha256": "9d2c31c2b0ead3c5522ec3adc904983e7ae7febbc1409b50f4f9f666ea2b3dfb",
       "exec": false
     },
     "harness/claude/skills/goal-build/SKILL.md": {
@@ -1297,121 +1177,6 @@
       "sha256": "a55a7bedcc08522ac4c80e306a50ca3c06aa78aecbdd947281d927d8cd8704dd",
       "exec": false
     },
-    "harness/claude/skills/security-audit/SKILL.md": {
-      "by": "claude",
-      "sha256": "4c61c746d9ebc8572e8cb08eaa784c622c2336e4cc059fde157c32d0485cf55b",
-      "exec": false
-    },
-    "harness/claude/skills/security-audit/assets/LICENSE": {
-      "by": "claude",
-      "sha256": "e598e694aa506650c7192d5ea3be0e50aca0d356ea00551c53429f0b01eb6391",
-      "exec": false
-    },
-    "harness/claude/skills/security-audit/assets/NOTICE.md": {
-      "by": "claude",
-      "sha256": "f5d77fb0408e6ffe903bb5973e178e40ceb4856f9cc02dd5f19f4df86ae7f21c",
-      "exec": false
-    },
-    "harness/claude/skills/security-audit/references/AI-AND-LLM.md": {
-      "by": "claude",
-      "sha256": "7335a95c43554eadefcf03ece639291bb0e038c398a179299e3887ffe06bd2ef",
-      "exec": false
-    },
-    "harness/claude/skills/security-audit/references/ATTACK-CLASSES.md": {
-      "by": "claude",
-      "sha256": "3ee4f00c6e8c9dcf6dd02dd5ac2a4ceb322e2085f3e9fbe79cf0c6330bc7ef83",
-      "exec": false
-    },
-    "harness/claude/skills/security-audit/references/CLIENT-SIDE.md": {
-      "by": "claude",
-      "sha256": "613f6b98f86083e045525c5b60154ffdab122bac35f1e05eb17488e6e453370c",
-      "exec": false
-    },
-    "harness/claude/skills/security-audit/references/CLOUD-AND-DEPLOYMENT.md": {
-      "by": "claude",
-      "sha256": "3c80f3088be22345e07b057c056d6ed99fe2b0304f794398964f7ccd5a496ca3",
-      "exec": false
-    },
-    "harness/claude/skills/security-audit/references/DATA-ISOLATION-AND-LIFECYCLE.md": {
-      "by": "claude",
-      "sha256": "307dcb3e24d292715c4a041190e7bb135646a37eb6187619ae01d000a634a4ad",
-      "exec": false
-    },
-    "harness/claude/skills/security-audit/references/DESKTOP-MOBILE-AND-LOCAL-IPC.md": {
-      "by": "claude",
-      "sha256": "58eae8ee0ca6a46611c501ec5a3ab47fdff88dd7db0d8d74789bbf8bb19d8cb2",
-      "exec": false
-    },
-    "harness/claude/skills/security-audit/references/HUNTING.md": {
-      "by": "claude",
-      "sha256": "73b6d4640b2fe759a17f56ab0d40d8824cf4fa22139ba3239b5baf2e8c8e0d26",
-      "exec": false
-    },
-    "harness/claude/skills/security-audit/references/MEMORY-SAFETY-AND-BINARY.md": {
-      "by": "claude",
-      "sha256": "7c8b0dccfb35315cca2455509674d49632b2fe37e1f3aac16c1a496a7e9924a7",
-      "exec": false
-    },
-    "harness/claude/skills/security-audit/references/PROTOCOLS-RPC-AND-MESSAGING.md": {
-      "by": "claude",
-      "sha256": "8b73816fa5b3697c9c40977f0c836b40f01d6e81929ff2720fe83ce089e9a619",
-      "exec": false
-    },
-    "harness/claude/skills/security-audit/references/RECONNAISSANCE.md": {
-      "by": "claude",
-      "sha256": "02ca887aca84de8ae137f1891bd2f0a54f28d3fa6da92a27f54734382b3381a2",
-      "exec": false
-    },
-    "harness/claude/skills/security-audit/references/RESOURCE-EXHAUSTION-AND-AVAILABILITY.md": {
-      "by": "claude",
-      "sha256": "4326fab5c92a0b4c420a70196254040105cd794026562130b59bf1a6db3e4baa",
-      "exec": false
-    },
-    "harness/claude/skills/security-audit/references/SUPPLY-CHAIN-AND-RELEASE.md": {
-      "by": "claude",
-      "sha256": "f372e919940e335468ba1ae09f99026c3986a345f7fe26f8068f132e199f52a5",
-      "exec": false
-    },
-    "harness/claude/skills/security-audit/references/VALIDATION-AND-REPORTING.md": {
-      "by": "claude",
-      "sha256": "f0276b51ca297e9f5bc22866fe21452094f105ef7e6accf03464600eee7f1b71",
-      "exec": false
-    },
-    "harness/claude/skills/security-audit/references/WEB-PROTOCOL-AND-AUTH.md": {
-      "by": "claude",
-      "sha256": "4f3066dffa23c5635859187be9b96c32f2aff29a688186b91ff0c63e47d62b5c",
-      "exec": false
-    },
-    "harness/claude/skills/security-audit/references/full-audit-setup.md": {
-      "by": "claude",
-      "sha256": "7567f8160d80f66b5594b14240334bd8edb26805e6008bf5739c95fea0eae0a8",
-      "exec": false
-    },
-    "harness/claude/skills/security-audit/scripts/report-schema.json": {
-      "by": "claude",
-      "sha256": "6575c9de4a62255699ea052ebf9a49ebfb373a32891bcd89af6f55cc84b35519",
-      "exec": false
-    },
-    "harness/claude/skills/security-audit/scripts/validate-coverage-ledger.cjs": {
-      "by": "claude",
-      "sha256": "42c4d104453a22d0aaf88ac585172e857cc31e07a051ff6766f7128b418e9213",
-      "exec": true
-    },
-    "harness/claude/skills/security-audit/scripts/validate-coverage-ledger.test.cjs": {
-      "by": "claude",
-      "sha256": "cfb9df26b03469a4279a70e7664a2a5434dd6f8c2c204e91f9b0aeb9dd71e648",
-      "exec": false
-    },
-    "harness/claude/skills/security-audit/scripts/validate-findings.cjs": {
-      "by": "claude",
-      "sha256": "7ba14ce3ad6b6b0781db1439d89fd707abad87d347aac294601f2be82f4026fc",
-      "exec": true
-    },
-    "harness/claude/skills/security-audit/scripts/validate-findings.test.cjs": {
-      "by": "claude",
-      "sha256": "b92001117a92c4161d43777a0ba2fa182a8a4d97f2304cc8c0cee5331497b73b",
-      "exec": false
-    },
     "harness/claude/tests/aside.test.tsx": {
       "by": "claude",
       "sha256": "ab0cd1e00d4248f47959a70285b6642106ed2af14f543209be68210cf821a228",
@@ -1434,7 +1199,7 @@
     },
     "harness/codex/AGENTS.md": {
       "by": "codex",
-      "sha256": "f7a5d9aed078a2403b368285f616e33ddf353fde60fd0801a27d809811fa756a",
+      "sha256": "d60b95049c90ea74dcb36e2a1a061f269cd1d9e6d0a5f1d0f601a2840a788973",
       "exec": false
     },
     "harness/codex/agents/changes-review.toml": {
@@ -1474,12 +1239,7 @@
     },
     "harness/codex/rules/paths/blazor.md": {
       "by": "codex",
-      "sha256": "4e04de0b89e6440dbbf3134f208f666bc60cf3b4f6165bf4cdba00ab849471af",
-      "exec": false
-    },
-    "harness/codex/rules/paths/browser-automation.md": {
-      "by": "codex",
-      "sha256": "39c536acb6d97ed47796792c17ecaf8f364d349febc1a57a2df8cd68f979806f",
+      "sha256": "ea67500053cb25738490012bc080bcbdc188b8bf32dd05aa57022b1869b5e84d",
       "exec": false
     },
     "harness/codex/rules/paths/dotnet.md": {
@@ -1489,17 +1249,12 @@
     },
     "harness/codex/rules/paths/frontend.md": {
       "by": "codex",
-      "sha256": "da2f02bc75a0c767f96fb54f3f7fe6e4342e93b1c292df5be5fa375941c86dc4",
+      "sha256": "dcdc97f63b654e42eb0c6b5be973a526bdf143b4f1dca923ba2c0313422a9a99",
       "exec": false
     },
     "harness/codex/rules/paths/go.md": {
       "by": "codex",
       "sha256": "a99029a114dd142e448b385be03997bfd7e50cec0280f06221256140d0870b8a",
-      "exec": false
-    },
-    "harness/codex/rules/paths/mobile.md": {
-      "by": "codex",
-      "sha256": "5f5d39f1b456aa5e3dc8e9a2692731a423e30ea19ac4757842ac44a51dcec7bb",
       "exec": false
     },
     "harness/codex/rules/paths/python.md": {
@@ -1514,7 +1269,7 @@
     },
     "harness/hook-data.json": {
       "by": "hook-data",
-      "sha256": "45837958278d14983c7d1211d258a0833e74a2b380a778b2ec798e6bedf16918",
+      "sha256": "840e4c020bf131d9219fee66e35f15322eeae9da8352451d9672f9d5b2aa3319",
       "exec": false
     },
     "harness/omp/.mcp.json": {
@@ -1524,7 +1279,7 @@
     },
     "harness/omp/README.md": {
       "by": "omp",
-      "sha256": "3134b29dc6e72e40cdd790ad705e4a778711abac4595aacdf9676cdb243b5851",
+      "sha256": "80ea6a8636af1ea1c1b0bd3dc5b18a81abb6c63373b3f44c7745bb4a97e70491",
       "exec": false
     },
     "harness/omp/agents/changes-review.md": {
@@ -1597,14 +1352,9 @@
       "sha256": "37b06cbf24d76a464fadb587459d43eee24382fe2647cb8c8abc8c6ea9b904cf",
       "exec": false
     },
-    "harness/omp/commands/security-audit.md": {
-      "by": "omp",
-      "sha256": "05f68fbe45fd91471375deac2ea3503a298eea11d7efab5575622b1d29f0c4c1",
-      "exec": false
-    },
     "harness/omp/extensions/buracle.js": {
       "by": "omp",
-      "sha256": "c80dd311dcd33adadc9df47c3f3c8d17e85db3bc6c5398c3f0bd4c245ecb3ccc",
+      "sha256": "e8515fe6e1dc886b241700db9553650940b06907f5aee8f847f5ead72384a056",
       "exec": false
     },
     "harness/omp/package.json": {
@@ -1619,12 +1369,7 @@
     },
     "harness/omp/rules/buracle-blazor.md": {
       "by": "omp",
-      "sha256": "eebda641ae8b1ac5eb24facd7bd554a5e9317cedbc09294ab81f4768bd1a72c3",
-      "exec": false
-    },
-    "harness/omp/rules/buracle-browser-automation.md": {
-      "by": "omp",
-      "sha256": "3fade97d3bc1bcee22abf69b2957574ecef17b84d061e981139169c715aa9770",
+      "sha256": "710597513b2ec963da024fa78c39584234df35bfac787b7a6047c8b493e4ff7c",
       "exec": false
     },
     "harness/omp/rules/buracle-core.md": {
@@ -1644,7 +1389,7 @@
     },
     "harness/omp/rules/buracle-frontend.md": {
       "by": "omp",
-      "sha256": "2cdad4d925703c30272b42dae5e0b11946e112851a8490834342a6da7e40bb3d",
+      "sha256": "15d62c2bc7ee0294e938f2e26a2a00d75e23130cb592faff9db75804b0c7f61e",
       "exec": false
     },
     "harness/omp/rules/buracle-go.md": {
@@ -1657,11 +1402,6 @@
       "sha256": "8b4dff7b26e8025182c37932abe11489a02a827cb4bda75e267baa45b828a9f4",
       "exec": false
     },
-    "harness/omp/rules/buracle-mobile.md": {
-      "by": "omp",
-      "sha256": "74793cce3e998d7634df2a0b64d3f8aaf4377975fe2ac932f3245c8a0d985850",
-      "exec": false
-    },
     "harness/omp/rules/buracle-python.md": {
       "by": "omp",
       "sha256": "847675be271c52d2989c4154f0a20ae43f6039666726b35b4e85e36469e534fc",
@@ -1669,7 +1409,7 @@
     },
     "harness/omp/rules/buracle-tooling.md": {
       "by": "omp",
-      "sha256": "57318fd772310e7c073e68075402fac61c63c83607f00a1c14ec1ad34404224a",
+      "sha256": "6d0c9f48e6915f99f1aa504220138dc6f934e39951cc532014427848455aec91",
       "exec": false
     },
     "harness/omp/rules/buracle-typescript.md": {
@@ -1679,7 +1419,7 @@
     },
     "harness/opencode/AGENTS.block.md": {
       "by": "opencode",
-      "sha256": "ffbda409f3ef9956d075767ed66245626ba8416935b35518b2f200ea2279721f",
+      "sha256": "e0dda45559e89b6aa7a87012d332fc0675d25aa538ad704ff61c6f56f954d636",
       "exec": false
     },
     "harness/opencode/README.md": {
@@ -1714,17 +1454,17 @@
     },
     "harness/opencode/manifest.json": {
       "by": "opencode",
-      "sha256": "2cf420ec6815870bca9773f03b9a7961dc8304fb160740f46fac7471635e8259",
+      "sha256": "67effeb9e3a0faf59f3856b1e55b5d19be5809ebf4c9a518fef01074fb433492",
       "exec": false
     },
     "harness/opencode/plugins/buracle/index.js": {
       "by": "opencode",
-      "sha256": "65470bfd1f5fcc81dd3ea36c3c07a504c6d97d41d25b4cda9206ff4cb2bd0147",
+      "sha256": "5b209d10bc19de0ff816107d03e3ab6a2916502048d1e640b78337f9c743e63c",
       "exec": false
     },
     "harness/opencode/plugins/buracle/tui.js": {
       "by": "opencode",
-      "sha256": "81c299961aeb4afd06976be8217353973783e9c635794115b377d6e631d0c8aa",
+      "sha256": "360c20ee74bc2c6f2b2e073202e2cb8a807795a89451e1b553f62a5c9b130d31",
       "exec": false
     }
   }

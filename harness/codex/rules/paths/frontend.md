@@ -51,5 +51,5 @@ paths:
 - If the app has i18n, put no user-facing strings in code. Use locale-aware APIs (`Intl.*`, `toLocaleUpperCase("tr-TR")`); the Turkish dotted and dotless i break naive case conversion.
 
 ## Verify in a real browser
-- A passing build or unit test does not prove the UI works. After a UI change, open the page with the chrome-devtools MCP (omp: its built-in browser): navigate, take a snapshot, use the changed controls, check the console for errors and the network log for failed requests, and try a narrow viewport. The browser-automation rule has the full procedure.
+- A passing build or unit test does not prove the UI works. After a UI change, open the page with the chrome-devtools MCP (omp: its built-in browser): navigate, take a snapshot, use the changed controls, check the console for errors and the network log for failed requests, and try a narrow viewport.
 - Check component-library and framework APIs with context7 at the installed version.

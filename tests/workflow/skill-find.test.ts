@@ -64,11 +64,11 @@ describe('queryTokens, matchLocal and skillFolderIn', () => {
     expect(queryTokens('a skill for Stripe webhooks, with retries')).toEqual(['stripe', 'webhooks', 'retries'])
     expect(queryTokens('Türkçe metni doğallaştır')).toEqual(['türkçe', 'metni', 'doğallaştır'])
     const skills = [
-      { id: 'security-audit', source: 'buracle', description: 'Security review of a codebase, webhooks included.' },
+      { id: 'api-review', source: 'buracle', description: 'Review of a codebase, webhooks included.' },
       { id: 'stripe-webhooks', source: 'installed', description: 'Receive and verify Stripe webhooks.' },
       { id: 'memory', source: 'buracle', description: 'The memory protocol.' },
     ]
-    expect(matchLocal('stripe webhooks', skills).map(m => [m.id, m.score])).toEqual([['stripe-webhooks', 4], ['security-audit', 1]])
+    expect(matchLocal('stripe webhooks', skills).map(m => [m.id, m.score])).toEqual([['stripe-webhooks', 4], ['api-review', 1]])
     expect(matchLocal('', skills)).toEqual([])
   })
 })

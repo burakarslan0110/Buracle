@@ -129,10 +129,10 @@ the user cares about (license, a paid API, a heavy toolchain). Otherwise choose.
 
 ## Example
 
-User: "Is there a skill for auditing a Next.js app for security problems?"
+User: "Is there a skill for finding unused code in this repository?"
 
-1. `buracle skills find next.js security audit --json`: the local matches list `security-audit`
-   (Buracle ships Cloudflare's skill); it covers the need. Say so, run it, stop.
+1. `buracle skills find unused dead code --json`: the local matches list `dead-code`
+   (Buracle ships it); it covers the need. Say so, run it, stop.
 
 User: "Find a skill that writes Stripe webhooks correctly."
 

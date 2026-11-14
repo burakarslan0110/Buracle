@@ -20,7 +20,6 @@ const LEGACY_EXPLAINED: ReadonlyArray<{ file: string, re: RegExp, why: string }>
   { file: 'src/workflow/worktree.ts', re: /'docs\/plan-build', 'docs\/goal-build', 'docs\/plans', 'docs\/builds'/, why: 'the slug lookup reads both folder sets' },
   { file: 'src/cli/commands/worktree.ts', re: /docs\/plan-build, docs\/goal-build, docs\/plans and docs\/builds/, why: 'the help text names every folder the stash keeps out' },
   { file: 'canonical/hooks.yaml', re: /or one of the old folders docs\/plans, docs\/builds, docs\/prd and docs\/cleanup/, why: 'the H03 description names the exemption list' },
-  { file: 'canonical/notices.yaml', re: /the old folders docs\/prd\/, docs\/plans\/, docs\/builds\/ and docs\/cleanup\/ stay readable/, why: 'the 0.7.0 release notice tells the user the old folders still work' },
   { file: 'src/engine/update/reference.ts', re: /A path under an old document folder \(`docs\/prd\/`, `docs\/plans\/`, `docs\/builds\/`, `docs\/cleanup\/`\)/, why: 'the reference explains the legacy-folder check' },
   { file: 'canonical/skills/buracle/references/commands.md', re: /or an old folder: docs\/plans, docs\/builds, docs\/prd or docs\/cleanup/, why: 'the notes command accepts a file in an old folder' },
   { file: 'canonical/skills/plan-build/SKILL.md', re: /or the old `docs\/prd\/\*\.md`/, why: 'a PRD in the old folder is still an input' },

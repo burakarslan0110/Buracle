@@ -23,5 +23,5 @@ paths:
 - Release timers, event handlers and subscriptions with `@implements IDisposable` or `IAsyncDisposable`; they leak in interactive server components otherwise.
 
 ## Verify
-- Check changed components in a real browser: the browser-automation rule has the procedure, and the dotnet rule covers the build and tests.
+- Check changed components in a real browser: the frontend rule has the procedure, and the dotnet rule covers the build and tests.
 - Check Blazor and component-library APIs with context7 at the installed version.

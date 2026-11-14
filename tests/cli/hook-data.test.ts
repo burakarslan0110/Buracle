@@ -43,7 +43,7 @@ describe('hookBundle', () => {
     expect(b.agents.filter(a => a.frontmatter['output'] === 'json').map(a => a.id)).toEqual(full.agents.filter(a => a.frontmatter['output'] === 'json').map(a => a.id))
     expect(b.rules.map(r => ({ id: r.id, scope: r.scope, file: r.file, frontmatter: r.frontmatter }))).toEqual(full.rules.map(r => ({ id: r.id, scope: r.scope, file: r.file, frontmatter: r.frontmatter })))
     expect(pathRuleIndex(b.rules)).toEqual(pathRuleIndex(full.rules))
-    expect(pathRuleIndex(b.rules).map(r => r.id)).toContain('mobile')
+    expect(pathRuleIndex(b.rules).map(r => r.id)).toContain('dotnet')
     expect(calls).toEqual([])
   })
 

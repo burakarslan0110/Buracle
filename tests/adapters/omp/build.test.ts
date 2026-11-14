@@ -200,9 +200,9 @@ describe('omp build: rendering helpers', () => {
     }
   })
 
-  test('the shipped path rules (mobile, dotnet and blazor included) use omp glob conditions only', () => {
+  test('the shipped path rules (dotnet and blazor included) use omp glob conditions only', () => {
     const rules = devContext().canonical.rules.filter(r => r.scope === 'paths')
-    expect(rules.map(r => r.id)).toEqual(expect.arrayContaining(['blazor', 'dotnet', 'mobile']))
+    expect(rules.map(r => r.id)).toEqual(expect.arrayContaining(['blazor', 'dotnet']))
     for (const rule of rules) {
       const notGlobs = ((rule.frontmatter['paths'] as string[]) ?? []).filter(g => !isOmpFileGlob(g))
       expect({ rule: rule.id, notGlobs }).toEqual({ rule: rule.id, notGlobs: [] })
