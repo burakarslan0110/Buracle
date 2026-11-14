@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { handleCodexHook } from '../../../src/adapters/codex/hook'
-import { CODEX_FRESH_PLAN_PREFIX, codexPlanApproval, lastAssistantText, proposedPlanOf } from '../../../src/adapters/codex/plan-capture'
+import { CODEX_ATTACHMENTS_DIR, CODEX_FRESH_PLAN_PREFIX, CODEX_PLAN_FILE_NAME, CODEX_PLAN_FILE_PREFIX, CODEX_PLAN_FILE_SUFFIX, CODEX_PLAN_ITEM, codexPlanApproval, handedOverPlan, lastAssistantText, proposedPlanOf } from '../../../src/adapters/codex/plan-capture'
 import { parsePlan } from '../../../src/core/plan/format'
 import * as paths from '../../../src/engine/paths'
 import { localDate } from '../../../src/workflow/plan-file'
@@ -76,6 +76,34 @@ describe('Codex H12: an approved <proposed_plan> is saved to docs/plan-build/', 
     expect(readdirSync(join(cwd, 'docs', 'plan-build'))).toEqual([SAVED])
   }))
 
+  test('Codex 0.169 hands the plan to the fresh thread as a file under $CODEX_HOME/attachments: only that file is read', () => withSandbox(async ({ root }) => {
+    const cwd = app(root)
+    const dir = join(paths.codexHome(), CODEX_ATTACHMENTS_DIR, '0b0f6c7e-1111-4222-8333-444455556666')
+    mkdirSync(dir, { recursive: true })
+    const file = join(dir, CODEX_PLAN_FILE_NAME)
+    writeFileSync(file, `${PLAN}\n`)
+    const elsewhere = join(root, 'other', 'x', CODEX_PLAN_FILE_NAME)
+    mkdirSync(join(root, 'other', 'x'), { recursive: true })
+    writeFileSync(elsewhere, `${PLAN}\n`)
+    const ask = (path: string) => `${CODEX_PLAN_FILE_PREFIX}${path}${CODEX_PLAN_FILE_SUFFIX}`
+    expect(contextOf((await prompt(cwd, ask(elsewhere))).stdout)).not.toContain('(H12)')
+    expect(contextOf((await prompt(cwd, ask(join(dir, 'missing', CODEX_PLAN_FILE_NAME)))).stdout)).not.toContain('(H12)')
+    expect(existsSync(join(cwd, 'docs', 'plan-build'))).toBe(false)
+    expect(contextOf((await prompt(cwd, ask(file))).stdout)).toContain(`docs/plan-build/${SAVED} (H12)`)
+    const text = readFileSync(join(cwd, 'docs', 'plan-build', SAVED), 'utf8')
+    expect(parsePlan(text).header).toMatchObject({ status: 'SAVED', approved: true, type: 'Plan' })
+    expect(text).toContain('> 2. Test it')
+  }))
+
+  test('when Codex\'s executor cannot read that file, the fresh thread holds the plan as proposed_plan outputs and starts with "Implement the plan."', () => withSandbox(async ({ root }) => {
+    const cwd = app(root)
+    const rollout = join(root, 'rollout.jsonl')
+    const item = (output: string) => JSON.stringify({ timestamp: '2026-11-14T12:00:00Z', type: 'response_item', payload: { type: 'function_call_output', name: CODEX_PLAN_ITEM, namespace: 'agent', output } })
+    writeFileSync(rollout, [item(PLAN.slice(0, 20)), item(PLAN.slice(20)), ''].join('\n'))
+    expect(contextOf((await prompt(cwd, 'Implement the plan.', { transcript_path: rollout })).stdout)).toContain('(H12)')
+    expect(readFileSync(join(cwd, 'docs', 'plan-build', SAVED), 'utf8')).toContain('> 2. Test it')
+  }))
+
   test('plan.nativePlanMode: "Implement the plan." approves the prepared plan-build plan and fills the registered file; no SAVED copy', () => withSandbox(async ({ root }) => {
     const cwd = app(root)
     const path = await prepareNativePlan(cwd, 'codex', SID)
@@ -99,6 +127,10 @@ describe('Codex H12: an approved <proposed_plan> is saved to docs/plan-build/', 
     expect(codexPlanApproval('Implement the plan. Also add docs.')).toBeUndefined()
     expect(codexPlanApproval(`${CODEX_FRESH_PLAN_PREFIX}\r\n\r\n${PLAN}`)).toEqual({ kind: 'fresh', plan: PLAN })
     expect(codexPlanApproval(CODEX_FRESH_PLAN_PREFIX)).toBeUndefined()
+    expect(codexPlanApproval(`${CODEX_PLAN_FILE_PREFIX}/h/.codex/attachments/a b/${CODEX_PLAN_FILE_NAME}${CODEX_PLAN_FILE_SUFFIX}\n`)).toEqual({ kind: 'file', path: `/h/.codex/attachments/a b/${CODEX_PLAN_FILE_NAME}` })
+    expect(codexPlanApproval(`${CODEX_PLAN_FILE_PREFIX}/etc/passwd${CODEX_PLAN_FILE_SUFFIX}`)).toBeUndefined()
+    expect(codexPlanApproval(`${CODEX_PLAN_FILE_PREFIX}/h/${CODEX_PLAN_FILE_NAME}${CODEX_PLAN_FILE_SUFFIX} Then deploy.`)).toBeUndefined()
+    expect(handedOverPlan(JSON.stringify({ type: 'response_item', payload: { type: 'function_call_output', name: 'shell', output: CODEX_PLAN_ITEM } }))).toBeUndefined()
     expect(lastAssistantText([rolloutLine('a'), JSON.stringify({ type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'u' }] } })].join('\n'))).toBe('a')
     expect(lastAssistantText('not json\n')).toBeUndefined()
   })
