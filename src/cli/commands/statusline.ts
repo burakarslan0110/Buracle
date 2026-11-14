@@ -15,7 +15,6 @@ import { cachedProjectSlug, dirLabel, effectiveLayout, flowForSession, gitInfo, 
 import { currentUsageEntry, isStale, readUsageCache, spawnUsageRefresh } from '../../usage/cache'
 import type { UsageCacheEntry } from '../../usage/types'
 import { resolveSession, writeTelemetry } from '../../workflow/session-store'
-import { boardCountsFor } from '../../workflow/board-store'
 
 export const name = 'statusline'
 export const summary = 'Render the status line for a harness (Claude reads its JSON on stdin)'
@@ -221,10 +220,6 @@ async function decorate(bar: BarModel, h: Harness, o: DecorateOptions): Promise<
   const roots = [...new Set([...o.extraRoots, ...(gi?.toplevel !== undefined ? [gi.toplevel] : []), o.cwd])]
   const plan = planForSession(h, o.sessionId, roots)
   if (plan !== undefined) bar.plan = plan
-  try {
-    const counts = boardCountsFor(h, o.sessionId, o.nowMs)
-    if (counts !== undefined) bar.board = counts.summary
-  } catch (e) { log('warn', 'statusline: board counts unavailable', { error: e }) }
   try {
     const flow = flowForSession(h, o.sessionId, o.nowMs, o.config.workflow.foldAfterSec, roots)
     if (flow !== undefined) bar.flow = flow

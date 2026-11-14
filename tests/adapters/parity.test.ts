@@ -268,10 +268,10 @@ function claudeModEvents(register: string): Set<string> {
 }
 
 describe('parity: every user-invocable skill is a workflow on every harness', () => {
-  test('the catalog: eleven workflows, and the protocol skills memory and buracle are not user-invocable (PLAN §2.2)', async () => {
+  test('the catalog: ten workflows, and the protocol skills memory and buracle are not user-invocable (PLAN §2.2)', async () => {
     const { canonical } = await built()
     expect(protocolSkills(canonical)).toEqual(['buracle', 'memory'])
-    const workflows = ['plan-build', 'goal-build', 'bugfix', 'requirements', 'research', 'inspect', 'dead-code', 'project-rules', 'new-skill', 'ab-test', 'buracle-join']
+    const workflows = ['plan-build', 'goal-build', 'bugfix', 'requirements', 'research', 'inspect', 'dead-code', 'project-rules', 'new-skill', 'ab-test']
     expect(workflows.filter(id => !userInvocable(canonical).includes(id))).toEqual([])
   })
 
@@ -304,13 +304,10 @@ describe('parity: every user-invocable skill is a workflow on every harness', ()
     const entries = new Set([...commandFiles(s.built.files.omp), ...s.omp.commands])
     expect(userInvocable(s.built.canonical).filter(id => !entries.has(ompCommandName(id)))).toEqual([])
     expect(protocolSkills(s.built.canonical).filter(id => commandFiles(s.built.files.omp).has(id))).toEqual([])
-    // omp keeps `/join` for its collab sessions: the worker skill is named buracle-join on every harness, and a future
-    // skill named like an omp built-in would get the same prefix on omp only.
+    // omp keeps `/join` for its collab sessions: a skill named like an omp built-in gets the prefix on omp only.
     expect(OMP_BUILTIN_COMMANDS.has('join')).toBe(true)
     expect(ompCommandName('join')).toBe('buracle-join')
-    expect(ompCommandName('buracle-join')).toBe('buracle-join')
     expect(commandFiles(s.built.files.omp).has('join')).toBe(false)
-    expect(s.built.files.omp.get('commands/buracle-join.md')).toContain('skill://buracle-join')
   }, 60_000)
 })
 

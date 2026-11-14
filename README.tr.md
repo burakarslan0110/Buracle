@@ -134,7 +134,6 @@ Bu workflow'ları bir arada tutan parçalar şunlar:
 - `buracle plan audit` diff'i her görevin adını verdiği dosyalarla karşılaştırır ve hiçbir görevin planlamadığı değişiklikleri işaretler.
 - `plan.reviews.companion` açıksa aynı inceleme kurulu başka bir harness'ta da salt okunur bir ikinci görüş olarak çalışır.
 - Birbirinden bağımsız planlar paralel kollar (lane) hâlinde, her biri kendi worktree'sinde çalışabilir. Kollar bağımlılık sırasına göre birleştirilir.
-- **Buracle Swarm.** Bir planın görevleri deponun paylaşılan görev panosuna gidebilir ve başka harness'lardaki işçi oturumları onları alır. Soru plan tasarlanırken, netleştirme sorularıyla birlikte gelir: "Bu plan için Buracle Swarm çalıştırayım mı?" ve hangi harness'ların işçi çalıştırabileceği (`plan.board.mode` sorup sormayacağını, hep mi hiç mi yapacağını belirler; `plan.board.harnesses.<harness>` bir harness'ı swarm'ın dışında tutar, Console'un ayarlar sayfasından da). Plan buna göre biçimlenir: önce ortak dosyaların sahibi olan bir temel görev, sonra dosyaları ayrık görevler gelir ve bir `## Swarm Plan` bölümü dalgaları gösterir (`buracle work publish --dry-run --md` onu yazdırır). Kaç işçinin çalışacağına lider karar verir, en çok `plan.board.maxWorkers` (6), ve her birleştirmeden sonra panelleri yeniden ölçekler. Her işçi kendi worktree'sinde tek seferde bir görev alır, sorularını kendi panelinde sana sorar, raporlar ve sonraki dalgayı bekler; lider yalnızca bekler, bağımlılık sırasında birleştirir ve kontrolleri koşar. Bir görevin hedefinin altındaki `**Harness:** codex` satırı o görevi tek bir harness'a ayırır. Panel yoksa terminalleri kendin açar ve her birinde `/buracle-join <slug>` yazarsın (Codex'te `$buracle-join <slug>`). Lider tmux, herdr, cmux veya Herdr masaüstü uygulaması içinde çalışıyorsa yayımlama ve `buracle work spawn` o terminalleri altına panel olarak açar (lider üstte kalır, işçiler yaklaşık eşit boyutlu kutulardan oluşan bir ızgarayı doldurur, bir satırda en çok dört; Herdr uygulaması onları liderin sekmesine yerleştirir), her panel panoya kendiliğinden katılır, her panelin başlığı işçisini ve görevini söyler (`Worker 2 (claude) · Task 3: …`), işçisi sana soru soran panel işaretlenir (`NEEDS YOU`) ve harness'ı için iş kalmayan panel kapanır (panellerin teklif edilip edilmeyeceğini `plan.board.mux` belirler).
 
 Bu workflow'ların nasıl çalışacağını Buracle Console'un [ayarlarından](#ayarlar) ya da `buracle config set plan.<key> <value>` komutuyla belirlersin.
 
@@ -359,7 +358,7 @@ Menü açıkken Buracle, son doğrulaması altı saatten eski olanları yeniler.
 | `buracle rollback` | En son kurulumu geri alır |
 | `buracle uninstall` | Buracle'ın kurduğu her şeyi kaldırır ve hafızaya dokunmaz |
 
-Ajanlar `plan`, `worktree`, `work` (görev panosu), `mem`, `skills` ve `project` gibi başka komutlar da kullanır. `buracle help --all` hepsini listeler, `buracle help <komut>` birini açıklar.
+Ajanlar `plan`, `worktree`, `mem`, `skills` ve `project` gibi başka komutlar da kullanır. `buracle help --all` hepsini listeler, `buracle help <komut>` birini açıklar.
 
 ## Geliştirme
 
