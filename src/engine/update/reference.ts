@@ -176,7 +176,6 @@ function cliDoc(commands: readonly CommandInfo[], exitCodes: Readonly<Record<str
 
 const HARNESS_ENABLED = /^harnesses\.([a-z]+)\.enabled$/
 const MCP_OFF = /^mcp\.off\.([a-z]+)$/
-const BOARD_HARNESS = /^plan\.board\.harnesses\.([a-z]+)$/
 
 export const CONFIG_DESCRIPTIONS: Readonly<Record<string, string>> = {
   version: 'Version of the configuration schema. Always `1`.',
@@ -199,11 +198,6 @@ export const CONFIG_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'plan.reviews.plan': 'Run the independent plan-build-review agent on a plan before the approval gate. `false`: the agent checks the plan against the reviewer\'s checklist itself and the plan records "independent review off (plan.reviews.plan)" under `## Unverified`. An agent cannot change this setting.',
   'plan.reviews.changes': 'Run the independent changes-review agent on the diff during verification (plan-build features and goal-build). `false`: the agent reviews its own diff against the same checklist and records "independent review off (plan.reviews.changes)" under `## Unverified`. Bugfixes keep their review either way: a plan-build Bugfix plan and the bugfix workflow always run changes-review. An agent cannot change this setting.',
   'plan.reviews.goal': 'Run the independent goal-build-review agent on a goal-build run file before the contract is locked. `false`: the agent checks the criteria itself and records "independent review off (plan.reviews.goal)" under `## Unverified`. An agent cannot change this setting.',
-  'plan.board.mode': 'Buracle Swarm, the task board: `ask` (while the plan is designed, with the clarifying questions, the lead asks "Run Buracle Swarm for this plan?" and, when more than one harness may run workers, which harnesses to use; the plan is then shaped in waves and, once approved, its tasks go to a board that worker sessions join with `/buracle-join <slug>`), `on` (the lead always publishes the board), `off` (the lead implements the tasks itself, as without a board). The lead decides the worker count, at most `plan.board.maxWorkers`.',
-  'plan.board.maxWorkers': 'The most worker sessions that may hold a board task at the same time; `buracle work join` refuses the next one (`max_workers`). `buracle work publish --max-workers` sets it per board.',
-  'plan.board.leaseSec': 'How long a claimed board task stays claimed without a heartbeat (the hooks send one on every prompt and tool call, at most every 30 s). After that the task turns stale and the next worker takes it over in the same worktree. At least 10; `buracle work publish --lease-sec` sets it per board.',
-  'plan.board.mux': 'Worker panes in the lead\'s terminal multiplexer (tmux, cmux, herdr or the Herdr desktop app, whose terminals run in herdr-core and appear in the lead\'s tab): `buracle work publish` and `buracle work spawn` open one pane per ready task that no waiting worker covers, each running a harness that joins the board with `/buracle-join <slug>`. `ask` (the default): when the lead runs inside a multiplexer, the swarm question asked while the plan is designed offers to open the panes there. `on`: the lead opens them right after `buracle work publish` without asking. `off`: the lead never opens panes (you can still run `buracle work spawn` yourself). Only panes Buracle opened are closed again, when nothing is left for their harness and at `buracle work close`.',
-  'plan.board.muxOnAsk': 'What a worker\'s `buracle work ask` does to the pane Buracle opened for it: `mark` (the default) sets the pane title and bell flag in tmux and relies on the notification in cmux and herdr; `focus` also switches the multiplexer to that pane and its window, which interrupts whatever pane you are typing in.',
   'plan.reviews.companion': 'A second opinion from another installed harness next to each independent review that runs (plan-build-review, changes-review, goal-build-review; the bugfix workflow\'s changes review too). `off` (the default): no second opinion. `auto`: Buracle picks a harness other than the session\'s own, one whose model family differs first, then the one used most recently with the most rate-limit headroom; `claude`, `codex`, `opencode` or `omp` names one. The agent starts it with `buracle plan review companion start`; it runs in the background, read-only, once per plan and role, for at most 20 minutes, with one retry on the next harness while time is left, and the agent triages its findings like the native reviewer\'s. When no other harness can run it, or it fails, the workflow goes on without it and says so. An agent cannot change this setting.',
   'plan.goalVerification': 'Run goal-build\'s verification phase (the full checks, the changes review and the user paths) after every criterion passes. `false`: a criteria-only build: the run records "Verification: disabled (plan.goalVerification)" under `## Unverified`, stays `COMPLETE` and ends with a hand-back pause; `buracle plan verify` refuses such a run, so it never becomes `VERIFIED`. A goal-build run locks this value and `plan.reviews.changes` when its contract is locked (`buracle plan set approved true`), so a later change applies to the next run. An agent cannot change this setting.',
   'plan.modelSwitch': 'One pause after the user approves a plan, so you can switch to another model for the implementation. `manual`: once the plan is approved (in the lead session, with `plan.planApproval` on), the agent pauses (a decision pause whose reason starts with `model switch:`), names the harness\'s model command (Claude Code `/model`, Codex `/model`, OpenCode `/models`, Oh My Pi `/model`) and ends the turn; your "continue" resumes the run on the model you picked. `off` (the default): implementation starts at once on the planning model. Oh My Pi can also switch by itself at the first edit (`prewalk.enabled`).',
@@ -250,11 +244,6 @@ export function configDescription(key: string): string | undefined {
   if (h && h[1] !== undefined) {
     const label = (HARNESS_LABEL as Record<string, string>)[h[1]] ?? h[1]
     return `Turns ${label} support on or off. A disabled harness gets nothing installed: \`buracle install\` skips it.`
-  }
-  const bh = BOARD_HARNESS.exec(key)
-  if (bh && bh[1] !== undefined) {
-    const label = (HARNESS_LABEL as Record<string, string>)[bh[1]] ?? bh[1]
-    return `Whether ${label} may run swarm workers: \`buracle work spawn\` deals worker panes only to harnesses that are on (and installed), and \`buracle work join\` from a harness that is off is refused with \`harness_off\`. Off keeps the harness out of the swarm; the lead's own harness may still lead.`
   }
   const off = MCP_OFF.exec(key)
   if (off && off[1] !== undefined) {
@@ -371,7 +360,6 @@ const SEGMENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
   git: 'Branch, ahead/behind, staged/changed/untracked files, the lines added and removed in the working tree (`+N −M`), stash, conflicts and worktree',
   dir: 'Working directory (inside a worktree, a subdirectory or outside git)',
   plan: 'The bound spec/build plan: title, phase and done/total tasks (only while no workflow is visible)',
-  board: 'The session\'s task board (`buracle work`): claimed, waiting, done and stale tasks, and merged/total (only while the session leads or works on a board)',
   flow: 'The running workflow: the band\'s one-row view (workflow, current phase, progress, status) with its title while there is room; it replaces the plan text while visible',
   cost: 'Session cost (API plans)',
   upd: 'Cached update count (`buracle update --check`, no network)',

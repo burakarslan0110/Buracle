@@ -1,5 +1,3 @@
-import type { BoardStopInput } from './board/model'
-
 export type Harness = 'claude' | 'codex' | 'opencode' | 'omp'
 
 export const HARNESSES: readonly Harness[] = ['claude', 'codex', 'opencode', 'omp']
@@ -22,7 +20,7 @@ export interface ToolCall {
 }
 export interface ToolResult extends ToolCall { ok: boolean; output?: string; addedText?: string }
 export type PreDecision = { action: 'allow', context?: string[] } | { action: 'deny', reason: string, hook: HookId }
-export interface StopInput { harness: Harness; sessionId: string; cwd: string; lastMessage?: string; hookActive?: boolean; backgroundWait?: boolean; readOnly?: boolean; now: number; board?: BoardStopInput }
+export interface StopInput { harness: Harness; sessionId: string; cwd: string; lastMessage?: string; hookActive?: boolean; backgroundWait?: boolean; readOnly?: boolean; now: number }
 export type StopDecision = { action: 'allow' } | { action: 'block', reason: string, hook: HookId }
 export interface PromptInput { harness: Harness; sessionId: string; cwd: string; text: string; now: number }
 export type HookId = 'H01' | 'H02' | 'H03' | 'H04' | 'H05' | 'H06' | 'H07' | 'H08' | 'H09' | 'H10' | 'H11' | 'H12' | 'H13' | 'H14' | 'H15' | 'H16' | 'H17' | 'H18' | 'H19' | 'H20' | 'H21'

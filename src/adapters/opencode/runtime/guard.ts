@@ -10,7 +10,6 @@ import { log } from '../../../engine/log'
 import * as paths from '../../../engine/paths'
 import { shimArgv } from '../../../engine/shim'
 import { loadState, updateState } from '../../../workflow/session-store'
-import { boardStopInput } from '../../shared/board'
 import type { BackgroundJob } from './background'
 import { waitsInBackground } from './background'
 import type { LedgerStore } from './routing'
@@ -223,29 +222,22 @@ export class StopGuard {
     const now = this.host.now()
     const state = cfg.plan.stopGuard ? loadState(HARNESS, sid) : undefined
     const plan = state?.plan
-    // A task-board worker has no plan of its own: its stop guard reads the board instead.
-    let board: StopInput['board']
-    if (state !== undefined) {
-      try { board = boardStopInput(HARNESS, sid, now) } catch (e) { this.host.log('warn', 'board stop input failed', { error: errText(e) }) }
-    }
-    if (state === undefined || (plan === undefined && board === undefined)) {
+    if (state === undefined || plan === undefined) {
       chain.chain = 0
       await this.routeAudit(sid, cfg.plan.stopGuard ? 'no-plan' : 'disabled', fresh, claim, false, now)
       return
     }
     const cwd = this.host.cwd(sid)
-    const doc = plan !== undefined ? this.planCheck(plan, cwd) : undefined
-    const label = plan?.path ?? `board ${board?.slug ?? ''}`
+    const doc = this.planCheck(plan, cwd)
     chain.continuations = chain.continuations.filter(t => now - t >= 0 && now - t < RATE_WINDOW_MS)
-    if (plan !== undefined && planProgressed(state, doc?.text)) { chain.chain = 0; chain.continuations = []; chain.noticed = false }
+    if (planProgressed(state, doc.text)) { chain.chain = 0; chain.continuations = []; chain.noticed = false }
     const chainCap = Math.max(1, cfg.plan.runaway.perChain)
     if (chain.chain > chainCap || chain.continuations.length >= RATE_MAX) {
-      this.runaway(sid, chain, chain.chain > chainCap ? 'runaway-chain' : 'rate', label)
+      this.runaway(sid, chain, chain.chain > chainCap ? 'runaway-chain' : 'rate', plan.path)
       return
     }
     if (claim !== undefined && !claimEvent(claim)) return
     const input: StopInput = { harness: HARNESS, sessionId: sid, cwd, hookActive: chain.chain > 0, now }
-    if (board !== undefined) input.board = board
     const session = this.host.session(sid)
     if (session?.lastAssistantText !== undefined) input.lastMessage = session.lastAssistantText
     if (session?.agent === 'plan') input.readOnly = true
@@ -253,7 +245,7 @@ export class StopGuard {
     let result: StopGuardResult | undefined
     try {
       updateState(HARNESS, sid, cur => {
-        const check = cur.plan === undefined ? undefined : plan !== undefined && cur.plan.path === plan.path && cur.plan.phase === plan.phase ? doc : this.planCheck(cur.plan, cwd)
+        const check = cur.plan === undefined ? undefined : cur.plan.path === plan.path && cur.plan.phase === plan.phase ? doc : this.planCheck(cur.plan, cwd)
         const r = stopGuardVerdict(cur, input, cfg.plan, check)
         result = r
         return r.next
@@ -265,7 +257,7 @@ export class StopGuard {
     const r = result as StopGuardResult | undefined
     if (r === undefined) return
     if (r.progressed === true) { chain.chain = 0; chain.continuations = [] }
-    if (r.why === 'runaway-plan' || r.why === 'runaway-chain') this.runaway(sid, chain, r.why, label)
+    if (r.why === 'runaway-plan' || r.why === 'runaway-chain') this.runaway(sid, chain, r.why, plan.path)
     if (r.readOnlyNotice === true) this.say(sid, READ_ONLY_NOTICE)
     const decision = r.decision
     if (decision.action !== 'block') {
