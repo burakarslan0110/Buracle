@@ -19,7 +19,6 @@ describe('paths', () => {
   test('pathKey normalizes separators, dots and trailing slashes; lower-cases only when asked', () => {
     expect(pathKey('/a/b/../c/./d/', false)).toBe('/a/c/d')
     expect(pathKey('C:\\Users\\Burak\\', false)).toBe('C:/Users/Burak')
-    expect(pathKey('C:\\', false)).toBe('C:/')
     expect(pathKey('/Users/Burak/Proj', true)).toBe('/users/burak/proj')
   })
 

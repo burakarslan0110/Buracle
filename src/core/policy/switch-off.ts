@@ -12,11 +12,11 @@ export interface ConfigParsers {
   yaml?: (text: string) => unknown
 }
 
-const HOME_PREFIX = /^(?:\/(?:(?:users|home)\/[^/]+|root|var\/root)|[A-Za-z]:\/users\/[^/]+)(?=\/|$)/i
+const HOME_PREFIX = /^\/(?:(?:users|home)\/[^/]+|root|var\/root)(?=\/|$)/i
 
-// PowerShell runs these profiles at every start, on Windows (Documents, OneDrive's too) and in pwsh's ~/.config.
-const POWERSHELL_PROFILE = /^(?:(?:onedrive[^/]*\/)?documents\/(?:windows)?powershell|\.config\/powershell)\/[^/]*profile\.ps1$/
-const POWERSHELL_PROFILE_DIR = /^(?:(?:onedrive[^/]*\/)?documents\/(?:windows)?powershell|\.config\/powershell)$/
+// pwsh runs the profiles in ~/.config/powershell at every start.
+const POWERSHELL_PROFILE = /^\.config\/powershell\/[^/]*profile\.ps1$/
+const POWERSHELL_PROFILE_DIR = /^\.config\/powershell$/
 
 const SHELL_STARTUP: readonly string[] = [
   '.zshrc', '.zshenv', '.zprofile', '.zlogin', '.bashrc', '.bash_profile', '.bash_login', '.profile',

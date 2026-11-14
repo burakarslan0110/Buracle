@@ -1,4 +1,3 @@
-import { isWindowsPath, normalizePath } from '../events'
 import type { ShellWord } from './shell'
 import { DYN, HOME, commandName, parseShell, simpleCommands } from './shell'
 
@@ -49,7 +48,7 @@ const SYSTEM_STARTUP = new Set(['zshrc', 'zprofile', 'zshenv', 'zlogin', 'profil
 
 export function isStartupFile(path: string): boolean {
   if (typeof path !== 'string' || path === '' || path.includes(DYN)) return false
-  const p = (isWindowsPath(path) ? normalizePath(path) : path).replace(/\/+$/, '')
+  const p = path.replace(/\/+$/, '')
   const segs = p.split('/').filter(s => s !== '')
   const base = (segs[segs.length - 1] ?? '').toLowerCase()
   if (STARTUP_NAMES.has(base)) return true
@@ -57,8 +56,8 @@ export function isStartupFile(path: string): boolean {
   const inEtc = dirs[0] === 'etc' || (dirs[0] === 'private' && dirs[1] === 'etc')
   if (inEtc && p.startsWith('/') && (SYSTEM_STARTUP.has(base) || dirs.includes('profile.d') || dirs.includes('zsh'))) return true
   if (dirs.includes('environment.d')) return true
-  if (/profile\.ps1$/.test(base) && dirs.some(d => d === 'powershell' || d === 'windowspowershell')) return true
-  return /\.(?:zsh|sh|bash|fish|ksh)$/.test(base) && (p.startsWith(`${HOME}/.`) || /^(?:\/(?:(?:users|home)\/[^/]+|root|var\/root)|[A-Za-z]:\/users\/[^/]+)\/\.[^./]/i.test(p))
+  if (/profile\.ps1$/.test(base) && dirs.includes('powershell')) return true
+  return /\.(?:zsh|sh|bash|fish|ksh)$/.test(base) && (p.startsWith(`${HOME}/.`) || /^\/(?:(?:users|home)\/[^/]+|root|var\/root)\/\.[^./]/i.test(p))
 }
 
 const GUARDED_KEYS: readonly string[][] = [['guards'], ['permissions'], ['harnesses'], ['routing'], ['plan', 'stopguard'], ['plan', 'runaway'], ['plan', 'planapproval'], ['plan', 'resultapproval'], ['plan', 'reviews'], ['plan', 'goalverification'], ['repo']]

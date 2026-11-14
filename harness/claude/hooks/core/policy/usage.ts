@@ -337,7 +337,7 @@ function editsOf(call: ToolCall, ctx: ReminderContext): Array<{ file: string, re
   return []
 }
 
-const ABSOLUTE_PATH = /^(?:\/|[A-Za-z]:[\\/]|\\\\)/
+const ABSOLUTE_PATH = /^\//
 
 export function rootProblem(value: string, facts: WorkspaceFacts | undefined): string | undefined {
   const f = facts ?? {}

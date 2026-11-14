@@ -1,8 +1,8 @@
-import { isWindowsPath, normalizePath, type Harness } from './events'
+import { normalizePath, type Harness } from './events'
 import { protectGlobToRegExp } from './policy/write-guard'
 
 export function pathKey(p: string, caseInsensitive: boolean): string {
-  const out = normalizePath(isWindowsPath(p) ? p : p.replace(/\\/g, '/'))
+  const out = normalizePath(p.replace(/\\/g, '/'))
   return caseInsensitive ? out.toLowerCase() : out
 }
 

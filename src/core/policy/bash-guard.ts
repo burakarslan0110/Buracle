@@ -1,4 +1,4 @@
-import { isAbsPath, isRootPath, isWindowsPath, normalizePath, pathRoot } from '../events'
+import { isAbsPath, isRootPath, normalizePath } from '../events'
 import type { CodeLang } from './code-scan'
 import { scanCode } from './code-scan'
 import { CONSENT_RUN_REASON, consentRunCall, isStartupFile, mentionsRelocation, renderPrintf, selfDisabling, UI_SETTINGS_REASON, uiSettingsCall } from './self-disable'
@@ -21,7 +21,7 @@ const CRITICAL_SECOND_LEVEL = new Set([
 ])
 const HOME_FOLDERS = new Set(['applications', 'desktop', 'documents', 'downloads', 'library', 'movies', 'music', 'pictures', 'public', '.config', '.ssh', '.gnupg', '.aws'])
 const SAFE_DEVICE = /^\/dev\/(?:null|zero|stdin|stdout|stderr|tty[\w.-]*|cu\.[\w.-]+|pts\/\d+|ptmx|random|urandom|fd\/\d+|shm\/.+|tcp\/.+|udp\/.+)$/
-const CREDENTIAL_DIR = /^(?:\/(?:(?:users|home)\/[^/]+|root|var\/root)|[A-Za-z]:\/users\/[^/]+)\/\.(ssh|aws|gnupg)(?:\/|$)/i
+const CREDENTIAL_DIR = /^\/(?:(?:users|home)\/[^/]+|root|var\/root)\/\.(ssh|aws|gnupg)(?:\/|$)/i
 const DOWNLOADERS = new Set(['curl', 'wget', 'fetch', 'http', 'https', 'xh', 'aria2c'])
 const PROTECTED_BRANCH = /^(?:main|master|release.*)$/i
 const OUTPUT_REDIRECTS = new Set(['>', '>>', '>|', '&>', '&>>', '<>', '>&'])
@@ -76,7 +76,6 @@ function dangerousTarget(w: ShellWord, mode: Mode): string | undefined {
 function dangerousSpelling(w: ShellWord, mode: Mode): string | undefined {
   let t = pathText(w)
   if (t === undefined) return undefined
-  if (isWindowsPath(t)) t = normalizePath(t)
   let glob = false
   if (/[*?\]/]$/.test(w.raw) && !/['"]$/.test(w.raw) && /[*?]/.test(w.raw)) {
     if (GLOB_ALL.test(t)) { glob = true; t = '.' }
@@ -112,8 +111,7 @@ function dangerousSpelling(w: ShellWord, mode: Mode): string | undefined {
 }
 
 function inDir(w: ShellWord, base: string | undefined): ShellWord | undefined {
-  if (base === undefined || w.text === '' || w.text.startsWith(HOME) || w.text.includes(DYN) || isWindowsPath(w.text)) return undefined
-  if (isWindowsPath(base) && /^[\\/](?![\\/])/.test(w.text)) return { text: `${pathRoot(normalizePath(base)).replace(/\/$/, '')}${w.text}`, raw: w.raw, quoted: w.quoted, dynamic: false }
+  if (base === undefined || w.text === '' || w.text.startsWith(HOME) || w.text.includes(DYN)) return undefined
   if (w.text.startsWith('/')) return undefined
   return { text: `${base.replace(/\/+$/, '')}/${w.text}`, raw: w.raw, quoted: w.quoted, dynamic: false }
 }
@@ -890,7 +888,7 @@ function copyLikeRule(name: string, argv: ShellWord[], walk: Walk): string | und
     operands.push(w)
   }
   const dest = targetDir ?? (operands.length >= 2 ? operands[operands.length - 1] : undefined)
-  const remote = (t: string): boolean => name === 'rsync' && /^[^/]*:/.test(t) && !isWindowsPath(t)
+  const remote = (t: string): boolean => name === 'rsync' && /^[^/]*:/.test(t)
   if (dest && !remote(dest.text)) {
     const bad = forbiddenIn(dest, base)
     if (bad) return bad.startsWith('~') ? credentialReason(bad) : deviceReason(display(argv), bad)
@@ -1252,9 +1250,6 @@ function checkCommand(u: Unwrapped, cmd: SimpleCommand, cx: Cx): string | undefi
   const name = commandName(argv[0])
   if (name === undefined) return undefined
   const args = argv.slice(1)
-  const native = windowsNative(name, args)
-  if (native === 'disk') return `${q(shown)} formats a disk or partition and destroys its data; ask the user to run it themselves if it is really needed.`
-  if (native !== undefined) return checkCommand(unwrap(native), { assigns: [], words: native, redirects: cmd.redirects }, cx)
   switch (name) {
     case 'rm': return rmRule(argv, cx.walk)
     case 'unlink': case 'rmdir': case 'shred': case 'srm': return unlinkRule(argv, cx.walk)
@@ -1344,31 +1339,6 @@ function analyze(src: string, depth: number, walk: Walk): string | undefined {
     if (inner) return inner
   }
   return truncated === true ? TOO_DEEP : undefined
-}
-
-const ENVIRONMENT_KEY = /^(?:hkcu|hkey_current_user|hklm|hkey_local_machine)[\\/]?(?:system[\\/]currentcontrolset[\\/]control[\\/]session manager[\\/])?environment[\\/]?$/i
-
-// Windows programs every shell can start: they restate as the POSIX commands with the same effect.
-function windowsNative(name: string, args: ShellWord[]): ShellWord[] | 'disk' | undefined {
-  const flags = args.map(a => a.text.toLowerCase().replace(/^\/\//, '/'))
-  if (flags.includes('/?')) return undefined
-  const word = (t: string): ShellWord => ({ text: t, raw: t, quoted: false, dynamic: false })
-  if (name === 'format' && args.some(a => /^[a-z]:\\?$/i.test(a.text))) return 'disk'
-  if (name === 'diskpart') return 'disk'
-  if (name === 'reg' && flags[0] === 'add' && ENVIRONMENT_KEY.test(args[1]?.text ?? '')) {
-    const v = flags.indexOf('/v')
-    const value = v >= 0 ? args[v + 1] : undefined
-    return value !== undefined ? [word('setx'), value] : undefined
-  }
-  if (name === 'robocopy') {
-    const operands = args.filter(a => !/^\/{1,2}[a-z]/i.test(a.text))
-    const [src, dst] = operands
-    if (src === undefined || dst === undefined) return undefined
-    if (flags.includes('/mir') || flags.includes('/purge')) return [word('rsync'), word('-a'), word('--delete'), src, dst]
-    if (flags.includes('/move') || flags.includes('/mov')) return [word('mv'), src, dst]
-    return [word('cp'), word('-r'), src, dst]
-  }
-  return undefined
 }
 
 function echoedText(src: string): string | undefined {
@@ -1630,7 +1600,7 @@ function compile(pattern: string): RegExp | null {
 }
 
 function fallbackScreen(command: string): string {
-  if (/\brm\s+(?:-[A-Za-z]*\s+)*-[A-Za-z]*[rR][A-Za-z]*\s+(?:-[A-Za-z-]+\s+)*(?:["']?(?:\/|~|\$HOME|\$\{HOME\}|[A-Za-z]:[\\/]?)[\\/]?["']?)(?:\s|$)/.test(command)) {
+  if (/\brm\s+(?:-[A-Za-z]*\s+)*-[A-Za-z]*[rR][A-Za-z]*\s+(?:-[A-Za-z-]+\s+)*(?:["']?(?:\/|~|\$HOME|\$\{HOME\})[\\/]?["']?)(?:\s|$)/.test(command)) {
     return 'This command would recursively delete the filesystem root or your home directory; remove only the specific paths you need.'
   }
   if (/\b(?:curl|wget)\b[^|]*\|\s*(?:sudo\s+)?(?:ba|z|da|k)?sh\b/.test(command)) {
@@ -1641,7 +1611,7 @@ function fallbackScreen(command: string): string {
 
 function newWalk(opts?: { home?: unknown, selfPaths?: unknown, cwd?: unknown, vault?: unknown, protect?: unknown, buracleRepo?: unknown, realpath?: unknown }): Walk {
   const walk: Walk = { lines: [], env: new Map([['HOME', HOME], ['PWD', '.']]), budget: MAX_SUBST, home: '' }
-  if (typeof opts?.home === 'string' && isAbsPath(opts.home)) walk.home = isWindowsPath(opts.home) ? normalizePath(opts.home) : opts.home
+  if (typeof opts?.home === 'string' && isAbsPath(opts.home)) walk.home = opts.home
   if (opts?.selfPaths !== null && typeof opts?.selfPaths === 'object') walk.selfPaths = opts.selfPaths as SelfPaths
   const cwd = opts?.cwd
   if (typeof cwd === 'string' && isAbsPath(cwd) && !cwd.includes(DYN) && !cwd.includes(HOME)) {
