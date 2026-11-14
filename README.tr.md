@@ -13,7 +13,7 @@
 
 Tek kaynaktan yönetilen skill'ler, kurallar, MCP sunucuları, hook'lar ve korumalar, bütün ajanların paylaştığı tek bir hafıza ve kanıtla biten workflow'lar.
 
-macOS · Linux · WSL 2 ile Windows, x64 ve arm64
+macOS · Linux, x64 ve arm64
 
 ```sh
 curl -fsSL https://github.com/burakarslan0110/buracle/releases/latest/download/install.sh | bash
@@ -54,16 +54,6 @@ macOS ve Linux:
 ```sh
 curl -fsSL https://github.com/burakarslan0110/buracle/releases/latest/download/install.sh | bash
 ```
-
-Windows: Buracle, harness'larınla birlikte WSL 2 içinde çalışır.
-
-1. PowerShell'de `wsl --install` çalıştırıp Ubuntu ile WSL 2'yi kur, Windows isterse yeniden başlat.
-2. Ubuntu kabuğunu aç ve harness'larını Windows'a değil oraya kur.
-3. Ubuntu kabuğunda yukarıdaki macOS ve Linux komutunu çalıştır.
-4. Projelerini Linux dosya sisteminde tut, örneğin `~/projects`. Linux araçları `/mnt/c` altındaki bir Windows sürücüsünü yavaş okur, `buracle doctor` da böyle bir proje için uyarır.
-5. `buracle doctor` çalıştır ve hata bildirmediğini kontrol et.
-
-WSL'de `buracle mem ui --open` sayfayı Windows tarayıcında açar, `buracle notify` da bir Windows bildirimi gösterir. Sayfa açılmazsa Windows kullanıcının `.wslconfig` dosyasında `localhostForwarding` değerinin `false` olmadığını kontrol et.
 
 Betik GitHub'daki en son release'den gelir. Betik Buracle'ın `main` dalını `~/buracle` klasörüne klonlar, bağımlılıklarını kurar, ardından `buracle install` çalıştırır. Bu komut nadir sorularını doğrudan terminalde sorar (`curl … | bash` altında da), `~/.local/bin` klasörünü PATH'e ekler (kabuğunun başlangıç dosyasına ve zsh ile bash'ten diğerinin dosyasına işaretli birer blok, çünkü diğer kabukta açılan terminal ilkinin dosyasını okumaz), kabuklarının adıyla bulamadığı bir harness programını (`bun add -g` ile kurulan omp `~/.bun/bin` içinde durur) `~/.local/bin` altına bağlar ve Buracle Console'u başlatır. Sonunda kısa bir özet gösterir: Prerequisites, Buracle, Harnesses, Tools, Memory ve Result için birer satır, geçmeyen her şey için de bir satır. Sağlık denetimi dahil her ayrıntı `~/.buracle/logs/install-<tarih>.log` dosyasına gider; Result satırı bu dosyayı gösterir. `main` dalı yayımlanan dosyaları tutar. CI bu dala yalnızca bir release yayımlarken ve test paketi olmadan yazar. `buracle update` de bu dalı izler. Betiği yeniden çalıştırırsan depo güncellenir ve kurulum onarılır. Betik çalıştırmadan önce okunacak kadar kısa ([`install.sh`](scripts/install.sh)).
 
@@ -219,7 +209,6 @@ Workflow anahtarları plan-build, goal-build ve bugfix'in her harness'ta nasıl 
 
 | Ne yapar | Anahtar | Varsayılan |
 |---|---|---|
-| Yeni bir mesaj gönderdiğinde çalışan planı duraklatır | `plan.autoPause` | kapalı |
 | Geliştirmeye başlamadan önce plan için onayını ister | `plan.planApproval` | açık |
 | Doğrulanmış sonuç için onayını ister | `plan.resultApproval` | açık |
 | İşi bir worktree içinde, kendine ait bir dalda yapar | `plan.branchIsolation` | açık |
@@ -312,7 +301,6 @@ Buracle Claude Code, Codex ve Oh My Pi'nin yerleşik hafızasını kapatır. Bö
 | `codex.consent-dialog` | Codex | Bir hook kullanıcıya soru soramaz, `codex exec`, `--yolo` ve `-a never` oturumları onay sorusu göstermez | Ret mesajı ajana neyi soracağını söyler, cevap bir sonraki istemle gelir |
 | `codex.background-wait` | Codex | Stop yükü görev verisi taşımaz, arka plandaki komut bitince turu uyandıran bir şey yok | Durma koruması turu açık tutar |
 | `codex.quiet-stop-feedback` | Codex | Bir Stop hook'u turu ancak bir engelle sürdürür, engelin gerekçesi yeni bir istem olur | Durma korumasının gerekçesi o isteme girer |
-| `codex.shell-read-nudge` | Codex | Kabuktan dosya okumayı yönlendirecek bir dosya okuma aracı yok | Kabuktan okuma serbest kalır, düzenleme notu `apply_patch` aracını söyler |
 | `codex.commands-without-turn` | Codex | Özel eğik çizgi komutu yok (bir eklentinin komutları skill olur) | `$memory`, CLI karşılıkları ve Codex'in kendi `/side` komutu |
 | `codex.live-exec-mask` | Codex | Çalışan bir komutun `write_stdin` yoklamaları hiçbir hook'a ulaşmaz | Tamamlanan her kabuk ve MCP sonucu maskelenir |
 | `codex.failed-mcp-mask` | Codex | PostToolUse yalnızca başarılı bir çağrı için çalışır | Başarılı her kabuk ve MCP sonucu maskelenir |

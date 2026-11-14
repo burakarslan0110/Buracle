@@ -327,17 +327,6 @@ describe('H26 prompt signals and H14 capture', () => {
 })
 
 describe('H24 usage ledger: reminders and the deny-once gates (reported as H03)', () => {
-  test('an edit that adds an import context7 was not asked about is denied once; the retry runs', () => withSandbox(async ({ root }) => {
-    const { f } = await runtime(root)
-    const input = { path: 'src/a.ts', oldString: '', newString: "import { z } from 'zod'\n" }
-    await f.trigger('tool.execute.before', { tool: 'edit', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_e1', input })
-    const denied = await f.trigger('permission.evaluate', evaluation('edit', [join(root, 'src/a.ts')], 'call_e1'))
-    expect(denied.effect).toBe('deny')
-    expect(denied.message).toStartWith('[Buracle H03 route.tools] Buracle: this edit adds an import of `zod`')
-    await f.trigger('tool.execute.before', { tool: 'edit', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_e2', input })
-    expect((await f.trigger('permission.evaluate', evaluation('edit', [join(root, 'src/a.ts')], 'call_e2'))).effect).toBe('allow')
-  }))
-
   test('a semble repo or codegraph projectPath at the home folder is denied every time and names the project root', () => withSandbox(async ({ root, home }) => {
     const project = join(root, 'proj')
     const { f, rt } = await runtime(root, { workspace: async cwd => info(cwd, { root: project }) })
@@ -373,36 +362,6 @@ describe('H24 usage ledger: reminders and the deny-once gates (reported as H03)'
     expect((await verdict(root)).message).toContain('a parent of your home folder')
     expect((await verdict(join(alpha, 'vendor'))).message).toContain('excluded by index.exclude (vendor)')
     expect((await verdict(alpha)).effect).toBe('allow')
-  }))
-
-  test('R3 follows the codegraph index as it is now: an index built after the session started arms the gate', () => withSandbox(async ({ root }) => {
-    const project = join(root, 'proj')
-    mkdirSync(join(project, 'src'), { recursive: true })
-    const { f, rt } = await runtime(root, { workspace: async cwd => info(cwd, { root: project, index: { codegraph: { state: 'building', since: Date.now() }, semble: { state: 'off' } } }) })
-    await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: project } } })
-    await rt.idle()
-    mkdirSync(join(project, '.codegraph'), { recursive: true })
-    writeFileSync(join(project, '.codegraph', 'codegraph.db'), '')
-    const input = { path: join(project, 'src', 'api.ts'), oldString: 'export function load(id: string): Item {', newString: 'export function load(id: string, opts: Opts): Item {' }
-    await f.trigger('tool.execute.before', { tool: 'edit', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_g1', input })
-    const denied = await f.trigger('permission.evaluate', evaluation('edit', [input.path], 'call_g1'))
-    expect(denied.effect).toBe('deny')
-    expect(denied.message).toContain('codegraph has not been asked about it')
-  }))
-
-  test('R4 reads the members of an npm workspace: an import of a member\'s dependency is gated', () => withSandbox(async ({ root }) => {
-    const mono = join(root, 'mono')
-    mkdirSync(join(mono, 'packages', 'app', 'src'), { recursive: true })
-    writeFileSync(join(mono, 'package.json'), JSON.stringify({ private: true, workspaces: ['packages/*'], devDependencies: { turbo: '2', typescript: '6' } }))
-    writeFileSync(join(mono, 'packages', 'app', 'package.json'), JSON.stringify({ name: 'app', dependencies: { 'lodash-es': '4', zod: '4' } }))
-    const { f, rt } = await runtime(root, { workspace: async cwd => info(cwd, { root: mono }) })
-    await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: mono } } })
-    await rt.idle()
-    const input = { path: join(mono, 'packages', 'app', 'src', 'a.ts'), oldString: 'export const a = 1', newString: "import { debounce } from 'lodash-es'\nexport const a = 1" }
-    await f.trigger('tool.execute.before', { tool: 'edit', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_m1', input })
-    const denied = await f.trigger('permission.evaluate', evaluation('edit', [input.path], 'call_m1'))
-    expect(denied.effect).toBe('deny')
-    expect(denied.message).toContain('this edit adds an import of `lodash-es`')
   }))
 
   test('path rules (R5): the first read of a matching file carries the rule; the first edit of an undelivered one is denied once with it', () => withSandbox(async ({ root }) => {

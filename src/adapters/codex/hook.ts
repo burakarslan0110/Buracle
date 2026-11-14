@@ -310,10 +310,6 @@ async function routePromptStep(prompt: string, sid: string, cwd: string, ctx: Ad
   await step(ev, 'H24 ledgerPrompt', undefined, () => { recordPrompt(sid, routed.route, now, deps.core) })
   const start = workflowStart(routed.route, prompt, deps.core)
   if (start !== undefined) await step(ev, 'H25 flow start', undefined, () => { recordWorkflowStart(sid, start, now) })
-  if (!captureOff(deps)) {
-    const signals = await step(ev, 'H26 signals', [] as ReturnType<CoreFns['promptSignals']>, () => deps.core.promptSignals(prompt))
-    await spool(deps, ev, sid, signals.map(signal => ({ ts: now, ev: 'prompt-signal' as const, signal })))
-  }
   return routed.text
 }
 
@@ -330,7 +326,7 @@ async function onUserPromptSubmit(p: Payload, sid: string, cwd: string, ctx: Ada
     await step(ev, 'turn receipt start', undefined, () => { turnStarted(ctx, sid, now) })
     const intent = (await step(ev, 'H10 detectSignals', NO_SIGNALS, () => deps.core.detectSignals(prompt))).control
     const guidance = await step(ev, 'H10 interaction', undefined as string | undefined, () => {
-      const opts = { autoPause: ctx.config.plan.autoPause, now }
+      const opts = { now }
       const before = loadState(H, sid)
       if (before.plan === undefined) return deps.core.promptInteraction(before, intent, prompt, opts).guidance
       let text: string | undefined
@@ -487,11 +483,10 @@ async function usageStep(p: Payload, call: ToolCall, sid: string, ledgerId: stri
   const judged: ToolCall = sp.kind === 'patch' ? { ...call, kind: 'patch' } : call
   const edits = sp.kind === 'patch' ? deps.core.patchEdits(sp.body).map(e => ({ file: e.path, removed: e.removed, added: e.added })) : undefined
   const isEdit = judged.kind === 'patch' || judged.kind === 'edit' || judged.kind === 'write'
-  const projectDepsOf = deps.projectDeps ?? readProjectDeps
   const pathRules = isEdit || judged.kind === 'bash' ? codexPathRules(ctx, deps.core) : undefined
   const v = usageReminders(judged, ledgerId, {
     ctx, core: deps.core, policy: routingPolicy(ctx), available: availableServers(ctx, deps.core, health), facts,
-    deps: isEdit && facts.root !== undefined ? projectDepsOf(facts.root) : [], ...(edits !== undefined ? { edits } : {}),
+    ...(edits !== undefined ? { edits } : {}),
     ...(pathRules !== undefined ? { pathRules } : {}),
   })
   if (ledgerId === sid && v.deny === undefined) await step('PreToolUse', 'H25/H26 skill load', undefined, () => skillLoad(judged, sid, deps, now))

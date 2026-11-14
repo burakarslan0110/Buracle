@@ -390,7 +390,6 @@ const EN = {
   'settings.groupLead.llm': 'The distillation at the end of a session runs a model through the CLI of a harness with usage headroom: no API, no key, nothing leaves this machine but through the harness\'s own CLI.',
   'settings.group.workflow': 'Workflow switches',
   'settings.groupLead.workflow': 'How plan-build, goal-build and bugfix run, on every harness. A change is written to your config file and applies the next time a workflow reads it; a goal-build run keeps the values it locked with its contract. Only you change these: an agent cannot.',
-  'switch.plan.autoPause': 'Pause a running plan when you send a new message',
   'switch.plan.planApproval': 'Ask for your approval of a plan before building',
   'switch.plan.resultApproval': 'Ask for your approval of the verified result',
   'switch.plan.branchIsolation': 'Build on a branch of its own, in a worktree',

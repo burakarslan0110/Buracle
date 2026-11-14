@@ -8,7 +8,7 @@ import type { Finding, PlanType } from '../../../src/core/plan/format'
 import { planSkeleton, validatePlan } from '../../../src/core/plan/format'
 import type { SessionState, StopWhy } from '../../../src/core/plan/state'
 import {
-  AUTO_PAUSE_REASON, ROUTE_AUDIT_AFTER, STOP_GUARD_ESCAPE, STOP_REASON_MAX, answerReceipt, applyIntent, approveResult, asksUserQuestion, dropResultApproval, emptyState,
+  ROUTE_AUDIT_AFTER, STOP_GUARD_ESCAPE, STOP_REASON_MAX, answerReceipt, applyIntent, approveResult, asksUserQuestion, dropResultApproval, emptyState,
   planProgressed, planValidateVerdict, resultReviewable, resumePlan, routeAuditAllowed, stopGuardVerdict, stopVerdict, stopVerdictDetailed,
 } from '../../../src/core/plan/state'
 import { preApprovalEdit, readOnlyStartNotice } from '../../../src/core/plan/plan-mode'
@@ -335,12 +335,6 @@ describe('routeAuditAllowed (H23 after the stop guard)', () => {
     expect(routeAuditAllowed(stopGuardVerdict(paused, input(), CFG).why, 'enforce')).toBe(false)
     expect(routeAuditAllowed(stopGuardVerdict(withPlan({ status: 'VERIFIED' }), input(), CFG).why, 'enforce')).toBe(true)
     expect(routeAuditAllowed(stopGuardVerdict(emptyState(), input(), CFG).why, 'enforce')).toBe(true)
-  })
-})
-
-describe('AUTO_PAUSE_REASON', () => {
-  test('is the one pause reason plan.autoPause records on every harness, in English', () => {
-    expect(AUTO_PAUSE_REASON).toBe('the user sent a message while the plan was running (plan.autoPause)')
   })
 })
 

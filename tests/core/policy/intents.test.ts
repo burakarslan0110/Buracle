@@ -169,7 +169,6 @@ describe('H10 guidance (CONTROL_GUIDANCE, controlGuidance)', () => {
       pause: 'Buracle: the user asked you to stop. Finish only the current atomic step, say where you stopped, and wait for them. Also stop the background commands and subagents this session started (with the harness\'s stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.',
       resume: 'Buracle: the user said to continue. The plan is resumed; check `buracle plan status --json` and carry on where the plan stands. "Continue" answers no open question: if you were waiting for a decision, ask it again.',
       stop: 'Buracle: the user wants to drop the current task. Stop now and confirm with them before discarding or reverting anything. Also stop the background commands and subagents this session started (with the harness\'s stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.',
-      autoPause: 'Buracle: the user wrote while the plan was running, so the plan is paused (plan.autoPause). Answer them first; when the work should go on, run `buracle plan resume` (the user saying "continue" resumes it too).',
       resultApproved: 'Buracle: the user approved the verified result, so Buracle recorded the approval (`buracle plan approve-result`) and resumed the plan. Do the worktree merge if the run has one, then finish with `buracle plan verify`.',
     })
   })
@@ -217,7 +216,6 @@ describe('H10 replies while the plan is paused (pausedReply, isResultApproval, i
 
   test('a discussion pause gets a meaning-based note (no word list); a running plan gets none', () => {
     expect(pausedReply({ state: 'paused', kind: 'discussion' }, 'ok devam edelim, önce testleri çalıştır')).toBe('Buracle: the plan is paused because the user asked to stop. If this message means go on, in any language, run `buracle plan resume` and continue; otherwise answer the user and keep waiting.')
-    expect(pausedReply({ state: 'paused', kind: 'discussion', reason: 'the user sent a message while the plan was running (plan.autoPause)' }, 'what next?')).toBeUndefined()
     expect(pausedReply({ state: 'running' }, 'done')).toBeUndefined()
     expect(pausedReply(undefined, 'done')).toBeUndefined()
   })

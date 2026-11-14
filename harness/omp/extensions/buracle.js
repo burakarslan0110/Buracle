@@ -7469,7 +7469,7 @@ async function run(argv, opts = {}) {
 }
 
 // src/engine/shim.ts
-import { readFileSync as readFileSync10, statSync as statSync10 } from "fs";
+import { readFileSync as readFileSync9, statSync as statSync10 } from "fs";
 import { resolve as resolve5 } from "path";
 function parseShimText(text) {
   const legacy = new RegExp(`^exec '${SQ}' '${SQ}' "\\$@"$`, "m").exec(text);
@@ -7492,7 +7492,7 @@ function parseShimText(text) {
 }
 function readShim(shim = shimPath()) {
   try {
-    return parseShimText(readFileSync10(shim, "utf8"));
+    return parseShimText(readFileSync9(shim, "utf8"));
   } catch {
     return;
   }
@@ -7516,8 +7516,8 @@ var init_shim = __esm(() => {
 var init_hook_fail = () => {};
 
 // src/engine/update/runtime.ts
-import { chmodSync as chmodSync2, cpSync, existsSync as existsSync13, mkdirSync as mkdirSync13, readFileSync as readFileSync23, readdirSync as readdirSync12, renameSync as renameSync3, rmSync as rmSync5, statSync as statSync24, writeFileSync as writeFileSync2 } from "fs";
-import { basename as basename10, dirname as dirname16, join as join34, relative as relative5, resolve as resolve19, sep as sep5 } from "path";
+import { chmodSync as chmodSync2, cpSync, existsSync as existsSync13, mkdirSync as mkdirSync13, readFileSync as readFileSync22, readdirSync as readdirSync12, renameSync as renameSync3, rmSync as rmSync5, statSync as statSync24, writeFileSync as writeFileSync2 } from "fs";
+import { basename as basename8, dirname as dirname14, join as join34, relative as relative4, resolve as resolve19, sep as sep4 } from "path";
 function runtimeFiles(checkout) {
   const out = [];
   const walk = (rel) => {
@@ -7542,11 +7542,11 @@ function runtimeFiles(checkout) {
   for (const f of RUNTIME_FILES)
     if (existsSync13(join34(checkout, f)))
       out.push(f);
-  return out.map((p) => p.split(sep5).join("/")).sort();
+  return out.map((p) => p.split(sep4).join("/")).sort();
 }
 function readJson(path) {
   try {
-    const v = JSON.parse(readFileSync23(path, "utf8"));
+    const v = JSON.parse(readFileSync22(path, "utf8"));
     return v !== null && typeof v === "object" && !Array.isArray(v) ? v : undefined;
   } catch {
     return;
@@ -7568,7 +7568,7 @@ function runtimePackages(checkout) {
     return { error: `${join34(checkout, "package.json")} cannot be read` };
   let lock = "";
   try {
-    lock = readFileSync23(join34(checkout, "bun.lock"), "utf8");
+    lock = readFileSync22(join34(checkout, "bun.lock"), "utf8");
   } catch {}
   const locked = (name) => {
     const esc = name.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
@@ -7609,7 +7609,7 @@ function checkoutFingerprint(checkout, deps) {
   for (const rel of runtimeFiles(checkout)) {
     const abs = join34(checkout, rel);
     try {
-      parts.push(fileEntry(rel, readFileSync23(abs), statSync24(abs).mode));
+      parts.push(fileEntry(rel, readFileSync22(abs), statSync24(abs).mode));
     } catch {
       parts.push(`${rel}\x00missing
 `);
@@ -7649,8 +7649,8 @@ function runtimeDirOf(info) {
   if (info === undefined || info.mode !== "frozen")
     return;
   const dir = resolve19(info.main, "..", "..", "..");
-  const rel = relative5(runtimeRoot(), dir);
-  return rel !== "" && !rel.startsWith("..") && !rel.includes(sep5) ? dir : undefined;
+  const rel = relative4(runtimeRoot(), dir);
+  return rel !== "" && !rel.startsWith("..") && !rel.includes(sep4) ? dir : undefined;
 }
 function runtimeHealth(checkout, shim = readShim()) {
   const h = { problems: [] };
@@ -7776,17 +7776,14 @@ __export(exports_policy, {
   ROUTE_HEADER: () => ROUTE_HEADER,
   ROUTE_TEXT_MAX_BYTES: () => ROUTE_TEXT_MAX_BYTES,
   RUNAWAY_REASON: () => RUNAWAY_REASON,
-  SHELL_READ_NUDGES: () => SHELL_READ_NUDGES,
   STOP_EVENTS: () => STOP_EVENTS,
   VERIFICATION_OFF_REASON: () => VERIFICATION_OFF_REASON,
   addConsentGrants: () => addConsentGrants,
   applyPromptGrants: () => applyPromptGrants,
-  bashNudge: () => bashNudge,
   capabilityCard: () => capabilityCard,
   catastrophicCommandRules: () => catastrophicCommandRules,
   catastrophicPath: () => catastrophicPath,
   categoryReminder: () => categoryReminder,
-  changedExports: () => changedExports,
   checkBash: () => checkBash,
   checkEval: () => checkEval,
   checkQuestion: () => checkQuestion,
@@ -7817,7 +7814,6 @@ __export(exports_policy, {
   guardedFile: () => guardedFile,
   harnessMcpPattern: () => harnessMcpPattern,
   harnessMcpToolName: () => harnessMcpToolName,
-  importedPackages: () => importedPackages,
   isDocsUrl: () => isDocsUrl,
   isGuardContinuation: () => isGuardContinuation,
   isHandback: () => isHandback,
@@ -7830,7 +7826,6 @@ __export(exports_policy, {
   laneCodeDenial: () => laneCodeDenial,
   laneStateDenial: () => laneStateDenial,
   laneStateDenialAll: () => laneStateDenialAll,
-  languageOf: () => languageOf,
   ledgerAudited: () => ledgerAudited,
   ledgerCall: () => ledgerCall,
   ledgerMcpResult: () => ledgerMcpResult,
@@ -7892,29 +7887,19 @@ __export(exports_policy, {
 // src/core/checkers.ts
 var exports_checkers = {};
 __export(exports_checkers, {
-  CHARSET_MAX_FINDINGS: () => CHARSET_MAX_FINDINGS,
   CHECKER_PROBES: () => CHECKER_PROBES,
   CHECKER_SCAN_MAX_DIRS: () => CHECKER_SCAN_MAX_DIRS,
   DOTNET_FORMAT_ENV: () => DOTNET_FORMAT_ENV,
   FINDINGS_MAX_LINES: () => FINDINGS_MAX_LINES,
   SLOW_CHECKER_MIN_MS: () => SLOW_CHECKER_MIN_MS,
-  TEST_DIR_NAMES: () => TEST_DIR_NAMES,
-  charsetFindings: () => charsetFindings,
   checkerDirs: () => checkerDirs,
   checkerFacts: () => checkerFacts,
   checkerTool: () => checkerTool,
   checkersFor: () => checkersFor,
-  dotnetLogicFree: () => dotnetLogicFree,
   findingsOf: () => findingsOf,
-  importsModule: () => importsModule,
-  isDotnetTestProjectName: () => isDotnetTestProjectName,
-  isTestFileName: () => isTestFileName,
-  lengthNote: () => lengthNote,
   missingToolKey: () => missingToolKey,
   missingToolNote: () => missingToolNote,
-  skippedNote: () => skippedNote,
-  tddHint: () => tddHint,
-  trivialEdit: () => trivialEdit
+  skippedNote: () => skippedNote
 });
 
 // src/core/compact.ts
@@ -7935,7 +7920,6 @@ __export(exports_compact, {
 // src/core/plan/index.ts
 var exports_plan = {};
 __export(exports_plan, {
-  AUTO_PAUSE_REASON: () => AUTO_PAUSE_REASON,
   FILE_VERBS: () => FILE_VERBS,
   FILE_WRITING_WORKFLOWS: () => FILE_WRITING_WORKFLOWS,
   NATIVE_PLAN_ENTER: () => NATIVE_PLAN_ENTER,
@@ -9199,9 +9183,6 @@ var CATEGORY_WORDS = [
   ["workflow", uw(/\b(?:plan|plans|spec|workflow|workflows|commits?|branch|branches|worktrees?|pull request|prs?|push|merge|release|deploy|skills?|mcp)\b|\b(?:dal[\u0131i]?|birle[\u015Fs]tir)\b/i)],
   ["engineering", uw(/\b(?:bun|npm|pnpm|yarn|typescript|javascript|python|go|rust|library|libraries|dependenc(?:y|ies)|framework|code|api|architecture|database|sql|docker|runtime|package)\b|\b(?:k[\u00FCu]t[\u00FCu]phane|ba[\u011Fg][\u0131i]ml[\u0131i]l[\u0131i]k|kod|mimari)/i)]
 ];
-function promptSignals(text) {
-  return [];
-}
 
 // src/core/memory/spool.ts
 var SPOOL_EVENTS = ["prompt", "tool", "turn", "compact", "stop", "note", "prompt-signal"];
@@ -10526,9 +10507,6 @@ function simpleCommands(script) {
   };
   visit(script, 0);
   return out;
-}
-function stageCommands(stage) {
-  return stage.kind === "cmd" ? [stage.cmd] : simpleCommands(stage.body);
 }
 function commandName(w) {
   if (!w || w.text === "" || w.text.includes(DYN) || w.text.startsWith(HOME))
@@ -12805,1428 +12783,6 @@ function selfDisabling(argv, shown, assigns = [], env) {
   return `would switch off Buracle's guards (${what}); only the user may do that, so ask them to run it themselves by typing ${"`"}! ${shown.replace(/`/g, "'")}${"`"} in the prompt.`;
 }
 
-// src/core/policy/powershell.ts
-var MAX_SOURCE = 1e6;
-var KNOWN_HOME = new Set(["home", "env:userprofile", "env:home"]);
-var KEYWORDS = new Set(["if", "elseif", "else", "foreach", "for", "while", "do", "until", "switch", "try", "catch", "finally", "function", "filter", "trap", "begin", "process", "end", "param", "data", "return", "throw", "break", "continue", "exit", "class", "enum"]);
-var NEST_MAX = 64;
-function closing(src, open, openCh, closeCh, nest = 0) {
-  if (nest > NEST_MAX)
-    return -1;
-  let depth = 0;
-  for (let i = open;i < src.length; i++) {
-    const c = src[i];
-    if (c === "`") {
-      i++;
-      continue;
-    }
-    if (c === "'") {
-      i = singleEnd(src, i);
-      continue;
-    }
-    if (c === '"') {
-      i = doubleEnd(src, i, nest + 1);
-      continue;
-    }
-    if (c === "#" && (i === 0 || /\s/.test(src[i - 1]))) {
-      const nl = src.indexOf(`
-`, i);
-      if (nl < 0)
-        return -1;
-      i = nl;
-      continue;
-    }
-    if (c === "<" && src[i + 1] === "#") {
-      const e = src.indexOf("#>", i + 2);
-      if (e < 0)
-        return -1;
-      i = e + 1;
-      continue;
-    }
-    if (c === openCh)
-      depth++;
-    else if (c === closeCh) {
-      depth--;
-      if (depth === 0)
-        return i;
-    }
-  }
-  return -1;
-}
-function singleEnd(src, i) {
-  for (let j = i + 1;j < src.length; j++) {
-    if (src[j] === "'") {
-      if (src[j + 1] === "'") {
-        j++;
-        continue;
-      }
-      return j;
-    }
-  }
-  return src.length - 1;
-}
-function doubleEnd(src, i, nest = 0) {
-  for (let j = i + 1;j < src.length; j++) {
-    const c = src[j];
-    if (c === "`") {
-      j++;
-      continue;
-    }
-    if (c === "$" && src[j + 1] === "(") {
-      const e = closing(src, j + 1, "(", ")", nest + 1);
-      if (e < 0)
-        return src.length - 1;
-      j = e;
-      continue;
-    }
-    if (c === '"') {
-      if (src[j + 1] === '"') {
-        j++;
-        continue;
-      }
-      return j;
-    }
-  }
-  return src.length - 1;
-}
-var ESCAPES = { n: `
-`, t: "\t", r: "\r", "0": "\x00", a: "\x07", b: "\b", e: "\x1B", f: "\f", v: "\v" };
-function variable(lx, w) {
-  const { src } = lx;
-  const start = lx.i;
-  lx.i++;
-  if (src[lx.i] === "(") {
-    const e = closing(src, lx.i, "(", ")");
-    const end = e < 0 ? src.length - 1 : e;
-    lx.nested.push(src.slice(lx.i + 1, end));
-    lx.i = end + 1;
-    addRef(w, undefined, src.slice(start, lx.i));
-    return;
-  }
-  let name = "";
-  if (src[lx.i] === "{") {
-    const e = src.indexOf("}", lx.i);
-    const end = e < 0 ? src.length : e;
-    name = src.slice(lx.i + 1, end);
-    lx.i = end + 1;
-  } else {
-    const m = /^(?:[A-Za-z_][\w]*:)?[\w?]+|^[$^_?]/.exec(src.slice(lx.i, lx.i + 256));
-    if (m === null) {
-      w.text += "$";
-      w.raw += "$";
-      return;
-    }
-    name = m[0];
-    lx.i += name.length;
-  }
-  let member = "";
-  while (lx.i < src.length && (src[lx.i] === "." || src[lx.i] === "[") && /[\w[]/.test(src[lx.i + 1] ?? "")) {
-    if (src[lx.i] === "[") {
-      const e = closing(src, lx.i, "[", "]");
-      if (e < 0)
-        break;
-      member += src.slice(lx.i, e + 1);
-      lx.i = e + 1;
-      continue;
-    }
-    const m = /^\.[\w]+/.exec(src.slice(lx.i));
-    if (m === null)
-      break;
-    member += m[0];
-    lx.i += m[0].length;
-    if (src[lx.i] === "(") {
-      const e = closing(src, lx.i, "(", ")");
-      const end = e < 0 ? src.length - 1 : e;
-      lx.nested.push(src.slice(lx.i + 1, end));
-      member += src.slice(lx.i, end + 1);
-      lx.i = end + 1;
-    }
-  }
-  const key = name.toLowerCase();
-  if (member === "" && KNOWN_HOME.has(key) && w.text === "") {
-    w.text += HOME;
-    w.raw += src.slice(start, lx.i);
-    return;
-  }
-  addRef(w, member === "" ? key : /^\.\w+$/.test(member) ? `${key}${member.toLowerCase()}` : undefined, src.slice(start, lx.i));
-}
-function addRef(w, name, raw) {
-  w.text += DYN;
-  w.raw += raw;
-  w.dynamic = true;
-  (w.refs ??= []).push(name);
-}
-function word() {
-  return { kind: "word", text: "", raw: "", quoted: false, dynamic: false };
-}
-function singleQuoted(lx, w) {
-  const end = singleEnd(lx.src, lx.i);
-  w.text += lx.src.slice(lx.i + 1, end).replace(/''/g, "'");
-  w.raw += lx.src.slice(lx.i, end + 1);
-  w.quoted = true;
-  lx.i = end + 1;
-}
-function doubleQuoted(lx, w) {
-  const { src } = lx;
-  const start = lx.i;
-  w.quoted = true;
-  lx.i++;
-  while (lx.i < src.length) {
-    const c = src[lx.i];
-    if (c === '"') {
-      if (src[lx.i + 1] === '"') {
-        w.text += '"';
-        lx.i += 2;
-        continue;
-      }
-      lx.i++;
-      break;
-    }
-    if (c === "`" && lx.i + 1 < src.length) {
-      const d = src[lx.i + 1];
-      w.text += ESCAPES[d] ?? d;
-      lx.i += 2;
-      continue;
-    }
-    if (c === "$" && /[\w{(:?^$]/.test(src[lx.i + 1] ?? "")) {
-      const before = w.raw;
-      variable(lx, w);
-      w.raw = before;
-      continue;
-    }
-    w.text += c;
-    lx.i++;
-  }
-  w.raw += src.slice(start, lx.i);
-}
-function hereString(lx, w) {
-  const { src } = lx;
-  const q = src[lx.i + 1];
-  if (src[lx.i] !== "@" || q !== "'" && q !== '"' || !/^[ \t]*\r?\n/.test(src.slice(lx.i + 2, lx.i + 64)))
-    return false;
-  const close = new RegExp(`\\r?\\n${q}@`, "g");
-  close.lastIndex = lx.i + 2;
-  const m = close.exec(src);
-  const end = m === null ? src.length : m.index;
-  const bodyStart = src.indexOf(`
-`, lx.i + 2) + 1;
-  const body = src.slice(bodyStart, end);
-  w.quoted = true;
-  if (q === '"' && /\$\(|\$[\w{]/.test(body)) {
-    w.text += DYN;
-    w.dynamic = true;
-    (w.refs ??= []).push(undefined);
-  } else
-    w.text += body;
-  lx.i = m === null ? src.length : m.index + m[0].length;
-  w.raw += src.slice(bodyStart - 3, lx.i);
-  return true;
-}
-function bashHeredoc(lx) {
-  const m = /^<<-?[ \t]*(['"]?)([A-Za-z_][\w]*)\1/.exec(lx.src.slice(lx.i, lx.i + 128));
-  if (m === null)
-    return false;
-  const tag = m[2];
-  const nl = lx.src.indexOf(`
-`, lx.i);
-  if (nl < 0) {
-    lx.i = lx.src.length;
-    return true;
-  }
-  const lines = lx.src.slice(nl + 1).split(`
-`);
-  let at = nl + 1;
-  for (const line of lines) {
-    at += line.length + 1;
-    if (line.replace(/^\t+/, "").replace(/\r$/, "") === tag)
-      break;
-  }
-  lx.i = Math.min(at, lx.src.length);
-  return true;
-}
-var WORD_END = /[\s;|&(){},<>]/;
-function bare(lx, w) {
-  const { src } = lx;
-  while (lx.i < src.length) {
-    const c = src[lx.i];
-    if (WORD_END.test(c)) {
-      if (c === "(" && w.text !== "" && !w.quoted) {
-        const e = closing(src, lx.i, "(", ")");
-        const end = e < 0 ? src.length - 1 : e;
-        lx.nested.push(src.slice(lx.i + 1, end));
-        w.raw += src.slice(lx.i, end + 1);
-        w.text += DYN;
-        w.dynamic = true;
-        (w.refs ??= []).push(undefined);
-        lx.i = end + 1;
-        continue;
-      }
-      break;
-    }
-    if (c === "`") {
-      if (src[lx.i + 1] === `
-` || src[lx.i + 1] === "\r" && src[lx.i + 2] === `
-`)
-        break;
-      const d = src[lx.i + 1] ?? "";
-      w.text += d;
-      w.raw += c + d;
-      lx.i += 2;
-      continue;
-    }
-    if (c === "'") {
-      singleQuoted(lx, w);
-      continue;
-    }
-    if (c === '"') {
-      doubleQuoted(lx, w);
-      continue;
-    }
-    if (c === "$" && /[\w{(:?^$]/.test(src[lx.i + 1] ?? "")) {
-      variable(lx, w);
-      continue;
-    }
-    if (c === "~" && w.text === "" && w.raw === "" && (lx.i + 1 >= src.length || /[\\/\s;|)}]/.test(src[lx.i + 1]))) {
-      w.text += HOME;
-      w.raw += c;
-      lx.i++;
-      continue;
-    }
-    w.text += c;
-    w.raw += c;
-    lx.i++;
-  }
-}
-function lex2(lx) {
-  const { src } = lx;
-  const out = [];
-  while (lx.i < src.length) {
-    const c = src[lx.i];
-    if (c === "`" && (src[lx.i + 1] === `
-` || src[lx.i + 1] === "\r" && src[lx.i + 2] === `
-`)) {
-      lx.i += src[lx.i + 1] === `
-` ? 2 : 3;
-      continue;
-    }
-    if (c === `
-`) {
-      out.push({ t: "op", op: ";" });
-      lx.i++;
-      continue;
-    }
-    if (/\s/.test(c)) {
-      lx.i++;
-      continue;
-    }
-    if (c === "#") {
-      const nl = src.indexOf(`
-`, lx.i);
-      lx.i = nl < 0 ? src.length : nl;
-      continue;
-    }
-    if (c === "<" && src[lx.i + 1] === "#") {
-      const e = src.indexOf("#>", lx.i + 2);
-      lx.i = e < 0 ? src.length : e + 2;
-      continue;
-    }
-    if (c === "<" && src[lx.i + 1] === "<" && bashHeredoc(lx)) {
-      out.push({ t: "op", op: ";" });
-      continue;
-    }
-    if (src.startsWith("&&", lx.i) || src.startsWith("||", lx.i)) {
-      out.push({ t: "op", op: ";" });
-      lx.i += 2;
-      continue;
-    }
-    if (c === ";" || c === "|") {
-      out.push({ t: "op", op: c });
-      lx.i++;
-      continue;
-    }
-    if (c === "&") {
-      out.push({ t: "op", op: "&" });
-      lx.i++;
-      continue;
-    }
-    if (c === ")" || c === "}") {
-      lx.i++;
-      continue;
-    }
-    const redir = /^(?:[1-6*])?(>>?)(?:&[12])?|^</.exec(src.slice(lx.i, lx.i + 5));
-    if (redir !== null && (/^[1-6*]?>/.test(redir[0]) || redir[0] === "<")) {
-      lx.i += redir[0].length;
-      out.push({ t: "redir", op: redir[0].includes("&") ? "dup" : redir[0] === "<" ? "<" : redir[1] });
-      continue;
-    }
-    if (c === ",") {
-      out.push({ t: "word", w: { kind: "comma", text: ",", raw: ",", quoted: false, dynamic: false } });
-      lx.i++;
-      continue;
-    }
-    if (c === "{" || c === "(" || c === "@" && src[lx.i + 1] === "(" || c === "$" && src[lx.i + 1] === "(") {
-      const at = c === "@" || c === "$" ? lx.i + 1 : lx.i;
-      const open = src[at];
-      const e = closing(src, at, open, open === "{" ? "}" : ")");
-      const end = e < 0 ? src.length : e;
-      const inner = src.slice(at + 1, end);
-      lx.nested.push(inner);
-      const raw = src.slice(lx.i, Math.min(end + 1, src.length));
-      lx.i = end + 1;
-      out.push({ t: "word", w: { kind: open === "{" ? "block" : "group", text: DYN, raw, quoted: false, dynamic: true, src: inner, refs: [undefined] } });
-      continue;
-    }
-    const w = word();
-    if (hereString(lx, w)) {
-      out.push({ t: "word", w });
-      continue;
-    }
-    if (c === "-" && /[A-Za-z]/.test(src[lx.i + 1] ?? "")) {
-      const m = /^-([A-Za-z][\w-]*)(:?)/.exec(src.slice(lx.i, lx.i + 128));
-      if (m[2] === ":" || WORD_END.test(src[lx.i + m[0].length] ?? " ")) {
-        lx.i += m[0].length;
-        const p = { kind: "param", text: m[0].replace(/:$/, ""), raw: m[0], quoted: false, dynamic: false, name: m[1].toLowerCase() };
-        if (m[2] === ":") {
-          const v = word();
-          bare(lx, v);
-          p.value = v;
-          p.raw += v.raw;
-        }
-        out.push({ t: "word", w: p });
-        continue;
-      }
-    }
-    const before = lx.i;
-    bare(lx, w);
-    if (lx.i === before) {
-      lx.i++;
-      continue;
-    }
-    out.push({ t: "word", w });
-  }
-  return out;
-}
-function statementsOf(toks) {
-  const out = [];
-  let stages = [];
-  let cur = { words: [], redirects: [] };
-  const flushCmd = () => {
-    if (cur.words.length > 0 || cur.redirects.length > 0)
-      stages.push(cur);
-    cur = { words: [], redirects: [] };
-  };
-  const flush = () => {
-    flushCmd();
-    if (stages.length > 0)
-      out.push(statement(stages));
-    stages = [];
-  };
-  for (let k = 0;k < toks.length; k++) {
-    const t = toks[k];
-    if (t.t === "op") {
-      if (t.op === "|")
-        flushCmd();
-      else if (t.op === "&" && cur.words.length === 0)
-        continue;
-      else
-        flush();
-      continue;
-    }
-    if (t.t === "redir") {
-      const next = toks[k + 1];
-      if (t.op === "dup" || t.op === "<") {
-        if (t.op === "<" && next?.t === "word")
-          k++;
-        continue;
-      }
-      if (next !== undefined && next.t === "word") {
-        cur.redirects.push({ op: t.op, target: next.w });
-        k++;
-      }
-      continue;
-    }
-    cur.words.push(t.w);
-  }
-  flush();
-  return out;
-}
-function statement(stages) {
-  const first = stages[0];
-  const w0 = first.words[0];
-  const w1 = first.words[1];
-  if (w0 !== undefined && w0.kind === "word" && !w0.quoted && /^\$[\w:{}]+$/.test(w0.raw) && w1 !== undefined && /^[+\-*/]?=$/.test(w1.raw)) {
-    const name = w0.raw.slice(1).replace(/^\{|\}$/g, "").toLowerCase();
-    const env = name.startsWith("env:");
-    const rest = first.words.slice(2);
-    const assign = { name: env ? name.slice(4) : name, env, ...w1.raw === "=" ? { value: rest } : {} };
-    const head = rest[0];
-    const command = head !== undefined && head.kind === "word" && !head.quoted && !head.dynamic && /^[A-Za-z]/.test(head.text);
-    return command ? { stages: [{ words: rest, redirects: first.redirects }, ...stages.slice(1)], assign } : { stages: stages.slice(1), assign };
-  }
-  if (w0 !== undefined && w0.kind === "word" && !w0.quoted && KEYWORDS.has(w0.text.toLowerCase()))
-    return { stages: [], keyword: w0.text.toLowerCase() };
-  if (w0 !== undefined && (w0.quoted || w0.kind === "group" || /^[[\d$]/.test(w0.raw)) && w0.kind !== "block") {
-    return { stages: stages.slice(1), expr: first.words.map((w) => w.raw).join(" ") };
-  }
-  return { stages };
-}
-function parsePowerShell(source) {
-  const src = typeof source === "string" ? source : "";
-  const truncated = src.length > MAX_SOURCE;
-  const lx = { src: truncated ? src.slice(0, MAX_SOURCE) : src, i: 0, nested: [] };
-  const statements = statementsOf(lex2(lx));
-  return truncated ? { statements, nested: lx.nested, truncated: true } : { statements, nested: lx.nested };
-}
-var POWERSHELL_SIGNS = new RegExp([
-  String.raw`\$env:`,
-  String.raw`\[(?:system\.)?(?:io\.(?:file|directory)|environment|net\.webclient)\]`,
-  String.raw`(?:^|[\s;|&({])(?:remove|copy|move|rename|set|add|clear|new|out|format|stop|restart|invoke|start|initialize|get|foreach|where|tee)-[a-z]+(?=[\s;|)}]|$)`,
-  String.raw`(?:^|[\s;|&(])(?:ri|rd|del|erase|cpi|mi|rni|sc|ac|clc|ni|iex|iwr|irm|gci|saps|sl|cmd(?:\.exe)?\s+/[ck])\s`,
-  String.raw`\s-(?:recurse|force|literalpath|itemtype|destination|outfile|filepath|erroraction|whatif|argumentlist|encodedcommand)\b`,
-  String.raw`(?:^|[\s'"=(,])(?:[a-z]:|\.{1,2}|~)\\`
-].join("|"), "i");
-function looksLikePowerShell(command) {
-  return typeof command === "string" && POWERSHELL_SIGNS.test(command.length > 65536 ? command.slice(0, 65536) : command);
-}
-function decodeEncodedCommand(b64) {
-  const t = typeof b64 === "string" ? b64.replace(/\s+/g, "") : "";
-  if (t === "" || t.length > 262144 || !/^[A-Za-z0-9+/]+={0,2}$/.test(t))
-    return;
-  const A = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  const bytes = [];
-  let buf = 0;
-  let bits = 0;
-  for (const ch of t.replace(/=+$/, "")) {
-    buf = buf << 6 | A.indexOf(ch);
-    bits += 6;
-    if (bits >= 8) {
-      bits -= 8;
-      bytes.push(buf >> bits & 255);
-    }
-  }
-  if (bytes.length % 2 !== 0)
-    return;
-  let out = "";
-  for (let i = 0;i + 1 < bytes.length; i += 2)
-    out += String.fromCharCode(bytes[i] | bytes[i + 1] << 8);
-  return /[\0-\x08\x0e-\x1f]/.test(out) ? undefined : out;
-}
-var CMD_KNOWN = {
-  userprofile: HOME,
-  cd: ".",
-  systemdrive: "C:",
-  systemroot: "C:\\Windows",
-  windir: "C:\\Windows",
-  programfiles: "C:\\Program Files",
-  "programfiles(x86)": "C:\\Program Files (x86)",
-  programdata: "C:\\ProgramData"
-};
-function parseCmd(source) {
-  const src = typeof source === "string" ? source.slice(0, MAX_SOURCE) : "";
-  const commands = [];
-  const nested = [];
-  let cur = { words: [], redirects: [] };
-  let w = word();
-  let started = false;
-  let redirect;
-  const endWord = () => {
-    if (!started)
-      return;
-    if (redirect !== undefined) {
-      cur.redirects.push({ op: redirect, target: w });
-      redirect = undefined;
-    } else
-      cur.words.push(w);
-    w = word();
-    started = false;
-  };
-  const endCmd = () => {
-    endWord();
-    const first = cur.words[0];
-    if (first !== undefined && first.text.startsWith("@"))
-      first.text = first.text.slice(1);
-    const name = first?.text.toLowerCase();
-    if (name !== undefined && name !== "rem" && !name.startsWith("::"))
-      commands.push(cur);
-    cur = { words: [], redirects: [] };
-  };
-  let quoted = false;
-  const plain = src.replace(/["'`#<]/g, " ");
-  for (let i = 0;i < src.length; i++) {
-    const c = src[i];
-    if (quoted) {
-      if (c === '"') {
-        quoted = false;
-        w.raw += c;
-        continue;
-      }
-      if (c === "%") {
-        i = percent(src, i, w);
-        continue;
-      }
-      w.text += c;
-      w.raw += c;
-      continue;
-    }
-    if (c === '"') {
-      quoted = true;
-      w.quoted = true;
-      started = true;
-      w.raw += c;
-      continue;
-    }
-    if (c === "^" && i + 1 < src.length) {
-      w.text += src[i + 1];
-      w.raw += c + src[i + 1];
-      started = true;
-      i++;
-      continue;
-    }
-    if (c === "%") {
-      i = percent(src, i, w);
-      started = true;
-      continue;
-    }
-    if (c === "!" && /^![A-Za-z_][\w]*!/.test(src.slice(i, i + 64))) {
-      const e = src.indexOf("!", i + 1);
-      addRef(w, undefined, src.slice(i, e + 1));
-      started = true;
-      i = e;
-      continue;
-    }
-    if (c === `
-` || c === "&" || c === "|") {
-      endCmd();
-      if (src[i + 1] === c)
-        i++;
-      continue;
-    }
-    if (c === "(" && !started && cur.words.length === 0) {
-      const e = closing(plain, i, "(", ")");
-      const end = e < 0 ? src.length : e;
-      nested.push(src.slice(i + 1, end));
-      i = end;
-      continue;
-    }
-    if (c === "(" && cur.words.length > 0 && /^(?:if|for|do|else)$/i.test(cur.words[0]?.text ?? "")) {
-      const e = closing(plain, i, "(", ")");
-      const end = e < 0 ? src.length : e;
-      nested.push(src.slice(i + 1, end));
-      i = end;
-      continue;
-    }
-    const r = /^[12]?(>>?)(&[12])?/.exec(src.slice(i, i + 5));
-    if (r !== null && !started) {
-      i += r[0].length - 1;
-      if (r[2] === undefined)
-        redirect = r[1];
-      continue;
-    }
-    if (r !== null && started && /^>/.test(r[0])) {
-      endWord();
-      i += r[0].length - 1;
-      if (r[2] === undefined)
-        redirect = r[1];
-      continue;
-    }
-    if (/\s/.test(c)) {
-      endWord();
-      continue;
-    }
-    w.text += c;
-    w.raw += c;
-    started = true;
-  }
-  endCmd();
-  return { commands, nested };
-}
-function percent(src, i, w) {
-  const m = /^%([^%\s]+)%/.exec(src.slice(i, i + 128));
-  if (m === null) {
-    const arg = /^%~?[a-z]*[0-9*]/i.exec(src.slice(i, i + 16));
-    if (arg !== null) {
-      addRef(w, undefined, arg[0]);
-      return i + arg[0].length - 1;
-    }
-    w.text += "%";
-    w.raw += "%";
-    return i;
-  }
-  const name = m[1].toLowerCase();
-  const known = CMD_KNOWN[name];
-  if (known === HOME && w.text === "")
-    w.text += HOME;
-  else if (known !== undefined && known !== HOME)
-    w.text += known;
-  else if (name === "homedrive" && /^%homedrive%%homepath%/i.test(src.slice(i, i + 21)) && w.text === "") {
-    w.text += HOME;
-    w.raw += src.slice(i, i + 21);
-    return i + 20;
-  } else {
-    addRef(w, undefined, m[0]);
-    return i + m[0].length - 1;
-  }
-  w.raw += m[0];
-  return i + m[0].length - 1;
-}
-
-// src/core/policy/windows-paths.ts
-var TOP_LEVEL = new Set(["windows", "program files", "program files (x86)", "programdata", "users", "documents and settings", "system volume information", "recovery", "$recycle.bin", "boot", "perflogs"]);
-var CRITICAL_SECOND_LEVEL = new Set(["windows/system32", "windows/syswow64", "windows/winsxs", "users/public", "users/default", "programdata/microsoft"]);
-var HOME_FOLDERS = new Set([
-  "applications",
-  "desktop",
-  "documents",
-  "downloads",
-  "library",
-  "movies",
-  "music",
-  "pictures",
-  "public",
-  ".config",
-  ".ssh",
-  ".gnupg",
-  ".aws",
-  "appdata",
-  "onedrive",
-  "videos",
-  "favorites",
-  "contacts",
-  "links",
-  "saved games",
-  "searches"
-]);
-var RAW_DEVICE = /^[\\/]{2}[.?][\\/](?:physicaldrive\d|harddisk\d|cdrom\d|tape\d|[a-z]:(?:$|[\\/])|volume\{|globalroot)/i;
-var DRIVE_SPELLING = /^\/(?:cygdrive\/|mnt\/)?([A-Za-z])(?=\/|$)/;
-function msysPath(t) {
-  for (const p of t.startsWith("/") ? [t, normalizePath(t)] : [t]) {
-    const m = DRIVE_SPELLING.exec(p);
-    if (m)
-      return `${m[1].toUpperCase()}:${p.slice(m[0].length) || "/"}`;
-  }
-  return t;
-}
-function windowsRawDevice(p) {
-  return RAW_DEVICE.test(p);
-}
-function windowsTarget(p, glob, what) {
-  const root = pathRoot(p);
-  const shown = nativePath(p);
-  if (p === root)
-    return glob ? `everything under ${shown}` : root.endsWith("/") ? `the drive root ${shown}` : `the network share ${shown}`;
-  const segs = p.slice(root.length).split("/").filter((x) => x !== "").map((x) => x.toLowerCase());
-  const first = segs[0] ?? "";
-  if (segs.length === 1 && TOP_LEVEL.has(first))
-    return what(`the system directory ${shown}`);
-  if (segs.length === 2 && first === "users")
-    return what(`the home directory ${shown}`);
-  if (segs.length === 2 && CRITICAL_SECOND_LEVEL.has(segs.join("/")))
-    return what(`the system directory ${shown}`);
-  if (first === "users" || first === "documents and settings") {
-    if (segs.length === 3 && HOME_FOLDERS.has(segs[2]))
-      return what(`the home folder ${shown}`);
-    if (segs.length === 4 && segs[2] === "appdata" && ["local", "locallow", "roaming"].includes(segs[3]))
-      return what(`the home folder ${shown}`);
-    if (segs.length === 4 && segs[2] === "documents" && segs[3] === "buracle")
-      return what(`the Buracle memory vault ${shown}`);
-  }
-  return;
-}
-
-// src/core/policy/windows-shell.ts
-var COMMON_VALUES = ["erroraction", "warningaction", "informationaction", "errorvariable", "warningvariable", "informationvariable", "outvariable", "outbuffer", "pipelinevariable", "progressaction"];
-var COMMON_SWITCHES = ["verbose", "debug", "whatif", "confirm"];
-var COMMON_ALIASES = { ea: "erroraction", wa: "warningaction", ev: "errorvariable", ov: "outvariable", ob: "outbuffer", pv: "pipelinevariable", vb: "verbose", db: "debug", wi: "whatif", cf: "confirm", lp: "literalpath", pspath: "literalpath" };
-function spec(values, switches, positional, aliases = {}) {
-  return { values: [...values, ...COMMON_VALUES], switches: [...switches, ...COMMON_SWITCHES], positional, aliases: { ...COMMON_ALIASES, ...aliases } };
-}
-var PATHS = ["path", "literalpath"];
-var SPECS = {
-  "remove-item": spec([...PATHS, "filter", "include", "exclude", "credential", "stream"], ["recurse", "force"], ["path"]),
-  "get-childitem": spec([...PATHS, "filter", "include", "exclude", "depth", "attributes"], ["recurse", "force", "name", "file", "directory", "hidden", "followsymlink"], ["path", "filter"]),
-  "get-item": spec([...PATHS, "filter", "include", "exclude", "stream"], ["force"], ["path"]),
-  "copy-item": spec([...PATHS, "destination", "filter", "include", "exclude", "credential", "fromsession", "tosession"], ["recurse", "force", "container", "passthru"], ["path", "destination"]),
-  "move-item": spec([...PATHS, "destination", "filter", "include", "exclude", "credential"], ["force", "passthru"], ["path", "destination"]),
-  "rename-item": spec([...PATHS, "newname", "credential"], ["force", "passthru"], ["path", "newname"]),
-  "set-content": spec([...PATHS, "value", "encoding", "filter", "include", "exclude", "credential", "stream"], ["force", "nonewline", "passthru", "asbytestream"], ["path", "value"]),
-  "add-content": spec([...PATHS, "value", "encoding", "filter", "include", "exclude", "credential", "stream"], ["force", "nonewline", "passthru", "asbytestream"], ["path", "value"]),
-  "clear-content": spec([...PATHS, "filter", "include", "exclude", "credential", "stream"], ["force"], ["path"]),
-  "out-file": spec(["filepath", "literalpath", "encoding", "inputobject", "width"], ["append", "force", "noclobber", "nonewline"], ["filepath", "encoding"], { path: "filepath" }),
-  "tee-object": spec(["filepath", "literalpath", "variable", "inputobject", "encoding"], ["append"], ["filepath"], { path: "filepath" }),
-  "new-item": spec(["path", "name", "itemtype", "value", "target", "credential"], ["force"], ["path"], { type: "itemtype" }),
-  "set-item": spec([...PATHS, "value", "filter", "include", "exclude", "credential"], ["force", "passthru"], ["path", "value"]),
-  "set-itemproperty": spec([...PATHS, "name", "value", "type", "filter", "include", "exclude", "credential", "inputobject"], ["force", "passthru"], ["path", "name", "value"]),
-  "new-itemproperty": spec([...PATHS, "name", "value", "propertytype", "filter", "include", "exclude", "credential"], ["force"], ["path", "name", "value"], { type: "propertytype" }),
-  "set-location": spec([...PATHS, "stackname"], ["passthru"], ["path"]),
-  "push-location": spec([...PATHS, "stackname"], ["passthru"], ["path"]),
-  "invoke-expression": spec(["command"], [], ["command"]),
-  "invoke-webrequest": spec(["uri", "outfile", "method", "body", "headers", "infile", "contenttype", "useragent", "proxy", "credential", "sessionvariable", "websession", "timeoutsec", "maximumredirection"], ["usebasicparsing", "passthru", "usedefaultcredentials", "skipcertificatecheck"], ["uri"]),
-  "start-process": spec(["filepath", "argumentlist", "workingdirectory", "verb", "credential", "redirectstandardoutput", "redirectstandarderror", "redirectstandardinput", "windowstyle"], ["wait", "passthru", "nonewwindow", "loaduserprofile", "usenewenvironment"], ["filepath", "argumentlist"], { args: "argumentlist", file: "filepath" }),
-  "stop-process": spec(["id", "name", "inputobject"], ["force", "passthru"], ["id"], { processname: "name" }),
-  "foreach-object": spec(["process", "begin", "end", "membername", "argumentlist", "inputobject", "throttlelimit", "remainingscripts"], ["parallel", "asjob"], ["process"]),
-  "invoke-command": spec(["scriptblock", "computername", "session", "argumentlist", "filepath", "credential"], ["asjob", "nonewscope"], ["scriptblock"])
-};
-var ALIASES = {
-  ri: "remove-item",
-  rm: "remove-item",
-  rmdir: "remove-item",
-  rd: "remove-item",
-  del: "remove-item",
-  erase: "remove-item",
-  gci: "get-childitem",
-  ls: "get-childitem",
-  dir: "get-childitem",
-  gi: "get-item",
-  copy: "copy-item",
-  cp: "copy-item",
-  cpi: "copy-item",
-  move: "move-item",
-  mv: "move-item",
-  mi: "move-item",
-  ren: "rename-item",
-  rni: "rename-item",
-  sc: "set-content",
-  ac: "add-content",
-  clc: "clear-content",
-  tee: "tee-object",
-  ni: "new-item",
-  si: "set-item",
-  sp: "set-itemproperty",
-  sl: "set-location",
-  cd: "set-location",
-  chdir: "set-location",
-  pushd: "push-location",
-  popd: "pop-location",
-  iex: "invoke-expression",
-  iwr: "invoke-webrequest",
-  irm: "invoke-webrequest",
-  "invoke-restmethod": "invoke-webrequest",
-  saps: "start-process",
-  start: "start-process",
-  spps: "stop-process",
-  kill: "stop-process",
-  "%": "foreach-object",
-  foreach: "foreach-object",
-  "?": "where-object",
-  where: "where-object",
-  icm: "invoke-command",
-  gps: "get-process",
-  ps: "get-process"
-};
-var WINDOWS_SHELLS = new Set(["cmd", "powershell", "pwsh", "powershell_ise"]);
-var SHARED = new Set(["rm", "rmdir", "cp", "mv", "ls", "dir", "cd", "pushd", "popd", "kill", "tee", "ps", "start", "foreach", "where"]);
-var DISK = new Set(["format-volume", "clear-disk", "initialize-disk", "remove-partition", "clear-partition", "reset-physicaldisk"]);
-var POWER = new Set(["stop-computer", "restart-computer"]);
-var DOWNLOAD_TEXT = /\b(?:invoke-webrequest|invoke-restmethod|iwr|irm|curl|wget|start-bitstransfer)\b|\.download(?:string|data|file)\s*\(|net\.webclient/i;
-var RUN_TEXT = /\b(?:invoke-expression|iex)\b|\[scriptblock\]::create/i;
-var HKCU_ENV = /^(?:hkcu:|hkey_current_user|registry::hkey_current_user|hklm:|hkey_local_machine|registry::hkey_local_machine)[\\/](?:system[\\/]currentcontrolset[\\/]control[\\/]session manager[\\/])?environment[\\/]?$/i;
-function sw(text, raw = text, quoted = false) {
-  return { text, raw, quoted, dynamic: text.includes(DYN) };
-}
-function cmdOf(words, redirects = []) {
-  return { assigns: [], words, redirects };
-}
-function slashes(t) {
-  return isWindowsPath(t) ? t : t.replace(/\\/g, "/");
-}
-function substitute(w, opts, depth = 0) {
-  if (w.kind === "group" && w.src !== undefined) {
-    const v = depth < 4 ? groupValue(w.src, opts, depth + 1) : undefined;
-    return v !== undefined ? { text: v, changed: true } : { text: w.text, changed: false };
-  }
-  if (!w.dynamic || w.refs === undefined)
-    return { text: w.text, changed: false };
-  let k = 0;
-  let changed = false;
-  let out = "";
-  for (const ch of w.text) {
-    if (ch !== DYN) {
-      out += ch;
-      continue;
-    }
-    const name = w.refs[k++];
-    const val = name === undefined ? undefined : itemOrVar(name, opts);
-    if (val === undefined) {
-      out += DYN;
-      continue;
-    }
-    out += val;
-    changed = true;
-  }
-  return { text: out, changed };
-}
-function groupValue(src, opts, depth) {
-  const t = src.trim();
-  const known = (ws) => {
-    const out = ws.map((w) => substitute(w, opts, depth).text);
-    return out.some((x) => x.includes(DYN)) ? undefined : out;
-  };
-  if (/^join-path\s/i.test(t)) {
-    const words = parsePowerShell(t).statements[0]?.stages[0]?.words.slice(1) ?? [];
-    const b = bind(words, spec(["path", "childpath", "additionalchildpath"], ["resolve"], ["path", "childpath", "additionalchildpath"]));
-    const parts = known([...vals(b, "path").slice(0, 1), ...vals(b, "childpath"), ...vals(b, "additionalchildpath")]);
-    return parts !== undefined && parts.length >= 2 ? parts.map((x, i) => i === 0 ? x.replace(/[\\/]+$/, "") : x.replace(/^[\\/]+|[\\/]+$/g, "")).join("\\") : undefined;
-  }
-  const combine = /^\[(?:system\.)?io\.path\]::combine\s*\(([\s\S]*)\)$/i.exec(t);
-  if (combine !== null) {
-    const words = parsePowerShell(`x ${combine[1]}`).statements[0]?.stages[0]?.words.slice(1).filter((w) => w.kind !== "comma") ?? [];
-    const parts = known(words);
-    return parts !== undefined && parts.length >= 1 ? parts.join("\\").replace(/\\{2,}/g, "\\") : undefined;
-  }
-  const words = parsePowerShell(`x ${t}`).statements[0]?.stages[0]?.words.slice(1) ?? [];
-  if (words.length >= 3 && words.length % 2 === 1 && words.every((w, i) => i % 2 === 1 ? w.raw === "+" : w.kind !== "param")) {
-    const parts = known(words.filter((_, i) => i % 2 === 0));
-    return parts?.join("");
-  }
-  return;
-}
-function itemOrVar(name, opts) {
-  if (opts.item !== undefined && /^(?:_|psitem)(?:\.(?:fullname|pspath|path))?$/.test(name))
-    return opts.item;
-  return name.includes(".") ? undefined : opts.vars?.get(name);
-}
-function pathWord(w, opts, literal = false) {
-  const { text, changed } = substitute(w, opts);
-  const t = slashes(text);
-  const shown = t.replace(HOME, "~");
-  const raw = !literal && /[*?[]/.test(t) && !t.includes(DYN) ? shown : changed ? `'${shown}'` : w.raw;
-  return sw(t, raw, w.quoted || changed);
-}
-function plainWord(w, opts) {
-  if (w.kind === "param")
-    return sw(w.value !== undefined ? `${w.text}:${substitute(w.value, opts).text}` : w.text, w.raw);
-  const { text, changed } = substitute(w, opts);
-  const t = text.startsWith(HOME) ? HOME + text.slice(1).replace(/\\/g, "/") : text;
-  return sw(t, changed ? `'${t.replace(HOME, "~")}'` : w.raw, w.quoted || changed);
-}
-function bind(words, s) {
-  const b = { pos: [], named: new Map, flags: new Set, unknown: [] };
-  const all = [...s.values, ...s.switches];
-  const resolve = (n) => {
-    const alias = s.aliases?.[n];
-    if (alias !== undefined)
-      return alias;
-    if (all.includes(n))
-      return n;
-    const c = all.filter((x) => x.startsWith(n));
-    return c.length === 1 ? c[0] : undefined;
-  };
-  const list = (k) => {
-    const items = [];
-    let j = k;
-    while (j < words.length) {
-      const w = words[j];
-      if (w.kind === "param")
-        break;
-      if (w.kind === "comma") {
-        j++;
-        continue;
-      }
-      items.push(w);
-      j++;
-      if (words[j]?.kind !== "comma")
-        break;
-    }
-    return { items, next: j };
-  };
-  for (let k = 0;k < words.length; ) {
-    const w = words[k];
-    if (w.kind === "comma") {
-      k++;
-      continue;
-    }
-    if (w.kind === "param") {
-      const name = resolve(w.name ?? "");
-      if (name === undefined) {
-        b.unknown.push(w.name ?? "");
-        k++;
-        continue;
-      }
-      if (s.switches.includes(name)) {
-        const off = w.value !== undefined && /^(?:\$false|false|0)$/i.test(w.value.raw);
-        if (!off)
-          b.flags.add(name);
-        k++;
-        continue;
-      }
-      if (w.value !== undefined) {
-        b.named.set(name, [...b.named.get(name) ?? [], w.value]);
-        k++;
-        continue;
-      }
-      const { items, next } = list(k + 1);
-      b.named.set(name, [...b.named.get(name) ?? [], ...items]);
-      k = next;
-      continue;
-    }
-    const { items, next } = list(k);
-    b.pos.push(items);
-    k = next;
-  }
-  s.positional.forEach((name, i) => {
-    const items = b.pos[i];
-    if (items !== undefined && !b.named.has(name))
-      b.named.set(name, items);
-  });
-  if (s.positional.length > 0 && b.pos.length > s.positional.length && s.positional[0] === "path") {
-    b.named.set("path", [...b.named.get("path") ?? [], ...b.pos.slice(s.positional.length).flat()]);
-  }
-  return b;
-}
-function vals(b, ...names) {
-  return names.flatMap((n) => b.named.get(n) ?? []);
-}
-function nameOf(w) {
-  if (w === undefined || w.kind !== "word" || w.dynamic || w.text === "" || w.text.startsWith(HOME))
-    return;
-  const base = w.text.slice(Math.max(w.text.lastIndexOf("/"), w.text.lastIndexOf("\\")) + 1).toLowerCase().replace(/\.(?:exe|cmd|bat|com)$/, "");
-  return base === "" ? undefined : base;
-}
-function canonical(name) {
-  return ALIASES[name] ?? name;
-}
-function redirectsOf(c, opts) {
-  return c.redirects.map((r) => ({ op: r.op, target: pathWord(r.target, opts, true) }));
-}
-function rm(targets, recursive, redirects) {
-  return cmdOf([sw("rm"), ...recursive ? [sw("-r")] : [], sw("-f"), sw("--"), ...targets], redirects);
-}
-function joinPath2(dir, leaf) {
-  const t = `${dir.text.replace(/[\\/]+$/, "")}/${leaf}`;
-  return sw(t, t.includes(DYN) ? dir.raw : t, dir.quoted);
-}
-function psLike(words, s) {
-  if (s === undefined)
-    return false;
-  return words.some((w) => w.kind === "param" && (w.name ?? "").length >= 2 && [...s.values, ...s.switches].some((n) => n.startsWith(w.name ?? "")) || w.kind === "word" && /\\/.test(w.raw) && !/^-/.test(w.text));
-}
-function translateStage(c, prev, st) {
-  const opts = st.opts;
-  const head = c.words[0];
-  if (head !== undefined && head.kind === "block")
-    return {};
-  const raw = nameOf(head);
-  if (raw === undefined)
-    return {};
-  const name = canonical(raw);
-  const s = SPECS[name];
-  const args = c.words.slice(1);
-  const redirects = redirectsOf(c, opts);
-  if (opts.lenient === true && SHARED.has(raw) && !psLike(args, s))
-    return {};
-  if (DISK.has(name))
-    return args.some((a) => a.kind === "param" && "whatif".startsWith(a.name ?? "-")) ? {} : { cmd: cmdOf([sw(`mkfs.${name}`), ...args.map((a) => plainWord(a, opts))]) };
-  if (POWER.has(name))
-    return { cmd: cmdOf([sw("shutdown"), ...args.map((a) => plainWord(a, opts))]) };
-  if (name === "where-object")
-    return prev !== undefined ? { source: { ...prev, filtered: true } } : {};
-  if (name === "get-process")
-    return { source: { paths: [], recurse: false, filtered: args.length > 0, processes: true } };
-  if (name === "pop-location")
-    return { cmd: cmdOf([sw("popd")]) };
-  if (s === undefined) {
-    if (opts.lenient === true && !WINDOWS_SHELLS.has(raw) && !args.some((a) => a.raw.includes("\\")))
-      return {};
-    const words = c.words.map((w) => plainWord(w, opts));
-    if ((raw === "curl" || raw === "wget") && args.some((a) => a.kind === "param" && a.name === "outfile")) {
-      return { cmd: cmdOf(words.map((w) => /^-outfile$/i.test(w.text) ? sw("-o") : w), redirects) };
-    }
-    return { cmd: cmdOf(words, redirects) };
-  }
-  const b = bind(args, s);
-  if (b.flags.has("whatif"))
-    return {};
-  switch (name) {
-    case "remove-item": {
-      const literal = vals(b, "literalpath").map((w) => pathWord(w, opts, true));
-      let targets = [...vals(b, "path").map((w) => pathWord(w, opts)), ...literal];
-      const cmdFlags = targets.filter((t) => /^[/-][sqf]$/i.test(t.text));
-      targets = targets.filter((t) => !cmdFlags.includes(t));
-      let recursive = b.flags.has("recurse") || cmdFlags.some((t) => /s/i.test(t.text)) || b.unknown.some((u) => u.includes("r"));
-      const filter = vals(b, "filter", "include").map((w) => substitute(w, opts).text)[0];
-      if (filter !== undefined)
-        targets = targets.map((t) => /[*?]$/.test(t.text) ? joinPath2(sw(t.text.replace(/[\\/][^\\/]*$/, "")), filter) : joinPath2(t, filter));
-      if (targets.length === 0 && prev !== undefined && !prev.processes) {
-        if (prev.paths.length === 0)
-          return {};
-        recursive ||= prev.recurse;
-        if (prev.filtered || prev.filter !== undefined) {
-          return { cmd: cmdOf([sw("find"), ...prev.paths, sw("-name"), sw(prev.filter ?? "*"), sw("-type"), sw("f"), sw("-delete")], redirects) };
-        }
-        targets = prev.paths.map((p) => joinPath2(p, "*"));
-      }
-      if (targets.length === 0)
-        return {};
-      return { cmd: rm(targets, recursive, redirects) };
-    }
-    case "get-childitem":
-    case "get-item": {
-      const paths = [...vals(b, "path").map((w) => pathWord(w, opts)), ...vals(b, "literalpath").map((w) => pathWord(w, opts, true))];
-      const filter = vals(b, "filter", "include").map((w) => substitute(w, opts).text)[0];
-      const filtered = b.named.has("exclude") || b.flags.has("name");
-      const base = paths.length > 0 ? paths : [sw(".")];
-      return { source: { paths: name === "get-item" ? base.map((p) => sw(p.text.replace(/[\\/]\*$/, ""), p.raw)) : base, recurse: b.flags.has("recurse"), filtered, ...filter !== undefined ? { filter } : {} } };
-    }
-    case "copy-item":
-    case "move-item": {
-      const src = [...vals(b, "path").map((w) => pathWord(w, opts)), ...vals(b, "literalpath").map((w) => pathWord(w, opts, true))];
-      const dest = vals(b, "destination").map((w) => pathWord(w, opts, true))[0] ?? sw(".");
-      const from = src.length > 0 ? src : prev !== undefined ? prev.paths.map((p) => joinPath2(p, "*")) : [];
-      if (from.length === 0)
-        return {};
-      return { cmd: cmdOf([sw(name === "copy-item" ? "cp" : "mv"), ...name === "copy-item" && b.flags.has("recurse") ? [sw("-r")] : [], sw("--"), ...from, dest], redirects) };
-    }
-    case "rename-item": {
-      const path = [...vals(b, "path"), ...vals(b, "literalpath")].map((w) => pathWord(w, opts, true))[0];
-      const to = vals(b, "newname").map((w) => pathWord(w, opts, true))[0];
-      if (path === undefined || to === undefined)
-        return {};
-      const dest = /[\\/]/.test(to.text) || to.text.startsWith(HOME) ? to : joinPath2(sw(path.text.replace(/[\\/][^\\/]*$/, "") || ".", path.raw), to.text);
-      return { cmd: cmdOf([sw("mv"), sw("--"), path, dest], redirects) };
-    }
-    case "set-content":
-    case "add-content":
-    case "clear-content":
-    case "out-file":
-    case "tee-object":
-    case "set-item": {
-      const targets = [...vals(b, "path", "filepath").map((w) => pathWord(w, opts)), ...vals(b, "literalpath").map((w) => pathWord(w, opts, true))];
-      const value = vals(b, "value").map((w) => plainWord(w, opts));
-      const env = targets.map((t) => /^env:[\\/]?([A-Za-z_][\w]*)$/i.exec(t.text)).find((m) => m !== null);
-      if (env != null)
-        return { cmd: exportOf(env[1], value[0]?.text ?? DYN) };
-      if (name === "set-item" || targets.length === 0)
-        return {};
-      return { cmd: cmdOf([sw("tee"), sw("--"), ...targets], [...redirects, ...value.map((v) => ({ op: "<<<", target: v }))]) };
-    }
-    case "new-item": {
-      const dir = vals(b, "path").map((w) => pathWord(w, opts))[0];
-      const leaf = vals(b, "name").map((w) => substitute(w, opts).text)[0];
-      const target = dir !== undefined && leaf !== undefined ? joinPath2(dir, leaf) : dir ?? (leaf !== undefined ? sw(leaf) : undefined);
-      if (target === undefined)
-        return {};
-      const env = /^env:[\\/]?([A-Za-z_][\w]*)$/i.exec(target.text);
-      const value = vals(b, "value", "target").map((w) => pathWord(w, opts, true));
-      if (env !== null)
-        return { cmd: exportOf(env[1], value[0]?.text ?? DYN) };
-      const type = vals(b, "itemtype").map((w) => w.text.toLowerCase())[0] ?? "file";
-      if (/^(?:symboliclink|junction|hardlink)$/.test(type))
-        return value[0] !== undefined ? { cmd: cmdOf([sw("ln"), sw("-s"), value[0], target], redirects) } : {};
-      if (type.startsWith("dir"))
-        return {};
-      return { cmd: cmdOf([sw("tee"), sw("--"), target], [...redirects, ...value.map((v) => ({ op: "<<<", target: v }))]) };
-    }
-    case "set-itemproperty":
-    case "new-itemproperty": {
-      const key = [...vals(b, "path"), ...vals(b, "literalpath")].map((w) => substitute(w, opts).text)[0] ?? "";
-      const prop = vals(b, "name").map((w) => substitute(w, opts).text)[0];
-      if (!HKCU_ENV.test(key) || prop === undefined)
-        return {};
-      return { cmd: cmdOf([sw("setx"), sw(prop), ...vals(b, "value").map((w) => plainWord(w, opts))]) };
-    }
-    case "set-location":
-    case "push-location": {
-      const to = [...vals(b, "path"), ...vals(b, "literalpath")].map((w) => pathWord(w, opts, true))[0];
-      return to !== undefined ? { cmd: cmdOf([sw(name === "push-location" ? "pushd" : "cd"), to]) } : { cmd: cmdOf([sw("cd")]) };
-    }
-    case "invoke-expression": {
-      const code = vals(b, "command");
-      if (code.length === 0)
-        return prev !== undefined && prev.paths.length === 0 ? { cmd: cmdOf([sw("sh")]) } : {};
-      for (const w of code) {
-        if (w.src !== undefined && DOWNLOAD_TEXT.test(w.src)) {
-          st.fetch = true;
-          continue;
-        }
-        const { text } = substitute(w, opts);
-        if (!text.includes(DYN))
-          st.nested.push({ dialect: "powershell", src: text });
-      }
-      return {};
-    }
-    case "invoke-webrequest": {
-      const uri = vals(b, "uri").map((w) => plainWord(w, opts));
-      const out = vals(b, "outfile").map((w) => pathWord(w, opts, true));
-      return { cmd: cmdOf([sw("curl"), ...out.flatMap((o) => [sw("-o"), o]), ...uri], redirects) };
-    }
-    case "start-process": {
-      const file = vals(b, "filepath").map((w) => plainWord(w, opts))[0];
-      if (file === undefined)
-        return {};
-      const list = vals(b, "argumentlist").flatMap((w) => {
-        const t = substitute(w, opts).text;
-        return w.quoted && /\s/.test(t) ? splitArgs(t) : [plainWord(w, opts)];
-      });
-      return { cmd: cmdOf([file, ...list], redirects) };
-    }
-    case "stop-process": {
-      const names = vals(b, "name").map((w) => substitute(w, opts).text);
-      if (names.some((n) => n === "*"))
-        return { cmd: cmdOf([sw("kill"), sw("-9"), sw("-1")]) };
-      if (names.length === 0 && vals(b, "id").length === 0 && prev?.processes === true && !prev.filtered)
-        return { cmd: cmdOf([sw("kill"), sw("-9"), sw("-1")]) };
-      return {};
-    }
-    case "foreach-object":
-    case "invoke-command": {
-      const blocks = [...vals(b, "process", "scriptblock"), ...b.pos.flat()].filter((w) => w.kind === "block" && w.src !== undefined);
-      const item = prev !== undefined && !prev.processes && prev.paths.length > 0 && !prev.filtered && prev.filter === undefined ? joinPath2(prev.paths[0], "*").text : undefined;
-      for (const blk of blocks)
-        st.nested.push({ dialect: "powershell", src: blk.src, ...item !== undefined && name === "foreach-object" ? { item } : {} });
-      return {};
-    }
-    default:
-      return {};
-  }
-}
-function exportOf(name, value) {
-  const t = `${name.toUpperCase()}=${value}`;
-  return cmdOf([sw("export"), sw(t)]);
-}
-function splitArgs(text) {
-  const out = [];
-  for (const m of text.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)) {
-    const t = m[1] ?? m[2] ?? m[3] ?? "";
-    out.push(sw(t, m[0], m[3] === undefined));
-  }
-  return out;
-}
-var DOTNET = /\[(?:system\.)?io\.(file|directory)\]::(\w+)\s*\(/gi;
-var SET_ENV = /\[(?:system\.)?environment\]::setenvironmentvariable\s*\(/gi;
-var DOWNLOAD_FILE = /\.downloadfile\s*\(/gi;
-function callArgs(text, open, opts) {
-  let depth = 0;
-  let end = -1;
-  for (let i = open;i < text.length; i++) {
-    const c = text[i];
-    if (c === "'" || c === '"') {
-      const j = text.indexOf(c, i + 1);
-      if (j < 0)
-        break;
-      i = j;
-      continue;
-    }
-    if (c === "(")
-      depth++;
-    else if (c === ")") {
-      depth--;
-      if (depth === 0) {
-        end = i;
-        break;
-      }
-    }
-  }
-  if (end < 0)
-    return [];
-  const all = parsePowerShell(`x ${text.slice(open + 1, end)}`).statements[0]?.stages[0]?.words.slice(1) ?? [];
-  const out = [undefined];
-  for (const w of all) {
-    if (w.kind === "comma") {
-      out.push(undefined);
-      continue;
-    }
-    if (out[out.length - 1] === undefined) {
-      const { text: t } = substitute(w, opts);
-      out[out.length - 1] = w.quoted && !t.includes(DYN) ? sw(slashes(t), `'${slashes(t)}'`, true) : sw(DYN);
-    }
-  }
-  return out;
-}
-function dotnetCommands(text, opts) {
-  const out = [];
-  for (const m of text.matchAll(DOTNET)) {
-    const kind = m[1].toLowerCase();
-    const method = m[2].toLowerCase();
-    const args = callArgs(text, (m.index ?? 0) + m[0].length - 1, opts);
-    const [a, b2] = args;
-    if (a === undefined)
-      continue;
-    if (kind === "directory" && method === "delete")
-      out.push(args.length > 1 && !/false|0/i.test(b2?.raw ?? "false") ? rm([a], true, []) : cmdOf([sw("rmdir"), a]));
-    else if (kind === "file" && method === "delete")
-      out.push(rm([a], false, []));
-    else if (method === "move" && b2 !== undefined)
-      out.push(cmdOf([sw("mv"), sw("--"), a, b2]));
-    else if (kind === "file" && method === "copy" && b2 !== undefined)
-      out.push(cmdOf([sw("cp"), sw("--"), a, b2]));
-    else if (kind === "file" && /^(?:write|append|create|open|replace)/.test(method))
-      out.push(cmdOf([sw("tee"), sw("--"), method === "replace" && b2 !== undefined ? b2 : a], args[1] !== undefined && /^(?:write|append)/.test(method) ? [{ op: "<<<", target: args[1] }] : []));
-  }
-  for (const m of text.matchAll(SET_ENV)) {
-    const [n, v, scope] = callArgs(text, (m.index ?? 0) + m[0].length - 1, opts);
-    if (n === undefined || n.text.includes(DYN)) {
-      if (/user|machine/i.test(text.slice(m.index ?? 0)))
-        out.push(cmdOf([sw("setx"), sw(DYN)]));
-      continue;
-    }
-    const persistent = scope !== undefined && (scope.text.includes(DYN) ? /user|machine/i.test(text.slice(m.index ?? 0)) : /user|machine/i.test(scope.text));
-    out.push(persistent ? cmdOf([sw("setx"), n, v ?? sw(DYN)]) : exportOf(n.text, v?.text ?? DYN));
-  }
-  for (const m of text.matchAll(DOWNLOAD_FILE)) {
-    const [url, path] = callArgs(text, (m.index ?? 0) + m[0].length - 1, opts);
-    if (path !== undefined)
-      out.push(cmdOf([sw("curl"), sw("-o"), path, url ?? sw(DYN)]));
-  }
-  return out;
-}
-function statementText(s) {
-  return [s.expr ?? "", ...s.stages.flatMap((c) => c.words.map((w) => w.raw))].join(" ");
-}
-function translatePowerShell(src, opts = {}) {
-  const parsed = parsePowerShell(src);
-  const vars = opts.vars ?? new Map;
-  const o = { ...opts, vars };
-  const st = { opts: o, nested: [], fetch: false };
-  const pipelines = [];
-  const origins = [];
-  const nestedSeen = new Set;
-  for (const s of parsed.statements) {
-    const text = statementText(s);
-    if (DOWNLOAD_TEXT.test(text) && RUN_TEXT.test(text))
-      st.fetch = true;
-    if (s.assign !== undefined) {
-      const value = s.assign.value;
-      const lit = value !== undefined && value.length === 1 && s.stages.length === 0 ? substitute(value[0], o).text : undefined;
-      if (s.assign.env)
-        pipelines.push({ stages: [{ kind: "cmd", cmd: exportOf(s.assign.name, lit ?? DYN) }] });
-      else if (lit !== undefined && !lit.includes(DYN) && lit.length <= 4096 && (vars.size < 256 || vars.has(s.assign.name)))
-        vars.set(s.assign.name, lit);
-      else
-        vars.delete(s.assign.name);
-    }
-    const dotnet = dotnetCommands(text, o);
-    for (const c of dotnet) {
-      pipelines.push({ stages: [{ kind: "cmd", cmd: c }] });
-      origins.push({ cmd: c, text: s.expr ?? text });
-    }
-    let prev;
-    const stages = [];
-    for (const c of s.stages) {
-      const r = translateStage(c, prev, st);
-      if (r.cmd !== undefined) {
-        stages.push({ kind: "cmd", cmd: r.cmd });
-        origins.push({ cmd: r.cmd, text: commandText(c) });
-      }
-      prev = r.source ?? (r.cmd !== undefined && commandWord(r.cmd) === "curl" ? { paths: [], recurse: false, filtered: false } : undefined);
-    }
-    if (stages.length > 0)
-      pipelines.push({ stages });
-  }
-  for (const n of parsed.nested) {
-    if (n.trim() === "" || nestedSeen.has(n))
-      continue;
-    nestedSeen.add(n);
-    if (!st.nested.some((x) => x.src === n))
-      st.nested.push({ dialect: "powershell", src: n });
-  }
-  const out = { script: { pipelines }, nested: st.nested, origins };
-  if (st.fetch)
-    out.fetch = true;
-  if (parsed.truncated === true)
-    out.truncated = true;
-  return out;
-}
-function commandText(c) {
-  return [...c.words.map((w) => w.raw), ...c.redirects.map((r) => `${r.op} ${r.target.raw}`)].join(" ");
-}
-function commandWord(c) {
-  return c.words[0]?.text;
-}
-function translateCmd(src) {
-  const parsed = parseCmd(src);
-  const pipelines = [];
-  const nested = parsed.nested.map((n) => ({ dialect: "cmd", src: n }));
-  const opts = {};
-  const origins = [];
-  for (const c of parsed.commands) {
-    const cmd = cmdBuiltin(c.words, redirectsOf(c, opts), nested);
-    if (cmd !== undefined) {
-      pipelines.push({ stages: [{ kind: "cmd", cmd }] });
-      origins.push({ cmd, text: commandText(c) });
-    }
-  }
-  return { script: { pipelines }, nested, origins };
-}
-function cmdBuiltin(words, redirects, nested) {
-  const name = nameOf(words[0]);
-  const opts = {};
-  if (name === undefined)
-    return;
-  const rest = words.slice(1);
-  const switches = rest.filter((w) => /^\/[A-Za-z?]/.test(w.text) && w.text.length <= 4).map((w) => w.text.toLowerCase());
-  const operands = rest.filter((w) => !(/^\/[A-Za-z?]/.test(w.text) && w.text.length <= 4)).map((w) => pathWord(w, opts));
-  if (switches.includes("/?"))
-    return;
-  switch (name) {
-    case "rd":
-    case "rmdir":
-      return operands.length === 0 ? undefined : switches.includes("/s") ? rm(operands, true, redirects) : cmdOf([sw("rmdir"), ...operands], redirects);
-    case "del":
-    case "erase":
-      return operands.length === 0 ? undefined : rm(operands, switches.includes("/s"), redirects);
-    case "copy":
-    case "xcopy":
-      return operands.length < 1 ? undefined : cmdOf([sw("cp"), ...name === "xcopy" ? [sw("-r")] : [], sw("--"), ...operands, ...operands.length === 1 ? [sw(".")] : []], redirects);
-    case "move":
-      return operands.length < 2 ? undefined : cmdOf([sw("mv"), sw("--"), ...operands], redirects);
-    case "ren":
-    case "rename": {
-      const [from, to] = operands;
-      if (from === undefined || to === undefined)
-        return;
-      return cmdOf([sw("mv"), sw("--"), from, joinPath2(sw(from.text.replace(/[\\/][^\\/]*$/, "") || "."), to.text)], redirects);
-    }
-    case "cd":
-    case "chdir":
-    case "pushd":
-      return operands[0] !== undefined ? cmdOf([sw(name === "pushd" ? "pushd" : "cd"), operands[0]]) : undefined;
-    case "popd":
-      return cmdOf([sw("popd")]);
-    case "set": {
-      if (switches.length > 0)
-        return;
-      const m = /^"?([A-Za-z_][\w]*)=(.*?)"?$/.exec(rest.map((w) => w.text).join(" "));
-      return m === null ? undefined : exportOf(m[1], m[2]);
-    }
-    case "mklink": {
-      const [link, target] = operands;
-      return link !== undefined && target !== undefined ? cmdOf([sw("ln"), sw("-s"), target, link], redirects) : undefined;
-    }
-    case "if":
-    case "for": {
-      let k = 0;
-      if (name === "if") {
-        while (k < rest.length && /^(?:not|\/i)$/i.test(rest[k]?.text ?? ""))
-          k++;
-        const cond = (rest[k]?.text ?? "").toLowerCase();
-        k += cond === "exist" || cond === "defined" || cond === "errorlevel" || cond === "cmdextversion" ? 2 : /==/.test(cond) ? 1 : 3;
-      } else {
-        k = rest.findIndex((w) => w.text.toLowerCase() === "do") + 1;
-        if (k <= 0)
-          return;
-      }
-      const body = rest.slice(k);
-      if (body.length === 0)
-        return;
-      nested.push({ dialect: "cmd", src: body.map((w) => w.raw).join(" ") });
-      return;
-    }
-    case "start": {
-      let k = 0;
-      if (rest[0]?.quoted === true)
-        k = 1;
-      while (k < rest.length && /^\/[A-Za-z]/.test(rest[k]?.text ?? ""))
-        k++;
-      const argv = rest.slice(k);
-      return argv.length > 0 ? cmdOf(argv.map((w) => plainWord(w, opts)), redirects) : undefined;
-    }
-    case "call":
-      return rest.length > 0 ? cmdOf(rest.map((w) => plainWord(w, opts)), redirects) : undefined;
-    default:
-      return cmdOf(words.map((w) => plainWord(w, opts)), redirects);
-  }
-}
-
 // src/core/policy/switch-off.ts
 var HOME_PREFIX = /^(?:\/(?:(?:users|home)\/[^/]+|root|var\/root)|[A-Za-z]:\/users\/[^/]+)(?=\/|$)/i;
 var POWERSHELL_PROFILE = /^(?:(?:onedrive[^/]*\/)?documents\/(?:windows)?powershell|\.config\/powershell)\/[^/]*profile\.ps1$/;
@@ -15083,7 +13639,7 @@ function realpathQueries(paths, ctx) {
 
 // src/core/policy/bash-guard.ts
 var HOME_ABS = "/Users/home";
-var TOP_LEVEL2 = new Set([
+var TOP_LEVEL = new Set([
   "applications",
   "bin",
   "boot",
@@ -15116,7 +13672,7 @@ var TOP_LEVEL2 = new Set([
   "var",
   "volumes"
 ]);
-var CRITICAL_SECOND_LEVEL2 = new Set([
+var CRITICAL_SECOND_LEVEL = new Set([
   "/usr/bin",
   "/usr/sbin",
   "/usr/lib",
@@ -15134,7 +13690,7 @@ var CRITICAL_SECOND_LEVEL2 = new Set([
   "/system/applications",
   "/library/apple"
 ]);
-var HOME_FOLDERS2 = new Set(["applications", "desktop", "documents", "downloads", "library", "movies", "music", "pictures", "public", ".config", ".ssh", ".gnupg", ".aws"]);
+var HOME_FOLDERS = new Set(["applications", "desktop", "documents", "downloads", "library", "movies", "music", "pictures", "public", ".config", ".ssh", ".gnupg", ".aws"]);
 var SAFE_DEVICE = /^\/dev\/(?:null|zero|stdin|stdout|stderr|tty[\w.-]*|cu\.[\w.-]+|pts\/\d+|ptmx|random|urandom|fd\/\d+|shm\/.+|tcp\/.+|udp\/.+)$/;
 var CREDENTIAL_DIR = /^(?:\/(?:(?:users|home)\/[^/]+|root|var\/root)|[A-Za-z]:\/users\/[^/]+)\/\.(ssh|aws|gnupg)(?:\/|$)/i;
 var DOWNLOADERS = new Set(["curl", "wget", "fetch", "http", "https", "xh", "aria2c"]);
@@ -15175,7 +13731,6 @@ function dangerousSpelling(w, mode) {
   let t = pathText(w);
   if (t === undefined)
     return;
-  t = msysPath(t);
   if (isWindowsPath(t))
     t = normalizePath(t);
   let glob = false;
@@ -15196,8 +13751,6 @@ function dangerousSpelling(w, mode) {
     return;
   const lower = p.toLowerCase();
   const what = (s) => glob ? `everything in ${s}` : s;
-  if (isWindowsPath(p))
-    return windowsTarget(p, glob, what);
   if (lower === "/")
     return glob ? "everything under /" : "/ (the whole filesystem)";
   if (lower === HOME_ABS.toLowerCase())
@@ -15205,15 +13758,15 @@ function dangerousSpelling(w, mode) {
   if (p.startsWith("/")) {
     const segs = p.split("/").filter((s) => s !== "");
     const first = (segs[0] ?? "").toLowerCase();
-    if (segs.length === 1 && TOP_LEVEL2.has(first))
+    if (segs.length === 1 && TOP_LEVEL.has(first))
       return what(`the system directory /${segs[0]}`);
     if (segs.length === 2 && (first === "users" || first === "home"))
       return what(`the home directory ${p}`);
-    if (CRITICAL_SECOND_LEVEL2.has(lower))
+    if (CRITICAL_SECOND_LEVEL.has(lower))
       return what(`the system directory ${p}`);
     if (first === "users" || first === "home") {
       const shown = lower.startsWith(HOME_ABS.toLowerCase() + "/") ? `~${p.slice(HOME_ABS.length)}` : p;
-      if (segs.length === 3 && HOME_FOLDERS2.has(segs[2].toLowerCase()))
+      if (segs.length === 3 && HOME_FOLDERS.has(segs[2].toLowerCase()))
         return what(`the home folder ${shown}`);
       if (segs.length === 4 && segs[2].toLowerCase() === "documents" && segs[3].toLowerCase() === "buracle")
         return what(`the Buracle memory vault ${shown}`);
@@ -15246,11 +13799,11 @@ function dangerousIn(w, mode, base) {
   const r = inDir(w, base);
   return r === undefined ? undefined : dangerousTarget(r, mode);
 }
-function pathWord2(text) {
+function pathWord(text) {
   return { text, raw: `'${text}'`, quoted: true, dynamic: text.includes(DYN) };
 }
 function catastrophicPath(text, mode = "rm") {
-  return typeof text === "string" ? dangerousTarget(pathWord2(text), mode) : undefined;
+  return typeof text === "string" ? dangerousTarget(pathWord(text), mode) : undefined;
 }
 function forbiddenWrite(w) {
   const own = forbiddenSpelling(w);
@@ -15261,18 +13814,16 @@ function forbiddenSpelling(w) {
   const t = pathText(w);
   if (t === undefined)
     return;
-  const p = normalizePath(msysPath(t));
+  const p = normalizePath(t);
   if (p.startsWith("/dev/") && !SAFE_DEVICE.test(p))
     return `the raw device ${p}`;
-  if (windowsRawDevice(t) || windowsRawDevice(p))
-    return `the raw device ${nativePath(windowsRawDevice(p) ? p : t.replace(/\//g, "\\"))}`;
   const m = CREDENTIAL_DIR.exec(p);
   if (m)
     return `~/.${m[1].toLowerCase()}`;
   return;
 }
 function forbiddenWritePath(text) {
-  return typeof text === "string" ? forbiddenWrite(pathWord2(text)) : undefined;
+  return typeof text === "string" ? forbiddenWrite(pathWord(text)) : undefined;
 }
 function forbiddenIn(w, base) {
   const own = forbiddenWrite(w);
@@ -15311,7 +13862,7 @@ function homeSpellings(p, home) {
 function selfTarget(w, walk, ancestor = false) {
   for (const c of [w, inDir(w, walk.cwd)]) {
     const raw = c === undefined ? undefined : selfPathText(c);
-    const t = raw === undefined ? undefined : msysPath(raw);
+    const t = raw;
     if (t === undefined || !isAbsPath(t))
       continue;
     for (const p of homeSpellings(normalizePath(t), walk.home)) {
@@ -15358,7 +13909,7 @@ function writePath(w, walk) {
   if (t === "" || t.includes(DYN))
     return;
   const home = walk.home !== "" ? walk.home.replace(/\/+$/, "") : "~";
-  const abs = (x) => x.startsWith(HOME) ? home + x.slice(HOME.length) : walk.windows === true ? msysPath(x) : x;
+  const abs = (x) => x.startsWith(HOME) ? home + x.slice(HOME.length) : x;
   if (isAbsPath(t) || t.startsWith(HOME))
     return abs(t);
   const base = walk.cwd;
@@ -16642,12 +15193,7 @@ function interpreterOf(argv) {
       if (t === "-f" || t === "-file")
         return interp(name, "powershell", inline, args[k + 1], true);
       if (t === "-e" || t === "-ec" || t.length >= 3 && "-encodedcommand".startsWith(t)) {
-        const text = args[k + 1]?.text;
-        const decoded = text !== undefined && !text.includes(DYN) ? decodeEncodedCommand(text) : undefined;
-        if (decoded === undefined)
-          return { name, lang: "powershell", stdin: false, inline, unreadable: "its -EncodedCommand does not decode to readable text" };
-        inline.push({ text: decoded, raw: `'${decoded}'`, quoted: true, dynamic: false });
-        return { name, lang: "powershell", stdin: false, inline };
+        return { name, lang: "powershell", stdin: false, inline, unreadable: "the guard does not decode -EncodedCommand" };
       }
       if (/^-(?:noprofile|nop|noninteractive|noni|nologo|nol|noexit|noe|mta|sta|interactive|i|login|l)$/.test(t))
         continue;
@@ -16717,7 +15263,7 @@ function codeReason(code, lang, cx) {
     }
     const touched = op.kind === "move" ? [[op.dst, false], [op.src, true]] : op.kind === "write" || op.kind === "delete" ? [[op.target, false]] : op.kind === "delete-tree" ? [[op.target, true]] : [];
     for (const [p, ancestor] of touched) {
-      const self = p === undefined ? undefined : selfWords([pathWord2(p)], op.api, cx.walk, ancestor);
+      const self = p === undefined ? undefined : selfWords([pathWord(p)], op.api, cx.walk, ancestor);
       if (self)
         return self;
     }
@@ -16774,8 +15320,6 @@ function checkCommand(u, cmd, cx) {
   if (native !== undefined)
     return checkCommand(unwrap(native), { assigns: [], words: native, redirects: cmd.redirects }, cx);
   switch (name) {
-    case "cmd":
-      return cmdRule(args, cx);
     case "rm":
       return rmRule(argv, cx.walk);
     case "unlink":
@@ -16906,37 +15450,6 @@ function analyze(src, depth, walk) {
       return inner;
   }
   return truncated === true ? TOO_DEEP : undefined;
-}
-function analyzeWindows(src, dialect, depth, walk, lenient = false, item) {
-  if (depth > MAX_DEPTH2)
-    return TOO_DEEP;
-  const t = dialect === "cmd" ? translateCmd(src) : translatePowerShell(src, { lenient, vars: walk.psVars ??= new Map, ...item !== undefined ? { item } : {} });
-  if (t.fetch === true)
-    return FETCH_REASON;
-  const r = analyzeScript(t.script, depth, walk);
-  if (r) {
-    for (const o of t.origins) {
-      const restated = q(display(o.cmd.words));
-      if (r.includes(restated))
-        return r.replace(restated, q(clip2(o.text.replace(/\s+/g, " ").trim())));
-    }
-    return r;
-  }
-  for (const n of t.nested) {
-    const inner = analyzeWindows(n.src, n.dialect, depth + 1, walk, lenient && n.dialect === "powershell", n.item);
-    if (inner)
-      return inner;
-  }
-  return "truncated" in t && t.truncated === true ? TOO_DEEP : undefined;
-}
-function cmdRule(args, cx) {
-  const at = args.findIndex((a) => /^(?:\/{1,2}|-)[ck]$/i.test(a.text));
-  if (at < 0)
-    return;
-  const rest = args.slice(at + 1);
-  if (rest.length === 0)
-    return;
-  return analyzeWindows(rest.map((w) => w.dynamic ? w.raw : w.text).join(" "), "cmd", cx.depth + 1, cx.walk);
 }
 var ENVIRONMENT_KEY = /^(?:hkcu|hkey_current_user|hklm|hkey_local_machine)[\\/]?(?:system[\\/]currentcontrolset[\\/]control[\\/]session manager[\\/])?environment[\\/]?$/i;
 function windowsNative(name, args) {
@@ -17161,7 +15674,7 @@ function stdinChecks(cmd, u, name, it, downloader, history, cx) {
   if (it !== undefined && it.stdin) {
     if (downloader)
       return `Piping a download straight into ${it.name} runs unreviewed remote code; save it to a file, read it, then run it.`;
-    return stdinFeeds(cmd, history, (text) => (it.lang === "powershell" ? analyzeWindows(text, "powershell", cx.depth + 1, cx.walk) : undefined) ?? codeReason(text, it.lang, cx));
+    return stdinFeeds(cmd, history, (text) => codeReason(text, it.lang, cx));
   }
   return;
 }
@@ -17239,9 +15752,6 @@ function analyzeScript(script, depth, walk) {
           for (const code of it.inline) {
             if (code.dynamic && expandsDownload(code.raw))
               return FETCH_REASON;
-            const ps = it.lang === "powershell" ? analyzeWindows(code.text, "powershell", depth + 1, walk) : undefined;
-            if (ps)
-              return ps;
             const r = codeReason(code.text, it.lang, cx);
             if (r)
               return r;
@@ -17304,10 +15814,6 @@ function newWalk(opts) {
     walk.cwd = normalizePath(cwd);
     walk.session = walk.cwd;
   }
-  if (isWindowsPath(walk.home) || walk.cwd !== undefined && isWindowsPath(walk.cwd)) {
-    walk.windows = true;
-    walk.env.set("USERPROFILE", HOME);
-  }
   if (typeof opts?.vault === "string" && opts.vault !== "")
     walk.vault = opts.vault;
   if (Array.isArray(opts?.protect))
@@ -17318,15 +15824,6 @@ function newWalk(opts) {
     walk.realpath = opts.realpath;
   return walk;
 }
-function dialectOf(x) {
-  return x === "powershell" || x === "cmd" ? x : undefined;
-}
-function analyzeCommand(command, opts, walk, fresh) {
-  const dialect = dialectOf(opts?.shell);
-  if (dialect !== undefined)
-    return analyzeWindows(command, dialect, 0, walk);
-  return analyze(command, 0, walk) ?? (looksLikePowerShell(command) ? analyzeWindows(command, "powershell", 0, fresh(), true) : undefined);
-}
 function checkBash(command, cfg) {
   if (typeof command !== "string" || command.trim() === "")
     return {};
@@ -17334,11 +15831,7 @@ function checkBash(command, cfg) {
   const walk = newWalk(opts);
   let reason;
   try {
-    reason = analyzeCommand(command, opts, walk, () => {
-      const w = newWalk(opts);
-      w.lines = walk.lines;
-      return w;
-    });
+    reason = analyze(command, 0, walk);
   } catch {
     reason = fallbackScreen(command);
   }
@@ -17359,7 +15852,7 @@ function extraDenyReason(patterns, texts) {
   }
   return;
 }
-function visitShellCommands(command, visit, opts) {
+function visitShellCommands(command, visit) {
   if (typeof command !== "string" || command.trim() === "" || typeof visit !== "function")
     return;
   const visitor = (argv) => {
@@ -17369,13 +15862,10 @@ function visitShellCommands(command, visit, opts) {
       return false;
     }
   };
-  const walked = () => {
-    const w = newWalk();
-    w.visit = visitor;
-    return w;
-  };
+  const walk = newWalk();
+  walk.visit = visitor;
   try {
-    analyzeCommand(command, { extraDeny: [], ...opts?.shell !== undefined ? { shell: opts.shell } : {} }, walked(), walked);
+    analyze(command, 0, walk);
   } catch {}
 }
 // src/core/policy/shell-text.ts
@@ -17555,7 +16045,7 @@ var SYSTEM = [
   "/Volumes"
 ];
 var HOME_FORMS = ["~", "~/", "~/*", "$HOME", "$HOME/", "$HOME/*", "${HOME}", "${HOME}/", "${HOME}/*"];
-var HOME_FOLDERS3 = ["Documents", "Desktop", "Downloads", "Library", "Pictures", "Movies", "Music", "Applications", "Public", ".ssh", ".aws", ".gnupg", ".config", "Documents/Buracle"];
+var HOME_FOLDERS2 = ["Documents", "Desktop", "Downloads", "Library", "Pictures", "Movies", "Music", "Applications", "Public", ".ssh", ".aws", ".gnupg", ".config", "Documents/Buracle"];
 var REMOTES = ["origin", "upstream"];
 var MAIN_NAMES = ["main", "master", "refs/heads/main", "refs/heads/master"];
 var MAIN_REFSPECS = [...MAIN_NAMES, "HEAD:main", "HEAD:master", "HEAD:refs/heads/main", "HEAD:refs/heads/master", "@:main", "@:master", "main:main", "master:master"];
@@ -17572,12 +16062,12 @@ var DELETE = ["-d", ...prefixes("--delete", "--de")];
 var ALL = [...prefixes("--all", "--al"), ...prefixes("--branches", "--b")];
 function targetsFor(home) {
   const out = [...SYSTEM, ...HOME_FORMS];
-  for (const f of HOME_FOLDERS3)
+  for (const f of HOME_FOLDERS2)
     out.push(`~/${f}`, `$HOME/${f}`);
   const h = typeof home === "string" ? home.replace(/\/+$/, "") : "";
   if (/^\/(?:Users|home)\/[^/\s]+$/.test(h)) {
     out.push(h, `${h}/`, `${h}/*`);
-    for (const f of HOME_FOLDERS3)
+    for (const f of HOME_FOLDERS2)
       out.push(`${h}/${f}`);
   }
   return [...new Set(out)];
@@ -18038,11 +16528,7 @@ function docsFetchRoute(call, policy, health) {
 function routeTool(call, policy, health) {
   if (!policy || policy.strictness === "off")
     return { action: "allow" };
-  if (call.kind === "bash") {
-    const nudge = typeof call.command === "string" ? bashNudge(call.command) : undefined;
-    return nudge !== undefined ? { action: "allow", context: [nudge] } : { action: "allow" };
-  }
-  if (call.kind === "mcp" || call.kind === "eval" || call.kind === "other")
+  if (call.kind === "bash" || call.kind === "mcp" || call.kind === "eval" || call.kind === "other")
     return { action: "allow" };
   if (call.kind === "web_fetch" && needsBuiltinSession(call))
     return { action: "allow" };
@@ -18089,91 +16575,6 @@ function libraryDocsHint(policy, call, health) {
   if (choice.ref?.kind !== "mcp")
     return "";
   return ` (for library or framework docs, use ${serverLabel(cat, choice.ref, call.harness)} first)`;
-}
-var GREP_FAMILY = new Set(["grep", "egrep", "fgrep", "ggrep"]);
-function grepIsRecursive(argv) {
-  for (let k = 1;k < argv.length; k++) {
-    const t = argv[k];
-    if (t === "--")
-      break;
-    if (t === "--recursive" || t === "--dereference-recursive" || t === "--directories=recurse")
-      return true;
-    if ((t === "-d" || t === "--directories") && argv[k + 1] === "recurse")
-      return true;
-    if (/^-[A-Za-z]+$/.test(t)) {
-      const letters = t.slice(1);
-      for (let j = 0;j < letters.length; j++) {
-        const ch = letters[j];
-        if (ch === "r" || ch === "R")
-          return true;
-        if ("efmABCdD".includes(ch)) {
-          if (j === letters.length - 1)
-            k++;
-          break;
-        }
-      }
-    }
-  }
-  return false;
-}
-var NUDGE_GREP = 'Search with `rg -n "<pattern>" <dir>` instead of `grep -r` (faster, respects .gitignore); for code by intent use the semble MCP `search`, and for definitions and callers use codegraph.';
-var NUDGE_FIND = 'Search with `rg -n "<pattern>" -g "<glob>"` instead of `find \u2026 | xargs grep` or `find -exec grep`; for code by intent use the semble MCP `search`, and for definitions and callers use codegraph.';
-function scanScript(script, depth) {
-  for (const pl of script.pipelines) {
-    let sawFind = false;
-    for (const stage of pl.stages) {
-      for (const cmd of stageCommands(stage)) {
-        const first = commandName(cmd.words[0]);
-        const u = unwrap(cmd.words);
-        const name = commandName(u.argv[0]);
-        const argv = u.argv.map((w) => w.text);
-        if (name === "rgrep")
-          return NUDGE_GREP;
-        if (name !== undefined && GREP_FAMILY.has(name)) {
-          if (grepIsRecursive(argv))
-            return NUDGE_GREP;
-          if (sawFind && first === "xargs")
-            return NUDGE_FIND;
-        }
-        if (name === "find") {
-          for (let k = 0;k < argv.length; k++) {
-            if (["-exec", "-execdir", "-ok", "-okdir"].includes(argv[k])) {
-              const n = commandName(u.argv[k + 1]);
-              if (n !== undefined && GREP_FAMILY.has(n))
-                return NUDGE_FIND;
-            }
-          }
-          sawFind = true;
-        }
-        if (depth < 4) {
-          for (const s of u.scripts) {
-            const inner = scanScript(parseShell(s).script, depth + 1);
-            if (inner)
-              return inner;
-          }
-        }
-      }
-    }
-  }
-  return;
-}
-function bashNudge(command) {
-  if (typeof command !== "string" || command.trim() === "")
-    return;
-  try {
-    const { script, subs } = parseShell(command);
-    const direct = scanScript(script, 0);
-    if (direct)
-      return direct;
-    for (const s of subs) {
-      const inner = scanScript(parseShell(s).script, 1);
-      if (inner)
-        return inner;
-    }
-  } catch {
-    return;
-  }
-  return;
 }
 var CAPABILITY_CARD_MAX_LINES = 30;
 function firstClause(text, max) {
@@ -18586,7 +16987,7 @@ function fold2(s) {
 function stripQuoted(s) {
   return s.replace(/(^|\n)\s*(```|~~~)[\s\S]*?(\n\s*\2|$)/g, "$1 ").replace(/`[^`\n]*`/g, " ").replace(/"[^"\n]{0,400}"/g, " ").replace(/\u201C[^\u201D\n]{0,400}\u201D/g, " ").replace(/\u00AB[^\u00BB\n]{0,400}\u00BB/g, " ").replace(/(^|\n)\s*>[^\n]*/g, "$1 ");
 }
-function word2(body) {
+function word(body) {
   return `(?<![a-z0-9_'-])(?:${body})(?![a-z0-9_'-])`;
 }
 
@@ -18605,7 +17006,7 @@ function isUserText(text) {
   const trimmed = text.trim();
   return trimmed !== "" && !isGuardContinuation(trimmed) && !HARNESS_TEXT.test(trimmed);
 }
-var re = (body) => new RegExp(word2(body), "g");
+var re = (body) => new RegExp(word(body), "g");
 var LEADING = /^(?:(?:ok(?:ay)?|tamam(?:dir)?|peki|evet|yes|yeah|yep|lutfen|please|pls|hey|claude|codex|buracle|simdi|now|just|sadece|artik|haydi|hadi|neyse|o zaman|oyleyse|anyway|alright)(?![a-z0-9_'-])[ ,.!:;-]*)+/;
 var TRAILING = /(?:[ ,]+(?:lutfen|please|pls|now|simdi|artik|hemen))+$/;
 var EDGE_PUNCTUATION = /^[\s.,!?;:\u2026-]+|[\s.,!?;:\u2026-]+$/g;
@@ -18701,7 +17102,6 @@ var CONTROL_GUIDANCE = {
   pause: "Buracle: the user asked you to stop. Finish only the current atomic step, say where you stopped, and wait for them. Also stop the background commands and subagents this session started (with the harness's stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.",
   resume: 'Buracle: the user said to continue. The plan is resumed; check `buracle plan status --json` and carry on where the plan stands. "Continue" answers no open question: if you were waiting for a decision, ask it again.',
   stop: "Buracle: the user wants to drop the current task. Stop now and confirm with them before discarding or reverting anything. Also stop the background commands and subagents this session started (with the harness's stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.",
-  autoPause: 'Buracle: the user wrote while the plan was running, so the plan is paused (plan.autoPause). Answer them first; when the work should go on, run `buracle plan resume` (the user saying "continue" resumes it too).',
   resultApproved: "Buracle: the user approved the verified result, so Buracle recorded the approval (`buracle plan approve-result`) and resumed the plan. Do the worktree merge if the run has one, then finish with `buracle plan verify`."
 };
 function decisionAbout(i, prefix) {
@@ -18783,7 +17183,7 @@ function pausedReply(i, text) {
   if (i.kind === "manual") {
     return isManualDone(text) ? `Buracle: the user reports the manual step${quoted(i.reason)} done. Check its result, then run \`buracle plan resume\` and continue.` : `Buracle: the plan is paused on a manual step${quoted(i.reason)}. Answer the user; the run goes on after they say the step is done and you have checked it (\`buracle plan resume\`).`;
   }
-  if (i.kind === "discussion" && i.reason?.includes("(plan.autoPause)") !== true)
+  if (i.kind === "discussion")
     return "Buracle: the plan is paused because the user asked to stop. If this message means go on, in any language, run `buracle plan resume` and continue; otherwise answer the user and keep waiting.";
   if (i.kind !== "decision")
     return;
@@ -19923,10 +18323,10 @@ function commandNeed(argv, st) {
     return "recursive-delete";
   return;
 }
-function consentNeeded(command, opts) {
-  return consentNeeds(command, opts)[0];
+function consentNeeded(command) {
+  return consentNeeds(command)[0];
 }
-function consentNeeds(command, opts) {
+function consentNeeds(command) {
   if (typeof command !== "string")
     return [];
   const kinds = [];
@@ -19936,7 +18336,7 @@ function consentNeeds(command, opts) {
       kinds.push(...commandNeeds(argv, st));
       st.prev = argv;
       return false;
-    }, opts !== null && typeof opts === "object" && opts.shell !== undefined ? { shell: opts.shell } : undefined);
+    });
     if (st.fed !== undefined)
       kinds.push("recursive-delete");
     if (SQL_DESTROY.test(command) && /\b(?:psql|mysql|mariadb|sqlite3?|duckdb|mongosh|sqlcmd)\b/u.test(command))
@@ -19980,8 +18380,8 @@ function covers(g, kind, target) {
 function heldKinds(p) {
   return Array.isArray(p.kinds) && p.kinds.length > 0 ? p.kinds : [p.kind];
 }
-function consentVerdict(command, s, now, opts) {
-  const needs = consentNeeds(command, opts);
+function consentVerdict(command, s, now) {
+  const needs = consentNeeds(command);
   const first = needs[0];
   if (first === undefined)
     return { allow: true, next: s };
@@ -21099,18 +19499,12 @@ ${text.slice(-2000)}` : text;
   const workflow = [...route.invoked, ...route.load].some((id) => byId.get(id)?.explicit === true);
   if (!workflow)
     route.candidates = candidates.slice(0, ROUTE_CAPS.candidates);
-  const signals = detectSignals(raw);
-  route.memory = { recall: signals.recall, write: signals.write };
-  if ((signals.recall || signals.write) && !available.has("buracle-memory"))
-    route.memory.cli = true;
   const cats = [];
   let docs;
   let libAt = -1;
   for (const c of Array.isArray(t.categories) ? t.categories : []) {
     const first = c.servers[0];
     if (first === undefined || !available.has(first))
-      continue;
-    if (c.id === "memory" && (signals.recall || signals.write))
       continue;
     if (c.not?.test(f))
       continue;
@@ -21220,13 +19614,6 @@ function routeText(r, h, policy, opts = {}) {
     const asked = `- The user asked for the ${id} ${explicit ? "workflow" : "skill"}`;
     lines.push({ must: true, text: opts.attached?.includes(id) === true ? `${asked}: its skill is attached to this message; follow it, and treat the rest of the prompt as its input.` : `${asked}: load it before any other step and follow it (${loadHow(h, id, explicit, file)}); the rest of the prompt is its input.` });
   }
-  const mem = r.memory ?? { recall: false, write: false };
-  if (mem.recall) {
-    lines.push({ must: false, text: mem.cli === true ? '- Earlier work: search memory first (`buracle mem search "<query>"`; the memory server is unavailable) and cite the note ids you use.' : "- Earlier work: search memory first (memory_search, then memory_get on the relevant notes) and cite the note ids you use." });
-  }
-  if (mem.write) {
-    lines.push({ must: false, text: mem.cli === true ? '- The user wants this remembered: save it with `buracle mem remember -- "<text>"` (one fact per note).' : "- The user wants this remembered: memory_search for an existing note, then memory_write one note per fact (or memory_update that note)." });
-  }
   const cands = (r.candidates ?? []).slice(0, ROUTE_CAPS.candidates);
   if (cands.length > 0) {
     const list = cands.map((id) => {
@@ -21272,9 +19659,6 @@ function withinKey(child, parent) {
 }
 function isPathWithin(child, parent, caseInsensitive) {
   return withinKey(pathKey(child, caseInsensitive), pathKey(parent, caseInsensitive));
-}
-function wslDrive(p) {
-  return /^\/mnt\/([A-Za-z])(?:\/|$)/.exec(p)?.[1];
 }
 var GLOB_CHARS = /[*?[{]/;
 function excludeMatches(pattern, dirKey, ctx) {
@@ -21450,510 +19834,6 @@ function workspaceNotice(prev, next) {
 }
 
 // src/core/policy/code-facts.ts
-function languageOf(file) {
-  const ext = /\.([A-Za-z0-9]+)$/.exec(typeof file === "string" ? file : "")?.[1]?.toLowerCase() ?? "";
-  if (["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs"].includes(ext))
-    return "ts";
-  if (ext === "py" || ext === "pyi")
-    return "py";
-  if (ext === "go")
-    return "go";
-  if (ext === "rs")
-    return "rs";
-  return "other";
-}
-var ws = (s) => s.replace(/\s+/g, " ").trim();
-var REGEX_AFTER_WORD = /(?:^|[^\w$.])(?:return|typeof|instanceof|in|of|new|delete|void|throw|case|do|else|yield|await)$/;
-function regexMayStart(text, at, prev) {
-  if (prev === "" || /[(,=:[!&|?{};+\-*%<>~^}]/.test(prev))
-    return true;
-  return /[\w$]/.test(prev) && REGEX_AFTER_WORD.test(text.slice(Math.max(0, at - 16), at).trimEnd());
-}
-function jsQuoted(text) {
-  const out = [];
-  const holes = [];
-  const n = text.length;
-  let depth = 0;
-  let prev = "";
-  let i = 0;
-  const template = (from) => {
-    for (let j = from;j < n; j++) {
-      const c = text[j];
-      if (c === "\\") {
-        j++;
-        continue;
-      }
-      if (c === "`") {
-        out.push([from, j]);
-        prev = "`";
-        return j + 1;
-      }
-      if (c === "$" && text[j + 1] === "{") {
-        out.push([from, j]);
-        holes.push(depth++);
-        prev = "{";
-        return j + 2;
-      }
-    }
-    out.push([from, n]);
-    return n;
-  };
-  while (i < n) {
-    const c = text[i];
-    const next = text[i + 1];
-    if (c === "/" && next === "/") {
-      const e = text.indexOf(`
-`, i);
-      const end = e < 0 ? n : e;
-      out.push([i, end]);
-      i = end;
-      continue;
-    }
-    if (c === "/" && next === "*") {
-      const e = text.indexOf("*/", i + 2);
-      const end = e < 0 ? n : e + 2;
-      out.push([i, end]);
-      i = end;
-      continue;
-    }
-    if (c === '"' || c === "'") {
-      let j = i + 1;
-      while (j < n && text[j] !== c && text[j] !== `
-`)
-        j += text[j] === "\\" ? 2 : 1;
-      out.push([i + 1, Math.min(j, n)]);
-      i = j + 1;
-      prev = c;
-      continue;
-    }
-    if (c === "`") {
-      i = template(i + 1);
-      continue;
-    }
-    if (c === "/" && regexMayStart(text, i, prev)) {
-      let j = i + 1;
-      let cls = false;
-      while (j < n && text[j] !== `
-`) {
-        const d = text[j];
-        if (d === "\\") {
-          j += 2;
-          continue;
-        }
-        if (d === "[")
-          cls = true;
-        else if (d === "]")
-          cls = false;
-        else if (d === "/" && !cls)
-          break;
-        j++;
-      }
-      if (j < n && text[j] === "/") {
-        out.push([i, j + 1]);
-        i = j + 1;
-        prev = "/";
-        continue;
-      }
-    }
-    if (c === "{")
-      depth++;
-    else if (c === "}") {
-      if (holes.length > 0 && holes[holes.length - 1] === depth - 1) {
-        holes.pop();
-        depth--;
-        i = template(i + 1);
-        continue;
-      }
-      if (depth > 0)
-        depth--;
-    }
-    if (!/\s/.test(c))
-      prev = c;
-    i++;
-  }
-  return out;
-}
-function pyQuoted(text) {
-  const out = [];
-  for (const m of text.matchAll(/("""|''')[\s\S]*?(?:\1|$)/g))
-    out.push([m.index ?? 0, (m.index ?? 0) + m[0].length]);
-  return out;
-}
-function outside(spans, at) {
-  return !spans.some(([s, e]) => at >= s && at < e);
-}
-function quotedSpans(text, lang) {
-  return lang === "ts" ? jsQuoted(text) : lang === "py" ? pyQuoted(text) : [];
-}
-function upTo(text, start, stops, max = 800) {
-  let depth = 0;
-  const end = Math.min(text.length, start + max);
-  for (let i = start;i < end; i++) {
-    const c = text[i];
-    if (c === "(" || c === "[" || c === "<")
-      depth++;
-    else if ((c === ")" || c === "]" || c === ">") && depth > 0) {
-      if (!(c === ">" && text[i - 1] === "="))
-        depth--;
-    } else if (depth === 0 && stops.includes(c))
-      return text.slice(start, i);
-  }
-  return text.slice(start, end);
-}
-function declarations(text, lang) {
-  const out = new Map;
-  if (typeof text !== "string" || text === "")
-    return out;
-  const quoted = quotedSpans(text, lang);
-  const matches = (rx) => [...text.matchAll(rx)].filter((m) => outside(quoted, m.index ?? 0));
-  const put = (name, sig) => {
-    if (name !== undefined && name !== "" && !out.has(name))
-      out.set(name, ws(sig));
-  };
-  if (lang === "ts") {
-    for (const m of matches(/^[ \t]*export\s+(?:default\s+)?(?:declare\s+)?(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)/gm)) {
-      const at = m.index ?? 0;
-      put(m[1], upTo(text, at, "{;"));
-    }
-    for (const m of matches(/^[ \t]*export\s+(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?class\s+([A-Za-z_$][\w$]*)/gm))
-      put(m[1], upTo(text, m.index ?? 0, "{"));
-    for (const m of matches(/^[ \t]*export\s+(?:declare\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)/gm)) {
-      const line = upTo(text, m.index ?? 0, `
-;`);
-      const arrow = line.indexOf("=>");
-      put(m[1], arrow >= 0 ? line.slice(0, arrow) : line.split("=")[0] ?? line);
-    }
-    for (const m of matches(/^[ \t]*export\s+(?:declare\s+)?(?:interface|enum|const\s+enum)\s+([A-Za-z_$][\w$]*)/gm))
-      put(m[1], upTo(text, m.index ?? 0, "{"));
-    for (const m of matches(/^[ \t]*export\s+(?:declare\s+)?type\s+([A-Za-z_$][\w$]*)/gm))
-      put(m[1], upTo(text, m.index ?? 0, `
-;`));
-    for (const m of matches(/^[ \t]*export\s+(?:type\s+)?\{([^}]*)\}/gm)) {
-      for (const part of (m[1] ?? "").split(",")) {
-        const name = /(?:\bas\s+)?([A-Za-z_$][\w$]*)\s*$/.exec(part.trim())?.[1];
-        if (name !== undefined)
-          put(name, `export { ${ws(part)} }`);
-      }
-    }
-  } else if (lang === "py") {
-    for (const m of matches(/^(?:async\s+)?def\s+([A-Za-z]\w*)\s*\(/gm))
-      put(m[1], upTo(text, m.index ?? 0, ":"));
-    for (const m of matches(/^class\s+([A-Za-z]\w*)/gm))
-      put(m[1], upTo(text, m.index ?? 0, ":"));
-  } else if (lang === "go") {
-    for (const m of text.matchAll(/^func\s+(?:\([^)]*\)\s*)?([A-Z]\w*)\s*[[(]/gm))
-      put(m[1], upTo(text, m.index ?? 0, "{"));
-    for (const m of text.matchAll(/^type\s+([A-Z]\w*)\b/gm))
-      put(m[1], upTo(text, m.index ?? 0, `{
-`));
-  } else if (lang === "rs") {
-    for (const m of text.matchAll(/^[ \t]*pub\s+(?:async\s+)?(?:unsafe\s+)?fn\s+([a-z_]\w*)/gm))
-      put(m[1], upTo(text, m.index ?? 0, "{;"));
-    for (const m of text.matchAll(/^[ \t]*pub\s+(?:struct|enum|trait|type)\s+([A-Z]\w*)/gm))
-      put(m[1], upTo(text, m.index ?? 0, "{;"));
-  }
-  return out;
-}
-function changedExports(oldText, newText, file) {
-  const lang = languageOf(file);
-  if (lang === "other")
-    return [];
-  const before = declarations(oldText, lang);
-  if (before.size === 0)
-    return [];
-  const after = declarations(newText, lang);
-  return [...before].filter(([name, sig]) => after.get(name) !== sig).map(([name]) => name).sort();
-}
-var NODE_BUILTINS = new Set([
-  "assert",
-  "async_hooks",
-  "buffer",
-  "child_process",
-  "cluster",
-  "console",
-  "constants",
-  "crypto",
-  "dgram",
-  "diagnostics_channel",
-  "dns",
-  "domain",
-  "events",
-  "fs",
-  "http",
-  "http2",
-  "https",
-  "inspector",
-  "module",
-  "net",
-  "os",
-  "path",
-  "perf_hooks",
-  "process",
-  "punycode",
-  "querystring",
-  "readline",
-  "repl",
-  "stream",
-  "string_decoder",
-  "sys",
-  "timers",
-  "tls",
-  "trace_events",
-  "tty",
-  "url",
-  "util",
-  "v8",
-  "vm",
-  "wasi",
-  "worker_threads",
-  "zlib",
-  "bun"
-]);
-var PY_STDLIB = new Set([
-  "__future__",
-  "abc",
-  "argparse",
-  "array",
-  "ast",
-  "asyncio",
-  "atexit",
-  "base64",
-  "bisect",
-  "builtins",
-  "bz2",
-  "calendar",
-  "cmath",
-  "codecs",
-  "collections",
-  "colorsys",
-  "concurrent",
-  "configparser",
-  "contextlib",
-  "contextvars",
-  "copy",
-  "cProfile",
-  "csv",
-  "ctypes",
-  "curses",
-  "dataclasses",
-  "datetime",
-  "decimal",
-  "difflib",
-  "dis",
-  "doctest",
-  "email",
-  "enum",
-  "errno",
-  "faulthandler",
-  "filecmp",
-  "fnmatch",
-  "fractions",
-  "ftplib",
-  "functools",
-  "gc",
-  "getopt",
-  "getpass",
-  "gettext",
-  "glob",
-  "graphlib",
-  "gzip",
-  "hashlib",
-  "heapq",
-  "hmac",
-  "html",
-  "http",
-  "imaplib",
-  "importlib",
-  "inspect",
-  "io",
-  "ipaddress",
-  "itertools",
-  "json",
-  "keyword",
-  "linecache",
-  "locale",
-  "logging",
-  "lzma",
-  "mailbox",
-  "math",
-  "mimetypes",
-  "mmap",
-  "multiprocessing",
-  "netrc",
-  "numbers",
-  "operator",
-  "os",
-  "pathlib",
-  "pdb",
-  "pickle",
-  "pkgutil",
-  "platform",
-  "plistlib",
-  "poplib",
-  "posixpath",
-  "pprint",
-  "profile",
-  "pstats",
-  "pty",
-  "pwd",
-  "queue",
-  "random",
-  "re",
-  "readline",
-  "reprlib",
-  "resource",
-  "runpy",
-  "sched",
-  "secrets",
-  "select",
-  "selectors",
-  "shelve",
-  "shlex",
-  "shutil",
-  "signal",
-  "site",
-  "smtplib",
-  "socket",
-  "socketserver",
-  "sqlite3",
-  "ssl",
-  "stat",
-  "statistics",
-  "string",
-  "stringprep",
-  "struct",
-  "subprocess",
-  "symtable",
-  "sys",
-  "sysconfig",
-  "tarfile",
-  "tempfile",
-  "termios",
-  "textwrap",
-  "threading",
-  "time",
-  "timeit",
-  "tkinter",
-  "token",
-  "tokenize",
-  "tomllib",
-  "trace",
-  "traceback",
-  "tracemalloc",
-  "tty",
-  "turtle",
-  "types",
-  "typing",
-  "unicodedata",
-  "unittest",
-  "urllib",
-  "uuid",
-  "venv",
-  "warnings",
-  "wave",
-  "weakref",
-  "webbrowser",
-  "winreg",
-  "wsgiref",
-  "xml",
-  "xmlrpc",
-  "zipapp",
-  "zipfile",
-  "zipimport",
-  "zlib",
-  "zoneinfo"
-]);
-var RUST_BUILTINS = new Set(["std", "core", "alloc", "crate", "self", "super", "proc_macro", "test"]);
-function jsPackage(spec) {
-  let s = spec.trim();
-  if (s === "" || /^[./#~]/.test(s) || s.startsWith("@/") || /^(?:node|bun|data|http|https|file|virtual|blob):/.test(s))
-    return;
-  s = s.replace(/^(?:npm|jsr):/, "");
-  const parts = s.split("/");
-  let name = s.startsWith("@") ? `${parts[0] ?? ""}/${parts[1] ?? ""}` : parts[0] ?? "";
-  name = name.replace(/(?<=.)@[^/]*$/, "");
-  if (name === "" || name.endsWith("/") || NODE_BUILTINS.has(name))
-    return;
-  return /^(?:@[a-z0-9][\w.-]*\/)?[a-z0-9][\w.-]*$/i.test(name) ? name : undefined;
-}
-function goModule(path) {
-  const parts = path.trim().split("/");
-  const host = parts[0] ?? "";
-  if (!host.includes("."))
-    return;
-  const n = ["github.com", "gitlab.com", "bitbucket.org", "golang.org", "codeberg.org"].includes(host) ? 3 : 2;
-  return parts.slice(0, n).join("/");
-}
-function importedPackages(text, file) {
-  const out = new Set;
-  if (typeof text !== "string" || text === "")
-    return [];
-  const lang = languageOf(file);
-  const quoted = quotedSpans(text, lang);
-  if (lang === "ts") {
-    const specs = [
-      /(?:^|;)[ \t]*import\s+(?:type\s+)?(?:[\w*${}\s,]+?\s+from\s+)?['"]([^'"\n]+)['"]/gm,
-      /(?:^|;)[ \t]*export\s+(?:type\s+)?(?:\*(?:\s+as\s+\w+)?|\{[^}]*\})\s+from\s+['"]([^'"\n]+)['"]/gm,
-      /\brequire\s*\(\s*['"]([^'"\n]+)['"]\s*\)/g,
-      /\bimport\s*\(\s*['"]([^'"\n]+)['"]\s*\)/g
-    ];
-    for (const rx of specs) {
-      for (const m of text.matchAll(rx)) {
-        if (!outside(quoted, (m.index ?? 0) + m[0].search(/[a-z]/)))
-          continue;
-        const p = jsPackage(m[1] ?? "");
-        if (p !== undefined)
-          out.add(p);
-      }
-    }
-  } else if (lang === "py") {
-    for (const m of text.matchAll(/^[ \t]*import\s+([\w.]+(?:\s*,\s*[\w.]+)*)/gm)) {
-      if (!outside(quoted, m.index ?? 0))
-        continue;
-      for (const mod of (m[1] ?? "").split(",")) {
-        const top = mod.trim().split(".")[0] ?? "";
-        if (top !== "" && !PY_STDLIB.has(top))
-          out.add(top);
-      }
-    }
-    for (const m of text.matchAll(/^[ \t]*from\s+([\w][\w.]*)\s+import\b/gm)) {
-      if (!outside(quoted, m.index ?? 0))
-        continue;
-      const top = (m[1] ?? "").split(".")[0] ?? "";
-      if (top !== "" && !PY_STDLIB.has(top))
-        out.add(top);
-    }
-  } else if (lang === "go") {
-    const paths = [];
-    for (const m of text.matchAll(/^[ \t]*import\s+(?:[\w.]+\s+)?"([^"]+)"/gm))
-      paths.push(m[1] ?? "");
-    for (const m of text.matchAll(/^[ \t]*import\s*\(([\s\S]*?)\)/gm)) {
-      for (const l of (m[1] ?? "").split(`
-`)) {
-        const p = /^\s*(?:[\w.]+\s+)?"([^"]+)"/.exec(l)?.[1];
-        if (p !== undefined)
-          paths.push(p);
-      }
-    }
-    for (const p of paths) {
-      const mod = goModule(p);
-      if (mod !== undefined)
-        out.add(mod);
-    }
-  } else if (lang === "rs") {
-    for (const m of text.matchAll(/^[ \t]*(?:pub\s+)?use\s+(?:::)?([a-z_][a-z0-9_]*)::/gm)) {
-      const c = m[1] ?? "";
-      if (!RUST_BUILTINS.has(c))
-        out.add(c);
-    }
-    for (const m of text.matchAll(/^[ \t]*extern\s+crate\s+([a-z_][a-z0-9_]*)/gm)) {
-      const c = m[1] ?? "";
-      if (!RUST_BUILTINS.has(c))
-        out.add(c);
-    }
-  }
-  return [...out].sort();
-}
 function pyName(req) {
   const m = /^\s*([A-Za-z0-9][A-Za-z0-9._-]*)/.exec(req);
   return m?.[1] !== undefined ? m[1].toLowerCase().replace(/[_.]+/g, "-") : undefined;
@@ -22204,11 +20084,11 @@ function pathRuleIndex(rules) {
   return rules.filter((r) => r.scope === "paths").map((r) => ({ id: r.id, globs: ruleGlobs(r.frontmatter) })).filter((r) => r.globs.length > 0).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 }
 var ABSOLUTE = /^(?:\/|[A-Za-z]:\/)/;
-function slashes2(p) {
+function slashes(p) {
   return p.replace(/\\/g, "/");
 }
 function trimDir(p) {
-  return slashes2(p).replace(/\/+$/, "");
+  return slashes(p).replace(/\/+$/, "");
 }
 function withoutDot(p) {
   return p.replace(/^(?:\.\/)+/, "");
@@ -22223,7 +20103,7 @@ function under(file, dir, caseInsensitive) {
 }
 function projectRelative(file, base) {
   const ci = base.caseInsensitive === true;
-  let f = slashes2(file.trim());
+  let f = slashes(file.trim());
   if (!ABSOLUTE.test(f)) {
     const cwd = base.cwd !== undefined ? trimDir(base.cwd) : undefined;
     if (cwd === undefined || cwd === "")
@@ -22240,14 +20120,14 @@ function projectRelative(file, base) {
   return f.replace(/^[A-Za-z]:/, "").replace(/^\/+/, "");
 }
 function matchPathRules(relPath, rules) {
-  const p = withoutDot(slashes2(relPath).replace(/^\/+/, ""));
+  const p = withoutDot(slashes(relPath).replace(/^\/+/, ""));
   if (p === "")
     return [];
   const out = [];
   for (const r of rules) {
     if (out.includes(r.id))
       continue;
-    if (r.globs.some((g) => protectGlobToRegExp(slashes2(g.trim()))?.test(p) === true))
+    if (r.globs.some((g) => protectGlobToRegExp(slashes(g.trim()))?.test(p) === true))
       out.push(r.id);
   }
   return out;
@@ -22263,7 +20143,7 @@ function homeForm(p) {
   return p.replace(/^\$(?:HOME|\{HOME\})(?=\/|$)/, "~");
 }
 function ruleFileId(path, src, caseInsensitive = false) {
-  const p = homeForm(slashes2(path.trim()));
+  const p = homeForm(slashes(path.trim()));
   const m = /\/([a-z0-9][a-z0-9._-]*)\.md$/i.exec(p);
   const id = m?.[1];
   if (id === undefined || !src.rules.some((r) => r.id === id))
@@ -22323,360 +20203,6 @@ function pathRuleNote(what, file, ids, src) {
 `), delivered: found.map((r) => r.id), inlined, pointed };
 }
 
-// src/core/policy/shell-files.ts
-var WRITE_REDIRECTS = new Set([">", ">>", ">|", "&>", "&>>"]);
-var TEMP_PREFIX = /^(?:\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/private\/var\/folders\/|\/dev\/|\/proc\/)/;
-var TEMP_ROOT = /^(?:\/tmp|\/private\/tmp|\/var\/folders(?:\/[^/]+){0,3}|\/private\/var\/folders(?:\/[^/]+){0,3})$/;
-var DEVICE_PREFIX = /^\/(?:dev|proc)\//;
-var POSITIONAL = /^\$\{?(?:[0-9]|@|\*)\}?$/;
-var SYSTEM_PREFIX = /^(?:\/etc\/|\/private\/etc\/|\/usr\/|\/System\/|\/Library\/|[A-Za-z]:\/(?:Windows|Program Files|Program Files \(x86\)|ProgramData)\/)/i;
-var TEMP_VARS = new Set(["TMPDIR", "TMP", "TEMP", "RUNNER_TEMP", "XDG_RUNTIME_DIR"]);
-var INTERPRETER = /^(?:python[0-9.]*|pypy[0-9.]*|node|nodejs|bun|deno|ruby|perl[0-9.]*)$/;
-var WRITE_IDIOM = /write_text\(|write_bytes\(|open\([^)]*['"](?:[wax]\+?b?|r\+b?)['"]|open\([^)]*['"]>|writeFileSync|writeFile\(|appendFileSync|appendFile\(|createWriteStream\(|Bun\.write\(|Deno\.write|File\.(?:write|open)\(|IO\.write\(|shutil\.(?:copy|move)|os\.replace\(|os\.rename\(|\.to_csv\(|json\.dump\(/;
-var IN_PLACE2 = { sed: /^-[nErsuzE]*i/, perl: /^-[npaslw0-9]*i/, ruby: /^-[npalswvd]*i/ };
-var SELF = new Set(["buracle"]);
-var CODE_FLAGS = {
-  sed: new Set(["-e", "-f", "--expression", "--file"]),
-  perl: new Set(["-e", "-E"]),
-  ruby: new Set(["-e"]),
-  awk: new Set(["-e", "-E", "-f", "--file", "--source"])
-};
-var CODE_CLUSTER = { sed: /^-[A-Za-z]+e$/, perl: /^-[A-Za-z0-9]+[eE]$/, ruby: /^-[A-Za-z0-9]+e$/ };
-var EXEC_FLAGS = new Set(["-exec", "-execdir", "-ok", "-okdir"]);
-var FIND_PLACEHOLDER = "{}";
-function words2(cmd) {
-  return unwrap(cmd.words).argv;
-}
-function tempWord(w) {
-  const t = w.text;
-  if (t.startsWith(DYN)) {
-    const name = w.vars?.[0]?.name;
-    return name !== undefined && TEMP_VARS.has(name);
-  }
-  return TEMP_PREFIX.test(t) || t === "/dev/null";
-}
-function shownPath(w) {
-  return w.text.replace(HOME, "~");
-}
-function lexical(p) {
-  const s = p.replace(/\\/g, "/");
-  const lead = /^(?:[A-Za-z]:)?\//.exec(s)?.[0] ?? "";
-  const parts = [];
-  for (const seg of s.slice(lead.length).split("/")) {
-    if (seg === "" || seg === ".")
-      continue;
-    if (seg === "..") {
-      if (parts.length > 0)
-        parts.pop();
-      continue;
-    }
-    parts.push(seg);
-  }
-  return lead + parts.join("/");
-}
-function area(dir) {
-  if (dir === undefined || dir.trim() === "")
-    return;
-  const d = lexical(dir).replace(/\/+$/, "");
-  return d === "" || /^[A-Za-z]:$/.test(d) ? undefined : d;
-}
-function within2(p, d) {
-  if (d === undefined)
-    return false;
-  const ci = /^[A-Za-z]:/.test(d);
-  const a = ci ? p.toLowerCase() : p;
-  const b = ci ? d.toLowerCase() : d;
-  return a === b || a.startsWith(`${b}/`);
-}
-function absolute2(p) {
-  return /^(?:[A-Za-z]:)?[\\/]/.test(p);
-}
-function baseOf(scope) {
-  if (scope?.base !== undefined)
-    return scope.base;
-  return scope?.cwd !== undefined && absolute2(scope.cwd) ? { path: lexical(scope.cwd) } : "unknown";
-}
-function afterCd(args, scope) {
-  const w = args.filter((a) => !/^-[LPe@]+$/.test(a.text) && a.text !== "--")[0];
-  const home = area(scope?.home);
-  const cur = baseOf(scope);
-  let base;
-  if (w === undefined)
-    base = home !== undefined ? { path: home } : "unknown";
-  else if (w.text.includes(DYN))
-    base = tempWord(w) ? "temp" : "unknown";
-  else if (w.text.startsWith(HOME))
-    base = home !== undefined ? { path: lexical(`${home}/${w.text.slice(HOME.length)}`) } : "unknown";
-  else if (w.text === "-")
-    base = "unknown";
-  else if (absolute2(w.text))
-    base = { path: lexical(w.text) };
-  else
-    base = typeof cur === "object" ? { path: lexical(`${cur.path}/${w.text}`) } : cur;
-  return { ...scope, base };
-}
-function outsideProject(text, scope) {
-  const home = area(scope?.home);
-  let target;
-  if (text.startsWith(HOME)) {
-    const rest = text.slice(HOME.length);
-    if (home === undefined)
-      return rest === "" || /^[\\/]\./.test(rest);
-    target = lexical(`${home}/${rest}`);
-  } else if (absolute2(text))
-    target = lexical(text);
-  else {
-    const base = baseOf(scope);
-    if (base === "temp")
-      return true;
-    if (base === "unknown")
-      return false;
-    target = lexical(`${base.path}/${text}`);
-  }
-  const root = area(scope?.root);
-  const cwd = area(scope?.cwd);
-  const ownRoot = root !== undefined && root !== home && within2(target, root);
-  if (home !== undefined && within2(target, home) && !ownRoot && target.slice(home.length + 1).startsWith("."))
-    return true;
-  if (root === undefined && cwd === undefined)
-    return SYSTEM_PREFIX.test(target) || TEMP_PREFIX.test(target);
-  return !(within2(target, root) || within2(target, cwd));
-}
-function projectTemp(w, scope) {
-  const t = w.text;
-  if (t.includes(DYN) || !absolute2(t) || DEVICE_PREFIX.test(t))
-    return false;
-  const target = lexical(t);
-  return [scope?.root, scope?.cwd].some((d) => {
-    const a = area(d);
-    return a !== undefined && !TEMP_ROOT.test(a) && within2(target, a);
-  });
-}
-function foundFile(w, scope) {
-  if (w.text === FIND_PLACEHOLDER)
-    return true;
-  const vars = w.vars ?? [];
-  return scope?.found === true && w.dynamic && vars.length > 0 && vars.every((v) => v.name === undefined && POSITIONAL.test(v.src ?? ""));
-}
-function fileTarget(w, scope) {
-  if (w === undefined || w.text === "" || w.text === "-" || w.text === FIND_PLACEHOLDER)
-    return;
-  if (tempWord(w) && !projectTemp(w, scope))
-    return;
-  if (w.text.includes(DYN) || outsideProject(w.text, scope))
-    return;
-  return w;
-}
-function firstTarget(ws, scope) {
-  for (const w of ws) {
-    const t = fileTarget(w, scope);
-    if (t !== undefined)
-      return t;
-  }
-  return;
-}
-function redirectWrite(redirects, scope) {
-  for (const r of redirects) {
-    if (!WRITE_REDIRECTS.has(r.op) || r.target === undefined)
-      continue;
-    if (/^&?\d*$/.test(r.target.text))
-      continue;
-    const t = fileTarget(r.target, scope);
-    if (t !== undefined)
-      return { label: `a \`${r.op}\` redirect`, file: shownPath(t) };
-  }
-  return;
-}
-function heredocText(cmd) {
-  return cmd.redirects.filter((r) => r.op === "<<" || r.op === "<<-" || r.op === "<<<").map((r) => r.body ?? r.target?.text ?? "").join(`
-`);
-}
-function codeFlag(kind, text) {
-  if (CODE_FLAGS[kind]?.has(text) === true)
-    return true;
-  const cluster = CODE_CLUSTER[kind];
-  return cluster !== undefined && cluster.test(text) && !text.slice(1, -1).includes("i");
-}
-function execScriptWrite(inner, scope, depth) {
-  for (const s of unwrap([...inner]).scripts) {
-    const w = scriptWrite(parseShell(s).script, { ...scope, found: true }, depth + 1);
-    if (w !== undefined)
-      return w;
-  }
-  return;
-}
-function execWrite(args, scope, depth) {
-  for (let i = 0;i < args.length; i++) {
-    if (!EXEC_FLAGS.has(args[i].text))
-      continue;
-    const end = args.findIndex((a, j) => j > i && (a.text === ";" || a.text === "+"));
-    const inner = args.slice(i + 1, end < 0 ? args.length : end);
-    const w = inner.length > 0 ? commandWrite({ assigns: [], words: [...inner], redirects: [] }, scope, depth + 1) ?? execScriptWrite(inner, scope, depth) : undefined;
-    if (w !== undefined)
-      return { label: `find ${args[i].text} ${w.label}`, ...w.file !== undefined ? { file: w.file } : {} };
-    if (end < 0)
-      break;
-    i = end;
-  }
-  return;
-}
-function commandWrite(cmd, scope, depth = 0) {
-  const argv = words2(cmd);
-  const name = commandName(argv[0]);
-  if (name !== undefined && SELF.has(name))
-    return;
-  const redirected = redirectWrite(cmd.redirects, scope);
-  if (redirected !== undefined || name === undefined)
-    return redirected;
-  const args = argv.slice(1);
-  if (name === "find" && depth < 4)
-    return execWrite(args, scope, depth);
-  const kind = name === "gsed" ? "sed" : name === "gawk" ? "awk" : name.replace(/[0-9.]+$/, "");
-  const values = new Set(args.flatMap((a, i) => codeFlag(kind, a.text) ? [i + 1] : []));
-  const operands = args.filter((a, i) => !a.text.startsWith("-") && a.text !== "" && !values.has(i));
-  if (name === "tee" || name === "sponge") {
-    const t = firstTarget(operands, scope);
-    return t !== undefined ? { label: name, file: shownPath(t) } : undefined;
-  }
-  const cluster = IN_PLACE2[kind];
-  if (cluster !== undefined && args.some((a) => cluster.test(a.text) || kind === "sed" && (a.text === "--in-place" || a.text.startsWith("--in-place=")))) {
-    const files = values.size === 0 ? operands.slice(1) : operands;
-    const t = firstTarget(files, scope);
-    if (t !== undefined)
-      return { label: `${kind} -i in place`, file: shownPath(t) };
-    return files.some((f) => foundFile(f, scope)) ? { label: `${kind} -i in place` } : undefined;
-  }
-  if (kind === "awk" && args.some((a, i) => a.text === "-i" && args[i + 1]?.text === "inplace" || a.text === "--include=inplace")) {
-    const data = operands.filter((a) => a.text !== "inplace");
-    const t = firstTarget(values.size === 0 ? data.slice(1) : data, scope);
-    return t !== undefined ? { label: "awk -i inplace", file: shownPath(t) } : undefined;
-  }
-  if (INTERPRETER.test(name)) {
-    const inline = [];
-    for (const [i, a] of args.entries()) {
-      if ((a.text === "-c" || a.text === "-e" || a.text === "--eval" || a.text === "-E" || codeFlag(kind, a.text)) && args[i + 1] !== undefined)
-        inline.push(args[i + 1].text);
-      if (name === "deno" && a.text === "eval" && args[i + 1] !== undefined)
-        inline.push(args[i + 1].text);
-    }
-    inline.push(heredocText(cmd));
-    if (inline.some((code) => WRITE_IDIOM.test(code)))
-      return { label: `inline ${name} code` };
-  }
-  return;
-}
-function scriptWrite(script, scope, depth) {
-  if (depth > 8)
-    return;
-  let at = scope;
-  for (const pl of script.pipelines) {
-    for (const st of pl.stages) {
-      if (st.kind === "group") {
-        const g = redirectWrite(st.redirects, at) ?? scriptWrite(st.body, at, depth + 1);
-        if (g !== undefined)
-          return g;
-        continue;
-      }
-      const w = commandWrite(st.cmd, at);
-      if (w !== undefined)
-        return w;
-      for (const s of unwrap(st.cmd.words).scripts) {
-        const inner = scriptWrite(parseShell(s).script, at, depth + 1);
-        if (inner !== undefined)
-          return inner;
-      }
-    }
-    const only = pl.stages.length === 1 ? pl.stages[0] : undefined;
-    if (only?.kind === "cmd") {
-      const argv = words2(only.cmd);
-      if (commandName(argv[0]) === "cd")
-        at = afterCd(argv.slice(1), at);
-    }
-  }
-  return;
-}
-function shellFileWrite(command, scope) {
-  if (typeof command !== "string" || command.trim() === "")
-    return;
-  try {
-    return scriptWrite(parseShell(command).script, scope, 0);
-  } catch {
-    return;
-  }
-}
-var PRINTERS = new Set(["cat", "head", "tail", "sed", "nl", "bat", "batcat"]);
-var COMPANIONS = new Set(["cd", "pwd", "echo", "printf", "true"]);
-var HEAD_TAIL_ARG = new Set(["-n", "--lines"]);
-var LOG_FILE = /\.(?:log|out|err)$/i;
-var GLOB = /[*?[]/;
-function readOperands(name, args) {
-  const texts = args.map((a) => a.text);
-  if (name === "tail" && texts.some((t) => t === "-f" || t === "-F" || t.startsWith("--follow") || /^-[a-zA-Z]*[fF]/.test(t)))
-    return;
-  if ((name === "head" || name === "tail") && texts.some((t) => t === "-c" || t.startsWith("--bytes") || /^-c\d/.test(t)))
-    return;
-  if (name === "sed") {
-    if (!texts.includes("-n") || texts.some((t) => /^-[a-zA-Z]*i/.test(t) || t.startsWith("--in-place")))
-      return;
-    const scriptAt = texts.findIndex((t) => /^[\d,$;\s]+p$/.test(t));
-    if (scriptAt < 0)
-      return;
-    return args.filter((a, i) => i !== scriptAt && !a.text.startsWith("-"));
-  }
-  const out = [];
-  for (let i = 0;i < args.length; i++) {
-    const a = args[i];
-    if ((name === "head" || name === "tail") && HEAD_TAIL_ARG.has(a.text)) {
-      i++;
-      continue;
-    }
-    if (a.text.startsWith("-"))
-      continue;
-    out.push(a);
-  }
-  return out;
-}
-function shellFileRead(command) {
-  if (typeof command !== "string" || command.trim() === "")
-    return;
-  try {
-    const { script, subs } = parseShell(command);
-    if (subs.length > 0)
-      return;
-    const files = [];
-    for (const pl of script.pipelines) {
-      if (pl.stages.length !== 1)
-        return;
-      const st = pl.stages[0];
-      if (st === undefined || st.kind !== "cmd")
-        return;
-      const cmd = st.cmd;
-      const argv = words2(cmd);
-      const name = commandName(argv[0]);
-      if (name === undefined)
-        return;
-      if (COMPANIONS.has(name)) {
-        if (cmd.redirects.length > 0)
-          return;
-        continue;
-      }
-      if (!PRINTERS.has(name) || cmd.redirects.length > 0 || cmd.assigns.length > 0)
-        return;
-      const ops = readOperands(name, argv.slice(1));
-      if (ops === undefined || ops.length === 0 || ops.length > 3)
-        return;
-      for (const w of ops) {
-        if (w.dynamic || w.text.includes(DYN) || w.text === "-" || GLOB.test(w.text) || tempWord(w) || LOG_FILE.test(w.text))
-          return;
-        files.push(shownPath(w));
-      }
-    }
-    return files.length > 0 ? files : undefined;
-  } catch {
-    return;
-  }
-}
-
 // src/core/policy/usage.ts
 var LIST_MAX = 200;
 var READ_MAX = 64;
@@ -22685,7 +20211,7 @@ function emptyTurn() {
   return { calls: 0, search: 0, read: [], graph: 0, memory: 0 };
 }
 function emptyLedger() {
-  return { v: 1, turn: 0, mcp: {}, skills: {}, turnTools: emptyTurn(), streak: { search: 0 }, symbols: [], libs: [], shown: {}, usedOnce: [] };
+  return { v: 1, turn: 0, mcp: {}, skills: {}, turnTools: emptyTurn(), streak: { search: 0 }, shown: {}, usedOnce: [] };
 }
 function isObj6(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
@@ -22745,8 +20271,6 @@ function parseLedger(raw) {
   }
   if (isObj6(raw["streak"]) && isNum(raw["streak"]["search"]))
     l.streak = { search: raw["streak"]["search"] };
-  l.symbols = strList(raw["symbols"], LIST_MAX);
-  l.libs = strList(raw["libs"], LIST_MAX);
   if (isObj6(raw["shown"])) {
     for (const [k, v] of Object.entries(raw["shown"]).slice(0, MAP_MAX))
       if (isObj6(v) && isNum(v["turn"]) && isNum(v["n"]))
@@ -22878,35 +20402,6 @@ function memoryCliOps(call) {
 function isMemoryCli(call) {
   return memoryCliOps(call).some((op) => ["search", "get", "timeline", "status", "update"].includes(op));
 }
-function isMemoryCall(call) {
-  return call.kind === "mcp" && call.mcp?.server === "buracle-memory" || isMemoryCli(call);
-}
-function identifiers(input) {
-  const out = [];
-  for (const k of ["symbol", "name", "query", "symbolName", "qualifiedName", "target", "node", "from", "to", "id"]) {
-    const v = input[k];
-    if (typeof v !== "string")
-      continue;
-    for (const m of v.matchAll(/[A-Za-z_$][\w$]*/g))
-      if (m[0].length >= 2)
-        out.push(m[0]);
-  }
-  return [...new Set(out)].slice(0, 32);
-}
-function libraryNames(input) {
-  const out = [];
-  for (const k of ["libraryName", "libraryId", "library", "context7CompatibleLibraryID"]) {
-    const v = input[k];
-    if (typeof v !== "string" || v.trim() === "")
-      continue;
-    const f = fold2(v).replace(/^\/+/, "");
-    out.push(f);
-    for (const seg of f.split("/"))
-      if (seg.length >= 2)
-        out.push(seg);
-  }
-  return [...new Set(out)].slice(0, 16);
-}
 function ledgerCall(l, call) {
   const turn = l.turn;
   const t = { ...l.turnTools, calls: l.turnTools.calls + 1, read: [...l.turnTools.read] };
@@ -22915,17 +20410,12 @@ function ledgerCall(l, call) {
   if (skill !== undefined)
     next.skills = bump(l.skills, skill, turn);
   const server = call.kind === "mcp" ? call.mcp?.server : undefined;
-  const input = isObj6(call.input) ? call.input : {};
   if (server !== undefined && server !== "") {
     next.mcp = bump(l.mcp, server, turn);
     if (server === "semble" || server === "codegraph") {
       t.graph++;
       next.streak.search = 0;
     }
-    if (server === "codegraph")
-      next.symbols = pushUnique(l.symbols, identifiers(input));
-    if (server === "context7")
-      next.libs = pushUnique(l.libs, libraryNames(input));
     if (server === "buracle-memory")
       t.memory++;
   }
@@ -22975,14 +20465,8 @@ function sessionMcpHealth(health, l) {
       out[id] = "down";
   return out;
 }
-var FALLBACK_REMINDER = {
-  "code-search": "find code by intent with semble search (repo = the project root); use rg for exact text",
-  "code-structure": "ask codegraph (callers, callees, impact) before changing a shared symbol",
-  memory: "search memory with memory_search, then memory_get the relevant memories, and cite their ids",
-  "library-docs": "resolve the library with context7 (resolve-library-id), then query-docs at the version in the lockfile"
-};
 function reminderText(ctx, category) {
-  return categoryReminder(ctx.policy, category) ?? FALLBACK_REMINDER[category] ?? "";
+  return categoryReminder(ctx.policy, category) ?? "";
 }
 function canShow(l, id, rule) {
   const s = l.shown[id];
@@ -23037,26 +20521,6 @@ function editsOf(call, ctx) {
     return text === undefined ? [] : patchEdits(text).map((e) => ({ file: e.path, removed: e.removed, added: e.added }));
   }
   return [];
-}
-var normDep = (s) => fold2(s).replace(/_/g, "-");
-var alnum = (s) => fold2(s).replace(/[^a-z0-9]/g, "");
-function libResolved(libs, pkg) {
-  const parts = [pkg, pkg.split("/").pop() ?? pkg, pkg.startsWith("@") ? (pkg.split("/")[0] ?? "").slice(1) : ""].map(alnum).filter((c) => c.length >= 2);
-  return libs.map(alnum).some((lib) => lib.length >= 2 && parts.some((c) => lib === c || c.length >= 3 && lib.includes(c) || lib.length >= 3 && c.includes(lib)));
-}
-function gateable(pkg, file, deps) {
-  switch (languageOf(file)) {
-    case "ts":
-      return deps.size === 0 || deps.has(normDep(pkg)) || pkg.startsWith("@");
-    case "py":
-      return deps.has(normDep(pkg));
-    case "rs":
-      return deps.has(normDep(pkg));
-    case "go":
-      return true;
-    default:
-      return false;
-  }
 }
 var ABSOLUTE_PATH = /^(?:\/|[A-Za-z]:[\\/]|\\\\)/;
 function rootProblem(value, facts) {
@@ -23174,33 +20638,6 @@ function editTargets(call, ctx) {
     files.push(named);
   return [...new Set(files)];
 }
-var EDIT_TOOLS = { claude: "the Edit or Write tool", codex: "apply_patch", opencode: "the edit, write or patch tool", omp: "the edit or write tool" };
-var READ_TOOLS = { claude: "the Read tool", opencode: "the read tool", omp: "the read tool" };
-var SHELL_READ_NUDGES = 3;
-function shellNudge(l, call, base, facts) {
-  if (call.kind !== "bash" || typeof call.command !== "string" || call.tool === "Monitor")
-    return;
-  const write = shellFileWrite(call.command, { cwd: call.cwd, ...facts?.root !== undefined ? { root: facts.root } : {}, ...facts?.home !== undefined ? { home: facts.home } : {} });
-  if (write !== undefined) {
-    if (!canShow(l, "shell-write", { max: 1 }))
-      return;
-    return {
-      context: `Buracle: this shell command writes ${write.file !== undefined ? `\`${write.file}\`` : "files"} (${write.label}). Make ordinary source edits with ${EDIT_TOOLS[call.harness]} instead: the user sees them as a diff, and Buracle's file checks (H04) run only on them. Keeping command output and running generators, formatters or codemods is fine; read the diff they leave.`,
-      next: markShown(base, "shell-write")
-    };
-  }
-  const tool = READ_TOOLS[call.harness];
-  if (tool === undefined)
-    return;
-  const files = shellFileRead(call.command);
-  if (files === undefined || !canShow(l, "shell-read", { perTurn: true, max: SHELL_READ_NUDGES }))
-    return;
-  const shown = files.slice(0, 2).map((f) => `\`${f}\``).join(", ");
-  return {
-    context: `Buracle: read ${shown} with ${tool} instead of printing ${files.length === 1 ? "it" : "them"} in the shell (cat, head, tail, sed -n): shell dumps clutter the user's terminal, and ${tool} gives line numbers you can edit from. Keep the shell for real processing (pipes, filters, scripts).`,
-    next: markShown(base, "shell-read")
-  };
-}
 function naturalLanguage(pattern) {
   const p = pattern.trim();
   if (p.length < 12 || p.length > 200 || /[\\^$.*+?()[\]{}|]/.test(p))
@@ -23238,48 +20675,6 @@ function reminders(l, call, ctx) {
     if (note !== undefined && enforce)
       return { deny: { reason: note.text, key: ruleKey(note.delivered[0]) }, next: markRules(l, note.delivered) };
     const base = note !== undefined ? markRules(recorded, note.delivered) : recorded;
-    const withRules = (text) => note !== undefined ? `${note.text}
-
-${text}` : text;
-    const edits = editsOf(call, ctx);
-    const codegraph = available.has("codegraph") && ctx.facts?.codegraphIndexed === true;
-    const symbols = [];
-    for (const e of edits)
-      for (const sym of changedExports(e.removed, e.added, e.file))
-        if (!l.symbols.includes(sym) && !symbols.some((s) => s.sym === sym))
-          symbols.push({ sym, file: e.file });
-    const list = (xs) => xs.slice(0, 5).map((x) => `\`${x}\``).join(", ") + (xs.length > 5 ? ` and ${xs.length - 5} more` : "");
-    const fresh3 = symbols.filter((s) => !l.usedOnce.includes(`R3:${s.sym}`));
-    if (codegraph && enforce && fresh3.length > 0) {
-      const names = fresh3.map((s) => s.sym);
-      const where = fresh3[0]?.file !== undefined && fresh3[0].file !== "" ? ` (${fresh3[0].file.split("/").slice(-2).join("/")})` : "";
-      return { deny: { reason: `Buracle: this edit changes the exported ${list(names)}${where}, and codegraph has not been asked about ${names.length > 1 ? "them" : "it"} in this session. Check the callers first (codegraph callers or impact for ${list(names)}), then retry the edit; the retry is allowed.`, key: `R3:${names[0]}` }, next: { ...l, usedOnce: pushUnique(l.usedOnce, names.map((n) => `R3:${n}`)) } };
-    }
-    const note3 = codegraph && enforce ? [] : symbols.filter((s) => canShow(l, `R3:${s.sym}`, { max: 1 }));
-    if (remind && note3.length > 0) {
-      const names = note3.map((s) => s.sym);
-      const how = codegraph ? `codegraph callers or impact for ${list(names)}` : `\`rg -n "\\b${names[0]}\\b"\``;
-      return { context: withRules(`Buracle: this edit changes the exported ${list(names)}; check the callers (${how}) and update them in the same change.`), next: names.reduce((acc, n) => markShown(acc, `R3:${n}`), base) };
-    }
-    if (available.has("context7")) {
-      const deps = new Set((ctx.deps ?? []).map(normDep));
-      const pkgs = [];
-      for (const e of edits) {
-        const had = new Set(importedPackages(e.removed, e.file));
-        for (const pkg of importedPackages(e.added, e.file)) {
-          if (!had.has(pkg) && !pkgs.includes(pkg) && gateable(pkg, e.file, deps) && !libResolved(l.libs, pkg))
-            pkgs.push(pkg);
-        }
-      }
-      const fresh4 = pkgs.filter((p) => !l.usedOnce.includes(`R4:${p}`));
-      if (enforce && fresh4.length > 0) {
-        return { deny: { reason: `Buracle: this edit adds an import of ${list(fresh4)}, and context7 has not been asked about ${fresh4.length > 1 ? "them" : "it"} in this session. Check the API at the version in the lockfile first (context7 resolve-library-id, then query-docs), then retry the edit; if context7 does not know a library, just retry.`, key: `R4:${fresh4[0]}` }, next: { ...l, usedOnce: pushUnique(l.usedOnce, fresh4.map((p) => `R4:${p}`)) } };
-      }
-      const note4 = enforce ? [] : pkgs.filter((p) => canShow(l, `R4:${p}`, { max: 1 }));
-      if (remind && note4.length > 0) {
-        return { context: withRules(`Buracle: this edit imports ${list(note4)}; check the API at the version in the lockfile with context7 (resolve-library-id, then query-docs).`), next: note4.reduce((acc, p) => markShown(acc, `R4:${p}`), base) };
-      }
-    }
     if (note !== undefined)
       return { context: note.text, next: base };
   }
@@ -23288,16 +20683,8 @@ ${text}` : text;
     const n = rules !== undefined && readHit !== undefined ? pathRuleNote("read", readHit.file, readHit.ids, rules) : undefined;
     return n !== undefined ? { context: n.text, next: markRules(recorded, n.delivered) } : undefined;
   };
-  const shell = shellNudge(l, call, recorded, ctx.facts);
   if (!remind)
-    return shell ?? (enforce ? readNote() : undefined) ?? { next: recorded };
-  const turnOf = l.prompt?.turn === l.turn ? l.prompt.route : undefined;
-  if (turnOf?.memory.recall === true && l.turnTools.calls === 0 && l.turnTools.memory === 0 && !isMemoryCall(call) && canShow(l, "memory-first", { perTurn: true, max: 50 })) {
-    const how = available.has("buracle-memory") ? reminderText(ctx, "memory") : 'run `buracle mem search "<query>"` (the memory server is unavailable)';
-    return { context: `Buracle: this prompt asks about earlier work; before anything else, ${how}.`, next: markShown(recorded, "memory-first") };
-  }
-  if (shell !== undefined)
-    return shell;
+    return (enforce ? readNote() : undefined) ?? { next: recorded };
   const ruleNote = readNote();
   if (ruleNote !== undefined)
     return ruleNote;
@@ -23327,10 +20714,6 @@ function turnAudit(l) {
     if (s === undefined || s.turn < p.turn) {
       return { action: "block", hook: "H23", reason: `Buracle routing check: the user asked for ${id} and it was not loaded. Load it now and follow it, or say in one line why it does not apply.` };
     }
-  }
-  if (p.route.memory.recall && l.turnTools.memory === 0 && (l.mcp["buracle-memory"]?.turn ?? -1) < p.turn) {
-    const how = p.route.memory.cli === true ? '`buracle mem search "<query>"`' : "memory_search (buracle-memory)";
-    return { action: "block", hook: "H23", reason: `Buracle routing check: this prompt asks about earlier work and memory was not searched. Run ${how} now, or say in one line why memory cannot help.` };
   }
   return { action: "allow" };
 }
@@ -23521,7 +20904,7 @@ function log(level, msg, data) {
 init_paths();
 
 // src/workflow/workspace.ts
-import { existsSync as existsSync3, readdirSync, readFileSync as readFileSync5, rmSync, statSync as statSync5, unlinkSync as unlinkSync2 } from "fs";
+import { existsSync as existsSync3, readdirSync, readFileSync as readFileSync4, rmSync, statSync as statSync5, unlinkSync as unlinkSync2 } from "fs";
 import { dirname as dirname4, isAbsolute as isAbsolute4, join as join5, resolve as resolve3 } from "path";
 init_fsx();
 
@@ -23621,7 +21004,7 @@ async function projectSlug(cwd) {
 init_paths();
 
 // src/engine/platform.ts
-import { existsSync as existsSync2, readFileSync as readFileSync4, statSync as statSync4 } from "fs";
+import { existsSync as existsSync2, statSync as statSync4 } from "fs";
 import { homedir } from "os";
 import { isAbsolute as isAbsolute3, join as join4 } from "path";
 function osName() {
@@ -23629,26 +21012,6 @@ function osName() {
   if (forced === "darwin" || forced === "linux")
     return forced;
   return process.platform === "darwin" ? "darwin" : "linux";
-}
-var PROC_VERSION = "/proc/version";
-var wslKernel;
-function microsoftKernel(versionFile) {
-  try {
-    const v = readFileSync4(versionFile, "utf8").toLowerCase();
-    return v.includes("microsoft") || v.includes("wsl");
-  } catch {
-    return false;
-  }
-}
-function isWsl(env = process.env, versionFile = PROC_VERSION) {
-  if (osName() !== "linux")
-    return false;
-  if ((env["WSL_DISTRO_NAME"] ?? "") !== "" || (env["WSL_INTEROP"] ?? "") !== "")
-    return true;
-  if (versionFile !== PROC_VERSION)
-    return microsoftKernel(versionFile);
-  wslKernel ??= microsoftKernel(versionFile);
-  return wslKernel;
 }
 function homeDir() {
   const h = process.env["HOME"];
@@ -23899,7 +21262,7 @@ function pidAlive(pid) {
 function indexLockHolder(root, nowMs) {
   let held;
   try {
-    held = JSON.parse(readFileSync5(indexLockFile(root), "utf8"));
+    held = JSON.parse(readFileSync4(indexLockFile(root), "utf8"));
   } catch {
     return;
   }
@@ -23910,17 +21273,10 @@ function indexLockHolder(root, nowMs) {
     return;
   return pidAlive(pid) ? { pid, at } : undefined;
 }
-function codegraphDataDir(root, env = process.env) {
+function codegraphDataDir(_root, env = process.env) {
   const raw = (env["CODEGRAPH_DIR"] ?? "").trim();
   if (raw !== "" && raw !== "." && !raw.includes("..") && !/[\\/]/.test(raw) && !isAbsolute4(raw))
     return raw;
-  if (isWsl(env) && wslDrive(root) !== undefined) {
-    try {
-      if (statSync5(join5(root, ".codegraph-wsl")).isDirectory())
-        return ".codegraph-wsl";
-    } catch {}
-    return existsSync3(join5(root, ".codegraph", "codegraph.db")) ? ".codegraph" : ".codegraph-wsl";
-  }
   return ".codegraph";
 }
 function codegraphIndexPresent(root) {
@@ -24006,7 +21362,7 @@ function selfPaths(configuredRepo, source) {
 }
 
 // src/adapters/shared/write-content.ts
-import { readFileSync as readFileSync6, statSync as statSync6 } from "fs";
+import { readFileSync as readFileSync5, statSync as statSync6 } from "fs";
 
 // node_modules/jsonc-parser/lib/esm/impl/scanner.js
 function createScanner(text, ignoreTrivia = false) {
@@ -24872,7 +22228,7 @@ function currentText(file) {
     const st = statSync6(file);
     if (!st.isFile() || st.size > WRITE_CONTENT_MAX_BYTES)
       return;
-    return readFileSync6(file, "utf8");
+    return readFileSync5(file, "utf8");
   } catch (e) {
     return e.code === "ENOENT" ? "" : undefined;
   }
@@ -25203,8 +22559,8 @@ function guardedContents(changes, paths, home, opts = {}) {
 }
 
 // src/adapters/shared/checker-scan.ts
-import { readdirSync as readdirSync2, readFileSync as readFileSync7, statSync as statSync7 } from "fs";
-import { basename as basename5, dirname as dirname7, join as join6, relative, sep } from "path";
+import { readdirSync as readdirSync2, readFileSync as readFileSync6, statSync as statSync7 } from "fs";
+import { join as join6 } from "path";
 
 // src/core/checker-facts.ts
 var ESLINT_BINS = ["node_modules/.bin/eslint"];
@@ -25244,7 +22600,7 @@ function parentOf(p) {
 function samePath(a, b) {
   return trimSep(a).replace(/\\/g, "/") === trimSep(b).replace(/\\/g, "/");
 }
-function within3(p, dir) {
+function within2(p, dir) {
   const a = trimSep(p).replace(/\\/g, "/");
   const d = trimSep(dir).replace(/\\/g, "/");
   return a === d || a.startsWith(d.endsWith("/") ? d : `${d}/`);
@@ -25252,7 +22608,7 @@ function within3(p, dir) {
 function checkerDirs(file, root, home) {
   if (typeof file !== "string" || file === "")
     return [];
-  const inRoot = typeof root === "string" && root !== "" && within3(file, root);
+  const inRoot = typeof root === "string" && root !== "" && within2(file, root);
   const out = [];
   let dir = parentOf(file);
   while (dir !== undefined && out.length < CHECKER_SCAN_MAX_DIRS) {
@@ -25266,7 +22622,7 @@ function checkerDirs(file, root, home) {
   }
   return out;
 }
-function joinPath3(dir, rel) {
+function joinPath2(dir, rel) {
   const s = dir.includes("\\") && !dir.includes("/") ? "\\" : "/";
   return `${dir.replace(/[\\/]+$/, "")}${s}${s === "\\" ? rel.replace(/\//g, "\\") : rel}`;
 }
@@ -25300,10 +22656,10 @@ function checkerFacts(scans, cwd) {
     const present = Array.isArray(s.present) ? s.present : [];
     const ruff = RUFF_BINS.find((p) => present.includes(p));
     if (facts.ruffBin === undefined && ruff !== undefined)
-      facts.ruffBin = joinPath3(s.dir, ruff);
+      facts.ruffBin = joinPath2(s.dir, ruff);
     const eslint = ESLINT_BINS.find((p) => present.includes(p));
     if (facts.eslintBin === undefined && eslint !== undefined)
-      facts.eslintBin = joinPath3(s.dir, eslint);
+      facts.eslintBin = joinPath2(s.dir, eslint);
   }
   if (eslintAt >= 0) {
     facts.hasEslintConfig = true;
@@ -25312,7 +22668,11 @@ function checkerFacts(scans, cwd) {
   }
   return facts;
 }
-// src/core/tdd.ts
+
+// src/core/checkers.ts
+var FINDINGS_MAX_LINES = 20;
+var SLOW_CHECKER_MIN_MS = 4000;
+var DOTNET_FORMAT_ENV = { LC_ALL: "en_US.UTF-8", DOTNET_CLI_UI_LANGUAGE: "en" };
 function basename3(p) {
   return p.slice(Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\")) + 1);
 }
@@ -25325,681 +22685,8 @@ function ext(p) {
   const i = b.lastIndexOf(".");
   return i <= 0 ? "" : b.slice(i + 1).toLowerCase();
 }
-function slash(p) {
-  return p.replace(/\\/g, "/");
-}
-var TDD_EXT = new Set(["py", "ts", "tsx", "js", "jsx", "mjs", "cjs", "mts", "cts", "go", "cs"]);
-var JS_FAMILY = new Set(["ts", "tsx", "js", "jsx", "mjs", "cjs", "mts", "cts"]);
-var NON_SOURCE_DIR = /(?:^|\/)(?:node_modules|dist|build|out|vendor|third_party|migrations?|generated|__generated__|gen|\.venv|venv|__pycache__|coverage|fixtures?|__fixtures__|examples?|docs|scripts|\.github|\.next|\.turbo)(?:\/|$)/i;
-var DOTNET_BUILD_DIR = /(?:^|\/)(?:bin|obj)(?:\/|$)/;
-var TEST_DIR = /(?:^|\/)(?:tests?|__tests__|spec|specs|testing|e2e)(?:\/|$)/i;
-var DOTNET_TEST_DIR = /(?:^|\/)(?:[^/]+\.(?:Unit|Integration|Functional|Acceptance)?Tests?|[A-Z][A-Za-z0-9]*Tests)(?:\/|$)/;
-var NON_SOURCE_FILE = /(?:\.d\.ts|\.config\.[cm]?[jt]s|\.stories\.[jt]sx?|^conftest\.py|^setup\.py|^__init__\.py|^manage\.py|^__main__\.py|^vite-env\.d\.ts|^index\.d\.ts|\.(?:designer|g|g\.i|generated)\.cs|^AssemblyInfo\.cs|^GlobalUsings\.cs)$/i;
-var TEST_DIR_NAMES = ["tests", "test", "__tests__", "spec", "specs", "Tests"];
-function isTestFileName(name) {
-  const base = basename3(name);
-  return /^test_.*\.py$/i.test(base) || /_test\.(?:py|go)$/i.test(base) || /\.(?:test|spec)\.[cm]?[jt]sx?$/i.test(base) || /Tests?\.cs$/.test(base);
-}
-function isDotnetTestProjectName(name) {
-  return /\.(?:Unit|Integration|Functional|Acceptance)?Tests?$/i.test(name) || /^[A-Z][A-Za-z0-9]*Tests$/.test(name);
-}
-function squash(s) {
-  return s.toLowerCase().replace(/[-_.]/g, "");
-}
-function kebab(s) {
-  return s.replace(/([a-z0-9])([A-Z])/g, "$1-$2").replace(/([A-Z]+)([A-Z][a-z])/g, "$1-$2").toLowerCase();
-}
-function lines2(s) {
-  return s.split(/\r?\n/).map((l) => l.trim()).filter((l) => l !== "");
-}
-var IMPORT_STATEMENT = /^(?:import\b|from\s+\S+\s+import\b|export\s+(?:\*|\{[^}]*\}|type\s+\{[^}]*\})\s+from\s|\}\s*from\s|using\s+(?:static\s+)?[\w.]+\s*(?:=\s*[\w.<>]+\s*)?;$|#include\s|(?:const|let|var)\s+[\w${},\s]+=\s*require\(|require\()/;
-var IMPORT_PART = /^(?:"[^"]+"|[()]|[A-Za-z_$][\w$]*(?:\s+as\s+[A-Za-z_$][\w$]*)?,?)$/;
-var CONST_LINE = /^(?:export\s+)?(?:(?:const|final|static|public|private|internal|readonly)\s+)*[A-Z][A-Z0-9_]*\s*(?::[^=]+)?=\s*\S/;
-function subsequence(shorter, longer) {
-  let k = 0;
-  for (const l of longer)
-    if (k < shorter.length && shorter[k] === l)
-      k++;
-  return k === shorter.length;
-}
-function trivialEdit(removed, added) {
-  const old = lines2(typeof removed === "string" ? removed : "");
-  const neu = lines2(typeof added === "string" ? added : "");
-  if (old.length === 0 && neu.length === 0)
-    return false;
-  if (neu.length === 0)
-    return true;
-  const all = [...old, ...neu];
-  if (all.some((l) => IMPORT_STATEMENT.test(l)) && all.every((l) => IMPORT_STATEMENT.test(l) || IMPORT_PART.test(l)))
-    return true;
-  if (neu.length < old.length && subsequence(neu, old))
-    return true;
-  const fresh = neu.filter((l) => !old.includes(l));
-  const gone = old.filter((l) => !neu.includes(l));
-  return fresh.length > 0 && gone.length === 0 && fresh.every((l) => CONST_LINE.test(l));
-}
-function stripCsharp(src) {
-  let out = "";
-  let i = 0;
-  const n = src.length;
-  while (i < n) {
-    const c = src[i];
-    const next = src[i + 1];
-    if (c === "/" && next === "/") {
-      const j = src.indexOf(`
-`, i);
-      if (j < 0)
-        break;
-      i = j;
-      continue;
-    }
-    if (c === "/" && next === "*") {
-      const j = src.indexOf("*/", i + 2);
-      i = j < 0 ? n : j + 2;
-      continue;
-    }
-    if (c === "@" && (next === '"' || next === "$" && src[i + 2] === '"')) {
-      i += next === '"' ? 2 : 3;
-      while (i < n) {
-        if (src[i] === '"') {
-          if (src[i + 1] === '"') {
-            i += 2;
-            continue;
-          }
-          i++;
-          break;
-        }
-        i++;
-      }
-      continue;
-    }
-    if (c === '"' || c === "'") {
-      i++;
-      while (i < n) {
-        if (src[i] === "\\") {
-          i += 2;
-          continue;
-        }
-        if (src[i] === c || src[i] === `
-`) {
-          i++;
-          break;
-        }
-        i++;
-      }
-      continue;
-    }
-    out += c;
-    i++;
-  }
-  return out;
-}
-function dotnetLogicFree(source) {
-  if (typeof source !== "string" || source === "")
-    return false;
-  const code = stripCsharp(source);
-  if (!/\b(?:interface|enum|record|class|struct)\b/.test(code))
-    return false;
-  if (code.includes("=>"))
-    return false;
-  if (/\b(?:return|if|for|foreach|while|switch|try|throw|await|yield|goto|do)\b/.test(code))
-    return false;
-  if (/\b(?:get|set|init|add|remove)\b\s*\{/.test(code))
-    return false;
-  const body = code.replace(/\b(?:record|class|struct|interface)\s+\w+(?:\s*<[^>]*>)?\s*\([^)]*\)/g, " ").replace(/=\s*(?:new\b\s*)?[\w.]*(?:\s*<[^>]*>)?\s*\([^)]*\)/g, " ").replace(/\bnew\s*\(\s*\)/g, " ");
-  return !/\)\s*(?:where\b[^{}]*)?\{/.test(body);
-}
-function escapeRe3(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-function normalizeRel(base, spec) {
-  const parts = slash(base).split("/");
-  for (const seg of spec.split("/")) {
-    if (seg === "" || seg === ".")
-      continue;
-    if (seg === "..") {
-      if (parts.length > 1)
-        parts.pop();
-      continue;
-    }
-    parts.push(seg);
-  }
-  return parts.join("/");
-}
-var JS_SPEC = /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*|\bmock\s*\(\s*)['"]([^'"\n]+)['"]/g;
-var JS_EXT = /\.(?:[cm]?[jt]sx?)$/;
-function importsModule(text, testPath, modulePath) {
-  if (typeof text !== "string" || text === "" || typeof modulePath !== "string" || modulePath === "")
-    return false;
-  const e = ext(modulePath);
-  const base = basename3(modulePath);
-  const stem = base.slice(0, base.length - e.length - 1);
-  if (stem === "")
-    return false;
-  if (e === "py" || e === "pyi") {
-    const s = escapeRe3(stem);
-    return new RegExp(`^\\s*from\\s+\\S*\\b${s}\\b\\s+import\\b`, "m").test(text) || new RegExp(`^\\s*from\\s+\\S+\\s+import\\s+(?:\\([^)]*\\b${s}\\b|[^\\n#]*\\b${s}\\b)`, "m").test(text) || new RegExp(`^\\s*import\\s+\\S*\\b${s}\\b`, "m").test(text);
-  }
-  if (e === "cs") {
-    if (!/\[(?:Fact|Theory|Test|TestMethod|TestCase|TestCaseSource)\b/.test(text))
-      return false;
-    return new RegExp(`\\b${escapeRe3(stem)}\\b`).test(stripCsharp(text));
-  }
-  if (!JS_FAMILY.has(e))
-    return false;
-  const target = slash(modulePath).replace(JS_EXT, "");
-  const dir = slash(dirname5(modulePath));
-  const parent = basename3(dir);
-  for (const m of text.matchAll(JS_SPEC)) {
-    const spec = m[1].replace(JS_EXT, "");
-    if (spec.startsWith("./") || spec.startsWith("../")) {
-      const resolved = normalizeRel(dirname5(testPath), spec);
-      if (resolved === target || stem === "index" && resolved === dir)
-        return true;
-      continue;
-    }
-    const segs = spec.split("/");
-    const last = segs[segs.length - 1];
-    if (segs.length >= 2 && (last === stem || stem === "index" && last === parent))
-      return true;
-  }
-  return false;
-}
-function nameMatches(e, stem, parentDir, names) {
-  if (e === "go")
-    return names.some((n) => /_test\.go$/i.test(n) && squash(n.slice(0, -8)) === squash(stem));
-  if (e === "py" || e === "pyi") {
-    const want = [`test_${stem}.py`, `${stem}_test.py`].map(squash);
-    return names.some((n) => want.includes(squash(n)));
-  }
-  if (e === "cs") {
-    const want = [`${stem}tests.cs`, `${stem}test.cs`].map((w) => w.toLowerCase());
-    return names.some((n) => want.includes(n.toLowerCase()));
-  }
-  const keys = new Set([squash(stem)]);
-  const parent = kebab(parentDir);
-  if (stem === "index" && parent !== "")
-    keys.add(squash(parent));
-  return names.some((n) => {
-    const m = /^(.*)\.(?:test|spec)\.[cm]?[jt]sx?$/i.exec(n);
-    if (m === null)
-      return false;
-    const t = m[1];
-    if (keys.has(squash(t)))
-      return true;
-    return parent !== "" && stem !== "index" && (kebab(t) === parent || kebab(t).startsWith(`${parent}-${kebab(stem)}`));
-  });
-}
-function tddHint(path, candidates, edit) {
-  if (typeof path !== "string" || path === "")
-    return;
-  const p = slash(path);
-  const base = basename3(p);
-  const e = ext(p);
-  const dir = dirname5(p);
-  if (!TDD_EXT.has(e) || isTestFileName(base) || TEST_DIR.test(dir) || NON_SOURCE_DIR.test(p) || NON_SOURCE_FILE.test(base))
-    return;
-  if (e === "cs" && (DOTNET_BUILD_DIR.test(dir) || DOTNET_TEST_DIR.test(dir)))
-    return;
-  if (edit !== undefined && edit !== null && (edit.removed !== undefined || edit.added !== undefined) && trivialEdit(edit.removed ?? "", edit.added ?? ""))
-    return;
-  const c = Array.isArray(candidates) ? { siblings: candidates } : candidates ?? { siblings: [] };
-  const str = (xs) => Array.isArray(xs) ? xs.filter((s) => typeof s === "string") : [];
-  const stem = base.slice(0, base.length - e.length - 1);
-  const parentDir = basename3(dir);
-  const siblings = str(c.siblings).map(basename3);
-  if (e === "go" && siblings.some((s) => /_test\.go$/i.test(s)))
-    return;
-  if (nameMatches(e, stem, parentDir, [...siblings, ...str(c.testFiles).map(basename3)]))
-    return;
-  if (str(c.importers).length > 0)
-    return;
-  if ((e === "py" || e === "pyi") && str(c.failing).some((f) => {
-    const b = basename3(f).replace(/\.py$/i, "");
-    return b === `test_${stem}` || b === `${stem}_test`;
-  }))
-    return;
-  if (e === "cs" && typeof edit?.source === "string" && dotnetLogicFree(edit.source))
-    return;
-  const expected = e === "go" ? [`${stem}_test.go`] : e === "py" || e === "pyi" ? [`test_${stem}.py`, `${stem}_test.py`] : e === "cs" ? [`${stem}Tests.cs`, `${stem}Test.cs`] : [`${stem}.test.${e}`, `${stem}.spec.${e}`];
-  const where = c.testFiles === undefined ? " next to it" : e === "go" ? " next to it and in the test folders" : " next to it and in the test folders, and for a test that imports it";
-  return `No test found for ${base} (looked for ${expected.join(" or ")}${where}). Check whether an existing test covers the behavior; if this edit changes behavior and none does, add or extend a test that fails first, then make it pass. A test file named after the module is not coverage by itself, and a cosmetic or declarative edit needs only a focused check.`;
-}
-// src/core/charset.ts
-var CODE = 0;
-var STRING = 1;
-var COMMENT = 2;
-var PROSE = 3;
-var C = { line: ["//"], block: [["/*", "*/"]], quotes: `"'`, typographic: true };
-var JS = { ...C, backtick: true, template: true, regex: true };
-var HASH = { line: ["#"], block: [], quotes: `"'`, typographic: true };
-var SHELL = { ...HASH, multiline: true, hashAtWord: true, heredoc: true };
-var DASH = { line: ["--"], block: [["/*", "*/"], ["{-", "-}"], ["--[[", "]]"]], quotes: `"'`, typographic: true };
-var MARKUP = { line: [], block: [["<!--", "-->"]], quotes: `"'`, markup: true, multiline: true, typographic: true };
-var DATA = { line: ["#", ";"], block: [], quotes: `"'`, typographic: false };
-var PLAIN = { line: [], block: [], quotes: '"', typographic: true };
-var LANGS2 = {
-  ts: JS,
-  mts: JS,
-  cts: JS,
-  js: JS,
-  mjs: JS,
-  cjs: JS,
-  tsx: { ...JS, jsx: true },
-  jsx: { ...JS, jsx: true },
-  go: { ...C, backtick: true },
-  rs: { ...C, rustChar: true },
-  cs: { ...C, triple: true, verbatim: true },
-  java: { ...C, triple: true },
-  kt: { ...C, triple: true },
-  kts: { ...C, triple: true },
-  swift: { ...C, triple: true },
-  scala: { ...C, triple: true },
-  dart: { ...C, triple: true },
-  groovy: { ...C, triple: true },
-  gradle: { ...C, triple: true },
-  c: C,
-  h: C,
-  cc: C,
-  cpp: C,
-  cxx: C,
-  hpp: C,
-  m: C,
-  mm: C,
-  php: { ...C, line: ["//", "#"] },
-  zig: C,
-  css: C,
-  scss: C,
-  sass: C,
-  less: C,
-  json: { ...C, quotes: '"' },
-  jsonc: { ...C, quotes: '"' },
-  json5: C,
-  py: { ...HASH, triple: true },
-  pyi: { ...HASH, triple: true },
-  rb: HASH,
-  pl: HASH,
-  pm: HASH,
-  r: HASH,
-  jl: { ...HASH, triple: true },
-  nim: { ...HASH, triple: true },
-  ex: { ...HASH, triple: true },
-  exs: { ...HASH, triple: true },
-  toml: { ...HASH, triple: true },
-  tf: { ...HASH, line: ["#", "//"], block: [["/*", "*/"]] },
-  hcl: { ...HASH, line: ["#", "//"], block: [["/*", "*/"]] },
-  sh: SHELL,
-  bash: SHELL,
-  zsh: SHELL,
-  fish: SHELL,
-  ps1: { ...SHELL, block: [["<#", "#>"]] },
-  mk: SHELL,
-  sql: DASH,
-  lua: DASH,
-  hs: DASH,
-  elm: DASH,
-  ml: { ...PLAIN, block: [["(*", "*)"]] },
-  clj: { ...PLAIN, line: [";"] },
-  html: MARKUP,
-  htm: MARKUP,
-  xml: MARKUP,
-  svg: MARKUP,
-  xaml: MARKUP,
-  vue: MARKUP,
-  svelte: MARKUP,
-  yaml: DATA,
-  yml: DATA,
-  ini: DATA,
-  cfg: DATA,
-  conf: DATA,
-  properties: DATA
-};
-var BY_NAME = { dockerfile: SHELL, containerfile: SHELL, makefile: SHELL, justfile: SHELL, gnumakefile: SHELL };
-function baseOf2(p) {
-  return p.slice(Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\")) + 1);
-}
-function langOf(path) {
-  const b = baseOf2(path);
-  const named = BY_NAME[b.toLowerCase()];
-  if (named !== undefined)
-    return named;
-  const i = b.lastIndexOf(".");
-  return i <= 0 ? undefined : LANGS2[b.slice(i + 1).toLowerCase()];
-}
-var JSX_TEXT_MAX = 4000;
-var REGEX_BEFORE = new Set(["", "(", ",", "=", ":", "[", "!", "&", "|", "?", "{", "}", ";", "+", "-", "*", "%", "<", ">", "~", "^"]);
-var REGEX_KEYWORD = /(?:^|[^\w$])(?:return|typeof|case|in|of|delete|void|throw|else|do|yield|await)\s*$/;
-function contexts(text, lang) {
-  const n = text.length;
-  const out = new Uint8Array(n);
-  let i = 0;
-  const mark = (from, to, kind) => {
-    out.fill(kind, from, Math.min(to, n));
-  };
-  const tagAhead = (at) => {
-    for (let j = at;j < n && j < at + JSX_TEXT_MAX; j++) {
-      const c = text[j];
-      if (c === "<")
-        return /[A-Za-z/>]/.test(text[j + 1] ?? "") ? j : -1;
-      if (c === ">" || c === "{" || c === "}" || c === ";" || c === "=")
-        return -1;
-    }
-    return -1;
-  };
-  const prose = (from) => {
-    const end = tagAhead(from);
-    if (end < 0)
-      return from;
-    mark(from, end, PROSE);
-    return end;
-  };
-  const holes = [];
-  const templateFrom = (start, k) => {
-    let j = k;
-    while (j < n) {
-      const d = text[j];
-      if (d === "\\") {
-        j += 2;
-        continue;
-      }
-      if (d === "`") {
-        mark(start, j + 1, STRING);
-        return j + 1;
-      }
-      if (d === "$" && text[j + 1] === "{") {
-        mark(start, j + 2, STRING);
-        holes.push(0);
-        return j + 2;
-      }
-      j++;
-    }
-    mark(start, n, STRING);
-    return n;
-  };
-  const regexEnd = (k) => {
-    let inClass = false;
-    for (let j = k + 1;j < n; j++) {
-      const d = text[j];
-      if (d === "\\") {
-        j++;
-        continue;
-      }
-      if (d === `
-`)
-        return -1;
-      if (d === "[")
-        inClass = true;
-      else if (d === "]")
-        inClass = false;
-      else if (d === "/" && !inClass) {
-        let e = j + 1;
-        while (e < n && /[a-z]/.test(text[e]))
-          e++;
-        return e;
-      }
-    }
-    return -1;
-  };
-  let prev = "";
-  if (lang.markup) {
-    const end = text.indexOf("<");
-    i = end < 0 ? n : end;
-    mark(0, i, PROSE);
-  } else if (lang.jsx)
-    i = prose(0);
-  while (i < n) {
-    const c = text[i];
-    if (lang.template && holes.length > 0 && (c === "{" || c === "}")) {
-      const top = holes.length - 1;
-      if (c === "{")
-        holes[top] = holes[top] + 1;
-      else if (holes[top] === 0) {
-        holes.pop();
-        i = templateFrom(i, i + 1);
-        prev = "a";
-        continue;
-      } else
-        holes[top] = holes[top] - 1;
-      prev = c;
-      i++;
-      continue;
-    }
-    if (lang.markup && c === ">") {
-      const end = text.indexOf("<", i + 1);
-      const stop = end < 0 ? n : end;
-      mark(i + 1, stop, PROSE);
-      i = stop;
-      continue;
-    }
-    if (lang.jsx && (c === ">" || c === "}")) {
-      prev = c;
-      i = prose(i + 1);
-      continue;
-    }
-    const block = lang.block.find(([open]) => text.startsWith(open, i));
-    if (block !== undefined) {
-      const end = text.indexOf(block[1], i + block[0].length);
-      const stop = end < 0 ? n : end + block[1].length;
-      mark(i, stop, COMMENT);
-      i = stop;
-      continue;
-    }
-    const line = lang.line.find((open) => text.startsWith(open, i) && (!lang.hashAtWord || open !== "#" || i === 0 || /\s/.test(text[i - 1] ?? "")));
-    if (line !== undefined) {
-      const end = text.indexOf(`
-`, i);
-      const stop = end < 0 ? n : end;
-      mark(i, stop, COMMENT);
-      i = stop;
-      continue;
-    }
-    if (lang.heredoc && text.startsWith("<<", i) && text[i + 2] !== "<") {
-      const m = /^<<(-?)\s*(['"]?)([A-Za-z_][\w-]*)\2/.exec(text.slice(i, i + 80));
-      const eol = m !== null ? text.indexOf(`
-`, i) : -1;
-      if (m !== null && eol >= 0) {
-        const word = m[3];
-        let j = eol + 1;
-        while (j < n) {
-          const next = text.indexOf(`
-`, j);
-          const row = text.slice(j, next < 0 ? n : next);
-          if ((m[1] === "-" ? row.trim() : row) === word)
-            break;
-          j = next < 0 ? n : next + 1;
-        }
-        mark(eol + 1, j, PROSE);
-        i = j;
-        continue;
-      }
-    }
-    if (lang.regex && c === "/" && (REGEX_BEFORE.has(prev) || REGEX_KEYWORD.test(text.slice(Math.max(0, i - 12), i)))) {
-      const end = regexEnd(i);
-      if (end > 0) {
-        mark(i, end, STRING);
-        prev = "a";
-        i = end;
-        continue;
-      }
-    }
-    if (lang.template && c === "`") {
-      i = templateFrom(i, i + 1);
-      prev = "a";
-      continue;
-    }
-    const triple = lang.triple && (text.startsWith('"""', i) || text.startsWith("'''", i)) ? text.slice(i, i + 3) : undefined;
-    if (triple !== undefined) {
-      const end = text.indexOf(triple, i + 3);
-      const stop = end < 0 ? n : end + 3;
-      mark(i, stop, STRING);
-      i = stop;
-      continue;
-    }
-    const verbatim = lang.verbatim && c === "@" && text[i + 1] === '"';
-    const quote = verbatim ? '"' : lang.quotes.includes(c) || lang.backtick && c === "`" ? c : undefined;
-    if (quote !== undefined && !(lang.rustChar && quote === "'" && !/^'(?:\\.|[^\\'\n])'/.test(text.slice(i, i + 12)))) {
-      const multi = quote === "`" || lang.multiline === true;
-      let j = i + (verbatim ? 2 : 1);
-      while (j < n) {
-        const d = text[j];
-        if (d === "\\" && !verbatim && !(lang.hashAtWord && quote === "'")) {
-          j += 2;
-          continue;
-        }
-        if (d === quote) {
-          if (verbatim && text[j + 1] === '"') {
-            j += 2;
-            continue;
-          }
-          j++;
-          break;
-        }
-        if (d === `
-` && !multi)
-          break;
-        j++;
-      }
-      mark(i, j, STRING);
-      prev = "a";
-      i = j;
-      continue;
-    }
-    if (!/\s/.test(c))
-      prev = c;
-    i++;
-  }
-  return out;
-}
-function chars(codes) {
-  return codes.map((c) => typeof c === "number" ? String.fromCodePoint(c) : `${String.fromCodePoint(c[0])}-${String.fromCodePoint(c[1])}`).join("");
-}
-function charSet(...codes) {
-  return new RegExp(`[${chars(codes)}]`, "u");
-}
-var BIDI_CODES = [[8234, 8238], [8294, 8297]];
-var ZERO_WIDTH_CODES = [8203, 8288, 65279, 6158];
-var JOINER_CODES = [8204, 8205];
-var SPACE_CODES = [160, 5760, [8192, 8202], 8239, 8287, 12288];
-var BIDI = charSet(...BIDI_CODES);
-var ZERO_WIDTH = charSet(...ZERO_WIDTH_CODES);
-var JOINER = charSet(...JOINER_CODES);
-var SPACE = charSet(...SPACE_CODES);
-var INVISIBLE = charSet(...BIDI_CODES, ...ZERO_WIDTH_CODES, ...JOINER_CODES, ...SPACE_CODES);
-var CHAR_CLASSES = [
-  { re: BIDI, label: "bidirectional control character", hint: "remove it (it can hide code)", strict: true, soft: "remove it (it can hide code), or write it as an escape sequence if the text needs it" },
-  { re: ZERO_WIDTH, label: "zero-width character", hint: "remove it", strict: true, soft: "remove it, or write it as an escape sequence if the text needs it" },
-  { re: JOINER, label: "zero-width joiner or non-joiner", hint: "remove it unless it joins the letters or emoji around it", strict: true },
-  { re: SPACE, label: "non-breaking or unusual space", hint: "use a plain space", strict: true, soft: "use a plain space unless the text needs a non-breaking one" },
-  { re: charSet(8216, 8217, 8218, 8219, 8242), label: "smart single quote", hint: "use a plain '" },
-  { re: charSet(8220, 8221, 8222, 8223, 8243, 171, 187), label: "smart double quote", hint: 'use a plain "' },
-  { re: charSet([8208, 8213], 8722), label: "typographic dash or minus", hint: "use a plain -" },
-  { re: charSet(8230), label: "ellipsis", hint: "use three dots" },
-  { re: charSet(8804, 8805, 8800), label: "math comparison symbol", hint: "use <=, >= or !=" },
-  { re: charSet([8592, 8703], [10224, 10239], [10496, 10623]), label: "arrow symbol", hint: "use -> or plain words" },
-  { re: charSet(8226, [9632, 9727], [9472, 9631]), label: "decorative symbol", hint: "use plain ASCII" },
-  { re: new RegExp(`\\p{Extended_Pictographic}|[${chars([[9728, 10175]])}]`, "u"), label: "emoji or pictograph", hint: "remove it from code" }
-];
-var TYPOGRAPHY_NEIGHBOR = new RegExp(`[${chars([171, 187, 8364, 8240])}:;!?%$\\d]`, "u");
-function intended(cls, prev, next) {
-  const nonAscii = (s) => s !== undefined && (s.codePointAt(0) ?? 0) >= 128 && !INVISIBLE.test(s);
-  if (cls.re === JOINER)
-    return nonAscii(prev) && nonAscii(next);
-  if (cls.re === SPACE)
-    return prev !== undefined && TYPOGRAPHY_NEIGHBOR.test(prev) || next !== undefined && TYPOGRAPHY_NEIGHBOR.test(next);
-  return false;
-}
-var CHARSET_MAX_FINDINGS = 10;
-var CHARSET_CONTEXT_MAX = 2000000;
-function charsetFindings(addedText, path, fileText) {
-  if (typeof addedText !== "string" || addedText === "" || !/[^\x00-\x7F]/.test(addedText))
-    return [];
-  const lang = langOf(typeof path === "string" ? path : "");
-  if (lang === undefined)
-    return [];
-  const lines = addedText.split(`
-`);
-  const full = typeof fileText === "string" && fileText !== "" && fileText.length <= CHARSET_CONTEXT_MAX ? fileText : undefined;
-  const fileCtx = full !== undefined ? contexts(full, lang) : undefined;
-  let ownCtx;
-  const starts = [];
-  let at = 0;
-  for (const l of lines) {
-    starts.push(at);
-    at += l.length + 1;
-  }
-  let cursor = 0;
-  const out = [];
-  let extra = 0;
-  for (const [i, line] of lines.entries()) {
-    if (!/[^\x00-\x7F]/.test(line))
-      continue;
-    let base;
-    let offset;
-    const found = full !== undefined && line.trim() !== "" ? (() => {
-      const k = full.indexOf(line, cursor);
-      return k >= 0 ? k : full.indexOf(line);
-    })() : -1;
-    if (found >= 0 && fileCtx !== undefined) {
-      base = fileCtx;
-      offset = found;
-      cursor = found + line.length;
-    } else {
-      ownCtx ??= contexts(addedText, lang);
-      base = ownCtx;
-      offset = starts[i];
-    }
-    const cps = [...line];
-    let u16 = 0;
-    for (const [k, ch] of cps.entries()) {
-      const pos = offset + u16;
-      u16 += ch.length;
-      const code = ch.codePointAt(0) ?? 0;
-      if (code < 128 || code === 169 || code === 174 || code === 8482)
-        continue;
-      const cls = CHAR_CLASSES.find((c) => c.re.test(ch));
-      if (!cls)
-        continue;
-      const where = base[pos] ?? CODE;
-      if (where !== CODE) {
-        if (!cls.strict)
-          continue;
-        if (intended(cls, cps[k - 1], cps[k + 1]))
-          continue;
-      } else if (!cls.strict && !lang.typographic)
-        continue;
-      if (out.length >= CHARSET_MAX_FINDINGS) {
-        extra++;
-        continue;
-      }
-      const hex = code.toString(16).toUpperCase().padStart(4, "0");
-      const visible = INVISIBLE.test(ch) ? "" : ` ${ch}`;
-      const hint = where !== CODE && cls.soft !== undefined ? cls.soft : cls.hint;
-      out.push(`added line ${i + 1}, column ${k + 1}: ${cls.label}${visible} (U+${hex}); ${hint}`);
-    }
-  }
-  if (extra > 0)
-    out.push(`${String.fromCodePoint(8230)} ${extra} more unusual characters in this edit`);
-  return out;
-}
-
-// src/core/checkers.ts
-var FINDINGS_MAX_LINES = 20;
-var SLOW_CHECKER_MIN_MS = 4000;
-var DOTNET_FORMAT_ENV = { LC_ALL: "en_US.UTF-8", DOTNET_CLI_UI_LANGUAGE: "en" };
-function basename4(p) {
-  return p.slice(Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\")) + 1);
-}
-function dirname6(p) {
-  const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
-  return i <= 0 ? i === 0 ? p.slice(0, 1) : "." : p.slice(0, i);
-}
-function ext2(p) {
-  const b = basename4(p);
-  const i = b.lastIndexOf(".");
-  return i <= 0 ? "" : b.slice(i + 1).toLowerCase();
-}
 var TS_EXT = new Set(["ts", "tsx", "mts", "cts"]);
-var JS_EXT2 = new Set(["js", "jsx", "mjs", "cjs"]);
+var JS_EXT = new Set(["js", "jsx", "mjs", "cjs"]);
 function relativeIn(path, dir) {
   const d = dir.replace(/[\\/]+$/, "");
   if (path.length <= d.length + 1 || !path.startsWith(d) || !/[\\/]/.test(path.charAt(d.length)))
@@ -26011,21 +22698,21 @@ function checkersFor(path, facts, cfg) {
     return [];
   const langs = new Set(Array.isArray(cfg.languages) ? cfg.languages : []);
   const timeoutMs = typeof cfg.timeoutMs === "number" && cfg.timeoutMs > 0 ? cfg.timeoutMs : 20000;
-  const cwd = facts.cwd || dirname6(path);
-  const e = ext2(path);
+  const cwd = facts.cwd || dirname5(path);
+  const e = ext(path);
   if ((e === "py" || e === "pyi") && langs.has("python") && facts.hasRuffConfig) {
     return [{ argv: [facts.ruffBin ?? "ruff", "check", "--output-format=concise", path], cwd, timeoutMs, parser: "ruff" }];
   }
-  if ((TS_EXT.has(e) && langs.has("typescript") || JS_EXT2.has(e) && langs.has("javascript")) && facts.hasEslintConfig && !path.endsWith(".d.ts")) {
+  if ((TS_EXT.has(e) && langs.has("typescript") || JS_EXT.has(e) && langs.has("javascript")) && facts.hasEslintConfig && !path.endsWith(".d.ts")) {
     return [{ argv: [facts.eslintBin ?? "eslint", "--format", "json", path], cwd: facts.eslintCwd ?? cwd, timeoutMs, parser: "eslint" }];
   }
   if (e === "go" && langs.has("go") && facts.isGoModule) {
     const plans = [
-      { argv: ["go", "vet", "."], cwd: dirname6(path), timeoutMs, parser: "go-vet" },
+      { argv: ["go", "vet", "."], cwd: dirname5(path), timeoutMs, parser: "go-vet" },
       { argv: ["gofmt", "-l", path], cwd, timeoutMs, parser: "generic" }
     ];
     if (facts.golangci === true)
-      plans.push({ argv: ["golangci-lint", "run", "."], cwd: dirname6(path), timeoutMs, parser: "golangci", minMs: SLOW_CHECKER_MIN_MS });
+      plans.push({ argv: ["golangci-lint", "run", "."], cwd: dirname5(path), timeoutMs, parser: "golangci", minMs: SLOW_CHECKER_MIN_MS });
     return plans;
   }
   if ((e === "sh" || e === "bash") && langs.has("shell")) {
@@ -26055,7 +22742,7 @@ function note(title, items, cwd) {
 `);
 }
 function tool(plan) {
-  const a0 = basename4(plan.argv[0] ?? "");
+  const a0 = basename3(plan.argv[0] ?? "");
   return a0 === "" ? plan.parser : a0;
 }
 var ANSI = /\x1b\[[0-9;?]*[A-Za-z]/g;
@@ -26173,15 +22860,6 @@ function missingToolNote(plan) {
 function skippedNote(plan) {
   return `${checkerTool(plan)} skipped (hook time budget used up)`;
 }
-function lengthNote(lineCount) {
-  if (typeof lineCount !== "number" || !Number.isFinite(lineCount))
-    return;
-  if (lineCount > 1000)
-    return `This file has ${lineCount} lines (over 1000): split it along existing seams before adding more.`;
-  if (lineCount > 800)
-    return `This file has ${lineCount} lines (over 800): prefer splitting it along existing seams over growing it further.`;
-  return;
-}
 
 // src/adapters/shared/checker-scan.ts
 init_paths();
@@ -26196,7 +22874,7 @@ var nodeCheckFs = {
   read: (path, maxBytes) => {
     try {
       const st = statSync7(path);
-      return st.isFile() && st.size <= maxBytes ? readFileSync7(path, "utf8") : undefined;
+      return st.isFile() && st.size <= maxBytes ? readFileSync6(path, "utf8") : undefined;
     } catch {
       return;
     }
@@ -26211,13 +22889,6 @@ var nodeCheckFs = {
   }
 };
 var MANIFEST_MAX_BYTES = 512000;
-var SOURCE_MAX_BYTES = 4000000;
-var TEST_SCAN_MAX_ENTRIES = 2000;
-var TEST_SCAN_MAX_MS = 150;
-var IMPORTER_MAX_FILES = 200;
-var IMPORTER_MAX_BYTES = 256000;
-var SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", "out", "bin", "obj", ".venv", "venv", "__pycache__", "coverage", ".next", ".turbo", "target", "vendor", "fixtures", "__fixtures__", "snapshots", "__snapshots__"]);
-var SOURCE_ROOTS = new Set(["src", "lib", "app", "pkg", "internal", "source"]);
 function scanUpward(fs, file, root, home) {
   return checkerDirs(file, root, home).map((dir) => {
     const names = fs.list(dir).map((e) => e.name);
@@ -26237,99 +22908,6 @@ function scanUpward(fs, file, root, home) {
       scan.present = present;
     return scan;
   });
-}
-function extOf(p) {
-  const b = basename5(p);
-  const i = b.lastIndexOf(".");
-  return i <= 0 ? "" : b.slice(i + 1).toLowerCase();
-}
-var FAMILY = { py: "py", pyi: "py", go: "go", cs: "cs", ts: "js", tsx: "js", mts: "js", cts: "js", js: "js", jsx: "js", mjs: "js", cjs: "js" };
-function mirrorDirs(file, testDir, owner) {
-  const rel = relative(owner, dirname7(file));
-  if (rel === "" || rel.startsWith(".."))
-    return [];
-  const segs = rel.split(sep);
-  const stem = basename5(file).replace(/\.[^.]+$/, "");
-  const out = [join6(testDir, ...segs), join6(testDir, ...segs, stem)];
-  if (segs.length > 0 && SOURCE_ROOTS.has(segs[0]))
-    out.push(join6(testDir, ...segs.slice(1)), join6(testDir, ...segs.slice(1), stem));
-  return out;
-}
-function testFilesNear(fs, file, scans, now) {
-  const family = FAMILY[extOf(file)];
-  if (family === undefined)
-    return [];
-  const deadline = now() + TEST_SCAN_MAX_MS;
-  const roots = [];
-  const queue = [];
-  for (const s of scans) {
-    for (const n of s.names) {
-      if (n === basename5(dirname7(file)) && join6(s.dir, n) === dirname7(file))
-        continue;
-      if (TEST_DIR_NAMES.includes(n) || family === "cs" && isDotnetTestProjectName(n)) {
-        const t = join6(s.dir, n);
-        if (roots.includes(t))
-          continue;
-        roots.push(t);
-        queue.push(...mirrorDirs(file, t, s.dir));
-      }
-    }
-  }
-  queue.push(...roots);
-  const seen = new Set;
-  const found = [];
-  let visited = 0;
-  while (queue.length > 0 && visited < TEST_SCAN_MAX_ENTRIES && now() < deadline) {
-    const d = queue.shift();
-    if (seen.has(d))
-      continue;
-    seen.add(d);
-    for (const e of fs.list(d)) {
-      visited++;
-      if (e.dir) {
-        if (!SKIP_DIRS.has(e.name) && !e.name.startsWith("."))
-          queue.push(join6(d, e.name));
-        continue;
-      }
-      const p = join6(d, e.name);
-      if (FAMILY[extOf(e.name)] !== family || found.includes(p))
-        continue;
-      if (isTestFileName(e.name) || family === "cs")
-        found.push(p);
-    }
-  }
-  return found;
-}
-function importersOf(fs, file, testFiles, now, imports = importsModule) {
-  const deadline = now() + TEST_SCAN_MAX_MS;
-  let read = 0;
-  for (const t of testFiles) {
-    if (read >= IMPORTER_MAX_FILES || now() >= deadline)
-      break;
-    const text = fs.read(t, IMPORTER_MAX_BYTES);
-    read++;
-    if (text !== undefined && imports(text, t, file))
-      return [t];
-  }
-  return [];
-}
-function lastFailed(fs, scans) {
-  for (const s of scans) {
-    if (!s.names.includes(".pytest_cache"))
-      continue;
-    const text = fs.read(join6(s.dir, ".pytest_cache", "v", "cache", "lastfailed"), MANIFEST_MAX_BYTES);
-    if (text === undefined)
-      continue;
-    try {
-      const parsed = JSON.parse(text);
-      if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))
-        return [];
-      return [...new Set(Object.keys(parsed).map((k) => k.split("::")[0]).filter((k) => k !== ""))];
-    } catch {
-      return [];
-    }
-  }
-  return [];
 }
 function checkerArgv(argv, find = (name) => findExecutable(name, { extra: toolchainBinDirs() })) {
   const [cmd, ...rest] = argv;
@@ -26351,40 +22929,9 @@ function removedByFile(edits, files) {
   }
   return out;
 }
-function lineCountOf(text) {
-  return text === "" ? 0 : text.split(`
-`).length - (text.endsWith(`
-`) ? 1 : 0);
-}
-var TDD_IMPORTERS = new Set(["py", "js", "cs"]);
-async function tddNote(env, t, scans, source) {
-  const { api, fs, guard } = env;
-  const edit = {};
-  if (t.removed !== undefined)
-    edit.removed = t.removed;
-  if (t.added !== undefined)
-    edit.added = t.added;
-  if (source !== undefined && extOf(t.file) === "cs")
-    edit.source = source;
-  const first = scans[0];
-  const siblings = first !== undefined && first.dir === dirname7(t.file) ? [...first.names] : fs.list(dirname7(t.file)).map((e) => e.name);
-  const quick = await guard("tddHint", undefined, () => api.tddHint(t.file, { siblings }, edit));
-  if (quick === undefined)
-    return;
-  const testFiles = await guard("test files", [], () => testFilesNear(fs, t.file, scans, env.now));
-  const named = await guard("tddHint", undefined, () => api.tddHint(t.file, { siblings, testFiles }, edit));
-  if (named === undefined || !TDD_IMPORTERS.has(FAMILY[extOf(t.file)] ?? ""))
-    return named;
-  const importers = await guard("test importers", [], () => importersOf(fs, t.file, testFiles, env.now, api.importsModule ?? importsModule));
-  const failing = FAMILY[extOf(t.file)] === "py" ? await guard("pytest lastfailed", [], () => lastFailed(fs, scans)) : [];
-  if (importers.length === 0 && failing.length === 0)
-    return named;
-  return guard("tddHint", named, () => api.tddHint(t.file, { siblings, testFiles, importers, failing }, edit));
-}
 async function checkOneFile(env, t, cfg) {
   const { api, fs, guard } = env;
   const notes = [];
-  const source = fs.read(t.file, SOURCE_MAX_BYTES);
   const scans = await guard("project scan", [], () => scanUpward(fs, t.file, t.root, t.home));
   const facts = await guard("checker facts", { hasRuffConfig: false, hasEslintConfig: false, isGoModule: false, cwd: t.cwd }, () => (api.checkerFacts ?? checkerFacts)(scans, t.cwd));
   const plans = await guard("checkersFor", [], () => api.checkersFor(t.file, facts, cfg));
@@ -26416,19 +22963,6 @@ async function checkOneFile(env, t, cfg) {
     const finding = await guard("findingsOf", undefined, () => api.findingsOf(plan, res === null ? null : { code: res.code, stdout: res.stdout, stderr: res.stderr }));
     if (finding)
       notes.push({ kind: "finding", text: finding });
-  }
-  const tdd = await guard("tddHint", undefined, () => tddNote(env, t, scans, source));
-  if (tdd)
-    notes.push({ kind: "tdd", text: tdd });
-  if (t.added !== undefined && t.added !== "") {
-    const added = t.added;
-    for (const text of await guard("charsetFindings", [], () => api.charsetFindings(added, t.file, source)))
-      notes.push({ kind: "charset", text });
-  }
-  if (source !== undefined) {
-    const ln = await guard("lengthNote", undefined, () => api.lengthNote(lineCountOf(source)));
-    if (ln)
-      notes.push({ kind: "length", text: ln });
   }
   return notes;
 }
@@ -26776,7 +23310,7 @@ function inboxWith(entries, e, bump) {
 function norm(p) {
   return p.replace(/\\/g, "/").replace(/\/+$/, "");
 }
-function within4(child, parent) {
+function within3(child, parent) {
   const c = norm(child);
   const p = norm(parent);
   return c === p || p !== "" && c.startsWith(`${p}/`);
@@ -26789,11 +23323,11 @@ function inboxFor(entries, s, since) {
     if (e.doc !== undefined) {
       if (s.plan !== undefined)
         return norm(e.doc) === norm(s.plan);
-      return docDirOf(e.rel ?? "")?.workflow === "requirements" && roots.some((r) => within4(r, e.root));
+      return docDirOf(e.rel ?? "")?.workflow === "requirements" && roots.some((r) => within3(r, e.root));
     }
     if (s.plan !== undefined)
-      return roots.some((r) => within4(r, e.root) || e.checkout !== undefined && within4(r, e.checkout));
-    return e.checkout !== undefined && roots.some((r) => within4(r, e.checkout));
+      return roots.some((r) => within3(r, e.root) || e.checkout !== undefined && within3(r, e.checkout));
+    return e.checkout !== undefined && roots.some((r) => within3(r, e.checkout));
   });
 }
 function singleLine(text) {
@@ -28110,7 +24644,7 @@ function units(o) {
 function plain(u) {
   return u.lines.map((l) => l.replace(BLOCKQUOTE, "").replace(LIST_ITEM, "").replace(LABEL, "")).join(" ").replace(CODE_SPAN, "code").replace(LINK, "$1").replace(URL, "url").replace(EMPHASIS, "").trim();
 }
-function words3(sentence) {
+function words2(sentence) {
   return sentence.split(/\s+/).filter((w) => w !== "").length;
 }
 function legacyMessage(path) {
@@ -28136,7 +24670,7 @@ function documentFindings(o) {
     if (semi >= 0)
       out.push(at2(u.first + semi, "semicolon", "a semicolon joins two statements: write two sentences or a list"));
     for (const sentence of u.cell ? [text] : text.split(SENTENCE_END)) {
-      const n = words3(sentence);
+      const n = words2(sentence);
       if (n > MAX_SENTENCE_WORDS)
         out.push(at2(u.first, "long-sentence", `a sentence has ${n} words (the limit is ${MAX_SENTENCE_WORDS}): split it, one idea per sentence`));
     }
@@ -28637,7 +25171,7 @@ function validatePlan(markdown, opts) {
     if (firstComment < 0)
       firstComment = i;
     let other = false;
-    for (const m of line.matchAll(COMMENT2)) {
+    for (const m of line.matchAll(COMMENT)) {
       if (m[2] !== undefined && skeleton.has(normComment(m[1]))) {
         skel++;
         if (firstSkel < 0)
@@ -28672,7 +25206,7 @@ function validatePlan(markdown, opts) {
   }
   return out;
 }
-var COMMENT2 = /<!--([\s\S]*?)(-->|$)/g;
+var COMMENT = /<!--([\s\S]*?)(-->|$)/g;
 function normComment(s) {
   return s.replace(/\s+/g, " ").trim();
 }
@@ -28682,7 +25216,7 @@ function skeletonPlaceholders() {
     return placeholderSet;
   const out = new Set;
   for (const type of PLAN_TYPES) {
-    for (const m of planSkeleton({ type, title: "Skeleton", created: "2026-01-01" }).matchAll(COMMENT2)) {
+    for (const m of planSkeleton({ type, title: "Skeleton", created: "2026-01-01" }).matchAll(COMMENT)) {
       if (m[2] !== undefined)
         out.add(normComment(m[1]));
     }
@@ -29102,7 +25636,6 @@ var ROUTE_AUDIT_AFTER = ["finished", "no-plan", "disabled"];
 function routeAuditAllowed(why, strictness) {
   return strictness !== "off" && why !== undefined && ROUTE_AUDIT_AFTER.includes(why);
 }
-var AUTO_PAUSE_REASON = "the user sent a message while the plan was running (plan.autoPause)";
 var STOP_REASON_MAX = 1200;
 var TICKED_MAX = 200;
 function emptyState() {
@@ -29889,12 +26422,12 @@ init_fsx();
 init_paths();
 
 // src/memory/lock.ts
-import { closeSync as closeSync3, mkdirSync as mkdirSync3, openSync as openSync3, readFileSync as readFileSync9, utimesSync, writeSync as writeSync2 } from "fs";
-import { dirname as dirname8 } from "path";
+import { closeSync as closeSync3, mkdirSync as mkdirSync3, openSync as openSync3, readFileSync as readFileSync8, utimesSync, writeSync as writeSync2 } from "fs";
+import { dirname as dirname6 } from "path";
 
 // src/engine/lockfile.ts
 import { randomBytes as randomBytes2 } from "crypto";
-import { closeSync as closeSync2, openSync as openSync2, readFileSync as readFileSync8, statSync as statSync8, unlinkSync as unlinkSync3 } from "fs";
+import { closeSync as closeSync2, openSync as openSync2, readFileSync as readFileSync7, statSync as statSync8, unlinkSync as unlinkSync3 } from "fs";
 var lockTestHooks = {};
 var BREAKER_STALE_MS = 5000;
 function lockToken() {
@@ -29903,7 +26436,7 @@ function lockToken() {
 function lockSnapshot(path) {
   try {
     const st = statSync8(path);
-    return { dev: st.dev, ino: st.ino, mtimeMs: st.mtimeMs, text: readFileSync8(path, "utf8") };
+    return { dev: st.dev, ino: st.ino, mtimeMs: st.mtimeMs, text: readFileSync7(path, "utf8") };
   } catch {
     return;
   }
@@ -29948,7 +26481,7 @@ function breakStaleLock(path, seen) {
 function releaseLockFile(path, text) {
   let cur;
   try {
-    cur = readFileSync8(path, "utf8");
+    cur = readFileSync7(path, "utf8");
   } catch {
     return;
   }
@@ -29977,14 +26510,14 @@ function ownerAlive(text) {
 }
 function touchOwn(path, text) {
   try {
-    if (readFileSync9(path, "utf8") !== text)
+    if (readFileSync8(path, "utf8") !== text)
       return;
     const now = new Date;
     utimesSync(path, now, now);
   } catch {}
 }
 function tryLock(path, staleMs = 60000, opts = {}) {
-  mkdirSync3(dirname8(path), { recursive: true });
+  mkdirSync3(dirname6(path), { recursive: true });
   for (let attempt = 0;attempt < 3; attempt++) {
     try {
       const fd = openSync3(path, "wx", 384);
@@ -30462,7 +26995,7 @@ function heldConsentNeed(sid, command) {
 }
 
 // src/adapters/omp/runtime/deps.ts
-import { readdirSync as readdirSync10, readFileSync as readFileSync22, rmSync as rmSync4, statSync as statSync23 } from "fs";
+import { readdirSync as readdirSync10, readFileSync as readFileSync21, rmSync as rmSync4, statSync as statSync23 } from "fs";
 import { join as join31, resolve as resolve16 } from "path";
 
 // src/core/config.ts
@@ -30481,7 +27014,6 @@ function defaultConfig() {
     plan: {
       stopGuard: true,
       runaway: { perPlan: 30, perChain: 5 },
-      autoPause: false,
       planApproval: true,
       resultApproval: true,
       branchIsolation: true,
@@ -30559,7 +27091,6 @@ var CONFIG_SCHEMA = {
       fields: {
         stopGuard: bool,
         runaway: { t: "obj", fields: { perPlan: count(1), perChain: count(1) } },
-        autoPause: bool,
         planApproval: bool,
         resultApproval: bool,
         branchIsolation: bool,
@@ -31166,9 +27697,6 @@ function backgroundWait(lastMessage, tasks, crons) {
   return Array.isArray(crons) && crons.some((c) => rec(c)?.["recurring"] === false);
 }
 // src/core/plan/interaction.ts
-function running(s) {
-  return s.plan !== undefined && !isPlanFinished(s) && s.interaction?.state !== "paused";
-}
 function promptInteraction(state, control, text, opts) {
   const hasPlan = state.plan !== undefined;
   const before = state.interaction;
@@ -31188,12 +27716,7 @@ function promptInteraction(state, control, text, opts) {
     const guidance = pausedReply(before, text);
     return guidance !== undefined ? { next: state, guidance } : { next: state };
   }
-  if (!opts.autoPause || !running(state))
-    return { next: state };
-  const paused = applyIntent(state, "pause", opts.now);
-  if (paused === state || paused.interaction?.state !== "paused")
-    return { next: state };
-  return { next: { ...paused, interaction: { ...paused.interaction, reason: AUTO_PAUSE_REASON } }, guidance: CONTROL_GUIDANCE.autoPause, autoPaused: true };
+  return { next: state };
 }
 // src/core/plan/plan-mode.ts
 var FILE_WRITING_WORKFLOWS = {
@@ -31347,7 +27870,7 @@ function pace(usedPct, resetsAtIso, windowMinutes, nowMs) {
 }
 
 // src/core/status/format.ts
-var ZERO_WIDTH2 = /^[\p{Mn}\p{Me}\p{Cf}\u200B-\u200F\uFE00-\uFE0F]$/u;
+var ZERO_WIDTH = /^[\p{Mn}\p{Me}\p{Cf}\u200B-\u200F\uFE00-\uFE0F]$/u;
 var EMOJI_WIDE = /^\p{Emoji_Presentation}$/u;
 function isWideCodePoint(cp) {
   return cp >= 4352 && cp <= 4447 || cp >= 11904 && cp <= 12350 || cp >= 12353 && cp <= 13311 || cp >= 13312 && cp <= 19903 || cp >= 19968 && cp <= 40959 || cp >= 40960 && cp <= 42191 || cp >= 44032 && cp <= 55203 || cp >= 63744 && cp <= 64255 || cp >= 65072 && cp <= 65103 || cp >= 65280 && cp <= 65376 || cp >= 65504 && cp <= 65510 || cp >= 131072 && cp <= 262141;
@@ -31356,7 +27879,7 @@ function charWidth(ch) {
   const cp = ch.codePointAt(0) ?? 0;
   if (cp < 32 || cp >= 127 && cp < 160)
     return 0;
-  if (ZERO_WIDTH2.test(ch))
+  if (ZERO_WIDTH.test(ch))
     return 0;
   if (isWideCodePoint(cp) || EMOJI_WIDE.test(ch))
     return 2;
@@ -32679,7 +29202,7 @@ function barLines(bar, info, layout, width, nowMs) {
 }
 
 // src/usage/bar-info.ts
-import { existsSync as existsSync5, readFileSync as readFileSync11, statSync as statSync11 } from "fs";
+import { existsSync as existsSync5, readFileSync as readFileSync10, statSync as statSync11 } from "fs";
 import { join as join9 } from "path";
 
 // src/core/flow/panes.ts
@@ -32753,7 +29276,7 @@ function isRecord3(x) {
 }
 function buracleVersion(repoRoot = repoRoot2()) {
   try {
-    const v = JSON.parse(readFileSync11(join9(repoRoot, "package.json"), "utf8")).version;
+    const v = JSON.parse(readFileSync10(join9(repoRoot, "package.json"), "utf8")).version;
     return typeof v === "string" ? v : "?";
   } catch {
     return "?";
@@ -32773,7 +29296,7 @@ function claudePlan() {
     return cached.value.plan ?? undefined;
   let plan;
   try {
-    const j = JSON.parse(readFileSync11(file, "utf8"));
+    const j = JSON.parse(readFileSync10(file, "utf8"));
     const oa = isRecord3(j) && isRecord3(j["oauthAccount"]) ? j["oauthAccount"] : undefined;
     if (oa === undefined)
       plan = "API";
@@ -32997,17 +29520,17 @@ var TELEMETRY_FRESH_MS = 60 * 60000;
 // src/usage/cache.ts
 import { spawn } from "child_process";
 import { closeSync as closeSync4, existsSync as existsSync6, mkdirSync as mkdirSync4, openSync as openSync4, statSync as statSync13, utimesSync as utimesSync2, writeSync as writeSync3 } from "fs";
-import { dirname as dirname9, join as join12 } from "path";
+import { dirname as dirname7, join as join12 } from "path";
 
 // src/engine/config.ts
-import { readFileSync as readFileSync12, statSync as statSync12 } from "fs";
+import { readFileSync as readFileSync11, statSync as statSync12 } from "fs";
 import { join as join11 } from "path";
 init_fsx();
 init_paths();
 var UNKNOWN_KEY_HINT = "(ignored; misspelled, renamed or removed? `buracle config get` prints the valid keys)";
 function readText(path) {
   try {
-    return { kind: "ok", text: readFileSync12(path, "utf8") };
+    return { kind: "ok", text: readFileSync11(path, "utf8") };
   } catch (e) {
     const code = e.code;
     if (code === "ENOENT" || code === "ENOTDIR")
@@ -33032,7 +29555,7 @@ function inputsStamp(canonical, user) {
 }
 function snapshotConfig(stamp) {
   try {
-    const snap = JSON.parse(readFileSync12(runtimeConfigFile(), "utf8"));
+    const snap = JSON.parse(readFileSync11(runtimeConfigFile(), "utf8"));
     if (snap === null || typeof snap !== "object" || snap.v !== 1 || snap.stamp !== stamp)
       return;
     return mergeConfig(defaultConfig(), snap.config);
@@ -33149,7 +29672,7 @@ function spawnUsageRefresh(h, opts = {}) {
       if (now - statSync13(marker).mtimeMs < SPAWN_INTERVAL_MS)
         return false;
     } catch {}
-    mkdirSync4(dirname9(marker), { recursive: true });
+    mkdirSync4(dirname7(marker), { recursive: true });
     try {
       closeSync4(openSync4(marker, "a"));
     } catch {}
@@ -33173,12 +29696,12 @@ init_fsx();
 init_paths();
 
 // src/workflow/plan-capture.ts
-import { closeSync as closeSync5, mkdirSync as mkdirSync5, openSync as openSync5, readFileSync as readFileSync14, writeSync as writeSync4 } from "fs";
-import { isAbsolute as isAbsolute6, join as join13, relative as relative2, resolve as resolve6, sep as sep2 } from "path";
+import { closeSync as closeSync5, mkdirSync as mkdirSync5, openSync as openSync5, readFileSync as readFileSync13, writeSync as writeSync4 } from "fs";
+import { isAbsolute as isAbsolute6, join as join13, relative, resolve as resolve6, sep } from "path";
 init_fsx();
 
 // src/workflow/plan-file.ts
-import { readFileSync as readFileSync13 } from "fs";
+import { readFileSync as readFileSync12 } from "fs";
 init_fsx();
 var PLAN_STATUSES2 = ["PENDING", "APPROVED", "IN_PROGRESS", "COMPLETE", "VERIFIED", "SAVED"];
 var PLAN_TYPES2 = ["Feature", "Bugfix", "Build", "Plan"];
@@ -33362,7 +29885,7 @@ function analyzePlan(markdown) {
 function readPlanFile(path) {
   let text;
   try {
-    text = readFileSync13(path, "utf8");
+    text = readFileSync12(path, "utf8");
   } catch (e) {
     const code = e.code;
     if (code === "ENOENT" || code === "ENOTDIR")
@@ -33373,11 +29896,11 @@ function readPlanFile(path) {
   }
   return { ok: true, text, info: analyzePlan(text) };
 }
-function escapeRe4(s) {
+function escapeRe3(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 function keyLineRe(key) {
-  const k = escapeRe4(key);
+  const k = escapeRe3(key);
   return new RegExp(`^(?:${k}|"${k}"|'${k}')[ \\t]*:(?:[ \\t]|\\r?$)`);
 }
 function findKeyLine(fm, key) {
@@ -33529,13 +30052,13 @@ async function capturePlanFile(i) {
   }
   return;
 }
-function shownPath2(path, cwd) {
-  const rel = relative2(comparablePath(cwd), comparablePath(path));
-  return rel !== "" && !rel.startsWith("..") && !isAbsolute6(rel) ? rel.split(sep2).join("/") : path;
+function shownPath(path, cwd) {
+  const rel = relative(comparablePath(cwd), comparablePath(path));
+  return rel !== "" && !rel.startsWith("..") && !isAbsolute6(rel) ? rel.split(sep).join("/") : path;
 }
 
 // src/workflow/plan-native.ts
-var shown3 = shownPath2;
+var shown3 = shownPath;
 function staleReview(state, text) {
   const rec = reviewOf(state, "plan");
   return rec !== undefined && rec.state === "collected" && reviewFreshness(rec, sha256(reviewSubjectText(text))) === "stale";
@@ -33628,9 +30151,9 @@ function updateLedger(h, sid, fn, opts = {}) {
 }
 
 // src/adapters/opencode/runtime/adapter-rules.ts
-import { existsSync as existsSync7, readFileSync as readFileSync15 } from "fs";
-import { dirname as dirname10, join as join15, resolve as resolve7 } from "path";
 init_fsx();
+import { existsSync as existsSync7, readFileSync as readFileSync14 } from "fs";
+import { dirname as dirname8, join as join15, resolve as resolve7 } from "path";
 var CACHE_TTL_MS = 30000;
 var CACHE_MAX = 64;
 var cache2 = new Map;
@@ -33639,7 +30162,7 @@ function gitToplevel(dir) {
   for (let i = 0;i < 128; i++) {
     if (existsSync7(join15(d, ".git")))
       return d;
-    const up = dirname10(d);
+    const up = dirname8(d);
     if (up === d)
       return;
     d = up;
@@ -33648,7 +30171,7 @@ function gitToplevel(dir) {
 }
 function packageName(dir) {
   try {
-    const pkg = JSON.parse(readFileSync15(join15(dir, "package.json"), "utf8"));
+    const pkg = JSON.parse(readFileSync14(join15(dir, "package.json"), "utf8"));
     return pkg !== null && typeof pkg === "object" && typeof pkg.name === "string" ? pkg.name : undefined;
   } catch {
     return;
@@ -33694,7 +30217,7 @@ function buracleRepoFor(cwd, configured, nowMs = Date.now()) {
 
 // src/adapters/shared/review-notes.ts
 import { mkdirSync as mkdirSync6 } from "fs";
-import { dirname as dirname11, join as join16 } from "path";
+import { dirname as dirname9, join as join16 } from "path";
 init_fsx();
 init_paths();
 function real2(p) {
@@ -33724,7 +30247,7 @@ function reviewNotesNotice(h, sid, o) {
   if (hits.length === 0)
     return;
   try {
-    mkdirSync6(dirname11(file), { recursive: true });
+    mkdirSync6(dirname9(file), { recursive: true });
     atomicWriteSync(file, JSON.stringify({ at: Math.max(...hits.map((e) => e.at)), noticedAt: o.now }) + `
 `);
   } catch (e) {
@@ -33736,7 +30259,7 @@ function reviewNotesNotice(h, sid, o) {
 // src/adapters/shared/realpath.ts
 init_fsx();
 import { lstatSync as lstatSync3, readlinkSync as readlinkSync2 } from "fs";
-import { basename as basename6, dirname as dirname12, isAbsolute as isAbsolute7, join as join17, resolve as resolve8 } from "path";
+import { basename as basename4, dirname as dirname10, isAbsolute as isAbsolute7, join as join17, resolve as resolve8 } from "path";
 var MAX_HOPS = 40;
 function resolveFrom(p, hops) {
   if (hops > MAX_HOPS)
@@ -33757,13 +30280,13 @@ function resolveFrom(p, hops) {
     } catch {
       return;
     }
-    return resolveFrom(isAbsolute7(target) ? target : resolve8(dirname12(p), target), hops + 1);
+    return resolveFrom(isAbsolute7(target) ? target : resolve8(dirname10(p), target), hops + 1);
   }
-  const parent = dirname12(p);
+  const parent = dirname10(p);
   if (parent === p)
     return p;
   const real = resolveFrom(parent, hops + 1);
-  return real === undefined ? undefined : join17(real, basename6(p));
+  return real === undefined ? undefined : join17(real, basename4(p));
 }
 function realWriteTarget(p) {
   if (typeof p !== "string" || !isAbsolute7(p))
@@ -33773,7 +30296,7 @@ function realWriteTarget(p) {
 
 // src/adapters/shared/project-assets.ts
 import { existsSync as existsSync9, mkdirSync as mkdirSync8, statSync as statSync15, utimesSync as utimesSync3, writeFileSync } from "fs";
-import { basename as basename7, dirname as dirname14, join as join19, relative as relative4, resolve as resolve11, sep as sep4 } from "path";
+import { basename as basename5, dirname as dirname12, join as join19, relative as relative3, resolve as resolve11, sep as sep3 } from "path";
 
 // src/core/project-assets.ts
 var RULES_DIR = ".claude/rules";
@@ -33782,10 +30305,10 @@ var ASSETS_CONTEXT_MAX_RULES = 40;
 var ASSETS_CONTEXT_MAX_SKILLS = 40;
 var ASSETS_DESCRIPTION_MAX = 160;
 var ASSETS_BLOCK_MAX_CHARS = 2400;
-var DASH2 = "\u2014";
+var DASH = "\u2014";
 var HEADING3 = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
 var ITEM = /^\s*[-*+]\s+(.*)$/;
-var CODE2 = /`([^`]+)`/g;
+var CODE = /`([^`]+)`/g;
 var LINK_TARGET = /\]\(\s*<?((?:\.\/)?\.claude\/rules\/[^)>\s]+\.md)>?\s*\)/;
 var RULE_PATH = /^(?:\.\/)?\.claude\/rules\/.+\.md$/;
 var FIELD_SEPARATOR = /\s+(?:\u2014|\u2013|--|-)\s+/;
@@ -33798,10 +30321,10 @@ function cleanGlob(g) {
   return g.trim().replace(/^["']|["']$/g, "").trim();
 }
 function codeSpans(text) {
-  return [...text.matchAll(CODE2)].map((m) => (m[1] ?? "").trim()).filter((s) => s !== "");
+  return [...text.matchAll(CODE)].map((m) => (m[1] ?? "").trim()).filter((s) => s !== "");
 }
 function entryOf2(item, line) {
-  const spans = [...item.matchAll(CODE2)];
+  const spans = [...item.matchAll(CODE)];
   const pathSpan = spans.find((m) => RULE_PATH.test((m[1] ?? "").trim()));
   let path;
   let rest = item;
@@ -33917,7 +30440,7 @@ function globsText(globs) {
   return globs.length > 0 ? globs.map((g) => `\`${g}\``).join(", ") : "every file (no `paths:`)";
 }
 function indexLine(rule) {
-  return `- \`${rule.path}\` ${DASH2} ${rule.globs.length > 0 ? rule.globs.map((g) => `\`${g}\``).join(", ") : "`<glob>`"} ${DASH2} <purpose>`;
+  return `- \`${rule.path}\` ${DASH} ${rule.globs.length > 0 ? rule.globs.map((g) => `\`${g}\``).join(", ") : "`<glob>`"} ${DASH} <purpose>`;
 }
 function oneLine3(s, max) {
   const t = s.replace(/\s+/g, " ").trim();
@@ -33944,7 +30467,7 @@ function assetsContextText(o) {
     return "";
   const parts = [];
   if (o.rules.length > 0) {
-    parts.push(block(`Buracle project rules (H28): AGENTS.md's \`## ${SCOPED_RULES_HEADING}\` list does not name these path rules, so read the matching one before you edit files its globs match:`, o.rules.map((r) => `- \`${r.path}\` ${DASH2} ${globsText(r.globs)}`), ASSETS_CONTEXT_MAX_RULES, (more) => `- and ${more} more: \`buracle project check\` lists them all.`));
+    parts.push(block(`Buracle project rules (H28): AGENTS.md's \`## ${SCOPED_RULES_HEADING}\` list does not name these path rules, so read the matching one before you edit files its globs match:`, o.rules.map((r) => `- \`${r.path}\` ${DASH} ${globsText(r.globs)}`), ASSETS_CONTEXT_MAX_RULES, (more) => `- and ${more} more: \`buracle project check\` lists them all.`));
   }
   if (o.harness === "codex" && o.claudeOnly.length > 0) {
     parts.push(block("Buracle project skills (H28): these skills live only in .claude/skills, which Codex does not read. When a task matches one, read `.claude/skills/<id>/SKILL.md` and follow it; `buracle project sync --adopt` links them into .agents/skills for Codex.", o.claudeOnly.map((s) => `- \`${s.id}\`${s.description !== undefined && s.description !== "" ? `: ${oneLine3(s.description, ASSETS_DESCRIPTION_MAX)}` : ""}`), ASSETS_CONTEXT_MAX_SKILLS, (more) => `- and ${more} more in .claude/skills.`));
@@ -34149,8 +30672,8 @@ function nonProjectReason(dir) {
 }
 
 // src/workflow/project-assets.ts
-import { existsSync as existsSync8, lstatSync as lstatSync4, mkdirSync as mkdirSync7, readdirSync as readdirSync4, readFileSync as readFileSync16, readlinkSync as readlinkSync3, statSync as statSync14, symlinkSync, unlinkSync as unlinkSync5 } from "fs";
-import { dirname as dirname13, isAbsolute as isAbsolute8, join as join18, relative as relative3, resolve as resolve10, sep as sep3 } from "path";
+import { existsSync as existsSync8, lstatSync as lstatSync4, mkdirSync as mkdirSync7, readdirSync as readdirSync4, readFileSync as readFileSync15, readlinkSync as readlinkSync3, statSync as statSync14, symlinkSync, unlinkSync as unlinkSync5 } from "fs";
+import { dirname as dirname11, isAbsolute as isAbsolute8, join as join18, relative as relative2, resolve as resolve10, sep as sep2 } from "path";
 init_fsx();
 var SKILL_DIR_RE = /^[a-z0-9][a-z0-9._-]*$/;
 var RULES_MAX_FILES = 500;
@@ -34162,9 +30685,9 @@ function realOr2(p) {
     return resolve10(p);
   }
 }
-function within5(root, p) {
-  const rel = relative3(root, p);
-  return rel === "" || !rel.startsWith(`..${sep3}`) && rel !== ".." && !isAbsolute8(rel);
+function within4(root, p) {
+  const rel = relative2(root, p);
+  return rel === "" || !rel.startsWith(`..${sep2}`) && rel !== ".." && !isAbsolute8(rel);
 }
 function kindOf(p) {
   try {
@@ -34193,7 +30716,7 @@ function pathFacts(root, rel) {
   } catch {
     real = undefined;
   }
-  return real !== undefined ? { rel, kind, real, inside: within5(root, real) } : { rel, kind, inside: false };
+  return real !== undefined ? { rel, kind, real, inside: within4(root, real) } : { rel, kind, inside: false };
 }
 function assetLayout(rootIn) {
   const root = realOr2(rootIn);
@@ -34251,7 +30774,7 @@ function agentSkills(layout) {
 function skillMeta(dir) {
   let text;
   try {
-    text = readFileSync16(join18(dir, "SKILL.md"), "utf8");
+    text = readFileSync15(join18(dir, "SKILL.md"), "utf8");
   } catch {
     return;
   }
@@ -34276,8 +30799,8 @@ function claudeSkills(layout, withMeta = true) {
       try {
         target = readlinkSync3(path);
       } catch {}
-      const abs = isAbsolute8(target) ? target : resolve10(dirname13(path), target);
-      const intoAgents = within5(agentsPlain, abs) || within5(layout.agentsSkills, abs);
+      const abs = isAbsolute8(target) ? target : resolve10(dirname11(path), target);
+      const intoAgents = within4(agentsPlain, abs) || within4(layout.agentsSkills, abs);
       const dangling = !existsSync8(abs);
       const ours = !dangling && realOr2(abs) === realOr2(join18(layout.agentsSkills, id)) && kindOf(join18(layout.agentsSkills, id)) !== "link";
       out.push({ id, path, kind, target, ours, dangling, intoAgents });
@@ -34327,7 +30850,7 @@ function linkPlan(layout, agents = agentSkills(layout), claude = claudeSkills(la
     const link = join18(layout.claudeSkills, a.id);
     const c = byId.get(a.id);
     if (c === undefined) {
-      plan.create.push({ id: a.id, link, target: relative3(layout.claudeSkills, a.dir) });
+      plan.create.push({ id: a.id, link, target: relative2(layout.claudeSkills, a.dir) });
       continue;
     }
     if (c.kind === "link") {
@@ -34373,7 +30896,7 @@ function walkRules(dir, root, depth, out) {
     let isFile = e.isFile();
     if (e.isSymbolicLink()) {
       const real = realOr2(p);
-      if (!within5(root, real))
+      if (!within4(root, real))
         continue;
       const k = targetKind(p);
       isDir = k === "dir";
@@ -34393,14 +30916,14 @@ function ruleFiles(rootIn) {
   const dir = join18(root, ...RULES_DIR.split("/"));
   const out = [];
   walkRules(dir, root, 0, out);
-  return out.map((p) => relative3(root, p).split(sep3).join("/"));
+  return out.map((p) => relative2(root, p).split(sep2).join("/"));
 }
 function ruleFacts(rootIn, privatePaths = new Set) {
   const root = realOr2(rootIn);
   return ruleFiles(root).map((path) => {
     let text = "";
     try {
-      text = readFileSync16(join18(root, ...path.split("/")), "utf8");
+      text = readFileSync15(join18(root, ...path.split("/")), "utf8");
     } catch {}
     const g = ruleGlobsOf(text);
     const r = { path, globs: g.globs };
@@ -34414,7 +30937,7 @@ function ruleFacts(rootIn, privatePaths = new Set) {
 function readRuleIndex(rootIn) {
   let text;
   try {
-    text = readFileSync16(join18(realOr2(rootIn), "AGENTS.md"), "utf8");
+    text = readFileSync15(join18(realOr2(rootIn), "AGENTS.md"), "utf8");
   } catch {
     return { exists: false, found: false, entries: [] };
   }
@@ -34438,12 +30961,12 @@ function claudeRouting(rootIn) {
     const real = existsSync8(path) ? realOr2(path) : undefined;
     const sharedLink = agentsReal !== undefined && real !== undefined && real === agentsReal && (kind === "link" || kindOf(agents) === "link");
     const entry = { name, path, importsAgents: sharedLink, sharedLink };
-    if (kind === "link" && real !== undefined && !within5(root, real))
+    if (kind === "link" && real !== undefined && !within4(root, real))
       entry.outside = real;
     if (!sharedLink) {
       let text;
       try {
-        text = readFileSync16(path, "utf8");
+        text = readFileSync15(path, "utf8");
       } catch {
         text = undefined;
       }
@@ -34546,10 +31069,10 @@ function realPathOf(file) {
   const rest = [];
   let dir = resolve11(file);
   while (!existsSync9(dir)) {
-    const parent = dirname14(dir);
+    const parent = dirname12(dir);
     if (parent === dir)
       return resolve11(file);
-    rest.unshift(basename7(dir));
+    rest.unshift(basename5(dir));
     dir = parent;
   }
   return join19(realOr2(dir), ...rest);
@@ -34557,9 +31080,9 @@ function realPathOf(file) {
 var CLAUDE_SKILL_MD = /^\.claude\/skills\/([^/]+)\/SKILL\.md$/;
 function relIn(root, file) {
   const abs = realPathOf(file);
-  if (!within5(root, abs))
+  if (!within4(root, abs))
     return;
-  return relative4(root, abs).split(sep4).join("/");
+  return relative3(root, abs).split(sep3).join("/");
 }
 function assetsAfterEdit(rootIn, files, o) {
   try {
@@ -34663,7 +31186,7 @@ function spawnNotify(cli, title, message) {
 }
 
 // src/adapters/omp/runtime/config.ts
-import { existsSync as existsSync10, readFileSync as readFileSync17, statSync as statSync16 } from "fs";
+import { existsSync as existsSync10, readFileSync as readFileSync16, statSync as statSync16 } from "fs";
 import { join as join20 } from "path";
 init_paths();
 var configCache;
@@ -34722,7 +31245,7 @@ function liveConfig(defaults) {
     return c.value;
   let value;
   try {
-    value = parseRuntimeConfig(readFileSync17(file, "utf8"), defaults);
+    value = parseRuntimeConfig(readFileSync16(file, "utf8"), defaults);
   } catch (e) {
     warnOnce(`rc-parse:${file}:${st.mtimeMs}`, "omp: runtime-config.json unreadable; using canonical defaults", { error: e instanceof Error ? e.message : String(e) });
     value = fromDefaults(defaults);
@@ -34756,7 +31279,7 @@ function mcpHealth(nowMs = Date.now()) {
     return parseHealth(c.value, nowMs);
   let value;
   try {
-    value = JSON.parse(readFileSync17(file, "utf8"));
+    value = JSON.parse(readFileSync16(file, "utf8"));
   } catch (e) {
     warnOnce(`health:${file}:${st.mtimeMs}`, "omp: health.json unreadable; MCP health unknown", { error: e instanceof Error ? e.message : String(e) });
   }
@@ -34766,12 +31289,12 @@ function mcpHealth(nowMs = Date.now()) {
 
 // src/adapters/omp/runtime/memory.ts
 init_paths();
-import { readFileSync as readFileSync20, statSync as statSync21 } from "fs";
+import { readFileSync as readFileSync19, statSync as statSync21 } from "fs";
 import { join as join28 } from "path";
 init_shim();
 
 // src/memory/spool.ts
-import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync9, readdirSync as readdirSync5, readFileSync as readFileSync18, statSync as statSync17, unlinkSync as unlinkSync6 } from "fs";
+import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync9, readdirSync as readdirSync5, readFileSync as readFileSync17, statSync as statSync17, unlinkSync as unlinkSync6 } from "fs";
 import { join as join22 } from "path";
 init_fsx();
 init_paths();
@@ -34871,7 +31394,7 @@ init_paths();
 
 // src/memory/project.ts
 import { copyFileSync, existsSync as existsSync11, readdirSync as readdirSync6, statSync as statSync18 } from "fs";
-import { basename as basename8, dirname as dirname15, join as join23, resolve as resolve12 } from "path";
+import { basename as basename6, dirname as dirname13, join as join23, resolve as resolve12 } from "path";
 init_fsx();
 init_paths();
 function oldVaultDir() {
@@ -34894,8 +31417,8 @@ function readProjectsCache() {
 }
 function backupCorruptProjectsCache() {
   const file = projectsFile();
-  const dir = dirname15(file);
-  const base = basename8(file);
+  const dir = dirname13(file);
+  const base = basename6(file);
   let newest = 0;
   try {
     for (const n of readdirSync6(dir)) {
@@ -35042,8 +31565,8 @@ function memoryExcludePatterns() {
 }
 function existingDir(cwd) {
   let abs = resolve12(cwd);
-  while (!existsSync11(abs) && dirname15(abs) !== abs)
-    abs = dirname15(abs);
+  while (!existsSync11(abs) && dirname13(abs) !== abs)
+    abs = dirname13(abs);
   return comparablePath(abs);
 }
 function excludeEnv() {
@@ -35060,7 +31583,7 @@ async function exclusionOf(abs, patterns, nested = false) {
   if (hit === undefined) {
     const id = await projectIdentity(abs);
     const top = id.commonDir !== undefined ? await toplevel(abs) ?? id.root : abs;
-    const main = id.commonDir !== undefined && basename8(id.commonDir) === ".git" ? [dirname15(id.commonDir)] : [];
+    const main = id.commonDir !== undefined && basename6(id.commonDir) === ".git" ? [dirname13(id.commonDir)] : [];
     const own = memExclusion({ dirs: [id.root, top, ...main], ...id.ownerRepo !== undefined ? { ownerRepo: id.ownerRepo } : {} }, patterns, env);
     if (own !== undefined || id.commonDir !== undefined)
       return own;
@@ -35074,7 +31597,7 @@ async function onlyChildExclusion(abs, patterns) {
     return;
   const child = children[0];
   const why = await exclusionOf(child, patterns, true);
-  return why === undefined ? undefined : `${why} for ${basename8(child)}, the one repository in this folder`;
+  return why === undefined ? undefined : `${why} for ${basename6(child)}, the one repository in this folder`;
 }
 async function projectExclusion(cwd, patterns = memoryExcludePatterns()) {
   if (patterns.length === 0)
@@ -35212,12 +31735,12 @@ var STALE_ACTIVE_MS = 2 * 3600000;
 
 // src/memory/spawn.ts
 import { existsSync as existsSync12, statSync as statSync19 } from "fs";
-import { basename as basename9, join as join24 } from "path";
+import { basename as basename7, join as join24 } from "path";
 init_paths();
 init_shim();
 function bunBinary() {
   const exe = process.execPath;
-  if (/^bun(?:-[^/]*)?$/.test(basename9(exe)))
+  if (/^bun(?:-[^/]*)?$/.test(basename7(exe)))
     return exe;
   return Bun.which("bun") ?? undefined;
 }
@@ -35312,7 +31835,7 @@ function promptSeen(h, sid, opts = {}) {
 // src/memory/ui-build.ts
 init_paths();
 import { createHash as createHash2 } from "crypto";
-import { readdirSync as readdirSync7, readFileSync as readFileSync19 } from "fs";
+import { readdirSync as readdirSync7, readFileSync as readFileSync18 } from "fs";
 import { join as join26 } from "path";
 function uiSources(memoryDir) {
   const out = readdirSync7(memoryDir).filter((n) => /^ui.*\.ts$/u.test(n)).sort();
@@ -35333,13 +31856,13 @@ function uiSources(memoryDir) {
 }
 function uiBuildId(repoRoot = repoRoot2()) {
   try {
-    const raw = JSON.parse(readFileSync19(join26(repoRoot, "package.json"), "utf8")).version;
+    const raw = JSON.parse(readFileSync18(join26(repoRoot, "package.json"), "utf8")).version;
     const dir = join26(repoRoot, "src", "memory");
     const h = createHash2("sha256");
     for (const rel of uiSources(dir)) {
       h.update(rel);
       h.update("\x00");
-      h.update(readFileSync19(join26(dir, rel)));
+      h.update(readFileSync18(join26(dir, rel)));
       h.update("\x00");
     }
     return `${typeof raw === "string" ? raw : "?"}+${h.digest("hex").slice(0, 12)}`;
@@ -35627,7 +32150,7 @@ function createMemoryBridge(opts) {
 }
 function readIf(path) {
   try {
-    return readFileSync20(path, "utf8");
+    return readFileSync19(path, "utf8");
   } catch {
     return;
   }
@@ -35766,14 +32289,14 @@ function planSavedNote(saved, cwd) {
   const plain = saved.filter((f) => f.note === undefined);
   const notes = saved.flatMap((f) => f.note !== undefined ? [f.note] : []);
   if (plain.length > 0)
-    notes.push(`Buracle: the approved plan was saved to ${plain.map((f) => shownPath2(f.path, cwd)).join(", ")} (H12).`);
+    notes.push(`Buracle: the approved plan was saved to ${plain.map((f) => shownPath(f.path, cwd)).join(", ")} (H12).`);
   return notes.join(`
 
 `);
 }
 
 // src/adapters/shared/project-deps.ts
-import { readdirSync as readdirSync9, readFileSync as readFileSync21, statSync as statSync22 } from "fs";
+import { readdirSync as readdirSync9, readFileSync as readFileSync20, statSync as statSync22 } from "fs";
 import { join as join30, resolve as resolve15 } from "path";
 var ROOT_MANIFESTS = ["package.json", "pyproject.toml", "Pipfile", "go.mod", "Cargo.toml", "composer.json", "Gemfile"];
 var REQUIREMENTS = /^(?:requirements|constraints)[\w.-]*\.(?:txt|in)$/i;
@@ -35794,7 +32317,7 @@ function readSmall(path) {
   try {
     if (statSync22(path).size > READ_MAX_BYTES)
       return;
-    return readFileSync21(path, "utf8");
+    return readFileSync20(path, "utf8");
   } catch {
     return;
   }
@@ -36020,7 +32543,7 @@ function coreEvalGuard() {
 }
 function readText2(path) {
   try {
-    return readFileSync22(path, "utf8");
+    return readFileSync21(path, "utf8");
   } catch {
     return;
   }
@@ -36058,7 +32581,7 @@ function recentPlans(dir, nowMs, maxAgeMs) {
     if (nowMs - f.mtimeMs > maxAgeMs)
       continue;
     try {
-      out.push({ ...f, text: readFileSync22(f.path, "utf8") });
+      out.push({ ...f, text: readFileSync21(f.path, "utf8") });
     } catch {}
   }
   return out;
@@ -36614,7 +33137,7 @@ var HANDOFF_KEEP_MS = 14 * 86400000;
 function emptyReceipt() {
   return { edits: {}, commands: [], lastEditSeq: -1, lastCheckSeq: -1, seq: 0, failStreak: undefined, removedTexts: {}, flipFlops: {} };
 }
-var PROSE2 = /\.(?:md|mdx|txt|rst|adoc|json|ya?ml|toml|ini|cfg|conf|csv|svg|png|jpe?g|gif|lock|env\.example)$/iu;
+var PROSE = /\.(?:md|mdx|txt|rst|adoc|json|ya?ml|toml|ini|cfg|conf|csv|svg|png|jpe?g|gif|lock|env\.example)$/iu;
 var CHECK = new RegExp([
   String.raw`\b(?:bun|npm|pnpm|yarn|deno)\s+(?:run\s+)?(?:test|check|lint|typecheck|type-check|tsc|verify|ci)\b`,
   String.raw`\bbunx?\s+(?:test|tsc|vitest|jest|eslint|biome|prettier\s+--check)\b`,
@@ -36635,7 +33158,7 @@ function isCheckCommand(command) {
   return CHECK.test(command);
 }
 function needsVerification(path) {
-  return !PROSE2.test(path);
+  return !PROSE.test(path);
 }
 function lineDelta(oldText, newText) {
   if (oldText === newText)
@@ -37003,7 +33526,6 @@ var GENERATED = {
       enforce: true
     },
     plan: {
-      autoPause: false,
       branchIsolation: true,
       goalVerification: true,
       modelSwitch: "off",
@@ -38239,7 +34761,7 @@ import { isAbsolute as isAbsolute12, join as join36, resolve as resolve20 } from
 // src/engine/hook-health.ts
 init_fsx();
 init_paths();
-import { existsSync as existsSync14, readFileSync as readFileSync24, rmSync as rmSync6, statSync as statSync25 } from "fs";
+import { existsSync as existsSync14, readFileSync as readFileSync23, rmSync as rmSync6, statSync as statSync25 } from "fs";
 import { join as join35 } from "path";
 var HOOK_FAILURE_MESSAGES = ["hook handler failed", "hook command failed before dispatch", "hook runtime failed"];
 var DAY_MS = 86400000;
@@ -38290,7 +34812,7 @@ function scanHookFailures(nowMs, windowMs = DAY_MS, file = logFile()) {
   for (const f of [`${file}.1`, file]) {
     let text;
     try {
-      text = readFileSync24(f, "utf8");
+      text = readFileSync23(f, "utf8");
     } catch {
       continue;
     }
@@ -38314,7 +34836,7 @@ function hookHealthCacheFile() {
 function hookHealthForStatus(nowMs, maxAgeMs = 60000) {
   const file = hookHealthCacheFile();
   try {
-    const c = JSON.parse(readFileSync24(file, "utf8"));
+    const c = JSON.parse(readFileSync23(file, "utf8"));
     if (typeof c.at === "number" && nowMs - c.at >= 0 && nowMs - c.at < maxAgeMs && c.summary !== undefined && typeof c.summary.failures === "number")
       return c.summary;
   } catch {}
@@ -38345,7 +34867,7 @@ async function runtimeBehindForStatus(nowMs, maxAgeMs = 300000) {
   const file = runtimeDriftCacheFile();
   const stamp = shimStamp();
   try {
-    const c = JSON.parse(readFileSync24(file, "utf8"));
+    const c = JSON.parse(readFileSync23(file, "utf8"));
     if (typeof c.at === "number" && nowMs - c.at >= 0 && nowMs - c.at < maxAgeMs && typeof c.behind === "boolean" && c.shim === stamp)
       return c.behind;
   } catch {}
@@ -38837,9 +35359,6 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
         const edits = editsFor(call, targets);
         if (edits !== undefined)
           rctx.edits = edits;
-        const pd = deps.projectDeps(info?.root);
-        if (pd !== undefined)
-          rctx.deps = pd;
       }
       let result;
       deps.ledger.update(lsid, (l) => {
@@ -39211,7 +35730,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
       if (text !== "" && isValidSessionId(sid))
         guarded("H20 grants", () => deps.recordGrants(sid, text, now));
       const control = intent === "pause" || intent === "resume" || intent === "stop" ? intent : null;
-      parts.push({ text: guarded("H10 interaction", () => promptGuidance(deps, sid, control, text, { autoPause: lc.config.plan.autoPause, now })), order: 0 });
+      parts.push({ text: guarded("H10 interaction", () => promptGuidance(deps, sid, control, text, { now })), order: 0 });
       parts.push({ text: guarded("H10 review notes", () => deps.reviewNotes?.(sid, { plan: deps.state.load(sid).plan?.path, roots: [m.workspaceInfo?.root, ctx.cwd], now })), order: 0 });
       const routed = text === "" ? undefined : guarded("H22 route.prompt", () => route(sid, literalSkill ? literalSkillAsk(text) : text, lc));
       parts.push({ text: guarded("H21 workspace notice", () => workspaceUpdate(sid, lc, now)), order: 2 });
@@ -39224,11 +35743,6 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
       if (wf !== undefined) {
         const input = wf.args !== "" ? { workflow: wf.workflow, title: wf.args, source: "command" } : { workflow: wf.workflow, source: "command" };
         guarded("H25 flow start", () => deps.flow.start(sid, input, now));
-      }
-      if (text !== "") {
-        const signals = guarded("H26 prompt signals", () => promptSignals(text)) ?? [];
-        for (const signal of signals)
-          entries.push({ ts: now, ev: "prompt-signal", signal });
       }
       spool(sid, entries);
       const queued = m.queued ??= [];

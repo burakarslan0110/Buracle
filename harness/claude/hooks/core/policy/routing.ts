@@ -1,8 +1,6 @@
 import type { Harness, PreDecision, ToolCall, ToolKind } from '../events'
 import { mcpServerToken } from '../events'
 import type { CatalogMcp, CatalogSkill } from '../catalog'
-import { commandName, parseShell, stageCommands, unwrap } from './shell'
-import type { Script } from './shell'
 import type { Triggers } from './skill-router'
 
 export interface RoutingPolicy { strictness: 'enforce'|'nudge'|'off'; categories: RoutingCategory[] }
@@ -203,11 +201,7 @@ function docsFetchRoute(call: ToolCall, policy: RoutingPolicy, health: McpHealth
 
 export function routeTool(call: ToolCall, policy: RoutingPolicy, health: McpHealth): PreDecision {
   if (!policy || policy.strictness === 'off') return { action: 'allow' }
-  if (call.kind === 'bash') {
-    const nudge = typeof call.command === 'string' ? bashNudge(call.command) : undefined
-    return nudge !== undefined ? { action: 'allow', context: [nudge] } : { action: 'allow' }
-  }
-  if (call.kind === 'mcp' || call.kind === 'eval' || call.kind === 'other') return { action: 'allow' }
+  if (call.kind === 'bash' || call.kind === 'mcp' || call.kind === 'eval' || call.kind === 'other') return { action: 'allow' }
   if (call.kind === 'web_fetch' && needsBuiltinSession(call)) return { action: 'allow' }
   const docsRoute = docsFetchRoute(call, policy, health ?? {})
   if (docsRoute !== undefined) return docsRoute
@@ -246,80 +240,6 @@ function libraryDocsHint(policy: RoutingPolicy, call: ToolCall, health: McpHealt
   const choice = choose(cat, '-', health)
   if (choice.ref?.kind !== 'mcp') return ''
   return ` (for library or framework docs, use ${serverLabel(cat, choice.ref, call.harness)} first)`
-}
-
-const GREP_FAMILY = new Set(['grep', 'egrep', 'fgrep', 'ggrep'])
-
-function grepIsRecursive(argv: string[]): boolean {
-  for (let k = 1; k < argv.length; k++) {
-    const t = argv[k] as string
-    if (t === '--') break
-    if (t === '--recursive' || t === '--dereference-recursive' || t === '--directories=recurse') return true
-    if ((t === '-d' || t === '--directories') && argv[k + 1] === 'recurse') return true
-    if (/^-[A-Za-z]+$/.test(t)) {
-      const letters = t.slice(1)
-      for (let j = 0; j < letters.length; j++) {
-        const ch = letters[j] as string
-        if (ch === 'r' || ch === 'R') return true
-        if ('efmABCdD'.includes(ch)) { if (j === letters.length - 1) k++; break }
-      }
-    }
-  }
-  return false
-}
-
-const NUDGE_GREP = 'Search with `rg -n "<pattern>" <dir>` instead of `grep -r` (faster, respects .gitignore); for code by intent use the semble MCP `search`, and for definitions and callers use codegraph.'
-const NUDGE_FIND = 'Search with `rg -n "<pattern>" -g "<glob>"` instead of `find … | xargs grep` or `find -exec grep`; for code by intent use the semble MCP `search`, and for definitions and callers use codegraph.'
-
-function scanScript(script: Script, depth: number): string | undefined {
-  for (const pl of script.pipelines) {
-    let sawFind = false
-    for (const stage of pl.stages) {
-      for (const cmd of stageCommands(stage)) {
-        const first = commandName(cmd.words[0])
-        const u = unwrap(cmd.words)
-        const name = commandName(u.argv[0])
-        const argv = u.argv.map(w => w.text)
-        if (name === 'rgrep') return NUDGE_GREP
-        if (name !== undefined && GREP_FAMILY.has(name)) {
-          if (grepIsRecursive(argv)) return NUDGE_GREP
-          if (sawFind && first === 'xargs') return NUDGE_FIND
-        }
-        if (name === 'find') {
-          for (let k = 0; k < argv.length; k++) {
-            if (['-exec', '-execdir', '-ok', '-okdir'].includes(argv[k] as string)) {
-              const n = commandName(u.argv[k + 1])
-              if (n !== undefined && GREP_FAMILY.has(n)) return NUDGE_FIND
-            }
-          }
-          sawFind = true
-        }
-        if (depth < 4) {
-          for (const s of u.scripts) {
-            const inner = scanScript(parseShell(s).script, depth + 1)
-            if (inner) return inner
-          }
-        }
-      }
-    }
-  }
-  return undefined
-}
-
-export function bashNudge(command: string): string | undefined {
-  if (typeof command !== 'string' || command.trim() === '') return undefined
-  try {
-    const { script, subs } = parseShell(command)
-    const direct = scanScript(script, 0)
-    if (direct) return direct
-    for (const s of subs) {
-      const inner = scanScript(parseShell(s).script, 1)
-      if (inner) return inner
-    }
-  } catch {
-    return undefined
-  }
-  return undefined
 }
 
 export const CAPABILITY_CARD_MAX_LINES = 30

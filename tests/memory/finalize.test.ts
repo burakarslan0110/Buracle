@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { promptSignals } from '../../src/core/memory/signals'
 import { contextText } from '../../src/memory/context'
 import { pendingSessions } from '../../src/memory/capture'
 import { closeAllCortex, cortexFor } from '../../src/memory/cortex'
@@ -31,8 +30,6 @@ async function spooled(repo: string, sid: string, entries: Parameters<typeof app
   await sessionStart('codex', sid, repo)
   appendSpool('codex', sid, [{ ts: Date.now(), ev: 'prompt' }, ...entries, { ts: Date.now() + 5, ev: 'stop', excerpt }])
 }
-
-const statement = (text: string, ts = Date.now() + 1) => promptSignals(text).map(signal => ({ ts, ev: 'prompt-signal' as const, signal }))
 
 describe('finalize', () => {
   test('a late segment gets a second pass of the session memory, but the tail runs once', async () => {
@@ -209,7 +206,7 @@ describe('finalize', () => {
 
   test('without a model, a standing rule in the prompts files nothing: no word list reads it', async () => {
     await withBrain(async ({ repo }) => {
-      await spooled(repo, SID, statement('Always run the tests before you commit.'))
+      await spooled(repo, SID, [])
       const r = await finalize('codex', SID, { pending: false })
       expect(r.capture?.preferences.written).toEqual([])
       expect((await listAll(personRef())).filter(i => i.kind === 'preference')).toEqual([])
@@ -332,7 +329,7 @@ describe('finalize', () => {
 
   test('the session end leaves none of the machinery that used to run in the background: no jobs journal, tick, sweep, repair, upkeep or profile files', async () => {
     await withBrain(async ({ repo }) => {
-      await spooled(repo, SID, statement('Always run the tests before you commit.'))
+      await spooled(repo, SID, [])
       const r = await finalize('codex', SID, { pending: false })
       expect(r.memoryId).toBeDefined()
       expect(r.capture?.distill).toMatchObject({ ran: false, skipped: 'disabled' })

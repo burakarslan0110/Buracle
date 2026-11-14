@@ -5,7 +5,7 @@ import * as checkers from '../../../src/core/checkers'
 import type { CheckerPlan } from '../../../src/core/checkers'
 import { defaultConfig } from '../../../src/core/config'
 import { run } from '../../../src/engine/proc'
-import { checkerArgv, checkOneFile, importersOf, lastFailed, lineCountOf, nodeCheckFs, removedByFile, scanUpward, testFilesNear, type CheckerResult, type FileCheckEnv } from '../../../src/adapters/shared/checker-scan'
+import { checkerArgv, checkOneFile, nodeCheckFs, removedByFile, scanUpward, type CheckerResult, type FileCheckEnv } from '../../../src/adapters/shared/checker-scan'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
 
 const CFG = defaultConfig().checkers
@@ -95,58 +95,8 @@ describe('checkerArgv: the binary a checker runs', () => {
   }))
 })
 
-describe('test pairing on disk', () => {
-  test('a mirrored tests/ folder and a test that imports the module silence the TDD hint', () => withSandbox(async ({ root }) => {
-    put(root, {
-      'src/core/checkers.ts': 'export const x = 1\n',
-      'src/lib/thing.ts': 'export const t = 1\n',
-      'src/lib/lonely.ts': 'export const l = 1\n',
-      'tests/core/checkers/checkers.test.ts': "import { x } from '../../../src/core/checkers'\n",
-      'tests/flows/end-to-end.test.ts': "import { t } from '../../src/lib/thing'\n",
-      'tests/node_modules/x.test.ts': "import { l } from '../../src/lib/lonely'\n",
-    })
-    const scans = (f: string) => scanUpward(nodeCheckFs, join(root, f), root)
-    expect(testFilesNear(nodeCheckFs, join(root, 'src/core/checkers.ts'), scans('src/core/checkers.ts'), () => 0)[0]).toBe(join(root, 'tests/core/checkers/checkers.test.ts'))
-    const e = env()
-    for (const f of ['src/core/checkers.ts', 'src/lib/thing.ts']) {
-      const notes = await checkOneFile(e, { file: join(root, f), cwd: root, root, deadlineMs: 1e12 }, CFG)
-      expect({ f, notes }).toEqual({ f, notes: [] })
-    }
-    const lonely = await checkOneFile(e, { file: join(root, 'src/lib/lonely.ts'), cwd: root, root, deadlineMs: 1e12 }, CFG)
-    expect(lonely.map(n => n.kind)).toEqual(['tdd'])
-    expect(lonely[0]?.text).toContain('in the test folders, and for a test that imports it')
-    expect(importersOf(nodeCheckFs, join(root, 'src/lib/thing.ts'), [join(root, 'tests/flows/end-to-end.test.ts')], () => 0)).toEqual([join(root, 'tests/flows/end-to-end.test.ts')])
-  }))
-
-  test('pytest lastfailed: a module whose test fails is in a red-green cycle', () => withSandbox(async ({ root }) => {
-    put(root, {
-      'app/billing.py': 'def charge():\n    return 1\n',
-      '.pytest_cache/v/cache/lastfailed': JSON.stringify({ 'tests/test_billing.py::test_charge': true }),
-    })
-    expect(lastFailed(nodeCheckFs, scanUpward(nodeCheckFs, join(root, 'app/billing.py'), root))).toEqual(['tests/test_billing.py'])
-    expect(await checkOneFile(env(), { file: join(root, 'app/billing.py'), cwd: root, root, deadlineMs: 1e12 }, CFG)).toEqual([])
-  }))
-
-  test('.NET: a test project beside the project counts, logic-free files are skipped', () => withSandbox(async ({ root }) => {
-    put(root, {
-      'App/App.csproj': '<Project Sdk="Microsoft.NET.Sdk" />\n',
-      'App/Calc.cs': 'public class Calc { public int Add(int a, int b) { return a + b; } }\n',
-      'App/Point.cs': 'public record Point(int X, int Y);\n',
-      'App/Lonely.cs': 'public class Lonely { public int F() { return 1; } }\n',
-      'App.Tests/App.Tests.csproj': '<Project Sdk="Microsoft.NET.Sdk" />\n',
-      'App.Tests/CalcTests.cs': 'public class CalcTests { [Fact] public void Adds() { } }\n',
-    })
-    const e = env()
-    const notes = async (f: string) => (await checkOneFile(e, { file: join(root, f), cwd: root, root, deadlineMs: 1e12 }, CFG)).filter(n => n.kind === 'tdd')
-    expect(await notes('App/Calc.cs')).toEqual([])
-    expect(await notes('App/Point.cs')).toEqual([])
-    expect((await notes('App/Lonely.cs'))[0]?.text).toContain('LonelyTests.cs')
-    expect(e.runs.every(a => a[0] === 'dotnet' && a.includes('--include'))).toBe(true)
-  }))
-})
-
 describe('checkOneFile: running the plans', () => {
-  test('a missing linter is named once per session; the trivial edit skips the TDD hint; the length note counts lines', () => withSandbox(async ({ root }) => {
+  test('a missing linter is named once per session', () => withSandbox(async ({ root }) => {
     put(root, { 'run.sh': 'echo hi\necho there\n' })
     const seen = new Set<string>()
     const e = env({ results: () => ({ code: 127, stdout: '', stderr: 'spawn shellcheck ENOENT' }), once: key => (seen.has(key) ? false : (seen.add(key), true)) })
@@ -154,9 +104,6 @@ describe('checkOneFile: running the plans', () => {
     expect(first).toEqual([{ kind: 'missing', text: 'shellcheck is not installed, so it did not check this file: run `buracle install`.' }])
     expect([...seen]).toEqual(['H04:missing:shellcheck'])
     expect(await checkOneFile(e, { file: join(root, 'run.sh'), cwd: root, root, deadlineMs: 1e12 }, CFG)).toEqual([])
-    expect(lineCountOf('a\nb\n')).toBe(2)
-    expect(lineCountOf('a\nb')).toBe(2)
-    expect(lineCountOf('')).toBe(0)
   }))
 
   test('a missing Go toolchain is named once, not once for go and again for gofmt', () => withSandbox(async ({ root }) => {

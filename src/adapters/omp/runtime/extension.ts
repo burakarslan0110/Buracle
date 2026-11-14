@@ -2,7 +2,6 @@ import type { BuracleConfig } from '../../../core/config'
 import type { HookId, ToolCall, ToolKind } from '../../../core/events'
 import { classifyTool } from '../../../core/events'
 import { flowDef } from '../../../core/flow/catalog'
-import { promptSignals } from '../../../core/memory/signals'
 import { spoolPromptExcerpt } from '../../../core/memory/spool'
 import * as corePolicy from '../../../core/policy/index'
 import type { BashGuardOptions } from '../../../core/policy/bash-guard'
@@ -236,8 +235,6 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       if (WRITE_KINDS.has(call.kind)) {
         const edits = editsFor(call, targets)
         if (edits !== undefined) rctx.edits = edits
-        const pd = deps.projectDeps(info?.root)
-        if (pd !== undefined) rctx.deps = pd
       }
       let result: ReminderResult | undefined
       deps.ledger.update(lsid, l => { result = reminders(l, call, rctx); return result.next })
@@ -546,7 +543,7 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       const intent = text === '' ? null : guarded('H10 detectIntent', () => deps.policy.detectIntent(text))
       if (text !== '' && paths.isValidSessionId(sid)) guarded('H20 grants', () => deps.recordGrants(sid, text, now))
       const control = intent === 'pause' || intent === 'resume' || intent === 'stop' ? intent : null
-      parts.push({ text: guarded('H10 interaction', () => promptGuidance(deps, sid, control, text, { autoPause: lc.config.plan.autoPause, now })), order: 0 })
+      parts.push({ text: guarded('H10 interaction', () => promptGuidance(deps, sid, control, text, { now })), order: 0 })
       parts.push({ text: guarded('H10 review notes', () => deps.reviewNotes?.(sid, { plan: deps.state.load(sid).plan?.path, roots: [m.workspaceInfo?.root, ctx.cwd], now })), order: 0 })
       const routed = text === '' ? undefined : guarded('H22 route.prompt', () => route(sid, literalSkill ? literalSkillAsk(text) : text, lc))
       parts.push({ text: guarded('H21 workspace notice', () => workspaceUpdate(sid, lc, now)), order: 2 })
@@ -559,10 +556,6 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       if (wf !== undefined) {
         const input = wf.args !== '' ? { workflow: wf.workflow, title: wf.args, source: 'command' as const } : { workflow: wf.workflow, source: 'command' as const }
         guarded('H25 flow start', () => deps.flow.start(sid, input, now))
-      }
-      if (text !== '') {
-        const signals = guarded('H26 prompt signals', () => promptSignals(text)) ?? []
-        for (const signal of signals) entries.push({ ts: now, ev: 'prompt-signal', signal })
       }
       spool(sid, entries)
       const queued = m.queued ??= []

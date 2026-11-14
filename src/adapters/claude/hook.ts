@@ -4,7 +4,6 @@ import type { ToolCall, ToolKind } from '../../core/events'
 import { classifyTool } from '../../core/events'
 import { workflowOfPrompt, workflowOfSkill } from '../../core/flow/catalog'
 import { spoolPromptExcerpt, type SpoolEntry } from '../../core/memory/spool'
-import { promptSignals } from '../../core/memory/signals'
 import { checkBash, type BashGuardOptions } from '../../core/policy/bash-guard'
 import { checkWrite } from '../../core/policy/write-guard'
 import { validateReviewJson } from '../../core/policy/review'
@@ -316,8 +315,8 @@ function contextWarning(ctx: AdapterContext, sid: string, now: number): string |
     : `Buracle: the context window is ${Math.round(pct)}% full. Keep the plan file and todo list current so work survives compaction; read narrow line ranges instead of whole files.`
 }
 
-function controlNotice(control: PromptSignals['control'], prompt: string, sid: string, ctx: AdapterContext, now: number): string | undefined {
-  const opts = { autoPause: ctx.config.plan.autoPause, now }
+function controlNotice(control: PromptSignals['control'], prompt: string, sid: string, _ctx: AdapterContext, now: number): string | undefined {
+  const opts = { now }
   const before = loadState(H, sid)
   if (before.plan === undefined) return promptInteraction(before, control, prompt, opts).guidance
   let guidance: string | undefined
@@ -394,10 +393,6 @@ async function userPromptSubmit(p: Record<string, unknown>, sid: string, ctx: Ad
     routed = await step('H22 route.prompt', undefined as string | undefined, () => promptRoute(prompt, signals, sid, ctx, d, now, invoked, str(p['cwd'])))
     planMode = await step('H10 read-only start', undefined as string | undefined, () => readOnlyStart(H, p['permission_mode'] === 'plan', [typed?.workflow, ...invoked]))
     system = await step('permission mode', undefined as string | undefined, () => permissionNotice(sid, p['permission_mode'], ctx.config, now))
-    if (!captureOff(d)) {
-      const signals26 = await step('H26 prompt signals', [] as ReturnType<typeof promptSignals>, () => promptSignals(prompt))
-      for (const signal of signals26) entries.push({ ts: now, ev: 'prompt-signal', signal })
-    }
   }
   const notice = await step('H21 workspace notice', undefined as string | undefined, () => workspaceUpdate(sid, ctx, d, now))
   const warning = await step('H05 context warning', undefined as string | undefined, () => contextWarning(ctx, sid, now))
@@ -516,11 +511,10 @@ async function preShell(p: Record<string, unknown>, sid: string, ctx: AdapterCon
   const cls = classifyTool(H, tool, input, cwd)
   const command = cls.command ?? str(input['command'])
   if (command === undefined) return QUIET
-  const shell = tool === 'PowerShell' ? { shell: 'powershell' as const } : {}
   try {
     const options: BashGuardOptions = {
       ...ctx.config.guards.bash, home: paths.home(), selfPaths: selfPaths(ctx.config.repo), cwd,
-      vault: paths.oldVaultRoot(), protect: ctx.config.guards.write.protect, realpath: (q: string): string | undefined => d.realpath(q), ...shell,
+      vault: paths.oldVaultRoot(), protect: ctx.config.guards.write.protect, realpath: (q: string): string | undefined => d.realpath(q),
     }
     const verdict = d.core.checkBash(command, options)
     if (verdict.deny !== undefined) return deny(verdict.deny)
@@ -532,7 +526,7 @@ async function preShell(p: Record<string, unknown>, sid: string, ctx: AdapterCon
   if (reviewer !== undefined) return deny(reviewer)
   const lane = isSubagent(p) ? await step('H01 lane guard', undefined as string | undefined, () => laneStateDenial(command)) : undefined
   if (lane !== undefined) return deny(lane)
-  const consent = await step('H20 consent', undefined as string | undefined, () => consentGate(H, sid, command, now, (c, s, t) => d.core.consentVerdict(c, s, t, shell)))
+  const consent = await step('H20 consent', undefined as string | undefined, () => consentGate(H, sid, command, now, d.core.consentVerdict))
   if (consent !== undefined) return deny(`Buracle H20 (consent.gate): ${consent}`)
   if (guardsOnly) return QUIET
   const call: ToolCall = { harness: H, sessionId: sid, cwd, tool, input, ...cls, kind: 'bash', command }
@@ -575,8 +569,6 @@ async function usageGate(sid: string, ctx: AdapterContext, d: HookDeps, call: To
       policy: routingPolicy(ctx), facts,
     }
     if (call.kind === 'edit' || call.kind === 'write') {
-      const deps = projectDeps(facts.root)
-      if (deps !== undefined) rctx.deps = deps
       if (edits !== undefined) rctx.edits = edits
     }
     const r = usageReminders(sid, call, rctx)

@@ -56,20 +56,15 @@ describe('ledger records', () => {
     expect(skillOf(call('codex', 'Bash', { command: 'ls skills' }), 'codex')).toBeUndefined()
   })
 
-  test('MCP calls: codegraph symbols, context7 libraries, semble and codegraph reset the search streak', () => {
+  test('MCP calls: semble and codegraph reset the search streak', () => {
     let l = fresh()
     l = ledgerCall(l, call('claude', 'Bash', { command: 'rg -n parseConfig src' }))
     l = ledgerCall(l, call('claude', 'Grep', { pattern: 'x' }))
     expect(l.streak.search).toBe(2)
     l = ledgerCall(l, mcp('codegraph', 'codegraph_callers', { symbol: 'routePrompt' }))
     expect(l.mcp['codegraph']).toEqual({ n: 1, turn: 1 })
-    expect(l.symbols).toContain('routePrompt')
     expect(l.streak.search).toBe(0)
     expect(l.turnTools.graph).toBe(1)
-    l = ledgerCall(l, mcp('context7', 'resolve-library-id', { libraryName: 'Zod', query: 'error map' }))
-    l = ledgerCall(l, mcp('context7', 'query-docs', { libraryId: '/vercel/next.js', query: 'redirects' }))
-    expect(l.libs).toEqual(expect.arrayContaining(['zod', 'vercel/next.js', 'next.js']))
-    expect(l.libs).not.toContain('error map')
   })
 
   test('searches, reads and memory searches are counted per turn', () => {
@@ -112,10 +107,9 @@ describe('ledger records', () => {
     expect(parseLedger(JSON.parse(JSON.stringify(l)))).toEqual(l)
     expect(parseLedger(null)).toEqual(emptyLedger())
     expect(parseLedger({ v: 2 })).toEqual(emptyLedger())
-    const odd = parseLedger({ v: 1, turn: 'x', mcp: { a: { n: 1, turn: 1 }, b: 'no' }, symbols: ['s', 3], prompt: { turn: 1, at: 2, route: 'bad' } })
+    const odd = parseLedger({ v: 1, turn: 'x', mcp: { a: { n: 1, turn: 1 }, b: 'no' }, prompt: { turn: 1, at: 2, route: 'bad' } })
     expect(odd.turn).toBe(0)
     expect(odd.mcp).toEqual({ a: { n: 1, turn: 1 } })
-    expect(odd.symbols).toEqual(['s'])
     expect(odd.prompt).toBeUndefined()
   })
 })
@@ -162,85 +156,6 @@ describe('gate: the semble repo and codegraph projectPath', () => {
     expect(rootProblem('/Users/u/dev', folder)).toBe('a folder of projects, not a project')
     expect(rootProblem('~', { home: '/Users/u' })).toBe('your home folder')
     expect(rootProblem('/Users/u/dev', undefined)).toBeUndefined()
-  })
-})
-
-describe('gate R3: an exported signature changes before codegraph was asked', () => {
-  const edit = (oldS: string, newS: string, file = '/repo/src/router.ts'): ToolCall => call('claude', 'Edit', { file_path: file, old_string: oldS, new_string: newS })
-  const sigChange = edit('export function routePrompt(text: string): Route {', 'export function routePrompt(text: string, opts: Options): Route {')
-
-  test('enforce denies once per symbol, then the retry runs', () => {
-    const first = reminders(fresh(), sigChange, ctx())
-    expect(first.deny?.key).toBe('R3:routePrompt')
-    expect(first.deny?.reason).toContain('codegraph callers or impact for `routePrompt`')
-    const retry = reminders(first.next, sigChange, ctx())
-    expect(retry.deny).toBeUndefined()
-    expect(retry.next.turnTools.calls).toBe(1)
-  })
-
-  test('one denial covers every changed symbol of the edit', () => {
-    const two = edit('export function a(x: number) {}\nexport function b(y: number) {}', 'export function a(x: string) {}\nexport function b(y: string) {}')
-    const first = reminders(fresh(), two, ctx())
-    expect(first.deny?.reason).toContain('`a`, `b`')
-    expect(first.next.usedOnce).toEqual(['R3:a', 'R3:b'])
-    expect(reminders(first.next, two, ctx()).deny).toBeUndefined()
-  })
-
-  test('a symbol codegraph was asked about, a body-only edit or a private name passes', () => {
-    const asked = ledgerCall(fresh(), mcp('codegraph', 'codegraph_callers', { symbol: 'routePrompt' }))
-    expect(reminders(asked, sigChange, ctx()).deny).toBeUndefined()
-    expect(reminders(fresh(), edit('  return a + 1', '  return a + 2'), ctx()).deny).toBeUndefined()
-    expect(reminders(fresh(), edit('function helper(a) {', 'function helper(a, b) {'), ctx()).deny).toBeUndefined()
-    expect(reminders(fresh(), edit('def _private(a):', 'def _private(a, b):', '/repo/x.py'), ctx()).deny).toBeUndefined()
-  })
-
-  test('nudge mode and projects without a codegraph index get one context line instead', () => {
-    const nudge = reminders(fresh(), sigChange, ctx({ strictness: 'nudge' }))
-    expect(nudge.deny).toBeUndefined()
-    expect(nudge.context).toContain('codegraph callers or impact')
-    expect(reminders(nudge.next, sigChange, ctx({ strictness: 'nudge' })).context).toBeUndefined()
-    const noIndex = reminders(fresh(), sigChange, ctx({ facts: { codegraphIndexed: false } }))
-    expect(noIndex.deny).toBeUndefined()
-    expect(noIndex.context).toContain('rg -n')
-  })
-
-  test('Codex patches and Python/Go signatures count too', () => {
-    const patch = ['*** Begin Patch', '*** Update File: src/api.py', '@@', '-def fetch(url):', '+def fetch(url, timeout):', '*** End Patch'].join('\n')
-    expect(reminders(fresh(), call('codex', 'apply_patch', { input: patch }), ctx()).deny?.key).toBe('R3:fetch')
-    const go = edit('func (s *Server) Start(ctx context.Context) error {', 'func (s *Server) Start(ctx context.Context, port int) error {', '/repo/server.go')
-    expect(reminders(fresh(), go, ctx()).deny?.key).toBe('R3:Start')
-  })
-})
-
-describe('gate R4: a new third-party import before context7 was asked', () => {
-  const add = (code: string, file = '/repo/src/form.ts'): ToolCall => call('claude', 'Edit', { file_path: file, old_string: 'const a = 1', new_string: `${code}\nconst a = 1` })
-
-  test('enforce denies once per package; the retry runs (context7 may not know it)', () => {
-    const c = add("import { z } from 'zod'")
-    const first = reminders(fresh(), c, ctx({ deps: ['zod'] }))
-    expect(first.deny?.key).toBe('R4:zod')
-    expect(first.deny?.reason).toContain('context7 resolve-library-id, then query-docs')
-    expect(first.deny?.reason).toContain('just retry')
-    expect(reminders(first.next, c, ctx({ deps: ['zod'] })).deny).toBeUndefined()
-  })
-
-  test('resolved libraries, relative and built-in imports, unknown non-dependencies pass', () => {
-    const resolved = ledgerCall(fresh(), mcp('context7', 'resolve-library-id', { libraryName: 'zod' }))
-    expect(reminders(resolved, add("import { z } from 'zod'"), ctx({ deps: ['zod'] })).deny).toBeUndefined()
-    expect(reminders(fresh(), add("import x from './x'\nimport { readFileSync } from 'node:fs'\nimport path from 'path'"), ctx({ deps: ['zod'] })).deny).toBeUndefined()
-    expect(reminders(fresh(), add("import Button from 'components/Button'"), ctx({ deps: ['zod'] })).deny).toBeUndefined()
-    expect(reminders(fresh(), add("import { useQuery } from '@tanstack/react-query'"), ctx({ deps: ['zod'] })).deny?.key).toBe('R4:@tanstack/react-query')
-    const both = call('claude', 'Edit', { file_path: '/repo/a.ts', old_string: "import { z } from 'zod'", new_string: "import { z, ZodError } from 'zod'" })
-    expect(reminders(fresh(), both, ctx({ deps: ['zod'] })).deny).toBeUndefined()
-    expect(reminders(fresh(), add("import { z } from 'zod'"), ctx({ deps: ['zod'], available: MCP_IDS.filter(s => s !== 'context7') })).deny).toBeUndefined()
-  })
-
-  test('Python imports count when the manifest lists them', () => {
-    const py = (code: string) => call('claude', 'Write', { file_path: '/repo/app.py', content: code })
-    const edits = (code: string) => [{ file: '/repo/app.py', removed: '', added: code }]
-    expect(reminders(fresh(), py('import requests'), ctx({ deps: ['requests'], edits: edits('import requests') })).deny?.key).toBe('R4:requests')
-    expect(reminders(fresh(), py('import os\nfrom pathlib import Path'), ctx({ deps: ['requests'], edits: edits('import os\nfrom pathlib import Path') })).deny).toBeUndefined()
-    expect(reminders(fresh(), py('import requests'), ctx({ deps: ['requests'] })).deny).toBeUndefined()
   })
 })
 
@@ -321,8 +236,6 @@ describe('gate R5: the first edit of a file a path rule covers (Codex, OpenCode)
     expect(read.context).toContain('src/App.tsx matches the path rules `frontend`, `typescript`; follow them when you change files like this one.')
     expect(reminders(read.next, write(`${APP}/src/App.tsx`), ctx({ pathRules: rules() })).deny).toBeUndefined()
     expect(reminders(fresh(), call('opencode', 'read', { filePath: `${APP}/src/App.tsx` }, APP), ctx({ pathRules: rules() })).context).toBeUndefined()
-    const history = fresh(route({ memory: { recall: true, write: false } }))
-    expect(reminders(history, call('opencode', 'read', { filePath: `${APP}/src/App.tsx` }, APP), ctx({ pathRules: rules({ onRead: true }) })).context).toContain('asks about earlier work')
   })
 
   test('nudge gives the rule text as context once; off, reminders off and no source leave edits alone', () => {
@@ -333,21 +246,6 @@ describe('gate R5: the first edit of a file a path rule covers (Codex, OpenCode)
     expect(reminders(fresh(), write(`${APP}/cmd/main.go`), ctx({ strictness: 'nudge', reminders: false, pathRules: rules() })).context).toBeUndefined()
     expect(reminders(fresh(), write(`${APP}/cmd/main.go`), ctx({ strictness: 'off', pathRules: rules() })).deny).toBeUndefined()
     expect(reminders(fresh(), write(`${APP}/cmd/main.go`), ctx()).deny).toBeUndefined()
-  })
-
-  test('under nudge the rule note keeps the R3 and R4 notes of the same edit', () => {
-    const edit = (file: string, oldString: string, newString: string): ToolCall => call('opencode', 'edit', { filePath: `${APP}/${file}`, oldString, newString }, APP)
-    const sig = edit('cmd/main.go', 'func Start(port int) error {', 'func Start(port int, host string) error {')
-    const r3 = reminders(fresh(), sig, ctx({ strictness: 'nudge', pathRules: rules() }))
-    expect(r3.deny).toBeUndefined()
-    expect(r3.context).toStartWith('Buracle: cmd/main.go matches the path rule `go`; follow it for this change.\n\n# Go\n\n- gofmt every file.\n\nBuracle: this edit changes the exported `Start`; check the callers (codegraph callers or impact for `Start`)')
-    expect(r3.next.usedOnce).toEqual(['R5:go'])
-    expect(reminders(r3.next, sig, ctx({ strictness: 'nudge', pathRules: rules() })).context).toBeUndefined()
-    const imp = edit('src/form.ts', 'const a = 1', "import { z } from 'zod'\nconst a = 1")
-    const r4 = reminders(fresh(), imp, ctx({ strictness: 'nudge', deps: ['zod'], pathRules: rules() }))
-    expect(r4.context).toContain('src/form.ts matches the path rule `typescript`; follow it for this change.\n\n# TypeScript')
-    expect(r4.context).toContain('Buracle: this edit imports `zod`; check the API at the version in the lockfile with context7')
-    expect(reminders(r4.next, imp, ctx({ strictness: 'nudge', deps: ['zod'], pathRules: rules() })).context).toBeUndefined()
   })
 
   test('a rule whose file is not installed is not delivered and stays pending', () => {
@@ -361,16 +259,6 @@ describe('gate R5: the first edit of a file a path rule covers (Codex, OpenCode)
 })
 
 describe('context reminders', () => {
-  test('memory first: a history question whose turn starts with another tool', () => {
-    const l = fresh(route({ memory: { recall: true, write: false } }))
-    const r = reminders(l, call('claude', 'Grep', { pattern: 'cache' }), ctx())
-    expect(r.context).toContain('asks about earlier work')
-    expect(r.context).toContain('memory_search')
-    expect(reminders(l, mcp('buracle-memory', 'memory_search', { query: 'cache' }), ctx()).context).toBeUndefined()
-    expect(reminders(r.next, call('claude', 'Grep', { pattern: 'x' }), ctx()).context).toBeUndefined()
-    expect(reminders(l, call('claude', 'Grep', { pattern: 'cache' }), ctx({ available: [] })).context).toContain('buracle mem search')
-  })
-
   test('a built-in Grep that reads like a question points to semble, with a cooldown', () => {
     const r = reminders(fresh(), call('claude', 'Grep', { pattern: 'where is the config loaded' }), ctx())
     expect(r.context).toContain('semble search')
@@ -400,53 +288,12 @@ describe('context reminders', () => {
     expect(reminders(fresh(), mcp('web-fetch', 'fetch_url', { url: 'https://example.com/post' }), ctx()).context).toBeUndefined()
   })
 
-  test('H03 shell nudges: a shell file write points to the edit tools once per session, never a denial', () => {
-    const sed = call('claude', 'Bash', { command: "sed -i 's/a/b/' src/a.ts" })
-    const w = reminders(fresh(), sed, ctx())
-    expect(w.deny).toBeUndefined()
-    expect(w.context).toBe("Buracle: this shell command writes `src/a.ts` (sed -i in place). Make ordinary source edits with the Edit or Write tool instead: the user sees them as a diff, and Buracle's file checks (H04) run only on them. Keeping command output and running generators, formatters or codemods is fine; read the diff they leave.")
-    expect(reminders(w.next, call('claude', 'Bash', { command: 'echo x > b.ts' }), ctx()).context).toBeUndefined()
-    expect(reminders(ledgerPrompt(w.next, route(), NOW + 1), call('claude', 'Bash', { command: 'echo x > b.ts' }), ctx()).context).toBeUndefined()
-    expect(reminders(fresh(), call('codex', 'Bash', { command: "cat > a.ts <<'EOF'\nx\nEOF" }), ctx()).context).toContain('with apply_patch instead')
-    expect(reminders(fresh(), call('opencode', 'bash', { command: 'echo x > a.ts' }), ctx()).context).toContain('with the edit, write or patch tool instead')
-    expect(reminders(fresh(), call('omp', 'bash', { command: 'echo x > a.ts' }), ctx()).context).toContain('with the edit or write tool instead')
-    expect(reminders(fresh(), call('claude', 'Bash', { command: 'bun test > /tmp/out.txt' }), ctx()).context).toBeUndefined()
-    expect(reminders(fresh(), sed, ctx({ reminders: false })).context).toContain('(sed -i in place)')
-    expect(reminders(fresh(), sed, ctx({ strictness: 'off' })).context).toBeUndefined()
-  })
-
-  test('H03 shell nudges: a shell write outside the project (system files, home dotfiles, other folders) gets no note', () => {
-    const facts: WorkspaceFacts = { root: '/Users/u/dev/app', home: '/Users/u' }
-    const bash = (command: string) => call('claude', 'Bash', { command }, '/Users/u/dev/app/src')
-    for (const c of ['echo x | sudo tee -a /etc/hosts', 'echo x >> ~/.zshrc', 'echo x > /Users/u/dev/other/a.ts', 'echo x > ~/todo.md']) {
-      expect({ c, context: reminders(fresh(), bash(c), ctx({ facts })).context }).toEqual({ c, context: undefined })
-    }
-    expect(reminders(fresh(), bash('echo x > ../README.md'), ctx({ facts })).context).toContain('writes `../README.md`')
-    expect(reminders(fresh(), bash('echo x > /Users/u/dev/app/lib/a.ts'), ctx({ facts })).context).toContain('writes `/Users/u/dev/app/lib/a.ts`')
-  })
-
-  test('H03 shell nudges: printing a file in the shell points to the read tool, once per turn and three times per session; Codex has no read tool', () => {
-    const cat = (h: Harness, f = 'src/a.ts') => call(h, h === 'claude' || h === 'codex' ? 'Bash' : 'bash', { command: `cat ${f}` })
-    const r = reminders(fresh(), cat('claude'), ctx())
-    expect(r.context).toBe("Buracle: read `src/a.ts` with the Read tool instead of printing it in the shell (cat, head, tail, sed -n): shell dumps clutter the user's terminal, and the Read tool gives line numbers you can edit from. Keep the shell for real processing (pipes, filters, scripts).")
-    expect(reminders(r.next, cat('claude', 'src/b.ts'), ctx()).context).toBeUndefined()
-    let l = r.next
-    const shown: Array<string | undefined> = []
-    for (let i = 0; i < 4; i++) { l = ledgerPrompt(l, route(), NOW + i); const x = reminders(l, cat('claude'), ctx()); shown.push(x.context); l = x.next }
-    expect(shown.map(c => c !== undefined)).toEqual([true, true, false, false])
-    expect(reminders(fresh(), cat('codex'), ctx()).context).toBeUndefined()
-    expect(reminders(fresh(), cat('opencode'), ctx()).context).toContain('with the read tool instead')
-    expect(reminders(fresh(), cat('omp'), ctx()).context).toContain('with the read tool instead')
-    expect(reminders(fresh(), call('claude', 'Bash', { command: 'cat a.json | jq .' }), ctx()).context).toBeUndefined()
-    expect(reminders(fresh(), call('claude', 'Monitor', { command: 'tail -n 5 src/a.ts' }), ctx()).context).toBeUndefined()
-  })
-
   test('routing.reminders off keeps only the gates; strictness off only records', () => {
     const grep = call('claude', 'Grep', { pattern: 'where is the config loaded' })
     expect(reminders(fresh(), grep, ctx({ reminders: false })).context).toBeUndefined()
-    const edit = call('claude', 'Edit', { file_path: '/repo/a.ts', old_string: 'export const f = (a: number) => a', new_string: 'export const f = (a: string) => a' })
-    expect(reminders(fresh(), edit, ctx({ reminders: false })).deny?.key).toBe('R3:f')
-    const off = reminders(fresh(), edit, ctx({ strictness: 'off' }))
+    const root = mcp('codegraph', 'codegraph_callers', { symbol: 'f', projectPath: '/Users/u' })
+    expect(reminders(fresh(), root, ctx({ reminders: false })).deny?.key).toBe('root')
+    const off = reminders(fresh(), root, ctx({ strictness: 'off' }))
     expect(off.deny).toBeUndefined()
     expect(off.context).toBeUndefined()
     expect(off.next.turnTools.calls).toBe(1)
@@ -466,14 +313,6 @@ describe('H23 turn audit', () => {
     expect(turnAudit(ledgerCall(l, call('claude', 'Read', { file_path: '/plugin/skills/plan-build/SKILL.md' })))).toEqual({ action: 'allow' })
   })
 
-  test('a history question without a memory search blocks once', () => {
-    const l = fresh(route({ memory: { recall: true, write: false } }))
-    const d = turnAudit(l)
-    expect(d.action === 'block' ? d.reason : '').toContain('memory was not searched')
-    expect(turnAudit(ledgerCall(l, mcp('buracle-memory', 'memory_search', { query: 'x' })))).toEqual({ action: 'allow' })
-    expect(turnAudit(ledgerCall(l, call('codex', 'Bash', { command: 'buracle mem search x' })))).toEqual({ action: 'allow' })
-  })
-
   test('nothing required, no prompt, or the next prompt: allow', () => {
     expect(turnAudit(emptyLedger())).toEqual({ action: 'allow' })
     expect(turnAudit(fresh(route({ candidates: ['research'], categories: ['library-docs'] })))).toEqual({ action: 'allow' })
@@ -483,7 +322,7 @@ describe('H23 turn audit', () => {
 })
 
 describe('H23 and the memory backlog', () => {
-  test('the memory backlog never blocks a stop: only a skill the user asked for and a history question do', () => {
+  test('the memory backlog never blocks a stop: only a skill the user asked for does', () => {
     expect(turnAudit(fresh())).toEqual({ action: 'allow' })
     expect(ledgerAudited(fresh(), { action: 'allow' }).prompt?.audited).toBe(true)
     expect(parseLedger({ v: 1, upkeepTouched: true, upkeepAudited: true })).toEqual(emptyLedger())

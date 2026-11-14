@@ -1,17 +1,15 @@
 import type { Harness, StopDecision, ToolCall } from '../events'
 import type { IndexExclusionContext } from '../workspace'
 import { indexExclusion, isPathWithin, pathKey } from '../workspace'
-import { changedExports, importedPackages, languageOf, patchDeletes, patchEdits } from './code-facts'
+import { patchDeletes, patchEdits } from './code-facts'
 import type { PathRuleSource } from './path-rules'
 import { matchPathRules, pathRuleNote, projectRelative, ruleFileId } from './path-rules'
 import type { McpHealth, RoutingPolicy } from './routing'
 import { isDocsUrl } from './routing'
-import { shellFileRead, shellFileWrite } from './shell-files'
 import type { PromptRoute } from './skill-router'
 import { categoryReminder } from './skill-router'
 import type { ShellWord } from './shell'
 import { commandName, DYN, HOME, parseShell, simpleCommands, unwrap } from './shell'
-import { fold } from './text'
 
 export interface UsageCount { n: number; turn: number }
 export interface TurnTools {
@@ -30,8 +28,6 @@ export interface UsageLedger {
   skills: Record<string, UsageCount>
   turnTools: TurnTools
   streak: { search: number }
-  symbols: string[]
-  libs: string[]
   shown: Record<string, { turn: number; n: number }>
   usedOnce: string[]
   mcpErrors?: Record<string, number>
@@ -46,7 +42,7 @@ export function emptyTurn(): TurnTools {
 }
 
 export function emptyLedger(): UsageLedger {
-  return { v: 1, turn: 0, mcp: {}, skills: {}, turnTools: emptyTurn(), streak: { search: 0 }, symbols: [], libs: [], shown: {}, usedOnce: [] }
+  return { v: 1, turn: 0, mcp: {}, skills: {}, turnTools: emptyTurn(), streak: { search: 0 }, shown: {}, usedOnce: [] }
 }
 
 function isObj(x: unknown): x is Record<string, unknown> {
@@ -94,8 +90,6 @@ export function parseLedger(raw: unknown): UsageLedger {
     }
   }
   if (isObj(raw['streak']) && isNum(raw['streak']['search'])) l.streak = { search: raw['streak']['search'] }
-  l.symbols = strList(raw['symbols'], LIST_MAX)
-  l.libs = strList(raw['libs'], LIST_MAX)
   if (isObj(raw['shown'])) {
     for (const [k, v] of Object.entries(raw['shown']).slice(0, MAP_MAX)) if (isObj(v) && isNum(v['turn']) && isNum(v['n'])) l.shown[k] = { turn: v['turn'], n: v['n'] }
   }
@@ -214,32 +208,6 @@ function isMemoryCli(call: ToolCall): boolean {
   return memoryCliOps(call).some(op => ['search', 'get', 'timeline', 'status', 'update'].includes(op))
 }
 
-function isMemoryCall(call: ToolCall): boolean {
-  return (call.kind === 'mcp' && call.mcp?.server === 'buracle-memory') || isMemoryCli(call)
-}
-
-function identifiers(input: Record<string, unknown>): string[] {
-  const out: string[] = []
-  for (const k of ['symbol', 'name', 'query', 'symbolName', 'qualifiedName', 'target', 'node', 'from', 'to', 'id']) {
-    const v = input[k]
-    if (typeof v !== 'string') continue
-    for (const m of v.matchAll(/[A-Za-z_$][\w$]*/g)) if (m[0].length >= 2) out.push(m[0])
-  }
-  return [...new Set(out)].slice(0, 32)
-}
-
-function libraryNames(input: Record<string, unknown>): string[] {
-  const out: string[] = []
-  for (const k of ['libraryName', 'libraryId', 'library', 'context7CompatibleLibraryID']) {
-    const v = input[k]
-    if (typeof v !== 'string' || v.trim() === '') continue
-    const f = fold(v).replace(/^\/+/, '')
-    out.push(f)
-    for (const seg of f.split('/')) if (seg.length >= 2) out.push(seg)
-  }
-  return [...new Set(out)].slice(0, 16)
-}
-
 export function ledgerCall(l: UsageLedger, call: ToolCall): UsageLedger {
   const turn = l.turn
   const t: TurnTools = { ...l.turnTools, calls: l.turnTools.calls + 1, read: [...l.turnTools.read] }
@@ -247,12 +215,9 @@ export function ledgerCall(l: UsageLedger, call: ToolCall): UsageLedger {
   const skill = skillOf(call, call.harness)
   if (skill !== undefined) next.skills = bump(l.skills, skill, turn)
   const server = call.kind === 'mcp' ? call.mcp?.server : undefined
-  const input = isObj(call.input) ? call.input : {}
   if (server !== undefined && server !== '') {
     next.mcp = bump(l.mcp, server, turn)
     if (server === 'semble' || server === 'codegraph') { t.graph++; next.streak.search = 0 }
-    if (server === 'codegraph') next.symbols = pushUnique(l.symbols, identifiers(input))
-    if (server === 'context7') next.libs = pushUnique(l.libs, libraryNames(input))
     if (server === 'buracle-memory') t.memory++
   }
   if (isMemoryCli(call)) { next.mcp = bump(next.mcp, 'buracle-memory', turn); t.memory++ }
@@ -308,7 +273,6 @@ export interface ReminderContext {
   policy?: RoutingPolicy
   facts?: WorkspaceFacts
   edits?: ReadonlyArray<{ file: string, removed: string, added: string }>
-  deps?: readonly string[]
   pathRules?: PathRuleSource
 }
 
@@ -318,15 +282,8 @@ export interface ReminderResult {
   next: UsageLedger
 }
 
-const FALLBACK_REMINDER: Record<string, string> = {
-  'code-search': 'find code by intent with semble search (repo = the project root); use rg for exact text',
-  'code-structure': 'ask codegraph (callers, callees, impact) before changing a shared symbol',
-  memory: 'search memory with memory_search, then memory_get the relevant memories, and cite their ids',
-  'library-docs': 'resolve the library with context7 (resolve-library-id), then query-docs at the version in the lockfile',
-}
-
 function reminderText(ctx: ReminderContext, category: string): string {
-  return categoryReminder(ctx.policy, category) ?? FALLBACK_REMINDER[category] ?? ''
+  return categoryReminder(ctx.policy, category) ?? ''
 }
 
 interface ShowRule { perTurn?: boolean; cooldownTurns?: number; max: number; topic?: string }
@@ -378,24 +335,6 @@ function editsOf(call: ToolCall, ctx: ReminderContext): Array<{ file: string, re
     return text === undefined ? [] : patchEdits(text).map(e => ({ file: e.path, removed: e.removed, added: e.added }))
   }
   return []
-}
-
-const normDep = (s: string): string => fold(s).replace(/_/g, '-')
-const alnum = (s: string): string => fold(s).replace(/[^a-z0-9]/g, '')
-
-function libResolved(libs: readonly string[], pkg: string): boolean {
-  const parts = [pkg, pkg.split('/').pop() ?? pkg, pkg.startsWith('@') ? (pkg.split('/')[0] ?? '').slice(1) : ''].map(alnum).filter(c => c.length >= 2)
-  return libs.map(alnum).some(lib => lib.length >= 2 && parts.some(c => lib === c || (c.length >= 3 && lib.includes(c)) || (lib.length >= 3 && c.includes(lib))))
-}
-
-function gateable(pkg: string, file: string, deps: ReadonlySet<string>): boolean {
-  switch (languageOf(file)) {
-    case 'ts': return deps.size === 0 || deps.has(normDep(pkg)) || pkg.startsWith('@')
-    case 'py': return deps.has(normDep(pkg))
-    case 'rs': return deps.has(normDep(pkg))
-    case 'go': return true
-    default: return false
-  }
 }
 
 const ABSOLUTE_PATH = /^(?:\/|[A-Za-z]:[\\/]|\\\\)/
@@ -509,31 +448,6 @@ function editTargets(call: ToolCall, ctx: ReminderContext): string[] {
   return [...new Set(files)]
 }
 
-const EDIT_TOOLS: Record<Harness, string> = { claude: 'the Edit or Write tool', codex: 'apply_patch', opencode: 'the edit, write or patch tool', omp: 'the edit or write tool' }
-const READ_TOOLS: Partial<Record<Harness, string>> = { claude: 'the Read tool', opencode: 'the read tool', omp: 'the read tool' }
-export const SHELL_READ_NUDGES = 3
-
-function shellNudge(l: UsageLedger, call: ToolCall, base: UsageLedger, facts: WorkspaceFacts | undefined): ReminderResult | undefined {
-  if (call.kind !== 'bash' || typeof call.command !== 'string' || call.tool === 'Monitor') return undefined
-  const write = shellFileWrite(call.command, { cwd: call.cwd, ...(facts?.root !== undefined ? { root: facts.root } : {}), ...(facts?.home !== undefined ? { home: facts.home } : {}) })
-  if (write !== undefined) {
-    if (!canShow(l, 'shell-write', { max: 1 })) return undefined
-    return {
-      context: `Buracle: this shell command writes ${write.file !== undefined ? `\`${write.file}\`` : 'files'} (${write.label}). Make ordinary source edits with ${EDIT_TOOLS[call.harness]} instead: the user sees them as a diff, and Buracle's file checks (H04) run only on them. Keeping command output and running generators, formatters or codemods is fine; read the diff they leave.`,
-      next: markShown(base, 'shell-write'),
-    }
-  }
-  const tool = READ_TOOLS[call.harness]
-  if (tool === undefined) return undefined
-  const files = shellFileRead(call.command)
-  if (files === undefined || !canShow(l, 'shell-read', { perTurn: true, max: SHELL_READ_NUDGES })) return undefined
-  const shown = files.slice(0, 2).map(f => `\`${f}\``).join(', ')
-  return {
-    context: `Buracle: read ${shown} with ${tool} instead of printing ${files.length === 1 ? 'it' : 'them'} in the shell (cat, head, tail, sed -n): shell dumps clutter the user's terminal, and ${tool} gives line numbers you can edit from. Keep the shell for real processing (pipes, filters, scripts).`,
-    next: markShown(base, 'shell-read'),
-  }
-}
-
 function naturalLanguage(pattern: string): boolean {
   const p = pattern.trim()
   if (p.length < 12 || p.length > 200 || /[\\^$.*+?()[\]{}|]/.test(p)) return false
@@ -569,42 +483,6 @@ export function reminders(l: UsageLedger, call: ToolCall, ctx: ReminderContext):
     const note = rules !== undefined && hit !== undefined ? pathRuleNote(enforce ? 'deny' : 'edit', hit.file, hit.ids, rules) : undefined
     if (note !== undefined && enforce) return { deny: { reason: note.text, key: ruleKey(note.delivered[0] as string) }, next: markRules(l, note.delivered) }
     const base = note !== undefined ? markRules(recorded, note.delivered) : recorded
-    const withRules = (text: string): string => (note !== undefined ? `${note.text}\n\n${text}` : text)
-    const edits = editsOf(call, ctx)
-    const codegraph = available.has('codegraph') && ctx.facts?.codegraphIndexed === true
-    const symbols: Array<{ sym: string, file: string }> = []
-    for (const e of edits) for (const sym of changedExports(e.removed, e.added, e.file)) if (!l.symbols.includes(sym) && !symbols.some(s => s.sym === sym)) symbols.push({ sym, file: e.file })
-    const list = (xs: string[]): string => xs.slice(0, 5).map(x => `\`${x}\``).join(', ') + (xs.length > 5 ? ` and ${xs.length - 5} more` : '')
-    const fresh3 = symbols.filter(s => !l.usedOnce.includes(`R3:${s.sym}`))
-    if (codegraph && enforce && fresh3.length > 0) {
-      const names = fresh3.map(s => s.sym)
-      const where = fresh3[0]?.file !== undefined && fresh3[0].file !== '' ? ` (${fresh3[0].file.split('/').slice(-2).join('/')})` : ''
-      return { deny: { reason: `Buracle: this edit changes the exported ${list(names)}${where}, and codegraph has not been asked about ${names.length > 1 ? 'them' : 'it'} in this session. Check the callers first (codegraph callers or impact for ${list(names)}), then retry the edit; the retry is allowed.`, key: `R3:${names[0]}` }, next: { ...l, usedOnce: pushUnique(l.usedOnce, names.map(n => `R3:${n}`)) } }
-    }
-    const note3 = codegraph && enforce ? [] : symbols.filter(s => canShow(l, `R3:${s.sym}`, { max: 1 }))
-    if (remind && note3.length > 0) {
-      const names = note3.map(s => s.sym)
-      const how = codegraph ? `codegraph callers or impact for ${list(names)}` : `\`rg -n "\\b${names[0]}\\b"\``
-      return { context: withRules(`Buracle: this edit changes the exported ${list(names)}; check the callers (${how}) and update them in the same change.`), next: names.reduce((acc, n) => markShown(acc, `R3:${n}`), base) }
-    }
-    if (available.has('context7')) {
-      const deps = new Set((ctx.deps ?? []).map(normDep))
-      const pkgs: string[] = []
-      for (const e of edits) {
-        const had = new Set(importedPackages(e.removed, e.file))
-        for (const pkg of importedPackages(e.added, e.file)) {
-          if (!had.has(pkg) && !pkgs.includes(pkg) && gateable(pkg, e.file, deps) && !libResolved(l.libs, pkg)) pkgs.push(pkg)
-        }
-      }
-      const fresh4 = pkgs.filter(p => !l.usedOnce.includes(`R4:${p}`))
-      if (enforce && fresh4.length > 0) {
-        return { deny: { reason: `Buracle: this edit adds an import of ${list(fresh4)}, and context7 has not been asked about ${fresh4.length > 1 ? 'them' : 'it'} in this session. Check the API at the version in the lockfile first (context7 resolve-library-id, then query-docs), then retry the edit; if context7 does not know a library, just retry.`, key: `R4:${fresh4[0]}` }, next: { ...l, usedOnce: pushUnique(l.usedOnce, fresh4.map(p => `R4:${p}`)) } }
-      }
-      const note4 = enforce ? [] : pkgs.filter(p => canShow(l, `R4:${p}`, { max: 1 }))
-      if (remind && note4.length > 0) {
-        return { context: withRules(`Buracle: this edit imports ${list(note4)}; check the API at the version in the lockfile with context7 (resolve-library-id, then query-docs).`), next: note4.reduce((acc, p) => markShown(acc, `R4:${p}`), base) }
-      }
-    }
     if (note !== undefined) return { context: note.text, next: base }
   }
 
@@ -613,15 +491,7 @@ export function reminders(l: UsageLedger, call: ToolCall, ctx: ReminderContext):
     const n = rules !== undefined && readHit !== undefined ? pathRuleNote('read', readHit.file, readHit.ids, rules) : undefined
     return n !== undefined ? { context: n.text, next: markRules(recorded, n.delivered) } : undefined
   }
-  const shell = shellNudge(l, call, recorded, ctx.facts)
-  if (!remind) return shell ?? (enforce ? readNote() : undefined) ?? { next: recorded }
-  const turnOf = l.prompt?.turn === l.turn ? l.prompt.route : undefined
-
-  if (turnOf?.memory.recall === true && l.turnTools.calls === 0 && l.turnTools.memory === 0 && !isMemoryCall(call) && canShow(l, 'memory-first', { perTurn: true, max: 50 })) {
-    const how = available.has('buracle-memory') ? reminderText(ctx, 'memory') : 'run `buracle mem search "<query>"` (the memory server is unavailable)'
-    return { context: `Buracle: this prompt asks about earlier work; before anything else, ${how}.`, next: markShown(recorded, 'memory-first') }
-  }
-  if (shell !== undefined) return shell
+  if (!remind) return (enforce ? readNote() : undefined) ?? { next: recorded }
   const ruleNote = readNote()
   if (ruleNote !== undefined) return ruleNote
   const pattern = str(input['pattern']) ?? str(input['query'])
@@ -650,10 +520,6 @@ export function turnAudit(l: UsageLedger): StopDecision {
     if (s === undefined || s.turn < p.turn) {
       return { action: 'block', hook: 'H23', reason: `Buracle routing check: the user asked for ${id} and it was not loaded. Load it now and follow it, or say in one line why it does not apply.` }
     }
-  }
-  if (p.route.memory.recall && l.turnTools.memory === 0 && (l.mcp['buracle-memory']?.turn ?? -1) < p.turn) {
-    const how = p.route.memory.cli === true ? '`buracle mem search "<query>"`' : 'memory_search (buracle-memory)'
-    return { action: 'block', hook: 'H23', reason: `Buracle routing check: this prompt asks about earlier work and memory was not searched. Run ${how} now, or say in one line why memory cannot help.` }
   }
   return { action: 'allow' }
 }

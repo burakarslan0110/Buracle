@@ -45,7 +45,6 @@ Use the purpose-built tool for each need. A fallback is allowed only when the pr
   - "The user asked for the <id> workflow" (or skill): load it the way the note says and follow it.
   - "Skills to evaluate first": decide YES or NO for each with a one-line reason, then load every YES before any other tool.
   - Every other line names the MCP server the prompt calls for: use it for that part of the work.
-- Buracle holds a few calls until the right tool has run. An edit that changes an exported signature before codegraph was asked about the symbol, or that adds an import of a library context7 has not been asked about, is denied once: check, then retry (the retry is allowed, also when context7 does not know the library).
 - At the end of a turn Buracle checks once whether a workflow the user asked for by an exact invocation was loaded. If not, load it, or say in one line why it does not apply. The note names no skill from the prompt's words and raises no memory line: decide those yourself (a history question still starts with `memory_search`, a request to remember still gets a `memory_write`).
 - Prefer skills for workflows: when a skill covers the job (research, memory, planning, worktrees, reviews), load it and follow it instead of improvising.
 - History questions ("last time", "why did we", "what did we decide", "where were we", in any language) start with `memory_search`.

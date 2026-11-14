@@ -515,7 +515,7 @@ describe('parity: secrets in shell output are masked before the model reads them
   }), 60_000)
 })
 
-const FEATURES: Readonly<Record<'consentDialog' | 'readOnlyStartNotice' | 'earlyEditNote' | 'rateWindows' | 'todoHandoff' | 'pathRules' | 'goalCommand' | 'projectRuleList' | 'claudeOnlySkillList' | 'laneGuard' | 'answerReceipt' | 'readOnlyStop' | 'backgroundWait' | 'quietStopFeedback' | 'shellWriteNudge' | 'shellReadNudge' | 'approvedPlanCapture' | 'reviewerShellReadOnly' | 'midTurnContextWarning' | 'startupNotices' | 'summaryKeepList' | 'languageServers' | 'lspDiagnosticsOnEdit' | 'turnReceipt' | 'longTurnNotice' | 'resumeHint' | 'livePanes' | 'stopVeto' | 'subagentStopHold' | 'commandsWithoutTurn' | 'liveExecMask' | 'failedMcpMask' | 'customStatusLine' | 'reviewSubject' | 'reviewRestore' | 'modelSwitchCommand' | 'nativePlanMode' | 'nativePlanApproval' | 'companionShell' | 'reviewNotesNotice' | 'browserControl', Readonly<Record<Harness, boolean>>>> = {
+const FEATURES: Readonly<Record<'consentDialog' | 'readOnlyStartNotice' | 'earlyEditNote' | 'rateWindows' | 'todoHandoff' | 'pathRules' | 'goalCommand' | 'projectRuleList' | 'claudeOnlySkillList' | 'laneGuard' | 'answerReceipt' | 'readOnlyStop' | 'backgroundWait' | 'quietStopFeedback' | 'approvedPlanCapture' | 'reviewerShellReadOnly' | 'midTurnContextWarning' | 'startupNotices' | 'summaryKeepList' | 'languageServers' | 'lspDiagnosticsOnEdit' | 'turnReceipt' | 'longTurnNotice' | 'resumeHint' | 'livePanes' | 'stopVeto' | 'subagentStopHold' | 'commandsWithoutTurn' | 'liveExecMask' | 'failedMcpMask' | 'customStatusLine' | 'reviewSubject' | 'reviewRestore' | 'modelSwitchCommand' | 'nativePlanMode' | 'nativePlanApproval' | 'companionShell' | 'reviewNotesNotice' | 'browserControl', Readonly<Record<Harness, boolean>>>> = {
   approvedPlanCapture: { claude: true, codex: true, opencode: false, omp: true },
   reviewerShellReadOnly: { claude: true, codex: true, opencode: true, omp: true },
   consentDialog: { claude: true, codex: true, opencode: true, omp: true },
@@ -535,8 +535,6 @@ const FEATURES: Readonly<Record<'consentDialog' | 'readOnlyStartNotice' | 'early
   readOnlyStop: { claude: true, codex: true, opencode: true, omp: true },
   backgroundWait: { claude: true, codex: false, opencode: true, omp: true },
   quietStopFeedback: { claude: true, codex: false, opencode: false, omp: true },
-  shellWriteNudge: { claude: true, codex: true, opencode: true, omp: true },
-  shellReadNudge: { claude: true, codex: false, opencode: true, omp: true },
   languageServers: { claude: true, codex: true, opencode: true, omp: true },
   lspDiagnosticsOnEdit: { claude: true, codex: true, opencode: true, omp: true },
   turnReceipt: { claude: true, codex: true, opencode: true, omp: true },
@@ -856,20 +854,9 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
     expect(file(files.opencode, 'plugins/buracle/index.js')).toContain('Buracle project rules (H28)')
   }), 60_000)
 
-  test('H03 shell nudges: a shell file write points to the edit tools on all four; a shell file print to the read tool where one exists (Codex has none)', async () => {
-    const { emptyLedger, ledgerPrompt, reminders } = await import('../../src/core/policy/usage')
-    const { classifyTool } = await import('../../src/core/events')
-    const shellTool: Record<Harness, string> = { claude: 'Bash', codex: 'Bash', opencode: 'bash', omp: 'bash' }
-    const note = (h: Harness, command: string) => {
-      const input = { command }
-      const call = { harness: h, sessionId: 's', cwd: '/repo', tool: shellTool[h], input, ...classifyTool(h, shellTool[h], input, '/repo') }
-      return reminders(ledgerPrompt(emptyLedger(), { invoked: [], load: [], candidates: [], categories: [], memory: { recall: false, write: false } }, 1), call, { strictness: 'enforce', available: [] }).context ?? ''
-    }
-    expect(Object.fromEntries(HARNESSES.map(h => [h, note(h, "sed -i 's/a/b/' src/a.ts").includes('this shell command writes')]))).toEqual(FEATURES.shellWriteNudge)
-    expect(Object.fromEntries(HARNESSES.map(h => [h, note(h, 'cat src/a.ts').includes('instead of printing')]))).toEqual(FEATURES.shellReadNudge)
+  test('the OpenCode and omp bundles carry the H04 missing-tool and checker notes', async () => {
     const { files } = await built()
     for (const bundle of [file(files.opencode, 'plugins/buracle/index.js'), file(files.omp, 'extensions/buracle.js')]) {
-      expect(bundle).toContain('instead of printing')
       expect(bundle).toContain('H04:missing:')
       expect(bundle).toContain('dotnet format: the whitespace is not formatted')
     }

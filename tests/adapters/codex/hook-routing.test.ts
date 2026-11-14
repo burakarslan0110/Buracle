@@ -122,7 +122,6 @@ describe('routing (H21-H26)', () => {
     expect(denied.hookSpecificOutput.permissionDecisionReason).toContain(`Pass the project root ${proj} instead`)
     expect((await handleCodexHook('PreToolUse', mcp({ query: 'uploadFile', projectPath: proj }), ctx(), deps({}))).stdout).toBe('')
     expect(loadLedger('codex', SID).mcp['codegraph']?.n).toBe(1)
-    expect(loadLedger('codex', SID).symbols).toContain('uploadFile')
     await handleCodexHook('PreToolUse', mcp({ query: 'y', projectPath: proj }, { agent_id: 'a1', agent_type: 'worker' }), ctx(), deps({}))
     expect(loadLedger('codex', SID).mcp['codegraph']?.n).toBe(1)
   }))
@@ -225,7 +224,7 @@ describe('routing (H21-H26)', () => {
     expect(await reason(alpha)).toBeUndefined()
   }))
 
-  test('H24/H03 for a thread-spawned subagent: the root check and the deny-once gates apply to its calls, on a ledger of its own (never the session\'s turn)', () => withSandbox(async ({ home, root }) => {
+  test('H24/H03 for a thread-spawned subagent: the root check applies to its calls, on a ledger of its own (never the session\'s turn)', () => withSandbox(async ({ home, root }) => {
     const proj = join(root, 'proj')
     mkdirSync(proj, { recursive: true })
     writeFileSync(join(proj, 'package.json'), JSON.stringify({ dependencies: { zod: '^3' } }))
@@ -243,12 +242,8 @@ describe('routing (H21-H26)', () => {
     }
     expect(await reason(call('mcp__codegraph__codegraph_explore', { query: 'auth', projectPath: home }))).toStartWith('Buracle H03: codegraph `projectPath`')
     expect(await reason(call('mcp__semble__search', { query: 'where is auth', repo: proj }))).toBeUndefined()
-    const patch = "*** Begin Patch\n*** Add File: src/schema.ts\n+import { z } from 'zod'\n+const user = z.object({})\n*** End Patch\n"
-    expect(await reason(call('apply_patch', { command: patch }))).toStartWith('Buracle H03: this edit adds an import of `zod`')
-    expect(await reason(call('apply_patch', { command: patch }))).toBeUndefined()
     const l = loadLedger('codex', SID)
     expect([l.mcp, l.usedOnce, l.turnTools.calls]).toEqual([{}, [], 0])
-    expect(await reason(call('apply_patch', { command: patch }, {}))).toStartWith('Buracle H03: this edit adds an import of `zod`')
   }))
 
   test('H24/H23: a Bash read of a SKILL.md loads the skill; an explicitly requested skill that was not loaded holds the stop once', () => withSandbox(async () => {
@@ -324,23 +319,6 @@ describe('routing (H21-H26)', () => {
     await read(`cat ${home}/.agents/skills/bugfix/SKILL.md`, { agent_id: CHILD, agent_type: 'worker' })
     await read(`cat ${join(root, 'buracle', 'canonical', 'skills', 'bugfix', 'SKILL.md')}`)
     expect(readFlow('codex', SID)).toBeUndefined()
-  }))
-
-  test('H24/R4: an apply_patch that imports a project dependency context7 was not asked about is denied once; the retry goes through', () => withSandbox(async ({ root }) => {
-    const proj = join(root, 'proj')
-    mkdirSync(proj, { recursive: true })
-    writeFileSync(join(proj, 'package.json'), JSON.stringify({ dependencies: { zod: '^3' } }))
-    saveWorkspaceInfo(ctx(), SID, infoAt(proj))
-    const patch = "*** Begin Patch\n*** Add File: src/schema.ts\n+import { z } from 'zod'\n+const user = z.object({})\n*** End Patch\n"
-    const call = () => handleCodexHook('PreToolUse', payload('PreToolUse', { cwd: proj, tool_name: 'apply_patch', tool_input: { command: patch } }), ctx(), deps(quiet))
-    const first = JSON.parse((await call()).stdout)
-    expect(first.hookSpecificOutput.permissionDecision).toBe('deny')
-    expect(first.hookSpecificOutput.permissionDecisionReason).toStartWith('Buracle H03: this edit adds an import of `zod`')
-    expect((await call()).stdout).toBe('')
-    const shell = `cd ${proj} && apply_patch <<'EOF'\n*** Begin Patch\n*** Add File: src/b.ts\n+import { describe } from 'vitest-x'\n*** End Patch\nEOF`
-    writeFileSync(join(proj, 'package.json'), JSON.stringify({ dependencies: { zod: '^3', 'vitest-x': '1' } }))
-    const viaShell = JSON.parse((await handleCodexHook('PreToolUse', payload('PreToolUse', { cwd: proj, tool_name: 'Bash', tool_input: { command: shell } }), ctx(), deps(quiet))).stdout)
-    expect(viaShell.hookSpecificOutput.permissionDecisionReason).toStartWith('Buracle H03: this edit adds an import of `vitest-x`')
   }))
 
   test('PostToolUse (H14): MCP calls are spooled with their tool name, `webrun` as a web search', () => withSandbox(async () => {

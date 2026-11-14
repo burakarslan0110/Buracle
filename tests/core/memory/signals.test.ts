@@ -1,19 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
-  profileCategory, PROFILE_QUOTE_MAX, promptSignals, sanitizePromptSignal, signalGroup,
+  profileCategory, PROFILE_QUOTE_MAX, sanitizePromptSignal, signalGroup,
 } from '../../../src/core/memory/signals'
-
-// The prompt hook (H26) reads no statements from word lists any more (PRD follow-up 2026-11-06): a lasting
-// preference, in any language, is written by the agent at once, or proposed by the session-end model call
-// with the user's own words. promptSignals keeps its contract and gives nothing.
-
-describe('promptSignals: no word lists', () => {
-  test('standing rules in any language give no signal', () => {
-    for (const t of ['Always run the tests before you commit.', 'Bundan sonra her zaman Türkçe yanıt ver.', 'Never use emojis.', 'Schreib Commit-Nachrichten ab jetzt immer auf Deutsch.', 'refactor the parser', '']) {
-      expect({ t, signals: promptSignals(t) }).toEqual({ t, signals: [] })
-    }
-  })
-})
 
 describe('sanitizePromptSignal', () => {
   test('keeps the contract fields only and clips the wording to one short line', () => {

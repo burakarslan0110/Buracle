@@ -58,11 +58,6 @@ export const HOST_LIMITS: readonly HostLimit[] = [
     recheck: `codex-rs/hooks/src/schema.rs StopCommandOutputWire (continue, stopReason, suppressOutput, systemMessage, a block decision with its reason; no additionalContext); ${CHECKED}`,
   },
   {
-    id: 'codex.shell-read-nudge', harness: 'codex', feature: 'shellReadNudge', kind: 'limit', checkedOn: '0.162.1',
-    reason: 'Codex has no file-read tool to point a shell read to', fallback: 'the shell read stays allowed; the edit note names `apply_patch`',
-    recheck: `the tool list in codex-rs/core/src/tools/spec_plan.rs (no file-read tool next to apply_patch); the tool names form no readable run in the binary, so there is no probe; ${CHECKED}`,
-  },
-  {
     id: 'codex.commands-without-turn', harness: 'codex', feature: 'commandsWithoutTurn', kind: 'limit', checkedOn: '0.166.0',
     reason: 'Codex has no custom slash commands: a plugin\'s `commands` are migrated into skills, which run inside a turn, and a plugin otherwise carries skills, MCP servers, apps and hooks', fallback: '`$memory`, the CLI twins (`buracle mem ...`, `buracle plan status`) and Codex\'s own `/side`',
     probe: { kind: 'binary-run', pattern: CODEX_PLUGIN_DETAIL, closedBy: '[cC]ommands', expect: CODEX_PLUGIN_PARTS },

@@ -42,8 +42,6 @@ export function routeAuditAllowed(why: StopWhy | undefined, strictness: BuracleC
   return strictness !== 'off' && why !== undefined && ROUTE_AUDIT_AFTER.includes(why)
 }
 
-export const AUTO_PAUSE_REASON = 'the user sent a message while the plan was running (plan.autoPause)'
-
 export const STOP_REASON_MAX = 1200
 const TICKED_MAX = 200
 

@@ -3,9 +3,6 @@ import type { CheckerFacts } from './checker-facts'
 
 export type { CheckerFacts, DirScan } from './checker-facts'
 export { CHECKER_PROBES, CHECKER_SCAN_MAX_DIRS, checkerDirs, checkerFacts } from './checker-facts'
-export type { TddEdit, TestCandidates } from './tdd'
-export { TEST_DIR_NAMES, dotnetLogicFree, importsModule, isDotnetTestProjectName, isTestFileName, tddHint, trivialEdit } from './tdd'
-export { CHARSET_MAX_FINDINGS, charsetFindings } from './charset'
 
 export interface CheckerPlan { argv: string[]; cwd: string; timeoutMs: number; parser: 'ruff'|'eslint'|'tsc'|'go-vet'|'golangci'|'shellcheck'|'dotnet-format'|'generic'; minMs?: number; env?: Record<string, string> }
 
@@ -179,11 +176,4 @@ export function missingToolNote(plan: CheckerPlan): string | undefined {
 
 export function skippedNote(plan: CheckerPlan): string {
   return `${checkerTool(plan)} skipped (hook time budget used up)`
-}
-
-export function lengthNote(lineCount: number): string | undefined {
-  if (typeof lineCount !== 'number' || !Number.isFinite(lineCount)) return undefined
-  if (lineCount > 1000) return `This file has ${lineCount} lines (over 1000): split it along existing seams before adding more.`
-  if (lineCount > 800) return `This file has ${lineCount} lines (over 800): prefer splitting it along existing seams over growing it further.`
-  return undefined
 }

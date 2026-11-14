@@ -4,7 +4,7 @@ import type { BuracleConfig } from '../../../core/config'
 import type { ToolKind } from '../../../core/events'
 import { parseApplyPatch } from '../../../core/events'
 import type { CheckerPlan } from '../../../core/checkers'
-import { charsetFindings, checkersFor, findingsOf, lengthNote, tddHint } from '../../../core/checkers'
+import { checkersFor, findingsOf } from '../../../core/checkers'
 import { patchEdits } from '../../../core/policy/code-facts'
 import { checkOneFile, nodeCheckFs, removedByFile, type CheckerResult, type CheckFs } from '../../shared/checker-scan'
 
@@ -76,7 +76,7 @@ export async function fileChecks(kind: ToolKind, files: string[], input: Record<
     if (!isFile(file)) continue
     const name = basename(file)
     const found = await checkOneFile({
-      api: { checkersFor, findingsOf, tddHint, charsetFindings, lengthNote },
+      api: { checkersFor, findingsOf },
       fs: deps.fs ?? nodeCheckFs,
       now,
       run: (plan, timeoutMs) => deps.run(plan, timeoutMs),
@@ -85,7 +85,7 @@ export async function fileChecks(kind: ToolKind, files: string[], input: Record<
       },
       ...(deps.once !== undefined ? { once: deps.once } : {}),
     }, { file, cwd: deps.cwd, root: deps.root, home: deps.home, ...(added[file] !== undefined ? { added: added[file] } : {}), ...(removed[file] !== undefined ? { removed: removed[file] } : {}), deadlineMs }, cfg)
-    for (const n of found) notes.push(n.kind === 'tdd' ? n.text : `${name}: ${n.text}`)
+    for (const n of found) notes.push(`${name}: ${n.text}`)
   }
   return notes
 }

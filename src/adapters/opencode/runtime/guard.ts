@@ -139,7 +139,7 @@ export function recordAnswer(sid: string, result: unknown, now: number): void {
   if (paths.isValidSessionId(sid) && questionAnswered(result)) updateState(HARNESS, sid, st => answerReceipt(st, now))
 }
 
-export function promptPlanInteraction(sid: string, words: string, opts: { autoPause: boolean, now: number }, logFn: (level: 'warn', msg: string, data?: unknown) => void): string | undefined {
+export function promptPlanInteraction(sid: string, words: string, opts: { now: number }, logFn: (level: 'warn', msg: string, data?: unknown) => void): string | undefined {
   let control: 'pause' | 'resume' | 'stop' | null = null
   try { control = detectSignals(words).control } catch (err) { logFn('warn', 'detectSignals failed', { error: errText(err) }) }
   try {

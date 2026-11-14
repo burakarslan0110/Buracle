@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { atomicWriteSync } from '../engine/fsx'
 import { log } from '../engine/log'
 import * as paths from '../engine/paths'
-import { desktopHost, findWslProgram, type DesktopHost } from '../engine/platform'
+import { osName, type OsName } from '../engine/platform'
 import { closeAllCortex, idleCortex, pruneDeadReaders } from './cortex'
 import { brainDir } from './layout'
 import { sameUiBuild, uiBuildId } from './ui-build'
@@ -414,27 +414,18 @@ export async function ensureUi(argv: string[] | undefined, opts: { port?: number
 /**
  * The command that opens a page in the browser of the person's desktop, or undefined for an address that is not http(s)
  * and for a desktop with no way to open it. The address is normalised, so a space becomes %20.
- * In WSL the page opens in the Windows browser through `rundll32.exe url.dll,FileProtocolHandler`, which takes the address
- * as one argument and never runs it through cmd.exe (where `&` and `%` in an address would be read as shell syntax);
- * `wslview` is the fallback. xdg-open there finds no Linux browser, and explorer.exe exits 1 even when it opened the page.
  */
-export function browserArgv(url: string, host: DesktopHost = desktopHost(), find: (name: string) => string | undefined = findWslProgram): string[] | undefined {
+export function browserArgv(url: string, host: OsName = osName()): string[] | undefined {
   let href: string
   try {
     const u = new URL(url)
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return undefined
     href = u.href
   } catch { return undefined }
-  if (host === 'darwin') return ['open', href]
-  if (host === 'linux') return ['xdg-open', href]
-  if (host === 'wsl-no-interop') return undefined
-  const rundll = find('rundll32.exe')
-  if (rundll !== undefined) return [rundll, 'url.dll,FileProtocolHandler', href]
-  const wslview = find('wslview')
-  return wslview !== undefined ? [wslview, href] : undefined
+  return host === 'darwin' ? ['open', href] : ['xdg-open', href]
 }
 
-export function openInBrowser(url: string, host: DesktopHost = desktopHost()): boolean {
+export function openInBrowser(url: string, host: OsName = osName()): boolean {
   try {
     const argv = browserArgv(url, host)
     if (argv === undefined) return false

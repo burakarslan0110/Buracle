@@ -1,4 +1,3 @@
-import type { ShellDialect } from './bash-guard'
 import { visitShellCommands } from './bash-guard'
 import { scanCode, type CodeLang } from './code-scan'
 import { readPrompt } from './consent-words'
@@ -432,14 +431,11 @@ function commandNeed(argv: readonly ShellWord[], st: NeedWalk): ConsentKind | un
   return undefined
 }
 
-// shell names the dialect when the harness knows it (the Claude Code PowerShell tool).
-export interface ConsentOptions { shell?: ShellDialect }
-
-export function consentNeeded(command: string, opts?: ConsentOptions): ConsentNeed | undefined {
-  return consentNeeds(command, opts)[0]
+export function consentNeeded(command: string): ConsentNeed | undefined {
+  return consentNeeds(command)[0]
 }
 
-export function consentNeeds(command: string, opts?: ConsentOptions): ConsentNeed[] {
+export function consentNeeds(command: string): ConsentNeed[] {
   if (typeof command !== 'string') return []
   const kinds: ConsentKind[] = []
   try {
@@ -448,7 +444,7 @@ export function consentNeeds(command: string, opts?: ConsentOptions): ConsentNee
       kinds.push(...commandNeeds(argv, st))
       st.prev = argv
       return false
-    }, opts !== null && typeof opts === 'object' && opts.shell !== undefined ? { shell: opts.shell } : undefined)
+    })
     if (st.fed !== undefined) kinds.push('recursive-delete')
     if (SQL_DESTROY.test(command) && /\b(?:psql|mysql|mariadb|sqlite3?|duckdb|mongosh|sqlcmd)\b/u.test(command)) kinds.push('db-destroy')
     if (!kinds.includes('recursive-delete') && /<</u.test(command) && fedCodeDeletesTree(command)) kinds.push('recursive-delete')
@@ -502,8 +498,8 @@ function heldKinds(p: NonNullable<ConsentState['pending']>): ConsentKind[] {
   return Array.isArray(p.kinds) && p.kinds.length > 0 ? p.kinds : [p.kind]
 }
 
-export function consentVerdict(command: string, s: ConsentState, now: number, opts?: ConsentOptions): ConsentVerdict & { need?: ConsentNeed } {
-  const needs = consentNeeds(command, opts)
+export function consentVerdict(command: string, s: ConsentState, now: number): ConsentVerdict & { need?: ConsentNeed } {
+  const needs = consentNeeds(command)
   const first = needs[0]
   if (first === undefined) return { allow: true, next: s }
   const target = commandTarget(command)

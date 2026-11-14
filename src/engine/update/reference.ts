@@ -189,7 +189,6 @@ export const CONFIG_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'plan.stopGuard': 'The stop guard (H08): while a plan is active, the agent cannot end its turn before the plan is `VERIFIED`. A pause (`buracle plan pause`, or the user saying stop) releases it.',
   'plan.runaway.perPlan': 'The most stop-guard blocks per plan without progress; after that the guard lets the turn end.',
   'plan.runaway.perChain': 'The most stop-guard blocks in one continuation chain.',
-  'plan.autoPause': 'Pause the running plan automatically when the user sends a new message.',
   'plan.planApproval': 'Ask for the user\'s approval of the plan before implementation starts.',
   'plan.resultApproval': 'Show the verified result to the user and wait for their explicit approval (`buracle plan approve-result`) before a Feature or Bugfix plan becomes `VERIFIED`. A bare "continue", silence or green checks are no approval. Build plans (goal-build) have no result review.',
   'plan.branchIsolation': 'Run plan-build, goal-build and bugfix work on a branch of its own, in a worktree.',
