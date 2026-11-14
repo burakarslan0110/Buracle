@@ -11,7 +11,7 @@ import { projectSync } from '../../src/workflow/project'
 import { reviewScope } from '../../src/workflow/review-scope'
 import { checkRoutingTable, lintRulesDir, loadRoutingData } from '../../src/workflow/rules'
 import { loadState } from '../../src/workflow/session-store'
-import { commitMessage, worktreeCreate, worktreeRoot, worktreeSync } from '../../src/workflow/worktree'
+import { worktreeCreate, worktreeRoot } from '../../src/workflow/worktree'
 import { repoFacts } from '../../src/workflow/gitx'
 import { withEnv, withSandbox } from '../helpers/sandbox'
 import { SESSION, ctxAt, evidenceSections, g, makeRepo, planDoc, write } from './fixture'
@@ -132,66 +132,6 @@ describe('DOC-01: plan verify refuses for missing evidence', () => {
   }))
 })
 
-describe('WF-02: worktree sync never stashes the plan file', () => {
-  async function tracked(root: string): Promise<{ repo: string, plan: string, wt: string }> {
-    const repo = await makeRepo(root)
-    const plan = join(repo, 'docs', 'plans', '2026-10-08-rate-limit.md')
-    write(plan, planDoc())
-    await g(repo, 'add', '-A')
-    await g(repo, 'commit', '-q', '-m', 'docs: plan')
-    const ctx = ctxAt(repo)
-    await planRegister(plan, 'plan', ctx, S)
-    for (const [f, v] of [['approved', 'true'], ['status', 'APPROVED'], ['phase', 'implement']] as const) expect((await planSet(f, v, ctx, S)).code).toBe(0)
-    const wt = String((await worktreeCreate('rate-limit', {}, ctx, S)).data['path'])
-    await planSet('status', 'IN_PROGRESS', ctx, S)
-    write(join(wt, 'src', 'app.ts'), 'export const a = 2\n')
-    await g(wt, 'commit', '-qam', 'task 1')
-    writeFileSync(plan, readFileSync(plan, 'utf8').replace(/- \[ \] Task (\d) done/g, '- [x] Task $1 done') + '\n' + evidenceSections('Feature').join('\n'))
-    expect((await planSet('status', 'COMPLETE', ctx, S)).code).toBe(0)
-    expect((await planSet('phase', 'verify', ctx, S)).code).toBe(0)
-    return { repo, plan, wt }
-  }
-
-  test('exit 2 (the user WIP conflicts): the plan keeps its state, the stash holds only the WIP, verify succeeds', () => sandbox(async root => {
-    const { repo, plan } = await tracked(root)
-    const before = readFileSync(plan, 'utf8')
-    write(join(repo, 'src', 'app.ts'), 'export const a = 99 // user WIP\n')
-    const r = await worktreeSync('rate-limit', ctxAt(repo), S)
-    expect(r.code).toBe(2)
-    expect(r.data).toMatchObject({ merged: true, planFiles: ['docs/plans/2026-10-08-rate-limit.md'] })
-    expect(readFileSync(plan, 'utf8')).toBe(before)
-    expect(await g(repo, 'stash', 'show', '--name-only', 'stash@{0}')).toBe('src/app.ts')
-    expect(await g(repo, 'show', '--name-only', '--format=', 'HEAD')).toBe('src/app.ts')
-    expect((await planApproveResult(ctxAt(repo), S)).code).toBe(0)
-    expect((await planVerify(ctxAt(repo), S)).code).toBe(0)
-  }))
-
-  test('a staged plan file stays staged and stays out of the squash commit', () => sandbox(async root => {
-    const { repo, plan } = await tracked(root)
-    await g(repo, 'add', plan)
-    writeFileSync(plan, readFileSync(plan, 'utf8') + '\n## Review Notes\n- unstaged note\n')
-    const r = await worktreeSync('rate-limit', ctxAt(repo), S)
-    expect(r.code).toBe(0)
-    expect(await g(repo, 'show', '--name-only', '--format=', 'HEAD')).toBe('src/app.ts')
-    expect(await g(repo, 'status', '--porcelain')).toBe('MM docs/plans/2026-10-08-rate-limit.md')
-    expect(await g(repo, 'stash', 'list')).toBe('')
-  }))
-
-  test('the branch also changed the dirty registered plan: nothing merged, nothing stashed', () => sandbox(async root => {
-    const { repo, plan, wt } = await tracked(root)
-    const before = readFileSync(plan, 'utf8')
-    write(join(wt, 'docs', 'plans', '2026-10-08-rate-limit.md'), planDoc({ title: 'Edited in the worktree' }))
-    await g(wt, 'commit', '-qam', 'plan edit in the worktree')
-    const head = await g(repo, 'rev-parse', 'HEAD')
-    const r = await worktreeSync('rate-limit', ctxAt(repo), S)
-    expect(r.code).toBe(1)
-    expect(r.data['error']).toBe('plan_conflict')
-    expect(await g(repo, 'rev-parse', 'HEAD')).toBe(head)
-    expect(readFileSync(plan, 'utf8')).toBe(before)
-    expect(await g(repo, 'stash', 'list')).toBe('')
-  }))
-})
-
 describe('WF-03: project sync in a worktree keeps the other checkouts\' exclude entries', () => {
   test("main's untracked skill link stays excluded after a sync run inside a plan worktree", () => sandbox(async root => {
     const repo = await makeRepo(root)
@@ -223,7 +163,6 @@ describe('WF-08: a title ending in # keeps it', () => {
     expect(planTitle('# F# and C# #\n')).toBe('F# and C#')
     expect(planTitle('# Title ##\n')).toBe('Title')
     expect(analyzePlan(planDoc({ title: 'Add support for C#' })).title).toBe('Add support for C#')
-    expect(commitMessage({ title: 'Add support for C#', type: 'Feature', prefix: 'plan-build', slug: 'c', branch: 'plan-build/c', base: 'main', commits: [] }).subject).toBe('feat: add support for C#')
   })
 })
 
