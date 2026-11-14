@@ -30158,6 +30158,38 @@ var REVIEW_AGENTS = ["plan-build-review", "changes-review", "goal-build-review"]
 function obj2(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x) ? x : undefined;
 }
+var SUBAGENT_MESSAGE = /<subagent sessionID="([^"]+)" state="completed"(?: description="[^\n]*")?>\n([\s\S]*)\n<\/subagent>\s*$/;
+function textOf2(content) {
+  return typeof content === "string" ? content : Array.isArray(content) ? content.map((c) => typeof obj2(c)?.["text"] === "string" ? obj2(c)?.["text"] : "").join(`
+`) : "";
+}
+function noteReviewMessages(messages, subject = []) {
+  const noted = [];
+  const seen = new Set;
+  for (const m of Array.isArray(messages) ? messages : []) {
+    const msg = obj2(m);
+    const meta = obj2(msg?.["metadata"]);
+    if (msg === undefined || msg["role"] !== "user" || meta?.["source"] !== "subagent" || meta["state"] !== "completed")
+      continue;
+    const agent = meta["agent"];
+    const content = msg["content"];
+    if (typeof agent !== "string" || !REVIEW_AGENTS.includes(agent) || !Array.isArray(content))
+      continue;
+    const found = SUBAGENT_MESSAGE.exec(textOf2(content));
+    if (found === null)
+      continue;
+    const sessionID = typeof meta["childID"] === "string" ? meta["childID"] : found[1];
+    const report = { agent, sessionID, text: found[2] ?? "" };
+    const problems = reviewProblems(report, subject);
+    if (problems.length === 0)
+      continue;
+    const first = !seen.has(sessionID);
+    seen.add(sessionID);
+    msg["content"] = [...content, { type: "text", text: reviewNote(report, problems, first) }];
+    noted.push(agent);
+  }
+  return noted;
+}
 function subagentReport(input, result) {
   const agent = obj2(input)?.["agent"];
   if (typeof agent !== "string" || !REVIEW_AGENTS.includes(agent))
@@ -30168,9 +30200,7 @@ function subagentReport(input, result) {
   let text = typeof out?.["output"] === "string" ? out["output"] : undefined;
   let sessionID = typeof out?.["sessionID"] === "string" ? out["sessionID"] : undefined;
   if (text === undefined) {
-    const content = typeof result.content === "string" ? result.content : Array.isArray(result.content) ? result.content.map((c) => typeof obj2(c)?.["text"] === "string" ? obj2(c)?.["text"] : "").join(`
-`) : "";
-    const m = /<subagent sessionID="([^"]+)" state="completed">\n([\s\S]*)\n<\/subagent>\s*$/.exec(content);
+    const m = SUBAGENT_MESSAGE.exec(textOf2(result.content));
     if (m === null)
       return;
     sessionID ??= m[1];
@@ -31367,6 +31397,16 @@ class BuracleRuntime {
       this.logFn("warn", "H08 answer receipt failed", { sid: s.sid, error: errText(err) });
     }
   }
+  noteReviews(s, messages) {
+    try {
+      const noted = noteReviewMessages(messages, reviewSubjects(HARNESS7, s.sid));
+      if (noted.length > 0 && noted.length !== s.reviewNotes)
+        this.logFn("info", "H19: invalid review report", { agents: noted });
+      s.reviewNotes = noted.length;
+    } catch (err) {
+      this.logFn("warn", "H19 review gate failed", { error: errText(err) });
+    }
+  }
   reviewGate(input, result, subject) {
     try {
       const report = subagentReport(input, result);
@@ -31476,6 +31516,7 @@ class BuracleRuntime {
     if (watch.warn !== undefined)
       parts.push(watch.warn);
     this.deliverPrompts(s, e.messages, cfg, e.agent === "plan");
+    this.noteReviews(s, e.messages);
     parts.push(...s.pendingContext);
     for (const text of parts)
       e.system.push({ type: "text", text });

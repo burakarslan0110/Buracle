@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { bandLines, BandFeeder, estimatedWidth } from '../../../src/adapters/opencode/runtime/band'
 import { workflowCommandDescription, workflowPromptText } from '../../../src/adapters/opencode/runtime/commands'
 import { projectDeps } from '../../../src/adapters/opencode/runtime/deps'
-import { reviewProblems, subagentReport } from '../../../src/adapters/opencode/runtime/review'
+import { noteReviewMessages, reviewProblems, subagentReport } from '../../../src/adapters/opencode/runtime/review'
 import { commandOfPrompt, COMMAND_ARGS, COMMAND_MARK, routeUserPrompt, withinBudget } from '../../../src/adapters/opencode/runtime/routing'
 import type { CliResult, UtilityHost } from '../../../src/adapters/opencode/runtime/tui-commands'
 import { aside, brain, ping, remember, status, statusLines, utilityCommands, utilityNames } from '../../../src/adapters/opencode/runtime/tui-commands'
@@ -234,6 +234,36 @@ describe('pure helpers of the server plugin', () => {
     expect(subagentReport({ agent: 'changes-review' }, { output: { status: 'running', output: 'x' } })).toBeUndefined()
     expect(subagentReport({ agent: 'changes-review' }, { content: [{ type: 'text', text: '<subagent sessionID="ses_9" state="completed">\nnot json\n</subagent>' }] }))
       .toEqual({ agent: 'changes-review', sessionID: 'ses_9', text: 'not json' })
+    expect(subagentReport({ agent: 'changes-review' }, { content: '<subagent sessionID="ses_9" state="completed" description="review "the" plan > now">\nnot json\n</subagent>' }))
+      .toEqual({ agent: 'changes-review', sessionID: 'ses_9', text: 'not json' })
+    expect(subagentReport({ agent: 'changes-review' }, { content: '<subagent sessionID="ses_9" state="error" description="review">\nnot json\n</subagent>' })).toBeUndefined()
     expect(reviewProblems({ agent: 'changes-review', text: 'not json' })).toEqual(['the final message is not valid JSON'])
+  })
+
+  test('H19 on OpenCode 2.3.0: the report is a <subagent> user message; an invalid one gets the note, the same on every call', () => {
+    const report = (agent: string, state: string, body: string, child = 'ses_9') => ({
+      id: `msg_${child}_${body.length}`, role: 'user', metadata: { source: 'subagent', childID: child, agent, state },
+      content: [{ type: 'text', text: `<subagent sessionID="${child}" state="${state}" description="review the plan">\n${body}\n</subagent>` }],
+    })
+    const build = () => [
+      { role: 'user', content: [{ type: 'text', text: '<subagent sessionID="ses_9" state="completed" description="x">\nnot json\n</subagent>' }] },
+      report('explore', 'completed', 'not json'),
+      report('changes-review', 'error', 'not json'),
+      report('changes-review', 'completed', 'not json'),
+      report('changes-review', 'completed', 'still not json'),
+      report('plan-build-review', 'completed', 'no', 'ses_10'),
+    ]
+    const messages = build()
+    expect(noteReviewMessages(messages)).toEqual(['changes-review', 'changes-review', 'plan-build-review'])
+    const notes = messages.map(m => m.content.length === 2 ? (m.content[1] as { text: string }).text : undefined)
+    expect(notes.slice(0, 3)).toEqual([undefined, undefined, undefined])
+    expect(notes[3]).toContain('Buracle H19 (review.gate): the changes-review report is not valid review JSON')
+    expect(notes[3]).toContain('Continue the reviewer once with the subagent tool (agent changes-review, sessionID ses_9)')
+    expect(notes[4]).toContain('It failed twice')
+    expect(notes[5]).toContain('sessionID ses_10')
+    const again = build()
+    noteReviewMessages(again)
+    expect(again).toEqual(messages)
+    expect(noteReviewMessages('nothing')).toEqual([])
   })
 })

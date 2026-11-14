@@ -15,7 +15,7 @@ import { codexDoctor } from '../../../src/adapters/codex/doctor'
 import { installTestHooks } from '../../../src/adapters/codex/install'
 import { buracleHooksFile, CODEX_HOOK_EVENTS, findBuracleHandlers } from '../../../src/adapters/codex/hooks-config'
 import { readOpenPlanSteps } from '../../../src/adapters/codex/rollout'
-import { CODEX_FRESH_PLAN_PREFIX, CODEX_IMPLEMENT_PROMPT, lastAssistantText, proposedPlanOf } from '../../../src/adapters/codex/plan-capture'
+import { CODEX_ATTACHMENTS_DIR, CODEX_IMPLEMENT_PROMPT, CODEX_PLAN_FILE_NAME, CODEX_PLAN_FILE_PREFIX, CODEX_PLAN_FILE_SUFFIX, CODEX_PLAN_ITEM, lastAssistantText, proposedPlanOf } from '../../../src/adapters/codex/plan-capture'
 import { codexTrustPlan } from '../../../src/adapters/codex/trust'
 import { renderNeutralSkills } from '../../../src/adapters/shared/skills'
 import { hostLimitsOf, probeClosers, probeMisses } from '../../../src/adapters/shared/host-limits'
@@ -86,9 +86,9 @@ const CODEX_NATIVE = ((): string | undefined => {
 })()
 
 describe.skipIf(CODEX_NATIVE === undefined)('the installed codex binary carries the plan-mode text H12 matches', () => {
-  test('the <proposed_plan> instruction, "Implement the plan." and the fresh-thread prefix are host text of this Codex', () => {
+  test('the <proposed_plan> instruction, "Implement the plan." and the fresh-thread plan file prompt are host text of this Codex', () => {
     const bin = readFileSync(CODEX_NATIVE as string)
-    for (const text of ['wrap it in a `<proposed_plan>` block', '<proposed_plan>', CODEX_IMPLEMENT_PROMPT, CODEX_FRESH_PLAN_PREFIX, 'Yes, implement this plan', 'Yes, clear context and implement', 'No, stay in Plan mode']) {
+    for (const text of ['wrap it in a `<proposed_plan>` block', '<proposed_plan>', CODEX_IMPLEMENT_PROMPT, CODEX_PLAN_FILE_PREFIX, CODEX_PLAN_FILE_SUFFIX, CODEX_PLAN_FILE_NAME, CODEX_ATTACHMENTS_DIR, CODEX_PLAN_ITEM, 'Yes, implement this plan', 'Yes, clear context and implement', 'No, stay in Plan mode']) {
       expect({ text, found: bin.includes(Buffer.from(text, 'utf8')) }).toEqual({ text, found: true })
     }
   }, 60_000)

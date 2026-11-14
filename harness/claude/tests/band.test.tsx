@@ -12,7 +12,7 @@ const STATE = `${DIR}/state.json`
 const FLOW = `${DIR}/flow.json`
 const PLAN = `${CWD}/docs/plan-build/2026-10-09-rate-limit.md`
 const SESSION: SessionStartInput = { cwd: CWD, surface: 'terminal', isInteractive: true }
-const BAND = { hasSurvey: false, isWorking: true, maxRows: 6, bodyColumns: 120, scroll: { offset: 0, bodyRows: 6 }, view: {} }
+const BAND = { hasSurvey: false, isCollapsed: false, isWorking: true, maxRows: 6, bodyColumns: 120, scroll: { offset: 0, bodyRows: 6 }, view: {} }
 const SURFACES = ['terminal', 'desktop'] as const
 
 interface World {
@@ -205,13 +205,11 @@ describe('turn ends and session starts', () => {
     expect(world.suggested).toEqual(['continue the plan-build run (Implement 3/7): Rate limit'])
   })
 
-  test('a long turn ends with a native notification naming the run', async ($, on) => {
+  test('a long turn ends without a native notification', async ($, on) => {
     const world = worldOf(on, SPEC)
     await $.session.start(SESSION)
     await $.turn.complete({ answer: 'Working on it.', durationMs: 200_000, turnId: 't1', reason: 'answer', isAborted: false } as never)
-    expect(world.notified).toEqual(['Turn finished after 3 min: plan-build (Rate limit): phase Implement, 3/7 tasks; now: Task 4: Step 4'])
-    await $.turn.complete({ answer: 'Short.', durationMs: 30_000, turnId: 't2', reason: 'answer', isAborted: false } as never)
-    expect(world.notified).toHaveLength(1)
+    expect(world.notified).toEqual([])
   })
 
   test('an edit-only turn suggests running the checks', async ($, on) => {
