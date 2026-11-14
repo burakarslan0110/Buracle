@@ -36399,7 +36399,6 @@ function defaultDeps() {
     workspaceInfo: (cwd, cfg, nowMs) => workspaceInfo(cwd, cfg, nowMs),
     refreshWorkspace: (info, cfg, nowMs) => refreshWorkspaceInfo(info, cfg, nowMs),
     projectDeps: createDepsReader(),
-    profileGuard: (lc) => profileGuard("omp", lc.resolved !== undefined ? { resolved: lc.resolved } : undefined, process.env),
     columns: () => typeof process.stdout.columns === "number" && process.stdout.columns > 0 ? process.stdout.columns : 120,
     setEnv: (name, value) => {
       process.env[name] = value;
@@ -38187,7 +38186,6 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
     let currentSid;
     let statusTimerStarted = false;
     let maintScheduled = false;
-    let profileWarned = false;
     let router;
     const report = (what, e, outcome = "allowed") => {
       const message = e instanceof Error ? e.message : String(e);
@@ -38775,6 +38773,12 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
         });
         const notice = r.notice;
         m.startContext = r.context.filter((part) => part !== notice?.model);
+        const warning = r.profile;
+        if (warning !== undefined) {
+          log("warn", "omp: H17 profile guard", { sid, warning });
+          if (hasTui(ctx))
+            guarded("H17 notify", () => ctx.ui.notify(warning, "warning"));
+        }
         if (notice === undefined)
           return;
         guarded("H17 notice", () => pi.sendMessage({ customType: NOTICE_MESSAGE_TYPE, content: notice.model, display: false }, { deliverAs: "nextTurn" }));
@@ -38894,14 +38898,6 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
       const m = memo(sid);
       slugOf(sid, ctx.cwd);
       guarded("telemetry", () => writeTelemetryFor(sid, ctx));
-      const lc = guarded("config", () => live());
-      const warning = lc !== undefined && !profileWarned ? guarded("H17 profileGuard", () => deps.profileGuard(lc)) : undefined;
-      if (warning !== undefined) {
-        profileWarned = true;
-        log("warn", "omp: H17 profile guard", { sid, warning });
-        if (hasTui(ctx))
-          guarded("H17 notify", () => ctx.ui.notify(warning, "warning"));
-      }
       if (hasTui(ctx)) {
         m.flow?.reset();
         refreshSoon(ctx);

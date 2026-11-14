@@ -438,11 +438,23 @@ describe('omp H26 prompt signals, H05 context watch, H17 profile guard', () => {
     expect(await hidden(fp, ctx, 'x')).toContain(warn)
   }))
 
-  test('H17: a profile-guard warning is shown at session start and logged', () => withSandbox(async sb => {
-    const { fp, ctx } = setup(sb, { profileGuard: () => 'Buracle was installed for Oh My Pi into /a, but this session reads /b.' })
+  test('H17: the pipeline\'s profile warning is a toast at a fresh session start and never enters the model\'s context; a resumed session gets none', () => withSandbox(sb => withEnv({ PI_CODING_AGENT_DIR: '/work/profile-b' }, async () => {
+    mkdirSync(paths.stateDir(), { recursive: true })
+    writeFileSync(paths.runtimeConfigFile(), JSON.stringify({ v: 1, resolved: { ompAgentDir: '/work/profile-a' } }))
+    const warnings = (c: FakeCtx) => c.uiCalls.filter(u => u.method === 'notify' && u.args[1] === 'warning')
+    const { fp, ctx } = setup(sb)
     await fp.emit('session_start', { type: 'session_start' }, ctx)
-    expect(ctx.uiCalls).toContainEqual({ method: 'notify', args: ['Buracle was installed for Oh My Pi into /a, but this session reads /b.', 'warning'] })
-  }))
+    const context = await hidden(fp, ctx, 'x')
+    expect(warnings(ctx)).toEqual([{ method: 'notify', args: [expect.stringContaining('Buracle was installed for Oh My Pi into /work/profile-a, but this session reads /work/profile-b (PI_CODING_AGENT_DIR)'), 'warning'] }])
+    expect(context ?? '').not.toContain('/work/profile-a')
+    await fp.emit('input', input('keep going'), ctx)
+    await hidden(fp, ctx, 'keep going')
+    expect(warnings(ctx)).toHaveLength(1)
+    const resumed = setup(sb)
+    await resumed.fp.emit('session_switch', { type: 'session_switch', reason: 'resume' }, resumed.ctx)
+    await hidden(resumed.fp, resumed.ctx, 'x')
+    expect(warnings(resumed.ctx)).toEqual([])
+  })))
 })
 
 describe('omp H21 workspace lines', () => {

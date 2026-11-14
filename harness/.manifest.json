@@ -1354,7 +1354,7 @@
     },
     "harness/omp/extensions/buracle.js": {
       "by": "omp",
-      "sha256": "9a5bef7b3683959c44e76a082ec086cc810efac17d94b1e7ab9540ee144c98d6",
+      "sha256": "9595f8b21d2900fdf58b5aa226204f4f88880b95e27cddec0bf3465f12d9d1bd",
       "exec": false
     },
     "harness/omp/package.json": {

@@ -31,7 +31,7 @@ import type { UsageCacheEntry } from '../../../usage/types'
 import { flowViewFor, recordFlowStart } from '../../../workflow/flow'
 import { captureSessionPlan } from '../../../workflow/plan-native'
 import { loadLedger, updateLedger } from '../../../workflow/ledger'
-import { loadState, profileGuard, reviewSubjects, sessionMaint, updateState, writeTelemetry } from '../../../workflow/session-store'
+import { loadState, reviewSubjects, sessionMaint, updateState, writeTelemetry } from '../../../workflow/session-store'
 import type { Telemetry } from '../../../workflow/session-store'
 import { refreshWorkspaceInfo, workspaceInfo } from '../../../workflow/workspace'
 import { recordDialogGrant } from '../../shared/consent-dialog'
@@ -117,7 +117,6 @@ export interface ExtensionDeps {
   projectDeps(root: string | undefined): string[] | undefined
   /** Starts the project's link run (H28); the pipeline's own spawner by default. */
   assetsSpawn?: AssetsSpawner
-  profileGuard(lc: LiveConfig): string | undefined
   columns(): number
   setEnv(name: string, value: string): void
   home(): string
@@ -262,7 +261,6 @@ export function defaultDeps(): ExtensionDeps {
     workspaceInfo: (cwd, cfg, nowMs) => workspaceInfo(cwd, cfg, nowMs),
     refreshWorkspace: (info, cfg, nowMs) => refreshWorkspaceInfo(info, cfg, nowMs),
     projectDeps: createDepsReader(),
-    profileGuard: lc => profileGuard('omp', lc.resolved !== undefined ? { resolved: lc.resolved } : undefined, process.env),
     columns: () => (typeof process.stdout.columns === 'number' && process.stdout.columns > 0 ? process.stdout.columns : 120),
     setEnv: (name, value) => { process.env[name] = value },
     home: () => paths.home(),

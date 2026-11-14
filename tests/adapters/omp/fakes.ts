@@ -186,7 +186,6 @@ export function testDeps(overrides: Partial<ExtensionDeps> = {}): { deps: Partia
     prepareWorkspace: async () => notImplemented('prepareWorkspace'),
     workspaceInfo: async () => notImplemented('workspaceInfo'),
     refreshWorkspace: info => info,
-    profileGuard: () => undefined,
     memoryUi: () => undefined,
     columns: () => 120,
     ...overrides,
