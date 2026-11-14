@@ -18,7 +18,7 @@ Before investigating, pin down what "fixed" means:
 - **Expected:** the correct behavior.
 - **Unchanged:** behaviors that must stay as they are, each with the existing test that guards it or the new test you will add.
 
-If the report has no reproducible When or Actual, ask the user once with {{ask_user}} for the missing pieces: exact steps, input, versions, logs. Offer the specific items you need as options. Pause first and announce the batch as in [plan.md](plan.md) P4 (`buracle notify attention_needed …`).
+If the report has no reproducible When or Actual, ask the user once with {{ask_user}} for the missing pieces: exact steps, input, versions, logs. Offer the specific items you need as options. Pause first, as in [plan.md](plan.md) P4.
 
 If `branchIsolation` is on and the request carried no `--worktree`, `--new-branch` or `--current-branch` flag, ask [plan.md](plan.md) P4's "Where should implementation run?" question once, with the same options and together with the missing pieces when you ask for those; P9 applies the answer. No answer: take the recommendation and record it under `## Assumptions`.
 

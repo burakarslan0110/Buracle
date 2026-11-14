@@ -325,7 +325,7 @@ async function installEndToEnd(root: string, home: string, buracleHome: string):
   mkdirSync(work)
   const env = {
     ...isolatedEnv(root, home), SHELL: '/bin/sh', BURACLE_HOME: buracleHome,
-    BURACLE_NO_MEMORY: '1', BURACLE_NO_CAPTURE: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_NO_NOTIFY: '1', BURACLE_NO_TOOLCHAIN: '1', BURACLE_NO_DISTILL: '1',
+    BURACLE_NO_MEMORY: '1', BURACLE_NO_CAPTURE: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_NO_TOOLCHAIN: '1', BURACLE_NO_DISTILL: '1',
   }
   return { env, work, mcpLog }
 }

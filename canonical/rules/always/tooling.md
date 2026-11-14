@@ -15,7 +15,7 @@ Use the purpose-built tool for each need. A fallback is allowed only when the pr
 | Syntax-aware search and mechanical rewrites | `ast-grep` | `rg` plus edits |
 | Past decisions, gotchas, earlier sessions, preferences | `buracle-memory`: `memory_search` → `memory_get` | `buracle mem search "<q>"` |
 | UI in a real browser: DOM, console, network, performance | `chrome-devtools` MCP (in omp: its built-in browser tool; omp has no chrome-devtools server) | the repo's Playwright setup |
-| Plans, worktrees, review diff range, notifications, project setup | `buracle plan …`, `buracle worktree …`, `buracle review-scope --json`, `buracle notify …`, `buracle project sync` | — |
+| Plans, worktrees, review diff range, project setup | `buracle plan …`, `buracle worktree …`, `buracle review-scope --json`, `buracle project sync` | — |
 
 - Never call the built-in web search while `web-search` is healthy, or the built-in fetch while `web-fetch` is healthy. For library docs, `context7` comes before both: documentation pages (Read the Docs, `docs.*` sites, npm and PyPI package pages, pkg.go.dev, docs.rs, MDN) go to `context7` first.
 - When `web-search` is down, off or keeps failing, fetch a search results page with `web-fetch` (for example `https://html.duckduckgo.com/html/?q=<query>` or `https://www.bing.com/search?q=<query>`), and use the built-in web search only after that, where the harness has one. Codex has none under `routing.strictness: enforce`: Buracle turns its hosted search off there, because those searches never reach Buracle's hooks.

@@ -43,7 +43,7 @@ export async function makeRepo(root: string, name = 'repo'): Promise<string> {
 }
 
 export function ctxAt(cwd: string, now = Date.UTC(2026, 9, 8, 12, 0, 0), env: Record<string, string | undefined> = {}): WorkflowCtx {
-  return { cwd, now, env: { BURACLE_NO_NOTIFY: '1', BURACLE_NO_MEMORY: '1', ...env } }
+  return { cwd, now, env: { BURACLE_NO_MEMORY: '1', ...env } }
 }
 
 export const SESSION: ResolvedSession = { harness: 'claude', sessionId: 'test-session-1', source: '--session' }

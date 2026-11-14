@@ -166,9 +166,8 @@ experiences, gains, costs and risks, effort (S, M or L), and a recommendation wi
    the line out. Then run `buracle plan validate docs/requirements/<file>.md --strict` and fix every
    warning it reports (a sentence over 25 words, a semicolon in prose, a path in an old document
    folder) before the next step.
-3. `buracle notify prd_approval "<PRD title>" "docs/requirements/<file>.md" --plan docs/requirements/<file>.md` (best
-   effort; ignore failures). When the web UI runs it prints `Review page: <url>`, where the user reads
-   the PRD and pins notes to passages.
+3. `buracle plan notes docs/requirements/<file>.md --kind plan --json`. When the web UI runs, its `page`
+   is the review page URL, where the user reads the PRD and pins notes to passages.
 4. **Gate: approval.** First read those notes: `buracle plan notes docs/requirements/<file>.md --kind plan
    --json`; apply each (or say why not) and mark the applied ones with `buracle plan notes
    docs/requirements/<file>.md --done <id>[,<id>]` (pass the path: the PRD is not the session's plan).
@@ -234,5 +233,5 @@ User: `$requirements Let teams share their saved searches` in Codex, `/requireme
 6. Approaches: team folders inside the existing saved-search screen (recommended) or a separate team
    workspace page. The user picks the first.
 7. Converge: out of scope are alerts, cross-team sharing, public links. R1-R6 and two success signals.
-8. Write `docs/requirements/2026-10-08-team-saved-search-sharing.md`, notify, approve on "approve".
+8. Write `docs/requirements/2026-10-08-team-saved-search-sharing.md`, approve on "approve".
 9. Print: `$plan-build Implement the approved PRD docs/requirements/2026-10-08-team-saved-search-sharing.md` in Codex, `/plan-build Implement the approved PRD docs/requirements/2026-10-08-team-saved-search-sharing.md` in OpenCode and Oh My Pi.

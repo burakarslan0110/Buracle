@@ -11,7 +11,6 @@ export const SKILL_COMMANDS: Readonly<Record<string, CommandSpec>> = {
   },
   worktree: { subs: ['create', 'branch', 'detect', 'diff', 'sync', 'cleanup', 'status'] },
   'review-scope': { subs: null },
-  notify: { subs: ['info', 'plan_approval', 'prd_approval', 'attention_needed', 'verification_complete', 'list', 'read'] },
   project: { subs: ['init', 'sync', 'check'] },
   skills: { subs: ['lint', 'list', 'new', 'find', 'add', 'remove', 'update'] },
   rules: { subs: ['lint'] },

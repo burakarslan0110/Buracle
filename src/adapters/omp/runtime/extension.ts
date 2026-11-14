@@ -183,7 +183,7 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
     }
 
     pi.setLabel?.('Buracle')
-    const receipts = createTurnReceipts({ now: () => deps.now(), view: sid => guarded('flow view', () => deps.flow.view(sid, deps.now(), liveOrDefaults().config.workflow.foldAfterSec)), desktop: (title, message) => deps.notifyDesktop(title, message), log: (msg, data) => log('debug', `omp: ${msg}`, data) })
+    const receipts = createTurnReceipts({ now: () => deps.now(), view: sid => guarded('flow view', () => deps.flow.view(sid, deps.now(), liveOrDefaults().config.workflow.foldAfterSec)), log: (msg, data) => log('debug', `omp: ${msg}`, data) })
     const pane = new StatusPane({ lines: (view, ctx) => status.lines(view, ctx) })
 
     const refreshFlow = (ctx: OmpContext): void => {
@@ -673,7 +673,7 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
     registerStopGuard(pi, {
       deps, live, guarded, report: (what, e) => report(what, e), spool,
       turnEnded: sid => { guarded('H28 project assets', () => deps.projectAssets.link(memo(sid).workspaceInfo?.root, deps.now())) },
-      released: (sid, ctx) => receipts.end(sid, ctx, live().config),
+      released: (sid, ctx) => receipts.end(sid, ctx),
       noticed: { get: sid => memo(sid).noticed === true, set: sid => { memo(sid).noticed = true } },
     })
 

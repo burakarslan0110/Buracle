@@ -177,7 +177,7 @@ function probePayload(harness: 'claude' | 'codex', command: string): string {
   return JSON.stringify(harness === 'codex' ? { ...base, turn_id: 't0', transcript_path: null, model: 'probe', tool_use_id: 'probe' } : base)
 }
 
-const PROBE_ENV = { BURACLE_NO_CAPTURE: '1', BURACLE_NO_MEMORY: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_NO_NOTIFY: '1', BURACLE_HOOK_TIMEOUT_MS: undefined }
+const PROBE_ENV = { BURACLE_NO_CAPTURE: '1', BURACLE_NO_MEMORY: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_HOOK_TIMEOUT_MS: undefined }
 
 function decisionOf(stdout: string): { decision?: unknown, reason?: unknown } {
   try {

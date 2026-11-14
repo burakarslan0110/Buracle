@@ -1033,8 +1033,8 @@
       "dir": "skills/buracle",
       "frontmatter": {
         "name": "buracle",
-        "description": "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan …`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, notifications, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.",
-        "when_to_use": "Creating, registering or moving a plan; pausing to ask the user; creating or merging a worktree; computing a review diff; notifying the user; checking rate-limit headroom; diagnosing Buracle.",
+        "description": "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan …`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.",
+        "when_to_use": "Creating, registering or moving a plan; pausing to ask the user; creating or merging a worktree; computing a review diff; checking rate-limit headroom; diagnosing Buracle.",
         "invocation": "implicit",
         "user-invocable": false,
         "mcp": [],

@@ -27036,7 +27036,7 @@ function defaultConfig() {
     permissions: { bypass: true, enforce: true },
     effort: { claude: "auto", codex: "auto", opencode: "auto", omp: "auto" },
     agents: { teams: true },
-    workflow: { band: true, foldAfterSec: 8, notifyAfterSec: 120, codexNotices: true },
+    workflow: { band: true, foldAfterSec: 8, codexNotices: true },
     toolchain: { autoInstall: true, system: true, upgrade: true },
     index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 },
     mcp: { shared: true, off: { claude: [], codex: [], opencode: [], omp: [] } }
@@ -27132,7 +27132,7 @@ var CONFIG_SCHEMA = {
     permissions: { t: "obj", fields: { bypass: bool, enforce: bool } },
     effort: { t: "obj", fields: effortFields },
     agents: { t: "obj", fields: { teams: bool } },
-    workflow: { t: "obj", fields: { band: bool, foldAfterSec: count(0), notifyAfterSec: count(0), codexNotices: bool } },
+    workflow: { t: "obj", fields: { band: bool, foldAfterSec: count(0), codexNotices: bool } },
     toolchain: { t: "obj", fields: { autoInstall: bool, system: bool, upgrade: bool } },
     index: { t: "obj", fields: { auto: bool, codegraph: bool, semble: bool, minIntervalMin: count(0), exclude: strList2, children: bool, maxChildren: count(0) } },
     mcp: { t: "obj", fields: { shared: bool, off: { t: "obj", fields: mcpOffFields } } }
@@ -31171,20 +31171,6 @@ async function prepareWorkspace(cwd, cfg, nowMs) {
   }
 }
 
-// src/adapters/shared/turn-receipt.ts
-function spawnNotify(cli, title, message) {
-  if (cli === undefined || cli.length === 0)
-    return false;
-  try {
-    const child = Bun.spawn([...cli, "notify", "info", title, message], { stdin: "ignore", stdout: "ignore", stderr: "ignore", detached: true, env: { ...process.env } });
-    child.unref();
-    return true;
-  } catch (e) {
-    log("warn", "turn notification: spawn failed", { error: e instanceof Error ? e.message : String(e) });
-    return false;
-  }
-}
-
 // src/adapters/omp/runtime/config.ts
 import { existsSync as existsSync10, readFileSync as readFileSync16, statSync as statSync16 } from "fs";
 import { join as join20 } from "path";
@@ -32703,9 +32689,6 @@ function defaultDeps() {
         spawnUsageRefresh("omp", { argv: [...argv, "usage", "refresh", "--harness", "omp", "--background"] });
     },
     prune: (keep, nowMs) => sessionMaint("omp", nowMs, { keep }).removed,
-    notifyDesktop: (title, message) => {
-      spawnNotify(cli(), title, message);
-    },
     consentGate: (sid, command, nowMs) => consentGate("omp", sid, command, nowMs),
     recordGrants: (sid, text, nowMs) => {
       recordPromptGrants("omp", sid, text, nowMs);
@@ -33224,11 +33207,6 @@ function noteChanges(s, changes) {
   }
   return alarm !== undefined ? { state, alarm } : { state };
 }
-function longTurnText(durationMs, notifyAfterSec, run = "") {
-  if (!Number.isFinite(durationMs) || !Number.isFinite(notifyAfterSec) || notifyAfterSec <= 0 || durationMs < notifyAfterSec * 1000)
-    return;
-  return `Turn finished after ${Math.max(1, Math.round(durationMs / 60000))} min${run !== "" ? `: ${run}` : ""}`;
-}
 function unverified(s) {
   const code = Object.keys(s.edits).some(needsVerification);
   return code && s.lastCheckSeq <= s.lastEditSeq;
@@ -33380,7 +33358,7 @@ function createTurnReceipts(host) {
       if (alarm !== undefined)
         show(ctx, `Buracle: ${alarm}`, "warning");
     },
-    end(sid, ctx, cfg) {
+    end(sid, ctx) {
       const t = turns.get(sid);
       if (t === undefined)
         return;
@@ -33390,12 +33368,6 @@ function createTurnReceipts(host) {
         show(ctx, summary.line, "warning");
       else if (summary !== undefined)
         host.log("turn receipt", { sid, line: summary.line });
-      if (t.startedAt === undefined || !hasTui(ctx))
-        return;
-      const view = host.view(sid);
-      const text = longTurnText(host.now() - t.startedAt, cfg.workflow.notifyAfterSec, view !== undefined ? bandSummary(view) : "");
-      if (text !== undefined)
-        host.desktop("Buracle", text);
     },
     resumed(sid, ctx, cfg) {
       if (!cfg.workflow.band)
@@ -33576,8 +33548,7 @@ var GENERATED = {
     workflow: {
       band: true,
       codexNotices: true,
-      foldAfterSec: 8,
-      notifyAfterSec: 120
+      foldAfterSec: 8
     }
   },
   mcp: [
@@ -34116,7 +34087,7 @@ var GENERATED = {
       userInvocable: true
     },
     {
-      description: "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan \u2026`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, notifications, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.",
+      description: "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan \u2026`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.",
       id: "buracle",
       invocation: "implicit",
       short: "When and how to call the buracle helper CLI",
@@ -35295,7 +35266,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
         deniedCalls.delete(deniedCalls.values().next().value);
     };
     pi.setLabel?.("Buracle");
-    const receipts = createTurnReceipts({ now: () => deps.now(), view: (sid) => guarded("flow view", () => deps.flow.view(sid, deps.now(), liveOrDefaults().config.workflow.foldAfterSec)), desktop: (title, message) => deps.notifyDesktop(title, message), log: (msg, data) => log("debug", `omp: ${msg}`, data) });
+    const receipts = createTurnReceipts({ now: () => deps.now(), view: (sid) => guarded("flow view", () => deps.flow.view(sid, deps.now(), liveOrDefaults().config.workflow.foldAfterSec)), log: (msg, data) => log("debug", `omp: ${msg}`, data) });
     const pane = new StatusPane({ lines: (view, ctx) => status.lines(view, ctx) });
     const refreshFlow = (ctx) => {
       if (!hasTui(ctx) || !isMain(ctx))
@@ -35890,7 +35861,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
       turnEnded: (sid) => {
         guarded("H28 project assets", () => deps.projectAssets.link(memo(sid).workspaceInfo?.root, deps.now()));
       },
-      released: (sid, ctx) => receipts.end(sid, ctx, live().config),
+      released: (sid, ctx) => receipts.end(sid, ctx),
       noticed: { get: (sid) => memo(sid).noticed === true, set: (sid) => {
         memo(sid).noticed = true;
       } }

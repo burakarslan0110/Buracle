@@ -81,7 +81,6 @@ agents:
 workflow:
   band: true
   foldAfterSec: 8
-  notifyAfterSec: 120
   codexNotices: true
 
 toolchain:

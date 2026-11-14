@@ -6,9 +6,7 @@ import type { SpoolEntry } from '../../../core/memory/spool'
 import { detectSignals, questionAnswered } from '../../../core/policy/index'
 import { answerReceipt, planProgressed, promptInteraction, routeAuditAllowed, stopGuardVerdict, validatePlan } from '../../../core/plan/index'
 import type { PlanDoc, SessionState, StopGuardResult, StopWhy } from '../../../core/plan/index'
-import { log } from '../../../engine/log'
 import * as paths from '../../../engine/paths'
-import { shimArgv } from '../../../engine/shim'
 import { loadState, updateState } from '../../../workflow/session-store'
 import type { BackgroundJob } from './background'
 import { waitsInBackground } from './background'
@@ -93,17 +91,6 @@ export function runawayNotice(why: StopWhy | 'rate', plan: string): string {
   return `OpenCode stopped although the plan ${plan} is not finished: ${what} was reached. Check the session, then continue it or run \`buracle plan pause\`.`
 }
 
-export function shimNotify(title: string, message: string): void {
-  const argv = shimArgv(['notify', 'info', title, message])
-  if (argv === undefined) return
-  try {
-    const proc = Bun.spawn(argv, { stdio: ['ignore', 'ignore', 'ignore'], env: process.env, detached: true })
-    proc.unref()
-  } catch (e) {
-    log('warn', 'opencode: notify spawn failed', { error: e instanceof Error ? e.message : String(e) })
-  }
-}
-
 export interface StopSession {
   readonly running: boolean
   readonly gen: number
@@ -126,7 +113,6 @@ export interface StopGuardHost {
   cwd(sid: string): string
   prompt(input: PromptInput): Promise<unknown>
   spool(sid: string, entries: SpoolEntry[]): void
-  notify(title: string, message: string): void
   log(level: 'debug' | 'info' | 'warn' | 'error', msg: string, data?: unknown): void
   readonly ledger: LedgerStore
 }
@@ -180,7 +166,6 @@ export class StopGuard {
 
   private say(sid: string, message: string): void {
     this.host.spool(sid, [{ ts: this.host.now(), ev: 'note', excerpt: message }])
-    try { this.host.notify('Buracle stop guard', message) } catch (e) { this.host.log('warn', 'notice failed', { error: errText(e) }) }
   }
 
   private runaway(sid: string, chain: GuardChain, why: StopWhy | 'rate', plan: string): void {

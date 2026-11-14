@@ -1,7 +1,5 @@
 import { log } from '../engine/log'
 
-export type NotifyType = 'info' | 'plan_approval' | 'prd_approval' | 'attention_needed' | 'verification_complete'
-
 export interface ProjectInitInput {
   cwd: string
   root: string

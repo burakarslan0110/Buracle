@@ -145,11 +145,6 @@ export function parseReceipt(x: unknown): ReceiptState {
   return out
 }
 
-export function longTurnText(durationMs: number, notifyAfterSec: number, run = ''): string | undefined {
-  if (!Number.isFinite(durationMs) || !Number.isFinite(notifyAfterSec) || notifyAfterSec <= 0 || durationMs < notifyAfterSec * 1000) return undefined
-  return `Turn finished after ${Math.max(1, Math.round(durationMs / 60_000))} min${run !== '' ? `: ${run}` : ''}`
-}
-
 export function unverified(s: ReceiptState): boolean {
   const code = Object.keys(s.edits).some(needsVerification)
   return code && s.lastCheckSeq <= s.lastEditSeq

@@ -172,7 +172,6 @@ export function testDeps(overrides: Partial<ExtensionDeps> = {}): { deps: Partia
     buracleRepo: () => undefined,
     updates: () => undefined,
     cli: () => ['buracle'],
-    notifyDesktop: () => undefined,
     projectSlug: async () => 'demo',
     branch: async () => 'main',
     gitState: async () => undefined,

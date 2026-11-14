@@ -163,7 +163,7 @@ export async function guardProbeFinding(folder: string, d: Pick<DoctorDeps, 'run
     const payload = JSON.stringify({ session_id: 'buracle-doctor-probe', hook_event_name: 'PreToolUse', tool_name: tool, tool_input: { command: PROBE_COMMAND }, cwd: folder, permission_mode: 'bypassPermissions' })
     const r = await d.run(argv, {
       stdin: payload, timeoutMs: 30_000, cwd: folder,
-      env: { CLAUDE_PLUGIN_ROOT: folder, BURACLE_NO_CAPTURE: '1', BURACLE_NO_MEMORY: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_NO_NOTIFY: '1' },
+      env: { CLAUDE_PLUGIN_ROOT: folder, BURACLE_NO_CAPTURE: '1', BURACLE_NO_MEMORY: '1', BURACLE_NO_AUTOSTART: '1' },
     })
     let decision: unknown
     try { decision = ((JSON.parse(r.stdout) as Record<string, unknown>)['hookSpecificOutput'] as Record<string, unknown> | undefined)?.['permissionDecision'] } catch { decision = undefined }

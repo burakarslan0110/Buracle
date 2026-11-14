@@ -36,7 +36,7 @@ export async function guardProbe(command: string, run: NonNullable<DoctorDeps['p
   const check = 'codex.hooks.probe'
   const payload = JSON.stringify({ session_id: 'buracle-doctor-probe', turn_id: 't0', transcript_path: null, cwd, hook_event_name: 'PreToolUse', model: 'probe', permission_mode: 'bypassPermissions', tool_name: 'Bash', tool_use_id: 'probe', tool_input: { command: PROBE_COMMAND } })
   const argv = ['/bin/sh', '-c', command]
-  const r = await run(argv, { stdin: payload, cwd, timeoutMs: 30_000, env: { BURACLE_NO_CAPTURE: '1', BURACLE_NO_MEMORY: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_NO_NOTIFY: '1' } })
+  const r = await run(argv, { stdin: payload, cwd, timeoutMs: 30_000, env: { BURACLE_NO_CAPTURE: '1', BURACLE_NO_MEMORY: '1', BURACLE_NO_AUTOSTART: '1' } })
   let decision: unknown
   try { decision = rec(rec(JSON.parse(r.stdout) as unknown)['hookSpecificOutput'])['permissionDecision'] } catch { decision = undefined }
   if (decision === 'deny') return { level: 'ok', check, detail: `the PreToolUse hook denies \`${PROBE_COMMAND}\` (H01), started as Codex starts it` }

@@ -30,7 +30,7 @@ Repeat for each unticked task, in order. When 2 or more unticked tasks have no f
 Exceptions:
 
 - **Nothing testable** (the DoD says so: config, docs, pure wiring): skip RED and GREEN and produce the evidence the DoD names instead.
-- **User action task:** `buracle notify attention_needed "<title>" "<what to do>" --plan <path>`, then `buracle plan pause --kind manual --reason "<exactly what the user must do>"`, then ask with {{ask_user}} (or in plain text, ending the turn). When the user confirms ("done", "finished", in any language), check the result yourself, run `buracle plan resume`, tick the task and continue.
+- **User action task:** `buracle plan pause --kind manual --reason "<exactly what the user must do>"`, then ask with {{ask_user}} (or in plain text, ending the turn). When the user confirms ("done", "finished", in any language), check the result yourself, run `buracle plan resume`, tick the task and continue.
 
 ## I2. When reality differs from the plan
 

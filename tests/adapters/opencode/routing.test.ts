@@ -39,11 +39,10 @@ interface Opts extends FakeContextOptions {
 async function runtime(dir: string, opts: Opts = {}) {
   const f = fakeServerContext(dir, opts)
   const mem = fakeMemory()
-  const notices: Array<{ title: string, message: string }> = []
   const prepared: string[] = []
   const deps: PluginDeps = {
     baked: testBaked(), memory: mem, settleMs: opts.settleMs ?? 0, runChecker: async () => ({ code: 0, stdout: '', stderr: '' }),
-    capture: () => true, maint: () => ({ removed: [] }), notify: (title, message) => { notices.push({ title, message }) },
+    capture: () => true, maint: () => ({ removed: [] }),
     workspace: opts.workspace ?? (async cwd => { prepared.push(cwd); return info(cwd) }),
     workspaceRead: async cwd => info(cwd),
     ...(opts.now !== undefined ? { now: opts.now } : {}),
@@ -51,7 +50,7 @@ async function runtime(dir: string, opts: Opts = {}) {
   const rt = new BuracleRuntime(f.ctx, deps)
   await rt.register()
   await rt.registerTransforms()
-  return { f, mem, rt, notices, prepared, deps }
+  return { f, mem, rt, prepared, deps }
 }
 
 function prompt(text: string, over: Partial<SessionPromptEvent> = {}): SessionPromptEvent {
@@ -662,7 +661,7 @@ describe('default effort and H17', () => {
     writeFileSync(file, JSON.stringify({ v: 1, config: testBaked().defaults, resolved: { opencodeConfigDir: join(root, 'installed', 'opencode') } }))
     const pluginDir = join(root, 'other', 'opencode', 'plugins', 'buracle')
     const notices: string[] = []
-    const deps: PluginDeps = { baked: testBaked(), memory: fakeMemory(), settleMs: 0, capture: () => true, maint: () => ({ removed: [] }), pluginDir, notify: (_t, m) => { notices.push(m) }, workspace: async cwd => info(cwd) }
+    const deps: PluginDeps = { baked: testBaked(), memory: fakeMemory(), settleMs: 0, capture: () => true, maint: () => ({ removed: [] }), pluginDir, logger: (level, m) => { if (level === 'warn') notices.push(m) }, workspace: async cwd => info(cwd) }
     for (let i = 0; i < 2; i++) {
       const stop = await createBuraclePlugin(deps).setup(fakeServerContext(root).ctx)
       if (typeof stop === 'function') await (stop as () => Promise<void>)()

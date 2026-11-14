@@ -19,7 +19,7 @@ Use this only when `buracle config get plan` shows `nativePlanMode` set to `on`,
    **Codex:** in one `<proposed_plan>` block of your final message. Tell the user to choose "Yes, implement this plan": the fresh-context choice starts a new session, which this run does not carry over to.
    **OpenCode:** as your last plan-agent message: one first line that asks the user to switch back to the build agent (Tab) and say "continue", then the plan.
    **Oh My Pi:** into the plan file that plan mode names (`local://<slug>-plan.md`), then submit it for approval the way plan mode says.
-3. Until plan mode ends, write no other file, run no state-changing `buracle` command (`plan`, `flow`, `notify`) and launch no reviewer: plan mode forbids writes, and P8 runs after it.
+3. Until plan mode ends, write no other file, run no state-changing `buracle` command (`plan`, `flow`) and launch no reviewer: plan mode forbids writes, and P8 runs after it.
 
 ## N3. After plan mode
 

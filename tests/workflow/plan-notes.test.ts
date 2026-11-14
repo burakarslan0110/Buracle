@@ -1,12 +1,10 @@
 import { describe, expect, test } from 'bun:test'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { runPlan } from '../../src/cli/commands/plan'
 import { withNote, type NoteInput } from '../../src/core/plan/notes'
 import * as paths from '../../src/engine/paths'
 import { repoFacts } from '../../src/workflow/gitx'
-import { notify } from '../../src/workflow/notify'
-import { changesTarget, docId, docTarget, newNoteId, notesPath, readInbox, readNotes, updateNotes, type NotesTarget } from '../../src/workflow/review-notes'
+import { changesTarget, docTarget, newNoteId, notesPath, readInbox, readNotes, updateNotes, type NotesTarget } from '../../src/workflow/review-notes'
 import { withSandbox } from '../helpers/sandbox'
 import { ctxAt, g, makeRepo, memIO, planDoc, write } from './fixture'
 
@@ -166,26 +164,6 @@ describe('buracle plan notes', () => {
       expect(fromWt.body['open']).toBe(1)
       expect((await notes(repo, ['--kind', 'code'])).body['open']).toBe(0)
       expect((await g(repo, 'status', '--porcelain')).split('\n').filter(l => l.includes('review'))).toEqual([])
-    })
-  })
-})
-
-describe('buracle notify names the review page', () => {
-  test('an approval notification carries the page of the plan while the web UI runs, and none otherwise', async () => {
-    await withSandbox(async ({ root }) => {
-      const repo = await makeRepo(root)
-      const path = await plan(repo)
-      const off = await notify('plan_approval', 'Rate limit', 'ready', { plan: path }, ctxAt(repo, NOW), undefined)
-      expect(off.data['page']).toBeNull()
-      mkdirSync(paths.stateDir(), { recursive: true })
-      writeFileSync(paths.memoryUiStateFile(), JSON.stringify({ v: 1, pid: process.pid, port: 41999, host: '127.0.0.1', url: 'http://127.0.0.1:41999', startedAt: '', version: '0', brain: '' }))
-      const on = await notify('plan_approval', 'Rate limit', 'ready', { plan: path }, ctxAt(repo, NOW), undefined)
-      expect(on.data['page']).toBe(`http://127.0.0.1:41999/review?doc=${docId(path)}`)
-      expect(on.lines).toContain(`Review page: http://127.0.0.1:41999/review?doc=${docId(path)}`)
-      const info = await notify('info', 'Rate limit', 'done', { plan: path }, ctxAt(repo, NOW), undefined)
-      expect('page' in info.data).toBe(false)
-      expect(existsSync(paths.reviewInboxFile())).toBe(false)
-      expect(readFileSync(paths.memoryUiStateFile(), 'utf8')).toContain('41999')
     })
   })
 })

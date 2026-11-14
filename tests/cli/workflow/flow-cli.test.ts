@@ -11,7 +11,7 @@ interface Run { code: number, stdout: string, stderr: string, json: <T = Record<
 
 function cli(cwd: string, env: Record<string, string | undefined>) {
   return async (...args: string[]): Promise<Run> => {
-    const r = await run([process.execPath, CLI, ...args], { cwd, env: { ...GIT_TEST_ENV, BURACLE_NO_NOTIFY: '1', BURACLE_NO_MEMORY: '1', ...env }, timeoutMs: 60_000 })
+    const r = await run([process.execPath, CLI, ...args], { cwd, env: { ...GIT_TEST_ENV, BURACLE_NO_MEMORY: '1', ...env }, timeoutMs: 60_000 })
     return { ...r, json: <T>() => JSON.parse(r.stdout) as T }
   }
 }

@@ -6,10 +6,8 @@ Short sequences for situations that recur in every workflow. The workflow skill 
 ## Ask the user a real question during an approved run
 
 1. `buracle plan pause --kind decision --reason "Redis or an in-process LRU for the price cache?"`
-2. `buracle notify attention_needed "Decision needed" "Price cache: Redis or LRU?" --plan <path>`
-   (in the language the user writes in)
-3. Ask with your structured-question tool (`request_user_input` in Codex, `question` in OpenCode, `ask` in Oh My Pi): 2–4 concrete options, your recommendation first. End the turn.
-4. After the answer: `buracle plan resume`. Record the choice in the plan; if it is a lasting
+2. Ask with your structured-question tool (`request_user_input` in Codex, `question` in OpenCode, `ask` in Oh My Pi): 2–4 concrete options, your recommendation first. End the turn.
+3. After the answer: `buracle plan resume`. Record the choice in the plan; if it is a lasting
    decision, also as a `decision` memory.
 
 For a step only the user can do (log in, create a key, press a button), use `--kind manual` and
@@ -84,7 +82,6 @@ The same holds when they say it in their own language.
    `buracle plan pause --kind decision --reason "result review"`, ask, and after their explicit
    approval run `buracle plan approve-result` (it ends the pause). `plan verify` refuses until then.
 5. All checks passed: `buracle plan verify`. A refusal names what is missing; fix that.
-6. `buracle notify verification_complete "<title>" "<one line>" --plan <path>`.
 
 ## Before a fan-out
 

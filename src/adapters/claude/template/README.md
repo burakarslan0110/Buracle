@@ -61,7 +61,7 @@ the reply to the question the denial told the agent to ask, or in the consent di
 | `tool.call` Bash/Monitor/PowerShell | In an interactive session, asks right away about a command the consent gate would stop ("Allow once", "Allow for this session", "Refuse") and writes the answer to the consent record the command hook reads. Tracks commands and their results for the turn receipt and the loop alarms; a `buracle flow` or `buracle plan` command refreshes the band. |
 | `tool.call` write tools | Track edits for the turn receipt (file, +/− lines) and the "same change undone and redone" alarm; an edit of the bound plan file refreshes the band. |
 | `tool.call` read and MCP tools | With `guards.redact` on, mask secrets (keys, tokens) in tool output before the model reads it. |
-| `turn.complete` | The turn receipt: a toast for unverified changes or a failed check; after an edit-only turn, the suggestion "run the checks …" (Tab takes it); a native notification when a turn longer than `workflow.notifyAfterSec` ends. |
+| `turn.complete` | The turn receipt: a toast for unverified changes or a failed check; after an edit-only turn, the suggestion "run the checks …" (Tab takes it). |
 | `session.start` | Registers the commands; in a session that holds an unfinished run, suggests continuing it. |
 | `session.measure` | One toast per context threshold (85%, 95%). |
 | `session.compact` | The summary keeps the active plan, the running workflow, decisions with their reasons, rejected approaches, verification commands and results, touched files and background work (the hook writes the handoff note). |

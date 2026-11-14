@@ -515,7 +515,7 @@ describe('parity: secrets in shell output are masked before the model reads them
   }), 60_000)
 })
 
-const FEATURES: Readonly<Record<'consentDialog' | 'readOnlyStartNotice' | 'earlyEditNote' | 'rateWindows' | 'todoHandoff' | 'pathRules' | 'goalCommand' | 'projectRuleList' | 'claudeOnlySkillList' | 'laneGuard' | 'answerReceipt' | 'readOnlyStop' | 'backgroundWait' | 'quietStopFeedback' | 'approvedPlanCapture' | 'reviewerShellReadOnly' | 'midTurnContextWarning' | 'startupNotices' | 'summaryKeepList' | 'languageServers' | 'lspDiagnosticsOnEdit' | 'turnReceipt' | 'longTurnNotice' | 'resumeHint' | 'livePanes' | 'stopVeto' | 'subagentStopHold' | 'commandsWithoutTurn' | 'liveExecMask' | 'failedMcpMask' | 'customStatusLine' | 'reviewSubject' | 'reviewRestore' | 'modelSwitchCommand' | 'nativePlanMode' | 'nativePlanApproval' | 'companionShell' | 'reviewNotesNotice' | 'browserControl', Readonly<Record<Harness, boolean>>>> = {
+const FEATURES: Readonly<Record<'consentDialog' | 'readOnlyStartNotice' | 'earlyEditNote' | 'rateWindows' | 'todoHandoff' | 'pathRules' | 'goalCommand' | 'projectRuleList' | 'claudeOnlySkillList' | 'laneGuard' | 'answerReceipt' | 'readOnlyStop' | 'backgroundWait' | 'quietStopFeedback' | 'approvedPlanCapture' | 'reviewerShellReadOnly' | 'midTurnContextWarning' | 'startupNotices' | 'summaryKeepList' | 'languageServers' | 'lspDiagnosticsOnEdit' | 'turnReceipt' | 'resumeHint' | 'livePanes' | 'stopVeto' | 'subagentStopHold' | 'commandsWithoutTurn' | 'liveExecMask' | 'failedMcpMask' | 'customStatusLine' | 'reviewSubject' | 'reviewRestore' | 'modelSwitchCommand' | 'nativePlanMode' | 'nativePlanApproval' | 'companionShell' | 'reviewNotesNotice' | 'browserControl', Readonly<Record<Harness, boolean>>>> = {
   approvedPlanCapture: { claude: true, codex: true, opencode: false, omp: true },
   reviewerShellReadOnly: { claude: true, codex: true, opencode: true, omp: true },
   consentDialog: { claude: true, codex: true, opencode: true, omp: true },
@@ -538,7 +538,6 @@ const FEATURES: Readonly<Record<'consentDialog' | 'readOnlyStartNotice' | 'early
   languageServers: { claude: true, codex: true, opencode: true, omp: true },
   lspDiagnosticsOnEdit: { claude: true, codex: true, opencode: true, omp: true },
   turnReceipt: { claude: true, codex: true, opencode: true, omp: true },
-  longTurnNotice: { claude: true, codex: true, opencode: true, omp: true },
   resumeHint: { claude: true, codex: true, opencode: true, omp: true },
   livePanes: { claude: true, codex: false, opencode: true, omp: true },
   stopVeto: { claude: true, codex: true, opencode: false, omp: true },
@@ -877,7 +876,6 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
     }
     const each = (test: (code: string, h: Harness) => boolean): Record<Harness, boolean> => ({ claude: test(src.claude, 'claude'), codex: test(src.codex, 'codex'), opencode: test(src.opencode, 'opencode'), omp: test(src.omp, 'omp') })
     expect(each(c => /receiptLine\(/.test(c) && /noteCommand\(/.test(c) && /note(?:Changes|Edit)\(/.test(c))).toEqual(FEATURES.turnReceipt)
-    expect(each(c => /longTurnText\(/.test(c))).toEqual(FEATURES.longTurnNotice)
     expect(each(c => /resumeSuggestion\(/.test(c))).toEqual(FEATURES.resumeHint)
     expect({
       claude: file(files.claude, 'hooks/register.tsx').includes("component: 'Pane'"),

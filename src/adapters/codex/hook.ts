@@ -44,7 +44,7 @@ import { POST_MASK_HANDLER } from './hooks-config'
 import { maskOutcome } from './mask'
 import { fallbackWindowLabel, openPlanSteps, readCollaborationMode, readCompactionSummary, readExecCwd, readLatestPlan, readRolloutTelemetry, type RolloutTelemetry } from './rollout'
 import { shellPatchTargets } from './shell-patch'
-import { patchReceiptChanges, spawnNotify } from '../shared/turn-receipt'
+import { patchReceiptChanges } from '../shared/turn-receipt'
 import { commandRan, filesChanged, flowNotice, hooksNotice, joinNotices, turnEnded, turnStarted, withSystemMessage } from './turn-notices'
 import { isSubagentPayload, recordSubagentAlias, subagentLedgerId, subagentWorkspace } from './subagents'
 import { uiSessionHooks, type UiSessionHooks } from '../shared/ui-session'
@@ -87,7 +87,6 @@ export interface CodexHookDeps {
   projectDeps?: (root: string) => string[]
   assetsSpawn?: AssetsSpawner
   lspEdits?: (files: readonly string[], opts: { cwd: string, deadlineMs: number, now: () => number }) => Promise<string[]>
-  notify?: (title: string, message: string) => void
   hookHealth?: (nowMs: number) => Promise<HookHealth>
   /** The memory web UI's session record and start (memory.ui.autostart); the shared implementation by default. */
   ui?: UiSessionHooks
@@ -136,10 +135,6 @@ export function defaultDeps(): CodexHookDeps {
 
 function uiOf(deps: CodexHookDeps): UiSessionHooks {
   return deps.ui ?? uiSessionHooks
-}
-
-function notifier(ctx: AdapterContext, deps: CodexHookDeps): (title: string, message: string) => void {
-  return deps.notify ?? ((title, message) => { spawnNotify(existsSync(ctx.buracleBin) ? [ctx.buracleBin] : undefined, title, message) })
 }
 
 async function hookHealthOf(deps: CodexHookDeps, now: number): Promise<HookHealth> {
@@ -731,7 +726,7 @@ async function auditOutcome(p: Payload, sid: string, ctx: AdapterContext, deps: 
   const reason = audit ? await step('Stop', 'H23 turnAudit', undefined as string | undefined, () => stopAudit(sid, deps.core)) : undefined
   const ended = reason === undefined && !isSubagentPayload(p)
   const now = deps.now()
-  const receipt = ended ? await step('Stop', 'turn receipt', undefined as string | undefined, () => turnEnded(ctx, sid, { now, notify: notifier(ctx, deps) })) : undefined
+  const receipt = ended ? await step('Stop', 'turn receipt', undefined as string | undefined, () => turnEnded(ctx, sid, { now })) : undefined
   const flow = ended ? await step('Stop', 'workflow notice', undefined as string | undefined, () => flowNotice(ctx, sid, now)) : undefined
   const message = joinNotices(notice, receipt, flow)
   const out: Record<string, unknown> = {}

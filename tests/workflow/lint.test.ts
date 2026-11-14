@@ -27,8 +27,6 @@ describe('buracle command mentions', () => {
     'buracle worktree create|diff|sync|cleanup <slug>',
     'buracle worktree create <slug> --lane [--prefix plan-build|goal-build|bugfix] --json',
     'buracle review-scope [--slug <s>] --json',
-    'buracle notify plan_approval|attention_needed|verification_complete|info "<title>" "<message>" [--plan <path>]',
-    'buracle notify <type> "<title>"',
     'buracle skills list\\|new\\|lint',
     'buracle mem search|get|remember|status',
     'buracle mem capture --pending',

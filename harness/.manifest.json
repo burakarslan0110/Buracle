@@ -94,12 +94,12 @@
     },
     "harness/agents-skills/bugfix/references/prove-and-finish.md": {
       "by": "agents-skills",
-      "sha256": "bba6caba2148a7b074380a0c97de48db3ad8615624c5e7a5c75de61b9bed68c3",
+      "sha256": "05e9ef30b9804abd92256a0433ad886031b0066226e7945797332b28cd50c574",
       "exec": false
     },
     "harness/agents-skills/buracle/SKILL.md": {
       "by": "agents-skills",
-      "sha256": "a0dd6b49ac3b1fd051eb4256eeaeea88f9b2b9477c428ca89614b2ee794a4902",
+      "sha256": "f755904f10eddb01036cd12f0d5d57fc504a3ebc05d7bf7f30434eff4f5f2243",
       "exec": false
     },
     "harness/agents-skills/buracle/agents/openai.yaml": {
@@ -109,12 +109,12 @@
     },
     "harness/agents-skills/buracle/references/commands.md": {
       "by": "agents-skills",
-      "sha256": "939e5d31b0c819cc3747347717b2b56808da2069c513f8197bca3356d60dd32e",
+      "sha256": "b6f20be891f55527c6e8b2946519469c5b84ab3d94f13a8bb104681ecddb83ed",
       "exec": false
     },
     "harness/agents-skills/buracle/references/recipes.md": {
       "by": "agents-skills",
-      "sha256": "fd4061bf7782fc9605e0853e4f1611ae69e39d0aef0284014b9cd3130be202a8",
+      "sha256": "6d138da915e03f4746299d23aef07082331876ef464a3f9e185efca8093d5fc3",
       "exec": false
     },
     "harness/agents-skills/dead-code/SKILL.md": {
@@ -159,7 +159,7 @@
     },
     "harness/agents-skills/goal-build/SKILL.md": {
       "by": "agents-skills",
-      "sha256": "76e5c6f286e0d8cda3c8a673639387f088ecabcfc86b6b7bf56dfb8f140f2fae",
+      "sha256": "3087721de60ed34d1c348080142a030f871c9e7be130659821553d36434cf351",
       "exec": false
     },
     "harness/agents-skills/goal-build/agents/openai.yaml": {
@@ -174,12 +174,12 @@
     },
     "harness/agents-skills/goal-build/references/goal-and-contract.md": {
       "by": "agents-skills",
-      "sha256": "653fae352033cd2d91fa0b1b528019a56eb4a866e8d85b0454818b0cca6c630e",
+      "sha256": "59760b756b2a2d94fb7a1c8a9ac4f6fb8d9423ec7e88ab6181e29da9efb9a4aa",
       "exec": false
     },
     "harness/agents-skills/goal-build/references/verify-and-handback.md": {
       "by": "agents-skills",
-      "sha256": "92237e994f0c78391cd975b380071596a272c3d373486774b07440709c06247d",
+      "sha256": "756c669164fe746574767b28692d5041771fa4f53f08db27c287b39f8381f780",
       "exec": false
     },
     "harness/agents-skills/inspect/SKILL.md": {
@@ -239,7 +239,7 @@
     },
     "harness/agents-skills/plan-build/SKILL.md": {
       "by": "agents-skills",
-      "sha256": "39e2afea231304dcf0f3314f65c92e43fb1be7b693693b276c2d208e4b4acf20",
+      "sha256": "15a71a0d1e6f50ac3fc414d221ce0860bbe42a6b75112dc73eb1053d7a52b4a1",
       "exec": false
     },
     "harness/agents-skills/plan-build/agents/openai.yaml": {
@@ -249,7 +249,7 @@
     },
     "harness/agents-skills/plan-build/references/bugfix-plan.md": {
       "by": "agents-skills",
-      "sha256": "4d6daf0c95911cea58c3b1d70c397845f3b332342662289a4a7621c109a6296f",
+      "sha256": "df2a77eff43600013c429bb685fcb2d3861f3f9c90cb00febb47a083b781271a",
       "exec": false
     },
     "harness/agents-skills/plan-build/references/bugfix-verify.md": {
@@ -259,22 +259,22 @@
     },
     "harness/agents-skills/plan-build/references/implement.md": {
       "by": "agents-skills",
-      "sha256": "e7ed2f7da4c064d4cbbed9f1ee29ca97208fab7a7594edca735b0798b67bcdef",
+      "sha256": "3fa702858836be0269e7dbfaa165e6aeae209958482d1cc388ef6ca4ce2001e6",
       "exec": false
     },
     "harness/agents-skills/plan-build/references/native-plan.md": {
       "by": "agents-skills",
-      "sha256": "fbdf795b774efb3015ab28cc14e01eaebae965238dd91d82e8c3869e8208c5b9",
+      "sha256": "5de4e94240955f765395233cb0b23bbed0d9ca46aa9731497d8cbf97eea241fc",
       "exec": false
     },
     "harness/agents-skills/plan-build/references/plan.md": {
       "by": "agents-skills",
-      "sha256": "140bbbcd8dd22c3c105849f553fe6de66cb18aca39b2d8cb0878147302ddde7f",
+      "sha256": "17657075c610e9ae8c20042d559967aaaebfdc569991a393bdfb5e9083cb9c70",
       "exec": false
     },
     "harness/agents-skills/plan-build/references/verify.md": {
       "by": "agents-skills",
-      "sha256": "6311c6d79172d1e39f397d542f265779ba31ab7953ba19d3c449617651a17437",
+      "sha256": "b03b837b7e4dbbfaaa1f42386f6dd06f00cd91d41e0ed469a79a5bdf2ad5091c",
       "exec": false
     },
     "harness/agents-skills/project-rules/SKILL.md": {
@@ -304,7 +304,7 @@
     },
     "harness/agents-skills/requirements/SKILL.md": {
       "by": "agents-skills",
-      "sha256": "520b755844f0b8ad4d82d68b7f61e35929a4323b3263c67f80c61d1cde53f70b",
+      "sha256": "f6a35a11b75a4d3059cad976c3bc4d8f0cb15b52dd4a92e597f6c74f3e8afb24",
       "exec": false
     },
     "harness/agents-skills/requirements/agents/openai.yaml": {
@@ -479,7 +479,7 @@
     },
     "harness/claude/README.md": {
       "by": "claude",
-      "sha256": "19784c2fb0281699275ec8c6e0fdd37f66bffeaa18d056f5d6a9a25b08d01fc3",
+      "sha256": "88e2277748b04fe9d92cd03416d4b55318907a47234999e97dd894f3529fb10e",
       "exec": false
     },
     "harness/claude/agents/changes-review.md": {
@@ -529,7 +529,7 @@
     },
     "harness/claude/hooks/core/config.ts": {
       "by": "claude",
-      "sha256": "2be6d5b31cdb3efe7c83806e552f6ec08b51330f05ae10b5741c302992a0bf8f",
+      "sha256": "d6322e9554bcf620fd4f21a7d3920a844dd97669d805ff441244ff49d59014d7",
       "exec": false
     },
     "harness/claude/hooks/core/effort.ts": {
@@ -894,7 +894,7 @@
     },
     "harness/claude/hooks/core/receipt.ts": {
       "by": "claude",
-      "sha256": "0b5eda6816d4e9f1d116876afaed14e3db436e991e1d20c44ea4e865ea30d218",
+      "sha256": "28665da70021c0f3a2d3463c2a095ee61dedea2f12a453462121a67dd6256980",
       "exec": false
     },
     "harness/claude/hooks/core/status/bar.ts": {
@@ -959,12 +959,12 @@
     },
     "harness/claude/hooks/generated/catalog.ts": {
       "by": "claude",
-      "sha256": "56a2b2a87faad4c941c74239f89ce3f4d83b98af334b3b125fc3d224350f19c8",
+      "sha256": "ba7003ac1d5b6fd5d0f555c7102b1fce94fb9cfc901b1d027572d05ce4e92b1f",
       "exec": false
     },
     "harness/claude/hooks/generated/meta.ts": {
       "by": "claude",
-      "sha256": "66cd0a68146a96083e2a5b3a567701ed2891616c79053ed37e325d0451e4b829",
+      "sha256": "d09b5059d94b8c49210791cd9ed138541b4c4952cd6781be71600d007f10349e",
       "exec": false
     },
     "harness/claude/hooks/hooks.json": {
@@ -974,7 +974,7 @@
     },
     "harness/claude/hooks/register.tsx": {
       "by": "claude",
-      "sha256": "cb08a1e91f0f93999fb473c71d2ca25bfca0c78cc893692d5d9a122c9fb9df59",
+      "sha256": "26ed6a04d33f807ed20a2595a9fadedf7ec9b68309312dae7f0351d3d44c1957",
       "exec": false
     },
     "harness/claude/settings.json": {
@@ -1069,12 +1069,12 @@
     },
     "harness/claude/skills/bugfix/references/prove-and-finish.md": {
       "by": "claude",
-      "sha256": "09847d9f751d331cec1180b5f5d55900eeaddbec2326e5b92c16231a2613fefc",
+      "sha256": "c7af896d7188999bfb85616e279c59e325ae5af354ffa0ec32a6e063335f0756",
       "exec": false
     },
     "harness/claude/skills/buracle/SKILL.md": {
       "by": "claude",
-      "sha256": "937f87d85569a218f1345c5b18d2cb9e065cf6ac154ed2a66fa55be17f259312",
+      "sha256": "1b2777feaecb6580314e6517f269632dc964a80a18a90357b4a3707674b13d04",
       "exec": false
     },
     "harness/claude/skills/buracle/evals/cases.json": {
@@ -1084,12 +1084,12 @@
     },
     "harness/claude/skills/buracle/references/commands.md": {
       "by": "claude",
-      "sha256": "939e5d31b0c819cc3747347717b2b56808da2069c513f8197bca3356d60dd32e",
+      "sha256": "b6f20be891f55527c6e8b2946519469c5b84ab3d94f13a8bb104681ecddb83ed",
       "exec": false
     },
     "harness/claude/skills/buracle/references/recipes.md": {
       "by": "claude",
-      "sha256": "f9ac55694c2afe4790f3d803ca38de4c5b6c37c8797970a41cba4b3176234f08",
+      "sha256": "f842f4c0c99181615365311633f726d94a91134ff898f9d81043a7ff2f54c664",
       "exec": false
     },
     "harness/claude/skills/dead-code/SKILL.md": {
@@ -1124,7 +1124,7 @@
     },
     "harness/claude/skills/goal-build/SKILL.md": {
       "by": "claude",
-      "sha256": "5c51c5b7578fef16f5308ab14c6bbb0baf98a9b32109d29918a9af872bd35124",
+      "sha256": "989d2478142c43b9f7f93d6081cc2979f116c28a9c345f38785e02ad746fe54f",
       "exec": false
     },
     "harness/claude/skills/goal-build/references/build-and-judge.md": {
@@ -1134,12 +1134,12 @@
     },
     "harness/claude/skills/goal-build/references/goal-and-contract.md": {
       "by": "claude",
-      "sha256": "8d8e84c96fb1dfa0d71efdaf36a0b379bf310a57cb87a3675a23bce69d15811a",
+      "sha256": "63a75e48b69ee60bcb665826ce7fd0689c6efd7b563cb6e488d2eaa4a95fcc9a",
       "exec": false
     },
     "harness/claude/skills/goal-build/references/verify-and-handback.md": {
       "by": "claude",
-      "sha256": "b52ac7bbdab446a8bc6d2a6b09d3d0b5cb957cf3340746757427debb482fd83a",
+      "sha256": "3ee8fed64d5afdd4c30eb21c21604d1fb5fdf5ce440468a0929c8083fc2ec075",
       "exec": false
     },
     "harness/claude/skills/inspect/SKILL.md": {
@@ -1194,12 +1194,12 @@
     },
     "harness/claude/skills/plan-build/SKILL.md": {
       "by": "claude",
-      "sha256": "088de64333a13889af9918f7c198891f687e8e57d10e2647a4d157b36ce19770",
+      "sha256": "f9cfe3779f9ab7b476c62db48fe4fb61dc74ee09d5f12de47020347913b4658e",
       "exec": false
     },
     "harness/claude/skills/plan-build/references/bugfix-plan.md": {
       "by": "claude",
-      "sha256": "1592e4061602158e197e4839a49b79268d3c9a211b1299a939f86443a1a435d4",
+      "sha256": "ffd780398623cb88ff60c40627e22b89c4fbc4f986017b5800b2e027bf0408f4",
       "exec": false
     },
     "harness/claude/skills/plan-build/references/bugfix-verify.md": {
@@ -1209,22 +1209,22 @@
     },
     "harness/claude/skills/plan-build/references/implement.md": {
       "by": "claude",
-      "sha256": "83d2fd897bcfc3ff0795eeee7788cd7389667c770667ede1b213ead5893d6c66",
+      "sha256": "4d1503aa0f9712ca5fe838607299546dfcf981846679b10858425d2fa1fb028d",
       "exec": false
     },
     "harness/claude/skills/plan-build/references/native-plan.md": {
       "by": "claude",
-      "sha256": "678b782142304a6aecd92ef361fac4e3eaee9a2cc18d5209fb118efeaa193943",
+      "sha256": "f6e7f7ff310279ca80868da13a875e96a0043d30b6abc5ba069acb5506636ed5",
       "exec": false
     },
     "harness/claude/skills/plan-build/references/plan.md": {
       "by": "claude",
-      "sha256": "bd6408b085adcd93734d8da45857db0811b823348d2d114aff1ecee994140ea4",
+      "sha256": "693936fd27cf48e4df01311cccdf1469a55edec0e0f1f4799dd43c9c21af471d",
       "exec": false
     },
     "harness/claude/skills/plan-build/references/verify.md": {
       "by": "claude",
-      "sha256": "9f0870e84f1dc334336fd74e58ece19cd2d895fe6f9761d31b035345d805a64a",
+      "sha256": "ac66520d894dc36ba4c3b5f0ca01457064bd4c593ee6ae4b748c717a0dc4aed3",
       "exec": false
     },
     "harness/claude/skills/project-rules/SKILL.md": {
@@ -1269,7 +1269,7 @@
     },
     "harness/claude/skills/requirements/SKILL.md": {
       "by": "claude",
-      "sha256": "a627bdc2ede6030feb3a0294fc6382336d90ed243339661976e477f1c511b979",
+      "sha256": "eca04ecb34dd377ec93d6343ceb0c17471a5ed8ef5d9ecff576162e4d0c0c2b1",
       "exec": false
     },
     "harness/claude/skills/requirements/references/discovery.md": {
@@ -1439,7 +1439,7 @@
     },
     "harness/codex/AGENTS.md": {
       "by": "codex",
-      "sha256": "985782518683a5f65df35b0e7f8bc2428bb84511bad010280daf7055ca2d3d5c",
+      "sha256": "31b859a71ae5baac358540cde0b0ebf480ca47ba4cbcc99f44f854a778e37f3f",
       "exec": false
     },
     "harness/codex/agents/changes-review.toml": {
@@ -1519,7 +1519,7 @@
     },
     "harness/hook-data.json": {
       "by": "hook-data",
-      "sha256": "a1edea5430c207aada37fa6858f90a195224cfee3fe4cfcb7a66b994d4eda91a",
+      "sha256": "646eb84b83a3433f8424e18c2de6971930def4be958cc1e5f984247b5f724ca6",
       "exec": false
     },
     "harness/omp/.mcp.json": {
@@ -1609,7 +1609,7 @@
     },
     "harness/omp/extensions/buracle.js": {
       "by": "omp",
-      "sha256": "991a19e4a86e259baba478b38ae9bb0484c2e7a37431f78a0a2e9d75bab64445",
+      "sha256": "dde3505f1e37e4c07237c58977ea462a7365dcf662cab257c65eecf93c551da3",
       "exec": false
     },
     "harness/omp/package.json": {
@@ -1634,7 +1634,7 @@
     },
     "harness/omp/rules/buracle-core.md": {
       "by": "omp",
-      "sha256": "dce676ca2d068c6afa0d3c1545567e0403421bd743b753d5d21ac920415dfbe1",
+      "sha256": "ec9e59e7f2cf69c1ddad9f5ca7e58d9c59d0f701bf248035f11e2b03a0ba1d81",
       "exec": false
     },
     "harness/omp/rules/buracle-dotnet.md": {
@@ -1674,7 +1674,7 @@
     },
     "harness/omp/rules/buracle-tooling.md": {
       "by": "omp",
-      "sha256": "770dae429c5016b3b00c9de1ff2eed2467b3b7a576689a18b6e502c59ea4fae4",
+      "sha256": "57318fd772310e7c073e68075402fac61c63c83607f00a1c14ec1ad34404224a",
       "exec": false
     },
     "harness/omp/rules/buracle-typescript.md": {
@@ -1684,7 +1684,7 @@
     },
     "harness/opencode/AGENTS.block.md": {
       "by": "opencode",
-      "sha256": "5cfe95e1b643a36fccab41ee89746e22fd6cc52801cc15901e799ffc54a07ed1",
+      "sha256": "ffbda409f3ef9956d075767ed66245626ba8416935b35518b2f200ea2279721f",
       "exec": false
     },
     "harness/opencode/README.md": {
@@ -1719,17 +1719,17 @@
     },
     "harness/opencode/manifest.json": {
       "by": "opencode",
-      "sha256": "647291dca1f3170010cfbbd7efc54d388677d95b22f3b3aacf14f1332d595636",
+      "sha256": "d9cde54d512ebc829c4ad7377044222ffa2e5d0aec28752a0ffd7f996a57a57d",
       "exec": false
     },
     "harness/opencode/plugins/buracle/index.js": {
       "by": "opencode",
-      "sha256": "5daf5e1a6eb1cafaf6f9f21ce5363505f03ce8f59ff978682a794200210c018e",
+      "sha256": "f913ee73806ee930329ae2b5bc13694b792ba04af315fa7f36ca3ae339277c38",
       "exec": false
     },
     "harness/opencode/plugins/buracle/tui.js": {
       "by": "opencode",
-      "sha256": "f734bf5f20c0e0027567d8a15ad195c72b677e2346d7047d5e208d4a035f9638",
+      "sha256": "7ead013ad48dea58fc9ad906e06d2b8ec91a53fbf26acc472df6bdce0f5ed317",
       "exec": false
     }
   }

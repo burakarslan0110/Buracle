@@ -5,7 +5,7 @@ Every command accepts `--json`, `--verbose` and `--help`. Exit codes everywhere:
 (`register`, `prepare-native`, `status`, `set`, `pause`, `resume`, `complete`, `approve-result`, `verify`, `review`, `unregister`) resolve the
 session as described in SKILL.md and exit 2 without one. With `--lane <slug>` (every one but `prepare-native`) they use a plan lane's own binding
 instead: the lead session's id plus `.lane-<slug>`, for the lane worktree `<slug>` the lead made with
-`buracle worktree create <slug> --lane` (it records the lead's session), from any checkout of the repository. `worktree`, `review-scope` and `notify`
+`buracle worktree create <slug> --lane` (it records the lead's session), from any checkout of the repository. `worktree` and `review-scope`
 use the session when there is one and also work without it.
 
 ## plan: the plan file and its state machine
@@ -106,15 +106,6 @@ review agents. A `warning` means the range may be wrong or empty: resolve it bef
 The base is the worktree's base branch, else the base `worktree branch` recorded for the current branch, else the closest of origin/HEAD's branch,
 `init.defaultBranch`, `main`, `master`, `develop` and `trunk`; `--base <ref>` replaces it (exit 1
 for a ref that does not exist), for example when the warning says HEAD is the default branch.
-
-## notify: get the user's attention
-
-```text
-buracle notify <info|plan_approval|prd_approval|attention_needed|verification_complete> "<title>" "<message>" [--plan <path>]
-```
-
-A desktop notification, recorded in `~/.buracle/state/notifications.jsonl`; nothing goes into
-memory. Best effort: a failure never blocks the work. Text in the user's language, no secrets.
 
 ## project: per-repository setup
 

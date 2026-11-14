@@ -13,7 +13,7 @@ interface Run { code: number, stdout: string, stderr: string, json: <T = Record<
 
 function cli(cwd: string, env: Record<string, string | undefined>) {
   return async (...args: string[]): Promise<Run> => {
-    const r = await run([process.execPath, CLI, ...args], { cwd, env: { ...GIT_TEST_ENV, BURACLE_NO_NOTIFY: '1', BURACLE_NO_MEMORY: '1', ...env }, timeoutMs: 60_000 })
+    const r = await run([process.execPath, CLI, ...args], { cwd, env: { ...GIT_TEST_ENV, BURACLE_NO_MEMORY: '1', ...env }, timeoutMs: 60_000 })
     return { ...r, json: <T>() => JSON.parse(r.stdout) as T }
   }
 }
@@ -47,7 +47,6 @@ describe('skill command lines, end to end', () => {
     const validate = await b('plan', 'validate', path, '--strict', '--json')
     expect([0, 1, 2]).toContain(validate.code)
 
-    expect((await b('notify', 'plan_approval', 'Rate limit', 'Plan ready: 1 task', '--plan', path)).code).toBe(0)
     expect((await b('plan', 'pause', '--kind', 'decision', '--reason', 'plan approval')).code).toBe(0)
     expect((await b('plan', 'status', '--json')).json<{ interaction: { state: string } }>().interaction.state).toBe('paused')
     expect((await b('plan', 'resume')).code).toBe(0)
@@ -100,10 +99,7 @@ describe('skill command lines, end to end', () => {
     const verify = await b('plan', 'verify')
     expect(verify.code).toBe(0)
     expect((await b('plan', 'status', '--json')).json()).toMatchObject({ plan: { status: 'VERIFIED', phase: 'done' }, tasks: { done: 1, total: 1 } })
-    expect((await b('notify', 'verification_complete', 'Rate limit', 'VERIFIED', '--plan', path)).code).toBe(0)
     expect((await b('plan', 'unregister')).code).toBe(0)
-    const notes = readFileSync(join(buracleHome, 'state', 'notifications.jsonl'), 'utf8').trim().split('\n')
-    expect(notes.length).toBe(2)
     expect(await g(repo, 'log', '-1', '--format=%s')).toBe('feat: rate limit the API')
   }), 120_000)
 
@@ -123,7 +119,6 @@ describe('skill command lines, end to end', () => {
     expect(wt.code).toBe(0)
     expect(wt.json<{ branch: string }>().branch).toBe(`goal-build/${slug}`)
     expect(analyzePlan(readFileSync(path, 'utf8')).worktree).toBe(true)
-    expect((await b('notify', 'prd_approval', 'Offline mode', 'docs/prd/2026-10-08-offline-mode.md')).code).toBe(0)
     tick(path)
     expect((await b('plan', 'complete')).code).toBe(0)
     expect((await b('plan', 'set', 'rounds', '1')).code).toBe(0)
@@ -151,7 +146,6 @@ describe('skill command lines, end to end', () => {
     expect((await b('plan', 'init', '--type', 'fix', '--title', 'x')).code).toBe(1)
     expect((await b('review-scope', '--json')).code).toBe(0)
     expect((await b('worktree', 'detect', '--json')).code).toBe(0)
-    expect((await b('notify', 'info', 'Hi', 'there')).code).toBe(0)
     const proj = await b('project', 'init', '--json')
     expect(proj.code).toBe(2)
     expect(proj.json<{ guidance: string[] }>().guidance[0]).toContain('project-rules')
@@ -163,12 +157,12 @@ describe('router-level usage', () => {
     await withEnv({ CLAUDE_CODE_SESSION_ID: undefined }, async () => {
       for (const argv of [['plan'], ['plan', 'frobnicate'], ['plan', 'init', '--nope'], ['plan', 'validate', 'a', 'b'], ['plan', 'status', '--strict'],
         ['worktree'], ['worktree', 'create'], ['worktree', 'cleanup', 'x', '--force', '--discard'], ['review-scope', 'extra'],
-        ['notify', 'info', 'a', 'b', 'c'], ['project'], ['project', 'nuke'], ['skills'], ['skills', 'list', '--strict'], ['rules'], ['rules', 'check']]) {
+        ['project'], ['project', 'nuke'], ['skills'], ['skills', 'list', '--strict'], ['rules'], ['rules', 'check']]) {
         const io = memIO()
         expect({ argv, code: await main(argv, io) }).toEqual({ argv, code: 1 })
         expect(io.err().length).toBeGreaterThan(0)
       }
-      for (const cmd of ['plan', 'worktree', 'review-scope', 'notify', 'project', 'skills', 'rules']) {
+      for (const cmd of ['plan', 'worktree', 'review-scope', 'project', 'skills', 'rules']) {
         const io = memIO()
         expect(await main([cmd, '--help'], io)).toBe(0)
         expect(io.out()).toContain(`buracle ${cmd}`)

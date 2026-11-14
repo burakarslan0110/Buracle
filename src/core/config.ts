@@ -23,7 +23,7 @@ export interface BuracleConfig {
   permissions: { bypass: boolean, enforce: boolean }
   effort: Record<Harness, string>
   agents: { teams: boolean }
-  workflow: { band: boolean, foldAfterSec: number, notifyAfterSec: number, codexNotices: boolean }
+  workflow: { band: boolean, foldAfterSec: number, codexNotices: boolean }
   toolchain: { autoInstall: boolean, system: boolean, upgrade: boolean }
   index: { auto: boolean, codegraph: boolean, semble: boolean, minIntervalMin: number, exclude: string[], children: boolean, maxChildren: number }
   mcp: { shared: boolean, off: Record<Harness, string[]> }
@@ -65,7 +65,7 @@ export function defaultConfig(): BuracleConfig {
     permissions: { bypass: true, enforce: true },
     effort: { claude: 'auto', codex: 'auto', opencode: 'auto', omp: 'auto' },
     agents: { teams: true },
-    workflow: { band: true, foldAfterSec: 8, notifyAfterSec: 120, codexNotices: true },
+    workflow: { band: true, foldAfterSec: 8, codexNotices: true },
     toolchain: { autoInstall: true, system: true, upgrade: true },
     index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 },
     mcp: { shared: true, off: { claude: [], codex: [], opencode: [], omp: [] } },
@@ -170,7 +170,7 @@ const CONFIG_SCHEMA: Schema = {
     permissions: { t: 'obj', fields: { bypass: bool, enforce: bool } },
     effort: { t: 'obj', fields: effortFields },
     agents: { t: 'obj', fields: { teams: bool } },
-    workflow: { t: 'obj', fields: { band: bool, foldAfterSec: count(0), notifyAfterSec: count(0), codexNotices: bool } },
+    workflow: { t: 'obj', fields: { band: bool, foldAfterSec: count(0), codexNotices: bool } },
     toolchain: { t: 'obj', fields: { autoInstall: bool, system: bool, upgrade: bool } },
     index: { t: 'obj', fields: { auto: bool, codegraph: bool, semble: bool, minIntervalMin: count(0), exclude: strList, children: bool, maxChildren: count(0) } },
     mcp: { t: 'obj', fields: { shared: bool, off: { t: 'obj', fields: mcpOffFields } } },

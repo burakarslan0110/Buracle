@@ -42,7 +42,6 @@ import { nodeCheckFs, type CheckFs } from '../../shared/checker-scan'
 import { realWriteTarget } from '../../shared/realpath'
 import { assetsAfterEdit, assetsContext, startLinkRun } from '../../shared/project-assets'
 import { prepareWorkspace } from '../../shared/workspace-start'
-import { spawnNotify } from '../../shared/turn-receipt'
 import { liveConfig, mcpHealth, ompConfigPath, type LiveConfig } from './config'
 import { reviewerFenceFromEnv } from './companion-fence'
 import { buracleCli, createMemoryBridge, readMemoryStatus, type MemoryBridge } from './memory'
@@ -100,7 +99,6 @@ export interface ExtensionDeps {
   captureEnabled(): boolean
   buracleRepo(cwd: string, configured: string | undefined): string | undefined
   cli(): string[] | undefined
-  notifyDesktop(title: string, message: string): void
   projectSlug(cwd: string): Promise<string>
   branch(cwd: string): Promise<string | undefined>
   gitState(cwd: string): Promise<GitState | undefined>
@@ -268,7 +266,6 @@ export function defaultDeps(): ExtensionDeps {
       if (argv !== undefined) spawnUsageRefresh('omp', { argv: [...argv, 'usage', 'refresh', '--harness', 'omp', '--background'] })
     },
     prune: (keep, nowMs) => sessionMaint('omp', nowMs, { keep }).removed,
-    notifyDesktop: (title, message) => { spawnNotify(cli(), title, message) },
     consentGate: (sid, command, nowMs) => consentGate('omp', sid, command, nowMs),
     recordGrants: (sid, text, nowMs) => { recordPromptGrants('omp', sid, text, nowMs) },
     recordAskGrant: (sid, kind, answer, nowMs) => { recordDialogGrant('omp', sid, kind, answer, nowMs) },

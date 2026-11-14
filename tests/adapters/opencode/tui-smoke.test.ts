@@ -73,7 +73,6 @@ async function tuiSetup({ root, home, buracleHome }: { root: string, home: strin
     BURACLE_HOME: buracleHome,
     BURACLE_CORTEXDB_BIN: process.env['BURACLE_CORTEXDB_BIN'] ?? '',
     BURACLE_NO_AUTOSTART: '1',
-    BURACLE_NO_NOTIFY: '1',
     OPENCODE_DISABLE_AUTOUPDATE: '1',
     OPENCODE_DISABLE_MODELS_FETCH: '1',
     TERM: 'xterm-256color',

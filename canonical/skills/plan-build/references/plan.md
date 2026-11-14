@@ -44,7 +44,7 @@ Keep going until every future task has a location, an approach and a verificatio
 
 Ask only when the answer changes the plan: behavior the user would notice, scope edges, compatibility or data risk, a real trade-off between valid approaches. Never ask what the code can tell you.
 
-- At most three questions per round and two rounds, batched into one {{ask_user}} call per round. Pause before asking (SKILL.md, *Talking to the user*), then announce the batch: `buracle notify attention_needed "<title>" "Input needed: <n> questions" --plan <path>`.
+- At most three questions per round and two rounds, batched into one {{ask_user}} call per round. Pause before asking (SKILL.md, *Talking to the user*).
 - Each question offers 2 to 4 options that name real files, symbols or behaviors. Put your recommendation first and mark it "(recommended)".
 - If `branchIsolation` is on and the request carried no `--worktree`, `--new-branch` or `--current-branch` flag, add: "Where should implementation run?" with the options separate worktree (recommended) / new branch `plan-build/<slug>` from the current branch / current branch.
 - No answer, or "you decide" (in any language): take your recommendation and record it under `## Assumptions`.
@@ -174,11 +174,11 @@ Task rules:
 
 Mark the phase: `buracle flow phase approve`.
 
-**Approval off** (`planApproval: false`): run *On approval* below, then `buracle notify info "<title>" "Plan self-approved: <n> tasks" --plan <path>`.
+**Approval off** (`planApproval: false`): run *On approval* below.
 
 **Approval on:**
 
-1. `buracle notify plan_approval "<title>" "<one-line summary>" --plan <path>`. When the web UI runs it prints `Review page: <url>`: there the user reads the rendered plan and pins notes to passages.
+1. `buracle plan notes <path> --kind plan --json`. When the web UI runs, its `page` is the review page URL: there the user reads the rendered plan and pins notes to passages.
 2. `buracle plan pause --kind decision --reason "plan approval"`
 3. **Fold in the user's notes:** `buracle plan notes <path> --kind plan --json`. Apply each open note to the plan, or say in the summary why you did not; re-validate after an edit; then mark each applied note with `buracle plan notes --done <id>[,<id>]`. No notes is never an approval.
 4. Show a summary of at most 15 lines: goal, the approach in two lines, numbered task titles, E2E scenario names, assumptions, review findings (fixed and declined), the notes you applied, the plan path and the review page URL from step 1. Ask with {{ask_user}}: "Approve this plan?" with the options Approve (recommended) / Request changes. A free-text answer counts too; see the phrase table in SKILL.md.

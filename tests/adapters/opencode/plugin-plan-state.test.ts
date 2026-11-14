@@ -35,17 +35,16 @@ function evaluation(action: string, resources: string[], sessionID = SID): Permi
 
 async function runtime(dir: string, now?: () => number) {
   const f = fakeServerContext(dir)
-  const notices: Array<{ title: string, message: string }> = []
   const deps: PluginDeps = {
     baked: testBaked(), memory: fakeMemory(), settleMs: 0, runChecker: async () => ({ code: 0, stdout: '', stderr: '' }),
-    capture: () => true, maint: () => ({ removed: [] }), notify: (title, message) => { notices.push({ title, message }) },
+    capture: () => true, maint: () => ({ removed: [] }),
     workspace: async cwd => noProject(cwd), workspaceRead: async cwd => noProject(cwd),
     ...(now !== undefined ? { now } : {}),
   }
   const rt = new BuracleRuntime(f.ctx, deps)
   await rt.register()
   await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: dir } } })
-  return { f, rt, notices }
+  return { f, rt }
 }
 
 async function cycle(rt: BuracleRuntime, text = 'Done with task 1.', sid = SID): Promise<void> {
@@ -80,15 +79,13 @@ describe('w2 plan state on OpenCode: progress, read-only mode and background wor
 
   test('the read-only plan agent lets the session stop: no continuation, one notice for the whole run', () => withSandbox(async ({ root }) => {
     saveState('opencode', SID, planState())
-    const { f, rt, notices } = await runtime(root)
+    const { f, rt } = await runtime(root)
     await f.trigger('tool.execute.before', { tool: 'read', sessionID: SID, agent: 'plan', messageID: 'msg_1', id: 'call_r', input: { filePath: join(root, 'x.md') } })
     await cycle(rt)
     await cycle(rt)
     await f.trigger('session.prompt', { sessionID: SID, prompt: { text: 'refine the plan' } })
     await cycle(rt)
     expect(f.prompts).toEqual([])
-    expect(notices.length).toBe(1)
-    expect(notices[0]?.message).toContain('read-only plan agent')
     expect(loadState('opencode', SID).guard).toMatchObject({ blocksForPlan: 0, blocksInChain: 0, readOnlyNoticed: true })
   }))
 

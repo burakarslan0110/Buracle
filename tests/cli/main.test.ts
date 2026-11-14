@@ -7,7 +7,7 @@ import { withSandbox } from '../helpers/sandbox'
 
 const REPO = join(import.meta.dir, '..', '..')
 const CONTRACT_COMMANDS = ['build', 'install', 'uninstall', 'rollback', 'doctor', 'index', 'update', 'config', 'hook',
-  'statusline', 'usage', 'mem', 'mcp', 'lsp', 'plan', 'flow', 'worktree', 'review-scope', 'notify', 'consent', 'project', 'skills', 'rules']
+  'statusline', 'usage', 'mem', 'mcp', 'lsp', 'plan', 'flow', 'worktree', 'review-scope', 'consent', 'project', 'skills', 'rules']
 
 export function memoryIO(stdin = ''): Omit<CommandIO, 'flags'> & { out(): string, err(): string } {
   let out = ''
@@ -36,7 +36,7 @@ describe('parseArgs', () => {
     expect(parseArgs(['--json', 'mem', 'search', '-v', 'term'])).toEqual({ command: 'mem', rest: ['--json', 'search', '-v', 'term'], flags: { json: true, verbose: true }, help: false, version: false })
     expect(parseArgs(['plan', '--help'])).toMatchObject({ command: 'plan', rest: [], help: true })
     expect(parseArgs(['-h'])).toMatchObject({ help: true, rest: [] })
-    expect(parseArgs(['notify', '--', '--json', '-v'])).toEqual({ command: 'notify', rest: ['--', '--json', '-v'], flags: { json: false, verbose: false }, help: false, version: false })
+    expect(parseArgs(['consent', '--', '--json', '-v'])).toEqual({ command: 'consent', rest: ['--', '--json', '-v'], flags: { json: false, verbose: false }, help: false, version: false })
     expect(parseArgs([])).toEqual({ rest: [], flags: { json: false, verbose: false }, help: false, version: false })
     expect(parseArgs(['--version'])).toMatchObject({ version: true })
     expect(parseArgs(['config', '--version'])).toMatchObject({ command: 'config', rest: ['--version'], version: false })
