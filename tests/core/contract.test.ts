@@ -57,8 +57,6 @@ assertType<Equals<typeof core.reminders, (l: UsageLedger, call: ToolCall, ctx: R
 assertType<Equals<ReminderResult, { context?: string; deny?: { reason: string; key: string }; next: UsageLedger }>>(true)
 assertType<Equals<typeof core.turnAudit, (l: UsageLedger) => StopDecision>>(true)
 assertType<Equals<typeof core.ledgerAudited, (l: UsageLedger, decision?: StopDecision) => UsageLedger>>(true)
-assertType<Equals<typeof core.changedExports, (oldText: string, newText: string, file: string) => string[]>>(true)
-assertType<Equals<typeof core.importedPackages, (text: string, file: string) => string[]>>(true)
 assertType<Equals<typeof core.parseManifestDeps, (name: string, text: string) => string[]>>(true)
 const skillOf: (call: ToolCall, harness: Harness) => string | undefined = core.skillOf
 void skillOf
@@ -131,7 +129,7 @@ describe('core exports', () => {
       'realpathQueries', 'checkEval', 'catastrophicCommandRules', 'scanCode', 'redactClip',
       'compileTriggers', 'routePrompt', 'routeText', 'parseSkillTriggers', 'validateSkillTriggers', 'detectSignals', 'isUserText',
       'emptyLedger', 'parseLedger', 'ledgerPrompt', 'ledgerCall', 'skillOf', 'reminders', 'turnAudit', 'ledgerAudited',
-      'changedExports', 'importedPackages', 'parseManifestDeps', 'patchEdits', 'patchDeletes', 'isDocsUrl',
+      'parseManifestDeps', 'patchEdits', 'patchDeletes', 'isDocsUrl',
       'controlGuidance', 'routeAuditAllowed', 'mcpHealthOf', 'ledgerMcpResult', 'sessionMcpHealth', 'rootProblem', 'rootCheckText',
       'visitShellCommands', 'selfProtectedArea', 'selfProtectionText', 'indexStatusOf',
       'ruleGlobs', 'pathRuleIndex', 'projectRelative', 'matchPathRules', 'ruleText', 'ruleFileId', 'pathRuleNote',

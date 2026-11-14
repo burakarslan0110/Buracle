@@ -161,14 +161,6 @@ describe('PreToolUse', () => {
     expect(JSON.parse((await handleCodexHook('PreToolUse', other, ctx(nudge), d)).stdout).hookSpecificOutput.additionalContext).toContain('lib/x.go matches the path rule `go`; follow it for this change.')
   }))
 
-  test('real core: a shell file write points to apply_patch once per session; Codex gets no read note (it has no file-read tool)', () => withSandbox(async () => {
-    const real = deps({})
-    const w = JSON.parse((await handleCodexHook('PreToolUse', bash("sed -i 's/a/b/' src/a.ts"), ctx(), real)).stdout)
-    expect(w.hookSpecificOutput.additionalContext).toContain('this shell command writes `src/a.ts` (sed -i in place). Make ordinary source edits with apply_patch instead')
-    expect((await handleCodexHook('PreToolUse', bash('echo x > src/b.ts'), ctx(), real)).stdout).toBe('')
-    expect((await handleCodexHook('PreToolUse', bash('cat src/a.ts'), ctx(), real)).stdout).toBe('')
-  }))
-
   test('real core: rm -rf / is denied, ls is allowed', () => withSandbox(async () => {
     const real = deps({})
     const r = await handleCodexHook('PreToolUse', bash('rm -rf /'), ctx(), real)

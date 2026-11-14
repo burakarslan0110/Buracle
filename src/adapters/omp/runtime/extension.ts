@@ -236,8 +236,6 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       if (WRITE_KINDS.has(call.kind)) {
         const edits = editsFor(call, targets)
         if (edits !== undefined) rctx.edits = edits
-        const pd = deps.projectDeps(info?.root)
-        if (pd !== undefined) rctx.deps = pd
       }
       let result: ReminderResult | undefined
       deps.ledger.update(lsid, l => { result = reminders(l, call, rctx); return result.next })

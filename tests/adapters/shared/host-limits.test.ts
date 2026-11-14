@@ -26,7 +26,6 @@ const FALLBACK_TESTS: Readonly<Record<string, { file: string, title: string }>> 
   'codex.consent-dialog': { file: 'tests/adapters/parity.test.ts', title: 'the immediate consent question on all four: the Claude mod, Codex\'s own approval prompt (an execpolicy prompt rule), the OpenCode TUI and the omp TUI' },
   'codex.background-wait': { file: 'tests/adapters/codex/hook.test.ts', title: 'block → {decision:"block", reason} only; the verdict runs under the state lock and `next` is persisted' },
   'codex.quiet-stop-feedback': { file: 'tests/adapters/codex/hook.test.ts', title: 'block → {decision:"block", reason} only; the verdict runs under the state lock and `next` is persisted' },
-  'codex.shell-read-nudge': { file: 'tests/adapters/parity.test.ts', title: 'H03 shell nudges: a shell file write points to the edit tools on all four; a shell file print to the read tool where one exists (Codex has none)' },
   'codex.commands-without-turn': { file: 'tests/adapters/parity.test.ts', title: 'codex cannot register commands: its AGENTS block names the equivalents ($memory, the CLI twins, native /side)' },
   'codex.live-exec-mask': { file: 'tests/adapters/parity.test.ts', title: 'codex: a synchronous PostToolUse group of shell and MCP results runs the mask handler' },
   'codex.failed-mcp-mask': { file: 'tests/adapters/parity.test.ts', title: 'codex: a synchronous PostToolUse group of shell and MCP results runs the mask handler' },
@@ -127,7 +126,7 @@ describe('host limits (PARITY-10)', () => {
       const r = l.recheck ?? ''
       expect({ id: l.id, dated: /\b20\d\d-\d\d-\d\d\b/.test(r), sourced: /https?:\/\/\S+|\b[\w/-]+\.(?:rs|ts|md|mdx)\b/.test(r) }).toEqual({ id: l.id, dated: true, sourced: true })
     }
-    expect(HOST_LIMITS.filter(l => l.kind !== 'native')).toHaveLength(19)
+    expect(HOST_LIMITS.filter(l => l.kind !== 'native')).toHaveLength(18)
   })
 
   test('every limit and partial record names the test that proves its fallback, and that file holds the test', () => {

@@ -230,25 +230,6 @@ describe('omp H22 prompt delivery: input at submission, before_agent_start when 
 })
 
 describe('omp H24 usage ledger and the deny-once gates (reported as H03)', () => {
-  test('a new third-party import is denied once (R4), the retry goes through', () => withSandbox(async sb => {
-    const { fp, ctx } = setup(sb)
-    const write = toolCall('write', { path: 'src/a.ts', content: "import { z } from 'zod'\nexport const s = z.string()\n" })
-    const first = await fp.emit('tool_call', write, ctx) as { block?: boolean, reason?: string }
-    expect(first.block).toBe(true)
-    expect(first.reason).toStartWith('Buracle H03: this edit adds an import of `zod`')
-    expect(await fp.emit('tool_call', write, ctx)).toBeUndefined()
-  }))
-
-  test('context7 first makes the import fine; under nudge the gate is a line of context', () => withSandbox(async sb => {
-    const { fp, ctx } = setup(sb)
-    await fp.emit('tool_call', toolCall('mcp__context7_resolve_library_id', { libraryName: 'zod' }), ctx)
-    expect(loadLedger('omp', SID).mcp['context7']?.n).toBe(1)
-    expect(await fp.emit('tool_call', toolCall('write', { path: 'src/a.ts', content: "import { z } from 'zod'\n" }), ctx)).toBeUndefined()
-    const nudge = setup(sb, { config: d => ({ config: { ...d, routing: { ...d.routing, strictness: 'nudge' } }, vault: '/v', shim: '/s', source: 'defaults' }) }, { sid: '01a118a8-8d01-740c-9360-eeeeeeeeeeee' })
-    const r = await nudge.fp.emit('tool_call', toolCall('write', { path: 'src/b.ts', content: "import y from 'yaml'\n" }), nudge.ctx) as { additionalContext?: string }
-    expect(r.additionalContext).toContain('Buracle: this edit imports `yaml`')
-  }))
-
   test('an MCP call through an omp device counts once (the inner mcp__ call); semble with the home folder as repo is denied', () => withSandbox(async sb => {
     const info: WorkspaceInfo = { cwd: join(sb.root, 'work'), root: join(sb.root, 'work'), children: [], index: { codegraph: { state: 'ready' }, semble: { state: 'ready' } } }
     const { fp, ctx } = setup(sb, { prepareWorkspace: async () => info })
@@ -360,15 +341,6 @@ describe('omp H02 on `~/` paths', () => {
 })
 
 describe('omp H03 shell notes and H04 checks through the shared planner', () => {
-  test('a shell file write points to edit or write once per session; printing a file points to read', () => withSandbox(async sb => {
-    const { fp, ctx } = setup(sb)
-    const write = await fp.emit('tool_call', toolCall('bash', { command: "sed -i 's/a/b/' src/a.ts" }), ctx) as { additionalContext?: string }
-    expect(write.additionalContext).toContain('this shell command writes `src/a.ts` (sed -i in place). Make ordinary source edits with the edit or write tool instead')
-    expect(await fp.emit('tool_call', toolCall('bash', { command: 'echo x > src/b.ts' }, '2'), ctx)).toBeUndefined()
-    const read = await fp.emit('tool_call', toolCall('bash', { command: 'cat src/a.ts' }, '3'), ctx) as { additionalContext?: string }
-    expect(read.additionalContext).toContain('read `src/a.ts` with the read tool instead of printing it in the shell')
-  }))
-
   test('a missing linter is named once per session; a mirrored test folder silences the TDD note', () => withSandbox(async sb => {
     const { fp, ctx, cwd } = setup(sb, { checkers: coreCheckers, run: async () => ({ code: 127, stdout: '', stderr: 'not found', timedOut: false }) })
     mkdirSync(join(cwd, 'src', 'core'), { recursive: true })

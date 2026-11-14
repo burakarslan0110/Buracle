@@ -418,9 +418,7 @@ describe('routeText', () => {
     expect(text).toContain(`research (${SKILLS.find(s => s.id === 'research')?.short})`)
   })
 
-  test('memory and category lines', () => {
-    expect(routeText(r({ memory: { recall: true, write: false } }), 'claude', POLICY)).toContain('search memory first (memory_search')
-    expect(routeText(r({ memory: { recall: true, write: true, cli: true } }), 'omp', POLICY)).toContain('buracle mem remember')
+  test('category lines', () => {
     const lib = routeText(r({ categories: ['library-docs', 'code-structure'], libs: ['zod'] }), 'codex', POLICY) ?? ''
     expect(lib).toContain('- Library docs (zod): resolve the library with context7')
     expect(lib).toContain('- Code structure: ask codegraph')
@@ -452,7 +450,6 @@ describe('routeText', () => {
     const text = routeText(full, 'claude', POLICY, { triggers: T, skillFile: id => `/Users/someone/.claude/plugins/marketplaces/buracle/harness/claude/skills/${id}/SKILL.md` }) ?? ''
     expect(text).toContain('the plan-build workflow')
     expect(utf8Bytes(text)).toBeLessThanOrEqual(ROUTE_TEXT_MAX_BYTES)
-    expect(text).toContain('Earlier work')
   })
 })
 

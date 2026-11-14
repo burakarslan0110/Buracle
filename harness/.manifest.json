@@ -764,7 +764,7 @@
     },
     "harness/claude/hooks/core/policy/code-facts.ts": {
       "by": "claude",
-      "sha256": "b4e216c52a78879c0961c73992b0b72afaad309d42d47e70b958aa5255687de5",
+      "sha256": "1510a52ecb723f77525ba7713f2903961850ad93bc75a5532a519c7e4ffc087d",
       "exec": false
     },
     "harness/claude/hooks/core/policy/code-scan.ts": {
@@ -857,11 +857,6 @@
       "sha256": "c67f7e9c60a4df2bcf3c25856de35f864d76b0bbf6e6e3e1154d1ecbefed2658",
       "exec": false
     },
-    "harness/claude/hooks/core/policy/shell-files.ts": {
-      "by": "claude",
-      "sha256": "27ba6d664dbd0f23b5177b5a1e3ab90cadce7817433366b65378e91f3e9ffac8",
-      "exec": false
-    },
     "harness/claude/hooks/core/policy/shell-text.ts": {
       "by": "claude",
       "sha256": "9f11b5c8463544577ff0e622da42a69c5e193dcb6da4f6d56f408851d6577981",
@@ -874,7 +869,7 @@
     },
     "harness/claude/hooks/core/policy/skill-router.ts": {
       "by": "claude",
-      "sha256": "7ea12b50c103211a80811536bbbe80bc90f42dc1bbaa1fb0b73e205f0efc4d22",
+      "sha256": "bed7ae72c8079868ea5b64e691e964f3dc475c223b71c7d4471d0dcf2010a53c",
       "exec": false
     },
     "harness/claude/hooks/core/policy/switch-off.ts": {
@@ -889,7 +884,7 @@
     },
     "harness/claude/hooks/core/policy/usage.ts": {
       "by": "claude",
-      "sha256": "1cbc1e341aba67e1b11b0a280164386190b37bd1b5967e7eb9ada1c302f20c43",
+      "sha256": "f91a823e54ef3379e89bcd0217f262cb32c1fa597584c1c6ce575512fbc5e431",
       "exec": false
     },
     "harness/claude/hooks/core/policy/write-guard.ts": {
@@ -979,7 +974,7 @@
     },
     "harness/claude/hooks/generated/meta.ts": {
       "by": "claude",
-      "sha256": "42b575bd7ab52861000028746b1390816101b58f790a8f39b9baaf9824ec356e",
+      "sha256": "e896311470ea7a95e351494baff507e9f0a3169bada7df66d1e74fec058202d4",
       "exec": false
     },
     "harness/claude/hooks/hooks.json": {
@@ -1454,7 +1449,7 @@
     },
     "harness/codex/AGENTS.md": {
       "by": "codex",
-      "sha256": "f307200125af387407be05ca932606501abc9528cf1a3ae4ac4f4f3359defed5",
+      "sha256": "985782518683a5f65df35b0e7f8bc2428bb84511bad010280daf7055ca2d3d5c",
       "exec": false
     },
     "harness/codex/agents/changes-review.toml": {
@@ -1624,7 +1619,7 @@
     },
     "harness/omp/extensions/buracle.js": {
       "by": "omp",
-      "sha256": "64cdff5292e98d6cbb1275bd50aa5d0ec548fb6486e9e6377378d1c89146e598",
+      "sha256": "a878f869f1a3779677514f0d1ebd0fa696f8682843129eea05d097554c098d56",
       "exec": false
     },
     "harness/omp/package.json": {
@@ -1689,7 +1684,7 @@
     },
     "harness/omp/rules/buracle-tooling.md": {
       "by": "omp",
-      "sha256": "f528ccb6bedb0816ccb42be4dd9960c9c18e39d06decbca7e4448c987999b36f",
+      "sha256": "770dae429c5016b3b00c9de1ff2eed2467b3b7a576689a18b6e502c59ea4fae4",
       "exec": false
     },
     "harness/omp/rules/buracle-typescript.md": {
@@ -1699,7 +1694,7 @@
     },
     "harness/opencode/AGENTS.block.md": {
       "by": "opencode",
-      "sha256": "572ab27fee884187aa15d7024f9e79ab4691797cf47a19b9cb38773d20bb6429",
+      "sha256": "5cfe95e1b643a36fccab41ee89746e22fd6cc52801cc15901e799ffc54a07ed1",
       "exec": false
     },
     "harness/opencode/README.md": {
@@ -1734,17 +1729,17 @@
     },
     "harness/opencode/manifest.json": {
       "by": "opencode",
-      "sha256": "9f6c6ec0a3a8f9efff4b1d3227be0ab1150859edd5acf3689283ec37979b1386",
+      "sha256": "78453e73f5987c25eebca990954057d7884f1ee49e1683306e620aab9067dbf5",
       "exec": false
     },
     "harness/opencode/plugins/buracle/index.js": {
       "by": "opencode",
-      "sha256": "51b7d1f4b8e38ea2fc8c39f4c4520be3e38ced275aa152d5e671b25698279342",
+      "sha256": "0039360810aae237b0c7b128c06b1e2d8eaddeeb166fdb85cef41dafa91940cf",
       "exec": false
     },
     "harness/opencode/plugins/buracle/tui.js": {
       "by": "opencode",
-      "sha256": "d2c6b333b4c8aaaa70c671c1237e49816266b67811082884a544b724fdcc2482",
+      "sha256": "d53f7201cd97a03b3f97cece8dac339fd99a901da9f1c7418eddf1d4d4712cc6",
       "exec": false
     }
   }

@@ -385,18 +385,6 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
     expect(bash).toMatchObject({ tool: 'shell', cmd: 'grep -r foo .', exit: 1 })
   }))
 
-  test('H03 shell notes ride the tool result: a shell file write points to edit, write or patch, a file print to read', () => withSandbox(async ({ root }) => {
-    const { f } = await runtime(root)
-    const shell = async (id: string, command: string): Promise<string> => {
-      await f.trigger('tool.execute.before', { tool: 'shell', sessionID: SID, agent: 'build', messageID: 'msg_1', id, input: { command } })
-      const after: ToolExecuteAfter = { tool: 'shell', sessionID: SID, agent: 'build', messageID: 'msg_1', id, input: { command }, status: 'completed', result: { output: { exit: 0, output: '', truncated: false }, content: [{ type: 'text', text: '' }] } }
-      await f.trigger('tool.execute.after', after)
-      return after.status === 'completed' ? (after.result.content as unknown as Array<{ text: string }>).map(c => c.text).join('\n') : ''
-    }
-    expect(await shell('call_w', "sed -i 's/a/b/' src/a.ts")).toContain('this shell command writes `src/a.ts` (sed -i in place). Make ordinary source edits with the edit, write or patch tool instead')
-    expect(await shell('call_r', 'cat src/a.ts')).toContain('read `src/a.ts` with the read tool instead of printing it in the shell')
-  }))
-
   test('H04: a missing linter is named once per session; a mirrored test folder silences the TDD note', () => withSandbox(async ({ root }) => {
     const { f } = await runtime(root, { runChecker: async () => ({ code: 127, stdout: '', stderr: 'spawn shellcheck ENOENT' }) })
     mkdirSync(join(root, 'src', 'core'), { recursive: true })

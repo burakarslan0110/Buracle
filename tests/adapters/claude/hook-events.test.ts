@@ -201,17 +201,6 @@ describe('PreToolUse: routing and questions', () => {
   })
 })
 
-describe('H03 shell notes', () => {
-  test('a shell file write points to Edit or Write once per session; printing a file points to Read', async () => {
-    await withSandbox(async () => {
-      const bash = (command: string) => payload('PreToolUse', { tool_name: 'Bash', tool_input: { command } })
-      expect(context((await claudeHook('PreToolUse', bash("sed -i 's/a/b/' src/a.ts"), ctx(), deps())).stdout)).toContain('this shell command writes `src/a.ts` (sed -i in place). Make ordinary source edits with the Edit or Write tool instead')
-      expect(context((await claudeHook('PreToolUse', bash('echo x > src/b.ts'), ctx(), deps())).stdout)).not.toContain('this shell command writes')
-      expect(context((await claudeHook('PreToolUse', bash('cat src/a.ts'), ctx(), deps())).stdout)).toContain('read `src/a.ts` with the Read tool instead of printing it in the shell')
-    })
-  })
-})
-
 describe('PostToolUse', () => {
   test('an edit gets the file-check notes as context', async () => {
     await withSandbox(async ({ root }) => {
@@ -466,36 +455,6 @@ describe('PreToolUse: H24 ledger, the H03 deny-once gates and the semble/codegra
     saveWorkspace(SID, info(proj))
     return proj
   }
-
-  test('an edit that adds an import of a dependency context7 was not asked about is denied once; the retry goes through', async () => {
-    await withSandbox(async sb => {
-      const proj = project(sb.root)
-      const edit = payload('PreToolUse', { cwd: proj, tool_name: 'Edit', tool_input: { file_path: join(proj, 'src', 'a.ts'), old_string: "import { a } from './a'", new_string: "import { a } from './a'\nimport { z } from 'zod'" } })
-      const first = decision((await claudeHook('PreToolUse', edit, ctx(), deps())).stdout)
-      expect(first.permissionDecision).toBe('deny')
-      expect(String(first.permissionDecisionReason)).toStartWith('Buracle H03 (route.tools): this edit adds an import of `zod`')
-      expect((await claudeHook('PreToolUse', edit, ctx(), deps())).stdout).toBe('')
-      const nudge = defaultConfig()
-      nudge.routing.strictness = 'nudge'
-      const other = payload('PreToolUse', { session_id: 'sess-nudge', cwd: proj, tool_name: 'Edit', tool_input: { file_path: join(proj, 'b.ts'), old_string: 'x', new_string: "import { z } from 'zod'\nx" } })
-      expect(decision((await claudeHook('PreToolUse', other, ctx(nudge), deps())).stdout)).toEqual({ hookEventName: 'PreToolUse', additionalContext: expect.stringContaining('this edit imports `zod`') })
-    })
-  })
-
-  test('in an npm workspace the members\' dependencies count: an import of one is denied once (R4)', async () => {
-    await withSandbox(async sb => {
-      const mono = join(sb.root, 'mono')
-      mkdirSync(join(mono, 'packages', 'app', 'src'), { recursive: true })
-      writeFileSync(join(mono, 'package.json'), JSON.stringify({ private: true, workspaces: ['packages/*'], devDependencies: { turbo: '2', typescript: '6' } }))
-      writeFileSync(join(mono, 'packages', 'app', 'package.json'), JSON.stringify({ name: 'app', dependencies: { 'lodash-es': '4' } }))
-      saveWorkspace(SID, info(mono))
-      const file = join(mono, 'packages', 'app', 'src', 'a.ts')
-      const edit = payload('PreToolUse', { cwd: mono, tool_name: 'Edit', tool_input: { file_path: file, old_string: 'export const a = 1', new_string: "import { debounce } from 'lodash-es'\nexport const a = 1" } })
-      const first = decision((await claudeHook('PreToolUse', edit, ctx(), deps())).stdout)
-      expect(first.permissionDecision).toBe('deny')
-      expect(String(first.permissionDecisionReason)).toStartWith('Buracle H03 (route.tools): this edit adds an import of `lodash-es`')
-    })
-  })
 
   test('the root check is the one every harness uses: a folder of projects and index.exclude names are denied too', async () => {
     await withSandbox(async sb => {

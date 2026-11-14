@@ -63,7 +63,7 @@ describe('canonical/routing.yaml', () => {
   test('tooling.md is English and states the index, root and routing-note rules', () => {
     const tooling = readFileSync(join(CANON, 'rules', 'always', 'tooling.md'), 'utf8')
     expect(tooling).not.toMatch(/[ğüşıöçĞÜŞİÖÇ]/)
-    for (const needle of ['`buracle index ensure --cwd <root>`', 'never conclude that codegraph is unusable', 'codegraph `projectPath`', 'semble `repo`', '`/<id>`', '`$<id>` on Codex', 'Buracle routing for this prompt', 'decide YES or NO', 'denied once']) {
+    for (const needle of ['`buracle index ensure --cwd <root>`', 'never conclude that codegraph is unusable', 'codegraph `projectPath`', 'semble `repo`', '`/<id>`', '`$<id>` on Codex', 'Buracle routing for this prompt', 'decide YES or NO']) {
       expect(tooling.toLowerCase()).toContain(needle.toLowerCase())
     }
   })

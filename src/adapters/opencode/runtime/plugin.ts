@@ -639,8 +639,6 @@ export class BuracleRuntime {
       policy: { ...this.baked.routing, strictness: cfg.routing.strictness },
       facts: workspaceFacts(info, cfg, this.env.home),
     }
-    const deps = projectDeps(info?.root)
-    if (deps.length > 0) ctx.deps = deps
     const read = call.kind === 'read' && call.paths.length > 0 && call.paths.every(p => existsSync(p))
     const rules = pathRuleSource(this.baked.pathRules, join(this.env.buracleHome, 'rules', 'paths'), { onRead: read, home: this.env.home })
     if (rules !== undefined) ctx.pathRules = rules

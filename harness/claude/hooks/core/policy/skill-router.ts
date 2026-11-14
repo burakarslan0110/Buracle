@@ -1,6 +1,6 @@
 import type { CatalogSkill } from '../catalog'
 import type { Harness } from '../events'
-import { detectSignals, isUserText } from './intents'
+import { isUserText } from './intents'
 import type { RoutingCategory, RoutingPolicy } from './routing'
 import { parseRouteRef } from './routing'
 import { fold, stripQuoted } from './text'
@@ -329,16 +329,12 @@ export function routePrompt(text: string, t: CompiledTriggers, o: RouteOptions):
   const workflow = [...route.invoked, ...route.load].some(id => byId.get(id)?.explicit === true)
   if (!workflow) route.candidates = candidates.slice(0, ROUTE_CAPS.candidates)
 
-  const signals = detectSignals(raw)
-  route.memory = { recall: signals.recall, write: signals.write }
-  if ((signals.recall || signals.write) && !available.has('buracle-memory')) route.memory.cli = true
   const cats: Array<{ id: string, at: number, end: number, lead?: boolean }> = []
   let docs: { id: string, at: number, end: number, lead?: boolean } | undefined
   let libAt = -1
   for (const c of Array.isArray(t.categories) ? t.categories : []) {
     const first = c.servers[0]
     if (first === undefined || !available.has(first)) continue
-    if (c.id === 'memory' && (signals.recall || signals.write)) continue
     if (c.not?.test(f)) continue
     const m = c.topic?.exec(f)
     let at = m?.index ?? -1
@@ -437,17 +433,6 @@ export function routeText(r: PromptRoute, h: Harness, policy: RoutingPolicy, opt
     lines.push({ must: true, text: opts.attached?.includes(id) === true
       ? `${asked}: its skill is attached to this message; follow it, and treat the rest of the prompt as its input.`
       : `${asked}: load it before any other step and follow it (${loadHow(h, id, explicit, file)}); the rest of the prompt is its input.` })
-  }
-  const mem = r.memory ?? { recall: false, write: false }
-  if (mem.recall) {
-    lines.push({ must: false, text: mem.cli === true
-      ? '- Earlier work: search memory first (`buracle mem search "<query>"`; the memory server is unavailable) and cite the note ids you use.'
-      : '- Earlier work: search memory first (memory_search, then memory_get on the relevant notes) and cite the note ids you use.' })
-  }
-  if (mem.write) {
-    lines.push({ must: false, text: mem.cli === true
-      ? '- The user wants this remembered: save it with `buracle mem remember -- "<text>"` (one fact per note).'
-      : '- The user wants this remembered: memory_search for an existing note, then memory_write one note per fact (or memory_update that note).' })
   }
   const cands = (r.candidates ?? []).slice(0, ROUTE_CAPS.candidates)
   if (cands.length > 0) {

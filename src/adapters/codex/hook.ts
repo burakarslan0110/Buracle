@@ -487,11 +487,10 @@ async function usageStep(p: Payload, call: ToolCall, sid: string, ledgerId: stri
   const judged: ToolCall = sp.kind === 'patch' ? { ...call, kind: 'patch' } : call
   const edits = sp.kind === 'patch' ? deps.core.patchEdits(sp.body).map(e => ({ file: e.path, removed: e.removed, added: e.added })) : undefined
   const isEdit = judged.kind === 'patch' || judged.kind === 'edit' || judged.kind === 'write'
-  const projectDepsOf = deps.projectDeps ?? readProjectDeps
   const pathRules = isEdit || judged.kind === 'bash' ? codexPathRules(ctx, deps.core) : undefined
   const v = usageReminders(judged, ledgerId, {
     ctx, core: deps.core, policy: routingPolicy(ctx), available: availableServers(ctx, deps.core, health), facts,
-    deps: isEdit && facts.root !== undefined ? projectDepsOf(facts.root) : [], ...(edits !== undefined ? { edits } : {}),
+    ...(edits !== undefined ? { edits } : {}),
     ...(pathRules !== undefined ? { pathRules } : {}),
   })
   if (ledgerId === sid && v.deny === undefined) await step('PreToolUse', 'H25/H26 skill load', undefined, () => skillLoad(judged, sid, deps, now))

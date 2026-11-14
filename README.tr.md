@@ -302,7 +302,6 @@ Buracle Claude Code, Codex ve Oh My Pi'nin yerleşik hafızasını kapatır. Bö
 | `codex.consent-dialog` | Codex | Bir hook kullanıcıya soru soramaz, `codex exec`, `--yolo` ve `-a never` oturumları onay sorusu göstermez | Ret mesajı ajana neyi soracağını söyler, cevap bir sonraki istemle gelir |
 | `codex.background-wait` | Codex | Stop yükü görev verisi taşımaz, arka plandaki komut bitince turu uyandıran bir şey yok | Durma koruması turu açık tutar |
 | `codex.quiet-stop-feedback` | Codex | Bir Stop hook'u turu ancak bir engelle sürdürür, engelin gerekçesi yeni bir istem olur | Durma korumasının gerekçesi o isteme girer |
-| `codex.shell-read-nudge` | Codex | Kabuktan dosya okumayı yönlendirecek bir dosya okuma aracı yok | Kabuktan okuma serbest kalır, düzenleme notu `apply_patch` aracını söyler |
 | `codex.commands-without-turn` | Codex | Özel eğik çizgi komutu yok (bir eklentinin komutları skill olur) | `$memory`, CLI karşılıkları ve Codex'in kendi `/side` komutu |
 | `codex.live-exec-mask` | Codex | Çalışan bir komutun `write_stdin` yoklamaları hiçbir hook'a ulaşmaz | Tamamlanan her kabuk ve MCP sonucu maskelenir |
 | `codex.failed-mcp-mask` | Codex | PostToolUse yalnızca başarılı bir çağrı için çalışır | Başarılı her kabuk ve MCP sonucu maskelenir |

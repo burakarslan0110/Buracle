@@ -302,7 +302,6 @@ Buracle switches off the built-in memory of Claude Code, Codex and Oh My Pi, so 
 | `codex.consent-dialog` | Codex | A hook cannot ask the user, and `codex exec`, `--yolo` and `-a never` sessions show no approval prompt | The denial tells the agent what to ask, and the next prompt carries the answer |
 | `codex.background-wait` | Codex | The Stop payload carries no task data, and nothing wakes a turn when a background command ends | The stop guard holds the turn |
 | `codex.quiet-stop-feedback` | Codex | A Stop hook continues a turn only with a block, whose reason becomes a new prompt | The stop guard's reason goes in that prompt |
-| `codex.shell-read-nudge` | Codex | No file-read tool to point a shell read to | The shell read stays allowed, and the edit note names `apply_patch` |
 | `codex.commands-without-turn` | Codex | No custom slash commands (a plugin's commands become skills) | `$memory`, the CLI twins and Codex's own `/side` |
 | `codex.live-exec-mask` | Codex | The `write_stdin` polls of a running command reach no hook | Every completed shell and MCP result is masked |
 | `codex.failed-mcp-mask` | Codex | PostToolUse runs only for a call that succeeded | Every successful shell and MCP result is masked |

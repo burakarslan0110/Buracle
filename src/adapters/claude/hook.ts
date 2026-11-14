@@ -574,8 +574,6 @@ async function usageGate(sid: string, ctx: AdapterContext, d: HookDeps, call: To
       policy: routingPolicy(ctx), facts,
     }
     if (call.kind === 'edit' || call.kind === 'write') {
-      const deps = projectDeps(facts.root)
-      if (deps !== undefined) rctx.deps = deps
       if (edits !== undefined) rctx.edits = edits
     }
     const r = usageReminders(sid, call, rctx)

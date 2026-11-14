@@ -179,13 +179,13 @@ export function codexPathRules(ctx: Pick<AdapterContext, 'canonical' | 'paths'>,
   try { return pathRuleSource(core.pathRuleIndex(ctx.canonical.rules), ctx.paths.pathRulesDir(), { home: ctx.paths.home() }) } catch { return undefined }
 }
 
-export function usageReminders(call: ToolCall, sid: string, o: { ctx: Pick<AdapterContext, 'config'>, core: CoreFns, policy: RoutingPolicy, available: readonly string[], facts: WorkspaceFacts, deps: readonly string[], edits?: ReadonlyArray<{ file: string, removed: string, added: string }>, pathRules?: PathRuleSource }): UsageVerdict {
+export function usageReminders(call: ToolCall, sid: string, o: { ctx: Pick<AdapterContext, 'config'>, core: CoreFns, policy: RoutingPolicy, available: readonly string[], facts: WorkspaceFacts, edits?: ReadonlyArray<{ file: string, removed: string, added: string }>, pathRules?: PathRuleSource }): UsageVerdict {
   let result: ReminderResult | undefined
   let loaded: string | undefined
   updateLedger(H, sid, l => {
     const r = o.core.reminders(l, call, {
       strictness: o.ctx.config.routing.strictness, reminders: o.ctx.config.routing.reminders, available: o.available,
-      policy: o.policy, facts: o.facts, deps: o.deps, ...(o.edits !== undefined ? { edits: o.edits } : {}),
+      policy: o.policy, facts: o.facts, ...(o.edits !== undefined ? { edits: o.edits } : {}),
       ...(o.pathRules !== undefined ? { pathRules: o.pathRules } : {}),
     })
     result = r

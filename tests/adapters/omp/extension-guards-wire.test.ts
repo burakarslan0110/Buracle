@@ -36,7 +36,6 @@ describe('omp H01 meets the write context (W1.1)', () => {
       expect((await call('bash', { command: 'echo x > secrets/a.txt' }))?.reason).toContain('guards.write.protect')
       const allowed = await call('bash', { command: 'echo x > notes/a.txt' }) as { block?: boolean, additionalContext?: string } | undefined
       expect(allowed?.block).toBeUndefined()
-      expect(allowed?.additionalContext).toContain('this shell command writes `notes/a.txt`')
     })
   }))
 })
