@@ -3,6 +3,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, relative, sep } from 'node:path'
 import type { CanonicalBundle } from '../../../src/core/catalog'
+import { resolveAgents } from '../../../src/adapters/shared/agents'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import { defaultConfig } from '../../../src/core/config'
 import type { Harness } from '../../../src/core/events'
@@ -124,7 +125,10 @@ describe('codex build (harness/codex)', () => {
   })
 
   test('agents/<id>.toml: name, description, read-only sandbox, developer_instructions = body', () => {
-    for (const a of canonical.agents) {
+    const complete = resolveAgents(canonical)
+    expect(complete.map(a => a.id)).toEqual(canonical.agents.map(a => a.id))
+    for (const a of complete) {
+      expect(a.body).not.toContain('{{include:')
       const t = Bun.TOML.parse(file(`agents/${a.id}.toml`)) as Record<string, unknown>
       expect(t['name']).toBe(a.id)
       expect(t['description']).toBe((a.frontmatter['description'] as string).replace(/\s+/g, ' ').trim())
@@ -135,17 +139,19 @@ describe('codex build (harness/codex)', () => {
     }
   })
 
-  test('AGENTS.md block: every always-rule in full, a short memory pointer, a path-rule index, no duplicate routing table', () => {
+  test('AGENTS.md block: every always-rule in full, no second memory section, a one-line path-rule pointer, no duplicate routing table', () => {
     const text = file('AGENTS.md')
     const block = mdBlockGet(text, 'buracle') as string
     expect(block).toBeString()
     for (const r of canonical.rules.filter(r => r.scope === 'always')) expect(block).toContain(r.body.trim())
-    const memory = block.slice(block.indexOf('# Memory index'), block.indexOf('# Buracle commands in Codex')).trim().split('\n')
-    expect(memory.length).toBeLessThanOrEqual(10)
+    expect(block.split(/^# Memory$/m).length).toBe(2)
     const commands = block.slice(block.indexOf('# Buracle commands in Codex'), block.indexOf('# Path-scoped rules'))
     for (const s of ['`$plan-build`', '`$bugfix`', '`buracle mem remember -- "<text>"`', '`$memory`', '`buracle mem ui --open`', '`/side`']) expect(commands).toContain(s)
     expect(commands).not.toContain('`$memory`,')
-    for (const r of canonical.rules.filter(r => r.scope === 'paths')) expect(block).toContain(`\`~/.buracle/rules/paths/${r.id}.md\``)
+    const pointer = block.slice(block.indexOf('# Path-scoped rules'))
+    expect(pointer).toContain('`~/.buracle/rules/paths`')
+    expect(pointer.trim().split('\n').length).toBe(3)
+    for (const r of canonical.rules.filter(r => r.scope === 'paths')) expect({ rule: r.id, named: new RegExp(`[(, ]${r.id}[,)]`).test(pointer) }).toEqual({ rule: r.id, named: true })
     expect(block.split('| Need | Use first | Fallback |').length).toBe(2)
   })
 

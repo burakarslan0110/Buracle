@@ -60,11 +60,16 @@ describe('canonical/routing.yaml', () => {
     }
   })
 
-  test('tooling.md is English and states the index, root and routing-note rules', () => {
+  test('tooling.md is English and states the index and routing-note rules; their detail is in the working-rules reference', () => {
     const tooling = readFileSync(join(CANON, 'rules', 'always', 'tooling.md'), 'utf8')
     expect(tooling).not.toMatch(/[ğüşıöçĞÜŞİÖÇ]/)
-    for (const needle of ['`buracle index ensure --cwd <root>`', 'never conclude that codegraph is unusable', 'codegraph `projectPath`', 'semble `repo`', '`/<id>`', '`$<id>` on Codex', 'Buracle routing for this prompt', 'decide YES or NO']) {
+    for (const needle of ['`buracle index ensure --cwd <root>`', 'Buracle routing for this prompt']) {
       expect(tooling.toLowerCase()).toContain(needle.toLowerCase())
+    }
+    const detail = readFileSync(join(CANON, 'skills', 'buracle', 'references', 'working-rules.md'), 'utf8')
+    expect(detail).not.toMatch(/[ğüşıöçĞÜŞİÖÇ]/)
+    for (const needle of ['`buracle index ensure --cwd <root>`', 'never conclude that codegraph is unusable', 'codegraph `projectPath`', 'semble `repo`', '`/<id>`', '`$<id>` on Codex', 'Buracle routing for this prompt', 'decide YES or NO']) {
+      expect(detail.toLowerCase()).toContain(needle.toLowerCase())
     }
   })
 })

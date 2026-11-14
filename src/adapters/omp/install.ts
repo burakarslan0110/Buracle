@@ -87,11 +87,11 @@ export const SHARED_AGENTS_IMPORT = 'Shared instructions for every harness (when
 
 export function agentsPointer(opts: { commands?: readonly string[] } = {}): string {
   const list = opts.commands ?? []
-  const workflows = list.length > 0 ? `workflows are ${list.map(c => `\`/${c}\``).join(', ')} (skills in \`~/.omp/agent/skills\`), ` : ''
+  const workflows = list.length > 0 ? `workflows are ${list.map(c => `\`/${c}\``).join(', ')}, ` : ''
   return [
     '## Buracle',
     '',
-    `Buracle is active through the \`${PACKAGE_NAME}\` plugin: its always-on rules (working rules, tool routing, memory) load as plugin rules, ${workflows}\`/${OMP_STATUS_COMMAND}\` (or \`/${OMP_STATUS_ALIAS}\`) shows status, \`/${OMP_REMEMBER_COMMAND} <text>\` saves a memory note and \`/${OMP_BRAIN_COMMAND}\` opens the Buracle Console. The \`buracle\` CLI is the helper for plans, worktrees, reviews and memory.`,
+    `Buracle is active through the \`${PACKAGE_NAME}\` plugin: ${workflows}\`/${OMP_STATUS_COMMAND}\` (or \`/${OMP_STATUS_ALIAS}\`) shows status, \`/${OMP_REMEMBER_COMMAND} <text>\` saves a memory note and \`/${OMP_BRAIN_COMMAND}\` opens the Buracle Console.`,
     '',
     SHARED_AGENTS_IMPORT,
   ].join('\n')

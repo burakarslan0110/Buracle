@@ -5,6 +5,7 @@ import { parse as parseYaml } from 'yaml'
 import { readOpenPlanSteps } from '../../src/adapters/codex/rollout'
 import { OMP_BUILTIN_LSP, ompCommandName, ompLspServers, ompMcpServerIds } from '../../src/adapters/omp/generated'
 import { ompConfigKeys } from '../../src/adapters/omp/install'
+import { resolveAgents } from '../../src/adapters/shared/agents'
 import { HOST_LIMITS } from '../../src/adapters/shared/host-limits'
 import { OMP_BUILTIN_COMMANDS } from '../../src/adapters/omp/runtime/commands'
 import { openTodosOf } from '../../src/adapters/omp/runtime/tool-output'
@@ -1165,7 +1166,10 @@ describe('parity: the same instructions on every harness (PRD R13)', () => {
     const { canonical, files } = await built()
     const tomlInstructions = (toml: string): string => /developer_instructions = '''\n([\s\S]*?)\n'''/.exec(toml)?.[1] ?? ''
     const problems: string[] = []
-    for (const a of canonical.agents) {
+    const complete = resolveAgents(canonical)
+    expect(complete.map(a => a.id)).toEqual(canonical.agents.map(a => a.id))
+    for (const a of complete) {
+      expect(a.body).not.toContain('{{include:')
       const want = normBody(a.body)
       const got: Record<Harness, string> = {
         claude: normBody(stripFrontmatter(file(files.claude, `agents/${a.id}.md`))),
@@ -1233,14 +1237,8 @@ describe('parity: the same instructions on every harness (PRD R13)', () => {
 
 describe('parity: documents follow the user\'s language (PRD 2026-11-06 R18)', () => {
   // The language order of the plain-language rule, with no sentence that makes a document English.
-  const ORDER = [
-    'An explicit request in this conversation',
-    'A language rule of the project for this output',
-    "The harness's own language setting, where the harness has one.",
-    'An explicit language preference in memory.',
-    "The language of the user's messages. A message with no language signal",
-  ]
-  const holds = (text: string) => ORDER.every(s => text.includes(s)) && !/\bis English\b|English section titles/.test(text)
+  const ORDER = "Take it from the first of: an explicit request, a project rule, the harness's language setting, a preference in memory, the language of the user's messages."
+  const holds = (text: string) => text.includes(ORDER) && !/\bis English\b|English section titles/.test(text)
 
   test('the rendered explain rule carries the same language order on all four harnesses', async () => {
     const { canonical, files } = await built()

@@ -31,11 +31,16 @@ describe('emptyState', () => {
 })
 
 describe('the escape sentence', () => {
-  test('is copied verbatim from rules/always/core.md and the spec, build and buracle skills', () => {
+  test('is copied verbatim into the plan-build, goal-build and buracle skills and the working-rules reference; the always-loaded rule only names the guard', () => {
     const canon = paths.canonicalDir()
-    for (const file of ['rules/always/core.md', 'skills/plan-build/SKILL.md', 'skills/goal-build/SKILL.md', 'skills/buracle/SKILL.md']) {
+    for (const file of ['skills/buracle/references/working-rules.md', 'skills/plan-build/SKILL.md', 'skills/goal-build/SKILL.md', 'skills/buracle/SKILL.md']) {
       expect(readFileSync(join(canon, file), 'utf8')).toContain(STOP_GUARD_ESCAPE)
     }
+    // The stop guard says the sentence itself when it holds a turn, so the always-loaded rule names it in one line.
+    const core = readFileSync(join(canon, 'rules/always/core.md'), 'utf8')
+    const line = core.split('\n').find(l => l.startsWith('- Stop guard:')) ?? ''
+    expect(line).toContain('is not VERIFIED')
+    expect(line).toContain('`buracle plan pause --kind decision|manual|discussion --reason "<why>"`')
   })
 
   test('names the stop request in any language and says the hook records only a whole-message English or Turkish word', () => {

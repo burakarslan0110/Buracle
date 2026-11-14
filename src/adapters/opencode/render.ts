@@ -1,4 +1,6 @@
-import type { AgentDoc, CanonicalBundle, McpServerSpec, RuleDoc } from '../../core/catalog'
+import { resolveAgents } from '../shared/agents'
+import { pathRulesPointer } from '../shared/rules'
+import type { AgentDoc, CanonicalBundle, McpServerSpec } from '../../core/catalog'
 import { catalogMcp, catalogSkills, envRef, expandMcpCommand, mcpEnvFor } from '../../core/catalog'
 import type { HookId } from '../../core/events'
 import { HOOK_IDS } from '../../core/events'
@@ -42,15 +44,6 @@ function byId<T extends { id: string }>(a: T, b: T): number {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
 }
 
-function ruleGlobs(rule: RuleDoc): string[] {
-  const p = rule.frontmatter['paths']
-  return Array.isArray(p) ? p.filter((x): x is string => typeof x === 'string') : []
-}
-
-function ruleTitle(rule: RuleDoc): string {
-  return /^#\s+(.+?)\s*$/m.exec(rule.body)?.[1] ?? rule.id
-}
-
 export function agentsBlock(canonical: CanonicalBundle, pathRulesDir: string): string {
   const always = canonical.rules.filter(r => r.scope === 'always').sort(byId)
   const pathRules = canonical.rules.filter(r => r.scope === 'paths').sort(byId)
@@ -58,13 +51,8 @@ export function agentsBlock(canonical: CanonicalBundle, pathRulesDir: string): s
     '<!-- Managed by Buracle (`buracle install`). Edit canonical/rules in the Buracle repository instead of this block. -->',
   ]
   for (const r of always) out.push('', trimBlock(renderText(r.body)))
-  if (pathRules.length > 0) {
-    out.push('', '# Path-scoped rules', '', 'Before you create or change a file that matches one of these patterns, read the rule file listed for it (once per session):', '')
-    for (const r of pathRules) {
-      const shown = ruleGlobs(r).map(g => `\`${g}\``).join(', ')
-      out.push(`- ${ruleTitle(r)}: \`${pathRulesDir}/${r.id}.md\` (${shown})`)
-    }
-  }
+  const pointer = pathRulesPointer(pathRules.map(r => r.id), pathRulesDir)
+  if (pointer !== undefined) out.push('', pointer)
   return out.join('\n') + '\n'
 }
 
@@ -249,7 +237,7 @@ export function contentHash(canonical: CanonicalBundle): string {
     statusline: canonical.statusline.opencode ?? null,
     rules: canonical.rules.map(r => ({ id: r.id, scope: r.scope, fm: r.frontmatter, body: r.body })),
     skills: canonical.skills.map(s => ({ id: s.id, fm: s.frontmatter })),
-    agents: canonical.agents.map(a => ({ id: a.id, fm: a.frontmatter, body: a.body })),
+    agents: resolveAgents(canonical).map(a => ({ id: a.id, fm: a.frontmatter, body: a.body })),
   }))
 }
 
