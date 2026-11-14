@@ -1116,6 +1116,14 @@ export class BuracleRuntime {
         if (key !== undefined) this.sessions.get(sid)?.background?.delete(key)
         return
       }
+      // A background subagent's end reaches the parent session as a synthetic inbox item (OpenCode 2.3.0), so the
+      // record is cleared also when this plugin never saw the child session created.
+      case 'session.inbox.enqueued': {
+        const item = asRecord(data['item'])
+        const key = item['type'] === 'synthetic' ? backgroundEnd(asRecord(item['payload'])['metadata']) : undefined
+        if (key !== undefined) this.sessions.get(sid)?.background?.delete(key)
+        return
+      }
       case 'session.inbox.delivered':
       case 'session.inbox.cancelled':
       case 'session.inbox.delivery.changed': {

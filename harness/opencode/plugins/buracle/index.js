@@ -37125,6 +37125,13 @@ ${r.fileNotes.join(`
           this.sessions.get(sid)?.background?.delete(key);
         return;
       }
+      case "session.inbox.enqueued": {
+        const item = asRecord(data["item"]);
+        const key = item["type"] === "synthetic" ? backgroundEnd(asRecord(item["payload"])["metadata"]) : undefined;
+        if (key !== undefined)
+          this.sessions.get(sid)?.background?.delete(key);
+        return;
+      }
       case "session.inbox.delivered":
       case "session.inbox.cancelled":
       case "session.inbox.delivery.changed": {

@@ -127,6 +127,30 @@ describe('w2 plan state on OpenCode: progress, read-only mode and background wor
     await cycle(rt, 'The audit subagent is running in the background; I will continue once it reports.')
     expect(f.prompts.length).toBe(1)
   }))
+
+  test('a background subagent whose child session the plugin never saw created ends with the synthetic inbox item OpenCode 2.3.0 gives its parent', () => withSandbox(async ({ root }) => {
+    saveState('opencode', SID, planState())
+    let clock = 5_000_000
+    const { f, rt } = await runtime(root, () => clock)
+    const child = 'ses_w2child2'
+    const waiting = 'The audit subagent is running in the background; I will continue once it reports.'
+    const enqueued = (item: Record<string, unknown>) => rt.handleEvent({ type: 'session.inbox.enqueued', data: { sessionID: SID, inboxID: 'inb_1', item } })
+    const synthetic = (metadata: Record<string, unknown>) => ({ type: 'synthetic', delivery: 'steer', payload: { text: '<subagent></subagent>', description: 'audit', metadata } })
+    await f.trigger('tool.execute.after', toolDone('subagent', { agent: 'general', description: 'audit', prompt: 'x', background: true }, { sessionID: child, status: 'running', output: 'The subagent is working in the background.' }, 'call_a2'))
+    await cycle(rt, waiting)
+    expect(f.prompts).toEqual([])
+    await enqueued({ type: 'user', delivery: 'steer', payload: { text: 'hello', metadata: { source: 'subagent', childID: child, state: 'completed' } } })
+    await enqueued(synthetic({ source: 'subagent', childID: child, state: 'running' }))
+    await enqueued(synthetic({ source: 'subagent', childID: 'ses_other', state: 'completed' }))
+    clock += 120_000
+    await cycle(rt, waiting)
+    expect(f.prompts).toEqual([])
+    await enqueued(synthetic({ source: 'subagent', childID: child, agent: 'general', state: 'completed' }))
+    clock += 120_000
+    await cycle(rt, waiting)
+    expect(f.prompts.length).toBe(1)
+    expect(f.prompts[0]?.text).toStartWith('Buracle stop guard:')
+  }))
 })
 
 describe('w2 plan state on OpenCode: the lane guard and the H08 receipt', () => {
