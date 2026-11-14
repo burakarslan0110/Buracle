@@ -507,7 +507,7 @@ async function consentDialog($: EngineInterface, S: ModState, commands: readonly
       break
     }
     if (answer !== ALLOW_ONCE && answer !== ALLOW_SESSION) {
-      return `Buracle H20 (consent.gate): the user refused \`${shown}\` in the consent dialog. Do not run it or anything that does the same; ask the user what they want instead.`
+      return `Buracle H20: the user refused \`${shown}\` in the consent dialog. Do not run it or anything that does the same; ask the user what they want instead.`
     }
     const uses = commands.filter(c => Core.consentNeeds(c).some(n => n.kind === need.kind || (need.kind === 'force-push' && n.kind === 'push'))).length
     const grant: Core.ConsentGrant = answer === ALLOW_SESSION

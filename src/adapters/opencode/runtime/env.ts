@@ -3,8 +3,6 @@ import os from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import type { BuracleConfig } from '../../../core/config'
 import { RUNTIME_SNAPSHOT_VERSION, runtimeSnapshotConfig } from '../../../core/config'
-import type { McpHealth } from '../../../core/policy/routing'
-import { mcpHealthOf } from '../../../core/policy/routing'
 import { log } from '../../../engine/log'
 import * as paths from '../../../engine/paths'
 
@@ -91,13 +89,4 @@ export function runtimeConfigCache(defaults: BuracleConfig): MtimeCache<RuntimeS
     },
     () => ({ config: defaults }),
   )
-}
-
-export function parseHealth(raw: unknown, nowMs: number = Date.now()): McpHealth {
-  return mcpHealthOf(raw, nowMs)
-}
-
-export function healthCache(now: () => number = Date.now): { get(): McpHealth } {
-  const raw = new MtimeCache<unknown>(() => paths.healthFile(), r => r, () => undefined)
-  return { get: () => parseHealth(raw.get(), now()) }
 }

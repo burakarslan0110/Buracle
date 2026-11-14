@@ -8,9 +8,10 @@ export interface PendingPrompt {
   delivery: 'steer' | 'queue'
   route?: PromptRoute
   attach: string[]
-  guidance?: string
+  /** The prompt's context from the pipeline, around the routing note: several prompts delivered together share one note. */
+  before: string[]
   text?: string
-  notice?: string
+  after: string[]
   workflows?: string[]
   delivered?: boolean
 }
@@ -83,6 +84,6 @@ export function deliveredPrompts(taken: readonly PendingPrompt[], compiled: Comp
   }
   const parts: string[] = []
   const planMode = readOnly ? taken.flatMap(p => p.workflows ?? []).map(w => readOnlyStartNotice(w, 'opencode')).find(n => n !== undefined) : undefined
-  for (const t of [planMode, ...taken.map(p => p.guidance), text, ...taken.map(p => p.notice)]) if (t !== undefined && t.trim() !== '' && !parts.includes(t)) parts.push(t)
+  for (const t of [planMode, ...taken.flatMap(p => p.before), text, ...taken.flatMap(p => p.after)]) if (t !== undefined && t.trim() !== '' && !parts.includes(t)) parts.push(t)
   return route !== undefined ? { route, parts } : { parts }
 }

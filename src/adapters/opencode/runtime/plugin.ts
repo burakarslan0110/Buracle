@@ -1,89 +1,81 @@
 import { existsSync, readFileSync, statSync } from 'node:fs'
-import { basename, isAbsolute, join, resolve } from 'node:path'
+import { isAbsolute, join, resolve } from 'node:path'
+import * as core from '../../../core/index'
 import type { BuracleConfig } from '../../../core/config'
-import { MEMORY_INJECT } from '../../../core/memory/budgets'
-import { spoolPromptExcerpt } from '../../../core/memory/spool'
-import type { HookId, PreDecision, ToolCall, ToolKind } from '../../../core/events'
+import type { SpoolEntry } from '../../../core/memory/spool'
+import type { ToolCall, ToolKind } from '../../../core/events'
 import { classifyTool } from '../../../core/events'
 import { bandSummary } from '../../../core/flow/band'
 import { flowDef } from '../../../core/flow/catalog'
 import type { FlowSource } from '../../../core/flow/record'
-import { capabilityCard, checkBash, checkQuestion, checkWrite, isGuardContinuation, laneStateDenial, reviewerShellDenial, routeTool, skillOf } from '../../../core/policy/index'
-import type { BashGuardOptions } from '../../../core/policy/bash-guard'
-import { mcpWritePaths } from '../../../core/policy/mcp-paths'
-import { offServersFor, withOffServers } from '../../../core/policy/mcp-off'
+import { capabilityCard, isGuardContinuation, questionAnswered, reviewerShellDenial, skillOf } from '../../../core/policy/index'
 import { opencodeOffServers } from '../../shared/native-off'
 import type { McpHealth } from '../../../core/policy/routing'
 import { mcpUnavailable } from '../../../core/policy/routing'
-import type { ReminderContext } from '../../../core/policy/usage'
-import { ledgerOnce } from '../../../core/policy/usage'
+import { ledgerCall, ledgerPrompt } from '../../../core/policy/usage'
 import type { WriteGuardContext } from '../../../core/policy/write-guard'
-import type { SessionState } from '../../../core/plan/index'
-import { compactInstructions, handoffNote, restoreContext } from '../../../core/compact'
-import type { WorkspaceInfo } from '../../../core/workspace'
-import { workspaceContext, workspaceNotice } from '../../../core/workspace'
+import { compactInstructions } from '../../../core/compact'
 import { contextWarning, contextWatch, type ContextBand } from '../../../core/status/context'
 import type { RateWindow } from '../../../core/status/model'
-import { atomicWriteSync, ensureDirSync, readJsonSafeSync } from '../../../engine/fsx'
-import { currentBranch } from '../../../engine/git'
 import { log } from '../../../engine/log'
 import { editDiagnostics } from '../../../engine/toolchain/lsp-edits'
 import * as paths from '../../../engine/paths'
 import { run } from '../../../engine/proc'
 import { isMemoryRunnerDir } from '../../../memory/spawn'
 import { flowViewFor, recordFlowStart } from '../../../workflow/flow'
+import { loadLedger, updateLedger } from '../../../workflow/ledger'
 import { shownPath } from '../../../workflow/plan-capture'
 import { captureSessionPlan } from '../../../workflow/plan-native'
 import { loadState, reviewSubjects, sessionMaint, writeTelemetry } from '../../../workflow/session-store'
 import { refreshWorkspaceInfo, workspaceInfo } from '../../../workflow/workspace'
-import { consentGate, recordPromptGrants } from '../../shared/consent-store'
+import type { AdapterContext } from '../../registry'
+import { consentGate } from '../../shared/consent-store'
 import { pathRuleSource } from '../../shared/path-rules'
+import {
+  mcpHealth, postTool, preCompact, preTool, prompt as promptEvent, readWorkspace, routingPolicy, saveWorkspace, sessionEnd, sessionStart, spool,
+  usageVerdict, writeGuardContext, type PipelineDeps, type UsagePlan, type UsageVerdict, type WorkspaceReaders,
+} from '../../shared/pipeline/index'
 import { realWriteTarget } from '../../shared/realpath'
-import { reviewNotesNotice } from '../../shared/review-notes'
-import { selfPaths } from '../../shared/self-paths'
 import { maskNotice } from '../../shared/tool-output-mask'
+import type { UiSessionHooks } from '../../shared/ui-session'
 import { prepareWorkspace } from '../../shared/workspace-start'
-import { assetsAfterEdit, assetsContextCached, assetsOptions, startLinkRun, type AssetsSpawner } from '../../shared/project-assets'
-import { CONFIG_PARSERS, guardedContents, opencodeChanges } from '../../shared/write-content'
+import { assetsOptions, startLinkRun, type AssetsSpawner } from '../../shared/project-assets'
+import { guardedContents, opencodeChanges } from '../../shared/write-content'
 import { buracleRepoFor } from './adapter-rules'
 import { backgroundEnd, backgroundStart, type BackgroundJob } from './background'
 import type { BakedData } from './baked'
-import { hookFailure } from './baked'
 import type { CheckerRunner, LspEditAsk } from './checks'
-import { fileChecks, lspEditNotes } from './checks'
+import { editTexts, lspEditNotes, OPENCODE_H04_BUDGET_MS } from './checks'
 import { registerWorkflowCommands } from './commands'
 import type { PendingPrompt } from './delivery'
 import { addPending, deliveredPrompts, inboxUpdate, takeDelivered } from './delivery'
 import { projectDeps } from './deps'
 import type { ResolvedEnv } from './env'
-import { applyEnv, healthCache, resolveEnv, runtimeConfigCache } from './env'
-import { answerHeld, type ConsentAskHost, type HeldCall } from './consent-ask'
+import { applyEnv, resolveEnv, runtimeConfigCache } from './env'
+import { answerHeld, type ConsentAskHost, type HeldAnswer } from './consent-ask'
 import { questionGrant } from './consent-question'
-import { earlyEditNote } from './early-edit'
 import type { StopSnapshot } from './guard'
-import { CONTINUE_MARK, denyMessage, promptPlanInteraction, recordAnswer, registry, resetChain, StopGuard } from './guard'
+import { CONTINUE_MARK, registry, resetChain, StopGuard } from './guard'
+import { adapterContext, compactStore, memoryFns, NO_UI, readPersisted, uiHooks, updatePersisted } from './host'
 import { maskedError, maskedResult, masksOpencodeTool } from './mask'
 import { postNotice } from './notice-board'
 import { registerRateWindows } from './rate-windows'
 import { TurnReceipts } from './receipt'
-import type { MemoryBridge, SpoolEntry } from './memory-bridge'
-import { draftNote, draftOnSwitch, notePlanText, type PlanDraftState } from './plan-draft'
+import type { MemoryBridge } from './memory-bridge'
+import { draftNote, draftOnSwitch, notePlanText, OPENCODE_PLAN_AGENT, type PlanDraftState } from './plan-draft'
 import { noteReviewMessages, reviewNote, reviewProblems, subagentReport } from './review'
-import type { CallVerdict, LedgerStore, PromptRouteResult } from './routing'
-import {
-  attachedSkills, availableServers, commandOfPrompt, compiledTriggers, evaluateCall, fileLedgerStore, ledgerUserPrompt, loadedSkills,
-  recordCall, recordMcpResult, routeUserPrompt, runTitle, sessionHealth, withinBudget,
-} from './routing'
+import type { PromptRouteResult } from './routing'
+import { attachedSkills, availableServers, commandOfPrompt, compiledTriggers, routeUserPrompt, runTitle, withinBudget } from './routing'
 import type {
   ModelRef, OpenCodeEvent, PermissionEvaluation, ServerContext, ServerPluginDefinition, SessionCompactionEvent,
   SessionContextEvent, SessionPromptEvent, ShellCreateBefore, ToolExecuteAfter, ToolExecuteBefore, ToolResultShape,
 } from './types'
 import { ModelFacts } from './models'
-import { openingNotice } from './notices'
 import { OPENCODE_TODO_TOOL, openTodosOf } from './todos'
 import { actionMatchesTool, asRecord, errText, num, skillIdsOf, str, stringifyOutput, tokenTotal, within } from './util'
 import type { WorkspaceFn } from './workspace'
-import { prepareOnce, profileWarning, workspaceFacts } from './workspace'
+import { prepareOnce, profileEnv, profileWarning } from './workspace'
+
 
 export { CONTINUE_MARK, continuationText, REGISTRY_KEY, runawayNotice } from './guard'
 
@@ -91,7 +83,6 @@ export const PLUGIN_ID = 'buracle'
 const HARNESS = 'opencode' as const
 
 export const MAINT_INTERVAL_MS = 6 * 60 * 60_000
-const WORKSPACE_WAIT_MS = 1500
 const SKILL_LIST_TTL_MS = 30_000
 const SKILL_LIST_TIMEOUT_MS = 2000
 const WRITE_COMPARE_MAX_BYTES = 512 * 1024
@@ -110,14 +101,11 @@ export interface PluginDeps {
   maint?: (nowMs: number, keep: string[]) => { removed: string[] }
   workspace?: WorkspaceFn
   workspaceRead?: WorkspaceFn
-  ledger?: LedgerStore
   assetsSpawn?: AssetsSpawner
   consentAsk?: Partial<ConsentAskHost>
 }
 
 interface PendingCall { tool: string; input: unknown; sessionID: string; at: number; denied?: boolean }
-
-interface Denial { reason: string; hook: HookId }
 
 const RESUME_AFTER_MS = 60_000
 
@@ -131,7 +119,6 @@ interface SessionRuntime {
   reviewNotes?: number
   createdAt?: number
   capture: boolean
-  started: boolean
   activity: boolean
   gen: number
   running: boolean
@@ -150,17 +137,17 @@ interface SessionRuntime {
   costUsd?: number
   windows?: RateWindow[]
   windowsAt?: number
-  memoryIndex?: string | null
-  memoryIndexLoading?: Promise<void>
-  workspace?: WorkspaceInfo
-  workspaceLoading?: Promise<WorkspaceInfo | undefined>
-  workspaceSeen?: WorkspaceInfo
+  /** The session start in flight or done; cleared when a compaction ends, so the next step starts again. */
+  starting?: Promise<void>
+  /** What the session start returned: OpenCode rebuilds the system text on every step, so each step repeats it. */
+  startContext: string[]
+  /** The capability card of the session start, which each step replaces with the current one. */
+  card?: string
+  /** The release notice for the model, shown on one step only. */
+  noticeOnce?: string
   compacted: boolean
-  handoffPath?: string
-  noticesChecked?: boolean
   pendingContext: string[]
   pending: PendingPrompt[]
-  persistedLoaded: boolean
   idleTimer?: ReturnType<typeof setTimeout>
 }
 
@@ -178,10 +165,17 @@ export function contextNote(pct: number | undefined, cfg: BuracleConfig['context
   return contextWarning(band, cfg)
 }
 
+function isEdit(kind: ToolKind): boolean {
+  return kind === 'edit' || kind === 'write' || kind === 'patch'
+}
+
+/**
+ * The server plugin. It decodes OpenCode's hooks and events into the canonical events of the shared pipeline
+ * (src/adapters/shared/pipeline), applies each decision in OpenCode's way, and keeps the steps only OpenCode has.
+ */
 export class BuracleRuntime {
   readonly env: ResolvedEnv
   private readonly baked: BakedData
-  private readonly memory: MemoryBridge
   private readonly now: () => number
   private readonly pluginDir: string | undefined
   private readonly runChecker: CheckerRunner
@@ -193,22 +187,20 @@ export class BuracleRuntime {
   private readonly workspaceFn: WorkspaceFn
   private readonly workspaceRead: WorkspaceFn
   private readonly assetsSpawn: AssetsSpawner | undefined
-  private readonly ledger: LedgerStore
   private readonly stopGuard: StopGuard
   private readonly receipts: TurnReceipts
   private readonly config: ReturnType<typeof runtimeConfigCache>
-  private readonly health = healthCache(() => this.now())
+  private readonly memoryFns: ReturnType<typeof memoryFns>
+  private readonly uiFns: UiSessionHooks
   private readonly sessions = new Map<string, SessionRuntime>()
   private readonly calls = new Map<string, PendingCall>()
   private readonly nudges = new Map<string, string[]>()
-  private readonly verdicts = new Map<string, CallVerdict>()
-  private readonly consentHeld = new WeakMap<PermissionEvaluation, HeldCall>()
+  private readonly verdicts = new Map<string, UsageVerdict>()
   private readonly consentHost: ConsentAskHost
   private readonly skillLists = new Map<string, { at: number, ids: Promise<ReadonlySet<string> | undefined> }>()
   private readonly reviewed = new Set<string>()
   private readonly tasks = new Set<Promise<unknown>>()
   private readonly abort = new AbortController()
-  private card: { key: string, text: string | undefined } | undefined
   private readonly models: ModelFacts
   private readonly startedAt: number
   private disposed = false
@@ -216,7 +208,8 @@ export class BuracleRuntime {
   constructor(private readonly ctx: ServerContext, deps: PluginDeps) {
     this.baked = deps.baked
     this.consentHost = { now: () => this.now(), sleep: ms => new Promise(r => setTimeout(r, ms)), newId: () => crypto.randomUUID(), ...deps.consentAsk }
-    this.memory = deps.memory
+    this.memoryFns = memoryFns(deps.memory)
+    this.uiFns = uiHooks(deps.memory)
     this.now = deps.now ?? Date.now
     this.pluginDir = deps.pluginDir
     this.logFn = deps.logger ?? ((level, msg, data) => log(level, `opencode: ${msg}`, data))
@@ -231,7 +224,6 @@ export class BuracleRuntime {
     this.workspaceFn = deps.workspace ?? prepareWorkspace
     this.workspaceRead = deps.workspaceRead ?? workspaceInfo
     this.assetsSpawn = deps.assetsSpawn
-    this.ledger = deps.ledger ?? fileLedgerStore()
     this.env = resolveEnv(deps.pluginDir)
     applyEnv(this.env)
     this.config = runtimeConfigCache(this.baked.defaults)
@@ -250,9 +242,9 @@ export class BuracleRuntime {
       },
       cwd: sid => this.cwdOf(this.session(sid)),
       prompt: input => this.ctx.session.prompt(input),
-      spool: (sid, entries) => this.spool(sid, entries),
+      spool: (sid, entries) => this.spool(this.session(sid), entries),
       log: (level, msg, data) => this.logFn(level, msg, data),
-      ledger: this.ledger,
+      deps: sid => this.deps(this.session(sid)),
     }, deps.settleMs ?? 1500)
     this.receipts = new TurnReceipts({
       now: () => this.now(),
@@ -264,6 +256,46 @@ export class BuracleRuntime {
 
   private cfg(): BuracleConfig {
     return this.config.get().config
+  }
+
+  /** The adapter context the pipeline reads: the baked canonical data with the current runtime config. */
+  private actx(): AdapterContext {
+    return adapterContext(this.baked, this.config.get())
+  }
+
+  private async step<T>(name: string, fallback: T, fn: () => T | Promise<T>): Promise<T> {
+    try { return await fn() } catch (e) {
+      this.logFn('warn', `${name} failed`, { error: errText(e) })
+      return fallback
+    }
+  }
+
+  /** What the shared pipeline needs from OpenCode for one session. */
+  private deps(s: SessionRuntime, capture: boolean = s.capture): PipelineDeps {
+    const runner = isMemoryRunnerDir(this.cwdOf(s))
+    const profile = profileEnv(this.pluginDir, this.env.home)
+    const workspace: WorkspaceReaders = {
+      prepareWorkspace: (cwd, ctx, now) => prepareOnce(cwd, ctx.config, now, this.workspaceFn),
+      // A subagent is a session of its own in OpenCode, so the workspace it reads is saved under its own id.
+      workspaceInfo: async (cwd, ctx, now) => {
+        const info = await this.workspaceRead(cwd, ctx.config, now)
+        saveWorkspace(ctx, HARNESS, s.sid, info)
+        return info
+      },
+      refreshWorkspace: (info, ctx, now) => refreshWorkspaceInfo(info, ctx.config, now),
+    }
+    return {
+      harness: HARNESS, ctx: this.actx(), core, workspace,
+      // The session's capture decision (an injected one in tests) is what the pipeline reads as BURACLE_NO_CAPTURE.
+      env: { ...process.env, BURACLE_NO_CAPTURE: capture && !runner ? undefined : '1' },
+      ...(profile !== undefined ? { hostEnv: { ...process.env, ...profile } } : {}),
+      step: (name, fallback, fn) => this.step(name, fallback, fn),
+      memory: async name => this.memoryFns[name],
+      ui: runner ? NO_UI : this.uiFns,
+      // The plugin lives as long as OpenCode: the repository lookup is cached and starts no git process per call.
+      buracleRepo: async cwd => buracleRepoFor(cwd, this.configuredRepos(), this.now()),
+      ...(this.assetsSpawn !== undefined ? { assetsSpawn: this.assetsSpawn } : {}),
+    }
   }
 
   private configuredRepos(): string[] {
@@ -300,41 +332,25 @@ export class BuracleRuntime {
   private session(sid: string): SessionRuntime {
     let s = this.sessions.get(sid)
     if (s === undefined) {
-      s = { sid, capture: this.captureNow() && !isMemoryRunnerDir(this.ctx.location.directory), started: false, activity: false, gen: 0, running: false, handledGen: -1, interrupts: 0, failures: 0, userPrompts: 0, compacted: false, pendingContext: [], pending: [], persistedLoaded: false }
+      s = { sid, capture: this.captureNow() && !isMemoryRunnerDir(this.ctx.location.directory), activity: false, gen: 0, running: false, handledGen: -1, interrupts: 0, failures: 0, userPrompts: 0, compacted: false, startContext: [], pendingContext: [], pending: [] }
       this.sessions.set(sid, s)
-    }
-    if (!s.persistedLoaded) {
-      s.persistedLoaded = true
-      const saved = this.readPersisted(sid)
-      if (saved !== undefined) {
-        s.compacted = saved.compacted === true
-        if (typeof saved.handoffPath === 'string') s.handoffPath = saved.handoffPath
-        if (saved.ctxWarned === 'ok' || saved.ctxWarned === 'warn' || saved.ctxWarned === 'critical') s.ctxWarned = saved.ctxWarned
-        if (Array.isArray(saved.todos)) s.todos = saved.todos.filter((t): t is string => typeof t === 'string')
+      if (paths.isValidSessionId(sid)) {
+        try {
+          const saved = readPersisted(sid)
+          if (saved.ctxWarned !== undefined) s.ctxWarned = saved.ctxWarned
+          if (saved.todos !== undefined) s.todos = saved.todos
+        } catch {  }
       }
     }
     return s
   }
 
-  private persistFile(sid: string): string {
-    return join(paths.sessionDir(HARNESS, sid), 'opencode.json')
-  }
-
-  private readPersisted(sid: string): { compacted?: boolean, handoffPath?: string, ctxWarned?: unknown, todos?: unknown[] } | undefined {
-    try {
-      const r = readJsonSafeSync<{ compacted?: boolean, handoffPath?: string, ctxWarned?: unknown, todos?: unknown[] }>(this.persistFile(sid))
-      return r.ok ? r.value : undefined
-    } catch { return undefined }
-  }
-
   private persist(s: SessionRuntime): void {
     try {
-      const data: Record<string, unknown> = { v: 1, compacted: s.compacted }
-      if (s.handoffPath !== undefined) data['handoffPath'] = s.handoffPath
-      if (s.ctxWarned !== undefined) data['ctxWarned'] = s.ctxWarned
-      if (s.todos !== undefined) data['todos'] = s.todos
-      ensureDirSync(paths.sessionDir(HARNESS, s.sid))
-      atomicWriteSync(this.persistFile(s.sid), JSON.stringify(data) + '\n')
+      updatePersisted(s.sid, p => {
+        const { ctxWarned: _band, todos: _todos, ...rest } = p
+        return { ...rest, ...(s.ctxWarned !== undefined ? { ctxWarned: s.ctxWarned } : {}), ...(s.todos !== undefined ? { todos: s.todos } : {}) }
+      })
     } catch (e) { this.logFn('warn', 'could not persist session data', { sid: s.sid, error: errText(e) }) }
   }
 
@@ -346,19 +362,14 @@ export class BuracleRuntime {
     return typeof s.parentID === 'string'
   }
 
-  private async subagentSession(sid: string): Promise<boolean> {
-    const s = this.session(sid)
+  private async subagentSession(s: SessionRuntime): Promise<boolean> {
     if (s.parentID === undefined) await this.resolveParent(s)
     return this.isSubagent(s)
   }
 
-  private spool(sid: string, entries: SpoolEntry[]): void {
-    if (entries.length === 0 || !paths.isValidSessionId(sid)) return
-    if (!this.session(sid).capture) return
-    try {
-      const r = this.memory.append(sid, entries)
-      if (r instanceof Promise) this.track(r.catch(e => this.logFn('warn', 'spool append failed', { sid, error: errText(e) })))
-    } catch (e) { this.logFn('warn', 'spool append failed', { sid, error: errText(e) }) }
+  /** Append to a session's memory spool (H14), through the pipeline. */
+  private async spool(s: SessionRuntime, entries: SpoolEntry[]): Promise<void> {
+    if (paths.isValidSessionId(s.sid)) await spool(this.deps(s), s.sid, entries)
   }
 
   private async rootOf(s: SessionRuntime): Promise<SessionRuntime | undefined> {
@@ -372,8 +383,7 @@ export class BuracleRuntime {
   }
 
   private async spoolOwn(s: SessionRuntime, entries: SpoolEntry[]): Promise<void> {
-    if (s.parentID === undefined) await this.resolveParent(s)
-    if (!this.isSubagent(s)) this.spool(s.sid, entries)
+    if (!await this.subagentSession(s)) await this.spool(s, entries)
   }
 
   private scheduleIdleFinalize(s: SessionRuntime): void {
@@ -384,10 +394,10 @@ export class BuracleRuntime {
       s.idleTimer = undefined
       if (this.disposed || s.running || s.gen !== gen || this.sessions.get(s.sid) !== s) return
       this.track((async () => {
-        if (s.parentID === undefined) await this.resolveParent(s)
-        if (this.isSubagent(s) || !s.activity) return
-        await this.finalize(s.sid, s)
-      })().catch(e => this.logFn('warn', 'idle finalize failed', { sid: s.sid, error: errText(e) })))
+        if (await this.subagentSession(s) || !s.activity || !s.capture) return
+        // The session has not ended, so only the memory finalizer starts (the pipeline's sessionEnd would close the UI record).
+        await this.step('H14 idle finalizer', undefined, async () => { await this.memoryFns.spawnFinalizer?.(HARNESS, s.sid) })
+      })())
     }, this.idleFinalizeMs)
     s.idleTimer.unref?.()
   }
@@ -398,32 +408,44 @@ export class BuracleRuntime {
     s.idleTimer = undefined
   }
 
-  private async finalize(sid: string, s: SessionRuntime | undefined): Promise<void> {
-    if (!paths.isValidSessionId(sid)) return
-    if (!(s?.capture ?? this.captureNow())) return
-    try { await this.memory.finalize(sid) } catch (e) { this.logFn('warn', 'finalizer spawn failed', { sid, error: errText(e) }) }
+  /** sessionEnd for a root session; `capture` false closes the UI record without a finalizer. */
+  private async end(s: SessionRuntime, capture: boolean): Promise<void> {
+    if (!paths.isValidSessionId(s.sid)) return
+    await sessionEnd({ harness: HARNESS, sessionId: s.sid, now: this.now() }, this.deps(s, capture))
   }
 
-  private touch(s: SessionRuntime): void {
+  /** Mark activity and start the session once: OpenCode has no session-start hook, so the first event of a session does it. */
+  private touch(s: SessionRuntime): Promise<void> {
     s.activity = true
-    if (s.started || typeof s.parentID === 'string' || !paths.isValidSessionId(s.sid)) return
-    s.started = true
-    const runner = isMemoryRunnerDir(this.cwdOf(s))
-    if (runner) s.capture = false
-    this.track((async () => {
-      try {
-        if (s.parentID === undefined) await this.resolveParent(s)
-        if (s.parentID !== null) return
-        // The memory UI follows root sessions whether or not the memory captures them.
-        if (!runner) this.ui('started', s.sid)
-        if (!s.capture) return
-        await this.memory.start(s.sid, this.cwdOf(s))
-      } catch (e) { this.logFn('warn', 'memory session start failed', { sid: s.sid, error: errText(e) }) }
-    })())
+    return this.start(s)
   }
 
-  private ui(what: 'started' | 'seen' | 'ended', sid: string): void {
-    try { this.memory.ui?.[what](sid) } catch (e) { this.logFn('warn', `memory ui ${what} failed`, { sid, error: errText(e) }) }
+  private start(s: SessionRuntime): Promise<void> {
+    return s.starting ??= this.track(this.startSession(s).catch((e: unknown) => { this.logFn('warn', 'session start failed', { sid: s.sid, error: errText(e) }) }))
+  }
+
+  private async startSession(s: SessionRuntime): Promise<void> {
+    if (!paths.isValidSessionId(s.sid)) return
+    await this.resolveParent(s)
+    const cwd = this.cwdOf(s)
+    if (isMemoryRunnerDir(cwd)) { s.capture = false; return }
+    const sub = this.isSubagent(s)
+    const source = s.compacted ? 'compact' : this.resumed(s) ? 'resume' : 'startup'
+    s.compacted = false
+    const now = this.now()
+    const d = this.deps(s)
+    const r = await sessionStart({ harness: HARNESS, sessionId: s.sid, cwd, source, subagent: sub, now, ...(s.model !== undefined ? { model: `${s.model.providerID}/${s.model.id}` } : {}) }, {
+      ...d,
+      // A subagent has no memory record of its own: its tool calls are spooled in the root session.
+      ...(sub ? { env: { ...d.env, BURACLE_NO_MEMORY: '1' } } : {}),
+      capabilityCard: () => (s.card = this.capabilityText(s.sid)),
+      compact: compactStore(s.sid, now),
+      // The plugin is a built copy, so the version that runs is the one baked into it.
+      version: () => this.baked.version,
+      sessionMaint: () => { this.runMaintenance() },
+    })
+    s.startContext = r.context.filter(part => part !== r.notice?.model)
+    if (r.notice?.model !== undefined) s.noticeOnce = r.notice.model
   }
 
   private prunePending(): void {
@@ -459,8 +481,7 @@ export class BuracleRuntime {
   }
 
   private async turnEnded(s: SessionRuntime): Promise<void> {
-    if (s.parentID === undefined) await this.resolveParent(s)
-    if (s.parentID === null) this.receipts.end(s.sid)
+    if (!await this.subagentSession(s)) this.receipts.end(s.sid)
   }
 
   async registerTransforms(): Promise<void> {
@@ -497,9 +518,7 @@ export class BuracleRuntime {
     this.abort.abort()
     for (const s of this.sessions.values()) {
       this.cancelIdleFinalize(s)
-      if (typeof s.parentID !== 'string') this.ui('ended', s.sid)
-      if (!s.activity || typeof s.parentID === 'string') continue
-      await this.finalize(s.sid, s)
+      if (typeof s.parentID !== 'string') await this.end(s, s.capture && s.activity)
     }
     this.sessions.clear()
     this.calls.clear()
@@ -507,6 +526,7 @@ export class BuracleRuntime {
     this.verdicts.clear()
   }
 
+  /** Session maintenance (H16). The plugin outlives its sessions, so it runs at most every few hours and keeps every session it knows. */
   runMaintenance(): void {
     if (this.disposed) return
     try {
@@ -521,10 +541,12 @@ export class BuracleRuntime {
     }
   }
 
+  /** The service process may run for days without a new session, so maintenance also runs when the plugin loads. */
   scheduleMaintenance(): void {
     this.track(new Promise<void>(res => { setTimeout(res, 0) }).then(() => this.runMaintenance()))
   }
 
+  /** Prepare the project's workspace when the plugin loads, before any session asks for it. */
   scheduleWorkspace(): void {
     if (this.disposed) return
     const cwd = this.ctx.location.project.directory || this.ctx.location.directory
@@ -536,41 +558,18 @@ export class BuracleRuntime {
     }))
   }
 
+  /** The profile guard (H17) at plugin load: the folder the plugin was loaded from names the profile, once per process. */
   checkProfile(): void {
     try {
       const warning = profileWarning(this.pluginDir, this.config.get(), this.env.home)
       if (warning === undefined) return
-      const reg = registry() as ReturnType<typeof registry> & { profileWarned?: boolean }
+      const reg = registry()
       if (reg.profileWarned === true) return
       reg.profileWarned = true
       this.logFn('warn', warning)
     } catch (e) {
       this.logFn('debug', 'profile guard failed', { error: errText(e) })
     }
-  }
-
-  private ensureWorkspace(s: SessionRuntime): Promise<WorkspaceInfo | undefined> {
-    if (s.workspaceLoading !== undefined) return s.workspaceLoading
-    const cwd = this.cwdOf(s)
-    const cfg = this.cfg()
-    const now = this.now()
-    const p = (this.isSubagent(s) ? this.workspaceRead(cwd, cfg, now) : prepareOnce(cwd, cfg, now, this.workspaceFn))
-      .then(info => {
-        s.workspace ??= info
-        s.workspaceSeen ??= info
-        return s.workspace
-      }, (e: unknown) => {
-        this.logFn('warn', 'workspace facts unavailable', { sid: s.sid, error: errText(e) })
-        return undefined
-      })
-    s.workspaceLoading = p
-    this.track(p)
-    return p
-  }
-
-  private workspaceOf(s: SessionRuntime): Promise<WorkspaceInfo | undefined> {
-    if (s.workspace !== undefined) return Promise.resolve(s.workspace)
-    return within(this.ensureWorkspace(s), WORKSPACE_WAIT_MS, undefined)
   }
 
   private knownSkills(dir: string): Promise<ReadonlySet<string> | undefined> {
@@ -609,55 +608,56 @@ export class BuracleRuntime {
     return { file, removed, added }
   }
 
-  private sessionHealth(sid: string | undefined): McpHealth {
-    const health = this.health.get()
-    const merged = sid !== undefined && paths.isValidSessionId(sid) ? sessionHealth(this.ledger, sid, health) : health
-    // The servers that are off in OpenCode (mcp.off.opencode, or `disabled: true` in its own config, read
-    // through an mtime cache): routing treats them as unavailable for good.
-    const project = this.ctx.location.project.directory || this.ctx.location.directory
-    return withOffServers(merged, [...new Set([...offServersFor(this.cfg(), HARNESS), ...opencodeOffServers(project)])])
+  /** The MCP servers OpenCode's own config turns off (`disabled: true`), read through an mtime cache. */
+  private nativeOff(): string[] {
+    return opencodeOffServers(this.ctx.location.project.directory || this.ctx.location.directory)
   }
 
-  private reminderContext(s: SessionRuntime, call: ToolCall, cfg: BuracleConfig): ReminderContext {
-    const info = s.workspace
-    const ctx: ReminderContext = {
-      strictness: cfg.routing.strictness,
-      reminders: cfg.routing.reminders,
-      available: availableServers(this.baked, this.sessionHealth(s.sid)),
-      policy: { ...this.baked.routing, strictness: cfg.routing.strictness },
-      facts: workspaceFacts(info, cfg, this.env.home),
-    }
+  private health(sid: string): McpHealth {
+    return mcpHealth(this.actx(), HARNESS, this.now(), { nativeOff: this.nativeOff(), ...(paths.isValidSessionId(sid) ? { sid } : {}) })
+  }
+
+  /** What the usage reminders (H24) judge of a call. */
+  private usagePlan(call: ToolCall, health: McpHealth): UsagePlan {
+    const plan: UsagePlan = { call, ledgerId: call.sessionId, available: availableServers(this.baked, health) }
     const read = call.kind === 'read' && call.paths.length > 0 && call.paths.every(p => existsSync(p))
     const rules = pathRuleSource(this.baked.pathRules, join(this.env.buracleHome, 'rules', 'paths'), { onRead: read, home: this.env.home })
-    if (rules !== undefined) ctx.pathRules = rules
+    if (rules !== undefined) plan.pathRules = rules
     if (call.kind === 'write') {
       const edit = this.wholeFileEdit(call)
-      if (edit !== undefined) ctx.edits = [edit]
+      if (edit !== undefined) plan.edits = [edit]
     }
-    return ctx
+    return plan
   }
 
   private async skillLoaded(s: SessionRuntime, id: string, now: number): Promise<void> {
-    if (!paths.isValidSessionId(s.sid)) return
-    if (s.parentID === undefined) await this.resolveParent(s)
-    if (this.isSubagent(s)) return
+    if (!paths.isValidSessionId(s.sid) || await this.subagentSession(s)) return
     if (flowDef(id) !== undefined) recordFlowStart(HARNESS, s.sid, { workflow: id, source: 'skill' }, now)
   }
 
-  onToolBefore(e: ToolExecuteBefore): void {
+  /**
+   * tool.execute.before fires for every call, permission.evaluate only for the ones OpenCode asks about: the usage
+   * reminders (H24) count here, and the evaluation applies their verdict with the other steps of preTool.
+   */
+  async onToolBefore(e: ToolExecuteBefore): Promise<void> {
     this.prunePending()
-    const pending: PendingCall = { tool: e.tool, input: e.input, sessionID: e.sessionID, at: this.now() }
-    this.calls.set(e.id, pending)
+    this.calls.set(e.id, { tool: e.tool, input: e.input, sessionID: e.sessionID, at: this.now() })
     const s = this.session(e.sessionID)
-    this.touch(s)
     if (typeof e.agent === 'string' && e.agent !== '') s.agent = e.agent
+    // The session start resets the usage ledger, so it ends before the first call is counted.
+    await this.touch(s)
     if (!paths.isValidSessionId(e.sessionID)) return
-    if (s.workspace === undefined) void this.ensureWorkspace(s)
     const call = this.callOf(e.tool, e.input, e.sessionID)
-    const verdict = evaluateCall(this.ledger, e.sessionID, call, this.reminderContext(s, call, this.cfg()))
+    const d = this.deps(s)
+    const verdict = await d.step('H24 usage', {} as UsageVerdict, () => usageVerdict({ call }, {
+      ...d,
+      usage: (c, health) => this.usagePlan(c, health),
+      usageDone: async plan => {
+        const skill = skillOf(plan.call, HARNESS)
+        if (skill !== undefined) await this.skillLoaded(s, skill, this.now())
+      },
+    }, this.health(e.sessionID)))
     if (verdict.deny !== undefined || verdict.context !== undefined) this.verdicts.set(e.id, verdict)
-    const skill = skillOf(call, HARNESS)
-    if (skill !== undefined && verdict.deny === undefined) this.track(this.skillLoaded(s, skill, this.now()))
   }
 
   buildCall(e: PermissionEvaluation): ToolCall | undefined {
@@ -694,128 +694,54 @@ export class BuracleRuntime {
     return call
   }
 
-  writeContext(cwd: string, cfg: BuracleConfig): WriteGuardContext {
-    const ctx: WriteGuardContext & { realpath?: (p: string) => string | undefined } = {
-      cwd, home: this.env.home, vault: paths.oldVaultRoot(), protect: cfg.guards.write.protect, realpath: realWriteTarget, selfPaths: selfPaths(cfg.repo),
-      parsers: CONFIG_PARSERS,
-    }
-    const repo = buracleRepoFor(cwd, this.configuredRepos(), this.now())
-    if (repo !== undefined) ctx.buracleRepo = repo
-    return ctx
+  /** The write guard's context (H02) for a folder, as the pipeline builds it. */
+  writeContext(cwd: string): Promise<WriteGuardContext> {
+    return writeGuardContext(this.deps(this.detached('')), cwd)
   }
 
-  bashOptions(cwd: string, cfg: BuracleConfig): BashGuardOptions {
-    const o: BashGuardOptions = {
-      ...cfg.guards.bash, home: this.env.home, selfPaths: selfPaths(cfg.repo), cwd,
-      vault: paths.oldVaultRoot(), protect: cfg.guards.write.protect, realpath: realWriteTarget,
-    }
-    const repo = buracleRepoFor(cwd, this.configuredRepos(), this.now())
-    if (repo !== undefined) o.buracleRepo = repo
-    return o
-  }
-
-  private writeVerdict(call: ToolCall, cfg: BuracleConfig): { deny?: string } {
-    const wctx = this.writeContext(call.cwd, cfg)
-    const changes = opencodeChanges(call.tool, call.input, call.paths, call.cwd, this.env.home)
-    const contents = guardedContents(changes, call.paths, wctx.home, { realpath: realWriteTarget })
-    return checkWrite(call.paths, Object.keys(contents).length > 0 ? { ...wctx, contents } : wctx)
-  }
-
-  private mcpWriteVerdict(call: ToolCall, cfg: BuracleConfig): { deny?: string } {
-    if (call.kind !== 'mcp') return {}
-    const targets = mcpWritePaths(call.tool, call.input, call.mcp)
-    return targets.length > 0 ? checkWrite(targets, this.writeContext(call.cwd, cfg)) : {}
-  }
-
-  private guard(id: HookId, fn: () => { deny?: string } | undefined): { reason: string, hook: HookId } | undefined {
-    try {
-      const r = fn()
-      return r?.deny !== undefined && r.deny !== '' ? { reason: r.deny, hook: id } : undefined
-    } catch (e) {
-      const msg = errText(e)
-      this.logFn('error', `${id} guard failed`, { error: msg })
-      if (hookFailure(this.baked, id) === 'closed') {
-        return { reason: `the guard could not evaluate this call (${msg}), so it was blocked to stay safe. Run \`buracle doctor opencode\`.`, hook: id }
-      }
-      return undefined
-    }
-  }
-
-  private denyCall(e: PermissionEvaluation, denied: Denial, sid: string, tool: string): void {
-    e.effect = 'deny'
-    e.message = denyMessage(denied.hook, denied.reason)
-    const pending = e.source?.type === 'tool' ? this.calls.get(e.source.id) : undefined
-    if (pending !== undefined) pending.denied = true
-    this.logFn('info', 'denied tool call', { sid, hook: denied.hook, tool })
-  }
-
+  /** permission.evaluate is OpenCode's preTool: a denial becomes the `deny` effect with the pipeline's reason as the message. */
   async evaluate(e: PermissionEvaluation): Promise<void> {
-    this.onEvaluate(e)
-    const held = this.consentHeld.get(e)
-    this.consentHeld.delete(e)
-    if (held === undefined || !await answerHeld(e, held, { host: this.consentHost, isSubagent: sid => this.subagentSession(sid) })) return
-    const pending = e.source?.type === 'tool' ? this.calls.get(e.source.id) : undefined
-    if (pending !== undefined) pending.denied = false
-    this.onEvaluate(e)
-  }
-
-  onEvaluate(e: PermissionEvaluation): void {
     if (e.effect === 'deny') return
-    const before = e.effect
     const call = this.buildCall(e)
     if (call === undefined) return
-    const cfg = this.cfg()
-    let denied: Denial | undefined
-    if (call.kind === 'bash') {
-      const command = call.command ?? ''
-      if (command !== '') denied = this.guard('H01', () => checkBash(command, this.bashOptions(call.cwd, cfg)))
-      if (denied === undefined && command !== '' && typeof this.sessions.get(call.sessionId)?.parentID === 'string') {
-        denied = this.guard('H01', () => { const lane = laneStateDenial(command); return lane !== undefined ? { deny: lane } : undefined })
-      }
-      if (denied === undefined && command !== '') denied = this.guard('H01', () => ({ deny: reviewerShellDenial(e.agent, command) }))
-      if (denied === undefined && command !== '' && paths.isValidSessionId(call.sessionId)) {
-        denied = this.guard('H20', () => {
-          const reason = consentGate(HARNESS, call.sessionId, command, this.now())
-          return reason !== undefined ? { deny: reason } : undefined
-        })
-        if (denied?.hook === 'H20') this.consentHeld.set(e, { sid: call.sessionId, command, effect: before })
-      }
+    const sid = call.sessionId
+    const valid = paths.isValidSessionId(sid)
+    const s = this.session(sid)
+    const id = e.source?.type === 'tool' ? e.source.id : undefined
+    if (valid) await this.start(s)
+    const sub = valid && await this.subagentSession(s)
+    const edit = isEdit(call.kind)
+    let held: HeldAnswer | undefined
+    const decision = await preTool({
+      call, now: this.now(), subagent: sub, guardsOnly: !valid,
+      usage: (id !== undefined ? this.verdicts.get(id) : undefined) ?? false,
+      // The early-edit note reaches the model in the call's result, so it needs a call to ride on.
+      ...(edit && id !== undefined ? { edits: call.paths } : {}),
+    }, {
+      ...this.deps(s),
+      guardRepoInShell: true,
+      shellDenial: async command => reviewerShellDenial(e.agent, command),
+      // OpenCode's own ask dialog cannot carry Buracle's consent options, so the TUI plugin asks; the call waits for the answer.
+      holdConsent: async command => {
+        held = await answerHeld(sid, command, { host: this.consentHost, isSubagent: async () => sub })
+        // The answer is a grant like any other: the gate takes it, so a one-use grant is spent by this call.
+        return held.allowed && consentGate(HARNESS, sid, command, this.now()) === undefined
+      },
+      writeTargets: c => (edit && c.paths.length > 0
+        ? { paths: c.paths, contents: guard => guardedContents(opencodeChanges(c.tool, c.input, c.paths, c.cwd, guard.home), c.paths, guard.home, { realpath: realWriteTarget }) }
+        : undefined),
+      nativeOff: () => this.nativeOff(),
+      usage: () => undefined,
+    })
+    if (decision.action === 'allow') {
+      if (id !== undefined && decision.context.length > 0) this.nudges.set(id, decision.context)
+      return
     }
-    if (denied === undefined && (call.kind === 'edit' || call.kind === 'write' || call.kind === 'patch') && call.paths.length > 0) {
-      denied = this.guard('H02', () => this.writeVerdict(call, cfg))
-    }
-    if (denied === undefined && call.kind === 'mcp') denied = this.guard('H02', () => this.mcpWriteVerdict(call, cfg))
-    if (denied === undefined && call.kind === 'ask_user') {
-      let note: string | undefined
-      try {
-        note = checkQuestion(loadState(HARNESS, call.sessionId), call, this.now()).context
-      } catch (err) {
-        this.logFn('error', 'H09 checkQuestion failed', { error: errText(err) })
-      }
-      if (note !== undefined && e.source?.type === 'tool' && typeof this.sessions.get(call.sessionId)?.parentID !== 'string') {
-        this.nudges.set(e.source.id, [...(this.nudges.get(e.source.id) ?? []), note])
-      }
-    }
-    if (denied === undefined && cfg.routing.strictness !== 'off') {
-      let decision: PreDecision | undefined
-      denied = this.guard('H03', () => {
-        decision = routeTool(call, { ...this.baked.routing, strictness: cfg.routing.strictness }, this.sessionHealth(call.sessionId))
-        return decision.action === 'deny' ? { deny: decision.reason } : undefined
-      })
-      const d = decision as PreDecision | undefined
-      if (denied === undefined && d !== undefined && d.action === 'allow' && d.context !== undefined && d.context.length > 0 && e.source?.type === 'tool') {
-        this.nudges.set(e.source.id, [...(this.nudges.get(e.source.id) ?? []), ...d.context])
-      }
-    }
-    if (denied === undefined && e.source?.type === 'tool') {
-      const gate = this.verdicts.get(e.source.id)?.deny
-      if (gate !== undefined) denied = { reason: gate, hook: 'H03' }
-    }
-    if (denied === undefined && (call.kind === 'edit' || call.kind === 'write' || call.kind === 'patch') && e.source?.type === 'tool') {
-      const id = e.source.id
-      earlyEditNote(call, cfg.plan.planApproval, note => this.nudges.set(id, [...(this.nudges.get(id) ?? []), note]), err => this.logFn('warn', 'early edit note failed', { error: errText(err) }))
-    }
-    if (denied !== undefined) this.denyCall(e, denied, call.sessionId, call.tool)
+    e.effect = 'deny'
+    e.message = decision.hook !== 'H20' ? decision.reason : held?.refusal ?? (held?.hint !== undefined ? `${decision.reason} ${held.hint}` : decision.reason)
+    const pending = id !== undefined ? this.calls.get(id) : undefined
+    if (pending !== undefined) pending.denied = true
+    this.logFn('info', 'denied tool call', { sid, hook: decision.hook, tool: call.tool })
   }
 
   async onToolAfter(e: ToolExecuteAfter): Promise<void> {
@@ -826,16 +752,20 @@ export class BuracleRuntime {
     const verdict = this.verdicts.get(e.id)
     this.verdicts.delete(e.id)
     const s = this.session(e.sessionID)
-    this.touch(s)
-    if (s.parentID === null && !isMemoryRunnerDir(this.cwdOf(s))) this.ui('seen', s.sid)
+    await this.touch(s)
+    const valid = paths.isValidSessionId(e.sessionID)
+    const sub = valid && await this.subagentSession(s)
+    const now = this.now()
     const cwd = this.ctx.location.directory
     const input = asRecord(e.input)
     const cls = classifyTool(HARNESS, e.tool, input, cwd, this.baked.mcpIds, { homeTilde: this.env.home })
-    const ms = pending !== undefined ? Math.max(0, this.now() - pending.at) : undefined
+    const ms = pending !== undefined ? Math.max(0, now - pending.at) : undefined
+    const edit = isEdit(cls.kind)
+    const done = e.status === 'completed'
 
     let entry: SpoolEntry | undefined
-    if (cls.kind === 'edit' || cls.kind === 'write' || cls.kind === 'patch' || cls.kind === 'bash') {
-      entry = { ts: this.now(), ev: 'tool', tool: e.tool, kind: cls.kind }
+    if (edit || cls.kind === 'bash') {
+      entry = { ts: now, ev: 'tool', tool: e.tool, kind: cls.kind }
       if (cls.paths.length > 0) entry.paths = cls.paths
       if (cls.command !== undefined) entry.cmd = cls.command
       if (ms !== undefined) entry.ms = ms
@@ -844,48 +774,53 @@ export class BuracleRuntime {
         if (exit !== undefined) entry.exit = exit
       } else entry.exit = -1
     } else if (cls.kind === 'mcp' || cls.kind === 'web_search' || cls.kind === 'web_fetch' || e.tool === 'skill') {
-      entry = { ts: this.now(), ev: 'tool', tool: e.tool, kind: cls.kind }
+      entry = { ts: now, ev: 'tool', tool: e.tool, kind: cls.kind }
       if (ms !== undefined) entry.ms = ms
-      if (e.status !== 'completed') entry.exit = -1
-    }
-    if (entry !== undefined) {
-      const root = await this.rootOf(s)
-      if (root !== undefined) {
-        if (root !== s) this.touch(root)
-        this.spool(root.sid, [entry])
-      }
+      if (!done) entry.exit = -1
     }
     const denied = verdict?.deny !== undefined || pending?.denied === true
     if (!denied && s.parentID === null) this.receipts.tool(s.sid, e, { kind: cls.kind, paths: cls.paths, cwd, home: this.env.home, ...(cls.command !== undefined ? { command: cls.command } : {}) })
-    const server = cls.kind === 'mcp' ? cls.mcp?.server : undefined
-    if (server !== undefined && !denied && paths.isValidSessionId(e.sessionID)) recordMcpResult(this.ledger, e.sessionID, server, e.status === 'completed')
     if (e.status === 'completed') this.maskResult(e, cls.kind)
     else this.maskError(e, cls.kind)
-    if (!denied && e.tool === 'question' && e.status === 'completed') await this.answerReceipt(s, e.input, e.result)
-    if (!denied && e.tool === OPENCODE_TODO_TOOL && e.status === 'completed') {
+    if (!denied && e.tool === OPENCODE_TODO_TOOL && done) {
       const open = openTodosOf(e.input)
       if (open !== undefined) { s.todos = open; this.persist(s) }
     }
+    const answered = !denied && !sub && e.tool === 'question' && e.status === 'completed' && questionAnswered(e.result)
+    const server = cls.kind === 'mcp' && !denied ? cls.mcp?.server : undefined
+    const texts = edit && done ? editTexts(cls.kind, cls.paths, input, cwd, this.env.home) : undefined
+    const r = !valid ? undefined : await postTool({
+      sessionId: e.sessionID, cwd, now, subagent: sub, answered,
+      entries: entry !== undefined && !sub ? [entry] : [],
+      ...(texts !== undefined ? { edit: { ok: true, paths: cls.paths, added: texts.added, removed: () => texts.removed } } : {}),
+      ...(server !== undefined ? { mcp: { server: () => server, ok: done } } : {}),
+    }, {
+      ...this.deps(s),
+      fileChecks: {
+        now: this.now,
+        run: async (argv, opts) => {
+          const res = await this.runChecker({ argv, cwd: opts?.cwd ?? cwd, timeoutMs: opts?.timeoutMs ?? OPENCODE_H04_BUDGET_MS, parser: 'generic', ...(opts?.env !== undefined ? { env: opts.env as Record<string, string> } : {}) }, opts?.timeoutMs)
+          return { code: res?.code ?? 127, stdout: res?.stdout ?? '', stderr: res?.stderr ?? '', timedOut: res?.timedOut === true }
+        },
+      },
+      editBudgetMs: OPENCODE_H04_BUDGET_MS,
+    })
+    // A subagent's tool calls belong to the root session's memory: the subagent has no record of its own.
+    if (entry !== undefined && sub) {
+      const root = await this.rootOf(s)
+      if (root !== undefined) { await this.touch(root); await this.spool(root, [entry]) }
+    }
+    // The consent question asked through OpenCode's question tool (no TUI): the pick becomes the grant.
+    if (valid && !denied && !sub && e.tool === 'question' && e.status === 'completed') await this.step('H20 question grant', undefined, () => { questionGrant(s.sid, e.input, e.result, now) })
 
     if (e.status !== 'completed') return
-    const job = denied ? undefined : backgroundStart(e.tool, input, e.result, this.now())
+    const job = denied ? undefined : backgroundStart(e.tool, input, e.result, now)
     if (job !== undefined) (s.background ??= new Map()).set(job[0], job[1])
-    const notes: string[] = []
-    const lsp: string[] = []
-    if (cls.kind === 'edit' || cls.kind === 'write' || cls.kind === 'patch') {
-      notes.push(...await fileChecks(cls.kind, cls.paths, input, this.cfg().checkers, {
-        root: this.ctx.location.project.directory, cwd, home: this.env.home, run: this.runChecker, log: (level, msg, data) => this.logFn(level, msg, data),
-        now: this.now, ...(paths.isValidSessionId(e.sessionID) ? { once: (key: string) => this.onceInSession(e.sessionID, key) } : {}),
-      }))
-      lsp.push(...await lspEditNotes(cls.paths, this.cfg().checkers, { cwd, ask: this.lspEdits, log: (level, msg, data) => this.logFn(level, msg, data) }))
-    }
+    const lsp = edit ? await lspEditNotes(cls.paths, this.cfg().checkers, { cwd, ask: this.lspEdits, log: (level, msg, data) => this.logFn(level, msg, data) }) : []
     const extra = [...new Set([...nudges, ...(verdict?.context !== undefined ? [verdict.context] : [])].map(n => n.trim()).filter(n => n !== ''))]
-    if (notes.length > 0) extra.push(['Buracle checks (H04):', ...notes.map(n => `- ${n}`)].join('\n'))
+    if (r !== undefined && r.fileNotes.length > 0) extra.push(`Buracle checks (H04):\n\n${r.fileNotes.join('\n\n')}`)
     if (lsp.length > 0) extra.push(['Buracle language server diagnostics (H04):', ...lsp].join('\n\n'))
-    if (cls.kind === 'edit' || cls.kind === 'write' || cls.kind === 'patch') {
-      const assets = assetsAfterEdit((await this.workspaceOf(s))?.root, cls.paths, assetsOptions(this.now(), this.assetsSpawn))
-      if (assets !== undefined) extra.push(assets)
-    }
+    if (r?.assets !== undefined) extra.push(r.assets)
     if (e.tool === 'subagent') {
       const note = this.reviewGate(input, e.result, reviewSubjects(HARNESS, s.sid))
       if (note !== undefined) extra.push(note)
@@ -897,12 +832,6 @@ export class BuracleRuntime {
       : cur !== undefined && cur.length > 0 ? [...cur]
       : [{ type: 'text' as const, text: stringifyOutput(e.result.output) }]
     e.result = { ...e.result, content: [...base, ...add] }
-  }
-
-  private onceInSession(sid: string, key: string): boolean {
-    let fresh = false
-    try { this.ledger.update(sid, l => { const r = ledgerOnce(l, key); fresh = r.fresh; return r.next }) } catch { return true }
-    return fresh
   }
 
   private maskResult(e: Extract<ToolExecuteAfter, { status: 'completed' }>, kind: ToolKind): void {
@@ -921,15 +850,6 @@ export class BuracleRuntime {
       const count = maskedError(e.error)
       if (count > 0) this.logFn('info', maskNotice(count), { tool: e.tool, failed: true })
     } catch (err) { this.logFn('warn', 'mask failed', { tool: e.tool, error: errText(err) }) }
-  }
-
-  private async answerReceipt(s: SessionRuntime, input: unknown, result: ToolResultShape): Promise<void> {
-    try {
-      if (s.parentID === undefined && paths.isValidSessionId(s.sid)) await this.resolveParent(s)
-      if (this.isSubagent(s)) return
-      recordAnswer(s.sid, result, this.now())
-      if (paths.isValidSessionId(s.sid)) questionGrant(s.sid, input, result, this.now())
-    } catch (err) { this.logFn('warn', 'H08 answer receipt failed', { sid: s.sid, error: errText(err) }) }
   }
 
   private noteReviews(s: SessionRuntime, messages: unknown): void {
@@ -958,43 +878,22 @@ export class BuracleRuntime {
     }
   }
 
-  private capabilityText(sid: string): string | undefined {
-    const cfg = this.cfg()
-    const health = this.sessionHealth(sid)
-    const key = JSON.stringify([cfg.routing.strictness, Object.entries(health).sort()])
-    if (this.card?.key === key) return this.card.text
-    let text: string | undefined
-    try {
-      const mcp = this.baked.mcp.filter(m => !mcpUnavailable(health[m.id]))
-      text = capabilityCard({ policy: { ...this.baked.routing, strictness: cfg.routing.strictness }, mcp, skills: this.baked.skills, plugins: this.baked.plugins, harness: HARNESS })
-    } catch (e) {
-      this.logFn('warn', 'capability card failed', { error: errText(e) })
-      return undefined
-    }
-    this.card = { key, text: text.trim() === '' ? undefined : text }
-    return this.card.text
+  /** The capability card (H15) with the servers that are up for this session. */
+  private capabilityText(sid: string): string {
+    const health = this.health(sid)
+    const mcp = this.baked.mcp.filter(m => !mcpUnavailable(health[m.id]))
+    return capabilityCard({ policy: routingPolicy(this.actx()), mcp, skills: this.baked.skills, plugins: this.baked.plugins, harness: HARNESS })
   }
 
-  async memoryIndex(s: SessionRuntime): Promise<string | undefined> {
-    if (s.memoryIndex !== undefined) return s.memoryIndex ?? undefined
-    if (s.memoryIndexLoading === undefined) {
-      s.memoryIndexLoading = (async () => {
-        try {
-          s.memoryIndex = (await this.memory.context(this.cwdOf(s), MEMORY_INJECT.maxBytes)) ?? null
-        } catch (e) {
-          this.logFn('warn', 'memory context failed', { error: errText(e) })
-          s.memoryIndex = null
-        }
-      })()
-    }
-    await s.memoryIndexLoading
-    return s.memoryIndex ?? undefined
-  }
-
+  /**
+   * session.context runs before every model step and its system text does not persist, so each step gets the
+   * session start's context again, then what only this step has: a saved plan draft, the context warning (H05) and
+   * the context of the prompts this step delivers.
+   */
   async onContext(e: SessionContextEvent): Promise<void> {
     const s = this.session(e.sessionID)
     if (isMemoryRunnerDir(this.cwdOf(s))) return
-    this.touch(s)
+    s.activity = true
     if (typeof e.agent === 'string' && e.agent !== '') s.agent = e.agent
     const parts: string[] = []
     const draft = draftOnSwitch(s.draft ??= {}, e.agent)
@@ -1002,36 +901,19 @@ export class BuracleRuntime {
       const note = await this.saveDraft(s, draft)
       if (note !== undefined) parts.push(note)
     }
-    const card = this.capabilityText(s.sid)
-    if (card !== undefined) parts.push(card)
-    if (paths.isValidSessionId(s.sid)) {
-      const info = await this.workspaceOf(s)
-      if (info !== undefined) {
-        try { parts.push(workspaceContext(info, HARNESS)) } catch (err) { this.logFn('warn', 'workspace context failed', { error: errText(err) }) }
-        const assets = assetsContextCached(info.root, HARNESS, this.now())
-        if (assets !== '') parts.push(assets)
-      }
-    }
-    if (s.parentID === null || s.parentID === undefined) {
-      const index = await this.memoryIndex(s)
-      if (index !== undefined) parts.push(index)
-    }
+    await this.start(s)
+    if (s.noticeOnce !== undefined) { parts.push(s.noticeOnce); delete s.noticeOnce }
+    // The card follows the MCP servers' health from step to step, where the other harnesses show the one of the session start.
+    const card = s.card === undefined ? undefined : await this.step('H15 capability card', s.card, () => this.capabilityText(s.sid))
+    parts.push(...s.startContext.map(part => (part === s.card && card !== undefined ? card : part)).filter(part => part.trim() !== ''))
     const cfg = this.cfg()
-    if (s.compacted) {
-      try {
-        const text = restoreContext(loadState(HARNESS, s.sid), s.handoffPath)
-        if (text !== undefined && text.trim() !== '') parts.push(text)
-      } catch (err) { this.logFn('warn', 'restoreContext failed', { error: errText(err) }) }
-    }
-    const notice = await this.sessionNotice(s)
-    if (notice !== undefined) parts.push(notice)
     const watch = contextWatch(s.ctxWarned, s.ctx?.pct, cfg.context)
     if (watch.warned !== s.ctxWarned) {
       s.ctxWarned = watch.warned
       this.persist(s)
     }
     if (watch.warn !== undefined) parts.push(watch.warn)
-    this.deliverPrompts(s, e.messages, cfg, e.agent === 'plan')
+    await this.deliverPrompts(s, e.messages, e.agent === OPENCODE_PLAN_AGENT)
     this.noteReviews(s, e.messages)
     parts.push(...s.pendingContext)
     for (const text of parts) e.system.push({ type: 'text', text })
@@ -1042,7 +924,7 @@ export class BuracleRuntime {
       const cwd = this.cwdOf(s)
       const saved = await captureSessionPlan({ plan, cwd, now: this.now(), harness: HARNESS, approved: false, sid: s.sid })
       if (saved === undefined) return undefined
-      this.spool(s.sid, [{ ts: this.now(), ev: 'note', paths: [saved.path] }])
+      await this.spool(s, [{ ts: this.now(), ev: 'note', paths: [saved.path] }])
       return saved.note ?? draftNote(shownPath(saved.path, cwd))
     } catch (err) {
       this.logFn('warn', 'H12 plan draft failed', { sid: s.sid, error: errText(err) })
@@ -1050,109 +932,88 @@ export class BuracleRuntime {
     }
   }
 
-  private async sessionNotice(s: SessionRuntime): Promise<string | undefined> {
-    if (s.noticesChecked === true || !paths.isValidSessionId(s.sid)) return undefined
-    if (s.parentID === undefined) await this.resolveParent(s)
-    s.noticesChecked = true
-    return this.isSubagent(s) || this.resumed(s) ? undefined : openingNotice(this.baked, this.now(), this.logFn)
-  }
-
   private resumed(s: SessionRuntime): boolean {
     return s.createdAt !== undefined && s.createdAt <= this.startedAt - RESUME_AFTER_MS
   }
 
-  private deliverPrompts(s: SessionRuntime, messages: unknown, cfg: BuracleConfig, readOnly: boolean): void {
-    try {
+  /**
+   * A prompt reaches the model on a later step (a queued one after the running turn), and several can arrive
+   * together: their routes are merged and recorded in the ledger (H24) here, when they are delivered.
+   */
+  private async deliverPrompts(s: SessionRuntime, messages: unknown, readOnly: boolean): Promise<void> {
+    await this.step('prompt delivery', undefined, () => {
       const taken = takeDelivered(s.pending, messages)
       if (taken.length === 0) return
-      const delivered = deliveredPrompts(taken, compiledTriggers(this.baked), { ...this.baked.routing, strictness: cfg.routing.strictness }, readOnly)
-      if (delivered.route !== undefined) ledgerUserPrompt(this.ledger, s.sid, delivered.route, this.now())
+      const delivered = deliveredPrompts(taken, compiledTriggers(this.baked), routingPolicy(this.actx()), readOnly)
+      const route = delivered.route
+      if (route !== undefined) updateLedger(HARNESS, s.sid, l => ledgerPrompt(l, route, this.now()))
       s.pendingContext = withinBudget(delivered.parts)
-    } catch (err) { this.logFn('warn', 'prompt delivery failed', { error: errText(err) }) }
+    })
   }
 
   async onCompaction(e: SessionCompactionEvent): Promise<void> {
     const s = this.session(e.sessionID)
-    this.touch(s)
-    const state = loadState(HARNESS, s.sid)
-    try {
-      const text = compactInstructions(undefined, state)
+    await this.touch(s)
+    await this.step('compactInstructions', undefined, () => {
+      const text = compactInstructions(undefined, loadState(HARNESS, s.sid))
       if (text.trim() !== '') e.system.push({ type: 'text', text })
-    } catch (err) { this.logFn('warn', 'compactInstructions failed', { error: errText(err) }) }
-    if (s.parentID === undefined) await this.resolveParent(s)
-    if (!this.isSubagent(s)) await this.writeHandoff(s, state)
-  }
-
-  private async writeHandoff(s: SessionRuntime, state: SessionState): Promise<void> {
-    try {
-      if (s.handoffPath !== undefined) { delete s.handoffPath; this.persist(s) }
-      const cwd = this.cwdOf(s)
-      const now = this.now()
-      const input: Parameters<typeof handoffNote>[0] = { state, project: basename(cwd), harness: HARNESS, sessionId: s.sid, now }
-      const branch = await currentBranch(cwd)
-      if (branch !== undefined) input.branch = branch
-      if (s.todos !== undefined && s.todos.length > 0) input.todo = s.todos
-      const note = handoffNote(input)
-      const req: Parameters<MemoryBridge['handoff']>[0] = { sessionId: s.sid, cwd, slug: note.slug, markdown: note.markdown, now }
-      if (branch !== undefined) req.branch = branch
-      const id = await this.memory.handoff(req)
-      if (id === undefined) return
-      s.handoffPath = id
-      this.persist(s)
-    } catch (err) { this.logFn('warn', 'handoff memory failed', { sid: s.sid, error: errText(err) }) }
+    })
+    if (!paths.isValidSessionId(s.sid) || await this.subagentSession(s)) return
+    const now = this.now()
+    await preCompact({ harness: HARNESS, sessionId: s.sid, cwd: this.cwdOf(s), now }, { ...this.deps(s), openTodos: () => s.todos ?? [], compact: compactStore(s.sid, now) })
   }
 
   async onPrompt(e: SessionPromptEvent): Promise<void> {
     const s = this.session(e.sessionID)
-    this.touch(s)
+    await this.touch(s)
     const meta = asRecord(e.metadata)
     const text = typeof e.prompt?.text === 'string' ? e.prompt.text : ''
+    // The stop guard's own continuation is not the user's prompt.
     if (meta[CONTINUE_MARK] === true || isGuardContinuation(text)) return
     s.userPrompts++
     resetChain(s.sid)
-    if (!paths.isValidSessionId(s.sid)) return
-    if (s.parentID === undefined) await this.resolveParent(s)
-    if (this.isSubagent(s)) return
+    if (!paths.isValidSessionId(s.sid) || await this.subagentSession(s)) return
+    if (isMemoryRunnerDir(this.cwdOf(s))) return
     const at = this.now()
     if (!s.running) this.receipts.prompt(s.sid)
-    const excerpt = spoolPromptExcerpt(text)
-    this.spool(s.sid, [{ ts: at, ev: 'prompt', ...(excerpt !== undefined ? { excerpt } : {}) }])
-    try { this.memory.prompt?.(s.sid) } catch (e) { this.logFn('warn', 'session record not touched', { error: errText(e) }) }
-    if (!isMemoryRunnerDir(this.cwdOf(s))) this.ui('seen', s.sid)
-    const cfg = this.cfg()
     const cmd = commandOfPrompt(meta, text)
     const words = cmd !== undefined ? cmd.args : text
-    try { recordPromptGrants(HARNESS, s.sid, words, at) } catch (err) { this.logFn('warn', 'consent grants failed', { error: errText(err) }) }
-    let guidance = promptPlanInteraction(s.sid, words, { now: at }, this.logFn)
-    try { guidance = [guidance, reviewNotesNotice(HARNESS, s.sid, { plan: loadState(HARNESS, s.sid).plan?.path, roots: [(await this.workspaceOf(s))?.root, this.cwdOf(s)], now: at })].filter(x => x !== undefined).join('\n\n') || undefined } catch (err) { this.logFn('warn', 'review notes notice failed', { error: errText(err) }) }
     let routed: PromptRouteResult | undefined
-    try {
-      routed = await this.routeWords(s, e, words, cmd?.command, cfg, at)
-    } catch (err) { this.logFn('warn', 'prompt routing failed', { error: errText(err) }) }
-    const notice = this.indexNotice(s, cfg, at)
+    const r = await promptEvent({ harness: HARNESS, sessionId: s.sid, cwd: this.cwdOf(s), text: words, now: at }, {
+      ...this.deps(s),
+      routePrompt: async () => {
+        routed = await this.routeWords(s, e, words, cmd?.command, at)
+        return { route: routed.route, deferred: true, ...(routed.text !== undefined ? { text: routed.text } : {}) }
+      },
+      // The agent a prompt reaches and the step's context size are known when it is delivered: session.context adds both notes.
+      readOnly: () => false,
+      contextWarning: () => undefined,
+    })
+    const route = routed as PromptRouteResult | undefined
     const id = typeof e.messageID === 'string' && e.messageID !== '' ? e.messageID : undefined
-    const pending: PendingPrompt = { id: id ?? `prompt-${s.userPrompts}`, delivery: id !== undefined && e.delivery === 'queue' ? 'queue' : 'steer', attach: routed?.attach ?? [] }
-    if (routed !== undefined) pending.route = routed.route
-    if (routed !== undefined && routed.workflows.length > 0) pending.workflows = [...routed.workflows]
-    if (guidance !== undefined) pending.guidance = guidance
-    if (routed?.text !== undefined) pending.text = routed.text
-    if (notice !== undefined) pending.notice = notice
+    const at2 = route?.text !== undefined ? r.context.indexOf(route.text.trim()) : -1
+    const pending: PendingPrompt = {
+      id: id ?? `prompt-${s.userPrompts}`, delivery: id !== undefined && e.delivery === 'queue' ? 'queue' : 'steer', attach: route?.attach ?? [],
+      before: at2 >= 0 ? r.context.slice(0, at2) : r.context, after: at2 >= 0 ? r.context.slice(at2 + 1) : [],
+    }
+    if (route !== undefined) pending.route = route.route
+    if (route !== undefined && route.workflows.length > 0) pending.workflows = [...route.workflows]
+    if (at2 >= 0) pending.text = r.context[at2] as string
     addPending(s.pending, pending)
   }
 
-  private async routeWords(s: SessionRuntime, e: SessionPromptEvent, words: string, command: string | undefined, cfg: BuracleConfig, at: number): Promise<PromptRouteResult> {
-    const info = await this.workspaceOf(s)
+  private async routeWords(s: SessionRuntime, e: SessionPromptEvent, words: string, command: string | undefined, at: number): Promise<PromptRouteResult> {
     const attached = attachedSkills(e.prompt.skills)
-    const deps = projectDeps(info?.root)
+    const deps = projectDeps(readWorkspace(this.actx(), HARNESS, s.sid)?.root)
     const route = routeUserPrompt({
       text: words,
       ...(command !== undefined ? { command } : {}),
       attached,
-      loaded: loadedSkills(this.ledger, s.sid),
-      available: availableServers(this.baked, this.sessionHealth(s.sid)),
+      loaded: Object.keys(loadLedger(HARNESS, s.sid).skills),
+      available: availableServers(this.baked, this.health(s.sid)),
       ...(deps.length > 0 ? { deps } : {}),
       known: await this.knownSkills(this.cwdOf(s)),
-    }, this.baked, cfg)
+    }, this.baked, this.cfg())
     if (route.attach.length > 0) e.prompt.skills = [...(Array.isArray(e.prompt.skills) ? e.prompt.skills : []), ...route.attach.map(id => ({ id }))]
     const title = runTitle(words)
     for (const workflow of route.workflows) {
@@ -1160,19 +1021,6 @@ export class BuracleRuntime {
       recordFlowStart(HARNESS, s.sid, title !== undefined ? { workflow, title, source } : { workflow, source }, at)
     }
     return route
-  }
-
-  private indexNotice(s: SessionRuntime, cfg: BuracleConfig, at: number): string | undefined {
-    const prev = s.workspaceSeen
-    if (prev === undefined) return undefined
-    try {
-      const next = refreshWorkspaceInfo(prev, cfg, at)
-      s.workspaceSeen = next
-      return workspaceNotice(prev, next)
-    } catch (err) {
-      this.logFn('debug', 'workspace notice failed', { error: errText(err) })
-      return undefined
-    }
   }
 
   onShellCreate(e: ShellCreateBefore): void {
@@ -1203,15 +1051,16 @@ export class BuracleRuntime {
         if (isMemoryRunnerDir(this.cwdOf(s))) s.capture = false
         const parent = str(data['parentID'])
         s.parentID = parent ?? null
-        if (s.parentID === null) this.touch(s)
-        if (paths.isValidSessionId(sid)) void this.ensureWorkspace(s)
+        if (s.parentID === null) void this.touch(s)
         return
       }
       case 'session.skill.activated': {
         const id = str(data['id'])
         if (id === undefined || !paths.isValidSessionId(sid)) return
         const s = this.session(sid)
-        recordCall(this.ledger, sid, { harness: HARNESS, sessionId: sid, cwd: this.cwdOf(s), tool: 'skill', kind: 'other', input: { id }, paths: [] })
+        await this.start(s)
+        const call: ToolCall = { harness: HARNESS, sessionId: sid, cwd: this.cwdOf(s), tool: 'skill', kind: 'other', input: { id }, paths: [] }
+        await this.step('H24 ledger', undefined, () => { updateLedger(HARNESS, sid, l => ledgerCall(l, call)) })
         await this.skillLoaded(s, id, this.now())
         return
       }
@@ -1273,6 +1122,7 @@ export class BuracleRuntime {
         this.cancelIdleFinalize(s)
         return
       }
+      // OpenCode's stop: the turn's spool entry and receipt, then the stop guard (which runs the pipeline's stop).
       case 'session.execution.succeeded':
       case 'session.idle': {
         const s = this.session(sid)
@@ -1280,7 +1130,6 @@ export class BuracleRuntime {
         if (typeof s.parentID === 'string') this.sessions.get(s.parentID)?.background?.delete(`subagent:${sid}`)
         if (s.handledGen === s.gen) return
         s.handledGen = s.gen
-        if (s.parentID === null) startLinkRun(s.workspace?.root, assetsOptions(this.now(), this.assetsSpawn))
         this.turnSpool(s)
         this.track(this.turnEnded(s))
         this.scheduleIdleFinalize(s)
@@ -1306,11 +1155,10 @@ export class BuracleRuntime {
       case 'session.compaction.ended': {
         const s = this.session(sid)
         const text = str(data['text'])
-        if (text !== undefined && text.trim() !== '') this.track(this.spoolOwn(s, [{ ts: this.now(), ev: 'compact', excerpt: text.slice(0, 8000) }]))
+        if (text !== undefined && text.trim() !== '') await this.spoolOwn(s, [{ ts: this.now(), ev: 'compact', excerpt: text.slice(0, 8000) }])
+        // The next step starts the session again with the source `compact`: the restore note and a fresh memory index.
         s.compacted = true
-        s.memoryIndex = undefined
-        s.memoryIndexLoading = undefined
-        this.persist(s)
+        s.starting = undefined
         return
       }
       case 'session.deleted': {
@@ -1320,13 +1168,20 @@ export class BuracleRuntime {
         this.receipts.forget(sid)
         registry().chains.delete(sid)
         if (s !== undefined && s.parentID !== null && s.parentID !== undefined) return
-        this.ui('ended', sid)
-        await this.finalize(sid, s)
+        if (s !== undefined) await this.end(s, s.capture)
+        else await this.end(this.detached(sid), this.captureNow())
         return
       }
       default:
         return
     }
+  }
+
+  /** A session this plugin never saw, for an event that only names it. */
+  private detached(sid: string): SessionRuntime {
+    const s = this.session(sid)
+    this.sessions.delete(sid)
+    return s
   }
 
   private turnSpool(s: SessionRuntime): void {
@@ -1338,9 +1193,7 @@ export class BuracleRuntime {
   }
 
   private async telemetry(s: SessionRuntime): Promise<void> {
-    if (!paths.isValidSessionId(s.sid)) return
-    if (s.parentID === undefined) await this.resolveParent(s)
-    if (this.isSubagent(s)) return
+    if (!paths.isValidSessionId(s.sid) || await this.subagentSession(s)) return
     try {
       const t: Parameters<typeof writeTelemetry>[2] = { at: this.now(), cwd: this.cwdOf(s) }
       if (s.model !== undefined) { t.model = `${s.model.providerID}/${s.model.id}`; t.modelId = t.model }

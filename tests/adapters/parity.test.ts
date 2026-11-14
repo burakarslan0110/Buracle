@@ -630,7 +630,7 @@ const PIPELINE_FILES = { sessionStart: 'session-start', prompt: 'prompt', preToo
  * only when its adapter imports the pipeline and calls that event's function.
  */
 function withPipeline(own: string, ...events: Array<keyof typeof PIPELINE_FILES>): string {
-  const imports = /from '\.\.\/shared\/pipeline\/index'/.test(own)
+  const imports = /from '(?:\.\.\/)+shared\/pipeline\/index'/.test(own)
   const routed = events.filter(e => imports && new RegExp(`\\b${e}(?:Event)?\\(`).test(own))
   return [own, ...routed.map(e => readFileSync(join(REPO, 'src/adapters/shared/pipeline', `${PIPELINE_FILES[e]}.ts`), 'utf8'))].join('\n')
 }
@@ -639,7 +639,7 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
   test('plan state (w2): the lane guard, the answer receipt and plan-mode stops on all four; background waits where the host wakes the session (omp natively); quiet feedback on Claude Code and omp', async () => {
     const src: Record<Harness, string> = {
       claude: withPipeline(sources('src/adapters/claude'), 'prompt', 'preTool', 'postTool', 'stop'), codex: withPipeline(sources('src/adapters/codex'), 'prompt', 'preTool', 'postTool', 'stop'),
-      opencode: sources('src/adapters/opencode/runtime'), omp: sources('src/adapters/omp/runtime'),
+      opencode: withPipeline(sources('src/adapters/opencode/runtime'), 'prompt', 'preTool', 'postTool', 'stop'), omp: sources('src/adapters/omp/runtime'),
     }
     const each = (test: (code: string, h: Harness) => boolean): Record<Harness, boolean> => ({ claude: test(src.claude, 'claude'), codex: test(src.codex, 'codex'), opencode: test(src.opencode, 'opencode'), omp: test(src.omp, 'omp') })
     expect(each(c => /laneStateDenial\(command\)/.test(c))).toEqual(FEATURES.laneGuard)
@@ -660,7 +660,7 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
   test('workflow switches and review records (w3): H19 binds reports to the bound plans, H06/H07 carry the running reviewers, and the model-switch step names each harness\'s own command', async () => {
     const src: Record<Harness, string> = {
       claude: withPipeline(sources('src/adapters/claude'), 'sessionStart', 'preCompact'), codex: withPipeline(sources('src/adapters/codex'), 'sessionStart', 'preCompact'),
-      opencode: sources('src/adapters/opencode/runtime'), omp: sources('src/adapters/omp/runtime'),
+      opencode: withPipeline(sources('src/adapters/opencode/runtime'), 'sessionStart', 'preCompact'), omp: sources('src/adapters/omp/runtime'),
     }
     const each = (t: (code: string) => boolean): Record<Harness, boolean> => ({ claude: t(src.claude), codex: t(src.codex), opencode: t(src.opencode), omp: t(src.omp) })
     expect(each(c => /\.\.\.boundSubject\(sid\)|reviewSubjects\(H, sid\)\)|reviewSubjects\(HARNESS, s\.sid\)|state\.subjects\?\.\(spoolSid\(ctx\)\)/.test(c))).toEqual(FEATURES.reviewSubject)
@@ -761,7 +761,7 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
     const { files } = await built()
     const src = {
       claude: withPipeline(sources('src/adapters/claude'), 'prompt', 'preTool'), codex: withPipeline(sources('src/adapters/codex'), 'prompt', 'preTool'),
-      opencode: sources('src/adapters/opencode/runtime'), omp: sources('src/adapters/omp/runtime'),
+      opencode: withPipeline(sources('src/adapters/opencode/runtime'), 'prompt', 'preTool'), omp: sources('src/adapters/omp/runtime'),
     }
     const notice = 'was started while the session is in'
     const early = 'is still in its plan phase'
@@ -799,7 +799,8 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
     const omp = JSON.stringify(todos) === JSON.stringify(['Write the parser'])
       && /handoffNote\(\{[^\n]*\btodo\b/.test(readFileSync(join(REPO, 'src/adapters/omp/runtime/compaction.ts'), 'utf8'))
     const opencode = JSON.stringify(opencodeOpenTodos({ todos: [{ content: 'Write the parser', status: 'in_progress' }, { content: 'Old item', status: 'completed' }] })) === JSON.stringify(['Write the parser'])
-      && /input\.todo = s\.todos/.test(readFileSync(join(REPO, 'src/adapters/opencode/runtime/plugin.ts'), 'utf8'))
+      && /openTodos: \(\) => s\.todos/.test(readFileSync(join(REPO, 'src/adapters/opencode/runtime/plugin.ts'), 'utf8'))
+      && /handoffNote\(\{[^\n]*\btodo\b/.test(withPipeline(readFileSync(join(REPO, 'src/adapters/opencode/runtime/plugin.ts'), 'utf8'), 'preCompact'))
     expect({ claude, codex, opencode, omp }).toEqual(FEATURES.todoHandoff)
   }))
 

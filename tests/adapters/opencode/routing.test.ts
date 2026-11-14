@@ -386,7 +386,7 @@ describe('H24 usage ledger: reminders and the deny-once gates (reported as H03)'
     await f.trigger('tool.execute.before', { tool: 'write', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_pw1', input: go })
     const denied = await f.trigger('permission.evaluate', evaluation('edit', [go.filePath], 'call_pw1'))
     expect(denied.effect).toBe('deny')
-    expect(denied.message).toStartWith('[Buracle H03 route.tools] Buracle: cmd/main.go matches the path rule `go`, which this session has not read yet.')
+    expect(denied.message).toStartWith('Buracle H03: cmd/main.go matches the path rule `go`, which this session has not read yet.')
     expect(denied.message).toContain('# Go\n\n- Format with gofmt.')
     await f.trigger('tool.execute.before', { tool: 'write', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_pw2', input: go })
     expect((await f.trigger('permission.evaluate', evaluation('edit', [go.filePath], 'call_pw2'))).effect).toBe('allow')
@@ -608,7 +608,7 @@ describe('H19 review.gate on the subagent tool result', () => {
   test('an invalid report asks the orchestrator to continue that reviewer once; a second one only warns; a valid one adds nothing', () => withSandbox(async ({ root }) => {
     const { f } = await runtime(root)
     const first = await run(f, 'call_v1', 'Looks fine to me.')
-    expect(first).toContain('Buracle H19 (review.gate): the plan-build-review report is not valid review JSON')
+    expect(first).toContain('Buracle H19: the plan-build-review report is not valid review JSON')
     expect(first).toContain('sessionID ses_rev1')
     const second = await run(f, 'call_v2', 'Still fine.')
     expect(second).toContain('It failed twice; check its findings yourself')
