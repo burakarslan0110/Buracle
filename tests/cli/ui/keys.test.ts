@@ -102,7 +102,6 @@ function fakeTerminal(size: { columns?: number, rows?: number } = {}) {
   const signals = new Map<string, Set<() => void>>()
   const timers: Array<{ f: () => void, ms: number, cleared: boolean }> = []
   const exits: number[] = []
-  const exitHooks = new Set<() => void>()
   const input: TermIn = {
     isTTY: true,
     setRawMode: on => { events.push(on ? 'raw on' : 'raw off') },
@@ -126,11 +125,10 @@ function fakeTerminal(size: { columns?: number, rows?: number } = {}) {
     setTimer: (f, ms) => { const t = { f, ms, cleared: false }; timers.push(t); return t },
     clearTimer: t => { (t as { cleared: boolean }).cleared = true },
     exit: code => { exits.push(code) },
-    exitHost: { on: (_ev, f) => { exitHooks.add(f) }, off: (_ev, f) => { exitHooks.delete(f) } },
   })
   const listeners = () => data.size + resize.size + [...signals.values()].reduce((n, s) => n + s.size, 0)
   return {
-    term, writes, events, timers, exits, listeners, exitHooks,
+    term, writes, events, timers, exits, listeners,
     type: (d: Buffer | string) => { for (const f of [...data]) f(d) },
     resizeTo: () => { for (const f of [...resize]) f() },
     signal: (sig: string) => { for (const f of [...signals.get(sig) ?? []]) f() },
@@ -193,41 +191,6 @@ describe('terminal', () => {
     expect(calls).toBe(1)
   })
 
-  test('suspend leaves the screen for a child command and resume comes back', () => {
-    const f = fakeTerminal()
-    f.writes.length = 0
-    f.events.length = 0
-    f.term.suspend()
-    expect(f.writes).toEqual(['\u001b[?1049l\u001b[?25h'])
-    expect(f.events).toEqual(['raw off', 'pause'])
-    expect(f.reading()).toBe(false)
-    f.term.draw(['hidden'])
-    expect(f.writes).toHaveLength(1)
-    f.term.resume()
-    expect(f.writes).toEqual(['\u001b[?1049l\u001b[?25h', '\u001b[?1049h\u001b[?25l'])
-    expect(f.events).toEqual(['raw off', 'pause', 'raw on', 'resume'])
-    expect(f.reading()).toBe(true)
-  })
-
-  test('anyKey while suspended reads one key in raw mode on the normal screen, then lets go of the input again', async () => {
-    const f = fakeTerminal()
-    f.term.suspend()
-    f.writes.length = 0
-    f.events.length = 0
-    const key = f.term.anyKey()
-    expect(f.events).toEqual(['raw on', 'resume'])
-    expect(f.reading()).toBe(true)
-    f.type('x')
-    expect(await key).toEqual({ char: 'x' })
-    expect(f.events).toEqual(['raw on', 'resume', 'raw off', 'pause'])
-    expect(f.reading()).toBe(false)
-    expect(f.writes).toEqual([])
-    f.term.resume()
-    const next = f.term.nextKey()
-    f.type('j')
-    expect(await next).toEqual({ char: 'j' })
-  })
-
   test('close restores the terminal once and removes every listener', async () => {
     const f = fakeTerminal()
     f.term.onResize(() => {})
@@ -254,80 +217,5 @@ describe('terminal', () => {
     hup.signal('SIGHUP')
     expect(hup.writes.at(-1)).toBe('\u001b[r\u001b[?1049l\u001b[?25h')
     expect(hup.exits).toEqual([129])
-  })
-
-  test('passthrough while suspended hands every raw chunk on undecoded, in raw mode, until it is turned off', async () => {
-    const f = fakeTerminal()
-    f.term.suspend()
-    f.events.length = 0
-    const got: Array<Buffer | string> = []
-    f.term.passthrough(d => { got.push(d) })
-    expect(f.events).toEqual(['raw on', 'resume'])
-    f.type(`${ESC}[A`)
-    f.type('\u0003')
-    f.type(Buffer.from([0xc4]))
-    expect(got).toEqual([`${ESC}[A`, '\u0003', Buffer.from([0xc4])])
-    expect(f.timers).toHaveLength(0) // no key decoding, so no wait for a lone ESC either
-    f.term.passthrough(undefined)
-    expect(f.events).toEqual(['raw on', 'resume', 'raw off', 'pause'])
-    f.type('x')
-    expect(got).toHaveLength(3)
-    const key = f.term.anyKey()
-    f.type('y')
-    expect(await key).toEqual(ch('y'))
-    f.term.resume()
-    const next = f.term.nextKey()
-    f.type('j')
-    expect(await next).toEqual(ch('j'))
-  })
-
-  test('SIGTERM during a passthrough closes the terminal once, below the output, and exits with 143', () => {
-    const f = fakeTerminal({ columns: 80, rows: 24 })
-    f.term.suspend()
-    f.term.passthrough(() => {})
-    f.writes.length = 0
-    f.signal('SIGTERM')
-    f.signal('SIGTERM')
-    expect(f.writes).toEqual(['\u001b[r\u001b[24;1H\r\n'])
-    expect(f.exits).toEqual([143])
-    expect(f.listeners()).toBe(0)
-  })
-
-  test('onClose callbacks run once before the terminal is restored; an unsubscribed one does not run', () => {
-    const f = fakeTerminal()
-    const calls: string[] = []
-    f.term.onClose(() => { calls.push(`a:${f.writes.length}`) })
-    const off = f.term.onClose(() => { calls.push('b') })
-    off()
-    const before = f.writes.length
-    f.signal('SIGTERM')
-    f.term.close()
-    expect(calls).toEqual([`a:${before}`])
-    expect(f.exits).toEqual([143])
-  })
-
-  test('a scroll region keeps an exit hook that resets it; resetting the region removes the hook', () => {
-    const f = fakeTerminal({ columns: 80, rows: 24 })
-    f.term.suspend()
-    f.writes.length = 0
-    f.term.region({ top: 12, bottom: 23 })
-    expect(f.writes).toEqual(['\u001b[12;23r'])
-    expect(f.exitHooks.size).toBe(1)
-    for (const hook of f.exitHooks) hook()
-    expect(f.writes.at(-1)).toBe('\u001b[r')
-    f.term.region()
-    expect(f.writes.at(-1)).toBe('\u001b[r')
-    expect(f.exitHooks.size).toBe(0)
-  })
-
-  test('close while suspended resets the region and puts the cursor on a new line at the bottom, without leaving a screen', () => {
-    const f = fakeTerminal({ columns: 80, rows: 24 })
-    f.term.suspend()
-    f.term.region({ top: 12, bottom: 23 })
-    f.writes.length = 0
-    f.term.close()
-    expect(f.writes).toEqual(['\u001b[r\u001b[24;1H\r\n'])
-    expect(f.exitHooks.size).toBe(0)
-    expect(f.listeners()).toBe(0)
   })
 })

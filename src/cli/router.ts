@@ -222,8 +222,8 @@ export async function main(rawArgv: readonly string[], io: Omit<CommandIO, 'flag
   }
   if (parsed.command === undefined) {
     if (!parsed.help && parsed.rest.length === 0) {
-      const { dashboardFits, openDashboard } = await import('./dashboard')
-      if (dashboardFits({ stdinTTY: io.stdin.isTTY, stdoutTTY: io.stdout.isTTY === true, json: parsed.flags.json, term: process.env['TERM'], columns: io.stdout.columns, rows: io.stdout.rows })) return openDashboard()
+      const { menuFits, openMenu } = await import('./menu')
+      if (menuFits({ stdinTTY: io.stdin.isTTY, stdoutTTY: io.stdout.isTTY === true, json: parsed.flags.json, term: process.env['TERM'], columns: io.stdout.columns, rows: io.stdout.rows })) return openMenu()
     }
     io.stdout.write(await helpText(parsed.rest.includes('--all')))
     return EXIT.ok

@@ -121,16 +121,7 @@ export function commandHeader(st: Style, version: string, command: string): stri
   return `${MARGIN}${st.level === 0 ? st.bold('buracle') : wordmark(st)}${v === '' ? '' : ` ${st.muted(`v${v}`)}`}${st.muted(` · ${clean(command)}`)}`
 }
 
-/** How many lines `headerLines` gives for this size and color level, for code that has no style (key handling). */
-export function headerHeight(columns: number, rows: number, level: ColorLevel): number {
-  switch (headerKind(columns, rows, level)) {
-    case 'logo': return 11
-    case 'icon': return 10
-    case 'wordmark': return rows >= 16 ? 5 : rows >= 12 ? 3 : 2
-  }
-}
-
-/** A section title over the rows of one group, the same in the detailed view and in command output. */
+/** A section title over the rows of one group in command output. */
 export function sectionHeading(st: Style, title: string, width: number): string {
   const total = Math.min(width, 72)
   const rest = Math.max(2, total - MARGIN.length - 2 - 1 - textWidth(title) - 1)
