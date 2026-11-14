@@ -447,11 +447,11 @@ describe('buracle doctor', () => {
 
   test('updates: a part whose check failed is named as not checked next to the available ones', () => withSandbox(async () => {
     const at = '2026-11-05T06:00:00.000Z'
-    writeUpdatesCache({ checked_at: at, kinds: ['harness'], held: [], items: [{ kind: 'harness', id: 'claude', current: '2.1.311', latest: '2.1.312', action: 'npm-global', risk: 'low' }], errors: [{ kind: 'harness', id: 'codex', error: 'npm @openai/codex: fetch failed\nmore' }] })
+    writeUpdatesCache({ checked_at: at, kinds: ['tools'], held: [], items: [{ kind: 'tools', id: 'rg', current: '14.1.0', latest: '14.1.1', action: 'brew-upgrade', risk: 'low' }], errors: [{ kind: 'tools', id: 'jq', error: 'brew outdated: fetch failed\nmore' }] })
     const rows = updateChecks(Date.parse(at) + 2 * 3_600_000)
     expect(rows.map(r => r.check)).toEqual(['cache', 'available', 'not checked'])
-    expect(rows[1]?.detail).toContain('harness:claude')
-    expect(rows[2]).toEqual({ section: 'updates', level: 'info', check: 'not checked', detail: '1 part(s) whose check failed: harness:codex (npm @openai/codex: fetch failed); `buracle update --check` tries again' })
+    expect(rows[1]?.detail).toContain('tools:rg')
+    expect(rows[2]).toEqual({ section: 'updates', level: 'info', check: 'not checked', detail: '1 part(s) whose check failed: tools:jq (brew outdated: fetch failed); `buracle update --check` tries again' })
   }))
 
   test('a version check that times out once (a first start after an upgrade) runs again before it counts as failed', () => withSandbox(async ({ root }) => {

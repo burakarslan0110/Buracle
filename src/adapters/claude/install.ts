@@ -10,7 +10,7 @@ import { log } from '../../engine/log'
 import { run, which } from '../../engine/proc'
 import type { AdapterContext } from '../registry'
 import { parseList, samePath } from './check'
-import { CLAUDE_MANAGED_MARKETPLACES, EFFORT_MODELS, HARNESS_REL, MARKETPLACE_NAME, OWNER, PLUGIN_ID } from './constants'
+import { EFFORT_MODELS, HARNESS_REL, MARKETPLACE_NAME, OWNER, PLUGIN_ID } from './constants'
 import { mcpJson } from './plugin'
 import { renderClaudeMarkdown, withFrontmatter, type FrontmatterValue } from './render'
 
@@ -178,25 +178,11 @@ export type ClaudeExecOp = Extract<Op, { kind: 'exec' }>
 
 export type CleanupKey = NonNullable<Plan['cleanupKeys']>[number]
 
-export function claudeManagesMarketplace(id: string): boolean {
-  return CLAUDE_MANAGED_MARKETPLACES.includes(id)
-}
-
 export function execOps(ctx: AdapterContext, tools: { claude: string, bun: string, current?: unknown[] }): ClaudeExecOp[] {
   const { claude, bun } = tools
   const checkScript = join(ctx.repoRoot, 'src', 'adapters', 'claude', 'check.ts')
   const check = (...args: string[]) => [bun, checkScript, '--claude', claude, ...args]
   const ops: ClaudeExecOp[] = []
-
-  for (const m of ctx.canonical.plugins.claude.marketplaces) {
-    if (claudeManagesMarketplace(m.id)) continue
-    ops.push({
-      kind: 'exec', owner: OWNER, soft: true,
-      argv: [claude, 'plugin', 'marketplace', 'add', m.source],
-      undo: check('remove-marketplace', m.id),
-      idempotentCheck: check('marketplace', m.id),
-    })
-  }
 
   const previous = (tools.current ?? []).find(e => {
     const x = e as { name?: unknown, source?: unknown, path?: unknown }
@@ -214,24 +200,6 @@ export function execOps(ctx: AdapterContext, tools: { claude: string, bun: strin
     undo: [claude, 'plugin', 'uninstall', PLUGIN_ID, '--scope', 'user'],
     idempotentCheck: check('plugin', PLUGIN_ID),
   })
-
-  for (const p of ctx.canonical.plugins.claude.plugins) {
-    if (!p.enabled) continue
-    ops.push({
-      kind: 'exec', owner: OWNER, soft: true,
-      argv: [claude, 'plugin', 'install', p.id, '--scope', 'user'],
-      undo: [claude, 'plugin', 'uninstall', p.id, '--scope', 'user'],
-      idempotentCheck: check('plugin', p.id),
-    })
-  }
-  for (const id of ctx.canonical.plugins.claude.retired ?? []) {
-    ops.push({
-      kind: 'exec', owner: OWNER, soft: true,
-      argv: [claude, 'plugin', 'uninstall', id, '--scope', 'user'],
-      undo: [claude, 'plugin', 'install', id, '--scope', 'user'],
-      idempotentCheck: check('retired', id),
-    })
-  }
   return ops
 }
 

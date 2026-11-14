@@ -20,7 +20,7 @@ export const SKILL_COMMANDS: Readonly<Record<string, CommandSpec>> = {
   index: { subs: ['ensure', 'status'] },
   config: { subs: ['get'] },
   doctor: { subs: 'any', ops: true },
-  update: { subs: ['self', 'skills', 'mcp', 'plugins', 'harness', 'tools', 'pricing'], ops: true },
+  update: { subs: ['self', 'skills', 'mcp', 'tools'], ops: true },
   install: { subs: ['claude', 'codex', 'opencode', 'omp'], ops: true },
   build: { subs: null, ops: true },
 }

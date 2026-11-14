@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { run as updateRun } from '../../../src/cli/commands/update'
 import type { OpsDeps } from '../../../src/engine/update/deps'
@@ -8,7 +8,7 @@ import { brewUpgradeCommand, npmUrl } from '../../../src/engine/update/updates'
 import { skillsAdd } from '../../../src/workflow/skill-install'
 import { fakeExe, narrowPath } from '../../helpers/fake-exe'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
-import { behindRemote, daysAgo, fakeAdapter, fakeCli, fakeFetch, fakeMcpServer, git, makeRepo, memoryIO, noNetwork, withDeps } from './helpers'
+import { daysAgo, fakeCli, fakeFetch, fakeMcpServer, git, makeRepo, memoryIO, withDeps } from './helpers'
 
 const NOW = Date.parse('2026-10-08T12:00:00Z')
 const q = (v: unknown): string => JSON.stringify(v)
@@ -17,195 +17,7 @@ function read(p: string): string {
   return readFileSync(p, 'utf8')
 }
 
-describe('harness updates go through the installer that installed them', () => {
-  const CASK_API = 'https://formulae.brew.sh/api/cask/codex.json'
-
-  function caskCodex(root: string, opts: { upgrades: boolean, tap?: string }): { bin: string, log: string, version: () => string, path: string } {
-    const bin = join(root, 'bin')
-    const log = join(root, 'calls.log')
-    const state = join(root, 'codex.version')
-    mkdirSync(root, { recursive: true })
-    writeFileSync(state, '0.1.0')
-    const real = fakeExe(join(root, 'brew', 'Caskroom', 'codex', '0.1.0', 'bin', 'codex'), `console.log('codex-cli ' + fs.readFileSync(${q(state)}, 'utf8'))`)
-    mkdirSync(bin, { recursive: true })
-    symlinkSync(real, join(bin, 'codex'))
-    const info = { formulae: [], casks: [{ token: 'codex', tap: opts.tap ?? 'homebrew/cask', version: '0.164.0,a1b2' }] }
-    fakeExe(join(bin, 'brew'), `append(${q(log)}, 'brew ' + argv.join(' ') + ' NO_AUTO_UPDATE=' + (process.env.HOMEBREW_NO_AUTO_UPDATE ?? ''))
-const two = argv.slice(0, 2).join(' ')
-if (two === 'info --json=v2') console.log(${q(q(info))})
-if (two === 'upgrade --cask' && ${q(opts.upgrades)}) fs.writeFileSync(${q(state)}, '0.165.0')`)
-    return { bin, log, version: () => read(state), path: join(bin, 'codex') }
-  }
-
-  // Homebrew casks exist only on macOS and Linux.
-  test('a Homebrew cask install is checked against the Homebrew API and upgraded with brew; the version is measured again', () => withSandbox(async ({ root, buracleHome }) => {
-    const repo = makeRepo(root)
-    const c = caskCodex(root, { upgrades: true })
-    mkdirSync(join(buracleHome, 'cache'), { recursive: true })
-    writeFileSync(join(buracleHome, 'cache', 'harness-versions.json'), JSON.stringify({ codex: { v: '0.1.0', at: NOW } }))
-    const codex = fakeAdapter('codex', { version: c.version, path: c.path, doctor: () => [{ level: 'warn', check: 'codex.hooks', detail: 'one hook waits for /hooks' }] })
-    const f = fakeFetch({ [CASK_API]: { token: 'codex', version: '0.165.0' } })
-    await withDeps({ repoRoot: () => repo, adapters: async () => [codex], fetch: f, now: () => NOW }, async () => {
-      await withEnv({ PATH: narrowPath(c.bin) }, async () => {
-        const io = memoryIO({ json: true })
-        expect(await updateRun(['harness', '--json'], io)).toBe(0)
-        const r = JSON.parse(io.out()) as { items: Array<Record<string, unknown>> }
-        expect(r.items).toHaveLength(1)
-        expect(r.items[0]).toMatchObject({ kind: 'harness', id: 'codex', current: '0.1.0', latest: '0.165.0', action: 'brew-upgrade', source: 'Homebrew cask codex', command: ['brew', 'upgrade', '--cask', 'codex'] })
-        expect(String(r.items[0]?.['note'])).toContain('Homebrew gives no release date')
-        expect(read(c.log)).toContain('brew info --json=v2 --cask codex NO_AUTO_UPDATE=1')
-        expect(read(c.log)).not.toContain('upgrade')
-
-        const apply = memoryIO()
-        expect(await updateRun(['--yes', 'harness'], apply)).toBe(2)
-        expect(apply.out()).toContain('applied  harness codex: brew upgrade --cask codex → 0.165.0')
-        expect(apply.err()).toContain('warning: codex codex.hooks: one hook waits for /hooks')
-        expect(read(c.log)).toContain('brew upgrade --cask codex NO_AUTO_UPDATE=\n')
-        expect(codex.calls.filter(x => x === 'doctor')).toHaveLength(1)
-      })
-    })
-    expect(JSON.parse(read(join(buracleHome, 'cache', 'harness-versions.json'))) as Record<string, unknown>).not.toHaveProperty('codex')
-  }), 60_000)
-
-  // Homebrew casks exist only on macOS and Linux.
-  test('a brew upgrade that leaves the old version is a failure, and no doctor runs', () => withSandbox(async ({ root }) => {
-    const repo = makeRepo(root)
-    const c = caskCodex(root, { upgrades: false })
-    const codex = fakeAdapter('codex', { version: c.version, path: c.path })
-    await withDeps({ repoRoot: () => repo, adapters: async () => [codex], fetch: fakeFetch({ [CASK_API]: { version: '0.165.0' } }), now: () => NOW }, async () => {
-      await withEnv({ PATH: narrowPath(c.bin) }, async () => {
-        const io = memoryIO()
-        expect(await updateRun(['--yes', 'harness'], io)).toBe(1)
-        expect(io.err()).toContain('failed   harness codex: still 0.1.0 after brew upgrade --cask codex')
-        expect(codex.calls).not.toContain('doctor')
-      })
-    })
-  }), 60_000)
-
-  // Homebrew casks exist only on macOS and Linux.
-  test('a formula from another tap uses the local brew data; an unreachable Homebrew API falls back to it too', () => withSandbox(async ({ root }) => {
-    const repo = makeRepo(root)
-    const c = caskCodex(root, { upgrades: true, tap: 'someone/tap' })
-    const codex = fakeAdapter('codex', { version: c.version, path: c.path })
-    await withDeps({ repoRoot: () => repo, adapters: async () => [codex], fetch: noNetwork, now: () => NOW }, async () => {
-      await withEnv({ PATH: narrowPath(c.bin) }, async () => {
-        const io = memoryIO({ json: true })
-        expect(await updateRun(['harness', '--json'], io)).toBe(0)
-        const item = (JSON.parse(io.out()) as { items: Array<Record<string, unknown>> }).items[0]
-        expect(item).toMatchObject({ latest: '0.164.0', source: 'Homebrew cask codex' })
-        expect(String(item?.['note'])).toContain('Homebrew tap someone/tap, as of its last brew update')
-      })
-    })
-    const official = caskCodex(join(root, 'second'), { upgrades: true })
-    const again = fakeAdapter('codex', { version: official.version, path: official.path })
-    await withDeps({ repoRoot: () => repo, adapters: async () => [again], fetch: fakeFetch({ [CASK_API]: () => ({ ok: false, status: 0, error: 'offline' }) }), now: () => NOW }, async () => {
-      await withEnv({ PATH: narrowPath(official.bin) }, async () => {
-        const io = memoryIO({ json: true })
-        expect(await updateRun(['harness', '--json'], io)).toBe(0)
-        const item = (JSON.parse(io.out()) as { items: Array<Record<string, unknown>> }).items[0]
-        expect(item).toMatchObject({ latest: '0.164.0' })
-        expect(String(item?.['note'])).toContain('Homebrew API unreachable (offline); version from the local brew data')
-      })
-    })
-  }), 60_000)
-
-  // Homebrew casks exist only on macOS and Linux.
-  test('text from brew reaches the terminal without escape sequences: a tap name in the table note, an Error: line on stderr', () => withSandbox(async ({ root }) => {
-    const repo = makeRepo(root)
-    const c = caskCodex(root, { upgrades: true, tap: 'evil/\u001b[2Jtap' })
-    const codex = fakeAdapter('codex', { version: c.version, path: c.path })
-    await withDeps({ repoRoot: () => repo, adapters: async () => [codex], fetch: noNetwork, now: () => NOW }, async () => {
-      await withEnv({ PATH: narrowPath(c.bin) }, async () => {
-        const io = memoryIO()
-        expect(await updateRun(['harness'], io)).toBe(0)
-        expect(io.out()).toContain('Homebrew tap evil/ [2Jtap')
-        expect(io.out()).not.toContain('\u001b')
-      })
-    })
-    const broken = join(root, 'broken')
-    const real = fakeExe(join(broken, 'brew', 'Caskroom', 'codex', '0.1.0', 'bin', 'codex'), "console.log('codex-cli 0.1.0')")
-    mkdirSync(join(broken, 'bin'), { recursive: true })
-    symlinkSync(real, join(broken, 'bin', 'codex'))
-    fakeExe(join(broken, 'bin', 'brew'), "process.stderr.write('Error: \\x1b[31mno such cask\\x1b[0m\\n')\nprocess.exit(1)")
-    const again = fakeAdapter('codex', { version: '0.1.0', path: join(broken, 'bin', 'codex') })
-    await withDeps({ repoRoot: () => repo, adapters: async () => [again], fetch: noNetwork, now: () => NOW }, async () => {
-      await withEnv({ PATH: narrowPath(join(broken, 'bin')) }, async () => {
-        const io = memoryIO()
-        await updateRun(['harness'], io)
-        expect(io.err()).toContain('no such cask')
-        expect(io.err()).not.toContain('\u001b')
-      })
-    })
-  }), 60_000)
-
-  test('an npm global install is upgraded with npm into the same prefix, pinned to the checked version', () => withSandbox(async ({ root }) => {
-    const repo = makeRepo(root)
-    const prefix = join(root, 'node prefix')
-    const state = join(root, 'codex.version')
-    writeFileSync(state, '0.160.0')
-    const real = fakeExe(join(prefix, 'lib', 'node_modules', '@openai', 'codex', 'bin', 'codex.js'), `console.log('codex-cli ' + fs.readFileSync(${q(state)}, 'utf8'))`)
-    const bin = join(root, 'bin')
-    const log = join(root, 'calls.log')
-    mkdirSync(bin, { recursive: true })
-    symlinkSync(real, join(bin, 'codex'))
-    fakeExe(join(bin, 'npm'), `append(${q(log)}, 'npm ' + argv.join(' '))
-fs.writeFileSync(${q(state)}, '0.161.0')`)
-    const codex = fakeAdapter('codex', { version: () => read(state), path: join(bin, 'codex') })
-    const f = fakeFetch({ [npmUrl('@openai/codex')]: { 'dist-tags': { latest: '0.161.0' }, time: { '0.161.0': daysAgo(NOW, 10) }, versions: { '0.161.0': {} } } })
-    await withDeps({ repoRoot: () => repo, adapters: async () => [codex], fetch: f, now: () => NOW }, async () => {
-      await withEnv({ PATH: narrowPath(bin) }, async () => {
-        const io = memoryIO()
-        expect(await updateRun(['--yes', 'harness'], io)).toBe(0)
-        expect(io.out()).toContain(`applied  harness codex: npm install -g --prefix ${prefix} @openai/codex@0.161.0 → 0.161.0`)
-        expect(read(log)).toBe(`npm install -g --prefix ${prefix} @openai/codex@0.161.0\n`)
-      })
-    })
-  }), 60_000)
-
-  test('a harness\'s own updater: a newer version is applied, an unchanged one is skipped, a failing one fails', () => withSandbox(async ({ root }) => {
-    const repo = makeRepo(root)
-    const native = join(root, '.local', 'share', 'claude', 'versions', '2.1.290')
-    const nativeExe = fakeExe(native, "console.log('2.1.290')")
-    const bin = join(root, 'bin')
-    mkdirSync(bin, { recursive: true })
-    symlinkSync(nativeExe, join(bin, 'claude'))
-    const state = join(root, 'claude.version')
-    const behaviour = join(root, 'claude.update')
-    fakeExe(join(root, 'tools', 'claude'), `if (argv[0] === 'update') {
-  const mode = fs.readFileSync(${q(behaviour)}, 'utf8')
-  if (mode === 'fail') { console.error('network down'); process.exit(1) }
-  if (mode === 'bump') fs.writeFileSync(${q(state)}, '2.1.291')
-}`)
-    const claude = fakeAdapter('claude', { version: () => read(state), path: join(bin, 'claude') })
-    const f = fakeFetch({ [npmUrl('@anthropic-ai/claude-code')]: { 'dist-tags': { latest: '2.1.293' }, time: { '2.1.293': daysAgo(NOW, 10) }, versions: { '2.1.293': {} } } })
-    await withDeps({ repoRoot: () => repo, adapters: async () => [claude], fetch: f, now: () => NOW }, async () => {
-      await withEnv({ PATH: narrowPath(join(root, 'tools')) }, async () => {
-        const check = memoryIO({ json: true })
-        writeFileSync(state, '2.1.290')
-        expect(await updateRun(['harness', '--json'], check)).toBe(0)
-        expect((JSON.parse(check.out()) as { items: unknown[] }).items[0]).toMatchObject({ action: 'self-update', command: ['claude', 'update'], source: 'native installer' })
-
-        writeFileSync(behaviour, 'bump')
-        const bumped = memoryIO()
-        expect(await updateRun(['--yes', 'harness'], bumped)).toBe(0)
-        expect(bumped.out()).toContain('applied  harness claude: claude update → 2.1.291; channel is behind the registry latest (2.1.293)')
-
-        writeFileSync(state, '2.1.290')
-        writeFileSync(behaviour, 'same')
-        const same = memoryIO()
-        expect(await updateRun(['--yes', 'harness'], same)).toBe(0)
-        expect(same.out()).toContain('skipped  harness claude: claude update found nothing newer than 2.1.290 (registry latest 2.1.293)')
-
-        writeFileSync(behaviour, 'fail')
-        const failed = memoryIO()
-        expect(await updateRun(['--yes', 'harness'], failed)).toBe(1)
-        expect(failed.err()).toContain('failed   harness claude: claude update failed: network down')
-      })
-    })
-  }), 60_000)
-})
-
-describe('one update for the toolchain, the system tools, the plugins and the skills', () => {
+describe('one update for the toolchain, the system tools and the skills', () => {
   const LATEST_YAML = `servers:
   alpha:
     description: Alpha
@@ -417,41 +229,6 @@ if (argv[0] === 'outdated') console.log(${q(q(outdated))})`)
     })
   }), 60_000)
 
-  test('the check never refreshes the Claude marketplaces; the apply refreshes them, then applies the plugin versions that showed up', () => withSandbox(async ({ root }) => {
-    const repo = makeRepo(root)
-    const bin = join(root, 'bin')
-    const log = join(root, 'calls.log')
-    const market = join(root, 'm')
-    mkdirSync(join(market, '.claude-plugin'), { recursive: true })
-    writeFileSync(join(market, '.claude-plugin', 'marketplace.json'), JSON.stringify({ plugins: [{ name: 'pyright-lsp', version: '1.0.0' }] }))
-    await behindRemote(root, market, 'market')
-    const plugins = [{ id: 'pyright-lsp@official', version: '1.0.0', scope: 'user', enabled: true, installPath: '/x' }]
-    const markets = [{ name: 'official', source: 'github', installLocation: market }]
-    fakeExe(join(bin, 'claude'), `append(${q(log)}, 'claude ' + argv.join(' '))
-const all = argv.join(' ')
-if (all === 'plugin list --json') console.log(${q(q(plugins))})
-if (all === 'plugin marketplace list --json') console.log(${q(q(markets))})
-if (all === 'plugin marketplace update') fs.writeFileSync(${q(join(market, '.claude-plugin', 'marketplace.json'))}, '{"plugins":[{"name":"pyright-lsp","version":"1.2.0"}]}')
-if (all === 'plugin update pyright-lsp@official --json') console.log('{"outcome":"ok","message":"Updated pyright-lsp to 1.2.0"}')`)
-    const adapters = [fakeAdapter('claude', { version: '2.1.293' })]
-    const f = fakeFetch({ [npmUrl('@anthropic-ai/claude-code')]: { 'dist-tags': { latest: '2.1.293' }, time: {}, versions: { '2.1.293': {} } } })
-    await withDeps({ repoRoot: () => repo, adapters: async () => adapters, fetch: f, now: () => NOW }, async () => {
-      await withEnv({ PATH: narrowPath(bin) }, async () => {
-        const check = memoryIO({ json: true })
-        expect(await updateRun(['plugins', '--json'], check)).toBe(0)
-        expect(read(log)).not.toContain('marketplace update')
-        const items = (JSON.parse(check.out()) as { items: Array<Record<string, unknown>> }).items
-        expect(items.map(i => `${i.kind}:${i.id}`)).toEqual(['plugins:marketplace:official'])
-        expect(String(items[0]?.['note'] ?? '')).toBe('')
-
-        const io = memoryIO()
-        expect(await updateRun(['--yes', 'plugins'], io)).toBe(0)
-        expect(io.out()).toContain('applied  plugins marketplace:official: marketplace refreshed')
-        expect(io.out()).toContain('applied  plugins pyright-lsp@official: Updated pyright-lsp to 1.2.0')
-      })
-    })
-  }), 60_000)
-
   test('a checkout without an upstream is listed as not checked, never as up to date, and does not change the exit code', () => withSandbox(async ({ root }) => {
     const repo = makeRepo(root)
     await withDeps({ repoRoot: () => repo, adapters: async () => [], now: () => NOW }, async () => {
@@ -463,36 +240,6 @@ if (all === 'plugin update pyright-lsp@official --json') console.log('{"outcome"
       expect(await updateRun(['buracle'], named)).toBe(0)
       expect(named.out()).toContain('buracle: not checked')
       expect(named.out()).not.toContain('buracle: up to date')
-    })
-  }), 60_000)
-
-  test('a name is known only when Buracle or Claude Code has it: a typo with @ and an object key such as constructor exit 1', () => withSandbox(async ({ root }) => {
-    const repo = makeRepo(root)
-    const cli = fakeCli()
-    const run = async (argv: string[]) => argv.join(' ') === 'claude plugin list --json'
-      ? { code: 0, stdout: JSON.stringify([{ id: 'helper@acme', version: '1.0.0' }]), stderr: '', timedOut: false }
-      : argv.join(' ') === 'claude plugin marketplace list --json'
-        ? { code: 0, stdout: JSON.stringify([{ name: 'acme' }]), stderr: '', timedOut: false }
-        : { code: 0, stdout: '', stderr: '', timedOut: false }
-    await withDeps({ repoRoot: () => repo, adapters: async () => [], runCli: cli.runCli, run, now: () => NOW }, async () => {
-      for (const name of ['typo@market', 'marketplace:nope', 'constructor', '__proto__', 'toString']) {
-        const io = memoryIO()
-        expect({ name, code: await updateRun(['--check', name], io) }).toEqual({ name, code: 1 })
-        expect(io.err()).toContain(`unknown kind or name ${name}`)
-      }
-      for (const name of ['helper@acme', 'marketplace:acme']) {
-        const io = memoryIO()
-        expect({ name, code: await updateRun(['--check', name], io) }).toEqual({ name, code: 0 })
-        expect(io.err()).not.toContain('unknown kind or name')
-      }
-    })
-    const absent = fakeAdapter('claude', { installed: false })
-    await withDeps({ repoRoot: () => repo, adapters: async () => [absent], runCli: cli.runCli, run, now: () => NOW }, async () => {
-      const io = memoryIO()
-      expect(await updateRun(['--check', 'helper@acme'], io)).toBe(0)
-      expect(io.out()).toContain('Not checked: plugins (Claude Code is not installed).')
-      expect(io.out()).toContain('helper@acme: not checked')
-      expect(io.out()).not.toContain('up to date')
     })
   }), 60_000)
 })

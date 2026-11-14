@@ -30,7 +30,6 @@ describe('hookBundle', () => {
     const b = hookBundle(REPO, load)
     expect(b.root).toBe(join(REPO, 'canonical'))
     expect(b.mcp).toEqual(full.mcp)
-    expect(b.plugins).toEqual(full.plugins)
     expect(b.tools).toEqual(full.tools)
     expect(b.routing).toEqual(full.routing)
     expect(b.missing).toEqual(full.missing)

@@ -38,7 +38,6 @@ export function fixtureCanonical(): CanonicalBundle {
         },
       },
     },
-    plugins: { claude: { marketplaces: [], plugins: [] }, omp: { plugins: [{ id: 'omp-extra', enabled: true }, { id: 'omp-off', enabled: false }] }, opencode: { plugins: [] } },
     tools: { tools: [] },
     hooks: { hooks: [] },
     routing: { strictness: 'enforce', categories: [] },

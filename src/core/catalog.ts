@@ -44,14 +44,6 @@ export interface McpServerSpec {
 export interface McpApiKey { env: string, url?: string }
 export interface McpCatalog { servers: Record<string, McpServerSpec> }
 
-export interface MarketplaceSpec { id: string; source: string }
-export interface PluginSpec { id: string; enabled: boolean; version?: string }
-export interface PluginsCatalog {
-  claude: { marketplaces: MarketplaceSpec[]; plugins: PluginSpec[]; retired?: string[] }
-  omp: { plugins: PluginSpec[] }
-  opencode: { plugins: PluginSpec[] }
-}
-
 export interface ToolSpec {
   name: string
   check: string[]
@@ -121,7 +113,6 @@ export interface CanonicalBundle {
   root: string
   config: BuracleConfig
   mcp: McpCatalog
-  plugins: PluginsCatalog
   tools: ToolsCatalog
   hooks: HooksMatrix
   routing: RoutingPolicy
@@ -331,66 +322,6 @@ export function validateMcpCatalog(x: unknown): string[] {
         if (transport !== 'stdio' || command !== undefined || !registryPkg) errors.push(`${at}.api_key: only a package server (npm or PyPI, started by \`buracle mcp run\`) takes an API key`)
       }
     }
-  }
-  return errors
-}
-
-function validatePluginList(x: unknown, at: string, errors: string[]): void {
-  if (!Array.isArray(x)) { errors.push(`${at}: expected a list`); return }
-  const ids = new Set<string>()
-  x.forEach((p, i) => {
-    const pat = `${at}[${i}]`
-    if (!isObj(p)) { errors.push(`${pat}: expected a mapping`); return }
-    unknownKeys(p, ['id', 'enabled', 'version'], pat, errors)
-    if (!isStr(p['id'])) errors.push(`${pat}.id: required string`)
-    else if (ids.has(p['id'])) errors.push(`${pat}.id: duplicate ${JSON.stringify(p['id'])}`)
-    else ids.add(p['id'])
-    if (typeof p['enabled'] !== 'boolean') errors.push(`${pat}.enabled: required boolean`)
-    if (p['version'] !== undefined && !isStr(p['version'])) errors.push(`${pat}.version: expected string`)
-  })
-}
-
-export function validatePluginsCatalog(x: unknown): string[] {
-  const errors: string[] = []
-  if (!isObj(x)) return ['(root): expected a mapping']
-  unknownKeys(x, ['claude', 'omp', 'opencode'], '(root)', errors)
-  const claude = x['claude']
-  if (!isObj(claude)) errors.push('claude: expected a mapping')
-  else {
-    unknownKeys(claude, ['marketplaces', 'plugins', 'retired'], 'claude', errors)
-    const mks = claude['marketplaces']
-    const mkIds = new Set<string>()
-    if (!Array.isArray(mks)) errors.push('claude.marketplaces: expected a list')
-    else mks.forEach((m, i) => {
-      const at = `claude.marketplaces[${i}]`
-      if (!isObj(m)) { errors.push(`${at}: expected a mapping`); return }
-      unknownKeys(m, ['id', 'source'], at, errors)
-      if (!isStr(m['id'])) errors.push(`${at}.id: required string`)
-      else mkIds.add(m['id'])
-      if (!isStr(m['source'])) errors.push(`${at}.source: required string`)
-    })
-    validatePluginList(claude['plugins'], 'claude.plugins', errors)
-    const plugins = claude['plugins']
-    if (Array.isArray(plugins)) plugins.forEach((p, i) => {
-      if (!isObj(p) || !isStr(p['id'])) return
-      const at = p['id'].lastIndexOf('@')
-      if (at <= 0) errors.push(`claude.plugins[${i}].id: expected <plugin>@<marketplace>`)
-      else if (!mkIds.has(p['id'].slice(at + 1))) errors.push(`claude.plugins[${i}].id: unknown marketplace ${JSON.stringify(p['id'].slice(at + 1))}`)
-    })
-    const retired = claude['retired']
-    if (retired !== undefined) {
-      if (!Array.isArray(retired)) errors.push('claude.retired: expected a list of <plugin>@<marketplace> ids')
-      else retired.forEach((r, i) => {
-        if (!isStr(r) || r.lastIndexOf('@') <= 0) errors.push(`claude.retired[${i}]: expected <plugin>@<marketplace>`)
-        else if (Array.isArray(plugins) && plugins.some(p => isObj(p) && p['id'] === r)) errors.push(`claude.retired[${i}]: ${r} is also in claude.plugins`)
-      })
-    }
-  }
-  for (const h of ['omp', 'opencode'] as const) {
-    const sec = x[h]
-    if (!isObj(sec)) { errors.push(`${h}: expected a mapping`); continue }
-    unknownKeys(sec, ['plugins'], h, errors)
-    validatePluginList(sec['plugins'], `${h}.plugins`, errors)
   }
   return errors
 }

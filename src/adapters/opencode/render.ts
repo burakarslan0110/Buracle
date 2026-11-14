@@ -244,7 +244,6 @@ export function contentHash(canonical: CanonicalBundle): string {
   return sha256(stableStringify({
     config: canonical.config,
     mcp: canonical.mcp,
-    plugins: canonical.plugins.opencode,
     hooks: canonical.hooks,
     routing: canonical.routing,
     statusline: canonical.statusline.opencode ?? null,
@@ -263,7 +262,7 @@ export function bakedData(canonical: CanonicalBundle, opts: { withLayout: boolea
     mcp: catalogMcp(canonical.mcp, 'opencode'),
     mcpIds: Object.keys(canonical.mcp.servers).sort(),
     skills: catalogSkills(canonical.skills),
-    plugins: canonical.plugins.opencode.plugins.filter(p => p.enabled).map(p => p.id).sort(),
+    plugins: [],
     hooks: bakedHooks(canonical),
     pathRules: pathRuleIndex(canonical.rules),
   }

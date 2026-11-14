@@ -84,7 +84,7 @@ export function fakeAdapter(h: Harness, o: FakeAdapterOptions = {}): Adapter & {
 export function makeRepo(root: string, extra: Record<string, string> = {}): string {
   const repo = join(root, 'repo')
   mkdirSync(join(repo, 'canonical'), { recursive: true })
-  for (const f of ['buracle.yaml', 'mcp.yaml', 'plugins.yaml', 'tools.yaml']) copyFileSync(join(REAL_REPO, 'canonical', f), join(repo, 'canonical', f))
+  for (const f of ['buracle.yaml', 'mcp.yaml', 'tools.yaml']) copyFileSync(join(REAL_REPO, 'canonical', f), join(repo, 'canonical', f))
   writeFileSync(join(repo, 'package.json'), '{"name":"buracle-test","version":"0.0.0"}\n')
   for (const [rel, text] of Object.entries(extra)) {
     mkdirSync(dirname(join(repo, rel)), { recursive: true })

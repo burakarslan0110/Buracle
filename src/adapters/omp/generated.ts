@@ -91,7 +91,7 @@ export function ompGeneratedData(canonical: CanonicalBundle, version: string): O
     mcp,
     mcpIds: Object.keys(canonical.mcp.servers).sort(),
     skills: catalogSkills(canonical.skills),
-    plugins: canonical.plugins.omp.plugins.filter(p => p.enabled).map(p => p.id).sort(),
+    plugins: [],
     commands: ompCommandNames(canonical),
     status: ompStatusData(canonical.statusline.omp),
   }

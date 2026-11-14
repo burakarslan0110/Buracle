@@ -2,15 +2,15 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { announcementOps, claudeInstallPlan, defaultInstallDeps, effortKeys, effortOps, envOps, LSP_DISABLED_KEY, LSP_NEVER_KEY, lspRecommendationPlan, mcpOffOps, permissionOps, renderRule, retiredDenyOps, ruleOps, statusLineOp, tipOps } from '../../../src/adapters/claude/install'
-import { buracleInstalledPlugin, KEPT_EXIT, marketplaceHolds, parseList, pluginInstalled, pluginsFrom } from '../../../src/adapters/claude/check'
+import { KEPT_EXIT, marketplaceHolds, parseList, pluginInstalled, pluginsFrom } from '../../../src/adapters/claude/check'
 import type { AdapterContext } from '../../../src/adapters/registry'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import { defaultConfig } from '../../../src/core/config'
 import * as paths from '../../../src/engine/paths'
 import { run } from '../../../src/engine/proc'
-import { applyPlans, LIST_IDENTITY_HASH, listTxns, readLedger, type Ledger, type Op, type Plan } from '../../../src/engine/txn'
+import { applyPlans, LIST_IDENTITY_HASH, readLedger, type Ledger, type Op, type Plan } from '../../../src/engine/txn'
 import { emptyRecord, planKeys, pruneOps } from '../../../src/engine/update/install-core'
-import { composeUninstall, execUndos, runExecUndos } from '../../../src/engine/update/uninstall'
+import { composeUninstall } from '../../../src/engine/update/uninstall'
 import { pathToFileURL } from 'node:url'
 import { fakeExe } from '../../helpers/fake-exe'
 import { withSandbox, withEnv } from '../../helpers/sandbox'
@@ -29,13 +29,12 @@ const CLAUDE_ENV = {
   'env.ENABLE_TOOL_SEARCH': 'true',
 }
 
-function ctxFor(over: { bypass?: boolean, enforce?: boolean, effort?: string, retired?: string[] } = {}): AdapterContext {
+function ctxFor(over: { bypass?: boolean, enforce?: boolean, effort?: string } = {}): AdapterContext {
   const config = defaultConfig()
   if (over.bypass !== undefined) config.permissions.bypass = over.bypass
   if (over.enforce !== undefined) config.permissions.enforce = over.enforce
   if (over.effort !== undefined) config.effort.claude = over.effort
   const canonical = loadCanonicalSync(join(FIX, 'canonical-mini'))
-  if (over.retired !== undefined) canonical.plugins = { ...canonical.plugins, claude: { ...canonical.plugins.claude, retired: over.retired } }
   return { repoRoot: REPO, config, canonical, paths, buracleBin: paths.shimPath() }
 }
 
@@ -126,10 +125,8 @@ describe('install plan as data', () => {
 
       const check = (...a: string[]) => ['/x/bun', join(REPO, 'src/adapters/claude/check.ts'), '--claude', '/x/claude', ...a]
       expect(execs(plan.ops)).toEqual([
-        { kind: 'exec', owner: 'claude', soft: true, argv: ['/x/claude', 'plugin', 'marketplace', 'add', 'acme/claude-market'], undo: check('remove-marketplace', 'acme-market'), idempotentCheck: check('marketplace', 'acme-market') },
         { kind: 'exec', owner: 'claude', argv: ['/x/claude', 'plugin', 'marketplace', 'add', REPO], undo: ['/x/claude', 'plugin', 'marketplace', 'remove', 'buracle'], idempotentCheck: check('marketplace', 'buracle', '--path', REPO) },
         { kind: 'exec', owner: 'claude', argv: ['/x/claude', 'plugin', 'install', 'buracle@buracle', '--scope', 'user'], undo: ['/x/claude', 'plugin', 'uninstall', 'buracle@buracle', '--scope', 'user'], idempotentCheck: check('plugin', 'buracle@buracle') },
-        { kind: 'exec', owner: 'claude', soft: true, argv: ['/x/claude', 'plugin', 'install', 'lint-lsp@acme-market', '--scope', 'user'], undo: ['/x/claude', 'plugin', 'uninstall', 'lint-lsp@acme-market', '--scope', 'user'], idempotentCheck: check('plugin', 'lint-lsp@acme-market') },
       ])
       const settings = join(sb.home, '.claude', 'settings.json')
       expect(plan.cleanupKeys).toEqual([{ path: settings, pointer: 'enabledPlugins' }, { path: settings, pointer: 'extraKnownMarketplaces' }])
@@ -286,38 +283,6 @@ describe('install plan as data', () => {
     })
   })
 
-  test('a retired plugin gets a soft uninstall, guarded by the `retired` check (only what Buracle installed)', async () => {
-    await withSandbox(async () => {
-      const plan = await claudeInstallPlan(ctxFor({ retired: ['old-lsp@acme-market'] }), { claudeBin: () => '/x/claude', bunBin: () => '/x/bun', marketplaces: async () => [], ledger: async () => ({}) })
-      const check = (...a: string[]) => ['/x/bun', join(REPO, 'src/adapters/claude/check.ts'), '--claude', '/x/claude', ...a]
-      expect(execs(plan.ops).at(-1)).toEqual({ kind: 'exec', owner: 'claude', soft: true, argv: ['/x/claude', 'plugin', 'uninstall', 'old-lsp@acme-market', '--scope', 'user'], undo: ['/x/claude', 'plugin', 'install', 'old-lsp@acme-market', '--scope', 'user'], idempotentCheck: check('retired', 'old-lsp@acme-market') })
-    })
-  })
-
-  test('the official marketplace, which Claude Code manages itself, is never added or removed', async () => {
-    await withSandbox(async () => {
-      const base = ctxFor()
-      const ctx: AdapterContext = {
-        ...base,
-        canonical: {
-          ...base.canonical,
-          plugins: {
-            ...base.canonical.plugins,
-            claude: {
-              marketplaces: [{ id: 'claude-plugins-official', source: 'anthropics/claude-plugins-official' }, ...base.canonical.plugins.claude.marketplaces],
-              plugins: [{ id: 'pyright-lsp@claude-plugins-official', enabled: true }],
-            },
-          },
-        },
-      }
-      const plan = await claudeInstallPlan(ctx, { claudeBin: () => '/x/claude', bunBin: () => '/x/bun', marketplaces: async () => [], ledger: async () => ({}) })
-      const text = JSON.stringify(execs(plan.ops))
-      expect(text).not.toContain('anthropics/claude-plugins-official')
-      expect(execs(plan.ops).some(o => (o.undo ?? []).includes('claude-plugins-official'))).toBe(false)
-      expect(execs(plan.ops).find(o => o.argv.includes('pyright-lsp@claude-plugins-official'))?.soft).toBe(true)
-    })
-  })
-
   test('a buracle marketplace from another checkout is repointed and undo points it back', async () => {
     await withSandbox(async () => {
       const current = [{ name: 'buracle', source: 'directory', path: '/old/checkout' }]
@@ -409,7 +374,7 @@ describe('install plan applied through the transaction engine (fake claude)', ()
         expect((s['statusLine'] as Record<string, unknown>)['refreshInterval']).toBe(60)
         expect(existsSync(join(sb.home, '.claude', 'rules', 'buracle', 'paths', 'python.md'))).toBe(true)
         const plugs = JSON.parse(readFileSync(join(state, 'plugins.json'), 'utf8')) as Array<{ id: string }>
-        expect(plugs.map(p => p.id).sort()).toEqual(['buracle@buracle', 'lint-lsp@acme-market'])
+        expect(plugs.map(p => p.id).sort()).toEqual(['buracle@buracle'])
         const mkts = JSON.parse(readFileSync(join(state, 'marketplaces.json'), 'utf8')) as Array<{ name: string, path?: string }>
         expect(mkts.find(m => m.name === 'buracle')?.path).toBe(REPO)
 
@@ -458,25 +423,10 @@ describe('install plan applied through the transaction engine (fake claude)', ()
         expect(JSON.parse(readFileSync(join(state, 'marketplaces.json'), 'utf8'))).toEqual([])
         const calls = readFileSync(join(state, 'calls.log'), 'utf8')
         expect(calls).toContain('plugin marketplace remove buracle')
-        expect(calls).toContain('plugin marketplace remove acme-market')
       })
     })
   }, 60_000)
 
-  test('a third-party plugin that fails to install is a warning, not a rollback (soft, I1)', async () => {
-    await withSandbox(async sb => {
-      const { bin, state } = fakeClaude(sb.root)
-      await withEnv({ FAKE_CLAUDE_STATE: state, FAKE_CLAUDE_FAIL: 'install lint-lsp' }, async () => {
-        const plan = await claudeInstallPlan(ctxFor(), { claudeBin: () => bin, bunBin: () => process.execPath })
-        const r = await applyPlans([plan])
-        expect(r.txn).not.toBe('')
-        expect(r.warnings.join('\n')).toContain('lint-lsp@acme-market')
-        expect(existsSync(join(sb.home, '.claude', 'rules', 'buracle', 'always', 'core.md'))).toBe(true)
-        const plugs = JSON.parse(readFileSync(join(state, 'plugins.json'), 'utf8')) as Array<{ id: string }>
-        expect(plugs.map(p => p.id)).toEqual(['buracle@buracle'])
-      })
-    })
-  }, 60_000)
 })
 
 describe('the undo of a third-party marketplace Buracle added (install F02)', () => {
@@ -488,46 +438,6 @@ describe('the undo of a third-party marketplace Buracle added (install F02)', ()
     return { bin, state }
   }
   const check = (bin: string, ...a: string[]) => run([process.execPath, join(REPO, 'src/adapters/claude/check.ts'), '--claude', bin, ...a], { timeoutMs: 60_000 })
-
-  test('uninstall keeps a marketplace the user installed plugins from, and reports why', async () => {
-    await withSandbox(async sb => {
-      const { bin, state } = fakeClaude(sb.root)
-      await withEnv({ FAKE_CLAUDE_STATE: state }, async () => {
-        await applyPlans([await claudeInstallPlan(ctxFor(), { claudeBin: () => bin, bunBin: () => process.execPath })])
-        expect((await run([bin, 'plugin', 'install', 'userplug@acme-market', '--scope', 'user'])).code).toBe(0)
-        const undo = await runExecUndos(execUndos(await listTxns(), emptyRecord()), emptyRecord())
-        const mkts = JSON.parse(readFileSync(join(state, 'marketplaces.json'), 'utf8')) as Array<{ name: string }>
-        expect(mkts.map(m => m.name)).toEqual(['acme-market'])
-        const plugs = JSON.parse(readFileSync(join(state, 'plugins.json'), 'utf8')) as Array<{ id: string }>
-        expect(plugs.map(p => p.id)).toEqual(['userplug@acme-market'])
-        expect(readFileSync(join(state, 'calls.log'), 'utf8')).not.toContain('plugin marketplace remove acme-market')
-        expect(JSON.stringify(undo)).toContain('kept the acme-market marketplace')
-        expect(JSON.stringify(undo)).toContain('userplug@acme-market')
-      })
-    })
-  }, 60_000)
-
-  test('retired: removal is due only for a plugin a committed Buracle transaction installed and that is still there', async () => {
-    await withSandbox(async sb => {
-      const { bin, state } = fakeClaude(sb.root)
-      await withEnv({ FAKE_CLAUDE_STATE: state }, async () => {
-        expect((await run([bin, 'plugin', 'marketplace', 'add', 'acme/claude-market'])).code).toBe(0)
-        expect((await run([bin, 'plugin', 'install', 'old-lsp@acme-market'])).code).toBe(0)
-        expect(buracleInstalledPlugin('old-lsp@acme-market')).toBe(false)
-        expect((await check(bin, 'retired', 'old-lsp@acme-market')).code).toBe(0)
-        const journal = (status: string, ran: boolean) => JSON.stringify({ v: 1, txn: 't', status, execs: [{ argv: [bin, 'plugin', 'install', 'old-lsp@acme-market', '--scope', 'user'], ran }] })
-        mkdirSync(paths.journalDir(), { recursive: true })
-        writeFileSync(join(paths.journalDir(), 'a.json'), journal('rolled-back', true))
-        writeFileSync(join(paths.journalDir(), 'b.json'), journal('committed', false))
-        expect((await check(bin, 'retired', 'old-lsp@acme-market')).code).toBe(0)
-        writeFileSync(join(paths.journalDir(), 'c.json'), journal('committed', true))
-        expect(buracleInstalledPlugin('old-lsp@acme-market')).toBe(true)
-        expect((await check(bin, 'retired', 'old-lsp@acme-market')).code).toBe(1)
-        expect((await run([bin, 'plugin', 'uninstall', 'old-lsp@acme-market'])).code).toBe(0)
-        expect((await check(bin, 'retired', 'old-lsp@acme-market')).code).toBe(0)
-      })
-    })
-  }, 60_000)
 
   test('remove-marketplace: removed when unused, a no-op when gone, kept when used, untouched when listing fails', async () => {
     await withSandbox(async sb => {
