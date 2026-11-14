@@ -1454,12 +1454,12 @@
     },
     "harness/opencode/manifest.json": {
       "by": "opencode",
-      "sha256": "e2edbf3c33ccc223ca730a954786be05a0e9529c5720ed5ebbea2b86b61ef24b",
+      "sha256": "b7e0c5845fdcdbcf9e8ffad3dce81e2f3507c984e81114785fcb6d6a3d3e383c",
       "exec": false
     },
     "harness/opencode/plugins/buracle/index.js": {
       "by": "opencode",
-      "sha256": "e216806dc9b569b1f4cdb093ce04b29b5d01d3eb36fef41ad2fb1457ee894150",
+      "sha256": "8fd41c7babd7729e9998e86902eecca8ea1911300da158c8067ad9c557215720",
       "exec": false
     },
     "harness/opencode/plugins/buracle/tui.js": {

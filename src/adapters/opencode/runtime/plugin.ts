@@ -68,7 +68,7 @@ import type { PromptRouteResult } from './routing'
 import { attachedSkills, availableServers, commandOfPrompt, compiledTriggers, routeUserPrompt, runTitle, withinBudget } from './routing'
 import type {
   ModelRef, OpenCodeEvent, PermissionEvaluation, ServerContext, ServerPluginDefinition, SessionCompactionEvent,
-  SessionContextEvent, SessionPromptEvent, ShellCreateBefore, ToolExecuteAfter, ToolExecuteBefore, ToolResultShape,
+  SessionContextEvent, SessionPromptEvent, ShellCreateBefore, ToolExecuteAfter, ToolExecuteBefore, ToolResultShape, TuiToastVariant,
 } from './types'
 import { ModelFacts } from './models'
 import { OPENCODE_TODO_TOOL, openTodosOf } from './todos'
@@ -245,13 +245,22 @@ export class BuracleRuntime {
       spool: (sid, entries) => this.spool(this.session(sid), entries),
       log: (level, msg, data) => this.logFn(level, msg, data),
       deps: sid => this.deps(this.session(sid)),
+      notify: (sid, text, variant) => this.notify(sid, text, variant),
     }, deps.settleMs ?? 1500)
     this.receipts = new TurnReceipts({
       now: () => this.now(),
-      post: (sid, text, variant) => { try { postNotice(sid, text, variant, this.now()) } catch (e) { this.logFn('warn', 'notice not posted', { sid, error: errText(e) }) } },
+      post: (sid, text, variant) => this.notify(sid, text, variant),
       run: sid => bandSummary(flowViewFor(HARNESS, sid, this.now(), this.cfg().workflow.foldAfterSec)),
       log: (msg, data) => this.logFn('debug', msg, data),
     })
+  }
+
+  /**
+   * Show the user a notice in the session. A server plugin has no UI of its own, so the text goes to the session's
+   * notice board, which the TUI plugin shows as a toast (`ui.toast.show`); nothing of it reaches the model.
+   */
+  private notify(sid: string, text: string, variant: TuiToastVariant): void {
+    try { postNotice(sid, text, variant, this.now()) } catch (e) { this.logFn('warn', 'notice not posted', { sid, error: errText(e) }) }
   }
 
   private cfg(): BuracleConfig {
@@ -446,6 +455,8 @@ export class BuracleRuntime {
     })
     s.startContext = r.context.filter(part => part !== r.notice?.model)
     if (r.notice?.model !== undefined) s.noticeOnce = r.notice.model
+    // The user's copy of a release notice: the model is asked to pass it on, and the TUI shows it right away.
+    if (r.notice?.user !== undefined) this.notify(s.sid, r.notice.user, 'info')
   }
 
   private prunePending(): void {

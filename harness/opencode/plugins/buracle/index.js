@@ -35344,7 +35344,8 @@ class StopGuard {
     this.host = host;
     this.settleMs = settleMs;
   }
-  async say(sid, message) {
+  async say(sid, message, variant) {
+    this.host.notify(sid, message, variant);
     await this.host.spool(sid, [{ ts: this.host.now(), ev: "note", excerpt: message }]);
   }
   async runaway(sid, chain, why, plan) {
@@ -35352,7 +35353,7 @@ class StopGuard {
     if (chain.noticed)
       return;
     chain.noticed = true;
-    await this.say(sid, runawayNotice(why, plan));
+    await this.say(sid, runawayNotice(why, plan), "warning");
   }
   async continueSession(sid, decision, now) {
     try {
@@ -35420,7 +35421,7 @@ class StopGuard {
     if (plan !== undefined && (r.why === "runaway-plan" || r.why === "runaway-chain"))
       await this.runaway(sid, chain, r.why, plan.path);
     if (readOnly)
-      await this.say(sid, READ_ONLY_NOTICE);
+      await this.say(sid, READ_ONLY_NOTICE, "info");
     const decision = r.decision;
     if (decision.action !== "block" || !fresh())
       return;
@@ -36131,20 +36132,22 @@ class BuracleRuntime {
       prompt: (input) => this.ctx.session.prompt(input),
       spool: (sid, entries) => this.spool(this.session(sid), entries),
       log: (level, msg, data) => this.logFn(level, msg, data),
-      deps: (sid) => this.deps(this.session(sid))
+      deps: (sid) => this.deps(this.session(sid)),
+      notify: (sid, text, variant) => this.notify(sid, text, variant)
     }, deps.settleMs ?? 1500);
     this.receipts = new TurnReceipts({
       now: () => this.now(),
-      post: (sid, text, variant) => {
-        try {
-          postNotice(sid, text, variant, this.now());
-        } catch (e) {
-          this.logFn("warn", "notice not posted", { sid, error: errText2(e) });
-        }
-      },
+      post: (sid, text, variant) => this.notify(sid, text, variant),
       run: (sid) => bandSummary(flowViewFor(HARNESS7, sid, this.now(), this.cfg().workflow.foldAfterSec)),
       log: (msg, data) => this.logFn("debug", msg, data)
     });
+  }
+  notify(sid, text, variant) {
+    try {
+      postNotice(sid, text, variant, this.now());
+    } catch (e) {
+      this.logFn("warn", "notice not posted", { sid, error: errText2(e) });
+    }
   }
   cfg() {
     return this.config.get().config;
@@ -36349,6 +36352,8 @@ class BuracleRuntime {
     s.startContext = r.context.filter((part) => part !== r.notice?.model);
     if (r.notice?.model !== undefined)
       s.noticeOnce = r.notice.model;
+    if (r.notice?.user !== undefined)
+      this.notify(s.sid, r.notice.user, "info");
   }
   prunePending() {
     const cutoff = this.now() - PENDING_TTL_MS2;

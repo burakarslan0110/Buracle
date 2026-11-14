@@ -107,6 +107,8 @@ export interface StopGuardHost {
   prompt(input: PromptInput): Promise<unknown>
   spool(sid: string, entries: SpoolEntry[]): Promise<void>
   log(level: 'debug' | 'info' | 'warn' | 'error', msg: string, data?: unknown): void
+  /** Show the user a notice in the session (the notice board the TUI plugin turns into a toast). */
+  notify(sid: string, text: string, variant: 'info' | 'warning'): void
   /** What the shared pipeline's stop event needs for this session. */
   deps(sid: string): PipelineDeps
 }
@@ -127,7 +129,8 @@ function planText(path: string, cwd: string): string | undefined {
 export class StopGuard {
   constructor(private readonly host: StopGuardHost, private readonly settleMs: number) {}
 
-  private async say(sid: string, message: string): Promise<void> {
+  private async say(sid: string, message: string, variant: 'info' | 'warning'): Promise<void> {
+    this.host.notify(sid, message, variant)
     await this.host.spool(sid, [{ ts: this.host.now(), ev: 'note', excerpt: message }])
   }
 
@@ -135,7 +138,7 @@ export class StopGuard {
     this.host.log('warn', 'stop guard released the session at a runaway cap', { sid, why, chain: chain.chain })
     if (chain.noticed) return
     chain.noticed = true
-    await this.say(sid, runawayNotice(why, plan))
+    await this.say(sid, runawayNotice(why, plan), 'warning')
   }
 
   private async continueSession(sid: string, decision: Extract<StopDecision, { action: 'block' }>, now: number): Promise<boolean> {
@@ -188,7 +191,7 @@ export class StopGuard {
     })
     if (r.failed === true) return
     if (plan !== undefined && (r.why === 'runaway-plan' || r.why === 'runaway-chain')) await this.runaway(sid, chain, r.why, plan.path)
-    if (readOnly) await this.say(sid, READ_ONLY_NOTICE)
+    if (readOnly) await this.say(sid, READ_ONLY_NOTICE, 'info')
     const decision = r.decision
     if (decision.action !== 'block' || !fresh()) return
     if (r.blockedBy === 'audit') {
