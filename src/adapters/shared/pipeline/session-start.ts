@@ -51,8 +51,11 @@ export async function workspaceStart(input: Pick<SessionStartInput, 'sessionId' 
   return info !== undefined ? d.core.workspaceContext(info, d.harness) : ''
 }
 
-/** The restore note after a compaction (H07): the plan state with the handoff or the open todos the session recorded. */
-async function restore(input: SessionStartInput, d: PipelineDeps & SessionStartPorts): Promise<string> {
+/**
+ * The restore note after a compaction (H07): the plan state with the handoff or the open todos the session recorded.
+ * sessionStart runs it for the source `compact`; a harness whose session context survives a compaction calls it alone.
+ */
+export async function compactRestore(input: Pick<SessionStartInput, 'sessionId' | 'cwd' | 'now'>, d: PipelineDeps & Pick<SessionStartPorts, 'compact'>): Promise<string> {
   const { sessionId: sid, cwd, now } = input
   const own = d.compact.read(now)
   const todo = own.handoff === undefined && (own.todo?.length ?? 0) > 0 ? own.todo : undefined
@@ -78,7 +81,7 @@ export async function sessionStart(input: SessionStartInput, d: PipelineDeps & S
   const workspace = await d.step('H21 workspace', '', () => workspaceStart(input, d))
   const assets = sub ? '' : await d.step('H28 project assets', '', () => assetsSessionStart(readWorkspace(d.ctx, H, sid)?.root, H, assetsOptions(now, d.assetsSpawn)))
   const card = await d.step('H15 capability card', '', () => d.capabilityCard())
-  const restored = source === 'compact' ? await d.step('H07 restore', '', () => restore(input, d)) : ''
+  const restored = source === 'compact' ? await d.step('H07 restore', '', () => compactRestore(input, d)) : ''
   const notice = source === 'startup' && !sub && !noticesOff(d.hostEnv ?? d.env)
     ? await d.step('H17 notices', undefined as NoticeTexts | undefined, () => startupNotices(d.ctx.canonical.notices, { version: d.version !== undefined ? d.version() : runtimeVersion(d.ctx.repoRoot), nowMs: now, harness: H }))
     : undefined

@@ -1,13 +1,10 @@
 import type { CatalogMcp, CatalogSkill } from '../../../core/catalog'
-import type { BuracleConfig } from '../../../core/config'
-import type { ToolCall } from '../../../core/events'
 import type { McpHealth, RoutingPolicy } from '../../../core/policy/routing'
 import { mcpUnavailable } from '../../../core/policy/routing'
 import type { CompiledTriggers, PromptRoute } from '../../../core/policy/skill-router'
 import { compileTriggers, ROUTE_CAPS, routePrompt, routeText } from '../../../core/policy/skill-router'
-import type { UsageLedger, WorkspaceFacts } from '../../../core/policy/usage'
-import { ledgerMcpResult, rootCheckText, rootProblem as coreRootProblem, sessionMcpHealth } from '../../../core/policy/usage'
-import type { WorkspaceInfo } from '../../../core/workspace'
+import type { UsageLedger } from '../../../core/policy/usage'
+import { sessionMcpHealth } from '../../../core/policy/usage'
 import { projectDeps } from '../../shared/project-deps'
 
 const H = 'omp' as const
@@ -46,11 +43,6 @@ export function sessionHealth(health: McpHealth, ledger: LedgerAccess, lsid: str
   return lsid === undefined ? health : sessionMcpHealth(health, ledger.load(lsid))
 }
 
-export function recordMcpResult(ledger: LedgerAccess, lsid: string, server: string, ok: boolean): void {
-  if (ok && ledger.load(lsid).mcpErrors?.[server] === undefined) return
-  ledger.update(lsid, l => ledgerMcpResult(l, server, ok))
-}
-
 export interface RouterData { compiled: CompiledTriggers; policy: RoutingPolicy }
 
 export function routerData(skills: readonly CatalogSkill[], routing: RoutingPolicy, strictness: RoutingPolicy['strictness']): RouterData {
@@ -74,62 +66,6 @@ export function promptRouting(prompt: string, data: RouterData, o: { loaded: rea
   }
   const text = routeText(route, H, data.policy, { triggers: data.compiled })
   return text !== undefined ? { route, text } : { route }
-}
-
-export interface WorkspaceEnv {
-  home: string
-  excluded: readonly string[]
-  caseInsensitive: boolean
-  codegraphIndexed(root: string): boolean
-}
-
-export function workspaceFacts(info: WorkspaceInfo | undefined, cfg: Pick<BuracleConfig, 'index'>, env: WorkspaceEnv): WorkspaceFacts {
-  const facts: WorkspaceFacts = { home: env.home, excluded: [...env.excluded], caseInsensitive: env.caseInsensitive, codegraphIndexed: false }
-  if (info?.root !== undefined) {
-    facts.root = info.root
-    facts.codegraphIndexed = cfg.index.codegraph && env.codegraphIndexed(info.root)
-  }
-  return facts
-}
-
-export interface RootEnv {
-  home: string
-  caseInsensitive: boolean
-  canonical(path: string): string
-  excluded(dir: string): string | undefined
-}
-
-function rootFacts(info: WorkspaceInfo | undefined, env: RootEnv): WorkspaceFacts {
-  const facts: WorkspaceFacts = { home: env.home, caseInsensitive: env.caseInsensitive, realpath: env.canonical, excludedReason: env.excluded }
-  if (info !== undefined) {
-    facts.cwd = info.cwd
-    if (info.children.length > 0) facts.children = [...info.children]
-    if (info.root !== undefined) facts.root = info.root
-  }
-  return facts
-}
-
-export function rootProblem(value: string, info: WorkspaceInfo | undefined, env: RootEnv): string | undefined {
-  return coreRootProblem(value, rootFacts(info, env))
-}
-
-function rootArgument(call: ToolCall): { server: string, key: string } | undefined {
-  const server = call.kind === 'mcp' ? call.mcp?.server : undefined
-  if (server === 'semble') return { server, key: 'repo' }
-  if (server === 'codegraph') return { server, key: 'projectPath' }
-  return undefined
-}
-
-export function rootCheck(call: ToolCall, info: WorkspaceInfo | undefined, strictness: RoutingPolicy['strictness'], env: RootEnv): { deny?: string, context?: string } {
-  const arg = strictness === 'off' ? undefined : rootArgument(call)
-  if (arg === undefined) return {}
-  const value = call.input[arg.key]
-  if (typeof value !== 'string') return {}
-  const facts = rootFacts(info, env)
-  const why = coreRootProblem(value, facts)
-  if (why === undefined) return {}
-  const text = rootCheckText(arg.server, arg.key, value, why, facts)
-  return strictness === 'enforce' ? { deny: text } : { context: `Buracle: ${text}` }
 }
 
 export function createDepsReader(): (root: string | undefined) => string[] | undefined {

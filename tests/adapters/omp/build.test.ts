@@ -310,7 +310,7 @@ describe('omp build: the bundle stays light', () => {
     expect(modules.filter(m => heavy.includes(m))).toEqual([])
     expect(modules).toContain('src/memory/spool.ts')
     expect(modules).toContain('src/memory/session-record.ts')
-    expect(modules.filter(m => m.startsWith('src/adapters/opencode/'))).toEqual(['src/adapters/opencode/runtime/adapter-rules.ts'])
+    expect(modules.filter(m => m.startsWith('src/adapters/opencode/'))).toEqual([])
     expect(modules.filter(m => m.startsWith('src/adapters/shared/context-mode/'))).toEqual([])
   }, 60_000)
 })

@@ -32318,7 +32318,7 @@ async function workspaceStart(input, d) {
   }
   return info !== undefined ? d.core.workspaceContext(info, d.harness) : "";
 }
-async function restore(input, d) {
+async function compactRestore(input, d) {
   const { sessionId: sid, cwd, now } = input;
   const own = d.compact.read(now);
   const todo = own.handoff === undefined && (own.todo?.length ?? 0) > 0 ? own.todo : undefined;
@@ -32342,7 +32342,7 @@ async function sessionStart2(input, d) {
   const workspace = await d.step("H21 workspace", "", () => workspaceStart(input, d));
   const assets = sub ? "" : await d.step("H28 project assets", "", () => assetsSessionStart(readWorkspace(d.ctx, H, sid)?.root, H, assetsOptions(now, d.assetsSpawn)));
   const card = await d.step("H15 capability card", "", () => d.capabilityCard());
-  const restored = source === "compact" ? await d.step("H07 restore", "", () => restore(input, d)) : "";
+  const restored = source === "compact" ? await d.step("H07 restore", "", () => compactRestore(input, d)) : "";
   const notice = source === "startup" && !sub && !noticesOff(d.hostEnv ?? d.env) ? await d.step("H17 notices", undefined, () => startupNotices(d.ctx.canonical.notices, { version: d.version !== undefined ? d.version() : runtimeVersion(d.ctx.repoRoot), nowMs: now, harness: H })) : undefined;
   const profile = source !== "startup" ? undefined : await d.step("H17 profile guard", undefined, () => {
     const r = readJsonSafeSync(d.ctx.paths.runtimeConfigFile());
@@ -34376,7 +34376,7 @@ async function prepareWorkspace(cwd, cfg, nowMs) {
   }
 }
 
-// src/adapters/opencode/runtime/adapter-rules.ts
+// src/adapters/shared/repo-cache.ts
 import { existsSync as existsSync11, readFileSync as readFileSync20 } from "fs";
 import { dirname as dirname13, join as join30, resolve as resolve15 } from "path";
 var CACHE_TTL_MS = 30000;
