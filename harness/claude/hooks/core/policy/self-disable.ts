@@ -1,3 +1,4 @@
+import { HARNESSES, harnessProfile } from '../harness/index'
 import type { ShellWord } from './shell'
 import { DYN, HOME, commandName, parseShell, simpleCommands } from './shell'
 
@@ -250,9 +251,8 @@ function optionValues(args: readonly string[], ...names: string[]): string[] {
   return out
 }
 
-const HARNESS_HOME: Readonly<Record<string, readonly string[]>> = {
-  claude: ['CLAUDE_CONFIG_DIR'], codex: ['CODEX_HOME'], opencode: ['XDG_CONFIG_HOME', 'OPENCODE_CONFIG_DIR'], omp: ['PI_CODING_AGENT_DIR'],
-}
+// Each harness's command → the variables that make it start from another setup.
+const HARNESS_HOME: Readonly<Record<string, readonly string[]>> = Object.fromEntries(HARNESSES.map(h => [harnessProfile(h).bin, harnessProfile(h).relocationEnv]))
 
 function onlyInfo(args: readonly string[]): boolean {
   return args.length > 0 && args.every(a => ['--version', '-v', '-V', '--help', '-h', 'help', 'version'].includes(a))

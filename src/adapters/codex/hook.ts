@@ -1,3 +1,4 @@
+import { harnessProfile } from '../../core/harness/index'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import * as core from '../../core/index'
@@ -337,7 +338,7 @@ function exitCodeOf(response: unknown): number | undefined {
   return m ? Number(m[1]) : undefined
 }
 
-const POST_PATCH_BUDGET_MS = 40_000
+const POST_PATCH_BUDGET_MS = harnessProfile('codex').editBudgetMs
 
 async function onPostToolUse(p: Payload, sid: string, cwd: string, ctx: AdapterContext, deps: CodexHookDeps): Promise<HookOutcome> {
   const ev = 'PostToolUse'

@@ -1,3 +1,4 @@
+import { HARNESSES } from '../core/harness/index'
 import { closeSync, mkdirSync, openSync, readFileSync, writeSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { Harness } from '../core/events'
@@ -70,7 +71,7 @@ export function shownPath(path: string, cwd: string): string {
 
 export async function planCapture(o: { title?: string, harness?: string, file?: string, draft?: boolean }, stdin: () => Promise<string>, ctx: WorkflowCtx, s?: ResolvedSession): Promise<CmdResult> {
   const harness = o.harness !== undefined ? o.harness : s?.harness
-  if (harness === undefined) return fail('usage', 'no harness: pass --harness claude|codex|opencode|omp, or run it inside a harness session')
+  if (harness === undefined) return fail('usage', `no harness: pass --harness ${HARNESSES.join('|')}, or run it inside a harness session`)
   if (!isHarness(harness)) return fail('usage', `--harness must be claude, codex, opencode or omp (got '${harness}')`)
   if (o.title !== undefined && /[\r\n]/.test(o.title)) return fail('usage', '--title must be a single line')
   let plan: string

@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AgentDoc, CanonicalBundle, CanonicalFile, HooksMatrix, McpCatalog, RuleDoc, SkillDoc, StatuslineCatalog, ToolsCatalog } from '../core/catalog'
-import { validateMcpCatalog, validateToolsCatalog } from '../core/catalog'
+import { mcpCatalogOf, validateMcpCatalog, validateToolsCatalog } from '../core/catalog'
 import type { BuracleConfig } from '../core/config'
 import { defaultConfig, mergeConfig } from '../core/config'
 import { validateNotices, type Notice, type NoticeCatalog } from '../core/notices'
@@ -101,7 +101,7 @@ export function loadCanonicalSync(root: string = paths.canonicalDir()): Canonica
   if (rawMcp !== undefined) {
     const errs = validateMcpCatalog(rawMcp)
     if (errs.length > 0) problems.push(...errs.map(e => `mcp.yaml: ${e}`))
-    else mcp = rawMcp as McpCatalog
+    else mcp = mcpCatalogOf(rawMcp)
   }
 
   const rawTools = readData('tools.yaml', true)

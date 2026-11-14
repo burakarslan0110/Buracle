@@ -1,15 +1,11 @@
 import type { Harness } from '../events'
+import { harnessTable } from '../harness/index'
 import { normalizePlanText, PLAN_HARNESS_LABEL } from './capture'
 import type { SessionState } from './state'
 
 export interface NativeBinding { path: string; sha: string; at: number }
 
-export const NATIVE_PLAN_ENTER: Readonly<Record<Harness, string>> = {
-  claude: 'call the EnterPlanMode tool (load it with tool search when it is deferred)',
-  codex: 'ask the user to switch to Plan mode with `/plan`, then to say "continue", and end the turn',
-  opencode: 'ask the user to switch to the plan agent (Tab), then to say "continue", and end the turn',
-  omp: 'ask the user to turn on plan mode with `/plan` (or alt+shift+p), then to say "continue", and end the turn',
-}
+export const NATIVE_PLAN_ENTER: Readonly<Record<Harness, string>> = harnessTable(p => p.plan.enter)
 
 function isBinding(x: unknown): x is NativeBinding {
   if (x === null || typeof x !== 'object') return false

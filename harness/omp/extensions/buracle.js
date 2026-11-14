@@ -59,6 +59,715 @@ var __esm = (fn, res, err) => () => {
 };
 var __require = import.meta.require;
 
+// src/core/harness/native-events.ts
+var CLAUDE_CLASSIC_EVENTS, CLAUDE_ENGINE_EVENTS, CODEX_EVENTS, OPENCODE_EVENTS, OMP_EVENTS;
+var init_native_events = __esm(() => {
+  CLAUDE_CLASSIC_EVENTS = [
+    "PreToolUse",
+    "PostToolUse",
+    "PostToolUseFailure",
+    "PostToolBatch",
+    "PermissionDenied",
+    "Notification",
+    "UserPromptSubmit",
+    "UserPromptExpansion",
+    "SessionStart",
+    "SessionEnd",
+    "Stop",
+    "StopFailure",
+    "SubagentStart",
+    "SubagentStop",
+    "PreCompact",
+    "PostCompact",
+    "PreModelSwitch",
+    "PostModelSwitch",
+    "PermissionRequest",
+    "Setup",
+    "TeammateIdle",
+    "TaskCreated",
+    "TaskCompleted",
+    "Elicitation",
+    "ElicitationResult",
+    "ConfigChange",
+    "InstructionsLoaded",
+    "WorktreeCreate",
+    "WorktreeRemove",
+    "CwdChanged",
+    "FileChanged",
+    "DirectoryAdded",
+    "MessageDisplay"
+  ];
+  CLAUDE_ENGINE_EVENTS = [
+    "tool.call",
+    "tool.check",
+    "tool.describe",
+    "prompt.submit",
+    "prompt.fill",
+    "prompt.suggest",
+    "prompt.edit",
+    "prompt.autocomplete",
+    "prompt.section",
+    "prompt.context",
+    "prompt.compose",
+    "prompt.attachment",
+    "prompt.mention",
+    "skill.prompt",
+    "attribution.text",
+    "command.run",
+    "command.describe",
+    "config.set",
+    "config.describe",
+    "agent.offer",
+    "agent.spawn",
+    "session.start",
+    "session.end",
+    "session.compact",
+    "session.receive",
+    "session.send",
+    "session.append",
+    "session.attach",
+    "session.detach",
+    "session.measure",
+    "turn.start",
+    "turn.step",
+    "turn.complete",
+    "ui.render",
+    "ui.resolve",
+    "ui.press",
+    "ui.input",
+    "ui.select",
+    "ui.message",
+    "ui.fault",
+    "ui.scroll",
+    "ui.focus",
+    "plugin.register",
+    "engine.create",
+    "telemetry.log",
+    "telemetry.mark"
+  ];
+  CODEX_EVENTS = [
+    "SessionStart",
+    "SessionEnd",
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PermissionRequest",
+    "PostToolUse",
+    "PreCompact",
+    "PostCompact",
+    "SubagentStart",
+    "SubagentStop",
+    "Stop",
+    "Interrupt"
+  ];
+  OPENCODE_EVENTS = [
+    "setup",
+    "session.prompt",
+    "session.context",
+    "session.compaction",
+    "session.generate",
+    "session.title",
+    "session.model.request",
+    "session.http.request",
+    "session.http.response",
+    "session.retry",
+    "permission.evaluate",
+    "shell.create.before",
+    "tool.execute.before",
+    "tool.execute.after",
+    "session.created",
+    "session.deleted",
+    "session.idle",
+    "session.status",
+    "session.execution.started",
+    "session.execution.succeeded",
+    "session.execution.failed",
+    "session.execution.interrupted",
+    "session.compaction.started",
+    "session.compaction.delta",
+    "session.compaction.ended",
+    "session.compaction.failed",
+    "session.usage.updated",
+    "session.tool.called",
+    "session.tool.success",
+    "session.tool.failed",
+    "session.skill.activated",
+    "session.instructions.updated",
+    "permission.asked",
+    "permission.replied",
+    "file.edited",
+    "vcs.branch.updated",
+    "mcp.status.changed",
+    "mcp.tools.changed",
+    "plugin.updated",
+    "worktree.ready",
+    "worktree.failed"
+  ];
+  OMP_EVENTS = [
+    "resources_discover",
+    "session_start",
+    "session_before_switch",
+    "session_switch",
+    "session_before_branch",
+    "session_branch",
+    "session_before_compact",
+    "session.compacting",
+    "cache_warming_decision",
+    "session_compact",
+    "session_shutdown",
+    "session_before_tree",
+    "session_tree",
+    "context",
+    "before_provider_request",
+    "after_provider_response",
+    "before_agent_start",
+    "before_subagent_spawn",
+    "agent_start",
+    "agent_end",
+    "session_stop",
+    "turn_start",
+    "turn_end",
+    "message_start",
+    "message_update",
+    "message_end",
+    "assistant_message",
+    "tool_execution_start",
+    "tool_execution_update",
+    "tool_execution_end",
+    "auto_compaction_start",
+    "auto_compaction_end",
+    "auto_retry_start",
+    "auto_retry_end",
+    "retry_fallback_applied",
+    "retry_fallback_succeeded",
+    "ttsr_triggered",
+    "todo_reminder",
+    "goal_updated",
+    "credential_disabled",
+    "input",
+    "tool_approval_requested",
+    "tool_approval_resolved",
+    "tool_call",
+    "tool_result",
+    "user_bash",
+    "user_python",
+    "mcp_notification"
+  ];
+});
+
+// src/core/harness/profile.ts
+function own(table, key) {
+  return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
+}
+function toolKindOf(p, tool) {
+  return own(p.tools.kinds, tool);
+}
+function shellTools(p) {
+  return Object.keys(p.tools.kinds).filter((t) => p.tools.kinds[t] === "bash" || p.tools.kinds[t] === "eval");
+}
+function mcpToken(d, server) {
+  return d.token(server, "server");
+}
+function mcpHead(d, server) {
+  return `${d.prefix}${d.plugin !== undefined ? `${d.plugin.marker}${d.plugin.name}_` : ""}${mcpToken(d, server)}${d.separator}`;
+}
+function mcpToolName(d, server, tool) {
+  const s = mcpToken(d, server);
+  let t = d.token(tool, "tool");
+  if (d.dropServerPrefix === true && t.startsWith(`${s}_`) && t.length > s.length + 1)
+    t = t.slice(s.length + 1);
+  return `${mcpHead(d, server)}${t}`;
+}
+function mcpToolPattern(d, server) {
+  return `${mcpHead(d, server)}*`;
+}
+function parseMcpToolName(d, name, knownServers) {
+  if (!name.startsWith(d.prefix))
+    return;
+  const rest = name.slice(d.prefix.length);
+  const sep = d.separator;
+  const marker = d.plugin?.marker;
+  if (knownServers && knownServers.length > 0) {
+    let best;
+    for (const s of knownServers) {
+      const tok = mcpToken(d, s);
+      const direct = `${tok}${sep}`;
+      if (rest.startsWith(direct) && rest.length > direct.length) {
+        if (!best || tok.length > best.len)
+          best = { server: s, tool: rest.slice(direct.length), len: tok.length };
+      }
+      if (marker !== undefined && rest.startsWith(marker)) {
+        const inside = `_${tok}${sep}`;
+        const at = rest.indexOf(inside, marker.length);
+        if (at > marker.length && rest.length > at + inside.length) {
+          if (!best || tok.length > best.len)
+            best = { server: s, tool: rest.slice(at + inside.length), len: tok.length };
+        }
+      }
+    }
+    if (best)
+      return { server: best.server, tool: best.tool };
+    if (d.ambiguous === true)
+      return;
+  }
+  const at = rest.indexOf(sep);
+  if (at <= 0 || at + sep.length >= rest.length)
+    return;
+  let server = rest.slice(0, at);
+  const tool = rest.slice(at + sep.length);
+  if (marker !== undefined && server.startsWith(marker)) {
+    const inner = server.slice(marker.length);
+    const us = inner.indexOf("_");
+    if (us > 0 && us + 1 < inner.length)
+      server = inner.slice(us + 1);
+  }
+  return { server, tool };
+}
+function absolute(v) {
+  return typeof v === "string" && v.trim() !== "" && v.trim().startsWith("/") ? v.trim() : undefined;
+}
+function joined(dir, rel) {
+  const out = [];
+  for (const seg of `${dir}/${rel}`.split("/")) {
+    if (seg === "" || seg === ".")
+      continue;
+    if (seg === "..")
+      out.pop();
+    else
+      out.push(seg);
+  }
+  return "/" + out.join("/");
+}
+function configDirOf(p, env) {
+  const moved = absolute(env[p.configDir.env]);
+  if (moved !== undefined)
+    return p.configDir.envSubdir !== undefined ? joined(moved, p.configDir.envSubdir) : moved;
+  const home = absolute(env["HOME"]);
+  return home !== undefined ? joined(home, p.configDir.under) : undefined;
+}
+function processMatches(p, comm, pid, env = {}) {
+  if (pid !== undefined && p.proc.pidEnv !== undefined && env[p.proc.pidEnv] === String(pid))
+    return true;
+  const c = comm.trim();
+  if (p.proc.path !== undefined && p.proc.path.test(c))
+    return true;
+  return p.proc.base.test((c.split("/").pop() ?? "").replace(/^-/, ""));
+}
+function mcpClientMatches(p, clientName) {
+  const n = clientName.toLowerCase();
+  return p.mcpClient.includes.some((s) => n.includes(s)) || (p.mcpClient.exact ?? []).includes(n);
+}
+function missingEvents(p) {
+  return CANONICAL_EVENTS.filter((e) => p.events.map[e] === null);
+}
+function defineHarnesses(profiles) {
+  const ids = Object.keys(profiles);
+  for (const id of ids)
+    if (profiles[id].id !== id)
+      throw new Error(`harness profile ${JSON.stringify(profiles[id].id)} is registered as ${JSON.stringify(id)}`);
+  return {
+    ids,
+    is: (x) => typeof x === "string" && ids.includes(x),
+    of: (id) => profiles[id],
+    table: (pick) => Object.fromEntries(ids.map((id) => [id, pick(profiles[id])])),
+    where: (test) => ids.filter((id) => test(profiles[id]))
+  };
+}
+var CANONICAL_EVENTS, wordDashToken = (part) => part.replace(/[^A-Za-z0-9_-]/g, "_"), wordToken = (part) => part.replace(/[^A-Za-z0-9_]/g, "_"), lowerWordToken = (part, fallback) => {
+  const t = part.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "");
+  return t.length > 0 ? t : fallback;
+};
+var init_profile = __esm(() => {
+  CANONICAL_EVENTS = ["sessionStart", "prompt", "preTool", "postTool", "stop", "preCompact", "sessionEnd"];
+});
+
+// src/core/harness/claude.ts
+var CLAUDE_PLUGIN_NAME = "buracle", claudeProfile;
+var init_claude = __esm(() => {
+  init_native_events();
+  init_profile();
+  claudeProfile = {
+    id: "claude",
+    label: "Claude Code",
+    shortLabel: "CC",
+    noteName: "claude-code",
+    bin: "claude",
+    proc: { base: /^claude$/, path: /\/claude\/versions\/[^/]+$/, pidEnv: "CLAUDE_PID" },
+    runtime: "command",
+    spoolSuffix: "classic",
+    editBudgetMs: 28000,
+    configDir: { key: "claudeDir", env: "CLAUDE_CONFIG_DIR", under: ".claude" },
+    relocationEnv: ["CLAUDE_CONFIG_DIR"],
+    sessionEnv: ["CLAUDE_CODE_SESSION_ID"],
+    protectedDirs: [{ key: "claudeDir", under: ".claude", entries: ["settings.json", "settings.local.json", "plugins/"] }],
+    selfText: { what: "Claude Code's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use Claude Code's own commands (`claude plugin \u2026`, `claude mcp \u2026`, `/config`)" },
+    skills: {
+      readsAgentsDir: false,
+      readsClaudeUserDir: true,
+      readsClaudeProjectDir: true,
+      invoke: { slash: true, namespace: "buracle", dollar: false, at: false, commandTag: true },
+      mention: (id, invocable) => invocable ? `/${id}` : `/buracle:${id}`,
+      agentPrefix: "buracle:",
+      howto: "the user starts a workflow with /<id>; you load the others with the Skill tool as buracle:<id>",
+      load: (id, explicit, file) => explicit ? `read ${file ?? `skills/${id}/SKILL.md in the Buracle plugin`}` : `Skill tool, buracle:${id}`,
+      candidateHow: "Skill tool, buracle:<id>"
+    },
+    plan: {
+      enter: "call the EnterPlanMode tool (load it with tool search when it is deferred)",
+      readOnly: { name: "Claude Code's plan mode", leave: "leave plan mode (Shift+Tab)" },
+      approval: true
+    },
+    mcp: {
+      prefix: "mcp__",
+      separator: "__",
+      token: wordDashToken,
+      plugin: { marker: "plugin_", name: CLAUDE_PLUGIN_NAME },
+      syntax: `mcp__plugin_${CLAUDE_PLUGIN_NAME}_<server>__<tool>`,
+      hiddenNote: "* = may be deferred: find its tools with tool search before assuming they are missing"
+    },
+    mcpClient: { includes: ["claude"] },
+    events: {
+      map: {
+        sessionStart: ["classic.SessionStart", "classic.SubagentStart"],
+        prompt: ["classic.UserPromptSubmit"],
+        preTool: ["tool.call", "tool.check", "classic.PreToolUse"],
+        postTool: ["classic.PostToolUse", "classic.PostToolUseFailure"],
+        stop: ["classic.Stop", "classic.SubagentStop"],
+        preCompact: ["classic.PreCompact"],
+        sessionEnd: ["classic.SessionEnd"]
+      },
+      native: [...CLAUDE_ENGINE_EVENTS, ...CLAUDE_CLASSIC_EVENTS.map((e) => `classic.${e}`)]
+    },
+    tools: {
+      kinds: {
+        Bash: "bash",
+        Monitor: "bash",
+        PowerShell: "bash",
+        Edit: "edit",
+        MultiEdit: "edit",
+        NotebookEdit: "edit",
+        Write: "write",
+        Read: "read",
+        NotebookRead: "read",
+        Glob: "search",
+        Grep: "search",
+        LS: "search",
+        WebSearch: "web_search",
+        WebFetch: "web_fetch",
+        AskUserQuestion: "ask_user",
+        ExitPlanMode: "plan_exit",
+        EnterPlanMode: "plan_enter",
+        TodoWrite: "todo",
+        TaskCreate: "todo",
+        TaskUpdate: "todo",
+        TaskList: "todo",
+        TaskGet: "todo",
+        Agent: "agent",
+        Task: "agent"
+      },
+      names: { ask_user: "AskUserQuestion", todo: "TodoWrite", spawn_agent: "Agent" },
+      stringCommandOnly: ["Monitor"]
+    }
+  };
+});
+
+// src/core/harness/codex.ts
+var codexProfile;
+var init_codex = __esm(() => {
+  init_native_events();
+  init_profile();
+  codexProfile = {
+    id: "codex",
+    label: "Codex",
+    shortLabel: "Codex",
+    noteName: "codex",
+    bin: "codex",
+    proc: { base: /^codex(?:-(?:aarch64|arm64|x86_64|x64|amd64)\b[\w.-]*)?$/ },
+    runtime: "command",
+    editBudgetMs: 40000,
+    configDir: { key: "codexHome", env: "CODEX_HOME", under: ".codex" },
+    relocationEnv: ["CODEX_HOME"],
+    sessionEnv: ["CODEX_SESSION_ID", "CODEX_THREAD_ID"],
+    protectedDirs: [{ key: "codexHome", under: ".codex", entries: ["config.toml", "hooks.json", "rules/"] }],
+    selfText: { what: "Codex's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use Codex's own commands (`codex mcp \u2026`, `codex features \u2026`)" },
+    skills: {
+      dir: "skills",
+      readsAgentsDir: true,
+      readsClaudeUserDir: false,
+      readsClaudeProjectDir: false,
+      invoke: { slash: false, dollar: true, at: false, commandTag: false },
+      mention: (id) => `$${id}`,
+      agentPrefix: "",
+      howto: "the user starts a workflow with $<id>; you load one by reading ${CODEX_HOME:-~/.codex}/skills/<id>/SKILL.md",
+      load: (id) => `read \${CODEX_HOME:-~/.codex}/skills/${id}/SKILL.md`,
+      candidateHow: "read ${CODEX_HOME:-~/.codex}/skills/<id>/SKILL.md"
+    },
+    plan: {
+      enter: 'ask the user to switch to Plan mode with `/plan`, then to say "continue", and end the turn',
+      readOnly: { name: "Codex's Plan mode", leave: "leave Plan mode" },
+      approval: true
+    },
+    mcp: {
+      prefix: "mcp__",
+      separator: "__",
+      token: wordToken,
+      syntax: "mcp__<server>__<tool>, with - written as _",
+      hiddenNote: "* = may be deferred: find its tools with tool_search before assuming they are missing"
+    },
+    mcpClient: { includes: ["codex"] },
+    events: {
+      map: {
+        sessionStart: ["SessionStart", "SubagentStart"],
+        prompt: ["UserPromptSubmit"],
+        preTool: ["PreToolUse", "PermissionRequest"],
+        postTool: ["PostToolUse"],
+        stop: ["Stop", "SubagentStop"],
+        preCompact: ["PreCompact"],
+        sessionEnd: ["SessionEnd"]
+      },
+      native: CODEX_EVENTS
+    },
+    tools: {
+      kinds: {
+        Bash: "bash",
+        shell: "bash",
+        shell_command: "bash",
+        exec_command: "bash",
+        local_shell: "bash",
+        unified_exec: "bash",
+        "container.exec": "bash",
+        apply_patch: "patch",
+        Edit: "patch",
+        Write: "patch",
+        view_image: "read",
+        web_search: "web_search",
+        webrun: "web_search",
+        request_user_input: "ask_user",
+        request_user_input_async: "ask_user",
+        update_plan: "todo",
+        spawn_agent: "agent",
+        Agent: "agent"
+      },
+      names: { ask_user: "request_user_input", todo: "update_plan", spawn_agent: "spawn_agent" }
+    }
+  };
+});
+
+// src/core/harness/omp.ts
+var ompProfile;
+var init_omp = __esm(() => {
+  init_native_events();
+  init_profile();
+  ompProfile = {
+    id: "omp",
+    label: "Oh My Pi",
+    shortLabel: "OMP",
+    noteName: "omp",
+    bin: "omp",
+    proc: { base: /^omp$/ },
+    runtime: "inprocess",
+    editBudgetMs: 20000,
+    configDir: { key: "ompAgentDir", env: "PI_CODING_AGENT_DIR", under: ".omp/agent" },
+    relocationEnv: ["PI_CODING_AGENT_DIR"],
+    sessionEnv: ["OMP_SESSION_ID"],
+    protectedDirs: [
+      { key: "ompAgentDir", under: ".omp/agent", entries: ["config.yml", "config.yaml", "settings.json", "extensions/", "hooks/"] },
+      { key: "ompHome", under: ".omp", entries: ["plugins/"] }
+    ],
+    selfText: { what: "omp's own configuration, which loads Buracle's guard extension", remedy: "ask the user to make this change themselves, or use omp's own commands (`omp config set \u2026`, `omp plugin \u2026`)" },
+    skills: {
+      dir: "skills",
+      readsAgentsDir: true,
+      readsClaudeUserDir: false,
+      readsClaudeProjectDir: true,
+      invoke: { slash: true, namespace: "skill", dollar: false, at: false, commandTag: false },
+      mention: (id, invocable) => invocable ? `/${id}` : `/skill:${id}`,
+      agentPrefix: "",
+      howto: "the user starts a workflow with /<id>; you load one by reading skill://<id>",
+      load: (id) => `read skill://${id}`,
+      candidateHow: "read skill://<id>"
+    },
+    plan: {
+      enter: 'ask the user to turn on plan mode with `/plan` (or alt+shift+p), then to say "continue", and end the turn',
+      readOnly: { name: "Oh My Pi's plan mode", leave: "leave plan mode" },
+      approval: true
+    },
+    mcp: {
+      prefix: "mcp__",
+      separator: "_",
+      token: lowerWordToken,
+      ambiguous: true,
+      dropServerPrefix: true,
+      syntax: "mcp__<server>_<tool>, lower-case with - written as _",
+      hiddenNote: "* = may be an xd:// device instead of a tool: read xd:// to find it before assuming it is missing"
+    },
+    mcpClient: { includes: ["omp", "oh-my-pi", "pi-coding"], exact: ["pi"] },
+    events: {
+      map: {
+        sessionStart: ["session_start", "before_agent_start"],
+        prompt: ["input"],
+        preTool: ["tool_call"],
+        postTool: ["tool_result"],
+        stop: ["session_stop"],
+        preCompact: ["session.compacting"],
+        sessionEnd: ["session_shutdown"]
+      },
+      native: OMP_EVENTS
+    },
+    tools: {
+      kinds: {
+        bash: "bash",
+        eval: "eval",
+        edit: "edit",
+        ast_edit: "edit",
+        write: "write",
+        read: "read",
+        grep: "search",
+        search: "search",
+        find: "search",
+        glob: "search",
+        ast_grep: "search",
+        web_search: "web_search",
+        fetch: "web_fetch",
+        web_fetch: "web_fetch",
+        ask: "ask_user",
+        todo: "todo",
+        task: "agent"
+      },
+      names: { ask_user: "ask", todo: "todo", spawn_agent: "task" },
+      deviceScheme: "xd",
+      readFetchesUrls: true,
+      editTakesPatch: true
+    }
+  };
+});
+
+// src/core/harness/opencode.ts
+var opencodeProfile;
+var init_opencode = __esm(() => {
+  init_native_events();
+  init_profile();
+  opencodeProfile = {
+    id: "opencode",
+    label: "OpenCode",
+    shortLabel: "OpenCode",
+    noteName: "opencode",
+    bin: "opencode",
+    proc: { base: /^opencode(?:-(?:darwin|linux)\b[\w.-]*)?$/ },
+    runtime: "inprocess",
+    editBudgetMs: 20000,
+    configDir: { key: "opencodeConfigDir", env: "XDG_CONFIG_HOME", envSubdir: "opencode", under: ".config/opencode" },
+    relocationEnv: ["XDG_CONFIG_HOME", "OPENCODE_CONFIG_DIR"],
+    sessionEnv: ["OPENCODE_SESSION_ID"],
+    protectedDirs: [{ key: "opencodeConfigDir", under: ".config/opencode", entries: [""] }],
+    selfText: { what: "OpenCode's own configuration, which loads Buracle's guard plugin", remedy: "ask the user to make this change themselves, or use OpenCode's own commands (`opencode mcp \u2026`, `opencode plugin \u2026`)" },
+    skills: {
+      dir: "skills",
+      readsAgentsDir: true,
+      readsClaudeUserDir: true,
+      readsClaudeProjectDir: true,
+      invoke: { slash: true, dollar: false, at: true, commandTag: false },
+      mention: (id, invocable) => invocable ? `/${id}` : `@${id}`,
+      agentPrefix: "",
+      howto: "the user starts a workflow with /<id>; you load one with the skill tool",
+      load: (id) => `skill tool, ${id}`,
+      candidateHow: "skill tool"
+    },
+    plan: {
+      enter: 'ask the user to switch to the plan agent (Tab), then to say "continue", and end the turn',
+      readOnly: { name: "OpenCode's read-only plan agent", leave: "switch to the build agent (Tab)" },
+      approval: false
+    },
+    mcp: {
+      prefix: "",
+      separator: "_",
+      token: wordDashToken,
+      ambiguous: true,
+      syntax: "<server>_<tool>",
+      hiddenNote: "* = in Code Mode: its tools are not on your tool list; call them from a script run by the execute tool"
+    },
+    mcpClient: { includes: ["opencode"] },
+    events: {
+      map: {
+        sessionStart: ["session.created", "session.context"],
+        prompt: ["session.prompt"],
+        preTool: ["permission.evaluate", "tool.execute.before"],
+        postTool: ["tool.execute.after"],
+        stop: ["session.execution.succeeded", "session.idle"],
+        preCompact: ["session.compaction"],
+        sessionEnd: ["session.deleted"]
+      },
+      native: OPENCODE_EVENTS
+    },
+    tools: {
+      kinds: {
+        bash: "bash",
+        shell: "bash",
+        edit: "edit",
+        multiedit: "edit",
+        write: "write",
+        patch: "patch",
+        apply_patch: "patch",
+        read: "read",
+        grep: "search",
+        glob: "search",
+        list: "search",
+        ls: "search",
+        webfetch: "web_fetch",
+        websearch: "web_search",
+        codesearch: "web_search",
+        question: "ask_user",
+        todowrite: "todo",
+        todoread: "todo",
+        task: "agent",
+        subagent: "agent",
+        plan_exit: "plan_exit",
+        plan_enter: "plan_enter",
+        skill: "other",
+        execute: "other",
+        list_mcp_resources: "other",
+        read_mcp_resource: "other"
+      },
+      names: { ask_user: "question", todo: "todowrite", spawn_agent: "subagent" },
+      todoProse: "a short checklist in your replies"
+    }
+  };
+});
+
+// src/core/harness/index.ts
+function isHarness(x) {
+  return SET.is(x);
+}
+function harnessProfile(h) {
+  return SET.of(h);
+}
+function harnessTable(pick) {
+  return SET.table(pick);
+}
+function harnessesWhere(test) {
+  return SET.where(test);
+}
+var HARNESS_PROFILES, SET, HARNESSES, HARNESS_LABEL, NEUTRAL_SKILL_HARNESSES;
+var init_harness = __esm(() => {
+  init_claude();
+  init_codex();
+  init_omp();
+  init_opencode();
+  init_profile();
+  init_claude();
+  init_native_events();
+  init_profile();
+  HARNESS_PROFILES = {
+    claude: claudeProfile,
+    codex: codexProfile,
+    opencode: opencodeProfile,
+    omp: ompProfile
+  };
+  SET = defineHarnesses(HARNESS_PROFILES);
+  HARNESSES = SET.ids;
+  HARNESS_LABEL = harnessTable((p) => p.label);
+  NEUTRAL_SKILL_HARNESSES = harnessesWhere((p) => p.skills.dir !== undefined);
+});
+
 // node_modules/yaml/dist/nodes/identity.js
 var require_identity = __commonJS(function(exports) {
   var ALIAS = Symbol.for("yaml.alias");
@@ -7082,6 +7791,7 @@ __export(exports_paths, {
   expandHome: () => expandHome3,
   findCheckout: () => findCheckout,
   fnv1a: () => fnv1a2,
+  harnessConfigDir: () => harnessConfigDir,
   harnessDir: () => harnessDir,
   healthFile: () => healthFile,
   heartbeatFile: () => heartbeatFile,
@@ -7195,6 +7905,9 @@ function ompAgentDir() {
 }
 function ompHome() {
   return join(home(), ".omp");
+}
+function harnessConfigDir(h) {
+  return CONFIG_DIRS[h]();
 }
 function localBinDir() {
   return join(home(), ".local", "bin");
@@ -7432,8 +8145,9 @@ function sessionDir(h, sessionId) {
 function heartbeatFile(h, sessionId) {
   return join(runDir(h), `${checkedSession(sessionId)}.json`);
 }
-var cachedCheckout, RUNTIME_MARKER = ".buracle-runtime.json", MCP_SOCKET_PATH_MAX = 100, INSTALL_LOG_RE, SESSION_ID_RE;
+var CONFIG_DIRS, cachedCheckout, RUNTIME_MARKER = ".buracle-runtime.json", MCP_SOCKET_PATH_MAX = 100, INSTALL_LOG_RE, SESSION_ID_RE;
 var init_paths = __esm(() => {
+  CONFIG_DIRS = { claude: claudeDir, codex: codexHome, opencode: opencodeConfigDir, omp: ompAgentDir };
   INSTALL_LOG_RE = /^install-\d{4}-\d{2}-\d{2}\.log$/;
   SESSION_ID_RE = /^[A-Za-z0-9._:-]{1,128}$/;
 });
@@ -7906,8 +8620,9 @@ function runtimeHealth(checkout, shim = readShim()) {
   h.detail = h.drift === "behind" ? `the live runtime is ${behind} commit(s) behind the checkout (${short(marker.commit)} to ${short(g.commit)}); run \`buracle install\`` : h.drift === "ahead" ? `the live runtime is ${ahead} commit(s) ahead of the checkout (${short(marker.commit)}; the checkout is at ${short(g.commit)}); run \`buracle install\` to run the checkout's code` : `the live runtime (${short(marker.commit)}) and the checkout (${short(g.commit)}) have diverged; run \`buracle install\``;
   return h;
 }
-var RUNTIME_FILES, RUNTIME_DIRS, SKIP_NAMES;
+var RUNTIME_FILES, RUNTIME_DIRS, SKIP_NAMES, COMMAND_HOOK_HARNESSES;
 var init_runtime = __esm(() => {
+  init_harness();
   init_hook_fail();
   init_fsx();
   init_paths();
@@ -7916,6 +8631,7 @@ var init_runtime = __esm(() => {
   RUNTIME_FILES = ["package.json", "bun.lock", "tsconfig.json"];
   RUNTIME_DIRS = ["src", "canonical", "harness"];
   SKIP_NAMES = new Set([".DS_Store", "node_modules", ".git"]);
+  COMMAND_HOOK_HARNESSES = harnessesWhere((p) => p.runtime === "command");
 });
 
 // src/core/policy/index.ts
@@ -8140,6 +8856,8 @@ __export(exports_core, {
   HANDOFF_GENERATED_BY: () => HANDOFF_GENERATED_BY,
   HANDOFF_KEEP_MS: () => HANDOFF_KEEP_MS,
   HARNESSES: () => HARNESSES,
+  HARNESS_LABEL: () => HARNESS_LABEL,
+  HARNESS_PROFILES: () => HARNESS_PROFILES,
   HARNESS_VERSION_TTL_MS: () => HARNESS_VERSION_TTL_MS,
   HOOK_EVENTS: () => HOOK_EVENTS,
   HOOK_IDS: () => HOOK_IDS,
@@ -8158,6 +8876,7 @@ __export(exports_core, {
   MEM_SESSION_TOP_TOOLS: () => MEM_SESSION_TOP_TOOLS,
   MODEL_SWITCH_REASON: () => MODEL_SWITCH_REASON,
   NATIVE_PLAN_ENTER: () => NATIVE_PLAN_ENTER,
+  NEUTRAL_SKILL_HARNESSES: () => NEUTRAL_SKILL_HARNESSES,
   NOTES_DONE_KEEP: () => NOTES_DONE_KEEP,
   NOTES_INBOX_MAX: () => NOTES_INBOX_MAX,
   NOTES_OPEN_MAX: () => NOTES_OPEN_MAX,
@@ -8275,6 +8994,7 @@ __export(exports_core, {
   checkerTool: () => checkerTool,
   checkersFor: () => checkersFor,
   classifyTool: () => classifyTool,
+  classifyToolFor: () => classifyToolFor,
   claudeNativeOff: () => claudeNativeOff,
   cleanNotesFile: () => cleanNotesFile,
   codeLang: () => codeLang,
@@ -8288,6 +9008,7 @@ __export(exports_core, {
   companionToolDenial: () => companionToolDenial,
   companionToolProblem: () => companionToolProblem,
   compileTriggers: () => compileTriggers,
+  configDirOf: () => configDirOf,
   configSchemaLeaves: () => configSchemaLeaves,
   consentNeeded: () => consentNeeded,
   consentNeeds: () => consentNeeds,
@@ -8312,6 +9033,7 @@ __export(exports_core, {
   decodeBase64: () => decodeBase64,
   decodeBody: () => decodeBody,
   defaultConfig: () => defaultConfig,
+  defineHarnesses: () => defineHarnesses,
   describeIndexState: () => describeIndexState,
   detectIntent: () => detectIntent,
   detectSignals: () => detectSignals,
@@ -8361,6 +9083,9 @@ __export(exports_core, {
   handoffNoteLocal: () => handoffNoteLocal,
   harnessMcpPattern: () => harnessMcpPattern,
   harnessMcpToolName: () => harnessMcpToolName,
+  harnessProfile: () => harnessProfile,
+  harnessTable: () => harnessTable,
+  harnessesWhere: () => harnessesWhere,
   hitLine: () => hitLine,
   hookFallbacks: () => hookFallbacks,
   inboxFor: () => inboxFor,
@@ -8413,14 +9138,20 @@ __export(exports_core, {
   liveGrants: () => liveGrants,
   lockedSwitchesText: () => lockedSwitchesText,
   looksLikePlan: () => looksLikePlan,
+  lowerWordToken: () => lowerWordToken,
   markNotesDone: () => markNotesDone,
   maskSecrets: () => maskSecrets,
   matchPathRules: () => matchPathRules,
   matchesCatastrophicRule: () => matchesCatastrophicRule,
+  mcpCatalogOf: () => mcpCatalogOf,
+  mcpClientMatches: () => mcpClientMatches,
   mcpEnvFor: () => mcpEnvFor,
   mcpHealthOf: () => mcpHealthOf,
   mcpPackageBin: () => mcpPackageBin,
   mcpServerToken: () => mcpServerToken,
+  mcpToken: () => mcpToken,
+  mcpToolName: () => mcpToolName,
+  mcpToolPattern: () => mcpToolPattern,
   mcpUnavailable: () => mcpUnavailable,
   memAge: () => memAge,
   memCaptureOff: () => memCaptureOff,
@@ -8469,6 +9200,7 @@ __export(exports_core, {
   memoryPaneLines: () => memoryPaneLines,
   mergeConfig: () => mergeConfig,
   mergeConfigLenient: () => mergeConfigLenient,
+  missingEvents: () => missingEvents,
   missingToolKey: () => missingToolKey,
   missingToolNote: () => missingToolNote,
   modStatusLines: () => modStatusLines,
@@ -8503,6 +9235,7 @@ __export(exports_core, {
   parseLedger: () => parseLedger,
   parseManifestDeps: () => parseManifestDeps,
   parseMcpName: () => parseMcpName,
+  parseMcpToolName: () => parseMcpToolName,
   parseNote: () => parseNote,
   parseNoteInput: () => parseNoteInput,
   parsePlan: () => parsePlan,
@@ -8529,6 +9262,7 @@ __export(exports_core, {
   planTitleOf: () => planTitleOf,
   planValidateVerdict: () => planValidateVerdict,
   preApprovalEdit: () => preApprovalEdit,
+  processMatches: () => processMatches,
   profileCategory: () => profileCategory,
   projectRelative: () => projectRelative,
   promptInteraction: () => promptInteraction,
@@ -8552,7 +9286,6 @@ __export(exports_core, {
   renderTmux: () => renderTmux,
   renderTmuxLines: () => renderTmuxLines,
   reportsWaiting: () => reportsWaiting,
-  resolveNormalPath: () => resolveNormalPath,
   resolvePath: () => resolvePath,
   restoreContext: () => restoreContext,
   resultReviewable: () => resultReviewable,
@@ -8587,6 +9320,7 @@ __export(exports_core, {
   selfProtectionText: () => selfProtectionText,
   sessionMcpHealth: () => sessionMcpHealth,
   shellFailed: () => shellFailed,
+  shellTools: () => shellTools,
   shortDuration: () => shortDuration,
   signalGroup: () => signalGroup,
   similarMemories: () => similarMemories,
@@ -8610,6 +9344,7 @@ __export(exports_core, {
   themeOf: () => themeOf,
   tickedTasks: () => tickedTasks,
   toCortexSave: () => toCortexSave,
+  toolKindOf: () => toolKindOf,
   ttlSeconds: () => ttlSeconds,
   turnAudit: () => turnAudit,
   unverified: () => unverified,
@@ -8630,6 +9365,8 @@ __export(exports_core, {
   withNote: () => withNote,
   withOffServers: () => withOffServers,
   withoutNativeBinding: () => withoutNativeBinding,
+  wordDashToken: () => wordDashToken,
+  wordToken: () => wordToken,
   workflowOfPlanType: () => workflowOfPlanType,
   workflowOfPrompt: () => workflowOfPrompt,
   workflowOfSkill: () => workflowOfSkill,
@@ -8781,11 +9518,10 @@ __export(exports_render, {
 });
 
 // src/core/events.ts
-var HARNESSES = ["claude", "codex", "opencode", "omp"];
-function isHarness(x) {
-  return typeof x === "string" && HARNESSES.includes(x);
-}
-var CANONICAL_EVENTS = ["sessionStart", "prompt", "preTool", "postTool", "stop", "preCompact", "sessionEnd"];
+init_harness();
+init_profile();
+init_harness();
+init_profile();
 var HOOK_IDS = [
   "H01",
   "H02",
@@ -8816,188 +9552,11 @@ var HOOK_IDS = [
   "H28"
 ];
 var RETIRED_HOOK_IDS = ["H27"];
-var CLAUDE_TOOLS = {
-  Bash: "bash",
-  Monitor: "bash",
-  PowerShell: "bash",
-  Edit: "edit",
-  MultiEdit: "edit",
-  NotebookEdit: "edit",
-  Write: "write",
-  Read: "read",
-  NotebookRead: "read",
-  Glob: "search",
-  Grep: "search",
-  LS: "search",
-  WebSearch: "web_search",
-  WebFetch: "web_fetch",
-  AskUserQuestion: "ask_user",
-  ExitPlanMode: "plan_exit",
-  EnterPlanMode: "plan_enter",
-  TodoWrite: "todo",
-  TaskCreate: "todo",
-  TaskUpdate: "todo",
-  TaskList: "todo",
-  TaskGet: "todo",
-  Agent: "agent",
-  Task: "agent"
-};
-var CODEX_TOOLS = {
-  Bash: "bash",
-  shell: "bash",
-  shell_command: "bash",
-  exec_command: "bash",
-  local_shell: "bash",
-  unified_exec: "bash",
-  "container.exec": "bash",
-  apply_patch: "patch",
-  Edit: "patch",
-  Write: "patch",
-  view_image: "read",
-  web_search: "web_search",
-  webrun: "web_search",
-  request_user_input: "ask_user",
-  request_user_input_async: "ask_user",
-  update_plan: "todo",
-  spawn_agent: "agent",
-  Agent: "agent"
-};
-var OPENCODE_TOOLS = {
-  bash: "bash",
-  shell: "bash",
-  edit: "edit",
-  multiedit: "edit",
-  write: "write",
-  patch: "patch",
-  apply_patch: "patch",
-  read: "read",
-  grep: "search",
-  glob: "search",
-  list: "search",
-  ls: "search",
-  webfetch: "web_fetch",
-  websearch: "web_search",
-  codesearch: "web_search",
-  question: "ask_user",
-  todowrite: "todo",
-  todoread: "todo",
-  task: "agent",
-  subagent: "agent",
-  plan_exit: "plan_exit",
-  plan_enter: "plan_enter",
-  skill: "other",
-  execute: "other",
-  list_mcp_resources: "other",
-  read_mcp_resource: "other"
-};
-var OMP_TOOLS = {
-  bash: "bash",
-  eval: "eval",
-  edit: "edit",
-  ast_edit: "edit",
-  write: "write",
-  read: "read",
-  grep: "search",
-  search: "search",
-  find: "search",
-  glob: "search",
-  ast_grep: "search",
-  web_search: "web_search",
-  fetch: "web_fetch",
-  web_fetch: "web_fetch",
-  ask: "ask_user",
-  todo: "todo",
-  task: "agent"
-};
-var TOOL_TABLES = {
-  claude: CLAUDE_TOOLS,
-  codex: CODEX_TOOLS,
-  opencode: OPENCODE_TOOLS,
-  omp: OMP_TOOLS
-};
-function own(table, key) {
-  return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
-}
 function mcpServerToken(harness, server) {
-  switch (harness) {
-    case "omp": {
-      const t = server.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "");
-      return t.length > 0 ? t : "server";
-    }
-    case "codex":
-      return server.replace(/[^A-Za-z0-9_]/g, "_");
-    case "claude":
-    case "opencode":
-      return server.replace(/[^A-Za-z0-9_-]/g, "_");
-  }
+  return mcpToken(harnessProfile(harness).mcp, server);
 }
 function parseMcpName(harness, name, knownServers) {
-  if (harness === "claude" || harness === "codex") {
-    if (!name.startsWith("mcp__"))
-      return;
-    const rest = name.slice(5);
-    if (knownServers && knownServers.length > 0) {
-      let best;
-      for (const s of knownServers) {
-        const tok = mcpServerToken(harness, s);
-        const direct = `${tok}__`;
-        if (rest.startsWith(direct) && rest.length > direct.length) {
-          if (!best || tok.length > best.len)
-            best = { server: s, tool: rest.slice(direct.length), len: tok.length };
-        }
-        if (harness === "claude" && rest.startsWith("plugin_")) {
-          const marker = `_${tok}__`;
-          const at = rest.indexOf(marker, "plugin_".length);
-          if (at > "plugin_".length && rest.length > at + marker.length) {
-            if (!best || tok.length > best.len)
-              best = { server: s, tool: rest.slice(at + marker.length), len: tok.length };
-          }
-        }
-      }
-      if (best)
-        return { server: best.server, tool: best.tool };
-    }
-    const sep = rest.indexOf("__");
-    if (sep <= 0 || sep + 2 >= rest.length)
-      return;
-    let server = rest.slice(0, sep);
-    const tool = rest.slice(sep + 2);
-    if (harness === "claude" && server.startsWith("plugin_")) {
-      const inner = server.slice("plugin_".length);
-      const us = inner.indexOf("_");
-      if (us > 0 && us + 1 < inner.length)
-        server = inner.slice(us + 1);
-    }
-    return { server, tool };
-  }
-  if (harness === "omp") {
-    if (!name.startsWith("mcp__"))
-      return;
-    const rest = name.slice(5);
-    if (knownServers && knownServers.length > 0)
-      return longestPrefixServer(harness, rest, knownServers);
-    const us = rest.indexOf("_");
-    if (us <= 0 || us + 1 >= rest.length)
-      return;
-    return { server: rest.slice(0, us), tool: rest.slice(us + 1) };
-  }
-  if (knownServers && knownServers.length > 0)
-    return longestPrefixServer(harness, name, knownServers);
-  const us = name.indexOf("_");
-  if (us <= 0 || us + 1 >= name.length)
-    return;
-  return { server: name.slice(0, us), tool: name.slice(us + 1) };
-}
-function longestPrefixServer(harness, rest, knownServers) {
-  let best;
-  for (const s of knownServers) {
-    const tok = mcpServerToken(harness, s);
-    const pre = `${tok}_`;
-    if (rest.startsWith(pre) && rest.length > pre.length && (!best || tok.length > best.len)) {
-      best = { server: s, tool: rest.slice(pre.length), len: tok.length };
-    }
-  }
-  return best ? { server: best.server, tool: best.tool } : undefined;
+  return parseMcpToolName(harnessProfile(harness).mcp, name, knownServers);
 }
 function isAbsPath(p) {
   return typeof p === "string" && p.startsWith("/");
@@ -9031,9 +9590,6 @@ function isRootPath(p) {
   return typeof p === "string" && p !== "" && normalizePath(p) === pathRoot(normalizePath(p));
 }
 function resolvePath(cwd, p, home) {
-  return resolveNormalPath(cwd, p, home);
-}
-function resolveNormalPath(cwd, p, home) {
   let s = p.trim();
   if (s === "")
     return;
@@ -9239,38 +9795,41 @@ function uniqueConcat(a, b) {
   return out;
 }
 function classifyTool(harness, tool, rawInput, cwd, knownServers, opts) {
+  return classifyToolFor(harnessProfile(harness), tool, rawInput, cwd, knownServers, opts);
+}
+function classifyToolFor(profile, tool, rawInput, cwd, knownServers, opts) {
   const input = rawInput !== null && typeof rawInput === "object" && !Array.isArray(rawInput) ? rawInput : {};
   const home = opts?.homeTilde;
-  const table = TOOL_TABLES[harness];
-  let kind = own(table, tool);
+  const t = profile.tools;
+  let kind = toolKindOf(profile, tool);
   if (kind === undefined) {
-    const mcp = parseMcpName(harness, tool, knownServers);
+    const mcp = parseMcpToolName(profile.mcp, tool, knownServers);
     if (mcp)
       return { kind: "mcp", paths: [], mcp };
     return { kind: "other", paths: [] };
   }
-  if (harness === "omp" && (kind === "read" || kind === "write")) {
+  if ((t.deviceScheme !== undefined || t.readFetchesUrls === true) && (kind === "read" || kind === "write")) {
     const p = str(input["path"]);
     if (p !== undefined) {
-      const dev = /^xd:\/\/([^/?#\s]+)/.exec(p);
-      if (dev && dev[1] !== undefined) {
+      const dev = t.deviceScheme !== undefined && p.startsWith(`${t.deviceScheme}://`) ? /^[^/?#\s]+/.exec(p.slice(t.deviceScheme.length + 3)) : null;
+      if (dev) {
         if (kind === "write") {
-          const mcp = parseMcpName("omp", dev[1], knownServers);
+          const mcp = parseMcpToolName(profile.mcp, dev[0], knownServers);
           if (mcp)
             return { kind: "mcp", paths: [], mcp };
         }
         return { kind: "other", paths: [] };
       }
-      if (kind === "read" && /^https?:\/\//i.test(p))
+      if (kind === "read" && t.readFetchesUrls === true && /^https?:\/\//i.test(p))
         return { kind: "web_fetch", paths: [] };
     }
   }
-  if (harness === "omp" && kind === "edit") {
+  if (t.editTakesPatch === true && kind === "edit") {
     const inner = str(input["input"]);
     if (inner !== undefined && looksLikePatch(inner))
       kind = "patch";
   }
-  if (harness === "claude" && tool === "Monitor") {
+  if (t.stringCommandOnly?.includes(tool) === true) {
     const command = str(input["command"]);
     return command !== undefined ? { kind: "bash", command, paths: [] } : { kind: "other", paths: [] };
   }
@@ -12522,6 +13081,7 @@ function scanCode(code, lang) {
 }
 
 // src/core/policy/self-disable.ts
+init_harness();
 var RELOCATION_VARS = ["BURACLE_HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "PI_CODING_AGENT_DIR", "BURACLE_CORTEXDB_BIN"];
 var RELOCATION = new RegExp(RELOCATION_VARS.map((v) => [...v].map((c) => c.replace(/[^A-Za-z0-9]/g, "\\$&")).join(`['"\\\\{}$:+-]*`)).join("|"), "i");
 function decodeEscapes2(s) {
@@ -12786,12 +13346,7 @@ function optionValues(args, ...names) {
   }
   return out;
 }
-var HARNESS_HOME = {
-  claude: ["CLAUDE_CONFIG_DIR"],
-  codex: ["CODEX_HOME"],
-  opencode: ["XDG_CONFIG_HOME", "OPENCODE_CONFIG_DIR"],
-  omp: ["PI_CODING_AGENT_DIR"]
-};
+var HARNESS_HOME = Object.fromEntries(HARNESSES.map((h) => [harnessProfile(h).bin, harnessProfile(h).relocationEnv]));
 function onlyInfo(args) {
   return args.length > 0 && args.every((a) => ["--version", "-v", "-V", "--help", "-h", "help", "version"].includes(a));
 }
@@ -12883,6 +13438,9 @@ function selfDisabling(argv, shown, assigns = [], env) {
     return;
   return `would switch off Buracle's guards (${what}); only the user may do that, so ask them to run it themselves by typing ${"`"}! ${shown.replace(/`/g, "'")}${"`"} in the prompt.`;
 }
+
+// src/core/policy/write-guard.ts
+init_harness();
 
 // src/core/policy/switch-off.ts
 var HOME_PREFIX = /^\/(?:(?:users|home)\/[^/]+|root|var\/root)(?=\/|$)/i;
@@ -13232,20 +13790,13 @@ function switchOffChange(file, abs, content, parsers) {
 var SELF_LAYOUT = [
   { key: "buracleHome", under: ".buracle", entries: [""], area: "buracle" },
   { key: "localBinDir", under: ".local/bin", entries: ["buracle", "buracle.cmd"], area: "shim" },
-  { key: "claudeDir", under: ".claude", entries: ["settings.json", "settings.local.json", "plugins/"], area: "claude" },
-  { key: "codexHome", under: ".codex", entries: ["config.toml", "hooks.json", "rules/"], area: "codex" },
-  { key: "opencodeConfigDir", under: ".config/opencode", entries: [""], area: "opencode" },
-  { key: "ompAgentDir", under: ".omp/agent", entries: ["config.yml", "config.yaml", "settings.json", "extensions/", "hooks/"], area: "omp" },
-  { key: "ompHome", under: ".omp", entries: ["plugins/"], area: "omp" }
+  ...HARNESSES.flatMap((h) => harnessProfile(h).protectedDirs.map((d) => ({ key: d.key, under: d.under, entries: d.entries, area: h })))
 ];
 var HOME_PREFIX2 = /^\/(?:(?:users|home)\/[^/]+|root|var\/root)(?=\/|$)/i;
 var SELF_TEXT = {
+  ...harnessTable((p) => p.selfText),
   buracle: { what: "Buracle's own installation, which runs every guard hook", remedy: "change Buracle through the buracle CLI (`buracle config set \u2026`, `buracle install`) instead" },
   shim: { what: "the `buracle` command on PATH, a link to the shim that runs every guard hook", remedy: "`buracle install` manages it, so ask the user to run that instead" },
-  claude: { what: "Claude Code's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use Claude Code's own commands (`claude plugin \u2026`, `claude mcp \u2026`, `/config`)" },
-  codex: { what: "Codex's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use Codex's own commands (`codex mcp \u2026`, `codex features \u2026`)" },
-  opencode: { what: "OpenCode's own configuration, which loads Buracle's guard plugin", remedy: "ask the user to make this change themselves, or use OpenCode's own commands (`opencode mcp \u2026`, `opencode plugin \u2026`)" },
-  omp: { what: "omp's own configuration, which loads Buracle's guard extension", remedy: "ask the user to make this change themselves, or use omp's own commands (`omp config set \u2026`, `omp plugin \u2026`)" },
   repo: { what: "Buracle's own source code, which every Buracle hook runs", remedy: "change it from a session opened in the Buracle repository, or ask the user to make the change" }
 };
 function selfProtectionText(area) {
@@ -13320,7 +13871,7 @@ function selfProtectedArea(abs, home, self, ancestor = false, cwd) {
 }
 var TEMPLATE_SUFFIX = /\.(?:example|sample|template|dist|defaults)$/i;
 var SOURCE_OR_DOC = /\.(?:ts|tsx|js|jsx|mjs|cjs|mts|cts|py|pyi|go|rs|java|kt|kts|swift|rb|php|cs|c|h|cc|cpp|hpp|scala|dart|ex|exs|lua|sh|md|mdx|rst|txt|html|css)$/i;
-var GENERATED_HARNESS = /^(.*)\/harness\/(?:claude|codex|opencode|omp|agents-skills)(?:\/|$)/;
+var GENERATED_HARNESS = new RegExp(`^(.*)/harness/(?:${[...HARNESSES, "agents-skills"].join("|")})(?:/|$)`);
 function expandHome(p, home) {
   if (home === "")
     return p;
@@ -13330,10 +13881,10 @@ function expandHome(p, home) {
     return `${home.replace(/[\\/]+$/, "")}/${p.slice(2)}`;
   return p;
 }
-function absolute(p, cwd, home) {
+function absolute2(p, cwd, home) {
   if (typeof p !== "string" || p.trim() === "")
     return;
-  return resolveNormalPath(cwd, expandHome(p.trim(), home));
+  return resolvePath(cwd, expandHome(p.trim(), home));
 }
 function lower2(s) {
   return s.toLowerCase();
@@ -13374,7 +13925,7 @@ function credentialLocation(path, ctx) {
   if (typeof path !== "string" || ctx === null || typeof ctx !== "object")
     return;
   const home = typeof ctx.home === "string" && ctx.home !== "" ? normalizePath(ctx.home) : "";
-  const abs = absolute(path, typeof ctx.cwd === "string" ? ctx.cwd : "", home);
+  const abs = absolute2(path, typeof ctx.cwd === "string" ? ctx.cwd : "", home);
   if (abs === undefined)
     return;
   if (home !== "") {
@@ -13575,7 +14126,7 @@ function checkWrite(paths, ctx) {
   const base = repoRule({ ...full, home, cwd }, resolver);
   let resolved;
   for (const p of paths) {
-    const abs = absolute(p, cwd, home);
+    const abs = absolute2(p, cwd, home);
     if (abs === undefined)
       continue;
     const content = contentOf(full.contents, p);
@@ -13702,7 +14253,7 @@ function realpathQueries(paths, ctx) {
   const cwd = typeof full.cwd === "string" ? full.cwd : "";
   const out = new Set;
   for (const p of paths) {
-    const abs = absolute(p, cwd, home);
+    const abs = absolute2(p, cwd, home);
     if (abs === undefined || !isAbsPath(abs))
       continue;
     out.add(abs);
@@ -15994,8 +16545,8 @@ function resolveIn(base, p, home) {
   if (isAbsPath(p))
     return normalizePath(p);
   if (home !== "" && (p === "~" || p.startsWith("~/")))
-    return resolveNormalPath("", p, home) ?? p;
-  return isAbsPath(base) ? resolveNormalPath(base, p) ?? p : p;
+    return resolvePath("", p, home) ?? p;
+  return isAbsPath(base) ? resolvePath(base, p) ?? p : p;
 }
 function judge(op, ctx, execCwd, extraDeny) {
   const home = typeof ctx.home === "string" ? ctx.home : "";
@@ -16381,6 +16932,8 @@ function matchesCatastrophicRule(tokens, rule) {
   return rule.pattern.every((p, i) => typeof p === "string" ? tokens[i] === p : p.includes(tokens[i]));
 }
 // src/core/policy/routing.ts
+init_harness();
+init_harness();
 function mcpUnavailable(state) {
   return state === "down" || state === "off";
 }
@@ -16430,59 +16983,15 @@ function parseRouteRef(ref) {
     return { kind, id: name };
   return { kind: "builtin", tool: name };
 }
-var CLAUDE_PLUGIN_NAME = "buracle";
-function ompPart(s, fallback) {
-  const t = s.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "");
-  return t.length > 0 ? t : fallback;
-}
 function harnessMcpToolName(harness, server, tool) {
-  switch (harness) {
-    case "claude":
-      return `mcp__plugin_${CLAUDE_PLUGIN_NAME}_${mcpServerToken("claude", server)}__${tool.replace(/[^A-Za-z0-9_-]/g, "_")}`;
-    case "codex":
-      return `mcp__${server}__${tool}`.replace(/[^A-Za-z0-9_]/g, "_");
-    case "opencode":
-      return `${mcpServerToken("opencode", server)}_${tool.replace(/[^A-Za-z0-9_-]/g, "_")}`;
-    case "omp": {
-      const s = mcpServerToken("omp", server);
-      let t = ompPart(tool, "tool");
-      if (t.startsWith(`${s}_`) && t.length > s.length + 1)
-        t = t.slice(s.length + 1);
-      return `mcp__${s}_${t}`;
-    }
-  }
+  return mcpToolName(harnessProfile(harness).mcp, server, tool);
 }
 function harnessMcpPattern(harness, server) {
-  switch (harness) {
-    case "claude":
-      return `mcp__plugin_${CLAUDE_PLUGIN_NAME}_${mcpServerToken("claude", server)}__*`;
-    case "codex":
-      return `mcp__${server.replace(/[^A-Za-z0-9_]/g, "_")}__*`;
-    case "opencode":
-      return `${mcpServerToken("opencode", server)}_*`;
-    case "omp":
-      return `mcp__${mcpServerToken("omp", server)}_*`;
-  }
+  return mcpToolPattern(harnessProfile(harness).mcp, server);
 }
-var HARNESS_LABEL = { claude: "Claude Code", codex: "Codex", opencode: "OpenCode", omp: "Oh My Pi" };
-var SKILL_HOWTO = {
-  claude: "the user starts a workflow with /<id>; you load the others with the Skill tool as buracle:<id>",
-  codex: "the user starts a workflow with $<id>; you load one by reading ${CODEX_HOME:-~/.codex}/skills/<id>/SKILL.md",
-  opencode: "the user starts a workflow with /<id>; you load one with the skill tool",
-  omp: "the user starts a workflow with /<id>; you load one by reading skill://<id>"
-};
-var MCP_SYNTAX = {
-  claude: `mcp__plugin_${CLAUDE_PLUGIN_NAME}_<server>__<tool>`,
-  codex: "mcp__<server>__<tool>, with - written as _",
-  opencode: "<server>_<tool>",
-  omp: "mcp__<server>_<tool>, lower-case with - written as _"
-};
-var HIDDEN_NOTE = {
-  claude: "* = may be deferred: find its tools with tool search before assuming they are missing",
-  codex: "* = may be deferred: find its tools with tool_search before assuming they are missing",
-  opencode: "* = in Code Mode: its tools are not on your tool list; call them from a script run by the execute tool",
-  omp: "* = may be an xd:// device instead of a tool: read xd:// to find it before assuming it is missing"
-};
+var SKILL_HOWTO = harnessTable((p) => p.skills.howto);
+var MCP_SYNTAX = harnessTable((p) => p.mcp.syntax);
+var HIDDEN_NOTE = harnessTable((p) => p.mcp.hiddenNote);
 var BUILTIN_LABEL = { web_search: "built-in web search", web_fetch: "built-in web fetch" };
 function code3(s) {
   return "`" + s + "`";
@@ -17475,217 +17984,16 @@ function validateReviewJson(text, opts) {
   return ok ? { ok, errors, review: r } : { ok, errors };
 }
 // src/core/policy/hooks-matrix.ts
+init_harness();
+init_native_events();
+init_native_events();
 var BLOCKING_HOOKS = ["H01", "H02", "H03", "H08", "H11", "H20", "H23"];
 var BLOCKING_KIND = { H01: "deny", H02: "deny", H03: "deny", H08: "stop", H11: "stop", H20: "deny", H23: "stop" };
-var CLAUDE_CLASSIC_EVENTS = [
-  "PreToolUse",
-  "PostToolUse",
-  "PostToolUseFailure",
-  "PostToolBatch",
-  "PermissionDenied",
-  "Notification",
-  "UserPromptSubmit",
-  "UserPromptExpansion",
-  "SessionStart",
-  "SessionEnd",
-  "Stop",
-  "StopFailure",
-  "SubagentStart",
-  "SubagentStop",
-  "PreCompact",
-  "PostCompact",
-  "PreModelSwitch",
-  "PostModelSwitch",
-  "PermissionRequest",
-  "Setup",
-  "TeammateIdle",
-  "TaskCreated",
-  "TaskCompleted",
-  "Elicitation",
-  "ElicitationResult",
-  "ConfigChange",
-  "InstructionsLoaded",
-  "WorktreeCreate",
-  "WorktreeRemove",
-  "CwdChanged",
-  "FileChanged",
-  "DirectoryAdded",
-  "MessageDisplay"
-];
-var CLAUDE_ENGINE_EVENTS = [
-  "tool.call",
-  "tool.check",
-  "tool.describe",
-  "prompt.submit",
-  "prompt.fill",
-  "prompt.suggest",
-  "prompt.edit",
-  "prompt.autocomplete",
-  "prompt.section",
-  "prompt.context",
-  "prompt.compose",
-  "prompt.attachment",
-  "prompt.mention",
-  "skill.prompt",
-  "attribution.text",
-  "command.run",
-  "command.describe",
-  "config.set",
-  "config.describe",
-  "agent.offer",
-  "agent.spawn",
-  "session.start",
-  "session.end",
-  "session.compact",
-  "session.receive",
-  "session.send",
-  "session.append",
-  "session.attach",
-  "session.detach",
-  "session.measure",
-  "turn.start",
-  "turn.step",
-  "turn.complete",
-  "ui.render",
-  "ui.resolve",
-  "ui.press",
-  "ui.input",
-  "ui.select",
-  "ui.message",
-  "ui.fault",
-  "ui.scroll",
-  "ui.focus",
-  "plugin.register",
-  "engine.create",
-  "telemetry.log",
-  "telemetry.mark"
-];
-var CODEX_EVENTS = [
-  "SessionStart",
-  "SessionEnd",
-  "UserPromptSubmit",
-  "PreToolUse",
-  "PermissionRequest",
-  "PostToolUse",
-  "PreCompact",
-  "PostCompact",
-  "SubagentStart",
-  "SubagentStop",
-  "Stop",
-  "Interrupt"
-];
 var CODEX_MATCHER_EVENTS = ["PreToolUse", "PermissionRequest", "PostToolUse", "PreCompact", "PostCompact", "SessionStart", "SessionEnd", "SubagentStart", "SubagentStop"];
-var OPENCODE_EVENTS = [
-  "setup",
-  "session.prompt",
-  "session.context",
-  "session.compaction",
-  "session.generate",
-  "session.title",
-  "session.model.request",
-  "session.http.request",
-  "session.http.response",
-  "session.retry",
-  "permission.evaluate",
-  "shell.create.before",
-  "tool.execute.before",
-  "tool.execute.after",
-  "session.created",
-  "session.deleted",
-  "session.idle",
-  "session.status",
-  "session.execution.started",
-  "session.execution.succeeded",
-  "session.execution.failed",
-  "session.execution.interrupted",
-  "session.compaction.started",
-  "session.compaction.delta",
-  "session.compaction.ended",
-  "session.compaction.failed",
-  "session.usage.updated",
-  "session.tool.called",
-  "session.tool.success",
-  "session.tool.failed",
-  "session.skill.activated",
-  "session.instructions.updated",
-  "permission.asked",
-  "permission.replied",
-  "file.edited",
-  "vcs.branch.updated",
-  "mcp.status.changed",
-  "mcp.tools.changed",
-  "plugin.updated",
-  "worktree.ready",
-  "worktree.failed"
-];
-var OMP_EVENTS = [
-  "resources_discover",
-  "session_start",
-  "session_before_switch",
-  "session_switch",
-  "session_before_branch",
-  "session_branch",
-  "session_before_compact",
-  "session.compacting",
-  "cache_warming_decision",
-  "session_compact",
-  "session_shutdown",
-  "session_before_tree",
-  "session_tree",
-  "context",
-  "before_provider_request",
-  "after_provider_response",
-  "before_agent_start",
-  "before_subagent_spawn",
-  "agent_start",
-  "agent_end",
-  "session_stop",
-  "turn_start",
-  "turn_end",
-  "message_start",
-  "message_update",
-  "message_end",
-  "assistant_message",
-  "tool_execution_start",
-  "tool_execution_update",
-  "tool_execution_end",
-  "auto_compaction_start",
-  "auto_compaction_end",
-  "auto_retry_start",
-  "auto_retry_end",
-  "retry_fallback_applied",
-  "retry_fallback_succeeded",
-  "ttsr_triggered",
-  "todo_reminder",
-  "goal_updated",
-  "credential_disabled",
-  "input",
-  "tool_approval_requested",
-  "tool_approval_resolved",
-  "tool_call",
-  "tool_result",
-  "user_bash",
-  "user_python",
-  "mcp_notification"
-];
-var HOOK_EVENTS = {
-  claude: [...CLAUDE_ENGINE_EVENTS, ...CLAUDE_CLASSIC_EVENTS.map((e) => `classic.${e}`)],
-  codex: CODEX_EVENTS,
-  opencode: OPENCODE_EVENTS,
-  omp: OMP_EVENTS
-};
-var DENY_EVENTS = {
-  claude: ["tool.call", "tool.check", "classic.PreToolUse"],
-  codex: ["PreToolUse", "PermissionRequest"],
-  opencode: ["permission.evaluate", "tool.execute.before"],
-  omp: ["tool_call"]
-};
-var STOP_EVENTS = {
-  claude: ["classic.Stop", "classic.SubagentStop"],
-  codex: ["Stop", "SubagentStop"],
-  opencode: ["session.execution.succeeded", "session.idle"],
-  omp: ["session_stop"]
-};
+var nativeOf = (pick) => harnessTable((p) => pick(p.events.map) ?? []);
+var HOOK_EVENTS = harnessTable((p) => p.events.native);
+var DENY_EVENTS = nativeOf((m) => m.preTool);
+var STOP_EVENTS = nativeOf((m) => m.stop);
 var BINDING_KEYS = ["event", "matcher", "async", "timeoutMs", "also", "fallback"];
 var HOOK_KEYS = ["id", "name", "description", "blocking", "failure", "bindings", "contract_test"];
 function isObj4(x) {
@@ -19184,6 +19492,7 @@ function companionToolDenial(harness, agent, tool, input) {
   return `Buracle: this run is a read-only second opinion (${agent}) and ${problem}. Read files, search, see the change with git diff, log or show, and use codegraph, semble or context7; change nothing and write no memory.`;
 }
 // src/core/policy/skill-router.ts
+init_harness();
 var LANG = /^[a-z]{2}$/;
 function isObj5(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
@@ -19426,6 +19735,8 @@ var ORDINARY_PARTS = new Set([
 function emptyRoute() {
   return { invoked: [], load: [], candidates: [], categories: [], memory: { recall: false, write: false } };
 }
+var SLASH_NAMESPACES = [...new Set(HARNESSES.flatMap((h) => harnessProfile(h).skills.invoke.namespace ?? []))];
+var SLASH_LEAD = new RegExp(`^/(?:(${SLASH_NAMESPACES.join("|")}):)?([a-z0-9][a-z0-9-]*)(?=\\s|$)`);
 function explicitSyntax(text, ids, invocable, h) {
   const invoked = [];
   const asked = [];
@@ -19436,23 +19747,24 @@ function explicitSyntax(text, ids, invocable, h) {
     if (!list.includes(id) && !invoked.includes(id))
       list.push(id);
   };
+  const how = harnessProfile(h).skills.invoke;
   const trimmed = text.trim();
   for (const m of trimmed.matchAll(/<command-name>\s*\/?(buracle:)?([a-z0-9-]+)\s*<\/command-name>/g)) {
     if (m[1] !== undefined || invocable.has(m[2] ?? ""))
-      add(m[2], h === "claude");
+      add(m[2], how.commandTag);
   }
-  const lead = /^\/(?:(buracle|skill):)?([a-z0-9][a-z0-9-]*)(?=\s|$)/.exec(trimmed);
+  const lead = SLASH_LEAD.exec(trimmed);
   if (lead && (lead[1] !== undefined || invocable.has(lead[2] ?? ""))) {
     const ns = lead[1];
-    add(lead[2], ns === "buracle" ? h === "claude" : ns === "skill" ? h === "omp" : h !== "codex");
+    add(lead[2], ns !== undefined ? how.namespace === ns : how.slash);
   }
   const lead$ = /^\$([a-z0-9][a-z0-9-]*)(?=\s|$)/.exec(trimmed);
   if (lead$)
-    add(lead$[1], h === "codex");
-  if (h === "codex")
+    add(lead$[1], how.dollar);
+  if (how.dollar)
     for (const m of trimmed.matchAll(/(?:^|\s)\$([a-z0-9][a-z0-9-]*)(?![\w-])/g))
       add(m[1], true);
-  if (h === "opencode")
+  if (how.at)
     for (const m of trimmed.matchAll(/(?:^|\s)@([a-z0-9][a-z0-9-]*)(?![\w./-])/g))
       add(m[1], true);
   return { invoked, asked };
@@ -19616,25 +19928,9 @@ function utf8Bytes(s) {
   return n;
 }
 function loadHow(h, id, explicit, file) {
-  switch (h) {
-    case "claude":
-      if (!explicit)
-        return `Skill tool, buracle:${id}`;
-      return `read ${file ?? `skills/${id}/SKILL.md in the Buracle plugin`}`;
-    case "codex":
-      return `read \${CODEX_HOME:-~/.codex}/skills/${id}/SKILL.md`;
-    case "opencode":
-      return `skill tool, ${id}`;
-    case "omp":
-      return `read skill://${id}`;
-  }
+  return harnessProfile(h).skills.load(id, explicit, file);
 }
-var CANDIDATE_HOW = {
-  claude: "Skill tool, buracle:<id>",
-  codex: "read ${CODEX_HOME:-~/.codex}/skills/<id>/SKILL.md",
-  opencode: "skill tool",
-  omp: "read skill://<id>"
-};
+var CANDIDATE_HOW = harnessTable((p) => p.skills.candidateHow);
 var CATEGORY_LABEL = {
   "library-docs": "Library docs",
   "web-search": "Web search",
@@ -21191,6 +21487,7 @@ init_paths();
 // src/workflow/session-store.ts
 import { existsSync as existsSync2, lstatSync as lstatSync2, readdirSync, rmSync, statSync as statSync5, unlinkSync as unlinkSync3 } from "fs";
 import { join as join5, posix } from "path";
+init_harness();
 
 // src/core/frontmatter.ts
 var OPEN = /^---[ \t]*\r?\n/;
@@ -23007,8 +23304,12 @@ function tickedTasks(o) {
   return o.cards.filter((c) => c.done).map((c) => c.n).sort((a, b) => a - b);
 }
 
+// src/core/plan/native.ts
+init_harness();
+
 // src/core/plan/capture.ts
-var PLAN_HARNESS_LABEL = { claude: "Claude Code", codex: "Codex", opencode: "OpenCode", omp: "Oh My Pi" };
+init_harness();
+var PLAN_HARNESS_LABEL = HARNESS_LABEL;
 var PLAN_TITLE_MAX = 120;
 function normalizePlanText(plan) {
   return plan.replace(/\r\n?/g, `
@@ -23038,7 +23339,7 @@ function capturedPlanNote(harness, approved, via = "hook") {
     return `Saved with \`buracle plan capture\` (${label})${approved ? "" : " as a draft, not marked approved"}; ${quoted}`;
   if (approved)
     return `Approved in ${label} plan mode and saved by Buracle (H12); ${quoted}`;
-  if (harness === "opencode")
+  if (!harnessProfile(harness).plan.approval)
     return `Saved by Buracle (H12) when the session left ${label}'s plan agent. ${label} has no approval step, so this plan is not marked approved; ${quoted}`;
   return `Saved by Buracle (H12) from ${label} plan mode as a draft, not marked approved; ${quoted}`;
 }
@@ -23063,12 +23364,7 @@ ${quoted}
 }
 
 // src/core/plan/native.ts
-var NATIVE_PLAN_ENTER = {
-  claude: "call the EnterPlanMode tool (load it with tool search when it is deferred)",
-  codex: 'ask the user to switch to Plan mode with `/plan`, then to say "continue", and end the turn',
-  opencode: 'ask the user to switch to the plan agent (Tab), then to say "continue", and end the turn',
-  omp: 'ask the user to turn on plan mode with `/plan` (or alt+shift+p), then to say "continue", and end the turn'
-};
+var NATIVE_PLAN_ENTER = harnessTable((p) => p.plan.enter);
 function isBinding(x) {
   if (x === null || typeof x !== "object")
     return false;
@@ -23820,42 +24116,18 @@ function sessionMaint(h, nowMs, opts = {}) {
     log("info", "session maintenance", { h, removed: removed.length });
   return { removed };
 }
-var PROFILE_DIR = {
-  claude: { key: "claudeDir", label: "Claude Code", variable: "CLAUDE_CONFIG_DIR" },
-  codex: { key: "codexHome", label: "Codex", variable: "CODEX_HOME" },
-  opencode: { key: "opencodeConfigDir", label: "OpenCode", variable: "XDG_CONFIG_HOME" },
-  omp: { key: "ompAgentDir", label: "Oh My Pi", variable: "PI_CODING_AGENT_DIR" }
-};
-function absoluteEnv(env, name) {
-  const v = env[name];
-  return typeof v === "string" && v.trim() !== "" && posix.isAbsolute(v.trim()) ? v.trim() : undefined;
-}
-function under2(dir, ...parts) {
-  return posix.join(dir, ...parts);
-}
 function liveHarnessDir(h, env) {
-  const home = absoluteEnv(env, "HOME");
-  switch (h) {
-    case "claude":
-      return absoluteEnv(env, "CLAUDE_CONFIG_DIR") ?? (home !== undefined ? under2(home, ".claude") : undefined);
-    case "codex":
-      return absoluteEnv(env, "CODEX_HOME") ?? (home !== undefined ? under2(home, ".codex") : undefined);
-    case "opencode": {
-      const xdg = absoluteEnv(env, "XDG_CONFIG_HOME");
-      return xdg !== undefined ? under2(xdg, "opencode") : home !== undefined ? under2(home, ".config", "opencode") : undefined;
-    }
-    case "omp":
-      return absoluteEnv(env, "PI_CODING_AGENT_DIR") ?? (home !== undefined ? under2(home, ".omp", "agent") : undefined);
-  }
+  return configDirOf(harnessProfile(h), env);
 }
 function samePath(a, b) {
   const norm = (p) => posix.normalize(p).replace(/(.)\/+$/, "$1");
   return norm(a) === norm(b);
 }
 function profileGuard(h, runtimeCfg, env) {
-  const spec = PROFILE_DIR[h];
-  if (spec === undefined)
+  const profile = isHarness(h) ? harnessProfile(h) : undefined;
+  if (profile === undefined)
     return;
+  const spec = { key: profile.configDir.key, label: profile.label, variable: profile.configDir.env };
   const resolved = runtimeCfg !== null && typeof runtimeCfg === "object" ? runtimeCfg.resolved : undefined;
   const installed = resolved !== null && typeof resolved === "object" ? resolved[spec.key] : undefined;
   if (typeof installed !== "string" || !posix.isAbsolute(installed))
@@ -23920,6 +24192,7 @@ function pruneSessionAliases(h) {
     return 0;
   }
 }
+var NATIVE_CLAIMS = HARNESSES.flatMap((h) => harnessProfile(h).sessionEnv.map((name) => [name, h]));
 
 // src/workflow/ledger.ts
 function ledgerPath(h, sid) {
@@ -24476,6 +24749,7 @@ import { existsSync as existsSync7, mkdirSync as mkdirSync6, statSync as statSyn
 import { basename as basename3, dirname as dirname7, join as join12, relative as relative2, resolve as resolve7, sep as sep2 } from "path";
 
 // src/core/project-assets.ts
+init_harness();
 var RULES_DIR = ".claude/rules";
 var SCOPED_RULES_HEADING = "Scoped rules";
 var ASSETS_CONTEXT_MAX_RULES = 40;
@@ -24646,7 +24920,7 @@ function assetsContextText(o) {
   if (o.rules.length > 0) {
     parts.push(block(`Buracle project rules (H28): AGENTS.md's \`## ${SCOPED_RULES_HEADING}\` list does not name these path rules, so read the matching one before you edit files its globs match:`, o.rules.map((r) => `- \`${r.path}\` ${DASH} ${globsText(r.globs)}`), ASSETS_CONTEXT_MAX_RULES, (more) => `- and ${more} more: \`buracle project check\` lists them all.`));
   }
-  if (o.harness === "codex" && o.claudeOnly.length > 0) {
+  if (!harnessProfile(o.harness).skills.readsClaudeProjectDir && o.claudeOnly.length > 0) {
     parts.push(block("Buracle project skills (H28): these skills live only in .claude/skills, which Codex does not read. When a task matches one, read `.claude/skills/<id>/SKILL.md` and follow it; `buracle project sync --adopt` links them into .agents/skills for Codex.", o.claudeOnly.map((s) => `- \`${s.id}\`${s.description !== undefined && s.description !== "" ? `: ${oneLine2(s.description, ASSETS_DESCRIPTION_MAX)}` : ""}`), ASSETS_CONTEXT_MAX_SKILLS, (more) => `- and ${more} more in .claude/skills.`));
   }
   return parts.join(`
@@ -24702,6 +24976,7 @@ init_fsx();
 init_paths();
 
 // src/usage/bar-info.ts
+init_harness();
 import { existsSync as existsSync5, readFileSync as readFileSync8, statSync as statSync9 } from "fs";
 import { join as join10 } from "path";
 
@@ -25528,7 +25803,7 @@ function memoryPaneLines(status, url, brain) {
 init_fsx();
 init_paths();
 init_shim();
-var HARNESS_LABEL2 = { claude: "CC", codex: "Codex", opencode: "OpenCode", omp: "OMP" };
+var HARNESS_LABEL2 = harnessTable((p) => p.shortLabel);
 function isRecord(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
@@ -25582,7 +25857,7 @@ function claudePlan() {
   } catch {}
   return plan;
 }
-var VERSION_CMD = { claude: "claude", codex: "codex", opencode: "opencode", omp: "omp" };
+var VERSION_CMD = harnessTable((p) => p.bin);
 function versionCacheFile() {
   return join10(buracleHome(), "cache", "harness-versions.json");
 }
@@ -26293,6 +26568,7 @@ function assetsAfterEdit(rootIn, files, o) {
 import { join as join13 } from "path";
 
 // src/core/memory/note.ts
+init_harness();
 var SLUG_RE = /^[a-z0-9][a-z0-9-]{0,79}$/;
 function memIsSlug(v) {
   return typeof v === "string" && SLUG_RE.test(v);
@@ -26324,7 +26600,7 @@ function memLocalTime(ms, offsetMin) {
   return `${pad(p.h)}:${pad(p.mi)}`;
 }
 function memNoteHarness(h) {
-  return h === "claude" ? "claude-code" : h;
+  return isHarness(h) ? harnessProfile(h).noteName : h;
 }
 
 // src/core/memory/text.ts
@@ -27662,17 +27938,13 @@ function recordUserGrants(h, sid, grants, now) {
 }
 
 // src/core/plan/plan-mode.ts
+init_harness();
 var FILE_WRITING_WORKFLOWS = {
   "plan-build": "its plan file under docs/plan-build/",
   "goal-build": "its run file under docs/goal-build/",
   requirements: "its PRD under docs/requirements/"
 };
-var READ_ONLY_MODE = {
-  claude: { name: "Claude Code's plan mode", leave: "leave plan mode (Shift+Tab)" },
-  codex: { name: "Codex's Plan mode", leave: "leave Plan mode" },
-  opencode: { name: "OpenCode's read-only plan agent", leave: "switch to the build agent (Tab)" },
-  omp: { name: "Oh My Pi's plan mode", leave: "leave plan mode" }
-};
+var READ_ONLY_MODE = harnessTable((p) => p.plan.readOnly);
 function readOnlyStartNotice(workflow, harness) {
   const writes = Object.prototype.hasOwnProperty.call(FILE_WRITING_WORKFLOWS, workflow) ? FILE_WRITING_WORKFLOWS[workflow] : undefined;
   const mode = READ_ONLY_MODE[harness];
@@ -29637,16 +29909,12 @@ async function preTool(input, d) {
 // src/adapters/shared/file-checks.ts
 import { sep as sep3 } from "path";
 // src/core/config.ts
+init_harness();
 var COMPANION_SETTINGS = ["off", "auto", ...HARNESSES];
 function defaultConfig() {
   return {
     version: 1,
-    harnesses: {
-      claude: { enabled: true },
-      codex: { enabled: true },
-      opencode: { enabled: true },
-      omp: { enabled: true }
-    },
+    harnesses: harnessTable(() => ({ enabled: true })),
     routing: { strictness: "enforce", skills: "router", reminders: true },
     guards: { bash: { extraDeny: [] }, write: { protect: [] }, redact: true },
     plan: {
@@ -29676,7 +29944,7 @@ function defaultConfig() {
     workflow: { band: true, foldAfterSec: 8, codexNotices: true },
     toolchain: { autoInstall: true, system: true, upgrade: true },
     index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 },
-    mcp: { shared: true, off: { claude: [], codex: [], opencode: [], omp: [] } }
+    mcp: { shared: true, off: harnessTable(() => []) }
   };
 }
 var bool = { t: "bool" };
@@ -30140,7 +30408,7 @@ var SERVER_ID = /^[a-z0-9][a-z0-9-]*$/;
 var EXACT_VERSION = /^\d+\.\d+\.\d+(?:[-+.][0-9A-Za-z.-]+)?$/;
 var BIN_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 var ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
-var SERVER_KEYS = ["description", "transport", "package", "command", "args", "env", "harness_env", "tool_timeout_sec", "tool_timeout_hard", "url", "harnesses", "pin", "pin_reason", "critical", "routing", "health", "backend", "api_key"];
+var SERVER_KEYS = ["description", "transport", "package", "command", "args", "env", "harness_env", "tool_timeout_sec", "tool_timeout_hard", "url", "harnesses", "except", "pin", "pin_reason", "critical", "routing", "health", "backend", "api_key"];
 var PACKAGE_KEYS = ["registry", "name", "version", "bin", "extras"];
 var API_KEY_KEYS = ["env", "url"];
 var PIN_POLICIES = ["latest", "hard", "soft", "monitor"];
@@ -30157,6 +30425,30 @@ function validateEnvMap(env, at, errors) {
     else if (v.includes("${") && envRef(v) === undefined)
       errors.push(`${at}.${k}: only whole-value "\${ENV:NAME}" forwarding is supported`);
   }
+}
+function shipsTo(raw) {
+  const listed = raw["harnesses"];
+  const except = raw["except"];
+  if (Array.isArray(listed))
+    return HARNESSES.filter((h) => listed.includes(h));
+  return HARNESSES.filter((h) => !(Array.isArray(except) && except.includes(h)));
+}
+function mcpCatalogOf(x) {
+  const servers = {};
+  for (const [id, raw] of Object.entries(x.servers)) {
+    const harnesses = Array.isArray(raw["harnesses"]) ? raw["harnesses"] : shipsTo(raw);
+    const spec = {};
+    for (const [k, v] of Object.entries(raw)) {
+      if ((k === "except" || k === "pin") && !("harnesses" in spec) && !("harnesses" in raw))
+        spec["harnesses"] = harnesses;
+      if (k !== "except")
+        spec[k] = v;
+    }
+    if (!("harnesses" in spec))
+      spec["harnesses"] = harnesses;
+    servers[id] = spec;
+  }
+  return { servers };
 }
 function validateMcpCatalog(x) {
   const errors = [];
@@ -30233,11 +30525,26 @@ function validateMcpCatalog(x) {
     const env = raw["env"];
     if (env !== undefined)
       validateEnvMap(env, `${at}.env`, errors);
-    const hs = raw["harnesses"];
-    if (!Array.isArray(hs) || hs.length === 0 || !hs.every((h) => HARNESSES.includes(h)))
-      errors.push(`${at}.harnesses: expected a non-empty list of ${HARNESSES.join(" | ")}`);
-    else if (new Set(hs).size !== hs.length)
-      errors.push(`${at}.harnesses: duplicates`);
+    const listed = raw["harnesses"];
+    const except = raw["except"];
+    const harnessList = (v) => Array.isArray(v) && v.length > 0 && v.every((h) => HARNESSES.includes(h));
+    if (listed !== undefined && except !== undefined)
+      errors.push(`${at}: name the harnesses a server ships to with harnesses or with except, not both`);
+    if (listed !== undefined) {
+      if (!harnessList(listed))
+        errors.push(`${at}.harnesses: expected a non-empty list of ${HARNESSES.join(" | ")}`);
+      else if (new Set(listed).size !== listed.length)
+        errors.push(`${at}.harnesses: duplicates`);
+    }
+    if (except !== undefined) {
+      if (!harnessList(except))
+        errors.push(`${at}.except: expected a non-empty list of ${HARNESSES.join(" | ")}`);
+      else if (new Set(except).size !== except.length)
+        errors.push(`${at}.except: duplicates`);
+      else if (except.length === HARNESSES.length)
+        errors.push(`${at}.except: leaves no harness`);
+    }
+    const hs = shipsTo(raw);
     const harnessEnv = raw["harness_env"];
     if (harnessEnv !== undefined) {
       if (!isObj10(harnessEnv))
@@ -30247,7 +30554,7 @@ function validateMcpCatalog(x) {
           errors.push(`${at}.harness_env: only valid for stdio`);
         for (const [h, vars] of Object.entries(harnessEnv)) {
           const hat = `${at}.harness_env.${h}`;
-          if (!Array.isArray(hs) || !hs.includes(h))
+          if (!hs.includes(h))
             errors.push(`${hat}: not one of this server's harnesses`);
           validateEnvMap(vars, hat, errors);
           if (isObj10(vars) && isObj10(env)) {
@@ -33237,6 +33544,9 @@ function bandHide(b) {
   const v = bandViewOf(b);
   return v.visible ? { ...b, hidden: v.startedAt ?? b.stamp } : b;
 }
+// src/core/index.ts
+init_harness();
+
 // src/adapters/shared/file-checks.ts
 init_paths();
 
@@ -33516,7 +33826,8 @@ async function sessionEnd(input, d) {
   });
 }
 // src/adapters/omp/runtime/checks.ts
-var OMP_H04_BUDGET_MS = 20000;
+init_harness();
+var OMP_H04_BUDGET_MS = harnessProfile("omp").editBudgetMs;
 var PATCH_FIELDS2 = ["input", "patch", "patchText"];
 function addedTextOf(kind, input, files, cwd, targets, home) {
   const out = {};
@@ -34337,6 +34648,7 @@ init_fsx();
 init_paths();
 
 // src/workflow/plan-capture.ts
+init_harness();
 import { closeSync as closeSync6, mkdirSync as mkdirSync9, openSync as openSync6, readFileSync as readFileSync15, writeSync as writeSync5 } from "fs";
 import { isAbsolute as isAbsolute9, join as join22, relative as relative3, resolve as resolve12, sep as sep4 } from "path";
 init_fsx();

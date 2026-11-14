@@ -1,5 +1,5 @@
 import type { Harness, PreDecision, ToolCall, ToolKind } from '../events'
-import { mcpServerToken } from '../events'
+import { HARNESS_LABEL, harnessProfile, harnessTable, mcpToolName, mcpToolPattern } from '../harness/index'
 import type { CatalogMcp, CatalogSkill } from '../catalog'
 import type { Triggers } from './skill-router'
 
@@ -58,58 +58,19 @@ export function parseRouteRef(ref: string): RouteRef | undefined {
   return { kind: 'builtin', tool: name }
 }
 
-export const CLAUDE_PLUGIN_NAME = 'buracle'
-
-function ompPart(s: string, fallback: string): string {
-  const t = s.toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '')
-  return t.length > 0 ? t : fallback
-}
+export { CLAUDE_PLUGIN_NAME } from '../harness/index'
 
 export function harnessMcpToolName(harness: Harness, server: string, tool: string): string {
-  switch (harness) {
-    case 'claude':
-      return `mcp__plugin_${CLAUDE_PLUGIN_NAME}_${mcpServerToken('claude', server)}__${tool.replace(/[^A-Za-z0-9_-]/g, '_')}`
-    case 'codex':
-      return `mcp__${server}__${tool}`.replace(/[^A-Za-z0-9_]/g, '_')
-    case 'opencode':
-      return `${mcpServerToken('opencode', server)}_${tool.replace(/[^A-Za-z0-9_-]/g, '_')}`
-    case 'omp': {
-      const s = mcpServerToken('omp', server)
-      let t = ompPart(tool, 'tool')
-      if (t.startsWith(`${s}_`) && t.length > s.length + 1) t = t.slice(s.length + 1)
-      return `mcp__${s}_${t}`
-    }
-  }
+  return mcpToolName(harnessProfile(harness).mcp, server, tool)
 }
 
 export function harnessMcpPattern(harness: Harness, server: string): string {
-  switch (harness) {
-    case 'claude': return `mcp__plugin_${CLAUDE_PLUGIN_NAME}_${mcpServerToken('claude', server)}__*`
-    case 'codex': return `mcp__${server.replace(/[^A-Za-z0-9_]/g, '_')}__*`
-    case 'opencode': return `${mcpServerToken('opencode', server)}_*`
-    case 'omp': return `mcp__${mcpServerToken('omp', server)}_*`
-  }
+  return mcpToolPattern(harnessProfile(harness).mcp, server)
 }
 
-const HARNESS_LABEL: Record<Harness, string> = { claude: 'Claude Code', codex: 'Codex', opencode: 'OpenCode', omp: 'Oh My Pi' }
-const SKILL_HOWTO: Record<Harness, string> = {
-  claude: 'the user starts a workflow with /<id>; you load the others with the Skill tool as buracle:<id>',
-  codex: 'the user starts a workflow with $<id>; you load one by reading ${CODEX_HOME:-~/.codex}/skills/<id>/SKILL.md',
-  opencode: 'the user starts a workflow with /<id>; you load one with the skill tool',
-  omp: 'the user starts a workflow with /<id>; you load one by reading skill://<id>',
-}
-const MCP_SYNTAX: Record<Harness, string> = {
-  claude: `mcp__plugin_${CLAUDE_PLUGIN_NAME}_<server>__<tool>`,
-  codex: 'mcp__<server>__<tool>, with - written as _',
-  opencode: '<server>_<tool>',
-  omp: 'mcp__<server>_<tool>, lower-case with - written as _',
-}
-const HIDDEN_NOTE: Record<Harness, string> = {
-  claude: '* = may be deferred: find its tools with tool search before assuming they are missing',
-  codex: '* = may be deferred: find its tools with tool_search before assuming they are missing',
-  opencode: '* = in Code Mode: its tools are not on your tool list; call them from a script run by the execute tool',
-  omp: '* = may be an xd:// device instead of a tool: read xd:// to find it before assuming it is missing',
-}
+const SKILL_HOWTO: Record<Harness, string> = harnessTable(p => p.skills.howto)
+const MCP_SYNTAX: Record<Harness, string> = harnessTable(p => p.mcp.syntax)
+const HIDDEN_NOTE: Record<Harness, string> = harnessTable(p => p.mcp.hiddenNote)
 const BUILTIN_LABEL: Record<string, string> = { web_search: 'built-in web search', web_fetch: 'built-in web fetch' }
 
 function code(s: string): string { return '`' + s + '`' }

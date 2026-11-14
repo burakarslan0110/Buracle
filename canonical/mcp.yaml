@@ -1,9 +1,10 @@
+# A server ships to every harness. `except: [...]` leaves some out; `harnesses: [...]` names the few a
+# server belongs to instead.
 servers:
   context7:
     description: Up-to-date library and framework documentation
     transport: stdio
     package: { registry: npm, name: "@upstash/context7-mcp", version: latest, bin: context7-mcp }
-    harnesses: [claude, codex, opencode, omp]
     pin: latest
     critical: true
     routing: [library-docs]
@@ -20,7 +21,6 @@ servers:
       CODEGRAPH_NO_UPDATE_CHECK: "1"
       CODEGRAPH_MCP_TOOLS: "explore,search,node,callers,callees,impact,status,files"
       CODEGRAPH_NO_WATCHDOG: "1"
-    harnesses: [claude, codex, opencode, omp]
     pin: latest
     critical: true
     routing: [code-structure]
@@ -32,7 +32,6 @@ servers:
     env:
       MODE: stdio
       DEFAULT_SEARCH_ENGINE: duckduckgo
-    harnesses: [claude, codex, opencode, omp]
     pin: latest
     critical: true
     routing: [web-search]
@@ -44,7 +43,6 @@ servers:
     package: { registry: npm, name: fetcher-mcp, version: latest, bin: fetcher-mcp }
     tool_timeout_sec: 180
     tool_timeout_hard: true
-    harnesses: [claude, codex, opencode, omp]
     pin: latest
     critical: true
     routing: [web-fetch]
@@ -54,7 +52,6 @@ servers:
     description: Search public GitHub code for real-world usage examples
     transport: http
     url: https://mcp.grep.app
-    harnesses: [claude, codex, opencode, omp]
     pin: monitor
     critical: false
     routing: [code-examples]
@@ -65,7 +62,6 @@ servers:
     package: { registry: pypi, name: semble, version: latest, bin: semble, extras: [mcp] }
     env:
       HF_HUB_DISABLE_TELEMETRY: "1"
-    harnesses: [claude, codex, opencode, omp]
     pin: latest
     critical: true
     routing: [code-search]
@@ -76,7 +72,7 @@ servers:
     transport: stdio
     package: { registry: npm, name: chrome-devtools-mcp, version: latest, bin: chrome-devtools-mcp }
     args: ["--isolated", "--no-usage-statistics", "--no-performance-crux"]
-    harnesses: [claude, codex, opencode]
+    except: [omp]
     pin: latest
     critical: false
     routing: [browser]
@@ -87,7 +83,6 @@ servers:
     transport: stdio
     command: "{buracle}"
     args: ["mcp", "memory"]
-    harnesses: [claude, codex, opencode, omp]
     pin: hard
     critical: true
     routing: [memory]

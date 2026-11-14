@@ -1,3 +1,4 @@
+import { harnessTable } from '../core/harness/index'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -16,7 +17,7 @@ import { MEMORY_RUNNER_DIR_PREFIX } from '../memory/spawn'
 export const COMPANION_MCP: readonly string[] = COMPANION_MCP_SERVERS
 export const OPENCODE_COMPANION_AGENT = 'buracle-companion'
 export const COMPANION_DIR_PREFIX = `${MEMORY_RUNNER_DIR_PREFIX}companion-`
-export const COMPANION_BIN: Readonly<Record<Harness, string>> = { claude: 'claude', codex: 'codex', opencode: 'opencode', omp: 'omp' }
+export const COMPANION_BIN: Readonly<Record<Harness, string>> = harnessTable(p => p.bin)
 
 const CLAUDE_SHELL_ALLOW: readonly string[] = ['git status *', 'git diff *', 'git log *', 'git show *', 'git ls-files *', 'git blame *', 'git merge-base *', 'git rev-parse *', 'rg *']
 const CLAUDE_SHELL_DENY: readonly string[] = ['git *--output*', 'rg *--pre*', 'rg *--hostname-bin*']

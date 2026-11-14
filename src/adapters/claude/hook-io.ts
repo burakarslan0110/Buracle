@@ -1,3 +1,4 @@
+import { harnessProfile } from '../../core/harness/index'
 import * as core from '../../core/index'
 import { log } from '../../engine/log'
 import type { AdapterContext } from '../registry'
@@ -8,7 +9,7 @@ export interface HookOutcome { stdout: string; exitCode: number }
 
 export const QUIET: HookOutcome = { stdout: '', exitCode: 0 }
 export const H = 'claude' as const
-export const FALLBACK_SPOOL_SUFFIX = 'classic'
+export const FALLBACK_SPOOL_SUFFIX = harnessProfile('claude').spoolSuffix as string
 
 export function out(obj: unknown): HookOutcome {
   return { stdout: JSON.stringify(obj) + '\n', exitCode: 0 }

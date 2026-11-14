@@ -1,4 +1,4 @@
-import type { Harness } from '../../core/events'
+import type { CanonicalEvent, Harness } from '../../core/events'
 import { compareVersions } from '../../engine/update/versions'
 
 export type HostLimitKind = 'limit' | 'partial' | 'native'
@@ -13,6 +13,8 @@ export interface HostLimit {
   id: string
   harness: Harness
   feature: string
+  /** The canonical event the host has no native event for: its profile maps that event to null (src/core/harness/), and this record says why and what Buracle does instead. */
+  event?: CanonicalEvent
   kind: HostLimitKind
   checkedOn: string
   reason: string
@@ -160,6 +162,11 @@ export const HOST_LIMITS: readonly HostLimit[] = [
     recheck: `whether a --config <file> overlay (docs/settings.md) with tools.approvalMode write (docs/approval-mode.md) and bash.patterns allow rules for the read-only git and rg commands (docs/tools/bash.md) lets bash join the read tools: per https://github.com/can1357/oh-my-pi/blob/v18.10.1/docs/bash-tool-runtime.md an allow rule grants a simple command the write tier, while redirections, substitutions, globbing and chains keep the exec tier (bash.allowCompoundCommands opts flat && chains in), bash.patterns do not bind eval (pair them with tools.approval.eval), and a prompt without a UI is refused in print mode. Probe on a real omp: with that overlay, in print mode, \`git status > /tmp/x\` and \`rg x $(pwd)\` must be refused and \`git status\` allowed; ${CHECKED}`,
   },
 ]
+
+/** The record of a canonical event a host lacks; every null in a profile's event map has one. */
+export function missingEventLimit(h: Harness, event: CanonicalEvent): HostLimit | undefined {
+  return HOST_LIMITS.find(l => l.harness === h && l.event === event)
+}
 
 export function hostLimitsOf(h: Harness, kinds: readonly HostLimitKind[] = ['limit', 'partial']): HostLimit[] {
   return HOST_LIMITS.filter(l => l.harness === h && kinds.includes(l.kind))

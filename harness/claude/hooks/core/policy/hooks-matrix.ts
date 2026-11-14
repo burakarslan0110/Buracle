@@ -1,77 +1,21 @@
 import type { Harness, HookId } from '../events'
 import { HARNESSES, HOOK_IDS } from '../events'
+import { harnessTable, type HarnessProfile } from '../harness/index'
 
 export const BLOCKING_HOOKS: readonly HookId[] = ['H01', 'H02', 'H03', 'H08', 'H11', 'H20', 'H23']
 const BLOCKING_KIND: Partial<Record<HookId, 'deny' | 'stop'>> = { H01: 'deny', H02: 'deny', H03: 'deny', H08: 'stop', H11: 'stop', H20: 'deny', H23: 'stop' }
 
-export const CLAUDE_CLASSIC_EVENTS: readonly string[] = [
-  'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'PostToolBatch', 'PermissionDenied', 'Notification', 'UserPromptSubmit',
-  'UserPromptExpansion', 'SessionStart', 'SessionEnd', 'Stop', 'StopFailure', 'SubagentStart', 'SubagentStop', 'PreCompact',
-  'PostCompact', 'PreModelSwitch', 'PostModelSwitch', 'PermissionRequest', 'Setup', 'TeammateIdle', 'TaskCreated',
-  'TaskCompleted', 'Elicitation', 'ElicitationResult', 'ConfigChange', 'InstructionsLoaded', 'WorktreeCreate', 'WorktreeRemove',
-  'CwdChanged', 'FileChanged', 'DirectoryAdded', 'MessageDisplay',
-]
-
-export const CLAUDE_ENGINE_EVENTS: readonly string[] = [
-  'tool.call', 'tool.check', 'tool.describe',
-  'prompt.submit', 'prompt.fill', 'prompt.suggest', 'prompt.edit', 'prompt.autocomplete', 'prompt.section', 'prompt.context',
-  'prompt.compose', 'prompt.attachment', 'prompt.mention',
-  'skill.prompt', 'attribution.text', 'command.run', 'command.describe', 'config.set', 'config.describe', 'agent.offer', 'agent.spawn',
-  'session.start', 'session.end', 'session.compact', 'session.receive', 'session.send', 'session.append', 'session.attach',
-  'session.detach', 'session.measure',
-  'turn.start', 'turn.step', 'turn.complete',
-  'ui.render', 'ui.resolve', 'ui.press', 'ui.input', 'ui.select', 'ui.message', 'ui.fault', 'ui.scroll', 'ui.focus',
-  'plugin.register', 'engine.create', 'telemetry.log', 'telemetry.mark',
-]
-
-export const CODEX_EVENTS: readonly string[] = [
-  'SessionStart', 'SessionEnd', 'UserPromptSubmit', 'PreToolUse', 'PermissionRequest', 'PostToolUse', 'PreCompact', 'PostCompact',
-  'SubagentStart', 'SubagentStop', 'Stop', 'Interrupt',
-]
 export const CODEX_MATCHER_EVENTS: readonly string[] = ['PreToolUse', 'PermissionRequest', 'PostToolUse', 'PreCompact', 'PostCompact', 'SessionStart', 'SessionEnd', 'SubagentStart', 'SubagentStop']
 
-export const OPENCODE_EVENTS: readonly string[] = [
-  'setup',
-  'session.prompt', 'session.context', 'session.compaction', 'session.generate', 'session.title', 'session.model.request',
-  'session.http.request', 'session.http.response', 'session.retry', 'permission.evaluate', 'shell.create.before',
-  'tool.execute.before', 'tool.execute.after',
-  'session.created', 'session.deleted', 'session.idle', 'session.status', 'session.execution.started', 'session.execution.succeeded',
-  'session.execution.failed', 'session.execution.interrupted', 'session.compaction.started', 'session.compaction.delta',
-  'session.compaction.ended', 'session.compaction.failed', 'session.usage.updated', 'session.tool.called', 'session.tool.success',
-  'session.tool.failed', 'session.skill.activated', 'session.instructions.updated', 'permission.asked', 'permission.replied',
-  'file.edited', 'vcs.branch.updated', 'mcp.status.changed', 'mcp.tools.changed', 'plugin.updated', 'worktree.ready', 'worktree.failed',
-]
+import { CLAUDE_CLASSIC_EVENTS } from '../harness/native-events'
 
-export const OMP_EVENTS: readonly string[] = [
-  'resources_discover', 'session_start', 'session_before_switch', 'session_switch', 'session_before_branch', 'session_branch',
-  'session_before_compact', 'session.compacting', 'cache_warming_decision', 'session_compact', 'session_shutdown',
-  'session_before_tree', 'session_tree', 'context', 'before_provider_request', 'after_provider_response', 'before_agent_start',
-  'before_subagent_spawn', 'agent_start', 'agent_end', 'session_stop', 'turn_start', 'turn_end', 'message_start', 'message_update',
-  'message_end', 'assistant_message', 'tool_execution_start', 'tool_execution_update', 'tool_execution_end', 'auto_compaction_start',
-  'auto_compaction_end', 'auto_retry_start', 'auto_retry_end', 'retry_fallback_applied', 'retry_fallback_succeeded', 'ttsr_triggered',
-  'todo_reminder', 'goal_updated', 'credential_disabled', 'input', 'tool_approval_requested', 'tool_approval_resolved', 'tool_call',
-  'tool_result', 'user_bash', 'user_python', 'mcp_notification',
-]
+export { CLAUDE_CLASSIC_EVENTS, CLAUDE_ENGINE_EVENTS, CODEX_EVENTS, OMP_EVENTS, OPENCODE_EVENTS } from '../harness/native-events'
 
-export const HOOK_EVENTS: Readonly<Record<Harness, readonly string[]>> = {
-  claude: [...CLAUDE_ENGINE_EVENTS, ...CLAUDE_CLASSIC_EVENTS.map(e => `classic.${e}`)],
-  codex: CODEX_EVENTS,
-  opencode: OPENCODE_EVENTS,
-  omp: OMP_EVENTS,
-}
+const nativeOf = (pick: (map: HarnessProfile['events']['map']) => readonly string[] | null) => harnessTable(p => pick(p.events.map) ?? [])
 
-export const DENY_EVENTS: Readonly<Record<Harness, readonly string[]>> = {
-  claude: ['tool.call', 'tool.check', 'classic.PreToolUse'],
-  codex: ['PreToolUse', 'PermissionRequest'],
-  opencode: ['permission.evaluate', 'tool.execute.before'],
-  omp: ['tool_call'],
-}
-export const STOP_EVENTS: Readonly<Record<Harness, readonly string[]>> = {
-  claude: ['classic.Stop', 'classic.SubagentStop'],
-  codex: ['Stop', 'SubagentStop'],
-  opencode: ['session.execution.succeeded', 'session.idle'],
-  omp: ['session_stop'],
-}
+export const HOOK_EVENTS: Readonly<Record<Harness, readonly string[]>> = harnessTable(p => p.events.native)
+export const DENY_EVENTS: Readonly<Record<Harness, readonly string[]>> = nativeOf(m => m.preTool)
+export const STOP_EVENTS: Readonly<Record<Harness, readonly string[]>> = nativeOf(m => m.stop)
 
 const BINDING_KEYS = ['event', 'matcher', 'async', 'timeoutMs', 'also', 'fallback']
 const HOOK_KEYS = ['id', 'name', 'description', 'blocking', 'failure', 'bindings', 'contract_test']

@@ -1,4 +1,5 @@
 import type { Harness } from './events'
+import { harnessProfile } from './harness/index'
 import { parseFrontmatter } from './frontmatter'
 
 export const RULES_DIR = '.claude/rules'
@@ -195,7 +196,7 @@ export function assetsContextText(o: { harness: Harness; rules: readonly RuleFac
       more => `- and ${more} more: \`buracle project check\` lists them all.`,
     ))
   }
-  if (o.harness === 'codex' && o.claudeOnly.length > 0) {
+  if (!harnessProfile(o.harness).skills.readsClaudeProjectDir && o.claudeOnly.length > 0) {
     parts.push(block(
       'Buracle project skills (H28): these skills live only in .claude/skills, which Codex does not read. When a task matches one, read `.claude/skills/<id>/SKILL.md` and follow it; `buracle project sync --adopt` links them into .agents/skills for Codex.',
       o.claudeOnly.map(s => `- \`${s.id}\`${s.description !== undefined && s.description !== '' ? `: ${oneLine(s.description, ASSETS_DESCRIPTION_MAX)}` : ''}`),

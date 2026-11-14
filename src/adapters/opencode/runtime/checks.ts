@@ -1,3 +1,4 @@
+import { harnessProfile } from '../../../core/harness/index'
 import type { BuracleConfig } from '../../../core/config'
 import type { ToolKind } from '../../../core/events'
 import { parseApplyPatch } from '../../../core/events'
@@ -8,7 +9,7 @@ import { removedByFile, type CheckerResult } from '../../shared/checker-scan'
 export type CheckerRunner = (plan: CheckerPlan, timeoutMs?: number) => Promise<CheckerResult | null>
 
 /** How long the file checks (H04) may take after an edit; OpenCode waits for the tool hook without a timeout of its own. */
-export const OPENCODE_H04_BUDGET_MS = 20_000
+export const OPENCODE_H04_BUDGET_MS = harnessProfile('opencode').editBudgetMs
 export const OPENCODE_LSP_BUDGET_MS = 12_000
 
 export type LspEditAsk = (files: readonly string[], opts: { cwd: string, deadlineMs: number, now: () => number }) => Promise<string[]>

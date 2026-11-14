@@ -1,5 +1,6 @@
 import type { CatalogSkill } from '../catalog'
 import type { Harness } from '../events'
+import { HARNESSES, harnessProfile, harnessTable } from '../harness/index'
 import { isUserText } from './intents'
 import type { RoutingCategory, RoutingPolicy } from './routing'
 import { parseRouteRef } from './routing'
@@ -228,6 +229,10 @@ function emptyRoute(): PromptRoute {
   return { invoked: [], load: [], candidates: [], categories: [], memory: { recall: false, write: false } }
 }
 
+// `/<id>`, or `/<namespace>:<id>` with a namespace some harness uses (`buracle`, `skill`).
+const SLASH_NAMESPACES = [...new Set(HARNESSES.flatMap(h => harnessProfile(h).skills.invoke.namespace ?? []))]
+const SLASH_LEAD = new RegExp(`^/(?:(${SLASH_NAMESPACES.join('|')}):)?([a-z0-9][a-z0-9-]*)(?=\\s|$)`)
+
 function explicitSyntax(text: string, ids: ReadonlySet<string>, invocable: ReadonlySet<string>, h: Harness): { invoked: string[], asked: string[] } {
   const invoked: string[] = []
   const asked: string[] = []
@@ -236,19 +241,20 @@ function explicitSyntax(text: string, ids: ReadonlySet<string>, invocable: Reado
     const list = native ? invoked : asked
     if (!list.includes(id) && !invoked.includes(id)) list.push(id)
   }
+  const how = harnessProfile(h).skills.invoke
   const trimmed = text.trim()
   for (const m of trimmed.matchAll(/<command-name>\s*\/?(buracle:)?([a-z0-9-]+)\s*<\/command-name>/g)) {
-    if (m[1] !== undefined || invocable.has(m[2] ?? '')) add(m[2], h === 'claude')
+    if (m[1] !== undefined || invocable.has(m[2] ?? '')) add(m[2], how.commandTag)
   }
-  const lead = /^\/(?:(buracle|skill):)?([a-z0-9][a-z0-9-]*)(?=\s|$)/.exec(trimmed)
+  const lead = SLASH_LEAD.exec(trimmed)
   if (lead && (lead[1] !== undefined || invocable.has(lead[2] ?? ''))) {
     const ns = lead[1]
-    add(lead[2], ns === 'buracle' ? h === 'claude' : ns === 'skill' ? h === 'omp' : h !== 'codex')
+    add(lead[2], ns !== undefined ? how.namespace === ns : how.slash)
   }
   const lead$ = /^\$([a-z0-9][a-z0-9-]*)(?=\s|$)/.exec(trimmed)
-  if (lead$) add(lead$[1], h === 'codex')
-  if (h === 'codex') for (const m of trimmed.matchAll(/(?:^|\s)\$([a-z0-9][a-z0-9-]*)(?![\w-])/g)) add(m[1], true)
-  if (h === 'opencode') for (const m of trimmed.matchAll(/(?:^|\s)@([a-z0-9][a-z0-9-]*)(?![\w./-])/g)) add(m[1], true)
+  if (lead$) add(lead$[1], how.dollar)
+  if (how.dollar) for (const m of trimmed.matchAll(/(?:^|\s)\$([a-z0-9][a-z0-9-]*)(?![\w-])/g)) add(m[1], true)
+  if (how.at) for (const m of trimmed.matchAll(/(?:^|\s)@([a-z0-9][a-z0-9-]*)(?![\w./-])/g)) add(m[1], true)
   return { invoked, asked }
 }
 
@@ -386,22 +392,10 @@ export function utf8Bytes(s: string): number {
 }
 
 function loadHow(h: Harness, id: string, explicit: boolean, file: string | undefined): string {
-  switch (h) {
-    case 'claude':
-      if (!explicit) return `Skill tool, buracle:${id}`
-      return `read ${file ?? `skills/${id}/SKILL.md in the Buracle plugin`}`
-    case 'codex': return `read \${CODEX_HOME:-~/.codex}/skills/${id}/SKILL.md`
-    case 'opencode': return `skill tool, ${id}`
-    case 'omp': return `read skill://${id}`
-  }
+  return harnessProfile(h).skills.load(id, explicit, file)
 }
 
-const CANDIDATE_HOW: Record<Harness, string> = {
-  claude: 'Skill tool, buracle:<id>',
-  codex: 'read ${CODEX_HOME:-~/.codex}/skills/<id>/SKILL.md',
-  opencode: 'skill tool',
-  omp: 'read skill://<id>',
-}
+const CANDIDATE_HOW: Record<Harness, string> = harnessTable(p => p.skills.candidateHow)
 
 const CATEGORY_LABEL: Record<string, string> = {
   'library-docs': 'Library docs', 'web-search': 'Web search', 'web-fetch': 'Web pages', 'code-examples': 'Public code examples',
