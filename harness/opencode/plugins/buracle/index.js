@@ -32302,6 +32302,8 @@ function assetsAfterEdit(rootIn, files, o) {
 }
 
 // src/adapters/shared/pipeline/session-start.ts
+var MEMORY_CLIP_NOTE = `
+\u2026 (truncated; use memory_search)`;
 async function workspaceStart(input, d) {
   const { sessionId: sid, cwd, now } = input;
   const w = d.workspace;
@@ -32352,7 +32354,7 @@ async function sessionStart2(input, d) {
 `)) - 64;
   const memory = room <= 400 || memoryOff(d) ? "" : await d.step("H13 memory context", "", async () => {
     const text = (await (await d.memory("contextText"))?.({ cwd, harness: H, nowMs: now, maxBytes: room }))?.trim() ?? "";
-    return clipBytes(text, room);
+    return clipBytes(text, room, MEMORY_CLIP_NOTE);
   });
   if (source === "startup")
     await d.step("H16 session maintenance", undefined, () => {

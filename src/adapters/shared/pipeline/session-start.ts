@@ -10,6 +10,9 @@ import {
   byteLength, captureOff, clipBytes, CONTEXT_BUDGET_BYTES, latestHandoffId, memoryOff, readWorkspace, saveWorkspace, type PipelineDeps,
 } from './types'
 
+/** The note on a memory index that did not fit: the rest is one search away. */
+export const MEMORY_CLIP_NOTE = '\n… (truncated; use memory_search)'
+
 /** What the last compaction left for the restore; `recent` says a compaction was recorded lately, so an empty record is trusted. */
 export interface CompactRecord { handoff?: string, todo?: string[], recent: boolean }
 
@@ -87,7 +90,7 @@ export async function sessionStart(input: SessionStartInput, d: PipelineDeps & S
   const room = CONTEXT_BUDGET_BYTES - byteLength([...before, card].filter(s => s.trim() !== '').join('\n\n')) - 64
   const memory = room <= 400 || memoryOff(d) ? '' : await d.step('H13 memory context', '', async () => {
     const text = (await (await d.memory('contextText'))?.({ cwd, harness: H, nowMs: now, maxBytes: room }))?.trim() ?? ''
-    return clipBytes(text, room)
+    return clipBytes(text, room, MEMORY_CLIP_NOTE)
   })
   if (source === 'startup') await d.step('H16 session maintenance', undefined, () => { (d.sessionMaint ?? ((n, keep) => { sessionMaint(H, n, { keep }) }))(now, [sid]) })
   return {
