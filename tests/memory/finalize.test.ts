@@ -49,7 +49,7 @@ describe('finalize', () => {
     })
   })
 
-  test('a sweep the engine refuses does not fail the session end', async () => {
+  test.skipIf(REAL_CORTEXDB)('a sweep the engine refuses does not fail the session end', async () => {
     await withBrain(async ({ repo }) => {
       await spooled(repo, SID)
       await withEnv({ FAKE_CORTEXDB_FAIL: 'sweep_expired' }, async () => {
