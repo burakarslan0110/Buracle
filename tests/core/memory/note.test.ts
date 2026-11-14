@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { memIsoLocal, memIsSlug, memLocalDate, memLocalTime, memNoteHarness, memParseTime, parseNote } from '../../../src/core/memory/note'
+import { memIsoLocal, memIsSlug, memLocalDate, memLocalTime, memNoteHarness, parseNote } from '../../../src/core/memory/note'
 
 describe('slugs', () => {
   test('only lowercase letters, digits and dashes, never a path', () => {
@@ -28,12 +28,6 @@ describe('time', () => {
     expect(memIsoLocal(t, -90)).toBe('2026-10-07T19:20:00-01:30')
     expect(memLocalDate(t, 240)).toBe('2026-10-08')
     expect(memLocalTime(t, 180)).toBe('23:50')
-  })
-
-  test('memParseTime reads ISO dates and refuses the rest', () => {
-    expect(memParseTime('2026-10-07T20:50:00Z')).toBe(t)
-    expect(memParseTime('nope')).toBeUndefined()
-    expect(memParseTime(5)).toBeUndefined()
   })
 
   test('claude is claude-code at note level; the others keep their ids', () => {

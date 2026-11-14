@@ -37,12 +37,6 @@ export function memLocalTime(ms: number, offsetMin: number): string {
   return `${pad(p.h)}:${pad(p.mi)}`
 }
 
-export function memParseTime(v: unknown): number | undefined {
-  if (typeof v !== 'string' || v === '') return undefined
-  const ms = Date.parse(v)
-  return Number.isFinite(ms) ? ms : undefined
-}
-
 export function memNoteHarness(h: string): string {
   return h === 'claude' ? 'claude-code' : h
 }

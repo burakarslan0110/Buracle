@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
-  profileCategory, profileSignature, PROFILE_QUOTE_MAX, promptSignals, sanitizePromptSignal, signalGroup,
+  profileCategory, PROFILE_QUOTE_MAX, promptSignals, sanitizePromptSignal, signalGroup,
 } from '../../../src/core/memory/signals'
 
 // The prompt hook (H26) reads no statements from word lists any more (PRD follow-up 2026-11-06): a lasting
@@ -67,10 +67,5 @@ describe('profile helpers', () => {
     expect(profileCategory('Reply in a concise tone')).toBe('communication')
     expect(profileCategory('Run the tests and verify the result')).toBe('quality')
     expect(profileCategory('Banana')).toBe('other')
-  })
-
-  test('the signature ignores word order, filler and trigger words', () => {
-    expect(profileSignature('Never push without asking me')).toBe(profileSignature('Please, without asking, never push'))
-    expect(profileSignature('always never please')).toBe('')
   })
 })
