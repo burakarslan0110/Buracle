@@ -26,7 +26,7 @@ alone, and it skips the OpenCode service step. A newer release needs no check of
 | Skills | plugin skills | `$CODEX_HOME/skills` | `~/.config/opencode/skills` | `~/.omp/agent/skills` |
 | Rules | `~/.claude/rules` | `AGENTS.md` block plus path rules read on first edit | path rules read on first edit | native conditional rules |
 | Review agents | 3 | 3 (TOML) | 3 | 3 |
-| Status line | native `statusLine` plus a band | partial: native items plus a tmux bar | TUI plugin | extension |
+| Status line | native `statusLine` plus a band | partial: native items only | TUI plugin | extension |
 | Command-line twin of every memory tool | yes (`buracle mem`) | yes | yes | yes |
 
 Recorded limits that matter for memory and the hooks:
@@ -59,7 +59,7 @@ you start it with `buracle mem ui`.
 | Codex hook command | `sh -c`, `"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle"` | the same |
 | MCP launch | `bun … mcp run <id>` hands the process to the server (`execve`), one process per server | the same |
 | Atomic state writes | rename | rename |
-| Memory UI page and notifications | `open`, `osascript` | `xdg-open`, `notify-send` |
+| Memory UI page | `open` | `xdg-open` |
 | Typecheck, build check, tests | **verified here**; CI definition | CI definition |
 | Generated hook and MCP commands executed | **verified here**: Claude exec form, Codex `sh -c`, the memory MCP entry of all four harnesses (`tests/adapters/hook-wire.test.ts`, `tests/adapters/mcp-wire.test.ts`) | CI definition (same tests, `checks` job) |
 | Install scripts | **verified here** (parsed, run against stubs in `tests/engine/install-script.test.ts`); CI definition: `posix-install` job | CI definition: `posix-install` job |

@@ -56,6 +56,6 @@ that describes the behavior you changed (`README.md`, `README.tr.md`, `AGENTS.md
 Work lands on `dev`. When CI passes there on every platform and the released files changed, CI
 picks the next patch version by itself, writes the commit to `main` at that version and without the
 test suite (`tests/` and `bunfig.toml`), one commit per release, and publishes `v<version>` from it
-with both install scripts attached. To start a new line, raise the major or minor version in
-`package.json`. The install scripts clone `main`, and `buracle update` follows it, so users get
+with the install script attached. To start a new line, raise the major or minor version in
+`package.json`. The install script clones `main`, and `buracle update` follows it, so users get
 exactly the released files. CI never runs on `main`.
