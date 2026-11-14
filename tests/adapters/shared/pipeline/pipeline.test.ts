@@ -345,6 +345,27 @@ describe('pipeline sessionStart', () => {
     expect(await workspaceStart({ sessionId: SID, cwd: `${root}/other`, subagent: true, now: NOW }, d)).toBe('')
     expect(lookups).toEqual(['prepare', 'refresh', 'info'])
   }))
+
+  test('a subagent starts with the workspace note alone: no card, memory index, restore, notice or profile warning', () => withSandbox(() => withEnv({ BURACLE_NO_NOTICES: undefined }, async () => {
+    mkdirSync(paths.stateDir(), { recursive: true })
+    writeFileSync(paths.runtimeConfigFile(), JSON.stringify({ v: 1, resolved: { codexHome: '/work/profile-a' } }))
+    const info = { cwd: '/work/app', children: [], root: '/work/app', index: { codegraph: { state: 'ready' }, semble: { state: 'ready' } } } as unknown as WorkspaceInfo
+    const ran: string[] = []
+    const o: FakeOptions = {
+      env: { CODEX_HOME: '/work/profile-b' }, canonical: { notices: [{ ...NOTICE, id: 'pipeline-notice-sub' }] } as never,
+      core: { workspaceContext: i => `workspace ${i.root}`, restoreContext: () => 'restored' },
+      memory: { contextText: async () => { ran.push('memory'); return 'the memory index' } },
+      workspace: { workspaceInfo: async () => info },
+    }
+    const ports = startPorts({ recent: true, todo: ['Ship it'] }, { capabilityCard: () => { ran.push('card'); return 'Capability card' }, extraContext: ['resume the run'], profileNote: f => `tell the user: ${f}` })
+    for (const source of ['startup', 'resume', 'compact']) {
+      const d = fakeDeps(o)
+      expect(await sessionStart({ harness: H, sessionId: SID, cwd: '/work/app', source, subagent: true, now: NOW }, { ...d, ...ports })).toEqual({ context: ['workspace /work/app'] })
+      expect(d.rec.ui).toEqual([])
+    }
+    expect(ran).toEqual([])
+    expect(await sessionStart({ harness: H, sessionId: SID, cwd: '/work/app', source: 'startup', subagent: true, now: NOW }, { ...fakeDeps({ ...o, workspace: {} }), ...ports })).toEqual({ context: [] })
+  })))
 })
 
 describe('pipeline postTool, preCompact and sessionEnd', () => {

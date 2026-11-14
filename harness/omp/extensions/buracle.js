@@ -26407,10 +26407,22 @@ async function sessionStart(input, d) {
   if (!sub)
     await d.step("H14 memory UI", undefined, () => source === "compact" ? d.ui.seen(H, sid, now) : d.ui.started(H, sid, now));
   const workspace = await d.step("H21 workspace", "", () => workspaceStart(input, d));
-  const assets = sub ? "" : await d.step("H28 project assets", "", () => assetsSessionStart(readWorkspace(d.ctx, H, sid)?.root, H, assetsOptions(now, d.assetsSpawn)));
+  const maint = async () => {
+    if (source === "startup")
+      await d.step("H16 session maintenance", undefined, () => {
+        (d.sessionMaint ?? ((n, keep) => {
+          sessionMaint(H, n, { keep });
+        }))(now, [sid]);
+      });
+  };
+  if (sub) {
+    await maint();
+    return { context: [workspace].filter((s) => s.trim() !== "") };
+  }
+  const assets = await d.step("H28 project assets", "", () => assetsSessionStart(readWorkspace(d.ctx, H, sid)?.root, H, assetsOptions(now, d.assetsSpawn)));
   const card = await d.step("H15 capability card", "", () => d.capabilityCard());
   const restored = source === "compact" ? await d.step("H07 restore", "", () => compactRestore(input, d)) : "";
-  const notice = source === "startup" && !sub && !noticesOff(d.hostEnv ?? d.env) ? await d.step("H17 notices", undefined, () => startupNotices(d.ctx.canonical.notices, { version: d.version !== undefined ? d.version() : runtimeVersion(d.ctx.repoRoot), nowMs: now, harness: H })) : undefined;
+  const notice = source === "startup" && !noticesOff(d.hostEnv ?? d.env) ? await d.step("H17 notices", undefined, () => startupNotices(d.ctx.canonical.notices, { version: d.version !== undefined ? d.version() : runtimeVersion(d.ctx.repoRoot), nowMs: now, harness: H })) : undefined;
   const profile = source !== "startup" ? undefined : await d.step("H17 profile guard", undefined, () => {
     const r = readJsonSafeSync(d.ctx.paths.runtimeConfigFile());
     return profileGuard(H, r.ok ? r.value : undefined, d.hostEnv ?? d.env);
@@ -26423,12 +26435,7 @@ async function sessionStart(input, d) {
     const text = (await (await d.memory("contextText"))?.({ cwd, harness: H, nowMs: now, maxBytes: room }))?.trim() ?? "";
     return clipBytes(text, room, MEMORY_CLIP_NOTE);
   });
-  if (source === "startup")
-    await d.step("H16 session maintenance", undefined, () => {
-      (d.sessionMaint ?? ((n, keep) => {
-        sessionMaint(H, n, { keep });
-      }))(now, [sid]);
-    });
+  await maint();
   return {
     context: [...before, memory, card].filter((s) => s.trim() !== ""),
     ...notice !== undefined ? { notice } : {},

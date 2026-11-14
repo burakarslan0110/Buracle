@@ -280,6 +280,24 @@ describe('SessionStart and SubagentStart: H21 workspace lines, H24 ledger reset'
       expect(context(other.stdout)).toContain('Project root:')
     })
   })
+
+  test('a subagent starts with the workspace lines alone, at SubagentStart and at a SessionStart that names an agent: no capability card, no memory index', async () => {
+    await withSandbox(async sb => {
+      saveWorkspace(SID, info(sb.root))
+      const loaded: string[] = []
+      const d = deps({ refreshWorkspace: i => i, importModule: async name => { loaded.push(name); return name === 'context' ? { contextText: async () => 'the memory index' } : undefined } })
+      for (const event of ['SubagentStart', 'SessionStart']) {
+        const text = context((await claudeHook(event, payload(event, { source: 'startup', cwd: sb.root, agent_id: 'a1', agent_type: 'Explore' }), ctx(), d)).stdout)
+        expect(text).toStartWith(`Project root: ${sb.root}.`)
+        expect(text).not.toContain('Buracle capabilities')
+        expect(text).not.toContain('the memory index')
+      }
+      expect(loaded).not.toContain('context')
+      const main = context((await claudeHook('SessionStart', payload('SessionStart', { source: 'startup', cwd: sb.root }), ctx(), deps({ prepareWorkspace: async () => info(sb.root), importModule: d.importModule! }))).stdout)
+      expect(main).toContain('Buracle capabilities (Claude Code)')
+      expect(main).toContain('the memory index')
+    })
+  })
 })
 
 describe('UserPromptExpansion and UserPromptSubmit: H25 flow, H22 router, H24 ledger, H26 signals, the permission mode', () => {

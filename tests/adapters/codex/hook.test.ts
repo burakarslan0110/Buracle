@@ -253,6 +253,25 @@ describe('SessionStart', () => {
     expect(prepared).toEqual(['/work/app'])
   }))
 
+  test('a subagent starts with the workspace note alone: no memory context, capability card or profile warning', () => withSandbox(() => withEnv({ CODEX_HOME: '/work/profile-b' }, async () => {
+    mkdirSync(paths.stateDir(), { recursive: true })
+    writeFileSync(paths.runtimeConfigFile(), JSON.stringify({ v: 1, resolved: { codexHome: '/work/profile-a' } }))
+    const info = { cwd: '/work/app', children: [], root: '/work/app', index: { codegraph: { state: 'ready' }, semble: { state: 'ready' } } } as never
+    const d = { ...deps(quiet, memoryText(3), { CODEX_HOME: '/work/profile-b' }), workspaceInfo: async () => info }
+    const sub = { agent_id: '019a1b2c-3d4e-7f60-8a9b-0c1d2e3f4b00', agent_type: 'worker' }
+    const main = JSON.parse((await handleCodexHook('SessionStart', payload('SessionStart', { source: 'startup' }), ctx(), d)).stdout)
+    expect(main.hookSpecificOutput.additionalContext).toContain('Capability card')
+    expect(main.hookSpecificOutput.additionalContext).toContain('## Project memory: proj')
+    expect(main.systemMessage).toContain('/work/profile-a')
+    for (const event of ['SessionStart', 'SubagentStart']) {
+      const out = JSON.parse((await handleCodexHook(event, payload(event, { source: 'startup', ...sub }), ctx(), d)).stdout)
+      expect(keys(out)).toEqual(['hookSpecificOutput'])
+      expect(out.hookSpecificOutput.additionalContext).toStartWith('Project root: /work/app.')
+      expect(out.hookSpecificOutput.additionalContext).not.toContain('Capability card')
+      expect(out.hookSpecificOutput.additionalContext).not.toContain('Buracle memory')
+    }
+  })))
+
   test('H13 memory context + H15 card as additionalContext, the session record started', () => withSandbox(async ({ root }) => {
     const cwd = join(root, 'proj')
     mkdirSync(cwd)
