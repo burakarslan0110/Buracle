@@ -9576,6 +9576,12 @@ async function projectIdentity(cwd) {
 async function projectSlug(cwd) {
   return (await projectIdentity(cwd)).slug;
 }
+
+// src/adapters/shared/pipeline/types.ts
+function denyReason(hook, reason) {
+  return `Buracle ${hook}: ${reason.replace(/^Buracle:\s*/, "")}`;
+}
+var FENCE_FAILED = denyReason("H01", "the read-only check of this second-opinion review failed, so the call was blocked.");
 // src/core/policy/switch-off.ts
 var RELOCATION_VARS = [
   "BURACLE_HOME",

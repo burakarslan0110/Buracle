@@ -21229,6 +21229,7 @@ function guardFailed(hook, e) {
   const what = hook === "H01" ? "bash guard could not check this command" : "write guard could not check the files of this edit";
   return denyReason(hook, `the ${what} (${errText(e)}), so the call is blocked: Buracle's guards fail closed. Ask the user to run it themselves, or have them check \`buracle doctor\`.`);
 }
+var FENCE_FAILED = denyReason("H01", "the read-only check of this second-opinion review failed, so the call was blocked.");
 function byteLength(s) {
   return new TextEncoder().encode(s).length;
 }
@@ -34052,7 +34053,6 @@ function registerCompaction(pi, host) {
 }
 
 // src/adapters/omp/runtime/companion-fence.ts
-var FENCE_FAILED = "Buracle H01: the read-only check of this second-opinion review failed, so the call was blocked.";
 function reviewerFenceFromEnv() {
   return companionAgent(process.env[REVIEWER_AGENT_ENV]);
 }
@@ -34062,7 +34062,7 @@ function fenceToolCall(agent, event) {
   try {
     const input = event.input !== null && typeof event.input === "object" ? event.input : {};
     const why = companionToolDenial("omp", agent, String(event.toolName), input);
-    return why === undefined ? undefined : { block: true, reason: `Buracle H01: ${why.replace(/^Buracle:\s*/, "")}` };
+    return why === undefined ? undefined : { block: true, reason: denyReason("H01", why) };
   } catch {
     return { block: true, reason: FENCE_FAILED };
   }

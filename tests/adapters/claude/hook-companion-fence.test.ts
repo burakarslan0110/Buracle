@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { claudeHook, defaultHookDeps } from '../../../src/adapters/claude/hook'
 import type { AdapterContext } from '../../../src/adapters/registry'
+import { FENCE_FAILED } from '../../../src/adapters/shared/pipeline/index'
 import { hookBundle } from '../../../src/cli/hook-data'
 import type { CanonicalBundle } from '../../../src/core/catalog'
 import { defaultConfig } from '../../../src/core/config'
@@ -34,6 +35,16 @@ describe('PreToolUse: the second-opinion fence holds when settings allow rules w
       const d = await decide(tool, input)
       expect({ tool, fenced: d.reason.includes('second opinion') }).toEqual({ tool, fenced: false })
     }
+  })))
+
+  test('a fence denial has the one shape of every denial: `Buracle H01: …`, never a bare `Buracle: …`', () => withSandbox(() => withEnv({ BURACLE_REVIEWER_AGENT: 'changes-review' }, async () => {
+    const calls: Array<[string, Record<string, unknown>]> = [['Bash', { command: 'touch pwned.txt' }], ['Write', { file_path: '/tmp/project/a.ts', content: 'x' }], ['mcp__other__save', {}]]
+    for (const [tool, input] of calls) {
+      const d = await decide(tool, input)
+      expect({ tool, decision: d.decision, reason: d.reason }).toEqual({ tool, decision: 'deny', reason: expect.stringMatching(/^Buracle H01: this run is a read-only second opinion \(changes-review\) and /) })
+      expect(d.reason).not.toContain('Buracle: ')
+    }
+    expect(FENCE_FAILED).toBe('Buracle H01: the read-only check of this second-opinion review failed, so the call was blocked.')
   })))
 
   test('without the marker (or with a name that is not a review agent) the fence stays out of the way', () => withSandbox(async () => {

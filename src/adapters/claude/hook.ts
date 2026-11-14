@@ -30,14 +30,14 @@ import { consentFile, readConsentState } from '../shared/consent-store'
 import { claudeOffServers } from '../shared/native-off'
 import type { AssetsSpawner } from '../shared/project-assets'
 import {
-  guardFailed, mcpHealth, postTool, preTool, prompt as promptEvent, recordMcpResult, sessionStart as sessionStartEvent, workspaceStart,
+  denyReason, FENCE_FAILED, guardFailed, mcpHealth, postTool, preTool, prompt as promptEvent, recordMcpResult, sessionStart as sessionStartEvent, workspaceStart,
 } from '../shared/pipeline/index'
 import { realWriteTarget } from '../shared/realpath'
 import { buracleRepoFor } from '../shared/repo'
 import { SHELL_TOOLS } from './constants'
 import { postCompact, preCompact, REVIEW_AGENT, sessionEnd, stop, subagentStop } from './hook-end'
 import { HANDBACK_TOOL, subagentHandback } from './hook-handback'
-import { GUARD_FAILED, H, QUIET, contextOut, isObj, isSubagent, out, pipelineDeps, step, str, type HookOutcome } from './hook-io'
+import { H, QUIET, contextOut, isObj, isSubagent, out, pipelineDeps, step, str, type HookOutcome } from './hook-io'
 import {
   availableServers, capabilityCardText, memoryOnlyRouting, permissionNotice, pluginRoot, pluginServers, projectDeps, promptRouting, readWorkspace,
   routerData, type PromptRouting, type RouterData,
@@ -48,7 +48,7 @@ import { writeContents } from './write-content'
 
 export type { HookOutcome } from './hook-io'
 export { CONTEXT_BUDGET_BYTES, clipBytes } from '../shared/pipeline/index'
-export { FALLBACK_SPOOL_SUFFIX, GUARD_FAILED } from './hook-io'
+export { FALLBACK_SPOOL_SUFFIX } from './hook-io'
 export { REVIEW_AGENT, reviewNote, runawayNotice } from './hook-end'
 export { capabilityCardText, readHealth } from './hook-route'
 
@@ -325,14 +325,16 @@ async function preToolDecision(p: Record<string, unknown>, sid: string, ctx: Ada
   return r.action === 'deny' ? deny(r.reason) : r.context
 }
 
+/** The second-opinion fence's denial, in the one shape of every denial. */
 function companionFence(d: HookDeps, tool: string, input: Record<string, unknown>): string | undefined {
   const agent = companionAgent(d.env(REVIEWER_AGENT_ENV))
   if (agent === undefined) return undefined
   try {
-    return companionToolDenial(H, agent, tool, input)
+    const why = companionToolDenial(H, agent, tool, input)
+    return why !== undefined ? denyReason('H01', why) : undefined
   } catch (e) {
     log('error', 'claude hook PreToolUse: the second-opinion fence failed; denying (fail closed)', { tool, error: e })
-    return GUARD_FAILED
+    return FENCE_FAILED
   }
 }
 

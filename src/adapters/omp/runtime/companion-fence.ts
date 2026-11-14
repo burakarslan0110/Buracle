@@ -1,7 +1,6 @@
 import { REVIEWER_AGENT_ENV, companionAgent, companionToolDenial } from '../../../core/policy/companion-fence'
+import { denyReason, FENCE_FAILED } from '../../shared/pipeline/types'
 import type { OmpExtensionAPI, OmpToolCallEvent, OmpToolCallResult } from './types'
-
-const FENCE_FAILED = 'Buracle H01: the read-only check of this second-opinion review failed, so the call was blocked.'
 
 export function reviewerFenceFromEnv(): string | undefined {
   return companionAgent(process.env[REVIEWER_AGENT_ENV])
@@ -12,7 +11,7 @@ export function fenceToolCall(agent: string | undefined, event: OmpToolCallEvent
   try {
     const input = event.input !== null && typeof event.input === 'object' ? event.input : {}
     const why = companionToolDenial('omp', agent, String(event.toolName), input)
-    return why === undefined ? undefined : { block: true, reason: `Buracle H01: ${why.replace(/^Buracle:\s*/, '')}` }
+    return why === undefined ? undefined : { block: true, reason: denyReason('H01', why) }
   } catch {
     return { block: true, reason: FENCE_FAILED }
   }

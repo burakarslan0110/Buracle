@@ -9,7 +9,6 @@ export interface HookOutcome { stdout: string; exitCode: number }
 export const QUIET: HookOutcome = { stdout: '', exitCode: 0 }
 export const H = 'claude' as const
 export const FALLBACK_SPOOL_SUFFIX = 'classic'
-export const GUARD_FAILED = 'buracle: the command guard (H01) failed, so the command was not run. Retry it; if this repeats, run `buracle doctor claude` and check ~/.buracle/logs/buracle.log.'
 
 export function out(obj: unknown): HookOutcome {
   return { stdout: JSON.stringify(obj) + '\n', exitCode: 0 }
