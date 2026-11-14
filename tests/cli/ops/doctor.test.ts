@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { chmodSync, cpSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { run as doctorRun, indexSection, usage as doctorUsage } from '../../../src/cli/commands/doctor'
+import { run as doctorRun, healthChecks, healthSections, indexSection, printHealth, usage as doctorUsage, type HealthSection } from '../../../src/cli/commands/doctor'
 import { cliVersion } from '../../../src/cli/router'
 import { run as installRun } from '../../../src/cli/commands/install'
 import { defaultConfig } from '../../../src/core/config'
@@ -693,4 +693,40 @@ describe('buracle doctor runtime: unsettled transactions, stale locks, generated
       expect(drifted.some(c => c.check === 'generated' && c.detail.includes('canonical/ changed after the last `buracle build`'))).toBe(true)
     })
   }), 60_000)
+})
+
+describe('the one body of the health commands: a scope in, findings out, one printer', () => {
+  const ALL: HealthSection[] = ['config', 'runtime', 'tools', 'harness', 'mcp', 'lsp', 'memory', 'index', 'updates']
+
+  test('a scope names its sections: everything without one, config + runtime + the harness for a harness, else the one section', () => {
+    const of = (scope: string | undefined) => ALL.filter(healthSections(scope))
+    expect(of(undefined)).toEqual(ALL)
+    expect(of('codex')).toEqual(['config', 'runtime', 'harness'])
+    for (const s of ['mcp', 'lsp', 'memory', 'index', 'tools'] as const) expect(of(s)).toEqual([s])
+  })
+
+  test('printHealth: the same findings give the JSON document and the piped table, and the exit code of the worst level', () => {
+    const checks: DoctorCheck[] = [
+      { section: 'lsp', level: 'ok', check: 'pyright', detail: 'answered initialize in 12 ms' },
+      { section: 'index', level: 'warn', check: 'index.semble', detail: 'not built yet' },
+    ]
+    const j = memoryIO({ json: true })
+    expect(printHealth(j, checks, { json: true, all: false })).toBe(2)
+    expect(JSON.parse(j.out())).toEqual({ ok: false, code: 2, summary: { ok: 1, info: 0, warn: 1, error: 0 }, checks })
+    const t = memoryIO()
+    expect(printHealth(t, [...checks, { section: 'mcp', level: 'error', check: 'semble', detail: 'down' }], { json: false, all: false })).toBe(1)
+    expect(t.out()).toContain('1 ok, 1 warning(s), 1 error(s).')
+    expect(t.out().split('\n')[0]).toMatch(/^\s*SECTION\s+CHECK\s+STATUS\s+DETAIL$/)
+  })
+
+  test('`buracle doctor index` prints exactly what the body gathers for that scope', () => withSandbox(async ({ root }) => {
+    const repo = makeRepo(root)
+    await withDeps({ repoRoot: () => repo }, async () => {
+      const io = memoryIO({ json: true })
+      const code = await doctorRun(['index', '--json'], io)
+      const viaBody = memoryIO({ json: true })
+      expect(printHealth(viaBody, await healthChecks('index'), { json: true, all: false })).toBe(code)
+      expect(JSON.parse(io.out())).toEqual(JSON.parse(viaBody.out()))
+    })
+  }))
 })
