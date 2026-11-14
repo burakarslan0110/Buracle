@@ -20,9 +20,25 @@ export interface ToolCall {
 }
 export interface ToolResult extends ToolCall { ok: boolean; output?: string; addedText?: string }
 export type PreDecision = { action: 'allow', context?: string[] } | { action: 'deny', reason: string, hook: HookId }
-export interface StopInput { harness: Harness; sessionId: string; cwd: string; lastMessage?: string; hookActive?: boolean; backgroundWait?: boolean; readOnly?: boolean; now: number }
+export interface StopInput { harness: Harness; sessionId: string; cwd: string; lastMessage?: string; hookActive?: boolean; backgroundWait?: boolean; readOnly?: boolean; subagent?: boolean; now: number }
 export type StopDecision = { action: 'allow' } | { action: 'block', reason: string, hook: HookId }
-export interface PromptInput { harness: Harness; sessionId: string; cwd: string; text: string; now: number }
+export interface PromptInput { harness: Harness; sessionId: string; cwd: string; text: string; userText?: boolean; now: number }
+
+// The seven events every harness maps its native hooks onto. The types above and below are their
+// inputs and decisions: ToolCall/PreDecision (preTool), ToolResult/PostToolDecision (postTool),
+// PromptInput/PromptDecision (prompt), StopInput/StopDecision (stop).
+export type CanonicalEvent = 'sessionStart' | 'prompt' | 'preTool' | 'postTool' | 'stop' | 'preCompact' | 'sessionEnd'
+
+export const CANONICAL_EVENTS: readonly CanonicalEvent[] = ['sessionStart', 'prompt', 'preTool', 'postTool', 'stop', 'preCompact', 'sessionEnd']
+
+export interface SessionStartInput { harness: Harness; sessionId: string; cwd: string; source: string; model?: string; subagent?: boolean; now: number }
+export interface SessionStartDecision { context: string[] }
+export interface PromptDecision { context: string[] }
+export interface PostToolDecision { context: string[] }
+export interface CompactInput { harness: Harness; sessionId: string; cwd: string; trigger?: string; now: number }
+export interface CompactDecision { handoff?: string; todo: string[] }
+export interface SessionEndInput { harness: Harness; sessionId: string; now: number }
+export interface SessionEndDecision { finalized: boolean }
 export type HookId = 'H01' | 'H02' | 'H03' | 'H04' | 'H05' | 'H06' | 'H07' | 'H08' | 'H09' | 'H10' | 'H11' | 'H12' | 'H13' | 'H14' | 'H15' | 'H16' | 'H17' | 'H18' | 'H19' | 'H20' | 'H21'
   | 'H22' | 'H23' | 'H24' | 'H25' | 'H26' | 'H28'
 

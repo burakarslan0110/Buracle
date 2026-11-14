@@ -1,16 +1,16 @@
 import { join } from 'node:path'
 import type * as CoreNs from '../../core/index'
-import type { Harness, ToolCall } from '../../core/events'
+import type { Harness } from '../../core/events'
 import type { BuracleConfig } from '../../core/config'
 import type { McpHealth, RoutingPolicy } from '../../core/policy/routing'
 import { mcpHealthOf } from '../../core/policy/routing'
 import type { PathRuleSource } from '../../core/policy/path-rules'
 import type { PromptRoute } from '../../core/policy/skill-router'
-import type { ReminderResult, UsageLedger, WorkspaceFacts } from '../../core/policy/usage'
+import type { UsageLedger, WorkspaceFacts } from '../../core/policy/usage'
 import type { WorkspaceInfo } from '../../core/workspace'
 import { atomicWriteSync, ensureDirSync, readJsonSafeSync } from '../../engine/fsx'
 import { flowViewFor, recordFlowStart } from '../../workflow/flow'
-import { loadLedger, updateLedger } from '../../workflow/ledger'
+import { loadLedger } from '../../workflow/ledger'
 import { canonicalDir, codegraphIndexPresent, exclusionContext } from '../../workflow/workspace'
 import type { AdapterContext } from '../registry'
 import { codexOffServers } from '../shared/native-off'
@@ -40,14 +40,6 @@ export function loadWorkspaceInfo(ctx: Pick<AdapterContext, 'paths'>, sid: strin
 export function saveWorkspaceInfo(ctx: Pick<AdapterContext, 'paths'>, sid: string, info: WorkspaceInfo): void {
   ensureDirSync(ctx.paths.sessionDir(H, sid))
   atomicWriteSync(workspaceFile(ctx, sid), JSON.stringify(info) + '\n')
-}
-
-export function workspaceNoticeFor(ctx: Pick<AdapterContext, 'paths' | 'config'>, sid: string, core: CoreFns, refresh: (info: WorkspaceInfo) => WorkspaceInfo): string | undefined {
-  const prev = loadWorkspaceInfo(ctx, sid)
-  if (prev === undefined) return undefined
-  const next = refresh(prev)
-  if (JSON.stringify(next) !== JSON.stringify(prev)) saveWorkspaceInfo(ctx, sid, next)
-  return core.workspaceNotice(prev, next)
 }
 
 export function readMcpHealth(ctx: Pick<AdapterContext, 'paths'>, nowMs: number = Date.now()): McpHealth {
@@ -100,11 +92,6 @@ export function sessionHealth(ctx: Pick<AdapterContext, 'paths' | 'config'>, cor
   return core.withOffServers(core.sessionMcpHealth(readMcpHealth(ctx, nowMs), loadLedger(H, sid)), offServers(ctx, core, native))
 }
 
-export function recordMcpResult(core: CoreFns, sid: string, server: string, ok: boolean): void {
-  if (ok && loadLedger(H, sid).mcpErrors?.[server] === undefined) return
-  updateLedger(H, sid, l => core.ledgerMcpResult(l, server, ok))
-}
-
 export function workspaceFacts(ctx: Pick<AdapterContext, 'paths' | 'config'>, info: WorkspaceInfo | undefined): WorkspaceFacts {
   const exclusion = exclusionContext(ctx.paths.oldVaultRoot(), ctx.config.index.exclude)
   const facts: WorkspaceFacts = { home: ctx.paths.home(), caseInsensitive: exclusion.caseInsensitive, exclusion, realpath: canonicalDir, codegraphIndexed: false }
@@ -131,10 +118,6 @@ export function routeUserPrompt(prompt: string, o: { ctx: Pick<AdapterContext, '
   }
   const text = o.core.routeText(route, H, o.policy, { triggers: compiled })
   return text !== undefined ? { route, text } : { route }
-}
-
-export function recordPrompt(sid: string, route: PromptRoute, now: number, core: CoreFns): void {
-  updateLedger(H, sid, l => core.ledgerPrompt(l, route, now))
 }
 
 function escapeRe(s: string): string {
@@ -169,45 +152,6 @@ export function resumeNotice(sid: string, now: number, cfg: Pick<BuracleConfig, 
   }
 }
 
-export interface UsageVerdict {
-  deny?: string
-  context?: string
-  loaded?: string
-}
-
 export function codexPathRules(ctx: Pick<AdapterContext, 'canonical' | 'paths'>, core: CoreFns): PathRuleSource | undefined {
   try { return pathRuleSource(core.pathRuleIndex(ctx.canonical.rules), ctx.paths.pathRulesDir(), { home: ctx.paths.home() }) } catch { return undefined }
-}
-
-export function usageReminders(call: ToolCall, sid: string, o: { ctx: Pick<AdapterContext, 'config'>, core: CoreFns, policy: RoutingPolicy, available: readonly string[], facts: WorkspaceFacts, edits?: ReadonlyArray<{ file: string, removed: string, added: string }>, pathRules?: PathRuleSource }): UsageVerdict {
-  let result: ReminderResult | undefined
-  let loaded: string | undefined
-  updateLedger(H, sid, l => {
-    const r = o.core.reminders(l, call, {
-      strictness: o.ctx.config.routing.strictness, reminders: o.ctx.config.routing.reminders, available: o.available,
-      policy: o.policy, facts: o.facts, ...(o.edits !== undefined ? { edits: o.edits } : {}),
-      ...(o.pathRules !== undefined ? { pathRules: o.pathRules } : {}),
-    })
-    result = r
-    const skill = r.deny === undefined ? o.core.skillOf(call, H) : undefined
-    if (skill !== undefined && l.skills[skill] === undefined) loaded = skill
-    return r.next
-  })
-  const out: UsageVerdict = {}
-  if (result?.deny !== undefined) out.deny = result.deny.reason
-  if (result?.context !== undefined) out.context = result.context
-  if (loaded !== undefined) out.loaded = loaded
-  return out
-}
-
-export function stopAudit(sid: string, core: CoreFns): string | undefined {
-  if (core.turnAudit(loadLedger(H, sid)).action !== 'block') return undefined
-  let reason: string | undefined
-  updateLedger(H, sid, l => {
-    const d = core.turnAudit(l)
-    if (d.action !== 'block') return l
-    reason = d.reason
-    return core.ledgerAudited(l, d)
-  })
-  return reason
 }

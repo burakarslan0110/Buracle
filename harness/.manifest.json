@@ -414,7 +414,7 @@
     },
     "harness/claude/hooks/core/events.ts": {
       "by": "claude",
-      "sha256": "5a9a674533268752cf197ce9183eb82efba0acb1de0b0e6b0e20da1bc3b17878",
+      "sha256": "c570a32dadccc7f5d42f588b0029873a43044e163d7ac37f77664846753303d8",
       "exec": false
     },
     "harness/claude/hooks/core/flow/band.ts": {

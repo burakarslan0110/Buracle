@@ -3,9 +3,10 @@ import type { Harness, HookId } from '../../core/events'
 import { atomicWriteSync, ensureDirSync, readJsonSafeSync } from '../../engine/fsx'
 import { log } from '../../engine/log'
 import type { AdapterContext } from '../registry'
+import { CONTEXT_BUDGET_BYTES } from '../shared/pipeline/types'
 
 const H: Harness = 'codex'
-export const CONTEXT_BUDGET_BYTES = 9_600
+export { CONTEXT_BUDGET_BYTES }
 
 export type Payload = Record<string, unknown>
 export interface HookOutcome { stdout: string, exitCode: number }
@@ -44,10 +45,6 @@ export function clipBytes(text: string, max: number, note = '\n… (truncated)')
   while (cut.length > 0 && enc.encode(cut).length > room) cut = cut.slice(0, Math.floor(cut.length * 0.9))
   const nl = cut.lastIndexOf('\n')
   return (nl > cut.length * 0.5 ? cut.slice(0, nl) : cut) + note
-}
-
-export function byteLength(s: string): number {
-  return new TextEncoder().encode(s).length
 }
 
 type ContextEvent = 'SessionStart' | 'SubagentStart' | 'UserPromptSubmit' | 'PreToolUse' | 'PostToolUse'
