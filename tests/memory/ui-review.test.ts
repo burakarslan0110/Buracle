@@ -108,6 +108,40 @@ describe('the review page', () => {
     })
   })
 
+  test('"waiting for your approval" is read from the session\'s plan state: the plan phase, not approved, not a build contract', async () => {
+    await withSandbox(async ({ root }) => {
+      const { plan, repo } = await setup(root)
+      const build = join(repo, 'docs', 'goal-build', '2026-11-04-offline.md')
+      const guard = { blocksForPlan: 0, blocksInChain: 0 }
+      const asked = async (rel: string): Promise<string | undefined> => {
+        const docs = ((await getJson(ctx(), '/api/review/docs')).body['repos'] as Array<{ docs: Array<{ rel: string, asked?: string }> }>)[0]!.docs
+        return docs.find(d => d.rel === rel)?.asked
+      }
+      const planRel = 'docs/plans/2026-10-18-limit.md'
+      // No session holds the plan: nothing says it waits.
+      expect(await asked(planRel)).toBeUndefined()
+      // The turn ended in the plan phase with the plan not approved: the stop guard let it end to wait for the user.
+      saveState('codex', 'review-w1', { v: 1, plan: { path: plan, slug: 'limit', status: 'PENDING', type: 'Feature', phase: 'plan', registeredAt: NOW }, guard })
+      expect(Number.isFinite(Date.parse(await asked(planRel) as string))).toBe(true)
+      // A question to the user in that phase waits too, since the moment it was asked.
+      saveState('codex', 'review-w1', { v: 1, plan: { path: plan, slug: 'limit', status: 'PENDING', type: 'Feature', phase: 'plan', registeredAt: NOW }, interaction: { state: 'paused', kind: 'decision', since: NOW - 60_000, reason: 'plan approval' }, guard })
+      expect(await asked(planRel)).toBe(new Date(NOW - 60_000).toISOString())
+      // Approved, by its status or by the recorded approval, or past the plan phase: it no longer waits.
+      saveState('codex', 'review-w1', { v: 1, plan: { path: plan, slug: 'limit', status: 'APPROVED', type: 'Feature', phase: 'plan', registeredAt: NOW }, guard })
+      expect(await asked(planRel)).toBeUndefined()
+      saveState('codex', 'review-w1', { v: 1, plan: { path: plan, slug: 'limit', status: 'PENDING', type: 'Feature', phase: 'plan', registeredAt: NOW }, approvals: { planApprovedAt: NOW }, guard })
+      expect(await asked(planRel)).toBeUndefined()
+      saveState('codex', 'review-w1', { v: 1, plan: { path: plan, slug: 'limit', status: 'PENDING', type: 'Feature', phase: 'implement', registeredAt: NOW }, guard })
+      expect(await asked(planRel)).toBeUndefined()
+      // A build contract is not approved through the plan phase.
+      saveState('codex', 'review-w2', { v: 1, plan: { path: build, slug: 'offline', status: 'PENDING', type: 'Build', phase: 'plan', registeredAt: NOW }, guard })
+      expect(await asked('docs/goal-build/2026-11-04-offline.md')).toBeUndefined()
+      // The page shows the badge from that field alone.
+      const js = readFileSync(join(UI_DIR, 'review.js'), 'utf8')
+      expect(js).toContain('return d.asked !== undefined && d.approved !== true')
+    })
+  })
+
   test('a note is written only with the token and the page origin, and the agent reads it with buracle plan notes', async () => {
     await withSandbox(async ({ root }) => {
       const { repo, plan } = await setup(root)
