@@ -29,7 +29,7 @@ const FALLBACK_TESTS: Readonly<Record<string, { file: string, title: string }>> 
   'codex.commands-without-turn': { file: 'tests/adapters/parity.test.ts', title: 'codex cannot register commands: its AGENTS block names the equivalents ($memory, the CLI twins, native /side)' },
   'codex.live-exec-mask': { file: 'tests/adapters/parity.test.ts', title: 'codex: a synchronous PostToolUse group of shell and MCP results runs the mask handler' },
   'codex.failed-mcp-mask': { file: 'tests/adapters/parity.test.ts', title: 'codex: a synchronous PostToolUse group of shell and MCP results runs the mask handler' },
-  'codex.live-panes': { file: 'tests/usage/cli-statusline.test.ts', title: 'codex tmux: the running workflow of the Codex session goes into the one line (Codex has no band above the prompt)' },
+  'codex.live-panes': { file: 'tests/adapters/codex/hook-receipt.test.ts', title: 'a workflow that ends is announced once, at the next Stop or prompt; workflow.codexNotices false keeps it quiet' },
   'codex.custom-status-line': { file: 'tests/core/status/layout.test.ts', title: 'codex: native footer and terminal title ids exist in codex 0.161.0' },
   'codex.summary-keep-list': { file: 'tests/adapters/parity.test.ts', title: 'workflow switches and review records (w3): H19 binds reports to the bound plans, H06/H07 carry the running reviewers, and the model-switch step names each harness\'s own command' },
   'opencode.consent-dialog': { file: 'tests/adapters/parity.test.ts', title: 'the immediate consent question on all four: the Claude mod, Codex\'s own approval prompt (an execpolicy prompt rule), the OpenCode TUI and the omp TUI' },

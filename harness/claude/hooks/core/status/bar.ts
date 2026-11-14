@@ -223,12 +223,6 @@ function footerParts(bar: BarModel, info: BarInfo, nowMs: number, emoji: boolean
     const extra = idx.dim === true ? { dim: true } : {}
     out.push({ priority: 44, variants: [[seg('index', idx.long, idx.color, extra)], [seg('index', idx.short, idx.color, extra)]] })
   }
-  const m = bar.month
-  if (m !== undefined) {
-    const approx = m.estimate ? '≈' : ''
-    const text = m.pct !== undefined && Number.isFinite(m.pct) ? `mo ${formatPct(m.pct)}%` : m.usd !== undefined && Number.isFinite(m.usd) ? `mo ${approx}${formatUsd(m.usd)}` : m.tokens > 0 ? `mo ${formatTokens(m.tokens)} tok` : ''
-    if (text !== '') out.push({ priority: 40, variants: [[seg('month', text, 'gray')]] })
-  }
   if (bar.cost !== undefined && Number.isFinite(bar.cost.usd) && bar.cost.usd > 0) out.push({ priority: 42, variants: [[seg('cost', formatUsd(bar.cost.usd), 'gray')]] })
   if (bar.updates !== undefined && Number.isFinite(bar.updates) && bar.updates > 0) out.push({ priority: 20, variants: [[seg('upd', `⬆${Math.round(bar.updates)}`, 'magenta')]] })
   return out

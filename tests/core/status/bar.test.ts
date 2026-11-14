@@ -119,20 +119,6 @@ describe('barLines', () => {
     expect(footer(bar())).toBe('Buracle 0.2.0 · CC 2.1.294 (Max) · Buracle Console: localhost:41777')
   })
 
-  test('the footer shows the month estimate and the updates after the index state; the updates go first when space runs out', () => {
-    const month = { tokens: 0, usd: 212.4, estimate: true }
-    const footer = (b: BarModel, w = 200) => renderPlainLines(barLines(b, INFO, LAYOUT, w, NOW)).split('\n').at(-1) ?? ''
-    expect(footer(bar({ index: 'ready', month, updates: 2 }))).toBe('Buracle 0.2.0 · CC 2.1.294 (Max) · Buracle Console: localhost:41777 · idx ready · mo ≈$212 · ⬆2')
-    const full = bar({ index: 'ready', month, updates: 2 })
-    const widths: Record<string, number> = {}
-    for (let w = 200; w >= 20; w--) {
-      const text = footer(full, w)
-      if (!text.includes('⬆2')) widths['upd'] ??= w
-      if (!text.includes('mo ')) widths['month'] ??= w
-    }
-    expect(widths['upd']).toBeGreaterThan(widths['month'] ?? 0)
-  })
-
   test('O3: failing hooks and a runtime behind the checkout show in the footer, red and yellow; nothing while all is well', () => {
     const footer = (b: BarModel, w = 200) => barLines(b, INFO, LAYOUT, w, NOW).at(-1) ?? []
     const text = (b: BarModel, w = 200) => footer(b, w).map(s => s.text).join('')
@@ -148,11 +134,6 @@ describe('barLines', () => {
     const tight = barOneLine(bar({ hooks: { failures: 2, failClosed: 0 } }), INFO, LAYOUT, 70, NOW).map(s => s.text).join('')
     expect(tight).toContain('hooks ✗2')
     expect(textWidth(tight)).toBeLessThanOrEqual(70)
-  })
-
-  test('barOneLine folds the footer\'s month part into the one line when everything fits', () => {
-    const one = barOneLine(bar({ month: { tokens: 0, usd: 212.4, estimate: true } }), INFO, LAYOUT, 400, NOW).map(s => s.text).join('')
-    expect(one).toContain('mo ≈$212')
   })
 
   test('a narrow workflow line keeps the run, then its compact form', () => {

@@ -6,8 +6,6 @@ import { indexStatusOf } from '../../../core/status/live'
 import type { BarModel, HookHealth, IndexStatus } from '../../../core/status/model'
 import { statusHealth } from '../../../engine/hook-health'
 import { brainDir, buracleHome } from '../../../engine/paths'
-import { monthFromEntry } from '../../../usage/bar'
-import { isStale } from '../../../usage/cache'
 import { OMP_ASIDE_COMMAND, OMP_PING_COMMAND, OMP_STATUS_COMMAND, type StatusView } from './commands'
 import type { LiveConfig } from './config'
 import type { ExtensionDeps } from './deps'
@@ -15,8 +13,7 @@ import type { OmpContext, OmpGenerated } from './types'
 import { hasTui, isMain, sessionOf, withDeadline } from './util'
 
 export const WIDGET_KEY = 'buracle'
-export const STATUS_KEYS = { mem: 'buracle.mem', month: 'buracle.budget' } as const
-const USAGE_REFRESH_INTERVAL_MS = 60_000
+export const STATUS_KEYS = { mem: 'buracle.mem' } as const
 const INDEX_TTL_MS = 30_000
 
 export interface StatusHost {
@@ -36,7 +33,6 @@ export interface StatusTexts {
 
 export function createStatusTexts(host: StatusHost): StatusTexts {
   const { data, deps, guarded } = host
-  let lastUsageRefresh = Number.NEGATIVE_INFINITY
   let indexCache: { cwd: string, at: number, value: Promise<IndexStatus | undefined> } | undefined
 
   const planCounts = (path: string, cwd: string): { done: number, total: number } => {
@@ -66,16 +62,6 @@ export function createStatusTexts(host: StatusHost): StatusTexts {
 
   const barFor = async (sid: string, ctx: OmpContext, lc: LiveConfig, need: { git: boolean, index: boolean }): Promise<BarModel> => {
     const bar: BarModel = { harness: 'omp', windows: [] }
-    if (lc.config.statusline.monthly !== 'off') {
-      const entry = guarded('usage', () => deps.usage())
-      const now = deps.now()
-      const month = guarded('month', () => monthFromEntry(entry, now))
-      if (month !== undefined) bar.month = month
-      if ((guarded('usage staleness', () => isStale(entry, now)) ?? true) && now - lastUsageRefresh > USAGE_REFRESH_INTERVAL_MS) {
-        lastUsageRefresh = now
-        guarded('usage refresh', () => deps.refreshUsage())
-      }
-    }
     const ms = guarded('memory status', () => deps.memoryStatus(host.slug(sid)))
     if (ms !== undefined) bar.mem = ms
     const plan = guarded('state', () => deps.state.load(sid))?.plan

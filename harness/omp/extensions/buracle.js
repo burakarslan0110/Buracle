@@ -27030,7 +27030,7 @@ function defaultConfig() {
       ui: { port: 41777, autostart: true },
       exclude: []
     },
-    statusline: { style: "buracle", emoji: true, monthly: "estimate" },
+    statusline: { style: "buracle", emoji: true },
     skills: { sources: [{ name: "buracle", path: "canonical/skills" }] },
     update: { minReleaseAgeDays: 0 },
     permissions: { bypass: true, enforce: true },
@@ -27115,8 +27115,7 @@ var CONFIG_SCHEMA = {
       t: "obj",
       fields: {
         style: { t: "enum", values: ["buracle", "full", "compact"] },
-        emoji: bool,
-        monthly: { t: "enum", values: ["estimate", "off"] }
+        emoji: bool
       }
     },
     skills: {
@@ -28554,7 +28553,7 @@ function hooksSegmentTexts(h) {
 // src/core/status/render.ts
 var SEGMENT_SEPARATOR = " \u2502 ";
 var SEP_WIDTH = 3;
-var SEGMENT_IDS = ["model", "ctx", "windows", "month", "cost", "git", "dir", "mem", "index", "flow", "plan", "upd", "hooks"];
+var SEGMENT_IDS = ["model", "ctx", "windows", "cost", "git", "dir", "mem", "index", "flow", "plan", "upd", "hooks"];
 var PRIORITY = {
   ctx: 100,
   hooks: 95,
@@ -28565,7 +28564,6 @@ var PRIORITY = {
   git: 70,
   cost: 65,
   flow: 62,
-  month: 60,
   plan: 55,
   mem: 50,
   index: 35,
@@ -28627,25 +28625,6 @@ function windowCandidate(w, nowMs) {
   const head = `${w.label} ${formatPct(w.pct)}%`;
   const priority = PRIORITY[w.label] ?? PRIORITY["window"] ?? 0;
   return cand(w.label, priority, seg2(w.label, `${head}${arrow ? ` ${arrow}` : ""}${reset}`, color), seg2(w.label, `${head}${arrow}`, color));
-}
-function monthCandidate(bar) {
-  const m = bar.month;
-  if (m === undefined)
-    return;
-  const approx = m.estimate ? "\u2248" : "";
-  const priority = PRIORITY["month"] ?? 0;
-  if (m.pct !== undefined && Number.isFinite(m.pct)) {
-    const color = m.pct >= 90 ? "red" : m.pct >= 75 ? "yellow" : undefined;
-    const head = `mo ${formatPct(m.pct)}%`;
-    return m.usd !== undefined && Number.isFinite(m.usd) ? cand("month", priority, seg2("month", `${head} ${approx}${formatUsd(m.usd)}`, color), seg2("month", head, color)) : cand("month", priority, seg2("month", head, color));
-  }
-  if (m.usd !== undefined && Number.isFinite(m.usd)) {
-    const usd = `mo ${approx}${formatUsd(m.usd)}`;
-    return m.tokens > 0 ? cand("month", priority, seg2("month", `${usd} \xB7 ${formatTokens(m.tokens)} tok`), seg2("month", usd)) : cand("month", priority, seg2("month", usd));
-  }
-  if (m.tokens > 0)
-    return cand("month", priority, seg2("month", `mo ${formatTokens(m.tokens)} tok`));
-  return;
 }
 function costCandidate(bar) {
   const c = bar.cost;
@@ -28753,8 +28732,6 @@ function candidatesFor(id, bar, layout, nowMs, facts) {
       return one(modelCandidate(bar));
     case "ctx":
       return one(ctxCandidate(bar, layout));
-    case "month":
-      return one(monthCandidate(bar));
     case "cost":
       return one(costCandidate(bar));
     case "git":
@@ -29103,13 +29080,6 @@ function footerParts(bar, info, nowMs, emoji) {
   if (idx !== undefined) {
     const extra = idx.dim === true ? { dim: true } : {};
     out.push({ priority: 44, variants: [[seg3("index", idx.long, idx.color, extra)], [seg3("index", idx.short, idx.color, extra)]] });
-  }
-  const m = bar.month;
-  if (m !== undefined) {
-    const approx = m.estimate ? "\u2248" : "";
-    const text = m.pct !== undefined && Number.isFinite(m.pct) ? `mo ${formatPct(m.pct)}%` : m.usd !== undefined && Number.isFinite(m.usd) ? `mo ${approx}${formatUsd(m.usd)}` : m.tokens > 0 ? `mo ${formatTokens(m.tokens)} tok` : "";
-    if (text !== "")
-      out.push({ priority: 40, variants: [[seg3("month", text, "gray")]] });
   }
   if (bar.cost !== undefined && Number.isFinite(bar.cost.usd) && bar.cost.usd > 0)
     out.push({ priority: 42, variants: [[seg3("cost", formatUsd(bar.cost.usd), "gray")]] });
@@ -29469,17 +29439,6 @@ function recordFlowStart(h, sid, input, now) {
   }
 }
 
-// src/usage/month.ts
-function monthKeyOf(ms) {
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-// src/usage/telemetry.ts
-init_fsx();
-init_paths();
-var WINDOWS_MAX_AGE_MS = 6 * 60 * 60000;
-
 // src/usage/bar.ts
 function obj2(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x) ? x : undefined;
@@ -29503,19 +29462,6 @@ function pendingUpdates(path = updatesFile()) {
   }
   return;
 }
-function monthFromEntry(entry, nowMs) {
-  if (entry === undefined || entry.month_key !== monthKeyOf(nowMs))
-    return;
-  const m = { tokens: entry.month.tokens, estimate: true };
-  if (entry.month.usd !== undefined)
-    m.usd = entry.month.usd;
-  if (entry.month_pct !== undefined)
-    m.pct = entry.month_pct;
-  if (m.tokens <= 0 && m.usd === undefined && m.pct === undefined)
-    return;
-  return m;
-}
-var TELEMETRY_FRESH_MS = 60 * 60000;
 
 // src/usage/cache.ts
 import { spawn } from "child_process";
@@ -29625,8 +29571,7 @@ function isEntry(x) {
   if (x === null || typeof x !== "object")
     return false;
   const e = x;
-  const m = e["month"];
-  return typeof e["harness"] === "string" && typeof e["computed_at"] === "string" && Array.isArray(e["windows"]) && m !== undefined && m !== null && typeof m === "object" && typeof m["tokens"] === "number" && typeof e["month_key"] === "string";
+  return typeof e["harness"] === "string" && typeof e["computed_at"] === "string" && Array.isArray(e["windows"]);
 }
 function readUsageCache(path = usageFile()) {
   const r = readJsonSafeSync(path);
@@ -29640,14 +29585,6 @@ function readUsageCache(path = usageFile()) {
       harnesses[h] = e;
   }
   return { v: 1, updated_at: typeof r.value.updated_at === "string" ? r.value.updated_at : "", harnesses };
-}
-function isStale(entry, nowMs, ttlMs = USAGE_TTL_MS) {
-  if (entry === undefined)
-    return true;
-  if (entry.month_key !== monthKeyOf(nowMs))
-    return true;
-  const at = Date.parse(entry.computed_at);
-  return !Number.isFinite(at) || nowMs - at > ttlMs || at - nowMs > 60000;
 }
 function lockFile() {
   return join12(stateDir(), "usage.lock");
@@ -32515,8 +32452,8 @@ function createDepsReader() {
 }
 
 // src/adapters/omp/statusline.ts
-var DEFAULT_SET_STATUS = { "buracle.budget": ["month"], "buracle.hooks": ["hooks"], "buracle.mem": ["mem"] };
-var DEFAULT_BAND_LAYOUT = { rows: [["month", "mem", "git", "plan", "upd"]], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: false };
+var DEFAULT_SET_STATUS = { "buracle.hooks": ["hooks"], "buracle.mem": ["mem"] };
+var DEFAULT_BAND_LAYOUT = { rows: [["mem", "git", "plan", "upd"]], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: false };
 
 // src/adapters/omp/runtime/deps.ts
 var TOOL_CALL_DEADLINE_MS = 3000;
@@ -33533,7 +33470,6 @@ var GENERATED = {
     },
     statusline: {
       emoji: true,
-      monthly: "estimate",
       style: "buracle"
     },
     toolchain: {
@@ -34176,7 +34112,6 @@ var GENERATED = {
       emoji: false,
       rows: [
         [
-          "month",
           "mem",
           "index",
           "git",
@@ -34192,9 +34127,6 @@ var GENERATED = {
       }
     },
     setStatus: {
-      "buracle.budget": [
-        "month"
-      ],
       "buracle.hooks": [
         "hooks"
       ],
@@ -34870,12 +34802,10 @@ async function statusHealth(nowMs) {
 // src/adapters/omp/runtime/status.ts
 init_paths();
 var WIDGET_KEY = "buracle";
-var STATUS_KEYS = { mem: "buracle.mem", month: "buracle.budget" };
-var USAGE_REFRESH_INTERVAL_MS = 60000;
+var STATUS_KEYS = { mem: "buracle.mem" };
 var INDEX_TTL_MS = 30000;
 function createStatusTexts(host) {
   const { data, deps, guarded } = host;
-  let lastUsageRefresh = Number.NEGATIVE_INFINITY;
   let indexCache;
   const planCounts = (path, cwd) => {
     const text = deps.readText(isAbsolute12(path) ? path : resolve20(cwd, path));
@@ -34906,17 +34836,6 @@ function createStatusTexts(host) {
   };
   const barFor = async (sid, ctx, lc, need) => {
     const bar = { harness: "omp", windows: [] };
-    if (lc.config.statusline.monthly !== "off") {
-      const entry = guarded("usage", () => deps.usage());
-      const now = deps.now();
-      const month = guarded("month", () => monthFromEntry(entry, now));
-      if (month !== undefined)
-        bar.month = month;
-      if ((guarded("usage staleness", () => isStale(entry, now)) ?? true) && now - lastUsageRefresh > USAGE_REFRESH_INTERVAL_MS) {
-        lastUsageRefresh = now;
-        guarded("usage refresh", () => deps.refreshUsage());
-      }
-    }
     const ms = guarded("memory status", () => deps.memoryStatus(host.slug(sid)));
     if (ms !== undefined)
       bar.mem = ms;

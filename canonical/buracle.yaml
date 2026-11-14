@@ -55,7 +55,6 @@ memory:
 statusline:
   style: buracle
   emoji: true
-  monthly: estimate
 
 skills:
   sources:

@@ -87,7 +87,7 @@ export function hooksNotice(ctx: AdapterContext, health: HookHealth | undefined)
   const parts: string[] = []
   if (n > 0) parts.push(`${n} Buracle hook ${n === 1 ? 'run' : 'runs'} failed in the last 24 h${closed > 0 ? ` (${closed} denied a call)` : ''}; run \`buracle doctor codex\``)
   if (health.runtimeBehind === true) parts.push('the installed Buracle runtime is behind the checkout; run `buracle install`')
-  return `Buracle: ${parts.join('; ')}. The tmux status line (\`buracle statusline codex\`) shows this too.`
+  return `Buracle: ${parts.join('; ')}.`
 }
 
 export function joinNotices(...parts: ReadonlyArray<string | undefined>): string | undefined {

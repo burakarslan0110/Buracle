@@ -138,8 +138,8 @@ VERIFIED plan only: `buracle plan set phase done` runs the same checks as `burac
 
 ## Usage
 
-- `buracle usage --json` reports the 5-hour and 7-day windows (percent used, reset time) and a
-  monthly estimate. Check it before a fan-out (three or more subagents, an ab-test batch, a long loop).
+- `buracle usage --json` reports the 5-hour and 7-day windows (percent used, reset time).
+  Check it before a fan-out (three or more subagents, an ab-test batch, a long loop).
   At 75% or more of the 5-hour window, or 85% or more of the 7-day window, tell the user and
   prefer the cheaper path.
 

@@ -144,7 +144,7 @@ describe('OpenCode 5-hour and weekly windows from provider responses (PARITY-5)'
     const until = Date.now() + 2_000
     while (readTelemetry('opencode', SID)?.windows === undefined && Date.now() < until) await Bun.sleep(5)
     expect(readTelemetry('opencode', SID)?.windows?.map(w => `${w.label} ${w.pct}`)).toEqual(['5h 42', '7d 18'])
-    const usage = await collectOpencode({ nowMs: clock.now, pricing: {} })
+    const usage = await collectOpencode({ nowMs: clock.now })
     expect(usage.windows.map(w => w.label)).toEqual(['5h', '7d'])
   }))
 

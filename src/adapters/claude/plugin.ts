@@ -319,7 +319,7 @@ export function hooksJson(classic: readonly ClassicHook[], withModule: boolean):
 export function canonicalContentHash(c: CanonicalBundle): string {
   return valueHash({
     config: c.config, mcp: c.mcp, tools: c.tools, hooks: c.hooks, routing: c.routing,
-    statusline: c.statusline, pricing: c.pricing,
+    statusline: c.statusline,
     rules: c.rules.map(r => ({ id: r.id, scope: r.scope, frontmatter: r.frontmatter, body: r.body })),
     skills: c.skills.map(s => ({ id: s.id, files: s.files.map(f => ({ path: f.path, content: f.content, mode: f.mode & 0o111 ? 1 : 0 })) })),
     agents: c.agents.map(a => ({ id: a.id, frontmatter: a.frontmatter, body: a.body })),

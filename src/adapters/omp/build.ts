@@ -197,7 +197,7 @@ export function renderReadme(canonical: CanonicalBundle): BuildFile {
     '  (H06, H07), the stop guard and the turn-end routing check (H08, H11, H23), intents and the prompt router',
     '  (H10, H22), the memory index, capability card and workspace lines (H13, H15, H21), session capture and the',
     '  finalizer (H14), maintenance (H16), the profile guard (H17), telemetry and the status texts (H18:',
-    '  `buracle.budget`, `buracle.mem`, and the status band below the editor), the review-report check of the',
+    '  `buracle.mem`, and the status band below the editor), the review-report check of the',
     '  review agents (H19), workflow tracking (H25) and profile signals (H26). When a handler fails, the tool call',
     '  is allowed and the error goes to the log; only the H01 and H02 guards fail closed.',
     `- The running workflow shows above the editor (widget \`${FLOW_WIDGET_KEY}\`, \`workflow.band\`): its phases, progress`,

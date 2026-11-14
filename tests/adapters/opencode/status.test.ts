@@ -6,7 +6,6 @@ import type { TuiSessionMessage } from '../../../src/adapters/opencode/runtime/t
 import { defaultConfig, type BuracleConfig } from '../../../src/core/config'
 import * as paths from '../../../src/engine/paths'
 import { writeUsageEntries } from '../../../src/usage/cache'
-import { monthKeyOf } from '../../../src/usage/month'
 import { recordFlowStart } from '../../../src/workflow/flow'
 import { saveState } from '../../../src/workflow/session-store'
 import { withSandbox } from '../../helpers/sandbox'
@@ -33,9 +32,8 @@ describe('opencode TUI status model', () => {
   test('the feeder combines live data with the usage, memory, plan and update caches', () => withSandbox(async ({ root }) => {
     const now = Date.now()
     writeUsageEntries([{
-      harness: 'opencode', computed_at: new Date(now).toISOString(), month_key: monthKeyOf(now),
+      harness: 'opencode', computed_at: new Date(now).toISOString(),
       windows: [{ label: '5h', pct: 42, windowMinutes: 300, resetsAt: new Date(now + 3_600_000).toISOString() }],
-      month: { start: new Date(now).toISOString(), tokens: 1_234_567, usd: 12.5, byModel: {} },
     }], now)
     const memDir = join(paths.memoryStateDir(), 'status')
     mkdirSync(memDir, { recursive: true })
@@ -50,7 +48,6 @@ describe('opencode TUI status model', () => {
     const bar = feeder.bar({ cwd: root, sessionID: 'ses_tui2', model: { providerID: 'p', modelID: 'big', variant: 'max' }, ctx: { tokens: 370_000, window: 1_000_000, pct: 37 }, costUsd: 0.5 })
     expect(bar).toMatchObject({ harness: 'opencode', model: 'big', effort: 'max', ctx: { pct: 37, tokens: 370_000, window: 1_000_000 }, cost: { usd: 0.5 }, updates: 2 })
     expect(bar.windows.map(w => w.label)).toEqual(['5h'])
-    expect(bar.month).toMatchObject({ tokens: 1_234_567, usd: 12.5, estimate: true })
     expect(bar.mem?.counts.project).toBe(3)
     expect(bar.plan).toEqual({ title: 'Auth fix', phase: 'implement', done: 1, total: 2 })
     expect(bar.dir).toBeDefined()

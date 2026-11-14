@@ -342,8 +342,8 @@ describe('codex installPlan', () => {
     const min = MIN_VERSIONS.codex
     installTestHooks.codexVersion = async () => '0.142.0'
     const err = await adapter.installPlan(context()).then(() => undefined, (e: unknown) => e)
-    expect(err).toMatchObject({ exitCode: 2, code: 'HARNESS_TOO_OLD', harness: 'codex', version: '0.142.0', min, update: 'buracle update codex' })
-    expect((err as Error).message).toContain('buracle update codex')
+    expect(err).toMatchObject({ exitCode: 2, code: 'HARNESS_TOO_OLD', harness: 'codex', version: '0.142.0', min, update: 'update Codex with the installer that installed it' })
+    expect((err as Error).message).toContain('Update Codex with the installer that installed it')
     expect(await adapter.installPlan({ ...context(), force: true } as AdapterContext).then(() => 'planned', (e: unknown) => (e as { code?: string }).code)).toBe('HARNESS_TOO_OLD')
     // The oldest supported version (a prerelease of it too, as doctor reads it), and a version that cannot be read,
     // are installed as before.
@@ -367,7 +367,7 @@ describe('codex installPlan', () => {
     const config = read(join(home, '.codex', 'config.toml'))
     installTestHooks.codexVersion = async () => '0.142.0'
     const err = await adapter.installPlan(context()).then(() => undefined, (e: unknown) => e)
-    expect(err).toMatchObject({ code: 'HARNESS_TOO_OLD', version: '0.142.0', written: true, update: 'buracle update codex' })
+    expect(err).toMatchObject({ code: 'HARNESS_TOO_OLD', version: '0.142.0', written: true, update: 'update Codex with the installer that installed it' })
     expect((err as Error).message).toContain('cannot load the config.toml an earlier Buracle install wrote, so it does not start until you update it')
     expect((err as Error).message).not.toContain('left Codex as it is')
     expect(read(join(home, '.codex', 'config.toml'))).toBe(config)

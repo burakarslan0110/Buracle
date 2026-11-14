@@ -55,7 +55,6 @@ describe('hookBundle', () => {
     expect(b.rules.find(r => r.id === 'core')?.body).toBe(full.rules.find(r => r.id === 'core')?.body)
     expect(b.config).toEqual(full.config)
     expect(b.statusline).toEqual(full.statusline)
-    expect(b.pricing).toEqual(full.pricing)
     expect(b.triggers).toEqual(full.triggers)
     const spec = b.skills.find(s => s.id === 'plan-build')
     expect(spec?.body).toBe(full.skills.find(s => s.id === 'plan-build')?.body)

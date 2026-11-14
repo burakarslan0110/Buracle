@@ -11,11 +11,11 @@ export const DEFAULT_OMP_SEGMENTS = {
   right: ['usage', 'context_pct', 'cost', 'status'],
 } as const
 
-export const DEFAULT_SET_STATUS: Readonly<Record<string, readonly string[]>> = { 'buracle.budget': ['month'], 'buracle.hooks': ['hooks'], 'buracle.mem': ['mem'] }
+export const DEFAULT_SET_STATUS: Readonly<Record<string, readonly string[]>> = { 'buracle.hooks': ['hooks'], 'buracle.mem': ['mem'] }
 
 export const LEGACY_STATUS_KEYS: Readonly<Record<string, string>> = { 'buracle.ay': 'buracle.budget' }
 
-export const DEFAULT_BAND_LAYOUT: StatusLayout = { rows: [['month', 'mem', 'git', 'plan', 'upd']], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: false }
+export const DEFAULT_BAND_LAYOUT: StatusLayout = { rows: [['mem', 'git', 'plan', 'upd']], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: false }
 
 function segmentList(x: unknown, seen: Set<string>): string[] {
   if (!Array.isArray(x)) return []

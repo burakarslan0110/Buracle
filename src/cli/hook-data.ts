@@ -27,7 +27,7 @@ export interface HookData {
   warnings: string[]
 }
 
-const LAZY_FIELDS = ['config', 'hooks', 'statusline', 'pricing', 'triggers', 'tips'] as const
+const LAZY_FIELDS = ['config', 'hooks', 'statusline', 'triggers', 'tips'] as const
 
 export function hookData(bundle: CanonicalBundle): HookData {
   return {

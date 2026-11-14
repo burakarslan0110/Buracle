@@ -86,10 +86,10 @@ describe('Codex workflow and health notices (PARITY-9)', () => {
   test('SessionStart warns once when the hooks segment would be red or yellow', () => withSandbox(async ({ root }) => {
     const failing = turnDeps({ now: NOW }, { failures: 2, failClosed: 1 })
     const start = await hook('SessionStart', { cwd: root, source: 'startup' }, failing)
-    expect(start['systemMessage']).toBe('Buracle: 2 Buracle hook runs failed in the last 24 h (1 denied a call); run `buracle doctor codex`. The tmux status line (`buracle statusline codex`) shows this too.')
+    expect(start['systemMessage']).toBe('Buracle: 2 Buracle hook runs failed in the last 24 h (1 denied a call); run `buracle doctor codex`.')
     expect((await hook('SessionStart', { cwd: root, source: 'compact' }, failing))['systemMessage']).toBeUndefined()
     const behind = await hook('SessionStart', { cwd: root, source: 'resume' }, turnDeps({ now: NOW }, { failures: 0, failClosed: 0, runtimeBehind: true } as never))
-    expect(behind['systemMessage']).toBe('Buracle: the installed Buracle runtime is behind the checkout; run `buracle install`. The tmux status line (`buracle statusline codex`) shows this too.')
+    expect(behind['systemMessage']).toBe('Buracle: the installed Buracle runtime is behind the checkout; run `buracle install`.')
     expect((await hook('SessionStart', { cwd: root, source: 'startup' }, turnDeps({ now: NOW })))['systemMessage']).toBeUndefined()
   }))
 })

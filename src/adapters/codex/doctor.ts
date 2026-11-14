@@ -197,7 +197,7 @@ export function configLoadCheck(r: RunResult, tooOld?: string): DoctorItem {
   const details = rec(load['details'])
   if (load['status'] === 'fail') {
     const cause = tooOld !== undefined
-      ? `; this Codex is older than ${tooOld} and cannot read the keys Buracle writes: run \`buracle update codex\`, then \`buracle install codex\``
+      ? `; this Codex is older than ${tooOld} and cannot read the keys Buracle writes: update Codex with the installer that installed it, then run \`buracle install codex\``
       : typeof load['remediation'] === 'string' ? ` (${load['remediation']})` : ''
     return { level: 'error', check, detail: `Codex cannot load its config, so it does not start: ${String(details['error'] ?? load['summary'] ?? 'unknown error')}${cause}` }
   }
@@ -230,14 +230,14 @@ export async function codexDoctor(ctx: AdapterContext, deps: DoctorDeps = defaul
   } else if (found.version === undefined) {
     add('warn', 'codex.version', `could not read \`codex --version\` (${found.path ?? 'codex'})`)
   } else if (compareVersions(found.version, MIN_CODEX) < 0) {
-    add('error', 'codex.version', `codex ${found.version} is older than ${MIN_CODEX}, the oldest Codex Buracle supports: run \`buracle update codex\` (it uses the installer that installed Codex, also while this Codex does not start), then \`buracle install codex\``)
+    add('error', 'codex.version', `codex ${found.version} is older than ${MIN_CODEX}, the oldest Codex Buracle supports: update Codex with the installer that installed it, then run \`buracle install codex\``)
   } else {
     add('ok', 'codex.version', `codex ${found.version} (minimum ${MIN_CODEX})`)
   }
   items.push(...hostLimitRows('codex'))
   add('ok', 'codex.workflow-view', ctx.config.workflow.codexNotices
-    ? 'Codex has no surface above the prompt: a workflow that waits, pauses or ends and failing Buracle hooks show as one warning line (workflow.codexNotices); the tmux status line (`buracle statusline codex`, USAGE §6) shows the full bar'
-    : 'workflow.codexNotices is off: the tmux status line (`buracle statusline codex`, USAGE §6) is the only live view of a workflow and of failing Buracle hooks')
+    ? 'Codex has no surface above the prompt: a workflow that waits, pauses or ends and failing Buracle hooks show as one warning line (workflow.codexNotices)'
+    : 'workflow.codexNotices is off: Codex shows no live view of a workflow or of failing Buracle hooks')
 
   const hooksPath = join(codexHome, 'hooks.json')
   const hooksText = readText(hooksPath)

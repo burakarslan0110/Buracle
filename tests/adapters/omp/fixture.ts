@@ -42,7 +42,6 @@ export function fixtureCanonical(): CanonicalBundle {
     hooks: { hooks: [] },
     routing: { strictness: 'enforce', categories: [] },
     statusline: {},
-    pricing: {},
     rules: [
       { id: 'core', scope: 'always', file: 'rules/always/core.md', frontmatter: {}, body: '# Core working rules\n\nAsk with {{ask_user}} only when blocked.\n<!-- harness:claude -->\nClaude only.\n<!-- /harness -->\n<!-- harness:omp -->\nomp only.\n<!-- /harness -->\n' },
       { id: 'python', scope: 'paths', file: 'rules/paths/python.md', frontmatter: { paths: ['**/*.py', '**/pyproject.toml'] }, body: '# Python\n\n- Use uv.\n' },

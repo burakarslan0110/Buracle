@@ -388,7 +388,7 @@ describe('omp status line and AGENTS.md pointer', () => {
   })
 
   test('status texts and band layout are embedded from the canonical layout', () => {
-    expect(ompStatusData(undefined)).toEqual({ layout: DEFAULT_BAND_LAYOUT, setStatus: { 'buracle.budget': ['month'], 'buracle.hooks': ['hooks'], 'buracle.mem': ['mem'] } })
+    expect(ompStatusData(undefined)).toEqual({ layout: DEFAULT_BAND_LAYOUT, setStatus: { 'buracle.hooks': ['hooks'], 'buracle.mem': ['mem'] } })
     expect(ompStatusData(layout({ setStatus: { 'buracle.mem': ['mem'], 'bad key!': ['x'], 'buracle.budget': ['month', 'cost'] } })))
       .toEqual({ layout: { rows: [['month', 'mem']], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: false }, setStatus: { 'buracle.budget': ['month', 'cost'], 'buracle.mem': ['mem'] } })
     expect(ompStatusData(layout({ setStatus: { 'buracle.ay': ['month'], 'buracle.mem': ['mem'] } })).setStatus).toEqual({ 'buracle.budget': ['month'], 'buracle.mem': ['mem'] })

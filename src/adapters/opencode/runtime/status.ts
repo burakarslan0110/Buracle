@@ -5,7 +5,7 @@ import { rows } from '../../../core/status/render'
 import { barOneLine, type BarInfo } from '../../../core/status/bar'
 import { barInfo } from '../../../usage/bar-info'
 import type { MemoryStatus } from '../../../core/memory/status'
-import { cachedProjectSlug, dirLabel, effectiveLayout, FALLBACK_LAYOUT, gitInfo, indexStatusFor, monthFromEntry, pendingUpdates, planForSession, readMemoryStatus } from '../../../usage/bar'
+import { cachedProjectSlug, dirLabel, effectiveLayout, FALLBACK_LAYOUT, gitInfo, indexStatusFor, pendingUpdates, planForSession, readMemoryStatus } from '../../../usage/bar'
 import { isStale, readUsageCache, spawnUsageRefresh } from '../../../usage/cache'
 import { latestWindows, liveWindows } from '../../../usage/telemetry'
 import { statusHealth } from '../../../engine/hook-health'
@@ -87,7 +87,7 @@ export interface StatusFeederOptions {
 
 export class StatusFeeder {
   private git: Cached<{ git?: GitState, dir?: string }> = { at: 0, value: undefined }
-  private usage: Cached<{ windows: RateWindow[], month?: BarModel['month'], stale: boolean }> = { at: 0, value: undefined }
+  private usage: Cached<{ windows: RateWindow[], stale: boolean }> = { at: 0, value: undefined }
   private mem: Cached<MemoryStatus> = { at: 0, value: undefined }
   private plan: Cached<NonNullable<BarModel['plan']>> = { at: 0, value: undefined }
   private updates: Cached<number> = { at: 0, value: undefined }
@@ -139,9 +139,7 @@ export class StatusFeeder {
         try {
           const entry = readUsageCache()?.harnesses.opencode
           const own = latestWindows('opencode', now)
-          const v: { windows: RateWindow[], month?: BarModel['month'], stale: boolean } = { windows: own.length > 0 ? own : liveWindows(entry?.windows, now), stale: isStale(entry, now) }
-          const month = monthFromEntry(entry, now)
-          if (month !== undefined) v.month = month
+          const v: { windows: RateWindow[], stale: boolean } = { windows: own.length > 0 ? own : liveWindows(entry?.windows, now), stale: isStale(entry, now) }
           this.usage.value = v
           if (v.stale && this.opts.spawnRefresh !== false) {
             const argv = usageRefreshArgv()
@@ -191,8 +189,6 @@ export class StatusFeeder {
       bar.ctx = ctx
     }
     if (live.costUsd !== undefined && live.costUsd > 0) bar.cost = { usd: live.costUsd }
-    const month = this.usage.value?.month
-    if (month !== undefined) bar.month = month
     const git = this.git.value
     if (git?.git !== undefined) bar.git = git.git
     if (git?.dir !== undefined) bar.dir = git.dir

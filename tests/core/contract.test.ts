@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import * as core from '../../src/core/index'
 import type {
   BarModel, BuracleConfig, CatalogMcp, CatalogSkill, CheckerFacts, CheckerPlan, CompiledTriggers, DirScan, Finding, GitState, Harness, HookId, IndexStatus, Intent,
-  McpHealth, MemItem, MemKind, MemLayer, MemRegion, MemoryStatus, Plan, PlanType, PreDecision, PricingTable, PromptRoute, PromptSignals, ReminderContext,
+  McpHealth, MemItem, MemKind, MemLayer, MemRegion, MemoryStatus, Plan, PlanType, PreDecision, PromptRoute, PromptSignals, ReminderContext,
   ReminderResult, RouteOptions, RouteTextOptions, RoutingPolicy, Segment, SessionState, StatusLayout, StopDecision, StopInput, StopWhy,
   StartTextInput, ToolCall, UsageLedger, WorkspaceInfo,
 } from '../../src/core/index'
@@ -105,8 +105,6 @@ assertType<Equals<typeof core.memProtected, (i: Pick<MemItem, 'origin' | 'pinned
 assertType<Equals<MemLayer, 'project' | 'person'>>(true)
 assertType<Equals<MemoryStatus['v'], 3>>(true)
 
-assertType<Equals<typeof core.priceOf, (model: string, tokens: { input: number; output: number; cacheRead: number; cacheWrite: number }, table: PricingTable) => number | undefined>>(true)
-
 describe('core exports', () => {
   test('every contracted function is exported from src/core/index.ts', () => {
     const fns = [
@@ -118,7 +116,6 @@ describe('core exports', () => {
       'gitFromPorcelainV2', 'pace', 'windowLabel', 'rows', 'renderAnsi', 'renderPlain',
       'parseNote', 'slugify', 'normalizeForSearch', 'redact', 'memSegment',
       'fromCortex', 'toCortexSave', 'cortexQuery', 'regionOf', 'isLive', 'brainStartText', 'memLocked', 'memProtected', 'ttlSeconds', 'sanitizePromptSignal', 'memHealth',
-      'priceOf',
       'realpathQueries', 'checkEval', 'catastrophicCommandRules', 'scanCode', 'redactClip',
       'compileTriggers', 'routePrompt', 'routeText', 'parseSkillTriggers', 'validateSkillTriggers', 'detectSignals', 'isUserText',
       'emptyLedger', 'parseLedger', 'ledgerPrompt', 'ledgerCall', 'skillOf', 'reminders', 'turnAudit', 'ledgerAudited',

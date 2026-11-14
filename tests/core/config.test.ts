@@ -277,7 +277,7 @@ describe('mergeConfigLenient', () => {
       checkers: { languages: ['go', 7] },
     })
     expect(r.config.routing.strictness).toBe('enforce')
-    expect(r.config.statusline).toEqual({ style: 'compact', emoji: true, monthly: 'estimate' })
+    expect(r.config.statusline).toEqual({ style: 'compact', emoji: true })
     expect(r.config.checkers.languages).toEqual(defaultConfig().checkers.languages)
     expect((r.config as unknown as Record<string, unknown>)['typo']).toBeUndefined()
     expect(validateConfig(r.config).ok).toBe(true)

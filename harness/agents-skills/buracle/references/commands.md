@@ -204,8 +204,7 @@ the semble cache. `status` shows when each index was last built or refreshed.
 buracle usage [--json]
 ```
 
-Usage windows (5-hour and 7-day: percent used and reset time) and a calendar-month estimate built
-from local logs. The monthly figure is an estimate at list prices, not a bill.
+Usage windows (5-hour and 7-day: percent used and reset time).
 
 ## Maintenance commands
 

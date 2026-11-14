@@ -11,7 +11,6 @@ import type { RoutingPolicy } from '../core/policy/routing'
 import { validateRoutingPolicy } from '../core/policy/routing'
 import type { SkillTriggerTable } from '../core/policy/skill-router'
 import { parseSkillTriggers, validateSkillTriggers } from '../core/policy/skill-router'
-import type { PricingTable } from '../core/usage'
 import * as paths from './paths'
 import { parseYaml } from './yaml'
 
@@ -138,12 +137,6 @@ export function loadCanonicalSync(root: string = paths.canonicalDir()): Canonica
     if (rawStatus !== null && typeof rawStatus === 'object' && !Array.isArray(rawStatus)) statusline = rawStatus as StatuslineCatalog
     else problems.push('statusline.yaml: expected a mapping')
   }
-  let pricing: PricingTable = {}
-  const rawPricing = readData('pricing.yaml', false)
-  if (rawPricing !== undefined) {
-    if (rawPricing !== null && typeof rawPricing === 'object' && !Array.isArray(rawPricing)) pricing = rawPricing as PricingTable
-    else problems.push('pricing.yaml: expected a mapping')
-  }
   let notices: Notice[] = []
   const rawNotices = readData('notices.yaml', false)
   if (rawNotices !== undefined) {
@@ -232,7 +225,7 @@ export function loadCanonicalSync(root: string = paths.canonicalDir()): Canonica
   }
 
   if (problems.length > 0) throw new CanonicalError(root, problems)
-  const bundle: CanonicalBundle = { root, config, mcp, tools, hooks, routing, statusline, pricing, rules, skills, agents, notices, tips, missing, warnings }
+  const bundle: CanonicalBundle = { root, config, mcp, tools, hooks, routing, statusline, rules, skills, agents, notices, tips, missing, warnings }
   if (triggers !== undefined) bundle.triggers = triggers
   return bundle
 }

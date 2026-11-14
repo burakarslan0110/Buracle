@@ -6,7 +6,6 @@ import type { Tip } from './tips'
 import type { RoutingPolicy } from './policy/routing'
 import type { SkillTriggerTable, Triggers } from './policy/skill-router'
 import type { StatusLayout } from './status/model'
-import type { PricingTable } from './usage'
 
 export type McpTransport = 'stdio' | 'http'
 export type PinPolicy = 'latest' | 'hard' | 'soft' | 'monitor'
@@ -117,7 +116,6 @@ export interface CanonicalBundle {
   hooks: HooksMatrix
   routing: RoutingPolicy
   statusline: StatuslineCatalog
-  pricing: PricingTable
   rules: RuleDoc[]
   skills: SkillDoc[]
   agents: AgentDoc[]

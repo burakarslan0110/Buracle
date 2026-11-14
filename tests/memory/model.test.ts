@@ -6,7 +6,6 @@ import { chooseHarnesses, choiceHoldsRunner, choiceRunner, choiceSkip, choiceUnt
 import { markRunnerFailed, RUNNER_FAILED_BACKOFF_MS, RUNNER_REFUSED_BACKOFF_MS, runnerUnavailable, type ModelRunner } from '../../src/memory/runner'
 import { MEMORY_RUNNER_DIR_PREFIX } from '../../src/memory/spawn'
 import { writeUsageEntries } from '../../src/usage/cache'
-import { monthKeyOf } from '../../src/usage/month'
 import { writeTelemetry } from '../../src/workflow/session-store'
 import { withEnv, withSandbox } from '../helpers/sandbox'
 
@@ -82,15 +81,13 @@ describe('the choice', () => {
   test('the usage cache is a source of windows too: omp, which reports its windows there only, is held by them; the newer report wins', async () => {
     await withSandbox(async () => {
       const now = Date.now()
-      const entry = (h: 'omp' | 'codex', atMs: number, windows: Array<{ label: string, pct: number }>) => ({ harness: h, computed_at: new Date(atMs).toISOString(), windows, month: { start: '', tokens: 0, byModel: {} }, month_key: monthKeyOf(now) })
+      const entry = (h: 'omp' | 'codex', atMs: number, windows: Array<{ label: string, pct: number }>) => ({ harness: h, computed_at: new Date(atMs).toISOString(), windows })
       writeTelemetry('omp', SID, { at: now - 60_000, modelId: 'openai-codex/gpt-6-luna' })
       writeTelemetry('codex', SID2, { at: now - 60_000, modelId: 'gpt-6-luna', windows: [{ label: '5h', pct: 20 }] })
       writeUsageEntries([entry('omp', now - 30_000, [{ label: '5h', pct: 90 }]), entry('codex', now - 120_000, [{ label: '5h', pct: 99 }])], now)
       const c = chooseHarnesses({ nowMs: now, which: onPath })
       expect(c.picks).toEqual([{ harness: 'codex', model: 'gpt-6-luna', used: 20 }])
       expect(c.held).toEqual([{ harness: 'omp', why: 'omp: 5-hour window at 90% (limit 75%)', kind: 'window', window: '5h', pct: 90 }])
-      writeUsageEntries([{ ...entry('omp', now - 10_000, [{ label: '5h', pct: 90 }]), month_key: '2000-01' }], now)
-      expect(chooseHarnesses({ nowMs: now, which: onPath }).held).toEqual([])
     })
   })
 

@@ -58,8 +58,7 @@ describe('codex doctor', () => {
     await withSandbox(async () => {
       const old = by(await codexDoctor(ctx(), fake({ version: '0.150.0' })), 'codex.version')[0]
       expect(old?.level).toBe('error')
-      // `codex update` needs the Codex to start, which an old one with Buracle's config.toml does not.
-      expect(old?.detail).toContain('run `buracle update codex`')
+      expect(old?.detail).toContain('update Codex with the installer that installed it')
       expect(old?.detail).not.toContain('`codex update`')
       // A Codex far newer than any Buracle knows is fine: only the minimum gates it.
       for (const v of [MIN_CODEX, '0.999.0', '1.0.0']) {
@@ -73,7 +72,7 @@ describe('codex doctor', () => {
     })
   })
 
-  test('host limits (PARITY-10) and the workflow view (PARITY-9): the summary row is ok on every version, each limit is a row with its fallback and the README pointer; the tmux line is named', () => withSandbox(async () => {
+  test('host limits (PARITY-10) and the workflow view (PARITY-9): the summary row is ok on every version, each limit is a row with its fallback and the README pointer', () => withSandbox(async () => {
     const limits = () => by(items, 'codex.limits')[0]
     let items = await codexDoctor(ctx(), fake({ version: '0.166.0' }))
     expect(limits()).toMatchObject({ level: 'ok' })
@@ -83,7 +82,7 @@ describe('codex doctor', () => {
     expect(row?.detail).toContain('. Fallback: `$memory`, the CLI twins (`buracle mem ...`, `buracle plan status`) and Codex\'s own `/side`. See the Host limits table in README.md.')
     expect(items.filter(i => i.check.startsWith('codex.') && hostLimitsOf('codex').some(l => l.id === i.check)).map(i => i.level)).toEqual(hostLimitsOf('codex').map(() => 'ok'))
     expect(items.filter(i => i.detail.includes('DESIGN §4.5'))).toEqual([])
-    expect(by(items, 'codex.workflow-view')[0]?.detail).toContain('`buracle statusline codex`')
+    expect(by(items, 'codex.workflow-view')[0]?.detail).toContain('workflow.codexNotices')
     items = await codexDoctor(ctx(), fake({ version: '9.0.0' }))
     expect(limits()?.level).toBe('ok')
     expect(limits()?.detail).not.toMatch(/newer than/i)
@@ -260,7 +259,7 @@ describe('codex doctor', () => {
     // A Codex older than the minimum: the cause and the way out replace Codex's generic advice.
     const tooOld = configLoadCheck(r(doctorJson({ status: 'fail', summary: 'config could not be loaded', details: { error: 'invalid type: string "xhigh", expected struct AgentRoleToml' }, remediation: 'Fix the reported config error, then rerun codex doctor.' })), '0.154.0')
     expect(tooOld.level).toBe('error')
-    expect(tooOld.detail).toContain('older than 0.154.0 and cannot read the keys Buracle writes: run `buracle update codex`, then `buracle install codex`')
+    expect(tooOld.detail).toContain('older than 0.154.0 and cannot read the keys Buracle writes: update Codex with the installer that installed it, then run `buracle install codex`')
     expect(tooOld.detail).not.toContain('Fix the reported config error')
   })
 

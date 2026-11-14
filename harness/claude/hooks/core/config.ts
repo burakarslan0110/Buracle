@@ -17,7 +17,7 @@ export interface BuracleConfig {
   context: { warnPct: number, criticalPct: number }
   checkers: { enabled: boolean, timeoutMs: number, languages: string[] }
   memory: { ui: { port: number, autostart: boolean }, exclude: string[] }
-  statusline: { style: 'buracle' | 'full' | 'compact', emoji: boolean, monthly: 'estimate' | 'off' }
+  statusline: { style: 'buracle' | 'full' | 'compact', emoji: boolean }
   skills: { sources: Array<{ name: string, path?: string, git?: string, ref?: string }> }
   update: { minReleaseAgeDays: number }
   permissions: { bypass: boolean, enforce: boolean }
@@ -59,7 +59,7 @@ export function defaultConfig(): BuracleConfig {
       ui: { port: 41777, autostart: true },
       exclude: [],
     },
-    statusline: { style: 'buracle', emoji: true, monthly: 'estimate' },
+    statusline: { style: 'buracle', emoji: true },
     skills: { sources: [{ name: 'buracle', path: 'canonical/skills' }] },
     update: { minReleaseAgeDays: 0 },
     permissions: { bypass: true, enforce: true },
@@ -154,7 +154,6 @@ const CONFIG_SCHEMA: Schema = {
       fields: {
         style: { t: 'enum', values: ['buracle', 'full', 'compact'] },
         emoji: bool,
-        monthly: { t: 'enum', values: ['estimate', 'off'] },
       },
     },
     skills: {
