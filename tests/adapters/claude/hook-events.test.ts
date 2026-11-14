@@ -119,7 +119,7 @@ describe('PreToolUse: H20 consent gate', () => {
       const denied = await claudeHook('PreToolUse', bash('git push origin feature'), ctx(), deps())
       const out = json(denied.stdout)['hookSpecificOutput'] as Record<string, unknown>
       expect(out['permissionDecision']).toBe('deny')
-      expect(String(out['permissionDecisionReason'])).toContain('Buracle H20 (consent.gate)')
+      expect(String(out['permissionDecisionReason'])).toContain('Buracle H20: this command pushes to a remote')
       expect(existsSync(consentPath(SID))).toBe(true)
       await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'evet' }), ctx(), deps())
       const allowed = await claudeHook('PreToolUse', bash('git push origin feature'), ctx(), deps())

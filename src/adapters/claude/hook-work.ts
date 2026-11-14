@@ -1,16 +1,7 @@
 import { join } from 'node:path'
 import { atomicWriteSync, ensureDirSync, readJsonSafeSync } from '../../engine/fsx'
 import * as paths from '../../engine/paths'
-
-const H = 'claude' as const
-
-function str(x: unknown): string | undefined {
-  return typeof x === 'string' && x !== '' ? x : undefined
-}
-
-function isObj(x: unknown): x is Record<string, unknown> {
-  return x !== null && typeof x === 'object' && !Array.isArray(x)
-}
+import { H, isObj, str } from './hook-io'
 
 export function addedText(tool: string, input: Record<string, unknown>, paths: readonly string[]): Record<string, string> {
   const outText: Record<string, string> = {}

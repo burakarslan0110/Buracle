@@ -1,57 +1,53 @@
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import * as core from '../../core/index'
 import type { Harness, ToolCall } from '../../core/events'
-import { isAbsPath } from '../../core/events'
 import type { SessionState, StopGuardResult } from '../../core/plan/state'
 import type { McpHealth } from '../../core/policy/routing'
 import type { HookHealth } from '../../core/status/model'
 import type { WorkspaceInfo } from '../../core/workspace'
 import type { AdapterContext } from '../registry'
-import { currentBranch, projectIdentity } from '../../engine/git'
 import { log } from '../../engine/log'
 import { run as runProcess, type RunOptions, type RunResult } from '../../engine/proc'
-import { loadState, reviewSubjects, sessionMaint, updateState, writeTelemetry } from '../../workflow/session-store'
+import { reviewSubjects, writeTelemetry } from '../../workflow/session-store'
 import { recordFlowStart } from '../../workflow/flow'
 import { loadLedger } from '../../workflow/ledger'
 import { refreshWorkspaceInfo } from '../../workflow/workspace'
 import type { SpoolEntry } from '../../core/memory/spool'
-import { noticesOff, runtimeVersion, startupNotices } from '../shared/notices'
-import { reviewNotesNotice } from '../shared/review-notes'
 import type { AssetsSpawner } from '../shared/project-assets'
 import {
-  latestHandoffId, postTool, preCompact, preTool, prompt as promptEvent, sessionEnd, sessionStart, stop, workspaceStart,
-  type MemoryFns, type PipelineDeps, type PipelinePoint, type PreToolDecision, type UsagePlan,
+  captureOff as pipelineCaptureOff, denyReason, guardFailed, mcpHealth, postTool, preCompact, preTool, prompt as promptEvent, routingPolicy, sessionEnd,
+  sessionStart, spool, stop, workspaceStart, type CompactStore, type MemoryFns, type PipelineDeps, type UsagePlan,
 } from '../shared/pipeline/index'
-import { earlyEdit, readOnlyStart, startedWorkflow } from '../shared/plan-mode'
 import { projectDeps as readProjectDeps } from '../shared/project-deps'
 import { reviewAgentIds } from './agents'
 import { removedByFile } from '../shared/checker-scan'
-import { sessionOnce } from '../shared/file-checks'
 import { captureApprovedPlan, noteProposedPlan } from './plan-capture'
 import { canPromptConsent, consentPromptInput, onPermissionRequest, settleConsentAsks, type PromptEnv } from './consent-prompt'
 import { unaskedConsent } from '../shared/consent-asks'
-import { bashOptions, GUARDED_TOOLS, guardFailed, SHELL_TOOL, shellPatchOf, writeContext, writeTargets } from './guards'
+import { GUARDED_TOOLS, SHELL_TOOL, shellPatchOf, writeTargets } from './guards'
 import {
-  blockOutput, clipBytes, CONTEXT_BUDGET_BYTES, contextOutput, denyOutput, denyReason, json, loadAdapterState, NOTHING, rec,
-  saveAdapterState, step, str, type CodexSessionState, type HookOutcome, type Payload,
+  blockOutput, contextOutput, denyOutput, json, loadAdapterState, NOTHING, rec, saveAdapterState, step, str, type CodexSessionState,
+  type HookOutcome, type Payload,
 } from './hook-io'
 import { reviewErrors } from './review'
 import {
-  availableServers, codexPathRules, fitParts, harnessHealth, knownServers, loadWorkspaceInfo, recordWorkflowStart, resumeNotice,
-  routeUserPrompt, routingPolicy, saveWorkspaceInfo, sessionHealth, workflowStart, workspaceFacts,
+  availableServers, codexPathRules, knownServers, loadWorkspaceInfo, recordWorkflowStart, resumeNotice, routeUserPrompt, workflowStart,
 } from './route'
+import { codexOffServers } from '../shared/native-off'
 import { POST_MASK_HANDLER } from './hooks-config'
 import { maskOutcome } from './mask'
 import { fallbackWindowLabel, openPlanSteps, readCollaborationMode, readCompactionSummary, readExecCwd, readLatestPlan, readRolloutTelemetry, type RolloutTelemetry } from './rollout'
 import { shellPatchTargets } from './shell-patch'
 import { patchReceiptChanges } from '../shared/turn-receipt'
 import { commandRan, filesChanged, flowNotice, hooksNotice, joinNotices, turnEnded, turnStarted, withSystemMessage } from './turn-notices'
-import { isSubagentPayload, recordSubagentAlias, subagentLedgerId, subagentWorkspace } from './subagents'
+import { isSubagentPayload, recordSubagentAlias, subagentLedgerId } from './subagents'
 import { uiSessionHooks, type UiSessionHooks } from '../shared/ui-session'
+import { CONTEXT_BUDGET_BYTES, clipBytes } from '../shared/pipeline/index'
 
 export { fileCheckNotes } from '../shared/file-checks'
-export { clipBytes, CONTEXT_BUDGET_BYTES, type HookOutcome } from './hook-io'
+export { clipBytes, CONTEXT_BUDGET_BYTES } from '../shared/pipeline/index'
+export type { HookOutcome } from './hook-io'
 export { extractJsonObject, reviewReportErrors } from './review'
 export { fitParts, readMcpHealth } from './route'
 export { isSubagentPayload, MAX_SUBAGENT_ALIASES, recordSubagentAlias, subagentAliasesFile } from './subagents'
@@ -126,10 +122,6 @@ export function defaultDeps(): CodexHookDeps {
   }
 }
 
-function uiOf(deps: CodexHookDeps): UiSessionHooks {
-  return deps.ui ?? uiSessionHooks
-}
-
 async function hookHealthOf(deps: CodexHookDeps, now: number): Promise<HookHealth> {
   return deps.hookHealth !== undefined ? deps.hookHealth(now) : (await import('../../engine/hook-health')).statusHealth(now)
 }
@@ -138,20 +130,8 @@ function envOf(deps: CodexHookDeps): Record<string, string | undefined> {
   return deps.env?.() ?? process.env
 }
 
-function memoryOff(deps: CodexHookDeps): boolean {
-  return envOf(deps)['BURACLE_NO_MEMORY'] === '1'
-}
-
 function captureOff(deps: CodexHookDeps): boolean {
-  return envOf(deps)['BURACLE_NO_CAPTURE'] === '1' || memoryOff(deps)
-}
-
-async function spool(deps: CodexHookDeps, event: string, sid: string, entries: SpoolEntry[]): Promise<void> {
-  if (entries.length === 0 || captureOff(deps)) return
-  await step(event, 'H14 spool', undefined, async () => {
-    const m = await deps.memory()
-    if (m.appendSpool) await m.appendSpool(H, sid, entries)
-  })
+  return pipelineCaptureOff({ env: envOf(deps) })
 }
 
 function labelFn(deps: CodexHookDeps): (minutes: number) => string {
@@ -197,57 +177,41 @@ async function contextWarning(ctx: AdapterContext, event: string, sid: string, u
   })
 }
 
-function readIfFile(path: string): string | undefined {
-  try { return statSync(path).isFile() ? readFileSync(path, 'utf8') : undefined } catch { return undefined }
-}
-
 export function capabilityCardText(ctx: AdapterContext, deps: CodexHookDeps, sid?: string): string {
-  const health = sid !== undefined ? sessionHealth(ctx, deps.core, sid, deps.now(), true) : harnessHealth(ctx, deps.core, deps.now(), true)
+  const health = mcpHealth(ctx, H, deps.now(), { nativeOff: codexOffServers(), ...(sid !== undefined ? { sid } : {}) })
   const mcp = deps.core.catalogMcp(ctx.canonical.mcp, H).filter(m => !deps.core.mcpUnavailable(health[m.id]))
   return deps.core.capabilityCard({ policy: routingPolicy(ctx), mcp, skills: deps.core.catalogSkills(ctx.canonical.skills), plugins: [], harness: H })
 }
 
-// The pipeline's step names that Codex logs under a name of its own.
-const STEP_NAMES: Readonly<Record<string, string>> = {
-  'H24 ledger reset': 'H24 resetLedger', 'H14 session record': 'memory sessionStart', 'H17 profile guard': 'H17 profileGuard',
-  'H16 session maintenance': 'H16 sessionMaint', 'H10 intents': 'H10 interaction', 'H22 route.prompt': 'H22 router',
-  'H24 ledger prompt': 'H24 ledgerPrompt', 'H21 workspace notice': 'H21 notice', 'H05 context warning': 'H05 warning',
-  'H03 routing': 'H03 routeTool', 'H24 usage': 'H24 reminders', 'H04 file checks': 'H04', 'H23 route.audit': 'H23 turnAudit',
-  'stop guard': 'H08/H11 stopGuardVerdict', 'H14 finalizer': 'H14 spawnFinalizer',
-}
-
-/** What the shared pipeline needs from Codex: its step log, memory, spool and the session's workspace file. */
-function pipelineDeps(ev: string, ctx: AdapterContext, deps: CodexHookDeps, at?: (point: PipelinePoint) => Promise<void>): PipelineDeps {
-  const refresh = deps.refreshWorkspace
+/** What the shared pipeline needs from Codex: its step log, memory and workspace readers. */
+function pipelineDeps(ev: string, ctx: AdapterContext, deps: CodexHookDeps): PipelineDeps {
   return {
-    harness: H, ctx, core: deps.core, memoryOff: memoryOff(deps), captureOff: captureOff(deps), ui: uiOf(deps),
-    step: (name, fallback, fn) => step(ev, STEP_NAMES[name] ?? name, fallback, fn),
+    harness: H, ctx, core: deps.core, env: envOf(deps), ui: deps.ui ?? uiSessionHooks, workspace: deps,
+    step: (name, fallback, fn) => step(ev, name, fallback, fn),
     memory: async name => (await deps.memory())[name],
-    spool: (sid, entries) => spool(deps, ev, sid, entries),
-    async project(cwd) {
-      const id = await projectIdentity(cwd)
-      const branch = await currentBranch(cwd)
-      return { project: id.slug, ...(branch !== undefined ? { branch } : {}) }
-    },
-    workspace: {
-      read: sid => loadWorkspaceInfo(ctx, sid),
-      save: (sid, info) => { saveWorkspaceInfo(ctx, sid, info) },
-      prepare: async (cwd, now) => deps.prepareWorkspace?.(cwd, ctx, now),
-      subagent: (sid, cwd, now) => subagentWorkspace(sid, cwd, ctx, deps, now),
-      ...(refresh !== undefined ? { refresh: (info: WorkspaceInfo, now: number) => refresh(info, ctx, now) } : {}),
-    },
     ...(deps.assetsSpawn !== undefined ? { assetsSpawn: deps.assetsSpawn } : {}),
-    ...(at !== undefined ? { at } : {}),
   }
 }
 
-async function restoreText(ctx: AdapterContext, deps: CodexHookDeps, d: PipelineDeps, sid: string, cwd: string, now: number): Promise<string> {
-  const own = loadAdapterState(ctx, sid)
-  let handoff = own.lastHandoff
-  const todos = handoff === undefined && (own.lastTodos?.length ?? 0) > 0 ? own.lastTodos : undefined
-  const recorded = own.lastCompactAt !== undefined && now - own.lastCompactAt <= core.RESTORE_RECORD_MAX_MS
-  if (handoff === undefined && todos === undefined && !recorded && !d.memoryOff) handoff = await latestHandoffId(d, sid, cwd, now)
-  return deps.core.restoreContext(loadState(H, sid), handoff, todos) ?? ''
+/** The session's compaction record in codex.json, for the restore after it. */
+function compactStore(ctx: AdapterContext, sid: string, at: number): CompactStore {
+  return {
+    read(now) {
+      const own = loadAdapterState(ctx, sid)
+      return {
+        recent: own.lastCompactAt !== undefined && now - own.lastCompactAt <= core.RESTORE_RECORD_MAX_MS,
+        ...(own.lastHandoff !== undefined ? { handoff: own.lastHandoff } : {}), ...(own.lastTodos !== undefined ? { todo: own.lastTodos } : {}),
+      }
+    },
+    save(handoff, todo) {
+      const next: CodexSessionState = { ...loadAdapterState(ctx, sid), lastCompactAt: at }
+      delete next.lastHandoff
+      delete next.lastTodos
+      if (handoff !== undefined) next.lastHandoff = handoff
+      else if (todo.length > 0) next.lastTodos = todo
+      saveAdapterState(ctx, sid, next)
+    },
+  }
 }
 
 async function onSessionStart(p: Payload, sid: string, cwd: string, ctx: AdapterContext, deps: CodexHookDeps): Promise<HookOutcome> {
@@ -256,33 +220,20 @@ async function onSessionStart(p: Payload, sid: string, cwd: string, ctx: Adapter
   const now = deps.now()
   const sub = isSubagentPayload(p)
   const model = str(p['model'])
-  const d = pipelineDeps(ev, ctx, deps)
-  let resumed: ReturnType<typeof resumeNotice>
-  let health: string | undefined
-  const { parts } = await sessionStart({ harness: H, sessionId: sid, cwd, source, subagent: sub, now, ...(model !== undefined ? { model } : {}) }, {
-    ...d,
-    sessionStartOrder: [
-      'record',
-      async () => { await updateTelemetry(deps, ev, p, sid) },
-      'ledger', 'ui', 'workspace', 'assets', 'card', 'restore',
-      async () => { if (source === 'resume' && !sub) resumed = await step(ev, 'H25 resume notice', undefined as ReturnType<typeof resumeNotice>, () => resumeNotice(sid, now, ctx.config, deps.core)) },
-      'notices', 'memory', 'profile', 'maint',
-      async () => {
-        if (!sub && (source === 'startup' || source === 'resume') && ctx.config.workflow.codexNotices) health = await step(ev, 'hooks notice', undefined as string | undefined, async () => hooksNotice(ctx, await hookHealthOf(deps, now)))
-      },
-    ],
+  await updateTelemetry(deps, ev, p, sid)
+  const resumed = source === 'resume' && !sub ? await step(ev, 'H25 resume notice', undefined as ReturnType<typeof resumeNotice>, () => resumeNotice(sid, now, ctx.config, deps.core)) : undefined
+  const r = await sessionStart({ harness: H, sessionId: sid, cwd, source, subagent: sub, now, ...(model !== undefined ? { model } : {}) }, {
+    ...pipelineDeps(ev, ctx, deps),
     capabilityCard: () => capabilityCardText(ctx, deps, sid),
-    restore: () => restoreText(ctx, deps, d, sid, cwd, now),
-    noticesOff: () => noticesOff(envOf(deps)),
-    startupNotices: () => startupNotices(ctx.canonical.notices, { version: runtimeVersion(ctx.repoRoot), nowMs: now, harness: H }),
-    runtimeConfigFile: () => ctx.paths.runtimeConfigFile(),
-    profileEnv: () => envOf(deps),
-    sessionMaint: (nowMs, keep) => { sessionMaint(H, nowMs, { keep }) },
-    fixedContext: () => [resumed?.model ?? ''],
+    compact: compactStore(ctx, sid, now),
+    extraContext: [resumed?.model ?? ''],
   })
-  const user = [parts.profile, parts.notice?.user, resumed?.user, health].filter((s): s is string => s !== undefined).join('\n')
-  const index = parts.memory !== '' ? clipBytes(parts.memory, parts.room) : ''
-  return contextOutput('SessionStart', [parts.restore, parts.notice?.model ?? '', parts.workspace, parts.assets, resumed?.model ?? '', index, parts.card], user !== '' ? user : undefined)
+  const health = !sub && (source === 'startup' || source === 'resume') && ctx.config.workflow.codexNotices
+    ? await step(ev, 'hooks notice', undefined as string | undefined, async () => hooksNotice(ctx, await hookHealthOf(deps, now)))
+    : undefined
+  // Codex shows a systemMessage to the user, so the profile warning and the notices go there, not through the model.
+  const user = [r.profile, r.notice?.user, resumed?.user, health].filter((s): s is string => s !== undefined).join('\n')
+  return contextOutput('SessionStart', r.context, user !== '' ? user : undefined)
 }
 
 async function onUserPromptSubmit(p: Payload, sid: string, cwd: string, ctx: AdapterContext, deps: CodexHookDeps): Promise<HookOutcome> {
@@ -293,32 +244,27 @@ async function onUserPromptSubmit(p: Payload, sid: string, cwd: string, ctx: Ada
   const rollout = str(p['transcript_path'])
   await step(ev, 'H20 answered holds', 0, () => settleConsentAsks(sid, undefined, true))
   const flow = await step(ev, 'workflow notice', undefined as string | undefined, () => flowNotice(ctx, sid, now))
-  let saved: string | undefined
-  const at = async (point: PipelinePoint): Promise<void> => {
-    if (point === 'prompt.user') await step(ev, 'turn receipt start', undefined, () => { turnStarted(ctx, sid, now) })
-    else if (point === 'prompt.granted') saved = await step(ev, 'H12 plan capture', undefined as string | undefined, () => captureApprovedPlan(ctx, sid, text, cwd, rollout, now))
-    else if (point === 'prompt.record') await step(ev, 'workflow notice seen', undefined, () => { flowNotice(ctx, sid, now, true) })
-  }
-  const { parts } = await promptEvent({ harness: H, sessionId: sid, cwd, text, now }, {
-    ...pipelineDeps(ev, ctx, deps, at),
-    reviewNotes: () => reviewNotesNotice(H, sid, { plan: loadState(H, sid).plan?.path, roots: [loadWorkspaceInfo(ctx, sid)?.root, cwd], now }),
+  const r = await promptEvent({ harness: H, sessionId: sid, cwd, text, now }, {
+    ...pipelineDeps(ev, ctx, deps),
+    granted: () => step(ev, 'H12 plan capture', undefined as string | undefined, () => captureApprovedPlan(ctx, sid, text, cwd, rollout, now)),
     routePrompt() {
-      const policy = routingPolicy(ctx)
-      const info = loadWorkspaceInfo(ctx, sid)
       const depsOf = deps.projectDeps ?? readProjectDeps
       return step(ev, 'H22 route', undefined, () => routeUserPrompt(text, {
-        ctx, core: deps.core, policy, ledger: loadLedger(H, sid), available: availableServers(ctx, deps.core, sessionHealth(ctx, deps.core, sid, now, true)), deps: depsOf(info?.root ?? cwd),
+        ctx, core: deps.core, policy: routingPolicy(ctx), ledger: loadLedger(H, sid),
+        available: availableServers(ctx, deps.core, mcpHealth(ctx, H, now, { sid, nativeOff: codexOffServers() })), deps: depsOf(loadWorkspaceInfo(ctx, sid)?.root ?? cwd),
       }))
     },
     async promptRouted(route) {
       const start = workflowStart(route, text, deps.core)
       if (start !== undefined) await step(ev, 'H25 flow start', undefined, () => { recordWorkflowStart(sid, start, now) })
     },
-    readOnlyStart: invoked => (startedWorkflow(invoked) !== undefined && rollout !== undefined ? readOnlyStart(H, readCollaborationMode(rollout) === 'plan', invoked) : undefined),
+    // Codex has no mode field in the payload: the collaboration mode is read from the rollout.
+    readOnly: () => rollout !== undefined && readCollaborationMode(rollout) === 'plan',
     contextWarning: async () => contextWarning(ctx, ev, sid, await updateTelemetry(deps, ev, p, sid)),
   })
-  const context = [parts.guidance, parts.notes, saved, parts.planMode, parts.route, parts.workspace, parts.warning].filter((s): s is string => s !== undefined && s !== '')
-  return contextOutput('UserPromptSubmit', fitParts(context, core.PROMPT_CONTEXT_MAX_CHARS), flow)
+  if (r.user) await step(ev, 'turn receipt start', undefined, () => { turnStarted(ctx, sid, now) })
+  if (!r.continuation) await step(ev, 'workflow notice seen', undefined, () => { flowNotice(ctx, sid, now, true) })
+  return contextOutput('UserPromptSubmit', r.context, flow)
 }
 
 function toolCall(p: Payload, sid: string, cwd: string, ctx: AdapterContext, deps: CodexHookDeps): ToolCall {
@@ -333,17 +279,6 @@ async function execCwdOf(p: Payload, cwd: string): Promise<string> {
   const id = str(p['tool_use_id'])
   if (str(p['tool_name']) !== SHELL_TOOL || path === undefined || id === undefined) return cwd
   return step('PreToolUse', 'G11 exec workdir', cwd, () => readExecCwd(path, id, cwd) ?? cwd)
-}
-
-/** A pipeline denial in Codex's words; a guard that itself failed is logged and denies (fail closed). */
-function denyText(d: Extract<PreToolDecision, { action: 'deny' }>, call: ToolCall): string {
-  if (d.error !== undefined) {
-    if (d.source === 'bash') log('error', 'codex hook PreToolUse: H01 bash guard failed; denying (fail closed)', { error: d.error })
-    else if (d.source === 'mcpWrite') log('error', 'codex hook PreToolUse: H02 write guard failed for an MCP call; denying (fail closed)', { tool: call.tool, error: d.error })
-    else log('error', 'codex hook PreToolUse: H02 write guard failed; denying (fail closed)', { harness: H, error: d.error })
-    return guardFailed(d.source === 'bash' ? 'H01' : 'H02', d.error)
-  }
-  return d.source === 'lane' ? d.reason : denyReason(d.hook, d.reason)
 }
 
 async function onPreToolUse(p: Payload, sid: string, sessionCwd: string, ctx: AdapterContext, deps: CodexHookDeps): Promise<HookOutcome> {
@@ -361,30 +296,16 @@ async function onPreToolUse(p: Payload, sid: string, sessionCwd: string, ctx: Ad
     return NOTHING
   }
   const env: PromptEnv = { shell: envOf(deps)['SHELL'] }
-  const edits = call.kind === 'patch' || call.kind === 'edit' || call.kind === 'write'
-  const decision = await preTool({
-    call, now, subagent: isSubagentPayload(p),
-    checks: { bash: call.kind === 'bash', write: call.tool === SHELL_TOOL || edits, mcpWrite: call.kind === 'mcp', question: call.kind === 'ask_user', route: true, usage: true },
-    asyncQuestion: call.tool === 'request_user_input_async',
-  }, {
+  const decision = await preTool({ call, now, subagent: isSubagentPayload(p), usage: true, edits: editedPaths(p, call, deps), asyncQuestion: call.tool === 'request_user_input_async' }, {
     ...pipelineDeps(ev, ctx, deps),
-    bashOptions: dir => bashOptions(ctx, dir),
-    laneDenial: command => deps.core.laneStateDenial(command),
     holdConsent: command => step(ev, 'H20 consent prompt', false, () => canPromptConsent(p, ctx, command, env) && !unaskedConsent(sid, command, now)),
     writeTargets: c => writeTargets(p, c, cwd, deps.core),
-    writeGuardContext: dir => writeContext(ev, dir, ctx),
-    routingPolicy: () => routingPolicy(ctx),
-    mcpHealth(c) {
-      const health = sessionHealth(ctx, deps.core, sid, now, c.kind === 'web_search' || c.kind === 'web_fetch')
-      return () => health
-    },
-    usage: (c, health) => usagePlan(p, c, sid, ctx, deps, health()),
+    nativeOff: codexOffServers,
+    usage: (c, health) => usagePlan(p, c, sid, ctx, deps, health),
     usageDone: plan => (plan.ledgerId === sid ? step(ev, 'H25/H26 skill load', undefined, () => skillLoad(plan.call, sid, deps, now)) : undefined),
-    earlyEdit: () => earlyEdit(H, sid, editedPaths(p, call, deps), cwd, ctx.config.plan.planApproval),
   })
-  if (decision.action === 'deny') return denyOutput(denyText(decision, call))
-  const { parts, held } = decision
-  const context = [...parts.route, parts.question, parts.usage, parts.early].filter((s): s is string => s !== undefined)
+  if (decision.action === 'deny') return denyOutput(decision.reason)
+  const { context, held } = decision
   if (held === undefined) return contextOutput('PreToolUse', context)
   const prompted = await step(ev, 'H20 consent prompt', undefined as Record<string, unknown> | undefined, () => consentPromptInput(p, sid, held.command, ctx, now, newConsentId(deps), env))
   return prompted !== undefined ? promptOutput(prompted, context) : denyOutput(denyReason('H20', held.reason))
@@ -409,19 +330,12 @@ function editedPaths(p: Payload, call: ToolCall, deps: CodexHookDeps): string[] 
 function usagePlan(p: Payload, call: ToolCall, sid: string, ctx: AdapterContext, deps: CodexHookDeps, health: McpHealth): UsagePlan | undefined {
   const ledgerId = isSubagentPayload(p) ? subagentLedgerId(p, sid, ctx) : sid
   if (ledgerId === undefined) return undefined
-  const facts = workspaceFacts(ctx, loadWorkspaceInfo(ctx, sid))
   const sp = shellPatchOf(p)
   const judged: ToolCall = sp.kind === 'patch' ? { ...call, kind: 'patch' } : call
   const edits = sp.kind === 'patch' ? deps.core.patchEdits(sp.body).map(e => ({ file: e.path, removed: e.removed, added: e.added })) : undefined
   const isEdit = judged.kind === 'patch' || judged.kind === 'edit' || judged.kind === 'write'
   const pathRules = isEdit || judged.kind === 'bash' ? codexPathRules(ctx, deps.core) : undefined
-  return {
-    call: judged, ledgerId,
-    context: {
-      strictness: ctx.config.routing.strictness, reminders: ctx.config.routing.reminders, available: availableServers(ctx, deps.core, health),
-      policy: routingPolicy(ctx), facts, ...(edits !== undefined ? { edits } : {}), ...(pathRules !== undefined ? { pathRules } : {}),
-    },
-  }
+  return { call: judged, ledgerId, available: availableServers(ctx, deps.core, health), ...(edits !== undefined ? { edits } : {}), ...(pathRules !== undefined ? { pathRules } : {}) }
 }
 
 function skillLoad(call: ToolCall, sid: string, deps: CodexHookDeps, now: number): void {
@@ -453,8 +367,6 @@ async function onPostToolUse(p: Payload, sid: string, cwd: string, ctx: AdapterC
   const call = toolCall(p, sid, cwd, ctx, deps)
   const sub = isSubagentPayload(p)
   const entries: SpoolEntry[] = []
-  let alarm: string | undefined
-  let lsp: string[] = []
   let edit: { ok: boolean, paths: string[], added: Record<string, string>, removed: () => Record<string, string> } | undefined
   let text = ''
   const shellPatch = await step(ev, 'shell apply_patch', undefined as { paths: string[], added: Record<string, string> } | undefined, () => {
@@ -486,27 +398,21 @@ async function onPostToolUse(p: Payload, sid: string, cwd: string, ctx: AdapterC
   } else {
     entries.push({ ts: start, ev: 'tool', tool: call.tool, kind: call.kind })
   }
-  const paths = edit?.paths ?? []
-  const at = async (point: PipelinePoint): Promise<void> => {
-    if (point === 'postTool.checked') {
-      const ask = ctx.config.checkers.enabled ? deps.lspEdits : undefined
-      if (ask !== undefined) lsp = await step(ev, 'H04 language server', [] as string[], () => ask(paths, { cwd, deadlineMs: start + POST_PATCH_BUDGET_MS, now: deps.now }))
-    } else if (point === 'postTool.edited' && !sub && call.tool !== SHELL_TOOL) {
-      alarm = await step(ev, 'turn receipt', undefined as string | undefined, () => filesChanged(ctx, sid, patchReceiptChanges(text, cwd)))
-    }
-  }
   const server = call.kind === 'mcp' ? call.mcp?.server : undefined
   const r = await postTool({
-    harness: H, sessionId: sid, cwd, now: start, subagent: sub, entries,
+    sessionId: sid, cwd, now: start, subagent: sub, entries,
     answered: !sub && call.tool === 'request_user_input' && deps.core.questionAnswered(p['tool_response']),
     ...(edit !== undefined ? { edit } : {}),
     ...(server !== undefined && server !== '' ? { mcp: { server: () => server, ok: rec(p['tool_response'])['isError'] !== true } } : {}),
   }, {
-    ...pipelineDeps(ev, ctx, deps, at),
-    fileCheckDeps: () => ({ core: deps.core, now: deps.now, run: deps.run, once: sessionOnce(H, sid), ...(deps.resolveChecker !== undefined ? { resolve: deps.resolveChecker } : {}) }),
-    answerReceipt: () => { updateState(H, sid, s => deps.core.answerReceipt(s, start)) },
+    ...pipelineDeps(ev, ctx, deps),
+    fileChecks: { core: deps.core, now: deps.now, run: deps.run, ...(deps.resolveChecker !== undefined ? { resolve: deps.resolveChecker } : {}) },
     editBudgetMs: POST_PATCH_BUDGET_MS,
   })
+  const edited = edit !== undefined && edit.ok && edit.paths.length > 0 ? edit.paths : undefined
+  const ask = edited !== undefined && ctx.config.checkers.enabled ? deps.lspEdits : undefined
+  const lsp = ask !== undefined && edited !== undefined ? await step(ev, 'H04 language server', [] as string[], () => ask(edited, { cwd, deadlineMs: start + POST_PATCH_BUDGET_MS, now: deps.now })) : []
+  const alarm = edited !== undefined && !sub && call.tool !== SHELL_TOOL ? await step(ev, 'turn receipt', undefined as string | undefined, () => filesChanged(ctx, sid, patchReceiptChanges(text, cwd))) : undefined
   const context: string[] = []
   if (r.fileNotes.length > 0) context.push(`Buracle file checks after apply_patch:\n\n${r.fileNotes.join('\n\n')}`)
   if (lsp.length > 0) context.push(`Buracle language server diagnostics after apply_patch:\n\n${lsp.join('\n\n')}`)
@@ -541,28 +447,16 @@ async function onPreCompact(p: Payload, sid: string, cwd: string, ctx: AdapterCo
   const now = deps.now()
   const trigger = str(p['trigger']) ?? 'unknown'
   const rollout = str(p['transcript_path'])
+  const d = pipelineDeps(ev, ctx, deps)
   await preCompact({ harness: H, sessionId: sid, cwd, trigger, now }, {
-    ...pipelineDeps(ev, ctx, deps),
+    ...d,
     openTodos() {
       const plan = rollout !== undefined ? readLatestPlan(rollout) : undefined
       return plan !== undefined ? openPlanSteps(plan) : []
     },
-    saveCompactRecord(handoff, todo) {
-      const next: CodexSessionState = { ...loadAdapterState(ctx, sid), lastCompactAt: now }
-      delete next.lastHandoff
-      delete next.lastTodos
-      if (handoff !== undefined) next.lastHandoff = handoff
-      else if (todo.length > 0) next.lastTodos = todo
-      saveAdapterState(ctx, sid, next)
-    },
-    handoffNote({ project, branch, todo }) {
-      const input: Parameters<CoreFns['handoffNote']>[0] = { state: loadState(H, sid), project, harness: H, sessionId: sid, now }
-      if (branch !== undefined) input.branch = branch
-      if (todo.length > 0) input.todo = todo
-      return deps.core.handoffNote(input)
-    },
+    compact: compactStore(ctx, sid, now),
   })
-  await spool(deps, ev, sid, [{ ts: now, ev: 'compact', excerpt: `PreCompact (${trigger})` }])
+  await spool(d, sid, [{ ts: now, ev: 'compact', excerpt: `PreCompact (${trigger})` }])
   return NOTHING
 }
 
@@ -574,7 +468,7 @@ async function onPostCompact(p: Payload, sid: string, ctx: AdapterContext, deps:
   if (!captureOff(deps)) {
     const path = str(p['transcript_path'])
     const summary = path !== undefined ? await step(ev, 'H14 compaction summary', undefined as string | undefined, () => readCompactionSummary(path)) : undefined
-    await spool(deps, ev, sid, [{ ts: now, ev: 'compact', excerpt: summary !== undefined ? summary.slice(0, COMPACT_EXCERPT_MAX) : `PostCompact (${trigger})` }])
+    await spool(pipelineDeps(ev, ctx, deps), sid, [{ ts: now, ev: 'compact', excerpt: summary !== undefined ? summary.slice(0, COMPACT_EXCERPT_MAX) : `PostCompact (${trigger})` }])
   }
   await updateTelemetry(deps, ev, p, sid)
   await step(ev, 'reset warning', undefined, () => {
@@ -612,23 +506,17 @@ async function onStop(p: Payload, sid: string, cwd: string, ctx: AdapterContext,
   if (last !== undefined && last.trim() !== '') entry.excerpt = last.slice(0, EXCERPT_MAX)
   const model = str(p['model'])
   if (model !== undefined) entry.model = model
-  if (entry.excerpt !== undefined || entry.model !== undefined) await spool(deps, ev, sid, [entry])
+  if (entry.excerpt !== undefined || entry.model !== undefined) await spool(pipelineDeps(ev, ctx, deps), sid, [entry])
   await updateTelemetry(deps, ev, p, sid)
   const sub = isSubagentPayload(p)
   const active = p['stop_hook_active'] === true
   if (!sub) await step(ev, 'H20 answered holds', 0, () => settleConsentAsks(sid, undefined, true))
   const rollout = str(p['transcript_path'])
-  const at = async (point: PipelinePoint): Promise<void> => {
-    if (point === 'stop.guard' && !sub) await step(ev, 'H12 proposed plan', false, () => noteProposedPlan(ctx, sid, last, now, active))
-  }
+  if (!sub) await step(ev, 'H12 proposed plan', false, () => noteProposedPlan(ctx, sid, last, now, active))
   const r = await stop({ harness: H, sessionId: sid, cwd, hookActive: active, subagent: sub, now, ...(last !== undefined ? { lastMessage: last } : {}) }, {
-    ...pipelineDeps(ev, ctx, deps, at),
-    readPlan: (path, dir) => (path === '' ? undefined : readIfFile(isAbsPath(path) ? path : join(dir, path))),
-    async stopInput(input) {
-      if (rollout !== undefined && await step(ev, 'read-only mode', false, () => readCollaborationMode(rollout) === 'plan')) input.readOnly = true
-    },
+    ...pipelineDeps(ev, ctx, deps),
+    readOnly: () => rollout !== undefined && readCollaborationMode(rollout) === 'plan',
     stopNotice: (result, before) => (result.readOnlyNotice === true ? READ_ONLY_NOTICE : step(ev, 'runaway notice', undefined as string | undefined, () => runawayNotice(ctx, sid, result, before))),
-    stopGuard: { gate: false, write: 'always', auditOnFailure: false },
   })
   if (r.failed === true) return NOTHING
   if (r.decision.action === 'block' && r.blockedBy === 'guard') {
@@ -661,7 +549,7 @@ async function onSubagentStop(p: Payload, sid: string, ctx: AdapterContext, deps
   if (!reviewers.includes(agent)) return NOTHING
   const text = typeof p['last_assistant_message'] === 'string' ? p['last_assistant_message'] : ''
   const errors = await step(ev, 'H19 validate', [] as string[], () => reviewErrors(text, agent, deps.core.validateReviewJson, reviewSubjects(H, sid)))
-  await spool(deps, ev, sid, [{ ts: deps.now(), ev: 'note', tool: agent, excerpt: errors.length === 0 ? `${agent}: valid review report` : `${agent}: invalid review report: ${errors.slice(0, 5).join('; ')}` }])
+  await spool(pipelineDeps(ev, ctx, deps), sid, [{ ts: deps.now(), ev: 'note', tool: agent, excerpt: errors.length === 0 ? `${agent}: valid review report` : `${agent}: invalid review report: ${errors.slice(0, 5).join('; ')}` }])
   if (errors.length === 0) return NOTHING
   const problems = `${errors.slice(0, 3).join('; ')}${errors.length > 3 ? '; …' : ''}`
   if (p['stop_hook_active'] !== true) {

@@ -1,12 +1,11 @@
 import { join } from 'node:path'
-import type { Harness, HookId } from '../../core/events'
+import type { Harness } from '../../core/events'
 import { atomicWriteSync, ensureDirSync, readJsonSafeSync } from '../../engine/fsx'
 import { log } from '../../engine/log'
 import type { AdapterContext } from '../registry'
-import { CONTEXT_BUDGET_BYTES } from '../shared/pipeline/types'
+import { contextJson } from '../shared/pipeline/types'
 
 const H: Harness = 'codex'
-export { CONTEXT_BUDGET_BYTES }
 
 export type Payload = Record<string, unknown>
 export interface HookOutcome { stdout: string, exitCode: number }
@@ -24,10 +23,6 @@ export function json(x: unknown): HookOutcome {
   return { stdout: JSON.stringify(x), exitCode: 0 }
 }
 
-export function errText(e: unknown): string {
-  return (e instanceof Error ? e.message : String(e)).split('\n')[0]?.slice(0, 200) ?? 'unknown error'
-}
-
 export async function step<T>(event: string, name: string, fallback: T, fn: () => T | Promise<T>): Promise<T> {
   try {
     return await fn()
@@ -37,32 +32,15 @@ export async function step<T>(event: string, name: string, fallback: T, fn: () =
   }
 }
 
-export function clipBytes(text: string, max: number, note = '\n… (truncated)'): string {
-  const enc = new TextEncoder()
-  if (enc.encode(text).length <= max) return text
-  const room = Math.max(0, max - enc.encode(note).length)
-  let cut = text
-  while (cut.length > 0 && enc.encode(cut).length > room) cut = cut.slice(0, Math.floor(cut.length * 0.9))
-  const nl = cut.lastIndexOf('\n')
-  return (nl > cut.length * 0.5 ? cut.slice(0, nl) : cut) + note
-}
-
 type ContextEvent = 'SessionStart' | 'SubagentStart' | 'UserPromptSubmit' | 'PreToolUse' | 'PostToolUse'
 
 export function contextOutput(event: ContextEvent, parts: string[], systemMessage?: string): HookOutcome {
-  const text = parts.map(p => p.trim()).filter(p => p !== '').join('\n\n')
-  const out: Record<string, unknown> = {}
-  if (systemMessage !== undefined && systemMessage.trim() !== '') out['systemMessage'] = systemMessage.trim()
-  if (text !== '') out['hookSpecificOutput'] = { hookEventName: event, additionalContext: clipBytes(text, CONTEXT_BUDGET_BYTES) }
-  return Object.keys(out).length === 0 ? NOTHING : json(out)
+  const out = contextJson(event, parts, systemMessage)
+  return out === undefined ? NOTHING : json(out)
 }
 
 export function denyOutput(reason: string): HookOutcome {
   return json({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } })
-}
-
-export function denyReason(hook: HookId, reason: string): string {
-  return `Buracle ${hook}: ${reason}`
 }
 
 export function blockOutput(reason: string): HookOutcome {

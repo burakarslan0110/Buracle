@@ -1,17 +1,21 @@
 import type { HookId, ToolCall } from '../../../core/events'
 import type { BashGuardOptions } from '../../../core/policy/bash-guard'
 import { mcpWritePaths } from '../../../core/policy/mcp-paths'
-import type { McpHealth, RoutingPolicy } from '../../../core/policy/routing'
+import type { McpHealth } from '../../../core/policy/routing'
 import type { ReminderContext, ReminderResult } from '../../../core/policy/usage'
 import type { WriteGuardContext } from '../../../core/policy/write-guard'
+import { log } from '../../../engine/log'
 import { updateLedger } from '../../../workflow/ledger'
 import { loadState, updateState } from '../../../workflow/session-store'
+import type { AdapterContext } from '../../registry'
 import { consentGate } from '../consent-store'
-import type { EarlyEdit } from '../plan-mode'
-import type { PipelineDeps } from './types'
-
-/** Which guard or gate decided; the adapter words the denial from it. */
-export type PreToolSource = 'bash' | 'shell' | 'lane' | 'consent' | 'write' | 'mcpWrite' | 'route' | 'root' | 'usage'
+import { earlyEdit } from '../plan-mode'
+import { realWriteTarget } from '../realpath'
+import { buracleRepoFor } from '../repo'
+import { selfPaths } from '../self-paths'
+import { CONFIG_PARSERS } from '../write-content'
+import { mcpHealth, routingPolicy, workspaceFacts } from './health'
+import { denyReason, guardFailed, readWorkspace, type PipelineDeps } from './types'
 
 export interface PreToolInput {
   call: ToolCall
@@ -19,18 +23,18 @@ export interface PreToolInput {
   subagent: boolean
   /** Guards only (a payload without a session): stop after the denials. */
   guardsOnly?: boolean
-  /** The steps this call goes through; a harness picks them by tool name or by kind. */
-  checks: { bash?: boolean, write?: boolean, mcpWrite?: boolean, question?: boolean, route?: boolean, usage?: boolean }
+  /** Whether the usage reminders (H24) count and judge this call. */
+  usage: boolean
+  /** The files the call edits, for the early-edit note; absent when it is no edit. */
+  edits?: readonly string[]
   /** A question tool that does not wait for the answer: the plan pauses instead. */
   asyncQuestion?: boolean
 }
 
-export interface PreToolParts { question?: string, route: string[], usage?: string, early?: string }
-
 export type PreToolDecision =
-  /** `error` is set when the guard itself failed: the call is denied (fail closed) and the adapter logs it. */
-  | { action: 'deny', reason: string, hook: HookId, source: PreToolSource, error?: unknown }
-  | { action: 'allow', context: string[], parts: PreToolParts, held?: { command: string, reason: string } }
+  /** `reason` is the finished text, `Buracle Hxx: …`. */
+  | { action: 'deny', reason: string, hook: HookId }
+  | { action: 'allow', context: string[], held?: { command: string, reason: string } }
 
 export interface WriteTargets {
   paths: string[]
@@ -38,148 +42,134 @@ export interface WriteTargets {
   contents(guard: WriteGuardContext): NonNullable<WriteGuardContext['contents']>
 }
 
-export interface UsagePlan { call: ToolCall, ledgerId: string, context: ReminderContext }
+/** What the usage reminders judge: the call as they see it, whose ledger counts it, and the servers that are up. */
+export interface UsagePlan extends Pick<ReminderContext, 'available' | 'edits' | 'pathRules'> { call: ToolCall, ledgerId: string }
 
 export interface PreToolPorts {
-  bashOptions(cwd: string): BashGuardOptions
-  /** The lane guard: a subagent's command must not touch another lane's state. */
-  laneDenial(command: string): string | undefined
   /** A shell denial only this harness has, after the bash guard. */
   shellDenial?(command: string): Promise<string | undefined>
   /** True when the harness can ask the user about a held command itself; the call then goes on. */
   holdConsent?(command: string, reason: string): Promise<boolean>
-  writeTargets(call: ToolCall): WriteTargets | { deny: string }
-  writeGuardContext(cwd: string): Promise<WriteGuardContext>
-  routingPolicy(): RoutingPolicy
-  mcpHealth(call: ToolCall): () => McpHealth
-  /** A check before the reminders that denies or notes on its own. */
-  rootCheck?(call: ToolCall): { deny?: string, context?: string }
-  usage(call: ToolCall, health: () => McpHealth): UsagePlan | undefined
+  /** The files the call writes; undefined when it writes none the guard reads from the call. */
+  writeTargets(call: ToolCall): WriteTargets | { deny: string } | undefined
+  /** The MCP servers the harness's own settings turn off; read only for the calls whose route depends on them. */
+  nativeOff(): string[]
+  usage(call: ToolCall, health: McpHealth): UsagePlan | undefined
   usageDone?(plan: UsagePlan): void | Promise<void>
-  /** The note for an edit made before the plan is approved; absent when the call is no edit. */
-  earlyEdit?(): EarlyEdit | undefined
 }
 
-function deny(hook: HookId, reason: string, source: PreToolSource, error?: unknown): PreToolDecision {
-  return { action: 'deny', reason, hook, source, ...(error !== undefined ? { error } : {}) }
-}
+type Guarded = Pick<PipelineDeps, 'ctx' | 'realpath'>
 
-function contextOf(parts: PreToolParts): string[] {
-  return [parts.question, ...parts.route, parts.usage, parts.early].filter((s): s is string => s !== undefined)
-}
-
-interface UsageOutcome { deny?: string, source?: 'root' | 'usage', context?: string }
-
-async function usageStep(input: PreToolInput, d: PipelineDeps & PreToolPorts, health: () => McpHealth): Promise<UsageOutcome> {
-  const { call } = input
-  const root = d.rootCheck?.(call) ?? {}
-  if (root.deny !== undefined) return { deny: root.deny, source: 'root' }
-  if (root.context !== undefined) {
-    updateLedger(d.harness, call.sessionId, l => d.core.ledgerCall(l, call))
-    return { context: root.context }
+export function bashOptions(ctx: AdapterContext, cwd: string, realpath: (p: string) => string | undefined = realWriteTarget): BashGuardOptions {
+  return {
+    ...ctx.config.guards.bash, home: ctx.paths.home(), selfPaths: selfPaths(ctx.config.repo, ctx.paths), cwd,
+    vault: ctx.paths.oldVaultRoot(), protect: ctx.config.guards.write.protect, realpath,
   }
-  const plan = d.usage(call, health)
+}
+
+export async function writeGuardContext(d: Guarded & Pick<PipelineDeps, 'step' | 'buracleRepo'>, cwd: string): Promise<WriteGuardContext> {
+  const { ctx } = d
+  const repo = await d.step('H02 buracleRepo', undefined as string | undefined, () => (d.buracleRepo !== undefined ? d.buracleRepo(cwd, ctx) : buracleRepoFor(cwd, { known: [ctx.repoRoot, ctx.config.repo], home: ctx.paths.home() })))
+  return {
+    cwd, home: ctx.paths.home(), vault: ctx.paths.oldVaultRoot(), protect: ctx.config.guards.write.protect, realpath: d.realpath ?? realWriteTarget,
+    selfPaths: selfPaths(ctx.config.repo, ctx.paths), parsers: CONFIG_PARSERS, ...(repo !== undefined ? { buracleRepo: repo } : {}),
+  }
+}
+
+async function usageStep(input: PreToolInput, d: PipelineDeps & PreToolPorts, health: McpHealth): Promise<{ deny?: string, context?: string }> {
+  const plan = d.usage(input.call, health)
   if (plan === undefined) return {}
+  const { call, ledgerId, ...rest } = plan
+  const cfg = d.ctx.config.routing
+  const context: ReminderContext = { strictness: cfg.strictness, reminders: cfg.reminders, policy: routingPolicy(d.ctx), facts: workspaceFacts(d.ctx, readWorkspace(d.ctx, d.harness, input.call.sessionId)), ...rest }
   let result: ReminderResult | undefined
-  updateLedger(d.harness, plan.ledgerId, l => {
-    result = d.core.reminders(l, plan.call, plan.context)
+  updateLedger(d.harness, ledgerId, l => {
+    result = d.core.reminders(l, call, context)
     return result.next
   })
   if (result?.deny === undefined) await d.usageDone?.(plan)
-  return {
-    ...(result?.deny !== undefined ? { deny: result.deny.reason.replace(/^Buracle:\s*/, ''), source: 'usage' as const } : {}),
-    ...(result?.context !== undefined ? { context: result.context } : {}),
-  }
+  return { ...(result?.deny !== undefined ? { deny: result.deny.reason } : {}), ...(result?.context !== undefined ? { context: result.context } : {}) }
 }
 
 /**
- * preTool: the guards (H01 bash, the lane guard, H20 consent, H02 write), then the question check (H09), tool
- * routing (H03), the usage reminders (H24) and the early-edit note (H03). The first denial ends it.
+ * preTool: the guards (H01 bash, the lane guard, H20 consent, H02 write), then tool routing (H03), the question
+ * check (H09), the usage reminders (H24) and the early-edit note (H03). The first denial ends it. The call's kind
+ * picks the steps; a guard that cannot run denies (fail closed).
  */
 export async function preTool(input: PreToolInput, d: PipelineDeps & PreToolPorts): Promise<PreToolDecision> {
-  const { call, now, checks } = input
+  const { call, now } = input
   const sid = call.sessionId
   const H = d.harness
+  const deny = (hook: HookId, reason: string): PreToolDecision => ({ action: 'deny', reason: denyReason(hook, reason), hook })
+  const failed = (hook: 'H01' | 'H02', error: unknown, mcp = false): PreToolDecision => {
+    log('error', `${H} hook PreToolUse: ${hook} ${hook === 'H01' ? 'bash' : 'write'} guard failed${mcp ? ' for an MCP call' : ''}; denying (fail closed)`, { sid, tool: call.tool, error })
+    return { action: 'deny', reason: guardFailed(hook, error), hook }
+  }
   let held: { command: string, reason: string } | undefined
-  if (checks.bash === true && call.command !== undefined) {
+  if (call.kind === 'bash' && call.command !== undefined) {
     const command = call.command
     let verdict: { deny?: string }
     try {
-      verdict = d.core.checkBash(command, d.bashOptions(call.cwd))
+      verdict = d.core.checkBash(command, bashOptions(d.ctx, call.cwd, d.realpath))
     } catch (e) {
-      return deny('H01', '', 'bash', e)
+      return failed('H01', e)
     }
-    if (verdict.deny !== undefined && verdict.deny !== '') return deny('H01', verdict.deny, 'bash')
+    if (verdict.deny !== undefined && verdict.deny !== '') return deny('H01', verdict.deny)
     const shell = await d.shellDenial?.(command)
-    if (shell !== undefined) return deny('H01', shell, 'shell')
-    const lane = input.subagent ? await d.step('H01 lane guard', undefined as string | undefined, () => d.laneDenial(command)) : undefined
-    if (lane !== undefined) return deny('H01', lane, 'lane')
+    if (shell !== undefined) return deny('H01', shell)
+    const lane = input.subagent ? await d.step('H01 lane guard', undefined as string | undefined, () => d.core.laneStateDenial(command)) : undefined
+    if (lane !== undefined) return { action: 'deny', reason: lane, hook: 'H01' }
     const consent = await d.step('H20 consent', undefined as string | undefined, () => consentGate(H, sid, command, now, d.core.consentVerdict))
     if (consent !== undefined) {
-      if (d.holdConsent === undefined || !await d.holdConsent(command, consent)) return deny('H20', consent, 'consent')
+      if (d.holdConsent === undefined || !await d.holdConsent(command, consent)) return deny('H20', consent)
       held = { command, reason: consent }
     }
   }
-  if (checks.write === true) {
-    try {
-      const t = d.writeTargets(call)
-      if ('deny' in t) return deny('H02', t.deny, 'write')
-      if (t.paths.length > 0) {
-        const guard = await d.writeGuardContext(call.cwd)
-        const contents = t.contents(guard)
-        const full: WriteGuardContext = Object.keys(contents).length > 0 ? { ...guard, contents } : guard
-        const verdict = d.core.checkWrite(t.paths, full)
-        if (verdict.deny !== undefined && verdict.deny !== '') return deny('H02', verdict.deny, 'write')
-      }
-    } catch (e) {
-      return deny('H02', '', 'write', e)
+  try {
+    const t = d.writeTargets(call)
+    if (t !== undefined && 'deny' in t) return deny('H02', t.deny)
+    if (t !== undefined && t.paths.length > 0) {
+      const guard = await writeGuardContext(d, call.cwd)
+      const contents = t.contents(guard)
+      const verdict = d.core.checkWrite(t.paths, Object.keys(contents).length > 0 ? { ...guard, contents } : guard)
+      if (verdict.deny !== undefined && verdict.deny !== '') return deny('H02', verdict.deny)
     }
+  } catch (e) {
+    return failed('H02', e)
   }
-  if (checks.mcpWrite === true) {
-    try {
-      const targets = mcpWritePaths(call.tool, call.input, call.mcp)
-      if (targets.length > 0) {
-        const verdict = d.core.checkWrite(targets, await d.writeGuardContext(call.cwd))
-        if (verdict.deny !== undefined && verdict.deny !== '') return deny('H02', verdict.deny, 'mcpWrite')
-      }
-    } catch (e) {
-      return deny('H02', '', 'mcpWrite', e)
+  try {
+    const targets = mcpWritePaths(call.tool, call.input, call.mcp)
+    if (targets.length > 0) {
+      const verdict = d.core.checkWrite(targets, await writeGuardContext(d, call.cwd))
+      if (verdict.deny !== undefined && verdict.deny !== '') return deny('H02', verdict.deny)
     }
+  } catch (e) {
+    return failed('H02', e, true)
   }
-  const parts: PreToolParts = { route: [] }
-  if (input.guardsOnly === true) return { action: 'allow', context: [], parts }
-  if (checks.question === true) {
+  if (input.guardsOnly === true) return { action: 'allow', context: [] }
+  let health: McpHealth | undefined
+  const healthOf = (): McpHealth => (health ??= mcpHealth(d.ctx, H, now, { sid, nativeOff: call.kind === 'web_search' || call.kind === 'web_fetch' ? d.nativeOff() : [] }))
+  const routed = await d.step('H03 routing', undefined as ReturnType<PipelineDeps['core']['routeTool']> | undefined, () => d.core.routeTool(call, routingPolicy(d.ctx), healthOf()))
+  if (routed?.action === 'deny') return deny(routed.hook, routed.reason)
+  const context: Array<string | undefined> = routed?.action === 'allow' && routed.context ? [...routed.context] : []
+  if (call.kind === 'ask_user') {
     const r = await d.step('H09 checkQuestion', {} as { context?: string }, () => d.core.checkQuestion(loadState(H, sid), call, now))
-    if (!input.subagent) {
-      const paused = input.asyncQuestion === true && r.context !== undefined
-        ? await d.step('H09 async question pause', false, () => {
-          let changed = false
-          updateState(H, sid, s => { const next = d.core.questionPause(s, call, now); changed = next !== s; return next })
-          return changed
-        })
-        : false
-      const text = paused ? d.core.ASYNC_QUESTION_PAUSED : r.context
-      if (text !== undefined) parts.question = text
-    }
+    const paused = !input.subagent && input.asyncQuestion === true && r.context !== undefined && await d.step('H09 async question pause', false, () => {
+      let changed = false
+      updateState(H, sid, s => { const next = d.core.questionPause(s, call, now); changed = next !== s; return next })
+      return changed
+    })
+    if (!input.subagent) context.push(paused ? d.core.ASYNC_QUESTION_PAUSED : r.context)
   }
-  const health = d.mcpHealth(call)
-  if (checks.route === true) {
-    const r = await d.step('H03 routing', undefined as ReturnType<PipelineDeps['core']['routeTool']> | undefined, () => d.core.routeTool(call, d.routingPolicy(), health()))
-    if (r?.action === 'deny') return deny(r.hook, r.reason, 'route')
-    if (r?.action === 'allow' && r.context) parts.route = [...r.context]
+  if (input.usage) {
+    const usage = await d.step('H24 usage', {} as { deny?: string, context?: string }, () => usageStep(input, d, healthOf()))
+    if (usage.deny !== undefined) return deny('H03', usage.deny)
+    context.push(usage.context)
   }
-  if (checks.usage === true) {
-    const usage = await d.step('H24 usage', {} as UsageOutcome, () => usageStep(input, d, health))
-    if (usage.deny !== undefined) return deny('H03', usage.deny, usage.source ?? 'usage')
-    if (usage.context !== undefined) parts.usage = usage.context
+  const early = input.edits !== undefined ? await d.step('H03 early edit', undefined, () => earlyEdit(H, sid, input.edits ?? [], call.cwd, d.ctx.config.plan.planApproval)) : undefined
+  if (early !== undefined) {
+    context.push(early.note)
+    await d.step('H03 early edit mark', undefined, () => { early.commit() })
   }
-  if (d.earlyEdit !== undefined) {
-    const note = d.earlyEdit
-    const early = await d.step('H03 early edit', undefined as EarlyEdit | undefined, () => note())
-    if (early !== undefined) {
-      parts.early = early.note
-      await d.step('H03 early edit mark', undefined, () => { early.commit() })
-    }
-  }
-  return { action: 'allow', context: contextOf(parts), parts, ...(held !== undefined ? { held } : {}) }
+  return { action: 'allow', context: context.filter((s): s is string => s !== undefined), ...(held !== undefined ? { held } : {}) }
 }

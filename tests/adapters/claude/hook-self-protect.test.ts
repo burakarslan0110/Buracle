@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { WRITE_GUARD_FAILED, claudeHook, defaultHookDeps, type HookDeps } from '../../../src/adapters/claude/hook'
+import { claudeHook, defaultHookDeps, type HookDeps } from '../../../src/adapters/claude/hook'
 import type { AdapterContext } from '../../../src/adapters/registry'
 import { hookBundle } from '../../../src/cli/hook-data'
 import type { CanonicalBundle } from '../../../src/core/catalog'
@@ -87,7 +87,7 @@ describe('G12: MCP calls that name a file they write go through H02', () => {
     mkdirSync(proj, { recursive: true })
     const r = await claudeHook('PreToolUse', pre(heap, { filePath: join(home, '.claude', 'settings.json') }, proj), ctx(), real())
     expect(denied(r)).toContain("Claude Code's own configuration")
-    expect(denied(r)).toStartWith('Buracle H02 (guard.write): ')
+    expect(denied(r)).toStartWith('Buracle H02: ')
     expect(denied(await claudeHook('PreToolUse', pre(heap, { filePath: '~/.ssh/authorized_keys' }, proj), ctx(), real()))).toContain('SSH directory')
     expect(denied(await claudeHook('PreToolUse', pre(heap, { filePath: '.claude/settings.local.json' }, proj), ctx(), real()))).toContain('file edit or whole-file write tool')
     expect(denied(await claudeHook('PreToolUse', pre(heap, { filePath: join(proj, 'heap.heapsnapshot') }, proj), ctx(), real()))).toBeUndefined()
@@ -96,7 +96,7 @@ describe('G12: MCP calls that name a file they write go through H02', () => {
   test('a server Buracle does not install is judged too, and only by H02 (no usage ledger, no routing)', () => withSandbox(async ({ root, home }) => {
     const proj = join(root, 'proj')
     mkdirSync(proj, { recursive: true })
-    expect(denied(await claudeHook('PreToolUse', pre('mcp__myfiles__save_file', { path: join(home, '.ssh', 'authorized_keys'), content: 'x' }, proj), ctx(), real()))).toStartWith('Buracle H02 (guard.write): ')
+    expect(denied(await claudeHook('PreToolUse', pre('mcp__myfiles__save_file', { path: join(home, '.ssh', 'authorized_keys'), content: 'x' }, proj), ctx(), real()))).toStartWith('Buracle H02: ')
     expect(denied(await claudeHook('PreToolUse', pre('mcp__claude_ai_Docs__export', { outputPath: join(home, '.claude', 'settings.json') }, proj), ctx(), real()))).toContain("Claude Code's own configuration")
     expect(await claudeHook('PreToolUse', pre('mcp__myfiles__save_file', { path: join(proj, 'notes.md'), content: 'x' }, proj), ctx(), real())).toEqual({ stdout: '', exitCode: 0 })
     expect(await claudeHook('PreToolUse', pre('mcp__myfiles__list', {}, proj), ctx(), real())).toEqual({ stdout: '', exitCode: 0 })
@@ -108,7 +108,7 @@ describe('G12: MCP calls that name a file they write go through H02', () => {
     mkdirSync(proj, { recursive: true })
     const throwing = real({ core: { ...defaultHookDeps.core, checkWrite: () => { throw new Error('boom') } } })
     expect(denied(await claudeHook('PreToolUse', pre('mcp__plugin_buracle_semble__find_related', { file_path: '.env', line: 1, repo: proj }, proj), ctx(), throwing))).toBeUndefined()
-    expect(denied(await claudeHook('PreToolUse', pre(heap, { filePath: join(proj, 'h.heapsnapshot') }, proj), ctx(), throwing))).toBe(WRITE_GUARD_FAILED)
+    expect(denied(await claudeHook('PreToolUse', pre(heap, { filePath: join(proj, 'h.heapsnapshot') }, proj), ctx(), throwing))).toBe("Buracle H02: the write guard could not check the files of this edit (boom), so the call is blocked: Buracle's guards fail closed. Ask the user to run it themselves, or have them check `buracle doctor`.")
   }), 20_000)
 })
 
@@ -120,7 +120,7 @@ describe('G13: a payload without a valid session_id still meets the PreToolUse g
       expect(denied(await claudeHook('PreToolUse', pre('Bash', { command: 'rm -rf ~' }, proj, sid), ctx(), real()))).toBeDefined()
       expect(denied(await claudeHook('PreToolUse', pre('Write', { file_path: join(home, '.ssh', 'config'), content: 'x' }, proj, sid), ctx(), real()))).toContain('SSH directory')
       expect(denied(await claudeHook('PreToolUse', pre('mcp__plugin_buracle_chrome-devtools__take_screenshot', { filePath: join(home, '.claude', 'settings.json') }, proj, sid), ctx(), real()))).toContain("Claude Code's own configuration")
-      expect(denied(await claudeHook('PreToolUse', pre('Bash', { command: 'git push origin main' }, proj, sid), ctx(), real()))).toStartWith('Buracle H20 (consent.gate): ')
+      expect(denied(await claudeHook('PreToolUse', pre('Bash', { command: 'git push origin main' }, proj, sid), ctx(), real()))).toStartWith('Buracle H20: ')
       expect(await claudeHook('PreToolUse', pre('Bash', { command: 'ls' }, proj, sid), ctx(), real())).toEqual({ stdout: '', exitCode: 0 })
       expect(await claudeHook('PreToolUse', pre('Write', { file_path: join(proj, 'a.ts'), content: 'x' }, proj, sid), ctx(), real())).toEqual({ stdout: '', exitCode: 0 })
       expect(await claudeHook('Stop', JSON.stringify({ session_id: sid, hook_event_name: 'Stop', cwd: proj }), ctx(), real())).toEqual({ stdout: '', exitCode: 0 })
@@ -135,7 +135,7 @@ describe('the PowerShell tool meets the shell guards like Bash', () => {
     const proj = join(root, 'proj')
     mkdirSync(proj, { recursive: true })
     expect(denied(await claudeHook('PreToolUse', pre('PowerShell', { command: 'rm -rf ~' }, proj), ctx(), real()))).toContain('would delete your home directory')
-    expect(denied(await claudeHook('PreToolUse', pre('PowerShell', { command: 'git push origin main' }, proj), ctx(), real()))).toStartWith('Buracle H20 (consent.gate): ')
+    expect(denied(await claudeHook('PreToolUse', pre('PowerShell', { command: 'git push origin main' }, proj), ctx(), real()))).toStartWith('Buracle H20: ')
     expect(denied(await claudeHook('PreToolUse', pre('PowerShell', { command: 'Get-ChildItem' }, proj), ctx(), real()))).toBeUndefined()
   }), 20_000)
 })
