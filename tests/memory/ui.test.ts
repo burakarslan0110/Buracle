@@ -5,8 +5,7 @@ import { contradictionNote, type MemItem } from '../../src/core/memory/brain'
 import * as paths from '../../src/engine/paths'
 import { tilde } from '../../src/engine/update/output'
 import { closeAllCortex, pidAlive, readerEntries } from '../../src/memory/cortex'
-import { brainDbFile, migrationLockFile, projectsFile, statusFile } from '../../src/memory/layout'
-import { tryLock } from '../../src/memory/lock'
+import { brainDbFile, projectsFile, statusFile } from '../../src/memory/layout'
 import { MemoryError } from '../../src/memory/api'
 import { readProjectsCache } from '../../src/memory/project'
 import { refreshStatus } from '../../src/memory/status'
@@ -14,7 +13,6 @@ import { bucketExists, getStored, personRef, projectRef, recordEvent, saveItem }
 import { clearUiRecord, handle, healthy, localHost, PAGE_CSP, readUiRecord, serveUi, UI_ASSETS, UI_IDLE_MS, uiContext, uiIdleMs, type UiContext, type UiStopReason } from '../../src/memory/ui'
 import { MAX_BODY_BYTES, readBody, uiErrorOf } from '../../src/memory/ui/actions'
 import { eventInScope, parseEventLine } from '../../src/memory/ui/events'
-import { installLegacyBrain, REAL_CORTEXDB } from './helpers'
 import { withEnv, withSandbox, type Sandbox } from '../helpers/sandbox'
 
 afterEach(async () => { await closeAllCortex() })
@@ -990,57 +988,11 @@ describe('the memory API of the page', () => {
       expect(h.brain.file).toBe(tilde(brainDbFile()))
       expect(h.brain.bytes).toBeGreaterThan(0)
       expect(h.brain).toMatchObject({ person: 3, projects: { alpha: 3, beta: 1 } })
-      expect(h.migration).toEqual({ state: 'none', legacy: 0, keptLegacy: false })
       expect(h.store).toMatchObject({ ok: true })
       expect(typeof h.store['version']).toBe('string')
       expect(h).not.toHaveProperty('heal')
     })
   })
-
-  test.skipIf(REAL_CORTEXDB)('a brain of Buracle 0.5 is moved when the page asks, and a move that failed is a banner with its fix, never an empty brain', async () => {
-    await withSandbox(async () => {
-      installLegacyBrain()
-      await withEnv({ BURACLE_MIGRATE_FAIL_AFTER: '0' }, async () => {
-        const c = ctx()
-        const ov = (await getJson(c, '/api/overview')).body as { migration: Record<string, unknown>, person: { count: number | null, error?: string } }
-        expect(ov.migration).toMatchObject({ state: 'failed', legacy: 3, fix: 'buracle mem migrate' })
-        expect(typeof ov.migration['error']).toBe('string')
-        const brain = await getJson(c, '/api/brain?scope=person')
-        expect(brain.status).toBe(503)
-        expect(brain.body).toMatchObject({ error: 'migration_failed', fix: 'buracle mem migrate' })
-        expect(brain.body).not.toHaveProperty('items')
-      })
-      await closeAllCortex()
-      const c = ctx()
-      const ov = (await getJson(c, '/api/overview')).body as { migration: Record<string, unknown>, person: { count: number }, projects: Array<{ slug: string, count: number }> }
-      expect(ov.migration).toMatchObject({ state: 'complete', legacy: 0, keptLegacy: true })
-      expect(typeof ov.migration['finishedAt']).toBe('string')
-      // What 0.5 kept is in the page: the same memories the listing shows, not an empty brain.
-      expect(ov.person.count).toBeGreaterThanOrEqual(3)
-      expect(itemsOf(await getJson(c, '/api/brain?scope=person')).length).toBe(ov.person.count)
-      const demo = ov.projects.find(p => p.slug === 'demo')
-      expect(demo?.count).toBeGreaterThanOrEqual(4)
-      expect(itemsOf(await getJson(c, '/api/brain?scope=project:demo')).length).toBe(demo?.count ?? -1)
-    })
-  }, 30_000)
-
-  test('while another process moves the memory the page is told so (503 migrating), not shown an empty brain', async () => {
-    await withSandbox(async () => {
-      installLegacyBrain()
-      const release = tryLock(migrationLockFile(), 60_000)
-      expect(release).toBeDefined()
-      try {
-        await withEnv({ BURACLE_MIGRATE_WAIT_MS: '60' }, async () => {
-          const c = ctx()
-          const brain = await getJson(c, '/api/brain?scope=person')
-          expect(brain.status).toBe(503)
-          expect(brain.body).toMatchObject({ error: 'migrating', fix: 'buracle mem migrate --status' })
-          const ov = (await getJson(c, '/api/overview')).body as { migration: Record<string, unknown> }
-          expect(ov.migration).toMatchObject({ state: 'running', legacy: 3, fix: 'buracle mem migrate --status' })
-        })
-      } finally { release?.() }
-    })
-  }, 30_000)
 })
 
 describe('how long the server lives', () => {

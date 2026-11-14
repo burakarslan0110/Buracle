@@ -14,10 +14,7 @@ import { BrainCache, brainOf, errorPayload, graphOf, memoryOf, overview, parseSc
 import { eventStream } from './ui/events'
 import { addReviewNote, deleteReviewNote, editReviewNote, reviewDoc, reviewDocs } from './ui/review'
 import { reviewChanges } from './ui/review-changes'
-import { extensionsPayload } from './ui/extensions'
-import { markRead, notificationsPayload } from './ui/inbox'
 import { saveSetting, workflowPayload } from './ui/settings'
-import { sessionsPayload, usagePayload } from './ui/work'
 
 export { readUiRecord, type UiRecord } from './ui-record'
 
@@ -77,7 +74,6 @@ const JS = 'text/javascript; charset=utf-8'
 export const UI_ASSETS: Readonly<Record<string, string>> = {
   'tokens.css': 'text/css; charset=utf-8',
   'app.css': 'text/css; charset=utf-8',
-  'dash.css': 'text/css; charset=utf-8',
   'app.js': JS,
   'pointer.js': JS,
   'brain.js': JS,
@@ -90,9 +86,6 @@ export const UI_ASSETS: Readonly<Record<string, string>> = {
   'dom.js': JS,
   'i18n.js': JS,
   'manage.js': JS,
-  'work.js': JS,
-  'inbox.js': JS,
-  'extensions.js': JS,
   'switches.js': JS,
   'logo.js': JS,
   'theme.js': JS,
@@ -157,7 +150,7 @@ export function uiContext(opts: { version: string, build?: string, port: number,
   return c
 }
 
-const WRITE_PATHS: ReadonlySet<string> = new Set(['/api/backup', '/api/project/remove', '/api/memory/update', '/api/memory/retire', '/api/memory/restore', '/api/memory/delete', '/api/review/note/add', '/api/review/note/edit', '/api/review/note/delete', '/api/notifications/read', '/api/settings'])
+const WRITE_PATHS: ReadonlySet<string> = new Set(['/api/backup', '/api/project/remove', '/api/memory/update', '/api/memory/retire', '/api/memory/restore', '/api/memory/delete', '/api/review/note/add', '/api/review/note/edit', '/api/review/note/delete', '/api/settings'])
 
 const BROWSER_ONLY: ReadonlySet<string> = new Set(['/api/settings'])
 
@@ -197,7 +190,6 @@ async function write(p: string, raw: string, req: Request, c: UiContext): Promis
       case '/api/review/note/add': return json(await addReviewNote(body, now))
       case '/api/review/note/edit': return json(await editReviewNote(body, now))
       case '/api/review/note/delete': return json(await deleteReviewNote(body, now))
-      case '/api/notifications/read': return json(markRead(body))
       case '/api/settings': return json(await saveSetting(body))
       default: throw new UiApiError(404, 'not_found', `there is no API at ${p}`)
     }
@@ -246,10 +238,6 @@ export async function handle(req: Request, c: UiContext, server?: UiServerHandle
       case '/api/review/docs': return json(await reviewDocs(now))
       case '/api/review/doc': return json(await reviewDoc(q.get('id'), now))
       case '/api/review/changes': return json(await reviewChanges(q.get('checkout'), now))
-      case '/api/sessions': return json(await sessionsPayload(now))
-      case '/api/usage': return json(await usagePayload(now))
-      case '/api/notifications': return json(notificationsPayload())
-      case '/api/extensions': return json(await extensionsPayload(await parseScope(q.get('scope')), now))
       case '/api/events': {
         const scope = await parseScope(q.get('scope'))
         if (req.method === 'HEAD') return new Response(null, { headers: { ...SECURITY_HEADERS, 'content-type': 'text/event-stream; charset=utf-8' } })

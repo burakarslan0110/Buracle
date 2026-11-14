@@ -318,20 +318,6 @@ export async function removeDownloadedTools(nowMs: number): Promise<string[]> {
   return names
 }
 
-export const VAULT_PRE_COMMIT_MARKER = '# Installed by buracle: refuse commits that contain secrets.'
-
-export async function removeVaultPreCommitHook(vault: string): Promise<'removed' | 'foreign' | 'missing' | 'error'> {
-  const file = join(vault, '.git', 'hooks', 'pre-commit')
-  try {
-    let text: string
-    try { text = readFileSync(file, 'utf8') } catch { return 'missing' }
-    if (!text.includes(VAULT_PRE_COMMIT_MARKER)) return 'foreign'
-    unlinkSync(file)
-    return 'removed'
-  } catch {
-    return 'error'
-  }
-}
 
 export interface ProjectLeftover { root: string; path: string; what: string; remove: string }
 

@@ -1,11 +1,10 @@
 import { describe, expect, test } from 'bun:test'
-import { chmodSync, existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { run as installRun } from '../../../src/cli/commands/install'
 import { run as uninstallRun } from '../../../src/cli/commands/uninstall'
 import * as paths from '../../../src/engine/paths'
 import { startupFile } from '../../../src/engine/update/shell-path'
-import { VAULT_PRE_COMMIT_MARKER } from '../../../src/engine/update/uninstall'
 import { git } from '../../memory/helpers'
 import { narrowPath } from '../../helpers/fake-exe'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
@@ -142,17 +141,11 @@ describe('uninstall leftovers (O8)', () => {
     })
   }))
 
-  test('the Buracle Console is stopped; the old vault pre-commit hook an older Buracle installed is removed, one the user wrote stays', () => withSandbox(async ({ root, home }) => {
+  test('the Buracle Console is stopped', () => withSandbox(async ({ root, home }) => {
     const repo = makeRepo(root)
-    const vault = join(home, 'Documents', 'Buracle')
-    mkdirSync(vault, { recursive: true })
-    git(vault, 'init', '-q')
-    const hook = join(vault, '.git', 'hooks', 'pre-commit')
     const codex = fakeAdapter('codex', { plan: () => ({ id: 'codex', harness: 'codex', ops: [{ kind: 'file', path: join(home, '.codex/a.txt'), content: 'a\n', owner: 'codex' }] }) })
     await withDeps({ repoRoot: () => repo, adapters: async () => [codex], runCli: fakeCli().runCli }, async () => {
       expect(await installRun(['--yes'], memoryIO())).toBe(0)
-      put(hook, `#!/bin/sh\n${VAULT_PRE_COMMIT_MARKER}\nexit 1\n`)
-      chmodSync(hook, 0o755)
       const ui = await fakeUi(root)
       try {
         const io = memoryIO()
@@ -160,18 +153,9 @@ describe('uninstall leftovers (O8)', () => {
         await ui.proc.exited
         expect(alive(ui.proc.pid)).toBe(false)
         expect(io.out()).toContain('Stopped the Buracle Console')
-        expect(existsSync(hook)).toBe(false)
-        expect(io.out()).toContain('Removed the old vault\'s pre-commit hook')
-        expect(existsSync(join(vault, '.git'))).toBe(true)
       } finally {
         ui.proc.kill()
       }
-
-      expect(await installRun(['--yes'], memoryIO())).toBe(0)
-      put(hook, '#!/bin/sh\nexit 0\n')
-      chmodSync(hook, 0o755)
-      expect(await uninstallRun(['--yes'], memoryIO())).toBe(0)
-      expect(readFileSync(hook, 'utf8')).toBe('#!/bin/sh\nexit 0\n')
     })
   }), 30_000)
 

@@ -10,7 +10,7 @@ import { applyWithRetry, buracleHomeProblem, checkHome, keyPath, partitionEscape
 import { errText, tilde, tildeText, writeJson } from '../../engine/update/output'
 import {
   adapterUndoArgvs, adapterUninstallPlans, composeUninstall, journalsForUninstall, markAdapterUndos, projectLeftovers, pruneCreatedDirs, pruneEmptyRuleDirs, purgeState,
-  removedKeys, removeDownloadedTools, removeVaultPreCommitHook, runExecUndos, stopMemoryUi, type AdapterUninstall, type ProjectLeftover,
+  removedKeys, removeDownloadedTools, runExecUndos, stopMemoryUi, type AdapterUninstall, type ProjectLeftover,
 } from '../../engine/update/uninstall'
 import { removeLocalBinFromPath } from '../../engine/update/shell-path'
 import { resultLines, type ResultLines, type ResultState } from '../ui/steps'
@@ -33,9 +33,7 @@ the transaction lock. The memory (~/.buracle/brain, the CortexDB files) is never
 touched, not even by --purge-state; neither is the old Obsidian vault
 (~/Documents/Buracle).
 
-Outside the ledger: the Buracle Console is stopped; the old vault's pre-commit hook
-is removed when it is Buracle's (an older Buracle's secret scan, which would refuse
-every commit once Buracle is gone; a hook you wrote stays); the PATH lines the install
+Outside the ledger: the Buracle Console is stopped; the PATH lines the install
 added to your shell's startup file are taken out; the system tools the install
 downloaded (node, uv, rg, jq in ~/.buracle/toolchain/system) are removed. Files Buracle
 wrote into your projects without a ledger entry (the .codegraph/ index, the managed blocks
@@ -86,7 +84,6 @@ interface UninstallResult {
   purgeKept: string[]
   prunedDirs: string[]
   memoryUi: string
-  vaultHook: string
   projectLeftovers: ProjectLeftover[]
   diff?: string
   errors: string[]
@@ -132,7 +129,7 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
   const t = resultLines({ flags: { ...io.flags, json } }, io.stdout)
   io.stdout.write(t.header(dryRun ? 'uninstall --dry-run' : 'uninstall'))
   const ask = !dryRun && !p.bools.has('yes') && !json && io.stdin.isTTY ? (q: string) => opsDeps.confirm(q) : undefined
-  const res: UninstallResult = { ok: true, code: 0, dryRun, txns: [], run: '', removed: 0, kept: [], adopted: [], protected: [], harnesses: [], busy: [], undone: [], undoFailed: [], undoSkipped: [], pendingUndos: [], purged: [], purgeKept: [], prunedDirs: [], memoryUi: 'none', vaultHook: 'missing', projectLeftovers: [], errors: [], warnings: [], notes: [] }
+  const res: UninstallResult = { ok: true, code: 0, dryRun, txns: [], run: '', removed: 0, kept: [], adopted: [], protected: [], harnesses: [], busy: [], undone: [], undoFailed: [], undoSkipped: [], pendingUndos: [], purged: [], purgeKept: [], prunedDirs: [], memoryUi: 'none', projectLeftovers: [], errors: [], warnings: [], notes: [] }
   const finish = (): number => {
     if (json) writeJson(io.stdout, res)
     else render(res, io, t)
@@ -312,7 +309,6 @@ async function uninstallFlow(res: UninstallResult, o: FlowOptions, io: CommandIO
     res.memoryUi = ui.status
     if (ui.status === 'still-running') res.warnings.push(`the Buracle Console at ${ui.url ?? '?'} did not stop; end its process by hand`)
     if (!coreFailed) {
-      res.vaultHook = await removeVaultPreCommitHook(vault)
       const shell = removeLocalBinFromPath()
       if (shell.removed && shell.file !== undefined) res.notes.push(`Removed the PATH lines Buracle added to ${[shell.file, ...(shell.also ?? [])].map(f => tilde(f)).join(', ')}.`)
       else if (shell.note !== undefined) res.warnings.push(tildeText(shell.note))
@@ -340,7 +336,7 @@ async function uninstallFlow(res: UninstallResult, o: FlowOptions, io: CommandIO
       if (pr.refused !== undefined) res.notes.push(`State was not purged: ${pr.refused}.`)
     }
   }
-  res.notes.push(`The memory at ${tilde(paths.brainDir())} was not touched${existsSync(vault) ? `, nor the old vault at ${tilde(vault)}${res.vaultHook === 'removed' ? ' (only Buracle\'s pre-commit hook in its .git/hooks was removed)' : ''}` : ''}.`)
+  res.notes.push(`The memory at ${tilde(paths.brainDir())} was not touched${existsSync(vault) ? `, nor the old vault at ${tilde(vault)}` : ''}.`)
   if (res.interrupted !== undefined) res.code = interruptCode(res.interrupted)
   else if (coreFailed) res.code = 1
   else if (res.errors.length > 0 || res.kept.length > 0 || res.undoFailed.length > 0 || res.purgeKept.length > 0 || res.warnings.length > 0 || res.busy.length > 0) res.code = 2
@@ -388,8 +384,6 @@ function render(r: UninstallResult, io: CommandIO, t: ResultLines): void {
     for (const f of r.undoFailed) item(`${tildeText(f.command)}: ${tildeText(f.detail)}`)
   }
   if (r.memoryUi === 'stopped') top('ok', 'Stopped the Buracle Console.')
-  if (r.vaultHook === 'removed') top('ok', 'Removed the old vault\'s pre-commit hook (an older Buracle\'s secret scan).')
-  else if (r.vaultHook === 'foreign') top('info', 'Kept the old vault\'s pre-commit hook: it is not Buracle\'s.')
   if (r.projectLeftovers.length > 0) {
     top('info', `Left in your projects (not in the ownership ledger; remove them by hand if you want)${r.dryRun ? '' : ':'}`)
     for (const l of r.projectLeftovers) item(`${l.path}: ${l.what}; ${l.remove}`)

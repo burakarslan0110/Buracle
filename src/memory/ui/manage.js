@@ -174,24 +174,6 @@ function sizeText(bytes) {
   return n < 1024 * 1024 ? `${num(Math.max(1, Math.round(n / 1024)))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`
 }
 
-function migrationItem(mig) {
-  const failed = mig.state === 'failed'
-  return h('li', { class: failed ? 'is-error' : 'is-warn' },
-    h('p', { class: 'hr-title' }, icon('alert', 'icon xs'), h('span', null, t(`health.migration.${mig.state}`))),
-    failed && typeof mig.error === 'string' ? h('p', { class: 'hr-detail' }, mig.error) : null,
-    typeof mig.fix === 'string' && mig.fix !== '' ? h('code', { class: 'fix' }, mig.fix) : null)
-}
-
-function migrationRows(mig) {
-  if (mig === undefined || mig === null) return []
-  const finished = mig.state === 'complete' && typeof mig.finishedAt === 'string' ? t('health.migrationFinished', { t: relTime(mig.finishedAt, Date.now()) }) : tOr(`health.migration.${mig.state}`, String(mig.state))
-  return [
-    [t('health.migration'), mig.state === 'failed' ? h('span', { class: 'warn-text' }, finished) : finished],
-    mig.legacy > 0 ? [t('health.legacyWaiting', { n: num(mig.legacy) }), null] : null,
-    mig.keptLegacy ? [t('health.legacyKept'), null] : null,
-  ]
-}
-
 function brainFileSection(data) {
   const b = data.brain
   const rows = []
@@ -203,11 +185,9 @@ function brainFileSection(data) {
       h('li', null, t('health.bucketPerson'), ' · ', t('health.bucketCount', { n: num(b.person ?? 0) })),
       slugs.map(slug => h('li', null, h('code', null, slug), ' · ', t('health.bucketCount', { n: num(b.projects[slug]) }))))])
   }
-  const mig = migrationRows(data.migration).filter(Boolean)
   return section(t('health.brainFile'),
     h('p', { class: 'set-lead' }, t('health.brainFileLead')),
-    rows.length > 0 ? props(rows) : h('p', { class: 'empty' }, t('health.noBrainFile')),
-    mig.length > 0 ? h('ul', { class: 'notes' }, mig.map(([k, v]) => h('li', null, v === null ? k : [k, ': ', v]))) : null)
+    rows.length > 0 ? props(rows) : h('p', { class: 'empty' }, t('health.noBrainFile')))
 }
 
 function backupSection(b, ctx, now) {
@@ -313,16 +293,14 @@ function projectSection(p, ctx) {
 }
 
 export function healthView(body, data, ctx, now) {
-  const level = data.migration?.state === 'failed' ? 'error' : LEVELS.has(data.health) ? data.health : 'warn'
+  const level = LEVELS.has(data.health) ? data.health : 'warn'
   const reasons = Array.isArray(data.reasons) ? data.reasons : []
-  const migrating = data.migration?.state === 'failed' || data.migration?.state === 'running'
   const settings = button(t('health.openSettings'), { class: 'btn sm quiet', 'data-key': 'settings' })
   settings.addEventListener('click', () => ctx.open('settings'))
   fill(body,
     h('p', { class: `health-head is-${level}` }, icon(level === 'ok' ? 'check' : 'alert', 'icon'), h('span', null, t(`health.head.${level}`))),
     data.computedAt ? h('p', { class: 'meta' }, t('health.checked', { t: relTime(data.computedAt, now) })) : null,
     reasons.length > 0 ? section(t('health.reasons'), h('ul', { class: 'hreasons' }, reasons.map(reasonItem))) : null,
-    migrating ? section(t('health.migration'), h('ul', { class: 'hreasons' }, migrationItem(data.migration))) : null,
     storeSection(data),
     brainFileSection(data),
     backupSection(data.backups, ctx, now),

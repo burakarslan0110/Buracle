@@ -20,7 +20,7 @@ import {
   type BrainRef, type Stored,
 } from './store'
 
-export type MemoryErrorCode = 'invalid_input' | 'not_found' | 'conflict' | 'no_project' | 'not_editable' | 'store_unavailable' | 'migrating'
+export type MemoryErrorCode = 'invalid_input' | 'not_found' | 'conflict' | 'no_project' | 'not_editable' | 'store_unavailable'
 
 export class MemoryError extends Error {
   readonly code: MemoryErrorCode
@@ -129,8 +129,6 @@ async function guard<T>(fn: () => Promise<T>): Promise<T> {
     if (e instanceof CortexError) {
       if (e.code === 'not_installed') throw new MemoryError('store_unavailable', e.message)
       if (e.code === 'busy') throw new MemoryError('conflict', e.message)
-      if (e.code === 'migrating') throw new MemoryError('migrating', e.message)
-      if (e.code === 'migration_failed') throw new MemoryError('store_unavailable', e.message)
       throw new MemoryError('store_unavailable', `the memory store did not answer: ${e.message}`)
     }
     throw e

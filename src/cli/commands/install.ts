@@ -214,32 +214,10 @@ function harnessRows(hs: HarnessStatus[]): string[][] {
 
 async function memorySteps(): Promise<string[]> {
   const steps: string[] = []
-  const reason = (r: { code: number, stderr: string }) => (r.stderr.trim().split('\n')[0] ?? '').slice(0, 160) || `exit ${r.code}`
   try {
     const { checkCortexdb } = await import('../../engine/toolchain/cortexdb')
     const bin = checkCortexdb()
     if (bin.status !== 'ok') steps.push(`Memory: ${bin.detail}.`)
-    const { legacyPending } = await import('../../memory/migration-state')
-    if (bin.status === 'ok' && legacyPending()) {
-      const r = await opsDeps.runCli(['mem', 'migrate', '--json'])
-      steps.push(r.code === 0
-        ? 'Folded the brain files of Buracle 0.5 (person.db, projects/) into ~/.buracle/brain/brain.db: verified copies first (brain/backups/pre-migrate-*), nothing deleted; `buracle mem migrate --rollback` goes back.'
-        : `Fold the brain files of Buracle 0.5 into brain.db: run \`buracle mem migrate\` (${reason(r)}).`)
-    }
-    const { oldVaultPath, vaultImportDone } = await import('../../memory/import-vault')
-    const vault = oldVaultPath()
-    const { removeVaultPreCommitHook } = await import('../../engine/update/uninstall')
-    if (await removeVaultPreCommitHook(vault) === 'removed') steps.push(`Removed Buracle's pre-commit hook from the old vault ${tilde(vault)} (manual commits there work again; the notes are untouched).`)
-    const hasNotes = existsSync(join(vault, 'projects')) || existsSync(join(vault, 'global'))
-    if (bin.status === 'ok' && hasNotes && vaultImportDone() === undefined) {
-      const r = await opsDeps.runCli(['mem', 'import-vault', '--vault', vault, '--json'])
-      if (r.code !== 0) steps.push(`Import the old vault's notes into the memory: run \`buracle mem import-vault\` (${reason(r)}).`)
-      else {
-        let n = 0
-        try { const j = JSON.parse(r.stdout) as { imported?: unknown[] }; n = Array.isArray(j.imported) ? j.imported.length : 0 } catch {  }
-        steps.push(`Imported ${n} memor${n === 1 ? 'y' : 'ies'} from the old vault ${tilde(vault)} into ~/.buracle/brain (the vault was only read; it is yours to keep or delete).`)
-      }
-    }
     const { removeClaudeRedirects } = await import('../../memory/project-init')
     const redirects = await removeClaudeRedirects()
     if (redirects.removed.length > 0) steps.push(`Took back Claude Code's memory redirect (autoMemoryDirectory) in ${redirects.removed.length} project${redirects.removed.length === 1 ? '' : 's'}; Claude Code's own auto memory is off, Buracle's brain is the memory.`)

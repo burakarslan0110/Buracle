@@ -15,19 +15,7 @@ import { memoryStatusReport } from '../../src/memory/status-report'
 import { sessionStart } from '../../src/memory/session-record'
 import { appendSpool, readSpool, spoolFiles } from '../../src/memory/spool'
 import { listAll, projectRef } from '../../src/memory/store'
-import { main } from '../../src/cli/router'
 import { agentCtx, git, makeRepo, withBrain } from './helpers'
-
-async function cli(argv: string[]): Promise<{ code: number, out: string, err: string }> {
-  let out = ''
-  let err = ''
-  const code = await main(argv, {
-    stdout: { write: (s: string) => { out += s } },
-    stderr: { write: (s: string) => { err += s } },
-    stdin: { isTTY: true, text: async () => '' },
-  })
-  return { code, out, err }
-}
 
 describe('resolveProject', () => {
   test('slug from origin, cached, worktrees unified', async () => {
@@ -327,21 +315,6 @@ describe('memory.exclude', () => {
       expect(memoryExcludeConfig()).toEqual({ patterns: ['acme/*'] })
       expect((await resolveProject(repo))?.slug).toBe('demo')
       expect(await contextText({ cwd: repo })).not.toContain('Memory config:')
-    })
-  })
-
-  test('mem import --project refuses a project memory.exclude keeps out', async () => {
-    await withBrain(async ({ repo, root, buracleHome }) => {
-      await write(agentCtx(repo), { type: 'reference', title: 'The runbook is in the wiki', summary: 'ops wiki', body: '' })
-      const file = join(root, 'demo.jsonl')
-      expect((await cli(['mem', 'export', '--cwd', repo, '--out', file])).code).toBe(0)
-      const other = makeRepo(join(root, 'other'), 'git@github.com:acme/other.git')
-      expect((await resolveProject(other))?.slug).toBe('other')
-      exclude(buracleHome, 'acme/*')
-      const r = await cli(['mem', 'import', file, '--cwd', root, '--project', 'other'])
-      expect(r.code).toBe(2)
-      expect(r.err).toContain('the project other is excluded by memory.exclude (acme/*); nothing was imported')
-      expect(await listAll(projectRef('other'))).toEqual([])
     })
   })
 

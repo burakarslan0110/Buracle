@@ -79,8 +79,7 @@ left to CortexDB; Buracle keeps only what is specific to coding agents.
 Each memory keeps its kind, title, summary, body, tags, cited files, `about` entities, importance, who wrote it
 (`author`), and the two fields that separate fact from inference: `origin` (`explicit`: stated by the user, or
 written with the CLI by hand; `inferred`: concluded by a model or an agent) and `confidence` (0 to 1; 1 for
-explicit statements). Secrets are redacted by one function in every write path (write, update, spool, capture,
-export). A new memory starts unverified unless it was verified against the code or a primary source.
+explicit statements). Secrets are redacted by one function in every write path (write, update, spool, capture). A new memory starts unverified unless it was verified against the code or a primary source.
 
 ### Quality rules
 
@@ -135,23 +134,15 @@ local model, no API key and no resident service. Agents write explicit memories 
 | MCP server, session context, handoff, spool, finalize | kept (shrunk) | the product-specific behaviour |
 | Runner and model choice for the harness CLI | kept | the review companion and capture both use them |
 | Buracle Console (web UI) | kept, on demand | browsing, graph, provenance, edit, retire and delete |
-| Backup, export, import, vault import | kept | the owner's data must stay portable and recoverable |
+| Backup and restore | kept | the owner's data must stay portable and recoverable |
 | Hook layer per harness | kept, thinner | real lifecycle differences between harnesses need adapters |
 
 ### Concurrency
 
 CortexDB opens its file in WAL mode with a 5 s busy timeout, and an in-process queue orders writes; processes meet at
 SQLite's lock. Buracle adds a short per-bucket write lock around read-check-write sequences (duplicate check,
-supersede), one machine-wide lock around the model call, and an exclusive lock plus resumable marker for the
-one-time migration. Limits: a recall updates counters, so two simultaneous recalls can lose one count; a
-network-mounted home directory is not supported by SQLite's WAL mode.
-
-### Migration
-
-0.5.0 keeps `brain/person.db` and `brain/projects/<slug>.db`. The first memory command, MCP start, `buracle install`
-or `buracle update` on a machine with those files runs the migration described in [MIGRATION.md](MIGRATION.md): it
-backs the files up first, copies every memory into the new buckets (idempotent, resumable), verifies the counts, moves
-the old files aside instead of deleting them, and removes the obsolete embedding model.
+supersede) and one machine-wide lock around the model call. Limits: a recall updates counters, so two
+simultaneous recalls can lose one count; a network-mounted home directory is not supported by SQLite's WAL mode.
 
 ## Part 3: results
 
