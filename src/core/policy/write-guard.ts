@@ -1,4 +1,4 @@
-import { isAbsPath, isRootPath, normalizePath, pathRoot, resolveNormalPath } from '../events'
+import { isAbsPath, isRootPath, normalizePath, pathRoot, resolvePath } from '../events'
 import type { ConfigParsers, WriteContent } from './switch-off'
 import { guardedFile, switchOffChange } from './switch-off'
 
@@ -132,7 +132,7 @@ function expandHome(p: string, home: string): string {
 
 function absolute(p: string, cwd: string, home: string): string | undefined {
   if (typeof p !== 'string' || p.trim() === '') return undefined
-  return resolveNormalPath(cwd, expandHome(p.trim(), home))
+  return resolvePath(cwd, expandHome(p.trim(), home))
 }
 
 function lower(s: string): string { return s.toLowerCase() }

@@ -1,0 +1,68 @@
+import { CODEX_EVENTS } from './native-events'
+import { wordToken, type HarnessProfile } from './profile'
+
+export const codexProfile: HarnessProfile = {
+  id: 'codex',
+  label: 'Codex',
+  shortLabel: 'Codex',
+  noteName: 'codex',
+  bin: 'codex',
+  process: { base: /^codex(?:-(?:aarch64|arm64|x86_64|x64|amd64)\b[\w.-]*)?$/ },
+  runtime: 'command',
+  editBudgetMs: 40_000,
+  configDir: { key: 'codexHome', env: 'CODEX_HOME', under: '.codex' },
+  relocationEnv: ['CODEX_HOME'],
+  sessionEnv: ['CODEX_SESSION_ID', 'CODEX_THREAD_ID'],
+  protectedDirs: [{ key: 'codexHome', under: '.codex', entries: ['config.toml', 'hooks.json', 'rules/'] }],
+  selfText: { what: "Codex's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use Codex's own commands (`codex mcp …`, `codex features …`)" },
+  skills: {
+    dir: 'skills',
+    readsAgentsDir: true,
+    readsClaudeUserDir: false,
+    readsClaudeProjectDir: false,
+    invoke: { slash: false, dollar: true, at: false, commandTag: false },
+    mention: id => `$${id}`,
+    agentPrefix: '',
+    howto: 'the user starts a workflow with $<id>; you load one by reading ${CODEX_HOME:-~/.codex}/skills/<id>/SKILL.md',
+    load: id => `read \${CODEX_HOME:-~/.codex}/skills/${id}/SKILL.md`,
+    candidateHow: 'read ${CODEX_HOME:-~/.codex}/skills/<id>/SKILL.md',
+  },
+  plan: {
+    enter: 'ask the user to switch to Plan mode with `/plan`, then to say "continue", and end the turn',
+    readOnly: { name: "Codex's Plan mode", leave: 'leave Plan mode' },
+    approval: true,
+  },
+  mcp: {
+    prefix: 'mcp__',
+    separator: '__',
+    token: wordToken,
+    syntax: 'mcp__<server>__<tool>, with - written as _',
+    hiddenNote: '* = may be deferred: find its tools with tool_search before assuming they are missing',
+  },
+  mcpClient: { includes: ['codex'] },
+  events: {
+    map: {
+      sessionStart: ['SessionStart', 'SubagentStart'],
+      prompt: ['UserPromptSubmit'],
+      preTool: ['PreToolUse', 'PermissionRequest'],
+      postTool: ['PostToolUse'],
+      stop: ['Stop', 'SubagentStop'],
+      preCompact: ['PreCompact'],
+      sessionEnd: ['SessionEnd'],
+    },
+    native: CODEX_EVENTS,
+  },
+  tools: {
+    kinds: {
+      Bash: 'bash', shell: 'bash', shell_command: 'bash', exec_command: 'bash', local_shell: 'bash',
+      unified_exec: 'bash', 'container.exec': 'bash',
+      apply_patch: 'patch', Edit: 'patch', Write: 'patch',
+      view_image: 'read',
+      web_search: 'web_search', webrun: 'web_search',
+      request_user_input: 'ask_user', request_user_input_async: 'ask_user',
+      update_plan: 'todo',
+      spawn_agent: 'agent', Agent: 'agent',
+    },
+    names: { ask_user: 'request_user_input', todo: 'update_plan', spawn_agent: 'spawn_agent' },
+  },
+}

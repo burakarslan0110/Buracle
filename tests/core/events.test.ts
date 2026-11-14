@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { HOOK_IDS, RETIRED_HOOK_IDS, classifyTool, isAbsPath, isHarness, isRootPath, mcpServerToken, normalizePath, parseApplyPatch, parseMcpName, pathRoot, resolveNormalPath, resolvePath } from '../../src/core/events'
+import { HOOK_IDS, RETIRED_HOOK_IDS, classifyTool, isAbsPath, isHarness, isRootPath, mcpServerToken, normalizePath, parseApplyPatch, parseMcpName, pathRoot, resolvePath } from '../../src/core/events'
 import type { Harness, ToolKind } from '../../src/core/events'
 
 const CWD = '/work/repo'
@@ -263,7 +263,7 @@ describe('path helpers', () => {
     expect(resolvePath('/w', 'C://x')).toBe('/w/C:/x')
     expect(resolvePath('/w', '\\\\srv\\share\\x')).toBe('/w/\\\\srv\\share\\x')
     expect(resolvePath('/w', 'file:///C:/x/y')).toBe('/C:/x/y')
-    expect(resolveNormalPath('/w', 'a:b/../c\\d')).toBe('/w/c\\d')
+    expect(resolvePath('/w', 'a:b/../c\\d')).toBe('/w/c\\d')
     expect(resolvePath('/w', '~/.ssh', '/Users/u/')).toBe('/Users/u/.ssh')
     expect(classifyTool('opencode', 'edit', { filePath: 'src\\b.ts' }, '/w').paths).toEqual(['/w/src\\b.ts'])
   })

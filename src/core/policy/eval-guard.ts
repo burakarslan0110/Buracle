@@ -1,4 +1,4 @@
-import { isAbsPath, isRootPath, normalizePath, resolveNormalPath } from '../events'
+import { isAbsPath, isRootPath, normalizePath, resolvePath } from '../events'
 import type { BashGuardOptions } from './bash-guard'
 import { catastrophicPath, checkBash, extraDenyReason, forbiddenWritePath } from './bash-guard'
 import type { CodeOp } from './code-scan'
@@ -63,8 +63,8 @@ function shellOptions(ctx: WriteGuardContext, extraDeny: string[]): BashGuardOpt
 
 function resolveIn(base: string, p: string, home: string): string {
   if (isAbsPath(p)) return normalizePath(p)
-  if (home !== '' && (p === '~' || p.startsWith('~/'))) return resolveNormalPath('', p, home) ?? p
-  return isAbsPath(base) ? resolveNormalPath(base, p) ?? p : p
+  if (home !== '' && (p === '~' || p.startsWith('~/'))) return resolvePath('', p, home) ?? p
+  return isAbsPath(base) ? resolvePath(base, p) ?? p : p
 }
 
 function judge(op: CodeOp, ctx: WriteGuardContext, execCwd: string, extraDeny: string[]): { deny: string, hook: 'H01' | 'H02' } | undefined {
