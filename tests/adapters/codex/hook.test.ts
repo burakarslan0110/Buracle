@@ -206,7 +206,7 @@ describe('PostToolUse', () => {
     expect(text).toContain('\n\nx.py:\n')
     expect(text).toContain('- ruff: x.py:1:1: F401 unused import')
     expect(d.rec.runs).toEqual([['ruff', 'check', join(cwd, 'x.py')]])
-    expect(d.rec.spool).toEqual([{ ts: NOW, ev: 'tool', tool: 'apply_patch', kind: 'patch', paths: [join(cwd, 'x.py')] }])
+    expect(d.rec.spool).toEqual([])
   }))
 
   test('apply_patch with the real checkers: a missing linter is named once per session', () => withSandbox(async ({ root }) => {
@@ -224,18 +224,18 @@ describe('PostToolUse', () => {
     expect(await post('*** Begin Patch\n*** Update File: src/core/x.ts\n@@\n-export const x = 1\n+export const x = 2\n*** End Patch\n')).toBe('')
   }))
 
-  test('a failed patch is spooled but not checked', () => withSandbox(async () => {
+  test('a failed patch is not checked and not spooled', () => withSandbox(async () => {
     const d = deps({ ...quiet, checkersFor: () => { throw new Error('should not run') } })
     const r = await handleCodexHook('PostToolUse', payload('PostToolUse', { tool_name: 'apply_patch', tool_input: { command: '*** Begin Patch\n*** Update File: a.ts\n+x\n*** End Patch' }, tool_response: 'Failed to apply patch' }), ctx(), d)
     expect(r.stdout).toBe('')
-    expect(d.rec.spool[0]).toMatchObject({ ev: 'tool', kind: 'patch' })
+    expect(d.rec.spool).toEqual([])
   }))
 
-  test('Bash (async group): spooled with command and exit code, no output', () => withSandbox(async () => {
+  test('Bash (async group): no output, and the command is not spooled', () => withSandbox(async () => {
     const d = deps(quiet)
     const r = await handleCodexHook('PostToolUse', payload('PostToolUse', { tool_name: 'Bash', tool_input: { command: 'bun test' }, tool_response: 'Process exited with code 1\n2 fail' }), ctx(), d)
     expect(r.stdout).toBe('')
-    expect(d.rec.spool).toEqual([{ ts: NOW, ev: 'tool', tool: 'Bash', kind: 'bash', cmd: 'bun test', exit: 1 }])
+    expect(d.rec.spool).toEqual([])
   }))
 })
 

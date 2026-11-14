@@ -127,6 +127,7 @@ const cacheKey = (ref: BrainRef): string => `${brainDbFile()}\n${refKey(ref)}`
 export function forgetListCache(): void {
   listCache.clear()
   lastScan = undefined
+  graphMemo = undefined
 }
 
 /** Every raw row of a CortexDB file, page by page. */
@@ -226,6 +227,42 @@ export async function searchLayer(ref: BrainRef, query: string, topK: number, op
   return out
 }
 
+/** An entity of the engine's graph with the memories of one bucket that mention it (plain ids). */
+export interface BrainEntity { label: string, type: string, members: string[] }
+
+let graphMemo: { file: string, sig: string, rows: Array<{ label: string, type: string, mentions: string[] }> } | undefined
+
+/**
+ * The engine's own graph (`graph_list_all`, walked to the end in id order), as the entities a bucket's memories mention.
+ * The graph is one for the whole file: an entity is shared by every bucket, and only the memories tell them apart.
+ */
+export async function brainEntities(ref: BrainRef): Promise<BrainEntity[]> {
+  if (!brainExists()) return []
+  const file = brainDbFile()
+  const sig = sigOf(file)
+  if (graphMemo === undefined || graphMemo.file !== file || graphMemo.sig !== sig) {
+    const c = cortexFor(file)
+    const nodes = new Map<string, { label: string, type: string, mentions: string[] }>()
+    const edges: Array<{ from: string, to: string }> = []
+    let cursor: string | undefined
+    for (let pages = 0; pages < MAX_LIST / PAGE; pages++) {
+      const r = await c.call<{ nodes?: Array<{ id?: unknown, label?: unknown, type?: unknown }>, edges?: Array<{ from?: unknown, to?: unknown }>, next_cursor?: unknown }>('graph_list_all', { order: 'id', limit: PAGE, ...(cursor !== undefined ? { cursor } : {}) })
+      for (const n of r.nodes ?? []) if (typeof n.id === 'string' && n.type !== 'memory') nodes.set(n.id, { label: typeof n.label === 'string' ? n.label : n.id, type: typeof n.type === 'string' ? n.type : '', mentions: [] })
+      for (const e of r.edges ?? []) if (typeof e.from === 'string' && typeof e.to === 'string' && e.from.startsWith('memory:')) edges.push({ from: e.from.slice('memory:'.length), to: e.to })
+      if (typeof r.next_cursor !== 'string' || r.next_cursor === '') break
+      cursor = r.next_cursor
+    }
+    for (const e of edges) nodes.get(e.to)?.mentions.push(e.from)
+    graphMemo = { file, sig, rows: [...nodes.values()] }
+  }
+  const out: BrainEntity[] = []
+  for (const n of graphMemo.rows) {
+    const members = n.mentions.map(m => plainId(ref, m)).filter((m): m is string => m !== undefined)
+    if (members.length > 0) out.push({ label: n.label, type: n.type, members })
+  }
+  return out
+}
+
 export interface SaveOptions {
   supersedes?: string[]
   nowMs?: number
@@ -292,6 +329,18 @@ export async function deleteBucket(ref: BrainRef): Promise<number> {
     }
   }
   forgetListCache()
+  return n
+}
+
+/**
+ * Deletes every row whose time to live ran out (the engine's `sweep_expired`) and returns how many went. Until then
+ * the engine only hides such a row from search and listing: `memory_get` still answers it and it stays in the file.
+ */
+export async function sweepExpired(): Promise<number> {
+  if (!brainExists()) return 0
+  const r = await cortexFor(brainDbFile()).call<{ memories?: unknown }>('sweep_expired', {})
+  const n = Array.isArray(r.memories) ? r.memories.length : 0
+  if (n > 0) forgetListCache()
   return n
 }
 

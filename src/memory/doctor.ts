@@ -8,7 +8,7 @@ import { readLedgerSync } from '../engine/txn'
 import { CAPTURE_BUDGET } from '../core/memory/budgets'
 import { pendingSessions } from './capture'
 import { listBackups } from './backup'
-import { brainSelfTest } from './cortex-check'
+import { brainSelfTest, cortexdbVersion, cortexdbVersionProblem } from './cortex-check'
 import { brainBackupsDir, brainDbFile } from './layout'
 import { corruptProjectsBackups, memoryExcludeConfig, memoryExcludeProblemText, projectExclusion, projectsCacheProblem, readProjectsCache, resolveProject } from './project'
 import { cliArgv } from './spawn'
@@ -97,8 +97,11 @@ export async function memDoctor(opts: { cwd: string, mcp?: boolean, leak?: boole
   const checks: DoctorCheck[] = []
   const add = (level: DoctorCheck['level'], check: string, detail: string) => checks.push({ level, check, detail })
   const bin = checkCortexdb()
-  if (bin.status === 'ok') add('ok', 'cortexdb', bin.source === 'env' ? `${bin.path} (BURACLE_CORTEXDB_BIN)` : `${bin.version}, sha256 verified`)
-  else add('error', 'cortexdb', bin.detail)
+  // The folder name tells the version of an installed binary; the binary's own word covers one named by BURACLE_CORTEXDB_BIN.
+  const old = bin.status === 'ok' ? cortexdbVersionProblem(await cortexdbVersion(bin)) : undefined
+  if (bin.status !== 'ok') add('error', 'cortexdb', bin.detail)
+  else if (old !== undefined) add('error', 'cortexdb', `${bin.path}: ${old} (buracle install takes the newest release)`)
+  else add('ok', 'cortexdb', bin.source === 'env' ? `${bin.path} (BURACLE_CORTEXDB_BIN)` : `${bin.version}, sha256 verified`)
   const db = brainDbFile()
   if (existsSync(db)) add('ok', 'brain', `${db} (${Math.max(1, Math.round(statSync(db).size / 1024))} KB)`)
   else add('ok', 'brain', `${db} does not exist yet; the first memory write creates it`)

@@ -563,13 +563,13 @@ describe('omp utility commands', () => {
 })
 
 describe('omp extension: spool of MCP and web tools (H14)', () => {
-  test('MCP and web calls are spooled with their tool names; the outer device write is not', () => withSandbox(async sb => {
+  test('MCP and web calls are not spooled, and neither is the outer device write', () => withSandbox(async sb => {
     const { fp, ctx, memory } = setup(sb)
     await fp.emit('tool_result', toolResult('write', { path: 'xd://mcp__context7_query_docs', content: '{}' }), ctx)
     await fp.emit('tool_result', toolResult('mcp__context7_query_docs', { libraryId: '/x/y', query: 'q' }), ctx)
     await fp.emit('tool_result', toolResult('web_search', { query: 'x' }), ctx)
     await Bun.sleep(0)
-    expect(memory.spool.flatMap(s => s.entries.map(e => `${e.tool}:${e.kind}`))).toEqual(['mcp__context7_query_docs:mcp', 'web_search:web_search'])
+    expect(memory.spool).toEqual([])
   }))
 })
 

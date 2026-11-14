@@ -129,6 +129,20 @@ describe('mem doctor', () => {
     })
   })
 
+  test.skipIf(REAL_CORTEXDB)('a CortexDB below the minimum is an error that names both versions and the install', async () => {
+    await withBrain(async ({ repo, root }) => {
+      const old = join(root, 'old-cortexdb.ts')
+      writeFileSync(old, `process.env.FAKE_CORTEXDB_VERSION = '2.130.1'\nawait import(${JSON.stringify(join(import.meta.dir, '..', 'fixtures', 'cortexdb', 'fake-cortexdb.ts'))})\n`)
+      await withEnv({ BURACLE_CORTEXDB_BIN: old }, async () => {
+        const checks = await memDoctor({ cwd: repo, mcp: false, leak: false })
+        const found = checks.find(c => c.check === 'cortexdb')
+        expect(found?.level).toBe('error')
+        expect(found?.detail).toBe(`${old}: it is CortexDB 2.130.1, older than the 2.137.0 Buracle needs (buracle install takes the newest release)`)
+        expect(doctorExitCode(checks)).toBe(1)
+      })
+    })
+  })
+
   test('without CortexDB it is an error with the install command', async () => {
     await withBrain(async ({ repo, root }) => {
       await withEnv({ BURACLE_CORTEXDB_BIN: join(root, 'missing') }, async () => {

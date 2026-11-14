@@ -4,15 +4,43 @@ import { join } from 'node:path'
 import { cortexQuery, fromCortex, type MemItem } from '../core/memory/brain'
 import { log } from '../engine/log'
 import { run } from '../engine/proc'
-import { CORTEXDB_BIN_ENV, cortexdbBinary, cortexdbLaunch, installCortexdb, type CortexdbInstall, type CortexdbInstallOptions } from '../engine/toolchain/cortexdb'
+import { CORTEXDB_BIN_ENV, CORTEXDB_MIN_VERSION, cortexdbBinary, cortexdbLaunch, cortexdbTooOld, installCortexdb, type CortexdbBinary, type CortexdbInstall, type CortexdbInstallOptions } from '../engine/toolchain/cortexdb'
 import { backupBrains } from './backup'
 import { CortexClient } from './cortex'
 import { bucketArgs, personRef, plainRow, projectRef, refKey, rowOwner, storedId, storedSave } from './store'
 
-// A new CortexDB binary is used only after it does in a throwaway database what the memory does with it: save the
-// same memory id into two buckets (a project's and the person's), read, list and find each in its own bucket only,
-// and delete them, through the five tools Buracle calls.
+function withoutCortexEnv(db: string): Record<string, string | undefined> {
+  const env: Record<string, string | undefined> = { CORTEXDB_PATH: db }
+  for (const k of Object.keys(process.env)) if (/^(?:CORTEXDB_|OPENAI_)/.test(k) && k !== 'CORTEXDB_PATH') env[k] = undefined
+  return env
+}
+
+/**
+ * The release a binary says it is (`--version`, which CortexDB answers since 2.106.0 without opening a database), or
+ * undefined when it does not say. An engine too old to know the flag starts as a server instead: it is given a
+ * throwaway database, never its default one, and is stopped at the time limit.
+ */
+export async function cortexdbVersion(bin: Pick<CortexdbBinary, 'path' | 'source'>, timeoutMs = 5_000): Promise<string | undefined> {
+  const dir = mkdtempSync(join(tmpdir(), 'buracle-cortexdb-version-'))
+  try {
+    const r = await run([...cortexdbLaunch({ ...bin, version: 'custom' }), '--version'], { env: withoutCortexEnv(join(dir, 'probe.db')), timeoutMs })
+    return r.timedOut ? undefined : /\bv?(\d+\.\d+\.\d+)\b/.exec(r.stdout)?.[1]
+  } finally {
+    try { rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }) } catch {  }
+  }
+}
+
+/** What to tell the user when a binary's own version is below Buracle's minimum; undefined when it is new enough or does not say. */
+export function cortexdbVersionProblem(version: string | undefined): string | undefined {
+  return version !== undefined && cortexdbTooOld(version) ? `it is CortexDB ${version}, older than the ${CORTEXDB_MIN_VERSION} Buracle needs` : undefined
+}
+
+// A new CortexDB binary is used only when it is not older than Buracle's minimum and after it does in a throwaway
+// database what the memory does with it: save the same memory id into two buckets (a project's and the person's),
+// read, list and find each in its own bucket only, list the graph, sweep and delete them, through the tools Buracle calls.
 export async function checkCortexdbBinary(bin: string, timeoutMs = 30_000): Promise<{ ok: true } | { ok: false, error: string }> {
+  const old = cortexdbVersionProblem(await cortexdbVersion({ path: bin, source: 'env' }))
+  if (old !== undefined) return { ok: false, error: old }
   const dir = mkdtempSync(join(tmpdir(), 'buracle-cortexdb-check-'))
   const client = new CortexClient(join(dir, 'check.db'), { env: { ...process.env, [CORTEXDB_BIN_ENV]: bin }, timeoutMs })
   const now = new Date().toISOString()
@@ -39,6 +67,10 @@ export async function checkCortexdbBinary(bin: string, timeoutMs = 30_000): Prom
       const ids = (found.results ?? []).map(r => (r.memory as { id?: string } | undefined)?.id)
       if (ids.length !== 1 || ids[0] !== storedId(ref, item.id)) return { ok: false, error: `memory_search in ${refKey(ref)} did not find exactly its own memory (${ids.join(', ') || 'none'})` }
     }
+    const graph = await client.call<{ nodes?: unknown }>('graph_list_all', { order: 'id', limit: 10 })
+    if (!Array.isArray(graph.nodes)) return { ok: false, error: 'graph_list_all did not list the graph' }
+    const swept = await client.call<{ memories?: unknown }>('sweep_expired', { dry_run: true })
+    if (!Array.isArray(swept.memories) || swept.memories.length > 0) return { ok: false, error: 'sweep_expired did not answer with the expired memories (none here)' }
     await client.call('memory_delete', { memory_id: storedId(project, item.id) })
     await client.call('memory_delete', { memory_id: storedId(person, item.id) })
     return { ok: true }
@@ -60,9 +92,7 @@ export interface SelfTest { status: 'passed' | 'failed' | 'unavailable', detail:
 export async function brainSelfTest(db: string, timeoutMs = 10_000): Promise<SelfTest> {
   const bin = cortexdbBinary()
   if (bin === undefined) return { status: 'unavailable', detail: 'CortexDB is not installed' }
-  const env: Record<string, string | undefined> = { CORTEXDB_PATH: db }
-  for (const k of Object.keys(process.env)) if (/^(?:CORTEXDB_|OPENAI_)/.test(k) && k !== 'CORTEXDB_PATH') env[k] = undefined
-  const r = await run([...cortexdbLaunch(bin), '--doctor', '--self-test'], { env, timeoutMs })
+  const r = await run([...cortexdbLaunch(bin), '--doctor', '--self-test'], { env: withoutCortexEnv(db), timeoutMs })
   let j: { status?: unknown, self_test?: unknown, error?: unknown } | undefined
   try { j = JSON.parse(r.stdout.trim().split('\n').filter(l => l.startsWith('{')).at(-1) ?? '') as typeof j } catch { j = undefined }
   if (r.timedOut || j === undefined || typeof j !== 'object' || j === null) return { status: 'unavailable', detail: r.timedOut ? `no answer within ${timeoutMs / 1000} s` : 'this CortexDB prints no self-test' }

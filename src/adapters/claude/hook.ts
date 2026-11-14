@@ -2,7 +2,7 @@ import { harnessProfile } from '../../core/harness/index'
 import { closeSync, mkdirSync, openSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import * as core from '../../core/index'
-import type { ToolCall, ToolKind } from '../../core/events'
+import type { ToolCall } from '../../core/events'
 import { classifyTool } from '../../core/events'
 import { workflowOfPrompt, workflowOfSkill } from '../../core/flow/catalog'
 import type { SpoolEntry } from '../../core/memory/spool'
@@ -43,7 +43,7 @@ import {
   availableServers, capabilityCardText, memoryOnlyRouting, permissionNotice, pluginRoot, pluginServers, projectDeps, promptRouting, readWorkspace,
   routerData, type PromptRouting, type RouterData,
 } from './hook-route'
-import { addedText, exitCodeOf, failed, noteWork, removedText } from './hook-work'
+import { addedText, failed, noteWork, removedText } from './hook-work'
 import { uiSessionHooks, type UiSessionHooks } from '../shared/ui-session'
 import { writeContents } from './write-content'
 
@@ -375,10 +375,8 @@ async function postToolUse(p: Record<string, unknown>, sid: string, ctx: Adapter
   const entries: SpoolEntry[] = []
   const write = WRITE_TOOLS.includes(tool)
   const cls = write ? await step('classify', { kind: 'other', paths: [] } as ReturnType<typeof classifyTool>, () => classifyTool(H, tool, input, cwd)) : undefined
-  // What only Claude Code's tools do: plan capture, open work, skill loads and the spool entry.
-  if (write) {
-    if (!sub) entries.push({ ts: now, ev: 'tool', tool, kind: tool === 'Write' ? 'write' : 'edit', paths: cls?.paths ?? [] })
-  } else if (tool !== 'AskUserQuestion') {
+  // What only Claude Code's tools do: plan capture, open work and skill loads.
+  if (!write && tool !== 'AskUserQuestion') {
     if (tool === 'ExitPlanMode') {
       const plan = (isObj(response) ? str(response['plan']) : undefined) ?? str(input['plan'])
       const awaiting = isObj(response) && response['awaitingLeaderApproval'] === true
@@ -399,19 +397,6 @@ async function postToolUse(p: Record<string, unknown>, sid: string, ctx: Adapter
     } else if (tool === 'Skill') {
       const id = skillOf({ tool, input, kind: 'other' }, H)
       if (!sub && id !== undefined && !failed(response)) await skillLoaded(sid, id, str(input['args']) ?? '', now)
-      if (!sub) entries.push({ ts: now, ev: 'tool', tool, kind: 'other' })
-    } else if (SHELL_TOOLS.includes(tool)) {
-      if (!sub) {
-        const e: SpoolEntry = { ts: now, ev: 'tool', tool, kind: 'bash' }
-        const command = str(input['command'])
-        if (command !== undefined) e.cmd = command.slice(0, 500)
-        const exit = exitCodeOf(response)
-        if (exit !== undefined) e.exit = exit
-        entries.push(e)
-      }
-    } else if (!sub) {
-      const kind = await step('classify', 'other' as ToolKind, () => classifyTool(H, tool, input, cwd).kind)
-      entries.push({ ts: now, ev: 'tool', tool, kind: kind === 'mcp' || kind === 'web_search' || kind === 'web_fetch' ? kind : 'other' })
     }
   }
   const r = await postTool({

@@ -409,7 +409,7 @@ describe('pipeline postTool, preCompact and sessionEnd', () => {
       core: { answerReceipt: s => { order.push('receipt'); return s }, ledgerMcpResult: (l, server, ok) => { order.push(`mcp:${server}:${ok}`); return l } },
       memory: { appendSpool: (_h, _s, e) => { order.push(`spool:${e.length}`) } },
     })
-    const r = await postTool({ sessionId: SID, cwd: '/work/app', now: NOW, subagent: false, answered: true, entries: [{ ts: NOW, ev: 'tool', tool: 'Bash', kind: 'bash' }], mcp: { server: () => 'docs', ok: false } }, { ...d, ...ports })
+    const r = await postTool({ sessionId: SID, cwd: '/work/app', now: NOW, subagent: false, answered: true, entries: [{ ts: NOW, ev: 'note', paths: ['docs/plans/x.md'] }], mcp: { server: () => 'docs', ok: false } }, { ...d, ...ports })
     expect(r).toEqual({ context: [], fileNotes: [] })
     expect(order).toEqual(['receipt', 'spool:1', 'mcp:docs:false'])
     expect(d.rec.ui).toEqual(['seen'])

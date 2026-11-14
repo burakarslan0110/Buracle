@@ -78,6 +78,11 @@ describe('protocol negotiation and metadata', () => {
     const write = toolDefinitions().find(t => t['name'] === 'memory_write')!['inputSchema'] as { properties: Record<string, { enum?: string[] }> }
     expect(write.properties['type']?.enum).toEqual(['decision', 'gotcha', 'procedure', 'knowledge', 'reference', 'preference'])
     expect(write.properties['layer']?.enum).toEqual(['project', 'person'])
+    // The kinds of an older Buracle are in no schema and no description: not to write, not to file under, not to filter by.
+    const tools = toolDefinitions() as Array<{ inputSchema: { properties: Record<string, { items?: { enum?: string[] }, properties?: Record<string, { enum?: string[] }> }> } }>
+    expect(tools[0]?.inputSchema.properties['types']?.items?.enum).toEqual(['decision', 'gotcha', 'procedure', 'knowledge', 'reference', 'preference', 'core', 'session', 'handoff', 'capture'])
+    expect(tools[3]?.inputSchema.properties['patch']?.properties?.['move']).toBeDefined()
+    expect(JSON.stringify(toolDefinitions()) + SERVER_INSTRUCTIONS).not.toMatch(/\b(?:convention|profile)\b/)
     const all = JSON.stringify(toolDefinitions()) + SERVER_INSTRUCTIONS
     expect(all).not.toMatch(/turkish|türkçe|karar/i)
     expect(all).not.toMatch(/Obsidian|vault/i)

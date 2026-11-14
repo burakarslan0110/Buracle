@@ -1,6 +1,7 @@
 export * from './brain'
 export * from './note'
 export * from './text'
+export * from './redact'
 export * from './status'
 export * from './spool'
 export * from './query'

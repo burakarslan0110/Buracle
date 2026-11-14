@@ -313,15 +313,14 @@ describe('H26 prompt signals and H14 capture', () => {
     expect(mem.appended.flatMap(a => a.entries).filter(e => e.ev === 'prompt')).toHaveLength(2)
   }))
 
-  test('MCP, web and skill calls are spooled by name (metadata only)', () => withSandbox(async ({ root }) => {
+  test('MCP, web and skill calls are not spooled', () => withSandbox(async ({ root }) => {
     const { f, mem } = await runtime(root)
     const after = (tool: string, id: string, input: Record<string, unknown>): ToolExecuteAfter => ({ tool, sessionID: SID, agent: 'build', messageID: 'msg_1', id, input, status: 'completed', result: { output: 'x', content: [{ type: 'text', text: 'x' }] } })
     for (const [tool, id, input] of [['context7_query-docs', 'c1', { libraryId: '/x/y' }], ['websearch', 'c2', { query: 'bun' }], ['skill', 'c3', { id: 'research' }]] as const) {
       await f.trigger('tool.execute.before', { tool, sessionID: SID, agent: 'build', messageID: 'msg_1', id, input })
       await f.trigger('tool.execute.after', after(tool, id, input))
     }
-    const tools = mem.appended.flatMap(a => a.entries).filter(e => e.ev === 'tool').map(e => [e.tool, e.kind])
-    expect(tools).toEqual([['context7_query-docs', 'mcp'], ['websearch', 'web_search'], ['skill', 'other']])
+    expect(mem.appended.flatMap(a => a.entries)).toEqual([])
   }))
 })
 

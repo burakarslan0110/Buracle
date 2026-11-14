@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { existsSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { contextText } from '../../src/memory/context'
 import { pendingSessions } from '../../src/memory/capture'
@@ -12,7 +12,7 @@ import { writeHandoff } from '../../src/memory/handoff'
 import { promptSeen, readSessionRecord, sessionStart, writeSessionRecord } from '../../src/memory/session-record'
 import { appendSpool } from '../../src/memory/spool'
 import { readStatus } from '../../src/memory/status'
-import { forgetListCache, getStored, listAll, personRef, projectRef, storedId } from '../../src/memory/store'
+import { forgetListCache, getStored, listAll, personRef, projectRef, storedId, sweepExpired } from '../../src/memory/store'
 import { writeTelemetry } from '../../src/workflow/session-store'
 import * as paths from '../../src/engine/paths'
 import { withEnv } from '../helpers/sandbox'
@@ -46,6 +46,18 @@ describe('finalize', () => {
       expect(mem?.item.history.map(h => h.what)).toEqual(['session ended', 'finalized again', 'distilled'])
       expect(mem?.item.body).toContain('Also renamed the helper.')
       expect(r.capture?.state).toBe('done')
+    })
+  })
+
+  test.skipIf(REAL_CORTEXDB)('a sweep the engine refuses does not fail the session end', async () => {
+    await withBrain(async ({ repo }) => {
+      await spooled(repo, SID)
+      await withEnv({ FAKE_CORTEXDB_FAIL: 'sweep_expired' }, async () => {
+        const r = await finalize('codex', SID, { pending: false })
+        expect(r.memoryId).toBeDefined()
+        expect(readSessionRecord('codex', SID)?.status).toBe('ended')
+        await expect(sweepExpired()).rejects.toThrow('injected failure')
+      })
     })
   })
 
@@ -88,19 +100,51 @@ describe('finalize', () => {
       git(repo, 'commit', '-q', '-m', 'add b')
       appendSpool('codex', SID, [
         { ts: t0, ev: 'prompt', excerpt: 'secret prompt text' },
-        { ts: t0 + 1, ev: 'tool', tool: 'apply_patch', kind: 'edit', paths: [join(repo, 'a.ts'), join(repo, 'b.ts')] },
-        { ts: t0 + 2, ev: 'tool', tool: 'Bash', cmd: 'bun test', exit: 1 },
-        { ts: t0 + 3, ev: 'tool', tool: 'Bash', cmd: 'bun test', exit: 0 },
         { ts: t0 + 4, ev: 'turn', model: 'gpt-6.1-sol' },
         { ts: t0 + 5, ev: 'stop', excerpt: 'Added a and b.' },
       ])
       await finalize('codex', SID)
       const rec = readSessionRecord('codex', SID)
       expect(rec?.stats).toEqual({
-        endedMs: t0 + 5, prompts: 1, turns: 1, tools: 3, commands: 2, files: 2, tests: 2, testFailures: 1, model: 'gpt-6.1-sol',
-        commits: 2, filesChanged: 2, insertions: 3, topTools: [['Bash', 2], ['apply_patch', 1]],
+        endedMs: t0 + 5, prompts: 1, turns: 1, files: 2, model: 'gpt-6.1-sol',
+        commits: 2, filesChanged: 2, insertions: 3,
       })
       expect(JSON.stringify(rec)).not.toContain('secret prompt text')
+      // The file list is what git reports against the commit the session started on; no hook recorded it.
+      expect(rec?.files).toEqual(['a.ts', 'b.ts'])
+    })
+  })
+
+  test('the files a session touched come from git at its end: committed, changed and new ones, never an ignored one; changed files alone are no session', async () => {
+    await withBrain(async ({ repo }) => {
+      writeFileSync(join(repo, '.gitignore'), 'dist/\n')
+      git(repo, 'add', '-A')
+      git(repo, 'commit', '-q', '-m', 'ignore dist')
+      await sessionStart('codex', SID, repo)
+      mkdirSync(join(repo, 'src', 'memory'), { recursive: true })
+      mkdirSync(join(repo, 'dist'), { recursive: true })
+      writeFileSync(join(repo, 'src', 'memory', 'committed.ts'), 'export const a = 1\n')
+      git(repo, 'add', '-A')
+      git(repo, 'commit', '-q', '-m', 'add committed')
+      writeFileSync(join(repo, 'README.md'), '# demo, edited\n')
+      writeFileSync(join(repo, 'src', 'memory', 'new file.ts'), 'export const b = 2\n')
+      writeFileSync(join(repo, 'dist', 'out.js'), 'ignored\n')
+      // Only a prompt so far: the dirty worktree alone does not make a session memory.
+      await sessionStart('codex', OTHER, repo)
+      appendSpool('codex', OTHER, [{ ts: Date.now(), ev: 'prompt', excerpt: 'hello' }])
+      const empty = await finalize('codex', OTHER, { pending: false })
+      expect(empty).toMatchObject({ empty: true })
+      expect(empty.memoryId).toBeUndefined()
+      appendSpool('codex', SID, [{ ts: Date.now(), ev: 'prompt' }, { ts: Date.now() + 1, ev: 'stop', excerpt: 'Edited the readme.' }])
+      const r = await finalize('codex', SID, { pending: false })
+      const files = ['README.md', 'src/memory/committed.ts', 'src/memory/new file.ts']
+      expect(readSessionRecord('codex', SID)?.files).toEqual(files)
+      const mem = (await getStored(projectRef('demo'), r.memoryId as string))?.item
+      expect(mem?.body).toContain('- Files touched (3): `README.md`, `src/memory/committed.ts`, `src/memory/new file.ts`')
+      expect(mem?.body).not.toContain('dist/out.js')
+      expect(mem?.body).not.toMatch(/Commands:|Failed commands:|tool calls/)
+      expect(mem?.summary).toBe('Outcome: changed 3 files (src/memory); 1 commit.')
+      expect(mem?.title).toBe('codex session: src/memory')
     })
   })
 
@@ -114,10 +158,10 @@ describe('finalize', () => {
       git(repo, 'add', '-A')
       git(repo, 'commit', '-q', '-m', 'add a')
       const t0 = Date.now()
-      appendSpool('codex', SID, [{ ts: t0, ev: 'prompt' }, { ts: t0 + 1, ev: 'tool', tool: 'Bash', cmd: 'git commit -m x', exit: 0 }, { ts: t0 + 2, ev: 'stop', excerpt: 'Done.' }])
+      appendSpool('codex', SID, [{ ts: t0, ev: 'prompt' }, { ts: t0 + 2, ev: 'stop', excerpt: 'Done.' }])
       await finalize('codex', SID)
       const stats = readSessionRecord('codex', SID)?.stats
-      expect(stats).toMatchObject({ prompts: 1, tools: 1, commands: 1 })
+      expect(stats).toMatchObject({ prompts: 1, files: 0 })
       for (const k of ['commits', 'filesChanged', 'insertions', 'deletions'] as const) expect({ k, v: stats?.[k] }).toEqual({ k, v: undefined })
     })
   })
@@ -134,7 +178,7 @@ describe('finalize', () => {
     })
   })
 
-  test('the session memory is saved with CortexDB\'s own time to live (45 days): the engine drops it, no sweep does', async () => {
+  test('the session memory is saved with CortexDB\'s own time to live (45 days): the engine hides it, the sweep of the next session end deletes it', async () => {
     await withBrain(async ({ repo, root }) => {
       const clock = join(root, 'cortex-clock')
       await withEnv({ FAKE_CORTEXDB_CLOCK_FILE: clock }, async () => {
@@ -153,9 +197,15 @@ describe('finalize', () => {
         writeFileSync(clock, String(t0 + 44 * DAY))
         expect(await getStored(projectRef('demo'), id)).toBeDefined()
         writeFileSync(clock, String(t0 + 46 * DAY))
-        expect(await getStored(projectRef('demo'), id)).toBeUndefined()
+        // Past its time the engine only hides the row: a listing leaves it out, memory_get still answers it.
         forgetListCache()
         expect((await listAll(projectRef('demo'))).map(i => i.id)).not.toContain(id)
+        expect(await getStored(projectRef('demo'), id)).toBeDefined()
+        // The next session end sweeps it out of the file; a second sweep finds nothing.
+        await spooled(repo, OTHER)
+        await finalize('codex', OTHER, { pending: false, nowMs: t0 + 46 * DAY })
+        expect(await getStored(projectRef('demo'), id)).toBeUndefined()
+        expect(await sweepExpired()).toBe(0)
       })
     })
   })
