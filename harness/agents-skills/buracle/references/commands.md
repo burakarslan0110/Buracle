@@ -110,7 +110,6 @@ for a ref that does not exist), for example when the warning says HEAD is the de
 ## project: per-repository setup
 
 ```text
-buracle project init [--json]
 buracle project sync [--adopt [--move] [--dry-run]] [--json]
 buracle project check [--json]
 ```
@@ -176,11 +175,10 @@ buracle flow start <workflow> [--title "<t>"] [--json]
 buracle flow phase <phase> [--note "<text>"] [--json]
 buracle flow step "<text>" [--done <n>] [--total <m>] [--json]
 buracle flow end [--outcome done|failed|cancelled] [--json]
-buracle flow status [--json]
 ```
 
 Records the running workflow for the band above the prompt and the status lines. The session is
-resolved as for `plan`; without one, `status` prints `null` and exits 0 and the others exit 2.
+resolved as for `plan`; without one, they exit 2.
 Starting the workflow that is already running is harmless; a workflow started inside another (requirements,
 then research) stacks on top of it, and `end` ends the top one. Each workflow skill names its phase
 ids. The calls are best effort: a failing one never blocks the workflow.
@@ -212,7 +210,7 @@ These belong to the user. Run the read-only ones when diagnosing; run the others
 
 | Command | Effect | Read-only |
 |---|---|---|
-| `buracle` (in a terminal) | The main menu: the logo, a status line and the choices install, update, health check, memory and detailed view; the detailed view shows what is installed, its versions, updates and problems, and its keys run the commands below | yes |
+| `buracle` (in a terminal) | The main menu: the logo, a status line and the choices install, update, health check and memory; a choice runs its command | yes |
 | `buracle doctor [<topic>]` | Health checks: harness versions, plugin and mod loaded, Codex hook trust, MCP handshakes, the memory store (CortexDB) and indexes, required tools; a harness topic (`claude`, `codex`, …) also runs the liveness probes | yes |
 | `buracle update --check` | Lists available updates (Buracle repo, skill sources, MCP pins, plugins, harnesses, tools) and caches the result | yes |
 | `buracle update --yes [<kind>\|<name>…]` | Applies updates, each from its own source, then installs again; in a terminal `buracle update` applies at once too, without `--yes` | no |

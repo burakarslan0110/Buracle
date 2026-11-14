@@ -79,7 +79,7 @@ protecting this run, and suggest `buracle doctor`.
 | Back up or restore a brain (only when the user asks) | `buracle mem backup [--list]`, `buracle mem restore <id> --project <slug>` |
 | Show a workflow's progress (the band above the prompt, the status line) | `buracle flow start <workflow>`, `buracle flow phase <id>`, `buracle flow end --outcome done` (the workflow skills say when) |
 | codegraph reports that the project has no index | `buracle index ensure --cwd <project root>`, then retry |
-| New repository, or AGENTS.md or project skills changed | `buracle project init --json` / `buracle project sync --json` |
+| New repository, or AGENTS.md or project skills changed | `buracle project sync --json` |
 | Agent guidance drifted (path rules, skill links, CLAUDE.md import)? | `buracle project check --json` (read-only; exit 2 names each fix) |
 | Skills that exist only in `.claude/skills` | `buracle project sync --adopt --dry-run --json`, then without `--dry-run` (`--move` only after the user agrees) |
 | Authoring skills and rules | `buracle skills list\|new\|lint`, `buracle rules lint` |

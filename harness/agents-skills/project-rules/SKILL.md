@@ -191,8 +191,7 @@ ask with your structured-question tool (`request_user_input` in Codex, `question
 - **Exit 0:** note what it changed (skill links, the project's memory core pages, `.git/info/exclude`
   entries; it never touches `.gitignore`). Buracle repeats the link step by itself at every session
   start (H28); this run makes it happen now.
-- **Exit 2:** it needs the user; relay its message. If the project was never initialized, run
-  `buracle project init --json`, then sync again.
+- **Exit 2:** it needs the user; relay its message.
 - **Exit 1:** report the error. Never hand-create `.claude/skills` links or edit
   `.claude/settings.local.json`; the CLI owns them.
 

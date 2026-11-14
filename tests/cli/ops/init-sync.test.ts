@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, readlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { run as installRun } from '../../../src/cli/commands/install'
-import { main } from '../../../src/cli/router'
 import { yamlParse } from '../../../src/engine/merge'
 import { run as procRun } from '../../../src/engine/proc'
 import { narrowPath } from '../../helpers/fake-exe'
@@ -102,17 +101,6 @@ describe('buracle install builds the generated files first', () => {
       const noTc = memoryIO()
       expect(await installRun(['--no-toolchain'], noTc)).toBe(1)
       expect(noTc.err()).toBe('buracle install: --no-toolchain was removed; `buracle config set toolchain.autoInstall false` skips the toolchain step\n')
-    })
-  }))
-
-  test('`buracle sync --yes` (what an older `buracle update` runs after a self update) still installs, and says it was renamed', () => withSandbox(async ({ root, home }) => {
-    const repo = makeRepo(root)
-    const codex = fakeAdapter('codex', { plan: () => ({ id: 'codex', harness: 'codex', ops: [{ kind: 'file', path: join(home, '.codex/AGENTS.md'), content: 'rules\n', owner: 'codex' }] }) })
-    await withDeps({ repoRoot: () => repo, adapters: async () => [codex], runCli: fakeCli().runCli, fetch: noNetwork }, async () => {
-      const io = memoryIO()
-      expect(await main(['sync', '--yes'], io)).toBe(0)
-      expect(io.err()).toContain('buracle sync was renamed; use buracle install')
-      expect(read(join(home, '.codex/AGENTS.md'))).toBe('rules\n')
     })
   }))
 })

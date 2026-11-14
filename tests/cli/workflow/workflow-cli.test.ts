@@ -146,7 +146,7 @@ describe('skill command lines, end to end', () => {
     expect((await b('plan', 'init', '--type', 'fix', '--title', 'x')).code).toBe(1)
     expect((await b('review-scope', '--json')).code).toBe(0)
     expect((await b('worktree', 'detect', '--json')).code).toBe(0)
-    const proj = await b('project', 'init', '--json')
+    const proj = await b('project', 'sync', '--json')
     expect(proj.code).toBe(2)
     expect(proj.json<{ guidance: string[] }>().guidance[0]).toContain('project-rules')
   }), 120_000)

@@ -97,7 +97,7 @@ The command hooks also write `sessions/claude/<session>/{state.json,telemetry.js
 
 - The band, the consent dialog and the suggestions do not show in the VS Code panel or in
   `claude -p`; there the consent gate denies and the agent asks the user itself. The hooks run
-  everywhere, and `buracle flow status` shows the running workflow anywhere.
+  everywhere.
 - On machines with managed settings, Claude Code's built-in `cc-plugin-sec-default` mod may skip
   some events of user mods (`skill.prompt` among them, which is why the band does not depend on
   it); Buracle's guards and memory live in the command hooks and are not affected.

@@ -26164,7 +26164,7 @@ function compactInstructionsWith(base, state, extra) {
   }
   const flow = typeof extra?.flow === "string" ? oneLine2(extra.flow, 240) : "";
   if (flow !== "")
-    lines.push(`- Running workflow: ${flow}. Continue it after compaction; \`buracle flow status\` shows where it stands.`);
+    lines.push(`- Running workflow: ${flow}. Continue it after compaction.`);
   const paused = interactionLine(state);
   if (paused)
     lines.push(`- ${paused}`);

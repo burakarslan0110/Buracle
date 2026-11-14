@@ -277,7 +277,7 @@ Codex has no custom slash commands. Where the other harnesses use `/<id>`, the u
 - `/remember <text>`: `buracle mem remember -- "<text>"` saves it to memory as a capture; for a typed memory, follow the `$memory` protocol (memory_search, then memory_write).
 - `/brain`: `buracle mem ui --open` starts the Buracle Console and opens it.
 - `/brain review`: `buracle mem ui --open --page review` opens the review page, where the user reads plans, build contracts, PRDs and your changes and pins notes to them; `buracle plan notes --json` reads the open notes.
-- `/buracle-status`: `buracle plan status --json`, `buracle flow status` and `buracle mem status` show the plan, the running workflow and the memory.
+- `/buracle-status`: `buracle plan status --json` and `buracle mem status` show the plan and the memory.
 - `/aside <question>`: Codex's own `/side` asks a side question without changing this conversation.
 
 # Path-scoped rules

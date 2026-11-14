@@ -83,14 +83,6 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
 export const CHECKOUT_COMMANDS: ReadonlySet<string> = new Set(['build', 'install', 'update', 'uninstall', 'skills', 'rules'])
 const NEEDS_CHECKOUT: ReadonlySet<string> = new Set(['build', 'install', 'update'])
 
-// An older `buracle update` runs exactly `main.ts sync --yes` in the new checkout after a self
-// update and moves the checkout back when that exits 1; until 0.6.0 that one form still installs.
-function syncBridge(argv: readonly string[], parsed: ParsedArgs): { argv: string[], parsed: ParsedArgs } | undefined {
-  if (parsed.command !== 'sync' || parsed.rest.length !== 1 || (parsed.rest[0] !== '--yes' && parsed.rest[0] !== '-y')) return undefined
-  const next = argv.map(a => (a === 'sync' ? 'install' : a))
-  return { argv: next, parsed: { ...parsed, command: 'install' } }
-}
-
 const RUNTIME_MARKER_FILE = '.buracle-runtime.json'
 
 export function runningFrozen(): boolean {
@@ -156,15 +148,6 @@ export const COMMAND_GROUPS: ReadonlyArray<readonly [string, readonly string[]]>
   ['Buracle development', ['build']],
 ]
 
-// Names a release removed; until 0.6.0 they say what to run instead.
-export const REMOVED_COMMANDS: Readonly<Record<string, string>> = {
-  init: 'use `buracle install`',
-  sync: 'use `buracle install`',
-  toolchain: 'use `buracle install`, `buracle update tools`, `buracle doctor tools` or `buracle rollback toolchain`',
-  menu: 'run `buracle` in a terminal',
-  ctx: 'Context Mode was removed in 0.6.0',
-}
-
 export async function helpText(all = false): Promise<string> {
   const groups = all ? COMMAND_GROUPS : COMMAND_GROUPS.slice(0, 1)
   const names = groups.flatMap(([, n]) => n)
@@ -207,14 +190,8 @@ export function cliVersion(): string {
 }
 
 export async function main(rawArgv: readonly string[], io: Omit<CommandIO, 'flags'>): Promise<number> {
-  let argv = rawArgv
-  let parsed = parseArgs(argv)
-  const bridged = syncBridge(argv, parsed)
-  if (bridged !== undefined) {
-    io.stderr.write('buracle sync was renamed; use buracle install\n')
-    argv = bridged.argv
-    parsed = bridged.parsed
-  }
+  const argv = rawArgv
+  const parsed = parseArgs(argv)
   const cio: CommandIO = { ...io, flags: parsed.flags }
   if (parsed.version && parsed.command === undefined) {
     io.stdout.write(parsed.flags.json ? JSON.stringify({ version: cliVersion() }) + '\n' : `buracle ${cliVersion()}\n`)
@@ -227,11 +204,6 @@ export async function main(rawArgv: readonly string[], io: Omit<CommandIO, 'flag
     }
     io.stdout.write(await helpText(parsed.rest.includes('--all')))
     return EXIT.ok
-  }
-  const removed = Object.hasOwn(REMOVED_COMMANDS, parsed.command) ? REMOVED_COMMANDS[parsed.command] : undefined
-  if (removed !== undefined) {
-    io.stderr.write(`buracle ${parsed.command} was removed; ${removed}\n`)
-    return EXIT.error
   }
   if (parsed.command === 'help') {
     const topic = parsed.rest.find(a => !a.startsWith('-'))

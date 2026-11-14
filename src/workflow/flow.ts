@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import type { Harness } from '../core/events'
 import type { BandInput, BandView } from '../core/flow/band'
-import { bandPlanOf, bandText, bandView } from '../core/flow/band'
+import { bandPlanOf, bandView } from '../core/flow/band'
 import { FLOW_ID_RE, flowPhaseLabel } from '../core/flow/catalog'
 import type { FlowEntry, FlowOutcome, FlowRecord, FlowResult, FlowSource, PlanPhase } from '../core/flow/record'
 import { FLOW_OUTCOMES, activeFlow, flowBreadcrumb, flowEnd, flowFromPlan, flowPhase, flowStart, flowStep, parseFlow } from '../core/flow/record'
@@ -141,16 +141,6 @@ export function bandInputFor(h: Harness, sid: string, nowMs: number, foldAfterSe
 
 export function flowViewFor(h: Harness, sid: string, nowMs: number, foldAfterSec = DEFAULT_FOLD_SEC): BandView {
   return bandView(bandInputFor(h, sid, nowMs, foldAfterSec))
-}
-
-export function flowStatusCmd(ctx: WorkflowCtx, s: ResolvedSession | undefined): CmdResult {
-  if (s === undefined) {
-    return ok({ ok: true, flow: null, active: null, breadcrumb: [], view: null, session: null }, ['no session: no harness session id was found (see `buracle flow --help`)'])
-  }
-  const rec = readFlow(s.harness, s.sessionId)
-  const view = flowViewFor(s.harness, s.sessionId, ctx.now)
-  const lines = view.visible ? bandText(view) : [`No workflow is running in the ${s.harness} session ${s.sessionId}.`]
-  return ok({ ok: true, flow: rec ?? null, active: entryJson(activeFlow(rec)), breadcrumb: flowBreadcrumb(rec), view, session: sessionJson(s) }, lines)
 }
 
 export function recordFlowStart(h: Harness, sid: string, input: { workflow: string, title?: string, source: FlowSource }, now: number): boolean {

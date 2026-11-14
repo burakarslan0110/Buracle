@@ -100,33 +100,12 @@ describe('router', () => {
     }
   })
 
-  test('removed command names exit 1 with one line that says what to run instead', async () => {
-    const want: Record<string, string> = {
-      init: 'use `buracle install`',
-      sync: 'use `buracle install`',
-      toolchain: 'use `buracle install`, `buracle update tools`, `buracle doctor tools` or `buracle rollback toolchain`',
-      menu: 'run `buracle` in a terminal',
-      ctx: 'Context Mode was removed in 0.6.0',
-    }
-    for (const [name, instead] of Object.entries(want)) {
-      for (const argv of [[name], [name, '--json'], [name, '--help'], ['help', name]]) {
-        const io = memoryIO()
-        expect({ argv, code: await main(argv, io) }).toEqual({ argv, code: 1 })
-        expect(io.out()).toBe('')
-        expect(io.err()).toBe(`buracle ${name} was removed; ${instead}\n`)
-      }
-    }
-    for (const name of ['constructor', 'toString', '__proto__']) {
+  test('unknown command names exit 1 with one line', async () => {
+    for (const name of ['constructor', 'toString', '__proto__', 'sync', 'rollback', 'notify']) {
       const io = memoryIO()
       expect(await main([name], io)).toBe(1)
       expect(io.err()).toBe(`buracle: unknown command '${name}'. Run 'buracle --help' for the list of commands.\n`)
     }
-    const flag = memoryIO()
-    expect(await main(['update', '--toString', '--check'], flag)).toBe(1)
-    expect(flag.err()).not.toContain('was removed')
-    const sync = memoryIO()
-    expect(await main(['sync', '--dry-run'], sync)).toBe(1)
-    expect(sync.err()).toBe('buracle sync was removed; use `buracle install`\n')
   })
 
   test('diagram is no command any more: it is unknown, and help --all does not list it', async () => {

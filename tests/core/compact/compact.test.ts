@@ -58,7 +58,7 @@ describe('compactInstructions', () => {
       touched: ['src/a.ts', 'src/b.ts', '  '],
       background: ['changes-review (subagent)'],
     })
-    expect(out).toContain('- Running workflow: spec, phase Implement, step "parser tests". Continue it after compaction; `buracle flow status` shows where it stands.')
+    expect(out).toContain('- Running workflow: spec, phase Implement, step "parser tests". Continue it after compaction.')
     expect(out).toContain('- Files changed so far (keep these paths and what changed in each): src/a.ts, src/b.ts.')
     expect(out).toContain('- Still running in the background (keep them and how to check on them): changes-review (subagent).')
     expect(compactInstructionsWith(out, withPlan(), {}).split(COMPACT_MARKER).length).toBe(2)

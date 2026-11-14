@@ -1,16 +1,15 @@
 import { FLOW_CATALOG, FLOW_WORKFLOWS } from '../../core/flow/catalog'
 import { parseCommandArgs, strFlag, type FlagKind } from '../../workflow/args'
-import { flowEndCmd, flowPhaseCmd, flowStartCmd, flowStatusCmd, flowStepCmd } from '../../workflow/flow'
-import { emit, isResult, needSession, optionalSession, processCtx, usageError, warnCwdGone, type CmdResult, type WorkflowCtx } from '../../workflow/result'
+import { flowEndCmd, flowPhaseCmd, flowStartCmd, flowStepCmd } from '../../workflow/flow'
+import { emit, isResult, needSession, processCtx, usageError, warnCwdGone, type CmdResult, type WorkflowCtx } from '../../workflow/result'
 import type { CommandIO } from '../router'
 
 export const name = 'flow'
-export const summary = 'Record and show the progress of a running workflow (start, phase, step, end)'
+export const summary = 'Record the progress of a running workflow (start, phase, step, end)'
 export const usage = `Usage: buracle flow start <workflow> [--title "<t>"] [--json]
        buracle flow phase <phase> [--note "<text>"] [--json]
        buracle flow step "<text>" [--done <n>] [--total <m>] [--json]
        buracle flow end [--outcome done|failed|cancelled] [--json]
-       buracle flow status [--json]
 
   start   the workflow begins (idempotent while it is the one running; a workflow the
           person starts begins a new run, one a skill loads inside another nests:
@@ -19,7 +18,6 @@ export const usage = `Usage: buracle flow start <workflow> [--title "<t>"] [--js
           own phase ids, below; any other workflow takes any kebab-case id)
   step    what it is doing now, with an optional count (--done 2 --total 5)
   end     the running workflow ended (default outcome: done)
-  status  the record and the live view; exit 0 without a session (--json: nulls)
 
 Phases of the catalogued workflows:
 ${FLOW_WORKFLOWS.map(id => `  ${id.padEnd(13)} ${(FLOW_CATALOG[id]?.phases ?? []).map(p => p.id).join(' ')}`).join('\n')}
@@ -36,7 +34,6 @@ const SPECS: Record<string, Record<string, FlagKind>> = {
   phase: { note: 'string', ...SESSION },
   step: { done: 'string', total: 'string', ...SESSION },
   end: { outcome: 'string', ...SESSION },
-  status: SESSION,
 }
 const ALL: Record<string, FlagKind> = Object.assign({}, ...Object.values(SPECS)) as Record<string, FlagKind>
 
@@ -59,7 +56,6 @@ export async function runFlow(argv: string[], io: CommandIO, ctx: WorkflowCtx): 
   if (sid !== undefined) sflags.session = sid
   if (h !== undefined) sflags.harness = h
 
-  if (sub === 'status') return out(flowStatusCmd(ctx, optionalSession(sflags, ctx.env)))
   const s = needSession(sflags, ctx.env)
   if (isResult(s)) return out(s)
   switch (sub) {

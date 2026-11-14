@@ -143,7 +143,7 @@ describe('codex build (harness/codex)', () => {
     const memory = block.slice(block.indexOf('# Memory index'), block.indexOf('# Buracle commands in Codex')).trim().split('\n')
     expect(memory.length).toBeLessThanOrEqual(10)
     const commands = block.slice(block.indexOf('# Buracle commands in Codex'), block.indexOf('# Path-scoped rules'))
-    for (const s of ['`$plan-build`', '`$bugfix`', '`buracle mem remember -- "<text>"`', '`$memory`', '`buracle mem ui --open`', '`buracle flow status`', '`/side`']) expect(commands).toContain(s)
+    for (const s of ['`$plan-build`', '`$bugfix`', '`buracle mem remember -- "<text>"`', '`$memory`', '`buracle mem ui --open`', '`/side`']) expect(commands).toContain(s)
     expect(commands).not.toContain('`$memory`,')
     for (const r of canonical.rules.filter(r => r.scope === 'paths')) expect(block).toContain(`\`~/.buracle/rules/paths/${r.id}.md\``)
     expect(block.split('| Need | Use first | Fallback |').length).toBe(2)

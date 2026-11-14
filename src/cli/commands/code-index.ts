@@ -21,7 +21,6 @@ ensure   build what is missing (codegraph init), refresh what exists (codegraph 
 rebuild  rebuild the codegraph index from scratch (codegraph index) and warm semble again.
          It stops a running codegraph server of the project, so the sessions using it lose
          codegraph until they reconnect: refused while one runs, unless --force
-         (ensure --force is rebuild --force)
 
 The project is the git top level of --cwd (default: the current directory), else the nearest
 folder above it with a project manifest (package.json, go.mod, Cargo.toml, *.sln, ...), never the
@@ -39,8 +38,9 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
   const json = io.flags.json || p.bools.has('json')
   const quiet = p.bools.has('quiet')
   const sub = p.positionals[0] ?? 'status'
-  if (p.errors.length > 0 || !['status', 'ensure', 'rebuild'].includes(sub)) {
-    io.stderr.write(`buracle index: ${[...p.errors, ...(['status', 'ensure', 'rebuild'].includes(sub) ? [] : [`unknown subcommand ${sub}`])].join('; ')}\n${usage}\n`)
+  const misplaced = p.bools.has('force') && sub !== 'rebuild' ? ['--force goes with rebuild'] : []
+  if (p.errors.length > 0 || misplaced.length > 0 || !['status', 'ensure', 'rebuild'].includes(sub)) {
+    io.stderr.write(`buracle index: ${[...p.errors, ...misplaced, ...(['status', 'ensure', 'rebuild'].includes(sub) ? [] : [`unknown subcommand ${sub}`])].join('; ')}\n${usage}\n`)
     return 1
   }
   const ws = await import('../../workflow/workspace')
@@ -85,7 +85,7 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     return 0
   }
   const wi = await import('../../workflow/workspace-index')
-  const rebuild = sub === 'rebuild' || p.bools.has('force')
+  const rebuild = sub === 'rebuild'
   if (rebuild && !p.bools.has('force')) {
     const busy = roots.flatMap(root => {
       const w = wi.codegraphLiveWriter(root)
