@@ -1,12 +1,13 @@
 import type { SpoolEntry } from '../../core/memory/spool'
 import { log } from '../../engine/log'
+import { CONTEXT_BUDGET_BYTES } from '../shared/pipeline/types'
 import type { HookDeps } from './hook'
 
 export interface HookOutcome { stdout: string; exitCode: number }
 
 export const QUIET: HookOutcome = { stdout: '', exitCode: 0 }
 export const H = 'claude' as const
-export const CONTEXT_BUDGET_BYTES = 9_600
+export { CONTEXT_BUDGET_BYTES }
 export const FALLBACK_SPOOL_SUFFIX = 'classic'
 export const GUARD_FAILED = 'buracle: the command guard (H01) failed, so the command was not run. Retry it; if this repeats, run `buracle doctor claude` and check ~/.buracle/logs/buracle.log.'
 

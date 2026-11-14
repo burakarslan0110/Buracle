@@ -49,7 +49,7 @@ export type PipelinePoint =
  */
 export interface PipelineDeps {
   harness: Harness
-  ctx: Pick<AdapterContext, 'config' | 'canonical' | 'repoRoot'>
+  ctx: Pick<AdapterContext, 'config'>
   core: PipelineCore
   step<T>(name: string, fallback: T, fn: () => T | Promise<T>): Promise<T>
   at?(point: PipelinePoint): void | Promise<void>
