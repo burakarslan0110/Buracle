@@ -257,7 +257,7 @@ describe('pure helpers of the server plugin', () => {
     expect(noteReviewMessages(messages)).toEqual(['changes-review', 'changes-review', 'plan-build-review'])
     const notes = messages.map(m => m.content.length === 2 ? (m.content[1] as { text: string }).text : undefined)
     expect(notes.slice(0, 3)).toEqual([undefined, undefined, undefined])
-    expect(notes[3]).toContain('Buracle H19 (review.gate): the changes-review report is not valid review JSON')
+    expect(notes[3]).toContain('Buracle H19: the changes-review report is not valid review JSON')
     expect(notes[3]).toContain('Continue the reviewer once with the subagent tool (agent changes-review, sessionID ses_9)')
     expect(notes[4]).toContain('It failed twice')
     expect(notes[5]).toContain('sessionID ses_10')

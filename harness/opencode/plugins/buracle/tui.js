@@ -7366,12 +7366,12 @@ var init_fsx = () => {};
 
 // src/engine/shim.ts
 import { readFileSync as readFileSync4, statSync as statSync6 } from "fs";
-import { resolve as resolve3 } from "path";
+import { resolve as resolve4 } from "path";
 function parseShimText(text) {
   const legacy = new RegExp(`^exec '${SQ}' '${SQ}' "\\$@"$`, "m").exec(text);
   if (legacy?.[1] !== undefined && legacy[2] !== undefined) {
     const main = unquote(legacy[2]);
-    return { mode: "legacy", bun: unquote(legacy[1]), main, checkout: resolve3(main, "..", "..", "..") };
+    return { mode: "legacy", bun: unquote(legacy[1]), main, checkout: resolve4(main, "..", "..", "..") };
   }
   const mode = /^# buracle-shim: (frozen|checkout)$/m.exec(text)?.[1];
   const b = new RegExp(`^b='${SQ}'$`, "m").exec(text)?.[1];
@@ -7381,9 +7381,9 @@ function parseShimText(text) {
     return;
   const info = { mode, bun: unquote(b), main: unquote(m) };
   if (c !== undefined)
-    info.checkout = resolve3(unquote(c), "..", "..", "..");
+    info.checkout = resolve4(unquote(c), "..", "..", "..");
   else if (mode === "checkout")
-    info.checkout = resolve3(info.main, "..", "..", "..");
+    info.checkout = resolve4(info.main, "..", "..", "..");
   return info;
 }
 function readShim(shim = shimPath()) {
@@ -7526,7 +7526,7 @@ function readMarker(dir) {
     return;
   return m;
 }
-function git2(dir, args) {
+function git3(dir, args) {
   try {
     const r = Bun.spawnSync(["git", "-C", dir, ...args], { stdout: "pipe", stderr: "ignore", env: { ...process.env, GIT_OPTIONAL_LOCKS: "0", LC_ALL: "C", GIT_TERMINAL_PROMPT: "0" } });
     return r.exitCode === 0 ? r.stdout.toString().trim() : undefined;
@@ -7535,10 +7535,10 @@ function git2(dir, args) {
   }
 }
 function checkoutGitState(checkout) {
-  const commit = git2(checkout, ["rev-parse", "HEAD"]);
+  const commit = git3(checkout, ["rev-parse", "HEAD"]);
   if (commit === undefined)
     return {};
-  const st = git2(checkout, ["status", "--porcelain", "--untracked-files=no"]);
+  const st = git3(checkout, ["status", "--porcelain", "--untracked-files=no"]);
   return st === undefined ? { commit } : { commit, dirty: st !== "" };
 }
 function runtimeDirOf(info) {
@@ -7602,7 +7602,7 @@ function runtimeHealth(checkout, shim = readShim()) {
     return h;
   }
   const count = (range) => {
-    const n = Number(git2(checkout, ["rev-list", "--count", range]));
+    const n = Number(git3(checkout, ["rev-list", "--count", range]));
     return Number.isFinite(n) ? n : undefined;
   };
   const behind = count(`${marker.commit}..${g.commit}`);
@@ -9116,6 +9116,19 @@ import { join as join3, posix } from "path";
 
 // src/core/events.ts
 var HARNESSES = ["claude", "codex", "opencode", "omp"];
+function mcpServerToken(harness, server) {
+  switch (harness) {
+    case "omp": {
+      const t = server.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "");
+      return t.length > 0 ? t : "server";
+    }
+    case "codex":
+      return server.replace(/[^A-Za-z0-9_]/g, "_");
+    case "claude":
+    case "opencode":
+      return server.replace(/[^A-Za-z0-9_-]/g, "_");
+  }
+}
 var DRIVE = /^[A-Za-z]:(?=[\\/]|$)/;
 function isWindowsPath(p) {
   return typeof p === "string" && (DRIVE.test(p) || p.startsWith("\\\\"));
@@ -9419,6 +9432,27 @@ class BandFeeder {
 
 // src/core/policy/routing.ts
 var CLAUDE_PLUGIN_NAME = "buracle";
+function ompPart(s, fallback) {
+  const t = s.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "");
+  return t.length > 0 ? t : fallback;
+}
+function harnessMcpToolName(harness, server, tool) {
+  switch (harness) {
+    case "claude":
+      return `mcp__plugin_${CLAUDE_PLUGIN_NAME}_${mcpServerToken("claude", server)}__${tool.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+    case "codex":
+      return `mcp__${server}__${tool}`.replace(/[^A-Za-z0-9_]/g, "_");
+    case "opencode":
+      return `${mcpServerToken("opencode", server)}_${tool.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+    case "omp": {
+      const s = mcpServerToken("omp", server);
+      let t = ompPart(tool, "tool");
+      if (t.startsWith(`${s}_`) && t.length > s.length + 1)
+        t = t.slice(s.length + 1);
+      return `mcp__${s}_${t}`;
+    }
+  }
+}
 var MCP_SYNTAX = {
   claude: `mcp__plugin_${CLAUDE_PLUGIN_NAME}_<server>__<tool>`,
   codex: "mcp__<server>__<tool>, with - written as _",
@@ -9459,6 +9493,89 @@ var ORDINARY_PARTS = new Set([
   "node"
 ]);
 
+// src/adapters/shared/pipeline/types.ts
+init_fsx();
+
+// src/engine/git.ts
+init_fsx();
+import { basename as basename2, dirname as dirname3 } from "path";
+var GIT_TIMEOUT_MS = 5000;
+async function git(cwd, args) {
+  const r = await run(["git", ...args], { cwd, timeoutMs: GIT_TIMEOUT_MS, env: { GIT_OPTIONAL_LOCKS: "0", LC_ALL: "C" } });
+  return r.code === 0 ? r.stdout : undefined;
+}
+async function revParse(cwd, ...args) {
+  const out = await git(cwd, ["rev-parse", ...args]);
+  return out === undefined ? undefined : out.trim();
+}
+async function remoteUrl(cwd, name = "origin") {
+  const out = await git(cwd, ["remote", "get-url", name]);
+  const u = out?.trim();
+  return u ? u : undefined;
+}
+async function commonDir(cwd) {
+  const out = await revParse(cwd, "--git-common-dir");
+  return out ? comparablePath(out, cwd) : undefined;
+}
+async function toplevel(cwd) {
+  const out = await revParse(cwd, "--show-toplevel");
+  return out ? comparablePath(out, cwd) : undefined;
+}
+function ownerRepoFromUrl(url) {
+  let s = url.trim();
+  if (s === "")
+    return;
+  s = s.replace(/[?#].*$/, "").replace(/\/+$/, "").replace(/\.git$/, "");
+  let pathPart;
+  const scp = /^[^/@:]+@[^/:]+:(.+)$/.exec(s);
+  if (scp && scp[1] !== undefined && !/^[a-z][a-z0-9+.-]*:\/\//i.test(s))
+    pathPart = scp[1];
+  else {
+    const m = /^[a-z][a-z0-9+.-]*:\/\/[^/]*(\/.*)?$/i.exec(s);
+    pathPart = m ? m[1] ?? "" : s;
+  }
+  const segs = pathPart.split("/").filter((x) => x !== "" && x !== ".");
+  const repo = segs[segs.length - 1];
+  if (repo === undefined)
+    return;
+  const owner = segs.length >= 2 ? segs[segs.length - 2] : undefined;
+  return owner !== undefined ? { owner, repo } : { repo };
+}
+function slugPart(s) {
+  const folded = s.replace(/\u0130/g, "i").replace(/I/g, "i").replace(/\u0131/g, "i").toLowerCase().replace(/\u011F/g, "g").replace(/\u00FC/g, "u").replace(/\u015F/g, "s").replace(/\u00F6/g, "o").replace(/\u00E7/g, "c").normalize("NFKD").replace(/[\u0300-\u036F]/g, "");
+  const slug = folded.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60).replace(/-+$/g, "");
+  return slug === "" ? "project" : slug;
+}
+async function firstCommit(cwd) {
+  const out = await git(cwd, ["rev-list", "--max-parents=0", "HEAD"]);
+  if (out === undefined)
+    return;
+  return out.split(`
+`).map((l) => l.trim()).filter((l) => /^[0-9a-f]{7,40}$/.test(l)).sort()[0];
+}
+async function projectIdentity(cwd) {
+  const abs = comparablePath(cwd);
+  const common = await commonDir(abs);
+  if (common === undefined) {
+    return { slug: `${slugPart(basename2(abs))}-${sha256(abs).slice(0, 6)}`, root: abs };
+  }
+  const root = basename2(common) === ".git" ? dirname3(common) : await toplevel(abs) ?? abs;
+  const remote = await remoteUrl(abs);
+  const parsed = remote !== undefined ? ownerRepoFromUrl(remote) : undefined;
+  const name = parsed?.repo ?? basename2(root).replace(/\.git$/, "");
+  const id = { slug: slugPart(name), root, commonDir: common };
+  if (remote !== undefined)
+    id.remote = remote;
+  if (parsed?.owner !== undefined)
+    id.ownerRepo = `${parsed.owner}/${parsed.repo}`;
+  const first = await firstCommit(abs);
+  if (first !== undefined)
+    id.rootCommit = first;
+  return id;
+}
+async function projectSlug(cwd) {
+  return (await projectIdentity(cwd)).slug;
+}
 // src/core/policy/switch-off.ts
 var RELOCATION_VARS = [
   "BURACLE_HOME",
@@ -9683,23 +9800,1174 @@ var SHELL_ARG_OPTS = new Set(["o", "O"]);
 var SHELL_SEARCH = new Set(["rg", "grep", "egrep", "fgrep", "rgrep", "ag", "ack", "find", "fd", "fdfind"]);
 var FILE_PRINTERS = new Set(["cat", "bat", "batcat", "less", "more", "head", "tail", "sed", "awk", "nl"]);
 
+// src/adapters/shared/pipeline/health.ts
+init_fsx();
+
 // src/workflow/ledger.ts
 init_fsx();
 init_paths();
 
-// src/adapters/opencode/runtime/routing.ts
-var compiledCache = new WeakMap;
+// src/workflow/workspace.ts
+import { existsSync as existsSync3, readdirSync, readFileSync as readFileSync3, rmSync, statSync as statSync5, unlinkSync as unlinkSync2 } from "fs";
+import { dirname as dirname4, isAbsolute as isAbsolute4, join as join6, resolve as resolve3 } from "path";
+init_fsx();
+init_paths();
 
-// src/adapters/opencode/runtime/commands.ts
-function workflowCommandSkills(skills) {
-  return skills.filter((s) => s.userInvocable).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+// src/engine/platform.ts
+import { existsSync as existsSync2, statSync as statSync4 } from "fs";
+import { homedir } from "os";
+import { isAbsolute as isAbsolute3, join as join5 } from "path";
+function osName() {
+  const forced = process.env["BURACLE_PLATFORM"];
+  if (forced === "darwin" || forced === "linux")
+    return forced;
+  return process.platform === "darwin" ? "darwin" : "linux";
+}
+function homeDir() {
+  const h = process.env["HOME"];
+  return h !== undefined && h.trim() !== "" ? h : homedir();
+}
+function isFile(p) {
+  try {
+    return statSync4(p).isFile();
+  } catch {
+    return false;
+  }
+}
+function extraBinDirs() {
+  const home = homeDir();
+  const dirs = [join5(home, ".local", "bin"), join5(home, ".bun", "bin"), join5(home, "go", "bin"), join5(home, ".cargo", "bin")];
+  if (osName() === "darwin")
+    dirs.push("/opt/homebrew/bin", "/usr/local/bin");
+  if (osName() === "linux")
+    dirs.push("/home/linuxbrew/.linuxbrew/bin", "/usr/local/bin");
+  return dirs;
+}
+function findExecutable(name, opts = {}) {
+  const PATH = process.env["PATH"];
+  const hit = PATH !== undefined ? Bun.which(name, { PATH }) : Bun.which(name);
+  if (hit !== null && hit !== undefined)
+    return hit;
+  for (const dir of [...opts.extra ?? [], ...extraBinDirs()]) {
+    const p = join5(dir, name);
+    if (isFile(p))
+      return p;
+  }
+  return;
 }
 
-// src/adapters/opencode/runtime/env.ts
-import { readFileSync as readFileSync3, statSync as statSync4 } from "fs";
-import os2 from "os";
-import { isAbsolute as isAbsolute3, join as join5 } from "path";
+// src/workflow/workspace.ts
+var PROJECT_MARKERS = [
+  "package.json",
+  "pyproject.toml",
+  "setup.py",
+  "requirements.txt",
+  "Pipfile",
+  "go.mod",
+  "go.work",
+  "Cargo.toml",
+  "pom.xml",
+  "build.gradle",
+  "build.gradle.kts",
+  "settings.gradle",
+  "settings.gradle.kts",
+  "build.sbt",
+  "composer.json",
+  "Gemfile",
+  "deno.json",
+  "deno.jsonc",
+  "CMakeLists.txt",
+  "Makefile",
+  "mix.exs",
+  "pubspec.yaml",
+  "Package.swift",
+  "stack.yaml",
+  "tsconfig.json",
+  "pnpm-workspace.yaml",
+  "lerna.json",
+  "nx.json",
+  "turbo.json",
+  "WORKSPACE",
+  "WORKSPACE.bazel",
+  "MODULE.bazel"
+];
+var WORKSPACE_MARKERS = ["pnpm-workspace.yaml", "go.work", "settings.gradle", "settings.gradle.kts", "lerna.json", "nx.json", "turbo.json", "WORKSPACE", "WORKSPACE.bazel", "MODULE.bazel"];
+var MARKER_SUFFIXES = [".sln", ".csproj", ".fsproj", ".xcodeproj", ".xcworkspace"];
+var CHILD_SCAN_MAX = 256;
+var INDEX_LOCK_STALE_MS = 2 * 60 * 60000;
+function caseInsensitivePaths() {
+  return osName() !== "linux";
+}
+function canonicalDir(dir) {
+  const abs = resolve3(dir);
+  try {
+    return realPath(abs);
+  } catch {
+    return abs;
+  }
+}
+function exclusionContext(vault, exclude) {
+  return {
+    home: canonicalDir(home()),
+    buracleHome: canonicalDir(buracleHome()),
+    vault: canonicalDir(vault),
+    exclude,
+    caseInsensitive: caseInsensitivePaths()
+  };
+}
+function markerEntries(dir) {
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  const files = new Set;
+  for (const e of entries) {
+    if (e.isFile())
+      files.add(e.name);
+    else if (e.isSymbolicLink()) {
+      try {
+        if (statSync5(join6(dir, e.name)).isFile())
+          files.add(e.name);
+      } catch {}
+    }
+  }
+  return { files, names: entries.map((e) => e.name) };
+}
+function hasMarker(dir) {
+  const e = markerEntries(dir);
+  if (e === undefined)
+    return false;
+  return PROJECT_MARKERS.some((m) => e.files.has(m)) || e.names.some((n) => MARKER_SUFFIXES.some((s) => n.endsWith(s)));
+}
+function hasWorkspaceMarker(dir) {
+  const e = markerEntries(dir);
+  return e !== undefined && WORKSPACE_MARKERS.some((m) => e.files.has(m));
+}
+function markerRoot(dir, ctx) {
+  const ci = ctx.caseInsensitive;
+  let found;
+  let cur = dir;
+  for (let depth = 0;depth < 64; depth++) {
+    const k = pathKey(cur, ci);
+    if (k === "/" || /^[A-Za-z]:\/?$/.test(k) || isPathWithin(ctx.home, cur, ci))
+      break;
+    if (found === undefined) {
+      if (hasMarker(cur))
+        found = cur;
+    } else if (hasWorkspaceMarker(cur)) {
+      found = cur;
+    }
+    const parent = dirname4(cur);
+    if (parent === cur)
+      break;
+    cur = parent;
+  }
+  return found;
+}
+function isProjectDir(dir) {
+  return existsSync3(join6(dir, ".git")) || hasMarker(dir);
+}
+function activity(dir, mtimeMs) {
+  let t = mtimeMs;
+  for (const f of [".git", join6(".git", "index"), join6(".git", "HEAD")]) {
+    try {
+      t = Math.max(t, statSync5(join6(dir, f)).mtimeMs);
+    } catch {}
+  }
+  return t;
+}
+function childProjects(dir, ctx, max) {
+  let names;
+  try {
+    names = readdirSync(dir).sort();
+  } catch {
+    return [];
+  }
+  if (names.length > CHILD_SCAN_MAX)
+    return [];
+  const found = new Map;
+  for (const name of names) {
+    if (name.startsWith(".") || name === "node_modules")
+      continue;
+    const p = join6(dir, name);
+    let mtimeMs;
+    try {
+      const st = statSync5(p);
+      if (!st.isDirectory())
+        continue;
+      mtimeMs = st.mtimeMs;
+    } catch {
+      continue;
+    }
+    const real = canonicalDir(p);
+    if (indexExclusion(real, ctx) !== undefined)
+      continue;
+    if (!isProjectDir(p))
+      return [];
+    if (!found.has(real))
+      found.set(real, activity(p, mtimeMs));
+  }
+  return [...found.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, Math.max(0, max)).map(([p]) => p).sort();
+}
+async function gitTopLevel(dir) {
+  const top = await revParse(dir, "--show-toplevel").catch(() => {
+    return;
+  });
+  return top !== undefined && top.trim() !== "" ? canonicalDir(top.trim()) : undefined;
+}
+function workspaceOptions(cfg) {
+  return { vault: oldVaultRoot(), exclude: cfg.index.exclude, children: cfg.index.children, maxChildren: cfg.index.maxChildren };
+}
+async function resolveWorkspace(cwd, o) {
+  const dir = canonicalDir(cwd);
+  const ctx = exclusionContext(o.vault, o.exclude);
+  const here = indexExclusion(dir, ctx);
+  if (here !== undefined)
+    return { cwd: dir, children: [], excluded: here };
+  let root = await gitTopLevel(dir);
+  if (root !== undefined) {
+    const broad = indexExclusion(root, { ...ctx, exclude: [] });
+    if (broad === "your home folder" || broad === "a parent of your home folder" || broad === "the filesystem root")
+      root = undefined;
+  }
+  root ??= markerRoot(dir, ctx);
+  if (root !== undefined) {
+    const why = indexExclusion(root, ctx);
+    return why !== undefined ? { cwd: dir, children: [], excluded: why } : { cwd: dir, root, children: [] };
+  }
+  if (!o.children || o.maxChildren <= 0)
+    return { cwd: dir, children: [] };
+  return { cwd: dir, children: childProjects(dir, ctx, o.maxChildren) };
+}
+function indexTag(root) {
+  return sha256(canonicalDir(root)).slice(0, 16);
+}
+function indexRecordFile(root) {
+  return join6(indexStateDir(), `${indexTag(root)}.json`);
+}
+var CORRUPT_KEEP_MS = 14 * 86400000;
+function indexLockFile(root) {
+  return `${indexRecordFile(root)}.lock`;
+}
+function readIndexRecord(root) {
+  const r = readJsonSafeSync(indexRecordFile(root));
+  return r.ok && r.value?.v === 1 ? r.value : undefined;
+}
+function pidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code === "EPERM";
+  }
+}
+function indexLockHolder(root, nowMs) {
+  let held;
+  try {
+    held = JSON.parse(readFileSync3(indexLockFile(root), "utf8"));
+  } catch {
+    return;
+  }
+  if (held === null || typeof held !== "object")
+    return;
+  const { pid, at } = held;
+  if (typeof pid !== "number" || typeof at !== "number" || nowMs - at > INDEX_LOCK_STALE_MS)
+    return;
+  return pidAlive(pid) ? { pid, at } : undefined;
+}
+function codegraphDataDir(_root, env = process.env) {
+  const raw = (env["CODEGRAPH_DIR"] ?? "").trim();
+  if (raw !== "" && raw !== "." && !raw.includes("..") && !/[\\/]/.test(raw) && !isAbsolute4(raw))
+    return raw;
+  return ".codegraph";
+}
+function codegraphIndexPresent(root) {
+  return existsSync3(join6(root, codegraphDataDir(root), "codegraph.db"));
+}
+function projectIndex(root, cfg, nowMs, building = false) {
+  const rec = readIndexRecord(root);
+  const lock = building ? { pid: process.pid, at: nowMs } : indexLockHolder(root, nowMs);
+  const run = lock !== undefined ? { since: lock.at } : undefined;
+  const tool = (enabled, record, present) => indexState({ enabled, ...record !== undefined ? { record } : {}, ...run !== undefined ? { building: run } : {}, ...present !== undefined ? { present } : {} }, cfg.minIntervalMin);
+  return {
+    codegraph: tool(cfg.codegraph, rec?.codegraph, cfg.codegraph ? codegraphIndexPresent(root) : undefined),
+    semble: tool(cfg.semble, rec?.semble, undefined)
+  };
+}
+function idleIndex(cfg) {
+  return { codegraph: cfg.codegraph ? { state: "none" } : { state: "off" }, semble: cfg.semble ? { state: "none" } : { state: "off" } };
+}
+function infoFor(target, cfg, nowMs, building = []) {
+  const info = {
+    cwd: target.cwd,
+    children: [...target.children],
+    index: target.root !== undefined ? projectIndex(target.root, cfg.index, nowMs, building.includes(target.root)) : idleIndex(cfg.index)
+  };
+  if (target.root !== undefined)
+    info.root = target.root;
+  if (target.excluded !== undefined)
+    info.excluded = target.excluded;
+  if (target.children.length > 0) {
+    const childIndex = {};
+    for (const c of target.children)
+      childIndex[c] = projectIndex(c, cfg.index, nowMs, building.includes(c));
+    info.childIndex = childIndex;
+  }
+  return info;
+}
+async function workspaceInfo(cwd, cfg, nowMs) {
+  return infoFor(await resolveWorkspace(cwd, workspaceOptions(cfg)), cfg, nowMs);
+}
+// src/adapters/shared/pipeline/session-start.ts
+init_fsx();
 
+// src/adapters/shared/notices.ts
+init_fsx();
+init_paths();
+
+// src/adapters/shared/project-assets.ts
+init_fsx();
+init_paths();
+
+// src/usage/bar-info.ts
+import { existsSync as existsSync4, readFileSync as readFileSync5, statSync as statSync7 } from "fs";
+import { join as join7 } from "path";
+
+// src/core/flow/panes.ts
+function planPaneLines(v, state) {
+  const lines = v.visible ? bandText(v).map((text, i) => i === 0 ? { text, bold: true } : { text }) : [];
+  const plan = state.plan;
+  if (plan === undefined) {
+    lines.push({ text: "No plan is bound to this session.", bold: lines.length === 0 });
+    lines.push({ text: "A new plan: /plan-build <task> \xB7 an existing one: buracle plan register <path>", dim: true });
+    return lines;
+  }
+  lines.push({ text: `plan: ${plan.slug} (${plan.type})`, bold: true });
+  lines.push({ text: `status ${plan.status} \xB7 phase ${plan.phase}` });
+  lines.push({ text: `file: ${plan.path}`, dim: true });
+  if (state.interaction?.state === "paused")
+    lines.push({ text: 'paused: the stop guard lets the turn end; say "continue" to resume', color: "warning" });
+  lines.push({ text: `stop guard blocks: plan ${state.guard.blocksForPlan} \xB7 chain ${state.guard.blocksInChain}`, dim: true });
+  return lines;
+}
+var HARNESS_VERSION_TTL_MS = 12 * 60 * 60000;
+function count2(x) {
+  return typeof x === "number" && Number.isFinite(x) ? x : 0;
+}
+function memoryPaneLines(status, url, brain) {
+  const lines = [];
+  const s = status !== null && typeof status === "object" && !Array.isArray(status) && status["v"] === 3 ? status : undefined;
+  if (s === undefined) {
+    lines.push({ text: "No memory status yet.", bold: true });
+    lines.push({ text: "`buracle mem status` and memory writes create the status file.", dim: true });
+  } else {
+    const health = typeof s["health"] === "string" && s["health"] !== "" ? s["health"] : "?";
+    const counts = s["counts"] !== null && typeof s["counts"] === "object" ? s["counts"] : {};
+    const project = typeof s["project"] === "string" ? s["project"] : undefined;
+    lines.push({ text: `memory: ${health}`, color: health === "ok" ? "success" : health === "warn" ? "warning" : "error", bold: true });
+    lines.push({ text: `${project !== undefined ? `project ${project} ${count2(counts["project"])} \xB7 ` : ""}person ${count2(counts["person"])}` });
+    const last = s["last_capture"] !== null && typeof s["last_capture"] === "object" ? s["last_capture"]["at"] : undefined;
+    lines.push({ text: `inbox ${count2(s["captures"])} \xB7 last capture ${typeof last === "string" ? last.slice(0, 16).replace("T", " ") : "none yet"}` });
+  }
+  if (url !== undefined)
+    lines.push({ text: `web UI: ${url}  (w)`, dim: true });
+  lines.push({ text: `brain: ${brain}`, dim: true });
+  return lines;
+}
+
+// src/usage/bar-info.ts
+init_fsx();
+init_paths();
+init_shim();
+var HARNESS_LABEL = { claude: "CC", codex: "Codex", opencode: "OpenCode", omp: "OMP" };
+function isRecord(x) {
+  return x !== null && typeof x === "object" && !Array.isArray(x);
+}
+function buracleVersion(repoRoot2 = repoRoot()) {
+  try {
+    const v = JSON.parse(readFileSync5(join7(repoRoot2, "package.json"), "utf8")).version;
+    return typeof v === "string" ? v : "?";
+  } catch {
+    return "?";
+  }
+}
+function claudePlan() {
+  const file = claudeJson();
+  let mtime;
+  try {
+    mtime = statSync7(file).mtimeMs;
+  } catch {
+    return;
+  }
+  const cacheFile = join7(buracleHome(), "cache", "claude-plan.json");
+  const cached = readJsonSafeSync(cacheFile);
+  if (cached.ok && cached.value?.mtime === mtime)
+    return cached.value.plan ?? undefined;
+  let plan;
+  try {
+    const j = JSON.parse(readFileSync5(file, "utf8"));
+    const oa = isRecord(j) && isRecord(j["oauthAccount"]) ? j["oauthAccount"] : undefined;
+    if (oa === undefined)
+      plan = "API";
+    else {
+      const org = typeof oa["organizationType"] === "string" ? oa["organizationType"] : "";
+      const tier = `${typeof oa["organizationRateLimitTier"] === "string" ? oa["organizationRateLimitTier"] : ""} ${typeof oa["userRateLimitTier"] === "string" ? oa["userRateLimitTier"] : ""}`;
+      const mult = /(\d+)x/u.exec(tier)?.[1];
+      if (/max/iu.test(org))
+        plan = mult !== undefined && mult !== "1" ? `Max ${mult}x` : "Max";
+      else if (/pro/iu.test(org))
+        plan = "Pro";
+      else if (/team/iu.test(org))
+        plan = "Team";
+      else if (/enterprise/iu.test(org))
+        plan = "Enterprise";
+      else
+        plan = org !== "" ? org.replace(/^claude_/u, "") : undefined;
+    }
+  } catch {
+    plan = undefined;
+  }
+  try {
+    atomicWriteSync(cacheFile, JSON.stringify({ mtime, plan: plan ?? null }) + `
+`);
+  } catch {}
+  return plan;
+}
+var VERSION_CMD = { claude: "claude", codex: "codex", opencode: "opencode", omp: "omp" };
+function versionCacheFile() {
+  return join7(buracleHome(), "cache", "harness-versions.json");
+}
+async function harnessVersion(h, nowMs) {
+  const cacheFile = versionCacheFile();
+  const r = readJsonSafeSync(cacheFile);
+  const all = r.ok && isRecord(r.value) ? r.value : {};
+  const hit = all[h];
+  if (hit !== undefined && typeof hit.at === "number" && nowMs - hit.at < HARNESS_VERSION_TTL_MS && nowMs >= hit.at)
+    return hit.v;
+  const bin = findExecutable(VERSION_CMD[h]);
+  if (bin === undefined)
+    return;
+  const out = await run([bin, "--version"], { timeoutMs: 1500 });
+  const v = /(\d+\.\d+\.\d+)/u.exec(`${out.stdout}
+${out.stderr}`)?.[1];
+  all[h] = v !== undefined ? { v, at: nowMs } : { at: nowMs };
+  try {
+    atomicWriteSync(cacheFile, JSON.stringify(all) + `
+`);
+  } catch {}
+  return v;
+}
+function liveMemoryUi() {
+  const r = readJsonSafeSync(memoryUiStateFile());
+  if (!r.ok || !isRecord(r.value))
+    return;
+  const v = r.value;
+  if (typeof v["pid"] !== "number" || typeof v["port"] !== "number" || typeof v["url"] !== "string")
+    return;
+  if (v["build"] !== undefined && typeof v["build"] !== "string")
+    return;
+  try {
+    process.kill(v["pid"], 0);
+  } catch (e) {
+    if (e.code !== "EPERM")
+      return;
+  }
+  return v;
+}
+function buracleArgv() {
+  const main = join7(repoRoot(), "src", "cli", "main.ts");
+  const bun = findExecutable("bun");
+  if (bun !== undefined && existsSync4(main))
+    return [bun, main];
+  return shimLaunch();
+}
+async function barInfo(h, o) {
+  const info = { product: { name: "Buracle", version: buracleVersion() } };
+  const version = o.version ?? await harnessVersion(h, o.nowMs).catch(() => {
+    return;
+  });
+  const harness = { label: HARNESS_LABEL[h] };
+  if (version !== undefined)
+    harness.version = version;
+  if (h === "claude") {
+    const plan = claudePlan();
+    if (plan !== undefined)
+      harness.plan = plan;
+  }
+  info.harness = harness;
+  const live = liveMemoryUi();
+  if (live !== undefined)
+    info.memoryUrl = live.url;
+  if (o.lines !== undefined)
+    info.lines = o.lines;
+  return info;
+}
+
+// src/workflow/non-project.ts
+init_paths();
+
+// src/workflow/project-assets.ts
+init_fsx();
+
+// src/adapters/shared/project-assets.ts
+var CONTEXT_KEY = Symbol.for("buracle.project-assets.context");
+// src/core/memory/text.ts
+var REF = String.raw`(?!\[REDACTED)(?!\$\{?[A-Za-z_])(?!\$\()(?!\{\{)(?!<[A-Za-z_])(?!process\.env)(?!os\.environ)`;
+var TR_LETTERS = "\xE7\u011F\u0131\xF6\u015F\xFC\xC7\u011E\u0130\xD6\u015E\xDC";
+var BARE_PASS = String.raw`(?:(?<=[A-Za-z0-9][_.-])|(?<=(?:^|[\n{,["'])[ \t]*))(?:pass|pwd)(?![A-Za-z])`;
+var KEY_WORDS = String.raw`api[_-]?key|apikey|secret|token(?!i[sz](?:e|ation))|password|passwd|pass[_-]?phrase|${BARE_PASS}|access[_-]?key|account[_-]?key|shared[_-]?access[_-]?key|private[_-]?key|client[_-]?secret|auth(?!or(?!iz)|enticat(?:ion|ed))|credentials?`;
+var TR_WORDS = String.raw`[\u015Fs\u015ES][i\u0130\u0131I]fre|parola|g[i\u0130\u0131I]zl[i\u0130\u0131I](?:[ _-]?anahtar)?|anahtar|jeton`;
+var PASS_WORDS = String.raw`password|passwd|pass[_-]?phrase|[\u015Fs\u015ES][i\u0130\u0131I]fre|parola|g[i\u0130\u0131I]zl[i\u0130\u0131I][ _-]?anahtar`;
+var KEY_SUFFIX = `[A-Za-z0-9_${TR_LETTERS}]{0,32}`;
+var WORD_START = `(?<![A-Za-z0-9_${TR_LETTERS}])`;
+var ARG = String.raw`(?![-<>|&;()])(?:[^\s'"]{1,512}|'[^'\n]{0,512}'|"[^"\n]{0,512}")`;
+var PASS_RE = new RegExp(PASS_WORDS, "i");
+var URL_GENERIC_PARAMS = String.raw`key|sig|signature|x-amz-signature|x-goog-signature|hmac`;
+var URL_SECRET_PARAMS = String.raw`api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|token|x-amz-security-token|client[_-]?secret|secret|password|passwd|pwd|auth`;
+var URL_GENERIC_RE = new RegExp(String.raw`^[?&](?:${URL_GENERIC_PARAMS})=$`, "i");
+var PROSE_LINK = String.raw`(?:is|was|is[ \t]+now|set[ \t]+to|olarak|ise)`;
+var PHRASE_WORD = String.raw`[\p{L}\p{N}][\p{L}\p{N}'\u2019-]{0,39}`;
+var CODE_WORDS = /^(?:if|else|elif|return|await|typeof|instanceof|lambda|null|none|nil|undefined|function|def)$/i;
+var TYPE_WORDS = /^(?:string|str|int|integer|number|bool|boolean|text|varchar|char|bytes|required|optional|any|unknown|hidden|masked)$/i;
+function passphrase(value, keySuffix) {
+  if (!/^(?:[a-z\u00E7\u011F\u0131\u00F6\u015F\u00FC]{0,4}|\d{1,2})$/.test(keySuffix))
+    return false;
+  const words = value.split(/[ \t]+/);
+  if (words.some((w) => PASS_RE.test(w) || CODE_WORDS.test(w)) || TYPE_WORDS.test(words[0] ?? ""))
+    return false;
+  return words.join("").length >= 8;
+}
+var unquote2 = (v) => /^(["']).*\1$/s.test(v) ? v.slice(1, -1) : v;
+var isRef = (v) => /^(?:\[REDACTED|\$\{?[A-Za-z_]|\$\(|\{\{|<[A-Za-z_]|process\.env|os\.environ)/.test(v);
+var has = (m, i) => m[i] ?? "";
+var secretArg = (v) => {
+  const u = unquote2(v);
+  return u !== "" && !isRef(u);
+};
+function isBasicCredential(b64) {
+  try {
+    const raw = atob(b64);
+    return /^[^:\s]{0,256}:\S/.test(raw) && !/[\x00-\x08\x0e-\x1f]/.test(raw);
+  } catch {
+    return false;
+  }
+}
+var RULES = [
+  { kind: "pem", re: /-----BEGIN [A-Z0-9 ]*PRIVATE KEY[A-Z ]*-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY[A-Z ]*-----|$)/g },
+  { kind: "anthropic", re: /\bsk-ant-[A-Za-z0-9_-]{16,}/g },
+  { kind: "openai", re: /\bsk-(?!ant-)(?:proj-|svcacct-|admin-)?[A-Za-z0-9_-]{20,}/g },
+  { kind: "github", re: /\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{22,})/g },
+  { kind: "gitlab", re: /\bgl(?:pat|dt|ptt|rt|cbt|oas|ft|imt|agent|soat|ffct)-[A-Za-z0-9_.-]{20,}/g },
+  { kind: "aws", re: /\b(?:AKIA|ASIA)[0-9A-Z]{16}(?![0-9A-Z])/g },
+  { kind: "slack", re: /\b(?:xox[abposre]|xapp)-[A-Za-z0-9-]{10,}/g },
+  { kind: "slack", re: /https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9/_-]{20,}/g },
+  { kind: "google", re: /\bAIza[0-9A-Za-z_-]{35}/g },
+  { kind: "stripe", re: /\b[rs]k_(?:live|test)_[A-Za-z0-9]{16,}/g },
+  { kind: "npm", re: /\bnpm_[A-Za-z0-9]{36}\b/g },
+  { kind: "twilio", re: /\bSK[0-9a-f]{32}\b/g },
+  { kind: "sendgrid", re: /\bSG\.[A-Za-z0-9_-]{16,32}\.[A-Za-z0-9_-]{16,64}/g },
+  { kind: "huggingface", re: /\bhf_[A-Za-z0-9]{30,}/g },
+  { kind: "jwt", re: /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g },
+  {
+    kind: "url-password",
+    re: /(?<![A-Za-z0-9+.-])([a-z][a-z0-9+.-]{0,30}:\/\/[^\s:@/]{1,256}:)(\S{1,256}?)(?=@[A-Za-z0-9.-]{1,253}(?::\d{1,5})?(?:[/?#\s"'`)>\]}]|$))/gi,
+    keep: (m) => {
+      const pw = has(m, 2);
+      return isRef(pw) || /^\d{1,5}(?:\/|$)/.test(pw) ? undefined : { prefix: has(m, 1), suffix: "" };
+    }
+  },
+  {
+    kind: "url-param",
+    re: new RegExp(String.raw`([?&](?:${URL_GENERIC_PARAMS}|${URL_SECRET_PARAMS})=)${REF}([^&#\s"'<>\`]{6,1024})`, "gi"),
+    keep: (m) => {
+      const v = has(m, 2);
+      const ok = URL_GENERIC_RE.test(has(m, 1)) ? randomValue(v) : looksLikeSecretValue(v) && !TEMPLATE.test(v);
+      return ok ? { prefix: has(m, 1), suffix: "" } : undefined;
+    }
+  },
+  {
+    kind: "bearer",
+    re: new RegExp(String.raw`\b([Bb]earer\s+)${REF}([A-Za-z0-9._~+/-]{12,}=*)`, "g"),
+    keep: (m) => /[0-9]/.test(has(m, 2)) || /[._~+/-]/.test(has(m, 2)) ? { prefix: has(m, 1), suffix: "" } : undefined
+  },
+  {
+    kind: "basic-auth",
+    re: new RegExp(String.raw`\b((?:proxy-)?authorization["']?[ \t]{0,8}[:=][ \t]{0,8}["']?basic[ \t]+)${REF}([A-Za-z0-9+/=._~-]{4,})`, "gi"),
+    keep: (m) => ({ prefix: has(m, 1), suffix: "" })
+  },
+  {
+    kind: "basic-auth",
+    re: new RegExp(String.raw`\b((?:proxy-)?authorization["']?[ \t]{0,8}[:=][ \t]{0,8}["']?(?:digest|ntlm|negotiate)[ \t]+)${REF}([^\r\n'"]{1,4096}(?:"[^"\r\n]{0,1024}"[^\r\n'"]{0,4096}){0,32})`, "gi"),
+    keep: (m) => has(m, 2).trim().length >= 4 ? { prefix: has(m, 1), suffix: "" } : undefined
+  },
+  {
+    kind: "basic-auth",
+    re: new RegExp(String.raw`\b(Basic[ \t]+)${REF}([A-Za-z0-9+/]{8,}={0,2})(?![A-Za-z0-9+/=])`, "g"),
+    keep: (m) => isBasicCredential(has(m, 2)) ? { prefix: has(m, 1), suffix: "" } : undefined
+  },
+  {
+    kind: "cli-flag",
+    re: new RegExp(String.raw`(\b(?:mysql|mariadb|mysqldump|mysqladmin|mysqlimport|mysqlcheck|mysqlshow|mysqlpump|mysqlsh|mariadb-dump|mariadb-admin)\b[^\n|;&]{0,300}?[ \t]-p)${REF}(${ARG})`, "g"),
+    keep: (m) => secretArg(has(m, 2)) ? { prefix: has(m, 1), suffix: "" } : undefined
+  },
+  {
+    kind: "cli-flag",
+    re: new RegExp(String.raw`(\b(?:sshpass|(?:docker|podman|nerdctl|helm|buildah|skopeo|oras)\b[^\n|;&]{0,200}?\blogin)\b[^\n|;&]{0,200}?[ \t]-p[ \t]*)${REF}(${ARG})`, "g"),
+    keep: (m) => secretArg(has(m, 2)) ? { prefix: has(m, 1), suffix: "" } : undefined
+  },
+  {
+    kind: "cli-flag",
+    re: new RegExp(String.raw`((?<![^\s"'=])--(?:[A-Za-z0-9]{1,20}-){0,3}(?:password|passwd|pass|passphrase|pwd|secret|token|api-?key|access-?key|secret-?key|private-?key|client-?secret|credentials?)(?:=|[ \t]+))${REF}(${ARG})`, "gi"),
+    keep: (m) => secretArg(has(m, 2)) && !isPlainValue(unquote2(has(m, 2))) ? { prefix: has(m, 1), suffix: "" } : undefined
+  },
+  {
+    kind: "cli-flag",
+    re: new RegExp(String.raw`((?<![^\s"'])-pass(?:in|out)?[ \t]+pass:)${REF}(\S{1,512})`, "g"),
+    keep: (m) => ({ prefix: has(m, 1), suffix: "" })
+  },
+  {
+    kind: "cli-flag",
+    re: new RegExp(String.raw`((?<![^\s"'=])(?:-u|-U|--user|--proxy-user)(?:=|[ \t]*)(["']?)[^\s:'"@/]{1,128}:)${REF}([^\s'"]{1,256})(?=\2)`, "g"),
+    keep: (m) => looksLikeSecretValue(has(m, 3), 4) ? { prefix: has(m, 1), suffix: "" } : undefined
+  },
+  {
+    kind: "netrc",
+    re: new RegExp(String.raw`(\b(?:machine[ \t]+\S{1,256}|default)\s{1,16}login\s{1,16}\S{1,256}\s{1,16}password\s{1,16})${REF}(\S{1,512})`, "g"),
+    keep: (m) => ({ prefix: has(m, 1), suffix: "" })
+  },
+  {
+    kind: "secret",
+    re: new RegExp(String.raw`((?:${KEY_WORDS}|${TR_WORDS})${KEY_SUFFIX}["']?\s{0,32}[:=]\s{0,32}(["']))${REF}((?:(?!\2)[^\r\n\\]|\\.){1,1024}?)\2`, "gi"),
+    keep: (m) => !countKey(m) && quotedSecret(has(m, 3), has(m, 1)) ? { prefix: has(m, 1), suffix: has(m, 2) } : undefined
+  },
+  {
+    kind: "secret",
+    re: new RegExp(String.raw`((?:${PASS_WORDS})(${KEY_SUFFIX})["']?[ \t]{0,32}[:=][ \t]{0,32})${REF}(${PHRASE_WORD}(?:[ \t]{1,4}${PHRASE_WORD}){1,15})(?=[ \t]*(?:[.,;!?\u2026#)\]}]|\r?$))`, "gimu"),
+    keep: (m) => passphrase(has(m, 3), has(m, 2)) ? { prefix: has(m, 1), suffix: "" } : undefined
+  },
+  {
+    kind: "secret",
+    re: new RegExp(String.raw`((?:${KEY_WORDS}|${TR_WORDS})${KEY_SUFFIX}["']?\s{0,32}[:=]\s{0,32}["'\`]?)${REF}([^\s"'\`,;]{6,})`, "gi"),
+    keep: (m) => unquotedSecret(m) ? { prefix: has(m, 1), suffix: "" } : undefined
+  },
+  {
+    kind: "secret",
+    re: new RegExp(String.raw`${WORD_START}((?:${PASS_WORDS})${KEY_SUFFIX}[ \t]{1,8}(?:${PROSE_LINK}[ \t]{1,8})?)${REF}(["'][^"'\r\n]{4,256}["']|[^\s"'<>(){}[\]]{6,256})`, "gi"),
+    keep: (m) => {
+      const v = has(m, 2);
+      if (/^["']/.test(v))
+        return quotedSecret(unquote2(v), has(m, 1)) ? { prefix: `${has(m, 1)}${v[0]}`, suffix: v.slice(-1) } : undefined;
+      const tail = /[.,;:!?]+$/.exec(v)?.[0] ?? "";
+      const core = v.slice(0, v.length - tail.length);
+      if (isRef(core.replace(/^`|`$/g, "")))
+        return;
+      return core.length >= 6 && !isPlainValue(core) && /[0-9!@#$%^&*+=?~|]/.test(core) ? { prefix: has(m, 1), suffix: tail } : undefined;
+    }
+  },
+  {
+    kind: "secret",
+    re: new RegExp(String.raw`${WORD_START}((?:secret|token|(?:api|signing|secret|private|access|encryption|hmac|master|webhook|license)[ _-]?key|${PASS_WORDS})${KEY_SUFFIX}[ \t]{1,8}(?:${PROSE_LINK}[ \t]{1,8})?)${REF}([0-9a-fA-F]{32,256})(?![0-9A-Za-z_])`, "gi"),
+    keep: (m) => ({ prefix: has(m, 1), suffix: "" })
+  },
+  {
+    kind: "env",
+    re: new RegExp(String.raw`^([ \t]*(?:export[ \t]+)?[A-Z][A-Z0-9_]{0,63}(?:KEY|SECRET|TOKEN(?!I[SZ](?:E|ATION))|PASSWORD|PASSWD|(?<![A-Z])(?:PASS|PWD)(?![A-Z])|CREDENTIALS?|AUTH(?!OR(?!IZ)|ENTICAT(?:ION|ED))|DSN|PRIVATE|SIFRE|PAROLA)[A-Z0-9_]{0,63}[ \t]*=[ \t]*)${REF}(?!["']?\s*$)(\S.*)$`, "gm"),
+    keep: (m) => {
+      const v = has(m, 2).replace(/^["']|["']$/g, "");
+      if (isPlainValue(v) || isRef(v) || /\$\{[A-Za-z_]/.test(v))
+        return;
+      if (/[ \t]=/.test(has(m, 1)) && codeValue(v, PASS_RE.test(has(m, 1))))
+        return;
+      return { prefix: has(m, 1), suffix: "" };
+    }
+  },
+  {
+    kind: "secret",
+    re: new RegExp(String.raw`${WORD_START}((?:[A-Za-z][A-Za-z0-9]{0,31}[_-]){1,4}(?:key|KEY|Key)|[a-z][A-Za-z0-9]{0,31}Key)(["']?[ \t]{0,8}[:=][ \t]{0,8}["'\`]?)${REF}([A-Za-z0-9+/=_.~-]{6,256})(?![A-Za-z0-9+/=_.~-])`, "g"),
+    keep: (m) => !NOT_SECRET_KEY.test(has(m, 1).toLowerCase().replace(/[^a-z0-9]/g, "")) && randomValue(has(m, 3)) ? { prefix: has(m, 1) + has(m, 2), suffix: "" } : undefined
+  },
+  {
+    kind: "aws",
+    re: /(?<![A-Za-z0-9/+=])[A-Za-z0-9/+]{40}(?![A-Za-z0-9/+=])/g,
+    keep: (m) => looksLikeAwsSecret(m[0]) ? { prefix: "", suffix: "" } : undefined
+  }
+];
+function isPlainValue(v) {
+  if (/^[-+]?\d+(?:_\d+)*(?:[.,]\d+(?:_\d+)*)?[kKmM%]?$/.test(v))
+    return true;
+  if (/^(?:true|false|yes|no|on|off|null|none)$/i.test(v))
+    return true;
+  return /^(?:[a-z][a-z0-9+.-]*:\/\/|\/|\.{1,2}\/|~\/)/i.test(v);
+}
+var IDENT = "[A-Za-z_$][A-Za-z0-9_$]*";
+var PATH_HEAD = new RegExp(String.raw`^${IDENT}(?:\??\.${IDENT}|\[[^\]\s]{0,64}\]|!)*`);
+var IDENTS = new RegExp(IDENT, "g");
+var COMPOUND_NAME = /^(?:[a-z]{2,}|[A-Z][a-z]{2,})(?:[A-Z][a-z]{2,})+$/;
+var CONSTANT_NAME = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/;
+var TEMPLATE = /\$\{[A-Za-z_]|<[A-Za-z_][\w.-]{0,32}>/;
+var CREDENTIAL_FIELD = /pass|pwd?|secret|token|key|cred|auth|[\u015Fs]ifre|parola/i;
+var COUNT_KEY = /(?:input|output|max|min|total|prompt|completion|reasoning|thinking|context|cache|cached|read|write|creation|num|used|remaining|reserved)tokens?$|^tokens?(?:count|used|limit|budget|usage|total|estimate)$/;
+function readsAsWords(id) {
+  if (/^[A-Za-z_$]{1,4}$/.test(id))
+    return true;
+  let letters = 0;
+  let words = 0;
+  for (const part of id.split(/[_$]+/)) {
+    if (/^\d*$/.test(part))
+      continue;
+    for (const w of part.match(/[A-Z]+(?![a-z])\d*|[A-Z]?[a-z]+\d*|\d+/g) ?? []) {
+      const l = w.replace(/\d+$/, "").length;
+      if (l < 2 && l !== w.length)
+        return false;
+      letters += l;
+      words++;
+    }
+  }
+  return words > 0 && letters / words >= 2.5;
+}
+function codeValue(v, strict, after = "") {
+  if (/^[[{(]/.test(v) || TEMPLATE.test(v))
+    return true;
+  const head = PATH_HEAD.exec(v)?.[0] ?? "";
+  if (head === "")
+    return false;
+  const names = head.match(IDENTS) ?? [];
+  if (!names.every(readsAsWords))
+    return false;
+  const rest = v.slice(head.length);
+  const call = rest.startsWith("(");
+  const type = head.endsWith("[]") || /^<[A-Za-z_$]/.test(rest);
+  const path = /[.[!]/.test(head);
+  if (!call && !type && !path) {
+    const name = COMPOUND_NAME.test(head) || CONSTANT_NAME.test(head) && !/_\d+(?=_|$)/.test(head);
+    return !strict && /^[)\]}>]*$/.test(rest) && name;
+  }
+  if (type)
+    return true;
+  const lower = /^[a-z_$]/.test(head);
+  if (call)
+    return !strict || lower;
+  if (/^(?:this|self)\b/.test(head) || CREDENTIAL_FIELD.test(names[names.length - 1] ?? ""))
+    return !strict || lower;
+  if (strict)
+    return false;
+  return names.length < 3 || /[?![]/.test(head) || names.some((n) => /[a-z0-9][A-Z]|[_$]/.test(n)) || CODE_AFTER.test(rest !== "" ? rest : after);
+}
+var CODE_AFTER = /^[ \t]*(?:[,;)\]}>]|\?\?|\|\||&&|[=!]==?|\?[ \t]|\+[ \t])/;
+function keyOf(m) {
+  let start = m.index;
+  while (start > 0 && m.index - start < 64 && /[A-Za-z0-9_$-]/.test(m.input[start - 1] ?? ""))
+    start--;
+  return m.input.slice(start, m.index) + (/^[^\s"':=]*/.exec(m[0])?.[0] ?? "");
+}
+var countKey = (m) => COUNT_KEY.test(keyOf(m).toLowerCase().replace(/[^a-z]/g, ""));
+function unquotedSecret(m) {
+  const v = has(m, 2);
+  const prefix = has(m, 1);
+  const core = v.replace(/[)\]}>:]+$/, "");
+  if (countKey(m) || isPlainValue(core) || /\$\{[A-Za-z_]/.test(v))
+    return false;
+  const envStyle = /^[A-Z][A-Z0-9_]*$/.test(keyOf(m)) && /\S=["'`]?$/.test(prefix);
+  const end = m.index + m[0].length;
+  const after = /^[^\r\n]*/.exec(m.input.slice(end, end + 8))?.[0] ?? "";
+  if (!envStyle && codeValue(v, PASS_RE.test(prefix), after))
+    return false;
+  if (core.length < 8) {
+    const passLike = PASS_RE.test(prefix) || /(?:^|[^a-z])(?:pass|pwd)(?:[^a-z]|$)/i.test(keyOf(m));
+    return passLike ? /[0-9!@#$%^&*+=?~|]/.test(core) : randomValue(core);
+  }
+  return looksLikeSecretValue(core);
+}
+function looksLikeSecretValue(v, minLength = 1) {
+  if (v.length < minLength || isPlainValue(v))
+    return false;
+  if (v.length >= 20)
+    return true;
+  if (/[0-9]/.test(v))
+    return true;
+  if (/[a-z]/.test(v) && /[A-Z]/.test(v))
+    return true;
+  return /[^A-Za-z]/.test(v);
+}
+var wordRun = (r) => /^\d+$/.test(r) || /^[A-Za-z]{1,3}\d{0,3}$/.test(r) || readsAsWords(r);
+function randomValue(v) {
+  if (v.length < 6 || isPlainValue(v) || /^v?\d+(?:[._-]\d+)+$/i.test(v))
+    return false;
+  if (!/[A-Za-z]/.test(v) || !/[0-9]/.test(v) && !(/[a-z]/.test(v) && /[A-Z]/.test(v)))
+    return false;
+  return !v.split(/[^A-Za-z0-9]+/).filter((r) => r !== "").every(wordRun);
+}
+var NOT_SECRET_KEY = /(?:primary|foreign|sort|sorting|order|partition|range|hash|cache|public|pub|group|lookup|map|row|index|unique|composite|natural|shard|routing|dedupe?|object|i18n|translation|react|list|query|field|column|attr|attribute|record|table|item|state|store|config|settings?|message|event|idempotency|hot|shortcut|search|label|name|lang|locale)key$/;
+function quotedSecret(v, prefix) {
+  const t = v.trim();
+  if (t === "" || isPlainValue(t) || isRef(t) || TEMPLATE.test(t))
+    return false;
+  const pass = PASS_RE.test(prefix);
+  if (/\s/.test(t))
+    return t.length >= 6 && pass;
+  return t.length >= 6 && looksLikeSecretValue(t);
+}
+function looksLikeAwsSecret(tok) {
+  if (!/[/+]/.test(tok) || !/[A-Z]/.test(tok) || !/[a-z]/.test(tok) || !/[0-9]/.test(tok))
+    return false;
+  if (/^(?:\/|~\/|\.\.?\/)/.test(tok))
+    return false;
+  const segs = tok.split("/").filter((s) => s !== "");
+  const wordish = segs.filter((s) => PATH_SEGMENT.test(s)).length;
+  return !(segs.length >= 2 && wordish * 3 >= segs.length * 2);
+}
+var WORDISH = "(?:[a-z0-9]+|[A-Z][a-z0-9]*)";
+var PATH_SEGMENT = new RegExp(`^${WORDISH}(?:[-_.]${WORDISH})*$`);
+
+// src/core/memory/signals.ts
+var WORD_EDGE = String.raw`(?:(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])|(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_]))`;
+function uw(re) {
+  return new RegExp(re.source.split("\\b").join(WORD_EDGE), re.flags.includes("u") ? re.flags : `${re.flags}u`);
+}
+var CATEGORY_WORDS = [
+  ["communication", uw(/\b(?:reply|replies|respond|answer|answers|language|english|turkish|emojis?|tone|concise|short|brief|explain|explanations?|format|markdown|tables?|summary|summaries|wording|verbose)\b|\b(?:t[\u00FCu]rk[\u00E7c]e|ingilizce|yan[\u0131i]t|cevap|a[\u00E7c][\u0131i]kla|k[\u0131i]sa|uzun|tablo|[\u00F6o]zet|dil)/i)],
+  ["autonomy", uw(/\b(?:ask|asking|approval|approve|permission|confirm|confirmation|autonomous|autonomously|check[- ]in|wait|interrupt)\b|\b(?:sor|sorma|sormadan|sormak|sorar|onay[\p{L}]*|izin[\p{L}]*|otonom[\p{L}]*|bekle[\p{L}]*)\b/iu)],
+  ["quality", uw(/\b(?:tests?|tdd|verify|verification|lint|typecheck|type-check|review|coverage|quality|regression|evidence)\b|\b(?:do[\u011Fg]rula|kalite|kan[\u0131i]t)/i)],
+  ["workflow", uw(/\b(?:plan|plans|spec|workflow|workflows|commits?|branch|branches|worktrees?|pull request|prs?|push|merge|release|deploy|skills?|mcp)\b|\b(?:dal[\u0131i]?|birle[\u015Fs]tir)\b/i)],
+  ["engineering", uw(/\b(?:bun|npm|pnpm|yarn|typescript|javascript|python|go|rust|library|libraries|dependenc(?:y|ies)|framework|code|api|architecture|database|sql|docker|runtime|package)\b|\b(?:k[\u00FCu]t[\u00FCu]phane|ba[\u011Fg][\u0131i]ml[\u0131i]l[\u0131i]k|kod|mimari)/i)]
+];
+
+// src/core/memory/spool.ts
+var SPOOL_LIMITS = {
+  excerpt: 2000,
+  promptExcerpt: 800,
+  compactExcerpt: 8000,
+  cmd: 600,
+  paths: 50,
+  path: 600,
+  tool: 128,
+  model: 128,
+  softFileBytes: 4 * 1024 * 1024,
+  hardFileBytes: 8 * 1024 * 1024
+};
+var UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+// src/core/policy/code-scan.ts
+var REGEX_AFTER = new Set(["(", ",", "=", ":", "[", "!", "&", "|", "?", "{", "}", ";", "+", "-", "*", "%", "<", ">", "~", "^", "=>", "==", "===", "!=", "!==", "&&", "||", "??", "return", "typeof", "case", "do", "else", "in", "of", "new", "void", "throw"]);
+var HOME_ENV = new Set(["HOME", "USERPROFILE"]);
+var LOOKUPS = new Set(["getattr", "__import__", "import_module", "require", "import"]);
+var GENERIC = new Set(["remove", "copy", "move", "run", "call", "rm", "cp", "rename", "replace", "unlink", "exec", "spawn", "popen", "write", "delete", "open", "system"]);
+var GENERIC_BARE = new Set(["remove", "copy", "move", "run", "call", "rm", "cp", "rename", "unlink", "exec", "spawn", "popen", "write", "delete", "open", "system"]);
+var VALUE_METHODS = new Set(["unlink", "rename", "open"]);
+var PARENLESS = new Set(["perl", "ruby", "lua"]);
+
+// src/core/policy/self-disable.ts
+var RELOCATION_VARS2 = ["BURACLE_HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "PI_CODING_AGENT_DIR", "BURACLE_CORTEXDB_BIN"];
+var RELOCATION = new RegExp(RELOCATION_VARS2.map((v) => [...v].map((c) => c.replace(/[^A-Za-z0-9]/g, "\\$&")).join(`['"\\\\{}$:+-]*`)).join("|"), "i");
+var STARTUP_NAMES = new Set([".zshrc", ".zprofile", ".zshenv", ".zlogin", ".bashrc", ".bash_profile", ".bash_login", ".profile", ".kshrc", ".mkshrc", ".cshrc", ".tcshrc", ".login", ".envrc", ".pam_environment", ".xprofile", ".xsessionrc"]);
+var SYSTEM_STARTUP = new Set(["zshrc", "zprofile", "zshenv", "zlogin", "profile", "bashrc", "bash.bashrc", "environment", "csh.cshrc", "csh.login", "launchd.conf"]);
+var SHELL_RUNNERS = new Set(["sh", "bash", "zsh", "dash", "ksh", "mksh", "ash", "source", "."]);
+var SCRIPT_RUNNERS = new Set(["bun", "node", "nodejs", "tsx", "ts-node", "deno", "parallel"]);
+var SHELL_OPTION_WITH_VALUE = new Set(["-o", "+o", "-O", "+O"]);
+var REMOVE_VERBS = new Set(["disable", "uninstall", "remove", "rm", "unlink"]);
+
+// src/core/policy/bash-guard.ts
+var TOP_LEVEL = new Set([
+  "applications",
+  "bin",
+  "boot",
+  "cores",
+  "dev",
+  "etc",
+  "home",
+  "lib",
+  "lib32",
+  "lib64",
+  "libx32",
+  "library",
+  "media",
+  "mnt",
+  "network",
+  "nix",
+  "opt",
+  "private",
+  "proc",
+  "root",
+  "run",
+  "sbin",
+  "snap",
+  "srv",
+  "sys",
+  "system",
+  "tmp",
+  "users",
+  "usr",
+  "var",
+  "volumes"
+]);
+var CRITICAL_SECOND_LEVEL = new Set([
+  "/usr/bin",
+  "/usr/sbin",
+  "/usr/lib",
+  "/usr/libexec",
+  "/usr/local",
+  "/usr/share",
+  "/usr/include",
+  "/opt/homebrew",
+  "/private/etc",
+  "/private/var",
+  "/private/tmp",
+  "/var/lib",
+  "/var/db",
+  "/system/library",
+  "/system/applications",
+  "/library/apple"
+]);
+var HOME_FOLDERS = new Set(["applications", "desktop", "documents", "downloads", "library", "movies", "music", "pictures", "public", ".config", ".ssh", ".gnupg", ".aws"]);
+var DOWNLOADERS = new Set(["curl", "wget", "fetch", "http", "https", "xh", "aria2c"]);
+var OUTPUT_REDIRECTS = new Set([">", ">>", ">|", "&>", "&>>", "<>", ">&"]);
+var DECLARE = new Set(["export", "declare", "typeset", "local", "readonly"]);
+var GIT_GLOBAL_WITH_ARG = new Set(["-C", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--attr-source", "--list-cmds"]);
+var PUSH_LONG_ARG = new Set(["repo", "receive-pack", "exec", "push-option", "recurse-submodules"]);
+var FORCE_FAMILY = new Set(["force", "force-with-lease", "force-if-includes"]);
+var GIT_CONFIG_WITH_ARG = new Set(["-f", "--file", "--blob", "--type", "--default", "--comment", "--value", "--fixed-value"]);
+var patternCache = new Map;
+
+// src/core/policy/consent.ts
+var GRANT_TTL_MS = 20 * 60000;
+var PENDING_TTL_MS = 30 * 60000;
+var GIT_GLOBAL_WITH_ARG2 = new Set(["-c", "-C", "--git-dir", "--work-tree", "--namespace", "--config-env", "--super-prefix", "--attr-source", "--list-cmds"]);
+var GIT_CONFIG_WITH_ARG2 = new Set(["-f", "--file", "--blob", "--type", "--default", "--comment", "--value", "--fixed-value"]);
+var REMOVERS = new Set(["rm", "unlink", "shred", "srm"]);
+var DB_CLIENTS = new Set(["psql", "mysql", "mariadb", "sqlite3", "sqlite", "duckdb", "mongosh", "mongo", "clickhouse-client", "cockroach", "sqlcmd"]);
+
+// src/adapters/shared/consent-store.ts
+init_fsx();
+init_paths();
+
+// src/core/plan/notes.ts
+function brainPageArg(args) {
+  const w = args.trim().toLowerCase();
+  if (w === "")
+    return "brain";
+  return ["review", "plans", "changes", "notes"].includes(w) ? "review" : undefined;
+}
+
+// src/adapters/shared/review-notes.ts
+init_fsx();
+init_paths();
+// src/core/policy/mcp-paths.ts
+var WRITE_PATH_KEYS = new Set([
+  "path",
+  "filepath",
+  "filename",
+  "outputpath",
+  "outputfile",
+  "outpath",
+  "outfile",
+  "savepath",
+  "savefile",
+  "saveto",
+  "destination",
+  "dest",
+  "destpath",
+  "targetpath",
+  "outputdir",
+  "outputdirpath",
+  "outputdirectory",
+  "savedir",
+  "downloadpath"
+]);
+var READ_ONLY_SERVERS = new Set(["codegraph", "semble", "context7", "grep", "web-search"]);
+var READ_ONLY_TOOLS = new Set(["chrome-devtools/upload_file"]);
+
+// src/adapters/shared/realpath.ts
+init_fsx();
+
+// src/adapters/shared/repo.ts
+init_fsx();
+
+// src/adapters/shared/self-paths.ts
+init_paths();
+
+// node_modules/jsonc-parser/lib/esm/impl/scanner.js
+var CharacterCodes;
+(function(CharacterCodes) {
+  CharacterCodes[CharacterCodes["lineFeed"] = 10] = "lineFeed";
+  CharacterCodes[CharacterCodes["carriageReturn"] = 13] = "carriageReturn";
+  CharacterCodes[CharacterCodes["space"] = 32] = "space";
+  CharacterCodes[CharacterCodes["_0"] = 48] = "_0";
+  CharacterCodes[CharacterCodes["_1"] = 49] = "_1";
+  CharacterCodes[CharacterCodes["_2"] = 50] = "_2";
+  CharacterCodes[CharacterCodes["_3"] = 51] = "_3";
+  CharacterCodes[CharacterCodes["_4"] = 52] = "_4";
+  CharacterCodes[CharacterCodes["_5"] = 53] = "_5";
+  CharacterCodes[CharacterCodes["_6"] = 54] = "_6";
+  CharacterCodes[CharacterCodes["_7"] = 55] = "_7";
+  CharacterCodes[CharacterCodes["_8"] = 56] = "_8";
+  CharacterCodes[CharacterCodes["_9"] = 57] = "_9";
+  CharacterCodes[CharacterCodes["a"] = 97] = "a";
+  CharacterCodes[CharacterCodes["b"] = 98] = "b";
+  CharacterCodes[CharacterCodes["c"] = 99] = "c";
+  CharacterCodes[CharacterCodes["d"] = 100] = "d";
+  CharacterCodes[CharacterCodes["e"] = 101] = "e";
+  CharacterCodes[CharacterCodes["f"] = 102] = "f";
+  CharacterCodes[CharacterCodes["g"] = 103] = "g";
+  CharacterCodes[CharacterCodes["h"] = 104] = "h";
+  CharacterCodes[CharacterCodes["i"] = 105] = "i";
+  CharacterCodes[CharacterCodes["j"] = 106] = "j";
+  CharacterCodes[CharacterCodes["k"] = 107] = "k";
+  CharacterCodes[CharacterCodes["l"] = 108] = "l";
+  CharacterCodes[CharacterCodes["m"] = 109] = "m";
+  CharacterCodes[CharacterCodes["n"] = 110] = "n";
+  CharacterCodes[CharacterCodes["o"] = 111] = "o";
+  CharacterCodes[CharacterCodes["p"] = 112] = "p";
+  CharacterCodes[CharacterCodes["q"] = 113] = "q";
+  CharacterCodes[CharacterCodes["r"] = 114] = "r";
+  CharacterCodes[CharacterCodes["s"] = 115] = "s";
+  CharacterCodes[CharacterCodes["t"] = 116] = "t";
+  CharacterCodes[CharacterCodes["u"] = 117] = "u";
+  CharacterCodes[CharacterCodes["v"] = 118] = "v";
+  CharacterCodes[CharacterCodes["w"] = 119] = "w";
+  CharacterCodes[CharacterCodes["x"] = 120] = "x";
+  CharacterCodes[CharacterCodes["y"] = 121] = "y";
+  CharacterCodes[CharacterCodes["z"] = 122] = "z";
+  CharacterCodes[CharacterCodes["A"] = 65] = "A";
+  CharacterCodes[CharacterCodes["B"] = 66] = "B";
+  CharacterCodes[CharacterCodes["C"] = 67] = "C";
+  CharacterCodes[CharacterCodes["D"] = 68] = "D";
+  CharacterCodes[CharacterCodes["E"] = 69] = "E";
+  CharacterCodes[CharacterCodes["F"] = 70] = "F";
+  CharacterCodes[CharacterCodes["G"] = 71] = "G";
+  CharacterCodes[CharacterCodes["H"] = 72] = "H";
+  CharacterCodes[CharacterCodes["I"] = 73] = "I";
+  CharacterCodes[CharacterCodes["J"] = 74] = "J";
+  CharacterCodes[CharacterCodes["K"] = 75] = "K";
+  CharacterCodes[CharacterCodes["L"] = 76] = "L";
+  CharacterCodes[CharacterCodes["M"] = 77] = "M";
+  CharacterCodes[CharacterCodes["N"] = 78] = "N";
+  CharacterCodes[CharacterCodes["O"] = 79] = "O";
+  CharacterCodes[CharacterCodes["P"] = 80] = "P";
+  CharacterCodes[CharacterCodes["Q"] = 81] = "Q";
+  CharacterCodes[CharacterCodes["R"] = 82] = "R";
+  CharacterCodes[CharacterCodes["S"] = 83] = "S";
+  CharacterCodes[CharacterCodes["T"] = 84] = "T";
+  CharacterCodes[CharacterCodes["U"] = 85] = "U";
+  CharacterCodes[CharacterCodes["V"] = 86] = "V";
+  CharacterCodes[CharacterCodes["W"] = 87] = "W";
+  CharacterCodes[CharacterCodes["X"] = 88] = "X";
+  CharacterCodes[CharacterCodes["Y"] = 89] = "Y";
+  CharacterCodes[CharacterCodes["Z"] = 90] = "Z";
+  CharacterCodes[CharacterCodes["asterisk"] = 42] = "asterisk";
+  CharacterCodes[CharacterCodes["backslash"] = 92] = "backslash";
+  CharacterCodes[CharacterCodes["closeBrace"] = 125] = "closeBrace";
+  CharacterCodes[CharacterCodes["closeBracket"] = 93] = "closeBracket";
+  CharacterCodes[CharacterCodes["colon"] = 58] = "colon";
+  CharacterCodes[CharacterCodes["comma"] = 44] = "comma";
+  CharacterCodes[CharacterCodes["dot"] = 46] = "dot";
+  CharacterCodes[CharacterCodes["doubleQuote"] = 34] = "doubleQuote";
+  CharacterCodes[CharacterCodes["minus"] = 45] = "minus";
+  CharacterCodes[CharacterCodes["openBrace"] = 123] = "openBrace";
+  CharacterCodes[CharacterCodes["openBracket"] = 91] = "openBracket";
+  CharacterCodes[CharacterCodes["plus"] = 43] = "plus";
+  CharacterCodes[CharacterCodes["slash"] = 47] = "slash";
+  CharacterCodes[CharacterCodes["formFeed"] = 12] = "formFeed";
+  CharacterCodes[CharacterCodes["tab"] = 9] = "tab";
+})(CharacterCodes || (CharacterCodes = {}));
+
+// node_modules/jsonc-parser/lib/esm/impl/string-intern.js
+var cachedSpaces = new Array(20).fill(0).map((_, index) => {
+  return " ".repeat(index);
+});
+var maxCachedValues = 200;
+var cachedBreakLinesWithSpaces = {
+  " ": {
+    "\n": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return `
+` + " ".repeat(index);
+    }),
+    "\r": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return "\r" + " ".repeat(index);
+    }),
+    "\r\n": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return `\r
+` + " ".repeat(index);
+    })
+  },
+  "\t": {
+    "\n": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return `
+` + "\t".repeat(index);
+    }),
+    "\r": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return "\r" + "\t".repeat(index);
+    }),
+    "\r\n": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return `\r
+` + "\t".repeat(index);
+    })
+  }
+};
+
+// node_modules/jsonc-parser/lib/esm/impl/parser.js
+var ParseOptions;
+(function(ParseOptions) {
+  ParseOptions.DEFAULT = {
+    allowTrailingComma: false
+  };
+})(ParseOptions || (ParseOptions = {}));
+
+// node_modules/jsonc-parser/lib/esm/main.js
+var ScanError;
+(function(ScanError) {
+  ScanError[ScanError["None"] = 0] = "None";
+  ScanError[ScanError["UnexpectedEndOfComment"] = 1] = "UnexpectedEndOfComment";
+  ScanError[ScanError["UnexpectedEndOfString"] = 2] = "UnexpectedEndOfString";
+  ScanError[ScanError["UnexpectedEndOfNumber"] = 3] = "UnexpectedEndOfNumber";
+  ScanError[ScanError["InvalidUnicode"] = 4] = "InvalidUnicode";
+  ScanError[ScanError["InvalidEscapeCharacter"] = 5] = "InvalidEscapeCharacter";
+  ScanError[ScanError["InvalidCharacter"] = 6] = "InvalidCharacter";
+})(ScanError || (ScanError = {}));
+var SyntaxKind;
+(function(SyntaxKind) {
+  SyntaxKind[SyntaxKind["OpenBraceToken"] = 1] = "OpenBraceToken";
+  SyntaxKind[SyntaxKind["CloseBraceToken"] = 2] = "CloseBraceToken";
+  SyntaxKind[SyntaxKind["OpenBracketToken"] = 3] = "OpenBracketToken";
+  SyntaxKind[SyntaxKind["CloseBracketToken"] = 4] = "CloseBracketToken";
+  SyntaxKind[SyntaxKind["CommaToken"] = 5] = "CommaToken";
+  SyntaxKind[SyntaxKind["ColonToken"] = 6] = "ColonToken";
+  SyntaxKind[SyntaxKind["NullKeyword"] = 7] = "NullKeyword";
+  SyntaxKind[SyntaxKind["TrueKeyword"] = 8] = "TrueKeyword";
+  SyntaxKind[SyntaxKind["FalseKeyword"] = 9] = "FalseKeyword";
+  SyntaxKind[SyntaxKind["StringLiteral"] = 10] = "StringLiteral";
+  SyntaxKind[SyntaxKind["NumericLiteral"] = 11] = "NumericLiteral";
+  SyntaxKind[SyntaxKind["LineCommentTrivia"] = 12] = "LineCommentTrivia";
+  SyntaxKind[SyntaxKind["BlockCommentTrivia"] = 13] = "BlockCommentTrivia";
+  SyntaxKind[SyntaxKind["LineBreakTrivia"] = 14] = "LineBreakTrivia";
+  SyntaxKind[SyntaxKind["Trivia"] = 15] = "Trivia";
+  SyntaxKind[SyntaxKind["Unknown"] = 16] = "Unknown";
+  SyntaxKind[SyntaxKind["EOF"] = 17] = "EOF";
+})(SyntaxKind || (SyntaxKind = {}));
+var ParseErrorCode;
+(function(ParseErrorCode) {
+  ParseErrorCode[ParseErrorCode["InvalidSymbol"] = 1] = "InvalidSymbol";
+  ParseErrorCode[ParseErrorCode["InvalidNumberFormat"] = 2] = "InvalidNumberFormat";
+  ParseErrorCode[ParseErrorCode["PropertyNameExpected"] = 3] = "PropertyNameExpected";
+  ParseErrorCode[ParseErrorCode["ValueExpected"] = 4] = "ValueExpected";
+  ParseErrorCode[ParseErrorCode["ColonExpected"] = 5] = "ColonExpected";
+  ParseErrorCode[ParseErrorCode["CommaExpected"] = 6] = "CommaExpected";
+  ParseErrorCode[ParseErrorCode["CloseBraceExpected"] = 7] = "CloseBraceExpected";
+  ParseErrorCode[ParseErrorCode["CloseBracketExpected"] = 8] = "CloseBracketExpected";
+  ParseErrorCode[ParseErrorCode["EndOfFileExpected"] = 9] = "EndOfFileExpected";
+  ParseErrorCode[ParseErrorCode["InvalidCommentToken"] = 10] = "InvalidCommentToken";
+  ParseErrorCode[ParseErrorCode["UnexpectedEndOfComment"] = 11] = "UnexpectedEndOfComment";
+  ParseErrorCode[ParseErrorCode["UnexpectedEndOfString"] = 12] = "UnexpectedEndOfString";
+  ParseErrorCode[ParseErrorCode["UnexpectedEndOfNumber"] = 13] = "UnexpectedEndOfNumber";
+  ParseErrorCode[ParseErrorCode["InvalidUnicode"] = 14] = "InvalidUnicode";
+  ParseErrorCode[ParseErrorCode["InvalidEscapeCharacter"] = 15] = "InvalidEscapeCharacter";
+  ParseErrorCode[ParseErrorCode["InvalidCharacter"] = 16] = "InvalidCharacter";
+})(ParseErrorCode || (ParseErrorCode = {}));
+// src/adapters/shared/write-content.ts
+var WS = "[\\t\\n\\v\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]";
+var TRIM_END = new RegExp(`${WS}+$`);
+var TRIM_START = new RegExp(`^${WS}+`);
 // src/core/config.ts
 var COMPANION_SETTINGS = ["off", "auto", ...HARNESSES];
 function defaultConfig() {
@@ -9747,7 +11015,7 @@ var bool = { t: "bool" };
 var str = { t: "str" };
 var nonEmpty = { t: "str", nonEmpty: true };
 var pct = { t: "int", min: 0, max: 100 };
-var count2 = (min) => ({ t: "int", min });
+var count3 = (min) => ({ t: "int", min });
 var strList = { t: "arr", of: str };
 var harnessFields = {};
 for (const h of HARNESSES)
@@ -9782,7 +11050,7 @@ var CONFIG_SCHEMA = {
       t: "obj",
       fields: {
         stopGuard: bool,
-        runaway: { t: "obj", fields: { perPlan: count2(1), perChain: count2(1) } },
+        runaway: { t: "obj", fields: { perPlan: count3(1), perChain: count3(1) } },
         planApproval: bool,
         resultApproval: bool,
         branchIsolation: bool,
@@ -9795,7 +11063,7 @@ var CONFIG_SCHEMA = {
       }
     },
     context: { t: "obj", fields: { warnPct: pct, criticalPct: pct } },
-    checkers: { t: "obj", fields: { enabled: bool, timeoutMs: count2(100), languages: strList } },
+    checkers: { t: "obj", fields: { enabled: bool, timeoutMs: count3(100), languages: strList } },
     memory: {
       t: "obj",
       fields: {
@@ -9819,12 +11087,12 @@ var CONFIG_SCHEMA = {
         }
       }
     },
-    update: { t: "obj", fields: { minReleaseAgeDays: count2(0) } },
+    update: { t: "obj", fields: { minReleaseAgeDays: count3(0) } },
     permissions: { t: "obj", fields: { bypass: bool, enforce: bool } },
     agents: { t: "obj", fields: { teams: bool } },
-    workflow: { t: "obj", fields: { band: bool, foldAfterSec: count2(0), codexNotices: bool } },
+    workflow: { t: "obj", fields: { band: bool, foldAfterSec: count3(0), codexNotices: bool } },
     toolchain: { t: "obj", fields: { autoInstall: bool, system: bool, upgrade: bool } },
-    index: { t: "obj", fields: { auto: bool, codegraph: bool, semble: bool, minIntervalMin: count2(0), exclude: strList, children: bool, maxChildren: count2(0) } },
+    index: { t: "obj", fields: { auto: bool, codegraph: bool, semble: bool, minIntervalMin: count3(0), exclude: strList, children: bool, maxChildren: count3(0) } },
     mcp: { t: "obj", fields: { shared: bool, off: { t: "obj", fields: mcpOffFields } } }
   }
 };
@@ -10079,167 +11347,606 @@ function deepEqual(a, b) {
   }
   return false;
 }
-
-// src/adapters/opencode/runtime/env.ts
-init_paths();
-var POINTER_FILE = "runtime.json";
-function absEnv2(name) {
-  const v = process.env[name];
-  return v !== undefined && v.trim() !== "" && isAbsolute3(v) ? v : undefined;
+// src/core/policy/catastrophic.ts
+var RF = ["-rf", "-fr", "-Rf", "-fR", "-rF", "-Fr", "-RF", "-FR", "-rfv", "-rvf", "-vrf", "-frv", "-fvr", "-vfr"];
+var R = ["-r", "-R", "--recursive"];
+var F = ["-f", "--force"];
+var SYSTEM = [
+  "/",
+  "/*",
+  "//",
+  "/.",
+  "/Users",
+  "/System",
+  "/Library",
+  "/Applications",
+  "/usr",
+  "/usr/local",
+  "/usr/bin",
+  "/etc",
+  "/var",
+  "/bin",
+  "/sbin",
+  "/opt",
+  "/opt/homebrew",
+  "/private",
+  "/tmp",
+  "/home",
+  "/Volumes"
+];
+var HOME_FORMS = ["~", "~/", "~/*", "$HOME", "$HOME/", "$HOME/*", "${HOME}", "${HOME}/", "${HOME}/*"];
+var HOME_FOLDERS2 = ["Documents", "Desktop", "Downloads", "Library", "Pictures", "Movies", "Music", "Applications", "Public", ".ssh", ".aws", ".gnupg", ".config", "Documents/Buracle"];
+var REMOTES = ["origin", "upstream"];
+var MAIN_NAMES = ["main", "master", "refs/heads/main", "refs/heads/master"];
+var MAIN_REFSPECS = [...MAIN_NAMES, "HEAD:main", "HEAD:master", "HEAD:refs/heads/main", "HEAD:refs/heads/master", "@:main", "@:master", "main:main", "master:master"];
+function prefixes(option, from) {
+  const out = [];
+  for (let n = from.length;n <= option.length; n++)
+    out.push(option.slice(0, n));
+  return out;
 }
-function readPointer(pluginDir) {
-  if (pluginDir === undefined)
-    return;
-  try {
-    const raw = JSON.parse(readFileSync3(join5(pluginDir, POINTER_FILE), "utf8"));
-    if (raw !== null && typeof raw === "object") {
-      const bh = raw.buracleHome;
-      if (typeof bh === "string" && isAbsolute3(bh))
-        return { buracleHome: bh };
+var FORCE = ["--force", "-f", "-fu", "-uf", "-fq", "-qf", "-fv", "-vf", ...prefixes("--force-with-lease", "--force-w")];
+var FORCE_SHORT = ["--force", "-f", "--force-with-lease"];
+var MIRROR = prefixes("--mirror", "--m");
+var DELETE = ["-d", ...prefixes("--delete", "--de")];
+var ALL = [...prefixes("--all", "--al"), ...prefixes("--branches", "--b")];
+function targetsFor(home) {
+  const out = [...SYSTEM, ...HOME_FORMS];
+  for (const f of HOME_FOLDERS2)
+    out.push(`~/${f}`, `$HOME/${f}`);
+  const h = typeof home === "string" ? home.replace(/\/+$/, "") : "";
+  if (/^\/(?:Users|home)\/[^/\s]+$/.test(h)) {
+    out.push(h, `${h}/`, `${h}/*`);
+    for (const f of HOME_FOLDERS2)
+      out.push(`${h}/${f}`);
+  }
+  return [...new Set(out)];
+}
+var DELETE_WHY = "Recursive force delete of the filesystem root, a system directory, the home directory or a home folder. Delete the specific paths you mean instead.";
+var PUSH_WHY = "Force-pushing the default branch rewrites shared history. Push a feature branch and open a pull request, or ask the user.";
+function catastrophicCommandRules(opts) {
+  const T = targetsFor(opts?.home);
+  const homeExample = T.find((t) => /^\/(?:Users|home)\/[^/]+$/.test(t));
+  const rules = [
+    {
+      id: "rm-recursive-force",
+      pattern: ["rm", RF, T],
+      justification: DELETE_WHY,
+      match: ["rm -rf /", "rm -fr ~", "rm -Rf /usr", "rm -rf ~/Documents", ...homeExample !== undefined ? [`rm -rf ${homeExample}`] : []],
+      notMatch: ["rm -rf ./dist", "rm -rf /tmp/build-cache", "rm -rf node_modules"]
+    },
+    {
+      id: "rm-recursive-force-end-of-options",
+      pattern: ["rm", RF, "--", T],
+      justification: DELETE_WHY,
+      match: ["rm -rf -- /", "rm -fr -- ~"],
+      notMatch: ["rm -rf -- ./build"]
+    },
+    {
+      id: "rm-recursive-force-no-preserve-root",
+      pattern: ["rm", RF, "--no-preserve-root", T],
+      justification: DELETE_WHY,
+      match: ["rm -rf --no-preserve-root /"],
+      notMatch: ["rm -rf --no-preserve-root ./build"]
+    },
+    {
+      id: "rm-no-preserve-root-recursive-force",
+      pattern: ["rm", "--no-preserve-root", RF, T],
+      justification: DELETE_WHY,
+      match: ["rm --no-preserve-root -rf /"],
+      notMatch: ["rm --no-preserve-root -rf ./build"]
+    },
+    {
+      id: "rm-recursive-then-force",
+      pattern: ["rm", R, F, T],
+      justification: DELETE_WHY,
+      match: ["rm -r -f /", "rm --recursive --force ~"],
+      notMatch: ["rm -r -f ./build"]
+    },
+    {
+      id: "rm-force-then-recursive",
+      pattern: ["rm", F, R, T],
+      justification: DELETE_WHY,
+      match: ["rm -f -r /", "rm --force --recursive ~/"],
+      notMatch: ["rm -f -r ./build"]
+    },
+    {
+      id: "sudo-rm-recursive",
+      pattern: ["sudo", "rm", [...RF, ...R], T],
+      justification: "Privileged recursive delete of the filesystem root, a system directory or the home directory. Never run this.",
+      match: ["sudo rm -rf /", "sudo rm -r ~"],
+      notMatch: ["sudo rm -rf /tmp/x"]
+    },
+    {
+      id: "sudo-rm-recursive-end-of-options",
+      pattern: ["sudo", "rm", RF, ["--", "--no-preserve-root"], T],
+      justification: "Privileged recursive delete of the filesystem root, a system directory or the home directory. Never run this.",
+      match: ["sudo rm -rf -- /", "sudo rm -rf --no-preserve-root /"],
+      notMatch: ["sudo rm -rf -- /tmp/x"]
+    },
+    {
+      id: "rm-git-directory",
+      pattern: ["rm", [...RF, ...R], [".git", "./.git", ".git/"]],
+      justification: "Deleting .git destroys the repository history. Use git commands (reset, restore, worktree remove) instead.",
+      match: ["rm -rf .git", "rm -r ./.git"],
+      notMatch: ["rm -rf .github", "rm -rf .gitignore"]
+    },
+    {
+      id: "git-push-force-main",
+      pattern: ["git", "push", FORCE, REMOTES, MAIN_REFSPECS],
+      justification: PUSH_WHY,
+      match: ["git push --force origin main", "git push -f upstream master", "git push --force-with-lease origin main", "git push -f origin HEAD:main", "git push --force-w origin main"],
+      notMatch: ["git push --force origin feature/x", "git push origin main"]
+    },
+    {
+      id: "git-push-main-force",
+      pattern: ["git", "push", REMOTES, MAIN_REFSPECS, FORCE],
+      justification: PUSH_WHY,
+      match: ["git push origin main --force", "git push upstream master -f", "git push origin HEAD:main --force-with-lease"],
+      notMatch: ["git push origin main --tags"]
+    },
+    {
+      id: "git-push-remote-force-main",
+      pattern: ["git", "push", REMOTES, FORCE, MAIN_REFSPECS],
+      justification: PUSH_WHY,
+      match: ["git push origin --force main", "git push origin -f HEAD:master"],
+      notMatch: ["git push origin --force feature/x"]
+    },
+    {
+      id: "git-push-plus-main",
+      pattern: ["git", "push", REMOTES, MAIN_REFSPECS.map((m) => `+${m}`)],
+      justification: 'A "+" refspec force-pushes the default branch and rewrites shared history. Push a feature branch instead.',
+      match: ["git push origin +main", "git push origin +HEAD:master", "git push origin +refs/heads/main"],
+      notMatch: ["git push origin +feature"]
+    },
+    {
+      id: "git-push-mirror",
+      pattern: ["git", "push", MIRROR],
+      justification: "`git push --mirror` overwrites and deletes every branch on the remote, main included. Push the specific branch instead.",
+      match: ["git push --mirror", "git push --mirr origin"],
+      notMatch: ["git push --tags"]
+    },
+    {
+      id: "git-push-remote-mirror",
+      pattern: ["git", "push", REMOTES, MIRROR],
+      justification: "`git push --mirror` overwrites and deletes every branch on the remote, main included. Push the specific branch instead.",
+      match: ["git push origin --mirror"],
+      notMatch: ["git push origin --tags"]
+    },
+    {
+      id: "git-push-delete-main",
+      pattern: ["git", "push", REMOTES, DELETE, MAIN_NAMES],
+      justification: "Deleting the remote default branch cannot be undone from here. Ask the user to do it.",
+      match: ["git push origin --delete main", "git push origin -d master", "git push origin --delet main"],
+      notMatch: ["git push origin --delete feature/old"]
+    },
+    {
+      id: "git-push-delete-flag-main",
+      pattern: ["git", "push", DELETE, REMOTES, MAIN_NAMES],
+      justification: "Deleting the remote default branch cannot be undone from here. Ask the user to do it.",
+      match: ["git push --delete origin main", "git push -d origin master"],
+      notMatch: ["git push --delete origin feature/old"]
+    },
+    {
+      id: "git-push-empty-source-main",
+      pattern: ["git", "push", REMOTES, MAIN_NAMES.map((m) => `:${m}`)],
+      justification: "Pushing an empty source deletes the remote default branch. Ask the user to do it.",
+      match: ["git push origin :main", "git push origin :refs/heads/master"],
+      notMatch: ["git push origin :feature/old"]
+    },
+    {
+      id: "git-push-force-all",
+      pattern: ["git", "push", ALL, FORCE_SHORT],
+      justification: "Force-pushing every branch rewrites the remote default branch too. Force-push only your feature branch.",
+      match: ["git push --all --force", "git push --branches -f"],
+      notMatch: ["git push --all"]
+    },
+    {
+      id: "git-push-force-then-all",
+      pattern: ["git", "push", FORCE_SHORT, ALL],
+      justification: "Force-pushing every branch rewrites the remote default branch too. Force-push only your feature branch.",
+      match: ["git push --force --all", "git push -f --branches"],
+      notMatch: ["git push --force origin feature/x"]
+    },
+    {
+      id: "git-push-force-wildcard",
+      pattern: ["git", "push", FORCE_SHORT, REMOTES, ["refs/heads/*", "refs/heads/*:refs/heads/*", ":", "*", "*:*"]],
+      justification: "A wildcard or matching refspec force-pushes every branch, main included. Push the specific feature branch instead.",
+      match: ["git push --force origin refs/heads/*", "git push -f origin :"],
+      notMatch: ["git push --force origin refs/heads/feature/x"]
+    },
+    {
+      id: "git-push-plus-wildcard",
+      pattern: ["git", "push", REMOTES, ["+refs/heads/*:refs/heads/*", "+refs/heads/*", "+:", "+*", "+*:*"]],
+      justification: 'A "+" wildcard or matching refspec force-pushes every branch, main included. Push the specific feature branch instead.',
+      match: ["git push origin +refs/heads/*:refs/heads/*", "git push origin +:"],
+      notMatch: ["git push origin +feature"]
+    },
+    {
+      id: "diskutil-erase",
+      pattern: ["diskutil", ["eraseDisk", "eraseVolume", "partitionDisk", "secureErase", "zeroDisk", "randomDisk", "reformat"]],
+      justification: "Erasing or repartitioning a disk destroys data. Never run this from an agent.",
+      match: ["diskutil eraseDisk APFS Untitled disk2", "diskutil zeroDisk disk3"],
+      notMatch: ["diskutil list", "diskutil info disk0"]
+    },
+    {
+      id: "diskutil-apfs-delete",
+      pattern: ["diskutil", "apfs", ["deleteContainer", "deleteVolume", "eraseVolume"]],
+      justification: "Deleting an APFS container or volume destroys its data. Never run this from an agent.",
+      match: ["diskutil apfs deleteContainer disk3"],
+      notMatch: ["diskutil apfs list"]
+    },
+    {
+      id: "make-filesystem",
+      pattern: [["mkfs", "mkfs.ext4", "mkfs.ext3", "mkfs.xfs", "mkfs.btrfs", "mkfs.vfat", "mkfs.fat", "mkfs.exfat", "newfs_apfs", "newfs_hfs", "newfs_msdos", "newfs_exfat"]],
+      justification: "Creating a filesystem erases the target device. Never run this from an agent.",
+      match: ["mkfs.ext4 /dev/sdb1", "newfs_apfs /dev/disk4"],
+      notMatch: ["mkdir build"]
+    },
+    {
+      id: "chmod-recursive-root-home",
+      pattern: ["chmod", ["-R", "--recursive"], ["777", "0777", "000", "0000", "a+rwx", "a-rwx", "ugo+rwx", "ugo-rwx", "666", "0666"], T],
+      justification: "Recursively changing permissions of the root or home directory breaks the system and leaks secrets. Change the specific paths you mean instead.",
+      match: ["chmod -R 777 /", "chmod -R 000 ~"],
+      notMatch: ["chmod -R 755 ./scripts"]
+    },
+    {
+      id: "power-off",
+      pattern: [["shutdown", "reboot", "halt", "poweroff"]],
+      justification: "Turning off or restarting the machine ends the user's session. Ask the user to do it.",
+      match: ["shutdown -h now", "reboot"],
+      notMatch: ["uptime"]
+    },
+    {
+      id: "sudo-power-off",
+      pattern: ["sudo", ["shutdown", "reboot", "halt", "poweroff"]],
+      justification: "Turning off or restarting the machine ends the user's session. Ask the user to do it.",
+      match: ["sudo shutdown -r now", "sudo reboot"],
+      notMatch: ["sudo ls"]
+    },
+    {
+      id: "kill-every-process",
+      pattern: ["kill", ["-9", "-KILL", "-SIGKILL", "-15", "-TERM", "-SIGTERM", "--"], "-1"],
+      justification: "Signalling pid -1 kills every process the user owns, the agent included. Kill specific process ids instead.",
+      match: ["kill -9 -1", "kill -- -1"],
+      notMatch: ["kill -9 1234"]
+    },
+    {
+      id: "kill-every-process-named-signal",
+      pattern: ["kill", "-s", ["KILL", "TERM", "9", "15"], "-1"],
+      justification: "Signalling pid -1 kills every process the user owns, the agent included. Kill specific process ids instead.",
+      match: ["kill -s KILL -1"],
+      notMatch: ["kill -s KILL 1234"]
+    },
+    {
+      id: "killall5",
+      pattern: ["killall5"],
+      justification: "killall5 signals every process on the machine. Kill specific process ids instead.",
+      match: ["killall5 -9"],
+      notMatch: ["killall node"]
+    },
+    {
+      id: "crontab-remove",
+      pattern: ["crontab", ["-r", "-ri", "-ir"]],
+      justification: "`crontab -r` deletes all of the user's cron jobs. Edit the specific entry with `crontab -e` instead.",
+      match: ["crontab -r"],
+      notMatch: ["crontab -l"]
+    },
+    {
+      id: "gh-repo-delete",
+      pattern: ["gh", "repo", "delete"],
+      justification: "Deleting a GitHub repository cannot be undone. Ask the user to do it.",
+      match: ["gh repo delete me/project --yes"],
+      notMatch: ["gh repo view"]
+    },
+    {
+      id: "keychain-delete",
+      pattern: ["security", ["delete-keychain", "delete-generic-password", "delete-internet-password", "delete-certificate", "delete-identity"]],
+      justification: "Deleting keychain items removes the user's credentials. Ask the user to do it.",
+      match: ["security delete-generic-password -s foo"],
+      notMatch: ["security find-generic-password -s foo"]
     }
-  } catch {}
-  return;
+  ];
+  return rules;
 }
-function resolveEnv(pluginDir) {
-  const home = absEnv2("HOME") ?? os2.homedir();
-  const fromEnv = absEnv2("BURACLE_HOME");
-  if (fromEnv !== undefined)
-    return { home, buracleHome: fromEnv, source: "env" };
-  const pointer = readPointer(pluginDir);
-  if (pointer !== undefined)
-    return { home, buracleHome: pointer.buracleHome, source: "pointer" };
-  return { home, buracleHome: join5(home, ".buracle"), source: "default" };
-}
-function applyEnv(resolved) {
-  const changed = [];
-  if (resolved.source === "pointer" && process.env["BURACLE_HOME"] !== resolved.buracleHome) {
-    process.env["BURACLE_HOME"] = resolved.buracleHome;
-    changed.push("BURACLE_HOME");
-  }
-  return changed;
-}
-function mtimeOf(path) {
-  try {
-    const st = statSync4(path);
-    return `${st.mtimeMs}:${st.size}`;
-  } catch {
-    return;
-  }
-}
-
-class MtimeCache {
-  file;
-  parse;
-  fallback;
-  key;
-  value;
-  constructor(file, parse, fallback) {
-    this.file = file;
-    this.parse = parse;
-    this.fallback = fallback;
-    this.value = fallback();
-  }
-  get() {
-    let path;
-    try {
-      path = this.file();
-    } catch {
-      return this.fallback();
-    }
-    const m = mtimeOf(path);
-    const key = m === undefined ? `${path}#none` : `${path}#${m}`;
-    if (key === this.key)
-      return this.value;
-    this.key = key;
-    if (m === undefined) {
-      this.value = this.fallback();
-      return this.value;
-    }
-    try {
-      this.value = this.parse(JSON.parse(readFileSync3(path, "utf8")));
-    } catch {
-      this.value = this.fallback();
-    }
-    return this.value;
-  }
-}
-function runtimeConfigCache(defaults) {
-  return new MtimeCache(() => runtimeConfigFile(), (raw) => {
-    const merged = runtimeSnapshotConfig(raw, defaults);
-    if (merged.warnings.length > 0)
-      log("warn", "opencode: runtime-config.json needs attention", { warnings: merged.warnings });
-    if (merged.errors.length > 0)
-      log("warn", "opencode: runtime-config.json has invalid values; defaults used for them", { errors: merged.errors });
-    const out = { config: merged.config };
-    const snap = raw;
-    if (snap?.v === RUNTIME_SNAPSHOT_VERSION && snap.resolved !== null && typeof snap.resolved === "object" && !Array.isArray(snap.resolved))
-      out.resolved = snap.resolved;
-    return out;
-  }, () => ({ config: defaults }));
-}
-
-// src/core/memory/status.ts
-function memReasonText(reason, s) {
-  switch (reason) {
-    case "cortexdb_missing":
-      return "cortexdb missing";
-    case "brain_unreadable":
-      return "unreadable";
-    case "mcp_down":
-      return "mcp down";
-    case "captures_high":
-      return `inbox ${s.captures}`;
-    default:
-      return reason;
-  }
-}
-function memAge(ms) {
-  if (!Number.isFinite(ms))
-    return "?";
-  const m = Math.floor(Math.max(0, ms) / 60000);
-  if (m < 1)
-    return "<1m";
-  if (m < 60)
-    return `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 48)
-    return `${h}h`;
-  return `${Math.floor(h / 24)}d`;
-}
-var HEALTH_COLOR = { ok: "green", warn: "yellow", error: "red" };
-var HEALTH_MARK = { ok: "\u2713", warn: "\u26A0", error: "\u2717" };
-function memSegmentWith(s, nowMs, style, opts) {
-  const brain = opts.emoji ? "\uD83E\uDDE0 " : "";
-  if (s === undefined || s.v !== 3) {
-    return { id: "mem", text: style === "wide" ? `${brain}brain \u2013` : "brain \u2013", color: "gray", dim: true };
-  }
-  const color = HEALTH_COLOR[s.health] ?? "gray";
-  const mark = HEALTH_MARK[s.health] ?? "?";
-  const first = s.reasons[0];
-  const reason = s.health !== "ok" && first !== undefined ? ` ${memReasonText(first, s)}` : "";
-  const at = s.last_write !== undefined ? Date.parse(s.last_write.at) : Number.NaN;
-  const age = Number.isFinite(at) ? memAge(nowMs - at) : undefined;
-  const own = s.project !== undefined ? s.counts.project : s.counts.person;
-  if (style === "compact") {
-    const parts = [String(own)];
-    if (age !== undefined)
-      parts.push(age);
-    return { id: "mem", text: `brain ${parts.join("\xB7")} ${mark}${reason}`, color };
-  }
-  const head = s.project !== undefined ? `${brain}${s.project} ${s.counts.project}+${s.counts.person}p` : `${brain}person ${s.counts.person}p`;
-  const parts = [head];
-  if (s.captures > 0)
-    parts.push(`inbox ${s.captures}`);
-  if (s.last_write !== undefined && age !== undefined)
-    parts.push(`last ${age} (${s.last_write.by})`);
-  const capturedAt = s.last_capture !== undefined ? Date.parse(s.last_capture.at) : Number.NaN;
-  if (Number.isFinite(capturedAt))
-    parts.push(`captured ${memAge(nowMs - capturedAt)}`);
-  if (s.health !== "ok")
-    parts.push(`${mark}${reason}`);
-  return { id: "mem", text: parts.join(" \xB7 "), color };
-}
-
+var CATASTROPHIC_COMMAND_RULES = catastrophicCommandRules();
+// src/core/policy/hooks-matrix.ts
+var CLAUDE_CLASSIC_EVENTS = [
+  "PreToolUse",
+  "PostToolUse",
+  "PostToolUseFailure",
+  "PostToolBatch",
+  "PermissionDenied",
+  "Notification",
+  "UserPromptSubmit",
+  "UserPromptExpansion",
+  "SessionStart",
+  "SessionEnd",
+  "Stop",
+  "StopFailure",
+  "SubagentStart",
+  "SubagentStop",
+  "PreCompact",
+  "PostCompact",
+  "PreModelSwitch",
+  "PostModelSwitch",
+  "PermissionRequest",
+  "Setup",
+  "TeammateIdle",
+  "TaskCreated",
+  "TaskCompleted",
+  "Elicitation",
+  "ElicitationResult",
+  "ConfigChange",
+  "InstructionsLoaded",
+  "WorktreeCreate",
+  "WorktreeRemove",
+  "CwdChanged",
+  "FileChanged",
+  "DirectoryAdded",
+  "MessageDisplay"
+];
+var CLAUDE_ENGINE_EVENTS = [
+  "tool.call",
+  "tool.check",
+  "tool.describe",
+  "prompt.submit",
+  "prompt.fill",
+  "prompt.suggest",
+  "prompt.edit",
+  "prompt.autocomplete",
+  "prompt.section",
+  "prompt.context",
+  "prompt.compose",
+  "prompt.attachment",
+  "prompt.mention",
+  "skill.prompt",
+  "attribution.text",
+  "command.run",
+  "command.describe",
+  "config.set",
+  "config.describe",
+  "agent.offer",
+  "agent.spawn",
+  "session.start",
+  "session.end",
+  "session.compact",
+  "session.receive",
+  "session.send",
+  "session.append",
+  "session.attach",
+  "session.detach",
+  "session.measure",
+  "turn.start",
+  "turn.step",
+  "turn.complete",
+  "ui.render",
+  "ui.resolve",
+  "ui.press",
+  "ui.input",
+  "ui.select",
+  "ui.message",
+  "ui.fault",
+  "ui.scroll",
+  "ui.focus",
+  "plugin.register",
+  "engine.create",
+  "telemetry.log",
+  "telemetry.mark"
+];
+var CODEX_EVENTS = [
+  "SessionStart",
+  "SessionEnd",
+  "UserPromptSubmit",
+  "PreToolUse",
+  "PermissionRequest",
+  "PostToolUse",
+  "PreCompact",
+  "PostCompact",
+  "SubagentStart",
+  "SubagentStop",
+  "Stop",
+  "Interrupt"
+];
+var OPENCODE_EVENTS = [
+  "setup",
+  "session.prompt",
+  "session.context",
+  "session.compaction",
+  "session.generate",
+  "session.title",
+  "session.model.request",
+  "session.http.request",
+  "session.http.response",
+  "session.retry",
+  "permission.evaluate",
+  "shell.create.before",
+  "tool.execute.before",
+  "tool.execute.after",
+  "session.created",
+  "session.deleted",
+  "session.idle",
+  "session.status",
+  "session.execution.started",
+  "session.execution.succeeded",
+  "session.execution.failed",
+  "session.execution.interrupted",
+  "session.compaction.started",
+  "session.compaction.delta",
+  "session.compaction.ended",
+  "session.compaction.failed",
+  "session.usage.updated",
+  "session.tool.called",
+  "session.tool.success",
+  "session.tool.failed",
+  "session.skill.activated",
+  "session.instructions.updated",
+  "permission.asked",
+  "permission.replied",
+  "file.edited",
+  "vcs.branch.updated",
+  "mcp.status.changed",
+  "mcp.tools.changed",
+  "plugin.updated",
+  "worktree.ready",
+  "worktree.failed"
+];
+var OMP_EVENTS = [
+  "resources_discover",
+  "session_start",
+  "session_before_switch",
+  "session_switch",
+  "session_before_branch",
+  "session_branch",
+  "session_before_compact",
+  "session.compacting",
+  "cache_warming_decision",
+  "session_compact",
+  "session_shutdown",
+  "session_before_tree",
+  "session_tree",
+  "context",
+  "before_provider_request",
+  "after_provider_response",
+  "before_agent_start",
+  "before_subagent_spawn",
+  "agent_start",
+  "agent_end",
+  "session_stop",
+  "turn_start",
+  "turn_end",
+  "message_start",
+  "message_update",
+  "message_end",
+  "assistant_message",
+  "tool_execution_start",
+  "tool_execution_update",
+  "tool_execution_end",
+  "auto_compaction_start",
+  "auto_compaction_end",
+  "auto_retry_start",
+  "auto_retry_end",
+  "retry_fallback_applied",
+  "retry_fallback_succeeded",
+  "ttsr_triggered",
+  "todo_reminder",
+  "goal_updated",
+  "credential_disabled",
+  "input",
+  "tool_approval_requested",
+  "tool_approval_resolved",
+  "tool_call",
+  "tool_result",
+  "user_bash",
+  "user_python",
+  "mcp_notification"
+];
+var HOOK_EVENTS = {
+  claude: [...CLAUDE_ENGINE_EVENTS, ...CLAUDE_CLASSIC_EVENTS.map((e) => `classic.${e}`)],
+  codex: CODEX_EVENTS,
+  opencode: OPENCODE_EVENTS,
+  omp: OMP_EVENTS
+};
+// src/core/policy/readonly-shell.ts
+var TIED_VARIABLES = new Set(["path", "cdpath", "fpath", "manpath", "mailpath", "module_path"]);
+var GIT_READ = new Set([
+  "status",
+  "diff",
+  "log",
+  "show",
+  "ls-files",
+  "ls-tree",
+  "blame",
+  "annotate",
+  "merge-base",
+  "rev-parse",
+  "rev-list",
+  "describe",
+  "shortlog",
+  "grep",
+  "cat-file",
+  "name-rev",
+  "for-each-ref",
+  "show-ref",
+  "check-ignore",
+  "count-objects",
+  "whatchanged",
+  "range-diff",
+  "cherry",
+  "show-branch",
+  "version",
+  "help"
+]);
+var SHELL_LEAD = new Set(["if", "then", "elif", "else", "do", "while", "until"]);
+var SHELL_CLOSE = new Set(["fi", "done"]);
+// src/core/policy/companion-fence.ts
+var COMPANION_MCP_SERVERS = ["codegraph", "semble", "context7"];
+var COMPANION_MCP_TOOLS = {
+  codegraph: ["codegraph_explore", "codegraph_search", "codegraph_node", "codegraph_callers", "codegraph_callees", "codegraph_impact", "codegraph_files", "codegraph_status"],
+  semble: ["search", "find_related"],
+  context7: ["resolve-library-id", "query-docs"]
+};
+var CLAUDE_MCP = new RegExp(`^mcp__(?:plugin_${CLAUDE_PLUGIN_NAME}_)?(?:${COMPANION_MCP_SERVERS.join("|")})__.`);
+var OMP_MCP = new Set(COMPANION_MCP_SERVERS.flatMap((s) => (COMPANION_MCP_TOOLS[s] ?? []).flatMap((t) => [
+  harnessMcpToolName("omp", s, t),
+  `mcp__${mcpServerToken("omp", s)}_${mcpServerToken("omp", t)}`
+])));
+// src/core/plan/background.ts
+var LIVE = new Set(["running", "pending", "queued", "in_progress", "in-progress", "started"]);
+var WAKING = new Set(["subagent", "monitor", "workflow", "mcp task", "cloud session"]);
+var FINITE_TOOLS = new Set([
+  "tsc",
+  "jest",
+  "pytest",
+  "py.test",
+  "mypy",
+  "pyright",
+  "ruff",
+  "eslint",
+  "biome",
+  "tox",
+  "nox",
+  "phpunit",
+  "rspec",
+  "ctest",
+  "mocha",
+  "ava",
+  "playwright",
+  "cypress",
+  "golangci-lint",
+  "shellcheck",
+  "hadolint",
+  "stylelint",
+  "rubocop"
+]);
+var SUBCOMMAND_TOOLS = {
+  cargo: new Set(["test", "build", "check", "clippy", "nextest", "bench", "doc"]),
+  go: new Set(["test", "build", "vet"]),
+  swift: new Set(["build", "test"]),
+  dotnet: new Set(["build", "test"]),
+  mix: new Set(["test", "compile"]),
+  deno: new Set(["test", "check", "lint"]),
+  gradle: new Set(["test", "build", "check", "assemble", "compileJava", "verify"]),
+  gradlew: new Set(["test", "build", "check", "assemble", "compileJava", "verify"]),
+  mvn: new Set(["test", "verify", "package", "compile", "install"]),
+  mvnw: new Set(["test", "verify", "package", "compile", "install"]),
+  vitest: new Set(["run"]),
+  bazel: new Set(["test", "build"])
+};
+var PACKAGE_MANAGERS = new Set(["npm", "pnpm", "yarn", "bun"]);
+var PACKAGE_RUNNERS = new Set(["npx", "bunx", "pnpx"]);
+// src/core/compact.ts
+var MAX_OFFSET_MIN = 14 * 60;
+var RESTORE_RECORD_MAX_MS = 24 * 3600000;
+// src/core/checker-facts.ts
+var ESLINT_BINS = ["node_modules/.bin/eslint"];
+var RUFF_BINS = [".venv/bin/ruff", "venv/bin/ruff"];
+var CHECKER_PROBES = [...ESLINT_BINS, ...RUFF_BINS];
+var PROJECT_FILES = new Set(["package.json"]);
+// src/core/checkers.ts
+var TS_EXT = new Set(["ts", "tsx", "mts", "cts"]);
+var JS_EXT = new Set(["js", "jsx", "mjs", "cjs"]);
+var TOOLCHAIN_CHECKERS = new Set(["ruff", "shellcheck", "golangci-lint"]);
 // src/core/status/model.ts
 var WINDOW_MINUTES = { "5h": 300, "1d": 1440, "7d": 10080, "30d": 43200, "365d": 525600 };
 var PACE_BAND = 5;
@@ -10258,7 +11965,6 @@ function pace(usedPct, resetsAtIso, windowMinutes, nowMs) {
     return "under";
   return "even";
 }
-
 // src/core/status/git.ts
 function trimSlashes(p) {
   const s = p.replace(/\\/g, "/");
@@ -10333,6 +12039,67 @@ function gitFromPorcelainV2(text, gitDir, commonDir) {
     st.worktree = lastSegment(gitDir);
   }
   return st;
+}
+// src/core/memory/status.ts
+function memReasonText(reason, s) {
+  switch (reason) {
+    case "cortexdb_missing":
+      return "cortexdb missing";
+    case "brain_unreadable":
+      return "unreadable";
+    case "mcp_down":
+      return "mcp down";
+    case "captures_high":
+      return `inbox ${s.captures}`;
+    default:
+      return reason;
+  }
+}
+function memAge(ms) {
+  if (!Number.isFinite(ms))
+    return "?";
+  const m = Math.floor(Math.max(0, ms) / 60000);
+  if (m < 1)
+    return "<1m";
+  if (m < 60)
+    return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 48)
+    return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
+}
+var HEALTH_COLOR = { ok: "green", warn: "yellow", error: "red" };
+var HEALTH_MARK = { ok: "\u2713", warn: "\u26A0", error: "\u2717" };
+function memSegmentWith(s, nowMs, style, opts) {
+  const brain = opts.emoji ? "\uD83E\uDDE0 " : "";
+  if (s === undefined || s.v !== 3) {
+    return { id: "mem", text: style === "wide" ? `${brain}brain \u2013` : "brain \u2013", color: "gray", dim: true };
+  }
+  const color = HEALTH_COLOR[s.health] ?? "gray";
+  const mark = HEALTH_MARK[s.health] ?? "?";
+  const first = s.reasons[0];
+  const reason = s.health !== "ok" && first !== undefined ? ` ${memReasonText(first, s)}` : "";
+  const at = s.last_write !== undefined ? Date.parse(s.last_write.at) : Number.NaN;
+  const age = Number.isFinite(at) ? memAge(nowMs - at) : undefined;
+  const own = s.project !== undefined ? s.counts.project : s.counts.person;
+  if (style === "compact") {
+    const parts = [String(own)];
+    if (age !== undefined)
+      parts.push(age);
+    return { id: "mem", text: `brain ${parts.join("\xB7")} ${mark}${reason}`, color };
+  }
+  const head = s.project !== undefined ? `${brain}${s.project} ${s.counts.project}+${s.counts.person}p` : `${brain}person ${s.counts.person}p`;
+  const parts = [head];
+  if (s.captures > 0)
+    parts.push(`inbox ${s.captures}`);
+  if (s.last_write !== undefined && age !== undefined)
+    parts.push(`last ${age} (${s.last_write.by})`);
+  const capturedAt = s.last_capture !== undefined ? Date.parse(s.last_capture.at) : Number.NaN;
+  if (Number.isFinite(capturedAt))
+    parts.push(`captured ${memAge(nowMs - capturedAt)}`);
+  if (s.health !== "ok")
+    parts.push(`${mark}${reason}`);
+  return { id: "mem", text: parts.join(" \xB7 "), color };
 }
 
 // src/core/status/live.ts
@@ -10675,7 +12442,6 @@ function rows(bar, layout, width, nowMs) {
   }
   return out;
 }
-
 // src/core/status/bar.ts
 var CONTEXT_BAR_CELLS = 8;
 var PIPE = { id: "sep", text: " | ", color: "gray", dim: true };
@@ -10988,321 +12754,317 @@ function barOneLine(bar, info, layout, width, nowMs) {
     return fitLine(clean([...firstParts(bar, info, layout, nowMs), hooks], layout.emoji), w, PIPE);
   return barLines(bar, { ...info, product: undefined, harness: undefined, memoryUrl: undefined }, layout, width, nowMs)[0] ?? [];
 }
+// src/core/memory/stem.ts
+var CASE = 3;
+var POSSESSIVE = 2;
+var PLURAL = 1;
+var TR_LIST = [
+  ["ndaki", "V", CASE],
+  ["ndeki", "V", CASE],
+  ["daki", "", CASE],
+  ["deki", "", CASE],
+  ["taki", "", CASE],
+  ["teki", "", CASE],
+  ["ndan", "V", CASE],
+  ["nden", "V", CASE],
+  ["dan", "", CASE],
+  ["den", "", CASE],
+  ["tan", "", CASE],
+  ["ten", "", CASE],
+  ["nda", "V", CASE],
+  ["nde", "V", CASE],
+  ["da", "", CASE],
+  ["de", "", CASE],
+  ["ta", "", CASE],
+  ["te", "", CASE],
+  ["nin", "V", CASE],
+  ["nun", "V", CASE],
+  ["in", "C", CASE],
+  ["un", "C", CASE],
+  ["yla", "V", CASE],
+  ["yle", "V", CASE],
+  ["la", "C", CASE],
+  ["le", "C", CASE],
+  ["na", "V", CASE],
+  ["ne", "V", CASE],
+  ["ya", "V", CASE],
+  ["ye", "V", CASE],
+  ["ni", "V", CASE],
+  ["nu", "V", CASE],
+  ["yi", "V", CASE],
+  ["yu", "V", CASE],
+  ["si", "V", POSSESSIVE],
+  ["su", "V", POSSESSIVE],
+  ["i", "C", POSSESSIVE],
+  ["u", "C", POSSESSIVE],
+  ["lar", "", PLURAL],
+  ["ler", "", PLURAL]
+];
+var TR_SUFFIXES = [...TR_LIST].sort((a, b) => b[0].length - a[0].length);
 
-// src/usage/bar-info.ts
-import { existsSync as existsSync3, readFileSync as readFileSync5, statSync as statSync7 } from "fs";
-import { join as join7 } from "path";
+// src/core/memory/query.ts
+var STOPWORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "are",
+  "as",
+  "at",
+  "be",
+  "by",
+  "did",
+  "do",
+  "for",
+  "from",
+  "how",
+  "in",
+  "is",
+  "it",
+  "of",
+  "on",
+  "or",
+  "the",
+  "to",
+  "was",
+  "we",
+  "what",
+  "when",
+  "why",
+  "with",
+  "ve",
+  "ile",
+  "bir",
+  "bu",
+  "\u015Fu",
+  "su",
+  "da",
+  "de",
+  "mi",
+  "m\u0131",
+  "mu",
+  "m\xFC",
+  "ne",
+  "i\xE7in",
+  "icin",
+  "gibi",
+  "ama",
+  "veya",
+  "neden",
+  "nasil",
+  "nas\u0131l",
+  "daha",
+  "\xE7ok",
+  "cok"
+]);
+var SIMILARITY_STOPWORDS = new Set([
+  "been",
+  "but",
+  "can",
+  "could",
+  "does",
+  "has",
+  "have",
+  "had",
+  "if",
+  "into",
+  "its",
+  "may",
+  "might",
+  "must",
+  "per",
+  "should",
+  "so",
+  "such",
+  "than",
+  "that",
+  "then",
+  "these",
+  "this",
+  "those",
+  "use",
+  "uses",
+  "used",
+  "using",
+  "via",
+  "were",
+  "will",
+  "would",
+  "olarak",
+  "olan",
+  "ise",
+  "her",
+  "tum",
+  "en",
+  "kadar",
+  "artik"
+]);
 
-// src/core/flow/panes.ts
-function planPaneLines(v, state) {
-  const lines = v.visible ? bandText(v).map((text, i) => i === 0 ? { text, bold: true } : { text }) : [];
-  const plan = state.plan;
-  if (plan === undefined) {
-    lines.push({ text: "No plan is bound to this session.", bold: lines.length === 0 });
-    lines.push({ text: "A new plan: /plan-build <task> \xB7 an existing one: buracle plan register <path>", dim: true });
-    return lines;
-  }
-  lines.push({ text: `plan: ${plan.slug} (${plan.type})`, bold: true });
-  lines.push({ text: `status ${plan.status} \xB7 phase ${plan.phase}` });
-  lines.push({ text: `file: ${plan.path}`, dim: true });
-  if (state.interaction?.state === "paused")
-    lines.push({ text: 'paused: the stop guard lets the turn end; say "continue" to resume', color: "warning" });
-  lines.push({ text: `stop guard blocks: plan ${state.guard.blocksForPlan} \xB7 chain ${state.guard.blocksInChain}`, dim: true });
-  return lines;
-}
-var HARNESS_VERSION_TTL_MS = 12 * 60 * 60000;
-function count3(x) {
-  return typeof x === "number" && Number.isFinite(x) ? x : 0;
-}
-function memoryPaneLines(status, url, brain) {
-  const lines = [];
-  const s = status !== null && typeof status === "object" && !Array.isArray(status) && status["v"] === 3 ? status : undefined;
-  if (s === undefined) {
-    lines.push({ text: "No memory status yet.", bold: true });
-    lines.push({ text: "`buracle mem status` and memory writes create the status file.", dim: true });
-  } else {
-    const health = typeof s["health"] === "string" && s["health"] !== "" ? s["health"] : "?";
-    const counts = s["counts"] !== null && typeof s["counts"] === "object" ? s["counts"] : {};
-    const project = typeof s["project"] === "string" ? s["project"] : undefined;
-    lines.push({ text: `memory: ${health}`, color: health === "ok" ? "success" : health === "warn" ? "warning" : "error", bold: true });
-    lines.push({ text: `${project !== undefined ? `project ${project} ${count3(counts["project"])} \xB7 ` : ""}person ${count3(counts["person"])}` });
-    const last = s["last_capture"] !== null && typeof s["last_capture"] === "object" ? s["last_capture"]["at"] : undefined;
-    lines.push({ text: `inbox ${count3(s["captures"])} \xB7 last capture ${typeof last === "string" ? last.slice(0, 16).replace("T", " ") : "none yet"}` });
-  }
-  if (url !== undefined)
-    lines.push({ text: `web UI: ${url}  (w)`, dim: true });
-  lines.push({ text: `brain: ${brain}`, dim: true });
-  return lines;
-}
-
-// src/usage/bar-info.ts
-init_fsx();
+// src/core/memory/brain.ts
+var KIND_INFO = {
+  decision: { region: "plans", layers: ["project", "person"], agentWritable: true, generated: false, driftProne: true },
+  gotcha: { region: "warnings", layers: ["project", "person"], agentWritable: true, generated: false, driftProne: true },
+  procedure: { region: "skills", layers: ["project", "person"], agentWritable: true, generated: false, driftProne: true },
+  knowledge: { region: "knowledge", layers: ["project", "person"], agentWritable: true, generated: false, driftProne: true },
+  reference: { region: "discoveries", layers: ["project", "person"], agentWritable: true, generated: false, driftProne: false },
+  preference: { region: "self", layers: ["person", "project"], agentWritable: true, generated: false, driftProne: false },
+  core: { region: "knowledge", layers: ["project"], agentWritable: true, generated: false, driftProne: true },
+  convention: { region: "self", layers: ["project"], agentWritable: false, generated: true, driftProne: false },
+  profile: { region: "self", layers: ["person"], agentWritable: false, generated: true, driftProne: false },
+  session: { region: "episodes", layers: ["project"], agentWritable: false, generated: true, driftProne: false },
+  handoff: { region: "episodes", layers: ["project"], agentWritable: false, generated: true, driftProne: false },
+  capture: { region: "episodes", layers: ["project", "person"], agentWritable: false, generated: false, driftProne: false }
+};
+var MEM_KINDS = Object.keys(KIND_INFO);
+var WRITABLE_KINDS = MEM_KINDS.filter((k) => KIND_INFO[k].agentWritable && k !== "core");
+var SESSION_KEEP_MS = 45 * 86400000;
+var HANDOFF_KEEP_MS = 14 * 86400000;
+// src/core/receipt.ts
+var CHECK = new RegExp([
+  String.raw`\b(?:bun|npm|pnpm|yarn|deno)\s+(?:run\s+)?(?:test|check|lint|typecheck|type-check|tsc|verify|ci)\b`,
+  String.raw`\bbunx?\s+(?:test|tsc|vitest|jest|eslint|biome|prettier\s+--check)\b`,
+  String.raw`\bnpx\s+(?:tsc|vitest|jest|eslint|biome|playwright\s+test)\b`,
+  String.raw`(?:^|[;&|(]\s*|\b(?:npx|bunx|uvx|pnpx|exec|time|xargs)\s+)(?:tsc|vitest|jest|mocha|ava|eslint|biome\s+check|ruff\s+check|ruff|mypy|pyright|pytest|tox|nox|phpunit|rspec|shellcheck|golangci-lint)\b`,
+  String.raw`\bpython3?\s+-m\s+(?:pytest|unittest|mypy)\b`,
+  String.raw`\bgo\s+(?:test|vet|build)\b`,
+  String.raw`\bcargo\s+(?:test|check|clippy|build)\b`,
+  String.raw`\b(?:make|just)\s+(?:test|check|lint|verify|ci)\b`,
+  String.raw`\bgradlew?\s+(?:test|check|build)\b`,
+  String.raw`\bmvn\s+(?:test|verify)\b`,
+  String.raw`\bdotnet\s+(?:test|build)\b`,
+  String.raw`\bclaude\s+plugin\s+(?:test|validate)\b`,
+  String.raw`\bburacle\s+(?:build\s+--check|doctor|skills\s+lint|rules\s+lint|lsp\s+check)\b`,
+  String.raw`\bbun\s+src/cli/main\.ts\s+(?:build\s+--check|doctor)\b`
+].join("|"), "iu");
+// src/core/flow/state.ts
+var AGENT_MAX_MS = 2 * 60 * 60000;
+// src/adapters/shared/file-checks.ts
 init_paths();
 
-// src/engine/platform.ts
-import { existsSync as existsSync2, statSync as statSync5 } from "fs";
-import { homedir } from "os";
-import { isAbsolute as isAbsolute4, join as join6 } from "path";
-function osName() {
-  const forced = process.env["BURACLE_PLATFORM"];
-  if (forced === "darwin" || forced === "linux")
-    return forced;
-  return process.platform === "darwin" ? "darwin" : "linux";
-}
-function homeDir() {
-  const h = process.env["HOME"];
-  return h !== undefined && h.trim() !== "" ? h : homedir();
-}
-function isFile(p) {
-  try {
-    return statSync5(p).isFile();
-  } catch {
-    return false;
-  }
-}
-function extraBinDirs() {
-  const home = homeDir();
-  const dirs = [join6(home, ".local", "bin"), join6(home, ".bun", "bin"), join6(home, "go", "bin"), join6(home, ".cargo", "bin")];
-  if (osName() === "darwin")
-    dirs.push("/opt/homebrew/bin", "/usr/local/bin");
-  if (osName() === "linux")
-    dirs.push("/home/linuxbrew/.linuxbrew/bin", "/usr/local/bin");
-  return dirs;
-}
-function findExecutable(name, opts = {}) {
-  const PATH = process.env["PATH"];
-  const hit = PATH !== undefined ? Bun.which(name, { PATH }) : Bun.which(name);
-  if (hit !== null && hit !== undefined)
-    return hit;
-  for (const dir of [...opts.extra ?? [], ...extraBinDirs()]) {
-    const p = join6(dir, name);
-    if (isFile(p))
-      return p;
-  }
-  return;
+// src/adapters/shared/checker-scan.ts
+init_paths();
+// src/adapters/shared/pipeline/stop.ts
+init_fsx();
+// src/adapters/opencode/runtime/routing.ts
+var compiledCache = new WeakMap;
+
+// src/adapters/opencode/runtime/commands.ts
+function workflowCommandSkills(skills) {
+  return skills.filter((s) => s.userInvocable).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 }
 
-// src/usage/bar-info.ts
-init_shim();
-var HARNESS_LABEL = { claude: "CC", codex: "Codex", opencode: "OpenCode", omp: "OMP" };
-function isRecord(x) {
-  return x !== null && typeof x === "object" && !Array.isArray(x);
+// src/adapters/opencode/runtime/env.ts
+import { readFileSync as readFileSync6, statSync as statSync8 } from "fs";
+import os2 from "os";
+import { isAbsolute as isAbsolute5, join as join8 } from "path";
+init_paths();
+var POINTER_FILE = "runtime.json";
+function absEnv2(name) {
+  const v = process.env[name];
+  return v !== undefined && v.trim() !== "" && isAbsolute5(v) ? v : undefined;
 }
-function buracleVersion(repoRoot2 = repoRoot()) {
-  try {
-    const v = JSON.parse(readFileSync5(join7(repoRoot2, "package.json"), "utf8")).version;
-    return typeof v === "string" ? v : "?";
-  } catch {
-    return "?";
-  }
-}
-function claudePlan() {
-  const file = claudeJson();
-  let mtime;
-  try {
-    mtime = statSync7(file).mtimeMs;
-  } catch {
+function readPointer(pluginDir) {
+  if (pluginDir === undefined)
     return;
-  }
-  const cacheFile = join7(buracleHome(), "cache", "claude-plan.json");
-  const cached = readJsonSafeSync(cacheFile);
-  if (cached.ok && cached.value?.mtime === mtime)
-    return cached.value.plan ?? undefined;
-  let plan;
   try {
-    const j = JSON.parse(readFileSync5(file, "utf8"));
-    const oa = isRecord(j) && isRecord(j["oauthAccount"]) ? j["oauthAccount"] : undefined;
-    if (oa === undefined)
-      plan = "API";
-    else {
-      const org = typeof oa["organizationType"] === "string" ? oa["organizationType"] : "";
-      const tier = `${typeof oa["organizationRateLimitTier"] === "string" ? oa["organizationRateLimitTier"] : ""} ${typeof oa["userRateLimitTier"] === "string" ? oa["userRateLimitTier"] : ""}`;
-      const mult = /(\d+)x/u.exec(tier)?.[1];
-      if (/max/iu.test(org))
-        plan = mult !== undefined && mult !== "1" ? `Max ${mult}x` : "Max";
-      else if (/pro/iu.test(org))
-        plan = "Pro";
-      else if (/team/iu.test(org))
-        plan = "Team";
-      else if (/enterprise/iu.test(org))
-        plan = "Enterprise";
-      else
-        plan = org !== "" ? org.replace(/^claude_/u, "") : undefined;
+    const raw = JSON.parse(readFileSync6(join8(pluginDir, POINTER_FILE), "utf8"));
+    if (raw !== null && typeof raw === "object") {
+      const bh = raw.buracleHome;
+      if (typeof bh === "string" && isAbsolute5(bh))
+        return { buracleHome: bh };
     }
+  } catch {}
+  return;
+}
+function resolveEnv(pluginDir) {
+  const home = absEnv2("HOME") ?? os2.homedir();
+  const fromEnv = absEnv2("BURACLE_HOME");
+  if (fromEnv !== undefined)
+    return { home, buracleHome: fromEnv, source: "env" };
+  const pointer = readPointer(pluginDir);
+  if (pointer !== undefined)
+    return { home, buracleHome: pointer.buracleHome, source: "pointer" };
+  return { home, buracleHome: join8(home, ".buracle"), source: "default" };
+}
+function applyEnv(resolved) {
+  const changed = [];
+  if (resolved.source === "pointer" && process.env["BURACLE_HOME"] !== resolved.buracleHome) {
+    process.env["BURACLE_HOME"] = resolved.buracleHome;
+    changed.push("BURACLE_HOME");
+  }
+  return changed;
+}
+function mtimeOf(path) {
+  try {
+    const st = statSync8(path);
+    return `${st.mtimeMs}:${st.size}`;
   } catch {
-    plan = undefined;
+    return;
   }
-  try {
-    atomicWriteSync(cacheFile, JSON.stringify({ mtime, plan: plan ?? null }) + `
-`);
-  } catch {}
-  return plan;
 }
-var VERSION_CMD = { claude: "claude", codex: "codex", opencode: "opencode", omp: "omp" };
-function versionCacheFile() {
-  return join7(buracleHome(), "cache", "harness-versions.json");
-}
-async function harnessVersion(h, nowMs) {
-  const cacheFile = versionCacheFile();
-  const r = readJsonSafeSync(cacheFile);
-  const all = r.ok && isRecord(r.value) ? r.value : {};
-  const hit = all[h];
-  if (hit !== undefined && typeof hit.at === "number" && nowMs - hit.at < HARNESS_VERSION_TTL_MS && nowMs >= hit.at)
-    return hit.v;
-  const bin = findExecutable(VERSION_CMD[h]);
-  if (bin === undefined)
-    return;
-  const out = await run([bin, "--version"], { timeoutMs: 1500 });
-  const v = /(\d+\.\d+\.\d+)/u.exec(`${out.stdout}
-${out.stderr}`)?.[1];
-  all[h] = v !== undefined ? { v, at: nowMs } : { at: nowMs };
-  try {
-    atomicWriteSync(cacheFile, JSON.stringify(all) + `
-`);
-  } catch {}
-  return v;
-}
-function liveMemoryUi() {
-  const r = readJsonSafeSync(memoryUiStateFile());
-  if (!r.ok || !isRecord(r.value))
-    return;
-  const v = r.value;
-  if (typeof v["pid"] !== "number" || typeof v["port"] !== "number" || typeof v["url"] !== "string")
-    return;
-  if (v["build"] !== undefined && typeof v["build"] !== "string")
-    return;
-  try {
-    process.kill(v["pid"], 0);
-  } catch (e) {
-    if (e.code !== "EPERM")
-      return;
+
+class MtimeCache {
+  file;
+  parse;
+  fallback;
+  key;
+  value;
+  constructor(file, parse, fallback) {
+    this.file = file;
+    this.parse = parse;
+    this.fallback = fallback;
+    this.value = fallback();
   }
-  return v;
-}
-function buracleArgv() {
-  const main = join7(repoRoot(), "src", "cli", "main.ts");
-  const bun = findExecutable("bun");
-  if (bun !== undefined && existsSync3(main))
-    return [bun, main];
-  return shimLaunch();
-}
-async function barInfo(h, o) {
-  const info = { product: { name: "Buracle", version: buracleVersion() } };
-  const version = o.version ?? await harnessVersion(h, o.nowMs).catch(() => {
-    return;
-  });
-  const harness = { label: HARNESS_LABEL[h] };
-  if (version !== undefined)
-    harness.version = version;
-  if (h === "claude") {
-    const plan = claudePlan();
-    if (plan !== undefined)
-      harness.plan = plan;
+  get() {
+    let path;
+    try {
+      path = this.file();
+    } catch {
+      return this.fallback();
+    }
+    const m = mtimeOf(path);
+    const key = m === undefined ? `${path}#none` : `${path}#${m}`;
+    if (key === this.key)
+      return this.value;
+    this.key = key;
+    if (m === undefined) {
+      this.value = this.fallback();
+      return this.value;
+    }
+    try {
+      this.value = this.parse(JSON.parse(readFileSync6(path, "utf8")));
+    } catch {
+      this.value = this.fallback();
+    }
+    return this.value;
   }
-  info.harness = harness;
-  const live = liveMemoryUi();
-  if (live !== undefined)
-    info.memoryUrl = live.url;
-  if (o.lines !== undefined)
-    info.lines = o.lines;
-  return info;
+}
+function runtimeConfigCache(defaults) {
+  return new MtimeCache(() => runtimeConfigFile(), (raw) => {
+    const merged = runtimeSnapshotConfig(raw, defaults);
+    if (merged.warnings.length > 0)
+      log("warn", "opencode: runtime-config.json needs attention", { warnings: merged.warnings });
+    if (merged.errors.length > 0)
+      log("warn", "opencode: runtime-config.json has invalid values; defaults used for them", { errors: merged.errors });
+    const out = { config: merged.config };
+    const snap = raw;
+    if (snap?.v === RUNTIME_SNAPSHOT_VERSION && snap.resolved !== null && typeof snap.resolved === "object" && !Array.isArray(snap.resolved))
+      out.resolved = snap.resolved;
+    return out;
+  }, () => ({ config: defaults }));
 }
 
 // src/usage/bar.ts
 import { readFileSync as readFileSync7 } from "fs";
 import { isAbsolute as isAbsolute7, join as join9, relative as relative2, resolve as resolve5, sep as sep2 } from "path";
 init_fsx();
-
-// src/engine/git.ts
-init_fsx();
-import { basename as basename2, dirname as dirname3 } from "path";
-var GIT_TIMEOUT_MS = 5000;
-async function git(cwd, args) {
-  const r = await run(["git", ...args], { cwd, timeoutMs: GIT_TIMEOUT_MS, env: { GIT_OPTIONAL_LOCKS: "0", LC_ALL: "C" } });
-  return r.code === 0 ? r.stdout : undefined;
-}
-async function revParse(cwd, ...args) {
-  const out = await git(cwd, ["rev-parse", ...args]);
-  return out === undefined ? undefined : out.trim();
-}
-async function remoteUrl(cwd, name = "origin") {
-  const out = await git(cwd, ["remote", "get-url", name]);
-  const u = out?.trim();
-  return u ? u : undefined;
-}
-async function commonDir(cwd) {
-  const out = await revParse(cwd, "--git-common-dir");
-  return out ? comparablePath(out, cwd) : undefined;
-}
-async function toplevel(cwd) {
-  const out = await revParse(cwd, "--show-toplevel");
-  return out ? comparablePath(out, cwd) : undefined;
-}
-function ownerRepoFromUrl(url) {
-  let s = url.trim();
-  if (s === "")
-    return;
-  s = s.replace(/[?#].*$/, "").replace(/\/+$/, "").replace(/\.git$/, "");
-  let pathPart;
-  const scp = /^[^/@:]+@[^/:]+:(.+)$/.exec(s);
-  if (scp && scp[1] !== undefined && !/^[a-z][a-z0-9+.-]*:\/\//i.test(s))
-    pathPart = scp[1];
-  else {
-    const m = /^[a-z][a-z0-9+.-]*:\/\/[^/]*(\/.*)?$/i.exec(s);
-    pathPart = m ? m[1] ?? "" : s;
-  }
-  const segs = pathPart.split("/").filter((x) => x !== "" && x !== ".");
-  const repo = segs[segs.length - 1];
-  if (repo === undefined)
-    return;
-  const owner = segs.length >= 2 ? segs[segs.length - 2] : undefined;
-  return owner !== undefined ? { owner, repo } : { repo };
-}
-function slugPart(s) {
-  const folded = s.replace(/\u0130/g, "i").replace(/I/g, "i").replace(/\u0131/g, "i").toLowerCase().replace(/\u011F/g, "g").replace(/\u00FC/g, "u").replace(/\u015F/g, "s").replace(/\u00F6/g, "o").replace(/\u00E7/g, "c").normalize("NFKD").replace(/[\u0300-\u036F]/g, "");
-  const slug = folded.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60).replace(/-+$/g, "");
-  return slug === "" ? "project" : slug;
-}
-async function firstCommit(cwd) {
-  const out = await git(cwd, ["rev-list", "--max-parents=0", "HEAD"]);
-  if (out === undefined)
-    return;
-  return out.split(`
-`).map((l) => l.trim()).filter((l) => /^[0-9a-f]{7,40}$/.test(l)).sort()[0];
-}
-async function projectIdentity(cwd) {
-  const abs = comparablePath(cwd);
-  const common = await commonDir(abs);
-  if (common === undefined) {
-    return { slug: `${slugPart(basename2(abs))}-${sha256(abs).slice(0, 6)}`, root: abs };
-  }
-  const root = basename2(common) === ".git" ? dirname3(common) : await toplevel(abs) ?? abs;
-  const remote = await remoteUrl(abs);
-  const parsed = remote !== undefined ? ownerRepoFromUrl(remote) : undefined;
-  const name = parsed?.repo ?? basename2(root).replace(/\.git$/, "");
-  const id = { slug: slugPart(name), root, commonDir: common };
-  if (remote !== undefined)
-    id.remote = remote;
-  if (parsed?.owner !== undefined)
-    id.ownerRepo = `${parsed.owner}/${parsed.repo}`;
-  const first = await firstCommit(abs);
-  if (first !== undefined)
-    id.rootCommit = first;
-  return id;
-}
-async function projectSlug(cwd) {
-  return (await projectIdentity(cwd)).slug;
-}
-
-// src/usage/bar.ts
 init_paths();
 
 // src/engine/update/output.ts
 init_paths();
-import { isAbsolute as isAbsolute5, relative, sep } from "path";
+import { isAbsolute as isAbsolute6, relative, sep } from "path";
 function isInside(child, parent) {
   const rel = relative(parent, child);
-  return rel === "" || !rel.startsWith("..") && !isAbsolute5(rel) && rel.split(sep)[0] !== "..";
+  return rel === "" || !rel.startsWith("..") && !isAbsolute6(rel) && rel.split(sep)[0] !== "..";
 }
 function tildeFrom(home, p) {
   if (p === home)
@@ -11310,275 +13072,6 @@ function tildeFrom(home, p) {
   if (isInside(p, home))
     return `~/${relative(home, p).split(sep).join("/")}`;
   return p;
-}
-
-// src/workflow/workspace.ts
-import { existsSync as existsSync4, readdirSync, readFileSync as readFileSync6, rmSync, statSync as statSync8, unlinkSync as unlinkSync2 } from "fs";
-import { dirname as dirname4, isAbsolute as isAbsolute6, join as join8, resolve as resolve4 } from "path";
-init_fsx();
-init_paths();
-var PROJECT_MARKERS = [
-  "package.json",
-  "pyproject.toml",
-  "setup.py",
-  "requirements.txt",
-  "Pipfile",
-  "go.mod",
-  "go.work",
-  "Cargo.toml",
-  "pom.xml",
-  "build.gradle",
-  "build.gradle.kts",
-  "settings.gradle",
-  "settings.gradle.kts",
-  "build.sbt",
-  "composer.json",
-  "Gemfile",
-  "deno.json",
-  "deno.jsonc",
-  "CMakeLists.txt",
-  "Makefile",
-  "mix.exs",
-  "pubspec.yaml",
-  "Package.swift",
-  "stack.yaml",
-  "tsconfig.json",
-  "pnpm-workspace.yaml",
-  "lerna.json",
-  "nx.json",
-  "turbo.json",
-  "WORKSPACE",
-  "WORKSPACE.bazel",
-  "MODULE.bazel"
-];
-var WORKSPACE_MARKERS = ["pnpm-workspace.yaml", "go.work", "settings.gradle", "settings.gradle.kts", "lerna.json", "nx.json", "turbo.json", "WORKSPACE", "WORKSPACE.bazel", "MODULE.bazel"];
-var MARKER_SUFFIXES = [".sln", ".csproj", ".fsproj", ".xcodeproj", ".xcworkspace"];
-var CHILD_SCAN_MAX = 256;
-var INDEX_LOCK_STALE_MS = 2 * 60 * 60000;
-function caseInsensitivePaths() {
-  return osName() !== "linux";
-}
-function canonicalDir(dir) {
-  const abs = resolve4(dir);
-  try {
-    return realPath(abs);
-  } catch {
-    return abs;
-  }
-}
-function exclusionContext(vault, exclude) {
-  return {
-    home: canonicalDir(home()),
-    buracleHome: canonicalDir(buracleHome()),
-    vault: canonicalDir(vault),
-    exclude,
-    caseInsensitive: caseInsensitivePaths()
-  };
-}
-function markerEntries(dir) {
-  let entries;
-  try {
-    entries = readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return;
-  }
-  const files = new Set;
-  for (const e of entries) {
-    if (e.isFile())
-      files.add(e.name);
-    else if (e.isSymbolicLink()) {
-      try {
-        if (statSync8(join8(dir, e.name)).isFile())
-          files.add(e.name);
-      } catch {}
-    }
-  }
-  return { files, names: entries.map((e) => e.name) };
-}
-function hasMarker(dir) {
-  const e = markerEntries(dir);
-  if (e === undefined)
-    return false;
-  return PROJECT_MARKERS.some((m) => e.files.has(m)) || e.names.some((n) => MARKER_SUFFIXES.some((s) => n.endsWith(s)));
-}
-function hasWorkspaceMarker(dir) {
-  const e = markerEntries(dir);
-  return e !== undefined && WORKSPACE_MARKERS.some((m) => e.files.has(m));
-}
-function markerRoot(dir, ctx) {
-  const ci = ctx.caseInsensitive;
-  let found;
-  let cur = dir;
-  for (let depth = 0;depth < 64; depth++) {
-    const k = pathKey(cur, ci);
-    if (k === "/" || /^[A-Za-z]:\/?$/.test(k) || isPathWithin(ctx.home, cur, ci))
-      break;
-    if (found === undefined) {
-      if (hasMarker(cur))
-        found = cur;
-    } else if (hasWorkspaceMarker(cur)) {
-      found = cur;
-    }
-    const parent = dirname4(cur);
-    if (parent === cur)
-      break;
-    cur = parent;
-  }
-  return found;
-}
-function isProjectDir(dir) {
-  return existsSync4(join8(dir, ".git")) || hasMarker(dir);
-}
-function activity(dir, mtimeMs) {
-  let t = mtimeMs;
-  for (const f of [".git", join8(".git", "index"), join8(".git", "HEAD")]) {
-    try {
-      t = Math.max(t, statSync8(join8(dir, f)).mtimeMs);
-    } catch {}
-  }
-  return t;
-}
-function childProjects(dir, ctx, max) {
-  let names;
-  try {
-    names = readdirSync(dir).sort();
-  } catch {
-    return [];
-  }
-  if (names.length > CHILD_SCAN_MAX)
-    return [];
-  const found = new Map;
-  for (const name of names) {
-    if (name.startsWith(".") || name === "node_modules")
-      continue;
-    const p = join8(dir, name);
-    let mtimeMs;
-    try {
-      const st = statSync8(p);
-      if (!st.isDirectory())
-        continue;
-      mtimeMs = st.mtimeMs;
-    } catch {
-      continue;
-    }
-    const real = canonicalDir(p);
-    if (indexExclusion(real, ctx) !== undefined)
-      continue;
-    if (!isProjectDir(p))
-      return [];
-    if (!found.has(real))
-      found.set(real, activity(p, mtimeMs));
-  }
-  return [...found.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, Math.max(0, max)).map(([p]) => p).sort();
-}
-async function gitTopLevel(dir) {
-  const top = await revParse(dir, "--show-toplevel").catch(() => {
-    return;
-  });
-  return top !== undefined && top.trim() !== "" ? canonicalDir(top.trim()) : undefined;
-}
-function workspaceOptions(cfg) {
-  return { vault: oldVaultRoot(), exclude: cfg.index.exclude, children: cfg.index.children, maxChildren: cfg.index.maxChildren };
-}
-async function resolveWorkspace(cwd, o) {
-  const dir = canonicalDir(cwd);
-  const ctx = exclusionContext(o.vault, o.exclude);
-  const here = indexExclusion(dir, ctx);
-  if (here !== undefined)
-    return { cwd: dir, children: [], excluded: here };
-  let root = await gitTopLevel(dir);
-  if (root !== undefined) {
-    const broad = indexExclusion(root, { ...ctx, exclude: [] });
-    if (broad === "your home folder" || broad === "a parent of your home folder" || broad === "the filesystem root")
-      root = undefined;
-  }
-  root ??= markerRoot(dir, ctx);
-  if (root !== undefined) {
-    const why = indexExclusion(root, ctx);
-    return why !== undefined ? { cwd: dir, children: [], excluded: why } : { cwd: dir, root, children: [] };
-  }
-  if (!o.children || o.maxChildren <= 0)
-    return { cwd: dir, children: [] };
-  return { cwd: dir, children: childProjects(dir, ctx, o.maxChildren) };
-}
-function indexTag(root) {
-  return sha256(canonicalDir(root)).slice(0, 16);
-}
-function indexRecordFile(root) {
-  return join8(indexStateDir(), `${indexTag(root)}.json`);
-}
-var CORRUPT_KEEP_MS = 14 * 86400000;
-function indexLockFile(root) {
-  return `${indexRecordFile(root)}.lock`;
-}
-function readIndexRecord(root) {
-  const r = readJsonSafeSync(indexRecordFile(root));
-  return r.ok && r.value?.v === 1 ? r.value : undefined;
-}
-function pidAlive(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (e) {
-    return e.code === "EPERM";
-  }
-}
-function indexLockHolder(root, nowMs) {
-  let held;
-  try {
-    held = JSON.parse(readFileSync6(indexLockFile(root), "utf8"));
-  } catch {
-    return;
-  }
-  if (held === null || typeof held !== "object")
-    return;
-  const { pid, at } = held;
-  if (typeof pid !== "number" || typeof at !== "number" || nowMs - at > INDEX_LOCK_STALE_MS)
-    return;
-  return pidAlive(pid) ? { pid, at } : undefined;
-}
-function codegraphDataDir(_root, env = process.env) {
-  const raw = (env["CODEGRAPH_DIR"] ?? "").trim();
-  if (raw !== "" && raw !== "." && !raw.includes("..") && !/[\\/]/.test(raw) && !isAbsolute6(raw))
-    return raw;
-  return ".codegraph";
-}
-function codegraphIndexPresent(root) {
-  return existsSync4(join8(root, codegraphDataDir(root), "codegraph.db"));
-}
-function projectIndex(root, cfg, nowMs, building = false) {
-  const rec = readIndexRecord(root);
-  const lock = building ? { pid: process.pid, at: nowMs } : indexLockHolder(root, nowMs);
-  const run = lock !== undefined ? { since: lock.at } : undefined;
-  const tool = (enabled, record, present) => indexState({ enabled, ...record !== undefined ? { record } : {}, ...run !== undefined ? { building: run } : {}, ...present !== undefined ? { present } : {} }, cfg.minIntervalMin);
-  return {
-    codegraph: tool(cfg.codegraph, rec?.codegraph, cfg.codegraph ? codegraphIndexPresent(root) : undefined),
-    semble: tool(cfg.semble, rec?.semble, undefined)
-  };
-}
-function idleIndex(cfg) {
-  return { codegraph: cfg.codegraph ? { state: "none" } : { state: "off" }, semble: cfg.semble ? { state: "none" } : { state: "off" } };
-}
-function infoFor(target, cfg, nowMs, building = []) {
-  const info = {
-    cwd: target.cwd,
-    children: [...target.children],
-    index: target.root !== undefined ? projectIndex(target.root, cfg.index, nowMs, building.includes(target.root)) : idleIndex(cfg.index)
-  };
-  if (target.root !== undefined)
-    info.root = target.root;
-  if (target.excluded !== undefined)
-    info.excluded = target.excluded;
-  if (target.children.length > 0) {
-    const childIndex = {};
-    for (const c of target.children)
-      childIndex[c] = projectIndex(c, cfg.index, nowMs, building.includes(c));
-    info.childIndex = childIndex;
-  }
-  return info;
-}
-async function workspaceInfo(cwd, cfg, nowMs) {
-  return infoFor(await resolveWorkspace(cwd, workspaceOptions(cfg)), cfg, nowMs);
 }
 
 // src/usage/bar.ts
@@ -12064,7 +13557,7 @@ function contextUsage(messages, models, boundary) {
 }
 var TTL = { git: 5000, usage: 30000, mem: 30000, plan: 1e4, updates: 60000, footer: 60000, index: 30000, hooks: 30000 };
 var INDEX_BUDGET_MS = 1000;
-async function within(work, ms) {
+async function within2(work, ms) {
   let timer;
   try {
     await Promise.race([work, new Promise((resolve) => {
@@ -12194,7 +13687,7 @@ class StatusFeeder {
         }, () => {
           entry.value = undefined;
         });
-        await within(read, INDEX_BUDGET_MS);
+        await within2(read, INDEX_BUDGET_MS);
       }
       if (due(this.hooks, TTL.hooks)) {
         this.hooks.at = now;
@@ -12261,16 +13754,6 @@ function statusSegments(bar, layout, width, nowMs) {
 
 // src/adapters/opencode/runtime/tui-commands.ts
 import { join as join15 } from "path";
-
-// src/core/plan/notes.ts
-function brainPageArg(args) {
-  const w = args.trim().toLowerCase();
-  if (w === "")
-    return "brain";
-  return ["review", "plans", "changes", "notes"].includes(w) ? "review" : undefined;
-}
-
-// src/adapters/opencode/runtime/tui-commands.ts
 init_fsx();
 init_paths();
 init_shim();
@@ -12323,7 +13806,7 @@ function memoryUiUrl() {
     return;
   }
 }
-async function brain(host, input = "", name = "brain") {
+async function brain2(host, input = "", name = "brain") {
   const page = brainPageArg(input);
   if (page === undefined) {
     host.toast(`Usage: /${name} [review]`, "warning", "Buracle");
@@ -12366,7 +13849,7 @@ function statusLines(host) {
     lines.push(`memory UI: ${url}`);
   return lines;
 }
-async function status(host, input) {
+async function status3(host, input) {
   const what = ((input ?? "").trim().split(/\s+/)[0] ?? "").toLowerCase();
   const sid = host.sessionID();
   let title;
@@ -12434,7 +13917,7 @@ function utilityCommands(host, names) {
       group: "Buracle",
       palette: true,
       slash: { name: names.brain, arguments: true },
-      run: guarded(`/${names.brain}`, (input) => brain(host, input ?? "", names.brain))
+      run: guarded(`/${names.brain}`, (input) => brain2(host, input ?? "", names.brain))
     },
     {
       id: "buracle.aside",
@@ -12452,7 +13935,7 @@ function utilityCommands(host, names) {
       group: "Buracle",
       palette: true,
       slash: { name: names.status, ...names.statusAliases.length > 0 ? { aliases: [...names.statusAliases] } : {}, arguments: true },
-      run: guarded(`/${names.status}`, (input) => status(host, input))
+      run: guarded(`/${names.status}`, (input) => status3(host, input))
     },
     {
       id: "buracle.ping",
@@ -12465,99 +13948,6 @@ function utilityCommands(host, names) {
     }
   ];
 }
-
-// src/core/policy/code-scan.ts
-var REGEX_AFTER = new Set(["(", ",", "=", ":", "[", "!", "&", "|", "?", "{", "}", ";", "+", "-", "*", "%", "<", ">", "~", "^", "=>", "==", "===", "!=", "!==", "&&", "||", "??", "return", "typeof", "case", "do", "else", "in", "of", "new", "void", "throw"]);
-var HOME_ENV = new Set(["HOME", "USERPROFILE"]);
-var LOOKUPS = new Set(["getattr", "__import__", "import_module", "require", "import"]);
-var GENERIC = new Set(["remove", "copy", "move", "run", "call", "rm", "cp", "rename", "replace", "unlink", "exec", "spawn", "popen", "write", "delete", "open", "system"]);
-var GENERIC_BARE = new Set(["remove", "copy", "move", "run", "call", "rm", "cp", "rename", "unlink", "exec", "spawn", "popen", "write", "delete", "open", "system"]);
-var VALUE_METHODS = new Set(["unlink", "rename", "open"]);
-var PARENLESS = new Set(["perl", "ruby", "lua"]);
-
-// src/core/policy/self-disable.ts
-var RELOCATION_VARS2 = ["BURACLE_HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "PI_CODING_AGENT_DIR", "BURACLE_CORTEXDB_BIN"];
-var RELOCATION = new RegExp(RELOCATION_VARS2.map((v) => [...v].map((c) => c.replace(/[^A-Za-z0-9]/g, "\\$&")).join(`['"\\\\{}$:+-]*`)).join("|"), "i");
-var STARTUP_NAMES = new Set([".zshrc", ".zprofile", ".zshenv", ".zlogin", ".bashrc", ".bash_profile", ".bash_login", ".profile", ".kshrc", ".mkshrc", ".cshrc", ".tcshrc", ".login", ".envrc", ".pam_environment", ".xprofile", ".xsessionrc"]);
-var SYSTEM_STARTUP = new Set(["zshrc", "zprofile", "zshenv", "zlogin", "profile", "bashrc", "bash.bashrc", "environment", "csh.cshrc", "csh.login", "launchd.conf"]);
-var SHELL_RUNNERS = new Set(["sh", "bash", "zsh", "dash", "ksh", "mksh", "ash", "source", "."]);
-var SCRIPT_RUNNERS = new Set(["bun", "node", "nodejs", "tsx", "ts-node", "deno", "parallel"]);
-var SHELL_OPTION_WITH_VALUE = new Set(["-o", "+o", "-O", "+O"]);
-var REMOVE_VERBS = new Set(["disable", "uninstall", "remove", "rm", "unlink"]);
-
-// src/core/policy/bash-guard.ts
-var TOP_LEVEL = new Set([
-  "applications",
-  "bin",
-  "boot",
-  "cores",
-  "dev",
-  "etc",
-  "home",
-  "lib",
-  "lib32",
-  "lib64",
-  "libx32",
-  "library",
-  "media",
-  "mnt",
-  "network",
-  "nix",
-  "opt",
-  "private",
-  "proc",
-  "root",
-  "run",
-  "sbin",
-  "snap",
-  "srv",
-  "sys",
-  "system",
-  "tmp",
-  "users",
-  "usr",
-  "var",
-  "volumes"
-]);
-var CRITICAL_SECOND_LEVEL = new Set([
-  "/usr/bin",
-  "/usr/sbin",
-  "/usr/lib",
-  "/usr/libexec",
-  "/usr/local",
-  "/usr/share",
-  "/usr/include",
-  "/opt/homebrew",
-  "/private/etc",
-  "/private/var",
-  "/private/tmp",
-  "/var/lib",
-  "/var/db",
-  "/system/library",
-  "/system/applications",
-  "/library/apple"
-]);
-var HOME_FOLDERS = new Set(["applications", "desktop", "documents", "downloads", "library", "movies", "music", "pictures", "public", ".config", ".ssh", ".gnupg", ".aws"]);
-var DOWNLOADERS = new Set(["curl", "wget", "fetch", "http", "https", "xh", "aria2c"]);
-var OUTPUT_REDIRECTS = new Set([">", ">>", ">|", "&>", "&>>", "<>", ">&"]);
-var DECLARE = new Set(["export", "declare", "typeset", "local", "readonly"]);
-var GIT_GLOBAL_WITH_ARG = new Set(["-C", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--attr-source", "--list-cmds"]);
-var PUSH_LONG_ARG = new Set(["repo", "receive-pack", "exec", "push-option", "recurse-submodules"]);
-var FORCE_FAMILY = new Set(["force", "force-with-lease", "force-if-includes"]);
-var GIT_CONFIG_WITH_ARG = new Set(["-f", "--file", "--blob", "--type", "--default", "--comment", "--value", "--fixed-value"]);
-var patternCache = new Map;
-
-// src/core/policy/consent.ts
-var GRANT_TTL_MS = 20 * 60000;
-var PENDING_TTL_MS = 30 * 60000;
-var GIT_GLOBAL_WITH_ARG2 = new Set(["-c", "-C", "--git-dir", "--work-tree", "--namespace", "--config-env", "--super-prefix", "--attr-source", "--list-cmds"]);
-var GIT_CONFIG_WITH_ARG2 = new Set(["-f", "--file", "--blob", "--type", "--default", "--comment", "--value", "--fixed-value"]);
-var REMOVERS = new Set(["rm", "unlink", "shred", "srm"]);
-var DB_CLIENTS = new Set(["psql", "mysql", "mariadb", "sqlite3", "sqlite", "duckdb", "mongosh", "mongo", "clickhouse-client", "cockroach", "sqlcmd"]);
-
-// src/adapters/shared/consent-store.ts
-init_fsx();
-init_paths();
 
 // src/adapters/shared/consent-dialog.ts
 var ALLOW_ONCE = "Allow once";
@@ -12800,17 +14190,20 @@ function h(type, props, ...children) {
 }
 
 // src/adapters/opencode/runtime/workspace.ts
-init_paths();
 import { basename as basename4, dirname as dirname7 } from "path";
 var WORKSPACE_KEY = Symbol.for("buracle.opencode.workspaces");
-function profileWarning(pluginDir, runtimeSnapshot, home) {
+function profileEnv(pluginDir, home) {
   if (pluginDir === undefined || pluginDir === "")
     return;
   const plugins = dirname7(pluginDir);
   const configDir = dirname7(plugins);
   if (basename4(plugins) !== "plugins" || basename4(configDir) !== "opencode")
     return;
-  return profileGuard("opencode", runtimeSnapshot, { HOME: home, XDG_CONFIG_HOME: dirname7(configDir) });
+  return { HOME: home, XDG_CONFIG_HOME: dirname7(configDir) };
+}
+function profileWarning(pluginDir, runtimeSnapshot, home) {
+  const env = profileEnv(pluginDir, home);
+  return env !== undefined ? profileGuard("opencode", runtimeSnapshot, env) : undefined;
 }
 
 // src/adapters/opencode/runtime/tui.tsx

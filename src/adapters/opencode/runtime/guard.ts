@@ -3,15 +3,13 @@ import { isAbsolute, resolve } from 'node:path'
 import type { BuracleConfig } from '../../../core/config'
 import type { HookId, StopDecision, StopInput } from '../../../core/events'
 import type { SpoolEntry } from '../../../core/memory/spool'
-import { detectSignals, questionAnswered } from '../../../core/policy/index'
-import { answerReceipt, planProgressed, promptInteraction, routeAuditAllowed, stopGuardVerdict, validatePlan } from '../../../core/plan/index'
-import type { PlanDoc, SessionState, StopGuardResult, StopWhy } from '../../../core/plan/index'
+import { planProgressed } from '../../../core/plan/index'
+import type { StopWhy } from '../../../core/plan/index'
 import * as paths from '../../../engine/paths'
-import { loadState, updateState } from '../../../workflow/session-store'
+import { loadState } from '../../../workflow/session-store'
+import { stop, type PipelineDeps } from '../../shared/pipeline/index'
 import type { BackgroundJob } from './background'
 import { waitsInBackground } from './background'
-import type { LedgerStore } from './routing'
-import { auditTurn } from './routing'
 import type { PromptInput } from './types'
 
 const HARNESS = 'opencode' as const
@@ -20,11 +18,6 @@ export const CONTINUE_MARK = 'buracle.continue'
 
 export const HOOK_NAMES: Readonly<Partial<Record<HookId, string>>> = {
   H01: 'guard.bash', H02: 'guard.write', H03: 'route.tools', H08: 'plan.stop', H09: 'plan.question', H11: 'plan.validate', H20: 'consent.gate', H23: 'route.audit',
-}
-
-export function denyMessage(hook: HookId, reason: string): string {
-  const name = HOOK_NAMES[hook]
-  return `[Buracle ${hook}${name ? ` ${name}` : ''}] ${reason}`
 }
 
 export interface GuardChain {
@@ -112,84 +105,51 @@ export interface StopGuardHost {
   isRoot(sid: string): Promise<boolean>
   cwd(sid: string): string
   prompt(input: PromptInput): Promise<unknown>
-  spool(sid: string, entries: SpoolEntry[]): void
+  spool(sid: string, entries: SpoolEntry[]): Promise<void>
   log(level: 'debug' | 'info' | 'warn' | 'error', msg: string, data?: unknown): void
-  readonly ledger: LedgerStore
+  /** Show the user a notice in the session (the notice board the TUI plugin turns into a toast). */
+  notify(sid: string, text: string, variant: 'info' | 'warning'): void
+  /** What the shared pipeline's stop event needs for this session. */
+  deps(sid: string): PipelineDeps
 }
 
 function errText(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
 }
 
-export function recordAnswer(sid: string, result: unknown, now: number): void {
-  if (paths.isValidSessionId(sid) && questionAnswered(result)) updateState(HARNESS, sid, st => answerReceipt(st, now))
+function planText(path: string, cwd: string): string | undefined {
+  try { return readFileSync(isAbsolute(path) ? path : resolve(cwd, path), 'utf8') } catch { return undefined }
 }
 
-export function promptPlanInteraction(sid: string, words: string, opts: { now: number }, logFn: (level: 'warn', msg: string, data?: unknown) => void): string | undefined {
-  let control: 'pause' | 'resume' | 'stop' | null = null
-  try { control = detectSignals(words).control } catch (err) { logFn('warn', 'detectSignals failed', { error: errText(err) }) }
-  try {
-    const before = loadState(HARNESS, sid)
-    if (before.plan === undefined) return promptInteraction(before, control, words, opts).guidance
-    let guidance: string | undefined
-    updateState(HARNESS, sid, st => {
-      const r = promptInteraction(st, control, words, opts)
-      guidance = r.guidance
-      return r.next
-    })
-    return guidance
-  } catch (err) {
-    logFn('warn', 'plan interaction failed', { error: errText(err) })
-    return undefined
-  }
-}
-
+/**
+ * OpenCode has no hook that holds a stopping session, so the guard runs after the turn ended and continues the
+ * session with a queued prompt. The verdict is the shared pipeline's; what stays here is the chain of
+ * continuations OpenCode cannot report (`hookActive`), its rate limit, and the re-prompt.
+ */
 export class StopGuard {
   constructor(private readonly host: StopGuardHost, private readonly settleMs: number) {}
 
-  private planCheck(plan: NonNullable<SessionState['plan']>, cwd: string): PlanDoc {
-    const abs = isAbsolute(plan.path) ? plan.path : resolve(cwd, plan.path)
-    let text: string
-    try { text = readFileSync(abs, 'utf8') } catch { return { exists: false, findings: [] } }
-    if (plan.phase !== 'plan') return { exists: true, findings: [], text }
-    try { return { exists: true, findings: validatePlan(text), text } } catch (e) {
-      this.host.log('warn', 'validatePlan failed (H11 fail-open)', { error: errText(e) })
-      return { exists: true, findings: [], text }
-    }
+  private async say(sid: string, message: string, variant: 'info' | 'warning'): Promise<void> {
+    this.host.notify(sid, message, variant)
+    await this.host.spool(sid, [{ ts: this.host.now(), ev: 'note', excerpt: message }])
   }
 
-  private notice(sid: string, chain: GuardChain, message: string): void {
+  private async runaway(sid: string, chain: GuardChain, why: StopWhy | 'rate', plan: string): Promise<void> {
+    this.host.log('warn', 'stop guard released the session at a runaway cap', { sid, why, chain: chain.chain })
     if (chain.noticed) return
     chain.noticed = true
-    this.say(sid, message)
-  }
-
-  private say(sid: string, message: string): void {
-    this.host.spool(sid, [{ ts: this.host.now(), ev: 'note', excerpt: message }])
-  }
-
-  private runaway(sid: string, chain: GuardChain, why: StopWhy | 'rate', plan: string): void {
-    this.host.log('warn', 'stop guard released the session at a runaway cap', { sid, why, chain: chain.chain })
-    this.notice(sid, chain, runawayNotice(why, plan))
+    await this.say(sid, runawayNotice(why, plan), 'warning')
   }
 
   private async continueSession(sid: string, decision: Extract<StopDecision, { action: 'block' }>, now: number): Promise<boolean> {
     try {
       await this.host.prompt({ sessionID: sid, text: continuationText(decision), delivery: 'queue', metadata: { [CONTINUE_MARK]: true, hook: decision.hook } })
-      this.host.spool(sid, [{ ts: now, ev: 'stop', excerpt: `${decision.hook}: ${decision.reason}`.slice(0, 2000) }])
+      await this.host.spool(sid, [{ ts: now, ev: 'stop', excerpt: `${decision.hook}: ${decision.reason}`.slice(0, 2000) }])
       return true
     } catch (e) {
       this.host.log('warn', 'continuation prompt failed', { sid, hook: decision.hook, error: errText(e) })
       return false
     }
-  }
-
-  private async routeAudit(sid: string, why: StopWhy, fresh: () => boolean, claim: string | undefined, claimed: boolean, now: number): Promise<void> {
-    if (!routeAuditAllowed(why, this.host.cfg().routing.strictness) || !fresh()) return
-    if (!claimed && claim !== undefined && !claimEvent(claim)) return
-    const decision = auditTurn(this.host.ledger, sid)
-    if (decision.action !== 'block' || !fresh()) return
-    if (await this.continueSession(sid, decision, now)) this.host.log('info', 'routing check re-prompted the session', { sid })
   }
 
   async check(sid: string, at: StopSnapshot, claim?: string): Promise<void> {
@@ -205,55 +165,41 @@ export class StopGuard {
     const cfg = this.host.cfg()
     const chain = guardChain(sid)
     const now = this.host.now()
+    const cwd = this.host.cwd(sid)
     const state = cfg.plan.stopGuard ? loadState(HARNESS, sid) : undefined
     const plan = state?.plan
-    if (state === undefined || plan === undefined) {
-      chain.chain = 0
-      await this.routeAudit(sid, cfg.plan.stopGuard ? 'no-plan' : 'disabled', fresh, claim, false, now)
-      return
-    }
-    const cwd = this.host.cwd(sid)
-    const doc = this.planCheck(plan, cwd)
-    chain.continuations = chain.continuations.filter(t => now - t >= 0 && now - t < RATE_WINDOW_MS)
-    if (planProgressed(state, doc.text)) { chain.chain = 0; chain.continuations = []; chain.noticed = false }
-    const chainCap = Math.max(1, cfg.plan.runaway.perChain)
-    if (chain.chain > chainCap || chain.continuations.length >= RATE_MAX) {
-      this.runaway(sid, chain, chain.chain > chainCap ? 'runaway-chain' : 'rate', plan.path)
-      return
+    if (state === undefined || plan === undefined) chain.chain = 0
+    else {
+      chain.continuations = chain.continuations.filter(t => now - t >= 0 && now - t < RATE_WINDOW_MS)
+      if (planProgressed(state, planText(plan.path, cwd))) { chain.chain = 0; chain.continuations = []; chain.noticed = false }
+      const chainCap = Math.max(1, cfg.plan.runaway.perChain)
+      if (chain.chain > chainCap || chain.continuations.length >= RATE_MAX) {
+        await this.runaway(sid, chain, chain.chain > chainCap ? 'runaway-chain' : 'rate', plan.path)
+        return
+      }
     }
     if (claim !== undefined && !claimEvent(claim)) return
-    const input: StopInput = { harness: HARNESS, sessionId: sid, cwd, hookActive: chain.chain > 0, now }
     const session = this.host.session(sid)
+    const input: StopInput = { harness: HARNESS, sessionId: sid, cwd, hookActive: chain.chain > 0, now }
     if (session?.lastAssistantText !== undefined) input.lastMessage = session.lastAssistantText
-    if (session?.agent === 'plan') input.readOnly = true
     if (waitsInBackground(session?.background, session?.lastAssistantText, now)) input.backgroundWait = true
-    let result: StopGuardResult | undefined
-    try {
-      updateState(HARNESS, sid, cur => {
-        const check = cur.plan === undefined ? undefined : cur.plan.path === plan.path && cur.plan.phase === plan.phase ? doc : this.planCheck(cur.plan, cwd)
-        const r = stopGuardVerdict(cur, input, cfg.plan, check)
-        result = r
-        return r.next
-      })
-    } catch (e) {
-      this.host.log('warn', 'stop guard failed (fail-open)', { error: errText(e) })
-      return
-    }
-    const r = result as StopGuardResult | undefined
-    if (r === undefined) return
-    if (r.progressed === true) { chain.chain = 0; chain.continuations = [] }
-    if (r.why === 'runaway-plan' || r.why === 'runaway-chain') this.runaway(sid, chain, r.why, plan.path)
-    if (r.readOnlyNotice === true) this.say(sid, READ_ONLY_NOTICE)
+    let readOnly = false
+    const r = await stop(input, {
+      ...this.host.deps(sid),
+      readOnly: () => session?.agent === 'plan',
+      stopNotice: result => { readOnly = result.readOnlyNotice === true; return undefined },
+    })
+    if (r.failed === true) return
+    if (plan !== undefined && (r.why === 'runaway-plan' || r.why === 'runaway-chain')) await this.runaway(sid, chain, r.why, plan.path)
+    if (readOnly) await this.say(sid, READ_ONLY_NOTICE, 'info')
     const decision = r.decision
-    if (decision.action !== 'block') {
-      await this.routeAudit(sid, r.why, fresh, claim, true, now)
+    if (decision.action !== 'block' || !fresh()) return
+    if (r.blockedBy === 'audit') {
+      if (await this.continueSession(sid, decision, now)) this.host.log('info', 'routing check re-prompted the session', { sid })
       return
     }
-    if (!fresh()) return
     chain.chain++
     chain.continuations.push(now)
-    if (await this.continueSession(sid, decision, now)) {
-      this.host.log('info', 'stop guard continued the session', { sid, hook: decision.hook, chain: chain.chain, why: r.why })
-    }
+    if (await this.continueSession(sid, decision, now)) this.host.log('info', 'stop guard continued the session', { sid, hook: decision.hook, chain: chain.chain })
   }
 }

@@ -10,6 +10,9 @@ import {
   byteLength, captureOff, clipBytes, CONTEXT_BUDGET_BYTES, latestHandoffId, memoryOff, readWorkspace, saveWorkspace, type PipelineDeps,
 } from './types'
 
+/** The note on a memory index that did not fit: the rest is one search away. */
+export const MEMORY_CLIP_NOTE = '\n… (truncated; use memory_search)'
+
 /** What the last compaction left for the restore; `recent` says a compaction was recorded lately, so an empty record is trusted. */
 export interface CompactRecord { handoff?: string, todo?: string[], recent: boolean }
 
@@ -27,6 +30,8 @@ export interface SessionStartPorts {
   /** The profile warning (H17) in words for the model to pass on; absent where the harness shows it to the user itself. */
   profileNote?(finding: string): string
   sessionMaint?(now: number, keep: string[]): void
+  /** The running Buracle's version, where the harness runs a built copy of it; the checkout's by default. */
+  version?(): string | undefined
 }
 
 export interface SessionStartResult extends SessionStartDecision { notice?: NoticeTexts, profile?: string }
@@ -75,7 +80,7 @@ export async function sessionStart(input: SessionStartInput, d: PipelineDeps & S
   const card = await d.step('H15 capability card', '', () => d.capabilityCard())
   const restored = source === 'compact' ? await d.step('H07 restore', '', () => restore(input, d)) : ''
   const notice = source === 'startup' && !sub && !noticesOff(d.hostEnv ?? d.env)
-    ? await d.step('H17 notices', undefined as NoticeTexts | undefined, () => startupNotices(d.ctx.canonical.notices, { version: runtimeVersion(d.ctx.repoRoot), nowMs: now, harness: H }))
+    ? await d.step('H17 notices', undefined as NoticeTexts | undefined, () => startupNotices(d.ctx.canonical.notices, { version: d.version !== undefined ? d.version() : runtimeVersion(d.ctx.repoRoot), nowMs: now, harness: H }))
     : undefined
   const profile = source !== 'startup' ? undefined : await d.step('H17 profile guard', undefined as string | undefined, () => {
     const r = readJsonSafeSync<unknown>(d.ctx.paths.runtimeConfigFile())
@@ -85,7 +90,7 @@ export async function sessionStart(input: SessionStartInput, d: PipelineDeps & S
   const room = CONTEXT_BUDGET_BYTES - byteLength([...before, card].filter(s => s.trim() !== '').join('\n\n')) - 64
   const memory = room <= 400 || memoryOff(d) ? '' : await d.step('H13 memory context', '', async () => {
     const text = (await (await d.memory('contextText'))?.({ cwd, harness: H, nowMs: now, maxBytes: room }))?.trim() ?? ''
-    return clipBytes(text, room)
+    return clipBytes(text, room, MEMORY_CLIP_NOTE)
   })
   if (source === 'startup') await d.step('H16 session maintenance', undefined, () => { (d.sessionMaint ?? ((n, keep) => { sessionMaint(H, n, { keep }) }))(now, [sid]) })
   return {

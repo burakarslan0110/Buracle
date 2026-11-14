@@ -70,7 +70,7 @@ export function reviewProblems(report: SubagentReport, subject: readonly string[
 }
 
 export function reviewNote(report: SubagentReport, problems: readonly string[], first: boolean): string {
-  const what = `Buracle H19 (review.gate): the ${report.agent} report is not valid review JSON (${problems.join('; ')}).`
+  const what = `Buracle H19: the ${report.agent} report is not valid review JSON (${problems.join('; ')}).`
   if (!first) return `${what} It failed twice; check its findings yourself before relying on them.`
   const how = report.sessionID !== undefined ? `with the subagent tool (agent ${report.agent}, sessionID ${report.sessionID})` : `with the subagent tool (agent ${report.agent})`
   return `${what} Continue the reviewer once ${how} and ask it to answer again with exactly one JSON object that follows the output schema in its instructions, with no text or code fence around it.`

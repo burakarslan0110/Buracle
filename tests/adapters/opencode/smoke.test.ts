@@ -260,7 +260,7 @@ describe('opencode smoke (real binary, isolated)', () => {
 
       const s4 = await newSession(server, project)
       await api(server, 'POST', `/api/session/${s4}/prompt`, project, { text: `${REVIEW_MARK} please` })
-      await until(() => provider.requests.some(r => primary(r.body) && JSON.stringify(r.body?.['messages'] ?? []).includes('Buracle H19 (review.gate): the plan-build-review report is not valid review JSON')), 30_000)
+      await until(() => provider.requests.some(r => primary(r.body) && JSON.stringify(r.body?.['messages'] ?? []).includes('Buracle H19: the plan-build-review report is not valid review JSON')), 30_000)
 
       const s5 = await newSession(server, project)
       await api(server, 'POST', `/api/session/${s5}/prompt`, project, { text: `${BUSY_MARK} please start` })
@@ -308,7 +308,7 @@ describe('opencode smoke (real binary, isolated)', () => {
     try {
       const sid = await newSession(server, project)
       const denied = await resultAfter(await prompt(sid, 'PUSH_FIRST please'))
-      expect(denied).toContain('Buracle H20 consent.gate')
+      expect(denied).toContain('Buracle H20: ')
       expect(denied).toContain('call the `question` tool')
       let forms: any[] = []
       for (let i = 0; i < 120 && forms.length === 0; i++) {

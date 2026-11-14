@@ -56,6 +56,8 @@ export interface PipelineDeps {
   spoolSuffix?: string
   realpath?(p: string): string | undefined
   buracleRepo?(cwd: string, ctx: AdapterContext): Promise<string | undefined>
+  /** The bash guard (H01) also protects the Buracle repository the command runs in. */
+  guardRepoInShell?: boolean
   assetsSpawn?: AssetsSpawner
 }
 

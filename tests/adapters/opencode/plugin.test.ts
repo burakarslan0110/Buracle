@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { MEMORY_INJECT } from '../../../src/core/memory/budgets'
+import { CONTEXT_BUDGET_BYTES } from '../../../src/adapters/shared/pipeline/index'
 import { capabilityCard } from '../../../src/core/policy/routing'
 import { CONTINUE_MARK, BuracleRuntime, contextNote, createBuraclePlugin, REGISTRY_KEY, type PluginDeps } from '../../../src/adapters/opencode/runtime/plugin'
 import { clearRepoCache } from '../../../src/adapters/opencode/runtime/adapter-rules'
@@ -255,7 +255,7 @@ describe('opencode server plugin: permission.evaluate guards', () => {
     await f.trigger('tool.execute.before', { tool: 'shell', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_1', input: { command: 'rm -rf /' } })
     const bad = await f.trigger('permission.evaluate', evaluation('shell', ['rm -rf /'], 'call_1'))
     expect(bad.effect).toBe('deny')
-    expect(bad.message).toStartWith('[Buracle H01 guard.bash] ')
+    expect(bad.message).toStartWith('Buracle H01: ')
     const ok = await f.trigger('permission.evaluate', evaluation('shell', ['ls -la']))
     expect(ok.effect).toBe('allow')
     expect(ok.message).toBeUndefined()
@@ -265,7 +265,7 @@ describe('opencode server plugin: permission.evaluate guards', () => {
     const { f } = await runtime(root)
     const held = await f.trigger('permission.evaluate', evaluation('shell', ['git push origin main']))
     expect(held.effect).toBe('deny')
-    expect(held.message).toStartWith('[Buracle H20 consent.gate] ')
+    expect(held.message).toStartWith('Buracle H20: ')
     expect((await f.trigger('permission.evaluate', evaluation('shell', ['git status']))).effect).toBe('allow')
     await f.trigger('session.prompt', { sessionID: SID, messageID: 'msg_p', prompt: { text: 'evet, pushla' }, delivery: 'steer' as const })
     expect((await f.trigger('permission.evaluate', evaluation('shell', ['git push origin main']))).effect).toBe('allow')
@@ -283,7 +283,7 @@ describe('opencode server plugin: permission.evaluate guards', () => {
     const { f } = await runtime(root)
     const secret = await f.trigger('permission.evaluate', evaluation('edit', ['.env']))
     expect(secret.effect).toBe('deny')
-    expect(secret.message).toStartWith('[Buracle H02 guard.write] ')
+    expect(secret.message).toStartWith('Buracle H02: ')
     await f.trigger('tool.execute.before', { tool: 'write', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_3', input: { path: 'src/app.ts', content: 'x' } })
     const plain = await f.trigger('permission.evaluate', evaluation('edit', ['src/app.ts'], 'call_3'))
     expect(plain.effect).toBe('allow')
@@ -311,7 +311,7 @@ describe('opencode server plugin: permission.evaluate guards', () => {
     await f.trigger('tool.execute.before', { tool: 'write', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_t1', input: { path: '~/.ssh/authorized_keys', content: 'ssh-ed25519 AAAA x\n' } })
     const ssh = await f.trigger('permission.evaluate', evaluation('edit', [], 'call_t1'))
     expect(ssh.effect).toBe('deny')
-    expect(ssh.message).toStartWith('[Buracle H02 guard.write] ')
+    expect(ssh.message).toStartWith('Buracle H02: ')
     expect(ssh.message).toContain('`~/.ssh/authorized_keys`')
     const input = { path: '~/notes/todo.md', content: '- x\n' }
     await f.trigger('tool.execute.before', { tool: 'write', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_t2', input })
@@ -393,7 +393,7 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
       await f.trigger('tool.execute.after', after)
       return after.status === 'completed' ? (after.result.content as unknown as Array<{ text: string }>).map(c => c.text).join('\n') : ''
     }
-    expect(await write('call_1', 'run.sh', 'echo $1\n')).toContain('run.sh: shellcheck is not installed, so it did not check this file: run `buracle install`.')
+    expect(await write('call_1', 'run.sh', 'echo $1\n')).toContain('run.sh:\n- shellcheck is not installed, so it did not check this file: run `buracle install`.')
     expect(await write('call_2', 'run.sh', 'echo $1\n')).not.toContain('Buracle checks (H04)')
     expect(await write('call_3', 'src/core/x.ts', 'export const x = 1\n')).not.toContain('Buracle checks (H04)')
   }))
@@ -407,7 +407,7 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
     const after: ToolExecuteAfter = { tool: 'patch', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_p', input, status: 'completed', result: { output: {}, content: [{ type: 'text', text: 'Applied the patch' }] } }
     await f.trigger('tool.execute.after', after)
     const text = after.status === 'completed' ? (after.result.content as unknown as Array<{ text: string }>).map(c => c.text).join('\n') : ''
-    expect(text).toContain('a.sh: shellcheck is not installed')
+    expect(text).toContain('a.sh:\n- shellcheck is not installed')
   }))
 
   test('session.context injects the capability card, the memory context and the H05 warning once (core contextWatch, D5)', () => withSandbox(async ({ root }) => {
@@ -420,9 +420,10 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
     await f.trigger('session.context', ev)
     const texts = ev.system.map(p => p.text)
     expect(texts[0]).toBe('host prompt')
-    expect(texts[1]).toBe(capabilityCard({ policy: baked.routing, mcp: baked.mcp, skills: baked.skills, plugins: baked.plugins, harness: 'opencode' }))
-    expect(texts).toContain(memoryText)
-    expect(mem.contexts).toEqual([{ cwd: root, maxBytes: MEMORY_INJECT.maxBytes }])
+    expect(texts.at(-2)).toBe(capabilityCard({ policy: baked.routing, mcp: baked.mcp, skills: baked.skills, plugins: baked.plugins, harness: 'opencode' }))
+    expect(texts.at(-3)).toBe(memoryText)
+    expect(mem.contexts).toEqual([{ cwd: root, maxBytes: expect.any(Number) }])
+    expect(mem.contexts[0]?.maxBytes).toBeLessThan(CONTEXT_BUDGET_BYTES)
     expect(texts.at(-1)).toBe(contextNote(89, baked.defaults.context) as string)
     const ev2: SessionContextEvent = { ...ev, system: [{ type: 'text', text: 'host prompt' }] }
     await f.trigger('session.context', ev2)
@@ -464,7 +465,7 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
     writeFileSync(join(home, '.ssh', 'authorized_keys'), 'k\n')
     mkdirSync(join(root, 'proj'), { recursive: true })
     symlinkSync(join(home, '.ssh'), join(root, 'proj', 'cfg'))
-    const ctx = rt.writeContext(join(root, 'proj'), testBaked().defaults) as unknown as { realpath?: (p: string) => string | undefined }
+    const ctx = await rt.writeContext(join(root, 'proj')) as unknown as { realpath?: (p: string) => string | undefined }
     expect(ctx.realpath?.(join(root, 'proj', 'cfg', 'config'))).toBe(join(home, '.ssh', 'config'))
   }))
 
@@ -672,7 +673,7 @@ describe('opencode server plugin: stage-B contract rules', () => {
     const { f, baked } = await runtime(root)
     const first = ctxEvent()
     await f.trigger('session.context', first)
-    const card = first.system[0]?.text ?? ''
+    const card = first.system.at(-1)?.text ?? ''
     expect(card.split('\n').length).toBeLessThanOrEqual(30)
     expect(card).not.toContain('invoke as /<id>')
     expect(card).not.toContain('tool search')
@@ -684,7 +685,7 @@ describe('opencode server plugin: stage-B contract rules', () => {
     await f.trigger('session.context', ev)
     const healthy = baked.mcp.filter(m => m.id !== 'semble')
     expect(healthy.some(m => m.id === 'grep')).toBe(true)
-    expect(ev.system[0]?.text).toBe(capabilityCard({ policy: baked.routing, mcp: healthy, skills: baked.skills, plugins: baked.plugins, harness: 'opencode' }))
+    expect(ev.system.at(-1)?.text).toBe(capabilityCard({ policy: baked.routing, mcp: healthy, skills: baked.skills, plugins: baked.plugins, harness: 'opencode' }))
   }))
 
   test('BURACLE_NO_CAPTURE: a session that starts with capture off gets no spool, stub note or finalizer', () => withSandbox(async ({ root }) => {
@@ -754,14 +755,14 @@ describe('opencode server plugin: stage-B contract rules', () => {
     expect(denied.effect).toBe('deny')
     expect(denied.message).toContain('buracle build')
     expect((await inRepo.f.trigger('permission.evaluate', evaluation('edit', [join(repo, 'src', 'x.ts')]))).effect).toBe('allow')
-    expect(inRepo.rt.writeContext(join(repo, 'src'), testBaked().defaults).buracleRepo).toBe(repo)
+    expect((await inRepo.rt.writeContext(join(repo, 'src'))).buracleRepo).toBe(repo)
 
     const other = join(root, 'other')
     mkdirSync(join(other, '.git'), { recursive: true })
     writeFileSync(join(other, 'package.json'), JSON.stringify({ name: 'other' }))
     const plain = await runtime(other)
     expect((await plain.f.trigger('permission.evaluate', evaluation('edit', [join(other, 'harness', 'next', 'x.md')]))).effect).toBe('allow')
-    expect(plain.rt.writeContext(other, testBaked().defaults).buracleRepo).toBeUndefined()
+    expect((await plain.rt.writeContext(other)).buracleRepo).toBeUndefined()
 
     writeRuntimeConfig(c => c, { repoRoot: other })
     clearRepoCache()
@@ -854,6 +855,7 @@ describe('H28 project assets on OpenCode', () => {
     expect(out).toContain('.claude/rules/web.md is not in AGENTS.md')
     clock += 31_000
     await rt.handleEvent({ type: 'session.execution.succeeded', data: { sessionID: SID } })
+    await rt.idle()
     expect(spawned).toEqual([`project sync --auto --quiet @ ${repo}`, `project sync --auto --quiet @ ${repo}`])
     rt.dispose()
     clearAssetsContextCache()
