@@ -7158,6 +7158,7 @@ __export(exports_core, {
   LANE_PLAN_COMMANDS: () => LANE_PLAN_COMMANDS,
   LANE_WORKTREE_COMMANDS: () => LANE_WORKTREE_COMMANDS,
   LIVE_KINDS: () => LIVE_KINDS,
+  MASK_MAX_CHARS: () => MASK_MAX_CHARS,
   MCP_BACKENDS: () => MCP_BACKENDS,
   MCP_SESSION_DOWN_ERRORS: () => MCP_SESSION_DOWN_ERRORS,
   MEM_HEALTH_LIMITS: () => MEM_HEALTH_LIMITS,
@@ -7432,7 +7433,10 @@ __export(exports_core, {
   looksLikePlan: () => looksLikePlan,
   lowerWordToken: () => lowerWordToken,
   markNotesDone: () => markNotesDone,
+  maskNotice: () => maskNotice,
   maskSecrets: () => maskSecrets,
+  maskToolOutput: () => maskToolOutput,
+  masksToolKind: () => masksToolKind,
   matchPathRules: () => matchPathRules,
   matchesCatastrophicRule: () => matchesCatastrophicRule,
   mcpCatalogOf: () => mcpCatalogOf,
@@ -11279,458 +11283,6 @@ function memShortSid(sid) {
   const alnum = sid.replace(/[^A-Za-z0-9]/g, "").toLowerCase();
   return alnum.length <= 6 ? alnum === "" ? "x" : alnum : alnum.slice(-6);
 }
-var REF = String.raw`(?!\[REDACTED)(?!\$\{?[A-Za-z_])(?!\$\()(?!\{\{)(?!<[A-Za-z_])(?!process\.env)(?!os\.environ)`;
-var TR_LETTERS = "\xE7\u011F\u0131\xF6\u015F\xFC\xC7\u011E\u0130\xD6\u015E\xDC";
-var BARE_PASS = String.raw`(?:(?<=[A-Za-z0-9][_.-])|(?<=(?:^|[\n{,["'])[ \t]*))(?:pass|pwd)(?![A-Za-z])`;
-var KEY_WORDS = String.raw`api[_-]?key|apikey|secret|token(?!i[sz](?:e|ation))|password|passwd|pass[_-]?phrase|${BARE_PASS}|access[_-]?key|account[_-]?key|shared[_-]?access[_-]?key|private[_-]?key|client[_-]?secret|auth(?!or(?!iz)|enticat(?:ion|ed))|credentials?`;
-var TR_WORDS = String.raw`[\u015Fs\u015ES][i\u0130\u0131I]fre|parola|g[i\u0130\u0131I]zl[i\u0130\u0131I](?:[ _-]?anahtar)?|anahtar|jeton`;
-var PASS_WORDS = String.raw`password|passwd|pass[_-]?phrase|[\u015Fs\u015ES][i\u0130\u0131I]fre|parola|g[i\u0130\u0131I]zl[i\u0130\u0131I][ _-]?anahtar`;
-var KEY_SUFFIX = `[A-Za-z0-9_${TR_LETTERS}]{0,32}`;
-var WORD_START = `(?<![A-Za-z0-9_${TR_LETTERS}])`;
-var ARG = String.raw`(?![-<>|&;()])(?:[^\s'"]{1,512}|'[^'\n]{0,512}'|"[^"\n]{0,512}")`;
-var PASS_RE = new RegExp(PASS_WORDS, "i");
-var URL_GENERIC_PARAMS = String.raw`key|sig|signature|x-amz-signature|x-goog-signature|hmac`;
-var URL_SECRET_PARAMS = String.raw`api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|token|x-amz-security-token|client[_-]?secret|secret|password|passwd|pwd|auth`;
-var URL_GENERIC_RE = new RegExp(String.raw`^[?&](?:${URL_GENERIC_PARAMS})=$`, "i");
-var PROSE_LINK = String.raw`(?:is|was|is[ \t]+now|set[ \t]+to|olarak|ise)`;
-var PHRASE_WORD = String.raw`[\p{L}\p{N}][\p{L}\p{N}'\u2019-]{0,39}`;
-var CODE_WORDS = /^(?:if|else|elif|return|await|typeof|instanceof|lambda|null|none|nil|undefined|function|def)$/i;
-var TYPE_WORDS = /^(?:string|str|int|integer|number|bool|boolean|text|varchar|char|bytes|required|optional|any|unknown|hidden|masked)$/i;
-function passphrase(value, keySuffix) {
-  if (!/^(?:[a-z\u00E7\u011F\u0131\u00F6\u015F\u00FC]{0,4}|\d{1,2})$/.test(keySuffix))
-    return false;
-  const words = value.split(/[ \t]+/);
-  if (words.some((w) => PASS_RE.test(w) || CODE_WORDS.test(w)) || TYPE_WORDS.test(words[0] ?? ""))
-    return false;
-  return words.join("").length >= 8;
-}
-var unquote = (v) => /^(["']).*\1$/s.test(v) ? v.slice(1, -1) : v;
-var isRef = (v) => /^(?:\[REDACTED|\$\{?[A-Za-z_]|\$\(|\{\{|<[A-Za-z_]|process\.env|os\.environ)/.test(v);
-var has = (m, i) => m[i] ?? "";
-var secretArg = (v) => {
-  const u = unquote(v);
-  return u !== "" && !isRef(u);
-};
-function isBasicCredential(b64) {
-  try {
-    const raw = atob(b64);
-    return /^[^:\s]{0,256}:\S/.test(raw) && !/[\x00-\x08\x0e-\x1f]/.test(raw);
-  } catch {
-    return false;
-  }
-}
-var RULES = [
-  { kind: "pem", re: /-----BEGIN [A-Z0-9 ]*PRIVATE KEY[A-Z ]*-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY[A-Z ]*-----|$)/g },
-  { kind: "anthropic", re: /\bsk-ant-[A-Za-z0-9_-]{16,}/g },
-  { kind: "openai", re: /\bsk-(?!ant-)(?:proj-|svcacct-|admin-)?[A-Za-z0-9_-]{20,}/g },
-  { kind: "github", re: /\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{22,})/g },
-  { kind: "gitlab", re: /\bgl(?:pat|dt|ptt|rt|cbt|oas|ft|imt|agent|soat|ffct)-[A-Za-z0-9_.-]{20,}/g },
-  { kind: "aws", re: /\b(?:AKIA|ASIA)[0-9A-Z]{16}(?![0-9A-Z])/g },
-  { kind: "slack", re: /\b(?:xox[abposre]|xapp)-[A-Za-z0-9-]{10,}/g },
-  { kind: "slack", re: /https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9/_-]{20,}/g },
-  { kind: "google", re: /\bAIza[0-9A-Za-z_-]{35}/g },
-  { kind: "stripe", re: /\b[rs]k_(?:live|test)_[A-Za-z0-9]{16,}/g },
-  { kind: "npm", re: /\bnpm_[A-Za-z0-9]{36}\b/g },
-  { kind: "twilio", re: /\bSK[0-9a-f]{32}\b/g },
-  { kind: "sendgrid", re: /\bSG\.[A-Za-z0-9_-]{16,32}\.[A-Za-z0-9_-]{16,64}/g },
-  { kind: "huggingface", re: /\bhf_[A-Za-z0-9]{30,}/g },
-  { kind: "jwt", re: /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g },
-  {
-    kind: "url-password",
-    re: /(?<![A-Za-z0-9+.-])([a-z][a-z0-9+.-]{0,30}:\/\/[^\s:@/]{1,256}:)(\S{1,256}?)(?=@[A-Za-z0-9.-]{1,253}(?::\d{1,5})?(?:[/?#\s"'`)>\]}]|$))/gi,
-    keep: (m) => {
-      const pw = has(m, 2);
-      return isRef(pw) || /^\d{1,5}(?:\/|$)/.test(pw) ? undefined : { prefix: has(m, 1), suffix: "" };
-    }
-  },
-  {
-    kind: "url-param",
-    re: new RegExp(String.raw`([?&](?:${URL_GENERIC_PARAMS}|${URL_SECRET_PARAMS})=)${REF}([^&#\s"'<>\`]{6,1024})`, "gi"),
-    keep: (m) => {
-      const v = has(m, 2);
-      const ok = URL_GENERIC_RE.test(has(m, 1)) ? randomValue(v) : looksLikeSecretValue(v) && !TEMPLATE.test(v);
-      return ok ? { prefix: has(m, 1), suffix: "" } : undefined;
-    }
-  },
-  {
-    kind: "bearer",
-    re: new RegExp(String.raw`\b([Bb]earer\s+)${REF}([A-Za-z0-9._~+/-]{12,}=*)`, "g"),
-    keep: (m) => /[0-9]/.test(has(m, 2)) || /[._~+/-]/.test(has(m, 2)) ? { prefix: has(m, 1), suffix: "" } : undefined
-  },
-  {
-    kind: "basic-auth",
-    re: new RegExp(String.raw`\b((?:proxy-)?authorization["']?[ \t]{0,8}[:=][ \t]{0,8}["']?basic[ \t]+)${REF}([A-Za-z0-9+/=._~-]{4,})`, "gi"),
-    keep: (m) => ({ prefix: has(m, 1), suffix: "" })
-  },
-  {
-    kind: "basic-auth",
-    re: new RegExp(String.raw`\b((?:proxy-)?authorization["']?[ \t]{0,8}[:=][ \t]{0,8}["']?(?:digest|ntlm|negotiate)[ \t]+)${REF}([^\r\n'"]{1,4096}(?:"[^"\r\n]{0,1024}"[^\r\n'"]{0,4096}){0,32})`, "gi"),
-    keep: (m) => has(m, 2).trim().length >= 4 ? { prefix: has(m, 1), suffix: "" } : undefined
-  },
-  {
-    kind: "basic-auth",
-    re: new RegExp(String.raw`\b(Basic[ \t]+)${REF}([A-Za-z0-9+/]{8,}={0,2})(?![A-Za-z0-9+/=])`, "g"),
-    keep: (m) => isBasicCredential(has(m, 2)) ? { prefix: has(m, 1), suffix: "" } : undefined
-  },
-  {
-    kind: "cli-flag",
-    re: new RegExp(String.raw`(\b(?:mysql|mariadb|mysqldump|mysqladmin|mysqlimport|mysqlcheck|mysqlshow|mysqlpump|mysqlsh|mariadb-dump|mariadb-admin)\b[^\n|;&]{0,300}?[ \t]-p)${REF}(${ARG})`, "g"),
-    keep: (m) => secretArg(has(m, 2)) ? { prefix: has(m, 1), suffix: "" } : undefined
-  },
-  {
-    kind: "cli-flag",
-    re: new RegExp(String.raw`(\b(?:sshpass|(?:docker|podman|nerdctl|helm|buildah|skopeo|oras)\b[^\n|;&]{0,200}?\blogin)\b[^\n|;&]{0,200}?[ \t]-p[ \t]*)${REF}(${ARG})`, "g"),
-    keep: (m) => secretArg(has(m, 2)) ? { prefix: has(m, 1), suffix: "" } : undefined
-  },
-  {
-    kind: "cli-flag",
-    re: new RegExp(String.raw`((?<![^\s"'=])--(?:[A-Za-z0-9]{1,20}-){0,3}(?:password|passwd|pass|passphrase|pwd|secret|token|api-?key|access-?key|secret-?key|private-?key|client-?secret|credentials?)(?:=|[ \t]+))${REF}(${ARG})`, "gi"),
-    keep: (m) => secretArg(has(m, 2)) && !isPlainValue(unquote(has(m, 2))) ? { prefix: has(m, 1), suffix: "" } : undefined
-  },
-  {
-    kind: "cli-flag",
-    re: new RegExp(String.raw`((?<![^\s"'])-pass(?:in|out)?[ \t]+pass:)${REF}(\S{1,512})`, "g"),
-    keep: (m) => ({ prefix: has(m, 1), suffix: "" })
-  },
-  {
-    kind: "cli-flag",
-    re: new RegExp(String.raw`((?<![^\s"'=])(?:-u|-U|--user|--proxy-user)(?:=|[ \t]*)(["']?)[^\s:'"@/]{1,128}:)${REF}([^\s'"]{1,256})(?=\2)`, "g"),
-    keep: (m) => looksLikeSecretValue(has(m, 3), 4) ? { prefix: has(m, 1), suffix: "" } : undefined
-  },
-  {
-    kind: "netrc",
-    re: new RegExp(String.raw`(\b(?:machine[ \t]+\S{1,256}|default)\s{1,16}login\s{1,16}\S{1,256}\s{1,16}password\s{1,16})${REF}(\S{1,512})`, "g"),
-    keep: (m) => ({ prefix: has(m, 1), suffix: "" })
-  },
-  {
-    kind: "secret",
-    re: new RegExp(String.raw`((?:${KEY_WORDS}|${TR_WORDS})${KEY_SUFFIX}["']?\s{0,32}[:=]\s{0,32}(["']))${REF}((?:(?!\2)[^\r\n\\]|\\.){1,1024}?)\2`, "gi"),
-    keep: (m) => !countKey(m) && quotedSecret(has(m, 3), has(m, 1)) ? { prefix: has(m, 1), suffix: has(m, 2) } : undefined
-  },
-  {
-    kind: "secret",
-    re: new RegExp(String.raw`((?:${PASS_WORDS})(${KEY_SUFFIX})["']?[ \t]{0,32}[:=][ \t]{0,32})${REF}(${PHRASE_WORD}(?:[ \t]{1,4}${PHRASE_WORD}){1,15})(?=[ \t]*(?:[.,;!?\u2026#)\]}]|\r?$))`, "gimu"),
-    keep: (m) => passphrase(has(m, 3), has(m, 2)) ? { prefix: has(m, 1), suffix: "" } : undefined
-  },
-  {
-    kind: "secret",
-    re: new RegExp(String.raw`((?:${KEY_WORDS}|${TR_WORDS})${KEY_SUFFIX}["']?\s{0,32}[:=]\s{0,32}["'\`]?)${REF}([^\s"'\`,;]{6,})`, "gi"),
-    keep: (m) => unquotedSecret(m) ? { prefix: has(m, 1), suffix: "" } : undefined
-  },
-  {
-    kind: "secret",
-    re: new RegExp(String.raw`${WORD_START}((?:${PASS_WORDS})${KEY_SUFFIX}[ \t]{1,8}(?:${PROSE_LINK}[ \t]{1,8})?)${REF}(["'][^"'\r\n]{4,256}["']|[^\s"'<>(){}[\]]{6,256})`, "gi"),
-    keep: (m) => {
-      const v = has(m, 2);
-      if (/^["']/.test(v))
-        return quotedSecret(unquote(v), has(m, 1)) ? { prefix: `${has(m, 1)}${v[0]}`, suffix: v.slice(-1) } : undefined;
-      const tail = /[.,;:!?]+$/.exec(v)?.[0] ?? "";
-      const core = v.slice(0, v.length - tail.length);
-      if (isRef(core.replace(/^`|`$/g, "")))
-        return;
-      return core.length >= 6 && !isPlainValue(core) && /[0-9!@#$%^&*+=?~|]/.test(core) ? { prefix: has(m, 1), suffix: tail } : undefined;
-    }
-  },
-  {
-    kind: "secret",
-    re: new RegExp(String.raw`${WORD_START}((?:secret|token|(?:api|signing|secret|private|access|encryption|hmac|master|webhook|license)[ _-]?key|${PASS_WORDS})${KEY_SUFFIX}[ \t]{1,8}(?:${PROSE_LINK}[ \t]{1,8})?)${REF}([0-9a-fA-F]{32,256})(?![0-9A-Za-z_])`, "gi"),
-    keep: (m) => ({ prefix: has(m, 1), suffix: "" })
-  },
-  {
-    kind: "env",
-    re: new RegExp(String.raw`^([ \t]*(?:export[ \t]+)?[A-Z][A-Z0-9_]{0,63}(?:KEY|SECRET|TOKEN(?!I[SZ](?:E|ATION))|PASSWORD|PASSWD|(?<![A-Z])(?:PASS|PWD)(?![A-Z])|CREDENTIALS?|AUTH(?!OR(?!IZ)|ENTICAT(?:ION|ED))|DSN|PRIVATE|SIFRE|PAROLA)[A-Z0-9_]{0,63}[ \t]*=[ \t]*)${REF}(?!["']?\s*$)(\S.*)$`, "gm"),
-    keep: (m) => {
-      const v = has(m, 2).replace(/^["']|["']$/g, "");
-      if (isPlainValue(v) || isRef(v) || /\$\{[A-Za-z_]/.test(v))
-        return;
-      if (/[ \t]=/.test(has(m, 1)) && codeValue(v, PASS_RE.test(has(m, 1))))
-        return;
-      return { prefix: has(m, 1), suffix: "" };
-    }
-  },
-  {
-    kind: "secret",
-    re: new RegExp(String.raw`${WORD_START}((?:[A-Za-z][A-Za-z0-9]{0,31}[_-]){1,4}(?:key|KEY|Key)|[a-z][A-Za-z0-9]{0,31}Key)(["']?[ \t]{0,8}[:=][ \t]{0,8}["'\`]?)${REF}([A-Za-z0-9+/=_.~-]{6,256})(?![A-Za-z0-9+/=_.~-])`, "g"),
-    keep: (m) => !NOT_SECRET_KEY.test(has(m, 1).toLowerCase().replace(/[^a-z0-9]/g, "")) && randomValue(has(m, 3)) ? { prefix: has(m, 1) + has(m, 2), suffix: "" } : undefined
-  },
-  {
-    kind: "aws",
-    re: /(?<![A-Za-z0-9/+=])[A-Za-z0-9/+]{40}(?![A-Za-z0-9/+=])/g,
-    keep: (m) => looksLikeAwsSecret(m[0]) ? { prefix: "", suffix: "" } : undefined
-  }
-];
-function isPlainValue(v) {
-  if (/^[-+]?\d+(?:_\d+)*(?:[.,]\d+(?:_\d+)*)?[kKmM%]?$/.test(v))
-    return true;
-  if (/^(?:true|false|yes|no|on|off|null|none)$/i.test(v))
-    return true;
-  return /^(?:[a-z][a-z0-9+.-]*:\/\/|\/|\.{1,2}\/|~\/)/i.test(v);
-}
-var IDENT = "[A-Za-z_$][A-Za-z0-9_$]*";
-var PATH_HEAD = new RegExp(String.raw`^${IDENT}(?:\??\.${IDENT}|\[[^\]\s]{0,64}\]|!)*`);
-var IDENTS = new RegExp(IDENT, "g");
-var COMPOUND_NAME = /^(?:[a-z]{2,}|[A-Z][a-z]{2,})(?:[A-Z][a-z]{2,})+$/;
-var CONSTANT_NAME = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/;
-var TEMPLATE = /\$\{[A-Za-z_]|<[A-Za-z_][\w.-]{0,32}>/;
-var CREDENTIAL_FIELD = /pass|pwd?|secret|token|key|cred|auth|[\u015Fs]ifre|parola/i;
-var COUNT_KEY = /(?:input|output|max|min|total|prompt|completion|reasoning|thinking|context|cache|cached|read|write|creation|num|used|remaining|reserved)tokens?$|^tokens?(?:count|used|limit|budget|usage|total|estimate)$/;
-function readsAsWords(id) {
-  if (/^[A-Za-z_$]{1,4}$/.test(id))
-    return true;
-  let letters = 0;
-  let words = 0;
-  for (const part of id.split(/[_$]+/)) {
-    if (/^\d*$/.test(part))
-      continue;
-    for (const w of part.match(/[A-Z]+(?![a-z])\d*|[A-Z]?[a-z]+\d*|\d+/g) ?? []) {
-      const l = w.replace(/\d+$/, "").length;
-      if (l < 2 && l !== w.length)
-        return false;
-      letters += l;
-      words++;
-    }
-  }
-  return words > 0 && letters / words >= 2.5;
-}
-function codeValue(v, strict, after = "") {
-  if (/^[[{(]/.test(v) || TEMPLATE.test(v))
-    return true;
-  const head = PATH_HEAD.exec(v)?.[0] ?? "";
-  if (head === "")
-    return false;
-  const names = head.match(IDENTS) ?? [];
-  if (!names.every(readsAsWords))
-    return false;
-  const rest = v.slice(head.length);
-  const call = rest.startsWith("(");
-  const type = head.endsWith("[]") || /^<[A-Za-z_$]/.test(rest);
-  const path = /[.[!]/.test(head);
-  if (!call && !type && !path) {
-    const name = COMPOUND_NAME.test(head) || CONSTANT_NAME.test(head) && !/_\d+(?=_|$)/.test(head);
-    return !strict && /^[)\]}>]*$/.test(rest) && name;
-  }
-  if (type)
-    return true;
-  const lower = /^[a-z_$]/.test(head);
-  if (call)
-    return !strict || lower;
-  if (/^(?:this|self)\b/.test(head) || CREDENTIAL_FIELD.test(names[names.length - 1] ?? ""))
-    return !strict || lower;
-  if (strict)
-    return false;
-  return names.length < 3 || /[?![]/.test(head) || names.some((n) => /[a-z0-9][A-Z]|[_$]/.test(n)) || CODE_AFTER.test(rest !== "" ? rest : after);
-}
-var CODE_AFTER = /^[ \t]*(?:[,;)\]}>]|\?\?|\|\||&&|[=!]==?|\?[ \t]|\+[ \t])/;
-function keyOf(m) {
-  let start = m.index;
-  while (start > 0 && m.index - start < 64 && /[A-Za-z0-9_$-]/.test(m.input[start - 1] ?? ""))
-    start--;
-  return m.input.slice(start, m.index) + (/^[^\s"':=]*/.exec(m[0])?.[0] ?? "");
-}
-var countKey = (m) => COUNT_KEY.test(keyOf(m).toLowerCase().replace(/[^a-z]/g, ""));
-function unquotedSecret(m) {
-  const v = has(m, 2);
-  const prefix = has(m, 1);
-  const core = v.replace(/[)\]}>:]+$/, "");
-  if (countKey(m) || isPlainValue(core) || /\$\{[A-Za-z_]/.test(v))
-    return false;
-  const envStyle = /^[A-Z][A-Z0-9_]*$/.test(keyOf(m)) && /\S=["'`]?$/.test(prefix);
-  const end = m.index + m[0].length;
-  const after = /^[^\r\n]*/.exec(m.input.slice(end, end + 8))?.[0] ?? "";
-  if (!envStyle && codeValue(v, PASS_RE.test(prefix), after))
-    return false;
-  if (core.length < 8) {
-    const passLike = PASS_RE.test(prefix) || /(?:^|[^a-z])(?:pass|pwd)(?:[^a-z]|$)/i.test(keyOf(m));
-    return passLike ? /[0-9!@#$%^&*+=?~|]/.test(core) : randomValue(core);
-  }
-  return looksLikeSecretValue(core);
-}
-function looksLikeSecretValue(v, minLength = 1) {
-  if (v.length < minLength || isPlainValue(v))
-    return false;
-  if (v.length >= 20)
-    return true;
-  if (/[0-9]/.test(v))
-    return true;
-  if (/[a-z]/.test(v) && /[A-Z]/.test(v))
-    return true;
-  return /[^A-Za-z]/.test(v);
-}
-var wordRun = (r) => /^\d+$/.test(r) || /^[A-Za-z]{1,3}\d{0,3}$/.test(r) || readsAsWords(r);
-function randomValue(v) {
-  if (v.length < 6 || isPlainValue(v) || /^v?\d+(?:[._-]\d+)+$/i.test(v))
-    return false;
-  if (!/[A-Za-z]/.test(v) || !/[0-9]/.test(v) && !(/[a-z]/.test(v) && /[A-Z]/.test(v)))
-    return false;
-  return !v.split(/[^A-Za-z0-9]+/).filter((r) => r !== "").every(wordRun);
-}
-var NOT_SECRET_KEY = /(?:primary|foreign|sort|sorting|order|partition|range|hash|cache|public|pub|group|lookup|map|row|index|unique|composite|natural|shard|routing|dedupe?|object|i18n|translation|react|list|query|field|column|attr|attribute|record|table|item|state|store|config|settings?|message|event|idempotency|hot|shortcut|search|label|name|lang|locale)key$/;
-function quotedSecret(v, prefix) {
-  const t = v.trim();
-  if (t === "" || isPlainValue(t) || isRef(t) || TEMPLATE.test(t))
-    return false;
-  const pass = PASS_RE.test(prefix);
-  if (/\s/.test(t))
-    return t.length >= 6 && pass;
-  return t.length >= 6 && looksLikeSecretValue(t);
-}
-function looksLikeAwsSecret(tok) {
-  if (!/[/+]/.test(tok) || !/[A-Z]/.test(tok) || !/[a-z]/.test(tok) || !/[0-9]/.test(tok))
-    return false;
-  if (/^(?:\/|~\/|\.\.?\/)/.test(tok))
-    return false;
-  const segs = tok.split("/").filter((s) => s !== "");
-  const wordish = segs.filter((s) => PATH_SEGMENT.test(s)).length;
-  return !(segs.length >= 2 && wordish * 3 >= segs.length * 2);
-}
-var HIGH_ENTROPY = /[A-Za-z0-9+/=_-]{32,}/g;
-var INTEGRITY_HASH = /^(?:sha(?:1|224|256|384|512)|md5)-[A-Za-z0-9+/_-]+={0,2}$/i;
-var HASH_LABEL = /(?:^|[^A-Za-z0-9])(?:h1|sha(?:1|224|256|384|512)|md5):$/i;
-var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-var WORDISH = "(?:[a-z0-9]+|[A-Z][a-z0-9]*)";
-var PATH_SEGMENT = new RegExp(`^${WORDISH}(?:[-_.]${WORDISH})*$`);
-function entropy(s) {
-  const counts = new Map;
-  for (const c of s)
-    counts.set(c, (counts.get(c) ?? 0) + 1);
-  let h = 0;
-  for (const n of counts.values()) {
-    const p = n / s.length;
-    h -= p * Math.log2(p);
-  }
-  return h;
-}
-function switchRate(s) {
-  const cls = (c) => c >= "a" && c <= "z" ? 0 : c >= "A" && c <= "Z" ? 1 : c >= "0" && c <= "9" ? 2 : 3;
-  let switches = 0;
-  for (let i = 1;i < s.length; i++)
-    if (cls(s[i]) !== cls(s[i - 1]))
-      switches++;
-  return s.length > 1 ? switches / (s.length - 1) : 0;
-}
-function memLooksRandom(tok) {
-  if (tok.length < 32)
-    return false;
-  if (/^[0-9a-f]+$/i.test(tok))
-    return false;
-  if (UUID.test(tok))
-    return false;
-  if (!/[0-9]/.test(tok) || !/[A-Za-z]/.test(tok))
-    return false;
-  if (tok.includes("/")) {
-    if (/^(?:\/|~\/|\.\.?\/)/.test(tok))
-      return false;
-    const segs = tok.split("/").filter((s) => s !== "");
-    const wordish = segs.filter((s) => PATH_SEGMENT.test(s)).length;
-    if (segs.length >= 2 && wordish * 3 >= segs.length * 2)
-      return false;
-  }
-  const h = entropy(tok);
-  const lower = !/[A-Z]/.test(tok);
-  if (lower) {
-    if (/[-_]/.test(tok) && tok.split(/[-_]/).every((p) => p.length <= 12 || /^[a-z]+$/.test(p) || /^[0-9]+$/.test(p)))
-      return false;
-    const digits = (tok.match(/[0-9]/g) ?? []).length / tok.length;
-    return h >= 4 && digits >= 0.15;
-  }
-  const upperOnly = !/[a-z]/.test(tok);
-  if (upperOnly) {
-    if (/_/.test(tok) && tok.split("_").every((p) => p.length <= 12))
-      return false;
-    return h >= 4 && switchRate(tok) >= 0.15;
-  }
-  return h >= 4 && switchRate(tok) >= 0.42;
-}
-var PRIVATE_TAG = /<(\/?)[p]rivate>/gi;
-var TAG_MENTION = /[`'"/\\]/;
-var PLACEHOLDER = /^\s*(?:\u2026|\.{3})?\s*$/;
-function redactPrivate(text) {
-  const tags = [];
-  PRIVATE_TAG.lastIndex = 0;
-  for (let t = PRIVATE_TAG.exec(text);t !== null; t = PRIVATE_TAG.exec(text))
-    tags.push({ at: t.index, end: t.index + t[0].length, close: t[1] === "/" });
-  if (tags.length === 0)
-    return { text, count: 0 };
-  const nextClose = new Array(tags.length).fill(-1);
-  for (let i = tags.length - 1, c = -1;i >= 0; i--) {
-    if (tags[i]?.close)
-      c = i;
-    nextClose[i] = c;
-  }
-  let out = "";
-  let pos = 0;
-  let count = 0;
-  for (let i = 0;i < tags.length; i++) {
-    const open = tags[i];
-    if (open.close || open.at < pos)
-      continue;
-    const mention = open.at > 0 && TAG_MENTION.test(text[open.at - 1] ?? "");
-    const c = nextClose[i + 1] ?? -1;
-    const close = c >= 0 ? tags[c] : undefined;
-    if (!close) {
-      if (mention)
-        continue;
-      out += `${text.slice(pos, open.at)}[REDACTED:private]`;
-      pos = text.length;
-      count++;
-      break;
-    }
-    const innerOpen = tags[i + 1]?.close === false;
-    if (PLACEHOLDER.test(text.slice(open.end, close.at)) || mention && innerOpen)
-      continue;
-    out += `${text.slice(pos, open.at)}[REDACTED:private]`;
-    pos = close.end;
-    count++;
-  }
-  return { text: count === 0 ? text : out + text.slice(pos), count };
-}
-function redact(text) {
-  const priv = redactPrivate(text);
-  let out = priv.text;
-  let count = priv.count;
-  const kinds = new Set(count > 0 ? ["private"] : []);
-  for (const rule of RULES) {
-    rule.re.lastIndex = 0;
-    out = out.replace(rule.re, (...args) => {
-      const match = args[0];
-      if (!rule.keep) {
-        count++;
-        kinds.add(rule.kind);
-        return `[REDACTED:${rule.kind}]`;
-      }
-      const groups = args.slice(1, -2).map((g) => typeof g === "string" ? g : undefined);
-      const m = Object.assign([match, ...groups], { index: args[args.length - 2], input: args[args.length - 1] });
-      const kept = rule.keep(m);
-      if (!kept)
-        return match;
-      count++;
-      kinds.add(rule.kind);
-      return `${kept.prefix}[REDACTED:${rule.kind}]${kept.suffix}`;
-    });
-  }
-  out = out.replace(HIGH_ENTROPY, (tok, offset, whole) => {
-    const before = offset > 0 ? whole[offset - 1] ?? "" : "";
-    const after = whole[offset + tok.length] ?? "";
-    if (/[A-Za-z0-9]/.test(before) || /[A-Za-z0-9]/.test(after))
-      return tok;
-    const dotFolder = before === "." && whole[offset - 2] === "/" && tok.includes("/");
-    if (INTEGRITY_HASH.test(tok) || HASH_LABEL.test(whole.slice(Math.max(0, offset - 8), offset)))
-      return tok;
-    if (!memLooksRandom(dotFolder ? `/${tok}` : tok))
-      return tok;
-    count++;
-    kinds.add("entropy");
-    return "[REDACTED:entropy]";
-  });
-  return { text: out, count, kinds: [...kinds].sort() };
-}
-var MEM_REDACT_MARGIN = 1024;
-function redactClip(text, max) {
-  const scanned = text.length > max + MEM_REDACT_MARGIN ? text.slice(0, max + MEM_REDACT_MARGIN) : text;
-  const r = redact(scanned);
-  const clipped = r.text.length <= max ? r.text : r.text.slice(0, Math.max(0, max - 1)) + "\u2026";
-  return { text: clipped, count: r.count, kinds: r.kinds };
-}
 
 // src/engine/config.ts
 import { readFileSync as readFileSync6, statSync as statSync5 } from "fs";
@@ -12934,6 +12486,527 @@ async function registerChildren(children) {
 // src/memory/spool.ts
 import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync4, readdirSync as readdirSync3, readFileSync as readFileSync8, statSync as statSync9, unlinkSync as unlinkSync4 } from "fs";
 import { join as join8 } from "path";
+
+// src/core/memory/redact.ts
+var REF = String.raw`(?!\[REDACTED)(?!\$\{?[A-Za-z_])(?!\$\()(?!\{\{)(?!<[A-Za-z_])(?!process\.env)(?!os\.environ)`;
+var TR_LETTERS = "\xE7\u011F\u0131\xF6\u015F\xFC\xC7\u011E\u0130\xD6\u015E\xDC";
+var BARE_PASS = String.raw`(?:(?<=[A-Za-z0-9][_.-])|(?<=(?:^|[\n{,["'])[ \t]*))(?:pass|pwd)(?![A-Za-z])`;
+var KEY_WORDS = String.raw`api[_-]?key|apikey|secret|token(?!i[sz](?:e|ation))|password|passwd|pass[_-]?phrase|${BARE_PASS}|access[_-]?key|account[_-]?key|shared[_-]?access[_-]?key|private[_-]?key|client[_-]?secret|auth(?!or(?!iz)|enticat(?:ion|ed))|credentials?`;
+var TR_WORDS = String.raw`[\u015Fs\u015ES][i\u0130\u0131I]fre|parola|g[i\u0130\u0131I]zl[i\u0130\u0131I](?:[ _-]?anahtar)?|anahtar|jeton`;
+var PASS_WORDS = String.raw`password|passwd|pass[_-]?phrase|[\u015Fs\u015ES][i\u0130\u0131I]fre|parola|g[i\u0130\u0131I]zl[i\u0130\u0131I][ _-]?anahtar`;
+var KEY_SUFFIX = `[A-Za-z0-9_${TR_LETTERS}]{0,32}`;
+var WORD_START = `(?<![A-Za-z0-9_${TR_LETTERS}])`;
+var ARG = String.raw`(?![-<>|&;()])(?:[^\s'"]{1,512}|'[^'\n]{0,512}'|"[^"\n]{0,512}")`;
+var PASS_RE = new RegExp(PASS_WORDS, "i");
+var URL_GENERIC_PARAMS = String.raw`key|sig|signature|x-amz-signature|x-goog-signature|hmac`;
+var URL_SECRET_PARAMS = String.raw`api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|token|x-amz-security-token|client[_-]?secret|secret|password|passwd|pwd|auth`;
+var URL_GENERIC_RE = new RegExp(String.raw`^[?&](?:${URL_GENERIC_PARAMS})=$`, "i");
+var PROSE_LINK = String.raw`(?:is|was|is[ \t]+now|set[ \t]+to|olarak|ise)`;
+var PHRASE_WORD = String.raw`[\p{L}\p{N}][\p{L}\p{N}'\u2019-]{0,39}`;
+var CODE_WORDS = /^(?:if|else|elif|return|await|typeof|instanceof|lambda|null|none|nil|undefined|function|def)$/i;
+var TYPE_WORDS = /^(?:string|str|int|integer|number|bool|boolean|text|varchar|char|bytes|required|optional|any|unknown|hidden|masked)$/i;
+function passphrase(value, keySuffix) {
+  if (!/^(?:[a-z\u00E7\u011F\u0131\u00F6\u015F\u00FC]{0,4}|\d{1,2})$/.test(keySuffix))
+    return false;
+  const words = value.split(/[ \t]+/);
+  if (words.some((w) => PASS_RE.test(w) || CODE_WORDS.test(w)) || TYPE_WORDS.test(words[0] ?? ""))
+    return false;
+  return words.join("").length >= 8;
+}
+var unquote = (v) => /^(["']).*\1$/s.test(v) ? v.slice(1, -1) : v;
+var isRef = (v) => /^(?:\[REDACTED|\$\{?[A-Za-z_]|\$\(|\{\{|<[A-Za-z_]|process\.env|os\.environ)/.test(v);
+var has = (m, i) => m[i] ?? "";
+var secretArg = (v) => {
+  const u = unquote(v);
+  return u !== "" && !isRef(u);
+};
+function isBasicCredential(b64) {
+  try {
+    const raw = atob(b64);
+    return /^[^:\s]{0,256}:\S/.test(raw) && !/[\x00-\x08\x0e-\x1f]/.test(raw);
+  } catch {
+    return false;
+  }
+}
+var RULES = [
+  { kind: "pem", re: /-----BEGIN [A-Z0-9 ]*PRIVATE KEY[A-Z ]*-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY[A-Z ]*-----|$)/g },
+  { kind: "anthropic", re: /\bsk-ant-[A-Za-z0-9_-]{16,}/g },
+  { kind: "openai", re: /\bsk-(?!ant-)(?:proj-|svcacct-|admin-)?[A-Za-z0-9_-]{20,}/g },
+  { kind: "github", re: /\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{22,})/g },
+  { kind: "gitlab", re: /\bgl(?:pat|dt|ptt|rt|cbt|oas|ft|imt|agent|soat|ffct)-[A-Za-z0-9_.-]{20,}/g },
+  { kind: "aws", re: /\b(?:AKIA|ASIA)[0-9A-Z]{16}(?![0-9A-Z])/g },
+  { kind: "slack", re: /\b(?:xox[abposre]|xapp)-[A-Za-z0-9-]{10,}/g },
+  { kind: "slack", re: /https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9/_-]{20,}/g },
+  { kind: "google", re: /\bAIza[0-9A-Za-z_-]{35}/g },
+  { kind: "stripe", re: /\b[rs]k_(?:live|test)_[A-Za-z0-9]{16,}/g },
+  { kind: "npm", re: /\bnpm_[A-Za-z0-9]{36}\b/g },
+  { kind: "twilio", re: /\bSK[0-9a-f]{32}\b/g },
+  { kind: "sendgrid", re: /\bSG\.[A-Za-z0-9_-]{16,32}\.[A-Za-z0-9_-]{16,64}/g },
+  { kind: "huggingface", re: /\bhf_[A-Za-z0-9]{30,}/g },
+  { kind: "jwt", re: /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g },
+  {
+    kind: "url-password",
+    re: /(?<![A-Za-z0-9+.-])([a-z][a-z0-9+.-]{0,30}:\/\/[^\s:@/]{1,256}:)(\S{1,256}?)(?=@[A-Za-z0-9.-]{1,253}(?::\d{1,5})?(?:[/?#\s"'`)>\]}]|$))/gi,
+    keep: (m) => {
+      const pw = has(m, 2);
+      return isRef(pw) || /^\d{1,5}(?:\/|$)/.test(pw) ? undefined : { prefix: has(m, 1), suffix: "" };
+    }
+  },
+  {
+    kind: "url-param",
+    re: new RegExp(String.raw`([?&](?:${URL_GENERIC_PARAMS}|${URL_SECRET_PARAMS})=)${REF}([^&#\s"'<>\`]{6,1024})`, "gi"),
+    keep: (m) => {
+      const v = has(m, 2);
+      const ok = URL_GENERIC_RE.test(has(m, 1)) ? randomValue(v) : looksLikeSecretValue(v) && !TEMPLATE.test(v);
+      return ok ? { prefix: has(m, 1), suffix: "" } : undefined;
+    }
+  },
+  {
+    kind: "bearer",
+    re: new RegExp(String.raw`\b([Bb]earer\s+)${REF}([A-Za-z0-9._~+/-]{12,}=*)`, "g"),
+    keep: (m) => /[0-9]/.test(has(m, 2)) || /[._~+/-]/.test(has(m, 2)) ? { prefix: has(m, 1), suffix: "" } : undefined
+  },
+  {
+    kind: "basic-auth",
+    re: new RegExp(String.raw`\b((?:proxy-)?authorization["']?[ \t]{0,8}[:=][ \t]{0,8}["']?basic[ \t]+)${REF}([A-Za-z0-9+/=._~-]{4,})`, "gi"),
+    keep: (m) => ({ prefix: has(m, 1), suffix: "" })
+  },
+  {
+    kind: "basic-auth",
+    re: new RegExp(String.raw`\b((?:proxy-)?authorization["']?[ \t]{0,8}[:=][ \t]{0,8}["']?(?:digest|ntlm|negotiate)[ \t]+)${REF}([^\r\n'"]{1,4096}(?:"[^"\r\n]{0,1024}"[^\r\n'"]{0,4096}){0,32})`, "gi"),
+    keep: (m) => has(m, 2).trim().length >= 4 ? { prefix: has(m, 1), suffix: "" } : undefined
+  },
+  {
+    kind: "basic-auth",
+    re: new RegExp(String.raw`\b(Basic[ \t]+)${REF}([A-Za-z0-9+/]{8,}={0,2})(?![A-Za-z0-9+/=])`, "g"),
+    keep: (m) => isBasicCredential(has(m, 2)) ? { prefix: has(m, 1), suffix: "" } : undefined
+  },
+  {
+    kind: "cli-flag",
+    re: new RegExp(String.raw`(\b(?:mysql|mariadb|mysqldump|mysqladmin|mysqlimport|mysqlcheck|mysqlshow|mysqlpump|mysqlsh|mariadb-dump|mariadb-admin)\b[^\n|;&]{0,300}?[ \t]-p)${REF}(${ARG})`, "g"),
+    keep: (m) => secretArg(has(m, 2)) ? { prefix: has(m, 1), suffix: "" } : undefined
+  },
+  {
+    kind: "cli-flag",
+    re: new RegExp(String.raw`(\b(?:sshpass|(?:docker|podman|nerdctl|helm|buildah|skopeo|oras)\b[^\n|;&]{0,200}?\blogin)\b[^\n|;&]{0,200}?[ \t]-p[ \t]*)${REF}(${ARG})`, "g"),
+    keep: (m) => secretArg(has(m, 2)) ? { prefix: has(m, 1), suffix: "" } : undefined
+  },
+  {
+    kind: "cli-flag",
+    re: new RegExp(String.raw`((?<![^\s"'=])--(?:[A-Za-z0-9]{1,20}-){0,3}(?:password|passwd|pass|passphrase|pwd|secret|token|api-?key|access-?key|secret-?key|private-?key|client-?secret|credentials?)(?:=|[ \t]+))${REF}(${ARG})`, "gi"),
+    keep: (m) => secretArg(has(m, 2)) && !isPlainValue(unquote(has(m, 2))) ? { prefix: has(m, 1), suffix: "" } : undefined
+  },
+  {
+    kind: "cli-flag",
+    re: new RegExp(String.raw`((?<![^\s"'])-pass(?:in|out)?[ \t]+pass:)${REF}(\S{1,512})`, "g"),
+    keep: (m) => ({ prefix: has(m, 1), suffix: "" })
+  },
+  {
+    kind: "cli-flag",
+    re: new RegExp(String.raw`((?<![^\s"'=])(?:-u|-U|--user|--proxy-user)(?:=|[ \t]*)(["']?)[^\s:'"@/]{1,128}:)${REF}([^\s'"]{1,256})(?=\2)`, "g"),
+    keep: (m) => looksLikeSecretValue(has(m, 3), 4) ? { prefix: has(m, 1), suffix: "" } : undefined
+  },
+  {
+    kind: "netrc",
+    re: new RegExp(String.raw`(\b(?:machine[ \t]+\S{1,256}|default)\s{1,16}login\s{1,16}\S{1,256}\s{1,16}password\s{1,16})${REF}(\S{1,512})`, "g"),
+    keep: (m) => ({ prefix: has(m, 1), suffix: "" })
+  },
+  {
+    kind: "secret",
+    re: new RegExp(String.raw`((?:${KEY_WORDS}|${TR_WORDS})${KEY_SUFFIX}["']?\s{0,32}[:=]\s{0,32}(["']))${REF}((?:(?!\2)[^\r\n\\]|\\.){1,1024}?)\2`, "gi"),
+    keep: (m) => !countKey(m) && quotedSecret(has(m, 3), has(m, 1)) ? { prefix: has(m, 1), suffix: has(m, 2) } : undefined
+  },
+  {
+    kind: "secret",
+    re: new RegExp(String.raw`((?:${PASS_WORDS})(${KEY_SUFFIX})["']?[ \t]{0,32}[:=][ \t]{0,32})${REF}(${PHRASE_WORD}(?:[ \t]{1,4}${PHRASE_WORD}){1,15})(?=[ \t]*(?:[.,;!?\u2026#)\]}]|\r?$))`, "gimu"),
+    keep: (m) => passphrase(has(m, 3), has(m, 2)) ? { prefix: has(m, 1), suffix: "" } : undefined
+  },
+  {
+    kind: "secret",
+    re: new RegExp(String.raw`((?:${KEY_WORDS}|${TR_WORDS})${KEY_SUFFIX}["']?\s{0,32}[:=]\s{0,32}["'\`]?)${REF}([^\s"'\`,;]{6,})`, "gi"),
+    keep: (m) => unquotedSecret(m) ? { prefix: has(m, 1), suffix: "" } : undefined
+  },
+  {
+    kind: "secret",
+    re: new RegExp(String.raw`${WORD_START}((?:${PASS_WORDS})${KEY_SUFFIX}[ \t]{1,8}(?:${PROSE_LINK}[ \t]{1,8})?)${REF}(["'][^"'\r\n]{4,256}["']|[^\s"'<>(){}[\]]{6,256})`, "gi"),
+    keep: (m) => {
+      const v = has(m, 2);
+      if (/^["']/.test(v))
+        return quotedSecret(unquote(v), has(m, 1)) ? { prefix: `${has(m, 1)}${v[0]}`, suffix: v.slice(-1) } : undefined;
+      const tail = /[.,;:!?]+$/.exec(v)?.[0] ?? "";
+      const core = v.slice(0, v.length - tail.length);
+      if (isRef(core.replace(/^`|`$/g, "")))
+        return;
+      return core.length >= 6 && !isPlainValue(core) && /[0-9!@#$%^&*+=?~|]/.test(core) ? { prefix: has(m, 1), suffix: tail } : undefined;
+    }
+  },
+  {
+    kind: "secret",
+    re: new RegExp(String.raw`${WORD_START}((?:secret|token|(?:api|signing|secret|private|access|encryption|hmac|master|webhook|license)[ _-]?key|${PASS_WORDS})${KEY_SUFFIX}[ \t]{1,8}(?:${PROSE_LINK}[ \t]{1,8})?)${REF}([0-9a-fA-F]{32,256})(?![0-9A-Za-z_])`, "gi"),
+    keep: (m) => ({ prefix: has(m, 1), suffix: "" })
+  },
+  {
+    kind: "env",
+    re: new RegExp(String.raw`^([ \t]*(?:export[ \t]+)?[A-Z][A-Z0-9_]{0,63}(?:KEY|SECRET|TOKEN(?!I[SZ](?:E|ATION))|PASSWORD|PASSWD|(?<![A-Z])(?:PASS|PWD)(?![A-Z])|CREDENTIALS?|AUTH(?!OR(?!IZ)|ENTICAT(?:ION|ED))|DSN|PRIVATE|SIFRE|PAROLA)[A-Z0-9_]{0,63}[ \t]*=[ \t]*)${REF}(?!["']?\s*$)(\S.*)$`, "gm"),
+    keep: (m) => {
+      const v = has(m, 2).replace(/^["']|["']$/g, "");
+      if (isPlainValue(v) || isRef(v) || /\$\{[A-Za-z_]/.test(v))
+        return;
+      if (/[ \t]=/.test(has(m, 1)) && codeValue(v, PASS_RE.test(has(m, 1))))
+        return;
+      return { prefix: has(m, 1), suffix: "" };
+    }
+  },
+  {
+    kind: "secret",
+    re: new RegExp(String.raw`${WORD_START}((?:[A-Za-z][A-Za-z0-9]{0,31}[_-]){1,4}(?:key|KEY|Key)|[a-z][A-Za-z0-9]{0,31}Key)(["']?[ \t]{0,8}[:=][ \t]{0,8}["'\`]?)${REF}([A-Za-z0-9+/=_.~-]{6,256})(?![A-Za-z0-9+/=_.~-])`, "g"),
+    keep: (m) => !NOT_SECRET_KEY.test(has(m, 1).toLowerCase().replace(/[^a-z0-9]/g, "")) && randomValue(has(m, 3)) ? { prefix: has(m, 1) + has(m, 2), suffix: "" } : undefined
+  },
+  {
+    kind: "aws",
+    re: /(?<![A-Za-z0-9/+=])[A-Za-z0-9/+]{40}(?![A-Za-z0-9/+=])/g,
+    keep: (m) => looksLikeAwsSecret(m[0]) ? { prefix: "", suffix: "" } : undefined
+  }
+];
+function isPlainValue(v) {
+  if (/^[-+]?\d+(?:_\d+)*(?:[.,]\d+(?:_\d+)*)?[kKmM%]?$/.test(v))
+    return true;
+  if (/^(?:true|false|yes|no|on|off|null|none)$/i.test(v))
+    return true;
+  return /^(?:[a-z][a-z0-9+.-]*:\/\/|\/|\.{1,2}\/|~\/)/i.test(v);
+}
+var IDENT = "[A-Za-z_$][A-Za-z0-9_$]*";
+var PATH_HEAD = new RegExp(String.raw`^${IDENT}(?:\??\.${IDENT}|\[[^\]\s]{0,64}\]|!)*`);
+var IDENTS = new RegExp(IDENT, "g");
+var COMPOUND_NAME = /^(?:[a-z]{2,}|[A-Z][a-z]{2,})(?:[A-Z][a-z]{2,})+$/;
+var CONSTANT_NAME = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/;
+var TEMPLATE = /\$\{[A-Za-z_]|<[A-Za-z_][\w.-]{0,32}>/;
+var CREDENTIAL_FIELD = /pass|pwd?|secret|token|key|cred|auth|[\u015Fs]ifre|parola/i;
+var COUNT_KEY = /(?:input|output|max|min|total|prompt|completion|reasoning|thinking|context|cache|cached|read|write|creation|num|used|remaining|reserved)tokens?$|^tokens?(?:count|used|limit|budget|usage|total|estimate)$/;
+function readsAsWords(id) {
+  if (/^[A-Za-z_$]{1,4}$/.test(id))
+    return true;
+  let letters = 0;
+  let words = 0;
+  for (const part of id.split(/[_$]+/)) {
+    if (/^\d*$/.test(part))
+      continue;
+    for (const w of part.match(/[A-Z]+(?![a-z])\d*|[A-Z]?[a-z]+\d*|\d+/g) ?? []) {
+      const l = w.replace(/\d+$/, "").length;
+      if (l < 2 && l !== w.length)
+        return false;
+      letters += l;
+      words++;
+    }
+  }
+  return words > 0 && letters / words >= 2.5;
+}
+function codeValue(v, strict, after = "") {
+  if (/^[[{(]/.test(v) || TEMPLATE.test(v))
+    return true;
+  const head = PATH_HEAD.exec(v)?.[0] ?? "";
+  if (head === "")
+    return false;
+  const names = head.match(IDENTS) ?? [];
+  if (!names.every(readsAsWords))
+    return false;
+  const rest = v.slice(head.length);
+  const call = rest.startsWith("(");
+  const type = head.endsWith("[]") || /^<[A-Za-z_$]/.test(rest);
+  const path = /[.[!]/.test(head);
+  if (!call && !type && !path) {
+    const name = COMPOUND_NAME.test(head) || CONSTANT_NAME.test(head) && !/_\d+(?=_|$)/.test(head);
+    return !strict && /^[)\]}>]*$/.test(rest) && name;
+  }
+  if (type)
+    return true;
+  const lower = /^[a-z_$]/.test(head);
+  if (call)
+    return !strict || lower;
+  if (/^(?:this|self)\b/.test(head) || CREDENTIAL_FIELD.test(names[names.length - 1] ?? ""))
+    return !strict || lower;
+  if (strict)
+    return false;
+  return names.length < 3 || /[?![]/.test(head) || names.some((n) => /[a-z0-9][A-Z]|[_$]/.test(n)) || CODE_AFTER.test(rest !== "" ? rest : after);
+}
+var CODE_AFTER = /^[ \t]*(?:[,;)\]}>]|\?\?|\|\||&&|[=!]==?|\?[ \t]|\+[ \t])/;
+function keyOf(m) {
+  let start = m.index;
+  while (start > 0 && m.index - start < 64 && /[A-Za-z0-9_$-]/.test(m.input[start - 1] ?? ""))
+    start--;
+  return m.input.slice(start, m.index) + (/^[^\s"':=]*/.exec(m[0])?.[0] ?? "");
+}
+var countKey = (m) => COUNT_KEY.test(keyOf(m).toLowerCase().replace(/[^a-z]/g, ""));
+function unquotedSecret(m) {
+  const v = has(m, 2);
+  const prefix = has(m, 1);
+  const core = v.replace(/[)\]}>:]+$/, "");
+  if (countKey(m) || isPlainValue(core) || /\$\{[A-Za-z_]/.test(v))
+    return false;
+  const envStyle = /^[A-Z][A-Z0-9_]*$/.test(keyOf(m)) && /\S=["'`]?$/.test(prefix);
+  const end = m.index + m[0].length;
+  const after = /^[^\r\n]*/.exec(m.input.slice(end, end + 8))?.[0] ?? "";
+  if (!envStyle && codeValue(v, PASS_RE.test(prefix), after))
+    return false;
+  if (core.length < 8) {
+    const passLike = PASS_RE.test(prefix) || /(?:^|[^a-z])(?:pass|pwd)(?:[^a-z]|$)/i.test(keyOf(m));
+    return passLike ? /[0-9!@#$%^&*+=?~|]/.test(core) : randomValue(core);
+  }
+  return looksLikeSecretValue(core);
+}
+function looksLikeSecretValue(v, minLength = 1) {
+  if (v.length < minLength || isPlainValue(v))
+    return false;
+  if (v.length >= 20)
+    return true;
+  if (/[0-9]/.test(v))
+    return true;
+  if (/[a-z]/.test(v) && /[A-Z]/.test(v))
+    return true;
+  return /[^A-Za-z]/.test(v);
+}
+var wordRun = (r) => /^\d+$/.test(r) || /^[A-Za-z]{1,3}\d{0,3}$/.test(r) || readsAsWords(r);
+function randomValue(v) {
+  if (v.length < 6 || isPlainValue(v) || /^v?\d+(?:[._-]\d+)+$/i.test(v))
+    return false;
+  if (!/[A-Za-z]/.test(v) || !/[0-9]/.test(v) && !(/[a-z]/.test(v) && /[A-Z]/.test(v)))
+    return false;
+  return !v.split(/[^A-Za-z0-9]+/).filter((r) => r !== "").every(wordRun);
+}
+var NOT_SECRET_KEY = /(?:primary|foreign|sort|sorting|order|partition|range|hash|cache|public|pub|group|lookup|map|row|index|unique|composite|natural|shard|routing|dedupe?|object|i18n|translation|react|list|query|field|column|attr|attribute|record|table|item|state|store|config|settings?|message|event|idempotency|hot|shortcut|search|label|name|lang|locale)key$/;
+function quotedSecret(v, prefix) {
+  const t = v.trim();
+  if (t === "" || isPlainValue(t) || isRef(t) || TEMPLATE.test(t))
+    return false;
+  const pass = PASS_RE.test(prefix);
+  if (/\s/.test(t))
+    return t.length >= 6 && pass;
+  return t.length >= 6 && looksLikeSecretValue(t);
+}
+function looksLikeAwsSecret(tok) {
+  if (!/[/+]/.test(tok) || !/[A-Z]/.test(tok) || !/[a-z]/.test(tok) || !/[0-9]/.test(tok))
+    return false;
+  if (/^(?:\/|~\/|\.\.?\/)/.test(tok))
+    return false;
+  const segs = tok.split("/").filter((s) => s !== "");
+  const wordish = segs.filter((s) => PATH_SEGMENT.test(s)).length;
+  return !(segs.length >= 2 && wordish * 3 >= segs.length * 2);
+}
+var HIGH_ENTROPY = /[A-Za-z0-9+/=_-]{32,}/g;
+var INTEGRITY_HASH = /^(?:sha(?:1|224|256|384|512)|md5)-[A-Za-z0-9+/_-]+={0,2}$/i;
+var HASH_LABEL = /(?:^|[^A-Za-z0-9])(?:h1|sha(?:1|224|256|384|512)|md5):$/i;
+var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+var WORDISH = "(?:[a-z0-9]+|[A-Z][a-z0-9]*)";
+var PATH_SEGMENT = new RegExp(`^${WORDISH}(?:[-_.]${WORDISH})*$`);
+function entropy(s) {
+  const counts = new Map;
+  for (const c of s)
+    counts.set(c, (counts.get(c) ?? 0) + 1);
+  let h = 0;
+  for (const n of counts.values()) {
+    const p = n / s.length;
+    h -= p * Math.log2(p);
+  }
+  return h;
+}
+function switchRate(s) {
+  const cls = (c) => c >= "a" && c <= "z" ? 0 : c >= "A" && c <= "Z" ? 1 : c >= "0" && c <= "9" ? 2 : 3;
+  let switches = 0;
+  for (let i = 1;i < s.length; i++)
+    if (cls(s[i]) !== cls(s[i - 1]))
+      switches++;
+  return s.length > 1 ? switches / (s.length - 1) : 0;
+}
+function memLooksRandom(tok) {
+  if (tok.length < 32)
+    return false;
+  if (/^[0-9a-f]+$/i.test(tok))
+    return false;
+  if (UUID.test(tok))
+    return false;
+  if (!/[0-9]/.test(tok) || !/[A-Za-z]/.test(tok))
+    return false;
+  if (tok.includes("/")) {
+    if (/^(?:\/|~\/|\.\.?\/)/.test(tok))
+      return false;
+    const segs = tok.split("/").filter((s) => s !== "");
+    const wordish = segs.filter((s) => PATH_SEGMENT.test(s)).length;
+    if (segs.length >= 2 && wordish * 3 >= segs.length * 2)
+      return false;
+  }
+  const h = entropy(tok);
+  const lower = !/[A-Z]/.test(tok);
+  if (lower) {
+    if (/[-_]/.test(tok) && tok.split(/[-_]/).every((p) => p.length <= 12 || /^[a-z]+$/.test(p) || /^[0-9]+$/.test(p)))
+      return false;
+    const digits = (tok.match(/[0-9]/g) ?? []).length / tok.length;
+    return h >= 4 && digits >= 0.15;
+  }
+  const upperOnly = !/[a-z]/.test(tok);
+  if (upperOnly) {
+    if (/_/.test(tok) && tok.split("_").every((p) => p.length <= 12))
+      return false;
+    return h >= 4 && switchRate(tok) >= 0.15;
+  }
+  return h >= 4 && switchRate(tok) >= 0.42;
+}
+var PRIVATE_TAG = /<(\/?)[p]rivate>/gi;
+var TAG_MENTION = /[`'"/\\]/;
+var PLACEHOLDER = /^\s*(?:\u2026|\.{3})?\s*$/;
+function redactPrivate(text) {
+  const tags = [];
+  PRIVATE_TAG.lastIndex = 0;
+  for (let t = PRIVATE_TAG.exec(text);t !== null; t = PRIVATE_TAG.exec(text))
+    tags.push({ at: t.index, end: t.index + t[0].length, close: t[1] === "/" });
+  if (tags.length === 0)
+    return { text, count: 0 };
+  const nextClose = new Array(tags.length).fill(-1);
+  for (let i = tags.length - 1, c = -1;i >= 0; i--) {
+    if (tags[i]?.close)
+      c = i;
+    nextClose[i] = c;
+  }
+  let out = "";
+  let pos = 0;
+  let count = 0;
+  for (let i = 0;i < tags.length; i++) {
+    const open = tags[i];
+    if (open.close || open.at < pos)
+      continue;
+    const mention = open.at > 0 && TAG_MENTION.test(text[open.at - 1] ?? "");
+    const c = nextClose[i + 1] ?? -1;
+    const close = c >= 0 ? tags[c] : undefined;
+    if (!close) {
+      if (mention)
+        continue;
+      out += `${text.slice(pos, open.at)}[REDACTED:private]`;
+      pos = text.length;
+      count++;
+      break;
+    }
+    const innerOpen = tags[i + 1]?.close === false;
+    if (PLACEHOLDER.test(text.slice(open.end, close.at)) || mention && innerOpen)
+      continue;
+    out += `${text.slice(pos, open.at)}[REDACTED:private]`;
+    pos = close.end;
+    count++;
+  }
+  return { text: count === 0 ? text : out + text.slice(pos), count };
+}
+function redact(text) {
+  const priv = redactPrivate(text);
+  let out = priv.text;
+  let count = priv.count;
+  const kinds = new Set(count > 0 ? ["private"] : []);
+  for (const rule of RULES) {
+    rule.re.lastIndex = 0;
+    out = out.replace(rule.re, (...args) => {
+      const match = args[0];
+      if (!rule.keep) {
+        count++;
+        kinds.add(rule.kind);
+        return `[REDACTED:${rule.kind}]`;
+      }
+      const groups = args.slice(1, -2).map((g) => typeof g === "string" ? g : undefined);
+      const m = Object.assign([match, ...groups], { index: args[args.length - 2], input: args[args.length - 1] });
+      const kept = rule.keep(m);
+      if (!kept)
+        return match;
+      count++;
+      kinds.add(rule.kind);
+      return `${kept.prefix}[REDACTED:${rule.kind}]${kept.suffix}`;
+    });
+  }
+  out = out.replace(HIGH_ENTROPY, (tok, offset, whole) => {
+    const before = offset > 0 ? whole[offset - 1] ?? "" : "";
+    const after = whole[offset + tok.length] ?? "";
+    if (/[A-Za-z0-9]/.test(before) || /[A-Za-z0-9]/.test(after))
+      return tok;
+    const dotFolder = before === "." && whole[offset - 2] === "/" && tok.includes("/");
+    if (INTEGRITY_HASH.test(tok) || HASH_LABEL.test(whole.slice(Math.max(0, offset - 8), offset)))
+      return tok;
+    if (!memLooksRandom(dotFolder ? `/${tok}` : tok))
+      return tok;
+    count++;
+    kinds.add("entropy");
+    return "[REDACTED:entropy]";
+  });
+  return { text: out, count, kinds: [...kinds].sort() };
+}
+var MEM_REDACT_MARGIN = 1024;
+function redactClip(text, max) {
+  const scanned = text.length > max + MEM_REDACT_MARGIN ? text.slice(0, max + MEM_REDACT_MARGIN) : text;
+  const r = redact(scanned);
+  const clipped = r.text.length <= max ? r.text : r.text.slice(0, Math.max(0, max - 1)) + "\u2026";
+  return { text: clipped, count: r.count, kinds: r.kinds };
+}
+var TEXT_MIME = /^(?:text\/|application\/(?:[A-Za-z0-9.+-]*\+|x-)?(?:json|xml|javascript|ecmascript|yaml|toml|www-form-urlencoded)(?:\s*;|\s*$))/i;
+var DATA_URI = /^data:([A-Za-z0-9.+_-]+\/[A-Za-z0-9.+_-]+)(?:;[^,]*)?;base64,/i;
+function binaryMime(mime) {
+  return typeof mime === "string" && mime.trim() !== "" && !TEXT_MIME.test(mime.trim());
+}
+function binaryPayload(parent, key) {
+  if (key === "base64")
+    return true;
+  if (key === "image_data")
+    return binaryMime(parent["media_type"]);
+  if (key === "data")
+    return parent["type"] === "base64" || binaryMime(parent["mimeType"]);
+  if (key === "blob")
+    return binaryMime(parent["mimeType"]) || parent["mimeType"] === undefined && typeof parent["uri"] === "string";
+  return false;
+}
+function maskSecrets(value, maxChars, depth = 0) {
+  if (depth > 12)
+    return { value, count: 0 };
+  if (typeof value === "string") {
+    if (value.length < 16 || value.length > maxChars)
+      return { value, count: 0 };
+    const uri = DATA_URI.exec(value);
+    if (uri !== null && binaryMime(uri[1]))
+      return { value, count: 0 };
+    const r = redact(value);
+    return r.count > 0 ? { value: r.text, count: r.count } : { value, count: 0 };
+  }
+  if (value === null || typeof value !== "object")
+    return { value, count: 0 };
+  let count = 0;
+  if (Array.isArray(value)) {
+    const out = value.map((v) => {
+      const r = maskSecrets(v, maxChars, depth + 1);
+      count += r.count;
+      return r.value;
+    });
+    return count > 0 ? { value: out, count } : { value, count: 0 };
+  }
+  const obj = value;
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (typeof v === "string" && binaryPayload(obj, k)) {
+      out[k] = v;
+      continue;
+    }
+    const r = maskSecrets(v, maxChars, depth + 1);
+    count += r.count;
+    out[k] = r.value;
+  }
+  return count > 0 ? { value: out, count } : { value, count: 0 };
+}
+var MASK_MAX_CHARS = 400000;
+var MASKED_KINDS = new Set(["bash", "eval", "read", "search", "mcp"]);
+function masksToolKind(kind) {
+  return MASKED_KINDS.has(kind);
+}
+function maskToolOutput(value) {
+  try {
+    return maskSecrets(value, MASK_MAX_CHARS);
+  } catch {
+    return { value, count: 0 };
+  }
+}
+function maskNotice(count) {
+  return `Buracle: ${count === 1 ? "1 secret value" : `${count} secret values`} hidden from the model`;
+}
 
 // src/core/memory/signals.ts
 var PROFILE_CATEGORIES = ["communication", "autonomy", "engineering", "workflow", "quality", "avoid", "other"];
@@ -30123,58 +30196,6 @@ function editOf(tool, input) {
   }
   return { path, removed, added };
 }
-var TEXT_MIME = /^(?:text\/|application\/(?:[A-Za-z0-9.+-]*\+|x-)?(?:json|xml|javascript|ecmascript|yaml|toml|www-form-urlencoded)(?:\s*;|\s*$))/i;
-var DATA_URI = /^data:([A-Za-z0-9.+_-]+\/[A-Za-z0-9.+_-]+)(?:;[^,]*)?;base64,/i;
-function binaryMime(mime) {
-  return typeof mime === "string" && mime.trim() !== "" && !TEXT_MIME.test(mime.trim());
-}
-function binaryPayload(parent, key) {
-  if (key === "base64")
-    return true;
-  if (key === "image_data")
-    return binaryMime(parent["media_type"]);
-  if (key === "data")
-    return parent["type"] === "base64" || binaryMime(parent["mimeType"]);
-  if (key === "blob")
-    return binaryMime(parent["mimeType"]) || parent["mimeType"] === undefined && typeof parent["uri"] === "string";
-  return false;
-}
-function maskSecrets(value, maxChars, depth = 0) {
-  if (depth > 12)
-    return { value, count: 0 };
-  if (typeof value === "string") {
-    if (value.length < 16 || value.length > maxChars)
-      return { value, count: 0 };
-    const uri = DATA_URI.exec(value);
-    if (uri !== null && binaryMime(uri[1]))
-      return { value, count: 0 };
-    const r = redact(value);
-    return r.count > 0 ? { value: r.text, count: r.count } : { value, count: 0 };
-  }
-  if (value === null || typeof value !== "object")
-    return { value, count: 0 };
-  let count = 0;
-  if (Array.isArray(value)) {
-    const out = value.map((v) => {
-      const r = maskSecrets(v, maxChars, depth + 1);
-      count += r.count;
-      return r.value;
-    });
-    return count > 0 ? { value: out, count } : { value, count: 0 };
-  }
-  const obj = value;
-  const out = {};
-  for (const [k, v] of Object.entries(obj)) {
-    if (typeof v === "string" && binaryPayload(obj, k)) {
-      out[k] = v;
-      continue;
-    }
-    const r = maskSecrets(v, maxChars, depth + 1);
-    count += r.count;
-    out[k] = r.value;
-  }
-  return count > 0 ? { value: out, count } : { value, count: 0 };
-}
 function shellFailed(result) {
   if (result === null || typeof result !== "object" || Array.isArray(result))
     return false;
@@ -34546,23 +34567,6 @@ async function sessionEnd(input, d) {
     return { finalized: true };
   });
 }
-// src/adapters/shared/tool-output-mask.ts
-var MASK_MAX_CHARS = 400000;
-var MASKED_KINDS = new Set(["bash", "eval", "read", "search", "mcp"]);
-function masksToolKind(kind) {
-  return MASKED_KINDS.has(kind);
-}
-function maskToolOutput(value) {
-  try {
-    return maskSecrets(value, MASK_MAX_CHARS);
-  } catch {
-    return { value, count: 0 };
-  }
-}
-function maskNotice(count) {
-  return `Buracle: ${count === 1 ? "1 secret value" : `${count} secret values`} hidden from the model`;
-}
-
 // src/adapters/shared/workspace-start.ts
 function fallbackInfo(cwd, cfg) {
   return {

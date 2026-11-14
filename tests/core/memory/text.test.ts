@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { memClip, memLooksRandom, memShortSid, normalizeForSearch, redact, redactClip, slugify } from '../../../src/core/memory/text'
+import { memLooksRandom, redact, redactClip } from '../../../src/core/memory/redact'
+import { memClip, memShortSid, normalizeForSearch, slugify } from '../../../src/core/memory/text'
 
 describe('slugify', () => {
   test('folds Turkish letters and builds kebab-case ASCII', () => {

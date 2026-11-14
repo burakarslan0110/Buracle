@@ -10932,7 +10932,13 @@ var CONTEXT_KEY = Symbol.for("buracle.project-assets.context");
 // src/core/memory/note.ts
 init_harness();
 
-// src/core/memory/text.ts
+// src/core/compact.ts
+var MAX_OFFSET_MIN = 14 * 60;
+var RESTORE_RECORD_MAX_MS = 24 * 3600000;
+
+// src/adapters/shared/pipeline/pre-compact.ts
+init_fsx();
+// src/core/memory/redact.ts
 var REF = String.raw`(?!\[REDACTED)(?!\$\{?[A-Za-z_])(?!\$\()(?!\{\{)(?!<[A-Za-z_])(?!process\.env)(?!os\.environ)`;
 var TR_LETTERS = "\xE7\u011F\u0131\xF6\u015F\xFC\xC7\u011E\u0130\xD6\u015E\xDC";
 var BARE_PASS = String.raw`(?:(?<=[A-Za-z0-9][_.-])|(?<=(?:^|[\n{,["'])[ \t]*))(?:pass|pwd)(?![A-Za-z])`;
@@ -11239,13 +11245,8 @@ function looksLikeAwsSecret(tok) {
 }
 var WORDISH = "(?:[a-z0-9]+|[A-Z][a-z0-9]*)";
 var PATH_SEGMENT = new RegExp(`^${WORDISH}(?:[-_.]${WORDISH})*$`);
+var MASKED_KINDS = new Set(["bash", "eval", "read", "search", "mcp"]);
 
-// src/core/compact.ts
-var MAX_OFFSET_MIN = 14 * 60;
-var RESTORE_RECORD_MAX_MS = 24 * 3600000;
-
-// src/adapters/shared/pipeline/pre-compact.ts
-init_fsx();
 // src/core/memory/signals.ts
 var WORD_EDGE = String.raw`(?:(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])|(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_]))`;
 function uw(re) {

@@ -1,4 +1,5 @@
-import { memOneLine, redactClip } from './text'
+import { redactClip } from './redact'
+import { memOneLine } from './text'
 
 // The prompt signals of H26 and the helpers the person brain uses to file preferences. Since PRD follow-up
 // 2026-11-06 no word list reads statements from the user's prompt: a lasting preference, in any language, is

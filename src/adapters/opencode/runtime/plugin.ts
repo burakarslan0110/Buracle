@@ -36,7 +36,7 @@ import {
   usageVerdict, writeGuardContext, type PipelineDeps, type UsagePlan, type UsageVerdict, type WorkspaceReaders,
 } from '../../shared/pipeline/index'
 import { realWriteTarget } from '../../shared/realpath'
-import { maskNotice } from '../../shared/tool-output-mask'
+import { maskNotice } from '../../../core/memory/redact'
 import type { UiSessionHooks } from '../../shared/ui-session'
 import { prepareWorkspace } from '../../shared/workspace-start'
 import { assetsOptions, startLinkRun, type AssetsSpawner } from '../../shared/project-assets'

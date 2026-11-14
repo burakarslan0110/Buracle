@@ -1,6 +1,6 @@
 import type { ToolKind } from '../events'
 import { sanitizePromptSignal, type PromptSignal } from './signals'
-import { redactClip } from './text'
+import { redactClip } from './redact'
 
 export interface SpoolEntry { ts: number; ev: 'prompt'|'tool'|'turn'|'compact'|'stop'|'note'|'prompt-signal'; tool?: string; kind?: ToolKind; paths?: string[]; cmd?: string; exit?: number; ms?: number; excerpt?: string; model?: string; tokens?: number; signal?: PromptSignal }
 
