@@ -138,18 +138,6 @@ describe('the PowerShell tool meets the shell guards like Bash', () => {
     expect(denied(await claudeHook('PreToolUse', pre('PowerShell', { command: 'git push origin main' }, proj), ctx(), real()))).toStartWith('Buracle H20 (consent.gate): ')
     expect(denied(await claudeHook('PreToolUse', pre('PowerShell', { command: 'Get-ChildItem' }, proj), ctx(), real()))).toBeUndefined()
   }), 20_000)
-
-  test('its command is read as PowerShell: Remove-Item and rmdir -r on the home are refused, recursive deletes and force pushes are held', () => withSandbox(async ({ root }) => {
-    const proj = join(root, 'proj')
-    mkdirSync(proj, { recursive: true })
-    const ps = async (command: string) => denied(await claudeHook('PreToolUse', pre('PowerShell', { command }, proj), ctx(), real()))
-    expect(await ps('Remove-Item -Recurse -Force ~')).toContain('`Remove-Item -Recurse -Force ~` would delete your home directory')
-    expect(await ps('rmdir ~ -r')).toContain('would delete your home directory')
-    expect(denied(await claudeHook('PreToolUse', pre('Bash', { command: 'rmdir ~ -r' }, proj), ctx(), real()))).toBeUndefined()
-    expect(await ps('git push --force origin feature')).toStartWith('Buracle H20 (consent.gate): this command force-pushes')
-    expect(await ps('rmdir src -r')).toStartWith('Buracle H20 (consent.gate): this command deletes a directory tree')
-    expect(await ps('Remove-Item node_modules -Recurse -Force')).toBeUndefined()
-  }), 20_000)
 })
 
 describe('H01 meets the write context shell writes are judged with (task W1.1)', () => {

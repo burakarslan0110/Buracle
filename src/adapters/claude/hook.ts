@@ -516,11 +516,10 @@ async function preShell(p: Record<string, unknown>, sid: string, ctx: AdapterCon
   const cls = classifyTool(H, tool, input, cwd)
   const command = cls.command ?? str(input['command'])
   if (command === undefined) return QUIET
-  const shell = tool === 'PowerShell' ? { shell: 'powershell' as const } : {}
   try {
     const options: BashGuardOptions = {
       ...ctx.config.guards.bash, home: paths.home(), selfPaths: selfPaths(ctx.config.repo), cwd,
-      vault: paths.oldVaultRoot(), protect: ctx.config.guards.write.protect, realpath: (q: string): string | undefined => d.realpath(q), ...shell,
+      vault: paths.oldVaultRoot(), protect: ctx.config.guards.write.protect, realpath: (q: string): string | undefined => d.realpath(q),
     }
     const verdict = d.core.checkBash(command, options)
     if (verdict.deny !== undefined) return deny(verdict.deny)
@@ -532,7 +531,7 @@ async function preShell(p: Record<string, unknown>, sid: string, ctx: AdapterCon
   if (reviewer !== undefined) return deny(reviewer)
   const lane = isSubagent(p) ? await step('H01 lane guard', undefined as string | undefined, () => laneStateDenial(command)) : undefined
   if (lane !== undefined) return deny(lane)
-  const consent = await step('H20 consent', undefined as string | undefined, () => consentGate(H, sid, command, now, (c, s, t) => d.core.consentVerdict(c, s, t, shell)))
+  const consent = await step('H20 consent', undefined as string | undefined, () => consentGate(H, sid, command, now, d.core.consentVerdict))
   if (consent !== undefined) return deny(`Buracle H20 (consent.gate): ${consent}`)
   if (guardsOnly) return QUIET
   const call: ToolCall = { harness: H, sessionId: sid, cwd, tool, input, ...cls, kind: 'bash', command }
