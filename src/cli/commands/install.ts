@@ -9,7 +9,7 @@ import { ensureDirSync } from '../../engine/fsx'
 import { clearRuntimeDriftCache } from '../../engine/hook-health'
 import * as paths from '../../engine/paths'
 import {
-  applyPlans, diffPlan, isTxnInterrupted, ledgerRebuildable, newRunId, readJournal, readLedger, withTxnLock, type ApplyOptions, type ApplyResult, type Op, type Plan,
+  applyPlans, diffPlan, isTxnInterrupted, ledgerRebuildable, newRunId, readJournal, readLedger, repairUnsettled, withTxnLock, type ApplyOptions, type ApplyResult, type Op, type Plan,
 } from '../../engine/txn'
 import { parseFlags, removedFlags } from '../../engine/update/args'
 import { composeInstall, type ComposedPlan, type ComposeResult, type HarnessStatus } from '../../engine/update/compose'
@@ -18,7 +18,7 @@ import { opsDeps } from '../../engine/update/deps'
 import { shimReferenceChecks } from '../../engine/update/doctor'
 import {
   AGENTS_SKILLS_OWNER, applyWithRetry, bunPath, buracleHomeProblem, checkHome, CORE_OWNER, INSTALL_PHASES, keyPath, markBuracleHome, partitionEscapes, readInstallRecord,
-  retargetShim, writeInstallRecord,
+  retargetShim, UNSETTLED_TXN, writeInstallRecord,
 } from '../../engine/update/install-core'
 import { discardRuntime, planRuntime, pruneRuntimes, readShim, runtimeDirOf, runtimeModeFromEnv, stageRuntime, type RuntimeMode, type RuntimePlan } from '../../engine/update/runtime'
 import { errText, isInside, table, tilde, tildeText, writeJson } from '../../engine/update/output'
@@ -306,6 +306,14 @@ export async function runInstallFlow(opts: InstallFlowOptions, io: CommandIO): P
   if (homeProblem) return fail(homeProblem)
   const repoRoot = opsDeps.repoRoot()
   if (paths.isFrozenRuntime(repoRoot)) return fail(`${tilde(repoRoot)} is a frozen runtime, not the checkout; run \`bun src/cli/main.ts install\` in the Buracle checkout`)
+  // A run that will write first settles what an earlier one left half done; a preview writes nothing, so it repairs nothing.
+  if (!opts.dryRun && (opts.yes || io.stdin.isTTY)) {
+    try {
+      result.recovered.push(...await repairUnsettled())
+    } catch (e) {
+      return fail(`${UNSETTLED_TXN}: ${errText(e)}`)
+    }
+  }
   let live = liveContext(repoRoot, { force: opts.force === true })
   for (const e of live.loaded.errors) result.warnings.push(`config: ${e}`)
   for (const w of live.loaded.warnings) result.warnings.push(`config: ${w}`)

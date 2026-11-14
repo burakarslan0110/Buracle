@@ -7,7 +7,7 @@ import { makeStyle } from '../../../src/cli/ui/style'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import { atomicWriteSync } from '../../../src/engine/fsx'
 import { yamlParse } from '../../../src/engine/merge'
-import { applyPlans, listLedgerKey, readLedger, txnTestHooks, type Plan } from '../../../src/engine/txn'
+import { applyPlans, listLedgerKey, readJournal, readLedger, txnTestHooks, type Plan } from '../../../src/engine/txn'
 import { run as procRun } from '../../../src/engine/proc'
 import { renderPathRules } from '../../../src/engine/update/compose'
 import { bunPath, readInstallRecord, shellQuote, shimContent, shimPlanOps, writeInstallRecord } from '../../../src/engine/update/install-core'
@@ -16,6 +16,7 @@ import * as paths from '../../../src/engine/paths'
 import { fakeExe, narrowPath, pathOf } from '../../helpers/fake-exe'
 import { snapshotTree } from '../../helpers/fs-snapshot'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
+import { halfRolledBack } from '../../helpers/unsettled-txn'
 import { fakeAdapter, fakeCli, fullCheckout, makeRepo, memoryIO, noNetwork, REAL_REPO, withDeps } from './helpers'
 
 function read(p: string): string {
@@ -482,7 +483,33 @@ describe('buracle install', () => {
     })
   }))
 
-  test('the core plan owns the shared path rules; a rule an older Codex plan wrote moves over; a canonical error never prunes them', () => withSandbox(async ({ root, home, buracleHome }) => {
+  test('a rollback that failed part way is finished before the install writes; while its cause stays, the install fails closed; a preview repairs nothing', () => withSandbox(async sb => {
+    const repo = makeRepo(sb.root)
+    const { txn, marker, flag } = await halfRolledBack(sb)
+    const shim = join(sb.buracleHome, 'bin', 'buracle')
+    await withDeps({ repoRoot: () => repo, adapters: async () => [], runCli: fakeCli().runCli }, async () => {
+      const blocked = memoryIO()
+      expect(await installRun(['--yes'], blocked)).toBe(1)
+      expect(blocked.err()).toContain('an earlier install left a transaction that still cannot be rolled back, so nothing was written')
+      expect(blocked.err()).toContain(txn)
+      expect(existsSync(shim)).toBe(false)
+      expect((await readJournal(txn)).status).toBe('rollback-failed')
+
+      writeFileSync(flag, '')
+      expect(await installRun(['--dry-run'], memoryIO())).toBe(0)
+      expect((await readJournal(txn)).status).toBe('rollback-failed')
+      expect(existsSync(marker)).toBe(true)
+
+      const io = memoryIO()
+      expect(await installRun(['--yes'], io)).toBe(0)
+      expect(io.out()).toContain(`Recovered (rolled back) interrupted transaction(s): ${txn}`)
+      expect((await readJournal(txn)).status).toBe('rolled-back')
+      expect(existsSync(marker)).toBe(false)
+      expect(existsSync(shim)).toBe(true)
+    })
+  }))
+
+  test('the core plan owns the shared path rules; a rule an older Codex plan wrote moves over; a canonical error never prunes them',() => withSandbox(async ({ root, home, buracleHome }) => {
     const repo = makeRepo(root, { 'canonical/rules/paths/python.md': '---\npaths: ["**/*.py"]\n---\n# Python\n\nRun the formatter before committing.\n' })
     const rules = await renderPathRules(loadCanonicalSync(join(repo, 'canonical')))
     expect(rules.map(r => r.id)).toEqual(['python'])

@@ -1,13 +1,15 @@
 import { describe, expect, test } from 'bun:test'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { run as updateRun } from '../../../src/cli/commands/update'
+import { readJournal } from '../../../src/engine/txn'
 import type { OpsDeps } from '../../../src/engine/update/deps'
 import { readHealth } from '../../../src/engine/update/mcp'
 import { brewUpgradeCommand, npmUrl } from '../../../src/engine/update/updates'
 import { skillsAdd } from '../../../src/workflow/skill-install'
 import { fakeExe, narrowPath } from '../../helpers/fake-exe'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
+import { halfRolledBack } from '../../helpers/unsettled-txn'
 import { daysAgo, fakeCli, fakeFetch, fakeMcpServer, git, makeRepo, memoryIO, withDeps } from './helpers'
 
 const NOW = Date.parse('2026-10-08T12:00:00Z')
@@ -240,6 +242,37 @@ if (argv[0] === 'outdated') console.log(${q(q(outdated))})`)
       expect(await updateRun(['buracle'], named)).toBe(0)
       expect(named.out()).toContain('buracle: not checked')
       expect(named.out()).not.toContain('buracle: up to date')
+    })
+  }), 60_000)
+})
+
+describe('buracle update settles an unsettled transaction before it applies', () => {
+  test('a rollback that failed part way: nothing is applied while its cause stays; once it is gone the update finishes the rollback and goes on', () => withSandbox(async sb => {
+    const repo = makeRepo(sb.root)
+    const bin = join(sb.root, 'bin')
+    const log = join(sb.root, 'calls.log')
+    const outdated = { formulae: [{ name: 'ripgrep', installed_versions: ['14.1.0'], current_version: '14.1.1' }] }
+    fakeExe(join(bin, 'brew'), `append(${q(log)}, 'brew ' + argv.join(' '))
+if (argv[0] === 'outdated') console.log(${q(q(outdated))})`)
+    const { txn, marker, flag } = await halfRolledBack(sb)
+    await withDeps({ repoRoot: () => repo, adapters: async () => [], now: () => NOW }, async () => {
+      await withEnv({ PATH: narrowPath(bin) }, async () => {
+        const blocked = memoryIO()
+        expect(await updateRun(['--yes', 'tools'], blocked)).toBe(1)
+        expect(blocked.err()).toContain('buracle update: an earlier install left a transaction that still cannot be rolled back, so nothing was written')
+        expect(blocked.err()).toContain(txn)
+        expect(read(log)).not.toContain('brew upgrade')
+        const asJson = memoryIO({ json: true })
+        expect(await updateRun(['--yes', '--json', 'tools'], asJson)).toBe(1)
+        expect(JSON.parse(asJson.out())).toMatchObject({ ok: false, code: 1, error: expect.stringContaining(txn) })
+
+        writeFileSync(flag, '')
+        const io = memoryIO()
+        expect(await updateRun(['--yes', 'tools'], io)).toBe(0)
+        expect(io.out()).toContain('applied  tools rg: 14.1.0 → 14.1.1')
+        expect(existsSync(marker)).toBe(false)
+        expect((await readJournal(txn)).status).toBe('rolled-back')
+      })
     })
   }), 60_000)
 })

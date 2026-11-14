@@ -5,7 +5,8 @@ import * as paths from '../../engine/paths'
 import { parseFlags, removedFlags } from '../../engine/update/args'
 import { liveContext, loadBundle } from '../../engine/update/context'
 import { opsDeps } from '../../engine/update/deps'
-import { bunPath } from '../../engine/update/install-core'
+import { UNSETTLED_TXN, bunPath } from '../../engine/update/install-core'
+import { repairUnsettled } from '../../engine/txn'
 import { probeServers, readHealth, writeHealth } from '../../engine/update/mcp'
 import { errText, table, tildeText, writeJson } from '../../engine/update/output'
 import { isUpdateKind, UPDATE_KINDS, writeUpdatesCache, type UpdateKind } from '../../engine/update/updates-cache'
@@ -243,6 +244,16 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     }
     const restActionable = actionable.filter(i => i.kind !== 'self')
     const splitSelf = actionable.some(i => i.kind === 'self') && restActionable.length > 0
+    // Before anything is applied, what an earlier run left half done is settled; when that fails, nothing is applied.
+    try {
+      await repairUnsettled()
+    } catch (e) {
+      const error = `${UNSETTLED_TXN}: ${errText(e)}`
+      steps.stop()
+      if (json) writeJson(io.stdout, { ok: false, code: 1, error })
+      else io.stderr.write(`buracle update: ${error}\n`)
+      return 1
+    }
     steps.section('Updating')
     const progress = toolchainProgress(io, { quiet: json, title: false, ...(steps.live ? { live: steps.list } : {}) })
     const stepEnv: Partial<UpdateEnv> = steps.live ? { onStep: e => (e.phase === 'start' ? steps.start(e.id, line(firstOf(e.label))) : steps.done(e.id, e.outcome, line(firstOf(e.label)))) } : {}

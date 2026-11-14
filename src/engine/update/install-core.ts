@@ -15,6 +15,9 @@ export const CORE_OWNER = 'core'
 export const AGENTS_SKILLS_OWNER = 'agents-skills'
 export const AGENTS_SKILLS_CONSUMERS: readonly Harness[] = NEUTRAL_SKILL_HARNESSES
 
+/** What install and update say when `repairUnsettled()` fails: nothing new is written over a half-restored state. */
+export const UNSETTLED_TXN = 'an earlier install left a transaction that still cannot be rolled back, so nothing was written (fix what is named below, then run this again; `buracle doctor runtime` lists the transaction)'
+
 export const INSTALL_RECORD_REL = 'state/install-record.json'
 export function installRecordFile(): string {
   return join(paths.buracleHome(), INSTALL_RECORD_REL)
