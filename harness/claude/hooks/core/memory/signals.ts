@@ -1,5 +1,4 @@
-import { memQueryWords } from './query'
-import { memOneLine, normalizeForSearch, redactClip } from './text'
+import { memOneLine, redactClip } from './text'
 
 // The prompt signals of H26 and the helpers the person brain uses to file preferences. Since PRD follow-up
 // 2026-11-06 no word list reads statements from the user's prompt: a lasting preference, in any language, is
@@ -48,13 +47,6 @@ export function sanitizePromptSignal(x: unknown, scrub?: (s: string, max: number
   return s
 }
 
-const SIGNATURE_STOP = new Set([
-  'always', 'never', 'from', 'now', 'going', 'forward', 'future', 'every', 'time', 'whenever', 'please', 'prefer', 'want', 'need',
-  'dont', "don't", 'not', 'ever', 'stop', 'remember', 'keep', 'mind', 'make', 'sure', 'you', 'your', 'zaman', 'daima', 'asla',
-  'hicbir', 'bundan', 'sonra', 'boyle', 'artik', 'sakin', 'unutma', 'lutfen', 'tercih', 'ederim', 'istemiyorum', 'bir', 'daha',
-  'her', 'icin', 'the', 'and', 'that', 'this', 'with', 'should', 'would',
-])
-
 const EXCLUSIVE_GROUPS: readonly string[] = ['communication.reply_language', 'autonomy.ask']
 
 /** The mutually exclusive group a canonical key belongs to ("communication.reply_language"), if any. */
@@ -74,11 +66,6 @@ export function profileCategory(text: string, polarity: 1 | -1 = 1): ProfileCate
   if (polarity === -1) return 'avoid'
   for (const [cat, re] of CATEGORY_WORDS) if (re.test(text)) return cat
   return 'other'
-}
-
-export function profileSignature(text: string): string {
-  const words = memQueryWords(text).map(w => normalizeForSearch(w).replace(/[^a-z0-9]/g, '')).filter(w => w.length >= 3 && !SIGNATURE_STOP.has(w))
-  return [...new Set(words.map(w => (w.length > 8 ? w.slice(0, 8) : w)))].sort().slice(0, 6).join('-')
 }
 
 /** H26's signals from a prompt: none. The contract stays for the hooks that still call it. */

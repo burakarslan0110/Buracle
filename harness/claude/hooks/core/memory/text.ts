@@ -483,13 +483,3 @@ export function redactClip(text: string, max: number): { text: string; count: nu
   const clipped = r.text.length <= max ? r.text : r.text.slice(0, Math.max(0, max - 1)) + '…'
   return { text: clipped, count: r.count, kinds: r.kinds }
 }
-
-export function memIsSensitivePath(path: string): boolean {
-  const p = path.replace(/\\/g, '/')
-  const base = p.slice(p.lastIndexOf('/') + 1)
-  if (/^\.env(?:\..*)?$/i.test(base)) return true
-  if (/\.pem$/i.test(base) || /\.key$/i.test(base) || /\.p12$/i.test(base)) return true
-  if (/^id_[a-z0-9]+(?:\.pub)?$/i.test(base) && !/\.pub$/i.test(base)) return true
-  if (/credentials/i.test(base)) return true
-  return /(?:^|\/)\.ssh\//.test(p)
-}

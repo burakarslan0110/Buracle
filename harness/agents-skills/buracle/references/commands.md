@@ -167,8 +167,6 @@ buracle mem status [--json]
 buracle mem capture [--session <id> [--harness H]] [--pending] [--force]
 buracle mem backup [--project <slug> | --person] [--list]
 buracle mem restore <id> (--project <slug> | --person | --all)
-buracle mem export [--project <slug> | --person] [--type K]… [--out <file>]
-buracle mem import <file|-> [--project <slug>] [--dry-run]
 ```
 
 The same operations as the `buracle-memory` MCP tools `memory_search`, `memory_get`,
@@ -176,10 +174,8 @@ The same operations as the `buracle-memory` MCP tools `memory_search`, `memory_g
 person brain; `remember` stores a capture, which a later session files with `memory_update`
 (`move`). Prefer the MCP tools; use these when the server is unavailable. `search` filters
 work without a query (`--file` lists the memories that cite a path, `--around <id>` what was
-recorded before and after one). `backup`, `restore`, `export` and `import` run only when the user
-asks: `restore` puts a backup's copy of a brain back (the file it replaces is backed up first),
-`export` writes one brain's live memories as JSON lines with secrets masked, and `import` writes
-such a file through `memory_write` (duplicates skipped, every memory unverified). `buracle doctor memory`
+recorded before and after one). `backup` and `restore` run only when the user
+asks: `restore` puts a backup's copy of a brain back (the file it replaces is backed up first). `buracle doctor memory`
 checks the CortexDB binary, the brains and that no project's memory reaches another.
 
 ## flow: live workflow progress

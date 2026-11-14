@@ -1,4 +1,4 @@
-import { memStem, memStemForms } from './stem'
+import { memStem } from './stem'
 import { normalizeForSearch } from './text'
 
 const STOPWORDS = new Set([
@@ -20,32 +20,6 @@ export function memQueryWords(query: string): string[] {
   const kept = words.filter(w => !STOPWORDS.has(w))
   const list = kept.length > 0 ? kept : words
   return [...new Set(list)].slice(0, 16)
-}
-
-function quote(w: string): string {
-  return `"${w.replace(/"/g, '""')}"`
-}
-
-function wordAlternatives(w: string, mode: 'and' | 'or'): string[] {
-  const stems = memStemForms(w)
-  const alts = [w.length >= 4 ? `${quote(w)}*` : quote(w), ...stems.map(s => `${quote(s)}*`)]
-  const cut = w.slice(0, 5)
-  if (mode === 'or' && w.length >= 7 && !stems.some(s => cut.startsWith(s))) alts.push(`${quote(cut)}*`)
-  return alts
-}
-
-export function memFtsQuery(query: string, mode: 'and' | 'or'): string | undefined {
-  const words = memQueryWords(query)
-  if (words.length === 0) return undefined
-  const terms = words.map(w => wordAlternatives(w, mode))
-  if (mode === 'or' || terms.length === 1) return terms.flat().join(' OR ')
-  return terms.map(alts => (alts.length === 1 ? alts[0] as string : `(${alts.join(' OR ')})`)).join(' AND ')
-}
-
-export function memTrigramQuery(query: string): string | undefined {
-  const words = memQueryWords(query).filter(w => w.length >= 3)
-  if (words.length === 0) return undefined
-  return words.map(quote).join(' OR ')
 }
 
 export function memTitleWords(title: string): Set<string> {
@@ -89,15 +63,4 @@ export function memPreparedSimilarity(a: MemTitlePrep, b: MemTitlePrep): number 
   if (a.flat !== '' && a.flat === b.flat) return 1
   if (a.words.size === 0 || b.words.size === 0) return 0
   return softJaccard(a.words, b.words)
-}
-
-export interface MemSimilarNote { title: string, description?: string | null }
-
-export function memNoteSimilarity(a: MemSimilarNote, b: MemSimilarNote): number {
-  const title = memTitleSimilarity(a.title, b.title)
-  const da = a.description ?? ''
-  const db = b.description ?? ''
-  const meaningful = (s: string): boolean => s.split(/\s+/).filter(w => w.length > 1).length >= 3
-  if (title === 1 || !meaningful(da) || !meaningful(db)) return title
-  return Math.max(title, (title + memTitleSimilarity(da, db)) / 2)
 }
