@@ -9,7 +9,6 @@ import { breakStaleLock, lockSnapshot, lockToken, releaseLockFile } from '../eng
 import { log } from '../engine/log'
 import { repoRoot, shimPath, stateDir, usageFile } from '../engine/paths'
 import { shimLaunch } from '../engine/shim'
-import { monthKeyOf } from './month'
 import type { UsageCache, UsageCacheEntry } from './types'
 
 export const USAGE_TTL_MS = 5 * 60_000
@@ -19,9 +18,7 @@ export const SPAWN_INTERVAL_MS = 60_000
 function isEntry(x: unknown): x is UsageCacheEntry {
   if (x === null || typeof x !== 'object') return false
   const e = x as Record<string, unknown>
-  const m = e['month'] as Record<string, unknown> | undefined
   return typeof e['harness'] === 'string' && typeof e['computed_at'] === 'string' && Array.isArray(e['windows'])
-    && m !== undefined && m !== null && typeof m === 'object' && typeof m['tokens'] === 'number' && typeof e['month_key'] === 'string'
 }
 
 export function readUsageCache(path = usageFile()): UsageCache | undefined {
@@ -47,14 +44,12 @@ export function writeUsageEntries(entries: UsageCacheEntry[], nowMs: number, pat
   return cache
 }
 
-export function currentUsageEntry(cache: UsageCache | undefined, h: Harness, nowMs: number): UsageCacheEntry | undefined {
-  const e = cache?.harnesses[h]
-  return e !== undefined && e.month_key === monthKeyOf(nowMs) ? e : undefined
+export function currentUsageEntry(cache: UsageCache | undefined, h: Harness, _nowMs: number): UsageCacheEntry | undefined {
+  return cache?.harnesses[h]
 }
 
 export function isStale(entry: UsageCacheEntry | undefined, nowMs: number, ttlMs = USAGE_TTL_MS): boolean {
   if (entry === undefined) return true
-  if (entry.month_key !== monthKeyOf(nowMs)) return true
   const at = Date.parse(entry.computed_at)
   return !Number.isFinite(at) || nowMs - at > ttlMs || at - nowMs > 60_000
 }

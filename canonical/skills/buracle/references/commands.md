@@ -5,7 +5,7 @@ Every command accepts `--json`, `--verbose` and `--help`. Exit codes everywhere:
 (`register`, `prepare-native`, `status`, `set`, `pause`, `resume`, `complete`, `approve-result`, `verify`, `review`, `unregister`) resolve the
 session as described in SKILL.md and exit 2 without one. With `--lane <slug>` (every one but `prepare-native`) they use a plan lane's own binding
 instead: the lead session's id plus `.lane-<slug>`, for the lane worktree `<slug>` the lead made with
-`buracle worktree create <slug> --lane` (it records the lead's session), from any checkout of the repository. `worktree`, `review-scope` and `notify`
+`buracle worktree create <slug> --lane` (it records the lead's session), from any checkout of the repository. `worktree` and `review-scope`
 use the session when there is one and also work without it.
 
 ## plan: the plan file and its state machine
@@ -107,19 +107,9 @@ The base is the worktree's base branch, else the base `worktree branch` recorded
 `init.defaultBranch`, `main`, `master`, `develop` and `trunk`; `--base <ref>` replaces it (exit 1
 for a ref that does not exist), for example when the warning says HEAD is the default branch.
 
-## notify: get the user's attention
-
-```text
-buracle notify <info|plan_approval|prd_approval|attention_needed|verification_complete> "<title>" "<message>" [--plan <path>]
-```
-
-A desktop notification, recorded in `~/.buracle/state/notifications.jsonl`; nothing goes into
-memory. Best effort: a failure never blocks the work. Text in the user's language, no secrets.
-
 ## project: per-repository setup
 
 ```text
-buracle project init [--json]
 buracle project sync [--adopt [--move] [--dry-run]] [--json]
 buracle project check [--json]
 ```
@@ -185,11 +175,10 @@ buracle flow start <workflow> [--title "<t>"] [--json]
 buracle flow phase <phase> [--note "<text>"] [--json]
 buracle flow step "<text>" [--done <n>] [--total <m>] [--json]
 buracle flow end [--outcome done|failed|cancelled] [--json]
-buracle flow status [--json]
 ```
 
 Records the running workflow for the band above the prompt and the status lines. The session is
-resolved as for `plan`; without one, `status` prints `null` and exits 0 and the others exit 2.
+resolved as for `plan`; without one, they exit 2.
 Starting the workflow that is already running is harmless; a workflow started inside another (requirements,
 then research) stacks on top of it, and `end` ends the top one. Each workflow skill names its phase
 ids. The calls are best effort: a failing one never blocks the workflow.
@@ -213,8 +202,7 @@ the semble cache. `status` shows when each index was last built or refreshed.
 buracle usage [--json]
 ```
 
-Usage windows (5-hour and 7-day: percent used and reset time) and a calendar-month estimate built
-from local logs. The monthly figure is an estimate at list prices, not a bill.
+Usage windows (5-hour and 7-day: percent used and reset time).
 
 ## Maintenance commands
 
@@ -222,11 +210,9 @@ These belong to the user. Run the read-only ones when diagnosing; run the others
 
 | Command | Effect | Read-only |
 |---|---|---|
-| `buracle` (in a terminal) | The main menu: the logo, a status line and the choices install, update, health check, memory and detailed view; the detailed view shows what is installed, its versions, updates and problems, and its keys run the commands below | yes |
+| `buracle` (in a terminal) | The main menu: the logo, a status line and the choices install, update, health check and memory; a choice runs its command | yes |
 | `buracle doctor [<topic>]` | Health checks: harness versions, plugin and mod loaded, Codex hook trust, MCP handshakes, the memory store (CortexDB) and indexes, required tools; a harness topic (`claude`, `codex`, …) also runs the liveness probes | yes |
 | `buracle update --check` | Lists available updates (Buracle repo, skill sources, MCP pins, plugins, harnesses, tools) and caches the result | yes |
 | `buracle update --yes [<kind>\|<name>…]` | Applies updates, each from its own source, then installs again; in a terminal `buracle update` applies at once too, without `--yes` | no |
 | `buracle build [--check]` | Regenerates `harness/` from `canonical/` in the Buracle repo; `--check` only reports differences | `--check` only |
 | `buracle install [<harness>…] [--dry-run]` | Builds, then installs into the harness configs (every installed one, or those named), with backup and rollback, and installs the toolchain; `--dry-run` shows the plan | `--dry-run` only |
-| `buracle rollback [txn]` | Undoes the last (or the given) install transaction | no |
-| `buracle rollback toolchain [<package>…]` | Puts back the version each toolchain package held before its last install or update | no |

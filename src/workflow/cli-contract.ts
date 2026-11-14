@@ -11,20 +11,18 @@ export const SKILL_COMMANDS: Readonly<Record<string, CommandSpec>> = {
   },
   worktree: { subs: ['create', 'branch', 'detect', 'diff', 'sync', 'cleanup', 'status'] },
   'review-scope': { subs: null },
-  notify: { subs: ['info', 'plan_approval', 'prd_approval', 'attention_needed', 'verification_complete', 'list', 'read'] },
-  project: { subs: ['init', 'sync', 'check'] },
+  project: { subs: ['sync', 'check'] },
   skills: { subs: ['lint', 'list', 'new', 'find', 'add', 'remove', 'update'] },
   rules: { subs: ['lint'] },
   mem: { subs: ['search', 'get', 'write', 'update', 'remember', 'status', 'context', 'capture', 'finalize', 'doctor', 'ui', 'backup', 'restore'] },
   usage: { subs: null },
-  flow: { subs: ['start', 'phase', 'step', 'end', 'status'] },
+  flow: { subs: ['start', 'phase', 'step', 'end'] },
   index: { subs: ['ensure', 'status'] },
   config: { subs: ['get'] },
   doctor: { subs: 'any', ops: true },
-  update: { subs: ['self', 'skills', 'mcp', 'plugins', 'harness', 'tools', 'pricing'], ops: true },
+  update: { subs: ['self', 'skills', 'mcp', 'tools'], ops: true },
   install: { subs: ['claude', 'codex', 'opencode', 'omp'], ops: true },
   build: { subs: null, ops: true },
-  rollback: { subs: 'any', ops: true },
 }
 
 export interface MentionProblem { command: string, message: string }

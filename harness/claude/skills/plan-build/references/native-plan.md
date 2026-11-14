@@ -15,7 +15,7 @@ Use this only when `buracle config get plan` shows `nativePlanMode` set to `on`,
 1. Do plan.md P3 to P7: explore (read-only lanes work), clarify, choose the approach, write and self-check the plan.
 2. Write the whole plan in the P6 format, from its `# Title` line on, without frontmatter:
    into the plan file that plan mode names, then present it with ExitPlanMode. Tell the user to approve with a Yes option that keeps the context, not one that starts "Yes, clear context": those, offered when Claude Code's `showClearContextOnPlanAccept` setting is on, start a fresh conversation, which this run does not carry over to.
-3. Until plan mode ends, write no other file, run no state-changing `buracle` command (`plan`, `flow`, `notify`) and launch no reviewer: plan mode forbids writes, and P8 runs after it.
+3. Until plan mode ends, write no other file, run no state-changing `buracle` command (`plan`, `flow`) and launch no reviewer: plan mode forbids writes, and P8 runs after it.
 
 ## N3. After plan mode
 

@@ -96,7 +96,6 @@ Re-read the run file and the reference of the phase you land in. Do the same aft
 - `buracle plan pause --kind discussion|decision --reason "<r>"`, `buracle plan resume`
 - `buracle plan notes [<path>] [--kind plan|code] [--slug <slug>] --json` lists the user's open notes from the review page; `--done <id>[,<id>]` marks the ones you applied.
 - `buracle review-scope --json`; `buracle worktree create <slug> --prefix goal-build --json` (branch `goal-build/<slug>`); `buracle worktree branch <slug> --prefix goal-build --json` (a new branch in this checkout that records its base); `buracle worktree diff|sync|cleanup <slug>`
-- `buracle notify info|attention_needed|verification_complete "<title>" "<message>" --plan <path>`
 
 ## Talking to the user
 
@@ -165,4 +164,4 @@ Launch {{agent:goal-build-review}} (phase 3) and {{agent:changes-review}} (phase
 
 ## Done means
 
-The hand-back report has been delivered and the run is either VERIFIED (done) or paused with a named outcome. See [verify-and-handback.md](references/verify-and-handback.md) for the report format, the notification and the memories to write.
+The hand-back report has been delivered and the run is either VERIFIED (done) or paused with a named outcome. See [verify-and-handback.md](references/verify-and-handback.md) for the report format and the memories to write.

@@ -48,8 +48,7 @@ read, add, remember. Nothing from a skill runs during the search or the install;
 | curated lists and vendor repositories | web-search `awesome agent skills <need>`, `<vendor> skills repository SKILL.md` |
 
 Skip a result that is a plugin, an MCP server or a prompt collection without a `SKILL.md`: it is
-not installable as a skill (an MCP server belongs in `canonical/mcp.yaml`, a Claude plugin in
-`canonical/plugins.yaml`; say so).
+not installable as a skill (an MCP server belongs in `canonical/mcp.yaml`; say so).
 
 ## Phase 2: Choose
 

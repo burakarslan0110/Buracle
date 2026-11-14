@@ -17,13 +17,12 @@ export interface BuracleConfig {
   context: { warnPct: number, criticalPct: number }
   checkers: { enabled: boolean, timeoutMs: number, languages: string[] }
   memory: { ui: { port: number, autostart: boolean }, exclude: string[] }
-  statusline: { style: 'buracle' | 'full' | 'compact', emoji: boolean, monthly: 'estimate' | 'off' }
+  statusline: { style: 'buracle' | 'full' | 'compact', emoji: boolean }
   skills: { sources: Array<{ name: string, path?: string, git?: string, ref?: string }> }
   update: { minReleaseAgeDays: number }
   permissions: { bypass: boolean, enforce: boolean }
-  effort: Record<Harness, string>
   agents: { teams: boolean }
-  workflow: { band: boolean, foldAfterSec: number, notifyAfterSec: number, codexNotices: boolean }
+  workflow: { band: boolean, foldAfterSec: number, codexNotices: boolean }
   toolchain: { autoInstall: boolean, system: boolean, upgrade: boolean }
   index: { auto: boolean, codegraph: boolean, semble: boolean, minIntervalMin: number, exclude: string[], children: boolean, maxChildren: number }
   mcp: { shared: boolean, off: Record<Harness, string[]> }
@@ -59,13 +58,12 @@ export function defaultConfig(): BuracleConfig {
       ui: { port: 41777, autostart: true },
       exclude: [],
     },
-    statusline: { style: 'buracle', emoji: true, monthly: 'estimate' },
+    statusline: { style: 'buracle', emoji: true },
     skills: { sources: [{ name: 'buracle', path: 'canonical/skills' }] },
     update: { minReleaseAgeDays: 0 },
     permissions: { bypass: true, enforce: true },
-    effort: { claude: 'auto', codex: 'auto', opencode: 'auto', omp: 'auto' },
     agents: { teams: true },
-    workflow: { band: true, foldAfterSec: 8, notifyAfterSec: 120, codexNotices: true },
+    workflow: { band: true, foldAfterSec: 8, codexNotices: true },
     toolchain: { autoInstall: true, system: true, upgrade: true },
     index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 },
     mcp: { shared: true, off: { claude: [], codex: [], opencode: [], omp: [] } },
@@ -90,14 +88,6 @@ const strList: Schema = { t: 'arr', of: str }
 
 const harnessFields: Record<string, Schema> = {}
 for (const h of HARNESSES) harnessFields[h] = { t: 'obj', fields: { enabled: bool } }
-export const EFFORT_VALUES: Readonly<Record<Harness, readonly string[]>> = {
-  claude: ['auto', 'keep', 'low', 'medium', 'high', 'xhigh'],
-  codex: ['auto', 'keep', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
-  opencode: ['auto', 'keep', 'low', 'medium', 'high', 'xhigh', 'max'],
-  omp: ['auto', 'keep', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'classifier'],
-}
-const effortFields: Record<string, Schema> = {}
-for (const h of HARNESSES) effortFields[h] = { t: 'enum', values: EFFORT_VALUES[h] }
 const mcpOffFields: Record<string, Schema> = {}
 for (const h of HARNESSES) mcpOffFields[h] = strList
 
@@ -154,7 +144,6 @@ const CONFIG_SCHEMA: Schema = {
       fields: {
         style: { t: 'enum', values: ['buracle', 'full', 'compact'] },
         emoji: bool,
-        monthly: { t: 'enum', values: ['estimate', 'off'] },
       },
     },
     skills: {
@@ -168,9 +157,8 @@ const CONFIG_SCHEMA: Schema = {
     },
     update: { t: 'obj', fields: { minReleaseAgeDays: count(0) } },
     permissions: { t: 'obj', fields: { bypass: bool, enforce: bool } },
-    effort: { t: 'obj', fields: effortFields },
     agents: { t: 'obj', fields: { teams: bool } },
-    workflow: { t: 'obj', fields: { band: bool, foldAfterSec: count(0), notifyAfterSec: count(0), codexNotices: bool } },
+    workflow: { t: 'obj', fields: { band: bool, foldAfterSec: count(0), codexNotices: bool } },
     toolchain: { t: 'obj', fields: { autoInstall: bool, system: bool, upgrade: bool } },
     index: { t: 'obj', fields: { auto: bool, codegraph: bool, semble: bool, minIntervalMin: count(0), exclude: strList, children: bool, maxChildren: count(0) } },
     mcp: { t: 'obj', fields: { shared: bool, off: { t: 'obj', fields: mcpOffFields } } },
@@ -373,100 +361,6 @@ function setAt(x: Record<string, unknown>, path: ReadonlyArray<string | number>,
   }
 }
 
-export interface ConfigRename { from: string; to: string; since: string }
-
-export const CONFIG_RENAMES: readonly ConfigRename[] = [
-]
-
-export interface ConfigRemoval { key: string; since: string; why: string; quietWhen?: unknown }
-
-const ALWAYS_ON = 'the memory has no background jobs any more; its model-assisted capture runs once at the end of a session, within fixed budgets (src/core/memory/budgets.ts)'
-
-export const CONFIG_REMOVALS: readonly ConfigRemoval[] = [
-  { key: 'vault', since: '0.5.0', why: 'the memory moved from the Obsidian vault to CortexDB under ~/.buracle/brain', quietWhen: '~/Documents/Buracle' },
-  { key: 'memory.qmd', since: '0.5.0', why: 'CortexDB does the search', quietWhen: { enabled: false, url: 'http://127.0.0.1:8181' } },
-  { key: 'memory.git', since: '0.5.0', why: 'the memory is no longer a git repository', quietWhen: { autoCommit: true, debounceMin: 10 } },
-  { key: 'memory.reflect.model', since: '0.5.0', why: 'reflect runs the model of the session\'s own harness', quietWhen: 'haiku' },
-  { key: 'memory.inject', since: '0.5.0', why: 'the session-start text has a fixed budget (150 lines, 12 KiB)', quietWhen: { maxLines: 150, maxBytes: 12288 } },
-  { key: 'memory.distill', since: '0.5.0', why: ALWAYS_ON, quietWhen: { auto: true, promote: 'medium', maxRunsPerDay: 20, maxInputTokens: 8000, maxOutputTokens: 800, skip5hPct: 75, skip7dPct: 85 } },
-  { key: 'memory.reflect.auto', since: '0.5.0', why: ALWAYS_ON, quietWhen: true },
-  { key: 'memory.reflect.maxRunsPerDay', since: '0.5.0', why: ALWAYS_ON, quietWhen: 6 },
-  { key: 'memory.reflect.maxOpsPerRun', since: '0.5.0', why: ALWAYS_ON, quietWhen: 8 },
-  { key: 'memory.reflect.maxSubQueries', since: '0.5.0', why: ALWAYS_ON, quietWhen: 6 },
-  { key: 'memory.reflect.maxRounds', since: '0.5.0', why: ALWAYS_ON, quietWhen: 2 },
-  { key: 'memory.reflect.maxInputTokens', since: '0.5.0', why: ALWAYS_ON, quietWhen: 6000 },
-  { key: 'memory.reflect.maxOutputTokens', since: '0.5.0', why: ALWAYS_ON, quietWhen: 700 },
-  { key: 'memory.reflect.minIntervalMin', since: '0.5.0', why: ALWAYS_ON, quietWhen: 60 },
-  { key: 'memory.verify', since: '0.5.0', why: ALWAYS_ON, quietWhen: { auto: true, maxRunsPerDay: 4, maxPerRun: 4, maxInputTokens: 8000, maxOutputTokens: 900, minIntervalMin: 60 } },
-  { key: 'memory.heal', since: '0.5.0', why: ALWAYS_ON, quietWhen: { auto: true } },
-  { key: 'memory.profile', since: '0.5.0', why: ALWAYS_ON, quietWhen: { enabled: true, statements: true } },
-  { key: 'memory.ui.enabled', since: '0.5.0', why: 'the brain web UI is always available; `memory.ui.autostart` decides whether it starts by itself', quietWhen: true },
-  { key: 'memory.reflect.provider', since: '0.5.0', why: 'the memory\'s model calls run through a harness with usage headroom; there is no external API', quietWhen: 'harness' },
-  { key: 'memory.reflect.api', since: '0.5.0', why: 'the memory\'s model calls run through a harness with usage headroom; there is no external API', quietWhen: { format: 'openai', url: '', model: '', keyEnv: '', person: false } },
-  { key: 'memory.llm', since: '0.5.0', why: 'the memory\'s model calls run through a harness with usage headroom; there is no external API', quietWhen: { provider: 'auto', api: { format: 'openai', url: '', model: '', keyEnv: '', person: false } } },
-  { key: 'memory.embed', since: '0.5.0', why: 'the memory search is by words; there is no embedding model or endpoint to configure', quietWhen: { url: '', model: '', dim: 0, keyEnv: '' } },
-  { key: 'contextMode', since: '0.6.0', why: 'Context Mode and its context-mode MCP server are gone; the handoff memory and the compaction restore carry the session state', quietWhen: { enabled: true, capture: true } },
-]
-
-function quietRemoval(old: unknown, quiet: unknown): boolean {
-  if (isPlainObject(old) && isPlainObject(quiet)) {
-    return Object.entries(old).every(([k, v]) => Object.prototype.hasOwnProperty.call(quiet, k) && quietRemoval(v, quiet[k]))
-  }
-  return deepEqual(old, quiet)
-}
-
-export function migrateConfig(raw: unknown, renames: readonly ConfigRename[] = CONFIG_RENAMES): { value: unknown, notes: string[] } {
-  if (!isPlainObject(raw)) return { value: raw, notes: [] }
-  let value: Record<string, unknown> | undefined
-  const notes: string[] = []
-  for (const r of CONFIG_REMOVALS) {
-    const path = r.key.split('.')
-    const old = getAt(value ?? raw, path)
-    if (!old.found) continue
-    value ??= clone(raw)
-    if (!(r.quietWhen !== undefined && quietRemoval(old.value, r.quietWhen))) notes.push(`${r.key} was removed in ${r.since} (${r.why}); its value is ignored (remove it from config.yaml)`)
-    removePath(value, path)
-  }
-  for (const r of renames) {
-    const from = r.from.split('.')
-    const to = r.to.split('.')
-    const old = getAt(value ?? raw, from)
-    if (!old.found || old.value === undefined || old.value === null) continue
-    value ??= clone(raw)
-    const target = getAt(value, to)
-    if (target.found && target.value !== undefined && target.value !== null) {
-      notes.push(`${r.from} was renamed to ${r.to} in ${r.since}; ${r.to} is set too, so ${r.from} is ignored (remove it from config.yaml)`)
-    } else {
-      setPath(value, to, old.value)
-      notes.push(`${r.from} was renamed to ${r.to} in ${r.since}; its value was used (rename the key in config.yaml)`)
-    }
-    removePath(value, from)
-  }
-  return { value: value ?? raw, notes }
-}
-
-function setPath(x: Record<string, unknown>, path: readonly string[], v: unknown): void {
-  let cur = x
-  for (const seg of path.slice(0, -1)) {
-    if (seg === '__proto__' || seg === 'constructor' || seg === 'prototype') return
-    const next = cur[seg]
-    if (!isPlainObject(next)) cur[seg] = {}
-    cur = cur[seg] as Record<string, unknown>
-  }
-  const last = path[path.length - 1]
-  if (last !== undefined && last !== '__proto__' && last !== 'constructor' && last !== 'prototype') cur[last] = clone(v)
-}
-
-function removePath(x: Record<string, unknown>, path: readonly string[]): void {
-  const [head, ...rest] = path
-  if (head === undefined || !Object.prototype.hasOwnProperty.call(x, head)) return
-  if (rest.length === 0) { delete x[head]; return }
-  const next = x[head]
-  if (!isPlainObject(next)) return
-  removePath(next, rest)
-  if (Object.keys(next).length === 0) delete x[head]
-}
-
 export const RUNTIME_SNAPSHOT_VERSION = 1
 
 export function runtimeSnapshotConfig(raw: unknown, defaults: BuracleConfig): { config: BuracleConfig, errors: string[], warnings: string[] } {
@@ -481,14 +375,13 @@ function describeVersion(v: unknown): string {
   return typeof v === 'number' || typeof v === 'string' ? String(v) : describe(v)
 }
 
-export function mergeConfigLenient(base: BuracleConfig, override: unknown, renames: readonly ConfigRename[] = CONFIG_RENAMES): { config: BuracleConfig, errors: string[], warnings: string[] } {
+export function mergeConfigLenient(base: BuracleConfig, override: unknown): { config: BuracleConfig, errors: string[], warnings: string[] } {
   if (override === undefined || override === null) return { config: clone(base), errors: [], warnings: [] }
   if (!isPlainObject(override)) {
     return { config: clone(base), errors: [`(root): expected a mapping, got ${describe(override)}`], warnings: [] }
   }
-  const migrated = migrateConfig(override, renames)
-  const warnings = migrated.notes
-  const merged = deepMerge(base, migrated.value) as Record<string, unknown>
+  const warnings: string[] = []
+  const merged = deepMerge(base, override) as Record<string, unknown>
   const errors: string[] = []
   const note = (msg: string) => { if (!errors.includes(msg)) errors.push(msg) }
   for (let round = 0; round < 256; round++) {

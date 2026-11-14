@@ -75,8 +75,7 @@
 
    No stop guard holds a bugfix run, so finish the merge in the same turn as the answer.
 4. **Memory.** When the root cause was non-obvious, write one `gotcha` memory with `memory_write`: the symptom, the root cause at `file:line`, the fix, and the test that guards it. Run `memory_search` first and update instead of duplicating. Never store secrets or logs.
-5. Optionally notify: `buracle notify verification_complete "Fix: <symptom>" "<one line>"`.
-6. **Report:**
+5. **Report:**
 
    ```text
    **Fix: <symptom>**

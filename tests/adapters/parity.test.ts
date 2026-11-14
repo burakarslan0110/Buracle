@@ -29,7 +29,6 @@ import { writeUsageEntries } from '../../src/usage/cache'
 import { collectCodex } from '../../src/usage/codex'
 import { windowsFromOmpUsage } from '../../src/usage/omp'
 import { collectOpencode } from '../../src/usage/opencode'
-import { monthKeyOf } from '../../src/usage/month'
 import { withSandbox } from '../helpers/sandbox'
 import { rateLimitHeaders } from './opencode/fake-provider'
 import { FIXTURES as USAGE_FIXTURES, NOW as USAGE_NOW, installFixture as installUsageFixture } from '../usage/helpers'
@@ -228,7 +227,7 @@ async function openCodeTuiRegistrations(code: string, dir: string): Promise<{ sl
   const entry = join(dir, 'opencode-tui.js')
   writeFileSync(host, TUI_HOST)
   writeFileSync(entry, code)
-  writeUsageEntries([{ harness: 'opencode', computed_at: new Date().toISOString(), windows: [], month: { start: new Date().toISOString(), tokens: 0, byModel: {} }, month_key: monthKeyOf(Date.now()) }], Date.now())
+  writeUsageEntries([{ harness: 'opencode', computed_at: new Date().toISOString(), windows: [] }], Date.now())
   const proc = Bun.spawn([process.execPath, host, entry], { cwd: dir, stdout: 'pipe', stderr: 'pipe', env: { ...process.env } })
   const [out, err, exit] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited])
   expect({ exit, err }).toEqual({ exit: 0, err: '' })
@@ -515,7 +514,7 @@ describe('parity: secrets in shell output are masked before the model reads them
   }), 60_000)
 })
 
-const FEATURES: Readonly<Record<'consentDialog' | 'readOnlyStartNotice' | 'earlyEditNote' | 'rateWindows' | 'todoHandoff' | 'pathRules' | 'goalCommand' | 'projectRuleList' | 'claudeOnlySkillList' | 'laneGuard' | 'answerReceipt' | 'readOnlyStop' | 'backgroundWait' | 'quietStopFeedback' | 'approvedPlanCapture' | 'reviewerShellReadOnly' | 'midTurnContextWarning' | 'startupNotices' | 'summaryKeepList' | 'languageServers' | 'lspDiagnosticsOnEdit' | 'turnReceipt' | 'longTurnNotice' | 'resumeHint' | 'livePanes' | 'stopVeto' | 'subagentStopHold' | 'commandsWithoutTurn' | 'liveExecMask' | 'failedMcpMask' | 'customStatusLine' | 'reviewSubject' | 'reviewRestore' | 'modelSwitchCommand' | 'nativePlanMode' | 'nativePlanApproval' | 'companionShell' | 'reviewNotesNotice' | 'browserControl', Readonly<Record<Harness, boolean>>>> = {
+const FEATURES: Readonly<Record<'consentDialog' | 'readOnlyStartNotice' | 'earlyEditNote' | 'rateWindows' | 'todoHandoff' | 'pathRules' | 'goalCommand' | 'projectRuleList' | 'claudeOnlySkillList' | 'laneGuard' | 'answerReceipt' | 'readOnlyStop' | 'backgroundWait' | 'quietStopFeedback' | 'approvedPlanCapture' | 'reviewerShellReadOnly' | 'midTurnContextWarning' | 'startupNotices' | 'summaryKeepList' | 'languageServers' | 'lspDiagnosticsOnEdit' | 'turnReceipt' | 'resumeHint' | 'livePanes' | 'stopVeto' | 'subagentStopHold' | 'commandsWithoutTurn' | 'liveExecMask' | 'failedMcpMask' | 'customStatusLine' | 'reviewSubject' | 'reviewRestore' | 'modelSwitchCommand' | 'nativePlanMode' | 'nativePlanApproval' | 'companionShell' | 'reviewNotesNotice' | 'browserControl', Readonly<Record<Harness, boolean>>>> = {
   approvedPlanCapture: { claude: true, codex: true, opencode: false, omp: true },
   reviewerShellReadOnly: { claude: true, codex: true, opencode: true, omp: true },
   consentDialog: { claude: true, codex: true, opencode: true, omp: true },
@@ -538,7 +537,6 @@ const FEATURES: Readonly<Record<'consentDialog' | 'readOnlyStartNotice' | 'early
   languageServers: { claude: true, codex: true, opencode: true, omp: true },
   lspDiagnosticsOnEdit: { claude: true, codex: true, opencode: true, omp: true },
   turnReceipt: { claude: true, codex: true, opencode: true, omp: true },
-  longTurnNotice: { claude: true, codex: true, opencode: true, omp: true },
   resumeHint: { claude: true, codex: true, opencode: true, omp: true },
   livePanes: { claude: true, codex: false, opencode: true, omp: true },
   stopVeto: { claude: true, codex: true, opencode: false, omp: true },
@@ -763,11 +761,11 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
     const labels = (ws: ReadonlyArray<{ label: string }>) => ws.map(w => w.label).sort()
     const claude = readClaudePayload({ rate_limits: { five_hour: { used_percentage: 42 }, seven_day: { used_percentage: 18 } } }, home).windows
     installUsageFixture('codex', join(home, '.codex'))
-    const codex = (await collectCodex({ nowMs: USAGE_NOW, pricing: {}, which: () => undefined })).windows
+    const codex = (await collectCodex({ nowMs: USAGE_NOW, which: () => undefined })).windows
     const omp = windowsFromOmpUsage(JSON.parse(readFileSync(join(USAGE_FIXTURES, 'omp', 'usage.json'), 'utf8')) as unknown, USAGE_NOW)
-    expect((await collectOpencode({ nowMs: USAGE_NOW, pricing: {} })).windows).toEqual([])
+    expect((await collectOpencode({ nowMs: USAGE_NOW })).windows).toEqual([])
     await openCodeHook(root, 'session.http.response', { sessionID: 'ses_windows1', response: new Response(null, { headers: rateLimitHeaders(USAGE_NOW) }) })
-    const opencode = (await collectOpencode({ nowMs: USAGE_NOW, pricing: {} })).windows
+    const opencode = (await collectOpencode({ nowMs: USAGE_NOW })).windows
     const has = (ws: ReadonlyArray<{ label: string }>) => ['5h', '7d'].every(l => labels(ws).includes(l))
     expect({ claude: has(claude), codex: has(codex), opencode: has(opencode), omp: has(omp) }).toEqual(FEATURES.rateWindows)
   }))
@@ -877,7 +875,6 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
     }
     const each = (test: (code: string, h: Harness) => boolean): Record<Harness, boolean> => ({ claude: test(src.claude, 'claude'), codex: test(src.codex, 'codex'), opencode: test(src.opencode, 'opencode'), omp: test(src.omp, 'omp') })
     expect(each(c => /receiptLine\(/.test(c) && /noteCommand\(/.test(c) && /note(?:Changes|Edit)\(/.test(c))).toEqual(FEATURES.turnReceipt)
-    expect(each(c => /longTurnText\(/.test(c))).toEqual(FEATURES.longTurnNotice)
     expect(each(c => /resumeSuggestion\(/.test(c))).toEqual(FEATURES.resumeHint)
     expect({
       claude: file(files.claude, 'hooks/register.tsx').includes("component: 'Pane'"),

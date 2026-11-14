@@ -55,14 +55,13 @@ import { registerWorkflowCommands } from './commands'
 import type { PendingPrompt } from './delivery'
 import { addPending, deliveredPrompts, inboxUpdate, takeDelivered } from './delivery'
 import { projectDeps } from './deps'
-import { registerEffort } from './effort'
 import type { ResolvedEnv } from './env'
 import { applyEnv, healthCache, resolveEnv, runtimeConfigCache } from './env'
 import { answerHeld, type ConsentAskHost, type HeldCall } from './consent-ask'
 import { questionGrant } from './consent-question'
 import { earlyEditNote } from './early-edit'
 import type { StopSnapshot } from './guard'
-import { CONTINUE_MARK, denyMessage, promptPlanInteraction, recordAnswer, registry, resetChain, shimNotify, StopGuard } from './guard'
+import { CONTINUE_MARK, denyMessage, promptPlanInteraction, recordAnswer, registry, resetChain, StopGuard } from './guard'
 import { maskedError, maskedResult, masksOpencodeTool } from './mask'
 import { postNotice } from './notice-board'
 import { registerRateWindows } from './rate-windows'
@@ -109,7 +108,6 @@ export interface PluginDeps {
   logger?: (level: 'debug' | 'info' | 'warn' | 'error', msg: string, data?: unknown) => void
   capture?: () => boolean
   maint?: (nowMs: number, keep: string[]) => { removed: string[] }
-  notify?: (title: string, message: string) => void
   workspace?: WorkspaceFn
   workspaceRead?: WorkspaceFn
   ledger?: LedgerStore
@@ -193,7 +191,6 @@ export class BuracleRuntime {
   private readonly workspaceFn: WorkspaceFn
   private readonly workspaceRead: WorkspaceFn
   private readonly assetsSpawn: AssetsSpawner | undefined
-  private readonly notifyFn: NonNullable<PluginDeps['notify']>
   private readonly ledger: LedgerStore
   private readonly stopGuard: StopGuard
   private readonly receipts: TurnReceipts
@@ -232,7 +229,6 @@ export class BuracleRuntime {
     this.workspaceFn = deps.workspace ?? prepareWorkspace
     this.workspaceRead = deps.workspaceRead ?? workspaceInfo
     this.assetsSpawn = deps.assetsSpawn
-    this.notifyFn = deps.notify ?? shimNotify
     this.ledger = deps.ledger ?? fileLedgerStore()
     this.env = resolveEnv(deps.pluginDir)
     applyEnv(this.env)
@@ -253,14 +249,12 @@ export class BuracleRuntime {
       cwd: sid => this.cwdOf(this.session(sid)),
       prompt: input => this.ctx.session.prompt(input),
       spool: (sid, entries) => this.spool(sid, entries),
-      notify: (title, message) => this.notifyFn(title, message),
       log: (level, msg, data) => this.logFn(level, msg, data),
       ledger: this.ledger,
     }, deps.settleMs ?? 1500)
     this.receipts = new TurnReceipts({
       now: () => this.now(),
       post: (sid, text, variant) => { try { postNotice(sid, text, variant, this.now()) } catch (e) { this.logFn('warn', 'notice not posted', { sid, error: errText(e) }) } },
-      notify: (title, message) => this.notifyFn(title, message),
       run: sid => bandSummary(flowViewFor(HARNESS, sid, this.now(), this.cfg().workflow.foldAfterSec)),
       log: (msg, data) => this.logFn('debug', msg, data),
     })
@@ -462,9 +456,9 @@ export class BuracleRuntime {
     await this.telemetry(root)
   }
 
-  private async turnEnded(s: SessionRuntime, outcome: 'succeeded' | 'failed' | 'interrupted' = 'succeeded'): Promise<void> {
+  private async turnEnded(s: SessionRuntime): Promise<void> {
     if (s.parentID === undefined) await this.resolveParent(s)
-    if (s.parentID === null) this.receipts.end(s.sid, this.cfg(), outcome !== 'interrupted')
+    if (s.parentID === null) this.receipts.end(s.sid)
   }
 
   async registerTransforms(): Promise<void> {
@@ -479,13 +473,6 @@ export class BuracleRuntime {
       })
       if (!ok) this.logFn('warn', 'this OpenCode has no plugin commands (ctx.command); the /<workflow> commands are unavailable')
     } catch (e) { this.logFn('warn', 'workflow commands not registered', { error: errText(e) }) }
-    try {
-      const ok = await registerEffort(this.ctx, () => this.cfg(), (level, touched) => {
-        this.models.effortApplied(level, touched)
-        this.logFn('debug', 'default effort applied', { level, models: touched.length })
-      }, e => this.logFn('warn', 'effort transform failed', { error: errText(e) }))
-      if (!ok) this.logFn('info', 'this OpenCode has no model transform; effort.opencode is not applied')
-    } catch (e) { this.logFn('warn', 'effort transform not registered', { error: errText(e) }) }
   }
 
   startEvents(): void {
@@ -555,7 +542,6 @@ export class BuracleRuntime {
       if (reg.profileWarned === true) return
       reg.profileWarned = true
       this.logFn('warn', warning)
-      this.notifyFn('Buracle', warning)
     } catch (e) {
       this.logFn('debug', 'profile guard failed', { error: errText(e) })
     }
@@ -1057,7 +1043,7 @@ export class BuracleRuntime {
     if (s.noticesChecked === true || !paths.isValidSessionId(s.sid)) return undefined
     if (s.parentID === undefined) await this.resolveParent(s)
     s.noticesChecked = true
-    return this.isSubagent(s) || this.resumed(s) ? undefined : openingNotice(this.baked, this.now(), this.notifyFn, this.logFn)
+    return this.isSubagent(s) || this.resumed(s) ? undefined : openingNotice(this.baked, this.now(), this.logFn)
   }
 
   private resumed(s: SessionRuntime): boolean {
@@ -1296,14 +1282,14 @@ export class BuracleRuntime {
         s.running = false
         s.interrupts++
         resetChain(sid)
-        this.track(this.turnEnded(s, 'interrupted'))
+        this.track(this.turnEnded(s))
         return
       }
       case 'session.execution.failed': {
         const s = this.session(sid)
         s.running = false
         s.failures++
-        this.track(this.turnEnded(s, 'failed'))
+        this.track(this.turnEnded(s))
         return
       }
       case 'session.compaction.ended': {

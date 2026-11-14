@@ -3,7 +3,6 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { applyPlans } from '../../src/engine/txn'
 import { listAll, projectRef } from '../../src/memory/store'
-import { notify } from '../../src/workflow/notify'
 import { planRegister } from '../../src/workflow/plan'
 import { projectSync } from '../../src/workflow/project'
 import { resetMemoryBridgeCache } from '../../src/workflow/memory-bridge'
@@ -72,17 +71,14 @@ describe('project memory setup', () => {
   }), 30_000)
 })
 
-describe('plans and notifications are not memory', () => {
-  test('plan register and attention_needed write nothing into the brain', () => withMemory(async ({ root }) => {
+describe('plans are not memory', () => {
+  test('plan register writes nothing into the brain', () => withMemory(async ({ root }) => {
     const repo = await makeRepo(root)
     const plan = join(repo, 'docs', 'plans', '2026-10-08-rate-limit.md')
     write(plan, planDoc())
     const r = await planRegister(plan, undefined, ctxAt(repo), SESSION)
     expect(r.code).toBe(0)
     expect(r.data['card']).toBeUndefined()
-    const n = await notify('attention_needed', 'Decision needed', 'Redis or LRU?', { plan: 'docs/plans/x.md' }, ctxAt(repo), SESSION)
-    expect(n.code).toBe(0)
-    expect(Object.keys(n.data['delivery'] as object)).toEqual(['macos'])
     expect(await listAll(projectRef('repo'))).toEqual([])
   }))
 })

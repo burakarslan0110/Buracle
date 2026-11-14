@@ -220,9 +220,7 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "transport": "http"
     }
   ],
-  "plugins": [
-    "lint-lsp@acme-market"
-  ],
+  "plugins": [],
   "skills": [
     {
       "description": "Alpha workflow for the golden test: plan, build and verify one change. Run only when the user explicitly asks for alpha.",
@@ -245,7 +243,7 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
 
 export const META: { buracleVersion: string, contentHash: string } = {
   "buracleVersion": "9.9.9",
-  "contentHash": "0f3781f19823fdf0e81df168d4df386b884c890bbe30be298f20a7188c7d6ce2"
+  "contentHash": "7bef0b0c738d34cb6ff859d050424eb9396ee645213c5fd66f5e298c7fdec078"
 }
 ===== hooks/hooks.json =====
 {

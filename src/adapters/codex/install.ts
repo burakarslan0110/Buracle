@@ -32,14 +32,12 @@ export class HarnessTooOldError extends Error {
   readonly exitCode = 2
   readonly code = 'HARNESS_TOO_OLD'
   readonly harness = 'codex'
-  // Through the installer that installed Codex, so it works also while an earlier install left a config.toml this
-  // Codex cannot load.
-  readonly update = 'buracle update codex'
+  readonly update = 'update Codex with the installer that installed it'
   /** `written`: an earlier Buracle install already wrote config.toml, so this Codex does not start now. */
   constructor(readonly version: string, readonly min: string, readonly written = false) {
     super(written
-      ? `Codex ${version} is older than ${min}, the oldest Codex Buracle supports, and cannot load the config.toml an earlier Buracle install wrote, so it does not start until you update it. Buracle changed nothing in Codex this time. Update Codex (\`buracle update codex\` uses the installer that installed it, also while this Codex does not start), then run \`buracle install codex\`.`
-      : `Codex ${version} is older than ${min}, the oldest Codex Buracle supports: it could not load the config.toml Buracle writes and would not start, so Buracle left Codex as it is. Update Codex (\`buracle update codex\` uses the installer that installed it, also while this Codex does not start), then run \`buracle install codex\`.`)
+      ? `Codex ${version} is older than ${min}, the oldest Codex Buracle supports, and cannot load the config.toml an earlier Buracle install wrote, so it does not start until you update it. Buracle changed nothing in Codex this time. Update Codex with the installer that installed it, then run \`buracle install codex\`.`
+      : `Codex ${version} is older than ${min}, the oldest Codex Buracle supports: it could not load the config.toml Buracle writes and would not start, so Buracle left Codex as it is. Update Codex with the installer that installed it, then run \`buracle install codex\`.`)
     this.name = 'HarnessTooOldError'
   }
 }
@@ -151,11 +149,6 @@ export function rootKeysOp(path: string, a: Pick<CodexArtifacts, 'rootKeys'>): O
   return Object.keys(keys).length > 0 ? { kind: 'toml-tables', path, tables: {}, keys: { ...keys }, owner: OWNER } : undefined
 }
 
-export function effortOp(path: string, a: CodexArtifacts): Op | undefined {
-  if (a.effortKeys === undefined) return undefined
-  return { kind: 'toml-tables', path, tables: {}, keys: { ...a.effortKeys }, owner: OWNER, soft: Object.keys(a.effortKeys) }
-}
-
 export function teamsOp(path: string, a: CodexArtifacts): Op | undefined {
   if (a.teamsKeys === undefined) return undefined
   return { kind: 'toml-tables', path, tables: {}, keys: { ...a.teamsKeys }, owner: OWNER, soft: Object.keys(a.teamsKeys) }
@@ -182,8 +175,6 @@ export function configTomlOps(path: string, a: CodexArtifacts, opts: ConfigTomlO
   ops.push(tomlTableOp(path, UPDATE_PLAN_TABLE, updatePlanTable()))
   const root = rootKeysOp(path, a)
   if (root !== undefined) ops.push(root)
-  const effort = effortOp(path, a)
-  if (effort !== undefined) ops.push(effort)
   const teams = teamsOp(path, a)
   if (teams !== undefined) ops.push(teams)
   const memory = memoryOp(path, a)

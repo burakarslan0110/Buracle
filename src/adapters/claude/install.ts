@@ -1,7 +1,6 @@
 import { existsSync } from 'node:fs'
 import { join, sep } from 'node:path'
 import type { RuleDoc } from '../../core/catalog'
-import { resolveEffort } from '../../core/effort'
 import { TIPS_LABEL } from '../../core/tips'
 import type { Ledger, Op, Plan } from '../../engine/txn'
 import { LIST_IDENTITY_HASH, readLedger } from '../../engine/txn'
@@ -10,7 +9,7 @@ import { log } from '../../engine/log'
 import { run, which } from '../../engine/proc'
 import type { AdapterContext } from '../registry'
 import { parseList, samePath } from './check'
-import { CLAUDE_MANAGED_MARKETPLACES, EFFORT_MODELS, HARNESS_REL, MARKETPLACE_NAME, OWNER, PLUGIN_ID } from './constants'
+import { HARNESS_REL, MARKETPLACE_NAME, OWNER, PLUGIN_ID } from './constants'
 import { mcpJson } from './plugin'
 import { renderClaudeMarkdown, withFrontmatter, type FrontmatterValue } from './render'
 
@@ -89,20 +88,6 @@ export function permissionOps(ctx: AdapterContext): Op[] {
   return [op]
 }
 
-export function effortKeys(level: string): Record<string, string> {
-  const set: Record<string, string> = { effortLevel: level }
-  for (const model of EFFORT_MODELS) set[`modelSettings.${model}.effortLevel`] = level
-  return set
-}
-
-export function effortOps(ctx: AdapterContext): Op[] {
-  const r = resolveEffort('claude', ctx.config.effort.claude)
-  if (!('level' in r)) return []
-  const set = effortKeys(r.level)
-  const op: JsonMergeOp = { kind: 'json-merge', path: join(ctx.paths.claudeDir(), 'settings.json'), set, owner: OWNER, soft: Object.keys(set) }
-  return [op]
-}
-
 export const ENV_KEYS = {
   'env.CLAUDE_CODE_DISABLE_1M_CONTEXT': 'false',
   'env.CLAUDE_CODE_WORKFLOWS': 'true',
@@ -178,25 +163,11 @@ export type ClaudeExecOp = Extract<Op, { kind: 'exec' }>
 
 export type CleanupKey = NonNullable<Plan['cleanupKeys']>[number]
 
-export function claudeManagesMarketplace(id: string): boolean {
-  return CLAUDE_MANAGED_MARKETPLACES.includes(id)
-}
-
 export function execOps(ctx: AdapterContext, tools: { claude: string, bun: string, current?: unknown[] }): ClaudeExecOp[] {
   const { claude, bun } = tools
   const checkScript = join(ctx.repoRoot, 'src', 'adapters', 'claude', 'check.ts')
   const check = (...args: string[]) => [bun, checkScript, '--claude', claude, ...args]
   const ops: ClaudeExecOp[] = []
-
-  for (const m of ctx.canonical.plugins.claude.marketplaces) {
-    if (claudeManagesMarketplace(m.id)) continue
-    ops.push({
-      kind: 'exec', owner: OWNER, soft: true,
-      argv: [claude, 'plugin', 'marketplace', 'add', m.source],
-      undo: check('remove-marketplace', m.id),
-      idempotentCheck: check('marketplace', m.id),
-    })
-  }
 
   const previous = (tools.current ?? []).find(e => {
     const x = e as { name?: unknown, source?: unknown, path?: unknown }
@@ -214,24 +185,6 @@ export function execOps(ctx: AdapterContext, tools: { claude: string, bun: strin
     undo: [claude, 'plugin', 'uninstall', PLUGIN_ID, '--scope', 'user'],
     idempotentCheck: check('plugin', PLUGIN_ID),
   })
-
-  for (const p of ctx.canonical.plugins.claude.plugins) {
-    if (!p.enabled) continue
-    ops.push({
-      kind: 'exec', owner: OWNER, soft: true,
-      argv: [claude, 'plugin', 'install', p.id, '--scope', 'user'],
-      undo: [claude, 'plugin', 'uninstall', p.id, '--scope', 'user'],
-      idempotentCheck: check('plugin', p.id),
-    })
-  }
-  for (const id of ctx.canonical.plugins.claude.retired ?? []) {
-    ops.push({
-      kind: 'exec', owner: OWNER, soft: true,
-      argv: [claude, 'plugin', 'uninstall', id, '--scope', 'user'],
-      undo: [claude, 'plugin', 'install', id, '--scope', 'user'],
-      idempotentCheck: check('retired', id),
-    })
-  }
   return ops
 }
 
@@ -270,7 +223,7 @@ export async function claudeInstallPlan(ctx: AdapterContext, deps: Partial<Insta
     // No op turns on Claude Code's agent teams (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS): while they are on, a named Agent
     // call starts a teammate, whose report arrives late, in pieces and once more in its idle notice. Lanes run as
     // background subagents. The next install prunes the value an earlier Buracle wrote; a value the user set stays.
-    ops: [...ruleOps(ctx, ledger), statusLineOp(ctx), ...permissionOps(ctx), ...effortOps(ctx), ...envOps(ctx), ...autoMemoryOps(ctx), ...announcementOps(ctx), ...tipOps(ctx), ...retiredDenyOps(ctx), ...mcpOffOps(ctx), ...execOps(ctx, tools)],
+    ops: [...ruleOps(ctx, ledger), statusLineOp(ctx), ...permissionOps(ctx), ...envOps(ctx), ...autoMemoryOps(ctx), ...announcementOps(ctx), ...tipOps(ctx), ...retiredDenyOps(ctx), ...mcpOffOps(ctx), ...execOps(ctx, tools)],
     cleanupKeys: cleanupKeys(ctx),
   }
 }

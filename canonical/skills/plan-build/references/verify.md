@@ -119,7 +119,7 @@ Everything in V2 to V7 green: the user's code notes and the result review below,
 4. `buracle plan set status IN_PROGRESS`, then `buracle plan set phase implement`.
 5. Continue with [implement.md](implement.md). No user prompt is needed.
 
-If the same gap survives three iterations, or closing it needs a product decision: `buracle notify attention_needed "<title>" "<gap>" --plan <path>`, `buracle plan pause --kind decision --reason "<gap>"`, then ask: try a different approach / accept it as a known issue (it moves to `## Unverified`) / stop.
+If the same gap survives three iterations, or closing it needs a product decision: `buracle plan pause --kind decision --reason "<gap>"`, then ask: try a different approach / accept it as a known issue (it moves to `## Unverified`) / stop.
 
 ### The user's code notes
 
@@ -129,7 +129,7 @@ The user may pin notes to changed lines in the review page (`/brain review`). Be
 
 While `plan.resultApproval` is on (the default), the user reviews the verified result before anything is merged or marked verified. This is the one planned stop between the approved plan and VERIFIED; `buracle plan verify` refuses until the approval is recorded.
 
-1. `buracle plan pause --kind decision --reason "result review"` and `buracle notify plan_approval "<title>" "Ready for your review" --plan <path>`.
+1. `buracle plan pause --kind decision --reason "result review"`.
 2. Show at most 15 lines: what changed, the checks that passed (command → result), the runtime evidence, `## Unverified`, and the review findings you declined. In a worktree run, put the V9 merge choice into the same {{ask_user}} call.
 3. Ask with {{ask_user}}: approve the result (recommended) / request changes / I will test it first.
    - Approve: `buracle plan approve-result` (it ends the pause), then V9 and V10.

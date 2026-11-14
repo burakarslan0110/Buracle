@@ -316,14 +316,10 @@ export function hooksJson(classic: readonly ClassicHook[], withModule: boolean):
   return out
 }
 
-function claudePlugins(c: CanonicalBundle): string[] {
-  return c.plugins.claude.plugins.filter(p => p.enabled).map(p => p.id)
-}
-
 export function canonicalContentHash(c: CanonicalBundle): string {
   return valueHash({
-    config: c.config, mcp: c.mcp, plugins: c.plugins, tools: c.tools, hooks: c.hooks, routing: c.routing,
-    statusline: c.statusline, pricing: c.pricing,
+    config: c.config, mcp: c.mcp, tools: c.tools, hooks: c.hooks, routing: c.routing,
+    statusline: c.statusline,
     rules: c.rules.map(r => ({ id: r.id, scope: r.scope, frontmatter: r.frontmatter, body: r.body })),
     skills: c.skills.map(s => ({ id: s.id, files: s.files.map(f => ({ path: f.path, content: f.content, mode: f.mode & 0o111 ? 1 : 0 })) })),
     agents: c.agents.map(a => ({ id: a.id, frontmatter: a.frontmatter, body: a.body })),
@@ -348,7 +344,7 @@ export function generatedModules(c: CanonicalBundle, buracleVersion: string): Ge
     harness: 'claude' as const,
     mcp,
     skills,
-    plugins: claudePlugins(c),
+    plugins: [] as string[],
     criticalToolPatterns: mcp.filter(s => s.critical).map(s => pluginMcpRegex(s.id)),
   }
   const meta = { buracleVersion, contentHash: canonicalContentHash(c) }

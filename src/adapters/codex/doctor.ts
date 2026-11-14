@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AdapterContext } from '../registry'
 import type { BuracleConfig } from '../../core/config'
-import { resolveEffort } from '../../core/effort'
 import { mdBlockGet } from '../../engine/merge'
 import { detectBinary, run as runProcess, type RunOptions, type RunResult } from '../../engine/proc'
 import { MIN_VERSIONS } from '../../engine/update/min-versions'
@@ -10,7 +9,7 @@ import { hostLimitRows } from '../shared/host-limits'
 import { resolveArgv, resolveCommandLine, type Env } from '../shared/command'
 import { pathRuleFiles } from '../shared/rules'
 import { valueHash } from '../../engine/merge'
-import { BYPASS_KEYS, CRITICAL_OMIT_TOOLS_FROM, hostedSearchOff, SUBAGENT_EFFORTS } from './config'
+import { BYPASS_KEYS, CRITICAL_OMIT_TOOLS_FROM, hostedSearchOff } from './config'
 import { AGENTS_BLOCK_ID, codexArtifacts, RULES_FILE } from './generate'
 import { CODEX_HOOK_EVENTS, duplicateBuracleHandlers, findBuracleHandlers, type FoundHandler } from './hooks-config'
 
@@ -36,7 +35,7 @@ export async function guardProbe(command: string, run: NonNullable<DoctorDeps['p
   const check = 'codex.hooks.probe'
   const payload = JSON.stringify({ session_id: 'buracle-doctor-probe', turn_id: 't0', transcript_path: null, cwd, hook_event_name: 'PreToolUse', model: 'probe', permission_mode: 'bypassPermissions', tool_name: 'Bash', tool_use_id: 'probe', tool_input: { command: PROBE_COMMAND } })
   const argv = ['/bin/sh', '-c', command]
-  const r = await run(argv, { stdin: payload, cwd, timeoutMs: 30_000, env: { BURACLE_NO_CAPTURE: '1', BURACLE_NO_MEMORY: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_NO_NOTIFY: '1' } })
+  const r = await run(argv, { stdin: payload, cwd, timeoutMs: 30_000, env: { BURACLE_NO_CAPTURE: '1', BURACLE_NO_MEMORY: '1', BURACLE_NO_AUTOSTART: '1' } })
   let decision: unknown
   try { decision = rec(rec(JSON.parse(r.stdout) as unknown)['hookSpecificOutput'])['permissionDecision'] } catch { decision = undefined }
   if (decision === 'deny') return { level: 'ok', check, detail: `the PreToolUse hook denies \`${PROBE_COMMAND}\` (H01), started as Codex starts it` }
@@ -143,30 +142,6 @@ export function permissionCheck(toml: Record<string, unknown>, cfg: Pick<Buracle
   return { level: 'warn', check, detail: `permissions.bypass is on, but Codex does not start in Buracle's no-approval mode (${live}).${old}${split} To fix it, ${fix}.` }
 }
 
-export function effortCheck(toml: Record<string, unknown>, cfg: Pick<BuracleConfig, 'effort'>): DoctorItem {
-  const check = 'codex.effort'
-  const r = resolveEffort('codex', cfg.effort.codex)
-  const agents = rec(toml['agents'])
-  const live = {
-    model: typeof toml['model_reasoning_effort'] === 'string' ? toml['model_reasoning_effort'] : undefined,
-    plan: typeof toml['plan_mode_reasoning_effort'] === 'string' ? toml['plan_mode_reasoning_effort'] : undefined,
-    sub: typeof agents['default_subagent_reasoning_effort'] === 'string' ? agents['default_subagent_reasoning_effort'] as string : undefined,
-  }
-  if (live.sub !== undefined && !SUBAGENT_EFFORTS.includes(live.sub)) {
-    return { level: 'warn', check, detail: `[agents] default_subagent_reasoning_effort = "${live.sub}" is not a level every Codex model has (${SUBAGENT_EFFORTS.join(', ')}), so spawn_agent fails on the others` }
-  }
-  if ('invalid' in r) return { level: 'warn', check, detail: `effort.codex: ${r.invalid}` }
-  if ('off' in r) return { level: 'ok', check, detail: `effort.codex is keep: Codex's own setting applies (model_reasoning_effort = ${live.model ?? 'unset, the model default'})` }
-  if (live.model === r.level && live.plan === r.level) return { level: 'ok', check, detail: `model_reasoning_effort and plan_mode_reasoning_effort = "${r.level}", subagents "${live.sub ?? 'model default'}" (effort.codex ${cfg.effort.codex})` }
-  if (live.model !== r.level) {
-    const why = isObj(rec(toml['notice'])['model_migrations'])
-      ? 'Codex rewrote it when a model migration was accepted ([notice.model_migrations] in config.toml)'
-      : 'Codex rewrites it when you accept a model migration or pick a model with /model'
-    return { level: 'warn', check, detail: `model_reasoning_effort is ${live.model === undefined ? 'unset' : `"${live.model}"`}, effort.codex wants "${r.level}". ${why}; a value you or Codex set is kept. Pick ${r.level} in /model, or delete the line and run \`buracle install codex\` in a terminal (it asks to put Buracle's value back).` }
-  }
-  return { level: 'warn', check, detail: `plan_mode_reasoning_effort is ${live.plan === undefined ? 'unset' : `"${live.plan}"`}, effort.codex wants "${r.level}" (Plan mode runs at medium without it); a value you set is kept. Delete the line and run \`buracle install codex\` in a terminal to use Buracle's (it asks to put the value back).` }
-}
-
 export function routingCheck(toml: Record<string, unknown>, ctx: Pick<AdapterContext, 'canonical' | 'config'>): DoctorItem {
   const check = 'codex.routing'
   const servers = rec(toml['mcp_servers'])
@@ -197,7 +172,7 @@ export function configLoadCheck(r: RunResult, tooOld?: string): DoctorItem {
   const details = rec(load['details'])
   if (load['status'] === 'fail') {
     const cause = tooOld !== undefined
-      ? `; this Codex is older than ${tooOld} and cannot read the keys Buracle writes: run \`buracle update codex\`, then \`buracle install codex\``
+      ? `; this Codex is older than ${tooOld} and cannot read the keys Buracle writes: update Codex with the installer that installed it, then run \`buracle install codex\``
       : typeof load['remediation'] === 'string' ? ` (${load['remediation']})` : ''
     return { level: 'error', check, detail: `Codex cannot load its config, so it does not start: ${String(details['error'] ?? load['summary'] ?? 'unknown error')}${cause}` }
   }
@@ -230,14 +205,14 @@ export async function codexDoctor(ctx: AdapterContext, deps: DoctorDeps = defaul
   } else if (found.version === undefined) {
     add('warn', 'codex.version', `could not read \`codex --version\` (${found.path ?? 'codex'})`)
   } else if (compareVersions(found.version, MIN_CODEX) < 0) {
-    add('error', 'codex.version', `codex ${found.version} is older than ${MIN_CODEX}, the oldest Codex Buracle supports: run \`buracle update codex\` (it uses the installer that installed Codex, also while this Codex does not start), then \`buracle install codex\``)
+    add('error', 'codex.version', `codex ${found.version} is older than ${MIN_CODEX}, the oldest Codex Buracle supports: update Codex with the installer that installed it, then run \`buracle install codex\``)
   } else {
     add('ok', 'codex.version', `codex ${found.version} (minimum ${MIN_CODEX})`)
   }
   items.push(...hostLimitRows('codex'))
   add('ok', 'codex.workflow-view', ctx.config.workflow.codexNotices
-    ? 'Codex has no surface above the prompt: a workflow that waits, pauses or ends and failing Buracle hooks show as one warning line (workflow.codexNotices); the tmux status line (`buracle statusline codex`, USAGE §6) shows the full bar'
-    : 'workflow.codexNotices is off: the tmux status line (`buracle statusline codex`, USAGE §6) is the only live view of a workflow and of failing Buracle hooks')
+    ? 'Codex has no surface above the prompt: a workflow that waits, pauses or ends and failing Buracle hooks show as one warning line (workflow.codexNotices)'
+    : 'workflow.codexNotices is off: Codex shows no live view of a workflow or of failing Buracle hooks')
 
   const hooksPath = join(codexHome, 'hooks.json')
   const hooksText = readText(hooksPath)
@@ -332,7 +307,7 @@ export async function codexDoctor(ctx: AdapterContext, deps: DoctorDeps = defaul
 
   const toml = parseToml(configText)
   if (toml === undefined) add('error', 'codex.config', `${join(codexHome, 'config.toml')} is not valid TOML, so Codex does not start; \`buracle install codex\` repairs the usual cause (a dotted key such as features.memories next to a [features] table another tool added), otherwise fix the line the Codex error names`)
-  else items.push(permissionCheck(toml, ctx.config), effortCheck(toml, ctx.config), routingCheck(toml, ctx))
+  else items.push(permissionCheck(toml, ctx.config), routingCheck(toml, ctx))
 
   const tooOld = found.version !== undefined && compareVersions(found.version, MIN_CODEX) < 0 ? MIN_CODEX : undefined
   if (found.installed && toml !== undefined) items.push(configLoadCheck(await deps.run([codex, 'doctor', '--json'], { timeoutMs: 60_000 }), tooOld))

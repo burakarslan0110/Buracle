@@ -299,7 +299,7 @@ describe('routeTool: shell and eval calls', () => {
 describe('capabilityCard (H15)', () => {
   const bundle = loadCanonicalSync(CANON)
   const card = (h: Harness, extra: Partial<{ mcp: CatalogMcp[], skills: CatalogSkill[], plugins: string[], policy: RoutingPolicy }> = {}): string =>
-    capabilityCard({ policy: extra.policy ?? POLICY, mcp: extra.mcp ?? catalogMcp(bundle.mcp, h), skills: extra.skills ?? catalogSkills(bundle.skills), plugins: extra.plugins ?? bundle.plugins.claude.plugins.map(p => p.id), harness: h })
+    capabilityCard({ policy: extra.policy ?? POLICY, mcp: extra.mcp ?? catalogMcp(bundle.mcp, h), skills: extra.skills ?? catalogSkills(bundle.skills), plugins: extra.plugins ?? [], harness: h })
 
   test('fits in 30 lines for every harness with the real catalog', () => {
     expect(CAPABILITY_CARD_MAX_LINES).toBe(30)
@@ -310,12 +310,7 @@ describe('capabilityCard (H15)', () => {
     const skills = catalogSkills(bundle.skills)
     const lsp = bundle.tools.tools.flatMap(t => (t.lsp !== undefined ? [t.lsp.id] : []))
     expect(lsp.length).toBeGreaterThan(0)
-    const plugins: Record<Harness, string[]> = {
-      claude: bundle.plugins.claude.plugins.filter(p => p.enabled).map(p => p.id),
-      codex: [],
-      opencode: bundle.plugins.opencode.plugins.filter(p => p.enabled).map(p => p.id),
-      omp: bundle.plugins.omp.plugins.filter(p => p.enabled).map(p => p.id),
-    }
+    const plugins: Record<Harness, string[]> = { claude: [], codex: [], opencode: [], omp: [] }
     for (const h of HARNESSES) {
       const mcp = catalogMcp(bundle.mcp, h)
       const c = capabilityCard({ policy: POLICY, mcp, skills, plugins: plugins[h], harness: h, ...(h === 'claude' ? { lsp } : {}) })

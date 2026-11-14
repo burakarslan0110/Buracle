@@ -123,54 +123,23 @@ describe('buracle update --check', () => {
     })
   }), 60_000)
 
-  test('harness CLIs, brew tools and Claude plugins/marketplaces', () => withSandbox(async ({ root, buracleHome }) => {
+  test('brew tools', () => withSandbox(async ({ root, buracleHome }) => {
     releaseWait(buracleHome)
     const repo = makeRepo(root)
     const bin = join(root, 'bin')
     const log = join(root, 'calls.log')
-    const market = join(root, 'markets', 'official')
-    mkdirSync(join(market, '.claude-plugin'), { recursive: true })
-    writeFileSync(join(market, '.claude-plugin', 'marketplace.json'), JSON.stringify({ name: 'claude-plugins-official', plugins: [{ name: 'pyright-lsp', version: '1.1.0' }, { name: 'gopls-lsp', version: '1.0.0' }] }))
-    await behindRemote(root, market, 'market')
-    const plugins = [{ id: 'pyright-lsp@claude-plugins-official', version: '1.0.0', scope: 'user', enabled: true, installPath: '/x' }, { id: 'gopls-lsp@claude-plugins-official', version: '1.0.0', scope: 'user', enabled: true, installPath: '/y' }, { id: 'buracle@buracle', version: '0.1.0', scope: 'user', enabled: true, installPath: '/z' }]
-    const markets = [{ name: 'claude-plugins-official', source: 'github', repo: 'anthropics/claude-plugins-official', installLocation: market }]
-    fakeExe(join(bin, 'claude'), `append(${q(log)}, argv.join(' '))
-if (argv.join(' ') === 'plugin list --json') console.log(${q(q(plugins))})
-if (argv.join(' ') === 'plugin marketplace list --json') console.log(${q(q(markets))})`)
     fakeExe(join(bin, 'brew'), `append(${q(log)}, argv.join(' '))
 if (argv[0] === 'outdated') console.log(${q('{"formulae":[{"name":"ripgrep","installed_versions":["14.1.0"],"current_version":"14.1.1","pinned":false},{"name":"wget","installed_versions":["1"],"current_version":"2"}],"casks":[]}')})`)
-    const adapters = [
-      fakeAdapter('claude', { version: '2.1.290' }),
-      fakeAdapter('codex', { version: '0.160.0' }),
-      fakeAdapter('opencode', { version: '2.0.20' }),
-      fakeAdapter('omp', { version: '18.8.3' }),
-    ]
-    // A patch far above every version Buracle knows: only the step and the release age set its risk.
-    const newer = '2.1.999'
-    const f = fakeFetch({
-      [npmUrl('@anthropic-ai/claude-code')]: { 'dist-tags': { latest: newer }, time: { [newer]: daysAgo(NOW, 5) }, versions: { [newer]: {} } },
-      [npmUrl('@openai/codex')]: { 'dist-tags': { latest: '0.161.0' }, time: { '0.161.0': daysAgo(NOW, 1) }, versions: { '0.161.0': {}, '0.162.0-alpha.1': {} } },
-      'https://opencode.ai/update/api/latest/cli/npm': { version: '2.0.24', metadata: { package: '@opencode/cli' } },
-      [npmUrl('@oh-my-pi/pi-coding-agent')]: { 'dist-tags': { latest: '18.8.3' }, time: {}, versions: { '18.8.3': {} } },
-    })
-    await withDeps({ repoRoot: () => repo, adapters: async () => adapters, fetch: f, now: () => NOW }, async () => {
+    await withDeps({ repoRoot: () => repo, adapters: async () => [], now: () => NOW }, async () => {
       await withEnv({ PATH: narrowPath(bin) }, async () => {
         const io = memoryIO({ json: true })
-        expect(await updateRun(['harness', 'tools', 'plugins', '--json'], io)).toBe(0)
+        expect(await updateRun(['tools', '--json'], io)).toBe(0)
         const r = JSON.parse(io.out()) as { items: Array<{ kind: string, id: string, current: string, latest: string, action: string, risk: string, note?: string, command?: string[] }> }
         const byId = Object.fromEntries(r.items.map(i => [`${i.kind}:${i.id}`, i]))
-        expect(Object.keys(byId).sort()).toEqual(['harness:claude', 'harness:codex', 'harness:opencode', 'plugins:marketplace:claude-plugins-official', 'plugins:pyright-lsp@claude-plugins-official', 'tools:rg'])
-        expect(byId['harness:claude']).toMatchObject({ action: 'self-update', command: ['claude', 'update'], source: 'its own updater (claude update)', current: '2.1.290', latest: newer, risk: 'low' })
-        expect(byId['harness:claude']?.note ?? '').not.toMatch(/tested/i)
-        expect(byId['harness:claude']?.note ?? '').not.toContain('report only')
-        expect(byId['harness:codex']).toMatchObject({ action: 'self-update', command: ['codex', 'update'], risk: 'high' })
-        expect(byId['harness:codex']?.note).toContain('released 1 day(s) ago')
-        expect(byId['harness:opencode']).toMatchObject({ latest: '2.0.24', command: ['opencode', 'upgrade'], risk: 'low' })
+        expect(Object.keys(byId).sort()).toEqual(['tools:rg'])
         expect(byId['tools:rg']).toMatchObject({ current: '14.1.0', latest: '14.1.1', command: ['brew', 'upgrade', 'ripgrep'] })
-        expect(byId['plugins:pyright-lsp@claude-plugins-official']).toMatchObject({ current: '1.0.0', latest: '1.1.0', action: 'plugin-update' })
-        expect(byId['plugins:marketplace:claude-plugins-official']).toMatchObject({ action: 'marketplace-update', command: ['claude', 'plugin', 'marketplace', 'update', 'claude-plugins-official'] })
       })
-      expect(read(log).trim().split('\n').sort()).toEqual(['outdated --json=v2', 'plugin list --json', 'plugin marketplace list --json'])
+      expect(read(log).trim().split('\n').sort()).toEqual(['outdated --json=v2'])
     })
   }), 60_000)
 
@@ -223,47 +192,6 @@ describe('buracle update --yes', () => {
     })
   }), 60_000)
 
-  test('harness self-updates, plugin updates and brew upgrades in one apply', () => withSandbox(async ({ root }) => {
-    const repo = makeRepo(root)
-    const bin = join(root, 'bin')
-    const log = join(root, 'calls.log')
-    const codexVersion = join(root, 'codex.version')
-    writeFileSync(codexVersion, '0.160.0')
-    fakeExe(join(bin, 'codex'), `append(${q(log)}, 'codex ' + argv.join(' '))
-if (argv[0] === 'update') fs.writeFileSync(${q(codexVersion)}, '0.161.0')`)
-    for (const name of ['opencode', 'omp']) fakeExe(join(bin, name), `append(${q(log)}, ${q(`${name} `)} + argv.join(' '))`)
-    fakeExe(join(bin, 'brew'), `append(${q(log)}, 'brew ' + argv.join(' '))
-if (argv[0] === 'outdated') console.log(${q(RG_OUTDATED)})`)
-    const plugins = [{ id: 'pyright-lsp@official', version: '1.0.0', scope: 'user', enabled: true, installPath: '/x' }]
-    const markets = [{ name: 'official', source: 'directory', path: '/m', installLocation: join(root, 'm') }]
-    fakeExe(join(bin, 'claude'), `append(${q(log)}, 'claude ' + argv.join(' '))
-const all = argv.join(' ')
-if (all === 'plugin list --json') console.log(${q(q(plugins))})
-if (all === 'plugin marketplace list --json') console.log(${q(q(markets))})
-if (all === 'plugin update pyright-lsp@official --json') console.log('Checking for updates…\\n{"command":"update","outcome":"ok","message":"Updated pyright-lsp to 1.1.0"}')`)
-    mkdirSync(join(root, 'm', '.claude-plugin'), { recursive: true })
-    writeFileSync(join(root, 'm', '.claude-plugin', 'marketplace.json'), JSON.stringify({ plugins: [{ name: 'pyright-lsp', version: '1.1.0' }] }))
-    const adapters = [fakeAdapter('claude', { version: '2.1.293' }), fakeAdapter('codex', { version: () => read(codexVersion) }), fakeAdapter('opencode', { version: '2.0.20' })]
-    const f = fakeFetch({
-      [npmUrl('@anthropic-ai/claude-code')]: { 'dist-tags': { latest: '2.1.293' }, time: {}, versions: { '2.1.293': {} } },
-      [npmUrl('@openai/codex')]: { 'dist-tags': { latest: '0.161.0' }, time: { '0.161.0': daysAgo(NOW, 10) }, versions: { '0.161.0': {} } },
-      'https://opencode.ai/update/api/latest/cli/npm': () => ({ ok: false, status: 503, error: 'HTTP 503' }),
-    })
-    await withDeps({ repoRoot: () => repo, adapters: async () => adapters, fetch: f, now: () => NOW, runCli: fakeCli().runCli }, async () => {
-      await withEnv({ PATH: narrowPath(bin) }, async () => {
-        const io = memoryIO()
-        const code = await updateRun(['--yes', 'harness', 'plugins', 'tools'], io)
-        expect(io.out()).toContain('applied  harness codex: codex update → 0.161.0')
-        expect(io.out()).toContain('applied  plugins pyright-lsp@official: Updated pyright-lsp to 1.1.0')
-        expect(io.out()).toContain('applied  tools rg: 14.1.0 → 14.1.1')
-        expect(code).toBe(2)
-        expect(read(log)).toContain('brew upgrade ripgrep\n')
-        expect(read(log)).toContain('claude plugin marketplace update\n')
-        expect(read(log)).toContain('codex update\n')
-      })
-    })
-  }), 60_000)
-
   test('the Homebrew tools apply with --yes like everything else, and the check points to --yes', () => withSandbox(async ({ root }) => {
     const repo = makeRepo(root)
     const bin = join(root, 'bin')
@@ -313,7 +241,7 @@ if (argv[0] === 'outdated') console.log(${q(RG_OUTDATED)})`)
           if (argv[1] !== join(repo, 'src', 'cli', 'main.ts')) return procRun(argv, o)
           spawned.push({ argv: argv.slice(2), noToolchain: o?.env?.['BURACLE_NO_TOOLCHAIN'] })
           if (argv[2] === 'install') return { code: installFails ? 1 : 0, stdout: installFails ? '' : 'installed\n', stderr: installFails ? 'the new runtime failed its check\n' : '', timedOut: false }
-          return { code: 0, stdout: JSON.stringify({ ok: true, code: 0, applied: [{ kind: 'tools', id: 'rg', detail: '14.1.0 → 14.1.1' }], failed: [], skipped: [], harnessChecks: [] }), stderr: '', timedOut: false }
+          return { code: 0, stdout: JSON.stringify({ ok: true, code: 0, applied: [{ kind: 'tools', id: 'rg', detail: '14.1.0 → 14.1.1' }], failed: [], skipped: [] }), stderr: '', timedOut: false }
         },
       }, async () => {
         await withEnv({ PATH: narrowPath(bin), BURACLE_NO_TOOLCHAIN: undefined }, async () => {
@@ -353,29 +281,6 @@ if (argv[0] === 'outdated') console.log(${q(RG_OUTDATED)})`)
       expect(io.out()).toContain('synced')
       expect(existsSync(join(repo, 'NEW.md'))).toBe(true)
       expect(spawned.map(a => a.slice(2))).toEqual([['install', '--yes']])
-    })
-  }), 60_000)
-
-  test('pricing goes through src/usage/pricing.ts with the injected fetcher', () => withSandbox(async ({ root }) => {
-    const repo = makeRepo(root, { 'canonical/pricing.yaml': 'demo-model: { input: 1, output: 2 }\n' })
-    const url = 'https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json'
-    const f = fakeFetch({ [url]: { 'demo-model': { input_cost_per_token: 0.000003, output_cost_per_token: 0.000006 } } })
-    await withDeps({ repoRoot: () => repo, adapters: async () => [], fetch: f, now: () => NOW }, async () => {
-      const io = memoryIO({ json: true })
-      expect(await updateRun(['pricing', '--json'], io)).toBe(0)
-      expect((JSON.parse(io.out()) as { items: unknown[] }).items).toEqual([{ kind: 'pricing', id: 'pricing.yaml', current: null, latest: null, action: 'refresh', risk: 'low', note: 'list prices changed upstream (LiteLLM)' }])
-      expect(read(join(repo, 'canonical/pricing.yaml'))).toBe('demo-model: { input: 1, output: 2 }\n')
-      const toolchainCalls: string[][] = []
-      await withDeps({ runToolchain: async (_b, o) => { toolchainCalls.push([...(o.only ?? ['everything'])]); return undefined } }, async () => {
-        await withEnv({ BURACLE_NO_TOOLCHAIN: undefined }, async () => {
-          const io = memoryIO()
-          expect(await updateRun(['--yes', 'pricing'], io)).toBe(0)
-          expect(io.out()).toContain('Rebuilt and reinstalled')
-        })
-      })
-      expect(toolchainCalls).toEqual([])
-      expect(read(join(repo, 'canonical/pricing.yaml'))).toContain('demo-model: { input: 3, output: 6 }')
-      expect(read(join(repo, 'canonical/pricing.yaml'))).toContain('# Fetched: 2026-10-08T12:00:00Z')
     })
   }), 60_000)
 
@@ -469,8 +374,6 @@ if (argv[0] === 'outdated') console.log(${q(RG_OUTDATED)})`)
 })
 
 describe('buracle update [<kind>|<name>…] [--check] [--yes]', () => {
-  const harnessRoutes = () => fakeFetch({ [npmUrl('@openai/codex')]: { 'dist-tags': { latest: '0.161.0' }, time: { '0.161.0': daysAgo(NOW, 10) }, versions: { '0.161.0': {} } } })
-
   test('the removed flags say what replaces them', async () => {
     const run = async (argv: string[]) => { const io = memoryIO(); return { code: await updateRun(argv, io), err: io.err(), out: io.out() } }
     expect(await run(['--apply'])).toEqual({ code: 1, out: '', err: 'buracle update: --apply was removed; run `buracle update` in a terminal, or `buracle update --yes`\n' })
@@ -482,11 +385,11 @@ describe('buracle update [<kind>|<name>…] [--check] [--yes]', () => {
     expect(both.err).toContain('--check and --yes are mutually exclusive')
   })
 
-  test('kinds and item names limit the check; an unknown name is an error; a known current one is up to date', () => withSandbox(async ({ root, buracleHome }) => {
+  test('kinds and item names limit the check; an unknown name is an error', () => withSandbox(async ({ root, buracleHome }) => {
     releaseWait(buracleHome)
     const repo = makeRepo(root, { 'canonical/mcp.yaml': MCP_YAML })
     const f = fakeFetch(registryRoutes())
-    await withDeps({ repoRoot: () => repo, adapters: async () => [fakeAdapter('codex', { version: '0.161.0' })], fetch: f, now: () => NOW }, async () => {
+    await withDeps({ repoRoot: () => repo, adapters: async () => [], fetch: f, now: () => NOW }, async () => {
       const kind = memoryIO({ json: true })
       expect(await updateRun(['mcp', '--json'], kind)).toBe(0)
       expect((JSON.parse(kind.out()) as { kinds: string[], items: Array<{ id: string }> })).toMatchObject({ kinds: ['mcp'], items: [{ id: 'alpha' }, { id: 'beta' }] })
@@ -496,13 +399,9 @@ describe('buracle update [<kind>|<name>…] [--check] [--yes]', () => {
       expect((JSON.parse(one.out()) as { kinds: string[], items: Array<{ id: string }> })).toMatchObject({ kinds: ['mcp'], items: [{ id: 'beta' }] })
       expect(readUpdatesCache()?.items.map(i => i.id)).toEqual(['alpha', 'beta'])
 
-      const current = memoryIO()
-      await withDeps({ fetch: harnessRoutes() }, async () => { expect(await updateRun(['codex'], current)).toBe(0) })
-      expect(current.out()).toContain('codex: up to date')
-
       const unknown = memoryIO()
       expect(await updateRun(['frobnicate'], unknown)).toBe(1)
-      expect(unknown.err()).toContain('buracle update: unknown kind or name frobnicate (kinds: self, skills, mcp, plugins, harness, tools, pricing; names: a harness, an MCP server, a tool, a skill or a plugin)')
+      expect(unknown.err()).toContain('buracle update: unknown kind or name frobnicate (kinds: self, skills, mcp, tools; names: an MCP server, a tool or a skill)')
     })
   }), 60_000)
 
@@ -624,10 +523,10 @@ if (argv[0] === 'upgrade') { console.error('Error: ripgrep is pinned'); process.
 describe('the update summary never calls a failed check up to date (L2)', () => {
   test('checkSummary names the kinds whose check failed', () => {
     const err = (kind: string) => ({ kind: kind as never, error: 'HTTP 500' })
-    expect(checkSummary(['self', 'harness'], { items: [], errors: [] })).toBe('Everything checked is up to date (self, harness).')
-    expect(checkSummary(['self', 'harness'], { items: [], errors: [err('harness')] })).toBe('Up to date: self. Not checked (the check failed; errors below): harness.')
-    expect(checkSummary(['harness'], { items: [], errors: [err('harness')] })).toBe('No check succeeded. Not checked (the check failed; errors below): harness.')
-    expect(checkSummary(['self', 'harness'], { items: [{} as never], errors: [err('harness')] })).toBe('Not checked (the check failed; errors below): harness.\n1 update(s) available:')
+    expect(checkSummary(['self', 'tools'], { items: [], errors: [] })).toBe('Everything checked is up to date (self, tools).')
+    expect(checkSummary(['self', 'tools'], { items: [], errors: [err('tools')] })).toBe('Up to date: self. Not checked (the check failed; errors below): tools.')
+    expect(checkSummary(['tools'], { items: [], errors: [err('tools')] })).toBe('No check succeeded. Not checked (the check failed; errors below): tools.')
+    expect(checkSummary(['self', 'tools'], { items: [{} as never], errors: [err('tools')] })).toBe('Not checked (the check failed; errors below): tools.\n1 update(s) available:')
   })
 
   test('buracle update --check with a failing release feed prints no "everything is up to date"', () => withSandbox(async ({ root }) => {

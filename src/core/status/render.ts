@@ -9,10 +9,10 @@ import { hooksSegmentTexts } from './hooks'
 export const SEGMENT_SEPARATOR = ' │ '
 const SEP_WIDTH = 3
 
-export const SEGMENT_IDS = ['model', 'ctx', 'windows', 'month', 'cost', 'git', 'dir', 'mem', 'index', 'flow', 'plan', 'upd', 'hooks'] as const
+export const SEGMENT_IDS = ['model', 'ctx', 'windows', 'cost', 'git', 'dir', 'mem', 'index', 'flow', 'plan', 'upd', 'hooks'] as const
 
 const PRIORITY: Readonly<Record<string, number>> = {
-  ctx: 100, hooks: 95, model: 90, '5h': 85, '7d': 80, window: 75, git: 70, cost: 65, flow: 62, month: 60, plan: 55, mem: 50, index: 35, dir: 30, upd: 20,
+  ctx: 100, hooks: 95, model: 90, '5h': 85, '7d': 80, window: 75, git: 70, cost: 65, flow: 62, plan: 55, mem: 50, index: 35, dir: 30, upd: 20,
 }
 
 interface Candidate { id: string; priority: number; variants: Segment[] }
@@ -76,28 +76,6 @@ function windowCandidate(w: RateWindow, nowMs: number): Candidate | undefined {
   return cand(w.label, priority,
     seg(w.label, `${head}${arrow ? ` ${arrow}` : ''}${reset}`, color),
     seg(w.label, `${head}${arrow}`, color))
-}
-
-function monthCandidate(bar: BarModel): Candidate | undefined {
-  const m = bar.month
-  if (m === undefined) return undefined
-  const approx = m.estimate ? '≈' : ''
-  const priority = PRIORITY['month'] ?? 0
-  if (m.pct !== undefined && Number.isFinite(m.pct)) {
-    const color: Color | undefined = m.pct >= 90 ? 'red' : m.pct >= 75 ? 'yellow' : undefined
-    const head = `mo ${formatPct(m.pct)}%`
-    return m.usd !== undefined && Number.isFinite(m.usd)
-      ? cand('month', priority, seg('month', `${head} ${approx}${formatUsd(m.usd)}`, color), seg('month', head, color))
-      : cand('month', priority, seg('month', head, color))
-  }
-  if (m.usd !== undefined && Number.isFinite(m.usd)) {
-    const usd = `mo ${approx}${formatUsd(m.usd)}`
-    return m.tokens > 0
-      ? cand('month', priority, seg('month', `${usd} · ${formatTokens(m.tokens)} tok`), seg('month', usd))
-      : cand('month', priority, seg('month', usd))
-  }
-  if (m.tokens > 0) return cand('month', priority, seg('month', `mo ${formatTokens(m.tokens)} tok`))
-  return undefined
 }
 
 function costCandidate(bar: BarModel): Candidate | undefined {
@@ -211,7 +189,6 @@ function candidatesFor(id: string, bar: BarModel, layout: StatusLayout, nowMs: n
   switch (id) {
     case 'model': return one(modelCandidate(bar))
     case 'ctx': return one(ctxCandidate(bar, layout))
-    case 'month': return one(monthCandidate(bar))
     case 'cost': return one(costCandidate(bar))
     case 'git': return one(gitCandidate(bar.git))
     case 'dir': return one(dirCandidate(bar))

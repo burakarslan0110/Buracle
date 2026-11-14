@@ -63,13 +63,11 @@ async function runtime(dir: string, opts: RuntimeOpts = {}) {
   const f = fakeServerContext(dir)
   const mem = fakeMemory(opts.memoryText)
   const baked = testBaked(opts.routing !== undefined ? { routing: opts.routing } : {})
-  const notices: Array<{ title: string, message: string }> = []
   const maintCalls: Array<{ nowMs: number, keep: string[] }> = []
   const deps: PluginDeps = {
     baked, memory: mem, settleMs: opts.settleMs ?? 0, runChecker: opts.runChecker ?? (async () => ({ code: 0, stdout: '', stderr: '' })),
     capture: opts.capture ?? (() => true),
     maint: opts.maint ?? ((nowMs, keep) => { maintCalls.push({ nowMs, keep }); return { removed: [] } }),
-    notify: (title, message) => { notices.push({ title, message }) },
     workspace: opts.workspace ?? (async cwd => noProject(cwd)),
     workspaceRead: async cwd => noProject(cwd),
     ...(opts.now !== undefined ? { now: opts.now } : {}),
@@ -77,7 +75,7 @@ async function runtime(dir: string, opts: RuntimeOpts = {}) {
   }
   const rt = new BuracleRuntime(f.ctx, deps)
   await rt.register()
-  return { f, mem, rt, baked, notices, maintCalls }
+  return { f, mem, rt, baked, maintCalls }
 }
 
 describe('opencode server plugin: setup and lifecycle', () => {
@@ -791,7 +789,7 @@ describe('opencode server plugin: stage-B contract rules', () => {
     let clock = 5_000_000
     const plan = planState()
     saveState('opencode', SID, { ...plan, guard: { blocksForPlan: testBaked().defaults.plan.runaway.perPlan, blocksInChain: 0 } })
-    const { f, rt, notices, mem } = await runtime(root, { now: () => clock })
+    const { f, rt, mem } = await runtime(root, { now: () => clock })
     await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: root } } })
     await cycle(rt)
     clock += 120_000
@@ -799,9 +797,9 @@ describe('opencode server plugin: stage-B contract rules', () => {
     clock += 120_000
     await cycle(rt)
     expect(f.prompts.map(p => p.text.includes('runaway: continue, pivot or abandon?'))).toEqual([true])
-    expect(notices.length).toBe(1)
-    expect(notices[0]?.message).toContain(plan.plan?.path as string)
-    expect(mem.appended.flatMap(a => a.entries).filter(e => e.ev === 'note').length).toBe(1)
+    const notes = mem.appended.flatMap(a => a.entries).filter(e => e.ev === 'note')
+    expect(notes.length).toBe(1)
+    expect(notes[0]?.excerpt).toContain(plan.plan?.path as string)
   }))
 
   test('the re-prompt chain is shared by plugin instances: a reloaded instance does not restart a capped chain', () => withSandbox(async ({ root }) => {
@@ -815,7 +813,6 @@ describe('opencode server plugin: stage-B contract rules', () => {
     await b.rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: root } } })
     for (let i = 0; i < 4; i++) { clock += 120_000; await cycle(b.rt) }
     expect(a.f.prompts.length + b.f.prompts.length).toBe(testBaked().defaults.plan.runaway.perChain + 1)
-    expect(b.notices.length).toBe(1)
   }))
 })
 

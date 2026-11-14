@@ -65,10 +65,9 @@ export function sessionHealth(sid: string, nowMs: number, ctx?: Pick<AdapterCont
 
 export function capabilityCardText(ctx: AdapterContext, health: McpHealth = withOffServers(readHealth(), offServers(ctx))): string {
   const mcp = catalogMcp(ctx.canonical.mcp, H).filter(m => !mcpUnavailable(health[m.id]))
-  const plugins = ctx.canonical.plugins.claude.plugins.filter(x => x.enabled).map(x => x.id)
   const lsp = ctx.canonical.tools.tools.flatMap(t => (t.lsp !== undefined ? [t.lsp.id] : []))
   const policy: RoutingPolicy = { ...ctx.canonical.routing, strictness: ctx.config.routing.strictness }
-  return capabilityCard({ policy, mcp, skills: catalogSkills(ctx.canonical.skills), plugins, harness: H, lsp })
+  return capabilityCard({ policy, mcp, skills: catalogSkills(ctx.canonical.skills), plugins: [], harness: H, lsp })
 }
 
 export function pluginRoot(repoRoot: string, env: (name: string) => string | undefined): string {

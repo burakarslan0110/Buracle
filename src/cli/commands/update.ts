@@ -2,16 +2,14 @@ import { join } from 'node:path'
 import type { CommandIO } from '../router'
 import { sanitizeText } from '../../core/status/format'
 import * as paths from '../../engine/paths'
-import { HARNESSES } from '../../core/events'
 import { parseFlags, removedFlags } from '../../engine/update/args'
 import { liveContext, loadBundle } from '../../engine/update/context'
 import { opsDeps } from '../../engine/update/deps'
 import { bunPath } from '../../engine/update/install-core'
 import { probeServers, readHealth, writeHealth } from '../../engine/update/mcp'
 import { errText, table, tildeText, writeJson } from '../../engine/update/output'
-import { applyVerdicts, findBroken, realRollbackDeps, rollbackBroken, type RollbackVerdict } from '../../engine/update/rollback'
 import { isUpdateKind, UPDATE_KINDS, writeUpdatesCache, type UpdateKind } from '../../engine/update/updates-cache'
-import { applyUpdates, checkUpdates, knownPluginNames, partName, revertCheckout, toolDiff, type ApplyOutcome, type CheckResult, type CheckStep, type UpdateEnv } from '../../engine/update/updates'
+import { applyUpdates, checkUpdates, partName, revertCheckout, toolDiff, type ApplyOutcome, type CheckResult, type CheckStep, type UpdateEnv } from '../../engine/update/updates'
 import { runBuildFlow } from './build'
 import type { BuildReport } from '../../engine/update/build'
 import { runInstallFlow, type InstallFlowResult } from './install'
@@ -36,27 +34,16 @@ Kinds and names (any number; none means everything):
   skills    skill sources (config skills.sources) and skills from \`buracle skills add\`
   mcp       the MCP server packages of the Buracle toolchain (npm, PyPI), at their newest
             release (update.minReleaseAgeDays, 0 by default, can hold younger ones back)
-  plugins   Claude Code plugins; the marketplaces are refreshed before they update
-  harness   Claude Code, Codex, OpenCode and Oh My Pi, each through the installer that
-            installed it (Homebrew, npm, bun or its own updater); the version is read
-            again afterwards and the harness's own checks run
   tools     the Homebrew tools and the toolchain's language servers and npm/PyPI tools
-  pricing   canonical/pricing.yaml list prices
-  <name>    one part, such as codex, codegraph or pyright
+  <name>    one part, such as codegraph or pyright
 
 A part whose check failed is named as not checked, never as up to date. After an apply
-that changed Buracle, a skill source or the prices, Buracle rebuilds and installs again
+that changed Buracle or a skill source, Buracle rebuilds and installs again
 (without the toolchain step), and the MCP handshake runs again for every server that
 moved. A self update that changes package.json or bun.lock runs
 \`bun install --frozen-lockfile\` in the checkout; when the follow-up install fails, the
 hooks keep the old runtime and the checkout moves back to its previous commit
 (\`git reset --keep\`, only while its tracked files have no local changes).
-
-A toolchain upgrade has to prove itself: an MCP server must answer the handshake and a tool
-must run its version check. One that does not goes back to the version the toolchain kept
-(\`buracle rollback toolchain\` does the same by hand) and is checked again. If that version
-fails too, the update was not the cause: the newer one is put back and the part is reported
-as down. A version rolled back this way is not offered again, only a newer one.
 
 Exit codes: 0 ok, 1 error, 2 some checks or updates failed, were cancelled or need action.`
 
@@ -71,15 +58,11 @@ interface Targets { kinds: UpdateKind[], names: Map<UpdateKind, Set<string>> }
 async function resolveTargets(args: readonly string[], env: UpdateEnv): Promise<Targets | { unknown: string[] }> {
   if (args.length === 0) return { kinds: [...UPDATE_KINDS], names: new Map() }
   const { readInstalled } = await import('../../workflow/skill-install')
-  const plugins = args.some(a => a.includes('@') || a.startsWith('marketplace:')) ? await knownPluginNames(env) : new Set<string>()
   const owner = (name: string): UpdateKind | undefined => {
-    if ((HARNESSES as readonly string[]).includes(name)) return 'harness'
     if (name === 'buracle') return 'self'
-    if (name === 'pricing.yaml') return 'pricing'
     if (env.bundle !== undefined && Object.hasOwn(env.bundle.mcp.servers, name)) return 'mcp'
     if (env.bundle?.tools.tools.some(t => t.name === name) === true) return 'tools'
     if (env.config.skills.sources.some(s => s.name === name) || readInstalled().some(s => s.id === name)) return 'skills'
-    if (plugins.has(name)) return 'plugins'
     return undefined
   }
   const kinds = new Set<UpdateKind>()
@@ -107,7 +90,7 @@ const line = (s: string): string => sanitizeText(tildeText(s))
 const lines = (s: string): string => s.split('\n').map(line).join('\n')
 
 const KIND_TITLE: Readonly<Record<UpdateKind, string>> = {
-  self: 'Buracle', skills: 'Skills', mcp: 'MCP servers', plugins: 'Claude Code plugins', harness: 'Harnesses', tools: 'Tools', pricing: 'Prices',
+  self: 'Buracle', skills: 'Skills', mcp: 'MCP servers', tools: 'Tools',
 }
 
 // One line per kind while the check runs, counting only the parts the command names.
@@ -190,7 +173,7 @@ async function applyRestWithNewCode(kinds: readonly UpdateKind[], names: Targets
   const named = [...names.entries()].filter(([k]) => k !== 'self').flatMap(([, s]) => [...s])
   const args = [...kinds.filter(k => k !== 'self' && !names.has(k)), ...named]
   const r = await opsDeps.run([bunPath(), join(repo, 'src', 'cli', 'main.ts'), 'update', '--yes', '--json', ...args], { timeoutMs: 1_800_000, cwd: repo, env: { ...process.env } })
-  let child: Partial<Pick<ApplyOutcome, 'applied' | 'failed' | 'skipped' | 'harnessChecks'>> & { code?: number } | undefined
+  let child: Partial<Pick<ApplyOutcome, 'applied' | 'failed' | 'skipped'>> & { code?: number } | undefined
   try { child = JSON.parse(r.stdout.trim()) as typeof child } catch { child = undefined }
   if (child === undefined || typeof child.code !== 'number') {
     outcome.failed.push({ kind: 'self', id: 'buracle', error: `the update with the new code failed: ${(r.stderr.trim().split('\n')[0] ?? '') || `exit ${r.code}`}` })
@@ -199,7 +182,6 @@ async function applyRestWithNewCode(kinds: readonly UpdateKind[], names: Targets
   outcome.applied.push(...(child.applied ?? []))
   outcome.failed.push(...(child.failed ?? []))
   outcome.skipped.push(...(child.skipped ?? []))
-  outcome.harnessChecks.push(...(child.harnessChecks ?? []))
   return child.code
 }
 
@@ -223,7 +205,7 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
   if ('bundle' in loaded) env.bundle = loaded.bundle
   const targets = await resolveTargets(p.positionals, env)
   if ('unknown' in targets) {
-    io.stderr.write(`buracle update: unknown kind or name ${targets.unknown.join(', ')} (kinds: ${UPDATE_KINDS.join(', ')}; names: a harness, an MCP server, a tool, a skill or a plugin)\n`)
+    io.stderr.write(`buracle update: unknown kind or name ${targets.unknown.join(', ')} (kinds: ${UPDATE_KINDS.join(', ')}; names: an MCP server, a tool or a skill)\n`)
     return 1
   }
   const kinds = targets.kinds
@@ -309,31 +291,16 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
       if (handshakes.length === 0) steps.done('handshake', 'skip', 'MCP handshake: not run (canonical/ could not be loaded)')
       else steps.done('handshake', down > 0 ? 'err' : 'ok', `MCP handshake: ${handshakes.length - down} ok${down > 0 ? `, ${down} not ok (below)` : ''}`)
     }
-    // An upgrade that fails its check is undone while the toolchain still keeps the version it replaced.
-    let rollbacks: RollbackVerdict[] = []
-    if (outcome.toolchainUpgraded.length > 0) {
-      const after = loadBundle(repoRoot)
-      if ('bundle' in after) {
-        const broken = await findBroken(outcome.toolchainUpgraded, after.bundle, handshakes)
-        if (broken.length > 0) {
-          steps.start('rollback', `Undoing the upgrades that fail their check: ${broken.map(b => b.id).join(', ')}`)
-          rollbacks = await rollbackBroken(broken, realRollbackDeps(after.bundle))
-          applyVerdicts(outcome, rollbacks)
-          syncHandshakes(handshakes, rollbacks)
-          rollbacks.forEach((v, n) => steps.done(n === 0 ? 'rollback' : `rollback#${n}`, v.status === 'rolled-back' ? 'warn' : 'err', line(firstOf(`${partName(v.kind, v.id)}: ${v.detail}`))))
-        }
-      }
-    }
     const done = new Set(outcome.applied.map(a => `${a.kind}\0${a.id}`))
     try {
       writeUpdatesCache({ checked_at: checkedAt, kinds, items: full.items.filter(i => !done.has(`${i.kind}\0${i.id}`)), held: full.held, errors: full.errors })
     } catch {  }
     const failed = outcome.failed.length > 0 || (sync !== undefined && sync.code === 1) || handshakes.some(h => h.status !== 'ok')
-    const attention = outcome.skipped.some(s => s.benign !== true) || outcome.harnessChecks.length > 0 || (sync?.code === 2) || check.errors.length > 0
+    const attention = outcome.skipped.some(s => s.benign !== true) || (sync?.code === 2) || check.errors.length > 0
     const own = failed ? (outcome.applied.length === 0 && outcome.failed.length > 0 ? 1 : 2) : attention ? 2 : 0
     const code = own === 1 || restCode === 1 ? 1 : own === 2 || restCode === 2 ? 2 : 0
     if (json) {
-      writeJson(io.stdout, { ok: code === 0, code, checked_at: checkedAt, kinds, check, ...outcome, sync: sync ?? null, handshakes, rollbacks })
+      writeJson(io.stdout, { ok: code === 0, code, checked_at: checkedAt, kinds, check, ...outcome, sync: sync ?? null, handshakes })
       return code
     }
     // In a terminal the result lines carry the shared symbol at the margin; a pipe gets the lines it always had.
@@ -350,7 +317,6 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
       for (const s of outcome.skipped) io.stdout.write(`${mark('warn', `skipped  ${s.kind} ${line(s.id)}: ${lines(s.reason)}`)}\n`)
       for (const f of outcome.failed) io.stderr.write(`${resultLines(io, io.stderr).top('err', `failed   ${f.kind} ${line(f.id)}: ${lines(f.error)}`)}\n`)
     }
-    for (const c of outcome.harnessChecks) io.stderr.write(`${c.level === 'error' ? 'error' : 'warning'}: ${c.harness} ${line(c.check)}: ${lines(c.detail)}\n`)
     if (sync && (!steps.live || sync.code !== 0)) io.stdout.write(`${lines(sync.message)}\n`)
     for (const h of handshakes) {
       io.stdout.write(`${line(`handshake ${h.id}: ${h.status}${h.tools !== undefined ? `, ${h.tools} tool(s)` : ''}${h.version !== undefined ? `, v${h.version}` : ''}${h.added.length > 0 ? `, new tools: ${h.added.join(', ')}` : ''}${h.removed.length > 0 ? `, removed tools: ${h.removed.join(', ')}` : ''}${h.error !== undefined ? ` (${tildeText(h.error)})` : ''}`)}\n`)
@@ -361,21 +327,6 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     return code
   } finally {
     steps.stop()
-  }
-}
-
-// A rollback checks the server again and writes what it found; the handshake lines show that last result.
-function syncHandshakes(handshakes: Array<{ id: string, status: string, tools?: number, version?: string, error?: string }>, verdicts: readonly RollbackVerdict[]): void {
-  const health = readHealth()
-  for (const v of verdicts) {
-    const e = v.kind === 'mcp' ? health?.mcp[v.id] : undefined
-    const h = handshakes.find(x => x.id === v.id)
-    if (e === undefined || h === undefined) continue
-    h.status = e.status
-    if (e.tools !== undefined) h.tools = e.tools
-    if (e.version !== undefined) h.version = e.version
-    if (e.error !== undefined) h.error = e.error
-    else delete h.error
   }
 }
 

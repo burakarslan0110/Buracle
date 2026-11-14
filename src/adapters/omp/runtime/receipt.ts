@@ -3,7 +3,7 @@ import type { ToolKind } from '../../../core/events'
 import type { BandView } from '../../../core/flow/band'
 import { bandSummary, resumeSuggestion } from '../../../core/flow/band'
 import type { ReceiptChange, ReceiptState } from '../../../core/receipt'
-import { emptyReceipt, longTurnText, noteChanges, noteCommand, receiptLine } from '../../../core/receipt'
+import { emptyReceipt, noteChanges, noteCommand, receiptLine } from '../../../core/receipt'
 import type { EditTargets } from './edits'
 import type { OmpContext, OmpToolResultEvent } from './types'
 import { hasTui, numAt } from './util'
@@ -15,7 +15,6 @@ const NEW_KEYS = ['new_string', 'new_str', 'new_text', 'newString', 'newText'] a
 export interface OmpReceiptHost {
   now(): number
   view(sid: string): BandView | undefined
-  desktop(title: string, message: string): void
   log(msg: string, data?: unknown): void
 }
 
@@ -45,7 +44,7 @@ interface Turn { receipt: ReceiptState; startedAt?: number }
 export interface TurnReceipts {
   prompt(sid: string): void
   tool(sid: string, ctx: OmpContext, event: OmpToolResultEvent, facts: OmpToolFacts): void
-  end(sid: string, ctx: OmpContext, cfg: Pick<BuracleConfig, 'workflow'>): void
+  end(sid: string, ctx: OmpContext): void
   resumed(sid: string, ctx: OmpContext, cfg: Pick<BuracleConfig, 'workflow'>): void
 }
 
@@ -83,17 +82,13 @@ export function createTurnReceipts(host: OmpReceiptHost): TurnReceipts {
       }
       if (alarm !== undefined) show(ctx, `Buracle: ${alarm}`, 'warning')
     },
-    end(sid, ctx, cfg) {
+    end(sid, ctx) {
       const t = turns.get(sid)
       if (t === undefined) return
       turns.set(sid, { receipt: emptyReceipt() })
       const summary = receiptLine(t.receipt)
       if (summary?.warn === true) show(ctx, summary.line, 'warning')
       else if (summary !== undefined) host.log('turn receipt', { sid, line: summary.line })
-      if (t.startedAt === undefined || !hasTui(ctx)) return
-      const view = host.view(sid)
-      const text = longTurnText(host.now() - t.startedAt, cfg.workflow.notifyAfterSec, view !== undefined ? bandSummary(view) : '')
-      if (text !== undefined) host.desktop('Buracle', text)
     },
     resumed(sid, ctx, cfg) {
       if (!cfg.workflow.band) return

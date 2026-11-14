@@ -36,8 +36,7 @@ Without a topic every section runs:
            against harness/.manifest.json and canonical/
   tools    the CLI tools in canonical/tools.yaml (missing ones get install advice only; a
            tool Buracle's toolchain provides counts through its toolchain copy), and the
-           version of every package in ~/.buracle/toolchain with the one it keeps for
-           \`buracle rollback toolchain\`
+           version of every package in ~/.buracle/toolchain
   skills   every skill is where each enabled harness reads it (the Claude plugin's skills/,
            $CODEX_HOME/skills, ~/.config/opencode/skills and ~/.omp/agent/skills)
   <h>      each enabled harness: installed version and the adapter's own checks; Claude

@@ -2,7 +2,7 @@ import { Database } from 'bun:sqlite'
 import { describe, expect, test } from 'bun:test'
 import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { claudeSubscriptionSigns, commandFindings, doctor, effortFinding, mcpCommandFindings, permissionFinding, rememberedVariants, type DoctorItem, type DoctorOptions } from '../../../src/adapters/opencode/doctor'
+import { claudeSubscriptionSigns, commandFindings, doctor, mcpCommandFindings, permissionFinding, type DoctorItem, type DoctorOptions } from '../../../src/adapters/opencode/doctor'
 import { MIN_VERSION } from '../../../src/adapters/opencode/constants'
 import { installPlan } from '../../../src/adapters/opencode/install'
 import type { RunResult } from '../../../src/engine/proc'
@@ -60,8 +60,7 @@ describe('opencode doctor', () => {
     expect(fakeExe(join(dirname(ctx.buracleBin), 'buracle'), '')).toBe(ctx.buracleBin)
     const stopped = await doctor(ctx, fake(HEALTHY, { 'service get env BURACLE_HOME': `${buracleHome}\n`, 'service status': 'stopped\n' }))
     expect(stopped.filter(i => i.level === 'error')).toEqual([])
-    for (const c of ['opencode.version', 'opencode.config', 'opencode.cli', 'opencode.permissions', 'opencode.effort', 'opencode.files', 'opencode.commands', 'opencode.pointer', 'opencode.agents-md', 'opencode.service-env', 'opencode.live']) expect(level(stopped, c)).toBe('ok')
-    expect(stopped.find(i => i.check === 'opencode.effort')?.detail).toContain('default effort xhigh')
+    for (const c of ['opencode.version', 'opencode.config', 'opencode.cli', 'opencode.permissions', 'opencode.files', 'opencode.commands', 'opencode.pointer', 'opencode.agents-md', 'opencode.service-env', 'opencode.live']) expect(level(stopped, c)).toBe('ok')
     const live = await doctor(ctx, fake(HEALTHY, {
       'service get env BURACLE_HOME': buracleHome,
       'service status': 'http://127.0.0.1:49374\n',
@@ -132,26 +131,6 @@ describe('opencode doctor', () => {
     expect(permissionFinding({ bypass: true, enforce: false }, undefined).detail).toContain('Buracle keeps your value')
     expect(permissionFinding({ bypass: false, enforce: true }, 'ask').level).toBe('ok')
   })
-
-  test('effort: the applied default, the user\'s own choices that win, keep, and invalid values', () => {
-    const config = { providers: { anthropic: { models: { 'claude-opus-5-5': { settings: { effort: 'medium' } } } }, openai: { models: { 'gpt-x': { settings: { temperature: 1 } } } } } }
-    const auto = effortFinding('auto', config, ['anthropic/claude-sonnet-5-5#max'])
-    expect(auto.level).toBe('ok')
-    expect(auto.detail).toContain('default effort xhigh')
-    expect(auto.detail).toContain('anthropic/claude-opus-5-5 (opencode.jsonc)')
-    expect(auto.detail).toContain('anthropic/claude-sonnet-5-5#max (picked in the TUI)')
-    expect(auto.detail).not.toContain('gpt-x')
-    expect(effortFinding('keep', undefined, []).detail).toContain('keep')
-    expect(effortFinding('ultra', undefined, [])).toMatchObject({ level: 'warn' })
-  })
-
-  test('remembered TUI variants are read from $XDG_STATE_HOME/opencode/model.json ("default" means none)', () => withSandbox(async ({ root }) => {
-    const state = join(root, 'state')
-    mkdirSync(join(state, 'opencode'), { recursive: true })
-    writeFileSync(join(state, 'opencode', 'model.json'), JSON.stringify({ variant: { 'anthropic/claude-opus-5-5': 'max', 'openai/gpt-x': 'default' } }))
-    expect(rememberedVariants({ XDG_STATE_HOME: state })).toEqual(['anthropic/claude-opus-5-5#max'])
-    expect(rememberedVariants({ HOME: join(root, 'nohome') })).toEqual([])
-  }))
 
   test('command files or config entries that would shadow the plugin\'s workflow commands warn', () => withSandbox(async () => {
     const ctx = adapterContext()

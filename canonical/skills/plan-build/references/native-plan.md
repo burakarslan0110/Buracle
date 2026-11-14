@@ -37,7 +37,7 @@ Use this only when `buracle config get plan` shows `nativePlanMode` set to `on`,
 <!-- harness:omp -->
    into the plan file that plan mode names (`local://<slug>-plan.md`), then submit it for approval the way plan mode says.
 <!-- /harness -->
-3. Until plan mode ends, write no other file, run no state-changing `buracle` command (`plan`, `flow`, `notify`) and launch no reviewer: plan mode forbids writes, and P8 runs after it.
+3. Until plan mode ends, write no other file, run no state-changing `buracle` command (`plan`, `flow`) and launch no reviewer: plan mode forbids writes, and P8 runs after it.
 
 ## N3. After plan mode
 

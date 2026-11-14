@@ -6,7 +6,6 @@ import { dropNote, editNote, openNotes, parseNoteInput, withNote, type ReviewNot
 import * as paths from '../../engine/paths'
 import { tilde } from '../../engine/update/output'
 import { listWorktrees, realish, repoFacts, type RepoFacts } from '../../workflow/gitx'
-import { notificationsFile } from '../../workflow/notify'
 import { analyzePlan } from '../../workflow/plan-file'
 import { changesTarget, checkoutId, docId, docTarget, newNoteId, readNotes, repoKey, updateNotes, type NotesTarget } from '../../workflow/review-notes'
 import { diagramSvgs } from '../../workflow/diagram'
@@ -17,7 +16,6 @@ import { UiApiError } from './api'
 const DOCS_PER_REPO = 80
 const DOC_MAX_BYTES = 1024 * 1024
 const SESSION_FRESH_MS = 7 * 24 * 60 * 60 * 1000
-const ASK_FRESH_MS = 2 * 24 * 60 * 60 * 1000
 const LIST_CACHE_MS = 4000
 const DIAGRAMS_PER_DOC = 30
 
@@ -103,22 +101,6 @@ function boundPlans(nowMs: number): Map<string, ReviewSessionMark> {
   return new Map([...out].map(([k, { at: _at, ...v }]) => [k, v]))
 }
 
-function approvalAsks(nowMs: number): Map<string, string> {
-  const out = new Map<string, string>()
-  let text = ''
-  try { text = readFileSync(notificationsFile(), 'utf8') } catch { return out }
-  for (const line of text.split('\n').slice(-400)) {
-    if (line.trim() === '') continue
-    try {
-      const r = JSON.parse(line) as { type?: unknown, plan?: unknown, ts?: unknown }
-      if ((r.type !== 'plan_approval' && r.type !== 'prd_approval') || typeof r.plan !== 'string' || typeof r.ts !== 'string') continue
-      if (nowMs - Date.parse(r.ts) > ASK_FRESH_MS) continue
-      out.set(realish(r.plan), r.ts)
-    } catch {  }
-  }
-  return out
-}
-
 function docFiles(top: string): string[] {
   const out: Array<{ path: string, at: number }> = []
   for (const dir of REVIEW_DOC_DIRS) {
@@ -153,7 +135,7 @@ function docKind(rel: string, type: string | undefined): ReviewDocKind {
   return 'plan'
 }
 
-function docEntry(path: string, facts: RepoFacts, marks: Map<string, ReviewSessionMark>, asks: Map<string, string>): { doc: ReviewDoc, facts: RepoFacts } | undefined {
+function docEntry(path: string, facts: RepoFacts, marks: Map<string, ReviewSessionMark>): { doc: ReviewDoc, facts: RepoFacts } | undefined {
   const t = docTarget(facts, path)
   if (t === undefined || t.doc === undefined) return undefined
   let modified = ''
@@ -169,14 +151,12 @@ function docEntry(path: string, facts: RepoFacts, marks: Map<string, ReviewSessi
   const meta = metaForPlan(facts.commonDir, t.doc.path)
   const changes = meta !== undefined && meta.lane !== true && existsSync(meta.path) ? checkoutId(meta.path) : checkoutId(facts.top)
   const mark = marks.get(t.doc.path)
-  const ask = asks.get(t.doc.path)
   const doc: ReviewDoc = {
     id: docId(t.doc.path), path: t.doc.path, rel, dir: rel.split('/')[1] ?? '', kind: docKind(rel, info.type), title: info.title ?? name, modified, ...counts(t), changes,
     ...(info.type !== undefined ? { type: info.type } : {}),
     ...(info.status !== undefined ? { status: info.status } : {}),
     ...(info.approved !== undefined ? { approved: info.approved } : {}),
     ...(mark !== undefined ? { session: mark } : {}),
-    ...(ask !== undefined ? { asked: ask } : {}),
   }
   return { doc, facts }
 }
@@ -202,9 +182,8 @@ async function build(nowMs: number): Promise<Listing> {
     if (root !== undefined) await add(root, slug, rec.ownerRepo !== undefined && rec.ownerRepo !== '' ? rec.ownerRepo : undefined)
   }
   const marks = boundPlans(nowMs)
-  const asks = approvalAsks(nowMs)
   const pinned = new Map<string, RepoFacts>()
-  for (const p of new Set([...marks.keys(), ...asks.keys()])) {
+  for (const p of marks.keys()) {
     if (!existsSync(p)) continue
     const facts = await factsOf(dirname(p), nowMs)
     if (facts === undefined) continue
@@ -224,7 +203,7 @@ async function build(nowMs: number): Promise<Listing> {
       if (seen.has(real)) continue
       seen.add(real)
       if (list.length >= DOCS_PER_REPO && !r.extra.has(p)) break
-      const e = docEntry(real, pinned.get(p) ?? r.facts, marks, asks)
+      const e = docEntry(real, pinned.get(p) ?? r.facts, marks)
       if (e === undefined) continue
       list.push(e.doc)
       docs.set(e.doc.id, e)

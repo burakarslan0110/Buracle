@@ -2,8 +2,7 @@
 # config). `buracle install` merges them into the live config: each [mcp_servers.<id>] and
 # [tools.update_plan] as a table, the [tui] keys and the root keys below one by one. Every other
 # key, table and comment stays. A value you changed is kept, except the no-approval keys while
-# permissions.enforce is on; the reasoning-effort keys follow config effort.codex and keep a level
-# you (or a Codex model migration) set. {buracle} is replaced with the absolute path of the
+# permissions.enforce is on. {buracle} is replaced with the absolute path of the
 # Buracle shim. Secrets are forwarded with env_vars, never written.
 # The keys with a dot below (features.memories, agents.enabled, ...) are listed that way to show where
 # they belong. The install writes them inside the [features] and [agents] tables, never as dotted root
@@ -13,10 +12,6 @@
 # Routing: MCP tools on the first turn; the built-in web search is off while routing is enforced.
 mcp_optional_startup_grace_ms = 0
 web_search = "disabled"
-# Default reasoning effort (config effort.codex).
-model_reasoning_effort = "xhigh"
-plan_mode_reasoning_effort = "xhigh"
-agents.default_subagent_reasoning_effort = "xhigh"
 # agents.teams: Codex agent threads (spawn_agent, wait_agent) stay on; a value you set is kept.
 agents.enabled = true
 # Codex native memories stay off: the Buracle brain is the one memory; a value you set is kept.

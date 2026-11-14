@@ -55,7 +55,6 @@ memory:
 statusline:
   style: buracle
   emoji: true
-  monthly: estimate
 
 skills:
   sources:
@@ -69,19 +68,12 @@ permissions:
   bypass: true
   enforce: true
 
-effort:
-  claude: auto
-  codex: auto
-  opencode: auto
-  omp: auto
-
 agents:
   teams: true
 
 workflow:
   band: true
   foldAfterSec: 8
-  notifyAfterSec: 120
   codexNotices: true
 
 toolchain:

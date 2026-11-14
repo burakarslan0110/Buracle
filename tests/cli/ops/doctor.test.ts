@@ -4,11 +4,10 @@ import { join } from 'node:path'
 import { run as doctorRun, indexSection, usage as doctorUsage } from '../../../src/cli/commands/doctor'
 import { cliVersion } from '../../../src/cli/router'
 import { run as installRun } from '../../../src/cli/commands/install'
-import { CONFIG_RENAMES, defaultConfig, type ConfigRename } from '../../../src/core/config'
-import { liveContext } from '../../../src/engine/update/context'
+import { defaultConfig } from '../../../src/core/config'
 import { indexChecks } from '../../../src/workflow/workspace-index'
 import type { McpCatalog } from '../../../src/core/catalog'
-import { checkTools, configChecks, doctorExit, parseShim, skillChecks, updateChecks, type DoctorCheck } from '../../../src/engine/update/doctor'
+import { checkTools, doctorExit, parseShim, skillChecks, updateChecks, type DoctorCheck } from '../../../src/engine/update/doctor'
 import { writeUpdatesCache } from '../../../src/engine/update/updates-cache'
 import { emptyToolchainState } from '../../../src/engine/toolchain/state'
 import type { ToolSpec } from '../../../src/core/catalog'
@@ -363,7 +362,7 @@ describe('buracle doctor', () => {
     }
   })
 
-  test('doctor tools lists the version of every toolchain package and the one kept for a rollback', () => withSandbox(async ({ root, buracleHome }) => {
+  test('doctor tools lists the version of every toolchain package', () => withSandbox(async ({ root, buracleHome }) => {
     const repo = makeRepo(root)
     mkdirSync(join(buracleHome, 'state'), { recursive: true })
     const state = emptyToolchainState()
@@ -376,7 +375,7 @@ describe('buracle doctor', () => {
       const checks = (JSON.parse(io.out()) as { checks: Array<{ section: string, level: string, check: string, detail: string }> }).checks
       expect(checks.find(c => c.check === 'toolchain.autoInstall')).toBeUndefined()
       expect(checks.filter(c => c.check.includes(':'))).toEqual([
-        { section: 'tools', level: 'ok', check: 'npm:@acme/srv', detail: "1.1.0 in Buracle's toolchain; 1.0.0 kept for `buracle rollback toolchain`" },
+        { section: 'tools', level: 'ok', check: 'npm:@acme/srv', detail: "1.1.0 in Buracle's toolchain" },
         { section: 'tools', level: 'ok', check: 'pypi:probe', detail: "0.3.0 in Buracle's toolchain; 0.4.0 was rolled back" },
       ])
     })
@@ -447,11 +446,11 @@ describe('buracle doctor', () => {
 
   test('updates: a part whose check failed is named as not checked next to the available ones', () => withSandbox(async () => {
     const at = '2026-11-05T06:00:00.000Z'
-    writeUpdatesCache({ checked_at: at, kinds: ['harness'], held: [], items: [{ kind: 'harness', id: 'claude', current: '2.1.311', latest: '2.1.312', action: 'npm-global', risk: 'low' }], errors: [{ kind: 'harness', id: 'codex', error: 'npm @openai/codex: fetch failed\nmore' }] })
+    writeUpdatesCache({ checked_at: at, kinds: ['tools'], held: [], items: [{ kind: 'tools', id: 'rg', current: '14.1.0', latest: '14.1.1', action: 'brew-upgrade', risk: 'low' }], errors: [{ kind: 'tools', id: 'jq', error: 'brew outdated: fetch failed\nmore' }] })
     const rows = updateChecks(Date.parse(at) + 2 * 3_600_000)
     expect(rows.map(r => r.check)).toEqual(['cache', 'available', 'not checked'])
-    expect(rows[1]?.detail).toContain('harness:claude')
-    expect(rows[2]).toEqual({ section: 'updates', level: 'info', check: 'not checked', detail: '1 part(s) whose check failed: harness:codex (npm @openai/codex: fetch failed); `buracle update --check` tries again' })
+    expect(rows[1]?.detail).toContain('tools:rg')
+    expect(rows[2]).toEqual({ section: 'updates', level: 'info', check: 'not checked', detail: '1 part(s) whose check failed: tools:jq (brew outdated: fetch failed); `buracle update --check` tries again' })
   }))
 
   test('a version check that times out once (a first start after an upgrade) runs again before it counts as failed', () => withSandbox(async ({ root }) => {
@@ -658,8 +657,8 @@ describe('buracle doctor runtime: unsettled transactions, stale locks, generated
       const checks = (JSON.parse(io.out()) as { checks: Array<{ check: string, level: string, detail: string }> }).checks
       const journals = checks.filter(c => c.check === 'journals')
       expect(journals.filter(c => c.level === 'error').map(c => c.detail)).toEqual([
-        'transaction 20260103T000000000Z-cccccc could not be rolled back completely; fix the cause, then run `buracle rollback 20260103T000000000Z-cccccc`',
-        'transaction 20260101T000000000Z-aaaaaa could not be rolled back completely (EACCES: settings.json); fix the cause, then run `buracle rollback 20260101T000000000Z-aaaaaa`',
+        'transaction 20260103T000000000Z-cccccc could not be rolled back completely; fix the cause',
+        'transaction 20260101T000000000Z-aaaaaa could not be rolled back completely (EACCES: settings.json); fix the cause',
       ])
       expect(journals.some(c => c.level === 'warn' && c.detail.includes('20260104T000000000Z-dddddd was interrupted'))).toBe(true)
       expect(checks.find(c => c.check === 'locks')).toMatchObject({ level: 'warn', detail: expect.stringContaining('is stale: its process 4194303 is gone') })
@@ -693,22 +692,4 @@ describe('buracle doctor runtime: unsettled transactions, stale locks, generated
       expect(drifted.some(c => c.check === 'generated' && c.detail.includes('canonical/ changed after the last `buracle build`'))).toBe(true)
     })
   }), 60_000)
-})
-
-describe('buracle doctor: renamed config keys', () => {
-  test('a value moved from a renamed key gets a warn row; the file is not called valid without comment (O6)', () => withSandbox(async ({ root, buracleHome }) => {
-    const repo = makeRepo(root)
-    mkdirSync(buracleHome, { recursive: true })
-    writeFileSync(join(buracleHome, 'config.yaml'), 'statusline:\n  theme: full\n')
-    const renames = CONFIG_RENAMES as ConfigRename[]
-    renames.push({ from: 'statusline.theme', to: 'statusline.style', since: '9.9.9' })
-    try {
-      const live = liveContext(repo)
-      expect(live.config.statusline.style).toBe('full')
-      const rows = configChecks(live, { error: 'not loaded', problems: [] }, repo).filter(c => c.check === 'config')
-      expect(rows).toEqual([{ section: 'config', level: 'warn', check: 'config', detail: '~/.buracle/config.yaml: statusline.theme was renamed to statusline.style in 9.9.9; its value was used (rename the key in config.yaml)' }])
-    } finally {
-      renames.pop()
-    }
-  }))
 })

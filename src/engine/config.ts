@@ -1,7 +1,7 @@
 import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import type { BuracleConfig, ConfigRename } from '../core/config'
-import { CONFIG_RENAMES, defaultConfig, mergeConfig, mergeConfigLenient, migrateConfig } from '../core/config'
+import type { BuracleConfig } from '../core/config'
+import { defaultConfig, mergeConfig, mergeConfigLenient } from '../core/config'
 import { atomicWrite, atomicWriteSync } from './fsx'
 import * as paths from './paths'
 import { parseYaml } from './yaml'
@@ -41,9 +41,9 @@ function parseText(path: string, read: TextRead): YamlRead {
 
 let codeKey: string | undefined
 
-/** Identifies the merged configuration: both files' text plus this build's defaults and key renames. */
+/** Identifies the merged configuration: both files' text plus this build's defaults. */
 function inputsStamp(canonical: string, user: string | undefined): string {
-  codeKey ??= JSON.stringify([defaultConfig(), CONFIG_RENAMES])
+  codeKey ??= JSON.stringify([defaultConfig()])
   return new Bun.CryptoHasher('sha256').update(JSON.stringify([canonical, user ?? null, codeKey])).digest('hex')
 }
 
@@ -62,13 +62,11 @@ function snapshotConfig(stamp: string): BuracleConfig | undefined {
   }
 }
 
-function mergeLayer(base: BuracleConfig, override: unknown, file: string, errors: string[], warnings: string[], renames: readonly ConfigRename[]): BuracleConfig {
-  const migrated = migrateConfig(override, renames)
-  for (const n of migrated.notes) warnings.push(`${file}: ${n}`)
+function mergeLayer(base: BuracleConfig, override: unknown, file: string, errors: string[]): BuracleConfig {
   try {
-    return mergeConfig(base, migrated.value)
+    return mergeConfig(base, override)
   } catch {
-    const merged = mergeConfigLenient(base, migrated.value, [])
+    const merged = mergeConfigLenient(base, override)
     for (const e of merged.errors) errors.push(`${file}: ${e.endsWith(': unknown key') ? `${e} ${UNKNOWN_KEY_HINT}` : e}`)
     return merged.config
   }
@@ -77,7 +75,6 @@ function mergeLayer(base: BuracleConfig, override: unknown, file: string, errors
 export interface LoadConfigOptions {
   repoRoot?: string
   userConfigPath?: string
-  renames?: readonly ConfigRename[]
 }
 
 export function loadConfigSync(opts: LoadConfigOptions = {}): LoadedConfig {
@@ -89,7 +86,7 @@ export function loadConfigSync(opts: LoadConfigOptions = {}): LoadedConfig {
   const userText = readText(userPath)
   const files = { canonical: canonicalPath, user: userPath, userExists: userText.kind !== 'missing' }
 
-  const stampable = opts.userConfigPath === undefined && opts.renames === undefined && canonText.kind === 'ok' && userText.kind !== 'error'
+  const stampable = opts.userConfigPath === undefined && canonText.kind === 'ok' && userText.kind !== 'error'
   const stamp = stampable ? inputsStamp(canonText.text, userText.kind === 'ok' ? userText.text : undefined) : undefined
   if (stamp !== undefined) {
     const cached = snapshotConfig(stamp)
@@ -100,12 +97,12 @@ export function loadConfigSync(opts: LoadConfigOptions = {}): LoadedConfig {
   const canon = parseText(canonicalPath, canonText)
   if (canon.kind === 'missing') errors.push(`${canonicalPath}: not found; using built-in defaults`)
   else if (canon.kind === 'error') errors.push(canon.error)
-  else base = mergeLayer(base, canon.value, canonicalPath, errors, warnings, [])
+  else base = mergeLayer(base, canon.value, canonicalPath, errors)
 
   let config = base
   const user = parseText(userPath, userText)
   if (user.kind === 'error') errors.push(user.error)
-  else if (user.kind === 'ok') config = mergeLayer(base, user.value, userPath, errors, warnings, opts.renames ?? CONFIG_RENAMES)
+  else if (user.kind === 'ok') config = mergeLayer(base, user.value, userPath, errors)
   const loaded: LoadedConfig = { config, errors, warnings, files }
   if (stamp !== undefined && errors.length === 0 && warnings.length === 0) loaded.stamp = stamp
   return loaded

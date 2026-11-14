@@ -142,7 +142,7 @@ describe('opencode build', () => {
       const cleanup = await mod.default.setup(f.ctx)
       expect(f.hooks.size).toBe(9)
       expect([...f.commands.keys()].sort()).toEqual(userInvocable())
-      expect(f.modelTransforms.length).toBe(1)
+      expect(f.modelTransforms.length).toBe(0)
       const ev = await f.trigger('permission.evaluate', { sessionID: 'ses_bundle1', action: 'shell', resources: ['rm -rf /'], effect: 'allow' })
       expect((ev as { effect: string }).effect).toBe('deny')
       if (typeof cleanup === 'function') await (cleanup as () => Promise<void>)()

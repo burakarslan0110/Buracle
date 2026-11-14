@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import type { AgentDoc, CanonicalBundle, CanonicalFile, HooksMatrix, McpCatalog, PluginsCatalog, RuleDoc, SkillDoc, StatuslineCatalog, ToolsCatalog } from '../core/catalog'
-import { validateMcpCatalog, validatePluginsCatalog, validateToolsCatalog } from '../core/catalog'
+import type { AgentDoc, CanonicalBundle, CanonicalFile, HooksMatrix, McpCatalog, RuleDoc, SkillDoc, StatuslineCatalog, ToolsCatalog } from '../core/catalog'
+import { validateMcpCatalog, validateToolsCatalog } from '../core/catalog'
 import type { BuracleConfig } from '../core/config'
 import { defaultConfig, mergeConfig } from '../core/config'
 import { validateNotices, type Notice, type NoticeCatalog } from '../core/notices'
@@ -11,7 +11,6 @@ import type { RoutingPolicy } from '../core/policy/routing'
 import { validateRoutingPolicy } from '../core/policy/routing'
 import type { SkillTriggerTable } from '../core/policy/skill-router'
 import { parseSkillTriggers, validateSkillTriggers } from '../core/policy/skill-router'
-import type { PricingTable } from '../core/usage'
 import * as paths from './paths'
 import { parseYaml } from './yaml'
 
@@ -105,14 +104,6 @@ export function loadCanonicalSync(root: string = paths.canonicalDir()): Canonica
     else mcp = rawMcp as McpCatalog
   }
 
-  const rawPlugins = readData('plugins.yaml', true)
-  let plugins: PluginsCatalog = { claude: { marketplaces: [], plugins: [] }, omp: { plugins: [] }, opencode: { plugins: [] } }
-  if (rawPlugins !== undefined) {
-    const errs = validatePluginsCatalog(rawPlugins)
-    if (errs.length > 0) problems.push(...errs.map(e => `plugins.yaml: ${e}`))
-    else plugins = rawPlugins as PluginsCatalog
-  }
-
   const rawTools = readData('tools.yaml', true)
   let tools: ToolsCatalog = { tools: [] }
   if (rawTools !== undefined) {
@@ -145,12 +136,6 @@ export function loadCanonicalSync(root: string = paths.canonicalDir()): Canonica
   if (rawStatus !== undefined) {
     if (rawStatus !== null && typeof rawStatus === 'object' && !Array.isArray(rawStatus)) statusline = rawStatus as StatuslineCatalog
     else problems.push('statusline.yaml: expected a mapping')
-  }
-  let pricing: PricingTable = {}
-  const rawPricing = readData('pricing.yaml', false)
-  if (rawPricing !== undefined) {
-    if (rawPricing !== null && typeof rawPricing === 'object' && !Array.isArray(rawPricing)) pricing = rawPricing as PricingTable
-    else problems.push('pricing.yaml: expected a mapping')
   }
   let notices: Notice[] = []
   const rawNotices = readData('notices.yaml', false)
@@ -240,7 +225,7 @@ export function loadCanonicalSync(root: string = paths.canonicalDir()): Canonica
   }
 
   if (problems.length > 0) throw new CanonicalError(root, problems)
-  const bundle: CanonicalBundle = { root, config, mcp, plugins, tools, hooks, routing, statusline, pricing, rules, skills, agents, notices, tips, missing, warnings }
+  const bundle: CanonicalBundle = { root, config, mcp, tools, hooks, routing, statusline, rules, skills, agents, notices, tips, missing, warnings }
   if (triggers !== undefined) bundle.triggers = triggers
   return bundle
 }

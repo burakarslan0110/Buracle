@@ -1,81 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import { CONFIG_REMOVALS, CONFIG_RENAMES, configSchemaLeaves, defaultConfig, mergeConfig, mergeConfigLenient, migrateConfig, runtimeSnapshotConfig, validateConfig, type ConfigRename } from '../../src/core/config'
+import { configSchemaLeaves, defaultConfig, mergeConfig, mergeConfigLenient, runtimeSnapshotConfig, validateConfig } from '../../src/core/config'
 
-describe('config migration (renamed keys)', () => {
-  const renames: ConfigRename[] = [{ from: 'perms.enforced', to: 'permissions.enforce', since: '0.9.0' }]
-
-  test('a value under a renamed key moves to its new key and is reported; the old key is gone', () => {
-    const r = migrateConfig({ perms: { enforced: false }, routing: { strictness: 'nudge' } }, renames)
-    expect(r.value).toEqual({ permissions: { enforce: false }, routing: { strictness: 'nudge' } })
-    expect(r.notes).toEqual(['perms.enforced was renamed to permissions.enforce in 0.9.0; its value was used (rename the key in config.yaml)'])
-    expect(mergeConfigLenient(defaultConfig(), { perms: { enforced: false } }, []).config.permissions.enforce).toBe(true)
-    const merged = mergeConfigLenient(defaultConfig(), { perms: { enforced: false } }, renames)
-    expect(merged.config.permissions.enforce).toBe(false)
-    expect(merged.errors).toEqual([])
-    expect(merged.warnings).toEqual(r.notes)
-  })
-
-  test('when the new key is set too, it wins and the old one is reported as ignored', () => {
-    const r = migrateConfig({ perms: { enforced: false }, permissions: { enforce: true } }, renames)
-    expect(r.value).toEqual({ permissions: { enforce: true } })
-    expect(r.notes).toEqual(['perms.enforced was renamed to permissions.enforce in 0.9.0; permissions.enforce is set too, so perms.enforced is ignored (remove it from config.yaml)'])
-  })
-
-  test('nothing to migrate leaves the value as it is; the shipped table renames nothing now (the memory model keys left with memory.llm)', () => {
-    const raw = { routing: { strictness: 'off' } }
-    expect(migrateConfig(raw, renames)).toEqual({ value: raw, notes: [] })
-    expect(migrateConfig(42, renames)).toEqual({ value: 42, notes: [] })
-    expect(CONFIG_RENAMES).toEqual([])
-    expect(migrateConfig({ memory: { reflect: { provider: 'api' } } }).value).toEqual({})
-  })
-
-  test('removed keys (the vault memory, the memory switches, budgets, model and embedder, Context Mode) are dropped: quietly at their shipped default, with a note otherwise', () => {
-    expect(CONFIG_REMOVALS.map(r => r.key)).toEqual([
-      'vault', 'memory.qmd', 'memory.git', 'memory.reflect.model',
-      'memory.inject', 'memory.distill',
-      'memory.reflect.auto', 'memory.reflect.maxRunsPerDay', 'memory.reflect.maxOpsPerRun', 'memory.reflect.maxSubQueries', 'memory.reflect.maxRounds', 'memory.reflect.maxInputTokens', 'memory.reflect.maxOutputTokens', 'memory.reflect.minIntervalMin',
-      'memory.verify', 'memory.heal', 'memory.profile', 'memory.ui.enabled',
-      'memory.reflect.provider', 'memory.reflect.api', 'memory.llm', 'memory.embed',
-      'contextMode',
-    ])
-    expect(migrateConfig({ memory: { llm: { provider: 'auto', api: { format: 'openai', url: '', model: '', keyEnv: '' } }, embed: { url: '', model: '', dim: 0, keyEnv: '' } } }, [])).toEqual({ value: {}, notes: [] })
-    expect(migrateConfig({ contextMode: { enabled: true, capture: true } }, [])).toEqual({ value: {}, notes: [] })
-    expect(migrateConfig({ contextMode: { enabled: false }, routing: { strictness: 'nudge' } }, [])).toEqual({
-      value: { routing: { strictness: 'nudge' } },
-      notes: ['contextMode was removed in 0.6.0 (Context Mode and its context-mode MCP server are gone; the handoff memory and the compaction restore carry the session state); its value is ignored (remove it from config.yaml)'],
-    })
-    expect(migrateConfig({ memory: { llm: { provider: 'api', api: { url: 'https://openrouter.ai/api/v1' } } } }, []).notes).toEqual([
-      'memory.llm was removed in 0.5.0 (the memory\'s model calls run through a harness with usage headroom; there is no external API); its value is ignored (remove it from config.yaml)',
-    ])
-    expect(migrateConfig({ memory: { reflect: { model: 'haiku', auto: true } } }, [])).toEqual({ value: {}, notes: [] })
-    expect(migrateConfig({ memory: { reflect: { model: 'sonnet' } } }, []).notes).toEqual([
-      'memory.reflect.model was removed in 0.5.0 (reflect runs the model of the session\'s own harness); its value is ignored (remove it from config.yaml)',
-    ])
-    const quiet = migrateConfig({ vault: '~/Documents/Buracle', memory: { git: { autoCommit: true, debounceMin: 10 }, profile: { enabled: true }, distill: { auto: true, promote: 'medium' } } }, [])
-    expect(quiet).toEqual({ value: {}, notes: [] })
-    // memory.ui.autostart is a live setting again (0.6.0): a value an older config still holds is kept, with no note.
-    expect(migrateConfig({ memory: { profile: { enabled: false }, ui: { autostart: false, port: 41800 } } }, [])).toEqual({
-      value: { memory: { ui: { autostart: false, port: 41800 } } },
-      notes: ['memory.profile was removed in 0.5.0 (the memory has no background jobs any more; its model-assisted capture runs once at the end of a session, within fixed budgets (src/core/memory/budgets.ts)); its value is ignored (remove it from config.yaml)'],
-    })
-    expect(migrateConfig({ memory: { reflect: { provider: 'api', auto: false, maxRounds: 2 } } })).toEqual({
-      value: {},
-      notes: [
-        'memory.reflect.auto was removed in 0.5.0 (the memory has no background jobs any more; its model-assisted capture runs once at the end of a session, within fixed budgets (src/core/memory/budgets.ts)); its value is ignored (remove it from config.yaml)',
-        'memory.reflect.provider was removed in 0.5.0 (the memory\'s model calls run through a harness with usage headroom; there is no external API); its value is ignored (remove it from config.yaml)',
-      ],
-    })
-    const loud = migrateConfig({ vault: '~/Notes', memory: { qmd: { enabled: true } } }, [])
-    expect(loud.value).toEqual({})
-    expect(loud.notes).toEqual([
-      'vault was removed in 0.5.0 (the memory moved from the Obsidian vault to CortexDB under ~/.buracle/brain); its value is ignored (remove it from config.yaml)',
-      'memory.qmd was removed in 0.5.0 (CortexDB does the search); its value is ignored (remove it from config.yaml)',
-    ])
-    const merged = mergeConfigLenient(defaultConfig(), { vault: '~/Notes' })
-    expect(merged.errors).toEqual([])
-    expect('vault' in merged.config).toBe(false)
-  })
-
+describe('the runtime snapshot', () => {
   test('a runtime snapshot of another version gives the defaults and says so; version 1 is merged', () => {
     const defaults = defaultConfig()
     const other = runtimeSnapshotConfig({ v: 2, config: { routing: { strictness: 'off' } } }, defaults)
@@ -277,7 +203,7 @@ describe('mergeConfigLenient', () => {
       checkers: { languages: ['go', 7] },
     })
     expect(r.config.routing.strictness).toBe('enforce')
-    expect(r.config.statusline).toEqual({ style: 'compact', emoji: true, monthly: 'estimate' })
+    expect(r.config.statusline).toEqual({ style: 'compact', emoji: true })
     expect(r.config.checkers.languages).toEqual(defaultConfig().checkers.languages)
     expect((r.config as unknown as Record<string, unknown>)['typo']).toBeUndefined()
     expect(validateConfig(r.config).ok).toBe(true)

@@ -160,7 +160,6 @@ describe('golden output (canonical-mini)', () => {
     expect(catalog).toContain('"^mcp__plugin_buracle_buracle-memory__"')
     expect(catalog).toContain('"^mcp__plugin_buracle_docs__"')
     expect(catalog).not.toContain('codex-only')
-    expect(catalog).toContain('"lint-lsp@acme-market"')
     expect(catalog).not.toContain('off-plugin')
     const meta = file(files, 'hooks/generated/meta.ts').content
     expect(meta).toMatch(/"contentHash": "[0-9a-f]{64}"/)

@@ -204,7 +204,7 @@ async function withLspServer({ root, home, buracleHome }: { root: string, home: 
 }
 
 describe('opencode smoke (real binary, isolated)', () => {
-  (available ? test : test.skip)('the generated config parses; the plugin loads, reacts to session events, runs the workflow commands, attaches skills, sets the effort and re-prompts once for H23', () => withSandbox(async ({ root, home, buracleHome }) => {
+  (available ? test : test.skip)('the generated config parses; the plugin loads, reacts to session events, runs the workflow commands, attaches skills and re-prompts once for H23', () => withSandbox(async ({ root, home, buracleHome }) => {
     const review = { agent: 'plan-build-review', description: 'review the plan', prompt: 'Review docs/plans/x.md and return your report.' }
     const { project, provider, server, shimLog, plugins } = await launch(root, home, buracleHome, [
       { when: t => t.includes(REVIEW_MARK), name: 'subagent', input: review },
@@ -248,7 +248,6 @@ describe('opencode smoke (real binary, isolated)', () => {
       expect(specText).toContain('<skill_content name="plan-build">')
       expect(JSON.stringify(specReq['tools'] ?? [])).toContain('"todowrite"')
       expect(specText).toContain('Run this with the Buracle plan-build workflow')
-      expect(specReq['output_config']).toEqual({ effort: 'xhigh' })
       await until(() => latestWindows('opencode', Date.now()).length === 2, 15_000)
       expect(latestWindows('opencode', Date.now()).map(w => `${w.label} ${w.pct}`)).toEqual(['5h 42', '7d 18'])
 

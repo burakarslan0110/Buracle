@@ -30,8 +30,4 @@ export const CLASSIC_HOOKS: ReadonlyArray<{ event: string, matcher?: string, tim
 
 export const SHELL_TOOLS: readonly string[] = ['Bash', 'Monitor', 'PowerShell']
 
-export const CLAUDE_MANAGED_MARKETPLACES: readonly string[] = ['claude-plugins-official']
-
-export const EFFORT_MODELS: readonly string[] = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-fable-5-1']
-
 export const READ_ONLY_DISALLOWED: readonly string[] = ['Write', 'Edit', 'NotebookEdit']

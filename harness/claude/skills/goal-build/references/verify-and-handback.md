@@ -75,7 +75,7 @@ Mark the phase: `buracle flow phase handback`.
 
 1. Worktree run: merge as described in *Worktree merge* below, before anything is marked verified.
 2. `buracle plan verify`. It refuses while any criterion is not `pass`, a row of the criteria table is not a `C<n>` row, or `## Unverified` is missing; a refusal means you are not at done.
-3. `buracle notify verification_complete "<title>" "<one line>" --plan <path>`, then `buracle flow end --outcome done`
+3. `buracle flow end --outcome done`
 4. Memory: up to three memories worth keeping, with `memory_write` (decisions with their rationale, non-obvious gotchas). Run `memory_search` first and update instead of duplicating; never store secrets or logs.
 5. Deliver the report.
 
@@ -90,7 +90,7 @@ Mark the phase: `buracle flow phase handback`.
 **Done with verification off** (every criterion passed in the last judge round):
 
 1. `buracle plan pause --kind decision --reason "build hand-back: done, verification off"`. The run stays bound at COMPLETE; this pause is how it ends.
-2. `buracle notify verification_complete "<title>" "Done, verification off: <one line>" --plan <path>`, then `buracle flow end --outcome done`.
+2. `buracle flow end --outcome done`.
 3. Memory as in *Done*, step 4.
 4. Deliver the report with the outcome `done, verification off`, and end the turn.
 5. If the user then says "continue", run `buracle plan resume`. No round is left to do: make the fix or change their message asks for, re-judge the criteria it touches, add the rows to `## Evidence`, and hand back with the same pause again (step 1). A new goal is a new run.
@@ -99,7 +99,7 @@ Mark the phase: `buracle flow phase handback`.
 
 1. Phase 6 has run (not for blocked).
 2. `buracle plan pause --kind decision --reason "build hand-back: <outcome>"`
-3. `buracle notify attention_needed "<title>" "<outcome>: <one line>" --plan <path>`, then `buracle flow end --outcome failed`
+3. `buracle flow end --outcome failed`
 4. Deliver the report with the exact next step: what would unblock the run, or which different approach you would try. End the turn.
 5. If the user then says "continue", run `buracle plan resume` and `buracle flow start goal-build --title "<goal title>"`, and do one more round per explicit request; past the fourth round, each extra round needs that request. A criterion the user rewrites is judged in the next round.
 

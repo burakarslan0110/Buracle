@@ -4,7 +4,6 @@ import { join } from 'node:path'
 import { bandLines, BandFeeder, estimatedWidth } from '../../../src/adapters/opencode/runtime/band'
 import { workflowCommandDescription, workflowPromptText } from '../../../src/adapters/opencode/runtime/commands'
 import { projectDeps } from '../../../src/adapters/opencode/runtime/deps'
-import { applyEffort, effortLevel } from '../../../src/adapters/opencode/runtime/effort'
 import { reviewProblems, subagentReport } from '../../../src/adapters/opencode/runtime/review'
 import { commandOfPrompt, COMMAND_ARGS, COMMAND_MARK, routeUserPrompt, withinBudget } from '../../../src/adapters/opencode/runtime/routing'
 import type { CliResult, UtilityHost } from '../../../src/adapters/opencode/runtime/tui-commands'
@@ -12,7 +11,7 @@ import { aside, brain, ping, remember, status, statusLines, utilityCommands, uti
 import type { BandView } from '../../../src/core/flow/band'
 import { flowPath } from '../../../src/workflow/flow'
 import { withSandbox } from '../../helpers/sandbox'
-import { fakeModelEditor, testBaked } from './helpers'
+import { testBaked } from './helpers'
 
 function writeFlowRecord(sid: string, stack: unknown[]): void {
   mkdirSync(join(flowPath('opencode', sid), '..'), { recursive: true })
@@ -122,7 +121,7 @@ describe('the utility commands (tui-commands.ts): no model turn, output as a toa
     const unknown = host({ band: () => running, about: () => ({ workflows: [] }) })
     await status(unknown, '')
     expect(unknown.alerts[0]?.message.split('\n')[0]).toBe('Buracle on OpenCode')
-    expect(h.alerts[0]?.message).toContain('default effort: xhigh (effort.opencode auto)')
+    expect(h.alerts[0]?.message).not.toContain('effort')
     expect(h.alerts[0]?.message).toContain('workflows: /goal-build /plan-build')
     await status(h, 'flow')
     expect(h.alerts[1]).toMatchObject({ title: 'Buracle workflow' })
@@ -228,20 +227,6 @@ describe('pure helpers of the server plugin', () => {
   test('the per-prompt budget keeps the first part and drops what overflows', () => {
     expect(withinBudget(['a'.repeat(10), undefined, '', 'b'.repeat(5)], 20)).toEqual(['a'.repeat(10), 'b'.repeat(5)])
     expect(withinBudget(['a'.repeat(30), 'b'], 20)).toEqual(['a'.repeat(30)])
-  })
-
-  test('effort.opencode: auto is xhigh, keep and invalid values write nothing; the overlay of that variant becomes the default', () => {
-    const cfg = (opencode: string) => ({ effort: { claude: 'auto', codex: 'auto', opencode, omp: 'auto' } })
-    expect(effortLevel(cfg('auto'))).toBe('xhigh')
-    expect(effortLevel(cfg('max'))).toBe('max')
-    expect(effortLevel(cfg('keep'))).toBeUndefined()
-    expect(effortLevel(cfg('ultra'))).toBeUndefined()
-    const editor = fakeModelEditor([
-      { id: 'a', providerID: 'p', settings: { effort: 'low', other: 1 }, headers: { x: '1' }, variants: [{ id: 'max', settings: { effort: 'max' }, headers: { y: '2' } }] },
-      { id: 'b', providerID: 'p' },
-    ])
-    expect(applyEffort(editor, 'max')).toEqual(['p/a'])
-    expect(editor.models[0]).toMatchObject({ settings: { effort: 'max', other: 1 }, headers: { x: '1', y: '2' } })
   })
 
   test('H19 reads the reviewer\'s report from the result (output first, the <subagent> text as a fallback)', () => {

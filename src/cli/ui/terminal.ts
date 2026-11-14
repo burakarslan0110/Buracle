@@ -22,27 +22,12 @@ export interface SignalHost {
   off(sig: 'SIGTERM' | 'SIGHUP', f: () => void): unknown
 }
 
-export interface ExitHost {
-  on(ev: 'exit', f: () => void): unknown
-  off(ev: 'exit', f: () => void): unknown
-}
-
 export interface Terminal {
   size(): { columns: number; rows: number }
   draw(lines: string[]): void
   // After close it resolves with 'ctrl-c', so a loop still waiting for a key ends.
   nextKey(): Promise<Key>
-  // While suspended: one key on the normal screen (under a finished child command); the screen stays as it is.
-  anyKey(): Promise<Key>
   onResize(f: () => void): void
-  suspend(): void
-  resume(): void
-  // While suspended: every raw input chunk goes to `f`, undecoded, in raw mode (a child command in a PTY reads it); undefined stops it.
-  passthrough(f: ((d: Buffer | string) => void) | undefined): void
-  // Runs once when the terminal closes, before it is restored; the returned function unsubscribes.
-  onClose(f: () => void): () => void
-  // Sets the scroll region of the normal screen (rows counted from 1), or resets it without rows.
-  region(rows?: { top: number; bottom: number }): void
   close(): void
 }
 
@@ -56,14 +41,12 @@ export function openTerminal(o: {
   input: TermIn
   output: TermOut
   signals?: SignalHost
-  exitHost?: ExitHost
   now?: () => number
   setTimer?: (f: () => void, ms: number) => unknown
   clearTimer?: (t: unknown) => void
   exit?: (code: number) => void
 }): Terminal {
   const signals: SignalHost = o.signals ?? process
-  const exitHost: ExitHost = o.exitHost ?? process
   const exit = o.exit ?? ((code: number) => { process.exit(code) })
   const setTimer = o.setTimer ?? ((f: () => void, ms: number): unknown => setTimeout(f, ms))
   const clearTimer = o.clearTimer ?? ((t: unknown) => { clearTimeout(t as ReturnType<typeof setTimeout>) })
@@ -72,12 +55,8 @@ export function openTerminal(o: {
   const queue: Key[] = []
   const waiting: Array<(k: Key) => void> = []
   const resizers: Array<() => void> = []
-  const closers = new Set<() => void>()
-  let pass: ((d: Buffer | string) => void) | undefined
-  let regionSet = false
   let timer: unknown
   let reading = false
-  let suspended = false
   let closed = false
 
   const deliver = (keys: readonly Key[]): void => {
@@ -93,7 +72,6 @@ export function openTerminal(o: {
     timer = undefined
   }
   const onData = (d: Buffer | string): void => {
-    if (pass !== undefined) { pass(d); return }
     stopTimer()
     deliver(decoder.feed(typeof d === 'string' ? d : utf8.decode(d, { stream: true })))
     if (decoder.pending()) {
@@ -122,27 +100,12 @@ export function openTerminal(o: {
   }
   const onTerm = onSignal('SIGTERM')
   const onHup = onSignal('SIGHUP')
-  // A scroll region left behind would confine the shell after Buracle exits, however it exits.
-  const resetOnExit = (): void => { o.output.write(RESET_REGION) }
-  const setRegion = (on: boolean): void => {
-    if (on === regionSet) return
-    regionSet = on
-    if (on) exitHost.on('exit', resetOnExit)
-    else exitHost.off('exit', resetOnExit)
-  }
-
   function close(): void {
     if (closed) return
     closed = true
-    for (const f of [...closers]) { try { f() } catch {  } }
-    closers.clear()
     stopTimer()
-    pass = undefined
     o.input.setRawMode?.(false)
-    // On the normal screen (a child command was running) the shell continues below its output; else the screen is left.
-    const rows = o.output.rows !== undefined && o.output.rows > 0 ? o.output.rows : DEFAULT_SIZE.rows
-    o.output.write(suspended ? `${RESET_REGION}\u001b[${rows};1H\r\n` : `${RESET_REGION}${LEAVE_SCREEN}`)
-    setRegion(false)
+    o.output.write(`${RESET_REGION}${LEAVE_SCREEN}`)
     stopReading()
     o.output.off?.('resize', onOutputResize)
     signals.off('SIGTERM', onTerm)
@@ -173,68 +136,11 @@ export function openTerminal(o: {
       }
     },
     draw(lines) {
-      if (closed || suspended) return
+      if (closed) return
       o.output.write(`\u001b[H${lines.join('\u001b[K\n')}\u001b[J`)
     },
     nextKey,
-    anyKey() {
-      if (closed) return Promise.resolve<Key>('ctrl-c')
-      if (!suspended) return nextKey()
-      queue.length = 0 // keys typed before the child command started are not the answer
-      o.input.setRawMode?.(true)
-      startReading()
-      return new Promise<Key>(resolve => {
-        waiting.push(k => {
-          if (!closed && suspended) {
-            stopTimer()
-            decoder.flush()
-            o.input.setRawMode?.(false)
-            stopReading()
-          }
-          resolve(k)
-        })
-      })
-    },
     onResize(f) { resizers.push(f) },
-    passthrough(f) {
-      if (closed || !suspended) return
-      pass = f
-      if (f !== undefined) {
-        stopTimer()
-        decoder.flush()
-        o.input.setRawMode?.(true)
-        startReading()
-      } else {
-        o.input.setRawMode?.(false)
-        stopReading()
-      }
-    },
-    onClose(f) {
-      closers.add(f)
-      return () => { closers.delete(f) }
-    },
-    region(rows) {
-      if (closed) return
-      o.output.write(rows === undefined ? RESET_REGION : `\u001b[${rows.top};${rows.bottom}r`)
-      setRegion(rows !== undefined)
-    },
-    suspend() {
-      if (closed || suspended) return
-      suspended = true
-      stopTimer()
-      decoder.flush() // a half-read key from before the child command is dropped, never delivered after it
-      o.input.setRawMode?.(false)
-      o.output.write(LEAVE_SCREEN)
-      stopReading()
-    },
-    resume() {
-      if (closed || !suspended) return
-      suspended = false
-      pass = undefined
-      o.input.setRawMode?.(true)
-      o.output.write(ENTER_SCREEN)
-      startReading()
-    },
     close,
   }
 }

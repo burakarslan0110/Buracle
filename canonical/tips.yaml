@@ -46,8 +46,6 @@ tips:
     text: "Something feels off? `buracle doctor` checks config, hooks, MCP and LSP servers, memory and code indexes"
   - id: update
     text: "`buracle update` updates Buracle and everything it connects, each part from its own source"
-  - id: rollback
-    text: "`buracle rollback` undoes the newest install; values you changed by hand always stay yours"
   - id: config
     text: "`buracle config set plan.<key> <value>` tunes how workflows run: worktrees, questions, reviews"
   - id: companion-review

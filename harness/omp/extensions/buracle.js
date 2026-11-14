@@ -26164,7 +26164,7 @@ function compactInstructionsWith(base, state, extra) {
   }
   const flow = typeof extra?.flow === "string" ? oneLine2(extra.flow, 240) : "";
   if (flow !== "")
-    lines.push(`- Running workflow: ${flow}. Continue it after compaction; \`buracle flow status\` shows where it stands.`);
+    lines.push(`- Running workflow: ${flow}. Continue it after compaction.`);
   const paused = interactionLine(state);
   if (paused)
     lines.push(`- ${paused}`);
@@ -27030,13 +27030,12 @@ function defaultConfig() {
       ui: { port: 41777, autostart: true },
       exclude: []
     },
-    statusline: { style: "buracle", emoji: true, monthly: "estimate" },
+    statusline: { style: "buracle", emoji: true },
     skills: { sources: [{ name: "buracle", path: "canonical/skills" }] },
     update: { minReleaseAgeDays: 0 },
     permissions: { bypass: true, enforce: true },
-    effort: { claude: "auto", codex: "auto", opencode: "auto", omp: "auto" },
     agents: { teams: true },
-    workflow: { band: true, foldAfterSec: 8, notifyAfterSec: 120, codexNotices: true },
+    workflow: { band: true, foldAfterSec: 8, codexNotices: true },
     toolchain: { autoInstall: true, system: true, upgrade: true },
     index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 },
     mcp: { shared: true, off: { claude: [], codex: [], opencode: [], omp: [] } }
@@ -27051,15 +27050,6 @@ var strList2 = { t: "arr", of: str5 };
 var harnessFields = {};
 for (const h of HARNESSES)
   harnessFields[h] = { t: "obj", fields: { enabled: bool } };
-var EFFORT_VALUES = {
-  claude: ["auto", "keep", "low", "medium", "high", "xhigh"],
-  codex: ["auto", "keep", "none", "minimal", "low", "medium", "high", "xhigh", "max"],
-  opencode: ["auto", "keep", "low", "medium", "high", "xhigh", "max"],
-  omp: ["auto", "keep", "minimal", "low", "medium", "high", "xhigh", "max", "classifier"]
-};
-var effortFields = {};
-for (const h of HARNESSES)
-  effortFields[h] = { t: "enum", values: EFFORT_VALUES[h] };
 var mcpOffFields = {};
 for (const h of HARNESSES)
   mcpOffFields[h] = strList2;
@@ -27115,8 +27105,7 @@ var CONFIG_SCHEMA = {
       t: "obj",
       fields: {
         style: { t: "enum", values: ["buracle", "full", "compact"] },
-        emoji: bool,
-        monthly: { t: "enum", values: ["estimate", "off"] }
+        emoji: bool
       }
     },
     skills: {
@@ -27130,9 +27119,8 @@ var CONFIG_SCHEMA = {
     },
     update: { t: "obj", fields: { minReleaseAgeDays: count(0) } },
     permissions: { t: "obj", fields: { bypass: bool, enforce: bool } },
-    effort: { t: "obj", fields: effortFields },
     agents: { t: "obj", fields: { teams: bool } },
-    workflow: { t: "obj", fields: { band: bool, foldAfterSec: count(0), notifyAfterSec: count(0), codexNotices: bool } },
+    workflow: { t: "obj", fields: { band: bool, foldAfterSec: count(0), codexNotices: bool } },
     toolchain: { t: "obj", fields: { autoInstall: bool, system: bool, upgrade: bool } },
     index: { t: "obj", fields: { auto: bool, codegraph: bool, semble: bool, minIntervalMin: count(0), exclude: strList2, children: bool, maxChildren: count(0) } },
     mcp: { t: "obj", fields: { shared: bool, off: { t: "obj", fields: mcpOffFields } } }
@@ -27346,101 +27334,6 @@ function setAt(x, path, value, remove) {
     cur[last] = clone(value);
   }
 }
-var CONFIG_RENAMES = [];
-var ALWAYS_ON = "the memory has no background jobs any more; its model-assisted capture runs once at the end of a session, within fixed budgets (src/core/memory/budgets.ts)";
-var CONFIG_REMOVALS = [
-  { key: "vault", since: "0.5.0", why: "the memory moved from the Obsidian vault to CortexDB under ~/.buracle/brain", quietWhen: "~/Documents/Buracle" },
-  { key: "memory.qmd", since: "0.5.0", why: "CortexDB does the search", quietWhen: { enabled: false, url: "http://127.0.0.1:8181" } },
-  { key: "memory.git", since: "0.5.0", why: "the memory is no longer a git repository", quietWhen: { autoCommit: true, debounceMin: 10 } },
-  { key: "memory.reflect.model", since: "0.5.0", why: "reflect runs the model of the session's own harness", quietWhen: "haiku" },
-  { key: "memory.inject", since: "0.5.0", why: "the session-start text has a fixed budget (150 lines, 12 KiB)", quietWhen: { maxLines: 150, maxBytes: 12288 } },
-  { key: "memory.distill", since: "0.5.0", why: ALWAYS_ON, quietWhen: { auto: true, promote: "medium", maxRunsPerDay: 20, maxInputTokens: 8000, maxOutputTokens: 800, skip5hPct: 75, skip7dPct: 85 } },
-  { key: "memory.reflect.auto", since: "0.5.0", why: ALWAYS_ON, quietWhen: true },
-  { key: "memory.reflect.maxRunsPerDay", since: "0.5.0", why: ALWAYS_ON, quietWhen: 6 },
-  { key: "memory.reflect.maxOpsPerRun", since: "0.5.0", why: ALWAYS_ON, quietWhen: 8 },
-  { key: "memory.reflect.maxSubQueries", since: "0.5.0", why: ALWAYS_ON, quietWhen: 6 },
-  { key: "memory.reflect.maxRounds", since: "0.5.0", why: ALWAYS_ON, quietWhen: 2 },
-  { key: "memory.reflect.maxInputTokens", since: "0.5.0", why: ALWAYS_ON, quietWhen: 6000 },
-  { key: "memory.reflect.maxOutputTokens", since: "0.5.0", why: ALWAYS_ON, quietWhen: 700 },
-  { key: "memory.reflect.minIntervalMin", since: "0.5.0", why: ALWAYS_ON, quietWhen: 60 },
-  { key: "memory.verify", since: "0.5.0", why: ALWAYS_ON, quietWhen: { auto: true, maxRunsPerDay: 4, maxPerRun: 4, maxInputTokens: 8000, maxOutputTokens: 900, minIntervalMin: 60 } },
-  { key: "memory.heal", since: "0.5.0", why: ALWAYS_ON, quietWhen: { auto: true } },
-  { key: "memory.profile", since: "0.5.0", why: ALWAYS_ON, quietWhen: { enabled: true, statements: true } },
-  { key: "memory.ui.enabled", since: "0.5.0", why: "the brain web UI is always available; `memory.ui.autostart` decides whether it starts by itself", quietWhen: true },
-  { key: "memory.reflect.provider", since: "0.5.0", why: "the memory's model calls run through a harness with usage headroom; there is no external API", quietWhen: "harness" },
-  { key: "memory.reflect.api", since: "0.5.0", why: "the memory's model calls run through a harness with usage headroom; there is no external API", quietWhen: { format: "openai", url: "", model: "", keyEnv: "", person: false } },
-  { key: "memory.llm", since: "0.5.0", why: "the memory's model calls run through a harness with usage headroom; there is no external API", quietWhen: { provider: "auto", api: { format: "openai", url: "", model: "", keyEnv: "", person: false } } },
-  { key: "memory.embed", since: "0.5.0", why: "the memory search is by words; there is no embedding model or endpoint to configure", quietWhen: { url: "", model: "", dim: 0, keyEnv: "" } },
-  { key: "contextMode", since: "0.6.0", why: "Context Mode and its context-mode MCP server are gone; the handoff memory and the compaction restore carry the session state", quietWhen: { enabled: true, capture: true } }
-];
-function quietRemoval(old, quiet) {
-  if (isPlainObject(old) && isPlainObject(quiet)) {
-    return Object.entries(old).every(([k, v]) => Object.prototype.hasOwnProperty.call(quiet, k) && quietRemoval(v, quiet[k]));
-  }
-  return deepEqual(old, quiet);
-}
-function migrateConfig(raw, renames = CONFIG_RENAMES) {
-  if (!isPlainObject(raw))
-    return { value: raw, notes: [] };
-  let value;
-  const notes = [];
-  for (const r of CONFIG_REMOVALS) {
-    const path = r.key.split(".");
-    const old = getAt(value ?? raw, path);
-    if (!old.found)
-      continue;
-    value ??= clone(raw);
-    if (!(r.quietWhen !== undefined && quietRemoval(old.value, r.quietWhen)))
-      notes.push(`${r.key} was removed in ${r.since} (${r.why}); its value is ignored (remove it from config.yaml)`);
-    removePath(value, path);
-  }
-  for (const r of renames) {
-    const from = r.from.split(".");
-    const to = r.to.split(".");
-    const old = getAt(value ?? raw, from);
-    if (!old.found || old.value === undefined || old.value === null)
-      continue;
-    value ??= clone(raw);
-    const target = getAt(value, to);
-    if (target.found && target.value !== undefined && target.value !== null) {
-      notes.push(`${r.from} was renamed to ${r.to} in ${r.since}; ${r.to} is set too, so ${r.from} is ignored (remove it from config.yaml)`);
-    } else {
-      setPath(value, to, old.value);
-      notes.push(`${r.from} was renamed to ${r.to} in ${r.since}; its value was used (rename the key in config.yaml)`);
-    }
-    removePath(value, from);
-  }
-  return { value: value ?? raw, notes };
-}
-function setPath(x, path, v) {
-  let cur = x;
-  for (const seg of path.slice(0, -1)) {
-    if (seg === "__proto__" || seg === "constructor" || seg === "prototype")
-      return;
-    const next = cur[seg];
-    if (!isPlainObject(next))
-      cur[seg] = {};
-    cur = cur[seg];
-  }
-  const last = path[path.length - 1];
-  if (last !== undefined && last !== "__proto__" && last !== "constructor" && last !== "prototype")
-    cur[last] = clone(v);
-}
-function removePath(x, path) {
-  const [head, ...rest] = path;
-  if (head === undefined || !Object.prototype.hasOwnProperty.call(x, head))
-    return;
-  if (rest.length === 0) {
-    delete x[head];
-    return;
-  }
-  const next = x[head];
-  if (!isPlainObject(next))
-    return;
-  removePath(next, rest);
-  if (Object.keys(next).length === 0)
-    delete x[head];
-}
 var RUNTIME_SNAPSHOT_VERSION = 1;
 function runtimeSnapshotConfig(raw, defaults) {
   if (!isPlainObject(raw))
@@ -27453,15 +27346,14 @@ function runtimeSnapshotConfig(raw, defaults) {
 function describeVersion(v) {
   return typeof v === "number" || typeof v === "string" ? String(v) : describe(v);
 }
-function mergeConfigLenient(base, override, renames = CONFIG_RENAMES) {
+function mergeConfigLenient(base, override) {
   if (override === undefined || override === null)
     return { config: clone(base), errors: [], warnings: [] };
   if (!isPlainObject(override)) {
     return { config: clone(base), errors: [`(root): expected a mapping, got ${describe(override)}`], warnings: [] };
   }
-  const migrated = migrateConfig(override, renames);
-  const warnings = migrated.notes;
-  const merged = deepMerge(base, migrated.value);
+  const warnings = [];
+  const merged = deepMerge(base, override);
   const errors = [];
   const note = (msg) => {
     if (!errors.includes(msg))
@@ -28554,7 +28446,7 @@ function hooksSegmentTexts(h) {
 // src/core/status/render.ts
 var SEGMENT_SEPARATOR = " \u2502 ";
 var SEP_WIDTH = 3;
-var SEGMENT_IDS = ["model", "ctx", "windows", "month", "cost", "git", "dir", "mem", "index", "flow", "plan", "upd", "hooks"];
+var SEGMENT_IDS = ["model", "ctx", "windows", "cost", "git", "dir", "mem", "index", "flow", "plan", "upd", "hooks"];
 var PRIORITY = {
   ctx: 100,
   hooks: 95,
@@ -28565,7 +28457,6 @@ var PRIORITY = {
   git: 70,
   cost: 65,
   flow: 62,
-  month: 60,
   plan: 55,
   mem: 50,
   index: 35,
@@ -28627,25 +28518,6 @@ function windowCandidate(w, nowMs) {
   const head = `${w.label} ${formatPct(w.pct)}%`;
   const priority = PRIORITY[w.label] ?? PRIORITY["window"] ?? 0;
   return cand(w.label, priority, seg2(w.label, `${head}${arrow ? ` ${arrow}` : ""}${reset}`, color), seg2(w.label, `${head}${arrow}`, color));
-}
-function monthCandidate(bar) {
-  const m = bar.month;
-  if (m === undefined)
-    return;
-  const approx = m.estimate ? "\u2248" : "";
-  const priority = PRIORITY["month"] ?? 0;
-  if (m.pct !== undefined && Number.isFinite(m.pct)) {
-    const color = m.pct >= 90 ? "red" : m.pct >= 75 ? "yellow" : undefined;
-    const head = `mo ${formatPct(m.pct)}%`;
-    return m.usd !== undefined && Number.isFinite(m.usd) ? cand("month", priority, seg2("month", `${head} ${approx}${formatUsd(m.usd)}`, color), seg2("month", head, color)) : cand("month", priority, seg2("month", head, color));
-  }
-  if (m.usd !== undefined && Number.isFinite(m.usd)) {
-    const usd = `mo ${approx}${formatUsd(m.usd)}`;
-    return m.tokens > 0 ? cand("month", priority, seg2("month", `${usd} \xB7 ${formatTokens(m.tokens)} tok`), seg2("month", usd)) : cand("month", priority, seg2("month", usd));
-  }
-  if (m.tokens > 0)
-    return cand("month", priority, seg2("month", `mo ${formatTokens(m.tokens)} tok`));
-  return;
 }
 function costCandidate(bar) {
   const c = bar.cost;
@@ -28753,8 +28625,6 @@ function candidatesFor(id, bar, layout, nowMs, facts) {
       return one(modelCandidate(bar));
     case "ctx":
       return one(ctxCandidate(bar, layout));
-    case "month":
-      return one(monthCandidate(bar));
     case "cost":
       return one(costCandidate(bar));
     case "git":
@@ -29103,13 +28973,6 @@ function footerParts(bar, info, nowMs, emoji) {
   if (idx !== undefined) {
     const extra = idx.dim === true ? { dim: true } : {};
     out.push({ priority: 44, variants: [[seg3("index", idx.long, idx.color, extra)], [seg3("index", idx.short, idx.color, extra)]] });
-  }
-  const m = bar.month;
-  if (m !== undefined) {
-    const approx = m.estimate ? "\u2248" : "";
-    const text = m.pct !== undefined && Number.isFinite(m.pct) ? `mo ${formatPct(m.pct)}%` : m.usd !== undefined && Number.isFinite(m.usd) ? `mo ${approx}${formatUsd(m.usd)}` : m.tokens > 0 ? `mo ${formatTokens(m.tokens)} tok` : "";
-    if (text !== "")
-      out.push({ priority: 40, variants: [[seg3("month", text, "gray")]] });
   }
   if (bar.cost !== undefined && Number.isFinite(bar.cost.usd) && bar.cost.usd > 0)
     out.push({ priority: 42, variants: [[seg3("cost", formatUsd(bar.cost.usd), "gray")]] });
@@ -29469,17 +29332,6 @@ function recordFlowStart(h, sid, input, now) {
   }
 }
 
-// src/usage/month.ts
-function monthKeyOf(ms) {
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-// src/usage/telemetry.ts
-init_fsx();
-init_paths();
-var WINDOWS_MAX_AGE_MS = 6 * 60 * 60000;
-
 // src/usage/bar.ts
 function obj2(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x) ? x : undefined;
@@ -29503,19 +29355,6 @@ function pendingUpdates(path = updatesFile()) {
   }
   return;
 }
-function monthFromEntry(entry, nowMs) {
-  if (entry === undefined || entry.month_key !== monthKeyOf(nowMs))
-    return;
-  const m = { tokens: entry.month.tokens, estimate: true };
-  if (entry.month.usd !== undefined)
-    m.usd = entry.month.usd;
-  if (entry.month_pct !== undefined)
-    m.pct = entry.month_pct;
-  if (m.tokens <= 0 && m.usd === undefined && m.pct === undefined)
-    return;
-  return m;
-}
-var TELEMETRY_FRESH_MS = 60 * 60000;
 
 // src/usage/cache.ts
 import { spawn } from "child_process";
@@ -29550,7 +29389,7 @@ function parseText(path, read) {
 }
 var codeKey;
 function inputsStamp(canonical, user) {
-  codeKey ??= JSON.stringify([defaultConfig(), CONFIG_RENAMES]);
+  codeKey ??= JSON.stringify([defaultConfig()]);
   return new Bun.CryptoHasher("sha256").update(JSON.stringify([canonical, user ?? null, codeKey])).digest("hex");
 }
 function snapshotConfig(stamp) {
@@ -29563,14 +29402,11 @@ function snapshotConfig(stamp) {
     return;
   }
 }
-function mergeLayer(base, override, file, errors, warnings, renames) {
-  const migrated = migrateConfig(override, renames);
-  for (const n of migrated.notes)
-    warnings.push(`${file}: ${n}`);
+function mergeLayer(base, override, file, errors) {
   try {
-    return mergeConfig(base, migrated.value);
+    return mergeConfig(base, override);
   } catch {
-    const merged = mergeConfigLenient(base, migrated.value, []);
+    const merged = mergeConfigLenient(base, override);
     for (const e of merged.errors)
       errors.push(`${file}: ${e.endsWith(": unknown key") ? `${e} ${UNKNOWN_KEY_HINT}` : e}`);
     return merged.config;
@@ -29584,7 +29420,7 @@ function loadConfigSync(opts = {}) {
   const canonText = readText(canonicalPath);
   const userText = readText(userPath);
   const files = { canonical: canonicalPath, user: userPath, userExists: userText.kind !== "missing" };
-  const stampable = opts.userConfigPath === undefined && opts.renames === undefined && canonText.kind === "ok" && userText.kind !== "error";
+  const stampable = opts.userConfigPath === undefined && canonText.kind === "ok" && userText.kind !== "error";
   const stamp = stampable ? inputsStamp(canonText.text, userText.kind === "ok" ? userText.text : undefined) : undefined;
   if (stamp !== undefined) {
     const cached = snapshotConfig(stamp);
@@ -29598,13 +29434,13 @@ function loadConfigSync(opts = {}) {
   else if (canon.kind === "error")
     errors.push(canon.error);
   else
-    base = mergeLayer(base, canon.value, canonicalPath, errors, warnings, []);
+    base = mergeLayer(base, canon.value, canonicalPath, errors);
   let config = base;
   const user = parseText(userPath, userText);
   if (user.kind === "error")
     errors.push(user.error);
   else if (user.kind === "ok")
-    config = mergeLayer(base, user.value, userPath, errors, warnings, opts.renames ?? CONFIG_RENAMES);
+    config = mergeLayer(base, user.value, userPath, errors);
   const loaded = { config, errors, warnings, files };
   if (stamp !== undefined && errors.length === 0 && warnings.length === 0)
     loaded.stamp = stamp;
@@ -29625,8 +29461,7 @@ function isEntry(x) {
   if (x === null || typeof x !== "object")
     return false;
   const e = x;
-  const m = e["month"];
-  return typeof e["harness"] === "string" && typeof e["computed_at"] === "string" && Array.isArray(e["windows"]) && m !== undefined && m !== null && typeof m === "object" && typeof m["tokens"] === "number" && typeof e["month_key"] === "string";
+  return typeof e["harness"] === "string" && typeof e["computed_at"] === "string" && Array.isArray(e["windows"]);
 }
 function readUsageCache(path = usageFile()) {
   const r = readJsonSafeSync(path);
@@ -29640,14 +29475,6 @@ function readUsageCache(path = usageFile()) {
       harnesses[h] = e;
   }
   return { v: 1, updated_at: typeof r.value.updated_at === "string" ? r.value.updated_at : "", harnesses };
-}
-function isStale(entry, nowMs, ttlMs = USAGE_TTL_MS) {
-  if (entry === undefined)
-    return true;
-  if (entry.month_key !== monthKeyOf(nowMs))
-    return true;
-  const at = Date.parse(entry.computed_at);
-  return !Number.isFinite(at) || nowMs - at > ttlMs || at - nowMs > 60000;
 }
 function lockFile() {
   return join12(stateDir(), "usage.lock");
@@ -31171,20 +30998,6 @@ async function prepareWorkspace(cwd, cfg, nowMs) {
   }
 }
 
-// src/adapters/shared/turn-receipt.ts
-function spawnNotify(cli, title, message) {
-  if (cli === undefined || cli.length === 0)
-    return false;
-  try {
-    const child = Bun.spawn([...cli, "notify", "info", title, message], { stdin: "ignore", stdout: "ignore", stderr: "ignore", detached: true, env: { ...process.env } });
-    child.unref();
-    return true;
-  } catch (e) {
-    log("warn", "turn notification: spawn failed", { error: e instanceof Error ? e.message : String(e) });
-    return false;
-  }
-}
-
 // src/adapters/omp/runtime/config.ts
 import { existsSync as existsSync10, readFileSync as readFileSync16, statSync as statSync16 } from "fs";
 import { join as join20 } from "path";
@@ -32529,8 +32342,8 @@ function createDepsReader() {
 }
 
 // src/adapters/omp/statusline.ts
-var DEFAULT_SET_STATUS = { "buracle.budget": ["month"], "buracle.hooks": ["hooks"], "buracle.mem": ["mem"] };
-var DEFAULT_BAND_LAYOUT = { rows: [["month", "mem", "git", "plan", "upd"]], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: false };
+var DEFAULT_SET_STATUS = { "buracle.hooks": ["hooks"], "buracle.mem": ["mem"] };
+var DEFAULT_BAND_LAYOUT = { rows: [["mem", "git", "plan", "upd"]], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: false };
 
 // src/adapters/omp/runtime/deps.ts
 var TOOL_CALL_DEADLINE_MS = 3000;
@@ -32703,9 +32516,6 @@ function defaultDeps() {
         spawnUsageRefresh("omp", { argv: [...argv, "usage", "refresh", "--harness", "omp", "--background"] });
     },
     prune: (keep, nowMs) => sessionMaint("omp", nowMs, { keep }).removed,
-    notifyDesktop: (title, message) => {
-      spawnNotify(cli(), title, message);
-    },
     consentGate: (sid, command, nowMs) => consentGate("omp", sid, command, nowMs),
     recordGrants: (sid, text, nowMs) => {
       recordPromptGrants("omp", sid, text, nowMs);
@@ -33224,11 +33034,6 @@ function noteChanges(s, changes) {
   }
   return alarm !== undefined ? { state, alarm } : { state };
 }
-function longTurnText(durationMs, notifyAfterSec, run = "") {
-  if (!Number.isFinite(durationMs) || !Number.isFinite(notifyAfterSec) || notifyAfterSec <= 0 || durationMs < notifyAfterSec * 1000)
-    return;
-  return `Turn finished after ${Math.max(1, Math.round(durationMs / 60000))} min${run !== "" ? `: ${run}` : ""}`;
-}
 function unverified(s) {
   const code = Object.keys(s.edits).some(needsVerification);
   return code && s.lastCheckSeq <= s.lastEditSeq;
@@ -33380,7 +33185,7 @@ function createTurnReceipts(host) {
       if (alarm !== undefined)
         show(ctx, `Buracle: ${alarm}`, "warning");
     },
-    end(sid, ctx, cfg) {
+    end(sid, ctx) {
       const t = turns.get(sid);
       if (t === undefined)
         return;
@@ -33390,12 +33195,6 @@ function createTurnReceipts(host) {
         show(ctx, summary.line, "warning");
       else if (summary !== undefined)
         host.log("turn receipt", { sid, line: summary.line });
-      if (t.startedAt === undefined || !hasTui(ctx))
-        return;
-      const view = host.view(sid);
-      const text = longTurnText(host.now() - t.startedAt, cfg.workflow.notifyAfterSec, view !== undefined ? bandSummary(view) : "");
-      if (text !== undefined)
-        host.desktop("Buracle", text);
     },
     resumed(sid, ctx, cfg) {
       if (!cfg.workflow.band)
@@ -33466,12 +33265,6 @@ var GENERATED = {
     context: {
       criticalPct: 95,
       warnPct: 85
-    },
-    effort: {
-      claude: "auto",
-      codex: "auto",
-      omp: "auto",
-      opencode: "auto"
     },
     guards: {
       bash: {
@@ -33561,7 +33354,6 @@ var GENERATED = {
     },
     statusline: {
       emoji: true,
-      monthly: "estimate",
       style: "buracle"
     },
     toolchain: {
@@ -33576,8 +33368,7 @@ var GENERATED = {
     workflow: {
       band: true,
       codexNotices: true,
-      foldAfterSec: 8,
-      notifyAfterSec: 120
+      foldAfterSec: 8
     }
   },
   mcp: [
@@ -34116,7 +33907,7 @@ var GENERATED = {
       userInvocable: true
     },
     {
-      description: "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan \u2026`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, notifications, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.",
+      description: "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan \u2026`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.",
       id: "buracle",
       invocation: "implicit",
       short: "When and how to call the buracle helper CLI",
@@ -34205,7 +33996,6 @@ var GENERATED = {
       emoji: false,
       rows: [
         [
-          "month",
           "mem",
           "index",
           "git",
@@ -34221,9 +34011,6 @@ var GENERATED = {
       }
     },
     setStatus: {
-      "buracle.budget": [
-        "month"
-      ],
       "buracle.hooks": [
         "hooks"
       ],
@@ -34899,12 +34686,10 @@ async function statusHealth(nowMs) {
 // src/adapters/omp/runtime/status.ts
 init_paths();
 var WIDGET_KEY = "buracle";
-var STATUS_KEYS = { mem: "buracle.mem", month: "buracle.budget" };
-var USAGE_REFRESH_INTERVAL_MS = 60000;
+var STATUS_KEYS = { mem: "buracle.mem" };
 var INDEX_TTL_MS = 30000;
 function createStatusTexts(host) {
   const { data, deps, guarded } = host;
-  let lastUsageRefresh = Number.NEGATIVE_INFINITY;
   let indexCache;
   const planCounts = (path, cwd) => {
     const text = deps.readText(isAbsolute12(path) ? path : resolve20(cwd, path));
@@ -34935,17 +34720,6 @@ function createStatusTexts(host) {
   };
   const barFor = async (sid, ctx, lc, need) => {
     const bar = { harness: "omp", windows: [] };
-    if (lc.config.statusline.monthly !== "off") {
-      const entry = guarded("usage", () => deps.usage());
-      const now = deps.now();
-      const month = guarded("month", () => monthFromEntry(entry, now));
-      if (month !== undefined)
-        bar.month = month;
-      if ((guarded("usage staleness", () => isStale(entry, now)) ?? true) && now - lastUsageRefresh > USAGE_REFRESH_INTERVAL_MS) {
-        lastUsageRefresh = now;
-        guarded("usage refresh", () => deps.refreshUsage());
-      }
-    }
     const ms = guarded("memory status", () => deps.memoryStatus(host.slug(sid)));
     if (ms !== undefined)
       bar.mem = ms;
@@ -35295,7 +35069,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
         deniedCalls.delete(deniedCalls.values().next().value);
     };
     pi.setLabel?.("Buracle");
-    const receipts = createTurnReceipts({ now: () => deps.now(), view: (sid) => guarded("flow view", () => deps.flow.view(sid, deps.now(), liveOrDefaults().config.workflow.foldAfterSec)), desktop: (title, message) => deps.notifyDesktop(title, message), log: (msg, data) => log("debug", `omp: ${msg}`, data) });
+    const receipts = createTurnReceipts({ now: () => deps.now(), view: (sid) => guarded("flow view", () => deps.flow.view(sid, deps.now(), liveOrDefaults().config.workflow.foldAfterSec)), log: (msg, data) => log("debug", `omp: ${msg}`, data) });
     const pane = new StatusPane({ lines: (view, ctx) => status.lines(view, ctx) });
     const refreshFlow = (ctx) => {
       if (!hasTui(ctx) || !isMain(ctx))
@@ -35890,7 +35664,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
       turnEnded: (sid) => {
         guarded("H28 project assets", () => deps.projectAssets.link(memo(sid).workspaceInfo?.root, deps.now()));
       },
-      released: (sid, ctx) => receipts.end(sid, ctx, live().config),
+      released: (sid, ctx) => receipts.end(sid, ctx),
       noticed: { get: (sid) => memo(sid).noticed === true, set: (sid) => {
         memo(sid).noticed = true;
       } }

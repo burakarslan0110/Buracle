@@ -8,8 +8,8 @@ import { repoRoot, usageFile } from '../../src/engine/paths'
 import { withSandbox } from '../helpers/sandbox'
 import { NOW } from './helpers'
 
-function entry(h: UsageCacheEntry['harness'], tokens: number, at = NOW): UsageCacheEntry {
-  return { harness: h, computed_at: new Date(at).toISOString(), windows: [], month: { start: '2026-10-01T00:00:00.000+03:00', tokens, byModel: {} }, month_key: '2026-10' }
+function entry(h: UsageCacheEntry['harness'], pct: number, at = NOW): UsageCacheEntry {
+  return { harness: h, computed_at: new Date(at).toISOString(), windows: [{ label: '5h', pct }] }
 }
 
 describe('usage cache', () => {
@@ -18,7 +18,7 @@ describe('usage cache', () => {
     writeUsageEntries([entry('codex', 2), entry('claude', 10)], NOW + 1)
     const c = readUsageCache()
     expect(Object.keys(c?.harnesses ?? {})).toEqual(['claude', 'codex', 'omp'])
-    expect(c?.harnesses.claude?.month.tokens).toBe(10)
+    expect(c?.harnesses.claude?.windows[0]?.pct).toBe(10)
     expect(c?.updated_at).toBe(new Date(NOW + 1).toISOString())
   }))
 
@@ -31,12 +31,11 @@ describe('usage cache', () => {
     expect(Object.keys(readUsageCache()?.harnesses ?? {})).toEqual(['codex'])
   }))
 
-  test('staleness: missing, another month, older than the TTL, or from the future', () => {
+  test('staleness: missing, older than the TTL, or from the future', () => {
     expect(isStale(undefined, NOW)).toBe(true)
     expect(isStale(entry('claude', 1), NOW)).toBe(false)
     expect(isStale(entry('claude', 1, NOW - USAGE_TTL_MS - 1), NOW)).toBe(true)
     expect(isStale(entry('claude', 1, NOW - 1000), NOW, 500)).toBe(true)
-    expect(isStale({ ...entry('claude', 1), month_key: '2026-09' }, NOW)).toBe(true)
     expect(isStale(entry('claude', 1, NOW + 3_600_000), NOW)).toBe(true)
   })
 })
@@ -74,16 +73,13 @@ describe('refresh lock', () => {
   }))
 })
 
-describe('currentUsageEntry (readers ignore another month)', () => {
-  test('returns the entry only while its month_key is the current local month', () => withSandbox(() => {
-    writeUsageEntries([entry('claude', 1), { ...entry('omp', 2), month_key: '2026-09' }], NOW)
+describe('currentUsageEntry', () => {
+  test('returns the cached entry of a harness, or undefined', () => withSandbox(() => {
+    writeUsageEntries([entry('claude', 1)], NOW)
     const c = readUsageCache()
-    expect(currentUsageEntry(c, 'claude', NOW)?.month.tokens).toBe(1)
-    expect(currentUsageEntry(c, 'omp', NOW)).toBeUndefined()
-    expect(isStale(c?.harnesses.omp, NOW)).toBe(true)
+    expect(currentUsageEntry(c, 'claude', NOW)?.windows[0]?.pct).toBe(1)
     expect(currentUsageEntry(c, 'codex', NOW)).toBeUndefined()
     expect(currentUsageEntry(undefined, 'claude', NOW)).toBeUndefined()
-    expect(currentUsageEntry(c, 'claude', Date.parse('2026-11-15T12:00:00Z'))).toBeUndefined()
   }))
 })
 

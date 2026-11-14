@@ -6,17 +6,17 @@ import { clearRepoCache } from '../../../src/adapters/opencode/runtime/adapter-r
 import { routeUserPrompt } from '../../../src/adapters/opencode/runtime/routing'
 import { defaultConfig } from '../../../src/core/config'
 import { ROUTE_TEXT_MAX_BYTES, utf8Bytes } from '../../../src/core/policy/skill-router'
-import type { CommandDefinition, EditableModel, PermissionEvaluation, PromptInput, SessionContextEvent, SessionPromptEvent, ToolExecuteAfter } from '../../../src/adapters/opencode/runtime/types'
+import type { CommandDefinition, PermissionEvaluation, PromptInput, SessionContextEvent, SessionPromptEvent, ToolExecuteAfter } from '../../../src/adapters/opencode/runtime/types'
 import { clearPreparedWorkspaces } from '../../../src/adapters/opencode/runtime/workspace'
 import type { SessionState } from '../../../src/core/plan/state'
 import type { WorkspaceInfo } from '../../../src/core/workspace'
 import * as paths from '../../../src/engine/paths'
 import { readFlow } from '../../../src/workflow/flow'
 import { loadLedger } from '../../../src/workflow/ledger'
-import { loadState, readTelemetry, saveState } from '../../../src/workflow/session-store'
+import { loadState, saveState } from '../../../src/workflow/session-store'
 import { canonicalDir, indexRecordFile } from '../../../src/workflow/workspace'
 import { withSandbox } from '../../helpers/sandbox'
-import { fakeMemory, fakeModelEditor, fakeServerContext, type FakeContextOptions, testBaked } from './helpers'
+import { fakeMemory, fakeServerContext, type FakeContextOptions, testBaked } from './helpers'
 
 const SID = 'ses_route01'
 
@@ -39,11 +39,10 @@ interface Opts extends FakeContextOptions {
 async function runtime(dir: string, opts: Opts = {}) {
   const f = fakeServerContext(dir, opts)
   const mem = fakeMemory()
-  const notices: Array<{ title: string, message: string }> = []
   const prepared: string[] = []
   const deps: PluginDeps = {
     baked: testBaked(), memory: mem, settleMs: opts.settleMs ?? 0, runChecker: async () => ({ code: 0, stdout: '', stderr: '' }),
-    capture: () => true, maint: () => ({ removed: [] }), notify: (title, message) => { notices.push({ title, message }) },
+    capture: () => true, maint: () => ({ removed: [] }),
     workspace: opts.workspace ?? (async cwd => { prepared.push(cwd); return info(cwd) }),
     workspaceRead: async cwd => info(cwd),
     ...(opts.now !== undefined ? { now: opts.now } : {}),
@@ -51,7 +50,7 @@ async function runtime(dir: string, opts: Opts = {}) {
   const rt = new BuracleRuntime(f.ctx, deps)
   await rt.register()
   await rt.registerTransforms()
-  return { f, mem, rt, notices, prepared, deps }
+  return { f, mem, rt, prepared, deps }
 }
 
 function prompt(text: string, over: Partial<SessionPromptEvent> = {}): SessionPromptEvent {
@@ -626,43 +625,14 @@ describe('H19 review.gate on the subagent tool result', () => {
   }))
 })
 
-describe('default effort and H17', () => {
-  test('the model transform gives every model with the configured variant that default; telemetry reports it', () => withSandbox(async ({ root }) => {
-    const { f, rt } = await runtime(root)
-    expect(f.modelTransforms.length).toBe(1)
-    const models: EditableModel[] = [
-      { id: 'claude-opus-5-5', providerID: 'anthropic', settings: { thinking: { type: 'enabled' } }, variants: [{ id: 'high', settings: { effort: 'high' } }, { id: 'xhigh', settings: { effort: 'xhigh', thinking: { type: 'adaptive' } } }] },
-      { id: 'gpt-x', providerID: 'openai', variants: [{ id: 'xhigh', settings: { reasoningEffort: 'xhigh' }, body: { include: ['reasoning.encrypted_content'] } }] },
-      { id: 'old', providerID: 'anthropic', variants: [{ id: 'high', settings: { effort: 'high' } }] },
-    ]
-    f.modelTransforms[0]?.(fakeModelEditor(models))
-    expect(models[0]?.settings).toEqual({ thinking: { type: 'adaptive' }, effort: 'xhigh' })
-    expect(models[1]).toMatchObject({ settings: { reasoningEffort: 'xhigh' }, body: { include: ['reasoning.encrypted_content'] } })
-    expect(models[2]?.settings).toBeUndefined()
-    await rt.handleEvent({ type: 'session.step.started', data: { sessionID: SID, model: { id: 'claude-opus-5-5', providerID: 'anthropic', variant: 'default' } } })
-    await rt.handleEvent({ type: 'session.usage.updated', data: { sessionID: SID, cost: 0.1 } })
-    expect(readTelemetry('opencode', SID)?.effort).toBe('xhigh')
-  }))
-
-  test('effort.opencode keep leaves the models alone', () => withSandbox(async ({ root }) => {
-    const file = paths.runtimeConfigFile()
-    mkdirSync(join(file, '..'), { recursive: true })
-    const cfg = structuredClone(testBaked().defaults)
-    cfg.effort.opencode = 'keep'
-    writeFileSync(file, JSON.stringify({ v: 1, config: cfg }))
-    const { f } = await runtime(root)
-    const models: EditableModel[] = [{ id: 'm', providerID: 'p', variants: [{ id: 'xhigh', settings: { effort: 'xhigh' } }] }]
-    f.modelTransforms[0]?.(fakeModelEditor(models))
-    expect(models[0]?.settings).toBeUndefined()
-  }))
-
+describe('H17', () => {
   test('H17: a plugin loaded from another config dir than the installed one warns once per service process', () => withSandbox(async ({ root }) => {
     const file = paths.runtimeConfigFile()
     mkdirSync(join(file, '..'), { recursive: true })
     writeFileSync(file, JSON.stringify({ v: 1, config: testBaked().defaults, resolved: { opencodeConfigDir: join(root, 'installed', 'opencode') } }))
     const pluginDir = join(root, 'other', 'opencode', 'plugins', 'buracle')
     const notices: string[] = []
-    const deps: PluginDeps = { baked: testBaked(), memory: fakeMemory(), settleMs: 0, capture: () => true, maint: () => ({ removed: [] }), pluginDir, notify: (_t, m) => { notices.push(m) }, workspace: async cwd => info(cwd) }
+    const deps: PluginDeps = { baked: testBaked(), memory: fakeMemory(), settleMs: 0, capture: () => true, maint: () => ({ removed: [] }), pluginDir, logger: (level, m) => { if (level === 'warn') notices.push(m) }, workspace: async cwd => info(cwd) }
     for (let i = 0; i < 2; i++) {
       const stop = await createBuraclePlugin(deps).setup(fakeServerContext(root).ctx)
       if (typeof stop === 'function') await (stop as () => Promise<void>)()

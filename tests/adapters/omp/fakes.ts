@@ -112,8 +112,7 @@ export function fakeMemory(context?: string): { bridge: MemoryBridge, calls: Mem
 export function fakeStatusRenderer(): Pick<typeof import('../../../src/core/status/render'), 'rows' | 'renderPlain'> {
   return {
     rows: (bar, layout) => layout.rows.map(ids => ids.flatMap(id => {
-      const v = id === 'month' ? bar.month && `${bar.month.tokens}${bar.month.usd !== undefined ? `/$${bar.month.usd}` : ''}${bar.month.pct !== undefined ? ` ${bar.month.pct}%` : ''}`
-        : id === 'mem' ? bar.mem && `${bar.mem.health}`
+      const v = id === 'mem' ? bar.mem && `${bar.mem.health}`
         : id === 'plan' ? bar.plan && `${bar.plan.title}[${bar.plan.phase}]${bar.plan.done}/${bar.plan.total}`
         : id === 'git' ? bar.git && `${bar.git.branch ?? '?'}`
         : id === 'upd' ? bar.updates !== undefined && `${bar.updates}`
@@ -172,7 +171,6 @@ export function testDeps(overrides: Partial<ExtensionDeps> = {}): { deps: Partia
     buracleRepo: () => undefined,
     updates: () => undefined,
     cli: () => ['buracle'],
-    notifyDesktop: () => undefined,
     projectSlug: async () => 'demo',
     branch: async () => 'main',
     gitState: async () => undefined,
@@ -216,7 +214,7 @@ export function testGenerated(over: Partial<OmpGenerated> = {}): OmpGenerated {
     skills: [{ id: 'plan-build', description: 'Spec workflow', userInvocable: true }],
     plugins: [],
     commands: ['plan-build', 'goal-build'],
-    status: { layout: { rows: [['month', 'mem', 'git', 'plan']], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: false }, setStatus: { 'buracle.budget': ['month'], 'buracle.mem': ['mem'] } },
+    status: { layout: { rows: [['mem', 'git', 'plan']], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: false }, setStatus: { 'buracle.mem': ['mem'] } },
     ...over,
   }
 }

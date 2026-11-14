@@ -4,17 +4,15 @@ import type { Key } from './keys'
 import type { Style } from './style'
 import { padEnd } from './style'
 
-export type MenuAction = { kind: 'run'; argv: string[] } | { kind: 'detail' } | { kind: 'quit' }
+export type MenuAction = { kind: 'run'; argv: string[] } | { kind: 'quit' }
 
 export interface MenuItem { id: string; label: string; does: string; key: string; action: MenuAction }
 
-// The keys are the detailed view's own letters, so a key does the same thing on both screens.
 export const MENU: readonly MenuItem[] = [
   { id: 'install', label: 'Install or repair', does: 'set Buracle up in your coding agents, or repair it', key: 'i', action: { kind: 'run', argv: ['install'] } },
   { id: 'update', label: 'Update', does: 'look for new versions and apply them, step by step', key: 'u', action: { kind: 'run', argv: ['update'] } },
   { id: 'doctor', label: 'Health check', does: 'check every part and see how to fix what is broken', key: 'd', action: { kind: 'run', argv: ['doctor'] } },
   { id: 'memory', label: 'Memory', does: 'open the Buracle Console in your browser', key: 'm', action: { kind: 'run', argv: ['mem', 'ui', '--open'] } },
-  { id: 'detail', label: 'Detailed view', does: 'every part with its version, state and waiting update', key: 'v', action: { kind: 'detail' } },
   { id: 'quit', label: 'Quit', does: '', key: 'q', action: { kind: 'quit' } },
 ]
 
@@ -52,7 +50,7 @@ function itemLines(st: Style, selected: number, width: number): string[] {
 
 export function renderMenu(st: Style, view: MenuView): string[] {
   if (view.rows <= 0) return []
-  // The last column stays empty, as on the detailed view.
+  // The last column stays empty.
   const width = Math.max(0, view.columns - 1)
   const selected = clamp(view.selected, 0, MENU.length - 1)
   const header = headerLines(st, view)

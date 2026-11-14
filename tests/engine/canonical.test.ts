@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
-import { catalogMcp, catalogSkills, envRef, expandMcpCommand, mcpEnvFor, validateMcpCatalog, validatePluginsCatalog, validateToolsCatalog, type McpServerSpec } from '../../src/core/catalog'
+import { catalogMcp, catalogSkills, envRef, expandMcpCommand, mcpEnvFor, validateMcpCatalog, validateToolsCatalog, type McpServerSpec } from '../../src/core/catalog'
 import { defaultConfig, validateConfig } from '../../src/core/config'
 import { CanonicalError, loadCanonicalSync, parseFrontmatter } from '../../src/engine/canonical'
 import * as paths from '../../src/engine/paths'
@@ -51,10 +51,7 @@ describe('the real canonical/ tree', () => {
     expect(Object.entries(bundle.mcp.servers).filter(([, s]) => s.tool_timeout_hard === true).map(([id]) => id)).toEqual(['web-fetch'])
   })
 
-  test('plugins.yaml and tools.yaml', () => {
-    expect(bundle.plugins.claude.marketplaces).toEqual([{ id: 'claude-plugins-official', source: 'anthropics/claude-plugins-official' }])
-    expect(bundle.plugins.claude.plugins).toEqual([])
-    expect(bundle.plugins.claude.retired).toEqual(['pyright-lsp@claude-plugins-official', 'typescript-lsp@claude-plugins-official', 'gopls-lsp@claude-plugins-official'])
+  test('tools.yaml', () => {
     expect(bundle.tools.tools.map(t => t.name)).toEqual(['bun', 'git', 'node', 'uv', 'rg', 'ast-grep', 'jq', 'gh', 'tmux', 'ruff', 'shellcheck', 'golangci-lint', 'codegraph', 'semble', 'pyright', 'typescript-language-server', 'gopls', 'rust-analyzer', 'csharp-ls', 'jdtls'])
     expect(bundle.tools.tools.find(t => t.name === 'tmux')?.required).toBe(false)
     expect(bundle.tools.tools.filter(t => t.requires !== undefined).map(t => [t.name, t.requires])).toEqual([['golangci-lint', ['go']]])
@@ -131,7 +128,7 @@ describe('the real canonical/ tree', () => {
 function fixture(root: string): string {
   const dir = join(root, 'canonical')
   mkdirSync(dir)
-  for (const f of ['buracle.yaml', 'mcp.yaml', 'plugins.yaml', 'tools.yaml']) cpSync(join(REAL, f), join(dir, f))
+  for (const f of ['buracle.yaml', 'mcp.yaml', 'tools.yaml']) cpSync(join(REAL, f), join(dir, f))
   return dir
 }
 
@@ -144,7 +141,7 @@ describe('loader on fixture trees', () => {
   test('minimal tree: optional data files are listed as missing', () => withSandbox(({ root }) => {
     const dir = fixture(root)
     const b = loadCanonicalSync(dir)
-    expect(b.missing).toEqual(['hooks.yaml', 'routing.yaml', 'skill-triggers.yaml', 'statusline.yaml', 'pricing.yaml', 'notices.yaml', 'tips.yaml'])
+    expect(b.missing).toEqual(['hooks.yaml', 'routing.yaml', 'skill-triggers.yaml', 'statusline.yaml', 'notices.yaml', 'tips.yaml'])
     expect(b.notices).toEqual([])
     expect(b.routing).toEqual({ strictness: 'enforce', categories: [] })
     expect(b.hooks).toEqual({ hooks: [] })
@@ -182,10 +179,10 @@ describe('loader on fixture trees', () => {
   test('required files and YAML syntax', () => withSandbox(({ root }) => {
     const dir = fixture(root)
     rmSync(join(dir, 'tools.yaml'))
-    writeFileSync(join(dir, 'plugins.yaml'), 'claude: [unclosed\n')
+    writeFileSync(join(dir, 'mcp.yaml'), 'servers: [unclosed\n')
     const problems = problemsOf(() => loadCanonicalSync(dir))
     expect(problems).toContain('tools.yaml: missing')
-    expect(problems.some(p => p.startsWith('plugins.yaml: invalid YAML'))).toBe(true)
+    expect(problems.some(p => p.startsWith('mcp.yaml: invalid YAML'))).toBe(true)
   }))
 
   test('buracle.yaml must be a valid config', () => withSandbox(({ root }) => {
@@ -379,17 +376,7 @@ describe('catalog validators', () => {
     expect(mcpEnvFor({ ...spec, env: undefined, harness_env: undefined }, 'claude')).toEqual({})
   })
 
-  test('plugins.yaml and tools.yaml rules', () => {
-    expect(validatePluginsCatalog({ claude: { marketplaces: [{ id: 'm', source: 'o/r' }], plugins: [{ id: 'x@other', enabled: true }, { id: 'noat', enabled: 'yes' }] }, omp: { plugins: [] }, opencode: { plugins: [] } })).toEqual([
-      'claude.plugins[1].enabled: required boolean',
-      'claude.plugins[0].id: unknown marketplace "other"',
-      'claude.plugins[1].id: expected <plugin>@<marketplace>',
-    ])
-    expect(validatePluginsCatalog({ claude: { marketplaces: [{ id: 'm', source: 'o/r' }], plugins: [{ id: 'a@m', enabled: true }], retired: ['a@m', 'bad', 7] }, omp: { plugins: [] }, opencode: { plugins: [] } })).toEqual([
-      'claude.retired[0]: a@m is also in claude.plugins',
-      'claude.retired[1]: expected <plugin>@<marketplace>',
-      'claude.retired[2]: expected <plugin>@<marketplace>',
-    ])
+  test('tools.yaml rules', () => {
     expect(validateToolsCatalog({ tools: [{ name: 'a', check: [], version_regex: '(', required: true }, { name: 'a', check: ['a'], version_regex: 'no group', required: 'x' }] })).toEqual([
       'tools[0].check: required non-empty argv list',
       'tools[0].version_regex: invalid regular expression',

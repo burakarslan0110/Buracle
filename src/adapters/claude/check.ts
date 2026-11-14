@@ -1,6 +1,3 @@
-import { readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
-import * as paths from '../../engine/paths'
 import { run } from '../../engine/proc'
 import { realPath } from '../../engine/fsx'
 
@@ -38,22 +35,6 @@ export function marketplaceHolds(list: unknown[], name: string, path?: string): 
 
 export function pluginInstalled(list: unknown[], id: string): boolean {
   return list.some(p => p !== null && typeof p === 'object' && (p as PluginEntry).id === id)
-}
-
-export function buracleInstalledPlugin(id: string, journalDir: string = paths.journalDir()): boolean {
-  let names: string[]
-  try { names = readdirSync(journalDir).filter(n => n.endsWith('.json')) } catch { return false }
-  for (const n of names) {
-    try {
-      const j = JSON.parse(readFileSync(join(journalDir, n), 'utf8')) as { status?: unknown, execs?: unknown }
-      if (j.status !== 'committed' || !Array.isArray(j.execs)) continue
-      for (const e of j.execs as Array<{ argv?: unknown, ran?: unknown, undone?: unknown }>) {
-        const a = Array.isArray(e.argv) ? e.argv : []
-        if (e.ran === true && e.undone !== true && a[1] === 'plugin' && a[2] === 'install' && a[3] === id) return true
-      }
-    } catch {  }
-  }
-  return false
 }
 
 export const KEPT_EXIT = 3
@@ -99,14 +80,8 @@ export async function check(argv: string[]): Promise<number> {
   if (pi >= 0) { path = args[pi + 1]; args.splice(pi, 2) }
   const [what, name] = args
   if (what === 'remove-marketplace' && name !== undefined) return removeMarketplace(claude, name)
-  if (what === 'retired' && name !== undefined) {
-    if (!buracleInstalledPlugin(name)) return 0
-    const list = await listing([claude, 'plugin', 'list', '--json'])
-    if (list === undefined) return 2
-    return pluginInstalled(list, name) ? 1 : 0
-  }
   if ((what !== 'marketplace' && what !== 'plugin') || name === undefined) {
-    process.stderr.write('usage: check.ts [--claude <path>] marketplace <name> [--path <dir>] | plugin <id> | retired <id> | remove-marketplace <name>\n')
+    process.stderr.write('usage: check.ts [--claude <path>] marketplace <name> [--path <dir>] | plugin <id> | remove-marketplace <name>\n')
     return 2
   }
   const listArgv = what === 'marketplace' ? [claude, 'plugin', 'marketplace', 'list', '--json'] : [claude, 'plugin', 'list', '--json']

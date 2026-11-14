@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { AgentDoc, CanonicalBundle, McpCatalog, PluginsCatalog, RuleDoc, SkillDoc, ToolsCatalog } from '../core/catalog'
+import type { AgentDoc, CanonicalBundle, McpCatalog, RuleDoc, SkillDoc, ToolsCatalog } from '../core/catalog'
 import type { Notice } from '../core/notices'
 import type { RoutingPolicy } from '../core/policy/routing'
 import { loadCanonicalSync } from '../engine/canonical'
@@ -17,7 +17,6 @@ export interface HookData {
   v: 1
   generator: string
   mcp: McpCatalog
-  plugins: PluginsCatalog
   tools: ToolsCatalog
   routing: RoutingPolicy
   skills: HookSkill[]
@@ -28,14 +27,13 @@ export interface HookData {
   warnings: string[]
 }
 
-const LAZY_FIELDS = ['config', 'hooks', 'statusline', 'pricing', 'triggers', 'tips'] as const
+const LAZY_FIELDS = ['config', 'hooks', 'statusline', 'triggers', 'tips'] as const
 
 export function hookData(bundle: CanonicalBundle): HookData {
   return {
     v: HOOK_DATA_VERSION,
     generator: 'buracle build (src/cli/hook-data.ts): what the Claude and Codex command hooks read of canonical/',
     mcp: bundle.mcp,
-    plugins: bundle.plugins,
     tools: bundle.tools,
     routing: bundle.routing,
     skills: bundle.skills.map(s => ({ id: s.id, dir: s.dir, frontmatter: s.frontmatter, ...(s.triggers !== undefined ? { triggers: s.triggers } : {}) })),
@@ -61,9 +59,8 @@ function isStrList(x: unknown): x is string[] {
 
 function validHookData(x: unknown): x is HookData {
   if (!isObj(x) || x['v'] !== HOOK_DATA_VERSION) return false
-  const { mcp, plugins, tools, routing, skills, agents, rules } = x
+  const { mcp, tools, routing, skills, agents, rules } = x
   if (!isObj(mcp) || !isObj(mcp['servers']) || !Object.values(mcp['servers']).every(isObj)) return false
-  if (!isObj(plugins) || !isObj(plugins['claude']) || !Array.isArray(plugins['claude']['plugins'])) return false
   if (!isObj(tools) || !Array.isArray(tools['tools'])) return false
   if (!isObj(routing) || !Array.isArray(routing['categories'])) return false
   if (!Array.isArray(skills) || !skills.every(s => isObj(s) && typeof s['id'] === 'string' && typeof s['dir'] === 'string' && isObj(s['frontmatter']))) return false
@@ -121,7 +118,7 @@ export function hookBundle(repoRoot: string, load: (root: string) => CanonicalBu
     lazyProp(rule, 'body', () => docOf(b => b.rules, 'rule', r.id, 'body').body)
     return rule as RuleDoc
   })
-  const bundle = { root, mcp: data.mcp, plugins: data.plugins, tools: data.tools, routing: data.routing, skills, agents, rules, notices: data.notices ?? [], missing: data.missing, warnings: data.warnings }
+  const bundle = { root, mcp: data.mcp, tools: data.tools, routing: data.routing, skills, agents, rules, notices: data.notices ?? [], missing: data.missing, warnings: data.warnings }
   for (const field of LAZY_FIELDS) lazyProp(bundle, field, () => fullBundle(field)[field])
   return bundle as unknown as CanonicalBundle
 }

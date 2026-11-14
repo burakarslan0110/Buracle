@@ -465,14 +465,6 @@ async function turnEnded($: EngineInterface, S: ModState, durationMs: number, re
     S.suggest = { text: CHECK_SUGGESTION, until: now + 60_000 }
     $.clock.after(1_500, () => void suggestNow($, S))
   }
-  const after = (await runtime($, S)).cfg.workflow.notifyAfterSec
-  if (after > 0 && durationMs >= after * 1000 && reason !== 'aborted') {
-    const run = Core.bandSummary(Core.bandView(Core.bandInputOf(await read($, BAND))))
-    const text = Core.longTurnText(durationMs, after, run)
-    if (text !== undefined) {
-      try { await $.ui.notify(text, { title: 'Buracle' }) } catch (err) { debug($, `notify: ${errText(err)}`) }
-    }
-  }
 }
 
 async function resumeHint($: EngineInterface, S: ModState): Promise<void> {

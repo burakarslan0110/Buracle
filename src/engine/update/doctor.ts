@@ -215,7 +215,7 @@ export async function journalChecks(): Promise<DoctorCheck[]> {
   try { journals = await listTxns() } catch (e) { return [{ section: s, level: 'warn', check: 'journals', detail: `the transaction journals cannot be read: ${errText(e)}` }] }
   const out: DoctorCheck[] = []
   for (const j of journals.filter(x => x.status === 'rollback-failed')) {
-    out.push({ section: s, level: 'error', check: 'journals', detail: `transaction ${j.txn} could not be rolled back completely${j.error !== undefined ? ` (${tildeText(j.error.split('\n')[0] ?? '')})` : ''}; fix the cause, then run \`buracle rollback ${j.txn}\`` })
+    out.push({ section: s, level: 'error', check: 'journals', detail: `transaction ${j.txn} could not be rolled back completely${j.error !== undefined ? ` (${tildeText(j.error.split('\n')[0] ?? '')})` : ''}; fix the cause` })
   }
   let lockHeld = false
   try {
@@ -225,7 +225,7 @@ export async function journalChecks(): Promise<DoctorCheck[]> {
     lockHeld = pidAlive(pid)
   } catch { lockHeld = false }
   for (const j of journals.filter(x => x.status === 'applying')) {
-    if (!lockHeld) out.push({ section: s, level: 'warn', check: 'journals', detail: `transaction ${j.txn} was interrupted while applying; the next \`buracle install\` (or \`buracle rollback ${j.txn}\`) rolls it back` })
+    if (!lockHeld) out.push({ section: s, level: 'warn', check: 'journals', detail: `transaction ${j.txn} was interrupted while applying; the next \`buracle install\` rolls it back` })
   }
   if (out.length === 0) out.push({ section: s, level: 'ok', check: 'journals', detail: `${journals.length} transaction(s), none unsettled` })
   return out
@@ -353,7 +353,6 @@ export function toolchainChecks(state: ToolchainState): DoctorCheck[] {
     const p = state.packages[k]
     if (p === undefined) return []
     const notes = [
-      ...(p.previous !== undefined ? [`${p.previous.version} kept for \`buracle rollback toolchain\``] : []),
       ...(p.rolled_back !== undefined ? [`${p.rolled_back} was rolled back`] : []),
     ]
     return [{ section: 'tools', level: 'ok' as const, check: k, detail: `${p.version} in Buracle's toolchain${notes.length > 0 ? `; ${notes.join('; ')}` : ''}` }]

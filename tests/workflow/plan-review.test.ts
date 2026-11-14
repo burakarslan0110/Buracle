@@ -155,7 +155,7 @@ describe('buracle plan --lane: a whole workflow in a lane worktree keeps its own
     write(lanePlan, planDoc({ title: 'Billing export' }))
 
     const child = memIO(true)
-    const childEnv = { BURACLE_NO_NOTIFY: '1', BURACLE_NO_MEMORY: '1', BURACLE_SESSION_ID: 'child-session-9', BURACLE_HARNESS: 'opencode' }
+    const childEnv = { BURACLE_NO_MEMORY: '1', BURACLE_SESSION_ID: 'child-session-9', BURACLE_HARNESS: 'opencode' }
     expect(await runPlan(['register', lanePlan, '--phase', 'plan', '--lane', 'billing', '--json'], child, ctxAt(lanePath, undefined, childEnv))).toBe(0)
     expect(child.json()['session']).toEqual({ harness: 'claude', id: `${S.sessionId}.lane-billing`, source: '--lane billing' })
     expect(loadState('claude', S.sessionId).plan?.path).toBe(lead)

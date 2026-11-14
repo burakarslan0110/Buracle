@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { clean, commandHeader, footerLine, headerHeight, headerKind, headerLines, sectionHeading, statusLine, type Summary } from '../../../src/cli/ui/frame'
+import { clean, commandHeader, footerLine, headerKind, headerLines, sectionHeading, statusLine, type Summary } from '../../../src/cli/ui/frame'
 import { ICON, LOGO, makeStyle, stripAnsi, visibleWidth, type Style } from '../../../src/cli/ui/style'
 
 const color = makeStyle(3, { unicode: true })
@@ -61,19 +61,6 @@ describe('header sizes', () => {
     }
     expect(head(plain, 120, 40, { updates: 1, problems: 2 })).toEqual(['', '  buracle v0.8.0 · One engineering setup, one memory, every coding agent', '', '  ! 1 update waiting · 2 problems · no update check yet', ''])
   })
-
-  test('headerHeight, which key handling uses without a style, equals the lines headerLines gives at every size and level', () => {
-    for (const level of [0, 1, 2, 3] as const) {
-      for (const columns of [40, 42, 43, 50, 54, 55, 62, 63, 80, 120]) {
-        for (const rows of [10, 11, 12, 15, 16, 19, 20, 24, 40]) {
-          const st = makeStyle(level, { unicode: level > 0 })
-          expect({ columns, rows, level, n: headerLines(st, { version: '0.8.0', columns, rows, summary: ALL_GOOD }).length })
-            .toEqual({ columns, rows, level, n: headerHeight(columns, rows, level) })
-        }
-      }
-    }
-  })
-
   test('every header line fits the width at every size from 40 by 10, and external text is sanitized', () => {
     const odd: Summary = { updates: 12, problems: 3, checkedAt: '48\u001b]0;owned\u0007 min ago', working: 'verifying\u001b[2J 3 parts' }
     for (const st of [plain, makeStyle(1), makeStyle(2), color]) {

@@ -33,7 +33,7 @@ async function runtime(dir: string) {
   const f = fakeServerContext(dir)
   const deps: PluginDeps = {
     baked: testBaked(), memory: fakeMemory(), settleMs: 0, runChecker: async () => ({ code: 0, stdout: '', stderr: '' }),
-    capture: () => true, maint: () => ({ removed: [] }), notify: () => undefined,
+    capture: () => true, maint: () => ({ removed: [] }),
     workspace: async cwd => noProject(cwd), workspaceRead: async cwd => noProject(cwd),
   }
   const rt = new BuracleRuntime(f.ctx, deps)

@@ -3,14 +3,14 @@ name: buracle
 description: >-
   How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan
   state and the stop guard (`buracle plan …`, with `plan pause` as the only escape hatch),
-  isolated worktrees, review diff scope, notifications, usage limits, memory CLI twins, workflow
+  isolated worktrees, review diff scope, usage limits, memory CLI twins, workflow
   progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks.
   Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use
   whenever a step needs one of these commands, when a buracle command fails, or when the stop guard
   keeps your turn going.
 when_to_use: >-
   Creating, registering or moving a plan; pausing to ask the user; creating or merging a worktree;
-  computing a review diff; notifying the user; checking rate-limit headroom; diagnosing Buracle.
+  computing a review diff; checking rate-limit headroom; diagnosing Buracle.
 invocation: implicit
 user-invocable: false
 mcp: []
@@ -33,7 +33,7 @@ never edit its state files by hand.
 - Never edit `~/.buracle/` files or session state. The CLI owns them and the write guard blocks
   edits there.
 - Commands that change the installation (`buracle install`, `buracle update`,
-  `rollback`, `uninstall`) run only when the user asks for them.
+  `uninstall`) run only when the user asks for them.
 
 ## Session resolution
 
@@ -44,8 +44,8 @@ into your shell: `BURACLE_SESSION_ID` with `BURACLE_HARNESS`, `CLAUDE_CODE_SESSI
 sets of ids are present and the harness process you run under decides. Normally pass neither flag.
 
 The `plan` subcommands that read or change this session's binding (`register`, `prepare-native`, `status`, `set`,
-`pause`, `resume`, `complete`, `approve-result`, `verify`, `review`, `unregister`) exit 2 without a session. `worktree`,
-`review-scope` and `notify` use the session when there is one and work without it (`worktree create`
+`pause`, `resume`, `complete`, `approve-result`, `verify`, `review`, `unregister`) exit 2 without a session. `worktree`
+and `review-scope` use the session when there is one and work without it (`worktree create`
 then warns that it marked no plan). Never invent an id and never borrow another session's id.
 Without a session, continue from the plan file, tell the user once that the stop guard is not
 protecting this run, and suggest `buracle doctor`.
@@ -74,13 +74,12 @@ protecting this run, and suggest `buracle doctor`.
 | Isolated branch for a plan | `buracle worktree detect --json`, else `buracle worktree create <slug> [--prefix plan-build\|goal-build\|bugfix] --json` |
 | A new branch in this checkout instead of a worktree | `buracle worktree branch <slug> [--prefix plan-build\|goal-build\|bugfix] --json` (records its base for the review) |
 | Diff to review | `buracle review-scope --slug <slug> --json` |
-| User attention needed | `buracle notify <type> "<title>" "<message>" [--plan <path>]` |
 | Before an expensive fan-out | `buracle usage --json` |
 | Memory without the MCP server | `buracle mem search\|get\|write\|update\|remember\|status\|capture` (`mem search` also filters without a query: `--type`, `--since`, `--until`, `--file`, `--tag`, `--around <id>`; `buracle mem --help` lists them all) |
 | Back up or restore a brain (only when the user asks) | `buracle mem backup [--list]`, `buracle mem restore <id> --project <slug>` |
 | Show a workflow's progress (the band above the prompt, the status line) | `buracle flow start <workflow>`, `buracle flow phase <id>`, `buracle flow end --outcome done` (the workflow skills say when) |
 | codegraph reports that the project has no index | `buracle index ensure --cwd <project root>`, then retry |
-| New repository, or AGENTS.md or project skills changed | `buracle project init --json` / `buracle project sync --json` |
+| New repository, or AGENTS.md or project skills changed | `buracle project sync --json` |
 | Agent guidance drifted (path rules, skill links, CLAUDE.md import)? | `buracle project check --json` (read-only; exit 2 names each fix) |
 | Skills that exist only in `.claude/skills` | `buracle project sync --adopt --dry-run --json`, then without `--dry-run` (`--move` only after the user agrees) |
 | Authoring skills and rules | `buracle skills list\|new\|lint`, `buracle rules lint` |
@@ -149,16 +148,10 @@ VERIFIED plan only: `buracle plan set phase done` runs the same checks as `burac
   it again with `--base <ref>` (the branch or commit the work started from). Never assemble a range
   by hand.
 
-## Notifications and usage
+## Usage
 
-- `buracle notify plan_approval|prd_approval|attention_needed|verification_complete|info "<title>" "<message>" [--plan <path>]`
-  sends a desktop notification and records it (notifications are not memory). Send
-  `plan_approval` right before waiting for a plan's approval, `prd_approval` when a PRD waits for
-  review, `attention_needed` when only the user can unblock you, `verification_complete` at the
-  end, and `info` sparingly for milestones in long autonomous runs. Write in the language the user
-  writes in, keep titles short, never include secrets. A failed notification never blocks the work.
-- `buracle usage --json` reports the 5-hour and 7-day windows (percent used, reset time) and a
-  monthly estimate. Check it before a fan-out (three or more subagents, an ab-test batch, a long loop).
+- `buracle usage --json` reports the 5-hour and 7-day windows (percent used, reset time).
+  Check it before a fan-out (three or more subagents, an ab-test batch, a long loop).
   At 75% or more of the 5-hour window, or 85% or more of the 7-day window, tell the user and
   prefer the cheaper path.
 

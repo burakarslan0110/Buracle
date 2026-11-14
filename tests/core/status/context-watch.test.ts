@@ -7,7 +7,6 @@ import * as core from '../../../src/core/index'
 import type { ContextBand } from '../../../src/core/status/context'
 import { CONTEXT_DEFAULTS, contextBand, contextThresholds, contextWarning, contextWatch } from '../../../src/core/status/context'
 import * as paths from '../../../src/engine/paths'
-import { sessionView } from '../../../src/usage/bar'
 import { readTelemetry, writeTelemetry } from '../../../src/workflow/session-store'
 import { withSandbox } from '../../helpers/sandbox'
 
@@ -102,9 +101,7 @@ describe('telemetry (the other half of H05)', () => {
     expect(readTelemetry('codex', 'thread-h05')).toMatchObject({ v: 1, harness: 'codex', sessionId: 'thread-h05', ctx: { pct: 88, tokens: 239_000, window: 272_000 } })
     writeTelemetry('codex', 'thread-h05', { at: now - 10_000, ctx: { pct: 91 } })
     expect(readTelemetry('codex', 'thread-h05')).toMatchObject({ model: 'gpt-6.1-sol', cwd: root, ctx: { pct: 91 } })
-    const view = sessionView('codex', { sessionId: 'thread-h05', nowMs: now })
-    expect(view.ctx?.pct).toBe(91)
-    expect(contextBand(view.ctx?.pct, defaultConfig().context)).toBe('warn')
+    expect(contextBand(readTelemetry('codex', 'thread-h05')?.ctx?.pct, defaultConfig().context)).toBe('warn')
   }))
 
   test('canonical/hooks.yaml binds H05 as a non-blocking, fail-open hook with this file as its contract test', () => {

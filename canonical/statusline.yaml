@@ -1,15 +1,15 @@
 claude:
   rows:
-    - [model, ctx, 5h, 7d, month, cost]
+    - [model, ctx, 5h, 7d, cost]
     - [git, dir, mem, index, flow, plan, upd, hooks]
   compact:
-    - [model, ctx, 5h, 7d, month, git, mem, index, flow, plan, hooks]
+    - [model, ctx, 5h, 7d, git, mem, index, flow, plan, hooks]
   thresholds: { ctxWarn: 75, ctxCrit: 90 }
   emoji: true
 
 codex:
   rows:
-    - [ctx, 5h, 7d, month, git, mem, index, flow, plan, upd, hooks]
+    - [ctx, 5h, 7d, git, mem, index, flow, plan, upd, hooks]
   thresholds: { ctxWarn: 75, ctxCrit: 90 }
   emoji: false
   native:
@@ -18,9 +18,9 @@ codex:
 
 opencode:
   rows:
-    - [model, ctx, windows, month, git, mem, index, flow, plan, hooks]
+    - [model, ctx, windows, git, mem, index, flow, plan, hooks]
   compact:
-    - [ctx, windows, month, git, mem, index, flow, hooks]
+    - [ctx, windows, git, mem, index, flow, hooks]
   thresholds: { ctxWarn: 75, ctxCrit: 90 }
   emoji: false
   native:
@@ -28,7 +28,7 @@ opencode:
 
 omp:
   rows:
-    - [month, mem, index, git, flow, plan, upd, hooks]
+    - [mem, index, git, flow, plan, upd, hooks]
   thresholds: { ctxWarn: 75, ctxCrit: 90 }
   emoji: false
   native:
@@ -37,6 +37,5 @@ omp:
     rightSegments: [usage, context_pct, cost, status]
     showHookStatus: false
     setStatus:
-      buracle.budget: [month]
       buracle.hooks: [hooks]
       buracle.mem: [mem]

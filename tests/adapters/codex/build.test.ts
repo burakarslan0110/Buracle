@@ -90,7 +90,7 @@ describe('codex build (harness/codex)', () => {
 
   test('config.fragment.toml parses and holds only Buracle-managed tables and root keys (canonical defaults)', () => {
     const toml = Bun.TOML.parse(file('config.fragment.toml')) as Record<string, any>
-    expect(Object.keys(toml).sort()).toEqual(['agents', 'approval_policy', 'compact_prompt', 'features', 'mcp_optional_startup_grace_ms', 'mcp_servers', 'model_reasoning_effort', 'plan_mode_reasoning_effort', 'sandbox_mode', 'tools', 'tui', 'web_search'])
+    expect(Object.keys(toml).sort()).toEqual(['agents', 'approval_policy', 'compact_prompt', 'features', 'mcp_optional_startup_grace_ms', 'mcp_servers', 'sandbox_mode', 'tools', 'tui', 'web_search'])
     expect(toml['features']).toEqual({ memories: false })
     expect(Object.keys(toml['mcp_servers']).sort()).toEqual(Object.keys(canonical.mcp.servers).filter(id => canonical.mcp.servers[id]?.harnesses.includes('codex')).sort())
     const top = { omit_tools_from: [...CRITICAL_OMIT_TOOLS_FROM], default_tools_approval_mode: 'approve' }
@@ -109,7 +109,7 @@ describe('codex build (harness/codex)', () => {
     expect(toml['tui']['status_line']).toContain('task-progress')
     expect(toml['mcp_optional_startup_grace_ms']).toBe(0)
     expect(toml['web_search']).toBe('disabled')
-    expect([toml['model_reasoning_effort'], toml['plan_mode_reasoning_effort'], toml['agents']]).toEqual(['xhigh', 'xhigh', { default_subagent_reasoning_effort: 'xhigh', enabled: true }])
+    expect([toml['model_reasoning_effort'], toml['plan_mode_reasoning_effort'], toml['agents']]).toEqual([undefined, undefined, { enabled: true }])
     expect([toml['approval_policy'], toml['sandbox_mode']]).toEqual([BYPASS_APPROVAL_POLICY, 'danger-full-access'])
     expect(CODEX_ENUMS.web_search).toContain(toml['web_search'])
     expect(approvalPolicyProblem(toml['approval_policy'])).toBeUndefined()
@@ -143,7 +143,7 @@ describe('codex build (harness/codex)', () => {
     const memory = block.slice(block.indexOf('# Memory index'), block.indexOf('# Buracle commands in Codex')).trim().split('\n')
     expect(memory.length).toBeLessThanOrEqual(10)
     const commands = block.slice(block.indexOf('# Buracle commands in Codex'), block.indexOf('# Path-scoped rules'))
-    for (const s of ['`$plan-build`', '`$bugfix`', '`buracle mem remember -- "<text>"`', '`$memory`', '`buracle mem ui --open`', '`buracle flow status`', '`/side`']) expect(commands).toContain(s)
+    for (const s of ['`$plan-build`', '`$bugfix`', '`buracle mem remember -- "<text>"`', '`$memory`', '`buracle mem ui --open`', '`/side`']) expect(commands).toContain(s)
     expect(commands).not.toContain('`$memory`,')
     for (const r of canonical.rules.filter(r => r.scope === 'paths')) expect(block).toContain(`\`~/.buracle/rules/paths/${r.id}.md\``)
     expect(block.split('| Need | Use first | Fallback |').length).toBe(2)

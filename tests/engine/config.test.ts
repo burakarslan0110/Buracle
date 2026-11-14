@@ -43,11 +43,10 @@ describe('loadConfig', () => {
     expect(r.errors.some(e => e.includes('unknownThing: unknown key'))).toBe(true)
   }))
 
-  test('an unknown key says it is ignored and may have been renamed; a renamed key keeps its value and is a warning', () => withSandbox(({ buracleHome }) => {
-    writeUserConfig(buracleHome, 'perms:\n  enforced: false\nroutng:\n  strictness: off\n')
-    const r = loadConfigSync({ renames: [{ from: 'perms.enforced', to: 'permissions.enforce', since: '0.9.0' }] })
-    expect(r.config.permissions.enforce).toBe(false)
-    expect(r.warnings).toEqual([`${join(buracleHome, 'config.yaml')}: perms.enforced was renamed to permissions.enforce in 0.9.0; its value was used (rename the key in config.yaml)`])
+  test('an unknown key says it is ignored and may have been renamed or removed', () => withSandbox(({ buracleHome }) => {
+    writeUserConfig(buracleHome, 'routng:\n  strictness: off\n')
+    const r = loadConfigSync()
+    expect(r.warnings).toEqual([])
     expect(r.errors).toEqual([`${join(buracleHome, 'config.yaml')}: routng: unknown key (ignored; misspelled, renamed or removed? \`buracle config get\` prints the valid keys)`])
     expect(r.config.routing.strictness).toBe('enforce')
     expect(loadConfigSync().warnings).toEqual([])
@@ -167,7 +166,6 @@ describe('loadConfigSync reuses the runtime snapshot of its inputs', () => {
     const elsewhere = join(root, 'elsewhere.yaml')
     writeFileSync(elsewhere, 'routing:\n  strictness: enforce\n')
     expect(loadConfigSync({ userConfigPath: elsewhere }).config.routing.strictness).toBe('enforce')
-    expect(loadConfigSync({ renames: [] }).config.routing.strictness).toBe('nudge')
     const snap = JSON.parse(readFileSync(snapshotFile(), 'utf8')) as Record<string, unknown>
     for (const bad of [{ ...snap, v: 2 }, { ...snap, stamp: 'f'.repeat(64) }, { ...snap, config: { routing: { strictness: 'maximum' } } }, 'not json', null]) {
       writeFileSync(snapshotFile(), typeof bad === 'string' ? bad : JSON.stringify(bad))

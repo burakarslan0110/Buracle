@@ -12,7 +12,6 @@ import { checkWrite } from '../../../src/core/policy/write-guard'
 import { validatePlan } from '../../../src/core/plan/format'
 import { applyIntent, stopGuardVerdict, type SessionState } from '../../../src/core/plan/state'
 import * as paths from '../../../src/engine/paths'
-import { monthKeyOf } from '../../../src/usage/month'
 import { loadState, readTelemetry, saveState } from '../../../src/workflow/session-store'
 import { fakeExe } from '../../helpers/fake-exe'
 import { withSandbox, type Sandbox } from '../../helpers/sandbox'
@@ -532,14 +531,13 @@ describe('omp extension: session lifecycle, status and telemetry (H05/H14/H16/H1
     expect(ctx.intervals.map(i => i.ms)).toEqual([30_000])
     expect(ctx.timeouts.length).toBe(1)
     await Bun.sleep(5)
-    expect(ctx.uiCalls.filter(c => c.method === 'setStatus').map(c => c.args)).toEqual([[STATUS_KEYS.month, undefined], [STATUS_KEYS.mem, undefined]])
+    expect(ctx.uiCalls.filter(c => c.method === 'setStatus').map(c => c.args)).toEqual([[STATUS_KEYS.mem, undefined]])
   }))
 
   test('status keys render their canonical segments; the band appears while a plan is registered', () => withSandbox(async sb => {
     const memStatus = { v: 3, computed_at: '2026-10-08T00:00:00Z', health: 'ok', reasons: [], counts: { project: 3, person: 1 }, regions: {}, captures: 1, store: { engine: 'cortexdb', version: '2.124.0', ok: true }, redactions_24h: 0 } as const
     let gitCalls = 0
     const { fp, ctx, cwd } = setup(sb, {
-      usage: () => ({ harness: 'omp', computed_at: '2026-10-08T00:00:00Z', windows: [], month_key: monthKeyOf(1_791_400_000_000), month: { start: '2026-10-01', tokens: 3_400_000, usd: 12.5, byModel: {} } }),
       memoryStatus: () => ({ ...memStatus, reasons: [] }),
       gitState: async () => { gitCalls++; return { branch: 'main', ahead: 1, behind: 0, staged: 0, unstaged: 2, untracked: 0, stash: 0, conflicts: 0 } },
       plan: { ...testDeps().deps.plan!, parsePlan: () => ({ header: { created: '2026-10-08', status: 'IN_PROGRESS', approved: true, worktree: false, type: 'Feature' }, title: 'Demo', sections: [], tasks: [{ n: 1, title: 'a', done: true, files: [] }, { n: 2, title: 'b', done: false, files: [] }] }) },
@@ -548,39 +546,18 @@ describe('omp extension: session lifecycle, status and telemetry (H05/H14/H16/H1
     writeFileSync(join(cwd, 'docs', 'plans', '2026-10-08-demo.md'), '# Demo\n')
     await fp.emit('session_start', { type: 'session_start' }, ctx)
     await Bun.sleep(5)
-    expect(ctx.uiCalls).toContainEqual({ method: 'setStatus', args: [STATUS_KEYS.month, 'month=3400000/$12.5'] })
     expect(ctx.uiCalls).toContainEqual({ method: 'setStatus', args: [STATUS_KEYS.mem, 'mem=ok'] })
     const statusBand = (calls: typeof ctx.uiCalls) => calls.filter(c => c.method === 'setWidget' && c.args[0] === WIDGET_KEY)
     expect(statusBand(ctx.uiCalls)).toEqual([])
     saveState('omp', SID, planState())
     ctx.intervals[0]?.fn()
     await Bun.sleep(5)
-    expect(statusBand(ctx.uiCalls)).toEqual([{ method: 'setWidget', args: [WIDGET_KEY, ['month=3400000/$12.5 | mem=ok | git=main | plan=demo[implement]1/2'], { placement: 'belowEditor' }] }])
+    expect(statusBand(ctx.uiCalls)).toEqual([{ method: 'setWidget', args: [WIDGET_KEY, ['mem=ok | git=main | plan=demo[implement]1/2'], { placement: 'belowEditor' }] }])
     expect(gitCalls).toBe(1)
     const before = ctx.uiCalls.length
     ctx.intervals[0]?.fn()
     await Bun.sleep(5)
     expect(ctx.uiCalls.slice(before).filter(c => c.method === 'setWidget')).toEqual([])
-  }))
-
-  test('month: only the current month counts, month_pct shows; a stale or missing entry triggers one throttled background refresh', () => withSandbox(async sb => {
-    const NOW = 1_791_400_000_000
-    const thisMonth = monthKeyOf(NOW)
-    let entry: Record<string, unknown> | undefined = { harness: 'omp', computed_at: new Date(NOW - 60_000).toISOString(), windows: [], month_key: thisMonth, month_pct: 42, month: { start: `${thisMonth}-01`, tokens: 1000, byModel: {} } }
-    const { fp, ctx, usageRefreshes } = setup(sb, { usage: () => entry as never })
-    await fp.emit('session_start', { type: 'session_start' }, ctx)
-    await Bun.sleep(5)
-    expect(ctx.uiCalls).toContainEqual({ method: 'setStatus', args: [STATUS_KEYS.month, 'month=1000 42%'] })
-    expect(usageRefreshes.count).toBe(0)
-    entry = { ...entry, month_key: '1999-01' }
-    ctx.intervals[0]?.fn()
-    await Bun.sleep(5)
-    expect(ctx.uiCalls.at(-2)).toEqual({ method: 'setStatus', args: [STATUS_KEYS.month, undefined] })
-    expect(usageRefreshes.count).toBe(1)
-    entry = undefined
-    ctx.intervals[0]?.fn()
-    await Bun.sleep(5)
-    expect(usageRefreshes.count).toBe(1)
   }))
 
   test('H21: the main session start prepares the workspace (memory UI, code indexes)', () => withSandbox(async sb => {
@@ -603,11 +580,9 @@ describe('omp extension: session lifecycle, status and telemetry (H05/H14/H16/H1
     expect(widget?.args[2]).toEqual({ placement: 'belowEditor' })
   }))
 
-  test('an entry of this month older than the cache TTL still shows and starts a refresh; the band shows pending updates', () => withSandbox(async sb => {
-    const NOW = 1_791_400_000_000
-    const entry = { harness: 'omp' as const, computed_at: new Date(NOW - 10 * 60_000).toISOString(), windows: [], month_key: monthKeyOf(NOW), month: { start: 'x', tokens: 7, byModel: {} } }
-    const generated = testGenerated({ status: { layout: { rows: [['month', 'upd']], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: false }, setStatus: { 'buracle.budget': ['month'] } } })
-    const t = testDeps({ usage: () => entry, updates: () => 3 })
+  test('the band shows pending updates', () => withSandbox(async sb => {
+    const generated = testGenerated({ status: { layout: { rows: [['upd']], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: false }, setStatus: {} } })
+    const t = testDeps({ updates: () => 3 })
     const fp = fakePi()
     createBuracleExtension(generated, t.deps)(fp.pi)
     const cwd = join(sb.root, 'work')
@@ -616,9 +591,7 @@ describe('omp extension: session lifecycle, status and telemetry (H05/H14/H16/H1
     saveState('omp', SID, planState())
     await fp.emit('session_start', { type: 'session_start' }, ctx)
     await Bun.sleep(5)
-    expect(ctx.uiCalls).toContainEqual({ method: 'setStatus', args: ['buracle.budget', 'month=7'] })
-    expect(ctx.uiCalls).toContainEqual({ method: 'setWidget', args: [WIDGET_KEY, ['month=7 | upd=3'], { placement: 'belowEditor' }] })
-    expect(t.usageRefreshes.count).toBe(1)
+    expect(ctx.uiCalls).toContainEqual({ method: 'setWidget', args: [WIDGET_KEY, ['upd=3'], { placement: 'belowEditor' }] })
   }))
 
   test('production usage deps: the shared usage.json reader and spawnUsageRefresh with the CLI argv', () => withSandbox(async () => {
@@ -626,7 +599,7 @@ describe('omp extension: session lifecycle, status and telemetry (H05/H14/H16/H1
     expect(d.usage()).toBeUndefined()
     const NOW = Date.now()
     mkdirSync(paths.stateDir(), { recursive: true })
-    const omp = { harness: 'omp', computed_at: new Date(NOW).toISOString(), windows: [], month_key: monthKeyOf(NOW), month: { start: 'x', tokens: 5, byModel: {} } }
+    const omp = { harness: 'omp', computed_at: new Date(NOW).toISOString(), windows: [] }
     writeFileSync(paths.usageFile(), JSON.stringify({ v: 1, updated_at: 'x', harnesses: { omp, codex: { ...omp, harness: 'codex' } } }))
     expect(d.usage()).toEqual(omp as never)
     expect(fakeExe(join(paths.binDir(), 'buracle'), '')).toBe(paths.shimPath())

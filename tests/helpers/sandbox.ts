@@ -22,7 +22,6 @@ export const ISOLATED_ENV: readonly string[] = [
 ]
 
 export const TEST_DEFAULT_ENV: Readonly<Record<string, string>> = {
-  BURACLE_NO_NOTIFY: '1',
   BURACLE_NO_CAPTURE: '1',
   BURACLE_NO_TOOLCHAIN: '1',
   BURACLE_NO_AUTOSTART: '1',

@@ -63,7 +63,7 @@ export function compactInstructionsWith(base: string | undefined, state: Session
     lines.push('- Keep which task is in progress, what is left of it, and every deviation from the plan with its reason.')
   }
   const flow = typeof extra?.flow === 'string' ? oneLine(extra.flow, 240) : ''
-  if (flow !== '') lines.push(`- Running workflow: ${flow}. Continue it after compaction; \`buracle flow status\` shows where it stands.`)
+  if (flow !== '') lines.push(`- Running workflow: ${flow}. Continue it after compaction.`)
   const paused = interactionLine(state)
   if (paused) lines.push(`- ${paused}`)
   lines.push("- Keep the user's requests and corrections in their own words and language, and every decision with its reason.")

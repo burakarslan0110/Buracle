@@ -13,7 +13,6 @@ export interface BarModel {
   harness: Harness; model?: string; effort?: string
   ctx?: { pct: number; tokens?: number; window?: number; autoCompactAt?: number }
   windows: RateWindow[]
-  month?: { tokens: number; usd?: number; estimate: boolean; pct?: number }
   cost?: { usd: number }
   git?: GitState; dir?: string
   mem?: MemoryStatus

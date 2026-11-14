@@ -76,13 +76,13 @@ export const HOST_LIMITS: readonly HostLimit[] = [
   },
   {
     id: 'codex.live-panes', harness: 'codex', feature: 'livePanes', kind: 'limit', checkedOn: '0.166.0',
-    reason: 'Codex gives hooks no pane, widget or dialog', fallback: '`buracle mem status`, `buracle plan status` and the tmux status line',
+    reason: 'Codex gives hooks no pane, widget or dialog', fallback: '`buracle mem status`, `buracle plan status` and the one-line workflow notices (`workflow.codexNotices`)',
     probe: { kind: 'binary-schema', title: String.raw`\.command\.output$`, closedBy: '[pP]ane|[wW]idget|[dD]ialog|[sS]tatus_?[lL]ine', expect: ['additionalContext', 'hookSpecificOutput', 'systemMessage'] },
     recheck: `the hook output schemas in codex-rs/hooks/src/schema.rs (the common output has only systemMessage) and ${CODEX_HOOKS_DOC}; ${CHECKED}`,
   },
   {
     id: 'codex.custom-status-line', harness: 'codex', feature: 'customStatusLine', kind: 'limit', checkedOn: '0.166.0',
-    reason: 'the Codex footer shows only its own items (`tui.status_line` takes item ids, no command; openai/codex#17827)', fallback: 'Buracle picks the native items and shows its own bar through tmux (`buracle statusline codex`)',
+    reason: 'the Codex footer shows only its own items (`tui.status_line` takes item ids, no command; openai/codex#17827)', fallback: 'Buracle picks the native items',
     probe: { kind: 'binary-run', pattern: CODEX_TUI_KEYS, closedBy: String.raw`(?:^_|status_line_)(?:command|script)`, expect: CODEX_TUI_STATUS_KEYS },
     recheck: `codex-rs/tui/src/bottom_pane/status_line_setup.rs (a fixed StatusLineItem enum, no command or script) and https://github.com/openai/codex/issues/17827 (open); ${CHECKED}`,
   },

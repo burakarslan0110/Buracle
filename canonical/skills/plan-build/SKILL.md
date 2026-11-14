@@ -155,14 +155,14 @@ Leave out lines that don't apply (`worktree_path` outside worktree runs). A revi
 - A `buracle plan …` command exits 2 with "no session": continue from the plan file, tell the user once that the stop guard is not protecting this run, and suggest `buracle doctor`.
 - `buracle plan validate` exits 1 (errors) or 2 (warnings under `--strict`): fix and re-run until exit 0.
 - `buracle plan complete` or `buracle plan verify` refuses: read the reason (usually unticked tasks or a missing evidence section) and fix that; never work around it (`plan set phase done` runs the same check).
-- The same failure three times, or blocked on something only the user can provide: `buracle notify attention_needed "<title>" "<blocker>" --plan <path>`, pause with `--kind decision`, explain the blocker and offer options (new approach / accept as a known issue / stop).
+- The same failure three times, or blocked on something only the user can provide: pause with `--kind decision`, explain the blocker and offer options (new approach / accept as a known issue / stop).
 - Context filling up: keep checkboxes, Deviations and evidence current in the plan; it is your memory across a compaction.
 
 ## Done means
 
 `buracle plan verify` succeeded and the plan holds complete `## Evidence` (ending with the final regression, plus the post-merge checks after a worktree merge), `## E2E Results` and `## DoD Audit` sections (a Bugfix plan instead: `## Evidence` with the RED proof, the fix-location check, the symptom re-run and the final regression), plus `## Unverified`. Then:
 
-1. `buracle notify verification_complete "<title>" "<one line>" --plan <path>`, then `buracle flow end --outcome done`
+1. `buracle flow end --outcome done`
 2. Memory: up to three memories worth keeping beyond this plan, with `memory_write` (decisions with their rationale, non-obvious gotchas, procedures that took real effort). Run `memory_search` first and update instead of duplicating. Never store secrets, logs or plan state.
 3. Final report:
 

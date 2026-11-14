@@ -27,8 +27,6 @@ describe('buracle command mentions', () => {
     'buracle worktree create|diff|sync|cleanup <slug>',
     'buracle worktree create <slug> --lane [--prefix plan-build|goal-build|bugfix] --json',
     'buracle review-scope [--slug <s>] --json',
-    'buracle notify plan_approval|attention_needed|verification_complete|info "<title>" "<message>" [--plan <path>]',
-    'buracle notify <type> "<title>"',
     'buracle skills list\\|new\\|lint',
     'buracle mem search|get|remember|status',
     'buracle mem capture --pending',
@@ -40,8 +38,7 @@ describe('buracle command mentions', () => {
     'buracle update --check',
     'buracle update --yes',
     'buracle update mcp',
-    'buracle update harness tools --yes',
-    'buracle rollback 20261008-1',
+    'buracle update mcp tools --yes',
     'buracle --help',
   ]
   for (const m of okMentions) {

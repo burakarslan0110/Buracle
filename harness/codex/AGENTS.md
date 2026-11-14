@@ -43,7 +43,6 @@ Work that splits into independent parts runs in parallel; one agent at a time is
 - When you ask, use the structured question tool if one exists, batch related questions, and offer 2–4 concrete options that name real files or behaviors, with your recommendation first.
 - **Escape hatch:** while a registered plan is not VERIFIED, the stop guard keeps your turn going. The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user asking you to stop, wait or hold on, in any language. Buracle records it only when the whole message is such a word in English or Turkish, so otherwise run `buracle plan pause --kind discussion` yourself. The user's "continue" or `buracle plan resume` ends it.
 - With an active Buracle plan (`buracle plan status --json` shows one), run `buracle plan pause --kind decision --reason "<question>"` before asking a real question (`--kind manual` when the user must do something by hand). After the answer, run `buracle plan resume` and continue. A pause is for real decisions, never a way out of unfinished work. A bare "continue" is no answer to an open decision (a merge, an approval, a sign-off): pause again and ask it again, or act only on an explicit choice.
-- If you have to stop for the user during a long unattended run, also send `buracle notify attention_needed "<title>" "<message>"`.
 - An approval is a clear yes in direct reply to the approval question: "approve", "yes", "ok", "lgtm", "go ahead", or the same in the user's language. Silence, a counter-question or a reply about something else is not approval; if unsure, confirm with one short question. Never approve a plan or a destructive step on the user's behalf.
 
 ## Verification: evidence before "done"
@@ -235,7 +234,7 @@ Use the purpose-built tool for each need. A fallback is allowed only when the pr
 | Syntax-aware search and mechanical rewrites | `ast-grep` | `rg` plus edits |
 | Past decisions, gotchas, earlier sessions, preferences | `buracle-memory`: `memory_search` → `memory_get` | `buracle mem search "<q>"` |
 | UI in a real browser: DOM, console, network, performance | `chrome-devtools` MCP (in omp: its built-in browser tool; omp has no chrome-devtools server) | the repo's Playwright setup |
-| Plans, worktrees, review diff range, notifications, project setup | `buracle plan …`, `buracle worktree …`, `buracle review-scope --json`, `buracle notify …`, `buracle project sync` | — |
+| Plans, worktrees, review diff range, project setup | `buracle plan …`, `buracle worktree …`, `buracle review-scope --json`, `buracle project sync` | — |
 
 - Never call the built-in web search while `web-search` is healthy, or the built-in fetch while `web-fetch` is healthy. For library docs, `context7` comes before both: documentation pages (Read the Docs, `docs.*` sites, npm and PyPI package pages, pkg.go.dev, docs.rs, MDN) go to `context7` first.
 - When `web-search` is down, off or keeps failing, fetch a search results page with `web-fetch` (for example `https://html.duckduckgo.com/html/?q=<query>` or `https://www.bing.com/search?q=<query>`), and use the built-in web search only after that, where the harness has one. Codex has none under `routing.strictness: enforce`: Buracle turns its hosted search off there, because those searches never reach Buracle's hooks.
@@ -278,7 +277,7 @@ Codex has no custom slash commands. Where the other harnesses use `/<id>`, the u
 - `/remember <text>`: `buracle mem remember -- "<text>"` saves it to memory as a capture; for a typed memory, follow the `$memory` protocol (memory_search, then memory_write).
 - `/brain`: `buracle mem ui --open` starts the Buracle Console and opens it.
 - `/brain review`: `buracle mem ui --open --page review` opens the review page, where the user reads plans, build contracts, PRDs and your changes and pins notes to them; `buracle plan notes --json` reads the open notes.
-- `/buracle-status`: `buracle plan status --json`, `buracle flow status` and `buracle mem status` show the plan, the running workflow and the memory.
+- `/buracle-status`: `buracle plan status --json` and `buracle mem status` show the plan and the memory.
 - `/aside <question>`: Codex's own `/side` asks a side question without changing this conversation.
 
 # Path-scoped rules
