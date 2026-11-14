@@ -768,25 +768,9 @@ export class BuracleRuntime {
     const cwd = this.ctx.location.directory
     const input = asRecord(e.input)
     const cls = classifyTool(HARNESS, e.tool, input, cwd, this.baked.mcpIds, { homeTilde: this.env.home })
-    const ms = pending !== undefined ? Math.max(0, now - pending.at) : undefined
     const edit = isEdit(cls.kind)
     const done = e.status === 'completed'
 
-    let entry: SpoolEntry | undefined
-    if (edit || cls.kind === 'bash') {
-      entry = { ts: now, ev: 'tool', tool: e.tool, kind: cls.kind }
-      if (cls.paths.length > 0) entry.paths = cls.paths
-      if (cls.command !== undefined) entry.cmd = cls.command
-      if (ms !== undefined) entry.ms = ms
-      if (e.status === 'completed') {
-        const exit = num(asRecord(e.result.output)['exit'])
-        if (exit !== undefined) entry.exit = exit
-      } else entry.exit = -1
-    } else if (cls.kind === 'mcp' || cls.kind === 'web_search' || cls.kind === 'web_fetch' || e.tool === 'skill') {
-      entry = { ts: now, ev: 'tool', tool: e.tool, kind: cls.kind }
-      if (ms !== undefined) entry.ms = ms
-      if (!done) entry.exit = -1
-    }
     const denied = verdict?.deny !== undefined || pending?.denied === true
     if (!denied && s.parentID === null) this.receipts.tool(s.sid, e, { kind: cls.kind, paths: cls.paths, cwd, home: this.env.home, ...(cls.command !== undefined ? { command: cls.command } : {}) })
     if (e.status === 'completed') this.maskResult(e, cls.kind)
@@ -800,7 +784,7 @@ export class BuracleRuntime {
     const texts = edit && done ? editTexts(cls.kind, cls.paths, input, cwd, this.env.home) : undefined
     const r = !valid ? undefined : await postTool({
       sessionId: e.sessionID, cwd, now, subagent: sub, answered,
-      entries: entry !== undefined && !sub ? [entry] : [],
+      entries: [],
       ...(texts !== undefined ? { edit: { ok: true, paths: cls.paths, added: texts.added, removed: () => texts.removed } } : {}),
       ...(server !== undefined ? { mcp: { server: () => server, ok: done } } : {}),
     }, {
@@ -814,10 +798,10 @@ export class BuracleRuntime {
       },
       editBudgetMs: OPENCODE_H04_BUDGET_MS,
     })
-    // A subagent's tool calls belong to the root session's memory: the subagent has no record of its own.
-    if (entry !== undefined && sub) {
+    // A subagent's work belongs to the root session, which has the only record: it starts that session here.
+    if (sub && (edit || cls.kind === 'bash' || cls.kind === 'mcp' || cls.kind === 'web_search' || cls.kind === 'web_fetch' || e.tool === 'skill')) {
       const root = await this.rootOf(s)
-      if (root !== undefined) { await this.touch(root); await this.spool(root, [entry]) }
+      if (root !== undefined) await this.touch(root)
     }
     // The consent question asked through OpenCode's question tool (no TUI): the pick becomes the grant.
     if (valid && !denied && !sub && e.tool === 'question' && e.status === 'completed') await this.step('H20 question grant', undefined, () => { questionGrant(s.sid, e.input, e.result, now) })

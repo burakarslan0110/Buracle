@@ -13,14 +13,14 @@ describe('appendSpool', () => {
   test('writes sanitized, redacted JSON lines and records redactions', async () => {
     await withCapture(() => withSandbox(() => {
       appendSpool('claude', SID, [
-        { ts: 1, ev: 'tool', tool: 'Bash', kind: 'bash', cmd: 'curl -H "Authorization: Bearer abcdef1234567890xyz" x', exit: 0 },
+        { ts: 1, ev: 'stop', excerpt: 'curl -H "Authorization: Bearer abcdef1234567890xyz" x' },
         { ts: 2, ev: 'turn', excerpt: 'done', model: 'claude-opus-5-5', tokens: 12 },
         { ts: 3, ev: 'bogus' } as never,
       ])
       const file = join(spoolDir(), `claude-${SID}.jsonl`)
       const lines = readFileSync(file, 'utf8').trim().split('\n').map(l => JSON.parse(l))
       expect(lines).toEqual([
-        { ts: 1, ev: 'tool', tool: 'Bash', kind: 'bash', cmd: 'curl -H "Authorization: Bearer [REDACTED:bearer]" x', exit: 0 },
+        { ts: 1, ev: 'stop', excerpt: 'curl -H "Authorization: Bearer [REDACTED:bearer]" x' },
         { ts: 2, ev: 'turn', excerpt: 'done', model: 'claude-opus-5-5', tokens: 12 },
       ])
       expect(redactionsSince(0)).toBe(1)
@@ -67,12 +67,12 @@ describe('appendSpool', () => {
     }))
   })
 
-  test('caps the file: tool entries stop at the soft limit, everything at the hard limit', async () => {
+  test('caps the file: prompt entries stop at the soft limit, everything at the hard limit', async () => {
     await withCapture(() => withSandbox(() => {
       const file = join(spoolDir(), `codex-${SID}.jsonl`)
       mkdirSync(spoolDir(), { recursive: true })
       writeFileSync(file, 'x'.repeat(SPOOL_LIMITS.softFileBytes))
-      appendSpool('codex', SID, [{ ts: 1, ev: 'tool', cmd: 'ls' }, { ts: 2, ev: 'stop', excerpt: 'kept' }])
+      appendSpool('codex', SID, [{ ts: 1, ev: 'prompt', excerpt: 'ls' }, { ts: 2, ev: 'stop', excerpt: 'kept' }])
       const tail = readFileSync(file, 'utf8').slice(SPOOL_LIMITS.softFileBytes)
       expect(tail).toBe('{"ts":2,"ev":"stop","excerpt":"kept"}\n')
       writeFileSync(file, 'x'.repeat(SPOOL_LIMITS.hardFileBytes))

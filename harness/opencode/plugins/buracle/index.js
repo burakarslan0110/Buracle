@@ -7165,7 +7165,6 @@ __export(exports_core, {
   MEM_KINDS: () => MEM_KINDS,
   MEM_REDACT_MARGIN: () => MEM_REDACT_MARGIN,
   MEM_SCHEMA: () => MEM_SCHEMA,
-  MEM_SESSION_TOP_TOOLS: () => MEM_SESSION_TOP_TOOLS,
   MODEL_SWITCH_REASON: () => MODEL_SWITCH_REASON,
   NATIVE_PLAN_ENTER: () => NATIVE_PLAN_ENTER,
   NEUTRAL_SKILL_HARNESSES: () => NEUTRAL_SKILL_HARNESSES,
@@ -7624,12 +7623,10 @@ __export(exports_core, {
   skippedNote: () => skippedNote,
   slugify: () => slugify,
   sourcePath: () => sourcePath,
-  spoolCommandHeads: () => spoolCommandHeads,
   spoolDigest: () => spoolDigest,
   spoolFileMatches: () => spoolFileMatches,
   spoolFileName: () => spoolFileName,
   spoolIsEmptySession: () => spoolIsEmptySession,
-  spoolIsTestCommand: () => spoolIsTestCommand,
   spoolLine: () => spoolLine,
   spoolParse: () => spoolParse,
   spoolPromptExcerpt: () => spoolPromptExcerpt,
@@ -13062,25 +13059,8 @@ function profileCategory(text, polarity = 1) {
 }
 
 // src/core/memory/spool.ts
-var SPOOL_EVENTS = ["prompt", "tool", "turn", "compact", "stop", "note", "prompt-signal"];
+var SPOOL_EVENTS = ["prompt", "turn", "compact", "stop", "note", "prompt-signal"];
 var EXCERPT_EVENTS = ["prompt", "turn", "stop", "compact", "note"];
-var TOOL_KINDS = [
-  "bash",
-  "edit",
-  "write",
-  "patch",
-  "read",
-  "search",
-  "web_search",
-  "web_fetch",
-  "ask_user",
-  "plan_exit",
-  "plan_enter",
-  "todo",
-  "agent",
-  "mcp",
-  "other"
-];
 var NO_CAPTURE_ENV = "BURACLE_NO_CAPTURE";
 function memCaptureOff(env) {
   return env[NO_CAPTURE_ENV] === "1";
@@ -13089,7 +13069,6 @@ var SPOOL_LIMITS = {
   excerpt: 2000,
   promptExcerpt: 800,
   compactExcerpt: 8000,
-  cmd: 600,
   paths: 50,
   path: 600,
   tool: 128,
@@ -13124,21 +13103,11 @@ function spoolSanitize(input) {
   };
   if (typeof x["tool"] === "string" && x["tool"] !== "")
     entry.tool = clip(x["tool"], SPOOL_LIMITS.tool);
-  if (typeof x["kind"] === "string" && TOOL_KINDS.includes(x["kind"]))
-    entry.kind = x["kind"];
   if (Array.isArray(x["paths"])) {
     const ps = x["paths"].filter((p) => typeof p === "string" && p !== "").slice(0, SPOOL_LIMITS.paths).map((p) => clip(p, SPOOL_LIMITS.path));
     if (ps.length > 0)
       entry.paths = ps;
   }
-  if (typeof x["cmd"] === "string" && x["cmd"] !== "")
-    entry.cmd = scrub(x["cmd"], SPOOL_LIMITS.cmd);
-  const exit = finite(x["exit"]);
-  if (exit !== undefined)
-    entry.exit = Math.trunc(exit);
-  const ms = finite(x["ms"]);
-  if (ms !== undefined && ms >= 0)
-    entry.ms = Math.round(ms);
   if (typeof x["excerpt"] === "string" && x["excerpt"] !== "" && EXCERPT_EVENTS.includes(ev)) {
     const max = ev === "compact" ? SPOOL_LIMITS.compactExcerpt : ev === "prompt" ? SPOOL_LIMITS.promptExcerpt : SPOOL_LIMITS.excerpt;
     entry.excerpt = scrub(x["excerpt"], max);
@@ -13194,56 +13163,13 @@ function spoolFileMatches(name, harness, sid) {
   const rest = name.slice(base.length, -".jsonl".length);
   return rest === "" || rest.startsWith("-");
 }
-var UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 var SPOOL_DIGEST_PROMPTS = 40;
-var TEST_RE = /(?:^|[\s;&|(])(?:bun\s+test|(?:npm|pnpm|yarn)\s+(?:run\s+)?test|npx\s+(?:vitest|jest)|vitest|jest|pytest|python3?\s+-m\s+pytest|go\s+test|cargo\s+test|deno\s+test|make\s+test|rspec|phpunit|mix\s+test|dotnet\s+test|gradle\s+test|mvn\s+test|swift\s+test)\b/;
-var GIT_COMMIT_RE = /(?:^|[\s;&|(])git\s+(?:-C\s+\S+\s+)?commit\b/;
-function spoolIsTestCommand(cmd) {
-  return TEST_RE.test(cmd);
-}
-function spoolCommandHeads(cmd) {
-  const out = [];
-  for (const seg of cmd.split(/&&|\|\||[;|\n]/)) {
-    const words = seg.trim().split(/\s+/).filter((w) => w !== "");
-    while (words.length > 0 && (/^[A-Za-z_][A-Za-z0-9_]*=/.test(words[0]) || ["sudo", "env", "time", "exec", "command"].includes(words[0])))
-      words.shift();
-    if (words.length === 0)
-      continue;
-    const head = words.slice(0, 2).join(" ").toLowerCase();
-    if (/^[a-z0-9./_-]/.test(head))
-      out.push(head.slice(0, 60));
-  }
-  return out;
-}
-function relTo(path, cwd) {
-  if (cwd === undefined || cwd === "")
-    return path;
-  const base = cwd.replace(/[\\/]+$/, "");
-  return path.length > base.length + 1 && path.startsWith(base) && (path[base.length] === "/" || path[base.length] === "\\") ? path.slice(base.length + 1) : path;
-}
 function spoolIsEmptySession(d) {
-  return d.tools === 0 && d.commands === 0 && d.files.length === 0 && d.compactions.length === 0 && d.finalMessage === undefined && d.tokens === 0;
+  return d.compactions.length === 0 && d.finalMessage === undefined && d.tokens === 0;
 }
-function spoolDigest(entries, cwd) {
+function spoolDigest(entries) {
   const sorted = [...entries].sort((a, b) => a.ts - b.ts);
-  const d = {
-    files: [],
-    commands: 0,
-    tests: { runs: 0, failures: 0 },
-    failures: [],
-    gitCommits: 0,
-    compactions: [],
-    tokens: 0,
-    turns: 0,
-    prompts: 0,
-    tools: 0,
-    notes: [],
-    userPrompts: [],
-    toolCounts: {},
-    commandHeads: {},
-    signals: []
-  };
-  const files = new Map;
+  const d = { compactions: [], tokens: 0, turns: 0, prompts: 0, notes: [], userPrompts: [], signals: [] };
   let lastMsgTs = -Infinity;
   for (const e of sorted) {
     if (d.startedMs === undefined || e.ts < d.startedMs)
@@ -13260,37 +13186,6 @@ function spoolDigest(entries, cwd) {
         if (e.excerpt !== undefined)
           d.userPrompts.push({ ts: e.ts, text: e.excerpt });
         break;
-      case "tool": {
-        d.tools++;
-        if (e.tool !== undefined && !UNSAFE_KEYS.has(e.tool) && (Object.hasOwn(d.toolCounts, e.tool) || Object.keys(d.toolCounts).length < 200))
-          d.toolCounts[e.tool] = (d.toolCounts[e.tool] ?? 0) + 1;
-        if (e.kind === "edit" || e.kind === "write" || e.kind === "patch") {
-          for (const p of e.paths ?? []) {
-            files.delete(p);
-            files.set(p, e.ts);
-          }
-        }
-        if (e.cmd !== undefined) {
-          d.commands++;
-          for (const head of spoolCommandHeads(e.cmd)) {
-            if (!UNSAFE_KEYS.has(head) && (Object.hasOwn(d.commandHeads, head) || Object.keys(d.commandHeads).length < 100))
-              d.commandHeads[head] = (d.commandHeads[head] ?? 0) + 1;
-          }
-          const failed = e.exit !== undefined && e.exit !== 0;
-          if (spoolIsTestCommand(e.cmd)) {
-            d.tests.runs++;
-            if (failed)
-              d.tests.failures++;
-            if (e.exit !== undefined)
-              d.lastTestExit = e.exit;
-          }
-          if (GIT_COMMIT_RE.test(e.cmd) && !failed)
-            d.gitCommits++;
-          if (failed)
-            d.failures.push({ cmd: e.cmd, exit: e.exit });
-        }
-        break;
-      }
       case "turn":
       case "stop":
         if (e.ev === "turn")
@@ -13321,8 +13216,6 @@ function spoolDigest(entries, cwd) {
         break;
     }
   }
-  d.files = [...files.keys()].map((p) => relTo(p, cwd));
-  d.failures = d.failures.slice(-10);
   d.userPrompts = d.userPrompts.slice(-SPOOL_DIGEST_PROMPTS);
   return d;
 }
@@ -13380,7 +13273,7 @@ function appendSpool(h, sid, entries, opts = {}) {
       const projected = size + text.length + line.length;
       if (projected > SPOOL_LIMITS.hardFileBytes)
         break;
-      if (projected > SPOOL_LIMITS.softFileBytes && (entry.ev === "tool" || entry.ev === "prompt"))
+      if (projected > SPOOL_LIMITS.softFileBytes && entry.ev === "prompt")
         continue;
       text += line;
     }
@@ -20339,7 +20232,7 @@ function mcpHealthOf(raw, nowMs) {
   }
   return out;
 }
-var TOOL_KINDS2 = ["bash", "edit", "write", "patch", "read", "search", "web_search", "web_fetch", "ask_user", "plan_exit", "plan_enter", "todo", "agent", "mcp", "eval", "other"];
+var TOOL_KINDS = ["bash", "edit", "write", "patch", "read", "search", "web_search", "web_fetch", "ask_user", "plan_exit", "plan_enter", "todo", "agent", "mcp", "eval", "other"];
 function parseRouteRef(ref) {
   if (typeof ref !== "string")
     return;
@@ -20648,7 +20541,7 @@ function validateRoutingPolicy(x, knownServers) {
           errors.push(`${at}.${key}[${j}]: expected mcp:<server>[/<tool>], cli:<name>, builtin:<kind> or skill:<id>`);
         else if (ref.kind === "mcp" && knownServers && !knownServers.includes(ref.server))
           errors.push(`${at}.${key}[${j}]: unknown MCP server ${JSON.stringify(ref.server)}`);
-        else if (ref.kind === "builtin" && !TOOL_KINDS2.includes(ref.tool))
+        else if (ref.kind === "builtin" && !TOOL_KINDS.includes(ref.tool))
           errors.push(`${at}.${key}[${j}]: unknown tool kind ${JSON.stringify(ref.tool)}`);
       });
     }
@@ -20659,7 +20552,7 @@ function validateRoutingPolicy(x, knownServers) {
       errors.push(`${at}.deny_builtin: expected a list`);
     else
       deny.forEach((d, j) => {
-        if (!TOOL_KINDS2.includes(d) || d === "mcp" || d === "other")
+        if (!TOOL_KINDS.includes(d) || d === "mcp" || d === "other")
           errors.push(`${at}.deny_builtin[${j}]: expected a built-in tool kind`);
       });
     if (cat["nudge"] !== undefined && (typeof cat["nudge"] !== "string" || cat["nudge"].trim() === ""))
@@ -29897,17 +29790,8 @@ function memDiffstatCounts(stat) {
     out.deletions = Number(del[1]);
   return out;
 }
-var MEM_SESSION_TOP_TOOLS = 8;
-function memSessionStats(d, git) {
-  const s = {
-    prompts: d.prompts,
-    turns: d.turns,
-    tools: d.tools,
-    commands: d.commands,
-    files: d.files.length,
-    tests: d.tests.runs,
-    testFailures: d.tests.failures
-  };
+function memSessionStats(d, files, git) {
+  const s = { prompts: d.prompts, turns: d.turns, files: files.length };
   if (d.endedMs !== undefined)
     s.endedMs = d.endedMs;
   if (d.tokens > 0)
@@ -29916,9 +29800,6 @@ function memSessionStats(d, git) {
     s.model = d.model;
   if (git !== undefined)
     Object.assign(s, { commits: git.commits }, memDiffstatCounts(git.diffstat));
-  const top = Object.entries(d.toolCounts).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, MEM_SESSION_TOP_TOOLS);
-  if (top.length > 0)
-    s.topTools = top;
   return s;
 }
 function memSessionMemoryId(noteHarness, sid) {
@@ -29940,18 +29821,12 @@ function memSessionAreas(files) {
   }
   return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([a]) => a);
 }
-function memSessionOutcome(d, extra = {}) {
-  if (d === undefined)
-    return;
+function memSessionOutcome(files, extra = {}) {
   const parts = [];
   const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
-  if (d.files.length > 0) {
-    const areas = memSessionAreas(d.files).slice(0, 3);
-    parts.push(`changed ${plural(d.files.length, "file")}${areas.length > 0 ? ` (${areas.join(", ")})` : ""}`);
-  }
-  if (d.tests.runs > 0) {
-    const last = d.lastTestExit === undefined ? "" : d.lastTestExit === 0 ? ", the last one passed" : ", the last one failed";
-    parts.push(`ran tests ${d.tests.runs === 1 ? "once" : `${d.tests.runs} times`}${last}`);
+  if (files.length > 0) {
+    const areas = memSessionAreas(files).slice(0, 3);
+    parts.push(`changed ${plural(files.length, "file")}${areas.length > 0 ? ` (${areas.join(", ")})` : ""}`);
   }
   const commits = extra.commits?.length ?? 0;
   if (commits > 0)
@@ -29978,21 +29853,13 @@ function memSessionBody(input, d, extra = {}) {
     log.push(`- Time: ${memLocalDate(input.startedMs, input.offsetMin)} ${memLocalTime(input.startedMs, input.offsetMin)}-${memLocalTime(end, input.offsetMin)} (${duration(end - input.startedMs)})`);
   if (input.branch !== undefined)
     log.push(`- Branch: ${input.branch}`);
-  if (d !== undefined) {
-    if (d.files.length > 0) {
-      const shown = d.files.slice(-25).map((f) => `\`${f.replace(/`/g, "'")}\``).join(", ");
-      log.push(`- Files touched (${d.files.length}): ${shown}${d.files.length > 25 ? ", ..." : ""}`);
-    }
-    if (d.commands > 0) {
-      const tests = d.tests.runs > 0 ? `; test runs: ${d.tests.runs}${d.tests.failures > 0 ? ` (${d.tests.failures} failed)` : ""}` : "";
-      log.push(`- Commands: ${d.commands}${tests}`);
-    }
-    if (d.failures.length > 0) {
-      log.push(`- Failed commands: ${d.failures.slice(-5).map((f) => `\`${memClip(memOneLine(f.cmd), 80).replace(/`/g, "'")}\` (exit ${f.exit})`).join(", ")}`);
-    }
-    if (d.turns > 0 || d.prompts > 0)
-      log.push(`- Turns: ${Math.max(d.turns, d.prompts)}${d.tools > 0 ? `; tool calls: ${d.tools}` : ""}`);
+  const files = extra.files ?? [];
+  if (files.length > 0) {
+    const shown = files.slice(-25).map((f) => `\`${f.replace(/`/g, "'")}\``).join(", ");
+    log.push(`- Files touched (${files.length}): ${shown}${files.length > 25 ? ", ..." : ""}`);
   }
+  if (d !== undefined && (d.turns > 0 || d.prompts > 0))
+    log.push(`- Turns: ${Math.max(d.turns, d.prompts)}`);
   if (extra.commits !== undefined && extra.commits.length > 0) {
     log.push(`- Commits (${extra.commits.length}): ${extra.commits.slice(0, 10).map((c) => memClip(memOneLine(c), 90)).join("; ")}`);
   }
@@ -36889,31 +36756,8 @@ class BuracleRuntime {
     const cwd = this.ctx.location.directory;
     const input = asRecord(e.input);
     const cls = classifyTool(HARNESS7, e.tool, input, cwd, this.baked.mcpIds, { homeTilde: this.env.home });
-    const ms = pending !== undefined ? Math.max(0, now - pending.at) : undefined;
     const edit = isEdit(cls.kind);
     const done = e.status === "completed";
-    let entry;
-    if (edit || cls.kind === "bash") {
-      entry = { ts: now, ev: "tool", tool: e.tool, kind: cls.kind };
-      if (cls.paths.length > 0)
-        entry.paths = cls.paths;
-      if (cls.command !== undefined)
-        entry.cmd = cls.command;
-      if (ms !== undefined)
-        entry.ms = ms;
-      if (e.status === "completed") {
-        const exit = num2(asRecord(e.result.output)["exit"]);
-        if (exit !== undefined)
-          entry.exit = exit;
-      } else
-        entry.exit = -1;
-    } else if (cls.kind === "mcp" || cls.kind === "web_search" || cls.kind === "web_fetch" || e.tool === "skill") {
-      entry = { ts: now, ev: "tool", tool: e.tool, kind: cls.kind };
-      if (ms !== undefined)
-        entry.ms = ms;
-      if (!done)
-        entry.exit = -1;
-    }
     const denied = verdict?.deny !== undefined || pending?.denied === true;
     if (!denied && s.parentID === null)
       this.receipts.tool(s.sid, e, { kind: cls.kind, paths: cls.paths, cwd, home: this.env.home, ...cls.command !== undefined ? { command: cls.command } : {} });
@@ -36937,7 +36781,7 @@ class BuracleRuntime {
       now,
       subagent: sub,
       answered,
-      entries: entry !== undefined && !sub ? [entry] : [],
+      entries: [],
       ...texts !== undefined ? { edit: { ok: true, paths: cls.paths, added: texts.added, removed: () => texts.removed } } : {},
       ...server !== undefined ? { mcp: { server: () => server, ok: done } } : {}
     }, {
@@ -36951,12 +36795,10 @@ class BuracleRuntime {
       },
       editBudgetMs: OPENCODE_H04_BUDGET_MS
     });
-    if (entry !== undefined && sub) {
+    if (sub && (edit || cls.kind === "bash" || cls.kind === "mcp" || cls.kind === "web_search" || cls.kind === "web_fetch" || e.tool === "skill")) {
       const root = await this.rootOf(s);
-      if (root !== undefined) {
+      if (root !== undefined)
         await this.touch(root);
-        await this.spool(root, [entry]);
-      }
     }
     if (valid && !denied && !sub && e.tool === "question" && e.status === "completed")
       await this.step("H20 question grant", undefined, () => {

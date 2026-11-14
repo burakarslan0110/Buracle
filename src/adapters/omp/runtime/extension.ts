@@ -62,7 +62,6 @@ const START_WAIT_MS = 1_000
 const FENCE_TOOLS_WAIT_MS = 2_000
 const MAX_QUEUED_PROMPTS = 16
 const WRITE_KINDS: ReadonlySet<ToolKind> = new Set(['edit', 'write', 'patch'])
-const SPOOL_KINDS: ReadonlySet<ToolKind> = new Set(['bash', 'edit', 'write', 'patch', 'mcp', 'web_search', 'web_fetch'])
 
 interface SessionMemo {
   capture?: boolean
@@ -401,18 +400,6 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       const main = isMain(ctx)
       const sid = sessionOf(ctx)
       const lsid = spoolSid(ctx)
-      const entries: SpoolEntry[] = []
-      if (SPOOL_KINDS.has(cls.kind) && !device && lsid !== undefined) {
-        const entry: SpoolEntry = { ts: now, ev: 'tool', tool: event.toolName, kind: cls.kind }
-        if (files.length > 0) entry.paths = files
-        if (cls.kind === 'bash') {
-          if (cls.command !== undefined) entry.cmd = cls.command
-          entry.exit = numAt(event.details, 'exitCode') ?? (event.isError ? 1 : 0)
-          const ms = numAt(event.details, 'wallTimeMs')
-          if (ms !== undefined) entry.ms = ms
-        }
-        entries.push(entry)
-      }
       const server = cls.kind === 'mcp' && !device && lsid !== undefined ? cls.mcp?.server : undefined
       const wasDenied = deniedCalls.delete(event.toolCallId)
       if (!wasDenied && main && sid !== undefined && !device) {
@@ -439,7 +426,7 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       await started(sid)
       const edited = !event.isError && WRITE_KINDS.has(cls.kind) && files.length > 0
       const r = await postTool({
-        sessionId: owner, cwd: ctx.cwd, now, subagent: !main, entries,
+        sessionId: owner, cwd: ctx.cwd, now, subagent: !main, entries: [],
         answered: main && event.toolName === 'ask' && !wasDenied && event.isError !== true && corePolicy.questionAnswered(event.content),
         ...(edited ? { edit: { ok: true, paths: files, added: addedTextOf(cls.kind, input, files, ctx.cwd, targets, home), removed: () => removedTextOf(cls.kind, input, files, targets) } } : {}),
         ...(server !== undefined ? { mcp: { server: () => server, ok: !event.isError } } : {}),

@@ -22,7 +22,6 @@ describe('session capture through the adapter seams', () => {
       const t = Date.now()
       appendSpool('claude', SID, [
         { ts: t, ev: 'prompt' },
-        { ts: t + 1, ev: 'tool', tool: 'Bash', kind: 'bash', cmd: 'bun test', exit: 0 },
         { ts: t + 2, ev: 'stop', excerpt: 'Fixed the parser.' },
       ])
       const r = await finalize('claude', SID)

@@ -321,11 +321,11 @@ describe('routing (H21-H26)', () => {
     expect(readFlow('codex', SID)).toBeUndefined()
   }))
 
-  test('PostToolUse (H14): MCP calls are spooled with their tool name, `webrun` as a web search', () => withSandbox(async () => {
+  test('PostToolUse: an MCP or a web call is not spooled (the capture keeps prompts and turns)', () => withSandbox(async () => {
     const d = deps(quiet)
     await handleCodexHook('PostToolUse', payload('PostToolUse', { tool_name: 'mcp__context7__query_docs', tool_input: { libraryId: '/colinhacks/zod' }, tool_response: {} }), ctx(), d)
     await handleCodexHook('PostToolUse', payload('PostToolUse', { tool_name: 'webrun', tool_input: { search_query: [{ q: 'bun' }] }, tool_response: {} }), ctx(), d)
-    expect(d.rec.spool).toEqual([{ ts: NOW, ev: 'tool', tool: 'mcp__context7__query_docs', kind: 'mcp' }, { ts: NOW, ev: 'tool', tool: 'webrun', kind: 'web_search' }])
+    expect(d.rec.spool).toEqual([])
   }))
 
   test('H10 texts are English; the user\'s own words are recognized in any language', () => withSandbox(async () => {

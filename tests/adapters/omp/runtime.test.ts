@@ -85,7 +85,7 @@ describe('omp runtime: memory bridge', () => {
   test('the bundled appendSpool (memory task) writes the session spool', () => withSandbox(async sb => {
     await withEnv({ BURACLE_NO_CAPTURE: undefined }, async () => {
       const bridge = createMemoryBridge({ cli: () => undefined })
-      await bridge.appendSpool(SID, [{ ts: Date.now(), ev: 'tool', tool: 'bash', kind: 'bash', cmd: 'bun test', exit: 0 }])
+      await bridge.appendSpool(SID, [{ ts: Date.now(), ev: 'stop', excerpt: 'Ran the tests.' }])
       const dir = join(sb.buracleHome, 'state', 'memory', 'spool')
       expect(readdirSync(dir).some(n => n.startsWith(`omp-${SID}`))).toBe(true)
     })

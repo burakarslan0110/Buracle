@@ -339,7 +339,7 @@ describe('memory.exclude', () => {
       expect(await sessionStart('claude', sid, repo)).toEqual({ skipped: 'not-a-project' })
       const entries = [
         { ts: Date.now(), ev: 'prompt' as const, excerpt: 'Draft the acquisition term sheet for Acme' },
-        { ts: Date.now() + 1, ev: 'tool' as const, tool: 'Bash', cmd: 'git push origin main' },
+        { ts: Date.now() + 1, ev: 'turn' as const, excerpt: 'Pushing to origin main.' },
         { ts: Date.now() + 2, ev: 'stop' as const, excerpt: 'Drafted the term sheet.' },
       ]
       appendSpool('claude', sid, entries)

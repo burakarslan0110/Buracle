@@ -542,16 +542,13 @@ describe('PostToolUse: H25 skill loads, H24 reads, H14 capture of web and MCP ca
     })
   })
 
-  test('web and MCP calls are spooled with their kind and full tool name', async () => {
+  test('web, MCP, shell and edit calls are not spooled: the capture keeps prompts and turns', async () => {
     await withSandbox(async () => {
       const s = spoolStub()
-      for (const tool of ['WebFetch', 'WebSearch', 'mcp__plugin_buracle_context7__query-docs']) {
-        await claudeHook('PostToolUse', payload('PostToolUse', { tool_name: tool, tool_input: { url: 'https://example.com', query: 'x' }, tool_response: {} }), ctx(), deps({ importModule: s.importModule }))
+      for (const tool of ['WebFetch', 'WebSearch', 'mcp__plugin_buracle_context7__query-docs', 'Bash', 'Skill']) {
+        await claudeHook('PostToolUse', payload('PostToolUse', { tool_name: tool, tool_input: { url: 'https://example.com', query: 'x', command: 'ls' }, tool_response: {} }), ctx(), deps({ importModule: s.importModule }))
       }
-      expect(s.appended.map(a => (a[2] as Array<Record<string, unknown>>)[0])).toEqual([
-        { ts: NOW, ev: 'tool', tool: 'WebFetch', kind: 'web_fetch' }, { ts: NOW, ev: 'tool', tool: 'WebSearch', kind: 'web_search' },
-        { ts: NOW, ev: 'tool', tool: 'mcp__plugin_buracle_context7__query-docs', kind: 'mcp' },
-      ])
+      expect(s.appended).toEqual([])
     })
   })
 })

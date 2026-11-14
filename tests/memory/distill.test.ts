@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { mkdirSync, readFileSync, existsSync } from 'node:fs'
+import { mkdirSync, readFileSync, existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { write } from '../../src/memory/api'
 import { checkReply, currentWindows, distillSession, latestWindows, type DistillRunner } from '../../src/memory/distill'
@@ -75,9 +75,12 @@ describe('distill', () => {
   test('a promoted candidate cites the session files its claim is about, never a path the session did not touch', async () => {
     await withBrain(async ({ repo }) => {
       await sessionStart('codex', SID, repo)
+      // The files the session touched are the ones git reports when it ends.
+      mkdirSync(join(repo, 'src'), { recursive: true })
+      for (const f of ['orders.ts', 'cache.ts']) writeFileSync(join(repo, 'src', f), 'export const ttl = 60\n')
       appendSpool('codex', SID, [
         { ts: Date.now(), ev: 'prompt' },
-        { ts: Date.now() + 1, ev: 'tool', tool: 'Edit', kind: 'edit', paths: ['src/orders.ts', 'src/cache.ts'] },
+        { ts: Date.now() + 1, ev: 'turn' },
         { ts: Date.now() + 2, ev: 'stop', excerpt: 'Raised the TTL in orders.ts.' },
       ])
       await finalize('codex', SID, { pending: false })

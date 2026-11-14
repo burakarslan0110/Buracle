@@ -78,7 +78,7 @@ export function appendSpool(h: Harness, sid: string, entries: SpoolEntry[], opts
       const line = spoolLine(entry)
       const projected = size + text.length + line.length
       if (projected > SPOOL_LIMITS.hardFileBytes) break
-      if (projected > SPOOL_LIMITS.softFileBytes && (entry.ev === 'tool' || entry.ev === 'prompt')) continue
+      if (projected > SPOOL_LIMITS.softFileBytes && entry.ev === 'prompt') continue
       text += line
     }
     if (text !== '') appendFileSync(file, text, { mode: 0o600 })

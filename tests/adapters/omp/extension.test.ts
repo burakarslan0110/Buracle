@@ -260,16 +260,13 @@ describe('omp extension: tool_result (H04 + spool)', () => {
     expect(await fp.emit('tool_result', { type: 'tool_result', toolCallId: '3', toolName: 'write', input: { path: 'a.ts', content: 'x' }, content: [], isError: false }, ctx)).toBeUndefined()
   }))
 
-  test('spools tool metadata: bash command and exit code, edited paths; subagents report into the main session', () => withSandbox(async sb => {
-    const { fp, ctx, cwd, memory } = setup(sb)
+  test('tool calls are not spooled: not a bash command, not an edit, not a subagent\'s write', () => withSandbox(async sb => {
+    const { fp, ctx, memory } = setup(sb)
     await fp.emit('tool_result', { type: 'tool_result', toolCallId: '1', toolName: 'bash', input: { command: 'bun test' }, content: [], isError: true, details: { exitCode: 2, wallTimeMs: 1500 } }, ctx)
     await fp.emit('tool_result', { type: 'tool_result', toolCallId: '2', toolName: 'edit', input: { path: 'src/x.ts', edits: [] }, content: [], isError: false }, ctx)
     await fp.emit('tool_result', { type: 'tool_result', toolCallId: '3', toolName: 'read', input: { path: 'src/x.ts' }, content: [], isError: false }, ctx)
     await Bun.sleep(0)
-    expect(memory.spool).toEqual([
-      { sid: SID, entries: [{ ts: 1_791_400_000_000, ev: 'tool', tool: 'bash', kind: 'bash', cmd: 'bun test', exit: 2, ms: 1500 }] },
-      { sid: SID, entries: [{ ts: 1_791_400_000_000, ev: 'tool', tool: 'edit', kind: 'edit', paths: [join(cwd, 'src/x.ts')] }] },
-    ])
+    expect(memory.spool).toEqual([])
     const prev = { sid: process.env['BURACLE_SESSION_ID'], h: process.env['BURACLE_HARNESS'] }
     process.env['BURACLE_SESSION_ID'] = 'main-session-1'
     process.env['BURACLE_HARNESS'] = 'omp'
@@ -277,7 +274,7 @@ describe('omp extension: tool_result (H04 + spool)', () => {
       const sub = setup(sb, {}, { kind: 'sub', sid: 'sub-session-9' })
       await sub.fp.emit('tool_result', { type: 'tool_result', toolCallId: '4', toolName: 'write', input: { path: 'b.ts', content: '' }, content: [], isError: false }, sub.ctx)
       await Bun.sleep(0)
-      expect(sub.memory.spool.map(s => s.sid)).toEqual(['main-session-1'])
+      expect(sub.memory.spool).toEqual([])
     } finally {
       if (prev.sid === undefined) delete process.env['BURACLE_SESSION_ID']; else process.env['BURACLE_SESSION_ID'] = prev.sid
       if (prev.h === undefined) delete process.env['BURACLE_HARNESS']; else process.env['BURACLE_HARNESS'] = prev.h

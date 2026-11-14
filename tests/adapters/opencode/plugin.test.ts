@@ -130,12 +130,13 @@ describe('opencode server plugin: setup and lifecycle', () => {
     await rt.idle()
     await rt.dispose()
     expect(mem.appended.map(a => a.sid).filter(sid => sid !== SID)).toEqual([])
-    expect(mem.appended.flatMap(a => a.entries).map(e => [e.ev, e.tool, e.kind])).toEqual([['tool', 'shell', 'bash'], ['tool', 'write', 'write']])
+    // A subagent's tool calls are not spooled, like the main session's.
+    expect(mem.appended.flatMap(a => a.entries)).toEqual([])
     expect(mem.started.map(s => s.sid)).toEqual([SID])
     expect(mem.finalized).toEqual([SID])
   }))
 
-  test('H14: a root session whose only work this plugin instance saw was a subagent\'s is started and finalized with that work', () => withSandbox(async ({ root }) => {
+  test('H14: a root session whose only work this plugin instance saw was a subagent\'s is started and finalized (the work itself is not spooled)', () => withSandbox(async ({ root }) => {
     const { f, rt, mem } = await runtime(root)
     f.parents['ses_sub8'] = 'ses_root8'
     const ls = { command: 'ls' }
@@ -143,7 +144,7 @@ describe('opencode server plugin: setup and lifecycle', () => {
     await f.trigger('tool.execute.after', { tool: 'shell', sessionID: 'ses_sub8', agent: 'general', messageID: 'msg_s1', id: 'call_s8', input: ls, status: 'completed', result: { output: { exit: 0 }, content: [{ type: 'text', text: '' }] } } satisfies ToolExecuteAfter)
     await rt.idle()
     await rt.dispose()
-    expect(mem.appended.map(a => a.sid)).toEqual(['ses_root8'])
+    expect(mem.appended).toEqual([])
     expect(mem.started.map(s => s.sid)).toEqual(['ses_root8'])
     expect(mem.finalized).toEqual(['ses_root8'])
   }))
@@ -319,8 +320,8 @@ describe('opencode server plugin: permission.evaluate guards', () => {
     mkdirSync(join(home, 'notes'), { recursive: true })
     writeFileSync(join(home, 'notes', 'todo.md'), input.content)
     await f.trigger('tool.execute.after', { tool: 'write', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_t2', input, status: 'completed', result: { output: {}, content: [{ type: 'text', text: 'Wrote the file' }] } } satisfies ToolExecuteAfter)
-    const written = mem.appended.flatMap(a => a.entries).find(e => e.ev === 'tool' && e.kind === 'write')
-    expect(written?.paths).toEqual([join(home, 'notes', 'todo.md')])
+    // The write itself leaves no spool entry: the capture keeps prompts and turns, and git lists the files.
+    expect(mem.appended.flatMap(a => a.entries)).toEqual([])
   }))
 
   test('H03 enforce denies the built-in websearch while web-search is usable; down → allowed', () => withSandbox(async ({ root, buracleHome }) => {
@@ -369,15 +370,13 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
     expect(Array.isArray(content)).toBe(true)
     const texts = (content as unknown as Array<{ text: string }>).map(c => c.text)
     expect(texts[0]).toBe('Edited big.ts')
-    const edit = mem.appended.flatMap(a => a.entries).find(e => e.ev === 'tool' && e.kind === 'edit')
-    expect(edit?.paths).toEqual([file])
+    expect(mem.appended.flatMap(a => a.entries)).toEqual([])
 
     await f.trigger('tool.execute.before', { tool: 'shell', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_s', input: { command: 'grep -r foo .' } })
     await f.trigger('permission.evaluate', evaluation('shell', ['grep -r foo .'], 'call_s'))
     const sh: ToolExecuteAfter = { tool: 'shell', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_s', input: { command: 'grep -r foo .' }, status: 'completed', result: { output: { exit: 1, output: '', truncated: false }, content: [{ type: 'text', text: '' }] } }
     await f.trigger('tool.execute.after', sh)
-    const bash = mem.appended.flatMap(a => a.entries).find(e => e.ev === 'tool' && e.kind === 'bash')
-    expect(bash).toMatchObject({ tool: 'shell', cmd: 'grep -r foo .', exit: 1 })
+    expect(mem.appended.flatMap(a => a.entries)).toEqual([])
   }))
 
   test('H04: a missing linter is named once per session', () => withSandbox(async ({ root }) => {

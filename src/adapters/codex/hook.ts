@@ -367,15 +367,6 @@ async function onPostToolUse(p: Payload, sid: string, cwd: string, ctx: AdapterC
         return removedByFile(deps.core.patchEdits(sp.kind === 'patch' ? sp.body : patch), parsed.paths)
       },
     }
-    entries.push({ ts: start, ev: 'tool', tool: call.tool, kind: 'patch', paths: parsed.paths })
-  } else if (call.kind === 'bash') {
-    const e: SpoolEntry = { ts: start, ev: 'tool', tool: call.tool, kind: 'bash' }
-    if (call.command !== undefined) e.cmd = call.command.slice(0, 500)
-    const exit = exitCodeOf(p['tool_response'])
-    if (exit !== undefined) e.exit = exit
-    entries.push(e)
-  } else {
-    entries.push({ ts: start, ev: 'tool', tool: call.tool, kind: call.kind })
   }
   const server = call.kind === 'mcp' ? call.mcp?.server : undefined
   const r = await postTool({

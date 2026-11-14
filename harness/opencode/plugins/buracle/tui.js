@@ -11265,7 +11265,6 @@ var SPOOL_LIMITS = {
   excerpt: 2000,
   promptExcerpt: 800,
   compactExcerpt: 8000,
-  cmd: 600,
   paths: 50,
   path: 600,
   tool: 128,
@@ -11273,7 +11272,6 @@ var SPOOL_LIMITS = {
   softFileBytes: 4 * 1024 * 1024,
   hardFileBytes: 8 * 1024 * 1024
 };
-var UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
 // src/core/policy/code-scan.ts
 var REGEX_AFTER = new Set(["(", ",", "=", ":", "[", "!", "&", "|", "?", "{", "}", ";", "+", "-", "*", "%", "<", ">", "~", "^", "=>", "==", "===", "!=", "!==", "&&", "||", "??", "return", "typeof", "case", "do", "else", "in", "of", "new", "void", "throw"]);
