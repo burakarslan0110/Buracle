@@ -54,13 +54,13 @@ describe('pipeline: a harness in its own process', () => {
     expect((await sessionStart(input, { ...fakeDeps(o), ...ports, version: () => '9.9.0' })).notice?.user).toContain('Hello from a newer build.')
   })))
 
-  test('the bash guard gets the Buracle repository only for a harness that asks for it', () => withSandbox(async () => {
+  test('the bash guard gets the Buracle repository the command runs in, and fails closed when it cannot be found', () => withSandbox(async () => {
     const seen: Array<string | undefined> = []
     const core = { checkBash: (_c: string, o?: BashGuardOptions) => { seen.push(o?.buracleRepo); return {} } }
     await preTool({ call: call(), now: NOW, subagent: false, usage: false }, preToolDeps({ core }, {}))
-    await preTool({ call: call(), now: NOW, subagent: false, usage: false }, { ...preToolDeps({ core }), buracleRepo: async () => '/work/buracle', guardRepoInShell: true })
+    await preTool({ call: call(), now: NOW, subagent: false, usage: false }, { ...preToolDeps({ core }), buracleRepo: async () => '/work/buracle' })
     expect(seen).toEqual([undefined, '/work/buracle'])
-    const failing = { ...preToolDeps({ core }), buracleRepo: async () => { throw new Error('no git') }, guardRepoInShell: true }
+    const failing = { ...preToolDeps({ core }), buracleRepo: async () => { throw new Error('no git') } }
     expect(await preTool({ call: call(), now: NOW, subagent: false, usage: false }, failing)).toMatchObject({ action: 'deny', hook: 'H01' })
   }))
 

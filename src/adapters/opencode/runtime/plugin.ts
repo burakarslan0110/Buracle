@@ -730,7 +730,6 @@ export class BuracleRuntime {
       ...(edit && id !== undefined ? { edits: call.paths } : {}),
     }, {
       ...this.deps(s),
-      guardRepoInShell: true,
       shellDenial: async command => reviewerShellDenial(e.agent, command),
       // OpenCode's own ask dialog cannot carry Buracle's consent options, so the TUI plugin asks; the call waits for the answer.
       holdConsent: async command => {

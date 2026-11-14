@@ -105,6 +105,24 @@ describe('PreToolUse', () => {
     expect(await verdict(other, 'harness/notes.md', ctx({ ...defaultConfig(), repo: other }))).toStartWith('Buracle H02: ')
   }), 30_000)
 
+  test('H01 buracleRepo: a shell command that writes under <repo>/harness of the Buracle checkout it runs in is denied, as on OpenCode', () => withSandbox(async ({ root }) => {
+    const mkRepo = async (name: string, pkg: string) => {
+      const dir = join(root, name)
+      mkdirSync(join(dir, 'src'), { recursive: true })
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: pkg }))
+      expect((await run(['git', 'init', '-q'], { cwd: dir })).code).toBe(0)
+      return dir
+    }
+    const buracle = await mkRepo('buracle-checkout', 'buracle')
+    const other = await mkRepo('app', 'my-app')
+    const d = deps({ ...quiet, checkBash: core.checkBash })
+    const verdict = async (command: string, cwd: string) => JSON.parse((await handleCodexHook('PreToolUse', bash(command, cwd), ctx(), d)).stdout || '{}').hookSpecificOutput?.permissionDecisionReason as string | undefined
+    expect(await verdict('echo x > harness/notes.md', buracle)).toStartWith('Buracle H01: ')
+    expect(await verdict('echo x > ../harness/notes.md', join(buracle, 'src'))).toStartWith('Buracle H01: ')
+    expect(await verdict('echo x > src/notes.md', buracle)).toBeUndefined()
+    expect(await verdict('echo x > harness/notes.md', other)).toBeUndefined()
+  }), 30_000)
+
   test('SEC-1 with the real core: a relocated CLAUDE_CONFIG_DIR, and the checkout these hooks run from (from an unrelated session)', () => withSandbox(async ({ root }) => {
     const proj = join(root, 'proj')
     mkdirSync(proj, { recursive: true })

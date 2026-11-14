@@ -7,6 +7,7 @@ import { hookBundle } from '../../../src/cli/hook-data'
 import type { CanonicalBundle } from '../../../src/core/catalog'
 import { defaultConfig } from '../../../src/core/config'
 import * as paths from '../../../src/engine/paths'
+import { run } from '../../../src/engine/proc'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
 
 const NOW = 1_800_000_000_000
@@ -155,5 +156,24 @@ describe('H01 meets the write context shell writes are judged with (task W1.1)',
     })
     expect(denied(await claudeHook('PreToolUse', pre('Bash', { command: 'echo x > secrets/a.txt' }, proj), ctx(config), real()))).toContain('guards.write.protect')
     expect(denied(await claudeHook('PreToolUse', pre('Bash', { command: 'echo x > notes/a.txt' }, proj), ctx(config), real()))).toBeUndefined()
+  }), 20_000)
+})
+
+describe('H01: the shell guard protects the Buracle checkout the command runs in', () => {
+  test('a command that writes under <repo>/harness is denied inside a Buracle checkout, as on OpenCode, and passes elsewhere', () => withSandbox(async ({ root }) => {
+    const mkRepo = async (name: string, pkg: string) => {
+      const dir = join(root, name)
+      mkdirSync(join(dir, 'src'), { recursive: true })
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: pkg }))
+      expect((await run(['git', 'init', '-q'], { cwd: dir })).code).toBe(0)
+      return dir
+    }
+    const buracle = await mkRepo('buracle-clone', 'buracle')
+    const other = await mkRepo('app', 'my-app')
+    const sh = async (command: string, cwd: string) => denied(await claudeHook('PreToolUse', pre('Bash', { command }, cwd), ctx(), real()))
+    expect(await sh('echo x > harness/notes.md', buracle)).toStartWith('Buracle H01: ')
+    expect(await sh('echo x > ../harness/notes.md', join(buracle, 'src'))).toContain('buracle build')
+    expect(await sh('echo x > src/notes.md', buracle)).toBeUndefined()
+    expect(await sh('echo x > harness/notes.md', other)).toBeUndefined()
   }), 20_000)
 })

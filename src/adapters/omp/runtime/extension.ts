@@ -317,7 +317,6 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
         ...(edit && !device ? { edits: callPaths } : {}),
       }, {
         ...d,
-        guardRepoInShell: true,
         // A reviewer's shell is read-only; a check that cannot run denies, like the guard before it.
         shellDenial: async command => {
           if (isMain(ctx)) return undefined

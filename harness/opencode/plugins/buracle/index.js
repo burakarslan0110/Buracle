@@ -33962,7 +33962,7 @@ async function preTool(input, d) {
     const command = call.command;
     let verdict;
     try {
-      const repo = d.guardRepoInShell === true ? await repoOf(d, call.cwd) : undefined;
+      const repo = await repoOf(d, call.cwd);
       verdict = d.core.checkBash(command, { ...bashOptions(d.ctx, call.cwd, d.realpath), ...repo !== undefined ? { buracleRepo: repo } : {} });
     } catch (e) {
       return failed("H01", e);
@@ -36669,7 +36669,6 @@ class BuracleRuntime {
       ...edit && id !== undefined ? { edits: call.paths } : {}
     }, {
       ...this.deps(s),
-      guardRepoInShell: true,
       shellDenial: async (command) => reviewerShellDenial(e.agent, command),
       holdConsent: async (command) => {
         held = await answerHeld(sid, command, { host: this.consentHost, isSubagent: async () => sub });

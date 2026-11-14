@@ -29206,7 +29206,7 @@ async function preTool(input, d) {
     const command = call.command;
     let verdict;
     try {
-      const repo = d.guardRepoInShell === true ? await repoOf(d, call.cwd) : undefined;
+      const repo = await repoOf(d, call.cwd);
       verdict = d.core.checkBash(command, { ...bashOptions(d.ctx, call.cwd, d.realpath), ...repo !== undefined ? { buracleRepo: repo } : {} });
     } catch (e) {
       return failed("H01", e);
@@ -38425,7 +38425,6 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
         ...edit && !device ? { edits: callPaths } : {}
       }, {
         ...d,
-        guardRepoInShell: true,
         shellDenial: async (command) => {
           if (isMain(ctx))
             return;

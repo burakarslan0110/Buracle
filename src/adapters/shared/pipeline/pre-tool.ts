@@ -118,7 +118,7 @@ export async function preTool(input: PreToolInput, d: PipelineDeps & PreToolPort
     const command = call.command
     let verdict: { deny?: string }
     try {
-      const repo = d.guardRepoInShell === true ? await repoOf(d, call.cwd) : undefined
+      const repo = await repoOf(d, call.cwd)
       verdict = d.core.checkBash(command, { ...bashOptions(d.ctx, call.cwd, d.realpath), ...(repo !== undefined ? { buracleRepo: repo } : {}) })
     } catch (e) {
       return failed('H01', e)
