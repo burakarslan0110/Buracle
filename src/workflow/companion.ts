@@ -12,6 +12,7 @@ import {
 import { REVIEW_AGENT_OF, REVIEW_ROLES, companionOf, reviewCollected, reviewStarted, type ReviewRole, type ReviewVerdict } from '../core/plan/reviews'
 import type { SessionState } from '../core/plan/state'
 import type { ReviewAgent, ReviewReport } from '../core/policy/review'
+import { resolveAgents } from '../adapters/shared/agents'
 import { loadCanonicalSync } from '../engine/canonical'
 import { loadConfigSync } from '../engine/config'
 import { log } from '../engine/log'
@@ -276,7 +277,7 @@ export async function companionRun(file: string, deps: CompanionDeps = {}): Prom
   const finish = (edit: Partial<CompanionJob>): number => { update(edit); return 0 }
   if (!update({ runnerPid: deps.pid ?? process.pid })) return 0
   const req = readRequest(file)
-  const doc = (() => { try { return loadCanonicalSync().agents.find(a => a.id === job.agent) } catch { return undefined } })()
+  const doc = (() => { try { return resolveAgents(loadCanonicalSync()).find(a => a.id === job.agent) } catch { return undefined } })()
   if (req === undefined || doc === undefined) return finish({ state: 'failed', error: req === undefined ? 'the review request is missing' : `the ${job.agent} instructions could not be loaded` })
   const { companionHost } = await import('./companion-hosts')
   const attempts: CompanionAttempt[] = []

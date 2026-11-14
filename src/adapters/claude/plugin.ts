@@ -1,3 +1,4 @@
+import { resolveAgents } from '../shared/agents'
 import type { AgentDoc, CanonicalBundle, CatalogMcp, CatalogSkill, McpServerSpec, SkillDoc } from '../../core/catalog'
 import { catalogMcp, catalogSkills, envRef, expandMcpCommand, mcpEnvFor } from '../../core/catalog'
 import { mcpServerToken } from '../../core/events'
@@ -322,7 +323,7 @@ export function canonicalContentHash(c: CanonicalBundle): string {
     statusline: c.statusline,
     rules: c.rules.map(r => ({ id: r.id, scope: r.scope, frontmatter: r.frontmatter, body: r.body })),
     skills: c.skills.map(s => ({ id: s.id, files: s.files.map(f => ({ path: f.path, content: f.content, mode: f.mode & 0o111 ? 1 : 0 })) })),
-    agents: c.agents.map(a => ({ id: a.id, frontmatter: a.frontmatter, body: a.body })),
+    agents: resolveAgents(c).map(a => ({ id: a.id, frontmatter: a.frontmatter, body: a.body })),
   })
 }
 
@@ -534,7 +535,7 @@ export function generatePlugin(input: PluginInput): GenFile[] {
   }
   const protocols = protocolIds(c.skills)
   for (const s of [...c.skills].sort((a, b) => compareStr(a.id, b.id))) files.push(...renderSkill(s, protocols))
-  for (const a of [...c.agents].sort((x, y) => compareStr(x.id, y.id))) files.push(renderAgent(a, c.mcp, protocols))
+  for (const a of resolveAgents(c).sort((x, y) => compareStr(x.id, y.id))) files.push(renderAgent(a, c.mcp, protocols))
   files.push({ path: '.mcp.json', content: json(mcpJson(c.mcp)) })
   const lsp = lspJson(c)
   if (Object.keys(lsp).length > 0) files.push({ path: '.lsp.json', content: json(lsp) })

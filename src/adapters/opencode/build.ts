@@ -4,6 +4,7 @@ import { catalogSkills } from '../../core/catalog'
 import type { CanonicalBundle } from '../../core/catalog'
 import { sha256 } from '../../engine/fsx'
 import { accountHome } from '../../engine/platform'
+import { resolveAgents } from '../shared/agents'
 import { runtimeVersion } from '../shared/notices'
 import { bundleEntry } from './bundle'
 import { MIN_VERSION, PLUGIN_DIR, PORTABLE_SHIM, UTILITY_COMMANDS } from './constants'
@@ -85,7 +86,7 @@ export async function buildFiles(ctx: AdapterContext): Promise<BuiltFile[]> {
     { path: 'config/cli.fragment.jsonc', content: cliFragmentText() },
     { path: 'README.md', content: README },
   ]
-  for (const a of [...c.agents].sort((x, y) => (x.id < y.id ? -1 : 1))) files.push({ path: `agents/${a.id}.md`, content: renderAgent(a) })
+  for (const a of resolveAgents(c).sort((x, y) => (x.id < y.id ? -1 : 1))) files.push({ path: `agents/${a.id}.md`, content: renderAgent(a) })
   files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
   const manifest = {
     harness: 'opencode',

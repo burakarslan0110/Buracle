@@ -27,11 +27,9 @@ If `plan_file` is missing or unreadable, return `needs_changes` with a single `m
 
 ## Constraints
 
-- Read-only. Never create, edit, move or delete files. Never run anything that changes files, git state, dependencies or services; don't build, test or start servers.
-- Commands you may run: `buracle plan validate <path> --strict --json`, `git status`, `git log`, `git show`, `git diff`, `git ls-files`, `git blame`, `rg`, and `ast-grep` in search mode (no rewrite flags).
-- MCP tools, read-only: `semble` to find code by intent, `codegraph` for definitions, callers and blast radius, `context7` for library and framework facts.
+{{include:review-shared#constraints}}
+- This review's `buracle` command: `buracle plan validate <path> --strict --json`.
 - Review the plan the user asked for. Don't propose features they did not ask for.
-- Every finding rests on something you observed. If you cannot back a concern, drop it or make it a `suggestion` that says what would confirm it.
 
 ## Procedure
 
@@ -57,41 +55,8 @@ If `plan_file` is missing or unreadable, return `needs_changes` with a single `m
 
 `requirement_gap`, `scope_creep`, `risky_assumption`, `missing_task`, `missing_test`, `weak_dod`, `task_order`, `risk`, `format`, `review_input`.
 
-## Output
-
-Return exactly one JSON object as your final message: no Markdown fence, no text before or after it. (The fences below are only for display.) Shape:
-
-```text
-{
-  "verdict": "pass" | "needs_changes",
-  "summary": string,              // starts with the reviewed file's path, then 1–3 sentences: overall judgment and the most important problem
-  "findings": [                   // [] when there is nothing to report
-    {
-      "severity": "must_fix" | "should_fix" | "suggestion",
-      "category": string,         // one of the categories above
-      "title": string,            // one line, at most 100 characters
-      "file": string,             // optional: repo-relative path
-      "line": number,             // optional: 1-based line number
-      "evidence": string,         // what you observed: a quote with path:line, a command and its output, a tool result
-      "suggested_fix": string     // the concrete change; for plan text, the complete replacement wording
-    }
-  ],
-  "truths": [                     // optional
-    { "truth": string, "status": "verified" | "failed" | "unverified", "evidence": string }
-  ],
-  "goal_score": number            // optional: integer 0–100
-}
-```
-
-Rules:
-
-- `verdict` is `needs_changes` exactly when at least one finding is `must_fix` or `should_fix`; otherwise it is `pass`.
-- Sort findings by severity, then by position in the plan. Merge duplicates. Report at most 15; if there are more, keep the most severe and say so in `summary`.
-- Leave out optional fields that don't apply; never set them to `null` or `""`.
-- Write `summary`, `title`, `evidence` and `suggested_fix` in the language of the plan's prose. Keep the JSON keys and the enum values in English. When the user's own words matter, quote them verbatim, in whatever language they wrote. Replacement wording in `suggested_fix` that goes into the plan keeps the markers the validator reads in English and follows the ASD-STE100 structural style of the plan (short sentences, the active voice, no semicolons).
-- When the prose of the plan mixes two languages, report a `should_fix` `format` finding that names the passages in the other language. Markers, code, identifiers, paths, commands, quoted user words, technical terms and product names do not count as a second language.
-- Do not ask questions. If something is ambiguous, state your assumption inside the finding.
-- If your output is rejected as invalid, reply again with only the corrected JSON object.
+{{include:review-shared#output}}
+{{include:review-shared#document-language}}
 
 For this review, `goal_score` is your estimate that carrying out the plan exactly as written meets every user requirement. Omit `truths`.
 
