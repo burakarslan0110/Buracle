@@ -19,7 +19,6 @@ const LEGACY_EXPLAINED: ReadonlyArray<{ file: string, re: RegExp, why: string }>
   { file: 'src/workflow/plan-notes.ts', re: /or under the old folders docs\/plans, docs\/builds, docs\/prd and docs\/cleanup/, why: 'the error text names the old folders as still readable' },
   { file: 'canonical/hooks.yaml', re: /or one of the old folders docs\/plans, docs\/builds, docs\/prd and docs\/cleanup/, why: 'the H03 description names the exemption list' },
   { file: 'src/engine/update/reference.ts', re: /A path under an old document folder \(`docs\/prd\/`, `docs\/plans\/`, `docs\/builds\/`, `docs\/cleanup\/`\)/, why: 'the reference explains the legacy-folder check' },
-  { file: 'canonical/skills/buracle/references/commands.md', re: /or an old folder: docs\/plans, docs\/builds, docs\/prd or docs\/cleanup/, why: 'the notes command accepts a file in an old folder' },
   { file: 'canonical/skills/plan-build/SKILL.md', re: /or the old `docs\/prd\/\*\.md`/, why: 'a PRD in the old folder is still an input' },
   { file: 'canonical/skills/plan-build/references/plan.md', re: /or the old `docs\/prd\/\*\.md`/, why: 'a PRD in the old folder is still an input' },
   { file: 'canonical/skills/goal-build/SKILL.md', re: /or the old `docs\/(?:prd|builds)\/\*\.md`/, why: 'a PRD or a run file in the old folder is still an input' },

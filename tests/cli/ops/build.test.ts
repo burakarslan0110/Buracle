@@ -3,6 +3,7 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync
 import { join, relative } from 'node:path'
 import { run as buildRun } from '../../../src/cli/commands/build'
 import { MANIFEST_REL, normalizeOutputPath, runBuild, type BuildOptions } from '../../../src/engine/update/build'
+import { loadCommandInfos, skillCommandReference } from '../../../src/engine/update/reference'
 
 import { withSandbox } from '../../helpers/sandbox'
 import { fakeAdapter, makeRepo, memoryIO, withDeps } from './helpers'
@@ -291,4 +292,51 @@ describe('buracle build (command)', () => {
       expect(bad.err()).toContain('unknown harness nope')
     })
   }))
+})
+
+describe("the buracle skill's command reference is generated into the skill's source", () => {
+  const SKILL = '---\nname: buracle\ndescription: Use when a buracle command is needed.\n---\n# buracle\n\nSee [references/commands.md](references/commands.md).\n'
+  const REL = 'canonical/skills/buracle/references/commands.md'
+  const commands = { commands: [{ name: 'plan', summary: 'Plan state', usage: 'Usage: buracle plan <subcommand> [--json]\n       buracle plan status\n\n  status   the binding\n' }, { name: 'hook', summary: 'Hook entry', usage: 'Usage: buracle hook <harness> <event>' }], exitCodes: { ok: 0, error: 1, partial: 2 } }
+
+  test('build writes it from the command table; the adapters render the generated text in the same run; --check reports a hand edit', () => withSandbox(async ({ root }) => {
+    const repo = makeRepo(root, { 'canonical/skills/buracle/SKILL.md': SKILL, [REL]: 'hand-written, stale\n' })
+    const seen: string[] = []
+    const claude = fakeAdapter('claude', { build: ctx => { seen.push(ctx.canonical.skills.find(s => s.id === 'buracle')?.files.find(f => f.path === 'references/commands.md')?.content ?? ''); return [] } })
+    const drift = await runBuild(opts(repo, { adapters: [claude], check: true, commands }))
+    expect(drift.drift).toContainEqual({ path: REL, kind: 'changed', by: 'skill-reference' })
+    expect(read(join(repo, REL))).toBe('hand-written, stale\n')
+
+    const r = await runBuild(opts(repo, { adapters: [claude], commands }))
+    expect(r.errors).toEqual([])
+    expect(r.written).toContain(REL)
+    const text = read(join(repo, REL))
+    expect(text).toBe(skillCommandReference(commands.commands, commands.exitCodes))
+    expect(text).toContain('## plan\n\nPlan state\n\n```text\nburacle plan <subcommand> [--json]\nburacle plan status\n```\n')
+    expect(text).toContain('## hook\n\nHook entry\n\n```text\nburacle hook <harness> <event>\n```\n')
+    expect(text).not.toContain('the binding')
+    expect(seen.every(s => s === text)).toBe(true)
+    expect(Object.keys((JSON.parse(read(join(repo, MANIFEST_REL))) as { files: Record<string, unknown> }).files)).not.toContain(REL)
+
+    const again = await runBuild(opts(repo, { adapters: [claude], check: true, commands }))
+    expect(again.drift).toEqual([])
+    writeFileSync(join(repo, REL), `${text}\nAn edit by hand.\n`)
+    expect((await runBuild(opts(repo, { adapters: [claude], check: true, commands }))).drift).toContainEqual({ path: REL, kind: 'changed', by: 'skill-reference' })
+  }))
+
+  test('a canonical tree without that skill file generates nothing', () => withSandbox(async ({ root }) => {
+    const repo = makeRepo(root)
+    const r = await runBuild(opts(repo, { commands }))
+    expect(r.producers).not.toContain('skill-reference')
+    expect(existsSync(join(repo, REL))).toBe(false)
+  }))
+
+  test('the committed reference is what the real command table gives: short, one section per command, deterministic', async () => {
+    const reg = await loadCommandInfos()
+    const text = skillCommandReference(reg.commands, reg.exitCodes)
+    expect(readFileSync(join(import.meta.dir, '..', '..', '..', REL), 'utf8')).toBe(text)
+    expect(skillCommandReference(reg.commands, reg.exitCodes)).toBe(text)
+    expect([...text.matchAll(/^## (.+)$/gm)].map(m => m[1] as string)).toEqual(reg.commands.map(c => c.name))
+    expect(Buffer.byteLength(text)).toBeLessThan(8_000)
+  })
 })

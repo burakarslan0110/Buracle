@@ -109,7 +109,7 @@
     },
     "harness/agents-skills/buracle/references/commands.md": {
       "by": "agents-skills",
-      "sha256": "204557155cc5ffef8b5bf33456d16c6b6afb678a8b9a7fcd2adf5509992c4395",
+      "sha256": "c391876b0fdeb0db50978395d27a37d91a763c9955b9109c5154c8e9e839fb88",
       "exec": false
     },
     "harness/agents-skills/buracle/references/lanes.md": {
@@ -899,7 +899,7 @@
     },
     "harness/claude/hooks/generated/meta.ts": {
       "by": "claude",
-      "sha256": "57b0cfe638b44d887dcf128ac96aa991b0e8b32e57624c540eced972af47087a",
+      "sha256": "7adf612827beade2a8c3582a0dbec170d4701520a4f698196844973c0c7c1baf",
       "exec": false
     },
     "harness/claude/hooks/hooks.json": {
@@ -1019,7 +1019,7 @@
     },
     "harness/claude/skills/buracle/references/commands.md": {
       "by": "claude",
-      "sha256": "204557155cc5ffef8b5bf33456d16c6b6afb678a8b9a7fcd2adf5509992c4395",
+      "sha256": "c391876b0fdeb0db50978395d27a37d91a763c9955b9109c5154c8e9e839fb88",
       "exec": false
     },
     "harness/claude/skills/buracle/references/lanes.md": {

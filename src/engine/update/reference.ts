@@ -614,3 +614,25 @@ export async function loadCommandInfos(): Promise<{ commands: CommandInfo[], exi
   }
   return { commands, exitCodes: { ...EXIT } }
 }
+
+/** The buracle skill's command reference: generated into the skill's source, so the skill never describes a CLI that no longer exists. */
+export const SKILL_COMMANDS = { skill: 'buracle', file: 'references/commands.md', rel: 'canonical/skills/buracle/references/commands.md' } as const
+
+/**
+ * The command reference an agent reads with the buracle skill: one short section per command, with its
+ * summary and its synopsis (the first block of its help text). The rest of a help text stays one
+ * `--help` call away, so the file costs little context.
+ */
+export function skillCommandReference(commands: readonly CommandInfo[], exitCodes: Readonly<Record<string, number>>): string {
+  const codes = Object.entries(exitCodes).sort((a, b) => a[1] - b[1]).map(([k, v]) => `${v} ${(EXIT_TEXT[k] ?? k).replace(/\.$/, '')}`).join(' · ')
+  let out = banner('the CLI command table and help texts (`src/cli/router.ts`, `src/cli/commands/`)')
+  out += '# buracle command reference\n\n'
+  out += 'One section per command: what it is for and how it is called. `buracle <command> --help` prints the rest (subcommands, flags, effects, exit codes); read it before the first use of a command in a session. '
+  out += `Every command takes \`--json\`. Exit codes: ${codes}.\n`
+  for (const c of commands) {
+    const synopsis = (c.usage.split(/\n[ \t]*\n/)[0] ?? '').split('\n').map(l => l.replace(/^(?:Usage:)?\s+/, '').trimEnd()).filter(l => l !== '')
+    out += `\n## ${c.name}\n\n${c.summary.trim()}\n`
+    if (synopsis.length > 0) out += `\n\`\`\`text\n${synopsis.join('\n')}\n\`\`\`\n`
+  }
+  return out
+}
