@@ -1,5 +1,6 @@
 import type { Harness } from './events'
 import { HARNESSES } from './events'
+import { harnessTable } from './harness/index'
 
 export type CompanionSetting = 'off' | 'auto' | Harness
 export const COMPANION_SETTINGS: readonly CompanionSetting[] = ['off', 'auto', ...HARNESSES]
@@ -31,12 +32,7 @@ export interface BuracleConfig {
 export function defaultConfig(): BuracleConfig {
   return {
     version: 1,
-    harnesses: {
-      claude: { enabled: true },
-      codex: { enabled: true },
-      opencode: { enabled: true },
-      omp: { enabled: true },
-    },
+    harnesses: harnessTable(() => ({ enabled: true })),
     routing: { strictness: 'enforce', skills: 'router', reminders: true },
     guards: { bash: { extraDeny: [] }, write: { protect: [] }, redact: true },
     plan: {
@@ -66,7 +62,7 @@ export function defaultConfig(): BuracleConfig {
     workflow: { band: true, foldAfterSec: 8, codexNotices: true },
     toolchain: { autoInstall: true, system: true, upgrade: true },
     index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 },
-    mcp: { shared: true, off: { claude: [], codex: [], opencode: [], omp: [] } },
+    mcp: { shared: true, off: harnessTable((): string[] => []) },
   }
 }
 

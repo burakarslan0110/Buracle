@@ -70,6 +70,13 @@ export function ompHome(): string {
   return join(home(), '.omp')
 }
 
+const CONFIG_DIRS: Readonly<Record<Harness, () => string>> = { claude: claudeDir, codex: codexHome, opencode: opencodeConfigDir, omp: ompAgentDir }
+
+/** A harness's config folder (the `configDir` of its profile). */
+export function harnessConfigDir(h: Harness): string {
+  return CONFIG_DIRS[h]()
+}
+
 export function localBinDir(): string {
   return join(home(), '.local', 'bin')
 }

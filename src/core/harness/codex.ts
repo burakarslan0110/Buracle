@@ -7,7 +7,7 @@ export const codexProfile: HarnessProfile = {
   shortLabel: 'Codex',
   noteName: 'codex',
   bin: 'codex',
-  process: { base: /^codex(?:-(?:aarch64|arm64|x86_64|x64|amd64)\b[\w.-]*)?$/ },
+  proc: { base: /^codex(?:-(?:aarch64|arm64|x86_64|x64|amd64)\b[\w.-]*)?$/ },
   runtime: 'command',
   editBudgetMs: 40_000,
   configDir: { key: 'codexHome', env: 'CODEX_HOME', under: '.codex' },

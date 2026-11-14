@@ -10,7 +10,7 @@ export const claudeProfile: HarnessProfile = {
   shortLabel: 'CC',
   noteName: 'claude-code',
   bin: 'claude',
-  process: { base: /^claude$/, path: /\/claude\/versions\/[^/]+$/, pidEnv: 'CLAUDE_PID' },
+  proc: { base: /^claude$/, path: /\/claude\/versions\/[^/]+$/, pidEnv: 'CLAUDE_PID' },
   runtime: 'command',
   spoolSuffix: 'classic',
   editBudgetMs: 28_000,

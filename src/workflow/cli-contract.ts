@@ -1,3 +1,4 @@
+import { HARNESSES } from '../core/harness/index'
 export interface CommandSpec {
   subs: readonly string[] | null | 'any'
   nested?: Readonly<Record<string, readonly string[]>>
@@ -21,7 +22,7 @@ export const SKILL_COMMANDS: Readonly<Record<string, CommandSpec>> = {
   config: { subs: ['get'] },
   doctor: { subs: 'any', ops: true },
   update: { subs: ['self', 'skills', 'mcp', 'tools'], ops: true },
-  install: { subs: ['claude', 'codex', 'opencode', 'omp'], ops: true },
+  install: { subs: [...HARNESSES], ops: true },
   build: { subs: null, ops: true },
 }
 

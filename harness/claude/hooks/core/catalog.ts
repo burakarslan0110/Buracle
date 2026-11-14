@@ -205,7 +205,7 @@ const SERVER_ID = /^[a-z0-9][a-z0-9-]*$/
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:[-+.][0-9A-Za-z.-]+)?$/
 const BIN_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
-const SERVER_KEYS = ['description', 'transport', 'package', 'command', 'args', 'env', 'harness_env', 'tool_timeout_sec', 'tool_timeout_hard', 'url', 'harnesses', 'pin', 'pin_reason', 'critical', 'routing', 'health', 'backend', 'api_key'] as const
+const SERVER_KEYS = ['description', 'transport', 'package', 'command', 'args', 'env', 'harness_env', 'tool_timeout_sec', 'tool_timeout_hard', 'url', 'harnesses', 'except', 'pin', 'pin_reason', 'critical', 'routing', 'health', 'backend', 'api_key'] as const
 const PACKAGE_KEYS = ['registry', 'name', 'version', 'bin', 'extras'] as const
 const API_KEY_KEYS = ['env', 'url'] as const
 const PIN_POLICIES: readonly string[] = ['latest', 'hard', 'soft', 'monitor']
@@ -217,6 +217,31 @@ function validateEnvMap(env: unknown, at: string, errors: string[]): void {
     if (typeof v !== 'string') errors.push(`${at}.${k}: expected string`)
     else if (v.includes('${') && envRef(v) === undefined) errors.push(`${at}.${k}: only whole-value "\${ENV:NAME}" forwarding is supported`)
   }
+}
+
+// The harnesses a server of mcp.yaml ships to: every harness, minus `except`; or the `harnesses` list, for a
+// server that belongs to a few of them. [] while the keys are invalid.
+function shipsTo(raw: Record<string, unknown>): Harness[] {
+  const listed = raw['harnesses']
+  const except = raw['except']
+  if (Array.isArray(listed)) return HARNESSES.filter(h => listed.includes(h))
+  return HARNESSES.filter(h => !(Array.isArray(except) && except.includes(h)))
+}
+
+/** The catalog of a mcp.yaml that `validateMcpCatalog` passed: every server gets its `harnesses`, in harness order, where the file says `except` or nothing. */
+export function mcpCatalogOf(x: unknown): McpCatalog {
+  const servers: Record<string, McpServerSpec> = {}
+  for (const [id, raw] of Object.entries((x as { servers: Record<string, Record<string, unknown>> }).servers)) {
+    const harnesses = Array.isArray(raw['harnesses']) ? raw['harnesses'] as Harness[] : shipsTo(raw)
+    const spec: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(raw)) {
+      if ((k === 'except' || k === 'pin') && !('harnesses' in spec) && !('harnesses' in raw)) spec['harnesses'] = harnesses
+      if (k !== 'except') spec[k] = v
+    }
+    if (!('harnesses' in spec)) spec['harnesses'] = harnesses
+    servers[id] = spec as unknown as McpServerSpec
+  }
+  return { servers }
 }
 
 export function validateMcpCatalog(x: unknown): string[] {
@@ -270,9 +295,20 @@ export function validateMcpCatalog(x: unknown): string[] {
     }
     const env = raw['env']
     if (env !== undefined) validateEnvMap(env, `${at}.env`, errors)
-    const hs = raw['harnesses']
-    if (!Array.isArray(hs) || hs.length === 0 || !hs.every(h => (HARNESSES as readonly unknown[]).includes(h))) errors.push(`${at}.harnesses: expected a non-empty list of ${HARNESSES.join(' | ')}`)
-    else if (new Set(hs).size !== hs.length) errors.push(`${at}.harnesses: duplicates`)
+    const listed = raw['harnesses']
+    const except = raw['except']
+    const harnessList = (v: unknown): v is Harness[] => Array.isArray(v) && v.length > 0 && v.every(h => (HARNESSES as readonly unknown[]).includes(h))
+    if (listed !== undefined && except !== undefined) errors.push(`${at}: name the harnesses a server ships to with harnesses or with except, not both`)
+    if (listed !== undefined) {
+      if (!harnessList(listed)) errors.push(`${at}.harnesses: expected a non-empty list of ${HARNESSES.join(' | ')}`)
+      else if (new Set(listed).size !== listed.length) errors.push(`${at}.harnesses: duplicates`)
+    }
+    if (except !== undefined) {
+      if (!harnessList(except)) errors.push(`${at}.except: expected a non-empty list of ${HARNESSES.join(' | ')}`)
+      else if (new Set(except).size !== except.length) errors.push(`${at}.except: duplicates`)
+      else if (except.length === HARNESSES.length) errors.push(`${at}.except: leaves no harness`)
+    }
+    const hs = shipsTo(raw)
     const harnessEnv = raw['harness_env']
     if (harnessEnv !== undefined) {
       if (!isObj(harnessEnv)) errors.push(`${at}.harness_env: expected a mapping of harness to variables`)
@@ -280,7 +316,7 @@ export function validateMcpCatalog(x: unknown): string[] {
         if (transport !== 'stdio') errors.push(`${at}.harness_env: only valid for stdio`)
         for (const [h, vars] of Object.entries(harnessEnv)) {
           const hat = `${at}.harness_env.${h}`
-          if (!Array.isArray(hs) || !hs.includes(h)) errors.push(`${hat}: not one of this server's harnesses`)
+          if (!hs.includes(h as Harness)) errors.push(`${hat}: not one of this server's harnesses`)
           validateEnvMap(vars, hat, errors)
           if (isObj(vars) && isObj(env)) {
             for (const k of Object.keys(vars)) if (Object.prototype.hasOwnProperty.call(env, k)) errors.push(`${hat}.${k}: also in env (a variable is set either for every harness or per harness)`)

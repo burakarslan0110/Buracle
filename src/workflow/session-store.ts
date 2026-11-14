@@ -1,7 +1,8 @@
 import { existsSync, lstatSync, readdirSync, rmSync, statSync, unlinkSync } from 'node:fs'
 import { join, posix } from 'node:path'
 import type { Harness } from '../core/events'
-import { HARNESSES } from '../core/events'
+import { HARNESSES, isHarness } from '../core/events'
+import { configDirOf, harnessProfile, processMatches } from '../core/harness/index'
 import type { SessionState } from '../core/plan/state'
 import { isPlanFinished } from '../core/plan/state'
 import type { RateWindow } from '../core/status/model'
@@ -212,33 +213,8 @@ export function sessionMaint(h: Harness, nowMs: number, opts: { keep?: Iterable<
   return { removed }
 }
 
-const PROFILE_DIR: Readonly<Record<Harness, { key: 'claudeDir' | 'codexHome' | 'opencodeConfigDir' | 'ompAgentDir', label: string, variable: string }>> = {
-  claude: { key: 'claudeDir', label: 'Claude Code', variable: 'CLAUDE_CONFIG_DIR' },
-  codex: { key: 'codexHome', label: 'Codex', variable: 'CODEX_HOME' },
-  opencode: { key: 'opencodeConfigDir', label: 'OpenCode', variable: 'XDG_CONFIG_HOME' },
-  omp: { key: 'ompAgentDir', label: 'Oh My Pi', variable: 'PI_CODING_AGENT_DIR' },
-}
-
-function absoluteEnv(env: Record<string, string | undefined>, name: string): string | undefined {
-  const v = env[name]
-  return typeof v === 'string' && v.trim() !== '' && posix.isAbsolute(v.trim()) ? v.trim() : undefined
-}
-
-function under(dir: string, ...parts: string[]): string {
-  return posix.join(dir, ...parts)
-}
-
 export function liveHarnessDir(h: Harness, env: Record<string, string | undefined>): string | undefined {
-  const home = absoluteEnv(env, 'HOME')
-  switch (h) {
-    case 'claude': return absoluteEnv(env, 'CLAUDE_CONFIG_DIR') ?? (home !== undefined ? under(home, '.claude') : undefined)
-    case 'codex': return absoluteEnv(env, 'CODEX_HOME') ?? (home !== undefined ? under(home, '.codex') : undefined)
-    case 'opencode': {
-      const xdg = absoluteEnv(env, 'XDG_CONFIG_HOME')
-      return xdg !== undefined ? under(xdg, 'opencode') : home !== undefined ? under(home, '.config', 'opencode') : undefined
-    }
-    case 'omp': return absoluteEnv(env, 'PI_CODING_AGENT_DIR') ?? (home !== undefined ? under(home, '.omp', 'agent') : undefined)
-  }
+  return configDirOf(harnessProfile(h), env)
 }
 
 function samePath(a: string, b: string): boolean {
@@ -247,8 +223,9 @@ function samePath(a: string, b: string): boolean {
 }
 
 export function profileGuard(h: Harness, runtimeCfg: unknown, env: Record<string, string | undefined>): string | undefined {
-  const spec = PROFILE_DIR[h]
-  if (spec === undefined) return undefined
+  const profile = (isHarness(h) ? harnessProfile(h) : undefined)
+  if (profile === undefined) return undefined
+  const spec = { key: profile.configDir.key, label: profile.label, variable: profile.configDir.env }
   const resolved = runtimeCfg !== null && typeof runtimeCfg === 'object' ? (runtimeCfg as { resolved?: unknown }).resolved : undefined
   const installed = resolved !== null && typeof resolved === 'object' ? (resolved as Record<string, unknown>)[spec.key] : undefined
   if (typeof installed !== 'string' || !posix.isAbsolute(installed)) return undefined
@@ -334,13 +311,7 @@ export interface ResolveOptions {
   ancestor?: AncestorProbe
 }
 
-const NATIVE_CLAIMS: ReadonlyArray<[string, Harness]> = [
-  ['CLAUDE_CODE_SESSION_ID', 'claude'],
-  ['CODEX_SESSION_ID', 'codex'],
-  ['CODEX_THREAD_ID', 'codex'],
-  ['OPENCODE_SESSION_ID', 'opencode'],
-  ['OMP_SESSION_ID', 'omp'],
-]
+const NATIVE_CLAIMS: ReadonlyArray<[string, Harness]> = HARNESSES.flatMap(h => harnessProfile(h).sessionEnv.map((name): [string, Harness] => [name, h]))
 
 function harnessName(x: string | undefined): Harness | undefined {
   return x !== undefined && (HARNESSES as readonly string[]).includes(x) ? x as Harness : undefined
@@ -367,34 +338,24 @@ export function harnessSessionIds(h: Harness, env: Record<string, string | undef
     const v = validId(env, name)
     return v !== undefined ? [{ id: v, source: name }] : []
   }
-  switch (h) {
-    case 'claude': return [...buracle, ...native('CLAUDE_CODE_SESSION_ID')]
-    case 'opencode': return [...buracle, ...native('OPENCODE_SESSION_ID')]
-    case 'omp': return [...buracle, ...native('OMP_SESSION_ID')]
-    case 'codex': {
-      const out = native('CODEX_SESSION_ID')
-      const thread = validId(env, 'CODEX_THREAD_ID')
-      if (thread !== undefined) {
-        if (out.length === 0) {
-          const root = readSessionAliases('codex')[thread]
-          if (root !== undefined) out.push({ id: root, source: 'CODEX_THREAD_ID (aliases.json)' })
-        }
-        out.push({ id: thread, source: 'CODEX_THREAD_ID' })
+  // Codex names a thread, which may be a subagent's: the session it belongs to comes first.
+  if (h === 'codex') {
+    const out = native('CODEX_SESSION_ID')
+    const thread = validId(env, 'CODEX_THREAD_ID')
+    if (thread !== undefined) {
+      if (out.length === 0) {
+        const root = readSessionAliases('codex')[thread]
+        if (root !== undefined) out.push({ id: root, source: 'CODEX_THREAD_ID (aliases.json)' })
       }
-      return [...out, ...buracle]
+      out.push({ id: thread, source: 'CODEX_THREAD_ID' })
     }
+    return [...out, ...buracle]
   }
+  return [...buracle, ...harnessProfile(h).sessionEnv.flatMap(native)]
 }
 
 export function harnessOfProcess(comm: string, pid?: number, env: Record<string, string | undefined> = {}): Harness | undefined {
-  if (pid !== undefined && env['CLAUDE_PID'] === String(pid)) return 'claude'
-  const c = comm.trim()
-  if (/\/claude\/versions\/[^/]+$/.test(c)) return 'claude'
-  const base = (c.split('/').pop() ?? '').replace(/^-/, '')
-  if (base === 'claude' || base === 'omp') return base
-  if (/^codex(?:-(?:aarch64|arm64|x86_64|x64|amd64)\b[\w.-]*)?$/.test(base)) return 'codex'
-  if (/^opencode(?:-(?:darwin|linux)\b[\w.-]*)?$/.test(base)) return 'opencode'
-  return undefined
+  return HARNESSES.find(h => processMatches(harnessProfile(h), comm, pid, env))
 }
 
 function psRow(pid: number): { ppid: number, comm: string } | undefined {

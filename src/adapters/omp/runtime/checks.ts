@@ -1,10 +1,11 @@
+import { harnessProfile } from '../../../core/harness/index'
 import type { ToolKind } from '../../../core/events'
 import { parseApplyPatch } from '../../../core/events'
 import { patchEdits } from '../../../core/policy/code-facts'
 import { removedByFile } from '../../shared/checker-scan'
 import type { EditTargets } from './edits'
 
-export const OMP_H04_BUDGET_MS = 20_000
+export const OMP_H04_BUDGET_MS = harnessProfile('omp').editBudgetMs
 
 const PATCH_FIELDS = ['input', 'patch', 'patchText']
 

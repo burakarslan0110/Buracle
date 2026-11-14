@@ -7,7 +7,7 @@ export const opencodeProfile: HarnessProfile = {
   shortLabel: 'OpenCode',
   noteName: 'opencode',
   bin: 'opencode',
-  process: { base: /^opencode(?:-(?:darwin|linux)\b[\w.-]*)?$/ },
+  proc: { base: /^opencode(?:-(?:darwin|linux)\b[\w.-]*)?$/ },
   runtime: 'inprocess',
   editBudgetMs: 20_000,
   configDir: { key: 'opencodeConfigDir', env: 'XDG_CONFIG_HOME', envSubdir: 'opencode', under: '.config/opencode' },

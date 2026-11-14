@@ -1,3 +1,4 @@
+import { HARNESSES } from '../../core/harness/index'
 import { readFileSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
 import type { CommandIO } from '../router'
@@ -76,7 +77,7 @@ export const usage = `Usage: buracle plan <subcommand> [args…] [--json]
                           (plan, goal) or the reviewed files (changes); 'set approved true',
                           'approve-result' and 'verify' then warn when it is stale or missing
   review status           the recorded reviews of the bound plan and whether each is still fresh
-  review companion start --role <r> [--on auto|claude|codex|opencode|omp] [--input <file>|-]
+  review companion start --role <r> [--on auto|${HARNESSES.join('|')}] [--input <file>|-]
                          [--goal "<expected behavior>"] [--slug <s>] [--timeout-min <n>]
                           a second opinion from another installed harness, in the background
                           (plan.reviews.companion picks it; off by default, --on overrides):

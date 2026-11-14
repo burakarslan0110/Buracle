@@ -7364,6 +7364,644 @@ function atomicWriteSync(path, data, opts = {}) {
 }
 var init_fsx = () => {};
 
+// src/core/harness/native-events.ts
+var CLAUDE_CLASSIC_EVENTS, CLAUDE_ENGINE_EVENTS, CODEX_EVENTS, OPENCODE_EVENTS, OMP_EVENTS;
+var init_native_events = __esm(() => {
+  CLAUDE_CLASSIC_EVENTS = [
+    "PreToolUse",
+    "PostToolUse",
+    "PostToolUseFailure",
+    "PostToolBatch",
+    "PermissionDenied",
+    "Notification",
+    "UserPromptSubmit",
+    "UserPromptExpansion",
+    "SessionStart",
+    "SessionEnd",
+    "Stop",
+    "StopFailure",
+    "SubagentStart",
+    "SubagentStop",
+    "PreCompact",
+    "PostCompact",
+    "PreModelSwitch",
+    "PostModelSwitch",
+    "PermissionRequest",
+    "Setup",
+    "TeammateIdle",
+    "TaskCreated",
+    "TaskCompleted",
+    "Elicitation",
+    "ElicitationResult",
+    "ConfigChange",
+    "InstructionsLoaded",
+    "WorktreeCreate",
+    "WorktreeRemove",
+    "CwdChanged",
+    "FileChanged",
+    "DirectoryAdded",
+    "MessageDisplay"
+  ];
+  CLAUDE_ENGINE_EVENTS = [
+    "tool.call",
+    "tool.check",
+    "tool.describe",
+    "prompt.submit",
+    "prompt.fill",
+    "prompt.suggest",
+    "prompt.edit",
+    "prompt.autocomplete",
+    "prompt.section",
+    "prompt.context",
+    "prompt.compose",
+    "prompt.attachment",
+    "prompt.mention",
+    "skill.prompt",
+    "attribution.text",
+    "command.run",
+    "command.describe",
+    "config.set",
+    "config.describe",
+    "agent.offer",
+    "agent.spawn",
+    "session.start",
+    "session.end",
+    "session.compact",
+    "session.receive",
+    "session.send",
+    "session.append",
+    "session.attach",
+    "session.detach",
+    "session.measure",
+    "turn.start",
+    "turn.step",
+    "turn.complete",
+    "ui.render",
+    "ui.resolve",
+    "ui.press",
+    "ui.input",
+    "ui.select",
+    "ui.message",
+    "ui.fault",
+    "ui.scroll",
+    "ui.focus",
+    "plugin.register",
+    "engine.create",
+    "telemetry.log",
+    "telemetry.mark"
+  ];
+  CODEX_EVENTS = [
+    "SessionStart",
+    "SessionEnd",
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PermissionRequest",
+    "PostToolUse",
+    "PreCompact",
+    "PostCompact",
+    "SubagentStart",
+    "SubagentStop",
+    "Stop",
+    "Interrupt"
+  ];
+  OPENCODE_EVENTS = [
+    "setup",
+    "session.prompt",
+    "session.context",
+    "session.compaction",
+    "session.generate",
+    "session.title",
+    "session.model.request",
+    "session.http.request",
+    "session.http.response",
+    "session.retry",
+    "permission.evaluate",
+    "shell.create.before",
+    "tool.execute.before",
+    "tool.execute.after",
+    "session.created",
+    "session.deleted",
+    "session.idle",
+    "session.status",
+    "session.execution.started",
+    "session.execution.succeeded",
+    "session.execution.failed",
+    "session.execution.interrupted",
+    "session.compaction.started",
+    "session.compaction.delta",
+    "session.compaction.ended",
+    "session.compaction.failed",
+    "session.usage.updated",
+    "session.tool.called",
+    "session.tool.success",
+    "session.tool.failed",
+    "session.skill.activated",
+    "session.instructions.updated",
+    "permission.asked",
+    "permission.replied",
+    "file.edited",
+    "vcs.branch.updated",
+    "mcp.status.changed",
+    "mcp.tools.changed",
+    "plugin.updated",
+    "worktree.ready",
+    "worktree.failed"
+  ];
+  OMP_EVENTS = [
+    "resources_discover",
+    "session_start",
+    "session_before_switch",
+    "session_switch",
+    "session_before_branch",
+    "session_branch",
+    "session_before_compact",
+    "session.compacting",
+    "cache_warming_decision",
+    "session_compact",
+    "session_shutdown",
+    "session_before_tree",
+    "session_tree",
+    "context",
+    "before_provider_request",
+    "after_provider_response",
+    "before_agent_start",
+    "before_subagent_spawn",
+    "agent_start",
+    "agent_end",
+    "session_stop",
+    "turn_start",
+    "turn_end",
+    "message_start",
+    "message_update",
+    "message_end",
+    "assistant_message",
+    "tool_execution_start",
+    "tool_execution_update",
+    "tool_execution_end",
+    "auto_compaction_start",
+    "auto_compaction_end",
+    "auto_retry_start",
+    "auto_retry_end",
+    "retry_fallback_applied",
+    "retry_fallback_succeeded",
+    "ttsr_triggered",
+    "todo_reminder",
+    "goal_updated",
+    "credential_disabled",
+    "input",
+    "tool_approval_requested",
+    "tool_approval_resolved",
+    "tool_call",
+    "tool_result",
+    "user_bash",
+    "user_python",
+    "mcp_notification"
+  ];
+});
+
+// src/core/harness/profile.ts
+function mcpToken(d, server) {
+  return d.token(server, "server");
+}
+function mcpHead(d, server) {
+  return `${d.prefix}${d.plugin !== undefined ? `${d.plugin.marker}${d.plugin.name}_` : ""}${mcpToken(d, server)}${d.separator}`;
+}
+function mcpToolName(d, server, tool) {
+  const s = mcpToken(d, server);
+  let t = d.token(tool, "tool");
+  if (d.dropServerPrefix === true && t.startsWith(`${s}_`) && t.length > s.length + 1)
+    t = t.slice(s.length + 1);
+  return `${mcpHead(d, server)}${t}`;
+}
+function absolute(v) {
+  return typeof v === "string" && v.trim() !== "" && v.trim().startsWith("/") ? v.trim() : undefined;
+}
+function joined(dir, rel) {
+  const out = [];
+  for (const seg of `${dir}/${rel}`.split("/")) {
+    if (seg === "" || seg === ".")
+      continue;
+    if (seg === "..")
+      out.pop();
+    else
+      out.push(seg);
+  }
+  return "/" + out.join("/");
+}
+function configDirOf(p, env) {
+  const moved = absolute(env[p.configDir.env]);
+  if (moved !== undefined)
+    return p.configDir.envSubdir !== undefined ? joined(moved, p.configDir.envSubdir) : moved;
+  const home = absolute(env["HOME"]);
+  return home !== undefined ? joined(home, p.configDir.under) : undefined;
+}
+function defineHarnesses(profiles) {
+  const ids = Object.keys(profiles);
+  for (const id of ids)
+    if (profiles[id].id !== id)
+      throw new Error(`harness profile ${JSON.stringify(profiles[id].id)} is registered as ${JSON.stringify(id)}`);
+  return {
+    ids,
+    is: (x) => typeof x === "string" && ids.includes(x),
+    of: (id) => profiles[id],
+    table: (pick) => Object.fromEntries(ids.map((id) => [id, pick(profiles[id])])),
+    where: (test) => ids.filter((id) => test(profiles[id]))
+  };
+}
+var wordDashToken = (part) => part.replace(/[^A-Za-z0-9_-]/g, "_"), wordToken = (part) => part.replace(/[^A-Za-z0-9_]/g, "_"), lowerWordToken = (part, fallback) => {
+  const t = part.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "");
+  return t.length > 0 ? t : fallback;
+};
+var init_profile = () => {};
+
+// src/core/harness/claude.ts
+var CLAUDE_PLUGIN_NAME = "buracle", claudeProfile;
+var init_claude = __esm(() => {
+  init_native_events();
+  init_profile();
+  claudeProfile = {
+    id: "claude",
+    label: "Claude Code",
+    shortLabel: "CC",
+    noteName: "claude-code",
+    bin: "claude",
+    proc: { base: /^claude$/, path: /\/claude\/versions\/[^/]+$/, pidEnv: "CLAUDE_PID" },
+    runtime: "command",
+    spoolSuffix: "classic",
+    editBudgetMs: 28000,
+    configDir: { key: "claudeDir", env: "CLAUDE_CONFIG_DIR", under: ".claude" },
+    relocationEnv: ["CLAUDE_CONFIG_DIR"],
+    sessionEnv: ["CLAUDE_CODE_SESSION_ID"],
+    protectedDirs: [{ key: "claudeDir", under: ".claude", entries: ["settings.json", "settings.local.json", "plugins/"] }],
+    selfText: { what: "Claude Code's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use Claude Code's own commands (`claude plugin \u2026`, `claude mcp \u2026`, `/config`)" },
+    skills: {
+      readsAgentsDir: false,
+      readsClaudeUserDir: true,
+      readsClaudeProjectDir: true,
+      invoke: { slash: true, namespace: "buracle", dollar: false, at: false, commandTag: true },
+      mention: (id, invocable) => invocable ? `/${id}` : `/buracle:${id}`,
+      agentPrefix: "buracle:",
+      howto: "the user starts a workflow with /<id>; you load the others with the Skill tool as buracle:<id>",
+      load: (id, explicit, file) => explicit ? `read ${file ?? `skills/${id}/SKILL.md in the Buracle plugin`}` : `Skill tool, buracle:${id}`,
+      candidateHow: "Skill tool, buracle:<id>"
+    },
+    plan: {
+      enter: "call the EnterPlanMode tool (load it with tool search when it is deferred)",
+      readOnly: { name: "Claude Code's plan mode", leave: "leave plan mode (Shift+Tab)" },
+      approval: true
+    },
+    mcp: {
+      prefix: "mcp__",
+      separator: "__",
+      token: wordDashToken,
+      plugin: { marker: "plugin_", name: CLAUDE_PLUGIN_NAME },
+      syntax: `mcp__plugin_${CLAUDE_PLUGIN_NAME}_<server>__<tool>`,
+      hiddenNote: "* = may be deferred: find its tools with tool search before assuming they are missing"
+    },
+    mcpClient: { includes: ["claude"] },
+    events: {
+      map: {
+        sessionStart: ["classic.SessionStart", "classic.SubagentStart"],
+        prompt: ["classic.UserPromptSubmit"],
+        preTool: ["tool.call", "tool.check", "classic.PreToolUse"],
+        postTool: ["classic.PostToolUse", "classic.PostToolUseFailure"],
+        stop: ["classic.Stop", "classic.SubagentStop"],
+        preCompact: ["classic.PreCompact"],
+        sessionEnd: ["classic.SessionEnd"]
+      },
+      native: [...CLAUDE_ENGINE_EVENTS, ...CLAUDE_CLASSIC_EVENTS.map((e) => `classic.${e}`)]
+    },
+    tools: {
+      kinds: {
+        Bash: "bash",
+        Monitor: "bash",
+        PowerShell: "bash",
+        Edit: "edit",
+        MultiEdit: "edit",
+        NotebookEdit: "edit",
+        Write: "write",
+        Read: "read",
+        NotebookRead: "read",
+        Glob: "search",
+        Grep: "search",
+        LS: "search",
+        WebSearch: "web_search",
+        WebFetch: "web_fetch",
+        AskUserQuestion: "ask_user",
+        ExitPlanMode: "plan_exit",
+        EnterPlanMode: "plan_enter",
+        TodoWrite: "todo",
+        TaskCreate: "todo",
+        TaskUpdate: "todo",
+        TaskList: "todo",
+        TaskGet: "todo",
+        Agent: "agent",
+        Task: "agent"
+      },
+      names: { ask_user: "AskUserQuestion", todo: "TodoWrite", spawn_agent: "Agent" },
+      stringCommandOnly: ["Monitor"]
+    }
+  };
+});
+
+// src/core/harness/codex.ts
+var codexProfile;
+var init_codex = __esm(() => {
+  init_native_events();
+  init_profile();
+  codexProfile = {
+    id: "codex",
+    label: "Codex",
+    shortLabel: "Codex",
+    noteName: "codex",
+    bin: "codex",
+    proc: { base: /^codex(?:-(?:aarch64|arm64|x86_64|x64|amd64)\b[\w.-]*)?$/ },
+    runtime: "command",
+    editBudgetMs: 40000,
+    configDir: { key: "codexHome", env: "CODEX_HOME", under: ".codex" },
+    relocationEnv: ["CODEX_HOME"],
+    sessionEnv: ["CODEX_SESSION_ID", "CODEX_THREAD_ID"],
+    protectedDirs: [{ key: "codexHome", under: ".codex", entries: ["config.toml", "hooks.json", "rules/"] }],
+    selfText: { what: "Codex's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use Codex's own commands (`codex mcp \u2026`, `codex features \u2026`)" },
+    skills: {
+      dir: "skills",
+      readsAgentsDir: true,
+      readsClaudeUserDir: false,
+      readsClaudeProjectDir: false,
+      invoke: { slash: false, dollar: true, at: false, commandTag: false },
+      mention: (id) => `$${id}`,
+      agentPrefix: "",
+      howto: "the user starts a workflow with $<id>; you load one by reading ${CODEX_HOME:-~/.codex}/skills/<id>/SKILL.md",
+      load: (id) => `read \${CODEX_HOME:-~/.codex}/skills/${id}/SKILL.md`,
+      candidateHow: "read ${CODEX_HOME:-~/.codex}/skills/<id>/SKILL.md"
+    },
+    plan: {
+      enter: 'ask the user to switch to Plan mode with `/plan`, then to say "continue", and end the turn',
+      readOnly: { name: "Codex's Plan mode", leave: "leave Plan mode" },
+      approval: true
+    },
+    mcp: {
+      prefix: "mcp__",
+      separator: "__",
+      token: wordToken,
+      syntax: "mcp__<server>__<tool>, with - written as _",
+      hiddenNote: "* = may be deferred: find its tools with tool_search before assuming they are missing"
+    },
+    mcpClient: { includes: ["codex"] },
+    events: {
+      map: {
+        sessionStart: ["SessionStart", "SubagentStart"],
+        prompt: ["UserPromptSubmit"],
+        preTool: ["PreToolUse", "PermissionRequest"],
+        postTool: ["PostToolUse"],
+        stop: ["Stop", "SubagentStop"],
+        preCompact: ["PreCompact"],
+        sessionEnd: ["SessionEnd"]
+      },
+      native: CODEX_EVENTS
+    },
+    tools: {
+      kinds: {
+        Bash: "bash",
+        shell: "bash",
+        shell_command: "bash",
+        exec_command: "bash",
+        local_shell: "bash",
+        unified_exec: "bash",
+        "container.exec": "bash",
+        apply_patch: "patch",
+        Edit: "patch",
+        Write: "patch",
+        view_image: "read",
+        web_search: "web_search",
+        webrun: "web_search",
+        request_user_input: "ask_user",
+        request_user_input_async: "ask_user",
+        update_plan: "todo",
+        spawn_agent: "agent",
+        Agent: "agent"
+      },
+      names: { ask_user: "request_user_input", todo: "update_plan", spawn_agent: "spawn_agent" }
+    }
+  };
+});
+
+// src/core/harness/omp.ts
+var ompProfile;
+var init_omp = __esm(() => {
+  init_native_events();
+  init_profile();
+  ompProfile = {
+    id: "omp",
+    label: "Oh My Pi",
+    shortLabel: "OMP",
+    noteName: "omp",
+    bin: "omp",
+    proc: { base: /^omp$/ },
+    runtime: "inprocess",
+    editBudgetMs: 20000,
+    configDir: { key: "ompAgentDir", env: "PI_CODING_AGENT_DIR", under: ".omp/agent" },
+    relocationEnv: ["PI_CODING_AGENT_DIR"],
+    sessionEnv: ["OMP_SESSION_ID"],
+    protectedDirs: [
+      { key: "ompAgentDir", under: ".omp/agent", entries: ["config.yml", "config.yaml", "settings.json", "extensions/", "hooks/"] },
+      { key: "ompHome", under: ".omp", entries: ["plugins/"] }
+    ],
+    selfText: { what: "omp's own configuration, which loads Buracle's guard extension", remedy: "ask the user to make this change themselves, or use omp's own commands (`omp config set \u2026`, `omp plugin \u2026`)" },
+    skills: {
+      dir: "skills",
+      readsAgentsDir: true,
+      readsClaudeUserDir: false,
+      readsClaudeProjectDir: true,
+      invoke: { slash: true, namespace: "skill", dollar: false, at: false, commandTag: false },
+      mention: (id, invocable) => invocable ? `/${id}` : `/skill:${id}`,
+      agentPrefix: "",
+      howto: "the user starts a workflow with /<id>; you load one by reading skill://<id>",
+      load: (id) => `read skill://${id}`,
+      candidateHow: "read skill://<id>"
+    },
+    plan: {
+      enter: 'ask the user to turn on plan mode with `/plan` (or alt+shift+p), then to say "continue", and end the turn',
+      readOnly: { name: "Oh My Pi's plan mode", leave: "leave plan mode" },
+      approval: true
+    },
+    mcp: {
+      prefix: "mcp__",
+      separator: "_",
+      token: lowerWordToken,
+      ambiguous: true,
+      dropServerPrefix: true,
+      syntax: "mcp__<server>_<tool>, lower-case with - written as _",
+      hiddenNote: "* = may be an xd:// device instead of a tool: read xd:// to find it before assuming it is missing"
+    },
+    mcpClient: { includes: ["omp", "oh-my-pi", "pi-coding"], exact: ["pi"] },
+    events: {
+      map: {
+        sessionStart: ["session_start", "before_agent_start"],
+        prompt: ["input"],
+        preTool: ["tool_call"],
+        postTool: ["tool_result"],
+        stop: ["session_stop"],
+        preCompact: ["session.compacting"],
+        sessionEnd: ["session_shutdown"]
+      },
+      native: OMP_EVENTS
+    },
+    tools: {
+      kinds: {
+        bash: "bash",
+        eval: "eval",
+        edit: "edit",
+        ast_edit: "edit",
+        write: "write",
+        read: "read",
+        grep: "search",
+        search: "search",
+        find: "search",
+        glob: "search",
+        ast_grep: "search",
+        web_search: "web_search",
+        fetch: "web_fetch",
+        web_fetch: "web_fetch",
+        ask: "ask_user",
+        todo: "todo",
+        task: "agent"
+      },
+      names: { ask_user: "ask", todo: "todo", spawn_agent: "task" },
+      deviceScheme: "xd",
+      readFetchesUrls: true,
+      editTakesPatch: true
+    }
+  };
+});
+
+// src/core/harness/opencode.ts
+var opencodeProfile;
+var init_opencode = __esm(() => {
+  init_native_events();
+  init_profile();
+  opencodeProfile = {
+    id: "opencode",
+    label: "OpenCode",
+    shortLabel: "OpenCode",
+    noteName: "opencode",
+    bin: "opencode",
+    proc: { base: /^opencode(?:-(?:darwin|linux)\b[\w.-]*)?$/ },
+    runtime: "inprocess",
+    editBudgetMs: 20000,
+    configDir: { key: "opencodeConfigDir", env: "XDG_CONFIG_HOME", envSubdir: "opencode", under: ".config/opencode" },
+    relocationEnv: ["XDG_CONFIG_HOME", "OPENCODE_CONFIG_DIR"],
+    sessionEnv: ["OPENCODE_SESSION_ID"],
+    protectedDirs: [{ key: "opencodeConfigDir", under: ".config/opencode", entries: [""] }],
+    selfText: { what: "OpenCode's own configuration, which loads Buracle's guard plugin", remedy: "ask the user to make this change themselves, or use OpenCode's own commands (`opencode mcp \u2026`, `opencode plugin \u2026`)" },
+    skills: {
+      dir: "skills",
+      readsAgentsDir: true,
+      readsClaudeUserDir: true,
+      readsClaudeProjectDir: true,
+      invoke: { slash: true, dollar: false, at: true, commandTag: false },
+      mention: (id, invocable) => invocable ? `/${id}` : `@${id}`,
+      agentPrefix: "",
+      howto: "the user starts a workflow with /<id>; you load one with the skill tool",
+      load: (id) => `skill tool, ${id}`,
+      candidateHow: "skill tool"
+    },
+    plan: {
+      enter: 'ask the user to switch to the plan agent (Tab), then to say "continue", and end the turn',
+      readOnly: { name: "OpenCode's read-only plan agent", leave: "switch to the build agent (Tab)" },
+      approval: false
+    },
+    mcp: {
+      prefix: "",
+      separator: "_",
+      token: wordDashToken,
+      ambiguous: true,
+      syntax: "<server>_<tool>",
+      hiddenNote: "* = in Code Mode: its tools are not on your tool list; call them from a script run by the execute tool"
+    },
+    mcpClient: { includes: ["opencode"] },
+    events: {
+      map: {
+        sessionStart: ["session.created", "session.context"],
+        prompt: ["session.prompt"],
+        preTool: ["permission.evaluate", "tool.execute.before"],
+        postTool: ["tool.execute.after"],
+        stop: ["session.execution.succeeded", "session.idle"],
+        preCompact: ["session.compaction"],
+        sessionEnd: ["session.deleted"]
+      },
+      native: OPENCODE_EVENTS
+    },
+    tools: {
+      kinds: {
+        bash: "bash",
+        shell: "bash",
+        edit: "edit",
+        multiedit: "edit",
+        write: "write",
+        patch: "patch",
+        apply_patch: "patch",
+        read: "read",
+        grep: "search",
+        glob: "search",
+        list: "search",
+        ls: "search",
+        webfetch: "web_fetch",
+        websearch: "web_search",
+        codesearch: "web_search",
+        question: "ask_user",
+        todowrite: "todo",
+        todoread: "todo",
+        task: "agent",
+        subagent: "agent",
+        plan_exit: "plan_exit",
+        plan_enter: "plan_enter",
+        skill: "other",
+        execute: "other",
+        list_mcp_resources: "other",
+        read_mcp_resource: "other"
+      },
+      names: { ask_user: "question", todo: "todowrite", spawn_agent: "subagent" },
+      todoProse: "a short checklist in your replies"
+    }
+  };
+});
+
+// src/core/harness/index.ts
+function isHarness(x) {
+  return SET.is(x);
+}
+function harnessProfile(h) {
+  return SET.of(h);
+}
+function harnessTable(pick) {
+  return SET.table(pick);
+}
+function harnessesWhere(test) {
+  return SET.where(test);
+}
+var HARNESS_PROFILES, SET, HARNESSES, HARNESS_LABEL, NEUTRAL_SKILL_HARNESSES;
+var init_harness = __esm(() => {
+  init_claude();
+  init_codex();
+  init_omp();
+  init_opencode();
+  init_profile();
+  init_claude();
+  init_native_events();
+  init_profile();
+  HARNESS_PROFILES = {
+    claude: claudeProfile,
+    codex: codexProfile,
+    opencode: opencodeProfile,
+    omp: ompProfile
+  };
+  SET = defineHarnesses(HARNESS_PROFILES);
+  HARNESSES = SET.ids;
+  HARNESS_LABEL = harnessTable((p) => p.label);
+  NEUTRAL_SKILL_HARNESSES = harnessesWhere((p) => p.skills.dir !== undefined);
+});
+
 // src/engine/shim.ts
 import { readFileSync as readFileSync4, statSync as statSync6 } from "fs";
 import { resolve as resolve4 } from "path";
@@ -7616,8 +8254,9 @@ function runtimeHealth(checkout, shim = readShim()) {
   h.detail = h.drift === "behind" ? `the live runtime is ${behind} commit(s) behind the checkout (${short(marker.commit)} to ${short(g.commit)}); run \`buracle install\`` : h.drift === "ahead" ? `the live runtime is ${ahead} commit(s) ahead of the checkout (${short(marker.commit)}; the checkout is at ${short(g.commit)}); run \`buracle install\` to run the checkout's code` : `the live runtime (${short(marker.commit)}) and the checkout (${short(g.commit)}) have diverged; run \`buracle install\``;
   return h;
 }
-var RUNTIME_FILES, RUNTIME_DIRS, SKIP_NAMES;
+var RUNTIME_FILES, RUNTIME_DIRS, SKIP_NAMES, COMMAND_HOOK_HARNESSES;
 var init_runtime = __esm(() => {
+  init_harness();
   init_hook_fail();
   init_fsx();
   init_paths();
@@ -7626,6 +8265,7 @@ var init_runtime = __esm(() => {
   RUNTIME_FILES = ["package.json", "bun.lock", "tsconfig.json"];
   RUNTIME_DIRS = ["src", "canonical", "harness"];
   SKIP_NAMES = new Set([".DS_Store", "node_modules", ".git"]);
+  COMMAND_HOOK_HARNESSES = harnessesWhere((p) => p.runtime === "command");
 });
 
 // src/core/tips.ts
@@ -9115,19 +9755,12 @@ init_paths();
 import { join as join3, posix } from "path";
 
 // src/core/events.ts
-var HARNESSES = ["claude", "codex", "opencode", "omp"];
+init_harness();
+init_profile();
+init_harness();
+init_profile();
 function mcpServerToken(harness, server) {
-  switch (harness) {
-    case "omp": {
-      const t = server.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "");
-      return t.length > 0 ? t : "server";
-    }
-    case "codex":
-      return server.replace(/[^A-Za-z0-9_]/g, "_");
-    case "claude":
-    case "opencode":
-      return server.replace(/[^A-Za-z0-9_-]/g, "_");
-  }
+  return mcpToken(harnessProfile(harness).mcp, server);
 }
 function normalizePath(p) {
   if (p === "")
@@ -9151,6 +9784,18 @@ function normalizePath(p) {
     return "/" + body;
   return body === "" ? "." : body;
 }
+
+// src/workflow/session-store.ts
+init_harness();
+
+// src/core/plan/native.ts
+init_harness();
+
+// src/core/plan/capture.ts
+init_harness();
+
+// src/core/plan/native.ts
+var NATIVE_PLAN_ENTER = harnessTable((p) => p.plan.enter);
 
 // src/core/policy/text.ts
 function word(body) {
@@ -9268,42 +9913,18 @@ function loadState(h, sid) {
   return r.value;
 }
 var SESSION_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
-var PROFILE_DIR = {
-  claude: { key: "claudeDir", label: "Claude Code", variable: "CLAUDE_CONFIG_DIR" },
-  codex: { key: "codexHome", label: "Codex", variable: "CODEX_HOME" },
-  opencode: { key: "opencodeConfigDir", label: "OpenCode", variable: "XDG_CONFIG_HOME" },
-  omp: { key: "ompAgentDir", label: "Oh My Pi", variable: "PI_CODING_AGENT_DIR" }
-};
-function absoluteEnv(env, name) {
-  const v = env[name];
-  return typeof v === "string" && v.trim() !== "" && posix.isAbsolute(v.trim()) ? v.trim() : undefined;
-}
-function under(dir, ...parts) {
-  return posix.join(dir, ...parts);
-}
 function liveHarnessDir(h, env) {
-  const home = absoluteEnv(env, "HOME");
-  switch (h) {
-    case "claude":
-      return absoluteEnv(env, "CLAUDE_CONFIG_DIR") ?? (home !== undefined ? under(home, ".claude") : undefined);
-    case "codex":
-      return absoluteEnv(env, "CODEX_HOME") ?? (home !== undefined ? under(home, ".codex") : undefined);
-    case "opencode": {
-      const xdg = absoluteEnv(env, "XDG_CONFIG_HOME");
-      return xdg !== undefined ? under(xdg, "opencode") : home !== undefined ? under(home, ".config", "opencode") : undefined;
-    }
-    case "omp":
-      return absoluteEnv(env, "PI_CODING_AGENT_DIR") ?? (home !== undefined ? under(home, ".omp", "agent") : undefined);
-  }
+  return configDirOf(harnessProfile(h), env);
 }
 function samePath(a, b) {
   const norm = (p) => posix.normalize(p).replace(/(.)\/+$/, "$1");
   return norm(a) === norm(b);
 }
 function profileGuard(h, runtimeCfg, env) {
-  const spec = PROFILE_DIR[h];
-  if (spec === undefined)
+  const profile = isHarness(h) ? harnessProfile(h) : undefined;
+  if (profile === undefined)
     return;
+  const spec = { key: profile.configDir.key, label: profile.label, variable: profile.configDir.env };
   const resolved = runtimeCfg !== null && typeof runtimeCfg === "object" ? runtimeCfg.resolved : undefined;
   const installed = resolved !== null && typeof resolved === "object" ? resolved[spec.key] : undefined;
   if (typeof installed !== "string" || !posix.isAbsolute(installed))
@@ -9313,6 +9934,7 @@ function profileGuard(h, runtimeCfg, env) {
     return;
   return `Buracle was installed for ${spec.label} into ${installed}, but this session reads ${live} (${spec.variable}), where Buracle's hooks, rules and settings are missing. Run \`buracle install ${h}\` with this environment, or start ${spec.label} without the override.`;
 }
+var NATIVE_CLAIMS = HARNESSES.flatMap((h) => harnessProfile(h).sessionEnv.map((name) => [name, h]));
 
 // src/workflow/result.ts
 var NO_SESSION_HINT = "no session: no harness session id was found. Buracle reads it from --session <id> (with --harness <h>), or from " + "BURACLE_SESSION_ID with BURACLE_HARNESS, CLAUDE_CODE_SESSION_ID, CODEX_SESSION_ID/CODEX_THREAD_ID, OPENCODE_SESSION_ID or OMP_SESSION_ID; " + "when several harnesses set them (one started from the shell of another), only the ids of the nearest harness process count. " + "Without a session the stop guard is not protecting this run; continue from the plan file and run 'buracle doctor' to check the harness integration.";
@@ -9414,36 +10036,17 @@ class BandFeeder {
 }
 
 // src/core/policy/routing.ts
-var CLAUDE_PLUGIN_NAME = "buracle";
-function ompPart(s, fallback) {
-  const t = s.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "");
-  return t.length > 0 ? t : fallback;
-}
+init_harness();
+init_harness();
 function harnessMcpToolName(harness, server, tool) {
-  switch (harness) {
-    case "claude":
-      return `mcp__plugin_${CLAUDE_PLUGIN_NAME}_${mcpServerToken("claude", server)}__${tool.replace(/[^A-Za-z0-9_-]/g, "_")}`;
-    case "codex":
-      return `mcp__${server}__${tool}`.replace(/[^A-Za-z0-9_]/g, "_");
-    case "opencode":
-      return `${mcpServerToken("opencode", server)}_${tool.replace(/[^A-Za-z0-9_-]/g, "_")}`;
-    case "omp": {
-      const s = mcpServerToken("omp", server);
-      let t = ompPart(tool, "tool");
-      if (t.startsWith(`${s}_`) && t.length > s.length + 1)
-        t = t.slice(s.length + 1);
-      return `mcp__${s}_${t}`;
-    }
-  }
+  return mcpToolName(harnessProfile(harness).mcp, server, tool);
 }
-var MCP_SYNTAX = {
-  claude: `mcp__plugin_${CLAUDE_PLUGIN_NAME}_<server>__<tool>`,
-  codex: "mcp__<server>__<tool>, with - written as _",
-  opencode: "<server>_<tool>",
-  omp: "mcp__<server>_<tool>, lower-case with - written as _"
-};
+var SKILL_HOWTO = harnessTable((p) => p.skills.howto);
+var MCP_SYNTAX = harnessTable((p) => p.mcp.syntax);
+var HIDDEN_NOTE = harnessTable((p) => p.mcp.hiddenNote);
 
 // src/core/policy/skill-router.ts
+init_harness();
 var WORD_DEPS = new Set(["next", "debug", "path", "events", "util", "utils", "test", "core", "types", "common", "shared", "open", "request", "config", "app", "api", "server", "client", "lib", "main", "index"]);
 var ORDINARY_PARTS = new Set([
   ...WORD_DEPS,
@@ -9475,6 +10078,9 @@ var ORDINARY_PARTS = new Set([
   "go",
   "node"
 ]);
+var SLASH_NAMESPACES = [...new Set(HARNESSES.flatMap((h) => harnessProfile(h).skills.invoke.namespace ?? []))];
+var SLASH_LEAD = new RegExp(`^/(?:(${SLASH_NAMESPACES.join("|")}):)?([a-z0-9][a-z0-9-]*)(?=\\s|$)`);
+var CANDIDATE_HOW = harnessTable((p) => p.skills.candidateHow);
 
 // src/adapters/shared/pipeline/types.ts
 init_fsx();
@@ -9565,6 +10171,9 @@ function denyReason(hook, reason) {
   return `Buracle ${hook}: ${reason.replace(/^Buracle:\s*/, "")}`;
 }
 var FENCE_FAILED = denyReason("H01", "the read-only check of this second-opinion review failed, so the call was blocked.");
+// src/core/policy/write-guard.ts
+init_harness();
+
 // src/core/policy/switch-off.ts
 var RELOCATION_VARS = [
   "BURACLE_HOME",
@@ -9597,7 +10206,20 @@ var SETTINGS_WORDS = {
   "opencode-config": /buracle|["']-[^"']*\*|["']-\*["']/i,
   "omp-settings": /buracle|disabled\w*\s*["']?\s*:\s*\[?\s*["']?\*/i
 };
+
 // src/core/policy/write-guard.ts
+var SELF_LAYOUT = [
+  { key: "buracleHome", under: ".buracle", entries: [""], area: "buracle" },
+  { key: "localBinDir", under: ".local/bin", entries: ["buracle", "buracle.cmd"], area: "shim" },
+  ...HARNESSES.flatMap((h) => harnessProfile(h).protectedDirs.map((d) => ({ key: d.key, under: d.under, entries: d.entries, area: h })))
+];
+var SELF_TEXT = {
+  ...harnessTable((p) => p.selfText),
+  buracle: { what: "Buracle's own installation, which runs every guard hook", remedy: "change Buracle through the buracle CLI (`buracle config set \u2026`, `buracle install`) instead" },
+  shim: { what: "the `buracle` command on PATH, a link to the shim that runs every guard hook", remedy: "`buracle install` manages it, so ask the user to run that instead" },
+  repo: { what: "Buracle's own source code, which every Buracle hook runs", remedy: "change it from a session opened in the Buracle repository, or ask the user to make the change" }
+};
+var GENERATED_HARNESS = new RegExp(`^(.*)/harness/(?:${[...HARNESSES, "agents-skills"].join("|")})(?:/|$)`);
 function escapeRe(c) {
   return /[\\^$.*+?()[\]{}|/]/.test(c) ? "\\" + c : c;
 }
@@ -10116,11 +10738,15 @@ init_fsx();
 init_fsx();
 init_paths();
 
+// src/core/project-assets.ts
+init_harness();
+
 // src/adapters/shared/project-assets.ts
 init_fsx();
 init_paths();
 
 // src/usage/bar-info.ts
+init_harness();
 import { existsSync as existsSync4, readFileSync as readFileSync5, statSync as statSync7 } from "fs";
 import { join as join7 } from "path";
 
@@ -10170,7 +10796,7 @@ function memoryPaneLines(status, url, brain) {
 init_fsx();
 init_paths();
 init_shim();
-var HARNESS_LABEL = { claude: "CC", codex: "Codex", opencode: "OpenCode", omp: "OMP" };
+var HARNESS_LABEL2 = harnessTable((p) => p.shortLabel);
 function isRecord(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
@@ -10224,7 +10850,7 @@ function claudePlan() {
   } catch {}
   return plan;
 }
-var VERSION_CMD = { claude: "claude", codex: "codex", opencode: "opencode", omp: "omp" };
+var VERSION_CMD = harnessTable((p) => p.bin);
 function versionCacheFile() {
   return join7(buracleHome(), "cache", "harness-versions.json");
 }
@@ -10277,7 +10903,7 @@ async function barInfo(h, o) {
   const version = o.version ?? await harnessVersion(h, o.nowMs).catch(() => {
     return;
   });
-  const harness = { label: HARNESS_LABEL[h] };
+  const harness = { label: HARNESS_LABEL2[h] };
   if (version !== undefined)
     harness.version = version;
   if (h === "claude") {
@@ -10302,6 +10928,9 @@ init_fsx();
 
 // src/adapters/shared/project-assets.ts
 var CONTEXT_KEY = Symbol.for("buracle.project-assets.context");
+
+// src/core/memory/note.ts
+init_harness();
 
 // src/core/memory/text.ts
 var REF = String.raw`(?!\[REDACTED)(?!\$\{?[A-Za-z_])(?!\$\()(?!\{\{)(?!<[A-Za-z_])(?!process\.env)(?!os\.environ)`;
@@ -10655,6 +11284,7 @@ var VALUE_METHODS = new Set(["unlink", "rename", "open"]);
 var PARENLESS = new Set(["perl", "ruby", "lua"]);
 
 // src/core/policy/self-disable.ts
+init_harness();
 var RELOCATION_VARS2 = ["BURACLE_HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "PI_CODING_AGENT_DIR", "BURACLE_CORTEXDB_BIN"];
 var RELOCATION = new RegExp(RELOCATION_VARS2.map((v) => [...v].map((c) => c.replace(/[^A-Za-z0-9]/g, "\\$&")).join(`['"\\\\{}$:+-]*`)).join("|"), "i");
 var STARTUP_NAMES = new Set([".zshrc", ".zprofile", ".zshenv", ".zlogin", ".bashrc", ".bash_profile", ".bash_login", ".profile", ".kshrc", ".mkshrc", ".cshrc", ".tcshrc", ".login", ".envrc", ".pam_environment", ".xprofile", ".xsessionrc"]);
@@ -10663,6 +11293,7 @@ var SHELL_RUNNERS = new Set(["sh", "bash", "zsh", "dash", "ksh", "mksh", "ash", 
 var SCRIPT_RUNNERS = new Set(["bun", "node", "nodejs", "tsx", "ts-node", "deno", "parallel"]);
 var SHELL_OPTION_WITH_VALUE = new Set(["-o", "+o", "-O", "+O"]);
 var REMOVE_VERBS = new Set(["disable", "uninstall", "remove", "rm", "unlink"]);
+var HARNESS_HOME = Object.fromEntries(HARNESSES.map((h) => [harnessProfile(h).bin, harnessProfile(h).relocationEnv]));
 
 // src/core/policy/bash-guard.ts
 var TOP_LEVEL = new Set([
@@ -10737,6 +11368,10 @@ var DB_CLIENTS = new Set(["psql", "mysql", "mariadb", "sqlite3", "sqlite", "duck
 // src/adapters/shared/consent-store.ts
 init_fsx();
 init_paths();
+
+// src/core/plan/plan-mode.ts
+init_harness();
+var READ_ONLY_MODE = harnessTable((p) => p.plan.readOnly);
 
 // src/core/plan/notes.ts
 function brainPageArg(args) {
@@ -10965,16 +11600,12 @@ var WS = "[\\t\\n\\v\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u
 var TRIM_END = new RegExp(`${WS}+$`);
 var TRIM_START = new RegExp(`^${WS}+`);
 // src/core/config.ts
+init_harness();
 var COMPANION_SETTINGS = ["off", "auto", ...HARNESSES];
 function defaultConfig() {
   return {
     version: 1,
-    harnesses: {
-      claude: { enabled: true },
-      codex: { enabled: true },
-      opencode: { enabled: true },
-      omp: { enabled: true }
-    },
+    harnesses: harnessTable(() => ({ enabled: true })),
     routing: { strictness: "enforce", skills: "router", reminders: true },
     guards: { bash: { extraDeny: [] }, write: { protect: [] }, redact: true },
     plan: {
@@ -11004,7 +11635,7 @@ function defaultConfig() {
     workflow: { band: true, foldAfterSec: 8, codexNotices: true },
     toolchain: { autoInstall: true, system: true, upgrade: true },
     index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 },
-    mcp: { shared: true, off: { claude: [], codex: [], opencode: [], omp: [] } }
+    mcp: { shared: true, off: harnessTable(() => []) }
   };
 }
 var bool = { t: "bool" };
@@ -11647,202 +12278,13 @@ function catastrophicCommandRules(opts) {
 }
 var CATASTROPHIC_COMMAND_RULES = catastrophicCommandRules();
 // src/core/policy/hooks-matrix.ts
-var CLAUDE_CLASSIC_EVENTS = [
-  "PreToolUse",
-  "PostToolUse",
-  "PostToolUseFailure",
-  "PostToolBatch",
-  "PermissionDenied",
-  "Notification",
-  "UserPromptSubmit",
-  "UserPromptExpansion",
-  "SessionStart",
-  "SessionEnd",
-  "Stop",
-  "StopFailure",
-  "SubagentStart",
-  "SubagentStop",
-  "PreCompact",
-  "PostCompact",
-  "PreModelSwitch",
-  "PostModelSwitch",
-  "PermissionRequest",
-  "Setup",
-  "TeammateIdle",
-  "TaskCreated",
-  "TaskCompleted",
-  "Elicitation",
-  "ElicitationResult",
-  "ConfigChange",
-  "InstructionsLoaded",
-  "WorktreeCreate",
-  "WorktreeRemove",
-  "CwdChanged",
-  "FileChanged",
-  "DirectoryAdded",
-  "MessageDisplay"
-];
-var CLAUDE_ENGINE_EVENTS = [
-  "tool.call",
-  "tool.check",
-  "tool.describe",
-  "prompt.submit",
-  "prompt.fill",
-  "prompt.suggest",
-  "prompt.edit",
-  "prompt.autocomplete",
-  "prompt.section",
-  "prompt.context",
-  "prompt.compose",
-  "prompt.attachment",
-  "prompt.mention",
-  "skill.prompt",
-  "attribution.text",
-  "command.run",
-  "command.describe",
-  "config.set",
-  "config.describe",
-  "agent.offer",
-  "agent.spawn",
-  "session.start",
-  "session.end",
-  "session.compact",
-  "session.receive",
-  "session.send",
-  "session.append",
-  "session.attach",
-  "session.detach",
-  "session.measure",
-  "turn.start",
-  "turn.step",
-  "turn.complete",
-  "ui.render",
-  "ui.resolve",
-  "ui.press",
-  "ui.input",
-  "ui.select",
-  "ui.message",
-  "ui.fault",
-  "ui.scroll",
-  "ui.focus",
-  "plugin.register",
-  "engine.create",
-  "telemetry.log",
-  "telemetry.mark"
-];
-var CODEX_EVENTS = [
-  "SessionStart",
-  "SessionEnd",
-  "UserPromptSubmit",
-  "PreToolUse",
-  "PermissionRequest",
-  "PostToolUse",
-  "PreCompact",
-  "PostCompact",
-  "SubagentStart",
-  "SubagentStop",
-  "Stop",
-  "Interrupt"
-];
-var OPENCODE_EVENTS = [
-  "setup",
-  "session.prompt",
-  "session.context",
-  "session.compaction",
-  "session.generate",
-  "session.title",
-  "session.model.request",
-  "session.http.request",
-  "session.http.response",
-  "session.retry",
-  "permission.evaluate",
-  "shell.create.before",
-  "tool.execute.before",
-  "tool.execute.after",
-  "session.created",
-  "session.deleted",
-  "session.idle",
-  "session.status",
-  "session.execution.started",
-  "session.execution.succeeded",
-  "session.execution.failed",
-  "session.execution.interrupted",
-  "session.compaction.started",
-  "session.compaction.delta",
-  "session.compaction.ended",
-  "session.compaction.failed",
-  "session.usage.updated",
-  "session.tool.called",
-  "session.tool.success",
-  "session.tool.failed",
-  "session.skill.activated",
-  "session.instructions.updated",
-  "permission.asked",
-  "permission.replied",
-  "file.edited",
-  "vcs.branch.updated",
-  "mcp.status.changed",
-  "mcp.tools.changed",
-  "plugin.updated",
-  "worktree.ready",
-  "worktree.failed"
-];
-var OMP_EVENTS = [
-  "resources_discover",
-  "session_start",
-  "session_before_switch",
-  "session_switch",
-  "session_before_branch",
-  "session_branch",
-  "session_before_compact",
-  "session.compacting",
-  "cache_warming_decision",
-  "session_compact",
-  "session_shutdown",
-  "session_before_tree",
-  "session_tree",
-  "context",
-  "before_provider_request",
-  "after_provider_response",
-  "before_agent_start",
-  "before_subagent_spawn",
-  "agent_start",
-  "agent_end",
-  "session_stop",
-  "turn_start",
-  "turn_end",
-  "message_start",
-  "message_update",
-  "message_end",
-  "assistant_message",
-  "tool_execution_start",
-  "tool_execution_update",
-  "tool_execution_end",
-  "auto_compaction_start",
-  "auto_compaction_end",
-  "auto_retry_start",
-  "auto_retry_end",
-  "retry_fallback_applied",
-  "retry_fallback_succeeded",
-  "ttsr_triggered",
-  "todo_reminder",
-  "goal_updated",
-  "credential_disabled",
-  "input",
-  "tool_approval_requested",
-  "tool_approval_resolved",
-  "tool_call",
-  "tool_result",
-  "user_bash",
-  "user_python",
-  "mcp_notification"
-];
-var HOOK_EVENTS = {
-  claude: [...CLAUDE_ENGINE_EVENTS, ...CLAUDE_CLASSIC_EVENTS.map((e) => `classic.${e}`)],
-  codex: CODEX_EVENTS,
-  opencode: OPENCODE_EVENTS,
-  omp: OMP_EVENTS
-};
+init_harness();
+init_native_events();
+init_native_events();
+var nativeOf = (pick) => harnessTable((p) => pick(p.events.map) ?? []);
+var HOOK_EVENTS = harnessTable((p) => p.events.native);
+var DENY_EVENTS = nativeOf((m) => m.preTool);
+var STOP_EVENTS = nativeOf((m) => m.stop);
 // src/core/policy/readonly-shell.ts
 var TIED_VARIABLES = new Set(["path", "cdpath", "fpath", "manpath", "mailpath", "module_path"]);
 var GIT_READ = new Set([
@@ -12930,6 +13372,9 @@ var CHECK = new RegExp([
 ].join("|"), "iu");
 // src/core/flow/state.ts
 var AGENT_MAX_MS = 2 * 60 * 60000;
+// src/core/index.ts
+init_harness();
+
 // src/adapters/shared/file-checks.ts
 init_paths();
 

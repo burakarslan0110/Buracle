@@ -1,3 +1,4 @@
+import { harnessTable } from '../core/harness/index'
 import { createHash, randomBytes } from 'node:crypto'
 import { existsSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -37,7 +38,7 @@ export interface CompanionDeps {
 
 const KILL_GRACE_MS = 30_000
 
-const BIN: Readonly<Record<Harness, string>> = { claude: 'claude', codex: 'codex', opencode: 'opencode', omp: 'omp' }
+const BIN: Readonly<Record<Harness, string>> = harnessTable(p => p.bin)
 const POLL_MS = 2_000
 
 function onPath(bin: string): string | null {

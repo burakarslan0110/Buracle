@@ -1,4 +1,5 @@
 import type { Harness } from '../events'
+import { harnessTable } from '../harness/index'
 import { DOC_DIR_PREFIX } from './doc-dirs'
 import { nativeBinding } from './native'
 import type { SessionState } from './state'
@@ -10,12 +11,7 @@ export const FILE_WRITING_WORKFLOWS: Readonly<Record<string, string>> = {
   requirements: 'its PRD under docs/requirements/',
 }
 
-const READ_ONLY_MODE: Readonly<Record<Harness, { name: string; leave: string }>> = {
-  claude: { name: "Claude Code's plan mode", leave: 'leave plan mode (Shift+Tab)' },
-  codex: { name: "Codex's Plan mode", leave: 'leave Plan mode' },
-  opencode: { name: "OpenCode's read-only plan agent", leave: 'switch to the build agent (Tab)' },
-  omp: { name: "Oh My Pi's plan mode", leave: 'leave plan mode' },
-}
+const READ_ONLY_MODE: Readonly<Record<Harness, { name: string; leave: string }>> = harnessTable(p => p.plan.readOnly)
 
 export function readOnlyStartNotice(workflow: string, harness: Harness): string | undefined {
   const writes = Object.prototype.hasOwnProperty.call(FILE_WRITING_WORKFLOWS, workflow) ? FILE_WRITING_WORKFLOWS[workflow] : undefined

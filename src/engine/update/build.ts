@@ -1,3 +1,4 @@
+import { NEUTRAL_SKILL_HARNESSES } from '../../core/harness/index'
 import { lstatSync, readdirSync, readFileSync, rmdirSync, statSync, unlinkSync } from 'node:fs'
 import { dirname, isAbsolute, join, posix } from 'node:path'
 import type { Adapter, AdapterContext } from '../../adapters/registry'
@@ -36,7 +37,7 @@ export type HookDataBuilder = (canonical: CanonicalBundle) => { path: string, co
 
 export const AGENTS_SKILLS_PRODUCER = 'agents-skills'
 export const HOOK_DATA_PRODUCER = 'hook-data'
-const SHARED_SKILL_CONSUMERS: readonly Harness[] = ['codex', 'opencode', 'omp']
+const SHARED_SKILL_CONSUMERS: readonly Harness[] = NEUTRAL_SKILL_HARNESSES
 
 async function defaultSharedSkills(ctx: AdapterContext): Promise<Array<{ path: string, content: string, mode?: number }>> {
   const mod = await import('../../adapters/shared/skills')

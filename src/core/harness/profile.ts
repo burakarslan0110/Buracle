@@ -51,7 +51,7 @@ export interface HarnessProfile {
   /** The command on PATH. */
   bin: string
   /** How a running host is told from its process: the base name, a path shape, a variable holding its pid. */
-  process: { base: RegExp, path?: RegExp, pidEnv?: string }
+  proc: { base: RegExp, path?: RegExp, pidEnv?: string }
   /** `command`: hooks are processes reading stdin; `inprocess`: a plugin or extension inside the host. */
   runtime: 'command' | 'inprocess'
   /** The suffix of the command hooks' spool file, where an in-process writer of the same host has the plain one. */
@@ -223,11 +223,11 @@ export function configDirOf(p: Pick<HarnessProfile, 'configDir'>, env: Readonly<
 }
 
 /** Which host a process is, from its command path and, where the host names its pid in a variable, that variable. */
-export function processMatches(p: Pick<HarnessProfile, 'process'>, comm: string, pid?: number, env: Readonly<Record<string, string | undefined>> = {}): boolean {
-  if (pid !== undefined && p.process.pidEnv !== undefined && env[p.process.pidEnv] === String(pid)) return true
+export function processMatches(p: Pick<HarnessProfile, 'proc'>, comm: string, pid?: number, env: Readonly<Record<string, string | undefined>> = {}): boolean {
+  if (pid !== undefined && p.proc.pidEnv !== undefined && env[p.proc.pidEnv] === String(pid)) return true
   const c = comm.trim()
-  if (p.process.path !== undefined && p.process.path.test(c)) return true
-  return p.process.base.test((c.split('/').pop() ?? '').replace(/^-/, ''))
+  if (p.proc.path !== undefined && p.proc.path.test(c)) return true
+  return p.proc.base.test((c.split('/').pop() ?? '').replace(/^-/, ''))
 }
 
 export function mcpClientMatches(p: Pick<HarnessProfile, 'mcpClient'>, clientName: string): boolean {

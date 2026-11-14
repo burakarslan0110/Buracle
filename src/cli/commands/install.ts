@@ -1,3 +1,4 @@
+import { HARNESS_LABEL } from '../../core/harness/index'
 import { existsSync } from 'node:fs'
 import { delimiter, join, resolve } from 'node:path'
 import type { CommandIO } from '../router'
@@ -640,7 +641,7 @@ function interruptCode(signal: string): number {
   return 128 + (signal === 'SIGINT' ? 2 : signal === 'SIGHUP' ? 1 : 15)
 }
 
-const HARNESS_TITLE: Readonly<Record<Harness, string>> = { claude: 'Claude Code', codex: 'Codex', opencode: 'OpenCode', omp: 'Oh My Pi' }
+const HARNESS_TITLE: Readonly<Record<Harness, string>> = HARNESS_LABEL
 
 // header: false when the live steps already printed the title.
 export function renderInstallStyled(r: InstallFlowResult, st: Style, columns = 100, header = true): string {

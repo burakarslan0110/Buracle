@@ -1,16 +1,13 @@
+import { HARNESSES, HARNESS_LABEL, NEUTRAL_SKILL_HARNESSES, harnessProfile } from '../../core/harness/index'
 import type { Harness } from '../../core/events'
 
 export type RenderTarget = Harness | 'neutral'
 
-export const NEUTRAL_HARNESSES = ['codex', 'opencode', 'omp'] as const
-export type NeutralHarness = typeof NEUTRAL_HARNESSES[number]
+// The harnesses that read the neutral render: every one without a render of its own.
+export const NEUTRAL_HARNESSES: readonly Harness[] = NEUTRAL_SKILL_HARNESSES
+export type NeutralHarness = Harness
 
-export const HARNESS_LABEL: Readonly<Record<Harness, string>> = {
-  claude: 'Claude Code',
-  codex: 'Codex',
-  opencode: 'OpenCode',
-  omp: 'Oh My Pi',
-}
+export { HARNESS_LABEL }
 
 export interface RenderOptions {
   file?: string
@@ -33,19 +30,16 @@ const PLACEHOLDER_RE = /\{\{([a-z_]+)(?::([A-Za-z0-9._-]+))?\}\}/g
 
 export function placeholderLiteral(p: { name: string, arg?: string }, h: Harness, invocable = true): string | undefined {
   const arg = p.arg ?? ''
+  const profile = harnessProfile(h)
   switch (p.name) {
     case 'ask_user':
-      return { claude: 'AskUserQuestion', codex: 'request_user_input', opencode: 'question', omp: 'ask' }[h]
     case 'todo':
-      return { claude: 'TodoWrite', codex: 'update_plan', opencode: 'todowrite', omp: 'todo' }[h]
     case 'spawn_agent':
-      return { claude: 'Agent', codex: 'spawn_agent', opencode: 'subagent', omp: 'task' }[h]
+      return profile.tools.names[p.name]
     case 'skill':
-      return invocable
-        ? { claude: `/${arg}`, codex: `$${arg}`, opencode: `/${arg}`, omp: `/${arg}` }[h]
-        : { claude: `/buracle:${arg}`, codex: `$${arg}`, opencode: `@${arg}`, omp: `/skill:${arg}` }[h]
+      return profile.skills.mention(arg, invocable)
     case 'agent':
-      return h === 'claude' ? `buracle:${arg}` : arg
+      return `${profile.skills.agentPrefix}${arg}`
     default:
       return undefined
   }
@@ -81,7 +75,8 @@ function neutralProse(p: Placeholder, afterDeterminer: boolean, opts: Pick<Rende
 
 function harnessProse(p: Placeholder, h: Harness, opts: Pick<RenderOptions, 'protocols'>): string {
   if (p.name === 'agent') return placeholderLiteral(p, h) ?? p.raw
-  if (p.name === 'todo' && h === 'opencode') return 'a short checklist in your replies'
+  const todoProse = harnessProfile(h).tools.todoProse
+  if (p.name === 'todo' && todoProse !== undefined) return todoProse
   const lit = placeholderLiteral(p, h, p.name === 'skill' ? userInvocable(p.arg ?? '', opts) : true)
   return lit === undefined ? p.raw : `\`${lit}\``
 }
@@ -123,23 +118,23 @@ function labelLines(lines: string[], label: string): string[] {
   return out
 }
 
-const BLOCK_START = /^[ \t]*<!--[ \t]*harness:(claude|codex|opencode|omp)[ \t]*-->[ \t]*$/
+const BLOCK_START = new RegExp(String.raw`^[ \t]*<!--[ \t]*harness:(${HARNESSES.join('|')})[ \t]*-->[ \t]*$`)
 const BLOCK_END = /^[ \t]*<!--[ \t]*\/harness[ \t]*-->[ \t]*$/
-const INLINE_BLOCK = /<!--[ \t]*harness:(claude|codex|opencode|omp)[ \t]*-->([\s\S]*?)<!--[ \t]*\/harness[ \t]*-->/g
+const INLINE_BLOCK = new RegExp(String.raw`<!--[ \t]*harness:(${HARNESSES.join('|')})[ \t]*-->([\s\S]*?)<!--[ \t]*/harness[ \t]*-->`, 'g')
 const ANY_MARKER = /<!--[ \t]*\/?harness(?::[a-z]+)?[ \t]*-->/
 
 interface Block { harness: Harness, lines: string[] }
 
 function renderRun(run: Block[], target: RenderTarget): string[] {
   if (target !== 'neutral') return run.filter(b => b.harness === target).flatMap(b => b.lines)
-  const kept = run.filter((b): b is Block & { harness: NeutralHarness } => b.harness !== 'claude')
+  const kept = run.filter(b => NEUTRAL_HARNESSES.includes(b.harness))
   const groups = groupByValue(kept.map(b => [b.harness, b.lines] as const), lines => lines.map(l => l.trimEnd()).join('\n').trim())
   return groups.flatMap(g => labelLines(g.value, joinLabels(g.harnesses)))
 }
 
 function renderInlineBlocks(line: string, target: RenderTarget): string {
   return line.replace(INLINE_BLOCK, (_m, h: string, text: string) => {
-    if (target === 'neutral') return h === 'claude' ? '' : `**${HARNESS_LABEL[h as Harness]}:** ${text.trim()}`
+    if (target === 'neutral') return NEUTRAL_HARNESSES.includes(h as Harness) ? `**${HARNESS_LABEL[h as Harness]}:** ${text.trim()}` : ''
     return h === target ? text : ''
   })
 }

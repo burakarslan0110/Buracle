@@ -1,3 +1,4 @@
+import { harnessTable } from '../core/harness/index'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Harness } from '../core/events'
@@ -9,7 +10,7 @@ import { findExecutable } from '../engine/platform'
 import { run } from '../engine/proc'
 import { shimLaunch } from '../engine/shim'
 
-const HARNESS_LABEL: Readonly<Record<Harness, string>> = { claude: 'CC', codex: 'Codex', opencode: 'OpenCode', omp: 'OMP' }
+const HARNESS_LABEL: Readonly<Record<Harness, string>> = harnessTable(p => p.shortLabel)
 
 function isRecord(x: unknown): x is Record<string, unknown> {
   return x !== null && typeof x === 'object' && !Array.isArray(x)
@@ -49,7 +50,7 @@ export function claudePlan(): string | undefined {
   return plan
 }
 
-const VERSION_CMD: Readonly<Record<Harness, string>> = { claude: 'claude', codex: 'codex', opencode: 'opencode', omp: 'omp' }
+const VERSION_CMD: Readonly<Record<Harness, string>> = harnessTable(p => p.bin)
 
 function versionCacheFile(): string {
   return join(paths.buracleHome(), 'cache', 'harness-versions.json')

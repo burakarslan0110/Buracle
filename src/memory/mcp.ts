@@ -1,3 +1,4 @@
+import { HARNESSES, harnessProfile, mcpClientMatches } from '../core/harness/index'
 import { FILE_AS_KINDS, MEM_KINDS, WRITABLE_KINDS } from '../core/memory/brain'
 import { log } from '../engine/log'
 import { watchParent } from '../engine/parent-watch'
@@ -169,12 +170,8 @@ function textResult(text: string, isError = false): Record<string, unknown> {
 }
 
 export function harnessFromClient(name: string | undefined): string {
-  const n = (name ?? '').toLowerCase()
-  if (n.includes('claude')) return 'claude-code'
-  if (n.includes('codex')) return 'codex'
-  if (n.includes('opencode')) return 'opencode'
-  if (n.includes('omp') || n.includes('oh-my-pi') || n.includes('pi-coding') || n === 'pi') return 'omp'
-  return 'buracle'
+  const h = HARNESSES.find(x => mcpClientMatches(harnessProfile(x), name ?? ''))
+  return h !== undefined ? harnessProfile(h).noteName : 'buracle'
 }
 
 export interface MemoryServer {

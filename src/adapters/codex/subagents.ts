@@ -1,11 +1,8 @@
 import { dirname, join, resolve } from 'node:path'
 import type { Harness } from '../../core/events'
-import type { WorkspaceInfo } from '../../core/workspace'
 import { atomicWriteSync, ensureDirSync, readJsonSafeSync } from '../../engine/fsx'
 import { readSessionAliases, recordSessionAlias, sessionAliasesPath } from '../../workflow/session-store'
-import { canonicalDir } from '../../workflow/workspace'
 import type { AdapterContext } from '../registry'
-import { loadWorkspaceInfo } from './route'
 
 const H: Harness = 'codex'
 
@@ -48,15 +45,4 @@ export function recordSubagentAlias(ctx: Pick<AdapterContext, 'paths'>, agentId:
 export function subagentLedgerId(p: Record<string, unknown>, sid: string, ctx: Pick<AdapterContext, 'paths'>): string | undefined {
   const id = p['agent_id']
   return typeof id === 'string' && id !== sid && ctx.paths.isValidSessionId(id) ? id : undefined
-}
-
-export interface WorkspaceReaders {
-  workspaceInfo?: (cwd: string, ctx: AdapterContext, nowMs: number) => Promise<WorkspaceInfo | undefined>
-  refreshWorkspace?: (info: WorkspaceInfo, ctx: AdapterContext, nowMs: number) => WorkspaceInfo
-}
-
-export async function subagentWorkspace(sid: string, cwd: string, ctx: AdapterContext, read: WorkspaceReaders, nowMs: number): Promise<WorkspaceInfo | undefined> {
-  const saved = loadWorkspaceInfo(ctx, sid)
-  if (saved !== undefined && read.refreshWorkspace !== undefined && saved.cwd === canonicalDir(cwd)) return read.refreshWorkspace(saved, ctx, nowMs)
-  return read.workspaceInfo?.(cwd, ctx, nowMs)
 }

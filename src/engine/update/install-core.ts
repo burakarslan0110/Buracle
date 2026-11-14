@@ -1,3 +1,4 @@
+import { NEUTRAL_SKILL_HARNESSES, harnessProfile } from '../../core/harness/index'
 import { existsSync, lstatSync, readdirSync, statSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { Harness } from '../../core/events'
@@ -12,7 +13,7 @@ import { errText, isInside, tilde } from './output'
 
 export const CORE_OWNER = 'core'
 export const AGENTS_SKILLS_OWNER = 'agents-skills'
-export const AGENTS_SKILLS_CONSUMERS: readonly Harness[] = ['codex', 'opencode', 'omp']
+export const AGENTS_SKILLS_CONSUMERS: readonly Harness[] = NEUTRAL_SKILL_HARNESSES
 
 export const INSTALL_RECORD_REL = 'state/install-record.json'
 export function installRecordFile(): string {
@@ -160,12 +161,8 @@ export function agentsSkillIds(repoRoot: string): string[] {
 // Each supported harness reads Buracle's skills from its own folder. The shared ~/.agents/skills
 // would show them to every Agent Skills client, including ones Buracle does not support.
 export function harnessSkillsDir(h: Harness): string | undefined {
-  switch (h) {
-    case 'codex': return join(paths.codexHome(), 'skills')
-    case 'opencode': return join(paths.opencodeConfigDir(), 'skills')
-    case 'omp': return join(paths.ompAgentDir(), 'skills')
-    default: return undefined
-  }
+  const dir = harnessProfile(h).skills.dir
+  return dir !== undefined ? join(paths.harnessConfigDir(h), dir) : undefined
 }
 
 export function agentsSkillsPlan(repoRoot: string, harnesses: readonly Harness[]): Plan {

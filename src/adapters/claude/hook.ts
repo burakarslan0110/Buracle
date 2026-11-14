@@ -1,3 +1,4 @@
+import { harnessProfile } from '../../core/harness/index'
 import { closeSync, mkdirSync, openSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import * as core from '../../core/index'
@@ -351,7 +352,7 @@ function writeEdits(call: ToolCall): Array<{ file: string, removed: string, adde
   return [{ file, removed, added }]
 }
 
-const POST_EDIT_BUDGET_MS = 28_000
+const POST_EDIT_BUDGET_MS = harnessProfile('claude').editBudgetMs
 
 function pluginSkillRead(file: string | undefined, root: string): string | undefined {
   if (file === undefined) return undefined

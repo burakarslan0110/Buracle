@@ -1,3 +1,4 @@
+import { NEUTRAL_SKILL_HARNESSES } from '../../core/harness/index'
 import type { CanonicalBundle, McpCatalog, SkillDoc } from '../../core/catalog'
 import { log } from '../../engine/log'
 import { renderMarkdown, RenderError } from './render'
@@ -89,7 +90,7 @@ function skillMcp(skill: SkillDoc, mcp: McpCatalog, warnings: string[]): Array<{
     if (typeof id !== 'string') continue
     const spec = mcp.servers[id]
     if (!spec) { warnings.push(`skills/${skill.id}/SKILL.md: mcp lists unknown server ${JSON.stringify(id)}`); continue }
-    if (!spec.harnesses.some(h => h === 'codex' || h === 'opencode' || h === 'omp')) continue
+    if (!spec.harnesses.some(h => NEUTRAL_SKILL_HARNESSES.includes(h))) continue
     if (out.some(o => o.id === id)) continue
     const entry: { id: string, description: string, transport: 'stdio' | 'streamable_http', url?: string } = {
       id, description: oneLine(spec.description), transport: spec.transport === 'http' ? 'streamable_http' : 'stdio',

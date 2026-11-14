@@ -7,7 +7,7 @@ export const ompProfile: HarnessProfile = {
   shortLabel: 'OMP',
   noteName: 'omp',
   bin: 'omp',
-  process: { base: /^omp$/ },
+  proc: { base: /^omp$/ },
   runtime: 'inprocess',
   editBudgetMs: 20_000,
   configDir: { key: 'ompAgentDir', env: 'PI_CODING_AGENT_DIR', under: '.omp/agent' },

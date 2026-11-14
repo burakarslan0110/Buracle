@@ -1,3 +1,4 @@
+import { harnessesWhere } from '../core/harness/index'
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { parse as parseYaml } from 'yaml'
@@ -117,11 +118,11 @@ function outsideSkills(top: string | undefined, owned: ReadonlySet<string>): Arr
   if (top !== undefined) {
     const layout = assetLayout(top)
     for (const s of claudeOnlySkills(layout)) {
-      out.push({ id: s.id, source: 'project', kind: 'claude-only', path: join(layout.claudeSkills, s.id), ...(s.description !== undefined ? { description: s.description } : {}), harnesses: ['claude', 'opencode', 'omp'] })
+      out.push({ id: s.id, source: 'project', kind: 'claude-only', path: join(layout.claudeSkills, s.id), ...(s.description !== undefined ? { description: s.description } : {}), harnesses: harnessesWhere(p => p.skills.readsClaudeProjectDir) })
     }
   }
   const byReal = new Map<string, Record<string, unknown>>()
-  const folders: Array<[string, string[]]> = [[join(agentsDir(), 'skills'), ['codex', 'opencode', 'omp']], [join(claudeDir(), 'skills'), ['claude', 'opencode']]]
+  const folders: Array<[string, string[]]> = [[join(agentsDir(), 'skills'), harnessesWhere(p => p.skills.readsAgentsDir)], [join(claudeDir(), 'skills'), harnessesWhere(p => p.skills.readsClaudeUserDir)]]
   for (const [dir, harnesses] of folders) {
     for (const id of skillIdsIn(dir)) {
       if (owned.has(id)) continue

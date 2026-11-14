@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import type { CommandIO } from '../router'
 import type { Harness } from '../../core/events'
 import { isHarness } from '../../core/events'
-import { memIsSlug } from '../../core/memory/note'
+import { memIsSlug, memNoteHarness } from '../../core/memory/note'
 import { memSegmentWith } from '../../core/memory/status'
 import * as paths from '../../engine/paths'
 import { resolveSession } from '../../workflow/session-store'
@@ -157,10 +157,9 @@ async function ctxFor(p: Parsed) {
     ...(one(p, 'session') !== undefined ? { session: one(p, 'session') as string } : {}),
     ...(one(p, 'harness') !== undefined ? { harness: one(p, 'harness') as string } : {}),
   })
-  const harnessName = (h: string) => (h === 'claude' ? 'claude-code' : h)
   return session
-    ? cliContext(cwdOf(p), harnessName(session.harness), { session: session.sessionId, agent: true })
-    : cliContext(cwdOf(p), one(p, 'harness') !== undefined ? harnessName(one(p, 'harness') as string) : 'human')
+    ? cliContext(cwdOf(p), memNoteHarness(session.harness), { session: session.sessionId, agent: true })
+    : cliContext(cwdOf(p), one(p, 'harness') !== undefined ? memNoteHarness(one(p, 'harness') as string) : 'human')
 }
 
 function harnessSession(p: Parsed): { h: Harness, sid: string } | undefined {
