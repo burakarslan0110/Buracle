@@ -7365,7 +7365,7 @@ function atomicWriteSync(path, data, opts = {}) {
 var init_fsx = () => {};
 
 // src/engine/shim.ts
-import { readFileSync as readFileSync5, statSync as statSync6 } from "fs";
+import { readFileSync as readFileSync4, statSync as statSync6 } from "fs";
 import { resolve as resolve3 } from "path";
 function parseShimText(text) {
   const legacy = new RegExp(`^exec '${SQ}' '${SQ}' "\\$@"$`, "m").exec(text);
@@ -7388,7 +7388,7 @@ function parseShimText(text) {
 }
 function readShim(shim = shimPath()) {
   try {
-    return parseShimText(readFileSync5(shim, "utf8"));
+    return parseShimText(readFileSync4(shim, "utf8"));
   } catch {
     return;
   }
@@ -7412,7 +7412,7 @@ var init_shim = __esm(() => {
 var init_hook_fail = () => {};
 
 // src/engine/update/runtime.ts
-import { chmodSync as chmodSync2, cpSync, existsSync as existsSync6, mkdirSync as mkdirSync4, readFileSync as readFileSync9, readdirSync as readdirSync3, renameSync as renameSync3, rmSync as rmSync2, statSync as statSync11, writeFileSync } from "fs";
+import { chmodSync as chmodSync2, cpSync, existsSync as existsSync6, mkdirSync as mkdirSync4, readFileSync as readFileSync8, readdirSync as readdirSync3, renameSync as renameSync3, rmSync as rmSync2, statSync as statSync11, writeFileSync } from "fs";
 import { basename as basename3, dirname as dirname6, join as join12, relative as relative3, resolve as resolve7, sep as sep3 } from "path";
 function runtimeFiles(checkout) {
   const out = [];
@@ -7442,7 +7442,7 @@ function runtimeFiles(checkout) {
 }
 function readJson(path) {
   try {
-    const v = JSON.parse(readFileSync9(path, "utf8"));
+    const v = JSON.parse(readFileSync8(path, "utf8"));
     return v !== null && typeof v === "object" && !Array.isArray(v) ? v : undefined;
   } catch {
     return;
@@ -7464,7 +7464,7 @@ function runtimePackages(checkout) {
     return { error: `${join12(checkout, "package.json")} cannot be read` };
   let lock = "";
   try {
-    lock = readFileSync9(join12(checkout, "bun.lock"), "utf8");
+    lock = readFileSync8(join12(checkout, "bun.lock"), "utf8");
   } catch {}
   const locked = (name) => {
     const esc = name.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
@@ -7505,7 +7505,7 @@ function checkoutFingerprint(checkout, deps) {
   for (const rel of runtimeFiles(checkout)) {
     const abs = join12(checkout, rel);
     try {
-      parts.push(fileEntry(rel, readFileSync9(abs), statSync11(abs).mode));
+      parts.push(fileEntry(rel, readFileSync8(abs), statSync11(abs).mode));
     } catch {
       parts.push(`${rel}\x00missing
 `);
@@ -9926,9 +9926,6 @@ function withinKey(child, parent) {
 function isPathWithin(child, parent, caseInsensitive) {
   return withinKey(pathKey(child, caseInsensitive), pathKey(parent, caseInsensitive));
 }
-function wslDrive(p) {
-  return /^\/mnt\/([A-Za-z])(?:\/|$)/.exec(p)?.[1];
-}
 var GLOB_CHARS = /[*?[{]/;
 function excludeMatches(pattern, dirKey, ctx) {
   let p = pattern.replace(/\\/g, "/");
@@ -11724,7 +11721,7 @@ function barOneLine(bar, info, layout, width, nowMs) {
 }
 
 // src/usage/bar-info.ts
-import { existsSync as existsSync3, readFileSync as readFileSync6, statSync as statSync7 } from "fs";
+import { existsSync as existsSync3, readFileSync as readFileSync5, statSync as statSync7 } from "fs";
 import { join as join7 } from "path";
 
 // src/core/flow/panes.ts
@@ -11774,7 +11771,7 @@ init_fsx();
 init_paths();
 
 // src/engine/platform.ts
-import { existsSync as existsSync2, readFileSync as readFileSync4, statSync as statSync5 } from "fs";
+import { existsSync as existsSync2, statSync as statSync5 } from "fs";
 import { homedir } from "os";
 import { isAbsolute as isAbsolute4, join as join6 } from "path";
 function osName() {
@@ -11782,26 +11779,6 @@ function osName() {
   if (forced === "darwin" || forced === "linux")
     return forced;
   return process.platform === "darwin" ? "darwin" : "linux";
-}
-var PROC_VERSION = "/proc/version";
-var wslKernel;
-function microsoftKernel(versionFile) {
-  try {
-    const v = readFileSync4(versionFile, "utf8").toLowerCase();
-    return v.includes("microsoft") || v.includes("wsl");
-  } catch {
-    return false;
-  }
-}
-function isWsl(env = process.env, versionFile = PROC_VERSION) {
-  if (osName() !== "linux")
-    return false;
-  if ((env["WSL_DISTRO_NAME"] ?? "") !== "" || (env["WSL_INTEROP"] ?? "") !== "")
-    return true;
-  if (versionFile !== PROC_VERSION)
-    return microsoftKernel(versionFile);
-  wslKernel ??= microsoftKernel(versionFile);
-  return wslKernel;
 }
 function homeDir() {
   const h = process.env["HOME"];
@@ -11844,7 +11821,7 @@ function isRecord(x) {
 }
 function buracleVersion(repoRoot2 = repoRoot()) {
   try {
-    const v = JSON.parse(readFileSync6(join7(repoRoot2, "package.json"), "utf8")).version;
+    const v = JSON.parse(readFileSync5(join7(repoRoot2, "package.json"), "utf8")).version;
     return typeof v === "string" ? v : "?";
   } catch {
     return "?";
@@ -11864,7 +11841,7 @@ function claudePlan() {
     return cached.value.plan ?? undefined;
   let plan;
   try {
-    const j = JSON.parse(readFileSync6(file, "utf8"));
+    const j = JSON.parse(readFileSync5(file, "utf8"));
     const oa = isRecord(j) && isRecord(j["oauthAccount"]) ? j["oauthAccount"] : undefined;
     if (oa === undefined)
       plan = "API";
@@ -11963,7 +11940,7 @@ async function barInfo(h, o) {
 }
 
 // src/usage/bar.ts
-import { readFileSync as readFileSync8 } from "fs";
+import { readFileSync as readFileSync7 } from "fs";
 import { isAbsolute as isAbsolute7, join as join10, relative as relative2, resolve as resolve6, sep as sep2 } from "path";
 init_fsx();
 
@@ -12067,7 +12044,7 @@ function tildeFrom(home, p) {
 }
 
 // src/workflow/workspace.ts
-import { existsSync as existsSync4, readdirSync, readFileSync as readFileSync7, rmSync, statSync as statSync8, unlinkSync as unlinkSync2 } from "fs";
+import { existsSync as existsSync4, readdirSync, readFileSync as readFileSync6, rmSync, statSync as statSync8, unlinkSync as unlinkSync2 } from "fs";
 import { dirname as dirname4, isAbsolute as isAbsolute6, join as join8, resolve as resolve4 } from "path";
 init_fsx();
 init_paths();
@@ -12280,7 +12257,7 @@ function pidAlive(pid) {
 function indexLockHolder(root, nowMs) {
   let held;
   try {
-    held = JSON.parse(readFileSync7(indexLockFile(root), "utf8"));
+    held = JSON.parse(readFileSync6(indexLockFile(root), "utf8"));
   } catch {
     return;
   }
@@ -12291,17 +12268,10 @@ function indexLockHolder(root, nowMs) {
     return;
   return pidAlive(pid) ? { pid, at } : undefined;
 }
-function codegraphDataDir(root, env = process.env) {
+function codegraphDataDir(_root, env = process.env) {
   const raw = (env["CODEGRAPH_DIR"] ?? "").trim();
   if (raw !== "" && raw !== "." && !raw.includes("..") && !/[\\/]/.test(raw) && !isAbsolute6(raw))
     return raw;
-  if (isWsl(env) && wslDrive(root) !== undefined) {
-    try {
-      if (statSync8(join8(root, ".codegraph-wsl")).isDirectory())
-        return ".codegraph-wsl";
-    } catch {}
-    return existsSync4(join8(root, ".codegraph", "codegraph.db")) ? ".codegraph" : ".codegraph-wsl";
-  }
   return ".codegraph";
 }
 function codegraphIndexPresent(root) {
@@ -12523,7 +12493,7 @@ function planForSession(h, sid, roots) {
   for (const file of candidates) {
     let text;
     try {
-      text = readFileSync8(file, "utf8");
+      text = readFileSync7(file, "utf8");
     } catch {
       continue;
     }
@@ -12662,7 +12632,7 @@ function spawnUsageRefresh(h, opts = {}) {
 // src/engine/hook-health.ts
 init_fsx();
 init_paths();
-import { existsSync as existsSync7, readFileSync as readFileSync10, rmSync as rmSync3, statSync as statSync12 } from "fs";
+import { existsSync as existsSync7, readFileSync as readFileSync9, rmSync as rmSync3, statSync as statSync12 } from "fs";
 import { join as join13 } from "path";
 var HOOK_FAILURE_MESSAGES = ["hook handler failed", "hook command failed before dispatch", "hook runtime failed"];
 var DAY_MS = 86400000;
@@ -12713,7 +12683,7 @@ function scanHookFailures(nowMs, windowMs = DAY_MS, file = logFile()) {
   for (const f of [`${file}.1`, file]) {
     let text;
     try {
-      text = readFileSync10(f, "utf8");
+      text = readFileSync9(f, "utf8");
     } catch {
       continue;
     }
@@ -12737,7 +12707,7 @@ function hookHealthCacheFile() {
 function hookHealthForStatus(nowMs, maxAgeMs = 60000) {
   const file = hookHealthCacheFile();
   try {
-    const c = JSON.parse(readFileSync10(file, "utf8"));
+    const c = JSON.parse(readFileSync9(file, "utf8"));
     if (typeof c.at === "number" && nowMs - c.at >= 0 && nowMs - c.at < maxAgeMs && c.summary !== undefined && typeof c.summary.failures === "number")
       return c.summary;
   } catch {}
@@ -12768,7 +12738,7 @@ async function runtimeBehindForStatus(nowMs, maxAgeMs = 300000) {
   const file = runtimeDriftCacheFile();
   const stamp = shimStamp();
   try {
-    const c = JSON.parse(readFileSync10(file, "utf8"));
+    const c = JSON.parse(readFileSync9(file, "utf8"));
     if (typeof c.at === "number" && nowMs - c.at >= 0 && nowMs - c.at < maxAgeMs && typeof c.behind === "boolean" && c.shim === stamp)
       return c.behind;
   } catch {}
@@ -13276,85 +13246,8 @@ var SCRIPT_RUNNERS = new Set(["bun", "node", "nodejs", "tsx", "ts-node", "deno",
 var SHELL_OPTION_WITH_VALUE = new Set(["-o", "+o", "-O", "+O"]);
 var REMOVE_VERBS = new Set(["disable", "uninstall", "remove", "rm", "unlink"]);
 
-// src/core/policy/powershell.ts
-var KNOWN_HOME = new Set(["home", "env:userprofile", "env:home"]);
-var KEYWORDS = new Set(["if", "elseif", "else", "foreach", "for", "while", "do", "until", "switch", "try", "catch", "finally", "function", "filter", "trap", "begin", "process", "end", "param", "data", "return", "throw", "break", "continue", "exit", "class", "enum"]);
-var POWERSHELL_SIGNS = new RegExp([
-  String.raw`\$env:`,
-  String.raw`\[(?:system\.)?(?:io\.(?:file|directory)|environment|net\.webclient)\]`,
-  String.raw`(?:^|[\s;|&({])(?:remove|copy|move|rename|set|add|clear|new|out|format|stop|restart|invoke|start|initialize|get|foreach|where|tee)-[a-z]+(?=[\s;|)}]|$)`,
-  String.raw`(?:^|[\s;|&(])(?:ri|rd|del|erase|cpi|mi|rni|sc|ac|clc|ni|iex|iwr|irm|gci|saps|sl|cmd(?:\.exe)?\s+/[ck])\s`,
-  String.raw`\s-(?:recurse|force|literalpath|itemtype|destination|outfile|filepath|erroraction|whatif|argumentlist|encodedcommand)\b`,
-  String.raw`(?:^|[\s'"=(,])(?:[a-z]:|\.{1,2}|~)\\`
-].join("|"), "i");
-
-// src/core/policy/windows-paths.ts
-var TOP_LEVEL = new Set(["windows", "program files", "program files (x86)", "programdata", "users", "documents and settings", "system volume information", "recovery", "$recycle.bin", "boot", "perflogs"]);
-var CRITICAL_SECOND_LEVEL = new Set(["windows/system32", "windows/syswow64", "windows/winsxs", "users/public", "users/default", "programdata/microsoft"]);
-var HOME_FOLDERS = new Set([
-  "applications",
-  "desktop",
-  "documents",
-  "downloads",
-  "library",
-  "movies",
-  "music",
-  "pictures",
-  "public",
-  ".config",
-  ".ssh",
-  ".gnupg",
-  ".aws",
-  "appdata",
-  "onedrive",
-  "videos",
-  "favorites",
-  "contacts",
-  "links",
-  "saved games",
-  "searches"
-]);
-
-// src/core/policy/windows-shell.ts
-var COMMON_VALUES = ["erroraction", "warningaction", "informationaction", "errorvariable", "warningvariable", "informationvariable", "outvariable", "outbuffer", "pipelinevariable", "progressaction"];
-var COMMON_SWITCHES = ["verbose", "debug", "whatif", "confirm"];
-var COMMON_ALIASES = { ea: "erroraction", wa: "warningaction", ev: "errorvariable", ov: "outvariable", ob: "outbuffer", pv: "pipelinevariable", vb: "verbose", db: "debug", wi: "whatif", cf: "confirm", lp: "literalpath", pspath: "literalpath" };
-function spec(values, switches, positional, aliases = {}) {
-  return { values: [...values, ...COMMON_VALUES], switches: [...switches, ...COMMON_SWITCHES], positional, aliases: { ...COMMON_ALIASES, ...aliases } };
-}
-var PATHS = ["path", "literalpath"];
-var SPECS = {
-  "remove-item": spec([...PATHS, "filter", "include", "exclude", "credential", "stream"], ["recurse", "force"], ["path"]),
-  "get-childitem": spec([...PATHS, "filter", "include", "exclude", "depth", "attributes"], ["recurse", "force", "name", "file", "directory", "hidden", "followsymlink"], ["path", "filter"]),
-  "get-item": spec([...PATHS, "filter", "include", "exclude", "stream"], ["force"], ["path"]),
-  "copy-item": spec([...PATHS, "destination", "filter", "include", "exclude", "credential", "fromsession", "tosession"], ["recurse", "force", "container", "passthru"], ["path", "destination"]),
-  "move-item": spec([...PATHS, "destination", "filter", "include", "exclude", "credential"], ["force", "passthru"], ["path", "destination"]),
-  "rename-item": spec([...PATHS, "newname", "credential"], ["force", "passthru"], ["path", "newname"]),
-  "set-content": spec([...PATHS, "value", "encoding", "filter", "include", "exclude", "credential", "stream"], ["force", "nonewline", "passthru", "asbytestream"], ["path", "value"]),
-  "add-content": spec([...PATHS, "value", "encoding", "filter", "include", "exclude", "credential", "stream"], ["force", "nonewline", "passthru", "asbytestream"], ["path", "value"]),
-  "clear-content": spec([...PATHS, "filter", "include", "exclude", "credential", "stream"], ["force"], ["path"]),
-  "out-file": spec(["filepath", "literalpath", "encoding", "inputobject", "width"], ["append", "force", "noclobber", "nonewline"], ["filepath", "encoding"], { path: "filepath" }),
-  "tee-object": spec(["filepath", "literalpath", "variable", "inputobject", "encoding"], ["append"], ["filepath"], { path: "filepath" }),
-  "new-item": spec(["path", "name", "itemtype", "value", "target", "credential"], ["force"], ["path"], { type: "itemtype" }),
-  "set-item": spec([...PATHS, "value", "filter", "include", "exclude", "credential"], ["force", "passthru"], ["path", "value"]),
-  "set-itemproperty": spec([...PATHS, "name", "value", "type", "filter", "include", "exclude", "credential", "inputobject"], ["force", "passthru"], ["path", "name", "value"]),
-  "new-itemproperty": spec([...PATHS, "name", "value", "propertytype", "filter", "include", "exclude", "credential"], ["force"], ["path", "name", "value"], { type: "propertytype" }),
-  "set-location": spec([...PATHS, "stackname"], ["passthru"], ["path"]),
-  "push-location": spec([...PATHS, "stackname"], ["passthru"], ["path"]),
-  "invoke-expression": spec(["command"], [], ["command"]),
-  "invoke-webrequest": spec(["uri", "outfile", "method", "body", "headers", "infile", "contenttype", "useragent", "proxy", "credential", "sessionvariable", "websession", "timeoutsec", "maximumredirection"], ["usebasicparsing", "passthru", "usedefaultcredentials", "skipcertificatecheck"], ["uri"]),
-  "start-process": spec(["filepath", "argumentlist", "workingdirectory", "verb", "credential", "redirectstandardoutput", "redirectstandarderror", "redirectstandardinput", "windowstyle"], ["wait", "passthru", "nonewwindow", "loaduserprofile", "usenewenvironment"], ["filepath", "argumentlist"], { args: "argumentlist", file: "filepath" }),
-  "stop-process": spec(["id", "name", "inputobject"], ["force", "passthru"], ["id"], { processname: "name" }),
-  "foreach-object": spec(["process", "begin", "end", "membername", "argumentlist", "inputobject", "throttlelimit", "remainingscripts"], ["parallel", "asjob"], ["process"]),
-  "invoke-command": spec(["scriptblock", "computername", "session", "argumentlist", "filepath", "credential"], ["asjob", "nonewscope"], ["scriptblock"])
-};
-var WINDOWS_SHELLS = new Set(["cmd", "powershell", "pwsh", "powershell_ise"]);
-var SHARED = new Set(["rm", "rmdir", "cp", "mv", "ls", "dir", "cd", "pushd", "popd", "kill", "tee", "ps", "start", "foreach", "where"]);
-var DISK = new Set(["format-volume", "clear-disk", "initialize-disk", "remove-partition", "clear-partition", "reset-physicaldisk"]);
-var POWER = new Set(["stop-computer", "restart-computer"]);
-
 // src/core/policy/bash-guard.ts
-var TOP_LEVEL2 = new Set([
+var TOP_LEVEL = new Set([
   "applications",
   "bin",
   "boot",
@@ -13387,7 +13280,7 @@ var TOP_LEVEL2 = new Set([
   "var",
   "volumes"
 ]);
-var CRITICAL_SECOND_LEVEL2 = new Set([
+var CRITICAL_SECOND_LEVEL = new Set([
   "/usr/bin",
   "/usr/sbin",
   "/usr/lib",
@@ -13405,7 +13298,7 @@ var CRITICAL_SECOND_LEVEL2 = new Set([
   "/system/applications",
   "/library/apple"
 ]);
-var HOME_FOLDERS2 = new Set(["applications", "desktop", "documents", "downloads", "library", "movies", "music", "pictures", "public", ".config", ".ssh", ".gnupg", ".aws"]);
+var HOME_FOLDERS = new Set(["applications", "desktop", "documents", "downloads", "library", "movies", "music", "pictures", "public", ".config", ".ssh", ".gnupg", ".aws"]);
 var DOWNLOADERS = new Set(["curl", "wget", "fetch", "http", "https", "xh", "aria2c"]);
 var OUTPUT_REDIRECTS = new Set([">", ">>", ">|", "&>", "&>>", "<>", ">&"]);
 var DECLARE = new Set(["export", "declare", "typeset", "local", "readonly"]);

@@ -295,7 +295,6 @@ describe.skipIf(!run)('install.sh shows the logo', () => {
     expect(code).toBe(1)
     expect(out).toBe(PLAIN)
     expect(err).toContain('this script is for macOS and Linux')
-    expect(err).toContain('WSL 2')
     expect(err).not.toContain('install.ps1')
     const help = Bun.spawn([BASH as string, SCRIPT, '--help'], { env: { ...process.env, PATH: process.env['PATH'] ?? '', HOME: root, LANG: 'en_US.UTF-8' }, stdout: 'pipe', stderr: 'pipe' })
     const [helpOut, helpCode] = await Promise.all([new Response(help.stdout).text(), help.exited])

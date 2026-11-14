@@ -13,7 +13,7 @@
 
 Skills, rules, MCP servers, hooks and guards managed from one source, one memory every agent shares, and workflows that finish with proof.
 
-macOS · Linux · Windows through WSL 2, on x64 and arm64
+macOS · Linux, on x64 and arm64
 
 ```sh
 curl -fsSL https://github.com/burakarslan0110/buracle/releases/latest/download/install.sh | bash
@@ -54,16 +54,6 @@ macOS and Linux:
 ```sh
 curl -fsSL https://github.com/burakarslan0110/buracle/releases/latest/download/install.sh | bash
 ```
-
-Windows: Buracle runs inside WSL 2, together with your harnesses.
-
-1. In PowerShell, run `wsl --install` to get WSL 2 with Ubuntu, and restart when Windows asks.
-2. Open the Ubuntu shell and install your harnesses there, not on Windows.
-3. In the Ubuntu shell, run the macOS and Linux command above.
-4. Keep your projects in the Linux file system, for example `~/projects`. Linux tools read a Windows drive under `/mnt/c` slowly, and `buracle doctor` warns about such a project.
-5. Run `buracle doctor` and check that it reports no error.
-
-In WSL, `buracle mem ui --open` opens the page in your Windows browser, and `buracle notify` shows a Windows notification. If the page does not open, check that `localhostForwarding` is not `false` in the `.wslconfig` file of your Windows user.
 
 The script comes from the latest GitHub release. It clones Buracle's `main` branch into `~/buracle`, installs its dependencies, then runs `buracle install`, which asks its rare questions right in the terminal (also under `curl … | bash`), puts `~/.local/bin` on your PATH (a marked block in the startup file of your shell, and of the other of zsh and bash, because a terminal opened in it never reads the first one's file), links a harness program your shells cannot find by name (omp installed with `bun add -g` sits in `~/.bun/bin`) into `~/.local/bin`, and starts the Buracle Console. It ends with a short summary, one line each for Prerequisites, Buracle, Harnesses, Tools, Memory and Result, plus a line for anything that did not pass; every detail, the health check included, goes to `~/.buracle/logs/install-<date>.log`, which the Result line names. `main` holds the released files: CI writes it, without the test suite, only when it publishes a release, and `buracle update` follows it. Running the script again updates the checkout and repairs the setup. The script is short enough to read first: [`install.sh`](scripts/install.sh).
 

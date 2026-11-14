@@ -144,7 +144,7 @@
     },
     "harness/agents-skills/dead-code/scripts/graph-candidates.ts": {
       "by": "agents-skills",
-      "sha256": "b7c46fbd1ddf698f709f06836d077ab608c2cd9dae350fe57de62564bc31c8f8",
+      "sha256": "a6c0c6207d91d6304e589980de712f6ceecf3eb3f7aff4a41a66561a43b7b855",
       "exec": false
     },
     "harness/agents-skills/find-skill/SKILL.md": {
@@ -754,7 +754,7 @@
     },
     "harness/claude/hooks/core/policy/bash-guard.ts": {
       "by": "claude",
-      "sha256": "395e9c1c1ea0887f1fa1798cdfa05545268302c7d33f6e7f31f97ef08aa015ce",
+      "sha256": "f141a71457e8318ad8ae96ec707983a4795c230b273318fd6782580a57dd392d",
       "exec": false
     },
     "harness/claude/hooks/core/policy/catastrophic.ts": {
@@ -784,7 +784,7 @@
     },
     "harness/claude/hooks/core/policy/consent.ts": {
       "by": "claude",
-      "sha256": "d140da8744706032c363397bb27392b5f69401d6a277f397ca36bc836b1e811f",
+      "sha256": "35690b91c9e864ecec78a4f31d7cbd631b9c23c44216480f8b41112392821184",
       "exec": false
     },
     "harness/claude/hooks/core/policy/eval-guard.ts": {
@@ -830,11 +830,6 @@
     "harness/claude/hooks/core/policy/path-rules.ts": {
       "by": "claude",
       "sha256": "280b15681d99b494c139971651007b5f44c4cfe98ae3b35c4b9d916067281ee3",
-      "exec": false
-    },
-    "harness/claude/hooks/core/policy/powershell.ts": {
-      "by": "claude",
-      "sha256": "e0da272821ea5a8f06c5b016b335d34dacd861d507028a7395b818a6890d18b0",
       "exec": false
     },
     "harness/claude/hooks/core/policy/questions.ts": {
@@ -895,16 +890,6 @@
     "harness/claude/hooks/core/policy/usage.ts": {
       "by": "claude",
       "sha256": "1cbc1e341aba67e1b11b0a280164386190b37bd1b5967e7eb9ada1c302f20c43",
-      "exec": false
-    },
-    "harness/claude/hooks/core/policy/windows-paths.ts": {
-      "by": "claude",
-      "sha256": "29c078415b2b926e6ea0a1122b61a11d01046ce77a3728204c2d4e255a754e3c",
-      "exec": false
-    },
-    "harness/claude/hooks/core/policy/windows-shell.ts": {
-      "by": "claude",
-      "sha256": "389f84d9f3a9f485ceb4501cf01699d764637552272e920d6aa5614a9e8a2247",
       "exec": false
     },
     "harness/claude/hooks/core/policy/write-guard.ts": {
@@ -984,7 +969,7 @@
     },
     "harness/claude/hooks/core/workspace.ts": {
       "by": "claude",
-      "sha256": "c63ef4ac81e632ad26475bc7d7cc30d5eb31401c82953805b3a702e4887d3677",
+      "sha256": "2f7788e3f0913400968ba731eb4bf2bd184ea9aabed2cf9638ffb35360a019eb",
       "exec": false
     },
     "harness/claude/hooks/generated/catalog.ts": {
@@ -994,7 +979,7 @@
     },
     "harness/claude/hooks/generated/meta.ts": {
       "by": "claude",
-      "sha256": "d4e757ca2a5bc820e48145b457a64721446e30486121cbb0fe32c597894ac249",
+      "sha256": "42b575bd7ab52861000028746b1390816101b58f790a8f39b9baaf9824ec356e",
       "exec": false
     },
     "harness/claude/hooks/hooks.json": {
@@ -1144,7 +1129,7 @@
     },
     "harness/claude/skills/dead-code/scripts/graph-candidates.ts": {
       "by": "claude",
-      "sha256": "b7c46fbd1ddf698f709f06836d077ab608c2cd9dae350fe57de62564bc31c8f8",
+      "sha256": "a6c0c6207d91d6304e589980de712f6ceecf3eb3f7aff4a41a66561a43b7b855",
       "exec": false
     },
     "harness/claude/skills/find-skill/SKILL.md": {
@@ -1639,7 +1624,7 @@
     },
     "harness/omp/extensions/buracle.js": {
       "by": "omp",
-      "sha256": "ba50227ac122614cc8c660d9f66212b5407f8912e1906a25f6c74707c0d389eb",
+      "sha256": "64cdff5292e98d6cbb1275bd50aa5d0ec548fb6486e9e6377378d1c89146e598",
       "exec": false
     },
     "harness/omp/package.json": {
@@ -1749,17 +1734,17 @@
     },
     "harness/opencode/manifest.json": {
       "by": "opencode",
-      "sha256": "d0b16cc91ff80a380a39f2f4e0abd2ca188ee41d8981b253941bdf5f2a1dd8de",
+      "sha256": "9f6c6ec0a3a8f9efff4b1d3227be0ab1150859edd5acf3689283ec37979b1386",
       "exec": false
     },
     "harness/opencode/plugins/buracle/index.js": {
       "by": "opencode",
-      "sha256": "7bc81d8b47475eb8f47f967172b82f5138d28e165c68dd5224940b5c65d120d9",
+      "sha256": "51b7d1f4b8e38ea2fc8c39f4c4520be3e38ced275aa152d5e671b25698279342",
       "exec": false
     },
     "harness/opencode/plugins/buracle/tui.js": {
       "by": "opencode",
-      "sha256": "28dea919b844e914fef64de2136b829b6ba6e357e766e429e7dc8ae4390b6d98",
+      "sha256": "d2c6b333b4c8aaaa70c671c1237e49816266b67811082884a544b724fdcc2482",
       "exec": false
     }
   }

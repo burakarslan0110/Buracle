@@ -2,14 +2,14 @@ import { existsSync, readdirSync, readFileSync, rmSync, statSync, unlinkSync, ty
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import type { BuracleConfig } from '../core/config'
 import {
-  indexExclusion, indexState, indexToolDue, isPathWithin, pathKey, wslDrive,
+  indexExclusion, indexState, indexToolDue, isPathWithin, pathKey,
   type IndexExclusionContext, type ProjectIndex, type WorkspaceInfo,
 } from '../core/workspace'
 import { readJsonSafeSync, realPath, sha256 } from '../engine/fsx'
 import { revParse } from '../engine/git'
 import { log } from '../engine/log'
 import * as paths from '../engine/paths'
-import { isWsl, osName } from '../engine/platform'
+import { osName } from '../engine/platform'
 
 const PROJECT_MARKERS = [
   'package.json', 'pyproject.toml', 'setup.py', 'requirements.txt', 'Pipfile', 'go.mod', 'go.work', 'Cargo.toml', 'pom.xml',
@@ -264,13 +264,9 @@ export function indexLockHolder(root: string, nowMs: number): { pid: number, at:
   return pidAlive(pid) ? { pid, at } : undefined
 }
 
-export function codegraphDataDir(root: string, env: Readonly<Record<string, string | undefined>> = process.env): string {
+export function codegraphDataDir(_root: string, env: Readonly<Record<string, string | undefined>> = process.env): string {
   const raw = (env['CODEGRAPH_DIR'] ?? '').trim()
   if (raw !== '' && raw !== '.' && !raw.includes('..') && !/[\\/]/.test(raw) && !isAbsolute(raw)) return raw
-  if (isWsl(env) && wslDrive(root) !== undefined) {
-    try { if (statSync(join(root, '.codegraph-wsl')).isDirectory()) return '.codegraph-wsl' } catch {  }
-    return existsSync(join(root, '.codegraph', 'codegraph.db')) ? '.codegraph' : '.codegraph-wsl'
-  }
   return '.codegraph'
 }
 

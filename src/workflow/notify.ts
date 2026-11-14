@@ -4,7 +4,7 @@ import { atomicWriteSync } from '../engine/fsx'
 import { stateDir } from '../engine/paths'
 import { run } from '../engine/proc'
 import { log } from '../engine/log'
-import { desktopHost, findWslProgram, type DesktopHost } from '../engine/platform'
+import { osName, type OsName } from '../engine/platform'
 import type { ResolvedSession } from './session-store'
 import type { NotifyType } from './memory-bridge'
 import { newNotificationId, notificationsFile } from './notify-inbox'
@@ -45,61 +45,26 @@ const APPLESCRIPT = [
 
 type Delivery = 'shown' | 'skipped' | 'unsupported' | 'error'
 
-const POWERSHELL_BALLOON = [
-  'Add-Type -AssemblyName System.Windows.Forms',
-  '$n = New-Object System.Windows.Forms.NotifyIcon',
-  '$n.Icon = [System.Drawing.SystemIcons]::Information',
-  '$n.Visible = $true',
-  '$n.ShowBalloonTip(6000, $env:BURACLE_NOTIFY_TITLE, $env:BURACLE_NOTIFY_MESSAGE, [System.Windows.Forms.ToolTipIcon]::Info)',
-  'Start-Sleep -Seconds 7',
-  '$n.Dispose()',
-].join('; ')
-
-// A Windows program started from WSL sees only the variables WSLENV names; /w passes one in that direction only.
-const BALLOON_WSLENV = ['BURACLE_NOTIFY_TITLE/w', 'BURACLE_NOTIFY_MESSAGE/w']
-
-function withBalloonWslenv(old: string | undefined): string {
-  const have = (old ?? '').split(':').filter(e => e !== '')
-  return [...have, ...BALLOON_WSLENV.filter(e => !have.includes(e))].join(':')
-}
-
 /**
  * The command that shows a desktop notification, or undefined when the desktop has none. `find` returns the path of a
- * program or undefined. In WSL the Windows PowerShell shows a tray balloon; its texts travel in the environment only.
+ * program or undefined.
  */
-export function desktopNotification(host: DesktopHost, type: NotifyType, title: string, message: string, find: (cmd: string) => string | undefined, wslenv?: string): { argv: string[], env?: Record<string, string>, detached?: boolean } | undefined {
+export function desktopNotification(host: OsName, type: NotifyType, title: string, message: string, find: (cmd: string) => string | undefined): { argv: string[] } | undefined {
   if (host === 'darwin') {
     const argv = ['osascript', ...APPLESCRIPT.flatMap(l => ['-e', l]), 'Buracle', clip(title, 120), clip(message, 400)]
     const sound = SOUND[type]
     if (sound !== undefined) argv.push(sound)
     return { argv }
   }
-  if (host === 'wsl') {
-    const ps = find('powershell.exe')
-    if (ps === undefined) return undefined
-    return { argv: [ps, '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', POWERSHELL_BALLOON], env: { BURACLE_NOTIFY_TITLE: `Buracle: ${clip(title, 100)}`, BURACLE_NOTIFY_MESSAGE: clip(message, 240), WSLENV: withBalloonWslenv(wslenv) }, detached: true }
-  }
-  if (host === 'wsl-no-interop') return undefined
   if (find('notify-send') !== undefined) return { argv: ['notify-send', '--app-name=Buracle', `Buracle: ${clip(title, 120)}`, clip(message, 400)] }
   return undefined
 }
 
 async function showDesktopNotification(type: NotifyType, title: string, message: string, env: Record<string, string | undefined>): Promise<{ status: Delivery, error?: string }> {
   if (env['BURACLE_NO_NOTIFY'] === '1') return { status: 'skipped' }
-  const host = desktopHost(env)
-  const find = host === 'wsl' ? findWslProgram : (cmd: string) => Bun.which(cmd) ?? undefined
-  const n = desktopNotification(host, type, title, message, find, process.env['WSLENV'])
+  const n = desktopNotification(osName(), type, title, message, (cmd: string) => Bun.which(cmd) ?? undefined)
   if (n === undefined) return { status: 'unsupported' }
-  if (n.detached === true) {
-    try {
-      const child = Bun.spawn(n.argv, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, env: { ...process.env, ...n.env } })
-      child.unref()
-      return { status: 'shown' }
-    } catch (e) {
-      return { status: 'error', error: e instanceof Error ? e.message : String(e) }
-    }
-  }
-  const r = await run(n.argv, { timeoutMs: 5000, ...(n.env !== undefined ? { env: n.env } : {}) })
+  const r = await run(n.argv, { timeoutMs: 5000 })
   if (r.code === 0) return { status: 'shown' }
   return { status: 'error', error: (r.stderr.trim().split('\n')[0] ?? '') || `${n.argv[0]} exited ${r.code}` }
 }
