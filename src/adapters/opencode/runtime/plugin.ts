@@ -76,7 +76,7 @@ import { ModelFacts } from './models'
 import { OPENCODE_TODO_TOOL, openTodosOf } from './todos'
 import { actionMatchesTool, asRecord, errText, num, skillIdsOf, str, stringifyOutput, tokenTotal, within } from './util'
 import type { WorkspaceFn } from './workspace'
-import { prepareOnce, profileEnv, profileWarning } from './workspace'
+import { prepareOnce, profileEnv } from './workspace'
 
 
 export { CONTINUE_MARK, continuationText, REGISTRY_KEY, runawayNotice } from './guard'
@@ -458,6 +458,11 @@ export class BuracleRuntime {
     if (r.notice?.model !== undefined) s.noticeOnce = r.notice.model
     // The user's copy of a release notice: the model is asked to pass it on, and the TUI shows it right away.
     if (r.notice?.user !== undefined) this.notify(s.sid, r.notice.user, 'info')
+    // The profile warning (H17) comes from the pipeline: a notice for the user in the TUI, never the model's context.
+    if (r.profile !== undefined) {
+      this.logFn('warn', r.profile)
+      this.notify(s.sid, r.profile, 'warning')
+    }
   }
 
   private prunePending(): void {
@@ -568,20 +573,6 @@ export class BuracleRuntime {
         startLinkRun(info.root, assetsOptions(this.now(), this.assetsSpawn))
       } catch (e) { this.logFn('warn', 'workspace preparation failed', { error: errText(e) }) }
     }))
-  }
-
-  /** The profile guard (H17) at plugin load: the folder the plugin was loaded from names the profile, once per process. */
-  checkProfile(): void {
-    try {
-      const warning = profileWarning(this.pluginDir, this.config.get(), this.env.home)
-      if (warning === undefined) return
-      const reg = registry()
-      if (reg.profileWarned === true) return
-      reg.profileWarned = true
-      this.logFn('warn', warning)
-    } catch (e) {
-      this.logFn('debug', 'profile guard failed', { error: errText(e) })
-    }
   }
 
   private knownSkills(dir: string): Promise<ReadonlySet<string> | undefined> {
@@ -1239,7 +1230,6 @@ export function createBuraclePlugin(deps: PluginDeps): ServerPluginDefinition {
       rt.startEvents()
       rt.scheduleMaintenance()
       rt.scheduleWorkspace()
-      rt.checkProfile()
       return () => rt.dispose()
     },
   }

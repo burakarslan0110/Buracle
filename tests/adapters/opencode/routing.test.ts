@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { mkdirSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { NoticeReader } from '../../../src/adapters/opencode/runtime/notice-board'
 import { BuracleRuntime, createBuraclePlugin, REGISTRY_KEY, type PluginDeps } from '../../../src/adapters/opencode/runtime/plugin'
 import { clearRepoCache } from '../../../src/adapters/opencode/runtime/adapter-rules'
 import { routeUserPrompt } from '../../../src/adapters/opencode/runtime/routing'
@@ -625,19 +626,31 @@ describe('H19 review.gate on the subagent tool result', () => {
 })
 
 describe('H17', () => {
-  test('H17: a plugin loaded from another config dir than the installed one warns once per service process', () => withSandbox(async ({ root }) => {
+  test('H17: a plugin loaded from another config dir than the installed one warns at the start of a session, as a notice in the TUI and never in the model\'s context', () => withSandbox(async ({ root }) => {
     const file = paths.runtimeConfigFile()
     mkdirSync(join(file, '..'), { recursive: true })
     writeFileSync(file, JSON.stringify({ v: 1, config: testBaked().defaults, resolved: { opencodeConfigDir: join(root, 'installed', 'opencode') } }))
     const pluginDir = join(root, 'other', 'opencode', 'plugins', 'buracle')
-    const notices: string[] = []
-    const deps: PluginDeps = { baked: testBaked(), memory: fakeMemory(), settleMs: 0, capture: () => true, maint: () => ({ removed: [] }), pluginDir, logger: (level, m) => { if (level === 'warn') notices.push(m) }, workspace: async cwd => info(cwd) }
-    for (let i = 0; i < 2; i++) {
-      const stop = await createBuraclePlugin(deps).setup(fakeServerContext(root).ctx)
-      if (typeof stop === 'function') await (stop as () => Promise<void>)()
-    }
-    expect(notices.length).toBe(1)
-    expect(notices[0]).toContain(join(root, 'other', 'opencode'))
-    expect(notices[0]).toContain('buracle install opencode')
+    const logged: string[] = []
+    const now = 1_800_000_000_000
+    const deps: PluginDeps = { now: () => now, baked: testBaked(), memory: fakeMemory(), settleMs: 0, capture: () => true, maint: () => ({ removed: [] }), pluginDir, logger: (level, m) => { if (level === 'warn') logged.push(m) }, workspace: async cwd => info(cwd), workspaceRead: async cwd => info(cwd) }
+    const f = fakeServerContext(root)
+    // Loading the plugin checks nothing by itself any more: the pipeline's session start does.
+    const stop = await createBuraclePlugin(deps).setup(f.ctx)
+    if (typeof stop === 'function') await (stop as () => Promise<void>)()
+    expect(logged).toEqual([])
+
+    const rt = new BuracleRuntime(f.ctx, deps)
+    await rt.register()
+    await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: root } } })
+    await rt.idle()
+    const board = new NoticeReader().take(SID, now)
+    expect(board.map(n => n.variant)).toEqual(['warning'])
+    expect(board[0]?.text).toContain(join(root, 'other', 'opencode'))
+    expect(board[0]?.text).toContain('buracle install opencode')
+    expect(logged).toEqual([board[0]?.text as string])
+    const ev: SessionContextEvent = { sessionID: SID, model: { id: 'm1', providerID: 'p' }, agent: 'build', system: [], messages: [], options: {}, tools: {} }
+    await f.trigger('session.context', ev)
+    expect(ev.system.map(p => p.text).join('\n')).not.toContain(join(root, 'other', 'opencode'))
   }))
 })

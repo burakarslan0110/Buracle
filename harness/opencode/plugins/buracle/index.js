@@ -36086,10 +36086,6 @@ function profileEnv(pluginDir, home) {
     return;
   return { HOME: home, XDG_CONFIG_HOME: dirname14(configDir) };
 }
-function profileWarning(pluginDir, runtimeSnapshot, home) {
-  const env = profileEnv(pluginDir, home);
-  return env !== undefined ? profileGuard("opencode", runtimeSnapshot, env) : undefined;
-}
 
 // src/adapters/opencode/runtime/plugin.ts
 var PLUGIN_ID = "buracle";
@@ -36403,6 +36399,10 @@ class BuracleRuntime {
       s.noticeOnce = r.notice.model;
     if (r.notice?.user !== undefined)
       this.notify(s.sid, r.notice.user, "info");
+    if (r.profile !== undefined) {
+      this.logFn("warn", r.profile);
+      this.notify(s.sid, r.profile, "warning");
+    }
   }
   prunePending() {
     const cutoff = this.now() - PENDING_TTL_MS2;
@@ -36531,20 +36531,6 @@ class BuracleRuntime {
         this.logFn("warn", "workspace preparation failed", { error: errText2(e) });
       }
     }));
-  }
-  checkProfile() {
-    try {
-      const warning = profileWarning(this.pluginDir, this.config.get(), this.env.home);
-      if (warning === undefined)
-        return;
-      const reg = registry();
-      if (reg.profileWarned === true)
-        return;
-      reg.profileWarned = true;
-      this.logFn("warn", warning);
-    } catch (e) {
-      this.logFn("debug", "profile guard failed", { error: errText2(e) });
-    }
   }
   knownSkills(dir) {
     const now = this.now();
@@ -37296,7 +37282,6 @@ function createBuraclePlugin(deps) {
       rt.startEvents();
       rt.scheduleMaintenance();
       rt.scheduleWorkspace();
-      rt.checkProfile();
       return () => rt.dispose();
     }
   };

@@ -7573,28 +7573,6 @@ function mcpToolName(d, server, tool) {
     t = t.slice(s.length + 1);
   return `${mcpHead(d, server)}${t}`;
 }
-function absolute(v) {
-  return typeof v === "string" && v.trim() !== "" && v.trim().startsWith("/") ? v.trim() : undefined;
-}
-function joined(dir, rel) {
-  const out = [];
-  for (const seg of `${dir}/${rel}`.split("/")) {
-    if (seg === "" || seg === ".")
-      continue;
-    if (seg === "..")
-      out.pop();
-    else
-      out.push(seg);
-  }
-  return "/" + out.join("/");
-}
-function configDirOf(p, env) {
-  const moved = absolute(env[p.configDir.env]);
-  if (moved !== undefined)
-    return p.configDir.envSubdir !== undefined ? joined(moved, p.configDir.envSubdir) : moved;
-  const home = absolute(env["HOME"]);
-  return home !== undefined ? joined(home, p.configDir.under) : undefined;
-}
 function defineHarnesses(profiles) {
   const ids = Object.keys(profiles);
   for (const id of ids)
@@ -7968,9 +7946,6 @@ var init_opencode = __esm(() => {
 });
 
 // src/core/harness/index.ts
-function isHarness(x) {
-  return SET.is(x);
-}
 function harnessProfile(h) {
   return SET.of(h);
 }
@@ -9915,27 +9890,6 @@ function loadState(h, sid) {
   return r.value;
 }
 var SESSION_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
-function liveHarnessDir(h, env) {
-  return configDirOf(harnessProfile(h), env);
-}
-function samePath(a, b) {
-  const norm = (p) => posix.normalize(p).replace(/(.)\/+$/, "$1");
-  return norm(a) === norm(b);
-}
-function profileGuard(h, runtimeCfg, env) {
-  const profile = isHarness(h) ? harnessProfile(h) : undefined;
-  if (profile === undefined)
-    return;
-  const spec = { key: profile.configDir.key, label: profile.label, variable: profile.configDir.env };
-  const resolved = runtimeCfg !== null && typeof runtimeCfg === "object" ? runtimeCfg.resolved : undefined;
-  const installed = resolved !== null && typeof resolved === "object" ? resolved[spec.key] : undefined;
-  if (typeof installed !== "string" || !posix.isAbsolute(installed))
-    return;
-  const live = liveHarnessDir(h, env);
-  if (live === undefined || samePath(installed, live))
-    return;
-  return `Buracle was installed for ${spec.label} into ${installed}, but this session reads ${live} (${spec.variable}), where Buracle's hooks, rules and settings are missing. Run \`buracle install ${h}\` with this environment, or start ${spec.label} without the override.`;
-}
 var NATIVE_CLAIMS = HARNESSES.flatMap((h) => harnessProfile(h).sessionEnv.map((name) => [name, h]));
 
 // src/workflow/result.ts
@@ -14621,23 +14575,6 @@ function h(type, props, ...children) {
   return jsxRuntime.jsx(type, p);
 }
 
-// src/adapters/opencode/runtime/workspace.ts
-import { basename as basename4, dirname as dirname7 } from "path";
-var WORKSPACE_KEY = Symbol.for("buracle.opencode.workspaces");
-function profileEnv(pluginDir, home) {
-  if (pluginDir === undefined || pluginDir === "")
-    return;
-  const plugins = dirname7(pluginDir);
-  const configDir = dirname7(plugins);
-  if (basename4(plugins) !== "plugins" || basename4(configDir) !== "opencode")
-    return;
-  return { HOME: home, XDG_CONFIG_HOME: dirname7(configDir) };
-}
-function profileWarning(pluginDir, runtimeSnapshot, home) {
-  const env = profileEnv(pluginDir, home);
-  return env !== undefined ? profileGuard("opencode", runtimeSnapshot, env) : undefined;
-}
-
 // src/adapters/opencode/runtime/tui.tsx
 var REFRESH_MS = 5000;
 var BAND_TICK_MS = 1000;
@@ -14905,17 +14842,9 @@ function createTuiPlugin(baked, pluginDir) {
         });
         ctx.keymap?.layer(() => ({ mode: "global", commands: utilityCommands(host, utilityNames(takenNames(ctx))) }));
       } catch {}
-      const profile = setTimeout(() => {
-        try {
-          const warning = profileWarning(pluginDir, config.get(), env.home);
-          if (warning !== undefined)
-            ctx.ui.toast?.show({ title: "Buracle", message: warning, variant: "warning", duration: 20000 });
-        } catch {}
-      }, 1500);
       return () => {
         stopped = true;
         clearInterval(timer);
-        clearTimeout(profile);
         for (const off of offs)
           off();
       };

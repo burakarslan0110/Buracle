@@ -16,7 +16,6 @@ import { startConsentRelay } from './tui-consent'
 import { TuiNotices } from './tui-notices'
 import { createMemo, createSignal, h, onCleanup, useTerminalDimensions } from './tui-runtime'
 import type { TuiComposerInput, TuiContext, TuiPluginDefinition, TuiPromptFooterInput, TuiTheme } from './types'
-import { profileWarning } from './workspace'
 
 declare const BURACLE_BAKED: BakedData
 
@@ -239,17 +238,9 @@ export function createTuiPlugin(baked: BakedData, pluginDir: string | undefined)
         ctx.keymap?.layer(() => ({ mode: 'global', commands: utilityCommands(host, utilityNames(takenNames(ctx))) }))
       } catch {  }
 
-      const profile = setTimeout(() => {
-        try {
-          const warning = profileWarning(pluginDir, config.get(), env.home)
-          if (warning !== undefined) ctx.ui.toast?.show({ title: 'Buracle', message: warning, variant: 'warning', duration: 20_000 })
-        } catch {  }
-      }, 1500)
-
       return () => {
         stopped = true
         clearInterval(timer)
-        clearTimeout(profile)
         for (const off of offs) off()
       }
     },

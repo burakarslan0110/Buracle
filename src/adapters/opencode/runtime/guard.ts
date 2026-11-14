@@ -26,7 +26,7 @@ export interface GuardChain {
   noticed: boolean
 }
 
-interface GlobalRegistry { claimed: Map<string, number>; chains: Map<string, GuardChain>; maintAt?: number; profileWarned?: boolean }
+interface GlobalRegistry { claimed: Map<string, number>; chains: Map<string, GuardChain>; maintAt?: number }
 export const REGISTRY_KEY = Symbol.for('buracle.opencode.registry')
 const MAX_CHAINS = 500
 const RATE_WINDOW_MS = 60_000
