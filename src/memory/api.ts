@@ -225,11 +225,11 @@ export async function search(ctx: MemoryCtx, input: SearchInput): Promise<Search
     } else if (narrowed) {
       const pool = new Map(all.filter(i => memMatchesFilter(i, filter, now)).map(i => [itemKey(i), i]))
       for (const q of queries) {
-        // Narrowed by `about`, the engine also walks the graph from those topics. That ranks what is linked to them higher; what is
-        // found still has to match the words of the query, as it does without the graph.
+        // Narrowed by `about`, the engine also walks the graph from those topics, and its answer stands: a memory it
+        // reached through the graph is a hit although its wording shares nothing with the query.
         const byAbout = about !== undefined && about.length > 0
         const hits = (await Promise.all(refs.map(r => searchLayer(r, q, topK, byAbout ? { about } : {})))).flat()
-          .filter(h => pool.has(itemKey(h.item)) && (!byAbout || memMatchesWords(h.item, q)))
+          .filter(h => pool.has(itemKey(h.item)))
         const hit = new Set(hits.map(h => itemKey(h.item)))
         const local = [...pool.values()].filter(i => !hit.has(itemKey(i)) && memMatchesWords(i, q))
         for (const item of rankHits(q, [...hits.map(h => ({ item: pool.get(itemKey(h.item)) as MemItem, rank: h.rank })), ...local.map((item, n) => ({ item, rank: hits.length + n }))])) add(item)

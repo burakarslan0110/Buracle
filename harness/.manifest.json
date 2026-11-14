@@ -494,7 +494,7 @@
     },
     "harness/claude/hooks/core/memory/brain.ts": {
       "by": "claude",
-      "sha256": "17765f406d07a0f9cd1ae48b3d49308170d6a0ea98b20b9744186d348c20c1ef",
+      "sha256": "652e46c9dc6e35a119c101e88c1ded3decc3eda71cd22e1d8c8e0dfb3eca06e7",
       "exec": false
     },
     "harness/claude/hooks/core/memory/budgets.ts": {
@@ -509,7 +509,7 @@
     },
     "harness/claude/hooks/core/memory/graph.ts": {
       "by": "claude",
-      "sha256": "24465c67ec8304d7070ee27031ec591e880f964426c510fcf0b8924360e8ebb8",
+      "sha256": "101ff6bfc34f0016f15d9da6b2a310b7958d7eb58c8963b66429068a3b3aeb0f",
       "exec": false
     },
     "harness/claude/hooks/core/memory/index.ts": {

@@ -439,7 +439,9 @@ describe('memory_search filters, paging and around', () => {
       expect((await search(ctx, { about: ['bun'] })).rows.map(r => r.id)).toEqual([ids.url, ids.api])
       expect((await search(ctx, { about: ['bun'], types: ['decision'] })).rows.map(r => r.id)).toEqual([ids.api])
       expect((await search(ctx, { types: ['reference'] })).rows.map(r => r.id)).toEqual([ids.docs])
-      expect((await search(ctx, { query: 'release checks', about: ['bun'] })).rows.map(r => r.id)).toEqual([ids.url])
+      // With `about` the engine walks its graph from the topic and its answer stands: the memory about bun whose
+      // wording shares nothing with the query is found too, after the one that matches the words.
+      expect((await search(ctx, { query: 'release checks', about: ['bun'] })).rows.map(r => r.id)).toEqual([ids.url, ids.api])
       expect((await search(ctx, { query: 'ownership', files: ['src/memory/api.ts'] })).rows.map(r => r.id)).toEqual([ids.folder])
       expect((await search(ctx, { query: 'nothing like this', files: ['src/memory/api.ts'] })).text).toContain('Nothing matched')
       await update(ctx, { id: ids.lock, patch: { status: 'deprecated' } })

@@ -212,8 +212,9 @@ const CORTEX_KEPT = ['recall_count', 'last_recalled_at', 'superseded_by', 'super
 
 /**
  * The memory_save arguments of an item. A row with an `expires` date is saved with CortexDB's own `ttl_seconds`
- * (counted from `nowMs`), so the engine hides and drops it by itself; the date also stays in the metadata, which is
- * how rows written before the native expiry still show when they run out.
+ * (counted from `nowMs`), so the engine hides it once its time is up and its sweep (run at each session end) deletes
+ * it; the date also stays in the metadata, which is how rows written before the native expiry still show when they
+ * run out.
  */
 export function toCortexSave(item: MemItem, keep: Readonly<Record<string, unknown>> = {}, nowMs?: number): Record<string, unknown> {
   const meta: Record<string, unknown> = {
