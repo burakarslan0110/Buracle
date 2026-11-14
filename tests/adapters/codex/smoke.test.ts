@@ -439,7 +439,7 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary end to
       const ledger = loadLedger('codex', sid as string)
       expect(ledger.turn).toBe(1)
       expect(ledger.mcp['buracle-memory']?.n).toBe(1)
-      expect(ledger.prompt?.route.memory.recall).toBe(false)
+      expect(ledger.prompt?.route !== undefined && !('memory' in ledger.prompt.route)).toBe(true)
       expect(existsSync(join(buracleHome, 'sessions', 'codex', sid as string, 'workspace.json'))).toBe(true)
       const calls = readFileSync(mcpLog, 'utf8').trim().split('\n').map(l => JSON.parse(l) as { server: string, method: string, params?: Record<string, unknown> }).filter(c => c.method === 'tools/call')
       expect(calls.map(c => [c.server, c.params?.['name'], c.params?.['arguments']])).toEqual([['memory', 'memory_search', { query: 'cache decision' }]])

@@ -60,12 +60,9 @@ function counts(x: unknown): Record<string, UsageCount> {
 
 function routeOf(x: unknown): PromptRoute | undefined {
   if (!isObj(x)) return undefined
-  const mem = isObj(x['memory']) ? x['memory'] : {}
   const r: PromptRoute = {
     invoked: strList(x['invoked'], 8), load: strList(x['load'], 1), candidates: strList(x['candidates'], 4), categories: strList(x['categories'], 4),
-    memory: { recall: mem['recall'] === true, write: mem['write'] === true },
   }
-  if (mem['cli'] === true) r.memory.cli = true
   const libs = strList(x['libs'], 8)
   if (libs.length > 0) r.libs = libs
   return r

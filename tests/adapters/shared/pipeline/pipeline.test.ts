@@ -154,7 +154,7 @@ describe('pipeline preTool', () => {
   }))
 })
 
-const ROUTE: PromptRoute = { invoked: ['plan-build'], load: ['tdd'], candidates: [], categories: [], memory: { recall: false, write: false } }
+const ROUTE: PromptRoute = { invoked: ['plan-build'], load: ['tdd'], candidates: [], categories: [] }
 
 function promptDeps(o: FakeOptions = {}, ports: Partial<PromptPorts> = {}) {
   return {

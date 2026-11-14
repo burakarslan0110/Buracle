@@ -202,7 +202,6 @@ function buracleSwitch(args: readonly string[]): string | undefined {
   const pos = args.filter(a => !a.startsWith('-'))
   const command = pos[0]
   if (command === 'uninstall') return args.includes('--dry-run') ? undefined : 'it removes Buracle and its guard hooks from every harness'
-  if (command === 'rollback') return args.includes('--list') ? undefined : 'it undoes the install that registered the guard hooks'
   if (command === 'config' && (pos[1] === 'set' || pos[1] === 'unset')) {
     const key = pos[2]
     if (key === undefined) return undefined

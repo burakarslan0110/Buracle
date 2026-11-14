@@ -367,7 +367,7 @@ describe('buracle doctor', () => {
     const repo = makeRepo(root)
     mkdirSync(join(buracleHome, 'state'), { recursive: true })
     const state = emptyToolchainState()
-    state.packages['npm:@acme/srv'] = { registry: 'npm', name: '@acme/srv', version: '1.1.0', dir: join(buracleHome, 'toolchain/npm/x'), bins: {}, previous: { version: '1.0.0' }, installed_at: '2026-10-01T00:00:00.000Z' }
+    state.packages['npm:@acme/srv'] = { registry: 'npm', name: '@acme/srv', version: '1.1.0', dir: join(buracleHome, 'toolchain/npm/x'), bins: {}, installed_at: '2026-10-01T00:00:00.000Z' }
     state.packages['pypi:probe'] = { registry: 'pypi', name: 'probe', version: '0.3.0', dir: join(buracleHome, 'toolchain/pypi/x'), bins: {}, rolled_back: '0.4.0', installed_at: '2026-10-01T00:00:00.000Z' }
     writeFileSync(paths.toolchainStateFile(), JSON.stringify(state))
     await withDeps({ repoRoot: () => repo }, async () => {

@@ -235,7 +235,7 @@ export async function runToolchain(bundle: Pick<CanonicalBundle, 'mcp' | 'tools'
       item.detail = needs === 'install' ? 'not installed in the Buracle toolchain' : `${have?.version} installed, ${target} available${heldNote}`
       return
     }
-    const r = await installPackage({ ...req, version: target }, opts.nowMs(), { minAgeDays, ...(installedOk ? { before: have.version } : {}) })
+    const r = await installPackage({ ...req, version: target }, opts.nowMs(), { minAgeDays })
     if (!r.ok) {
       const kept = installedOk && (req.registry === 'npm' || pypiStillThere(req))
       item.status = kept ? 'outdated' : 'failed'

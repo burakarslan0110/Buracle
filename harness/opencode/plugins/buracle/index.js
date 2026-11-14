@@ -17403,8 +17403,6 @@ function buracleSwitch(args) {
   const command = pos[0];
   if (command === "uninstall")
     return args.includes("--dry-run") ? undefined : "it removes Buracle and its guard hooks from every harness";
-  if (command === "rollback")
-    return args.includes("--list") ? undefined : "it undoes the install that registered the guard hooks";
   if (command === "config" && (pos[1] === "set" || pos[1] === "unset")) {
     const key = pos[2];
     if (key === undefined)
@@ -22995,7 +22993,7 @@ var ORDINARY_PARTS = new Set([
   "node"
 ]);
 function emptyRoute() {
-  return { invoked: [], load: [], candidates: [], categories: [], memory: { recall: false, write: false } };
+  return { invoked: [], load: [], candidates: [], categories: [] };
 }
 var SLASH_NAMESPACES = [...new Set(HARNESSES.flatMap((h) => harnessProfile(h).skills.invoke.namespace ?? []))];
 var SLASH_LEAD = new RegExp(`^/(?:(${SLASH_NAMESPACES.join("|")}):)?([a-z0-9][a-z0-9-]*)(?=\\s|$)`);
@@ -23653,16 +23651,12 @@ function counts(x) {
 function routeOf(x) {
   if (!isObj7(x))
     return;
-  const mem = isObj7(x["memory"]) ? x["memory"] : {};
   const r = {
     invoked: strList2(x["invoked"], 8),
     load: strList2(x["load"], 1),
     candidates: strList2(x["candidates"], 4),
-    categories: strList2(x["categories"], 4),
-    memory: { recall: mem["recall"] === true, write: mem["write"] === true }
+    categories: strList2(x["categories"], 4)
   };
-  if (mem["cli"] === true)
-    r.memory.cli = true;
   const libs = strList2(x["libs"], 8);
   if (libs.length > 0)
     r.libs = libs;
@@ -34822,10 +34816,7 @@ function mergeRoutes(routes, compiled) {
   const load = asks.slice(0, ROUTE_CAPS.load);
   const candidates = [...invoked, ...load].some(explicit) ? [] : union([...asks.slice(ROUTE_CAPS.load), ...routes.flatMap((r) => r.candidates)]).filter((id) => !explicit(id) && !invoked.includes(id) && !load.includes(id)).slice(0, ROUTE_CAPS.candidates);
   const categories = union(routes.flatMap((r) => r.categories)).slice(0, ROUTE_CAPS.categories);
-  const memory = { recall: routes.some((r) => r.memory.recall), write: routes.some((r) => r.memory.write) };
-  if ((memory.recall || memory.write) && routes.some((r) => r.memory.cli === true))
-    memory.cli = true;
-  const merged = { invoked, load, candidates, categories, memory };
+  const merged = { invoked, load, candidates, categories };
   const libs = union(routes.flatMap((r) => r.libs ?? []));
   if (libs.length > 0 && categories.some((id) => compiled.categories.some((c) => c.id === id && c.deps !== undefined)))
     merged.libs = libs.slice(0, 3);

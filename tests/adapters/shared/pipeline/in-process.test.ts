@@ -20,7 +20,7 @@ function preToolDeps(o: FakeOptions = {}, ports: Partial<PreToolPorts> = {}) {
   }
 }
 
-const ROUTE: PromptRoute = { invoked: [], load: ['tdd'], candidates: [], categories: [], memory: { recall: false, write: false } }
+const ROUTE: PromptRoute = { invoked: [], load: ['tdd'], candidates: [], categories: [] }
 
 describe('pipeline: a harness in its own process', () => {
   test('the usage reminders can run at an earlier event; preTool then applies their verdict without counting the call again', () => withSandbox(async () => {

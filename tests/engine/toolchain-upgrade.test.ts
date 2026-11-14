@@ -157,7 +157,7 @@ describe('a tool the toolchain installed from npm without prefer: toolchain', ()
       expect(second).toMatchObject({ status: 'upgraded', current: '1.1.0' })
     })
     expect(fake.installs).toEqual(['1.0.0', '1.1.0'])
-    expect(readToolchainState().packages[`npm:${PKG}`]).toMatchObject({ version: '1.1.0', links: ['srv'], previous: { version: '1.0.0' } })
+    expect(readToolchainState().packages[`npm:${PKG}`]).toMatchObject({ version: '1.1.0', links: ['srv'] })
   }))
 })
 
@@ -178,8 +178,8 @@ describe('the npx fallback cache', () => {
   }))
 })
 
-describe('staged upgrades and the previous prefix', () => {
-  test('an upgrade installs into a staging prefix; the live prefix keeps the old version until the swap; one previous prefix is kept', () => withSandbox(async ({ root }) => {
+describe('staged upgrades', () => {
+  test('an upgrade installs into a staging prefix; the live prefix keeps the old version until the swap; no previous copy is kept after it', () => withSandbox(async ({ root }) => {
     const fake: FakeNpm = { installs: [], liveDuring: [] }
     await withFakes(root, fake, async () => {
       await toolchain({ nowMs: NOW - 8 * DAY })
@@ -191,10 +191,10 @@ describe('staged upgrades and the previous prefix', () => {
     expect(fake.installs).toEqual(['1.0.0', '1.1.0'])
     expect(fake.liveDuring).toEqual([undefined, '1.0.0'])
     expect(installedVersion(npmPrefix(PKG))).toBe('1.1.0')
-    expect(installedVersion(`${npmPrefix(PKG)}.previous`)).toBe('1.0.0')
+    expect(existsSync(`${npmPrefix(PKG)}.previous`)).toBe(false)
     const pkg = readToolchainState().packages[`npm:${PKG}`]
     expect(pkg?.version).toBe('1.1.0')
-    expect(pkg?.previous?.version).toBe('1.0.0')
+    expect(pkg !== undefined && !('previous' in pkg)).toBe(true)
     expect(pkg?.bins['srv']).toBe(join(npmPrefix(PKG), 'node_modules', '@acme', 'srv', 'cli.js'))
     expect(existsSync(`${npmPrefix(PKG)}.staging`)).toBe(false)
   }))

@@ -19,7 +19,7 @@ const NOW = 1_800_000_000_000
 function call(harness: Harness, tool: string, input: Record<string, unknown>, cwd = '/repo'): ToolCall {
   return { harness, sessionId: 's', cwd, tool, input, ...classifyTool(harness, tool, input, cwd, MCP_IDS) }
 }
-const route = (p: Partial<PromptRoute> = {}): PromptRoute => ({ invoked: [], load: [], candidates: [], categories: [], memory: { recall: false, write: false }, ...p })
+const route = (p: Partial<PromptRoute> = {}): PromptRoute => ({ invoked: [], load: [], candidates: [], categories: [], ...p })
 const ctx = (over: Partial<ReminderContext> = {}): ReminderContext => ({
   strictness: 'enforce', available: MCP_IDS, policy: POLICY,
   facts: { root: '/Users/u/code/app', home: '/Users/u', excluded: ['/Users/u/Documents/Buracle', '/Users/u/.buracle'], codegraphIndexed: true },
@@ -102,7 +102,7 @@ describe('ledger records', () => {
   })
 
   test('parseLedger reads what it wrote and drops malformed parts', () => {
-    let l = fresh(route({ load: ['plan-build'], memory: { recall: true, write: false, cli: true }, libs: ['zod'] }))
+    let l = fresh(route({ load: ['plan-build'], libs: ['zod'] }))
     l = ledgerCall(l, mcp('codegraph', 'codegraph_impact', { symbol: 'foo' }))
     expect(parseLedger(JSON.parse(JSON.stringify(l)))).toEqual(l)
     expect(parseLedger(null)).toEqual(emptyLedger())
