@@ -55,7 +55,7 @@ CI also parses the install script: `bash -n scripts/install.sh`. Run it after ed
   module per command in `src/cli/commands/<name>.ts`.
 - `src/adapters/<harness>/` — per-harness generator, runtime templates and hook handlers;
   `src/adapters/registry.ts` lists them.
-- `src/workflow/` — plans, flows, worktrees, review scope, notify, project sync and check, skill and
+- `src/workflow/` — plans, flows, worktrees, review scope, project sync and check, skill and
   rule lint, the session store, the usage ledger, code indexes and the second opinion
   (`companion*`). `src/workflow/non-project.ts` holds the one "never a project" rule.
 - `src/memory/` — the memory on CortexDB: one `brain.db` with a bucket per project and one for the
