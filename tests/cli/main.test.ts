@@ -6,7 +6,7 @@ import { run } from '../../src/engine/proc'
 import { withSandbox } from '../helpers/sandbox'
 
 const REPO = join(import.meta.dir, '..', '..')
-const CONTRACT_COMMANDS = ['build', 'install', 'uninstall', 'rollback', 'doctor', 'index', 'update', 'config', 'hook',
+const CONTRACT_COMMANDS = ['build', 'install', 'uninstall', 'doctor', 'index', 'update', 'config', 'hook',
   'statusline', 'usage', 'mem', 'mcp', 'lsp', 'plan', 'flow', 'worktree', 'review-scope', 'consent', 'project', 'skills', 'rules']
 
 export function memoryIO(stdin = ''): Omit<CommandIO, 'flags'> & { out(): string, err(): string } {
@@ -60,7 +60,7 @@ describe('router', () => {
     const io = memoryIO()
     expect(await main(['--help'], io)).toBe(0)
     const text = io.out()
-    for (const name of ['install', 'update', 'doctor', 'config', 'rollback', 'uninstall']) expect(text).toMatch(new RegExp(`^  ${name} +\\S`, 'm'))
+    for (const name of ['install', 'update', 'doctor', 'config', 'uninstall']) expect(text).toMatch(new RegExp(`^  ${name} +\\S`, 'm'))
     expect(text).toContain('\nRun `buracle` in a terminal to open the main menu.\n')
     expect(text).toContain('\n`buracle help --all` also lists the commands your agents and hooks use.\n')
     expect(text).not.toMatch(/^  (plan|hook|build|mem) /m)

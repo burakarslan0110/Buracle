@@ -39,7 +39,6 @@ describe('buracle command mentions', () => {
     'buracle update --yes',
     'buracle update mcp',
     'buracle update harness tools --yes',
-    'buracle rollback 20261008-1',
     'buracle --help',
   ]
   for (const m of okMentions) {

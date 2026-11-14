@@ -543,7 +543,7 @@ function stateRel(p: string): string {
 
 function installDoc(): string {
   let out = banner('the install engine\'s constants (`INSTALL_PHASES`, `TXN_STEPS`, the state-file names)')
-  out += '# Install, uninstall and rollback\n\n'
+  out += '# Install and uninstall\n\n'
   out += '`buracle install` installs only into harnesses that are installed and enabled in the configuration. Every write goes through the transactional engine: backups first, atomic writes and a journal, and when a step fails everything in the transaction is rolled back.\n\n'
   out += '## Install phases\n\n'
   INSTALL_PHASES.forEach((p, i) => { out += `${i + 1}. **${p.title}** (\`${p.id}\`): ${p.detail}\n` })
@@ -603,15 +603,13 @@ function installDoc(): string {
   out += '- Nothing is written into the current directory.\n'
   out += '\n## Uninstall (`buracle uninstall`)\n\n'
   out += '- Uninstall holds the transaction lock from start to end: no undo command runs while another Buracle transaction is in progress.\n'
-  out += '- First, the harness adapters that have an uninstall plan of their own run it (Oh My Pi: `omp plugin uninstall buracle-omp`). The install commands such a plan undid are marked undone in the journal, so neither a later rollback nor a new uninstall repeats them. A harness that is running at that moment (Codex, for example) is not changed at all and is reported (exit code 2); in a terminal, `buracle install` and `buracle uninstall` ask whether to change it anyway.\n'
+  out += '- First, the harness adapters that have an uninstall plan of their own run it (Oh My Pi: `omp plugin uninstall buracle-omp`). The install commands such a plan undid are marked undone in the journal, so a new uninstall does not repeat them. A harness that is running at that moment (Codex, for example) is not changed at all and is reported (exit code 2); in a terminal, `buracle install` and `buracle uninstall` ask whether to change it anyway.\n'
   out += '- Only items the ownership ledger proves are removed: those whose content is still what Buracle last wrote. Values the user changed are kept and reported; an enforced key gets back the value it held before Buracle took it over. Each harness is removed in transactions of its own, Buracle\'s core (the shim, the PATH link) last; one harness failing never rolls back the others.\n'
   out += '- Adopted values and the settings an older Buracle wrote into `config.yaml` at its first install (such as `vault:`) stay; only `repo:` is removed.\n'
   out += '- The undo commands of the commands the journal proves ran, and that are not undone yet, run once (for example `claude plugin uninstall`). An undo command that would put back something an older undo command removes anyway (re-linking a marketplace to the old path after the repository moved, for example), or a path that no longer exists, is not run and counts as done.\n'
   out += '- Keys that harness commands created and that the backups prove were absent before the first install (for example `enabledPlugins` and `extraKnownMarketplaces` in `~/.claude/settings.json`) are removed only while they are empty.\n'
   out += '- The memory (`~/.buracle/brain`, also with `--purge-state`) and the old Obsidian vault (`~/Documents/Buracle`) are never deleted.\n'
   out += '- `--purge-state` also deletes the state folders under `~/.buracle`, those an older Buracle release wrote included; when the uninstall fails in part, the records are kept for a retry. When `BURACLE_HOME` is not a folder Buracle created itself, only the files Buracle wrote are deleted there; the rest stays and is reported.\n'
-  out += '\n## Rollback (`buracle rollback [txn]`)\n\n'
-  out += 'Without an id, every transaction of the newest `buracle install`/`sync` run (the core transaction and each harness\'s) is rolled back, newest first. When the newest transaction was made by `buracle uninstall`, a rollback without an id is refused, so Buracle is never left half installed: run `buracle install` to set it up again, or pass that transaction\'s id to get back exactly what the uninstall removed (the commands the uninstall undid are not run again). With an id, only that transaction is rolled back. Paths changed again after the transaction are left as they are and reported; in a file Buracle merged keys into, only Buracle\'s own keys are undone. The undo commands of the commands that ran are run once. A transaction a killed process left half done is rolled back automatically, under the same rules, at the next install; Buracle values that cannot be rolled back stay recorded as Buracle\'s and are never adopted as the user\'s. A transaction whose backups were pruned (older than the newest 20) cannot be rolled back. `buracle rollback --list` lists the transactions.\n'
   return finish(out)
 }
 

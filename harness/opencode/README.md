@@ -35,7 +35,7 @@ AGENTS.md block lists are written to `~/.buracle/rules/paths/` by the core insta
   `BURACLE_HOME` there with `opencode service set env BURACLE_HOME <path>`. OpenCode stops a running
   service when that value changes, and the next OpenCode client starts it again with the new
   environment; restart OpenCode windows that were open during the install. Later installs with the
-  same value skip this step, and `buracle uninstall` / `buracle rollback` undo it with
+  same value skip this step, and `buracle uninstall` undoes it with
   `opencode service unset env BURACLE_HOME`.
 - **Default effort.** `effort.opencode` (`auto` = xhigh) is applied by the server plugin to every
   available model that has a variant of that level; nothing is written into `opencode.jsonc`. Your own

@@ -61,13 +61,13 @@ copies src/, canonical/, harness/ and the runtime packages into ~/.buracle/runti
 checks the copy (\`--version\`, and a Claude Code and a Codex PreToolUse hook must deny
 \`rm -rf ~\` and let \`ls\` through) and only then points the shim at it. A copy that fails
 its check leaves the old runtime live and fails the install. One previous runtime is
-kept for \`buracle rollback\`. BURACLE_RUNTIME=checkout makes the shim run the checkout
+kept. BURACLE_RUNTIME=checkout makes the shim run the checkout
 directly (tests, debugging).
 
 Then it installs the toolchain (toolchain.autoInstall; false skips it): missing system tools through
 Homebrew (macOS, or Linux with Homebrew), and every MCP server package and language server
 at its newest release (update.minReleaseAgeDays, 0 by default, can wait days) into ~/.buracle/toolchain, staged
-and swapped in with the previous copy kept for \`buracle rollback toolchain\`. Then composes:
+and swapped in. Then composes:
   - the core plan: ~/.buracle/bin/buracle shim, ~/.local/bin/buracle link, repo: in
     config.yaml, and the path rules Codex and OpenCode read (~/.buracle/rules/paths/<id>.md)
   - the skills plan: harness/agents-skills/<id> linked into the skills folder of each enabled

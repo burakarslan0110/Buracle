@@ -3,7 +3,6 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSy
 import { dirname, join } from 'node:path'
 import { run as doctorRun } from '../../../src/cli/commands/doctor'
 import { run as installRun } from '../../../src/cli/commands/install'
-import { run as rollbackRun } from '../../../src/cli/commands/rollback'
 import { run as uninstallRun } from '../../../src/cli/commands/uninstall'
 import { main } from '../../../src/cli/router'
 import { yamlParse } from '../../../src/engine/merge'
@@ -314,31 +313,6 @@ describe('F19: a config symlinked outside HOME', () => {
       expect(r.kept.map(k => k.detail).join('\n')).toContain('outside HOME')
       expect(existsSync(join(home, '.codex/agents/a.toml'))).toBe(false)
       expect(read(ext)).toContain('[mcp_servers.c7]')
-    })
-  }))
-})
-
-describe('F21: rollback without an id', () => {
-  test('undoes the whole newest install run, and refuses to pick an uninstall', () => withSandbox(async ({ root, home, buracleHome }) => {
-    const repo = makeRepo(root)
-    const codex = fakeAdapter('codex', { plan: () => filePlan('codex', home, { '.codex/AGENTS.md': 'x\n' }) })
-    const omp = fakeAdapter('omp', { plan: () => filePlan('omp', home, { '.omp/agent/AGENTS.md': 'y\n' }) })
-    await withDeps({ repoRoot: () => repo, adapters: async () => [codex, omp], runCli: fakeCli().runCli }, async () => {
-      expect(await installRun(['--yes'], memoryIO())).toBe(0)
-      const io = memoryIO({ json: true })
-      expect(await rollbackRun(['--json'], io)).toBe(0)
-      expect((JSON.parse(io.out()) as { txns: string[] }).txns).toHaveLength(3)
-      expect(existsSync(join(home, '.codex/AGENTS.md'))).toBe(false)
-      expect(existsSync(join(home, '.omp/agent/AGENTS.md'))).toBe(false)
-      expect(existsSync(join(buracleHome, 'bin/buracle'))).toBe(false)
-
-      expect(await installRun(['--yes'], memoryIO())).toBe(0)
-      expect(await uninstallRun(['--yes'], memoryIO())).toBe(0)
-      const refused = memoryIO()
-      expect(await rollbackRun([], refused)).toBe(1)
-      expect(refused.err()).toContain('was made by `buracle uninstall`')
-      expect(refused.err()).toContain('buracle install')
-      expect(existsSync(join(home, '.codex/AGENTS.md'))).toBe(false)
     })
   }))
 })

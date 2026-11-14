@@ -219,5 +219,3 @@ These belong to the user. Run the read-only ones when diagnosing; run the others
 | `buracle update --yes [<kind>\|<name>…]` | Applies updates, each from its own source, then installs again; in a terminal `buracle update` applies at once too, without `--yes` | no |
 | `buracle build [--check]` | Regenerates `harness/` from `canonical/` in the Buracle repo; `--check` only reports differences | `--check` only |
 | `buracle install [<harness>…] [--dry-run]` | Builds, then installs into the harness configs (every installed one, or those named), with backup and rollback, and installs the toolchain; `--dry-run` shows the plan | `--dry-run` only |
-| `buracle rollback [txn]` | Undoes the last (or the given) install transaction | no |
-| `buracle rollback toolchain [<package>…]` | Puts back the version each toolchain package held before its last install or update | no |

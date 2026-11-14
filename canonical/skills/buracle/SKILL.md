@@ -33,7 +33,7 @@ never edit its state files by hand.
 - Never edit `~/.buracle/` files or session state. The CLI owns them and the write guard blocks
   edits there.
 - Commands that change the installation (`buracle install`, `buracle update`,
-  `rollback`, `uninstall`) run only when the user asks for them.
+  `uninstall`) run only when the user asks for them.
 
 ## Session resolution
 

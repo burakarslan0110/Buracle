@@ -2329,7 +2329,7 @@ async function recoverInterrupted(except?: string): Promise<string[]> {
     else recovered.push(j.txn)
   }
   if (failures.length > 0) {
-    throw new Error(`an interrupted transaction could not be rolled back completely; fix the paths below, then run \`buracle rollback <txn>\`:\n${failures.join('\n')}`)
+    throw new Error(`an interrupted transaction could not be rolled back completely; fix the paths below:\n${failures.join('\n')}`)
   }
   return recovered
 }

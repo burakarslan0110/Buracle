@@ -23,7 +23,6 @@ export const SKILL_COMMANDS: Readonly<Record<string, CommandSpec>> = {
   update: { subs: ['self', 'skills', 'mcp', 'plugins', 'harness', 'tools', 'pricing'], ops: true },
   install: { subs: ['claude', 'codex', 'opencode', 'omp'], ops: true },
   build: { subs: null, ops: true },
-  rollback: { subs: 'any', ops: true },
 }
 
 export interface MentionProblem { command: string, message: string }

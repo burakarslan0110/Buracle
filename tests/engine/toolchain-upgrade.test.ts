@@ -9,8 +9,6 @@ import { readToolchainState } from '../../src/engine/toolchain/state'
 import { installTool } from '../../src/engine/toolchain/system'
 import { opsDeps } from '../../src/engine/update/deps'
 import type { FetchResult } from '../../src/engine/update/fetch'
-import { run as rollbackCommand } from '../../src/cli/commands/rollback'
-import { memoryIO } from '../cli/ops/helpers'
 import { fakeExe, pathOf } from '../helpers/fake-exe'
 import { withEnv, withSandbox } from '../helpers/sandbox'
 
@@ -214,36 +212,5 @@ describe('staged upgrades and the previous prefix', () => {
     expect(existsSync(join(npmPrefix(PKG), 'node_modules', '@acme', 'srv', 'half.js'))).toBe(false)
     expect(existsSync(`${npmPrefix(PKG)}.staging`)).toBe(false)
     expect(readToolchainState().packages[`npm:${PKG}`]?.version).toBe('1.0.0')
-  }))
-
-  test('`buracle rollback toolchain` swaps the previous prefix back, and the next install does not take the rolled-back version again', () => withSandbox(async ({ root }) => {
-    const fake: FakeNpm = { installs: [], liveDuring: [] }
-    await withFakes(root, fake, async () => {
-      await toolchain({ nowMs: NOW - 8 * DAY })
-      await toolchain()
-      const io = memoryIO()
-      expect(await rollbackCommand(['toolchain'], io)).toBe(0)
-      expect(io.out()).toContain(`rolled back ${PKG}: 1.1.0 → 1.0.0`)
-      expect(installedVersion(npmPrefix(PKG))).toBe('1.0.0')
-      expect(installedVersion(`${npmPrefix(PKG)}.previous`)).toBe('1.1.0')
-      const pkg = readToolchainState().packages[`npm:${PKG}`]
-      expect(pkg?.version).toBe('1.0.0')
-      expect(pkg?.bins['srv']).toBe(join(npmPrefix(PKG), 'node_modules', '@acme', 'srv', 'cli.js'))
-      const again = await toolchain()
-      expect(again.status).toBe('ok')
-      expect(again.current).toBe('1.0.0')
-    })
-    expect(fake.installs).toEqual(['1.0.0', '1.1.0'])
-  }))
-
-  test('rollback without a previous copy says so and changes nothing', () => withSandbox(async ({ root }) => {
-    const fake: FakeNpm = { installs: [], liveDuring: [] }
-    await withFakes(root, fake, async () => {
-      await toolchain()
-      const io = memoryIO()
-      expect(await rollbackCommand(['toolchain'], io)).toBe(1)
-      expect(io.err()).toContain('no previous version')
-    })
-    expect(installedVersion(npmPrefix(PKG))).toBe('1.1.0')
   }))
 })

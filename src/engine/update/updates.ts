@@ -501,8 +501,6 @@ export interface ApplyOutcome {
   selfFrom?: string
   depsInstalled?: boolean
   bumpedServers: string[]
-  // The MCP servers and tools the toolchain installed or upgraded: the ones an update has to prove still work.
-  toolchainUpgraded: Array<{ kind: 'mcp' | 'tools', id: string }>
   pinsBumped: boolean
   harnessChecks: Array<{ harness: Harness, level: 'warn' | 'error', check: string, detail: string }>
 }
@@ -657,7 +655,6 @@ async function applyToolchain(items: readonly UpdateItem[], env: UpdateEnv, out:
     if (got === undefined) { out.failed.push({ kind: i.kind, id: i.id, error: 'not part of the toolchain run' }); continue }
     if (got.status === 'upgraded' || got.status === 'installed') {
       out.applied.push({ kind: i.kind, id: i.id, detail: `toolchain ${i.current ?? 'none'} → ${got.current ?? i.latest ?? 'latest'}` })
-      if (i.kind === 'mcp' || i.kind === 'tools') out.toolchainUpgraded.push({ kind: i.kind, id: i.id })
       if (i.kind === 'mcp') out.bumpedServers.push(i.id)
     } else if (got.status === 'ok') out.skipped.push({ kind: i.kind, id: i.id, reason: `already at ${got.current ?? i.current ?? 'the newest release'}`, benign: true })
     else out.failed.push({ kind: i.kind, id: i.id, error: got.detail || got.status })
@@ -689,7 +686,7 @@ async function applyPlugins(items: readonly UpdateItem[], env: UpdateEnv, out: A
 }
 
 export async function applyUpdates(items: readonly UpdateItem[], env: UpdateEnv): Promise<ApplyOutcome> {
-  const out: ApplyOutcome = { applied: [], failed: [], skipped: [], rebuild: false, selfUpdated: false, bumpedServers: [], toolchainUpgraded: [], pinsBumped: false, harnessChecks: [] }
+  const out: ApplyOutcome = { applied: [], failed: [], skipped: [], rebuild: false, selfUpdated: false, bumpedServers: [], pinsBumped: false, harnessChecks: [] }
   const of = (k: UpdateKind) => items.filter(i => i.kind === k)
 
   for (const i of of('self')) {

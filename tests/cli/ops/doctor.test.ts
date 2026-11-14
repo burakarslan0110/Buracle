@@ -363,7 +363,7 @@ describe('buracle doctor', () => {
     }
   })
 
-  test('doctor tools lists the version of every toolchain package and the one kept for a rollback', () => withSandbox(async ({ root, buracleHome }) => {
+  test('doctor tools lists the version of every toolchain package', () => withSandbox(async ({ root, buracleHome }) => {
     const repo = makeRepo(root)
     mkdirSync(join(buracleHome, 'state'), { recursive: true })
     const state = emptyToolchainState()
@@ -376,7 +376,7 @@ describe('buracle doctor', () => {
       const checks = (JSON.parse(io.out()) as { checks: Array<{ section: string, level: string, check: string, detail: string }> }).checks
       expect(checks.find(c => c.check === 'toolchain.autoInstall')).toBeUndefined()
       expect(checks.filter(c => c.check.includes(':'))).toEqual([
-        { section: 'tools', level: 'ok', check: 'npm:@acme/srv', detail: "1.1.0 in Buracle's toolchain; 1.0.0 kept for `buracle rollback toolchain`" },
+        { section: 'tools', level: 'ok', check: 'npm:@acme/srv', detail: "1.1.0 in Buracle's toolchain" },
         { section: 'tools', level: 'ok', check: 'pypi:probe', detail: "0.3.0 in Buracle's toolchain; 0.4.0 was rolled back" },
       ])
     })
@@ -658,8 +658,8 @@ describe('buracle doctor runtime: unsettled transactions, stale locks, generated
       const checks = (JSON.parse(io.out()) as { checks: Array<{ check: string, level: string, detail: string }> }).checks
       const journals = checks.filter(c => c.check === 'journals')
       expect(journals.filter(c => c.level === 'error').map(c => c.detail)).toEqual([
-        'transaction 20260103T000000000Z-cccccc could not be rolled back completely; fix the cause, then run `buracle rollback 20260103T000000000Z-cccccc`',
-        'transaction 20260101T000000000Z-aaaaaa could not be rolled back completely (EACCES: settings.json); fix the cause, then run `buracle rollback 20260101T000000000Z-aaaaaa`',
+        'transaction 20260103T000000000Z-cccccc could not be rolled back completely; fix the cause',
+        'transaction 20260101T000000000Z-aaaaaa could not be rolled back completely (EACCES: settings.json); fix the cause',
       ])
       expect(journals.some(c => c.level === 'warn' && c.detail.includes('20260104T000000000Z-dddddd was interrupted'))).toBe(true)
       expect(checks.find(c => c.check === 'locks')).toMatchObject({ level: 'warn', detail: expect.stringContaining('is stale: its process 4194303 is gone') })

@@ -38,7 +38,6 @@ export const COMMANDS: ReadonlyArray<readonly [string, () => Promise<Command>]> 
   ['build', () => import('./commands/build')],
   ['install', () => import('./commands/install')],
   ['uninstall', () => import('./commands/uninstall')],
-  ['rollback', () => import('./commands/rollback')],
   ['doctor', () => import('./commands/doctor')],
   ['index', () => import('./commands/code-index')],
   ['update', () => import('./commands/update')],
@@ -152,7 +151,7 @@ async function loadCommand(name: string): Promise<Command | undefined> {
 
 // Every name in COMMANDS sits in exactly one group (tests/cli/main.test.ts checks it).
 export const COMMAND_GROUPS: ReadonlyArray<readonly [string, readonly string[]]> = [
-  ['Commands', ['install', 'update', 'doctor', 'config', 'rollback', 'uninstall']],
+  ['Commands', ['install', 'update', 'doctor', 'config', 'uninstall']],
   ['Used by your agents and hooks', ['plan', 'flow', 'worktree', 'review-scope', 'project', 'skills', 'rules', 'mem', 'index', 'usage', 'hook', 'statusline', 'mcp', 'lsp', 'consent']],
   ['Buracle development', ['build']],
 ]

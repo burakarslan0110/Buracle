@@ -1,11 +1,8 @@
 import { describe, expect, test } from 'bun:test'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { run as configRun, setConfigValue } from '../../../src/cli/commands/config'
-import { run as installRun } from '../../../src/cli/commands/install'
-import { run as rollbackRun } from '../../../src/cli/commands/rollback'
 import { cliVersion } from '../../../src/cli/router'
-import { listTxns } from '../../../src/engine/txn'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
 import { fakeAdapter, fakeCli, makeRepo, memoryIO, withDeps } from './helpers'
 
@@ -13,64 +10,17 @@ function read(p: string): string {
   return readFileSync(p, 'utf8')
 }
 
-describe('buracle rollback', () => {
-  test('rolls back the newest transaction, lists transactions, and reports paths changed since', () => withSandbox(async ({ root, home }) => {
-    const repo = makeRepo(root)
-    let content = 'v1\n'
-    const codex = fakeAdapter('codex', { plan: () => ({ id: 'codex', harness: 'codex', ops: [{ kind: 'file', path: join(home, '.codex/a.txt'), content, owner: 'codex' }, { kind: 'file', path: join(home, '.codex/b.txt'), content, owner: 'codex' }] }) })
-    await withDeps({ repoRoot: () => repo, adapters: async () => [codex], runCli: fakeCli().runCli }, async () => {
-      expect(await installRun(['--yes'], memoryIO())).toBe(0)
-      content = 'v2\n'
-      expect(await installRun(['--yes'], memoryIO())).toBe(0)
-      const [newest, first] = await listTxns()
-
-      const list = memoryIO()
-      expect(await rollbackRun(['--list'], list)).toBe(0)
-      expect(list.out()).toContain(newest?.txn as string)
-      expect(list.out()).toContain(first?.txn as string)
-      expect(list.out()).toMatch(/TXN\s+STATUS\s+STARTED/)
-
-      writeFileSync(join(home, '.codex/b.txt'), 'edited\n')
-      const io = memoryIO()
-      expect(await rollbackRun([], io)).toBe(2)
-      expect(io.out()).toContain(`Rolled back ${newest?.txn}`)
-      expect(read(join(home, '.codex/a.txt'))).toBe('v1\n')
-      expect(read(join(home, '.codex/b.txt'))).toBe('edited\n')
-      expect(io.out()).toContain('~/.codex/b.txt: changed after the transaction; left as is')
-
-      const j = memoryIO()
-      expect(await rollbackRun([first?.txn as string, '--json'], j)).toBe(2)
-      expect(JSON.parse(j.out())).toMatchObject({ ok: false, code: 2, txn: first?.txn, skipped: [{ path: join(home, '.codex/b.txt') }] })
-      expect(existsSync(join(home, '.codex/a.txt'))).toBe(false)
-      expect(read(join(home, '.codex/b.txt'))).toBe('edited\n')
-
-      const again = memoryIO()
-      expect(await rollbackRun([first?.txn as string], again)).toBe(1)
-      expect(again.err()).toContain('already rolled back')
-      expect(await rollbackRun(['../evil'], memoryIO())).toBe(1)
-    })
-  }))
-})
-
 // A terminal that takes color, whatever the environment the tests run in says.
 const COLOR_TERMINAL = { TERM: 'xterm-256color', NO_COLOR: undefined, FORCE_COLOR: undefined, COLORTERM: undefined }
 
-describe('rollback and config set in a terminal', () => {
+describe('config set in a terminal', () => {
   const strip = (s: string): string => s.replace(/\u001b\[[0-9;?]*[A-Za-z]/g, '')
   const lines = (s: string): string[] => strip(s).split('\n').filter(l => l.trim() !== '')
 
-  test('they start with one header line and mark each result with the shared symbol; a pipe keeps the old lines', () => withSandbox(async ({ root, home }) => {
+  test('it starts with one header line and marks the result with the shared symbol; a pipe keeps the old lines', () => withSandbox(async ({ root, home }) => {
     const repo = makeRepo(root)
     const codex = fakeAdapter('codex', { plan: () => ({ id: 'codex', harness: 'codex', ops: [{ kind: 'file', path: join(home, '.codex/a.txt'), content: 'v1\n', owner: 'codex' }] }) })
     await withDeps({ repoRoot: () => repo, adapters: async () => [codex], runCli: fakeCli().runCli }, () => withEnv(COLOR_TERMINAL, async () => {
-      expect(await installRun(['--yes'], memoryIO())).toBe(0)
-      const io = memoryIO({ ttyOut: true })
-      expect(await rollbackRun([], io)).toBe(0)
-      const out = lines(io.out())
-      expect(out[0]).toBe(`  ◉ buracle v${cliVersion()} · rollback`)
-      expect(out[1]).toMatch(/^ {2}✔ Rolled back .+: restored \d+ path\(s\)\.$/)
-      expect(out).toContain('    restored ~/.codex/a.txt')
-
       const set = memoryIO({ ttyOut: true })
       expect(await configRun(['set', 'plan.questions', 'false'], set)).toBe(0)
       const setOut = lines(set.out())
