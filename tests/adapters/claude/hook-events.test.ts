@@ -493,11 +493,29 @@ describe('PreToolUse: H24 ledger, the H03 deny-once gates and the semble/codegra
     })
   })
 
-  test('a Skill call is recorded as a load; tools outside the matcher stay untouched', async () => {
+  test('a Skill call is recorded as a load; a tool outside the matcher gets no output', async () => {
     await withSandbox(async () => {
       expect((await claudeHook('PreToolUse', payload('PreToolUse', { tool_name: 'Skill', tool_input: { skill: 'buracle:research', args: 'bun 1.4' } }), ctx(), deps())).stdout).toBe('')
       expect(loadLedger('claude', SID).skills['research']?.n).toBe(1)
       expect((await claudeHook('PreToolUse', payload('PreToolUse', { tool_name: 'Agent', tool_input: { prompt: 'x' } }), ctx(), deps())).stdout).toBe('')
+    })
+  })
+
+  test('H24 counts every tool call the hook receives, as on the other harnesses: no selection by tool name', async () => {
+    await withSandbox(async sb => {
+      const proj = project(sb.root)
+      const calls: Array<[string, Record<string, unknown>]> = [
+        ['Bash', { command: 'ls' }], ['Edit', { file_path: join(proj, 'a.ts'), old_string: 'a', new_string: 'b' }], ['Glob', { pattern: '*.md' }],
+        ['NotebookEdit', { notebook_path: join(proj, 'n.ipynb'), new_source: 'x' }],
+        ['AskUserQuestion', { questions: [] }], ['mcp__myfiles__list', {}], ['Agent', { prompt: 'x' }],
+      ]
+      let n = 0
+      for (const [tool_name, tool_input] of calls) {
+        const r = await claudeHook('PreToolUse', payload('PreToolUse', { cwd: proj, tool_name, tool_input }), ctx(), deps())
+        expect({ tool_name, denied: decision(r.stdout).permissionDecision === 'deny' }).toEqual({ tool_name, denied: false })
+        expect({ tool_name, calls: loadLedger('claude', SID).turnTools.calls }).toEqual({ tool_name, calls: ++n })
+      }
+      expect(loadLedger('claude', SID).mcp['myfiles']?.n).toBe(1)
     })
   })
 })

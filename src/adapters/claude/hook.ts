@@ -77,8 +77,6 @@ export interface HookDeps {
 
 const TELEMETRY_FRESH_MS = 5 * 60_000
 const PLUGIN_MCP_PREFIX = 'mcp__plugin_buracle_'
-const USAGE_TOOLS: readonly string[] = ['Skill', 'Grep', 'Glob']
-const OTHER_TOOLS: readonly string[] = ['AskUserQuestion', 'WebSearch', 'WebFetch', ...USAGE_TOOLS]
 const WRITE_GATE_MAX_BYTES = 2_000_000
 
 const MODULES: Record<MemoryModule, () => Promise<unknown>> = {
@@ -295,7 +293,6 @@ async function preToolDecision(p: Record<string, unknown>, sid: string, ctx: Ada
   if (!write && !shell) {
     if (guardsOnly && !mcp) return []
     if (tool === HANDBACK_TOOL) return subagentHandback(p, sid, REVIEW_AGENT, d, now)
-    if (!mcp && !OTHER_TOOLS.includes(tool)) return []
   }
   const root = pluginRoot(ctx.repoRoot, d.env)
   let call: ToolCall
@@ -313,9 +310,7 @@ async function preToolDecision(p: Record<string, unknown>, sid: string, ctx: Ada
   }
   const edits = write && tool !== 'NotebookEdit'
   const r = await preTool({
-    call, now, subagent: isSubagent(p), guardsOnly, ...(edits ? { edits: call.paths } : {}),
-    // The reminders count the tools Buracle routes: the shell, file edits, searches, skills and its own plugin's MCP servers.
-    usage: shell || edits || USAGE_TOOLS.includes(tool) || tool.startsWith(PLUGIN_MCP_PREFIX),
+    call, now, subagent: isSubagent(p), guardsOnly, usage: true, ...(edits ? { edits: call.paths } : {}),
   }, {
     ...pipelineDeps(ctx, d),
     shellDenial: command => step('reviewer shell', undefined as string | undefined, () => reviewerShellDenial(str(p['agent_type']), command)),

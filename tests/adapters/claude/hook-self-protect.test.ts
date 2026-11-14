@@ -8,6 +8,7 @@ import type { CanonicalBundle } from '../../../src/core/catalog'
 import { defaultConfig } from '../../../src/core/config'
 import * as paths from '../../../src/engine/paths'
 import { run } from '../../../src/engine/proc'
+import { loadLedger } from '../../../src/workflow/ledger'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
 
 const NOW = 1_800_000_000_000
@@ -94,14 +95,15 @@ describe('G12: MCP calls that name a file they write go through H02', () => {
     expect(denied(await claudeHook('PreToolUse', pre(heap, { filePath: join(proj, 'heap.heapsnapshot') }, proj), ctx(), real()))).toBeUndefined()
   }), 20_000)
 
-  test('a server Buracle does not install is judged too, and only by H02 (no usage ledger, no routing)', () => withSandbox(async ({ root, home }) => {
+  test('a server Buracle does not install is judged too, by H02 alone (no routing); its allowed calls are counted like every tool call', () => withSandbox(async ({ root, home }) => {
     const proj = join(root, 'proj')
     mkdirSync(proj, { recursive: true })
     expect(denied(await claudeHook('PreToolUse', pre('mcp__myfiles__save_file', { path: join(home, '.ssh', 'authorized_keys'), content: 'x' }, proj), ctx(), real()))).toStartWith('Buracle H02: ')
     expect(denied(await claudeHook('PreToolUse', pre('mcp__claude_ai_Docs__export', { outputPath: join(home, '.claude', 'settings.json') }, proj), ctx(), real()))).toContain("Claude Code's own configuration")
     expect(await claudeHook('PreToolUse', pre('mcp__myfiles__save_file', { path: join(proj, 'notes.md'), content: 'x' }, proj), ctx(), real())).toEqual({ stdout: '', exitCode: 0 })
     expect(await claudeHook('PreToolUse', pre('mcp__myfiles__list', {}, proj), ctx(), real())).toEqual({ stdout: '', exitCode: 0 })
-    expect(existsSync(join(paths.sessionDir('claude', SID), 'ledger.json'))).toBe(false)
+    expect(existsSync(join(paths.sessionDir('claude', SID), 'ledger.json'))).toBe(true)
+    expect(loadLedger('claude', SID).turnTools.calls).toBe(2)
   }), 20_000)
 
   test('read-only servers are not judged; a throwing guard fails closed', () => withSandbox(async ({ root }) => {
