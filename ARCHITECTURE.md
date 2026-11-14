@@ -3,8 +3,7 @@
 This document records why Buracle's memory was simplified in 0.6 and what the result looks like. Part 1 is the
 audit of 0.5.0, with numbers measured on macOS (Apple silicon, Bun 1.4.3) against a real CortexDB 2.139.0 binary.
 Part 2 is the target architecture and the reason for every component that was removed or kept. The harness and
-platform matrix is in [COMPATIBILITY.md](COMPATIBILITY.md); upgrading and rolling back is in
-[MIGRATION.md](MIGRATION.md).
+platform matrix is in [COMPATIBILITY.md](COMPATIBILITY.md).
 
 ## Part 1: audit of 0.5.0
 

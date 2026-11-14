@@ -30,9 +30,9 @@ Use the purpose-built tool for each need. A fallback is allowed only when the pr
 
 ## Code indexes
 
-- Buracle owns indexing: when a session starts it builds or refreshes the codegraph and semble indexes of the project in the background.
+- Buracle owns indexing, and a session start starts no index run: codegraph updates its own index when its server starts, semble re-indexes when it searches, and `buracle index ensure --cwd <root>` builds one on demand.
 - Pass the project root as the codegraph `projectPath` and the semble `repo`. Never pass the home folder, `/` or a folder above the project; Buracle denies those and names the root.
-- If codegraph says a project is not indexed, run `buracle index ensure --cwd <root>` or wait for the background run, then ask codegraph again. Never conclude that codegraph is unusable for the session; use `rg` until the index is ready.
+- If codegraph says a project is not indexed, run `buracle index ensure --cwd <root>`, then ask codegraph again. Never conclude that codegraph is unusable for the session; use `rg` until the index is ready.
 
 ## Skills, workflows and the per-prompt routing note
 

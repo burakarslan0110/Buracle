@@ -225,13 +225,6 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "invocation": "implicit",
       "short": "Cited, MCP-backed research across web, library docs, public code and memory",
       "userInvocable": true
-    },
-    {
-      "description": "Security guidance and vulnerability review for codebases, APIs, services, CLI tools, libraries and daemons: Cloudflare's security-audit skill (MIT), vendored as Buracle's default security skill. Guidance mode answers security questions, focused reviews and triage with the relevant parts only; full audit mode runs six phases (reconnaissance, coverage-led hunting with parallel isolated agents, validation by fresh verifiers, structured findings.json, independent record verification, a target-neutral report) when the user asks for an audit, a pen test, a full security review or report artifacts.",
-      "id": "security-audit",
-      "invocation": "implicit",
-      "short": "Cloudflare's security-audit skill, Buracle's default security review",
-      "userInvocable": true
     }
   ]
 }

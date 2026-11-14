@@ -40,8 +40,6 @@ tips:
     text: "Need a skill for a recurring task? /find-skill searches the registry, audits the pick and installs it everywhere"
   - id: new-skill
     text: "Did a procedure twice? /new-skill turns it into a skill every harness can load"
-  - id: security-audit
-    text: "/security-audit gives focused security guidance, or a six-phase audit with findings and a report"
   - id: doctor
     text: "Something feels off? `buracle doctor` checks config, hooks, MCP and LSP servers, memory and code indexes"
   - id: update

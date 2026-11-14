@@ -33243,8 +33243,7 @@ var GENERATED = {
     "plan-build",
     "project-rules",
     "requirements",
-    "research",
-    "security-audit"
+    "research"
   ],
   config: {
     agents: {
@@ -33490,24 +33489,6 @@ var GENERATED = {
     "web-search"
   ],
   notices: [
-    {
-      id: "0.5.0-project-assets",
-      message: "When a session starts in a repository, Buracle now links the skills in .agents/skills into .claude/skills so Claude Code sees them too, and checks that AGENTS.md lists the path rules in .claude/rules. Run `buracle project check` to see what it would change.",
-      since: "0.5.0",
-      until: "0.6.0"
-    },
-    {
-      id: "0.5.0-smaller-cli",
-      message: "Buracle's CLI is smaller: run `buracle` in a terminal for a main menu you drive with the keyboard. `buracle install` now does what `init` and `sync` did, `buracle install` and `buracle update` apply in a terminal without a question and show each step as it runs, and the rare cases flags used to cover are questions in a terminal. `buracle help --all` lists the commands your agents use.",
-      since: "0.5.0",
-      until: "0.6.0"
-    },
-    {
-      id: "0.7.0-one-standard",
-      message: "One standard on every harness: `buracle diagram` is gone, a chat reply shows a flow as a list or a table, and workflow documents under docs/ are English in ASD-STE100 style (`buracle plan validate` checks them). New documents go to docs/requirements/, docs/plan-build/, docs/goal-build/ and docs/dead-code/; the old folders docs/prd/, docs/plans/, docs/builds/ and docs/cleanup/ stay readable.",
-      since: "0.7.0",
-      until: "0.8.0"
-    },
     {
       id: "0.8.1-documents-follow-language",
       message: "Documents now follow your language: plans, PRDs, build contracts, saved audits, reports and review findings use the language you write in (or the one your project or memory pins), and only the markers Buracle reads stay English. `buracle plan validate` no longer warns about prose that is not English.",
@@ -33981,13 +33962,6 @@ var GENERATED = {
       id: "research",
       invocation: "implicit",
       short: "Cited, MCP-backed research across web, library docs, public code and memory",
-      userInvocable: true
-    },
-    {
-      description: "Security guidance and vulnerability review for codebases, APIs, services, CLI tools, libraries and daemons: Cloudflare's security-audit skill (MIT), vendored as Buracle's default security skill. Guidance mode answers security questions, focused reviews and triage with the relevant parts only; full audit mode runs six phases (reconnaissance, coverage-led hunting with parallel isolated agents, validation by fresh verifiers, structured findings.json, independent record verification, a target-neutral report) when the user asks for an audit, a pen test, a full security review or report artifacts.",
-      id: "security-audit",
-      invocation: "implicit",
-      short: "Cloudflare's security-audit skill, Buracle's default security review",
       userInvocable: true
     }
   ],

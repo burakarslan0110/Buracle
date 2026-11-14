@@ -34,8 +34,8 @@ function designDocs(): string[] {
   return [join(REPO, 'docs', 'DESIGN.md'), ...files(join(REPO, 'docs', 'design'), n => n.endsWith('.md'))]
 }
 
-// Documents the repository ships beside the README (architecture, compatibility matrix, upgrade guide).
-const SHIPPED_DOCS = ['ARCHITECTURE.md', 'COMPATIBILITY.md', 'MIGRATION.md'].map(f => join(REPO, f))
+// Documents the repository ships beside the README (architecture, compatibility matrix).
+const SHIPPED_DOCS = ['ARCHITECTURE.md', 'COMPATIBILITY.md'].map(f => join(REPO, f))
 
 function englishDocs(): string[] {
   return [
