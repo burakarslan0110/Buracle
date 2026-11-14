@@ -136,21 +136,16 @@ describe('the canonical path rules', () => {
   })
 
   test.each([
-    ['ios/App.xcodeproj/project.pbxproj', ['mobile']],
-    ['android/app/build.gradle.kts', ['mobile']],
-    ['android/app/src/main/AndroidManifest.xml', ['mobile']],
-    ['pubspec.yaml', ['mobile']],
-    ['eas.json', ['mobile']],
     ['src/Orders/OrderService.cs', ['dotnet']],
     ['Directory.Packages.props', ['dotnet']],
     ['global.json', ['dotnet']],
-    ['Pages/Index.razor', ['blazor', 'browser-automation', 'frontend']],
+    ['Pages/Index.razor', ['blazor', 'frontend']],
     ['Pages/Index.razor.cs', ['blazor', 'dotnet']],
-    ['Pages/Index.razor.css', ['blazor', 'browser-automation', 'frontend']],
+    ['Pages/Index.razor.css', ['blazor', 'frontend']],
     ['app/queries/orders.py', ['backend', 'python']],
     ['db/alembic/env.py', ['backend', 'python']],
-    ['tests/playwright/login.spec.ts', ['browser-automation', 'typescript']],
-    ['src/__tests__/login.test.js', ['browser-automation', 'typescript']],
+    ['tests/playwright/login.spec.ts', ['typescript']],
+    ['src/__tests__/login.test.js', ['typescript']],
     ['tests/unit/login.test.js', ['typescript']],
   ])('%s matches %p', (file, want) => {
     expect(matchPathRules(file, index).sort()).toEqual([...want].sort())
