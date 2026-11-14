@@ -7,7 +7,7 @@ import { projectIdentity } from '../../../src/engine/git'
 import { run } from '../../../src/engine/proc'
 import * as paths from '../../../src/engine/paths'
 import { loadState, readTelemetry, saveState, writeTelemetry } from '../../../src/workflow/session-store'
-import { loadAdapterState, saveAdapterState } from '../../../src/adapters/codex/hook-io'
+import { compactFile, saveCompact } from '../../../src/adapters/shared/pipeline/index'
 import { capabilityCardText, CONTEXT_BUDGET_BYTES, handleCodexHook, MAX_SUBAGENT_ALIASES, recordSubagentAlias, reviewReportErrors, subagentAliasesFile, type CoreFns } from '../../../src/adapters/codex/hook'
 import { fakeExe } from '../../helpers/fake-exe'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
@@ -731,11 +731,10 @@ describe('compaction and session end', () => {
     })
     writeFileSync(rollout, planLine('in_progress'))
     await handleCodexHook('PreCompact', payload('PreCompact', { cwd, trigger: 'auto', transcript_path: rollout }), ctx(), d)
-    expect(loadAdapterState(ctx(), SID).lastTodos).toEqual(['Write the parser'])
+    expect(JSON.parse(readFileSync(compactFile(ctx(), 'codex', SID), 'utf8'))).toEqual({ v: 1, at: NOW, todo: ['Write the parser'] })
     writeFileSync(rollout, planLine('completed'))
     await handleCodexHook('PreCompact', payload('PreCompact', { cwd, trigger: 'auto', transcript_path: rollout }), ctx(), d)
-    expect(loadAdapterState(ctx(), SID)).toMatchObject({ lastCompactAt: NOW })
-    expect(loadAdapterState(ctx(), SID).lastTodos).toBeUndefined()
+    expect(JSON.parse(readFileSync(compactFile(ctx(), 'codex', SID), 'utf8'))).toEqual({ v: 1, at: NOW })
     const r = await handleCodexHook('SessionStart', payload('SessionStart', { cwd, source: 'compact' }), ctx(), d)
     expect(r.stdout).not.toContain('Open todos')
     expect(r.stdout).not.toContain('Write the parser')
@@ -748,14 +747,14 @@ describe('compaction and session end', () => {
     mkdirSync(cwd)
     const rollout = join(root, 'rollout.jsonl')
     writeFileSync(rollout, JSON.stringify({ type: 'response_item', payload: { type: 'function_call', name: 'update_plan', call_id: 'c1', arguments: JSON.stringify({ plan: [{ step: 'Write the parser', status: 'in_progress' }] }) } }) + '\n')
-    saveAdapterState(ctx(), SID, { v: 1, lastHandoff: 'handoff-earlier-compaction', lastCompactAt: NOW - 1000 })
+    saveCompact(ctx(), 'codex', SID, NOW - 1000, 'handoff-earlier-compaction', [])
     const during: unknown[] = []
     const d = deps({ ...quiet, handoffNote: () => ({ slug: 's', markdown: '' }) }, {
-      writeHandoff: async () => { during.push(loadAdapterState(ctx(), SID)); return { id: 'handoff-now', path: 'handoff-now', rel: 'handoff-now', title: 't' } },
+      writeHandoff: async () => { during.push(JSON.parse(readFileSync(compactFile(ctx(), 'codex', SID), 'utf8'))); return { id: 'handoff-now', path: 'handoff-now', rel: 'handoff-now', title: 't' } },
     })
     await handleCodexHook('PreCompact', payload('PreCompact', { cwd, trigger: 'auto', transcript_path: rollout }), ctx(), d)
-    expect(during).toEqual([{ v: 1, lastCompactAt: NOW, lastTodos: ['Write the parser'] }])
-    expect(loadAdapterState(ctx(), SID)).toEqual({ v: 1, lastCompactAt: NOW, lastHandoff: 'handoff-now' })
+    expect(during).toEqual([{ v: 1, at: NOW, todo: ['Write the parser'] }])
+    expect(JSON.parse(readFileSync(compactFile(ctx(), 'codex', SID), 'utf8'))).toEqual({ v: 1, at: NOW, handoff: 'handoff-now' })
   }))
 
   test('PostCompact prints nothing and spools the compaction summary from the rollout (else a marker)', () => withSandbox(async ({ root }) => {

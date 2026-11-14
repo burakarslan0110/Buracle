@@ -1,19 +1,14 @@
-import { join } from 'node:path'
-import { RESTORE_RECORD_MAX_MS, RESTORE_TODOS_MAX } from '../../core/compact'
 import type { StopInput } from '../../core/events'
 import { backgroundWait } from '../../core/plan/background'
 import type { StopGuardResult } from '../../core/plan/state'
-import { atomicWriteSync, readJsonSafeSync } from '../../engine/fsx'
 import { log } from '../../engine/log'
-import * as paths from '../../engine/paths'
 import type { AdapterContext } from '../registry'
-import { preCompact as preCompactEvent, sessionEnd as sessionEndEvent, spool, stop as stopEvent, type CompactStore } from '../shared/pipeline/index'
+import { preCompact as preCompactEvent, sessionEnd as sessionEndEvent, spool, stop as stopEvent } from '../shared/pipeline/index'
 import type { HookDeps } from './hook'
-import { H, QUIET, isObj, isSubagent, out, pipelineDeps, str, type HookOutcome } from './hook-io'
+import { H, QUIET, isSubagent, out, pipelineDeps, str, type HookOutcome } from './hook-io'
 import { openWork } from './hook-work'
 import { boundSubject, handedBack } from './hook-handback'
 
-export const HANDOFF_MAX_AGE_MS = RESTORE_RECORD_MAX_MS
 export const REVIEW_AGENT = /^(?:buracle:)?(?:plan-build|changes|goal-build)-review$|^buracle:[a-z0-9-]+-review$/
 
 export function runawayNotice(why: StopGuardResult['why'], cfg: AdapterContext['config']['plan']): string | undefined {
@@ -50,31 +45,11 @@ export async function stop(p: Record<string, unknown>, sid: string, ctx: Adapter
   return r.notice !== undefined ? out({ systemMessage: r.notice }) : QUIET
 }
 
-export function handoffRecordPath(sid: string): string {
-  return join(paths.sessionDir(H, sid), 'handoff.json')
-}
-
-/** The session's compaction record in handoff.json, for the restore after it; a record older than the limit is ignored. */
-export function compactStore(sid: string, at: number): CompactStore {
-  const file = handoffRecordPath(sid)
-  return {
-    read(now) {
-      const r = readJsonSafeSync<unknown>(file)
-      const v = r.ok && isObj(r.value) ? r.value : {}
-      if (typeof v['at'] !== 'number' || now - v['at'] > HANDOFF_MAX_AGE_MS) return { recent: false }
-      const { path, todo } = v
-      if (typeof path === 'string') return { recent: true, ...(/^handoff-[a-z0-9-]+$/.test(path) ? { handoff: path } : {}) }
-      return { recent: true, todo: Array.isArray(todo) ? todo.filter((t): t is string => typeof t === 'string' && t.trim() !== '').slice(0, RESTORE_TODOS_MAX) : [] }
-    },
-    save(path, todo) { atomicWriteSync(file, JSON.stringify({ ...(path !== undefined ? { path } : todo.length > 0 ? { todo } : {}), at }) + '\n') },
-  }
-}
-
 export async function preCompact(p: Record<string, unknown>, sid: string, ctx: AdapterContext, d: HookDeps, now: number): Promise<HookOutcome> {
   if (isSubagent(p)) return QUIET
   const trigger = str(p['trigger'])
   await preCompactEvent({ harness: H, sessionId: sid, cwd: str(p['cwd']) ?? process.cwd(), now, ...(trigger !== undefined ? { trigger } : {}) }, {
-    ...pipelineDeps(ctx, d), openTodos: () => openWork(sid), compact: compactStore(sid, now),
+    ...pipelineDeps(ctx, d), openTodos: () => openWork(sid),
   })
   return QUIET
 }

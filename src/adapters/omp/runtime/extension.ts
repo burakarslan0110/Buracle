@@ -634,7 +634,6 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
           // The usage ledger is reset before the memory UI hears of the session: from there on a tool call may be counted.
           ui: { ...d.ui, started: then(d.ui.started), seen: then(d.ui.seen) },
           capabilityCard: () => card(ctx),
-          compact: { read: () => ({ recent: false }) },
           // The extension is a built copy, so the version that runs is the one baked into it.
           version: () => data.buracleVersion,
           sessionMaint: () => { scheduleMaint(ctx) },

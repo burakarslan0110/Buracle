@@ -6,6 +6,7 @@ import { loadState, profileGuard, sessionMaint } from '../../../workflow/session
 import { canonicalDir } from '../../../workflow/workspace'
 import { noticesOff, runtimeVersion, startupNotices } from '../notices'
 import { assetsOptions, assetsSessionStart } from '../project-assets'
+import { readCompact } from './pre-compact'
 import {
   byteLength, captureOff, clipBytes, CONTEXT_BUDGET_BYTES, latestHandoffId, memoryOff, readWorkspace, saveWorkspace, type PipelineDeps,
 } from './types'
@@ -13,18 +14,8 @@ import {
 /** The note on a memory index that did not fit: the rest is one search away. */
 export const MEMORY_CLIP_NOTE = '\n… (truncated; use memory_search)'
 
-/** What the last compaction left for the restore; `recent` says a compaction was recorded lately, so an empty record is trusted. */
-export interface CompactRecord { handoff?: string, todo?: string[], recent: boolean }
-
-export interface CompactStore {
-  read(now: number): CompactRecord
-  /** Save what the restore after the compaction reads: the handoff when one was written, else the open todos. */
-  save(handoff: string | undefined, todo: string[]): void
-}
-
 export interface SessionStartPorts {
   capabilityCard(): string
-  compact: Pick<CompactStore, 'read'>
   /** Context of the harness's own, placed before the memory index. */
   extraContext?: readonly string[]
   /** The profile warning (H17) in words for the model to pass on; absent where the harness shows it to the user itself. */
@@ -55,9 +46,9 @@ export async function workspaceStart(input: Pick<SessionStartInput, 'sessionId' 
  * The restore note after a compaction (H07): the plan state with the handoff or the open todos the session recorded.
  * sessionStart runs it for the source `compact`; a harness whose session context survives a compaction calls it alone.
  */
-export async function compactRestore(input: Pick<SessionStartInput, 'sessionId' | 'cwd' | 'now'>, d: PipelineDeps & Pick<SessionStartPorts, 'compact'>): Promise<string> {
+export async function compactRestore(input: Pick<SessionStartInput, 'sessionId' | 'cwd' | 'now'>, d: PipelineDeps): Promise<string> {
   const { sessionId: sid, cwd, now } = input
-  const own = d.compact.read(now)
+  const own = readCompact(d.ctx, d.harness, sid, now)
   const todo = own.handoff === undefined && (own.todo?.length ?? 0) > 0 ? own.todo : undefined
   const handoff = own.handoff ?? (todo === undefined && !own.recent && !memoryOff(d) ? await latestHandoffId(d, sid, cwd, now) : undefined)
   return d.core.restoreContext(loadState(d.harness, sid), handoff, todo) ?? ''

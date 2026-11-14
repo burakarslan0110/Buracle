@@ -7,7 +7,7 @@ import { defaultConfig, type BuracleConfig } from '../../../src/core/config'
 import { handoffNote } from '../../../src/core/compact'
 import * as paths from '../../../src/engine/paths'
 import { withSandbox, type Sandbox } from '../../helpers/sandbox'
-import { fakeCtx, fakePi, testDeps, testGenerated } from './fakes'
+import { compactRecord, fakeCtx, fakePi, testDeps, testGenerated } from './fakes'
 
 const SID = '01a118a8-8d01-740c-9360-f4f796699f4b'
 const AWS_KEY = 'AKIA' + 'IOSFODNN7EXAMPLE'
@@ -70,11 +70,11 @@ describe('omp extension: open todos in the H06 handoff note (Claude parity)', ()
     })
     const todoText = 'Remaining items (2):\n  - Write the parser test [in_progress] (Build)\n  - Update the docs [pending] (Build)'
     await fp.emit('tool_result', result('todo', { ops: [] }, todoText), ctx)
-    const r = await fp.emit('session.compacting', { type: 'session.compacting', sessionId: SID }, ctx) as { preserveData?: Record<string, unknown> } | undefined
+    await fp.emit('session.compacting', { type: 'session.compacting', sessionId: SID }, ctx)
     expect(seen).toEqual([['Write the parser test', 'Update the docs']])
     expect(memory.handoffs.length).toBe(1)
     expect(memory.handoffs[0]?.markdown).toContain('- [ ] Write the parser test')
-    expect((r?.preserveData?.['buracle'] as Record<string, unknown> | undefined)?.['handoff']).toBe(`handoff-${memory.handoffs[0]?.slug}`)
+    expect((compactRecord(SID) as Record<string, unknown>)['handoff']).toBe(`handoff-${memory.handoffs[0]?.slug}`)
     await fp.emit('tool_result', result('todo', { ops: [] }, 'Remaining items: none.'), ctx)
     expect(await fp.emit('session.compacting', { type: 'session.compacting', sessionId: SID }, ctx)).toBeUndefined()
     expect(memory.handoffs.length).toBe(2)

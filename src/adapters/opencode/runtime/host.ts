@@ -1,12 +1,11 @@
 import { join } from 'node:path'
 import type { CanonicalBundle } from '../../../core/catalog'
-import { RESTORE_RECORD_MAX_MS } from '../../../core/compact'
 import { MEMORY_INJECT } from '../../../core/memory/budgets'
 import type { ContextBand } from '../../../core/status/context'
 import { atomicWriteSync, ensureDirSync, readJsonSafeSync } from '../../../engine/fsx'
 import * as paths from '../../../engine/paths'
 import type { AdapterContext } from '../../registry'
-import type { CompactStore, MemoryFns } from '../../shared/pipeline/index'
+import type { MemoryFns } from '../../shared/pipeline/index'
 import type { UiSessionHooks } from '../../shared/ui-session'
 import type { BakedData } from './baked'
 import type { RuntimeSnapshot } from './env'
@@ -50,7 +49,7 @@ export function uiHooks(bridge: MemoryBridge): UiSessionHooks {
 }
 
 /** opencode.json of a session: what a plugin restart must not lose. */
-export interface Persisted { compactAt?: number, handoff?: string, compactTodos?: string[], ctxWarned?: ContextBand, todos?: string[] }
+export interface Persisted { ctxWarned?: ContextBand, todos?: string[] }
 
 function file(sid: string): string {
   return join(paths.sessionDir(HARNESS, sid), 'opencode.json')
@@ -64,10 +63,6 @@ export function readPersisted(sid: string): Persisted {
   const r = readJsonSafeSync<Record<string, unknown>>(file(sid))
   const v = r.ok && r.value !== null && typeof r.value === 'object' ? r.value : {}
   const out: Persisted = {}
-  if (typeof v['compactAt'] === 'number') out.compactAt = v['compactAt']
-  if (typeof v['handoff'] === 'string') out.handoff = v['handoff']
-  const compactTodos = strings(v['compactTodos'])
-  if (compactTodos !== undefined) out.compactTodos = compactTodos
   const band = v['ctxWarned']
   if (band === 'ok' || band === 'warn' || band === 'critical') out.ctxWarned = band
   const todos = strings(v['todos'])
@@ -78,23 +73,4 @@ export function readPersisted(sid: string): Persisted {
 export function updatePersisted(sid: string, fn: (p: Persisted) => Persisted): void {
   ensureDirSync(paths.sessionDir(HARNESS, sid))
   atomicWriteSync(file(sid), JSON.stringify({ v: 2, ...fn(readPersisted(sid)) }) + '\n')
-}
-
-/** The session's compaction record in opencode.json, for the restore after it. */
-export function compactStore(sid: string, at: number): CompactStore {
-  return {
-    read(now) {
-      const own = readPersisted(sid)
-      return {
-        recent: own.compactAt !== undefined && now - own.compactAt <= RESTORE_RECORD_MAX_MS,
-        ...(own.handoff !== undefined ? { handoff: own.handoff } : {}), ...(own.compactTodos !== undefined ? { todo: own.compactTodos } : {}),
-      }
-    },
-    save(handoff, todo) {
-      updatePersisted(sid, p => {
-        const { handoff: _handoff, compactTodos: _todos, ...rest } = p
-        return { ...rest, compactAt: at, ...(handoff !== undefined ? { handoff } : todo.length > 0 ? { compactTodos: todo } : {}) }
-      })
-    },
-  }
 }

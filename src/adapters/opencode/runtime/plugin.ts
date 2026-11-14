@@ -56,7 +56,7 @@ import { answerHeld, type ConsentAskHost, type HeldAnswer } from './consent-ask'
 import { questionGrant } from './consent-question'
 import type { StopSnapshot } from './guard'
 import { CONTINUE_MARK, registry, resetChain, StopGuard } from './guard'
-import { adapterContext, compactStore, memoryFns, NO_UI, readPersisted, uiHooks, updatePersisted } from './host'
+import { adapterContext, memoryFns, NO_UI, readPersisted, uiHooks, updatePersisted } from './host'
 import { maskedError, maskedResult, masksOpencodeTool } from './mask'
 import { postNotice } from './notice-board'
 import { registerRateWindows } from './rate-windows'
@@ -448,7 +448,6 @@ export class BuracleRuntime {
       // A subagent has no memory record of its own: its tool calls are spooled in the root session.
       ...(sub ? { env: { ...d.env, BURACLE_NO_MEMORY: '1' } } : {}),
       capabilityCard: () => (s.card = this.capabilityText(s.sid)),
-      compact: compactStore(s.sid, now),
       // The plugin is a built copy, so the version that runs is the one baked into it.
       version: () => this.baked.version,
       sessionMaint: () => { this.runMaintenance() },
@@ -970,7 +969,7 @@ export class BuracleRuntime {
     })
     if (!paths.isValidSessionId(s.sid) || await this.subagentSession(s)) return
     const now = this.now()
-    await preCompact({ harness: HARNESS, sessionId: s.sid, cwd: this.cwdOf(s), now }, { ...this.deps(s), openTodos: () => s.todos ?? [], compact: compactStore(s.sid, now) })
+    await preCompact({ harness: HARNESS, sessionId: s.sid, cwd: this.cwdOf(s), now }, { ...this.deps(s), openTodos: () => s.todos ?? [] })
   }
 
   async onPrompt(e: SessionPromptEvent): Promise<void> {

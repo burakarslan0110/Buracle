@@ -35,7 +35,7 @@ import {
 import { realWriteTarget } from '../shared/realpath'
 import { buracleRepoFor } from '../shared/repo'
 import { SHELL_TOOLS } from './constants'
-import { compactStore, postCompact, preCompact, REVIEW_AGENT, sessionEnd, stop, subagentStop } from './hook-end'
+import { postCompact, preCompact, REVIEW_AGENT, sessionEnd, stop, subagentStop } from './hook-end'
 import { HANDBACK_TOOL, subagentHandback } from './hook-handback'
 import { GUARD_FAILED, H, QUIET, contextOut, isObj, isSubagent, out, pipelineDeps, step, str, type HookOutcome } from './hook-io'
 import {
@@ -49,7 +49,7 @@ import { writeContents } from './write-content'
 export type { HookOutcome } from './hook-io'
 export { CONTEXT_BUDGET_BYTES, clipBytes } from '../shared/pipeline/index'
 export { FALLBACK_SPOOL_SUFFIX, GUARD_FAILED } from './hook-io'
-export { REVIEW_AGENT, handoffRecordPath, reviewNote, runawayNotice } from './hook-end'
+export { REVIEW_AGENT, reviewNote, runawayNotice } from './hook-end'
 export { capabilityCardText, readHealth } from './hook-route'
 
 export type HookCore = Pick<typeof core, 'checkBash' | 'checkWrite' | 'routeTool' | 'validatePlan' | 'stopGuardVerdict' | 'handoffNote' | 'restoreContext' | 'validateReviewJson' | 'checkQuestion' | 'consentVerdict'>
@@ -172,7 +172,6 @@ async function sessionStart(p: Record<string, unknown>, sid: string, ctx: Adapte
   const r = await sessionStartEvent({ harness: H, sessionId: sid, cwd, source, subagent: isSubagent(p), now, ...(model !== undefined ? { model } : {}) }, {
     ...pipelineDeps(ctx, d),
     capabilityCard: () => capabilityCardText(ctx, mcpHealth(ctx, H, now, { sid, nativeOff: claudeOffServers(cwd, pluginRoot(ctx.repoRoot, d.env)) })),
-    compact: compactStore(sid, now),
     profileNote: finding => `Buracle setup warning. Tell the user at the start of your next reply, in one short line, then carry on with their request:\n- ${finding}`,
     sessionMaint: (nowMs, keep) => { d.sessionMaint(nowMs, keep) },
   })

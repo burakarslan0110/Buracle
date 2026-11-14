@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { CANONICAL_EVENTS, type StopInput } from '../../../../src/core/events'
 import type { PromptRoute } from '../../../../src/core/policy/skill-router'
 import type { StopGuardResult } from '../../../../src/core/plan/state'
@@ -9,7 +9,7 @@ import type { WorkspaceInfo } from '../../../../src/core/workspace'
 import * as paths from '../../../../src/engine/paths'
 import * as pipeline from '../../../../src/adapters/shared/pipeline/index'
 import {
-  clipBytes, contextJson, CONTEXT_BUDGET_BYTES, denyReason, fitParts, guardFailed, postTool, preCompact, preTool, prompt, readWorkspace, saveWorkspace,
+  clipBytes, compactFile, contextJson, CONTEXT_BUDGET_BYTES, denyReason, fitParts, guardFailed, postTool, preCompact, preTool, prompt, readCompact, readWorkspace, saveCompact, saveWorkspace,
   sessionEnd, sessionStart, stop, workspaceStart,
   type CompactRecord, type PostToolPorts, type PreToolInput, type PreToolPorts, type PromptPorts, type SessionStartPorts, type StopPorts,
 } from '../../../../src/adapters/shared/pipeline/index'
@@ -279,8 +279,17 @@ describe('pipeline stop', () => {
   }))
 })
 
-function startPorts(record: CompactRecord = { recent: false }, over: Partial<SessionStartPorts> = {}): SessionStartPorts {
-  return { capabilityCard: () => 'Capability card', compact: { read: () => record }, sessionMaint: () => {}, ...over }
+function startPorts(over: Partial<SessionStartPorts> = {}): SessionStartPorts {
+  return { capabilityCard: () => 'Capability card', sessionMaint: () => {}, ...over }
+}
+
+const CTX = fakeDeps().ctx
+const recordFile = () => compactFile(CTX, H, SID)
+
+/** Leave the session the compaction record a test starts from. */
+function leave(record: CompactRecord): void {
+  if (record.recent) saveCompact(CTX, H, SID, NOW, record.handoff, record.todo ?? [])
+  else rmSync(recordFile(), { force: true })
 }
 
 const NOTICE = { id: 'pipeline-notice', since: '0.0.1', message: 'Hello from the pipeline test.' }
@@ -291,7 +300,7 @@ describe('pipeline sessionStart', () => {
     let asked = 0
     const d = fakeDeps({ memory: { contextText: async o => { asked = o.maxBytes ?? 0; return ' the memory index ' } } })
     const r = await sessionStart({ harness: H, sessionId: SID, cwd: '/work/app', source: 'startup', model: 'm', now: NOW }, {
-      ...d, ...startPorts(undefined, { capabilityCard: () => { ran.push('card'); return 'Capability card' }, sessionMaint: (_n, keep) => { ran.push(`maint:${keep.join()}`) }, extraContext: ['resume the run'] }),
+      ...d, ...startPorts({ capabilityCard: () => { ran.push('card'); return 'Capability card' }, sessionMaint: (_n, keep) => { ran.push(`maint:${keep.join()}`) }, extraContext: ['resume the run'] }),
     })
     expect(ran).toEqual(['card', `maint:${SID}`])
     expect(r).toEqual({ context: ['resume the run', 'the memory index', 'Capability card'] })
@@ -310,7 +319,7 @@ describe('pipeline sessionStart', () => {
     expect(user.profile).toContain('/work/profile-a')
     expect(user.notice?.user).toContain('Hello from the pipeline test.')
     expect(user.context.join('\n')).not.toContain('/work/profile-a')
-    const model = await sessionStart({ ...input, sessionId: `${SID}-2` }, { ...fakeDeps(o), ...startPorts(undefined, { profileNote: f => `tell the user: ${f}` }) })
+    const model = await sessionStart({ ...input, sessionId: `${SID}-2` }, { ...fakeDeps(o), ...startPorts({ profileNote: f => `tell the user: ${f}` }) })
     expect(model.context[0]).toStartWith('tell the user: Buracle was installed for Codex into /work/profile-a')
     expect(model.notice).toBeUndefined()
     const off = await sessionStart({ ...input, sessionId: `${SID}-3` }, { ...fakeDeps({ ...o, env: { BURACLE_NO_NOTICES: '1' }, canonical: { notices: [{ ...NOTICE, id: 'pipeline-notice-2' }] } as never }), ...startPorts() })
@@ -321,7 +330,7 @@ describe('pipeline sessionStart', () => {
     const input = { harness: H, sessionId: SID, cwd: '/work/app', source: 'compact', now: NOW }
     const core = { restoreContext: ((_s: unknown, handoff?: string, todo?: string[]) => `restored ${handoff ?? todo?.join('+') ?? 'nothing'}`) as never }
     const memory = { latestHandoff: async () => ({ id: 'handoff-latest', path: '', rel: '', title: '' }) }
-    const restored = async (record: CompactRecord, o: FakeOptions = {}) => (await sessionStart(input, { ...fakeDeps({ core, memory, ...o }), ...startPorts(record) })).context[0]
+    const restored = async (record: CompactRecord, o: FakeOptions = {}) => { leave(record); return (await sessionStart(input, { ...fakeDeps({ core, memory, ...o }), ...startPorts() })).context[0] }
     expect(await restored({ recent: true, handoff: 'handoff-own', todo: ['ignored'] })).toBe('restored handoff-own')
     expect(await restored({ recent: true, todo: ['Add the tests', 'Ship it'] })).toBe('restored Add the tests+Ship it')
     expect(await restored({ recent: true })).toBe('restored nothing')
@@ -330,6 +339,29 @@ describe('pipeline sessionStart', () => {
     const d = fakeDeps({ core, memory })
     await sessionStart(input, { ...d, ...startPorts() })
     expect(d.rec).toMatchObject({ memory: [], ui: ['seen'] })
+  }))
+
+  test('one compaction record for every harness: an old, foreign-shaped or unreadable record is ignored and never throws', () => withSandbox(async () => {
+    expect(recordFile()).toBe(`${paths.sessionDir(H, SID)}/compact.json`)
+    expect(compactFile(CTX, 'claude', SID)).toBe(`${paths.sessionDir('claude', SID)}/compact.json`)
+    expect(readCompact(CTX, H, SID, NOW)).toEqual({ recent: false })
+    saveCompact(CTX, H, SID, NOW, 'handoff-own', ['ignored'])
+    expect(JSON.parse(readFileSync(recordFile(), 'utf8'))).toEqual({ v: 1, at: NOW, handoff: 'handoff-own' })
+    expect(readCompact(CTX, H, SID, NOW + 24 * 3_600_000)).toEqual({ recent: true, handoff: 'handoff-own' })
+    expect(readCompact(CTX, H, SID, NOW + 24 * 3_600_000 + 1)).toEqual({ recent: false })
+    saveCompact(CTX, H, SID, NOW, undefined, [])
+    expect(readCompact(CTX, H, SID, NOW)).toEqual({ recent: true })
+    const written = (text: string) => { writeFileSync(recordFile(), text); return readCompact(CTX, H, SID, NOW) }
+    expect(written(JSON.stringify({ v: 1, at: NOW, handoff: '/home/u/notes/handoff.md' }))).toEqual({ recent: true })
+    expect(written(JSON.stringify({ v: 1, at: NOW, todo: ['Ship it', '', 7, ...Array.from({ length: 20 }, (_, i) => `step ${i}`)] })).todo).toHaveLength(10)
+    // The shapes the harnesses kept before: Claude Code's handoff.json, Codex's codex.json, OpenCode's opencode.json.
+    for (const old of [{ path: 'handoff-old', at: NOW }, { v: 1, lastHandoff: 'handoff-old', lastCompactAt: NOW }, { v: 2, compactAt: NOW, handoff: 'handoff-old' }]) {
+      expect(written(JSON.stringify(old))).toEqual({ recent: false })
+    }
+    for (const text of ['', 'not json', '[]', 'null', '"x"']) expect(written(text)).toEqual({ recent: false })
+    const core = { restoreContext: ((_s: unknown, handoff?: string) => `restored ${handoff ?? 'nothing'}`) as never }
+    const r = await sessionStart({ harness: H, sessionId: SID, cwd: '/work/app', source: 'compact', now: NOW }, { ...fakeDeps({ core }), ...startPorts() })
+    expect(r.context[0]).toBe('restored nothing')
   }))
 
   test('the workspace note saves the session\'s workspace; a subagent in the same folder reads it back', () => withSandbox(async ({ root }) => {
@@ -357,7 +389,8 @@ describe('pipeline sessionStart', () => {
       memory: { contextText: async () => { ran.push('memory'); return 'the memory index' } },
       workspace: { workspaceInfo: async () => info },
     }
-    const ports = startPorts({ recent: true, todo: ['Ship it'] }, { capabilityCard: () => { ran.push('card'); return 'Capability card' }, extraContext: ['resume the run'], profileNote: f => `tell the user: ${f}` })
+    leave({ recent: true, todo: ['Ship it'] })
+    const ports = startPorts({ capabilityCard: () => { ran.push('card'); return 'Capability card' }, extraContext: ['resume the run'], profileNote: f => `tell the user: ${f}` })
     for (const source of ['startup', 'resume', 'compact']) {
       const d = fakeDeps(o)
       expect(await sessionStart({ harness: H, sessionId: SID, cwd: '/work/app', source, subagent: true, now: NOW }, { ...d, ...ports })).toEqual({ context: ['workspace /work/app'] })
@@ -386,17 +419,20 @@ describe('pipeline postTool, preCompact and sessionEnd', () => {
   }))
 
   test('preCompact records the compaction, writes the handoff with the open todos and points the record at it', () => withSandbox(async () => {
-    const records: Array<[string | undefined, string[]]> = []
-    const ports = { openTodos: () => ['Add the tests'], compact: { save: (handoff: string | undefined, todo: string[]) => { records.push([handoff, todo]) } } }
+    const records: unknown[] = []
+    const record = (): unknown => JSON.parse(readFileSync(recordFile(), 'utf8'))
+    const ports = { openTodos: () => ['Add the tests'] }
     const core = { handoffNote: ((o: { project: string, branch?: string, todo?: string[] }) => ({ slug: `${o.project}-${o.branch}`, markdown: (o.todo ?? []).join('\n') })) as never }
-    const d = fakeDeps({ core })
+    const d = fakeDeps({ core, memory: { writeHandoff: async input => { records.push(record()); d.rec.handoffs.push(input); return { id: 'handoff-app', path: 'handoff-app', rel: 'handoff-app' } } } })
     expect(await preCompact({ harness: H, sessionId: SID, cwd: '/work/app', trigger: 'auto', now: NOW }, { ...d, ...ports })).toEqual({ todo: ['Add the tests'], handoff: 'handoff-app' })
-    expect(records).toEqual([[undefined, ['Add the tests']], ['handoff-app', ['Add the tests']]])
+    expect([...records, record()]).toEqual([{ v: 1, at: NOW, todo: ['Add the tests'] }, { v: 1, at: NOW, handoff: 'handoff-app' }])
+    expect(readCompact(CTX, H, SID, NOW)).toEqual({ recent: true, handoff: 'handoff-app' })
     expect(d.rec.handoffs).toEqual([{ harness: H, sessionId: SID, cwd: '/work/app', project: 'app', branch: 'main', slug: 'app-main', markdown: 'Add the tests', trigger: 'auto', now: NOW }])
     const off = fakeDeps({ core, env: { BURACLE_NO_MEMORY: '1' } })
     expect(await preCompact({ harness: H, sessionId: SID, cwd: '/work/app', now: NOW }, { ...off, ...ports })).toEqual({ todo: ['Add the tests'] })
     expect(off.rec.handoffs).toEqual([])
-    expect(records[2]).toEqual([undefined, ['Add the tests']])
+    expect(record()).toEqual({ v: 1, at: NOW, todo: ['Add the tests'] })
+    expect(readCompact(CTX, H, SID, NOW)).toEqual({ recent: true, todo: ['Add the tests'] })
   }))
 
   test('sessionEnd closes the UI record and starts the finalizer unless capture is off', () => withSandbox(async () => {

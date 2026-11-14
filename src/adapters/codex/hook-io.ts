@@ -50,9 +50,6 @@ export function blockOutput(reason: string): HookOutcome {
 export interface CodexSessionState {
   v: 1
   ctxWarned?: number
-  lastHandoff?: string
-  lastTodos?: string[]
-  lastCompactAt?: number
   runawayPlan?: string
   flowNotified?: string
 }

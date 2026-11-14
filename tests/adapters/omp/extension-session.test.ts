@@ -11,7 +11,7 @@ import { detectIntent, isGuardContinuation } from '../../../src/core/policy/inte
 import { contextWarning } from '../../../src/core/status/context'
 import { saveState } from '../../../src/workflow/session-store'
 import { withEnv, withSandbox, type Sandbox } from '../../helpers/sandbox'
-import { fakeCtx, fakeMemory, fakePi, testDeps, testGenerated, type FakeCtx } from './fakes'
+import { compactRecord, fakeCtx, fakeMemory, fakePi, testDeps, testGenerated, type FakeCtx } from './fakes'
 
 const SID = '01a118a8-8d01-740c-9360-f4f796699f4c'
 
@@ -98,13 +98,13 @@ describe('omp H17 one-time notices', () => {
 })
 
 describe('omp H06/H07 without a handoff memory', () => {
-  test('the todo tool\'s open items ride in preserveData and come back after compaction', () => withSandbox(async sb => {
+  test('the todo tool\'s open items are kept in the compaction record and come back after compaction', () => withSandbox(async sb => {
     const bridge = { ...fakeMemory().bridge, writeHandoff: async () => undefined }
     const { fp, ctx } = setup(sb, { memory: bridge, compact: { compactInstructions: () => 'x', handoffNote: () => ({ slug: 'h', markdown: '' }), restoreContext } })
     await fp.emit('tool_result', { type: 'tool_result', toolCallId: 't1', toolName: 'todo', input: {}, isError: false, content: [{ type: 'text', text: 'Remaining items (2):\n  - Write the parser [in_progress]\n  - Old item [completed]' }] }, ctx)
-    const r = await fp.emit('session.compacting', { type: 'session.compacting', sessionId: SID, messages: [] }, ctx) as { preserveData: { buracle: Record<string, unknown> } }
-    expect(r.preserveData.buracle).toEqual({ v: 1, sessionId: SID, todos: ['Write the parser'] })
-    await fp.emit('session_compact', { type: 'session_compact', compactionEntry: { summary: 's', preserveData: r.preserveData }, fromExtension: false }, ctx)
+    await fp.emit('session.compacting', { type: 'session.compacting', sessionId: SID, messages: [] }, ctx)
+    expect(compactRecord(SID)).toEqual({ v: 1, at: 1_791_400_000_000, todo: ['Write the parser'] })
+    await fp.emit('session_compact', { type: 'session_compact', compactionEntry: { summary: 's' }, fromExtension: false }, ctx)
     expect(fp.sent.at(-1)?.message.content).toBe('Buracle: the context was compacted.\nOpen todos at compaction time (no handoff memory was written):\n- Write the parser')
   }))
 

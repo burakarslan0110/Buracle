@@ -13257,7 +13257,7 @@ var memoryBridge = {
 
 // src/adapters/opencode/runtime/plugin.ts
 import { existsSync as existsSync12, readFileSync as readFileSync24, statSync as statSync21 } from "fs";
-import { isAbsolute as isAbsolute13, join as join36, resolve as resolve18 } from "path";
+import { isAbsolute as isAbsolute13, join as join37, resolve as resolve18 } from "path";
 // src/core/catalog.ts
 var MCP_BACKENDS = ["shared", "lazy"];
 function hookFallbacks(binding) {
@@ -32301,6 +32301,50 @@ function assetsAfterEdit(rootIn, files, o) {
   }
 }
 
+// src/adapters/shared/pipeline/pre-compact.ts
+import { join as join26 } from "path";
+function compactFile(ctx, h, sid) {
+  return join26(ctx.paths.sessionDir(h, sid), "compact.json");
+}
+function saveCompact(ctx, h, sid, at, handoff, todo) {
+  ensureDirSync(ctx.paths.sessionDir(h, sid));
+  atomicWriteSync(compactFile(ctx, h, sid), JSON.stringify({ v: 1, at, ...handoff !== undefined ? { handoff } : todo.length > 0 ? { todo } : {} }) + `
+`);
+}
+function readCompact(ctx, h, sid, now) {
+  const r = readJsonSafeSync(compactFile(ctx, h, sid));
+  const v = r.ok && r.value !== null && typeof r.value === "object" && !Array.isArray(r.value) ? r.value : {};
+  const at = v["at"];
+  if (v["v"] !== 1 || typeof at !== "number" || now - at > RESTORE_RECORD_MAX_MS)
+    return { recent: false };
+  const { handoff, todo } = v;
+  if (typeof handoff === "string")
+    return { recent: true, .../^handoff-[a-z0-9-]+$/.test(handoff) ? { handoff } : {} };
+  const open = Array.isArray(todo) ? todo.filter((t) => typeof t === "string" && t.trim() !== "").slice(0, RESTORE_TODOS_MAX) : [];
+  return { recent: true, ...open.length > 0 ? { todo: open } : {} };
+}
+async function preCompact(input, d) {
+  const { harness: H, sessionId: sid, cwd, now } = input;
+  const todo = await d.step("H06 todos", [], () => d.openTodos());
+  const mark = (handoff) => d.step("H06 compaction record", undefined, () => {
+    saveCompact(d.ctx, H, sid, now, handoff, todo.slice(0, RESTORE_TODOS_MAX));
+  });
+  await mark();
+  const handoff = memoryOff(d) ? undefined : await d.step("H06 handoff", undefined, async () => {
+    const write = await d.memory("writeHandoff");
+    if (write === undefined)
+      return;
+    const { project, branch } = await projectOf(d, cwd);
+    const where = { project, ...branch !== undefined ? { branch } : {} };
+    const note = d.core.handoffNote({ state: loadState(H, sid), harness: H, sessionId: sid, now, ...where, ...todo.length > 0 ? { todo } : {} });
+    const r = await write({ harness: H, sessionId: sid, cwd, ...where, slug: note.slug, markdown: note.markdown, ...input.trigger !== undefined ? { trigger: input.trigger } : {}, now });
+    return typeof r?.id === "string" ? r.id : undefined;
+  });
+  if (handoff !== undefined)
+    await mark(handoff);
+  return { todo, ...handoff !== undefined ? { handoff } : {} };
+}
+
 // src/adapters/shared/pipeline/session-start.ts
 var MEMORY_CLIP_NOTE = `
 \u2026 (truncated; use memory_search)`;
@@ -32320,7 +32364,7 @@ async function workspaceStart(input, d) {
 }
 async function compactRestore(input, d) {
   const { sessionId: sid, cwd, now } = input;
-  const own = d.compact.read(now);
+  const own = readCompact(d.ctx, d.harness, sid, now);
   const todo = own.handoff === undefined && (own.todo?.length ?? 0) > 0 ? own.todo : undefined;
   const handoff = own.handoff ?? (todo === undefined && !own.recent && !memoryOff(d) ? await latestHandoffId(d, sid, cwd, now) : undefined);
   return d.core.restoreContext(loadState(d.harness, sid), handoff, todo) ?? "";
@@ -32399,7 +32443,7 @@ function earlyEdit(h, sid, files, cwd, planApproval) {
 
 // src/adapters/shared/review-notes.ts
 import { mkdirSync as mkdirSync12 } from "fs";
-import { dirname as dirname10, join as join26 } from "path";
+import { dirname as dirname10, join as join27 } from "path";
 function real(p) {
   try {
     return realPath(p);
@@ -32419,7 +32463,7 @@ function reviewNotesNotice(h, sid, o) {
   const entries = inbox();
   if (entries.length === 0)
     return;
-  const file = join26(sessionDir(h, sid), "review-notes.json");
+  const file = join27(sessionDir(h, sid), "review-notes.json");
   const seen = readJsonSafeSync(file);
   const since = seen.ok && typeof seen.value?.at === "number" ? seen.value.at : 0;
   const s = { ...o.plan !== undefined && o.plan !== "" ? { plan: real(o.plan) } : {}, roots: [...new Set(o.roots.filter((r) => typeof r === "string" && r !== "").map(real))] };
@@ -32575,7 +32619,7 @@ function mcpWritePaths(tool, input, mcp) {
 
 // src/adapters/shared/realpath.ts
 import { lstatSync as lstatSync4, readlinkSync as readlinkSync3 } from "fs";
-import { basename as basename7, dirname as dirname11, isAbsolute as isAbsolute8, join as join27, resolve as resolve11 } from "path";
+import { basename as basename7, dirname as dirname11, isAbsolute as isAbsolute8, join as join28, resolve as resolve11 } from "path";
 var MAX_HOPS = 40;
 function resolveFrom(p, hops) {
   if (hops > MAX_HOPS)
@@ -32602,7 +32646,7 @@ function resolveFrom(p, hops) {
   if (parent === p)
     return p;
   const real = resolveFrom(parent, hops + 1);
-  return real === undefined ? undefined : join27(real, basename7(p));
+  return real === undefined ? undefined : join28(real, basename7(p));
 }
 function realWriteTarget(p) {
   if (typeof p !== "string" || !isAbsolute8(p))
@@ -32612,7 +32656,7 @@ function realWriteTarget(p) {
 
 // src/adapters/shared/repo.ts
 import { readFileSync as readFileSync17 } from "fs";
-import { dirname as dirname12, isAbsolute as isAbsolute9, join as join28, resolve as resolve12 } from "path";
+import { dirname as dirname12, isAbsolute as isAbsolute9, join as join29, resolve as resolve12 } from "path";
 function real2(p) {
   try {
     return realPath(p);
@@ -32624,12 +32668,12 @@ function expand(p, home) {
   const t = p.trim();
   if (t === "")
     return;
-  const e = t === "~" ? home : t.startsWith("~/") && home !== undefined ? join28(home, t.slice(2)) : t;
+  const e = t === "~" ? home : t.startsWith("~/") && home !== undefined ? join29(home, t.slice(2)) : t;
   return e !== undefined && isAbsolute9(e) ? resolve12(e) : undefined;
 }
 function packageName(dir) {
   try {
-    const pkg = JSON.parse(readFileSync17(join28(dir, "package.json"), "utf8"));
+    const pkg = JSON.parse(readFileSync17(join29(dir, "package.json"), "utf8"));
     const name = pkg !== null && typeof pkg === "object" ? pkg["name"] : undefined;
     return typeof name === "string" ? name : undefined;
   } catch {
@@ -34056,7 +34100,7 @@ import { sep as sep4 } from "path";
 
 // src/adapters/shared/checker-scan.ts
 import { readdirSync as readdirSync10, readFileSync as readFileSync19, statSync as statSync18 } from "fs";
-import { join as join29 } from "path";
+import { join as join30 } from "path";
 var nodeCheckFs = {
   list: (dir) => {
     try {
@@ -34088,16 +34132,16 @@ function scanUpward(fs, file, root, home) {
     const names = fs.list(dir).map((e) => e.name);
     const scan = { dir, names };
     if (names.includes("pyproject.toml")) {
-      const t = fs.read(join29(dir, "pyproject.toml"), MANIFEST_MAX_BYTES);
+      const t = fs.read(join30(dir, "pyproject.toml"), MANIFEST_MAX_BYTES);
       if (t !== undefined)
         scan.pyproject = t;
     }
     if (names.includes("package.json")) {
-      const t = fs.read(join29(dir, "package.json"), MANIFEST_MAX_BYTES);
+      const t = fs.read(join30(dir, "package.json"), MANIFEST_MAX_BYTES);
       if (t !== undefined)
         scan.packageJson = t;
     }
-    const present = CHECKER_PROBES.filter((p) => names.includes(p.split("/")[0]) && fs.exists(join29(dir, ...p.split("/"))));
+    const present = CHECKER_PROBES.filter((p) => names.includes(p.split("/")[0]) && fs.exists(join30(dir, ...p.split("/"))));
     if (present.length > 0)
       scan.present = present;
     return scan;
@@ -34311,28 +34355,6 @@ async function stop(input, d) {
   }
   return out;
 }
-// src/adapters/shared/pipeline/pre-compact.ts
-async function preCompact(input, d) {
-  const { harness: H, sessionId: sid, cwd, now } = input;
-  const todo = await d.step("H06 todos", [], () => d.openTodos());
-  const mark = (handoff) => d.step("H06 compaction record", undefined, () => {
-    d.compact.save(handoff, todo.slice(0, RESTORE_TODOS_MAX));
-  });
-  await mark();
-  const handoff = memoryOff(d) ? undefined : await d.step("H06 handoff", undefined, async () => {
-    const write = await d.memory("writeHandoff");
-    if (write === undefined)
-      return;
-    const { project, branch } = await projectOf(d, cwd);
-    const where = { project, ...branch !== undefined ? { branch } : {} };
-    const note = d.core.handoffNote({ state: loadState(H, sid), harness: H, sessionId: sid, now, ...where, ...todo.length > 0 ? { todo } : {} });
-    const r = await write({ harness: H, sessionId: sid, cwd, ...where, slug: note.slug, markdown: note.markdown, ...input.trigger !== undefined ? { trigger: input.trigger } : {}, now });
-    return typeof r?.id === "string" ? r.id : undefined;
-  });
-  if (handoff !== undefined)
-    await mark(handoff);
-  return { todo, ...handoff !== undefined ? { handoff } : {} };
-}
 // src/adapters/shared/pipeline/session-end.ts
 async function sessionEnd(input, d) {
   const { harness: H, sessionId: sid } = input;
@@ -34385,14 +34407,14 @@ async function prepareWorkspace(cwd, cfg, nowMs) {
 
 // src/adapters/shared/repo-cache.ts
 import { existsSync as existsSync11, readFileSync as readFileSync20 } from "fs";
-import { dirname as dirname13, join as join30, resolve as resolve15 } from "path";
+import { dirname as dirname13, join as join31, resolve as resolve15 } from "path";
 var CACHE_TTL_MS = 30000;
 var CACHE_MAX = 64;
 var cache2 = new Map;
 function gitToplevel(dir) {
   let d = resolve15(dir);
   for (let i = 0;i < 128; i++) {
-    if (existsSync11(join30(d, ".git")))
+    if (existsSync11(join31(d, ".git")))
       return d;
     const up = dirname13(d);
     if (up === d)
@@ -34403,7 +34425,7 @@ function gitToplevel(dir) {
 }
 function packageName2(dir) {
   try {
-    const pkg = JSON.parse(readFileSync20(join30(dir, "package.json"), "utf8"));
+    const pkg = JSON.parse(readFileSync20(join31(dir, "package.json"), "utf8"));
     return pkg !== null && typeof pkg === "object" && typeof pkg.name === "string" ? pkg.name : undefined;
   } catch {
     return;
@@ -34782,7 +34804,7 @@ function deliveredPrompts(taken, compiled, policy, readOnly = false) {
 
 // src/adapters/shared/project-deps.ts
 import { readdirSync as readdirSync11, readFileSync as readFileSync21, statSync as statSync19 } from "fs";
-import { join as join31, resolve as resolve16 } from "path";
+import { join as join32, resolve as resolve16 } from "path";
 var ROOT_MANIFESTS = ["package.json", "pyproject.toml", "Pipfile", "go.mod", "Cargo.toml", "composer.json", "Gemfile"];
 var REQUIREMENTS = /^(?:requirements|constraints)[\w.-]*\.(?:txt|in)$/i;
 var WORKSPACE_MEMBERS_MAX = 32;
@@ -34822,7 +34844,7 @@ function workspacePatterns(root, pkgText) {
           out.push(p);
     } catch {}
   }
-  const pnpm = readSmall(join31(root, "pnpm-workspace.yaml"));
+  const pnpm = readSmall(join32(root, "pnpm-workspace.yaml"));
   if (pnpm !== undefined) {
     let inPackages = false;
     for (const raw of pnpm.split(`
@@ -34850,7 +34872,7 @@ function memberDirs(root, patterns) {
     if (p === "" || p.startsWith("!") || p.startsWith("/") || p.split("/").includes(".."))
       continue;
     if (p.endsWith("/*") && !/[*?[{]/.test(p.slice(0, -2))) {
-      const base = join31(root, p.slice(0, -2));
+      const base = join32(root, p.slice(0, -2));
       let names = [];
       try {
         names = readdirSync11(base).sort();
@@ -34859,9 +34881,9 @@ function memberDirs(root, patterns) {
       }
       for (const n of names)
         if (!n.startsWith(".") && n !== "node_modules")
-          dirs.add(join31(base, n));
+          dirs.add(join32(base, n));
     } else if (!/[*?[{]/.test(p)) {
-      dirs.add(join31(root, p));
+      dirs.add(join32(root, p));
     }
   }
   return [...dirs].sort();
@@ -34880,17 +34902,17 @@ function projectDeps(root) {
     ...ROOT_MANIFESTS.filter((n) => names.includes(n)),
     ...names.filter((n) => REQUIREMENTS.test(n)).sort()
   ];
-  const pkgText = files.includes("package.json") ? readSmall(join31(dir, "package.json")) : undefined;
-  const members = pkgText !== undefined || names.includes("pnpm-workspace.yaml") ? memberDirs(dir, workspacePatterns(dir, pkgText)).map((m) => join31(m, "package.json")).filter((p) => stamp2(p) !== undefined).slice(0, WORKSPACE_MEMBERS_MAX) : [];
-  const paths = [...files.map((n) => join31(dir, n)), ...members];
-  const sig = [...paths.map((p) => `${p}=${stamp2(p) ?? ""}`), names.includes("pnpm-workspace.yaml") ? `pnpm=${stamp2(join31(dir, "pnpm-workspace.yaml")) ?? ""}` : ""].join(`
+  const pkgText = files.includes("package.json") ? readSmall(join32(dir, "package.json")) : undefined;
+  const members = pkgText !== undefined || names.includes("pnpm-workspace.yaml") ? memberDirs(dir, workspacePatterns(dir, pkgText)).map((m) => join32(m, "package.json")).filter((p) => stamp2(p) !== undefined).slice(0, WORKSPACE_MEMBERS_MAX) : [];
+  const paths = [...files.map((n) => join32(dir, n)), ...members];
+  const sig = [...paths.map((p) => `${p}=${stamp2(p) ?? ""}`), names.includes("pnpm-workspace.yaml") ? `pnpm=${stamp2(join32(dir, "pnpm-workspace.yaml")) ?? ""}` : ""].join(`
 `);
   const hit = cache3.get(dir);
   if (hit !== undefined && hit.sig === sig)
     return [...hit.deps];
   const deps = new Set;
   for (const p of paths) {
-    const text = p === join31(dir, "package.json") ? pkgText : readSmall(p);
+    const text = p === join32(dir, "package.json") ? pkgText : readSmall(p);
     if (text === undefined)
       continue;
     for (const d of parseManifestDeps(p, text))
@@ -34918,7 +34940,7 @@ function projectDeps2(root) {
 // src/adapters/opencode/runtime/env.ts
 import { readFileSync as readFileSync22, statSync as statSync20 } from "fs";
 import os2 from "os";
-import { isAbsolute as isAbsolute11, join as join32 } from "path";
+import { isAbsolute as isAbsolute11, join as join33 } from "path";
 var POINTER_FILE = "runtime.json";
 function absEnv2(name) {
   const v = process.env[name];
@@ -34928,7 +34950,7 @@ function readPointer(pluginDir) {
   if (pluginDir === undefined)
     return;
   try {
-    const raw = JSON.parse(readFileSync22(join32(pluginDir, POINTER_FILE), "utf8"));
+    const raw = JSON.parse(readFileSync22(join33(pluginDir, POINTER_FILE), "utf8"));
     if (raw !== null && typeof raw === "object") {
       const bh = raw.buracleHome;
       if (typeof bh === "string" && isAbsolute11(bh))
@@ -34945,7 +34967,7 @@ function resolveEnv(pluginDir) {
   const pointer = readPointer(pluginDir);
   if (pointer !== undefined)
     return { home, buracleHome: pointer.buracleHome, source: "pointer" };
-  return { home, buracleHome: join32(home, ".buracle"), source: "default" };
+  return { home, buracleHome: join33(home, ".buracle"), source: "default" };
 }
 function applyEnv(resolved) {
   const changed = [];
@@ -35146,25 +35168,25 @@ function questionGrant(sid, input, result, now) {
 
 // src/adapters/opencode/runtime/consent-relay.ts
 import { closeSync as closeSync7, openSync as openSync7, readdirSync as readdirSync12, rmSync as rmSync5, writeSync as writeSync5 } from "fs";
-import { join as join33 } from "path";
+import { join as join34 } from "path";
 var RELAY_DIR = "consent-relay";
 var TUI_FRESH_MS = 6000;
 var ASK_ID = /^[a-z0-9-]{8,64}$/;
 var RELAY_ANSWERS = ["once", "session", "refuse", "dismiss"];
 function relayDir(sid) {
-  return join33(sessionDir("opencode", sid), RELAY_DIR);
+  return join34(sessionDir("opencode", sid), RELAY_DIR);
 }
 function askFile(sid, id) {
-  return join33(relayDir(sid), `ask-${id}.json`);
+  return join34(relayDir(sid), `ask-${id}.json`);
 }
 function answerFile(sid, id) {
-  return join33(relayDir(sid), `answer-${id}.json`);
+  return join34(relayDir(sid), `answer-${id}.json`);
 }
 function valid(sid, id) {
   return isValidSessionId(sid) && (id === undefined || ASK_ID.test(id));
 }
 function anyTuiFile() {
-  return join33(stateDir(), "opencode-tui.json");
+  return join34(stateDir(), "opencode-tui.json");
 }
 function fresh(file, now) {
   const r = readJsonSafeSync(file);
@@ -35172,7 +35194,7 @@ function fresh(file, now) {
   return typeof at === "number" && now - at <= TUI_FRESH_MS && at - now <= TUI_FRESH_MS;
 }
 function tuiPresent(sid, now) {
-  return valid(sid) && fresh(join33(relayDir(sid), "tui.json"), now);
+  return valid(sid) && fresh(join34(relayDir(sid), "tui.json"), now);
 }
 function anyTuiPresent(now) {
   return fresh(anyTuiFile(), now);
@@ -35445,7 +35467,7 @@ class StopGuard {
 }
 
 // src/adapters/opencode/runtime/host.ts
-import { join as join34 } from "path";
+import { join as join35 } from "path";
 
 // src/core/memory/budgets.ts
 var MEMORY_INJECT = { maxLines: 150, maxBytes: 12288 };
@@ -35492,7 +35514,7 @@ function uiHooks(bridge) {
   };
 }
 function file(sid) {
-  return join34(sessionDir(HARNESS5, sid), "opencode.json");
+  return join35(sessionDir(HARNESS5, sid), "opencode.json");
 }
 function strings(x) {
   return Array.isArray(x) ? x.filter((t) => typeof t === "string") : undefined;
@@ -35501,13 +35523,6 @@ function readPersisted(sid) {
   const r = readJsonSafeSync(file(sid));
   const v = r.ok && r.value !== null && typeof r.value === "object" ? r.value : {};
   const out = {};
-  if (typeof v["compactAt"] === "number")
-    out.compactAt = v["compactAt"];
-  if (typeof v["handoff"] === "string")
-    out.handoff = v["handoff"];
-  const compactTodos = strings(v["compactTodos"]);
-  if (compactTodos !== undefined)
-    out.compactTodos = compactTodos;
   const band = v["ctxWarned"];
   if (band === "ok" || band === "warn" || band === "critical")
     out.ctxWarned = band;
@@ -35520,24 +35535,6 @@ function updatePersisted(sid, fn) {
   ensureDirSync(sessionDir(HARNESS5, sid));
   atomicWriteSync(file(sid), JSON.stringify({ v: 2, ...fn(readPersisted(sid)) }) + `
 `);
-}
-function compactStore(sid, at) {
-  return {
-    read(now) {
-      const own = readPersisted(sid);
-      return {
-        recent: own.compactAt !== undefined && now - own.compactAt <= RESTORE_RECORD_MAX_MS,
-        ...own.handoff !== undefined ? { handoff: own.handoff } : {},
-        ...own.compactTodos !== undefined ? { todo: own.compactTodos } : {}
-      };
-    },
-    save(handoff, todo) {
-      updatePersisted(sid, (p) => {
-        const { handoff: _handoff, compactTodos: _todos, ...rest } = p;
-        return { ...rest, compactAt: at, ...handoff !== undefined ? { handoff } : todo.length > 0 ? { compactTodos: todo } : {} };
-      });
-    }
-  };
 }
 
 // src/adapters/opencode/runtime/mask.ts
@@ -35592,11 +35589,11 @@ function maskedError(error, depth = 0) {
 }
 
 // src/adapters/opencode/runtime/notice-board.ts
-import { join as join35 } from "path";
+import { join as join36 } from "path";
 var HARNESS6 = "opencode";
 var KEEP = 20;
 function boardFile(sid) {
-  return join35(sessionDir(HARNESS6, sid), "notices.json");
+  return join36(sessionDir(HARNESS6, sid), "notices.json");
 }
 function readBoard(sid) {
   const r = readJsonSafeSync(boardFile(sid));
@@ -36350,7 +36347,6 @@ class BuracleRuntime {
       ...d,
       ...sub ? { env: { ...d.env, BURACLE_NO_MEMORY: "1" } } : {},
       capabilityCard: () => s.card = this.capabilityText(s.sid),
-      compact: compactStore(s.sid, now),
       version: () => this.baked.version,
       sessionMaint: () => {
         this.runMaintenance();
@@ -36560,7 +36556,7 @@ class BuracleRuntime {
   usagePlan(call, health) {
     const plan = { call, ledgerId: call.sessionId, available: availableServers(this.baked, health) };
     const read = call.kind === "read" && call.paths.length > 0 && call.paths.every((p) => existsSync12(p));
-    const rules = pathRuleSource(this.baked.pathRules, join36(this.env.buracleHome, "rules", "paths"), { onRead: read, home: this.env.home });
+    const rules = pathRuleSource(this.baked.pathRules, join37(this.env.buracleHome, "rules", "paths"), { onRead: read, home: this.env.home });
     if (rules !== undefined)
       plan.pathRules = rules;
     if (call.kind === "write") {
@@ -36951,7 +36947,7 @@ ${r.fileNotes.join(`
     if (!isValidSessionId(s.sid) || await this.subagentSession(s))
       return;
     const now = this.now();
-    await preCompact({ harness: HARNESS7, sessionId: s.sid, cwd: this.cwdOf(s), now }, { ...this.deps(s), openTodos: () => s.todos ?? [], compact: compactStore(s.sid, now) });
+    await preCompact({ harness: HARNESS7, sessionId: s.sid, cwd: this.cwdOf(s), now }, { ...this.deps(s), openTodos: () => s.todos ?? [] });
   }
   async onPrompt(e) {
     const s = this.session(e.sessionID);
@@ -37058,7 +37054,7 @@ ${r.fileNotes.join(`
         const dir = str10(loc["directory"]);
         const sub = str10(data["subpath"]);
         if (dir !== undefined)
-          s.cwd = sub !== undefined && sub !== "" ? join36(dir, sub) : dir;
+          s.cwd = sub !== undefined && sub !== "" ? join37(dir, sub) : dir;
         if (isMemoryRunnerDir(this.cwdOf(s)))
           s.capture = false;
         const parent = str10(data["parentID"]);

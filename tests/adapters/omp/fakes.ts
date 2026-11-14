@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { compactFile } from '../../../src/adapters/shared/pipeline/index'
+import * as paths from '../../../src/engine/paths'
 import type { ExtensionDeps } from '../../../src/adapters/omp/runtime/extension'
 import { defaultDeps } from '../../../src/adapters/omp/runtime/extension'
 import type { OmpContext, OmpCustomMessage, OmpExtensionAPI, OmpGenerated } from '../../../src/adapters/omp/runtime/types'
@@ -216,4 +219,9 @@ export function testGenerated(over: Partial<OmpGenerated> = {}): OmpGenerated {
     status: { layout: { rows: [['mem', 'git', 'plan']], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: false }, setStatus: { 'buracle.mem': ['mem'] } },
     ...over,
   }
+}
+
+/** The session's compaction record (compact.json), as the pipeline left it. */
+export function compactRecord(sid: string): unknown {
+  return JSON.parse(readFileSync(compactFile({ paths }, 'omp', sid), 'utf8'))
 }
