@@ -23,13 +23,15 @@ export interface PreToolInput {
   subagent: boolean
   /** Guards only (a payload without a session): stop after the denials. */
   guardsOnly?: boolean
-  /** Whether the usage reminders (H24) count and judge this call. */
-  usage: boolean
+  /** Whether the usage reminders (H24) count and judge this call; their verdict, where the harness ran them at an earlier event of the same call. */
+  usage: boolean | UsageVerdict
   /** The files the call edits, for the early-edit note; absent when it is no edit. */
   edits?: readonly string[]
   /** A question tool that does not wait for the answer: the plan pauses instead. */
   asyncQuestion?: boolean
 }
+
+export interface UsageVerdict { deny?: string, context?: string }
 
 export type PreToolDecision =
   /** `reason` is the finished text, `Buracle Hxx: …`. */
@@ -67,16 +69,22 @@ export function bashOptions(ctx: AdapterContext, cwd: string, realpath: (p: stri
   }
 }
 
+function repoOf(d: Guarded & Pick<PipelineDeps, 'buracleRepo'>, cwd: string): Promise<string | undefined> {
+  const { ctx } = d
+  return d.buracleRepo !== undefined ? d.buracleRepo(cwd, ctx) : buracleRepoFor(cwd, { known: [ctx.repoRoot, ctx.config.repo], home: ctx.paths.home() })
+}
+
 export async function writeGuardContext(d: Guarded & Pick<PipelineDeps, 'step' | 'buracleRepo'>, cwd: string): Promise<WriteGuardContext> {
   const { ctx } = d
-  const repo = await d.step('H02 buracleRepo', undefined as string | undefined, () => (d.buracleRepo !== undefined ? d.buracleRepo(cwd, ctx) : buracleRepoFor(cwd, { known: [ctx.repoRoot, ctx.config.repo], home: ctx.paths.home() })))
+  const repo = await d.step('H02 buracleRepo', undefined as string | undefined, () => repoOf(d, cwd))
   return {
     cwd, home: ctx.paths.home(), vault: ctx.paths.oldVaultRoot(), protect: ctx.config.guards.write.protect, realpath: d.realpath ?? realWriteTarget,
     selfPaths: selfPaths(ctx.config.repo, ctx.paths), parsers: CONFIG_PARSERS, ...(repo !== undefined ? { buracleRepo: repo } : {}),
   }
 }
 
-async function usageStep(input: PreToolInput, d: PipelineDeps & PreToolPorts, health: McpHealth): Promise<{ deny?: string, context?: string }> {
+/** The usage reminders (H24) for one call: count it in the ledger and judge it. */
+export async function usageVerdict(input: Pick<PreToolInput, 'call'>, d: PipelineDeps & Pick<PreToolPorts, 'usage' | 'usageDone'>, health: McpHealth): Promise<UsageVerdict> {
   const plan = d.usage(input.call, health)
   if (plan === undefined) return {}
   const { call, ledgerId, ...rest } = plan
@@ -110,7 +118,8 @@ export async function preTool(input: PreToolInput, d: PipelineDeps & PreToolPort
     const command = call.command
     let verdict: { deny?: string }
     try {
-      verdict = d.core.checkBash(command, bashOptions(d.ctx, call.cwd, d.realpath))
+      const repo = d.guardRepoInShell === true ? await repoOf(d, call.cwd) : undefined
+      verdict = d.core.checkBash(command, { ...bashOptions(d.ctx, call.cwd, d.realpath), ...(repo !== undefined ? { buracleRepo: repo } : {}) })
     } catch (e) {
       return failed('H01', e)
     }
@@ -161,8 +170,9 @@ export async function preTool(input: PreToolInput, d: PipelineDeps & PreToolPort
     })
     if (!input.subagent) context.push(paused ? d.core.ASYNC_QUESTION_PAUSED : r.context)
   }
-  if (input.usage) {
-    const usage = await d.step('H24 usage', {} as { deny?: string, context?: string }, () => usageStep(input, d, healthOf()))
+  if (input.usage !== false) {
+    const ran = input.usage
+    const usage = ran !== true ? ran : await d.step('H24 usage', {} as UsageVerdict, () => usageVerdict(input, d, healthOf()))
     if (usage.deny !== undefined) return deny('H03', usage.deny)
     context.push(usage.context)
   }

@@ -27,6 +27,8 @@ export interface SessionStartPorts {
   /** The profile warning (H17) in words for the model to pass on; absent where the harness shows it to the user itself. */
   profileNote?(finding: string): string
   sessionMaint?(now: number, keep: string[]): void
+  /** The running Buracle's version, where the harness runs a built copy of it; the checkout's by default. */
+  version?(): string | undefined
 }
 
 export interface SessionStartResult extends SessionStartDecision { notice?: NoticeTexts, profile?: string }
@@ -75,7 +77,7 @@ export async function sessionStart(input: SessionStartInput, d: PipelineDeps & S
   const card = await d.step('H15 capability card', '', () => d.capabilityCard())
   const restored = source === 'compact' ? await d.step('H07 restore', '', () => restore(input, d)) : ''
   const notice = source === 'startup' && !sub && !noticesOff(d.hostEnv ?? d.env)
-    ? await d.step('H17 notices', undefined as NoticeTexts | undefined, () => startupNotices(d.ctx.canonical.notices, { version: runtimeVersion(d.ctx.repoRoot), nowMs: now, harness: H }))
+    ? await d.step('H17 notices', undefined as NoticeTexts | undefined, () => startupNotices(d.ctx.canonical.notices, { version: d.version !== undefined ? d.version() : runtimeVersion(d.ctx.repoRoot), nowMs: now, harness: H }))
     : undefined
   const profile = source !== 'startup' ? undefined : await d.step('H17 profile guard', undefined as string | undefined, () => {
     const r = readJsonSafeSync<unknown>(d.ctx.paths.runtimeConfigFile())

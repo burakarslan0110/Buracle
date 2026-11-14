@@ -10,8 +10,11 @@ import { reviewNotesNotice } from '../review-notes'
 import { captureOff, fitParts, readWorkspace, saveWorkspace, spool, type PipelineDeps } from './types'
 
 export interface PromptPorts {
-  /** The skills and MCP categories the prompt asks for, with the routing note. */
-  routePrompt(signals: PromptSignals): Promise<{ route: PromptRoute, text?: string } | undefined>
+  /**
+   * The skills and MCP categories the prompt asks for, with the routing note. `deferred` says the harness hands the
+   * prompt to the model later (a queue) and records the route in the ledger itself when it does.
+   */
+  routePrompt(signals: PromptSignals): Promise<{ route: PromptRoute, text?: string, deferred?: boolean } | undefined>
   /** After the route reached the ledger. */
   promptRouted?(route: PromptRoute): void | Promise<void>
   /** A step only this harness has, after the consent grants; a text it returns is context. */
@@ -79,7 +82,7 @@ export async function prompt(input: PromptInput, d: PipelineDeps & PromptPorts):
       const routed = await d.routePrompt(signals)
       if (routed === undefined) return undefined
       candidates.push(...routed.route.invoked, ...routed.route.load)
-      await d.step('H24 ledger prompt', undefined, () => { updateLedger(H, sid, l => d.core.ledgerPrompt(l, routed.route, now)) })
+      if (routed.deferred !== true) await d.step('H24 ledger prompt', undefined, () => { updateLedger(H, sid, l => d.core.ledgerPrompt(l, routed.route, now)) })
       await d.promptRouted?.(routed.route)
       return routed.text
     })
