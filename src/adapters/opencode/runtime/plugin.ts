@@ -68,7 +68,7 @@ import { registerRateWindows } from './rate-windows'
 import { TurnReceipts } from './receipt'
 import type { MemoryBridge, SpoolEntry } from './memory-bridge'
 import { draftNote, draftOnSwitch, notePlanText, type PlanDraftState } from './plan-draft'
-import { reviewNote, reviewProblems, subagentReport } from './review'
+import { noteReviewMessages, reviewNote, reviewProblems, subagentReport } from './review'
 import type { CallVerdict, LedgerStore, PromptRouteResult } from './routing'
 import {
   attachedSkills, availableServers, commandOfPrompt, compiledTriggers, evaluateCall, fileLedgerStore, ledgerUserPrompt, loadedSkills,
@@ -127,6 +127,8 @@ interface SessionRuntime {
   /** The open items of the session's last todowrite call, carried into the handoff note. */
   todos?: string[]
   parentID?: string | null
+  /** How many invalid review reports the last context call noted (H19), so each is logged once. */
+  reviewNotes?: number
   createdAt?: number
   capture: boolean
   started: boolean
@@ -930,6 +932,14 @@ export class BuracleRuntime {
     } catch (err) { this.logFn('warn', 'H08 answer receipt failed', { sid: s.sid, error: errText(err) }) }
   }
 
+  private noteReviews(s: SessionRuntime, messages: unknown): void {
+    try {
+      const noted = noteReviewMessages(messages, reviewSubjects(HARNESS, s.sid))
+      if (noted.length > 0 && noted.length !== s.reviewNotes) this.logFn('info', 'H19: invalid review report', { agents: noted })
+      s.reviewNotes = noted.length
+    } catch (err) { this.logFn('warn', 'H19 review gate failed', { error: errText(err) }) }
+  }
+
   private reviewGate(input: Record<string, unknown>, result: ToolResultShape, subject: readonly string[]): string | undefined {
     try {
       const report = subagentReport(input, result)
@@ -1022,6 +1032,7 @@ export class BuracleRuntime {
     }
     if (watch.warn !== undefined) parts.push(watch.warn)
     this.deliverPrompts(s, e.messages, cfg, e.agent === 'plan')
+    this.noteReviews(s, e.messages)
     parts.push(...s.pendingContext)
     for (const text of parts) e.system.push({ type: 'text', text })
   }

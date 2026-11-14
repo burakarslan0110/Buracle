@@ -127,8 +127,8 @@ export const HOST_LIMITS: readonly HostLimit[] = [
     recheck: OPENCODE_PLUGIN_HOOKS,
   },
   {
-    id: 'opencode.subagent-stop-hold', harness: 'opencode', feature: 'subagentStopHold', kind: 'limit', checkedOn: '2.0.30',
-    reason: 'no subagent-stop hook; a reviewer\'s final message is seen only in the parent\'s `tool.execute.after` of the `subagent` tool', fallback: 'an invalid review report gets a note asking the agent to continue that reviewer once',
+    id: 'opencode.subagent-stop-hold', harness: 'opencode', feature: 'subagentStopHold', kind: 'limit', checkedOn: '2.3.0',
+    reason: 'no subagent-stop hook; a reviewer\'s final message is seen only in the parent: as the `<subagent>` message in its `session.context` (2.3.0 and later run every subagent in the background), before that in the `tool.execute.after` of the `subagent` tool', fallback: 'an invalid review report gets a note asking the agent to continue that reviewer once',
     probe: { kind: 'binary-names', pattern: OPENCODE_TRIGGERS, closedBy: String.raw`subagent|agent\.(?:stop|end)`, expect: OPENCODE_CORE_TRIGGERS },
     recheck: OPENCODE_PLUGIN_HOOKS,
   },
