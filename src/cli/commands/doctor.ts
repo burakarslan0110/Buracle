@@ -1,3 +1,4 @@
+import { HARNESS_LABEL } from '../../core/harness/index'
 import type { CommandIO } from '../router'
 import type { BuracleConfig } from '../../core/config'
 import type { Harness } from '../../core/events'
@@ -208,7 +209,7 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
 }
 
 const SECTION_TITLE: Readonly<Record<string, string>> = {
-  config: 'Configuration', runtime: 'Runtime', tools: 'Tools', skills: 'Skills', claude: 'Claude Code', codex: 'Codex', opencode: 'OpenCode', omp: 'Oh My Pi',
+  config: 'Configuration', runtime: 'Runtime', tools: 'Tools', skills: 'Skills', ...HARNESS_LABEL,
   mcp: 'MCP servers', lsp: 'Language servers', memory: 'Memory', index: 'Code indexes', updates: 'Updates', harness: 'Harnesses',
 }
 
