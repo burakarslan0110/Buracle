@@ -159,7 +159,7 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary (isola
     })
     expect(doctor.filter(i => i.level === 'error')).toEqual([])
     expect(doctor.find(i => i.check === 'codex.hooks.trust')?.level).toBe('ok')
-    for (const check of ['codex.permissions', 'codex.effort', 'codex.routing', 'codex.config']) expect({ check, level: doctor.find(i => i.check === check)?.level }).toEqual({ check, level: 'ok' })
+    for (const check of ['codex.permissions', 'codex.routing', 'codex.config']) expect({ check, level: doctor.find(i => i.check === check)?.level }).toEqual({ check, level: 'ok' })
   }), 120_000)
 
   test('next to the user\'s own hooks: their groups keep their keys, Buracle\'s are appended and Codex hashes them like Buracle', () => withSandbox(async ({ root, home }) => {
@@ -443,7 +443,6 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary end to
       expect(existsSync(join(buracleHome, 'sessions', 'codex', sid as string, 'workspace.json'))).toBe(true)
       const calls = readFileSync(mcpLog, 'utf8').trim().split('\n').map(l => JSON.parse(l) as { server: string, method: string, params?: Record<string, unknown> }).filter(c => c.method === 'tools/call')
       expect(calls.map(c => [c.server, c.params?.['name'], c.params?.['arguments']])).toEqual([['memory', 'memory_search', { query: 'cache decision' }]])
-      expect((calls[0]?.params?.['_meta'] as Record<string, any> | undefined)?.['x-codex-turn-metadata']?.['reasoning_effort']).toBe('xhigh')
     } finally { model.stop() }
   }), 120_000)
 

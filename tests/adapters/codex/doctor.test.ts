@@ -11,7 +11,7 @@ import type { AdapterContext } from '../../../src/adapters/registry'
 import { adapter } from '../../../src/adapters/codex/index'
 import { installTestHooks } from '../../../src/adapters/codex/install'
 import { BYPASS_APPROVAL_POLICY } from '../../../src/adapters/codex/config'
-import { codexDoctor, compareVersions, configLoadCheck, effortCheck, featureEnabled, guardProbe, hookCommandProblems, hookTrustReport, mcpCommandProblems, permissionCheck, PROBE_COMMAND, routingCheck, MIN_CODEX, type DoctorDeps, type DoctorItem } from '../../../src/adapters/codex/doctor'
+import { codexDoctor, compareVersions, configLoadCheck, featureEnabled, guardProbe, hookCommandProblems, hookTrustReport, mcpCommandProblems, permissionCheck, PROBE_COMMAND, routingCheck, MIN_CODEX, type DoctorDeps, type DoctorItem } from '../../../src/adapters/codex/doctor'
 import { run as runProcess } from '../../../src/engine/proc'
 import { HOOK_COMMAND_PREFIX, hookCommand } from '../../../src/adapters/codex/hooks-config'
 import { buracleHooksFile, findBuracleHandlers } from '../../../src/adapters/codex/hooks-config'
@@ -192,11 +192,10 @@ describe('codex doctor', () => {
     expect(hookCommandProblems([{ ...legacy[0]!, command: '"$(whoami)/x" hook codex Stop' }], env)[0]).toContain('cannot resolve')
   }))
 
-  test('after install: the permission mode, effort, routing keys and Codex\'s own config check are ok', () => withSandbox(async () => {
+  test('after install: the permission mode, routing keys and Codex\'s own config check are ok', () => withSandbox(async () => {
     await applyPlans([await adapter.installPlan(ctx())])
     const items = await codexDoctor(ctx(), fake())
-    for (const c of ['codex.permissions', 'codex.effort', 'codex.routing', 'codex.config']) expect({ c, level: by(items, c)[0]?.level }).toEqual({ c, level: 'ok' })
-    expect(by(items, 'codex.effort')[0]?.detail).toContain('"xhigh"')
+    for (const c of ['codex.permissions', 'codex.routing', 'codex.config']) expect({ c, level: by(items, c)[0]?.level }).toEqual({ c, level: 'ok' })
   }))
 
   test('permission mode: both no-approval keys, or a warning that names the split and the fix', () => {
@@ -211,19 +210,6 @@ describe('codex doctor', () => {
     expect(split.detail).toContain('buracle install codex')
     expect(permissionCheck({}, { permissions: { bypass: true, enforce: false } }).detail).toContain('permissions.enforce is off')
     expect(permissionCheck({ approval_policy: 'on-request' }, { permissions: { bypass: false, enforce: true } })).toEqual({ level: 'ok', check: 'codex.permissions', detail: expect.stringContaining('permissions.bypass is off') })
-  })
-
-  test('effort: a model migration that rewrote model_reasoning_effort is named; keep, invalid values and a subagent level some models lack are reported', () => {
-    const auto = { effort: { ...defaultConfig().effort, codex: 'auto' } }
-    expect(effortCheck({ model_reasoning_effort: 'xhigh', plan_mode_reasoning_effort: 'xhigh', agents: { default_subagent_reasoning_effort: 'xhigh' } }, auto).level).toBe('ok')
-    const migrated = effortCheck({ model_reasoning_effort: 'medium', plan_mode_reasoning_effort: 'xhigh', notice: { model_migrations: { 'gpt-5.5': 'gpt-6-sol' } } }, auto)
-    expect(migrated.level).toBe('warn')
-    expect(migrated.detail).toContain('model_reasoning_effort is "medium", effort.codex wants "xhigh"')
-    expect(migrated.detail).toContain('model migration was accepted')
-    expect(effortCheck({ model_reasoning_effort: 'xhigh' }, auto).detail).toContain('plan_mode_reasoning_effort is unset')
-    expect(effortCheck({ agents: { default_subagent_reasoning_effort: 'max' } }, auto).detail).toContain('spawn_agent fails')
-    expect(effortCheck({}, { effort: { ...auto.effort, codex: 'keep' } }).level).toBe('ok')
-    expect(effortCheck({}, { effort: { ...auto.effort, codex: 'ultra' } })).toEqual({ level: 'warn', check: 'codex.effort', detail: expect.stringContaining('delegation mode') })
   })
 
   test('routing keys: critical MCP tools top-level, startup grace 0, web search off under enforce', () => withSandbox(async ({ home }) => {

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
-  claudeDoctor, commandProgram, commandsFinding, compareVersions, effortFinding, guardHook, guardProbeFinding, hookArgv, indexFinding, permissionFinding, pluginFinding, PROBE_COMMAND,
+  claudeDoctor, commandProgram, commandsFinding, compareVersions, guardHook, guardProbeFinding, hookArgv, indexFinding, permissionFinding, pluginFinding, PROBE_COMMAND,
   routerFinding, statusLineFinding, validateFinding, versionFinding,
 } from '../../../src/adapters/claude/doctor'
 import { MIN_CLAUDE } from '../../../src/adapters/claude/constants'
@@ -143,10 +143,9 @@ describe('claudeDoctor', () => {
       writeFileSync(join(sb.home, '.claude', 'settings.json'), JSON.stringify({ statusLine: { type: 'command', command: 'x statusline claude' } }))
       const r = runner({ pong: true })
       const off = await claudeDoctor(ctx(), { which: () => '/bin/claude', run: r.run, now: () => 1, env: () => undefined, cwd: () => sb.root })
-      expect(off.map(f => f.check)).toEqual(['claude version', 'plugin', 'plugin validate', 'mod liveness', 'hooks (guard probe)', 'statusLine', 'commands', 'permission mode', 'effort', 'index', 'router'])
+      expect(off.map(f => f.check)).toEqual(['claude version', 'plugin', 'plugin validate', 'mod liveness', 'hooks (guard probe)', 'statusLine', 'commands', 'permission mode', 'index', 'router'])
       expect(off.slice(0, 6).map(f => f.level)).toEqual(['ok', 'ok', 'ok', 'ok', 'ok', 'ok'])
       expect(off.find(f => f.check === 'permission mode')?.level).toBe('warn')
-      expect(off.find(f => f.check === 'effort')?.level).toBe('warn')
       expect(r.calls.some(c => c.includes('-p'))).toBe(false)
       expect(r.calls.find(c => c.includes('validate'))).toEqual(['/bin/claude', 'plugin', 'validate', '--strict', '--json', FOLDER])
 
@@ -276,7 +275,7 @@ describe('commands (I8): every hook, MCP, language server and statusLine command
   })
 })
 
-describe('permission mode, effort, code indexes and the prompt router', () => {
+describe('permission mode, code indexes and the prompt router', () => {
   const MIN = 60_000
   const perms = (over: Partial<ReturnType<typeof defaultConfig>['permissions']> = {}) => ({ ...defaultConfig().permissions, ...over })
   const bypass = { permissions: { defaultMode: 'bypassPermissions' } }
@@ -296,18 +295,6 @@ describe('permission mode, effort, code indexes and the prompt router', () => {
     expect(permissionFinding(perms(), bypass, { hasSeenAutoDefaultNudge: true }, { mode: 'bypassPermissions', at: 0, sid: 's1' }, 2 * MIN))
       .toEqual({ level: 'ok', check: 'permission mode', detail: 'bypassPermissions; newest session: bypassPermissions, 2m ago' })
     expect(permissionFinding(perms(), bypass, {}, undefined, 0).detail).toContain('"No, keep bypass permissions"')
-  })
-
-  test("effort: Buracle's level everywhere, the user's /effort choice kept, values Claude Code drops, the overriding variable", () => {
-    const models = (level: string, over: Record<string, string> = {}) => Object.fromEntries(['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-fable-5-1'].map(m => [m, { effortLevel: over[m] ?? level }]))
-    expect(effortFinding('auto', { effortLevel: 'xhigh', modelSettings: models('xhigh') }, undefined)).toEqual({ level: 'ok', check: 'effort', detail: 'xhigh for every model' })
-    expect(effortFinding('auto', { effortLevel: 'xhigh', modelSettings: models('xhigh', { 'claude-opus-5-5': 'high' }) }, undefined).detail)
-      .toBe("xhigh for every model, except the user's own choice (kept): claude-opus-5-5 high")
-    expect(effortFinding('auto', {}, undefined)).toMatchObject({ level: 'warn', detail: expect.stringContaining('buracle install') })
-    expect(effortFinding('auto', { effortLevel: 'max', modelSettings: models('xhigh') }, undefined)).toMatchObject({ level: 'warn', detail: expect.stringContaining('drops this value') })
-    expect(effortFinding('auto', { effortLevel: 'xhigh', modelSettings: models('xhigh') }, 'max')).toMatchObject({ level: 'warn', detail: expect.stringContaining('CLAUDE_CODE_EFFORT_LEVEL=max') })
-    expect(effortFinding('max', undefined, undefined)).toMatchObject({ level: 'warn', detail: expect.stringContaining('effort.claude') })
-    expect(effortFinding('keep', { effortLevel: 'high' }, undefined)).toEqual({ level: 'ok', check: 'effort', detail: "effort.claude is keep: Buracle leaves Claude Code's effort alone (effortLevel high)" })
   })
 
   test('index: codegraph and semble declared and loaded upfront, and the index state of the project doctor runs in', async () => {

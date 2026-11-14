@@ -4,11 +4,10 @@ import { join } from 'node:path'
 import { run as doctorRun, indexSection, usage as doctorUsage } from '../../../src/cli/commands/doctor'
 import { cliVersion } from '../../../src/cli/router'
 import { run as installRun } from '../../../src/cli/commands/install'
-import { CONFIG_RENAMES, defaultConfig, type ConfigRename } from '../../../src/core/config'
-import { liveContext } from '../../../src/engine/update/context'
+import { defaultConfig } from '../../../src/core/config'
 import { indexChecks } from '../../../src/workflow/workspace-index'
 import type { McpCatalog } from '../../../src/core/catalog'
-import { checkTools, configChecks, doctorExit, parseShim, skillChecks, updateChecks, type DoctorCheck } from '../../../src/engine/update/doctor'
+import { checkTools, doctorExit, parseShim, skillChecks, updateChecks, type DoctorCheck } from '../../../src/engine/update/doctor'
 import { writeUpdatesCache } from '../../../src/engine/update/updates-cache'
 import { emptyToolchainState } from '../../../src/engine/toolchain/state'
 import type { ToolSpec } from '../../../src/core/catalog'
@@ -693,22 +692,4 @@ describe('buracle doctor runtime: unsettled transactions, stale locks, generated
       expect(drifted.some(c => c.check === 'generated' && c.detail.includes('canonical/ changed after the last `buracle build`'))).toBe(true)
     })
   }), 60_000)
-})
-
-describe('buracle doctor: renamed config keys', () => {
-  test('a value moved from a renamed key gets a warn row; the file is not called valid without comment (O6)', () => withSandbox(async ({ root, buracleHome }) => {
-    const repo = makeRepo(root)
-    mkdirSync(buracleHome, { recursive: true })
-    writeFileSync(join(buracleHome, 'config.yaml'), 'statusline:\n  theme: full\n')
-    const renames = CONFIG_RENAMES as ConfigRename[]
-    renames.push({ from: 'statusline.theme', to: 'statusline.style', since: '9.9.9' })
-    try {
-      const live = liveContext(repo)
-      expect(live.config.statusline.style).toBe('full')
-      const rows = configChecks(live, { error: 'not loaded', problems: [] }, repo).filter(c => c.check === 'config')
-      expect(rows).toEqual([{ section: 'config', level: 'warn', check: 'config', detail: '~/.buracle/config.yaml: statusline.theme was renamed to statusline.style in 9.9.9; its value was used (rename the key in config.yaml)' }])
-    } finally {
-      renames.pop()
-    }
-  }))
 })

@@ -55,7 +55,6 @@ import { registerWorkflowCommands } from './commands'
 import type { PendingPrompt } from './delivery'
 import { addPending, deliveredPrompts, inboxUpdate, takeDelivered } from './delivery'
 import { projectDeps } from './deps'
-import { registerEffort } from './effort'
 import type { ResolvedEnv } from './env'
 import { applyEnv, healthCache, resolveEnv, runtimeConfigCache } from './env'
 import { answerHeld, type ConsentAskHost, type HeldCall } from './consent-ask'
@@ -474,13 +473,6 @@ export class BuracleRuntime {
       })
       if (!ok) this.logFn('warn', 'this OpenCode has no plugin commands (ctx.command); the /<workflow> commands are unavailable')
     } catch (e) { this.logFn('warn', 'workflow commands not registered', { error: errText(e) }) }
-    try {
-      const ok = await registerEffort(this.ctx, () => this.cfg(), (level, touched) => {
-        this.models.effortApplied(level, touched)
-        this.logFn('debug', 'default effort applied', { level, models: touched.length })
-      }, e => this.logFn('warn', 'effort transform failed', { error: errText(e) }))
-      if (!ok) this.logFn('info', 'this OpenCode has no model transform; effort.opencode is not applied')
-    } catch (e) { this.logFn('warn', 'effort transform not registered', { error: errText(e) }) }
   }
 
   startEvents(): void {

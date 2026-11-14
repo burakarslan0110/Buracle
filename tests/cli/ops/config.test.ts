@@ -119,8 +119,8 @@ describe('buracle config', () => {
       expect(plain.out()).toContain('permissions.bypass = false')
       expect(plain.out()).toContain(`Next: ${hint}.\n`)
       const j = memoryIO()
-      expect(await configRun(['set', 'effort.codex', 'high', '--json'], j)).toBe(0)
-      expect(JSON.parse(j.out())).toMatchObject({ ok: true, key: 'effort.codex', value: 'high', changed: true, sync: true, hint })
+      expect(await configRun(['set', 'permissions.enforce', 'false', '--json'], j)).toBe(0)
+      expect(JSON.parse(j.out())).toMatchObject({ ok: true, key: 'permissions.enforce', value: false, changed: true, sync: true, hint })
       for (const [key, value] of [['harnesses.omp.enabled', 'false'], ['routing.strictness', 'nudge'], ['agents.teams', 'false'], ['mcp.off.codex', '[web-fetch]']] as const) {
         const io = memoryIO()
         expect(await configRun(['set', key, value], io)).toBe(0)
@@ -138,7 +138,7 @@ describe('buracle config', () => {
         expect(JSON.parse(jj.out())).toEqual({ ok: true, key, changed: true })
       }
       const u = memoryIO()
-      expect(await configRun(['unset', 'effort.codex'], u)).toBe(0)
+      expect(await configRun(['unset', 'permissions.enforce'], u)).toBe(0)
       expect(u.out()).toContain(`Next: ${hint}.\n`)
       const uj = memoryIO()
       expect(await configRun(['unset', 'permissions.bypass', '--json'], uj)).toBe(0)
@@ -152,9 +152,9 @@ describe('buracle config', () => {
   test('set creates config.yaml when missing; pre-existing invalid values do not block other keys', () => withSandbox(async ({ root, buracleHome }) => {
     const repo = makeRepo(root)
     await withDeps({ repoRoot: () => repo }, async () => {
-      expect(await setConfigValue('vault', '~/Obsidian/Buracle')).toEqual({ ok: true, changed: true })
-      expect(read(join(buracleHome, 'config.yaml'))).toBe('vault: ~/Obsidian/Buracle\n')
-      writeFileSync(join(buracleHome, 'config.yaml'), 'vault: ~/Obsidian/Buracle\nplan:\n  stopGuard: maybe\n')
+      expect(await setConfigValue('plan.worktreeDir', 'trees')).toEqual({ ok: true, changed: true })
+      expect(read(join(buracleHome, 'config.yaml'))).toBe('plan:\n  worktreeDir: trees\n')
+      writeFileSync(join(buracleHome, 'config.yaml'), 'plan:\n  worktreeDir: trees\n  stopGuard: maybe\n')
       expect(await configRun(['set', 'statusline.emoji', 'false'], memoryIO())).toBe(0)
       expect(read(join(buracleHome, 'config.yaml'))).toContain('emoji: false')
       expect(await configRun(['frobnicate'], memoryIO())).toBe(1)

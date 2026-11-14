@@ -68,12 +68,6 @@ permissions:
   bypass: true
   enforce: true
 
-effort:
-  claude: auto
-  codex: auto
-  opencode: auto
-  omp: auto
-
 agents:
   teams: true
 

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { announcementOps, claudeInstallPlan, defaultInstallDeps, effortKeys, effortOps, envOps, LSP_DISABLED_KEY, LSP_NEVER_KEY, lspRecommendationPlan, mcpOffOps, permissionOps, renderRule, retiredDenyOps, ruleOps, statusLineOp, tipOps } from '../../../src/adapters/claude/install'
+import { announcementOps, claudeInstallPlan, defaultInstallDeps, envOps, LSP_DISABLED_KEY, LSP_NEVER_KEY, lspRecommendationPlan, mcpOffOps, permissionOps, renderRule, retiredDenyOps, ruleOps, statusLineOp, tipOps } from '../../../src/adapters/claude/install'
 import { KEPT_EXIT, marketplaceHolds, parseList, pluginInstalled, pluginsFrom } from '../../../src/adapters/claude/check'
 import type { AdapterContext } from '../../../src/adapters/registry'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
@@ -29,11 +29,10 @@ const CLAUDE_ENV = {
   'env.ENABLE_TOOL_SEARCH': 'true',
 }
 
-function ctxFor(over: { bypass?: boolean, enforce?: boolean, effort?: string } = {}): AdapterContext {
+function ctxFor(over: { bypass?: boolean, enforce?: boolean } = {}): AdapterContext {
   const config = defaultConfig()
   if (over.bypass !== undefined) config.permissions.bypass = over.bypass
   if (over.enforce !== undefined) config.permissions.enforce = over.enforce
-  if (over.effort !== undefined) config.effort.claude = over.effort
   const canonical = loadCanonicalSync(join(FIX, 'canonical-mini'))
   return { repoRoot: REPO, config, canonical, paths, buracleBin: paths.shimPath() }
 }
@@ -100,28 +99,21 @@ describe('install plan as data', () => {
       expect(files[1]?.content).toBe('---\npaths:\n  - "**/*.py"\n  - "**/pyproject.toml"\n---\n\n# Python\n\nUse the project\'s environment and lockfile.\n')
 
       const merges = plan.ops.filter(o => o.kind === 'json-merge') as Array<Extract<Op, { kind: 'json-merge' }>>
-      expect(merges).toHaveLength(6)
-      expect(merges[5]?.set).toEqual({ companyAnnouncements: ['Buracle · Memory UI: http://127.0.0.1:41777 (buracle mem ui) · /buracle:plan-build plans and builds a change'] })
-      expect(merges[5]?.soft).toEqual(['companyAnnouncements'])
-      expect(merges[5]?.enforce).toBeUndefined()
-      expect(merges[4]?.set).toEqual({ autoMemoryEnabled: false })
-      expect(merges[4]?.soft).toEqual(['autoMemoryEnabled'])
-      expect(merges[3]?.set).toEqual(CLAUDE_ENV)
-      expect(merges[3]?.enforce).toEqual(Object.keys(CLAUDE_ENV))
-      expect(merges[3]?.soft).toBeUndefined()
+      expect(merges).toHaveLength(5)
+      expect(merges[4]?.set).toEqual({ companyAnnouncements: ['Buracle · Memory UI: http://127.0.0.1:41777 (buracle mem ui) · /buracle:plan-build plans and builds a change'] })
+      expect(merges[4]?.soft).toEqual(['companyAnnouncements'])
+      expect(merges[4]?.enforce).toBeUndefined()
+      expect(merges[3]?.set).toEqual({ autoMemoryEnabled: false })
+      expect(merges[3]?.soft).toEqual(['autoMemoryEnabled'])
+      expect(merges[2]?.set).toEqual(CLAUDE_ENV)
+      expect(merges[2]?.enforce).toEqual(Object.keys(CLAUDE_ENV))
+      expect(merges[2]?.soft).toBeUndefined()
       expect(merges.every(m => m.path === join(sb.home, '.claude', 'settings.json'))).toBe(true)
       expect(merges[0]?.set).toEqual({ statusLine: { type: 'command', command: `${join(sb.buracleHome, 'bin', 'buracle')} statusline claude`, padding: 0, refreshInterval: 60 } })
       expect(merges[1]?.set).toEqual({ 'permissions.defaultMode': 'bypassPermissions', skipDangerousModePermissionPrompt: true })
       expect(merges[1]?.enforce).toEqual(['permissions.defaultMode', 'skipDangerousModePermissionPrompt'])
       expect(merges[1]?.soft).toBeUndefined()
-      const effort = {
-        effortLevel: 'xhigh', 'modelSettings.claude-opus-5-5.effortLevel': 'xhigh', 'modelSettings.claude-sonnet-5-5.effortLevel': 'xhigh',
-        'modelSettings.claude-haiku-5-5.effortLevel': 'xhigh', 'modelSettings.claude-fable-5-1.effortLevel': 'xhigh',
-      }
-      expect(merges[2]?.set).toEqual(effort)
-      expect(merges[2]?.soft).toEqual(Object.keys(effort))
-      expect(merges[2]?.enforce).toBeUndefined()
-      expect(JSON.stringify(plan.ops)).not.toContain('CLAUDE_CODE_EFFORT_LEVEL')
+      expect(JSON.stringify(plan.ops)).not.toContain('effortLevel')
 
       const check = (...a: string[]) => ['/x/bun', join(REPO, 'src/adapters/claude/check.ts'), '--claude', '/x/claude', ...a]
       expect(execs(plan.ops)).toEqual([
@@ -272,17 +264,6 @@ describe('install plan as data', () => {
     expect(envOps(ctx)).toEqual([{ kind: 'json-merge', path: join(ctx.paths.claudeDir(), 'settings.json'), set: CLAUDE_ENV, owner: 'claude', enforce: Object.keys(CLAUDE_ENV) }])
   })
 
-  test('effort.claude: keep writes nothing (an earlier value is pruned), a level is written as it is, an invalid value writes nothing', () => {
-    expect(effortOps(ctxFor({ effort: 'keep' }))).toEqual([])
-    const high = effortOps(ctxFor({ effort: 'high' }))[0] as Extract<Op, { kind: 'json-merge' }>
-    expect(Object.values(high.set)).toEqual(['high', 'high', 'high', 'high', 'high'])
-    expect(effortOps(ctxFor({ effort: 'max' }))).toEqual([])
-    expect(effortKeys('low')).toEqual({
-      effortLevel: 'low', 'modelSettings.claude-opus-5-5.effortLevel': 'low', 'modelSettings.claude-sonnet-5-5.effortLevel': 'low',
-      'modelSettings.claude-haiku-5-5.effortLevel': 'low', 'modelSettings.claude-fable-5-1.effortLevel': 'low',
-    })
-  })
-
   test('a buracle marketplace from another checkout is repointed and undo points it back', async () => {
     await withSandbox(async () => {
       const current = [{ name: 'buracle', source: 'directory', path: '/old/checkout' }]
@@ -360,16 +341,12 @@ describe('install plan applied through the transaction engine (fake claude)', ()
         expect(r1.conflicts).toEqual([])
         expect(r1.warnings.join('\n')).toContain('permissions.defaultMode')
         expect(r1.warnings.join('\n')).toContain('"auto"')
-        expect(r1.skipped.map(s => s.reason)).toContainEqual(expect.stringMatching(/^kept user value \(modelSettings\.claude-opus-5-5\.effortLevel\)/))
         expect(r1.txn).not.toBe('')
         const s = JSON.parse(readFileSync(settings, 'utf8')) as Record<string, unknown>
         expect(s['permissions']).toEqual({ defaultMode: 'bypassPermissions', allow: ['Bash(ls)'] })
         expect(s['skipDangerousModePermissionPrompt']).toBe(true)
-        expect(s['effortLevel']).toBe('xhigh')
-        expect(s['modelSettings']).toEqual({
-          'claude-opus-5-5': { effortLevel: 'high' },
-          'claude-sonnet-5-5': { effortLevel: 'xhigh' }, 'claude-haiku-5-5': { effortLevel: 'xhigh' }, 'claude-fable-5-1': { effortLevel: 'xhigh' },
-        })
+        expect(s['effortLevel']).toBeUndefined()
+        expect(s['modelSettings']).toEqual({ 'claude-opus-5-5': { effortLevel: 'high' } })
         expect(s['theme']).toBe('dark')
         expect((s['statusLine'] as Record<string, unknown>)['refreshInterval']).toBe(60)
         expect(existsSync(join(sb.home, '.claude', 'rules', 'buracle', 'paths', 'python.md'))).toBe(true)

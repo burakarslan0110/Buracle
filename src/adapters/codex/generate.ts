@@ -1,7 +1,7 @@
 import type { CanonicalBundle } from '../../core/catalog'
 import type { BuracleConfig } from '../../core/config'
 import { codexAgentToml, codexAgentsBlock } from './agents'
-import { BYPASS_KEYS, codexMcpTables, codexTui, codexValueProblems, compactKeys, effortKeys, MEMORY_KEYS, renderTomlTables, routingRootKeys, teamsKeys, UPDATE_PLAN_TABLE, updatePlanTable, type CodexTui, type McpTable } from './config'
+import { BYPASS_KEYS, codexMcpTables, codexTui, codexValueProblems, compactKeys, MEMORY_KEYS, renderTomlTables, routingRootKeys, teamsKeys, UPDATE_PLAN_TABLE, updatePlanTable, type CodexTui, type McpTable } from './config'
 import { renderRulesFile } from './execpolicy'
 import { buracleHooksFile, renderHooksJson, type CodexHooksFile } from './hooks-config'
 import { mdBlockMarkers, tomlKey, tomlValue } from '../../engine/merge'
@@ -16,7 +16,6 @@ export interface CodexArtifacts {
   mcpTables: Record<string, McpTable>
   tui: CodexTui
   rootKeys: Record<string, unknown>
-  effortKeys?: Record<string, string>
   bypassKeys?: Record<string, unknown>
   teamsKeys?: Record<string, boolean>
   memoryKeys?: Record<string, boolean>
@@ -28,7 +27,7 @@ export interface CodexArtifacts {
   warnings: string[]
 }
 
-export type ArtifactConfig = Pick<BuracleConfig, 'routing' | 'effort' | 'permissions' | 'agents'> & { mcp?: Pick<BuracleConfig['mcp'], 'off'> }
+export type ArtifactConfig = Pick<BuracleConfig, 'routing' | 'permissions' | 'agents'> & { mcp?: Pick<BuracleConfig['mcp'], 'off'> }
 
 export interface ArtifactInput {
   canonical: Pick<CanonicalBundle, 'mcp' | 'rules' | 'skills' | 'agents' | 'statusline'>
@@ -54,9 +53,8 @@ export function codexArtifacts(input: ArtifactInput): CodexArtifacts {
   const bypass = cfg?.permissions.bypass === true
   const mcpTables = codexMcpTables(c.mcp, input.buracle, warnings, { approve: bypass, off: cfg?.mcp?.off.codex ?? [] })
   const rootKeys = cfg !== undefined ? routingRootKeys(cfg) : {}
-  const effort = cfg !== undefined ? effortKeys(cfg) : undefined
   const bypassKeys = bypass ? { ...BYPASS_KEYS } : undefined
-  const problems = codexValueProblems({ mcpTables, rootKeys, ...(effort !== undefined ? { effort } : {}), ...(bypassKeys !== undefined ? { bypass: bypassKeys } : {}) })
+  const problems = codexValueProblems({ mcpTables, rootKeys, ...(bypassKeys !== undefined ? { bypass: bypassKeys } : {}) })
   if (problems.length > 0) throw new CodexValueError(problems)
   const out: CodexArtifacts = {
     hooksFile: buracleHooksFile(input.hookCommandPrefix),
@@ -69,7 +67,6 @@ export function codexArtifacts(input: ArtifactInput): CodexArtifacts {
     pathRules: pathRuleFiles(c, warnings).map(r => ({ id: r.id, content: r.content })),
     warnings,
   }
-  if (effort !== undefined) out.effortKeys = effort
   if (bypassKeys !== undefined) out.bypassKeys = bypassKeys
   const teams = cfg !== undefined ? teamsKeys(cfg) : undefined
   if (teams !== undefined) out.teamsKeys = teams
@@ -93,8 +90,7 @@ export function configFragment(a: CodexArtifacts): string {
     '# config). `buracle install` merges them into the live config: each [mcp_servers.<id>] and',
     '# [tools.update_plan] as a table, the [tui] keys and the root keys below one by one. Every other',
     '# key, table and comment stays. A value you changed is kept, except the no-approval keys while',
-    '# permissions.enforce is on; the reasoning-effort keys follow config effort.codex and keep a level',
-    '# you (or a Codex model migration) set. {buracle} is replaced with the absolute path of the',
+    '# permissions.enforce is on. {buracle} is replaced with the absolute path of the',
     '# Buracle shim. Secrets are forwarded with env_vars, never written.',
     '# The keys with a dot below (features.memories, agents.enabled, ...) are listed that way to show where',
     '# they belong. The install writes them inside the [features] and [agents] tables, never as dotted root',
@@ -103,7 +99,6 @@ export function configFragment(a: CodexArtifacts): string {
   ]
   const roots: string[] = []
   if (Object.keys(a.rootKeys).length > 0) roots.push('# Routing: MCP tools on the first turn; the built-in web search is off while routing is enforced.', ...rootLines(a.rootKeys))
-  if (a.effortKeys !== undefined) roots.push('# Default reasoning effort (config effort.codex).', ...rootLines(a.effortKeys))
   if (a.teamsKeys !== undefined) roots.push('# agents.teams: Codex agent threads (spawn_agent, wait_agent) stay on; a value you set is kept.', ...rootLines(a.teamsKeys))
   if (a.memoryKeys !== undefined) roots.push('# Codex native memories stay off: the Buracle brain is the one memory; a value you set is kept.', ...rootLines(a.memoryKeys))
   if (a.compactKeys !== undefined) roots.push('# The summary prompt of local compaction (providers Codex does not compact remotely); a value you set is kept.', ...rootLines(a.compactKeys))

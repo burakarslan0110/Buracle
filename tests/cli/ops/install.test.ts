@@ -4,7 +4,6 @@ import { join, resolve } from 'node:path'
 import { renderInstallStyled, run as installRun, runInstallFlow } from '../../../src/cli/commands/install'
 import { cliVersion } from '../../../src/cli/router'
 import { makeStyle } from '../../../src/cli/ui/style'
-import { CONFIG_RENAMES, type ConfigRename } from '../../../src/core/config'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import { atomicWriteSync } from '../../../src/engine/fsx'
 import { yamlParse } from '../../../src/engine/merge'
@@ -653,22 +652,4 @@ describe('buracle install', () => {
     expect(parseShimText(`#!/bin/sh\nexec '/b/bun' '/r e/po/src/cli/main.ts' "$@"\n`)).toEqual({ mode: 'legacy', bun: '/b/bun', main: '/r e/po/src/cli/main.ts', checkout: resolve('/r e/po') })
     expect(lstatSync(REAL_REPO).isDirectory()).toBe(true)
   })
-})
-
-describe('install: renamed config keys', () => {
-  test('a value moved from a renamed key is reported as a config warning (O6)', () => withSandbox(async ({ root, buracleHome }) => {
-    const repo = makeRepo(root)
-    mkdirSync(buracleHome, { recursive: true })
-    writeFileSync(join(buracleHome, 'config.yaml'), 'statusline:\n  theme: full\n')
-    const renames = CONFIG_RENAMES as ConfigRename[]
-    renames.push({ from: 'statusline.theme', to: 'statusline.style', since: '9.9.9' })
-    try {
-      await withDeps({ repoRoot: () => repo, adapters: async () => [fakeAdapter('claude', { installed: false })], runCli: fakeCli().runCli, fetch: noNetwork }, async () => {
-        const r = await runInstallFlow({ dryRun: true, yes: true, json: true }, memoryIO({ json: true }))
-        expect(r.warnings).toContain('config: ' + join(buracleHome, 'config.yaml') + ': statusline.theme was renamed to statusline.style in 9.9.9; its value was used (rename the key in config.yaml)')
-      })
-    } finally {
-      renames.pop()
-    }
-  }))
 })

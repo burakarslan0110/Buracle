@@ -2,8 +2,6 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CanonicalBundle, CatalogMcp } from '../../core/catalog'
 import { catalogMcp, catalogSkills } from '../../core/catalog'
-import type { BuracleConfig } from '../../core/config'
-import { resolveEffort } from '../../core/effort'
 import { MIN_VERSIONS } from '../../engine/update/min-versions'
 import { OMP_BUILTIN_COMMANDS, OMP_UTILITY_COMMANDS } from './runtime/commands'
 import type { OmpGenerated } from './runtime/types'
@@ -56,19 +54,6 @@ export function ompCommandName(id: string): string {
 
 export function ompCommandNames(canonical: CanonicalBundle): string[] {
   return ompCommandSkills(canonical).map(ompCommandName)
-}
-
-export const OMP_THINKING_LEVELS: readonly string[] = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'auto']
-
-export function ompThinkingLevel(config: Pick<BuracleConfig, 'effort'> | undefined): { level: string } | { keep: true } | { invalid: string } {
-  const raw = config?.effort?.omp
-  const r = resolveEffort('omp', typeof raw === 'string' ? raw : 'auto')
-  if ('off' in r) return { keep: true }
-  if ('invalid' in r) return { invalid: r.invalid }
-  if (!OMP_THINKING_LEVELS.includes(r.level)) {
-    return { invalid: `omp does not keep '${r.level}' as defaultThinkingLevel (it accepts ${OMP_THINKING_LEVELS.join(', ')}); set effort.omp to one of those, or keep` }
-  }
-  return { level: r.level }
 }
 
 export function buracleVersion(repoRoot: string): string {

@@ -1,7 +1,6 @@
 import { existsSync } from 'node:fs'
 import { join, sep } from 'node:path'
 import type { RuleDoc } from '../../core/catalog'
-import { resolveEffort } from '../../core/effort'
 import { TIPS_LABEL } from '../../core/tips'
 import type { Ledger, Op, Plan } from '../../engine/txn'
 import { LIST_IDENTITY_HASH, readLedger } from '../../engine/txn'
@@ -10,7 +9,7 @@ import { log } from '../../engine/log'
 import { run, which } from '../../engine/proc'
 import type { AdapterContext } from '../registry'
 import { parseList, samePath } from './check'
-import { EFFORT_MODELS, HARNESS_REL, MARKETPLACE_NAME, OWNER, PLUGIN_ID } from './constants'
+import { HARNESS_REL, MARKETPLACE_NAME, OWNER, PLUGIN_ID } from './constants'
 import { mcpJson } from './plugin'
 import { renderClaudeMarkdown, withFrontmatter, type FrontmatterValue } from './render'
 
@@ -86,20 +85,6 @@ export function permissionOps(ctx: AdapterContext): Op[] {
   if (!ctx.config.permissions.bypass) return []
   const op: JsonMergeOp = { kind: 'json-merge', path: join(ctx.paths.claudeDir(), 'settings.json'), set: { ...PERMISSION_KEYS }, owner: OWNER }
   if (ctx.config.permissions.enforce) op.enforce = Object.keys(PERMISSION_KEYS)
-  return [op]
-}
-
-export function effortKeys(level: string): Record<string, string> {
-  const set: Record<string, string> = { effortLevel: level }
-  for (const model of EFFORT_MODELS) set[`modelSettings.${model}.effortLevel`] = level
-  return set
-}
-
-export function effortOps(ctx: AdapterContext): Op[] {
-  const r = resolveEffort('claude', ctx.config.effort.claude)
-  if (!('level' in r)) return []
-  const set = effortKeys(r.level)
-  const op: JsonMergeOp = { kind: 'json-merge', path: join(ctx.paths.claudeDir(), 'settings.json'), set, owner: OWNER, soft: Object.keys(set) }
   return [op]
 }
 
@@ -238,7 +223,7 @@ export async function claudeInstallPlan(ctx: AdapterContext, deps: Partial<Insta
     // No op turns on Claude Code's agent teams (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS): while they are on, a named Agent
     // call starts a teammate, whose report arrives late, in pieces and once more in its idle notice. Lanes run as
     // background subagents. The next install prunes the value an earlier Buracle wrote; a value the user set stays.
-    ops: [...ruleOps(ctx, ledger), statusLineOp(ctx), ...permissionOps(ctx), ...effortOps(ctx), ...envOps(ctx), ...autoMemoryOps(ctx), ...announcementOps(ctx), ...tipOps(ctx), ...retiredDenyOps(ctx), ...mcpOffOps(ctx), ...execOps(ctx, tools)],
+    ops: [...ruleOps(ctx, ledger), statusLineOp(ctx), ...permissionOps(ctx), ...envOps(ctx), ...autoMemoryOps(ctx), ...announcementOps(ctx), ...tipOps(ctx), ...retiredDenyOps(ctx), ...mcpOffOps(ctx), ...execOps(ctx, tools)],
     cleanupKeys: cleanupKeys(ctx),
   }
 }

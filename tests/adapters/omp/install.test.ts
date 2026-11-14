@@ -6,12 +6,11 @@ import { parse as parseYaml } from 'yaml'
 import type { AdapterContext } from '../../../src/adapters/registry'
 import { adapter, uninstallPlan } from '../../../src/adapters/omp/index'
 import { linkStatus } from '../../../src/adapters/omp/check-link'
-import { compareVersions, configFindings, effortFindings, mcpCommandFindings, permissionFinding, sharedAgentsFinding, userEffortFinding } from '../../../src/adapters/omp/doctor'
+import { compareVersions, configFindings, mcpCommandFindings, permissionFinding, sharedAgentsFinding } from '../../../src/adapters/omp/doctor'
 import { agentsPointer, AGENTS_BLOCK_ID, linkCheckArgv, ompConfigKeys, ompConfigKeysFor, ompConfigPath, ompLspLayout, SHARED_AGENTS_IMPORT, userPlanAutosave, userStatusPreset } from '../../../src/adapters/omp/install'
 import { DEFAULT_BAND_LAYOUT, DEFAULT_OMP_SEGMENTS, ompStatusData, ompStatusLine } from '../../../src/adapters/omp/statusline'
 import { OMP_MIN_VERSION, ompCommandSkills } from '../../../src/adapters/omp/generated'
 import { devContext } from '../../../src/adapters/omp/dev-build'
-import { loadConfigSync } from '../../../src/engine/config'
 import { mdBlockGet } from '../../../src/engine/merge'
 import * as paths from '../../../src/engine/paths'
 import { applyPlans, rollbackTxn, type Plan } from '../../../src/engine/txn'
@@ -80,11 +79,11 @@ describe('omp installPlan', () => {
         'statusLine.preset': 'custom', 'statusLine.leftSegments': ['model', 'path', 'git', 'pr', 'subagents'],
         'statusLine.rightSegments': ['usage', 'context_pct', 'cost', 'status'], 'statusLine.showHookStatus': false,
         'tools.approvalMode': 'yolo',
-        'tools.xdev': false, defaultThinkingLevel: 'xhigh',
+        'tools.xdev': false,
         'memory.backend': 'off', 'lsp.diagnosticsOnEdit': true, enabledProviders: [],
         'task.eager': 'preferred',
         'plan.autosave': true, 'plan.autosaveDir': paths.ompPlanStagingDir(),
-      }, enforce: ['tools.approvalMode'], soft: ['defaultThinkingLevel', 'task.eager', 'plan.autosave', 'plan.autosaveDir', 'lsp.diagnosticsOnEdit'] })
+      }, enforce: ['tools.approvalMode'], soft: ['task.eager', 'plan.autosave', 'plan.autosaveDir', 'lsp.diagnosticsOnEdit'] })
       expect(plan.ops[1]).toMatchObject({ kind: 'md-block', path: join(agentDir, 'AGENTS.md'), id: AGENTS_BLOCK_ID, owner: 'omp' })
       expect(plan.ops[2]).toEqual({ kind: 'json-merge', path: join(sb.home, '.omp', 'agent', 'lsp.json'), owner: 'omp', set: {
         'servers.csharp-ls': { command: 'csharp-ls', args: [], fileTypes: ['.cs'], rootMarkers: ['*.sln', '*.slnx', '*.csproj', '.git'], languageId: 'csharp' },
@@ -153,7 +152,7 @@ describe('omp installPlan', () => {
       const doc = parseYaml(text) as Record<string, any>
       expect(doc['theme']).toEqual({ dark: 'titanium' })
       expect(doc['tools']).toEqual({ approval: { bash: 'prompt' }, approvalMode: 'yolo', xdev: false })
-      expect(doc['defaultThinkingLevel']).toBe('xhigh')
+      expect(doc['defaultThinkingLevel']).toBeUndefined()
       expect(doc['statusLine']).toEqual({ separator: 'pipe', preset: 'custom', leftSegments: ['model', 'path', 'git', 'pr', 'subagents'], rightSegments: ['usage', 'context_pct', 'cost', 'status'], showHookStatus: false })
       expect(doc['memory']).toEqual({ backend: 'off' })
       expect(doc['enabledProviders']).toEqual([])
@@ -176,7 +175,7 @@ describe('omp installPlan', () => {
     })
   }))
 
-  test('permissions.enforce writes the no-approval mode back over a user value (warning; uninstall restores it); a user effort level is kept', () => withSandbox(async sb => {
+  test('permissions.enforce writes the no-approval mode back over a user value (warning; uninstall restores it); a level the user set stays', () => withSandbox(async sb => {
     if (!HARNESS_BUILT) return
     const bin = installFakeOmp(sb)
     const agentDir = join(sb.home, '.omp', 'agent')
@@ -188,7 +187,6 @@ describe('omp installPlan', () => {
       const r = await applyPlans([await adapter.installPlan(ctxFor())])
       expect(r.conflicts).toEqual([])
       expect(r.warnings).toEqual([expect.stringContaining('tools.approvalMode') as unknown as string])
-      expect(r.skipped.map(s => s.reason)).toContain('kept user value (defaultThinkingLevel)')
       const doc = parseYaml(readFileSync(join(agentDir, 'config.yml'), 'utf8')) as Record<string, any>
       expect(doc['tools']).toEqual({ approvalMode: 'yolo', xdev: false })
       expect(doc['defaultThinkingLevel']).toBe('low')
@@ -201,7 +199,7 @@ describe('omp installPlan', () => {
     })
   }))
 
-  test('without permissions.enforce a value the user set keeps winning (conflict); effort.omp keep writes no effort', () => withSandbox(async sb => {
+  test('without permissions.enforce a value the user set keeps winning (conflict)', () => withSandbox(async sb => {
     if (!HARNESS_BUILT) return
     const bin = installFakeOmp(sb)
     const agentDir = join(sb.home, '.omp', 'agent')
@@ -209,7 +207,6 @@ describe('omp installPlan', () => {
     writeFileSync(join(agentDir, 'config.yml'), 'tools:\n  approvalMode: always-ask\n')
     const config = defaultConfig()
     config.permissions.enforce = false
-    config.effort.omp = 'keep'
     await withEnv({ PATH: pathOf(bin, process.env['PATH'] ?? '') }, async () => {
       const plan = await adapter.installPlan(ctxFor({ config }))
       expect(plan.ops[0]).not.toHaveProperty('enforce')
@@ -218,7 +215,6 @@ describe('omp installPlan', () => {
       expect(r.conflicts.map(c => c.detail)).toEqual([expect.stringContaining('tools.approvalMode') as unknown as string])
       const doc = parseYaml(readFileSync(join(agentDir, 'config.yml'), 'utf8')) as Record<string, any>
       expect(doc['tools']).toEqual({ approvalMode: 'always-ask', xdev: false })
-      expect(doc['defaultThinkingLevel']).toBeUndefined()
     })
   }))
 
@@ -384,7 +380,7 @@ describe('omp status line and AGENTS.md pointer', () => {
   test('showHookStatus is only managed when the status segment is placed or set explicitly', () => {
     const base = devContext(REPO)
     const withoutStatus = ompConfigKeys({ canonical: { ...base.canonical, statusline: { omp: layout({ leftSegments: ['model'], rightSegments: ['usage'] }) } } })
-    expect(Object.keys(withoutStatus)).toEqual(['statusLine.preset', 'statusLine.leftSegments', 'statusLine.rightSegments', 'tools.approvalMode', 'tools.xdev', 'defaultThinkingLevel', 'memory.backend', 'lsp.diagnosticsOnEdit', 'enabledProviders', 'task.eager'])
+    expect(Object.keys(withoutStatus)).toEqual(['statusLine.preset', 'statusLine.leftSegments', 'statusLine.rightSegments', 'tools.approvalMode', 'tools.xdev', 'memory.backend', 'lsp.diagnosticsOnEdit', 'enabledProviders', 'task.eager'])
   })
 
   test('status texts and band layout are embedded from the canonical layout', () => {
@@ -444,60 +440,6 @@ describe('omp link check and doctor', () => {
     expect(permissionFinding({ tools: { approvalMode: 'write' } }, cfg(false, true), '/f')).toMatchObject({ level: 'ok', detail: 'tools.approvalMode write (permissions.bypass is off)' })
   })
 
-  test('effort (PLAN §2.7): defaultThinkingLevel against effort.omp; a user level is theirs; a :level role suffix overrides it', () => {
-    const effort = (omp: string) => ({ effort: { claude: 'auto', codex: 'auto', opencode: 'auto', omp } })
-    expect(effortFindings({ defaultThinkingLevel: 'xhigh' }, effort('auto'), '/f')).toEqual([{ level: 'ok', check: 'omp effort', detail: 'defaultThinkingLevel xhigh (effort.omp)' }])
-    expect(effortFindings({ defaultThinkingLevel: 'low' }, effort('auto'), '/f')).toEqual([{ level: 'ok', check: 'omp effort', detail: 'defaultThinkingLevel "low" is your own value and stays (effort.omp would write xhigh)' }])
-    expect(effortFindings({}, effort('auto'), '/f')[0]).toMatchObject({ level: 'warn' })
-    expect(effortFindings({}, effort('keep'), '/f')[0]).toMatchObject({ level: 'ok', detail: "effort.omp is keep: omp's own defaultThinkingLevel stays (not set (omp's default is high))" })
-    expect(effortFindings({ defaultThinkingLevel: 'auto' }, effort('classifier'), '/f')[0]?.detail).toBe('defaultThinkingLevel auto (effort.omp)')
-    expect(effortFindings({}, effort('off'), '/f')[0]).toMatchObject({ level: 'warn' })
-    expect(effortFindings({}, effort('bogus'), '/f')[0]?.detail).toContain('effort.omp:')
-    const role = effortFindings({ defaultThinkingLevel: 'xhigh', modelRoles: { default: 'anthropic/claude-opus-5-5:high' } }, effort('auto'), '/f')
-    expect(role.map(f => f.level)).toEqual(['ok', 'warn'])
-    expect(role[1]?.detail).toContain('modelRoles.default ends in :high')
-  })
-
-  test('effort: `off` is never a level omp keeps; in the user config or in omp\'s own settings it is a clear warning', () => {
-    const effort = (omp: string) => ({ effort: { claude: 'auto', codex: 'auto', opencode: 'auto', omp } })
-    const fromUser = userEffortFinding('off', effort('auto'), '/u/config.yaml')
-    expect(fromUser).toMatchObject({ level: 'warn', check: 'omp effort' })
-    expect(fromUser?.detail).toContain('effort.omp "off" in /u/config.yaml is not used')
-    expect(fromUser?.detail).toContain("Oh My Pi's settings cannot hold 'off' (it ignores it and runs at high); minimal is the least thinking it saves")
-    expect(fromUser?.detail).toContain('Buracle uses effort.omp auto instead (defaultThinkingLevel xhigh)')
-    expect(fromUser?.detail).toContain('buracle config set effort.omp')
-    expect(userEffortFinding('bogus', effort('auto'), '/u')?.detail).toContain("'bogus' is not an effort value for Oh My Pi")
-    expect(userEffortFinding(3, effort('auto'), '/u')?.level).toBe('warn')
-    for (const ok of ['auto', 'keep', 'minimal', 'max', 'classifier']) expect(userEffortFinding(ok, effort(ok), '/u')).toBeUndefined()
-    expect(userEffortFinding(undefined, effort('auto'), '/u')).toBeUndefined()
-    const live = effortFindings({ defaultThinkingLevel: 'off' }, effort('auto'), '/f')
-    expect(live).toEqual([{ level: 'warn', check: 'omp effort', detail: 'defaultThinkingLevel "off" in /f is not a level omp accepts (minimal, low, medium, high, xhigh, max, auto): omp ignores it and runs at high. Set one with `omp config set defaultThinkingLevel <level>` (effort.omp would write xhigh)' }])
-    expect(effortFindings({ defaultThinkingLevel: 'off' }, effort('keep'), '/f')[0]).toMatchObject({ level: 'warn', detail: expect.stringContaining('omp ignores it and runs at high') })
-  })
-
-  test('effort.omp: off in the user config: install writes the default level, never off, and doctor explains it', () => withSandbox(async sb => {
-    if (!HARNESS_BUILT) return
-    const bin = installFakeOmp(sb)
-    mkdirSync(sb.buracleHome, { recursive: true })
-    writeFileSync(paths.userConfigFile(), 'effort:\n  omp: off\n')
-    const loaded = loadConfigSync({ repoRoot: REPO })
-    expect(loaded.config.effort.omp).toBe('auto')
-    expect(loaded.errors.join('\n')).toContain('effort.omp')
-    const ctx = ctxFor({ config: loaded.config })
-    expect('defaultThinkingLevel' in ompConfigKeys({ canonical: ctx.canonical, config: { ...loaded.config, effort: { ...loaded.config.effort, omp: 'off' } } })).toBe(false)
-    await withEnv({ PATH: pathOf(bin, process.env['PATH'] ?? ''), CLAUDE_CONFIG_DIR: undefined }, async () => {
-      const plan = await adapter.installPlan(ctx)
-      expect((plan.ops[0] as { set: Record<string, unknown> }).set['defaultThinkingLevel']).toBe('xhigh')
-      await applyPlans([plan])
-      const text = readFileSync(join(sb.home, '.omp', 'agent', 'config.yml'), 'utf8')
-      expect((parseYaml(text) as Record<string, unknown>)['defaultThinkingLevel']).toBe('xhigh')
-      expect(text).not.toMatch(/defaultThinkingLevel:\s*off/)
-      const effortRows = (await adapter.doctor(ctx)).filter(f => f.check === 'omp effort')
-      expect(effortRows[0]).toMatchObject({ level: 'warn', detail: expect.stringContaining(`effort.omp "off" in ${paths.userConfigFile()} is not used`) })
-      expect(effortRows[1]).toMatchObject({ level: 'ok', detail: 'defaultThinkingLevel xhigh (effort.omp)' })
-    })
-  }))
-
   test('compareVersions and configFindings', () => {
     expect(compareVersions('18.8.3', '18.8.0')).toBeGreaterThan(0)
     expect(compareVersions('18.7.9', '18.8.0')).toBeLessThan(0)
@@ -523,7 +465,7 @@ describe('omp link check and doctor', () => {
       expect(by['omp plugin']).toMatchObject({ level: 'ok' })
       expect(by['omp config']).toMatchObject({ level: 'ok' })
       expect(by['omp permission mode']).toMatchObject({ level: 'ok' })
-      expect(by['omp effort']).toMatchObject({ level: 'ok', detail: 'defaultThinkingLevel xhigh (effort.omp)' })
+      expect(by['omp effort']).toBeUndefined()
       expect(by['omp AGENTS.md']).toMatchObject({ level: 'ok' })
       expect(by['omp usage']).toMatchObject({ level: 'warn' })
       expect(by['omp agent dir']).toMatchObject({ level: 'ok', detail: join(sb.home, '.omp', 'agent') })

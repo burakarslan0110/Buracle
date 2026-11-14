@@ -186,7 +186,6 @@ smoke('omp smoke (real binary, sandboxed)', () => {
       expect(get('statusLine.showHookStatus')).toBe(false)
       expect(get('tools.approvalMode')).toBe('yolo')
       expect(get('tools.xdev')).toBe(false)
-      expect(get('defaultThinkingLevel')).toBe('xhigh')
       expect(get('memory.backend')).toBe('off')
       expect(get('lsp.diagnosticsOnEdit')).toBe(true)
       expect(get('enabledProviders')).toEqual([])

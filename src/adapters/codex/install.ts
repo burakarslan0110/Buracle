@@ -149,11 +149,6 @@ export function rootKeysOp(path: string, a: Pick<CodexArtifacts, 'rootKeys'>): O
   return Object.keys(keys).length > 0 ? { kind: 'toml-tables', path, tables: {}, keys: { ...keys }, owner: OWNER } : undefined
 }
 
-export function effortOp(path: string, a: CodexArtifacts): Op | undefined {
-  if (a.effortKeys === undefined) return undefined
-  return { kind: 'toml-tables', path, tables: {}, keys: { ...a.effortKeys }, owner: OWNER, soft: Object.keys(a.effortKeys) }
-}
-
 export function teamsOp(path: string, a: CodexArtifacts): Op | undefined {
   if (a.teamsKeys === undefined) return undefined
   return { kind: 'toml-tables', path, tables: {}, keys: { ...a.teamsKeys }, owner: OWNER, soft: Object.keys(a.teamsKeys) }
@@ -180,8 +175,6 @@ export function configTomlOps(path: string, a: CodexArtifacts, opts: ConfigTomlO
   ops.push(tomlTableOp(path, UPDATE_PLAN_TABLE, updatePlanTable()))
   const root = rootKeysOp(path, a)
   if (root !== undefined) ops.push(root)
-  const effort = effortOp(path, a)
-  if (effort !== undefined) ops.push(effort)
   const teams = teamsOp(path, a)
   if (teams !== undefined) ops.push(teams)
   const memory = memoryOp(path, a)

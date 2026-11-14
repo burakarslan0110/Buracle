@@ -182,8 +182,6 @@ export function renderReadme(canonical: CanonicalBundle): BuildFile {
     '    consent (H20). While `permissions.enforce` is on, a changed value is written back on the next install',
     '    or sync (with a warning; uninstall restores the value it replaced), and `buracle doctor omp` reports it.',
     '  - `tools.xdev: false`: MCP tools are top-level tools the model sees, not `xd://` devices it must look up.',
-    '  - `defaultThinkingLevel` from config `effort.omp` (`auto` writes `xhigh`, `keep` writes nothing). A level',
-    '    you set yourself is kept. A `:level` suffix on `modelRoles.default` overrides it (`buracle doctor omp` says so).',
     '  - `memory.backend: off` and `enabledProviders: []`.',
     '- `~/.omp/agent/AGENTS.md`: a short managed block that points to the plugin (the rules ship in the plugin).',
     '',

@@ -6,7 +6,6 @@ import { run } from '../../../engine/proc'
 import type { BakedData } from './baked'
 import { bandLines, BandFeeder, estimatedWidth } from './band'
 import { workflowCommandSkills } from './commands'
-import { effortLevel } from './effort'
 import { applyEnv, resolveEnv, runtimeConfigCache } from './env'
 import type { LiveInputs } from './status'
 import { barSegments, contextUsage, layoutFor, StatusFeeder, statusSegments } from './status'
@@ -99,11 +98,7 @@ export function createTuiPlugin(baked: BakedData, pluginDir: string | undefined)
         const live: LiveInputs = sid !== undefined ? { cwd, sessionID: sid } : { cwd }
         const cfg = config.get().config
         const model = ctx.ui.model.current()
-        if (model !== undefined) {
-          live.model = model
-          const level = model.variant === undefined ? effortLevel(cfg) : undefined
-          if (level !== undefined && (ctx.ui.model.variant?.list() ?? []).includes(level)) live.model = { ...model, variant: level }
-        }
+        if (model !== undefined) live.model = model
         if (sid !== undefined) {
           const usage = contextUsage(ctx.data.session.message.list(sid), ctx.data.location.model.list(session?.location), session?.revert?.messageID)
           if (usage !== undefined) live.ctx = usage

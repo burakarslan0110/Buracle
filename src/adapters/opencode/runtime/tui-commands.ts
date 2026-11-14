@@ -9,7 +9,6 @@ import * as paths from '../../../engine/paths'
 import { shimLaunch } from '../../../engine/shim'
 import { buracleArgv, liveMemoryUi } from '../../../usage/bar-info'
 import { loadState } from '../../../workflow/session-store'
-import { effortLevel } from './effort'
 import type { TuiKeymapCommand, TuiToastVariant } from './types'
 
 export interface CliResult { code: number; stdout: string; stderr: string }
@@ -105,13 +104,11 @@ export function statusLines(host: UtilityHost): string[] {
   const cfg = host.cfg()
   const about = host.about()
   const sid = host.sessionID()
-  const level = effortLevel(cfg)
   const lines = [
     `Buracle on OpenCode${about.opencode !== undefined && about.opencode !== '' ? ` ${about.opencode}` : ''}`,
     `session: ${sid ?? '-'}`,
     `permissions: ${cfg.permissions.bypass ? "no approval prompts (Buracle's guards and consent gate still deny)" : 'as OpenCode is configured'}`,
     `routing: ${cfg.routing.strictness} · skill router: ${cfg.routing.skills} · workflow band: ${cfg.workflow.band ? 'on' : 'off'}`,
-    `default effort: ${level ?? 'OpenCode decides'} (effort.opencode ${cfg.effort.opencode})`,
     `workflows: ${about.workflows.map(w => `/${w}`).join(' ')}`,
   ]
   const url = memoryUiUrl()
