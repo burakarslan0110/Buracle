@@ -1,7 +1,6 @@
 import { basename, dirname } from 'node:path'
 import type { BuracleConfig } from '../../../core/config'
 import type { WorkspaceInfo } from '../../../core/workspace'
-import { profileGuard } from '../../../workflow/session-store'
 
 export const WORKSPACE_THROTTLE_MS = 60_000
 const MAX_DIRS = 64
@@ -40,9 +39,4 @@ export function profileEnv(pluginDir: string | undefined, home: string): Record<
   const configDir = dirname(plugins)
   if (basename(plugins) !== 'plugins' || basename(configDir) !== 'opencode') return undefined
   return { HOME: home, XDG_CONFIG_HOME: dirname(configDir) }
-}
-
-export function profileWarning(pluginDir: string | undefined, runtimeSnapshot: unknown, home: string): string | undefined {
-  const env = profileEnv(pluginDir, home)
-  return env !== undefined ? profileGuard('opencode', runtimeSnapshot, env) : undefined
 }

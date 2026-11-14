@@ -7,6 +7,7 @@ import type { ToolCall, ToolKind } from '../../../core/events'
 import { classifyTool } from '../../../core/events'
 import { bandSummary } from '../../../core/flow/band'
 import { flowDef } from '../../../core/flow/catalog'
+import { FOLD_AFTER_SEC } from '../../../core/flow/state'
 import type { FlowSource } from '../../../core/flow/record'
 import { capabilityCard, isGuardContinuation, questionAnswered, reviewerShellDenial, skillOf } from '../../../core/policy/index'
 import { opencodeOffServers } from '../../shared/native-off'
@@ -15,7 +16,8 @@ import { mcpUnavailable } from '../../../core/policy/routing'
 import { ledgerCall, ledgerPrompt } from '../../../core/policy/usage'
 import type { WriteGuardContext } from '../../../core/policy/write-guard'
 import { compactInstructions } from '../../../core/compact'
-import { contextWarning, contextWatch, type ContextBand } from '../../../core/status/context'
+import { CONTEXT_DEFAULTS, contextWarning, contextWatch, type ContextBand, type ContextBands } from '../../../core/status/context'
+import { indexSettings } from '../../../core/workspace'
 import type { RateWindow } from '../../../core/status/model'
 import { log } from '../../../engine/log'
 import { editDiagnostics } from '../../../engine/toolchain/lsp-edits'
@@ -74,7 +76,7 @@ import { ModelFacts } from './models'
 import { OPENCODE_TODO_TOOL, openTodosOf } from './todos'
 import { actionMatchesTool, asRecord, errText, num, skillIdsOf, str, stringifyOutput, tokenTotal, within } from './util'
 import type { WorkspaceFn } from './workspace'
-import { prepareOnce, profileEnv, profileWarning } from './workspace'
+import { prepareOnce, profileEnv } from './workspace'
 
 
 export { CONTINUE_MARK, continuationText, REGISTRY_KEY, runawayNotice } from './guard'
@@ -159,7 +161,7 @@ const MAX_REVIEWED = 200
 const MAX_SESSION_DEPTH = 8
 const SESSION_ENV_VARS = ['CLAUDE_CODE_SESSION_ID', 'CODEX_SESSION_ID', 'CODEX_THREAD_ID', 'OMP_SESSION_ID'] as const
 
-export function contextNote(pct: number | undefined, cfg: BuracleConfig['context']): string | undefined {
+export function contextNote(pct: number | undefined, cfg: ContextBands = CONTEXT_DEFAULTS): string | undefined {
   if (pct === undefined) return undefined
   const band = pct >= cfg.criticalPct ? 'critical' : pct >= cfg.warnPct ? 'warn' : 'ok'
   return contextWarning(band, cfg)
@@ -221,8 +223,8 @@ export class BuracleRuntime {
     this.lspEdits = deps.lspEdits ?? editDiagnostics
     this.captureOn = deps.capture ?? (() => process.env['BURACLE_NO_CAPTURE'] !== '1')
     this.maintFn = deps.maint ?? ((nowMs, keep) => sessionMaint(HARNESS, nowMs, { keep }))
-    this.workspaceFn = deps.workspace ?? prepareWorkspace
-    this.workspaceRead = deps.workspaceRead ?? workspaceInfo
+    this.workspaceFn = deps.workspace ?? ((cwd, cfg, now) => prepareWorkspace(cwd, indexSettings(cfg), now))
+    this.workspaceRead = deps.workspaceRead ?? ((cwd, cfg, now) => workspaceInfo(cwd, indexSettings(cfg), now))
     this.assetsSpawn = deps.assetsSpawn
     this.env = resolveEnv(deps.pluginDir)
     applyEnv(this.env)
@@ -250,7 +252,7 @@ export class BuracleRuntime {
     this.receipts = new TurnReceipts({
       now: () => this.now(),
       post: (sid, text, variant) => this.notify(sid, text, variant),
-      run: sid => bandSummary(flowViewFor(HARNESS, sid, this.now(), this.cfg().workflow.foldAfterSec)),
+      run: sid => bandSummary(flowViewFor(HARNESS, sid, this.now(), FOLD_AFTER_SEC)),
       log: (msg, data) => this.logFn('debug', msg, data),
     })
   }
@@ -291,7 +293,7 @@ export class BuracleRuntime {
         saveWorkspace(ctx, HARNESS, s.sid, info)
         return info
       },
-      refreshWorkspace: (info, ctx, now) => refreshWorkspaceInfo(info, ctx.config, now),
+      refreshWorkspace: (info, ctx, now) => refreshWorkspaceInfo(info, indexSettings(ctx.config), now),
     }
     return {
       harness: HARNESS, ctx: this.actx(), core, workspace,
@@ -456,6 +458,11 @@ export class BuracleRuntime {
     if (r.notice?.model !== undefined) s.noticeOnce = r.notice.model
     // The user's copy of a release notice: the model is asked to pass it on, and the TUI shows it right away.
     if (r.notice?.user !== undefined) this.notify(s.sid, r.notice.user, 'info')
+    // The profile warning (H17) comes from the pipeline: a notice for the user in the TUI, never the model's context.
+    if (r.profile !== undefined) {
+      this.logFn('warn', r.profile)
+      this.notify(s.sid, r.profile, 'warning')
+    }
   }
 
   private prunePending(): void {
@@ -566,20 +573,6 @@ export class BuracleRuntime {
         startLinkRun(info.root, assetsOptions(this.now(), this.assetsSpawn))
       } catch (e) { this.logFn('warn', 'workspace preparation failed', { error: errText(e) }) }
     }))
-  }
-
-  /** The profile guard (H17) at plugin load: the folder the plugin was loaded from names the profile, once per process. */
-  checkProfile(): void {
-    try {
-      const warning = profileWarning(this.pluginDir, this.config.get(), this.env.home)
-      if (warning === undefined) return
-      const reg = registry()
-      if (reg.profileWarned === true) return
-      reg.profileWarned = true
-      this.logFn('warn', warning)
-    } catch (e) {
-      this.logFn('debug', 'profile guard failed', { error: errText(e) })
-    }
   }
 
   private knownSkills(dir: string): Promise<ReadonlySet<string> | undefined> {
@@ -899,8 +892,7 @@ export class BuracleRuntime {
     // The card follows the MCP servers' health from step to step, where the other harnesses show the one of the session start.
     const card = s.card === undefined ? undefined : await this.step('H15 capability card', s.card, () => this.capabilityText(s.sid))
     parts.push(...s.startContext.map(part => (part === s.card && card !== undefined ? card : part)).filter(part => part.trim() !== ''))
-    const cfg = this.cfg()
-    const watch = contextWatch(s.ctxWarned, s.ctx?.pct, cfg.context)
+    const watch = contextWatch(s.ctxWarned, s.ctx?.pct)
     if (watch.warned !== s.ctxWarned) {
       s.ctxWarned = watch.warned
       this.persist(s)
@@ -1238,7 +1230,6 @@ export function createBuraclePlugin(deps: PluginDeps): ServerPluginDefinition {
       rt.startEvents()
       rt.scheduleMaintenance()
       rt.scheduleWorkspace()
-      rt.checkProfile()
       return () => rt.dispose()
     },
   }

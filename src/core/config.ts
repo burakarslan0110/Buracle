@@ -12,20 +12,19 @@ export interface BuracleConfig {
   routing: { strictness: 'enforce' | 'nudge' | 'off', skills: 'router' | 'off', reminders: boolean }
   guards: { bash: { extraDeny: string[] }, write: { protect: string[] }, redact: boolean }
   plan: {
-    stopGuard: boolean, runaway: { perPlan: number, perChain: number }, planApproval: boolean, resultApproval: boolean, branchIsolation: boolean, worktreeDir: string
+    stopGuard: boolean, planApproval: boolean, resultApproval: boolean, branchIsolation: boolean
     questions: boolean, reviews: { plan: boolean, changes: boolean, goal: boolean, companion: CompanionSetting }, goalVerification: boolean, modelSwitch: 'off' | 'manual', nativePlanMode: 'off' | 'on'
   }
-  context: { warnPct: number, criticalPct: number }
-  checkers: { enabled: boolean, timeoutMs: number, languages: string[] }
-  memory: { ui: { port: number, autostart: boolean }, exclude: string[] }
+  checkers: { enabled: boolean, languages: string[] }
+  memory: { ui: { autostart: boolean }, exclude: string[] }
   statusline: { style: 'buracle' | 'full' | 'compact', emoji: boolean }
   skills: { sources: Array<{ name: string, path?: string, git?: string, ref?: string }> }
   update: { minReleaseAgeDays: number }
   permissions: { bypass: boolean, enforce: boolean }
   agents: { teams: boolean }
-  workflow: { band: boolean, foldAfterSec: number, codexNotices: boolean }
+  workflow: { band: boolean, codexNotices: boolean }
   toolchain: { autoInstall: boolean, system: boolean, upgrade: boolean }
-  index: { auto: boolean, codegraph: boolean, semble: boolean, minIntervalMin: number, exclude: string[], children: boolean, maxChildren: number }
+  index: { exclude: string[] }
   mcp: { shared: boolean, off: Record<Harness, string[]> }
 }
 
@@ -37,21 +36,18 @@ export function defaultConfig(): BuracleConfig {
     guards: { bash: { extraDeny: [] }, write: { protect: [] }, redact: true },
     plan: {
       stopGuard: true,
-      runaway: { perPlan: 30, perChain: 5 },
       planApproval: true,
       resultApproval: true,
       branchIsolation: true,
-      worktreeDir: '.worktrees',
       questions: true,
       reviews: { plan: true, changes: true, goal: true, companion: 'off' },
       goalVerification: true,
       modelSwitch: 'off',
       nativePlanMode: 'off',
     },
-    context: { warnPct: 85, criticalPct: 95 },
-    checkers: { enabled: true, timeoutMs: 20000, languages: ['python', 'typescript', 'javascript', 'go', 'shell', 'dotnet'] },
+    checkers: { enabled: true, languages: ['python', 'typescript', 'javascript', 'go', 'shell', 'dotnet'] },
     memory: {
-      ui: { port: 41777, autostart: true },
+      ui: { autostart: true },
       exclude: [],
     },
     statusline: { style: 'buracle', emoji: true },
@@ -59,9 +55,9 @@ export function defaultConfig(): BuracleConfig {
     update: { minReleaseAgeDays: 0 },
     permissions: { bypass: true, enforce: true },
     agents: { teams: true },
-    workflow: { band: true, foldAfterSec: 8, codexNotices: true },
+    workflow: { band: true, codexNotices: true },
     toolchain: { autoInstall: true, system: true, upgrade: true },
-    index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 },
+    index: { exclude: [] },
     mcp: { shared: true, off: harnessTable((): string[] => []) },
   }
 }
@@ -78,7 +74,6 @@ type Schema =
 const bool: Schema = { t: 'bool' }
 const str: Schema = { t: 'str' }
 const nonEmpty: Schema = { t: 'str', nonEmpty: true }
-const pct: Schema = { t: 'int', min: 0, max: 100 }
 const count = (min: number): Schema => ({ t: 'int', min })
 const strList: Schema = { t: 'arr', of: str }
 
@@ -114,11 +109,9 @@ const CONFIG_SCHEMA: Schema = {
       t: 'obj',
       fields: {
         stopGuard: bool,
-        runaway: { t: 'obj', fields: { perPlan: count(1), perChain: count(1) } },
         planApproval: bool,
         resultApproval: bool,
         branchIsolation: bool,
-        worktreeDir: nonEmpty,
         questions: bool,
         reviews: { t: 'obj', fields: { plan: bool, changes: bool, goal: bool, companion: { t: 'enum', values: COMPANION_SETTINGS } } },
         goalVerification: bool,
@@ -126,12 +119,11 @@ const CONFIG_SCHEMA: Schema = {
         nativePlanMode: { t: 'enum', values: ['off', 'on'] },
       },
     },
-    context: { t: 'obj', fields: { warnPct: pct, criticalPct: pct } },
-    checkers: { t: 'obj', fields: { enabled: bool, timeoutMs: count(100), languages: strList } },
+    checkers: { t: 'obj', fields: { enabled: bool, languages: strList } },
     memory: {
       t: 'obj',
       fields: {
-        ui: { t: 'obj', fields: { port: { t: 'int', min: 1024, max: 65535 }, autostart: bool } },
+        ui: { t: 'obj', fields: { autostart: bool } },
         exclude: strList,
       },
     },
@@ -154,9 +146,9 @@ const CONFIG_SCHEMA: Schema = {
     update: { t: 'obj', fields: { minReleaseAgeDays: count(0) } },
     permissions: { t: 'obj', fields: { bypass: bool, enforce: bool } },
     agents: { t: 'obj', fields: { teams: bool } },
-    workflow: { t: 'obj', fields: { band: bool, foldAfterSec: count(0), codexNotices: bool } },
+    workflow: { t: 'obj', fields: { band: bool, codexNotices: bool } },
     toolchain: { t: 'obj', fields: { autoInstall: bool, system: bool, upgrade: bool } },
-    index: { t: 'obj', fields: { auto: bool, codegraph: bool, semble: bool, minIntervalMin: count(0), exclude: strList, children: bool, maxChildren: count(0) } },
+    index: { t: 'obj', fields: { exclude: strList } },
     mcp: { t: 'obj', fields: { shared: bool, off: { t: 'obj', fields: mcpOffFields } } },
   },
 }
@@ -247,10 +239,6 @@ function check(schema: Schema, x: unknown, path: Array<string | number>, out: Is
 }
 
 function crossChecks(x: Record<string, unknown>, out: Issue[]): void {
-  const ctx = x['context']
-  if (isPlainObject(ctx) && typeof ctx['warnPct'] === 'number' && typeof ctx['criticalPct'] === 'number' && ctx['warnPct'] >= ctx['criticalPct']) {
-    out.push({ path: ['context', 'warnPct'], message: 'must be lower than context.criticalPct' })
-  }
   const skills = x['skills']
   const sources = isPlainObject(skills) ? skills['sources'] : undefined
   if (Array.isArray(sources)) {

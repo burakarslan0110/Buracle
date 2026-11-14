@@ -18,7 +18,7 @@ import { saveSetting, workflowPayload } from './ui/settings'
 
 export { readUiRecord, type UiRecord } from './ui-record'
 
-export const DEFAULT_UI_PORT = 41777
+export const DEFAULT_UI_PORT = paths.MEMORY_UI_PORT
 const PORT_TRIES = 20
 const HOST = '127.0.0.1'
 const UI_APP = 'buracle-memory-ui'

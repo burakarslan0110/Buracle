@@ -148,7 +148,7 @@ describe('omp H22 prompt delivery: input at submission, before_agent_start when 
     expect(text).not.toContain('Earlier work')
     const l = loadLedger('omp', SID)
     expect(l.turn).toBe(1)
-    expect(l.prompt?.route).toMatchObject({ invoked: [], load: ['research'], memory: { recall: false, write: false } })
+    expect(l.prompt?.route).toMatchObject({ invoked: [], load: ['research'] })
     expect(await hidden(fp, ctx, 'and what did we decide last time about the runtime?')).toBeUndefined()
     expect(loadLedger('omp', SID).turn).toBe(1)
     const held = await fp.emit('session_stop', stop, ctx) as { decision: string, reason: string }
@@ -199,7 +199,7 @@ describe('omp H22 prompt delivery: input at submission, before_agent_start when 
     const text = await hidden(fp, ctx, '$research compare bun and deno') as string
     expect(text).toContain('- The user asked for the research skill: load it before any other step and follow it (read skill://research)')
     expect(text).not.toContain('Earlier work')
-    expect(loadLedger('omp', SID).prompt?.route).toMatchObject({ load: ['research'], memory: { recall: false, write: false } })
+    expect(loadLedger('omp', SID).prompt?.route).toMatchObject({ load: ['research'] })
   }))
 
   test('a retry of the same delivery (omp runs before_agent_start again when the system prompt changed meanwhile) gets the same text; the turn moves once', () => withSandbox(async sb => {

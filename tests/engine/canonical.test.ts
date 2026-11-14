@@ -3,7 +3,8 @@ import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import { catalogMcp, catalogSkills, envRef, expandMcpCommand, mcpEnvFor, validateMcpCatalog, validateToolsCatalog, type McpServerSpec } from '../../src/core/catalog'
-import { defaultConfig, validateConfig } from '../../src/core/config'
+import { defaultConfig, mergeConfig, validateConfig } from '../../src/core/config'
+import { HARNESSES } from '../../src/core/events'
 import { CanonicalError, loadCanonicalSync, parseFrontmatter } from '../../src/engine/canonical'
 import * as paths from '../../src/engine/paths'
 import { withSandbox } from '../helpers/sandbox'
@@ -15,8 +16,26 @@ describe('the real canonical/ tree', () => {
 
   test('buracle.yaml matches defaultConfig()', () => {
     expect(bundle.config).toEqual(defaultConfig())
-    const raw = parseYaml(readFileSync(join(REAL, 'buracle.yaml'), 'utf8')) as unknown
-    expect(validateConfig(raw)).toEqual({ ok: true, config: defaultConfig() })
+    const raw = parseYaml(readFileSync(join(REAL, 'buracle.yaml'), 'utf8')) as { harnesses?: unknown, mcp: { off?: unknown } }
+    const d = defaultConfig()
+    expect(validateConfig({ ...raw, harnesses: d.harnesses, mcp: { ...raw.mcp, off: d.mcp.off } })).toEqual({ ok: true, config: d })
+  })
+
+  test('buracle.yaml names no harness: the per-harness defaults come from the harness profiles', () => {
+    const text = readFileSync(join(REAL, 'buracle.yaml'), 'utf8')
+    const raw = parseYaml(text) as { harnesses?: unknown, mcp: { off?: unknown } }
+    expect(raw.harnesses).toBeUndefined()
+    expect(raw.mcp.off).toBeUndefined()
+    for (const h of HARNESSES) expect(text).not.toMatch(new RegExp(`^\\s*${h}:`, 'm'))
+    expect(Object.keys(bundle.config.harnesses)).toEqual([...HARNESSES])
+    expect(bundle.config.mcp.off).toEqual(defaultConfig().mcp.off)
+    expect(Object.entries(bundle.config.mcp.off)).toEqual(HARNESSES.map(h => [h, []]))
+  })
+
+  test('a user\'s per-harness keys still apply over the derived defaults', () => {
+    const merged = mergeConfig(bundle.config, { harnesses: { codex: { enabled: false } }, mcp: { off: { omp: ['semble'] } } })
+    expect(merged.harnesses).toEqual({ ...defaultConfig().harnesses, codex: { enabled: false } })
+    expect(merged.mcp.off).toEqual({ ...defaultConfig().mcp.off, omp: ['semble'] })
   })
 
   test('mcp.yaml has the nine servers; packages follow their latest release through the launcher', () => {

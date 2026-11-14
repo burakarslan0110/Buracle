@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { lockTestHooks } from '../../src/engine/lockfile'
-import { defaultConfig, type BuracleConfig } from '../../src/core/config'
+import { INDEX_SETTINGS, type IndexSettings } from '../../src/core/workspace'
 import { updateToolchainState } from '../../src/engine/toolchain/state'
 import { prepareWorkspace } from '../../src/adapters/shared/workspace-start'
 import {
@@ -45,10 +45,7 @@ function fakeRunner(reply: (c: Call) => Reply = () => undefined) {
   return { calls, runner }
 }
 
-const cfgWith = (index: Partial<BuracleConfig['index']> = {}): BuracleConfig => {
-  const c = defaultConfig()
-  return { ...c, index: { ...c.index, ...index } }
-}
+const cfgWith = (index: Partial<IndexSettings> = {}): IndexSettings => ({ ...INDEX_SETTINGS, ...index })
 
 function writeDb(root: string, content = ''): void {
   mkdirSync(join(root, '.codegraph'), { recursive: true })
@@ -139,7 +136,7 @@ describe('projectRootFor and resolveWorkspace', () => {
     await withSandbox(async ({ root }) => {
       const parent = join(root, 'repos')
       for (const n of ['api', 'web', 'workspace']) await gitInit(join(parent, n))
-      const t = await resolveWorkspace(parent, workspaceOptions(defaultConfig()))
+      const t = await resolveWorkspace(parent, workspaceOptions(INDEX_SETTINGS))
       expect(t).toEqual({ cwd: parent, children: [join(parent, 'api'), join(parent, 'web'), join(parent, 'workspace')] })
     })
   })
@@ -154,7 +151,7 @@ describe('projectRootFor and resolveWorkspace', () => {
       const parent = join(home, 'code', 'parent')
       await gitInit(join(parent, 'a'))
       await gitInit(join(parent, 'b'))
-      const t = await resolveWorkspace(parent, workspaceOptions(defaultConfig()))
+      const t = await resolveWorkspace(parent, workspaceOptions(INDEX_SETTINGS))
       expect(t.root).toBeUndefined()
       expect(t.children).toEqual([join(parent, 'a'), join(parent, 'b')])
     })
@@ -169,11 +166,11 @@ describe('projectRootFor and resolveWorkspace', () => {
       await gitInit(join(parent, '.hidden'))
       await gitInit(join(parent, 'node_modules'))
       writeFileSync(join(parent, 'notes.txt'), 'x')
-      const t = await resolveWorkspace(parent, workspaceOptions(defaultConfig()))
+      const t = await resolveWorkspace(parent, workspaceOptions(INDEX_SETTINGS))
       expect(t).toEqual({ cwd: parent, children: [join(parent, 'a'), join(parent, 'b')] })
       expect((await resolveWorkspace(parent, workspaceOptions(cfgWith({ children: false })))).children).toEqual([])
       mkdirSync(join(parent, 'c'), { recursive: true })
-      expect(await resolveWorkspace(parent, workspaceOptions(defaultConfig()))).toEqual({ cwd: parent, children: [] })
+      expect(await resolveWorkspace(parent, workspaceOptions(INDEX_SETTINGS))).toEqual({ cwd: parent, children: [] })
     })
   })
 
@@ -229,7 +226,7 @@ describe('index records, locks and states', () => {
     await withSandbox(async ({ root }) => {
       const repo = join(root, 'repo')
       await gitInit(repo)
-      const idx = defaultConfig().index
+      const idx = INDEX_SETTINGS
       expect(projectIndex(repo, idx, 1_000)).toEqual({ codegraph: { state: 'none' }, semble: { state: 'none' } })
       writeDb(repo)
       expect(projectIndex(repo, idx, 1_000).codegraph).toEqual({ state: 'ready' })
@@ -242,7 +239,7 @@ describe('index records, locks and states', () => {
       const repo = join(root, 'repo')
       await gitInit(repo)
       writeDb(repo)
-      const idx = defaultConfig().index
+      const idx = INDEX_SETTINGS
       holdLock(repo, process.pid, 5_000)
       expect(indexLockHolder(repo, 6_000)).toEqual({ pid: process.pid, at: 5_000 })
       expect(projectIndex(repo, idx, 6_000)).toEqual({ codegraph: { state: 'ready' }, semble: { state: 'building', since: 5_000 } })
@@ -294,7 +291,7 @@ describe('ensureIndexes', () => {
         ['search', 'buracle warm-up', repo, '-k', '1', '--max-snippet-lines', '0'],
         ['search', 'buracle warm-up', repo, '-k', '1', '--max-snippet-lines', '0', '--content', 'all'],
       ])
-      const idx = defaultConfig().index
+      const idx = INDEX_SETTINGS
       expect(indexDue(repo, idx, t + MIN)).toBe(false)
       expect(indexDue(repo, idx, t + idx.minIntervalMin * MIN + 1)).toBe(true)
       writeDb(repo)
@@ -369,7 +366,7 @@ describe('ensureIndexes', () => {
       const repo = join(root, 'repo')
       await gitInit(repo)
       const { runner } = fakeRunner(() => ({ code: 1, stderr: 'boom' }))
-      const idx = defaultConfig().index
+      const idx = INDEX_SETTINGS
       const r = await ensureIndexes(repo, { codegraph: true, semble: true, runner }, () => 5_000)
       expect(r.codegraph).toMatchObject({ ok: false, error: 'boom', failures: 1 })
       expect(r.semble).toMatchObject({ ok: false, error: 'boom', failures: 1 })
@@ -465,7 +462,7 @@ describe('ensureIndexes', () => {
       expect(readFileSync(join(corrupt, copies[0] ?? '', 'codegraph.db'), 'utf8')).toBe('not a database at all')
       expect(existsSync(db)).toBe(false)
       expect(r.codegraph).toMatchObject({ ok: true, mode: 'rebuild', note: `recovered an index that was not a SQLite database (the old one is in ${join(corrupt, copies[0] ?? '')})` })
-      expect((await indexChecks(repo, defaultConfig(), 6_000)).find(c => c.check === 'index.codegraph')?.detail).toContain('(recovered an index that was not a SQLite database')
+      expect((await indexChecks(repo, INDEX_SETTINGS, 6_000)).find(c => c.check === 'index.codegraph')?.detail).toContain('(recovered an index that was not a SQLite database')
 
       writeDb(repo, 'SQLite format 3\u0000 and then garbage')
       const malformed = fakeRunner(c => (c.args[0] === 'sync' ? { code: 1 } : c.args[0] === 'status' && c.args.length === 3 && existsSync(db) ? { code: 1, stderr: 'Failed to get status: database disk image is malformed' } : c.args[0] === 'status' ? status : undefined))
@@ -560,13 +557,13 @@ describe('ensureIndexes', () => {
       const repo = join(root, 'repo')
       await gitInit(repo)
       await ensureIndexes(repo, { codegraph: false, semble: true, runner: fakeRunner().runner }, () => 1_000)
-      const target = await resolveWorkspace(repo, workspaceOptions(defaultConfig()))
+      const target = await resolveWorkspace(repo, workspaceOptions(INDEX_SETTINGS))
       const { calls, runner } = fakeRunner()
-      const [r] = await ensureWorkspace(target, defaultConfig(), { ifDue: true, runner, nowMs: () => 2_000 })
+      const [r] = await ensureWorkspace(target, INDEX_SETTINGS, { ifDue: true, runner, nowMs: () => 2_000 })
       expect(calls.map(c => c.tool)).toEqual(['codegraph', 'codegraph'])
       expect(r).toMatchObject({ root: repo, codegraph: { ok: true, mode: 'init' } })
       expect(r?.semble).toBeUndefined()
-      expect(await ensureWorkspace(target, defaultConfig(), { ifDue: true, runner, nowMs: () => 3_000 })).toEqual([{ root: repo, skipped: 'not due' }])
+      expect(await ensureWorkspace(target, INDEX_SETTINGS, { ifDue: true, runner, nowMs: () => 3_000 })).toEqual([{ root: repo, skipped: 'not due' }])
     })
   })
 
@@ -587,7 +584,7 @@ describe('starting the background run', () => {
     await withSandbox(async ({ root }) => {
       const repo = join(root, 'repo')
       await gitInit(repo)
-      const cfg = defaultConfig()
+      const cfg = INDEX_SETTINGS
       const spawned: Array<{ argv: string[], cwd: string }> = []
       const spawn = (argv: string[], cwd: string) => { spawned.push({ argv, cwd }) }
       const target = await resolveWorkspace(repo, workspaceOptions(cfg))
@@ -621,8 +618,8 @@ describe('starting the background run', () => {
       expect(existsSync(indexRecordFile(busy))).toBe(true)
       expect(existsSync(indexRecordFile(repo))).toBe(true)
       writeFileSync(indexRecordFile(gone), JSON.stringify({ v: 1, root: gone }) + '\n')
-      const target = await resolveWorkspace(repo, workspaceOptions(defaultConfig()))
-      expect(startIndexRun(target, defaultConfig(), 10 * 24 * 60 * MIN, ['buracle'], () => {})).toEqual([repo])
+      const target = await resolveWorkspace(repo, workspaceOptions(INDEX_SETTINGS))
+      expect(startIndexRun(target, INDEX_SETTINGS, 10 * 24 * 60 * MIN, ['buracle'], () => {})).toEqual([repo])
       expect(existsSync(indexRecordFile(gone))).toBe(false)
     })
   })
@@ -648,10 +645,10 @@ describe('starting the background run', () => {
       mkdirSync(join(repo, 'src'))
       const spawned: string[][] = []
       const spawn = (argv: string[]) => { spawned.push(argv) }
-      expect(await spawnIndexIfDue(repo, defaultConfig(), 1_000, ['buracle'], spawn)).toBeUndefined()
+      expect(await spawnIndexIfDue(repo, INDEX_SETTINGS, 1_000, ['buracle'], spawn)).toBeUndefined()
       await withEnv({ BURACLE_NO_AUTOSTART: undefined }, async () => {
         expect(await spawnIndexIfDue(repo, cfgWith({ auto: false }), 1_000, ['buracle'], spawn)).toBeUndefined()
-        expect(await spawnIndexIfDue(join(repo, 'src'), defaultConfig(), 1_000, ['buracle'], spawn)).toBe(repo)
+        expect(await spawnIndexIfDue(join(repo, 'src'), INDEX_SETTINGS, 1_000, ['buracle'], spawn)).toBe(repo)
       })
       expect(spawned).toHaveLength(1)
     })
@@ -664,7 +661,7 @@ describe('what a session start reports', () => {
       const repo = join(root, 'repo')
       await gitInit(repo)
       mkdirSync(join(repo, 'src'), { recursive: true })
-      const info = await prepareWorkspace(join(repo, 'src'), defaultConfig(), 1_000)
+      const info = await prepareWorkspace(join(repo, 'src'), INDEX_SETTINGS, 1_000)
       expect(info).toEqual({ cwd: join(repo, 'src'), root: repo, children: [], index: { codegraph: { state: 'none' }, semble: { state: 'none' } } })
       expect(indexLockHolder(repo, 1_000)).toBeUndefined()
     })
@@ -689,13 +686,13 @@ describe('what a session start reports', () => {
       const parent = join(root, 'parent')
       await gitInit(join(parent, 'a'))
       await gitInit(join(parent, 'b'))
-      expect(indexDue(repo, defaultConfig().index, 1_000)).toBe(true)
+      expect(indexDue(repo, INDEX_SETTINGS, 1_000)).toBe(true)
       await withEnv({ BURACLE_NO_AUTOSTART: undefined }, async () => {
-        const single = await spawnedWhile(() => prepareWorkspace(repo, defaultConfig(), 1_000))
+        const single = await spawnedWhile(() => prepareWorkspace(repo, INDEX_SETTINGS, 1_000))
         expect(single.result.root).toBe(repo)
         expect(single.result.index.codegraph).toEqual({ state: 'none' })
         expect(startsIndexRun(single.commands)).toBe(false)
-        const several = await spawnedWhile(() => prepareWorkspace(parent, defaultConfig(), 1_000))
+        const several = await spawnedWhile(() => prepareWorkspace(parent, INDEX_SETTINGS, 1_000))
         expect(several.result.root).toBeUndefined()
         expect(several.result.children).toEqual([join(parent, 'a'), join(parent, 'b')])
         expect(several.result.childIndex?.[join(parent, 'a')]?.codegraph).toEqual({ state: 'none' })
@@ -709,7 +706,7 @@ describe('what a session start reports', () => {
       const parent = join(root, 'parent')
       await gitInit(join(parent, 'a'))
       writeDb(join(parent, 'a'))
-      const info = await workspaceInfo(parent, defaultConfig(), 1_000)
+      const info = await workspaceInfo(parent, INDEX_SETTINGS, 1_000)
       expect(info).toEqual({
         cwd: parent, children: [join(parent, 'a')], index: { codegraph: { state: 'none' }, semble: { state: 'none' } },
         childIndex: { [join(parent, 'a')]: { codegraph: { state: 'ready' }, semble: { state: 'none' } } },
@@ -724,10 +721,10 @@ describe('what a session start reports', () => {
       fakeTools(root)
       const repo = join(root, 'repo')
       await gitInit(repo)
-      const before = await workspaceInfo(repo, defaultConfig(), 1_000)
+      const before = await workspaceInfo(repo, INDEX_SETTINGS, 1_000)
       expect(before.index.semble).toEqual({ state: 'none' })
       await ensureIndexes(repo, { codegraph: false, semble: true, runner: fakeRunner().runner }, () => 2_000)
-      expect(refreshWorkspaceInfo(before, defaultConfig(), 3_000).index.semble).toEqual({ state: 'ready', at: 2_000 })
+      expect(refreshWorkspaceInfo(before, INDEX_SETTINGS, 3_000).index.semble).toEqual({ state: 'ready', at: 2_000 })
     })
   })
 
@@ -737,7 +734,7 @@ describe('what a session start reports', () => {
       const repo = join(root, 'repo')
       await gitInit(repo)
       await ensureIndexes(repo, { codegraph: true, semble: false, runner: fakeRunner().runner }, () => 1_000)
-      const rows = await indexChecks(repo, defaultConfig(), 1_000 + 5 * MIN)
+      const rows = await indexChecks(repo, INDEX_SETTINGS, 1_000 + 5 * MIN)
       expect(rows).toEqual([
         { level: 'ok', check: 'index.codegraph', detail: `${repo}: ready (refreshed 5m ago)` },
         { level: 'warn', check: 'index.semble', detail: `${repo}: not built yet` },
@@ -755,11 +752,11 @@ describe('codegraph MCP start gate', () => {
     await withSandbox(async ({ root }) => {
       const repo = join(root, 'repo')
       await gitInit(repo)
-      expect(await codegraphStartGate(join(root, 'nothing-here'), { cfg: defaultConfig(), argv: undefined })).toEqual({ outcome: 'no-project', waitedMs: 0 })
+      expect(await codegraphStartGate(join(root, 'nothing-here'), { cfg: INDEX_SETTINGS, argv: undefined })).toEqual({ outcome: 'no-project', waitedMs: 0 })
       expect(await codegraphStartGate(repo, { cfg: cfgWith({ codegraph: false }) })).toEqual({ outcome: 'off', waitedMs: 0 })
-      expect(await codegraphStartGate(repo, { cfg: defaultConfig(), argv: undefined })).toEqual({ root: repo, outcome: 'idle', waitedMs: 0 })
+      expect(await codegraphStartGate(repo, { cfg: INDEX_SETTINGS, argv: undefined })).toEqual({ root: repo, outcome: 'idle', waitedMs: 0 })
       writeDb(repo)
-      expect(await codegraphStartGate(repo, { cfg: defaultConfig() })).toEqual({ root: repo, outcome: 'present', waitedMs: 0 })
+      expect(await codegraphStartGate(repo, { cfg: INDEX_SETTINGS })).toEqual({ root: repo, outcome: 'present', waitedMs: 0 })
     })
   })
 
@@ -774,7 +771,7 @@ describe('codegraph MCP start gate', () => {
         t += ms
         if (++polls === 8) { writeDb(repo); rmSync(indexLockFile(repo)) }
       }
-      const r = await codegraphStartGate(repo, { cfg: defaultConfig(), nowMs: () => t, sleep, argv: undefined })
+      const r = await codegraphStartGate(repo, { cfg: INDEX_SETTINGS, nowMs: () => t, sleep, argv: undefined })
       expect(r).toEqual({ root: repo, outcome: 'ready', waitedMs: 8 * 250 })
     })
   })
@@ -790,7 +787,7 @@ describe('codegraph MCP start gate', () => {
         t += ms
         if (++polls === 3) writeDb(repo)
       }
-      const r = await codegraphStartGate(repo, { cfg: defaultConfig(), nowMs: () => t, sleep, argv: undefined })
+      const r = await codegraphStartGate(repo, { cfg: INDEX_SETTINGS, nowMs: () => t, sleep, argv: undefined })
       expect(r).toEqual({ root: repo, outcome: 'ready', waitedMs: 3 * 250 })
       expect(indexLockHolder(repo, t)).toEqual({ pid: process.pid, at: 10_000 })
     })
@@ -804,13 +801,13 @@ describe('codegraph MCP start gate', () => {
       const sleep = async (ms: number) => { t += ms }
       const spawned: string[][] = []
       await withEnv({ BURACLE_NO_AUTOSTART: undefined }, async () => {
-        const quiet = await codegraphStartGate(repo, { cfg: defaultConfig(), nowMs: () => t, sleep, argv: ['buracle'], spawn: argv => { spawned.push(argv) } })
+        const quiet = await codegraphStartGate(repo, { cfg: INDEX_SETTINGS, nowMs: () => t, sleep, argv: ['buracle'], spawn: argv => { spawned.push(argv) } })
         expect(spawned).toEqual([['buracle', 'index', 'ensure', '--cwd', repo, '--if-due', '--quiet']])
         expect(quiet).toEqual({ root: repo, outcome: 'failed', waitedMs: 3_000 })
       })
       t = 0
       holdLock(repo, process.pid, 0)
-      const stuck = await codegraphStartGate(repo, { cfg: defaultConfig(), nowMs: () => t, sleep, argv: undefined })
+      const stuck = await codegraphStartGate(repo, { cfg: INDEX_SETTINGS, nowMs: () => t, sleep, argv: undefined })
       expect(stuck).toEqual({ root: repo, outcome: 'timeout', waitedMs: 4_000 })
     })
   })

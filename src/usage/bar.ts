@@ -5,6 +5,7 @@ import type { BuracleConfig } from '../core/config'
 import type { Harness } from '../core/events'
 import type { BandView } from '../core/flow/band'
 import { bandPlanOf, bandView } from '../core/flow/band'
+import { indexSettings } from '../core/workspace'
 import type { MemoryStatus } from '../core/memory/status'
 import { gitFromPorcelainV2, linesFromShortstat } from '../core/status/git'
 import { indexStatusOf } from '../core/status/live'
@@ -276,7 +277,7 @@ export function flowForSession(h: Harness, sid: string | undefined, nowMs: numbe
 }
 
 export async function indexStatusFor(cwd: string, cfg: BuracleConfig, nowMs: number): Promise<IndexStatus | undefined> {
-  return indexStatusOf(await workspaceInfo(cwd, cfg, nowMs))
+  return indexStatusOf(await workspaceInfo(cwd, indexSettings(cfg), nowMs))
 }
 
 export function pendingUpdates(path = updatesFile()): number | undefined {

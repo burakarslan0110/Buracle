@@ -3,7 +3,7 @@ import { isAbsolute, resolve } from 'node:path'
 import type { BuracleConfig } from '../../../core/config'
 import type { HookId, StopDecision, StopInput } from '../../../core/events'
 import type { SpoolEntry } from '../../../core/memory/spool'
-import { planProgressed } from '../../../core/plan/index'
+import { RUNAWAY_PER_CHAIN, planProgressed } from '../../../core/plan/index'
 import type { StopWhy } from '../../../core/plan/index'
 import * as paths from '../../../engine/paths'
 import { loadState } from '../../../workflow/session-store'
@@ -26,7 +26,7 @@ export interface GuardChain {
   noticed: boolean
 }
 
-interface GlobalRegistry { claimed: Map<string, number>; chains: Map<string, GuardChain>; maintAt?: number; profileWarned?: boolean }
+interface GlobalRegistry { claimed: Map<string, number>; chains: Map<string, GuardChain>; maintAt?: number }
 export const REGISTRY_KEY = Symbol.for('buracle.opencode.registry')
 const MAX_CHAINS = 500
 const RATE_WINDOW_MS = 60_000
@@ -172,7 +172,7 @@ export class StopGuard {
     else {
       chain.continuations = chain.continuations.filter(t => now - t >= 0 && now - t < RATE_WINDOW_MS)
       if (planProgressed(state, planText(plan.path, cwd))) { chain.chain = 0; chain.continuations = []; chain.noticed = false }
-      const chainCap = Math.max(1, cfg.plan.runaway.perChain)
+      const chainCap = RUNAWAY_PER_CHAIN
       if (chain.chain > chainCap || chain.continuations.length >= RATE_MAX) {
         await this.runaway(sid, chain, chain.chain > chainCap ? 'runaway-chain' : 'rate', plan.path)
         return

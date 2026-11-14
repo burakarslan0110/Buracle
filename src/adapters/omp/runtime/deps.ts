@@ -20,7 +20,7 @@ import { gitFromPorcelainV2, linesFromShortstat } from '../../../core/status/git
 import type { GitState } from '../../../core/status/model'
 import * as coreStatus from '../../../core/status/render'
 import { barLines, type BarInfo } from '../../../core/status/bar'
-import type { WorkspaceInfo } from '../../../core/workspace'
+import { indexSettings, type WorkspaceInfo } from '../../../core/workspace'
 import { barInfo, liveMemoryUi } from '../../../usage/bar-info'
 import { commonDir, currentBranch, gitDiffShortstat, gitStatusPorcelainV2, projectSlug, revParse } from '../../../engine/git'
 import * as paths from '../../../engine/paths'
@@ -257,9 +257,9 @@ export function defaultDeps(): ExtensionDeps {
     },
     prune: (keep, nowMs) => sessionMaint('omp', nowMs, { keep }).removed,
     recordAskGrant: (sid, kind, answer, nowMs) => { recordDialogGrant('omp', sid, kind, answer, nowMs) },
-    prepareWorkspace: (cwd, cfg, nowMs) => prepareWorkspace(cwd, cfg, nowMs),
-    workspaceInfo: (cwd, cfg, nowMs) => workspaceInfo(cwd, cfg, nowMs),
-    refreshWorkspace: (info, cfg, nowMs) => refreshWorkspaceInfo(info, cfg, nowMs),
+    prepareWorkspace: (cwd, cfg, nowMs) => prepareWorkspace(cwd, indexSettings(cfg), nowMs),
+    workspaceInfo: (cwd, cfg, nowMs) => workspaceInfo(cwd, indexSettings(cfg), nowMs),
+    refreshWorkspace: (info, cfg, nowMs) => refreshWorkspaceInfo(info, indexSettings(cfg), nowMs),
     projectDeps: createDepsReader(),
     columns: () => (typeof process.stdout.columns === 'number' && process.stdout.columns > 0 ? process.stdout.columns : 120),
     setEnv: (name, value) => { process.env[name] = value },

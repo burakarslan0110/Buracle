@@ -36,7 +36,7 @@ type SelfRoot = { root: string, layout: SelfLayout }
 
 const SELF_LAYOUT: readonly SelfLayout[] = [
   { key: 'buracleHome', under: '.buracle', entries: [''], area: 'buracle' },
-  { key: 'localBinDir', under: '.local/bin', entries: ['buracle', 'buracle.cmd'], area: 'shim' },
+  { key: 'localBinDir', under: '.local/bin', entries: ['buracle'], area: 'shim' },
   ...HARNESSES.flatMap(h => harnessProfile(h).protectedDirs.map((d): SelfLayout => ({ key: d.key as SelfLayout['key'], under: d.under, entries: d.entries, area: h }))),
 ]
 

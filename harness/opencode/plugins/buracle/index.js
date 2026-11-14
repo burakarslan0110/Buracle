@@ -7013,6 +7013,7 @@ var exports_paths = {};
 __export(exports_paths, {
   INSTALL_LOG_RE: () => INSTALL_LOG_RE,
   MCP_SOCKET_PATH_MAX: () => MCP_SOCKET_PATH_MAX,
+  MEMORY_UI_PORT: () => MEMORY_UI_PORT,
   RUNTIME_MARKER: () => RUNTIME_MARKER,
   SESSION_ID_RE: () => SESSION_ID_RE,
   agentsDir: () => agentsDir,
@@ -7102,6 +7103,7 @@ __export(exports_core, {
   CATASTROPHIC_COMMAND_RULES: () => CATASTROPHIC_COMMAND_RULES,
   CHECKER_PROBES: () => CHECKER_PROBES,
   CHECKER_SCAN_MAX_DIRS: () => CHECKER_SCAN_MAX_DIRS,
+  CHECKER_TIMEOUT_MS: () => CHECKER_TIMEOUT_MS,
   CLAUDE_CLASSIC_EVENTS: () => CLAUDE_CLASSIC_EVENTS,
   CLAUDE_ENGINE_EVENTS: () => CLAUDE_ENGINE_EVENTS,
   CLAUDE_PLUGIN_NAME: () => CLAUDE_PLUGIN_NAME,
@@ -7139,6 +7141,7 @@ __export(exports_core, {
   FLOW_STEP_MAX: () => FLOW_STEP_MAX,
   FLOW_TITLE_MAX: () => FLOW_TITLE_MAX,
   FLOW_WORKFLOWS: () => FLOW_WORKFLOWS,
+  FOLD_AFTER_SEC: () => FOLD_AFTER_SEC,
   GRANT_TTL_MS: () => GRANT_TTL_MS,
   GRANT_USES: () => GRANT_USES,
   GUARD_MARKERS: () => GUARD_MARKERS,
@@ -7152,6 +7155,7 @@ __export(exports_core, {
   HOOK_EVENTS: () => HOOK_EVENTS,
   HOOK_IDS: () => HOOK_IDS,
   INDEX_RETRY_MIN: () => INDEX_RETRY_MIN,
+  INDEX_SETTINGS: () => INDEX_SETTINGS,
   INDEX_STATUS_TEXT: () => INDEX_STATUS_TEXT,
   KIND_INFO: () => KIND_INFO,
   LANE_FLOW_COMMANDS: () => LANE_FLOW_COMMANDS,
@@ -7215,6 +7219,8 @@ __export(exports_core, {
   ROUTE_CAPS: () => ROUTE_CAPS,
   ROUTE_HEADER: () => ROUTE_HEADER,
   ROUTE_TEXT_MAX_BYTES: () => ROUTE_TEXT_MAX_BYTES,
+  RUNAWAY_PER_CHAIN: () => RUNAWAY_PER_CHAIN,
+  RUNAWAY_PER_PLAN: () => RUNAWAY_PER_PLAN,
   RUNAWAY_REASON: () => RUNAWAY_REASON,
   RUNTIME_SNAPSHOT_VERSION: () => RUNTIME_SNAPSHOT_VERSION,
   SEGMENT_IDS: () => SEGMENT_IDS,
@@ -7385,6 +7391,7 @@ __export(exports_core, {
   indexExclusion: () => indexExclusion,
   indexHealth: () => indexHealth,
   indexRetryDelayMs: () => indexRetryDelayMs,
+  indexSettings: () => indexSettings,
   indexState: () => indexState,
   indexStatusOf: () => indexStatusOf,
   indexToolDue: () => indexToolDue,
@@ -7936,6 +7943,7 @@ function mcpLogFile(id) {
   return join(logsDir(), `mcp-${id}.log`);
 }
 var MCP_SOCKET_PATH_MAX = 100;
+var MEMORY_UI_PORT = 41777;
 function mcpFallbackRunDir(base = "/tmp") {
   const uid = process.getuid?.() ?? 0;
   return join(base, `buracle-${uid}-${fnv1a(mcpRunDir())}`);
@@ -10312,9 +10320,9 @@ var SHELL_ASSIGN = new RegExp([
   `\\b(?:export|typeset\\s+-\\w*x\\w*|declare\\s+-\\w*x\\w*)\\s+(?:\\w+\\s+)*(?:${NAMES.replace("|HOME|", "|")})\\b`
 ].join("|"));
 var POWERSHELL_ASSIGN = new RegExp([
-  `\\$env:(?:${NAMES}|USERPROFILE)\\s*\\+?=`,
-  `\\b(?:set-item|si|new-item|ni|set-content|sc|add-content|ac)\\b[^;\\n]*\\benv:\\\\?(?:${NAMES}|USERPROFILE)\\b`,
-  `setenvironmentvariable\\s*\\(\\s*['"](?:${NAMES}|USERPROFILE)['"]`
+  `\\$env:(?:${NAMES})\\s*\\+?=`,
+  `\\b(?:set-item|si|new-item|ni|set-content|sc|add-content|ac)\\b[^;\\n]*\\benv:\\\\?(?:${NAMES})\\b`,
+  `setenvironmentvariable\\s*\\(\\s*['"](?:${NAMES})['"]`
 ].join("|"), "i");
 var PLIST_NAMES = new RegExp(`<(?:key|string)>\\s*(?:${NAMES})\\s*</|\\bsetenv\\s+(?:${NAMES})\\b|\\b(?:${NAMES.replace("|HOME|", "|")})\\b`);
 var SETTINGS_WORDS = {
@@ -10406,7 +10414,7 @@ function switchOffChange(file, abs, content, parsers) {
 // src/core/policy/write-guard.ts
 var SELF_LAYOUT = [
   { key: "buracleHome", under: ".buracle", entries: [""], area: "buracle" },
-  { key: "localBinDir", under: ".local/bin", entries: ["buracle", "buracle.cmd"], area: "shim" },
+  { key: "localBinDir", under: ".local/bin", entries: ["buracle"], area: "shim" },
   ...HARNESSES.flatMap((h) => harnessProfile(h).protectedDirs.map((d) => ({ key: d.key, under: d.under, entries: d.entries, area: h })))
 ];
 var HOME_PREFIX2 = /^\/(?:(?:users|home)\/[^/]+|root|var\/root)(?=\/|$)/i;
@@ -10903,7 +10911,7 @@ function pathKey(p, caseInsensitive) {
   return caseInsensitive ? out.toLowerCase() : out;
 }
 function isRootKey(k) {
-  return k === "/" || /^[A-Za-z]:\/?$/.test(k) || /^\\\\[^\\/]+(?:\\[^\\/]+)?$/.test(k);
+  return k === "/";
 }
 function withinKey(child, parent) {
   if (parent === "/")
@@ -10919,7 +10927,7 @@ function excludeMatches(pattern, dirKey, ctx) {
   let p = pattern.replace(/\\/g, "/");
   if (p === "~" || p.startsWith("~/"))
     p = ctx.home.replace(/\\/g, "/").replace(/\/+$/, "") + p.slice(1);
-  const absolute = p.startsWith("/") || /^[A-Za-z]:\//.test(p);
+  const absolute = p.startsWith("/");
   if (absolute && !GLOB_CHARS.test(p))
     return withinKey(dirKey, pathKey(p, ctx.caseInsensitive));
   const body = p.replace(/\/{2,}/g, "/").replace(/\/+$/, "");
@@ -10952,6 +10960,10 @@ function indexExclusion(dir, ctx) {
       return `excluded by index.exclude (${pattern})`;
   }
   return;
+}
+var INDEX_SETTINGS = { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 };
+function indexSettings(cfg) {
+  return { ...INDEX_SETTINGS, exclude: cfg.index.exclude };
 }
 var CORRUPT_INDEX = /database disk image is malformed|file is not a database|database is corrupt|is not a sqlite database|sqlite_corrupt|sqlite_notadb/i;
 function isCorruptIndexError(text) {
@@ -11295,21 +11307,18 @@ function defaultConfig() {
     guards: { bash: { extraDeny: [] }, write: { protect: [] }, redact: true },
     plan: {
       stopGuard: true,
-      runaway: { perPlan: 30, perChain: 5 },
       planApproval: true,
       resultApproval: true,
       branchIsolation: true,
-      worktreeDir: ".worktrees",
       questions: true,
       reviews: { plan: true, changes: true, goal: true, companion: "off" },
       goalVerification: true,
       modelSwitch: "off",
       nativePlanMode: "off"
     },
-    context: { warnPct: 85, criticalPct: 95 },
-    checkers: { enabled: true, timeoutMs: 20000, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] },
+    checkers: { enabled: true, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] },
     memory: {
-      ui: { port: 41777, autostart: true },
+      ui: { autostart: true },
       exclude: []
     },
     statusline: { style: "buracle", emoji: true },
@@ -11317,16 +11326,15 @@ function defaultConfig() {
     update: { minReleaseAgeDays: 0 },
     permissions: { bypass: true, enforce: true },
     agents: { teams: true },
-    workflow: { band: true, foldAfterSec: 8, codexNotices: true },
+    workflow: { band: true, codexNotices: true },
     toolchain: { autoInstall: true, system: true, upgrade: true },
-    index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 },
+    index: { exclude: [] },
     mcp: { shared: true, off: harnessTable(() => []) }
   };
 }
 var bool = { t: "bool" };
 var str2 = { t: "str" };
 var nonEmpty = { t: "str", nonEmpty: true };
-var pct = { t: "int", min: 0, max: 100 };
 var count = (min) => ({ t: "int", min });
 var strList = { t: "arr", of: str2 };
 var harnessFields = {};
@@ -11362,11 +11370,9 @@ var CONFIG_SCHEMA = {
       t: "obj",
       fields: {
         stopGuard: bool,
-        runaway: { t: "obj", fields: { perPlan: count(1), perChain: count(1) } },
         planApproval: bool,
         resultApproval: bool,
         branchIsolation: bool,
-        worktreeDir: nonEmpty,
         questions: bool,
         reviews: { t: "obj", fields: { plan: bool, changes: bool, goal: bool, companion: { t: "enum", values: COMPANION_SETTINGS } } },
         goalVerification: bool,
@@ -11374,12 +11380,11 @@ var CONFIG_SCHEMA = {
         nativePlanMode: { t: "enum", values: ["off", "on"] }
       }
     },
-    context: { t: "obj", fields: { warnPct: pct, criticalPct: pct } },
-    checkers: { t: "obj", fields: { enabled: bool, timeoutMs: count(100), languages: strList } },
+    checkers: { t: "obj", fields: { enabled: bool, languages: strList } },
     memory: {
       t: "obj",
       fields: {
-        ui: { t: "obj", fields: { port: { t: "int", min: 1024, max: 65535 }, autostart: bool } },
+        ui: { t: "obj", fields: { autostart: bool } },
         exclude: strList
       }
     },
@@ -11402,9 +11407,9 @@ var CONFIG_SCHEMA = {
     update: { t: "obj", fields: { minReleaseAgeDays: count(0) } },
     permissions: { t: "obj", fields: { bypass: bool, enforce: bool } },
     agents: { t: "obj", fields: { teams: bool } },
-    workflow: { t: "obj", fields: { band: bool, foldAfterSec: count(0), codexNotices: bool } },
+    workflow: { t: "obj", fields: { band: bool, codexNotices: bool } },
     toolchain: { t: "obj", fields: { autoInstall: bool, system: bool, upgrade: bool } },
-    index: { t: "obj", fields: { auto: bool, codegraph: bool, semble: bool, minIntervalMin: count(0), exclude: strList, children: bool, maxChildren: count(0) } },
+    index: { t: "obj", fields: { exclude: strList } },
     mcp: { t: "obj", fields: { shared: bool, off: { t: "obj", fields: mcpOffFields } } }
   }
 };
@@ -11517,10 +11522,6 @@ function check(schema, x, path, out) {
   }
 }
 function crossChecks(x, out) {
-  const ctx = x["context"];
-  if (isPlainObject(ctx) && typeof ctx["warnPct"] === "number" && typeof ctx["criticalPct"] === "number" && ctx["warnPct"] >= ctx["criticalPct"]) {
-    out.push({ path: ["context", "warnPct"], message: "must be lower than context.criticalPct" });
-  }
   const skills = x["skills"];
   const sources = isPlainObject(skills) ? skills["sources"] : undefined;
   if (Array.isArray(sources)) {
@@ -12044,8 +12045,8 @@ async function gitTopLevel(dir) {
   });
   return top !== undefined && top.trim() !== "" ? canonicalDir2(top.trim()) : undefined;
 }
-function workspaceOptions(cfg) {
-  return { vault: oldVaultRoot(), exclude: cfg.index.exclude, children: cfg.index.children, maxChildren: cfg.index.maxChildren };
+function workspaceOptions(cfg = INDEX_SETTINGS) {
+  return { vault: oldVaultRoot(), exclude: cfg.exclude, children: cfg.children, maxChildren: cfg.maxChildren };
 }
 async function resolveWorkspace(cwd, o) {
   const dir = canonicalDir2(cwd);
@@ -12130,7 +12131,7 @@ function infoFor(target, cfg, nowMs, building = []) {
   const info = {
     cwd: target.cwd,
     children: [...target.children],
-    index: target.root !== undefined ? projectIndex(target.root, cfg.index, nowMs, building.includes(target.root)) : idleIndex(cfg.index)
+    index: target.root !== undefined ? projectIndex(target.root, cfg, nowMs, building.includes(target.root)) : idleIndex(cfg)
   };
   if (target.root !== undefined)
     info.root = target.root;
@@ -12139,7 +12140,7 @@ function infoFor(target, cfg, nowMs, building = []) {
   if (target.children.length > 0) {
     const childIndex = {};
     for (const c of target.children)
-      childIndex[c] = projectIndex(c, cfg.index, nowMs, building.includes(c));
+      childIndex[c] = projectIndex(c, cfg, nowMs, building.includes(c));
     info.childIndex = childIndex;
   }
   return info;
@@ -15965,9 +15966,9 @@ function expandUser(s) {
   return s;
 }
 function expandVars(s) {
-  return s.replace(/^(?:\$HOME|\$\{HOME\}|%USERPROFILE%|\$env:USERPROFILE|\$env:HOME)(?=[\\/]|$)/i, HOME);
+  return s.replace(/^(?:\$HOME|\$\{HOME\}|\$env:HOME)(?=[\\/]|$)/i, HOME);
 }
-var HOME_ENV = new Set(["HOME", "USERPROFILE"]);
+var HOME_ENV = new Set(["HOME"]);
 function envValue(name) {
   const n = typeof name === "string" ? name : name.t === "str" ? name.s : undefined;
   if (n !== undefined && HOME_ENV.has(n))
@@ -16268,7 +16269,7 @@ class Evaluator {
     }
     if (v.t === "ref") {
       const p = v.path;
-      if (/(?:^|\.)(?:env|environ)\.(?:HOME|USERPROFILE)$/i.test(p) || /(?:^|\.)Dir\.home$/.test(p))
+      if (/(?:^|\.)(?:env|environ)\.HOME$/i.test(p) || /(?:^|\.)Dir\.home$/.test(p))
         return str3(HOME);
       if (/(?:^|\.)env\.PWD$/.test(p))
         return str3(".");
@@ -17402,8 +17403,6 @@ function buracleSwitch(args) {
   const command = pos[0];
   if (command === "uninstall")
     return args.includes("--dry-run") ? undefined : "it removes Buracle and its guard hooks from every harness";
-  if (command === "rollback")
-    return args.includes("--list") ? undefined : "it undoes the install that registered the guard hooks";
   if (command === "config" && (pos[1] === "set" || pos[1] === "unset")) {
     const key = pos[2];
     if (key === undefined)
@@ -17510,8 +17509,6 @@ function persistentEnv(name, words) {
   if (name === "launchctl" && pos[0] === "setenv" && named(pos[1]))
     return reason;
   if (name === "set" && args.some((a) => a === "--universal" || /^-[A-Za-z]*U/.test(a)) && named(pos[0]))
-    return reason;
-  if (name === "setx" && named(pos[0]))
     return reason;
   if (name === "systemctl" && pos[0] === "set-environment" && pos.slice(1).some(named))
     return reason;
@@ -22996,7 +22993,7 @@ var ORDINARY_PARTS = new Set([
   "node"
 ]);
 function emptyRoute() {
-  return { invoked: [], load: [], candidates: [], categories: [], memory: { recall: false, write: false } };
+  return { invoked: [], load: [], candidates: [], categories: [] };
 }
 var SLASH_NAMESPACES = [...new Set(HARNESSES.flatMap((h) => harnessProfile(h).skills.invoke.namespace ?? []))];
 var SLASH_LEAD = new RegExp(`^/(?:(${SLASH_NAMESPACES.join("|")}):)?([a-z0-9][a-z0-9-]*)(?=\\s|$)`);
@@ -23654,16 +23651,12 @@ function counts(x) {
 function routeOf(x) {
   if (!isObj7(x))
     return;
-  const mem = isObj7(x["memory"]) ? x["memory"] : {};
   const r = {
     invoked: strList2(x["invoked"], 8),
     load: strList2(x["load"], 1),
     candidates: strList2(x["candidates"], 4),
-    categories: strList2(x["categories"], 4),
-    memory: { recall: mem["recall"] === true, write: mem["write"] === true }
+    categories: strList2(x["categories"], 4)
   };
-  if (mem["cli"] === true)
-    r.memory.cli = true;
   const libs = strList2(x["libs"], 8);
   if (libs.length > 0)
     r.libs = libs;
@@ -25851,12 +25844,12 @@ function chainOf(base, input) {
   const stored = base.guard.blocksInChain;
   return input.hookActive === true ? Math.max(stored, 1) : input.hookActive === false ? 0 : stored;
 }
-function capHit(base, chain, cfg) {
-  const perPlan = Math.max(1, Math.floor(cfg.runaway?.perPlan ?? 30));
-  const perChain = Math.max(1, Math.floor(cfg.runaway?.perChain ?? 5));
-  if (base.guard.blocksForPlan >= perPlan)
+var RUNAWAY_PER_PLAN = 30;
+var RUNAWAY_PER_CHAIN = 5;
+function capHit(base, chain) {
+  if (base.guard.blocksForPlan >= RUNAWAY_PER_PLAN)
     return "runaway-plan";
-  if (chain >= perChain)
+  if (chain >= RUNAWAY_PER_CHAIN)
     return "runaway-chain";
   return;
 }
@@ -25868,12 +25861,12 @@ function blockWith(base, chain, input, reason, hook, why, extra = {}, keepEscala
   const next = { ...base, guard: { ...g, blocksForPlan: base.guard.blocksForPlan + 1, blocksInChain: chain + 1, lastBlockAt: input.now, ...extra } };
   return { decision: { action: "block", reason: clipReason(reason), hook }, next, why };
 }
-function escalation(base, chain, input, cap, cfg) {
+function escalation(base, chain, input, cap) {
   const kind = cap === "runaway-plan" ? "plan" : "chain";
   if (base.guard.escalated === kind)
     return allowWith(base, cap);
   const plan = base.plan;
-  const limit = cap === "runaway-plan" ? `plan.runaway.perPlan, ${cfg.runaway?.perPlan ?? 30}` : `plan.runaway.perChain, ${cfg.runaway?.perChain ?? 5}`;
+  const limit = cap === "runaway-plan" ? `${RUNAWAY_PER_PLAN} blocks for this plan` : `${RUNAWAY_PER_CHAIN} blocks in a row`;
   const reason = `${GUARD_MARKERS[0]} the stop guard reached its limit (${limit}) while the plan ${plan.path} is still ${plan.status}. Before this turn ends: say in two or three lines what you were doing and what blocks you, run \`buracle plan pause --kind decision --reason "${RUNAWAY_REASON}"\`, then ask the user with the question tool whether to continue, change the approach or abandon the plan. The next stop goes through.`;
   return blockWith(base, chain, input, reason, "H08", "runaway-escalate", { escalated: kind }, true);
 }
@@ -25882,7 +25875,7 @@ function answered(state, prep, input, cfg) {
   const { answeredAt: _drop, ...held } = i;
   const base = { ...prep.base, interaction: held };
   const chain = chainOf(base, input);
-  if (capHit(base, chain, cfg) !== undefined)
+  if (capHit(base, chain) !== undefined)
     return allowWith(base, "paused");
   const approval = isResultReview(i) ? " An explicit approval of the result is recorded with `buracle plan approve-result`, which also resumes the plan." : "";
   const what = typeof i.reason === "string" && i.reason.trim() !== "" ? ` (${i.reason.trim().slice(0, 160)})` : "";
@@ -25914,9 +25907,9 @@ function h08(state, prep, input, cfg) {
   if (input.backgroundWait === true)
     return allowWith(base, "background-wait");
   const chain = chainOf(base, input);
-  const cap = capHit(base, chain, cfg);
+  const cap = capHit(base, chain);
   if (cap)
-    return escalation(base, chain, input, cap, cfg);
+    return escalation(base, chain, input, cap);
   const head = `${GUARD_MARKERS[0]} the plan ${plan.path} is ${plan.status} (type ${plan.type}, phase ${plan.phase}) and not VERIFIED, so keep working: ${nextStep(state, cfg)}.`;
   const objective = objectiveLine(prep.objective, STOP_REASON_MAX - head.length - STOP_GUARD_ESCAPE.length - 2);
   const reason = [head, objective, STOP_GUARD_ESCAPE].filter((s) => s !== undefined && s !== "").join(" ");
@@ -25936,7 +25929,7 @@ function stopGuardVerdict(state, input, cfg, planCheck) {
     return mark(first, prep);
   const base = prep.base;
   const chain = chainOf(base, input);
-  const cap = capHit(base, chain, cfg);
+  const cap = capHit(base, chain);
   if (cap)
     return mark(allowWith(base, cap), prep);
   return mark(blockWith(base, chain, input, h11.reason, "H11", "plan-invalid"), prep);
@@ -26933,36 +26926,36 @@ function relativeIn(path, dir) {
     return;
   return path.slice(d.length + 1);
 }
+var CHECKER_TIMEOUT_MS = 20000;
 function checkersFor(path, facts, cfg) {
   if (!cfg || cfg.enabled === false || typeof path !== "string" || path === "")
     return [];
   const langs = new Set(Array.isArray(cfg.languages) ? cfg.languages : []);
-  const timeoutMs = typeof cfg.timeoutMs === "number" && cfg.timeoutMs > 0 ? cfg.timeoutMs : 20000;
   const cwd = facts.cwd || dirname7(path);
   const e = ext(path);
   if ((e === "py" || e === "pyi") && langs.has("python") && facts.hasRuffConfig) {
-    return [{ argv: [facts.ruffBin ?? "ruff", "check", "--output-format=concise", path], cwd, timeoutMs, parser: "ruff" }];
+    return [{ argv: [facts.ruffBin ?? "ruff", "check", "--output-format=concise", path], cwd, timeoutMs: CHECKER_TIMEOUT_MS, parser: "ruff" }];
   }
   if ((TS_EXT.has(e) && langs.has("typescript") || JS_EXT.has(e) && langs.has("javascript")) && facts.hasEslintConfig && !path.endsWith(".d.ts")) {
-    return [{ argv: [facts.eslintBin ?? "eslint", "--format", "json", path], cwd: facts.eslintCwd ?? cwd, timeoutMs, parser: "eslint" }];
+    return [{ argv: [facts.eslintBin ?? "eslint", "--format", "json", path], cwd: facts.eslintCwd ?? cwd, timeoutMs: CHECKER_TIMEOUT_MS, parser: "eslint" }];
   }
   if (e === "go" && langs.has("go") && facts.isGoModule) {
     const plans = [
-      { argv: ["go", "vet", "."], cwd: dirname7(path), timeoutMs, parser: "go-vet" },
-      { argv: ["gofmt", "-l", path], cwd, timeoutMs, parser: "generic" }
+      { argv: ["go", "vet", "."], cwd: dirname7(path), timeoutMs: CHECKER_TIMEOUT_MS, parser: "go-vet" },
+      { argv: ["gofmt", "-l", path], cwd, timeoutMs: CHECKER_TIMEOUT_MS, parser: "generic" }
     ];
     if (facts.golangci === true)
-      plans.push({ argv: ["golangci-lint", "run", "."], cwd: dirname7(path), timeoutMs, parser: "golangci", minMs: SLOW_CHECKER_MIN_MS });
+      plans.push({ argv: ["golangci-lint", "run", "."], cwd: dirname7(path), timeoutMs: CHECKER_TIMEOUT_MS, parser: "golangci", minMs: SLOW_CHECKER_MIN_MS });
     return plans;
   }
   if ((e === "sh" || e === "bash") && langs.has("shell")) {
-    return [{ argv: ["shellcheck", "-f", "gcc", path], cwd, timeoutMs, parser: "shellcheck" }];
+    return [{ argv: ["shellcheck", "-f", "gcc", path], cwd, timeoutMs: CHECKER_TIMEOUT_MS, parser: "shellcheck" }];
   }
   if (e === "cs" && langs.has("dotnet") && typeof facts.dotnetDir === "string" && facts.dotnetDir !== "") {
     const rel = relativeIn(path, facts.dotnetDir);
     if (rel === undefined || /(?:^|[\\/])(?:bin|obj)[\\/]/.test(rel))
       return [];
-    return [{ argv: ["dotnet", "format", "whitespace", facts.dotnetDir, "--folder", "--verify-no-changes", "--verbosity", "q", "--include", rel], cwd: facts.dotnetDir, timeoutMs, parser: "dotnet-format", minMs: SLOW_CHECKER_MIN_MS, env: { ...DOTNET_FORMAT_ENV } }];
+    return [{ argv: ["dotnet", "format", "whitespace", facts.dotnetDir, "--folder", "--verify-no-changes", "--verbosity", "q", "--include", rel], cwd: facts.dotnetDir, timeoutMs: CHECKER_TIMEOUT_MS, parser: "dotnet-format", minMs: SLOW_CHECKER_MIN_MS, env: { ...DOTNET_FORMAT_ENV } }];
   }
   return [];
 }
@@ -30078,8 +30071,9 @@ function shellFailed(result) {
 var AGENT_MAX_MS = 2 * 60 * 60000;
 var TODOS_MAX = 50;
 var AGENTS_MAX = 6;
+var FOLD_AFTER_SEC = 8;
 function emptyBand() {
-  return { v: 1, sid: "", stamp: 0, todos: [], agents: [], foldAfterSec: 8 };
+  return { v: 1, sid: "", stamp: 0, todos: [], agents: [], foldAfterSec: FOLD_AFTER_SEC };
 }
 function bandRefresh(prev, x) {
   const same = prev.sid === x.sid;
@@ -30089,7 +30083,7 @@ function bandRefresh(prev, x) {
     stamp: x.now,
     todos: same ? prev.todos : [],
     agents: same ? prev.agents.filter((a) => x.now - a.startedAt < AGENT_MAX_MS) : [],
-    foldAfterSec: Number.isFinite(x.foldAfterSec) && x.foldAfterSec >= 0 ? x.foldAfterSec : 8
+    foldAfterSec: Number.isFinite(x.foldAfterSec) && x.foldAfterSec >= 0 ? x.foldAfterSec : FOLD_AFTER_SEC
   };
   const flow = x.flow === "keep" ? same ? prev.flow : undefined : x.flow;
   if (flow !== undefined)
@@ -30866,7 +30860,7 @@ var NATIVE_CLAIMS = HARNESSES.flatMap((h) => harnessProfile(h).sessionEnv.map((n
 var NO_SESSION_HINT = "no session: no harness session id was found. Buracle reads it from --session <id> (with --harness <h>), or from " + "BURACLE_SESSION_ID with BURACLE_HARNESS, CLAUDE_CODE_SESSION_ID, CODEX_SESSION_ID/CODEX_THREAD_ID, OPENCODE_SESSION_ID or OMP_SESSION_ID; " + "when several harnesses set them (one started from the shell of another), only the ids of the nearest harness process count. " + "Without a session the stop guard is not protecting this run; continue from the plan file and run 'buracle doctor' to check the harness integration.";
 
 // src/workflow/flow.ts
-var DEFAULT_FOLD_SEC = 8;
+var DEFAULT_FOLD_SEC = FOLD_AFTER_SEC;
 function flowPath(h, sid) {
   return join16(sessionDir(h, sid), "flow.json");
 }
@@ -31579,7 +31573,7 @@ function workspaceFacts(ctx, info) {
   }
   if (info?.root !== undefined) {
     facts.root = info.root;
-    facts.codegraphIndexed = ctx.config.index.codegraph && codegraphIndexPresent(info.root);
+    facts.codegraphIndexed = INDEX_SETTINGS.codegraph && codegraphIndexPresent(info.root);
   }
   return facts;
 }
@@ -34439,7 +34433,7 @@ function fallbackInfo(cwd, cfg) {
   return {
     cwd: canonicalDir2(cwd),
     children: [],
-    index: { codegraph: { state: cfg.index.codegraph ? "none" : "off" }, semble: { state: cfg.index.semble ? "none" : "off" } }
+    index: { codegraph: { state: cfg.codegraph ? "none" : "off" }, semble: { state: cfg.semble ? "none" : "off" } }
   };
 }
 async function prepareWorkspace(cwd, cfg, nowMs) {
@@ -34822,10 +34816,7 @@ function mergeRoutes(routes, compiled) {
   const load = asks.slice(0, ROUTE_CAPS.load);
   const candidates = [...invoked, ...load].some(explicit) ? [] : union([...asks.slice(ROUTE_CAPS.load), ...routes.flatMap((r) => r.candidates)]).filter((id) => !explicit(id) && !invoked.includes(id) && !load.includes(id)).slice(0, ROUTE_CAPS.candidates);
   const categories = union(routes.flatMap((r) => r.categories)).slice(0, ROUTE_CAPS.categories);
-  const memory = { recall: routes.some((r) => r.memory.recall), write: routes.some((r) => r.memory.write) };
-  if ((memory.recall || memory.write) && routes.some((r) => r.memory.cli === true))
-    memory.cli = true;
-  const merged = { invoked, load, candidates, categories, memory };
+  const merged = { invoked, load, candidates, categories };
   const libs = union(routes.flatMap((r) => r.libs ?? []));
   if (libs.length > 0 && categories.some((id) => compiled.categories.some((c) => c.id === id && c.deps !== undefined)))
     merged.libs = libs.slice(0, 3);
@@ -35468,7 +35459,7 @@ class StopGuard {
         chain.continuations = [];
         chain.noticed = false;
       }
-      const chainCap = Math.max(1, cfg.plan.runaway.perChain);
+      const chainCap = RUNAWAY_PER_CHAIN;
       if (chain.chain > chainCap || chain.continuations.length >= RATE_MAX) {
         await this.runaway(sid, chain, chain.chain > chainCap ? "runaway-chain" : "rate", plan.path);
         return;
@@ -36086,10 +36077,6 @@ function profileEnv(pluginDir, home) {
     return;
   return { HOME: home, XDG_CONFIG_HOME: dirname14(configDir) };
 }
-function profileWarning(pluginDir, runtimeSnapshot, home) {
-  const env = profileEnv(pluginDir, home);
-  return env !== undefined ? profileGuard("opencode", runtimeSnapshot, env) : undefined;
-}
 
 // src/adapters/opencode/runtime/plugin.ts
 var PLUGIN_ID = "buracle";
@@ -36158,8 +36145,8 @@ class BuracleRuntime {
     this.lspEdits = deps.lspEdits ?? editDiagnostics;
     this.captureOn = deps.capture ?? (() => process.env["BURACLE_NO_CAPTURE"] !== "1");
     this.maintFn = deps.maint ?? ((nowMs, keep) => sessionMaint(HARNESS7, nowMs, { keep }));
-    this.workspaceFn = deps.workspace ?? prepareWorkspace;
-    this.workspaceRead = deps.workspaceRead ?? workspaceInfo;
+    this.workspaceFn = deps.workspace ?? ((cwd, cfg, now) => prepareWorkspace(cwd, indexSettings(cfg), now));
+    this.workspaceRead = deps.workspaceRead ?? ((cwd, cfg, now) => workspaceInfo(cwd, indexSettings(cfg), now));
     this.assetsSpawn = deps.assetsSpawn;
     this.env = resolveEnv(deps.pluginDir);
     applyEnv(this.env);
@@ -36188,7 +36175,7 @@ class BuracleRuntime {
     this.receipts = new TurnReceipts({
       now: () => this.now(),
       post: (sid, text, variant) => this.notify(sid, text, variant),
-      run: (sid) => bandSummary(flowViewFor(HARNESS7, sid, this.now(), this.cfg().workflow.foldAfterSec)),
+      run: (sid) => bandSummary(flowViewFor(HARNESS7, sid, this.now(), FOLD_AFTER_SEC)),
       log: (msg, data) => this.logFn("debug", msg, data)
     });
   }
@@ -36223,7 +36210,7 @@ class BuracleRuntime {
         saveWorkspace(ctx, HARNESS7, s.sid, info);
         return info;
       },
-      refreshWorkspace: (info, ctx, now) => refreshWorkspaceInfo(info, ctx.config, now)
+      refreshWorkspace: (info, ctx, now) => refreshWorkspaceInfo(info, indexSettings(ctx.config), now)
     };
     return {
       harness: HARNESS7,
@@ -36403,6 +36390,10 @@ class BuracleRuntime {
       s.noticeOnce = r.notice.model;
     if (r.notice?.user !== undefined)
       this.notify(s.sid, r.notice.user, "info");
+    if (r.profile !== undefined) {
+      this.logFn("warn", r.profile);
+      this.notify(s.sid, r.profile, "warning");
+    }
   }
   prunePending() {
     const cutoff = this.now() - PENDING_TTL_MS2;
@@ -36531,20 +36522,6 @@ class BuracleRuntime {
         this.logFn("warn", "workspace preparation failed", { error: errText2(e) });
       }
     }));
-  }
-  checkProfile() {
-    try {
-      const warning = profileWarning(this.pluginDir, this.config.get(), this.env.home);
-      if (warning === undefined)
-        return;
-      const reg = registry();
-      if (reg.profileWarned === true)
-        return;
-      reg.profileWarned = true;
-      this.logFn("warn", warning);
-    } catch (e) {
-      this.logFn("debug", "profile guard failed", { error: errText2(e) });
-    }
   }
   knownSkills(dir) {
     const now = this.now();
@@ -36915,8 +36892,7 @@ ${r.fileNotes.join(`
     }
     const card = s.card === undefined ? undefined : await this.step("H15 capability card", s.card, () => this.capabilityText(s.sid));
     parts.push(...s.startContext.map((part) => part === s.card && card !== undefined ? card : part).filter((part) => part.trim() !== ""));
-    const cfg = this.cfg();
-    const watch = contextWatch(s.ctxWarned, s.ctx?.pct, cfg.context);
+    const watch = contextWatch(s.ctxWarned, s.ctx?.pct);
     if (watch.warned !== s.ctxWarned) {
       s.ctxWarned = watch.warned;
       this.persist(s);
@@ -37297,14 +37273,13 @@ function createBuraclePlugin(deps) {
       rt.startEvents();
       rt.scheduleMaintenance();
       rt.scheduleWorkspace();
-      rt.checkProfile();
       return () => rt.dispose();
     }
   };
 }
 
 // src/adapters/opencode/runtime/server.ts
-var server_default = createBuraclePlugin({ baked: { v: 1, contentHash: "f07b5e8e316d9625b7f70bae474d9e20f43ed20de2997828ff6cc85504be9edd", defaults: { version: 1, harnesses: { claude: { enabled: true }, codex: { enabled: true }, opencode: { enabled: true }, omp: { enabled: true } }, routing: { strictness: "enforce", skills: "router", reminders: true }, guards: { bash: { extraDeny: [] }, write: { protect: [] }, redact: true }, plan: { stopGuard: true, runaway: { perPlan: 30, perChain: 5 }, planApproval: true, resultApproval: true, branchIsolation: true, worktreeDir: ".worktrees", questions: true, reviews: { plan: true, changes: true, goal: true, companion: "off" }, goalVerification: true, modelSwitch: "off", nativePlanMode: "off" }, context: { warnPct: 85, criticalPct: 95 }, checkers: { enabled: true, timeoutMs: 20000, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] }, memory: { ui: { port: 41777, autostart: true }, exclude: [] }, statusline: { style: "buracle", emoji: true }, skills: { sources: [{ name: "buracle", path: "canonical/skills" }] }, update: { minReleaseAgeDays: 0 }, permissions: { bypass: true, enforce: true }, agents: { teams: true }, workflow: { band: true, foldAfterSec: 8, codexNotices: true }, toolchain: { autoInstall: true, system: true, upgrade: true }, index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 }, mcp: { shared: true, off: { claude: [], codex: [], opencode: [], omp: [] } } }, routing: { strictness: "enforce", categories: [{ id: "library-docs", intent: "Library, framework, SDK or CLI documentation at the installed version (APIs, options, config, migrations)", prefer: ["mcp:context7/resolve-library-id", "mcp:context7/query-docs"], fallback: ["mcp:web-fetch/fetch_url"], deny_builtin: [], nudge: "For library or framework APIs, resolve the library with context7 and query its docs at the version in the lockfile.", reminder: "resolve the library with context7 (resolve-library-id), then query-docs at the version in the lockfile", triggers: { topic: ["official docs", "official documentation", "library docs", "framework docs", "according to the docs", "per the docs", "from the docs", "verify in the docs", "api reference", "api docs", "migration guide", "upgrade guide", "re:\\bcheck the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:look|looked|looking|search|searched|searching)\\b(?:\\s+(?:it|this|that|them)\\s+up)?\\s+in the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:says?|said|mentioned|documented|described)\\s+in the docs\\b", "re:\\b(?!(?:the|our|my|your|their|this|that|an?|its|new|own|same|internal|custom|official|public|private|client|server|web|mobile)\\b)[a-z][a-z0-9.-]{2,}\\s+sdk\\b", "belgelerden", "belgelere gore", "resmi belge*", "dokumantasyondan", "dokumantasyona gore", "api referans*", "goc rehberi", "re:\\b(?:belgelerde|dokumantasyonda)\\b(?!.{0,40}\\b(?:ekle|guncelle|duzelt|kaldir|sil)\\w*)"], not: ["docs folder", "docs directory", "docs klasor*"], deps: ["api", "apis", "config", "configure", "configuration", "option*", "migrat*", "upgrade*", "version*", "deprecat*", "breaking change*", "hook*", "middleware", "plugin*", "setup", "set up", "install*", "usage", "how to use", "how to", "how do", "how does", "how can", "why does", "why do", "why is", "what does", "what options", "which options", "by default", "syntax", "integrat*", "method*", "signature", "type*", "re:\\bv\\d+(?:\\.\\d+)*\\b", "re:\\b\\d+\\.\\d+(?:\\.\\d+)?\\b", "nasil", "yapilandir*", "ayar*", "surum*", "guncelle*", "kurulum*", "entegre*", "goc*", "tip*"] } }, { id: "web-search", intent: "Web search for errors, releases, changelogs and comparisons", prefer: ["mcp:web-search/search"], fallback: ["mcp:web-fetch/fetch_url", "builtin:web_search"], deny_builtin: ["web_search"], nudge: "Search the web with the web-search MCP server; while it is down or off, fetch a search results page (https://html.duckduckgo.com/html/?q=<query>) with web-fetch, and use the built-in web search only when both are down or off.", reminder: "search with the web-search MCP server (search), then read the sources with web-fetch (fetch_url)", triggers: { topic: ["latest version", "latest release", "latest stable", "release notes", "what's new in", "whats new in", "still maintained", "search the web", "look it up online", "re:\\b(?:read|check|see|look at|according to|per)\\s+(?:the\\s+|its\\s+|their\\s+)?(?:upstream\\s+|official\\s+)?changelog\\b", "re:\\bchangelog\\s+(?:of|for)\\b", "re:\\b(?:is|was)\\s+(?:this|it|that|there)\\s+a\\s+known\\s+(?:issue|bug)\\b", "re:\\b(?:any|are there)\\s+known\\s+(?:issues?|bugs?)\\b", "re:\\bknown\\s+(?:issues?|bugs?)\\s+(?:with|in|of)\\s+(?!(?:our|my|this|the)\\b)", "son surum*", "guncel surum*", "en son surum*", "surum notlari", "degisiklik gunlugu", "hala bakimi yapiliyor", "webde ara*", "internette ara*"], not: ["draft* release notes", "write* release notes", "generate* release notes", "release notes from", "our release notes", "our changelog", "update the changelog", "changelog entry", "surum notlari yaz*", "surum notlarini yaz*", "surum notlari hazirla*", "degisiklik gunlugunu guncelle*"] } }, { id: "web-fetch", intent: "Read a known URL, including JavaScript-rendered pages", prefer: ["mcp:web-fetch/fetch_url"], fallback: ["builtin:web_fetch"], deny_builtin: ["web_fetch"], nudge: "Fetch pages with the web-fetch MCP server, and use the built-in fetch only while it is down or off.", reminder: "read the page with the web-fetch MCP server (fetch_url)" }, { id: "code-examples", intent: "How public code uses an API (GitHub examples)", prefer: ["mcp:grep/searchGitHub"], fallback: ["mcp:web-search/search"], deny_builtin: [], reminder: "look up real usage in public code with the grep MCP server (searchGitHub)", triggers: { topic: ["examples on github", "github examples", "real-world usage", "real world usage", "real-world examples", "how do other projects", "how others use", "open-source examples", "open source examples", "github'da*", "gercek projelerde", "acik kaynak projelerde", "ornek kullanim*", "baska projeler nasil"] } }, { id: "code-search", intent: "Find code by intent or concept, or code similar to a snippet", prefer: ["mcp:semble/search", "mcp:semble/find_related"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Search code with semble (intent) or rg (exact text), never grep -r or find | xargs grep.", reminder: "find code by intent with semble search (repo = the project root); rg stays right for exact text", triggers: { topic: ["which file", "find the code that", "find where", "locate the code", "re:\\bwhere (?:is|are|do we|does) (?:the |our |we )?\\S+ (?:defined|implemented|handled|configured|loaded|set|parsed|created)", "re:\\bhow (?:does|do) .{1,60}\\bwork\\b", "nerede tanimli", "nerede yapiliyor", "nerede uygulan*", "hangi dosyada", "nasil calisiyor", "kodu bul"], not: ["where were we", "where did we leave", "nerede kalmistik", "nerede kaldik"] } }, { id: "code-structure", intent: "Definitions, callers and callees, and the impact of changing a symbol", prefer: ["mcp:codegraph/codegraph_explore"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Before changing a shared function, type or endpoint, get its callers from codegraph.", reminder: "ask codegraph (callers, callees, impact; projectPath = the project root) before you change a shared symbol", triggers: { topic: ["who calls", "what calls", "callers of", "call sites", "call graph", "find usages", "all usages", "references to", "impact of chang*", "blast radius", "what breaks if", "what depends on", "re:\\bwhere (?:is|are) \\S+ (?:called|used|invoked|referenced)", "nereden cagriliyor", "nerelerde cagriliyor", "kim cagiriyor", "cagiranlar*", "cagri grafi*", "nerelerde kullaniliyor", "etki analizi", "neyi bozar", "neler etkilenir"] } }, { id: "language-server", intent: "Diagnostics of an edited file, a symbol's type and docs, its definition and references from the language server (Codex and OpenCode; Claude Code and omp use their own LSP tools)", prefer: ["mcp:lsp/diagnostics", "mcp:lsp/hover", "mcp:lsp/definition", "mcp:lsp/references"], fallback: ["mcp:codegraph/codegraph_explore", "cli:rg"], deny_builtin: [], reminder: "check an edited Python, TypeScript, Go, Rust, C# or Java file with the lsp server's diagnostics, and ask its hover or definition for a symbol's type", triggers: { topic: ["type error*", "typecheck error*", "type-check error*", "compile error*", "compiler error*", "compilation error*", "lsp diagnostics", "language server", "go to definition", "jump to definition", "re:\\bwhat(?:'s| is) the type of\\b", "tip hata*", "derleme hata*", "tanima git", "tanimina git"] } }, { id: "browser", intent: "Drive and inspect a real browser (DOM, console, network, performance)", prefer: ["mcp:chrome-devtools"], fallback: [], deny_builtin: [], reminder: "drive and inspect the real browser with chrome-devtools (navigate_page, take_snapshot, list_console_messages)", triggers: { topic: ["open the page", "take a screenshot", "screenshot of", "console errors", "browser console", "network tab", "lighthouse", "devtools", "re:\\b(?:open|test|check|verify|look|see|load|reproduce|try|view|inspect|debug|click|watch|preview)\\w*\\b.{0,40}\\bin the browser\\b", "ekran goruntusu", "konsol hata*", "sayfayi ac*", "re:\\btarayicida\\b.{0,30}\\b(?:ac|test et|kontrol et|dene|bak|gor|incele)\\w*"] } }, { id: "memory", intent: "Past decisions, gotchas, earlier sessions and preferences", prefer: ["mcp:buracle-memory/memory_search", "mcp:buracle-memory/memory_get"], fallback: ["cli:buracle"], deny_builtin: [], nudge: "History questions start with memory_search on the buracle-memory server.", reminder: "search memory with memory_search, then memory_get the relevant memories, and cite their ids", triggers: { topic: ["memory note*", "vault note*", "the memory vault", "the memory brain", "hafiza not*", "hafiza kayd*", "kasa not*"] } }] }, mcp: [{ id: "buracle-memory", description: "Buracle memory, the CortexDB brains of the project and the person (search, get, write, update, status)", transport: "stdio", critical: true, routing: ["memory"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "chrome-devtools", description: "Drive and inspect a Chrome browser (DevTools protocol)", transport: "stdio", critical: false, routing: ["browser"], harnesses: ["claude", "codex", "opencode"] }, { id: "codegraph", description: "Code structure graph (symbols, callers, impact) for the current repository", transport: "stdio", critical: true, routing: ["code-structure"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "context7", description: "Up-to-date library and framework documentation", transport: "stdio", critical: true, routing: ["library-docs"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "grep", description: "Search public GitHub code for real-world usage examples", transport: "http", critical: false, routing: ["code-examples"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "lsp", description: "Language-server diagnostics, hover, definitions, references and symbols", transport: "stdio", critical: true, routing: ["language-server"], harnesses: ["codex", "opencode"] }, { id: "semble", description: "Fast semantic code search over local or remote repositories", transport: "stdio", critical: true, routing: ["code-search"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-fetch", description: "Fetch and extract web pages with a headless browser", transport: "stdio", critical: true, routing: ["web-fetch"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-search", description: "Web search without an API key (DuckDuckGo by default)", transport: "stdio", critical: true, routing: ["web-search"], harnesses: ["claude", "codex", "opencode", "omp"] }], mcpIds: ["buracle-memory", "chrome-devtools", "codegraph", "context7", "grep", "lsp", "semble", "web-fetch", "web-search"], skills: [{ id: "ab-test", description: "Measure whether a change to a skill, rule, AGENTS.md section or routing policy really changes agent behavior. Defines falsifiable cases, runs paired baseline and candidate trials in throwaway config directories (never hiding or renaming the user's real skills or settings), captures tool-use evidence such as whether the agent loaded the skill or called context7, then scores pass rates and reports per-case deltas. Use when the user asks to benchmark, evaluate, A/B test or compare a skill or rule change, or to check that agents really use an MCP server or skill.", userInvocable: true, short: "Paired before/after evals of skills and rules with tool-use evidence", invocation: "implicit" }, { id: "bugfix", description: "Plan-less bug workflow that owns one defect end to end: reproduce it first, trace the root cause to file:line, write a failing test, fix at the source, prove the fix on the real program, then pass the quality gate. With branch isolation on it asks where to work: the current branch, a bugfix/<slug> branch or a worktree squash-merged once the fix is proven; no plan file. Run only when the user explicitly asks for bugfix.", userInvocable: true, short: "Reproduce, root-cause, RED test, fix at the source, prove it end to end", invocation: "explicit" }, { id: "buracle", description: "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan \u2026`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.", userInvocable: false, short: "When and how to call the buracle helper CLI", invocation: "implicit" }, { id: "dead-code", description: "Report-only dead-code audit. Collects candidate unused files and exports from the project's own analyzers, a bundled rg-based script and a read-only codegraph snapshot, checks every candidate against independent signals (codegraph references, exact and dynamic-usage search, analyzers), rules out a public role (API, entry points, config, registries), and returns a ranked report with evidence and a staged removal plan. Never deletes or edits code.", userInvocable: true, short: "Report-only dead-code audit with two-signal evidence and a removal plan", invocation: "explicit" }, { id: "find-skill", description: "Find an agent skill for a need and install it for every harness in a few calls. `buracle skills find <need>` is one command that shows the installed and shipped skills that already match, then the skills.sh registry's candidates with description, license, freshness, tool grants and risk ratings; `buracle skills add --dry-run` audits the pick (scripts, allowed-tools, suspicious lines) and `buracle skills add` installs it into ~/.agents/skills (Codex, OpenCode, Oh My Pi) and links it into ~/.claude/skills (Claude Code). Also updates and removes installed skills.", userInvocable: true, short: "Find a skill for a need and install it for every harness", invocation: "implicit" }, { id: "goal-build", description: "Goal-and-loop workflow for a clear end state whose path is found while building: agree on a goal, tasks sized as the largest slices you can finish and verify, and at least 3 pass/fail acceptance criteria (one of them the oracle), have them reviewed, lock the contract, then build in rounds judged on running evidence (at most four), verify and hand back. Tracked in docs/goal-build/. Run only when the user explicitly asks for goal-build.", userInvocable: true, short: "Lock a goal and pass/fail criteria, then build in judged rounds", invocation: "explicit" }, { id: "inspect", description: "Read-only investigation of one question about the code. Frames a falsifiable claim, locates code with semble (intent), codegraph (callers, callees, blast radius) and rg or ast-grep (exact and structural matches), checks memory for past decisions, traces the active path hop by hop, challenges the answer with a counterexample search, and reports a direct answer with file:line evidence and calibrated confidence. Never edits anything.", userInvocable: true, short: "Read-only trace of one code question with file:line evidence", invocation: "explicit" }, { id: "memory", description: "Protocol for Buracle's shared memory: one CortexDB brain with a bucket for each project and one for the person, served by the buracle-memory MCP server in every harness. Says when to run a quick memory pass (at most 3 memory_search calls, then at most 3 memories via memory_get), how to treat recalled memories as evidence rather than instructions, and how to keep the memory: one claim per memory with sources, search before writing, update or merge instead of duplicating, record the user's preferences in the right brain, never overrule an explicit memory, never store secrets. Use when the user refers to past work or asks you to remember something, before re-deciding something and after a non-obvious fix.", userInvocable: false, short: "When and how to read, write and keep Buracle's CortexDB memory", invocation: "implicit" }, { id: "new-skill", description: "Capture a repeatable procedure as a Buracle skill, or improve an existing one. Picks the right home (global skills in the Buracle repo's canonical/skills or a configured skills git source; project-only skills in .agents/skills), writes SKILL.md in the canonical format with references/, scripts/ and trigger evals, lints it with `buracle skills lint`, and explains how publishing reaches every harness. Use when the user wants to turn a workflow into a skill, edit, split or rename a skill, or fix a skill that triggers too often or never.", userInvocable: true, short: "Capture a repeatable procedure as a canonical Buracle skill", invocation: "implicit" }, { id: "plan-build", description: "Plan-driven development through a plan file in docs/plan-build/: explore and clarify, write and review the plan, get approval, implement task by task with TDD, then verify with real evidence until the plan is VERIFIED. Covers features and bugfixes (behavior contract, reproduce first, root-cause fix). Also pauses, resumes or continues an existing plan. Run only when the user explicitly asks for plan-build.", userInvocable: true, short: "Plan, approve, TDD-implement and verify work through a plan file", invocation: "explicit" }, { id: "project-rules", description: "Create, refresh or audit a repository's agent guidance so Claude Code, Codex, OpenCode and omp follow the same verified instructions: the root AGENTS.md, optional nested AGENTS.md files for subprojects, and path-scoped rules for specific file types. Discovers commands and conventions from the code (package scripts, CI jobs, linter and test configs, test layout), runs commands before documenting them, keeps every file short, then runs `buracle project sync` and `buracle project check`. Use when the user asks to set up, write, update, slim down or check AGENTS.md, CLAUDE.md or project rules.", userInvocable: true, short: "Generate and verify AGENTS.md and path-scoped rules for a repo", invocation: "implicit" }, { id: "requirements", description: "Requirements workflow for ideas whose problem, audience or scope is still unclear. Grounds the idea in the codebase and memory, runs tiered research through the research skill, explores directions, asks a few decision questions, proposes approaches, converges on scope, writes an approved PRD to docs/requirements/YYYY-MM-DD-<slug>.md and prints the plan-build or goal-build hand-off. No code is written before the PRD is approved.", userInvocable: true, short: "Interview, research and write an approved PRD before any code", invocation: "explicit" }, { id: "research", description: "Evidence-backed research that must use MCP tools instead of recall: web-search to discover sources, web-fetch to read them in full, context7 for library and framework documentation, grep for real-world code on GitHub, and buracle-memory for prior decisions. Produces a cited research note (answer, findings, options, conflicts, gaps, confidence) and can save durable findings to memory as knowledge memories pending review.", userInvocable: true, short: "Cited, MCP-backed research across web, library docs, public code and memory", invocation: "implicit" }], plugins: [], hooks: [{ id: "H01", blocking: "deny", failure: "closed" }, { id: "H02", blocking: "deny", failure: "closed" }, { id: "H03", blocking: "deny", failure: "open" }, { id: "H04", blocking: "none", failure: "open" }, { id: "H05", blocking: "none", failure: "open" }, { id: "H06", blocking: "none", failure: "open" }, { id: "H07", blocking: "none", failure: "open" }, { id: "H08", blocking: "stop", failure: "open" }, { id: "H09", blocking: "none", failure: "open" }, { id: "H10", blocking: "none", failure: "open" }, { id: "H11", blocking: "stop", failure: "open" }, { id: "H12", blocking: "none", failure: "open" }, { id: "H13", blocking: "none", failure: "open" }, { id: "H14", blocking: "none", failure: "open" }, { id: "H15", blocking: "none", failure: "open" }, { id: "H16", blocking: "none", failure: "open" }, { id: "H17", blocking: "none", failure: "open" }, { id: "H18", blocking: "none", failure: "open" }, { id: "H19", blocking: "none", failure: "open" }, { id: "H20", blocking: "deny", failure: "open" }, { id: "H21", blocking: "none", failure: "open" }, { id: "H22", blocking: "none", failure: "open" }, { id: "H23", blocking: "stop", failure: "open" }, { id: "H24", blocking: "none", failure: "open" }, { id: "H25", blocking: "none", failure: "open" }, { id: "H26", blocking: "none", failure: "open" }, { id: "H28", blocking: "none", failure: "open" }], pathRules: [{ id: "backend", globs: ["**/api/**", "**/routes/**", "**/handlers/**", "**/controllers/**", "**/endpoints/**", "**/middleware/**", "**/models/**", "**/models.py", "**/entities/**", "**/schema/**", "**/schemas/**", "**/queries/**", "**/repository/**", "**/repositories/**", "**/dao/**", "**/migrations/**", "**/migrate/**", "**/alembic/**", "**/db/**", "**/*.sql", "**/*.prisma", "**/*.graphql", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json"] }, { id: "blazor", globs: ["**/*.razor", "**/*.razor.cs", "**/*.razor.css"] }, { id: "dotnet", globs: ["**/*.cs", "**/*.csproj", "**/*.sln", "**/*.slnx", "**/global.json", "**/Directory.Build.props", "**/Directory.Packages.props"] }, { id: "frontend", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.sass", "**/*.less", "**/*.razor", "**/*.razor.css"] }, { id: "go", globs: ["**/*.go", "**/go.mod", "**/go.sum", "**/go.work"] }, { id: "python", globs: ["**/*.py", "**/*.pyi", "**/pyproject.toml", "**/requirements*.txt", "**/uv.lock", "**/setup.cfg"] }, { id: "typescript", globs: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts", "**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs", "**/package.json", "**/tsconfig*.json"] }], version: "0.8.6", notices: [{ id: "0.8.1-documents-follow-language", since: "0.8.1", until: "0.9.0", message: "Documents now follow your language: plans, PRDs, build contracts, saved audits, reports and review findings use the language you write in (or the one your project or memory pins), and only the markers Buracle reads stay English. `buracle plan validate` no longer warns about prose that is not English." }, { id: "0.8.6-skills-own-folders", since: "0.8.6", until: "0.9.0", message: "Buracle's skills now live only in the skills folder of each harness it supports (~/.codex/skills, ~/.config/opencode/skills, ~/.omp/agent/skills); `buracle install` removes its old links from the shared ~/.agents/skills, so other agents no longer see them. Third-party skills from `buracle skills add` stay in ~/.agents/skills." }, { id: "0.8.6-opencode-todos", since: "0.8.6", until: "0.9.0", message: "OpenCode now gets its todo tool: `buracle install` sets `experimental.todo: true` in opencode.jsonc, and the open items of `todowrite` go into the handoff memory before a compaction, as on the other harnesses." }], tips: [{ id: "plan-build", text: "/plan-build writes a reviewed plan to docs/plan-build/, waits for your approval, then builds it test-first" }, { id: "goal-build", text: "/goal-build locks pass/fail criteria first, then builds in rounds a judge scores against them" }, { id: "bugfix", text: "/bugfix reproduces the failure, names the root cause as file:line and writes a failing test before the fix" }, { id: "requirements", text: "Scope still unclear? /requirements asks a few rounds of questions and writes a PRD before any code" }, { id: "direct-work", text: "No workflow needed for small changes: ask directly and the agent still verifies before it reports done" }, { id: "stop-words", text: "Say stop, wait or hold on at any time: the agent finishes the current step and pauses the plan" }, { id: "worktree-flag", text: "Add --worktree after a workflow request to build it in its own worktree, squash-merged back when done" }, { id: "research", text: "/research <question> answers from sources it actually read: web, library docs, public code and memory" }, { id: "inspect", text: "/inspect <question> traces how the code really behaves, cites every hop as path:line and changes nothing" }, { id: "dead-code", text: "/dead-code reports unused code only when two independent signals agree, with a staged removal plan" }, { id: "project-rules", text: "Run /project-rules once per repository: it writes an AGENTS.md from commands it ran, for every harness" }, { id: "remember", text: "/remember <text> saves a note to the memory that Claude Code, Codex, OpenCode and Oh My Pi all share" }, { id: "why-question", text: 'Ask "why did we\u2026" or "what did we decide\u2026": the agent searches the memory before it answers' }, { id: "brain-ui", text: "/brain opens the Buracle Console: browse, search and fix the memory of this project and yours" }, { id: "brain-review", text: "/brain review opens the review page: pin notes on a plan, and the agent applies them before approval" }, { id: "aside", text: "/aside <question> answers a side question without derailing the running task" }, { id: "status", text: "/buracle-status shows the active plan, the running workflow and the memory at a glance" }, { id: "find-skill", text: "Need a skill for a recurring task? /find-skill searches the registry, audits the pick and installs it everywhere" }, { id: "new-skill", text: "Did a procedure twice? /new-skill turns it into a skill every harness can load" }, { id: "doctor", text: "Something feels off? `buracle doctor` checks config, hooks, MCP and LSP servers, memory and code indexes" }, { id: "update", text: "`buracle update` updates Buracle and everything it connects, each part from its own source" }, { id: "config", text: "`buracle config set plan.<key> <value>` tunes how workflows run: worktrees, questions, reviews" }, { id: "companion-review", text: "Turn on plan.reviews.companion to get the same review from another installed harness as a second opinion" }, { id: "one-standard", text: "The same skills, rules, guards and memory run in Claude Code, Codex, OpenCode and Oh My Pi" }, { id: "mcp-status", text: "`buracle mcp status` shows Buracle's shared MCP servers; one backend serves every open session" }, { id: "index", text: "codegraph and semble index each project in the background, so the agent finds callers without grep loops" }, { id: "plan-audit", text: "`buracle plan audit` compares the diff with the files each task named and flags unplanned changes" }, { id: "language", text: "Plans, PRDs and reports follow the language you write in; only the markers Buracle reads stay English" }] }, memory: memoryBridge, pluginDir: import.meta.dir });
+var server_default = createBuraclePlugin({ baked: { v: 1, contentHash: "9f255ae4a25e10a93568c3d1b15d8858af2bcea67dc56e3cba4e2038e0551433", defaults: { version: 1, harnesses: { claude: { enabled: true }, codex: { enabled: true }, opencode: { enabled: true }, omp: { enabled: true } }, routing: { strictness: "enforce", skills: "router", reminders: true }, guards: { bash: { extraDeny: [] }, write: { protect: [] }, redact: true }, plan: { stopGuard: true, planApproval: true, resultApproval: true, branchIsolation: true, questions: true, reviews: { plan: true, changes: true, goal: true, companion: "off" }, goalVerification: true, modelSwitch: "off", nativePlanMode: "off" }, checkers: { enabled: true, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] }, memory: { ui: { autostart: true }, exclude: [] }, statusline: { style: "buracle", emoji: true }, skills: { sources: [{ name: "buracle", path: "canonical/skills" }] }, update: { minReleaseAgeDays: 0 }, permissions: { bypass: true, enforce: true }, agents: { teams: true }, workflow: { band: true, codexNotices: true }, toolchain: { autoInstall: true, system: true, upgrade: true }, index: { exclude: [] }, mcp: { shared: true, off: { claude: [], codex: [], opencode: [], omp: [] } } }, routing: { strictness: "enforce", categories: [{ id: "library-docs", intent: "Library, framework, SDK or CLI documentation at the installed version (APIs, options, config, migrations)", prefer: ["mcp:context7/resolve-library-id", "mcp:context7/query-docs"], fallback: ["mcp:web-fetch/fetch_url"], deny_builtin: [], nudge: "For library or framework APIs, resolve the library with context7 and query its docs at the version in the lockfile.", reminder: "resolve the library with context7 (resolve-library-id), then query-docs at the version in the lockfile", triggers: { topic: ["official docs", "official documentation", "library docs", "framework docs", "according to the docs", "per the docs", "from the docs", "verify in the docs", "api reference", "api docs", "migration guide", "upgrade guide", "re:\\bcheck the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:look|looked|looking|search|searched|searching)\\b(?:\\s+(?:it|this|that|them)\\s+up)?\\s+in the docs\\b(?!/|\\s+(?:folder|directory|dir)\\b)", "re:\\b(?:says?|said|mentioned|documented|described)\\s+in the docs\\b", "re:\\b(?!(?:the|our|my|your|their|this|that|an?|its|new|own|same|internal|custom|official|public|private|client|server|web|mobile)\\b)[a-z][a-z0-9.-]{2,}\\s+sdk\\b", "belgelerden", "belgelere gore", "resmi belge*", "dokumantasyondan", "dokumantasyona gore", "api referans*", "goc rehberi", "re:\\b(?:belgelerde|dokumantasyonda)\\b(?!.{0,40}\\b(?:ekle|guncelle|duzelt|kaldir|sil)\\w*)"], not: ["docs folder", "docs directory", "docs klasor*"], deps: ["api", "apis", "config", "configure", "configuration", "option*", "migrat*", "upgrade*", "version*", "deprecat*", "breaking change*", "hook*", "middleware", "plugin*", "setup", "set up", "install*", "usage", "how to use", "how to", "how do", "how does", "how can", "why does", "why do", "why is", "what does", "what options", "which options", "by default", "syntax", "integrat*", "method*", "signature", "type*", "re:\\bv\\d+(?:\\.\\d+)*\\b", "re:\\b\\d+\\.\\d+(?:\\.\\d+)?\\b", "nasil", "yapilandir*", "ayar*", "surum*", "guncelle*", "kurulum*", "entegre*", "goc*", "tip*"] } }, { id: "web-search", intent: "Web search for errors, releases, changelogs and comparisons", prefer: ["mcp:web-search/search"], fallback: ["mcp:web-fetch/fetch_url", "builtin:web_search"], deny_builtin: ["web_search"], nudge: "Search the web with the web-search MCP server; while it is down or off, fetch a search results page (https://html.duckduckgo.com/html/?q=<query>) with web-fetch, and use the built-in web search only when both are down or off.", reminder: "search with the web-search MCP server (search), then read the sources with web-fetch (fetch_url)", triggers: { topic: ["latest version", "latest release", "latest stable", "release notes", "what's new in", "whats new in", "still maintained", "search the web", "look it up online", "re:\\b(?:read|check|see|look at|according to|per)\\s+(?:the\\s+|its\\s+|their\\s+)?(?:upstream\\s+|official\\s+)?changelog\\b", "re:\\bchangelog\\s+(?:of|for)\\b", "re:\\b(?:is|was)\\s+(?:this|it|that|there)\\s+a\\s+known\\s+(?:issue|bug)\\b", "re:\\b(?:any|are there)\\s+known\\s+(?:issues?|bugs?)\\b", "re:\\bknown\\s+(?:issues?|bugs?)\\s+(?:with|in|of)\\s+(?!(?:our|my|this|the)\\b)", "son surum*", "guncel surum*", "en son surum*", "surum notlari", "degisiklik gunlugu", "hala bakimi yapiliyor", "webde ara*", "internette ara*"], not: ["draft* release notes", "write* release notes", "generate* release notes", "release notes from", "our release notes", "our changelog", "update the changelog", "changelog entry", "surum notlari yaz*", "surum notlarini yaz*", "surum notlari hazirla*", "degisiklik gunlugunu guncelle*"] } }, { id: "web-fetch", intent: "Read a known URL, including JavaScript-rendered pages", prefer: ["mcp:web-fetch/fetch_url"], fallback: ["builtin:web_fetch"], deny_builtin: ["web_fetch"], nudge: "Fetch pages with the web-fetch MCP server, and use the built-in fetch only while it is down or off.", reminder: "read the page with the web-fetch MCP server (fetch_url)" }, { id: "code-examples", intent: "How public code uses an API (GitHub examples)", prefer: ["mcp:grep/searchGitHub"], fallback: ["mcp:web-search/search"], deny_builtin: [], reminder: "look up real usage in public code with the grep MCP server (searchGitHub)", triggers: { topic: ["examples on github", "github examples", "real-world usage", "real world usage", "real-world examples", "how do other projects", "how others use", "open-source examples", "open source examples", "github'da*", "gercek projelerde", "acik kaynak projelerde", "ornek kullanim*", "baska projeler nasil"] } }, { id: "code-search", intent: "Find code by intent or concept, or code similar to a snippet", prefer: ["mcp:semble/search", "mcp:semble/find_related"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Search code with semble (intent) or rg (exact text), never grep -r or find | xargs grep.", reminder: "find code by intent with semble search (repo = the project root); rg stays right for exact text", triggers: { topic: ["which file", "find the code that", "find where", "locate the code", "re:\\bwhere (?:is|are|do we|does) (?:the |our |we )?\\S+ (?:defined|implemented|handled|configured|loaded|set|parsed|created)", "re:\\bhow (?:does|do) .{1,60}\\bwork\\b", "nerede tanimli", "nerede yapiliyor", "nerede uygulan*", "hangi dosyada", "nasil calisiyor", "kodu bul"], not: ["where were we", "where did we leave", "nerede kalmistik", "nerede kaldik"] } }, { id: "code-structure", intent: "Definitions, callers and callees, and the impact of changing a symbol", prefer: ["mcp:codegraph/codegraph_explore"], fallback: ["cli:rg"], deny_builtin: [], nudge: "Before changing a shared function, type or endpoint, get its callers from codegraph.", reminder: "ask codegraph (callers, callees, impact; projectPath = the project root) before you change a shared symbol", triggers: { topic: ["who calls", "what calls", "callers of", "call sites", "call graph", "find usages", "all usages", "references to", "impact of chang*", "blast radius", "what breaks if", "what depends on", "re:\\bwhere (?:is|are) \\S+ (?:called|used|invoked|referenced)", "nereden cagriliyor", "nerelerde cagriliyor", "kim cagiriyor", "cagiranlar*", "cagri grafi*", "nerelerde kullaniliyor", "etki analizi", "neyi bozar", "neler etkilenir"] } }, { id: "language-server", intent: "Diagnostics of an edited file, a symbol's type and docs, its definition and references from the language server (Codex and OpenCode; Claude Code and omp use their own LSP tools)", prefer: ["mcp:lsp/diagnostics", "mcp:lsp/hover", "mcp:lsp/definition", "mcp:lsp/references"], fallback: ["mcp:codegraph/codegraph_explore", "cli:rg"], deny_builtin: [], reminder: "check an edited Python, TypeScript, Go, Rust, C# or Java file with the lsp server's diagnostics, and ask its hover or definition for a symbol's type", triggers: { topic: ["type error*", "typecheck error*", "type-check error*", "compile error*", "compiler error*", "compilation error*", "lsp diagnostics", "language server", "go to definition", "jump to definition", "re:\\bwhat(?:'s| is) the type of\\b", "tip hata*", "derleme hata*", "tanima git", "tanimina git"] } }, { id: "browser", intent: "Drive and inspect a real browser (DOM, console, network, performance)", prefer: ["mcp:chrome-devtools"], fallback: [], deny_builtin: [], reminder: "drive and inspect the real browser with chrome-devtools (navigate_page, take_snapshot, list_console_messages)", triggers: { topic: ["open the page", "take a screenshot", "screenshot of", "console errors", "browser console", "network tab", "lighthouse", "devtools", "re:\\b(?:open|test|check|verify|look|see|load|reproduce|try|view|inspect|debug|click|watch|preview)\\w*\\b.{0,40}\\bin the browser\\b", "ekran goruntusu", "konsol hata*", "sayfayi ac*", "re:\\btarayicida\\b.{0,30}\\b(?:ac|test et|kontrol et|dene|bak|gor|incele)\\w*"] } }, { id: "memory", intent: "Past decisions, gotchas, earlier sessions and preferences", prefer: ["mcp:buracle-memory/memory_search", "mcp:buracle-memory/memory_get"], fallback: ["cli:buracle"], deny_builtin: [], nudge: "History questions start with memory_search on the buracle-memory server.", reminder: "search memory with memory_search, then memory_get the relevant memories, and cite their ids", triggers: { topic: ["memory note*", "vault note*", "the memory vault", "the memory brain", "hafiza not*", "hafiza kayd*", "kasa not*"] } }] }, mcp: [{ id: "buracle-memory", description: "Buracle memory, the CortexDB brains of the project and the person (search, get, write, update, status)", transport: "stdio", critical: true, routing: ["memory"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "chrome-devtools", description: "Drive and inspect a Chrome browser (DevTools protocol)", transport: "stdio", critical: false, routing: ["browser"], harnesses: ["claude", "codex", "opencode"] }, { id: "codegraph", description: "Code structure graph (symbols, callers, impact) for the current repository", transport: "stdio", critical: true, routing: ["code-structure"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "context7", description: "Up-to-date library and framework documentation", transport: "stdio", critical: true, routing: ["library-docs"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "grep", description: "Search public GitHub code for real-world usage examples", transport: "http", critical: false, routing: ["code-examples"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "lsp", description: "Language-server diagnostics, hover, definitions, references and symbols", transport: "stdio", critical: true, routing: ["language-server"], harnesses: ["codex", "opencode"] }, { id: "semble", description: "Fast semantic code search over local or remote repositories", transport: "stdio", critical: true, routing: ["code-search"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-fetch", description: "Fetch and extract web pages with a headless browser", transport: "stdio", critical: true, routing: ["web-fetch"], harnesses: ["claude", "codex", "opencode", "omp"] }, { id: "web-search", description: "Web search without an API key (DuckDuckGo by default)", transport: "stdio", critical: true, routing: ["web-search"], harnesses: ["claude", "codex", "opencode", "omp"] }], mcpIds: ["buracle-memory", "chrome-devtools", "codegraph", "context7", "grep", "lsp", "semble", "web-fetch", "web-search"], skills: [{ id: "ab-test", description: "Measure whether a change to a skill, rule, AGENTS.md section or routing policy really changes agent behavior. Defines falsifiable cases, runs paired baseline and candidate trials in throwaway config directories (never hiding or renaming the user's real skills or settings), captures tool-use evidence such as whether the agent loaded the skill or called context7, then scores pass rates and reports per-case deltas. Use when the user asks to benchmark, evaluate, A/B test or compare a skill or rule change, or to check that agents really use an MCP server or skill.", userInvocable: true, short: "Paired before/after evals of skills and rules with tool-use evidence", invocation: "implicit" }, { id: "bugfix", description: "Plan-less bug workflow that owns one defect end to end: reproduce it first, trace the root cause to file:line, write a failing test, fix at the source, prove the fix on the real program, then pass the quality gate. With branch isolation on it asks where to work: the current branch, a bugfix/<slug> branch or a worktree squash-merged once the fix is proven; no plan file. Run only when the user explicitly asks for bugfix.", userInvocable: true, short: "Reproduce, root-cause, RED test, fix at the source, prove it end to end", invocation: "explicit" }, { id: "buracle", description: "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan \u2026`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going.", userInvocable: false, short: "When and how to call the buracle helper CLI", invocation: "implicit" }, { id: "dead-code", description: "Report-only dead-code audit. Collects candidate unused files and exports from the project's own analyzers, a bundled rg-based script and a read-only codegraph snapshot, checks every candidate against independent signals (codegraph references, exact and dynamic-usage search, analyzers), rules out a public role (API, entry points, config, registries), and returns a ranked report with evidence and a staged removal plan. Never deletes or edits code.", userInvocable: true, short: "Report-only dead-code audit with two-signal evidence and a removal plan", invocation: "explicit" }, { id: "find-skill", description: "Find an agent skill for a need and install it for every harness in a few calls. `buracle skills find <need>` is one command that shows the installed and shipped skills that already match, then the skills.sh registry's candidates with description, license, freshness, tool grants and risk ratings; `buracle skills add --dry-run` audits the pick (scripts, allowed-tools, suspicious lines) and `buracle skills add` installs it into ~/.agents/skills (Codex, OpenCode, Oh My Pi) and links it into ~/.claude/skills (Claude Code). Also updates and removes installed skills.", userInvocable: true, short: "Find a skill for a need and install it for every harness", invocation: "implicit" }, { id: "goal-build", description: "Goal-and-loop workflow for a clear end state whose path is found while building: agree on a goal, tasks sized as the largest slices you can finish and verify, and at least 3 pass/fail acceptance criteria (one of them the oracle), have them reviewed, lock the contract, then build in rounds judged on running evidence (at most four), verify and hand back. Tracked in docs/goal-build/. Run only when the user explicitly asks for goal-build.", userInvocable: true, short: "Lock a goal and pass/fail criteria, then build in judged rounds", invocation: "explicit" }, { id: "inspect", description: "Read-only investigation of one question about the code. Frames a falsifiable claim, locates code with semble (intent), codegraph (callers, callees, blast radius) and rg or ast-grep (exact and structural matches), checks memory for past decisions, traces the active path hop by hop, challenges the answer with a counterexample search, and reports a direct answer with file:line evidence and calibrated confidence. Never edits anything.", userInvocable: true, short: "Read-only trace of one code question with file:line evidence", invocation: "explicit" }, { id: "memory", description: "Protocol for Buracle's shared memory: one CortexDB brain with a bucket for each project and one for the person, served by the buracle-memory MCP server in every harness. Says when to run a quick memory pass (at most 3 memory_search calls, then at most 3 memories via memory_get), how to treat recalled memories as evidence rather than instructions, and how to keep the memory: one claim per memory with sources, search before writing, update or merge instead of duplicating, record the user's preferences in the right brain, never overrule an explicit memory, never store secrets. Use when the user refers to past work or asks you to remember something, before re-deciding something and after a non-obvious fix.", userInvocable: false, short: "When and how to read, write and keep Buracle's CortexDB memory", invocation: "implicit" }, { id: "new-skill", description: "Capture a repeatable procedure as a Buracle skill, or improve an existing one. Picks the right home (global skills in the Buracle repo's canonical/skills or a configured skills git source; project-only skills in .agents/skills), writes SKILL.md in the canonical format with references/, scripts/ and trigger evals, lints it with `buracle skills lint`, and explains how publishing reaches every harness. Use when the user wants to turn a workflow into a skill, edit, split or rename a skill, or fix a skill that triggers too often or never.", userInvocable: true, short: "Capture a repeatable procedure as a canonical Buracle skill", invocation: "implicit" }, { id: "plan-build", description: "Plan-driven development through a plan file in docs/plan-build/: explore and clarify, write and review the plan, get approval, implement task by task with TDD, then verify with real evidence until the plan is VERIFIED. Covers features and bugfixes (behavior contract, reproduce first, root-cause fix). Also pauses, resumes or continues an existing plan. Run only when the user explicitly asks for plan-build.", userInvocable: true, short: "Plan, approve, TDD-implement and verify work through a plan file", invocation: "explicit" }, { id: "project-rules", description: "Create, refresh or audit a repository's agent guidance so Claude Code, Codex, OpenCode and omp follow the same verified instructions: the root AGENTS.md, optional nested AGENTS.md files for subprojects, and path-scoped rules for specific file types. Discovers commands and conventions from the code (package scripts, CI jobs, linter and test configs, test layout), runs commands before documenting them, keeps every file short, then runs `buracle project sync` and `buracle project check`. Use when the user asks to set up, write, update, slim down or check AGENTS.md, CLAUDE.md or project rules.", userInvocable: true, short: "Generate and verify AGENTS.md and path-scoped rules for a repo", invocation: "implicit" }, { id: "requirements", description: "Requirements workflow for ideas whose problem, audience or scope is still unclear. Grounds the idea in the codebase and memory, runs tiered research through the research skill, explores directions, asks a few decision questions, proposes approaches, converges on scope, writes an approved PRD to docs/requirements/YYYY-MM-DD-<slug>.md and prints the plan-build or goal-build hand-off. No code is written before the PRD is approved.", userInvocable: true, short: "Interview, research and write an approved PRD before any code", invocation: "explicit" }, { id: "research", description: "Evidence-backed research that must use MCP tools instead of recall: web-search to discover sources, web-fetch to read them in full, context7 for library and framework documentation, grep for real-world code on GitHub, and buracle-memory for prior decisions. Produces a cited research note (answer, findings, options, conflicts, gaps, confidence) and can save durable findings to memory as knowledge memories pending review.", userInvocable: true, short: "Cited, MCP-backed research across web, library docs, public code and memory", invocation: "implicit" }], plugins: [], hooks: [{ id: "H01", blocking: "deny", failure: "closed" }, { id: "H02", blocking: "deny", failure: "closed" }, { id: "H03", blocking: "deny", failure: "open" }, { id: "H04", blocking: "none", failure: "open" }, { id: "H05", blocking: "none", failure: "open" }, { id: "H06", blocking: "none", failure: "open" }, { id: "H07", blocking: "none", failure: "open" }, { id: "H08", blocking: "stop", failure: "open" }, { id: "H09", blocking: "none", failure: "open" }, { id: "H10", blocking: "none", failure: "open" }, { id: "H11", blocking: "stop", failure: "open" }, { id: "H12", blocking: "none", failure: "open" }, { id: "H13", blocking: "none", failure: "open" }, { id: "H14", blocking: "none", failure: "open" }, { id: "H15", blocking: "none", failure: "open" }, { id: "H16", blocking: "none", failure: "open" }, { id: "H17", blocking: "none", failure: "open" }, { id: "H18", blocking: "none", failure: "open" }, { id: "H19", blocking: "none", failure: "open" }, { id: "H20", blocking: "deny", failure: "open" }, { id: "H21", blocking: "none", failure: "open" }, { id: "H22", blocking: "none", failure: "open" }, { id: "H23", blocking: "stop", failure: "open" }, { id: "H24", blocking: "none", failure: "open" }, { id: "H25", blocking: "none", failure: "open" }, { id: "H26", blocking: "none", failure: "open" }, { id: "H28", blocking: "none", failure: "open" }], pathRules: [{ id: "backend", globs: ["**/api/**", "**/routes/**", "**/handlers/**", "**/controllers/**", "**/endpoints/**", "**/middleware/**", "**/models/**", "**/models.py", "**/entities/**", "**/schema/**", "**/schemas/**", "**/queries/**", "**/repository/**", "**/repositories/**", "**/dao/**", "**/migrations/**", "**/migrate/**", "**/alembic/**", "**/db/**", "**/*.sql", "**/*.prisma", "**/*.graphql", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json"] }, { id: "blazor", globs: ["**/*.razor", "**/*.razor.cs", "**/*.razor.css"] }, { id: "dotnet", globs: ["**/*.cs", "**/*.csproj", "**/*.sln", "**/*.slnx", "**/global.json", "**/Directory.Build.props", "**/Directory.Packages.props"] }, { id: "frontend", globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro", "**/*.html", "**/*.css", "**/*.scss", "**/*.sass", "**/*.less", "**/*.razor", "**/*.razor.css"] }, { id: "go", globs: ["**/*.go", "**/go.mod", "**/go.sum", "**/go.work"] }, { id: "python", globs: ["**/*.py", "**/*.pyi", "**/pyproject.toml", "**/requirements*.txt", "**/uv.lock", "**/setup.cfg"] }, { id: "typescript", globs: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts", "**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs", "**/package.json", "**/tsconfig*.json"] }], version: "0.8.6", notices: [{ id: "0.8.1-documents-follow-language", since: "0.8.1", until: "0.9.0", message: "Documents now follow your language: plans, PRDs, build contracts, saved audits, reports and review findings use the language you write in (or the one your project or memory pins), and only the markers Buracle reads stay English. `buracle plan validate` no longer warns about prose that is not English." }, { id: "0.8.6-skills-own-folders", since: "0.8.6", until: "0.9.0", message: "Buracle's skills now live only in the skills folder of each harness it supports (~/.codex/skills, ~/.config/opencode/skills, ~/.omp/agent/skills); `buracle install` removes its old links from the shared ~/.agents/skills, so other agents no longer see them. Third-party skills from `buracle skills add` stay in ~/.agents/skills." }, { id: "0.8.6-opencode-todos", since: "0.8.6", until: "0.9.0", message: "OpenCode now gets its todo tool: `buracle install` sets `experimental.todo: true` in opencode.jsonc, and the open items of `todowrite` go into the handoff memory before a compaction, as on the other harnesses." }], tips: [{ id: "plan-build", text: "/plan-build writes a reviewed plan to docs/plan-build/, waits for your approval, then builds it test-first" }, { id: "goal-build", text: "/goal-build locks pass/fail criteria first, then builds in rounds a judge scores against them" }, { id: "bugfix", text: "/bugfix reproduces the failure, names the root cause as file:line and writes a failing test before the fix" }, { id: "requirements", text: "Scope still unclear? /requirements asks a few rounds of questions and writes a PRD before any code" }, { id: "direct-work", text: "No workflow needed for small changes: ask directly and the agent still verifies before it reports done" }, { id: "stop-words", text: "Say stop, wait or hold on at any time: the agent finishes the current step and pauses the plan" }, { id: "worktree-flag", text: "Add --worktree after a workflow request to build it in its own worktree, squash-merged back when done" }, { id: "research", text: "/research <question> answers from sources it actually read: web, library docs, public code and memory" }, { id: "inspect", text: "/inspect <question> traces how the code really behaves, cites every hop as path:line and changes nothing" }, { id: "dead-code", text: "/dead-code reports unused code only when two independent signals agree, with a staged removal plan" }, { id: "project-rules", text: "Run /project-rules once per repository: it writes an AGENTS.md from commands it ran, for every harness" }, { id: "remember", text: "/remember <text> saves a note to the memory that Claude Code, Codex, OpenCode and Oh My Pi all share" }, { id: "why-question", text: 'Ask "why did we\u2026" or "what did we decide\u2026": the agent searches the memory before it answers' }, { id: "brain-ui", text: "/brain opens the Buracle Console: browse, search and fix the memory of this project and yours" }, { id: "brain-review", text: "/brain review opens the review page: pin notes on a plan, and the agent applies them before approval" }, { id: "aside", text: "/aside <question> answers a side question without derailing the running task" }, { id: "status", text: "/buracle-status shows the active plan, the running workflow and the memory at a glance" }, { id: "find-skill", text: "Need a skill for a recurring task? /find-skill searches the registry, audits the pick and installs it everywhere" }, { id: "new-skill", text: "Did a procedure twice? /new-skill turns it into a skill every harness can load" }, { id: "doctor", text: "Something feels off? `buracle doctor` checks config, hooks, MCP and LSP servers, memory and code indexes" }, { id: "update", text: "`buracle update` updates Buracle and everything it connects, each part from its own source" }, { id: "config", text: "`buracle config set plan.<key> <value>` tunes how workflows run: worktrees, questions, reviews" }, { id: "companion-review", text: "Turn on plan.reviews.companion to get the same review from another installed harness as a second opinion" }, { id: "one-standard", text: "The same skills, rules, guards and memory run in Claude Code, Codex, OpenCode and Oh My Pi" }, { id: "mcp-status", text: "`buracle mcp status` shows Buracle's shared MCP servers; one backend serves every open session" }, { id: "index", text: "codegraph and semble index each project in the background, so the agent finds callers without grep loops" }, { id: "plan-audit", text: "`buracle plan audit` compares the diff with the files each task named and flags unplanned changes" }, { id: "language", text: "Plans, PRDs and reports follow the language you write in; only the markers Buracle reads stay English" }] }, memory: memoryBridge, pluginDir: import.meta.dir });
 export {
   server_default as default
 };

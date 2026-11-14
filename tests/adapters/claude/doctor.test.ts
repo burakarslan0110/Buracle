@@ -8,6 +8,7 @@ import {
 import { MIN_CLAUDE } from '../../../src/adapters/claude/constants'
 import type { AdapterContext } from '../../../src/adapters/registry'
 import { defaultConfig } from '../../../src/core/config'
+import { INDEX_SETTINGS, type IndexSettings } from '../../../src/core/workspace'
 import type { CanonicalBundle } from '../../../src/core/catalog'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import * as paths from '../../../src/engine/paths'
@@ -305,7 +306,7 @@ describe('permission mode, code indexes and the prompt router', () => {
       const proj = join(sb.home, 'proj')
       mkdirSync(proj, { recursive: true })
       writeFileSync(join(proj, 'package.json'), '{"name":"proj"}\n')
-      const cfg = defaultConfig()
+      const cfg: IndexSettings = { ...INDEX_SETTINGS }
       mcp({ codegraph: { command: 'bun', alwaysLoad: true }, semble: { command: 'bun', alwaysLoad: true } })
       const ready = await indexFinding(plugin, cfg, proj, 1)
       expect(ready.level).toBe('ok')
@@ -316,7 +317,7 @@ describe('permission mode, code indexes and the prompt router', () => {
       expect(await indexFinding(plugin, cfg, proj, 1)).toMatchObject({ level: 'warn', detail: expect.stringContaining('codegraph load behind tool search') })
       mcp({ codegraph: { command: 'bun', alwaysLoad: true } })
       expect(await indexFinding(plugin, cfg, proj, 1)).toMatchObject({ level: 'error', detail: expect.stringContaining('declares no semble server') })
-      cfg.index.semble = false
+      cfg.semble = false
       expect((await indexFinding(plugin, cfg, proj, 1)).level).toBe('ok')
     })
   })

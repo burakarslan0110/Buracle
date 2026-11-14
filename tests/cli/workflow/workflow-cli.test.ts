@@ -86,9 +86,8 @@ describe('skill command lines, end to end', () => {
     expect(reviewed.stdout).toContain('Result approved')
     expect((await b('plan', 'status', '--json')).json()).toMatchObject({ interaction: { state: 'running' } })
 
-    const sync = await b('worktree', 'sync', slug, '--json')
-    expect(sync.code).toBe(0)
-    expect(sync.json()).toMatchObject({ merged: true, subject: 'feat: rate limit the API' })
+    await g(repo, 'merge', '-q', '--squash', `plan-build/${slug}`)
+    await g(repo, 'commit', '-q', '-m', 'feat: rate limit the API')
     expect((await b('worktree', 'cleanup', slug)).code).toBe(0)
     expect(existsSync(wtPath)).toBe(false)
 

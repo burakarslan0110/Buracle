@@ -2,7 +2,7 @@ import type { Harness } from '../../../core/events'
 import { offServersFor, withOffServers } from '../../../core/policy/mcp-off'
 import { mcpHealthOf, type McpHealth, type RoutingPolicy } from '../../../core/policy/routing'
 import { sessionMcpHealth, type WorkspaceFacts } from '../../../core/policy/usage'
-import type { WorkspaceInfo } from '../../../core/workspace'
+import { INDEX_SETTINGS, type WorkspaceInfo } from '../../../core/workspace'
 import { readJsonSafeSync } from '../../../engine/fsx'
 import { loadLedger } from '../../../workflow/ledger'
 import { canonicalDir, codegraphIndexPresent, exclusionContext } from '../../../workflow/workspace'
@@ -40,7 +40,7 @@ export function workspaceFacts(ctx: Pick<AdapterContext, 'paths' | 'config'>, in
   }
   if (info?.root !== undefined) {
     facts.root = info.root
-    facts.codegraphIndexed = ctx.config.index.codegraph && codegraphIndexPresent(info.root)
+    facts.codegraphIndexed = INDEX_SETTINGS.codegraph && codegraphIndexPresent(info.root)
   }
   return facts
 }

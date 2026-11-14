@@ -6,7 +6,7 @@ import type { Harness, ToolCall } from '../../core/events'
 import type { SessionState, StopGuardResult } from '../../core/plan/state'
 import type { McpHealth } from '../../core/policy/routing'
 import type { HookHealth } from '../../core/status/model'
-import type { WorkspaceInfo } from '../../core/workspace'
+import { indexSettings, type WorkspaceInfo } from '../../core/workspace'
 import type { AdapterContext } from '../registry'
 import { log } from '../../engine/log'
 import { run as runProcess, type RunOptions, type RunResult } from '../../engine/proc'
@@ -108,13 +108,13 @@ export function defaultDeps(): CodexHookDeps {
   return {
     core, memory: () => (memo ??= loadMemoryFns()), now: () => Date.now(), run: runProcess, env: () => process.env,
     async prepareWorkspace(cwd, ctx, nowMs) {
-      return (await import('../shared/workspace-start')).prepareWorkspace(cwd, ctx.config, nowMs)
+      return (await import('../shared/workspace-start')).prepareWorkspace(cwd, indexSettings(ctx.config), nowMs)
     },
     async workspaceInfo(cwd, ctx, nowMs) {
-      return (await import('../../workflow/workspace')).workspaceInfo(cwd, ctx.config, nowMs)
+      return (await import('../../workflow/workspace')).workspaceInfo(cwd, indexSettings(ctx.config), nowMs)
     },
     refreshWorkspace(info, ctx, nowMs) {
-      return refreshWorkspaceInfo(info, ctx.config, nowMs)
+      return refreshWorkspaceInfo(info, indexSettings(ctx.config), nowMs)
     },
     projectDeps: readProjectDeps,
     async lspEdits(files, opts) {
@@ -164,7 +164,7 @@ async function contextWarning(ctx: AdapterContext, event: string, sid: string, u
   return step(event, 'H05 warning', undefined, () => {
     const pct = usage?.ctx?.pct
     if (pct === undefined) return undefined
-    const t = core.contextThresholds(ctx.config.context)
+    const t = core.contextThresholds()
     const s = loadAdapterState(ctx, sid)
     const before = s.ctxWarned ?? 0
     const prev: core.ContextBand = before >= t.criticalPct ? 'critical' : before >= t.warnPct ? 'warn' : 'ok'
@@ -455,16 +455,15 @@ function stopReason(reason: string): string {
 export const READ_ONLY_NOTICE = 'Buracle stop guard: the session is in Plan mode (read-only), so this stop goes through. Leave Plan mode to continue the plan.'
 
 function runawayNotice(ctx: AdapterContext, sid: string, result: StopGuardResult, state: SessionState): string | undefined {
-  const caps = ctx.config.plan.runaway
   if (result.why === 'runaway-chain') {
-    return `Buracle stop guard: ${caps.perChain} continuations in a row did not finish the plan, so this stop goes through (plan.runaway.perChain). Check the plan file and the last messages before going on.`
+    return `Buracle stop guard: ${core.RUNAWAY_PER_CHAIN} continuations in a row did not finish the plan, so this stop goes through. Check the plan file and the last messages before going on.`
   }
   if (result.why !== 'runaway-plan' || state.plan === undefined) return undefined
   const key = `${state.plan.path}#${state.plan.registeredAt}`
   const s = loadAdapterState(ctx, sid)
   if (s.runawayPlan === key) return undefined
   saveAdapterState(ctx, sid, { ...s, runawayPlan: key })
-  return `Buracle stop guard: this plan used up its ${caps.perPlan} stop-guard continuations (plan.runaway.perPlan), so stops are no longer held for it. Check the plan; after a pause, \`buracle plan resume\` starts a new budget.`
+  return `Buracle stop guard: this plan used up its ${core.RUNAWAY_PER_PLAN} stop-guard continuations, so stops are no longer held for it. Check the plan; after a pause, \`buracle plan resume\` starts a new budget.`
 }
 
 async function onStop(p: Payload, sid: string, cwd: string, ctx: AdapterContext, deps: CodexHookDeps): Promise<HookOutcome> {

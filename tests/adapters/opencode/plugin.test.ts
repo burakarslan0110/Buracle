@@ -8,7 +8,8 @@ import { clearRepoCache } from '../../../src/adapters/opencode/runtime/adapter-r
 import type { PermissionEvaluation, SessionContextEvent, ShellCreateBefore, ToolExecuteAfter } from '../../../src/adapters/opencode/runtime/types'
 import { clearPreparedWorkspaces } from '../../../src/adapters/opencode/runtime/workspace'
 import type { BuracleConfig } from '../../../src/core/config'
-import type { SessionState } from '../../../src/core/plan/state'
+import { RUNAWAY_PER_CHAIN, RUNAWAY_PER_PLAN, type SessionState } from '../../../src/core/plan/state'
+import { CONTEXT_DEFAULTS } from '../../../src/core/status/context'
 import type { WorkspaceInfo } from '../../../src/core/workspace'
 import * as paths from '../../../src/engine/paths'
 import { readFlow } from '../../../src/workflow/flow'
@@ -423,14 +424,14 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
     expect(texts.at(-3)).toBe(memoryText)
     expect(mem.contexts).toEqual([{ cwd: root, maxBytes: expect.any(Number) }])
     expect(mem.contexts[0]?.maxBytes).toBeLessThan(CONTEXT_BUDGET_BYTES)
-    expect(texts.at(-1)).toBe(contextNote(89, baked.defaults.context) as string)
+    expect(texts.at(-1)).toBe(contextNote(89) as string)
     const ev2: SessionContextEvent = { ...ev, system: [{ type: 'text', text: 'host prompt' }] }
     await f.trigger('session.context', ev2)
     expect(ev2.system.map(p => p.text)).toEqual(texts.slice(0, -1))
   }))
 
   test('H05 (D5): one warning per band, re-armed only below warnPct; a reloaded plugin does not repeat it', () => withSandbox(async ({ root }) => {
-    const { f, rt, baked } = await runtime(root)
+    const { f, rt } = await runtime(root)
     await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: root } } })
     await rt.handleEvent({ type: 'session.step.started', data: { sessionID: SID, model: { id: 'm1', providerID: 'p' } } })
     const step = (input: number) => rt.handleEvent({ type: 'session.step.ended', data: { sessionID: SID, tokens: { input, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }, cost: 0 } })
@@ -439,7 +440,7 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
       await f.trigger('session.context', ev)
       return ev.system.map(p => p.text).filter(t => t.startsWith('Buracle: the context window'))
     }
-    const t = baked.defaults.context
+    const t = CONTEXT_DEFAULTS
     await step(960)
     expect(await warnings()).toEqual([contextNote(96, t) as string])
     await step(880)
@@ -598,7 +599,7 @@ describe('opencode server plugin: stop guard emulation (H08/H11)', () => {
     await rt.idle()
     expect(f.prompts.length).toBe(1)
     for (let i = 0; i < 8; i++) { clock += 120_000; await cycle(rt) }
-    expect(f.prompts.length).toBe(testBaked().defaults.plan.runaway.perChain + 1)
+    expect(f.prompts.length).toBe(RUNAWAY_PER_CHAIN + 1)
     expect(f.prompts.at(-1)?.text).toContain('runaway: continue, pivot or abandon?')
   }))
 
@@ -788,7 +789,7 @@ describe('opencode server plugin: stage-B contract rules', () => {
   test('a runaway cap releases the session and tells the user once per chain', () => withSandbox(async ({ root }) => {
     let clock = 5_000_000
     const plan = planState()
-    saveState('opencode', SID, { ...plan, guard: { blocksForPlan: testBaked().defaults.plan.runaway.perPlan, blocksInChain: 0 } })
+    saveState('opencode', SID, { ...plan, guard: { blocksForPlan: RUNAWAY_PER_PLAN, blocksInChain: 0 } })
     const { f, rt, mem } = await runtime(root, { now: () => clock })
     await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: root } } })
     await cycle(rt)
@@ -812,7 +813,7 @@ describe('opencode server plugin: stage-B contract rules', () => {
     const b = await runtime(root, { now: () => clock })
     await b.rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: root } } })
     for (let i = 0; i < 4; i++) { clock += 120_000; await cycle(b.rt) }
-    expect(a.f.prompts.length + b.f.prompts.length).toBe(testBaked().defaults.plan.runaway.perChain + 1)
+    expect(a.f.prompts.length + b.f.prompts.length).toBe(RUNAWAY_PER_CHAIN + 1)
   }))
 })
 

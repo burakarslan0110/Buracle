@@ -8,7 +8,7 @@ import type { Finding, PlanType } from '../../../src/core/plan/format'
 import { planSkeleton, validatePlan } from '../../../src/core/plan/format'
 import type { SessionState, StopWhy } from '../../../src/core/plan/state'
 import {
-  ROUTE_AUDIT_AFTER, STOP_GUARD_ESCAPE, STOP_REASON_MAX, answerReceipt, applyIntent, approveResult, asksUserQuestion, dropResultApproval, emptyState,
+  ROUTE_AUDIT_AFTER, RUNAWAY_PER_PLAN, STOP_GUARD_ESCAPE, STOP_REASON_MAX, answerReceipt, applyIntent, approveResult, asksUserQuestion, dropResultApproval, emptyState,
   planProgressed, planValidateVerdict, resultReviewable, resumePlan, routeAuditAllowed, stopGuardVerdict, stopVerdict, stopVerdictDetailed,
 } from '../../../src/core/plan/state'
 import { preApprovalEdit, readOnlyStartNotice } from '../../../src/core/plan/plan-mode'
@@ -148,11 +148,10 @@ describe('stopVerdict (H08): blocking', () => {
   })
 
   test('the per-plan cap counts across chains', () => {
-    const cfg = { ...CFG, runaway: { perPlan: 3, perChain: 10 } }
     let s = withPlan()
     const whys: string[] = []
-    for (let i = 0; i < 5; i++) { const r = stopVerdictDetailed(s, input({ hookActive: false }), cfg); whys.push(r.why); s = r.next }
-    expect(whys).toEqual(['blocked', 'blocked', 'blocked', 'runaway-escalate', 'runaway-plan'])
+    for (let i = 0; i < RUNAWAY_PER_PLAN + 2; i++) { const r = stopVerdictDetailed(s, input({ hookActive: false }), CFG); whys.push(r.why); s = r.next }
+    expect(whys).toEqual([...Array.from({ length: RUNAWAY_PER_PLAN }, () => 'blocked'), 'runaway-escalate', 'runaway-plan'])
   })
 
   test('does not mutate the input state and survives a malformed guard', () => {

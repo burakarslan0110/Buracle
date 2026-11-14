@@ -2312,17 +2312,25 @@ async function undoJournal(journal: Journal, interrupted: boolean): Promise<Undo
   }
 }
 
-async function recoverInterrupted(except?: string): Promise<string[]> {
+/**
+ * Rolls back every transaction a process left `applying`; with `retryFailed`, also finishes the rollback of
+ * the ones marked `rollback-failed`. Throws, naming the paths, when one still cannot be rolled back completely.
+ */
+async function recoverInterrupted(except?: string, retryFailed = false): Promise<string[]> {
   const recovered: string[] = []
   const failures: string[] = []
   for (const j of await listTxns()) {
-    if (j.status !== 'applying' || j.txn === except) continue
+    const retried = j.status === 'rollback-failed'
+    if ((j.status !== 'applying' && !(retryFailed && retried)) || j.txn === except) continue
     let outcome: UndoOutcome
     try { outcome = await undoJournal(j, true) } catch (e) { outcome = { restored: [], skipped: [], undone: [], errors: [errText(e)], warnings: [] } }
     const notes = [...outcome.errors, ...outcome.skipped.map(s => `${s.path}: ${s.reason}`), ...outcome.warnings]
     j.status = outcome.errors.length > 0 ? 'rollback-failed' : 'rolled-back'
     j.rolledBackAt = new Date().toISOString()
-    j.error = [j.error, 'interrupted: the process ended while applying; rolled back at the next run', ...notes].filter(x => x !== undefined && x !== '').join('\n')
+    // A retried journal keeps the first line of its story and the notes of this attempt, so its error does not grow with every install.
+    j.error = (retried
+      ? [j.error?.split('\n')[0], 'the rollback was tried again at the next install', ...notes]
+      : [j.error, 'interrupted: the process ended while applying; rolled back at the next run', ...notes]).filter(x => x !== undefined && x !== '').join('\n')
     try { writeJournal(j) } catch {  }
     log(outcome.errors.length > 0 ? 'error' : 'warn', 'interrupted txn recovered', { txn: j.txn, restored: outcome.restored.length, notes })
     if (outcome.errors.length > 0) failures.push(`${j.txn}:\n  - ${outcome.errors.join('\n  - ')}`)
@@ -2334,7 +2342,22 @@ async function recoverInterrupted(except?: string): Promise<string[]> {
   return recovered
 }
 
-export const txnTestHooks: { afterCompute?: () => void, beforeWrite?: (path: string) => void } = {}
+/**
+ * Settles what an earlier run left half done, before a new install writes: a transaction still `applying`
+ * and one whose rollback failed part way (`rollback-failed`) are rolled back to the end. Returns the ids it
+ * settled; throws, naming the paths to fix, when one still cannot be rolled back (nothing new is written then).
+ */
+export async function repairUnsettled(): Promise<string[]> {
+  if ((await listTxns()).every(j => j.status !== 'applying' && j.status !== 'rollback-failed')) return []
+  const release = acquireLock()
+  try {
+    return await recoverInterrupted(undefined, true)
+  } finally {
+    release()
+  }
+}
+
+export const txnTestHooks:{ afterCompute?: () => void, beforeWrite?: (path: string) => void } = {}
 
 export const RETENTION = { backups: 20, backgroundBackups: 10, journals: 50 } as const
 

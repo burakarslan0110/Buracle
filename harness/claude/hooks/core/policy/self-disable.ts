@@ -202,7 +202,6 @@ function buracleSwitch(args: readonly string[]): string | undefined {
   const pos = args.filter(a => !a.startsWith('-'))
   const command = pos[0]
   if (command === 'uninstall') return args.includes('--dry-run') ? undefined : 'it removes Buracle and its guard hooks from every harness'
-  if (command === 'rollback') return args.includes('--list') ? undefined : 'it undoes the install that registered the guard hooks'
   if (command === 'config' && (pos[1] === 'set' || pos[1] === 'unset')) {
     const key = pos[2]
     if (key === undefined) return undefined
@@ -296,7 +295,6 @@ function persistentEnv(name: string, words: readonly ShellWord[]): string | unde
   const reason = 'it sets a variable that relocates Buracle or the harness settings for every later session, which can run them without the guard hooks'
   if (name === 'launchctl' && pos[0] === 'setenv' && named(pos[1])) return reason
   if (name === 'set' && args.some(a => a === '--universal' || /^-[A-Za-z]*U/.test(a)) && named(pos[0])) return reason
-  if (name === 'setx' && named(pos[0])) return reason
   if (name === 'systemctl' && pos[0] === 'set-environment' && pos.slice(1).some(named)) return reason
   return undefined
 }

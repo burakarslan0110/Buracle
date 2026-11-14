@@ -4,6 +4,7 @@ import type { BuracleConfig } from '../../core/config'
 import type { Harness } from '../../core/events'
 import { HARNESSES, isHarness } from '../../core/events'
 import { sanitizeText } from '../../core/status/format'
+import { indexSettings } from '../../core/workspace'
 import { parseFlags, removedFlags } from '../../engine/update/args'
 import { liveContext, loadBundle } from '../../engine/update/context'
 import { AGENTS_SKILLS_CONSUMERS } from '../../engine/update/install-core'
@@ -78,7 +79,7 @@ const REMOVED_FLAGS: Readonly<Record<string, string>> = {
 export async function indexSection(cwd: string, cfg: BuracleConfig, nowMs: number): Promise<DoctorCheck[]> {
   try {
     const { indexChecks } = await import('../../workflow/workspace-index')
-    return (await indexChecks(cwd, cfg, nowMs)).map(c => ({ section: 'index', ...c }))
+    return (await indexChecks(cwd, indexSettings(cfg), nowMs)).map(c => ({ section: 'index', ...c }))
   } catch (e) {
     return [{ section: 'index', level: 'warn', check: 'index', detail: `the index state could not be read: ${errText(e)}` }]
   }
@@ -110,16 +111,6 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     io.stderr.write(`buracle doctor: ${problems.join('; ')}\n${usage}\n`)
     return 1
   }
-  const repoRoot = paths.isFrozenRuntime() ? (paths.checkoutRoot() ?? opsDeps.repoRoot()) : opsDeps.repoRoot()
-  const live = liveContext(repoRoot)
-  const bundle = loadBundle(repoRoot)
-  const wants = (section: 'config' | 'runtime' | 'tools' | 'harness' | 'mcp' | 'lsp' | 'memory' | 'index' | 'updates'): boolean => {
-    if (topic === undefined) return true
-    if (isHarness(topic)) return section === 'config' || section === 'runtime' || section === 'harness'
-    return topic === section
-  }
-  const checks: DoctorCheck[] = []
-  const nowIso = () => new Date(opsDeps.now()).toISOString()
   // One rolling line names the section that runs (the handshakes take up to 30 s); it is gone before the report.
   const steps = progressSteps(io, json)
   steps.title(topic !== undefined ? `doctor ${topic}` : 'doctor')
@@ -129,7 +120,37 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     if (working) steps.list.update('doctor', `Checking ${what}…`)
     else { steps.list.start('doctor', `Checking ${what}…`); working = true }
   }
+  let checks: DoctorCheck[]
   try {
+    checks = await healthChecks(topic, checking)
+  } finally {
+    steps.stop()
+  }
+  return printHealth(io, checks, { json, all })
+}
+
+export type HealthSection = 'config' | 'runtime' | 'tools' | 'harness' | 'mcp' | 'lsp' | 'memory' | 'index' | 'updates'
+
+/** The sections a scope covers: all of them without one, config + runtime + that harness for a harness, else the one named. */
+export function healthSections(scope: string | undefined): (section: HealthSection) => boolean {
+  if (scope === undefined) return () => true
+  if (isHarness(scope)) return section => section === 'config' || section === 'runtime' || section === 'harness'
+  return section => scope === section
+}
+
+/**
+ * The one body of the health commands, part one: gathers the findings of a scope (a section, a harness, or
+ * everything). `checking` is told which section starts. `printHealth` is part two.
+ */
+export async function healthChecks(scope: string | undefined, checking: (what: string) => void = () => {}): Promise<DoctorCheck[]> {
+  const topic = scope
+  const repoRoot = paths.isFrozenRuntime() ? (paths.checkoutRoot() ?? opsDeps.repoRoot()) : opsDeps.repoRoot()
+  const live = liveContext(repoRoot)
+  const bundle = loadBundle(repoRoot)
+  const wants = healthSections(scope)
+  const checks: DoctorCheck[] = []
+  const nowIso = () => new Date(opsDeps.now()).toISOString()
+  {
     if (wants('config')) { checking('configuration'); checks.push(...configChecks(live, bundle, repoRoot)) }
     if (wants('runtime')) { checking('the runtime'); checks.push(...await runtimeChecks(repoRoot, bundle, opsDeps.now())) }
     if (wants('tools')) {
@@ -186,10 +207,13 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     if (wants('memory')) { checking('memory'); checks.push(...await memoryChecks()) }
     if (wants('index')) { checking('code indexes'); checks.push(...await indexSection(process.cwd(), live.config, opsDeps.now())) }
     if (wants('updates')) checks.push(...updateChecks(opsDeps.now()))
-  } finally {
-    steps.stop()
   }
+  return checks
+}
 
+/** The one body of the health commands, part two: prints findings (JSON, the terminal report, or a table) and returns the exit code. */
+export function printHealth(io: CommandIO, checks: readonly DoctorCheck[], o: { json: boolean, all: boolean }): number {
+  const { json, all } = o
   const code = doctorExit(checks)
   const count = (l: DoctorCheck['level']) => checks.filter(c => c.level === l).length
   if (json) {

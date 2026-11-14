@@ -689,7 +689,7 @@ describe('Stop: H23 route.audit once per prompt, after the stop guard', () => {
         return out === '' ? {} : json(out)
       }
       for (const why of ['paused', 'awaiting-approval', 'question'] as StopWhy[]) expect({ why, out: await after(why) }).toEqual({ why, out: {} })
-      for (const why of ['runaway-plan', 'runaway-chain'] as StopWhy[]) expect({ why, out: await after(why) }).toEqual({ why, out: { systemMessage: runawayNotice(why, defaultConfig().plan) } })
+      for (const why of ['runaway-plan', 'runaway-chain'] as StopWhy[]) expect({ why, out: await after(why) }).toEqual({ why, out: { systemMessage: runawayNotice(why) } })
       for (const why of ['finished', 'disabled'] as StopWhy[]) {
         const out = await after(why)
         const context = (out['hookSpecificOutput'] as Record<string, unknown> | undefined)?.['additionalContext']

@@ -9,19 +9,18 @@ const denied = (cmd: string): string | undefined => checkBash(cmd, opts).deny
 const OFF = "would switch off Buracle's guards"
 
 describe("G2: Buracle's CLI and the harness CLIs cannot switch the guards off", () => {
-  test("Buracle's CLI: uninstall, rollback and config keys that turn guards or hooks off, in every spelling", () => {
+  test("Buracle's CLI: uninstall and config keys that turn guards or hooks off, in every spelling", () => {
     for (const cmd of [
       'buracle uninstall', 'buracle uninstall --yes --purge-state', '~/.buracle/bin/buracle uninstall', '"$BURACLE_HOME/bin/buracle" uninstall',
       '"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle" uninstall --force', 'bun src/cli/main.ts uninstall', 'bun run /opt/buracle/src/cli/main.ts uninstall --yes',
-      'bun harness/claude/bin/buracle.ts uninstall', 'buracle rollback', 'buracle --json rollback abc123',
-      'buracle rollback toolchain', 'buracle rollback toolchain @upstash/context7-mcp --json',
+      'bun harness/claude/bin/buracle.ts uninstall',
       'buracle config set permissions.enforce false', 'buracle config set permissions.bypass false', 'buracle config set guards.bash.extraDeny "[]"',
       'buracle config set guards.write.protect "[]"', 'buracle config unset guards.write.protect', 'buracle config set guards.redact false',
       'buracle config set harnesses.claude.enabled false', 'buracle config set routing.strictness off', 'buracle config set plan.stopGuard false',
       'buracle config set plan.runaway.perPlan 0', 'buracle config set repo /tmp/evil', 'buracle config set guards "{}"',
       "buracle config set 'guards'.\"bash\".extraDeny x", 'buracle config set --string permissions.enforce no', 'buracle config set "$KEY" x',
       'sudo buracle uninstall', "bash -c 'buracle uninstall'", 'x=uninstall; buracle $x',
-      'sh ~/.buracle/bin/buracle config set guards.bash.enabled false', 'bash -x -o pipefail "$HOME/.buracle/bin/buracle" uninstall', 'source ~/.buracle/bin/buracle rollback',
+      'sh ~/.buracle/bin/buracle config set guards.bash.enabled false', 'bash -x -o pipefail "$HOME/.buracle/bin/buracle" uninstall', 'source ~/.buracle/bin/buracle uninstall',
       'bun --bun src/cli/main.ts config set guards.bash.enabled false', 'node --import tsx /opt/buracle/src/cli/main.ts config set permissions.enforce false', 'deno run -A src/cli/main.ts uninstall',
     ]) expect({ cmd, reason: denied(cmd) }).toEqual({ cmd, reason: expect.stringContaining(OFF) })
   })
@@ -121,11 +120,12 @@ describe('G3: Buracle and the harness settings cannot be relocated for later ses
     ]) expect({ cmd, reason: denied(cmd) }).toEqual({ cmd, reason: expect.stringMatching(/shell startup file .* set a variable that relocates Buracle/) })
   })
 
-  test('launchctl setenv, fish universal variables, setx and systemd user environments', () => {
+  test('launchctl setenv, fish universal variables and systemd user environments; setx (Windows) is not read', () => {
     for (const cmd of [
       'launchctl setenv BURACLE_HOME /tmp/fb', 'launchctl setenv CLAUDE_CONFIG_DIR /tmp/c', 'launchctl setenv "$V" /tmp/fb', "fish -c 'set -Ux BURACLE_HOME /tmp/fb'",
-      'set --universal CODEX_HOME /tmp/x', 'setx BURACLE_HOME C:\\fb', 'systemctl --user set-environment XDG_CONFIG_HOME=/tmp/x',
+      'set --universal CODEX_HOME /tmp/x', 'systemctl --user set-environment XDG_CONFIG_HOME=/tmp/x',
     ]) expect({ cmd, reason: denied(cmd) }).toEqual({ cmd, reason: expect.stringContaining('relocates Buracle or the harness settings') })
+    expect(denied('setx CODEX_HOME /tmp/x')).toBeUndefined()
   })
 
   test("writes into the shim's folder are refused (SEC-1 already covers $BURACLE_HOME/bin and ~/.buracle/bin)", () => {

@@ -205,7 +205,6 @@ export interface PromptRoute {
   load: string[]
   candidates: string[]
   categories: string[]
-  memory: { recall: boolean; write: boolean; cli?: boolean }
   libs?: string[]
 }
 
@@ -226,7 +225,7 @@ const ORDINARY_PARTS = new Set([
 ])
 
 function emptyRoute(): PromptRoute {
-  return { invoked: [], load: [], candidates: [], categories: [], memory: { recall: false, write: false } }
+  return { invoked: [], load: [], candidates: [], categories: [] }
 }
 
 // `/<id>`, or `/<namespace>:<id>` with a namespace some harness uses (`buracle`, `skill`).

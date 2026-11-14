@@ -11,9 +11,6 @@ const MARKERS = /\bwin32\b|\bisWindows\b|windowsHide|windowsVerbatim|commandWind
 
 // The guard files that read Windows commands and paths in agent input, each with its reason.
 const GUARD_FILES: Readonly<Record<string, string>> = {
-  'src/core/policy/switch-off.ts': 'protects the PowerShell profiles under the user folder an agent could edit',
-  'src/core/policy/write-guard.ts': 'protects the shim names an agent could overwrite, buracle.cmd included',
-  'src/core/policy/code-scan.ts': 'reads USERPROFILE and drive paths in interpreter code an agent writes',
 }
 
 // The tests that name win32 to prove it has no effect.

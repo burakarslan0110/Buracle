@@ -3,7 +3,7 @@ import { join, normalize } from 'node:path'
 import { catalogSkills } from '../../core/catalog'
 import type { BuracleConfig } from '../../core/config'
 import { compileTriggers } from '../../core/policy/skill-router'
-import { describeIndexState, indexHealth } from '../../core/workspace'
+import { describeIndexState, indexHealth, indexSettings, type IndexSettings } from '../../core/workspace'
 import { readJsonSafeSync } from '../../engine/fsx'
 import * as paths from '../../engine/paths'
 import { parseVersion, run as runProc, which, type RunOptions, type RunResult } from '../../engine/proc'
@@ -330,22 +330,22 @@ export function permissionFinding(
   return { level: 'ok', check, detail: `bypassPermissions${live}${nudge}` }
 }
 
-export async function indexFinding(folder: string, cfg: BuracleConfig, cwd: string, now: number): Promise<Finding> {
+export async function indexFinding(folder: string, cfg: IndexSettings, cwd: string, now: number): Promise<Finding> {
   const check = 'index'
   const servers = obj(readJsonObject(join(folder, '.mcp.json'))?.['mcpServers']) ?? {}
-  const tools = (['codegraph', 'semble'] as const).filter(t => cfg.index[t])
+  const tools = (['codegraph', 'semble'] as const).filter(t => cfg[t])
   const missing = tools.filter(t => obj(servers[t]) === undefined)
   if (missing.length > 0) return { level: 'error', check, detail: `${join(folder, '.mcp.json')} declares no ${missing.join(' or ')} server; run \`buracle build\` and \`buracle install claude\`` }
   const deferred = tools.filter(t => obj(servers[t])?.['alwaysLoad'] !== true)
   const upfront = deferred.length > 0 ? `${deferred.join(' and ')} load behind tool search (no alwaysLoad); run \`buracle build\`` : undefined
   if (tools.length === 0) return { level: 'ok', check, detail: 'index.codegraph and index.semble are off' }
-  const root = await projectRootFor(cwd, paths.oldVaultRoot(), cfg.index.exclude).catch(() => undefined)
+  const root = await projectRootFor(cwd, paths.oldVaultRoot(), cfg.exclude).catch(() => undefined)
   if (root === undefined) {
     return { level: upfront !== undefined ? 'warn' : 'ok', check, detail: upfront ?? `${tools.join(' and ')} load upfront; ${cwd} is not a project, so there is no index to check here` }
   }
-  const pi = indexSummary(root, cfg.index, now)
+  const pi = indexSummary(root, cfg, now)
   const states = tools.map(t => `${t} ${describeIndexState(pi[t], now)}`).join(', ')
-  const auto = cfg.index.auto ? '' : ' (index.auto is off: run `buracle index ensure`)'
+  const auto = cfg.auto ? '' : ' (index.auto is off: run `buracle index ensure`)'
   const level = upfront !== undefined || indexHealth(pi) === 'failed' ? 'warn' : 'ok'
   return { level, check, detail: `${root}: ${states}${auto}${upfront !== undefined ? `; ${upfront}` : `; ${tools.join(' and ')} load upfront`}` }
 }
@@ -394,7 +394,7 @@ export async function claudeDoctor(ctx: AdapterContext, deps: Partial<DoctorDeps
   findings.push(commandsFinding(folder, settingsPath, name => d.which(name)))
   const settings = readJsonObject(settingsPath)
   findings.push(permissionFinding(ctx.config.permissions, settings, readJsonObject(ctx.paths.claudeJson()), lastSessionMode(), d.now()))
-  findings.push(await indexFinding(folder, ctx.config, d.cwd(), d.now()))
+  findings.push(await indexFinding(folder, indexSettings(ctx.config), d.cwd(), d.now()))
   findings.push(routerFinding(ctx))
   return findings
 }

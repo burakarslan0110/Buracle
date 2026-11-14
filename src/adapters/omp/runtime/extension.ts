@@ -2,6 +2,7 @@ import type { BuracleConfig } from '../../../core/config'
 import type { HookId, ToolCall, ToolKind } from '../../../core/events'
 import { classifyTool } from '../../../core/events'
 import { flowDef } from '../../../core/flow/catalog'
+import { FOLD_AFTER_SEC } from '../../../core/flow/state'
 import * as corePolicy from '../../../core/policy/index'
 import type { PromptRoute } from '../../../core/policy/skill-router'
 import { PROMPT_CONTEXT_MAX_CHARS, routeText } from '../../../core/policy/skill-router'
@@ -222,7 +223,7 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
     }
 
     pi.setLabel?.('Buracle')
-    const receipts = createTurnReceipts({ now: () => deps.now(), view: sid => guarded('flow view', () => deps.flow.view(sid, deps.now(), liveOrDefaults().config.workflow.foldAfterSec)), log: (msg, data) => log('debug', `omp: ${msg}`, data) })
+    const receipts = createTurnReceipts({ now: () => deps.now(), view: sid => guarded('flow view', () => deps.flow.view(sid, deps.now(), FOLD_AFTER_SEC)), log: (msg, data) => log('debug', `omp: ${msg}`, data) })
     const pane = new StatusPane({ lines: (view, ctx) => status.lines(view, ctx) })
 
     const refreshFlow = (ctx: OmpContext): void => {
@@ -234,9 +235,9 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       const widget = m.flow ??= new FlowWidget()
       if (!lc.config.workflow.band) { widget.draw(ctx.ui, []); return }
       const now = deps.now()
-      const view = deps.flow.view(sid, now, lc.config.workflow.foldAfterSec)
+      const view = deps.flow.view(sid, now, FOLD_AFTER_SEC)
       widget.draw(ctx.ui, flowWidgetLines(view, deps.columns(), { emoji: lc.config.statusline.emoji, ansi: true }))
-      const due = widget.foldDue(view, lc.config.workflow.foldAfterSec)
+      const due = widget.foldDue(view, FOLD_AFTER_SEC)
       if (due !== undefined && typeof ctx.setTimeout === 'function') ctx.setTimeout(() => refreshFlowSafe(ctx), Math.max(0, due - now) + 250)
     }
     const refreshFlowSafe = (ctx: OmpContext): void => { guarded('workflow band', () => refreshFlow(ctx)) }
@@ -689,7 +690,7 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
         const sid = sessionOf(ctx)
         if (sid === undefined) return undefined
         writeTelemetryFor(sid, ctx)
-        guarded('H05 context watch', () => contextCheck({ pi, guarded }, memo(sid), ctx, event, live().config.context))
+        guarded('H05 context watch', () => contextCheck({ pi, guarded }, memo(sid), ctx, event))
         const text = messageText(event.message)
         const entry: SpoolEntry = { ts: deps.now(), ev: 'turn' }
         const model = strAt(event.message, 'model') ?? ctx.model?.id

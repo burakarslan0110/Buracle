@@ -2,8 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { backgroundInstallArgv, CODEGRAPH_GATE_MS, codegraphGate, expireLaunchFailures, LAUNCH_DOWN_TTL_MS, recordLaunchFailure, run as mcpRun } from '../../src/cli/commands/mcp'
-import { defaultConfig } from '../../src/core/config'
 import { classifyTool } from '../../src/core/events'
+import { INDEX_SETTINGS } from '../../src/core/workspace'
 import { harnessMcpToolName, mcpHealthOf, routeTool, type RoutingPolicy } from '../../src/core/policy/routing'
 import { loadCanonicalSync } from '../../src/engine/canonical'
 import * as paths from '../../src/engine/paths'
@@ -154,7 +154,7 @@ describe('buracle mcp run codegraph: start gate', () => {
       mkdirSync(join(indexLockFile(repo), '..'), { recursive: true })
       writeFileSync(indexLockFile(repo), JSON.stringify({ pid: process.pid, at: 0 }))
       let t = 0
-      const r = await codegraphGate(repo, { cfg: defaultConfig(), nowMs: () => t, sleep: async ms => { t += ms }, argv: undefined })
+      const r = await codegraphGate(repo, { cfg: INDEX_SETTINGS, nowMs: () => t, sleep: async ms => { t += ms }, argv: undefined })
       expect(CODEGRAPH_GATE_MS).toBeLessThan(5_000)
       expect(r).toEqual({ root: repo, outcome: 'timeout', waitedMs: 4_000 })
     })
@@ -174,7 +174,7 @@ describe('buracle mcp run codegraph: start gate', () => {
           writeFileSync(join(repo, '.codegraph', 'codegraph.db'), '')
         }
       }
-      expect(await codegraphGate(repo, { cfg: defaultConfig(), nowMs: () => t, sleep, argv: undefined })).toEqual({ root: repo, outcome: 'ready', waitedMs: 1_500 })
+      expect(await codegraphGate(repo, { cfg: INDEX_SETTINGS, nowMs: () => t, sleep, argv: undefined })).toEqual({ root: repo, outcome: 'ready', waitedMs: 1_500 })
     })
   })
 
@@ -184,7 +184,7 @@ describe('buracle mcp run codegraph: start gate', () => {
       await gitInit(repo)
       mkdirSync(join(repo, '.codegraph'), { recursive: true })
       writeFileSync(join(repo, '.codegraph', 'codegraph.db'), '')
-      expect(await codegraphGate(repo, { cfg: defaultConfig(), argv: undefined })).toEqual({ root: repo, outcome: 'present', waitedMs: 0 })
+      expect(await codegraphGate(repo, { cfg: INDEX_SETTINGS, argv: undefined })).toEqual({ root: repo, outcome: 'present', waitedMs: 0 })
     })
   })
 })

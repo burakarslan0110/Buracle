@@ -8,10 +8,12 @@ import { atomicWriteSync, readTextSync, realPath, sha256 } from '../fsx'
 import * as paths from '../paths'
 import { buildContext, inCheckout, loadBundle } from './context'
 import { errText, isInside } from './output'
-import { loadCommandInfos, referenceDocs, type CommandInfo } from './reference'
+import { loadCommandInfos, referenceDocs, SKILL_COMMANDS, skillCommandReference, type CommandInfo } from './reference'
 
 export const MANIFEST_REL = 'harness/.manifest.json'
 export const DOCS_PRODUCER = 'docs'
+/** Writes the buracle skill's generated command reference into canonical/; like the docs, it is not a manifest entry. */
+export const SKILL_REFERENCE_PRODUCER = 'skill-reference'
 
 export interface GeneratedFile { path: string; content: string; exec: boolean; by: string }
 export interface ManifestEntry { by: string; sha256: string; exec: boolean }
@@ -196,6 +198,20 @@ export async function runBuild(opts: BuildOptions): Promise<BuildReport> {
   const failed = new Set<string>()
   const bundle = canonical
   await inCheckout(repoRoot, async () => {
+    // The buracle skill's command reference comes from the CLI itself and lands in the skill's source; the
+    // adapters below render this text, so one run brings canonical/ and harness/ up to date together.
+    const skillRef = bundle.skills.find(s => s.id === SKILL_COMMANDS.skill)?.files.find(f => f.path === SKILL_COMMANDS.file)
+    if (skillRef !== undefined) {
+      try {
+        const reg = opts.commands ?? await loadCommandInfos()
+        skillRef.content = skillCommandReference(reg.commands, reg.exitCodes)
+        byProducer.set(SKILL_REFERENCE_PRODUCER, [{ path: SKILL_COMMANDS.rel, content: skillRef.content, exec: false, by: SKILL_REFERENCE_PRODUCER }])
+      } catch (e) {
+        failed.add(SKILL_REFERENCE_PRODUCER)
+        report.errors.push({ source: SKILL_REFERENCE_PRODUCER, error: errText(e) })
+      }
+    }
+
     if (opts.hookData !== false) {
       try {
         const f: unknown = await (opts.hookData ?? defaultHookData)(bundle)
@@ -295,7 +311,7 @@ export async function runBuild(opts: BuildOptions): Promise<BuildReport> {
   const ran = new Set(report.producers)
   const next: BuildManifest = { v: 1, files: {} }
   for (const [p, e] of Object.entries(old.files)) if (!ran.has(e.by) && safeManifestPath(p)) next.files[p] = e
-  for (const f of fresh.values()) if (f.by !== DOCS_PRODUCER) next.files[f.path] = { by: f.by, sha256: sha256(f.content), exec: f.exec }
+  for (const f of fresh.values()) if (f.by !== DOCS_PRODUCER && f.by !== SKILL_REFERENCE_PRODUCER) next.files[f.path] = { by: f.by, sha256: sha256(f.content), exec: f.exec }
   const stale = Object.entries(old.files).filter(([p, e]) => ran.has(e.by) && !fresh.has(p) && safeManifestPath(p)).map(([p]) => p).sort()
   const nextText = renderManifest(next)
 

@@ -73,9 +73,8 @@ export function promptRouting(prompt: string, data: RouterData, o: { ledger: Usa
   return text !== undefined ? { route, text } : { route }
 }
 
-export function memoryOnlyRouting(signals: { recall: boolean, write: boolean }, available: readonly string[], strictness: RoutingPolicy['strictness']): PromptRouting {
-  const route: PromptRoute = { invoked: [], load: [], candidates: [], categories: [], memory: { recall: signals.recall, write: signals.write } }
-  if ((signals.recall || signals.write) && !available.includes('buracle-memory')) route.memory.cli = true
+export function memoryOnlyRouting(_signals: { recall: boolean, write: boolean }, _available: readonly string[], strictness: RoutingPolicy['strictness']): PromptRouting {
+  const route: PromptRoute = { invoked: [], load: [], candidates: [], categories: [] }
   const text = routeText(route, H, { strictness, categories: [] })
   return text !== undefined ? { route, text } : { route }
 }

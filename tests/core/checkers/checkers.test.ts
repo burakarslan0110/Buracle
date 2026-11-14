@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { FINDINGS_MAX_LINES, checkerDirs, checkerFacts, checkersFor, findingsOf, missingToolKey, missingToolNote, skippedNote } from '../../../src/core/checkers'
+import { FINDINGS_MAX_LINES, checkerDirs, checkerFacts, CHECKER_TIMEOUT_MS, checkersFor, findingsOf, missingToolKey, missingToolNote, skippedNote } from '../../../src/core/checkers'
 import type { CheckerFacts, CheckerPlan, DirScan } from '../../../src/core/checkers'
 import { defaultConfig } from '../../../src/core/config'
 
@@ -67,7 +67,7 @@ describe('checkersFor', () => {
     expect(checkersFor('/repo/a.sh', facts(), { ...CFG, languages: ['python'] })).toEqual([])
     expect(checkersFor('/repo/a.ts', facts({ hasEslintConfig: true }), { ...CFG, languages: ['javascript'] })).toEqual([])
     expect(checkersFor('/repo/a.js', facts({ hasEslintConfig: true }), { ...CFG, languages: ['javascript'] })).toHaveLength(1)
-    expect(checkersFor('/repo/a.sh', facts(), { ...CFG, timeoutMs: 5000 })[0]?.timeoutMs).toBe(5000)
+    expect(checkersFor('/repo/a.sh', facts(), CFG)[0]?.timeoutMs).toBe(CHECKER_TIMEOUT_MS)
   })
 
   test('other files get no checker', () => {

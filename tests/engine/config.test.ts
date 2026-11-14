@@ -26,7 +26,7 @@ describe('loadConfig', () => {
     expect(r.files.userExists).toBe(true)
     expect(r.config.routing.strictness).toBe('nudge')
     expect(r.config.checkers.languages).toEqual(['go'])
-    expect(r.config.checkers.timeoutMs).toBe(20000)
+    expect(r.config.checkers.enabled).toBe(true)
     expect(r.config.harnesses.omp.enabled).toBe(false)
     expect(r.config.harnesses.claude.enabled).toBe(true)
     expect(r.config.repo).toBe('/src/buracle')
@@ -52,7 +52,24 @@ describe('loadConfig', () => {
     expect(loadConfigSync().warnings).toEqual([])
   }))
 
-  test('unparsable YAML is reported, never treated as empty overrides', () => withSandbox(({ buracleHome }) => {
+  test('keys that became code constants still load from an old config.yaml: each is reported and ignored, the rest applies', () => withSandbox(({ buracleHome }) => {
+    writeUserConfig(buracleHome, [
+      'routing:\n  strictness: nudge',
+      'context:\n  warnPct: 70\n  criticalPct: 90',
+      'plan:\n  runaway:\n    perPlan: 3\n  worktreeDir: ~/trees',
+      'checkers:\n  timeoutMs: 5000\n  languages: [go]',
+      'memory:\n  ui:\n    port: 41800',
+      'workflow:\n  foldAfterSec: 60',
+      'index:\n  minIntervalMin: 1\n  maxChildren: 2\n  exclude: [vendor]',
+    ].join('\n') + '\n')
+    const r = loadConfigSync()
+    const file = join(buracleHome, 'config.yaml')
+    const ignored = (key: string) => `${file}: ${key}: unknown key (ignored; misspelled, renamed or removed? \`buracle config get\` prints the valid keys)`
+    expect([...r.errors].sort()).toEqual(['context', 'plan.runaway', 'plan.worktreeDir', 'checkers.timeoutMs', 'memory.ui.port', 'workflow.foldAfterSec', 'index.minIntervalMin', 'index.maxChildren'].map(ignored).sort())
+    expect(r.config).toEqual({ ...defaultConfig(), routing: { ...defaultConfig().routing, strictness: 'nudge' }, checkers: { enabled: true, languages: ['go'] }, index: { exclude: ['vendor'] } })
+  }))
+
+  test('unparsable YAML is reported, never treated as empty overrides',() => withSandbox(({ buracleHome }) => {
     writeUserConfig(buracleHome, 'routing: [unclosed\n')
     const r = loadConfigSync()
     expect(r.config).toEqual(defaultConfig())

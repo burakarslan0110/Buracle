@@ -11,7 +11,7 @@ import { hookBundle } from '../../../src/cli/hook-data'
 import type { BuracleConfig } from '../../../src/core/config'
 import { defaultConfig } from '../../../src/core/config'
 import type { CanonicalBundle } from '../../../src/core/catalog'
-import { STOP_GUARD_ESCAPE } from '../../../src/core/plan/state'
+import { RUNAWAY_PER_CHAIN, STOP_GUARD_ESCAPE } from '../../../src/core/plan/state'
 import * as paths from '../../../src/engine/paths'
 import { run } from '../../../src/engine/proc'
 import { freshState, saveState, statePath } from '../../../src/workflow/session-store'
@@ -417,10 +417,10 @@ describe('Stop: H08 + H11 through stopGuardVerdict', () => {
       saveState('claude', SID, { ...freshState(), guard: { blocksForPlan: 30, blocksInChain: 2, lastBlockAt: NOW - 5000 }, plan: { path: PLAN, slug: 'p', status: 'IN_PROGRESS', type: 'Feature', phase: 'implement', registeredAt: NOW - 1000 } })
       const release: HookCore['stopGuardVerdict'] = s => ({ decision: { action: 'allow' }, next: { ...s, guard: { ...s.guard, blocksInChain: 0 } }, why: 'runaway-plan' })
       const first = await claudeHook('Stop', fixture('stop.json', { stop_hook_active: true }), ctxWith(cfg), deps({}, { stopGuardVerdict: release }))
-      expect(json(first.stdout)).toEqual({ systemMessage: runawayNotice('runaway-plan', cfg.plan) })
+      expect(json(first.stdout)).toEqual({ systemMessage: runawayNotice('runaway-plan') })
       expect(await claudeHook('Stop', fixture('stop.json'), ctxWith(cfg), deps({}, { stopGuardVerdict: release }))).toEqual(QUIET)
-      expect(runawayNotice('runaway-chain', cfg.plan)).toContain(String(cfg.plan.runaway.perChain))
-      expect(runawayNotice('blocked', cfg.plan)).toBeUndefined()
+      expect(runawayNotice('runaway-chain')).toContain(String(RUNAWAY_PER_CHAIN))
+      expect(runawayNotice('blocked')).toBeUndefined()
     })
   })
 })

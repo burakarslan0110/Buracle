@@ -89,14 +89,14 @@ describe('buracle config', () => {
       expect(bad.err()).toContain('routing.strictness: expected one of enforce | nudge | off')
       const cross = memoryIO()
       expect(await configRun(['set', 'context.warnPct', '99'], cross)).toBe(1)
-      expect(cross.err()).toContain('must be lower than context.criticalPct')
+      expect(cross.err()).toContain('unknown key: context.warnPct')
       const unknown = memoryIO()
       expect(await configRun(['set', 'nope.missing', '1'], unknown)).toBe(1)
       expect(read(file)).toContain('strictness: nudge')
 
-      expect(await configRun(['set', 'plan.worktreeDir', '2026'], memoryIO())).toBe(0)
+      expect(await configRun(['set', 'repo', '2026'], memoryIO())).toBe(0)
       const w = memoryIO()
-      await configRun(['get', 'plan.worktreeDir', '--json'], w)
+      await configRun(['get', 'repo', '--json'], w)
       expect(w.out()).toBe('"2026"\n')
 
       expect(await configRun(['unset', 'routing.strictness'], memoryIO())).toBe(0)
@@ -152,9 +152,9 @@ describe('buracle config', () => {
   test('set creates config.yaml when missing; pre-existing invalid values do not block other keys', () => withSandbox(async ({ root, buracleHome }) => {
     const repo = makeRepo(root)
     await withDeps({ repoRoot: () => repo }, async () => {
-      expect(await setConfigValue('plan.worktreeDir', 'trees')).toEqual({ ok: true, changed: true })
-      expect(read(join(buracleHome, 'config.yaml'))).toBe('plan:\n  worktreeDir: trees\n')
-      writeFileSync(join(buracleHome, 'config.yaml'), 'plan:\n  worktreeDir: trees\n  stopGuard: maybe\n')
+      expect(await setConfigValue('repo', 'trees')).toEqual({ ok: true, changed: true })
+      expect(read(join(buracleHome, 'config.yaml'))).toBe('repo: trees\n')
+      writeFileSync(join(buracleHome, 'config.yaml'), 'repo: trees\nplan:\n  stopGuard: maybe\n')
       expect(await configRun(['set', 'statusline.emoji', 'false'], memoryIO())).toBe(0)
       expect(read(join(buracleHome, 'config.yaml'))).toContain('emoji: false')
       expect(await configRun(['frobnicate'], memoryIO())).toBe(1)

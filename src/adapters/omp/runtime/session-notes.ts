@@ -1,5 +1,4 @@
-import type { BuracleConfig } from '../../../core/config'
-import type { ContextBand } from '../../../core/status/context'
+import type { ContextBand, ContextBands } from '../../../core/status/context'
 import { contextWatch } from '../../../core/status/context'
 import type { OmpContext, OmpExtensionAPI, OmpTurnEndEvent } from './types'
 import { hasTui, strAt } from './util'
@@ -14,7 +13,7 @@ export interface NotesHost {
 
 export interface ContextMemo { ctxWarned?: ContextBand, contextWarning?: string }
 
-export function contextCheck(host: NotesHost, m: ContextMemo, ctx: OmpContext, event: OmpTurnEndEvent, cfg: BuracleConfig['context']): void {
+export function contextCheck(host: NotesHost, m: ContextMemo, ctx: OmpContext, event: OmpTurnEndEvent, cfg?: ContextBands): void {
   const u = host.guarded('context usage', () => ctx.getContextUsage?.())
   const pct = u !== undefined && Number.isFinite(u.percent) ? u.percent : undefined
   const w = contextWatch(m.ctxWarned, pct, cfg)

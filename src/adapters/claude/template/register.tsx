@@ -370,7 +370,7 @@ async function refreshBand($: EngineInterface, S: ModState, force = false): Prom
     const state = await loadSessionState($, rt, sid)
     S.planPath = state.plan?.path
     const files: Core.BandFiles = {
-      sid, now: await nowMs($), state, band: rt.cfg.workflow.band, foldAfterSec: rt.cfg.workflow.foldAfterSec,
+      sid, now: await nowMs($), state, band: rt.cfg.workflow.band, foldAfterSec: Core.FOLD_AFTER_SEC,
       flow: raw === undefined ? undefined : Core.parseFlow(parseJson(raw)) ?? 'keep',
     }
     const planText = state.plan !== undefined ? await readText($, state.plan.path) : undefined
@@ -586,7 +586,7 @@ async function masked($: EngineInterface, S: ModState, toolUseId: string, ran: T
 }
 
 async function contextToast($: EngineInterface, S: ModState, pct: number | undefined): Promise<void> {
-  const w = Core.contextWatch(S.warned, pct, (await runtime($, S)).cfg.context)
+  const w = Core.contextWatch(S.warned, pct)
   S.warned = w.warned
   if (w.warn === undefined || pct === undefined) return
   const critical = w.band === 'critical'

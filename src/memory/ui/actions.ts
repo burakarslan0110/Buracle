@@ -1,7 +1,6 @@
 import { existsSync } from 'node:fs'
 import { isMemId } from '../../core/memory/brain'
 import { BACKUP_BUDGET, HEADROOM } from '../../core/memory/budgets'
-import { loadConfigSync } from '../../engine/config'
 import * as paths from '../../engine/paths'
 import { memReasonAdvice } from '../../core/memory/status'
 import { tilde } from '../../engine/update/output'
@@ -231,14 +230,12 @@ export async function deleteMemory(body: Record<string, unknown>, nowMs: number)
 
 export function settingsPayload(nowMs: number): Record<string, unknown> {
   const choice = chooseHarnesses({ nowMs })
-  let port: number | undefined
-  try { port = loadConfigSync().config.memory.ui.port } catch { port = undefined }
   return {
     file: tilde(paths.userConfigFile()),
     model: {
       harnesses: choice.picks, held: choice.held,
       headroom: { max5hPct: HEADROOM.max5hPct, max7dPct: HEADROOM.max7dPct },
     },
-    ...(port !== undefined ? { ui: { port } } : {}),
+    ui: { port: paths.MEMORY_UI_PORT },
   }
 }

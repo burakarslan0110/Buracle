@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { runPlan } from '../../src/cli/commands/plan'
 import { userConfigFile } from '../../src/engine/paths'
@@ -10,6 +10,17 @@ import { SESSION, ctxAt, evidenceSections, g, makeRepo, memIO, planDoc, write } 
 
 const S = SESSION
 const AS = ['--session', S.sessionId, '--harness', S.harness]
+const OWNER = { harness: S.harness, session: S.sessionId }
+
+/** A lane worktree as an older Buracle recorded it: `worktree create --lane` is gone, `plan --lane` still reads the record. */
+async function laneWorktree(repo: string, slug: string, owner?: typeof OWNER): Promise<string> {
+  const { runWorktree } = await import('../../src/cli/commands/worktree')
+  const io = memIO(true)
+  expect(await runWorktree(['create', slug], io, ctxAt(repo))).toBe(0)
+  const meta = join(realpathSync(join(repo, '.git')), 'buracle', 'worktrees', `${slug}.json`)
+  write(meta, JSON.stringify({ ...(JSON.parse(readFileSync(meta, 'utf8')) as object), lane: true, ...(owner !== undefined ? { owner } : {}) }))
+  return String(io.json()['path'])
+}
 
 function sandbox(fn: (root: string) => Promise<void>): Promise<void> {
   return withSandbox(({ root }) => withEnv({ BURACLE_NO_MEMORY: '1', BURACLE_LOCK_TIMEOUT_MS: '2000' }, () => fn(root)))
@@ -147,10 +158,7 @@ describe('buracle plan --lane: a whole workflow in a lane worktree keeps its own
     const lead = join(repo, 'docs', 'plans', '2026-10-08-lead.md')
     write(lead, planDoc({ status: 'IN_PROGRESS', approved: true }))
     await planRegister(lead, undefined, ctxAt(repo), S)
-    const io = memIO(true)
-    const { runWorktree } = await import('../../src/cli/commands/worktree')
-    expect(await runWorktree(['create', 'billing', '--lane', ...AS], io, ctxAt(repo))).toBe(0)
-    const lanePath = String(io.json()['path'])
+    const lanePath = await laneWorktree(repo, 'billing', OWNER)
     const lanePlan = join(lanePath, 'docs', 'plans', '2026-10-08-billing.md')
     write(lanePlan, planDoc({ title: 'Billing export' }))
 
@@ -189,28 +197,20 @@ describe('buracle plan --lane: a whole workflow in a lane worktree keeps its own
     expect(loadState('claude', S.sessionId).plan?.path).toBe(lead)
   }))
 
-  test('the finish sequence of a lane whose plan file stays in the lead\'s checkout: sync, verify --lane, cleanup; a plan file inside the lane worktree stops the sync', () => sandbox(async root => {
+  test('the finish sequence of a lane whose plan file stays in the lead\'s checkout: a squash-merge with git, verify --lane, cleanup', () => sandbox(async root => {
     const repo = await makeRepo(root)
     write(userConfigFile(), 'version: 1\nplan:\n  resultApproval: false\n')
     const { runWorktree } = await import('../../src/cli/commands/worktree')
-    const created = memIO(true)
-    expect(await runWorktree(['create', 'billing', '--lane', ...AS], created, ctxAt(repo))).toBe(0)
-    const lanePath = String(created.json()['path'])
-    const inside = join(lanePath, 'docs', 'plans', '2026-10-08-billing.md')
-    write(inside, planDoc({ title: 'Billing export' }))
+    const lanePath = await laneWorktree(repo, 'billing', OWNER)
     write(join(lanePath, 'src', 'billing.ts'), 'export const b = 1\n')
     await g(lanePath, 'add', 'src')
     await g(lanePath, 'commit', '-q', '-m', 'billing')
-    const refused = memIO(true)
-    expect(await runWorktree(['sync', 'billing', ...AS], refused, ctxAt(repo))).toBe(1)
-    expect(refused.err() + refused.out()).toContain('uncommitted change(s)')
-    rmSync(inside)
 
     const lanePlan = join(repo, 'docs', 'plans', '2026-10-08-billing.md')
     write(lanePlan, planDoc({ title: 'Billing export', status: 'COMPLETE', approved: true, done: 2, evidence: true }))
     expect(await runPlan(['register', lanePlan, '--phase', 'verify', '--lane', 'billing'], memIO(), ctxAt(lanePath, undefined, { BURACLE_SESSION_ID: 'child-session-9', BURACLE_HARNESS: 'opencode' }))).toBe(0)
-    const synced = memIO(true)
-    expect(await runWorktree(['sync', 'billing', ...AS], synced, ctxAt(repo))).toBe(0)
+    await g(repo, 'merge', '-q', '--squash', 'plan-build/billing')
+    await g(repo, 'commit', '-q', '-m', 'feat: billing export')
     expect(readFileSync(join(repo, 'src', 'billing.ts'), 'utf8')).toBe('export const b = 1\n')
     expect((await plan(repo, ['verify', '--lane', 'billing'])).code).toBe(0)
     expect(readFileSync(lanePlan, 'utf8')).toContain('status: VERIFIED')
@@ -222,7 +222,7 @@ describe('buracle plan --lane: a whole workflow in a lane worktree keeps its own
   test('cleaning up a lane worktree ends the lane\'s binding and the lead\'s record of its reviewer; unregister --lane still clears a lane whose worktree is gone', () => sandbox(async root => {
     const repo = await makeRepo(root)
     const { runWorktree } = await import('../../src/cli/commands/worktree')
-    expect(await runWorktree(['create', 'billing', '--lane', ...AS], memIO(), ctxAt(repo))).toBe(0)
+    await laneWorktree(repo, 'billing', OWNER)
     const lanePlan = join(repo, 'docs', 'plans', '2026-10-08-billing.md')
     write(lanePlan, planDoc({ title: 'Billing export' }))
     expect((await plan(repo, ['register', lanePlan, '--phase', 'plan', '--lane', 'billing'])).code).toBe(0)
@@ -232,7 +232,7 @@ describe('buracle plan --lane: a whole workflow in a lane worktree keeps its own
     expect(loadState('claude', `${S.sessionId}.lane-billing`).plan).toBeUndefined()
     expect((await plan(repo, ['status', '--json'])).json()['lanes']).toBeUndefined()
 
-    expect(await runWorktree(['create', 'export', '--lane'], memIO(), ctxAt(repo))).toBe(0)
+    await laneWorktree(repo, 'export')
     expect((await plan(repo, ['register', lanePlan, '--phase', 'plan', '--lane', 'export'])).code).toBe(0)
     expect((await plan(repo, ['review', 'start', '--role', 'plan', '--lane', 'export'])).code).toBe(0)
     expect(await runWorktree(['cleanup', 'export'], memIO(), ctxAt(repo))).toBe(0)

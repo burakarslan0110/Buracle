@@ -93,7 +93,7 @@ describe("checkWrite: Buracle's own setup (SEC-1)", () => {
     ['~/.buracle/config.yaml', "Buracle's own installation"], ['/Users/u/.buracle/rules/paths/typescript.md', "Buracle's own installation"],
     ['~/.buracle/toolchain/npm/x/package.json', "Buracle's own installation"], ['~/.buracle/logs/buracle.log', "Buracle's own installation"],
     ['~/.buracle/sessions/claude/s1/consent.json', "Buracle's own installation"],
-    ['~/.local/bin/buracle', '`buracle` command on PATH'], ['/Users/u/.local/bin/buracle.cmd', '`buracle` command on PATH'],
+    ['~/.local/bin/buracle', '`buracle` command on PATH'],
     ['~/.claude/settings.json', "Claude Code's own configuration"], ['~/.claude/settings.local.json', "Claude Code's own configuration"],
     ['~/.claude/plugins/cache/buracle/buracle/0.3.0/hooks/hooks.json', "Claude Code's own configuration"], ['~/.claude/plugins/installed_plugins.json', "Claude Code's own configuration"],
     ['~/.codex/config.toml', "Codex's own configuration"], ['~/.codex/hooks.json', "Codex's own configuration"], ['~/.codex/rules/buracle.rules', "Codex's own configuration"],
@@ -110,6 +110,10 @@ describe("checkWrite: Buracle's own setup (SEC-1)", () => {
       expect(reason).toContain(';')
     })
   }
+
+  test('only the POSIX shim name is protected on PATH: a buracle.cmd beside it is an ordinary file', () => {
+    expect(deny(['/Users/u/.local/bin/buracle.cmd'])).toBeUndefined()
+  })
 
   test('the reasons name the way to make the change instead', () => {
     expect(deny(['~/.buracle/config.yaml'])).toContain('`buracle config set …`')

@@ -358,10 +358,10 @@ function expandUser(s: string): string {
 }
 
 function expandVars(s: string): string {
-  return s.replace(/^(?:\$HOME|\$\{HOME\}|%USERPROFILE%|\$env:USERPROFILE|\$env:HOME)(?=[\\/]|$)/i, HOME)
+  return s.replace(/^(?:\$HOME|\$\{HOME\}|\$env:HOME)(?=[\\/]|$)/i, HOME)
 }
 
-const HOME_ENV = new Set(['HOME', 'USERPROFILE'])
+const HOME_ENV = new Set(['HOME'])
 
 function envValue(name: V | string): V {
   const n = typeof name === 'string' ? name : name.t === 'str' ? name.s : undefined
@@ -586,7 +586,7 @@ class Evaluator {
     }
     if (v.t === 'ref') {
       const p = v.path
-      if (/(?:^|\.)(?:env|environ)\.(?:HOME|USERPROFILE)$/i.test(p) || /(?:^|\.)Dir\.home$/.test(p)) return str(HOME)
+      if (/(?:^|\.)(?:env|environ)\.HOME$/i.test(p) || /(?:^|\.)Dir\.home$/.test(p)) return str(HOME)
       if (/(?:^|\.)env\.PWD$/.test(p)) return str('.')
       if (p === 'os.sep' || p === 'path.sep' || p === 'sep') return str('/')
       if (p === '__dirname' || p === '__file__' || p === '__filename') return UNKNOWN

@@ -16,10 +16,10 @@ function writeSnapshot(value: unknown, mtimeOffsetMs: number, at: Date = new Dat
 describe('opencode runtime-config reader', () => {
   test('an invalid value keeps its default; the valid values of the snapshot still apply', () => withSandbox(async () => {
     const d = defaultConfig()
-    writeSnapshot({ v: 1, config: { ...d, routing: { ...d.routing, strictness: 'nudge' }, context: { warnPct: 'x', criticalPct: 95 } }, resolved: { repoRoot: '/r' } }, 0)
+    writeSnapshot({ v: 1, config: { ...d, routing: { ...d.routing, strictness: 'nudge' }, memory: { ui: { autostart: 'x' }, exclude: [] } }, resolved: { repoRoot: '/r' } }, 0)
     const snap = runtimeConfigCache(d).get()
     expect(snap.config.routing.strictness).toBe('nudge')
-    expect(snap.config.context.warnPct).toBe(d.context.warnPct)
+    expect(snap.config.memory.ui.autostart).toBe(d.memory.ui.autostart)
     expect(snap.resolved?.repoRoot).toBe('/r')
     expect(readFileSync(paths.logFile(), 'utf8')).toContain('opencode: runtime-config.json has invalid values')
   }))

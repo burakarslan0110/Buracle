@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
-import { defaultConfig } from '../../src/core/config'
+import { INDEX_SETTINGS } from '../../src/core/workspace'
 import { projectSync } from '../../src/workflow/project'
 import { indexNewWorktree, keepWorktreesOutOfSemble, updateSembleIgnore } from '../../src/workflow/workspace-index'
 import { worktreeCreate } from '../../src/workflow/worktree'
@@ -77,12 +77,11 @@ describe('a new worktree gets its own code indexes', () => {
     const facts = { mainRoot: repo, commonDir: realpathSync(join(repo, '.git')) }
     const spawned: Array<{ argv: string[], cwd: string }> = []
     const spawn = (argv: string[], cwd: string) => { spawned.push({ argv, cwd }) }
-    expect(await indexNewWorktree(wt, facts, 1_000, { cfg: defaultConfig(), argv: ['buracle'], spawn })).toEqual([])
+    expect(await indexNewWorktree(wt, facts, 1_000, { cfg: INDEX_SETTINGS, argv: ['buracle'], spawn })).toEqual([])
     expect(spawned).toEqual([])
     await withEnv({ BURACLE_NO_AUTOSTART: undefined }, async () => {
-      expect(await indexNewWorktree(wt, facts, 1_000, { cfg: defaultConfig(), argv: ['buracle'], spawn })).toEqual([])
-      const off = defaultConfig()
-      await indexNewWorktree(wt, facts, 1_000, { cfg: { ...off, index: { ...off.index, auto: false } }, argv: ['buracle'], spawn })
+      expect(await indexNewWorktree(wt, facts, 1_000, { cfg: INDEX_SETTINGS, argv: ['buracle'], spawn })).toEqual([])
+      await indexNewWorktree(wt, facts, 1_000, { cfg: { ...INDEX_SETTINGS, auto: false }, argv: ['buracle'], spawn })
     })
     const real = realpathSync(wt)
     expect(spawned).toEqual([{ argv: ['buracle', 'index', 'ensure', '--cwd', real, '--if-due', '--quiet'], cwd: real }])
