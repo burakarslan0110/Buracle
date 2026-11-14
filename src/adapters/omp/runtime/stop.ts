@@ -37,7 +37,7 @@ export function planModeOn(ctx: OmpContext): boolean {
   }
 }
 
-export function promptGuidance(deps: Pick<ExtensionDeps, 'state' | 'plan'>, sid: string, control: 'pause' | 'resume' | 'stop' | null, text: string, opts: { autoPause: boolean, now: number }): string | undefined {
+export function promptGuidance(deps: Pick<ExtensionDeps, 'state' | 'plan'>, sid: string, control: 'pause' | 'resume' | 'stop' | null, text: string, opts: { now: number }): string | undefined {
   const before = deps.state.load(sid)
   if (before.plan === undefined) return deps.plan.promptInteraction(before, control, text, opts).guidance
   let guidance: string | undefined

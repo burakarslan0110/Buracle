@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { FINDINGS_MAX_LINES, checkerDirs, checkerFacts, checkersFor, findingsOf, lengthNote, missingToolKey, missingToolNote, skippedNote } from '../../../src/core/checkers'
+import { FINDINGS_MAX_LINES, checkerDirs, checkerFacts, checkersFor, findingsOf, missingToolKey, missingToolNote, skippedNote } from '../../../src/core/checkers'
 import type { CheckerFacts, CheckerPlan, DirScan } from '../../../src/core/checkers'
 import { defaultConfig } from '../../../src/core/config'
 
@@ -210,17 +210,5 @@ describe('missing tools and the time budget', () => {
 
   test('a skipped plan names the tool', () => {
     expect(skippedNote(p('/usr/bin/golangci-lint'))).toBe('golangci-lint skipped (hook time budget used up)')
-  })
-})
-
-describe('lengthNote', () => {
-  test('silent up to 800 lines, a warning above, critical above 1000', () => {
-    expect(lengthNote(10)).toBeUndefined()
-    expect(lengthNote(800)).toBeUndefined()
-    expect(lengthNote(801)).toContain('over 800')
-    expect(lengthNote(1000)).toContain('over 800')
-    expect(lengthNote(1001)).toContain('over 1000')
-    expect(lengthNote(1001)).toContain('split it')
-    expect(lengthNote(Number.NaN)).toBeUndefined()
   })
 })

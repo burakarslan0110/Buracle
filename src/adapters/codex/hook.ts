@@ -310,10 +310,6 @@ async function routePromptStep(prompt: string, sid: string, cwd: string, ctx: Ad
   await step(ev, 'H24 ledgerPrompt', undefined, () => { recordPrompt(sid, routed.route, now, deps.core) })
   const start = workflowStart(routed.route, prompt, deps.core)
   if (start !== undefined) await step(ev, 'H25 flow start', undefined, () => { recordWorkflowStart(sid, start, now) })
-  if (!captureOff(deps)) {
-    const signals = await step(ev, 'H26 signals', [] as ReturnType<CoreFns['promptSignals']>, () => deps.core.promptSignals(prompt))
-    await spool(deps, ev, sid, signals.map(signal => ({ ts: now, ev: 'prompt-signal' as const, signal })))
-  }
   return routed.text
 }
 
@@ -330,7 +326,7 @@ async function onUserPromptSubmit(p: Payload, sid: string, cwd: string, ctx: Ada
     await step(ev, 'turn receipt start', undefined, () => { turnStarted(ctx, sid, now) })
     const intent = (await step(ev, 'H10 detectSignals', NO_SIGNALS, () => deps.core.detectSignals(prompt))).control
     const guidance = await step(ev, 'H10 interaction', undefined as string | undefined, () => {
-      const opts = { autoPause: ctx.config.plan.autoPause, now }
+      const opts = { now }
       const before = loadState(H, sid)
       if (before.plan === undefined) return deps.core.promptInteraction(before, intent, prompt, opts).guidance
       let text: string | undefined

@@ -4,7 +4,6 @@ import type { ToolCall, ToolKind } from '../../core/events'
 import { classifyTool } from '../../core/events'
 import { workflowOfPrompt, workflowOfSkill } from '../../core/flow/catalog'
 import { spoolPromptExcerpt, type SpoolEntry } from '../../core/memory/spool'
-import { promptSignals } from '../../core/memory/signals'
 import { checkBash, type BashGuardOptions } from '../../core/policy/bash-guard'
 import { checkWrite } from '../../core/policy/write-guard'
 import { validateReviewJson } from '../../core/policy/review'
@@ -316,8 +315,8 @@ function contextWarning(ctx: AdapterContext, sid: string, now: number): string |
     : `Buracle: the context window is ${Math.round(pct)}% full. Keep the plan file and todo list current so work survives compaction; read narrow line ranges instead of whole files.`
 }
 
-function controlNotice(control: PromptSignals['control'], prompt: string, sid: string, ctx: AdapterContext, now: number): string | undefined {
-  const opts = { autoPause: ctx.config.plan.autoPause, now }
+function controlNotice(control: PromptSignals['control'], prompt: string, sid: string, _ctx: AdapterContext, now: number): string | undefined {
+  const opts = { now }
   const before = loadState(H, sid)
   if (before.plan === undefined) return promptInteraction(before, control, prompt, opts).guidance
   let guidance: string | undefined
@@ -394,10 +393,6 @@ async function userPromptSubmit(p: Record<string, unknown>, sid: string, ctx: Ad
     routed = await step('H22 route.prompt', undefined as string | undefined, () => promptRoute(prompt, signals, sid, ctx, d, now, invoked, str(p['cwd'])))
     planMode = await step('H10 read-only start', undefined as string | undefined, () => readOnlyStart(H, p['permission_mode'] === 'plan', [typed?.workflow, ...invoked]))
     system = await step('permission mode', undefined as string | undefined, () => permissionNotice(sid, p['permission_mode'], ctx.config, now))
-    if (!captureOff(d)) {
-      const signals26 = await step('H26 prompt signals', [] as ReturnType<typeof promptSignals>, () => promptSignals(prompt))
-      for (const signal of signals26) entries.push({ ts: now, ev: 'prompt-signal', signal })
-    }
   }
   const notice = await step('H21 workspace notice', undefined as string | undefined, () => workspaceUpdate(sid, ctx, d, now))
   const warning = await step('H05 context warning', undefined as string | undefined, () => contextWarning(ctx, sid, now))

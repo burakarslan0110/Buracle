@@ -23,7 +23,6 @@ plan:
   runaway:
     perPlan: 30
     perChain: 5
-  autoPause: false
   planApproval: true
   resultApproval: true
   branchIsolation: true

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { MEMORY_INJECT } from '../../../src/core/memory/budgets'
 import { capabilityCard } from '../../../src/core/policy/routing'
 import { CONTINUE_MARK, BuracleRuntime, contextNote, createBuraclePlugin, REGISTRY_KEY, type PluginDeps } from '../../../src/adapters/opencode/runtime/plugin'
-import { AUTO_PAUSE_REASON, clearRepoCache } from '../../../src/adapters/opencode/runtime/adapter-rules'
+import { clearRepoCache } from '../../../src/adapters/opencode/runtime/adapter-rules'
 import type { PermissionEvaluation, SessionContextEvent, ShellCreateBefore, ToolExecuteAfter } from '../../../src/adapters/opencode/runtime/types'
 import { clearPreparedWorkspaces } from '../../../src/adapters/opencode/runtime/workspace'
 import type { BuracleConfig } from '../../../src/core/config'
@@ -360,7 +360,7 @@ describe('opencode server plugin: permission.evaluate guards', () => {
 })
 
 describe('opencode server plugin: tool results, context, compaction, prompts, shell', () => {
-  test('execute.after spools edit and shell metadata and appends H04 notes and nudges', () => withSandbox(async ({ root }) => {
+  test('execute.after spools edit and shell metadata', () => withSandbox(async ({ root }) => {
     const { f, mem } = await runtime(root)
     const file = join(root, 'big.ts')
     writeFileSync(file, Array.from({ length: 1200 }, (_, i) => `export const v${i} = ${i}`).join('\n'))
@@ -371,7 +371,6 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
     expect(Array.isArray(content)).toBe(true)
     const texts = (content as unknown as Array<{ text: string }>).map(c => c.text)
     expect(texts[0]).toBe('Edited big.ts')
-    expect(texts.join('\n')).toContain('Buracle checks (H04):')
     const edit = mem.appended.flatMap(a => a.entries).find(e => e.ev === 'tool' && e.kind === 'edit')
     expect(edit?.paths).toEqual([file])
 
@@ -379,13 +378,11 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
     await f.trigger('permission.evaluate', evaluation('shell', ['grep -r foo .'], 'call_s'))
     const sh: ToolExecuteAfter = { tool: 'shell', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_s', input: { command: 'grep -r foo .' }, status: 'completed', result: { output: { exit: 1, output: '', truncated: false }, content: [{ type: 'text', text: '' }] } }
     await f.trigger('tool.execute.after', sh)
-    const shText = sh.status === 'completed' ? (sh.result.content as unknown as Array<{ text: string }>).map(c => c.text).join('\n') : ''
-    expect(shText).toContain('rg')
     const bash = mem.appended.flatMap(a => a.entries).find(e => e.ev === 'tool' && e.kind === 'bash')
     expect(bash).toMatchObject({ tool: 'shell', cmd: 'grep -r foo .', exit: 1 })
   }))
 
-  test('H04: a missing linter is named once per session; a mirrored test folder silences the TDD note', () => withSandbox(async ({ root }) => {
+  test('H04: a missing linter is named once per session', () => withSandbox(async ({ root }) => {
     const { f } = await runtime(root, { runChecker: async () => ({ code: 127, stdout: '', stderr: 'spawn shellcheck ENOENT' }) })
     mkdirSync(join(root, 'src', 'core'), { recursive: true })
     mkdirSync(join(root, 'tests', 'core'), { recursive: true })
@@ -404,17 +401,15 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
   }))
 
   test('H04: a patch that adds a file under ~/ is checked where OpenCode writes it, in the home folder', () => withSandbox(async ({ root, home }) => {
-    const { f } = await runtime(root)
-    const zwsp = String.fromCharCode(0x200b)
+    const { f } = await runtime(root, { runChecker: async () => ({ code: 127, stdout: '', stderr: 'spawn shellcheck ENOENT' }) })
     mkdirSync(join(home, 'notes'), { recursive: true })
-    writeFileSync(join(home, 'notes', 'a.ts'), `export const x = "a${zwsp}b"\n`)
-    const input = { patchText: `*** Begin Patch\n*** Add File: ~/notes/a.ts\n+export const x = "a${zwsp}b"\n*** End Patch` }
+    writeFileSync(join(home, 'notes', 'a.sh'), 'echo $1\n')
+    const input = { patchText: '*** Begin Patch\n*** Add File: ~/notes/a.sh\n+echo $1\n*** End Patch' }
     await f.trigger('tool.execute.before', { tool: 'patch', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_p', input })
     const after: ToolExecuteAfter = { tool: 'patch', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_p', input, status: 'completed', result: { output: {}, content: [{ type: 'text', text: 'Applied the patch' }] } }
     await f.trigger('tool.execute.after', after)
     const text = after.status === 'completed' ? (after.result.content as unknown as Array<{ text: string }>).map(c => c.text).join('\n') : ''
-    expect(text).toContain('a.ts: added line 1, column 20: ')
-    expect(text).toContain('(U+200B)')
+    expect(text).toContain('a.sh: shellcheck is not installed')
   }))
 
   test('session.context injects the capability card, the memory context and the H05 warning once (core contextWatch, D5)', () => withSandbox(async ({ root }) => {
@@ -776,22 +771,7 @@ describe('opencode server plugin: stage-B contract rules', () => {
     expect((await configured.f.trigger('permission.evaluate', evaluation('edit', [join(other, 'harness', 'next', 'x.md')]))).effect).toBe('deny')
   }))
 
-  test('H10: with plan.autoPause a user message pauses a running plan; continuations and "devam" do not', () => withSandbox(async ({ root }) => {
-    writeRuntimeConfig(c => ({ ...c, plan: { ...c.plan, autoPause: true } }))
-    saveState('opencode', SID, planState())
-    const { f } = await runtime(root)
-    const prompt = (text: string) => ({ sessionID: SID, messageID: 'msg_p', prompt: { text }, delivery: 'steer' as const })
-    await f.trigger('session.prompt', prompt('Buracle stop guard: the plan is not VERIFIED, keep working'))
-    expect(loadState('opencode', SID).interaction).toBeUndefined()
-    await f.trigger('session.prompt', prompt('please also cover the parser edge case'))
-    expect(loadState('opencode', SID).interaction).toMatchObject({ state: 'paused', kind: 'discussion', reason: AUTO_PAUSE_REASON })
-    await f.trigger('session.prompt', prompt('devam'))
-    expect(loadState('opencode', SID).interaction?.state).toBe('running')
-    await f.trigger('session.prompt', { ...prompt('hello'), sessionID: 'ses_noplan2' })
-    expect(existsSync(join(paths.sessionDir('opencode', 'ses_noplan2'), 'state.json'))).toBe(false)
-  }))
-
-  test('H10: autoPause off (default) leaves a running plan running', () => withSandbox(async ({ root }) => {
+  test('H10: an ordinary message leaves a running plan running', () => withSandbox(async ({ root }) => {
     saveState('opencode', SID, planState())
     const { f } = await runtime(root)
     await f.trigger('session.prompt', { sessionID: SID, messageID: 'msg_p', prompt: { text: 'please also cover the parser edge case' }, delivery: 'steer' })
@@ -836,18 +816,6 @@ describe('opencode server plugin: stage-B contract rules', () => {
     for (let i = 0; i < 4; i++) { clock += 120_000; await cycle(b.rt) }
     expect(a.f.prompts.length + b.f.prompts.length).toBe(testBaked().defaults.plan.runaway.perChain + 1)
     expect(b.notices.length).toBe(1)
-  }))
-
-  test('H03: a shell nudge is appended once per call (routeTool owns it)', () => withSandbox(async ({ root }) => {
-    const { f } = await runtime(root)
-    await f.trigger('tool.execute.before', { tool: 'shell', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_g', input: { command: 'grep -r foo .' } })
-    await f.trigger('permission.evaluate', evaluation('shell', ['grep -r foo .'], 'call_g'))
-    await f.trigger('permission.evaluate', evaluation('shell', ['grep -r foo .'], 'call_g'))
-    const after: ToolExecuteAfter = { tool: 'shell', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_g', input: { command: 'grep -r foo .' }, status: 'completed', result: { output: { exit: 0 }, content: [{ type: 'text', text: 'out' }] } }
-    await f.trigger('tool.execute.after', after)
-    const texts = after.status === 'completed' ? (after.result.content as unknown as Array<{ text: string }>).map(c => c.text) : []
-    expect(texts.length).toBe(2)
-    expect(texts[0]).toBe('out')
   }))
 })
 

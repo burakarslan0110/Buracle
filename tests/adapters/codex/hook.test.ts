@@ -131,13 +131,11 @@ describe('PreToolUse', () => {
     expect(out.additionalContext).toContain('pause first')
   }))
 
-  test('H03: a routing denial names its hook; routeTool owns the nudge (bashNudge is never called separately)', () => withSandbox(async () => {
+  test('H03: a routing denial names its hook; routing context reaches the model', () => withSandbox(async () => {
     const deny = await handleCodexHook('PreToolUse', bash('grep -r foo .'), ctx(), deps({ ...quiet, routeTool: () => ({ action: 'deny', reason: 'use rg', hook: 'H03' }) }))
     expect(JSON.parse(deny.stdout).hookSpecificOutput.permissionDecisionReason).toBe('Buracle H03: use rg')
     const nudge = await handleCodexHook('PreToolUse', bash('grep -r foo .'), ctx(), deps({ ...quiet, routeTool: () => ({ action: 'allow', context: ['Prefer rg.'] }) }))
     expect(JSON.parse(nudge.stdout)).toEqual({ hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: 'Prefer rg.' } })
-    const never = () => { throw new Error('bashNudge must not be called by the adapter') }
-    expect(await handleCodexHook('PreToolUse', bash('grep -r foo .'), ctx(), deps({ ...quiet, bashNudge: never }))).toEqual({ stdout: '', exitCode: 0 })
   }))
 
   test('path rules (R5): the first apply_patch of a matching file is denied once with the installed rule text; a shell read of the rule file counts', () => withSandbox(async ({ root }) => {
@@ -180,9 +178,6 @@ describe('PostToolUse', () => {
       ...quiet,
       checkersFor: p => [{ argv: ['ruff', 'check', p], cwd, timeoutMs: 20000, parser: 'ruff' }],
       findingsOf: (_plan, res) => (res && res.code !== 0 ? `ruff: ${res.stdout}` : undefined),
-      tddHint: () => 'No test file next to x.py; add one.',
-      charsetFindings: added => (added.includes('import') ? ['plain ASCII'] : []),
-      lengthNote: () => undefined,
     })
     const r = await handleCodexHook('PostToolUse', payload('PostToolUse', { cwd, tool_name: 'apply_patch', tool_input: { command: patch }, tool_response: 'Success. Updated the following files:\nA x.py' }), ctx(), d)
     const out = JSON.parse(r.stdout)
@@ -192,13 +187,11 @@ describe('PostToolUse', () => {
     const text: string = out.hookSpecificOutput.additionalContext
     expect(text).toContain('\n\nx.py:\n')
     expect(text).toContain('- ruff: x.py:1:1: F401 unused import')
-    expect(text).toContain('- No test file next to x.py; add one.')
-    expect(text).toContain('- plain ASCII')
     expect(d.rec.runs).toEqual([['ruff', 'check', join(cwd, 'x.py')]])
     expect(d.rec.spool).toEqual([{ ts: NOW, ev: 'tool', tool: 'apply_patch', kind: 'patch', paths: [join(cwd, 'x.py')] }])
   }))
 
-  test('apply_patch with the real checkers: a missing linter is named once per session, a mirrored test folder silences the TDD note', () => withSandbox(async ({ root }) => {
+  test('apply_patch with the real checkers: a missing linter is named once per session', () => withSandbox(async ({ root }) => {
     const cwd = join(root, 'proj')
     mkdirSync(join(cwd, 'src', 'core'), { recursive: true })
     mkdirSync(join(cwd, 'tests', 'core'), { recursive: true })
@@ -405,7 +398,7 @@ describe('UserPromptSubmit', () => {
     const d = deps({ ...quiet, promptInteraction: (s, control, text, o) => { seen.push(control, text, o); return { next: { ...s, interaction: { state: 'paused', kind: 'discussion', since: o.now } }, guidance: 'Buracle: paused' } } })
     const r = await handleCodexHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'dur' }), ctx(), d)
     expect(JSON.parse(r.stdout).hookSpecificOutput.additionalContext).toContain('Buracle: paused')
-    expect(seen).toEqual(['pause', 'dur', { autoPause: false, now: NOW }])
+    expect(seen).toEqual(['pause', 'dur', { now: NOW }])
     expect(JSON.parse(readFileSync(statePath(), 'utf8')).interaction).toEqual({ state: 'paused', kind: 'discussion', since: NOW })
   }))
 
@@ -420,27 +413,14 @@ describe('UserPromptSubmit', () => {
     expect(loadState('codex', SID)).toMatchObject({ interaction: { state: 'running' }, guard: { blocksForPlan: 0, blocksInChain: 0 } })
   }))
 
-  test('Buracle\'s own stop-guard continuation is ignored: no intent, no autoPause, no spool entry', () => withSandbox(async () => {
+  test('Buracle\'s own stop-guard continuation is ignored: no intent, no spool entry', () => withSandbox(async () => {
     saveState('codex', SID, planState())
     const d = deps({ detectIntent: () => { throw new Error('must not run') } })
     const text = `<hook_prompt hook_run_id="r1">${core.GUARD_MARKERS[0]} the plan docs/plans/p.md is IN_PROGRESS … dur.</hook_prompt>`
-    const r = await handleCodexHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: text }), ctx(withPlan({ autoPause: true })), d)
+    const r = await handleCodexHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: text }), ctx(), d)
     expect(r.stdout).toBe('')
     expect(loadState('codex', SID).interaction).toBeUndefined()
     expect(d.rec.spool).toEqual([])
-  }))
-
-  test('plan.autoPause: a user message during a running plan pauses it (kind discussion); off by default', () => withSandbox(async () => {
-    saveState('codex', SID, planState())
-    const prompt = payload('UserPromptSubmit', { prompt: 'Bu fonksiyon neden iki kez çağrılıyor?' })
-    expect((await handleCodexHook('UserPromptSubmit', prompt, ctx(), deps({}))).stdout).toBe('')
-    expect(loadState('codex', SID).interaction).toBeUndefined()
-    const r = await handleCodexHook('UserPromptSubmit', prompt, ctx(withPlan({ autoPause: true })), deps({}))
-    expect(JSON.parse(r.stdout).hookSpecificOutput.additionalContext).toContain('plan.autoPause')
-    expect(loadState('codex', SID).interaction).toEqual({ state: 'paused', kind: 'discussion', since: NOW, reason: 'the user sent a message while the plan was running (plan.autoPause)' })
-    expect((await handleCodexHook('UserPromptSubmit', prompt, ctx(withPlan({ autoPause: true })), deps({}))).stdout).toBe('')
-    saveState('codex', SID, planState({ plan: { ...plan, status: 'VERIFIED', phase: 'done' } }))
-    expect((await handleCodexHook('UserPromptSubmit', prompt, ctx(withPlan({ autoPause: true })), deps({}))).stdout).toBe('')
   }))
 
   test('H05: one warning when the context crosses warnPct; H18 telemetry with model, effort, ctx and windows', () => withSandbox(async ({ root }) => {
@@ -612,10 +592,10 @@ describe('thread-spawned subagents (root session_id + agent_id/agent_type)', () 
     JSON.stringify({ timestamp: '2026-10-08T11:59:00.000Z', type: 'event_msg', payload: { type: 'token_count', info: { last_token_usage: { total_tokens: tokens }, model_context_window: window } } }),
   ].join('\n') + '\n')
 
-  test('CODEX-SUBAGENT-UPS-H10: a subagent task message is not the user: no pause, no autoPause, no context, no spool', () => withSandbox(async () => {
+  test('CODEX-SUBAGENT-UPS-H10: a subagent task message is not the user: no pause, no context, no spool', () => withSandbox(async () => {
     saveState('codex', SID, planState())
     const d = deps({})
-    const r = await handleCodexHook('UserPromptSubmit', sub('UserPromptSubmit', { prompt: 'user_request: hata olursa dur ve bana sor\nReview the implemented changes.' }), ctx(withPlan({ autoPause: true })), d)
+    const r = await handleCodexHook('UserPromptSubmit', sub('UserPromptSubmit', { prompt: 'user_request: hata olursa dur ve bana sor\nReview the implemented changes.' }), ctx(), d)
     expect(r).toEqual({ stdout: '', exitCode: 0 })
     expect(loadState('codex', SID).interaction).toBeUndefined()
     expect(d.rec.spool).toEqual([])

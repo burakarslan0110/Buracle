@@ -1,8 +1,6 @@
 import type { BuracleConfig } from '../../../core/config'
 import type { StopDecision, ToolCall } from '../../../core/events'
 import { flowDef } from '../../../core/flow/catalog'
-import { promptSignals } from '../../../core/memory/signals'
-import type { SpoolEntry } from '../../../core/memory/spool'
 import type { McpHealth, RoutingPolicy } from '../../../core/policy/routing'
 import { mcpUnavailable } from '../../../core/policy/routing'
 import type { CompiledTriggers, PromptRoute } from '../../../core/policy/skill-router'
@@ -116,10 +114,6 @@ export function routeUserPrompt(input: PromptRouteInput, baked: BakedData, cfg: 
 export function runTitle(words: string): string | undefined {
   const line = words.split('\n').map(l => l.trim()).find(l => l !== '')
   return line !== undefined && line !== '' ? line : undefined
-}
-
-export function promptSignalEntries(text: string, now: number): SpoolEntry[] {
-  try { return promptSignals(text).map(signal => ({ ts: now, ev: 'prompt-signal' as const, signal })) } catch { return [] }
 }
 
 export interface LedgerStore {

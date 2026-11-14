@@ -48,7 +48,7 @@ describe('the workflow switches in the settings view', () => {
       const s = (await get(ctx(), '/api/settings')).body['workflow'] as { file: string, switches: Array<Record<string, unknown>> }
       expect(s.file).toBe('~/.buracle/config.yaml')
       const keys = s.switches.map(x => x['key'])
-      expect(keys).toEqual(expect.arrayContaining(['plan.questions', 'plan.reviews.plan', 'plan.reviews.changes', 'plan.reviews.goal', 'plan.goalVerification', 'plan.modelSwitch', 'plan.planApproval', 'plan.resultApproval', 'plan.branchIsolation', 'plan.autoPause']))
+      expect(keys).toEqual(expect.arrayContaining(['plan.questions', 'plan.reviews.plan', 'plan.reviews.changes', 'plan.reviews.goal', 'plan.goalVerification', 'plan.modelSwitch', 'plan.planApproval', 'plan.resultApproval', 'plan.branchIsolation']))
       expect(keys.every(k => typeof k === 'string' && k.startsWith('plan.'))).toBe(true)
       for (const gone of ['plan.stopGuard', 'plan.runaway.perPlan', 'plan.worktreeDir']) expect(keys).not.toContain(gone)
       expect(s.switches.find(x => x['key'] === 'plan.modelSwitch')).toMatchObject({ type: 'enum', values: ['off', 'manual'], value: 'off', default: 'off' })

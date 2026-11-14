@@ -73,7 +73,7 @@ import { reviewNote, reviewProblems, subagentReport } from './review'
 import type { CallVerdict, LedgerStore, PromptRouteResult } from './routing'
 import {
   attachedSkills, availableServers, commandOfPrompt, compiledTriggers, evaluateCall, fileLedgerStore, ledgerUserPrompt, loadedSkills,
-  promptSignalEntries, recordCall, recordMcpResult, routeInputText, routeUserPrompt, runTitle, sessionHealth, withinBudget,
+  recordCall, recordMcpResult, routeUserPrompt, runTitle, sessionHealth, withinBudget,
 } from './routing'
 import type {
   ModelRef, OpenCodeEvent, PermissionEvaluation, ServerContext, ServerPluginDefinition, SessionCompactionEvent,
@@ -1126,7 +1126,7 @@ export class BuracleRuntime {
     const cmd = commandOfPrompt(meta, text)
     const words = cmd !== undefined ? cmd.args : text
     try { recordPromptGrants(HARNESS, s.sid, words, at) } catch (err) { this.logFn('warn', 'consent grants failed', { error: errText(err) }) }
-    let guidance = promptPlanInteraction(s.sid, words, { autoPause: cfg.plan.autoPause, now: at }, this.logFn)
+    let guidance = promptPlanInteraction(s.sid, words, { now: at }, this.logFn)
     try { guidance = [guidance, reviewNotesNotice(HARNESS, s.sid, { plan: loadState(HARNESS, s.sid).plan?.path, roots: [(await this.workspaceOf(s))?.root, this.cwdOf(s)], now: at })].filter(x => x !== undefined).join('\n\n') || undefined } catch (err) { this.logFn('warn', 'review notes notice failed', { error: errText(err) }) }
     let routed: PromptRouteResult | undefined
     try {
@@ -1162,7 +1162,6 @@ export class BuracleRuntime {
       const source: FlowSource = workflow === command ? 'command' : 'prompt'
       recordFlowStart(HARNESS, s.sid, title !== undefined ? { workflow, title, source } : { workflow, source }, at)
     }
-    this.spool(s.sid, promptSignalEntries(routeInputText(words, command), at))
     return route
   }
 

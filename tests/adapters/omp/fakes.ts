@@ -161,9 +161,6 @@ export function testDeps(overrides: Partial<ExtensionDeps> = {}): { deps: Partia
     checkers: {
       checkersFor: () => notImplemented('checkersFor'),
       findingsOf: () => notImplemented('findingsOf'),
-      tddHint: () => notImplemented('tddHint'),
-      charsetFindings: () => notImplemented('charsetFindings'),
-      lengthNote: () => notImplemented('lengthNote'),
     },
     evalGuard: () => notImplemented('checkEval'),
     realpath: undefined,

@@ -1,20 +1,20 @@
 import { describe, expect, test } from 'bun:test'
 import { promptInteraction } from '../../../src/core/plan/interaction'
 import type { SessionState } from '../../../src/core/plan/state'
-import { AUTO_PAUSE_REASON, emptyState } from '../../../src/core/plan/state'
+import { emptyState } from '../../../src/core/plan/state'
 import { CONTROL_GUIDANCE, MODEL_SWITCH_REASON, RUNAWAY_REASON, detectIntent } from '../../../src/core/policy/intents'
 
 function plan(over: Partial<NonNullable<SessionState['plan']>> = {}, rest: Partial<SessionState> = {}): SessionState {
   return { ...emptyState(), plan: { path: '/r/docs/plans/x.md', slug: 'x', status: 'IN_PROGRESS', type: 'Feature', phase: 'implement', registeredAt: 1, ...over }, ...rest }
 }
-const opts = { autoPause: false, now: 500 }
+const opts = { now: 500 }
 
 describe('promptInteraction (H10 on every harness)', () => {
   test('without a plan: guidance only, the state is unchanged', () => {
     const s = emptyState()
     expect(promptInteraction(s, 'pause', 'stop', opts)).toEqual({ next: s, guidance: CONTROL_GUIDANCE.pause })
     expect(promptInteraction(s, 'resume', 'continue', opts)).toEqual({ next: s })
-    expect(promptInteraction(s, null, 'hello', { autoPause: true, now: 1 })).toEqual({ next: s })
+    expect(promptInteraction(s, null, 'hello', { now: 1 })).toEqual({ next: s })
   })
 
   test('pause and stop record a discussion pause; a resume ends it', () => {
@@ -105,18 +105,8 @@ describe('promptInteraction (H10 on every harness)', () => {
 
   test('a reply while paused gets the paused-reply guidance and leaves the pause alone', () => {
     const manual = plan({}, { interaction: { state: 'paused', kind: 'manual', since: 5, reason: 'rotate the key' } })
-    const r = promptInteraction(manual, null, 'done', { autoPause: true, now: 9 })
+    const r = promptInteraction(manual, null, 'done', { now: 9 })
     expect(r.next).toBe(manual)
     expect(r.guidance).toContain('reports the manual step ("rotate the key") done')
-  })
-
-  test('plan.autoPause pauses a running plan on any other message', () => {
-    const r = promptInteraction(plan(), null, 'also add a README line', { autoPause: true, now: 7 })
-    expect(r.autoPaused).toBe(true)
-    expect(r.next.interaction).toEqual({ state: 'paused', kind: 'discussion', since: 7, reason: AUTO_PAUSE_REASON })
-    expect(r.guidance).toBe(CONTROL_GUIDANCE.autoPause)
-    expect(promptInteraction(plan(), null, 'hi', opts).next.interaction).toBeUndefined()
-    const done = plan({ status: 'VERIFIED', phase: 'done' })
-    expect(promptInteraction(done, null, 'hi', { autoPause: true, now: 7 }).next).toBe(done)
   })
 })

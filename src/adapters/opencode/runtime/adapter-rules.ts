@@ -1,6 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import { AUTO_PAUSE_REASON } from '../../../core/plan/state'
 import { realPath } from '../../../engine/fsx'
 
 const CACHE_TTL_MS = 30_000
@@ -63,4 +62,3 @@ export function clearRepoCache(): void {
   cache.clear()
 }
 
-export { AUTO_PAUSE_REASON }

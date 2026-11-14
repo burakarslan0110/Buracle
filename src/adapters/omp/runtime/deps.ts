@@ -75,7 +75,7 @@ export interface ExtensionDeps {
   realpath?: (p: string) => string | undefined
   plan: Pick<typeof corePlan, 'stopGuardVerdict' | 'applyIntent' | 'validatePlan' | 'parsePlan' | 'promptInteraction' | 'answerReceipt'>
   compact: Pick<typeof coreCompact, 'compactInstructions' | 'handoffNote' | 'restoreContext'>
-  checkers: Pick<typeof coreCheckers, 'checkersFor' | 'findingsOf' | 'tddHint' | 'charsetFindings' | 'lengthNote'>
+  checkers: Pick<typeof coreCheckers, 'checkersFor' | 'findingsOf'>
   checkFs?: CheckFs
   resolveChecker?: (argv: readonly string[]) => string[]
   memSegment: typeof memSegment

@@ -209,7 +209,6 @@ Workflow switches decide how plan-build, goal-build and bugfix run on every harn
 
 | Switch | Key | Default |
 |---|---|---|
-| Pause a running plan when you send a new message | `plan.autoPause` | off |
 | Ask for your approval of a plan before building | `plan.planApproval` | on |
 | Ask for your approval of the verified result | `plan.resultApproval` | on |
 | Build on a branch of its own, in a worktree | `plan.branchIsolation` | on |

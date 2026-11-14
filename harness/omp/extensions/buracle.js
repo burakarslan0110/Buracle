@@ -7517,7 +7517,7 @@ var init_hook_fail = () => {};
 
 // src/engine/update/runtime.ts
 import { chmodSync as chmodSync2, cpSync, existsSync as existsSync13, mkdirSync as mkdirSync13, readFileSync as readFileSync22, readdirSync as readdirSync12, renameSync as renameSync3, rmSync as rmSync5, statSync as statSync24, writeFileSync as writeFileSync2 } from "fs";
-import { basename as basename10, dirname as dirname16, join as join34, relative as relative5, resolve as resolve19, sep as sep5 } from "path";
+import { basename as basename8, dirname as dirname14, join as join34, relative as relative4, resolve as resolve19, sep as sep4 } from "path";
 function runtimeFiles(checkout) {
   const out = [];
   const walk = (rel) => {
@@ -7542,7 +7542,7 @@ function runtimeFiles(checkout) {
   for (const f of RUNTIME_FILES)
     if (existsSync13(join34(checkout, f)))
       out.push(f);
-  return out.map((p) => p.split(sep5).join("/")).sort();
+  return out.map((p) => p.split(sep4).join("/")).sort();
 }
 function readJson(path) {
   try {
@@ -7649,8 +7649,8 @@ function runtimeDirOf(info) {
   if (info === undefined || info.mode !== "frozen")
     return;
   const dir = resolve19(info.main, "..", "..", "..");
-  const rel = relative5(runtimeRoot(), dir);
-  return rel !== "" && !rel.startsWith("..") && !rel.includes(sep5) ? dir : undefined;
+  const rel = relative4(runtimeRoot(), dir);
+  return rel !== "" && !rel.startsWith("..") && !rel.includes(sep4) ? dir : undefined;
 }
 function runtimeHealth(checkout, shim = readShim()) {
   const h = { problems: [] };
@@ -7780,7 +7780,6 @@ __export(exports_policy, {
   VERIFICATION_OFF_REASON: () => VERIFICATION_OFF_REASON,
   addConsentGrants: () => addConsentGrants,
   applyPromptGrants: () => applyPromptGrants,
-  bashNudge: () => bashNudge,
   capabilityCard: () => capabilityCard,
   catastrophicCommandRules: () => catastrophicCommandRules,
   catastrophicPath: () => catastrophicPath,
@@ -7888,29 +7887,19 @@ __export(exports_policy, {
 // src/core/checkers.ts
 var exports_checkers = {};
 __export(exports_checkers, {
-  CHARSET_MAX_FINDINGS: () => CHARSET_MAX_FINDINGS,
   CHECKER_PROBES: () => CHECKER_PROBES,
   CHECKER_SCAN_MAX_DIRS: () => CHECKER_SCAN_MAX_DIRS,
   DOTNET_FORMAT_ENV: () => DOTNET_FORMAT_ENV,
   FINDINGS_MAX_LINES: () => FINDINGS_MAX_LINES,
   SLOW_CHECKER_MIN_MS: () => SLOW_CHECKER_MIN_MS,
-  TEST_DIR_NAMES: () => TEST_DIR_NAMES,
-  charsetFindings: () => charsetFindings,
   checkerDirs: () => checkerDirs,
   checkerFacts: () => checkerFacts,
   checkerTool: () => checkerTool,
   checkersFor: () => checkersFor,
-  dotnetLogicFree: () => dotnetLogicFree,
   findingsOf: () => findingsOf,
-  importsModule: () => importsModule,
-  isDotnetTestProjectName: () => isDotnetTestProjectName,
-  isTestFileName: () => isTestFileName,
-  lengthNote: () => lengthNote,
   missingToolKey: () => missingToolKey,
   missingToolNote: () => missingToolNote,
-  skippedNote: () => skippedNote,
-  tddHint: () => tddHint,
-  trivialEdit: () => trivialEdit
+  skippedNote: () => skippedNote
 });
 
 // src/core/compact.ts
@@ -7931,7 +7920,6 @@ __export(exports_compact, {
 // src/core/plan/index.ts
 var exports_plan = {};
 __export(exports_plan, {
-  AUTO_PAUSE_REASON: () => AUTO_PAUSE_REASON,
   FILE_VERBS: () => FILE_VERBS,
   FILE_WRITING_WORKFLOWS: () => FILE_WRITING_WORKFLOWS,
   NATIVE_PLAN_ENTER: () => NATIVE_PLAN_ENTER,
@@ -9195,9 +9183,6 @@ var CATEGORY_WORDS = [
   ["workflow", uw(/\b(?:plan|plans|spec|workflow|workflows|commits?|branch|branches|worktrees?|pull request|prs?|push|merge|release|deploy|skills?|mcp)\b|\b(?:dal[\u0131i]?|birle[\u015Fs]tir)\b/i)],
   ["engineering", uw(/\b(?:bun|npm|pnpm|yarn|typescript|javascript|python|go|rust|library|libraries|dependenc(?:y|ies)|framework|code|api|architecture|database|sql|docker|runtime|package)\b|\b(?:k[\u00FCu]t[\u00FCu]phane|ba[\u011Fg][\u0131i]ml[\u0131i]l[\u0131i]k|kod|mimari)/i)]
 ];
-function promptSignals(text) {
-  return [];
-}
 
 // src/core/memory/spool.ts
 var SPOOL_EVENTS = ["prompt", "tool", "turn", "compact", "stop", "note", "prompt-signal"];
@@ -10522,9 +10507,6 @@ function simpleCommands(script) {
   };
   visit(script, 0);
   return out;
-}
-function stageCommands(stage) {
-  return stage.kind === "cmd" ? [stage.cmd] : simpleCommands(stage.body);
 }
 function commandName(w) {
   if (!w || w.text === "" || w.text.includes(DYN) || w.text.startsWith(HOME))
@@ -16546,11 +16528,7 @@ function docsFetchRoute(call, policy, health) {
 function routeTool(call, policy, health) {
   if (!policy || policy.strictness === "off")
     return { action: "allow" };
-  if (call.kind === "bash") {
-    const nudge = typeof call.command === "string" ? bashNudge(call.command) : undefined;
-    return nudge !== undefined ? { action: "allow", context: [nudge] } : { action: "allow" };
-  }
-  if (call.kind === "mcp" || call.kind === "eval" || call.kind === "other")
+  if (call.kind === "bash" || call.kind === "mcp" || call.kind === "eval" || call.kind === "other")
     return { action: "allow" };
   if (call.kind === "web_fetch" && needsBuiltinSession(call))
     return { action: "allow" };
@@ -16597,91 +16575,6 @@ function libraryDocsHint(policy, call, health) {
   if (choice.ref?.kind !== "mcp")
     return "";
   return ` (for library or framework docs, use ${serverLabel(cat, choice.ref, call.harness)} first)`;
-}
-var GREP_FAMILY = new Set(["grep", "egrep", "fgrep", "ggrep"]);
-function grepIsRecursive(argv) {
-  for (let k = 1;k < argv.length; k++) {
-    const t = argv[k];
-    if (t === "--")
-      break;
-    if (t === "--recursive" || t === "--dereference-recursive" || t === "--directories=recurse")
-      return true;
-    if ((t === "-d" || t === "--directories") && argv[k + 1] === "recurse")
-      return true;
-    if (/^-[A-Za-z]+$/.test(t)) {
-      const letters = t.slice(1);
-      for (let j = 0;j < letters.length; j++) {
-        const ch = letters[j];
-        if (ch === "r" || ch === "R")
-          return true;
-        if ("efmABCdD".includes(ch)) {
-          if (j === letters.length - 1)
-            k++;
-          break;
-        }
-      }
-    }
-  }
-  return false;
-}
-var NUDGE_GREP = 'Search with `rg -n "<pattern>" <dir>` instead of `grep -r` (faster, respects .gitignore); for code by intent use the semble MCP `search`, and for definitions and callers use codegraph.';
-var NUDGE_FIND = 'Search with `rg -n "<pattern>" -g "<glob>"` instead of `find \u2026 | xargs grep` or `find -exec grep`; for code by intent use the semble MCP `search`, and for definitions and callers use codegraph.';
-function scanScript(script, depth) {
-  for (const pl of script.pipelines) {
-    let sawFind = false;
-    for (const stage of pl.stages) {
-      for (const cmd of stageCommands(stage)) {
-        const first = commandName(cmd.words[0]);
-        const u = unwrap(cmd.words);
-        const name = commandName(u.argv[0]);
-        const argv = u.argv.map((w) => w.text);
-        if (name === "rgrep")
-          return NUDGE_GREP;
-        if (name !== undefined && GREP_FAMILY.has(name)) {
-          if (grepIsRecursive(argv))
-            return NUDGE_GREP;
-          if (sawFind && first === "xargs")
-            return NUDGE_FIND;
-        }
-        if (name === "find") {
-          for (let k = 0;k < argv.length; k++) {
-            if (["-exec", "-execdir", "-ok", "-okdir"].includes(argv[k])) {
-              const n = commandName(u.argv[k + 1]);
-              if (n !== undefined && GREP_FAMILY.has(n))
-                return NUDGE_FIND;
-            }
-          }
-          sawFind = true;
-        }
-        if (depth < 4) {
-          for (const s of u.scripts) {
-            const inner = scanScript(parseShell(s).script, depth + 1);
-            if (inner)
-              return inner;
-          }
-        }
-      }
-    }
-  }
-  return;
-}
-function bashNudge(command) {
-  if (typeof command !== "string" || command.trim() === "")
-    return;
-  try {
-    const { script, subs } = parseShell(command);
-    const direct = scanScript(script, 0);
-    if (direct)
-      return direct;
-    for (const s of subs) {
-      const inner = scanScript(parseShell(s).script, 1);
-      if (inner)
-        return inner;
-    }
-  } catch {
-    return;
-  }
-  return;
 }
 var CAPABILITY_CARD_MAX_LINES = 30;
 function firstClause(text, max) {
@@ -17209,7 +17102,6 @@ var CONTROL_GUIDANCE = {
   pause: "Buracle: the user asked you to stop. Finish only the current atomic step, say where you stopped, and wait for them. Also stop the background commands and subagents this session started (with the harness's stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.",
   resume: 'Buracle: the user said to continue. The plan is resumed; check `buracle plan status --json` and carry on where the plan stands. "Continue" answers no open question: if you were waiting for a decision, ask it again.',
   stop: "Buracle: the user wants to drop the current task. Stop now and confirm with them before discarding or reverting anything. Also stop the background commands and subagents this session started (with the harness's stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.",
-  autoPause: 'Buracle: the user wrote while the plan was running, so the plan is paused (plan.autoPause). Answer them first; when the work should go on, run `buracle plan resume` (the user saying "continue" resumes it too).',
   resultApproved: "Buracle: the user approved the verified result, so Buracle recorded the approval (`buracle plan approve-result`) and resumed the plan. Do the worktree merge if the run has one, then finish with `buracle plan verify`."
 };
 function decisionAbout(i, prefix) {
@@ -17291,7 +17183,7 @@ function pausedReply(i, text) {
   if (i.kind === "manual") {
     return isManualDone(text) ? `Buracle: the user reports the manual step${quoted(i.reason)} done. Check its result, then run \`buracle plan resume\` and continue.` : `Buracle: the plan is paused on a manual step${quoted(i.reason)}. Answer the user; the run goes on after they say the step is done and you have checked it (\`buracle plan resume\`).`;
   }
-  if (i.kind === "discussion" && i.reason?.includes("(plan.autoPause)") !== true)
+  if (i.kind === "discussion")
     return "Buracle: the plan is paused because the user asked to stop. If this message means go on, in any language, run `buracle plan resume` and continue; otherwise answer the user and keep waiting.";
   if (i.kind !== "decision")
     return;
@@ -22668,7 +22560,7 @@ function guardedContents(changes, paths, home, opts = {}) {
 
 // src/adapters/shared/checker-scan.ts
 import { readdirSync as readdirSync2, readFileSync as readFileSync6, statSync as statSync7 } from "fs";
-import { basename as basename5, dirname as dirname7, join as join6, relative, sep } from "path";
+import { join as join6 } from "path";
 
 // src/core/checker-facts.ts
 var ESLINT_BINS = ["node_modules/.bin/eslint"];
@@ -22776,7 +22668,11 @@ function checkerFacts(scans, cwd) {
   }
   return facts;
 }
-// src/core/tdd.ts
+
+// src/core/checkers.ts
+var FINDINGS_MAX_LINES = 20;
+var SLOW_CHECKER_MIN_MS = 4000;
+var DOTNET_FORMAT_ENV = { LC_ALL: "en_US.UTF-8", DOTNET_CLI_UI_LANGUAGE: "en" };
 function basename3(p) {
   return p.slice(Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\")) + 1);
 }
@@ -22789,681 +22685,8 @@ function ext(p) {
   const i = b.lastIndexOf(".");
   return i <= 0 ? "" : b.slice(i + 1).toLowerCase();
 }
-function slash(p) {
-  return p.replace(/\\/g, "/");
-}
-var TDD_EXT = new Set(["py", "ts", "tsx", "js", "jsx", "mjs", "cjs", "mts", "cts", "go", "cs"]);
-var JS_FAMILY = new Set(["ts", "tsx", "js", "jsx", "mjs", "cjs", "mts", "cts"]);
-var NON_SOURCE_DIR = /(?:^|\/)(?:node_modules|dist|build|out|vendor|third_party|migrations?|generated|__generated__|gen|\.venv|venv|__pycache__|coverage|fixtures?|__fixtures__|examples?|docs|scripts|\.github|\.next|\.turbo)(?:\/|$)/i;
-var DOTNET_BUILD_DIR = /(?:^|\/)(?:bin|obj)(?:\/|$)/;
-var TEST_DIR = /(?:^|\/)(?:tests?|__tests__|spec|specs|testing|e2e)(?:\/|$)/i;
-var DOTNET_TEST_DIR = /(?:^|\/)(?:[^/]+\.(?:Unit|Integration|Functional|Acceptance)?Tests?|[A-Z][A-Za-z0-9]*Tests)(?:\/|$)/;
-var NON_SOURCE_FILE = /(?:\.d\.ts|\.config\.[cm]?[jt]s|\.stories\.[jt]sx?|^conftest\.py|^setup\.py|^__init__\.py|^manage\.py|^__main__\.py|^vite-env\.d\.ts|^index\.d\.ts|\.(?:designer|g|g\.i|generated)\.cs|^AssemblyInfo\.cs|^GlobalUsings\.cs)$/i;
-var TEST_DIR_NAMES = ["tests", "test", "__tests__", "spec", "specs", "Tests"];
-function isTestFileName(name) {
-  const base = basename3(name);
-  return /^test_.*\.py$/i.test(base) || /_test\.(?:py|go)$/i.test(base) || /\.(?:test|spec)\.[cm]?[jt]sx?$/i.test(base) || /Tests?\.cs$/.test(base);
-}
-function isDotnetTestProjectName(name) {
-  return /\.(?:Unit|Integration|Functional|Acceptance)?Tests?$/i.test(name) || /^[A-Z][A-Za-z0-9]*Tests$/.test(name);
-}
-function squash(s) {
-  return s.toLowerCase().replace(/[-_.]/g, "");
-}
-function kebab(s) {
-  return s.replace(/([a-z0-9])([A-Z])/g, "$1-$2").replace(/([A-Z]+)([A-Z][a-z])/g, "$1-$2").toLowerCase();
-}
-function lines2(s) {
-  return s.split(/\r?\n/).map((l) => l.trim()).filter((l) => l !== "");
-}
-var IMPORT_STATEMENT = /^(?:import\b|from\s+\S+\s+import\b|export\s+(?:\*|\{[^}]*\}|type\s+\{[^}]*\})\s+from\s|\}\s*from\s|using\s+(?:static\s+)?[\w.]+\s*(?:=\s*[\w.<>]+\s*)?;$|#include\s|(?:const|let|var)\s+[\w${},\s]+=\s*require\(|require\()/;
-var IMPORT_PART = /^(?:"[^"]+"|[()]|[A-Za-z_$][\w$]*(?:\s+as\s+[A-Za-z_$][\w$]*)?,?)$/;
-var CONST_LINE = /^(?:export\s+)?(?:(?:const|final|static|public|private|internal|readonly)\s+)*[A-Z][A-Z0-9_]*\s*(?::[^=]+)?=\s*\S/;
-function subsequence(shorter, longer) {
-  let k = 0;
-  for (const l of longer)
-    if (k < shorter.length && shorter[k] === l)
-      k++;
-  return k === shorter.length;
-}
-function trivialEdit(removed, added) {
-  const old = lines2(typeof removed === "string" ? removed : "");
-  const neu = lines2(typeof added === "string" ? added : "");
-  if (old.length === 0 && neu.length === 0)
-    return false;
-  if (neu.length === 0)
-    return true;
-  const all = [...old, ...neu];
-  if (all.some((l) => IMPORT_STATEMENT.test(l)) && all.every((l) => IMPORT_STATEMENT.test(l) || IMPORT_PART.test(l)))
-    return true;
-  if (neu.length < old.length && subsequence(neu, old))
-    return true;
-  const fresh = neu.filter((l) => !old.includes(l));
-  const gone = old.filter((l) => !neu.includes(l));
-  return fresh.length > 0 && gone.length === 0 && fresh.every((l) => CONST_LINE.test(l));
-}
-function stripCsharp(src) {
-  let out = "";
-  let i = 0;
-  const n = src.length;
-  while (i < n) {
-    const c = src[i];
-    const next = src[i + 1];
-    if (c === "/" && next === "/") {
-      const j = src.indexOf(`
-`, i);
-      if (j < 0)
-        break;
-      i = j;
-      continue;
-    }
-    if (c === "/" && next === "*") {
-      const j = src.indexOf("*/", i + 2);
-      i = j < 0 ? n : j + 2;
-      continue;
-    }
-    if (c === "@" && (next === '"' || next === "$" && src[i + 2] === '"')) {
-      i += next === '"' ? 2 : 3;
-      while (i < n) {
-        if (src[i] === '"') {
-          if (src[i + 1] === '"') {
-            i += 2;
-            continue;
-          }
-          i++;
-          break;
-        }
-        i++;
-      }
-      continue;
-    }
-    if (c === '"' || c === "'") {
-      i++;
-      while (i < n) {
-        if (src[i] === "\\") {
-          i += 2;
-          continue;
-        }
-        if (src[i] === c || src[i] === `
-`) {
-          i++;
-          break;
-        }
-        i++;
-      }
-      continue;
-    }
-    out += c;
-    i++;
-  }
-  return out;
-}
-function dotnetLogicFree(source) {
-  if (typeof source !== "string" || source === "")
-    return false;
-  const code = stripCsharp(source);
-  if (!/\b(?:interface|enum|record|class|struct)\b/.test(code))
-    return false;
-  if (code.includes("=>"))
-    return false;
-  if (/\b(?:return|if|for|foreach|while|switch|try|throw|await|yield|goto|do)\b/.test(code))
-    return false;
-  if (/\b(?:get|set|init|add|remove)\b\s*\{/.test(code))
-    return false;
-  const body = code.replace(/\b(?:record|class|struct|interface)\s+\w+(?:\s*<[^>]*>)?\s*\([^)]*\)/g, " ").replace(/=\s*(?:new\b\s*)?[\w.]*(?:\s*<[^>]*>)?\s*\([^)]*\)/g, " ").replace(/\bnew\s*\(\s*\)/g, " ");
-  return !/\)\s*(?:where\b[^{}]*)?\{/.test(body);
-}
-function escapeRe3(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-function normalizeRel(base, spec) {
-  const parts = slash(base).split("/");
-  for (const seg of spec.split("/")) {
-    if (seg === "" || seg === ".")
-      continue;
-    if (seg === "..") {
-      if (parts.length > 1)
-        parts.pop();
-      continue;
-    }
-    parts.push(seg);
-  }
-  return parts.join("/");
-}
-var JS_SPEC = /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*|\bmock\s*\(\s*)['"]([^'"\n]+)['"]/g;
-var JS_EXT = /\.(?:[cm]?[jt]sx?)$/;
-function importsModule(text, testPath, modulePath) {
-  if (typeof text !== "string" || text === "" || typeof modulePath !== "string" || modulePath === "")
-    return false;
-  const e = ext(modulePath);
-  const base = basename3(modulePath);
-  const stem = base.slice(0, base.length - e.length - 1);
-  if (stem === "")
-    return false;
-  if (e === "py" || e === "pyi") {
-    const s = escapeRe3(stem);
-    return new RegExp(`^\\s*from\\s+\\S*\\b${s}\\b\\s+import\\b`, "m").test(text) || new RegExp(`^\\s*from\\s+\\S+\\s+import\\s+(?:\\([^)]*\\b${s}\\b|[^\\n#]*\\b${s}\\b)`, "m").test(text) || new RegExp(`^\\s*import\\s+\\S*\\b${s}\\b`, "m").test(text);
-  }
-  if (e === "cs") {
-    if (!/\[(?:Fact|Theory|Test|TestMethod|TestCase|TestCaseSource)\b/.test(text))
-      return false;
-    return new RegExp(`\\b${escapeRe3(stem)}\\b`).test(stripCsharp(text));
-  }
-  if (!JS_FAMILY.has(e))
-    return false;
-  const target = slash(modulePath).replace(JS_EXT, "");
-  const dir = slash(dirname5(modulePath));
-  const parent = basename3(dir);
-  for (const m of text.matchAll(JS_SPEC)) {
-    const spec = m[1].replace(JS_EXT, "");
-    if (spec.startsWith("./") || spec.startsWith("../")) {
-      const resolved = normalizeRel(dirname5(testPath), spec);
-      if (resolved === target || stem === "index" && resolved === dir)
-        return true;
-      continue;
-    }
-    const segs = spec.split("/");
-    const last = segs[segs.length - 1];
-    if (segs.length >= 2 && (last === stem || stem === "index" && last === parent))
-      return true;
-  }
-  return false;
-}
-function nameMatches(e, stem, parentDir, names) {
-  if (e === "go")
-    return names.some((n) => /_test\.go$/i.test(n) && squash(n.slice(0, -8)) === squash(stem));
-  if (e === "py" || e === "pyi") {
-    const want = [`test_${stem}.py`, `${stem}_test.py`].map(squash);
-    return names.some((n) => want.includes(squash(n)));
-  }
-  if (e === "cs") {
-    const want = [`${stem}tests.cs`, `${stem}test.cs`].map((w) => w.toLowerCase());
-    return names.some((n) => want.includes(n.toLowerCase()));
-  }
-  const keys = new Set([squash(stem)]);
-  const parent = kebab(parentDir);
-  if (stem === "index" && parent !== "")
-    keys.add(squash(parent));
-  return names.some((n) => {
-    const m = /^(.*)\.(?:test|spec)\.[cm]?[jt]sx?$/i.exec(n);
-    if (m === null)
-      return false;
-    const t = m[1];
-    if (keys.has(squash(t)))
-      return true;
-    return parent !== "" && stem !== "index" && (kebab(t) === parent || kebab(t).startsWith(`${parent}-${kebab(stem)}`));
-  });
-}
-function tddHint(path, candidates, edit) {
-  if (typeof path !== "string" || path === "")
-    return;
-  const p = slash(path);
-  const base = basename3(p);
-  const e = ext(p);
-  const dir = dirname5(p);
-  if (!TDD_EXT.has(e) || isTestFileName(base) || TEST_DIR.test(dir) || NON_SOURCE_DIR.test(p) || NON_SOURCE_FILE.test(base))
-    return;
-  if (e === "cs" && (DOTNET_BUILD_DIR.test(dir) || DOTNET_TEST_DIR.test(dir)))
-    return;
-  if (edit !== undefined && edit !== null && (edit.removed !== undefined || edit.added !== undefined) && trivialEdit(edit.removed ?? "", edit.added ?? ""))
-    return;
-  const c = Array.isArray(candidates) ? { siblings: candidates } : candidates ?? { siblings: [] };
-  const str = (xs) => Array.isArray(xs) ? xs.filter((s) => typeof s === "string") : [];
-  const stem = base.slice(0, base.length - e.length - 1);
-  const parentDir = basename3(dir);
-  const siblings = str(c.siblings).map(basename3);
-  if (e === "go" && siblings.some((s) => /_test\.go$/i.test(s)))
-    return;
-  if (nameMatches(e, stem, parentDir, [...siblings, ...str(c.testFiles).map(basename3)]))
-    return;
-  if (str(c.importers).length > 0)
-    return;
-  if ((e === "py" || e === "pyi") && str(c.failing).some((f) => {
-    const b = basename3(f).replace(/\.py$/i, "");
-    return b === `test_${stem}` || b === `${stem}_test`;
-  }))
-    return;
-  if (e === "cs" && typeof edit?.source === "string" && dotnetLogicFree(edit.source))
-    return;
-  const expected = e === "go" ? [`${stem}_test.go`] : e === "py" || e === "pyi" ? [`test_${stem}.py`, `${stem}_test.py`] : e === "cs" ? [`${stem}Tests.cs`, `${stem}Test.cs`] : [`${stem}.test.${e}`, `${stem}.spec.${e}`];
-  const where = c.testFiles === undefined ? " next to it" : e === "go" ? " next to it and in the test folders" : " next to it and in the test folders, and for a test that imports it";
-  return `No test found for ${base} (looked for ${expected.join(" or ")}${where}). Check whether an existing test covers the behavior; if this edit changes behavior and none does, add or extend a test that fails first, then make it pass. A test file named after the module is not coverage by itself, and a cosmetic or declarative edit needs only a focused check.`;
-}
-// src/core/charset.ts
-var CODE = 0;
-var STRING = 1;
-var COMMENT = 2;
-var PROSE = 3;
-var C = { line: ["//"], block: [["/*", "*/"]], quotes: `"'`, typographic: true };
-var JS = { ...C, backtick: true, template: true, regex: true };
-var HASH = { line: ["#"], block: [], quotes: `"'`, typographic: true };
-var SHELL = { ...HASH, multiline: true, hashAtWord: true, heredoc: true };
-var DASH = { line: ["--"], block: [["/*", "*/"], ["{-", "-}"], ["--[[", "]]"]], quotes: `"'`, typographic: true };
-var MARKUP = { line: [], block: [["<!--", "-->"]], quotes: `"'`, markup: true, multiline: true, typographic: true };
-var DATA = { line: ["#", ";"], block: [], quotes: `"'`, typographic: false };
-var PLAIN = { line: [], block: [], quotes: '"', typographic: true };
-var LANGS2 = {
-  ts: JS,
-  mts: JS,
-  cts: JS,
-  js: JS,
-  mjs: JS,
-  cjs: JS,
-  tsx: { ...JS, jsx: true },
-  jsx: { ...JS, jsx: true },
-  go: { ...C, backtick: true },
-  rs: { ...C, rustChar: true },
-  cs: { ...C, triple: true, verbatim: true },
-  java: { ...C, triple: true },
-  kt: { ...C, triple: true },
-  kts: { ...C, triple: true },
-  swift: { ...C, triple: true },
-  scala: { ...C, triple: true },
-  dart: { ...C, triple: true },
-  groovy: { ...C, triple: true },
-  gradle: { ...C, triple: true },
-  c: C,
-  h: C,
-  cc: C,
-  cpp: C,
-  cxx: C,
-  hpp: C,
-  m: C,
-  mm: C,
-  php: { ...C, line: ["//", "#"] },
-  zig: C,
-  css: C,
-  scss: C,
-  sass: C,
-  less: C,
-  json: { ...C, quotes: '"' },
-  jsonc: { ...C, quotes: '"' },
-  json5: C,
-  py: { ...HASH, triple: true },
-  pyi: { ...HASH, triple: true },
-  rb: HASH,
-  pl: HASH,
-  pm: HASH,
-  r: HASH,
-  jl: { ...HASH, triple: true },
-  nim: { ...HASH, triple: true },
-  ex: { ...HASH, triple: true },
-  exs: { ...HASH, triple: true },
-  toml: { ...HASH, triple: true },
-  tf: { ...HASH, line: ["#", "//"], block: [["/*", "*/"]] },
-  hcl: { ...HASH, line: ["#", "//"], block: [["/*", "*/"]] },
-  sh: SHELL,
-  bash: SHELL,
-  zsh: SHELL,
-  fish: SHELL,
-  ps1: { ...SHELL, block: [["<#", "#>"]] },
-  mk: SHELL,
-  sql: DASH,
-  lua: DASH,
-  hs: DASH,
-  elm: DASH,
-  ml: { ...PLAIN, block: [["(*", "*)"]] },
-  clj: { ...PLAIN, line: [";"] },
-  html: MARKUP,
-  htm: MARKUP,
-  xml: MARKUP,
-  svg: MARKUP,
-  xaml: MARKUP,
-  vue: MARKUP,
-  svelte: MARKUP,
-  yaml: DATA,
-  yml: DATA,
-  ini: DATA,
-  cfg: DATA,
-  conf: DATA,
-  properties: DATA
-};
-var BY_NAME = { dockerfile: SHELL, containerfile: SHELL, makefile: SHELL, justfile: SHELL, gnumakefile: SHELL };
-function baseOf(p) {
-  return p.slice(Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\")) + 1);
-}
-function langOf(path) {
-  const b = baseOf(path);
-  const named = BY_NAME[b.toLowerCase()];
-  if (named !== undefined)
-    return named;
-  const i = b.lastIndexOf(".");
-  return i <= 0 ? undefined : LANGS2[b.slice(i + 1).toLowerCase()];
-}
-var JSX_TEXT_MAX = 4000;
-var REGEX_BEFORE = new Set(["", "(", ",", "=", ":", "[", "!", "&", "|", "?", "{", "}", ";", "+", "-", "*", "%", "<", ">", "~", "^"]);
-var REGEX_KEYWORD = /(?:^|[^\w$])(?:return|typeof|case|in|of|delete|void|throw|else|do|yield|await)\s*$/;
-function contexts(text, lang) {
-  const n = text.length;
-  const out = new Uint8Array(n);
-  let i = 0;
-  const mark = (from, to, kind) => {
-    out.fill(kind, from, Math.min(to, n));
-  };
-  const tagAhead = (at) => {
-    for (let j = at;j < n && j < at + JSX_TEXT_MAX; j++) {
-      const c = text[j];
-      if (c === "<")
-        return /[A-Za-z/>]/.test(text[j + 1] ?? "") ? j : -1;
-      if (c === ">" || c === "{" || c === "}" || c === ";" || c === "=")
-        return -1;
-    }
-    return -1;
-  };
-  const prose = (from) => {
-    const end = tagAhead(from);
-    if (end < 0)
-      return from;
-    mark(from, end, PROSE);
-    return end;
-  };
-  const holes = [];
-  const templateFrom = (start, k) => {
-    let j = k;
-    while (j < n) {
-      const d = text[j];
-      if (d === "\\") {
-        j += 2;
-        continue;
-      }
-      if (d === "`") {
-        mark(start, j + 1, STRING);
-        return j + 1;
-      }
-      if (d === "$" && text[j + 1] === "{") {
-        mark(start, j + 2, STRING);
-        holes.push(0);
-        return j + 2;
-      }
-      j++;
-    }
-    mark(start, n, STRING);
-    return n;
-  };
-  const regexEnd = (k) => {
-    let inClass = false;
-    for (let j = k + 1;j < n; j++) {
-      const d = text[j];
-      if (d === "\\") {
-        j++;
-        continue;
-      }
-      if (d === `
-`)
-        return -1;
-      if (d === "[")
-        inClass = true;
-      else if (d === "]")
-        inClass = false;
-      else if (d === "/" && !inClass) {
-        let e = j + 1;
-        while (e < n && /[a-z]/.test(text[e]))
-          e++;
-        return e;
-      }
-    }
-    return -1;
-  };
-  let prev = "";
-  if (lang.markup) {
-    const end = text.indexOf("<");
-    i = end < 0 ? n : end;
-    mark(0, i, PROSE);
-  } else if (lang.jsx)
-    i = prose(0);
-  while (i < n) {
-    const c = text[i];
-    if (lang.template && holes.length > 0 && (c === "{" || c === "}")) {
-      const top = holes.length - 1;
-      if (c === "{")
-        holes[top] = holes[top] + 1;
-      else if (holes[top] === 0) {
-        holes.pop();
-        i = templateFrom(i, i + 1);
-        prev = "a";
-        continue;
-      } else
-        holes[top] = holes[top] - 1;
-      prev = c;
-      i++;
-      continue;
-    }
-    if (lang.markup && c === ">") {
-      const end = text.indexOf("<", i + 1);
-      const stop = end < 0 ? n : end;
-      mark(i + 1, stop, PROSE);
-      i = stop;
-      continue;
-    }
-    if (lang.jsx && (c === ">" || c === "}")) {
-      prev = c;
-      i = prose(i + 1);
-      continue;
-    }
-    const block = lang.block.find(([open]) => text.startsWith(open, i));
-    if (block !== undefined) {
-      const end = text.indexOf(block[1], i + block[0].length);
-      const stop = end < 0 ? n : end + block[1].length;
-      mark(i, stop, COMMENT);
-      i = stop;
-      continue;
-    }
-    const line = lang.line.find((open) => text.startsWith(open, i) && (!lang.hashAtWord || open !== "#" || i === 0 || /\s/.test(text[i - 1] ?? "")));
-    if (line !== undefined) {
-      const end = text.indexOf(`
-`, i);
-      const stop = end < 0 ? n : end;
-      mark(i, stop, COMMENT);
-      i = stop;
-      continue;
-    }
-    if (lang.heredoc && text.startsWith("<<", i) && text[i + 2] !== "<") {
-      const m = /^<<(-?)\s*(['"]?)([A-Za-z_][\w-]*)\2/.exec(text.slice(i, i + 80));
-      const eol = m !== null ? text.indexOf(`
-`, i) : -1;
-      if (m !== null && eol >= 0) {
-        const word = m[3];
-        let j = eol + 1;
-        while (j < n) {
-          const next = text.indexOf(`
-`, j);
-          const row = text.slice(j, next < 0 ? n : next);
-          if ((m[1] === "-" ? row.trim() : row) === word)
-            break;
-          j = next < 0 ? n : next + 1;
-        }
-        mark(eol + 1, j, PROSE);
-        i = j;
-        continue;
-      }
-    }
-    if (lang.regex && c === "/" && (REGEX_BEFORE.has(prev) || REGEX_KEYWORD.test(text.slice(Math.max(0, i - 12), i)))) {
-      const end = regexEnd(i);
-      if (end > 0) {
-        mark(i, end, STRING);
-        prev = "a";
-        i = end;
-        continue;
-      }
-    }
-    if (lang.template && c === "`") {
-      i = templateFrom(i, i + 1);
-      prev = "a";
-      continue;
-    }
-    const triple = lang.triple && (text.startsWith('"""', i) || text.startsWith("'''", i)) ? text.slice(i, i + 3) : undefined;
-    if (triple !== undefined) {
-      const end = text.indexOf(triple, i + 3);
-      const stop = end < 0 ? n : end + 3;
-      mark(i, stop, STRING);
-      i = stop;
-      continue;
-    }
-    const verbatim = lang.verbatim && c === "@" && text[i + 1] === '"';
-    const quote = verbatim ? '"' : lang.quotes.includes(c) || lang.backtick && c === "`" ? c : undefined;
-    if (quote !== undefined && !(lang.rustChar && quote === "'" && !/^'(?:\\.|[^\\'\n])'/.test(text.slice(i, i + 12)))) {
-      const multi = quote === "`" || lang.multiline === true;
-      let j = i + (verbatim ? 2 : 1);
-      while (j < n) {
-        const d = text[j];
-        if (d === "\\" && !verbatim && !(lang.hashAtWord && quote === "'")) {
-          j += 2;
-          continue;
-        }
-        if (d === quote) {
-          if (verbatim && text[j + 1] === '"') {
-            j += 2;
-            continue;
-          }
-          j++;
-          break;
-        }
-        if (d === `
-` && !multi)
-          break;
-        j++;
-      }
-      mark(i, j, STRING);
-      prev = "a";
-      i = j;
-      continue;
-    }
-    if (!/\s/.test(c))
-      prev = c;
-    i++;
-  }
-  return out;
-}
-function chars(codes) {
-  return codes.map((c) => typeof c === "number" ? String.fromCodePoint(c) : `${String.fromCodePoint(c[0])}-${String.fromCodePoint(c[1])}`).join("");
-}
-function charSet(...codes) {
-  return new RegExp(`[${chars(codes)}]`, "u");
-}
-var BIDI_CODES = [[8234, 8238], [8294, 8297]];
-var ZERO_WIDTH_CODES = [8203, 8288, 65279, 6158];
-var JOINER_CODES = [8204, 8205];
-var SPACE_CODES = [160, 5760, [8192, 8202], 8239, 8287, 12288];
-var BIDI = charSet(...BIDI_CODES);
-var ZERO_WIDTH = charSet(...ZERO_WIDTH_CODES);
-var JOINER = charSet(...JOINER_CODES);
-var SPACE = charSet(...SPACE_CODES);
-var INVISIBLE = charSet(...BIDI_CODES, ...ZERO_WIDTH_CODES, ...JOINER_CODES, ...SPACE_CODES);
-var CHAR_CLASSES = [
-  { re: BIDI, label: "bidirectional control character", hint: "remove it (it can hide code)", strict: true, soft: "remove it (it can hide code), or write it as an escape sequence if the text needs it" },
-  { re: ZERO_WIDTH, label: "zero-width character", hint: "remove it", strict: true, soft: "remove it, or write it as an escape sequence if the text needs it" },
-  { re: JOINER, label: "zero-width joiner or non-joiner", hint: "remove it unless it joins the letters or emoji around it", strict: true },
-  { re: SPACE, label: "non-breaking or unusual space", hint: "use a plain space", strict: true, soft: "use a plain space unless the text needs a non-breaking one" },
-  { re: charSet(8216, 8217, 8218, 8219, 8242), label: "smart single quote", hint: "use a plain '" },
-  { re: charSet(8220, 8221, 8222, 8223, 8243, 171, 187), label: "smart double quote", hint: 'use a plain "' },
-  { re: charSet([8208, 8213], 8722), label: "typographic dash or minus", hint: "use a plain -" },
-  { re: charSet(8230), label: "ellipsis", hint: "use three dots" },
-  { re: charSet(8804, 8805, 8800), label: "math comparison symbol", hint: "use <=, >= or !=" },
-  { re: charSet([8592, 8703], [10224, 10239], [10496, 10623]), label: "arrow symbol", hint: "use -> or plain words" },
-  { re: charSet(8226, [9632, 9727], [9472, 9631]), label: "decorative symbol", hint: "use plain ASCII" },
-  { re: new RegExp(`\\p{Extended_Pictographic}|[${chars([[9728, 10175]])}]`, "u"), label: "emoji or pictograph", hint: "remove it from code" }
-];
-var TYPOGRAPHY_NEIGHBOR = new RegExp(`[${chars([171, 187, 8364, 8240])}:;!?%$\\d]`, "u");
-function intended(cls, prev, next) {
-  const nonAscii = (s) => s !== undefined && (s.codePointAt(0) ?? 0) >= 128 && !INVISIBLE.test(s);
-  if (cls.re === JOINER)
-    return nonAscii(prev) && nonAscii(next);
-  if (cls.re === SPACE)
-    return prev !== undefined && TYPOGRAPHY_NEIGHBOR.test(prev) || next !== undefined && TYPOGRAPHY_NEIGHBOR.test(next);
-  return false;
-}
-var CHARSET_MAX_FINDINGS = 10;
-var CHARSET_CONTEXT_MAX = 2000000;
-function charsetFindings(addedText, path, fileText) {
-  if (typeof addedText !== "string" || addedText === "" || !/[^\x00-\x7F]/.test(addedText))
-    return [];
-  const lang = langOf(typeof path === "string" ? path : "");
-  if (lang === undefined)
-    return [];
-  const lines = addedText.split(`
-`);
-  const full = typeof fileText === "string" && fileText !== "" && fileText.length <= CHARSET_CONTEXT_MAX ? fileText : undefined;
-  const fileCtx = full !== undefined ? contexts(full, lang) : undefined;
-  let ownCtx;
-  const starts = [];
-  let at = 0;
-  for (const l of lines) {
-    starts.push(at);
-    at += l.length + 1;
-  }
-  let cursor = 0;
-  const out = [];
-  let extra = 0;
-  for (const [i, line] of lines.entries()) {
-    if (!/[^\x00-\x7F]/.test(line))
-      continue;
-    let base;
-    let offset;
-    const found = full !== undefined && line.trim() !== "" ? (() => {
-      const k = full.indexOf(line, cursor);
-      return k >= 0 ? k : full.indexOf(line);
-    })() : -1;
-    if (found >= 0 && fileCtx !== undefined) {
-      base = fileCtx;
-      offset = found;
-      cursor = found + line.length;
-    } else {
-      ownCtx ??= contexts(addedText, lang);
-      base = ownCtx;
-      offset = starts[i];
-    }
-    const cps = [...line];
-    let u16 = 0;
-    for (const [k, ch] of cps.entries()) {
-      const pos = offset + u16;
-      u16 += ch.length;
-      const code = ch.codePointAt(0) ?? 0;
-      if (code < 128 || code === 169 || code === 174 || code === 8482)
-        continue;
-      const cls = CHAR_CLASSES.find((c) => c.re.test(ch));
-      if (!cls)
-        continue;
-      const where = base[pos] ?? CODE;
-      if (where !== CODE) {
-        if (!cls.strict)
-          continue;
-        if (intended(cls, cps[k - 1], cps[k + 1]))
-          continue;
-      } else if (!cls.strict && !lang.typographic)
-        continue;
-      if (out.length >= CHARSET_MAX_FINDINGS) {
-        extra++;
-        continue;
-      }
-      const hex = code.toString(16).toUpperCase().padStart(4, "0");
-      const visible = INVISIBLE.test(ch) ? "" : ` ${ch}`;
-      const hint = where !== CODE && cls.soft !== undefined ? cls.soft : cls.hint;
-      out.push(`added line ${i + 1}, column ${k + 1}: ${cls.label}${visible} (U+${hex}); ${hint}`);
-    }
-  }
-  if (extra > 0)
-    out.push(`${String.fromCodePoint(8230)} ${extra} more unusual characters in this edit`);
-  return out;
-}
-
-// src/core/checkers.ts
-var FINDINGS_MAX_LINES = 20;
-var SLOW_CHECKER_MIN_MS = 4000;
-var DOTNET_FORMAT_ENV = { LC_ALL: "en_US.UTF-8", DOTNET_CLI_UI_LANGUAGE: "en" };
-function basename4(p) {
-  return p.slice(Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\")) + 1);
-}
-function dirname6(p) {
-  const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
-  return i <= 0 ? i === 0 ? p.slice(0, 1) : "." : p.slice(0, i);
-}
-function ext2(p) {
-  const b = basename4(p);
-  const i = b.lastIndexOf(".");
-  return i <= 0 ? "" : b.slice(i + 1).toLowerCase();
-}
 var TS_EXT = new Set(["ts", "tsx", "mts", "cts"]);
-var JS_EXT2 = new Set(["js", "jsx", "mjs", "cjs"]);
+var JS_EXT = new Set(["js", "jsx", "mjs", "cjs"]);
 function relativeIn(path, dir) {
   const d = dir.replace(/[\\/]+$/, "");
   if (path.length <= d.length + 1 || !path.startsWith(d) || !/[\\/]/.test(path.charAt(d.length)))
@@ -23475,21 +22698,21 @@ function checkersFor(path, facts, cfg) {
     return [];
   const langs = new Set(Array.isArray(cfg.languages) ? cfg.languages : []);
   const timeoutMs = typeof cfg.timeoutMs === "number" && cfg.timeoutMs > 0 ? cfg.timeoutMs : 20000;
-  const cwd = facts.cwd || dirname6(path);
-  const e = ext2(path);
+  const cwd = facts.cwd || dirname5(path);
+  const e = ext(path);
   if ((e === "py" || e === "pyi") && langs.has("python") && facts.hasRuffConfig) {
     return [{ argv: [facts.ruffBin ?? "ruff", "check", "--output-format=concise", path], cwd, timeoutMs, parser: "ruff" }];
   }
-  if ((TS_EXT.has(e) && langs.has("typescript") || JS_EXT2.has(e) && langs.has("javascript")) && facts.hasEslintConfig && !path.endsWith(".d.ts")) {
+  if ((TS_EXT.has(e) && langs.has("typescript") || JS_EXT.has(e) && langs.has("javascript")) && facts.hasEslintConfig && !path.endsWith(".d.ts")) {
     return [{ argv: [facts.eslintBin ?? "eslint", "--format", "json", path], cwd: facts.eslintCwd ?? cwd, timeoutMs, parser: "eslint" }];
   }
   if (e === "go" && langs.has("go") && facts.isGoModule) {
     const plans = [
-      { argv: ["go", "vet", "."], cwd: dirname6(path), timeoutMs, parser: "go-vet" },
+      { argv: ["go", "vet", "."], cwd: dirname5(path), timeoutMs, parser: "go-vet" },
       { argv: ["gofmt", "-l", path], cwd, timeoutMs, parser: "generic" }
     ];
     if (facts.golangci === true)
-      plans.push({ argv: ["golangci-lint", "run", "."], cwd: dirname6(path), timeoutMs, parser: "golangci", minMs: SLOW_CHECKER_MIN_MS });
+      plans.push({ argv: ["golangci-lint", "run", "."], cwd: dirname5(path), timeoutMs, parser: "golangci", minMs: SLOW_CHECKER_MIN_MS });
     return plans;
   }
   if ((e === "sh" || e === "bash") && langs.has("shell")) {
@@ -23519,7 +22742,7 @@ function note(title, items, cwd) {
 `);
 }
 function tool(plan) {
-  const a0 = basename4(plan.argv[0] ?? "");
+  const a0 = basename3(plan.argv[0] ?? "");
   return a0 === "" ? plan.parser : a0;
 }
 var ANSI = /\x1b\[[0-9;?]*[A-Za-z]/g;
@@ -23637,15 +22860,6 @@ function missingToolNote(plan) {
 function skippedNote(plan) {
   return `${checkerTool(plan)} skipped (hook time budget used up)`;
 }
-function lengthNote(lineCount) {
-  if (typeof lineCount !== "number" || !Number.isFinite(lineCount))
-    return;
-  if (lineCount > 1000)
-    return `This file has ${lineCount} lines (over 1000): split it along existing seams before adding more.`;
-  if (lineCount > 800)
-    return `This file has ${lineCount} lines (over 800): prefer splitting it along existing seams over growing it further.`;
-  return;
-}
 
 // src/adapters/shared/checker-scan.ts
 init_paths();
@@ -23675,13 +22889,6 @@ var nodeCheckFs = {
   }
 };
 var MANIFEST_MAX_BYTES = 512000;
-var SOURCE_MAX_BYTES = 4000000;
-var TEST_SCAN_MAX_ENTRIES = 2000;
-var TEST_SCAN_MAX_MS = 150;
-var IMPORTER_MAX_FILES = 200;
-var IMPORTER_MAX_BYTES = 256000;
-var SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", "out", "bin", "obj", ".venv", "venv", "__pycache__", "coverage", ".next", ".turbo", "target", "vendor", "fixtures", "__fixtures__", "snapshots", "__snapshots__"]);
-var SOURCE_ROOTS = new Set(["src", "lib", "app", "pkg", "internal", "source"]);
 function scanUpward(fs, file, root, home) {
   return checkerDirs(file, root, home).map((dir) => {
     const names = fs.list(dir).map((e) => e.name);
@@ -23701,99 +22908,6 @@ function scanUpward(fs, file, root, home) {
       scan.present = present;
     return scan;
   });
-}
-function extOf(p) {
-  const b = basename5(p);
-  const i = b.lastIndexOf(".");
-  return i <= 0 ? "" : b.slice(i + 1).toLowerCase();
-}
-var FAMILY = { py: "py", pyi: "py", go: "go", cs: "cs", ts: "js", tsx: "js", mts: "js", cts: "js", js: "js", jsx: "js", mjs: "js", cjs: "js" };
-function mirrorDirs(file, testDir, owner) {
-  const rel = relative(owner, dirname7(file));
-  if (rel === "" || rel.startsWith(".."))
-    return [];
-  const segs = rel.split(sep);
-  const stem = basename5(file).replace(/\.[^.]+$/, "");
-  const out = [join6(testDir, ...segs), join6(testDir, ...segs, stem)];
-  if (segs.length > 0 && SOURCE_ROOTS.has(segs[0]))
-    out.push(join6(testDir, ...segs.slice(1)), join6(testDir, ...segs.slice(1), stem));
-  return out;
-}
-function testFilesNear(fs, file, scans, now) {
-  const family = FAMILY[extOf(file)];
-  if (family === undefined)
-    return [];
-  const deadline = now() + TEST_SCAN_MAX_MS;
-  const roots = [];
-  const queue = [];
-  for (const s of scans) {
-    for (const n of s.names) {
-      if (n === basename5(dirname7(file)) && join6(s.dir, n) === dirname7(file))
-        continue;
-      if (TEST_DIR_NAMES.includes(n) || family === "cs" && isDotnetTestProjectName(n)) {
-        const t = join6(s.dir, n);
-        if (roots.includes(t))
-          continue;
-        roots.push(t);
-        queue.push(...mirrorDirs(file, t, s.dir));
-      }
-    }
-  }
-  queue.push(...roots);
-  const seen = new Set;
-  const found = [];
-  let visited = 0;
-  while (queue.length > 0 && visited < TEST_SCAN_MAX_ENTRIES && now() < deadline) {
-    const d = queue.shift();
-    if (seen.has(d))
-      continue;
-    seen.add(d);
-    for (const e of fs.list(d)) {
-      visited++;
-      if (e.dir) {
-        if (!SKIP_DIRS.has(e.name) && !e.name.startsWith("."))
-          queue.push(join6(d, e.name));
-        continue;
-      }
-      const p = join6(d, e.name);
-      if (FAMILY[extOf(e.name)] !== family || found.includes(p))
-        continue;
-      if (isTestFileName(e.name) || family === "cs")
-        found.push(p);
-    }
-  }
-  return found;
-}
-function importersOf(fs, file, testFiles, now, imports = importsModule) {
-  const deadline = now() + TEST_SCAN_MAX_MS;
-  let read = 0;
-  for (const t of testFiles) {
-    if (read >= IMPORTER_MAX_FILES || now() >= deadline)
-      break;
-    const text = fs.read(t, IMPORTER_MAX_BYTES);
-    read++;
-    if (text !== undefined && imports(text, t, file))
-      return [t];
-  }
-  return [];
-}
-function lastFailed(fs, scans) {
-  for (const s of scans) {
-    if (!s.names.includes(".pytest_cache"))
-      continue;
-    const text = fs.read(join6(s.dir, ".pytest_cache", "v", "cache", "lastfailed"), MANIFEST_MAX_BYTES);
-    if (text === undefined)
-      continue;
-    try {
-      const parsed = JSON.parse(text);
-      if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))
-        return [];
-      return [...new Set(Object.keys(parsed).map((k) => k.split("::")[0]).filter((k) => k !== ""))];
-    } catch {
-      return [];
-    }
-  }
-  return [];
 }
 function checkerArgv(argv, find = (name) => findExecutable(name, { extra: toolchainBinDirs() })) {
   const [cmd, ...rest] = argv;
@@ -23815,40 +22929,9 @@ function removedByFile(edits, files) {
   }
   return out;
 }
-function lineCountOf(text) {
-  return text === "" ? 0 : text.split(`
-`).length - (text.endsWith(`
-`) ? 1 : 0);
-}
-var TDD_IMPORTERS = new Set(["py", "js", "cs"]);
-async function tddNote(env, t, scans, source) {
-  const { api, fs, guard } = env;
-  const edit = {};
-  if (t.removed !== undefined)
-    edit.removed = t.removed;
-  if (t.added !== undefined)
-    edit.added = t.added;
-  if (source !== undefined && extOf(t.file) === "cs")
-    edit.source = source;
-  const first = scans[0];
-  const siblings = first !== undefined && first.dir === dirname7(t.file) ? [...first.names] : fs.list(dirname7(t.file)).map((e) => e.name);
-  const quick = await guard("tddHint", undefined, () => api.tddHint(t.file, { siblings }, edit));
-  if (quick === undefined)
-    return;
-  const testFiles = await guard("test files", [], () => testFilesNear(fs, t.file, scans, env.now));
-  const named = await guard("tddHint", undefined, () => api.tddHint(t.file, { siblings, testFiles }, edit));
-  if (named === undefined || !TDD_IMPORTERS.has(FAMILY[extOf(t.file)] ?? ""))
-    return named;
-  const importers = await guard("test importers", [], () => importersOf(fs, t.file, testFiles, env.now, api.importsModule ?? importsModule));
-  const failing = FAMILY[extOf(t.file)] === "py" ? await guard("pytest lastfailed", [], () => lastFailed(fs, scans)) : [];
-  if (importers.length === 0 && failing.length === 0)
-    return named;
-  return guard("tddHint", named, () => api.tddHint(t.file, { siblings, testFiles, importers, failing }, edit));
-}
 async function checkOneFile(env, t, cfg) {
   const { api, fs, guard } = env;
   const notes = [];
-  const source = fs.read(t.file, SOURCE_MAX_BYTES);
   const scans = await guard("project scan", [], () => scanUpward(fs, t.file, t.root, t.home));
   const facts = await guard("checker facts", { hasRuffConfig: false, hasEslintConfig: false, isGoModule: false, cwd: t.cwd }, () => (api.checkerFacts ?? checkerFacts)(scans, t.cwd));
   const plans = await guard("checkersFor", [], () => api.checkersFor(t.file, facts, cfg));
@@ -23880,19 +22963,6 @@ async function checkOneFile(env, t, cfg) {
     const finding = await guard("findingsOf", undefined, () => api.findingsOf(plan, res === null ? null : { code: res.code, stdout: res.stdout, stderr: res.stderr }));
     if (finding)
       notes.push({ kind: "finding", text: finding });
-  }
-  const tdd = await guard("tddHint", undefined, () => tddNote(env, t, scans, source));
-  if (tdd)
-    notes.push({ kind: "tdd", text: tdd });
-  if (t.added !== undefined && t.added !== "") {
-    const added = t.added;
-    for (const text of await guard("charsetFindings", [], () => api.charsetFindings(added, t.file, source)))
-      notes.push({ kind: "charset", text });
-  }
-  if (source !== undefined) {
-    const ln = await guard("lengthNote", undefined, () => api.lengthNote(lineCountOf(source)));
-    if (ln)
-      notes.push({ kind: "length", text: ln });
   }
   return notes;
 }
@@ -26101,7 +25171,7 @@ function validatePlan(markdown, opts) {
     if (firstComment < 0)
       firstComment = i;
     let other = false;
-    for (const m of line.matchAll(COMMENT2)) {
+    for (const m of line.matchAll(COMMENT)) {
       if (m[2] !== undefined && skeleton.has(normComment(m[1]))) {
         skel++;
         if (firstSkel < 0)
@@ -26136,7 +25206,7 @@ function validatePlan(markdown, opts) {
   }
   return out;
 }
-var COMMENT2 = /<!--([\s\S]*?)(-->|$)/g;
+var COMMENT = /<!--([\s\S]*?)(-->|$)/g;
 function normComment(s) {
   return s.replace(/\s+/g, " ").trim();
 }
@@ -26146,7 +25216,7 @@ function skeletonPlaceholders() {
     return placeholderSet;
   const out = new Set;
   for (const type of PLAN_TYPES) {
-    for (const m of planSkeleton({ type, title: "Skeleton", created: "2026-01-01" }).matchAll(COMMENT2)) {
+    for (const m of planSkeleton({ type, title: "Skeleton", created: "2026-01-01" }).matchAll(COMMENT)) {
       if (m[2] !== undefined)
         out.add(normComment(m[1]));
     }
@@ -26566,7 +25636,6 @@ var ROUTE_AUDIT_AFTER = ["finished", "no-plan", "disabled"];
 function routeAuditAllowed(why, strictness) {
   return strictness !== "off" && why !== undefined && ROUTE_AUDIT_AFTER.includes(why);
 }
-var AUTO_PAUSE_REASON = "the user sent a message while the plan was running (plan.autoPause)";
 var STOP_REASON_MAX = 1200;
 var TICKED_MAX = 200;
 function emptyState() {
@@ -27354,7 +26423,7 @@ init_paths();
 
 // src/memory/lock.ts
 import { closeSync as closeSync3, mkdirSync as mkdirSync3, openSync as openSync3, readFileSync as readFileSync8, utimesSync, writeSync as writeSync2 } from "fs";
-import { dirname as dirname8 } from "path";
+import { dirname as dirname6 } from "path";
 
 // src/engine/lockfile.ts
 import { randomBytes as randomBytes2 } from "crypto";
@@ -27448,7 +26517,7 @@ function touchOwn(path, text) {
   } catch {}
 }
 function tryLock(path, staleMs = 60000, opts = {}) {
-  mkdirSync3(dirname8(path), { recursive: true });
+  mkdirSync3(dirname6(path), { recursive: true });
   for (let attempt = 0;attempt < 3; attempt++) {
     try {
       const fd = openSync3(path, "wx", 384);
@@ -27945,7 +27014,6 @@ function defaultConfig() {
     plan: {
       stopGuard: true,
       runaway: { perPlan: 30, perChain: 5 },
-      autoPause: false,
       planApproval: true,
       resultApproval: true,
       branchIsolation: true,
@@ -28023,7 +27091,6 @@ var CONFIG_SCHEMA = {
       fields: {
         stopGuard: bool,
         runaway: { t: "obj", fields: { perPlan: count(1), perChain: count(1) } },
-        autoPause: bool,
         planApproval: bool,
         resultApproval: bool,
         branchIsolation: bool,
@@ -28630,9 +27697,6 @@ function backgroundWait(lastMessage, tasks, crons) {
   return Array.isArray(crons) && crons.some((c) => rec(c)?.["recurring"] === false);
 }
 // src/core/plan/interaction.ts
-function running(s) {
-  return s.plan !== undefined && !isPlanFinished(s) && s.interaction?.state !== "paused";
-}
 function promptInteraction(state, control, text, opts) {
   const hasPlan = state.plan !== undefined;
   const before = state.interaction;
@@ -28652,12 +27716,7 @@ function promptInteraction(state, control, text, opts) {
     const guidance = pausedReply(before, text);
     return guidance !== undefined ? { next: state, guidance } : { next: state };
   }
-  if (!opts.autoPause || !running(state))
-    return { next: state };
-  const paused = applyIntent(state, "pause", opts.now);
-  if (paused === state || paused.interaction?.state !== "paused")
-    return { next: state };
-  return { next: { ...paused, interaction: { ...paused.interaction, reason: AUTO_PAUSE_REASON } }, guidance: CONTROL_GUIDANCE.autoPause, autoPaused: true };
+  return { next: state };
 }
 // src/core/plan/plan-mode.ts
 var FILE_WRITING_WORKFLOWS = {
@@ -28811,7 +27870,7 @@ function pace(usedPct, resetsAtIso, windowMinutes, nowMs) {
 }
 
 // src/core/status/format.ts
-var ZERO_WIDTH2 = /^[\p{Mn}\p{Me}\p{Cf}\u200B-\u200F\uFE00-\uFE0F]$/u;
+var ZERO_WIDTH = /^[\p{Mn}\p{Me}\p{Cf}\u200B-\u200F\uFE00-\uFE0F]$/u;
 var EMOJI_WIDE = /^\p{Emoji_Presentation}$/u;
 function isWideCodePoint(cp) {
   return cp >= 4352 && cp <= 4447 || cp >= 11904 && cp <= 12350 || cp >= 12353 && cp <= 13311 || cp >= 13312 && cp <= 19903 || cp >= 19968 && cp <= 40959 || cp >= 40960 && cp <= 42191 || cp >= 44032 && cp <= 55203 || cp >= 63744 && cp <= 64255 || cp >= 65072 && cp <= 65103 || cp >= 65280 && cp <= 65376 || cp >= 65504 && cp <= 65510 || cp >= 131072 && cp <= 262141;
@@ -28820,7 +27879,7 @@ function charWidth(ch) {
   const cp = ch.codePointAt(0) ?? 0;
   if (cp < 32 || cp >= 127 && cp < 160)
     return 0;
-  if (ZERO_WIDTH2.test(ch))
+  if (ZERO_WIDTH.test(ch))
     return 0;
   if (isWideCodePoint(cp) || EMOJI_WIDE.test(ch))
     return 2;
@@ -30461,7 +29520,7 @@ var TELEMETRY_FRESH_MS = 60 * 60000;
 // src/usage/cache.ts
 import { spawn } from "child_process";
 import { closeSync as closeSync4, existsSync as existsSync6, mkdirSync as mkdirSync4, openSync as openSync4, statSync as statSync13, utimesSync as utimesSync2, writeSync as writeSync3 } from "fs";
-import { dirname as dirname9, join as join12 } from "path";
+import { dirname as dirname7, join as join12 } from "path";
 
 // src/engine/config.ts
 import { readFileSync as readFileSync11, statSync as statSync12 } from "fs";
@@ -30613,7 +29672,7 @@ function spawnUsageRefresh(h, opts = {}) {
       if (now - statSync13(marker).mtimeMs < SPAWN_INTERVAL_MS)
         return false;
     } catch {}
-    mkdirSync4(dirname9(marker), { recursive: true });
+    mkdirSync4(dirname7(marker), { recursive: true });
     try {
       closeSync4(openSync4(marker, "a"));
     } catch {}
@@ -30638,7 +29697,7 @@ init_paths();
 
 // src/workflow/plan-capture.ts
 import { closeSync as closeSync5, mkdirSync as mkdirSync5, openSync as openSync5, readFileSync as readFileSync13, writeSync as writeSync4 } from "fs";
-import { isAbsolute as isAbsolute6, join as join13, relative as relative2, resolve as resolve6, sep as sep2 } from "path";
+import { isAbsolute as isAbsolute6, join as join13, relative, resolve as resolve6, sep } from "path";
 init_fsx();
 
 // src/workflow/plan-file.ts
@@ -30837,11 +29896,11 @@ function readPlanFile(path) {
   }
   return { ok: true, text, info: analyzePlan(text) };
 }
-function escapeRe4(s) {
+function escapeRe3(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 function keyLineRe(key) {
-  const k = escapeRe4(key);
+  const k = escapeRe3(key);
   return new RegExp(`^(?:${k}|"${k}"|'${k}')[ \\t]*:(?:[ \\t]|\\r?$)`);
 }
 function findKeyLine(fm, key) {
@@ -30994,8 +30053,8 @@ async function capturePlanFile(i) {
   return;
 }
 function shownPath(path, cwd) {
-  const rel = relative2(comparablePath(cwd), comparablePath(path));
-  return rel !== "" && !rel.startsWith("..") && !isAbsolute6(rel) ? rel.split(sep2).join("/") : path;
+  const rel = relative(comparablePath(cwd), comparablePath(path));
+  return rel !== "" && !rel.startsWith("..") && !isAbsolute6(rel) ? rel.split(sep).join("/") : path;
 }
 
 // src/workflow/plan-native.ts
@@ -31092,9 +30151,9 @@ function updateLedger(h, sid, fn, opts = {}) {
 }
 
 // src/adapters/opencode/runtime/adapter-rules.ts
-import { existsSync as existsSync7, readFileSync as readFileSync14 } from "fs";
-import { dirname as dirname10, join as join15, resolve as resolve7 } from "path";
 init_fsx();
+import { existsSync as existsSync7, readFileSync as readFileSync14 } from "fs";
+import { dirname as dirname8, join as join15, resolve as resolve7 } from "path";
 var CACHE_TTL_MS = 30000;
 var CACHE_MAX = 64;
 var cache2 = new Map;
@@ -31103,7 +30162,7 @@ function gitToplevel(dir) {
   for (let i = 0;i < 128; i++) {
     if (existsSync7(join15(d, ".git")))
       return d;
-    const up = dirname10(d);
+    const up = dirname8(d);
     if (up === d)
       return;
     d = up;
@@ -31158,7 +30217,7 @@ function buracleRepoFor(cwd, configured, nowMs = Date.now()) {
 
 // src/adapters/shared/review-notes.ts
 import { mkdirSync as mkdirSync6 } from "fs";
-import { dirname as dirname11, join as join16 } from "path";
+import { dirname as dirname9, join as join16 } from "path";
 init_fsx();
 init_paths();
 function real2(p) {
@@ -31188,7 +30247,7 @@ function reviewNotesNotice(h, sid, o) {
   if (hits.length === 0)
     return;
   try {
-    mkdirSync6(dirname11(file), { recursive: true });
+    mkdirSync6(dirname9(file), { recursive: true });
     atomicWriteSync(file, JSON.stringify({ at: Math.max(...hits.map((e) => e.at)), noticedAt: o.now }) + `
 `);
   } catch (e) {
@@ -31200,7 +30259,7 @@ function reviewNotesNotice(h, sid, o) {
 // src/adapters/shared/realpath.ts
 init_fsx();
 import { lstatSync as lstatSync3, readlinkSync as readlinkSync2 } from "fs";
-import { basename as basename6, dirname as dirname12, isAbsolute as isAbsolute7, join as join17, resolve as resolve8 } from "path";
+import { basename as basename4, dirname as dirname10, isAbsolute as isAbsolute7, join as join17, resolve as resolve8 } from "path";
 var MAX_HOPS = 40;
 function resolveFrom(p, hops) {
   if (hops > MAX_HOPS)
@@ -31221,13 +30280,13 @@ function resolveFrom(p, hops) {
     } catch {
       return;
     }
-    return resolveFrom(isAbsolute7(target) ? target : resolve8(dirname12(p), target), hops + 1);
+    return resolveFrom(isAbsolute7(target) ? target : resolve8(dirname10(p), target), hops + 1);
   }
-  const parent = dirname12(p);
+  const parent = dirname10(p);
   if (parent === p)
     return p;
   const real = resolveFrom(parent, hops + 1);
-  return real === undefined ? undefined : join17(real, basename6(p));
+  return real === undefined ? undefined : join17(real, basename4(p));
 }
 function realWriteTarget(p) {
   if (typeof p !== "string" || !isAbsolute7(p))
@@ -31237,7 +30296,7 @@ function realWriteTarget(p) {
 
 // src/adapters/shared/project-assets.ts
 import { existsSync as existsSync9, mkdirSync as mkdirSync8, statSync as statSync15, utimesSync as utimesSync3, writeFileSync } from "fs";
-import { basename as basename7, dirname as dirname14, join as join19, relative as relative4, resolve as resolve11, sep as sep4 } from "path";
+import { basename as basename5, dirname as dirname12, join as join19, relative as relative3, resolve as resolve11, sep as sep3 } from "path";
 
 // src/core/project-assets.ts
 var RULES_DIR = ".claude/rules";
@@ -31246,10 +30305,10 @@ var ASSETS_CONTEXT_MAX_RULES = 40;
 var ASSETS_CONTEXT_MAX_SKILLS = 40;
 var ASSETS_DESCRIPTION_MAX = 160;
 var ASSETS_BLOCK_MAX_CHARS = 2400;
-var DASH2 = "\u2014";
+var DASH = "\u2014";
 var HEADING3 = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
 var ITEM = /^\s*[-*+]\s+(.*)$/;
-var CODE2 = /`([^`]+)`/g;
+var CODE = /`([^`]+)`/g;
 var LINK_TARGET = /\]\(\s*<?((?:\.\/)?\.claude\/rules\/[^)>\s]+\.md)>?\s*\)/;
 var RULE_PATH = /^(?:\.\/)?\.claude\/rules\/.+\.md$/;
 var FIELD_SEPARATOR = /\s+(?:\u2014|\u2013|--|-)\s+/;
@@ -31262,10 +30321,10 @@ function cleanGlob(g) {
   return g.trim().replace(/^["']|["']$/g, "").trim();
 }
 function codeSpans(text) {
-  return [...text.matchAll(CODE2)].map((m) => (m[1] ?? "").trim()).filter((s) => s !== "");
+  return [...text.matchAll(CODE)].map((m) => (m[1] ?? "").trim()).filter((s) => s !== "");
 }
 function entryOf2(item, line) {
-  const spans = [...item.matchAll(CODE2)];
+  const spans = [...item.matchAll(CODE)];
   const pathSpan = spans.find((m) => RULE_PATH.test((m[1] ?? "").trim()));
   let path;
   let rest = item;
@@ -31381,7 +30440,7 @@ function globsText(globs) {
   return globs.length > 0 ? globs.map((g) => `\`${g}\``).join(", ") : "every file (no `paths:`)";
 }
 function indexLine(rule) {
-  return `- \`${rule.path}\` ${DASH2} ${rule.globs.length > 0 ? rule.globs.map((g) => `\`${g}\``).join(", ") : "`<glob>`"} ${DASH2} <purpose>`;
+  return `- \`${rule.path}\` ${DASH} ${rule.globs.length > 0 ? rule.globs.map((g) => `\`${g}\``).join(", ") : "`<glob>`"} ${DASH} <purpose>`;
 }
 function oneLine3(s, max) {
   const t = s.replace(/\s+/g, " ").trim();
@@ -31408,7 +30467,7 @@ function assetsContextText(o) {
     return "";
   const parts = [];
   if (o.rules.length > 0) {
-    parts.push(block(`Buracle project rules (H28): AGENTS.md's \`## ${SCOPED_RULES_HEADING}\` list does not name these path rules, so read the matching one before you edit files its globs match:`, o.rules.map((r) => `- \`${r.path}\` ${DASH2} ${globsText(r.globs)}`), ASSETS_CONTEXT_MAX_RULES, (more) => `- and ${more} more: \`buracle project check\` lists them all.`));
+    parts.push(block(`Buracle project rules (H28): AGENTS.md's \`## ${SCOPED_RULES_HEADING}\` list does not name these path rules, so read the matching one before you edit files its globs match:`, o.rules.map((r) => `- \`${r.path}\` ${DASH} ${globsText(r.globs)}`), ASSETS_CONTEXT_MAX_RULES, (more) => `- and ${more} more: \`buracle project check\` lists them all.`));
   }
   if (o.harness === "codex" && o.claudeOnly.length > 0) {
     parts.push(block("Buracle project skills (H28): these skills live only in .claude/skills, which Codex does not read. When a task matches one, read `.claude/skills/<id>/SKILL.md` and follow it; `buracle project sync --adopt` links them into .agents/skills for Codex.", o.claudeOnly.map((s) => `- \`${s.id}\`${s.description !== undefined && s.description !== "" ? `: ${oneLine3(s.description, ASSETS_DESCRIPTION_MAX)}` : ""}`), ASSETS_CONTEXT_MAX_SKILLS, (more) => `- and ${more} more in .claude/skills.`));
@@ -31614,7 +30673,7 @@ function nonProjectReason(dir) {
 
 // src/workflow/project-assets.ts
 import { existsSync as existsSync8, lstatSync as lstatSync4, mkdirSync as mkdirSync7, readdirSync as readdirSync4, readFileSync as readFileSync15, readlinkSync as readlinkSync3, statSync as statSync14, symlinkSync, unlinkSync as unlinkSync5 } from "fs";
-import { dirname as dirname13, isAbsolute as isAbsolute8, join as join18, relative as relative3, resolve as resolve10, sep as sep3 } from "path";
+import { dirname as dirname11, isAbsolute as isAbsolute8, join as join18, relative as relative2, resolve as resolve10, sep as sep2 } from "path";
 init_fsx();
 var SKILL_DIR_RE = /^[a-z0-9][a-z0-9._-]*$/;
 var RULES_MAX_FILES = 500;
@@ -31627,8 +30686,8 @@ function realOr2(p) {
   }
 }
 function within4(root, p) {
-  const rel = relative3(root, p);
-  return rel === "" || !rel.startsWith(`..${sep3}`) && rel !== ".." && !isAbsolute8(rel);
+  const rel = relative2(root, p);
+  return rel === "" || !rel.startsWith(`..${sep2}`) && rel !== ".." && !isAbsolute8(rel);
 }
 function kindOf(p) {
   try {
@@ -31740,7 +30799,7 @@ function claudeSkills(layout, withMeta = true) {
       try {
         target = readlinkSync3(path);
       } catch {}
-      const abs = isAbsolute8(target) ? target : resolve10(dirname13(path), target);
+      const abs = isAbsolute8(target) ? target : resolve10(dirname11(path), target);
       const intoAgents = within4(agentsPlain, abs) || within4(layout.agentsSkills, abs);
       const dangling = !existsSync8(abs);
       const ours = !dangling && realOr2(abs) === realOr2(join18(layout.agentsSkills, id)) && kindOf(join18(layout.agentsSkills, id)) !== "link";
@@ -31791,7 +30850,7 @@ function linkPlan(layout, agents = agentSkills(layout), claude = claudeSkills(la
     const link = join18(layout.claudeSkills, a.id);
     const c = byId.get(a.id);
     if (c === undefined) {
-      plan.create.push({ id: a.id, link, target: relative3(layout.claudeSkills, a.dir) });
+      plan.create.push({ id: a.id, link, target: relative2(layout.claudeSkills, a.dir) });
       continue;
     }
     if (c.kind === "link") {
@@ -31857,7 +30916,7 @@ function ruleFiles(rootIn) {
   const dir = join18(root, ...RULES_DIR.split("/"));
   const out = [];
   walkRules(dir, root, 0, out);
-  return out.map((p) => relative3(root, p).split(sep3).join("/"));
+  return out.map((p) => relative2(root, p).split(sep2).join("/"));
 }
 function ruleFacts(rootIn, privatePaths = new Set) {
   const root = realOr2(rootIn);
@@ -32010,10 +31069,10 @@ function realPathOf(file) {
   const rest = [];
   let dir = resolve11(file);
   while (!existsSync9(dir)) {
-    const parent = dirname14(dir);
+    const parent = dirname12(dir);
     if (parent === dir)
       return resolve11(file);
-    rest.unshift(basename7(dir));
+    rest.unshift(basename5(dir));
     dir = parent;
   }
   return join19(realOr2(dir), ...rest);
@@ -32023,7 +31082,7 @@ function relIn(root, file) {
   const abs = realPathOf(file);
   if (!within4(root, abs))
     return;
-  return relative4(root, abs).split(sep4).join("/");
+  return relative3(root, abs).split(sep3).join("/");
 }
 function assetsAfterEdit(rootIn, files, o) {
   try {
@@ -32335,7 +31394,7 @@ init_paths();
 
 // src/memory/project.ts
 import { copyFileSync, existsSync as existsSync11, readdirSync as readdirSync6, statSync as statSync18 } from "fs";
-import { basename as basename8, dirname as dirname15, join as join23, resolve as resolve12 } from "path";
+import { basename as basename6, dirname as dirname13, join as join23, resolve as resolve12 } from "path";
 init_fsx();
 init_paths();
 function oldVaultDir() {
@@ -32358,8 +31417,8 @@ function readProjectsCache() {
 }
 function backupCorruptProjectsCache() {
   const file = projectsFile();
-  const dir = dirname15(file);
-  const base = basename8(file);
+  const dir = dirname13(file);
+  const base = basename6(file);
   let newest = 0;
   try {
     for (const n of readdirSync6(dir)) {
@@ -32506,8 +31565,8 @@ function memoryExcludePatterns() {
 }
 function existingDir(cwd) {
   let abs = resolve12(cwd);
-  while (!existsSync11(abs) && dirname15(abs) !== abs)
-    abs = dirname15(abs);
+  while (!existsSync11(abs) && dirname13(abs) !== abs)
+    abs = dirname13(abs);
   return comparablePath(abs);
 }
 function excludeEnv() {
@@ -32524,7 +31583,7 @@ async function exclusionOf(abs, patterns, nested = false) {
   if (hit === undefined) {
     const id = await projectIdentity(abs);
     const top = id.commonDir !== undefined ? await toplevel(abs) ?? id.root : abs;
-    const main = id.commonDir !== undefined && basename8(id.commonDir) === ".git" ? [dirname15(id.commonDir)] : [];
+    const main = id.commonDir !== undefined && basename6(id.commonDir) === ".git" ? [dirname13(id.commonDir)] : [];
     const own = memExclusion({ dirs: [id.root, top, ...main], ...id.ownerRepo !== undefined ? { ownerRepo: id.ownerRepo } : {} }, patterns, env);
     if (own !== undefined || id.commonDir !== undefined)
       return own;
@@ -32538,7 +31597,7 @@ async function onlyChildExclusion(abs, patterns) {
     return;
   const child = children[0];
   const why = await exclusionOf(child, patterns, true);
-  return why === undefined ? undefined : `${why} for ${basename8(child)}, the one repository in this folder`;
+  return why === undefined ? undefined : `${why} for ${basename6(child)}, the one repository in this folder`;
 }
 async function projectExclusion(cwd, patterns = memoryExcludePatterns()) {
   if (patterns.length === 0)
@@ -32676,12 +31735,12 @@ var STALE_ACTIVE_MS = 2 * 3600000;
 
 // src/memory/spawn.ts
 import { existsSync as existsSync12, statSync as statSync19 } from "fs";
-import { basename as basename9, join as join24 } from "path";
+import { basename as basename7, join as join24 } from "path";
 init_paths();
 init_shim();
 function bunBinary() {
   const exe = process.execPath;
-  if (/^bun(?:-[^/]*)?$/.test(basename9(exe)))
+  if (/^bun(?:-[^/]*)?$/.test(basename7(exe)))
     return exe;
   return Bun.which("bun") ?? undefined;
 }
@@ -34078,7 +33137,7 @@ var HANDOFF_KEEP_MS = 14 * 86400000;
 function emptyReceipt() {
   return { edits: {}, commands: [], lastEditSeq: -1, lastCheckSeq: -1, seq: 0, failStreak: undefined, removedTexts: {}, flipFlops: {} };
 }
-var PROSE2 = /\.(?:md|mdx|txt|rst|adoc|json|ya?ml|toml|ini|cfg|conf|csv|svg|png|jpe?g|gif|lock|env\.example)$/iu;
+var PROSE = /\.(?:md|mdx|txt|rst|adoc|json|ya?ml|toml|ini|cfg|conf|csv|svg|png|jpe?g|gif|lock|env\.example)$/iu;
 var CHECK = new RegExp([
   String.raw`\b(?:bun|npm|pnpm|yarn|deno)\s+(?:run\s+)?(?:test|check|lint|typecheck|type-check|tsc|verify|ci)\b`,
   String.raw`\bbunx?\s+(?:test|tsc|vitest|jest|eslint|biome|prettier\s+--check)\b`,
@@ -34099,7 +33158,7 @@ function isCheckCommand(command) {
   return CHECK.test(command);
 }
 function needsVerification(path) {
-  return !PROSE2.test(path);
+  return !PROSE.test(path);
 }
 function lineDelta(oldText, newText) {
   if (oldText === newText)
@@ -34467,7 +33526,6 @@ var GENERATED = {
       enforce: true
     },
     plan: {
-      autoPause: false,
       branchIsolation: true,
       goalVerification: true,
       modelSwitch: "off",
@@ -36672,7 +35730,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
       if (text !== "" && isValidSessionId(sid))
         guarded("H20 grants", () => deps.recordGrants(sid, text, now));
       const control = intent === "pause" || intent === "resume" || intent === "stop" ? intent : null;
-      parts.push({ text: guarded("H10 interaction", () => promptGuidance(deps, sid, control, text, { autoPause: lc.config.plan.autoPause, now })), order: 0 });
+      parts.push({ text: guarded("H10 interaction", () => promptGuidance(deps, sid, control, text, { now })), order: 0 });
       parts.push({ text: guarded("H10 review notes", () => deps.reviewNotes?.(sid, { plan: deps.state.load(sid).plan?.path, roots: [m.workspaceInfo?.root, ctx.cwd], now })), order: 0 });
       const routed = text === "" ? undefined : guarded("H22 route.prompt", () => route(sid, literalSkill ? literalSkillAsk(text) : text, lc));
       parts.push({ text: guarded("H21 workspace notice", () => workspaceUpdate(sid, lc, now)), order: 2 });
@@ -36685,11 +35743,6 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
       if (wf !== undefined) {
         const input = wf.args !== "" ? { workflow: wf.workflow, title: wf.args, source: "command" } : { workflow: wf.workflow, source: "command" };
         guarded("H25 flow start", () => deps.flow.start(sid, input, now));
-      }
-      if (text !== "") {
-        const signals = guarded("H26 prompt signals", () => promptSignals(text)) ?? [];
-        for (const signal of signals)
-          entries.push({ ts: now, ev: "prompt-signal", signal });
       }
       spool(sid, entries);
       const queued = m.queued ??= [];

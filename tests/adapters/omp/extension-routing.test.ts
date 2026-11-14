@@ -341,7 +341,7 @@ describe('omp H02 on `~/` paths', () => {
 })
 
 describe('omp H03 shell notes and H04 checks through the shared planner', () => {
-  test('a missing linter is named once per session; a mirrored test folder silences the TDD note', () => withSandbox(async sb => {
+  test('a missing linter is named once per session', () => withSandbox(async sb => {
     const { fp, ctx, cwd } = setup(sb, { checkers: coreCheckers, run: async () => ({ code: 127, stdout: '', stderr: 'not found', timedOut: false }) })
     mkdirSync(join(cwd, 'src', 'core'), { recursive: true })
     mkdirSync(join(cwd, 'tests', 'core'), { recursive: true })
@@ -357,22 +357,19 @@ describe('omp H03 shell notes and H04 checks through the shared planner', () => 
 
 describe('omp H04 on `~/` paths', () => {
   test('a patch that adds a file under ~/ is checked where omp writes it, in the home folder', () => withSandbox(async sb => {
-    const zwsp = String.fromCharCode(0x200b)
     const { fp, ctx } = setup(sb, {
       checkers: {
-        checkersFor: () => [],
-        findingsOf: () => undefined,
-        tddHint: () => undefined,
-        charsetFindings: (text, file) => (text.includes(zwsp) ? [`zero-width space added to ${file}`] : []),
-        lengthNote: () => undefined,
+        checkersFor: (path, facts) => [{ argv: ['lint', path], cwd: facts.cwd, timeoutMs: 1000, parser: 'ruff' }],
+        findingsOf: plan => `checked ${plan.argv[1]}`,
       },
+      run: async () => ({ code: 0, stdout: '', stderr: '', timedOut: false }),
     })
     const file = join(sb.home, 'notes', 'a.ts')
     mkdirSync(join(sb.home, 'notes'), { recursive: true })
-    writeFileSync(file, `export const x = "a${zwsp}b"\n`)
-    const patch = `*** Begin Patch\n*** Add File: ~/notes/a.ts\n+export const x = "a${zwsp}b"\n*** End Patch`
+    writeFileSync(file, 'export const x = 1\n')
+    const patch = '*** Begin Patch\n*** Add File: ~/notes/a.ts\n+export const x = 1\n*** End Patch'
     const r = await fp.emit('tool_result', { ...toolResult('edit', { input: patch }) }, ctx)
-    expect(r).toEqual({ additionalContext: `zero-width space added to ${file}` })
+    expect(r).toEqual({ additionalContext: `checked ${file}` })
   }))
 })
 

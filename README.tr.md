@@ -209,7 +209,6 @@ Workflow anahtarları plan-build, goal-build ve bugfix'in her harness'ta nasıl 
 
 | Ne yapar | Anahtar | Varsayılan |
 |---|---|---|
-| Yeni bir mesaj gönderdiğinde çalışan planı duraklatır | `plan.autoPause` | kapalı |
 | Geliştirmeye başlamadan önce plan için onayını ister | `plan.planApproval` | açık |
 | Doğrulanmış sonuç için onayını ister | `plan.resultApproval` | açık |
 | İşi bir worktree içinde, kendine ait bir dalda yapar | `plan.branchIsolation` | açık |

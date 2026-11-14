@@ -5,11 +5,9 @@ import { existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createBuracleExtension, defaultDeps, STATUS_KEYS, stopReason, WIDGET_KEY, type ExtensionDeps } from '../../../src/adapters/omp/runtime/extension'
 import { createMemoryBridge } from '../../../src/adapters/omp/runtime/memory'
-import { AUTO_PAUSE_REASON } from '../../../src/adapters/opencode/runtime/adapter-rules'
 import { withDeadline } from '../../../src/adapters/omp/runtime/util'
 import { checkBash } from '../../../src/core/policy/bash-guard'
 import { detectIntent, isGuardContinuation } from '../../../src/core/policy/intents'
-import { bashNudge, routeTool } from '../../../src/core/policy/routing'
 import { checkWrite } from '../../../src/core/policy/write-guard'
 import { validatePlan } from '../../../src/core/plan/format'
 import { applyIntent, stopGuardVerdict, type SessionState } from '../../../src/core/plan/state'
@@ -202,15 +200,6 @@ describe('omp extension: tool_call (H01/H02/H03/H09)', () => {
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'bash', input: { command: 'grep -r x .' } }, ctx)).toEqual({ additionalContext: hint })
   }))
 
-  test('with the real routing policy the shell nudge appears exactly once', () => withSandbox(async sb => {
-    const policy = { ...testDeps().deps.policy!, checkBash: () => ({}), routeTool }
-    const { fp, ctx } = setup(sb, { policy })
-    const r = await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'bash', input: { command: 'grep -r foo .' } }, ctx) as { additionalContext: string }
-    const nudge = bashNudge('grep -r foo .') as string
-    expect(nudge.length).toBeGreaterThan(0)
-    expect(r.additionalContext).toBe(nudge)
-  }))
-
   test('H03 is skipped entirely when routing strictness is off', () => withSandbox(async sb => {
     let routed = 0
     const live = (d: Parameters<ExtensionDeps['config']>[0]) => ({ config: { ...d, routing: { ...d.routing, strictness: 'off' as const } }, vault: '/v', shim: '/s', source: 'defaults' as const })
@@ -253,16 +242,13 @@ describe('omp extension: tool_result (H04 + spool)', () => {
       checkers: {
         checkersFor: (path, facts) => { plansSeen.push({ path, facts }); return [{ argv: ['ruff', 'check', path], cwd: facts.cwd, timeoutMs: 1000, parser: 'ruff' }] },
         findingsOf: (_plan, result) => (result === null ? 'ruff could not run' : `ruff: exit ${result.code}`),
-        tddHint: path => (path.endsWith('app.py') ? 'no test file next to app.py' : undefined),
-        charsetFindings: text => (text.includes('​') ? ['zero-width space added'] : []),
-        lengthNote: n => (n > 2 ? `${n} lines` : undefined),
       },
       run: async argv => { runs.push(argv); return { code: 1, stdout: 'E501', stderr: '', timedOut: false } },
     })
     writeFileSync(join(cwd, 'ruff.toml'), '')
     writeFileSync(join(cwd, 'app.py'), 'a = 1\nb = 2\nc = 3\n')
     const r = await fp.emit('tool_result', { type: 'tool_result', toolCallId: '1', toolName: 'write', input: { path: 'app.py', content: 'a = 1​\n' }, content: [], isError: false }, ctx)
-    expect(r).toEqual({ additionalContext: 'ruff: exit 1\n\nno test file next to app.py\n\nzero-width space added\n\n3 lines' })
+    expect(r).toEqual({ additionalContext: 'ruff: exit 1' })
     expect(runs).toEqual([['ruff', 'check', join(cwd, 'app.py')]])
     expect(plansSeen).toEqual([{ path: join(cwd, 'app.py'), facts: { hasRuffConfig: true, hasEslintConfig: false, isGoModule: false, cwd } }])
   }))
@@ -332,25 +318,7 @@ describe('omp extension: input (H10) and before_agent_start (H13/H15)', () => {
     expect(memory.spool).toEqual([])
   }))
 
-  test('H10 autoPause: with plan.autoPause a user message pauses a running plan (kind discussion); "devam" resumes', () => withSandbox(async sb => {
-    const live = (d: Parameters<ExtensionDeps['config']>[0]) => ({ config: { ...d, plan: { ...d.plan, autoPause: true } }, vault: '/v', shim: '/s', source: 'runtime-config' as const })
-    const { fp, ctx } = setup(sb, { config: live, policy: { ...testDeps().deps.policy!, isGuardContinuation, detectIntent }, plan: { ...testDeps().deps.plan!, applyIntent } })
-    saveState('omp', SID, planState())
-    await fp.emit('input', { type: 'input', text: 'please also cover the parser edge case', source: 'interactive' }, ctx)
-    expect(loadState('omp', SID).interaction).toMatchObject({ state: 'paused', kind: 'discussion', reason: AUTO_PAUSE_REASON })
-    await fp.emit('input', { type: 'input', text: 'devam', source: 'interactive' }, ctx)
-    expect(loadState('omp', SID).interaction?.state).toBe('running')
-    await fp.emit('input', { type: 'input', text: '!ls -la', source: 'interactive' }, ctx)
-    await fp.emit('input', { type: 'input', text: '/buracle-status', source: 'interactive' }, ctx)
-    expect(loadState('omp', SID).interaction?.state).toBe('running')
-    await fp.emit('input', { type: 'input', text: '/plan-build next', source: 'interactive' }, ctx)
-    expect(loadState('omp', SID).interaction).toMatchObject({ state: 'paused', kind: 'discussion' })
-    const other = setup(sb, { config: live, policy: { ...testDeps().deps.policy!, isGuardContinuation, detectIntent } }, { sid: '01a118a8-8d01-740c-9360-bbbbbbbbbbbb' })
-    await other.fp.emit('input', { type: 'input', text: 'hello', source: 'interactive' }, other.ctx)
-    expect(existsSync(join(sb.buracleHome, 'sessions', 'omp', '01a118a8-8d01-740c-9360-bbbbbbbbbbbb', 'state.json'))).toBe(false)
-  }))
-
-  test('H10: without autoPause an ordinary message leaves the plan running', () => withSandbox(async sb => {
+  test('H10: an ordinary message leaves the plan running', () => withSandbox(async sb => {
     const { fp, ctx } = setup(sb, { policy: { ...testDeps().deps.policy!, isGuardContinuation, detectIntent } })
     saveState('omp', SID, planState())
     await fp.emit('input', { type: 'input', text: 'please also cover the parser edge case', source: 'interactive' }, ctx)

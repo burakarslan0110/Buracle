@@ -9,7 +9,7 @@ import type { AdapterContext } from '../../../src/adapters/registry'
 import { LAUNCH_DOWN_TTL_MS, recordLaunchFailure } from '../../../src/cli/commands/mcp'
 import { defaultConfig } from '../../../src/core/config'
 import type { CanonicalBundle } from '../../../src/core/catalog'
-import { AUTO_PAUSE_REASON, type StopWhy } from '../../../src/core/plan/state'
+import type { StopWhy } from '../../../src/core/plan/state'
 import type { WorkspaceInfo } from '../../../src/core/workspace'
 import * as paths from '../../../src/engine/paths'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
@@ -93,17 +93,6 @@ describe('UserPromptSubmit', () => {
       const r = await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'dur' }), ctx(), deps())
       expect(context(r.stdout)).toContain('The active plan is now paused')
       expect(loadState('claude', SID).interaction?.state).toBe('paused')
-    })
-  })
-
-  test('plan.autoPause: a user message pauses a running plan with core\'s autoPause reason (the same on every harness)', async () => {
-    await withSandbox(async () => {
-      saveState('claude', SID, { ...freshState(), plan: { path: 'docs/plans/p.md', slug: 'p', status: 'IN_PROGRESS', type: 'Feature', phase: 'implement', registeredAt: NOW - 1000 } })
-      const on = defaultConfig()
-      on.plan.autoPause = true
-      const r = await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'Why is this function called twice?' }), ctx({ plan: on.plan }), deps())
-      expect(context(r.stdout)).toContain('plan.autoPause')
-      expect(loadState('claude', SID).interaction).toEqual({ state: 'paused', kind: 'discussion', since: NOW, reason: AUTO_PAUSE_REASON })
     })
   })
 
@@ -204,10 +193,11 @@ describe('PreToolUse: routing and questions', () => {
 describe('PostToolUse', () => {
   test('an edit gets the file-check notes as context', async () => {
     await withSandbox(async ({ root }) => {
-      const file = join(root, 'big.ts')
-      writeFileSync(file, Array.from({ length: 1200 }, (_, i) => `export const x${i} = ${i}`).join('\n') + '\n')
-      const r = await claudeHook('PostToolUse', JSON.stringify({ session_id: SID, cwd: root, tool_name: 'Write', tool_input: { file_path: file, content: 'x' }, tool_response: { success: true } }), ctx(), deps())
+      const file = join(root, 'run.sh')
+      writeFileSync(file, 'echo $1\n')
+      const r = await claudeHook('PostToolUse', JSON.stringify({ session_id: SID, cwd: root, tool_name: 'Write', tool_input: { file_path: file, content: 'x' }, tool_response: { success: true } }), ctx(), deps({ run: async () => ({ code: 127, stdout: '', stderr: 'not found', timedOut: false }) }))
       expect(context(r.stdout)).toContain('Buracle file checks')
+      expect(context(r.stdout)).toContain('shellcheck is not installed')
     })
   })
 

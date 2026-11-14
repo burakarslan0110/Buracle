@@ -68,8 +68,3 @@ export function profileCategory(text: string, polarity: 1 | -1 = 1): ProfileCate
   return 'other'
 }
 
-/** H26's signals from a prompt: none. The contract stays for the hooks that still call it. */
-export function promptSignals(text: string): PromptSignal[] {
-  void text
-  return []
-}

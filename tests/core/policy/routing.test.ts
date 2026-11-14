@@ -8,7 +8,7 @@ import type { CatalogMcp, CatalogSkill } from '../../../src/core/catalog'
 import { catalogMcp, catalogSkills } from '../../../src/core/catalog'
 import type { McpHealth, RoutingPolicy } from '../../../src/core/policy/routing'
 import {
-  CAPABILITY_CARD_MAX_LINES, bashNudge, capabilityCard, harnessMcpPattern, harnessMcpToolName, isDocsUrl, mcpHealthOf, mcpUnavailable, parseRouteRef, routeTool, validateRoutingPolicy,
+  CAPABILITY_CARD_MAX_LINES, capabilityCard, harnessMcpPattern, harnessMcpToolName, isDocsUrl, mcpHealthOf, mcpUnavailable, parseRouteRef, routeTool, validateRoutingPolicy,
 } from '../../../src/core/policy/routing'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import * as paths from '../../../src/engine/paths'
@@ -287,42 +287,10 @@ describe('routeTool: built-in web tools', () => {
   })
 })
 
-describe('routeTool and bashNudge: shell searches', () => {
-  const NUDGED = [
-    'grep -r foo src', 'grep -rn "TODO" .', 'grep -R x .', 'grep -nr x', 'grep --recursive x .', 'egrep -r "a|b" lib', 'fgrep -r x .', 'rgrep x',
-    'grep -d recurse x .', 'find . -name "*.ts" -exec grep -l foo {} +', 'find . -type f | xargs grep foo', 'find . -print0 | xargs -0 grep -n foo',
-    'sudo grep -r secret /etc', "bash -c 'grep -r foo .'", 'cd src && grep -rl foo .',
-  ]
-  const QUIET = ['rg -n foo src', 'grep foo file.txt', 'ps aux | grep node', 'git grep foo', 'grep -e -r file', 'grep -n foo a.ts b.ts', 'find . -name "*.ts"', 'ls | xargs wc -l', 'cat a | grep -v b', 'grep -E "x|y" f']
-
-  for (const cmd of NUDGED) {
-    test(`nudges: ${cmd}`, () => {
-      const n = bashNudge(cmd)
-      expect(n).toBeDefined()
-      expect(n).toContain('rg')
-      expect(n).toContain('semble')
-      expect(n).toContain('codegraph')
-    })
-  }
-  for (const cmd of QUIET) test(`quiet: ${cmd}`, () => expect(bashNudge(cmd)).toBeUndefined())
-
-  test('routeTool adds the nudge as context for shell calls, even when enforcing', () => {
-    const d = routeTool(call('claude', 'Bash', { command: 'grep -r foo src' }), POLICY, {})
-    expect(d.action).toBe('allow')
-    expect(d.action === 'allow' ? d.context?.length : 0).toBe(1)
-    expect(routeTool(call('codex', 'Bash', { command: 'rg foo' }), POLICY, {})).toEqual({ action: 'allow' })
-    expect(routeTool(call('claude', 'Bash', { command: 'grep -r foo' }), withStrictness('off'), {})).toEqual({ action: 'allow' })
-  })
-
-  test('never throws on odd input', () => {
-    expect(bashNudge('')).toBeUndefined()
-    expect(bashNudge(undefined as unknown as string)).toBeUndefined()
-    expect(() => bashNudge('$('.repeat(10_000))).not.toThrow()
-  })
-
-  test("Claude's Monitor command gets the same nudge as Bash; omp eval is never routed", () => {
-    const d = routeTool(call('claude', 'Monitor', { command: 'grep -r ERROR logs', description: 'x', timeout_ms: 1 }), POLICY, {})
-    expect(d.action === 'allow' ? d.context?.[0] : '').toContain('rg')
+describe('routeTool: shell and eval calls', () => {
+  test('a shell command and omp eval are never routed', () => {
+    expect(routeTool(call('claude', 'Bash', { command: 'grep -r foo src' }), POLICY, {})).toEqual({ action: 'allow' })
+    expect(routeTool(call('claude', 'Monitor', { command: 'grep -r ERROR logs', description: 'x', timeout_ms: 1 }), POLICY, {})).toEqual({ action: 'allow' })
     expect(routeTool(call('omp', 'eval', { language: 'js', code: 'x' }), POLICY, {})).toEqual({ action: 'allow' })
     expect(validateRoutingPolicy({ ...POLICY, categories: [{ ...(POLICY.categories[0] as RoutingPolicy['categories'][number]), prefer: ['builtin:eval'] }] })).toEqual([])
   })

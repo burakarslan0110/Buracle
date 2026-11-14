@@ -81,7 +81,6 @@ export const CONTROL_GUIDANCE = {
   pause: 'Buracle: the user asked you to stop. Finish only the current atomic step, say where you stopped, and wait for them. Also stop the background commands and subagents this session started (with the harness\'s stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.',
   resume: 'Buracle: the user said to continue. The plan is resumed; check `buracle plan status --json` and carry on where the plan stands. "Continue" answers no open question: if you were waiting for a decision, ask it again.',
   stop: 'Buracle: the user wants to drop the current task. Stop now and confirm with them before discarding or reverting anything. Also stop the background commands and subagents this session started (with the harness\'s stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.',
-  autoPause: 'Buracle: the user wrote while the plan was running, so the plan is paused (plan.autoPause). Answer them first; when the work should go on, run `buracle plan resume` (the user saying "continue" resumes it too).',
   resultApproved: 'Buracle: the user approved the verified result, so Buracle recorded the approval (`buracle plan approve-result`) and resumed the plan. Do the worktree merge if the run has one, then finish with `buracle plan verify`.',
 } as const
 
@@ -179,8 +178,7 @@ export function pausedReply(i: HeldInteraction | undefined, text: string): strin
       ? `Buracle: the user reports the manual step${quoted(i.reason)} done. Check its result, then run \`buracle plan resume\` and continue.`
       : `Buracle: the plan is paused on a manual step${quoted(i.reason)}. Answer the user; the run goes on after they say the step is done and you have checked it (\`buracle plan resume\`).`
   }
-  // A pause plan.autoPause recorded is no stop request: it gets no note, as before.
-  if (i.kind === 'discussion' && i.reason?.includes('(plan.autoPause)') !== true) return 'Buracle: the plan is paused because the user asked to stop. If this message means go on, in any language, run `buracle plan resume` and continue; otherwise answer the user and keep waiting.'
+  if (i.kind === 'discussion') return 'Buracle: the plan is paused because the user asked to stop. If this message means go on, in any language, run `buracle plan resume` and continue; otherwise answer the user and keep waiting.'
   if (i.kind !== 'decision') return undefined
   if (isResultReview(i)) return `Buracle: the plan is paused on the result review. ${REVIEW_RULE} A bare "continue", silence or green checks are no approval.`
   if (isModelSwitch(i)) return 'Buracle: the plan is paused so the user can switch models before the implementation. Answer the user; when their message means go on, run `buracle plan resume` and start the implementation.'

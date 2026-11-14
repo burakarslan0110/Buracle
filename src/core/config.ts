@@ -11,7 +11,7 @@ export interface BuracleConfig {
   routing: { strictness: 'enforce' | 'nudge' | 'off', skills: 'router' | 'off', reminders: boolean }
   guards: { bash: { extraDeny: string[] }, write: { protect: string[] }, redact: boolean }
   plan: {
-    stopGuard: boolean, runaway: { perPlan: number, perChain: number }, autoPause: boolean, planApproval: boolean, resultApproval: boolean, branchIsolation: boolean, worktreeDir: string
+    stopGuard: boolean, runaway: { perPlan: number, perChain: number }, planApproval: boolean, resultApproval: boolean, branchIsolation: boolean, worktreeDir: string
     questions: boolean, reviews: { plan: boolean, changes: boolean, goal: boolean, companion: CompanionSetting }, goalVerification: boolean, modelSwitch: 'off' | 'manual', nativePlanMode: 'off' | 'on'
   }
   context: { warnPct: number, criticalPct: number }
@@ -43,7 +43,6 @@ export function defaultConfig(): BuracleConfig {
     plan: {
       stopGuard: true,
       runaway: { perPlan: 30, perChain: 5 },
-      autoPause: false,
       planApproval: true,
       resultApproval: true,
       branchIsolation: true,
@@ -130,7 +129,6 @@ const CONFIG_SCHEMA: Schema = {
       fields: {
         stopGuard: bool,
         runaway: { t: 'obj', fields: { perPlan: count(1), perChain: count(1) } },
-        autoPause: bool,
         planApproval: bool,
         resultApproval: bool,
         branchIsolation: bool,
