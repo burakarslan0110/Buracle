@@ -623,10 +623,23 @@ function sources(dir: string): string {
   return [...new Bun.Glob('**/*.{ts,tsx}').scanSync({ cwd: join(REPO, dir) })].sort().map(f => readFileSync(join(REPO, dir, f), 'utf8')).join('\n')
 }
 
+const PIPELINE_FILES = { sessionStart: 'session-start', prompt: 'prompt', preTool: 'pre-tool', postTool: 'post-tool', stop: 'stop', preCompact: 'pre-compact' } as const
+
+/**
+ * An adapter's code with the shared pipeline's steps of the events it routes there: a step counts for the harness
+ * only when its adapter imports the pipeline and calls that event's function.
+ */
+function withPipeline(own: string, ...events: Array<keyof typeof PIPELINE_FILES>): string {
+  const imports = /from '\.\.\/shared\/pipeline\/index'/.test(own)
+  const routed = events.filter(e => imports && new RegExp(`\\b${e}(?:Event)?\\(`).test(own))
+  return [own, ...routed.map(e => readFileSync(join(REPO, 'src/adapters/shared/pipeline', `${PIPELINE_FILES[e]}.ts`), 'utf8'))].join('\n')
+}
+
 describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
   test('plan state (w2): the lane guard, the answer receipt and plan-mode stops on all four; background waits where the host wakes the session (omp natively); quiet feedback on Claude Code and omp', async () => {
     const src: Record<Harness, string> = {
-      claude: sources('src/adapters/claude'), codex: sources('src/adapters/codex'), opencode: sources('src/adapters/opencode/runtime'), omp: sources('src/adapters/omp/runtime'),
+      claude: withPipeline(sources('src/adapters/claude'), 'prompt', 'preTool', 'postTool', 'stop'), codex: withPipeline(sources('src/adapters/codex'), 'prompt', 'preTool', 'postTool', 'stop'),
+      opencode: sources('src/adapters/opencode/runtime'), omp: sources('src/adapters/omp/runtime'),
     }
     const each = (test: (code: string, h: Harness) => boolean): Record<Harness, boolean> => ({ claude: test(src.claude, 'claude'), codex: test(src.codex, 'codex'), opencode: test(src.opencode, 'opencode'), omp: test(src.omp, 'omp') })
     expect(each(c => /laneStateDenial\(command\)/.test(c))).toEqual(FEATURES.laneGuard)
@@ -646,7 +659,8 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
 
   test('workflow switches and review records (w3): H19 binds reports to the bound plans, H06/H07 carry the running reviewers, and the model-switch step names each harness\'s own command', async () => {
     const src: Record<Harness, string> = {
-      claude: sources('src/adapters/claude'), codex: sources('src/adapters/codex'), opencode: sources('src/adapters/opencode/runtime'), omp: sources('src/adapters/omp/runtime'),
+      claude: withPipeline(sources('src/adapters/claude'), 'sessionStart', 'preCompact'), codex: withPipeline(sources('src/adapters/codex'), 'sessionStart', 'preCompact'),
+      opencode: sources('src/adapters/opencode/runtime'), omp: sources('src/adapters/omp/runtime'),
     }
     const each = (t: (code: string) => boolean): Record<Harness, boolean> => ({ claude: t(src.claude), codex: t(src.codex), opencode: t(src.opencode), omp: t(src.omp) })
     expect(each(c => /\.\.\.boundSubject\(sid\)|reviewSubjects\(H, sid\)\)|reviewSubjects\(HARNESS, s\.sid\)|state\.subjects\?\.\(spoolSid\(ctx\)\)/.test(c))).toEqual(FEATURES.reviewSubject)
@@ -745,7 +759,10 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
 
   test('a read-only plan mode at a workflow start, and an edit before the plan is approved, get a note on all four', async () => {
     const { files } = await built()
-    const src = { claude: sources('src/adapters/claude'), codex: sources('src/adapters/codex'), opencode: sources('src/adapters/opencode/runtime'), omp: sources('src/adapters/omp/runtime') }
+    const src = {
+      claude: withPipeline(sources('src/adapters/claude'), 'prompt', 'preTool'), codex: withPipeline(sources('src/adapters/codex'), 'prompt', 'preTool'),
+      opencode: sources('src/adapters/opencode/runtime'), omp: sources('src/adapters/omp/runtime'),
+    }
     const notice = 'was started while the session is in'
     const early = 'is still in its plan phase'
     const bundles: Record<Harness, string> = {
@@ -772,12 +789,12 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
 
   test('open todos carried into the handoff note on all four (OpenCode through its experimental todowrite tool)', () => withSandbox(async ({ root }) => {
     const hooksJson = file((await built()).files.claude, 'hooks/hooks.json')
-    const claude = /TodoWrite\|TaskCreate\|TaskUpdate/.test(hooksJson) && /handoffNote\(\{[^\n]*\btodo\b/.test(readFileSync(join(REPO, 'src/adapters/claude/hook-end.ts'), 'utf8'))
+    const claude = /TodoWrite\|TaskCreate\|TaskUpdate/.test(hooksJson) && /handoffNote\(\{[^\n]*\btodo\b/.test(withPipeline(readFileSync(join(REPO, 'src/adapters/claude/hook-end.ts'), 'utf8'), 'preCompact'))
     const rollout = join(root, 'rollout.jsonl')
     const plan = [{ step: 'Add the tests', status: 'in_progress' }, { step: 'Ship it', status: 'completed' }]
     writeFileSync(rollout, JSON.stringify({ type: 'response_item', payload: { type: 'function_call', name: 'update_plan', call_id: 'c1', arguments: JSON.stringify({ plan }) } }) + '\n')
     const codex = JSON.stringify(readOpenPlanSteps(rollout)) === JSON.stringify(['Add the tests'])
-      && /input\.todo = todo/.test(readFileSync(join(REPO, 'src/adapters/codex/hook.ts'), 'utf8'))
+      && /handoffNote\(\{[^\n]*\btodo\b/.test(withPipeline(readFileSync(join(REPO, 'src/adapters/codex/hook.ts'), 'utf8'), 'preCompact'))
     const todos = openTodosOf({ toolName: 'todo', input: {}, isError: false, content: [{ type: 'text', text: 'Remaining items (2):\n  - Write the parser [in_progress]\n  - Old item [completed]' }] })
     const omp = JSON.stringify(todos) === JSON.stringify(['Write the parser'])
       && /handoffNote\(\{[^\n]*\btodo\b/.test(readFileSync(join(REPO, 'src/adapters/omp/runtime/compaction.ts'), 'utf8'))
@@ -803,7 +820,7 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
     const ids = (canonical.notices ?? []).map(n => n.id)
     expect(ids.length).toBeGreaterThan(0)
     const hookData = JSON.parse(readFileSync(join(REPO, 'harness', 'hook-data.json'), 'utf8')) as { notices?: Array<{ id: string }> }
-    const calls = (rel: string) => /startupNotices\(ctx\.canonical\.notices/.test(readFileSync(join(REPO, rel), 'utf8'))
+    const calls = (rel: string) => /startupNotices\((?:d\.)?ctx\.canonical\.notices/.test(withPipeline(readFileSync(join(REPO, rel), 'utf8'), 'sessionStart'))
     const inBundle = (text: string) => ids.every(id => text.includes(id)) && text.includes('Buracle notice, shown once on this machine.')
     const has: Record<Harness, boolean> = {
       claude: calls('src/adapters/claude/hook.ts') && ids.every(id => (hookData.notices ?? []).some(n => n.id === id)),

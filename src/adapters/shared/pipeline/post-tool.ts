@@ -1,12 +1,12 @@
-import type { Harness, PostToolDecision } from '../../../core/events'
+import type { PostToolDecision } from '../../../core/events'
 import type { SpoolEntry } from '../../../core/memory/spool'
 import { loadLedger, updateLedger } from '../../../workflow/ledger'
-import { fileCheckNotes, type FileCheckDeps } from '../file-checks'
+import { updateState } from '../../../workflow/session-store'
+import { fileCheckNotes, sessionOnce, type FileCheckDeps } from '../file-checks'
 import { assetsAfterEdit, assetsOptions } from '../project-assets'
-import type { PipelineDeps } from './types'
+import { readWorkspace, spool, type PipelineDeps } from './types'
 
 export interface PostToolInput {
-  harness: Harness
   sessionId: string
   cwd: string
   now: number
@@ -15,17 +15,15 @@ export interface PostToolInput {
   edit?: { ok: boolean, paths: string[], added: Readonly<Record<string, string>>, removed(): Readonly<Record<string, string>> }
   /** The user answered a question tool (H08). */
   answered?: boolean
-  /** An MCP call's outcome for the session's health; `first` records it before the tool's own steps. */
-  mcp?: { server(): string | undefined, ok: boolean, first?: boolean }
-  /** What the memory spool gets; read when the spool step runs, so a `postTool.tool` step may add to it. */
+  /** An MCP call's outcome for the session's health. */
+  mcp?: { server(): string | undefined, ok: boolean }
+  /** What the memory spool gets. */
   entries: SpoolEntry[]
 }
 
 export interface PostToolPorts {
-  fileCheckDeps(): FileCheckDeps
-  /** Record that the user answered (H08). */
-  answerReceipt(): void
-  /** How long the file checks may take, from the hook's start. */
+  fileChecks: Omit<FileCheckDeps, 'once'>
+  /** How long the file checks may take, from the hook's start; it follows the hook timeout the harness registers. */
   editBudgetMs: number
 }
 
@@ -42,20 +40,15 @@ export async function postTool(input: PostToolInput, d: PipelineDeps & PostToolP
   const { sessionId: sid, cwd, now, edit, mcp } = input
   const H = d.harness
   const out: PostToolResult = { context: [], fileNotes: [] }
-  const mcpResult = () => d.step('H24 MCP result', undefined, () => { if (mcp !== undefined) recordMcpResult(d, sid, mcp.server(), mcp.ok) })
   if (!input.subagent) await d.step('H14 memory UI', undefined, () => d.ui.seen(H, sid, now))
-  if (mcp?.first === true) await mcpResult()
-  await d.at?.('postTool.tool')
   if (edit !== undefined && edit.ok && edit.paths.length > 0) {
-    out.fileNotes = await d.step('H04 file checks', [] as string[], () => fileCheckNotes(edit.paths, edit.added, cwd, d.ctx.config.checkers, d.fileCheckDeps(), now + d.editBudgetMs, edit.removed()))
-    await d.at?.('postTool.checked')
-    const assets = await d.step('H28 project assets', undefined as string | undefined, () => assetsAfterEdit(d.workspace.read(sid)?.root, edit.paths, assetsOptions(now, d.assetsSpawn)))
+    out.fileNotes = await d.step('H04 file checks', [] as string[], () => fileCheckNotes(edit.paths, edit.added, cwd, d.ctx.config.checkers, { ...d.fileChecks, once: sessionOnce(H, sid) }, now + d.editBudgetMs, edit.removed()))
+    const assets = await d.step('H28 project assets', undefined as string | undefined, () => assetsAfterEdit(readWorkspace(d.ctx, H, sid)?.root, edit.paths, assetsOptions(now, d.assetsSpawn)))
     if (assets !== undefined) out.assets = assets
-    await d.at?.('postTool.edited')
   }
-  if (input.answered === true) await d.step('H08 answer receipt', undefined, () => { d.answerReceipt() })
-  await d.spool(sid, input.entries)
-  if (mcp !== undefined && mcp.first !== true) await mcpResult()
+  if (input.answered === true) await d.step('H08 answer receipt', undefined, () => { updateState(H, sid, s => d.core.answerReceipt(s, now)) })
+  await spool(d, sid, input.entries)
+  if (mcp !== undefined) await d.step('H24 MCP result', undefined, () => { recordMcpResult(d, sid, mcp.server(), mcp.ok) })
   out.context = [...out.fileNotes, ...(out.assets !== undefined ? [out.assets] : [])]
   return out
 }

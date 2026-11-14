@@ -1,30 +1,20 @@
 import { closeSync, mkdirSync, openSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
+import * as core from '../../core/index'
 import type { ToolCall, ToolKind } from '../../core/events'
 import { classifyTool } from '../../core/events'
 import { workflowOfPrompt, workflowOfSkill } from '../../core/flow/catalog'
 import type { SpoolEntry } from '../../core/memory/spool'
-import { checkBash } from '../../core/policy/bash-guard'
-import { checkWrite } from '../../core/policy/write-guard'
-import { validateReviewJson } from '../../core/policy/review'
-import { mcpUnavailable, routeTool } from '../../core/policy/routing'
-import { checkQuestion, questionAnswered } from '../../core/policy/questions'
+import { mcpUnavailable } from '../../core/policy/routing'
+import { questionAnswered } from '../../core/policy/questions'
 import type { PromptSignals } from '../../core/policy/intents'
 import { isUserText } from '../../core/policy/intents'
-import { laneStateDenial } from '../../core/policy/lane-guard'
-import { consentVerdict, type ConsentState } from '../../core/policy/consent'
+import type { ConsentState } from '../../core/policy/consent'
 import { REVIEWER_AGENT_ENV, companionAgent, companionToolDenial } from '../../core/policy/companion-fence'
 import { reviewerShellDenial } from '../../core/policy/readonly-shell'
-import { PROMPT_CONTEXT_MAX_CHARS } from '../../core/policy/skill-router'
-import { ledgerCall, skillOf, type ReminderContext } from '../../core/policy/usage'
-import { validatePlan } from '../../core/plan/format'
-import type { SessionState } from '../../core/plan/state'
-import { answerReceipt, stopGuardVerdict } from '../../core/plan/state'
-import { reviewNotesNotice } from '../shared/review-notes'
-import { handoffNote, restoreContext } from '../../core/compact'
+import { ledgerCall, skillOf } from '../../core/policy/usage'
 import { contextThresholds, contextWatch, type ContextBand } from '../../core/status/context'
 import type { WorkspaceInfo } from '../../core/workspace'
-import { workspaceContext } from '../../core/workspace'
 import { atomicWriteSync, readJsonSafeSync } from '../../engine/fsx'
 import { currentBranch, projectSlug } from '../../engine/git'
 import { log } from '../../engine/log'
@@ -33,55 +23,36 @@ import { run as runProcess } from '../../engine/proc'
 import { loadLedger, updateLedger } from '../../workflow/ledger'
 import { shownPath } from '../../workflow/plan-capture'
 import { captureSessionPlan } from '../../workflow/plan-native'
-import { loadState, readTelemetry, sessionMaint, updateState } from '../../workflow/session-store'
-import { canonicalDir, refreshWorkspaceInfo } from '../../workflow/workspace'
+import { readTelemetry, sessionMaint } from '../../workflow/session-store'
+import { refreshWorkspaceInfo } from '../../workflow/workspace'
 import type { AdapterContext } from '../registry'
 import { consentFile, readConsentState } from '../shared/consent-store'
-import { sessionOnce } from '../shared/file-checks'
-import { noticesOff, runtimeVersion, startupNotices } from '../shared/notices'
+import { claudeOffServers } from '../shared/native-off'
 import type { AssetsSpawner } from '../shared/project-assets'
 import {
-  latestHandoffId, postTool, preTool, prompt as promptEvent, recordMcpResult, sessionStart as sessionStartEvent,
-  type PipelineDeps, type PipelinePoint, type PreToolDecision, type PreToolInput,
+  guardFailed, mcpHealth, postTool, preTool, prompt as promptEvent, recordMcpResult, sessionStart as sessionStartEvent, workspaceStart,
 } from '../shared/pipeline/index'
 import { realWriteTarget } from '../shared/realpath'
 import { buracleRepoFor } from '../shared/repo'
-import { selfPaths } from '../shared/self-paths'
-import { earlyEdit, readOnlyStart } from '../shared/plan-mode'
 import { SHELL_TOOLS } from './constants'
-import { postCompact, preCompact, recentCompact, REVIEW_AGENT, sessionEnd, stop, subagentStop } from './hook-end'
+import { compactStore, postCompact, preCompact, REVIEW_AGENT, sessionEnd, stop, subagentStop } from './hook-end'
 import { HANDBACK_TOOL, subagentHandback } from './hook-handback'
-import { pipelineDeps } from './hook-pipeline'
-import { WRITE_GUARD_FAILED, writeGuardContext, writeTargets } from './hook-write'
+import { GUARD_FAILED, H, QUIET, contextOut, isObj, isSubagent, out, pipelineDeps, step, str, type HookOutcome } from './hook-io'
 import {
-  GUARD_FAILED, H, QUIET, clipBytes, contextOut, isObj, isSubagent, out, step, str, type HookOutcome,
-} from './hook-io'
-import {
-  availableServers, capabilityCardText, memoryOnlyRouting, permissionNotice, pluginRoot, pluginServers, projectDeps, promptRouting,
-  readHealth, readWorkspace, rootCheck, routerData, routingPolicy, sessionHealth, workspaceFacts, type PromptRouting,
-  type RouterData,
+  availableServers, capabilityCardText, memoryOnlyRouting, permissionNotice, pluginRoot, pluginServers, projectDeps, promptRouting, readWorkspace,
+  routerData, type PromptRouting, type RouterData,
 } from './hook-route'
 import { addedText, exitCodeOf, failed, noteWork, removedText } from './hook-work'
 import { uiSessionHooks, type UiSessionHooks } from '../shared/ui-session'
+import { writeContents } from './write-content'
 
 export type { HookOutcome } from './hook-io'
-export { CONTEXT_BUDGET_BYTES, FALLBACK_SPOOL_SUFFIX, GUARD_FAILED, clipBytes } from './hook-io'
+export { CONTEXT_BUDGET_BYTES, clipBytes } from '../shared/pipeline/index'
+export { FALLBACK_SPOOL_SUFFIX, GUARD_FAILED } from './hook-io'
 export { REVIEW_AGENT, handoffRecordPath, reviewNote, runawayNotice } from './hook-end'
-export { WRITE_GUARD_FAILED } from './hook-write'
-export { capabilityCardText, readHealth, routingPolicy, sessionHealth } from './hook-route'
+export { capabilityCardText, readHealth } from './hook-route'
 
-export interface HookCore {
-  checkBash: typeof checkBash
-  checkWrite: typeof checkWrite
-  routeTool: typeof routeTool
-  validatePlan: typeof validatePlan
-  stopGuardVerdict: typeof stopGuardVerdict
-  handoffNote: typeof handoffNote
-  restoreContext: typeof restoreContext
-  validateReviewJson: typeof validateReviewJson
-  checkQuestion: typeof checkQuestion
-  consentVerdict: typeof consentVerdict
-}
+export type HookCore = Pick<typeof core, 'checkBash' | 'checkWrite' | 'routeTool' | 'validatePlan' | 'stopGuardVerdict' | 'handoffNote' | 'restoreContext' | 'validateReviewJson' | 'checkQuestion' | 'consentVerdict'>
 
 export type MemoryModule = 'finalize' | 'handoff' | 'spool' | 'context'
 
@@ -107,6 +78,7 @@ export interface HookDeps {
 const TELEMETRY_FRESH_MS = 5 * 60_000
 const PLUGIN_MCP_PREFIX = 'mcp__plugin_buracle_'
 const USAGE_TOOLS: readonly string[] = ['Skill', 'Grep', 'Glob']
+const OTHER_TOOLS: readonly string[] = ['AskUserQuestion', 'WebSearch', 'WebFetch', ...USAGE_TOOLS]
 const WRITE_GATE_MAX_BYTES = 2_000_000
 
 const MODULES: Record<MemoryModule, () => Promise<unknown>> = {
@@ -143,7 +115,7 @@ export const defaultHookDeps: HookDeps = {
     return (await import('../../workflow/workspace')).workspaceInfo(cwd, ctx.config, nowMs)
   },
   refreshWorkspace: (info, ctx, nowMs) => refreshWorkspaceInfo(info, ctx.config, nowMs),
-  core: { checkBash, checkWrite, routeTool, validatePlan, stopGuardVerdict, handoffNote, restoreContext, validateReviewJson, checkQuestion, consentVerdict },
+  core,
 }
 
 export function parsePayload(stdin: string): Record<string, unknown> | undefined {
@@ -172,7 +144,7 @@ export async function claudeHook(event: string, stdin: string, ctx: AdapterConte
     case 'PostToolUse': return postToolUse(p, sid, ctx, d, now)
     case 'PostToolUseFailure': return postToolUseFailure(p, sid, ctx, d)
     case 'PreCompact': return preCompact(p, sid, ctx, d, now)
-    case 'PostCompact': return postCompact(p, sid, d, now)
+    case 'PostCompact': return postCompact(p, sid, ctx, d, now)
     case 'Stop': return stop(p, sid, ctx, d, now)
     case 'SubagentStop': return subagentStop(p, sid, d)
     case 'SessionEnd': return sessionEnd(sid, ctx, d, now)
@@ -191,48 +163,25 @@ async function noSession(event: string, p: Record<string, unknown>, sid: unknown
   return preToolUse(p, NO_SESSION_ID, ctx, d, d.now(), true)
 }
 
-function setupWarning(profile: string | undefined): string {
-  return profile !== undefined ? `Buracle setup warning. Tell the user at the start of your next reply, in one short line, then carry on with their request:\n- ${profile}` : ''
-}
-
 async function sessionStart(p: Record<string, unknown>, sid: string, ctx: AdapterContext, d: HookDeps, now: number): Promise<HookOutcome> {
   const source = str(p['source']) ?? 'startup'
   const cwd = str(p['cwd']) ?? process.cwd()
   const model = str(p['model'])
-  const pd = pipelineDeps(sid, ctx, d)
   // Claude Code prints a SessionStart systemMessage as "SessionStart:startup says: …" at the top of every session, so
   // nothing goes there: the profile warning and the notices reach the user through the model's first reply.
-  const { parts } = await sessionStartEvent({ harness: H, sessionId: sid, cwd, source, subagent: isSubagent(p), now, ...(model !== undefined ? { model } : {}) }, {
-    ...pd,
-    sessionStartOrder: ['ledger', 'record', 'ui', 'restore', 'card', 'workspace', 'assets', 'notices', 'profile', 'memory', 'maint'],
-    capabilityCard: () => capabilityCardText(ctx, sessionHealth(sid, now, ctx, { project: cwd, pluginRoot: pluginRoot(ctx.repoRoot, d.env) })),
-    restore: () => restoreText(p, sid, d, pd, now),
-    noticesOff: () => noticesOff(),
-    startupNotices: () => startupNotices(ctx.canonical.notices, { version: runtimeVersion(ctx.repoRoot), nowMs: now, harness: H }),
-    runtimeConfigFile: () => paths.runtimeConfigFile(),
-    profileEnv: () => process.env,
+  const r = await sessionStartEvent({ harness: H, sessionId: sid, cwd, source, subagent: isSubagent(p), now, ...(model !== undefined ? { model } : {}) }, {
+    ...pipelineDeps(ctx, d),
+    capabilityCard: () => capabilityCardText(ctx, mcpHealth(ctx, H, now, { sid, nativeOff: claudeOffServers(cwd, pluginRoot(ctx.repoRoot, d.env)) })),
+    compact: compactStore(sid, now),
+    profileNote: finding => `Buracle setup warning. Tell the user at the start of your next reply, in one short line, then carry on with their request:\n- ${finding}`,
     sessionMaint: (nowMs, keep) => { d.sessionMaint(nowMs, keep) },
-    fixedContext: fixed => [setupWarning(fixed.profile)],
   })
-  const memory = parts.memory.trim() === '' ? '' : clipBytes(parts.memory.trim(), parts.room)
-  return contextOut('SessionStart', [setupWarning(parts.profile), parts.restore, parts.notice?.model ?? '', memory, parts.workspace, parts.assets, parts.card])
-}
-
-async function restoreText(p: Record<string, unknown>, sid: string, d: HookDeps, pd: PipelineDeps, now: number): Promise<string> {
-  const cwd = str(p['cwd'])
-  const own = recentCompact(sid, now)
-  const handoff = own !== undefined ? own.handoff : cwd !== undefined ? await latestHandoffId(pd, sid, cwd, now) : undefined
-  return d.core.restoreContext(loadState(H, sid), handoff, handoff === undefined ? own?.todo : undefined) ?? ''
+  return contextOut('SessionStart', r.context)
 }
 
 async function subagentStart(p: Record<string, unknown>, sid: string, ctx: AdapterContext, d: HookDeps, now: number): Promise<HookOutcome> {
   const cwd = str(p['cwd']) ?? process.cwd()
-  const text = await step('H21 workspace (subagent)', '', async () => {
-    const saved = readWorkspace(sid)
-    const info = saved !== undefined && saved.cwd === canonicalDir(cwd) ? d.refreshWorkspace(saved, ctx, now) : await d.workspaceInfo(cwd, ctx, now)
-    return info !== undefined ? workspaceContext(info, H) : ''
-  })
-  return contextOut('SubagentStart', [text])
+  return contextOut('SubagentStart', [await step('H21 workspace (subagent)', '', () => workspaceStart({ sessionId: sid, cwd, subagent: true, now }, pipelineDeps(ctx, d)))])
 }
 
 async function flowStart(sid: string, workflow: string, args: string, source: 'command' | 'prompt' | 'skill', now: number): Promise<void> {
@@ -291,7 +240,7 @@ function contextWarning(ctx: AdapterContext, sid: string, now: number): string |
 
 async function promptRoute(prompt: string, signals: PromptSignals, sid: string, ctx: AdapterContext, d: HookDeps, now: number, cwd?: string): Promise<PromptRouting> {
   const root = pluginRoot(ctx.repoRoot, d.env)
-  const available = availableServers(root, sessionHealth(sid, now, ctx, { project: cwd ?? process.cwd(), pluginRoot: root }), ctx)
+  const available = availableServers(root, mcpHealth(ctx, H, now, { sid, nativeOff: claudeOffServers(cwd ?? process.cwd(), root) }), ctx)
   let data: RouterData | undefined
   try { data = routerData(ctx) } catch (e) { log('warn', 'claude hook: the prompt router has no canonical data; routing memory signals only', { error: e }) }
   if (data === undefined) return memoryOnlyRouting(signals, available, ctx.config.routing.strictness)
@@ -301,98 +250,41 @@ async function promptRoute(prompt: string, signals: PromptSignals, sid: string, 
   return promptRouting(prompt, data, o)
 }
 
-function fitPrompt(parts: ReadonlyArray<{ text: string | undefined, order: number }>, max: number): string[] {
-  const kept: Array<{ text: string, order: number }> = []
-  let size = 0
-  for (const part of parts) {
-    if (part.text === undefined || part.text.trim() === '') continue
-    const n = part.text.length + 2
-    if (kept.length > 0 && size + n > max) continue
-    kept.push({ text: part.text, order: part.order })
-    size += n
-  }
-  return kept.sort((a, b) => a.order - b.order).map(k => k.text)
-}
-
 async function userPromptSubmit(p: Record<string, unknown>, sid: string, ctx: AdapterContext, d: HookDeps, now: number): Promise<HookOutcome> {
   if (isSubagent(p)) return QUIET
   const text = typeof p['prompt'] === 'string' ? p['prompt'] : ''
   const typed = workflowOfPrompt(text)
-  let system: string | undefined
-  const at = async (point: PipelinePoint): Promise<void> => {
-    if (point === 'prompt.granted' && typed !== undefined) await flowStart(sid, typed.workflow, typed.args, 'prompt', now)
-    else if (point === 'prompt.routed') system = await step('permission mode', undefined as string | undefined, () => permissionNotice(sid, p['permission_mode'], ctx.config, now))
-  }
-  const { parts } = await promptEvent({ harness: H, sessionId: sid, cwd: str(p['cwd']) ?? process.cwd(), text, userText: isUserText(text), now }, {
-    ...pipelineDeps(sid, ctx, d, at),
-    reviewNotes() {
-      const ws = readWorkspace(sid)
-      return reviewNotesNotice(H, sid, { plan: loadState(H, sid).plan?.path, roots: [ws?.root, ws?.cwd, typeof p['cwd'] === 'string' ? p['cwd'] : undefined], now })
-    },
+  // Claude Code sends its own notices (task notifications, command output) through this event: isUserText keeps them out of the user's steps.
+  const r = await promptEvent({ harness: H, sessionId: sid, cwd: str(p['cwd']) ?? process.cwd(), text, userText: isUserText(text), now }, {
+    ...pipelineDeps(ctx, d),
+    granted: async () => { if (typed !== undefined) await flowStart(sid, typed.workflow, typed.args, 'prompt', now) },
     routePrompt: signals => promptRoute(text, signals, sid, ctx, d, now, str(p['cwd'])),
-    readOnlyStart: invoked => readOnlyStart(H, p['permission_mode'] === 'plan', [typed?.workflow, ...invoked]),
+    ...(typed !== undefined ? { typedWorkflow: typed.workflow } : {}),
+    readOnly: () => p['permission_mode'] === 'plan',
     contextWarning: () => contextWarning(ctx, sid, now),
   })
-  const fitted = fitPrompt([
-    { text: parts.guidance, order: 0 }, { text: parts.planMode, order: 0 }, { text: parts.notes, order: 0 }, { text: parts.warning, order: 3 }, { text: parts.route, order: 1 }, { text: parts.workspace, order: 2 },
-  ], PROMPT_CONTEXT_MAX_CHARS)
-  return contextOut('UserPromptSubmit', fitted, system)
+  const system = r.user ? await step('permission mode', undefined as string | undefined, () => permissionNotice(sid, p['permission_mode'], ctx.config, now)) : undefined
+  return contextOut('UserPromptSubmit', r.context, system)
 }
 
 function deny(reason: string): HookOutcome {
   return out({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } })
 }
 
-function preContext(lines: readonly string[], updatedInput?: Record<string, unknown>): HookOutcome {
-  const text = lines.filter(l => l.trim() !== '').join('\n')
-  if (text === '' && updatedInput === undefined) return QUIET
-  return out({ hookSpecificOutput: { hookEventName: 'PreToolUse', ...(updatedInput !== undefined ? { updatedInput } : {}), ...(text !== '' ? { additionalContext: text } : {}) } })
-}
-
 export const WRITE_TOOLS: readonly string[] = ['Edit', 'Write', 'NotebookEdit', 'MultiEdit']
-const WEB_TOOLS: readonly string[] = ['WebSearch', 'WebFetch']
-
-function hookOutput(o: HookOutcome): Record<string, unknown> | undefined {
-  if (o.stdout.trim() === '') return {}
-  try {
-    const v = JSON.parse(o.stdout) as unknown
-    return isObj(v) ? v : undefined
-  } catch { return undefined }
-}
 
 async function preToolUse(p: Record<string, unknown>, sid: string, ctx: AdapterContext, d: HookDeps, now: number, guardsOnly = false): Promise<HookOutcome> {
   const decided = await preToolDecision(p, sid, ctx, d, now, guardsOnly)
-  if (guardsOnly || isSubagent(p)) return decided
-  const j = hookOutput(decided)
-  const hso = j !== undefined && isObj(j['hookSpecificOutput']) ? j['hookSpecificOutput'] : {}
-  if (j === undefined || hso['permissionDecision'] !== undefined) return decided
-  const warning = await step('H05 context warning', undefined as string | undefined, () => contextWarning(ctx, sid, now))
-  if (warning === undefined) return decided
-  const before = typeof hso['additionalContext'] === 'string' && hso['additionalContext'] !== '' ? `${hso['additionalContext']}\n` : ''
-  return out({ ...j, hookSpecificOutput: { ...hso, hookEventName: 'PreToolUse', additionalContext: `${before}${warning}` } })
+  if (!Array.isArray(decided)) return decided
+  // Claude Code runs no hook between the tool calls of a turn but this one, so the context warning rides on it.
+  const warning = guardsOnly || isSubagent(p) ? undefined : await step('H05 context warning', undefined as string | undefined, () => contextWarning(ctx, sid, now))
+  // Claude Code's PreToolUse context is one block, a line per note.
+  const text = (warning !== undefined ? [...decided, warning] : decided).filter(l => l.trim() !== '').join('\n')
+  return text === '' ? QUIET : out({ hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: text } })
 }
 
-/** A pipeline denial in Claude Code's words; a guard that itself failed is logged and denies (fail closed). */
-function denyText(r: Extract<PreToolDecision, { action: 'deny' }>, sid: string, tool: string): string {
-  switch (r.source) {
-    case 'bash':
-      if (r.error === undefined) return r.reason
-      log('error', 'claude hook PreToolUse: H01 bash guard failed; denying (fail closed)', { sid, tool, error: r.error })
-      return GUARD_FAILED
-    case 'write':
-    case 'mcpWrite':
-      if (r.error === undefined) return r.source === 'write' ? r.reason : `Buracle H02 (guard.write): ${r.reason}`
-      log('error', `claude hook PreToolUse: H02 write guard failed${r.source === 'mcpWrite' ? ' for an MCP call' : ''}; denying (fail closed)`, { sid, tool, error: r.error })
-      return WRITE_GUARD_FAILED
-    case 'consent': return `Buracle H20 (consent.gate): ${r.reason}`
-    case 'route': return SHELL_TOOLS.includes(tool) ? r.reason : `Buracle ${r.hook} (route.tools): ${r.reason}`
-    case 'root':
-    case 'usage': return `Buracle H03 (route.tools): ${r.reason}`
-    default: return r.reason
-  }
-}
-
-async function preToolDecision(p: Record<string, unknown>, sid: string, ctx: AdapterContext, d: HookDeps, now: number, guardsOnly = false): Promise<HookOutcome> {
+/** The context lines of an allowed call, or the finished output of a denied or handed-back one. */
+async function preToolDecision(p: Record<string, unknown>, sid: string, ctx: AdapterContext, d: HookDeps, now: number, guardsOnly: boolean): Promise<HookOutcome | string[]> {
   const tool = str(p['tool_name']) ?? ''
   const input = isObj(p['tool_input']) ? p['tool_input'] : {}
   const cwd = str(p['cwd']) ?? ''
@@ -402,57 +294,41 @@ async function preToolDecision(p: Record<string, unknown>, sid: string, ctx: Ada
   const shell = SHELL_TOOLS.includes(tool)
   const mcp = tool.startsWith('mcp__')
   if (!write && !shell) {
-    if (guardsOnly && !mcp) return QUIET
+    if (guardsOnly && !mcp) return []
     if (tool === HANDBACK_TOOL) return subagentHandback(p, sid, REVIEW_AGENT, d, now)
+    if (!mcp && !OTHER_TOOLS.includes(tool)) return []
   }
-  const callOf = (cls: ReturnType<typeof classifyTool>): ToolCall => ({ harness: H, sessionId: sid, cwd, tool, input, ...cls })
+  const root = pluginRoot(ctx.repoRoot, d.env)
   let call: ToolCall
-  let checks: PreToolInput['checks']
-  if (write) {
-    try {
-      call = callOf(classifyTool(H, tool, input, cwd))
-    } catch (e) {
-      log('error', 'claude hook PreToolUse: H02 write guard failed; denying (fail closed)', { sid, tool, error: e })
-      return deny(WRITE_GUARD_FAILED)
-    }
-    checks = { write: true, usage: tool !== 'NotebookEdit' }
-  } else if (shell) {
-    const cls = classifyTool(H, tool, input, cwd)
-    const command = cls.command ?? str(input['command'])
-    if (command === undefined) return QUIET
-    call = { ...callOf(cls), kind: 'bash', command }
-    checks = { bash: true, route: true, usage: true }
-  } else if (tool === 'AskUserQuestion') {
-    call = callOf(classifyTool(H, tool, input, cwd))
-    checks = { question: true }
-  } else if (WEB_TOOLS.includes(tool)) {
-    call = callOf(classifyTool(H, tool, input, cwd))
-    checks = { route: true }
-  } else if (USAGE_TOOLS.includes(tool) || mcp) {
-    call = callOf(classifyTool(H, tool, input, cwd, pluginServers(pluginRoot(ctx.repoRoot, d.env)) ?? []))
-    checks = { mcpWrite: true, usage: USAGE_TOOLS.includes(tool) || tool.startsWith(PLUGIN_MCP_PREFIX) }
-  } else {
-    return QUIET
+  try {
+    call = { harness: H, sessionId: sid, cwd, tool, input, ...classifyTool(H, tool, input, cwd, mcp ? pluginServers(root) ?? [] : undefined) }
+  } catch (e) {
+    if (!write) throw e
+    log('error', 'claude hook PreToolUse: H02 write guard failed; denying (fail closed)', { sid, tool, error: e })
+    return deny(guardFailed('H02', e))
   }
-  const web = call.kind === 'web_search' || call.kind === 'web_fetch'
-  const r = await preTool({ call, now, subagent: isSubagent(p), guardsOnly, checks }, {
-    ...pipelineDeps(sid, ctx, d),
-    bashOptions: dir => ({
-      ...ctx.config.guards.bash, home: paths.home(), selfPaths: selfPaths(ctx.config.repo), cwd: dir,
-      vault: paths.oldVaultRoot(), protect: ctx.config.guards.write.protect, realpath: (q: string): string | undefined => d.realpath(q),
-    }),
+  if (shell) {
+    const command = call.command ?? str(input['command'])
+    if (command === undefined) return []
+    call = { ...call, kind: 'bash', command }
+  }
+  const edits = write && tool !== 'NotebookEdit'
+  const r = await preTool({
+    call, now, subagent: isSubagent(p), guardsOnly, ...(edits ? { edits: call.paths } : {}),
+    // The reminders count the tools Buracle routes: the shell, file edits, searches, skills and its own plugin's MCP servers.
+    usage: shell || edits || USAGE_TOOLS.includes(tool) || tool.startsWith(PLUGIN_MCP_PREFIX),
+  }, {
+    ...pipelineDeps(ctx, d),
     shellDenial: command => step('reviewer shell', undefined as string | undefined, () => reviewerShellDenial(str(p['agent_type']), command)),
-    laneDenial: command => laneStateDenial(command),
-    writeTargets: c => writeTargets(c, d),
-    writeGuardContext: dir => writeGuardContext(dir, ctx, d),
-    routingPolicy: () => routingPolicy(ctx),
-    mcpHealth: () => (shell ? () => readHealth() : () => sessionHealth(sid, now, ctx, web ? { project: cwd, pluginRoot: pluginRoot(ctx.repoRoot, d.env) } : undefined)),
-    rootCheck: c => rootCheck(c, readWorkspace(sid), ctx.config),
-    usage: c => ({ call: c, ledgerId: sid, context: reminderContext(sid, ctx, d, c) }),
-    ...(write && tool !== 'NotebookEdit' ? { earlyEdit: () => earlyEdit(H, sid, call.paths, cwd, ctx.config.plan.planApproval) } : {}),
+    writeTargets: c => (write ? { paths: c.paths, contents: guard => writeContents(c.tool, c.input, c.paths, guard.home, q => d.realpath(q)) } : undefined),
+    nativeOff: () => claudeOffServers(cwd, root),
+    usage(c, health) {
+      // The reminders judge a whole-file write against the text it replaces.
+      const replaced = c.kind === 'edit' || c.kind === 'write' ? writeEdits(c) : undefined
+      return { call: c, ledgerId: sid, available: (pluginServers(root) ?? []).filter(id => !mcpUnavailable(health[id])), ...(replaced !== undefined ? { edits: replaced } : {}) }
+    },
   })
-  if (r.action === 'deny') return deny(denyText(r, sid, tool))
-  return preContext([r.parts.early, r.parts.question, ...r.parts.route, r.parts.usage].filter((s): s is string => s !== undefined))
+  return r.action === 'deny' ? deny(r.reason) : r.context
 }
 
 function companionFence(d: HookDeps, tool: string, input: Record<string, unknown>): string | undefined {
@@ -479,20 +355,6 @@ function writeEdits(call: ToolCall): Array<{ file: string, removed: string, adde
   return [{ file, removed, added }]
 }
 
-/** What the usage reminders (H24) judge a call against: the plugin's servers that are up, and the session's workspace. */
-function reminderContext(sid: string, ctx: AdapterContext, d: HookDeps, call: ToolCall): ReminderContext {
-  const cfg = ctx.config
-  const servers = pluginServers(pluginRoot(ctx.repoRoot, d.env)) ?? []
-  const health = sessionHealth(sid, d.now(), ctx)
-  const rctx: ReminderContext = {
-    strictness: cfg.routing.strictness, reminders: cfg.routing.reminders, available: servers.filter(id => !mcpUnavailable(health[id])),
-    policy: routingPolicy(ctx), facts: workspaceFacts(readWorkspace(sid), cfg),
-  }
-  const edits = call.kind === 'edit' || call.kind === 'write' ? writeEdits(call) : undefined
-  if (edits !== undefined) rctx.edits = edits
-  return rctx
-}
-
 const POST_EDIT_BUDGET_MS = 28_000
 
 function pluginSkillRead(file: string | undefined, root: string): string | undefined {
@@ -515,9 +377,11 @@ async function postToolUse(p: Record<string, unknown>, sid: string, ctx: Adapter
   const parts: string[] = []
   const entries: SpoolEntry[] = []
   const write = WRITE_TOOLS.includes(tool)
-  // What only Claude Code's tools do, after the memory UI's heartbeat: plan capture, open work, skill loads and the spool entry.
-  const at = async (point: PipelinePoint): Promise<void> => {
-    if (point !== 'postTool.tool' || write || tool === 'AskUserQuestion') return
+  const cls = write ? await step('classify', { kind: 'other', paths: [] } as ReturnType<typeof classifyTool>, () => classifyTool(H, tool, input, cwd)) : undefined
+  // What only Claude Code's tools do: plan capture, open work, skill loads and the spool entry.
+  if (write) {
+    if (!sub) entries.push({ ts: now, ev: 'tool', tool, kind: tool === 'Write' ? 'write' : 'edit', paths: cls?.paths ?? [] })
+  } else if (tool !== 'AskUserQuestion') {
     if (tool === 'ExitPlanMode') {
       const plan = (isObj(response) ? str(response['plan']) : undefined) ?? str(input['plan'])
       const awaiting = isObj(response) && response['awaitingLeaderApproval'] === true
@@ -553,20 +417,12 @@ async function postToolUse(p: Record<string, unknown>, sid: string, ctx: Adapter
       entries.push({ ts: now, ev: 'tool', tool, kind: kind === 'mcp' || kind === 'web_search' || kind === 'web_fetch' ? kind : 'other' })
     }
   }
-  const cls = write ? await step('classify', { kind: 'other', paths: [] } as ReturnType<typeof classifyTool>, () => classifyTool(H, tool, input, cwd)) : undefined
-  if (cls !== undefined && !sub) entries.push({ ts: now, ev: 'tool', tool, kind: tool === 'Write' ? 'write' : 'edit', paths: cls.paths })
-  const pd = pipelineDeps(sid, ctx, d, at)
   const r = await postTool({
-    harness: H, sessionId: sid, cwd, now, subagent: sub, entries,
+    sessionId: sid, cwd, now, subagent: sub, entries,
     answered: tool === 'AskUserQuestion' && !sub && !failed(response) && questionAnswered(response),
     ...(cls !== undefined ? { edit: { ok: !failed(response), paths: cls.paths, added: addedText(tool, input, cls.paths), removed: () => removedText(tool, input, cls.paths) } } : {}),
-    ...(tool.startsWith(PLUGIN_MCP_PREFIX) ? { mcp: { server: () => mcpServer(tool, input, cwd, ctx, d), ok: true, first: true } } : {}),
-  }, {
-    ...pd,
-    fileCheckDeps: () => ({ now: d.now, run: d.run, once: sessionOnce(H, sid) }),
-    answerReceipt: () => { updateState(H, sid, (s: SessionState) => answerReceipt(s, now)) },
-    editBudgetMs: POST_EDIT_BUDGET_MS,
-  })
+    ...(tool.startsWith(PLUGIN_MCP_PREFIX) ? { mcp: { server: () => mcpServer(tool, input, cwd, ctx, d), ok: true } } : {}),
+  }, { ...pipelineDeps(ctx, d), fileChecks: { now: d.now, run: d.run }, editBudgetMs: POST_EDIT_BUDGET_MS })
   if (r.fileNotes.length > 0) parts.push(`Buracle file checks:\n\n${r.fileNotes.join('\n\n')}`)
   if (r.assets !== undefined) parts.push(r.assets)
   return contextOut('PostToolUse', parts)
@@ -581,6 +437,6 @@ async function postToolUseFailure(p: Record<string, unknown>, sid: string, ctx: 
   const tool = str(p['tool_name']) ?? ''
   if (!tool.startsWith(PLUGIN_MCP_PREFIX) || p['is_interrupt'] === true) return QUIET
   const input = isObj(p['tool_input']) ? p['tool_input'] : {}
-  await step('H24 MCP result', undefined, () => { recordMcpResult(pipelineDeps(sid, ctx, d), sid, mcpServer(tool, input, str(p['cwd']) ?? '', ctx, d), false) })
+  await step('H24 MCP result', undefined, () => { recordMcpResult(pipelineDeps(ctx, d), sid, mcpServer(tool, input, str(p['cwd']) ?? '', ctx, d), false) })
   return QUIET
 }

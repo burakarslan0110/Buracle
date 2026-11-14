@@ -1,18 +1,15 @@
-import { rmSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { RESTORE_RECORD_MAX_MS, RESTORE_TODOS_MAX } from '../../core/compact'
 import type { StopInput } from '../../core/events'
 import { backgroundWait } from '../../core/plan/background'
 import type { StopGuardResult } from '../../core/plan/state'
-import { atomicWriteSync, readJsonSafeSync, readTextSync } from '../../engine/fsx'
+import { atomicWriteSync, readJsonSafeSync } from '../../engine/fsx'
 import { log } from '../../engine/log'
 import * as paths from '../../engine/paths'
-import { loadState } from '../../workflow/session-store'
 import type { AdapterContext } from '../registry'
-import { preCompact as preCompactEvent, sessionEnd as sessionEndEvent, stop as stopEvent } from '../shared/pipeline/index'
+import { preCompact as preCompactEvent, sessionEnd as sessionEndEvent, spool, stop as stopEvent, type CompactStore } from '../shared/pipeline/index'
 import type { HookDeps } from './hook'
-import { H, QUIET, captureOff, isObj, isSubagent, out, spool, step, str, type HookOutcome } from './hook-io'
-import { pipelineDeps } from './hook-pipeline'
+import { H, QUIET, isObj, isSubagent, out, pipelineDeps, str, type HookOutcome } from './hook-io'
 import { openWork } from './hook-work'
 import { boundSubject, handedBack } from './hook-handback'
 
@@ -38,21 +35,16 @@ export function stopFeedback(reason: string): HookOutcome {
 export async function stop(p: Record<string, unknown>, sid: string, ctx: AdapterContext, d: HookDeps, now: number): Promise<HookOutcome> {
   const last = str(p['last_assistant_message'])
   const sub = isSubagent(p)
-  if (last !== undefined && !sub) await spool(d, sid, [{ ts: now, ev: 'turn', excerpt: last }])
-  const stopping: StopInput = { harness: H, sessionId: sid, cwd: str(p['cwd']) ?? '', now, hookActive: p['stop_hook_active'] === true, subagent: sub }
-  if (last !== undefined) stopping.lastMessage = last
-  const r = await stopEvent(stopping, {
-    ...pipelineDeps(sid, ctx, d),
-    readPlan(path, cwd) {
-      const text = readTextSync(resolve(cwd === '' ? '/' : cwd, path))
-      return text.ok ? text.value : undefined
-    },
-    stopInput(input) {
-      if (p['permission_mode'] === 'plan') input.readOnly = true
-      if (backgroundWait(last, p['background_tasks'], p['session_crons'])) input.backgroundWait = true
-    },
+  const pd = pipelineDeps(ctx, d)
+  if (last !== undefined && !sub) await spool(pd, sid, [{ ts: now, ev: 'turn', excerpt: last }])
+  const input: StopInput = { harness: H, sessionId: sid, cwd: str(p['cwd']) ?? '', now, hookActive: p['stop_hook_active'] === true, subagent: sub }
+  if (last !== undefined) input.lastMessage = last
+  // Claude Code names the session's background work in the payload, so a stop that waits for it goes through.
+  if (backgroundWait(last, p['background_tasks'], p['session_crons'])) input.backgroundWait = true
+  const r = await stopEvent(input, {
+    ...pd,
+    readOnly: () => p['permission_mode'] === 'plan',
     stopNotice: (result, before) => (result.readOnlyNotice === true ? READ_ONLY_NOTICE : before.guard.blocksInChain > 0 ? runawayNotice(result.why, ctx.config.plan) : undefined),
-    stopGuard: { gate: true, write: 'changed', auditOnFailure: true },
   })
   if (r.decision.action === 'block') return stopFeedback(r.decision.reason)
   return r.notice !== undefined ? out({ systemMessage: r.notice }) : QUIET
@@ -62,48 +54,40 @@ export function handoffRecordPath(sid: string): string {
   return join(paths.sessionDir(H, sid), 'handoff.json')
 }
 
-export interface CompactRecord { handoff?: string, todo?: string[] }
-
-export function recentCompact(sid: string, now: number): CompactRecord | undefined {
-  const r = readJsonSafeSync<unknown>(handoffRecordPath(sid))
-  if (!r.ok || !isObj(r.value)) return undefined
-  const { path, at, todo } = r.value
-  if (typeof at !== 'number' || now - at > HANDOFF_MAX_AGE_MS) return undefined
-  if (typeof path === 'string') return /^handoff-[a-z0-9-]+$/.test(path) ? { handoff: path } : {}
-  const open = Array.isArray(todo) ? todo.filter((t): t is string => typeof t === 'string' && t.trim() !== '').slice(0, RESTORE_TODOS_MAX) : []
-  return open.length > 0 ? { todo: open } : {}
+/** The session's compaction record in handoff.json, for the restore after it; a record older than the limit is ignored. */
+export function compactStore(sid: string, at: number): CompactStore {
+  const file = handoffRecordPath(sid)
+  return {
+    read(now) {
+      const r = readJsonSafeSync<unknown>(file)
+      const v = r.ok && isObj(r.value) ? r.value : {}
+      if (typeof v['at'] !== 'number' || now - v['at'] > HANDOFF_MAX_AGE_MS) return { recent: false }
+      const { path, todo } = v
+      if (typeof path === 'string') return { recent: true, ...(/^handoff-[a-z0-9-]+$/.test(path) ? { handoff: path } : {}) }
+      return { recent: true, todo: Array.isArray(todo) ? todo.filter((t): t is string => typeof t === 'string' && t.trim() !== '').slice(0, RESTORE_TODOS_MAX) : [] }
+    },
+    save(path, todo) { atomicWriteSync(file, JSON.stringify({ ...(path !== undefined ? { path } : todo.length > 0 ? { todo } : {}), at }) + '\n') },
+  }
 }
 
 export async function preCompact(p: Record<string, unknown>, sid: string, ctx: AdapterContext, d: HookDeps, now: number): Promise<HookOutcome> {
   if (isSubagent(p)) return QUIET
-  const record = handoffRecordPath(sid)
-  if (d.env('BURACLE_NO_MEMORY') === '1') {
-    await step('H06 compaction record', undefined, () => { rmSync(record, { force: true }) })
-    return QUIET
-  }
   const trigger = str(p['trigger'])
   await preCompactEvent({ harness: H, sessionId: sid, cwd: str(p['cwd']) ?? process.cwd(), now, ...(trigger !== undefined ? { trigger } : {}) }, {
-    ...pipelineDeps(sid, ctx, d),
-    openTodos: () => openWork(sid),
-    saveCompactRecord(path, todo) {
-      const kept = path !== undefined ? { path } : todo.length > 0 ? { todo } : {}
-      atomicWriteSync(record, JSON.stringify({ ...kept, at: now }) + '\n')
-    },
-    handoffNote: ({ project, branch, todo }) => d.core.handoffNote({ state: loadState(H, sid), project, harness: H, sessionId: sid, branch, now, ...(todo.length > 0 ? { todo } : {}) }),
+    ...pipelineDeps(ctx, d), openTodos: () => openWork(sid), compact: compactStore(sid, now),
   })
   return QUIET
 }
 
-export async function postCompact(p: Record<string, unknown>, sid: string, d: HookDeps, now: number): Promise<HookOutcome> {
-  if (captureOff(d) || isSubagent(p)) return QUIET
+export async function postCompact(p: Record<string, unknown>, sid: string, ctx: AdapterContext, d: HookDeps, now: number): Promise<HookOutcome> {
   const summary = str(p['compact_summary'])
-  if (summary === undefined || summary.trim() === '') return QUIET
-  await spool(d, sid, [{ ts: now, ev: 'compact', excerpt: summary }])
+  if (isSubagent(p) || summary === undefined || summary.trim() === '') return QUIET
+  await spool(pipelineDeps(ctx, d), sid, [{ ts: now, ev: 'compact', excerpt: summary }])
   return QUIET
 }
 
 export function reviewNote(agent: string, problems: readonly string[]): string {
-  return `Buracle H19 (review.gate): your final message as ${agent} is not valid review JSON (${problems.slice(0, 6).join('; ')}). ` +
+  return `Buracle H19: your final message as ${agent} is not valid review JSON (${problems.slice(0, 6).join('; ')}). ` +
     'Answer again with exactly one JSON object that follows the output schema in your instructions, with no text or code fence around it.'
 }
 
@@ -122,10 +106,7 @@ export function subagentStop(p: Record<string, unknown>, sid: string, d: HookDep
 }
 
 export async function sessionEnd(sid: string, ctx: AdapterContext, d: HookDeps, now: number): Promise<HookOutcome> {
-  await sessionEndEvent({ harness: H, sessionId: sid, now }, {
-    ...pipelineDeps(sid, ctx, d),
-    noFinalizer() { log('debug', 'claude hook SessionEnd: memory finalizer not available', { sid }) },
-  })
+  await sessionEndEvent({ harness: H, sessionId: sid, now }, pipelineDeps(ctx, d))
   try {
     d.sessionMaint(now, [sid])
   } catch (e) {

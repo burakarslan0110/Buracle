@@ -1,114 +1,34 @@
-import { join } from 'node:path'
 import type * as CoreNs from '../../core/index'
 import type { Harness } from '../../core/events'
 import type { BuracleConfig } from '../../core/config'
 import type { McpHealth, RoutingPolicy } from '../../core/policy/routing'
-import { mcpHealthOf } from '../../core/policy/routing'
 import type { PathRuleSource } from '../../core/policy/path-rules'
 import type { PromptRoute } from '../../core/policy/skill-router'
-import type { UsageLedger, WorkspaceFacts } from '../../core/policy/usage'
+import type { UsageLedger } from '../../core/policy/usage'
 import type { WorkspaceInfo } from '../../core/workspace'
-import { atomicWriteSync, ensureDirSync, readJsonSafeSync } from '../../engine/fsx'
 import { flowViewFor, recordFlowStart } from '../../workflow/flow'
-import { loadLedger } from '../../workflow/ledger'
-import { canonicalDir, codegraphIndexPresent, exclusionContext } from '../../workflow/workspace'
 import type { AdapterContext } from '../registry'
-import { codexOffServers } from '../shared/native-off'
 import { pathRuleSource } from '../shared/path-rules'
+import { readWorkspace, saveWorkspace, workspaceFile as sharedWorkspaceFile } from '../shared/pipeline/index'
+
+export { fitParts, readMcpHealth } from '../shared/pipeline/index'
 
 type CoreFns = typeof CoreNs
 const H: Harness = 'codex'
 
-function isObj(x: unknown): x is Record<string, unknown> {
-  return x !== null && typeof x === 'object' && !Array.isArray(x)
-}
-
-export function workspaceFile(ctx: Pick<AdapterContext, 'paths'>, sid: string): string {
-  return join(ctx.paths.sessionDir(H, sid), 'workspace.json')
-}
-
-function isWorkspaceInfo(x: unknown): x is WorkspaceInfo {
-  return isObj(x) && typeof x['cwd'] === 'string' && Array.isArray(x['children']) && isObj(x['index'])
-    && isObj(x['index']['codegraph']) && isObj(x['index']['semble'])
-}
-
-export function loadWorkspaceInfo(ctx: Pick<AdapterContext, 'paths'>, sid: string): WorkspaceInfo | undefined {
-  const r = readJsonSafeSync<unknown>(workspaceFile(ctx, sid))
-  return r.ok && isWorkspaceInfo(r.value) ? r.value : undefined
-}
-
-export function saveWorkspaceInfo(ctx: Pick<AdapterContext, 'paths'>, sid: string, info: WorkspaceInfo): void {
-  ensureDirSync(ctx.paths.sessionDir(H, sid))
-  atomicWriteSync(workspaceFile(ctx, sid), JSON.stringify(info) + '\n')
-}
-
-export function readMcpHealth(ctx: Pick<AdapterContext, 'paths'>, nowMs: number = Date.now()): McpHealth {
-  const r = readJsonSafeSync<unknown>(ctx.paths.healthFile())
-  return r.ok ? mcpHealthOf(r.value, nowMs) : {}
-}
-
-export function routingPolicy(ctx: Pick<AdapterContext, 'canonical' | 'config'>): RoutingPolicy {
-  return { ...ctx.canonical.routing, strictness: ctx.config.routing.strictness }
-}
+export const workspaceFile = (ctx: Pick<AdapterContext, 'paths'>, sid: string): string => sharedWorkspaceFile(ctx, H, sid)
+export const loadWorkspaceInfo = (ctx: Pick<AdapterContext, 'paths'>, sid: string): WorkspaceInfo | undefined => readWorkspace(ctx, H, sid)
+export const saveWorkspaceInfo = (ctx: Pick<AdapterContext, 'paths'>, sid: string, info: WorkspaceInfo): void => { saveWorkspace(ctx, H, sid, info) }
 
 export function knownServers(ctx: Pick<AdapterContext, 'canonical'>): string[] {
   try { return Object.keys(ctx.canonical.mcp.servers) } catch { return [] }
-}
-
-export function fitParts(parts: readonly string[], max: number): string[] {
-  const out: string[] = []
-  let size = 0
-  for (const raw of parts) {
-    const part = raw.trim()
-    if (part === '') continue
-    const add = part.length + (out.length > 0 ? 2 : 0)
-    if (out.length > 0 && size + add > max) continue
-    out.push(part)
-    size += add
-  }
-  return out
 }
 
 export function availableServers(ctx: Pick<AdapterContext, 'canonical'>, core: CoreFns, health: McpHealth): string[] {
   return core.catalogMcp(ctx.canonical.mcp, H).filter(m => !core.mcpUnavailable(health[m.id])).map(m => m.id)
 }
 
-/**
- * The servers that are off in Codex: Buracle's `mcp.off.codex`, and with `native` also `enabled = false` in
- * Codex's own config.toml. That file is read only for the calls whose route depends on it (web search and
- * fetch, the capability card, the routing note).
- */
-export function offServers(ctx: Pick<AdapterContext, 'config'>, core: CoreFns, native = false): string[] {
-  const own = core.offServersFor(ctx.config, H)
-  return native ? [...new Set([...own, ...codexOffServers()])] : own
-}
-
-/** health.json with the servers that are off folded in: what routing uses outside a session. */
-export function harnessHealth(ctx: Pick<AdapterContext, 'paths' | 'config'>, core: CoreFns, nowMs: number, native = false): McpHealth {
-  return core.withOffServers(readMcpHealth(ctx, nowMs), offServers(ctx, core, native))
-}
-
-export function sessionHealth(ctx: Pick<AdapterContext, 'paths' | 'config'>, core: CoreFns, sid: string, nowMs: number, native = false): McpHealth {
-  return core.withOffServers(core.sessionMcpHealth(readMcpHealth(ctx, nowMs), loadLedger(H, sid)), offServers(ctx, core, native))
-}
-
-export function workspaceFacts(ctx: Pick<AdapterContext, 'paths' | 'config'>, info: WorkspaceInfo | undefined): WorkspaceFacts {
-  const exclusion = exclusionContext(ctx.paths.oldVaultRoot(), ctx.config.index.exclude)
-  const facts: WorkspaceFacts = { home: ctx.paths.home(), caseInsensitive: exclusion.caseInsensitive, exclusion, realpath: canonicalDir, codegraphIndexed: false }
-  if (info !== undefined) {
-    facts.cwd = info.cwd
-    if (info.children.length > 0) facts.children = [...info.children]
-  }
-  if (info?.root !== undefined) {
-    facts.root = info.root
-    facts.codegraphIndexed = ctx.config.index.codegraph && codegraphIndexPresent(info.root)
-  }
-  return facts
-}
-
-export interface RoutedPrompt { route: PromptRoute; text?: string }
-
-export function routeUserPrompt(prompt: string, o: { ctx: Pick<AdapterContext, 'canonical' | 'config'>, core: CoreFns, policy: RoutingPolicy, ledger: UsageLedger, available: readonly string[], deps: readonly string[] }): RoutedPrompt {
+export function routeUserPrompt(prompt: string, o: { ctx: Pick<AdapterContext, 'canonical' | 'config'>, core: CoreFns, policy: RoutingPolicy, ledger: UsageLedger, available: readonly string[], deps: readonly string[] }): { route: PromptRoute, text?: string } {
   const compiled = o.core.compileTriggers(o.core.catalogSkills(o.ctx.canonical.skills), o.policy)
   let route = o.core.routePrompt(prompt, compiled, { harness: H, loaded: Object.keys(o.ledger.skills), available: o.available, deps: o.deps })
   if (o.ctx.config.routing.skills === 'off') route = { ...route, load: [], candidates: [] }
