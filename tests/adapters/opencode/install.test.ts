@@ -94,8 +94,10 @@ describe('opencode installPlan', () => {
     expect(agentsMd.startsWith('# My global rules\n\n- Answer in Turkish.\n')).toBe(true)
     const block = mdBlockGet(agentsMd, AGENTS_BLOCK_ID) ?? ''
     expect(block).toContain('# Core working rules')
+    expect(block).toContain(`\`${displayPath(join(buracleHome, 'rules', 'paths'), home)}\``)
+    const pointer = block.slice(block.indexOf('# Path-scoped rules'))
     for (const r of canonical().rules.filter(x => x.scope === 'paths')) {
-      expect(block).toContain(`${displayPath(join(buracleHome, 'rules', 'paths'), home)}/${r.id}.md`)
+      expect({ rule: r.id, named: new RegExp(`[(, ]${r.id}[,)]`).test(pointer) }).toEqual({ rule: r.id, named: true })
     }
     expect(plan.ops.some(o => 'path' in o && o.path.startsWith(join(buracleHome, 'rules')))).toBe(false)
     expect(plan.ops.every(o => o.owner === 'opencode')).toBe(true)

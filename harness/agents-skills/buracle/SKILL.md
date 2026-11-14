@@ -77,6 +77,7 @@ The workflow skill in charge (`/plan-build` (Codex: `$plan-build`), `/goal-build
 transition happens. Arguments, outputs and exit codes for every command:
 [references/commands.md](references/commands.md). Ready-made sequences:
 [references/recipes.md](references/recipes.md).
+The detail behind the always-loaded rules: lanes in [references/lanes.md](references/lanes.md), evidence, testing, git and docs in [references/working-rules.md](references/working-rules.md), documents and language in [references/plain-language.md](references/plain-language.md).
 
 ## Plans and the stop guard
 

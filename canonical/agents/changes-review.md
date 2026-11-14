@@ -33,11 +33,9 @@ If neither `plan_file` nor `goal` is usable, return `needs_changes` with a singl
 
 ## Constraints
 
-- Read-only. Never create, edit, move or delete files. Never change git state (no checkout, switch, stash, add, commit, reset). Never install, build, test or start services.
-- Commands you may run: `buracle review-scope [--slug <slug>] --json`, `git diff`, `git log`, `git show`, `git status`, `git ls-files`, `git blame`, `git merge-base`, `rg`, and `ast-grep` in search mode (no rewrite flags).
-- MCP tools, read-only: `codegraph` for callers, dependents and blast radius; `semble` for related and similar code; `context7` for library API facts.
+{{include:review-shared#constraints}}
+- This review's `buracle` command: `buracle review-scope [--slug <slug>] --json`.
 - You cannot observe runtime behavior. A runtime claim counts as verified only when `evidence` (or `test_commands` with results) shows a command and a result that cover it; otherwise it stays unverified (step 12).
-- Never claim you ran something you did not run.
 - Review the change and its direct consequences: callers, tests, docs, config. A pre-existing problem in untouched code matters only if the change makes it reachable or worse; otherwise report it at most as a `suggestion` whose title starts with "Pre-existing:".
 - Skip style nits that a formatter or linter would catch. Raise design concerns only when they create a concrete risk.
 
@@ -81,40 +79,7 @@ A goal-build run file (frontmatter `type: Build`, normally under `docs/goal-buil
 
 `plan_deviation`, `incomplete_task`, `correctness`, `regression_risk`, `error_handling`, `security`, `data_integrity`, `test_gap`, `test_quality`, `docs_drift`, `goal_gap`, `needs_runtime_check`, `performance`, `over_engineering`, `maintainability`, `review_input`.
 
-## Output
-
-Return exactly one JSON object as your final message: no Markdown fence, no text before or after it. (The fences below are only for display.) Shape:
-
-```text
-{
-  "verdict": "pass" | "needs_changes",
-  "summary": string,              // starts with the reviewed plan file's path (or "goal"), then 1–3 sentences: overall judgment and the most important problem
-  "findings": [                   // [] when there is nothing to report
-    {
-      "severity": "must_fix" | "should_fix" | "suggestion",
-      "category": string,         // one of the categories above
-      "title": string,            // one line, at most 100 characters
-      "file": string,             // optional: repo-relative path
-      "line": number,             // optional: 1-based line number
-      "evidence": string,         // what you observed: a quote with path:line, a command and its output, a tool result
-      "suggested_fix": string     // the concrete change
-    }
-  ],
-  "truths": [                     // optional in general; required for this review
-    { "truth": string, "status": "verified" | "failed" | "unverified", "evidence": string }
-  ],
-  "goal_score": number            // optional: integer 0–100
-}
-```
-
-Rules:
-
-- `verdict` is `needs_changes` exactly when at least one finding is `must_fix` or `should_fix`; otherwise it is `pass`.
-- Sort findings by severity, then by file and line. Merge duplicates. Report at most 15; if there are more, keep the most severe and say so in `summary`.
-- Leave out optional fields that don't apply; never set them to `null` or `""`.
-- Write `summary`, `title`, `evidence`, `suggested_fix` and the `truths` in the language of the plan file's prose, or of `user_request` when there is no plan. Keep the JSON keys, the enum values and the first word of `summary` (the plan path, or the English word goal) as they are. When the user's own words matter, quote them verbatim, in whatever language they wrote.
-- Do not ask questions. If something is ambiguous, state your assumption inside the finding.
-- If your output is rejected as invalid, reply again with only the corrected JSON object.
+{{include:review-shared#output}}
 
 For this review, always include `truths`. `goal_score` is the importance-weighted share of goal truths that are `verified`; it is 100 only when every truth is verified.
 

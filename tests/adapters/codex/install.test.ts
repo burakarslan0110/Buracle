@@ -103,7 +103,8 @@ describe('codex installPlan', () => {
     expect(Object.keys(toml).sort()).toEqual(['agents', 'approval_policy', 'compact_prompt', 'features', 'mcp_optional_startup_grace_ms', 'mcp_servers', 'sandbox_mode', 'tools', 'tui', 'web_search'])
     const block = mdBlockGet(read(join(codex, 'AGENTS.md')), 'buracle') as string
     expect(block).toContain('# Core working rules')
-    expect(block).toContain('`~/.buracle/rules/paths/python.md`')
+    expect(block).toContain('python')
+    expect(block).toContain('`~/.buracle/rules/paths`')
     for (const a of canonical.agents) expect(existsSync(join(codex, 'agents', `${a.id}.toml`))).toBe(true)
     expect(read(join(codex, 'rules', 'buracle.rules'))).toContain('prefix_rule(')
     expect(existsSync(join(home, '.buracle', 'rules', 'paths'))).toBe(false)

@@ -1,3 +1,4 @@
+import { resolveAgents } from '../shared/agents'
 import type { AgentDoc, CanonicalBundle, McpServerSpec, RuleDoc, SkillDoc } from '../../core/catalog'
 import { envRef, expandMcpCommand, mcpEnvFor } from '../../core/catalog'
 import type { AdapterContext } from '../registry'
@@ -227,7 +228,7 @@ export async function buildOmp(ctx: AdapterContext): Promise<BuildFile[]> {
     { path: EXTENSION_PATH, content: await bundleExtension(ctx.repoRoot, ompGeneratedData(canonical, version)) },
   ]
   for (const rule of canonical.rules) files.push(renderRule(rule))
-  for (const agent of canonical.agents) files.push(renderAgent(agent))
+  for (const agent of resolveAgents(canonical)) files.push(renderAgent(agent))
   const skills = new Map(canonical.skills.map(s => [s.id, s]))
   for (const id of ompCommandSkills(canonical)) {
     const skill = skills.get(id)

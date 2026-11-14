@@ -2,6 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { REVIEW_CATEGORIES, REVIEW_MAX_FINDINGS, validateReviewJson, type ReviewAgent } from '../../../src/core/policy/review'
+import { resolveAgents } from '../../../src/adapters/shared/agents'
+import { loadCanonicalSync } from '../../../src/engine/canonical'
 import * as paths from '../../../src/engine/paths'
 
 const AGENTS_DIR = join(paths.canonicalDir(), 'agents')
@@ -40,7 +42,10 @@ describe('agent definitions', () => {
 
   test('the limit of 15 findings matches the agents', () => {
     expect(REVIEW_MAX_FINDINGS).toBe(15)
-    for (const id of Object.keys(REVIEW_CATEGORIES)) expect(agentDoc(id)).toContain('Report at most 15')
+    // The sentence is in the body the three agents share; every generated agent carries it.
+    const resolved = resolveAgents(loadCanonicalSync())
+    expect(resolved.map(a => a.id).sort()).toEqual(Object.keys(REVIEW_CATEGORIES).sort())
+    for (const a of resolved) expect(a.body).toContain('Report at most 15')
   })
 })
 

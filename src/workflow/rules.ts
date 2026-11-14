@@ -12,6 +12,8 @@ import type { CmdResult, WorkflowCtx } from './result'
 export const ALWAYS_FILE_LINES = 200
 export const ALWAYS_TOTAL_LINES = 500
 export const ALWAYS_TOTAL_WORDS = 7500
+/** What every session loads before the user types: the always-on rules together, in UTF-8 bytes. */
+export const ALWAYS_TOTAL_BYTES = 8000
 const DOC_ID = /^[a-z0-9][a-z0-9._-]*$/
 
 function list(dir: string): string[] {
@@ -103,7 +105,7 @@ export function checkRoutingTable(file: string, text: string, data: RoutingData)
   return out
 }
 
-export function lintRulesDir(root: string, displayRoot: string): { findings: LintFinding[], counts: { always: number, paths: number, alwaysLines: number, alwaysWords: number } } {
+export function lintRulesDir(root: string, displayRoot: string): { findings: LintFinding[], counts: { always: number, paths: number, alwaysLines: number, alwaysWords: number, alwaysBytes: number } } {
   const out: LintFinding[] = []
   const show = (abs: string) => {
     const rel = relative(displayRoot, abs)
@@ -117,6 +119,7 @@ export function lintRulesDir(root: string, displayRoot: string): { findings: Lin
   }
   let alwaysLines = 0
   let alwaysWords = 0
+  let alwaysBytes = 0
   let alwaysCount = 0
   let pathsCount = 0
   let routingData: RoutingData | null | undefined
@@ -141,6 +144,7 @@ export function lintRulesDir(root: string, displayRoot: string): { findings: Lin
         const size = sizeOf(text)
         alwaysLines += size.lines
         alwaysWords += size.words
+        alwaysBytes += new TextEncoder().encode(text).length
         if (size.lines > ALWAYS_FILE_LINES) out.push({ level: 'error', code: 'rule-file-lines', file, message: `${size.lines} lines; an always-on rule file may have at most ${ALWAYS_FILE_LINES}` })
       } else {
         pathsCount++
@@ -185,7 +189,8 @@ export function lintRulesDir(root: string, displayRoot: string): { findings: Lin
   const alwaysDir = show(join(root, 'always'))
   if (alwaysLines > ALWAYS_TOTAL_LINES) out.push({ level: 'error', code: 'always-budget', file: alwaysDir, message: `always-on rules total ${alwaysLines} lines; the budget is ${ALWAYS_TOTAL_LINES}` })
   if (alwaysWords > ALWAYS_TOTAL_WORDS) out.push({ level: 'error', code: 'always-budget', file: alwaysDir, message: `always-on rules total ${alwaysWords} words; the budget is ${ALWAYS_TOTAL_WORDS}` })
-  return { findings: out, counts: { always: alwaysCount, paths: pathsCount, alwaysLines, alwaysWords } }
+  if (alwaysBytes > ALWAYS_TOTAL_BYTES) out.push({ level: 'error', code: 'always-budget', file: alwaysDir, message: `always-on rules total ${alwaysBytes} bytes; the budget is ${ALWAYS_TOTAL_BYTES} (move workflow detail into a skill's references/, or into a path rule)` })
+  return { findings: out, counts: { always: alwaysCount, paths: pathsCount, alwaysLines, alwaysWords, alwaysBytes } }
 }
 
 export function rulesLint(dirArg: string | undefined, strict: boolean, ctx: WorkflowCtx): CmdResult {
@@ -196,6 +201,6 @@ export function rulesLint(dirArg: string | undefined, strict: boolean, ctx: Work
   const report = summarize(findings)
   const code = report.errors > 0 ? 1 : strict && report.warnings > 0 ? 2 : 0
   const lines = report.findings.map(formatFinding)
-  lines.push(`${counts.always} always-on rule(s) (${counts.alwaysLines}/${ALWAYS_TOTAL_LINES} lines, ${counts.alwaysWords}/${ALWAYS_TOTAL_WORDS} words), ${counts.paths} path rule(s): ${report.errors} error(s), ${report.warnings} warning(s)`)
-  return { code, data: { ok: code === 0, always: counts.always, paths: counts.paths, budget: { lines: counts.alwaysLines, maxLines: ALWAYS_TOTAL_LINES, words: counts.alwaysWords, maxWords: ALWAYS_TOTAL_WORDS }, errors: report.errors, warnings: report.warnings, findings: report.findings }, lines, errors: [] }
+  lines.push(`${counts.always} always-on rule(s) (${counts.alwaysLines}/${ALWAYS_TOTAL_LINES} lines, ${counts.alwaysWords}/${ALWAYS_TOTAL_WORDS} words, ${counts.alwaysBytes}/${ALWAYS_TOTAL_BYTES} bytes), ${counts.paths} path rule(s): ${report.errors} error(s), ${report.warnings} warning(s)`)
+  return { code, data: { ok: code === 0, always: counts.always, paths: counts.paths, budget: { lines: counts.alwaysLines, maxLines: ALWAYS_TOTAL_LINES, words: counts.alwaysWords, maxWords: ALWAYS_TOTAL_WORDS, bytes: counts.alwaysBytes, maxBytes: ALWAYS_TOTAL_BYTES }, errors: report.errors, warnings: report.warnings, findings: report.findings }, lines, errors: [] }
 }

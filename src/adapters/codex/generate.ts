@@ -5,6 +5,7 @@ import { BYPASS_KEYS, codexMcpTables, codexTui, codexValueProblems, compactKeys,
 import { renderRulesFile } from './execpolicy'
 import { buracleHooksFile, renderHooksJson, type CodexHooksFile } from './hooks-config'
 import { mdBlockMarkers, tomlKey, tomlValue } from '../../engine/merge'
+import { resolveAgents } from '../shared/agents'
 import { pathRuleFiles } from '../shared/rules'
 
 export const OWNER = 'codex'
@@ -62,7 +63,7 @@ export function codexArtifacts(input: ArtifactInput): CodexArtifacts {
     tui: codexTui(c.statusline, warnings),
     rootKeys,
     agentsBlock: codexAgentsBlock({ rules: c.rules, pathRulesDir: input.pathRulesDir, skillDocs: c.skills, ...refs }, warnings),
-    agentFiles: [...c.agents].sort((a, b) => (a.id < b.id ? -1 : 1)).map(a => ({ id: a.id, content: codexAgentToml(a, refs, warnings) })),
+    agentFiles: resolveAgents(c).sort((a, b) => (a.id < b.id ? -1 : 1)).map(a => ({ id: a.id, content: codexAgentToml(a, refs, warnings) })),
     rulesFile: renderRulesFile({ ...(input.home !== undefined ? { home: input.home } : {}), shim: input.buracle }),
     pathRules: pathRuleFiles(c, warnings).map(r => ({ id: r.id, content: r.content })),
     warnings,

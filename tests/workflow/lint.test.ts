@@ -6,7 +6,7 @@ import {
   checkBuracleMentions, checkHarnessBlocks, checkLinks, checkPlaceholders, scanMarkdown, type LintFinding,
 } from '../../src/workflow/lint'
 import { lintSkillDir, scaffoldSkill, skillsLint, skillsList, skillsNew } from '../../src/workflow/skills'
-import { globProblems, lintRulesDir, rulesLint } from '../../src/workflow/rules'
+import { ALWAYS_TOTAL_BYTES, globProblems, lintRulesDir, rulesLint } from '../../src/workflow/rules'
 import { withSandbox } from '../helpers/sandbox'
 import { ctxAt, write } from './fixture'
 
@@ -271,6 +271,25 @@ describe('rules lint', () => {
     }
     expect(counts).toMatchObject({ always: 4, paths: 3 })
     expect(findings.filter(f => f.file === 'rules/paths/py.md')).toEqual([])
+  }))
+
+  test('the always-on rules together stay under 8,000 bytes: one byte more is an error, and the canonical rules fit', () => withSandbox(({ root }) => {
+    expect(ALWAYS_TOTAL_BYTES).toBe(8000)
+    const rules = join(root, 'rules')
+    const line = `${'x'.repeat(99)}\n`
+    write(join(rules, 'always', 'a.md'), line.repeat(40))
+    write(join(rules, 'always', 'b.md'), line.repeat(40))
+    const fits = lintRulesDir(rules, root)
+    expect(fits.counts.alwaysBytes).toBe(8000)
+    expect(codes(fits.findings)).not.toContain('always-budget')
+    write(join(rules, 'always', 'b.md'), `${line.repeat(40)}ş`)
+    const over = lintRulesDir(rules, root)
+    expect(over.counts.alwaysBytes).toBe(8002)
+    expect(over.findings.filter(f => f.code === 'always-budget').map(f => [f.level, f.message.includes('8002 bytes')])).toEqual([['error', true]])
+    const real = rulesLint(undefined, false, ctxAt(process.cwd()))
+    expect(real.code).toBe(0)
+    expect((real.data['budget'] as { bytes: number, maxBytes: number }).maxBytes).toBe(8000)
+    expect((real.data['budget'] as { bytes: number }).bytes).toBeLessThanOrEqual(8000)
   }))
 
   test('glob sanity', () => {

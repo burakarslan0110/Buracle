@@ -15,6 +15,7 @@ tools `memory_search`, `memory_get`, `memory_write`, `memory_update`, `memory_st
 `memory_context`. When the server is unavailable, use the CLI twins: `buracle mem search "<q>"`,
 `buracle mem get <id>`, `buracle mem write …`, `buracle mem update <id> --patch '<json>'`,
 `buracle mem remember "<text>"`, `buracle mem status`.
+The detail behind the always-loaded *Memory* rule is in [references/memory-rules.md](references/memory-rules.md).
 
 The memory is the harness's, not the user's: it exists so the harnesses remember what they did and
 learned, and you keep it in order (section 6). The user never files, reviews or cleans anything.
