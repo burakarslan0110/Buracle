@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { defaultConfig } from '../../src/core/config'
 import { validatePlan } from '../../src/core/plan/format'
@@ -227,15 +227,15 @@ describe('WF-08: a title ending in # keeps it', () => {
   })
 })
 
-describe('WF-09: plan.worktreeDir with ~', () => {
-  test('~/… expands to the home directory; no literal ~ directory appears in the repository', () => withSandbox(async ({ root, home }) => withEnv({ BURACLE_NO_MEMORY: '1' }, async () => {
+describe('WF-09: worktrees live in .worktrees (a plan.worktreeDir left in config.yaml is ignored)', () => {
+  test('a ~/… value is not used; no literal ~ directory appears in the repository', () => withSandbox(async ({ root }) => withEnv({ BURACLE_NO_MEMORY: '1' }, async () => {
     const repo = await makeRepo(root)
     write(userConfigFile(), 'plan:\n  worktreeDir: ~/worktrees\n')
     const facts = await repoFacts(repo)
-    expect(worktreeRoot(facts!)).toBe(join(home, 'worktrees'))
+    expect(worktreeRoot(facts!)).toBe(join(repo, '.worktrees'))
     const r = await worktreeCreate('tilde-probe', {}, ctxAt(repo), undefined)
     expect(r.code).toBe(0)
-    expect(String(r.data['path']).startsWith(join(home, 'worktrees'))).toBe(true)
+    expect(String(r.data['path']).startsWith(join(realpathSync(repo), '.worktrees'))).toBe(true)
     expect(existsSync(join(repo, '~'))).toBe(false)
     write(userConfigFile(), 'plan:\n  worktreeDir: ~other/wt\n')
     expect(worktreeRoot(facts!)).toBe(join(repo, '.worktrees'))

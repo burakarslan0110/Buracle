@@ -9,7 +9,7 @@ export const summary = 'Isolated worktrees and branches for plans (create, branc
 export const usage = `Usage: buracle worktree <subcommand> [args…] [--json]
 
   create <slug> [--base <branch>] [--prefix plan-build|goal-build|bugfix] [--lane]
-                     new worktree <worktreeDir>/<slug> (default .worktrees/) on branch <prefix>/<slug>
+                     new worktree .worktrees/<slug> on branch <prefix>/<slug>
                      (default plan-build) from the base branch (default: the current branch); sets
                      worktree: true on this session's registered plan. Prints {path, branch}.
                      --lane: a parallel agent's worktree; it marks no plan, never counts as the
@@ -38,7 +38,7 @@ export const usage = `Usage: buracle worktree <subcommand> [args…] [--json]
   status             every plan worktree of the repository (and which one is this session's)
 
 The session (see 'buracle plan --help') is optional here: without one, create warns and marks no
-plan. plan.worktreeDir may be absolute, '~/…' or relative to the main checkout.
+plan. Worktrees live in .worktrees/ of the main checkout.
 Mutating subcommands take a repository-wide lock (BURACLE_LOCK_TIMEOUT_MS, default 60000).
 History is never rewritten. Exit codes: 0 ok · 1 error · 2 partial or refused.`
 

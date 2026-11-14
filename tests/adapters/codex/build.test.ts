@@ -43,7 +43,7 @@ describe('codex build (harness/codex)', () => {
   })
 
   test('is deterministic and independent of the user config', async () => {
-    const again = await adapter.build({ ...ctx, config: { ...defaultConfig(), context: { warnPct: 50, criticalPct: 60 } } })
+    const again = await adapter.build({ ...ctx, config: { ...defaultConfig(), checkers: { enabled: false, languages: [] } } })
     expect(again).toEqual(built)
     expect(codexBuildFiles(canonical).warnings).toEqual([])
   })

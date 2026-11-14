@@ -38,7 +38,7 @@ disable\` and \`buracle mcp enable\` change mcp.off.* and run that install thems
 Examples:
   buracle config get routing.strictness
   buracle config set harnesses.codex.enabled false
-  buracle config set memory.ui.port 41800`
+  buracle config set memory.ui.autostart false`
 
 function effective(repoRoot: string): BuracleConfig {
   const c = loadConfigSync({ repoRoot }).config

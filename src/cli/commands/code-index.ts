@@ -1,5 +1,5 @@
-import type { CommandIO } from '../router'
 import { loadConfigSync } from '../../engine/config'
+import type { CommandIO } from '../router'
 import { parseFlags } from '../../engine/update/args'
 import { writeJson } from '../../engine/update/output'
 
@@ -17,7 +17,7 @@ ensure   build what is missing (codegraph init), refresh what exists (codegraph 
          running codegraph server already does by itself; references an interrupted run left
          unresolved are resolved) and warm semble's caches (code, and all content). A session
          start runs it in the background with --if-due: only indexes older than
-         index.minIntervalMin, or failed long enough ago (the wait grows after each failure)
+         10 minutes, or failed long enough ago (the wait grows after each failure)
 rebuild  rebuild the codegraph index from scratch (codegraph index) and warm semble again.
          It stops a running codegraph server of the project, so the sessions using it lose
          codegraph until they reconnect: refused while one runs, unless --force
@@ -25,11 +25,9 @@ rebuild  rebuild the codegraph index from scratch (codegraph index) and warm sem
 The project is the git top level of --cwd (default: the current directory), else the nearest
 folder above it with a project manifest (package.json, go.mod, Cargo.toml, *.sln, ...), never the
 home folder or above it. A folder that only holds projects (loose files and hidden folders
-aside) works on each child project (index.children, at most index.maxChildren). Never indexed:
+aside) works on each child project (at most 8, the most recently active first). Never indexed:
 the home folder and its parents, the filesystem root, the memory vault, ~/.buracle and what
 index.exclude names.
-config: index.auto, index.codegraph, index.semble, index.minIntervalMin, index.exclude,
-index.children, index.maxChildren.
 Ctrl-C (SIGINT), SIGTERM or SIGHUP stops ensure and rebuild together with the codegraph and semble
 processes they started (exit 130, 143 or 129); an interrupted tool keeps its previous record.`
 
@@ -44,8 +42,8 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     return 1
   }
   const ws = await import('../../workflow/workspace')
-  const { describeIndexState } = await import('../../core/workspace')
-  const cfg = loadConfigSync().config
+  const { describeIndexState, indexSettings } = await import('../../core/workspace')
+  const cfg = indexSettings(loadConfigSync().config)
   const cwd = p.strings.get('cwd') ?? process.cwd()
   const target = await ws.resolveWorkspace(cwd, ws.workspaceOptions(cfg))
   const roots = target.root !== undefined ? [target.root] : target.children
@@ -60,7 +58,7 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
   }
 
   if (sub === 'status') {
-    const entries = roots.map(root => ({ root, record: ws.readIndexRecord(root) ?? null, state: ws.projectIndex(root, cfg.index, now) }))
+    const entries = roots.map(root => ({ root, record: ws.readIndexRecord(root) ?? null, state: ws.projectIndex(root, cfg, now) }))
     if (json) {
       if (target.root !== undefined) {
         const e = entries[0]

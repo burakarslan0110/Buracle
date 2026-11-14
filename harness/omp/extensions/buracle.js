@@ -7773,6 +7773,7 @@ var exports_paths = {};
 __export(exports_paths, {
   INSTALL_LOG_RE: () => INSTALL_LOG_RE,
   MCP_SOCKET_PATH_MAX: () => MCP_SOCKET_PATH_MAX,
+  MEMORY_UI_PORT: () => MEMORY_UI_PORT,
   RUNTIME_MARKER: () => RUNTIME_MARKER,
   SESSION_ID_RE: () => SESSION_ID_RE,
   agentsDir: () => agentsDir,
@@ -8145,7 +8146,7 @@ function sessionDir(h, sessionId) {
 function heartbeatFile(h, sessionId) {
   return join(runDir(h), `${checkedSession(sessionId)}.json`);
 }
-var CONFIG_DIRS, cachedCheckout, RUNTIME_MARKER = ".buracle-runtime.json", MCP_SOCKET_PATH_MAX = 100, INSTALL_LOG_RE, SESSION_ID_RE;
+var CONFIG_DIRS, cachedCheckout, RUNTIME_MARKER = ".buracle-runtime.json", MCP_SOCKET_PATH_MAX = 100, MEMORY_UI_PORT = 41777, INSTALL_LOG_RE, SESSION_ID_RE;
 var init_paths = __esm(() => {
   CONFIG_DIRS = { claude: claudeDir, codex: codexHome, opencode: opencodeConfigDir, omp: ompAgentDir };
   INSTALL_LOG_RE = /^install-\d{4}-\d{2}-\d{2}\.log$/;
@@ -8812,6 +8813,7 @@ __export(exports_core, {
   CATASTROPHIC_COMMAND_RULES: () => CATASTROPHIC_COMMAND_RULES,
   CHECKER_PROBES: () => CHECKER_PROBES,
   CHECKER_SCAN_MAX_DIRS: () => CHECKER_SCAN_MAX_DIRS,
+  CHECKER_TIMEOUT_MS: () => CHECKER_TIMEOUT_MS,
   CLAUDE_CLASSIC_EVENTS: () => CLAUDE_CLASSIC_EVENTS,
   CLAUDE_ENGINE_EVENTS: () => CLAUDE_ENGINE_EVENTS,
   CLAUDE_PLUGIN_NAME: () => CLAUDE_PLUGIN_NAME,
@@ -8849,6 +8851,7 @@ __export(exports_core, {
   FLOW_STEP_MAX: () => FLOW_STEP_MAX,
   FLOW_TITLE_MAX: () => FLOW_TITLE_MAX,
   FLOW_WORKFLOWS: () => FLOW_WORKFLOWS,
+  FOLD_AFTER_SEC: () => FOLD_AFTER_SEC,
   GRANT_TTL_MS: () => GRANT_TTL_MS,
   GRANT_USES: () => GRANT_USES,
   GUARD_MARKERS: () => GUARD_MARKERS,
@@ -8862,6 +8865,7 @@ __export(exports_core, {
   HOOK_EVENTS: () => HOOK_EVENTS,
   HOOK_IDS: () => HOOK_IDS,
   INDEX_RETRY_MIN: () => INDEX_RETRY_MIN,
+  INDEX_SETTINGS: () => INDEX_SETTINGS,
   INDEX_STATUS_TEXT: () => INDEX_STATUS_TEXT,
   KIND_INFO: () => KIND_INFO,
   LANE_FLOW_COMMANDS: () => LANE_FLOW_COMMANDS,
@@ -8925,6 +8929,8 @@ __export(exports_core, {
   ROUTE_CAPS: () => ROUTE_CAPS,
   ROUTE_HEADER: () => ROUTE_HEADER,
   ROUTE_TEXT_MAX_BYTES: () => ROUTE_TEXT_MAX_BYTES,
+  RUNAWAY_PER_CHAIN: () => RUNAWAY_PER_CHAIN,
+  RUNAWAY_PER_PLAN: () => RUNAWAY_PER_PLAN,
   RUNAWAY_REASON: () => RUNAWAY_REASON,
   RUNTIME_SNAPSHOT_VERSION: () => RUNTIME_SNAPSHOT_VERSION,
   SEGMENT_IDS: () => SEGMENT_IDS,
@@ -9095,6 +9101,7 @@ __export(exports_core, {
   indexExclusion: () => indexExclusion,
   indexHealth: () => indexHealth,
   indexRetryDelayMs: () => indexRetryDelayMs,
+  indexSettings: () => indexSettings,
   indexState: () => indexState,
   indexStatusOf: () => indexStatusOf,
   indexToolDue: () => indexToolDue,
@@ -9404,6 +9411,8 @@ __export(exports_plan, {
   REVIEW_ROLES: () => REVIEW_ROLES,
   REVIEW_VERDICTS: () => REVIEW_VERDICTS,
   ROUTE_AUDIT_AFTER: () => ROUTE_AUDIT_AFTER,
+  RUNAWAY_PER_CHAIN: () => RUNAWAY_PER_CHAIN,
+  RUNAWAY_PER_PLAN: () => RUNAWAY_PER_PLAN,
   STOP_GUARD_ESCAPE: () => STOP_GUARD_ESCAPE,
   STOP_REASON_MAX: () => STOP_REASON_MAX,
   answerReceipt: () => answerReceipt,
@@ -9492,6 +9501,7 @@ var exports_checkers = {};
 __export(exports_checkers, {
   CHECKER_PROBES: () => CHECKER_PROBES,
   CHECKER_SCAN_MAX_DIRS: () => CHECKER_SCAN_MAX_DIRS,
+  CHECKER_TIMEOUT_MS: () => CHECKER_TIMEOUT_MS,
   DOTNET_FORMAT_ENV: () => DOTNET_FORMAT_ENV,
   FINDINGS_MAX_LINES: () => FINDINGS_MAX_LINES,
   SLOW_CHECKER_MIN_MS: () => SLOW_CHECKER_MIN_MS,
@@ -9956,6 +9966,2606 @@ function workflowOfPrompt(text) {
   return workflow !== undefined ? { workflow, args: (typed?.[2] ?? "").trim() } : undefined;
 }
 
+// src/core/frontmatter.ts
+var OPEN = /^---[ \t]*\r?\n/;
+var CLOSE = /^(?:---|\.\.\.)[ \t]*$/;
+function parseFrontmatter(markdown) {
+  const text = markdown.replace(/^\uFEFF/, "");
+  if (!OPEN.test(text))
+    return { data: {}, body: text, hasFrontmatter: false };
+  const lines = text.split(/\r?\n/);
+  let end = -1;
+  for (let i = 1;i < lines.length; i++) {
+    if (CLOSE.test(lines[i] ?? "")) {
+      end = i;
+      break;
+    }
+  }
+  if (end < 0)
+    return { data: {}, body: text, hasFrontmatter: false };
+  const data = parseYamlBlock(lines.slice(1, end));
+  let body = lines.slice(end + 1).join(`
+`);
+  if (body.startsWith(`
+`))
+    body = body.slice(1);
+  return { data, body, hasFrontmatter: true };
+}
+function parseYamlBlock(lines) {
+  const out = {};
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i] ?? "";
+    if (isBlankOrComment(line) || indentOf(line) > 0) {
+      i++;
+      continue;
+    }
+    const kv = splitKey(line);
+    if (!kv) {
+      i++;
+      continue;
+    }
+    const [key, rest] = kv;
+    if (rest === "") {
+      const child = collectChildren(lines, i + 1);
+      i = child.next;
+      out[key] = child.lines.length === 0 ? null : parseChildBlock(child.lines);
+      continue;
+    }
+    if (/^[|>][+-]?$/.test(rest)) {
+      const child = collectChildren(lines, i + 1);
+      i = child.next;
+      out[key] = blockScalar(rest, child.lines);
+      continue;
+    }
+    out[key] = parseInline(rest);
+    i++;
+  }
+  return out;
+}
+function isBlankOrComment(line) {
+  const t = line.trim();
+  return t === "" || t.startsWith("#");
+}
+function indentOf(line) {
+  const m = /^( *)/.exec(line);
+  return m?.[1]?.length ?? 0;
+}
+function splitKey(line) {
+  const t = line.trim();
+  let key;
+  let rest;
+  if (t.startsWith('"') || t.startsWith("'")) {
+    const q = t[0];
+    const close = t.indexOf(q, 1);
+    if (close < 0)
+      return;
+    key = t.slice(1, close);
+    const after = t.slice(close + 1);
+    if (!after.startsWith(":"))
+      return;
+    rest = after.slice(1).trim();
+  } else {
+    const m = /^([^:#][^:]*?):(?:\s+(.*)|\s*)$/.exec(t);
+    if (!m)
+      return;
+    key = (m[1] ?? "").trim();
+    rest = (m[2] ?? "").trim();
+  }
+  return [key, rest];
+}
+function collectChildren(lines, start) {
+  const out = [];
+  let i = start;
+  while (i < lines.length) {
+    const line = lines[i] ?? "";
+    if (line.trim() === "") {
+      out.push(line);
+      i++;
+      continue;
+    }
+    if (indentOf(line) === 0 && !line.startsWith("- ") && line !== "-")
+      break;
+    if (indentOf(line) === 0 && (line.startsWith("- ") || line === "-")) {
+      out.push(line);
+      i++;
+      continue;
+    }
+    out.push(line);
+    i++;
+  }
+  while (out.length > 0 && (out[out.length - 1] ?? "").trim() === "")
+    out.pop();
+  return { lines: out, next: i };
+}
+function parseChildBlock(lines) {
+  const content = lines.filter((l) => !isBlankOrComment(l));
+  if (content.length === 0)
+    return null;
+  const first = (content[0] ?? "").trim();
+  if (first.startsWith("- ") || first === "-") {
+    const items = [];
+    for (const l of content) {
+      const t = l.trim();
+      if (t.startsWith("- "))
+        items.push(parseInline(t.slice(2).trim()));
+      else if (t === "-")
+        items.push(null);
+    }
+    return items;
+  }
+  const base = indentOf(content[0] ?? "");
+  const map = {};
+  let i = 0;
+  while (i < content.length) {
+    const l = content[i] ?? "";
+    if (indentOf(l) !== base) {
+      i++;
+      continue;
+    }
+    const kv = splitKey(l);
+    if (!kv) {
+      i++;
+      continue;
+    }
+    const [k, rest] = kv;
+    if (rest === "") {
+      const sub = [];
+      let j = i + 1;
+      while (j < content.length && indentOf(content[j] ?? "") > base) {
+        sub.push(content[j] ?? "");
+        j++;
+      }
+      map[k] = sub.length === 0 ? null : parseChildBlock(sub);
+      i = j;
+      continue;
+    }
+    map[k] = parseInline(rest);
+    i++;
+  }
+  return map;
+}
+function blockScalar(indicator, lines) {
+  const content = lines.slice();
+  const nonEmpty = content.filter((l) => l.trim() !== "");
+  const indent = nonEmpty.length === 0 ? 0 : Math.min(...nonEmpty.map(indentOf));
+  const stripped = content.map((l) => l.slice(Math.min(indent, indentOf(l))));
+  const literal = indicator.startsWith("|");
+  let text;
+  if (literal) {
+    text = stripped.join(`
+`);
+  } else {
+    const paras = [];
+    let cur = [];
+    for (const l of stripped) {
+      if (l.trim() === "") {
+        paras.push(cur.join(" "));
+        cur = [];
+      } else
+        cur.push(l.trim());
+    }
+    paras.push(cur.join(" "));
+    text = paras.join(`
+`).replace(/\n+$/, "");
+  }
+  if (indicator.endsWith("-"))
+    return text.replace(/\n+$/, "");
+  if (indicator.endsWith("+"))
+    return text + `
+`;
+  return text.replace(/\n*$/, `
+`);
+}
+function parseInline(raw) {
+  const s = raw.trim();
+  if (s === "")
+    return null;
+  if (s.startsWith("[")) {
+    const close = findFlowClose(s);
+    if (close === s.length - 1 || /^\s*(#.*)?$/.test(s.slice(close + 1)))
+      return splitFlow(s.slice(1, close)).map(parseInline);
+  }
+  if (s.startsWith('"')) {
+    const end = findDoubleQuoteEnd(s);
+    if (end > 0)
+      return unescapeDouble(s.slice(1, end));
+  }
+  if (s.startsWith("'")) {
+    const end = findSingleQuoteEnd(s);
+    if (end > 0)
+      return s.slice(1, end).replace(/''/g, "'");
+  }
+  const plain = stripTrailingComment(s);
+  return typedScalar(plain);
+}
+function stripTrailingComment(s) {
+  const idx = s.search(/\s#/);
+  return (idx >= 0 ? s.slice(0, idx) : s).trim();
+}
+function typedScalar(s) {
+  if (s === "~" || s === "null" || s === "Null" || s === "NULL")
+    return null;
+  if (s === "true" || s === "True" || s === "TRUE")
+    return true;
+  if (s === "false" || s === "False" || s === "FALSE")
+    return false;
+  if (/^[-+]?\d+$/.test(s) && Number.isSafeInteger(Number(s)))
+    return Number(s);
+  if (/^[-+]?(\d+\.\d*|\.\d+|\d+)([eE][-+]?\d+)?$/.test(s))
+    return Number(s);
+  return s;
+}
+function findFlowClose(s) {
+  let depth = 0;
+  let quote;
+  for (let i = 0;i < s.length; i++) {
+    const c = s[i];
+    if (quote) {
+      if (c === "\\" && quote === '"') {
+        i++;
+        continue;
+      }
+      if (c === quote) {
+        if (quote === "'" && s[i + 1] === "'") {
+          i++;
+          continue;
+        }
+        quote = undefined;
+      }
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      quote = c;
+      continue;
+    }
+    if (c === "[")
+      depth++;
+    else if (c === "]") {
+      depth--;
+      if (depth === 0)
+        return i;
+    }
+  }
+  return -1;
+}
+function splitFlow(inner) {
+  const parts = [];
+  let cur = "";
+  let depth = 0;
+  let quote;
+  for (let i = 0;i < inner.length; i++) {
+    const c = inner[i];
+    if (quote) {
+      cur += c;
+      if (c === "\\" && quote === '"' && i + 1 < inner.length) {
+        cur += inner[i + 1];
+        i++;
+        continue;
+      }
+      if (c === quote) {
+        if (quote === "'" && inner[i + 1] === "'") {
+          cur += "'";
+          i++;
+          continue;
+        }
+        quote = undefined;
+      }
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      quote = c;
+      cur += c;
+      continue;
+    }
+    if (c === "[" || c === "{")
+      depth++;
+    if (c === "]" || c === "}")
+      depth--;
+    if (c === "," && depth === 0) {
+      parts.push(cur);
+      cur = "";
+      continue;
+    }
+    cur += c;
+  }
+  if (cur.trim() !== "")
+    parts.push(cur);
+  return parts.map((p) => p.trim()).filter((p) => p !== "");
+}
+function findDoubleQuoteEnd(s) {
+  for (let i = 1;i < s.length; i++) {
+    if (s[i] === "\\") {
+      i++;
+      continue;
+    }
+    if (s[i] === '"')
+      return i;
+  }
+  return -1;
+}
+function findSingleQuoteEnd(s) {
+  for (let i = 1;i < s.length; i++) {
+    if (s[i] === "'") {
+      if (s[i + 1] === "'") {
+        i++;
+        continue;
+      }
+      return i;
+    }
+  }
+  return -1;
+}
+function unescapeDouble(s) {
+  return s.replace(/\\(U[0-9a-fA-F]{8}|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|.)/g, (_m, e) => {
+    if (e.startsWith("U"))
+      return String.fromCodePoint(parseInt(e.slice(1), 16));
+    if (e.startsWith("u") || e.startsWith("x"))
+      return String.fromCharCode(parseInt(e.slice(1), 16));
+    switch (e) {
+      case "n":
+        return `
+`;
+      case "t":
+        return "\t";
+      case "r":
+        return "\r";
+      case "b":
+        return "\b";
+      case "f":
+        return "\f";
+      case "v":
+        return "\v";
+      case "a":
+        return "\x07";
+      case "e":
+        return "\x1B";
+      case "0":
+        return "\x00";
+      case "N":
+        return "\x85";
+      case "_":
+        return "\xA0";
+      case "L":
+        return "\u2028";
+      case "P":
+        return "\u2029";
+      case '"':
+        return '"';
+      case "\\":
+        return "\\";
+      case "/":
+        return "/";
+      default:
+        return e;
+    }
+  });
+}
+function renderYamlBlock(data, order = []) {
+  const keys = [...order.filter((k) => (k in data)), ...Object.keys(data).filter((k) => !order.includes(k))];
+  const out = [];
+  for (const k of keys) {
+    const v = data[k];
+    if (v === undefined)
+      continue;
+    out.push(...renderEntry(k, v, 0));
+  }
+  return out.join(`
+`);
+}
+function renderEntry(key, value, indent) {
+  const pad = " ".repeat(indent);
+  const k = renderKey(key);
+  if (Array.isArray(value)) {
+    if (value.every(isScalarLike))
+      return [`${pad}${k}: [${value.map(renderFlowScalar).join(", ")}]`];
+    return [`${pad}${k}:`, ...value.map((v) => `${pad}  - ${isScalarLike(v) ? renderScalar(v) : renderScalar(JSON.stringify(v))}`)];
+  }
+  if (value !== null && typeof value === "object") {
+    const entries = Object.entries(value).filter(([, v]) => v !== undefined);
+    if (entries.length === 0)
+      return [`${pad}${k}: {}`];
+    const lines = [`${pad}${k}:`];
+    for (const [ck, cv] of entries) {
+      if (cv !== null && typeof cv === "object" && !Array.isArray(cv)) {
+        lines.push(`${pad}  ${renderKey(ck)}: ${renderScalar(JSON.stringify(cv))}`);
+      } else {
+        lines.push(...renderEntry(ck, cv, indent + 2));
+      }
+    }
+    return lines;
+  }
+  if (typeof value === "string" && value.includes(`
+`) && literalBlockFits(value)) {
+    const body = value.replace(/\n$/, "").split(`
+`).map((l) => l === "" ? "" : `${pad}  ${l}`);
+    return [`${pad}${k}: ${value.endsWith(`
+`) ? "|" : "|-"}`, ...body];
+  }
+  return [`${pad}${k}: ${renderScalar(value)}`];
+}
+function literalBlockFits(s) {
+  if (/[\x00-\x08\x0b-\x1f\x7f]/.test(s))
+    return false;
+  if (/\n\n$/.test(s))
+    return false;
+  const lines = s.replace(/\n$/, "").split(`
+`);
+  const first = lines.find((l) => l.trim() !== "");
+  if (first === undefined || /^[ \t]/.test(first))
+    return false;
+  return (lines[lines.length - 1] ?? "").trim() !== "" || lines[lines.length - 1] === "";
+}
+function renderFlowScalar(v) {
+  if (typeof v === "string" && !needsQuotes(v) && /[,[\]{}]/.test(v))
+    return JSON.stringify(v);
+  return renderScalar(v);
+}
+function isScalarLike(v) {
+  return v === null || ["string", "number", "boolean"].includes(typeof v);
+}
+function renderKey(key) {
+  return /^[A-Za-z0-9_][A-Za-z0-9_.\-/]*$/.test(key) ? key : JSON.stringify(key);
+}
+function renderScalar(v) {
+  if (v === null || v === undefined)
+    return "null";
+  if (typeof v === "boolean")
+    return v ? "true" : "false";
+  if (typeof v === "number")
+    return Number.isFinite(v) ? String(v) : JSON.stringify(String(v));
+  const s = String(v);
+  if (needsQuotes(s))
+    return JSON.stringify(s);
+  return s;
+}
+function needsQuotes(s) {
+  if (s === "")
+    return true;
+  if (s !== s.trim())
+    return true;
+  if (/^(true|false|null|yes|no|on|off|~)$/i.test(s))
+    return true;
+  if (/^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(s))
+    return true;
+  if (/^[-+]?(?:0x[0-9a-f]+|0o[0-7]+|\.(?:inf|nan))$/i.test(s))
+    return true;
+  if (/^[\[\]{}>|*&!%@`'",?#-]/.test(s) && !/^-[A-Za-z0-9]/.test(s))
+    return true;
+  if (s.startsWith("- "))
+    return true;
+  if (/: |:$| #|\t/.test(s))
+    return true;
+  if (/[\x00-\x1f]/.test(s))
+    return true;
+  return false;
+}
+
+// src/core/plan/vague.ts
+var VAGUE_PHRASES = [
+  /\bimplement(?:ed)? later\b/i,
+  /\bfill in (?:the )?details\b/i,
+  /\bdetails below\b/i,
+  /\b(?:similar to|same as) task \d+\b/i,
+  /\b(?:add )?appropriate error handling\b/i,
+  /\bhandle (?:the |all |any )?edge cases\b/i
+];
+function vaguePhrase(text) {
+  for (const re of VAGUE_PHRASES) {
+    const m = re.exec(text);
+    if (m)
+      return m[0].trim();
+  }
+  return;
+}
+
+// src/core/plan/authoring.ts
+var EXTENSIONS = new Set([
+  "ts",
+  "tsx",
+  "mts",
+  "cts",
+  "js",
+  "jsx",
+  "mjs",
+  "cjs",
+  "json",
+  "jsonc",
+  "json5",
+  "md",
+  "mdx",
+  "rst",
+  "adoc",
+  "txt",
+  "yaml",
+  "yml",
+  "toml",
+  "ini",
+  "cfg",
+  "conf",
+  "properties",
+  "xml",
+  "html",
+  "htm",
+  "css",
+  "scss",
+  "sass",
+  "less",
+  "svg",
+  "vue",
+  "svelte",
+  "astro",
+  "py",
+  "pyi",
+  "ipynb",
+  "rb",
+  "go",
+  "rs",
+  "java",
+  "kt",
+  "kts",
+  "scala",
+  "groovy",
+  "gradle",
+  "swift",
+  "c",
+  "h",
+  "cc",
+  "cpp",
+  "cxx",
+  "hpp",
+  "cs",
+  "fs",
+  "php",
+  "pl",
+  "pm",
+  "lua",
+  "jl",
+  "dart",
+  "ex",
+  "exs",
+  "erl",
+  "clj",
+  "elm",
+  "hs",
+  "ml",
+  "nim",
+  "zig",
+  "sql",
+  "graphql",
+  "gql",
+  "proto",
+  "sh",
+  "bash",
+  "zsh",
+  "fish",
+  "ps1",
+  "bat",
+  "lock",
+  "tf",
+  "tfvars",
+  "hcl",
+  "nix",
+  "csv",
+  "tsv",
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "ico",
+  "pdf",
+  "wasm"
+]);
+var FILE_NAMES = new Set(["Makefile", "Dockerfile", "Containerfile", "Justfile", "Procfile", "Gemfile", "Rakefile", ".gitignore"]);
+var AFTER_RUN = new Set(["deviations", "follow-ups", "followups", "review notes", "gaps", "evidence", "e2e results", "dod audit", "unverified", "red evidence"]);
+var IDENT = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+var MAX_DRIFT = 5;
+var MAX_IDS = 400;
+var VERIFY_LINE = /^\s*(?:[-*+]\s+)?\**verify\**\s*:/i;
+var RUNNERS = new Set(["bun", "node", "deno", "tsx", "ts-node", "python", "python3", "ruby", "perl", "php", "sh", "bash", "zsh", "fish", "pwsh", "powershell", "source", "."]);
+function looksLikePath(raw) {
+  const t = raw.trim().replace(/^["'([]+/, "").replace(/["',;)\]]+$/, "").replace(/^\.\//, "");
+  if (t === "" || t.length > 200 || /^(?:\/|~|-|\.\.)/.test(t) || t.includes("//"))
+    return;
+  const segs = t.replace(/\/$/, "").split("/");
+  if (segs.some((s) => !/^[A-Za-z0-9_.+-]+$/.test(s) || s === "." || s === ".."))
+    return;
+  if (t.endsWith("/"))
+    return t;
+  const last = segs[segs.length - 1];
+  if (FILE_NAMES.has(last))
+    return t;
+  const ext = /[^.]\.([A-Za-z0-9]+)$/.exec(last)?.[1]?.toLowerCase();
+  if (ext === undefined || !EXTENSIONS.has(ext))
+    return;
+  if (segs.length === 1 && ext === "js" && /^[A-Z][A-Za-z0-9]*\.js$/.test(last))
+    return;
+  return t;
+}
+function pathsIn(text, whole = false) {
+  const spans = whole ? [text] : [...text.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+  const out = [];
+  for (const span of spans) {
+    for (const tok of span.split(/\s+/)) {
+      const p = looksLikePath(tok);
+      if (p !== undefined)
+        out.push(p);
+    }
+  }
+  return out;
+}
+function filePaths(raw) {
+  return raw.split(/\s*(?:->|\u2192|=>)\s*/).map((part) => (part.trim().split(/\s+/)[0] ?? "").replace(/`/g, "").replace(/^["']+|["',;]+$/g, "").replace(/^\.\//, "")).filter((p) => p !== "").slice(0, 2);
+}
+function pathCovered(path, listed) {
+  const q = path.replace(/\/+$/, "");
+  for (const raw of listed) {
+    const l = raw.replace(/\/+$/, "");
+    if (l === "")
+      continue;
+    if (l === q || q.startsWith(`${l}/`))
+      return true;
+    if (path.endsWith("/") && l.startsWith(`${q}/`))
+      return true;
+    if (!q.includes("/") && l.endsWith(`/${q}`))
+      return true;
+  }
+  return false;
+}
+function listedPaths(o) {
+  return o.cards.flatMap((c) => c.files.flatMap((f) => filePaths(f.path)));
+}
+function sectionOf(o, name) {
+  return o.sections.find((s) => s.text.trim().toLowerCase() === name);
+}
+function at(line, level, code, message) {
+  return { level, code, message, line: line + 1 };
+}
+function scriptsRun(command) {
+  const out = new Set;
+  for (const seg of command.split(/&&|\|\||[;|]/)) {
+    const toks = seg.trim().split(/\s+/).filter((t) => t !== "");
+    let k = 0;
+    while (k < toks.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(toks[k]))
+      k++;
+    const head = toks[k];
+    if (head === undefined)
+      continue;
+    const self = head.startsWith("./") ? looksLikePath(head) : undefined;
+    if (self !== undefined) {
+      out.add(self);
+      continue;
+    }
+    if (!RUNNERS.has(head))
+      continue;
+    k++;
+    while (k < toks.length && (toks[k].startsWith("-") || toks[k] === "run" && (head === "bun" || head === "deno")))
+      k++;
+    const script = toks[k] !== undefined ? looksLikePath(toks[k]) : undefined;
+    if (script !== undefined)
+      out.add(script);
+  }
+  return out;
+}
+function filesIncomplete(o) {
+  const listed = listedPaths(o);
+  const seen = new Set;
+  const out = [];
+  for (const card of o.cards) {
+    for (const i of card.prose) {
+      const line = o.lines[i] ?? "";
+      const code = o.code[i] === true;
+      const ran = code ? scriptsRun(line) : VERIFY_LINE.test(line) ? new Set([...line.matchAll(/`([^`]+)`/g)].flatMap((m) => [...scriptsRun(m[1])])) : undefined;
+      for (const p of pathsIn(line, code)) {
+        if (seen.has(p) || pathCovered(p, listed) || ran?.has(p) === true)
+          continue;
+        seen.add(p);
+        out.push(at(i, "warning", "files-incomplete", `Task ${card.n} names \`${p}\`, but no task's \`**Files:**\` list has it; add it under the verb that fits (\`Test:\` for a test the task runs but does not change), or write it as a \`path:line\` reference if the task only points at it`));
+      }
+    }
+  }
+  return out;
+}
+function vagueFindings(o) {
+  const out = [];
+  const owner = new Map;
+  for (const card of o.cards)
+    for (let i = card.head;i < card.end; i++)
+      owner.set(i, card.n);
+  const skip = new Set;
+  for (const s of o.sections)
+    if (AFTER_RUN.has(s.text.trim().toLowerCase()))
+      for (let i = s.line;i < s.end; i++)
+        skip.add(i);
+  for (const card of o.cards) {
+    for (const i of card.prose) {
+      if (o.code[i] === true)
+        continue;
+      const phrase = vaguePhrase((o.lines[i] ?? "").replace(/`[^`]*`/g, "``"));
+      if (phrase !== undefined)
+        out.push(at(i, "warning", "vague-placeholder", `Task ${card.n}: "${phrase}" leaves the work undefined; name the exact cases, values, files or steps`));
+    }
+  }
+  for (let i = o.body;i < o.lines.length; i++) {
+    if (o.code[i] === true || owner.has(i) || skip.has(i))
+      continue;
+    const phrase = vaguePhrase((o.lines[i] ?? "").replace(/`[^`]*`/g, "``"));
+    if (phrase !== undefined)
+      out.push(at(i, "info", "vague-placeholder", `"${phrase}" leaves something undefined; say exactly what is meant`));
+  }
+  return out;
+}
+function tableCells(line) {
+  return line.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+}
+function inventoryRows(o) {
+  const sec = sectionOf(o, "inventory");
+  if (sec === undefined)
+    return [];
+  const rows = [];
+  let header = true;
+  for (let i = sec.line + 1;i < sec.end; i++) {
+    const line = (o.lines[i] ?? "").trim();
+    if (o.code[i] === true || !line.startsWith("|"))
+      continue;
+    const cells = tableCells(line);
+    if (cells.every((c) => /^:?-{2,}:?$/.test(c)))
+      continue;
+    if (header) {
+      header = false;
+      continue;
+    }
+    const tasks = [];
+    for (const c of cells.slice(1)) {
+      for (const m of c.matchAll(/\btask\s*#?(\d+)\b/gi))
+        tasks.push(Number(m[1]));
+      const bare = /^#?(\d+)$/.exec(c);
+      if (bare)
+        tasks.push(Number(bare[1]));
+    }
+    const last = cells.length >= 3 ? cells[cells.length - 1] : "";
+    const row = { line: i, item: (cells[0] ?? "").replace(/`/g, ""), tasks: [...new Set(tasks)] };
+    if (!/^[-\u2013\u2014]*$/.test(last))
+      row.reason = last;
+    rows.push(row);
+  }
+  return rows;
+}
+function inventoryFindings(o) {
+  const known = new Set(o.cards.map((c) => c.n));
+  const out = [];
+  for (const r of inventoryRows(o)) {
+    const missing = r.tasks.filter((n) => !known.has(n));
+    if (missing.length > 0)
+      out.push(at(r.line, "warning", "inventory-unmapped", `Inventory row "${r.item}" names Task ${missing.join(", Task ")}, which the plan does not have`));
+    else if (r.tasks.length === 0 && r.reason === undefined)
+      out.push(at(r.line, "warning", "inventory-unmapped", `Inventory row "${r.item}" names no task that keeps it and no reason for dropping it`));
+  }
+  return out;
+}
+function charBag(s) {
+  const bag = new Int16Array(128);
+  for (let i = 0;i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 128)
+      bag[c] = bag[c] + 1;
+  }
+  return bag;
+}
+function bagDistance(a, b) {
+  let plus = 0;
+  let minus = 0;
+  for (let c = 0;c < 128; c++) {
+    const d = a[c] - b[c];
+    if (d > 0)
+      plus += d;
+    else
+      minus -= d;
+  }
+  return Math.max(plus, minus);
+}
+function withinTwoEdits(a, b) {
+  if (Math.abs(a.length - b.length) > 2)
+    return false;
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1;i <= a.length; i++) {
+    const cur = [i];
+    let best = i;
+    for (let j = 1;j <= b.length; j++) {
+      const v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      cur.push(v);
+      if (v < best)
+        best = v;
+    }
+    if (best > 2)
+      return false;
+    prev = cur;
+  }
+  return prev[b.length] <= 2;
+}
+function identifierDrift(o) {
+  const first = new Map;
+  for (let i = o.body;i < o.lines.length; i++) {
+    if (o.code[i] === true)
+      continue;
+    for (const m of (o.lines[i] ?? "").matchAll(/`([^`\s]+)`/g)) {
+      const id = m[1].replace(/\(\)$/, "");
+      if (id.length >= 4 && IDENT.test(id) && !first.has(id))
+        first.set(id, i);
+    }
+  }
+  const ids = [...first.keys()].slice(0, MAX_IDS);
+  const keys = ids.map((s) => s.toLowerCase().replace(/_/g, ""));
+  const bags = ids.map(charBag);
+  const out = [];
+  const pairs = [];
+  for (let x = 0;x < ids.length && pairs.length < MAX_DRIFT; x++) {
+    for (let y = x + 1;y < ids.length && pairs.length < MAX_DRIFT; y++) {
+      const a = ids[x];
+      const b = ids[y];
+      if (keys[x] === keys[y]) {
+        pairs.push([a, b]);
+        continue;
+      }
+      if (a.length < 8 || b.length < 8 || Math.abs(a.length - b.length) > 2 || a === `${b}s` || b === `${a}s`)
+        continue;
+      if (bagDistance(bags[x], bags[y]) > 2)
+        continue;
+      if (withinTwoEdits(a, b))
+        pairs.push([a, b]);
+    }
+  }
+  for (const [a, b] of pairs) {
+    out.push(at(first.get(b), "info", "identifier-drift", `\`${a}\` and \`${b}\` look like one name spelled two ways; use one spelling everywhere, or ignore this if both exist`));
+  }
+  return out;
+}
+function authoringFindings(o) {
+  return [...filesIncomplete(o), ...vagueFindings(o), ...inventoryFindings(o), ...identifierDrift(o)];
+}
+
+// src/core/plan/doc-dirs.ts
+var DOC_DIRS = [
+  { dir: "requirements", workflow: "requirements", legacy: "prd" },
+  { dir: "plan-build", workflow: "plan-build", legacy: "plans" },
+  { dir: "goal-build", workflow: "goal-build", legacy: "builds" },
+  { dir: "dead-code", workflow: "dead-code", legacy: "cleanup" }
+];
+var LEGACY_DOC_DIRS = ["prd", "plans", "builds", "cleanup"];
+var ALL_DOC_DIRS = ["requirements", "plan-build", "goal-build", "dead-code", "prd", "plans", "builds", "cleanup"];
+var NAMES = ALL_DOC_DIRS.join("|");
+var DOC_FILE = new RegExp(`^docs/(${NAMES})/([^/]+\\.md)$`, "u");
+var DOC_DIR_PREFIX = new RegExp(`(?:^|/)docs/(?:${NAMES})/`);
+function docDirFor(workflow) {
+  const row = DOC_DIRS.find((d) => d.workflow === workflow);
+  return row === undefined ? workflow : row.dir;
+}
+function docDirOf(rel) {
+  const dir = DOC_FILE.exec(rel.replace(/\\/g, "/"))?.[1];
+  if (dir === undefined)
+    return;
+  const row = DOC_DIRS.find((d) => d.dir === dir || d.legacy === dir);
+  if (row === undefined)
+    return;
+  return { dir, workflow: row.workflow, legacy: row.legacy === dir };
+}
+
+// src/core/plan/document.ts
+var MAX_SENTENCE_WORDS = 25;
+var HEADING = /^\s{0,3}#{1,6}\s/;
+var LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s+/;
+var BLOCKQUOTE = /^\s*(?:>\s?)+/;
+var CONTINUATION = /^\s{2,}\S/;
+var TABLE_ROW = /^\s*\|.*\|\s*$/;
+var TABLE_RULE = /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$/;
+var VERIFY_LINE2 = /^\s*[-*+]\s+\**Verify:/;
+var CODE_SPAN = /`[^`]*`/g;
+var LINK = /\[([^\]]*)\]\([^)]*\)/g;
+var URL = /https?:\/\/[^\s)\]>"']+/g;
+var LABEL = /^\*\*[^*]+:\*\*\s*/;
+var EMPHASIS = /\*\*|__|(?<![\w`])[*_](?=\S)|(?<=\S)[*_](?![\w`])/g;
+var SENTENCE_END = /(?<=[.!?])\s+|(?<=[^\P{Sentence_Terminal}.!?])\s*(?=\S)/u;
+var GREEK = /\p{Script=Greek}/gu;
+var LATIN = /\p{Script=Latin}/gu;
+var GREEK_QUESTION = /[;\u037e](?=\s|$)/gu;
+var LEGACY_PATH = new RegExp(`docs/(${LEGACY_DOC_DIRS.join("|")})/`);
+function at2(line, code, message) {
+  return { level: "warning", code, message, line: line + 1 };
+}
+function skippedLines(o) {
+  const skip = new Set;
+  for (const s of o.sections)
+    if (AFTER_RUN.has(s.text.trim().toLowerCase()))
+      for (let i = s.line;i < s.end; i++)
+        skip.add(i);
+  return skip;
+}
+function units(o) {
+  const out = [];
+  const skip = skippedLines(o);
+  let current;
+  let inComment = false;
+  const flush = () => {
+    if (current !== undefined) {
+      out.push({ ...current, cell: false });
+      current = undefined;
+    }
+  };
+  for (let i = o.body;i < o.lines.length; i++) {
+    const line = o.lines[i] ?? "";
+    if (inComment) {
+      flush();
+      if (line.includes("-->"))
+        inComment = false;
+      continue;
+    }
+    if (o.code[i] === true || skip.has(i)) {
+      flush();
+      continue;
+    }
+    const bare = line.replace(CODE_SPAN, "");
+    if (bare.includes("<!--")) {
+      flush();
+      inComment = bare.lastIndexOf("<!--") > bare.lastIndexOf("-->");
+      continue;
+    }
+    if (line.trim() === "" || HEADING.test(line) || VERIFY_LINE2.test(line) || TABLE_RULE.test(line)) {
+      flush();
+      continue;
+    }
+    if (TABLE_ROW.test(line)) {
+      flush();
+      for (const cell of line.trim().replace(/^\||\|$/g, "").split("|"))
+        if (cell.trim() !== "")
+          out.push({ first: i, lines: [cell.trim()], cell: true });
+      continue;
+    }
+    if (LIST_ITEM.test(line)) {
+      flush();
+      current = { first: i, lines: [line] };
+      continue;
+    }
+    if (current !== undefined && CONTINUATION.test(line) && LIST_ITEM.test(current.lines[0] ?? "")) {
+      current.lines.push(line);
+      continue;
+    }
+    if (current === undefined)
+      current = { first: i, lines: [line] };
+    else
+      current.lines.push(line);
+  }
+  flush();
+  return out;
+}
+function plain(u) {
+  return u.lines.map((l) => l.replace(BLOCKQUOTE, "").replace(LIST_ITEM, "").replace(LABEL, "")).join(" ").replace(CODE_SPAN, "code").replace(LINK, "$1").replace(URL, "url").replace(EMPHASIS, "").trim();
+}
+function words(sentence) {
+  return sentence.split(/\s+/).filter((w) => w !== "").length;
+}
+function legacyMessage(path) {
+  const legacy = LEGACY_PATH.exec(path)?.[1];
+  const fresh = DOC_DIRS.find((d) => d.legacy === legacy)?.dir ?? "plan-build";
+  return `\`docs/${legacy}/\` is an old document folder, new documents go to \`docs/${fresh}/\``;
+}
+function documentFindings(o) {
+  const out = [];
+  for (const u of units(o)) {
+    for (const [k, raw] of u.lines.entries()) {
+      if (LEGACY_PATH.test(raw)) {
+        out.push(at2(u.first + k, "legacy-folder", legacyMessage(raw)));
+        break;
+      }
+    }
+    const prose = u.lines.map((l) => l.replace(BLOCKQUOTE, "").replace(LIST_ITEM, "").replace(LABEL, "")).join(" ").replace(CODE_SPAN, "").replace(LINK, "$1").replace(URL, "");
+    const greek = (prose.match(GREEK)?.length ?? 0) > (prose.match(LATIN)?.length ?? 0);
+    const text = greek ? plain(u).replace(GREEK_QUESTION, "?") : plain(u);
+    if (text === "")
+      continue;
+    const semi = greek ? -1 : u.lines.findIndex((l) => l.replace(CODE_SPAN, "").includes(";"));
+    if (semi >= 0)
+      out.push(at2(u.first + semi, "semicolon", "a semicolon joins two statements: write two sentences or a list"));
+    for (const sentence of u.cell ? [text] : text.split(SENTENCE_END)) {
+      const n = words(sentence);
+      if (n > MAX_SENTENCE_WORDS)
+        out.push(at2(u.first, "long-sentence", `a sentence has ${n} words (the limit is ${MAX_SENTENCE_WORDS}): split it, one idea per sentence`));
+    }
+  }
+  return out.sort((a, b) => (a.line ?? 0) - (b.line ?? 0));
+}
+
+// src/core/plan/format.ts
+var PLAN_STATUSES = ["PENDING", "APPROVED", "IN_PROGRESS", "COMPLETE", "VERIFIED", "SAVED"];
+var PLAN_TYPES = ["Feature", "Bugfix", "Build", "Plan"];
+var FILE_VERBS = ["Create", "Modify", "Delete", "Rename", "Test"];
+var FENCE = /^ {0,3}(`{3,}|~{3,})/;
+var HEADING2 = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
+var TASK_HEADING = /^Task\s+(\d+)\s*[:.\-\u2013\u2014]\s*(.*)$/i;
+var CHECKBOX = /^\s*[-*+]\s+\[([ xX])\]\s+Task\s+(\d+)\s+done\b/i;
+var LABEL2 = /^\s*\*\*([^*]+?)\*\*\s*(.*)$/;
+var LIST_ITEM2 = /^\s*[-*+]\s+(.*)$/;
+var PLACEHOLDER = /\b(TBD|TODO|FIXME)\b/;
+function scan(markdown) {
+  const lines = markdown.replace(/^\uFEFF/, "").split(/\r\n|\r|\n/);
+  let fmEnd = -1;
+  if (/^---[ \t]*$/.test(lines[0] ?? "")) {
+    for (let i = 1;i < lines.length; i++)
+      if (/^(?:---|\.\.\.)[ \t]*$/.test(lines[i] ?? "")) {
+        fmEnd = i;
+        break;
+      }
+  }
+  const hasFrontmatter = fmEnd > 0;
+  const fm = hasFrontmatter ? parseYamlBlock(lines.slice(1, fmEnd)) : {};
+  const body = hasFrontmatter ? fmEnd + 1 : 0;
+  const code = new Array(lines.length).fill(false);
+  const headings = [];
+  let fence;
+  for (let i = body;i < lines.length; i++) {
+    const line = lines[i];
+    const f = FENCE.exec(line);
+    if (fence !== undefined) {
+      code[i] = true;
+      if (f && f[1][0] === fence[0] && f[1].length >= fence.length && line.trim() === f[1])
+        fence = undefined;
+      continue;
+    }
+    if (f) {
+      fence = f[1];
+      code[i] = true;
+      continue;
+    }
+    const h = HEADING2.exec(line);
+    if (h)
+      headings.push({ level: h[1].length, text: h[2].trim(), line: i });
+  }
+  const doc = { lines, hasFrontmatter, fm, fmEnd, body, code, headings, sections: [], cards: [], badTaskHeadings: [], duplicateTasks: [] };
+  doc.title = headings.find((h) => h.level === 1);
+  doc.sections = headings.filter((h) => h.level === 2);
+  const taskSections = doc.sections.filter((h) => h.text.toLowerCase() === "tasks");
+  const ts = taskSections[0];
+  doc.duplicateTasks = taskSections.slice(1).map((h) => h.line);
+  if (ts) {
+    const next = headings.find((h) => h.line > ts.line && h.level <= 2);
+    doc.tasks = { head: ts.line, end: next ? next.line : lines.length };
+    const inner = headings.filter((h) => h.line > ts.line && h.line < doc.tasks.end && h.level === 3);
+    for (const [k, h] of inner.entries()) {
+      const nextH = inner[k + 1];
+      const end = nextH ? nextH.line : doc.tasks.end;
+      const m = TASK_HEADING.exec(h.text);
+      if (m)
+        doc.cards.push({ n: Number(m[1]), title: m[2].trim(), head: h.line, end });
+      else if (/^task\b/i.test(h.text))
+        doc.badTaskHeadings.push({ line: h.line, text: h.text });
+    }
+  }
+  return doc;
+}
+function stripCode(s) {
+  return s.replace(/`[^`]*`/g, "``");
+}
+function readCard(doc, card) {
+  let block;
+  const objective = [];
+  const dod = [];
+  const files = [];
+  const badFiles = [];
+  let hasObjective = false;
+  let hasFiles = false;
+  let hasDod = false;
+  let verify = false;
+  let checkbox;
+  const prose = [];
+  for (let i = card.head + 1;i < card.end; i++) {
+    const line = doc.lines[i];
+    if (doc.code[i]) {
+      if (block === "dod") {
+        dod.push(line);
+        prose.push(i);
+      }
+      continue;
+    }
+    const cb = CHECKBOX.exec(line);
+    if (cb) {
+      if (!checkbox || Number(cb[2]) === card.n)
+        checkbox = { n: Number(cb[2]), line: i, done: cb[1].toLowerCase() === "x" };
+      block = undefined;
+      continue;
+    }
+    const lab = LABEL2.exec(line);
+    if (lab) {
+      let name = lab[1].trim();
+      let rest = lab[2];
+      let isLabel = false;
+      if (name.endsWith(":")) {
+        name = name.slice(0, -1).trim();
+        isLabel = true;
+      } else if (rest.startsWith(":")) {
+        rest = rest.slice(1);
+        isLabel = true;
+      }
+      if (isLabel) {
+        const key = name.toLowerCase();
+        rest = rest.trim();
+        if (key === "objective") {
+          block = "objective";
+          hasObjective = true;
+          if (rest !== "")
+            objective.push(rest);
+          prose.push(i);
+        } else if (key === "files") {
+          block = "files";
+          hasFiles = true;
+        } else if (key === "definition of done" || key === "dod") {
+          block = "dod";
+          hasDod = true;
+          if (rest !== "")
+            dod.push(rest);
+          prose.push(i);
+        } else if (key === "verify") {
+          verify = true;
+          block = "other";
+          prose.push(i);
+        } else
+          block = "other";
+        continue;
+      }
+    }
+    if (block === "objective") {
+      if (line.trim() !== "") {
+        objective.push(line.trim());
+        prose.push(i);
+      }
+    } else if (block === "dod") {
+      if (line.trim() !== "") {
+        dod.push(line.trimEnd());
+        prose.push(i);
+      }
+      if (/^\s*(?:[-*+]\s+)?\**verify\**\s*:/i.test(line))
+        verify = true;
+    } else if (block === "files") {
+      const li = LIST_ITEM2.exec(line);
+      if (!li)
+        continue;
+      const item = li[1].trim();
+      const m = /^\**([A-Za-z]+)\**\s*:\s*(.*)$/.exec(item);
+      const verb = m ? m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase() : "";
+      if (m && FILE_VERBS.includes(verb) && m[2].trim() !== "") {
+        files.push({ verb, path: m[2].trim().replace(/^`(.*)`$/, "$1").replace(/^["'](.*)["']$/, "$1") });
+      } else {
+        badFiles.push({ line: i, text: item });
+      }
+    }
+  }
+  const task = { n: card.n, title: card.title, done: checkbox !== undefined && checkbox.n === card.n && checkbox.done, files };
+  const obj = objective.join(" ").trim();
+  if (obj !== "")
+    task.objective = obj;
+  const d = dod.join(`
+`).trim();
+  if (d !== "")
+    task.dod = d;
+  return {
+    task,
+    hasObjective,
+    hasFiles,
+    hasDod,
+    verify,
+    badFiles,
+    ...checkbox ? { checkbox: { n: checkbox.n, line: checkbox.line } } : {},
+    prose
+  };
+}
+function asStatus(v) {
+  if (typeof v !== "string")
+    return;
+  const u = v.trim().toUpperCase().replace(/[\s-]+/g, "_");
+  return PLAN_STATUSES.includes(u) ? u : undefined;
+}
+function asType(v) {
+  if (typeof v !== "string")
+    return;
+  const l = v.trim().toLowerCase();
+  return PLAN_TYPES.find((t) => t.toLowerCase() === l);
+}
+function asBool(v) {
+  if (typeof v === "boolean")
+    return v;
+  if (typeof v === "string") {
+    const l = v.trim().toLowerCase();
+    if (l === "yes" || l === "true")
+      return true;
+    if (l === "no" || l === "false")
+      return false;
+  }
+  return;
+}
+function asCount(v) {
+  if (typeof v === "number" && Number.isInteger(v) && v >= 0)
+    return v;
+  if (typeof v === "string" && /^\d+$/.test(v.trim()))
+    return Number(v.trim());
+  return;
+}
+function headerOf(fm) {
+  const created = fm["created"];
+  const header = {
+    created: typeof created === "string" ? created : typeof created === "number" ? String(created) : "",
+    status: asStatus(fm["status"]) ?? "PENDING",
+    approved: asBool(fm["approved"]) ?? false,
+    worktree: asBool(fm["worktree"]) ?? false,
+    type: asType(fm["type"]) ?? "Feature"
+  };
+  const it = asCount(fm["iterations"]);
+  if (it !== undefined)
+    header.iterations = it;
+  const rd = asCount(fm["rounds"]);
+  if (rd !== undefined)
+    header.rounds = rd;
+  return header;
+}
+function parsePlan(markdown) {
+  const doc = scan(typeof markdown === "string" ? markdown : "");
+  return {
+    header: headerOf(doc.fm),
+    title: doc.title?.text ?? "",
+    tasks: doc.cards.map((c) => readCard(doc, c).task),
+    sections: doc.sections.map((s) => s.text)
+  };
+}
+function outlineOf(doc) {
+  return {
+    lines: doc.lines,
+    code: doc.code,
+    body: doc.body,
+    sections: doc.sections.map((s) => ({ text: s.text, line: s.line, end: doc.headings.find((h) => h.line > s.line && h.level <= 2)?.line ?? doc.lines.length })),
+    cards: doc.cards.map((c) => {
+      const b = readCard(doc, c);
+      return { n: c.n, head: c.head, end: c.end, done: b.task.done, files: b.task.files, prose: b.prose };
+    })
+  };
+}
+function planOutline(markdown) {
+  return outlineOf(scan(typeof markdown === "string" ? markdown : ""));
+}
+var CREATED = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
+function err(code, message, line) {
+  return line === undefined ? { level: "error", code, message } : { level: "error", code, message, line: line + 1 };
+}
+function warn(code, message, line) {
+  return line === undefined ? { level: "warning", code, message } : { level: "warning", code, message, line: line + 1 };
+}
+function fmLine(doc, key) {
+  for (let i = 1;i < doc.fmEnd; i++)
+    if (new RegExp(`^${key}\\s*:`).test(doc.lines[i] ?? ""))
+      return i;
+  return;
+}
+var PRD_STATUSES = ["draft", "approved"];
+function checkPrdHeader(doc, out) {
+  const fm = doc.fm;
+  const missing = (k) => fm[k] === undefined || fm[k] === null || fm[k] === "";
+  for (const k of ["created", "status", "approved"]) {
+    if (missing(k))
+      out.push(err("missing-field", `frontmatter field \`${k}\` is missing`, 0));
+  }
+  const created = fm["created"];
+  if (!missing("created") && !(typeof created === "string" && CREATED.test(created.trim()))) {
+    out.push(err("bad-field", "`created` must be a date such as 2026-11-04", fmLine(doc, "created")));
+  }
+  const status = fm["status"];
+  if (!missing("status") && !(typeof status === "string" && PRD_STATUSES.includes(status))) {
+    out.push(err("bad-status", `a PRD's \`status\` must be one of ${PRD_STATUSES.join(", ")} (got ${JSON.stringify(status)})`, fmLine(doc, "status")));
+  }
+  if (!missing("approved") && typeof fm["approved"] !== "boolean")
+    out.push(err("bad-field", `\`approved\` must be true or false (got ${JSON.stringify(fm["approved"])})`, fmLine(doc, "approved")));
+}
+function checkHeader(doc, out) {
+  if (!doc.hasFrontmatter) {
+    out.push(err("missing-frontmatter", "the plan must start with a --- frontmatter block (created, status, approved, worktree, type)", 0));
+    return;
+  }
+  const fm = doc.fm;
+  const missing = (k) => fm[k] === undefined || fm[k] === null || fm[k] === "";
+  for (const k of ["created", "status", "approved", "worktree", "type"]) {
+    if (missing(k))
+      out.push(err("missing-field", `frontmatter field \`${k}\` is missing`, 0));
+  }
+  const created = fm["created"];
+  if (!missing("created") && !(typeof created === "string" && CREATED.test(created.trim()))) {
+    out.push(err("bad-field", "`created` must be a date such as 2026-10-08", fmLine(doc, "created")));
+  }
+  const status = fm["status"];
+  if (!missing("status") && !(typeof status === "string" && PLAN_STATUSES.includes(status))) {
+    out.push(err("bad-status", `\`status\` must be one of ${PLAN_STATUSES.join(", ")} (got ${JSON.stringify(status)})`, fmLine(doc, "status")));
+  }
+  for (const k of ["approved", "worktree"]) {
+    if (!missing(k) && typeof fm[k] !== "boolean")
+      out.push(err("bad-field", `\`${k}\` must be true or false (got ${JSON.stringify(fm[k])})`, fmLine(doc, k)));
+  }
+  const type = fm["type"];
+  const validType = typeof type === "string" && PLAN_TYPES.includes(type) ? type : undefined;
+  if (!missing("type") && validType === undefined) {
+    out.push(err("bad-type", `\`type\` must be one of ${PLAN_TYPES.join(", ")} (got ${JSON.stringify(type)})`, fmLine(doc, "type")));
+  }
+  const counter = validType === "Build" ? "rounds" : "iterations";
+  if (validType !== undefined && missing(counter))
+    out.push(warn("missing-field", `frontmatter field \`${counter}\` is missing (start it at 0)`, 0));
+  for (const k of ["iterations", "rounds"]) {
+    if (!missing(k) && !(typeof fm[k] === "number" && Number.isInteger(fm[k]) && fm[k] >= 0)) {
+      out.push(err("bad-field", `\`${k}\` must be a whole number of 0 or more (got ${JSON.stringify(fm[k])})`, fmLine(doc, k)));
+    }
+  }
+  if (validType !== "Plan" && typeof status === "string" && ["APPROVED", "IN_PROGRESS", "COMPLETE", "VERIFIED"].includes(status) && fm["approved"] === false) {
+    out.push(warn("inconsistent-state", `status ${status} implies an approved plan, but \`approved\` is false`, fmLine(doc, "approved")));
+  }
+  return validType ?? asType(type);
+}
+function tableCells2(doc, i) {
+  const line = (doc.lines[i] ?? "").trim();
+  if (doc.code[i] || !line.startsWith("|"))
+    return;
+  return line.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+}
+function isDelimiterRow(cells) {
+  return cells !== undefined && cells.every((c) => /^:?-+:?$/.test(c));
+}
+function criteriaRows(doc) {
+  const sec = doc.sections.find((s) => /^(?:acceptance )?criteria$/i.test(s.text));
+  if (!sec)
+    return [];
+  const next = doc.headings.find((h) => h.line > sec.line && h.level <= 2);
+  const end = next ? next.line : doc.lines.length;
+  const rows = [];
+  for (let i = sec.line + 1;i < end; i++) {
+    const cells = tableCells2(doc, i);
+    if (cells === undefined || isDelimiterRow(cells))
+      continue;
+    if (i + 1 < end && isDelimiterRow(tableCells2(doc, i + 1)))
+      continue;
+    rows.push({ line: i, cells });
+  }
+  return rows;
+}
+var CRITERION_ID = /^(C\d{1,3})\s*(\(oracle\))?$/i;
+function plainCell(cell) {
+  return cell.replace(/[*_`]/g, "").trim();
+}
+function criterionStatus(cell) {
+  const c = plainCell(cell).toLowerCase();
+  if (/^(?:pass|passed|ok|\u2713)/u.test(c))
+    return "pass";
+  if (/^(?:fail|failed|\u2717)/u.test(c))
+    return "fail";
+  return "open";
+}
+function readCriteriaTable(doc) {
+  const out = { criteria: [], unread: [] };
+  for (const r of criteriaRows(doc)) {
+    const m = CRITERION_ID.exec(plainCell(r.cells[0] ?? ""));
+    if (m === null || r.cells.length < 2) {
+      out.unread.push({ line: r.line + 1, text: (doc.lines[r.line] ?? "").trim() });
+      continue;
+    }
+    out.criteria.push({ id: m[1].toUpperCase(), status: criterionStatus(r.cells[r.cells.length - 1] ?? ""), oracle: m[2] !== undefined, line: r.line + 1 });
+  }
+  return out;
+}
+function criteriaTable(markdown) {
+  return readCriteriaTable(scan(typeof markdown === "string" ? markdown : ""));
+}
+function planCriteria(markdown) {
+  return criteriaTable(markdown).criteria;
+}
+var BUILD_CRITERIA = { min: 3, max: 10 };
+var BUILD_TASKS = { min: 3, max: 12 };
+function checkBuildContract(doc, out) {
+  const rows = criteriaRows(doc);
+  const section = doc.sections.find((s) => /criteria/i.test(s.text))?.line ?? doc.body;
+  if (rows.length < BUILD_CRITERIA.min)
+    out.push(warn("criteria-count", `a build needs at least ${BUILD_CRITERIA.min} acceptance criteria in \`## Acceptance Criteria\` (found ${rows.length})`, section));
+  else if (rows.length > BUILD_CRITERIA.max)
+    out.push(warn("criteria-count", `${rows.length} acceptance criteria: split the goal into separate runs; never merge or drop a real criterion to fit a count`, section));
+  const oracles = rows.filter((r) => r.cells.some((c) => /\(oracle\)/i.test(c))).length;
+  if (rows.length > 0 && oracles !== 1)
+    out.push(warn("oracle-count", `exactly one criterion must be marked (oracle) (found ${oracles})`, rows[0]?.line));
+  for (const u of readCriteriaTable(doc).unread)
+    out.push(warn("criteria-row", `this row is not a criterion row; write it as \`| C<n> | \u2026 | pass |\` so \`buracle plan verify\` can read its verdict`, u.line - 1));
+  if (!doc.lines.some((l, i) => !doc.code[i] && /^\s*\*\*False pass:?\*\*/i.test(l)))
+    out.push(warn("missing-false-pass", "add a `**False pass:**` line under the criteria table"));
+  if (doc.cards.length < BUILD_TASKS.min)
+    out.push(warn("task-count", `a build plans at least ${BUILD_TASKS.min} tasks (found ${doc.cards.length})`, doc.tasks?.head));
+  else if (doc.cards.length > BUILD_TASKS.max)
+    out.push(warn("task-count", `${doc.cards.length} tasks: split the goal into separate runs`, doc.tasks?.head));
+}
+function validatePlan(markdown, opts) {
+  const strict = opts?.strict === true;
+  if (typeof markdown !== "string" || markdown.trim() === "")
+    return [err("empty", "the plan file is empty")];
+  const out = [];
+  const cr = markdown.indexOf("\r");
+  if (cr >= 0)
+    out.push(err("crlf", "use LF line endings only (the file contains CR characters)", markdown.slice(0, cr).split(`
+`).length - 1));
+  const doc = scan(markdown);
+  if (doc.hasFrontmatter && doc.fm["type"] === "prd") {
+    checkPrdHeader(doc, out);
+    out.push(...documentFindings(outlineOf(doc)));
+    return out;
+  }
+  const type = checkHeader(doc, out);
+  if (!doc.title || doc.title.text === "")
+    out.push(err("missing-title", "add a `# Title` heading after the frontmatter", doc.body));
+  for (const line of doc.duplicateTasks)
+    out.push(err("duplicate-section", "only one `## Tasks` section is allowed", line));
+  const needsTasks = type !== "Plan";
+  const strictCard = type === "Feature" || type === "Bugfix" || type === undefined;
+  const inCard = new Set;
+  if (!doc.tasks) {
+    if (needsTasks)
+      out.push(err("missing-tasks", "add a `## Tasks` section with `### Task 1: \u2026` cards", doc.body));
+  } else if (doc.cards.length === 0 && needsTasks) {
+    out.push(err("missing-tasks", "`## Tasks` has no `### Task N: <title>` cards", doc.tasks.head));
+  }
+  for (const b of doc.badTaskHeadings)
+    out.push(err("task-heading", `task headings look like \`### Task 3: Title\` (got "### ${b.text}")`, b.line));
+  const misnumbered = doc.cards.findIndex((c, i) => c.n !== i + 1);
+  if (misnumbered >= 0) {
+    const c = doc.cards[misnumbered];
+    out.push(err("task-numbering", `tasks must be numbered 1, 2, 3, \u2026 in order (found Task ${c.n} where Task ${misnumbered + 1} was expected)`, c.head));
+  }
+  for (const card of doc.cards) {
+    for (let i = card.head;i < card.end; i++)
+      inCard.add(i);
+    const body = readCard(doc, card);
+    const label = `Task ${card.n}`;
+    if (card.title === "")
+      out.push(err("task-heading", `${label} has no title after the colon`, card.head));
+    if (!body.hasObjective || body.task.objective === undefined)
+      out.push(err("missing-objective", `${label} needs an \`**Objective:**\` line`, card.head));
+    if (strictCard) {
+      if (!body.hasFiles || body.task.files.length === 0)
+        out.push(err("missing-files", `${label} needs a \`**Files:**\` list (\`- Create|Modify|Delete|Rename|Test: path\`)`, card.head));
+      if (!body.hasDod || body.task.dod === undefined)
+        out.push(err("missing-dod", `${label} needs a \`**Definition of Done:**\` list`, card.head));
+      else if (strict && !body.verify)
+        out.push(warn("missing-verify", `${label}: end the Definition of Done with \`- Verify: <command>\``, card.head));
+    }
+    for (const b of body.badFiles) {
+      out.push(err("bad-file-verb", `${label}: file lines read \`- Create|Modify|Delete|Rename|Test: path\` (got "${b.text.slice(0, 60)}")`, b.line));
+    }
+    if (!body.checkbox)
+      out.push(err("missing-checkbox", `${label} needs the checkbox line \`- [ ] Task ${card.n} done\``, card.head));
+    else if (body.checkbox.n !== card.n)
+      out.push(err("checkbox-mismatch", `${label}'s checkbox names Task ${body.checkbox.n}`, body.checkbox.line));
+  }
+  if (type === "Feature" || type === "Bugfix")
+    out.push(...authoringFindings(outlineOf(doc)));
+  if (type === "Feature" || type === "Bugfix" || type === "Build")
+    out.push(...documentFindings(outlineOf(doc)));
+  const skeleton = skeletonPlaceholders();
+  let skel = 0;
+  let firstSkel = -1;
+  let unfilled = 0;
+  let firstUnfilled = -1;
+  let commentLines = 0;
+  let firstComment = -1;
+  for (let i = doc.body;i < doc.lines.length; i++) {
+    if (doc.code[i])
+      continue;
+    const line = doc.lines[i];
+    const ph = PLACEHOLDER.exec(stripCode(line));
+    if (ph) {
+      if (inCard.has(i))
+        out.push(err("placeholder", `\`${ph[1]}\` is not allowed in task cards; decide, or ask the user`, i));
+      else if (strict)
+        out.push(warn("placeholder", `\`${ph[1]}\` left in the plan; decide, or ask the user`, i));
+    }
+    if (!line.includes("<!--"))
+      continue;
+    commentLines++;
+    if (firstComment < 0)
+      firstComment = i;
+    let other = false;
+    for (const m of line.matchAll(COMMENT)) {
+      if (m[2] !== undefined && skeleton.has(normComment(m[1]))) {
+        skel++;
+        if (firstSkel < 0)
+          firstSkel = i;
+      } else
+        other = true;
+    }
+    if (other) {
+      unfilled++;
+      if (firstUnfilled < 0)
+        firstUnfilled = i;
+    }
+  }
+  const skeletonMatters = type !== "Plan";
+  if (skeletonMatters && skel > 0) {
+    out.push(err("unfilled", `${skel} placeholder${skel === 1 ? "" : "s"} from \`buracle plan init\` ${skel === 1 ? "is" : "are"} still unfilled; replace each <!-- \u2026 --> with real content (write "None." where nothing applies)`, firstSkel));
+  }
+  const remaining = skeletonMatters ? unfilled : commentLines;
+  if (strict && remaining > 0)
+    out.push(warn("unfilled", `${remaining} skeleton comment${remaining === 1 ? " is" : "s are"} still unfilled; replace each <!-- \u2026 --> with real content`, skeletonMatters ? firstUnfilled : firstComment));
+  if (strict && type === "Build") {
+    checkBuildContract(doc, out);
+  }
+  if (strict && (type === "Feature" || type === "Bugfix") && doc.cards.length > 12) {
+    out.push(warn("task-count", `${doc.cards.length} tasks: consider splitting the work into sequential plans`, doc.tasks?.head));
+  }
+  if (strict && type === "Bugfix") {
+    for (const s of ["Behavior Contract", "Root Cause"]) {
+      if (!doc.sections.some((h) => h.text.toLowerCase() === s.toLowerCase()))
+        out.push(warn("missing-section", `a bugfix plan needs a \`## ${s}\` section`));
+    }
+  }
+  return out;
+}
+var COMMENT = /<!--([\s\S]*?)(-->|$)/g;
+function normComment(s) {
+  return s.replace(/\s+/g, " ").trim();
+}
+var placeholderSet;
+function skeletonPlaceholders() {
+  if (placeholderSet !== undefined)
+    return placeholderSet;
+  const out = new Set;
+  for (const type of PLAN_TYPES) {
+    for (const m of planSkeleton({ type, title: "Skeleton", created: "2026-01-01" }).matchAll(COMMENT)) {
+      if (m[2] !== undefined)
+        out.add(normComment(m[1]));
+    }
+  }
+  placeholderSet = out;
+  return out;
+}
+function taskCard(n, title, objective, files, dod) {
+  return [
+    `### Task ${n}: ${title}`,
+    "",
+    `**Objective:** ${objective}`,
+    "",
+    "**Files:**",
+    ...files.map((f) => `- ${f}`),
+    "",
+    "**Definition of Done:**",
+    ...dod.map((d) => `- ${d}`),
+    "",
+    `- [ ] Task ${n} done`,
+    ""
+  ].join(`
+`);
+}
+function planSkeleton(opts) {
+  const type = PLAN_TYPES.includes(opts.type) ? opts.type : "Feature";
+  const title = (typeof opts.title === "string" ? opts.title : "").replace(/\s+/g, " ").trim() || "Untitled plan";
+  const fm = {
+    created: opts.created,
+    status: type === "Plan" ? "SAVED" : "PENDING",
+    approved: type === "Plan",
+    worktree: false,
+    type
+  };
+  if (type === "Build")
+    fm["rounds"] = 0;
+  else
+    fm["iterations"] = 0;
+  const head = `---
+${renderYamlBlock(fm, ["created", "status", "approved", "worktree", "type", "iterations", "rounds"])}
+---
+# ${title}
+`;
+  const verify = "Verify: <!-- the command that proves this task -->";
+  let body;
+  switch (type) {
+    case "Feature":
+      body = [
+        "## Goal",
+        "<!-- One to three sentences: what will exist, for whom, and how anyone can tell it works. -->",
+        "Done when:",
+        "- <!-- an observable outcome -->",
+        "",
+        "## Context",
+        "<!-- Entry points (path:line), the pattern to follow, and the exact test, type-check, lint and run commands. -->",
+        "",
+        "## Scope",
+        "- In: <!-- what this plan changes -->",
+        "- Out: <!-- what it deliberately leaves alone -->",
+        "",
+        "## Approach",
+        "<!-- The one approach, then up to five key decisions with their reasons. -->",
+        "",
+        "## Tasks",
+        "",
+        taskCard(1, "<!-- short title -->", "<!-- the observable behavior this task adds -->", ["Create: <!-- path -->"], ["<!-- a checkable fact -->", verify]),
+        "## E2E Scenarios",
+        "<!-- SC-1, SC-2, \u2026 one per user-visible flow, or one line saying the change is purely internal. -->",
+        "",
+        "## Risks",
+        '<!-- or "None." -->',
+        "",
+        "## Assumptions",
+        '<!-- or "None." -->'
+      ].join(`
+`);
+      break;
+    case "Bugfix":
+      body = [
+        "## Behavior Contract",
+        "- **Given:** <!-- the state or setup -->",
+        "- **When:** <!-- the action that triggers the bug -->",
+        "- **Actual:** <!-- the wrong behavior, with the exact symptom -->",
+        "- **Expected:** <!-- the correct behavior -->",
+        "- **Unchanged:** <!-- behaviors that must stay, each with the test that guards it -->",
+        "",
+        "## Root Cause",
+        "<!-- path:line \u2014 what the code does, what it should do, and why. Confidence: high | medium. Reproduction command and output excerpt. -->",
+        "",
+        "## Context",
+        "<!-- Files with path:line, and the test and run commands. -->",
+        "",
+        "## Tasks",
+        "",
+        taskCard(1, "Reproduce the bug in a failing test", "<!-- a test through the public entry point that fails with the Actual symptom -->", ["Test: <!-- path -->"], ["The new test fails on the current code with the Actual symptom.", verify]),
+        taskCard(2, "Fix the root cause", "<!-- the change at the root cause, in one sentence -->", ["Modify: <!-- root-cause path -->"], ["The Task 1 test and the tests named under Unchanged pass.", "No `BURACLE-DEBUG` line remains in the repository.", verify]),
+        taskCard(3, "Quality gate", "The whole project is green and the original reproduction now shows the Expected behavior.", ["Test: <!-- path -->"], ["Full suite, type check, lint and build pass.", "The reproduction from `## Root Cause` shows the Expected behavior.", verify]),
+        "## Risks",
+        '<!-- or "None." -->',
+        "",
+        "## Assumptions",
+        '<!-- or "None." -->'
+      ].join(`
+`);
+      break;
+    case "Build":
+      body = [
+        "## Goal",
+        "<!-- The end state in one to three sentences. -->",
+        "",
+        "## Reference",
+        '<!-- A named, obtainable thing to compare the result with, or "None." -->',
+        "",
+        "## Acceptance Criteria",
+        "| # | Criterion | Evidence | Status |",
+        "|---|---|---|---|",
+        "| C1 | <!-- one pass/fail sentence --> | <!-- what you will run or look at --> | open |",
+        "| C2 | <!-- one pass/fail sentence --> | <!-- what you will run or look at --> | open |",
+        "| C3 (oracle) | <!-- the one observable signal that proves the goal --> | <!-- how you will observe it --> | open |",
+        "",
+        "**False pass:** <!-- a believable way the result could look finished while wrong, and the criterion that catches it -->",
+        "",
+        "## Out of Scope",
+        '<!-- what the user named that this build deliberately leaves out, or "None." -->',
+        "",
+        "## Tasks",
+        "",
+        taskCard(1, "<!-- short title -->", "<!-- a step toward the criteria it serves (name them) -->", ["Create: <!-- path -->"], ["<!-- a checkable fact -->", verify]),
+        "## Assumptions",
+        '<!-- or "None." -->'
+      ].join(`
+`);
+      break;
+    case "Plan":
+      body = [
+        "## Summary",
+        "<!-- The approved plan text. -->"
+      ].join(`
+`);
+      break;
+  }
+  return `${head}
+${body.replace(/\n+$/, "")}
+`;
+}
+
+// src/core/status/format.ts
+var ZERO_WIDTH = /^[\p{Mn}\p{Me}\p{Cf}\u200B-\u200F\uFE00-\uFE0F]$/u;
+var EMOJI_WIDE = /^\p{Emoji_Presentation}$/u;
+function isWideCodePoint(cp) {
+  return cp >= 4352 && cp <= 4447 || cp >= 11904 && cp <= 12350 || cp >= 12353 && cp <= 13311 || cp >= 13312 && cp <= 19903 || cp >= 19968 && cp <= 40959 || cp >= 40960 && cp <= 42191 || cp >= 44032 && cp <= 55203 || cp >= 63744 && cp <= 64255 || cp >= 65072 && cp <= 65103 || cp >= 65280 && cp <= 65376 || cp >= 65504 && cp <= 65510 || cp >= 131072 && cp <= 262141;
+}
+function charWidth(ch) {
+  const cp = ch.codePointAt(0) ?? 0;
+  if (cp < 32 || cp >= 127 && cp < 160)
+    return 0;
+  if (ZERO_WIDTH.test(ch))
+    return 0;
+  if (isWideCodePoint(cp) || EMOJI_WIDE.test(ch))
+    return 2;
+  return 1;
+}
+function textWidth(s) {
+  let w = 0;
+  let prev = "";
+  for (const ch of s) {
+    if (ch === "\uFE0F" && prev !== "" && charWidth(prev) === 1 && /\p{Extended_Pictographic}/u.test(prev))
+      w += 1;
+    w += charWidth(ch);
+    prev = ch;
+  }
+  return w;
+}
+function truncateToWidth(s, width) {
+  if (width <= 0)
+    return "";
+  if (textWidth(s) <= width)
+    return s;
+  if (width === 1)
+    return "\u2026";
+  let out = "";
+  let w = 0;
+  for (const ch of s) {
+    const cw = charWidth(ch);
+    if (w + cw > width - 1)
+      break;
+    out += ch;
+    w += cw;
+  }
+  return out.replace(/\s+$/u, "") + "\u2026";
+}
+function sanitizeText(s) {
+  return s.replace(/[\u0000-\u001f\u007f-\u009f]/gu, " ");
+}
+function stripEmoji(s) {
+  const seq = /(?:\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F)(?:[\u{1F3FB}-\u{1F3FF}]|\uFE0F|\u200D(?:\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F?))*\s?/gu;
+  return s.replace(seq, "").replace(/\s{2,}/gu, " ").trim();
+}
+function oneDecimal(x) {
+  const s = x.toFixed(1);
+  return s.endsWith(".0") ? s.slice(0, -2) : s;
+}
+function formatTokens(n) {
+  if (!Number.isFinite(n))
+    return "?";
+  const v = Math.max(0, n);
+  if (v < 1000)
+    return String(Math.round(v));
+  if (v < 1e4)
+    return `${oneDecimal(v / 1000)}k`;
+  if (v < 999500)
+    return `${Math.round(v / 1000)}k`;
+  if (v < 9950000)
+    return `${oneDecimal(v / 1e6)}M`;
+  if (v < 999500000)
+    return `${Math.round(v / 1e6)}M`;
+  return `${oneDecimal(v / 1e9)}B`;
+}
+function formatUsd(n) {
+  if (!Number.isFinite(n))
+    return "$?";
+  const v = Math.max(0, n);
+  return v < 100 ? `$${v.toFixed(2)}` : `$${Math.round(v)}`;
+}
+var DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function pad2(n) {
+  return n < 10 ? `0${n}` : String(n);
+}
+function formatResetIn(resetMs, nowMs) {
+  if (!Number.isFinite(resetMs) || !Number.isFinite(nowMs))
+    return "?";
+  const d = resetMs - nowMs;
+  if (d <= 0)
+    return "0m";
+  const mins = Math.ceil(d / 60000);
+  if (mins < 60)
+    return `${mins}m`;
+  if (mins < 24 * 60) {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m === 0 ? `${h}h` : `${h}h${m}m`;
+  }
+  const at = new Date(resetMs);
+  if (d < 7 * 24 * 3600000)
+    return `${DAYS[at.getDay()] ?? "?"} ${pad2(at.getHours())}:${pad2(at.getMinutes())}`;
+  return `${MONTHS[at.getMonth()] ?? "?"} ${at.getDate()}`;
+}
+function formatPct(p) {
+  if (!Number.isFinite(p))
+    return "?";
+  return String(Math.round(Math.max(0, p)));
+}
+function gauge(pct, cells = 6) {
+  const p = Number.isFinite(pct) ? Math.min(100, Math.max(0, pct)) : 0;
+  const filled = Math.round(p / 100 * cells);
+  return "\u2593".repeat(filled) + "\u2591".repeat(cells - filled);
+}
+
+// src/core/flow/record.ts
+var FLOW_SOURCES = ["command", "prompt", "skill", "cli", "plan"];
+var FLOW_OUTCOMES = ["done", "failed", "cancelled"];
+var FLOW_MAX_DEPTH = 4;
+var FLOW_TITLE_MAX = 80;
+var FLOW_STEP_MAX = 160;
+var FLOW_NOTE_MAX = 200;
+var FLOW_SAME_RUN_MS = 60000;
+function emptyFlow(now) {
+  return { v: 1, stack: [], updatedAt: now };
+}
+function flowText(text, max) {
+  const one = String(text).replace(/[\u0000-\u001f\u007f-\u009f]/gu, " ").replace(/\s+/gu, " ").trim();
+  return one.length > max ? `${one.slice(0, Math.max(0, max - 1)).trimEnd()}\u2026` : one;
+}
+function num(x) {
+  return typeof x === "number" && Number.isFinite(x) ? x : undefined;
+}
+function count(x) {
+  const n = num(x);
+  return n !== undefined && n >= 0 ? Math.floor(n) : undefined;
+}
+function isObj(x) {
+  return x !== null && typeof x === "object" && !Array.isArray(x);
+}
+function entryOf(raw) {
+  if (!isObj(raw))
+    return;
+  const workflow = raw["workflow"];
+  const startedAt = num(raw["startedAt"]);
+  if (typeof workflow !== "string" || !FLOW_ID_RE.test(workflow) || startedAt === undefined)
+    return;
+  const source = FLOW_SOURCES.includes(raw["source"]) ? raw["source"] : "cli";
+  const e = { workflow, source, startedAt };
+  if (typeof raw["title"] === "string" && raw["title"].trim() !== "")
+    e.title = flowText(raw["title"], FLOW_TITLE_MAX);
+  const p = raw["phase"];
+  if (isObj(p) && typeof p["id"] === "string" && FLOW_ID_RE.test(p["id"]) && num(p["since"]) !== undefined) {
+    e.phase = { id: p["id"], since: num(p["since"]) };
+    if (typeof p["note"] === "string" && p["note"].trim() !== "")
+      e.phase.note = flowText(p["note"], FLOW_NOTE_MAX);
+  }
+  const s = raw["step"];
+  if (isObj(s) && typeof s["text"] === "string" && num(s["at"]) !== undefined) {
+    e.step = { text: flowText(s["text"], FLOW_STEP_MAX), at: num(s["at"]) };
+    const done = count(s["done"]);
+    const total = count(s["total"]);
+    if (done !== undefined)
+      e.step.done = done;
+    if (total !== undefined)
+      e.step.total = total;
+  }
+  const x = raw["ended"];
+  if (isObj(x) && FLOW_OUTCOMES.includes(x["outcome"]) && num(x["at"]) !== undefined) {
+    e.ended = { outcome: x["outcome"], at: num(x["at"]) };
+  }
+  return e;
+}
+function parseFlow(raw) {
+  if (!isObj(raw) || raw["v"] !== 1 || !Array.isArray(raw["stack"]))
+    return;
+  const stack = [];
+  for (const item of raw["stack"]) {
+    const e = entryOf(item);
+    if (e !== undefined)
+      stack.push(e);
+  }
+  return { v: 1, stack: stack.slice(-FLOW_MAX_DEPTH), updatedAt: num(raw["updatedAt"]) ?? 0 };
+}
+function activeFlowIndex(rec) {
+  const stack = rec?.stack ?? [];
+  for (let i = stack.length - 1;i >= 0; i--)
+    if (stack[i].ended === undefined)
+      return i;
+  return -1;
+}
+function activeFlow(rec) {
+  const i = activeFlowIndex(rec);
+  return i >= 0 ? rec?.stack[i] : undefined;
+}
+function flowBreadcrumb(rec) {
+  const i = activeFlowIndex(rec);
+  return i < 0 ? [] : (rec?.stack ?? []).slice(0, i + 1).filter((e) => e.ended === undefined).map((e) => e.workflow);
+}
+function withStack(stack, now) {
+  return { v: 1, stack, updatedAt: now };
+}
+function replaceAt(stack, i, e) {
+  return stack.map((x, j) => j === i ? e : x);
+}
+function flowStart(rec, input, now) {
+  const base = rec ?? emptyFlow(now);
+  if (!FLOW_ID_RE.test(input.workflow)) {
+    return { record: base, changed: false, error: { code: "invalid", message: `'${input.workflow}' is not a workflow id (lower-case kebab-case, 1-40 characters)` } };
+  }
+  const title = input.title !== undefined ? flowText(input.title, FLOW_TITLE_MAX) : "";
+  const stack = [...base.stack];
+  while (stack.length > 0 && stack[stack.length - 1].ended !== undefined)
+    stack.pop();
+  const top = stack[stack.length - 1];
+  const byPerson = input.source === "command" || input.source === "prompt";
+  if (top !== undefined && top.workflow === input.workflow && !(byPerson && now - top.startedAt > FLOW_SAME_RUN_MS)) {
+    if (title === "" || title === top.title) {
+      return stack.length === base.stack.length ? { record: base, changed: false, entry: top } : { record: withStack(stack, now), changed: true, entry: top };
+    }
+    const e = { ...top, title };
+    return { record: withStack(replaceAt(stack, stack.length - 1, e), now), changed: true, entry: e };
+  }
+  const e = { workflow: input.workflow, source: input.source, startedAt: now };
+  if (title !== "")
+    e.title = title;
+  const fresh = byPerson || isTopLevelFlow(input.workflow);
+  const next = fresh ? [e] : [...stack, e].slice(-FLOW_MAX_DEPTH);
+  return { record: withStack(next, now), changed: true, entry: e };
+}
+function noFlow(rec) {
+  return { record: rec, changed: false, error: { code: "no_flow", message: "no workflow is running in this session; start one with 'buracle flow start <workflow>'" } };
+}
+function flowPhase(rec, input, now) {
+  const base = rec ?? emptyFlow(now);
+  const i = activeFlowIndex(base);
+  if (i < 0)
+    return noFlow(base);
+  const cur = base.stack[i];
+  const problem = flowPhaseProblem(cur.workflow, input.phase);
+  if (problem !== undefined)
+    return { record: base, changed: false, entry: cur, error: { code: "invalid", message: problem } };
+  const note = input.note !== undefined ? flowText(input.note, FLOW_NOTE_MAX) : "";
+  if (cur.phase?.id === input.phase) {
+    if (note === "" || note === cur.phase.note)
+      return { record: base, changed: false, entry: cur };
+    const e = { ...cur, phase: { ...cur.phase, note } };
+    return { record: withStack(replaceAt(base.stack, i, e), now), changed: true, entry: e };
+  }
+  const { step: _step, ...rest } = cur;
+  const e = { ...rest, phase: note !== "" ? { id: input.phase, since: now, note } : { id: input.phase, since: now } };
+  return { record: withStack(replaceAt(base.stack, i, e), now), changed: true, entry: e };
+}
+function flowStep(rec, input, now) {
+  const base = rec ?? emptyFlow(now);
+  const i = activeFlowIndex(base);
+  if (i < 0)
+    return noFlow(base);
+  const cur = base.stack[i];
+  const text = flowText(input.text, FLOW_STEP_MAX);
+  if (text === "")
+    return { record: base, changed: false, entry: cur, error: { code: "invalid", message: "the step text is empty" } };
+  const step = { text, at: now };
+  const done = count(input.done);
+  const total = count(input.total);
+  if (done !== undefined)
+    step.done = total !== undefined ? Math.min(done, total) : done;
+  if (total !== undefined)
+    step.total = total;
+  const old = cur.step;
+  if (old !== undefined && old.text === step.text && old.done === step.done && old.total === step.total)
+    return { record: base, changed: false, entry: cur };
+  const e = { ...cur, step };
+  return { record: withStack(replaceAt(base.stack, i, e), now), changed: true, entry: e };
+}
+function flowEnd(rec, outcome, now) {
+  const base = rec ?? emptyFlow(now);
+  const i = activeFlowIndex(base);
+  if (i < 0)
+    return { record: base, changed: false };
+  const e = { ...base.stack[i], ended: { outcome, at: now } };
+  return { record: withStack(replaceAt(base.stack, i, e), now), changed: true, entry: e };
+}
+function workflowOfPlanType(type) {
+  return type === "Build" ? "goal-build" : "plan-build";
+}
+function planFlowPhase(workflow, plan, current) {
+  if (workflow === "plan-build") {
+    if (plan.phase === "plan")
+      return current === "approve" ? "approve" : "plan";
+    return plan.phase === "implement" ? "implement" : "verify";
+  }
+  if (workflow === "goal-build") {
+    if (plan.phase === "plan")
+      return "contract";
+    if (plan.phase === "implement")
+      return plan.status === "COMPLETE" ? "judge" : "build";
+    return plan.phase === "verify" ? "verify" : "handback";
+  }
+  return;
+}
+function flowFromPlan(rec, plan, now) {
+  let base = rec ?? emptyFlow(now);
+  if (plan.status === "SAVED")
+    return { record: base, changed: false };
+  const workflow = workflowOfPlanType(plan.type);
+  const finished = plan.status === "VERIFIED" || plan.phase === "done";
+  const find = (r) => {
+    for (let i = r.stack.length - 1;i >= 0; i--) {
+      const e = r.stack[i];
+      if (e.ended === undefined && e.workflow === workflow)
+        return i;
+    }
+    return -1;
+  };
+  let changed = false;
+  let i = find(base);
+  if (i < 0) {
+    if (finished)
+      return { record: base, changed: false };
+    const started = flowStart(base, plan.title !== undefined ? { workflow, title: plan.title, source: "plan" } : { workflow, source: "plan" }, now);
+    base = started.record;
+    changed = started.changed;
+    i = find(base);
+    if (i < 0)
+      return { record: base, changed };
+  }
+  let e = base.stack[i];
+  if (e.title === undefined && plan.title !== undefined && plan.title.trim() !== "") {
+    e = { ...e, title: flowText(plan.title, FLOW_TITLE_MAX) };
+    changed = true;
+  }
+  const target = planFlowPhase(workflow, plan, e.phase?.id);
+  if (target !== undefined && flowDef(workflow)?.phases.some((p) => p.id === target) === true && e.phase?.id !== target) {
+    const { step: _step, ...rest } = e;
+    e = { ...rest, phase: { id: target, since: now } };
+    changed = true;
+  }
+  if (finished) {
+    e = { ...e, ended: { outcome: "done", at: now } };
+    changed = true;
+  }
+  if (!changed)
+    return { record: base, changed: false, entry: e };
+  return { record: withStack(replaceAt(base.stack, i, e), now), changed: true, entry: e };
+}
+
+// src/core/flow/band.ts
+var BUILD_MAX_ROUNDS = 4;
+var STATUS_TEXT = {
+  starting: "starting",
+  running: "running",
+  approval: "awaiting approval",
+  waiting: "waiting for you",
+  paused: "paused",
+  done: "done",
+  failed: "failed",
+  cancelled: "cancelled"
+};
+var STATUS_COLOR = {
+  starting: "gray",
+  running: "magenta",
+  approval: "cyan",
+  waiting: "yellow",
+  paused: "yellow",
+  done: "green",
+  failed: "red",
+  cancelled: "gray"
+};
+function hiddenView() {
+  return { visible: false, breadcrumb: [], status: "running", phases: [], agents: [] };
+}
+function criteriaOf(markdown) {
+  return planCriteria(markdown).slice(0, 12).map((c) => ({ id: c.id, status: c.status, oracle: c.oracle }));
+}
+function planApproved(state) {
+  const s = state.plan?.status;
+  return state.approvals?.planApprovedAt !== undefined || s === "APPROVED" || s === "IN_PROGRESS" || s === "COMPLETE" || s === "VERIFIED";
+}
+function bandPlanOf(state, planText) {
+  const b = state?.plan;
+  if (state === undefined || b === undefined)
+    return;
+  const out = { path: b.path, type: b.type, status: b.status, phase: b.phase, approved: planApproved(state), since: b.registeredAt, done: 0, total: 0 };
+  if (typeof planText === "string" && planText !== "") {
+    const p = parsePlan(planText);
+    out.done = p.tasks.filter((t) => t.done).length;
+    out.total = p.tasks.length;
+    out.approved = out.approved || p.header.approved;
+    if (p.title.trim() !== "")
+      out.title = flowText(p.title, 80);
+    const open = p.tasks.find((t) => !t.done);
+    if (open !== undefined)
+      out.current = flowText(`Task ${open.n}${open.title !== "" ? `: ${open.title}` : ""}`, 120);
+    if (typeof p.header.rounds === "number")
+      out.rounds = p.header.rounds;
+    if (b.type === "Build") {
+      const c = criteriaOf(planText);
+      if (c.length > 0)
+        out.criteria = c;
+    }
+  }
+  return out;
+}
+function finishedPlan(p) {
+  return p.status === "VERIFIED" || p.status === "SAVED" || p.phase === "done";
+}
+function agentLabel(label) {
+  return flowText(label.replace(/^buracle:/, ""), 40);
+}
+function bandView(i) {
+  const now = Number.isFinite(i.nowMs) ? i.nowMs : 0;
+  const foldMs = Math.max(0, Number.isFinite(i.foldAfterSec) ? i.foldAfterSec : 0) * 1000;
+  const stack = i.flow?.stack ?? [];
+  const live = (e) => e.ended === undefined || now - e.ended.at < foldMs;
+  let shownAt = -1;
+  for (let k = stack.length - 1;k >= 0; k--)
+    if (live(stack[k])) {
+      shownAt = k;
+      break;
+    }
+  let entry = shownAt >= 0 ? stack[shownAt] : undefined;
+  let breadcrumb = shownAt >= 0 ? stack.slice(0, shownAt + 1).filter((e) => live(e)).map((e) => e.workflow) : [];
+  const plan = i.plan;
+  if (entry === undefined) {
+    if (plan === undefined || finishedPlan(plan) || stack.length > 0)
+      return hiddenView();
+    entry = { workflow: workflowOfPlanType(plan.type), source: "plan", startedAt: plan.since };
+    breadcrumb = [entry.workflow];
+  }
+  if (i.hidden !== undefined && entry.startedAt <= i.hidden)
+    return hiddenView();
+  const matched = plan !== undefined && workflowOfPlanType(plan.type) === entry.workflow && plan.status !== "SAVED" ? plan : undefined;
+  if (matched !== undefined && entry.ended === undefined && finishedPlan(matched) && stack.length > 0)
+    return hiddenView();
+  const def = flowDef(entry.workflow);
+  const phaseId = entry.phase?.id ?? (matched !== undefined ? planFlowPhase(entry.workflow, matched) : undefined);
+  const defs = def?.phases ?? (phaseId !== undefined ? [{ id: phaseId, label: phaseId, short: phaseId }] : []);
+  const at = phaseId !== undefined ? defs.findIndex((p) => p.id === phaseId) : -1;
+  const allDone = entry.ended?.outcome === "done";
+  const phases = defs.map((p, k) => ({
+    id: p.id,
+    label: p.label,
+    short: p.short,
+    state: allDone || at >= 0 && k < at ? "done" : k === at ? "current" : "next"
+  }));
+  let status;
+  if (entry.ended !== undefined)
+    status = entry.ended.outcome;
+  else if (i.interaction?.state === "paused")
+    status = i.interaction.kind === "decision" ? "waiting" : "paused";
+  else if (entry.workflow === "plan-build" && phaseId === "approve" && matched !== undefined && !matched.approved)
+    status = "approval";
+  else if (phaseId === undefined)
+    status = "starting";
+  else
+    status = "running";
+  const view = { visible: true, workflow: entry.workflow, breadcrumb, status, phases, agents: [] };
+  if (entry.title !== undefined)
+    view.title = entry.title;
+  else if (matched?.title !== undefined)
+    view.title = matched.title;
+  if (matched !== undefined && entry.workflow === "goal-build") {
+    if ((phaseId === "judge" || phaseId === "verify" || phaseId === "handback") && matched.criteria !== undefined) {
+      view.progress = { done: matched.criteria.filter((c) => c.status === "pass").length, total: matched.criteria.length, unit: "criteria" };
+    } else if (matched.total > 0)
+      view.progress = { done: matched.done, total: matched.total, unit: "tasks" };
+    if (phaseId === "build" || phaseId === "judge")
+      view.round = (matched.rounds ?? 0) + 1;
+    if (matched.criteria !== undefined)
+      view.criteria = matched.criteria;
+  } else if (matched !== undefined && (phaseId === "implement" || phaseId === "verify") && matched.total > 0) {
+    view.progress = { done: matched.done, total: matched.total, unit: "tasks" };
+  } else if (entry.step?.total !== undefined && entry.step.total > 0) {
+    view.progress = { done: entry.step.done ?? 0, total: entry.step.total, unit: "steps" };
+  }
+  const step = entry.step !== undefined && (entry.phase === undefined || entry.step.at >= entry.phase.since) ? entry.step.text : undefined;
+  const todo = (i.todos ?? []).find((t) => t.status === "in_progress");
+  const task = matched !== undefined && (phaseId === "implement" || phaseId === "build") ? matched.current : undefined;
+  const current = step ?? (todo !== undefined ? flowText(todo.activeForm ?? todo.content, 120) : undefined) ?? task;
+  if (current !== undefined && current !== "" && entry.ended === undefined)
+    view.current = current;
+  if (entry.ended === undefined)
+    view.agents = [...new Set((i.agents ?? []).map((a) => agentLabel(a.label)).filter((a) => a !== ""))].slice(0, 3);
+  const reason = i.interaction?.state === "paused" ? i.interaction.reason : undefined;
+  if (reason !== undefined && reason.trim() !== "" && entry.ended === undefined)
+    view.note = flowText(reason, 120);
+  else if (entry.phase?.note !== undefined && entry.ended === undefined)
+    view.note = entry.phase.note;
+  if (entry.startedAt > 0) {
+    view.startedAt = entry.startedAt;
+    view.elapsedMin = Math.max(0, Math.floor(((entry.ended?.at ?? now) - entry.startedAt) / 60000));
+  }
+  if (entry.ended !== undefined)
+    view.endedAt = entry.ended.at;
+  return view;
+}
+var UNICODE = { dot: "\xB7", head: "\u25C6", done: "\u2713", current: "\u25CF", next: "\u25CB", fail: "\u2717", sep: "\u2501", crumb: "\u203A", full: "\u25B0", empty: "\u25B1", step: "\u25B8", agents: "\u27F3", pass: "\u2713", open: "\u25CB", oracle: "\u2605" };
+var ASCII = { dot: "|", head: "*", done: "+", current: ">", next: ".", fail: "x", sep: "-", crumb: ">", full: "#", empty: "-", step: ">", agents: "~", pass: "+", open: ".", oracle: "*" };
+function seg(id, text, color, extra = {}) {
+  const s = { id, text };
+  if (color !== undefined)
+    s.color = color;
+  if (extra.dim === true)
+    s.dim = true;
+  if (extra.bold === true)
+    s.bold = true;
+  return s;
+}
+function width(row) {
+  return row.reduce((n, s) => n + textWidth(s.text), 0);
+}
+function fit(row, max) {
+  const out = [];
+  let used = 0;
+  for (const s of row) {
+    const w = textWidth(s.text);
+    if (used + w <= max) {
+      out.push(s);
+      used += w;
+      continue;
+    }
+    const room = max - used;
+    if (room >= 2)
+      out.push({ ...s, text: truncateToWidth(s.text, room) });
+    break;
+  }
+  while (out.length > 0 && out[out.length - 1].text.trim() === "")
+    out.pop();
+  return out;
+}
+function progressText(v, g, bar) {
+  const p = v.progress;
+  if (p === undefined)
+    return "";
+  let text = ` ${p.done}/${p.total}`;
+  if (bar && p.total > 0) {
+    const cells = Math.min(10, p.total);
+    const filled = Math.round(Math.min(p.done, p.total) / p.total * cells);
+    text += ` ${g.full.repeat(filled)}${g.empty.repeat(cells - filled)}`;
+  }
+  return text;
+}
+function roundText(v) {
+  if (v.round === undefined)
+    return "";
+  return v.round <= BUILD_MAX_ROUNDS ? ` R${v.round}/${BUILD_MAX_ROUNDS}` : ` R${v.round}`;
+}
+function glyphOf(state, v, g) {
+  if (state === "done")
+    return g.done;
+  if (state === "current")
+    return v.status === "failed" || v.status === "cancelled" ? g.fail : g.current;
+  return g.next;
+}
+function phaseColor(state, v) {
+  if (state === "done")
+    return "green";
+  if (state === "next")
+    return "gray";
+  return STATUS_COLOR[v.status] === "gray" ? "magenta" : STATUS_COLOR[v.status];
+}
+function phaseRow(v, g, form) {
+  const row = [];
+  const extras = () => {
+    const out = [];
+    const r = roundText(v);
+    if (r !== "")
+      out.push(seg("band-round", r, "magenta"));
+    const p = progressText(v, g, form === "full");
+    if (p !== "")
+      out.push(seg("band-progress", p, "magenta"));
+    return out;
+  };
+  if (v.phases.length === 0) {
+    row.push(seg("band-phase", `${g.current} ${v.workflow ?? ""}`, STATUS_COLOR[v.status]), ...extras());
+    return row;
+  }
+  const cur = v.phases.findIndex((p) => p.state === "current");
+  if (form === "window") {
+    const done = v.phases.filter((p) => p.state === "done").length;
+    const next = v.phases.filter((p) => p.state === "next").length;
+    if (done > 0)
+      row.push(seg("band-done", `${g.done}${done} `, "green"));
+    const p = cur >= 0 ? v.phases[cur] : undefined;
+    if (p !== undefined)
+      row.push(seg(`band-phase-${p.id}`, `${glyphOf("current", v, g)} ${p.label}`, phaseColor("current", v), { bold: true }), ...extras());
+    if (next > 0)
+      row.push(seg("band-next", ` ${g.next}${next}`, "gray", { dim: true }));
+    return row;
+  }
+  v.phases.forEach((p, k) => {
+    if (k > 0)
+      row.push(seg(`band-sep-${k}`, form === "short" ? " " : ` ${g.sep} `, "gray", { dim: true }));
+    const label = form === "short" ? p.short : p.label;
+    row.push(seg(`band-phase-${p.id}`, `${glyphOf(p.state, v, g)} ${label}`, phaseColor(p.state, v), p.state === "current" ? { bold: true } : p.state === "next" ? { dim: true } : {}));
+    if (k === cur)
+      row.push(...extras());
+  });
+  if (cur < 0 && v.progress !== undefined)
+    row.push(...extras());
+  if (form === "full" && v.criteria !== undefined && v.criteria.length > 0) {
+    row.push(seg("band-criteria", "  ", undefined));
+    v.criteria.forEach((c, k) => {
+      const mark = c.status === "pass" ? g.pass : c.status === "fail" ? g.fail : g.open;
+      const color = c.status === "pass" ? "green" : c.status === "fail" ? "red" : "gray";
+      row.push(seg(`band-crit-${c.id}`, `${k > 0 ? " " : ""}${c.id}${c.oracle ? g.oracle : ""}${mark}`, color));
+    });
+  }
+  return row;
+}
+function elapsedText(min) {
+  return min < 1 ? "<1m" : min < 120 ? `${min}m` : `${Math.floor(min / 60)}h${min % 60 > 0 ? `${min % 60}m` : ""}`;
+}
+function headRow(v, g, columns) {
+  const right = [seg("band-status", STATUS_TEXT[v.status], STATUS_COLOR[v.status])];
+  if (v.elapsedMin !== undefined)
+    right.push(seg("band-elapsed", ` ${g.dot} ${elapsedText(v.elapsedMin)}`, "gray", { dim: true }));
+  const left = [seg("band-head", `${g.head} `, "magenta"), seg("band-crumb", v.breadcrumb.join(` ${g.crumb} `), undefined, { bold: true })];
+  if (v.title !== undefined && v.title !== "")
+    left.push(seg("band-title", ` ${g.dot} ${v.title}`, "gray", { dim: true }));
+  const room = columns - width(right) - 1;
+  const head = fit(left, Math.max(0, room));
+  const pad = columns - width(head) - width(right);
+  return pad >= 1 ? [...head, seg("band-pad", " ".repeat(pad)), ...right] : fit([...head, seg("band-pad", " "), ...right], columns);
+}
+function detailRow(v, g) {
+  const row = [];
+  if ((v.status === "waiting" || v.status === "paused") && v.note !== undefined) {
+    row.push(seg("band-note", `${g.step} ${STATUS_TEXT[v.status]}: ${v.note}`, "yellow"));
+  } else if (v.current !== undefined)
+    row.push(seg("band-current", `${g.step} ${v.current}`));
+  else if (v.note !== undefined)
+    row.push(seg("band-note", `${g.step} ${v.note}`, "gray", { dim: true }));
+  if (v.agents.length > 0)
+    row.push(seg("band-agents", `${row.length > 0 ? ` ${g.dot} ` : ""}${g.agents} ${v.agents.join(", ")}`, "cyan"));
+  return row;
+}
+function bandRows(v, columns, maxRows, emoji, opts = {}) {
+  const cols = Math.floor(Number.isFinite(columns) ? columns : 0);
+  const rows = Math.min(3, Math.floor(Number.isFinite(maxRows) ? maxRows : 0));
+  if (!v.visible || cols < 24 || rows < 1)
+    return [];
+  const g = emoji ? UNICODE : ASCII;
+  const reserve = Math.max(0, Math.min(Math.floor(opts.reserve ?? 0), cols - 24));
+  const chain = (forms) => {
+    for (const f of forms) {
+      const row = phaseRow(v, g, f);
+      if (width(row) <= cols)
+        return row;
+    }
+    return fit(phaseRow(v, g, "window"), cols);
+  };
+  if (cols >= 96 && rows >= 2) {
+    const out = [headRow(v, g, cols - reserve), chain(["full", "label", "short", "window"])];
+    const detail = detailRow(v, g);
+    if (rows >= 3 && detail.length > 0)
+      out.push(fit(detail, cols));
+    return out;
+  }
+  if (cols >= 56 && rows >= 2)
+    return [headRow(v, g, cols - reserve), chain(["label", "short", "window"])];
+  const one = [seg("band-crumb", `${v.breadcrumb.join(` ${g.crumb} `)} `, undefined, { bold: true })];
+  const cur = v.phases.find((p) => p.state === "current");
+  if (cur !== undefined)
+    one.push(seg(`band-phase-${cur.id}`, `${glyphOf("current", v, g)} ${cur.label}`, phaseColor("current", v), { bold: true }));
+  else if (v.status === "done")
+    one.push(seg("band-phase", `${g.done} done`, "green"));
+  const r = roundText(v);
+  if (r !== "")
+    one.push(seg("band-round", r, "magenta"));
+  const p = progressText(v, g, false);
+  if (p !== "")
+    one.push(seg("band-progress", p, "magenta"));
+  if (v.status !== "running" && v.status !== "starting" && v.status !== "done")
+    one.push(seg("band-status", ` ${g.dot} ${STATUS_TEXT[v.status]}`, STATUS_COLOR[v.status]));
+  if (width(one) > cols && v.breadcrumb.length > 1)
+    one[0] = seg("band-crumb", `${v.workflow ?? ""} `, undefined, { bold: true });
+  return [fit(one, cols)];
+}
+function bandText(v) {
+  if (!v.visible)
+    return ["No workflow is running."];
+  const head = `${v.breadcrumb.join(" \u203A ")}${v.title !== undefined ? ` \xB7 ${v.title}` : ""} \xB7 ${STATUS_TEXT[v.status]}${v.elapsedMin !== undefined ? ` \xB7 ${elapsedText(v.elapsedMin)}` : ""}`;
+  const lines = [head];
+  if (v.phases.length > 0) {
+    const g = UNICODE;
+    lines.push(`phases: ${v.phases.map((p) => `${glyphOf(p.state, v, g)} ${p.label}`).join("  ")}`);
+  }
+  const extra = [roundText(v).trim(), v.progress !== undefined ? `${v.progress.done}/${v.progress.total} ${v.progress.unit}` : ""].filter((x) => x !== "");
+  if (extra.length > 0)
+    lines.push(`progress: ${extra.join(" \xB7 ")}`);
+  if (v.criteria !== undefined && v.criteria.length > 0)
+    lines.push(`criteria: ${v.criteria.map((c) => `${c.id}${c.oracle ? " (oracle)" : ""} ${c.status}`).join(", ")}`);
+  if (v.current !== undefined)
+    lines.push(`now: ${v.current}`);
+  if (v.agents.length > 0)
+    lines.push(`agents: ${v.agents.join(", ")}`);
+  if (v.note !== undefined)
+    lines.push(`note: ${v.note}`);
+  return lines;
+}
+function bandSummary(v) {
+  if (!v.visible)
+    return "";
+  const cur = v.phases.find((p) => p.state === "current");
+  const parts = [];
+  if (cur !== undefined)
+    parts.push(`phase ${cur.label}`);
+  if (v.progress !== undefined)
+    parts.push(`${v.progress.done}/${v.progress.total} ${v.progress.unit}`);
+  if (v.status !== "running" && v.status !== "starting")
+    parts.push(STATUS_TEXT[v.status]);
+  const head = `${v.breadcrumb.join(" > ")}${v.title !== undefined ? ` (${v.title})` : ""}`;
+  const tail = v.current !== undefined ? `; now: ${v.current}` : "";
+  return flowText(`${head}${parts.length > 0 ? `: ${parts.join(", ")}` : ""}${tail}`, 240);
+}
+var NOTICE_STATUSES = new Set(["approval", "waiting", "paused", "done", "failed", "cancelled"]);
+function bandNotice(v) {
+  if (!v.visible || !NOTICE_STATUSES.has(v.status))
+    return;
+  const summary = bandSummary(v);
+  if (summary === "")
+    return;
+  return { key: `${v.workflow ?? v.breadcrumb.join(">")}#${v.startedAt ?? 0}:${v.status}`, text: `Buracle workflow: ${summary}` };
+}
+function resumeSuggestion(v) {
+  if (!v.visible || v.status === "done" || v.status === "failed" || v.status === "cancelled")
+    return;
+  const cur = v.phases.find((p) => p.state === "current");
+  const progress = v.progress !== undefined ? ` ${v.progress.done}/${v.progress.total}` : "";
+  const where = cur !== undefined ? ` (${cur.label}${progress})` : "";
+  return flowText(`continue the ${v.breadcrumb.join(" \u203A ")} run${where}${v.title !== undefined ? `: ${v.title}` : ""}`, 160);
+}
+
+// src/core/flow/state.ts
+var AGENT_MAX_MS = 2 * 60 * 60000;
+var TODOS_MAX = 50;
+var AGENTS_MAX = 6;
+var FOLD_AFTER_SEC = 8;
+function emptyBand() {
+  return { v: 1, sid: "", stamp: 0, todos: [], agents: [], foldAfterSec: FOLD_AFTER_SEC };
+}
+function bandRefresh(prev, x) {
+  const same = prev.sid === x.sid;
+  const next = {
+    v: 1,
+    sid: x.sid,
+    stamp: x.now,
+    todos: same ? prev.todos : [],
+    agents: same ? prev.agents.filter((a) => x.now - a.startedAt < AGENT_MAX_MS) : [],
+    foldAfterSec: Number.isFinite(x.foldAfterSec) && x.foldAfterSec >= 0 ? x.foldAfterSec : FOLD_AFTER_SEC
+  };
+  const flow = x.flow === "keep" ? same ? prev.flow : undefined : x.flow;
+  if (flow !== undefined)
+    next.flow = flow;
+  const plan = bandPlanOf(x.state, x.planText);
+  if (plan !== undefined)
+    next.plan = plan;
+  const it = x.state?.interaction;
+  if (it !== undefined && (it.state === "paused" || it.state === "running")) {
+    const i = { state: it.state };
+    if (it.kind !== undefined)
+      i.kind = it.kind;
+    if (typeof it.reason === "string" && it.reason.trim() !== "")
+      i.reason = flowText(it.reason, 200);
+    next.interaction = i;
+  }
+  if (same && prev.hidden !== undefined)
+    next.hidden = prev.hidden;
+  if (!x.band)
+    next.off = true;
+  return next;
+}
+function bandInputOf(b) {
+  const i = { nowMs: b.stamp, todos: b.todos, agents: b.agents, foldAfterSec: b.foldAfterSec };
+  if (b.flow !== undefined)
+    i.flow = b.flow;
+  if (b.plan !== undefined)
+    i.plan = b.plan;
+  if (b.interaction !== undefined)
+    i.interaction = b.interaction;
+  if (b.hidden !== undefined)
+    i.hidden = b.hidden;
+  return i;
+}
+function bandViewOf(b) {
+  const v = bandView(bandInputOf(b));
+  return b.off === true ? { ...v, visible: false } : v;
+}
+function bandActive(b) {
+  const v = bandViewOf(b);
+  return v.visible && v.endedAt === undefined;
+}
+function bandFoldAt(b) {
+  const v = bandViewOf(b);
+  return v.visible && v.endedAt !== undefined ? v.endedAt + b.foldAfterSec * 1000 : undefined;
+}
+function minuteOf(b) {
+  return JSON.stringify({ ...b, stamp: Math.floor(b.stamp / 60000) });
+}
+function bandChanged(a, b) {
+  return minuteOf(a) !== minuteOf(b);
+}
+function todoStatus(x) {
+  return x === "pending" || x === "in_progress" || x === "completed" ? x : undefined;
+}
+function bandTodosWrite(b, todos) {
+  if (!Array.isArray(todos))
+    return b;
+  const list = [];
+  for (const t of todos) {
+    if (t === null || typeof t !== "object")
+      continue;
+    const o = t;
+    const status = todoStatus(o["status"]);
+    if (typeof o["content"] !== "string" || status === undefined)
+      continue;
+    const todo = { content: flowText(o["content"], 120), status };
+    if (typeof o["activeForm"] === "string" && o["activeForm"].trim() !== "")
+      todo.activeForm = flowText(o["activeForm"], 120);
+    list.push(todo);
+  }
+  return { ...b, todos: list.slice(0, TODOS_MAX) };
+}
+function bandTodoCreate(b, task) {
+  const todo = { content: flowText(task.subject, 120), status: "pending" };
+  if (task.id !== undefined && task.id !== "")
+    todo.id = task.id;
+  if (task.activeForm !== undefined && task.activeForm.trim() !== "")
+    todo.activeForm = flowText(task.activeForm, 120);
+  return { ...b, todos: [...b.todos, todo].slice(-TODOS_MAX) };
+}
+function bandTodoUpdate(b, u) {
+  if (u.status === "deleted")
+    return { ...b, todos: b.todos.filter((t) => t.id !== u.taskId) };
+  const status = todoStatus(u.status);
+  let found = false;
+  const todos = b.todos.map((t) => {
+    if (t.id !== u.taskId)
+      return t;
+    found = true;
+    const n = { ...t };
+    if (status !== undefined)
+      n.status = status;
+    if (u.subject !== undefined && u.subject.trim() !== "")
+      n.content = flowText(u.subject, 120);
+    if (u.activeForm !== undefined && u.activeForm.trim() !== "")
+      n.activeForm = flowText(u.activeForm, 120);
+    return n;
+  });
+  if (!found && u.subject !== undefined && status !== undefined)
+    todos.push({ id: u.taskId, content: flowText(u.subject, 120), status });
+  return { ...b, todos };
+}
+function str2(x) {
+  return typeof x === "string" && x !== "" ? x : undefined;
+}
+function bandTodoTool(b, tool, input, result) {
+  const res = result !== null && typeof result === "object" && !Array.isArray(result) ? result : {};
+  if (tool === "TodoWrite")
+    return bandTodosWrite(b, Array.isArray(res["newTodos"]) ? res["newTodos"] : input["todos"]);
+  if (tool === "TaskCreate") {
+    const task = res["task"] !== null && typeof res["task"] === "object" ? res["task"] : {};
+    const subject = str2(task["subject"]) ?? str2(input["subject"]);
+    if (subject === undefined)
+      return b;
+    const t = { subject };
+    const id = str2(task["id"]);
+    const activeForm = str2(input["activeForm"]);
+    if (id !== undefined)
+      t.id = id;
+    if (activeForm !== undefined)
+      t.activeForm = activeForm;
+    return bandTodoCreate(b, t);
+  }
+  if (tool === "TaskUpdate") {
+    const taskId = str2(input["taskId"]);
+    if (taskId === undefined)
+      return b;
+    const u = { taskId };
+    for (const k of ["status", "subject", "activeForm"]) {
+      const v = str2(input[k]);
+      if (v !== undefined)
+        u[k] = v;
+    }
+    return bandTodoUpdate(b, u);
+  }
+  return b;
+}
+function bandAgentStart(b, a, now) {
+  const label = flowText(a.label, 60);
+  if (a.id === "" || label === "")
+    return b;
+  return { ...b, agents: [...b.agents.filter((x) => x.id !== a.id), { id: a.id, label, startedAt: now }].slice(-AGENTS_MAX) };
+}
+function bandAgentBind(b, id, agentId) {
+  return { ...b, agents: b.agents.map((a) => a.id === id ? { ...a, agentId } : a) };
+}
+function bandAgentEnd(b, id) {
+  const agents = b.agents.filter((a) => a.id !== id && a.agentId !== id);
+  return agents.length === b.agents.length ? b : { ...b, agents };
+}
+function bandHide(b) {
+  const v = bandViewOf(b);
+  return v.visible ? { ...b, hidden: v.startedAt ?? b.stamp } : b;
+}
+
 // src/core/policy/launchers.ts
 var RUN = { subs: ["run"] };
 var LAUNCHERS = {
@@ -10407,7 +13017,7 @@ function parenTable(src, from) {
   }
   return { from, close, seen };
 }
-var IDENT = /[A-Za-z_][A-Za-z0-9_]*/y;
+var IDENT2 = /[A-Za-z_][A-Za-z0-9_]*/y;
 var NAME_ONLY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 var ASSIGN = /^[A-Za-z_][A-Za-z0-9_]*(?:\[[^\]]*\])?\+?=/;
 var COMMAND_START_WORDS = new Set(["if", "then", "else", "elif", "do", "while", "until", "!", "{", "time", "for"]);
@@ -10553,8 +13163,8 @@ function lex(src, subs, flags, depth = 0) {
       return;
     }
     if (next !== undefined) {
-      IDENT.lastIndex = i + 1;
-      const m = IDENT.exec(src);
+      IDENT2.lastIndex = i + 1;
+      const m = IDENT2.exec(src);
       if (m) {
         const name = m[0];
         w.raw += "$" + name;
@@ -11828,7 +14438,7 @@ function tokenize(src, lang) {
   return toks;
 }
 var UNKNOWN = { t: "unknown" };
-function str2(s) {
+function str3(s) {
   return { t: "str", s: s.length > MAX_VALUE ? s.slice(0, MAX_VALUE) : s };
 }
 function textOf(v) {
@@ -11863,9 +14473,9 @@ var HOME_ENV = new Set(["HOME", "USERPROFILE"]);
 function envValue(name) {
   const n = typeof name === "string" ? name : name.t === "str" ? name.s : undefined;
   if (n !== undefined && HOME_ENV.has(n))
-    return str2(HOME);
+    return str3(HOME);
   if (n === "PWD")
-    return str2(".");
+    return str3(".");
   return UNKNOWN;
 }
 function tail(path, segs = 2) {
@@ -11902,13 +14512,13 @@ function applyFn(callee, receiver, args, _kwargs, scope) {
   const a0 = args[0];
   if (receiver !== undefined && receiver.t === "str") {
     if (name === "expanduser")
-      return str2(expandUser(receiver.s));
+      return str3(expandUser(receiver.s));
     if (name === "resolve" || name === "absolute" || name === "strip" || name === "rstrip" || name === "lstrip" || name === "trim" || name === "toString" || name === "as_posix" || name === "normalize")
       return receiver;
     if (name === "joinpath" || name === "concat")
-      return str2(name === "concat" ? receiver.s + args.map(textOf).join("") : joinPath([receiver.s, ...args.map(textOf)]));
+      return str3(name === "concat" ? receiver.s + args.map(textOf).join("") : joinPath([receiver.s, ...args.map(textOf)]));
     if (name === "join" && a0?.t === "list" && scope.lang !== "js")
-      return str2(a0.items.map(textOf).join(receiver.s));
+      return str3(a0.items.map(textOf).join(receiver.s));
     if (name === "with_name" || name === "with_suffix" || name === "parent")
       return UNKNOWN;
     return UNKNOWN;
@@ -11929,25 +14539,25 @@ function applyFn(callee, receiver, args, _kwargs, scope) {
     return UNKNOWN;
   }
   if (name === "expanduser" && a0 !== undefined)
-    return a0.t === "str" ? str2(expandUser(a0.s)) : UNKNOWN;
+    return a0.t === "str" ? str3(expandUser(a0.s)) : UNKNOWN;
   if (name === "expandvars" && a0 !== undefined)
-    return a0.t === "str" ? str2(expandVars(a0.s)) : UNKNOWN;
+    return a0.t === "str" ? str3(expandVars(a0.s)) : UNKNOWN;
   if ((name === "expand_path" || name === "glob" && scope.lang === "perl") && a0 !== undefined)
-    return a0.t === "str" ? str2(expandUser(a0.s)) : UNKNOWN;
+    return a0.t === "str" ? str3(expandUser(a0.s)) : UNKNOWN;
   if (name === "homedir" || name === "home" || t2 === "Path.home" || name === "gethome")
-    return str2(HOME);
+    return str3(HOME);
   if (name === "getcwd" || name === "cwd" || name === "getcwdb")
-    return str2(".");
+    return str3(".");
   if (name === "getenv" || name === "get" && /(?:^|\.)(?:environ|env)$/i.test(path.slice(0, -4)))
     return a0 !== undefined ? envValue(a0) : UNKNOWN;
   if (["join", "resolve"].includes(name) && /(?:^|\.)(?:path|posixpath|ntpath|File)$/.test(path.slice(0, -(name.length + 1)))) {
     if (args.some((a) => a.t !== "str"))
-      return args.length > 0 && args[0]?.t === "str" ? str2(joinPath([...args.map(textOf)])) : UNKNOWN;
-    return str2(joinPath(args.map(textOf)));
+      return args.length > 0 && args[0]?.t === "str" ? str3(joinPath([...args.map(textOf)])) : UNKNOWN;
+    return str3(joinPath(args.map(textOf)));
   }
   if (["abspath", "realpath", "normpath", "normalize", "fspath", "str", "String", "toString", "resolve", "file", "Path", "PurePath", "PosixPath", "PurePosixPath", "URL"].includes(name)) {
     if (name === "Path" || name === "PurePath" || name === "PosixPath" || name === "PurePosixPath")
-      return args.length === 0 ? str2(".") : str2(joinPath(args.map(textOf)));
+      return args.length === 0 ? str3(".") : str3(joinPath(args.map(textOf)));
     return a0 ?? UNKNOWN;
   }
   if (name === "fileURLToPath" || name === "dirname" || name === "basename")
@@ -11996,9 +14606,9 @@ class Evaluator {
         this.p++;
         const right = this.unary(depth + 1);
         if (t.v === "+") {
-          left = left.t === "list" && right.t === "list" ? { t: "list", items: [...left.items, ...right.items] } : left.t === "str" || right.t === "str" ? str2(textOf(left) + textOf(right)) : UNKNOWN;
+          left = left.t === "list" && right.t === "list" ? { t: "list", items: [...left.items, ...right.items] } : left.t === "str" || right.t === "str" ? str3(textOf(left) + textOf(right)) : UNKNOWN;
         } else if (t.v === "/" && this.scope.lang === "python" && left.t === "str" && right.t === "str")
-          left = str2(joinPath([left.s, right.s]));
+          left = str3(joinPath([left.s, right.s]));
         else if ((t.v === "??" || t.v === "||") && left.t !== "unknown") {} else if (t.v === "??" || t.v === "||")
           left = right;
         else
@@ -12109,7 +14719,7 @@ class Evaluator {
             v = UNKNOWN;
             receiver = undefined;
           } else if (receiver.t === "str" && nx.v === "home")
-            v = str2(HOME);
+            v = str3(HOME);
         }
         continue;
       }
@@ -12161,11 +14771,11 @@ class Evaluator {
     if (v.t === "ref") {
       const p = v.path;
       if (/(?:^|\.)(?:env|environ)\.(?:HOME|USERPROFILE)$/i.test(p) || /(?:^|\.)Dir\.home$/.test(p))
-        return str2(HOME);
+        return str3(HOME);
       if (/(?:^|\.)env\.PWD$/.test(p))
-        return str2(".");
+        return str3(".");
       if (p === "os.sep" || p === "path.sep" || p === "sep")
-        return str2("/");
+        return str3("/");
       if (p === "__dirname" || p === "__file__" || p === "__filename")
         return UNKNOWN;
     }
@@ -12178,7 +14788,7 @@ class Evaluator {
     this.p++;
     switch (t.k) {
       case "str":
-        return str2(t.v);
+        return str3(t.v);
       case "num":
         return UNKNOWN;
       case "cmd":
@@ -12194,7 +14804,7 @@ class Evaluator {
             s += e === undefined ? DYN : textOf(evalSource(e, this.scope));
           }
         });
-        return str2(s);
+        return str3(s);
       }
       case "id": {
         const id = t.v;
@@ -13688,24 +16298,24 @@ function opencodeFindings(v) {
   }
   return out;
 }
-var NAMES = RELOCATION_VARS2.join("|");
+var NAMES2 = RELOCATION_VARS2.join("|");
 var SHELL_ASSIGN = new RegExp([
-  `(?:^|[\\s;&|(\`])(?:(?:export|readonly|local)\\s+|(?:declare|typeset)\\s+(?:-\\w+\\s+)*)?(?:${NAMES})\\+?=`,
-  `\\$\\{(?:${NAMES}):?=`,
-  `\\bset\\s+(?:-{1,2}[A-Za-z-]+\\s+)*(?:${NAMES})\\b`,
-  `\\bsetenv\\s+(?:${NAMES})\\b`,
-  `\\bSETUVAR\\s+(?:--\\w+\\s+)*(?:${NAMES}):`,
-  `\\b(?:export|typeset\\s+-\\w*x\\w*|declare\\s+-\\w*x\\w*)\\s+(?:\\w+\\s+)*(?:${NAMES.replace("|HOME|", "|")})\\b`
+  `(?:^|[\\s;&|(\`])(?:(?:export|readonly|local)\\s+|(?:declare|typeset)\\s+(?:-\\w+\\s+)*)?(?:${NAMES2})\\+?=`,
+  `\\$\\{(?:${NAMES2}):?=`,
+  `\\bset\\s+(?:-{1,2}[A-Za-z-]+\\s+)*(?:${NAMES2})\\b`,
+  `\\bsetenv\\s+(?:${NAMES2})\\b`,
+  `\\bSETUVAR\\s+(?:--\\w+\\s+)*(?:${NAMES2}):`,
+  `\\b(?:export|typeset\\s+-\\w*x\\w*|declare\\s+-\\w*x\\w*)\\s+(?:\\w+\\s+)*(?:${NAMES2.replace("|HOME|", "|")})\\b`
 ].join("|"));
 var POWERSHELL_ASSIGN = new RegExp([
-  `\\$env:(?:${NAMES}|USERPROFILE)\\s*\\+?=`,
-  `\\b(?:set-item|si|new-item|ni|set-content|sc|add-content|ac)\\b[^;\\n]*\\benv:\\\\?(?:${NAMES}|USERPROFILE)\\b`,
-  `setenvironmentvariable\\s*\\(\\s*['"](?:${NAMES}|USERPROFILE)['"]`
+  `\\$env:(?:${NAMES2}|USERPROFILE)\\s*\\+?=`,
+  `\\b(?:set-item|si|new-item|ni|set-content|sc|add-content|ac)\\b[^;\\n]*\\benv:\\\\?(?:${NAMES2}|USERPROFILE)\\b`,
+  `setenvironmentvariable\\s*\\(\\s*['"](?:${NAMES2}|USERPROFILE)['"]`
 ].join("|"), "i");
-var PLIST_NAMES = new RegExp(`<(?:key|string)>\\s*(?:${NAMES})\\s*</|\\bsetenv\\s+(?:${NAMES})\\b|\\b(?:${NAMES.replace("|HOME|", "|")})\\b`);
+var PLIST_NAMES = new RegExp(`<(?:key|string)>\\s*(?:${NAMES2})\\s*</|\\bsetenv\\s+(?:${NAMES2})\\b|\\b(?:${NAMES2.replace("|HOME|", "|")})\\b`);
 var SETTINGS_WORDS = {
-  "claude-settings": new RegExp(`disableAllHooks|allowManagedHooksOnly|buracle@|disabled\\w*|"(?:${NAMES}|BURACLE_HOOK_TIMEOUT_MS)"`, "i"),
-  "codex-config": new RegExp(`\\b(?:codex_)?hooks\\b|allow_managed_hooks_only|buracle@|\\b(?:${NAMES})\\b`, "i"),
+  "claude-settings": new RegExp(`disableAllHooks|allowManagedHooksOnly|buracle@|disabled\\w*|"(?:${NAMES2}|BURACLE_HOOK_TIMEOUT_MS)"`, "i"),
+  "codex-config": new RegExp(`\\b(?:codex_)?hooks\\b|allow_managed_hooks_only|buracle@|\\b(?:${NAMES2})\\b`, "i"),
   "opencode-config": /buracle|["']-[^"']*\*|["']-\*["']/i,
   "omp-settings": /buracle|disabled\w*\s*["']?\s*:\s*\[?\s*["']?\*/i
 };
@@ -16940,7 +19550,7 @@ init_harness();
 function mcpUnavailable(state) {
   return state === "down" || state === "off";
 }
-function isObj(x) {
+function isObj2(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 function healthEntry(v, nowMs) {
@@ -16948,7 +19558,7 @@ function healthEntry(v, nowMs) {
     return v;
   if (typeof v === "boolean")
     return v ? "ok" : "down";
-  if (!isObj(v))
+  if (!isObj2(v))
     return;
   if (typeof v["status"] !== "string")
     return typeof v["ok"] === "boolean" ? v["ok"] ? "ok" : "down" : undefined;
@@ -16958,9 +19568,9 @@ function healthEntry(v, nowMs) {
 }
 function mcpHealthOf(raw, nowMs) {
   const out = {};
-  if (!isObj(raw))
+  if (!isObj2(raw))
     return out;
-  const table = isObj(raw["mcp"]) ? raw["mcp"] : isObj(raw["servers"]) ? raw["servers"] : raw;
+  const table = isObj2(raw["mcp"]) ? raw["mcp"] : isObj2(raw["servers"]) ? raw["servers"] : raw;
   for (const [id, v] of Object.entries(table)) {
     const s = healthEntry(v, nowMs);
     if (s !== undefined)
@@ -17297,7 +19907,7 @@ function validateRoutingPolicy(x, knownServers) {
   return errors;
 }
 // src/core/policy/mcp-off.ts
-function isObj2(x) {
+function isObj3(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 function ids(x) {
@@ -17305,7 +19915,7 @@ function ids(x) {
 }
 function offServersFor(config, harness) {
   const mcp = config.mcp;
-  if (!isObj2(mcp) || !isObj2(mcp["off"]))
+  if (!isObj3(mcp) || !isObj3(mcp["off"]))
     return [];
   return ids(mcp["off"][harness]);
 }
@@ -17321,10 +19931,10 @@ function claudeNativeOff(input) {
   const known = Object.keys(input.servers);
   const off = new Set;
   for (const doc of input.settings) {
-    if (!isObj2(doc) || !Array.isArray(doc["deniedMcpServers"]))
+    if (!isObj3(doc) || !Array.isArray(doc["deniedMcpServers"]))
       continue;
     for (const entry of doc["deniedMcpServers"]) {
-      if (!isObj2(entry))
+      if (!isObj3(entry))
         continue;
       const name = entry["serverName"];
       if (typeof name === "string" && known.includes(serverOfName(name)))
@@ -17338,30 +19948,30 @@ function claudeNativeOff(input) {
       }
     }
   }
-  const projects = isObj2(input.state) && isObj2(input.state["projects"]) ? input.state["projects"] : undefined;
-  const here = projects !== undefined && isObj2(projects[input.project]) ? projects[input.project] : undefined;
+  const projects = isObj3(input.state) && isObj3(input.state["projects"]) ? input.state["projects"] : undefined;
+  const here = projects !== undefined && isObj3(projects[input.project]) ? projects[input.project] : undefined;
   for (const name of ids(here?.["disabledMcpServers"]))
     if (known.includes(serverOfName(name)))
       off.add(serverOfName(name));
   return [...off];
 }
 function codexNativeOff(config) {
-  if (!isObj2(config) || !isObj2(config["mcp_servers"]))
+  if (!isObj3(config) || !isObj3(config["mcp_servers"]))
     return [];
-  return Object.entries(config["mcp_servers"]).flatMap(([id, t]) => isObj2(t) && t["enabled"] === false ? [id] : []);
+  return Object.entries(config["mcp_servers"]).flatMap(([id, t]) => isObj3(t) && t["enabled"] === false ? [id] : []);
 }
 function opencodeNativeOff(configs) {
   return union(configs.map((c) => {
-    const mcp = isObj2(c) && isObj2(c["mcp"]) ? c["mcp"] : undefined;
+    const mcp = isObj3(c) && isObj3(c["mcp"]) ? c["mcp"] : undefined;
     if (mcp === undefined)
       return [];
-    const servers = isObj2(mcp["servers"]) ? Object.entries(mcp["servers"]).flatMap(([id, s]) => isObj2(s) && s["disabled"] === true ? [id] : []) : [];
-    const older = Object.entries(mcp).flatMap(([id, s]) => id !== "servers" && id !== "timeout" && isObj2(s) && s["enabled"] === false ? [id] : []);
+    const servers = isObj3(mcp["servers"]) ? Object.entries(mcp["servers"]).flatMap(([id, s]) => isObj3(s) && s["disabled"] === true ? [id] : []) : [];
+    const older = Object.entries(mcp).flatMap(([id, s]) => id !== "servers" && id !== "timeout" && isObj3(s) && s["enabled"] === false ? [id] : []);
     return [...servers, ...older];
   }));
 }
 function ompNativeOff(docs) {
-  return union(docs.map((d) => isObj2(d) ? ids(d["disabledServers"]) : []));
+  return union(docs.map((d) => isObj3(d) ? ids(d["disabledServers"]) : []));
 }
 function parseJsoncLoose(text) {
   let out = "";
@@ -17407,7 +20017,7 @@ function withOffServers(health, off) {
   return out;
 }
 // src/core/policy/questions.ts
-function str3(x) {
+function str4(x) {
   return typeof x === "string" && x.trim() !== "" ? x : undefined;
 }
 function optionsOf(x) {
@@ -17422,10 +20032,10 @@ function optionsOf(x) {
     }
     if (o !== null && typeof o === "object") {
       const rec = o;
-      const label = str3(rec["label"]) ?? str3(rec["value"]) ?? str3(rec["text"]);
+      const label = str4(rec["label"]) ?? str4(rec["value"]) ?? str4(rec["text"]);
       if (label !== undefined)
         options.push(label);
-      const d = str3(rec["description"]);
+      const d = str4(rec["description"]);
       if (d !== undefined)
         details.push(d);
     }
@@ -17444,14 +20054,14 @@ function questionsOf(input) {
       if (q === null || typeof q !== "object")
         continue;
       const rec = q;
-      const text = str3(rec["question"]) ?? str3(rec["prompt"]) ?? str3(rec["text"]) ?? str3(rec["header"]) ?? "";
+      const text = str4(rec["question"]) ?? str4(rec["prompt"]) ?? str4(rec["text"]) ?? str4(rec["header"]) ?? "";
       const { options, details } = optionsOf(rec["options"]);
-      const header = str3(rec["header"]);
+      const header = str4(rec["header"]);
       out.push({ text, options, details: header !== undefined && header !== text ? [...details, header] : details });
     }
     return out;
   }
-  const text = str3(input["question"]) ?? str3(input["prompt"]) ?? str3(input["message"]) ?? str3(input["text"]);
+  const text = str4(input["question"]) ?? str4(input["prompt"]) ?? str4(input["message"]) ?? str4(input["text"]);
   if (text !== undefined) {
     const { options, details } = optionsOf(input["options"] ?? input["choices"]);
     out.push({ text, options, details });
@@ -17803,7 +20413,7 @@ function agentOf(x) {
   const id = x.trim().replace(/^.*:/, "");
   return id in REVIEW_CATEGORIES ? id : undefined;
 }
-function isObj3(x) {
+function isObj4(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 function nonEmpty(x) {
@@ -17871,7 +20481,7 @@ function validateReviewJson(text, opts) {
     if (parsed === undefined)
       return { ok: false, errors: [...errors, "the final message is not valid JSON"] };
   }
-  if (!isObj3(parsed))
+  if (!isObj4(parsed))
     return { ok: false, errors: [...errors, "expected one JSON object"] };
   const agent = agentOf(opts?.agent);
   const allowed = agent ? REVIEW_CATEGORIES[agent] : [...new Set(Object.values(REVIEW_CATEGORIES).flat())];
@@ -17902,7 +20512,7 @@ function validateReviewJson(text, opts) {
     let lastRank = 0;
     findings.forEach((f, i) => {
       const at = `findings[${i}]`;
-      if (!isObj3(f)) {
+      if (!isObj4(f)) {
         errors.push(`${at} must be an object`);
         return;
       }
@@ -17955,7 +20565,7 @@ function validateReviewJson(text, opts) {
       let failed = 0;
       truths.forEach((t, i) => {
         const at = `truths[${i}]`;
-        if (!isObj3(t)) {
+        if (!isObj4(t)) {
           errors.push(`${at} must be an object`);
           return;
         }
@@ -17999,7 +20609,7 @@ var DENY_EVENTS = nativeOf((m) => m.preTool);
 var STOP_EVENTS = nativeOf((m) => m.stop);
 var BINDING_KEYS = ["event", "matcher", "async", "timeoutMs", "also", "fallback"];
 var HOOK_KEYS = ["id", "name", "description", "blocking", "failure", "bindings", "contract_test"];
-function isObj4(x) {
+function isObj5(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 function checkMatcher(m, h, at, errors, event) {
@@ -18012,7 +20622,7 @@ function checkMatcher(m, h, at, errors, event) {
     return;
   }
   if (h === "claude") {
-    if (!isObj4(m) || Object.keys(m).length === 0)
+    if (!isObj5(m) || Object.keys(m).length === 0)
       errors.push(`${at}.matcher: Claude mod matchers are partial objects such as { tool: Bash }`);
     return;
   }
@@ -18025,7 +20635,7 @@ function checkMatcher(m, h, at, errors, event) {
     errors.push(`${at}.matcher: expected a tool name or a list of tool names`);
 }
 function checkBinding(b, h, at, errors, nested) {
-  if (!isObj4(b)) {
+  if (!isObj5(b)) {
     errors.push(`${at}: expected a binding or { unsupported: reason }`);
     return;
   }
@@ -18078,7 +20688,7 @@ function checkBinding(b, h, at, errors, nested) {
       const seen = new Set;
       list.forEach((f, i) => {
         const fat = Array.isArray(fb) ? `${at}.fallback[${i}]` : `${at}.fallback`;
-        if (!isObj4(f)) {
+        if (!isObj5(f)) {
           errors.push(`${fat}: expected { event, matcher?, timeoutMs? }`);
           return;
         }
@@ -18101,18 +20711,18 @@ function checkBinding(b, h, at, errors, nested) {
 }
 function validateHooksMatrix(x) {
   const errors = [];
-  if (!isObj4(x) || !Array.isArray(x["hooks"]))
+  if (!isObj5(x) || !Array.isArray(x["hooks"]))
     return ["(root): expected { hooks: [...] }"];
   for (const k of Object.keys(x))
     if (k !== "hooks")
       errors.push(`(root).${k}: unknown key`);
   const hooks = x["hooks"];
-  const ids = hooks.map((h) => isObj4(h) ? h["id"] : undefined);
+  const ids = hooks.map((h) => isObj5(h) ? h["id"] : undefined);
   if (ids.length !== HOOK_IDS.length || ids.some((id, i) => id !== HOOK_IDS[i]))
     errors.push(`hooks: expected exactly ${HOOK_IDS[0]}\u2026${HOOK_IDS[HOOK_IDS.length - 1]} in order (got ${ids.map(String).join(", ")})`);
   hooks.forEach((hk, i) => {
     const at = `hooks[${i}]`;
-    if (!isObj4(hk)) {
+    if (!isObj5(hk)) {
       errors.push(`${at}: expected a mapping`);
       return;
     }
@@ -18138,7 +20748,7 @@ function validateHooksMatrix(x) {
     if (typeof hk["contract_test"] !== "string" || !/^tests\/[\w./-]+\.test\.ts$/.test(hk["contract_test"]))
       errors.push(`${where}.contract_test: expected a tests/**/*.test.ts path`);
     const bindings = hk["bindings"];
-    if (!isObj4(bindings)) {
+    if (!isObj5(bindings)) {
       errors.push(`${where}.bindings: expected a mapping per harness`);
       return;
     }
@@ -18152,7 +20762,7 @@ function validateHooksMatrix(x) {
         continue;
       }
       checkBinding(b, h, `${where}.bindings.${h}`, errors, false);
-      if (kind !== undefined && isObj4(b) && !("unsupported" in b)) {
+      if (kind !== undefined && isObj5(b) && !("unsupported" in b)) {
         const ev = b["event"];
         const allowed = kind === "deny" ? DENY_EVENTS[h] : STOP_EVENTS[h];
         if (typeof ev === "string" && !allowed.includes(ev))
@@ -18259,7 +20869,7 @@ function disposable(target) {
   const n = normalizePath2(target);
   return n !== "" && DISPOSABLE.test(n);
 }
-function words(ws) {
+function words2(ws) {
   return ws.map((w) => w.text);
 }
 var GIT_GLOBAL_WITH_ARG2 = new Set(["-c", "-C", "--git-dir", "--work-tree", "--namespace", "--config-env", "--super-prefix", "--attr-source", "--list-cmds"]);
@@ -18310,7 +20920,7 @@ function hasLong(g, ...options) {
 function hasShort(g, letters) {
   return [...letters].some((c) => g.shorts.has(c));
 }
-function looksLikePath(p) {
+function looksLikePath2(p) {
   return p === "." || p === ".." || p.startsWith("./") || p.startsWith("../") || p.startsWith(":") || /[*?[]/u.test(p) || /\.[A-Za-z][A-Za-z0-9]*$/u.test(p);
 }
 function gitConfigNeeds(rest, depth) {
@@ -18433,7 +21043,7 @@ function gitNeed(sub, rest) {
         return;
       if (g.pos.length >= 2)
         return "discard-changes";
-      return g.pos.length === 1 && looksLikePath(g.pos[0]) ? "discard-changes" : undefined;
+      return g.pos.length === 1 && looksLikePath2(g.pos[0]) ? "discard-changes" : undefined;
     }
     case "switch": {
       const g = gitArgs(rest, "cC", ["create", "force-create", "orphan", "conflict"]);
@@ -18533,7 +21143,7 @@ function findNeed(args, st) {
   if (!roots.every(disposable))
     return "recursive-delete";
   for (const e of execs)
-    st.execs.push(words(unwrap(e).argv).join(" "));
+    st.execs.push(words2(unwrap(e).argv).join(" "));
   return;
 }
 function disposableFeeder(prev) {
@@ -18543,7 +21153,7 @@ function disposableFeeder(prev) {
   if (name === "find")
     return findParts(prev.slice(1)).roots.every(disposable);
   if (name === "echo") {
-    const items = words(prev.slice(1)).filter((w) => !/^-[neE]+$/u.test(w));
+    const items = words2(prev.slice(1)).filter((w) => !/^-[neE]+$/u.test(w));
     return items.length > 0 && items.every(disposable);
   }
   return false;
@@ -18552,7 +21162,7 @@ function removeNeed(name, argv, st) {
   const operands = [];
   let options = true;
   let recursive = false;
-  for (const a of words(argv.slice(1))) {
+  for (const a of words2(argv.slice(1))) {
     if (options && a === "--") {
       options = false;
       continue;
@@ -18566,7 +21176,7 @@ function removeNeed(name, argv, st) {
   }
   if (REMOVERS.has(name) && (operands.length === 0 || operands.some((o) => o.includes("{}")))) {
     if (!disposableFeeder(st.prev))
-      st.fed = words(argv);
+      st.fed = words2(argv);
     return;
   }
   if (name !== "rm" || !recursive || operands.length === 0)
@@ -18619,7 +21229,7 @@ function fedCodeDeletesTree(command) {
     const name = commandName(u.argv[0]);
     if (name === undefined)
       continue;
-    const it = interpreterCode(name, words(u.argv.slice(1)));
+    const it = interpreterCode(name, words2(u.argv.slice(1)));
     if (it === undefined)
       continue;
     for (const r of c.redirects) {
@@ -18635,7 +21245,7 @@ var DB_CLIENTS = new Set(["psql", "mysql", "mariadb", "sqlite3", "sqlite", "duck
 function commandNeeds(argv, st) {
   const name = commandName(argv[0]);
   if (name === "git") {
-    const all = words(argv);
+    const all = words2(argv);
     const seen = st.execs.indexOf(all.join(" "));
     if (seen >= 0) {
       st.execs.splice(seen, 1);
@@ -18650,7 +21260,7 @@ function commandNeed(argv, st) {
   const name = commandName(argv[0]);
   if (name === undefined)
     return;
-  const all = words(argv);
+  const all = words2(argv);
   const seen = st.execs.indexOf(all.join(" "));
   if (seen >= 0) {
     st.execs.splice(seen, 1);
@@ -19497,7 +22107,7 @@ function companionToolDenial(harness, agent, tool, input) {
 // src/core/policy/skill-router.ts
 init_harness();
 var LANG = /^[a-z]{2}$/;
-function isObj5(x) {
+function isObj6(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 function phraseList(x, at, errors) {
@@ -19519,7 +22129,7 @@ function phraseList(x, at, errors) {
         out.push(p.trim());
     });
   };
-  if (isObj5(x)) {
+  if (isObj6(x)) {
     for (const [lang, list] of Object.entries(x)) {
       if (!LANG.test(lang))
         errors.push(`${at}.${lang}: expected a two-letter language code`);
@@ -19548,7 +22158,7 @@ function phraseProblem(p) {
 }
 function triggersOf(x, at, errors, allowed) {
   const out = {};
-  if (!isObj5(x)) {
+  if (!isObj6(x)) {
     errors.push(`${at}: expected a mapping of ${allowed.join(", ")}`);
     return out;
   }
@@ -19567,7 +22177,7 @@ function triggersOf(x, at, errors, allowed) {
 function parseSkillTriggers(x) {
   const errors = [];
   const table = { skills: {}, categories: {} };
-  if (!isObj5(x))
+  if (!isObj6(x))
     return { table, errors: ["(root): expected a mapping with version, skills and categories"] };
   for (const k of Object.keys(x))
     if (!["version", "skills", "categories"].includes(k))
@@ -19578,7 +22188,7 @@ function parseSkillTriggers(x) {
     const raw = x[section];
     if (raw === undefined)
       continue;
-    if (!isObj5(raw)) {
+    if (!isObj6(raw)) {
       errors.push(`${section}: expected a mapping of id -> triggers`);
       continue;
     }
@@ -20052,6 +22662,10 @@ function indexExclusion(dir, ctx) {
       return `excluded by index.exclude (${pattern})`;
   }
   return;
+}
+var INDEX_SETTINGS = { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 };
+function indexSettings(cfg) {
+  return { ...INDEX_SETTINGS, exclude: cfg.index.exclude };
 }
 var CORRUPT_INDEX = /database disk image is malformed|file is not a database|database is corrupt|is not a sqlite database|sqlite_corrupt|sqlite_notadb/i;
 function isCorruptIndexError(text) {
@@ -20604,24 +23218,24 @@ function emptyTurn() {
 function emptyLedger() {
   return { v: 1, turn: 0, mcp: {}, skills: {}, turnTools: emptyTurn(), streak: { search: 0 }, shown: {}, usedOnce: [] };
 }
-function isObj6(x) {
+function isObj7(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 var isNum = (x) => typeof x === "number" && Number.isFinite(x) && x >= 0;
 var strList = (x, max) => Array.isArray(x) ? x.filter((s) => typeof s === "string").slice(-max) : [];
 function counts(x) {
   const out = {};
-  if (!isObj6(x))
+  if (!isObj7(x))
     return out;
   for (const [k, v] of Object.entries(x).slice(0, MAP_MAX))
-    if (isObj6(v) && isNum(v["n"]) && isNum(v["turn"]))
+    if (isObj7(v) && isNum(v["n"]) && isNum(v["turn"]))
       out[k] = { n: v["n"], turn: v["turn"] };
   return out;
 }
 function routeOf(x) {
-  if (!isObj6(x))
+  if (!isObj7(x))
     return;
-  const mem = isObj6(x["memory"]) ? x["memory"] : {};
+  const mem = isObj7(x["memory"]) ? x["memory"] : {};
   const r = {
     invoked: strList(x["invoked"], 8),
     load: strList(x["load"], 1),
@@ -20638,12 +23252,12 @@ function routeOf(x) {
 }
 function parseLedger(raw) {
   const l = emptyLedger();
-  if (!isObj6(raw) || raw["v"] !== 1)
+  if (!isObj7(raw) || raw["v"] !== 1)
     return l;
   if (isNum(raw["turn"]))
     l.turn = Math.floor(raw["turn"]);
   const p = raw["prompt"];
-  if (isObj6(p) && isNum(p["turn"]) && isNum(p["at"])) {
+  if (isObj7(p) && isNum(p["turn"]) && isNum(p["at"])) {
     const route = routeOf(p["route"]);
     if (route !== undefined)
       l.prompt = { turn: p["turn"], at: p["at"], route, ...p["audited"] === true ? { audited: true } : {} };
@@ -20651,7 +23265,7 @@ function parseLedger(raw) {
   l.mcp = counts(raw["mcp"]);
   l.skills = counts(raw["skills"]);
   const t = raw["turnTools"];
-  if (isObj6(t)) {
+  if (isObj7(t)) {
     l.turnTools = {
       calls: isNum(t["calls"]) ? t["calls"] : 0,
       search: isNum(t["search"]) ? t["search"] : 0,
@@ -20660,15 +23274,15 @@ function parseLedger(raw) {
       memory: isNum(t["memory"]) ? t["memory"] : 0
     };
   }
-  if (isObj6(raw["streak"]) && isNum(raw["streak"]["search"]))
+  if (isObj7(raw["streak"]) && isNum(raw["streak"]["search"]))
     l.streak = { search: raw["streak"]["search"] };
-  if (isObj6(raw["shown"])) {
+  if (isObj7(raw["shown"])) {
     for (const [k, v] of Object.entries(raw["shown"]).slice(0, MAP_MAX))
-      if (isObj6(v) && isNum(v["turn"]) && isNum(v["n"]))
+      if (isObj7(v) && isNum(v["turn"]) && isNum(v["n"]))
         l.shown[k] = { turn: v["turn"], n: v["n"] };
   }
   l.usedOnce = strList(raw["usedOnce"], LIST_MAX);
-  if (isObj6(raw["mcpErrors"])) {
+  if (isObj7(raw["mcpErrors"])) {
     const errors = {};
     for (const [k, v] of Object.entries(raw["mcpErrors"]).slice(0, MAP_MAX))
       if (isNum(v) && v >= 1)
@@ -20753,7 +23367,7 @@ function shellArgv(command, word = (w) => w.text) {
   }
 }
 function skillOf(call, harness) {
-  const input = isObj6(call.input) ? call.input : {};
+  const input = isObj7(call.input) ? call.input : {};
   if (harness === "claude" && call.tool === "Skill")
     return skillName(input["skill"] ?? input["name"] ?? input["command"]);
   if (harness === "opencode" && call.tool === "skill")
@@ -20877,24 +23491,24 @@ function markShown(l, id) {
   const prev = l.shown[id];
   return { ...l, shown: { ...l.shown, [id]: { turn: l.turn, n: (prev?.n ?? 0) + 1 } } };
 }
-function str4(x) {
+function str5(x) {
   return typeof x === "string" ? x : undefined;
 }
 var PATCH_TEXT = /^(?:\*\*\* |--- |\+\+\+ )/m;
 function patchText(call) {
-  const input = isObj6(call.input) ? call.input : {};
+  const input = isObj7(call.input) ? call.input : {};
   return [input["patchText"], input["patch"], input["input"], input["diff"], input["command"]].find((v) => typeof v === "string" && PATCH_TEXT.test(v));
 }
 function editsOf(call, ctx) {
   if (ctx.edits !== undefined)
     return [...ctx.edits];
-  const input = isObj6(call.input) ? call.input : {};
-  const file = call.paths[0] ?? str4(input["file_path"]) ?? str4(input["filePath"]) ?? str4(input["path"]) ?? "";
+  const input = isObj7(call.input) ? call.input : {};
+  const file = call.paths[0] ?? str5(input["file_path"]) ?? str5(input["filePath"]) ?? str5(input["path"]) ?? "";
   if (call.kind === "edit") {
     const out = [];
     const one = (o) => {
-      const removed = str4(o["old_string"]) ?? str4(o["oldString"]) ?? str4(o["old_text"]);
-      const added = str4(o["new_string"]) ?? str4(o["newString"]) ?? str4(o["new_text"]);
+      const removed = str5(o["old_string"]) ?? str5(o["oldString"]) ?? str5(o["old_text"]);
+      const added = str5(o["new_string"]) ?? str5(o["newString"]) ?? str5(o["new_text"]);
       if (removed !== undefined && added !== undefined)
         out.push({ file, removed, added });
     };
@@ -20902,7 +23516,7 @@ function editsOf(call, ctx) {
     const edits = input["edits"];
     if (Array.isArray(edits)) {
       for (const e of edits)
-        if (isObj6(e))
+        if (isObj7(e))
           one(e);
     }
     return out;
@@ -20984,7 +23598,7 @@ function ruleFileReads(call, src, ci) {
       out.push(id);
   };
   if (call.kind === "read") {
-    const input = isObj6(call.input) ? call.input : {};
+    const input = isObj7(call.input) ? call.input : {};
     for (const p of [...call.paths, input["file_path"], input["filePath"], input["path"]])
       add(p);
   }
@@ -21017,14 +23631,14 @@ function pendingRules(l, call, ctx, src, files) {
   return first !== undefined ? { file: first, ids } : undefined;
 }
 function editTargets(call, ctx) {
-  const input = isObj6(call.input) ? call.input : {};
+  const input = isObj7(call.input) ? call.input : {};
   const edited = editsOf(call, ctx).map((e) => e.file);
   const more = [call.command, ...Array.isArray(input["command"]) ? input["command"] : []];
   const text = call.kind === "patch" ? patchText(call) ?? more.find((v) => typeof v === "string" && PATCH_TEXT.test(v)) : undefined;
   const base = relBase(call, ctx);
   const gone = new Set(text !== undefined ? patchDeletes(text).map((p) => projectRelative(p, base)) : []);
   const files = [...call.paths.filter((p) => !gone.has(projectRelative(p, base))), ...edited];
-  const named = str4(input["file_path"]) ?? str4(input["filePath"]) ?? str4(input["path"]);
+  const named = str5(input["file_path"]) ?? str5(input["filePath"]) ?? str5(input["path"]);
   if (files.length === 0 && gone.size === 0 && named !== undefined)
     files.push(named);
   return [...new Set(files)];
@@ -21043,7 +23657,7 @@ function reminders(l, call, ctx) {
   const enforce = ctx.strictness === "enforce";
   const remind = ctx.reminders !== false;
   const available = new Set(ctx.available);
-  const input = isObj6(call.input) ? call.input : {};
+  const input = isObj7(call.input) ? call.input : {};
   const rules = ctx.pathRules;
   const ruleReads = rules !== undefined ? ruleFileReads(call, rules, caseInsensitiveOf(ctx)) : [];
   const recorded = ruleReads.length > 0 ? markRules(counted, ruleReads) : counted;
@@ -21079,7 +23693,7 @@ function reminders(l, call, ctx) {
   const ruleNote = readNote();
   if (ruleNote !== undefined)
     return ruleNote;
-  const pattern = str4(input["pattern"]) ?? str4(input["query"]);
+  const pattern = str5(input["pattern"]) ?? str5(input["query"]);
   if (call.kind === "search" && pattern !== undefined && available.has("semble") && naturalLanguage(pattern) && canShow(l, "semble-intent", { cooldownTurns: 3, max: 3, topic: "code-search" })) {
     return { context: `Buracle: "${pattern.trim().slice(0, 80)}" reads like a question about intent: ${reminderText(ctx, "code-search")}.`, next: markShown(recorded, "semble-intent") };
   }
@@ -21492,1700 +24106,6 @@ import { existsSync as existsSync2, lstatSync as lstatSync2, readdirSync, rmSync
 import { join as join5, posix } from "path";
 init_harness();
 
-// src/core/frontmatter.ts
-var OPEN = /^---[ \t]*\r?\n/;
-var CLOSE = /^(?:---|\.\.\.)[ \t]*$/;
-function parseFrontmatter(markdown) {
-  const text = markdown.replace(/^\uFEFF/, "");
-  if (!OPEN.test(text))
-    return { data: {}, body: text, hasFrontmatter: false };
-  const lines = text.split(/\r?\n/);
-  let end = -1;
-  for (let i = 1;i < lines.length; i++) {
-    if (CLOSE.test(lines[i] ?? "")) {
-      end = i;
-      break;
-    }
-  }
-  if (end < 0)
-    return { data: {}, body: text, hasFrontmatter: false };
-  const data = parseYamlBlock(lines.slice(1, end));
-  let body = lines.slice(end + 1).join(`
-`);
-  if (body.startsWith(`
-`))
-    body = body.slice(1);
-  return { data, body, hasFrontmatter: true };
-}
-function parseYamlBlock(lines) {
-  const out = {};
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i] ?? "";
-    if (isBlankOrComment(line) || indentOf(line) > 0) {
-      i++;
-      continue;
-    }
-    const kv = splitKey(line);
-    if (!kv) {
-      i++;
-      continue;
-    }
-    const [key, rest] = kv;
-    if (rest === "") {
-      const child = collectChildren(lines, i + 1);
-      i = child.next;
-      out[key] = child.lines.length === 0 ? null : parseChildBlock(child.lines);
-      continue;
-    }
-    if (/^[|>][+-]?$/.test(rest)) {
-      const child = collectChildren(lines, i + 1);
-      i = child.next;
-      out[key] = blockScalar(rest, child.lines);
-      continue;
-    }
-    out[key] = parseInline(rest);
-    i++;
-  }
-  return out;
-}
-function isBlankOrComment(line) {
-  const t = line.trim();
-  return t === "" || t.startsWith("#");
-}
-function indentOf(line) {
-  const m = /^( *)/.exec(line);
-  return m?.[1]?.length ?? 0;
-}
-function splitKey(line) {
-  const t = line.trim();
-  let key;
-  let rest;
-  if (t.startsWith('"') || t.startsWith("'")) {
-    const q = t[0];
-    const close = t.indexOf(q, 1);
-    if (close < 0)
-      return;
-    key = t.slice(1, close);
-    const after = t.slice(close + 1);
-    if (!after.startsWith(":"))
-      return;
-    rest = after.slice(1).trim();
-  } else {
-    const m = /^([^:#][^:]*?):(?:\s+(.*)|\s*)$/.exec(t);
-    if (!m)
-      return;
-    key = (m[1] ?? "").trim();
-    rest = (m[2] ?? "").trim();
-  }
-  return [key, rest];
-}
-function collectChildren(lines, start) {
-  const out = [];
-  let i = start;
-  while (i < lines.length) {
-    const line = lines[i] ?? "";
-    if (line.trim() === "") {
-      out.push(line);
-      i++;
-      continue;
-    }
-    if (indentOf(line) === 0 && !line.startsWith("- ") && line !== "-")
-      break;
-    if (indentOf(line) === 0 && (line.startsWith("- ") || line === "-")) {
-      out.push(line);
-      i++;
-      continue;
-    }
-    out.push(line);
-    i++;
-  }
-  while (out.length > 0 && (out[out.length - 1] ?? "").trim() === "")
-    out.pop();
-  return { lines: out, next: i };
-}
-function parseChildBlock(lines) {
-  const content = lines.filter((l) => !isBlankOrComment(l));
-  if (content.length === 0)
-    return null;
-  const first = (content[0] ?? "").trim();
-  if (first.startsWith("- ") || first === "-") {
-    const items = [];
-    for (const l of content) {
-      const t = l.trim();
-      if (t.startsWith("- "))
-        items.push(parseInline(t.slice(2).trim()));
-      else if (t === "-")
-        items.push(null);
-    }
-    return items;
-  }
-  const base = indentOf(content[0] ?? "");
-  const map = {};
-  let i = 0;
-  while (i < content.length) {
-    const l = content[i] ?? "";
-    if (indentOf(l) !== base) {
-      i++;
-      continue;
-    }
-    const kv = splitKey(l);
-    if (!kv) {
-      i++;
-      continue;
-    }
-    const [k, rest] = kv;
-    if (rest === "") {
-      const sub = [];
-      let j = i + 1;
-      while (j < content.length && indentOf(content[j] ?? "") > base) {
-        sub.push(content[j] ?? "");
-        j++;
-      }
-      map[k] = sub.length === 0 ? null : parseChildBlock(sub);
-      i = j;
-      continue;
-    }
-    map[k] = parseInline(rest);
-    i++;
-  }
-  return map;
-}
-function blockScalar(indicator, lines) {
-  const content = lines.slice();
-  const nonEmpty = content.filter((l) => l.trim() !== "");
-  const indent = nonEmpty.length === 0 ? 0 : Math.min(...nonEmpty.map(indentOf));
-  const stripped = content.map((l) => l.slice(Math.min(indent, indentOf(l))));
-  const literal = indicator.startsWith("|");
-  let text;
-  if (literal) {
-    text = stripped.join(`
-`);
-  } else {
-    const paras = [];
-    let cur = [];
-    for (const l of stripped) {
-      if (l.trim() === "") {
-        paras.push(cur.join(" "));
-        cur = [];
-      } else
-        cur.push(l.trim());
-    }
-    paras.push(cur.join(" "));
-    text = paras.join(`
-`).replace(/\n+$/, "");
-  }
-  if (indicator.endsWith("-"))
-    return text.replace(/\n+$/, "");
-  if (indicator.endsWith("+"))
-    return text + `
-`;
-  return text.replace(/\n*$/, `
-`);
-}
-function parseInline(raw) {
-  const s = raw.trim();
-  if (s === "")
-    return null;
-  if (s.startsWith("[")) {
-    const close = findFlowClose(s);
-    if (close === s.length - 1 || /^\s*(#.*)?$/.test(s.slice(close + 1)))
-      return splitFlow(s.slice(1, close)).map(parseInline);
-  }
-  if (s.startsWith('"')) {
-    const end = findDoubleQuoteEnd(s);
-    if (end > 0)
-      return unescapeDouble(s.slice(1, end));
-  }
-  if (s.startsWith("'")) {
-    const end = findSingleQuoteEnd(s);
-    if (end > 0)
-      return s.slice(1, end).replace(/''/g, "'");
-  }
-  const plain = stripTrailingComment(s);
-  return typedScalar(plain);
-}
-function stripTrailingComment(s) {
-  const idx = s.search(/\s#/);
-  return (idx >= 0 ? s.slice(0, idx) : s).trim();
-}
-function typedScalar(s) {
-  if (s === "~" || s === "null" || s === "Null" || s === "NULL")
-    return null;
-  if (s === "true" || s === "True" || s === "TRUE")
-    return true;
-  if (s === "false" || s === "False" || s === "FALSE")
-    return false;
-  if (/^[-+]?\d+$/.test(s) && Number.isSafeInteger(Number(s)))
-    return Number(s);
-  if (/^[-+]?(\d+\.\d*|\.\d+|\d+)([eE][-+]?\d+)?$/.test(s))
-    return Number(s);
-  return s;
-}
-function findFlowClose(s) {
-  let depth = 0;
-  let quote;
-  for (let i = 0;i < s.length; i++) {
-    const c = s[i];
-    if (quote) {
-      if (c === "\\" && quote === '"') {
-        i++;
-        continue;
-      }
-      if (c === quote) {
-        if (quote === "'" && s[i + 1] === "'") {
-          i++;
-          continue;
-        }
-        quote = undefined;
-      }
-      continue;
-    }
-    if (c === '"' || c === "'") {
-      quote = c;
-      continue;
-    }
-    if (c === "[")
-      depth++;
-    else if (c === "]") {
-      depth--;
-      if (depth === 0)
-        return i;
-    }
-  }
-  return -1;
-}
-function splitFlow(inner) {
-  const parts = [];
-  let cur = "";
-  let depth = 0;
-  let quote;
-  for (let i = 0;i < inner.length; i++) {
-    const c = inner[i];
-    if (quote) {
-      cur += c;
-      if (c === "\\" && quote === '"' && i + 1 < inner.length) {
-        cur += inner[i + 1];
-        i++;
-        continue;
-      }
-      if (c === quote) {
-        if (quote === "'" && inner[i + 1] === "'") {
-          cur += "'";
-          i++;
-          continue;
-        }
-        quote = undefined;
-      }
-      continue;
-    }
-    if (c === '"' || c === "'") {
-      quote = c;
-      cur += c;
-      continue;
-    }
-    if (c === "[" || c === "{")
-      depth++;
-    if (c === "]" || c === "}")
-      depth--;
-    if (c === "," && depth === 0) {
-      parts.push(cur);
-      cur = "";
-      continue;
-    }
-    cur += c;
-  }
-  if (cur.trim() !== "")
-    parts.push(cur);
-  return parts.map((p) => p.trim()).filter((p) => p !== "");
-}
-function findDoubleQuoteEnd(s) {
-  for (let i = 1;i < s.length; i++) {
-    if (s[i] === "\\") {
-      i++;
-      continue;
-    }
-    if (s[i] === '"')
-      return i;
-  }
-  return -1;
-}
-function findSingleQuoteEnd(s) {
-  for (let i = 1;i < s.length; i++) {
-    if (s[i] === "'") {
-      if (s[i + 1] === "'") {
-        i++;
-        continue;
-      }
-      return i;
-    }
-  }
-  return -1;
-}
-function unescapeDouble(s) {
-  return s.replace(/\\(U[0-9a-fA-F]{8}|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|.)/g, (_m, e) => {
-    if (e.startsWith("U"))
-      return String.fromCodePoint(parseInt(e.slice(1), 16));
-    if (e.startsWith("u") || e.startsWith("x"))
-      return String.fromCharCode(parseInt(e.slice(1), 16));
-    switch (e) {
-      case "n":
-        return `
-`;
-      case "t":
-        return "\t";
-      case "r":
-        return "\r";
-      case "b":
-        return "\b";
-      case "f":
-        return "\f";
-      case "v":
-        return "\v";
-      case "a":
-        return "\x07";
-      case "e":
-        return "\x1B";
-      case "0":
-        return "\x00";
-      case "N":
-        return "\x85";
-      case "_":
-        return "\xA0";
-      case "L":
-        return "\u2028";
-      case "P":
-        return "\u2029";
-      case '"':
-        return '"';
-      case "\\":
-        return "\\";
-      case "/":
-        return "/";
-      default:
-        return e;
-    }
-  });
-}
-function renderYamlBlock(data, order = []) {
-  const keys = [...order.filter((k) => (k in data)), ...Object.keys(data).filter((k) => !order.includes(k))];
-  const out = [];
-  for (const k of keys) {
-    const v = data[k];
-    if (v === undefined)
-      continue;
-    out.push(...renderEntry(k, v, 0));
-  }
-  return out.join(`
-`);
-}
-function renderEntry(key, value, indent) {
-  const pad = " ".repeat(indent);
-  const k = renderKey(key);
-  if (Array.isArray(value)) {
-    if (value.every(isScalarLike))
-      return [`${pad}${k}: [${value.map(renderFlowScalar).join(", ")}]`];
-    return [`${pad}${k}:`, ...value.map((v) => `${pad}  - ${isScalarLike(v) ? renderScalar(v) : renderScalar(JSON.stringify(v))}`)];
-  }
-  if (value !== null && typeof value === "object") {
-    const entries = Object.entries(value).filter(([, v]) => v !== undefined);
-    if (entries.length === 0)
-      return [`${pad}${k}: {}`];
-    const lines = [`${pad}${k}:`];
-    for (const [ck, cv] of entries) {
-      if (cv !== null && typeof cv === "object" && !Array.isArray(cv)) {
-        lines.push(`${pad}  ${renderKey(ck)}: ${renderScalar(JSON.stringify(cv))}`);
-      } else {
-        lines.push(...renderEntry(ck, cv, indent + 2));
-      }
-    }
-    return lines;
-  }
-  if (typeof value === "string" && value.includes(`
-`) && literalBlockFits(value)) {
-    const body = value.replace(/\n$/, "").split(`
-`).map((l) => l === "" ? "" : `${pad}  ${l}`);
-    return [`${pad}${k}: ${value.endsWith(`
-`) ? "|" : "|-"}`, ...body];
-  }
-  return [`${pad}${k}: ${renderScalar(value)}`];
-}
-function literalBlockFits(s) {
-  if (/[\x00-\x08\x0b-\x1f\x7f]/.test(s))
-    return false;
-  if (/\n\n$/.test(s))
-    return false;
-  const lines = s.replace(/\n$/, "").split(`
-`);
-  const first = lines.find((l) => l.trim() !== "");
-  if (first === undefined || /^[ \t]/.test(first))
-    return false;
-  return (lines[lines.length - 1] ?? "").trim() !== "" || lines[lines.length - 1] === "";
-}
-function renderFlowScalar(v) {
-  if (typeof v === "string" && !needsQuotes(v) && /[,[\]{}]/.test(v))
-    return JSON.stringify(v);
-  return renderScalar(v);
-}
-function isScalarLike(v) {
-  return v === null || ["string", "number", "boolean"].includes(typeof v);
-}
-function renderKey(key) {
-  return /^[A-Za-z0-9_][A-Za-z0-9_.\-/]*$/.test(key) ? key : JSON.stringify(key);
-}
-function renderScalar(v) {
-  if (v === null || v === undefined)
-    return "null";
-  if (typeof v === "boolean")
-    return v ? "true" : "false";
-  if (typeof v === "number")
-    return Number.isFinite(v) ? String(v) : JSON.stringify(String(v));
-  const s = String(v);
-  if (needsQuotes(s))
-    return JSON.stringify(s);
-  return s;
-}
-function needsQuotes(s) {
-  if (s === "")
-    return true;
-  if (s !== s.trim())
-    return true;
-  if (/^(true|false|null|yes|no|on|off|~)$/i.test(s))
-    return true;
-  if (/^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(s))
-    return true;
-  if (/^[-+]?(?:0x[0-9a-f]+|0o[0-7]+|\.(?:inf|nan))$/i.test(s))
-    return true;
-  if (/^[\[\]{}>|*&!%@`'",?#-]/.test(s) && !/^-[A-Za-z0-9]/.test(s))
-    return true;
-  if (s.startsWith("- "))
-    return true;
-  if (/: |:$| #|\t/.test(s))
-    return true;
-  if (/[\x00-\x1f]/.test(s))
-    return true;
-  return false;
-}
-
-// src/core/plan/vague.ts
-var VAGUE_PHRASES = [
-  /\bimplement(?:ed)? later\b/i,
-  /\bfill in (?:the )?details\b/i,
-  /\bdetails below\b/i,
-  /\b(?:similar to|same as) task \d+\b/i,
-  /\b(?:add )?appropriate error handling\b/i,
-  /\bhandle (?:the |all |any )?edge cases\b/i
-];
-function vaguePhrase(text) {
-  for (const re of VAGUE_PHRASES) {
-    const m = re.exec(text);
-    if (m)
-      return m[0].trim();
-  }
-  return;
-}
-
-// src/core/plan/authoring.ts
-var EXTENSIONS = new Set([
-  "ts",
-  "tsx",
-  "mts",
-  "cts",
-  "js",
-  "jsx",
-  "mjs",
-  "cjs",
-  "json",
-  "jsonc",
-  "json5",
-  "md",
-  "mdx",
-  "rst",
-  "adoc",
-  "txt",
-  "yaml",
-  "yml",
-  "toml",
-  "ini",
-  "cfg",
-  "conf",
-  "properties",
-  "xml",
-  "html",
-  "htm",
-  "css",
-  "scss",
-  "sass",
-  "less",
-  "svg",
-  "vue",
-  "svelte",
-  "astro",
-  "py",
-  "pyi",
-  "ipynb",
-  "rb",
-  "go",
-  "rs",
-  "java",
-  "kt",
-  "kts",
-  "scala",
-  "groovy",
-  "gradle",
-  "swift",
-  "c",
-  "h",
-  "cc",
-  "cpp",
-  "cxx",
-  "hpp",
-  "cs",
-  "fs",
-  "php",
-  "pl",
-  "pm",
-  "lua",
-  "jl",
-  "dart",
-  "ex",
-  "exs",
-  "erl",
-  "clj",
-  "elm",
-  "hs",
-  "ml",
-  "nim",
-  "zig",
-  "sql",
-  "graphql",
-  "gql",
-  "proto",
-  "sh",
-  "bash",
-  "zsh",
-  "fish",
-  "ps1",
-  "bat",
-  "lock",
-  "tf",
-  "tfvars",
-  "hcl",
-  "nix",
-  "csv",
-  "tsv",
-  "png",
-  "jpg",
-  "jpeg",
-  "gif",
-  "webp",
-  "ico",
-  "pdf",
-  "wasm"
-]);
-var FILE_NAMES = new Set(["Makefile", "Dockerfile", "Containerfile", "Justfile", "Procfile", "Gemfile", "Rakefile", ".gitignore"]);
-var AFTER_RUN = new Set(["deviations", "follow-ups", "followups", "review notes", "gaps", "evidence", "e2e results", "dod audit", "unverified", "red evidence"]);
-var IDENT2 = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
-var MAX_DRIFT = 5;
-var MAX_IDS = 400;
-var VERIFY_LINE = /^\s*(?:[-*+]\s+)?\**verify\**\s*:/i;
-var RUNNERS = new Set(["bun", "node", "deno", "tsx", "ts-node", "python", "python3", "ruby", "perl", "php", "sh", "bash", "zsh", "fish", "pwsh", "powershell", "source", "."]);
-function looksLikePath2(raw) {
-  const t = raw.trim().replace(/^["'([]+/, "").replace(/["',;)\]]+$/, "").replace(/^\.\//, "");
-  if (t === "" || t.length > 200 || /^(?:\/|~|-|\.\.)/.test(t) || t.includes("//"))
-    return;
-  const segs = t.replace(/\/$/, "").split("/");
-  if (segs.some((s) => !/^[A-Za-z0-9_.+-]+$/.test(s) || s === "." || s === ".."))
-    return;
-  if (t.endsWith("/"))
-    return t;
-  const last = segs[segs.length - 1];
-  if (FILE_NAMES.has(last))
-    return t;
-  const ext = /[^.]\.([A-Za-z0-9]+)$/.exec(last)?.[1]?.toLowerCase();
-  if (ext === undefined || !EXTENSIONS.has(ext))
-    return;
-  if (segs.length === 1 && ext === "js" && /^[A-Z][A-Za-z0-9]*\.js$/.test(last))
-    return;
-  return t;
-}
-function pathsIn(text, whole = false) {
-  const spans = whole ? [text] : [...text.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
-  const out = [];
-  for (const span of spans) {
-    for (const tok of span.split(/\s+/)) {
-      const p = looksLikePath2(tok);
-      if (p !== undefined)
-        out.push(p);
-    }
-  }
-  return out;
-}
-function filePaths(raw) {
-  return raw.split(/\s*(?:->|\u2192|=>)\s*/).map((part) => (part.trim().split(/\s+/)[0] ?? "").replace(/`/g, "").replace(/^["']+|["',;]+$/g, "").replace(/^\.\//, "")).filter((p) => p !== "").slice(0, 2);
-}
-function pathCovered(path, listed) {
-  const q = path.replace(/\/+$/, "");
-  for (const raw of listed) {
-    const l = raw.replace(/\/+$/, "");
-    if (l === "")
-      continue;
-    if (l === q || q.startsWith(`${l}/`))
-      return true;
-    if (path.endsWith("/") && l.startsWith(`${q}/`))
-      return true;
-    if (!q.includes("/") && l.endsWith(`/${q}`))
-      return true;
-  }
-  return false;
-}
-function listedPaths(o) {
-  return o.cards.flatMap((c) => c.files.flatMap((f) => filePaths(f.path)));
-}
-function sectionOf(o, name) {
-  return o.sections.find((s) => s.text.trim().toLowerCase() === name);
-}
-function at(line, level, code, message) {
-  return { level, code, message, line: line + 1 };
-}
-function scriptsRun(command) {
-  const out = new Set;
-  for (const seg of command.split(/&&|\|\||[;|]/)) {
-    const toks = seg.trim().split(/\s+/).filter((t) => t !== "");
-    let k = 0;
-    while (k < toks.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(toks[k]))
-      k++;
-    const head = toks[k];
-    if (head === undefined)
-      continue;
-    const self = head.startsWith("./") ? looksLikePath2(head) : undefined;
-    if (self !== undefined) {
-      out.add(self);
-      continue;
-    }
-    if (!RUNNERS.has(head))
-      continue;
-    k++;
-    while (k < toks.length && (toks[k].startsWith("-") || toks[k] === "run" && (head === "bun" || head === "deno")))
-      k++;
-    const script = toks[k] !== undefined ? looksLikePath2(toks[k]) : undefined;
-    if (script !== undefined)
-      out.add(script);
-  }
-  return out;
-}
-function filesIncomplete(o) {
-  const listed = listedPaths(o);
-  const seen = new Set;
-  const out = [];
-  for (const card of o.cards) {
-    for (const i of card.prose) {
-      const line = o.lines[i] ?? "";
-      const code = o.code[i] === true;
-      const ran = code ? scriptsRun(line) : VERIFY_LINE.test(line) ? new Set([...line.matchAll(/`([^`]+)`/g)].flatMap((m) => [...scriptsRun(m[1])])) : undefined;
-      for (const p of pathsIn(line, code)) {
-        if (seen.has(p) || pathCovered(p, listed) || ran?.has(p) === true)
-          continue;
-        seen.add(p);
-        out.push(at(i, "warning", "files-incomplete", `Task ${card.n} names \`${p}\`, but no task's \`**Files:**\` list has it; add it under the verb that fits (\`Test:\` for a test the task runs but does not change), or write it as a \`path:line\` reference if the task only points at it`));
-      }
-    }
-  }
-  return out;
-}
-function vagueFindings(o) {
-  const out = [];
-  const owner = new Map;
-  for (const card of o.cards)
-    for (let i = card.head;i < card.end; i++)
-      owner.set(i, card.n);
-  const skip = new Set;
-  for (const s of o.sections)
-    if (AFTER_RUN.has(s.text.trim().toLowerCase()))
-      for (let i = s.line;i < s.end; i++)
-        skip.add(i);
-  for (const card of o.cards) {
-    for (const i of card.prose) {
-      if (o.code[i] === true)
-        continue;
-      const phrase = vaguePhrase((o.lines[i] ?? "").replace(/`[^`]*`/g, "``"));
-      if (phrase !== undefined)
-        out.push(at(i, "warning", "vague-placeholder", `Task ${card.n}: "${phrase}" leaves the work undefined; name the exact cases, values, files or steps`));
-    }
-  }
-  for (let i = o.body;i < o.lines.length; i++) {
-    if (o.code[i] === true || owner.has(i) || skip.has(i))
-      continue;
-    const phrase = vaguePhrase((o.lines[i] ?? "").replace(/`[^`]*`/g, "``"));
-    if (phrase !== undefined)
-      out.push(at(i, "info", "vague-placeholder", `"${phrase}" leaves something undefined; say exactly what is meant`));
-  }
-  return out;
-}
-function tableCells(line) {
-  return line.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
-}
-function inventoryRows(o) {
-  const sec = sectionOf(o, "inventory");
-  if (sec === undefined)
-    return [];
-  const rows = [];
-  let header = true;
-  for (let i = sec.line + 1;i < sec.end; i++) {
-    const line = (o.lines[i] ?? "").trim();
-    if (o.code[i] === true || !line.startsWith("|"))
-      continue;
-    const cells = tableCells(line);
-    if (cells.every((c) => /^:?-{2,}:?$/.test(c)))
-      continue;
-    if (header) {
-      header = false;
-      continue;
-    }
-    const tasks = [];
-    for (const c of cells.slice(1)) {
-      for (const m of c.matchAll(/\btask\s*#?(\d+)\b/gi))
-        tasks.push(Number(m[1]));
-      const bare = /^#?(\d+)$/.exec(c);
-      if (bare)
-        tasks.push(Number(bare[1]));
-    }
-    const last = cells.length >= 3 ? cells[cells.length - 1] : "";
-    const row = { line: i, item: (cells[0] ?? "").replace(/`/g, ""), tasks: [...new Set(tasks)] };
-    if (!/^[-\u2013\u2014]*$/.test(last))
-      row.reason = last;
-    rows.push(row);
-  }
-  return rows;
-}
-function inventoryFindings(o) {
-  const known = new Set(o.cards.map((c) => c.n));
-  const out = [];
-  for (const r of inventoryRows(o)) {
-    const missing = r.tasks.filter((n) => !known.has(n));
-    if (missing.length > 0)
-      out.push(at(r.line, "warning", "inventory-unmapped", `Inventory row "${r.item}" names Task ${missing.join(", Task ")}, which the plan does not have`));
-    else if (r.tasks.length === 0 && r.reason === undefined)
-      out.push(at(r.line, "warning", "inventory-unmapped", `Inventory row "${r.item}" names no task that keeps it and no reason for dropping it`));
-  }
-  return out;
-}
-function charBag(s) {
-  const bag = new Int16Array(128);
-  for (let i = 0;i < s.length; i++) {
-    const c = s.charCodeAt(i);
-    if (c < 128)
-      bag[c] = bag[c] + 1;
-  }
-  return bag;
-}
-function bagDistance(a, b) {
-  let plus = 0;
-  let minus = 0;
-  for (let c = 0;c < 128; c++) {
-    const d = a[c] - b[c];
-    if (d > 0)
-      plus += d;
-    else
-      minus -= d;
-  }
-  return Math.max(plus, minus);
-}
-function withinTwoEdits(a, b) {
-  if (Math.abs(a.length - b.length) > 2)
-    return false;
-  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
-  for (let i = 1;i <= a.length; i++) {
-    const cur = [i];
-    let best = i;
-    for (let j = 1;j <= b.length; j++) {
-      const v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-      cur.push(v);
-      if (v < best)
-        best = v;
-    }
-    if (best > 2)
-      return false;
-    prev = cur;
-  }
-  return prev[b.length] <= 2;
-}
-function identifierDrift(o) {
-  const first = new Map;
-  for (let i = o.body;i < o.lines.length; i++) {
-    if (o.code[i] === true)
-      continue;
-    for (const m of (o.lines[i] ?? "").matchAll(/`([^`\s]+)`/g)) {
-      const id = m[1].replace(/\(\)$/, "");
-      if (id.length >= 4 && IDENT2.test(id) && !first.has(id))
-        first.set(id, i);
-    }
-  }
-  const ids = [...first.keys()].slice(0, MAX_IDS);
-  const keys = ids.map((s) => s.toLowerCase().replace(/_/g, ""));
-  const bags = ids.map(charBag);
-  const out = [];
-  const pairs = [];
-  for (let x = 0;x < ids.length && pairs.length < MAX_DRIFT; x++) {
-    for (let y = x + 1;y < ids.length && pairs.length < MAX_DRIFT; y++) {
-      const a = ids[x];
-      const b = ids[y];
-      if (keys[x] === keys[y]) {
-        pairs.push([a, b]);
-        continue;
-      }
-      if (a.length < 8 || b.length < 8 || Math.abs(a.length - b.length) > 2 || a === `${b}s` || b === `${a}s`)
-        continue;
-      if (bagDistance(bags[x], bags[y]) > 2)
-        continue;
-      if (withinTwoEdits(a, b))
-        pairs.push([a, b]);
-    }
-  }
-  for (const [a, b] of pairs) {
-    out.push(at(first.get(b), "info", "identifier-drift", `\`${a}\` and \`${b}\` look like one name spelled two ways; use one spelling everywhere, or ignore this if both exist`));
-  }
-  return out;
-}
-function authoringFindings(o) {
-  return [...filesIncomplete(o), ...vagueFindings(o), ...inventoryFindings(o), ...identifierDrift(o)];
-}
-
-// src/core/plan/doc-dirs.ts
-var DOC_DIRS = [
-  { dir: "requirements", workflow: "requirements", legacy: "prd" },
-  { dir: "plan-build", workflow: "plan-build", legacy: "plans" },
-  { dir: "goal-build", workflow: "goal-build", legacy: "builds" },
-  { dir: "dead-code", workflow: "dead-code", legacy: "cleanup" }
-];
-var LEGACY_DOC_DIRS = ["prd", "plans", "builds", "cleanup"];
-var ALL_DOC_DIRS = ["requirements", "plan-build", "goal-build", "dead-code", "prd", "plans", "builds", "cleanup"];
-var NAMES2 = ALL_DOC_DIRS.join("|");
-var DOC_FILE = new RegExp(`^docs/(${NAMES2})/([^/]+\\.md)$`, "u");
-var DOC_DIR_PREFIX = new RegExp(`(?:^|/)docs/(?:${NAMES2})/`);
-function docDirFor(workflow) {
-  const row = DOC_DIRS.find((d) => d.workflow === workflow);
-  return row === undefined ? workflow : row.dir;
-}
-function docDirOf(rel) {
-  const dir = DOC_FILE.exec(rel.replace(/\\/g, "/"))?.[1];
-  if (dir === undefined)
-    return;
-  const row = DOC_DIRS.find((d) => d.dir === dir || d.legacy === dir);
-  if (row === undefined)
-    return;
-  return { dir, workflow: row.workflow, legacy: row.legacy === dir };
-}
-
-// src/core/plan/document.ts
-var MAX_SENTENCE_WORDS = 25;
-var HEADING = /^\s{0,3}#{1,6}\s/;
-var LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s+/;
-var BLOCKQUOTE = /^\s*(?:>\s?)+/;
-var CONTINUATION = /^\s{2,}\S/;
-var TABLE_ROW = /^\s*\|.*\|\s*$/;
-var TABLE_RULE = /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$/;
-var VERIFY_LINE2 = /^\s*[-*+]\s+\**Verify:/;
-var CODE_SPAN = /`[^`]*`/g;
-var LINK = /\[([^\]]*)\]\([^)]*\)/g;
-var URL = /https?:\/\/[^\s)\]>"']+/g;
-var LABEL = /^\*\*[^*]+:\*\*\s*/;
-var EMPHASIS = /\*\*|__|(?<![\w`])[*_](?=\S)|(?<=\S)[*_](?![\w`])/g;
-var SENTENCE_END = /(?<=[.!?])\s+|(?<=[^\P{Sentence_Terminal}.!?])\s*(?=\S)/u;
-var GREEK = /\p{Script=Greek}/gu;
-var LATIN = /\p{Script=Latin}/gu;
-var GREEK_QUESTION = /[;\u037e](?=\s|$)/gu;
-var LEGACY_PATH = new RegExp(`docs/(${LEGACY_DOC_DIRS.join("|")})/`);
-function at2(line, code, message) {
-  return { level: "warning", code, message, line: line + 1 };
-}
-function skippedLines(o) {
-  const skip = new Set;
-  for (const s of o.sections)
-    if (AFTER_RUN.has(s.text.trim().toLowerCase()))
-      for (let i = s.line;i < s.end; i++)
-        skip.add(i);
-  return skip;
-}
-function units(o) {
-  const out = [];
-  const skip = skippedLines(o);
-  let current;
-  let inComment = false;
-  const flush = () => {
-    if (current !== undefined) {
-      out.push({ ...current, cell: false });
-      current = undefined;
-    }
-  };
-  for (let i = o.body;i < o.lines.length; i++) {
-    const line = o.lines[i] ?? "";
-    if (inComment) {
-      flush();
-      if (line.includes("-->"))
-        inComment = false;
-      continue;
-    }
-    if (o.code[i] === true || skip.has(i)) {
-      flush();
-      continue;
-    }
-    const bare = line.replace(CODE_SPAN, "");
-    if (bare.includes("<!--")) {
-      flush();
-      inComment = bare.lastIndexOf("<!--") > bare.lastIndexOf("-->");
-      continue;
-    }
-    if (line.trim() === "" || HEADING.test(line) || VERIFY_LINE2.test(line) || TABLE_RULE.test(line)) {
-      flush();
-      continue;
-    }
-    if (TABLE_ROW.test(line)) {
-      flush();
-      for (const cell of line.trim().replace(/^\||\|$/g, "").split("|"))
-        if (cell.trim() !== "")
-          out.push({ first: i, lines: [cell.trim()], cell: true });
-      continue;
-    }
-    if (LIST_ITEM.test(line)) {
-      flush();
-      current = { first: i, lines: [line] };
-      continue;
-    }
-    if (current !== undefined && CONTINUATION.test(line) && LIST_ITEM.test(current.lines[0] ?? "")) {
-      current.lines.push(line);
-      continue;
-    }
-    if (current === undefined)
-      current = { first: i, lines: [line] };
-    else
-      current.lines.push(line);
-  }
-  flush();
-  return out;
-}
-function plain(u) {
-  return u.lines.map((l) => l.replace(BLOCKQUOTE, "").replace(LIST_ITEM, "").replace(LABEL, "")).join(" ").replace(CODE_SPAN, "code").replace(LINK, "$1").replace(URL, "url").replace(EMPHASIS, "").trim();
-}
-function words2(sentence) {
-  return sentence.split(/\s+/).filter((w) => w !== "").length;
-}
-function legacyMessage(path) {
-  const legacy = LEGACY_PATH.exec(path)?.[1];
-  const fresh = DOC_DIRS.find((d) => d.legacy === legacy)?.dir ?? "plan-build";
-  return `\`docs/${legacy}/\` is an old document folder, new documents go to \`docs/${fresh}/\``;
-}
-function documentFindings(o) {
-  const out = [];
-  for (const u of units(o)) {
-    for (const [k, raw] of u.lines.entries()) {
-      if (LEGACY_PATH.test(raw)) {
-        out.push(at2(u.first + k, "legacy-folder", legacyMessage(raw)));
-        break;
-      }
-    }
-    const prose = u.lines.map((l) => l.replace(BLOCKQUOTE, "").replace(LIST_ITEM, "").replace(LABEL, "")).join(" ").replace(CODE_SPAN, "").replace(LINK, "$1").replace(URL, "");
-    const greek = (prose.match(GREEK)?.length ?? 0) > (prose.match(LATIN)?.length ?? 0);
-    const text = greek ? plain(u).replace(GREEK_QUESTION, "?") : plain(u);
-    if (text === "")
-      continue;
-    const semi = greek ? -1 : u.lines.findIndex((l) => l.replace(CODE_SPAN, "").includes(";"));
-    if (semi >= 0)
-      out.push(at2(u.first + semi, "semicolon", "a semicolon joins two statements: write two sentences or a list"));
-    for (const sentence of u.cell ? [text] : text.split(SENTENCE_END)) {
-      const n = words2(sentence);
-      if (n > MAX_SENTENCE_WORDS)
-        out.push(at2(u.first, "long-sentence", `a sentence has ${n} words (the limit is ${MAX_SENTENCE_WORDS}): split it, one idea per sentence`));
-    }
-  }
-  return out.sort((a, b) => (a.line ?? 0) - (b.line ?? 0));
-}
-
-// src/core/plan/format.ts
-var PLAN_STATUSES = ["PENDING", "APPROVED", "IN_PROGRESS", "COMPLETE", "VERIFIED", "SAVED"];
-var PLAN_TYPES = ["Feature", "Bugfix", "Build", "Plan"];
-var FILE_VERBS = ["Create", "Modify", "Delete", "Rename", "Test"];
-var FENCE = /^ {0,3}(`{3,}|~{3,})/;
-var HEADING2 = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
-var TASK_HEADING = /^Task\s+(\d+)\s*[:.\-\u2013\u2014]\s*(.*)$/i;
-var CHECKBOX = /^\s*[-*+]\s+\[([ xX])\]\s+Task\s+(\d+)\s+done\b/i;
-var LABEL2 = /^\s*\*\*([^*]+?)\*\*\s*(.*)$/;
-var LIST_ITEM2 = /^\s*[-*+]\s+(.*)$/;
-var PLACEHOLDER = /\b(TBD|TODO|FIXME)\b/;
-function scan(markdown) {
-  const lines = markdown.replace(/^\uFEFF/, "").split(/\r\n|\r|\n/);
-  let fmEnd = -1;
-  if (/^---[ \t]*$/.test(lines[0] ?? "")) {
-    for (let i = 1;i < lines.length; i++)
-      if (/^(?:---|\.\.\.)[ \t]*$/.test(lines[i] ?? "")) {
-        fmEnd = i;
-        break;
-      }
-  }
-  const hasFrontmatter = fmEnd > 0;
-  const fm = hasFrontmatter ? parseYamlBlock(lines.slice(1, fmEnd)) : {};
-  const body = hasFrontmatter ? fmEnd + 1 : 0;
-  const code = new Array(lines.length).fill(false);
-  const headings = [];
-  let fence;
-  for (let i = body;i < lines.length; i++) {
-    const line = lines[i];
-    const f = FENCE.exec(line);
-    if (fence !== undefined) {
-      code[i] = true;
-      if (f && f[1][0] === fence[0] && f[1].length >= fence.length && line.trim() === f[1])
-        fence = undefined;
-      continue;
-    }
-    if (f) {
-      fence = f[1];
-      code[i] = true;
-      continue;
-    }
-    const h = HEADING2.exec(line);
-    if (h)
-      headings.push({ level: h[1].length, text: h[2].trim(), line: i });
-  }
-  const doc = { lines, hasFrontmatter, fm, fmEnd, body, code, headings, sections: [], cards: [], badTaskHeadings: [], duplicateTasks: [] };
-  doc.title = headings.find((h) => h.level === 1);
-  doc.sections = headings.filter((h) => h.level === 2);
-  const taskSections = doc.sections.filter((h) => h.text.toLowerCase() === "tasks");
-  const ts = taskSections[0];
-  doc.duplicateTasks = taskSections.slice(1).map((h) => h.line);
-  if (ts) {
-    const next = headings.find((h) => h.line > ts.line && h.level <= 2);
-    doc.tasks = { head: ts.line, end: next ? next.line : lines.length };
-    const inner = headings.filter((h) => h.line > ts.line && h.line < doc.tasks.end && h.level === 3);
-    for (const [k, h] of inner.entries()) {
-      const nextH = inner[k + 1];
-      const end = nextH ? nextH.line : doc.tasks.end;
-      const m = TASK_HEADING.exec(h.text);
-      if (m)
-        doc.cards.push({ n: Number(m[1]), title: m[2].trim(), head: h.line, end });
-      else if (/^task\b/i.test(h.text))
-        doc.badTaskHeadings.push({ line: h.line, text: h.text });
-    }
-  }
-  return doc;
-}
-function stripCode(s) {
-  return s.replace(/`[^`]*`/g, "``");
-}
-function readCard(doc, card) {
-  let block;
-  const objective = [];
-  const dod = [];
-  const files = [];
-  const badFiles = [];
-  let hasObjective = false;
-  let hasFiles = false;
-  let hasDod = false;
-  let verify = false;
-  let checkbox;
-  const prose = [];
-  for (let i = card.head + 1;i < card.end; i++) {
-    const line = doc.lines[i];
-    if (doc.code[i]) {
-      if (block === "dod") {
-        dod.push(line);
-        prose.push(i);
-      }
-      continue;
-    }
-    const cb = CHECKBOX.exec(line);
-    if (cb) {
-      if (!checkbox || Number(cb[2]) === card.n)
-        checkbox = { n: Number(cb[2]), line: i, done: cb[1].toLowerCase() === "x" };
-      block = undefined;
-      continue;
-    }
-    const lab = LABEL2.exec(line);
-    if (lab) {
-      let name = lab[1].trim();
-      let rest = lab[2];
-      let isLabel = false;
-      if (name.endsWith(":")) {
-        name = name.slice(0, -1).trim();
-        isLabel = true;
-      } else if (rest.startsWith(":")) {
-        rest = rest.slice(1);
-        isLabel = true;
-      }
-      if (isLabel) {
-        const key = name.toLowerCase();
-        rest = rest.trim();
-        if (key === "objective") {
-          block = "objective";
-          hasObjective = true;
-          if (rest !== "")
-            objective.push(rest);
-          prose.push(i);
-        } else if (key === "files") {
-          block = "files";
-          hasFiles = true;
-        } else if (key === "definition of done" || key === "dod") {
-          block = "dod";
-          hasDod = true;
-          if (rest !== "")
-            dod.push(rest);
-          prose.push(i);
-        } else if (key === "verify") {
-          verify = true;
-          block = "other";
-          prose.push(i);
-        } else
-          block = "other";
-        continue;
-      }
-    }
-    if (block === "objective") {
-      if (line.trim() !== "") {
-        objective.push(line.trim());
-        prose.push(i);
-      }
-    } else if (block === "dod") {
-      if (line.trim() !== "") {
-        dod.push(line.trimEnd());
-        prose.push(i);
-      }
-      if (/^\s*(?:[-*+]\s+)?\**verify\**\s*:/i.test(line))
-        verify = true;
-    } else if (block === "files") {
-      const li = LIST_ITEM2.exec(line);
-      if (!li)
-        continue;
-      const item = li[1].trim();
-      const m = /^\**([A-Za-z]+)\**\s*:\s*(.*)$/.exec(item);
-      const verb = m ? m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase() : "";
-      if (m && FILE_VERBS.includes(verb) && m[2].trim() !== "") {
-        files.push({ verb, path: m[2].trim().replace(/^`(.*)`$/, "$1").replace(/^["'](.*)["']$/, "$1") });
-      } else {
-        badFiles.push({ line: i, text: item });
-      }
-    }
-  }
-  const task = { n: card.n, title: card.title, done: checkbox !== undefined && checkbox.n === card.n && checkbox.done, files };
-  const obj = objective.join(" ").trim();
-  if (obj !== "")
-    task.objective = obj;
-  const d = dod.join(`
-`).trim();
-  if (d !== "")
-    task.dod = d;
-  return {
-    task,
-    hasObjective,
-    hasFiles,
-    hasDod,
-    verify,
-    badFiles,
-    ...checkbox ? { checkbox: { n: checkbox.n, line: checkbox.line } } : {},
-    prose
-  };
-}
-function asStatus(v) {
-  if (typeof v !== "string")
-    return;
-  const u = v.trim().toUpperCase().replace(/[\s-]+/g, "_");
-  return PLAN_STATUSES.includes(u) ? u : undefined;
-}
-function asType(v) {
-  if (typeof v !== "string")
-    return;
-  const l = v.trim().toLowerCase();
-  return PLAN_TYPES.find((t) => t.toLowerCase() === l);
-}
-function asBool(v) {
-  if (typeof v === "boolean")
-    return v;
-  if (typeof v === "string") {
-    const l = v.trim().toLowerCase();
-    if (l === "yes" || l === "true")
-      return true;
-    if (l === "no" || l === "false")
-      return false;
-  }
-  return;
-}
-function asCount(v) {
-  if (typeof v === "number" && Number.isInteger(v) && v >= 0)
-    return v;
-  if (typeof v === "string" && /^\d+$/.test(v.trim()))
-    return Number(v.trim());
-  return;
-}
-function headerOf(fm) {
-  const created = fm["created"];
-  const header = {
-    created: typeof created === "string" ? created : typeof created === "number" ? String(created) : "",
-    status: asStatus(fm["status"]) ?? "PENDING",
-    approved: asBool(fm["approved"]) ?? false,
-    worktree: asBool(fm["worktree"]) ?? false,
-    type: asType(fm["type"]) ?? "Feature"
-  };
-  const it = asCount(fm["iterations"]);
-  if (it !== undefined)
-    header.iterations = it;
-  const rd = asCount(fm["rounds"]);
-  if (rd !== undefined)
-    header.rounds = rd;
-  return header;
-}
-function parsePlan(markdown) {
-  const doc = scan(typeof markdown === "string" ? markdown : "");
-  return {
-    header: headerOf(doc.fm),
-    title: doc.title?.text ?? "",
-    tasks: doc.cards.map((c) => readCard(doc, c).task),
-    sections: doc.sections.map((s) => s.text)
-  };
-}
-function outlineOf(doc) {
-  return {
-    lines: doc.lines,
-    code: doc.code,
-    body: doc.body,
-    sections: doc.sections.map((s) => ({ text: s.text, line: s.line, end: doc.headings.find((h) => h.line > s.line && h.level <= 2)?.line ?? doc.lines.length })),
-    cards: doc.cards.map((c) => {
-      const b = readCard(doc, c);
-      return { n: c.n, head: c.head, end: c.end, done: b.task.done, files: b.task.files, prose: b.prose };
-    })
-  };
-}
-function planOutline(markdown) {
-  return outlineOf(scan(typeof markdown === "string" ? markdown : ""));
-}
-var CREATED = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
-function err(code, message, line) {
-  return line === undefined ? { level: "error", code, message } : { level: "error", code, message, line: line + 1 };
-}
-function warn(code, message, line) {
-  return line === undefined ? { level: "warning", code, message } : { level: "warning", code, message, line: line + 1 };
-}
-function fmLine(doc, key) {
-  for (let i = 1;i < doc.fmEnd; i++)
-    if (new RegExp(`^${key}\\s*:`).test(doc.lines[i] ?? ""))
-      return i;
-  return;
-}
-var PRD_STATUSES = ["draft", "approved"];
-function checkPrdHeader(doc, out) {
-  const fm = doc.fm;
-  const missing = (k) => fm[k] === undefined || fm[k] === null || fm[k] === "";
-  for (const k of ["created", "status", "approved"]) {
-    if (missing(k))
-      out.push(err("missing-field", `frontmatter field \`${k}\` is missing`, 0));
-  }
-  const created = fm["created"];
-  if (!missing("created") && !(typeof created === "string" && CREATED.test(created.trim()))) {
-    out.push(err("bad-field", "`created` must be a date such as 2026-11-04", fmLine(doc, "created")));
-  }
-  const status = fm["status"];
-  if (!missing("status") && !(typeof status === "string" && PRD_STATUSES.includes(status))) {
-    out.push(err("bad-status", `a PRD's \`status\` must be one of ${PRD_STATUSES.join(", ")} (got ${JSON.stringify(status)})`, fmLine(doc, "status")));
-  }
-  if (!missing("approved") && typeof fm["approved"] !== "boolean")
-    out.push(err("bad-field", `\`approved\` must be true or false (got ${JSON.stringify(fm["approved"])})`, fmLine(doc, "approved")));
-}
-function checkHeader(doc, out) {
-  if (!doc.hasFrontmatter) {
-    out.push(err("missing-frontmatter", "the plan must start with a --- frontmatter block (created, status, approved, worktree, type)", 0));
-    return;
-  }
-  const fm = doc.fm;
-  const missing = (k) => fm[k] === undefined || fm[k] === null || fm[k] === "";
-  for (const k of ["created", "status", "approved", "worktree", "type"]) {
-    if (missing(k))
-      out.push(err("missing-field", `frontmatter field \`${k}\` is missing`, 0));
-  }
-  const created = fm["created"];
-  if (!missing("created") && !(typeof created === "string" && CREATED.test(created.trim()))) {
-    out.push(err("bad-field", "`created` must be a date such as 2026-10-08", fmLine(doc, "created")));
-  }
-  const status = fm["status"];
-  if (!missing("status") && !(typeof status === "string" && PLAN_STATUSES.includes(status))) {
-    out.push(err("bad-status", `\`status\` must be one of ${PLAN_STATUSES.join(", ")} (got ${JSON.stringify(status)})`, fmLine(doc, "status")));
-  }
-  for (const k of ["approved", "worktree"]) {
-    if (!missing(k) && typeof fm[k] !== "boolean")
-      out.push(err("bad-field", `\`${k}\` must be true or false (got ${JSON.stringify(fm[k])})`, fmLine(doc, k)));
-  }
-  const type = fm["type"];
-  const validType = typeof type === "string" && PLAN_TYPES.includes(type) ? type : undefined;
-  if (!missing("type") && validType === undefined) {
-    out.push(err("bad-type", `\`type\` must be one of ${PLAN_TYPES.join(", ")} (got ${JSON.stringify(type)})`, fmLine(doc, "type")));
-  }
-  const counter = validType === "Build" ? "rounds" : "iterations";
-  if (validType !== undefined && missing(counter))
-    out.push(warn("missing-field", `frontmatter field \`${counter}\` is missing (start it at 0)`, 0));
-  for (const k of ["iterations", "rounds"]) {
-    if (!missing(k) && !(typeof fm[k] === "number" && Number.isInteger(fm[k]) && fm[k] >= 0)) {
-      out.push(err("bad-field", `\`${k}\` must be a whole number of 0 or more (got ${JSON.stringify(fm[k])})`, fmLine(doc, k)));
-    }
-  }
-  if (validType !== "Plan" && typeof status === "string" && ["APPROVED", "IN_PROGRESS", "COMPLETE", "VERIFIED"].includes(status) && fm["approved"] === false) {
-    out.push(warn("inconsistent-state", `status ${status} implies an approved plan, but \`approved\` is false`, fmLine(doc, "approved")));
-  }
-  return validType ?? asType(type);
-}
-function tableCells2(doc, i) {
-  const line = (doc.lines[i] ?? "").trim();
-  if (doc.code[i] || !line.startsWith("|"))
-    return;
-  return line.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
-}
-function isDelimiterRow(cells) {
-  return cells !== undefined && cells.every((c) => /^:?-+:?$/.test(c));
-}
-function criteriaRows(doc) {
-  const sec = doc.sections.find((s) => /^(?:acceptance )?criteria$/i.test(s.text));
-  if (!sec)
-    return [];
-  const next = doc.headings.find((h) => h.line > sec.line && h.level <= 2);
-  const end = next ? next.line : doc.lines.length;
-  const rows = [];
-  for (let i = sec.line + 1;i < end; i++) {
-    const cells = tableCells2(doc, i);
-    if (cells === undefined || isDelimiterRow(cells))
-      continue;
-    if (i + 1 < end && isDelimiterRow(tableCells2(doc, i + 1)))
-      continue;
-    rows.push({ line: i, cells });
-  }
-  return rows;
-}
-var CRITERION_ID = /^(C\d{1,3})\s*(\(oracle\))?$/i;
-function plainCell(cell) {
-  return cell.replace(/[*_`]/g, "").trim();
-}
-function criterionStatus(cell) {
-  const c = plainCell(cell).toLowerCase();
-  if (/^(?:pass|passed|ok|\u2713)/u.test(c))
-    return "pass";
-  if (/^(?:fail|failed|\u2717)/u.test(c))
-    return "fail";
-  return "open";
-}
-function readCriteriaTable(doc) {
-  const out = { criteria: [], unread: [] };
-  for (const r of criteriaRows(doc)) {
-    const m = CRITERION_ID.exec(plainCell(r.cells[0] ?? ""));
-    if (m === null || r.cells.length < 2) {
-      out.unread.push({ line: r.line + 1, text: (doc.lines[r.line] ?? "").trim() });
-      continue;
-    }
-    out.criteria.push({ id: m[1].toUpperCase(), status: criterionStatus(r.cells[r.cells.length - 1] ?? ""), oracle: m[2] !== undefined, line: r.line + 1 });
-  }
-  return out;
-}
-function criteriaTable(markdown) {
-  return readCriteriaTable(scan(typeof markdown === "string" ? markdown : ""));
-}
-function planCriteria(markdown) {
-  return criteriaTable(markdown).criteria;
-}
-var BUILD_CRITERIA = { min: 3, max: 10 };
-var BUILD_TASKS = { min: 3, max: 12 };
-function checkBuildContract(doc, out) {
-  const rows = criteriaRows(doc);
-  const section = doc.sections.find((s) => /criteria/i.test(s.text))?.line ?? doc.body;
-  if (rows.length < BUILD_CRITERIA.min)
-    out.push(warn("criteria-count", `a build needs at least ${BUILD_CRITERIA.min} acceptance criteria in \`## Acceptance Criteria\` (found ${rows.length})`, section));
-  else if (rows.length > BUILD_CRITERIA.max)
-    out.push(warn("criteria-count", `${rows.length} acceptance criteria: split the goal into separate runs; never merge or drop a real criterion to fit a count`, section));
-  const oracles = rows.filter((r) => r.cells.some((c) => /\(oracle\)/i.test(c))).length;
-  if (rows.length > 0 && oracles !== 1)
-    out.push(warn("oracle-count", `exactly one criterion must be marked (oracle) (found ${oracles})`, rows[0]?.line));
-  for (const u of readCriteriaTable(doc).unread)
-    out.push(warn("criteria-row", `this row is not a criterion row; write it as \`| C<n> | \u2026 | pass |\` so \`buracle plan verify\` can read its verdict`, u.line - 1));
-  if (!doc.lines.some((l, i) => !doc.code[i] && /^\s*\*\*False pass:?\*\*/i.test(l)))
-    out.push(warn("missing-false-pass", "add a `**False pass:**` line under the criteria table"));
-  if (doc.cards.length < BUILD_TASKS.min)
-    out.push(warn("task-count", `a build plans at least ${BUILD_TASKS.min} tasks (found ${doc.cards.length})`, doc.tasks?.head));
-  else if (doc.cards.length > BUILD_TASKS.max)
-    out.push(warn("task-count", `${doc.cards.length} tasks: split the goal into separate runs`, doc.tasks?.head));
-}
-function validatePlan(markdown, opts) {
-  const strict = opts?.strict === true;
-  if (typeof markdown !== "string" || markdown.trim() === "")
-    return [err("empty", "the plan file is empty")];
-  const out = [];
-  const cr = markdown.indexOf("\r");
-  if (cr >= 0)
-    out.push(err("crlf", "use LF line endings only (the file contains CR characters)", markdown.slice(0, cr).split(`
-`).length - 1));
-  const doc = scan(markdown);
-  if (doc.hasFrontmatter && doc.fm["type"] === "prd") {
-    checkPrdHeader(doc, out);
-    out.push(...documentFindings(outlineOf(doc)));
-    return out;
-  }
-  const type = checkHeader(doc, out);
-  if (!doc.title || doc.title.text === "")
-    out.push(err("missing-title", "add a `# Title` heading after the frontmatter", doc.body));
-  for (const line of doc.duplicateTasks)
-    out.push(err("duplicate-section", "only one `## Tasks` section is allowed", line));
-  const needsTasks = type !== "Plan";
-  const strictCard = type === "Feature" || type === "Bugfix" || type === undefined;
-  const inCard = new Set;
-  if (!doc.tasks) {
-    if (needsTasks)
-      out.push(err("missing-tasks", "add a `## Tasks` section with `### Task 1: \u2026` cards", doc.body));
-  } else if (doc.cards.length === 0 && needsTasks) {
-    out.push(err("missing-tasks", "`## Tasks` has no `### Task N: <title>` cards", doc.tasks.head));
-  }
-  for (const b of doc.badTaskHeadings)
-    out.push(err("task-heading", `task headings look like \`### Task 3: Title\` (got "### ${b.text}")`, b.line));
-  const misnumbered = doc.cards.findIndex((c, i) => c.n !== i + 1);
-  if (misnumbered >= 0) {
-    const c = doc.cards[misnumbered];
-    out.push(err("task-numbering", `tasks must be numbered 1, 2, 3, \u2026 in order (found Task ${c.n} where Task ${misnumbered + 1} was expected)`, c.head));
-  }
-  for (const card of doc.cards) {
-    for (let i = card.head;i < card.end; i++)
-      inCard.add(i);
-    const body = readCard(doc, card);
-    const label = `Task ${card.n}`;
-    if (card.title === "")
-      out.push(err("task-heading", `${label} has no title after the colon`, card.head));
-    if (!body.hasObjective || body.task.objective === undefined)
-      out.push(err("missing-objective", `${label} needs an \`**Objective:**\` line`, card.head));
-    if (strictCard) {
-      if (!body.hasFiles || body.task.files.length === 0)
-        out.push(err("missing-files", `${label} needs a \`**Files:**\` list (\`- Create|Modify|Delete|Rename|Test: path\`)`, card.head));
-      if (!body.hasDod || body.task.dod === undefined)
-        out.push(err("missing-dod", `${label} needs a \`**Definition of Done:**\` list`, card.head));
-      else if (strict && !body.verify)
-        out.push(warn("missing-verify", `${label}: end the Definition of Done with \`- Verify: <command>\``, card.head));
-    }
-    for (const b of body.badFiles) {
-      out.push(err("bad-file-verb", `${label}: file lines read \`- Create|Modify|Delete|Rename|Test: path\` (got "${b.text.slice(0, 60)}")`, b.line));
-    }
-    if (!body.checkbox)
-      out.push(err("missing-checkbox", `${label} needs the checkbox line \`- [ ] Task ${card.n} done\``, card.head));
-    else if (body.checkbox.n !== card.n)
-      out.push(err("checkbox-mismatch", `${label}'s checkbox names Task ${body.checkbox.n}`, body.checkbox.line));
-  }
-  if (type === "Feature" || type === "Bugfix")
-    out.push(...authoringFindings(outlineOf(doc)));
-  if (type === "Feature" || type === "Bugfix" || type === "Build")
-    out.push(...documentFindings(outlineOf(doc)));
-  const skeleton = skeletonPlaceholders();
-  let skel = 0;
-  let firstSkel = -1;
-  let unfilled = 0;
-  let firstUnfilled = -1;
-  let commentLines = 0;
-  let firstComment = -1;
-  for (let i = doc.body;i < doc.lines.length; i++) {
-    if (doc.code[i])
-      continue;
-    const line = doc.lines[i];
-    const ph = PLACEHOLDER.exec(stripCode(line));
-    if (ph) {
-      if (inCard.has(i))
-        out.push(err("placeholder", `\`${ph[1]}\` is not allowed in task cards; decide, or ask the user`, i));
-      else if (strict)
-        out.push(warn("placeholder", `\`${ph[1]}\` left in the plan; decide, or ask the user`, i));
-    }
-    if (!line.includes("<!--"))
-      continue;
-    commentLines++;
-    if (firstComment < 0)
-      firstComment = i;
-    let other = false;
-    for (const m of line.matchAll(COMMENT)) {
-      if (m[2] !== undefined && skeleton.has(normComment(m[1]))) {
-        skel++;
-        if (firstSkel < 0)
-          firstSkel = i;
-      } else
-        other = true;
-    }
-    if (other) {
-      unfilled++;
-      if (firstUnfilled < 0)
-        firstUnfilled = i;
-    }
-  }
-  const skeletonMatters = type !== "Plan";
-  if (skeletonMatters && skel > 0) {
-    out.push(err("unfilled", `${skel} placeholder${skel === 1 ? "" : "s"} from \`buracle plan init\` ${skel === 1 ? "is" : "are"} still unfilled; replace each <!-- \u2026 --> with real content (write "None." where nothing applies)`, firstSkel));
-  }
-  const remaining = skeletonMatters ? unfilled : commentLines;
-  if (strict && remaining > 0)
-    out.push(warn("unfilled", `${remaining} skeleton comment${remaining === 1 ? " is" : "s are"} still unfilled; replace each <!-- \u2026 --> with real content`, skeletonMatters ? firstUnfilled : firstComment));
-  if (strict && type === "Build") {
-    checkBuildContract(doc, out);
-  }
-  if (strict && (type === "Feature" || type === "Bugfix") && doc.cards.length > 12) {
-    out.push(warn("task-count", `${doc.cards.length} tasks: consider splitting the work into sequential plans`, doc.tasks?.head));
-  }
-  if (strict && type === "Bugfix") {
-    for (const s of ["Behavior Contract", "Root Cause"]) {
-      if (!doc.sections.some((h) => h.text.toLowerCase() === s.toLowerCase()))
-        out.push(warn("missing-section", `a bugfix plan needs a \`## ${s}\` section`));
-    }
-  }
-  return out;
-}
-var COMMENT = /<!--([\s\S]*?)(-->|$)/g;
-function normComment(s) {
-  return s.replace(/\s+/g, " ").trim();
-}
-var placeholderSet;
-function skeletonPlaceholders() {
-  if (placeholderSet !== undefined)
-    return placeholderSet;
-  const out = new Set;
-  for (const type of PLAN_TYPES) {
-    for (const m of planSkeleton({ type, title: "Skeleton", created: "2026-01-01" }).matchAll(COMMENT)) {
-      if (m[2] !== undefined)
-        out.add(normComment(m[1]));
-    }
-  }
-  placeholderSet = out;
-  return out;
-}
-function taskCard(n, title, objective, files, dod) {
-  return [
-    `### Task ${n}: ${title}`,
-    "",
-    `**Objective:** ${objective}`,
-    "",
-    "**Files:**",
-    ...files.map((f) => `- ${f}`),
-    "",
-    "**Definition of Done:**",
-    ...dod.map((d) => `- ${d}`),
-    "",
-    `- [ ] Task ${n} done`,
-    ""
-  ].join(`
-`);
-}
-function planSkeleton(opts) {
-  const type = PLAN_TYPES.includes(opts.type) ? opts.type : "Feature";
-  const title = (typeof opts.title === "string" ? opts.title : "").replace(/\s+/g, " ").trim() || "Untitled plan";
-  const fm = {
-    created: opts.created,
-    status: type === "Plan" ? "SAVED" : "PENDING",
-    approved: type === "Plan",
-    worktree: false,
-    type
-  };
-  if (type === "Build")
-    fm["rounds"] = 0;
-  else
-    fm["iterations"] = 0;
-  const head = `---
-${renderYamlBlock(fm, ["created", "status", "approved", "worktree", "type", "iterations", "rounds"])}
----
-# ${title}
-`;
-  const verify = "Verify: <!-- the command that proves this task -->";
-  let body;
-  switch (type) {
-    case "Feature":
-      body = [
-        "## Goal",
-        "<!-- One to three sentences: what will exist, for whom, and how anyone can tell it works. -->",
-        "Done when:",
-        "- <!-- an observable outcome -->",
-        "",
-        "## Context",
-        "<!-- Entry points (path:line), the pattern to follow, and the exact test, type-check, lint and run commands. -->",
-        "",
-        "## Scope",
-        "- In: <!-- what this plan changes -->",
-        "- Out: <!-- what it deliberately leaves alone -->",
-        "",
-        "## Approach",
-        "<!-- The one approach, then up to five key decisions with their reasons. -->",
-        "",
-        "## Tasks",
-        "",
-        taskCard(1, "<!-- short title -->", "<!-- the observable behavior this task adds -->", ["Create: <!-- path -->"], ["<!-- a checkable fact -->", verify]),
-        "## E2E Scenarios",
-        "<!-- SC-1, SC-2, \u2026 one per user-visible flow, or one line saying the change is purely internal. -->",
-        "",
-        "## Risks",
-        '<!-- or "None." -->',
-        "",
-        "## Assumptions",
-        '<!-- or "None." -->'
-      ].join(`
-`);
-      break;
-    case "Bugfix":
-      body = [
-        "## Behavior Contract",
-        "- **Given:** <!-- the state or setup -->",
-        "- **When:** <!-- the action that triggers the bug -->",
-        "- **Actual:** <!-- the wrong behavior, with the exact symptom -->",
-        "- **Expected:** <!-- the correct behavior -->",
-        "- **Unchanged:** <!-- behaviors that must stay, each with the test that guards it -->",
-        "",
-        "## Root Cause",
-        "<!-- path:line \u2014 what the code does, what it should do, and why. Confidence: high | medium. Reproduction command and output excerpt. -->",
-        "",
-        "## Context",
-        "<!-- Files with path:line, and the test and run commands. -->",
-        "",
-        "## Tasks",
-        "",
-        taskCard(1, "Reproduce the bug in a failing test", "<!-- a test through the public entry point that fails with the Actual symptom -->", ["Test: <!-- path -->"], ["The new test fails on the current code with the Actual symptom.", verify]),
-        taskCard(2, "Fix the root cause", "<!-- the change at the root cause, in one sentence -->", ["Modify: <!-- root-cause path -->"], ["The Task 1 test and the tests named under Unchanged pass.", "No `BURACLE-DEBUG` line remains in the repository.", verify]),
-        taskCard(3, "Quality gate", "The whole project is green and the original reproduction now shows the Expected behavior.", ["Test: <!-- path -->"], ["Full suite, type check, lint and build pass.", "The reproduction from `## Root Cause` shows the Expected behavior.", verify]),
-        "## Risks",
-        '<!-- or "None." -->',
-        "",
-        "## Assumptions",
-        '<!-- or "None." -->'
-      ].join(`
-`);
-      break;
-    case "Build":
-      body = [
-        "## Goal",
-        "<!-- The end state in one to three sentences. -->",
-        "",
-        "## Reference",
-        '<!-- A named, obtainable thing to compare the result with, or "None." -->',
-        "",
-        "## Acceptance Criteria",
-        "| # | Criterion | Evidence | Status |",
-        "|---|---|---|---|",
-        "| C1 | <!-- one pass/fail sentence --> | <!-- what you will run or look at --> | open |",
-        "| C2 | <!-- one pass/fail sentence --> | <!-- what you will run or look at --> | open |",
-        "| C3 (oracle) | <!-- the one observable signal that proves the goal --> | <!-- how you will observe it --> | open |",
-        "",
-        "**False pass:** <!-- a believable way the result could look finished while wrong, and the criterion that catches it -->",
-        "",
-        "## Out of Scope",
-        '<!-- what the user named that this build deliberately leaves out, or "None." -->',
-        "",
-        "## Tasks",
-        "",
-        taskCard(1, "<!-- short title -->", "<!-- a step toward the criteria it serves (name them) -->", ["Create: <!-- path -->"], ["<!-- a checkable fact -->", verify]),
-        "## Assumptions",
-        '<!-- or "None." -->'
-      ].join(`
-`);
-      break;
-    case "Plan":
-      body = [
-        "## Summary",
-        "<!-- The approved plan text. -->"
-      ].join(`
-`);
-      break;
-  }
-  return `${head}
-${body.replace(/\n+$/, "")}
-`;
-}
-
 // src/core/plan/objective.ts
 var OBJECTIVE_GOAL_MAX = 500;
 var OBJECTIVE_ITEMS_MAX = 5;
@@ -23594,12 +24514,12 @@ function chainOf(base, input) {
   const stored = base.guard.blocksInChain;
   return input.hookActive === true ? Math.max(stored, 1) : input.hookActive === false ? 0 : stored;
 }
-function capHit(base, chain, cfg) {
-  const perPlan = Math.max(1, Math.floor(cfg.runaway?.perPlan ?? 30));
-  const perChain = Math.max(1, Math.floor(cfg.runaway?.perChain ?? 5));
-  if (base.guard.blocksForPlan >= perPlan)
+var RUNAWAY_PER_PLAN = 30;
+var RUNAWAY_PER_CHAIN = 5;
+function capHit(base, chain) {
+  if (base.guard.blocksForPlan >= RUNAWAY_PER_PLAN)
     return "runaway-plan";
-  if (chain >= perChain)
+  if (chain >= RUNAWAY_PER_CHAIN)
     return "runaway-chain";
   return;
 }
@@ -23611,12 +24531,12 @@ function blockWith(base, chain, input, reason, hook, why, extra = {}, keepEscala
   const next = { ...base, guard: { ...g, blocksForPlan: base.guard.blocksForPlan + 1, blocksInChain: chain + 1, lastBlockAt: input.now, ...extra } };
   return { decision: { action: "block", reason: clipReason(reason), hook }, next, why };
 }
-function escalation(base, chain, input, cap, cfg) {
+function escalation(base, chain, input, cap) {
   const kind = cap === "runaway-plan" ? "plan" : "chain";
   if (base.guard.escalated === kind)
     return allowWith(base, cap);
   const plan = base.plan;
-  const limit = cap === "runaway-plan" ? `plan.runaway.perPlan, ${cfg.runaway?.perPlan ?? 30}` : `plan.runaway.perChain, ${cfg.runaway?.perChain ?? 5}`;
+  const limit = cap === "runaway-plan" ? `${RUNAWAY_PER_PLAN} blocks for this plan` : `${RUNAWAY_PER_CHAIN} blocks in a row`;
   const reason = `${GUARD_MARKERS[0]} the stop guard reached its limit (${limit}) while the plan ${plan.path} is still ${plan.status}. Before this turn ends: say in two or three lines what you were doing and what blocks you, run \`buracle plan pause --kind decision --reason "${RUNAWAY_REASON}"\`, then ask the user with the question tool whether to continue, change the approach or abandon the plan. The next stop goes through.`;
   return blockWith(base, chain, input, reason, "H08", "runaway-escalate", { escalated: kind }, true);
 }
@@ -23625,7 +24545,7 @@ function answered(state, prep, input, cfg) {
   const { answeredAt: _drop, ...held } = i;
   const base = { ...prep.base, interaction: held };
   const chain = chainOf(base, input);
-  if (capHit(base, chain, cfg) !== undefined)
+  if (capHit(base, chain) !== undefined)
     return allowWith(base, "paused");
   const approval = isResultReview(i) ? " An explicit approval of the result is recorded with `buracle plan approve-result`, which also resumes the plan." : "";
   const what = typeof i.reason === "string" && i.reason.trim() !== "" ? ` (${i.reason.trim().slice(0, 160)})` : "";
@@ -23657,9 +24577,9 @@ function h08(state, prep, input, cfg) {
   if (input.backgroundWait === true)
     return allowWith(base, "background-wait");
   const chain = chainOf(base, input);
-  const cap = capHit(base, chain, cfg);
+  const cap = capHit(base, chain);
   if (cap)
-    return escalation(base, chain, input, cap, cfg);
+    return escalation(base, chain, input, cap);
   const head = `${GUARD_MARKERS[0]} the plan ${plan.path} is ${plan.status} (type ${plan.type}, phase ${plan.phase}) and not VERIFIED, so keep working: ${nextStep(state, cfg)}.`;
   const objective = objectiveLine(prep.objective, STOP_REASON_MAX - head.length - STOP_GUARD_ESCAPE.length - 2);
   const reason = [head, objective, STOP_GUARD_ESCAPE].filter((s) => s !== undefined && s !== "").join(" ");
@@ -23679,7 +24599,7 @@ function stopGuardVerdict(state, input, cfg, planCheck) {
     return mark(first, prep);
   const base = prep.base;
   const chain = chainOf(base, input);
-  const cap = capHit(base, chain, cfg);
+  const cap = capHit(base, chain);
   if (cap)
     return mark(allowWith(base, cap), prep);
   return mark(blockWith(base, chain, input, h11.reason, "H11", "plan-invalid"), prep);
@@ -24450,8 +25370,8 @@ async function gitTopLevel(dir) {
   });
   return top !== undefined && top.trim() !== "" ? canonicalDir2(top.trim()) : undefined;
 }
-function workspaceOptions(cfg) {
-  return { vault: oldVaultRoot(), exclude: cfg.index.exclude, children: cfg.index.children, maxChildren: cfg.index.maxChildren };
+function workspaceOptions(cfg = INDEX_SETTINGS) {
+  return { vault: oldVaultRoot(), exclude: cfg.exclude, children: cfg.children, maxChildren: cfg.maxChildren };
 }
 async function resolveWorkspace(cwd, o) {
   const dir = canonicalDir2(cwd);
@@ -24536,7 +25456,7 @@ function infoFor(target, cfg, nowMs, building = []) {
   const info = {
     cwd: target.cwd,
     children: [...target.children],
-    index: target.root !== undefined ? projectIndex(target.root, cfg.index, nowMs, building.includes(target.root)) : idleIndex(cfg.index)
+    index: target.root !== undefined ? projectIndex(target.root, cfg, nowMs, building.includes(target.root)) : idleIndex(cfg)
   };
   if (target.root !== undefined)
     info.root = target.root;
@@ -24545,7 +25465,7 @@ function infoFor(target, cfg, nowMs, building = []) {
   if (target.children.length > 0) {
     const childIndex = {};
     for (const c of target.children)
-      childIndex[c] = projectIndex(c, cfg.index, nowMs, building.includes(c));
+      childIndex[c] = projectIndex(c, cfg, nowMs, building.includes(c));
     info.childIndex = childIndex;
   }
   return info;
@@ -24585,7 +25505,7 @@ function workspaceFacts(ctx, info) {
   }
   if (info?.root !== undefined) {
     facts.root = info.root;
-    facts.codegraphIndexed = ctx.config.index.codegraph && codegraphIndexPresent(info.root);
+    facts.codegraphIndexed = INDEX_SETTINGS.codegraph && codegraphIndexPresent(info.root);
   }
   return facts;
 }
@@ -24602,7 +25522,7 @@ var NOTICE_MESSAGE_MAX = 400;
 var NOTICES_PER_SESSION = 3;
 var VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 var DATE = /^\d{4}-\d{2}-\d{2}$/;
-function isObj7(x) {
+function isObj8(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 function versionOrder(a, b) {
@@ -24628,7 +25548,7 @@ function versionOrder(a, b) {
   return x.pre < y.pre ? -1 : 1;
 }
 function validateNotices(x) {
-  if (!isObj7(x) || !Array.isArray(x["notices"]))
+  if (!isObj8(x) || !Array.isArray(x["notices"]))
     return ["(root): expected { notices: [...] }"];
   const errors = [];
   for (const k of Object.keys(x))
@@ -24637,7 +25557,7 @@ function validateNotices(x) {
   const seen = new Set;
   x["notices"].forEach((n, i) => {
     const at = `notices[${i}]`;
-    if (!isObj7(n)) {
+    if (!isObj8(n)) {
       errors.push(`${at}: expected a mapping`);
       return;
     }
@@ -24675,7 +25595,7 @@ function current(n, version, nowMs) {
   return versionOrder(version, n.until) < 0;
 }
 function pendingNotices(notices, o) {
-  return (Array.isArray(notices) ? notices : []).filter((n) => isObj7(n) && typeof n.id === "string" && NOTICE_ID.test(n.id) && typeof n.since === "string" && (n.until === undefined || typeof n.until === "string") && typeof n.message === "string" && n.message.trim() !== "").filter((n) => !o.acked.has(n.id) && current(n, o.version, o.nowMs)).slice(0, NOTICES_PER_SESSION);
+  return (Array.isArray(notices) ? notices : []).filter((n) => isObj8(n) && typeof n.id === "string" && NOTICE_ID.test(n.id) && typeof n.since === "string" && (n.until === undefined || typeof n.until === "string") && typeof n.message === "string" && n.message.trim() !== "").filter((n) => !o.acked.has(n.id) && current(n, o.version, o.nowMs)).slice(0, NOTICES_PER_SESSION);
 }
 function oneLine(s) {
   return s.replace(/\s+/g, " ").trim();
@@ -24777,7 +25697,7 @@ function cleanGlob(g) {
 function codeSpans(text) {
   return [...text.matchAll(CODE)].map((m) => (m[1] ?? "").trim()).filter((s) => s !== "");
 }
-function entryOf(item, line) {
+function entryOf2(item, line) {
   const spans = [...item.matchAll(CODE)];
   const pathSpan = spans.find((m) => RULE_PATH.test((m[1] ?? "").trim()));
   let path;
@@ -24829,7 +25749,7 @@ function parseScopedRules(agentsText) {
     const item = ITEM.exec(raw);
     if (item === null)
       continue;
-    const e = entryOf(item[1] ?? "", i + 1);
+    const e = entryOf2(item[1] ?? "", i + 1);
     if (e !== undefined)
       entries.push(e);
   }
@@ -24982,739 +25902,6 @@ init_paths();
 init_harness();
 import { existsSync as existsSync5, readFileSync as readFileSync8, statSync as statSync9 } from "fs";
 import { join as join10 } from "path";
-
-// src/core/status/format.ts
-var ZERO_WIDTH = /^[\p{Mn}\p{Me}\p{Cf}\u200B-\u200F\uFE00-\uFE0F]$/u;
-var EMOJI_WIDE = /^\p{Emoji_Presentation}$/u;
-function isWideCodePoint(cp) {
-  return cp >= 4352 && cp <= 4447 || cp >= 11904 && cp <= 12350 || cp >= 12353 && cp <= 13311 || cp >= 13312 && cp <= 19903 || cp >= 19968 && cp <= 40959 || cp >= 40960 && cp <= 42191 || cp >= 44032 && cp <= 55203 || cp >= 63744 && cp <= 64255 || cp >= 65072 && cp <= 65103 || cp >= 65280 && cp <= 65376 || cp >= 65504 && cp <= 65510 || cp >= 131072 && cp <= 262141;
-}
-function charWidth(ch) {
-  const cp = ch.codePointAt(0) ?? 0;
-  if (cp < 32 || cp >= 127 && cp < 160)
-    return 0;
-  if (ZERO_WIDTH.test(ch))
-    return 0;
-  if (isWideCodePoint(cp) || EMOJI_WIDE.test(ch))
-    return 2;
-  return 1;
-}
-function textWidth(s) {
-  let w = 0;
-  let prev = "";
-  for (const ch of s) {
-    if (ch === "\uFE0F" && prev !== "" && charWidth(prev) === 1 && /\p{Extended_Pictographic}/u.test(prev))
-      w += 1;
-    w += charWidth(ch);
-    prev = ch;
-  }
-  return w;
-}
-function truncateToWidth(s, width) {
-  if (width <= 0)
-    return "";
-  if (textWidth(s) <= width)
-    return s;
-  if (width === 1)
-    return "\u2026";
-  let out = "";
-  let w = 0;
-  for (const ch of s) {
-    const cw = charWidth(ch);
-    if (w + cw > width - 1)
-      break;
-    out += ch;
-    w += cw;
-  }
-  return out.replace(/\s+$/u, "") + "\u2026";
-}
-function sanitizeText(s) {
-  return s.replace(/[\u0000-\u001f\u007f-\u009f]/gu, " ");
-}
-function stripEmoji(s) {
-  const seq = /(?:\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F)(?:[\u{1F3FB}-\u{1F3FF}]|\uFE0F|\u200D(?:\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F?))*\s?/gu;
-  return s.replace(seq, "").replace(/\s{2,}/gu, " ").trim();
-}
-function oneDecimal(x) {
-  const s = x.toFixed(1);
-  return s.endsWith(".0") ? s.slice(0, -2) : s;
-}
-function formatTokens(n) {
-  if (!Number.isFinite(n))
-    return "?";
-  const v = Math.max(0, n);
-  if (v < 1000)
-    return String(Math.round(v));
-  if (v < 1e4)
-    return `${oneDecimal(v / 1000)}k`;
-  if (v < 999500)
-    return `${Math.round(v / 1000)}k`;
-  if (v < 9950000)
-    return `${oneDecimal(v / 1e6)}M`;
-  if (v < 999500000)
-    return `${Math.round(v / 1e6)}M`;
-  return `${oneDecimal(v / 1e9)}B`;
-}
-function formatUsd(n) {
-  if (!Number.isFinite(n))
-    return "$?";
-  const v = Math.max(0, n);
-  return v < 100 ? `$${v.toFixed(2)}` : `$${Math.round(v)}`;
-}
-var DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-function pad2(n) {
-  return n < 10 ? `0${n}` : String(n);
-}
-function formatResetIn(resetMs, nowMs) {
-  if (!Number.isFinite(resetMs) || !Number.isFinite(nowMs))
-    return "?";
-  const d = resetMs - nowMs;
-  if (d <= 0)
-    return "0m";
-  const mins = Math.ceil(d / 60000);
-  if (mins < 60)
-    return `${mins}m`;
-  if (mins < 24 * 60) {
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    return m === 0 ? `${h}h` : `${h}h${m}m`;
-  }
-  const at = new Date(resetMs);
-  if (d < 7 * 24 * 3600000)
-    return `${DAYS[at.getDay()] ?? "?"} ${pad2(at.getHours())}:${pad2(at.getMinutes())}`;
-  return `${MONTHS[at.getMonth()] ?? "?"} ${at.getDate()}`;
-}
-function formatPct(p) {
-  if (!Number.isFinite(p))
-    return "?";
-  return String(Math.round(Math.max(0, p)));
-}
-function gauge(pct, cells = 6) {
-  const p = Number.isFinite(pct) ? Math.min(100, Math.max(0, pct)) : 0;
-  const filled = Math.round(p / 100 * cells);
-  return "\u2593".repeat(filled) + "\u2591".repeat(cells - filled);
-}
-
-// src/core/flow/record.ts
-var FLOW_SOURCES = ["command", "prompt", "skill", "cli", "plan"];
-var FLOW_OUTCOMES = ["done", "failed", "cancelled"];
-var FLOW_MAX_DEPTH = 4;
-var FLOW_TITLE_MAX = 80;
-var FLOW_STEP_MAX = 160;
-var FLOW_NOTE_MAX = 200;
-var FLOW_SAME_RUN_MS = 60000;
-function emptyFlow(now) {
-  return { v: 1, stack: [], updatedAt: now };
-}
-function flowText(text, max) {
-  const one = String(text).replace(/[\u0000-\u001f\u007f-\u009f]/gu, " ").replace(/\s+/gu, " ").trim();
-  return one.length > max ? `${one.slice(0, Math.max(0, max - 1)).trimEnd()}\u2026` : one;
-}
-function num(x) {
-  return typeof x === "number" && Number.isFinite(x) ? x : undefined;
-}
-function count(x) {
-  const n = num(x);
-  return n !== undefined && n >= 0 ? Math.floor(n) : undefined;
-}
-function isObj8(x) {
-  return x !== null && typeof x === "object" && !Array.isArray(x);
-}
-function entryOf2(raw) {
-  if (!isObj8(raw))
-    return;
-  const workflow = raw["workflow"];
-  const startedAt = num(raw["startedAt"]);
-  if (typeof workflow !== "string" || !FLOW_ID_RE.test(workflow) || startedAt === undefined)
-    return;
-  const source = FLOW_SOURCES.includes(raw["source"]) ? raw["source"] : "cli";
-  const e = { workflow, source, startedAt };
-  if (typeof raw["title"] === "string" && raw["title"].trim() !== "")
-    e.title = flowText(raw["title"], FLOW_TITLE_MAX);
-  const p = raw["phase"];
-  if (isObj8(p) && typeof p["id"] === "string" && FLOW_ID_RE.test(p["id"]) && num(p["since"]) !== undefined) {
-    e.phase = { id: p["id"], since: num(p["since"]) };
-    if (typeof p["note"] === "string" && p["note"].trim() !== "")
-      e.phase.note = flowText(p["note"], FLOW_NOTE_MAX);
-  }
-  const s = raw["step"];
-  if (isObj8(s) && typeof s["text"] === "string" && num(s["at"]) !== undefined) {
-    e.step = { text: flowText(s["text"], FLOW_STEP_MAX), at: num(s["at"]) };
-    const done = count(s["done"]);
-    const total = count(s["total"]);
-    if (done !== undefined)
-      e.step.done = done;
-    if (total !== undefined)
-      e.step.total = total;
-  }
-  const x = raw["ended"];
-  if (isObj8(x) && FLOW_OUTCOMES.includes(x["outcome"]) && num(x["at"]) !== undefined) {
-    e.ended = { outcome: x["outcome"], at: num(x["at"]) };
-  }
-  return e;
-}
-function parseFlow(raw) {
-  if (!isObj8(raw) || raw["v"] !== 1 || !Array.isArray(raw["stack"]))
-    return;
-  const stack = [];
-  for (const item of raw["stack"]) {
-    const e = entryOf2(item);
-    if (e !== undefined)
-      stack.push(e);
-  }
-  return { v: 1, stack: stack.slice(-FLOW_MAX_DEPTH), updatedAt: num(raw["updatedAt"]) ?? 0 };
-}
-function activeFlowIndex(rec) {
-  const stack = rec?.stack ?? [];
-  for (let i = stack.length - 1;i >= 0; i--)
-    if (stack[i].ended === undefined)
-      return i;
-  return -1;
-}
-function activeFlow(rec) {
-  const i = activeFlowIndex(rec);
-  return i >= 0 ? rec?.stack[i] : undefined;
-}
-function flowBreadcrumb(rec) {
-  const i = activeFlowIndex(rec);
-  return i < 0 ? [] : (rec?.stack ?? []).slice(0, i + 1).filter((e) => e.ended === undefined).map((e) => e.workflow);
-}
-function withStack(stack, now) {
-  return { v: 1, stack, updatedAt: now };
-}
-function replaceAt(stack, i, e) {
-  return stack.map((x, j) => j === i ? e : x);
-}
-function flowStart(rec, input, now) {
-  const base = rec ?? emptyFlow(now);
-  if (!FLOW_ID_RE.test(input.workflow)) {
-    return { record: base, changed: false, error: { code: "invalid", message: `'${input.workflow}' is not a workflow id (lower-case kebab-case, 1-40 characters)` } };
-  }
-  const title = input.title !== undefined ? flowText(input.title, FLOW_TITLE_MAX) : "";
-  const stack = [...base.stack];
-  while (stack.length > 0 && stack[stack.length - 1].ended !== undefined)
-    stack.pop();
-  const top = stack[stack.length - 1];
-  const byPerson = input.source === "command" || input.source === "prompt";
-  if (top !== undefined && top.workflow === input.workflow && !(byPerson && now - top.startedAt > FLOW_SAME_RUN_MS)) {
-    if (title === "" || title === top.title) {
-      return stack.length === base.stack.length ? { record: base, changed: false, entry: top } : { record: withStack(stack, now), changed: true, entry: top };
-    }
-    const e = { ...top, title };
-    return { record: withStack(replaceAt(stack, stack.length - 1, e), now), changed: true, entry: e };
-  }
-  const e = { workflow: input.workflow, source: input.source, startedAt: now };
-  if (title !== "")
-    e.title = title;
-  const fresh = byPerson || isTopLevelFlow(input.workflow);
-  const next = fresh ? [e] : [...stack, e].slice(-FLOW_MAX_DEPTH);
-  return { record: withStack(next, now), changed: true, entry: e };
-}
-function noFlow(rec) {
-  return { record: rec, changed: false, error: { code: "no_flow", message: "no workflow is running in this session; start one with 'buracle flow start <workflow>'" } };
-}
-function flowPhase(rec, input, now) {
-  const base = rec ?? emptyFlow(now);
-  const i = activeFlowIndex(base);
-  if (i < 0)
-    return noFlow(base);
-  const cur = base.stack[i];
-  const problem = flowPhaseProblem(cur.workflow, input.phase);
-  if (problem !== undefined)
-    return { record: base, changed: false, entry: cur, error: { code: "invalid", message: problem } };
-  const note = input.note !== undefined ? flowText(input.note, FLOW_NOTE_MAX) : "";
-  if (cur.phase?.id === input.phase) {
-    if (note === "" || note === cur.phase.note)
-      return { record: base, changed: false, entry: cur };
-    const e = { ...cur, phase: { ...cur.phase, note } };
-    return { record: withStack(replaceAt(base.stack, i, e), now), changed: true, entry: e };
-  }
-  const { step: _step, ...rest } = cur;
-  const e = { ...rest, phase: note !== "" ? { id: input.phase, since: now, note } : { id: input.phase, since: now } };
-  return { record: withStack(replaceAt(base.stack, i, e), now), changed: true, entry: e };
-}
-function flowStep(rec, input, now) {
-  const base = rec ?? emptyFlow(now);
-  const i = activeFlowIndex(base);
-  if (i < 0)
-    return noFlow(base);
-  const cur = base.stack[i];
-  const text = flowText(input.text, FLOW_STEP_MAX);
-  if (text === "")
-    return { record: base, changed: false, entry: cur, error: { code: "invalid", message: "the step text is empty" } };
-  const step = { text, at: now };
-  const done = count(input.done);
-  const total = count(input.total);
-  if (done !== undefined)
-    step.done = total !== undefined ? Math.min(done, total) : done;
-  if (total !== undefined)
-    step.total = total;
-  const old = cur.step;
-  if (old !== undefined && old.text === step.text && old.done === step.done && old.total === step.total)
-    return { record: base, changed: false, entry: cur };
-  const e = { ...cur, step };
-  return { record: withStack(replaceAt(base.stack, i, e), now), changed: true, entry: e };
-}
-function flowEnd(rec, outcome, now) {
-  const base = rec ?? emptyFlow(now);
-  const i = activeFlowIndex(base);
-  if (i < 0)
-    return { record: base, changed: false };
-  const e = { ...base.stack[i], ended: { outcome, at: now } };
-  return { record: withStack(replaceAt(base.stack, i, e), now), changed: true, entry: e };
-}
-function workflowOfPlanType(type) {
-  return type === "Build" ? "goal-build" : "plan-build";
-}
-function planFlowPhase(workflow, plan, current) {
-  if (workflow === "plan-build") {
-    if (plan.phase === "plan")
-      return current === "approve" ? "approve" : "plan";
-    return plan.phase === "implement" ? "implement" : "verify";
-  }
-  if (workflow === "goal-build") {
-    if (plan.phase === "plan")
-      return "contract";
-    if (plan.phase === "implement")
-      return plan.status === "COMPLETE" ? "judge" : "build";
-    return plan.phase === "verify" ? "verify" : "handback";
-  }
-  return;
-}
-function flowFromPlan(rec, plan, now) {
-  let base = rec ?? emptyFlow(now);
-  if (plan.status === "SAVED")
-    return { record: base, changed: false };
-  const workflow = workflowOfPlanType(plan.type);
-  const finished = plan.status === "VERIFIED" || plan.phase === "done";
-  const find = (r) => {
-    for (let i = r.stack.length - 1;i >= 0; i--) {
-      const e = r.stack[i];
-      if (e.ended === undefined && e.workflow === workflow)
-        return i;
-    }
-    return -1;
-  };
-  let changed = false;
-  let i = find(base);
-  if (i < 0) {
-    if (finished)
-      return { record: base, changed: false };
-    const started = flowStart(base, plan.title !== undefined ? { workflow, title: plan.title, source: "plan" } : { workflow, source: "plan" }, now);
-    base = started.record;
-    changed = started.changed;
-    i = find(base);
-    if (i < 0)
-      return { record: base, changed };
-  }
-  let e = base.stack[i];
-  if (e.title === undefined && plan.title !== undefined && plan.title.trim() !== "") {
-    e = { ...e, title: flowText(plan.title, FLOW_TITLE_MAX) };
-    changed = true;
-  }
-  const target = planFlowPhase(workflow, plan, e.phase?.id);
-  if (target !== undefined && flowDef(workflow)?.phases.some((p) => p.id === target) === true && e.phase?.id !== target) {
-    const { step: _step, ...rest } = e;
-    e = { ...rest, phase: { id: target, since: now } };
-    changed = true;
-  }
-  if (finished) {
-    e = { ...e, ended: { outcome: "done", at: now } };
-    changed = true;
-  }
-  if (!changed)
-    return { record: base, changed: false, entry: e };
-  return { record: withStack(replaceAt(base.stack, i, e), now), changed: true, entry: e };
-}
-
-// src/core/flow/band.ts
-var BUILD_MAX_ROUNDS = 4;
-var STATUS_TEXT = {
-  starting: "starting",
-  running: "running",
-  approval: "awaiting approval",
-  waiting: "waiting for you",
-  paused: "paused",
-  done: "done",
-  failed: "failed",
-  cancelled: "cancelled"
-};
-var STATUS_COLOR = {
-  starting: "gray",
-  running: "magenta",
-  approval: "cyan",
-  waiting: "yellow",
-  paused: "yellow",
-  done: "green",
-  failed: "red",
-  cancelled: "gray"
-};
-function hiddenView() {
-  return { visible: false, breadcrumb: [], status: "running", phases: [], agents: [] };
-}
-function criteriaOf(markdown) {
-  return planCriteria(markdown).slice(0, 12).map((c) => ({ id: c.id, status: c.status, oracle: c.oracle }));
-}
-function planApproved(state) {
-  const s = state.plan?.status;
-  return state.approvals?.planApprovedAt !== undefined || s === "APPROVED" || s === "IN_PROGRESS" || s === "COMPLETE" || s === "VERIFIED";
-}
-function bandPlanOf(state, planText) {
-  const b = state?.plan;
-  if (state === undefined || b === undefined)
-    return;
-  const out = { path: b.path, type: b.type, status: b.status, phase: b.phase, approved: planApproved(state), since: b.registeredAt, done: 0, total: 0 };
-  if (typeof planText === "string" && planText !== "") {
-    const p = parsePlan(planText);
-    out.done = p.tasks.filter((t) => t.done).length;
-    out.total = p.tasks.length;
-    out.approved = out.approved || p.header.approved;
-    if (p.title.trim() !== "")
-      out.title = flowText(p.title, 80);
-    const open = p.tasks.find((t) => !t.done);
-    if (open !== undefined)
-      out.current = flowText(`Task ${open.n}${open.title !== "" ? `: ${open.title}` : ""}`, 120);
-    if (typeof p.header.rounds === "number")
-      out.rounds = p.header.rounds;
-    if (b.type === "Build") {
-      const c = criteriaOf(planText);
-      if (c.length > 0)
-        out.criteria = c;
-    }
-  }
-  return out;
-}
-function finishedPlan(p) {
-  return p.status === "VERIFIED" || p.status === "SAVED" || p.phase === "done";
-}
-function agentLabel(label) {
-  return flowText(label.replace(/^buracle:/, ""), 40);
-}
-function bandView(i) {
-  const now = Number.isFinite(i.nowMs) ? i.nowMs : 0;
-  const foldMs = Math.max(0, Number.isFinite(i.foldAfterSec) ? i.foldAfterSec : 0) * 1000;
-  const stack = i.flow?.stack ?? [];
-  const live = (e) => e.ended === undefined || now - e.ended.at < foldMs;
-  let shownAt = -1;
-  for (let k = stack.length - 1;k >= 0; k--)
-    if (live(stack[k])) {
-      shownAt = k;
-      break;
-    }
-  let entry = shownAt >= 0 ? stack[shownAt] : undefined;
-  let breadcrumb = shownAt >= 0 ? stack.slice(0, shownAt + 1).filter((e) => live(e)).map((e) => e.workflow) : [];
-  const plan = i.plan;
-  if (entry === undefined) {
-    if (plan === undefined || finishedPlan(plan) || stack.length > 0)
-      return hiddenView();
-    entry = { workflow: workflowOfPlanType(plan.type), source: "plan", startedAt: plan.since };
-    breadcrumb = [entry.workflow];
-  }
-  if (i.hidden !== undefined && entry.startedAt <= i.hidden)
-    return hiddenView();
-  const matched = plan !== undefined && workflowOfPlanType(plan.type) === entry.workflow && plan.status !== "SAVED" ? plan : undefined;
-  if (matched !== undefined && entry.ended === undefined && finishedPlan(matched) && stack.length > 0)
-    return hiddenView();
-  const def = flowDef(entry.workflow);
-  const phaseId = entry.phase?.id ?? (matched !== undefined ? planFlowPhase(entry.workflow, matched) : undefined);
-  const defs = def?.phases ?? (phaseId !== undefined ? [{ id: phaseId, label: phaseId, short: phaseId }] : []);
-  const at = phaseId !== undefined ? defs.findIndex((p) => p.id === phaseId) : -1;
-  const allDone = entry.ended?.outcome === "done";
-  const phases = defs.map((p, k) => ({
-    id: p.id,
-    label: p.label,
-    short: p.short,
-    state: allDone || at >= 0 && k < at ? "done" : k === at ? "current" : "next"
-  }));
-  let status;
-  if (entry.ended !== undefined)
-    status = entry.ended.outcome;
-  else if (i.interaction?.state === "paused")
-    status = i.interaction.kind === "decision" ? "waiting" : "paused";
-  else if (entry.workflow === "plan-build" && phaseId === "approve" && matched !== undefined && !matched.approved)
-    status = "approval";
-  else if (phaseId === undefined)
-    status = "starting";
-  else
-    status = "running";
-  const view = { visible: true, workflow: entry.workflow, breadcrumb, status, phases, agents: [] };
-  if (entry.title !== undefined)
-    view.title = entry.title;
-  else if (matched?.title !== undefined)
-    view.title = matched.title;
-  if (matched !== undefined && entry.workflow === "goal-build") {
-    if ((phaseId === "judge" || phaseId === "verify" || phaseId === "handback") && matched.criteria !== undefined) {
-      view.progress = { done: matched.criteria.filter((c) => c.status === "pass").length, total: matched.criteria.length, unit: "criteria" };
-    } else if (matched.total > 0)
-      view.progress = { done: matched.done, total: matched.total, unit: "tasks" };
-    if (phaseId === "build" || phaseId === "judge")
-      view.round = (matched.rounds ?? 0) + 1;
-    if (matched.criteria !== undefined)
-      view.criteria = matched.criteria;
-  } else if (matched !== undefined && (phaseId === "implement" || phaseId === "verify") && matched.total > 0) {
-    view.progress = { done: matched.done, total: matched.total, unit: "tasks" };
-  } else if (entry.step?.total !== undefined && entry.step.total > 0) {
-    view.progress = { done: entry.step.done ?? 0, total: entry.step.total, unit: "steps" };
-  }
-  const step = entry.step !== undefined && (entry.phase === undefined || entry.step.at >= entry.phase.since) ? entry.step.text : undefined;
-  const todo = (i.todos ?? []).find((t) => t.status === "in_progress");
-  const task = matched !== undefined && (phaseId === "implement" || phaseId === "build") ? matched.current : undefined;
-  const current = step ?? (todo !== undefined ? flowText(todo.activeForm ?? todo.content, 120) : undefined) ?? task;
-  if (current !== undefined && current !== "" && entry.ended === undefined)
-    view.current = current;
-  if (entry.ended === undefined)
-    view.agents = [...new Set((i.agents ?? []).map((a) => agentLabel(a.label)).filter((a) => a !== ""))].slice(0, 3);
-  const reason = i.interaction?.state === "paused" ? i.interaction.reason : undefined;
-  if (reason !== undefined && reason.trim() !== "" && entry.ended === undefined)
-    view.note = flowText(reason, 120);
-  else if (entry.phase?.note !== undefined && entry.ended === undefined)
-    view.note = entry.phase.note;
-  if (entry.startedAt > 0) {
-    view.startedAt = entry.startedAt;
-    view.elapsedMin = Math.max(0, Math.floor(((entry.ended?.at ?? now) - entry.startedAt) / 60000));
-  }
-  if (entry.ended !== undefined)
-    view.endedAt = entry.ended.at;
-  return view;
-}
-var UNICODE = { dot: "\xB7", head: "\u25C6", done: "\u2713", current: "\u25CF", next: "\u25CB", fail: "\u2717", sep: "\u2501", crumb: "\u203A", full: "\u25B0", empty: "\u25B1", step: "\u25B8", agents: "\u27F3", pass: "\u2713", open: "\u25CB", oracle: "\u2605" };
-var ASCII = { dot: "|", head: "*", done: "+", current: ">", next: ".", fail: "x", sep: "-", crumb: ">", full: "#", empty: "-", step: ">", agents: "~", pass: "+", open: ".", oracle: "*" };
-function seg(id, text, color, extra = {}) {
-  const s = { id, text };
-  if (color !== undefined)
-    s.color = color;
-  if (extra.dim === true)
-    s.dim = true;
-  if (extra.bold === true)
-    s.bold = true;
-  return s;
-}
-function width(row) {
-  return row.reduce((n, s) => n + textWidth(s.text), 0);
-}
-function fit(row, max) {
-  const out = [];
-  let used = 0;
-  for (const s of row) {
-    const w = textWidth(s.text);
-    if (used + w <= max) {
-      out.push(s);
-      used += w;
-      continue;
-    }
-    const room = max - used;
-    if (room >= 2)
-      out.push({ ...s, text: truncateToWidth(s.text, room) });
-    break;
-  }
-  while (out.length > 0 && out[out.length - 1].text.trim() === "")
-    out.pop();
-  return out;
-}
-function progressText(v, g, bar) {
-  const p = v.progress;
-  if (p === undefined)
-    return "";
-  let text = ` ${p.done}/${p.total}`;
-  if (bar && p.total > 0) {
-    const cells = Math.min(10, p.total);
-    const filled = Math.round(Math.min(p.done, p.total) / p.total * cells);
-    text += ` ${g.full.repeat(filled)}${g.empty.repeat(cells - filled)}`;
-  }
-  return text;
-}
-function roundText(v) {
-  if (v.round === undefined)
-    return "";
-  return v.round <= BUILD_MAX_ROUNDS ? ` R${v.round}/${BUILD_MAX_ROUNDS}` : ` R${v.round}`;
-}
-function glyphOf(state, v, g) {
-  if (state === "done")
-    return g.done;
-  if (state === "current")
-    return v.status === "failed" || v.status === "cancelled" ? g.fail : g.current;
-  return g.next;
-}
-function phaseColor(state, v) {
-  if (state === "done")
-    return "green";
-  if (state === "next")
-    return "gray";
-  return STATUS_COLOR[v.status] === "gray" ? "magenta" : STATUS_COLOR[v.status];
-}
-function phaseRow(v, g, form) {
-  const row = [];
-  const extras = () => {
-    const out = [];
-    const r = roundText(v);
-    if (r !== "")
-      out.push(seg("band-round", r, "magenta"));
-    const p = progressText(v, g, form === "full");
-    if (p !== "")
-      out.push(seg("band-progress", p, "magenta"));
-    return out;
-  };
-  if (v.phases.length === 0) {
-    row.push(seg("band-phase", `${g.current} ${v.workflow ?? ""}`, STATUS_COLOR[v.status]), ...extras());
-    return row;
-  }
-  const cur = v.phases.findIndex((p) => p.state === "current");
-  if (form === "window") {
-    const done = v.phases.filter((p) => p.state === "done").length;
-    const next = v.phases.filter((p) => p.state === "next").length;
-    if (done > 0)
-      row.push(seg("band-done", `${g.done}${done} `, "green"));
-    const p = cur >= 0 ? v.phases[cur] : undefined;
-    if (p !== undefined)
-      row.push(seg(`band-phase-${p.id}`, `${glyphOf("current", v, g)} ${p.label}`, phaseColor("current", v), { bold: true }), ...extras());
-    if (next > 0)
-      row.push(seg("band-next", ` ${g.next}${next}`, "gray", { dim: true }));
-    return row;
-  }
-  v.phases.forEach((p, k) => {
-    if (k > 0)
-      row.push(seg(`band-sep-${k}`, form === "short" ? " " : ` ${g.sep} `, "gray", { dim: true }));
-    const label = form === "short" ? p.short : p.label;
-    row.push(seg(`band-phase-${p.id}`, `${glyphOf(p.state, v, g)} ${label}`, phaseColor(p.state, v), p.state === "current" ? { bold: true } : p.state === "next" ? { dim: true } : {}));
-    if (k === cur)
-      row.push(...extras());
-  });
-  if (cur < 0 && v.progress !== undefined)
-    row.push(...extras());
-  if (form === "full" && v.criteria !== undefined && v.criteria.length > 0) {
-    row.push(seg("band-criteria", "  ", undefined));
-    v.criteria.forEach((c, k) => {
-      const mark = c.status === "pass" ? g.pass : c.status === "fail" ? g.fail : g.open;
-      const color = c.status === "pass" ? "green" : c.status === "fail" ? "red" : "gray";
-      row.push(seg(`band-crit-${c.id}`, `${k > 0 ? " " : ""}${c.id}${c.oracle ? g.oracle : ""}${mark}`, color));
-    });
-  }
-  return row;
-}
-function elapsedText(min) {
-  return min < 1 ? "<1m" : min < 120 ? `${min}m` : `${Math.floor(min / 60)}h${min % 60 > 0 ? `${min % 60}m` : ""}`;
-}
-function headRow(v, g, columns) {
-  const right = [seg("band-status", STATUS_TEXT[v.status], STATUS_COLOR[v.status])];
-  if (v.elapsedMin !== undefined)
-    right.push(seg("band-elapsed", ` ${g.dot} ${elapsedText(v.elapsedMin)}`, "gray", { dim: true }));
-  const left = [seg("band-head", `${g.head} `, "magenta"), seg("band-crumb", v.breadcrumb.join(` ${g.crumb} `), undefined, { bold: true })];
-  if (v.title !== undefined && v.title !== "")
-    left.push(seg("band-title", ` ${g.dot} ${v.title}`, "gray", { dim: true }));
-  const room = columns - width(right) - 1;
-  const head = fit(left, Math.max(0, room));
-  const pad = columns - width(head) - width(right);
-  return pad >= 1 ? [...head, seg("band-pad", " ".repeat(pad)), ...right] : fit([...head, seg("band-pad", " "), ...right], columns);
-}
-function detailRow(v, g) {
-  const row = [];
-  if ((v.status === "waiting" || v.status === "paused") && v.note !== undefined) {
-    row.push(seg("band-note", `${g.step} ${STATUS_TEXT[v.status]}: ${v.note}`, "yellow"));
-  } else if (v.current !== undefined)
-    row.push(seg("band-current", `${g.step} ${v.current}`));
-  else if (v.note !== undefined)
-    row.push(seg("band-note", `${g.step} ${v.note}`, "gray", { dim: true }));
-  if (v.agents.length > 0)
-    row.push(seg("band-agents", `${row.length > 0 ? ` ${g.dot} ` : ""}${g.agents} ${v.agents.join(", ")}`, "cyan"));
-  return row;
-}
-function bandRows(v, columns, maxRows, emoji, opts = {}) {
-  const cols = Math.floor(Number.isFinite(columns) ? columns : 0);
-  const rows = Math.min(3, Math.floor(Number.isFinite(maxRows) ? maxRows : 0));
-  if (!v.visible || cols < 24 || rows < 1)
-    return [];
-  const g = emoji ? UNICODE : ASCII;
-  const reserve = Math.max(0, Math.min(Math.floor(opts.reserve ?? 0), cols - 24));
-  const chain = (forms) => {
-    for (const f of forms) {
-      const row = phaseRow(v, g, f);
-      if (width(row) <= cols)
-        return row;
-    }
-    return fit(phaseRow(v, g, "window"), cols);
-  };
-  if (cols >= 96 && rows >= 2) {
-    const out = [headRow(v, g, cols - reserve), chain(["full", "label", "short", "window"])];
-    const detail = detailRow(v, g);
-    if (rows >= 3 && detail.length > 0)
-      out.push(fit(detail, cols));
-    return out;
-  }
-  if (cols >= 56 && rows >= 2)
-    return [headRow(v, g, cols - reserve), chain(["label", "short", "window"])];
-  const one = [seg("band-crumb", `${v.breadcrumb.join(` ${g.crumb} `)} `, undefined, { bold: true })];
-  const cur = v.phases.find((p) => p.state === "current");
-  if (cur !== undefined)
-    one.push(seg(`band-phase-${cur.id}`, `${glyphOf("current", v, g)} ${cur.label}`, phaseColor("current", v), { bold: true }));
-  else if (v.status === "done")
-    one.push(seg("band-phase", `${g.done} done`, "green"));
-  const r = roundText(v);
-  if (r !== "")
-    one.push(seg("band-round", r, "magenta"));
-  const p = progressText(v, g, false);
-  if (p !== "")
-    one.push(seg("band-progress", p, "magenta"));
-  if (v.status !== "running" && v.status !== "starting" && v.status !== "done")
-    one.push(seg("band-status", ` ${g.dot} ${STATUS_TEXT[v.status]}`, STATUS_COLOR[v.status]));
-  if (width(one) > cols && v.breadcrumb.length > 1)
-    one[0] = seg("band-crumb", `${v.workflow ?? ""} `, undefined, { bold: true });
-  return [fit(one, cols)];
-}
-function bandText(v) {
-  if (!v.visible)
-    return ["No workflow is running."];
-  const head = `${v.breadcrumb.join(" \u203A ")}${v.title !== undefined ? ` \xB7 ${v.title}` : ""} \xB7 ${STATUS_TEXT[v.status]}${v.elapsedMin !== undefined ? ` \xB7 ${elapsedText(v.elapsedMin)}` : ""}`;
-  const lines = [head];
-  if (v.phases.length > 0) {
-    const g = UNICODE;
-    lines.push(`phases: ${v.phases.map((p) => `${glyphOf(p.state, v, g)} ${p.label}`).join("  ")}`);
-  }
-  const extra = [roundText(v).trim(), v.progress !== undefined ? `${v.progress.done}/${v.progress.total} ${v.progress.unit}` : ""].filter((x) => x !== "");
-  if (extra.length > 0)
-    lines.push(`progress: ${extra.join(" \xB7 ")}`);
-  if (v.criteria !== undefined && v.criteria.length > 0)
-    lines.push(`criteria: ${v.criteria.map((c) => `${c.id}${c.oracle ? " (oracle)" : ""} ${c.status}`).join(", ")}`);
-  if (v.current !== undefined)
-    lines.push(`now: ${v.current}`);
-  if (v.agents.length > 0)
-    lines.push(`agents: ${v.agents.join(", ")}`);
-  if (v.note !== undefined)
-    lines.push(`note: ${v.note}`);
-  return lines;
-}
-function bandSummary(v) {
-  if (!v.visible)
-    return "";
-  const cur = v.phases.find((p) => p.state === "current");
-  const parts = [];
-  if (cur !== undefined)
-    parts.push(`phase ${cur.label}`);
-  if (v.progress !== undefined)
-    parts.push(`${v.progress.done}/${v.progress.total} ${v.progress.unit}`);
-  if (v.status !== "running" && v.status !== "starting")
-    parts.push(STATUS_TEXT[v.status]);
-  const head = `${v.breadcrumb.join(" > ")}${v.title !== undefined ? ` (${v.title})` : ""}`;
-  const tail = v.current !== undefined ? `; now: ${v.current}` : "";
-  return flowText(`${head}${parts.length > 0 ? `: ${parts.join(", ")}` : ""}${tail}`, 240);
-}
-var NOTICE_STATUSES = new Set(["approval", "waiting", "paused", "done", "failed", "cancelled"]);
-function bandNotice(v) {
-  if (!v.visible || !NOTICE_STATUSES.has(v.status))
-    return;
-  const summary = bandSummary(v);
-  if (summary === "")
-    return;
-  return { key: `${v.workflow ?? v.breadcrumb.join(">")}#${v.startedAt ?? 0}:${v.status}`, text: `Buracle workflow: ${summary}` };
-}
-function resumeSuggestion(v) {
-  if (!v.visible || v.status === "done" || v.status === "failed" || v.status === "cancelled")
-    return;
-  const cur = v.phases.find((p) => p.state === "current");
-  const progress = v.progress !== undefined ? ` ${v.progress.done}/${v.progress.total}` : "";
-  const where = cur !== undefined ? ` (${cur.label}${progress})` : "";
-  return flowText(`continue the ${v.breadcrumb.join(" \u203A ")} run${where}${v.title !== undefined ? `: ${v.title}` : ""}`, 160);
-}
 
 // src/core/flow/panes.ts
 var THEME_OF = {
@@ -29887,21 +30074,18 @@ function defaultConfig() {
     guards: { bash: { extraDeny: [] }, write: { protect: [] }, redact: true },
     plan: {
       stopGuard: true,
-      runaway: { perPlan: 30, perChain: 5 },
       planApproval: true,
       resultApproval: true,
       branchIsolation: true,
-      worktreeDir: ".worktrees",
       questions: true,
       reviews: { plan: true, changes: true, goal: true, companion: "off" },
       goalVerification: true,
       modelSwitch: "off",
       nativePlanMode: "off"
     },
-    context: { warnPct: 85, criticalPct: 95 },
-    checkers: { enabled: true, timeoutMs: 20000, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] },
+    checkers: { enabled: true, languages: ["python", "typescript", "javascript", "go", "shell", "dotnet"] },
     memory: {
-      ui: { port: 41777, autostart: true },
+      ui: { autostart: true },
       exclude: []
     },
     statusline: { style: "buracle", emoji: true },
@@ -29909,18 +30093,17 @@ function defaultConfig() {
     update: { minReleaseAgeDays: 0 },
     permissions: { bypass: true, enforce: true },
     agents: { teams: true },
-    workflow: { band: true, foldAfterSec: 8, codexNotices: true },
+    workflow: { band: true, codexNotices: true },
     toolchain: { autoInstall: true, system: true, upgrade: true },
-    index: { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 },
+    index: { exclude: [] },
     mcp: { shared: true, off: harnessTable(() => []) }
   };
 }
 var bool = { t: "bool" };
-var str5 = { t: "str" };
+var str6 = { t: "str" };
 var nonEmpty2 = { t: "str", nonEmpty: true };
-var pct = { t: "int", min: 0, max: 100 };
 var count3 = (min) => ({ t: "int", min });
-var strList2 = { t: "arr", of: str5 };
+var strList2 = { t: "arr", of: str6 };
 var harnessFields = {};
 for (const h of HARNESSES)
   harnessFields[h] = { t: "obj", fields: { enabled: bool } };
@@ -29954,11 +30137,9 @@ var CONFIG_SCHEMA = {
       t: "obj",
       fields: {
         stopGuard: bool,
-        runaway: { t: "obj", fields: { perPlan: count3(1), perChain: count3(1) } },
         planApproval: bool,
         resultApproval: bool,
         branchIsolation: bool,
-        worktreeDir: nonEmpty2,
         questions: bool,
         reviews: { t: "obj", fields: { plan: bool, changes: bool, goal: bool, companion: { t: "enum", values: COMPANION_SETTINGS } } },
         goalVerification: bool,
@@ -29966,12 +30147,11 @@ var CONFIG_SCHEMA = {
         nativePlanMode: { t: "enum", values: ["off", "on"] }
       }
     },
-    context: { t: "obj", fields: { warnPct: pct, criticalPct: pct } },
-    checkers: { t: "obj", fields: { enabled: bool, timeoutMs: count3(100), languages: strList2 } },
+    checkers: { t: "obj", fields: { enabled: bool, languages: strList2 } },
     memory: {
       t: "obj",
       fields: {
-        ui: { t: "obj", fields: { port: { t: "int", min: 1024, max: 65535 }, autostart: bool } },
+        ui: { t: "obj", fields: { autostart: bool } },
         exclude: strList2
       }
     },
@@ -29994,9 +30174,9 @@ var CONFIG_SCHEMA = {
     update: { t: "obj", fields: { minReleaseAgeDays: count3(0) } },
     permissions: { t: "obj", fields: { bypass: bool, enforce: bool } },
     agents: { t: "obj", fields: { teams: bool } },
-    workflow: { t: "obj", fields: { band: bool, foldAfterSec: count3(0), codexNotices: bool } },
+    workflow: { t: "obj", fields: { band: bool, codexNotices: bool } },
     toolchain: { t: "obj", fields: { autoInstall: bool, system: bool, upgrade: bool } },
-    index: { t: "obj", fields: { auto: bool, codegraph: bool, semble: bool, minIntervalMin: count3(0), exclude: strList2, children: bool, maxChildren: count3(0) } },
+    index: { t: "obj", fields: { exclude: strList2 } },
     mcp: { t: "obj", fields: { shared: bool, off: { t: "obj", fields: mcpOffFields } } }
   }
 };
@@ -30109,10 +30289,6 @@ function check(schema, x, path, out) {
   }
 }
 function crossChecks(x, out) {
-  const ctx = x["context"];
-  if (isPlainObject(ctx) && typeof ctx["warnPct"] === "number" && typeof ctx["criticalPct"] === "number" && ctx["warnPct"] >= ctx["criticalPct"]) {
-    out.push({ path: ["context", "warnPct"], message: "must be lower than context.criticalPct" });
-  }
   const skills = x["skills"];
   const sources = isPlainObject(skills) ? skills["sources"] : undefined;
   if (Array.isArray(sources)) {
@@ -30953,36 +31129,36 @@ function relativeIn(path, dir) {
     return;
   return path.slice(d.length + 1);
 }
+var CHECKER_TIMEOUT_MS = 20000;
 function checkersFor(path, facts, cfg) {
   if (!cfg || cfg.enabled === false || typeof path !== "string" || path === "")
     return [];
   const langs = new Set(Array.isArray(cfg.languages) ? cfg.languages : []);
-  const timeoutMs = typeof cfg.timeoutMs === "number" && cfg.timeoutMs > 0 ? cfg.timeoutMs : 20000;
   const cwd = facts.cwd || dirname11(path);
   const e = ext(path);
   if ((e === "py" || e === "pyi") && langs.has("python") && facts.hasRuffConfig) {
-    return [{ argv: [facts.ruffBin ?? "ruff", "check", "--output-format=concise", path], cwd, timeoutMs, parser: "ruff" }];
+    return [{ argv: [facts.ruffBin ?? "ruff", "check", "--output-format=concise", path], cwd, timeoutMs: CHECKER_TIMEOUT_MS, parser: "ruff" }];
   }
   if ((TS_EXT.has(e) && langs.has("typescript") || JS_EXT.has(e) && langs.has("javascript")) && facts.hasEslintConfig && !path.endsWith(".d.ts")) {
-    return [{ argv: [facts.eslintBin ?? "eslint", "--format", "json", path], cwd: facts.eslintCwd ?? cwd, timeoutMs, parser: "eslint" }];
+    return [{ argv: [facts.eslintBin ?? "eslint", "--format", "json", path], cwd: facts.eslintCwd ?? cwd, timeoutMs: CHECKER_TIMEOUT_MS, parser: "eslint" }];
   }
   if (e === "go" && langs.has("go") && facts.isGoModule) {
     const plans = [
-      { argv: ["go", "vet", "."], cwd: dirname11(path), timeoutMs, parser: "go-vet" },
-      { argv: ["gofmt", "-l", path], cwd, timeoutMs, parser: "generic" }
+      { argv: ["go", "vet", "."], cwd: dirname11(path), timeoutMs: CHECKER_TIMEOUT_MS, parser: "go-vet" },
+      { argv: ["gofmt", "-l", path], cwd, timeoutMs: CHECKER_TIMEOUT_MS, parser: "generic" }
     ];
     if (facts.golangci === true)
-      plans.push({ argv: ["golangci-lint", "run", "."], cwd: dirname11(path), timeoutMs, parser: "golangci", minMs: SLOW_CHECKER_MIN_MS });
+      plans.push({ argv: ["golangci-lint", "run", "."], cwd: dirname11(path), timeoutMs: CHECKER_TIMEOUT_MS, parser: "golangci", minMs: SLOW_CHECKER_MIN_MS });
     return plans;
   }
   if ((e === "sh" || e === "bash") && langs.has("shell")) {
-    return [{ argv: ["shellcheck", "-f", "gcc", path], cwd, timeoutMs, parser: "shellcheck" }];
+    return [{ argv: ["shellcheck", "-f", "gcc", path], cwd, timeoutMs: CHECKER_TIMEOUT_MS, parser: "shellcheck" }];
   }
   if (e === "cs" && langs.has("dotnet") && typeof facts.dotnetDir === "string" && facts.dotnetDir !== "") {
     const rel = relativeIn(path, facts.dotnetDir);
     if (rel === undefined || /(?:^|[\\/])(?:bin|obj)[\\/]/.test(rel))
       return [];
-    return [{ argv: ["dotnet", "format", "whitespace", facts.dotnetDir, "--folder", "--verify-no-changes", "--verbosity", "q", "--include", rel], cwd: facts.dotnetDir, timeoutMs, parser: "dotnet-format", minMs: SLOW_CHECKER_MIN_MS, env: { ...DOTNET_FORMAT_ENV } }];
+    return [{ argv: ["dotnet", "format", "whitespace", facts.dotnetDir, "--folder", "--verify-no-changes", "--verbosity", "q", "--include", rel], cwd: facts.dotnetDir, timeoutMs: CHECKER_TIMEOUT_MS, parser: "dotnet-format", minMs: SLOW_CHECKER_MIN_MS, env: { ...DOTNET_FORMAT_ENV } }];
   }
   return [];
 }
@@ -32515,7 +32691,7 @@ ${TERMS_OPEN}`);
   return text.trim();
 }
 var MEM_SCHEMA = 1;
-function str6(v) {
+function str7(v) {
   return typeof v === "string" && v !== "" ? v : undefined;
 }
 function strList3(v, max = 40) {
@@ -32535,15 +32711,15 @@ function fromCortex(raw, layer) {
   if (raw === null || typeof raw !== "object")
     return;
   const r = raw;
-  const id = str6(r["id"]);
+  const id = str7(r["id"]);
   const meta = r["metadata"] !== null && typeof r["metadata"] === "object" ? r["metadata"] : {};
   if (id === undefined || meta["buracle"] !== MEM_SCHEMA || !isMemKind(meta["type"]))
     return;
   const kind = meta["type"];
-  const title = str6(meta["title"]) ?? id;
+  const title = str7(meta["title"]) ?? id;
   const summary = typeof meta["summary"] === "string" ? meta["summary"] : "";
   const content = typeof r["content"] === "string" ? r["content"] : "";
-  const created = str6(meta["created"]) ?? str6(r["created_at"]) ?? "";
+  const created = str7(meta["created"]) ?? str7(r["created_at"]) ?? "";
   const item = {
     id,
     kind,
@@ -32554,11 +32730,11 @@ function fromCortex(raw, layer) {
     tags: strList3(meta["tags"], 12),
     sources: strList3(meta["sources"], 20),
     about: strList3(meta["about"], 12),
-    status: str6(meta["superseded_by"]) !== undefined ? "superseded" : meta["status"] === "deprecated" ? "deprecated" : "active",
+    status: str7(meta["superseded_by"]) !== undefined ? "superseded" : meta["status"] === "deprecated" ? "deprecated" : "active",
     review: meta["review"] === "ok" ? "ok" : "pending",
     importance: importanceOf(r["importance"], meta["priority"]),
     created,
-    updated: str6(meta["updated"]) ?? created,
+    updated: str7(meta["updated"]) ?? created,
     author: meta["author"] === "buracle" || meta["author"] === "user" ? meta["author"] : "agent",
     version: typeof meta["version"] === "number" && Number.isInteger(meta["version"]) && meta["version"] > 0 ? meta["version"] : 1,
     history: Array.isArray(meta["history"]) ? meta["history"].filter((h) => h !== null && typeof h === "object" && typeof h.at === "string" && typeof h.what === "string").map((h) => ({ at: h.at, by: typeof h.by === "string" ? h.by : "unknown", what: h.what })).slice(-8) : []
@@ -32582,7 +32758,7 @@ function fromCortex(raw, layer) {
     ["contradictedNote", "contradicted_note"]
   ];
   for (const [k, m] of opt) {
-    const v = str6(meta[m]);
+    const v = str7(meta[m]);
     if (v !== undefined)
       item[k] = v;
   }
@@ -33264,177 +33440,6 @@ function shellFailed(result) {
       return v !== 0;
   }
   return r["interrupted"] === true;
-}
-// src/core/flow/state.ts
-var AGENT_MAX_MS = 2 * 60 * 60000;
-var TODOS_MAX = 50;
-var AGENTS_MAX = 6;
-function emptyBand() {
-  return { v: 1, sid: "", stamp: 0, todos: [], agents: [], foldAfterSec: 8 };
-}
-function bandRefresh(prev, x) {
-  const same = prev.sid === x.sid;
-  const next = {
-    v: 1,
-    sid: x.sid,
-    stamp: x.now,
-    todos: same ? prev.todos : [],
-    agents: same ? prev.agents.filter((a) => x.now - a.startedAt < AGENT_MAX_MS) : [],
-    foldAfterSec: Number.isFinite(x.foldAfterSec) && x.foldAfterSec >= 0 ? x.foldAfterSec : 8
-  };
-  const flow = x.flow === "keep" ? same ? prev.flow : undefined : x.flow;
-  if (flow !== undefined)
-    next.flow = flow;
-  const plan = bandPlanOf(x.state, x.planText);
-  if (plan !== undefined)
-    next.plan = plan;
-  const it = x.state?.interaction;
-  if (it !== undefined && (it.state === "paused" || it.state === "running")) {
-    const i = { state: it.state };
-    if (it.kind !== undefined)
-      i.kind = it.kind;
-    if (typeof it.reason === "string" && it.reason.trim() !== "")
-      i.reason = flowText(it.reason, 200);
-    next.interaction = i;
-  }
-  if (same && prev.hidden !== undefined)
-    next.hidden = prev.hidden;
-  if (!x.band)
-    next.off = true;
-  return next;
-}
-function bandInputOf(b) {
-  const i = { nowMs: b.stamp, todos: b.todos, agents: b.agents, foldAfterSec: b.foldAfterSec };
-  if (b.flow !== undefined)
-    i.flow = b.flow;
-  if (b.plan !== undefined)
-    i.plan = b.plan;
-  if (b.interaction !== undefined)
-    i.interaction = b.interaction;
-  if (b.hidden !== undefined)
-    i.hidden = b.hidden;
-  return i;
-}
-function bandViewOf(b) {
-  const v = bandView(bandInputOf(b));
-  return b.off === true ? { ...v, visible: false } : v;
-}
-function bandActive(b) {
-  const v = bandViewOf(b);
-  return v.visible && v.endedAt === undefined;
-}
-function bandFoldAt(b) {
-  const v = bandViewOf(b);
-  return v.visible && v.endedAt !== undefined ? v.endedAt + b.foldAfterSec * 1000 : undefined;
-}
-function minuteOf(b) {
-  return JSON.stringify({ ...b, stamp: Math.floor(b.stamp / 60000) });
-}
-function bandChanged(a, b) {
-  return minuteOf(a) !== minuteOf(b);
-}
-function todoStatus(x) {
-  return x === "pending" || x === "in_progress" || x === "completed" ? x : undefined;
-}
-function bandTodosWrite(b, todos) {
-  if (!Array.isArray(todos))
-    return b;
-  const list = [];
-  for (const t of todos) {
-    if (t === null || typeof t !== "object")
-      continue;
-    const o = t;
-    const status = todoStatus(o["status"]);
-    if (typeof o["content"] !== "string" || status === undefined)
-      continue;
-    const todo = { content: flowText(o["content"], 120), status };
-    if (typeof o["activeForm"] === "string" && o["activeForm"].trim() !== "")
-      todo.activeForm = flowText(o["activeForm"], 120);
-    list.push(todo);
-  }
-  return { ...b, todos: list.slice(0, TODOS_MAX) };
-}
-function bandTodoCreate(b, task) {
-  const todo = { content: flowText(task.subject, 120), status: "pending" };
-  if (task.id !== undefined && task.id !== "")
-    todo.id = task.id;
-  if (task.activeForm !== undefined && task.activeForm.trim() !== "")
-    todo.activeForm = flowText(task.activeForm, 120);
-  return { ...b, todos: [...b.todos, todo].slice(-TODOS_MAX) };
-}
-function bandTodoUpdate(b, u) {
-  if (u.status === "deleted")
-    return { ...b, todos: b.todos.filter((t) => t.id !== u.taskId) };
-  const status = todoStatus(u.status);
-  let found = false;
-  const todos = b.todos.map((t) => {
-    if (t.id !== u.taskId)
-      return t;
-    found = true;
-    const n = { ...t };
-    if (status !== undefined)
-      n.status = status;
-    if (u.subject !== undefined && u.subject.trim() !== "")
-      n.content = flowText(u.subject, 120);
-    if (u.activeForm !== undefined && u.activeForm.trim() !== "")
-      n.activeForm = flowText(u.activeForm, 120);
-    return n;
-  });
-  if (!found && u.subject !== undefined && status !== undefined)
-    todos.push({ id: u.taskId, content: flowText(u.subject, 120), status });
-  return { ...b, todos };
-}
-function str7(x) {
-  return typeof x === "string" && x !== "" ? x : undefined;
-}
-function bandTodoTool(b, tool, input, result) {
-  const res = result !== null && typeof result === "object" && !Array.isArray(result) ? result : {};
-  if (tool === "TodoWrite")
-    return bandTodosWrite(b, Array.isArray(res["newTodos"]) ? res["newTodos"] : input["todos"]);
-  if (tool === "TaskCreate") {
-    const task = res["task"] !== null && typeof res["task"] === "object" ? res["task"] : {};
-    const subject = str7(task["subject"]) ?? str7(input["subject"]);
-    if (subject === undefined)
-      return b;
-    const t = { subject };
-    const id = str7(task["id"]);
-    const activeForm = str7(input["activeForm"]);
-    if (id !== undefined)
-      t.id = id;
-    if (activeForm !== undefined)
-      t.activeForm = activeForm;
-    return bandTodoCreate(b, t);
-  }
-  if (tool === "TaskUpdate") {
-    const taskId = str7(input["taskId"]);
-    if (taskId === undefined)
-      return b;
-    const u = { taskId };
-    for (const k of ["status", "subject", "activeForm"]) {
-      const v = str7(input[k]);
-      if (v !== undefined)
-        u[k] = v;
-    }
-    return bandTodoUpdate(b, u);
-  }
-  return b;
-}
-function bandAgentStart(b, a, now) {
-  const label = flowText(a.label, 60);
-  if (a.id === "" || label === "")
-    return b;
-  return { ...b, agents: [...b.agents.filter((x) => x.id !== a.id), { id: a.id, label, startedAt: now }].slice(-AGENTS_MAX) };
-}
-function bandAgentBind(b, id, agentId) {
-  return { ...b, agents: b.agents.map((a) => a.id === id ? { ...a, agentId } : a) };
-}
-function bandAgentEnd(b, id) {
-  const agents = b.agents.filter((a) => a.id !== id && a.agentId !== id);
-  return agents.length === b.agents.length ? b : { ...b, agents };
-}
-function bandHide(b) {
-  const v = bandViewOf(b);
-  return v.visible ? { ...b, hidden: v.startedAt ?? b.stamp } : b;
 }
 // src/core/index.ts
 init_harness();
@@ -34292,7 +34297,7 @@ init_paths();
 var NO_SESSION_HINT = "no session: no harness session id was found. Buracle reads it from --session <id> (with --harness <h>), or from " + "BURACLE_SESSION_ID with BURACLE_HARNESS, CLAUDE_CODE_SESSION_ID, CODEX_SESSION_ID/CODEX_THREAD_ID, OPENCODE_SESSION_ID or OMP_SESSION_ID; " + "when several harnesses set them (one started from the shell of another), only the ids of the nearest harness process count. " + "Without a session the stop guard is not protecting this run; continue from the plan file and run 'buracle doctor' to check the harness integration.";
 
 // src/workflow/flow.ts
-var DEFAULT_FOLD_SEC = 8;
+var DEFAULT_FOLD_SEC = FOLD_AFTER_SEC;
 function flowPath(h, sid) {
   return join19(sessionDir(h, sid), "flow.json");
 }
@@ -35032,7 +35037,7 @@ function fallbackInfo(cwd, cfg) {
   return {
     cwd: canonicalDir2(cwd),
     children: [],
-    index: { codegraph: { state: cfg.index.codegraph ? "none" : "off" }, semble: { state: cfg.index.semble ? "none" : "off" } }
+    index: { codegraph: { state: cfg.codegraph ? "none" : "off" }, semble: { state: cfg.semble ? "none" : "off" } }
   };
 }
 async function prepareWorkspace(cwd, cfg, nowMs) {
@@ -36519,9 +36524,9 @@ function defaultDeps() {
     recordAskGrant: (sid, kind, answer, nowMs) => {
       recordDialogGrant("omp", sid, kind, answer, nowMs);
     },
-    prepareWorkspace: (cwd, cfg, nowMs) => prepareWorkspace(cwd, cfg, nowMs),
-    workspaceInfo: (cwd, cfg, nowMs) => workspaceInfo(cwd, cfg, nowMs),
-    refreshWorkspace: (info, cfg, nowMs) => refreshWorkspaceInfo(info, cfg, nowMs),
+    prepareWorkspace: (cwd, cfg, nowMs) => prepareWorkspace(cwd, indexSettings(cfg), nowMs),
+    workspaceInfo: (cwd, cfg, nowMs) => workspaceInfo(cwd, indexSettings(cfg), nowMs),
+    refreshWorkspace: (info, cfg, nowMs) => refreshWorkspaceInfo(info, indexSettings(cfg), nowMs),
     projectDeps: createDepsReader(),
     columns: () => typeof process.stdout.columns === "number" && process.stdout.columns > 0 ? process.stdout.columns : 120,
     setEnv: (name, value) => {
@@ -36958,12 +36963,7 @@ var GENERATED = {
         "go",
         "shell",
         "dotnet"
-      ],
-      timeoutMs: 20000
-    },
-    context: {
-      criticalPct: 95,
-      warnPct: 85
+      ]
     },
     guards: {
       bash: {
@@ -36989,13 +36989,7 @@ var GENERATED = {
       }
     },
     index: {
-      auto: true,
-      children: true,
-      codegraph: true,
-      exclude: [],
-      maxChildren: 8,
-      minIntervalMin: 10,
-      semble: true
+      exclude: []
     },
     mcp: {
       off: {
@@ -37009,8 +37003,7 @@ var GENERATED = {
     memory: {
       exclude: [],
       ui: {
-        autostart: true,
-        port: 41777
+        autostart: true
       }
     },
     permissions: {
@@ -37031,12 +37024,7 @@ var GENERATED = {
         goal: true,
         plan: true
       },
-      runaway: {
-        perChain: 5,
-        perPlan: 30
-      },
-      stopGuard: true,
-      worktreeDir: ".worktrees"
+      stopGuard: true
     },
     routing: {
       reminders: true,
@@ -37066,8 +37054,7 @@ var GENERATED = {
     version: 1,
     workflow: {
       band: true,
-      codexNotices: true,
-      foldAfterSec: 8
+      codexNotices: true
     }
   },
   mcp: [
@@ -37986,7 +37973,7 @@ function createStatusTexts(host) {
   const flowFor = (sid, lc) => {
     if (lc.config.workflow.band)
       return;
-    const v = guarded("flow view", () => deps.flow.view(sid, deps.now(), lc.config.workflow.foldAfterSec));
+    const v = guarded("flow view", () => deps.flow.view(sid, deps.now(), FOLD_AFTER_SEC));
     return v?.visible === true ? v : undefined;
   };
   const barFor = async (sid, ctx, lc, need) => {
@@ -38072,7 +38059,7 @@ function createStatusTexts(host) {
     const sid = sessionOf(ctx);
     const lc = host.live();
     const now = deps.now();
-    const flowView = () => sid !== undefined ? guarded("flow view", () => deps.flow.view(sid, now, lc.config.workflow.foldAfterSec)) : undefined;
+    const flowView = () => sid !== undefined ? guarded("flow view", () => deps.flow.view(sid, now, FOLD_AFTER_SEC)) : undefined;
     if (view === "flow") {
       const v = flowView();
       return v !== undefined ? bandText(v) : ["No session: Buracle has no workflow to show."];
@@ -38103,7 +38090,7 @@ function createStatusTexts(host) {
       if (state?.interaction?.state === "paused")
         out.push(`paused (${state.interaction.kind ?? "manual"})${state.interaction.reason ? `: ${state.interaction.reason}` : ""}`);
       if (state !== undefined)
-        out.push(`stop guard ${lc.config.plan.stopGuard ? "on" : "off"} \xB7 blocks ${state.guard.blocksForPlan}/${lc.config.plan.runaway.perPlan} plan, ${state.guard.blocksInChain}/${lc.config.plan.runaway.perChain} chain`);
+        out.push(`stop guard ${lc.config.plan.stopGuard ? "on" : "off"} \xB7 blocks ${state.guard.blocksForPlan}/${RUNAWAY_PER_PLAN} plan, ${state.guard.blocksInChain}/${RUNAWAY_PER_CHAIN} chain`);
       const v = flowView();
       const run = v !== undefined ? bandSummary(v) : "";
       if (run !== "")
@@ -38431,7 +38418,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
         deniedCalls.delete(deniedCalls.values().next().value);
     };
     pi.setLabel?.("Buracle");
-    const receipts = createTurnReceipts({ now: () => deps.now(), view: (sid) => guarded("flow view", () => deps.flow.view(sid, deps.now(), liveOrDefaults().config.workflow.foldAfterSec)), log: (msg, data) => log("debug", `omp: ${msg}`, data) });
+    const receipts = createTurnReceipts({ now: () => deps.now(), view: (sid) => guarded("flow view", () => deps.flow.view(sid, deps.now(), FOLD_AFTER_SEC)), log: (msg, data) => log("debug", `omp: ${msg}`, data) });
     const pane = new StatusPane({ lines: (view, ctx) => status.lines(view, ctx) });
     const refreshFlow = (ctx) => {
       if (!hasTui(ctx) || !isMain(ctx))
@@ -38447,9 +38434,9 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
         return;
       }
       const now = deps.now();
-      const view = deps.flow.view(sid, now, lc.config.workflow.foldAfterSec);
+      const view = deps.flow.view(sid, now, FOLD_AFTER_SEC);
       widget.draw(ctx.ui, flowWidgetLines(view, deps.columns(), { emoji: lc.config.statusline.emoji, ansi: true }));
-      const due = widget.foldDue(view, lc.config.workflow.foldAfterSec);
+      const due = widget.foldDue(view, FOLD_AFTER_SEC);
       if (due !== undefined && typeof ctx.setTimeout === "function")
         ctx.setTimeout(() => refreshFlowSafe(ctx), Math.max(0, due - now) + 250);
     };
@@ -38945,7 +38932,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
         if (sid === undefined)
           return;
         writeTelemetryFor(sid, ctx);
-        guarded("H05 context watch", () => contextCheck({ pi, guarded }, memo(sid), ctx, event, live().config.context));
+        guarded("H05 context watch", () => contextCheck({ pi, guarded }, memo(sid), ctx, event));
         const text = messageText(event.message);
         const entry = { ts: deps.now(), ev: "turn" };
         const model = strAt(event.message, "model") ?? ctx.model?.id;

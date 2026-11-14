@@ -1,5 +1,6 @@
 import type { BuracleConfig } from '../../../core/config'
 import { defaultConfig } from '../../../core/config'
+import { FOLD_AFTER_SEC } from '../../../core/flow/state'
 import type { BarModel, GitState, HookHealth, IndexStatus, RateWindow, Segment, StatusLayout } from '../../../core/status/model'
 import { rows } from '../../../core/status/render'
 import { barOneLine, type BarInfo } from '../../../core/status/bar'
@@ -199,7 +200,7 @@ export class StatusFeeder {
     if (this.hooks.value !== undefined) bar.hooks = this.hooks.value
     const cfg = this.config()
     if (!cfg.workflow.band) {
-      const view = this.band.view(live.sessionID, cfg.workflow.foldAfterSec)
+      const view = this.band.view(live.sessionID, FOLD_AFTER_SEC)
       if (view.visible) bar.flow = view
     }
     return bar

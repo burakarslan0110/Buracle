@@ -71,6 +71,19 @@ export type IndexState =
 
 export interface ProjectIndex { codegraph: IndexState; semble: IndexState }
 
+/**
+ * How Buracle keeps the code indexes (codegraph, semble): built automatically, at most once per
+ * `minIntervalMin`, for the project and up to `maxChildren` child projects.
+ */
+export interface IndexSettings { auto: boolean, codegraph: boolean, semble: boolean, minIntervalMin: number, exclude: readonly string[], children: boolean, maxChildren: number }
+
+export const INDEX_SETTINGS: Readonly<IndexSettings> = { auto: true, codegraph: true, semble: true, minIntervalMin: 10, exclude: [], children: true, maxChildren: 8 }
+
+/** The index settings of a configuration: the constants plus the folders the user's `index.exclude` names. */
+export function indexSettings(cfg: { index: { exclude: readonly string[] } }): IndexSettings {
+  return { ...INDEX_SETTINGS, exclude: cfg.index.exclude }
+}
+
 export interface IndexToolFacts {
   enabled: boolean
   record?: { at: number, ok: boolean, error?: string, failures?: number }

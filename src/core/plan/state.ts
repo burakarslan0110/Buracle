@@ -179,11 +179,13 @@ function chainOf(base: SessionState, input: StopInput): number {
   return input.hookActive === true ? Math.max(stored, 1) : input.hookActive === false ? 0 : stored
 }
 
-function capHit(base: SessionState, chain: number, cfg: BuracleConfig['plan']): 'runaway-plan' | 'runaway-chain' | undefined {
-  const perPlan = Math.max(1, Math.floor(cfg.runaway?.perPlan ?? 30))
-  const perChain = Math.max(1, Math.floor(cfg.runaway?.perChain ?? 5))
-  if (base.guard.blocksForPlan >= perPlan) return 'runaway-plan'
-  if (chain >= perChain) return 'runaway-chain'
+/** The stop guard's runaway caps: the most blocks per plan without progress, and the most in one continuation chain. */
+export const RUNAWAY_PER_PLAN = 30
+export const RUNAWAY_PER_CHAIN = 5
+
+function capHit(base: SessionState, chain: number): 'runaway-plan' | 'runaway-chain' | undefined {
+  if (base.guard.blocksForPlan >= RUNAWAY_PER_PLAN) return 'runaway-plan'
+  if (chain >= RUNAWAY_PER_CHAIN) return 'runaway-chain'
   return undefined
 }
 
@@ -197,11 +199,11 @@ function blockWith(base: SessionState, chain: number, input: StopInput, reason: 
   return { decision: { action: 'block', reason: clipReason(reason), hook }, next, why }
 }
 
-function escalation(base: SessionState, chain: number, input: StopInput, cap: 'runaway-plan' | 'runaway-chain', cfg: BuracleConfig['plan']): StopGuardResult {
+function escalation(base: SessionState, chain: number, input: StopInput, cap: 'runaway-plan' | 'runaway-chain'): StopGuardResult {
   const kind = cap === 'runaway-plan' ? 'plan' : 'chain'
   if (base.guard.escalated === kind) return allowWith(base, cap)
   const plan = base.plan as NonNullable<SessionState['plan']>
-  const limit = cap === 'runaway-plan' ? `plan.runaway.perPlan, ${cfg.runaway?.perPlan ?? 30}` : `plan.runaway.perChain, ${cfg.runaway?.perChain ?? 5}`
+  const limit = cap === 'runaway-plan' ? `${RUNAWAY_PER_PLAN} blocks for this plan` : `${RUNAWAY_PER_CHAIN} blocks in a row`
   const reason = `${GUARD_MARKERS[0]} the stop guard reached its limit (${limit}) while the plan ${plan.path} is still ${plan.status}. Before this turn ends: say in two or three lines what you were doing and what blocks you, run \`buracle plan pause --kind decision --reason "${RUNAWAY_REASON}"\`, then ask the user with the question tool whether to continue, change the approach or abandon the plan. The next stop goes through.`
   return blockWith(base, chain, input, reason, 'H08', 'runaway-escalate', { escalated: kind }, true)
 }
@@ -211,7 +213,7 @@ function answered(state: SessionState, prep: Prepared, input: StopInput, cfg: Bu
   const { answeredAt: _drop, ...held } = i
   const base: SessionState = { ...prep.base, interaction: held }
   const chain = chainOf(base, input)
-  if (capHit(base, chain, cfg) !== undefined) return allowWith(base, 'paused')
+  if (capHit(base, chain) !== undefined) return allowWith(base, 'paused')
   const approval = isResultReview(i) ? ' An explicit approval of the result is recorded with `buracle plan approve-result`, which also resumes the plan.' : ''
   const what = typeof i.reason === 'string' && i.reason.trim() !== '' ? ` (${i.reason.trim().slice(0, 160)})` : ''
   const path = (state.plan as NonNullable<SessionState['plan']>).path
@@ -235,8 +237,8 @@ function h08(state: SessionState, prep: Prepared, input: StopInput, cfg: Buracle
   if (input.readOnly === true) return readOnlyRelease(base)
   if (input.backgroundWait === true) return allowWith(base, 'background-wait')
   const chain = chainOf(base, input)
-  const cap = capHit(base, chain, cfg)
-  if (cap) return escalation(base, chain, input, cap, cfg)
+  const cap = capHit(base, chain)
+  if (cap) return escalation(base, chain, input, cap)
   const head = `${GUARD_MARKERS[0]} the plan ${plan.path} is ${plan.status} (type ${plan.type}, phase ${plan.phase}) and not VERIFIED, so keep working: ${nextStep(state, cfg)}.`
   const objective = objectiveLine(prep.objective, STOP_REASON_MAX - head.length - STOP_GUARD_ESCAPE.length - 2)
   const reason = [head, objective, STOP_GUARD_ESCAPE].filter((s): s is string => s !== undefined && s !== '').join(' ')
@@ -256,7 +258,7 @@ export function stopGuardVerdict(state: SessionState, input: StopInput, cfg: Bur
   if (h11.action !== 'block') return mark(first, prep)
   const base = prep.base
   const chain = chainOf(base, input)
-  const cap = capHit(base, chain, cfg)
+  const cap = capHit(base, chain)
   if (cap) return mark(allowWith(base, cap), prep)
   return mark(blockWith(base, chain, input, h11.reason, 'H11', 'plan-invalid'), prep)
 }

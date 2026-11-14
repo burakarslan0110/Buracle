@@ -1,12 +1,11 @@
 import { closeSync, cpSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, rmSync, writeSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path'
-import type { BuracleConfig } from '../core/config'
-import { describeIndexState, indexHealth, indexToolDue, isCorruptIndexError, type IndexState, type ProjectIndex } from '../core/workspace'
-import { loadConfigSync } from '../engine/config'
+import { describeIndexState, indexHealth, indexSettings, indexToolDue, isCorruptIndexError, type IndexSettings, type IndexState, type ProjectIndex } from '../core/workspace'
 import { atomicWriteSync } from '../engine/fsx'
 import { revParse } from '../engine/git'
 import { breakStaleLock, lockSnapshot, lockToken, releaseLockFile } from '../engine/lockfile'
 import { log } from '../engine/log'
+import { loadConfigSync } from '../engine/config'
 import * as paths from '../engine/paths'
 import { findExecutable } from '../engine/platform'
 import { run, type RunResult } from '../engine/proc'
@@ -305,19 +304,19 @@ export async function ensureIndexes(root: string, opts: EnsureOptions, nowMs: ()
   }
 }
 
-export async function ensureWorkspace(target: WorkspaceTarget, cfg: BuracleConfig, o: { ifDue?: boolean, force?: boolean, runner?: Runner, liveWriter?: (root: string) => CodegraphWriter | undefined, nowMs?: () => number, signal?: AbortSignal } = {}): Promise<EnsureResult[]> {
+export async function ensureWorkspace(target: WorkspaceTarget, cfg: IndexSettings, o: { ifDue?: boolean, force?: boolean, runner?: Runner, liveWriter?: (root: string) => CodegraphWriter | undefined, nowMs?: () => number, signal?: AbortSignal } = {}): Promise<EnsureResult[]> {
   const now = o.nowMs ?? Date.now
   const roots = target.root !== undefined ? [target.root] : target.children
   const out: EnsureResult[] = []
   for (const root of roots) {
     if (o.signal?.aborted === true) { out.push({ root, skipped: 'interrupted' }); continue }
-    let codegraph = cfg.index.codegraph
-    let semble = cfg.index.semble
+    let codegraph = cfg.codegraph
+    let semble = cfg.semble
     if (o.ifDue === true) {
       const rec = readIndexRecord(root)
       const t = now()
-      codegraph &&= indexToolDue(rec?.codegraph, true, cfg.index.minIntervalMin, t)
-      semble &&= indexToolDue(rec?.semble, true, cfg.index.minIntervalMin, t)
+      codegraph &&= indexToolDue(rec?.codegraph, true, cfg.minIntervalMin, t)
+      semble &&= indexToolDue(rec?.semble, true, cfg.minIntervalMin, t)
       if (!codegraph && !semble) { out.push({ root, skipped: 'not due' }); continue }
     }
     out.push(await ensureIndexes(root, {
@@ -357,7 +356,7 @@ export interface StartGate {
 }
 
 export interface StartGateOptions {
-  cfg?: BuracleConfig
+  cfg?: IndexSettings
   nowMs?: () => number
   sleep?: (ms: number) => Promise<void>
   timeoutMs?: number
@@ -372,13 +371,13 @@ export async function codegraphStartGate(cwd: string, o: StartGateOptions = {}):
   const sleep = o.sleep ?? ((ms: number) => new Promise<void>(res => setTimeout(res, ms)))
   const t0 = now()
   try {
-    const cfg = o.cfg ?? loadConfigSync().config
-    if (!cfg.index.codegraph) return { outcome: 'off', waitedMs: 0 }
-    const root = await projectRootFor(cwd, paths.oldVaultRoot(), cfg.index.exclude)
+    const cfg = o.cfg ?? indexSettings(loadConfigSync().config)
+    if (!cfg.codegraph) return { outcome: 'off', waitedMs: 0 }
+    const root = await projectRootFor(cwd, paths.oldVaultRoot(), cfg.exclude)
     if (root === undefined) return { outcome: 'no-project', waitedMs: 0 }
     if (codegraphIndexPresent(root)) return { root, outcome: 'present', waitedMs: 0 }
     let started = false
-    if (cfg.index.auto && process.env['BURACLE_NO_AUTOSTART'] !== '1' && indexLockHolder(root, t0) === undefined) {
+    if (cfg.auto && process.env['BURACLE_NO_AUTOSTART'] !== '1' && indexLockHolder(root, t0) === undefined) {
       const argv = 'argv' in o ? o.argv : buracleArgv()
       started = startIndexRun({ cwd: root, root, children: [] }, cfg, t0, argv, o.spawn).length > 0
     }
@@ -410,9 +409,9 @@ function levelOf(s: IndexState): IndexCheck['level'] {
   return 'warn'
 }
 
-export async function indexChecks(cwd: string, cfg: BuracleConfig, nowMs: number): Promise<IndexCheck[]> {
+export async function indexChecks(cwd: string, cfg: IndexSettings, nowMs: number): Promise<IndexCheck[]> {
   const out: IndexCheck[] = []
-  if (!cfg.index.auto) out.push({ level: 'info', check: 'index.auto', detail: 'off: no code index is built automatically (`buracle index ensure` builds them by hand)' })
+  if (!cfg.auto) out.push({ level: 'info', check: 'index.auto', detail: 'off: no code index is built automatically (`buracle index ensure` builds them by hand)' })
   const info = await workspaceInfo(cwd, cfg, nowMs)
   const tools = (pi: ProjectIndex): Array<[string, IndexState]> => [['codegraph', pi.codegraph], ['semble', pi.semble]]
   if (info.root !== undefined) {
@@ -479,13 +478,13 @@ export async function keepWorktreesOutOfSemble(mainRoot: string, commonDir: stri
   }
 }
 
-export async function indexNewWorktree(path: string, facts: { mainRoot: string, commonDir: string }, nowMs: number, o: { cfg?: BuracleConfig, argv?: string[] | undefined, spawn?: IndexSpawner } = {}): Promise<string[]> {
+export async function indexNewWorktree(path: string, facts: { mainRoot: string, commonDir: string }, nowMs: number, o: { cfg?: IndexSettings, argv?: string[] | undefined, spawn?: IndexSpawner } = {}): Promise<string[]> {
   const warnings: string[] = []
   const s = await keepWorktreesOutOfSemble(facts.mainRoot, facts.commonDir, dirname(path))
   if (s.status === 'tracked') warnings.push(`${s.path} is tracked by git: add the line ${s.entry} to it so semble does not index the worktree again with the main checkout`)
   if (s.status === 'error') warnings.push(`could not update ${s.path}: ${s.error}`)
   try {
-    const cfg = o.cfg ?? loadConfigSync().config
+    const cfg = o.cfg ?? indexSettings(loadConfigSync().config)
     await spawnIndexIfDue(path, cfg, nowMs, 'argv' in o ? o.argv : buracleArgv(), o.spawn)
   } catch (e) {
     log('warn', 'index: could not start the worktree index run', { path, error: e })

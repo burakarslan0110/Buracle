@@ -1,5 +1,6 @@
 /** @jsx h */
 
+import { FOLD_AFTER_SEC } from '../../../core/flow/state'
 import type { Segment } from '../../../core/status/model'
 import { pickTip, TIPS_LABEL } from '../../../core/tips'
 import { run } from '../../../engine/proc'
@@ -70,7 +71,7 @@ export function createTuiPlugin(baked: BakedData, pluginDir: string | undefined)
       const notices = new TuiNotices({
         now: () => Date.now(),
         toast: (message, variant) => { ctx.ui.toast?.show({ title: 'Buracle', message, variant, duration: variant === 'warning' ? 10_000 : 8_000 }) },
-        band: sid => band.view(sid, config.get().config.workflow.foldAfterSec),
+        band: sid => band.view(sid, FOLD_AFTER_SEC),
         bandOn: () => config.get().config.workflow.band,
         busy: sid => { const last = ctx.data.session.message.list(sid).at(-1); return last?.type === 'assistant' && last.status !== undefined && last.status !== 'completed' },
       })
@@ -167,7 +168,7 @@ export function createTuiPlugin(baked: BakedData, pluginDir: string | undefined)
             try {
               const cfg = config.get().config
               if (!cfg.workflow.band) return { key: '', rows: [] }
-              const view = band.view(input.sessionID, cfg.workflow.foldAfterSec)
+              const view = band.view(input.sessionID, FOLD_AFTER_SEC)
               const out = bandLines(view, measured() ?? estimatedWidth(dims().width))
               return { key: JSON.stringify(out), rows: out }
             } catch {
@@ -201,7 +202,7 @@ export function createTuiPlugin(baked: BakedData, pluginDir: string | undefined)
           if (ctx.ui.dialog !== undefined) await ctx.ui.dialog.alert({ title, message })
           else ctx.ui.toast?.show({ title, message, variant: 'info', duration: 15_000 })
         },
-        band: sid => band.view(sid, config.get().config.workflow.foldAfterSec),
+        band: sid => band.view(sid, FOLD_AFTER_SEC),
         about: () => ({ ...(ctx.app?.version !== undefined ? { opencode: ctx.app.version } : {}), workflows: workflowCommandSkills(baked.skills).map(s => s.id) }),
         pane: (title, lines) => {
           const dialog = ctx.ui.dialog

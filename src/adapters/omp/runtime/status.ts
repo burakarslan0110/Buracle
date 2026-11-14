@@ -2,6 +2,8 @@ import { isAbsolute, join, resolve } from 'node:path'
 import type { BandView } from '../../../core/flow/band'
 import { bandSummary, bandText } from '../../../core/flow/band'
 import { cachedHarnessVersionOf, memoryPaneLines, planPaneLines } from '../../../core/flow/panes'
+import { FOLD_AFTER_SEC } from '../../../core/flow/state'
+import { RUNAWAY_PER_CHAIN, RUNAWAY_PER_PLAN } from '../../../core/plan/state'
 import { indexStatusOf } from '../../../core/status/live'
 import type { BarModel, HookHealth, IndexStatus } from '../../../core/status/model'
 import { statusHealth } from '../../../engine/hook-health'
@@ -56,7 +58,7 @@ export function createStatusTexts(host: StatusHost): StatusTexts {
 
   const flowFor = (sid: string, lc: LiveConfig): BandView | undefined => {
     if (lc.config.workflow.band) return undefined
-    const v = guarded('flow view', () => deps.flow.view(sid, deps.now(), lc.config.workflow.foldAfterSec))
+    const v = guarded('flow view', () => deps.flow.view(sid, deps.now(), FOLD_AFTER_SEC))
     return v?.visible === true ? v : undefined
   }
 
@@ -132,7 +134,7 @@ export function createStatusTexts(host: StatusHost): StatusTexts {
     const sid = sessionOf(ctx)
     const lc = host.live()
     const now = deps.now()
-    const flowView = (): BandView | undefined => (sid !== undefined ? guarded('flow view', () => deps.flow.view(sid, now, lc.config.workflow.foldAfterSec)) : undefined)
+    const flowView = (): BandView | undefined => (sid !== undefined ? guarded('flow view', () => deps.flow.view(sid, now, FOLD_AFTER_SEC)) : undefined)
     if (view === 'flow') {
       const v = flowView()
       return v !== undefined ? bandText(v) : ['No session: Buracle has no workflow to show.']
@@ -160,7 +162,7 @@ export function createStatusTexts(host: StatusHost): StatusTexts {
       const plan = state?.plan
       out.push(plan !== undefined ? `plan ${plan.slug} · ${plan.phase} · ${plan.status}` : 'plan: none')
       if (state?.interaction?.state === 'paused') out.push(`paused (${state.interaction.kind ?? 'manual'})${state.interaction.reason ? `: ${state.interaction.reason}` : ''}`)
-      if (state !== undefined) out.push(`stop guard ${lc.config.plan.stopGuard ? 'on' : 'off'} · blocks ${state.guard.blocksForPlan}/${lc.config.plan.runaway.perPlan} plan, ${state.guard.blocksInChain}/${lc.config.plan.runaway.perChain} chain`)
+      if (state !== undefined) out.push(`stop guard ${lc.config.plan.stopGuard ? 'on' : 'off'} · blocks ${state.guard.blocksForPlan}/${RUNAWAY_PER_PLAN} plan, ${state.guard.blocksInChain}/${RUNAWAY_PER_CHAIN} chain`)
       const v = flowView()
       const run = v !== undefined ? bandSummary(v) : ''
       if (run !== '') out.push(`workflow: ${run}`)

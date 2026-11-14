@@ -7,6 +7,7 @@ import type { ToolCall, ToolKind } from '../../../core/events'
 import { classifyTool } from '../../../core/events'
 import { bandSummary } from '../../../core/flow/band'
 import { flowDef } from '../../../core/flow/catalog'
+import { FOLD_AFTER_SEC } from '../../../core/flow/state'
 import type { FlowSource } from '../../../core/flow/record'
 import { capabilityCard, isGuardContinuation, questionAnswered, reviewerShellDenial, skillOf } from '../../../core/policy/index'
 import { opencodeOffServers } from '../../shared/native-off'
@@ -15,7 +16,8 @@ import { mcpUnavailable } from '../../../core/policy/routing'
 import { ledgerCall, ledgerPrompt } from '../../../core/policy/usage'
 import type { WriteGuardContext } from '../../../core/policy/write-guard'
 import { compactInstructions } from '../../../core/compact'
-import { contextWarning, contextWatch, type ContextBand } from '../../../core/status/context'
+import { CONTEXT_DEFAULTS, contextWarning, contextWatch, type ContextBand, type ContextBands } from '../../../core/status/context'
+import { indexSettings } from '../../../core/workspace'
 import type { RateWindow } from '../../../core/status/model'
 import { log } from '../../../engine/log'
 import { editDiagnostics } from '../../../engine/toolchain/lsp-edits'
@@ -159,7 +161,7 @@ const MAX_REVIEWED = 200
 const MAX_SESSION_DEPTH = 8
 const SESSION_ENV_VARS = ['CLAUDE_CODE_SESSION_ID', 'CODEX_SESSION_ID', 'CODEX_THREAD_ID', 'OMP_SESSION_ID'] as const
 
-export function contextNote(pct: number | undefined, cfg: BuracleConfig['context']): string | undefined {
+export function contextNote(pct: number | undefined, cfg: ContextBands = CONTEXT_DEFAULTS): string | undefined {
   if (pct === undefined) return undefined
   const band = pct >= cfg.criticalPct ? 'critical' : pct >= cfg.warnPct ? 'warn' : 'ok'
   return contextWarning(band, cfg)
@@ -221,8 +223,8 @@ export class BuracleRuntime {
     this.lspEdits = deps.lspEdits ?? editDiagnostics
     this.captureOn = deps.capture ?? (() => process.env['BURACLE_NO_CAPTURE'] !== '1')
     this.maintFn = deps.maint ?? ((nowMs, keep) => sessionMaint(HARNESS, nowMs, { keep }))
-    this.workspaceFn = deps.workspace ?? prepareWorkspace
-    this.workspaceRead = deps.workspaceRead ?? workspaceInfo
+    this.workspaceFn = deps.workspace ?? ((cwd, cfg, now) => prepareWorkspace(cwd, indexSettings(cfg), now))
+    this.workspaceRead = deps.workspaceRead ?? ((cwd, cfg, now) => workspaceInfo(cwd, indexSettings(cfg), now))
     this.assetsSpawn = deps.assetsSpawn
     this.env = resolveEnv(deps.pluginDir)
     applyEnv(this.env)
@@ -250,7 +252,7 @@ export class BuracleRuntime {
     this.receipts = new TurnReceipts({
       now: () => this.now(),
       post: (sid, text, variant) => this.notify(sid, text, variant),
-      run: sid => bandSummary(flowViewFor(HARNESS, sid, this.now(), this.cfg().workflow.foldAfterSec)),
+      run: sid => bandSummary(flowViewFor(HARNESS, sid, this.now(), FOLD_AFTER_SEC)),
       log: (msg, data) => this.logFn('debug', msg, data),
     })
   }
@@ -291,7 +293,7 @@ export class BuracleRuntime {
         saveWorkspace(ctx, HARNESS, s.sid, info)
         return info
       },
-      refreshWorkspace: (info, ctx, now) => refreshWorkspaceInfo(info, ctx.config, now),
+      refreshWorkspace: (info, ctx, now) => refreshWorkspaceInfo(info, indexSettings(ctx.config), now),
     }
     return {
       harness: HARNESS, ctx: this.actx(), core, workspace,
@@ -899,8 +901,7 @@ export class BuracleRuntime {
     // The card follows the MCP servers' health from step to step, where the other harnesses show the one of the session start.
     const card = s.card === undefined ? undefined : await this.step('H15 capability card', s.card, () => this.capabilityText(s.sid))
     parts.push(...s.startContext.map(part => (part === s.card && card !== undefined ? card : part)).filter(part => part.trim() !== ''))
-    const cfg = this.cfg()
-    const watch = contextWatch(s.ctxWarned, s.ctx?.pct, cfg.context)
+    const watch = contextWatch(s.ctxWarned, s.ctx?.pct)
     if (watch.warned !== s.ctxWarned) {
       s.ctxWarned = watch.warned
       this.persist(s)

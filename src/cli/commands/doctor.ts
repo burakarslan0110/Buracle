@@ -4,6 +4,7 @@ import type { BuracleConfig } from '../../core/config'
 import type { Harness } from '../../core/events'
 import { HARNESSES, isHarness } from '../../core/events'
 import { sanitizeText } from '../../core/status/format'
+import { indexSettings } from '../../core/workspace'
 import { parseFlags, removedFlags } from '../../engine/update/args'
 import { liveContext, loadBundle } from '../../engine/update/context'
 import { AGENTS_SKILLS_CONSUMERS } from '../../engine/update/install-core'
@@ -78,7 +79,7 @@ const REMOVED_FLAGS: Readonly<Record<string, string>> = {
 export async function indexSection(cwd: string, cfg: BuracleConfig, nowMs: number): Promise<DoctorCheck[]> {
   try {
     const { indexChecks } = await import('../../workflow/workspace-index')
-    return (await indexChecks(cwd, cfg, nowMs)).map(c => ({ section: 'index', ...c }))
+    return (await indexChecks(cwd, indexSettings(cfg), nowMs)).map(c => ({ section: 'index', ...c }))
   } catch (e) {
     return [{ section: 'index', level: 'warn', check: 'index', detail: `the index state could not be read: ${errText(e)}` }]
   }

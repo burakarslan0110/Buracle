@@ -7,7 +7,7 @@ import { BuracleRuntime, REGISTRY_KEY, type PluginDeps } from '../../../src/adap
 import { TuiNotices } from '../../../src/adapters/opencode/runtime/tui-notices'
 import type { SessionContextEvent } from '../../../src/adapters/opencode/runtime/types'
 import { clearPreparedWorkspaces } from '../../../src/adapters/opencode/runtime/workspace'
-import type { SessionState } from '../../../src/core/plan/state'
+import { RUNAWAY_PER_PLAN, type SessionState } from '../../../src/core/plan/state'
 import type { WorkspaceInfo } from '../../../src/core/workspace'
 import { saveState } from '../../../src/workflow/session-store'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
@@ -91,7 +91,7 @@ describe('opencode: notices for the user inside the session', () => {
   }))
 
   test('the stop guard releasing the session at a runaway cap is shown once per chain, as a warning', () => withSandbox(async ({ root }) => {
-    saveState('opencode', SID, planState({ blocksForPlan: testBaked().defaults.plan.runaway.perPlan }))
+    saveState('opencode', SID, planState({ blocksForPlan: RUNAWAY_PER_PLAN }))
     const start = 1_800_000_000_000
     let clock = start
     const { f, rt } = await runtime(root, () => clock)

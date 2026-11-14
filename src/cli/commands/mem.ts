@@ -429,7 +429,7 @@ async function uiCommand(p: Parsed, io: CommandIO, json: boolean): Promise<numbe
   const ui = await import('../../memory/ui')
   const { loadConfigSync } = await import('../../engine/config')
   const cfg = loadConfigSync({ repoRoot: paths.repoRoot() }).config.memory.ui
-  const port = int(p, 'port') ?? cfg.port
+  const port = int(p, 'port') ?? paths.MEMORY_UI_PORT
   const want = one(p, 'page') ?? 'brain'
   if (want !== 'brain' && want !== 'review') throw new UsageError(`--page must be brain or review (got ${JSON.stringify(want)})`)
   if (p.bools.has('stop')) {

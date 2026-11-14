@@ -95,9 +95,9 @@ describe('omp runtime: memory bridge', () => {
 describe('omp runtime: live config and MCP health', () => {
   test('parseRuntimeConfig merges the snapshot over the defaults and keeps valid values only', () => withSandbox(async sb => {
     const d = defaultConfig()
-    const live = parseRuntimeConfig(JSON.stringify({ v: 1, config: { ...d, routing: { strictness: 'nudge' }, context: { warnPct: 'x', criticalPct: 95 } }, resolved: { repoRoot: '/r', vault: '/ignored' } }), d)
+    const live = parseRuntimeConfig(JSON.stringify({ v: 1, config: { ...d, routing: { strictness: 'nudge' }, memory: { ui: { autostart: 'x' }, exclude: [] } }, resolved: { repoRoot: '/r', vault: '/ignored' } }), d)
     expect(live.config.routing.strictness).toBe('nudge')
-    expect(live.config.context.warnPct).toBe(85)
+    expect(live.config.memory.ui.autostart).toBe(true)
     expect(live.repoRoot).toBe('/r')
     expect(live.vault).toBe(join(sb.home, 'Documents', 'Buracle'))
     expect(live.shim).toBe(join(sb.buracleHome, 'bin', 'buracle'))

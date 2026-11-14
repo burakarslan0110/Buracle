@@ -27,8 +27,8 @@ describe('defaultConfig', () => {
   test('documented defaults', () => {
     const c = defaultConfig()
     expect('vault' in c).toBe(false)
-    expect(c.context).toEqual({ warnPct: 85, criticalPct: 95 })
-    expect(c.plan.runaway).toEqual({ perPlan: 30, perChain: 5 })
+    expect('context' in c).toBe(false)
+    expect('runaway' in c.plan).toBe(false)
     expect(c.routing.strictness).toBe('enforce')
     expect(c.skills.sources).toEqual([{ name: 'buracle', path: 'canonical/skills' }])
   })
@@ -53,11 +53,11 @@ describe('configSchemaLeaves', () => {
     expect(plan.every(l => l.key.startsWith('plan.'))).toBe(true)
     expect(plan).toEqual(expect.arrayContaining([
       { key: 'plan.questions', t: 'bool' }, { key: 'plan.reviews.changes', t: 'bool' }, { key: 'plan.goalVerification', t: 'bool' },
-      { key: 'plan.modelSwitch', t: 'enum', values: ['off', 'manual'] }, { key: 'plan.runaway.perPlan', t: 'int', min: 1 }, { key: 'plan.worktreeDir', t: 'str' },
+      { key: 'plan.modelSwitch', t: 'enum', values: ['off', 'manual'] }, { key: 'plan.stopGuard', t: 'bool' }, { key: 'plan.nativePlanMode', t: 'enum', values: ['off', 'on'] },
     ]))
-    expect(configSchemaLeaves('memory.ui')).toEqual([{ key: 'memory.ui.port', t: 'int', min: 1024, max: 65535 }, { key: 'memory.ui.autostart', t: 'bool' }])
+    expect(configSchemaLeaves('memory.ui')).toEqual([{ key: 'memory.ui.autostart', t: 'bool' }])
     expect(defaultConfig().memory.ui.autostart).toBe(true)
-    const notBool = validateConfig({ ...defaultConfig(), memory: { ui: { port: 41777, autostart: 'yes' }, exclude: [] } })
+    const notBool = validateConfig({ ...defaultConfig(), memory: { ui: { autostart: 'yes' }, exclude: [] } })
     expect(notBool.ok ? [] : notBool.errors).toEqual([expect.stringContaining('memory.ui.autostart: expected boolean')])
   })
 })
@@ -89,19 +89,20 @@ describe('validateConfig', () => {
   test('reports dotted paths for every problem', () => {
     const bad = defaultConfig() as unknown as Record<string, any>
     bad.routing.strictness = 'strict'
-    bad.context.warnPct = 120
-    bad.plan.runaway.perPlan = 1.5
+    bad.update.minReleaseAgeDays = -1
+    bad.memory.exclude = 1.5
     bad.harnesses.cursor = { enabled: true }
-    delete bad.memory.ui.port
+    delete bad.memory.ui.autostart
     bad.skills.sources = [{ name: 'x' }]
     const r = validateConfig(bad)
     expect(r.ok).toBe(false)
     if (r.ok) return
     expect(r.errors).toContain('routing.strictness: expected one of enforce | nudge | off, got string "strict"')
-    expect(r.errors).toContain('context.warnPct: must be <= 100, got 120')
-    expect(r.errors).toContain('plan.runaway.perPlan: expected integer, got number 1.5')
+    expect(r.errors).toContain('update.minReleaseAgeDays: must be >= 0, got -1')
+    expect(r.errors).toContain('memory.exclude: expected array, got number 1.5')
+    expect(validateConfig({ ...defaultConfig(), update: { minReleaseAgeDays: 1.5 } })).toEqual({ ok: false, errors: ['update.minReleaseAgeDays: expected integer, got number 1.5'] })
     expect(r.errors).toContain('harnesses.cursor: unknown key')
-    expect(r.errors).toContain('memory.ui.port: missing')
+    expect(r.errors).toContain('memory.ui.autostart: missing')
     expect(r.errors).toContain('skills.sources[0]: needs exactly one of `path` or `git`')
   })
 
@@ -131,9 +132,7 @@ describe('validateConfig', () => {
   })
 
   test('cross checks', () => {
-    const c = defaultConfig()
-    c.context.warnPct = 96
-    expect(validateConfig(c)).toEqual({ ok: false, errors: ['context.warnPct: must be lower than context.criticalPct'] })
+    expect(validateConfig({ ...defaultConfig(), context: { warnPct: 96, criticalPct: 95 } })).toEqual({ ok: false, errors: ['context: unknown key'] })
     const d = defaultConfig()
     d.skills.sources = [{ name: 'a', git: 'https://x/y.git', ref: 'main' }, { name: 'a', path: 'p', ref: 'v1' }]
     const r = validateConfig(d)
@@ -155,14 +154,14 @@ describe('mergeConfig', () => {
     const merged = mergeConfig(defaultConfig(), {
       routing: { strictness: 'nudge' },
       checkers: { languages: ['go'] },
-      memory: { ui: { port: 41800 } },
-      context: null,
+      memory: { ui: { autostart: false } },
+      update: null,
       repo: '/src/buracle',
     })
     expect(merged.routing.strictness).toBe('nudge')
-    expect(merged.checkers).toEqual({ enabled: true, timeoutMs: 20000, languages: ['go'] })
-    expect(merged.memory).toEqual({ ui: { port: 41800, autostart: true }, exclude: [] })
-    expect(merged.context).toEqual({ warnPct: 85, criticalPct: 95 })
+    expect(merged.checkers).toEqual({ enabled: true, languages: ['go'] })
+    expect(merged.memory).toEqual({ ui: { autostart: false }, exclude: [] })
+    expect(merged.update).toEqual({ minReleaseAgeDays: 0 })
     expect(merged.repo).toBe('/src/buracle')
   })
 
@@ -216,8 +215,8 @@ describe('mergeConfigLenient', () => {
   })
 
   test('resolves cross-field conflicts by reverting the parent', () => {
-    const r = mergeConfigLenient(defaultConfig(), { context: { criticalPct: 80 } })
-    expect(r.config.context).toEqual({ warnPct: 85, criticalPct: 95 })
+    const r = mergeConfigLenient(defaultConfig(), { skills: { sources: [{ name: 'a' }] } })
+    expect(r.config.skills).toEqual(defaultConfig().skills)
     expect(r.errors.length).toBeGreaterThan(0)
   })
 

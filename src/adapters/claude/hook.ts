@@ -15,7 +15,7 @@ import { REVIEWER_AGENT_ENV, companionAgent, companionToolDenial } from '../../c
 import { reviewerShellDenial } from '../../core/policy/readonly-shell'
 import { ledgerCall, skillOf } from '../../core/policy/usage'
 import { contextThresholds, contextWatch, type ContextBand } from '../../core/status/context'
-import type { WorkspaceInfo } from '../../core/workspace'
+import { indexSettings, type WorkspaceInfo } from '../../core/workspace'
 import { atomicWriteSync, readJsonSafeSync } from '../../engine/fsx'
 import { currentBranch, projectSlug } from '../../engine/git'
 import { log } from '../../engine/log'
@@ -108,12 +108,12 @@ export const defaultHookDeps: HookDeps = {
   realpath: p => realWriteTarget(p),
   run: (argv, opts) => runProcess(argv, opts ?? {}),
   async prepareWorkspace(cwd, ctx, nowMs) {
-    return (await import('../shared/workspace-start')).prepareWorkspace(cwd, ctx.config, nowMs)
+    return (await import('../shared/workspace-start')).prepareWorkspace(cwd, indexSettings(ctx.config), nowMs)
   },
   async workspaceInfo(cwd, ctx, nowMs) {
-    return (await import('../../workflow/workspace')).workspaceInfo(cwd, ctx.config, nowMs)
+    return (await import('../../workflow/workspace')).workspaceInfo(cwd, indexSettings(ctx.config), nowMs)
   },
-  refreshWorkspace: (info, ctx, nowMs) => refreshWorkspaceInfo(info, ctx.config, nowMs),
+  refreshWorkspace: (info, ctx, nowMs) => refreshWorkspaceInfo(info, indexSettings(ctx.config), nowMs),
   core,
 }
 
@@ -218,11 +218,11 @@ function claimBand(dir: string, band: ContextBand): boolean {
   }
 }
 
-function contextWarning(ctx: AdapterContext, sid: string, now: number): string | undefined {
+function contextWarning(_ctx: AdapterContext, sid: string, now: number): string | undefined {
   const t = readTelemetry(H, sid)
   const pct = t?.ctx?.pct
   if (pct === undefined || t === undefined || now - t.at > TELEMETRY_FRESH_MS) return undefined
-  const th = contextThresholds(ctx.config.context)
+  const th = contextThresholds()
   const dir = paths.sessionDir(H, sid)
   const file = join(dir, 'context-warned.json')
   const r = readJsonSafeSync<{ band?: string }>(file)

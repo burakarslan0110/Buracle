@@ -6,6 +6,7 @@ import type { Ledger, Op, Plan } from '../../engine/txn'
 import { LIST_IDENTITY_HASH, readLedger } from '../../engine/txn'
 import { bunExecutable } from '../../engine/config'
 import { log } from '../../engine/log'
+import { MEMORY_UI_PORT } from '../../engine/paths'
 import { run, which } from '../../engine/proc'
 import type { AdapterContext } from '../registry'
 import { parseList, samePath } from './check'
@@ -115,7 +116,7 @@ export const ANNOUNCEMENTS_KEY = 'companyAnnouncements'
 // Claude Code shows one of these at startup (a random one when there are several). A soft key: a list
 // the user or their company set stays theirs.
 export function announcementOps(ctx: AdapterContext): Op[] {
-  const text = `Buracle · Memory UI: http://127.0.0.1:${ctx.config.memory.ui.port} (buracle mem ui) · /buracle:plan-build plans and builds a change`
+  const text = `Buracle · Memory UI: http://127.0.0.1:${MEMORY_UI_PORT} (buracle mem ui) · /buracle:plan-build plans and builds a change`
   return [{ kind: 'json-merge', path: join(ctx.paths.claudeDir(), 'settings.json'), set: { [ANNOUNCEMENTS_KEY]: [text] }, owner: OWNER, soft: [ANNOUNCEMENTS_KEY] }]
 }
 

@@ -4,10 +4,9 @@ import { isAbsolute, join, relative, sep } from 'node:path'
 import { DOC_FILE } from '../core/plan/doc-dirs'
 import type { PlanType } from '../core/plan/format'
 import { isPlanFinished } from '../core/plan/state'
-import { loadConfigSync } from '../engine/config'
 import { atomicWriteSync, ensureDirSync, readJsonSafeSync } from '../engine/fsx'
 import { log } from '../engine/log'
-import { expandHome, isValidSessionId } from '../engine/paths'
+import { isValidSessionId } from '../engine/paths'
 import { isValidSlug, readPlanFile, type PlanInfo } from './plan-file'
 import { actOnMergeDecision, markPlanWorktree, planUnregister } from './plan'
 import { laneLead, laneSessionId, loadState, type ResolvedSession } from './session-store'
@@ -78,15 +77,11 @@ export function metaForPlan(commonDir: string, planPath: string): WorktreeMeta |
     .sort((a, b) => b.createdAt - a.createdAt)[0]
 }
 
+/** Where plan worktrees are created, relative to the main checkout. */
+export const WORKTREE_DIR = '.worktrees'
+
 export function worktreeRoot(facts: RepoFacts): string {
-  let dir = '.worktrees'
-  try { dir = loadConfigSync().config.plan.worktreeDir.trim() || '.worktrees' } catch {  }
-  dir = expandHome(dir)
-  if (!isAbsolute(dir) && dir.startsWith('~')) {
-    log('warn', "plan.worktreeDir starts with '~' but is not '~/…'; using .worktrees", { worktreeDir: dir })
-    dir = '.worktrees'
-  }
-  return isAbsolute(dir) ? dir : join(facts.mainRoot, dir)
+  return join(facts.mainRoot, WORKTREE_DIR)
 }
 
 export const DEFAULT_BRANCH_NAMES: readonly string[] = ['main', 'master', 'origin/main', 'origin/master', 'develop', 'trunk']

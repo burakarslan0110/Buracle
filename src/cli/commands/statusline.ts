@@ -2,6 +2,7 @@ import type { CommandIO } from '../router'
 import type { BuracleConfig } from '../../core/config'
 import type { Harness } from '../../core/events'
 import { isHarness } from '../../core/events'
+import { FOLD_AFTER_SEC } from '../../core/flow/state'
 import { formatPct, formatTokens, gauge, sanitizeText, stripEmoji, textWidth, truncateToWidth } from '../../core/status/format'
 import type { BarModel, Segment, StatusLayout } from '../../core/status/model'
 import { renderAnsi, renderAnsiLines, renderPlain, renderPlainLines, rows } from '../../core/status/render'
@@ -192,7 +193,7 @@ async function decorate(bar: BarModel, h: Harness, o: DecorateOptions): Promise<
   const plan = planForSession(h, o.sessionId, roots)
   if (plan !== undefined) bar.plan = plan
   try {
-    const flow = flowForSession(h, o.sessionId, o.nowMs, o.config.workflow.foldAfterSec, roots)
+    const flow = flowForSession(h, o.sessionId, o.nowMs, FOLD_AFTER_SEC, roots)
     if (flow !== undefined) bar.flow = flow
   } catch (e) { log('warn', 'statusline: workflow view unavailable', { error: e }) }
   const upd = pendingUpdates()

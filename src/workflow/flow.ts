@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import type { Harness } from '../core/events'
 import type { BandInput, BandView } from '../core/flow/band'
 import { bandPlanOf, bandView } from '../core/flow/band'
+import { FOLD_AFTER_SEC } from '../core/flow/state'
 import { FLOW_ID_RE, flowPhaseLabel } from '../core/flow/catalog'
 import type { FlowEntry, FlowOutcome, FlowRecord, FlowResult, FlowSource, PlanPhase } from '../core/flow/record'
 import { FLOW_OUTCOMES, activeFlow, flowBreadcrumb, flowEnd, flowFromPlan, flowPhase, flowStart, flowStep, parseFlow } from '../core/flow/record'
@@ -13,7 +14,7 @@ import { fail, ok, sessionJson, type CmdResult, type WorkflowCtx } from './resul
 import type { ResolvedSession } from './session-store'
 import { loadState } from './session-store'
 
-export const DEFAULT_FOLD_SEC = 8
+export const DEFAULT_FOLD_SEC = FOLD_AFTER_SEC
 
 export function flowPath(h: Harness, sid: string): string {
   return join(sessionDir(h, sid), 'flow.json')

@@ -1,28 +1,29 @@
-import type { BuracleConfig } from '../config'
-
 export type ContextBand = 'ok' | 'warn' | 'critical'
 
 const RANK: Readonly<Record<ContextBand, number>> = { ok: 0, warn: 1, critical: 2 }
 
-export const CONTEXT_DEFAULTS: Readonly<BuracleConfig['context']> = { warnPct: 85, criticalPct: 95 }
+/** The context bands: warn at `warnPct` percent full, the critical warning at `criticalPct`. */
+export interface ContextBands { warnPct: number, criticalPct: number }
+
+export const CONTEXT_DEFAULTS: Readonly<ContextBands> = { warnPct: 85, criticalPct: 95 }
 
 function pctOk(x: unknown): x is number {
   return typeof x === 'number' && Number.isFinite(x) && x > 0 && x <= 100
 }
 
-export function contextThresholds(cfg: Partial<BuracleConfig['context']> | undefined): BuracleConfig['context'] {
+export function contextThresholds(cfg?: Partial<ContextBands>): ContextBands {
   const w = cfg?.warnPct
   const c = cfg?.criticalPct
   return pctOk(w) && pctOk(c) && w < c ? { warnPct: w, criticalPct: c } : { ...CONTEXT_DEFAULTS }
 }
 
-export function contextBand(pct: number | undefined, cfg: Partial<BuracleConfig['context']> | undefined): ContextBand | undefined {
+export function contextBand(pct: number | undefined, cfg?: Partial<ContextBands>): ContextBand | undefined {
   if (typeof pct !== 'number' || !Number.isFinite(pct)) return undefined
   const t = contextThresholds(cfg)
   return pct >= t.criticalPct ? 'critical' : pct >= t.warnPct ? 'warn' : 'ok'
 }
 
-export function contextWarning(band: ContextBand, cfg: Partial<BuracleConfig['context']> | undefined): string | undefined {
+export function contextWarning(band: ContextBand, cfg?: Partial<ContextBands>): string | undefined {
   const t = contextThresholds(cfg)
   if (band === 'critical') {
     return `Buracle: the context window is above ${t.criticalPct}% full. Finish the current atomic step, then bring the plan file up to date (ticked tasks, deviations) and save lasting decisions with memory_write before starting anything new; Buracle keeps the plan state across the coming compaction. Do not skip verification.`
@@ -39,7 +40,7 @@ export interface ContextWatchResult {
   warned: ContextBand
 }
 
-export function contextWatch(warned: ContextBand | undefined, pct: number | undefined, cfg: Partial<BuracleConfig['context']> | undefined): ContextWatchResult {
+export function contextWatch(warned: ContextBand | undefined, pct: number | undefined, cfg?: Partial<ContextBands>): ContextWatchResult {
   const prev: ContextBand = warned === 'warn' || warned === 'critical' ? warned : 'ok'
   const band = contextBand(pct, cfg)
   if (band === undefined) return { warned: prev }

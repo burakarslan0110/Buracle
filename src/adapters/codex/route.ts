@@ -62,7 +62,7 @@ export function recordWorkflowStart(sid: string, start: { workflow: string, titl
 
 export function resumeNotice(sid: string, now: number, cfg: Pick<BuracleConfig, 'workflow'>, core: CoreFns): { user: string, model: string } | undefined {
   if (!cfg.workflow.band) return undefined
-  const view = flowViewFor(H, sid, now, cfg.workflow.foldAfterSec)
+  const view = flowViewFor(H, sid, now)
   const suggestion = core.resumeSuggestion(view)
   if (suggestion === undefined) return undefined
   const summary = core.bandSummary(view)

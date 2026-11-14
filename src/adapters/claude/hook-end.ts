@@ -1,6 +1,6 @@
 import type { StopInput } from '../../core/events'
 import { backgroundWait } from '../../core/plan/background'
-import type { StopGuardResult } from '../../core/plan/state'
+import { RUNAWAY_PER_CHAIN, RUNAWAY_PER_PLAN, type StopGuardResult } from '../../core/plan/state'
 import { log } from '../../engine/log'
 import type { AdapterContext } from '../registry'
 import { preCompact as preCompactEvent, sessionEnd as sessionEndEvent, spool, stop as stopEvent } from '../shared/pipeline/index'
@@ -11,12 +11,12 @@ import { boundSubject, handedBack } from './hook-handback'
 
 export const REVIEW_AGENT = /^(?:buracle:)?(?:plan-build|changes|goal-build)-review$|^buracle:[a-z0-9-]+-review$/
 
-export function runawayNotice(why: StopGuardResult['why'], cfg: AdapterContext['config']['plan']): string | undefined {
+export function runawayNotice(why: StopGuardResult['why']): string | undefined {
   if (why === 'runaway-plan') {
-    return `Buracle: the stop guard reached its limit for this plan (${cfg.runaway.perPlan} blocks) and let the session stop. The plan is not VERIFIED yet: check it with \`buracle plan status\`.`
+    return `Buracle: the stop guard reached its limit for this plan (${RUNAWAY_PER_PLAN} blocks) and let the session stop. The plan is not VERIFIED yet: check it with \`buracle plan status\`.`
   }
   if (why === 'runaway-chain') {
-    return `Buracle: the stop guard blocked ${cfg.runaway.perChain} times in a row, so it let the session stop to break the loop. Send a new message to continue.`
+    return `Buracle: the stop guard blocked ${RUNAWAY_PER_CHAIN} times in a row, so it let the session stop to break the loop. Send a new message to continue.`
   }
   return undefined
 }
@@ -39,7 +39,7 @@ export async function stop(p: Record<string, unknown>, sid: string, ctx: Adapter
   const r = await stopEvent(input, {
     ...pd,
     readOnly: () => p['permission_mode'] === 'plan',
-    stopNotice: (result, before) => (result.readOnlyNotice === true ? READ_ONLY_NOTICE : before.guard.blocksInChain > 0 ? runawayNotice(result.why, ctx.config.plan) : undefined),
+    stopNotice: (result, before) => (result.readOnlyNotice === true ? READ_ONLY_NOTICE : before.guard.blocksInChain > 0 ? runawayNotice(result.why) : undefined),
   })
   if (r.decision.action === 'block') return stopFeedback(r.decision.reason)
   return r.notice !== undefined ? out({ systemMessage: r.notice }) : QUIET

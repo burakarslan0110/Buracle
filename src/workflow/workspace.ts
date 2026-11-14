@@ -1,9 +1,8 @@
 import { existsSync, readdirSync, readFileSync, rmSync, statSync, unlinkSync, type Dirent } from 'node:fs'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
-import type { BuracleConfig } from '../core/config'
 import {
-  indexExclusion, indexState, indexToolDue, isPathWithin, pathKey,
-  type IndexExclusionContext, type ProjectIndex, type WorkspaceInfo,
+  INDEX_SETTINGS, indexExclusion, indexState, indexToolDue, isPathWithin, pathKey,
+  type IndexExclusionContext, type IndexSettings, type ProjectIndex, type WorkspaceInfo,
 } from '../core/workspace'
 import { readJsonSafeSync, realPath, sha256 } from '../engine/fsx'
 import { revParse } from '../engine/git'
@@ -146,8 +145,8 @@ export interface WorkspaceTarget { cwd: string; root?: string; children: string[
 
 export interface WorkspaceOptions { vault: string; exclude: readonly string[]; children: boolean; maxChildren: number }
 
-export function workspaceOptions(cfg: BuracleConfig): WorkspaceOptions {
-  return { vault: paths.oldVaultRoot(), exclude: cfg.index.exclude, children: cfg.index.children, maxChildren: cfg.index.maxChildren }
+export function workspaceOptions(cfg: IndexSettings = INDEX_SETTINGS): WorkspaceOptions {
+  return { vault: paths.oldVaultRoot(), exclude: cfg.exclude, children: cfg.children, maxChildren: cfg.maxChildren }
 }
 
 export async function resolveWorkspace(cwd: string, o: WorkspaceOptions): Promise<WorkspaceTarget> {
@@ -274,12 +273,12 @@ export function codegraphIndexPresent(root: string): boolean {
   return existsSync(join(root, codegraphDataDir(root), 'codegraph.db'))
 }
 
-export function indexDue(root: string, cfg: BuracleConfig['index'], nowMs: number): boolean {
+export function indexDue(root: string, cfg: IndexSettings, nowMs: number): boolean {
   const rec = readIndexRecord(root)
   return indexToolDue(rec?.codegraph, cfg.codegraph, cfg.minIntervalMin, nowMs) || indexToolDue(rec?.semble, cfg.semble, cfg.minIntervalMin, nowMs)
 }
 
-export function projectIndex(root: string, cfg: BuracleConfig['index'], nowMs: number, building = false): ProjectIndex {
+export function projectIndex(root: string, cfg: IndexSettings, nowMs: number, building = false): ProjectIndex {
   const rec = readIndexRecord(root)
   const lock = building ? { pid: process.pid, at: nowMs } : indexLockHolder(root, nowMs)
   const run = lock !== undefined ? { since: lock.at } : undefined
@@ -291,35 +290,35 @@ export function projectIndex(root: string, cfg: BuracleConfig['index'], nowMs: n
   }
 }
 
-export function indexSummary(root: string, cfg: BuracleConfig['index'], nowMs: number): ProjectIndex {
+export function indexSummary(root: string, cfg: IndexSettings, nowMs: number): ProjectIndex {
   return projectIndex(canonicalDir(root), cfg, nowMs)
 }
 
-function idleIndex(cfg: BuracleConfig['index']): ProjectIndex {
+function idleIndex(cfg: IndexSettings): ProjectIndex {
   return { codegraph: cfg.codegraph ? { state: 'none' } : { state: 'off' }, semble: cfg.semble ? { state: 'none' } : { state: 'off' } }
 }
 
-export function infoFor(target: WorkspaceTarget, cfg: BuracleConfig, nowMs: number, building: readonly string[] = []): WorkspaceInfo {
+export function infoFor(target: WorkspaceTarget, cfg: IndexSettings, nowMs: number, building: readonly string[] = []): WorkspaceInfo {
   const info: WorkspaceInfo = {
     cwd: target.cwd,
     children: [...target.children],
-    index: target.root !== undefined ? projectIndex(target.root, cfg.index, nowMs, building.includes(target.root)) : idleIndex(cfg.index),
+    index: target.root !== undefined ? projectIndex(target.root, cfg, nowMs, building.includes(target.root)) : idleIndex(cfg),
   }
   if (target.root !== undefined) info.root = target.root
   if (target.excluded !== undefined) info.excluded = target.excluded
   if (target.children.length > 0) {
     const childIndex: Record<string, ProjectIndex> = {}
-    for (const c of target.children) childIndex[c] = projectIndex(c, cfg.index, nowMs, building.includes(c))
+    for (const c of target.children) childIndex[c] = projectIndex(c, cfg, nowMs, building.includes(c))
     info.childIndex = childIndex
   }
   return info
 }
 
-export async function workspaceInfo(cwd: string, cfg: BuracleConfig, nowMs: number): Promise<WorkspaceInfo> {
+export async function workspaceInfo(cwd: string, cfg: IndexSettings, nowMs: number): Promise<WorkspaceInfo> {
   return infoFor(await resolveWorkspace(cwd, workspaceOptions(cfg)), cfg, nowMs)
 }
 
-export function refreshWorkspaceInfo(info: WorkspaceInfo, cfg: BuracleConfig, nowMs: number): WorkspaceInfo {
+export function refreshWorkspaceInfo(info: WorkspaceInfo, cfg: IndexSettings, nowMs: number): WorkspaceInfo {
   const target: WorkspaceTarget = { cwd: info.cwd, children: info.children }
   if (info.root !== undefined) target.root = info.root
   if (info.excluded !== undefined) target.excluded = info.excluded
@@ -333,10 +332,10 @@ const spawnDetached: IndexSpawner = (argv, cwd) => {
   child.unref()
 }
 
-export function startIndexRun(target: WorkspaceTarget, cfg: BuracleConfig, nowMs: number, argv: string[] | undefined, spawn: IndexSpawner = spawnDetached): string[] {
-  if (argv === undefined || (!cfg.index.codegraph && !cfg.index.semble)) return []
+export function startIndexRun(target: WorkspaceTarget, cfg: IndexSettings, nowMs: number, argv: string[] | undefined, spawn: IndexSpawner = spawnDetached): string[] {
+  if (argv === undefined || (!cfg.codegraph && !cfg.semble)) return []
   const roots = target.root !== undefined ? [target.root] : target.children
-  const due = roots.filter(r => indexDue(r, cfg.index, nowMs) && indexLockHolder(r, nowMs) === undefined)
+  const due = roots.filter(r => indexDue(r, cfg, nowMs) && indexLockHolder(r, nowMs) === undefined)
   if (due.length === 0) return []
   pruneIndexStates(nowMs)
   const at = target.root ?? target.cwd
@@ -349,10 +348,10 @@ export function startIndexRun(target: WorkspaceTarget, cfg: BuracleConfig, nowMs
   return due
 }
 
-export async function spawnIndexIfDue(cwd: string, cfg: BuracleConfig, nowMs: number, argv: string[] | undefined, spawn?: IndexSpawner): Promise<string | undefined> {
+export async function spawnIndexIfDue(cwd: string, cfg: IndexSettings, nowMs: number, argv: string[] | undefined, spawn?: IndexSpawner): Promise<string | undefined> {
   try {
-    if (!cfg.index.auto || process.env['BURACLE_NO_AUTOSTART'] === '1' || argv === undefined) return undefined
-    if (!cfg.index.codegraph && !cfg.index.semble) return undefined
+    if (!cfg.auto || process.env['BURACLE_NO_AUTOSTART'] === '1' || argv === undefined) return undefined
+    if (!cfg.codegraph && !cfg.semble) return undefined
     const target = await resolveWorkspace(cwd, workspaceOptions(cfg))
     return startIndexRun(target, cfg, nowMs, argv, spawn).length > 0 ? target.root ?? target.cwd : undefined
   } catch (e) {

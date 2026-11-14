@@ -196,7 +196,7 @@ describe('statusline claude', () => {
     expect(shown.at(-1)).toContain('⬆2')
   }))
 
-  test('the running workflow comes from the session\'s flow record; an ended run shows as done, folds after workflow.foldAfterSec and the plan line returns', () => withSandbox(async ({ root }) => {
+  test('the running workflow comes from the session\'s flow record; an ended run shows as done, folds 8 s later and the plan line returns (a workflow.foldAfterSec left in config.yaml is ignored)', () => withSandbox(async ({ root }) => {
     const repo = await gitRepo(join(root, 'proj'))
     runningUi()
     bindPlan(repo, 'Rate limit plan')
@@ -218,10 +218,10 @@ describe('statusline claude', () => {
     writeFlow('claude', SID, flowEnd(rec, 'done', NOW - 9_000).record)
     expect((await shown())[1]).toBe('Plan: Rate limit plan [implement] ▰▰▱▱▱▱ 1/3')
     writeFileSync(userConfigFile(), 'workflow:\n  foldAfterSec: 60\n')
-    expect((await shown())[1]).toBe('plan-build ✓ done 1/3 | Rate limit | 9m')
+    expect((await shown())[1]).toBe('Plan: Rate limit plan [implement] ▰▰▱▱▱▱ 1/3')
   }))
 
-  test('the code index state of the session\'s project: none, building, ready, failed, off; nothing outside a project', () => withSandbox(async ({ root, home }) => {
+  test('the code index state of the session\'s project: none, building, ready, failed (index.codegraph and index.semble left in config.yaml are ignored); nothing outside a project', () => withSandbox(async ({ root, home }) => {
     const repo = await gitRepo(join(root, 'proj'))
     const d = deps({ gitBudgetMs: 10_000 })
     const at = async (cwd: string) => (await build(['claude', '--style', 'full'], JSON.stringify(claudePayload({}, cwd)), d)).bar?.index
@@ -237,7 +237,7 @@ describe('statusline claude', () => {
     const segs = (await build(['claude', '--style', 'full'], JSON.stringify(claudePayload({}, repo)), d)).rows.flat()
     expect(segs.find(s => s.id === 'index')).toMatchObject({ text: 'idx failed', color: 'red' })
     writeFileSync(userConfigFile(), 'index:\n  codegraph: false\n  semble: false\n')
-    expect(await at(repo)).toBe('off')
+    expect(await at(repo)).toBe('failed')
     expect(await at(home)).toBeUndefined()
   }))
 

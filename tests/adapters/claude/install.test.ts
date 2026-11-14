@@ -139,12 +139,11 @@ describe('install plan as data', () => {
     expect(op.enforce).toBeUndefined()
   })
 
-  test('the startup announcement names the configured Memory UI port', () => {
+  test('the startup announcement names the Memory UI port', () => {
     const ctx = ctxFor()
-    ctx.config.memory.ui.port = 41999
     const op = announcementOps(ctx)[0] as Extract<Op, { kind: 'json-merge' }>
     expect(op.path).toBe(join(ctx.paths.claudeDir(), 'settings.json'))
-    expect(op.set).toEqual({ companyAnnouncements: ['Buracle · Memory UI: http://127.0.0.1:41999 (buracle mem ui) · /buracle:plan-build plans and builds a change'] })
+    expect(op.set).toEqual({ companyAnnouncements: ['Buracle · Memory UI: http://127.0.0.1:41777 (buracle mem ui) · /buracle:plan-build plans and builds a change'] })
   })
 
   test("applied: the announcement is written, a value the user set before or after stays theirs, and uninstall removes only Buracle's", async () => {

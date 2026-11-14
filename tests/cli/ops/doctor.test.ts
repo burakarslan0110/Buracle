@@ -5,6 +5,7 @@ import { run as doctorRun, indexSection, usage as doctorUsage } from '../../../s
 import { cliVersion } from '../../../src/cli/router'
 import { run as installRun } from '../../../src/cli/commands/install'
 import { defaultConfig } from '../../../src/core/config'
+import { indexSettings } from '../../../src/core/workspace'
 import { indexChecks } from '../../../src/workflow/workspace-index'
 import type { McpCatalog } from '../../../src/core/catalog'
 import { checkTools, doctorExit, parseShim, skillChecks, updateChecks, type DoctorCheck } from '../../../src/engine/update/doctor'
@@ -303,7 +304,7 @@ describe('buracle doctor', () => {
     const cfg = defaultConfig()
     const now = Date.parse('2026-10-08T00:00:00Z')
     const rows = await indexSection(repo, cfg, now)
-    expect(rows).toEqual((await indexChecks(repo, cfg, now)).map(c => ({ section: 'index', ...c })))
+    expect(rows).toEqual((await indexChecks(repo, indexSettings(cfg), now)).map(c => ({ section: 'index', ...c })))
     expect(rows.map(r => [r.level, r.check])).toEqual([['warn', 'index.codegraph'], ['warn', 'index.semble']])
     expect(rows.every(r => r.detail.startsWith(repo))).toBe(true)
     expect(await indexSection(home, cfg, now)).toEqual([{ section: 'index', level: 'info', check: 'index', detail: `${home} is your home folder: nothing is indexed here` }])
