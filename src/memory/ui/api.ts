@@ -9,16 +9,11 @@ import { memQueryWords } from '../../core/memory/query'
 import { memStemForms } from '../../core/memory/stem'
 import { cortexdbBinary } from '../../engine/toolchain/cortexdb'
 import { CortexError } from '../cortex'
-import { brainDir, migrationLockFile } from '../layout'
-import { lockHeld } from '../lock'
-import { migrationInfo } from '../migrate'
-import { legacyPending } from '../migration-state'
+import { brainDir } from '../layout'
 import { readProjectsCache, slugExclusion } from '../project'
 import { bucketCounts, bucketExists, brainExists, brainSig, getStored, listAll, personRef, projectRef, refKey, type BrainRef } from '../store'
 
 export const CORTEXDB_FIX = 'buracle install'
-export const MIGRATION_STATUS_FIX = 'buracle mem migrate --status'
-export const MIGRATION_FIX = 'buracle mem migrate'
 
 export class UiApiError extends Error {
   readonly status: number
@@ -39,8 +34,6 @@ export class UiApiError extends Error {
 export function errorPayload(e: unknown): { status: number, body: { error: string, message: string, fix?: string } & Record<string, unknown> } {
   if (e instanceof UiApiError) return { status: e.status, body: { ...(e.data ?? {}), error: e.code, message: e.message, ...(e.fix !== undefined ? { fix: e.fix } : {}) } }
   if (e instanceof CortexError && e.code === 'not_installed') return { status: 503, body: { error: 'cortexdb_missing', message: 'CortexDB is not installed, so the brain cannot be read.', fix: CORTEXDB_FIX } }
-  if (e instanceof CortexError && e.code === 'migrating') return { status: 503, body: { error: 'migrating', message: e.message, fix: MIGRATION_STATUS_FIX } }
-  if (e instanceof CortexError && e.code === 'migration_failed') return { status: 503, body: { error: 'migration_failed', message: e.message, fix: MIGRATION_FIX } }
   if (e instanceof CortexError) return { status: 502, body: { error: 'cortexdb_failed', message: e.message } }
   return { status: 500, body: { error: 'failed', message: e instanceof Error ? e.message : String(e) } }
 }
@@ -84,8 +77,7 @@ export class BrainCache {
   private readonly terms = new WeakMap<MemItem, string[]>()
 
   async items(ref: BrainRef, nowMs = Date.now()): Promise<MemItem[]> {
-    // Buracle 0.5's files that wait to be moved count as a brain: listing them waits for (or runs) the move instead of reporting nothing.
-    if (!brainExists() && !legacyPending()) return []
+    if (!brainExists()) return []
     const key = refKey(ref)
     const sig = brainSig()
     const hit = this.entries.get(key)
@@ -226,20 +218,6 @@ async function pool<T, R>(list: readonly T[], n: number, fn: (x: T) => Promise<R
   return out
 }
 
-/** Where the move from Buracle 0.5's per-layer files stands, for the banner that replaces an empty brain while it runs or has failed. */
-export function migrationSummary(): { state: string, legacy: number, keptLegacy: boolean, startedAt?: string, finishedAt?: string, error?: string, fix?: string } {
-  const m = migrationInfo()
-  // Files wait and another process holds the migration lock: the move is under way there, whatever its marker says yet.
-  const state = m.state === 'pending' && lockHeld(migrationLockFile(), 60_000) ? 'running' : m.state
-  return {
-    state, legacy: m.legacy.length, keptLegacy: m.keptLegacy,
-    ...(m.marker?.startedAt !== undefined ? { startedAt: m.marker.startedAt } : {}),
-    ...(m.marker?.finishedAt !== undefined ? { finishedAt: m.marker.finishedAt } : {}),
-    ...(state === 'failed' && m.marker?.error !== undefined ? { error: m.marker.error } : {}),
-    ...(state === 'failed' ? { fix: MIGRATION_FIX } : state === 'running' ? { fix: MIGRATION_STATUS_FIX } : {}),
-  }
-}
-
 export async function overview(cache: BrainCache, nowMs: number): Promise<Record<string, unknown>> {
   const bin = cortexdbBinary()
   const known = await knownProjects()
@@ -255,7 +233,6 @@ export async function overview(cache: BrainCache, nowMs: number): Promise<Record
   return {
     now: new Date(nowMs).toISOString(),
     store: { engine: 'cortexdb', installed: bin !== undefined, ...(bin !== undefined ? { version: bin.version } : {}), brain: brainDir(), fix: CORTEXDB_FIX },
-    migration: migrationSummary(),
     regions: REGIONS.map(r => ({ id: r.id, label: r.label, area: r.area, kinds: r.kinds })),
     kinds: Object.fromEntries(MEM_KINDS.map(k => [k, regionOf(k)])),
     person,
