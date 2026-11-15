@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pluginMcpPattern } from '../adapters/claude/plugin'
+import { AGY_COMPANION_AGENT } from '../adapters/agy/plugin'
 import { ompAgentTools } from '../adapters/omp/build'
 import { READONLY_SHELL_ALLOW, READONLY_SHELL_DENY } from '../adapters/opencode/constants'
 import { agentPermissions } from '../adapters/opencode/render'
@@ -25,7 +26,8 @@ const CLAUDE_SHELL_DENY: readonly string[] = ['git *--output*', 'rg *--pre*', 'r
 const ANSI = /\u001b\[[0-9;?]*[A-Za-z]/g
 
 export interface HostPrepare { prompt: string, repo: string, outDir: string, timeoutMs: number, agent: AgentDoc }
-export interface PreparedRun { argv: string[], cwd: string, stdin: string, read(stdout: string): { ok: boolean, text: string }, cleanup(): void }
+/** `argPrompt` marks a run whose last argv element is the prompt (print mode that takes it as an argument), so extra arguments go before the flag that takes it (the last two elements). */
+export interface PreparedRun { argv: string[], cwd: string, stdin: string, argPrompt?: true, read(stdout: string): { ok: boolean, text: string }, cleanup(): void }
 export interface CompanionHost { harness: Harness, shell: boolean, scratch: boolean, prepare(o: HostPrepare): PreparedRun }
 
 function plain(stdout: string): { ok: boolean, text: string } {
@@ -216,12 +218,44 @@ const pi: CompanionHost = {
   scratch: false,
   prepare: o => ({ argv: piArgv(), cwd: o.repo, stdin: o.prompt, read: plain, cleanup: () => undefined }),
 }
-// A harness Buracle has no second-opinion run for yet: choosing it fails that attempt and the next target is tried.
-function pendingHost(harness: Harness): CompanionHost {
-  return { harness, shell: false, scratch: false, prepare: () => { throw new Error(`a second opinion from ${harness} is not supported yet`) } }
+/** The largest prompt passed as an argument: well under macOS's ARG_MAX (1 MiB, shared with the environment); the material is never cut to fit. */
+export const AGY_PROMPT_MAX_BYTES = 200_000
+
+/** AGY's second opinion: the `buracle-companion` agent (read tool only, no MCP), plan mode, the prompt as the last argument. */
+export function agyArgv(prompt: string): string[] {
+  const bytes = new TextEncoder().encode(prompt).length
+  if (bytes > AGY_PROMPT_MAX_BYTES) throw new Error(`the review material is ${bytes} bytes, more than the ${AGY_PROMPT_MAX_BYTES} bytes AGY's print mode takes as an argument, so it is unavailable for this run`)
+  return ['agy', '--agent', AGY_COMPANION_AGENT, '--mode', 'plan', '--output-format', 'json', '-p', prompt]
 }
 
-const HOSTS: Readonly<Record<Harness, CompanionHost>> = { claude, codex, opencode, omp, qwen, pi, agy: pendingHost('agy') }
+const AGY_TEXT_KEYS: readonly string[] = ['result', 'response', 'text', 'output', 'message', 'content']
+
+/**
+ * The answer of `agy --output-format json`. The result's text field is not documented, so the first of a few likely keys
+ * that holds a string is taken; a run that ended early (`finished_reason`: print_timeout, interrupted, error) or says it
+ * is an error fails the attempt; output that is not one JSON object is read as plain text.
+ */
+export function agyResultText(stdout: string): { ok: boolean, text: string } {
+  const raw = stdout.replace(ANSI, '')
+  let doc: unknown
+  try { doc = JSON.parse(raw.trim()) } catch { return { ok: true, text: raw } }
+  if (doc === null || typeof doc !== 'object' || Array.isArray(doc)) return { ok: true, text: raw }
+  const o = doc as Record<string, unknown>
+  const text = AGY_TEXT_KEYS.map(k => o[k]).find((v): v is string => typeof v === 'string')
+  const reason = typeof o['finished_reason'] === 'string' ? o['finished_reason'] : undefined
+  if (reason !== undefined) return { ok: false, text: `AGY ended the run early (${reason})${text !== undefined && text.trim() !== '' ? `: ${text}` : ''}` }
+  if (o['is_error'] === true || o['error'] !== undefined && o['error'] !== null && o['error'] !== false) return { ok: false, text: text ?? String(o['error']) }
+  return text !== undefined ? { ok: true, text } : { ok: true, text: raw }
+}
+
+const agy: CompanionHost = {
+  harness: 'agy',
+  shell: false,
+  scratch: false,
+  prepare: o => ({ argv: agyArgv(o.prompt), cwd: o.repo, stdin: '', argPrompt: true, read: agyResultText, cleanup: () => undefined }),
+}
+
+const HOSTS: Readonly<Record<Harness, CompanionHost>> = { claude, codex, opencode, omp, qwen, pi, agy }
 
 export const companionTestHooks: { extraArgs?: (h: Harness) => string[] } = {}
 
@@ -229,7 +263,7 @@ function withExtra(h: Harness, run: PreparedRun): PreparedRun {
   const extra = companionTestHooks.extraArgs?.(h) ?? []
   if (extra.length === 0) return run
   const argv = [...run.argv]
-  const at = h === 'codex' && argv.at(-1) === '-' ? argv.length - 1 : argv.length
+  const at = run.argPrompt === true ? argv.length - 2 : h === 'codex' && argv.at(-1) === '-' ? argv.length - 1 : argv.length
   argv.splice(at, 0, ...extra)
   return { ...run, argv }
 }

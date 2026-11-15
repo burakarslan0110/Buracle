@@ -15,9 +15,9 @@ const uninstall = async () => applyPlans([await (adapter.uninstallPlan as NonNul
 const walk = (dir: string, base = dir): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(e => (e.isDirectory() ? walk(join(dir, e.name), base) : [join(dir, e.name).slice(base.length + 1)])).sort()
 
 describe('the generated plugin files', () => {
-  test('a manifest, one always-on rules file, one file per path rule and one per review agent', () => {
+  test('a manifest, one always-on rules file, one file per path rule, one per review agent and the companion agent', () => {
     const paths = canonical.rules.filter(r => r.scope === 'paths').map(r => `rules/buracle-${r.id}.md`)
-    const agents = canonical.agents.map(a => `agents/${a.id}.md`)
+    const agents = [...canonical.agents.map(a => `agents/${a.id}.md`), 'agents/buracle-companion.md']
     expect(files.map(f => f.path).sort()).toEqual(['plugin.json', 'rules/AGENTS.md', ...paths, ...agents].sort())
     expect(JSON.parse(get('plugin.json'))).toEqual({ name: 'buracle', displayName: 'Buracle', version: '1.2.3', description: expect.any(String) })
     expect(packageVersion(REPO)).toMatch(/^\d+\.\d+\.\d+/)

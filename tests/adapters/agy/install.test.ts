@@ -131,7 +131,7 @@ describe('install into ~/.gemini/config', () => {
   test('the skills are not the adapter\'s: the profile asks the shared install for a link per skill in <config>/skills', () => {
     expect(harnessProfile('agy').skills).toMatchObject({ readsAgentsDir: false, linkDir: 'skills' })
     expect(harnessProfile('agy').adapterPending).toBeUndefined()
-    expect(harnessProfile('agy').companionPending).toBe(true)
+    expect(harnessProfile('agy').companionPending).toBeUndefined()
   })
 })
 

@@ -105,7 +105,7 @@ Press `S`. The workflow switches decide how plan-build, goal-build and bugfix ru
 | Build on its own branch, in a worktree | `plan.branchIsolation` | on |
 | Ask clarifying questions while planning | `plan.questions` | on |
 | Independent review of plan, changes, goal contract | `plan.reviews.plan`, `plan.reviews.changes`, `plan.reviews.goal` | on |
-| Read-only second opinion from another harness | `plan.reviews.companion` | `off`, or `auto`, `claude`, `codex`, `opencode`, `omp` |
+| Read-only second opinion from another harness | `plan.reviews.companion` | `off`, or `auto`, `claude`, `codex`, `opencode`, `omp`, `agy` |
 | Verify a goal-build after its criteria pass | `plan.goalVerification` | on |
 | Pause after approval to switch the model | `plan.modelSwitch` | `off`, or `manual` |
 | Plan in the harness's own plan mode | `plan.nativePlanMode` | `off`, or `on` |
