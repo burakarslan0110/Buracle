@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { agyHooks, agyMcpServers, HOOK_NAME, isBuracleCommand } from '../../../src/adapters/agy/config'
+import { agyHooks, agyMcpServers, HOOK_NAME, isBuracleCommand, isBuracleStatusLine, STATUS_LINE_COMMAND } from '../../../src/adapters/agy/config'
 import { adapter } from '../../../src/adapters/agy/index'
 import { defaultConfig } from '../../../src/core/config'
 import { harnessProfile } from '../../../src/core/harness/index'
@@ -132,5 +132,25 @@ describe('install into ~/.gemini/config', () => {
     expect(harnessProfile('agy').skills).toMatchObject({ readsAgentsDir: false, linkDir: 'skills' })
     expect(harnessProfile('agy').adapterPending).toBeUndefined()
     expect(harnessProfile('agy').companionPending).toBe(true)
+  })
+})
+
+describe('the status line', () => {
+  test('writes statusLine into ~/.gemini/antigravity-cli/settings.json; a statusLine of the user stays', async () => {
+    await withSandbox(async ({ home }) => {
+      await install()
+      const file = join(home, '.gemini', 'antigravity-cli', 'settings.json')
+      const sl = read(file)['statusLine'] as { type: string, command: string }
+      expect(sl).toEqual({ type: 'command', command: STATUS_LINE_COMMAND })
+      expect(isBuracleStatusLine(sl.command)).toBe(true)
+      expect((await install()).applied).toBe(0)
+    })
+    await withSandbox(async ({ home }) => {
+      const file = join(home, '.gemini', 'antigravity-cli', 'settings.json')
+      mkdirSync(join(home, '.gemini', 'antigravity-cli'), { recursive: true })
+      writeFileSync(file, JSON.stringify({ statusLine: { type: 'command', command: 'echo mine' }, showTips: true }))
+      await install()
+      expect(read(file)).toEqual({ statusLine: { type: 'command', command: 'echo mine' }, showTips: true })
+    })
   })
 })

@@ -13,6 +13,7 @@ export const agyProfile: HarnessProfile = {
   runtime: 'command',
   companionPending: true,
   noStdinPrint: true,
+  statusLineCommand: true,
   editBudgetMs: 28_000,
   // The global customization root, found under HOME: `ANTIGRAVITY_CONFIG_REL_DIR` is named in the program, but with it set
   // `agy mcp add` still wrote `<HOME>/.gemini/config/mcp_config.json` (1.5.9), so it counts as a relocation variable to

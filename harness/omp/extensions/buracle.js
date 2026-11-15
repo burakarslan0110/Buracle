@@ -467,6 +467,7 @@ var init_agy = __esm(() => {
     runtime: "command",
     companionPending: true,
     noStdinPrint: true,
+    statusLineCommand: true,
     editBudgetMs: 28000,
     configDir: { key: "agyDir", under: ".gemini/config" },
     relocationEnv: ["ANTIGRAVITY_CONFIG_REL_DIR"],
@@ -549,6 +550,7 @@ var init_claude = __esm(() => {
     bin: "claude",
     proc: { base: /^claude$/, path: /\/claude\/versions\/[^/]+$/, pidEnv: "CLAUDE_PID" },
     runtime: "command",
+    statusLineCommand: true,
     spoolSuffix: "classic",
     editBudgetMs: 28000,
     configDir: { key: "claudeDir", env: "CLAUDE_CONFIG_DIR", under: ".claude" },
@@ -972,6 +974,7 @@ var init_qwen = __esm(() => {
     bin: "qwen",
     proc: { base: /^qwen(?:-[\w.-]+)?$/, path: /\/\.qwen\/bin\/qwen\/qwen-[^/]+$/ },
     runtime: "command",
+    statusLineCommand: true,
     companionPending: true,
     editBudgetMs: 28000,
     configDir: { key: "qwenHome", env: "QWEN_HOME", under: ".qwen" },
@@ -37265,7 +37268,7 @@ function editTargets2(input, cwd, read, home) {
   return hashline(text, cwd, read, home) ?? sloppy(text, cwd, home);
 }
 
-// src/adapters/omp/runtime/flow-widget.ts
+// src/adapters/shared/pi-family/flow-widget.ts
 var FLOW_WIDGET_KEY = "buracle.flow";
 var FLOW_WIDGET_MAX_LINES = 10;
 var FLOW_WIDGET_ROWS = 3;
@@ -37306,7 +37309,6 @@ class FlowWidget {
     return at;
   }
 }
-
 // src/adapters/omp/runtime/pane.ts
 var PANE_WIDGET_KEY = "buracle.pane";
 var PANE_MAX_LINES = 12;

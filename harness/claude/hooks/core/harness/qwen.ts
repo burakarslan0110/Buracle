@@ -12,6 +12,7 @@ export const qwenProfile: HarnessProfile = {
   // The installed program is `~/.qwen/bin/qwen/qwen-<version>`, which `qwen` on PATH links to.
   proc: { base: /^qwen(?:-[\w.-]+)?$/, path: /\/\.qwen\/bin\/qwen\/qwen-[^/]+$/ },
   runtime: 'command',
+  statusLineCommand: true,
   companionPending: true,
   editBudgetMs: 28_000,
   configDir: { key: 'qwenHome', env: 'QWEN_HOME', under: '.qwen' },

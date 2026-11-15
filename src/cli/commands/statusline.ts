@@ -2,6 +2,7 @@ import type { CommandIO } from '../router'
 import type { BuracleConfig } from '../../core/config'
 import type { Harness } from '../../core/events'
 import { isHarness } from '../../core/events'
+import { harnessProfile, HARNESSES } from '../../core/harness'
 import { FOLD_AFTER_SEC } from '../../core/flow/state'
 import { formatPct, formatTokens, gauge, sanitizeText, stripEmoji, textWidth, truncateToWidth } from '../../core/status/format'
 import type { BarModel, Segment, StatusLayout } from '../../core/status/model'
@@ -14,14 +15,19 @@ import { log } from '../../engine/log'
 import { cachedProjectSlug, dirLabel, effectiveLayout, flowForSession, gitInfo, indexStatusFor, loadLayout, pendingUpdates, planForSession, readClaudePayload, readMemoryStatus } from '../../usage/bar'
 import { writeTelemetry } from '../../workflow/session-store'
 
+/** The harnesses whose host runs a status line command that reads the session JSON on stdin. */
+const COMMAND_HARNESSES = HARNESSES.filter(h => harnessProfile(h).statusLineCommand === true)
+
 export const name = 'statusline'
-export const summary = 'Render the status line for a harness (Claude reads its JSON on stdin)'
-export const usage = `Usage: buracle statusline claude [--width N] [--format ansi|plain] [--style buracle|full|compact] [--json]
+export const summary = 'Render the status line for a harness (it reads the host\'s session JSON on stdin)'
+export const usage = `Usage: buracle statusline <claude|qwen|agy> [--width N] [--format ansi|plain] [--style buracle|full|compact] [--json]
        buracle statusline claude --subagent
 
   claude      reads Claude Code's statusLine JSON on stdin (settings.json "statusLine" command);
               with --subagent, reads the subagentStatusLine JSON and prints one
               {"id","content"} line per subagent row
+  qwen        reads Qwen Code's status line JSON on stdin (settings.json "ui.statusLine" command)
+  agy         reads AGY CLI's status line JSON on stdin (settings.json "statusLine" command)
 
 Options:
   --width N   columns available (default: $COLUMNS - 1, else 120); segments are shortened, then
@@ -80,7 +86,8 @@ export function parseStatuslineArgs(argv: string[]): StatuslineArgs | { error: s
       default:
         if (arg.startsWith('-')) return { error: `unknown option ${arg}` }
         if (a.harness !== undefined) return { error: `unexpected argument ${arg}` }
-        if (arg !== 'claude') return { error: isHarness(arg) ? `only claude has a status line command (${arg} draws its own)` : `unknown harness '${arg}' (expected claude)` }
+        if (!isHarness(arg)) return { error: `unknown harness '${arg}' (expected ${COMMAND_HARNESSES.join(', ')})` }
+        if (harnessProfile(arg).statusLineCommand !== true) return { error: `only ${COMMAND_HARNESSES.join(', ')} have a status line command (${arg} draws its own)` }
         a.harness = arg
     }
   }
@@ -212,6 +219,9 @@ export async function buildStatusline(args: StatuslineArgs, io: Pick<CommandIO, 
     let payload: unknown = {}
     try { payload = text.trim() === '' ? {} : JSON.parse(text) as unknown } catch (e) { log('warn', 'statusline: stdin is not JSON', { error: e }) }
     const p = readClaudePayload(payload, baseCwd)
+    // AGY CLI names the width of its status line in the payload; an explicit --width still wins.
+    const hostCols = payload !== null && typeof payload === 'object' ? (payload as Record<string, unknown>)['terminal_width'] : undefined
+    const widthArgs: StatuslineArgs = args.width === undefined && typeof hostCols === 'number' && hostCols > 1 ? { ...args, width: Math.floor(hostCols) - 1 } : args
     if (p.sessionId !== undefined) {
       try {
         const t: Parameters<typeof writeTelemetry>[2] = { at: nowMs, windows: p.windows, cwd: p.cwd }
@@ -220,13 +230,13 @@ export async function buildStatusline(args: StatuslineArgs, io: Pick<CommandIO, 
         if (p.effort !== undefined) t.effort = p.effort
         if (p.ctx !== undefined) t.ctx = p.ctx
         if (p.costUsd !== undefined) t.costUsd = p.costUsd
-        writeTelemetry('claude', p.sessionId, t)
+        writeTelemetry(h, p.sessionId, t)
       } catch (e) { log('warn', 'statusline: telemetry write failed', { error: e }) }
     }
     const config = loadConfigSync().config
     const style = args.style ?? config.statusline.style
-    const layout = effectiveLayout(loadLayout('claude'), config.statusline, args.style)
-    const bar: BarModel = { harness: 'claude', windows: p.windows }
+    const layout = effectiveLayout(loadLayout(h), config.statusline, args.style)
+    const bar: BarModel = { harness: h, windows: p.windows }
     if (p.model !== undefined) bar.model = p.model
     if (p.effort !== undefined) bar.effort = p.effort
     if (p.ctx !== undefined) bar.ctx = p.ctx
@@ -234,15 +244,15 @@ export async function buildStatusline(args: StatuslineArgs, io: Pick<CommandIO, 
     const d: DecorateOptions = { cwd: p.cwd, extraRoots: p.projectDir !== undefined ? [p.projectDir] : [], nowMs, gitBudgetMs, config }
     if (p.sessionId !== undefined) d.sessionId = p.sessionId
     if (p.worktree !== undefined) d.worktreeHint = p.worktree
-    await decorate(bar, 'claude', d)
+    await decorate(bar, h, d)
     if (style === 'buracle') {
       const po: Parameters<typeof barInfo>[1] = { nowMs }
       if (p.version !== undefined) po.version = p.version
       if (p.lines !== undefined) po.lines = p.lines
-      const info = await barInfo('claude', po)
-      return { harness: h, quiet: false, text: '', rows: barLines(bar, info, layout, widthOf(args, env), nowMs), joined: true, bar }
+      const info = await barInfo(h, po)
+      return { harness: h, quiet: false, text: '', rows: barLines(bar, info, layout, widthOf(widthArgs, env), nowMs), joined: true, bar }
     }
-    return { harness: h, quiet: false, text: '', rows: rows(bar, layout, widthOf(args, env), nowMs), bar }
+    return { harness: h, quiet: false, text: '', rows: rows(bar, layout, widthOf(widthArgs, env), nowMs), bar }
   }
 
 }

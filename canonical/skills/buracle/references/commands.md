@@ -76,10 +76,10 @@ buracle hook <harness> <event>
 
 ## statusline
 
-Render the status line for a harness (Claude reads its JSON on stdin)
+Render the status line for a harness (it reads the host's session JSON on stdin)
 
 ```text
-buracle statusline claude [--width N] [--format ansi|plain] [--style buracle|full|compact] [--json]
+buracle statusline <claude|qwen|agy> [--width N] [--format ansi|plain] [--style buracle|full|compact] [--json]
 buracle statusline claude --subagent
 ```
 

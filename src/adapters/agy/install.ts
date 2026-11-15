@@ -1,11 +1,14 @@
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type { Ledger, Op, Plan } from '../../engine/txn'
 import { readLedger } from '../../engine/txn'
 import type { AdapterContext } from '../registry'
-import { agyHooks, agyMcpServers, HOOK_NAME, OWNER } from './config'
+import { agyHooks, agyMcpServers, HOOK_NAME, OWNER, STATUS_LINE_VALUE } from './config'
 
 export const hooksPath = (ctx: Pick<AdapterContext, 'paths'>): string => join(ctx.paths.harnessConfigDir('agy'), 'hooks.json')
 export const mcpConfigPath = (ctx: Pick<AdapterContext, 'paths'>): string => join(ctx.paths.harnessConfigDir('agy'), 'mcp_config.json')
+
+/** The CLI's own settings file sits beside the customization root (`~/.gemini/antigravity-cli/settings.json`; the root is `~/.gemini/config`). */
+export const settingsPath = (ctx: Pick<AdapterContext, 'paths'>): string => join(dirname(ctx.paths.harnessConfigDir('agy')), 'antigravity-cli', 'settings.json')
 
 /**
  * What the install writes into AGY's folder: the `buracle` hook of hooks.json and one `mcpServers` entry per shipped
@@ -19,6 +22,8 @@ export async function agyInstallPlan(ctx: AdapterContext): Promise<Plan> {
   const off = new Set(ctx.config.mcp.off.agy)
   for (const [id, entry] of Object.entries(agyMcpServers(ctx.canonical, ctx.buracleBin))) set[`mcpServers.${id}`] = off.has(id) ? { ...entry, disabled: true } : entry
   if (Object.keys(set).length > 0) ops.push({ kind: 'jsonc-merge', path: mcpConfigPath(ctx), set, owner: OWNER })
+  // The status line is an extra: a `statusLine` the user set stays (soft).
+  ops.push({ kind: 'jsonc-merge', path: settingsPath(ctx), set: { statusLine: { ...STATUS_LINE_VALUE } }, owner: OWNER, soft: ['statusLine'] })
   return { id: 'agy', harness: 'agy', ops }
 }
 

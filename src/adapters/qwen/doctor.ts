@@ -6,7 +6,7 @@ import { MIN_VERSIONS } from '../../engine/update/min-versions'
 import { compareVersions } from '../../engine/update/versions'
 import type { AdapterContext } from '../registry'
 import { settingsPath } from './install'
-import { isBuracleCommand, qwenHooks, qwenMcpServers, QWEN_HOOK_EVENTS } from './settings'
+import { isBuracleCommand, isBuracleStatusLine, qwenHooks, qwenMcpServers, QWEN_HOOK_EVENTS } from './settings'
 
 export interface DoctorItem { level: 'ok' | 'warn' | 'error', check: string, detail: string }
 
@@ -54,6 +54,11 @@ export async function qwenDoctor(ctx: AdapterContext): Promise<DoctorItem[]> {
   const servers = rec(settings['mcpServers'])
   const lost = Object.keys(qwenMcpServers(ctx.canonical, ctx.buracleBin)).filter(id => servers[id] === undefined)
   out.push(lost.length > 0 ? { level: 'warn', check: 'qwen.mcp', detail: `MCP servers missing from ${file}: ${lost.join(', ')} (run \`buracle install qwen\`, or they are off in mcp.off.qwen)` } : { level: 'ok', check: 'qwen.mcp', detail: `${Object.keys(servers).length} MCP servers in ${file}` })
+
+  const statusCmd = rec(rec(settings['ui'])['statusLine'])['command']
+  if (typeof statusCmd !== 'string') out.push({ level: 'warn', check: 'qwen.statusLine', detail: `no ui.statusLine in ${file}: run \`buracle install qwen\`` })
+  else if (!isBuracleStatusLine(statusCmd)) out.push({ level: 'warn', check: 'qwen.statusLine', detail: `ui.statusLine runs ${JSON.stringify(statusCmd)}, not Buracle's status line (kept as the user's choice)` })
+  else out.push({ level: 'ok', check: 'qwen.statusLine', detail: `ui.statusLine in ${file} runs \`buracle statusline qwen\`` })
 
   const skills = join(ctx.paths.agentsDir(), 'skills')
   out.push(existsSync(skills) ? { level: 'ok', check: 'qwen.skills', detail: `Qwen Code reads the skills from ${skills}` } : { level: 'warn', check: 'qwen.skills', detail: `${skills} does not exist: run \`buracle install\`` })

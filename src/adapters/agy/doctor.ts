@@ -5,8 +5,8 @@ import { detectBinary, run } from '../../engine/proc'
 import { MIN_VERSIONS } from '../../engine/update/min-versions'
 import { compareVersions } from '../../engine/update/versions'
 import type { AdapterContext } from '../registry'
-import { agyHooks, agyMcpServers, AGY_HOOK_EVENTS, HOOK_NAME, isBuracleCommand } from './config'
-import { hooksPath, mcpConfigPath } from './install'
+import { agyHooks, agyMcpServers, AGY_HOOK_EVENTS, HOOK_NAME, isBuracleCommand, isBuracleStatusLine } from './config'
+import { hooksPath, mcpConfigPath, settingsPath } from './install'
 
 export interface DoctorItem { level: 'ok' | 'warn' | 'error', check: string, detail: string }
 
@@ -60,6 +60,14 @@ export async function agyDoctor(ctx: AdapterContext): Promise<DoctorItem[]> {
   const lost = Object.keys(agyMcpServers(ctx.canonical, ctx.buracleBin)).filter(id => servers[id] === undefined)
   if (mcp?.ok === false) out.push({ level: 'error', check: 'agy.mcp', detail: `${mcpFile} is not valid JSON (${mcp.error}); Buracle does not touch it` })
   else out.push(lost.length > 0 ? { level: 'warn', check: 'agy.mcp', detail: `MCP servers missing from ${mcpFile}: ${lost.join(', ')} (run \`buracle install agy\`)` } : { level: 'ok', check: 'agy.mcp', detail: `${Object.keys(servers).length} MCP servers in ${mcpFile}` })
+
+  const settingsFile = settingsPath(ctx)
+  const settings = existsSync(settingsFile) ? readJson(settingsFile) : undefined
+  const statusCmd = settings?.ok === true ? rec(settings.value['statusLine'])['command'] : undefined
+  if (settings?.ok === false) out.push({ level: 'error', check: 'agy.statusLine', detail: `${settingsFile} is not valid JSON (${settings.error}); Buracle does not touch it` })
+  else if (typeof statusCmd !== 'string') out.push({ level: 'warn', check: 'agy.statusLine', detail: `no statusLine in ${settingsFile}: run \`buracle install agy\`` })
+  else if (!isBuracleStatusLine(statusCmd)) out.push({ level: 'warn', check: 'agy.statusLine', detail: `statusLine runs ${JSON.stringify(statusCmd)}, not Buracle's status line (kept as the user's choice)` })
+  else out.push({ level: 'ok', check: 'agy.statusLine', detail: `statusLine in ${settingsFile} runs \`buracle statusline agy\`` })
 
   // AGY does not read ~/.agents/skills: the install links each skill into its own folder.
   const skills = join(ctx.paths.harnessConfigDir('agy'), 'skills')

@@ -1,6 +1,7 @@
 # Usage tips: Claude Code shows them in its spinner rotation (spinnerTipsOverride, labeled "Buracle"), OpenCode
-# shows one on its home screen. One line each, at most 160 characters, the same wording on every harness.
-# Write a command the way Claude Code and OpenCode spell it (`/plan-build`); Codex and Oh My Pi show no tips.
+# shows one on its home screen, Qwen Code cycles them as loading phrases (ui.customWittyPhrases) and Pi shows one as
+# the working message. One line each, at most 160 characters, the same wording on every harness.
+# Write a command the way Claude Code and OpenCode spell it (`/plan-build`); Codex, Oh My Pi and AGY CLI show no tips.
 tips:
   - id: plan-build
     text: "/plan-build writes a reviewed plan to docs/plan-build/, waits for your approval, then builds it test-first"

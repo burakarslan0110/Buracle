@@ -12,6 +12,7 @@ export const claudeProfile: HarnessProfile = {
   bin: 'claude',
   proc: { base: /^claude$/, path: /\/claude\/versions\/[^/]+$/, pidEnv: 'CLAUDE_PID' },
   runtime: 'command',
+  statusLineCommand: true,
   spoolSuffix: 'classic',
   editBudgetMs: 28_000,
   configDir: { key: 'claudeDir', env: 'CLAUDE_CONFIG_DIR', under: '.claude' },

@@ -101,13 +101,47 @@ function runningUi(port = 41777): void {
 describe('parseStatuslineArgs', () => {
   test('flags and errors', () => {
     expect(parseStatuslineArgs(['claude', '--width', '80', '--format=plain', '--style', 'compact', '--json'])).toEqual({ harness: 'claude', width: 80, format: 'plain', style: 'compact', json: true, verbose: false })
-    expect(parseStatuslineArgs(['codex'])).toEqual({ error: 'only claude has a status line command (codex draws its own)' })
+    expect(parseStatuslineArgs(['codex'])).toEqual({ error: 'only claude, qwen, agy have a status line command (codex draws its own)' })
     expect(parseStatuslineArgs(['claude', '--cwd', '/x'])).toEqual({ error: 'unknown option --cwd' })
     expect(parseStatuslineArgs([])).toEqual({ error: 'missing <harness>' })
-    expect(parseStatuslineArgs(['cursor'])).toEqual({ error: "unknown harness 'cursor' (expected claude)" })
+    expect(parseStatuslineArgs(['cursor'])).toEqual({ error: "unknown harness 'cursor' (expected claude, qwen, agy)" })
     expect(parseStatuslineArgs(['claude', '--width', '-3'])).toEqual({ error: '--width expects a positive number' })
     expect(parseStatuslineArgs(['claude', '--format', 'html'])).toEqual({ error: '--format expects ansi or plain' })
     expect(parseStatuslineArgs(['claude', 'codex'])).toEqual({ error: 'unexpected argument codex' })
+  })
+
+  test('qwen and agy have a status line command; pi and omp draw their own', () => {
+    expect(parseStatuslineArgs(['qwen', '--style', 'full'])).toEqual({ harness: 'qwen', style: 'full', json: false, verbose: false })
+    expect(parseStatuslineArgs(['agy'])).toEqual({ harness: 'agy', json: false, verbose: false })
+    expect(parseStatuslineArgs(['pi'])).toEqual({ error: 'only claude, qwen, agy have a status line command (pi draws its own)' })
+  })
+})
+
+describe('qwen and agy payloads', () => {
+  test('qwen: the footer line shows context and the harness name in the telemetry', async () => {
+    await withSandbox(async () => {
+      const payload = { session_id: SID, model: { display_name: 'qwen-3' }, workspace: { current_dir: '/tmp' }, context_window: { context_window_size: 100_000, used_percentage: 40, current_usage: 40_000 } }
+      const r = await build(['qwen', '--style', 'full'], JSON.stringify(payload), deps())
+      expect(r.harness).toBe('qwen')
+      expect(r.bar?.harness).toBe('qwen')
+      expect(r.bar?.ctx?.pct).toBe(40)
+      expect(readTelemetry('qwen', SID)?.ctx?.pct).toBe(40)
+    })
+  })
+
+  test('agy: quota buckets become the 7d window, the cost reads total_usd and terminal_width sets the width', async () => {
+    await withSandbox(async () => {
+      const payload = {
+        session_id: SID, cwd: '/tmp', model: { display_name: 'Gemini' }, terminal_width: 61,
+        context_window: { context_window_size: 1000, used_percentage: 10 },
+        quota: { 'gemini-weekly': { remaining_fraction: 0.75, reset_in_seconds: 60 }, other: { remaining_fraction: 0.1 } },
+        cost: { total_usd: 0.5 },
+      }
+      const r = await build(['agy', '--style', 'full'], JSON.stringify(payload), { nowMs: NOW, env: {}, cwd: '/tmp' })
+      expect(r.bar?.windows).toEqual([{ pct: 25, label: '7d', windowMinutes: 10080 }])
+      const widest = Math.max(...r.rows.map(row => row.reduce((n, sg) => n + sg.text.length, 0)))
+      expect(widest).toBeLessThanOrEqual(60)
+    })
   })
 })
 

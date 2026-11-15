@@ -1,6 +1,7 @@
 import type { BuracleConfig } from '../../../core/config'
 import type { CatalogMcp, CatalogSkill } from '../../../core/catalog'
 import type { Notice } from '../../../core/notices'
+import type { StatusLayout } from '../../../core/status/model'
 import type { RoutingPolicy } from '../../../core/policy/routing'
 
 // The part of Pi's extension API this extension uses (docs/extensions.md of the pi-coding-agent package).
@@ -9,6 +10,9 @@ export interface PiUI {
   notify(message: string, type?: 'info' | 'warning' | 'error'): void
   select?(title: string, options: string[]): Promise<string | undefined>
   confirm?(title: string, message: string): Promise<boolean>
+  setStatus?(key: string, text: string | undefined): void
+  setWidget?(key: string, content: string[] | undefined, options?: { placement?: 'aboveEditor' | 'belowEditor' }): void
+  setWorkingMessage?(message?: string): void
 }
 
 export interface PiContext {
@@ -61,4 +65,8 @@ export interface PiGenerated {
   mcpIds: string[]
   skills: CatalogSkill[]
   notices?: Notice[]
+  /** The canonical usage tips, shown as the working message. */
+  tips?: Array<{ id: string, text: string }>
+  /** The footer entries (`ui.setStatus`): key to segment ids, with the layout they render by. */
+  status?: { layout: StatusLayout, setStatus: Record<string, string[]> }
 }
