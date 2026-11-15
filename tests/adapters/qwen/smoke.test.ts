@@ -6,6 +6,7 @@ import { qwenMcpServers } from '../../../src/adapters/qwen/settings'
 import * as paths from '../../../src/engine/paths'
 import { run } from '../../../src/engine/proc'
 import { applyPlans } from '../../../src/engine/txn'
+import { liveNote, liveTest } from '../../helpers/live-smoke'
 import { withSandbox } from '../../helpers/sandbox'
 import { canonical, ctx, REPO } from './helpers'
 
@@ -14,8 +15,10 @@ import { canonical, ctx, REPO } from './helpers'
 // SessionEnd) reach Buracle. The hooks that need a model turn (PreToolUse, PostToolUse, Stop) cannot run without a login
 // and a model, so they are checked on the same command line with a payload in the shape the docs give (hook.test.ts, doctor.test.ts).
 const QWEN = Bun.which('qwen') ?? undefined
-const live = QWEN === undefined ? test.skip : test
-const NOTE = QWEN === undefined ? ' (skipped: qwen is not on PATH)' : ''
+// `qwen -p` runs a prompt against a real provider and can open a sign-in flow, so it is opt-in (BURACLE_LIVE_SMOKE=1).
+const live = liveTest(QWEN)
+const local = QWEN === undefined ? test.skip : test
+const NOTE = liveNote('qwen', QWEN)
 
 function shim(): string {
   const bin = join(paths.buracleHome(), 'bin')
@@ -40,11 +43,15 @@ async function installed(home: string): Promise<void> {
 }
 
 describe(`the real qwen program${NOTE}`, () => {
-  live('reads the settings Buracle wrote: every shipped MCP server is listed, and no hook config is rejected', () => withSandbox(async ({ home }) => {
+  local('reads the settings Buracle wrote: every shipped MCP server is listed', () => withSandbox(async ({ home }) => {
     await installed(home)
     const list = await run([QWEN as string, 'mcp', 'list'], { cwd: home, env: qwenEnv(home), timeoutMs: 60_000 })
     expect(list.code).toBe(0)
     for (const id of Object.keys(qwenMcpServers(canonical, ctx().buracleBin))) expect({ id, listed: list.stdout.includes(`${id}:`) }).toEqual({ id, listed: true })
+  }), 120_000)
+
+  live('starts with the settings Buracle wrote: no hook config is rejected', () => withSandbox(async ({ home }) => {
+    await installed(home)
     const p = await run([QWEN as string, '-p', 'hi', '--no-session-persistence'], { cwd: home, env: qwenEnv(home), timeoutMs: 60_000 })
     expect(p.stderr + p.stdout).not.toMatch(/error loading hook configs/i)
   }), 120_000)
@@ -59,7 +66,7 @@ describe(`the real qwen program${NOTE}`, () => {
     expect(existsSync(join(paths.sessionDir('qwen', sessions[0] as string), 'workspace.json'))).toBe(true)
   }), 120_000)
 
-  live('the command the settings register denies a catastrophic shell command, run as the program runs it (a shell line)', () => withSandbox(async ({ home }) => {
+  local('the command the settings register denies a catastrophic shell command, run as the program runs it (a shell line)', () => withSandbox(async ({ home }) => {
     await installed(home)
     const settings = JSON.parse(readFileSync(join(home, '.qwen', 'settings.json'), 'utf8')) as { hooks: { PreToolUse: Array<{ hooks: Array<{ command: string }> }> } }
     const command = settings.hooks.PreToolUse[0]?.hooks[0]?.command as string

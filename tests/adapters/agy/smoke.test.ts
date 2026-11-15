@@ -1,21 +1,23 @@
 import { describe, expect, test } from 'bun:test'
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { adapter } from '../../../src/adapters/agy/index'
 import { agyMcpServers } from '../../../src/adapters/agy/config'
 import * as paths from '../../../src/engine/paths'
 import { run } from '../../../src/engine/proc'
 import { applyPlans } from '../../../src/engine/txn'
+import { liveNote, liveTest } from '../../helpers/live-smoke'
 import { withSandbox } from '../../helpers/sandbox'
 import { canonical, ctx, REPO } from './helpers'
 
 // The real `agy` program, started with HOME in the sandbox (it keeps everything under $HOME/.gemini). Without a Google
-// login it stops at "Authentication required" before any conversation exists, so no hook can fire from the program here:
-// what is checked is that it parses what Buracle wrote (its own log says how many named hooks it loaded), lists the MCP
-// servers, and that the command registered for PreToolUse denies a catastrophic command as the program starts it (`sh -c`).
+// login it opens a sign-in window, so every call that starts `agy` is opt-in (BURACLE_LIVE_SMOKE=1); `agy -p` is not run at
+// all, because without a login it stops before any hook can fire. The one check that never starts `agy` is that the command
+// registered for PreToolUse denies a catastrophic command as the program starts it (`sh -c`).
 const AGY = Bun.which('agy') ?? undefined
-const live = AGY === undefined ? test.skip : test
-const NOTE = AGY === undefined ? ' (skipped: agy is not on PATH)' : ''
+const live = liveTest(AGY)
+const local = AGY === undefined ? test.skip : test
+const NOTE = liveNote('agy', AGY)
 
 function shim(): string {
   const bin = join(paths.buracleHome(), 'bin')
@@ -42,15 +44,6 @@ describe(`the real agy program${NOTE}`, () => {
     for (const id of Object.keys(agyMcpServers(canonical, ctx().buracleBin))) expect({ id, listed: new RegExp(`^${id}\\s+(stdio|http)\\s+enabled`, 'm').test(list.stdout) }).toEqual({ id, listed: true })
   }), 120_000)
 
-  live('loads the hooks.json Buracle wrote: its log counts the named hook and reports no error about it', () => withSandbox(async ({ home }) => {
-    await installed()
-    await run([AGY as string, '-p', 'hi'], { cwd: home, env: agyEnv(home), stdin: '', timeoutMs: 20_000 })
-    const logs = join(home, '.gemini', 'antigravity-cli', 'log')
-    const text = existsSync(logs) ? readdirSync(logs).map(f => readFileSync(join(logs, f), 'utf8')).join('\n') : ''
-    expect(text).toMatch(/loaded 1 named hooks from 1 hooks\.json file\(s\)/)
-    expect(text).not.toMatch(/hooks?[^\n]*(parse|invalid|unmarshal)/i)
-  }), 120_000)
-
   live('a skill folder that is a symlink is counted by the loader (the plugin loader, which the global skills folder shares)', () => withSandbox(async ({ root, home }) => {
     const store = join(root, 'store', 'linked-skill')
     mkdirSync(store, { recursive: true })
@@ -63,7 +56,7 @@ describe(`the real agy program${NOTE}`, () => {
     expect(r.stdout).toMatch(/skills 1\b/)
   }), 120_000)
 
-  live('the command the hooks file registers denies a catastrophic shell command, run as the program runs it (sh -c, in the hooks file\'s folder)', () => withSandbox(async ({ home }) => {
+  local('the command the hooks file registers denies a catastrophic shell command, run as the program runs it (sh -c, in the hooks file\'s folder)', () => withSandbox(async ({ home }) => {
     await installed()
     const file = join(home, '.gemini', 'config', 'hooks.json')
     const hooks = JSON.parse(readFileSync(file, 'utf8')) as { buracle: { PreToolUse: Array<{ hooks: Array<{ command: string }> }> } }
