@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { chmodSync } from 'node:fs'
 import { adapter } from '../../../src/adapters/agy/index'
@@ -53,6 +53,23 @@ describe('doctor', () => {
         symlinkSync(join(home, '.agents', 'skills', 'x'), join(home, '.gemini', 'config', 'skills', 'x'))
         r = await rows()
         expect(byCheck(r, 'agy.skills')).toBe('ok')
+      })
+    })
+  }, 60_000)
+
+  test('the buracle plugin: ok after an install, a warning when a file is gone or the plugin is switched off', async () => {
+    await withSandbox(async ({ root, home }) => {
+      fakeExe(join(root, 'bin', 'agy'), 'console.log("1.5.9")')
+      shim()
+      await withEnv({ PATH: narrowPath(join(root, 'bin')) }, async () => {
+        await applyPlans([await adapter.installPlan(ctx())])
+        expect(byCheck(await rows(), 'agy.plugin')).toBe('ok')
+        writeFileSync(join(home, '.gemini', 'config', 'config.json'), JSON.stringify({ plugins: { buracle: { enabled: false } } }))
+        const off = (await rows()).find(x => x.check === 'agy.plugin')
+        expect(off?.level).toBe('warn')
+        expect(off?.detail).toContain('agy plugin enable buracle')
+        rmSync(join(home, '.gemini', 'config', 'plugins', 'buracle', 'agents'), { recursive: true })
+        expect((await rows()).find(x => x.check === 'agy.plugin')?.detail).toContain('agents/changes-review.md')
       })
     })
   }, 60_000)

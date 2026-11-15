@@ -56,6 +56,18 @@ describe(`the real agy program${NOTE}`, () => {
     expect(r.stdout).toMatch(/skills 1\b/)
   }), 120_000)
 
+  live('lists the buracle plugin with its review agents and rules (agy plugin list --json)', () => withSandbox(async ({ home }) => {
+    await installed()
+    const r = await run([AGY as string, 'plugin', 'list', '--json'], { cwd: home, env: agyEnv(home), timeoutMs: 60_000 })
+    const list = JSON.parse(r.stdout) as Array<{ name: string, enabled: boolean, agents?: string[], rules?: string[] }>
+    const mine = list.find(p => p.name === 'buracle')
+    expect(mine?.enabled).toBe(true)
+    expect([...(mine?.agents ?? [])].sort()).toEqual(canonical.agents.map(a => a.id).sort())
+    expect(mine?.rules ?? []).toContain('AGENTS.md')
+    const v = await run([AGY as string, 'plugin', 'validate', join(home, '.gemini', 'config', 'plugins', 'buracle'), '--strict'], { cwd: home, env: agyEnv(home), timeoutMs: 60_000 })
+    expect(v.code).toBe(0)
+  }), 120_000)
+
   local('the command the hooks file registers denies a catastrophic shell command, run as the program runs it (sh -c, in the hooks file\'s folder)', () => withSandbox(async ({ home }) => {
     await installed()
     const file = join(home, '.gemini', 'config', 'hooks.json')

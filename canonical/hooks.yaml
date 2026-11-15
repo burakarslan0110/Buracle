@@ -309,7 +309,7 @@ hooks:
       omp: { event: tool_call, matcher: [yield] }
       qwen: { event: SubagentStop, timeoutMs: 10000 }
       pi: { unsupported: "Pi has no subagent tool, so no review report is handed back" }
-      agy: { event: PostToolUse, matcher: invoke_subagent, timeoutMs: 10000 }
+      agy: { unsupported: "AGY's PostToolUse payload carries the subagent call's arguments and error but not its result, so the review report never reaches a hook" }
 
   - id: H20
     name: consent.gate

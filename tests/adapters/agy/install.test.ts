@@ -63,7 +63,7 @@ describe('install into ~/.gemini/config', () => {
       expect(Object.keys(read(join(dir(home), 'hooks.json')))).toEqual([HOOK_NAME])
       expect(read(join(dir(home), 'hooks.json'))[HOOK_NAME]).toEqual(JSON.parse(JSON.stringify(agyHooks(canonical))))
       expect(Object.keys(read(join(dir(home), 'mcp_config.json'))['mcpServers'] as Json).sort()).toEqual(Object.keys(agyMcpServers(canonical, '/x/bin/buracle')).sort())
-      expect(readdirSync(dir(home)).sort()).toEqual(['hooks.json', 'mcp_config.json'])
+      expect(readdirSync(dir(home)).sort()).toEqual(['hooks.json', 'mcp_config.json', 'plugins'])
       expect(existsSync(join(home, '.agents'))).toBe(false)
     })
   })

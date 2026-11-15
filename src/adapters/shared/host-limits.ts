@@ -167,6 +167,16 @@ export const HOST_LIMITS: readonly HostLimit[] = [
     recheck: `the hooks reference embedded in the agy 1.5.9 program (Lifecycle Hooks, Supported Event Types), published at https://antigravity.google/docs; checked 2026-11-15`,
   },
   {
+    id: 'agy.commands-without-turn', harness: 'agy', feature: 'commandsWithoutTurn', kind: 'limit', checkedOn: '1.5.9',
+    reason: 'AGY CLI has no custom command that runs without a model turn: a custom slash command is a skill, and the `agy plugin` manifest has no commands entry', fallback: 'every workflow skill is a `/<id>` command; the always-on rules name the CLI twins of `/remember`, `/brain`, `/buracle-status` and `/aside`',
+    recheck: `the migration guide embedded in the agy 1.5.9 program (slash commands become skills) and the plugin structure of its Plugins reference (plugin.json, mcp_config.json, hooks.json, rules, skills, agents), published at https://antigravity.google/docs; checked 2026-11-15`,
+  },
+  {
+    id: 'agy.no-subagent-result', harness: 'agy', feature: 'subagentResult', kind: 'limit', checkedOn: '1.5.9',
+    reason: 'the PostToolUse payload of AGY CLI has the call (`toolCall.name`, `toolCall.args`), `stepIdx` and `error`, but not the result, so a review agent\'s report never reaches a hook (H19 has no AGY binding)', fallback: 'the review steps of plan-build, bugfix and goal-build validate the report themselves, and the agents\' instructions define its fields',
+    recheck: `the hooks reference embedded in the agy 1.5.9 program (PostToolUse Contract: Input), published at https://antigravity.google/docs; checked 2026-11-15`,
+  },
+  {
     id: 'agy.no-session-end', harness: 'agy', feature: 'sessionEnd', event: 'sessionEnd', kind: 'limit', checkedOn: '1.5.9',
     reason: 'AGY CLI has no event for the end of a conversation; Stop fires whenever the execution loop ends, which is the end of a turn', fallback: 'H14 captures at every Stop, so a conversation is never lost; which Stop counts as its end is decided by the AGY adapter',
     recheck: `the hooks reference embedded in the agy 1.5.9 program (Stop contract: terminationReason, fullyIdle), published at https://antigravity.google/docs; checked 2026-11-15`,
