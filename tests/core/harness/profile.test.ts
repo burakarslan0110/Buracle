@@ -179,7 +179,7 @@ describe('a fifth harness is one profile', () => {
     expect(mcpClientMatches(quill, 'QL')).toBe(true)
     expect(mcpClientMatches(quill, 'sql')).toBe(false)
     expect(five.ids.find(h => processMatches(five.of(h), '/opt/quill'))).toBe('quill')
-    expect(five.ids.flatMap(h => five.of(h).protectedDirs.map(d => `${h}:${d.under}`))).toEqual(['claude:.claude', 'codex:.codex', 'opencode:.config/opencode', 'omp:.omp/agent', 'omp:.omp', 'qwen:.qwen', 'pi:.pi/agent', 'agy:.gemini/config', 'quill:.quill'])
+    expect(five.ids.flatMap(h => five.of(h).protectedDirs.map(d => `${h}:${d.under}`))).toEqual(['claude:.claude', 'codex:.codex', 'opencode:.config/opencode', 'omp:.omp/agent', 'omp:.omp', 'qwen:.qwen', 'pi:.pi/agent', 'agy:.gemini/config', 'agy:.gemini', 'quill:.quill'])
     expect(five.ids.flatMap(h => five.of(h).sessionEnv)).toContain('QUILL_SESSION')
   })
 

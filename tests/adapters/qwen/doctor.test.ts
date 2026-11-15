@@ -77,6 +77,22 @@ describe('doctor', () => {
     })
   }, 60_000)
 
+  test('the tips line: warn while ui.loadingPhrases is unset or off, ok on witty or all; the setting is never changed', async () => {
+    await withQwen('0.27.4', async () => {
+      await applyPlans([await adapter.installPlan(ctx())])
+      const file = join(paths.qwenHome(), 'settings.json')
+      const before = await Bun.file(file).text()
+      expect(byCheck(await qwenDoctor(ctx()), 'qwen.tips')).toMatchObject({ level: 'warn' })
+      expect(byCheck(await qwenDoctor(ctx()), 'qwen.tips')?.detail).toContain('"witty" or "all"')
+      expect(await Bun.file(file).text()).toBe(before)
+      for (const mode of ['witty', 'all', 'off', 'tips']) {
+        const s = JSON.parse(before) as Record<string, Record<string, unknown>>
+        writeFileSync(file, JSON.stringify({ ...s, ui: { ...s['ui'], loadingPhrases: mode } }))
+        expect(byCheck(await qwenDoctor(ctx()), 'qwen.tips')?.level).toBe(mode === 'witty' || mode === 'all' ? 'ok' : 'warn')
+      }
+    })
+  }, 60_000)
+
   test('disableAllHooks, a hook event Buracle lost, a missing server and invalid JSON are reported', async () => {
     await withQwen('0.27.4', async () => {
       await applyPlans([await adapter.installPlan(ctx())])

@@ -57,6 +57,14 @@ export function createPiExtras(host: PiExtrasHost) {
     return workflow
   }
 
+  /** The model loaded a workflow skill (read its SKILL.md) without the user typing `/skill:<id>`. */
+  const flowStartLoaded = (sid: string, skillId: string | undefined): string | undefined => {
+    if (skillId === undefined || flowDef(skillId) === undefined || deps.flow === undefined) return undefined
+    const flow = deps.flow
+    guarded('H25 flow start', () => flow.start(sid, { workflow: skillId, source: 'skill' }, deps.now()))
+    return skillId
+  }
+
   const refreshFlow = (sid: string, ctx: PiContext): void => {
     if (!hasTui(ctx) || deps.flow === undefined || typeof ctx.ui.setWidget !== 'function') return
     const lc = host.live()
@@ -106,5 +114,5 @@ export function createPiExtras(host: PiExtrasHost) {
     if (hasTui(ctx) && typeof ctx.ui.setWorkingMessage === 'function') ctx.ui.setWorkingMessage()
   }
 
-  return { flowStart, refreshFlow, refreshStatus, tipStart, tipEnd }
+  return { flowStart, flowStartLoaded, refreshFlow, refreshStatus, tipStart, tipEnd }
 }

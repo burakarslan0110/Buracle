@@ -1,3 +1,4 @@
+import { tipsFor } from '../shared/tip-text'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CanonicalBundle, CatalogMcp } from '../../core/catalog'
@@ -43,7 +44,7 @@ export function piGeneratedData(canonical: CanonicalBundle, version: string): Pi
     v: 1, buracleVersion: version, config: canonical.config, routing: canonical.routing, mcp,
     mcpIds: Object.keys(canonical.mcp.servers).sort(), skills: catalogSkills(canonical.skills),
   }
-  const tips = (canonical.tips ?? []).map(t => ({ id: t.id, text: t.text }))
+  const tips = tipsFor(canonical, 'pi')
   if (tips.length > 0) out.tips = tips
   const status = piStatusData(canonical.statusline.pi)
   if (status !== undefined) out.status = status

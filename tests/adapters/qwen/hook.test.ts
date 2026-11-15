@@ -6,6 +6,8 @@ import { adapter } from '../../../src/adapters/qwen/index'
 import { defaultConfig } from '../../../src/core/config'
 import { dispatchHook } from '../../../src/cli/commands/hook'
 import * as paths from '../../../src/engine/paths'
+import { activeFlow } from '../../../src/core/flow/record'
+import { readFlow } from '../../../src/workflow/flow'
 import { loadLedger } from '../../../src/workflow/ledger'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
 import { ctx, json, payload, SID } from './helpers'
@@ -183,6 +185,24 @@ describe('PostToolUse, PostToolUseFailure and the compaction and end events', ()
       expect(await hook('PostCompact', payload('PostCompact', { trigger: 'auto', compact_summary: 'we did x' }, process.cwd()))).toEqual(QUIET)
       expect(await hook('SessionEnd', payload('SessionEnd', { reason: 'other' }, process.cwd()))).toEqual(QUIET)
       expect(await hook('SomethingNew', payload('SomethingNew'))).toEqual(QUIET)
+    })
+  })
+})
+
+describe('H25: flow tracking', () => {
+  const active = () => activeFlow(readFlow('qwen', SID))?.workflow
+  test('the skill tool loading a workflow skill starts its flow record; another skill or a failure does not', async () => {
+    await withSandbox(async () => {
+      await hook('PostToolUse', payload('PostToolUse', { tool_name: 'skill', tool_input: { skill: 'memory' }, tool_response: {} }))
+      expect(active()).toBeUndefined()
+      await hook('PostToolUse', payload('PostToolUse', { tool_name: 'skill', tool_input: { skill: 'plan-build' }, tool_response: {} }))
+      expect(active()).toBe('plan-build')
+    })
+  })
+  test('a typed /<workflow> prompt starts it', async () => {
+    await withSandbox(async () => {
+      await hook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: '/bugfix login fails', submitted_prompt: '/bugfix login fails' }))
+      expect(active()).toBe('bugfix')
     })
   })
 })

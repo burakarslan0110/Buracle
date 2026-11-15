@@ -511,3 +511,11 @@ describe('checkWrite: a backslash or a colon is part of a POSIX file name', () =
     expect(deny(['/Users/u/Documents/PowerShell/profile.ps1'])).toBeUndefined()
   })
 })
+
+describe('AGY CLI settings file', () => {
+  test('a write to the CLI settings.json (the status line Buracle owns) is denied as AGY self-protection; its other files are not', () => {
+    expect(deny([`${HOME}/.gemini/antigravity-cli/settings.json`])).toContain("AGY CLI's own configuration")
+    expect(deny([`${HOME}/.gemini/antigravity-cli/other.json`])).toBeUndefined()
+    expect(deny([`${HOME}/.gemini/config/hooks.json`])).toContain("AGY CLI's own configuration")
+  })
+})

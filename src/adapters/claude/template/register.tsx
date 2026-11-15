@@ -203,11 +203,8 @@ export const register: Register = on => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || e.props.view.agentId !== undefined) return next(e)
     const view = Core.bandViewOf(await read($, BAND))
-    const wide = e.props.bodyColumns >= 96 && !e.props.isCollapsed
-    // Collapsed (isCollapsed): one row, the active step only.
-    const rows = e.props.isCollapsed
-      ? Core.bandCollapsedRows(view, e.props.bodyColumns, true)
-      : Core.bandRows(view, e.props.bodyColumns, Math.min(3, e.props.maxRows), true, { reserve: wide ? BAND_BUTTONS : 0 })
+    const wide = e.props.bodyColumns >= 96
+    const rows = Core.bandRows(view, e.props.bodyColumns, Math.min(3, e.props.maxRows), true, { reserve: wide ? BAND_BUTTONS : 0 })
     if (rows.length === 0) return next(e)
     const { Box, Text, Button } = $.ui.resolve(e)
     const drawn = rows.map((row, i) => {

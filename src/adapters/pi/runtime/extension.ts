@@ -2,6 +2,7 @@ import './bun-shim'
 import type { HookId, StopInput, ToolCall, ToolKind } from '../../../core/events'
 import { classifyTool } from '../../../core/events'
 import { mcpUnavailable } from '../../../core/policy/routing'
+import { skillOf } from '../../../core/policy/usage'
 import { contextWatch } from '../../../core/status/context'
 import { log } from '../../../engine/log'
 import {
@@ -159,6 +160,10 @@ export function createBuracleExtension(data: PiGenerated = emptyGenerated(), ove
       if (sid === undefined || wasDenied) return held
       const input = event.input !== null && typeof event.input === 'object' ? event.input : {}
       const cls = classifyTool(H, event.toolName, input, ctx.cwd, data.mcpIds, { homeTilde: guarded('home', () => deps.home()) })
+      if (!event.isError && cls.kind === 'read') {
+        const loaded = extras.flowStartLoaded(sid, skillOf({ tool: event.toolName, input, kind: cls.kind, command: undefined }, H))
+        if (loaded !== undefined) guarded('workflow band', () => extras.refreshFlow(sid, ctx))
+      }
       const edited = !event.isError && WRITE_KINDS.has(cls.kind) && cls.paths.length > 0
       const change = edited ? piEdit(cls.kind, input, cls.paths[0], () => undefined) : undefined
       const server = cls.kind === 'mcp' ? cls.mcp?.server : undefined
