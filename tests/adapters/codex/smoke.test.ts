@@ -665,7 +665,7 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary end to
     try {
       const r = await codexExec(env, work, model, ['-c', 'model="gpt-5.5"'], '/buracle:research compare bun and deno')
       expect(r.code).toBe(0)
-      expect(developerTexts(model.requests[0] as Record<string, any>)).toContain('read ${CODEX_HOME:-~/.codex}/skills/research/SKILL.md')
+      expect(developerTexts(model.requests[0] as Record<string, any>)).toContain('read ~/.agents/skills/research/SKILL.md')
       expect(model.requests.length).toBe(2)
       expect(JSON.stringify(model.requests[1])).toContain('Buracle routing check: the user asked for research')
     } finally { model.stop() }

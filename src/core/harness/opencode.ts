@@ -16,7 +16,6 @@ export const opencodeProfile: HarnessProfile = {
   protectedDirs: [{ key: 'opencodeConfigDir', under: '.config/opencode', entries: [''] }],
   selfText: { what: "OpenCode's own configuration, which loads Buracle's guard plugin", remedy: "ask the user to make this change themselves, or use OpenCode's own commands (`opencode mcp …`, `opencode plugin …`)" },
   skills: {
-    dir: 'skills',
     readsAgentsDir: true,
     readsClaudeUserDir: true,
     readsClaudeProjectDir: true,

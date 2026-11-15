@@ -1,7 +1,9 @@
 import { NEUTRAL_SKILL_HARNESSES } from '../../core/harness/index'
 import type { CanonicalBundle, McpCatalog, SkillDoc } from '../../core/catalog'
 import { log } from '../../engine/log'
-import { renderMarkdown, RenderError } from './render'
+
+// One copy of every skill serves every harness: the build writes the frontmatter each host reads and
+// copies the text as it is. Nothing is rendered per harness, so the text has to be harness-neutral.
 
 export interface GeneratedFile { path: string, content: string, mode?: number }
 export interface SkillRenderResult { files: GeneratedFile[], warnings: string[] }
@@ -74,7 +76,10 @@ export function neutralFrontmatter(skill: SkillDoc, warnings: string[] = []): st
   const name = str(skill.frontmatter['name']) ?? skill.id
   if (name !== skill.id) warnings.push(`skills/${skill.id}/SKILL.md: name ${JSON.stringify(name)} differs from the folder name; the folder name is used`)
   const lines = ['---', `name: ${skill.id}`, `description: ${q(neutralDescription(skill, warnings))}`]
+  const hint = str(skill.frontmatter['argument-hint'])
+  if (hint !== undefined) lines.push(`argument-hint: ${q(oneLine(hint))}`)
   if (invocationOf(skill) === 'explicit') lines.push('disable-model-invocation: true')
+  if (!isUserInvocable(skill)) lines.push('user-invocable: false')
   const short = shortDescription(skill, warnings)
   if (short !== undefined) lines.push('metadata:', `  short-description: ${q(short)}`)
   lines.push('---')
@@ -128,24 +133,24 @@ function byPath(a: GeneratedFile, b: GeneratedFile): number {
   return a.path < b.path ? -1 : a.path > b.path ? 1 : 0
 }
 
-export function renderNeutralSkill(skill: SkillDoc, canonical: Pick<CanonicalBundle, 'mcp' | 'skills' | 'agents'>, warnings: string[] = []): GeneratedFile[] {
-  const opts = {
-    skills: canonical.skills.map(s => s.id), agents: canonical.agents.map(a => a.id),
-    protocols: canonical.skills.filter(s => !isUserInvocable(s)).map(s => s.id),
-  }
+// What a per-harness render would have expanded: in a text every harness reads as it is, it would reach the model verbatim.
+const RENDER_MARKUP = /(?<!\\)\{\{(?:ask_user|todo|spawn_agent|(?:skill|agent):[A-Za-z0-9._-]+)\}\}|<!--[ \t]*\/?harness(?::[a-z]+)?[ \t]*-->/
+
+function checkNeutral(text: string, where: string, warnings: string[]): void {
+  const lines = text.split('\n')
+  const at = lines.findIndex(l => RENDER_MARKUP.test(l))
+  if (at >= 0) warnings.push(`${where}:${at + 1}: ${(RENDER_MARKUP.exec(lines[at] as string) as RegExpExecArray)[0]} is not rendered; write harness-neutral wording`)
+}
+
+export function renderNeutralSkill(skill: SkillDoc, canonical: Pick<CanonicalBundle, 'mcp'>, warnings: string[] = []): GeneratedFile[] {
   const files: GeneratedFile[] = []
   for (const f of skill.files) {
     if (f.path === 'evals' || f.path.startsWith('evals/')) continue
     if (f.path === 'agents/openai.yaml') { warnings.push(`skills/${skill.id}/agents/openai.yaml: replaced by the generated file`); continue }
     const out = `${skill.id}/${f.path}`
-    const where = `skills/${skill.id}/${f.path}`
+    if (f.path.endsWith('.md')) checkNeutral(f.path === 'SKILL.md' ? skill.body : f.content, `skills/${skill.id}/${f.path}`, warnings)
     if (f.path === 'SKILL.md') {
-      const body = renderMarkdown(skill.body, 'neutral', { ...opts, file: where }, warnings)
-      files.push({ path: out, content: neutralFrontmatter(skill, warnings) + body })
-      continue
-    }
-    if (f.path.endsWith('.md')) {
-      files.push({ path: out, content: renderMarkdown(f.content, 'neutral', { ...opts, file: where }, warnings) })
+      files.push({ path: out, content: neutralFrontmatter(skill, warnings) + skill.body })
       continue
     }
     const mode = generatedMode(f.mode)
@@ -155,21 +160,14 @@ export function renderNeutralSkill(skill: SkillDoc, canonical: Pick<CanonicalBun
   return files.sort(byPath)
 }
 
-export function renderNeutralSkills(canonical: Pick<CanonicalBundle, 'mcp' | 'skills' | 'agents'>): SkillRenderResult {
+export function renderNeutralSkills(canonical: Pick<CanonicalBundle, 'mcp' | 'skills'>): SkillRenderResult {
   const warnings: string[] = []
   const files: GeneratedFile[] = []
-  for (const skill of [...canonical.skills].sort((a, b) => (a.id < b.id ? -1 : 1))) {
-    try {
-      files.push(...renderNeutralSkill(skill, canonical, warnings))
-    } catch (e) {
-      if (!(e instanceof RenderError)) throw e
-      warnings.push(`skills/${skill.id}: not rendered: ${e.message}`)
-    }
-  }
+  for (const skill of [...canonical.skills].sort((a, b) => (a.id < b.id ? -1 : 1))) files.push(...renderNeutralSkill(skill, canonical, warnings))
   return { files: files.sort(byPath), warnings }
 }
 
-export function buildAgentsSkills(ctx: { canonical: Pick<CanonicalBundle, 'mcp' | 'skills' | 'agents'> }): GeneratedFile[] {
+export function buildAgentsSkills(ctx: { canonical: Pick<CanonicalBundle, 'mcp' | 'skills'> }): GeneratedFile[] {
   const { files, warnings } = renderNeutralSkills(ctx.canonical)
   if (warnings.length > 0) log('warn', 'agents-skills build warnings', { warnings })
   return files

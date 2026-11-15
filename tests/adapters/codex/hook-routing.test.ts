@@ -78,7 +78,7 @@ describe('routing (H21-H26)', () => {
   test('H22: an explicit ask tells the model to read the skill\'s SKILL.md (context cannot load a skill on Codex); the prompt is in the ledger', () => withSandbox(async () => {
     const text = contextOf(await handleCodexHook('UserPromptSubmit', prompt('/buracle:research compare bun and deno'), ctx(), deps(quiet)))
     expect(text).toContain('The user asked for the research skill')
-    expect(text).toContain('read ${CODEX_HOME:-~/.codex}/skills/research/SKILL.md')
+    expect(text).toContain('read ~/.agents/skills/research/SKILL.md')
     const l = loadLedger('codex', SID)
     expect([l.turn, l.prompt?.route.load]).toEqual([1, ['research']])
   }))
@@ -299,7 +299,7 @@ describe('routing (H21-H26)', () => {
   test('H25: a workflow the model loads by reading its installed SKILL.md (the router\'s T1 line) starts its run', () => withSandbox(async ({ home }) => {
     const d = deps(quiet)
     const text = contextOf(await handleCodexHook('UserPromptSubmit', prompt('/buracle:plan-build add rate limiting to the upload endpoint'), ctx(), d))
-    expect(text).toContain('read ${CODEX_HOME:-~/.codex}/skills/plan-build/SKILL.md')
+    expect(text).toContain('read ~/.agents/skills/plan-build/SKILL.md')
     expect(text).not.toContain('.agents/skills')
     expect(readFlow('codex', SID)).toBeUndefined()
     const custom: CodexHookDeps = { ...d, env: () => ({ ...process.env, CODEX_HOME: '/opt/codex-home' }) }

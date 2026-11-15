@@ -53,11 +53,9 @@ memories, preferences first. Each line is a title, a summary and the memory id; 
 demand. A line's marks say what a memory is: `(unverified)` nobody checked it yet, `(explicit)`
 the user's own words, `(contradicts)` it was kept apart from a protected memory it disagrees with.
 When that text is missing, call `memory_context` once.
-<!-- harness:claude -->
-If the memory tools are not visible, load them with ToolSearch before concluding they are
-unavailable. Claude Code's own auto memory is off: Buracle's memory is the only store, so never
-write `MEMORY.md` files.
-<!-- /harness -->
+If the memory tools are not visible, load them with the harness's tool search before concluding
+they are unavailable. Buracle's memory is the only store: never write the harness's own memory
+files (`MEMORY.md`).
 
 The user can type `/remember <text>` to store a capture and `/brain` to open the Buracle Console
 (Codex has no custom commands: `buracle mem remember "<text>"` instead).

@@ -30,10 +30,10 @@
    - Least that works: no abstraction, dependency or boilerplate the fix did not strictly need. A deliberate shortcut carries a `SHORTCUT:` comment that names its ceiling and the trigger for upgrading it; list those markers in the report (`git diff -U0 | rg -n '(#|//) ?SHORTCUT:'`).
 4. **Changes review** for every proven fix, a one-line fix included, whatever `plan.reviews.changes` says (that switch is for feature work; a fix always gets its review):
    - `buracle review-scope --json` gives `base_ref`, `diff_range` and possibly a `warning` (resolve a warning first; if the fix is already committed on the default branch, add `--base <commit before the fix>`; in a worktree run, add `--slug <slug>`; on a branch made with `buracle worktree branch`, review-scope already diffs against its recorded base).
-   - Launch the reviewer with {{spawn_agent}}, in the background when the harness supports it, while you run step 1; the block's first line names the agent and the rest is its prompt. There is no plan file, so pass `goal` instead:
+   - Launch the reviewer with your subagent tool, in the background when the harness supports it, while you run step 1; the block's first line names the agent (where the harness lists Buracle's agents under a prefix, as in `buracle:changes-review`, use the listed name) and the rest is its prompt. There is no plan file, so pass `goal` instead:
 
      ```text
-     {{agent:changes-review}}
+     changes-review
      goal: <Given / When / Actual / Expected>; root cause: <path:line — statement>
      base_ref: <from review-scope>
      diff_range: <from review-scope>
@@ -52,7 +52,7 @@
 ## Finish
 
 1. Remove all instrumentation and confirm that `git status --porcelain` lists only intended changes. Then read the notes the user pinned to the changed lines in the review page (`/brain review`): `buracle plan notes --kind code --json` (add `--slug <slug>` in a worktree run). Fix each open note, re-run the checks it touches, and mark it with `buracle plan notes --done <id>[,<id>]`. Read them again after the end question; new notes count as Request changes. No notes is never an approval.
-2. **End question.** Unless the user already said what they want, ask once with {{ask_user}}. The question carries what you ran:
+2. **End question.** Unless the user already said what they want, ask once with your structured-question tool. The question carries what you ran:
 
    ```text
    Bug: <one line>

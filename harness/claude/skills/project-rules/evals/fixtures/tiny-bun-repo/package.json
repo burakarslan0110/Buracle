@@ -1,8 +1,0 @@
-{
-  "name": "tiny-bun-repo",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "start": "bun src/index.ts"
-  }
-}

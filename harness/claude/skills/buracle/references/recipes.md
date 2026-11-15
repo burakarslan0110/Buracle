@@ -6,7 +6,7 @@ Short sequences for situations that recur in every workflow. The workflow skill 
 ## Ask the user a real question during an approved run
 
 1. `buracle plan pause --kind decision --reason "Redis or an in-process LRU for the price cache?"`
-2. Ask with `AskUserQuestion`: 2–4 concrete options, your recommendation first. End the turn.
+2. Ask with your structured-question tool: 2–4 concrete options, your recommendation first. End the turn.
 3. After the answer: `buracle plan resume`. Record the choice in the plan; if it is a lasting
    decision, also as a `decision` memory.
 
@@ -59,11 +59,11 @@ The same holds when they say it in their own language.
    fix the cause and run review-scope again. When no default branch was found, or HEAD is the
    default branch, add `--base <ref>` naming the branch or commit the work started from.
 3. `git diff --stat <diff_range>` lists the changed files.
-4. Launch the reviewer with the `Agent` tool; the block's first line names the agent and the rest is
+4. Launch the reviewer with your subagent tool; the block's first line names the agent (where the harness lists Buracle's agents under a prefix, as in `buracle:changes-review`, use the listed name) and the rest is
    its prompt, for example:
 
    ```text
-   buracle:changes-review
+   changes-review
    plan_file: /abs/repo/docs/plan-build/2026-10-08-rate-limit.md
    base_ref: <base_ref>
    diff_range: <diff_range>

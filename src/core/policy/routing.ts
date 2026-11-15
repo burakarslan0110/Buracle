@@ -1,6 +1,6 @@
 import type { Harness, PreDecision, ToolCall, ToolKind } from '../events'
 import { HARNESS_LABEL, harnessProfile, harnessTable, mcpToolName, mcpToolPattern } from '../harness/index'
-import type { CatalogMcp, CatalogSkill } from '../catalog'
+import type { CatalogMcp } from '../catalog'
 import type { Triggers } from './skill-router'
 
 export interface RoutingPolicy { strictness: 'enforce'|'nudge'|'off'; categories: RoutingCategory[] }
@@ -236,11 +236,11 @@ function byId<T extends { id: string }>(xs: readonly T[]): T[] {
   return [...xs].filter(x => x && typeof x.id === 'string').sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).filter(x => (seen.has(x.id) ? false : (seen.add(x.id), true)))
 }
 
-export function capabilityCard(input: { policy: RoutingPolicy, mcp: CatalogMcp[], skills: CatalogSkill[], plugins: string[], harness: Harness, lsp?: string[] }): string {
+// The card lists no skills: every harness lists the skills it loaded itself. It keeps the one line on how a skill is started and loaded here.
+export function capabilityCard(input: { policy: RoutingPolicy, mcp: CatalogMcp[], plugins: string[], harness: Harness, lsp?: string[] }): string {
   const h = input.harness
   const hiddenNote = HIDDEN_NOTE[h]
   const servers = byId(Array.isArray(input.mcp) ? input.mcp : []).filter(m => !Array.isArray(m.harnesses) || m.harnesses.includes(h))
-  const skills = byId(Array.isArray(input.skills) ? input.skills : [])
   const plugins = [...new Set((Array.isArray(input.plugins) ? input.plugins : []).filter(p => typeof p === 'string' && p.trim() !== '').map(p => p.trim().split('@')[0] as string))].sort()
   const strictness = input.policy?.strictness ?? 'enforce'
 
@@ -253,25 +253,15 @@ export function capabilityCard(input: { policy: RoutingPolicy, mcp: CatalogMcp[]
   ]
   const mcpHeader = `MCP servers (tools are named ${MCP_SYNTAX[h]}${servers.some(s => !s.critical) ? `; ${hiddenNote}` : ''}):`
   const mcpLines = servers.map(s => `- ${s.id}${!s.critical ? '*' : ''}: ${firstClause(s.description ?? '', 80)}`)
-  const skillHeader = `Skills (${SKILL_HOWTO[h]}):`
-  const skillLines = skills.map(s => {
-    const short = typeof s.short === 'string' && s.short.trim() !== '' ? firstClause(s.short, 90) : firstClause(s.description ?? '', 90)
-    return `- ${s.id}: ${short}${s.invocation === 'explicit' ? ' (on request)' : ''}`
-  })
+  const skillLine = [`Skills: ${SKILL_HOWTO[h]}.`]
   const pluginLine = plugins.length > 0 ? [`Plugins: ${plugins.join(', ')}`] : []
   const lsp = [...new Set((Array.isArray(input.lsp) ? input.lsp : []).filter(x => typeof x === 'string' && x.trim() !== '').map(x => x.trim()))].sort()
   if (lsp.length > 0) pluginLine.push(`Language servers (LSP tool: definitions, references, hover, diagnostics): ${lsp.join(', ')}`)
 
-  const assemble = (mcpBlock: string[], skillBlock: string[]): string[] => [...head, ...mcpBlock, ...skillBlock, ...pluginLine]
-  const fullMcp = servers.length > 0 ? [mcpHeader, ...mcpLines] : []
-  const fullSkills = skills.length > 0 ? [skillHeader, ...skillLines] : []
-  let lines = assemble(fullMcp, fullSkills)
-  if (lines.length > CAPABILITY_CARD_MAX_LINES && skills.length > 0) {
-    lines = assemble(fullMcp, wrapList(skillHeader, skills.map(s => s.id)))
-  }
+  const assemble = (mcpBlock: string[]): string[] => [...head, ...mcpBlock, ...skillLine, ...pluginLine]
+  let lines = assemble(servers.length > 0 ? [mcpHeader, ...mcpLines] : [])
   if (lines.length > CAPABILITY_CARD_MAX_LINES && servers.length > 0) {
-    const compactMcp = wrapList(`MCP servers (${MCP_SYNTAX[h]}):`, servers.map(s => s.id))
-    lines = assemble(compactMcp, skills.length > 0 ? wrapList(skillHeader, skills.map(s => s.id)) : [])
+    lines = assemble(wrapList(`MCP servers (${MCP_SYNTAX[h]}):`, servers.map(s => s.id)))
   }
   if (lines.length > CAPABILITY_CARD_MAX_LINES) {
     const kept = lines.slice(0, CAPABILITY_CARD_MAX_LINES - 1)

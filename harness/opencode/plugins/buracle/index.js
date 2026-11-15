@@ -8498,16 +8498,15 @@ var codexProfile = {
   protectedDirs: [{ key: "codexHome", under: ".codex", entries: ["config.toml", "hooks.json", "rules/"] }],
   selfText: { what: "Codex's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use Codex's own commands (`codex mcp \u2026`, `codex features \u2026`)" },
   skills: {
-    dir: "skills",
     readsAgentsDir: true,
     readsClaudeUserDir: false,
     readsClaudeProjectDir: false,
     invoke: { slash: false, dollar: true, at: false, commandTag: false },
     mention: (id) => `$${id}`,
     agentPrefix: "",
-    howto: "the user starts a workflow with $<id>; you load one by reading ${CODEX_HOME:-~/.codex}/skills/<id>/SKILL.md",
-    load: (id) => `read \${CODEX_HOME:-~/.codex}/skills/${id}/SKILL.md`,
-    candidateHow: "read ${CODEX_HOME:-~/.codex}/skills/<id>/SKILL.md"
+    howto: "the user starts a workflow with $<id>; you load one by reading ~/.agents/skills/<id>/SKILL.md",
+    load: (id) => `read ~/.agents/skills/${id}/SKILL.md`,
+    candidateHow: "read ~/.agents/skills/<id>/SKILL.md"
   },
   plan: {
     enter: 'ask the user to switch to Plan mode with `/plan`, then to say "continue", and end the turn',
@@ -8578,7 +8577,6 @@ var ompProfile = {
   ],
   selfText: { what: "omp's own configuration, which loads Buracle's guard extension", remedy: "ask the user to make this change themselves, or use omp's own commands (`omp config set \u2026`, `omp plugin \u2026`)" },
   skills: {
-    dir: "skills",
     readsAgentsDir: true,
     readsClaudeUserDir: false,
     readsClaudeProjectDir: true,
@@ -8659,7 +8657,6 @@ var opencodeProfile = {
   protectedDirs: [{ key: "opencodeConfigDir", under: ".config/opencode", entries: [""] }],
   selfText: { what: "OpenCode's own configuration, which loads Buracle's guard plugin", remedy: "ask the user to make this change themselves, or use OpenCode's own commands (`opencode mcp \u2026`, `opencode plugin \u2026`)" },
   skills: {
-    dir: "skills",
     readsAgentsDir: true,
     readsClaudeUserDir: true,
     readsClaudeProjectDir: true,
@@ -8752,7 +8749,7 @@ function harnessesWhere(test) {
   return SET.where(test);
 }
 var HARNESS_LABEL = harnessTable((p) => p.label);
-var NEUTRAL_SKILL_HARNESSES = harnessesWhere((p) => p.skills.dir !== undefined);
+var NEUTRAL_SKILL_HARNESSES = harnessesWhere((p) => p.skills.readsAgentsDir);
 
 // src/core/events.ts
 var HOOK_IDS = [
@@ -20442,7 +20439,6 @@ function capabilityCard(input) {
   const h = input.harness;
   const hiddenNote = HIDDEN_NOTE[h];
   const servers = byId(Array.isArray(input.mcp) ? input.mcp : []).filter((m) => !Array.isArray(m.harnesses) || m.harnesses.includes(h));
-  const skills = byId(Array.isArray(input.skills) ? input.skills : []);
   const plugins = [...new Set((Array.isArray(input.plugins) ? input.plugins : []).filter((p) => typeof p === "string" && p.trim() !== "").map((p) => p.trim().split("@")[0]))].sort();
   const strictness = input.policy?.strictness ?? "enforce";
   const head = [
@@ -20450,25 +20446,15 @@ function capabilityCard(input) {
   ];
   const mcpHeader = `MCP servers (tools are named ${MCP_SYNTAX[h]}${servers.some((s) => !s.critical) ? `; ${hiddenNote}` : ""}):`;
   const mcpLines = servers.map((s) => `- ${s.id}${!s.critical ? "*" : ""}: ${firstClause(s.description ?? "", 80)}`);
-  const skillHeader = `Skills (${SKILL_HOWTO[h]}):`;
-  const skillLines = skills.map((s) => {
-    const short = typeof s.short === "string" && s.short.trim() !== "" ? firstClause(s.short, 90) : firstClause(s.description ?? "", 90);
-    return `- ${s.id}: ${short}${s.invocation === "explicit" ? " (on request)" : ""}`;
-  });
+  const skillLine = [`Skills: ${SKILL_HOWTO[h]}.`];
   const pluginLine = plugins.length > 0 ? [`Plugins: ${plugins.join(", ")}`] : [];
   const lsp = [...new Set((Array.isArray(input.lsp) ? input.lsp : []).filter((x) => typeof x === "string" && x.trim() !== "").map((x) => x.trim()))].sort();
   if (lsp.length > 0)
     pluginLine.push(`Language servers (LSP tool: definitions, references, hover, diagnostics): ${lsp.join(", ")}`);
-  const assemble = (mcpBlock, skillBlock) => [...head, ...mcpBlock, ...skillBlock, ...pluginLine];
-  const fullMcp = servers.length > 0 ? [mcpHeader, ...mcpLines] : [];
-  const fullSkills = skills.length > 0 ? [skillHeader, ...skillLines] : [];
-  let lines = assemble(fullMcp, fullSkills);
-  if (lines.length > CAPABILITY_CARD_MAX_LINES && skills.length > 0) {
-    lines = assemble(fullMcp, wrapList(skillHeader, skills.map((s) => s.id)));
-  }
+  const assemble = (mcpBlock) => [...head, ...mcpBlock, ...skillLine, ...pluginLine];
+  let lines = assemble(servers.length > 0 ? [mcpHeader, ...mcpLines] : []);
   if (lines.length > CAPABILITY_CARD_MAX_LINES && servers.length > 0) {
-    const compactMcp = wrapList(`MCP servers (${MCP_SYNTAX[h]}):`, servers.map((s) => s.id));
-    lines = assemble(compactMcp, skills.length > 0 ? wrapList(skillHeader, skills.map((s) => s.id)) : []);
+    lines = assemble(wrapList(`MCP servers (${MCP_SYNTAX[h]}):`, servers.map((s) => s.id)));
   }
   if (lines.length > CAPABILITY_CARD_MAX_LINES) {
     const kept = lines.slice(0, CAPABILITY_CARD_MAX_LINES - 1);
@@ -36869,7 +36855,7 @@ ${r.fileNotes.join(`
   capabilityText(sid) {
     const health = this.health(sid);
     const mcp = this.baked.mcp.filter((m) => !mcpUnavailable(health[m.id]));
-    return capabilityCard({ policy: routingPolicy(this.actx()), mcp, skills: this.baked.skills, plugins: this.baked.plugins, harness: HARNESS7 });
+    return capabilityCard({ policy: routingPolicy(this.actx()), mcp, plugins: this.baked.plugins, harness: HARNESS7 });
   }
   async onContext(e) {
     const s = this.session(e.sessionID);

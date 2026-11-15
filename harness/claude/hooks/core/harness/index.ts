@@ -39,8 +39,8 @@ export function harnessesWhere(test: (p: HarnessProfile) => boolean): Harness[] 
 /** The product names ("Claude Code", "Codex", "OpenCode", "Oh My Pi"). */
 export const HARNESS_LABEL: Readonly<Record<Harness, string>> = harnessTable(p => p.label)
 
-/** The harnesses that read the neutral skill render from a folder of their own. */
-export const NEUTRAL_SKILL_HARNESSES: readonly Harness[] = harnessesWhere(p => p.skills.dir !== undefined)
+/** The harnesses that read the installed copy of the skills (`~/.agents/skills`) themselves. */
+export const NEUTRAL_SKILL_HARNESSES: readonly Harness[] = harnessesWhere(p => p.skills.readsAgentsDir)
 
 export * from './profile'
 export { CLAUDE_PLUGIN_NAME } from './claude'

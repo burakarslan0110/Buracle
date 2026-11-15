@@ -4,11 +4,10 @@ import { parseFrontmatter } from '../engine/canonical'
 import { atomicWriteSync, readJsonSafeSync, sha256 } from '../engine/fsx'
 import * as paths from '../engine/paths'
 import { git, gitError } from './gitx'
-import { formatFinding, summarize, type LintFinding, type PlaceholderTargets } from './lint'
+import { formatFinding, summarize, type LintFinding } from './lint'
 import { fail, ok, partial, type CmdResult, type WorkflowCtx } from './result'
 import { lintSkillDir, SKILL_ID_RE } from './skills'
 
-const NO_TARGETS: PlaceholderTargets = { skills: new Set(), agents: new Set() }
 
 export interface SkillSourceSpec {
   kind: 'git' | 'local'
@@ -236,8 +235,8 @@ function linkState(link: string, target: string): 'absent' | 'ours' | 'foreign' 
 }
 
 function destinationState(id: string, installed: InstalledSkill[]): 'free' | 'installed' | 'buracle' | 'foreign' {
-  // Buracle's own skills live in each harness's skills folder, not here, so a third-party copy
-  // under the same id would show the harness two skills with one name.
+  // Buracle's own skills are installed into this folder under their ids, so a third-party skill
+  // cannot take one of them.
   if (existsSync(join(paths.repoRoot(), 'harness', 'agents-skills', id, 'SKILL.md'))) return 'buracle'
   const dir = installedSkillDir(id)
   let st
@@ -315,7 +314,7 @@ export async function skillsAdd(spec: string, opts: AddOptions, ctx: WorkflowCtx
   for (const f of found) {
     const id = (opts.id ?? f.id).toLowerCase()
     if (!SKILL_ID_RE.test(id) || id.length > 64) { errors.push(`${f.rel}: '${id}' is not a valid skill id (a-z, 0-9, '-'); use --id`); continue }
-    const findings: LintFinding[] = lintSkillDir(f.dir, { displayRoot: fetched.root, targets: NO_TARGETS, mcp: new Set(), profile: 'project', folder: f.id })
+    const findings: LintFinding[] = lintSkillDir(f.dir, { displayRoot: fetched.root, mcp: new Set(), profile: 'project', folder: f.id })
     const report = summarize(findings)
     const audit = auditSkillDir(f.dir)
     const state = destinationState(id, installed)
@@ -407,7 +406,7 @@ export async function skillsUpdate(id: string | undefined, opts: { force?: boole
     if (edited && opts.force !== true) { lines.push(`${rec.id}: ${fetched.commit?.slice(0, 7) ?? 'a new version'} is available, but the installed copy has local edits; \`buracle skills update ${rec.id} --force\` replaces them`); results.push({ id: rec.id, action: 'kept', reason: 'local-edits', commit: fetched.commit ?? null }); continue }
     // Linted as the folder it is installed into, the name `add` gave it; a dry run lints too, so a
     // check never offers an update that the apply refuses.
-    const findings = lintSkillDir(dir, { displayRoot: fetched.root, targets: NO_TARGETS, mcp: new Set(), profile: 'project', folder: skillAt(fetched.root, rec.subpath ?? '')?.id ?? rec.id })
+    const findings = lintSkillDir(dir, { displayRoot: fetched.root, mcp: new Set(), profile: 'project', folder: skillAt(fetched.root, rec.subpath ?? '')?.id ?? rec.id })
     const report = summarize(findings)
     if (report.errors > 0 && opts.force !== true) {
       const kept = { id: rec.id, action: 'kept', reason: 'lint', lint_errors: report.errors, commit: fetched.commit ?? null }

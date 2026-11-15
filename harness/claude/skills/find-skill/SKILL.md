@@ -1,8 +1,9 @@
 ---
 name: find-skill
-description: "Find an agent skill for a need and install it for every harness in a few calls. `buracle skills find <need>` is one command that shows the installed and shipped skills that already match, then the skills.sh registry's candidates with description, license, freshness, tool grants and risk ratings; `buracle skills add --dry-run` audits the pick (scripts, allowed-tools, suspicious lines) and `buracle skills add` installs it into ~/.agents/skills (Codex, OpenCode, Oh My Pi) and links it into ~/.claude/skills (Claude Code). Also updates and removes installed skills."
-when_to_use: "\"is there a skill for X\", \"find a skill that does X\", \"install the X skill\", \"add a skill for X\", a recurring task that no skill in `buracle skills list` covers, \"update my skills\", \"remove the X skill\"."
+description: "Find an agent skill for a need and install it for every harness in a few calls. `buracle skills find <need>` is one command that shows the installed and shipped skills that already match, then the skills.sh registry's candidates with description, license, freshness, tool grants and risk ratings; `buracle skills add --dry-run` audits the pick (scripts, allowed-tools, suspicious lines) and `buracle skills add` installs it into ~/.agents/skills (Codex, OpenCode, Oh My Pi) and links it into ~/.claude/skills (Claude Code). Also updates and removes installed skills. The user starts it with /find-skill (Codex: $find-skill). When to use: \"is there a skill for X\", \"find a skill that does X\", \"install the X skill\", \"add a skill for X\", a recurring task that no skill in `buracle skills list` covers, \"update my skills\", \"remove the X skill\"."
 argument-hint: "<what the skill should do | owner/repo[/path] | skill id>"
+metadata:
+  short-description: "Find a skill for a need and install it for every harness"
 ---
 
 # Find skill
@@ -55,7 +56,7 @@ not installable as a skill (an MCP server belongs in `canonical/mcp.yaml`; say s
 Pick from the `find` output; do not fetch more. Order of preference: the vendor's own repository,
 then installs and stars, then the last push; an archived repository, a `critical` risk rating, or no
 license drops a candidate. Say in one line which one you take and why; show a table only when the
-top candidates are close. Ask with `AskUserQuestion` only when two fit equally and differ in something
+top candidates are close. Ask with your structured-question tool only when two fit equally and differ in something
 the user cares about (license, a paid API, a heavy toolchain). Otherwise choose.
 
 ## Phase 3: Audit the pick
@@ -94,7 +95,7 @@ the user cares about (license, a paid API, a heavy toolchain). Otherwise choose.
   with local edits is kept unless `--force`. Run it when the user asks, or when a skill misbehaves.
 - `buracle skills remove <id>` removes a skill Buracle installed, with its Claude Code link.
 - A skill that belongs in the Buracle repository itself (the user wants to edit and version it) is
-  a job for `/new-skill` after it is installed: copy, then adapt.
+  a job for the `new-skill` skill after it is installed: copy, then adapt.
 
 ## Done when
 
@@ -113,7 +114,7 @@ the user cares about (license, a paid API, a heavy toolchain). Otherwise choose.
 | `exists and was not installed by Buracle` | a folder of the user's own is there; ask before `--force` |
 | the repository needs credentials or is private | ask the user for a token-free way (a fork, a local clone passed as a folder) |
 | grep or web-search is down | use the fallback the tooling rules name and say so |
-| the skill needs an MCP server | add the server to `canonical/mcp.yaml` through `/new-skill` or tell the user; do not install the skill alone |
+| the skill needs an MCP server | add the server to `canonical/mcp.yaml` through the `new-skill` skill or tell the user; do not install the skill alone |
 
 ## Example
 

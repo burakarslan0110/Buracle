@@ -12,9 +12,9 @@ import { DAY_MS, scanHookFailures } from '../hook-health'
 import * as paths from '../paths'
 import type { LiveContext } from './context'
 import { opsDeps } from './deps'
-import { AGENTS_SKILLS_CONSUMERS, buracleHomeProblem, harnessSkillsDir, pathLink } from './install-core'
+import { AGENTS_SKILLS_CONSUMERS, buracleHomeProblem, harnessSkillLinksDir, installedSkillsDir, pathLink } from './install-core'
 import { probeServers, writeHealth, type McpHealthEntry, type ToolHealthEntry } from './mcp'
-import { errText, isInside, tilde, tildeText } from './output'
+import { errText, tilde, tildeText } from './output'
 import { checkoutGitState, packagesProblem, parseShimText, runtimeDirOf, runtimeHealth, type ShimInfo } from './runtime'
 import { readUpdatesCache } from './updates-cache'
 import { binArgv } from '../toolchain/packages'
@@ -408,21 +408,31 @@ export function skillChecks(skillIds: readonly string[], repoRoot: string, harne
       ? { section: s, level: 'ok', check: 'claude plugin', detail: `${skillIds.length} skill(s) in the plugin (/<id> or /buracle:<id>)` }
       : { section: s, level: 'error', check: 'claude plugin', detail: `missing from harness/claude/skills: ${missing.join(', ')}; run \`buracle build\`` })
   }
-  for (const h of AGENTS_SKILLS_CONSUMERS.filter(x => harnesses.linked.includes(x))) {
-    const dir = harnessSkillsDir(h) as string
-    const check = `${h} (${tilde(dir)})`
-    const absent: string[] = []
-    const foreign: string[] = []
-    for (const id of skillIds) {
-      const link = join(dir, id)
-      if (!existsSync(join(link, 'SKILL.md'))) { absent.push(id); continue }
-      try {
-        if (lstatSync(link).isSymbolicLink() && !isInside(resolve(dir, readlinkSync(link)), resolve(repoRoot, 'harness', 'agents-skills'))) foreign.push(id)
-      } catch {  }
-    }
-    if (absent.length > 0) out.push({ section: s, level: 'error', check, detail: `not readable by ${h}: ${absent.join(', ')}; run \`buracle install ${h}\`` })
-    else out.push({ section: s, level: 'ok', check, detail: `${skillIds.length} skill(s) for ${h}` })
-    if (foreign.length > 0) out.push({ section: s, level: 'warn', check: `${h} links`, detail: `point outside this checkout (kept as yours): ${foreign.join(', ')}` })
+  const users = AGENTS_SKILLS_CONSUMERS.filter(x => harnesses.linked.includes(x))
+  if (users.length === 0) return out
+  // One copy serves every harness that reads ~/.agents/skills; a copy the user changed is kept as theirs.
+  const copy = installedSkillsDir()
+  const check = `installed copy (${tilde(copy)})`
+  const absent: string[] = []
+  const changed: string[] = []
+  for (const id of skillIds) {
+    const file = join(copy, id, 'SKILL.md')
+    if (!existsSync(file)) { absent.push(id); continue }
+    try {
+      if (lstatSync(join(copy, id)).isSymbolicLink() || readFileSync(file, 'utf8') !== readFileSync(join(repoRoot, 'harness', 'agents-skills', id, 'SKILL.md'), 'utf8')) changed.push(id)
+    } catch {  }
+  }
+  if (absent.length > 0) out.push({ section: s, level: 'error', check, detail: `missing: ${absent.join(', ')}; run \`buracle install\`` })
+  else out.push({ section: s, level: 'ok', check, detail: `${skillIds.length} skill(s) for ${users.join(', ')}` })
+  if (changed.length > 0) out.push({ section: s, level: 'warn', check: 'installed copy differs', detail: `not the text of this checkout (kept as yours; \`buracle install\` updates a copy Buracle wrote): ${changed.join(', ')}` })
+  for (const h of users) {
+    const dir = harnessSkillLinksDir(h)
+    if (dir === undefined) continue
+    const unlinked = skillIds.filter(id => {
+      try { return !lstatSync(join(dir, id)).isSymbolicLink() || resolve(dir, readlinkSync(join(dir, id))) !== resolve(copy, id) } catch { return true }
+    })
+    if (unlinked.length > 0) out.push({ section: s, level: 'error', check: `${h} (${tilde(dir)})`, detail: `not linked to the installed copy: ${unlinked.join(', ')}; run \`buracle install ${h}\`` })
+    else out.push({ section: s, level: 'ok', check: `${h} (${tilde(dir)})`, detail: `${skillIds.length} link(s) to the installed copy` })
   }
   return out
 }

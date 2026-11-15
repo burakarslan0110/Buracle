@@ -1,7 +1,7 @@
 # Trigger and behavior evals (`evals/cases.json`)
 
 Every new or reworked skill should ship an `evals/cases.json`. The cases are harness-neutral: they
-say what to ask and what must be observable. {{skill:ab-test}} runs them in throwaway configurations, once without
+say what to ask and what must be observable. The `ab-test` skill runs them in throwaway configurations, once without
 the change and once with it, and compares pass rates. The full format, including fixtures and
 per-harness profiles, is in the ab-test skill's `references/cases.md`.
 

@@ -75,10 +75,10 @@ export interface HarnessProfile {
   /** The denial text for a write into `protectedDirs`. */
   selfText: { what: string, remedy: string }
   skills: {
-    /** Reads the harness-neutral skill render (`harness/agents-skills`) from this folder of its config dir; undefined where the host has its own render. */
-    dir?: string
-    /** Lists the user's `~/.agents/skills`, the user's `~/.claude/skills` and a project's `.claude/skills` itself. */
+    /** Lists the user's `~/.agents/skills` (where Buracle installs the one copy of its skills), the user's `~/.claude/skills` and a project's `.claude/skills` itself. */
     readsAgentsDir: boolean
+    /** For a host that does not read `~/.agents/skills` and gets the skills no other way: the folder of its config dir that holds one link per skill to the installed copy. */
+    linkDir?: string
     readsClaudeUserDir: boolean
     readsClaudeProjectDir: boolean
     /** What the user types to start a skill: `/<id>`, `/<namespace>:<id>`, `$<id>`, `@<id>`, and whether the host reports it in a `<command-name>` tag. */

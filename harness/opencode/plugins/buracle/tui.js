@@ -7702,16 +7702,15 @@ var init_codex = __esm(() => {
     protectedDirs: [{ key: "codexHome", under: ".codex", entries: ["config.toml", "hooks.json", "rules/"] }],
     selfText: { what: "Codex's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use Codex's own commands (`codex mcp \u2026`, `codex features \u2026`)" },
     skills: {
-      dir: "skills",
       readsAgentsDir: true,
       readsClaudeUserDir: false,
       readsClaudeProjectDir: false,
       invoke: { slash: false, dollar: true, at: false, commandTag: false },
       mention: (id) => `$${id}`,
       agentPrefix: "",
-      howto: "the user starts a workflow with $<id>; you load one by reading ${CODEX_HOME:-~/.codex}/skills/<id>/SKILL.md",
-      load: (id) => `read \${CODEX_HOME:-~/.codex}/skills/${id}/SKILL.md`,
-      candidateHow: "read ${CODEX_HOME:-~/.codex}/skills/<id>/SKILL.md"
+      howto: "the user starts a workflow with $<id>; you load one by reading ~/.agents/skills/<id>/SKILL.md",
+      load: (id) => `read ~/.agents/skills/${id}/SKILL.md`,
+      candidateHow: "read ~/.agents/skills/<id>/SKILL.md"
     },
     plan: {
       enter: 'ask the user to switch to Plan mode with `/plan`, then to say "continue", and end the turn',
@@ -7787,7 +7786,6 @@ var init_omp = __esm(() => {
     ],
     selfText: { what: "omp's own configuration, which loads Buracle's guard extension", remedy: "ask the user to make this change themselves, or use omp's own commands (`omp config set \u2026`, `omp plugin \u2026`)" },
     skills: {
-      dir: "skills",
       readsAgentsDir: true,
       readsClaudeUserDir: false,
       readsClaudeProjectDir: true,
@@ -7873,7 +7871,6 @@ var init_opencode = __esm(() => {
     protectedDirs: [{ key: "opencodeConfigDir", under: ".config/opencode", entries: [""] }],
     selfText: { what: "OpenCode's own configuration, which loads Buracle's guard plugin", remedy: "ask the user to make this change themselves, or use OpenCode's own commands (`opencode mcp \u2026`, `opencode plugin \u2026`)" },
     skills: {
-      dir: "skills",
       readsAgentsDir: true,
       readsClaudeUserDir: true,
       readsClaudeProjectDir: true,
@@ -7974,7 +7971,7 @@ var init_harness = __esm(() => {
   SET = defineHarnesses(HARNESS_PROFILES);
   HARNESSES = SET.ids;
   HARNESS_LABEL = harnessTable((p) => p.label);
-  NEUTRAL_SKILL_HARNESSES = harnessesWhere((p) => p.skills.dir !== undefined);
+  NEUTRAL_SKILL_HARNESSES = harnessesWhere((p) => p.skills.readsAgentsDir);
 });
 
 // src/engine/shim.ts

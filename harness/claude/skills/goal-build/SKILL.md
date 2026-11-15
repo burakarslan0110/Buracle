@@ -1,16 +1,17 @@
 ---
 name: goal-build
-description: "Goal-and-loop workflow for a clear end state whose path is found while building: agree on a goal, tasks sized as the largest slices you can finish and verify, and at least 3 pass/fail acceptance criteria (one of them the oracle), have them reviewed, lock the contract, then build in rounds judged on running evidence (at most four), verify and hand back. Tracked in docs/goal-build/. Run only when the user explicitly asks for goal-build."
-when_to_use: "The user invokes goal-build by name, or names an end state and asks you to find the way there, working in a loop until it is done."
+description: "Goal-and-loop workflow for a clear end state whose path is found while building: agree on a goal, tasks sized as the largest slices you can finish and verify, and at least 3 pass/fail acceptance criteria (one of them the oracle), have them reviewed, lock the contract, then build in rounds judged on running evidence (at most four), verify and hand back. Tracked in docs/goal-build/. Run only when the user explicitly asks for goal-build. The user starts it with /goal-build (Codex: $goal-build). When to use: The user invokes goal-build by name, or names an end state and asks you to find the way there, working in a loop until it is done."
 argument-hint: "<goal: the end state you want> [--worktree | --new-branch | --current-branch]"
 disable-model-invocation: true
+metadata:
+  short-description: "Lock a goal and pass/fail criteria, then build in judged rounds"
 ---
 
 # Goal-build
 
 Turn a clear goal into a locked contract of acceptance criteria, then work toward it in rounds: build every open task, then judge every criterion on a running artifact. Tasks can be reshaped between rounds; the criteria stay fixed. The run file lives in `docs/goal-build/` and moves through `buracle plan …` like a plan-build plan.
 
-Pick another workflow when the idea is still vague (`/requirements`), when something that used to work is broken (`/bugfix`), or when the user wants to approve a task list before any code (`/plan-build`).
+Pick another workflow when the idea is still vague (the `requirements` skill), when something that used to work is broken (the `bugfix` skill), or when the user wants to approve a task list before any code (the `plan-build` skill).
 
 ## Ground rules
 
@@ -30,7 +31,7 @@ An active build keeps going until hand-back.
 
 - The user asks you to stop, wait or pause (in any language): Buracle records the pause. Run `buracle plan pause --kind discussion --reason "user asked to stop"` as well (harmless if already paused), give a status of at most five lines (round, criteria passing, work in progress), and end the turn.
 - You must stop (a hand-back or a blocker): `buracle plan pause --kind decision --reason "build hand-back: <why>"`, report, end the turn. The prefix lets the user's "continue" end this pause.
-- Resume: the user says "continue", or invokes `/goal-build` again. Run `buracle plan resume`, re-read the run file, and continue the current round.
+- Resume: the user says "continue", or invokes the `goal-build` skill again. Run `buracle plan resume`, re-read the run file, and continue the current round.
 
 Nothing else is an escape: no timers, no repeated stop attempts, no "should I continue?" questions.
 
@@ -66,7 +67,7 @@ Run `buracle plan status --json`, then:
 |---|---|
 | The user passed a `docs/goal-build/*.md` path, or the old `docs/builds/*.md` | `buracle plan register <absolute path> --phase plan` while `approved: false`; otherwise `buracle plan register <absolute path>` without `--phase`, so the CLI keeps the phase the run file records; then route it by the rows below |
 | The request names a PRD (`docs/requirements/*.md`, or the old `docs/prd/*.md`, frontmatter `type: prd`) | Phase 1, with the PRD's problem, Must requirements and *Out of scope* list as the goal input; cite the PRD path under `## Goal` and do not re-ask what it settled |
-| A new goal while an unfinished plan or run is bound | Ask with `AskUserQuestion`: continue the bound one (a plan-build plan continues in `/plan-build`), or start the new goal after `buracle plan unregister` |
+| A new goal while an unfinished plan or run is bound | Ask with your structured-question tool: continue the bound one (a plan-build plan continues in the `plan-build` skill), or start the new goal after `buracle plan unregister` |
 | Nothing bound | Phase 1 with the user's goal |
 | The bound run is paused | `buracle plan resume` (invoking goal-build again counts as "continue"), then route by the rows below |
 | `approved: false` | Phases 2 and 3: finish the draft, the validation or the review |
@@ -92,7 +93,7 @@ Re-read the run file and the reference of the phase you land in. Do the same aft
 
 Write the run file and the reply in the user's language, chosen as *Language* in the *Plain language* rule says, in the ASD-STE100 structural style of that rule. A run file you revise keeps its own language. Keep the markers Buracle reads (listed in the *Plain language* rule; `## Unverified` among them, which `buracle plan verify` reads), commands and identifiers verbatim.
 
-Phase 1 is the only planned conversation. Ask with `AskUserQuestion`: 2 to 4 concrete options, your recommendation first; if it is unavailable, ask in plain text with numbered options. Once the run file is registered, pause before any question that could end your turn (`buracle plan pause --kind decision --reason "<question>"`), and run `buracle plan resume` after the answer.
+Phase 1 is the only planned conversation. Ask with your structured-question tool: 2 to 4 concrete options, your recommendation first; if it is unavailable, ask in plain text with numbered options. Once the run file is registered, pause before any question that could end your turn (`buracle plan pause --kind decision --reason "<question>"`), and run `buracle plan resume` after the answer.
 
 Go by the meaning of the reply, in whatever language it comes:
 
@@ -121,10 +122,11 @@ Any other message during a run is steering: answer briefly, apply it to tasks (n
 | Long test, build or log output | the shell with the output narrowed, keeping the counts and every failure | none |
 
 An empty search result is not proof of absence: rephrase once or switch tools. If a server is down, use the fallback and say so in the hand-back.
+Where the harness has a built-in browser tool and no chrome-devtools server, use that tool wherever this skill says chrome-devtools.
 
 ## Lanes and documents
 
-A build round is made for parallel work per the *Parallel agents* rule: you are the lead, each lane is an agent you launch with the `Agent` tool, and you integrate.
+A build round is made for parallel work per the *Parallel agents* rule: you are the lead, each lane is an agent you launch with your subagent tool, and you integrate.
 
 | Phase | Lanes | Mode | Each lane returns | Then you |
 |---|---|---|---|---|
@@ -139,7 +141,7 @@ The contract and the run file follow the *Plain language* rule, in the user's la
 
 ## Review agents
 
-Launch `buracle:goal-build-review` (phase 3) and `buracle:changes-review` (phase 6) with the `Agent` tool, inputs as labeled lines, ending with "Return only your JSON report." In the input blocks of this skill, the first line names the agent to launch and the remaining lines are its prompt. Run the changes review in the background when the harness supports it. The final message must be one JSON object: `verdict` (`pass` or `needs_changes`), `summary` (starting with the path of the file it reviewed), `findings` (each with `severity` `must_fix`, `should_fix` or `suggestion`, plus `category`, `title`, `evidence`, `suggested_fix` and optional `file` and `line`), optional `goal_score` (0–100), and, from the changes review, `truths` (each `verified`, `failed` or `unverified`, with `evidence`). Missing, malformed, or about another file: relaunch once, then review against the same concerns yourself and say so. Check every finding against the run file or the code before acting. Record a background reviewer right after the launch (`buracle plan review start --role goal|changes --handle <id>`), so that after a compaction you collect it instead of launching it again, and `buracle plan review done --role <role> --verdict <verdict>` after the triage. `plan.reviews.goal`, `plan.reviews.changes` and `plan.goalVerification` (read in phase 1, fixed at the lock) can switch a reviewer or the verification phase off; the references say what replaces each. **Second opinion** (`reviews.companion`, `off` by default): right after a reviewer starts, run `buracle plan review companion start --role goal|changes --input -` with the reviewer's input lines (all but the first) on stdin, as a heredoc. It runs the same review read-only on another installed harness, once per run and role; collect it before the triage with `buracle plan review companion collect --role <role> --wait 90 --json` (again while it says `running`), triage its findings like the reviewer's and weigh both equally. It records itself. When it says `unavailable` or `failed`, go on without it and write one line under `## Review Notes`.
+Launch the `goal-build-review` agent (phase 3) and the `changes-review` agent (phase 6) with your subagent tool, inputs as labeled lines, ending with "Return only your JSON report." In the input blocks of this skill, the first line names the agent to launch (where the harness lists Buracle's agents under a prefix, as in `buracle:changes-review`, use the listed name) and the remaining lines are its prompt. Run the changes review in the background when the harness supports it. The final message must be one JSON object: `verdict` (`pass` or `needs_changes`), `summary` (starting with the path of the file it reviewed), `findings` (each with `severity` `must_fix`, `should_fix` or `suggestion`, plus `category`, `title`, `evidence`, `suggested_fix` and optional `file` and `line`), optional `goal_score` (0–100), and, from the changes review, `truths` (each `verified`, `failed` or `unverified`, with `evidence`). Missing, malformed, or about another file: relaunch once, then review against the same concerns yourself and say so. Check every finding against the run file or the code before acting. Record a background reviewer right after the launch (`buracle plan review start --role goal|changes --handle <id>`), so that after a compaction you collect it instead of launching it again, and `buracle plan review done --role <role> --verdict <verdict>` after the triage. `plan.reviews.goal`, `plan.reviews.changes` and `plan.goalVerification` (read in phase 1, fixed at the lock) can switch a reviewer or the verification phase off; the references say what replaces each. **Second opinion** (`reviews.companion`, `off` by default): right after a reviewer starts, run `buracle plan review companion start --role goal|changes --input -` with the reviewer's input lines (all but the first) on stdin, as a heredoc. It runs the same review read-only on another installed harness, once per run and role; collect it before the triage with `buracle plan review companion collect --role <role> --wait 90 --json` (again while it says `running`), triage its findings like the reviewer's and weigh both equally. It records itself. When it says `unavailable` or `failed`, go on without it and write one line under `## Review Notes`.
 
 ## When things go wrong
 

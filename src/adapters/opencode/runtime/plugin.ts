@@ -868,7 +868,7 @@ export class BuracleRuntime {
   private capabilityText(sid: string): string {
     const health = this.health(sid)
     const mcp = this.baked.mcp.filter(m => !mcpUnavailable(health[m.id]))
-    return capabilityCard({ policy: routingPolicy(this.actx()), mcp, skills: this.baked.skills, plugins: this.baked.plugins, harness: HARNESS })
+    return capabilityCard({ policy: routingPolicy(this.actx()), mcp, plugins: this.baked.plugins, harness: HARNESS })
   }
 
   /**

@@ -1,6 +1,7 @@
 ---
 name: buracle
 description: "How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan state and the stop guard (`buracle plan …`, with `plan pause` as the only escape hatch), isolated worktrees, review diff scope, usage limits, memory CLI twins, workflow progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks. Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use whenever a step needs one of these commands, when a buracle command fails, or when the stop guard keeps your turn going. When to use: Creating, registering or moving a plan; pausing to ask the user; creating or merging a worktree; computing a review diff; checking rate-limit headroom; diagnosing Buracle."
+user-invocable: false
 metadata:
   short-description: "When and how to call the buracle helper CLI"
 ---
@@ -45,7 +46,7 @@ protecting this run, and suggest `buracle doctor`.
 | New plan file | `buracle plan init --type feature\|bugfix\|build --title "<t>" --json` → `{path, slug}` |
 | Check a plan's format | `buracle plan validate <path> --json` (exit 0 ok, 1 errors, 2 warnings with `--strict`) |
 | Bind the plan to this session | `buracle plan register <path> --phase plan\|implement\|verify --json` (the phase its state implies: `plan` until approved, `verify` once `COMPLETE`; a locked goal-build run takes no `--phase`, so the phase its run file records stays) |
-| Plan a registered feature plan in the harness's own plan mode (`plan.nativePlanMode`, as `/plan-build` (Codex: `$plan-build`) says) | `buracle plan prepare-native <path> --json` (exit 2 with `reasons` when refused; `--cancel` drops the binding) |
+| Plan a registered feature plan in the harness's own plan mode (`plan.nativePlanMode`, as the `plan-build` skill says) | `buracle plan prepare-native <path> --json` (exit 2 with `reasons` when refused; `--cancel` drops the binding) |
 | Where am I? (also after a compaction) | `buracle plan status --json` → `{plan, phase, status, tasks: {done, total}, interaction}` |
 | Move the plan along | `buracle plan set status <S>`, `buracle plan set phase <p>`, `buracle plan set approved true` |
 | Raise the iteration or round counter | `buracle plan set iterations <n>` (Feature, Bugfix) or `buracle plan set rounds <n>` (Build) |
@@ -73,7 +74,7 @@ protecting this run, and suggest `buracle doctor`.
 | Authoring skills and rules | `buracle skills list\|new\|lint`, `buracle rules lint` |
 | Something in Buracle misbehaves | `buracle doctor` or `buracle doctor <harness>` (read-only) |
 
-The workflow skill in charge (`/plan-build` (Codex: `$plan-build`), `/goal-build` (Codex: `$goal-build`), `/bugfix` (Codex: `$bugfix`)) decides when each
+The workflow skill in charge (the `plan-build` skill, the `goal-build` skill, the `bugfix` skill) decides when each
 transition happens. Arguments, outputs and exit codes for every command:
 [references/commands.md](references/commands.md). Ready-made sequences:
 [references/recipes.md](references/recipes.md).
@@ -91,11 +92,11 @@ VERIFIED plan only: `buracle plan set phase done` runs the same checks as `burac
 - **Pause before you ask.** Before a question that may end your turn (approval, a material
   decision, a step only the user can do), record it:
   `buracle plan pause --kind decision --reason "<question>"` (`--kind manual` when the user must do
-  something by hand). Then ask with your structured-question tool (`request_user_input` in Codex, `question` in OpenCode, `ask` in Oh My Pi). After the answer, `buracle plan resume`.
+  something by hand). Then ask with your structured-question tool. After the answer, `buracle plan resume`.
 - **Escape hatch:** while a registered plan is not VERIFIED, the stop guard keeps your turn going. The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user asking you to stop, wait or hold on, in any language. Buracle records it only when the whole message is such a word in English or Turkish, so otherwise run `buracle plan pause --kind discussion` yourself. The user's "continue" or `buracle plan resume` ends it. Use it for real waits, never to dodge remaining work.
 - **No routine questions.** In an approved run, never ask "should I continue?" or "should I keep
   waiting?". No guard rejects them any more, so this is yours to keep: keep working, or wait on the
-  job with your plan/todo tool (`update_plan` in Codex, `todowrite` in OpenCode, the todo tool in Oh My Pi) and your harness's background facilities.
+  job with your todo tool and your harness's background facilities.
 - **Approval belongs to the user.** Run `buracle plan set approved true` only after the user
   approves in answer to the approval question ("approve", "yes", "ok", "lgtm", or the same in their
   language). Outside that question, a bare "ok" is an acknowledgment, not approval.
@@ -110,7 +111,7 @@ VERIFIED plan only: `buracle plan set phase done` runs the same checks as `burac
   run `buracle plan pause --kind discussion --reason "<their words>"` (harmless if the prompt hook
   already recorded it), give a status of at most five lines, end the turn. "Continue", "go on",
   "pick up where you left off": check `buracle plan status --json` and run `buracle plan resume` if
-  `interaction.state` is still `paused`. "Cancel", "drop it": confirm with your structured-question tool (`request_user_input` in Codex, `question` in OpenCode, `ask` in Oh My Pi), then
+  `interaction.state` is still `paused`. "Cancel", "drop it": confirm with your structured-question tool, then
   `buracle plan unregister`.
 - **Do not fight the guard.** It gives up after repeated blocks without progress and lets the turn
   end if it fails. If it keeps blocking you, do the action it names, or pause with a clear reason

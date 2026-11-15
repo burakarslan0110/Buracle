@@ -1,6 +1,7 @@
 ---
 name: research
 description: "Evidence-backed research that must use MCP tools instead of recall: web-search to discover sources, web-fetch to read them in full, context7 for library and framework documentation, grep for real-world code on GitHub, and buracle-memory for prior decisions. Produces a cited research note (answer, findings, options, conflicts, gaps, confidence) and can save durable findings to memory as knowledge memories pending review. The user starts it with /research (Codex: $research). When to use: Time-sensitive or unfamiliar questions: current versions, API behavior, best practices, standards, comparisons of libraries, tools or approaches, \"is X still maintained\"; requests such as \"research\", \"compare\", \"which one is better\", \"is this still current\", \"find sources\", \"cite sources\". The requirements workflow also runs it."
+argument-hint: "<question or topic>"
 metadata:
   short-description: "Cited, MCP-backed research across web, library docs, public code and memory"
 ---
@@ -39,6 +40,8 @@ or a memory id.
 
 Query craft, the source-quality ladder and fallbacks per tool are in
 [references/sources.md](references/sources.md).
+MCP tools may be deferred. Load them with the harness's tool search (query the server id, for example
+`context7` or `web-search`) before concluding that a tool is unavailable.
 
 ## Depth and budget
 
@@ -49,7 +52,7 @@ Query craft, the source-quality ladder and fallbacks per tool are in
 | deep | landscape scans, contested or high-stakes topics, PRD research | at most 30 calls; cover official sources, maintainers, practitioners, critics and real code |
 
 Stop early once new sources stop changing the answer. From depth standard on, independent angles run
-in parallel (the *Parallel agents* rule): fan out with your subagent tool (`spawn_agent` in Codex, `subagent` in OpenCode, `task` in Oh My Pi), one angle per agent, read-only,
+in parallel (the *Parallel agents* rule): fan out with your subagent tool, one angle per agent, read-only,
 the same routing table, each returning its findings with the URL and the supporting sentence for each
 claim. For deep research add one verifier agent per domain whose only job is to refute the findings
 it is given. You then verify and merge; a returned claim is a lead until you have seen its source.
@@ -71,7 +74,7 @@ current with `buracle flow`; the calls are cheap and best effort, so a failing o
 `buracle flow phase frame`. Note briefly: the exact question, the decision it informs, what would count
 as an answer, the depth, and how fresh the facts must be. When the question concerns a dependency, read
 the installed version from the manifest or lockfile first. If two readings of the question lead to
-different answers, ask once with your structured-question tool (`request_user_input` in Codex, `question` in OpenCode, `ask` in Oh My Pi) or answer both briefly.
+different answers, ask once with your structured-question tool or answer both briefly.
 
 ## Phase 1: Recall
 
@@ -83,7 +86,7 @@ Earlier decisions and knowledge are dated evidence: cite the memory id, and re-v
 ## Phase 2: Plan
 
 `buracle flow phase plan`. Split the question into 2-6 sub-questions, each with its source type (docs,
-web, code, memory). Track them with your plan/todo tool (`update_plan` in Codex, `todowrite` in OpenCode, the todo tool in Oh My Pi). Issue independent calls in parallel.
+web, code, memory). Track them with your todo tool. Issue independent calls in parallel.
 
 ## Phase 3: Gather
 

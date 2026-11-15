@@ -1,5 +1,5 @@
-import { NEUTRAL_SKILL_HARNESSES, harnessProfile } from '../../core/harness/index'
-import { existsSync, lstatSync, readdirSync, statSync } from 'node:fs'
+import { harnessProfile, harnessesWhere } from '../../core/harness/index'
+import { existsSync, lstatSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { Harness } from '../../core/events'
 import { bunExecutable } from '../config'
@@ -13,7 +13,8 @@ import { errText, isInside, tilde } from './output'
 
 export const CORE_OWNER = 'core'
 export const AGENTS_SKILLS_OWNER = 'agents-skills'
-export const AGENTS_SKILLS_CONSUMERS: readonly Harness[] = NEUTRAL_SKILL_HARNESSES
+/** The harnesses that get Buracle's skills from the installed copy: they read `~/.agents/skills`, or a link to it from the folder their profile names. */
+export const AGENTS_SKILLS_CONSUMERS: readonly Harness[] = harnessesWhere(p => p.skills.readsAgentsDir || p.skills.linkDir !== undefined)
 
 /** What install and update say when `repairUnsettled()` fails: nothing new is written over a half-restored state. */
 export const UNSETTLED_TXN = 'an earlier install left a transaction that still cannot be rolled back, so nothing was written (fix what is named below, then run this again; `buracle doctor runtime` lists the transaction)'
@@ -29,7 +30,7 @@ export const INSTALL_PHASES: readonly InstallPhase[] = [
   { id: 'preflight', title: 'Preflight', detail: '`HOME` must be an absolute path other than `/`. `BURACLE_HOME` cannot be the home directory itself, a directory that contains it, or a directory other programs share (such as `~/.local`, `~/.config` or `~/Library`). The configuration is loaded live.' },
   { id: 'toolchain', title: 'Toolchain', detail: 'Installs everything the harnesses need: missing system tools (git, Node.js, uv, rg, ast-grep, jq, gh) through Homebrew; MCP server packages and the pyright and typescript-language-server language servers under `~/.buracle/toolchain`; the gopls, rust-analyzer, csharp-ls and jdtls language servers through Homebrew, `go install` or `dotnet tool install`. npm and PyPI packages, CortexDB and the system tools take their newest release, and packages that are already installed move to it (`toolchain.upgrade`); a new CortexDB is used only after it passed the memory check, with the brains backed up first. `update.minReleaseAgeDays` (0 by default) can make Buracle wait that many days after an npm or PyPI release, as `buracle update` does then too. An npm package is installed into a staging folder and swapped in only after it passed its check, so a server that starts meanwhile never sees a half-written copy; the copy it replaced is kept for `buracle rollback toolchain`. `--dry-run` only reports; `toolchain.autoInstall: false` or `BURACLE_NO_TOOLCHAIN=1` skips this step.' },
   { id: 'detect', title: 'Harness detection', detail: 'Every harness enabled in the configuration is looked up with `detect()`. A harness that is not installed or is turned off is skipped and reported.' },
-  { id: 'compose', title: 'Composing the plans', detail: 'Collects the core plan (the shim, the `~/.local/bin/buracle` link, `repo` in `config.yaml`, and the path rules Codex and OpenCode read, `~/.buracle/rules/paths/<id>.md`), the skills plan (the symlinks `<skills folder>/<id>` → `harness/agents-skills/<id>` in the own skills folder of each installed Codex, OpenCode and Oh My Pi: `$CODEX_HOME/skills`, `~/.config/opencode/skills`, `~/.omp/agent/skills`; never the shared `~/.agents/skills`, which harnesses Buracle does not support read too), and the `installPlan()` output of every harness adapter. While a harness that rewrites its own configuration is running (Codex, for example), its adapter skips it and asks you to quit it and try again; in a terminal `buracle install` asks whether to write its configuration anyway. A Codex older than the oldest version Buracle supports is left as it is without a question, also when forced, because it could not load the configuration Buracle writes; the next steps say to update Codex, then to run `buracle install codex` (exit 2). Items an earlier install wrote that no plan produces any more get removal operations. When a target inside HOME passes through a symlink that leads outside HOME (a dotfiles repository elsewhere, for example), only that file is skipped and reported as a conflict; in a terminal `buracle install` asks whether to write through such links.' },
+  { id: 'compose', title: 'Composing the plans', detail: 'Collects the core plan (the shim, the `~/.local/bin/buracle` link, `repo` in `config.yaml`, and the path rules Codex and OpenCode read, `~/.buracle/rules/paths/<id>.md`), the skills plan (one copy of every skill in `harness/agents-skills`, as real files under `~/.agents/skills/<id>`, which Codex, OpenCode and Oh My Pi read themselves; the Claude Code plugin bundles the same files; the links an earlier Buracle put into each harness\'s own skills folder are removed), and the `installPlan()` output of every harness adapter. While a harness that rewrites its own configuration is running (Codex, for example), its adapter skips it and asks you to quit it and try again; in a terminal `buracle install` asks whether to write its configuration anyway. A Codex older than the oldest version Buracle supports is left as it is without a question, also when forced, because it could not load the configuration Buracle writes; the next steps say to update Codex, then to run `buracle install codex` (exit 2). Items an earlier install wrote that no plan produces any more get removal operations. When a target inside HOME passes through a symlink that leads outside HOME (a dotfiles repository elsewhere, for example), only that file is skipped and reported as a conflict; in a terminal `buracle install` asks whether to write through such links.' },
   { id: 'preview', title: 'Preview', detail: '`--dry-run` prints a unified diff for each plan and stops here; a plan that a running harness would skip shows as a warning. Otherwise the changes are counted: in a terminal they are applied at once, without a question, while each step shows on the screen; without a terminal nothing is written unless `--yes` is given, and the summary says how many changes wait.' },
   { id: 'runtime', title: 'Frozen runtime', detail: 'Hooks and the CLI run a frozen copy of the checkout, never the checkout itself. Under the transaction lock, the install copies `src/`, `canonical/`, `harness/`, `package.json`, `bun.lock`, `tsconfig.json` and the runtime packages (`yaml`, `jsonc-parser`, and `beautiful-mermaid` with its `elkjs` and `entities`, which must match `bun.lock`) into `~/.buracle/runtime/<id>` (the id is a hash of what is copied; an identical copy that passed its check is reused), checks the copy (`buracle --version`, and the Claude Code and Codex PreToolUse hooks must deny `rm -rf ~` and let `ls` through) and only then lets the core transaction point the shim at it. A copy that fails its check is removed, the shim keeps the old runtime and the install fails before any transaction. After the core transaction, the live runtime and the newest other one are kept and older ones are removed. `BURACLE_RUNTIME=checkout` writes a shim that runs the checkout directly instead (tests, debugging; `buracle doctor` warns about it).' },
   { id: 'apply', title: 'Transactional apply', detail: 'The core and shared skills plans are applied first as one transaction, then each harness as its own transaction, in the order of the transaction steps below; the lock is held throughout. When a harness\'s transaction fails, only that transaction is rolled back, the other harnesses stay installed and the exit code is 2; when the core transaction fails, no harness is attempted. When another process changes a file during a transaction, the transaction is retried once. Ctrl-C rolls back the current transaction and stops the install. Items the user deleted are not recreated (they are reported as conflicts); in a terminal `buracle install` asks whether to put them back. A lost ownership ledger is rebuilt from the transaction journals; without journals, `buracle install` in a terminal asks whether to record the values that equal Buracle\'s as its own.' },
@@ -161,22 +162,58 @@ export function agentsSkillIds(repoRoot: string): string[] {
   })
 }
 
-// Each supported harness reads Buracle's skills from its own folder. The shared ~/.agents/skills
-// would show them to every Agent Skills client, including ones Buracle does not support.
-export function harnessSkillsDir(h: Harness): string | undefined {
-  const dir = harnessProfile(h).skills.dir
+/** Where Buracle's skills are installed, once for every harness: `~/.agents/skills`. */
+export function installedSkillsDir(): string {
+  return join(paths.agentsDir(), 'skills')
+}
+
+/** The folder of a harness that does not read `~/.agents/skills` where each skill is a link to the installed copy. */
+export function harnessSkillLinksDir(h: Harness): string | undefined {
+  const dir = harnessProfile(h).skills.linkDir
   return dir !== undefined ? join(paths.harnessConfigDir(h), dir) : undefined
 }
 
-export function agentsSkillsPlan(repoRoot: string, harnesses: readonly Harness[]): Plan {
-  const src = join(repoRoot, 'harness', 'agents-skills')
-  const ids = agentsSkillIds(repoRoot)
-  const dirs = AGENTS_SKILLS_CONSUMERS.filter(h => harnesses.includes(h)).map(h => harnessSkillsDir(h) as string)
-  return {
-    id: 'agents-skills',
-    harness: 'core',
-    ops: dirs.flatMap(dir => ids.map((id): Op => ({ kind: 'symlink', path: join(dir, id), target: join(src, id), owner: AGENTS_SKILLS_OWNER }))),
+function skillFiles(dir: string, rel = ''): Array<{ rel: string, content: string, exec: boolean }> {
+  let names: string[]
+  try { names = readdirSync(join(dir, rel)).sort() } catch { return [] }
+  const out: Array<{ rel: string, content: string, exec: boolean }> = []
+  for (const n of names) {
+    if (n.startsWith('.')) continue
+    const r = rel === '' ? n : `${rel}/${n}`
+    let st
+    try { st = statSync(join(dir, r)) } catch { continue }
+    if (st.isDirectory()) out.push(...skillFiles(dir, r))
+    else if (st.isFile()) out.push({ rel: r, content: readFileSync(join(dir, r), 'utf8'), exec: (st.mode & 0o111) !== 0 })
   }
+  return out
+}
+
+function isLink(path: string): boolean {
+  try { return lstatSync(path).isSymbolicLink() } catch { return false }
+}
+
+/**
+ * Buracle's skills, installed once: every file of `harness/agents-skills/<id>` as a real file under
+ * `~/.agents/skills/<id>`, and one link per skill to that copy for each harness whose profile names a
+ * link folder. A skill folder that is somebody else's link is left alone (`ownedLinks` holds the links an
+ * earlier Buracle made, which the same transaction removes first): writing into it would write through it.
+ */
+export function agentsSkillsPlan(repoRoot: string, harnesses: readonly Harness[], ownedLinks: ReadonlySet<string> = new Set()): Plan {
+  const src = join(repoRoot, 'harness', 'agents-skills')
+  const dest = installedSkillsDir()
+  const ops: Op[] = []
+  if (harnesses.some(h => AGENTS_SKILLS_CONSUMERS.includes(h))) {
+    const linkDirs = harnesses.map(h => harnessSkillLinksDir(h)).filter((d): d is string => d !== undefined)
+    for (const id of agentsSkillIds(repoRoot)) {
+      const folder = join(dest, id)
+      if (isLink(folder) && !ownedLinks.has(resolve(folder))) continue
+      for (const f of skillFiles(join(src, id))) {
+        ops.push({ kind: 'file', path: join(folder, f.rel), content: f.content, ...(f.exec ? { mode: 0o755 } : {}), owner: AGENTS_SKILLS_OWNER })
+      }
+      for (const dir of linkDirs) ops.push({ kind: 'symlink', path: join(dir, id), target: folder, owner: AGENTS_SKILLS_OWNER })
+    }
+  }
+  return { id: 'agents-skills', harness: 'core', ops }
 }
 
 export function planKeys(plan: Plan): string[] {

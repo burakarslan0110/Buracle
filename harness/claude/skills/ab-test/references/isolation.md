@@ -51,8 +51,8 @@ must be inside `<root>`; only then repeat it without `--dry-run`.
     `git archive <ref> harness/claude | tar -x -C <arm>`, then move `<arm>/harness/claude` to
     `<arm>/plugin`. Candidate: render it in a repo copy (SKILL.md phase 4), then copy
     `<arm>/repo/harness/claude` to `<arm>/plugin`.
-  - User-level skill: the rendered Claude copy (`harness/claude/skills/<id>/`) into
-    `<arm>/claude/skills/<id>/`.
+  - User-level skill: the built copy (`harness/agents-skills/<id>/`, the same text for every
+    harness) into `<arm>/claude/skills/<id>/`.
   - Global rule: `<arm>/claude/rules/<file>.md`.
   - Project guidance (`AGENTS.md`, `.claude/rules/`, `.agents/skills/`): in the case fixture.
   - To test a path rule's content rather than its scoping, drop its `paths:` line in both arms'
@@ -75,11 +75,10 @@ must be inside `<root>`; only then repeat it without `--dry-run`.
 
 ## Codex CLI
 
-- **Isolate:** `HOME=<arm>/home` (user skills come from `$HOME/.agents/skills` and
-  `$CODEX_HOME/skills`) and `CODEX_HOME=<arm>/home/.codex`; create that directory first, Codex
-  requires it to exist.
-- **Place the variant:** neutral skill render `harness/agents-skills/<id>/` into
-  `<arm>/home/.codex/skills/<id>/`, where Buracle installs it for Codex; global guidance into `<arm>/home/.codex/AGENTS.md`; project
+- **Isolate:** `HOME=<arm>/home` (user skills come from `$HOME/.agents/skills`) and
+  `CODEX_HOME=<arm>/home/.codex`; create that directory first, Codex requires it to exist.
+- **Place the variant:** the built skill `harness/agents-skills/<id>/` into
+  `<arm>/home/.agents/skills/<id>/`, where Buracle installs it; global guidance into `<arm>/home/.codex/AGENTS.md`; project
   guidance into the fixture. MCP servers come from `<arm>/home/.codex/config.toml`; install them
   with Buracle into the arm (above) rather than copying the real file.
 - **Credentials:** `--env CODEX_API_KEY=…`, or, only with the user's consent, a copy of

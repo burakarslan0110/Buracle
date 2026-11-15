@@ -12,9 +12,9 @@ export const usage = `Usage: buracle skills <subcommand> [--json]
   list                      every skill with its source (skills.sources, installed third-party skills
                             and the project's .agents/skills)
   new <id> [--source <n>]   scaffold <source>/<id>/SKILL.md and evals/cases.json (default source: buracle)
-  lint [<dir>…] [--strict]  check skills: frontmatter keys and limits, placeholders and the
-                            \\{{…}} escape, harness blocks, documented 'buracle' commands in code, MCP ids,
-                            {{skill:x}}/{{agent:x}} targets, relative links, evals/cases.json.
+  lint [<dir>…] [--strict]  check skills: frontmatter keys and limits, harness-neutral text (no render
+                            placeholders, no harness blocks: every harness reads the same copy),
+                            documented 'buracle' commands in code, MCP ids, relative links, evals/cases.json.
                             Default: every configured source; or skill folders / folders of skills
                             (folders under .agents/skills are linted as project skills).
                             Exit 0 clean · 1 errors · 2 warnings with --strict

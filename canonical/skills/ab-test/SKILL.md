@@ -38,18 +38,7 @@ baseline, on cases that could have failed?
 - **Honest reporting.** Small samples are noisy; say so. Never round "unclear" up to "improved".
 
 `<skill-dir>` below means this skill's folder:
-<!-- harness:claude -->
-`${CLAUDE_SKILL_DIR}`
-<!-- /harness -->
-<!-- harness:codex -->
-`${CODEX_HOME:-$HOME/.codex}/skills/ab-test`
-<!-- /harness -->
-<!-- harness:opencode -->
-`${XDG_CONFIG_HOME:-$HOME/.config}/opencode/skills/ab-test`
-<!-- /harness -->
-<!-- harness:omp -->
-`${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}/skills/ab-test`
-<!-- /harness -->
+`$HOME/.agents/skills/ab-test`
 If that path does not exist, use the folder that holds this SKILL.md.
 
 ## Progress
@@ -67,7 +56,7 @@ current with `buracle flow`; the calls are cheap and best effort, so a failing o
 
 ## Phases
 
-Track the phases with {{todo}}.
+Track the phases with your todo tool.
 
 ### 1. Frame
 
@@ -75,7 +64,7 @@ Track the phases with {{todo}}.
 (`skill:<id>`, `rule:<path>`, `routing`, or an `AGENTS.md` section), the baseline (a git ref, or
 "without the target"), the candidate (working tree or ref), the harness(es), and a hypothesis with a
 threshold, for example: "With the new description, history questions in the user's language trigger
-`memory_search` in at least 2 of 3 runs; the baseline in at most 1." Ask with {{ask_user}} only for
+`memory_search` in at least 2 of 3 runs; the baseline in at most 1." Ask with your structured-question tool only for
 what you cannot infer.
 
 ### 2. Cases

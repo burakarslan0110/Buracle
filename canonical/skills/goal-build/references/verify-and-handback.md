@@ -22,10 +22,10 @@ Mark the phase: `buracle flow phase verify`.
    | Full | code with a UI or another user-facing entry point | every layer |
 
 2. `buracle review-scope --json` (add `--slug <slug>` in a worktree run). A `warning` means the diff is probably wrong or empty; resolve it first.
-3. Launch {{agent:changes-review}} with {{spawn_agent}}, in the background when the harness supports it, and record it at once (`buracle plan review start --role changes --handle <id>`); with `reviews.companion` not `off`, start the second opinion too (`--role changes`; SKILL.md, *Review agents*). With `reviews.changes` off at the lock, do not launch it: review the diff yourself against changes-review's concerns, and the Review layer goes under `## Unverified` as "independent review off (plan.reviews.changes)".
+3. Launch the `changes-review` agent with your subagent tool, in the background when the harness supports it, and record it at once (`buracle plan review start --role changes --handle <id>`); with `reviews.companion` not `off`, start the second opinion too (`--role changes`; SKILL.md, *Review agents*). With `reviews.changes` off at the lock, do not launch it: review the diff yourself against changes-review's concerns, and the Review layer goes under `## Unverified` as "independent review off (plan.reviews.changes)".
 
    ```text
-   {{agent:changes-review}}
+   changes-review
    plan_file: <absolute run file path>
    slug: <slug>
    base_ref: <from review-scope>
@@ -130,22 +130,8 @@ Next: <only for outcomes other than done>
 
 When the user wants the run continued in a fresh session, by another agent or on a machine without Buracle, hand back a brief instead of running it. Without Buracle there is no run file and no stop guard, so the goal condition moves into the prompt.
 
-<!-- harness:claude -->
-Put this line first: `/goal Every acceptance criterion below passes a judge reading the finished artifact.` Claude Code's `/goal` keeps the session working until the condition holds; `/goal clear` drops it.
+Where the harness has a goal command (`/goal` in Claude Code, Codex and Oh My Pi), put this line first: `/goal Every acceptance criterion below passes a judge reading the finished artifact.` It keeps the session working until the condition holds; `/goal clear` drops it (`/goal drop` in Oh My Pi, whose goal mode is the `goal.enabled` setting, on by default). Without a goal command (OpenCode), the brief's first sentence states the condition, and nothing else holds the session open.
 
-<!-- /harness -->
-<!-- harness:codex -->
-Put this line first: `/goal Every acceptance criterion below passes a judge reading the finished artifact.` Codex's `/goal` keeps the goal attached to the chat; `/goal clear` removes it.
-
-<!-- /harness -->
-<!-- harness:omp -->
-Put this line first: `/goal Every acceptance criterion below passes a judge reading the finished artifact.` Oh My Pi's goal mode keeps the session working toward it (setting `goal.enabled`, on by default); `/goal drop` ends it.
-
-<!-- /harness -->
-<!-- harness:opencode -->
-OpenCode has no goal command, so the brief's first sentence states the condition, and nothing else holds the session open.
-
-<!-- /harness -->
 ```text
 Build <the goal>.
 

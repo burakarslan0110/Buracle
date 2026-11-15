@@ -6,15 +6,22 @@ Use this only when `buracle config get plan` shows `nativePlanMode` set to `on`,
 
 1. Do plan.md P1 and P2 as usual: plan mode allows no file writes, so the plan file is created and registered (`--phase plan`) first.
 2. `buracle plan prepare-native <absolute plan path>`. It binds that file once to the coming plan mode. When it refuses, continue with plan.md P3 and say why in one line.
-3. Enter plan mode:
-   call EnterPlanMode (load it with tool search when it is deferred). Claude Code plans on the Opus leg when the user picked the `opusplan` model.
+3. Enter plan mode the way the `Next:` line of that command says (`enter` in its JSON). Where the user has to switch (a command or a key), ask them to, then to say "continue", and end the turn. Which model plans is the harness's own setting:
+   - Claude Code: the Opus leg when the user picked the `opusplan` model.
+   - Codex: its `plan_mode_reasoning_effort`.
+   - OpenCode: the session's model stays when the agent changes, so a user who wants another model for planning picks it with `/models` before saying "continue".
+   - Oh My Pi: its `plan` model role, by itself.
 4. Plan mode is unavailable, or the user declines it: `buracle plan prepare-native --cancel`, then plan.md P3.
 
 ## N2. Plan inside plan mode
 
 1. Do plan.md P3 to P7: explore (read-only lanes work), clarify, choose the approach, write and self-check the plan.
-2. Write the whole plan in the P6 format, from its `# Title` line on, without frontmatter:
-   into the plan file that plan mode names, then present it with ExitPlanMode. Tell the user to approve with a Yes option that keeps the context, not one that starts "Yes, clear context": those, offered when Claude Code's `showClearContextOnPlanAccept` setting is on, start a fresh conversation, which this run does not carry over to.
+2. Write the whole plan in the P6 format, from its `# Title` line on, without frontmatter, where this harness's plan mode takes it:
+   - Claude Code: into the plan file that plan mode names, then present it with ExitPlanMode. Tell the user to approve with a Yes option that keeps the context, not one that starts "Yes, clear context": those, offered when the `showClearContextOnPlanAccept` setting is on, start a fresh conversation, which this run does not carry over to.
+   - Codex: in one `<proposed_plan>` block of your final message. Tell the user to choose "Yes, implement this plan": the fresh-context choice starts a new session, which this run does not carry over to.
+   - OpenCode: as your last plan-agent message: one first line that asks the user to switch back to the build agent (Tab) and say "continue", then the plan.
+   - Oh My Pi: into the plan file that plan mode names (`local://<slug>-plan.md`), then submit it for approval the way plan mode says.
+   - Any other harness: the way its plan mode presents a plan for approval.
 3. Until plan mode ends, write no other file, run no state-changing `buracle` command (`plan`, `flow`) and launch no reviewer: plan mode forbids writes, and P8 runs after it.
 
 ## N3. After plan mode

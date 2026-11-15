@@ -10,7 +10,7 @@ import { git } from './gitx'
 import { assetLayout, claudeOnlySkills, realOr } from './project-assets'
 import {
   checkBuracleMentions, checkHarnessBlocks, checkLinks, checkPlaceholders, formatFinding, scanMarkdown, sizeOf, summarize,
-  type LintFinding, type PlaceholderTargets,
+  type LintFinding,
 } from './lint'
 import { fail, ok, type CmdResult, type WorkflowCtx } from './result'
 import { installedForList, readInstalled } from './skill-install'
@@ -93,14 +93,6 @@ function mcpIds(): Set<string> {
   try {
     const raw = parseYaml(readFileSync(join(canonicalDir(), 'mcp.yaml'), 'utf8')) as { servers?: Record<string, unknown> } | null
     return new Set(Object.keys(raw?.servers ?? {}))
-  } catch {
-    return new Set()
-  }
-}
-
-function agentIds(): Set<string> {
-  try {
-    return new Set(readdirSync(join(canonicalDir(), 'agents')).filter(n => n.endsWith('.md') && !n.startsWith('.')).map(n => n.slice(0, -3)))
   } catch {
     return new Set()
   }
@@ -203,7 +195,7 @@ export function scaffoldSkill(id: string): { skill: string, evals: string } {
     '',
     '## Phases',
     '',
-    'Track the phases with {{todo}}.',
+    'Track the phases with your todo tool.',
     '',
     '### 1. <Phase name>',
     '',
@@ -263,7 +255,6 @@ function walk(dir: string, rel = ''): string[] {
 
 export interface SkillLintOptions {
   displayRoot: string
-  targets: PlaceholderTargets
   mcp: ReadonlySet<string>
   profile: 'canonical' | 'project'
   // The folder name the skill has once installed, when it differs from the folder it is linted
@@ -331,8 +322,9 @@ export function lintSkillDir(dir: string, o: SkillLintOptions): LintFinding[] {
     const body = f === 'SKILL.md' ? text : readFileSync(abs, 'utf8')
     if (body.includes('\r\n')) out.push({ level: 'warning', code: 'crlf', file: shown, message: 'use LF line endings' })
     const scan = scanMarkdown(body)
-    out.push(...checkPlaceholders(shown, scan, o.profile === 'project' ? null : o.targets, where))
-    out.push(...checkHarnessBlocks(shown, scan, o.profile !== 'project', where))
+    // Every harness reads the one copy of a skill as it is, so nothing expands a placeholder or a harness block.
+    out.push(...checkPlaceholders(shown, scan, null, where))
+    out.push(...checkHarnessBlocks(shown, scan, false, where))
     out.push(...checkBuracleMentions(shown, scan))
     out.push(...checkLinks(shown, abs, scan, { containWithin: dir }))
     for (const p of scan.prose) {
@@ -421,22 +413,19 @@ function lintTargets(args: readonly string[], ctx: WorkflowCtx): { dirs: Array<{
 }
 
 export function lintProjectSkill(dir: string, displayRoot: string): LintFinding[] {
-  return lintSkillDir(dir, { displayRoot, targets: { skills: new Set(), agents: agentIds() }, mcp: mcpIds(), profile: 'project' })
+  return lintSkillDir(dir, { displayRoot, mcp: mcpIds(), profile: 'project' })
 }
 
 export function skillsLint(args: readonly string[], strict: boolean, ctx: WorkflowCtx): CmdResult {
-  const { dirs, problems, sources } = lintTargets(args, ctx)
+  const { dirs, problems } = lintTargets(args, ctx)
   if (problems.length > 0) return fail('usage', problems.join('; '))
-  const ids = new Set<string>()
-  for (const s of sources) if (s.dir !== undefined && s.exists) for (const id of skillIdsIn(s.dir)) ids.add(id)
-  const targets: PlaceholderTargets = { skills: ids, agents: agentIds() }
   const mcp = mcpIds()
   const findings: LintFinding[] = []
   const displayRoot = args.length === 0 ? repoRoot() : ctx.cwd
   if (mcp.size === 0) findings.push({ level: 'warning', code: 'mcp-catalog', file: show(displayRoot, join(canonicalDir(), 'mcp.yaml')), message: 'canonical/mcp.yaml could not be read; MCP ids were not checked' })
   const seen = new Map<string, string>()
   for (const { dir, profile } of dirs) {
-    findings.push(...lintSkillDir(dir, { displayRoot, targets, mcp, profile }))
+    findings.push(...lintSkillDir(dir, { displayRoot, mcp, profile }))
     const id = basename(dir)
     const prev = seen.get(id)
     if (prev !== undefined && profile === 'canonical') findings.push({ level: 'error', code: 'duplicate-skill', file: show(displayRoot, dir), message: `skill id '${id}' also exists at ${prev}` })
