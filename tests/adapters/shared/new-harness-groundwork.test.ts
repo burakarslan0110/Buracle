@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import { agentDirConflict, type AgentDirProbe } from '../../../src/adapters/shared/agent-dir'
 import { adapter as agy } from '../../../src/adapters/agy/index'
+import { stubAdapter } from '../../../src/adapters/shared/stub'
 import { adapter as pi } from '../../../src/adapters/pi/index'
 import { adapter as qwen } from '../../../src/adapters/qwen/index'
 import { allAdapters, type Adapter, type AdapterContext } from '../../../src/adapters/registry'
@@ -23,8 +24,9 @@ import { fakeAdapter, fakeCli, makeRepo, memoryIO, withDeps } from '../../cli/op
 import { run as installRun } from '../../../src/cli/commands/install'
 
 const NEW = ['qwen', 'pi', 'agy'] as const
-/** The harnesses whose adapter is still a stub. */
-const PENDING = ['agy'] as const
+/** The harnesses whose adapter is still a stub: none since task 6.3; the stub helper itself is still tested, on AGY's name. */
+const PENDING = [] as const
+const STUBBED = ['agy'] as const
 const REPO = join(import.meta.dir, '..', '..', '..')
 const read = (f: string) => readFileSync(join(REPO, f), 'utf8')
 
@@ -32,8 +34,8 @@ describe('Qwen Code, Pi and AGY CLI profiles', () => {
   test('they join the harness set after the four, each flagged as waiting for its adapter until it has one', () => {
     expect([...HARNESSES].slice(4)).toEqual([...NEW])
     for (const h of PENDING) expect({ h, pending: harnessProfile(h).adapterPending }).toEqual({ h, pending: true })
-    // Pi (task 6.2) and Qwen Code (task 6.1) have their adapters, so they no longer wait for one.
-    for (const h of [...HARNESSES.slice(0, 4), 'pi' as const, 'qwen' as const]) expect(harnessProfile(h).adapterPending).toBeUndefined()
+    // Qwen Code (task 6.1), Pi (task 6.2) and AGY CLI (task 6.3) have their adapters, so none waits for one.
+    for (const h of HARNESSES) expect({ h, pending: harnessProfile(h).adapterPending }).toEqual({ h, pending: undefined })
   })
 
   test('Qwen: the tool ids classify, in both spellings of the ask, plan and todo tools', () => {
@@ -175,18 +177,18 @@ describe('the event maps and the host limits', () => {
 })
 
 describe('the stub adapters', () => {
-  const STUBS: Record<(typeof PENDING)[number], Adapter> = { agy }
+  const STUBS: Record<(typeof STUBBED)[number], Adapter> = { agy: stubAdapter('agy') }
   const ctx = (): AdapterContext => ({ repoRoot: REPO, config: undefined as never, canonical: undefined as never, paths, buracleBin: '/x/buracle' })
 
   test('the registry holds them after the four, in profile order', () => {
     expect(allAdapters().slice(4).map(a => a.harness)).toEqual([...NEW])
-    for (const h of PENDING) expect(allAdapters().find(a => a.harness === h)).toBe(STUBS[h])
+    expect(allAdapters().find(a => a.harness === 'agy')).toBe(agy)
     expect(allAdapters().find(a => a.harness === 'pi')).toBe(pi)
     expect(allAdapters().find(a => a.harness === 'qwen')).toBe(qwen)
   })
 
   test('build and the install plan are empty; doctor answers one warning', async () => {
-    for (const h of PENDING) {
+    for (const h of STUBBED) {
       const a = STUBS[h]
       expect(await a.build(ctx())).toEqual([])
       expect(await a.installPlan(ctx())).toEqual({ id: h, harness: h, ops: [] })
@@ -211,14 +213,14 @@ describe('the stub adapters', () => {
 
   test('an install run over them writes nothing into any host folder', () => withSandbox(async ({ root, home }) => {
     const bin = join(root, 'bin')
-    for (const name of PENDING) fakeExe(join(bin, name), 'console.log("1.0.0")')
+    for (const name of STUBBED) fakeExe(join(bin, name), 'console.log("1.0.0")')
     const repo = makeRepo(root)
-    await withEnv({ PATH: narrowPath(bin) }, () => withDeps({ repoRoot: () => repo, adapters: async () => [agy, fakeAdapter('claude', { installed: false })], runCli: fakeCli().runCli }, async () => {
+    await withEnv({ PATH: narrowPath(bin) }, () => withDeps({ repoRoot: () => repo, adapters: async () => [STUBS.agy, fakeAdapter('claude', { installed: false })], runCli: fakeCli().runCli }, async () => {
       const io = memoryIO({ json: true })
       expect(await installRun(['--yes', '--json'], io)).toBe(0)
       for (const dir of ['.pi', '.gemini']) expect({ dir, exists: existsSync(join(home, dir)) }).toEqual({ dir, exists: false })
       const result = JSON.parse(io.out()) as { harnesses: Array<{ harness: string, ops?: unknown }> }
-      for (const name of PENDING) expect({ name, listed: result.harnesses.some(h => h.harness === name) }).toEqual({ name, listed: true })
+      for (const name of STUBBED) expect({ name, listed: result.harnesses.some(h => h.harness === name) }).toEqual({ name, listed: true })
     }))
   }))
 

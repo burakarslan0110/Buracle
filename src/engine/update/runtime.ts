@@ -179,7 +179,11 @@ const COMMAND_HOOK_HARNESSES: readonly Harness[] = harnessesWhere(p => p.runtime
 function probePayload(harness: Harness, command: string): string {
   // The harness's primary shell tool: the first entry of its profile that is a shell.
   const shell = Object.entries(harnessProfile(harness).tools.kinds).find(([, kind]) => kind === 'bash')?.[0] ?? 'Bash'
-  const base = { session_id: 'buracle-runtime-probe', hook_event_name: 'PreToolUse', tool_name: shell, tool_input: { command }, cwd: paths.home(), permission_mode: 'bypassPermissions' }
+  // `conversationId` and `toolCall` are the camelCase spelling of the same call, for the hosts (AGY) that send that one.
+  const base = {
+    session_id: 'buracle-runtime-probe', hook_event_name: 'PreToolUse', tool_name: shell, tool_input: { command }, cwd: paths.home(), permission_mode: 'bypassPermissions',
+    conversationId: 'buracle-runtime-probe', hookEventName: 'PreToolUse', toolCall: { id: 'probe', name: shell, args: { CommandLine: command } },
+  }
   return JSON.stringify(harness === 'codex' ? { ...base, turn_id: 't0', transcript_path: null, model: 'probe', tool_use_id: 'probe' } : base)
 }
 
@@ -187,8 +191,9 @@ const PROBE_ENV = { BURACLE_NO_CAPTURE: '1', BURACLE_NO_MEMORY: '1', BURACLE_NO_
 
 function decisionOf(stdout: string): { decision?: unknown, reason?: unknown } {
   try {
-    const o = JSON.parse(stdout) as { hookSpecificOutput?: { permissionDecision?: unknown, permissionDecisionReason?: unknown } }
-    return { decision: o.hookSpecificOutput?.permissionDecision, reason: o.hookSpecificOutput?.permissionDecisionReason }
+    const o = JSON.parse(stdout) as { decision?: unknown, reason?: unknown, hookSpecificOutput?: { permissionDecision?: unknown, permissionDecisionReason?: unknown } }
+    // The answer is Claude's shape, or the flat `{decision, reason}` of the hosts (AGY) that deny that way.
+    return { decision: o.hookSpecificOutput?.permissionDecision ?? o.decision, reason: o.hookSpecificOutput?.permissionDecisionReason ?? o.reason }
   } catch { return {} }
 }
 
