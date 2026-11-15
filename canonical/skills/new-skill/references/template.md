@@ -52,14 +52,14 @@ Track the phases with your todo tool.
 <A short, realistic run: the request, the key steps, the result.>
 ```
 
-Field rules (CONTRACTS §8.1):
+Field rules (`buracle skills lint` enforces them):
 
 - `name` equals the folder name: kebab-case, at most 64 characters.
 - `description` plus `when_to_use`: at most 1,024 characters together. Routing depends on them.
 - `invocation`: `explicit` makes the skill user-started only (the build writes each harness's
   switch for it); `implicit` lets the agent pick it up.
 - `mcp`: ids from `canonical/mcp.yaml` (`context7`, `codegraph`, `semble`, `web-search`,
-  `web-fetch`, `grep`, `chrome-devtools`, `buracle-memory`); `[]` when none.
+  `web-fetch`, `grep`, `chrome-devtools`, `buracle-memory`, `lsp`); `[]` when none.
 - `short-description`: at most 80 characters (shown in Codex's skill list).
 
 ## Calling a bundled script
