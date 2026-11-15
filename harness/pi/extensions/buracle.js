@@ -8463,7 +8463,7 @@ var agyProfile = {
   bin: "agy",
   proc: { base: /^agy$/ },
   runtime: "command",
-  adapterPending: true,
+  companionPending: true,
   noStdinPrint: true,
   editBudgetMs: 28000,
   configDir: { key: "agyDir", under: ".gemini/config" },
@@ -8473,6 +8473,7 @@ var agyProfile = {
   selfText: { what: "AGY CLI's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use AGY's own commands (`agy mcp \u2026`, `agy plugin \u2026`, `/hooks`)" },
   skills: {
     readsAgentsDir: false,
+    linkDir: "skills",
     readsClaudeUserDir: false,
     readsClaudeProjectDir: false,
     invoke: { slash: true, dollar: false, at: false, commandTag: false },

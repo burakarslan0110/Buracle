@@ -1,0 +1,49 @@
+{
+  "buracle": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "\"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" hook agy SessionStart",
+        "timeout": 30
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" hook agy PreToolUse",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" hook agy PostToolUse",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "\"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" hook agy PreInvocation",
+        "timeout": 10
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "\"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" hook agy Stop",
+        "timeout": 15
+      }
+    ]
+  }
+}

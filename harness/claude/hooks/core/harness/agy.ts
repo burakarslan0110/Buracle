@@ -11,20 +11,22 @@ export const agyProfile: HarnessProfile = {
   bin: 'agy',
   proc: { base: /^agy$/ },
   runtime: 'command',
-  adapterPending: true,
+  companionPending: true,
   noStdinPrint: true,
   editBudgetMs: 28_000,
-  // The global customization root. The program names a `ANTIGRAVITY_CONFIG_REL_DIR` variable; whether it relocates
-  // this folder is not documented, so it counts as relocation only.
+  // The global customization root, found under HOME: `ANTIGRAVITY_CONFIG_REL_DIR` is named in the program, but with it set
+  // `agy mcp add` still wrote `<HOME>/.gemini/config/mcp_config.json` (1.5.9), so it counts as a relocation variable to
+  // guard and nothing more; tests and probes relocate the folder with HOME.
   configDir: { key: 'agyDir', under: '.gemini/config' },
   relocationEnv: ['ANTIGRAVITY_CONFIG_REL_DIR'],
   sessionEnv: ['ANTIGRAVITY_CONVERSATION_ID'],
   protectedDirs: [{ key: 'agyDir', under: '.gemini/config', entries: ['hooks.json', 'mcp_config.json', 'config.json', 'plugins/'] }],
   selfText: { what: "AGY CLI's own configuration, which registers Buracle's guard hooks", remedy: "ask the user to make this change themselves, or use AGY's own commands (`agy mcp …`, `agy plugin …`, `/hooks`)" },
   skills: {
-    // AGY reads skills from <config>/skills only (the ~/.agents/skills folder is read per workspace, not globally): the AGY
-    // task sets `linkDir: 'skills'` for the links to the installed copy once its adapter installs them.
+    // AGY reads skills from <config>/skills only (the ~/.agents/skills folder is read per workspace, not globally): the
+    // install links every skill of the one copy into that folder.
     readsAgentsDir: false,
+    linkDir: 'skills',
     readsClaudeUserDir: false,
     readsClaudeProjectDir: false,
     invoke: { slash: true, dollar: false, at: false, commandTag: false },
@@ -39,7 +41,9 @@ export const agyProfile: HarnessProfile = {
     readOnly: { name: "AGY's plan mode", leave: 'leave plan mode' },
     approval: false,
   },
-  // Unverified: the embedded MCP reference does not say how a tool is named in a hook payload or in the model's tool list.
+  // Unverified: the embedded MCP reference does not say how a tool is named in a hook payload or in the model's tool list
+  // (the hooks reference derives a name from the step type, which for an MCP call would be `mcp_tool`). The adapter treats
+  // any `mcp…` name it cannot place as an MCP call, so the MCP write guard still reads its arguments.
   mcp: {
     prefix: 'mcp_',
     separator: '_',
