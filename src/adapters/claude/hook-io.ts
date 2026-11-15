@@ -1,12 +1,12 @@
 import { harnessProfile } from '../../core/harness/index'
 import * as core from '../../core/index'
-import { log } from '../../engine/log'
 import type { AdapterContext } from '../registry'
 import { type MemoryFns, type PipelineDeps } from '../shared/pipeline/index'
-import { contextOut, isObj, out, QUIET, str, type HookOutcome } from '../shared/claude-dialect'
+import { contextOut, isObj, out, parsePayload, QUIET, str, type HookOutcome } from '../shared/claude-dialect'
+import { hookStep } from '../shared/command-host/index'
 import type { HookDeps, MemoryModule } from './hook'
 
-export { contextOut, isObj, out, QUIET, str, type HookOutcome }
+export { contextOut, isObj, out, parsePayload, QUIET, str, type HookOutcome }
 export const H = 'claude' as const
 export const FALLBACK_SPOOL_SUFFIX = harnessProfile('claude').spoolSuffix as string
 
@@ -14,9 +14,7 @@ export function isSubagent(p: Record<string, unknown>): boolean {
   return str(p['agent_id']) !== undefined
 }
 
-export async function step<T>(what: string, fallback: T, fn: () => T | Promise<T>): Promise<T> {
-  try { return await fn() } catch (e) { log('warn', `claude hook: ${what} failed`, { error: e }); return fallback }
-}
+export const step = hookStep('claude')
 
 const MEMORY_MODULE: Readonly<Record<keyof MemoryFns, MemoryModule>> = {
   appendSpool: 'spool', spawnFinalizer: 'finalize', sessionStart: 'finalize', promptSeen: 'finalize', contextText: 'context', writeHandoff: 'handoff', latestHandoff: 'handoff',

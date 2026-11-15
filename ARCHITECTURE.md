@@ -106,6 +106,14 @@ Adding a harness takes:
 4. bindings for it in `canonical/hooks.yaml` and `canonical/statusline.yaml`, and an `except:` on any server it should
    not get in `canonical/mcp.yaml`.
 
+For a command-hook harness, step 3 is small because the wiring lives once in `src/adapters/shared/command-host/`: the
+default `PipelineDeps` (`commandDeps`: step log, lazily loaded memory modules, workspace readers, UI hooks), the event
+frame (`runFrame`: parse stdin, session-id handling, the guard-only path, the memory-runner skip) and the events every
+such host runs the same way (`startContext`, `promptContext`, `guardTool`, `afterTool`, `stopReason`). The adapter keeps
+its codec (`shared/claude-dialect.ts` for the Claude-shaped ones: decode the native payload, encode the pipeline's
+decision) and the steps only its host has. Qwen Code and AGY CLI are written this way; Claude Code and Codex use the
+workspace readers and the log and payload helpers and keep their native-only events.
+
 The parity tests (`tests/adapters/parity.test.ts`) fail until each of these is consistent.
 
 ## Transactions and the ownership ledger

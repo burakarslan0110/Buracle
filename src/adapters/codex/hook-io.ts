@@ -3,6 +3,7 @@ import type { Harness } from '../../core/events'
 import { atomicWriteSync, ensureDirSync, readJsonSafeSync } from '../../engine/fsx'
 import { log } from '../../engine/log'
 import type { AdapterContext } from '../registry'
+import { isObj, str } from '../shared/claude-dialect'
 import { contextJson } from '../shared/pipeline/types'
 
 const H: Harness = 'codex'
@@ -11,12 +12,10 @@ export type Payload = Record<string, unknown>
 export interface HookOutcome { stdout: string, exitCode: number }
 export const NOTHING: HookOutcome = { stdout: '', exitCode: 0 }
 
-export function str(x: unknown): string | undefined {
-  return typeof x === 'string' && x !== '' ? x : undefined
-}
+export { str }
 
 export function rec(x: unknown): Record<string, unknown> {
-  return x !== null && typeof x === 'object' && !Array.isArray(x) ? x as Record<string, unknown> : {}
+  return isObj(x) ? x : {}
 }
 
 export function json(x: unknown): HookOutcome {

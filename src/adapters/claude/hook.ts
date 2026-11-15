@@ -15,7 +15,7 @@ import { REVIEWER_AGENT_ENV, companionAgent, companionToolDenial } from '../../c
 import { reviewerShellDenial } from '../../core/policy/readonly-shell'
 import { ledgerCall, skillOf } from '../../core/policy/usage'
 import { contextThresholds, contextWatch, type ContextBand } from '../../core/status/context'
-import { indexSettings, type WorkspaceInfo } from '../../core/workspace'
+import type { WorkspaceInfo } from '../../core/workspace'
 import { atomicWriteSync, readJsonSafeSync } from '../../engine/fsx'
 import { currentBranch, projectSlug } from '../../engine/git'
 import { log } from '../../engine/log'
@@ -25,7 +25,6 @@ import { loadLedger, updateLedger } from '../../workflow/ledger'
 import { shownPath } from '../../workflow/plan-capture'
 import { captureSessionPlan } from '../../workflow/plan-native'
 import { readTelemetry, sessionMaint } from '../../workflow/session-store'
-import { refreshWorkspaceInfo } from '../../workflow/workspace'
 import type { AdapterContext } from '../registry'
 import { consentFile, readConsentState } from '../shared/consent-store'
 import { claudeOffServers } from '../shared/native-off'
@@ -38,13 +37,14 @@ import { buracleRepoFor } from '../shared/repo'
 import { SHELL_TOOLS } from './constants'
 import { postCompact, preCompact, REVIEW_AGENT, sessionEnd, stop, subagentStop } from './hook-end'
 import { HANDBACK_TOOL, subagentHandback } from './hook-handback'
-import { H, QUIET, contextOut, isObj, isSubagent, out, pipelineDeps, step, str, type HookOutcome } from './hook-io'
+import { H, QUIET, contextOut, isObj, isSubagent, out, parsePayload, pipelineDeps, step, str, type HookOutcome } from './hook-io'
 import {
   availableServers, capabilityCardText, memoryOnlyRouting, permissionNotice, pluginRoot, pluginServers, projectDeps, promptRouting, readWorkspace,
   routerData, type PromptRouting, type RouterData,
 } from './hook-route'
 import { addedText, failed, noteWork, removedText } from './hook-work'
 import { uiSessionHooks, type UiSessionHooks } from '../shared/ui-session'
+import { workspaceReaders } from '../shared/command-host/index'
 import { writeContents } from './write-content'
 
 export type { HookOutcome } from './hook-io'
@@ -107,24 +107,11 @@ export const defaultHookDeps: HookDeps = {
   buracleRepo: (cwd, ctx) => buracleRepoFor(cwd, { known: [ctx.repoRoot, ctx.config.repo], home: paths.home() }),
   realpath: p => realWriteTarget(p),
   run: (argv, opts) => runProcess(argv, opts ?? {}),
-  async prepareWorkspace(cwd, ctx, nowMs) {
-    return (await import('../shared/workspace-start')).prepareWorkspace(cwd, indexSettings(ctx.config), nowMs)
-  },
-  async workspaceInfo(cwd, ctx, nowMs) {
-    return (await import('../../workflow/workspace')).workspaceInfo(cwd, indexSettings(ctx.config), nowMs)
-  },
-  refreshWorkspace: (info, ctx, nowMs) => refreshWorkspaceInfo(info, indexSettings(ctx.config), nowMs),
+  ...workspaceReaders,
   core,
 }
 
-export function parsePayload(stdin: string): Record<string, unknown> | undefined {
-  try {
-    const v = JSON.parse(stdin) as unknown
-    return isObj(v) ? v : undefined
-  } catch {
-    return undefined
-  }
-}
+export { parsePayload }
 
 export async function claudeHook(event: string, stdin: string, ctx: AdapterContext, deps: Partial<HookDeps> = {}): Promise<HookOutcome> {
   const d: HookDeps = { ...defaultHookDeps, ...deps, core: { ...defaultHookDeps.core, ...(deps.core ?? {}) } }
