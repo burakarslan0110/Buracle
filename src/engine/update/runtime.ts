@@ -1,4 +1,4 @@
-import { harnessesWhere, type Harness } from '../../core/harness/index'
+import { harnessesWhere, harnessProfile, type Harness } from '../../core/harness/index'
 import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import { isFailClosedReason } from '../hook-fail'
@@ -177,7 +177,9 @@ function copyRuntime(plan: RuntimePlan, dest: string): string {
 const COMMAND_HOOK_HARNESSES: readonly Harness[] = harnessesWhere(p => p.runtime === 'command' && p.adapterPending !== true)
 
 function probePayload(harness: Harness, command: string): string {
-  const base = { session_id: 'buracle-runtime-probe', hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command }, cwd: paths.home(), permission_mode: 'bypassPermissions' }
+  // The harness's primary shell tool: the first entry of its profile that is a shell.
+  const shell = Object.entries(harnessProfile(harness).tools.kinds).find(([, kind]) => kind === 'bash')?.[0] ?? 'Bash'
+  const base = { session_id: 'buracle-runtime-probe', hook_event_name: 'PreToolUse', tool_name: shell, tool_input: { command }, cwd: paths.home(), permission_mode: 'bypassPermissions' }
   return JSON.stringify(harness === 'codex' ? { ...base, turn_id: 't0', transcript_path: null, model: 'probe', tool_use_id: 'probe' } : base)
 }
 

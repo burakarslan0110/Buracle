@@ -6,6 +6,7 @@ import { readOpenPlanSteps } from '../../src/adapters/codex/rollout'
 import { OMP_BUILTIN_LSP, ompCommandName, ompLspServers, ompMcpServerIds } from '../../src/adapters/omp/generated'
 import { ompConfigKeys } from '../../src/adapters/omp/install'
 import { resolveAgents } from '../../src/adapters/shared/agents'
+import { QWEN_UNSERVED } from '../../src/adapters/qwen/settings'
 import { HOST_LIMITS } from '../../src/adapters/shared/host-limits'
 import { OMP_BUILTIN_COMMANDS } from '../../src/adapters/omp/runtime/commands'
 import { openTodosOf } from '../../src/adapters/omp/runtime/tool-output'
@@ -38,16 +39,16 @@ import { FIXTURES as USAGE_FIXTURES, NOW as USAGE_NOW, installFixture as install
 const REPO = paths.repoRoot()
 
 // A host whose adapter is still pending has no build to compare: tests/adapters/shared/new-harness-groundwork.test.ts covers those.
-// Pi is held to the pillars (hooks, MCP servers); the matrix of extras below (panes, status lines, plan mode, rules,
-// review agents) describes the four hosts that ship them, and Pi ships none of them in this phase (task 6.2).
+// Pi and Qwen Code are held to the pillars (hooks, MCP servers); the matrix of extras below (panes, status lines, plan mode,
+// rules, review agents) describes the four hosts that ship them, and neither ships any of them in this phase (tasks 6.2, 6.1).
 type Harness = Exclude<AnyHarness, 'qwen' | 'pi' | 'agy'>
-type Pillar = Harness | 'pi'
-const HARNESSES = ALL_HARNESSES.filter((h): h is Harness => h !== 'pi' && harnessProfile(h).adapterPending !== true)
-const PILLARS: readonly Pillar[] = ALL_HARNESSES.filter((h): h is Pillar => h !== 'qwen' && h !== 'agy' && harnessProfile(h).adapterPending !== true)
+type Pillar = Harness | 'pi' | 'qwen'
+const HARNESSES = ALL_HARNESSES.filter((h): h is Harness => h !== 'pi' && h !== 'qwen' && harnessProfile(h).adapterPending !== true)
+const PILLARS: readonly Pillar[] = ALL_HARNESSES.filter((h): h is Pillar => h !== 'agy' && harnessProfile(h).adapterPending !== true)
 const LIMITS_IN_SCOPE = HOST_LIMITS.filter(l => harnessProfile(l.harness).adapterPending !== true)
 
 type Files = ReadonlyMap<string, string>
-interface Built { canonical: CanonicalBundle; files: Readonly<Record<Harness, Files>>; pi: Files; agentsSkills: Files }
+interface Built { canonical: CanonicalBundle; files: Readonly<Record<Harness, Files>>; pi: Files; qwen: Files; agentsSkills: Files }
 
 let builtOnce: Promise<Built> | undefined
 
@@ -58,8 +59,9 @@ function built(): Promise<Built> {
     const files: Partial<Record<Harness, Files>> = {}
     for (const a of allAdapters().filter(x => HARNESSES.includes(x.harness as Harness))) files[a.harness as Harness] = new Map((await inCheckout(REPO, () => a.build(ctx))).map(f => [f.path, f.content]))
     const pi = new Map((await inCheckout(REPO, () => allAdapters().find(x => x.harness === 'pi')!.build(ctx))).map(f => [f.path, f.content]))
+    const qwen = new Map((await inCheckout(REPO, () => allAdapters().find(x => x.harness === 'qwen')!.build(ctx))).map(f => [f.path, f.content]))
     const agentsSkills = new Map(buildAgentsSkills(ctx).map(f => [f.path, f.content]))
-    return { canonical, files: files as Record<Harness, Files>, pi, agentsSkills }
+    return { canonical, files: files as Record<Harness, Files>, pi, qwen, agentsSkills }
   })()
   return builtOnce
 }
@@ -368,6 +370,7 @@ describe('parity: the utility commands (PLAN §2.3)', () => {
 function mcpServers(h: Pillar, files: Files): string[] {
   switch (h) {
     case 'pi': return Object.keys((JSON.parse(file(files, 'mcp.json')) as { mcpServers?: Record<string, unknown> }).mcpServers ?? {}).sort()
+    case 'qwen': return Object.keys((JSON.parse(file(files, 'settings.fragment.json')) as { mcpServers?: Record<string, unknown> }).mcpServers ?? {}).sort()
     case 'claude':
     case 'omp': {
       const servers = (JSON.parse(file(files, '.mcp.json')) as { mcpServers?: Record<string, unknown> }).mcpServers ?? {}
@@ -420,9 +423,9 @@ describe('parity: language servers (PARITY-6)', () => {
 
 describe('parity: MCP servers', () => {
   test('each harness gets exactly the servers canonical/mcp.yaml assigns to it', async () => {
-    const { canonical, files, pi } = await built()
+    const { canonical, files, pi, qwen } = await built()
     const all = Object.keys(canonical.mcp.servers).sort()
-    const of = (h: Pillar): Files => (h === 'pi' ? pi : files[h])
+    const of = (h: Pillar): Files => (h === 'pi' ? pi : h === 'qwen' ? qwen : files[h])
     for (const h of PILLARS) {
       const want = all.filter(id => canonical.mcp.servers[id]?.harnesses.includes(h))
       expect({ h, servers: mcpServers(h, of(h)) }).toEqual({ h, servers: want })
@@ -444,6 +447,11 @@ function bindingEvents(b: HookBinding): string[] {
 function servedBy(h: Pillar, s: Surfaces): (event: string) => boolean {
   switch (h) {
     case 'pi': return e => s.pi.events.has(e)
+    // A binding on an event the adapter does not register yet is allowed only with its reason in QWEN_UNSERVED.
+    case 'qwen': {
+      const events = new Set(Object.keys((JSON.parse(file(s.built.qwen, 'settings.fragment.json')) as { hooks?: Record<string, unknown> }).hooks ?? {}))
+      return e => events.has(e) || e in QWEN_UNSERVED
+    }
     case 'claude': {
       const classic = new Set(Object.keys((JSON.parse(file(s.built.files.claude, 'hooks/hooks.json')) as { hooks?: Record<string, unknown> }).hooks ?? {}))
       const mod = claudeModEvents(file(s.built.files.claude, 'hooks/register.tsx'))

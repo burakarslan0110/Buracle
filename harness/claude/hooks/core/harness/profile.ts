@@ -63,6 +63,8 @@ export interface HarnessProfile {
   spoolSuffix?: string
   /** Buracle knows the host (this profile) but has no adapter for it yet: its hook handlers and installer are stubs. The harness's own task removes this. */
   adapterPending?: true
+  /** The host has an adapter but no second-opinion run yet, so it is not offered as a second opinion. The task that adds the run removes this. */
+  companionPending?: true
   /** The host's non-interactive mode takes its prompt as an argument and reads none from stdin, so a text-only run cannot be fed one. */
   noStdinPrint?: boolean
   /** How long the checks after an edit may run. */
