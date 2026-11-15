@@ -22,7 +22,7 @@ const parsePatch: (patch: string, cwd: string) => { paths: string[], added: Reco
 void parsePatch
 assertType<Equals<Parameters<typeof core.parseApplyPatch>, [patch: string, cwd: string, opts?: core.ToolPathOptions]>>(true)
 assertType<Equals<ReturnType<typeof core.parseApplyPatch>, { paths: string[], added: Record<string, string> }>>(true)
-assertType<Equals<HookId, 'H01' | 'H02' | 'H03' | 'H04' | 'H05' | 'H06' | 'H07' | 'H08' | 'H09' | 'H10' | 'H11' | 'H12' | 'H13' | 'H14' | 'H15' | 'H16' | 'H17' | 'H18' | 'H19' | 'H20' | 'H21' | 'H22' | 'H23' | 'H24' | 'H25' | 'H26' | 'H28'>>(true)
+assertType<Equals<HookId, 'H01' | 'H02' | 'H03' | 'H04' | 'H05' | 'H06' | 'H07' | 'H08' | 'H09' | 'H10' | 'H11' | 'H12' | 'H13' | 'H14' | 'H15' | 'H16' | 'H17' | 'H18' | 'H19' | 'H20' | 'H21' | 'H22' | 'H23' | 'H24' | 'H25' | 'H28'>>(true)
 assertType<Equals<PreDecision, { action: 'allow', context?: string[] } | { action: 'deny', reason: string, hook: HookId }>>(true)
 assertType<Equals<StopDecision, { action: 'allow' } | { action: 'block', reason: string, hook: HookId }>>(true)
 
@@ -115,7 +115,7 @@ describe('core exports', () => {
       'checkersFor', 'findingsOf', 'checkerFacts', 'checkerDirs', 'missingToolNote', 'missingToolKey',
       'gitFromPorcelainV2', 'pace', 'windowLabel', 'rows', 'renderAnsi', 'renderPlain',
       'parseNote', 'slugify', 'normalizeForSearch', 'redact', 'memSegment',
-      'fromCortex', 'toCortexSave', 'cortexQuery', 'regionOf', 'isLive', 'brainStartText', 'memLocked', 'memProtected', 'ttlSeconds', 'sanitizePromptSignal', 'memHealth',
+      'fromCortex', 'toCortexSave', 'cortexQuery', 'regionOf', 'isLive', 'brainStartText', 'memLocked', 'memProtected', 'ttlSeconds', 'memHealth',
       'realpathQueries', 'checkEval', 'catastrophicCommandRules', 'scanCode', 'redactClip',
       'compileTriggers', 'routePrompt', 'routeText', 'parseSkillTriggers', 'validateSkillTriggers', 'detectSignals', 'isUserText',
       'emptyLedger', 'parseLedger', 'ledgerPrompt', 'ledgerCall', 'skillOf', 'reminders', 'turnAudit', 'ledgerAudited',

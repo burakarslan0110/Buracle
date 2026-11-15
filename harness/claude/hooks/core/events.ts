@@ -31,17 +31,18 @@ export interface CompactDecision { handoff?: string; todo: string[] }
 export interface SessionEndInput { harness: Harness; sessionId: string; now: number }
 export interface SessionEndDecision { finalized: boolean }
 export type HookId = 'H01' | 'H02' | 'H03' | 'H04' | 'H05' | 'H06' | 'H07' | 'H08' | 'H09' | 'H10' | 'H11' | 'H12' | 'H13' | 'H14' | 'H15' | 'H16' | 'H17' | 'H18' | 'H19' | 'H20' | 'H21'
-  | 'H22' | 'H23' | 'H24' | 'H25' | 'H26' | 'H28'
+  | 'H22' | 'H23' | 'H24' | 'H25' | 'H28'
 
 // Hook ids are stable: a retired hook leaves a gap, and its id is never reused.
 export const HOOK_IDS: readonly HookId[] = [
   'H01', 'H02', 'H03', 'H04', 'H05', 'H06', 'H07', 'H08', 'H09', 'H10',
   'H11', 'H12', 'H13', 'H14', 'H15', 'H16', 'H17', 'H18', 'H19', 'H20', 'H21',
-  'H22', 'H23', 'H24', 'H25', 'H26', 'H28',
+  'H22', 'H23', 'H24', 'H25', 'H28',
 ]
 
-// Ids of hooks earlier Buracle versions had (H27 context.session came and went with Context Mode).
-export const RETIRED_HOOK_IDS = ['H27'] as const
+// Ids of hooks earlier Buracle versions had (H27 context.session came and went with Context Mode; H26 profile.signals ended when no word list read
+// the prompt any more: the prompt spool line belongs to the memory spool, H14).
+export const RETIRED_HOOK_IDS = ['H26', 'H27'] as const
 
 export function mcpServerToken(harness: Harness, server: string): string {
   return mcpToken(harnessProfile(harness).mcp, server)

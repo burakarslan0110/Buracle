@@ -258,7 +258,7 @@ describe('finalize', () => {
     await withBrain(async ({ repo }) => {
       await spooled(repo, SID, [])
       const r = await finalize('codex', SID, { pending: false })
-      expect(r.capture?.preferences.written).toEqual([])
+      expect(r.capture).not.toHaveProperty('preferences')
       expect((await listAll(personRef())).filter(i => i.kind === 'preference')).toEqual([])
     })
   })
@@ -337,14 +337,14 @@ describe('finalize', () => {
   test('a session whose harness died before its end hook ran is finalized by a later session end', async () => {
     await withBrain(async ({ repo }) => {
       const t0 = Date.now()
-      // A spool written before PRD follow-up 2026-11-06 still holds the H26 statement; finalize files it.
-      await spooled(repo, SID, [{ ts: Date.now() + 1, ev: 'prompt-signal', signal: { kind: 'statement', key: 'said:amend-commits-published', polarity: -1, category: 'avoid', text: 'Never amend published commits', quote: 'Never amend published commits.' } }])
+      // A spool written before PRD follow-up 2026-11-06 still holds the H26 statement; nothing reads it any more.
+      await spooled(repo, SID, [{ ts: Date.now() + 1, ev: 'prompt-signal', signal: { kind: 'statement', key: 'said:amend-commits-published', polarity: -1, category: 'avoid', text: 'Never amend published commits', quote: 'Never amend published commits.' } } as never])
       expect(readSessionRecord('codex', SID)?.status).toBe('active')
       await spooled(repo, OTHER)
       const r = await finalize('codex', OTHER, { nowMs: t0 + 4 * HOUR })
       expect(r.pending?.map(p => [p.sid, p.why, p.result.skipped])).toEqual([[SID, 'stale', undefined]])
       expect(readSessionRecord('codex', SID)?.status).toBe('ended')
-      expect((await listAll(personRef())).filter(i => i.kind === 'preference').map(i => i.origin)).toEqual(['explicit'])
+      expect((await listAll(personRef())).filter(i => i.kind === 'preference')).toEqual([])
       expect((await listAll(projectRef('demo'))).filter(i => i.kind === 'session')).toHaveLength(2)
     })
   })

@@ -1,9 +1,8 @@
-import { sanitizePromptSignal, type PromptSignal } from './signals'
 import { redactClip } from './redact'
 
-export interface SpoolEntry { ts: number; ev: 'prompt'|'turn'|'compact'|'stop'|'note'|'prompt-signal'; tool?: string; paths?: string[]; excerpt?: string; model?: string; tokens?: number; signal?: PromptSignal }
+export interface SpoolEntry { ts: number; ev: 'prompt'|'turn'|'compact'|'stop'|'note'; tool?: string; paths?: string[]; excerpt?: string; model?: string; tokens?: number }
 
-export const SPOOL_EVENTS: readonly SpoolEntry['ev'][] = ['prompt', 'turn', 'compact', 'stop', 'note', 'prompt-signal']
+export const SPOOL_EVENTS: readonly SpoolEntry['ev'][] = ['prompt', 'turn', 'compact', 'stop', 'note']
 
 export const EXCERPT_EVENTS: readonly SpoolEntry['ev'][] = ['prompt', 'turn', 'stop', 'compact', 'note']
 
@@ -59,11 +58,6 @@ export function spoolSanitize(input: unknown): { entry?: SpoolEntry, redactions:
     const max = ev === 'compact' ? SPOOL_LIMITS.compactExcerpt : ev === 'prompt' ? SPOOL_LIMITS.promptExcerpt : SPOOL_LIMITS.excerpt
     entry.excerpt = scrub(x['excerpt'], max)
   }
-  if (ev === 'prompt-signal') {
-    const signal = sanitizePromptSignal(x['signal'], scrub)
-    if (!signal) return { redactions: { count, kinds: [...kinds].sort() } }
-    entry.signal = signal
-  }
   if (typeof x['model'] === 'string' && x['model'] !== '') entry.model = clip(x['model'], SPOOL_LIMITS.model)
   const tokens = finite(x['tokens'])
   if (tokens !== undefined && tokens >= 0) entry.tokens = Math.round(tokens)
@@ -115,7 +109,6 @@ export interface SpoolDigest {
   prompts: number
   notes: string[]
   userPrompts: Array<{ ts: number, text: string }>
-  signals: Array<{ ts: number, signal: PromptSignal }>
 }
 
 export const SPOOL_DIGEST_PROMPTS = 40
@@ -126,7 +119,7 @@ export function spoolIsEmptySession(d: SpoolDigest): boolean {
 
 export function spoolDigest(entries: readonly SpoolEntry[]): SpoolDigest {
   const sorted = [...entries].sort((a, b) => a.ts - b.ts)
-  const d: SpoolDigest = { compactions: [], tokens: 0, turns: 0, prompts: 0, notes: [], userPrompts: [], signals: [] }
+  const d: SpoolDigest = { compactions: [], tokens: 0, turns: 0, prompts: 0, notes: [], userPrompts: [] }
   let lastMsgTs = -Infinity
   for (const e of sorted) {
     if (d.startedMs === undefined || e.ts < d.startedMs) d.startedMs = e.ts
@@ -153,9 +146,6 @@ export function spoolDigest(entries: readonly SpoolEntry[]): SpoolDigest {
       case 'note':
         if (e.excerpt !== undefined && !d.notes.includes(e.excerpt)) d.notes.push(e.excerpt)
         for (const p of e.paths ?? []) if (!d.notes.includes(p)) d.notes.push(p)
-        break
-      case 'prompt-signal':
-        if (e.signal !== undefined && d.signals.length < 500) d.signals.push({ ts: e.ts, signal: e.signal })
         break
     }
   }

@@ -89,11 +89,11 @@ describe('routing (H21-H26)', () => {
     expect(text).not.toContain('plan-build')
     expect(readFlow('codex', SID)?.stack[0]).toMatchObject({ workflow: 'plan-build', title: 'add rate limiting to the upload API', source: 'prompt' })
     expect(loadLedger('codex', SID).skills['plan-build']?.n).toBe(1)
-    expect(d.rec.spool.filter(e => e.ev === 'prompt-signal')).toEqual([])
+    expect(d.rec.spool.filter(e => (e.ev as string) === 'prompt-signal')).toEqual([])
     const d2 = deps(quiet)
     await handleCodexHook('UserPromptSubmit', prompt('please run $memory on this'), ctx(), d2)
     expect(readFlow('codex', SID)?.stack.map(e => e.workflow)).toEqual(['plan-build'])
-    expect(d2.rec.spool.filter(e => e.ev === 'prompt-signal')).toEqual([])
+    expect(d2.rec.spool.filter(e => (e.ev as string) === 'prompt-signal')).toEqual([])
   }))
 
   test('routing.skills off drops the skill lines; a history question raises no memory line', () => withSandbox(async () => {
@@ -257,7 +257,7 @@ describe('routing (H21-H26)', () => {
     await handleCodexHook('UserPromptSubmit', prompt('/buracle:research compare zod and yup'), ctx(), d)
     expect((await handleCodexHook('PreToolUse', payload('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'cat ~/.codex/skills/research/SKILL.md' } }), ctx(), d)).stdout).toBe('')
     expect(loadLedger('codex', SID).skills['research']?.n).toBe(1)
-    expect(d.rec.spool.filter(e => e.ev === 'prompt-signal')).toEqual([])
+    expect(d.rec.spool.filter(e => (e.ev as string) === 'prompt-signal')).toEqual([])
     expect((await handleCodexHook('Stop', payload('Stop'), ctx(), d)).stdout).toBe('')
   }))
 

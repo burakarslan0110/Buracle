@@ -1,84 +1,16 @@
 import { existsSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { HARNESSES, isHarness, type Harness } from '../core/events'
-import { isLive, KIND_INFO, similarMemories, type MemItem } from '../core/memory/brain'
 import { CAPTURE_BUDGET } from '../core/memory/budgets'
-import { memNoteHarness } from '../core/memory/note'
-import { signalGroup, type PromptSignal } from '../core/memory/signals'
-import { memClip, memOneLine } from '../core/memory/text'
 import { log } from '../engine/log'
 import * as paths from '../engine/paths'
-import { write, type MemoryCtx } from './api'
 import { locksDir, sessionRecordFile, sessionRecordsDir, spoolDir } from './layout'
 import { lockHeld } from './lock'
 import { openSessions, readSessionRecord } from './session-open'
-import { listAll, personRef } from './store'
 
 export const PENDING_GIVE_UP_MS = 14 * 86_400_000
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const RECORDS_SCANNED = 200
-
-export interface PreferenceResult {
-  written: string[]
-  superseded: string[]
-  skipped: number
-}
-
-/** The marker a preference memory carries in `sources`, so the same statement is not filed twice. */
-export function signalToken(s: Pick<PromptSignal, 'key' | 'polarity'>): string {
-  return `signal:${s.key}${s.polarity === -1 ? '|not' : ''}`
-}
-
-function tokensOf(m: MemItem): string[] {
-  return m.sources.filter(s => s.startsWith('signal:'))
-}
-
-/**
- * Files what the user stated about how to work ("always", "never", "from now on", a reply-language request) as
- * person-layer preference memories, with no model involved. Each one carries origin `explicit` and confidence 1:
- * the user's own words, which no later inference may overrule. A statement already filed (same signal, or a
- * near-identical title) is skipped; a newer statement in an exclusive group (the reply language, asking first or
- * never) replaces the older one.
- */
-export async function capturePreferences(
-  signals: ReadonlyArray<{ ts: number, signal: PromptSignal }>,
-  o: { harness: Harness, sid: string, cwd: string, nowMs: number },
-): Promise<PreferenceResult> {
-  const out: PreferenceResult = { written: [], superseded: [], skipped: 0 }
-  const statements = [...signals].filter(s => s.signal.kind === 'statement').sort((a, b) => a.ts - b.ts)
-  if (statements.length === 0) return out
-  const ctx: MemoryCtx = {
-    cwd: o.cwd, harness: memNoteHarness(o.harness), generatedBy: 'process:buracle-capture', agent: true, session: o.sid, project: null, now: () => o.nowMs,
-  }
-  const latest = new Map<string, { ts: number, signal: PromptSignal }>()
-  for (const s of statements) latest.set(signalToken(s.signal), s)
-  let existing = (await listAll(personRef())).filter(i => isLive(i, o.nowMs) && i.kind === 'preference')
-  for (const { signal } of latest.values()) {
-    const token = signalToken(signal)
-    if (existing.some(i => tokensOf(i).includes(token))) { out.skipped++; continue }
-    const title = memClip(memOneLine(signal.text ?? signal.key), 200)
-    const summary = memClip(memOneLine(signal.quote ?? ''), 300)
-    if (similarMemories({ title, summary, kind: 'preference' }, existing, o.nowMs, 0.85).length > 0) { out.skipped++; continue }
-    const group = signalGroup(signal.key)
-    const opposite = `signal:${signal.key}${signal.polarity === -1 ? '' : '|not'}`
-    const replaced = existing.filter(i => explicit(i) && tokensOf(i).some(t => t === opposite || (group !== undefined && t.startsWith(`signal:${group}=`) && t !== token)))
-    const quote = signal.quote !== undefined ? `The user said: "${memClip(memOneLine(signal.quote), 300)}"` : ''
-    const w = await write(ctx, {
-      kind: 'preference', layer: 'person', title, summary, body: quote, force: true, importance: 4,
-      tags: ['explicit', ...(signal.category !== undefined ? [signal.category] : [])],
-      sources: [token, `session:${o.sid}`], supersedes: replaced.map(i => i.id),
-    }, { internal: true, author: 'buracle', origin: 'explicit', confidence: 1, review: 'ok' })
-    if (w.action === 'duplicate_suspected') { out.skipped++; continue }
-    out.written.push(w.id)
-    out.superseded.push(...(w.superseded ?? []))
-    existing = (await listAll(personRef())).filter(i => isLive(i, o.nowMs) && i.kind === 'preference')
-  }
-  return out
-}
-
-function explicit(i: MemItem): boolean {
-  return i.origin === 'explicit' && !KIND_INFO[i.kind].generated
-}
 
 export interface PendingSession {
   h: Harness

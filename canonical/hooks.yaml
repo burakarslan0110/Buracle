@@ -343,18 +343,6 @@ hooks:
       opencode: { event: session.prompt, also: [{ event: tool.execute.before, matcher: skill }, { event: session.skill.activated }] }
       omp: { event: input, also: [{ event: tool_result }, { event: before_agent_start }, { event: session_start }, { event: session_switch }] }
 
-  - id: H26
-    name: profile.signals
-    description: "Append the prompt itself (redacted, at most 800 characters) to the memory spool. No word list reads statements from it any more: a lasting preference, in any language, is written by the agent at once, and the session-end model call (H14) files a preference whose quote it finds in the prompts as explicit. A `prompt-signal` line from an older spool is still filed as a person preference. It writes nothing to the brain, keeps no claims file and starts no process."
-    blocking: none
-    failure: open
-    contract_test: tests/core/memory/signals.test.ts
-    bindings:
-      claude: { event: classic.UserPromptSubmit, timeoutMs: 10000 }
-      codex: { event: UserPromptSubmit, timeoutMs: 5000 }
-      opencode: { event: session.prompt }
-      omp: { event: input, also: [{ event: before_agent_start }] }
-
   - id: H28
     name: project.assets
     description: "Keep the repository's agent files in step for every harness (src/adapters/shared/project-assets.ts). When a session starts, at the end of a turn and after an edit under .agents/skills or .claude/skills, it starts a detached `buracle project sync --auto` when a valid .agents/skills/<id> has no .claude/skills link or a link points to a removed skill (never in the home folder, a scratchpad, Buracle's state or another non-project folder; never through a .agents or .claude symlink that leads outside the repository; at most once every 30 s per repository), so Claude Code sees skills another harness created. Codex, OpenCode and omp get one context block, only when it has something to say: the .claude/rules path rules the root AGENTS.md `## Scoped rules` list does not name (gitignored private rules included; at most 40, with their globs), and on Codex alone the skills that exist only in .claude/skills. Claude Code, which reads .claude/rules itself, gets one line at session start when AGENTS.md exists and the list is out of step. After an edit of CLAUDE.md, a path rule, AGENTS.md or a .claude/skills/<id>/SKILL.md, a note says when CLAUDE.md no longer imports AGENTS.md, a rule and its index line disagree, a deleted rule is still listed, or a skill exists only in .claude/skills, where Codex cannot see it. Never blocks; fails open."

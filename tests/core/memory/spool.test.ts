@@ -19,7 +19,7 @@ describe('spoolSanitize', () => {
     expect(spoolSanitize({ ts: 1, ev: 'prompt', excerpt: 'my prompt', tokens: 40 }).entry).toEqual({ ts: 1, ev: 'prompt', excerpt: 'my prompt', tokens: 40 })
     expect(spoolSanitize({ ts: 1, ev: 'prompt', excerpt: 'deploy with <private>hunter2</private> now' }).entry?.excerpt).toBe('deploy with [REDACTED:private] now')
     expect(spoolSanitize({ ts: 1, ev: 'prompt', excerpt: 'word '.repeat(500) }).entry?.excerpt?.length).toBe(SPOOL_LIMITS.promptExcerpt)
-    expect(spoolSanitize({ ts: 1, ev: 'prompt-signal', signal: { kind: 'statement', key: 'said:x-y' }, excerpt: 'tool output' }).entry).toEqual({ ts: 1, ev: 'prompt-signal', signal: { kind: 'statement', key: 'said:x-y' } })
+    expect(spoolSanitize({ ts: 1, ev: 'turn', tool: 'Edit', excerpt: 'tool output', paths: ['/repo/a.ts'] }).entry).toEqual({ ts: 1, ev: 'turn', tool: 'Edit', paths: ['/repo/a.ts'], excerpt: 'tool output' })
     expect(spoolSanitize({ ts: 1, ev: 'note', excerpt: 'm-20261008-abcd' }).entry?.excerpt).toBe('m-20261008-abcd')
   })
 
@@ -74,7 +74,7 @@ describe('spoolDigest', () => {
     expect(d.turns).toBe(1)
     expect(d.prompts).toBe(1)
     expect(d.notes).toEqual(['m-20261008-abcd'])
-    expect(Object.keys(d).sort()).toEqual(['compactions', 'endedMs', 'finalMessage', 'model', 'notes', 'prompts', 'signals', 'startedMs', 'tokens', 'turns', 'userPrompts'])
+    expect(Object.keys(d).sort()).toEqual(['compactions', 'endedMs', 'finalMessage', 'model', 'notes', 'prompts', 'startedMs', 'tokens', 'turns', 'userPrompts'])
   })
 
   test('the digest keeps the user\'s prompts in order, the newest 40 when there are more', () => {
@@ -124,30 +124,11 @@ describe('spoolSanitize bounds the redaction work', () => {
   })
 })
 
-describe('prompt-signal entries', () => {
-  test('a valid statement is kept (quote redacted and capped), an invalid one drops the entry', () => {
-    const r = spoolSanitize({ ts: 1, ev: 'prompt-signal', signal: { kind: 'statement', key: 'said:deploy-fridays', polarity: -1, text: 'Never deploy on Fridays', quote: `never deploy with ghp_${'a'.repeat(36)} on Fridays ${'x'.repeat(300)}` } })
-    expect(r.entry?.signal).toMatchObject({ kind: 'statement', key: 'said:deploy-fridays', polarity: -1, text: 'Never deploy on Fridays' })
-    expect(r.entry?.signal?.quote).toHaveLength(160)
-    expect(r.entry?.signal?.quote).not.toContain('ghp_aaaa')
-    expect(r.redactions.count).toBe(1)
-    expect(spoolSanitize({ ts: 1, ev: 'prompt-signal', signal: { kind: 'nope', key: 'x' } }).entry).toBeUndefined()
-    expect(spoolSanitize({ ts: 1, ev: 'prompt-signal', signal: { kind: 'statement', key: 'Bad Key' } }).entry).toBeUndefined()
-    expect(spoolSanitize({ ts: 1, ev: 'prompt-signal' }).entry).toBeUndefined()
-  })
-
-  test('only statements are signals: the old usage and style kinds and the old `signal` event are dropped', () => {
-    expect(spoolSanitize({ ts: 1, ev: 'prompt-signal', signal: { kind: 'usage', key: 'usage.mcp=x' } }).entry).toBeUndefined()
-    expect(spoolSanitize({ ts: 1, ev: 'prompt-signal', signal: { kind: 'style', key: 'style.prompt_language=en' } }).entry).toBeUndefined()
-    expect(spoolSanitize({ ts: 1, ev: 'signal', signal: { kind: 'statement', key: 'said:deploy-fridays' } }).entry).toBeUndefined()
-    expect(spoolParse(`${JSON.stringify({ ts: 1, ev: 'signal', signal: { kind: 'statement', key: 'said:deploy-fridays' } })}\n`)).toEqual([])
-    expect(spoolSanitize({ ts: 1, ev: 'turn', signal: { kind: 'statement', key: 'said:x-y' } }).entry).toEqual({ ts: 1, ev: 'turn' })
-  })
-
-  test('the digest collects statements; statements alone are an empty session', () => {
-    const statement = { kind: 'statement', key: 'said:deploy-fridays', polarity: -1, text: 'Never deploy on Fridays' } as const
-    const d = spoolDigest([{ ts: 3, ev: 'prompt-signal', signal: statement }])
-    expect(d.signals).toEqual([{ ts: 3, signal: statement }])
-    expect(spoolIsEmptySession(spoolDigest([{ ts: 1, ev: 'prompt-signal', signal: { kind: 'statement', key: 'communication.emoji=never' } }]))).toBe(true)
+describe('prompt-signal lines of an older spool', () => {
+  test('are dropped: the event is gone, so no entry, no digest signal and no session activity come from one', () => {
+    const line = { ts: 1, ev: 'prompt-signal', signal: { kind: 'statement', key: 'said:deploy-fridays', polarity: -1, text: 'Never deploy on Fridays' } }
+    expect(spoolSanitize(line).entry).toBeUndefined()
+    expect(spoolParse(`${JSON.stringify(line)}\n`)).toEqual([])
+    expect(spoolIsEmptySession(spoolDigest(spoolParse(`${JSON.stringify(line)}\n`)))).toBe(true)
   })
 })

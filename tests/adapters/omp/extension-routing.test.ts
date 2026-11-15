@@ -415,7 +415,7 @@ describe('omp H26 prompt signals, H05 context watch, H17 profile guard', () => {
     await fp.emit('input', input('/skill:research compare zod and valibot'), ctx)
     await fp.emit('input', input('Bu projede testleri çalıştır, neden hata veriyor?'), ctx)
     await Bun.sleep(0)
-    const evs = memory.spool.map(s => s.entries.map(e => e.ev === 'prompt-signal' ? `${e.signal?.kind}:${e.signal?.text}` : e.ev))
+    const evs = memory.spool.map(s => s.entries.map(e => e.ev))
     expect(evs[0]?.[0]).toBe('prompt')
     expect(evs[0]?.slice(1)).toEqual([])
     expect(evs[1]).toEqual(['prompt'])

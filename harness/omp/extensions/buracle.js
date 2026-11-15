@@ -8903,7 +8903,6 @@ __export(exports_core, {
   PLAN_TITLE_MAX: () => PLAN_TITLE_MAX,
   PLAN_TYPES: () => PLAN_TYPES,
   PROFILE_CATEGORIES: () => PROFILE_CATEGORIES,
-  PROFILE_QUOTE_MAX: () => PROFILE_QUOTE_MAX,
   PROMPT_CONTEXT_MAX_CHARS: () => PROMPT_CONTEXT_MAX_CHARS,
   QUESTION_PAUSE_NOTE: () => QUESTION_PAUSE_NOTE,
   READ_ONLY_KINDS: () => READ_ONLY_KINDS,
@@ -9322,7 +9321,6 @@ __export(exports_core, {
   ruleGlobs: () => ruleGlobs,
   ruleText: () => ruleText,
   runtimeSnapshotConfig: () => runtimeSnapshotConfig,
-  sanitizePromptSignal: () => sanitizePromptSignal,
   scanCode: () => scanCode,
   searchTerms: () => searchTerms,
   selfProtectedArea: () => selfProtectedArea,
@@ -9331,7 +9329,6 @@ __export(exports_core, {
   shellFailed: () => shellFailed,
   shellTools: () => shellTools,
   shortDuration: () => shortDuration,
-  signalGroup: () => signalGroup,
   similarMemories: () => similarMemories,
   skillOf: () => skillOf,
   skippedNote: () => skippedNote,
@@ -9558,10 +9555,9 @@ var HOOK_IDS = [
   "H23",
   "H24",
   "H25",
-  "H26",
   "H28"
 ];
-var RETIRED_HOOK_IDS = ["H27"];
+var RETIRED_HOOK_IDS = ["H26", "H27"];
 function mcpServerToken(harness, server) {
   return mcpToken(harnessProfile(harness).mcp, server);
 }
@@ -27799,61 +27795,8 @@ function maskNotice(count) {
   return `Buracle: ${count === 1 ? "1 secret value" : `${count} secret values`} hidden from the model`;
 }
 
-// src/core/memory/signals.ts
-var PROFILE_CATEGORIES = ["communication", "autonomy", "engineering", "workflow", "quality", "avoid", "other"];
-var PROFILE_QUOTE_MAX = 160;
-var KEY_RE = /^[a-z][a-z0-9_.:=+#/-]{0,119}$/;
-var WORD_EDGE = String.raw`(?:(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])|(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_]))`;
-function uw(re) {
-  return new RegExp(re.source.split("\\b").join(WORD_EDGE), re.flags.includes("u") ? re.flags : `${re.flags}u`);
-}
-function clipText(s, scrub) {
-  const one = memOneLine(s);
-  return scrub ? scrub(one, PROFILE_QUOTE_MAX) : redactClip(one, PROFILE_QUOTE_MAX).text;
-}
-function sanitizePromptSignal(x, scrub) {
-  if (x === null || typeof x !== "object" || Array.isArray(x))
-    return;
-  const o = x;
-  const key = o["key"];
-  if (o["kind"] !== "statement")
-    return;
-  if (typeof key !== "string" || !KEY_RE.test(key))
-    return;
-  const s = { kind: "statement", key };
-  if (o["polarity"] === -1)
-    s.polarity = -1;
-  const c = o["category"];
-  if (typeof c === "string" && PROFILE_CATEGORIES.includes(c))
-    s.category = c;
-  if (typeof o["text"] === "string" && o["text"].trim() !== "")
-    s.text = clipText(o["text"], scrub);
-  if (typeof o["quote"] === "string" && o["quote"].trim() !== "")
-    s.quote = clipText(o["quote"], scrub);
-  return s;
-}
-var EXCLUSIVE_GROUPS = ["communication.reply_language", "autonomy.ask"];
-function signalGroup(key) {
-  return EXCLUSIVE_GROUPS.find((g) => key.startsWith(`${g}=`));
-}
-var CATEGORY_WORDS = [
-  ["communication", uw(/\b(?:reply|replies|respond|answer|answers|language|english|turkish|emojis?|tone|concise|short|brief|explain|explanations?|format|markdown|tables?|summary|summaries|wording|verbose)\b|\b(?:t[\u00FCu]rk[\u00E7c]e|ingilizce|yan[\u0131i]t|cevap|a[\u00E7c][\u0131i]kla|k[\u0131i]sa|uzun|tablo|[\u00F6o]zet|dil)/i)],
-  ["autonomy", uw(/\b(?:ask|asking|approval|approve|permission|confirm|confirmation|autonomous|autonomously|check[- ]in|wait|interrupt)\b|\b(?:sor|sorma|sormadan|sormak|sorar|onay[\p{L}]*|izin[\p{L}]*|otonom[\p{L}]*|bekle[\p{L}]*)\b/iu)],
-  ["quality", uw(/\b(?:tests?|tdd|verify|verification|lint|typecheck|type-check|review|coverage|quality|regression|evidence)\b|\b(?:do[\u011Fg]rula|kalite|kan[\u0131i]t)/i)],
-  ["workflow", uw(/\b(?:plan|plans|spec|workflow|workflows|commits?|branch|branches|worktrees?|pull request|prs?|push|merge|release|deploy|skills?|mcp)\b|\b(?:dal[\u0131i]?|birle[\u015Fs]tir)\b/i)],
-  ["engineering", uw(/\b(?:bun|npm|pnpm|yarn|typescript|javascript|python|go|rust|library|libraries|dependenc(?:y|ies)|framework|code|api|architecture|database|sql|docker|runtime|package)\b|\b(?:k[\u00FCu]t[\u00FCu]phane|ba[\u011Fg][\u0131i]ml[\u0131i]l[\u0131i]k|kod|mimari)/i)]
-];
-function profileCategory(text, polarity = 1) {
-  if (polarity === -1)
-    return "avoid";
-  for (const [cat, re] of CATEGORY_WORDS)
-    if (re.test(text))
-      return cat;
-  return "other";
-}
-
 // src/core/memory/spool.ts
-var SPOOL_EVENTS = ["prompt", "turn", "compact", "stop", "note", "prompt-signal"];
+var SPOOL_EVENTS = ["prompt", "turn", "compact", "stop", "note"];
 var EXCERPT_EVENTS = ["prompt", "turn", "stop", "compact", "note"];
 var NO_CAPTURE_ENV = "BURACLE_NO_CAPTURE";
 function memCaptureOff(env) {
@@ -27906,12 +27849,6 @@ function spoolSanitize(input) {
     const max = ev === "compact" ? SPOOL_LIMITS.compactExcerpt : ev === "prompt" ? SPOOL_LIMITS.promptExcerpt : SPOOL_LIMITS.excerpt;
     entry.excerpt = scrub(x["excerpt"], max);
   }
-  if (ev === "prompt-signal") {
-    const signal = sanitizePromptSignal(x["signal"], scrub);
-    if (!signal)
-      return { redactions: { count, kinds: [...kinds].sort() } };
-    entry.signal = signal;
-  }
   if (typeof x["model"] === "string" && x["model"] !== "")
     entry.model = clip4(x["model"], SPOOL_LIMITS.model);
   const tokens = finite(x["tokens"]);
@@ -27963,7 +27900,7 @@ function spoolIsEmptySession(d) {
 }
 function spoolDigest(entries) {
   const sorted = [...entries].sort((a, b) => a.ts - b.ts);
-  const d = { compactions: [], tokens: 0, turns: 0, prompts: 0, notes: [], userPrompts: [], signals: [] };
+  const d = { compactions: [], tokens: 0, turns: 0, prompts: 0, notes: [], userPrompts: [] };
   let lastMsgTs = -Infinity;
   for (const e of sorted) {
     if (d.startedMs === undefined || e.ts < d.startedMs)
@@ -28003,10 +27940,6 @@ function spoolDigest(entries) {
         for (const p of e.paths ?? [])
           if (!d.notes.includes(p))
             d.notes.push(p);
-        break;
-      case "prompt-signal":
-        if (e.signal !== undefined && d.signals.length < 500)
-          d.signals.push({ ts: e.ts, signal: e.signal });
         break;
     }
   }
@@ -33214,6 +33147,27 @@ function memSessionBody(input, d, extra = {}) {
     lines.push("", "Work log (recorded by hooks):", ...log);
   return lines.join(`
 `).trim();
+}
+// src/core/memory/signals.ts
+var PROFILE_CATEGORIES = ["communication", "autonomy", "engineering", "workflow", "quality", "avoid", "other"];
+var WORD_EDGE = String.raw`(?:(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])|(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_]))`;
+function uw(re) {
+  return new RegExp(re.source.split("\\b").join(WORD_EDGE), re.flags.includes("u") ? re.flags : `${re.flags}u`);
+}
+var CATEGORY_WORDS = [
+  ["communication", uw(/\b(?:reply|replies|respond|answer|answers|language|english|turkish|emojis?|tone|concise|short|brief|explain|explanations?|format|markdown|tables?|summary|summaries|wording|verbose)\b|\b(?:t[\u00FCu]rk[\u00E7c]e|ingilizce|yan[\u0131i]t|cevap|a[\u00E7c][\u0131i]kla|k[\u0131i]sa|uzun|tablo|[\u00F6o]zet|dil)/i)],
+  ["autonomy", uw(/\b(?:ask|asking|approval|approve|permission|confirm|confirmation|autonomous|autonomously|check[- ]in|wait|interrupt)\b|\b(?:sor|sorma|sormadan|sormak|sorar|onay[\p{L}]*|izin[\p{L}]*|otonom[\p{L}]*|bekle[\p{L}]*)\b/iu)],
+  ["quality", uw(/\b(?:tests?|tdd|verify|verification|lint|typecheck|type-check|review|coverage|quality|regression|evidence)\b|\b(?:do[\u011Fg]rula|kalite|kan[\u0131i]t)/i)],
+  ["workflow", uw(/\b(?:plan|plans|spec|workflow|workflows|commits?|branch|branches|worktrees?|pull request|prs?|push|merge|release|deploy|skills?|mcp)\b|\b(?:dal[\u0131i]?|birle[\u015Fs]tir)\b/i)],
+  ["engineering", uw(/\b(?:bun|npm|pnpm|yarn|typescript|javascript|python|go|rust|library|libraries|dependenc(?:y|ies)|framework|code|api|architecture|database|sql|docker|runtime|package)\b|\b(?:k[\u00FCu]t[\u00FCu]phane|ba[\u011Fg][\u0131i]ml[\u0131i]l[\u0131i]k|kod|mimari)/i)]
+];
+function profileCategory(text, polarity = 1) {
+  if (polarity === -1)
+    return "avoid";
+  for (const [cat, re] of CATEGORY_WORDS)
+    if (re.test(text))
+      return cat;
+  return "other";
 }
 // src/core/receipt.ts
 function emptyReceipt() {

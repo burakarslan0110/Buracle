@@ -15,7 +15,7 @@ import * as paths from '../engine/paths'
 import { run } from '../engine/proc'
 import { cortexdbBinary } from '../engine/toolchain/cortexdb'
 import { loadState } from '../workflow/session-store'
-import { capturePreferences, logPending, pendingSessions, type PendingSession, type PreferenceResult } from './capture'
+import { logPending, pendingSessions, type PendingSession } from './capture'
 import { distillSession, type DistillResult, type DistillRunner } from './distill'
 import { removeDeadLocks } from './housekeeping'
 import { locksDir, sessionRecordsDir, spoolDoneDir } from './layout'
@@ -32,7 +32,6 @@ export { promptSeen, readSessionRecord, sessionStart, spawnFinalizer, spawnFinal
 
 export interface CaptureSummary {
   state: MemCaptureState['state']
-  preferences: PreferenceResult
   distill?: Pick<DistillResult, 'ran' | 'skipped' | 'detail' | 'candidates' | 'summary' | 'ranBy' | 'model'>
 }
 
@@ -297,13 +296,12 @@ async function finalizePass(h: Harness, sid: string, opts: FinalizeOptions): Pro
 }
 
 /**
- * Steps two and three of a session end, after the session memory: the user's explicit statements become
- * preference memories (no model), then one bounded model call distills the durable decisions, gotchas and
+ * Step two of a session end, after the session memory: one bounded model call distills the durable decisions, gotchas and
  * procedures. A model call that fails, is held back by a rate limit, or answers with an invalid reply writes
  * nothing; the session record remembers that another try is owed.
  */
 async function captureStep(h: Harness, sid: string, pass: FinalizePass, opts: FinalizeOptions): Promise<CaptureSummary | undefined> {
-  const { project, digest } = pass
+  const { project } = pass
   const now = opts.nowMs ?? Date.now()
   const rec = readSessionRecord(h, sid) ?? pass.rec
   const prior = rec.capture
@@ -317,10 +315,6 @@ async function captureStep(h: Harness, sid: string, pass: FinalizePass, opts: Fi
   // The capture is owed from here on: a death during the model call leaves a retry the pending scan takes up (PRD R1).
   // The sha of a completed distill survives, so a retry of the same material still lands on already-distilled.
   writeSessionRecord({ ...rec, capture: { state: 'retry', tries, lastTryMs: now, ...(prior?.sha !== undefined ? { sha: prior.sha } : {}), detail: 'the model call is running' } })
-  let preferences: PreferenceResult = { written: [], superseded: [], skipped: 0 }
-  try {
-    preferences = await capturePreferences(digest.signals, { harness: h, sid, cwd: rec.cwd, nowMs: now })
-  } catch (e) { log('warn', 'memory: the preferences of a session were not filed', { h, sid, error: e }) }
   let distill: DistillResult | undefined
   try {
     distill = await distillSession(h, sid, { nowMs: now, ...(opts.runner !== undefined ? { runner: opts.runner } : {}), ...(opts.model !== undefined ? { model: opts.model } : {}), force: opts.redistill === true })
@@ -337,7 +331,7 @@ async function captureStep(h: Harness, sid: string, pass: FinalizePass, opts: Fi
     next = { state: 'retry', tries, lastTryMs: now, ...(distill.detail !== undefined ? { detail: memClip(distill.detail, 300) } : {}) }
   } else next = { state: 'done', tries, lastTryMs: now, ...(distill?.sha !== undefined ? { sha: distill.sha } : prior?.sha !== undefined ? { sha: prior.sha } : {}) }
   writeSessionRecord({ ...rec, capture: next })
-  const out: CaptureSummary = { state: next.state, preferences }
+  const out: CaptureSummary = { state: next.state }
   if (distill !== undefined) {
     const { ran, skipped: sk, detail, candidates, summary, ranBy, model } = distill
     out.distill = { ran, ...(sk !== undefined ? { skipped: sk } : {}), ...(detail !== undefined ? { detail } : {}), candidates, ...(summary !== undefined ? { summary } : {}), ...(ranBy !== undefined ? { ranBy } : {}), ...(model !== undefined ? { model } : {}) }
@@ -348,11 +342,11 @@ async function captureStep(h: Harness, sid: string, pass: FinalizePass, opts: Fi
 async function finalizeTail(h: Harness, pass: FinalizePass, now: number, capture: CaptureSummary | undefined): Promise<void> {
   const { result, project } = pass
   const harness = memNoteHarness(h)
-  const saved = (capture?.preferences.written.length ?? 0) + (capture?.distill?.candidates.length ?? 0)
+  const saved = capture?.distill?.candidates.length ?? 0
   await refreshStatus({
     ...(project ? { slug: project.slug } : {}), nowMs: now,
     ...(result.changed === true ? { lastWrite: { by: harness, type: 'session' } } : {}),
-    ...(capture?.distill?.ran === true || (capture?.preferences.written.length ?? 0) > 0 ? { lastCapture: { by: harness, saved } } : {}),
+    ...(capture?.distill?.ran === true ? { lastCapture: { by: harness, saved } } : {}),
   })
   // A time to live only hides a row; the sweep deletes the session and handoff memories whose time is up.
   try {

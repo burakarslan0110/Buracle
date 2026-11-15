@@ -339,11 +339,11 @@ describe('classifyTool: shell and code tools outside Bash', () => {
 })
 
 describe('logical hook ids', () => {
-  test('H01 to H28 in order with one gap: H27 context.session retired with Context Mode in 0.6.0, H28 project.assets keeps its id', () => {
-    expect(HOOK_IDS.length).toBe(27)
-    expect(HOOK_IDS).toEqual([...Array.from({ length: 26 }, (_, i) => `H${String(i + 1).padStart(2, '0')}`), 'H28'] as typeof HOOK_IDS)
+  test('H01 to H28 in order with two gaps: H27 context.session retired with Context Mode in 0.6.0, H26 profile.signals retired with its word list, H28 project.assets keeps its id', () => {
+    expect(HOOK_IDS.length).toBe(26)
+    expect(HOOK_IDS).toEqual([...Array.from({ length: 25 }, (_, i) => `H${String(i + 1).padStart(2, '0')}`), 'H28'] as typeof HOOK_IDS)
     expect(HOOK_IDS[HOOK_IDS.length - 1]).toBe('H28')
-    expect(RETIRED_HOOK_IDS).toEqual(['H27'])
+    expect(RETIRED_HOOK_IDS).toEqual(['H26', 'H27'])
     for (const id of RETIRED_HOOK_IDS) expect([...HOOK_IDS] as string[]).not.toContain(id)
   })
 })
