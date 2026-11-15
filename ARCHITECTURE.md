@@ -1,182 +1,139 @@
 # Buracle architecture
 
-This is the contributor's map of Buracle: where each kind of code lives, how one source of truth becomes the
-configuration of four harnesses (Claude Code, Codex CLI, OpenCode and Oh My Pi), and which invariants hold the pieces
-together. [README.md](README.md) is the user's guide, [COMPATIBILITY.md](COMPATIBILITY.md) says what each harness
-supports, and [AGENTS.md](AGENTS.md) holds the rules for changing the code. The design notes and the written
-contracts the code comments cite as "DESIGN §n" and "CONTRACTS §n" are not part of this repository; the code and its
-tests are the reference.
+A short map for contributors: where code lives, how one source becomes the configuration of seven harnesses (Claude
+Code, Codex CLI, OpenCode, Oh My Pi, Qwen Code, Pi and AGY CLI), and which invariants hold it together.
+[README.md](README.md) is the user guide, [COMPATIBILITY.md](COMPATIBILITY.md) lists what each harness supports and
+[AGENTS.md](AGENTS.md) has the rules for changing code. The "DESIGN §n" and "CONTRACTS §n" notes that comments cite are
+not in this repository; the code and tests are the reference.
 
 ## Layers
 
 | Layer | Holds | Rule |
 | --- | --- | --- |
-| `canonical/` | The one source of truth: skills, rules, review agents and YAML data (`hooks.yaml`, `mcp.yaml`, `tools.yaml`, `routing.yaml`, `statusline.yaml`, `buracle.yaml`, `skill-triggers.yaml`, `notices.yaml`, `tips.yaml`) | Names no harness; rule and skill text is the same for every harness. The only generated file is `canonical/skills/buracle/references/commands.md`, a command summary the build writes from the CLI help |
-| `src/core/` | Pure logic: guards, routing, plan and flow state, the harness profiles, status rendering, memory formats and redaction | No IO, no clock, no randomness, relative imports only (`tests/core/purity.test.ts`). The build copies it unchanged into the Claude plugin |
-| `src/engine/` | IO: paths, files, processes, git, logging, config and canonical loaders, the transaction engine, merging, the toolchain, install and update | Every write into a harness folder goes through `src/engine/txn.ts` |
-| `src/adapters/` | One folder per harness (generator, installer, doctor, hook handlers or runtime) and `shared/` (the hook pipeline and everything two adapters would otherwise duplicate) | An adapter decodes its host's payloads and encodes its host's answers; decisions come from `core` and the pipeline |
-| `src/workflow/` | Plans, flows, worktrees, review scope, project sync, skill and rule lint, the session store, the second opinion (companion) | |
-| `src/memory/` | The Brain on CortexDB: store, MCP server, capture, handoff, backup, the Buracle Console (`src/memory/ui/`) | The prefixed ids live in `src/memory/store.ts` only |
-| `src/usage/` | Per-harness usage collectors and the status line bars | |
-| `harness/` | Generated output, listed in `harness/.manifest.json`; not committed on `dev`, built by CI into the release tree for `main` | Never edited by hand |
+| `canonical/` | Skills, rules, review agents and YAML data (`hooks.yaml`, `mcp.yaml`, `tools.yaml`, `routing.yaml`, `statusline.yaml`, `buracle.yaml`, `skill-triggers.yaml`, `notices.yaml`, `tips.yaml`) | Names no harness. Its one generated file is `skills/buracle/references/commands.md` |
+| `src/core/` | Pure logic: guards, routing, plan and flow state, harness profiles, status rendering, memory formats, redaction | No IO, clock or randomness; relative imports only (`tests/core/purity.test.ts`). Copied unchanged into the Claude plugin |
+| `src/engine/` | IO: paths, files, processes, git, config, the transaction engine, toolchain, install and update | Every write into a harness folder goes through `src/engine/txn.ts` |
+| `src/adapters/` | One folder per harness, plus `shared/` (the hook pipeline and common code) | An adapter decodes its host's payloads and encodes its answers; decisions come from `core` and the pipeline |
+| `src/workflow/` | Plans, flows, worktrees, review scope, project sync, lint, the session store, the second opinion | |
+| `src/memory/` | The Brain on CortexDB: store, MCP server, capture, handoff, backup, the Console (`src/memory/ui/`) | Prefixed ids live in `src/memory/store.ts` only |
+| `src/usage/` | Per-harness usage collectors and status bars | |
+| `harness/` | Generated output listed in `harness/.manifest.json`; not committed on `dev`, built by CI for `main` | Never edited by hand |
 
-The CLI is `src/cli/main.ts`, a thin entry, plus `src/cli/router.ts` and one module per command in
-`src/cli/commands/`.
+The CLI is `src/cli/main.ts` (a thin entry), `src/cli/router.ts` and one module per command in `src/cli/commands/`.
 
 ## The four pillars
 
-Each pillar has one canonical form and one way into every harness.
+Skills. A skill is a folder under `canonical/skills/` with a `SKILL.md` and optional `references/`, `scripts/` and
+`evals/`. The text is the same for every harness, with no placeholders or harness-only blocks (`buracle skills lint`
+rejects them). The build renders each skill once into `harness/agents-skills/<id>`, and `buracle install` writes it to
+`~/.agents/skills/<id>`, which Codex, OpenCode, Oh My Pi, Qwen Code and Pi read themselves. AGY CLI reads only its own
+skills folder, so the install links each skill into it. Claude Code reads the plugin's bundled copy.
 
-**Skills.** A skill is a folder under `canonical/skills/` with a `SKILL.md`, optional `references/`, `scripts/` and
-`evals/`. The text is harness-neutral: no render placeholders, no harness-only blocks (`buracle skills lint` rejects
-both), and where a fact differs per harness it is one short labelled sentence. The build renders each skill once into
-`harness/agents-skills/<id>`. `buracle install` writes that copy to `~/.agents/skills/<id>`, which Codex, OpenCode and
-Oh My Pi read natively. Claude Code reads the same text from the Buracle plugin's bundled skills. Which harness reads
-which folder, and how a user starts a skill (`/<id>`, `$<id>`, `@<id>`), is data in the harness profile.
+Hooks. `canonical/hooks.yaml` lists 26 hooks (`H01` to `H28`; `H26` and `H27` are retired and ids are never reused).
+Each names what it does, whether it can block, whether it fails open or closed, and its binding per harness. Every
+harness runs the same pipeline behind them.
 
-**Hooks.** `canonical/hooks.yaml` lists 26 hooks (`H01` ... `H28`; `H26` and `H27` are retired and an id is never reused). Each names what it does, whether
-it can block, whether it fails open or closed, and its binding per harness: the native event and a matcher. Behind the
-bindings every harness runs the same code, the shared pipeline described below.
+MCP. `canonical/mcp.yaml` declares each server: how to launch it, its API-key variable and its routing category. A
+server ships to every harness unless it says `except: [<harness>]` or `harnesses: [...]`. Each entry runs
+`buracle mcp run <id>`, a thin forwarder (context7, semble, web-search and web-fetch share one backend per machine,
+chrome-devtools starts lazily, codegraph runs once per session). `canonical/routing.yaml` and the routing hooks decide
+which tool answers which question.
 
-**MCP.** `canonical/mcp.yaml` declares the servers: how to launch each, its API-key variable, and which routing category
-it answers. A server ships to every harness unless it says `except: [<harness>]`, or names the few it belongs to with
-`harnesses: [...]`. Install writes each harness's own MCP entry. A server entry runs `buracle mcp run <id>`, a thin
-forwarder: servers with a shared backend (context7, semble, web-search, web-fetch) connect to one backend per machine
-on the first real call, chrome-devtools starts lazily as a child, and codegraph runs once per session. Which tool an
-agent should use for which question is `canonical/routing.yaml` plus the routing hooks.
+Brain. One CortexDB file serves every harness through the `buracle-memory` MCP server and `buracle mem`.
 
-**Brain.** One CortexDB file serves every harness through the `buracle-memory` MCP server and the `buracle mem` CLI;
-see [The Brain](#the-brain).
-
-Rules and review agents travel with them. Rules in `canonical/rules/always/` load in every session and stay under
-8,000 bytes together (`buracle rules lint` enforces it); detail lives in skill references the model reads on demand.
-`canonical/rules/paths/` rules load when the agent first touches a matching file. Review agents in `canonical/agents/`
-share their common text through `{{include:review-shared#<part>}}` lines that `resolveAgents`
-(`src/adapters/shared/agents.ts`) expands in every generator.
+Rules and review agents travel with them. `canonical/rules/always/` loads in every session and stays under 8,000 bytes
+(`buracle rules lint`); `canonical/rules/paths/` loads when the agent first touches a matching file. Review agents in
+`canonical/agents/` share text through `{{include:review-shared#<part>}}`, expanded by `resolveAgents`
+(`src/adapters/shared/agents.ts`). Qwen Code, Pi and AGY CLI get no rule files or review agents yet.
 
 ## Events and the shared pipeline
 
-`src/core/events.ts` defines seven canonical events: `sessionStart`, `prompt`, `preTool`, `postTool`, `stop`,
-`preCompact` and `sessionEnd`, with typed inputs and decisions (`ToolCall` and `PreDecision`, `StopInput` and
-`StopDecision`, and so on). A harness profile maps them to the host's native events; a canonical event a host lacks
-maps to `null`, and `src/adapters/shared/host-limits.ts` records the gap and the fallback.
+`src/core/events.ts` defines seven events: `sessionStart`, `prompt`, `preTool`, `postTool`, `stop`, `preCompact` and
+`sessionEnd`. A harness profile maps them to native events; an event the host lacks maps to `null`, and
+`src/adapters/shared/host-limits.ts` records the gap and the fallback (AGY CLI has no `preCompact` or `sessionEnd`).
 
-`src/adapters/shared/pipeline/` has one file per event plus `health.ts` and `types.ts`. Each function takes a typed
-input and a `PipelineDeps` object (the harness, the pure core, the environment, a `step` wrapper, lazy memory entry
-points) and returns a typed decision. It never reads a native payload and never writes a native answer: that stays in
-the adapter. Two shapes of adapter call it:
+`src/adapters/shared/pipeline/` has one file per event. Each function takes a typed input and a `PipelineDeps` object
+and returns a typed decision. It never reads a native payload or writes a native answer. Adapters call it two ways:
 
-- **Command hooks** (Claude Code, Codex CLI). The host starts `buracle hook <harness> <event>` for every event. The
-  adapter (`src/adapters/claude/hook.ts` and its siblings, `src/adapters/codex/hook.ts`) decodes the JSON payload, calls
-  the pipeline and prints the host's answer. `dispatchHook` (`src/cli/commands/hook.ts`) catches every error. The
-  command hooks read `harness/hook-data.json`, the part of `canonical/` they need.
-- **In-process runtimes** (OpenCode, Oh My Pi). A plugin or extension loaded inside the host holds the same calls:
-  `src/adapters/opencode/runtime/plugin.ts` with `host.ts`, and `src/adapters/omp/runtime/extension.ts` with `host.ts`.
-  The build bundles each runtime with Bun, and the bundle is generated output.
+- Command hooks (Claude Code, Codex, Qwen Code, AGY CLI): the host runs `buracle hook <harness> <event>`; the adapter
+  (`src/adapters/<harness>/hook.ts`) decodes the JSON, calls the pipeline and prints the answer. `dispatchHook`
+  (`src/cli/commands/hook.ts`) catches every error. The Claude Code and Codex hooks read `harness/hook-data.json`.
+- In-process runtimes (OpenCode, Oh My Pi, Pi): a plugin or extension inside the host makes the same calls
+  (`src/adapters/opencode/runtime/plugin.ts`, `src/adapters/omp/runtime/extension.ts`,
+  `src/adapters/pi/runtime/extension.ts`; Oh My Pi and Pi share `src/adapters/shared/pi-family/`). The build bundles
+  each runtime with Bun.
 
-A denial reads `Buracle H<nn>: <reason>` in every harness. Hooks fail open: a step that throws is logged and skipped. The
-exceptions are the guards (`H01`, `H02`, `H20`) on the `PreToolUse` event of the two command-hook harnesses
-(`GUARD_EVENTS` in `src/engine/hook-fail.ts`): when a guard cannot run, it answers with a deny so a broken Buracle
-never leaves a call unguarded.
+A denial reads `Buracle H<nn>: <reason>`. Hooks fail open: a step that throws is logged and skipped. The exceptions are
+the guards (`H01`, `H02`, `H20`) on `PreToolUse` of the command-hook harnesses (`GUARD_EVENTS` in
+`src/engine/hook-fail.ts`), which deny when they cannot run.
 
 ## HarnessProfile
 
-A harness is data first. `src/core/harness/<id>.ts` exports one `HarnessProfile` (the type is in
-`src/core/harness/profile.ts`) and `src/core/harness/index.ts` lists them. The `Harness` type, the harness order, the
-tool tables, the labels and everything below is derived from the profiles:
+A harness is data first. `src/core/harness/<id>.ts` exports one `HarnessProfile` (type in `profile.ts`), listed in
+`index.ts`. The `Harness` type, tool tables, labels and everything below derive from it: identity and config folder,
+how skills are read and invoked, how plan mode is entered, how MCP tool names are spelled, the canonical-to-native event
+map, and the native tool names by kind. Code outside `src/core/harness/` never switches on a harness name. When a field
+is missing, add it to the type.
 
-- identity: label, binary name, how to tell a running host from its process, whether its runtime is `command` or
-  `inprocess`, its config folder and the variables that relocate it;
-- skills: which folders it reads, how a skill is invoked, how prose names a skill and how the model loads one;
-- plan mode: how the model enters it and whether leaving it is an approval the hooks can see;
-- MCP: how the host spells tool names (`mcp__server__tool`, plugin prefixes) and which client names identify it;
-- events: the canonical-to-native map and the native events a `hooks.yaml` binding may name;
-- tools: native tool name to kind (`bash`, `edit`, `patch`, `ask_user`, `agent`, ...).
+To add a harness:
 
-Code outside `src/core/harness/` never switches on a harness name; it asks the profile. A missing profile field is
-added to the type, not worked around with a literal.
+1. A profile file and its line in `src/core/harness/index.ts`.
+2. A minimum version in `src/engine/update/min-versions.ts` and any gaps in `host-limits.ts`.
+3. An adapter in `src/adapters/<id>/` implementing `Adapter` from `src/adapters/registry.ts` (`detect`, `build`,
+   `installPlan`, `doctor`, and `hook` or an in-process runtime), kept thin.
+4. Bindings in `canonical/hooks.yaml` and `canonical/statusline.yaml`, and an `except:` in `canonical/mcp.yaml` for any
+   server it should not get.
 
-Adding a harness takes:
-
-1. a profile file and its line in `src/core/harness/index.ts`;
-2. a minimum version in `src/engine/update/min-versions.ts` and any gaps in `src/adapters/shared/host-limits.ts`;
-3. an adapter in `src/adapters/<id>/` that implements `Adapter` from `src/adapters/registry.ts` (`detect`, `build`,
-   `installPlan`, `doctor`, and `hook` or an in-process runtime) and its line in the registry, written thin because
-   decisions come from the pipeline;
-4. bindings for it in `canonical/hooks.yaml` and `canonical/statusline.yaml`, and an `except:` on any server it should
-   not get in `canonical/mcp.yaml`.
-
-For a command-hook harness, step 3 is small because the wiring lives once in `src/adapters/shared/command-host/`: the
-default `PipelineDeps` (`commandDeps`: step log, lazily loaded memory modules, workspace readers, UI hooks), the event
-frame (`runFrame`: parse stdin, session-id handling, the guard-only path, the memory-runner skip) and the events every
-such host runs the same way (`startContext`, `promptContext`, `guardTool`, `afterTool`, `stopReason`). The adapter keeps
-its codec (`shared/claude-dialect.ts` for the Claude-shaped ones: decode the native payload, encode the pipeline's
-decision) and the steps only its host has. Qwen Code and AGY CLI are written this way; Claude Code and Codex use the
-workspace readers and the log and payload helpers and keep their native-only events.
-
-The parity tests (`tests/adapters/parity.test.ts`) fail until each of these is consistent.
+For a command-hook harness the shared wiring lives in `src/adapters/shared/command-host/` (`commandDeps`, `runFrame`
+and the common events), with the codec in `shared/claude-dialect.ts` for Claude-shaped hosts. Qwen Code and AGY CLI use
+it. `tests/adapters/parity.test.ts` fails until everything is consistent.
 
 ## Transactions and the ownership ledger
 
-Every write into a harness's folder is a `Plan` (`{ id, harness, ops }`) applied by `applyPlans()` in
-`src/engine/txn.ts`. An op is a `file`, a `json-merge` / `jsonc-merge` / `yaml-merge`, `toml-tables`, an `md-block`, a
-`symlink`, a `remove`, an `exec` (with its undo) and a few list and rekey merges; every op names its `owner`. A
-transaction takes a lock, backs up what it will touch under `~/.buracle/backups/<txn>`, journals, writes atomically,
-verifies and records every written path in the ownership ledger `~/.buracle/state/owned.json`.
+Every write into a harness folder is a `Plan` (`{ id, harness, ops }`) applied by `applyPlans()` in `src/engine/txn.ts`.
+Ops include `file`, the JSON, JSONC and YAML merges, `toml-tables`, `md-block`, `symlink`, `remove` and `exec`, and each
+names its `owner`. A transaction takes a lock, backs up what it will touch under `~/.buracle/backups/<txn>`, journals,
+writes atomically, verifies, and records each path in the ledger `~/.buracle/state/owned.json`.
 
-The ledger keeps user files safe. A file that exists but is not in the ledger, or whose hash changed since Buracle wrote
-it, becomes a conflict and Buracle keeps the user's version. Uninstall removes only what the ledger proves Buracle
-wrote. An unreadable ledger stops the run; nothing writes an empty one. A failed transaction rolls itself back. A
-journal left `applying` or `rollback-failed` by a crash is finished by `repairUnsettled()` before `buracle install` or
-`buracle update` write anything, and when it cannot be finished they stop with a message. Every path comes from
-`src/engine/paths.ts`, which honors `HOME` and `BURACLE_HOME`; that is how tests and development builds stay out of the
-real folders.
+The ledger protects user files. A file that is not in the ledger, or whose hash changed since Buracle wrote it, becomes a
+conflict and the user's version stays. Uninstall removes only what the ledger shows Buracle wrote. An unreadable ledger
+stops the run. A failed transaction rolls back, and a journal a crash left unfinished is repaired by `repairUnsettled()`
+before `buracle install` or `buracle update` write anything. Every path comes from `src/engine/paths.ts`, which honors
+`HOME` and `BURACLE_HOME`, so tests and dev builds stay out of the real folders.
 
-Install runs in this order: build the generated files, copy the checkout to a frozen runtime under
-`~/.buracle/runtime/<id>` and check the copy, install the toolchain, then apply the core plan, the skills plan and one
-plan per detected harness, each its own transaction (`src/engine/update/install-core.ts` composes them). A harness that
-fails rolls back alone. Hooks and the CLI run the frozen runtime, so a checkout edit reaches them at the next install.
+Install builds the generated files, copies the checkout to a frozen runtime under `~/.buracle/runtime/<id>` and checks
+it, installs the toolchain, then applies the core plan, the skills plan and one plan per detected harness
+(`src/engine/update/install-core.ts`). A failing harness rolls back alone. Hooks and the CLI run the frozen runtime, so a
+checkout edit reaches them at the next install.
 
 ## The Brain
 
-One CortexDB file, `~/.buracle/brain/brain.db`, holds every memory. CortexDB's own buckets separate the scopes: the
-person is scope `user` with user id `person`, and each project is scope `global` with its slug as the namespace. A
-`memory_id` is global in CortexDB, so `src/memory/store.ts` is the only place that prefixes it: `u/<id>` for the person
-and `p/<slug>/<id>` for a project. Everything above the store sees plain ids. One `cortexdb-mcp` child serves a
-terminal. The required CortexDB is 2.137.0 or newer (`CORTEXDB_MIN_VERSION` in `src/engine/toolchain/cortexdb.ts`); the
-install otherwise takes the latest release after it passes the memory check, with the brain backed up first.
+One CortexDB file, `~/.buracle/brain/brain.db`, holds every memory. The person is scope `user` (user id `person`) and
+each project is scope `global` with its slug as namespace. `memory_id` is global, so `src/memory/store.ts` alone
+prefixes it (`u/<id>`, `p/<slug>/<id>`). CortexDB must be 2.137.0 or newer (`CORTEXDB_MIN_VERSION` in
+`src/engine/toolchain/cortexdb.ts`).
 
-A memory has a kind, title, summary, body, tags, cited files, `about` entities, importance and the two fields that
-separate fact from inference: `origin` (`explicit` or `inferred`) and `confidence`. Native CortexDB fields do the
-bookkeeping: `ttl_seconds` (sessions 45 days, handoffs 14), `supersedes`, `importance`, `review_status`, entities and
-relations for graph retrieval. Secrets are masked by one module, `src/core/memory/redact.ts`, on every write path. An
-inferred write never changes an explicit, pinned or verified memory; it is stored beside it, marked as contradicting.
+A memory has a kind, title, summary, body, tags, cited files, entities, importance, `origin` (`explicit` or `inferred`)
+and `confidence`. Native fields handle `ttl_seconds` (sessions 45 days, handoffs 14), `supersedes` and `review_status`.
+`src/core/memory/redact.ts` masks secrets on every write path. An inferred write never changes an explicit, pinned or
+verified memory; it is stored beside it, marked as contradicting.
 
-Capture is small. The adapters append redacted entries to a session spool file and start no process for it: the
-prompt, the turn or stop, a compaction and a note. The files a session touched come from git (`git diff --name-only` since the
-session started, plus untracked files). When a session ends, one detached, bounded `buracle mem finalize`
-(`src/memory/finalize.ts`) writes the session memory, files the preferences the user stated, asks a harness CLI with
-usage headroom for the durable findings (validated as a whole before anything is written) and settles up to three
-older sessions. `buracle mem capture` runs the same code on demand.
-
-What is swept, and when: `finalize` ends by calling CortexDB's `sweep_expired`, which deletes the session and handoff
-memories whose time has run out (a time to live only hides a row until then); it also drops old redaction and session
-records, stale spools and dead locks. A brain backup is a copy of the whole file (`src/memory/backup.ts`); a session end
-takes one when the newest is over a day old and keeps the newest ten. Nothing else runs in the background: no timers and
-no start-up jobs.
+Capture is small. Adapters append redacted entries to a session spool file and start no process. The files a session
+touched come from git. At session end one detached, bounded `buracle mem finalize` (`src/memory/finalize.ts`) writes the
+session memory, files stated preferences, asks a harness CLI with usage headroom for durable findings (validated as a
+whole) and settles up to three older sessions. It ends with CortexDB's `sweep_expired` and drops old records, stale
+spools and dead locks. A backup is a copy of the whole file (`src/memory/backup.ts`), taken at a session end when the
+newest is over a day old; the newest ten are kept. Nothing else runs in the background.
 
 ## Generation and drift
 
 `buracle build` runs every adapter's generator over `canonical/` and `src/core/` and writes `harness/<harness>/`,
-`harness/agents-skills/` and `harness/hook-data.json`. Output is deterministic (no timestamps, stable key order) and
-every file is listed in `harness/.manifest.json`; only listed files are ever deleted as stale. It also writes the command
-summary skill reference (the one generated file that stays committed, under `canonical/`) and `docs/reference/` (local,
-outside git). `harness/` itself is not committed on `dev`: the `release` job in CI builds it into the release tree, so
-`main` holds it, and `buracle install` / `buracle update` build it first in a checkout that has none. `buracle build
---check` writes nothing: it builds twice into temporary output roots and fails unless the two trees are byte-identical
-and the manifest lists exactly the files written; when a local `harness/` exists it is compared too, and the
-committed command reference always is. Because every CLI run refreshes `$BURACLE_HOME/state/runtime-config.json`, which installed harnesses read, development runs point `HOME`
-and `BURACLE_HOME` at a temp folder.
+`harness/agents-skills/` and `harness/hook-data.json`, plus the committed command reference and the local
+`docs/reference/`. Output is deterministic and every file is listed in `harness/.manifest.json`; only listed files are
+deleted as stale. CI builds `harness/` into the release tree for `main`, and `buracle install` and `buracle update`
+build it first in a checkout that has none.
 
-The three release checks (typecheck, determinism check, tests) run in CI on macOS arm64 and Linux x64; `AGENTS.md` has the
-commands and the branch model.
+`buracle build --check` writes nothing. It builds twice into temporary roots and fails unless the trees are identical and
+the manifest is exact; it also compares a local `harness/` and the committed command reference. Every CLI run refreshes
+`$BURACLE_HOME/state/runtime-config.json`, so point `HOME` and `BURACLE_HOME` at a temp folder in development. CI runs
+the three release checks on macOS arm64 and Linux x64; `AGENTS.md` has the commands and the branch model.
