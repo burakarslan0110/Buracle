@@ -15,8 +15,8 @@ describe('mcp.yaml: which harnesses a server ships to', () => {
     }
     expect(validateMcpCatalog(raw)).toEqual([])
     const { servers } = mcpCatalogOf(raw)
-    expect(servers['all']?.harnesses).toEqual(['claude', 'codex', 'opencode', 'omp'])
-    expect(servers['most']?.harnesses).toEqual(['claude', 'codex', 'opencode'])
+    expect(servers['all']?.harnesses).toEqual(['claude', 'codex', 'opencode', 'omp', 'qwen', 'pi', 'agy'])
+    expect(servers['most']?.harnesses).toEqual(['claude', 'codex', 'opencode', 'qwen', 'pi', 'agy'])
     expect(servers['few']?.harnesses).toEqual(['opencode', 'codex'])
     expect(servers['listed']?.harnesses).toEqual(['claude', 'codex', 'opencode', 'omp'])
     expect(Object.keys(servers['most'] ?? {})).not.toContain('except')
@@ -31,13 +31,13 @@ describe('mcp.yaml: which harnesses a server ships to', () => {
         unknown: { ...base, except: ['vim'] },
         empty: { ...base, except: [] },
         twice: { ...base, except: ['omp', 'omp'] },
-        none: { ...base, except: ['claude', 'codex', 'opencode', 'omp'] },
+        none: { ...base, except: ['claude', 'codex', 'opencode', 'omp', 'qwen', 'pi', 'agy'] },
         both: { ...base, harnesses: ['claude'], except: ['omp'] },
       },
     })
     expect(errors).toEqual([
-      'servers.unknown.except: expected a non-empty list of claude | codex | opencode | omp',
-      'servers.empty.except: expected a non-empty list of claude | codex | opencode | omp',
+      'servers.unknown.except: expected a non-empty list of claude | codex | opencode | omp | qwen | pi | agy',
+      'servers.empty.except: expected a non-empty list of claude | codex | opencode | omp | qwen | pi | agy',
       'servers.twice.except: duplicates',
       'servers.none.except: leaves no harness',
       'servers.both: name the harnesses a server ships to with harnesses or with except, not both',

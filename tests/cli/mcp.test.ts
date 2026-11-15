@@ -32,7 +32,7 @@ describe('buracle mcp disable and enable', () => {
       return { code: answer.code, stdout: JSON.stringify({ code: answer.code, ok: answer.ok ?? answer.code === 0, conflicts: (answer.conflicts ?? []).map(c => ({ ...c, kind: 'toml-tables', owner: 'buracle' })), busyHarnesses: answer.busy ?? [], harnesses: answer.harnesses ?? [], errors: answer.errors ?? [] }), stderr: '', timedOut: false }
     },
   })
-  const offList = async (h: 'claude' | 'codex' | 'opencode' | 'omp') => (await import('../../src/engine/config')).loadConfigSync().config.mcp.off[h]
+  const offList = async (h: 'claude' | 'codex' | 'opencode' | 'omp' | 'qwen' | 'pi' | 'agy') => (await import('../../src/engine/config')).loadConfigSync().config.mcp.off[h]
 
   test('one harness: the config list changes, that harness is installed without the toolchain, and enable reverses it; the same state again changes nothing', () => withSandbox(async () => {
     const calls: RunCall[] = []
@@ -60,9 +60,9 @@ describe('buracle mcp disable and enable', () => {
     const calls: RunCall[] = []
     await withDeps(installAnswers({ code: 0 }, calls), async () => {
       expect(await mcpRun(['disable', 'chrome-devtools'], memoryIO())).toBe(0)
-      for (const h of ['claude', 'codex', 'opencode'] as const) expect(await offList(h)).toEqual(['chrome-devtools'])
+      for (const h of ['claude', 'codex', 'opencode', 'qwen', 'pi', 'agy'] as const) expect(await offList(h)).toEqual(['chrome-devtools'])
       expect(await offList('omp')).toEqual([])
-      expect(calls[0]?.argv.slice(2)).toEqual(['install', 'claude', 'codex', 'opencode', '--yes', '--json'])
+      expect(calls[0]?.argv.slice(2)).toEqual(['install', 'claude', 'codex', 'opencode', 'qwen', 'pi', 'agy', '--yes', '--json'])
       for (const bad of [['disable', 'nope'], ['disable', 'web-fetch', '--harness', 'cursor'], ['disable', 'chrome-devtools', '--harness', 'omp'], ['enable']]) {
         const io = memoryIO()
         expect(await mcpRun(bad, io)).toBe(1)
@@ -90,6 +90,9 @@ describe('buracle mcp disable and enable', () => {
       { harness: 'codex', installed: true, included: true },
       { harness: 'opencode', installed: true, included: false, reason: 'disabled in config' },
       { harness: 'omp', installed: false, included: false, reason: 'not installed' },
+      { harness: 'qwen', installed: false, included: false, reason: 'not installed' },
+      { harness: 'pi', installed: false, included: false, reason: 'not installed' },
+      { harness: 'agy', installed: false, included: false, reason: 'not installed' },
     ]
     await withDeps(installAnswers({ code: 2, ok: true, harnesses }, calls), async () => {
       const io = memoryIO()
@@ -115,15 +118,15 @@ describe('buracle mcp list: the on or off state per harness (R18)', () => {
     const j = memoryIO()
     expect(await mcpRun(['list', '--json'], j)).toBe(0)
     const rows = (JSON.parse(j.out()) as { servers: Array<{ id: string, harnesses: Record<string, string> }> }).servers
-    expect(rows.find(r => r.id === 'web-fetch')?.harnesses).toEqual({ claude: 'on', codex: 'off', opencode: 'on', omp: 'on' })
+    expect(rows.find(r => r.id === 'web-fetch')?.harnesses).toEqual({ claude: 'on', codex: 'off', opencode: 'on', omp: 'on', qwen: 'on', pi: 'on', agy: 'on' })
     expect(rows.find(r => r.id === 'chrome-devtools')?.harnesses['omp']).toBe('none')
     expect(rows.find(r => r.id === 'lsp')?.harnesses['claude']).toBe('none')
     const t = memoryIO()
     expect(await mcpRun(['list'], t)).toBe(0)
     const lines = t.out().split('\n')
-    expect(lines[0]).toMatch(/^server\s+claude\s+codex\s+opencode\s+omp\s+source\s+start/)
-    expect(lines.find(l => l.startsWith('web-fetch '))).toMatch(/^web-fetch\s+on\s+off\s+on\s+on\s/)
-    expect(lines.find(l => l.startsWith('chrome-devtools '))).toMatch(/^chrome-devtools\s+on\s+on\s+on\s+-\s/)
+    expect(lines[0]).toMatch(/^server\s+claude\s+codex\s+opencode\s+omp\s+qwen\s+pi\s+agy\s+source\s+start/)
+    expect(lines.find(l => l.startsWith('web-fetch '))).toMatch(/^web-fetch\s+on\s+off\s+on\s+on\s+on\s+on\s+on\s/)
+    expect(lines.find(l => l.startsWith('chrome-devtools '))).toMatch(/^chrome-devtools\s+on\s+on\s+on\s+-\s+on\s+on\s+on\s/)
   }))
 })
 

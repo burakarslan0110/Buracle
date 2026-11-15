@@ -170,7 +170,12 @@ const omp: CompanionHost = {
   prepare: o => ({ argv: ompArgv(o.agent, o.repo, o.timeoutMs), cwd: o.repo, stdin: o.prompt, read: plain, cleanup: () => undefined }),
 }
 
-const HOSTS: Readonly<Record<Harness, CompanionHost>> = { claude, codex, opencode, omp }
+// A harness Buracle has no second-opinion run for yet: choosing it fails that attempt and the next target is tried.
+function pendingHost(harness: Harness): CompanionHost {
+  return { harness, shell: false, scratch: false, prepare: () => { throw new Error(`a second opinion from ${harness} is not supported yet`) } }
+}
+
+const HOSTS: Readonly<Record<Harness, CompanionHost>> = { claude, codex, opencode, omp, qwen: pendingHost('qwen'), pi: pendingHost('pi'), agy: pendingHost('agy') }
 
 export const companionTestHooks: { extraArgs?: (h: Harness) => string[] } = {}
 

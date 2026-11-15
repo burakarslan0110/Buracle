@@ -174,7 +174,7 @@ function copyRuntime(plan: RuntimePlan, dest: string): string {
 }
 
 // The harnesses whose hooks are `buracle hook <harness> <event>` processes: the ones a probe can run.
-const COMMAND_HOOK_HARNESSES: readonly Harness[] = harnessesWhere(p => p.runtime === 'command')
+const COMMAND_HOOK_HARNESSES: readonly Harness[] = harnessesWhere(p => p.runtime === 'command' && p.adapterPending !== true)
 
 function probePayload(harness: Harness, command: string): string {
   const base = { session_id: 'buracle-runtime-probe', hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command }, cwd: paths.home(), permission_mode: 'bypassPermissions' }

@@ -100,7 +100,7 @@ export async function usageVerdict(input: Pick<PreToolInput, 'call'>, d: Pipelin
 }
 
 /**
- * preTool: the guards (H01 bash, the lane guard, H20 consent, H02 write), then tool routing (H03), the question
+ * preTool: the guards (H01 bash, the subagent guard, H20 consent, H02 write), then tool routing (H03), the question
  * check (H09), the usage reminders (H24) and the early-edit note (H03). The first denial ends it. The call's kind
  * picks the steps; a guard that cannot run denies (fail closed).
  */
@@ -126,8 +126,8 @@ export async function preTool(input: PreToolInput, d: PipelineDeps & PreToolPort
     if (verdict.deny !== undefined && verdict.deny !== '') return deny('H01', verdict.deny)
     const shell = await d.shellDenial?.(command)
     if (shell !== undefined) return deny('H01', shell)
-    const lane = input.subagent ? await d.step('H01 lane guard', undefined as string | undefined, () => d.core.laneStateDenial(command)) : undefined
-    if (lane !== undefined) return { action: 'deny', reason: lane, hook: 'H01' }
+    const guarded = input.subagent ? await d.step('H01 subagent guard', undefined as string | undefined, () => d.core.subagentStateDenial(command)) : undefined
+    if (guarded !== undefined) return { action: 'deny', reason: guarded, hook: 'H01' }
     const consent = await d.step('H20 consent', undefined as string | undefined, () => consentGate(H, sid, command, now, d.core.consentVerdict))
     if (consent !== undefined) {
       if (d.holdConsent === undefined || !await d.holdConsent(command, consent)) return deny('H20', consent)

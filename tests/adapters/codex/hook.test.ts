@@ -853,7 +853,7 @@ describe('w2 plan state on Codex: the lane guard, the async question pause, the 
 
   test('a subagent thread cannot change the root session\'s plan state; the root and read-only commands can', () => withSandbox(async () => {
     const lane = { agent_id: '019a1b2c-3d4e-7f60-8a9b-0c1d2e3f4b00', agent_type: 'worker' }
-    expect(denied((await handleCodexHook('PreToolUse', pre('Bash', { command: 'buracle plan verify' }, lane), ctx(), deps({}))).stdout)).toContain('Buracle lane guard')
+    expect(denied((await handleCodexHook('PreToolUse', pre('Bash', { command: 'buracle plan verify' }, lane), ctx(), deps({}))).stdout)).toContain('Buracle H01: a subagent does not run')
     expect(denied((await handleCodexHook('PreToolUse', pre('Bash', { command: 'buracle plan status --json' }, lane), ctx(), deps({}))).stdout)).toBeUndefined()
     expect(denied((await handleCodexHook('PreToolUse', pre('Bash', { command: 'buracle plan pause --kind decision' }), ctx(), deps({}))).stdout)).toBeUndefined()
   }))

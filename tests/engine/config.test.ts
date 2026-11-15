@@ -105,6 +105,7 @@ describe('runtime config snapshot', () => {
     expect(snap.resolved).toEqual({
       buracleHome, brain: join(buracleHome, 'brain'), shim: join(buracleHome, 'bin', 'buracle'), repoRoot: paths.repoRoot(),
       claudeDir: join(home, '.claude'), codexHome: join(home, '.codex'), opencodeConfigDir: join(home, '.config', 'opencode'), ompAgentDir: join(home, '.omp', 'agent'),
+      qwenHome: join(home, '.qwen'), piAgentDir: join(home, '.pi', 'agent'), agyDir: join(home, '.gemini', 'config'),
       bun: Bun.which('bun') ?? process.execPath,
     })
     expect(JSON.stringify(runtimeConfigSnapshot(cfg), null, 2) + '\n').toBe(text)

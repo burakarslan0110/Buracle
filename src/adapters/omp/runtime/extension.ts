@@ -263,7 +263,7 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
           const verdict = guard(code, language, await writeGuardContext(d, ctx.cwd), extraDeny !== undefined ? { extraDeny } : {})
           const hook = verdict.hook === 'H02' ? 'H02' : 'H01'
           if (verdict.deny) return { reason: denyReason(hook, verdict.deny), hook }
-          const lane = isMain(ctx) ? undefined : corePolicy.laneCodeDenial(code, language)
+          const lane = isMain(ctx) ? undefined : corePolicy.subagentCodeDenial(code, language)
           if (lane !== undefined) return { reason: lane, hook: 'H01' }
         } catch (e) {
           report('H01 guard', e, 'blocked')

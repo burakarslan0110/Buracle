@@ -1,7 +1,10 @@
+import { agyProfile } from './agy'
 import { claudeProfile } from './claude'
 import { codexProfile } from './codex'
 import { ompProfile } from './omp'
 import { opencodeProfile } from './opencode'
+import { piProfile } from './pi'
+import { qwenProfile } from './qwen'
 import { defineHarnesses, type HarnessProfile } from './profile'
 
 // The harnesses Buracle supports. The key order is their order everywhere (tables, loops, generated output).
@@ -10,6 +13,9 @@ export const HARNESS_PROFILES = {
   codex: codexProfile,
   opencode: opencodeProfile,
   omp: ompProfile,
+  qwen: qwenProfile,
+  pi: piProfile,
+  agy: agyProfile,
 } as const satisfies Readonly<Record<string, HarnessProfile>>
 
 export type Harness = keyof typeof HARNESS_PROFILES
@@ -36,7 +42,7 @@ export function harnessesWhere(test: (p: HarnessProfile) => boolean): Harness[] 
   return SET.where(test)
 }
 
-/** The product names ("Claude Code", "Codex", "OpenCode", "Oh My Pi"). */
+/** The product names ("Claude Code", "Codex", "OpenCode", "Oh My Pi", ...). */
 export const HARNESS_LABEL: Readonly<Record<Harness, string>> = harnessTable(p => p.label)
 
 /** The harnesses that read the installed copy of the skills (`~/.agents/skills`) themselves. */
@@ -44,4 +50,4 @@ export const NEUTRAL_SKILL_HARNESSES: readonly Harness[] = harnessesWhere(p => p
 
 export * from './profile'
 export { CLAUDE_PLUGIN_NAME } from './claude'
-export { CLAUDE_CLASSIC_EVENTS, CLAUDE_ENGINE_EVENTS, CODEX_EVENTS, OMP_EVENTS, OPENCODE_EVENTS } from './native-events'
+export { CLAUDE_CLASSIC_EVENTS, CLAUDE_ENGINE_EVENTS, CODEX_EVENTS, OMP_EVENTS, OPENCODE_EVENTS, QWEN_EVENTS, PI_EVENTS, AGY_EVENTS } from './native-events'

@@ -42,6 +42,9 @@ const ADAPTER_LOADERS: Readonly<Record<Harness, () => Promise<{ adapter: Adapter
   codex: () => import('../../adapters/codex/index'),
   opencode: () => import('../../adapters/opencode/index'),
   omp: () => import('../../adapters/omp/index'),
+  qwen: () => import('../../adapters/qwen/index'),
+  pi: () => import('../../adapters/pi/index'),
+  agy: () => import('../../adapters/agy/index'),
 }
 
 export async function loadAdapter(h: Harness): Promise<Adapter> {

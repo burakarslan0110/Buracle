@@ -39,3 +39,21 @@ omp:
     setStatus:
       buracle.hooks: [hooks]
       buracle.mem: [mem]
+
+qwen:
+  rows:
+    - [ctx, git, mem, index, flow, plan, hooks]
+  thresholds: { ctxWarn: 75, ctxCrit: 90 }
+  emoji: false
+
+pi:
+  rows:
+    - [ctx, git, mem, index, flow, plan, hooks]
+  thresholds: { ctxWarn: 75, ctxCrit: 90 }
+  emoji: false
+
+agy:
+  rows:
+    - [ctx, git, mem, index, flow, plan, hooks]
+  thresholds: { ctxWarn: 75, ctxCrit: 90 }
+  emoji: false

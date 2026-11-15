@@ -104,9 +104,9 @@ describe('pipeline preTool', () => {
   }))
 
   test('the lane guard runs for a subagent only and keeps its own words; the write guards deny file and MCP writes', () => withSandbox(async () => {
-    const lane = { core: { laneStateDenial: () => 'Buracle lane guard: another lane owns this state' } }
+    const lane = { core: { subagentStateDenial: () => 'Buracle H01: another subagent owns this state' } }
     expect((await preTool(pre(), preToolDeps(lane))).action).toBe('allow')
-    expect(await preTool(pre({ subagent: true }), preToolDeps(lane))).toEqual({ action: 'deny', hook: 'H01', reason: 'Buracle lane guard: another lane owns this state' })
+    expect(await preTool(pre({ subagent: true }), preToolDeps(lane))).toEqual({ action: 'deny', hook: 'H01', reason: 'Buracle H01: another subagent owns this state' })
     const denyWrite = { core: { checkWrite: () => ({ deny: 'a protected file' }) } }
     expect(await preTool(pre({ call: WRITE }), preToolDeps(denyWrite, targets))).toEqual({ action: 'deny', hook: 'H02', reason: 'Buracle H02: a protected file' })
     expect((await preTool(pre({ call: WRITE }), preToolDeps(denyWrite))).action).toBe('allow')

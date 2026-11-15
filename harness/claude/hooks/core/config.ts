@@ -1,9 +1,10 @@
 import type { Harness } from './events'
 import { HARNESSES } from './events'
-import { harnessTable } from './harness/index'
+import { harnessTable, harnessesWhere } from './harness/index'
 
 export type CompanionSetting = 'off' | 'auto' | Harness
-export const COMPANION_SETTINGS: readonly CompanionSetting[] = ['off', 'auto', ...HARNESSES]
+// A harness whose adapter is still pending has no second-opinion run, so it is no valid setting.
+export const COMPANION_SETTINGS: readonly CompanionSetting[] = ['off', 'auto', ...harnessesWhere(p => p.adapterPending !== true)]
 
 export interface BuracleConfig {
   version: 1

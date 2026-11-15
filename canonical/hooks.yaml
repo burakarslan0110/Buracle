@@ -1,7 +1,7 @@
 hooks:
   - id: H01
     name: guard.bash
-    description: "Deny catastrophic shell commands (rm -rf of / or ~, force-push to main, curl | sh, mkfs, dd to a device, a deleting find (-delete, -exec rm, | xargs rm) that starts at the home folder, a first-level home folder or the vault, …), shell writes, deletes, moves and permission changes of Buracle's own setup (redirects, tee, cp, mv, install, ln, rsync, sed -i, curl and wget output files, dd, truncate, rm and unlink meet the H02 rules; every harness passes the vault, the protect globs and the symlink resolver, so a relocated vault and guards.write.protect count too), the commands that switch Buracle off (buracle uninstall, buracle config set or unset of guards, permissions, harnesses, routing, plan.stopGuard, plan.runaway, plan.planApproval, plan.resultApproval, plan.reviews, plan.goalVerification, repo or vault, removing or disabling Buracle's harness plugin, claude --bare, --safe-mode or --setting-sources without user, codex -c features.hooks=false, opencode --pure, omp --no-extensions, and a relocation variable such as BURACLE_HOME or CODEX_HOME set with launchctl setenv or written into a shell startup file: the user types these as `! <command>`), and any `buracle consent run` the agent writes (Codex's H20 wrapper, which only Buracle puts in place). For a subagent (a lane) it also denies the `buracle plan`, `buracle flow` and `buracle worktree` commands that change the lead's plan or workflow state or merge its worktrees (plan pause, resume, set, complete, approve-result, verify, register, unregister, review; flow start, phase, end; worktree sync, cleanup; plan review status stays allowed; a plan lane may run these plan commands, except set approved and approve-result, on its own binding with --lane <slug>), in the shell and in omp's eval cells: Claude Code and Codex tell a subagent's call by `agent_id`, omp by the subagent's context, OpenCode by the child session (whose shell already resolves to its own session, which holds no plan). It follows the commands find -exec runs, the sh -c and bash -c scripts among them, and looks through launchers (sudo, env, nohup, setsid, flock, tmux, screen, at, batch, chrt, taskset, sandbox-exec, strace, dtruss, entr -s, uv run, bundle exec, pnpm exec, direnv exec, nix develop -c, nix-shell --run, …) and resolves computed names in interpreter code (getattr(os, 'sys'+'tem'), require('child_'+'process')), also when Claude's Monitor tool or its PowerShell tool or omp's eval tool runs them. On Codex a shell call is judged in the exec workdir the session's rollout records. What it cannot follow to the end is denied: shell text nested deeper than 8 levels, more than 24 wrappers around one command, interpreter code too large or too nested to scan, a name built at run time. The review agents (plan-build-review, changes-review, goal-build-review) stay read-only on every harness: Claude Code and Oh My Pi deny a reviewer's shell command that leaves core's read-only command list (core reviewerShellDenial: writes, redirects, git commit or stash, sed -i, rm), OpenCode adds the same check behind the reviewer's own shell allow rules, and Codex runs reviewers in a read-only sandbox. A second opinion's child process (BURACLE_REVIEWER_AGENT, set by `buracle plan review companion run`) is held the same way on Claude Code and Oh My Pi, where the user's permission rules or MCP servers could offer more than its command line allows: the PreToolUse hook denies a shell command off that list, the edit tools and every MCP tool but codegraph's, semble's and context7's, and the omp extension hides and blocks every tool but read, grep, glob and those servers' tools, xd:// devices included (core companionToolDenial)."
+    description: "Deny catastrophic shell commands (rm -rf of / or ~, force-push to main, curl | sh, mkfs, dd to a device, a deleting find (-delete, -exec rm, | xargs rm) that starts at the home folder, a first-level home folder or the vault, …), shell writes, deletes, moves and permission changes of Buracle's own setup (redirects, tee, cp, mv, install, ln, rsync, sed -i, curl and wget output files, dd, truncate, rm and unlink meet the H02 rules; every harness passes the vault, the protect globs and the symlink resolver, so a relocated vault and guards.write.protect count too), the commands that switch Buracle off (buracle uninstall, buracle config set or unset of guards, permissions, harnesses, routing, plan.stopGuard, plan.runaway, plan.planApproval, plan.resultApproval, plan.reviews, plan.goalVerification, repo or vault, removing or disabling Buracle's harness plugin, claude --bare, --safe-mode or --setting-sources without user, codex -c features.hooks=false, opencode --pure, omp --no-extensions, and a relocation variable such as BURACLE_HOME or CODEX_HOME set with launchctl setenv or written into a shell startup file: the user types these as `! <command>`), and any `buracle consent run` the agent writes (Codex's H20 wrapper, which only Buracle puts in place). For a subagent (a lane) it also denies the `buracle plan`, `buracle flow` and `buracle worktree` commands that change the lead's plan or workflow state or merge its worktrees (plan pause, resume, set, complete, approve-result, verify, register, unregister, review; flow start, phase, end; worktree cleanup; plan review status stays allowed; a plan lane may run these plan commands, except set approved and approve-result, on its own binding with --lane <slug>), in the shell and in omp's eval cells: Claude Code and Codex tell a subagent's call by `agent_id`, omp by the subagent's context, OpenCode by the child session (whose shell already resolves to its own session, which holds no plan). It follows the commands find -exec runs, the sh -c and bash -c scripts among them, and looks through launchers (sudo, env, nohup, setsid, flock, tmux, screen, at, batch, chrt, taskset, sandbox-exec, strace, dtruss, entr -s, uv run, bundle exec, pnpm exec, direnv exec, nix develop -c, nix-shell --run, …) and resolves computed names in interpreter code (getattr(os, 'sys'+'tem'), require('child_'+'process')), also when Claude's Monitor tool or its PowerShell tool or omp's eval tool runs them. On Codex a shell call is judged in the exec workdir the session's rollout records. What it cannot follow to the end is denied: shell text nested deeper than 8 levels, more than 24 wrappers around one command, interpreter code too large or too nested to scan, a name built at run time. The review agents (plan-build-review, changes-review, goal-build-review) stay read-only on every harness: Claude Code and Oh My Pi deny a reviewer's shell command that leaves core's read-only command list (core reviewerShellDenial: writes, redirects, git commit or stash, sed -i, rm), OpenCode adds the same check behind the reviewer's own shell allow rules, and Codex runs reviewers in a read-only sandbox. A second opinion's child process (BURACLE_REVIEWER_AGENT, set by `buracle plan review companion run`) is held the same way on Claude Code and Oh My Pi, where the user's permission rules or MCP servers could offer more than its command line allows: the PreToolUse hook denies a shell command off that list, the edit tools and every MCP tool but codegraph's, semble's and context7's, and the omp extension hides and blocks every tool but read, grep, glob and those servers' tools, xd:// devices included (core companionToolDenial)."
     blocking: deny
     failure: closed
     contract_test: tests/core/policy/bash-guard.test.ts
@@ -10,6 +10,9 @@ hooks:
       codex: { event: PreToolUse, matcher: Bash|mcp__.+, timeoutMs: 5000 }
       opencode: { event: permission.evaluate, matcher: [bash] }
       omp: { event: tool_call, matcher: [bash, eval] }
+      qwen: { event: PreToolUse, matcher: run_shell_command|monitor, timeoutMs: 10000 }
+      pi: { event: tool_call, matcher: [bash, codemode] }
+      agy: { event: PreToolUse, matcher: run_command, timeoutMs: 10000 }
 
   - id: H02
     name: guard.write
@@ -22,6 +25,9 @@ hooks:
       codex: { event: PreToolUse, matcher: apply_patch|mcp__.+, timeoutMs: 5000 }
       opencode: { event: permission.evaluate, matcher: [edit, write, patch, apply_patch, multiedit] }
       omp: { event: tool_call, matcher: [edit, write, ast_edit, eval] }
+      qwen: { event: PreToolUse, matcher: "write_file|edit|notebook_edit|mcp__.*", timeoutMs: 10000 }
+      pi: { event: tool_call, matcher: [edit, write, codemode] }
+      agy: { event: PreToolUse, matcher: write_to_file|replace_file_content|multi_replace_file_content|notebook_edit, timeoutMs: 10000 }
 
   - id: H03
     name: route.tools
@@ -40,6 +46,9 @@ hooks:
         event: permission.evaluate
         also: [{ event: session.context }]
       omp: { event: tool_call }
+      qwen: { event: PreToolUse, matcher: "run_shell_command|monitor|web_search|web_fetch|edit|write_file|grep_search|glob|mcp__.*", timeoutMs: 10000 }
+      pi: { event: tool_call }
+      agy: { event: PreToolUse, timeoutMs: 10000 }
 
   - id: H04
     name: check.file
@@ -52,6 +61,9 @@ hooks:
       codex: { event: PostToolUse, matcher: apply_patch, timeoutMs: 30000 }
       opencode: { event: tool.execute.after, matcher: [edit, write, patch, apply_patch, multiedit], timeoutMs: 20000 }
       omp: { event: tool_result, matcher: [edit, write, ast_edit], timeoutMs: 20000 }
+      qwen: { event: PostToolUse, matcher: edit|write_file|notebook_edit, timeoutMs: 30000 }
+      pi: { event: tool_result, matcher: [edit, write], timeoutMs: 20000 }
+      agy: { event: PostToolUse, matcher: write_to_file|replace_file_content|multi_replace_file_content|notebook_edit, timeoutMs: 30000 }
 
   - id: H05
     name: context.watch
@@ -69,6 +81,9 @@ hooks:
         also: [{ event: PostToolUse }, { event: Stop }, { event: SessionStart }, { event: PostCompact }]
       opencode: { event: session.usage.updated }
       omp: { event: turn_end }
+      qwen: { event: UserPromptSubmit, timeoutMs: 10000, also: [{ event: PreToolUse, timeoutMs: 10000 }, { event: Stop, timeoutMs: 15000 }] }
+      pi: { event: turn_end }
+      agy: { event: PreInvocation, timeoutMs: 10000 }
 
   - id: H06
     name: compact.save
@@ -84,6 +99,9 @@ hooks:
       codex: { event: PreCompact, timeoutMs: 10000 }
       opencode: { event: session.compaction }
       omp: { event: session.compacting }
+      qwen: { event: PreCompact, timeoutMs: 15000, also: [{ event: PostToolUse, matcher: TodoWrite|todo_write, async: true, timeoutMs: 5000 }] }
+      pi: { event: session_before_compact }
+      agy: { unsupported: "AGY has no compaction event, so nothing runs before a conversation is compacted" }
 
   - id: H07
     name: compact.restore
@@ -96,6 +114,9 @@ hooks:
       codex: { event: SessionStart, matcher: compact, timeoutMs: 10000, also: [{ event: PostCompact, timeoutMs: 5000 }] }
       opencode: { event: session.context, also: [{ event: session.compaction.ended }] }
       omp: { event: session_compact }
+      qwen: { event: SessionStart, matcher: compact, timeoutMs: 10000, also: [{ event: PostCompact, timeoutMs: 5000 }] }
+      pi: { event: session_compact }
+      agy: { unsupported: "AGY has no compaction event, so nothing marks the first model call after a compaction" }
 
   - id: H08
     name: plan.stop
@@ -108,6 +129,9 @@ hooks:
       codex: { event: Stop, timeoutMs: 15000, also: [{ event: PostToolUse, matcher: request_user_input, timeoutMs: 10000 }] }
       opencode: { event: session.execution.succeeded, also: [{ event: tool.execute.after, matcher: [question, shell, subagent] }, { event: session.context }] }
       omp: { event: session_stop, also: [{ event: tool_result, matcher: [ask] }] }
+      qwen: { event: Stop, timeoutMs: 15000, also: [{ event: PostToolUse, matcher: AskUserQuestion|ask_user_question, timeoutMs: 10000 }] }
+      pi: { event: agent_before_settle }
+      agy: { event: Stop, timeoutMs: 15000, also: [{ event: PostToolUse, matcher: ask_user, timeoutMs: 10000 }] }
 
   - id: H09
     name: plan.question
@@ -120,6 +144,9 @@ hooks:
       codex: { event: PreToolUse, matcher: request_user_input|request_user_input_async, timeoutMs: 5000 }
       opencode: { event: permission.evaluate, matcher: question }
       omp: { event: tool_call, matcher: ask }
+      qwen: { event: PreToolUse, matcher: AskUserQuestion|ask_user_question, timeoutMs: 10000 }
+      pi: { unsupported: "Pi has no question tool, so there is no question to record" }
+      agy: { event: PreToolUse, matcher: ask_user, timeoutMs: 10000 }
 
   - id: H10
     name: plan.interaction
@@ -132,6 +159,9 @@ hooks:
       codex: { event: UserPromptSubmit, timeoutMs: 5000, also: [{ event: SubagentStart, timeoutMs: 10000 }] }
       opencode: { event: session.prompt, also: [{ event: session.context }] }
       omp: { event: input, also: [{ event: before_agent_start }] }
+      qwen: { event: UserPromptSubmit, timeoutMs: 10000 }
+      pi: { event: input, also: [{ event: before_agent_start }] }
+      agy: { event: PreInvocation, timeoutMs: 10000 }
 
   - id: H11
     name: plan.validate
@@ -144,6 +174,9 @@ hooks:
       codex: { event: Stop, timeoutMs: 15000 }
       opencode: { event: session.execution.succeeded }
       omp: { event: session_stop }
+      qwen: { event: Stop, timeoutMs: 15000 }
+      pi: { event: agent_before_settle }
+      agy: { event: Stop, timeoutMs: 15000 }
 
   - id: H12
     name: plan.capture
@@ -156,6 +189,9 @@ hooks:
       codex: { event: Stop, timeoutMs: 15000, also: [{ event: UserPromptSubmit, timeoutMs: 5000 }] }
       opencode: { event: session.context }
       omp: { event: before_agent_start, also: [{ event: tool_result }] }
+      qwen: { event: PostToolUse, matcher: ExitPlanMode|exit_plan_mode, timeoutMs: 10000 }
+      pi: { unsupported: "Pi has no plan mode, so there is no approved plan to capture" }
+      agy: { event: Stop, timeoutMs: 15000, also: [{ event: PreInvocation, timeoutMs: 10000 }] }
 
   - id: H13
     name: memory.inject
@@ -168,6 +204,9 @@ hooks:
       codex: { event: SessionStart, matcher: startup|resume|clear|compact, timeoutMs: 10000 }
       opencode: { event: session.context }
       omp: { event: before_agent_start }
+      qwen: { event: SessionStart, timeoutMs: 10000 }
+      pi: { event: before_agent_start }
+      agy: { event: SessionStart, timeoutMs: 10000 }
 
   - id: H14
     name: memory.capture
@@ -191,6 +230,9 @@ hooks:
         event: session_stop
         async: true
         also: [{ event: session_shutdown }, { event: input }, { event: tool_result }, { event: turn_end }, { event: session_compact }]
+      qwen: { event: PostToolUse, matcher: "run_shell_command|monitor|web_search|web_fetch|mcp__.*", async: true, timeoutMs: 5000, also: [{ event: Stop, timeoutMs: 15000 }, { event: PostCompact, timeoutMs: 5000 }, { event: SessionEnd, timeoutMs: 3000 }] }
+      pi: { event: agent_before_settle, async: true, also: [{ event: session_shutdown }, { event: input }, { event: tool_result }, { event: turn_end }, { event: session_compact }] }
+      agy: { event: Stop, timeoutMs: 15000, also: [{ event: PostToolUse, matcher: "run_command|search_web|read_url_content", timeoutMs: 5000 }] }
 
   - id: H15
     name: capability.catalog
@@ -203,6 +245,9 @@ hooks:
       codex: { event: SessionStart, matcher: startup|resume|clear|compact, timeoutMs: 10000 }
       opencode: { event: session.context }
       omp: { event: before_agent_start }
+      qwen: { event: SessionStart, timeoutMs: 10000 }
+      pi: { event: before_agent_start }
+      agy: { event: SessionStart, timeoutMs: 10000 }
 
   - id: H16
     name: session.maint
@@ -215,6 +260,9 @@ hooks:
       codex: { event: SessionStart, matcher: startup, async: true, timeoutMs: 30000 }
       opencode: { event: setup, async: true }
       omp: { event: session_start, async: true }
+      qwen: { event: SessionEnd, timeoutMs: 3000 }
+      pi: { event: session_start, async: true }
+      agy: { event: SessionStart, timeoutMs: 30000 }
 
   - id: H17
     name: profile.guard
@@ -227,6 +275,9 @@ hooks:
       codex: { event: SessionStart, matcher: startup, timeoutMs: 5000 }
       opencode: { event: setup, also: [{ event: session.context }] }
       omp: { event: session_start }
+      qwen: { event: SessionStart, matcher: startup, timeoutMs: 10000 }
+      pi: { event: session_start }
+      agy: { event: SessionStart, timeoutMs: 10000 }
 
   - id: H18
     name: status.feed
@@ -241,6 +292,9 @@ hooks:
         also: [{ event: UserPromptSubmit }, { event: PostToolUse }, { event: Stop }, { event: PostCompact }]
       opencode: { event: session.usage.updated, also: [{ event: session.execution.succeeded }] }
       omp: { event: turn_end, also: [{ event: session_start }] }
+      qwen: { event: SessionStart, also: [{ event: UserPromptSubmit }, { event: PostToolUse }, { event: Stop }, { event: PostCompact }] }
+      pi: { event: turn_end, also: [{ event: session_start }] }
+      agy: { event: SessionStart, also: [{ event: PreInvocation }, { event: PostToolUse }, { event: Stop }] }
 
   - id: H19
     name: review.gate
@@ -253,6 +307,9 @@ hooks:
       codex: { event: SubagentStop, timeoutMs: 10000 }
       opencode: { event: tool.execute.after, matcher: subagent }
       omp: { event: tool_call, matcher: [yield] }
+      qwen: { event: SubagentStop, timeoutMs: 10000 }
+      pi: { unsupported: "Pi has no subagent tool, so no review report is handed back" }
+      agy: { event: PostToolUse, matcher: invoke_subagent, timeoutMs: 10000 }
 
   - id: H20
     name: consent.gate
@@ -265,6 +322,9 @@ hooks:
       codex: { event: PreToolUse, matcher: Bash|mcp__.+, timeoutMs: 5000, also: [{ event: UserPromptSubmit, timeoutMs: 5000 }, { event: PermissionRequest, matcher: "^(Bash|mcp__.+)$", timeoutMs: 10000 }] }
       opencode: { event: permission.evaluate, matcher: [bash], also: [{ event: session.prompt }] }
       omp: { event: tool_call, matcher: [bash], also: [{ event: input }] }
+      qwen: { event: PreToolUse, matcher: run_shell_command|monitor, timeoutMs: 10000, also: [{ event: UserPromptSubmit, timeoutMs: 10000 }] }
+      pi: { event: tool_call, matcher: [bash], also: [{ event: input }] }
+      agy: { event: PreToolUse, matcher: run_command, timeoutMs: 10000, also: [{ event: PreInvocation, timeoutMs: 10000 }] }
 
   - id: H21
     name: workspace.prepare
@@ -277,6 +337,9 @@ hooks:
       codex: { event: SessionStart, matcher: startup|resume|clear|compact, timeoutMs: 10000, also: [{ event: SubagentStart, timeoutMs: 10000 }] }
       opencode: { event: setup, also: [{ event: session.created }] }
       omp: { event: session_start }
+      qwen: { event: SessionStart, timeoutMs: 10000, also: [{ event: SubagentStart, timeoutMs: 5000 }] }
+      pi: { event: session_start }
+      agy: { event: SessionStart, timeoutMs: 10000 }
 
   - id: H22
     name: route.prompt
@@ -289,6 +352,9 @@ hooks:
       codex: { event: UserPromptSubmit, timeoutMs: 5000 }
       opencode: { event: session.prompt, also: [{ event: session.context }] }
       omp: { event: input, also: [{ event: before_agent_start }] }
+      qwen: { event: UserPromptSubmit, timeoutMs: 10000 }
+      pi: { event: input, also: [{ event: before_agent_start }] }
+      agy: { event: PreInvocation, timeoutMs: 10000 }
 
   - id: H23
     name: route.audit
@@ -301,6 +367,9 @@ hooks:
       codex: { event: Stop, timeoutMs: 15000 }
       opencode: { event: session.execution.succeeded }
       omp: { event: session_stop }
+      qwen: { event: Stop, timeoutMs: 15000 }
+      pi: { event: agent_before_settle }
+      agy: { event: Stop, timeoutMs: 15000 }
 
   - id: H24
     name: usage.ledger
@@ -319,6 +388,9 @@ hooks:
       codex: { event: PreToolUse, matcher: Bash|apply_patch|mcp__.+, timeoutMs: 5000 }
       opencode: { event: tool.execute.before, also: [{ event: tool.execute.after }, { event: session.skill.activated }] }
       omp: { event: tool_call, also: [{ event: tool_result }] }
+      qwen: { event: PreToolUse, matcher: "Skill|skill|grep_search|glob|mcp__.*", timeoutMs: 10000, also: [{ event: PostToolUse, matcher: read_file, async: true, timeoutMs: 5000 }, { event: PostToolUseFailure, matcher: "mcp__.*", timeoutMs: 5000 }] }
+      pi: { event: tool_call, also: [{ event: tool_result }] }
+      agy: { event: PreToolUse, timeoutMs: 10000, also: [{ event: PostToolUse, timeoutMs: 5000 }] }
 
   - id: H25
     name: flow.track
@@ -342,6 +414,9 @@ hooks:
           - { event: PreToolUse, matcher: Bash, timeoutMs: 5000 }
       opencode: { event: session.prompt, also: [{ event: tool.execute.before, matcher: skill }, { event: session.skill.activated }] }
       omp: { event: input, also: [{ event: tool_result }, { event: before_agent_start }, { event: session_start }, { event: session_switch }] }
+      qwen: { event: UserPromptExpansion, timeoutMs: 5000, also: [{ event: PostToolUse, matcher: Skill|skill, async: true, timeoutMs: 5000 }] }
+      pi: { event: input, also: [{ event: tool_result }, { event: before_agent_start }, { event: session_start }] }
+      agy: { event: PreInvocation, timeoutMs: 10000, also: [{ event: PostToolUse, timeoutMs: 5000 }, { event: SessionStart, timeoutMs: 10000 }] }
 
   - id: H28
     name: project.assets
@@ -365,3 +440,6 @@ hooks:
       omp:
         event: before_agent_start
         also: [{ event: session_start }, { event: tool_result, matcher: [edit, write, ast_edit], timeoutMs: 20000 }, { event: session_stop }]
+      qwen: { event: SessionStart, timeoutMs: 10000, also: [{ event: PostToolUse, matcher: edit|write_file|notebook_edit, timeoutMs: 30000 }, { event: Stop, timeoutMs: 15000 }] }
+      pi: { event: before_agent_start, also: [{ event: session_start }, { event: tool_result, matcher: [edit, write], timeoutMs: 20000 }, { event: agent_before_settle }] }
+      agy: { event: SessionStart, timeoutMs: 10000, also: [{ event: PostToolUse, matcher: write_to_file|replace_file_content|multi_replace_file_content|notebook_edit, timeoutMs: 30000 }, { event: Stop, timeoutMs: 15000 }] }

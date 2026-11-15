@@ -161,6 +161,16 @@ export const HOST_LIMITS: readonly HostLimit[] = [
     fallback: 'the second opinion runs with read, grep and glob only (Buracle\'s extension blocks every other tool, MCP tools and `xd://` devices included), and Buracle puts the diff and the changed files into its prompt',
     recheck: `whether a --config <file> overlay (docs/settings.md) with tools.approvalMode write (docs/approval-mode.md) and bash.patterns allow rules for the read-only git and rg commands (docs/tools/bash.md) lets bash join the read tools: per https://github.com/can1357/oh-my-pi/blob/v18.10.1/docs/bash-tool-runtime.md an allow rule grants a simple command the write tier, while redirections, substitutions, globbing and chains keep the exec tier (bash.allowCompoundCommands opts flat && chains in), bash.patterns do not bind eval (pair them with tools.approval.eval), and a prompt without a UI is refused in print mode. Probe on a real omp: with that overlay, in print mode, \`git status > /tmp/x\` and \`rg x $(pwd)\` must be refused and \`git status\` allowed; ${CHECKED}`,
   },
+  {
+    id: 'agy.no-compaction-event', harness: 'agy', feature: 'preCompact', event: 'preCompact', kind: 'limit', checkedOn: '1.5.9',
+    reason: 'the hook events of AGY CLI are SessionStart, PreToolUse, PostToolUse, PreInvocation, PostInvocation and Stop: nothing runs before or after a conversation is compacted', fallback: 'H06 and H07 are not bound; H13 injects the memory context at SessionStart and H05 watches the context size before each model call',
+    recheck: `the hooks reference embedded in the agy 1.5.9 program (Lifecycle Hooks, Supported Event Types), published at https://antigravity.google/docs; checked 2026-11-15`,
+  },
+  {
+    id: 'agy.no-session-end', harness: 'agy', feature: 'sessionEnd', event: 'sessionEnd', kind: 'limit', checkedOn: '1.5.9',
+    reason: 'AGY CLI has no event for the end of a conversation; Stop fires whenever the execution loop ends, which is the end of a turn', fallback: 'H14 captures at every Stop, so a conversation is never lost; which Stop counts as its end is decided by the AGY adapter',
+    recheck: `the hooks reference embedded in the agy 1.5.9 program (Stop contract: terminationReason, fullyIdle), published at https://antigravity.google/docs; checked 2026-11-15`,
+  },
 ]
 
 /** The record of a canonical event a host lacks; every null in a profile's event map has one. */

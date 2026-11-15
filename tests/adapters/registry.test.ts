@@ -13,7 +13,7 @@ describe('adapter registry', () => {
 
   test('detect() finds the binary on PATH and parses --version', () => withSandbox(async ({ root }) => {
     const bin = join(root, 'bin')
-    const outputs: Record<string, string> = { claude: '2.1.293 (Claude Code)', codex: 'codex-cli 0.161.0', opencode: 'opencode v2.0.24', omp: 'omp/18.8.3' }
+    const outputs: Record<string, string> = { claude: '2.1.293 (Claude Code)', codex: 'codex-cli 0.161.0', opencode: 'opencode v2.0.24', omp: 'omp/18.8.3', qwen: '1.0.0-preview.1', pi: '1.5.2', agy: '1.5.9' }
     const exe: Record<string, string> = {}
     for (const [name, out] of Object.entries(outputs)) exe[name] = fakeExe(join(bin, name), `console.log(${JSON.stringify(out)})`)
     await withEnv({ PATH: narrowPath(bin) }, async () => {
@@ -23,6 +23,9 @@ describe('adapter registry', () => {
         { installed: true, version: '0.161.0', path: exe['codex'] },
         { installed: true, version: '2.0.24', path: exe['opencode'] },
         { installed: true, version: '18.8.3', path: exe['omp'] },
+        { installed: true, version: '1.0.0-preview.1', path: exe['qwen'] },
+        { installed: true, version: '1.5.2', path: exe['pi'] },
+        { installed: true, version: '1.5.9', path: exe['agy'] },
       ])
     })
     await withEnv({ PATH: join(root, 'empty') }, async () => {

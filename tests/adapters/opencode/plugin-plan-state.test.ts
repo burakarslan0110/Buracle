@@ -161,7 +161,7 @@ describe('w2 plan state on OpenCode: the lane guard and the H08 receipt', () => 
     const lane = evaluation('shell', ['buracle plan resume'], child)
     await f.trigger('permission.evaluate', lane)
     expect(lane.effect).toBe('deny')
-    expect(lane.message).toContain('Buracle lane guard')
+    expect(lane.message).toContain('Buracle H01: a subagent does not run')
     const status = evaluation('shell', ['buracle plan status --json'], child)
     await f.trigger('permission.evaluate', status)
     expect(status.effect).toBe('allow')

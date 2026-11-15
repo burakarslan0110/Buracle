@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Harness } from '../core/events'
+import { harnessProfile } from '../core/harness/index'
 import { atomicWriteSync, readJsonSafeSync } from '../engine/fsx'
 import * as paths from '../engine/paths'
 import { run } from '../engine/proc'
@@ -57,6 +58,9 @@ export function runnerArgv(h: Harness, model?: string): string[] {
     case 'codex': return ['codex', 'exec', ...withModel, '--ephemeral', '--skip-git-repo-check', '--sandbox', 'read-only', '--color', 'never', '-']
     case 'opencode': return ['opencode', 'run', '--agent', OPENCODE_RUNNER_AGENT, ...withModel]
     case 'omp': return ['omp', '-p', ...withModel, '--no-session', '--no-tools', '--no-skills', '--no-rules', '--no-lsp', '--no-title']
+    case 'qwen': return ['qwen', '-p', ...withModel, '--no-session-persistence', '--tools', '']
+    case 'pi': return ['pi', '-p', ...withModel, '--no-session', '--no-tools', '--no-skills', '--no-extensions', '--no-mcp', '--no-prompt-templates', '--no-context-files']
+    case 'agy': return ['agy', '-p']
   }
 }
 
@@ -135,6 +139,7 @@ export function harnessRunner(h: Harness): ModelRunner {
   return async (prompt, opts) => {
     let scratch: string | undefined
     const bin = runnerArgv(h)[0] as string
+    if (harnessProfile(h).noStdinPrint === true) return { ok: false, text: '', error: `${h}: its print mode takes the prompt as an argument, not on stdin`, unavailable: true }
     if (onPath(bin) === null) {
       markRunnerUnavailable(h, Date.now(), `${bin} is not on PATH`)
       return { ok: false, text: '', error: `${h}: ${bin} is not on PATH`, unavailable: true }

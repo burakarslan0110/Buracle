@@ -560,7 +560,7 @@ describe('PostToolUseFailure and PostToolUse: H24 MCP results, the session failu
 
   test('servers in mcp.off.claude are unavailable for good: the built-in web search is allowed with an "off" note and the router leaves them out; off only in Codex changes nothing here', async () => {
     await withSandbox(async () => {
-      const off = (claude: string[], codex: string[] = []) => ctx({ mcp: { shared: true, off: { claude, codex, opencode: [], omp: [] } } })
+      const off = (claude: string[], codex: string[] = []) => ctx({ mcp: { shared: true, off: { claude, codex, opencode: [], omp: [], qwen: [], pi: [], agy: [] } } })
       const search = async (c: AdapterContext) => decision((await claudeHook('PreToolUse', payload('PreToolUse', { tool_name: 'WebSearch', tool_input: { query: 'bun 1.4 release notes' } }), c, deps())).stdout)
       const route = async (c: AdapterContext) => context((await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'search the web for the bun 1.4 release notes' }), c, deps())).stdout)
       expect(String((await search(off([], ['web-search', 'web-fetch']))).permissionDecisionReason)).toContain(WS)
@@ -807,7 +807,7 @@ describe('w2 plan state on Claude: H10 holds, H09 notes, the H08 receipt, the la
     await withSandbox(async () => {
       const bash = (command: string, extra: Record<string, unknown> = {}) => payload('PreToolUse', { tool_name: 'Bash', tool_input: { command }, ...extra })
       const lane = { agent_id: 'agent-1', agent_type: 'general-purpose' }
-      expect(deny((await claudeHook('PreToolUse', bash('buracle plan pause --kind decision --reason "merge?"', lane), ctx(), deps())).stdout)).toContain('Buracle lane guard')
+      expect(deny((await claudeHook('PreToolUse', bash('buracle plan pause --kind decision --reason "merge?"', lane), ctx(), deps())).stdout)).toContain('Buracle H01: a subagent does not run')
       expect(deny((await claudeHook('PreToolUse', bash('buracle flow phase verify', lane), ctx(), deps())).stdout)).toContain('`buracle flow phase`')
       expect(deny((await claudeHook('PreToolUse', bash('buracle plan status --json', lane), ctx(), deps())).stdout)).toBeUndefined()
       expect(deny((await claudeHook('PreToolUse', bash('buracle plan pause --kind decision'), ctx(), deps())).stdout)).toBeUndefined()

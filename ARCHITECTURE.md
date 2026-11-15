@@ -34,7 +34,7 @@ both), and where a fact differs per harness it is one short labelled sentence. T
 Oh My Pi read natively. Claude Code reads the same text from the Buracle plugin's bundled skills. Which harness reads
 which folder, and how a user starts a skill (`/<id>`, `$<id>`, `@<id>`), is data in the harness profile.
 
-**Hooks.** `canonical/hooks.yaml` lists 27 hooks (`H01` ... `H28`; an id is never reused). Each names what it does, whether
+**Hooks.** `canonical/hooks.yaml` lists 26 hooks (`H01` ... `H28`; `H26` and `H27` are retired and an id is never reused). Each names what it does, whether
 it can block, whether it fails open or closed, and its binding per harness: the native event and a matcher. Behind the
 bindings every harness runs the same code, the shared pipeline described below.
 

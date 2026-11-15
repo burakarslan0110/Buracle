@@ -245,7 +245,7 @@ describe('skill lint', () => {
     const extra = (r.data['skills'] as Array<Record<string, unknown>>).filter(s => s['kind'] === 'claude-only' || s['kind'] === 'unmanaged').map(s => [s['id'], s['kind'], s['harnesses']])
     expect(extra).toEqual([
       ['review', 'claude-only', ['claude', 'opencode', 'omp']],
-      ['hand', 'unmanaged', ['claude', 'codex', 'omp', 'opencode']],
+      ['hand', 'unmanaged', ['claude', 'codex', 'omp', 'opencode', 'pi', 'qwen']],
       ['solo', 'unmanaged', ['claude', 'opencode']],
     ])
     expect(r.lines.join('\n')).toContain('[claude-only: claude, opencode, omp]')

@@ -183,9 +183,9 @@ describe('canonical/hooks.yaml', () => {
     expect(by['H21']?.bindings.opencode).toEqual({ event: 'setup', also: [{ event: 'session.created' }] })
   })
 
-  test('codes the unsupported cells with a reason: none are left', () => {
+  test('codes the unsupported cells with a reason: only the five cells of hosts that lack the tool or event', () => {
     const unsupported = RAW.hooks.flatMap(h => HARNESSES.filter(x => { const b = h.bindings[x]; return b !== undefined && 'unsupported' in b }).map(x => `${h.id}/${x}`))
-    expect(unsupported).toEqual([])
+    expect(unsupported).toEqual(['H06/agy', 'H07/agy', 'H09/pi', 'H12/pi', 'H19/pi'])
   })
 
   test('H12 plan.capture is bound on all four harnesses; OpenCode saves a draft only', () => {

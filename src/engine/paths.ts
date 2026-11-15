@@ -70,7 +70,26 @@ export function ompHome(): string {
   return join(home(), '.omp')
 }
 
-const CONFIG_DIRS: Readonly<Record<Harness, () => string>> = { claude: claudeDir, codex: codexHome, opencode: opencodeConfigDir, omp: ompAgentDir }
+export function qwenHome(): string {
+  return absEnv('QWEN_HOME') ?? join(home(), '.qwen')
+}
+
+/** Pi's folder. Pi and omp both read PI_CODING_AGENT_DIR, so when it is set `piAgentDir()` and `ompAgentDir()` are one folder (see `agentDirShared`). */
+export function piAgentDir(): string {
+  return absEnv('PI_CODING_AGENT_DIR') ?? join(home(), '.pi', 'agent')
+}
+
+/** The folder PI_CODING_AGENT_DIR sends both Pi and omp to; undefined while each reads its own default folder. */
+export function agentDirShared(): string | undefined {
+  return absEnv('PI_CODING_AGENT_DIR')
+}
+
+/** AGY CLI's global customization root (skills/, plugins/, hooks.json, mcp_config.json). */
+export function agyDir(): string {
+  return join(home(), '.gemini', 'config')
+}
+
+const CONFIG_DIRS: Readonly<Record<Harness, () => string>> = { claude: claudeDir, codex: codexHome, opencode: opencodeConfigDir, omp: ompAgentDir, qwen: qwenHome, pi: piAgentDir, agy: agyDir }
 
 /** A harness's config folder (the `configDir` of its profile). */
 export function harnessConfigDir(h: Harness): string {

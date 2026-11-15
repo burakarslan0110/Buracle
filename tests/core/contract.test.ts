@@ -33,7 +33,7 @@ assertType<Equals<typeof core.capabilityCard, (input: { policy: RoutingPolicy, m
 assertType<Equals<typeof core.checkQuestion, (state: SessionState, call: ToolCall, now: number) => { deny?: string, context?: string }>>(true)
 assertType<Equals<typeof core.questionPause, (state: SessionState, call: ToolCall, now: number) => SessionState>>(true)
 assertType<Equals<typeof core.questionAnswered, (response: unknown, depth?: number) => boolean>>(true)
-assertType<Equals<typeof core.laneStateDenial, (command: string) => string | undefined>>(true)
+assertType<Equals<typeof core.subagentStateDenial, (command: string) => string | undefined>>(true)
 assertType<Equals<typeof core.detectIntent, (text: string) => Intent>>(true)
 assertType<Equals<Intent, 'pause' | 'resume' | 'stop' | 'history' | null>>(true)
 assertType<Equals<typeof core.controlGuidance, (intent: Intent, opts: { hasPlan: boolean, interaction?: core.HeldInteraction }) => string | undefined>>(true)
@@ -124,7 +124,7 @@ describe('core exports', () => {
       'visitShellCommands', 'selfProtectedArea', 'selfProtectionText', 'indexStatusOf',
       'ruleGlobs', 'pathRuleIndex', 'projectRelative', 'matchPathRules', 'ruleText', 'ruleFileId', 'pathRuleNote',
       'promptInteraction', 'answerReceipt', 'approveResult', 'dropResultApproval', 'resumePlan', 'planProgressed', 'needsResultApproval', 'planObjective',
-      'objectiveLine', 'backgroundWait', 'finiteRunner', 'questionPause', 'questionAnswered', 'laneStateDenial', 'pausedReply', 'isResultApproval', 'isResultReview',
+      'objectiveLine', 'backgroundWait', 'finiteRunner', 'questionPause', 'questionAnswered', 'subagentStateDenial', 'pausedReply', 'isResultApproval', 'isResultReview',
       'isRunawayDecision', 'resultReviewable', 'isHandback', 'isModelSwitch', 'resumableDecision', 'tickedTasks',
     ]
     const exported = core as unknown as Record<string, unknown>
