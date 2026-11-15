@@ -64,11 +64,10 @@ export interface PromptRouting {
   text?: string
 }
 
-export function promptRouting(prompt: string, data: RouterData, o: { ledger: UsageLedger, available: readonly string[], deps?: readonly string[], skills: 'router' | 'off', pluginRoot: string }): PromptRouting {
+export function promptRouting(prompt: string, data: RouterData, o: { ledger: UsageLedger, available: readonly string[], deps?: readonly string[], pluginRoot: string }): PromptRouting {
   const opts: Parameters<typeof routePrompt>[2] = { harness: H, loaded: Object.keys(o.ledger.skills), available: o.available }
   if (o.deps !== undefined) opts.deps = o.deps
   let route = routePrompt(prompt, data.compiled, opts)
-  if (o.skills === 'off') route = { ...route, load: [], candidates: [] }
   const text = routeText(route, H, data.policy, { triggers: data.compiled, skillFile: id => join(o.pluginRoot, 'skills', id, 'SKILL.md') })
   return text !== undefined ? { route, text } : { route }
 }

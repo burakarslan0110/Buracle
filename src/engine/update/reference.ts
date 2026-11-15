@@ -181,7 +181,6 @@ export const CONFIG_DESCRIPTIONS: Readonly<Record<string, string>> = {
   version: 'Version of the configuration schema. Always `1`.',
   repo: 'Absolute path of the Buracle checkout. `buracle install` writes it; the shim runs the CLI of this checkout.',
   'routing.strictness': 'How strictly tool routing is applied. `enforce`: a built-in tool (web search, web fetch, …) is denied while a healthy preferred MCP server exists, and the deny-once gates of the usage ledger apply. `nudge`: the call is allowed with a routing note. `off`: no routing.',
-  'routing.skills': 'The prompt-time skill router (H22). `router`: an exact invocation of another harness\'s syntax (`/id`, `$id`, `@id`) gets a load instruction; no phrase in the prompt loads or suggests a skill. `off`: no load instruction either. The agent chooses skills from their descriptions in both cases.',
   'routing.reminders': 'Tool-time reminders driven by the per-session usage ledger (H24): use semble for questions about intent, codegraph after many reads or searches, context7 for library documentation. Each one appears at most once per category in a session unless the topic comes back.',
   'guards.bash.extraDeny': 'Extra deny patterns on top of the built-in list of destructive shell commands (H01). They also hold for Oh My Pi\'s `eval` cells.',
   'guards.write.protect': 'Extra path globs protected from writes, on top of secrets and generated files (H02).',

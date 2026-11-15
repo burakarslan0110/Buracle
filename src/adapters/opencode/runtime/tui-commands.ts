@@ -108,7 +108,7 @@ export function statusLines(host: UtilityHost): string[] {
     `Buracle on OpenCode${about.opencode !== undefined && about.opencode !== '' ? ` ${about.opencode}` : ''}`,
     `session: ${sid ?? '-'}`,
     `permissions: ${cfg.permissions.bypass ? "no approval prompts (Buracle's guards and consent gate still deny)" : 'as OpenCode is configured'}`,
-    `routing: ${cfg.routing.strictness} · skill router: ${cfg.routing.skills} · workflow band: ${cfg.workflow.band ? 'on' : 'off'}`,
+    `routing: ${cfg.routing.strictness} · workflow band: ${cfg.workflow.band ? 'on' : 'off'}`,
     `workflows: ${about.workflows.map(w => `/${w}`).join(' ')}`,
   ]
   const url = memoryUiUrl()

@@ -429,7 +429,7 @@
     },
     "harness/claude/hooks/core/config.ts": {
       "by": "claude",
-      "sha256": "1284e923c9dcc43eae1c917b898eddb6e7aaced1209b7d9bd51da621f3f5ed40",
+      "sha256": "3cc2f67e9fc178117d2250d9f91ceb158c8f152a9ed4668ddd1abcdf9b50124c",
       "exec": false
     },
     "harness/claude/hooks/core/events.ts": {
@@ -899,7 +899,7 @@
     },
     "harness/claude/hooks/generated/meta.ts": {
       "by": "claude",
-      "sha256": "242d375bca2b209b41a610985d33cf9b248f6d11f7fc8280d8d1740a77809bc0",
+      "sha256": "d5c6a33fece682b23835d15db1ee198a08abd46f6bd4f24b0c18b5f2417eea6c",
       "exec": false
     },
     "harness/claude/hooks/hooks.json": {
@@ -1389,7 +1389,7 @@
     },
     "harness/omp/extensions/buracle.js": {
       "by": "omp",
-      "sha256": "a81cb28b8a7139966fa6321be45877648b5d6c5ff4575a2426838f240cbdca56",
+      "sha256": "d2fd3d794e82965a99243753a9518a420c097b06b57e5ac0d58c8e78d2dcae3c",
       "exec": false
     },
     "harness/omp/package.json": {
@@ -1489,17 +1489,17 @@
     },
     "harness/opencode/manifest.json": {
       "by": "opencode",
-      "sha256": "795739fbf27d19c1e27320f8eec246fc1904dc6e9588e1dbc5889f0c2fe70733",
+      "sha256": "f18b5ebb3659728350d9898ed86fd47cb5059bf464bf3c6d1935f866ee33bf7e",
       "exec": false
     },
     "harness/opencode/plugins/buracle/index.js": {
       "by": "opencode",
-      "sha256": "3881c1d0730c1f0bd9ee0f6a2038db6a6defa1dd75fdf69216f14a159adfa81b",
+      "sha256": "1edfff8dbcc4b639d091a6f81fb6bdcfa39d54514374295d2d73243349e556bf",
       "exec": false
     },
     "harness/opencode/plugins/buracle/tui.js": {
       "by": "opencode",
-      "sha256": "e6d3418d96ddbc74b6e54a9e5c1c422397dc1e2a3882cbba7b67945ff3e4af24",
+      "sha256": "5f3bdd97a8cf7dac4816c883054305a716300c85f6c7a908a896121ee8be2cd5",
       "exec": false
     }
   }

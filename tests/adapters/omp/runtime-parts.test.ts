@@ -231,15 +231,12 @@ describe('omp routing helpers (H03, H22, H24)', () => {
     expect(rootProblem('/w', info, env)).toBe('a parent folder of the project')
   })
 
-  test('promptRouting: an explicit ask loads the skill through skill://; routing.skills off keeps only memory and MCP lines', () => {
+  test('promptRouting: an explicit ask loads the skill through skill://; a native invocation loads nothing more', () => {
     const data = routerData([{ id: 'research', description: 'Research with sources.', userInvocable: true, invocation: 'implicit' }], { strictness: 'enforce', categories: [] }, 'enforce')
-    const on = promptRouting('$research compare zod and valibot', data, { loaded: [], available: ['buracle-memory'], skills: 'router', strictness: 'enforce' })
+    const on = promptRouting('$research compare zod and valibot', data, { loaded: [], available: ['buracle-memory'], strictness: 'enforce' })
     expect(on.route.load).toEqual(['research'])
     expect(on.text).toContain('(read skill://research)')
-    const off = promptRouting('$research compare zod and valibot', data, { loaded: [], available: ['buracle-memory'], skills: 'off', strictness: 'enforce' })
-    expect(off.route.load).toEqual([])
-    expect(off.text).toBeUndefined()
-    const invoked = promptRouting('/skill:research zod', data, { loaded: [], available: [], skills: 'router', strictness: 'enforce' })
+    const invoked = promptRouting('/skill:research zod', data, { loaded: [], available: [], strictness: 'enforce' })
     expect(invoked.route.invoked).toEqual(['research'])
     expect(invoked.text).toBeUndefined()
   })

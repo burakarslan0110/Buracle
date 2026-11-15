@@ -31,7 +31,6 @@ export function availableServers(ctx: Pick<AdapterContext, 'canonical'>, core: C
 export function routeUserPrompt(prompt: string, o: { ctx: Pick<AdapterContext, 'canonical' | 'config'>, core: CoreFns, policy: RoutingPolicy, ledger: UsageLedger, available: readonly string[], deps: readonly string[] }): { route: PromptRoute, text?: string } {
   const compiled = o.core.compileTriggers(o.core.catalogSkills(o.ctx.canonical.skills), o.policy)
   let route = o.core.routePrompt(prompt, compiled, { harness: H, loaded: Object.keys(o.ledger.skills), available: o.available, deps: o.deps })
-  if (o.ctx.config.routing.skills === 'off') route = { ...route, load: [], candidates: [] }
   if (o.ctx.config.routing.strictness === 'off') {
     route = { ...route, categories: [] }
     delete route.libs

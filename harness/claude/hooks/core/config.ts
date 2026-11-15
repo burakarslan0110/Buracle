@@ -9,7 +9,7 @@ export interface BuracleConfig {
   version: 1
   repo?: string
   harnesses: Record<Harness, { enabled: boolean }>
-  routing: { strictness: 'enforce' | 'nudge' | 'off', skills: 'router' | 'off', reminders: boolean }
+  routing: { strictness: 'enforce' | 'nudge' | 'off', reminders: boolean }
   guards: { bash: { extraDeny: string[] }, write: { protect: string[] }, redact: boolean }
   plan: {
     stopGuard: boolean, planApproval: boolean, resultApproval: boolean, branchIsolation: boolean
@@ -32,7 +32,7 @@ export function defaultConfig(): BuracleConfig {
   return {
     version: 1,
     harnesses: harnessTable(() => ({ enabled: true })),
-    routing: { strictness: 'enforce', skills: 'router', reminders: true },
+    routing: { strictness: 'enforce', reminders: true },
     guards: { bash: { extraDeny: [] }, write: { protect: [] }, redact: true },
     plan: {
       stopGuard: true,
@@ -93,7 +93,6 @@ const CONFIG_SCHEMA: Schema = {
       t: 'obj',
       fields: {
         strictness: { t: 'enum', values: ['enforce', 'nudge', 'off'] },
-        skills: { t: 'enum', values: ['router', 'off'] },
         reminders: bool,
       },
     },

@@ -100,16 +100,13 @@ describe('omp H22 route.prompt and H23 route.audit', () => {
     }
   }))
 
-  test('a pause with a plan gets the English guidance first, then the route; routing.skills off drops the skill line', () => withSandbox(async sb => {
+  test('a pause with a plan gets the English guidance first, then the route', () => withSandbox(async sb => {
     const { fp, ctx } = setup(sb)
     saveState('omp', SID, planState())
     await fp.emit('input', input('$plan-build dur'), ctx)
     const text = await hidden(fp, ctx, 'x') as string
     expect(text.startsWith(CONTROL_GUIDANCE.pausePlan)).toBe(true)
     expect(text).toContain('read skill://plan-build')
-    const off = setup(sb, { config: d => ({ config: { ...d, routing: { ...d.routing, skills: 'off' } }, vault: '/v', shim: '/s', source: 'defaults' }) }, { sid: '01a118a8-8d01-740c-9360-dddddddddddd' })
-    await off.fp.emit('input', input('$plan-build add rate limiting'), off.ctx)
-    expect(await hidden(off.fp, off.ctx, 'x')).toBeUndefined()
   }))
 
   test('a memory runner child (BURACLE_MEMORY_RUNNER=1, print mode) gets no routing message and no system block', () => withSandbox(async sb => {

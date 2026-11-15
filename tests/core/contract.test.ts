@@ -14,7 +14,7 @@ assertType<Equals<typeof core.defaultConfig, () => BuracleConfig>>(true)
 assertType<Equals<typeof core.mergeConfig, (base: BuracleConfig, override: unknown) => BuracleConfig>>(true)
 assertType<Equals<typeof core.validateConfig, (x: unknown) => { ok: true, config: BuracleConfig } | { ok: false, errors: string[] }>>(true)
 assertType<Equals<BuracleConfig['harnesses'], Record<Harness, { enabled: boolean }>>>(true)
-assertType<Equals<BuracleConfig['routing'], { strictness: 'enforce' | 'nudge' | 'off', skills: 'router' | 'off', reminders: boolean }>>(true)
+assertType<Equals<BuracleConfig['routing'], { strictness: 'enforce' | 'nudge' | 'off', reminders: boolean }>>(true)
 
 const classify: (harness: Harness, tool: string, input: Record<string, unknown>, cwd: string) => Pick<ToolCall, 'kind' | 'command' | 'paths' | 'mcp'> = core.classifyTool
 void classify

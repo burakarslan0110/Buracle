@@ -29970,7 +29970,7 @@ function defaultConfig() {
   return {
     version: 1,
     harnesses: harnessTable(() => ({ enabled: true })),
-    routing: { strictness: "enforce", skills: "router", reminders: true },
+    routing: { strictness: "enforce", reminders: true },
     guards: { bash: { extraDeny: [] }, write: { protect: [] }, redact: true },
     plan: {
       stopGuard: true,
@@ -30021,7 +30021,6 @@ var CONFIG_SCHEMA = {
       t: "obj",
       fields: {
         strictness: { t: "enum", values: ["enforce", "nudge", "off"] },
-        skills: { t: "enum", values: ["router", "off"] },
         reminders: bool
       }
     },
@@ -36225,8 +36224,6 @@ function promptRouting(prompt, data, o) {
   if (o.deps !== undefined)
     opts.deps = o.deps;
   let route = routePrompt(prompt, data.compiled, opts);
-  if (o.skills === "off")
-    route = { ...route, load: [], candidates: [] };
   if (o.strictness === "off" && route.categories.length > 0) {
     const { libs: _libs, ...rest } = route;
     route = { ...rest, categories: [] };
@@ -36925,7 +36922,6 @@ var GENERATED = {
     },
     routing: {
       reminders: true,
-      skills: "router",
       strictness: "enforce"
     },
     skills: {
@@ -37979,7 +37975,7 @@ function createStatusTexts(host) {
     const out = [`Buracle ${data.buracleVersion} \xB7 Oh My Pi${omp !== undefined ? ` ${omp}` : ""}`];
     out.push(`session ${sid ?? "-"} \xB7 ${ctx.mode} \xB7 config ${lc.source}`);
     out.push(`permissions: ${lc.config.permissions.bypass ? "bypass (tools.approvalMode yolo; Buracle's guards and consent gate protect)" : "the harness setting"}`);
-    out.push(`routing: ${lc.config.routing.strictness} \xB7 skill router: ${lc.config.routing.skills} \xB7 workflow band: ${lc.config.workflow.band ? "on" : "off"}`);
+    out.push(`routing: ${lc.config.routing.strictness} \xB7 workflow band: ${lc.config.workflow.band ? "on" : "off"}`);
     if (sid !== undefined) {
       const state = guarded("state", () => deps.state.load(sid));
       const plan = state?.plan;
@@ -38587,7 +38583,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
     const route = (sid, text, lc) => {
       const strictness = lc.config.routing.strictness;
       const ledger = deps.ledger.load(sid);
-      const o = { loaded: Object.keys(ledger.skills), available: availableNow(sid), skills: lc.config.routing.skills, strictness };
+      const o = { loaded: Object.keys(ledger.skills), available: availableNow(sid), strictness };
       const pd = deps.projectDeps(readWorkspace(actx(lc), H2, sid)?.root);
       if (pd !== undefined)
         o.deps = pd;

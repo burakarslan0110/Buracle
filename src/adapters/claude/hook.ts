@@ -242,7 +242,7 @@ async function promptRoute(prompt: string, signals: PromptSignals, sid: string, 
   let data: RouterData | undefined
   try { data = routerData(ctx) } catch (e) { log('warn', 'claude hook: the prompt router has no canonical data; routing memory signals only', { error: e }) }
   if (data === undefined) return memoryOnlyRouting(signals, available, ctx.config.routing.strictness)
-  const o: Parameters<typeof promptRouting>[2] = { ledger: loadLedger(H, sid), available, skills: ctx.config.routing.skills, pluginRoot: root }
+  const o: Parameters<typeof promptRouting>[2] = { ledger: loadLedger(H, sid), available, pluginRoot: root }
   const deps = projectDeps(readWorkspace(sid)?.root)
   if (deps !== undefined) o.deps = deps
   return promptRouting(prompt, data, o)
