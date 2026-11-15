@@ -196,7 +196,7 @@ describe('H22 prompt delivery: a prompt takes effect at the request that carries
     const both = await requestTexts(f, ['msg_1', 'msg_2', 'msg_3'])
     expect(both.match(/Buracle routing for this prompt:/g)?.length).toBe(1)
     expect(both).toContain('- The user asked for the research skill: its skill is attached to this message')
-    expect(both).toContain('plan-build')
+    expect(both).toContain('Skills: the user starts a workflow with /<id>')
     expect(loadLedger('opencode', SID)).toMatchObject({ turn: 2, prompt: { route: { invoked: ['research'] } } })
   }))
 

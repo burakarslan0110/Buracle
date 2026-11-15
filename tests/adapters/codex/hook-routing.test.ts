@@ -300,7 +300,7 @@ describe('routing (H21-H26)', () => {
     const d = deps(quiet)
     const text = contextOf(await handleCodexHook('UserPromptSubmit', prompt('/buracle:plan-build add rate limiting to the upload endpoint'), ctx(), d))
     expect(text).toContain('read ~/.agents/skills/plan-build/SKILL.md')
-    expect(text).not.toContain('.agents/skills')
+    expect(text).not.toContain('CODEX_HOME')
     expect(readFlow('codex', SID)).toBeUndefined()
     const custom: CodexHookDeps = { ...d, env: () => ({ ...process.env, CODEX_HOME: '/opt/codex-home' }) }
     expect((await handleCodexHook('PreToolUse', payload('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'cat /opt/codex-home/skills/plan-build/SKILL.md' } }), ctx(), custom)).stdout).toBe('')
