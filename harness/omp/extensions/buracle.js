@@ -899,6 +899,7 @@ var init_pi = __esm(() => {
     bin: "pi",
     proc: { base: /^pi$/ },
     runtime: "inprocess",
+    companionPending: true,
     editBudgetMs: 20000,
     configDir: { key: "piAgentDir", env: "PI_CODING_AGENT_DIR", under: ".pi/agent" },
     relocationEnv: ["PI_CODING_AGENT_DIR"],
@@ -8751,7 +8752,7 @@ var init_shim = __esm(() => {
 var init_hook_fail = () => {};
 
 // src/engine/update/runtime.ts
-import { chmodSync as chmodSync2, cpSync, existsSync as existsSync13, mkdirSync as mkdirSync13, readFileSync as readFileSync23, readdirSync as readdirSync12, renameSync as renameSync3, rmSync as rmSync5, statSync as statSync25, writeFileSync as writeFileSync2 } from "fs";
+import { chmodSync as chmodSync2, cpSync, existsSync as existsSync13, mkdirSync as mkdirSync13, readFileSync as readFileSync24, readdirSync as readdirSync12, renameSync as renameSync3, rmSync as rmSync5, statSync as statSync25, writeFileSync as writeFileSync2 } from "fs";
 import { basename as basename8, dirname as dirname15, join as join37, relative as relative4, resolve as resolve20, sep as sep5 } from "path";
 function runtimeFiles(checkout) {
   const out = [];
@@ -8781,7 +8782,7 @@ function runtimeFiles(checkout) {
 }
 function readJson(path) {
   try {
-    const v = JSON.parse(readFileSync23(path, "utf8"));
+    const v = JSON.parse(readFileSync24(path, "utf8"));
     return v !== null && typeof v === "object" && !Array.isArray(v) ? v : undefined;
   } catch {
     return;
@@ -8803,7 +8804,7 @@ function runtimePackages(checkout) {
     return { error: `${join37(checkout, "package.json")} cannot be read` };
   let lock = "";
   try {
-    lock = readFileSync23(join37(checkout, "bun.lock"), "utf8");
+    lock = readFileSync24(join37(checkout, "bun.lock"), "utf8");
   } catch {}
   const locked = (name) => {
     const esc = name.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
@@ -8844,7 +8845,7 @@ function checkoutFingerprint(checkout, deps) {
   for (const rel of runtimeFiles(checkout)) {
     const abs = join37(checkout, rel);
     try {
-      parts.push(fileEntry(rel, readFileSync23(abs), statSync25(abs).mode));
+      parts.push(fileEntry(rel, readFileSync24(abs), statSync25(abs).mode));
     } catch {
       parts.push(`${rel}\x00missing
 `);
@@ -34468,7 +34469,7 @@ function heldConsentNeed(harness, sid, command) {
 }
 
 // src/adapters/omp/runtime/deps.ts
-import { readdirSync as readdirSync11, readFileSync as readFileSync22, rmSync as rmSync4, statSync as statSync24 } from "fs";
+import { readdirSync as readdirSync11, readFileSync as readFileSync23, rmSync as rmSync4, statSync as statSync24 } from "fs";
 import { join as join35, resolve as resolve18 } from "path";
 init_paths();
 // src/usage/bar.ts
@@ -35157,226 +35158,48 @@ async function captureSessionPlan(i) {
   return saved !== undefined ? { path: saved.path } : undefined;
 }
 
-// src/adapters/shared/repo-cache.ts
-init_fsx();
-import { existsSync as existsSync9, readFileSync as readFileSync16 } from "fs";
-import { dirname as dirname13, join as join23, resolve as resolve13 } from "path";
-var CACHE_TTL_MS = 30000;
-var CACHE_MAX = 64;
-var cache2 = new Map;
-function gitToplevel(dir) {
-  let d = resolve13(dir);
-  for (let i = 0;i < 128; i++) {
-    if (existsSync9(join23(d, ".git")))
-      return d;
-    const up = dirname13(d);
-    if (up === d)
-      return;
-    d = up;
-  }
-  return;
-}
-function packageName2(dir) {
-  try {
-    const pkg = JSON.parse(readFileSync16(join23(dir, "package.json"), "utf8"));
-    return pkg !== null && typeof pkg === "object" && typeof pkg.name === "string" ? pkg.name : undefined;
-  } catch {
-    return;
-  }
-}
-function real3(p) {
-  try {
-    return realPath(p);
-  } catch {
-    return resolve13(p);
-  }
-}
-function lookup(cwd, nowMs) {
-  const hit = cache2.get(cwd);
-  if (hit !== undefined && nowMs - hit.at >= 0 && nowMs - hit.at < CACHE_TTL_MS)
-    return hit;
-  const top = gitToplevel(cwd) ?? null;
-  const entry = { at: nowMs, top, name: top !== null ? packageName2(top) : undefined };
-  if (cache2.size >= CACHE_MAX)
-    cache2.clear();
-  cache2.set(cwd, entry);
-  return entry;
-}
-function buracleRepoFor2(cwd, configured, nowMs = Date.now()) {
-  try {
-    if (typeof cwd !== "string" || cwd === "")
-      return;
-    const { top, name } = lookup(cwd, nowMs);
-    if (top === null)
-      return;
-    if (name === "buracle")
-      return top;
-    const want = real3(top);
-    for (const c of configured) {
-      if (typeof c === "string" && c.trim() !== "" && real3(c.trim()) === want)
-        return top;
-    }
-    return;
-  } catch {
-    return;
-  }
-}
-
-// src/adapters/shared/workspace-start.ts
-function fallbackInfo(cwd, cfg) {
-  return {
-    cwd: canonicalDir2(cwd),
-    children: [],
-    index: { codegraph: { state: cfg.codegraph ? "none" : "off" }, semble: { state: cfg.semble ? "none" : "off" } }
-  };
-}
-async function prepareWorkspace(cwd, cfg, nowMs) {
-  try {
-    return infoFor(await resolveWorkspace(cwd, workspaceOptions(cfg)), cfg, nowMs);
-  } catch (e) {
-    log("warn", "workspace: preparing the session start failed", { cwd, error: e });
-    return fallbackInfo(cwd, cfg);
-  }
-}
-
-// src/adapters/shared/pi-family/config.ts
-import { readFileSync as readFileSync17, statSync as statSync16 } from "fs";
-init_paths();
-var configCache;
-var healthCache;
-var warned = new Set;
-function warnOnce(key, msg, data) {
-  if (warned.has(key))
-    return;
-  warned.add(key);
-  log("warn", msg, data);
-}
-function stat(path) {
-  try {
-    const st = statSync16(path);
-    return st.isFile() ? { mtimeMs: st.mtimeMs, size: st.size } : undefined;
-  } catch {
-    return;
-  }
-}
-function fromDefaults(defaults) {
-  return { config: defaults, vault: oldVaultRoot(), shim: shimPath(), source: "defaults" };
-}
-function parseRuntimeConfig(text, defaults) {
-  const raw = JSON.parse(text);
-  if (raw === null || typeof raw !== "object" || Array.isArray(raw))
-    throw new Error("runtime-config.json: expected an object");
-  const snap = raw;
-  const merged = runtimeSnapshotConfig(raw, defaults);
-  if (merged.warnings.length > 0)
-    warnOnce(`rc-warnings:${merged.warnings.join("|")}`, "pi-family: runtime-config.json needs attention", { warnings: merged.warnings });
-  if (snap.v !== RUNTIME_SNAPSHOT_VERSION)
-    return fromDefaults(merged.config);
-  if (merged.errors.length > 0)
-    warnOnce(`rc-errors:${merged.errors.join("|")}`, "pi-family: runtime-config.json has invalid values; defaults used for them", { errors: merged.errors });
-  const resolved = snap.resolved !== null && typeof snap.resolved === "object" ? snap.resolved : {};
-  const repo = typeof resolved["repoRoot"] === "string" && resolved["repoRoot"] !== "" ? resolved["repoRoot"] : merged.config.repo;
-  const live = { config: merged.config, vault: oldVaultRoot(), shim: shimPath(), source: "runtime-config" };
-  if (repo !== undefined)
-    live.repoRoot = repo;
-  if (Object.keys(resolved).length > 0)
-    live.resolved = resolved;
-  return live;
-}
-function liveConfig(defaults) {
-  const file = runtimeConfigFile();
-  const st = stat(file);
-  if (st === undefined)
-    return fromDefaults(defaults);
-  const c = configCache;
-  if (c !== undefined && c.path === file && c.mtimeMs === st.mtimeMs && c.size === st.size)
-    return c.value;
-  let value;
-  try {
-    value = parseRuntimeConfig(readFileSync17(file, "utf8"), defaults);
-  } catch (e) {
-    warnOnce(`rc-parse:${file}:${st.mtimeMs}`, "pi-family: runtime-config.json unreadable; using canonical defaults", { error: e instanceof Error ? e.message : String(e) });
-    value = fromDefaults(defaults);
-  }
-  configCache = { path: file, mtimeMs: st.mtimeMs, size: st.size, value };
-  return value;
-}
-function isRecord3(x) {
-  return x !== null && typeof x === "object" && !Array.isArray(x);
-}
-function withStatus(v) {
-  if (!isRecord3(v) || v["status"] !== undefined)
-    return v;
-  const s = v["health"] ?? v["state"];
-  return s !== undefined ? { ...v, status: s } : v;
-}
-function parseHealth(raw, nowMs = Date.now()) {
-  if (!isRecord3(raw))
-    return {};
-  const inner = raw["mcp"] ?? raw["servers"];
-  const table = isRecord3(inner) ? inner : raw;
-  return mcpHealthOf({ mcp: Object.fromEntries(Object.entries(table).map(([id, v]) => [id, withStatus(v)])) }, nowMs);
-}
-function mcpHealth2(nowMs = Date.now()) {
-  const file = healthFile();
-  const st = stat(file);
-  if (st === undefined)
-    return {};
-  const c = healthCache;
-  if (c !== undefined && c.path === file && c.mtimeMs === st.mtimeMs && c.size === st.size)
-    return parseHealth(c.value, nowMs);
-  let value;
-  try {
-    value = JSON.parse(readFileSync17(file, "utf8"));
-  } catch (e) {
-    warnOnce(`health:${file}:${st.mtimeMs}`, "pi-family: health.json unreadable; MCP health unknown", { error: e instanceof Error ? e.message : String(e) });
-  }
-  healthCache = { path: file, mtimeMs: st.mtimeMs, size: st.size, value };
-  return parseHealth(value, nowMs);
-}
-
 // src/adapters/omp/runtime/config.ts
-import { existsSync as existsSync10 } from "fs";
-import { join as join24 } from "path";
+import { existsSync as existsSync9 } from "fs";
+import { join as join23 } from "path";
 function ompConfigPath(agentDir) {
-  const yml = join24(agentDir, "config.yml");
-  const yaml = join24(agentDir, "config.yaml");
-  return !existsSync10(yml) && existsSync10(yaml) ? yaml : yml;
+  const yml = join23(agentDir, "config.yml");
+  const yaml = join23(agentDir, "config.yaml");
+  return !existsSync9(yml) && existsSync9(yaml) ? yaml : yml;
 }
 
 // src/adapters/shared/pi-family/memory.ts
 init_paths();
-import { readFileSync as readFileSync20, statSync as statSync22 } from "fs";
-import { join as join32 } from "path";
+import { readFileSync as readFileSync18, statSync as statSync21 } from "fs";
+import { join as join31 } from "path";
 init_shim();
 
 // src/memory/spool.ts
-import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync10, readdirSync as readdirSync6, readFileSync as readFileSync18, statSync as statSync17, unlinkSync as unlinkSync6 } from "fs";
-import { join as join26 } from "path";
+import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync10, readdirSync as readdirSync6, readFileSync as readFileSync16, statSync as statSync16, unlinkSync as unlinkSync6 } from "fs";
+import { join as join25 } from "path";
 init_fsx();
 init_paths();
 
 // src/memory/layout.ts
-import { join as join25 } from "path";
+import { join as join24 } from "path";
 init_fsx();
 init_paths();
 function memStateDir() {
   return memoryStateDir();
 }
 function spoolDir() {
-  return join25(memStateDir(), "spool");
+  return join24(memStateDir(), "spool");
 }
 function projectsFile() {
-  return join25(memStateDir(), "projects.json");
+  return join24(memStateDir(), "projects.json");
 }
 function sessionRecordsDir() {
-  return join25(memStateDir(), "sessions");
+  return join24(memStateDir(), "sessions");
 }
 function sessionRecordFile(h, sid) {
-  return join25(sessionRecordsDir(), `${h}-${sid}.json`);
+  return join24(sessionRecordsDir(), `${h}-${sid}.json`);
 }
 function redactionsFile() {
-  return join25(memStateDir(), "redactions.jsonl");
+  return join24(memStateDir(), "redactions.jsonl");
 }
 
 // src/memory/spool.ts
@@ -35388,7 +35211,7 @@ function recordRedactions(count, kinds, where, nowMs = Date.now()) {
     return;
   try {
     const file = redactionsFile();
-    mkdirSync10(join26(file, ".."), { recursive: true });
+    mkdirSync10(join25(file, ".."), { recursive: true });
     appendFileSync2(file, JSON.stringify({ ts: nowMs, count, kinds, where }) + `
 `, { mode: 384 });
   } catch (e) {
@@ -35413,10 +35236,10 @@ function appendSpool(h, sid, entries, opts = {}) {
       return;
     const dir = spoolDir();
     mkdirSync10(dir, { recursive: true, mode: 448 });
-    const file = join26(dir, spoolFileName(h, sid, opts.suffix));
+    const file = join25(dir, spoolFileName(h, sid, opts.suffix));
     let size = 0;
     try {
-      size = statSync17(file).size;
+      size = statSync16(file).size;
     } catch {}
     let text = "";
     let redacted = 0;
@@ -35445,17 +35268,17 @@ function appendSpool(h, sid, entries, opts = {}) {
 }
 
 // src/memory/session-record.ts
-import { mkdirSync as mkdirSync11, statSync as statSync20, utimesSync as utimesSync4 } from "fs";
-import { join as join29, resolve as resolve15 } from "path";
+import { mkdirSync as mkdirSync11, statSync as statSync19, utimesSync as utimesSync4 } from "fs";
+import { join as join28, resolve as resolve14 } from "path";
 init_paths();
 
 // src/memory/project.ts
-import { copyFileSync, existsSync as existsSync11, readdirSync as readdirSync7, statSync as statSync18 } from "fs";
-import { basename as basename6, dirname as dirname14, join as join27, resolve as resolve14 } from "path";
+import { copyFileSync, existsSync as existsSync10, readdirSync as readdirSync7, statSync as statSync17 } from "fs";
+import { basename as basename6, dirname as dirname13, join as join26, resolve as resolve13 } from "path";
 init_fsx();
 init_paths();
 function oldVaultDir() {
-  return join27(home(), "Documents", "Buracle");
+  return join26(home(), "Documents", "Buracle");
 }
 function isoNow(ms = Date.now()) {
   return new Date(ms).toISOString();
@@ -35474,7 +35297,7 @@ function readProjectsCache() {
 }
 function backupCorruptProjectsCache() {
   const file = projectsFile();
-  const dir = dirname14(file);
+  const dir = dirname13(file);
   const base = basename6(file);
   let newest = 0;
   try {
@@ -35482,20 +35305,20 @@ function backupCorruptProjectsCache() {
       if (!n.startsWith(`${base}.corrupt-`))
         continue;
       try {
-        newest = Math.max(newest, statSync18(join27(dir, n)).mtimeMs);
+        newest = Math.max(newest, statSync17(join26(dir, n)).mtimeMs);
       } catch {}
     }
   } catch {
     return;
   }
   try {
-    if (statSync18(file).mtimeMs <= newest)
+    if (statSync17(file).mtimeMs <= newest)
       return;
   } catch {
     return;
   }
   try {
-    copyFileSync(file, join27(dir, `${base}.corrupt-${Date.now()}`));
+    copyFileSync(file, join26(dir, `${base}.corrupt-${Date.now()}`));
   } catch (e) {
     log("warn", "memory: cannot back up the corrupt projects cache", { error: e });
   }
@@ -35564,7 +35387,7 @@ function childRepos(dir) {
   const dirs = entries.filter((e) => e.isDirectory() && !e.name.startsWith(".") && !NOT_CHILDREN.has(e.name));
   if (dirs.length > MAX_CONTAINER_DIRS)
     return [];
-  const repos = dirs.map((e) => join27(dir, e.name)).filter((p) => existsSync11(join27(p, ".git")));
+  const repos = dirs.map((e) => join26(dir, e.name)).filter((p) => existsSync10(join26(p, ".git")));
   if (repos.length === 0)
     return [];
   const exclude = indexExcludePatterns();
@@ -35621,9 +35444,9 @@ function memoryExcludePatterns() {
   return memoryExcludeConfig().patterns;
 }
 function existingDir(cwd) {
-  let abs = resolve14(cwd);
-  while (!existsSync11(abs) && dirname14(abs) !== abs)
-    abs = dirname14(abs);
+  let abs = resolve13(cwd);
+  while (!existsSync10(abs) && dirname13(abs) !== abs)
+    abs = dirname13(abs);
   return comparablePath(abs);
 }
 function excludeEnv() {
@@ -35640,7 +35463,7 @@ async function exclusionOf(abs, patterns, nested = false) {
   if (hit === undefined) {
     const id = await projectIdentity(abs);
     const top = id.commonDir !== undefined ? await toplevel(abs) ?? id.root : abs;
-    const main = id.commonDir !== undefined && basename6(id.commonDir) === ".git" ? [dirname14(id.commonDir)] : [];
+    const main = id.commonDir !== undefined && basename6(id.commonDir) === ".git" ? [dirname13(id.commonDir)] : [];
     const own = memExclusion({ dirs: [id.root, top, ...main], ...id.ownerRepo !== undefined ? { ownerRepo: id.ownerRepo } : {} }, patterns, env);
     if (own !== undefined || id.commonDir !== undefined)
       return own;
@@ -35791,8 +35614,8 @@ function writeSessionRecord(rec) {
 var STALE_ACTIVE_MS = 2 * 3600000;
 
 // src/memory/spawn.ts
-import { existsSync as existsSync12, statSync as statSync19 } from "fs";
-import { basename as basename7, join as join28 } from "path";
+import { existsSync as existsSync11, statSync as statSync18 } from "fs";
+import { basename as basename7, join as join27 } from "path";
 init_paths();
 init_shim();
 function bunBinary() {
@@ -35803,7 +35626,7 @@ function bunBinary() {
 }
 function isFile3(p) {
   try {
-    return statSync19(p).isFile();
+    return statSync18(p).isFile();
   } catch {
     return false;
   }
@@ -35815,7 +35638,7 @@ function cliArgv() {
   const shim = shimLaunch();
   if (shim !== undefined && moduleCheckout() === undefined)
     return shim;
-  const main = join28(repoRoot2(), "src", "cli", "main.ts");
+  const main = join27(repoRoot2(), "src", "cli", "main.ts");
   const bun = bunBinary();
   if (bun !== undefined && isFile3(main))
     return [bun, main];
@@ -35827,7 +35650,7 @@ function spawnCli(args, env = {}) {
   try {
     const checkout = moduleCheckout() ?? configuredRepoRoot();
     const proc = Bun.spawn([...cliArgv(), ...args], {
-      cwd: checkout !== undefined ? checkout : existsSync12(home()) ? home() : "/",
+      cwd: checkout !== undefined ? checkout : existsSync11(home()) ? home() : "/",
       env: { ...process.env, ...env },
       stdio: ["ignore", "ignore", "ignore"],
       detached: true
@@ -35844,7 +35667,7 @@ function spawnCli(args, env = {}) {
 var BASELINE_MAX = 200;
 function fileFingerprint(root, rel) {
   try {
-    const st = statSync20(join29(root, rel));
+    const st = statSync19(join28(root, rel));
     return `${st.size}:${Math.floor(st.mtimeMs)}`;
   } catch {
     return "gone";
@@ -35881,7 +35704,7 @@ async function sessionStart2(h, sid, cwd, opts = {}) {
       return { resumed: true, ...prev.slug !== undefined ? { slug: prev.slug } : {} };
     }
     const project = await resolveProject(cwd);
-    const rec = { v: 1, harness: h, sid, cwd: resolve15(cwd), startedMs: now, status: "active" };
+    const rec = { v: 1, harness: h, sid, cwd: resolve14(cwd), startedMs: now, status: "active" };
     if (!project) {
       if (await projectExclusion(cwd).catch(() => {
         return;
@@ -35924,12 +35747,12 @@ function promptSeen(h, sid, opts = {}) {
 // src/memory/ui-build.ts
 init_paths();
 import { createHash as createHash2 } from "crypto";
-import { readdirSync as readdirSync8, readFileSync as readFileSync19 } from "fs";
-import { join as join30 } from "path";
+import { readdirSync as readdirSync8, readFileSync as readFileSync17 } from "fs";
+import { join as join29 } from "path";
 function uiSources(memoryDir) {
   const out = readdirSync8(memoryDir).filter((n) => /^ui.*\.ts$/u.test(n)).sort();
   const walk = (rel) => {
-    const entries = readdirSync8(join30(memoryDir, rel), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+    const entries = readdirSync8(join29(memoryDir, rel), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
     for (const e of entries) {
       if (e.name.startsWith("."))
         continue;
@@ -35945,13 +35768,13 @@ function uiSources(memoryDir) {
 }
 function uiBuildId(repoRoot = repoRoot2()) {
   try {
-    const raw = JSON.parse(readFileSync19(join30(repoRoot, "package.json"), "utf8")).version;
-    const dir = join30(repoRoot, "src", "memory");
+    const raw = JSON.parse(readFileSync17(join29(repoRoot, "package.json"), "utf8")).version;
+    const dir = join29(repoRoot, "src", "memory");
     const h = createHash2("sha256");
     for (const rel of uiSources(dir)) {
       h.update(rel);
       h.update("\x00");
-      h.update(readFileSync19(join30(dir, rel)));
+      h.update(readFileSync17(join29(dir, rel)));
       h.update("\x00");
     }
     return `${typeof raw === "string" ? raw : "?"}+${h.digest("hex").slice(0, 12)}`;
@@ -35961,8 +35784,8 @@ function uiBuildId(repoRoot = repoRoot2()) {
 }
 
 // src/memory/ui-presence.ts
-import { closeSync as closeSync7, mkdirSync as mkdirSync12, openSync as openSync7, readdirSync as readdirSync9, rmSync as rmSync3, statSync as statSync21, utimesSync as utimesSync5 } from "fs";
-import { join as join31 } from "path";
+import { closeSync as closeSync7, mkdirSync as mkdirSync12, openSync as openSync7, readdirSync as readdirSync9, rmSync as rmSync3, statSync as statSync20, utimesSync as utimesSync5 } from "fs";
+import { join as join30 } from "path";
 init_paths();
 
 // src/memory/ui-record.ts
@@ -35992,7 +35815,7 @@ function quiet(env) {
   return env["BURACLE_NO_AUTOSTART"] === "1" || env["BURACLE_MEMORY_RUNNER"] === "1";
 }
 function recordFile(h, sid) {
-  return isHarness(h) && isValidSessionId(sid) ? join31(uiSessionsDir(), `${h}-${sid}`) : undefined;
+  return isHarness(h) && isValidSessionId(sid) ? join30(uiSessionsDir(), `${h}-${sid}`) : undefined;
 }
 function touch(file, nowMs) {
   mkdirSync12(uiSessionsDir(), { recursive: true });
@@ -36022,7 +35845,7 @@ function sessionSeen(h, sid, nowMs = Date.now(), env = process.env) {
     return "fresh";
   let mtime;
   try {
-    mtime = statSync21(file).mtimeMs;
+    mtime = statSync20(file).mtimeMs;
   } catch {
     mtime = undefined;
   }
@@ -36070,7 +35893,7 @@ function startUiSoon(opts = {}) {
     } catch {
       let stale = false;
       try {
-        stale = now - statSync21(marker).mtimeMs >= UI_SPAWN_MARKER_MS;
+        stale = now - statSync20(marker).mtimeMs >= UI_SPAWN_MARKER_MS;
       } catch {
         stale = true;
       }
@@ -36120,7 +35943,7 @@ function uiBridgeFor(harness) {
 }
 function isFile4(p) {
   try {
-    return statSync22(p).isFile();
+    return statSync21(p).isFile();
   } catch {
     return false;
   }
@@ -36129,7 +35952,7 @@ function buracleCli(shim, repoRoot) {
   const viaShim = shimLaunch(shim);
   if (viaShim !== undefined)
     return viaShim;
-  const main = repoRoot !== undefined ? join32(repoRoot, "src", "cli", "main.ts") : undefined;
+  const main = repoRoot !== undefined ? join31(repoRoot, "src", "cli", "main.ts") : undefined;
   const bun = Bun.which("bun");
   return main !== undefined && bun !== null && isFile4(main) ? [bun, main] : undefined;
 }
@@ -36242,15 +36065,15 @@ function createMemoryBridge(opts) {
 }
 function readIf(path) {
   try {
-    return readFileSync20(path, "utf8");
+    return readFileSync18(path, "utf8");
   } catch {
     return;
   }
 }
 function readMemoryStatus(slug) {
-  const dir = join32(memoryStateDir(), "status");
+  const dir = join31(memoryStateDir(), "status");
   for (const name of slug !== undefined ? [`${slug}.json`, "_global.json"] : ["_global.json"]) {
-    const t = readIf(join32(dir, name));
+    const t = readIf(join31(dir, name));
     if (t === undefined)
       continue;
     try {
@@ -36268,9 +36091,749 @@ function createMemoryBridge2(opts) {
   return createMemoryBridge({ harness: "omp", ...opts });
 }
 
+// src/adapters/shared/pi-family/inprocess-host.ts
+import { readFileSync as readFileSync22 } from "fs";
+init_paths();
+
+// src/adapters/shared/repo-cache.ts
+init_fsx();
+import { existsSync as existsSync12, readFileSync as readFileSync19 } from "fs";
+import { dirname as dirname14, join as join32, resolve as resolve15 } from "path";
+var CACHE_TTL_MS = 30000;
+var CACHE_MAX = 64;
+var cache2 = new Map;
+function gitToplevel(dir) {
+  let d = resolve15(dir);
+  for (let i = 0;i < 128; i++) {
+    if (existsSync12(join32(d, ".git")))
+      return d;
+    const up = dirname14(d);
+    if (up === d)
+      return;
+    d = up;
+  }
+  return;
+}
+function packageName2(dir) {
+  try {
+    const pkg = JSON.parse(readFileSync19(join32(dir, "package.json"), "utf8"));
+    return pkg !== null && typeof pkg === "object" && typeof pkg.name === "string" ? pkg.name : undefined;
+  } catch {
+    return;
+  }
+}
+function real3(p) {
+  try {
+    return realPath(p);
+  } catch {
+    return resolve15(p);
+  }
+}
+function lookup(cwd, nowMs) {
+  const hit = cache2.get(cwd);
+  if (hit !== undefined && nowMs - hit.at >= 0 && nowMs - hit.at < CACHE_TTL_MS)
+    return hit;
+  const top = gitToplevel(cwd) ?? null;
+  const entry = { at: nowMs, top, name: top !== null ? packageName2(top) : undefined };
+  if (cache2.size >= CACHE_MAX)
+    cache2.clear();
+  cache2.set(cwd, entry);
+  return entry;
+}
+function buracleRepoFor2(cwd, configured, nowMs = Date.now()) {
+  try {
+    if (typeof cwd !== "string" || cwd === "")
+      return;
+    const { top, name } = lookup(cwd, nowMs);
+    if (top === null)
+      return;
+    if (name === "buracle")
+      return top;
+    const want = real3(top);
+    for (const c of configured) {
+      if (typeof c === "string" && c.trim() !== "" && real3(c.trim()) === want)
+        return top;
+    }
+    return;
+  } catch {
+    return;
+  }
+}
+
+// src/adapters/shared/workspace-start.ts
+function fallbackInfo(cwd, cfg) {
+  return {
+    cwd: canonicalDir2(cwd),
+    children: [],
+    index: { codegraph: { state: cfg.codegraph ? "none" : "off" }, semble: { state: cfg.semble ? "none" : "off" } }
+  };
+}
+async function prepareWorkspace(cwd, cfg, nowMs) {
+  try {
+    return infoFor(await resolveWorkspace(cwd, workspaceOptions(cfg)), cfg, nowMs);
+  } catch (e) {
+    log("warn", "workspace: preparing the session start failed", { cwd, error: e });
+    return fallbackInfo(cwd, cfg);
+  }
+}
+
+// src/adapters/shared/pi-family/config.ts
+import { readFileSync as readFileSync20, statSync as statSync22 } from "fs";
+init_paths();
+var configCache;
+var healthCache;
+var warned = new Set;
+function warnOnce(key, msg, data) {
+  if (warned.has(key))
+    return;
+  warned.add(key);
+  log("warn", msg, data);
+}
+function stat(path) {
+  try {
+    const st = statSync22(path);
+    return st.isFile() ? { mtimeMs: st.mtimeMs, size: st.size } : undefined;
+  } catch {
+    return;
+  }
+}
+function fromDefaults(defaults) {
+  return { config: defaults, vault: oldVaultRoot(), shim: shimPath(), source: "defaults" };
+}
+function parseRuntimeConfig(text, defaults) {
+  const raw = JSON.parse(text);
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw))
+    throw new Error("runtime-config.json: expected an object");
+  const snap = raw;
+  const merged = runtimeSnapshotConfig(raw, defaults);
+  if (merged.warnings.length > 0)
+    warnOnce(`rc-warnings:${merged.warnings.join("|")}`, "pi-family: runtime-config.json needs attention", { warnings: merged.warnings });
+  if (snap.v !== RUNTIME_SNAPSHOT_VERSION)
+    return fromDefaults(merged.config);
+  if (merged.errors.length > 0)
+    warnOnce(`rc-errors:${merged.errors.join("|")}`, "pi-family: runtime-config.json has invalid values; defaults used for them", { errors: merged.errors });
+  const resolved = snap.resolved !== null && typeof snap.resolved === "object" ? snap.resolved : {};
+  const repo = typeof resolved["repoRoot"] === "string" && resolved["repoRoot"] !== "" ? resolved["repoRoot"] : merged.config.repo;
+  const live = { config: merged.config, vault: oldVaultRoot(), shim: shimPath(), source: "runtime-config" };
+  if (repo !== undefined)
+    live.repoRoot = repo;
+  if (Object.keys(resolved).length > 0)
+    live.resolved = resolved;
+  return live;
+}
+function liveConfig(defaults) {
+  const file = runtimeConfigFile();
+  const st = stat(file);
+  if (st === undefined)
+    return fromDefaults(defaults);
+  const c = configCache;
+  if (c !== undefined && c.path === file && c.mtimeMs === st.mtimeMs && c.size === st.size)
+    return c.value;
+  let value;
+  try {
+    value = parseRuntimeConfig(readFileSync20(file, "utf8"), defaults);
+  } catch (e) {
+    warnOnce(`rc-parse:${file}:${st.mtimeMs}`, "pi-family: runtime-config.json unreadable; using canonical defaults", { error: e instanceof Error ? e.message : String(e) });
+    value = fromDefaults(defaults);
+  }
+  configCache = { path: file, mtimeMs: st.mtimeMs, size: st.size, value };
+  return value;
+}
+function isRecord3(x) {
+  return x !== null && typeof x === "object" && !Array.isArray(x);
+}
+function withStatus(v) {
+  if (!isRecord3(v) || v["status"] !== undefined)
+    return v;
+  const s = v["health"] ?? v["state"];
+  return s !== undefined ? { ...v, status: s } : v;
+}
+function parseHealth(raw, nowMs = Date.now()) {
+  if (!isRecord3(raw))
+    return {};
+  const inner = raw["mcp"] ?? raw["servers"];
+  const table = isRecord3(inner) ? inner : raw;
+  return mcpHealthOf({ mcp: Object.fromEntries(Object.entries(table).map(([id, v]) => [id, withStatus(v)])) }, nowMs);
+}
+function mcpHealth2(nowMs = Date.now()) {
+  const file = healthFile();
+  const st = stat(file);
+  if (st === undefined)
+    return {};
+  const c = healthCache;
+  if (c !== undefined && c.path === file && c.mtimeMs === st.mtimeMs && c.size === st.size)
+    return parseHealth(c.value, nowMs);
+  let value;
+  try {
+    value = JSON.parse(readFileSync20(file, "utf8"));
+  } catch (e) {
+    warnOnce(`health:${file}:${st.mtimeMs}`, "pi-family: health.json unreadable; MCP health unknown", { error: e instanceof Error ? e.message : String(e) });
+  }
+  healthCache = { path: file, mtimeMs: st.mtimeMs, size: st.size, value };
+  return parseHealth(value, nowMs);
+}
+
+// src/adapters/shared/pi-family/host.ts
+init_paths();
+var MEMORY_CONTEXT_WAIT_MS = 4000;
+var HANDOFF_WAIT_MS = 9000;
+function adapterContext(data, lc, home) {
+  const canonical = { routing: data.routing, notices: data.notices ?? [] };
+  return { repoRoot: lc.repoRoot ?? "", config: lc.config, canonical, paths: { ...exports_paths, home, oldVaultRoot: () => lc.vault }, buracleBin: lc.shim };
+}
+function pipelineCore(deps) {
+  return {
+    ...exports_core,
+    checkBash: (command, opts) => deps.policy.checkBash(command, opts),
+    checkWrite: (files, ctx) => deps.policy.checkWrite(files, ctx),
+    checkQuestion: (state, call, now) => deps.policy.checkQuestion(state, call, now),
+    isGuardContinuation: (text) => deps.policy.isGuardContinuation(text),
+    detectSignals: (text) => {
+      const intent = deps.policy.detectIntent(text);
+      return { control: intent === "pause" || intent === "resume" || intent === "stop" ? intent : null, recall: false, write: false };
+    },
+    routeTool: (call, policy, health) => policy.strictness === "off" ? { action: "allow" } : deps.policy.routeTool(call, policy, health),
+    promptInteraction: (state, control, text, opts) => deps.plan.promptInteraction(state, control, text, opts),
+    answerReceipt: (state, now) => deps.plan.answerReceipt(state, now),
+    validatePlan: (text) => deps.plan.validatePlan(text),
+    stopGuardVerdict: (state, input, cfg, doc) => cfg.stopGuard ? deps.plan.stopGuardVerdict(state, input, cfg, doc) : { decision: { action: "allow" }, next: state, why: "disabled" },
+    handoffNote: (input) => deps.compact.handoffNote(input),
+    restoreContext: (state, handoff, todo) => deps.compact.restoreContext(state, handoff, todo)
+  };
+}
+function memoryFns(bridge) {
+  return {
+    appendSpool: (_h, sid, entries) => bridge.appendSpool(sid, entries),
+    sessionStart: (_h, sid, cwd) => bridge.sessionStart(sid, cwd),
+    promptSeen: (_h, sid) => bridge.promptSeen?.(sid),
+    spawnFinalizer: (_h, sid) => bridge.spawnFinalizer(sid),
+    contextText: async (o) => await withDeadline(bridge.contextText(o.cwd), MEMORY_CONTEXT_WAIT_MS, undefined) ?? "",
+    writeHandoff: async (i) => {
+      const id = await withDeadline(bridge.writeHandoff(i.sessionId, i.cwd, { slug: i.slug, markdown: i.markdown, ...i.branch !== undefined ? { branch: i.branch } : {} }), HANDOFF_WAIT_MS, undefined);
+      return id !== undefined ? { id, path: id, rel: id } : undefined;
+    }
+  };
+}
+function uiHooks(bridge) {
+  return {
+    started: async (_h, sid) => {
+      bridge.ui?.started(sid);
+    },
+    seen: async (_h, sid) => {
+      bridge.ui?.seen(sid);
+    },
+    ended: async (_h, sid) => {
+      bridge.ui?.ended(sid);
+    }
+  };
+}
+
+// src/adapters/shared/project-deps.ts
+import { readdirSync as readdirSync10, readFileSync as readFileSync21, statSync as statSync23 } from "fs";
+import { join as join33, resolve as resolve16 } from "path";
+var ROOT_MANIFESTS = ["package.json", "pyproject.toml", "Pipfile", "go.mod", "Cargo.toml", "composer.json", "Gemfile"];
+var REQUIREMENTS = /^(?:requirements|constraints)[\w.-]*\.(?:txt|in)$/i;
+var WORKSPACE_MEMBERS_MAX = 32;
+var PROJECT_DEPS_MAX = 400;
+var CACHE_MAX2 = 16;
+var READ_MAX_BYTES = 1024 * 1024;
+var cache3 = new Map;
+function stamp2(path) {
+  try {
+    const st = statSync23(path);
+    return st.isFile() ? `${st.size}:${Math.trunc(st.mtimeMs)}` : undefined;
+  } catch {
+    return;
+  }
+}
+function readSmall(path) {
+  try {
+    if (statSync23(path).size > READ_MAX_BYTES)
+      return;
+    return readFileSync21(path, "utf8");
+  } catch {
+    return;
+  }
+}
+function isObj12(x) {
+  return x !== null && typeof x === "object" && !Array.isArray(x);
+}
+function workspacePatterns(root, pkgText) {
+  const out = [];
+  if (pkgText !== undefined) {
+    try {
+      const j = JSON.parse(pkgText);
+      const ws = isObj12(j) ? j["workspaces"] : undefined;
+      const list = Array.isArray(ws) ? ws : isObj12(ws) && Array.isArray(ws["packages"]) ? ws["packages"] : [];
+      for (const p of list)
+        if (typeof p === "string")
+          out.push(p);
+    } catch {}
+  }
+  const pnpm = readSmall(join33(root, "pnpm-workspace.yaml"));
+  if (pnpm !== undefined) {
+    let inPackages = false;
+    for (const raw of pnpm.split(`
+`)) {
+      const line = raw.replace(/\s+#.*$/, "");
+      if (/^packages\s*:/.test(line)) {
+        inPackages = true;
+        continue;
+      }
+      if (inPackages) {
+        const item = /^\s+-\s+['"]?([^'"]+?)['"]?\s*$/.exec(line);
+        if (item?.[1] !== undefined)
+          out.push(item[1]);
+        else if (/^\S/.test(line))
+          inPackages = false;
+      }
+    }
+  }
+  return out;
+}
+function memberDirs(root, patterns) {
+  const dirs = new Set;
+  for (const raw of patterns) {
+    const p = raw.trim().replace(/^\.\//, "").replace(/\/+$/, "");
+    if (p === "" || p.startsWith("!") || p.startsWith("/") || p.split("/").includes(".."))
+      continue;
+    if (p.endsWith("/*") && !/[*?[{]/.test(p.slice(0, -2))) {
+      const base = join33(root, p.slice(0, -2));
+      let names = [];
+      try {
+        names = readdirSync10(base).sort();
+      } catch {
+        continue;
+      }
+      for (const n of names)
+        if (!n.startsWith(".") && n !== "node_modules")
+          dirs.add(join33(base, n));
+    } else if (!/[*?[{]/.test(p)) {
+      dirs.add(join33(root, p));
+    }
+  }
+  return [...dirs].sort();
+}
+function projectDeps(root) {
+  if (typeof root !== "string" || root.trim() === "")
+    return [];
+  const dir = resolve16(root);
+  let names;
+  try {
+    names = readdirSync10(dir);
+  } catch {
+    return [];
+  }
+  const files = [
+    ...ROOT_MANIFESTS.filter((n) => names.includes(n)),
+    ...names.filter((n) => REQUIREMENTS.test(n)).sort()
+  ];
+  const pkgText = files.includes("package.json") ? readSmall(join33(dir, "package.json")) : undefined;
+  const members = pkgText !== undefined || names.includes("pnpm-workspace.yaml") ? memberDirs(dir, workspacePatterns(dir, pkgText)).map((m) => join33(m, "package.json")).filter((p) => stamp2(p) !== undefined).slice(0, WORKSPACE_MEMBERS_MAX) : [];
+  const paths = [...files.map((n) => join33(dir, n)), ...members];
+  const sig = [...paths.map((p) => `${p}=${stamp2(p) ?? ""}`), names.includes("pnpm-workspace.yaml") ? `pnpm=${stamp2(join33(dir, "pnpm-workspace.yaml")) ?? ""}` : ""].join(`
+`);
+  const hit = cache3.get(dir);
+  if (hit !== undefined && hit.sig === sig)
+    return [...hit.deps];
+  const deps = new Set;
+  for (const p of paths) {
+    const text = p === join33(dir, "package.json") ? pkgText : readSmall(p);
+    if (text === undefined)
+      continue;
+    for (const d of parseManifestDeps(p, text))
+      deps.add(d);
+  }
+  const out = [...deps].sort().slice(0, PROJECT_DEPS_MAX);
+  cache3.delete(dir);
+  cache3.set(dir, { sig, deps: out });
+  while (cache3.size > CACHE_MAX2) {
+    const oldest = cache3.keys().next().value;
+    if (oldest === undefined)
+      break;
+    cache3.delete(oldest);
+  }
+  return [...out];
+}
+
+// src/adapters/shared/pi-family/routing.ts
+function mergeRoutes(routes, compiled) {
+  const [first] = routes;
+  if (first !== undefined && routes.length === 1)
+    return first;
+  const explicit = (id) => compiled.skills.some((s) => s.id === id && s.explicit);
+  const union = (ids) => [...new Set(ids)];
+  const invoked = union(routes.flatMap((r) => r.invoked));
+  const asks = union(routes.flatMap((r) => r.load)).filter((id) => !invoked.includes(id));
+  const load = asks.slice(0, ROUTE_CAPS.load);
+  const candidates = [...invoked, ...load].some(explicit) ? [] : union([...asks.slice(ROUTE_CAPS.load), ...routes.flatMap((r) => r.candidates)]).filter((id) => !explicit(id) && !invoked.includes(id) && !load.includes(id)).slice(0, ROUTE_CAPS.candidates);
+  const categories = union(routes.flatMap((r) => r.categories)).slice(0, ROUTE_CAPS.categories);
+  const merged = { invoked, load, candidates, categories };
+  const libs = union(routes.flatMap((r) => r.libs ?? []));
+  if (libs.length > 0 && categories.some((id) => compiled.categories.some((c) => c.id === id && c.deps !== undefined)))
+    merged.libs = libs.slice(0, 3);
+  return merged;
+}
+function availableServers(mcp, health) {
+  return mcp.map((s) => s.id).filter((id) => !mcpUnavailable(health[id]));
+}
+function sessionHealth(health, ledger, lsid) {
+  return lsid === undefined ? health : sessionMcpHealth(health, ledger.load(lsid));
+}
+function routerData(skills, routing, strictness) {
+  const policy = { ...routing, strictness };
+  return { compiled: compileTriggers(skills, policy), policy };
+}
+function promptRouting(prompt, data, o) {
+  const opts = { harness: o.harness, loaded: o.loaded, available: o.available };
+  if (o.deps !== undefined)
+    opts.deps = o.deps;
+  let route = routePrompt(prompt, data.compiled, opts);
+  if (o.strictness === "off" && route.categories.length > 0) {
+    const { libs: _libs, ...rest } = route;
+    route = { ...rest, categories: [] };
+  }
+  const text = routeText(route, o.harness, data.policy, { triggers: data.compiled });
+  return text !== undefined ? { route, text } : { route };
+}
+function createDepsReader() {
+  return (root) => {
+    if (root === undefined || root === "")
+      return;
+    const deps = projectDeps(root);
+    return deps.length > 0 ? deps : undefined;
+  };
+}
+
+// src/adapters/shared/pi-family/inprocess-host.ts
+var TOOL_CALL_DEADLINE_MS = 3000;
+var TOOL_RESULT_DEADLINE_MS = 25000;
+var WORKSPACE_WAIT_MS = 3000;
+var PROJECT_WAIT_MS = 2000;
+var START_WAIT_MS = 1000;
+var MAX_QUEUED_PROMPTS = 16;
+function coreEvalGuard() {
+  const fn = checkEval;
+  return typeof fn === "function" ? fn : undefined;
+}
+function hostDeps(harness) {
+  return {
+    now: () => Date.now(),
+    config: liveConfig,
+    health: mcpHealth2,
+    policy: exports_policy,
+    evalGuard: coreEvalGuard(),
+    realpath: realWriteTarget,
+    plan: exports_plan,
+    compact: exports_compact,
+    checkers: exports_checkers,
+    checkFs: nodeCheckFs,
+    state: {
+      load: (sid) => loadState(harness, sid),
+      update: (sid, fn) => updateState(harness, sid, fn),
+      subjects: (sid) => reviewSubjects(harness, sid)
+    },
+    ledger: { load: (sid) => loadLedger(harness, sid), update: (sid, fn) => updateLedger(harness, sid, fn) },
+    captureEnabled: () => process.env["BURACLE_NO_CAPTURE"] !== "1",
+    buracleRepo: (cwd, configured) => buracleRepoFor2(cwd, [configured !== undefined ? expandHome3(configured) : undefined]),
+    cli: hostCli,
+    projectSlug,
+    branch: currentBranch,
+    run: (argv, opts) => run(argv, opts),
+    readText: (path) => {
+      try {
+        return readFileSync22(path, "utf8");
+      } catch {
+        return;
+      }
+    },
+    prune: (keep, nowMs) => sessionMaint(harness, nowMs, { keep }).removed,
+    recordAskGrant: (sid, kind, answer, nowMs) => {
+      recordDialogGrant(harness, sid, kind, answer, nowMs);
+    },
+    prepareWorkspace: (cwd, cfg, nowMs) => prepareWorkspace(cwd, indexSettings(cfg), nowMs),
+    workspaceInfo: (cwd, cfg, nowMs) => workspaceInfo(cwd, indexSettings(cfg), nowMs),
+    refreshWorkspace: (info, cfg, nowMs) => refreshWorkspaceInfo(info, indexSettings(cfg), nowMs),
+    projectDeps: createDepsReader(),
+    setEnv: (name, value) => {
+      process.env[name] = value;
+    },
+    home: () => home(),
+    timings: { toolCallMs: TOOL_CALL_DEADLINE_MS, toolResultMs: TOOL_RESULT_DEADLINE_MS, maintDelayMs: 15000 }
+  };
+}
+function hostCli() {
+  return buracleCli(shimPath(), repoRoot2());
+}
+function createInProcessHost(o) {
+  const { harness: H, data, deps } = o;
+  const memos = new Map;
+  const reported = new Set;
+  let currentSid;
+  let maintScheduled = false;
+  let router;
+  const report = (what, e, outcome) => {
+    const message = e instanceof Error ? e.message : String(e);
+    const key = `${what}:${message}`;
+    if (reported.has(key))
+      return;
+    reported.add(key);
+    log(/^not implemented: /.test(message) ? "debug" : "warn", `${H} extension: ${what} failed${outcome !== undefined ? ` (${outcome})` : ""}`, { error: message });
+  };
+  const guarded = (what, fn) => {
+    try {
+      return fn();
+    } catch (e) {
+      report(what, e);
+      return;
+    }
+  };
+  const step = async (name, fallback, fn) => {
+    try {
+      return await fn();
+    } catch (e) {
+      report(name, e);
+      return fallback;
+    }
+  };
+  const live = () => deps.config(data.config);
+  const liveOrDefaults = () => guarded("config", live) ?? { config: data.config, vault: oldVaultRoot(), shim: shimPath(), source: "defaults" };
+  const memo = (sid) => {
+    let m = memos.get(sid);
+    if (m === undefined) {
+      m = {};
+      memos.set(sid, m);
+    }
+    return m;
+  };
+  const captureOn = (sid) => {
+    const m = memo(sid);
+    m.capture ??= guarded("BURACLE_NO_CAPTURE", () => deps.captureEnabled()) ?? true;
+    return m.capture;
+  };
+  const slugOf = (sid, cwd) => {
+    const m = memo(sid);
+    m.slug ??= deps.projectSlug(cwd).then((s) => {
+      m.slugValue = s;
+      return s;
+    }, (e) => {
+      report("projectSlug", e);
+      return;
+    });
+    return m.slug;
+  };
+  const routerFor = (strictness) => {
+    if (router === undefined || router.strictness !== strictness)
+      router = { strictness, data: routerData(data.skills, data.routing, strictness) };
+    return router.data;
+  };
+  const healthFor = (sid, cwd) => {
+    const health = guarded("health", () => deps.health()) ?? {};
+    const merged = guarded("H24 session health", () => sessionHealth(health, deps.ledger, sid)) ?? health;
+    const native = guarded(o.nativeOff.label, () => o.nativeOff.read(cwd ?? process.cwd())) ?? [];
+    return withOffServers(merged, [...new Set([...offServersFor(liveOrDefaults().config, H), ...native])]);
+  };
+  const coreFns = pipelineCore(deps);
+  const memFns = memoryFns(deps.memory);
+  const ui = uiHooks(deps.memory);
+  const actx = (lc) => adapterContext(data, lc, () => deps.home());
+  const pipe = (sid, lc = liveOrDefaults()) => ({
+    harness: H,
+    ctx: actx(lc),
+    core: coreFns,
+    step,
+    ui,
+    env: { ...process.env, BURACLE_NO_CAPTURE: sid === "" || captureOn(sid) ? undefined : "1" },
+    memory: async (name) => memFns[name],
+    workspace: {
+      prepareWorkspace: async (cwd, c, now) => {
+        const work = deps.prepareWorkspace(cwd, c.config, now);
+        let late = false;
+        work.then((info) => {
+          if (late)
+            guarded("H21 workspace", () => saveWorkspace(c, H, sid, info));
+        }, () => {
+          return;
+        });
+        const info = await withDeadline(work, WORKSPACE_WAIT_MS, undefined);
+        late = info === undefined;
+        return info;
+      },
+      workspaceInfo: (cwd, c, now) => withDeadline(deps.workspaceInfo(cwd, c.config, now), WORKSPACE_WAIT_MS, undefined),
+      refreshWorkspace: (info, c, now) => deps.refreshWorkspace(info, c.config, now)
+    },
+    project: async (cwd) => {
+      const project = await withDeadline(slugOf(sid, cwd), PROJECT_WAIT_MS, undefined);
+      if (project === undefined)
+        throw new Error("the project of this folder is not known");
+      const branch = await withDeadline(deps.branch(cwd).catch(() => {
+        return;
+      }), PROJECT_WAIT_MS, undefined);
+      return { project, ...branch !== undefined ? { branch } : {} };
+    },
+    ...deps.realpath !== undefined ? { realpath: deps.realpath } : {},
+    buracleRepo: async (cwd, c) => deps.buracleRepo(cwd, o.configuredRepo(lc, c.config)),
+    ...deps.assetsSpawn !== undefined ? { assetsSpawn: deps.assetsSpawn } : {}
+  });
+  const started = (sid) => {
+    const ready = sid !== undefined ? memo(sid).ready : undefined;
+    return ready === undefined ? Promise.resolve() : withDeadline(ready, START_WAIT_MS, undefined);
+  };
+  const spoolTo = async (sid, entries) => {
+    if (sid !== undefined)
+      await spool(pipe(sid), sid, entries);
+  };
+  const fileChecks = () => ({
+    now: () => deps.now(),
+    run: async (argv, opts) => {
+      const res = await deps.run(argv, { ...opts?.cwd !== undefined ? { cwd: opts.cwd } : {}, ...opts?.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}, ...opts?.env !== undefined ? { env: opts.env } : {} });
+      return { code: res.code, stdout: res.stdout, stderr: res.stderr, timedOut: res.timedOut };
+    },
+    core: deps.checkers,
+    ...deps.checkFs !== undefined ? { fs: deps.checkFs } : {},
+    ...deps.resolveChecker !== undefined ? { resolve: deps.resolveChecker } : {}
+  });
+  const route = (sid, text, lc) => {
+    const strictness = lc.config.routing.strictness;
+    const o2 = { harness: H, loaded: Object.keys(deps.ledger.load(sid).skills), available: availableServers(data.mcp, healthFor(sid)), strictness };
+    const pd = deps.projectDeps(readWorkspace(actx(lc), H, sid)?.root);
+    if (pd !== undefined)
+      o2.deps = pd;
+    return promptRouting(text, routerFor(strictness), o2);
+  };
+  const deliver = (sid, prompt) => {
+    const m = memo(sid);
+    const batch = m.queued ?? [];
+    if (batch.length === 0) {
+      if (m.delivered?.prompt === prompt)
+        return m.delivered.text;
+      m.delivered = undefined;
+      return;
+    }
+    if (guarded("H10 isGuardContinuation", () => coreFns.isGuardContinuation(prompt)) === true)
+      return;
+    m.queued = undefined;
+    const now = deps.now();
+    const rd = routerFor(liveOrDefaults().config.routing.strictness);
+    const routes = batch.flatMap((p) => p.route !== undefined ? [p.route] : []);
+    let routed;
+    if (routes.length > 0) {
+      const merged = mergeRoutes(routes, rd.compiled);
+      guarded("H24 ledger turn", () => deps.ledger.update(sid, (l) => ledgerPrompt(l, merged, now)));
+      routed = guarded("H22 routeText", () => routeText(merged, H, rd.policy, { triggers: rd.compiled }));
+    }
+    const parts = [...new Set([...batch.flatMap((p) => p.before), ...routed !== undefined ? [routed] : [], ...batch.flatMap((p) => p.after)])];
+    const lines = fitParts(parts, PROMPT_CONTEXT_MAX_CHARS);
+    const text = lines.length > 0 ? lines.join(`
+
+`) : undefined;
+    m.delivered = { prompt, text };
+    return text;
+  };
+  const enqueue = (m, context, routed) => {
+    const at = routed?.text !== undefined ? context.indexOf(routed.text.trim()) : -1;
+    const queued = m.queued ??= [];
+    queued.push({ before: at >= 0 ? context.slice(0, at) : [...context], after: at >= 0 ? context.slice(at + 1) : [], ...routed !== undefined ? { route: routed.route } : {} });
+    if (queued.length > MAX_QUEUED_PROMPTS)
+      queued.splice(0, queued.length - MAX_QUEUED_PROMPTS);
+  };
+  const scheduleMaint = (later) => {
+    if (maintScheduled)
+      return;
+    maintScheduled = true;
+    later(() => {
+      const keep = new Set([...memos.keys(), ...currentSid !== undefined ? [currentSid] : []]);
+      const removed = guarded("H16 session maintenance", () => deps.prune(keep, deps.now())) ?? [];
+      if (removed.length > 0)
+        log("info", `${H}: pruned idle session state`, { count: removed.length });
+    }, deps.timings.maintDelayMs);
+  };
+  const endSession = async (sid) => {
+    await sessionEnd({ harness: H, sessionId: sid, now: deps.now() }, pipe(sid));
+  };
+  const openSession = (sid, ctx, source, os) => {
+    const m = memo(sid);
+    let ready;
+    m.ready = new Promise((res) => {
+      ready = res;
+    });
+    m.starting = (async () => {
+      if (os.previous !== undefined)
+        await endSession(os.previous);
+      const d = pipe(sid);
+      const then = (fn) => (...a) => {
+        ready();
+        return fn(...a);
+      };
+      const r = await sessionStart({ harness: H, sessionId: sid, cwd: ctx.cwd, source, now: deps.now() }, {
+        ...d,
+        ui: { ...d.ui, started: then(d.ui.started), seen: then(d.ui.seen) },
+        capabilityCard: os.card,
+        version: () => data.buracleVersion,
+        sessionMaint: os.scheduleMaint
+      });
+      const notice = r.notice;
+      m.startContext = r.context.filter((part) => part !== notice?.model);
+      const warning = r.profile;
+      if (warning !== undefined) {
+        log("warn", `${H}: H17 profile guard`, { sid, warning });
+        if (hasTui(ctx))
+          guarded("H17 notify", () => ctx.ui.notify(warning, "warning"));
+      }
+      if (notice === undefined)
+        return;
+      guarded("H17 notice", () => o.pi.sendMessage({ customType: o.noticeType, content: notice.model, display: false }, { deliverAs: "nextTurn" }));
+      if (hasTui(ctx))
+        guarded("H17 notice notify", () => ctx.ui.notify(notice.user, "info"));
+    })().catch((e) => {
+      report("session start", e);
+    }).finally(ready);
+    return m.ready;
+  };
+  const enter = (sid) => {
+    const previous = currentSid !== undefined && currentSid !== sid ? currentSid : undefined;
+    currentSid = sid;
+    deps.setEnv("BURACLE_SESSION_ID", sid);
+    deps.setEnv("BURACLE_HARNESS", H);
+    return previous;
+  };
+  return {
+    memos,
+    memo,
+    report,
+    guarded,
+    step,
+    live,
+    liveOrDefaults,
+    captureOn,
+    slugOf,
+    routerFor,
+    healthFor,
+    coreFns,
+    actx,
+    pipe,
+    started,
+    spoolTo,
+    fileChecks,
+    route,
+    deliver,
+    enqueue,
+    scheduleMaint,
+    endSession,
+    openSession,
+    enter,
+    current: () => currentSid
+  };
+}
+function contextBlock(parts) {
+  return parts.length > 0 ? ["<buracle-context>", ...parts, "</buracle-context>"].join(`
+
+`) : "";
+}
+
 // src/adapters/omp/runtime/plan-capture.ts
 var import_yaml5 = __toESM(require_dist(), 1);
-import { isAbsolute as isAbsolute10, join as join33, normalize, resolve as resolve16 } from "path";
+import { isAbsolute as isAbsolute10, join as join34, normalize, resolve as resolve17 } from "path";
 var OMP_PLAN_APPROVED = "Plan approved.";
 var OMP_PLAN_OPEN = '<plan path="';
 var OMP_PLAN_CLOSE = "</plan>";
@@ -36298,9 +36861,9 @@ function ompAutosaveDir(configText, cwd, home) {
     return;
   const raw = typeof p["autosaveDir"] === "string" ? p["autosaveDir"].trim() : "";
   if (raw === "")
-    return join33(cwd, ".omp", "plans");
-  const dir = raw === "~" ? home : raw.startsWith("~/") ? join33(home, raw.slice(2)) : raw;
-  return isAbsolute10(dir) ? normalize(dir) : resolve16(cwd, dir);
+    return join34(cwd, ".omp", "plans");
+  const dir = raw === "~" ? home : raw.startsWith("~/") ? join34(home, raw.slice(2)) : raw;
+  return isAbsolute10(dir) ? normalize(dir) : resolve17(cwd, dir);
 }
 function proposeDetails(details) {
   const d = record2(details);
@@ -36312,7 +36875,7 @@ function planFileOf(details, artifactsDir, cwd) {
   if (typeof raw !== "string" || raw.trim() === "")
     return;
   if (!raw.startsWith(OMP_LOCAL_SCHEME))
-    return /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? undefined : resolve16(cwd, raw);
+    return /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? undefined : resolve17(cwd, raw);
   if (typeof artifactsDir !== "string" || artifactsDir === "")
     return;
   let rel;
@@ -36324,7 +36887,7 @@ function planFileOf(details, artifactsDir, cwd) {
   const parts = rel.split("/").filter((p) => p !== "" && p !== ".");
   if (parts.length === 0 || parts.includes(".."))
     return;
-  return join33(resolve16(artifactsDir, "local"), ...parts);
+  return join34(resolve17(artifactsDir, "local"), ...parts);
 }
 function approvedPlanOf(prompt) {
   const text = prompt.replace(/\r\n?/g, `
@@ -36393,208 +36956,16 @@ function planSavedNote(saved, cwd) {
 `);
 }
 
-// src/adapters/shared/project-deps.ts
-import { readdirSync as readdirSync10, readFileSync as readFileSync21, statSync as statSync23 } from "fs";
-import { join as join34, resolve as resolve17 } from "path";
-var ROOT_MANIFESTS = ["package.json", "pyproject.toml", "Pipfile", "go.mod", "Cargo.toml", "composer.json", "Gemfile"];
-var REQUIREMENTS = /^(?:requirements|constraints)[\w.-]*\.(?:txt|in)$/i;
-var WORKSPACE_MEMBERS_MAX = 32;
-var PROJECT_DEPS_MAX = 400;
-var CACHE_MAX2 = 16;
-var READ_MAX_BYTES = 1024 * 1024;
-var cache3 = new Map;
-function stamp2(path) {
-  try {
-    const st = statSync23(path);
-    return st.isFile() ? `${st.size}:${Math.trunc(st.mtimeMs)}` : undefined;
-  } catch {
-    return;
-  }
-}
-function readSmall(path) {
-  try {
-    if (statSync23(path).size > READ_MAX_BYTES)
-      return;
-    return readFileSync21(path, "utf8");
-  } catch {
-    return;
-  }
-}
-function isObj12(x) {
-  return x !== null && typeof x === "object" && !Array.isArray(x);
-}
-function workspacePatterns(root, pkgText) {
-  const out = [];
-  if (pkgText !== undefined) {
-    try {
-      const j = JSON.parse(pkgText);
-      const ws = isObj12(j) ? j["workspaces"] : undefined;
-      const list = Array.isArray(ws) ? ws : isObj12(ws) && Array.isArray(ws["packages"]) ? ws["packages"] : [];
-      for (const p of list)
-        if (typeof p === "string")
-          out.push(p);
-    } catch {}
-  }
-  const pnpm = readSmall(join34(root, "pnpm-workspace.yaml"));
-  if (pnpm !== undefined) {
-    let inPackages = false;
-    for (const raw of pnpm.split(`
-`)) {
-      const line = raw.replace(/\s+#.*$/, "");
-      if (/^packages\s*:/.test(line)) {
-        inPackages = true;
-        continue;
-      }
-      if (inPackages) {
-        const item = /^\s+-\s+['"]?([^'"]+?)['"]?\s*$/.exec(line);
-        if (item?.[1] !== undefined)
-          out.push(item[1]);
-        else if (/^\S/.test(line))
-          inPackages = false;
-      }
-    }
-  }
-  return out;
-}
-function memberDirs(root, patterns) {
-  const dirs = new Set;
-  for (const raw of patterns) {
-    const p = raw.trim().replace(/^\.\//, "").replace(/\/+$/, "");
-    if (p === "" || p.startsWith("!") || p.startsWith("/") || p.split("/").includes(".."))
-      continue;
-    if (p.endsWith("/*") && !/[*?[{]/.test(p.slice(0, -2))) {
-      const base = join34(root, p.slice(0, -2));
-      let names = [];
-      try {
-        names = readdirSync10(base).sort();
-      } catch {
-        continue;
-      }
-      for (const n of names)
-        if (!n.startsWith(".") && n !== "node_modules")
-          dirs.add(join34(base, n));
-    } else if (!/[*?[{]/.test(p)) {
-      dirs.add(join34(root, p));
-    }
-  }
-  return [...dirs].sort();
-}
-function projectDeps(root) {
-  if (typeof root !== "string" || root.trim() === "")
-    return [];
-  const dir = resolve17(root);
-  let names;
-  try {
-    names = readdirSync10(dir);
-  } catch {
-    return [];
-  }
-  const files = [
-    ...ROOT_MANIFESTS.filter((n) => names.includes(n)),
-    ...names.filter((n) => REQUIREMENTS.test(n)).sort()
-  ];
-  const pkgText = files.includes("package.json") ? readSmall(join34(dir, "package.json")) : undefined;
-  const members = pkgText !== undefined || names.includes("pnpm-workspace.yaml") ? memberDirs(dir, workspacePatterns(dir, pkgText)).map((m) => join34(m, "package.json")).filter((p) => stamp2(p) !== undefined).slice(0, WORKSPACE_MEMBERS_MAX) : [];
-  const paths = [...files.map((n) => join34(dir, n)), ...members];
-  const sig = [...paths.map((p) => `${p}=${stamp2(p) ?? ""}`), names.includes("pnpm-workspace.yaml") ? `pnpm=${stamp2(join34(dir, "pnpm-workspace.yaml")) ?? ""}` : ""].join(`
-`);
-  const hit = cache3.get(dir);
-  if (hit !== undefined && hit.sig === sig)
-    return [...hit.deps];
-  const deps = new Set;
-  for (const p of paths) {
-    const text = p === join34(dir, "package.json") ? pkgText : readSmall(p);
-    if (text === undefined)
-      continue;
-    for (const d of parseManifestDeps(p, text))
-      deps.add(d);
-  }
-  const out = [...deps].sort().slice(0, PROJECT_DEPS_MAX);
-  cache3.delete(dir);
-  cache3.set(dir, { sig, deps: out });
-  while (cache3.size > CACHE_MAX2) {
-    const oldest = cache3.keys().next().value;
-    if (oldest === undefined)
-      break;
-    cache3.delete(oldest);
-  }
-  return [...out];
-}
-
-// src/adapters/shared/pi-family/routing.ts
-function mergeRoutes(routes, compiled) {
-  const [first] = routes;
-  if (first !== undefined && routes.length === 1)
-    return first;
-  const explicit = (id) => compiled.skills.some((s) => s.id === id && s.explicit);
-  const union = (ids) => [...new Set(ids)];
-  const invoked = union(routes.flatMap((r) => r.invoked));
-  const asks = union(routes.flatMap((r) => r.load)).filter((id) => !invoked.includes(id));
-  const load = asks.slice(0, ROUTE_CAPS.load);
-  const candidates = [...invoked, ...load].some(explicit) ? [] : union([...asks.slice(ROUTE_CAPS.load), ...routes.flatMap((r) => r.candidates)]).filter((id) => !explicit(id) && !invoked.includes(id) && !load.includes(id)).slice(0, ROUTE_CAPS.candidates);
-  const categories = union(routes.flatMap((r) => r.categories)).slice(0, ROUTE_CAPS.categories);
-  const merged = { invoked, load, candidates, categories };
-  const libs = union(routes.flatMap((r) => r.libs ?? []));
-  if (libs.length > 0 && categories.some((id) => compiled.categories.some((c) => c.id === id && c.deps !== undefined)))
-    merged.libs = libs.slice(0, 3);
-  return merged;
-}
-function availableServers(mcp, health) {
-  return mcp.map((s) => s.id).filter((id) => !mcpUnavailable(health[id]));
-}
-function sessionHealth(health, ledger, lsid) {
-  return lsid === undefined ? health : sessionMcpHealth(health, ledger.load(lsid));
-}
-function routerData(skills, routing, strictness) {
-  const policy = { ...routing, strictness };
-  return { compiled: compileTriggers(skills, policy), policy };
-}
-function promptRouting(prompt, data, o) {
-  const opts = { harness: o.harness, loaded: o.loaded, available: o.available };
-  if (o.deps !== undefined)
-    opts.deps = o.deps;
-  let route = routePrompt(prompt, data.compiled, opts);
-  if (o.strictness === "off" && route.categories.length > 0) {
-    const { libs: _libs, ...rest } = route;
-    route = { ...rest, categories: [] };
-  }
-  const text = routeText(route, o.harness, data.policy, { triggers: data.compiled });
-  return text !== undefined ? { route, text } : { route };
-}
-function createDepsReader() {
-  return (root) => {
-    if (root === undefined || root === "")
-      return;
-    const deps = projectDeps(root);
-    return deps.length > 0 ? deps : undefined;
-  };
-}
-
-// src/adapters/omp/runtime/routing.ts
-function isDeviceWrite(toolName, input) {
-  const p = input["path"];
-  return toolName === "write" && typeof p === "string" && /^xd:\/\//i.test(p.trim());
-}
-function promptRouting2(prompt, data, o) {
-  return promptRouting(prompt, data, { harness: "omp", ...o });
-}
-
 // src/adapters/omp/statusline.ts
 var DEFAULT_SET_STATUS = { "buracle.hooks": ["hooks"], "buracle.mem": ["mem"] };
 var DEFAULT_BAND_LAYOUT = { rows: [["mem", "git", "plan", "upd"]], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: false };
 
 // src/adapters/omp/runtime/deps.ts
-var TOOL_CALL_DEADLINE_MS = 3000;
-var TOOL_RESULT_DEADLINE_MS = 25000;
 var STATUS_INTERVAL_MS = 30000;
 var CODE_EXECUTION_TOOLS = new Set(["eval"]);
-function coreEvalGuard() {
-  const fn = checkEval;
-  return typeof fn === "function" ? fn : undefined;
-}
 function readText2(path) {
   try {
-    return readFileSync22(path, "utf8");
+    return readFileSync23(path, "utf8");
   } catch {
     return;
   }
@@ -36632,7 +37003,7 @@ function recentPlans(dir, nowMs, maxAgeMs) {
     if (nowMs - f.mtimeMs > maxAgeMs)
       continue;
     try {
-      out.push({ ...f, text: readFileSync22(f.path, "utf8") });
+      out.push({ ...f, text: readFileSync23(f.path, "utf8") });
     } catch {}
   }
   return out;
@@ -36687,18 +37058,11 @@ async function gitState(cwd) {
   return state;
 }
 function defaultDeps() {
-  const cli = () => buracleCli(shimPath(), repoRoot2());
+  const base = hostDeps("omp");
   return {
-    now: () => Date.now(),
-    config: liveConfig,
-    health: mcpHealth2,
-    policy: exports_policy,
-    evalGuard: coreEvalGuard(),
-    realpath: realWriteTarget,
+    ...base,
     plan: exports_plan,
     compact: exports_compact,
-    checkers: exports_checkers,
-    checkFs: nodeCheckFs,
     memSegment,
     status: exports_render,
     bar: {
@@ -36706,30 +37070,14 @@ function defaultDeps() {
       render: renderPlainLines,
       info: (nowMs) => barInfo("omp", { nowMs })
     },
-    state: {
-      load: (sid) => loadState("omp", sid),
-      update: (sid, fn) => updateState("omp", sid, fn),
-      telemetry: (sid, t) => writeTelemetry("omp", sid, t),
-      subjects: (sid) => reviewSubjects("omp", sid)
-    },
-    ledger: {
-      load: (sid) => loadLedger("omp", sid),
-      update: (sid, fn) => updateLedger("omp", sid, fn)
-    },
+    state: { ...base.state, telemetry: (sid, t) => writeTelemetry("omp", sid, t) },
     flow: {
       start: (sid, input, now) => recordFlowStart("omp", sid, input, now),
       view: (sid, now, foldAfterSec) => flowViewFor("omp", sid, now, foldAfterSec)
     },
-    memory: createMemoryBridge2({ cli }),
+    memory: createMemoryBridge2({ cli: hostCli }),
     plans: ompPlanStore(),
-    captureEnabled: () => process.env["BURACLE_NO_CAPTURE"] !== "1",
-    buracleRepo: (cwd, configured) => buracleRepoFor2(cwd, [configured !== undefined ? expandHome3(configured) : undefined]),
-    cli,
-    projectSlug,
-    branch: currentBranch,
     gitState,
-    run: (argv, opts) => run(argv, opts),
-    readText: readText2,
     listDir: (path) => {
       try {
         return readdirSync11(path);
@@ -36749,25 +37097,13 @@ function defaultDeps() {
     usage: () => readUsageCache()?.harnesses.omp,
     updates: () => pendingUpdates(),
     refreshUsage: () => {
-      const argv = cli();
+      const argv = hostCli();
       if (argv !== undefined)
         spawnUsageRefresh("omp", { argv: [...argv, "usage", "refresh", "--harness", "omp", "--background"] });
     },
-    prune: (keep, nowMs) => sessionMaint("omp", nowMs, { keep }).removed,
-    recordAskGrant: (sid, kind, answer, nowMs) => {
-      recordDialogGrant("omp", sid, kind, answer, nowMs);
-    },
-    prepareWorkspace: (cwd, cfg, nowMs) => prepareWorkspace(cwd, indexSettings(cfg), nowMs),
-    workspaceInfo: (cwd, cfg, nowMs) => workspaceInfo(cwd, indexSettings(cfg), nowMs),
-    refreshWorkspace: (info, cfg, nowMs) => refreshWorkspaceInfo(info, indexSettings(cfg), nowMs),
-    projectDeps: createDepsReader(),
     columns: () => typeof process.stdout.columns === "number" && process.stdout.columns > 0 ? process.stdout.columns : 120,
-    setEnv: (name, value) => {
-      process.env[name] = value;
-    },
-    home: () => home(),
     reviewerFence: reviewerFenceFromEnv,
-    timings: { toolCallMs: TOOL_CALL_DEADLINE_MS, toolResultMs: TOOL_RESULT_DEADLINE_MS, statusIntervalMs: STATUS_INTERVAL_MS, maintDelayMs: 15000 }
+    timings: { ...base.timings, statusIntervalMs: STATUS_INTERVAL_MS }
   };
 }
 function emptyGenerated() {
@@ -36956,61 +37292,6 @@ class FlowWidget {
     this.#foldAt = at;
     return at;
   }
-}
-
-// src/adapters/shared/pi-family/host.ts
-init_paths();
-var MEMORY_CONTEXT_WAIT_MS = 4000;
-var HANDOFF_WAIT_MS = 9000;
-function adapterContext(data, lc, home) {
-  const canonical = { routing: data.routing, notices: data.notices ?? [] };
-  return { repoRoot: lc.repoRoot ?? "", config: lc.config, canonical, paths: { ...exports_paths, home, oldVaultRoot: () => lc.vault }, buracleBin: lc.shim };
-}
-function pipelineCore(deps) {
-  return {
-    ...exports_core,
-    checkBash: (command, opts) => deps.policy.checkBash(command, opts),
-    checkWrite: (files, ctx) => deps.policy.checkWrite(files, ctx),
-    checkQuestion: (state, call, now) => deps.policy.checkQuestion(state, call, now),
-    isGuardContinuation: (text) => deps.policy.isGuardContinuation(text),
-    detectSignals: (text) => {
-      const intent = deps.policy.detectIntent(text);
-      return { control: intent === "pause" || intent === "resume" || intent === "stop" ? intent : null, recall: false, write: false };
-    },
-    routeTool: (call, policy, health) => policy.strictness === "off" ? { action: "allow" } : deps.policy.routeTool(call, policy, health),
-    promptInteraction: (state, control, text, opts) => deps.plan.promptInteraction(state, control, text, opts),
-    answerReceipt: (state, now) => deps.plan.answerReceipt(state, now),
-    validatePlan: (text) => deps.plan.validatePlan(text),
-    stopGuardVerdict: (state, input, cfg, doc) => cfg.stopGuard ? deps.plan.stopGuardVerdict(state, input, cfg, doc) : { decision: { action: "allow" }, next: state, why: "disabled" },
-    handoffNote: (input) => deps.compact.handoffNote(input),
-    restoreContext: (state, handoff, todo) => deps.compact.restoreContext(state, handoff, todo)
-  };
-}
-function memoryFns(bridge) {
-  return {
-    appendSpool: (_h, sid, entries) => bridge.appendSpool(sid, entries),
-    sessionStart: (_h, sid, cwd) => bridge.sessionStart(sid, cwd),
-    promptSeen: (_h, sid) => bridge.promptSeen?.(sid),
-    spawnFinalizer: (_h, sid) => bridge.spawnFinalizer(sid),
-    contextText: async (o) => await withDeadline(bridge.contextText(o.cwd), MEMORY_CONTEXT_WAIT_MS, undefined) ?? "",
-    writeHandoff: async (i) => {
-      const id = await withDeadline(bridge.writeHandoff(i.sessionId, i.cwd, { slug: i.slug, markdown: i.markdown, ...i.branch !== undefined ? { branch: i.branch } : {} }), HANDOFF_WAIT_MS, undefined);
-      return id !== undefined ? { id, path: id, rel: id } : undefined;
-    }
-  };
-}
-function uiHooks(bridge) {
-  return {
-    started: async (_h, sid) => {
-      bridge.ui?.started(sid);
-    },
-    seen: async (_h, sid) => {
-      bridge.ui?.seen(sid);
-    },
-    ended: async (_h, sid) => {
-      bridge.ui?.ended(sid);
-    }
-  };
 }
 
 // src/adapters/omp/runtime/pane.ts
@@ -38040,6 +38321,12 @@ function reviewYieldReason(agent, problems) {
   return `your report as ${agent} is not valid review JSON (${problems.slice(0, 6).join("; ")}). ` + "Call yield again with exactly one JSON object that follows the output schema in your instructions, with no text or code fence around it.";
 }
 
+// src/adapters/omp/runtime/routing.ts
+function isDeviceWrite(toolName, input) {
+  const p = input["path"];
+  return toolName === "write" && typeof p === "string" && /^xd:\/\//i.test(p.trim());
+}
+
 // src/adapters/omp/runtime/session-facts.ts
 function telemetryOf(pi, ctx, now, guarded) {
   const t = { at: now, cwd: ctx.cwd };
@@ -38071,7 +38358,7 @@ import { isAbsolute as isAbsolute12, join as join39, resolve as resolve21 } from
 // src/engine/hook-health.ts
 init_fsx();
 init_paths();
-import { existsSync as existsSync14, readFileSync as readFileSync24, rmSync as rmSync6, statSync as statSync26 } from "fs";
+import { existsSync as existsSync14, readFileSync as readFileSync25, rmSync as rmSync6, statSync as statSync26 } from "fs";
 import { join as join38 } from "path";
 var HOOK_FAILURE_MESSAGES = ["hook handler failed", "hook command failed before dispatch", "hook runtime failed"];
 var DAY_MS = 86400000;
@@ -38122,7 +38409,7 @@ function scanHookFailures(nowMs, windowMs = DAY_MS, file = logFile()) {
   for (const f of [`${file}.1`, file]) {
     let text;
     try {
-      text = readFileSync24(f, "utf8");
+      text = readFileSync25(f, "utf8");
     } catch {
       continue;
     }
@@ -38146,7 +38433,7 @@ function hookHealthCacheFile() {
 function hookHealthForStatus(nowMs, maxAgeMs = 60000) {
   const file = hookHealthCacheFile();
   try {
-    const c = JSON.parse(readFileSync24(file, "utf8"));
+    const c = JSON.parse(readFileSync25(file, "utf8"));
     if (typeof c.at === "number" && nowMs - c.at >= 0 && nowMs - c.at < maxAgeMs && c.summary !== undefined && typeof c.summary.failures === "number")
       return c.summary;
   } catch {}
@@ -38177,7 +38464,7 @@ async function runtimeBehindForStatus(nowMs, maxAgeMs = 300000) {
   const file = runtimeDriftCacheFile();
   const stamp = shimStamp();
   try {
-    const c = JSON.parse(readFileSync24(file, "utf8"));
+    const c = JSON.parse(readFileSync25(file, "utf8"));
     if (typeof c.at === "number" && nowMs - c.at >= 0 && nowMs - c.at < maxAgeMs && typeof c.behind === "boolean" && c.shim === stamp)
       return c.behind;
   } catch {}
@@ -38531,11 +38818,7 @@ function openTodosOf(event) {
 
 // src/adapters/omp/runtime/extension.ts
 var H = "omp";
-var WORKSPACE_WAIT_MS = 3000;
-var PROJECT_WAIT_MS = 2000;
-var START_WAIT_MS = 1000;
 var FENCE_TOOLS_WAIT_MS = 2000;
-var MAX_QUEUED_PROMPTS = 16;
 var WRITE_KINDS = new Set(["edit", "write", "patch"]);
 function toolPaths(core, targets) {
   return [...new Set([...core, ...targets?.paths ?? []])];
@@ -38543,129 +38826,23 @@ function toolPaths(core, targets) {
 function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
   return function buracle(pi) {
     const deps = { ...defaultDeps(), ...overrides };
-    const memos = new Map;
-    const reported = new Set;
-    let currentSid;
+    const host = createInProcessHost({
+      harness: H,
+      data,
+      deps,
+      pi,
+      noticeType: NOTICE_MESSAGE_TYPE,
+      configuredRepo: (lc) => lc.repoRoot,
+      nativeOff: { label: "omp disabledServers", read: ompOffServers }
+    });
+    const { memo, guarded, live, liveOrDefaults, slugOf, healthFor, pipe, started, spoolTo } = host;
+    const report = (what, e, outcome = "allowed") => host.report(what, e, outcome);
     let statusTimerStarted = false;
-    let maintScheduled = false;
-    let router;
-    const report = (what, e, outcome = "allowed") => {
-      const message = e instanceof Error ? e.message : String(e);
-      const key = `${what}:${message}`;
-      if (reported.has(key))
-        return;
-      reported.add(key);
-      log(/^not implemented: /.test(message) ? "debug" : "warn", `omp extension: ${what} failed (${outcome})`, { error: message });
-    };
-    const guarded = (what, fn) => {
-      try {
-        return fn();
-      } catch (e) {
-        report(what, e);
-        return;
-      }
-    };
-    const live = () => deps.config(data.config);
-    const liveOrDefaults = () => guarded("config", () => live()) ?? { config: data.config, vault: oldVaultRoot(), shim: shimPath(), source: "defaults" };
-    const memo = (sid) => {
-      let m = memos.get(sid);
-      if (m === undefined) {
-        m = {};
-        memos.set(sid, m);
-      }
-      return m;
-    };
-    const captureOn = (sid) => {
-      const m = memo(sid);
-      m.capture ??= guarded("BURACLE_NO_CAPTURE", () => deps.captureEnabled()) ?? true;
-      return m.capture;
-    };
-    const slugOf = (sid, cwd) => {
-      const m = memo(sid);
-      m.slug ??= deps.projectSlug(cwd).then((s) => {
-        m.slugValue = s;
-        return s;
-      }, (e) => {
-        report("projectSlug", e);
-        return;
-      });
-      return m.slug;
-    };
     const spoolSid = (ctx) => {
       if (isMain(ctx))
         return sessionOf(ctx);
       const sid = process.env["BURACLE_SESSION_ID"];
       return process.env["BURACLE_HARNESS"] === "omp" && isValidSessionId(sid) ? sid : undefined;
-    };
-    const routerFor = (strictness) => {
-      if (router === undefined || router.strictness !== strictness)
-        router = { strictness, data: routerData(data.skills, data.routing, strictness) };
-      return router.data;
-    };
-    const healthFor = (lsid, cwd) => {
-      const health = guarded("health", () => deps.health()) ?? {};
-      const merged = guarded("H24 session health", () => sessionHealth(health, deps.ledger, lsid)) ?? health;
-      const native = guarded("omp disabledServers", () => ompOffServers(cwd ?? process.cwd())) ?? [];
-      return withOffServers(merged, [...new Set([...offServersFor(liveOrDefaults().config, "omp"), ...native])]);
-    };
-    const availableNow = (lsid) => availableServers(data.mcp, healthFor(lsid));
-    const step = async (name, fallback, fn) => {
-      try {
-        return await fn();
-      } catch (e) {
-        report(name, e);
-        return fallback;
-      }
-    };
-    const coreFns = pipelineCore(deps);
-    const memFns = memoryFns(deps.memory);
-    const ui = uiHooks(deps.memory);
-    const actx = (lc) => adapterContext(data, lc, () => deps.home());
-    const pipe = (sid, lc = liveOrDefaults()) => ({
-      harness: H,
-      ctx: actx(lc),
-      core: coreFns,
-      step,
-      ui,
-      env: { ...process.env, BURACLE_NO_CAPTURE: sid === "" || captureOn(sid) ? undefined : "1" },
-      memory: async (name) => memFns[name],
-      workspace: {
-        prepareWorkspace: async (cwd, c, now) => {
-          const work = deps.prepareWorkspace(cwd, c.config, now);
-          let late = false;
-          work.then((info) => {
-            if (late)
-              guarded("H21 workspace", () => saveWorkspace(c, H, sid, info));
-          }, () => {
-            return;
-          });
-          const info = await withDeadline(work, WORKSPACE_WAIT_MS, undefined);
-          late = info === undefined;
-          return info;
-        },
-        workspaceInfo: (cwd, c, now) => withDeadline(deps.workspaceInfo(cwd, c.config, now), WORKSPACE_WAIT_MS, undefined),
-        refreshWorkspace: (info, c, now) => deps.refreshWorkspace(info, c.config, now)
-      },
-      project: async (cwd) => {
-        const project = await withDeadline(slugOf(sid, cwd), PROJECT_WAIT_MS, undefined);
-        if (project === undefined)
-          throw new Error("the project of this folder is not known");
-        const branch = await withDeadline(deps.branch(cwd).catch(() => {
-          return;
-        }), PROJECT_WAIT_MS, undefined);
-        return { project, ...branch !== undefined ? { branch } : {} };
-      },
-      ...deps.realpath !== undefined ? { realpath: deps.realpath } : {},
-      buracleRepo: async (cwd) => deps.buracleRepo(cwd, lc.repoRoot),
-      ...deps.assetsSpawn !== undefined ? { assetsSpawn: deps.assetsSpawn } : {}
-    });
-    const started = (sid) => {
-      const ready = sid !== undefined ? memo(sid).ready : undefined;
-      return ready === undefined ? Promise.resolve() : withDeadline(ready, START_WAIT_MS, undefined);
-    };
-    const spoolTo = async (sid, entries) => {
-      if (sid !== undefined)
-        await spool(pipe(sid), sid, entries);
     };
     const status = createStatusTexts({
       data,
@@ -38956,45 +39133,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
         return withMasked(undefined);
       }
     });
-    const route = (sid, text, lc) => {
-      const strictness = lc.config.routing.strictness;
-      const ledger = deps.ledger.load(sid);
-      const o = { loaded: Object.keys(ledger.skills), available: availableNow(sid), strictness };
-      const pd = deps.projectDeps(readWorkspace(actx(lc), H, sid)?.root);
-      if (pd !== undefined)
-        o.deps = pd;
-      return promptRouting2(text, routerFor(strictness), o);
-    };
     const literalSkillAsk = (text) => text.replace(/^\/skill:/, "/buracle:");
-    const deliver = (sid, prompt) => {
-      const m = memo(sid);
-      const batch = m.queued ?? [];
-      if (batch.length === 0) {
-        if (m.delivered?.prompt === prompt)
-          return m.delivered.text;
-        m.delivered = undefined;
-        return;
-      }
-      if (guarded("H10 isGuardContinuation", () => coreFns.isGuardContinuation(prompt)) === true)
-        return;
-      m.queued = undefined;
-      const now = deps.now();
-      const router = routerFor(liveOrDefaults().config.routing.strictness);
-      const routes = batch.flatMap((p) => p.route !== undefined ? [p.route] : []);
-      let routed;
-      if (routes.length > 0) {
-        const merged = mergeRoutes(routes, router.compiled);
-        guarded("H24 ledger turn", () => deps.ledger.update(sid, (l) => ledgerPrompt(l, merged, now)));
-        routed = guarded("H22 routeText", () => routeText(merged, H, router.policy, { triggers: router.compiled }));
-      }
-      const parts = [...new Set([...batch.flatMap((p) => p.before), ...routed !== undefined ? [routed] : [], ...batch.flatMap((p) => p.after)])];
-      const lines = fitParts(parts, PROMPT_CONTEXT_MAX_CHARS);
-      const text = lines.length > 0 ? lines.join(`
-
-`) : undefined;
-      m.delivered = { prompt, text };
-      return text;
-    };
     const agentIdle = (ctx) => guarded("isIdle", () => ctx.isIdle?.()) === true && guarded("hasPendingMessages", () => ctx.hasPendingMessages?.()) !== true;
     const onPrompt = async (sid, raw, ctx, expanded) => {
       const now = deps.now();
@@ -39013,7 +39152,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
         routePrompt: async () => {
           if (text === "")
             return;
-          routed = route(sid, literalSkill ? literalSkillAsk(text) : text, lc);
+          routed = host.route(sid, literalSkill ? literalSkillAsk(text) : text, lc);
           return { route: routed.route, deferred: true, ...routed.text !== undefined ? { text: routed.text } : {} };
         },
         ...wf !== undefined ? { typedWorkflow: wf.workflow } : {},
@@ -39045,12 +39184,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
         const start = wf.args !== "" ? { workflow: wf.workflow, title: wf.args, source: "command" } : { workflow: wf.workflow, source: "command" };
         guarded("H25 flow start", () => deps.flow.start(sid, start, now));
       }
-      const found = routed;
-      const at = found?.text !== undefined ? r.context.indexOf(found.text.trim()) : -1;
-      const queued = m.queued ??= [];
-      queued.push({ before: at >= 0 ? r.context.slice(0, at) : r.context, after: at >= 0 ? r.context.slice(at + 1) : [], ...found !== undefined ? { route: found.route } : {} });
-      if (queued.length > MAX_QUEUED_PROMPTS)
-        queued.splice(0, queued.length - MAX_QUEUED_PROMPTS);
+      host.enqueue(m, r.context, routed);
       refreshFlowSafe(ctx);
       return true;
     };
@@ -39068,74 +39202,26 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
       }
       return;
     });
-    const block = (parts) => parts.length > 0 ? ["<buracle-context>", ...parts, "</buracle-context>"].join(`
-
-`) : "";
     const subagentBlock = async (sid, ctx) => {
       const d = pipe(sid);
       const text = await d.step("H21 workspace", "", () => workspaceStart({ sessionId: sid, cwd: ctx.cwd, subagent: true, now: deps.now() }, d));
-      return block(text.trim() !== "" ? [text.trim()] : []);
+      return contextBlock(text.trim() !== "" ? [text.trim()] : []);
     };
     const card = (ctx) => {
       const health = healthFor(spoolSid(ctx), ctx.cwd);
       const policy = { ...data.routing, strictness: liveOrDefaults().config.routing.strictness };
       return deps.policy.capabilityCard({ policy, mcp: data.mcp.filter((s) => !mcpUnavailable(health[s.id])), plugins: data.plugins, harness: H });
     };
-    const scheduleMaint = (ctx) => {
-      if (maintScheduled || typeof ctx.setTimeout !== "function")
-        return;
-      maintScheduled = true;
-      ctx.setTimeout(() => {
-        const keep = new Set([...memos.keys(), ...currentSid !== undefined ? [currentSid] : []]);
-        const removed = guarded("H16 session maintenance", () => deps.prune(keep, deps.now())) ?? [];
-        if (removed.length > 0)
-          log("info", "omp: pruned idle session state", { count: removed.length });
-      }, deps.timings.maintDelayMs);
-    };
-    const endSession = async (sid) => {
-      await sessionEnd({ harness: H, sessionId: sid, now: deps.now() }, pipe(sid));
-    };
-    const openSession = (sid, ctx, source, previous) => {
-      const m = memo(sid);
-      let ready;
-      m.ready = new Promise((res) => {
-        ready = res;
-      });
-      m.starting = (async () => {
-        if (previous !== undefined)
-          await endSession(previous);
-        const d = pipe(sid);
-        const then = (fn) => (...a) => {
-          ready();
-          return fn(...a);
-        };
-        const r = await sessionStart({ harness: H, sessionId: sid, cwd: ctx.cwd, source, now: deps.now() }, {
-          ...d,
-          ui: { ...d.ui, started: then(d.ui.started), seen: then(d.ui.seen) },
-          capabilityCard: () => card(ctx),
-          version: () => data.buracleVersion,
-          sessionMaint: () => {
-            scheduleMaint(ctx);
-          }
-        });
-        const notice = r.notice;
-        m.startContext = r.context.filter((part) => part !== notice?.model);
-        const warning = r.profile;
-        if (warning !== undefined) {
-          log("warn", "omp: H17 profile guard", { sid, warning });
-          if (hasTui(ctx))
-            guarded("H17 notify", () => ctx.ui.notify(warning, "warning"));
-        }
-        if (notice === undefined)
-          return;
-        guarded("H17 notice", () => pi.sendMessage({ customType: NOTICE_MESSAGE_TYPE, content: notice.model, display: false }, { deliverAs: "nextTurn" }));
-        if (hasTui(ctx))
-          guarded("H17 notice notify", () => ctx.ui.notify(notice.user, "info"));
-      })().catch((e) => {
-        report("session start", e);
-      }).finally(ready);
-      return m.ready;
-    };
+    const openSession = (sid, ctx, source, previous) => host.openSession(sid, ctx, source, {
+      ...previous !== undefined ? { previous } : {},
+      card: () => card(ctx),
+      scheduleMaint: () => {
+        if (typeof ctx.setTimeout === "function")
+          host.scheduleMaint((fn, ms) => {
+            ctx.setTimeout?.(fn, ms);
+          });
+      }
+    });
     pi.on("before_agent_start", async (event, ctx) => {
       await withDeadline(fenceActiveTools(pi, deps.reviewerFence?.()).catch((e) => {
         report("second-opinion tools", e);
@@ -39167,13 +39253,13 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
         }))
           m.lastPrompt = prompt;
         m.inputSeen = false;
-        const routed = guarded("H22 delivery", () => deliver(sid, prompt));
+        const routed = guarded("H22 delivery", () => host.deliver(sid, prompt));
         const saved = await savedPlans(ctx, { prompt });
         const message = [routed, saved].filter((t) => t !== undefined).join(`
 
 `);
         await m.starting;
-        const text = block(m.startContext ?? []);
+        const text = contextBlock(m.startContext ?? []);
         const result = {};
         if (text !== "" && !base.includes(text))
           result.systemPrompt = [...base, text];
@@ -39235,10 +39321,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
       const sid = sessionOf(ctx);
       if (sid === undefined)
         return;
-      const previous = currentSid !== undefined && currentSid !== sid ? currentSid : undefined;
-      currentSid = sid;
-      deps.setEnv("BURACLE_SESSION_ID", sid);
-      deps.setEnv("BURACLE_HARNESS", H);
+      const previous = host.enter(sid);
       const resumed = guarded("resumed session", () => resumedSession(ev, event, ctx, (f) => deps.isFile(f))) === true;
       if (resumed)
         guarded("resume hint", () => receipts.resumed(sid, ctx, live().config));
@@ -39273,9 +39356,9 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
       try {
         if (!isMain(ctx))
           return;
-        const sid = sessionOf(ctx) ?? currentSid;
+        const sid = sessionOf(ctx) ?? host.current();
         if (sid !== undefined)
-          await endSession(sid);
+          await host.endSession(sid);
       } catch (e) {
         report("session_shutdown", e);
       }

@@ -7032,7 +7032,7 @@ __export(exports_paths, {
   codexHome: () => codexHome,
   configuredRepoRoot: () => configuredRepoRoot,
   env: () => env,
-  expandHome: () => expandHome2,
+  expandHome: () => expandHome,
   findCheckout: () => findCheckout,
   fnv1a: () => fnv1a,
   harnessConfigDir: () => harnessConfigDir,
@@ -7072,7 +7072,7 @@ __export(exports_paths, {
   pathRulesDir: () => pathRulesDir,
   piAgentDir: () => piAgentDir,
   qwenHome: () => qwenHome,
-  repoRoot: () => repoRoot2,
+  repoRoot: () => repoRoot,
   reviewInboxFile: () => reviewInboxFile,
   reviewNotesDir: () => reviewNotesDir,
   runDir: () => runDir,
@@ -8873,6 +8873,7 @@ var piProfile = {
   bin: "pi",
   proc: { base: /^pi$/ },
   runtime: "inprocess",
+  companionPending: true,
   editBudgetMs: 20000,
   configDir: { key: "piAgentDir", env: "PI_CODING_AGENT_DIR", under: ".pi/agent" },
   relocationEnv: ["PI_CODING_AGENT_DIR"],
@@ -9375,247 +9376,6 @@ function classifyToolFor(profile, tool, rawInput, cwd, knownServers, opts) {
   }
 }
 
-// src/core/policy/text.ts
-function fold(s) {
-  return s.replace(/[\u0130I\u0131]/g, "i").toLowerCase().normalize("NFD").replace(/[\u0300-\u036F]/g, "").replace(/[\u2019\u2018\u02BC\u00B4`]/g, "'").replace(/\u00DF/g, "ss").replace(/[\u00F8\u0153]/g, "o").replace(/\u00E6/g, "ae").replace(/[^\S\n]+/g, " ").replace(/ *\n[\s]*/g, `
-`).trim();
-}
-function stripQuoted(s) {
-  return s.replace(/(^|\n)\s*(```|~~~)[\s\S]*?(\n\s*\2|$)/g, "$1 ").replace(/`[^`\n]*`/g, " ").replace(/"[^"\n]{0,400}"/g, " ").replace(/\u201C[^\u201D\n]{0,400}\u201D/g, " ").replace(/\u00AB[^\u00BB\n]{0,400}\u00BB/g, " ").replace(/(^|\n)\s*>[^\n]*/g, "$1 ");
-}
-function word(body) {
-  return `(?<![a-z0-9_'-])(?:${body})(?![a-z0-9_'-])`;
-}
-
-// src/core/policy/intents.ts
-var GUARD_MARKERS = ["Buracle stop guard:", "Buracle plan check:", "Buracle routing check:"];
-function isGuardContinuation(text) {
-  if (typeof text !== "string")
-    return false;
-  const t = text.trimStart().replace(/^(?:<[^<>]{1,200}>\s*)+/, "").replace(/^[A-Za-z ]{1,40} feedback:\s*/i, "");
-  return GUARD_MARKERS.some((m) => t.startsWith(m));
-}
-var HARNESS_TEXT = /^(?:<(?:task-notification|system-reminder|local-command|bash-|command-|cross-session-message|agent-message|teammate-message)|Base directory for this skill:|(?:Another Claude|A peer) session sent a message(?: while you were working)?:)/i;
-function isUserText(text) {
-  if (typeof text !== "string")
-    return false;
-  const trimmed = text.trim();
-  return trimmed !== "" && !isGuardContinuation(trimmed) && !HARNESS_TEXT.test(trimmed);
-}
-var re = (body) => new RegExp(word(body), "g");
-var LEADING = /^(?:(?:ok(?:ay)?|tamam(?:dir)?|peki|evet|yes|yeah|yep|lutfen|please|pls|hey|claude|codex|buracle|simdi|now|just|sadece|artik|haydi|hadi|neyse|o zaman|oyleyse|anyway|alright)(?![a-z0-9_'-])[ ,.!:;-]*)+/;
-var TRAILING = /(?:[ ,]+(?:lutfen|please|pls|now|simdi|artik|hemen))+$/;
-var EDGE_PUNCTUATION = /^[\s.,!?;:\u2026-]+|[\s.,!?;:\u2026-]+$/g;
-var PAUSE_WHOLE = new RegExp(`^(?:${[
-  "du+r+(?:un|sana)?",
-  "durdur(?:un|sana)?",
-  "duraklat(?:in|iniz|sana)?",
-  "bekle(?:yin|sene)?",
-  "biraz bekle",
-  "(?:bi|bir) (?:dakika|saniye|sn|dk)(?: bekle)?",
-  "dur (?:bi|bir) (?:dakika|saniye)",
-  "simdilik (?:dur|bekle)",
-  "durur musun",
-  "durabilir misin",
-  "durdurur musun",
-  "bekler misin",
-  "bekleyebilir misin",
-  "devam etme(?:yin|yiniz|yelim)?",
-  "stop(?: it| here| for now)?",
-  "pause",
-  "halt",
-  "freeze",
-  "wait(?: a (?:sec|second|moment|minute|bit))?",
-  "hold on",
-  "hold up",
-  "one sec(?:ond)?",
-  "(?:just )?a (?:sec|second|moment|minute)",
-  "don'?t (?:continue|proceed)",
-  "do not (?:continue|proceed)"
-].join("|")})$`);
-var RESUME_WHOLE = new RegExp(`^(?:${[
-  "devam(?: et| edin| ediniz| edelim| ediyoruz| edebilirsin| edebilirsiniz)?",
-  "devamke",
-  "surdur(?:un|elim|sene)?",
-  "kaldigin yerden(?: devam(?: et| edin)?)?",
-  "kaldigimiz yerden(?: devam(?: edelim)?)?",
-  "durma(?:yin|yiniz)?",
-  "continue",
-  "resume",
-  "proceed",
-  "go on",
-  "go ahead",
-  "carry on",
-  "keep going",
-  "don'?t stop",
-  "do not stop"
-].join("|")})$`);
-var STOP_WHOLE = new RegExp(`^(?:${[
-  "iptal(?: et| edin| edelim| ediyorum)?",
-  "vazgec(?:tim|elim|in|iyorum)?",
-  "birak(?:alim|in|sana)?",
-  "bos ?ver(?:in|elim|sene)?",
-  "unut(?: gitsin)?",
-  "cancel",
-  "abort",
-  "abandon",
-  "(?:cancel|abort|abandon) (?:the |this )?(?:plan|task|work|run)",
-  "forget it",
-  "never ?mind",
-  "drop it"
-].join("|")})$`);
-function controlOf(t) {
-  if (t.length > 200)
-    return null;
-  const whole = t.replace(EDGE_PUNCTUATION, "").replace(LEADING, "").replace(TRAILING, "").replace(EDGE_PUNCTUATION, "").replace(/\s+/g, " ");
-  if (whole === "" || whole.length > 60)
-    return null;
-  if (STOP_WHOLE.test(whole))
-    return "stop";
-  if (PAUSE_WHOLE.test(whole))
-    return "pause";
-  if (RESUME_WHOLE.test(whole))
-    return "resume";
-  return null;
-}
-function userWords(text) {
-  if (!isUserText(text))
-    return;
-  const trimmed = text.trim();
-  const slash = /^[/$][\w:.-]+(?:\s+([\s\S]*))?$/.exec(trimmed);
-  const body = slash ? slash[1] ?? "" : trimmed;
-  const t = fold(stripQuoted(body));
-  return t === "" ? undefined : t;
-}
-function detectIntent(text) {
-  const t = userWords(text);
-  if (t === undefined)
-    return null;
-  return controlOf(t);
-}
-var CONTROL_GUIDANCE = {
-  pausePlan: 'Buracle: the user asked you to stop. Finish only the current atomic step, say where you stopped, and wait. The active plan is now paused; the user saying "continue" (in any language) or `buracle plan resume` continues it. Also stop the background commands and subagents this session started (with the harness\'s stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.',
-  pause: "Buracle: the user asked you to stop. Finish only the current atomic step, say where you stopped, and wait for them. Also stop the background commands and subagents this session started (with the harness's stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.",
-  resume: 'Buracle: the user said to continue. The plan is resumed; check `buracle plan status --json` and carry on where the plan stands. "Continue" answers no open question: if you were waiting for a decision, ask it again.',
-  stop: "Buracle: the user wants to drop the current task. Stop now and confirm with them before discarding or reverting anything. Also stop the background commands and subagents this session started (with the harness's stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.",
-  resultApproved: "Buracle: the user approved the verified result, so Buracle recorded the approval (`buracle plan approve-result`) and resumed the plan. Do the worktree merge if the run has one, then finish with `buracle plan verify`."
-};
-function decisionAbout(i, prefix) {
-  return i?.state === "paused" && i.kind === "decision" && typeof i.reason === "string" && i.reason.trim().toLowerCase().startsWith(prefix);
-}
-var RESULT_REVIEW_REASON = "result review";
-function isResultReview(i) {
-  return decisionAbout(i, RESULT_REVIEW_REASON);
-}
-var RUNAWAY_REASON = "runaway: continue, pivot or abandon?";
-function isRunawayDecision(i) {
-  return decisionAbout(i, "runaway:");
-}
-var HANDBACK_REASON = "build hand-back:";
-var VERIFICATION_OFF_REASON = `${HANDBACK_REASON} done, verification off`;
-function isHandback(i) {
-  return decisionAbout(i, HANDBACK_REASON);
-}
-var MODEL_SWITCH_REASON = "model switch:";
-function isModelSwitch(i) {
-  return decisionAbout(i, MODEL_SWITCH_REASON);
-}
-function resumableDecision(i) {
-  return isRunawayDecision(i) || isHandback(i) || isModelSwitch(i);
-}
-var RUNAWAY_RESUME = "Buracle: the user chose to continue after the stop guard's runaway limit, so the plan is resumed and the stop-guard counters start again. Check `buracle plan status --json` and carry on with the current approach; if the same block comes back, pause and ask again.";
-var HANDBACK_RESUME = 'Buracle: the user said to continue after the build hand-back, so the plan is resumed and the stop-guard counters start again. Run `buracle flow start goal-build --title "<goal title>"`, re-read the run file and do one more round; the user\'s request is what allows a round past the fourth.';
-var CRITERIA_ONLY_RESUME = `Buracle: the user said to continue after the criteria-only hand-back (done, verification off), so the plan is resumed. Every criterion passed and verification stays off for this run, so no round is left to do. Do what the message asks (a fix or a change: make it, re-judge the criteria it touches and add the rows to \`## Evidence\`), then hand back again with \`buracle plan pause --kind decision --reason "${VERIFICATION_OFF_REASON}"\`; if it asks for nothing more, hand back right away. A new goal is a new run.`;
-var MODEL_SWITCH_RESUME = "Buracle: the user said to continue after the model switch, so the plan is resumed on the model now in use. Check `buracle plan status --json`, re-read the plan file and start the implementation with its first unticked task.";
-function quoted(reason) {
-  const r = typeof reason === "string" ? reason.replace(/\s+/g, " ").trim() : "";
-  return r === "" ? "" : ` ("${r.length > 160 ? `${r.slice(0, 157)}...` : r}")`;
-}
-var REVIEW_RULE = 'Only an explicit approval of this result counts: then run `buracle plan approve-result`. Feedback means `buracle plan resume`, fix, re-run the checks the fix touches and ask again; "I will test it first" means keep the pause and end the turn.';
-function heldResume(i) {
-  if (i.state !== "paused")
-    return;
-  if (i.kind === "manual")
-    return `Buracle: the user said to continue, but the plan stays paused on a manual step${quoted(i.reason)}. Check that the step is done (ask if you cannot tell), verify its result, then run \`buracle plan resume\` and continue.`;
-  if (i.kind !== "decision")
-    return;
-  if (isRunawayDecision(i))
-    return RUNAWAY_RESUME;
-  if (decisionAbout(i, VERIFICATION_OFF_REASON))
-    return CRITERIA_ONLY_RESUME;
-  if (isHandback(i))
-    return HANDBACK_RESUME;
-  if (isModelSwitch(i))
-    return MODEL_SWITCH_RESUME;
-  if (isResultReview(i))
-    return `Buracle: the user said to continue, but the plan stays paused on the result review; "continue" is no approval of the result. ${REVIEW_RULE}`;
-  return `Buracle: the user said to continue, but the plan stays paused on an open decision${quoted(i.reason)}; "continue" alone does not answer it. If their message makes a choice, act on that choice and run \`buracle plan resume\`; otherwise ask the question again and end the turn.`;
-}
-function controlGuidance(intent, opts) {
-  if (intent === "pause")
-    return opts.hasPlan ? CONTROL_GUIDANCE.pausePlan : CONTROL_GUIDANCE.pause;
-  if (intent === "resume") {
-    if (!opts.hasPlan)
-      return;
-    return (opts.interaction !== undefined ? heldResume(opts.interaction) : undefined) ?? CONTROL_GUIDANCE.resume;
-  }
-  if (intent === "stop")
-    return CONTROL_GUIDANCE.stop;
-  return;
-}
-var RESULT_APPROVAL = /^(?:(?:yes|evet|ok|okay|tamam)[ ,.!:;-]+)?(?:i approve(?: (?:it|this|the result|the change|the changes))?|approved?(?: (?:it|this|the result|the change|the changes))?|lgtm|looks good(?: to me)?|ship it|onayl(?:iyorum|adim|andi|a|i)|onay(?:liyorum)?|kabul(?: ediyorum)?)(?:[ ,.!:;-]+(?:thanks|thank you|tesekkurler|tesekkur ederim|sagol))?[ .!]*$/;
-function isResultApproval(text) {
-  const t = userWords(text);
-  return t !== undefined && t.length <= 60 && RESULT_APPROVAL.test(t);
-}
-var MANUAL_DONE = /^(?:(?:ok|okay|tamam|evet|yes)[ ,.!:;-]+)?(?:done|finished|completed|it'?s done|i did it|i have done it|bitti|hallettim|hallettik|yaptim|yaptik|tamamladim|tamamlandi|tamam(?:dir)?|oldu)(?![a-z0-9_'-])/;
-function isManualDone(text) {
-  const t = userWords(text);
-  return t !== undefined && MANUAL_DONE.test(t);
-}
-function pausedReply(i, text) {
-  if (i === undefined || i.state !== "paused")
-    return;
-  if (i.kind === "manual") {
-    return isManualDone(text) ? `Buracle: the user reports the manual step${quoted(i.reason)} done. Check its result, then run \`buracle plan resume\` and continue.` : `Buracle: the plan is paused on a manual step${quoted(i.reason)}. Answer the user; the run goes on after they say the step is done and you have checked it (\`buracle plan resume\`).`;
-  }
-  if (i.kind === "discussion")
-    return "Buracle: the plan is paused because the user asked to stop. If this message means go on, in any language, run `buracle plan resume` and continue; otherwise answer the user and keep waiting.";
-  if (i.kind !== "decision")
-    return;
-  if (isResultReview(i))
-    return `Buracle: the plan is paused on the result review. ${REVIEW_RULE} A bare "continue", silence or green checks are no approval.`;
-  if (isModelSwitch(i))
-    return "Buracle: the plan is paused so the user can switch models before the implementation. Answer the user; when their message means go on, run `buracle plan resume` and start the implementation.";
-  return `Buracle: the plan is paused on an open decision${quoted(i.reason)}. If this message answers it, act on the answer and run \`buracle plan resume\`; otherwise answer the user and keep waiting.`;
-}
-var WAITING = re([
-  "waiting (?:for|on|until)",
-  "wait(?:ing)? for (?:it|them|the [a-z0-9 -]{1,40}) to (?:finish|complete|return|report)",
-  "i'?ll (?:check|continue|resume|report|pick (?:it|this) up) (?:back )?(?:when|once|after)",
-  "once (?:it|they|the [a-z0-9 -]{1,40}) (?:finish|complete|return|report)[a-z]*",
-  "(?:is|are) (?:still )?running in the background",
-  "running in the background",
-  "bekliyorum",
-  "bekleniyor",
-  "(?:bitmesini|tamamlanmasini|sonuclanmasini|donmesini) bekl[a-z]*",
-  "bitince",
-  "tamamlaninca",
-  "arka planda (?:calisiyor|suruyor|devam ediyor)"
-].join("|"));
-function reportsWaiting(text) {
-  if (typeof text !== "string" || text.trim() === "")
-    return false;
-  WAITING.lastIndex = 0;
-  return WAITING.test(fold(text));
-}
-function detectSignals(text) {
-  const t = userWords(text);
-  if (t === undefined)
-    return { control: null, recall: false, write: false };
-  return { control: controlOf(t), recall: false, write: false };
-}
-
 // src/core/policy/routing.ts
 function mcpUnavailable(state) {
   return state === "down" || state === "off";
@@ -9966,511 +9726,834 @@ function validateRoutingPolicy(x, knownServers) {
   return errors;
 }
 
-// src/core/policy/skill-router.ts
-var LANG = /^[a-z]{2}$/;
-function isObj2(x) {
-  return x !== null && typeof x === "object" && !Array.isArray(x);
+// src/core/status/context.ts
+var RANK = { ok: 0, warn: 1, critical: 2 };
+var CONTEXT_DEFAULTS = { warnPct: 85, criticalPct: 95 };
+function pctOk(x) {
+  return typeof x === "number" && Number.isFinite(x) && x > 0 && x <= 100;
 }
-function phraseList(x, at, errors) {
-  const out = [];
-  const take = (list, where) => {
-    if (!Array.isArray(list)) {
-      errors.push(`${where}: expected a list of phrases`);
-      return;
-    }
-    list.forEach((p, i) => {
-      if (typeof p !== "string" || p.trim() === "") {
-        errors.push(`${where}[${i}]: expected a non-empty string`);
-        return;
-      }
-      const problem = phraseProblem(p);
-      if (problem !== undefined)
-        errors.push(`${where}[${i}]: ${problem}`);
-      else
-        out.push(p.trim());
-    });
-  };
-  if (isObj2(x)) {
-    for (const [lang, list] of Object.entries(x)) {
-      if (!LANG.test(lang))
-        errors.push(`${at}.${lang}: expected a two-letter language code`);
-      else
-        take(list, `${at}.${lang}`);
-    }
-  } else
-    take(x, at);
-  return out;
+function contextThresholds(cfg) {
+  const w = cfg?.warnPct;
+  const c = cfg?.criticalPct;
+  return pctOk(w) && pctOk(c) && w < c ? { warnPct: w, criticalPct: c } : { ...CONTEXT_DEFAULTS };
 }
-function phraseProblem(p) {
-  const t = p.trim();
-  if (t.startsWith("re:")) {
-    try {
-      new RegExp(t.slice(3).trim());
-    } catch {
-      return `invalid regular expression ${JSON.stringify(t)}`;
-    }
-    return t.slice(3).trim() === "" ? "empty regular expression" : undefined;
+function contextBand(pct, cfg) {
+  if (typeof pct !== "number" || !Number.isFinite(pct))
+    return;
+  const t = contextThresholds(cfg);
+  return pct >= t.criticalPct ? "critical" : pct >= t.warnPct ? "warn" : "ok";
+}
+function contextWarning(band, cfg) {
+  const t = contextThresholds(cfg);
+  if (band === "critical") {
+    return `Buracle: the context window is above ${t.criticalPct}% full. Finish the current atomic step, then bring the plan file up to date (ticked tasks, deviations) and save lasting decisions with memory_write before starting anything new; Buracle keeps the plan state across the coming compaction. Do not skip verification.`;
   }
-  if (/[A-Z]/.test(t))
-    return `write phrases in lower case (${JSON.stringify(t)})`;
-  if (/\*(?=[^\s,;:!?])/.test(t))
-    return `* may only end a word (${JSON.stringify(t)})`;
+  if (band === "warn") {
+    return `Buracle: the context window is above ${t.warnPct}% full. Keep outputs short, read narrow line ranges instead of whole files, and keep the plan file and todo list current so the work survives a compaction.`;
+  }
   return;
 }
-function triggersOf(x, at, errors, allowed) {
-  const out = {};
-  if (!isObj2(x)) {
-    errors.push(`${at}: expected a mapping of ${allowed.join(", ")}`);
+function contextWatch(warned, pct, cfg) {
+  const prev = warned === "warn" || warned === "critical" ? warned : "ok";
+  const band = contextBand(pct, cfg);
+  if (band === undefined)
+    return { warned: prev };
+  if (band === "ok")
+    return { band, warned: "ok" };
+  if (RANK[band] > RANK[prev]) {
+    const warn = contextWarning(band, cfg);
+    return warn !== undefined ? { band, warn, warned: band } : { band, warned: band };
+  }
+  return { band, warned: prev };
+}
+
+// src/engine/log.ts
+import { appendFileSync, mkdirSync, renameSync, statSync as statSync2 } from "fs";
+
+// src/engine/paths.ts
+import os from "os";
+import { existsSync, readFileSync } from "fs";
+import { dirname, isAbsolute, join as join2, resolve } from "path";
+
+// src/engine/yaml.ts
+var loaded;
+function yaml() {
+  return loaded ??= require_dist();
+}
+function parseYaml(text) {
+  return yaml().parse(text);
+}
+
+// src/engine/paths.ts
+function env(name) {
+  const v = process.env[name];
+  return v !== undefined && v.trim() !== "" ? v : undefined;
+}
+function absEnv(name) {
+  const v = env(name);
+  return v === undefined ? undefined : resolve(v);
+}
+function home() {
+  return absEnv("HOME") ?? os.homedir();
+}
+function expandHome(p) {
+  if (p === "~")
+    return home();
+  if (p.startsWith("~/"))
+    return join2(home(), p.slice(2));
+  return p;
+}
+function buracleHome() {
+  return absEnv("BURACLE_HOME") ?? join2(home(), ".buracle");
+}
+function oldVaultRoot() {
+  return join2(home(), "Documents", "Buracle");
+}
+function claudeDir() {
+  return absEnv("CLAUDE_CONFIG_DIR") ?? join2(home(), ".claude");
+}
+function claudeJson() {
+  const dir = absEnv("CLAUDE_CONFIG_DIR");
+  return dir ? join2(dir, ".claude.json") : join2(home(), ".claude.json");
+}
+function codexHome() {
+  return absEnv("CODEX_HOME") ?? join2(home(), ".codex");
+}
+function agentsDir() {
+  return join2(home(), ".agents");
+}
+function xdg(name) {
+  const v = env(name);
+  return v !== undefined && isAbsolute(v) ? v : undefined;
+}
+function opencodeConfigDir() {
+  return join2(xdg("XDG_CONFIG_HOME") ?? join2(home(), ".config"), "opencode");
+}
+function opencodeDataDir() {
+  return join2(xdg("XDG_DATA_HOME") ?? join2(home(), ".local", "share"), "opencode");
+}
+function ompAgentDir() {
+  return absEnv("PI_CODING_AGENT_DIR") ?? join2(home(), ".omp", "agent");
+}
+function ompHome() {
+  return join2(home(), ".omp");
+}
+function qwenHome() {
+  return absEnv("QWEN_HOME") ?? join2(home(), ".qwen");
+}
+function piAgentDir() {
+  return absEnv("PI_CODING_AGENT_DIR") ?? join2(home(), ".pi", "agent");
+}
+function agentDirShared() {
+  return absEnv("PI_CODING_AGENT_DIR");
+}
+function agyDir() {
+  return join2(home(), ".gemini", "config");
+}
+var CONFIG_DIRS = { claude: claudeDir, codex: codexHome, opencode: opencodeConfigDir, omp: ompAgentDir, qwen: qwenHome, pi: piAgentDir, agy: agyDir };
+function harnessConfigDir(h) {
+  return CONFIG_DIRS[h]();
+}
+function localBinDir() {
+  return join2(home(), ".local", "bin");
+}
+function isCheckout(dir) {
+  return existsSync(join2(dir, "canonical", "buracle.yaml")) && existsSync(join2(dir, "package.json"));
+}
+function findCheckout(start) {
+  let dir = resolve(start);
+  for (let i = 0;i < 8; i++) {
+    if (isCheckout(dir))
+      return dir;
+    const up = dirname(dir);
+    if (up === dir)
+      break;
+    dir = up;
+  }
+  return;
+}
+function configuredRepoRoot() {
+  try {
+    const raw = parseYaml(readFileSync(userConfigFile(), "utf8"));
+    const repo = raw !== null && typeof raw === "object" ? raw["repo"] : undefined;
+    if (typeof repo === "string" && repo.trim() !== "") {
+      const expanded = expandHome(repo.trim());
+      const dir = isAbsolute(expanded) ? resolve(expanded) : resolve(home(), expanded);
+      if (isCheckout(dir))
+        return dir;
+    }
+  } catch {}
+  try {
+    const snap = JSON.parse(readFileSync(runtimeConfigFile(), "utf8"));
+    const r = snap?.resolved?.repoRoot;
+    if (typeof r === "string" && isAbsolute(r) && isCheckout(r))
+      return resolve(r);
+  } catch {}
+  return;
+}
+var cachedCheckout;
+function repoRoot() {
+  if (cachedCheckout === undefined)
+    cachedCheckout = findCheckout(import.meta.dirname) ?? null;
+  if (cachedCheckout !== null)
+    return cachedCheckout;
+  return configuredRepoRoot() ?? resolve(import.meta.dirname, "..", "..");
+}
+var RUNTIME_MARKER = ".buracle-runtime.json";
+function runtimeRoot() {
+  return join2(buracleHome(), "runtime");
+}
+function isFrozenRuntime(dir = repoRoot()) {
+  return existsSync(join2(dir, RUNTIME_MARKER));
+}
+function checkoutRoot() {
+  const here = repoRoot();
+  if (!isFrozenRuntime(here))
+    return here;
+  const ok = (dir) => dir !== undefined && isCheckout(dir) && !isFrozenRuntime(dir) && resolve(dir) !== resolve(here);
+  const configured = configuredRepoRoot();
+  if (ok(configured))
+    return configured;
+  try {
+    const m = JSON.parse(readFileSync(join2(here, RUNTIME_MARKER), "utf8"));
+    const c = m?.checkout;
+    if (typeof c === "string" && isAbsolute(c) && ok(c))
+      return resolve(c);
+  } catch {}
+  return;
+}
+function canonicalDir() {
+  return join2(repoRoot(), "canonical");
+}
+function harnessDir(h) {
+  return h === undefined ? join2(repoRoot(), "harness") : join2(repoRoot(), "harness", h);
+}
+function userConfigFile() {
+  return join2(buracleHome(), "config.yaml");
+}
+function secretsDir() {
+  return join2(buracleHome(), "secrets");
+}
+function mcpKeysFile() {
+  return join2(secretsDir(), "mcp-keys.json");
+}
+function binDir() {
+  return join2(buracleHome(), "bin");
+}
+function shimPath() {
+  return join2(binDir(), "buracle");
+}
+function stateDir() {
+  return join2(buracleHome(), "state");
+}
+function ownedLedgerFile() {
+  return join2(stateDir(), "owned.json");
+}
+function healthFile() {
+  return join2(stateDir(), "health.json");
+}
+function updatesFile() {
+  return join2(stateDir(), "updates.json");
+}
+function usageFile() {
+  return join2(stateDir(), "usage.json");
+}
+function runtimeConfigFile() {
+  return join2(stateDir(), "runtime-config.json");
+}
+function txnLockFile() {
+  return join2(stateDir(), "txn.lock");
+}
+function memoryStateDir() {
+  return join2(stateDir(), "memory");
+}
+function brainDir() {
+  return join2(buracleHome(), "brain");
+}
+function pathRulesDir() {
+  return join2(buracleHome(), "rules", "paths");
+}
+function toolchainDir() {
+  return join2(buracleHome(), "toolchain");
+}
+function systemToolsDir() {
+  return join2(toolchainDir(), "system");
+}
+function systemToolBinDirs() {
+  const root = systemToolsDir();
+  return [join2(root, "node", "bin"), join2(root, "uv"), join2(root, "rg"), join2(root, "jq")];
+}
+function toolchainBinDirs() {
+  return [join2(toolchainDir(), "go", "bin"), join2(toolchainDir(), "dotnet", "tools"), ...systemToolBinDirs()];
+}
+function toolchainStateFile() {
+  return join2(stateDir(), "toolchain.json");
+}
+function memoryUiStateFile() {
+  return join2(stateDir(), "memory-ui.json");
+}
+function uiSessionsDir() {
+  return join2(stateDir(), "ui-sessions");
+}
+function memoryUiSpawnMarker() {
+  return join2(stateDir(), "memory-ui.spawn");
+}
+function shellPathStateFile() {
+  return join2(stateDir(), "shell-path.json");
+}
+function indexStateDir() {
+  return join2(stateDir(), "index");
+}
+function ompPlanStagingDir() {
+  return join2(stateDir(), "omp-plans");
+}
+function noticesDir() {
+  return join2(stateDir(), "notices");
+}
+function reviewNotesDir() {
+  return join2(stateDir(), "review");
+}
+function reviewInboxFile() {
+  return join2(reviewNotesDir(), "inbox.json");
+}
+function installedSkillsFile() {
+  return join2(stateDir(), "skills.json");
+}
+function skillsCacheDir() {
+  return join2(buracleHome(), "cache", "skills");
+}
+function sessionsDir(h) {
+  return h === undefined ? join2(buracleHome(), "sessions") : join2(buracleHome(), "sessions", h);
+}
+function runDir(h) {
+  return h === undefined ? join2(buracleHome(), "run") : join2(buracleHome(), "run", h);
+}
+function claudeManagedSettingsFile() {
+  return process.platform === "darwin" ? "/Library/Application Support/ClaudeCode/managed-settings.json" : "/etc/claude-code/managed-settings.json";
+}
+function mcpRunDir() {
+  return join2(runDir(), "mcp");
+}
+function mcpCacheDir() {
+  return join2(stateDir(), "mcp-cache");
+}
+function mcpCacheFile(id) {
+  return join2(mcpCacheDir(), `${id}.json`);
+}
+function mcpLogFile(id) {
+  return join2(logsDir(), `mcp-${id}.log`);
+}
+var MCP_SOCKET_PATH_MAX = 100;
+var MEMORY_UI_PORT = 41777;
+function mcpFallbackRunDir(base = "/tmp") {
+  const uid = process.getuid?.() ?? 0;
+  return join2(base, `buracle-${uid}-${fnv1a(mcpRunDir())}`);
+}
+function fnv1a(text) {
+  let h = 2166136261;
+  for (const byte of new TextEncoder().encode(text)) {
+    h ^= byte;
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h.toString(16).padStart(8, "0");
+}
+function mcpSocketDir(key, base = "/tmp") {
+  const primary = mcpRunDir();
+  return Buffer.byteLength(join2(primary, `${key}.sock`)) <= MCP_SOCKET_PATH_MAX ? primary : mcpFallbackRunDir(base);
+}
+function backupsDir() {
+  return join2(buracleHome(), "backups");
+}
+function journalDir() {
+  return join2(buracleHome(), "journal");
+}
+function journalFile(txn) {
+  return join2(journalDir(), `${txn}.json`);
+}
+function logsDir() {
+  return join2(buracleHome(), "logs");
+}
+function logFile() {
+  return join2(logsDir(), "buracle.log");
+}
+function installLogFile(now) {
+  const two = (n) => String(n).padStart(2, "0");
+  return join2(logsDir(), `install-${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}.log`);
+}
+var INSTALL_LOG_RE = /^install-\d{4}-\d{2}-\d{2}\.log$/;
+var SESSION_ID_RE = /^[A-Za-z0-9._:-]{1,128}$/;
+function isValidSessionId(id) {
+  return typeof id === "string" && SESSION_ID_RE.test(id) && id !== "." && id !== "..";
+}
+function checkedSession(id) {
+  if (!isValidSessionId(id))
+    throw new Error(`invalid session id: ${JSON.stringify(id)}`);
+  return id;
+}
+function sessionDir(h, sessionId) {
+  return join2(sessionsDir(h), checkedSession(sessionId));
+}
+function heartbeatFile(h, sessionId) {
+  return join2(runDir(h), `${checkedSession(sessionId)}.json`);
+}
+
+// src/engine/log.ts
+var RANK2 = { debug: 10, info: 20, warn: 30, error: 40 };
+var LOG_MAX_BYTES = 5 * 1024 * 1024;
+function threshold() {
+  const v = process.env["BURACLE_LOG_LEVEL"];
+  return v !== undefined && v in RANK2 ? RANK2[v] : RANK2.info;
+}
+function serializable(data) {
+  if (data instanceof Error)
+    return { name: data.name, message: data.message, stack: data.stack };
+  if (data !== null && typeof data === "object" && !Array.isArray(data)) {
+    const out = {};
+    for (const [k, v] of Object.entries(data))
+      out[k] = v instanceof Error ? serializable(v) : v;
     return out;
   }
-  for (const k of Object.keys(x))
-    if (!allowed.includes(k))
-      errors.push(`${at}.${k}: unknown key`);
-  for (const k of allowed) {
-    if (x[k] === undefined)
-      continue;
-    const list = phraseList(x[k], `${at}.${k}`, errors);
-    if (list.length > 0)
-      out[k] = list;
-  }
-  return out;
+  return data;
 }
-function parseSkillTriggers(x) {
-  const errors = [];
-  const table = { skills: {}, categories: {} };
-  if (!isObj2(x))
-    return { table, errors: ["(root): expected a mapping with version, skills and categories"] };
-  for (const k of Object.keys(x))
-    if (!["version", "skills", "categories"].includes(k))
-      errors.push(`(root).${k}: unknown key`);
-  if (x["version"] !== 1)
-    errors.push("version: expected 1");
-  for (const [section, allowed] of [["skills", ["ask", "topic", "not"]], ["categories", ["topic", "not", "deps"]]]) {
-    const raw = x[section];
-    if (raw === undefined)
-      continue;
-    if (!isObj2(raw)) {
-      errors.push(`${section}: expected a mapping of id -> triggers`);
-      continue;
-    }
-    for (const [id, t] of Object.entries(raw)) {
-      if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) {
-        errors.push(`${section}.${id}: expected a kebab-case id`);
-        continue;
-      }
-      table[section][id] = triggersOf(t, `${section}.${id}`, errors, allowed);
-    }
-  }
-  return { table, errors };
-}
-function validateSkillTriggers(x, known = {}) {
-  const { table, errors } = parseSkillTriggers(x);
-  for (const id of Object.keys(table.skills))
-    errors.push(`skills.${id}: skill phrase triggers were removed; a skill loads from an exact invocation only`);
-  const skills = known.skills;
-  if (skills !== undefined) {
-    const byId = new Map(skills.map((s) => [s.id, s]));
-    for (const id of Object.keys(table.skills)) {
-      const s = byId.get(id);
-      if (s === undefined)
-        errors.push(`skills.${id}: no canonical skill has this id`);
-      else if (s.invocation === "explicit" && table.skills[id]?.topic !== undefined)
-        errors.push(`skills.${id}.topic: ${id} is explicit-only, so topics never load it (use ask)`);
-    }
-  }
-  if (known.categories !== undefined) {
-    for (const id of Object.keys(table.categories))
-      if (!known.categories.includes(id))
-        errors.push(`categories.${id}: no routing category has this id`);
-  }
-  return errors;
-}
-var B0 = "(?<![a-z0-9_'-])";
-var B1 = "(?![a-z0-9_'-])";
-var SEP = "[\\s,;:!?]+";
-var TR_SUFFIX = "(?:'(?:y?[iu]|n[iu]|s[iu]|s?[iu]n[iu]|l[ae]r[iu](?:n[iu])?))?";
-function escapeRe(s) {
-  return s.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
-}
-function phraseSource(phrase) {
-  const t = phrase.trim();
-  if (t.startsWith("re:")) {
-    const src = t.slice(3).trim();
-    if (src === "")
-      return;
-    try {
-      new RegExp(src);
-    } catch {
-      return;
-    }
-    return `(?:${src})`;
-  }
-  const words = fold(t).split(/[\s,;:!?]+/).filter((w) => w !== "");
-  if (words.length === 0)
-    return;
-  const parts = words.map((w) => {
-    const stem = w.endsWith("*");
-    const body = escapeRe(stem ? w.slice(0, -1) : w);
-    return stem ? `${body}[a-z0-9_']*` : `${body}${TR_SUFFIX}`;
-  });
-  return `${B0}${parts.join(SEP)}${B1}`;
-}
-function compileList(phrases) {
-  if (phrases === undefined || phrases.length === 0)
-    return;
-  const sources = [...new Set(phrases.map(phraseSource).filter((s) => s !== undefined))];
-  if (sources.length === 0)
-    return;
-  sources.sort((a, b) => b.length - a.length || (a < b ? -1 : a > b ? 1 : 0));
+function rotate(file, maxBytes = LOG_MAX_BYTES, measured) {
+  let st;
   try {
-    return new RegExp(sources.join("|"));
+    st = measured ?? statSync2(file);
+  } catch {
+    return;
+  }
+  if (st.size <= maxBytes)
+    return;
+  const mine = `${file}.${process.pid}.rotating`;
+  try {
+    renameSync(file, mine);
+  } catch {
+    return;
+  }
+  try {
+    if (statSync2(mine).ino === st.ino)
+      renameSync(mine, `${file}.1`);
+    else
+      renameSync(mine, file);
+  } catch {}
+}
+function log(level, msg, data) {
+  if (RANK2[level] < threshold())
+    return;
+  try {
+    const file = logFile();
+    mkdirSync(logsDir(), { recursive: true });
+    rotate(file);
+    const line = { ts: new Date().toISOString(), level, pid: process.pid, msg };
+    if (data !== undefined)
+      line["data"] = serializable(data);
+    let text;
+    try {
+      text = JSON.stringify(line);
+    } catch {
+      text = JSON.stringify({ ts: line["ts"], level, pid: process.pid, msg, data: "[unserializable]" });
+    }
+    appendFileSync(file, text + `
+`, { mode: 384 });
+  } catch {}
+}
+
+// src/adapters/shared/pipeline/types.ts
+import { join as join4 } from "path";
+
+// src/engine/fsx.ts
+import { createHash as createHash2, randomBytes } from "crypto";
+import { closeSync, constants as constants2, fsyncSync, lstatSync, mkdirSync as mkdirSync2, openSync, readFileSync as readFileSync2, readlinkSync, realpathSync, renameSync as renameSync2, statSync as statSync3, unlinkSync, writeSync, chmodSync } from "fs";
+import { basename, dirname as dirname2, isAbsolute as isAbsolute2, join as join3, resolve as resolve2 } from "path";
+function realPath(p) {
+  return realpathSync.native(p);
+}
+function comparablePath(p, base) {
+  return base !== undefined ? resolve2(base, p) : resolve2(p);
+}
+function sha256(data) {
+  return createHash2("sha256").update(data).digest("hex");
+}
+function errCode(e) {
+  return e !== null && typeof e === "object" && "code" in e && typeof e.code === "string" ? e.code : undefined;
+}
+function message(e) {
+  return e instanceof Error ? e.message : String(e);
+}
+function ensureDirSync(path) {
+  mkdirSync2(path, { recursive: true });
+}
+function readTextSync(path) {
+  try {
+    return { ok: true, value: readFileSync2(path, "utf8") };
+  } catch (e) {
+    const code = errCode(e);
+    if (code === "ENOENT" || code === "ENOTDIR")
+      return { ok: false, error: `${path}: not found`, code: "missing" };
+    return { ok: false, error: `${path}: ${message(e)}`, code: "io" };
+  }
+}
+function readJsonSafeSync(path) {
+  const r = readTextSync(path);
+  if (!r.ok)
+    return r;
+  try {
+    return { ok: true, value: JSON.parse(r.value) };
+  } catch (e) {
+    return { ok: false, error: `${path}: invalid JSON: ${message(e)}`, code: "parse" };
+  }
+}
+function resolveWriteTarget(path) {
+  let cur = path;
+  for (let i = 0;i < 32; i++) {
+    let st;
+    try {
+      st = lstatSync(cur);
+    } catch {
+      return cur;
+    }
+    if (!st.isSymbolicLink())
+      return cur;
+    const target = readlinkSync(cur);
+    cur = isAbsolute2(target) ? target : resolve2(dirname2(cur), target);
+  }
+  throw new Error(`${path}: too many levels of symbolic links`);
+}
+function fileMode(path) {
+  try {
+    const st = statSync3(path);
+    return st.isFile() ? st.mode & 4095 : undefined;
   } catch {
     return;
   }
 }
-function shortOf(s) {
-  const src = (typeof s.short === "string" && s.short.trim() !== "" ? s.short : s.description ?? "").replace(/\s+/g, " ").trim();
-  const cut = /^(.{20,}?)(?:\. |: |; )/.exec(src)?.[1] ?? src;
-  return cut.length > 80 ? `${cut.slice(0, 79).replace(/[\s,;:]+\S*$/, "")}...` : cut.replace(/[.:;]+$/, "");
-}
-function preferServers(cat) {
-  const out = [];
-  for (const raw of Array.isArray(cat.prefer) ? cat.prefer : []) {
-    const ref = parseRouteRef(raw);
-    if (ref?.kind === "mcp" && !out.includes(ref.server))
-      out.push(ref.server);
-  }
-  return out;
-}
-function compileTriggers(skills, policy) {
-  const list = [...Array.isArray(skills) ? skills : []].filter((s) => s && typeof s.id === "string" && /^[a-z0-9][a-z0-9-]*$/.test(s.id));
-  list.sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-  const seen = new Set;
-  const out = { skills: [], categories: [] };
-  for (const s of list) {
-    if (seen.has(s.id))
-      continue;
-    seen.add(s.id);
-    const explicit = s.invocation === "explicit";
-    out.skills.push({ id: s.id, explicit, userInvocable: s.userInvocable !== false, short: shortOf(s) });
-  }
-  for (const cat of Array.isArray(policy?.categories) ? policy.categories : []) {
-    const t = cat.triggers;
-    if (t === undefined)
-      continue;
-    const entry = { id: cat.id, servers: preferServers(cat) };
-    const topic = compileList(t.topic);
-    if (topic)
-      entry.topic = topic;
-    const not = compileList(t.not);
-    if (not)
-      entry.not = not;
-    const deps = compileList(t.deps);
-    if (deps)
-      entry.deps = deps;
-    if (entry.topic !== undefined || entry.deps !== undefined)
-      out.categories.push(entry);
-  }
-  return out;
-}
-var ROUTE_CAPS = { load: 1, candidates: 2, categories: 2 };
-var MAX_TEXT = 12000;
-var WORD_DEPS = new Set(["next", "debug", "path", "events", "util", "utils", "test", "core", "types", "common", "shared", "open", "request", "config", "app", "api", "server", "client", "lib", "main", "index"]);
-var ORDINARY_PARTS = new Set([
-  ...WORD_DEPS,
-  "errors",
-  "sync",
-  "net",
-  "text",
-  "time",
-  "log",
-  "sys",
-  "exp",
-  "tools",
-  "term",
-  "mod",
-  "image",
-  "http",
-  "json",
-  "sql",
-  "mock",
-  "assert",
-  "require",
-  "context",
-  "crypto",
-  "framework",
-  "console",
-  "kit",
-  "cli",
-  "sdk",
-  "go",
-  "node"
-]);
-function emptyRoute() {
-  return { invoked: [], load: [], candidates: [], categories: [] };
-}
-var SLASH_NAMESPACES = [...new Set(HARNESSES.flatMap((h) => harnessProfile(h).skills.invoke.namespace ?? []))];
-var SLASH_LEAD = new RegExp(`^/(?:(${SLASH_NAMESPACES.join("|")}):)?([a-z0-9][a-z0-9-]*)(?=\\s|$)`);
-function explicitSyntax(text, ids, invocable, h) {
-  const invoked = [];
-  const asked = [];
-  const add = (id, native) => {
-    if (id === undefined || !ids.has(id))
-      return;
-    const list = native ? invoked : asked;
-    if (!list.includes(id) && !invoked.includes(id))
-      list.push(id);
-  };
-  const how = harnessProfile(h).skills.invoke;
-  const trimmed = text.trim();
-  for (const m of trimmed.matchAll(/<command-name>\s*\/?(buracle:)?([a-z0-9-]+)\s*<\/command-name>/g)) {
-    if (m[1] !== undefined || invocable.has(m[2] ?? ""))
-      add(m[2], how.commandTag);
-  }
-  const lead = SLASH_LEAD.exec(trimmed);
-  if (lead && (lead[1] !== undefined || invocable.has(lead[2] ?? ""))) {
-    const ns = lead[1];
-    add(lead[2], ns !== undefined ? how.namespace === ns : how.slash);
-  }
-  const lead$ = /^\$([a-z0-9][a-z0-9-]*)(?=\s|$)/.exec(trimmed);
-  if (lead$)
-    add(lead$[1], how.dollar);
-  if (how.dollar)
-    for (const m of trimmed.matchAll(/(?:^|\s)\$([a-z0-9][a-z0-9-]*)(?![\w-])/g))
-      add(m[1], true);
-  if (how.at)
-    for (const m of trimmed.matchAll(/(?:^|\s)@([a-z0-9][a-z0-9-]*)(?![\w./-])/g))
-      add(m[1], true);
-  return { invoked, asked };
-}
-function depVariants(name) {
-  const n = fold(name);
-  if (n.length < 2)
-    return [];
-  const out = new Set;
-  const whole = (v) => {
-    if (v.length < 2)
-      return;
-    if (WORD_DEPS.has(v)) {
-      out.add(`${v}.js`);
-      out.add(`${v}js`);
-    } else if (v.length >= 3 || /[^a-z]/.test(v))
-      out.add(v);
-  };
-  const part = (v) => {
-    if (v.length >= 3 && !ORDINARY_PARTS.has(v))
-      out.add(v);
-  };
-  whole(n);
-  const scoped = /^@([^/]+)\/(.+)$/.exec(n);
-  if (scoped !== null) {
-    if (scoped[1] === "types")
-      return [...out];
-    whole(scoped[2] ?? "");
-    part(scoped[1] ?? "");
-  } else if (n.includes("/")) {
-    const segs = n.split("/").filter((s) => s !== "");
-    const host = segs[0]?.includes(".") === true;
-    let rest = host ? segs.slice(1) : segs;
-    while (rest.length > 1 && /^v\d+$/.test(rest[rest.length - 1] ?? ""))
-      rest = rest.slice(0, -1);
-    const last = (rest[rest.length - 1] ?? "").replace(/\.v\d+$/, "");
-    part(last);
-    part(last.replace(/^go-|-go$/g, ""));
-    if (!host && rest.length === 2)
-      part(rest[0] ?? "");
-  }
-  for (const v of [...out]) {
-    if (v.includes("-") && !v.includes("/") && v.split("-").every((p) => p.length >= 3))
-      out.add(v.replace(/-/g, " "));
-    const bare = /^([a-z][a-z0-9-]{4,}?)(?:css|[.-]?js)$/.exec(v)?.[1];
-    if (bare !== undefined)
-      part(bare);
-  }
-  return [...out];
-}
-function namedDeps(f, deps) {
-  if (deps === undefined || deps.length === 0)
-    return { names: [], at: -1 };
-  const hits = [];
-  for (const d of new Set(deps)) {
-    if (typeof d !== "string")
-      continue;
-    for (const v of depVariants(d)) {
-      if (!f.includes(v))
-        continue;
-      const m = new RegExp(`(?<![a-z0-9_'@/.-])${escapeRe(v)}(?:\\.js)?(?=$|'[a-z]{0,6}(?![a-z0-9])|[^a-z0-9_'.-]|\\.(?![a-z0-9]))`).exec(f);
-      if (m) {
-        hits.push({ name: d, at: m.index, len: m[0].length, own: v === fold(d) });
-        break;
-      }
+function atomicWriteSync(path, data, opts = {}) {
+  const target = resolveWriteTarget(path);
+  const dir = dirname2(target);
+  mkdirSync2(dir, { recursive: true });
+  const mode = opts.mode ?? fileMode(target) ?? 420;
+  const tmp = join3(dir, `.${basename(target)}.buracle-${process.pid}-${randomBytes(4).toString("hex")}.tmp`);
+  let fd;
+  try {
+    fd = openSync(tmp, constants2.O_WRONLY | constants2.O_CREAT | constants2.O_EXCL, mode);
+    const buf = typeof data === "string" ? Buffer.from(data, "utf8") : data;
+    let off = 0;
+    while (off < buf.length)
+      off += writeSync(fd, buf, off, buf.length - off);
+    fsyncSync(fd);
+    closeSync(fd);
+    fd = undefined;
+    chmodSync(tmp, mode);
+    renameSync2(tmp, target);
+  } catch (e) {
+    if (fd !== undefined) {
+      try {
+        closeSync(fd);
+      } catch {}
     }
+    try {
+      unlinkSync(tmp);
+    } catch {}
+    throw e;
   }
-  hits.sort((a, b) => a.at - b.at || b.len - a.len || Number(b.own) - Number(a.own) || (a.name < b.name ? -1 : 1));
-  const names = hits.filter((h, i) => i === 0 || hits[i - 1]?.at !== h.at).slice(0, 3).map((x) => x.name);
-  return { names, at: hits[0]?.at ?? -1 };
-}
-function routePrompt(text, t, o) {
-  const route = emptyRoute();
-  if (typeof text !== "string" || t === undefined || t === null)
-    return route;
-  const raw = text.length > MAX_TEXT ? `${text.slice(0, MAX_TEXT - 2000)}
-${text.slice(-2000)}` : text;
-  const skills = Array.isArray(t.skills) ? t.skills : [];
-  const byId = new Map(skills.map((s) => [s.id, s]));
-  const syntax = explicitSyntax(stripQuoted(raw), new Set(byId.keys()), new Set(skills.filter((s) => s.userInvocable).map((s) => s.id)), o.harness);
-  route.invoked = syntax.invoked;
-  if (!isUserText(raw)) {
-    return route;
-  }
-  const body = raw.trim().replace(/^[/$](?:[a-z]+:)?[a-z0-9][a-z0-9-]*(?=\s|$)/, " ");
-  const f = fold(stripQuoted(body));
-  const loaded = new Set(Array.isArray(o.loaded) ? o.loaded : []);
-  const available = new Set(Array.isArray(o.available) ? o.available : []);
-  const candidates = [];
-  for (const id of syntax.asked) {
-    const s = byId.get(id);
-    if (loaded.has(id) && s?.explicit !== true)
-      continue;
-    if (route.load.length < ROUTE_CAPS.load)
-      route.load.push(id);
-    else if (s !== undefined && !s.explicit)
-      candidates.push(id);
-  }
-  const workflow = [...route.invoked, ...route.load].some((id) => byId.get(id)?.explicit === true);
-  if (!workflow)
-    route.candidates = candidates.slice(0, ROUTE_CAPS.candidates);
-  const cats = [];
-  let docs;
-  let libAt = -1;
-  for (const c of Array.isArray(t.categories) ? t.categories : []) {
-    const first = c.servers[0];
-    if (first === undefined || !available.has(first))
-      continue;
-    if (c.not?.test(f))
-      continue;
-    const m = c.topic?.exec(f);
-    let at = m?.index ?? -1;
-    const end = m !== null && m !== undefined ? m.index + m[0].length : -1;
-    let deps = false;
-    if (c.deps !== undefined) {
-      const named = namedDeps(f, o.deps);
-      if (named.names.length > 0 && c.deps.test(f)) {
-        route.libs = named.names;
-        at = at < 0 ? named.at : Math.min(at, named.at);
-        libAt = named.at;
-        deps = true;
-      }
+  try {
+    const dfd = openSync(dir, "r");
+    try {
+      fsyncSync(dfd);
+    } finally {
+      closeSync(dfd);
     }
-    if (at < 0)
-      continue;
-    const hit = { id: c.id, at, end };
-    cats.push(hit);
-    if (deps)
-      docs = hit;
-  }
-  if (docs !== undefined) {
-    for (const c of cats)
-      if (c !== docs && c.at < docs.at && c.at <= libAt && libAt < c.end) {
-        docs.at = c.at;
-        docs.lead = true;
-      }
-  }
-  cats.sort((a, b) => a.at - b.at || (a.lead === b.lead ? 0 : a.lead === true ? -1 : 1) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  route.categories = cats.slice(0, ROUTE_CAPS.categories).map((c) => c.id);
-  if (route.libs !== undefined && !route.categories.some((id) => t.categories.find((c) => c.id === id)?.deps !== undefined))
-    delete route.libs;
-  return route;
-}
-var ROUTE_TEXT_MAX_BYTES = 600;
-var PROMPT_CONTEXT_MAX_CHARS = 1500;
-var ROUTE_HEADER = "Buracle routing for this prompt:";
-function utf8Bytes(s) {
-  let n = 0;
-  for (let i = 0;i < s.length; i++) {
-    const c = s.charCodeAt(i);
-    if (c < 128)
-      n += 1;
-    else if (c < 2048)
-      n += 2;
-    else if (c >= 55296 && c <= 56319 && i + 1 < s.length) {
-      n += 4;
-      i++;
-    } else
-      n += 3;
-  }
-  return n;
-}
-function loadHow(h, id, explicit, file) {
-  return harnessProfile(h).skills.load(id, explicit, file);
-}
-var CANDIDATE_HOW = harnessTable((p) => p.skills.candidateHow);
-var CATEGORY_LABEL = {
-  "library-docs": "Library docs",
-  "web-search": "Web search",
-  "web-fetch": "Web pages",
-  "code-examples": "Public code examples",
-  "code-search": "Code search",
-  "code-structure": "Code structure",
-  browser: "Browser",
-  memory: "Memory"
-};
-function labelOf(id) {
-  const l = CATEGORY_LABEL[id];
-  if (l !== undefined)
-    return l;
-  const words = id.replace(/-/g, " ");
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
-function categoryReminder(policy, id) {
-  const cat = (Array.isArray(policy?.categories) ? policy.categories : []).find((c) => c.id === id);
-  const text = typeof cat?.reminder === "string" && cat.reminder.trim() !== "" ? cat.reminder : cat?.nudge;
-  return typeof text === "string" && text.trim() !== "" ? text.trim().replace(/[.\s]+$/, "") : undefined;
-}
-function routeText(r, h, policy, opts = {}) {
-  if (r === undefined || r === null)
-    return;
-  const skill = (id) => opts.triggers?.skills.find((s) => s.id === id);
-  const lines = [];
-  for (const id of (r.load ?? []).slice(0, ROUTE_CAPS.load)) {
-    const s = skill(id);
-    const file = opts.skillFile?.(id);
-    const explicit = s?.explicit ?? file !== undefined;
-    const asked = `- The user asked for the ${id} ${explicit ? "workflow" : "skill"}`;
-    lines.push({ must: true, text: opts.attached?.includes(id) === true ? `${asked}: its skill is attached to this message; follow it, and treat the rest of the prompt as its input.` : `${asked}: load it before any other step and follow it (${loadHow(h, id, explicit, file)}); the rest of the prompt is its input.` });
-  }
-  const cands = (r.candidates ?? []).slice(0, ROUTE_CAPS.candidates);
-  if (cands.length > 0) {
-    const list = cands.map((id) => {
-      const short = skill(id)?.short;
-      return short !== undefined && short !== "" ? `${id} (${short})` : id;
-    }).join(", ");
-    lines.push({ must: false, text: `- Skills to evaluate first: ${list}. Decide YES or NO for each with a one-line reason, then load every YES (${CANDIDATE_HOW[h]}) before any other tool.` });
-  }
-  for (const id of (r.categories ?? []).slice(0, ROUTE_CAPS.categories)) {
-    const reminder = categoryReminder(policy, id);
-    if (reminder === undefined)
-      continue;
-    const libs = id === "library-docs" && r.libs !== undefined && r.libs.length > 0 ? ` (${r.libs.join(", ")})` : "";
-    lines.push({ must: false, text: `- ${labelOf(id)}${libs}: ${reminder}.` });
-  }
-  if (lines.length === 0)
-    return;
-  const out = [ROUTE_HEADER];
-  let size = utf8Bytes(ROUTE_HEADER);
-  for (const l of lines) {
-    const add = 1 + utf8Bytes(l.text);
-    if (!l.must && size + add > ROUTE_TEXT_MAX_BYTES)
-      continue;
-    out.push(l.text);
-    size += add;
-  }
-  return out.length > 1 ? out.join(`
-`) : undefined;
+  } catch {}
 }
 
+// src/engine/git.ts
+import { basename as basename2, dirname as dirname3 } from "path";
+
+// src/engine/proc.ts
+function collect(stream) {
+  const decoder = new TextDecoder;
+  let acc = "";
+  if (!stream)
+    return { done: Promise.resolve(), text: () => "" };
+  const reader = stream.getReader();
+  const done = (async () => {
+    try {
+      for (;; ) {
+        const { value, done: end } = await reader.read();
+        if (end)
+          break;
+        if (value)
+          acc += decoder.decode(value, { stream: true });
+      }
+      acc += decoder.decode();
+    } catch {}
+  })();
+  return { done, text: () => acc };
+}
+function delay(ms) {
+  return new Promise((res) => setTimeout(res, ms));
+}
+async function run(argv, opts = {}) {
+  if (argv.length === 0 || argv[0] === undefined || argv[0] === "")
+    return { code: 127, stdout: "", stderr: "run: empty argv", timedOut: false };
+  const env = {};
+  for (const [k, v] of Object.entries(process.env))
+    if (v !== undefined)
+      env[k] = v;
+  if (opts.env)
+    for (const [k, v] of Object.entries(opts.env)) {
+      if (v === undefined)
+        delete env[k];
+      else
+        env[k] = v;
+    }
+  const group = opts.processGroup === true;
+  let proc;
+  try {
+    proc = Bun.spawn(argv, {
+      cwd: opts.cwd,
+      env,
+      stdin: opts.stdin === undefined ? "ignore" : typeof opts.stdin === "string" ? new TextEncoder().encode(opts.stdin) : opts.stdin,
+      stdout: "pipe",
+      stderr: "pipe",
+      ...group ? { detached: true } : {}
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { code: 127, stdout: "", stderr: msg, timedOut: false };
+  }
+  const out = collect(proc.stdout);
+  const err = collect(proc.stderr);
+  let timedOut = false;
+  let aborted = false;
+  let killTimer;
+  let hardTimer;
+  const p = proc;
+  const send = (sig) => {
+    if (group) {
+      try {
+        process.kill(-p.pid, sig);
+        return;
+      } catch {}
+    }
+    try {
+      p.kill(sig);
+    } catch {}
+  };
+  const stop = () => {
+    send("SIGTERM");
+    if (hardTimer === undefined)
+      hardTimer = setTimeout(() => {
+        send("SIGKILL");
+      }, 2000);
+  };
+  if (opts.timeoutMs !== undefined && opts.timeoutMs > 0) {
+    killTimer = setTimeout(() => {
+      timedOut = true;
+      stop();
+    }, opts.timeoutMs);
+  }
+  const onAbort = () => {
+    aborted = true;
+    stop();
+  };
+  if (opts.signal !== undefined) {
+    if (opts.signal.aborted)
+      onAbort();
+    else
+      opts.signal.addEventListener("abort", onAbort, { once: true });
+  }
+  try {
+    const code = await proc.exited;
+    await Promise.race([Promise.all([out.done, err.done]), delay(timedOut || aborted ? 200 : 1000)]);
+    const res = { code: timedOut ? 124 : code, stdout: out.text(), stderr: err.text(), timedOut };
+    if (aborted)
+      res.aborted = true;
+    return res;
+  } finally {
+    if (killTimer !== undefined)
+      clearTimeout(killTimer);
+    if (hardTimer !== undefined)
+      clearTimeout(hardTimer);
+    opts.signal?.removeEventListener("abort", onAbort);
+  }
+}
+
+// src/engine/git.ts
+var GIT_TIMEOUT_MS = 5000;
+async function git(cwd, args) {
+  const r = await run(["git", ...args], { cwd, timeoutMs: GIT_TIMEOUT_MS, env: { GIT_OPTIONAL_LOCKS: "0", LC_ALL: "C" } });
+  return r.code === 0 ? r.stdout : undefined;
+}
+async function revParse(cwd, ...args) {
+  const out = await git(cwd, ["rev-parse", ...args]);
+  return out === undefined ? undefined : out.trim();
+}
+async function currentBranch(cwd) {
+  const out = await git(cwd, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
+  const b = out?.trim();
+  return b ? b : undefined;
+}
+async function remoteUrl(cwd, name = "origin") {
+  const out = await git(cwd, ["remote", "get-url", name]);
+  const u = out?.trim();
+  return u ? u : undefined;
+}
+async function commonDir(cwd) {
+  const out = await revParse(cwd, "--git-common-dir");
+  return out ? comparablePath(out, cwd) : undefined;
+}
+async function toplevel(cwd) {
+  const out = await revParse(cwd, "--show-toplevel");
+  return out ? comparablePath(out, cwd) : undefined;
+}
+function ownerRepoFromUrl(url) {
+  let s = url.trim();
+  if (s === "")
+    return;
+  s = s.replace(/[?#].*$/, "").replace(/\/+$/, "").replace(/\.git$/, "");
+  let pathPart;
+  const scp = /^[^/@:]+@[^/:]+:(.+)$/.exec(s);
+  if (scp && scp[1] !== undefined && !/^[a-z][a-z0-9+.-]*:\/\//i.test(s))
+    pathPart = scp[1];
+  else {
+    const m = /^[a-z][a-z0-9+.-]*:\/\/[^/]*(\/.*)?$/i.exec(s);
+    pathPart = m ? m[1] ?? "" : s;
+  }
+  const segs = pathPart.split("/").filter((x) => x !== "" && x !== ".");
+  const repo = segs[segs.length - 1];
+  if (repo === undefined)
+    return;
+  const owner = segs.length >= 2 ? segs[segs.length - 2] : undefined;
+  return owner !== undefined ? { owner, repo } : { repo };
+}
+function slugPart(s) {
+  const folded = s.replace(/\u0130/g, "i").replace(/I/g, "i").replace(/\u0131/g, "i").toLowerCase().replace(/\u011F/g, "g").replace(/\u00FC/g, "u").replace(/\u015F/g, "s").replace(/\u00F6/g, "o").replace(/\u00E7/g, "c").normalize("NFKD").replace(/[\u0300-\u036F]/g, "");
+  const slug = folded.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60).replace(/-+$/g, "");
+  return slug === "" ? "project" : slug;
+}
+async function firstCommit(cwd) {
+  const out = await git(cwd, ["rev-list", "--max-parents=0", "HEAD"]);
+  if (out === undefined)
+    return;
+  return out.split(`
+`).map((l) => l.trim()).filter((l) => /^[0-9a-f]{7,40}$/.test(l)).sort()[0];
+}
+async function projectIdentity(cwd) {
+  const abs = comparablePath(cwd);
+  const common = await commonDir(abs);
+  if (common === undefined) {
+    return { slug: `${slugPart(basename2(abs))}-${sha256(abs).slice(0, 6)}`, root: abs };
+  }
+  const root = basename2(common) === ".git" ? dirname3(common) : await toplevel(abs) ?? abs;
+  const remote = await remoteUrl(abs);
+  const parsed = remote !== undefined ? ownerRepoFromUrl(remote) : undefined;
+  const name = parsed?.repo ?? basename2(root).replace(/\.git$/, "");
+  const id = { slug: slugPart(name), root, commonDir: common };
+  if (remote !== undefined)
+    id.remote = remote;
+  if (parsed?.owner !== undefined)
+    id.ownerRepo = `${parsed.owner}/${parsed.repo}`;
+  const first = await firstCommit(abs);
+  if (first !== undefined)
+    id.rootCommit = first;
+  return id;
+}
+async function projectSlug(cwd) {
+  return (await projectIdentity(cwd)).slug;
+}
+
+// src/adapters/shared/pipeline/types.ts
+var CONTEXT_BUDGET_BYTES = 9600;
+function memoryOff(d) {
+  return d.env["BURACLE_NO_MEMORY"] === "1";
+}
+function captureOff(d) {
+  return d.env["BURACLE_NO_CAPTURE"] === "1" || memoryOff(d);
+}
+async function spool(d, sid, entries) {
+  if (entries.length === 0 || captureOff(d))
+    return;
+  await d.step("H14 spool", undefined, async () => {
+    await (await d.memory("appendSpool"))?.(d.harness, sid, entries, d.spoolSuffix !== undefined ? { suffix: d.spoolSuffix } : {});
+  });
+}
+async function projectOf(d, cwd) {
+  if (d.project !== undefined)
+    return d.project(cwd);
+  const id = await projectIdentity(cwd);
+  const branch = await currentBranch(cwd);
+  return { project: id.slug, ...branch !== undefined ? { branch } : {} };
+}
+async function latestHandoffId(d, sid, cwd, now) {
+  const latest = await d.memory("latestHandoff");
+  if (latest === undefined)
+    return;
+  const { project, branch } = await projectOf(d, cwd);
+  const r = await latest({ project, ...branch !== undefined ? { branch } : {}, nowMs: now, session: sid });
+  return typeof r?.id === "string" ? r.id : undefined;
+}
+function workspaceFile(ctx, h, sid) {
+  return join4(ctx.paths.sessionDir(h, sid), "workspace.json");
+}
+function isRec(x) {
+  return x !== null && typeof x === "object" && !Array.isArray(x);
+}
+function readWorkspace(ctx, h, sid) {
+  const r = readJsonSafeSync(workspaceFile(ctx, h, sid));
+  const v = r.ok ? r.value : undefined;
+  const ok = isRec(v) && typeof v["cwd"] === "string" && Array.isArray(v["children"]) && isRec(v["index"]) && isRec(v["index"]["codegraph"]) && isRec(v["index"]["semble"]);
+  return ok ? v : undefined;
+}
+function saveWorkspace(ctx, h, sid, info) {
+  ensureDirSync(ctx.paths.sessionDir(h, sid));
+  atomicWriteSync(workspaceFile(ctx, h, sid), JSON.stringify(info) + `
+`);
+}
+function denyReason(hook, reason) {
+  return `Buracle ${hook}: ${reason.replace(/^Buracle:\s*/, "")}`;
+}
+function errText(e) {
+  return (e instanceof Error ? e.message : String(e)).split(`
+`)[0]?.slice(0, 200) ?? "unknown error";
+}
+function guardFailed(hook, e) {
+  const what = hook === "H01" ? "bash guard could not check this command" : "write guard could not check the files of this edit";
+  return denyReason(hook, `the ${what} (${errText(e)}), so the call is blocked: Buracle's guards fail closed. Ask the user to run it themselves, or have them check \`buracle doctor\`.`);
+}
+var FENCE_FAILED = denyReason("H01", "the read-only check of this second-opinion review failed, so the call was blocked.");
+function byteLength(s) {
+  return new TextEncoder().encode(s).length;
+}
+function clipBytes(text, max, note = `
+\u2026 (truncated)`) {
+  if (byteLength(text) <= max)
+    return text;
+  const room = Math.max(0, max - byteLength(note));
+  let cut = text;
+  while (cut.length > 0 && byteLength(cut) > room)
+    cut = cut.slice(0, Math.floor(cut.length * 0.9));
+  const nl = cut.lastIndexOf(`
+`);
+  return (nl > cut.length * 0.5 ? cut.slice(0, nl) : cut) + note;
+}
+function fitParts(parts, max) {
+  const out = [];
+  let size = 0;
+  for (const raw of parts) {
+    const part = raw.trim();
+    if (part === "")
+      continue;
+    const add = part.length + (out.length > 0 ? 2 : 0);
+    if (out.length > 0 && size + add > max)
+      continue;
+    out.push(part);
+    size += add;
+  }
+  return out;
+}
 // src/core/policy/mcp-off.ts
-function isObj3(x) {
+function isObj2(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
 function ids(x) {
@@ -10478,7 +10561,7 @@ function ids(x) {
 }
 function offServersFor(config, harness) {
   const mcp = config.mcp;
-  if (!isObj3(mcp) || !isObj3(mcp["off"]))
+  if (!isObj2(mcp) || !isObj2(mcp["off"]))
     return [];
   return ids(mcp["off"][harness]);
 }
@@ -10494,10 +10577,10 @@ function claudeNativeOff(input) {
   const known = Object.keys(input.servers);
   const off = new Set;
   for (const doc of input.settings) {
-    if (!isObj3(doc) || !Array.isArray(doc["deniedMcpServers"]))
+    if (!isObj2(doc) || !Array.isArray(doc["deniedMcpServers"]))
       continue;
     for (const entry of doc["deniedMcpServers"]) {
-      if (!isObj3(entry))
+      if (!isObj2(entry))
         continue;
       const name = entry["serverName"];
       if (typeof name === "string" && known.includes(serverOfName(name)))
@@ -10511,30 +10594,30 @@ function claudeNativeOff(input) {
       }
     }
   }
-  const projects = isObj3(input.state) && isObj3(input.state["projects"]) ? input.state["projects"] : undefined;
-  const here = projects !== undefined && isObj3(projects[input.project]) ? projects[input.project] : undefined;
+  const projects = isObj2(input.state) && isObj2(input.state["projects"]) ? input.state["projects"] : undefined;
+  const here = projects !== undefined && isObj2(projects[input.project]) ? projects[input.project] : undefined;
   for (const name of ids(here?.["disabledMcpServers"]))
     if (known.includes(serverOfName(name)))
       off.add(serverOfName(name));
   return [...off];
 }
 function codexNativeOff(config) {
-  if (!isObj3(config) || !isObj3(config["mcp_servers"]))
+  if (!isObj2(config) || !isObj2(config["mcp_servers"]))
     return [];
-  return Object.entries(config["mcp_servers"]).flatMap(([id, t]) => isObj3(t) && t["enabled"] === false ? [id] : []);
+  return Object.entries(config["mcp_servers"]).flatMap(([id, t]) => isObj2(t) && t["enabled"] === false ? [id] : []);
 }
 function opencodeNativeOff(configs) {
   return union(configs.map((c) => {
-    const mcp = isObj3(c) && isObj3(c["mcp"]) ? c["mcp"] : undefined;
+    const mcp = isObj2(c) && isObj2(c["mcp"]) ? c["mcp"] : undefined;
     if (mcp === undefined)
       return [];
-    const servers = isObj3(mcp["servers"]) ? Object.entries(mcp["servers"]).flatMap(([id, s]) => isObj3(s) && s["disabled"] === true ? [id] : []) : [];
-    const older = Object.entries(mcp).flatMap(([id, s]) => id !== "servers" && id !== "timeout" && isObj3(s) && s["enabled"] === false ? [id] : []);
+    const servers = isObj2(mcp["servers"]) ? Object.entries(mcp["servers"]).flatMap(([id, s]) => isObj2(s) && s["disabled"] === true ? [id] : []) : [];
+    const older = Object.entries(mcp).flatMap(([id, s]) => id !== "servers" && id !== "timeout" && isObj2(s) && s["enabled"] === false ? [id] : []);
     return [...servers, ...older];
   }));
 }
 function ompNativeOff(docs) {
-  return union(docs.map((d) => isObj3(d) ? ids(d["disabledServers"]) : []));
+  return union(docs.map((d) => isObj2(d) ? ids(d["disabledServers"]) : []));
 }
 function parseJsoncLoose(text) {
   let out = "";
@@ -10961,7 +11044,7 @@ function selfRoots(homes, self, cwd) {
   }
   return out;
 }
-function repoRoot(self, home) {
+function repoRoot2(self, home) {
   const given = self !== null && typeof self === "object" ? self.repo : undefined;
   if (typeof given !== "string" || !isAbsPath(given))
     return;
@@ -10996,7 +11079,7 @@ function selfHit(abs, home, self, ancestor, cwd = "", extra = []) {
     if (hitsRoot(abs, root, layout.entries, ancestor))
       return { area: layout.area, root };
   }
-  const repo = repoRoot(self, homes[0] ?? "");
+  const repo = repoRoot2(self, homes[0] ?? "");
   if (repo !== undefined && unrelated(cwd, repo) && (within(abs, repo) || ancestor && within(repo, abs)))
     return { area: "repo", root: repo };
   return;
@@ -11010,7 +11093,7 @@ function selfProtectedArea(abs, home, self, ancestor = false, cwd) {
 var TEMPLATE_SUFFIX = /\.(?:example|sample|template|dist|defaults)$/i;
 var SOURCE_OR_DOC = /\.(?:ts|tsx|js|jsx|mjs|cjs|mts|cts|py|pyi|go|rs|java|kt|kts|swift|rb|php|cs|c|h|cc|cpp|hpp|scala|dart|ex|exs|lua|sh|md|mdx|rst|txt|html|css)$/i;
 var GENERATED_HARNESS = new RegExp(`^(.*)/harness/(?:${[...HARNESSES, "agents-skills"].join("|")})(?:/|$)`);
-function expandHome(p, home) {
+function expandHome2(p, home) {
   if (home === "")
     return p;
   if (p === "~")
@@ -11022,7 +11105,7 @@ function expandHome(p, home) {
 function absolute2(p, cwd, home) {
   if (typeof p !== "string" || p.trim() === "")
     return;
-  return resolvePath(cwd, expandHome(p.trim(), home));
+  return resolvePath(cwd, expandHome2(p.trim(), home));
 }
 function lower2(s) {
   return s.toLowerCase();
@@ -11098,7 +11181,7 @@ function secretKind(base) {
     return "looks like a credentials file";
   return;
 }
-function escapeRe2(c) {
+function escapeRe(c) {
   return /[\\^$.*+?()[\]{}|/]/.test(c) ? "\\" + c : c;
 }
 function globBody(glob, depth = 0) {
@@ -11106,7 +11189,7 @@ function globBody(glob, depth = 0) {
   for (let i = 0;i < glob.length; i++) {
     const c = glob[i];
     if (c === "\\" && i + 1 < glob.length) {
-      re += escapeRe2(glob[i + 1]);
+      re += escapeRe(glob[i + 1]);
       i++;
       continue;
     }
@@ -11148,7 +11231,7 @@ function globBody(glob, depth = 0) {
         continue;
       }
     }
-    re += escapeRe2(c);
+    re += escapeRe(c);
   }
   return re;
 }
@@ -11173,7 +11256,7 @@ function protectMatches(pattern, abs, cwd, home) {
   if (p === "")
     return false;
   if (p.startsWith("~") || p.startsWith("/")) {
-    const re = protectGlobToRegExp(normalizeGlob(expandHome(p, home)));
+    const re = protectGlobToRegExp(normalizeGlob(expandHome2(p, home)));
     return re !== null && (re.test(abs) || re.test(abs + "/"));
   }
   if (p.includes("/")) {
@@ -11192,7 +11275,7 @@ function normalizeGlob(p) {
 }
 function buracleRepoOf(abs, ctx) {
   const cwd = ctx.cwd ? normalizePath(ctx.cwd) : "";
-  const explicit = typeof ctx.buracleRepo === "string" && ctx.buracleRepo !== "" ? normalizePath(expandHome(ctx.buracleRepo, ctx.home)) : undefined;
+  const explicit = typeof ctx.buracleRepo === "string" && ctx.buracleRepo !== "" ? normalizePath(expandHome2(ctx.buracleRepo, ctx.home)) : undefined;
   if (explicit !== undefined)
     return cwd !== "" && within(cwd, explicit) ? explicit : undefined;
   const m = GENERATED_HARNESS.exec(abs);
@@ -11232,7 +11315,7 @@ function denyFor(abs, ctx, content) {
     if (change !== undefined)
       return `${code3(show)} is ${guarded.what}, and this change ${change}; that would switch Buracle's guards off, so ask the user to make this change themselves.`;
   }
-  const vault = ctx.vault ? normalizePath(expandHome(ctx.vault, home)) : "";
+  const vault = ctx.vault ? normalizePath(expandHome2(ctx.vault, home)) : "";
   if (vault !== "" && !isRootPath(vault)) {
     if (within(abs, `${vault}/.obsidian`))
       return `${code3(show)} holds Obsidian's own settings for the vault; leave it to Obsidian and the user.`;
@@ -11296,7 +11379,7 @@ function repoRule(ctx, realpath) {
   const self = ctx.selfPaths;
   if (self === null || typeof self !== "object" || self.repo === undefined)
     return ctx;
-  const repo = repoRoot(self, isAbsPath(ctx.home) ? normalizePath(ctx.home) : "");
+  const repo = repoRoot2(self, isAbsPath(ctx.home) ? normalizePath(ctx.home) : "");
   const cwd = isAbsPath(ctx.cwd) ? normalizePath(ctx.cwd) : "";
   const spellings = (p) => {
     const r = realpath?.(p);
@@ -11357,12 +11440,12 @@ function contextSelfRoots(ctx) {
 }
 function resolvedRoots(ctx, realpath) {
   const home = ctx.home !== "" ? realpath(normalizePath(ctx.home)) ?? ctx.home : "";
-  const vaultAbs = ctx.vault ? normalizePath(expandHome(ctx.vault, ctx.home)) : "";
+  const vaultAbs = ctx.vault ? normalizePath(expandHome2(ctx.vault, ctx.home)) : "";
   const vault = isAbsPath(vaultAbs) ? realpath(vaultAbs) ?? vaultAbs : ctx.vault;
   const cwd = isAbsPath(ctx.cwd) ? realpath(normalizePath(ctx.cwd)) ?? ctx.cwd : ctx.cwd;
   const out = { ...ctx, home, vault, cwd };
   if (typeof ctx.buracleRepo === "string" && ctx.buracleRepo !== "") {
-    const repo = normalizePath(expandHome(ctx.buracleRepo, ctx.home));
+    const repo = normalizePath(expandHome2(ctx.buracleRepo, ctx.home));
     out.buracleRepo = isAbsPath(repo) ? realpath(repo) ?? repo : repo;
   }
   const self = [];
@@ -11375,7 +11458,7 @@ function resolvedRoots(ctx, realpath) {
   }
   if (self.length > 0)
     out.selfResolved = self;
-  const repo = repoRoot(ctx.selfPaths, isAbsPath(ctx.home) ? normalizePath(ctx.home) : "");
+  const repo = repoRoot2(ctx.selfPaths, isAbsPath(ctx.home) ? normalizePath(ctx.home) : "");
   if (repo !== undefined) {
     const real = realpath(repo);
     if (real !== undefined && lower2(real) !== lower2(repo))
@@ -11400,19 +11483,19 @@ function realpathQueries(paths, ctx) {
   }
   if (isAbsPath(home))
     out.add(normalizePath(home));
-  const vault = typeof full.vault === "string" && full.vault !== "" ? normalizePath(expandHome(full.vault, home)) : "";
+  const vault = typeof full.vault === "string" && full.vault !== "" ? normalizePath(expandHome2(full.vault, home)) : "";
   if (isAbsPath(vault))
     out.add(vault);
   if (isAbsPath(cwd))
     out.add(normalizePath(cwd));
   if (typeof full.buracleRepo === "string" && full.buracleRepo !== "") {
-    const repo = normalizePath(expandHome(full.buracleRepo, home));
+    const repo = normalizePath(expandHome2(full.buracleRepo, home));
     if (isAbsPath(repo))
       out.add(repo);
   }
   for (const r of contextSelfRoots({ ...full, home, cwd }))
     out.add(r.root);
-  const repo = repoRoot(full.selfPaths, isAbsPath(home) ? normalizePath(home) : "");
+  const repo = repoRoot2(full.selfPaths, isAbsPath(home) ? normalizePath(home) : "");
   if (repo !== undefined)
     out.add(repo);
   return [...out];
@@ -12017,6 +12100,750 @@ function pathRuleNote(what, file, ids, src) {
   return { text: parts.join(`
 
 `), delivered: found.map((r) => r.id), inlined, pointed };
+}
+
+// src/core/policy/text.ts
+function fold(s) {
+  return s.replace(/[\u0130I\u0131]/g, "i").toLowerCase().normalize("NFD").replace(/[\u0300-\u036F]/g, "").replace(/[\u2019\u2018\u02BC\u00B4`]/g, "'").replace(/\u00DF/g, "ss").replace(/[\u00F8\u0153]/g, "o").replace(/\u00E6/g, "ae").replace(/[^\S\n]+/g, " ").replace(/ *\n[\s]*/g, `
+`).trim();
+}
+function stripQuoted(s) {
+  return s.replace(/(^|\n)\s*(```|~~~)[\s\S]*?(\n\s*\2|$)/g, "$1 ").replace(/`[^`\n]*`/g, " ").replace(/"[^"\n]{0,400}"/g, " ").replace(/\u201C[^\u201D\n]{0,400}\u201D/g, " ").replace(/\u00AB[^\u00BB\n]{0,400}\u00BB/g, " ").replace(/(^|\n)\s*>[^\n]*/g, "$1 ");
+}
+function word(body) {
+  return `(?<![a-z0-9_'-])(?:${body})(?![a-z0-9_'-])`;
+}
+
+// src/core/policy/intents.ts
+var GUARD_MARKERS = ["Buracle stop guard:", "Buracle plan check:", "Buracle routing check:"];
+function isGuardContinuation(text) {
+  if (typeof text !== "string")
+    return false;
+  const t = text.trimStart().replace(/^(?:<[^<>]{1,200}>\s*)+/, "").replace(/^[A-Za-z ]{1,40} feedback:\s*/i, "");
+  return GUARD_MARKERS.some((m) => t.startsWith(m));
+}
+var HARNESS_TEXT = /^(?:<(?:task-notification|system-reminder|local-command|bash-|command-|cross-session-message|agent-message|teammate-message)|Base directory for this skill:|(?:Another Claude|A peer) session sent a message(?: while you were working)?:)/i;
+function isUserText(text) {
+  if (typeof text !== "string")
+    return false;
+  const trimmed = text.trim();
+  return trimmed !== "" && !isGuardContinuation(trimmed) && !HARNESS_TEXT.test(trimmed);
+}
+var re = (body) => new RegExp(word(body), "g");
+var LEADING = /^(?:(?:ok(?:ay)?|tamam(?:dir)?|peki|evet|yes|yeah|yep|lutfen|please|pls|hey|claude|codex|buracle|simdi|now|just|sadece|artik|haydi|hadi|neyse|o zaman|oyleyse|anyway|alright)(?![a-z0-9_'-])[ ,.!:;-]*)+/;
+var TRAILING = /(?:[ ,]+(?:lutfen|please|pls|now|simdi|artik|hemen))+$/;
+var EDGE_PUNCTUATION = /^[\s.,!?;:\u2026-]+|[\s.,!?;:\u2026-]+$/g;
+var PAUSE_WHOLE = new RegExp(`^(?:${[
+  "du+r+(?:un|sana)?",
+  "durdur(?:un|sana)?",
+  "duraklat(?:in|iniz|sana)?",
+  "bekle(?:yin|sene)?",
+  "biraz bekle",
+  "(?:bi|bir) (?:dakika|saniye|sn|dk)(?: bekle)?",
+  "dur (?:bi|bir) (?:dakika|saniye)",
+  "simdilik (?:dur|bekle)",
+  "durur musun",
+  "durabilir misin",
+  "durdurur musun",
+  "bekler misin",
+  "bekleyebilir misin",
+  "devam etme(?:yin|yiniz|yelim)?",
+  "stop(?: it| here| for now)?",
+  "pause",
+  "halt",
+  "freeze",
+  "wait(?: a (?:sec|second|moment|minute|bit))?",
+  "hold on",
+  "hold up",
+  "one sec(?:ond)?",
+  "(?:just )?a (?:sec|second|moment|minute)",
+  "don'?t (?:continue|proceed)",
+  "do not (?:continue|proceed)"
+].join("|")})$`);
+var RESUME_WHOLE = new RegExp(`^(?:${[
+  "devam(?: et| edin| ediniz| edelim| ediyoruz| edebilirsin| edebilirsiniz)?",
+  "devamke",
+  "surdur(?:un|elim|sene)?",
+  "kaldigin yerden(?: devam(?: et| edin)?)?",
+  "kaldigimiz yerden(?: devam(?: edelim)?)?",
+  "durma(?:yin|yiniz)?",
+  "continue",
+  "resume",
+  "proceed",
+  "go on",
+  "go ahead",
+  "carry on",
+  "keep going",
+  "don'?t stop",
+  "do not stop"
+].join("|")})$`);
+var STOP_WHOLE = new RegExp(`^(?:${[
+  "iptal(?: et| edin| edelim| ediyorum)?",
+  "vazgec(?:tim|elim|in|iyorum)?",
+  "birak(?:alim|in|sana)?",
+  "bos ?ver(?:in|elim|sene)?",
+  "unut(?: gitsin)?",
+  "cancel",
+  "abort",
+  "abandon",
+  "(?:cancel|abort|abandon) (?:the |this )?(?:plan|task|work|run)",
+  "forget it",
+  "never ?mind",
+  "drop it"
+].join("|")})$`);
+function controlOf(t) {
+  if (t.length > 200)
+    return null;
+  const whole = t.replace(EDGE_PUNCTUATION, "").replace(LEADING, "").replace(TRAILING, "").replace(EDGE_PUNCTUATION, "").replace(/\s+/g, " ");
+  if (whole === "" || whole.length > 60)
+    return null;
+  if (STOP_WHOLE.test(whole))
+    return "stop";
+  if (PAUSE_WHOLE.test(whole))
+    return "pause";
+  if (RESUME_WHOLE.test(whole))
+    return "resume";
+  return null;
+}
+function userWords(text) {
+  if (!isUserText(text))
+    return;
+  const trimmed = text.trim();
+  const slash = /^[/$][\w:.-]+(?:\s+([\s\S]*))?$/.exec(trimmed);
+  const body = slash ? slash[1] ?? "" : trimmed;
+  const t = fold(stripQuoted(body));
+  return t === "" ? undefined : t;
+}
+function detectIntent(text) {
+  const t = userWords(text);
+  if (t === undefined)
+    return null;
+  return controlOf(t);
+}
+var CONTROL_GUIDANCE = {
+  pausePlan: 'Buracle: the user asked you to stop. Finish only the current atomic step, say where you stopped, and wait. The active plan is now paused; the user saying "continue" (in any language) or `buracle plan resume` continues it. Also stop the background commands and subagents this session started (with the harness\'s stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.',
+  pause: "Buracle: the user asked you to stop. Finish only the current atomic step, say where you stopped, and wait for them. Also stop the background commands and subagents this session started (with the harness's stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.",
+  resume: 'Buracle: the user said to continue. The plan is resumed; check `buracle plan status --json` and carry on where the plan stands. "Continue" answers no open question: if you were waiting for a decision, ask it again.',
+  stop: "Buracle: the user wants to drop the current task. Stop now and confirm with them before discarding or reverting anything. Also stop the background commands and subagents this session started (with the harness's stop control; if it has none, name the exact command or key and wait). A list of other sessions does not prove that nothing runs.",
+  resultApproved: "Buracle: the user approved the verified result, so Buracle recorded the approval (`buracle plan approve-result`) and resumed the plan. Do the worktree merge if the run has one, then finish with `buracle plan verify`."
+};
+function decisionAbout(i, prefix) {
+  return i?.state === "paused" && i.kind === "decision" && typeof i.reason === "string" && i.reason.trim().toLowerCase().startsWith(prefix);
+}
+var RESULT_REVIEW_REASON = "result review";
+function isResultReview(i) {
+  return decisionAbout(i, RESULT_REVIEW_REASON);
+}
+var RUNAWAY_REASON = "runaway: continue, pivot or abandon?";
+function isRunawayDecision(i) {
+  return decisionAbout(i, "runaway:");
+}
+var HANDBACK_REASON = "build hand-back:";
+var VERIFICATION_OFF_REASON = `${HANDBACK_REASON} done, verification off`;
+function isHandback(i) {
+  return decisionAbout(i, HANDBACK_REASON);
+}
+var MODEL_SWITCH_REASON = "model switch:";
+function isModelSwitch(i) {
+  return decisionAbout(i, MODEL_SWITCH_REASON);
+}
+function resumableDecision(i) {
+  return isRunawayDecision(i) || isHandback(i) || isModelSwitch(i);
+}
+var RUNAWAY_RESUME = "Buracle: the user chose to continue after the stop guard's runaway limit, so the plan is resumed and the stop-guard counters start again. Check `buracle plan status --json` and carry on with the current approach; if the same block comes back, pause and ask again.";
+var HANDBACK_RESUME = 'Buracle: the user said to continue after the build hand-back, so the plan is resumed and the stop-guard counters start again. Run `buracle flow start goal-build --title "<goal title>"`, re-read the run file and do one more round; the user\'s request is what allows a round past the fourth.';
+var CRITERIA_ONLY_RESUME = `Buracle: the user said to continue after the criteria-only hand-back (done, verification off), so the plan is resumed. Every criterion passed and verification stays off for this run, so no round is left to do. Do what the message asks (a fix or a change: make it, re-judge the criteria it touches and add the rows to \`## Evidence\`), then hand back again with \`buracle plan pause --kind decision --reason "${VERIFICATION_OFF_REASON}"\`; if it asks for nothing more, hand back right away. A new goal is a new run.`;
+var MODEL_SWITCH_RESUME = "Buracle: the user said to continue after the model switch, so the plan is resumed on the model now in use. Check `buracle plan status --json`, re-read the plan file and start the implementation with its first unticked task.";
+function quoted(reason) {
+  const r = typeof reason === "string" ? reason.replace(/\s+/g, " ").trim() : "";
+  return r === "" ? "" : ` ("${r.length > 160 ? `${r.slice(0, 157)}...` : r}")`;
+}
+var REVIEW_RULE = 'Only an explicit approval of this result counts: then run `buracle plan approve-result`. Feedback means `buracle plan resume`, fix, re-run the checks the fix touches and ask again; "I will test it first" means keep the pause and end the turn.';
+function heldResume(i) {
+  if (i.state !== "paused")
+    return;
+  if (i.kind === "manual")
+    return `Buracle: the user said to continue, but the plan stays paused on a manual step${quoted(i.reason)}. Check that the step is done (ask if you cannot tell), verify its result, then run \`buracle plan resume\` and continue.`;
+  if (i.kind !== "decision")
+    return;
+  if (isRunawayDecision(i))
+    return RUNAWAY_RESUME;
+  if (decisionAbout(i, VERIFICATION_OFF_REASON))
+    return CRITERIA_ONLY_RESUME;
+  if (isHandback(i))
+    return HANDBACK_RESUME;
+  if (isModelSwitch(i))
+    return MODEL_SWITCH_RESUME;
+  if (isResultReview(i))
+    return `Buracle: the user said to continue, but the plan stays paused on the result review; "continue" is no approval of the result. ${REVIEW_RULE}`;
+  return `Buracle: the user said to continue, but the plan stays paused on an open decision${quoted(i.reason)}; "continue" alone does not answer it. If their message makes a choice, act on that choice and run \`buracle plan resume\`; otherwise ask the question again and end the turn.`;
+}
+function controlGuidance(intent, opts) {
+  if (intent === "pause")
+    return opts.hasPlan ? CONTROL_GUIDANCE.pausePlan : CONTROL_GUIDANCE.pause;
+  if (intent === "resume") {
+    if (!opts.hasPlan)
+      return;
+    return (opts.interaction !== undefined ? heldResume(opts.interaction) : undefined) ?? CONTROL_GUIDANCE.resume;
+  }
+  if (intent === "stop")
+    return CONTROL_GUIDANCE.stop;
+  return;
+}
+var RESULT_APPROVAL = /^(?:(?:yes|evet|ok|okay|tamam)[ ,.!:;-]+)?(?:i approve(?: (?:it|this|the result|the change|the changes))?|approved?(?: (?:it|this|the result|the change|the changes))?|lgtm|looks good(?: to me)?|ship it|onayl(?:iyorum|adim|andi|a|i)|onay(?:liyorum)?|kabul(?: ediyorum)?)(?:[ ,.!:;-]+(?:thanks|thank you|tesekkurler|tesekkur ederim|sagol))?[ .!]*$/;
+function isResultApproval(text) {
+  const t = userWords(text);
+  return t !== undefined && t.length <= 60 && RESULT_APPROVAL.test(t);
+}
+var MANUAL_DONE = /^(?:(?:ok|okay|tamam|evet|yes)[ ,.!:;-]+)?(?:done|finished|completed|it'?s done|i did it|i have done it|bitti|hallettim|hallettik|yaptim|yaptik|tamamladim|tamamlandi|tamam(?:dir)?|oldu)(?![a-z0-9_'-])/;
+function isManualDone(text) {
+  const t = userWords(text);
+  return t !== undefined && MANUAL_DONE.test(t);
+}
+function pausedReply(i, text) {
+  if (i === undefined || i.state !== "paused")
+    return;
+  if (i.kind === "manual") {
+    return isManualDone(text) ? `Buracle: the user reports the manual step${quoted(i.reason)} done. Check its result, then run \`buracle plan resume\` and continue.` : `Buracle: the plan is paused on a manual step${quoted(i.reason)}. Answer the user; the run goes on after they say the step is done and you have checked it (\`buracle plan resume\`).`;
+  }
+  if (i.kind === "discussion")
+    return "Buracle: the plan is paused because the user asked to stop. If this message means go on, in any language, run `buracle plan resume` and continue; otherwise answer the user and keep waiting.";
+  if (i.kind !== "decision")
+    return;
+  if (isResultReview(i))
+    return `Buracle: the plan is paused on the result review. ${REVIEW_RULE} A bare "continue", silence or green checks are no approval.`;
+  if (isModelSwitch(i))
+    return "Buracle: the plan is paused so the user can switch models before the implementation. Answer the user; when their message means go on, run `buracle plan resume` and start the implementation.";
+  return `Buracle: the plan is paused on an open decision${quoted(i.reason)}. If this message answers it, act on the answer and run \`buracle plan resume\`; otherwise answer the user and keep waiting.`;
+}
+var WAITING = re([
+  "waiting (?:for|on|until)",
+  "wait(?:ing)? for (?:it|them|the [a-z0-9 -]{1,40}) to (?:finish|complete|return|report)",
+  "i'?ll (?:check|continue|resume|report|pick (?:it|this) up) (?:back )?(?:when|once|after)",
+  "once (?:it|they|the [a-z0-9 -]{1,40}) (?:finish|complete|return|report)[a-z]*",
+  "(?:is|are) (?:still )?running in the background",
+  "running in the background",
+  "bekliyorum",
+  "bekleniyor",
+  "(?:bitmesini|tamamlanmasini|sonuclanmasini|donmesini) bekl[a-z]*",
+  "bitince",
+  "tamamlaninca",
+  "arka planda (?:calisiyor|suruyor|devam ediyor)"
+].join("|"));
+function reportsWaiting(text) {
+  if (typeof text !== "string" || text.trim() === "")
+    return false;
+  WAITING.lastIndex = 0;
+  return WAITING.test(fold(text));
+}
+function detectSignals(text) {
+  const t = userWords(text);
+  if (t === undefined)
+    return { control: null, recall: false, write: false };
+  return { control: controlOf(t), recall: false, write: false };
+}
+
+// src/core/policy/skill-router.ts
+var LANG = /^[a-z]{2}$/;
+function isObj3(x) {
+  return x !== null && typeof x === "object" && !Array.isArray(x);
+}
+function phraseList(x, at, errors) {
+  const out = [];
+  const take = (list, where) => {
+    if (!Array.isArray(list)) {
+      errors.push(`${where}: expected a list of phrases`);
+      return;
+    }
+    list.forEach((p, i) => {
+      if (typeof p !== "string" || p.trim() === "") {
+        errors.push(`${where}[${i}]: expected a non-empty string`);
+        return;
+      }
+      const problem = phraseProblem(p);
+      if (problem !== undefined)
+        errors.push(`${where}[${i}]: ${problem}`);
+      else
+        out.push(p.trim());
+    });
+  };
+  if (isObj3(x)) {
+    for (const [lang, list] of Object.entries(x)) {
+      if (!LANG.test(lang))
+        errors.push(`${at}.${lang}: expected a two-letter language code`);
+      else
+        take(list, `${at}.${lang}`);
+    }
+  } else
+    take(x, at);
+  return out;
+}
+function phraseProblem(p) {
+  const t = p.trim();
+  if (t.startsWith("re:")) {
+    try {
+      new RegExp(t.slice(3).trim());
+    } catch {
+      return `invalid regular expression ${JSON.stringify(t)}`;
+    }
+    return t.slice(3).trim() === "" ? "empty regular expression" : undefined;
+  }
+  if (/[A-Z]/.test(t))
+    return `write phrases in lower case (${JSON.stringify(t)})`;
+  if (/\*(?=[^\s,;:!?])/.test(t))
+    return `* may only end a word (${JSON.stringify(t)})`;
+  return;
+}
+function triggersOf(x, at, errors, allowed) {
+  const out = {};
+  if (!isObj3(x)) {
+    errors.push(`${at}: expected a mapping of ${allowed.join(", ")}`);
+    return out;
+  }
+  for (const k of Object.keys(x))
+    if (!allowed.includes(k))
+      errors.push(`${at}.${k}: unknown key`);
+  for (const k of allowed) {
+    if (x[k] === undefined)
+      continue;
+    const list = phraseList(x[k], `${at}.${k}`, errors);
+    if (list.length > 0)
+      out[k] = list;
+  }
+  return out;
+}
+function parseSkillTriggers(x) {
+  const errors = [];
+  const table = { skills: {}, categories: {} };
+  if (!isObj3(x))
+    return { table, errors: ["(root): expected a mapping with version, skills and categories"] };
+  for (const k of Object.keys(x))
+    if (!["version", "skills", "categories"].includes(k))
+      errors.push(`(root).${k}: unknown key`);
+  if (x["version"] !== 1)
+    errors.push("version: expected 1");
+  for (const [section, allowed] of [["skills", ["ask", "topic", "not"]], ["categories", ["topic", "not", "deps"]]]) {
+    const raw = x[section];
+    if (raw === undefined)
+      continue;
+    if (!isObj3(raw)) {
+      errors.push(`${section}: expected a mapping of id -> triggers`);
+      continue;
+    }
+    for (const [id, t] of Object.entries(raw)) {
+      if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) {
+        errors.push(`${section}.${id}: expected a kebab-case id`);
+        continue;
+      }
+      table[section][id] = triggersOf(t, `${section}.${id}`, errors, allowed);
+    }
+  }
+  return { table, errors };
+}
+function validateSkillTriggers(x, known = {}) {
+  const { table, errors } = parseSkillTriggers(x);
+  for (const id of Object.keys(table.skills))
+    errors.push(`skills.${id}: skill phrase triggers were removed; a skill loads from an exact invocation only`);
+  const skills = known.skills;
+  if (skills !== undefined) {
+    const byId = new Map(skills.map((s) => [s.id, s]));
+    for (const id of Object.keys(table.skills)) {
+      const s = byId.get(id);
+      if (s === undefined)
+        errors.push(`skills.${id}: no canonical skill has this id`);
+      else if (s.invocation === "explicit" && table.skills[id]?.topic !== undefined)
+        errors.push(`skills.${id}.topic: ${id} is explicit-only, so topics never load it (use ask)`);
+    }
+  }
+  if (known.categories !== undefined) {
+    for (const id of Object.keys(table.categories))
+      if (!known.categories.includes(id))
+        errors.push(`categories.${id}: no routing category has this id`);
+  }
+  return errors;
+}
+var B0 = "(?<![a-z0-9_'-])";
+var B1 = "(?![a-z0-9_'-])";
+var SEP = "[\\s,;:!?]+";
+var TR_SUFFIX = "(?:'(?:y?[iu]|n[iu]|s[iu]|s?[iu]n[iu]|l[ae]r[iu](?:n[iu])?))?";
+function escapeRe2(s) {
+  return s.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+}
+function phraseSource(phrase) {
+  const t = phrase.trim();
+  if (t.startsWith("re:")) {
+    const src = t.slice(3).trim();
+    if (src === "")
+      return;
+    try {
+      new RegExp(src);
+    } catch {
+      return;
+    }
+    return `(?:${src})`;
+  }
+  const words = fold(t).split(/[\s,;:!?]+/).filter((w) => w !== "");
+  if (words.length === 0)
+    return;
+  const parts = words.map((w) => {
+    const stem = w.endsWith("*");
+    const body = escapeRe2(stem ? w.slice(0, -1) : w);
+    return stem ? `${body}[a-z0-9_']*` : `${body}${TR_SUFFIX}`;
+  });
+  return `${B0}${parts.join(SEP)}${B1}`;
+}
+function compileList(phrases) {
+  if (phrases === undefined || phrases.length === 0)
+    return;
+  const sources = [...new Set(phrases.map(phraseSource).filter((s) => s !== undefined))];
+  if (sources.length === 0)
+    return;
+  sources.sort((a, b) => b.length - a.length || (a < b ? -1 : a > b ? 1 : 0));
+  try {
+    return new RegExp(sources.join("|"));
+  } catch {
+    return;
+  }
+}
+function shortOf(s) {
+  const src = (typeof s.short === "string" && s.short.trim() !== "" ? s.short : s.description ?? "").replace(/\s+/g, " ").trim();
+  const cut = /^(.{20,}?)(?:\. |: |; )/.exec(src)?.[1] ?? src;
+  return cut.length > 80 ? `${cut.slice(0, 79).replace(/[\s,;:]+\S*$/, "")}...` : cut.replace(/[.:;]+$/, "");
+}
+function preferServers(cat) {
+  const out = [];
+  for (const raw of Array.isArray(cat.prefer) ? cat.prefer : []) {
+    const ref = parseRouteRef(raw);
+    if (ref?.kind === "mcp" && !out.includes(ref.server))
+      out.push(ref.server);
+  }
+  return out;
+}
+function compileTriggers(skills, policy) {
+  const list = [...Array.isArray(skills) ? skills : []].filter((s) => s && typeof s.id === "string" && /^[a-z0-9][a-z0-9-]*$/.test(s.id));
+  list.sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  const seen = new Set;
+  const out = { skills: [], categories: [] };
+  for (const s of list) {
+    if (seen.has(s.id))
+      continue;
+    seen.add(s.id);
+    const explicit = s.invocation === "explicit";
+    out.skills.push({ id: s.id, explicit, userInvocable: s.userInvocable !== false, short: shortOf(s) });
+  }
+  for (const cat of Array.isArray(policy?.categories) ? policy.categories : []) {
+    const t = cat.triggers;
+    if (t === undefined)
+      continue;
+    const entry = { id: cat.id, servers: preferServers(cat) };
+    const topic = compileList(t.topic);
+    if (topic)
+      entry.topic = topic;
+    const not = compileList(t.not);
+    if (not)
+      entry.not = not;
+    const deps = compileList(t.deps);
+    if (deps)
+      entry.deps = deps;
+    if (entry.topic !== undefined || entry.deps !== undefined)
+      out.categories.push(entry);
+  }
+  return out;
+}
+var ROUTE_CAPS = { load: 1, candidates: 2, categories: 2 };
+var MAX_TEXT = 12000;
+var WORD_DEPS = new Set(["next", "debug", "path", "events", "util", "utils", "test", "core", "types", "common", "shared", "open", "request", "config", "app", "api", "server", "client", "lib", "main", "index"]);
+var ORDINARY_PARTS = new Set([
+  ...WORD_DEPS,
+  "errors",
+  "sync",
+  "net",
+  "text",
+  "time",
+  "log",
+  "sys",
+  "exp",
+  "tools",
+  "term",
+  "mod",
+  "image",
+  "http",
+  "json",
+  "sql",
+  "mock",
+  "assert",
+  "require",
+  "context",
+  "crypto",
+  "framework",
+  "console",
+  "kit",
+  "cli",
+  "sdk",
+  "go",
+  "node"
+]);
+function emptyRoute() {
+  return { invoked: [], load: [], candidates: [], categories: [] };
+}
+var SLASH_NAMESPACES = [...new Set(HARNESSES.flatMap((h) => harnessProfile(h).skills.invoke.namespace ?? []))];
+var SLASH_LEAD = new RegExp(`^/(?:(${SLASH_NAMESPACES.join("|")}):)?([a-z0-9][a-z0-9-]*)(?=\\s|$)`);
+function explicitSyntax(text, ids, invocable, h) {
+  const invoked = [];
+  const asked = [];
+  const add = (id, native) => {
+    if (id === undefined || !ids.has(id))
+      return;
+    const list = native ? invoked : asked;
+    if (!list.includes(id) && !invoked.includes(id))
+      list.push(id);
+  };
+  const how = harnessProfile(h).skills.invoke;
+  const trimmed = text.trim();
+  for (const m of trimmed.matchAll(/<command-name>\s*\/?(buracle:)?([a-z0-9-]+)\s*<\/command-name>/g)) {
+    if (m[1] !== undefined || invocable.has(m[2] ?? ""))
+      add(m[2], how.commandTag);
+  }
+  const lead = SLASH_LEAD.exec(trimmed);
+  if (lead && (lead[1] !== undefined || invocable.has(lead[2] ?? ""))) {
+    const ns = lead[1];
+    add(lead[2], ns !== undefined ? how.namespace === ns : how.slash);
+  }
+  const lead$ = /^\$([a-z0-9][a-z0-9-]*)(?=\s|$)/.exec(trimmed);
+  if (lead$)
+    add(lead$[1], how.dollar);
+  if (how.dollar)
+    for (const m of trimmed.matchAll(/(?:^|\s)\$([a-z0-9][a-z0-9-]*)(?![\w-])/g))
+      add(m[1], true);
+  if (how.at)
+    for (const m of trimmed.matchAll(/(?:^|\s)@([a-z0-9][a-z0-9-]*)(?![\w./-])/g))
+      add(m[1], true);
+  return { invoked, asked };
+}
+function depVariants(name) {
+  const n = fold(name);
+  if (n.length < 2)
+    return [];
+  const out = new Set;
+  const whole = (v) => {
+    if (v.length < 2)
+      return;
+    if (WORD_DEPS.has(v)) {
+      out.add(`${v}.js`);
+      out.add(`${v}js`);
+    } else if (v.length >= 3 || /[^a-z]/.test(v))
+      out.add(v);
+  };
+  const part = (v) => {
+    if (v.length >= 3 && !ORDINARY_PARTS.has(v))
+      out.add(v);
+  };
+  whole(n);
+  const scoped = /^@([^/]+)\/(.+)$/.exec(n);
+  if (scoped !== null) {
+    if (scoped[1] === "types")
+      return [...out];
+    whole(scoped[2] ?? "");
+    part(scoped[1] ?? "");
+  } else if (n.includes("/")) {
+    const segs = n.split("/").filter((s) => s !== "");
+    const host = segs[0]?.includes(".") === true;
+    let rest = host ? segs.slice(1) : segs;
+    while (rest.length > 1 && /^v\d+$/.test(rest[rest.length - 1] ?? ""))
+      rest = rest.slice(0, -1);
+    const last = (rest[rest.length - 1] ?? "").replace(/\.v\d+$/, "");
+    part(last);
+    part(last.replace(/^go-|-go$/g, ""));
+    if (!host && rest.length === 2)
+      part(rest[0] ?? "");
+  }
+  for (const v of [...out]) {
+    if (v.includes("-") && !v.includes("/") && v.split("-").every((p) => p.length >= 3))
+      out.add(v.replace(/-/g, " "));
+    const bare = /^([a-z][a-z0-9-]{4,}?)(?:css|[.-]?js)$/.exec(v)?.[1];
+    if (bare !== undefined)
+      part(bare);
+  }
+  return [...out];
+}
+function namedDeps(f, deps) {
+  if (deps === undefined || deps.length === 0)
+    return { names: [], at: -1 };
+  const hits = [];
+  for (const d of new Set(deps)) {
+    if (typeof d !== "string")
+      continue;
+    for (const v of depVariants(d)) {
+      if (!f.includes(v))
+        continue;
+      const m = new RegExp(`(?<![a-z0-9_'@/.-])${escapeRe2(v)}(?:\\.js)?(?=$|'[a-z]{0,6}(?![a-z0-9])|[^a-z0-9_'.-]|\\.(?![a-z0-9]))`).exec(f);
+      if (m) {
+        hits.push({ name: d, at: m.index, len: m[0].length, own: v === fold(d) });
+        break;
+      }
+    }
+  }
+  hits.sort((a, b) => a.at - b.at || b.len - a.len || Number(b.own) - Number(a.own) || (a.name < b.name ? -1 : 1));
+  const names = hits.filter((h, i) => i === 0 || hits[i - 1]?.at !== h.at).slice(0, 3).map((x) => x.name);
+  return { names, at: hits[0]?.at ?? -1 };
+}
+function routePrompt(text, t, o) {
+  const route = emptyRoute();
+  if (typeof text !== "string" || t === undefined || t === null)
+    return route;
+  const raw = text.length > MAX_TEXT ? `${text.slice(0, MAX_TEXT - 2000)}
+${text.slice(-2000)}` : text;
+  const skills = Array.isArray(t.skills) ? t.skills : [];
+  const byId = new Map(skills.map((s) => [s.id, s]));
+  const syntax = explicitSyntax(stripQuoted(raw), new Set(byId.keys()), new Set(skills.filter((s) => s.userInvocable).map((s) => s.id)), o.harness);
+  route.invoked = syntax.invoked;
+  if (!isUserText(raw)) {
+    return route;
+  }
+  const body = raw.trim().replace(/^[/$](?:[a-z]+:)?[a-z0-9][a-z0-9-]*(?=\s|$)/, " ");
+  const f = fold(stripQuoted(body));
+  const loaded = new Set(Array.isArray(o.loaded) ? o.loaded : []);
+  const available = new Set(Array.isArray(o.available) ? o.available : []);
+  const candidates = [];
+  for (const id of syntax.asked) {
+    const s = byId.get(id);
+    if (loaded.has(id) && s?.explicit !== true)
+      continue;
+    if (route.load.length < ROUTE_CAPS.load)
+      route.load.push(id);
+    else if (s !== undefined && !s.explicit)
+      candidates.push(id);
+  }
+  const workflow = [...route.invoked, ...route.load].some((id) => byId.get(id)?.explicit === true);
+  if (!workflow)
+    route.candidates = candidates.slice(0, ROUTE_CAPS.candidates);
+  const cats = [];
+  let docs;
+  let libAt = -1;
+  for (const c of Array.isArray(t.categories) ? t.categories : []) {
+    const first = c.servers[0];
+    if (first === undefined || !available.has(first))
+      continue;
+    if (c.not?.test(f))
+      continue;
+    const m = c.topic?.exec(f);
+    let at = m?.index ?? -1;
+    const end = m !== null && m !== undefined ? m.index + m[0].length : -1;
+    let deps = false;
+    if (c.deps !== undefined) {
+      const named = namedDeps(f, o.deps);
+      if (named.names.length > 0 && c.deps.test(f)) {
+        route.libs = named.names;
+        at = at < 0 ? named.at : Math.min(at, named.at);
+        libAt = named.at;
+        deps = true;
+      }
+    }
+    if (at < 0)
+      continue;
+    const hit = { id: c.id, at, end };
+    cats.push(hit);
+    if (deps)
+      docs = hit;
+  }
+  if (docs !== undefined) {
+    for (const c of cats)
+      if (c !== docs && c.at < docs.at && c.at <= libAt && libAt < c.end) {
+        docs.at = c.at;
+        docs.lead = true;
+      }
+  }
+  cats.sort((a, b) => a.at - b.at || (a.lead === b.lead ? 0 : a.lead === true ? -1 : 1) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  route.categories = cats.slice(0, ROUTE_CAPS.categories).map((c) => c.id);
+  if (route.libs !== undefined && !route.categories.some((id) => t.categories.find((c) => c.id === id)?.deps !== undefined))
+    delete route.libs;
+  return route;
+}
+var ROUTE_TEXT_MAX_BYTES = 600;
+var PROMPT_CONTEXT_MAX_CHARS = 1500;
+var ROUTE_HEADER = "Buracle routing for this prompt:";
+function utf8Bytes(s) {
+  let n = 0;
+  for (let i = 0;i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 128)
+      n += 1;
+    else if (c < 2048)
+      n += 2;
+    else if (c >= 55296 && c <= 56319 && i + 1 < s.length) {
+      n += 4;
+      i++;
+    } else
+      n += 3;
+  }
+  return n;
+}
+function loadHow(h, id, explicit, file) {
+  return harnessProfile(h).skills.load(id, explicit, file);
+}
+var CANDIDATE_HOW = harnessTable((p) => p.skills.candidateHow);
+var CATEGORY_LABEL = {
+  "library-docs": "Library docs",
+  "web-search": "Web search",
+  "web-fetch": "Web pages",
+  "code-examples": "Public code examples",
+  "code-search": "Code search",
+  "code-structure": "Code structure",
+  browser: "Browser",
+  memory: "Memory"
+};
+function labelOf(id) {
+  const l = CATEGORY_LABEL[id];
+  if (l !== undefined)
+    return l;
+  const words = id.replace(/-/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+function categoryReminder(policy, id) {
+  const cat = (Array.isArray(policy?.categories) ? policy.categories : []).find((c) => c.id === id);
+  const text = typeof cat?.reminder === "string" && cat.reminder.trim() !== "" ? cat.reminder : cat?.nudge;
+  return typeof text === "string" && text.trim() !== "" ? text.trim().replace(/[.\s]+$/, "") : undefined;
+}
+function routeText(r, h, policy, opts = {}) {
+  if (r === undefined || r === null)
+    return;
+  const skill = (id) => opts.triggers?.skills.find((s) => s.id === id);
+  const lines = [];
+  for (const id of (r.load ?? []).slice(0, ROUTE_CAPS.load)) {
+    const s = skill(id);
+    const file = opts.skillFile?.(id);
+    const explicit = s?.explicit ?? file !== undefined;
+    const asked = `- The user asked for the ${id} ${explicit ? "workflow" : "skill"}`;
+    lines.push({ must: true, text: opts.attached?.includes(id) === true ? `${asked}: its skill is attached to this message; follow it, and treat the rest of the prompt as its input.` : `${asked}: load it before any other step and follow it (${loadHow(h, id, explicit, file)}); the rest of the prompt is its input.` });
+  }
+  const cands = (r.candidates ?? []).slice(0, ROUTE_CAPS.candidates);
+  if (cands.length > 0) {
+    const list = cands.map((id) => {
+      const short = skill(id)?.short;
+      return short !== undefined && short !== "" ? `${id} (${short})` : id;
+    }).join(", ");
+    lines.push({ must: false, text: `- Skills to evaluate first: ${list}. Decide YES or NO for each with a one-line reason, then load every YES (${CANDIDATE_HOW[h]}) before any other tool.` });
+  }
+  for (const id of (r.categories ?? []).slice(0, ROUTE_CAPS.categories)) {
+    const reminder = categoryReminder(policy, id);
+    if (reminder === undefined)
+      continue;
+    const libs = id === "library-docs" && r.libs !== undefined && r.libs.length > 0 ? ` (${r.libs.join(", ")})` : "";
+    lines.push({ must: false, text: `- ${labelOf(id)}${libs}: ${reminder}.` });
+  }
+  if (lines.length === 0)
+    return;
+  const out = [ROUTE_HEADER];
+  let size = utf8Bytes(ROUTE_HEADER);
+  for (const l of lines) {
+    const add = 1 + utf8Bytes(l.text);
+    if (!l.must && size + add > ROUTE_TEXT_MAX_BYTES)
+      continue;
+    out.push(l.text);
+    size += add;
+  }
+  return out.length > 1 ? out.join(`
+`) : undefined;
 }
 
 // src/core/policy/launchers.ts
@@ -14020,832 +14847,6 @@ function ledgerAudited(l, _decision) {
   return { ...l, prompt: { ...l.prompt, audited: true } };
 }
 
-// src/core/status/context.ts
-var RANK = { ok: 0, warn: 1, critical: 2 };
-var CONTEXT_DEFAULTS = { warnPct: 85, criticalPct: 95 };
-function pctOk(x) {
-  return typeof x === "number" && Number.isFinite(x) && x > 0 && x <= 100;
-}
-function contextThresholds(cfg) {
-  const w = cfg?.warnPct;
-  const c = cfg?.criticalPct;
-  return pctOk(w) && pctOk(c) && w < c ? { warnPct: w, criticalPct: c } : { ...CONTEXT_DEFAULTS };
-}
-function contextBand(pct, cfg) {
-  if (typeof pct !== "number" || !Number.isFinite(pct))
-    return;
-  const t = contextThresholds(cfg);
-  return pct >= t.criticalPct ? "critical" : pct >= t.warnPct ? "warn" : "ok";
-}
-function contextWarning(band, cfg) {
-  const t = contextThresholds(cfg);
-  if (band === "critical") {
-    return `Buracle: the context window is above ${t.criticalPct}% full. Finish the current atomic step, then bring the plan file up to date (ticked tasks, deviations) and save lasting decisions with memory_write before starting anything new; Buracle keeps the plan state across the coming compaction. Do not skip verification.`;
-  }
-  if (band === "warn") {
-    return `Buracle: the context window is above ${t.warnPct}% full. Keep outputs short, read narrow line ranges instead of whole files, and keep the plan file and todo list current so the work survives a compaction.`;
-  }
-  return;
-}
-function contextWatch(warned, pct, cfg) {
-  const prev = warned === "warn" || warned === "critical" ? warned : "ok";
-  const band = contextBand(pct, cfg);
-  if (band === undefined)
-    return { warned: prev };
-  if (band === "ok")
-    return { band, warned: "ok" };
-  if (RANK[band] > RANK[prev]) {
-    const warn = contextWarning(band, cfg);
-    return warn !== undefined ? { band, warn, warned: band } : { band, warned: band };
-  }
-  return { band, warned: prev };
-}
-
-// src/engine/log.ts
-import { appendFileSync, mkdirSync, renameSync, statSync as statSync2 } from "fs";
-
-// src/engine/paths.ts
-import os from "os";
-import { existsSync, readFileSync } from "fs";
-import { dirname, isAbsolute, join as join2, resolve } from "path";
-
-// src/engine/yaml.ts
-var loaded;
-function yaml() {
-  return loaded ??= require_dist();
-}
-function parseYaml(text) {
-  return yaml().parse(text);
-}
-
-// src/engine/paths.ts
-function env(name) {
-  const v = process.env[name];
-  return v !== undefined && v.trim() !== "" ? v : undefined;
-}
-function absEnv(name) {
-  const v = env(name);
-  return v === undefined ? undefined : resolve(v);
-}
-function home() {
-  return absEnv("HOME") ?? os.homedir();
-}
-function expandHome2(p) {
-  if (p === "~")
-    return home();
-  if (p.startsWith("~/"))
-    return join2(home(), p.slice(2));
-  return p;
-}
-function buracleHome() {
-  return absEnv("BURACLE_HOME") ?? join2(home(), ".buracle");
-}
-function oldVaultRoot() {
-  return join2(home(), "Documents", "Buracle");
-}
-function claudeDir() {
-  return absEnv("CLAUDE_CONFIG_DIR") ?? join2(home(), ".claude");
-}
-function claudeJson() {
-  const dir = absEnv("CLAUDE_CONFIG_DIR");
-  return dir ? join2(dir, ".claude.json") : join2(home(), ".claude.json");
-}
-function codexHome() {
-  return absEnv("CODEX_HOME") ?? join2(home(), ".codex");
-}
-function agentsDir() {
-  return join2(home(), ".agents");
-}
-function xdg(name) {
-  const v = env(name);
-  return v !== undefined && isAbsolute(v) ? v : undefined;
-}
-function opencodeConfigDir() {
-  return join2(xdg("XDG_CONFIG_HOME") ?? join2(home(), ".config"), "opencode");
-}
-function opencodeDataDir() {
-  return join2(xdg("XDG_DATA_HOME") ?? join2(home(), ".local", "share"), "opencode");
-}
-function ompAgentDir() {
-  return absEnv("PI_CODING_AGENT_DIR") ?? join2(home(), ".omp", "agent");
-}
-function ompHome() {
-  return join2(home(), ".omp");
-}
-function qwenHome() {
-  return absEnv("QWEN_HOME") ?? join2(home(), ".qwen");
-}
-function piAgentDir() {
-  return absEnv("PI_CODING_AGENT_DIR") ?? join2(home(), ".pi", "agent");
-}
-function agentDirShared() {
-  return absEnv("PI_CODING_AGENT_DIR");
-}
-function agyDir() {
-  return join2(home(), ".gemini", "config");
-}
-var CONFIG_DIRS = { claude: claudeDir, codex: codexHome, opencode: opencodeConfigDir, omp: ompAgentDir, qwen: qwenHome, pi: piAgentDir, agy: agyDir };
-function harnessConfigDir(h) {
-  return CONFIG_DIRS[h]();
-}
-function localBinDir() {
-  return join2(home(), ".local", "bin");
-}
-function isCheckout(dir) {
-  return existsSync(join2(dir, "canonical", "buracle.yaml")) && existsSync(join2(dir, "package.json"));
-}
-function findCheckout(start) {
-  let dir = resolve(start);
-  for (let i = 0;i < 8; i++) {
-    if (isCheckout(dir))
-      return dir;
-    const up = dirname(dir);
-    if (up === dir)
-      break;
-    dir = up;
-  }
-  return;
-}
-function configuredRepoRoot() {
-  try {
-    const raw = parseYaml(readFileSync(userConfigFile(), "utf8"));
-    const repo = raw !== null && typeof raw === "object" ? raw["repo"] : undefined;
-    if (typeof repo === "string" && repo.trim() !== "") {
-      const expanded = expandHome2(repo.trim());
-      const dir = isAbsolute(expanded) ? resolve(expanded) : resolve(home(), expanded);
-      if (isCheckout(dir))
-        return dir;
-    }
-  } catch {}
-  try {
-    const snap = JSON.parse(readFileSync(runtimeConfigFile(), "utf8"));
-    const r = snap?.resolved?.repoRoot;
-    if (typeof r === "string" && isAbsolute(r) && isCheckout(r))
-      return resolve(r);
-  } catch {}
-  return;
-}
-var cachedCheckout;
-function repoRoot2() {
-  if (cachedCheckout === undefined)
-    cachedCheckout = findCheckout(import.meta.dirname) ?? null;
-  if (cachedCheckout !== null)
-    return cachedCheckout;
-  return configuredRepoRoot() ?? resolve(import.meta.dirname, "..", "..");
-}
-var RUNTIME_MARKER = ".buracle-runtime.json";
-function runtimeRoot() {
-  return join2(buracleHome(), "runtime");
-}
-function isFrozenRuntime(dir = repoRoot2()) {
-  return existsSync(join2(dir, RUNTIME_MARKER));
-}
-function checkoutRoot() {
-  const here = repoRoot2();
-  if (!isFrozenRuntime(here))
-    return here;
-  const ok = (dir) => dir !== undefined && isCheckout(dir) && !isFrozenRuntime(dir) && resolve(dir) !== resolve(here);
-  const configured = configuredRepoRoot();
-  if (ok(configured))
-    return configured;
-  try {
-    const m = JSON.parse(readFileSync(join2(here, RUNTIME_MARKER), "utf8"));
-    const c = m?.checkout;
-    if (typeof c === "string" && isAbsolute(c) && ok(c))
-      return resolve(c);
-  } catch {}
-  return;
-}
-function canonicalDir() {
-  return join2(repoRoot2(), "canonical");
-}
-function harnessDir(h) {
-  return h === undefined ? join2(repoRoot2(), "harness") : join2(repoRoot2(), "harness", h);
-}
-function userConfigFile() {
-  return join2(buracleHome(), "config.yaml");
-}
-function secretsDir() {
-  return join2(buracleHome(), "secrets");
-}
-function mcpKeysFile() {
-  return join2(secretsDir(), "mcp-keys.json");
-}
-function binDir() {
-  return join2(buracleHome(), "bin");
-}
-function shimPath() {
-  return join2(binDir(), "buracle");
-}
-function stateDir() {
-  return join2(buracleHome(), "state");
-}
-function ownedLedgerFile() {
-  return join2(stateDir(), "owned.json");
-}
-function healthFile() {
-  return join2(stateDir(), "health.json");
-}
-function updatesFile() {
-  return join2(stateDir(), "updates.json");
-}
-function usageFile() {
-  return join2(stateDir(), "usage.json");
-}
-function runtimeConfigFile() {
-  return join2(stateDir(), "runtime-config.json");
-}
-function txnLockFile() {
-  return join2(stateDir(), "txn.lock");
-}
-function memoryStateDir() {
-  return join2(stateDir(), "memory");
-}
-function brainDir() {
-  return join2(buracleHome(), "brain");
-}
-function pathRulesDir() {
-  return join2(buracleHome(), "rules", "paths");
-}
-function toolchainDir() {
-  return join2(buracleHome(), "toolchain");
-}
-function systemToolsDir() {
-  return join2(toolchainDir(), "system");
-}
-function systemToolBinDirs() {
-  const root = systemToolsDir();
-  return [join2(root, "node", "bin"), join2(root, "uv"), join2(root, "rg"), join2(root, "jq")];
-}
-function toolchainBinDirs() {
-  return [join2(toolchainDir(), "go", "bin"), join2(toolchainDir(), "dotnet", "tools"), ...systemToolBinDirs()];
-}
-function toolchainStateFile() {
-  return join2(stateDir(), "toolchain.json");
-}
-function memoryUiStateFile() {
-  return join2(stateDir(), "memory-ui.json");
-}
-function uiSessionsDir() {
-  return join2(stateDir(), "ui-sessions");
-}
-function memoryUiSpawnMarker() {
-  return join2(stateDir(), "memory-ui.spawn");
-}
-function shellPathStateFile() {
-  return join2(stateDir(), "shell-path.json");
-}
-function indexStateDir() {
-  return join2(stateDir(), "index");
-}
-function ompPlanStagingDir() {
-  return join2(stateDir(), "omp-plans");
-}
-function noticesDir() {
-  return join2(stateDir(), "notices");
-}
-function reviewNotesDir() {
-  return join2(stateDir(), "review");
-}
-function reviewInboxFile() {
-  return join2(reviewNotesDir(), "inbox.json");
-}
-function installedSkillsFile() {
-  return join2(stateDir(), "skills.json");
-}
-function skillsCacheDir() {
-  return join2(buracleHome(), "cache", "skills");
-}
-function sessionsDir(h) {
-  return h === undefined ? join2(buracleHome(), "sessions") : join2(buracleHome(), "sessions", h);
-}
-function runDir(h) {
-  return h === undefined ? join2(buracleHome(), "run") : join2(buracleHome(), "run", h);
-}
-function claudeManagedSettingsFile() {
-  return process.platform === "darwin" ? "/Library/Application Support/ClaudeCode/managed-settings.json" : "/etc/claude-code/managed-settings.json";
-}
-function mcpRunDir() {
-  return join2(runDir(), "mcp");
-}
-function mcpCacheDir() {
-  return join2(stateDir(), "mcp-cache");
-}
-function mcpCacheFile(id) {
-  return join2(mcpCacheDir(), `${id}.json`);
-}
-function mcpLogFile(id) {
-  return join2(logsDir(), `mcp-${id}.log`);
-}
-var MCP_SOCKET_PATH_MAX = 100;
-var MEMORY_UI_PORT = 41777;
-function mcpFallbackRunDir(base = "/tmp") {
-  const uid = process.getuid?.() ?? 0;
-  return join2(base, `buracle-${uid}-${fnv1a(mcpRunDir())}`);
-}
-function fnv1a(text) {
-  let h = 2166136261;
-  for (const byte of new TextEncoder().encode(text)) {
-    h ^= byte;
-    h = Math.imul(h, 16777619) >>> 0;
-  }
-  return h.toString(16).padStart(8, "0");
-}
-function mcpSocketDir(key, base = "/tmp") {
-  const primary = mcpRunDir();
-  return Buffer.byteLength(join2(primary, `${key}.sock`)) <= MCP_SOCKET_PATH_MAX ? primary : mcpFallbackRunDir(base);
-}
-function backupsDir() {
-  return join2(buracleHome(), "backups");
-}
-function journalDir() {
-  return join2(buracleHome(), "journal");
-}
-function journalFile(txn) {
-  return join2(journalDir(), `${txn}.json`);
-}
-function logsDir() {
-  return join2(buracleHome(), "logs");
-}
-function logFile() {
-  return join2(logsDir(), "buracle.log");
-}
-function installLogFile(now) {
-  const two = (n) => String(n).padStart(2, "0");
-  return join2(logsDir(), `install-${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}.log`);
-}
-var INSTALL_LOG_RE = /^install-\d{4}-\d{2}-\d{2}\.log$/;
-var SESSION_ID_RE = /^[A-Za-z0-9._:-]{1,128}$/;
-function isValidSessionId(id) {
-  return typeof id === "string" && SESSION_ID_RE.test(id) && id !== "." && id !== "..";
-}
-function checkedSession(id) {
-  if (!isValidSessionId(id))
-    throw new Error(`invalid session id: ${JSON.stringify(id)}`);
-  return id;
-}
-function sessionDir(h, sessionId) {
-  return join2(sessionsDir(h), checkedSession(sessionId));
-}
-function heartbeatFile(h, sessionId) {
-  return join2(runDir(h), `${checkedSession(sessionId)}.json`);
-}
-
-// src/engine/log.ts
-var RANK2 = { debug: 10, info: 20, warn: 30, error: 40 };
-var LOG_MAX_BYTES = 5 * 1024 * 1024;
-function threshold() {
-  const v = process.env["BURACLE_LOG_LEVEL"];
-  return v !== undefined && v in RANK2 ? RANK2[v] : RANK2.info;
-}
-function serializable(data) {
-  if (data instanceof Error)
-    return { name: data.name, message: data.message, stack: data.stack };
-  if (data !== null && typeof data === "object" && !Array.isArray(data)) {
-    const out = {};
-    for (const [k, v] of Object.entries(data))
-      out[k] = v instanceof Error ? serializable(v) : v;
-    return out;
-  }
-  return data;
-}
-function rotate(file, maxBytes = LOG_MAX_BYTES, measured) {
-  let st;
-  try {
-    st = measured ?? statSync2(file);
-  } catch {
-    return;
-  }
-  if (st.size <= maxBytes)
-    return;
-  const mine = `${file}.${process.pid}.rotating`;
-  try {
-    renameSync(file, mine);
-  } catch {
-    return;
-  }
-  try {
-    if (statSync2(mine).ino === st.ino)
-      renameSync(mine, `${file}.1`);
-    else
-      renameSync(mine, file);
-  } catch {}
-}
-function log(level, msg, data) {
-  if (RANK2[level] < threshold())
-    return;
-  try {
-    const file = logFile();
-    mkdirSync(logsDir(), { recursive: true });
-    rotate(file);
-    const line = { ts: new Date().toISOString(), level, pid: process.pid, msg };
-    if (data !== undefined)
-      line["data"] = serializable(data);
-    let text;
-    try {
-      text = JSON.stringify(line);
-    } catch {
-      text = JSON.stringify({ ts: line["ts"], level, pid: process.pid, msg, data: "[unserializable]" });
-    }
-    appendFileSync(file, text + `
-`, { mode: 384 });
-  } catch {}
-}
-
-// src/adapters/shared/pipeline/types.ts
-import { join as join4 } from "path";
-
-// src/engine/fsx.ts
-import { createHash as createHash2, randomBytes } from "crypto";
-import { closeSync, constants as constants2, fsyncSync, lstatSync, mkdirSync as mkdirSync2, openSync, readFileSync as readFileSync2, readlinkSync, realpathSync, renameSync as renameSync2, statSync as statSync3, unlinkSync, writeSync, chmodSync } from "fs";
-import { basename, dirname as dirname2, isAbsolute as isAbsolute2, join as join3, resolve as resolve2 } from "path";
-function realPath(p) {
-  return realpathSync.native(p);
-}
-function comparablePath(p, base) {
-  return base !== undefined ? resolve2(base, p) : resolve2(p);
-}
-function sha256(data) {
-  return createHash2("sha256").update(data).digest("hex");
-}
-function errCode(e) {
-  return e !== null && typeof e === "object" && "code" in e && typeof e.code === "string" ? e.code : undefined;
-}
-function message(e) {
-  return e instanceof Error ? e.message : String(e);
-}
-function ensureDirSync(path) {
-  mkdirSync2(path, { recursive: true });
-}
-function readTextSync(path) {
-  try {
-    return { ok: true, value: readFileSync2(path, "utf8") };
-  } catch (e) {
-    const code = errCode(e);
-    if (code === "ENOENT" || code === "ENOTDIR")
-      return { ok: false, error: `${path}: not found`, code: "missing" };
-    return { ok: false, error: `${path}: ${message(e)}`, code: "io" };
-  }
-}
-function readJsonSafeSync(path) {
-  const r = readTextSync(path);
-  if (!r.ok)
-    return r;
-  try {
-    return { ok: true, value: JSON.parse(r.value) };
-  } catch (e) {
-    return { ok: false, error: `${path}: invalid JSON: ${message(e)}`, code: "parse" };
-  }
-}
-function resolveWriteTarget(path) {
-  let cur = path;
-  for (let i = 0;i < 32; i++) {
-    let st;
-    try {
-      st = lstatSync(cur);
-    } catch {
-      return cur;
-    }
-    if (!st.isSymbolicLink())
-      return cur;
-    const target = readlinkSync(cur);
-    cur = isAbsolute2(target) ? target : resolve2(dirname2(cur), target);
-  }
-  throw new Error(`${path}: too many levels of symbolic links`);
-}
-function fileMode(path) {
-  try {
-    const st = statSync3(path);
-    return st.isFile() ? st.mode & 4095 : undefined;
-  } catch {
-    return;
-  }
-}
-function atomicWriteSync(path, data, opts = {}) {
-  const target = resolveWriteTarget(path);
-  const dir = dirname2(target);
-  mkdirSync2(dir, { recursive: true });
-  const mode = opts.mode ?? fileMode(target) ?? 420;
-  const tmp = join3(dir, `.${basename(target)}.buracle-${process.pid}-${randomBytes(4).toString("hex")}.tmp`);
-  let fd;
-  try {
-    fd = openSync(tmp, constants2.O_WRONLY | constants2.O_CREAT | constants2.O_EXCL, mode);
-    const buf = typeof data === "string" ? Buffer.from(data, "utf8") : data;
-    let off = 0;
-    while (off < buf.length)
-      off += writeSync(fd, buf, off, buf.length - off);
-    fsyncSync(fd);
-    closeSync(fd);
-    fd = undefined;
-    chmodSync(tmp, mode);
-    renameSync2(tmp, target);
-  } catch (e) {
-    if (fd !== undefined) {
-      try {
-        closeSync(fd);
-      } catch {}
-    }
-    try {
-      unlinkSync(tmp);
-    } catch {}
-    throw e;
-  }
-  try {
-    const dfd = openSync(dir, "r");
-    try {
-      fsyncSync(dfd);
-    } finally {
-      closeSync(dfd);
-    }
-  } catch {}
-}
-
-// src/engine/git.ts
-import { basename as basename2, dirname as dirname3 } from "path";
-
-// src/engine/proc.ts
-function collect(stream) {
-  const decoder = new TextDecoder;
-  let acc = "";
-  if (!stream)
-    return { done: Promise.resolve(), text: () => "" };
-  const reader = stream.getReader();
-  const done = (async () => {
-    try {
-      for (;; ) {
-        const { value, done: end } = await reader.read();
-        if (end)
-          break;
-        if (value)
-          acc += decoder.decode(value, { stream: true });
-      }
-      acc += decoder.decode();
-    } catch {}
-  })();
-  return { done, text: () => acc };
-}
-function delay(ms) {
-  return new Promise((res) => setTimeout(res, ms));
-}
-async function run(argv, opts = {}) {
-  if (argv.length === 0 || argv[0] === undefined || argv[0] === "")
-    return { code: 127, stdout: "", stderr: "run: empty argv", timedOut: false };
-  const env = {};
-  for (const [k, v] of Object.entries(process.env))
-    if (v !== undefined)
-      env[k] = v;
-  if (opts.env)
-    for (const [k, v] of Object.entries(opts.env)) {
-      if (v === undefined)
-        delete env[k];
-      else
-        env[k] = v;
-    }
-  const group = opts.processGroup === true;
-  let proc;
-  try {
-    proc = Bun.spawn(argv, {
-      cwd: opts.cwd,
-      env,
-      stdin: opts.stdin === undefined ? "ignore" : typeof opts.stdin === "string" ? new TextEncoder().encode(opts.stdin) : opts.stdin,
-      stdout: "pipe",
-      stderr: "pipe",
-      ...group ? { detached: true } : {}
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return { code: 127, stdout: "", stderr: msg, timedOut: false };
-  }
-  const out = collect(proc.stdout);
-  const err = collect(proc.stderr);
-  let timedOut = false;
-  let aborted = false;
-  let killTimer;
-  let hardTimer;
-  const p = proc;
-  const send = (sig) => {
-    if (group) {
-      try {
-        process.kill(-p.pid, sig);
-        return;
-      } catch {}
-    }
-    try {
-      p.kill(sig);
-    } catch {}
-  };
-  const stop = () => {
-    send("SIGTERM");
-    if (hardTimer === undefined)
-      hardTimer = setTimeout(() => {
-        send("SIGKILL");
-      }, 2000);
-  };
-  if (opts.timeoutMs !== undefined && opts.timeoutMs > 0) {
-    killTimer = setTimeout(() => {
-      timedOut = true;
-      stop();
-    }, opts.timeoutMs);
-  }
-  const onAbort = () => {
-    aborted = true;
-    stop();
-  };
-  if (opts.signal !== undefined) {
-    if (opts.signal.aborted)
-      onAbort();
-    else
-      opts.signal.addEventListener("abort", onAbort, { once: true });
-  }
-  try {
-    const code = await proc.exited;
-    await Promise.race([Promise.all([out.done, err.done]), delay(timedOut || aborted ? 200 : 1000)]);
-    const res = { code: timedOut ? 124 : code, stdout: out.text(), stderr: err.text(), timedOut };
-    if (aborted)
-      res.aborted = true;
-    return res;
-  } finally {
-    if (killTimer !== undefined)
-      clearTimeout(killTimer);
-    if (hardTimer !== undefined)
-      clearTimeout(hardTimer);
-    opts.signal?.removeEventListener("abort", onAbort);
-  }
-}
-
-// src/engine/git.ts
-var GIT_TIMEOUT_MS = 5000;
-async function git(cwd, args) {
-  const r = await run(["git", ...args], { cwd, timeoutMs: GIT_TIMEOUT_MS, env: { GIT_OPTIONAL_LOCKS: "0", LC_ALL: "C" } });
-  return r.code === 0 ? r.stdout : undefined;
-}
-async function revParse(cwd, ...args) {
-  const out = await git(cwd, ["rev-parse", ...args]);
-  return out === undefined ? undefined : out.trim();
-}
-async function currentBranch(cwd) {
-  const out = await git(cwd, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
-  const b = out?.trim();
-  return b ? b : undefined;
-}
-async function remoteUrl(cwd, name = "origin") {
-  const out = await git(cwd, ["remote", "get-url", name]);
-  const u = out?.trim();
-  return u ? u : undefined;
-}
-async function commonDir(cwd) {
-  const out = await revParse(cwd, "--git-common-dir");
-  return out ? comparablePath(out, cwd) : undefined;
-}
-async function toplevel(cwd) {
-  const out = await revParse(cwd, "--show-toplevel");
-  return out ? comparablePath(out, cwd) : undefined;
-}
-function ownerRepoFromUrl(url) {
-  let s = url.trim();
-  if (s === "")
-    return;
-  s = s.replace(/[?#].*$/, "").replace(/\/+$/, "").replace(/\.git$/, "");
-  let pathPart;
-  const scp = /^[^/@:]+@[^/:]+:(.+)$/.exec(s);
-  if (scp && scp[1] !== undefined && !/^[a-z][a-z0-9+.-]*:\/\//i.test(s))
-    pathPart = scp[1];
-  else {
-    const m = /^[a-z][a-z0-9+.-]*:\/\/[^/]*(\/.*)?$/i.exec(s);
-    pathPart = m ? m[1] ?? "" : s;
-  }
-  const segs = pathPart.split("/").filter((x) => x !== "" && x !== ".");
-  const repo = segs[segs.length - 1];
-  if (repo === undefined)
-    return;
-  const owner = segs.length >= 2 ? segs[segs.length - 2] : undefined;
-  return owner !== undefined ? { owner, repo } : { repo };
-}
-function slugPart(s) {
-  const folded = s.replace(/\u0130/g, "i").replace(/I/g, "i").replace(/\u0131/g, "i").toLowerCase().replace(/\u011F/g, "g").replace(/\u00FC/g, "u").replace(/\u015F/g, "s").replace(/\u00F6/g, "o").replace(/\u00E7/g, "c").normalize("NFKD").replace(/[\u0300-\u036F]/g, "");
-  const slug = folded.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60).replace(/-+$/g, "");
-  return slug === "" ? "project" : slug;
-}
-async function firstCommit(cwd) {
-  const out = await git(cwd, ["rev-list", "--max-parents=0", "HEAD"]);
-  if (out === undefined)
-    return;
-  return out.split(`
-`).map((l) => l.trim()).filter((l) => /^[0-9a-f]{7,40}$/.test(l)).sort()[0];
-}
-async function projectIdentity(cwd) {
-  const abs = comparablePath(cwd);
-  const common = await commonDir(abs);
-  if (common === undefined) {
-    return { slug: `${slugPart(basename2(abs))}-${sha256(abs).slice(0, 6)}`, root: abs };
-  }
-  const root = basename2(common) === ".git" ? dirname3(common) : await toplevel(abs) ?? abs;
-  const remote = await remoteUrl(abs);
-  const parsed = remote !== undefined ? ownerRepoFromUrl(remote) : undefined;
-  const name = parsed?.repo ?? basename2(root).replace(/\.git$/, "");
-  const id = { slug: slugPart(name), root, commonDir: common };
-  if (remote !== undefined)
-    id.remote = remote;
-  if (parsed?.owner !== undefined)
-    id.ownerRepo = `${parsed.owner}/${parsed.repo}`;
-  const first = await firstCommit(abs);
-  if (first !== undefined)
-    id.rootCommit = first;
-  return id;
-}
-async function projectSlug(cwd) {
-  return (await projectIdentity(cwd)).slug;
-}
-
-// src/adapters/shared/pipeline/types.ts
-var CONTEXT_BUDGET_BYTES = 9600;
-function memoryOff(d) {
-  return d.env["BURACLE_NO_MEMORY"] === "1";
-}
-function captureOff(d) {
-  return d.env["BURACLE_NO_CAPTURE"] === "1" || memoryOff(d);
-}
-async function spool(d, sid, entries) {
-  if (entries.length === 0 || captureOff(d))
-    return;
-  await d.step("H14 spool", undefined, async () => {
-    await (await d.memory("appendSpool"))?.(d.harness, sid, entries, d.spoolSuffix !== undefined ? { suffix: d.spoolSuffix } : {});
-  });
-}
-async function projectOf(d, cwd) {
-  if (d.project !== undefined)
-    return d.project(cwd);
-  const id = await projectIdentity(cwd);
-  const branch = await currentBranch(cwd);
-  return { project: id.slug, ...branch !== undefined ? { branch } : {} };
-}
-async function latestHandoffId(d, sid, cwd, now) {
-  const latest = await d.memory("latestHandoff");
-  if (latest === undefined)
-    return;
-  const { project, branch } = await projectOf(d, cwd);
-  const r = await latest({ project, ...branch !== undefined ? { branch } : {}, nowMs: now, session: sid });
-  return typeof r?.id === "string" ? r.id : undefined;
-}
-function workspaceFile(ctx, h, sid) {
-  return join4(ctx.paths.sessionDir(h, sid), "workspace.json");
-}
-function isRec(x) {
-  return x !== null && typeof x === "object" && !Array.isArray(x);
-}
-function readWorkspace(ctx, h, sid) {
-  const r = readJsonSafeSync(workspaceFile(ctx, h, sid));
-  const v = r.ok ? r.value : undefined;
-  const ok = isRec(v) && typeof v["cwd"] === "string" && Array.isArray(v["children"]) && isRec(v["index"]) && isRec(v["index"]["codegraph"]) && isRec(v["index"]["semble"]);
-  return ok ? v : undefined;
-}
-function saveWorkspace(ctx, h, sid, info) {
-  ensureDirSync(ctx.paths.sessionDir(h, sid));
-  atomicWriteSync(workspaceFile(ctx, h, sid), JSON.stringify(info) + `
-`);
-}
-function denyReason(hook, reason) {
-  return `Buracle ${hook}: ${reason.replace(/^Buracle:\s*/, "")}`;
-}
-function errText(e) {
-  return (e instanceof Error ? e.message : String(e)).split(`
-`)[0]?.slice(0, 200) ?? "unknown error";
-}
-function guardFailed(hook, e) {
-  const what = hook === "H01" ? "bash guard could not check this command" : "write guard could not check the files of this edit";
-  return denyReason(hook, `the ${what} (${errText(e)}), so the call is blocked: Buracle's guards fail closed. Ask the user to run it themselves, or have them check \`buracle doctor\`.`);
-}
-var FENCE_FAILED = denyReason("H01", "the read-only check of this second-opinion review failed, so the call was blocked.");
-function byteLength(s) {
-  return new TextEncoder().encode(s).length;
-}
-function clipBytes(text, max, note = `
-\u2026 (truncated)`) {
-  if (byteLength(text) <= max)
-    return text;
-  const room = Math.max(0, max - byteLength(note));
-  let cut = text;
-  while (cut.length > 0 && byteLength(cut) > room)
-    cut = cut.slice(0, Math.floor(cut.length * 0.9));
-  const nl = cut.lastIndexOf(`
-`);
-  return (nl > cut.length * 0.5 ? cut.slice(0, nl) : cut) + note;
-}
-function fitParts(parts, max) {
-  const out = [];
-  let size = 0;
-  for (const raw of parts) {
-    const part = raw.trim();
-    if (part === "")
-      continue;
-    const add = part.length + (out.length > 0 ? 2 : 0);
-    if (out.length > 0 && size + add > max)
-      continue;
-    out.push(part);
-    size += add;
-  }
-  return out;
-}
 // src/workflow/ledger.ts
 import { join as join6 } from "path";
 
@@ -19214,7 +19215,7 @@ function shimLaunch(shim = shimPath()) {
 var HARNESS_LABEL2 = harnessTable((p) => p.shortLabel);
 var VERSION_CMD = harnessTable((p) => p.bin);
 function buracleArgv() {
-  const main = join10(repoRoot2(), "src", "cli", "main.ts");
+  const main = join10(repoRoot(), "src", "cli", "main.ts");
   const bun = findExecutable("bun");
   if (bun !== undefined && existsSync5(main))
     return [bun, main];
@@ -26575,7 +26576,7 @@ function installedCheckout(p, configured) {
   return p.isCheckout(running) ? running : undefined;
 }
 function selfPaths(configuredRepo, source) {
-  const p = source ?? { home, buracleHome, localBinDir, claudeDir, codexHome, opencodeConfigDir, ompAgentDir, ompHome, qwenHome, piAgentDir, agyDir, repoRoot: repoRoot2, isCheckout, expandHome: expandHome2 };
+  const p = source ?? { home, buracleHome, localBinDir, claudeDir, codexHome, opencodeConfigDir, ompAgentDir, ompHome, qwenHome, piAgentDir, agyDir, repoRoot, isCheckout, expandHome };
   const out = {};
   for (const key of ROOTS) {
     const v = attempt(() => p[key]());
@@ -33307,251 +33308,92 @@ function heldConsentNeed(harness, sid, command) {
   return consentNeeded(command);
 }
 
-// src/adapters/shared/pi-family/host.ts
-var MEMORY_CONTEXT_WAIT_MS = 4000;
-var HANDOFF_WAIT_MS = 9000;
-function adapterContext(data, lc, home) {
-  const canonical = { routing: data.routing, notices: data.notices ?? [] };
-  return { repoRoot: lc.repoRoot ?? "", config: lc.config, canonical, paths: { ...exports_paths, home, oldVaultRoot: () => lc.vault }, buracleBin: lc.shim };
-}
-function pipelineCore(deps) {
-  return {
-    ...exports_core,
-    checkBash: (command, opts) => deps.policy.checkBash(command, opts),
-    checkWrite: (files, ctx) => deps.policy.checkWrite(files, ctx),
-    checkQuestion: (state, call, now) => deps.policy.checkQuestion(state, call, now),
-    isGuardContinuation: (text) => deps.policy.isGuardContinuation(text),
-    detectSignals: (text) => {
-      const intent = deps.policy.detectIntent(text);
-      return { control: intent === "pause" || intent === "resume" || intent === "stop" ? intent : null, recall: false, write: false };
-    },
-    routeTool: (call, policy, health) => policy.strictness === "off" ? { action: "allow" } : deps.policy.routeTool(call, policy, health),
-    promptInteraction: (state, control, text, opts) => deps.plan.promptInteraction(state, control, text, opts),
-    answerReceipt: (state, now) => deps.plan.answerReceipt(state, now),
-    validatePlan: (text) => deps.plan.validatePlan(text),
-    stopGuardVerdict: (state, input, cfg, doc) => cfg.stopGuard ? deps.plan.stopGuardVerdict(state, input, cfg, doc) : { decision: { action: "allow" }, next: state, why: "disabled" },
-    handoffNote: (input) => deps.compact.handoffNote(input),
-    restoreContext: (state, handoff, todo) => deps.compact.restoreContext(state, handoff, todo)
-  };
-}
-function memoryFns(bridge) {
-  return {
-    appendSpool: (_h, sid, entries) => bridge.appendSpool(sid, entries),
-    sessionStart: (_h, sid, cwd) => bridge.sessionStart(sid, cwd),
-    promptSeen: (_h, sid) => bridge.promptSeen?.(sid),
-    spawnFinalizer: (_h, sid) => bridge.spawnFinalizer(sid),
-    contextText: async (o) => await withDeadline(bridge.contextText(o.cwd), MEMORY_CONTEXT_WAIT_MS, undefined) ?? "",
-    writeHandoff: async (i) => {
-      const id = await withDeadline(bridge.writeHandoff(i.sessionId, i.cwd, { slug: i.slug, markdown: i.markdown, ...i.branch !== undefined ? { branch: i.branch } : {} }), HANDOFF_WAIT_MS, undefined);
-      return id !== undefined ? { id, path: id, rel: id } : undefined;
-    }
-  };
-}
-function uiHooks(bridge) {
-  return {
-    started: async (_h, sid) => {
-      bridge.ui?.started(sid);
-    },
-    seen: async (_h, sid) => {
-      bridge.ui?.seen(sid);
-    },
-    ended: async (_h, sid) => {
-      bridge.ui?.ended(sid);
-    }
-  };
-}
-
-// src/adapters/shared/project-deps.ts
-import { readdirSync as readdirSync6, readFileSync as readFileSync12, statSync as statSync14 } from "fs";
-import { join as join19, resolve as resolve11 } from "path";
-var ROOT_MANIFESTS = ["package.json", "pyproject.toml", "Pipfile", "go.mod", "Cargo.toml", "composer.json", "Gemfile"];
-var REQUIREMENTS = /^(?:requirements|constraints)[\w.-]*\.(?:txt|in)$/i;
-var WORKSPACE_MEMBERS_MAX = 32;
-var PROJECT_DEPS_MAX = 400;
-var CACHE_MAX = 16;
-var READ_MAX_BYTES = 1024 * 1024;
-var cache = new Map;
-function stamp2(path) {
-  try {
-    const st = statSync14(path);
-    return st.isFile() ? `${st.size}:${Math.trunc(st.mtimeMs)}` : undefined;
-  } catch {
-    return;
-  }
-}
-function readSmall(path) {
-  try {
-    if (statSync14(path).size > READ_MAX_BYTES)
-      return;
-    return readFileSync12(path, "utf8");
-  } catch {
-    return;
-  }
-}
-function isObj12(x) {
-  return x !== null && typeof x === "object" && !Array.isArray(x);
-}
-function workspacePatterns(root, pkgText) {
-  const out = [];
-  if (pkgText !== undefined) {
-    try {
-      const j = JSON.parse(pkgText);
-      const ws = isObj12(j) ? j["workspaces"] : undefined;
-      const list = Array.isArray(ws) ? ws : isObj12(ws) && Array.isArray(ws["packages"]) ? ws["packages"] : [];
-      for (const p of list)
-        if (typeof p === "string")
-          out.push(p);
-    } catch {}
-  }
-  const pnpm = readSmall(join19(root, "pnpm-workspace.yaml"));
-  if (pnpm !== undefined) {
-    let inPackages = false;
-    for (const raw of pnpm.split(`
-`)) {
-      const line = raw.replace(/\s+#.*$/, "");
-      if (/^packages\s*:/.test(line)) {
-        inPackages = true;
-        continue;
-      }
-      if (inPackages) {
-        const item = /^\s+-\s+['"]?([^'"]+?)['"]?\s*$/.exec(line);
-        if (item?.[1] !== undefined)
-          out.push(item[1]);
-        else if (/^\S/.test(line))
-          inPackages = false;
-      }
-    }
-  }
-  return out;
-}
-function memberDirs(root, patterns) {
-  const dirs = new Set;
-  for (const raw of patterns) {
-    const p = raw.trim().replace(/^\.\//, "").replace(/\/+$/, "");
-    if (p === "" || p.startsWith("!") || p.startsWith("/") || p.split("/").includes(".."))
-      continue;
-    if (p.endsWith("/*") && !/[*?[{]/.test(p.slice(0, -2))) {
-      const base = join19(root, p.slice(0, -2));
-      let names = [];
-      try {
-        names = readdirSync6(base).sort();
-      } catch {
-        continue;
-      }
-      for (const n of names)
-        if (!n.startsWith(".") && n !== "node_modules")
-          dirs.add(join19(base, n));
-    } else if (!/[*?[{]/.test(p)) {
-      dirs.add(join19(root, p));
-    }
-  }
-  return [...dirs].sort();
-}
-function projectDeps(root) {
-  if (typeof root !== "string" || root.trim() === "")
-    return [];
-  const dir = resolve11(root);
-  let names;
-  try {
-    names = readdirSync6(dir);
-  } catch {
-    return [];
-  }
-  const files = [
-    ...ROOT_MANIFESTS.filter((n) => names.includes(n)),
-    ...names.filter((n) => REQUIREMENTS.test(n)).sort()
-  ];
-  const pkgText = files.includes("package.json") ? readSmall(join19(dir, "package.json")) : undefined;
-  const members = pkgText !== undefined || names.includes("pnpm-workspace.yaml") ? memberDirs(dir, workspacePatterns(dir, pkgText)).map((m) => join19(m, "package.json")).filter((p) => stamp2(p) !== undefined).slice(0, WORKSPACE_MEMBERS_MAX) : [];
-  const paths = [...files.map((n) => join19(dir, n)), ...members];
-  const sig = [...paths.map((p) => `${p}=${stamp2(p) ?? ""}`), names.includes("pnpm-workspace.yaml") ? `pnpm=${stamp2(join19(dir, "pnpm-workspace.yaml")) ?? ""}` : ""].join(`
-`);
-  const hit = cache.get(dir);
-  if (hit !== undefined && hit.sig === sig)
-    return [...hit.deps];
-  const deps = new Set;
-  for (const p of paths) {
-    const text = p === join19(dir, "package.json") ? pkgText : readSmall(p);
-    if (text === undefined)
-      continue;
-    for (const d of parseManifestDeps(p, text))
-      deps.add(d);
-  }
-  const out = [...deps].sort().slice(0, PROJECT_DEPS_MAX);
-  cache.delete(dir);
-  cache.set(dir, { sig, deps: out });
-  while (cache.size > CACHE_MAX) {
-    const oldest = cache.keys().next().value;
-    if (oldest === undefined)
-      break;
-    cache.delete(oldest);
-  }
-  return [...out];
-}
-
-// src/adapters/shared/pi-family/routing.ts
-function mergeRoutes(routes, compiled) {
-  const [first] = routes;
-  if (first !== undefined && routes.length === 1)
-    return first;
-  const explicit = (id) => compiled.skills.some((s) => s.id === id && s.explicit);
-  const union = (ids) => [...new Set(ids)];
-  const invoked = union(routes.flatMap((r) => r.invoked));
-  const asks = union(routes.flatMap((r) => r.load)).filter((id) => !invoked.includes(id));
-  const load = asks.slice(0, ROUTE_CAPS.load);
-  const candidates = [...invoked, ...load].some(explicit) ? [] : union([...asks.slice(ROUTE_CAPS.load), ...routes.flatMap((r) => r.candidates)]).filter((id) => !explicit(id) && !invoked.includes(id) && !load.includes(id)).slice(0, ROUTE_CAPS.candidates);
-  const categories = union(routes.flatMap((r) => r.categories)).slice(0, ROUTE_CAPS.categories);
-  const merged = { invoked, load, candidates, categories };
-  const libs = union(routes.flatMap((r) => r.libs ?? []));
-  if (libs.length > 0 && categories.some((id) => compiled.categories.some((c) => c.id === id && c.deps !== undefined)))
-    merged.libs = libs.slice(0, 3);
-  return merged;
-}
-function availableServers(mcp, health) {
-  return mcp.map((s) => s.id).filter((id) => !mcpUnavailable(health[id]));
-}
-function sessionHealth(health, ledger, lsid) {
-  return lsid === undefined ? health : sessionMcpHealth(health, ledger.load(lsid));
-}
-function routerData(skills, routing, strictness) {
-  const policy = { ...routing, strictness };
-  return { compiled: compileTriggers(skills, policy), policy };
-}
-function promptRouting(prompt, data, o) {
-  const opts = { harness: o.harness, loaded: o.loaded, available: o.available };
-  if (o.deps !== undefined)
-    opts.deps = o.deps;
-  let route = routePrompt(prompt, data.compiled, opts);
-  if (o.strictness === "off" && route.categories.length > 0) {
-    const { libs: _libs, ...rest } = route;
-    route = { ...rest, categories: [] };
-  }
-  const text = routeText(route, o.harness, data.policy, { triggers: data.compiled });
-  return text !== undefined ? { route, text } : { route };
-}
-function createDepsReader() {
-  return (root) => {
-    if (root === undefined || root === "")
-      return;
-    const deps = projectDeps(root);
-    return deps.length > 0 ? deps : undefined;
-  };
-}
-
-// src/adapters/shared/pi-family/stop.ts
-function stopReason(hook, reason) {
-  return GUARD_MARKERS.some((m) => reason.startsWith(m)) ? reason : `Buracle ${hook}: ${reason}`;
-}
-function runawayNotice(why, plan) {
-  const what = why === "runaway-plan" ? "the plan-wide limit of stop-guard continuations" : "the limit of consecutive stop-guard continuations";
-  return `Buracle: the turn ended although the plan ${plan} is not finished, because ${what} was reached. Check the work, then continue or run \`buracle plan pause\`.`;
-}
-
-// src/adapters/pi/runtime/deps.ts
+// src/adapters/shared/pi-family/inprocess-host.ts
 import { readFileSync as readFileSync19 } from "fs";
 
+// src/adapters/shared/repo-cache.ts
+import { existsSync as existsSync8, readFileSync as readFileSync12 } from "fs";
+import { dirname as dirname12, join as join19, resolve as resolve11 } from "path";
+var CACHE_TTL_MS = 30000;
+var CACHE_MAX = 64;
+var cache = new Map;
+function gitToplevel(dir) {
+  let d = resolve11(dir);
+  for (let i = 0;i < 128; i++) {
+    if (existsSync8(join19(d, ".git")))
+      return d;
+    const up = dirname12(d);
+    if (up === d)
+      return;
+    d = up;
+  }
+  return;
+}
+function packageName2(dir) {
+  try {
+    const pkg = JSON.parse(readFileSync12(join19(dir, "package.json"), "utf8"));
+    return pkg !== null && typeof pkg === "object" && typeof pkg.name === "string" ? pkg.name : undefined;
+  } catch {
+    return;
+  }
+}
+function real3(p) {
+  try {
+    return realPath(p);
+  } catch {
+    return resolve11(p);
+  }
+}
+function lookup(cwd, nowMs) {
+  const hit = cache.get(cwd);
+  if (hit !== undefined && nowMs - hit.at >= 0 && nowMs - hit.at < CACHE_TTL_MS)
+    return hit;
+  const top = gitToplevel(cwd) ?? null;
+  const entry = { at: nowMs, top, name: top !== null ? packageName2(top) : undefined };
+  if (cache.size >= CACHE_MAX)
+    cache.clear();
+  cache.set(cwd, entry);
+  return entry;
+}
+function buracleRepoFor2(cwd, configured, nowMs = Date.now()) {
+  try {
+    if (typeof cwd !== "string" || cwd === "")
+      return;
+    const { top, name } = lookup(cwd, nowMs);
+    if (top === null)
+      return;
+    if (name === "buracle")
+      return top;
+    const want = real3(top);
+    for (const c of configured) {
+      if (typeof c === "string" && c.trim() !== "" && real3(c.trim()) === want)
+        return top;
+    }
+    return;
+  } catch {
+    return;
+  }
+}
+
+// src/adapters/shared/workspace-start.ts
+function fallbackInfo(cwd, cfg) {
+  return {
+    cwd: canonicalDir2(cwd),
+    children: [],
+    index: { codegraph: { state: cfg.codegraph ? "none" : "off" }, semble: { state: cfg.semble ? "none" : "off" } }
+  };
+}
+async function prepareWorkspace(cwd, cfg, nowMs) {
+  try {
+    return infoFor(await resolveWorkspace(cwd, workspaceOptions(cfg)), cfg, nowMs);
+  } catch (e) {
+    log("warn", "workspace: preparing the session start failed", { cwd, error: e });
+    return fallbackInfo(cwd, cfg);
+  }
+}
+
 // src/adapters/shared/pi-family/config.ts
-import { readFileSync as readFileSync13, statSync as statSync15 } from "fs";
+import { readFileSync as readFileSync13, statSync as statSync14 } from "fs";
 var configCache;
 var healthCache;
 var warned = new Set;
@@ -33563,7 +33405,7 @@ function warnOnce(key, msg, data) {
 }
 function stat(path) {
   try {
-    const st = statSync15(path);
+    const st = statSync14(path);
     return st.isFile() ? { mtimeMs: st.mtimeMs, size: st.size } : undefined;
   } catch {
     return;
@@ -33645,12 +33487,66 @@ function mcpHealth2(nowMs = Date.now()) {
   return parseHealth(value, nowMs);
 }
 
+// src/adapters/shared/pi-family/host.ts
+var MEMORY_CONTEXT_WAIT_MS = 4000;
+var HANDOFF_WAIT_MS = 9000;
+function adapterContext(data, lc, home) {
+  const canonical = { routing: data.routing, notices: data.notices ?? [] };
+  return { repoRoot: lc.repoRoot ?? "", config: lc.config, canonical, paths: { ...exports_paths, home, oldVaultRoot: () => lc.vault }, buracleBin: lc.shim };
+}
+function pipelineCore(deps) {
+  return {
+    ...exports_core,
+    checkBash: (command, opts) => deps.policy.checkBash(command, opts),
+    checkWrite: (files, ctx) => deps.policy.checkWrite(files, ctx),
+    checkQuestion: (state, call, now) => deps.policy.checkQuestion(state, call, now),
+    isGuardContinuation: (text) => deps.policy.isGuardContinuation(text),
+    detectSignals: (text) => {
+      const intent = deps.policy.detectIntent(text);
+      return { control: intent === "pause" || intent === "resume" || intent === "stop" ? intent : null, recall: false, write: false };
+    },
+    routeTool: (call, policy, health) => policy.strictness === "off" ? { action: "allow" } : deps.policy.routeTool(call, policy, health),
+    promptInteraction: (state, control, text, opts) => deps.plan.promptInteraction(state, control, text, opts),
+    answerReceipt: (state, now) => deps.plan.answerReceipt(state, now),
+    validatePlan: (text) => deps.plan.validatePlan(text),
+    stopGuardVerdict: (state, input, cfg, doc) => cfg.stopGuard ? deps.plan.stopGuardVerdict(state, input, cfg, doc) : { decision: { action: "allow" }, next: state, why: "disabled" },
+    handoffNote: (input) => deps.compact.handoffNote(input),
+    restoreContext: (state, handoff, todo) => deps.compact.restoreContext(state, handoff, todo)
+  };
+}
+function memoryFns(bridge) {
+  return {
+    appendSpool: (_h, sid, entries) => bridge.appendSpool(sid, entries),
+    sessionStart: (_h, sid, cwd) => bridge.sessionStart(sid, cwd),
+    promptSeen: (_h, sid) => bridge.promptSeen?.(sid),
+    spawnFinalizer: (_h, sid) => bridge.spawnFinalizer(sid),
+    contextText: async (o) => await withDeadline(bridge.contextText(o.cwd), MEMORY_CONTEXT_WAIT_MS, undefined) ?? "",
+    writeHandoff: async (i) => {
+      const id = await withDeadline(bridge.writeHandoff(i.sessionId, i.cwd, { slug: i.slug, markdown: i.markdown, ...i.branch !== undefined ? { branch: i.branch } : {} }), HANDOFF_WAIT_MS, undefined);
+      return id !== undefined ? { id, path: id, rel: id } : undefined;
+    }
+  };
+}
+function uiHooks(bridge) {
+  return {
+    started: async (_h, sid) => {
+      bridge.ui?.started(sid);
+    },
+    seen: async (_h, sid) => {
+      bridge.ui?.seen(sid);
+    },
+    ended: async (_h, sid) => {
+      bridge.ui?.ended(sid);
+    }
+  };
+}
+
 // src/adapters/shared/pi-family/memory.ts
-import { readFileSync as readFileSync17, statSync as statSync22 } from "fs";
+import { readFileSync as readFileSync17, statSync as statSync21 } from "fs";
 import { join as join28 } from "path";
 
 // src/memory/spool.ts
-import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync8, readdirSync as readdirSync7, readFileSync as readFileSync14, statSync as statSync16, unlinkSync as unlinkSync6 } from "fs";
+import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync8, readdirSync as readdirSync6, readFileSync as readFileSync14, statSync as statSync15, unlinkSync as unlinkSync6 } from "fs";
 import { join as join21 } from "path";
 
 // src/memory/layout.ts
@@ -33711,7 +33607,7 @@ function appendSpool(h, sid, entries, opts = {}) {
     const file = join21(dir, spoolFileName(h, sid, opts.suffix));
     let size = 0;
     try {
-      size = statSync16(file).size;
+      size = statSync15(file).size;
     } catch {}
     let text = "";
     let redacted = 0;
@@ -33740,15 +33636,15 @@ function appendSpool(h, sid, entries, opts = {}) {
 }
 
 // src/memory/session-record.ts
-import { mkdirSync as mkdirSync9, statSync as statSync20, utimesSync as utimesSync3 } from "fs";
+import { mkdirSync as mkdirSync9, statSync as statSync19, utimesSync as utimesSync3 } from "fs";
 import { join as join25, resolve as resolve13 } from "path";
 
 // src/memory/project.ts
-import { copyFileSync, existsSync as existsSync8, readdirSync as readdirSync8, statSync as statSync18 } from "fs";
-import { basename as basename6, dirname as dirname12, join as join23, resolve as resolve12 } from "path";
+import { copyFileSync, existsSync as existsSync9, readdirSync as readdirSync7, statSync as statSync17 } from "fs";
+import { basename as basename6, dirname as dirname13, join as join23, resolve as resolve12 } from "path";
 
 // src/engine/config.ts
-import { readFileSync as readFileSync15, statSync as statSync17 } from "fs";
+import { readFileSync as readFileSync15, statSync as statSync16 } from "fs";
 import { join as join22 } from "path";
 var UNKNOWN_KEY_HINT = "(ignored; misspelled, renamed or removed? `buracle config get` prints the valid keys)";
 function readText(path) {
@@ -33797,7 +33693,7 @@ function mergeLayer(base, override, file, errors) {
   }
 }
 function loadConfigSync(opts = {}) {
-  const canonicalPath = join22(opts.repoRoot ?? repoRoot2(), "canonical", "buracle.yaml");
+  const canonicalPath = join22(opts.repoRoot ?? repoRoot(), "canonical", "buracle.yaml");
   const userPath = opts.userConfigPath ?? userConfigFile();
   const errors = [];
   const warnings = [];
@@ -33852,22 +33748,22 @@ function readProjectsCache() {
 }
 function backupCorruptProjectsCache() {
   const file = projectsFile();
-  const dir = dirname12(file);
+  const dir = dirname13(file);
   const base = basename6(file);
   let newest = 0;
   try {
-    for (const n of readdirSync8(dir)) {
+    for (const n of readdirSync7(dir)) {
       if (!n.startsWith(`${base}.corrupt-`))
         continue;
       try {
-        newest = Math.max(newest, statSync18(join23(dir, n)).mtimeMs);
+        newest = Math.max(newest, statSync17(join23(dir, n)).mtimeMs);
       } catch {}
     }
   } catch {
     return;
   }
   try {
-    if (statSync18(file).mtimeMs <= newest)
+    if (statSync17(file).mtimeMs <= newest)
       return;
   } catch {
     return;
@@ -33935,14 +33831,14 @@ function indexExcludePatterns() {
 function childRepos(dir) {
   let entries;
   try {
-    entries = readdirSync8(dir, { withFileTypes: true });
+    entries = readdirSync7(dir, { withFileTypes: true });
   } catch {
     return [];
   }
   const dirs = entries.filter((e) => e.isDirectory() && !e.name.startsWith(".") && !NOT_CHILDREN.has(e.name));
   if (dirs.length > MAX_CONTAINER_DIRS)
     return [];
-  const repos = dirs.map((e) => join23(dir, e.name)).filter((p) => existsSync8(join23(p, ".git")));
+  const repos = dirs.map((e) => join23(dir, e.name)).filter((p) => existsSync9(join23(p, ".git")));
   if (repos.length === 0)
     return [];
   const exclude = indexExcludePatterns();
@@ -34000,8 +33896,8 @@ function memoryExcludePatterns() {
 }
 function existingDir(cwd) {
   let abs = resolve12(cwd);
-  while (!existsSync8(abs) && dirname12(abs) !== abs)
-    abs = dirname12(abs);
+  while (!existsSync9(abs) && dirname13(abs) !== abs)
+    abs = dirname13(abs);
   return comparablePath(abs);
 }
 function excludeEnv() {
@@ -34018,7 +33914,7 @@ async function exclusionOf(abs, patterns, nested = false) {
   if (hit === undefined) {
     const id = await projectIdentity(abs);
     const top = id.commonDir !== undefined ? await toplevel(abs) ?? id.root : abs;
-    const main = id.commonDir !== undefined && basename6(id.commonDir) === ".git" ? [dirname12(id.commonDir)] : [];
+    const main = id.commonDir !== undefined && basename6(id.commonDir) === ".git" ? [dirname13(id.commonDir)] : [];
     const own = memExclusion({ dirs: [id.root, top, ...main], ...id.ownerRepo !== undefined ? { ownerRepo: id.ownerRepo } : {} }, patterns, env);
     if (own !== undefined || id.commonDir !== undefined)
       return own;
@@ -34167,7 +34063,7 @@ function writeSessionRecord(rec) {
 var STALE_ACTIVE_MS = 2 * 3600000;
 
 // src/memory/spawn.ts
-import { existsSync as existsSync9, statSync as statSync19 } from "fs";
+import { existsSync as existsSync10, statSync as statSync18 } from "fs";
 import { basename as basename7, join as join24 } from "path";
 function bunBinary() {
   const exe = process.execPath;
@@ -34177,7 +34073,7 @@ function bunBinary() {
 }
 function isFile3(p) {
   try {
-    return statSync19(p).isFile();
+    return statSync18(p).isFile();
   } catch {
     return false;
   }
@@ -34189,7 +34085,7 @@ function cliArgv() {
   const shim = shimLaunch();
   if (shim !== undefined && moduleCheckout() === undefined)
     return shim;
-  const main = join24(repoRoot2(), "src", "cli", "main.ts");
+  const main = join24(repoRoot(), "src", "cli", "main.ts");
   const bun = bunBinary();
   if (bun !== undefined && isFile3(main))
     return [bun, main];
@@ -34201,7 +34097,7 @@ function spawnCli(args, env = {}) {
   try {
     const checkout = moduleCheckout() ?? configuredRepoRoot();
     const proc = Bun.spawn([...cliArgv(), ...args], {
-      cwd: checkout !== undefined ? checkout : existsSync9(home()) ? home() : "/",
+      cwd: checkout !== undefined ? checkout : existsSync10(home()) ? home() : "/",
       env: { ...process.env, ...env },
       stdio: ["ignore", "ignore", "ignore"],
       detached: true
@@ -34218,7 +34114,7 @@ function spawnCli(args, env = {}) {
 var BASELINE_MAX = 200;
 function fileFingerprint(root, rel) {
   try {
-    const st = statSync20(join25(root, rel));
+    const st = statSync19(join25(root, rel));
     return `${st.size}:${Math.floor(st.mtimeMs)}`;
   } catch {
     return "gone";
@@ -34297,12 +34193,12 @@ function promptSeen(h, sid, opts = {}) {
 
 // src/memory/ui-build.ts
 import { createHash as createHash3 } from "crypto";
-import { readdirSync as readdirSync9, readFileSync as readFileSync16 } from "fs";
+import { readdirSync as readdirSync8, readFileSync as readFileSync16 } from "fs";
 import { join as join26 } from "path";
 function uiSources(memoryDir) {
-  const out = readdirSync9(memoryDir).filter((n) => /^ui.*\.ts$/u.test(n)).sort();
+  const out = readdirSync8(memoryDir).filter((n) => /^ui.*\.ts$/u.test(n)).sort();
   const walk = (rel) => {
-    const entries = readdirSync9(join26(memoryDir, rel), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+    const entries = readdirSync8(join26(memoryDir, rel), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
     for (const e of entries) {
       if (e.name.startsWith("."))
         continue;
@@ -34316,10 +34212,10 @@ function uiSources(memoryDir) {
   walk("ui");
   return out;
 }
-function uiBuildId(repoRoot = repoRoot2()) {
+function uiBuildId(repoRoot2 = repoRoot()) {
   try {
-    const raw = JSON.parse(readFileSync16(join26(repoRoot, "package.json"), "utf8")).version;
-    const dir = join26(repoRoot, "src", "memory");
+    const raw = JSON.parse(readFileSync16(join26(repoRoot2, "package.json"), "utf8")).version;
+    const dir = join26(repoRoot2, "src", "memory");
     const h = createHash3("sha256");
     for (const rel of uiSources(dir)) {
       h.update(rel);
@@ -34334,7 +34230,7 @@ function uiBuildId(repoRoot = repoRoot2()) {
 }
 
 // src/memory/ui-presence.ts
-import { closeSync as closeSync5, mkdirSync as mkdirSync10, openSync as openSync5, readdirSync as readdirSync10, rmSync as rmSync3, statSync as statSync21, utimesSync as utimesSync4 } from "fs";
+import { closeSync as closeSync5, mkdirSync as mkdirSync10, openSync as openSync5, readdirSync as readdirSync9, rmSync as rmSync3, statSync as statSync20, utimesSync as utimesSync4 } from "fs";
 import { join as join27 } from "path";
 
 // src/memory/ui-record.ts
@@ -34392,7 +34288,7 @@ function sessionSeen(h, sid, nowMs = Date.now(), env = process.env) {
     return "fresh";
   let mtime;
   try {
-    mtime = statSync21(file).mtimeMs;
+    mtime = statSync20(file).mtimeMs;
   } catch {
     mtime = undefined;
   }
@@ -34416,7 +34312,7 @@ function sessionClosed(h, sid) {
 var uiPresenceDeps = { spawn: (args) => spawnCli(args) };
 function autostartOn() {
   try {
-    return loadConfigSync({ repoRoot: repoRoot2() }).config.memory.ui.autostart;
+    return loadConfigSync({ repoRoot: repoRoot() }).config.memory.ui.autostart;
   } catch {
     return true;
   }
@@ -34440,7 +34336,7 @@ function startUiSoon(opts = {}) {
     } catch {
       let stale = false;
       try {
-        stale = now - statSync21(marker).mtimeMs >= UI_SPAWN_MARKER_MS;
+        stale = now - statSync20(marker).mtimeMs >= UI_SPAWN_MARKER_MS;
       } catch {
         stale = true;
       }
@@ -34490,7 +34386,7 @@ function uiBridgeFor(harness) {
 }
 function isFile4(p) {
   try {
-    return statSync22(p).isFile();
+    return statSync21(p).isFile();
   } catch {
     return false;
   }
@@ -34611,97 +34507,195 @@ function createMemoryBridge(opts) {
   };
 }
 
-// src/adapters/shared/repo-cache.ts
-import { existsSync as existsSync10, readFileSync as readFileSync18 } from "fs";
-import { dirname as dirname13, join as join29, resolve as resolve14 } from "path";
-var CACHE_TTL_MS = 30000;
-var CACHE_MAX2 = 64;
+// src/adapters/shared/project-deps.ts
+import { readdirSync as readdirSync10, readFileSync as readFileSync18, statSync as statSync22 } from "fs";
+import { join as join29, resolve as resolve14 } from "path";
+var ROOT_MANIFESTS = ["package.json", "pyproject.toml", "Pipfile", "go.mod", "Cargo.toml", "composer.json", "Gemfile"];
+var REQUIREMENTS = /^(?:requirements|constraints)[\w.-]*\.(?:txt|in)$/i;
+var WORKSPACE_MEMBERS_MAX = 32;
+var PROJECT_DEPS_MAX = 400;
+var CACHE_MAX2 = 16;
+var READ_MAX_BYTES = 1024 * 1024;
 var cache2 = new Map;
-function gitToplevel(dir) {
-  let d = resolve14(dir);
-  for (let i = 0;i < 128; i++) {
-    if (existsSync10(join29(d, ".git")))
-      return d;
-    const up = dirname13(d);
-    if (up === d)
-      return;
-    d = up;
-  }
-  return;
-}
-function packageName2(dir) {
+function stamp2(path) {
   try {
-    const pkg = JSON.parse(readFileSync18(join29(dir, "package.json"), "utf8"));
-    return pkg !== null && typeof pkg === "object" && typeof pkg.name === "string" ? pkg.name : undefined;
+    const st = statSync22(path);
+    return st.isFile() ? `${st.size}:${Math.trunc(st.mtimeMs)}` : undefined;
   } catch {
     return;
   }
 }
-function real3(p) {
+function readSmall(path) {
   try {
-    return realPath(p);
+    if (statSync22(path).size > READ_MAX_BYTES)
+      return;
+    return readFileSync18(path, "utf8");
   } catch {
-    return resolve14(p);
+    return;
   }
 }
-function lookup(cwd, nowMs) {
-  const hit = cache2.get(cwd);
-  if (hit !== undefined && nowMs - hit.at >= 0 && nowMs - hit.at < CACHE_TTL_MS)
-    return hit;
-  const top = gitToplevel(cwd) ?? null;
-  const entry = { at: nowMs, top, name: top !== null ? packageName2(top) : undefined };
-  if (cache2.size >= CACHE_MAX2)
-    cache2.clear();
-  cache2.set(cwd, entry);
-  return entry;
+function isObj12(x) {
+  return x !== null && typeof x === "object" && !Array.isArray(x);
 }
-function buracleRepoFor2(cwd, configured, nowMs = Date.now()) {
-  try {
-    if (typeof cwd !== "string" || cwd === "")
-      return;
-    const { top, name } = lookup(cwd, nowMs);
-    if (top === null)
-      return;
-    if (name === "buracle")
-      return top;
-    const want = real3(top);
-    for (const c of configured) {
-      if (typeof c === "string" && c.trim() !== "" && real3(c.trim()) === want)
-        return top;
+function workspacePatterns(root, pkgText) {
+  const out = [];
+  if (pkgText !== undefined) {
+    try {
+      const j = JSON.parse(pkgText);
+      const ws = isObj12(j) ? j["workspaces"] : undefined;
+      const list = Array.isArray(ws) ? ws : isObj12(ws) && Array.isArray(ws["packages"]) ? ws["packages"] : [];
+      for (const p of list)
+        if (typeof p === "string")
+          out.push(p);
+    } catch {}
+  }
+  const pnpm = readSmall(join29(root, "pnpm-workspace.yaml"));
+  if (pnpm !== undefined) {
+    let inPackages = false;
+    for (const raw of pnpm.split(`
+`)) {
+      const line = raw.replace(/\s+#.*$/, "");
+      if (/^packages\s*:/.test(line)) {
+        inPackages = true;
+        continue;
+      }
+      if (inPackages) {
+        const item = /^\s+-\s+['"]?([^'"]+?)['"]?\s*$/.exec(line);
+        if (item?.[1] !== undefined)
+          out.push(item[1]);
+        else if (/^\S/.test(line))
+          inPackages = false;
+      }
     }
-    return;
-  } catch {
-    return;
   }
+  return out;
+}
+function memberDirs(root, patterns) {
+  const dirs = new Set;
+  for (const raw of patterns) {
+    const p = raw.trim().replace(/^\.\//, "").replace(/\/+$/, "");
+    if (p === "" || p.startsWith("!") || p.startsWith("/") || p.split("/").includes(".."))
+      continue;
+    if (p.endsWith("/*") && !/[*?[{]/.test(p.slice(0, -2))) {
+      const base = join29(root, p.slice(0, -2));
+      let names = [];
+      try {
+        names = readdirSync10(base).sort();
+      } catch {
+        continue;
+      }
+      for (const n of names)
+        if (!n.startsWith(".") && n !== "node_modules")
+          dirs.add(join29(base, n));
+    } else if (!/[*?[{]/.test(p)) {
+      dirs.add(join29(root, p));
+    }
+  }
+  return [...dirs].sort();
+}
+function projectDeps(root) {
+  if (typeof root !== "string" || root.trim() === "")
+    return [];
+  const dir = resolve14(root);
+  let names;
+  try {
+    names = readdirSync10(dir);
+  } catch {
+    return [];
+  }
+  const files = [
+    ...ROOT_MANIFESTS.filter((n) => names.includes(n)),
+    ...names.filter((n) => REQUIREMENTS.test(n)).sort()
+  ];
+  const pkgText = files.includes("package.json") ? readSmall(join29(dir, "package.json")) : undefined;
+  const members = pkgText !== undefined || names.includes("pnpm-workspace.yaml") ? memberDirs(dir, workspacePatterns(dir, pkgText)).map((m) => join29(m, "package.json")).filter((p) => stamp2(p) !== undefined).slice(0, WORKSPACE_MEMBERS_MAX) : [];
+  const paths = [...files.map((n) => join29(dir, n)), ...members];
+  const sig = [...paths.map((p) => `${p}=${stamp2(p) ?? ""}`), names.includes("pnpm-workspace.yaml") ? `pnpm=${stamp2(join29(dir, "pnpm-workspace.yaml")) ?? ""}` : ""].join(`
+`);
+  const hit = cache2.get(dir);
+  if (hit !== undefined && hit.sig === sig)
+    return [...hit.deps];
+  const deps = new Set;
+  for (const p of paths) {
+    const text = p === join29(dir, "package.json") ? pkgText : readSmall(p);
+    if (text === undefined)
+      continue;
+    for (const d of parseManifestDeps(p, text))
+      deps.add(d);
+  }
+  const out = [...deps].sort().slice(0, PROJECT_DEPS_MAX);
+  cache2.delete(dir);
+  cache2.set(dir, { sig, deps: out });
+  while (cache2.size > CACHE_MAX2) {
+    const oldest = cache2.keys().next().value;
+    if (oldest === undefined)
+      break;
+    cache2.delete(oldest);
+  }
+  return [...out];
 }
 
-// src/adapters/shared/workspace-start.ts
-function fallbackInfo(cwd, cfg) {
-  return {
-    cwd: canonicalDir2(cwd),
-    children: [],
-    index: { codegraph: { state: cfg.codegraph ? "none" : "off" }, semble: { state: cfg.semble ? "none" : "off" } }
+// src/adapters/shared/pi-family/routing.ts
+function mergeRoutes(routes, compiled) {
+  const [first] = routes;
+  if (first !== undefined && routes.length === 1)
+    return first;
+  const explicit = (id) => compiled.skills.some((s) => s.id === id && s.explicit);
+  const union = (ids) => [...new Set(ids)];
+  const invoked = union(routes.flatMap((r) => r.invoked));
+  const asks = union(routes.flatMap((r) => r.load)).filter((id) => !invoked.includes(id));
+  const load = asks.slice(0, ROUTE_CAPS.load);
+  const candidates = [...invoked, ...load].some(explicit) ? [] : union([...asks.slice(ROUTE_CAPS.load), ...routes.flatMap((r) => r.candidates)]).filter((id) => !explicit(id) && !invoked.includes(id) && !load.includes(id)).slice(0, ROUTE_CAPS.candidates);
+  const categories = union(routes.flatMap((r) => r.categories)).slice(0, ROUTE_CAPS.categories);
+  const merged = { invoked, load, candidates, categories };
+  const libs = union(routes.flatMap((r) => r.libs ?? []));
+  if (libs.length > 0 && categories.some((id) => compiled.categories.some((c) => c.id === id && c.deps !== undefined)))
+    merged.libs = libs.slice(0, 3);
+  return merged;
+}
+function availableServers(mcp, health) {
+  return mcp.map((s) => s.id).filter((id) => !mcpUnavailable(health[id]));
+}
+function sessionHealth(health, ledger, lsid) {
+  return lsid === undefined ? health : sessionMcpHealth(health, ledger.load(lsid));
+}
+function routerData(skills, routing, strictness) {
+  const policy = { ...routing, strictness };
+  return { compiled: compileTriggers(skills, policy), policy };
+}
+function promptRouting(prompt, data, o) {
+  const opts = { harness: o.harness, loaded: o.loaded, available: o.available };
+  if (o.deps !== undefined)
+    opts.deps = o.deps;
+  let route = routePrompt(prompt, data.compiled, opts);
+  if (o.strictness === "off" && route.categories.length > 0) {
+    const { libs: _libs, ...rest } = route;
+    route = { ...rest, categories: [] };
+  }
+  const text = routeText(route, o.harness, data.policy, { triggers: data.compiled });
+  return text !== undefined ? { route, text } : { route };
+}
+function createDepsReader() {
+  return (root) => {
+    if (root === undefined || root === "")
+      return;
+    const deps = projectDeps(root);
+    return deps.length > 0 ? deps : undefined;
   };
 }
-async function prepareWorkspace(cwd, cfg, nowMs) {
-  try {
-    return infoFor(await resolveWorkspace(cwd, workspaceOptions(cfg)), cfg, nowMs);
-  } catch (e) {
-    log("warn", "workspace: preparing the session start failed", { cwd, error: e });
-    return fallbackInfo(cwd, cfg);
-  }
-}
 
-// src/adapters/pi/runtime/deps.ts
+// src/adapters/shared/pi-family/inprocess-host.ts
 var TOOL_CALL_DEADLINE_MS = 3000;
 var TOOL_RESULT_DEADLINE_MS = 25000;
-var CODE_EXECUTION_TOOLS = new Set(["codemode"]);
+var WORKSPACE_WAIT_MS = 3000;
+var PROJECT_WAIT_MS = 2000;
+var START_WAIT_MS = 1000;
+var MAX_QUEUED_PROMPTS = 16;
 function coreEvalGuard() {
   const fn = checkEval;
   return typeof fn === "function" ? fn : undefined;
 }
-function defaultDeps() {
-  const cli = () => buracleCli(shimPath(), repoRoot2());
+function hostDeps(harness) {
   return {
     now: () => Date.now(),
     config: liveConfig,
@@ -34714,15 +34708,14 @@ function defaultDeps() {
     checkers: exports_checkers,
     checkFs: nodeCheckFs,
     state: {
-      load: (sid) => loadState("pi", sid),
-      update: (sid, fn) => updateState("pi", sid, fn),
-      subjects: (sid) => reviewSubjects("pi", sid)
+      load: (sid) => loadState(harness, sid),
+      update: (sid, fn) => updateState(harness, sid, fn),
+      subjects: (sid) => reviewSubjects(harness, sid)
     },
-    ledger: { load: (sid) => loadLedger("pi", sid), update: (sid, fn) => updateLedger("pi", sid, fn) },
-    memory: createMemoryBridge({ harness: "pi", cli }),
+    ledger: { load: (sid) => loadLedger(harness, sid), update: (sid, fn) => updateLedger(harness, sid, fn) },
     captureEnabled: () => process.env["BURACLE_NO_CAPTURE"] !== "1",
-    buracleRepo: (cwd, configured) => buracleRepoFor2(cwd, [configured !== undefined ? expandHome2(configured) : undefined]),
-    cli,
+    buracleRepo: (cwd, configured) => buracleRepoFor2(cwd, [configured !== undefined ? expandHome(configured) : undefined]),
+    cli: hostCli,
     projectSlug,
     branch: currentBranch,
     run: (argv, opts) => run(argv, opts),
@@ -34733,9 +34726,9 @@ function defaultDeps() {
         return;
       }
     },
-    prune: (keep, nowMs) => sessionMaint("pi", nowMs, { keep }).removed,
+    prune: (keep, nowMs) => sessionMaint(harness, nowMs, { keep }).removed,
     recordAskGrant: (sid, kind, answer, nowMs) => {
-      recordDialogGrant("pi", sid, kind, answer, nowMs);
+      recordDialogGrant(harness, sid, kind, answer, nowMs);
     },
     prepareWorkspace: (cwd, cfg, nowMs) => prepareWorkspace(cwd, indexSettings(cfg), nowMs),
     workspaceInfo: (cwd, cfg, nowMs) => workspaceInfo(cwd, indexSettings(cfg), nowMs),
@@ -34747,6 +34740,289 @@ function defaultDeps() {
     home: () => home(),
     timings: { toolCallMs: TOOL_CALL_DEADLINE_MS, toolResultMs: TOOL_RESULT_DEADLINE_MS, maintDelayMs: 15000 }
   };
+}
+function hostCli() {
+  return buracleCli(shimPath(), repoRoot());
+}
+function createInProcessHost(o) {
+  const { harness: H, data, deps } = o;
+  const memos = new Map;
+  const reported = new Set;
+  let currentSid;
+  let maintScheduled = false;
+  let router;
+  const report = (what, e, outcome) => {
+    const message = e instanceof Error ? e.message : String(e);
+    const key = `${what}:${message}`;
+    if (reported.has(key))
+      return;
+    reported.add(key);
+    log(/^not implemented: /.test(message) ? "debug" : "warn", `${H} extension: ${what} failed${outcome !== undefined ? ` (${outcome})` : ""}`, { error: message });
+  };
+  const guarded = (what, fn) => {
+    try {
+      return fn();
+    } catch (e) {
+      report(what, e);
+      return;
+    }
+  };
+  const step = async (name, fallback, fn) => {
+    try {
+      return await fn();
+    } catch (e) {
+      report(name, e);
+      return fallback;
+    }
+  };
+  const live = () => deps.config(data.config);
+  const liveOrDefaults = () => guarded("config", live) ?? { config: data.config, vault: oldVaultRoot(), shim: shimPath(), source: "defaults" };
+  const memo = (sid) => {
+    let m = memos.get(sid);
+    if (m === undefined) {
+      m = {};
+      memos.set(sid, m);
+    }
+    return m;
+  };
+  const captureOn = (sid) => {
+    const m = memo(sid);
+    m.capture ??= guarded("BURACLE_NO_CAPTURE", () => deps.captureEnabled()) ?? true;
+    return m.capture;
+  };
+  const slugOf = (sid, cwd) => {
+    const m = memo(sid);
+    m.slug ??= deps.projectSlug(cwd).then((s) => {
+      m.slugValue = s;
+      return s;
+    }, (e) => {
+      report("projectSlug", e);
+      return;
+    });
+    return m.slug;
+  };
+  const routerFor = (strictness) => {
+    if (router === undefined || router.strictness !== strictness)
+      router = { strictness, data: routerData(data.skills, data.routing, strictness) };
+    return router.data;
+  };
+  const healthFor = (sid, cwd) => {
+    const health = guarded("health", () => deps.health()) ?? {};
+    const merged = guarded("H24 session health", () => sessionHealth(health, deps.ledger, sid)) ?? health;
+    const native = guarded(o.nativeOff.label, () => o.nativeOff.read(cwd ?? process.cwd())) ?? [];
+    return withOffServers(merged, [...new Set([...offServersFor(liveOrDefaults().config, H), ...native])]);
+  };
+  const coreFns = pipelineCore(deps);
+  const memFns = memoryFns(deps.memory);
+  const ui = uiHooks(deps.memory);
+  const actx = (lc) => adapterContext(data, lc, () => deps.home());
+  const pipe = (sid, lc = liveOrDefaults()) => ({
+    harness: H,
+    ctx: actx(lc),
+    core: coreFns,
+    step,
+    ui,
+    env: { ...process.env, BURACLE_NO_CAPTURE: sid === "" || captureOn(sid) ? undefined : "1" },
+    memory: async (name) => memFns[name],
+    workspace: {
+      prepareWorkspace: async (cwd, c, now) => {
+        const work = deps.prepareWorkspace(cwd, c.config, now);
+        let late = false;
+        work.then((info) => {
+          if (late)
+            guarded("H21 workspace", () => saveWorkspace(c, H, sid, info));
+        }, () => {
+          return;
+        });
+        const info = await withDeadline(work, WORKSPACE_WAIT_MS, undefined);
+        late = info === undefined;
+        return info;
+      },
+      workspaceInfo: (cwd, c, now) => withDeadline(deps.workspaceInfo(cwd, c.config, now), WORKSPACE_WAIT_MS, undefined),
+      refreshWorkspace: (info, c, now) => deps.refreshWorkspace(info, c.config, now)
+    },
+    project: async (cwd) => {
+      const project = await withDeadline(slugOf(sid, cwd), PROJECT_WAIT_MS, undefined);
+      if (project === undefined)
+        throw new Error("the project of this folder is not known");
+      const branch = await withDeadline(deps.branch(cwd).catch(() => {
+        return;
+      }), PROJECT_WAIT_MS, undefined);
+      return { project, ...branch !== undefined ? { branch } : {} };
+    },
+    ...deps.realpath !== undefined ? { realpath: deps.realpath } : {},
+    buracleRepo: async (cwd, c) => deps.buracleRepo(cwd, o.configuredRepo(lc, c.config)),
+    ...deps.assetsSpawn !== undefined ? { assetsSpawn: deps.assetsSpawn } : {}
+  });
+  const started = (sid) => {
+    const ready = sid !== undefined ? memo(sid).ready : undefined;
+    return ready === undefined ? Promise.resolve() : withDeadline(ready, START_WAIT_MS, undefined);
+  };
+  const spoolTo = async (sid, entries) => {
+    if (sid !== undefined)
+      await spool(pipe(sid), sid, entries);
+  };
+  const fileChecks = () => ({
+    now: () => deps.now(),
+    run: async (argv, opts) => {
+      const res = await deps.run(argv, { ...opts?.cwd !== undefined ? { cwd: opts.cwd } : {}, ...opts?.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}, ...opts?.env !== undefined ? { env: opts.env } : {} });
+      return { code: res.code, stdout: res.stdout, stderr: res.stderr, timedOut: res.timedOut };
+    },
+    core: deps.checkers,
+    ...deps.checkFs !== undefined ? { fs: deps.checkFs } : {},
+    ...deps.resolveChecker !== undefined ? { resolve: deps.resolveChecker } : {}
+  });
+  const route = (sid, text, lc) => {
+    const strictness = lc.config.routing.strictness;
+    const o2 = { harness: H, loaded: Object.keys(deps.ledger.load(sid).skills), available: availableServers(data.mcp, healthFor(sid)), strictness };
+    const pd = deps.projectDeps(readWorkspace(actx(lc), H, sid)?.root);
+    if (pd !== undefined)
+      o2.deps = pd;
+    return promptRouting(text, routerFor(strictness), o2);
+  };
+  const deliver = (sid, prompt) => {
+    const m = memo(sid);
+    const batch = m.queued ?? [];
+    if (batch.length === 0) {
+      if (m.delivered?.prompt === prompt)
+        return m.delivered.text;
+      m.delivered = undefined;
+      return;
+    }
+    if (guarded("H10 isGuardContinuation", () => coreFns.isGuardContinuation(prompt)) === true)
+      return;
+    m.queued = undefined;
+    const now = deps.now();
+    const rd = routerFor(liveOrDefaults().config.routing.strictness);
+    const routes = batch.flatMap((p) => p.route !== undefined ? [p.route] : []);
+    let routed;
+    if (routes.length > 0) {
+      const merged = mergeRoutes(routes, rd.compiled);
+      guarded("H24 ledger turn", () => deps.ledger.update(sid, (l) => ledgerPrompt(l, merged, now)));
+      routed = guarded("H22 routeText", () => routeText(merged, H, rd.policy, { triggers: rd.compiled }));
+    }
+    const parts = [...new Set([...batch.flatMap((p) => p.before), ...routed !== undefined ? [routed] : [], ...batch.flatMap((p) => p.after)])];
+    const lines = fitParts(parts, PROMPT_CONTEXT_MAX_CHARS);
+    const text = lines.length > 0 ? lines.join(`
+
+`) : undefined;
+    m.delivered = { prompt, text };
+    return text;
+  };
+  const enqueue = (m, context, routed) => {
+    const at = routed?.text !== undefined ? context.indexOf(routed.text.trim()) : -1;
+    const queued = m.queued ??= [];
+    queued.push({ before: at >= 0 ? context.slice(0, at) : [...context], after: at >= 0 ? context.slice(at + 1) : [], ...routed !== undefined ? { route: routed.route } : {} });
+    if (queued.length > MAX_QUEUED_PROMPTS)
+      queued.splice(0, queued.length - MAX_QUEUED_PROMPTS);
+  };
+  const scheduleMaint = (later) => {
+    if (maintScheduled)
+      return;
+    maintScheduled = true;
+    later(() => {
+      const keep = new Set([...memos.keys(), ...currentSid !== undefined ? [currentSid] : []]);
+      const removed = guarded("H16 session maintenance", () => deps.prune(keep, deps.now())) ?? [];
+      if (removed.length > 0)
+        log("info", `${H}: pruned idle session state`, { count: removed.length });
+    }, deps.timings.maintDelayMs);
+  };
+  const endSession = async (sid) => {
+    await sessionEnd({ harness: H, sessionId: sid, now: deps.now() }, pipe(sid));
+  };
+  const openSession = (sid, ctx, source, os) => {
+    const m = memo(sid);
+    let ready;
+    m.ready = new Promise((res) => {
+      ready = res;
+    });
+    m.starting = (async () => {
+      if (os.previous !== undefined)
+        await endSession(os.previous);
+      const d = pipe(sid);
+      const then = (fn) => (...a) => {
+        ready();
+        return fn(...a);
+      };
+      const r = await sessionStart({ harness: H, sessionId: sid, cwd: ctx.cwd, source, now: deps.now() }, {
+        ...d,
+        ui: { ...d.ui, started: then(d.ui.started), seen: then(d.ui.seen) },
+        capabilityCard: os.card,
+        version: () => data.buracleVersion,
+        sessionMaint: os.scheduleMaint
+      });
+      const notice = r.notice;
+      m.startContext = r.context.filter((part) => part !== notice?.model);
+      const warning = r.profile;
+      if (warning !== undefined) {
+        log("warn", `${H}: H17 profile guard`, { sid, warning });
+        if (hasTui(ctx))
+          guarded("H17 notify", () => ctx.ui.notify(warning, "warning"));
+      }
+      if (notice === undefined)
+        return;
+      guarded("H17 notice", () => o.pi.sendMessage({ customType: o.noticeType, content: notice.model, display: false }, { deliverAs: "nextTurn" }));
+      if (hasTui(ctx))
+        guarded("H17 notice notify", () => ctx.ui.notify(notice.user, "info"));
+    })().catch((e) => {
+      report("session start", e);
+    }).finally(ready);
+    return m.ready;
+  };
+  const enter = (sid) => {
+    const previous = currentSid !== undefined && currentSid !== sid ? currentSid : undefined;
+    currentSid = sid;
+    deps.setEnv("BURACLE_SESSION_ID", sid);
+    deps.setEnv("BURACLE_HARNESS", H);
+    return previous;
+  };
+  return {
+    memos,
+    memo,
+    report,
+    guarded,
+    step,
+    live,
+    liveOrDefaults,
+    captureOn,
+    slugOf,
+    routerFor,
+    healthFor,
+    coreFns,
+    actx,
+    pipe,
+    started,
+    spoolTo,
+    fileChecks,
+    route,
+    deliver,
+    enqueue,
+    scheduleMaint,
+    endSession,
+    openSession,
+    enter,
+    current: () => currentSid
+  };
+}
+function contextBlock(parts) {
+  return parts.length > 0 ? ["<buracle-context>", ...parts, "</buracle-context>"].join(`
+
+`) : "";
+}
+
+// src/adapters/shared/pi-family/stop.ts
+function stopReason(hook, reason) {
+  return GUARD_MARKERS.some((m) => reason.startsWith(m)) ? reason : `Buracle ${hook}: ${reason}`;
+}
+function runawayNotice(why, plan) {
+  const what = why === "runaway-plan" ? "the plan-wide limit of stop-guard continuations" : "the limit of consecutive stop-guard continuations";
+  return `Buracle: the turn ended although the plan ${plan} is not finished, because ${what} was reached. Check the work, then continue or run \`buracle plan pause\`.`;
+}
+
+// src/adapters/pi/runtime/deps.ts
+var CODE_EXECUTION_TOOLS = new Set(["codemode"]);
+function defaultDeps() {
+  return { ...hostDeps("pi"), memory: createMemoryBridge({ harness: "pi", cli: hostCli }) };
 }
 function emptyGenerated() {
   return { v: 1, buracleVersion: "0.0.0", config: defaultConfig(), routing: { strictness: "enforce", categories: [] }, mcp: [], mcpIds: [], skills: [] };
@@ -35584,10 +35860,6 @@ var PROMPT_MESSAGE_TYPE = "buracle.prompt";
 var NOTICE_MESSAGE_TYPE = "buracle.notice";
 var COMPACT_RESTORE_TYPE = "buracle.compact-restore";
 var STOP_MESSAGE_TYPE = "buracle.stop";
-var WORKSPACE_WAIT_MS = 3000;
-var PROJECT_WAIT_MS = 2000;
-var START_WAIT_MS = 1000;
-var MAX_QUEUED_PROMPTS = 16;
 var MAX_HELD = 256;
 var WRITE_KINDS = new Set(["edit", "write", "patch"]);
 function capped(map, key, value) {
@@ -35598,111 +35870,19 @@ function capped(map, key, value) {
 function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
   return function buracle(pi) {
     const deps = { ...defaultDeps(), ...overrides };
-    const memos = new Map;
-    const reported = new Set;
+    const host = createInProcessHost({
+      harness: H,
+      data,
+      deps,
+      pi,
+      noticeType: NOTICE_MESSAGE_TYPE,
+      configuredRepo: (_lc, config) => config.repo,
+      nativeOff: { label: "pi disabled servers", read: piOffServers }
+    });
+    const { memo, report, guarded, liveOrDefaults, started, spoolTo, pipe } = host;
     const notes = new Map;
     const denied = new Set;
     const consentHolds = new Map;
-    let currentSid;
-    let maintScheduled = false;
-    let router;
-    const report = (what, e) => {
-      const message = e instanceof Error ? e.message : String(e);
-      const key = `${what}:${message}`;
-      if (reported.has(key))
-        return;
-      reported.add(key);
-      log(/^not implemented: /.test(message) ? "debug" : "warn", `pi extension: ${what} failed`, { error: message });
-    };
-    const guarded = (what, fn) => {
-      try {
-        return fn();
-      } catch (e) {
-        report(what, e);
-        return;
-      }
-    };
-    const step = async (name, fallback, fn) => {
-      try {
-        return await fn();
-      } catch (e) {
-        report(name, e);
-        return fallback;
-      }
-    };
-    const liveOrDefaults = () => guarded("config", () => deps.config(data.config)) ?? { config: data.config, vault: oldVaultRoot(), shim: shimPath(), source: "defaults" };
-    const memo = (sid) => {
-      let m = memos.get(sid);
-      if (m === undefined) {
-        m = {};
-        memos.set(sid, m);
-      }
-      return m;
-    };
-    const captureOn = (sid) => memo(sid).capture ??= guarded("BURACLE_NO_CAPTURE", () => deps.captureEnabled()) ?? true;
-    const slugOf = (sid, cwd) => memo(sid).slug ??= deps.projectSlug(cwd).catch((e) => {
-      report("projectSlug", e);
-      return;
-    });
-    const routerFor = (strictness) => {
-      if (router === undefined || router.strictness !== strictness)
-        router = { strictness, data: routerData(data.skills, data.routing, strictness) };
-      return router.data;
-    };
-    const healthFor = (sid, cwd) => {
-      const health = guarded("health", () => deps.health()) ?? {};
-      const merged = guarded("H24 session health", () => sessionHealth(health, deps.ledger, sid)) ?? health;
-      const native = guarded("pi disabled servers", () => piOffServers(cwd ?? process.cwd())) ?? [];
-      return withOffServers(merged, [...new Set([...offServersFor(liveOrDefaults().config, H), ...native])]);
-    };
-    const coreFns = pipelineCore(deps);
-    const memFns = memoryFns(deps.memory);
-    const ui = uiHooks(deps.memory);
-    const pipe = (sid, lc = liveOrDefaults()) => ({
-      harness: H,
-      step,
-      ui,
-      core: coreFns,
-      ctx: adapterContext(data, lc, () => deps.home()),
-      env: { ...process.env, BURACLE_NO_CAPTURE: sid === "" || captureOn(sid) ? undefined : "1" },
-      memory: async (name) => memFns[name],
-      workspace: {
-        prepareWorkspace: async (cwd, c, now) => {
-          const work = deps.prepareWorkspace(cwd, c.config, now);
-          let late = false;
-          work.then((info) => {
-            if (late)
-              guarded("H21 workspace", () => saveWorkspace(c, H, sid, info));
-          }, () => {
-            return;
-          });
-          const info = await withDeadline(work, WORKSPACE_WAIT_MS, undefined);
-          late = info === undefined;
-          return info;
-        },
-        workspaceInfo: (cwd, c, now) => withDeadline(deps.workspaceInfo(cwd, c.config, now), WORKSPACE_WAIT_MS, undefined),
-        refreshWorkspace: (info, c, now) => deps.refreshWorkspace(info, c.config, now)
-      },
-      project: async (cwd) => {
-        const project = await withDeadline(slugOf(sid, cwd), PROJECT_WAIT_MS, undefined);
-        if (project === undefined)
-          throw new Error("the project of this folder is not known");
-        const branch = await withDeadline(deps.branch(cwd).catch(() => {
-          return;
-        }), PROJECT_WAIT_MS, undefined);
-        return { project, ...branch !== undefined ? { branch } : {} };
-      },
-      ...deps.realpath !== undefined ? { realpath: deps.realpath } : {},
-      buracleRepo: async (cwd, c) => deps.buracleRepo(cwd, c.config.repo),
-      ...deps.assetsSpawn !== undefined ? { assetsSpawn: deps.assetsSpawn } : {}
-    });
-    const started = (sid) => {
-      const ready = sid !== undefined ? memo(sid).ready : undefined;
-      return ready === undefined ? Promise.resolve() : withDeadline(ready, START_WAIT_MS, undefined);
-    };
-    const spoolTo = async (sid, entries) => {
-      await spool(pipe(sid), sid, entries);
-    };
     const codeDenial = async (event, ctx, input, d) => {
       if (!CODE_EXECUTION_TOOLS.has(event.toolName))
         return;
@@ -35832,20 +36012,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
         entries: [],
         ...edited ? { edit: { ok: true, paths: cls.paths, added: textsOf(change, "added"), removed: () => textsOf(change, "removed") } } : {},
         ...server !== undefined ? { mcp: { server: () => server, ok: !event.isError } } : {}
-      }, {
-        ...pipe(sid),
-        fileChecks: {
-          now: () => deps.now(),
-          run: async (argv, opts) => {
-            const res = await deps.run(argv, { ...opts?.cwd !== undefined ? { cwd: opts.cwd } : {}, ...opts?.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}, ...opts?.env !== undefined ? { env: opts.env } : {} });
-            return { code: res.code, stdout: res.stdout, stderr: res.stderr, timedOut: res.timedOut };
-          },
-          core: deps.checkers,
-          ...deps.checkFs !== undefined ? { fs: deps.checkFs } : {},
-          ...deps.resolveChecker !== undefined ? { resolve: deps.resolveChecker } : {}
-        },
-        editBudgetMs: 20000
-      });
+      }, { ...pipe(sid), fileChecks: host.fileChecks(), editBudgetMs: 20000 });
       return [...held, ...r.context];
     };
     pi.on("tool_result", async (event, ctx) => {
@@ -35859,44 +36026,6 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
         return;
       }
     });
-    const route = (sid, text, lc) => {
-      const strictness = lc.config.routing.strictness;
-      const available = availableServers(data.mcp, healthFor(sid));
-      const o = { harness: H, loaded: Object.keys(deps.ledger.load(sid).skills), available, strictness };
-      const pd = deps.projectDeps(readWorkspace(adapterContext(data, lc, () => deps.home()), H, sid)?.root);
-      if (pd !== undefined)
-        o.deps = pd;
-      return promptRouting(text, routerFor(strictness), o);
-    };
-    const deliver = (sid, prompt) => {
-      const m = memo(sid);
-      const batch = m.queued ?? [];
-      if (batch.length === 0) {
-        if (m.delivered?.prompt === prompt)
-          return m.delivered.text;
-        m.delivered = undefined;
-        return;
-      }
-      if (guarded("H10 isGuardContinuation", () => coreFns.isGuardContinuation(prompt)) === true)
-        return;
-      m.queued = undefined;
-      const now = deps.now();
-      const rd = routerFor(liveOrDefaults().config.routing.strictness);
-      const routes = batch.flatMap((p) => p.route !== undefined ? [p.route] : []);
-      let routed;
-      if (routes.length > 0) {
-        const merged = mergeRoutes(routes, rd.compiled);
-        guarded("H24 ledger turn", () => deps.ledger.update(sid, (l) => ledgerPrompt(l, merged, now)));
-        routed = guarded("H22 routeText", () => routeText(merged, H, rd.policy, { triggers: rd.compiled }));
-      }
-      const parts = [...new Set([...batch.flatMap((p) => p.before), ...routed !== undefined ? [routed] : [], ...batch.flatMap((p) => p.after)])];
-      const lines = fitParts(parts, PROMPT_CONTEXT_MAX_CHARS);
-      const text = lines.length > 0 ? lines.join(`
-
-`) : undefined;
-      m.delivered = { prompt, text };
-      return text;
-    };
     pi.on("input", async (event, ctx) => {
       try {
         const text = typeof event.text === "string" ? event.text.trim() : "";
@@ -35913,7 +36042,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
           routePrompt: async () => {
             if (text === "")
               return;
-            routed = route(sid, text, lc);
+            routed = host.route(sid, text, lc);
             return { route: routed.route, deferred: true, ...routed.text !== undefined ? { text: routed.text } : {} };
           },
           readOnly: () => false,
@@ -35930,20 +36059,12 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
         }
         m.inputSeen = true;
         m.stopBlocked = false;
-        const found = routed;
-        const at = found?.text !== undefined ? r.context.indexOf(found.text.trim()) : -1;
-        const queued = m.queued ??= [];
-        queued.push({ before: at >= 0 ? r.context.slice(0, at) : r.context, after: at >= 0 ? r.context.slice(at + 1) : [], ...found !== undefined ? { route: found.route } : {} });
-        if (queued.length > MAX_QUEUED_PROMPTS)
-          queued.splice(0, queued.length - MAX_QUEUED_PROMPTS);
+        host.enqueue(m, r.context, routed);
       } catch (e) {
         report("input", e);
       }
       return;
     });
-    const block = (parts) => parts.length > 0 ? ["<buracle-context>", ...parts, "</buracle-context>"].join(`
-
-`) : "";
     pi.on("before_agent_start", async (event, ctx) => {
       if (process.env["BURACLE_MEMORY_RUNNER"] === "1")
         return;
@@ -35957,10 +36078,10 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
         await started(sid);
         const prompt = typeof event.prompt === "string" ? event.prompt : "";
         m.inputSeen = false;
-        const routed = event.messageType === "custom" ? undefined : guarded("H22 delivery", () => deliver(sid, prompt));
+        const routed = event.messageType === "custom" ? undefined : guarded("H22 delivery", () => host.deliver(sid, prompt));
         await m.starting;
         const result = {};
-        const text = block(m.startContext ?? []);
+        const text = contextBlock(m.startContext ?? []);
         if (text !== "" && !event.systemPrompt.includes(text))
           result.systemPrompt = `${event.systemPrompt}
 
@@ -35974,70 +36095,23 @@ ${text}`;
       }
     });
     const card = (ctx, sid) => {
-      const health = healthFor(sid, ctx.cwd);
+      const health = host.healthFor(sid, ctx.cwd);
       const policy = { ...data.routing, strictness: liveOrDefaults().config.routing.strictness };
       return deps.policy.capabilityCard({ policy, mcp: data.mcp.filter((s) => !mcpUnavailable(health[s.id])), plugins: [], harness: H });
     };
-    const scheduleMaint = () => {
-      if (maintScheduled)
-        return;
-      maintScheduled = true;
-      const timer = setTimeout(() => {
-        const keep = new Set([...memos.keys(), ...currentSid !== undefined ? [currentSid] : []]);
-        const removed = guarded("H16 session maintenance", () => deps.prune(keep, deps.now())) ?? [];
-        if (removed.length > 0)
-          log("info", "pi: pruned idle session state", { count: removed.length });
-      }, deps.timings.maintDelayMs);
-      timer.unref?.();
-    };
-    const openSession = (sid, ctx, source) => {
-      const m = memo(sid);
-      let ready;
-      m.ready = new Promise((res) => {
-        ready = res;
-      });
-      m.starting = (async () => {
-        const d = pipe(sid);
-        const then = (fn) => (...a) => {
-          ready();
-          return fn(...a);
-        };
-        const r = await sessionStart({ harness: H, sessionId: sid, cwd: ctx.cwd, source, now: deps.now() }, {
-          ...d,
-          ui: { ...d.ui, started: then(d.ui.started), seen: then(d.ui.seen) },
-          capabilityCard: () => card(ctx, sid),
-          version: () => data.buracleVersion,
-          sessionMaint: () => {
-            scheduleMaint();
-          }
-        });
-        const notice = r.notice;
-        m.startContext = r.context.filter((part) => part !== notice?.model);
-        if (r.profile !== undefined) {
-          const warning = r.profile;
-          log("warn", "pi: H17 profile guard", { sid, warning });
-          if (hasTui(ctx))
-            guarded("H17 notify", () => ctx.ui.notify(warning, "warning"));
-        }
-        if (notice === undefined)
-          return;
-        guarded("H17 notice", () => pi.sendMessage({ customType: NOTICE_MESSAGE_TYPE, content: notice.model, display: false }, { deliverAs: "nextTurn" }));
-        if (hasTui(ctx))
-          guarded("H17 notice notify", () => ctx.ui.notify(notice.user, "info"));
-      })().catch((e) => {
-        report("session start", e);
-      }).finally(ready);
-      return m.ready;
-    };
+    const openSession = (sid, ctx, source) => host.openSession(sid, ctx, source, {
+      card: () => card(ctx, sid),
+      scheduleMaint: () => host.scheduleMaint((fn, ms) => {
+        setTimeout(fn, ms).unref?.();
+      })
+    });
     pi.on("session_start", async (event, ctx) => {
       try {
         const sid = sessionOf(ctx);
         if (sid === undefined)
           return;
-        currentSid = sid;
-        deps.setEnv("BURACLE_SESSION_ID", sid);
-        deps.setEnv("BURACLE_HARNESS", H);
-        slugOf(sid, ctx.cwd);
+        host.enter(sid);
+        host.slugOf(sid, ctx.cwd);
         if (memo(sid).starting === undefined)
           await openSession(sid, ctx, event.reason === "startup" || event.reason === undefined ? "startup" : event.reason === "new" ? "clear" : "resume");
       } catch (e) {
@@ -36047,9 +36121,9 @@ ${text}`;
     });
     pi.on("session_shutdown", async (_event, ctx) => {
       try {
-        const sid = sessionOf(ctx) ?? currentSid;
+        const sid = sessionOf(ctx) ?? host.current();
         if (sid !== undefined)
-          await sessionEnd({ harness: H, sessionId: sid, now: deps.now() }, pipe(sid));
+          await host.endSession(sid);
       } catch (e) {
         report("session_shutdown", e);
       }

@@ -657,6 +657,9 @@ function sources(dir: string): string {
   return [...new Bun.Glob('**/*.{ts,tsx}').scanSync({ cwd: join(REPO, dir) })].sort().map(f => readFileSync(join(REPO, dir, f), 'utf8')).join('\n')
 }
 
+/** The in-process host that runs the pipeline's session start for omp and Pi (the start sequence is no longer in the extension itself). */
+const HOST_SRC = readFileSync(join(REPO, 'src/adapters/shared/pi-family/inprocess-host.ts'), 'utf8')
+
 const PIPELINE_FILES = { sessionStart: 'session-start', prompt: 'prompt', preTool: 'pre-tool', postTool: 'post-tool', stop: 'stop', preCompact: 'pre-compact' } as const
 
 /**
@@ -694,7 +697,7 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
   test('workflow switches and review records (w3): H19 binds reports to the bound plans, H06/H07 carry the running reviewers, and the model-switch step names each harness\'s own command', async () => {
     const src: Record<Harness, string> = {
       claude: withPipeline(sources('src/adapters/claude'), 'sessionStart', 'preCompact'), codex: withPipeline(sources('src/adapters/codex'), 'sessionStart', 'preCompact'),
-      opencode: withPipeline(sources('src/adapters/opencode/runtime'), 'sessionStart', 'preCompact'), omp: withPipeline(sources('src/adapters/omp/runtime'), 'sessionStart', 'preCompact'),
+      opencode: withPipeline(sources('src/adapters/opencode/runtime'), 'sessionStart', 'preCompact'), omp: withPipeline(sources('src/adapters/omp/runtime') + HOST_SRC, 'sessionStart', 'preCompact'),
     }
     const each = (t: (code: string) => boolean): Record<Harness, boolean> => ({ claude: t(src.claude), codex: t(src.codex), opencode: t(src.opencode), omp: t(src.omp) })
     expect(each(c => /\.\.\.boundSubject\(sid\)|reviewSubjects\(H, sid\)\)|reviewSubjects\(HARNESS, s\.sid\)|state\.subjects\?\.\(spoolSid\(ctx\)\)/.test(c))).toEqual(FEATURES.reviewSubject)
