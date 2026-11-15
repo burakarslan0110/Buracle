@@ -152,7 +152,7 @@ All seven get the same 26 hooks, skills, memory and guards. Rule files and revie
 | OpenCode | Server and TUI plugins | `~/.agents/skills` | Band, footer | Home screen | TUI dialog, question tool |
 | Oh My Pi | An omp plugin with an extension | `~/.agents/skills` | Widget, pane, native preset | None | omp's select dialog |
 | Qwen Code | Hooks and MCP in `~/.qwen/settings.json` | `~/.agents/skills` | Status line command | Loading phrases | The denial tells the agent what to ask |
-| Pi | An extension; MCP in `mcp.json` | `~/.agents/skills`; `/skill:plan-build` | Widget band, footer | Working message | Pi's select dialog |
+| Pi | An extension and an `AGENTS.md` block; MCP in `mcp.json`; `/remember`, `/brain` | `~/.agents/skills`; `/skill:plan-build` | Widget band, footer | Working message | Pi's select dialog |
 | AGY CLI | `hooks.json`, `mcp_config.json`, a `buracle` plugin (rules, review agents) in `~/.gemini/config` | Links in AGY's skills folder | Status line command | None | The denial tells the agent what to ask |
 
 `/brain`, `/remember`, `/aside` and `/buracle-status` exist in Claude Code, OpenCode and Oh My Pi; the other four use the CLI twins under `buracle` (Codex maps `/aside` to `/side`). Language servers: Claude Code and Oh My Pi use their own, Codex and OpenCode use Buracle's `lsp` server, the rest have none. Plan mode: Claude Code and Qwen Code use their own; Codex saves the plan when you choose to implement it, OpenCode saves a draft, Oh My Pi saves on approval; Pi and AGY CLI have none (the agent asks you to turn one on).
@@ -190,6 +190,8 @@ All harnesses map their native hooks onto the same seven events (session start, 
 | `agy.commands-without-turn` | AGY CLI | No custom command runs without a model turn | Workflows are `/<id>` skills; the rules name the CLI twins of `/remember`, `/brain`, `/aside` and `/buracle-status` |
 | `agy.no-subagent-result` | AGY CLI | A hook gets no subagent result, so no review report check (H19) | The review steps validate the report themselves |
 | `agy.no-session-end` | AGY CLI | No end-of-conversation event, only Stop per turn | The memory is captured at every Stop |
+| `pi.no-subagents` | Pi | No subagent tool, so no review agents | No agents are installed and H19 is not bound; reviews run in the main session |
+| `pi.no-path-rules` | Pi | No rule scoped to file paths | The `AGENTS.md` block names the rules and H03 hands one over at the first edit |
 
 </details>
 

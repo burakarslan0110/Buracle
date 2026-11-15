@@ -1,8 +1,11 @@
 import type { CanonicalBundle, McpServerSpec } from '../../core/catalog'
 import type { AdapterContext } from '../registry'
+import { renderMarkdown } from '../shared/render'
+import { pathRulesPointer } from '../shared/rules'
 import { familyMcpEntry } from '../shared/pi-family/mcp'
 import { stableJson } from '../omp/render'
 import { bundleExtension } from './bundle'
+import { PI_BRAIN_COMMAND, PI_REMEMBER_COMMAND } from './runtime/commands'
 import { buracleVersion, PI_MIN_VERSION, piGeneratedData, piMcpServerIds } from './generated'
 
 export interface BuildFile { path: string, content: string, mode?: number }
@@ -22,6 +25,24 @@ export function piMcpServers(canonical: CanonicalBundle, off: readonly string[] 
     if (spec !== undefined) servers[id] = { ...piMcpEntry(id, spec), ...(off.includes(id) ? { enabled: false } : {}) }
   }
   return servers
+}
+
+export const AGENTS_BLOCK_ID = 'pi'
+
+/**
+ * The block Buracle keeps in `<agent dir>/AGENTS.md`, which Pi loads as user instructions (docs/configuration.md): the
+ * always-loaded rules, the two commands of the extension and, for the path rules (Pi cannot scope a rule to paths), the
+ * line that says the first edit of a matching file hands the rule over.
+ */
+export function piAgentsBlock(canonical: Pick<CanonicalBundle, 'rules' | 'skills' | 'agents'>, pathRulesDir: string, warnings: string[] = []): string {
+  const refs = { skills: canonical.skills.map(s => s.id), agents: canonical.agents.map(a => a.id) }
+  const byId = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+  const parts = ['_Managed by Buracle (`buracle install`). The source is `canonical/rules/` in the Buracle repo; edits inside this block stop future updates of it._']
+  for (const r of canonical.rules.filter(r => r.scope === 'always').sort(byId)) parts.push(renderMarkdown(r.body, 'pi', { ...refs, file: r.file }, warnings).trim())
+  parts.push(`Pi commands from Buracle: \`/${PI_REMEMBER_COMMAND} <text>\` saves a memory note and \`/${PI_BRAIN_COMMAND} [review]\` opens the Buracle Console.`)
+  const pointer = pathRulesPointer(canonical.rules.filter(r => r.scope === 'paths').sort(byId).map(r => r.id), pathRulesDir)
+  if (pointer !== undefined) parts.push(pointer)
+  return parts.join('\n\n') + '\n'
 }
 
 function readme(canonical: CanonicalBundle): string {

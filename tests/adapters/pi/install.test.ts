@@ -70,10 +70,10 @@ describe('the Pi build', () => {
 describe('the Pi install', () => {
   const dir = () => paths.piAgentDir()
 
-  test('the plan is the extension file and a key-by-key merge into mcp.json', () => withSandbox(async () => {
+  test('the plan is the extension file, a key-by-key merge into mcp.json and the AGENTS.md block', () => withSandbox(async () => {
     const plan = await adapter.installPlan(ctx())
     expect(plan.harness).toBe('pi')
-    expect(plan.ops.map(o => o.kind)).toEqual(['file', 'json-merge'])
+    expect(plan.ops.map(o => o.kind)).toEqual(['file', 'json-merge', 'md-block'])
   }))
 
   test('install writes into the agent folder, keeps what the user has, and uninstall removes only what it wrote', () => withSandbox(async () => {
@@ -88,7 +88,7 @@ describe('the Pi install', () => {
     expect(doc.mcpServers['mine']).toEqual({ command: 'mine' })
     expect(Object.keys(doc.mcpServers).sort()).toEqual(['mine', ...Object.keys(piMcpServers(c.canonical))].sort())
     const owned = Object.values(await readLedger()).filter(e => e.owner === 'pi')
-    expect(owned.length).toBe(1 + Object.keys(piMcpServers(c.canonical)).length)
+    expect(owned.length).toBe(2 + Object.keys(piMcpServers(c.canonical)).length)
     for (const e of owned) expect(e.path.startsWith(dir())).toBe(true)
 
     await applyPlans([await uninstallPlan(c)])
@@ -124,7 +124,7 @@ describe('the Pi doctor', () => {
   test('a missing program is one warning; a missing extension and MCP file are findings with the fix', () => withSandbox(async ({ root }) => {
     await withEnv({ PATH: join(root, 'empty') }, async () => {
       const rows = await adapter.doctor(ctx())
-      expect(rows.at(-1)).toMatchObject({ level: 'warn', check: 'pi' })
+      expect(rows.find(r => r.check === 'pi')).toMatchObject({ level: 'warn', check: 'pi' })
     })
     const bin = join(root, 'bin')
     fakeExe(join(bin, 'pi'), 'console.log("1.5.2")')

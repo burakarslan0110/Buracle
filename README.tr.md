@@ -152,7 +152,7 @@ Yedisi de aynı 26 hook'u, skill'leri, hafızayı ve korumaları alır. Kural do
 | OpenCode | Sunucu ve TUI eklentileri | `~/.agents/skills` | Bant, altlık | Ana ekran | TUI penceresi, soru aracı |
 | Oh My Pi | Extension'lı bir omp eklentisi | `~/.agents/skills` | Widget, panel, yerel ön ayar | Yok | omp'nin seçim penceresi |
 | Qwen Code | `~/.qwen/settings.json` içinde hook'lar ve MCP | `~/.agents/skills` | Durum çubuğu komutu | Yükleme cümleleri | Ret, ajana ne soracağını söyler |
-| Pi | Bir extension; `mcp.json` içinde MCP | `~/.agents/skills`; `/skill:plan-build` | Widget bandı, altlık | Çalışma mesajı | Pi'nin seçim penceresi |
+| Pi | Bir extension ve bir `AGENTS.md` bloğu; `mcp.json` içinde MCP; `/remember`, `/brain` | `~/.agents/skills`; `/skill:plan-build` | Widget bandı, altlık | Çalışma mesajı | Pi'nin seçim penceresi |
 | AGY CLI | `~/.gemini/config` içinde `hooks.json`, `mcp_config.json`, bir `buracle` eklentisi (kurallar, inceleme ajanları) | AGY'nin skills klasöründe bağlantılar | Durum çubuğu komutu | Yok | Ret, ajana ne soracağını söyler |
 
 `/brain`, `/remember`, `/aside` ve `/buracle-status` Claude Code, OpenCode ve Oh My Pi'de vardır; öbür dördü `buracle` altındaki CLI karşılıklarını kullanır (Codex `/aside` komutunu `/side`'a eşler). Dil sunucuları: Claude Code ve Oh My Pi kendilerininkini, Codex ve OpenCode Buracle'ın `lsp` sunucusunu kullanır, gerisinde yoktur. Plan modu: Claude Code ve Qwen Code kendi modunu kullanır; Codex planı uygulamayı seçtiğinde, OpenCode taslak olarak, Oh My Pi onayda kaydeder; Pi ve AGY CLI'da yerleşik mod yoktur (ajan senden bir tane açmanı ister).
@@ -190,6 +190,8 @@ Bütün harness'lar yerel hook'larını aynı yedi olaya eşler (oturum başlang
 | `agy.commands-without-turn` | AGY CLI | Model turu olmadan çalışan özel komut yok | İş akışları `/<id>` skill'idir; kurallar `/remember`, `/brain`, `/aside` ve `/buracle-status` için CLI karşılıklarını söyler |
 | `agy.no-subagent-result` | AGY CLI | Hook alt ajanın sonucunu görmez, bu yüzden inceleme raporu denetimi (H19) yok | İnceleme adımları raporu kendileri doğrular |
 | `agy.no-session-end` | AGY CLI | Konuşma sonu olayı yok, yalnızca tur başına Stop | Hafıza her Stop'ta yakalanır |
+| `pi.no-subagents` | Pi | Alt ajan aracı yok, bu yüzden inceleme ajanı yok | Ajan kurulmaz, H19 bağlanmaz; incelemeler ana oturumda yapılır |
+| `pi.no-path-rules` | Pi | Dosya yoluna bağlı kural yok | `AGENTS.md` bloğu kuralları sayar, H03 ilk düzenlemede kuralı verir |
 
 </details>
 

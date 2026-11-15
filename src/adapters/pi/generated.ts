@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CanonicalBundle, CatalogMcp } from '../../core/catalog'
 import { catalogMcp, catalogSkills } from '../../core/catalog'
+import { pathRuleIndex } from '../../core/policy/path-rules'
 import { MIN_VERSIONS } from '../../engine/update/min-versions'
 import type { StatusLayout } from '../../core/status/model'
 import type { PiGenerated } from './runtime/types'
@@ -44,6 +45,8 @@ export function piGeneratedData(canonical: CanonicalBundle, version: string): Pi
     v: 1, buracleVersion: version, config: canonical.config, routing: canonical.routing, mcp,
     mcpIds: Object.keys(canonical.mcp.servers).sort(), skills: catalogSkills(canonical.skills),
   }
+  const pathRules = pathRuleIndex(canonical.rules)
+  if (pathRules.length > 0) out.pathRules = pathRules
   const tips = tipsFor(canonical, 'pi')
   if (tips.length > 0) out.tips = tips
   const status = piStatusData(canonical.statusline.pi)

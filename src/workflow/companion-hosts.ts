@@ -170,12 +170,22 @@ const omp: CompanionHost = {
   prepare: o => ({ argv: ompArgv(o.agent, o.repo, o.timeoutMs), cwd: o.repo, stdin: o.prompt, read: plain, cleanup: () => undefined }),
 }
 
+/** Pi's read tools for a second opinion: `--tools` is an allowlist of built-in tools; `--no-mcp` and `--no-extensions` leave nothing else. */
+export function piArgv(): string[] {
+  return ['pi', '-p', '--no-session', '--no-skills', '--no-extensions', '--no-mcp', '--no-context-files', '--no-prompt-templates', '--tools', 'read,grep,find,ls']
+}
+const pi: CompanionHost = {
+  harness: 'pi',
+  shell: false,
+  scratch: false,
+  prepare: o => ({ argv: piArgv(), cwd: o.repo, stdin: o.prompt, read: plain, cleanup: () => undefined }),
+}
 // A harness Buracle has no second-opinion run for yet: choosing it fails that attempt and the next target is tried.
 function pendingHost(harness: Harness): CompanionHost {
   return { harness, shell: false, scratch: false, prepare: () => { throw new Error(`a second opinion from ${harness} is not supported yet`) } }
 }
 
-const HOSTS: Readonly<Record<Harness, CompanionHost>> = { claude, codex, opencode, omp, qwen: pendingHost('qwen'), pi: pendingHost('pi'), agy: pendingHost('agy') }
+const HOSTS: Readonly<Record<Harness, CompanionHost>> = { claude, codex, opencode, omp, qwen: pendingHost('qwen'), pi, agy: pendingHost('agy') }
 
 export const companionTestHooks: { extraArgs?: (h: Harness) => string[] } = {}
 

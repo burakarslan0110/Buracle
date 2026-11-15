@@ -3,6 +3,7 @@ import type { CatalogMcp, CatalogSkill } from '../../../core/catalog'
 import type { Notice } from '../../../core/notices'
 import type { StatusLayout } from '../../../core/status/model'
 import type { RoutingPolicy } from '../../../core/policy/routing'
+import type { PathRuleIndex } from '../../../core/policy/path-rules'
 
 // The part of Pi's extension API this extension uses (docs/extensions.md of the pi-coding-agent package).
 
@@ -53,6 +54,8 @@ export interface PiCompactEvent { compactionEntry?: { summary?: string } }
 export interface PiExtensionAPI {
   on(event: string, handler: (event: any, ctx: PiContext) => unknown): void
   sendMessage(message: PiCustomMessage, options?: { triggerTurn?: boolean, deliverAs?: 'steer' | 'followUp' | 'nextTurn' }): void
+  /** `pi.registerCommand(name, { description, handler })` (docs/extensions.md): a `/name` command run by the extension without a model turn. */
+  registerCommand?(name: string, options: { description?: string, handler: (args: string, ctx: PiContext) => unknown }): void
 }
 
 /** The canonical data `buracle build` bakes into the extension file. */
@@ -64,6 +67,8 @@ export interface PiGenerated {
   mcp: CatalogMcp[]
   mcpIds: string[]
   skills: CatalogSkill[]
+  /** The path rules (id and globs): the first edit of a matching file gets the rule from `<buracle home>/rules/paths`. */
+  pathRules?: PathRuleIndex[]
   notices?: Notice[]
   /** The canonical usage tips, shown as the working message. */
   tips?: Array<{ id: string, text: string }>

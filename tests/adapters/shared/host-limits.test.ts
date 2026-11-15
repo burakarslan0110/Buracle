@@ -44,6 +44,8 @@ const FALLBACK_TESTS: Readonly<Record<string, { file: string, title: string }>> 
   'agy.commands-without-turn': { file: 'tests/adapters/agy/plugin.test.ts', title: 'AGY: custom commands are skills, so the always-on rules name the CLI twins of the utility commands' },
   'agy.no-subagent-result': { file: 'tests/adapters/agy/plugin.test.ts', title: 'AGY: H19 is an unsupported cell, because PostToolUse carries no subagent result' },
   'agy.no-session-end': { file: 'tests/adapters/shared/new-harness-groundwork.test.ts', title: 'AGY: PreCompact and SessionEnd are null in the event map, and the compaction hooks are unsupported cells' },
+  'pi.no-subagents': { file: 'tests/adapters/pi/rules-commands.test.ts', title: 'Pi has no review agent file: only the extension, mcp.json and AGENTS.md are written' },
+  'pi.no-path-rules': { file: 'tests/adapters/pi/rules-commands.test.ts', title: 'it holds every always rule, the command line and the path rule pointer' },
   'omp.companion-shell': { file: 'tests/adapters/parity.test.ts', title: 'second opinion (plan.reviews.companion): every host can run it read-only; omp runs it without a shell, with the diff in its prompt' },
 }
 

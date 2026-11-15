@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { devContext } from '../../../src/adapters/omp/dev-build'
 import { adapter } from '../../../src/adapters/pi/index'
 import { EXTENSION_PATH, piMcpServers } from '../../../src/adapters/pi/build'
+import { piArgv } from '../../../src/workflow/companion-hosts'
 import * as paths from '../../../src/engine/paths'
 import { which } from '../../../src/engine/proc'
 import { applyPlans } from '../../../src/engine/txn'
@@ -35,7 +36,7 @@ function chunk(delta: Record<string, unknown>, finish: string | null): string {
 }
 
 type Step = { tool: string } | { text: string }
-type Chat = { messages?: Array<{ role: string, content?: unknown }> }
+type Chat = { messages?: Array<{ role: string, content?: unknown }>, tools?: Array<{ function?: { name?: string } }> }
 
 /** Answers request n with step n (the last step repeats). */
 function fakeModel(steps: Step[]): { url: string, requests: Chat[], stop(): void } {
@@ -100,6 +101,42 @@ smoke('the real Pi (isolated home and agent folder)', () => {
       const last = JSON.stringify(model.requests[1]?.messages ?? [])
       expect(last).toContain('stop guard')
       expect(last).toContain('buracle plan')
+    } finally {
+      model.stop()
+    }
+  }), 120_000)
+
+  test('the AGENTS.md block reaches the model: Pi loads it from the agent folder as user instructions', () => withSandbox(async sb => {
+    const agent = join(sb.root, 'agent')
+    const work = join(sb.root, 'work')
+    mkdirSync(work, { recursive: true })
+    const model = fakeModel([{ text: 'ok' }])
+    try {
+      await withEnv({ PI_CODING_AGENT_DIR: agent }, async () => { await applyPlans([await adapter.installPlan(devContext(REPO))]) })
+      writeFileSync(join(agent, 'models.json'), JSON.stringify({ providers: { fake: { baseUrl: model.url, api: 'openai-completions', apiKey: 'unused', models: [{ id: 'm', contextWindow: 8000 }] } } }))
+      const r = await runPi(sb, agent, ['-p', '--no-session', '--no-skills', '--no-prompt-templates', '--no-mcp', '--model', 'fake/m', 'hello'], work)
+      expect(r.code).toBe(0)
+      expect(JSON.stringify(model.requests[0]?.messages ?? [])).toContain('Managed by Buracle')
+    } finally {
+      model.stop()
+    }
+  }), 120_000)
+
+  test('the second-opinion run: the prompt on stdin, only the read tools offered, the answer on stdout', () => withSandbox(async sb => {
+    const agent = join(sb.root, 'agent')
+    const work = join(sb.root, 'work')
+    mkdirSync(work, { recursive: true })
+    const model = fakeModel([{ text: 'REVIEW-ANSWER' }])
+    mkdirSync(agent, { recursive: true })
+    try {
+      writeFileSync(join(agent, 'models.json'), JSON.stringify({ providers: { fake: { baseUrl: model.url, api: 'openai-completions', apiKey: 'unused', models: [{ id: 'm', contextWindow: 8000 }] } } }))
+      const proc = Bun.spawn([PI as string, ...piArgv().slice(1), '--model', 'fake/m'], { cwd: work, env: piEnv(sb, agent), stdin: new Blob(['Please review the change.']), stdout: 'pipe', stderr: 'pipe' })
+      const [out, code] = await Promise.all([new Response(proc.stdout).text(), proc.exited])
+      expect(code).toBe(0)
+      expect(out).toContain('REVIEW-ANSWER')
+      const names = (model.requests[0]?.tools ?? []).map(t => t.function?.name).sort()
+      expect(names).toEqual(['find', 'grep', 'ls', 'read'])
+      expect(JSON.stringify(model.requests[0]?.messages ?? [])).toContain('Please review the change.')
     } finally {
       model.stop()
     }

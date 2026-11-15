@@ -181,6 +181,16 @@ export const HOST_LIMITS: readonly HostLimit[] = [
     reason: 'AGY CLI has no event for the end of a conversation; Stop fires whenever the execution loop ends, which is the end of a turn', fallback: 'H14 captures at every Stop, so a conversation is never lost; which Stop counts as its end is decided by the AGY adapter',
     recheck: `the hooks reference embedded in the agy 1.5.9 program (Stop contract: terminationReason, fullyIdle), published at https://antigravity.google/docs; checked 2026-11-15`,
   },
+  {
+    id: 'pi.no-subagents', harness: 'pi', feature: 'reviewAgents', kind: 'limit', checkedOn: '1.5.2',
+    reason: 'Pi has no subagent tool and no agent files; only an example extension in its package spawns sub-agents (docs/extensions.md)', fallback: 'no review agents are installed, H19 is not bound, and the review steps run in the main session; the second opinion (`pi -p`) still gives an outside read',
+    recheck: 'the built-in tool list of `pi --help` (read, bash, edit, write, grep, find, ls) and docs/extensions.md of the pi-coding-agent 1.5.2 package; checked 2026-11-15',
+  },
+  {
+    id: 'pi.no-path-rules', harness: 'pi', feature: 'pathRules', kind: 'limit', checkedOn: '1.5.2',
+    reason: 'Pi loads AGENTS.md and CLAUDE.md context files and no rule scoped to file paths (docs/configuration.md)', fallback: 'the AGENTS.md block names the path rules and H03 hands the matching rule over at the first edit of a file',
+    recheck: 'the Context files section of docs/configuration.md of the pi-coding-agent 1.5.2 package; checked 2026-11-15',
+  },
 ]
 
 /** The record of a canonical event a host lacks; every null in a profile's event map has one. */

@@ -1,4 +1,5 @@
 import { defaultConfig } from '../../../core/config'
+import * as paths from '../../../engine/paths'
 import { createMemoryBridge } from '../../shared/pi-family/memory'
 import { hostCli, hostDeps, TOOL_CALL_DEADLINE_MS, TOOL_RESULT_DEADLINE_MS, type EvalGuard, type HostDeps } from '../../shared/pi-family/inprocess-host'
 import { flowViewFor, recordFlowStart } from '../../../workflow/flow'
@@ -13,11 +14,12 @@ export type { EvalGuard }
 export const CODE_EXECUTION_TOOLS: ReadonlySet<string> = new Set(['codemode'])
 
 /** What the extension takes from outside, so a test can replace any of it. */
-export type PiDeps = HostDeps & PiExtrasDeps
+export type PiDeps = HostDeps & PiExtrasDeps & { buracleHome(): string }
 
 export function defaultDeps(): PiDeps {
   return {
     ...hostDeps('pi'),
+    buracleHome: () => paths.buracleHome(),
     memory: createMemoryBridge({ harness: 'pi', cli: hostCli }),
     flow: { start: (sid, input, now) => recordFlowStart('pi', sid, input, now), view: (sid, now, foldAfterSec) => flowViewFor('pi', sid, now, foldAfterSec) },
     columns: () => (typeof process.stdout.columns === 'number' && process.stdout.columns > 0 ? process.stdout.columns : 120),

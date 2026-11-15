@@ -46,8 +46,8 @@ type Harness = Exclude<AnyHarness, 'qwen' | 'pi' | 'agy'>
 type Pillar = Harness | 'pi' | 'qwen' | 'agy'
 const HARNESSES = ALL_HARNESSES.filter((h): h is Harness => h !== 'pi' && h !== 'qwen' && h !== 'agy' && harnessProfile(h).adapterPending !== true)
 const PILLARS: readonly Pillar[] = ALL_HARNESSES.filter((h): h is Pillar => harnessProfile(h).adapterPending !== true)
-// AGY's two limits (no compaction event, no session end) are events the matrix below has no feature row for; tests/adapters/agy/ checks them.
-const LIMITS_IN_SCOPE = HOST_LIMITS.filter(l => harnessProfile(l.harness).adapterPending !== true && l.harness !== 'agy')
+// The matrix below covers the four harnesses of HARNESSES. The limits of the others (AGY's missing events, Pi's missing agents and path rules) have no feature row here; their own test folders check them.
+const LIMITS_IN_SCOPE = HOST_LIMITS.filter(l => HARNESSES.includes(l.harness as Harness))
 
 type Files = ReadonlyMap<string, string>
 interface Built { canonical: CanonicalBundle; files: Readonly<Record<Harness, Files>>; pi: Files; qwen: Files; agy: Files; agentsSkills: Files }
