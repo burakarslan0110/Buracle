@@ -281,7 +281,7 @@ async function onPreToolUse(p: Payload, sid: string, sessionCwd: string, ctx: Ad
     writeTargets: c => writeTargets(p, c, cwd, deps.core),
     nativeOff: codexOffServers,
     usage: (c, health) => usagePlan(p, c, sid, ctx, deps, health),
-    usageDone: plan => (plan.ledgerId === sid ? step(ev, 'H25/H26 skill load', undefined, () => skillLoad(plan.call, sid, deps, now)) : undefined),
+    usageDone: plan => (plan.ledgerId === sid ? step(ev, 'H25 skill load', undefined, () => skillLoad(plan.call, sid, deps, now)) : undefined),
   })
   if (decision.action === 'deny') return denyOutput(decision.reason)
   const { context, held } = decision

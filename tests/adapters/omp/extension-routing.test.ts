@@ -599,7 +599,7 @@ describe('w2 plan state on omp: the lane guard, the H09 reminder and the H08 rec
       { language: 'py', code: "import subprocess\nsubprocess.run(['buracle', 'plan', 'pause', '--kind', 'decision'])" },
     ]) {
       const r = await sub.fp.emit('tool_call', toolCall('eval', input, '3'), sub.ctx) as Verdict
-      expect({ language: input.language, block: r?.block, lane: r?.reason?.includes('Buracle lane guard') }).toEqual({ language: input.language, block: true, lane: true })
+      expect({ language: input.language, block: r?.block, lane: r?.reason?.includes('Buracle H01: a subagent does not run') }).toEqual({ language: input.language, block: true, lane: true })
     }
     expect(await sub.fp.emit('tool_call', toolCall('eval', { language: 'js', code: "require('child_process').execSync('buracle plan status --json')" }, '4'), sub.ctx)).toBeUndefined()
     const main = setup(sb, { evalGuard: defaultDeps().evalGuard })

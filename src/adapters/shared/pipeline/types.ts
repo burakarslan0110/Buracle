@@ -14,7 +14,7 @@ export const CONTEXT_BUDGET_BYTES = 9_600
 /** The pure functions the pipeline calls; an adapter passes its injected core, so a test's fake reaches every step. */
 export type PipelineCore = Pick<typeof CoreNs,
   | 'ASYNC_QUESTION_PAUSED' | 'answerReceipt' | 'checkBash' | 'checkQuestion' | 'checkWrite' | 'consentVerdict' | 'detectSignals' | 'handoffNote'
-  | 'isGuardContinuation' | 'laneStateDenial' | 'ledgerAudited' | 'ledgerCall' | 'ledgerMcpResult' | 'ledgerPrompt' | 'promptInteraction' | 'questionPause'
+  | 'isGuardContinuation' | 'subagentStateDenial' | 'ledgerAudited' | 'ledgerCall' | 'ledgerMcpResult' | 'ledgerPrompt' | 'promptInteraction' | 'questionPause'
   | 'reminders' | 'restoreContext' | 'routeAuditAllowed' | 'routeTool' | 'stopGuardVerdict' | 'turnAudit' | 'validatePlan' | 'workspaceContext' | 'workspaceNotice'>
 
 /** The memory layer's entry points, each optional because the memory modules load lazily and may be missing. */

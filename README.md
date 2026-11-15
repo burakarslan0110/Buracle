@@ -273,7 +273,7 @@ Buracle 0.8.6 · CC 2.1.296 (Max) · Buracle Console: localhost:41777 · brain 1
 
 ## What each harness gets
 
-All four get the same 27 hooks, skills, review agents, rules, memory, guards and status line data. What differs is how Buracle plugs in and what each host can show.
+All four get the same 26 hooks, skills, review agents, rules, memory, guards and status line data. What differs is how Buracle plugs in and what each host can show.
 
 | | Claude Code | Codex CLI | OpenCode | Oh My Pi |
 |---|---|---|---|---|
@@ -315,6 +315,8 @@ Every harness maps its native hooks onto the same seven events (session start, p
 | `opencode.subagent-stop-hold` | OpenCode | No subagent-stop hook | An invalid review report gets a note that asks the agent to continue the reviewer once |
 | `opencode.rate-windows` | OpenCode | No quota API, so the windows come from provider response headers | The 5-hour and 7-day segments stay empty until a response carries them |
 | `omp.companion-shell` | Oh My Pi | Print mode cannot hold bash to read-only commands | The second opinion runs with read, grep and glob only, with the diff in its prompt |
+| `agy.no-compaction-event` | AGY CLI (support not released yet) | No hook event before or after a conversation is compacted | The memory context comes in at SessionStart, and the context size is watched before each model call |
+| `agy.no-session-end` | AGY CLI (support not released yet) | No event for the end of a conversation, only Stop at the end of each turn | The memory is captured at every Stop |
 
 </details>
 

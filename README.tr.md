@@ -273,7 +273,7 @@ Buracle 0.8.6 · CC 2.1.296 (Max) · Buracle Console: localhost:41777 · brain 1
 
 ## Her harness'a ne gelir
 
-Dört harness da aynı 27 hook'u, skill'leri, inceleme ajanlarını, kuralları, hafızayı, korumaları ve durum satırı verisini alır. Değişen şey Buracle'ın harness'a nasıl bağlandığı ve her harness'ın neyi gösterebildiğidir.
+Dört harness da aynı 26 hook'u, skill'leri, inceleme ajanlarını, kuralları, hafızayı, korumaları ve durum satırı verisini alır. Değişen şey Buracle'ın harness'a nasıl bağlandığı ve her harness'ın neyi gösterebildiğidir.
 
 | | Claude Code | Codex CLI | OpenCode | Oh My Pi |
 |---|---|---|---|---|
@@ -315,6 +315,8 @@ Her harness kendi yerel hook'larını aynı yedi olaya (oturum başlangıcı, is
 | `opencode.subagent-stop-hold` | OpenCode | Alt ajan durma hook'u yok | Geçersiz bir inceleme raporu, ajana o incelemeciyi bir kez daha sürdürmesini söyleyen bir not alır |
 | `opencode.rate-windows` | OpenCode | Kota API'si yok, pencereler sağlayıcı cevaplarının başlıklarından gelir | 5 saatlik ve 7 günlük bölümler bir cevap taşıyana kadar boş kalır |
 | `omp.companion-shell` | Oh My Pi | Print modu bash'i salt okunur komutlarla sınırlayamaz | İkinci görüş yalnızca read, grep ve glob ile çalışır, diff istemine konur |
+| `agy.no-compaction-event` | AGY CLI (desteği henüz yayımlanmadı) | Bir konuşma sıkıştırılmadan önce ya da sonra çalışan hook olayı yok | Hafıza bağlamı SessionStart'ta gelir, bağlam boyutu her model çağrısından önce izlenir |
+| `agy.no-session-end` | AGY CLI (desteği henüz yayımlanmadı) | Konuşmanın bittiğini bildiren olay yok, yalnız her turun sonunda Stop var | Hafıza her Stop'ta yakalanır |
 
 </details>
 
