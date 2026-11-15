@@ -1,7 +1,7 @@
 import { resolveAgents } from '../shared/agents'
 import type { AgentDoc, CanonicalBundle, McpServerSpec, RuleDoc, SkillDoc } from '../../core/catalog'
-import { envRef, expandMcpCommand, mcpEnvFor } from '../../core/catalog'
 import type { AdapterContext } from '../registry'
+import { familyMcpEntry, MCP_BURACLE_SHIM, MCP_SHIM_SCRIPT, mcpShimArgv } from '../shared/pi-family/mcp'
 import { bundleExtension } from './bundle'
 import { buracleVersion, ompCommandName, ompCommandNames, ompCommandSkills, ompGeneratedData, ompMcpServerIds, OMP_MIN_VERSION, PACKAGE_NAME } from './generated'
 import { firstHeading, frontmatter, oneLine, renderForOmp, withFinalNewline } from './render'
@@ -12,11 +12,7 @@ import { workflowCommandBody } from './runtime/flow-track'
 export interface BuildFile { path: string; content: string; mode?: number }
 
 export const MCP_SCHEMA_URL = 'https://raw.githubusercontent.com/can1357/oh-my-pi/main/packages/coding-agent/src/config/mcp-schema.json'
-export const MCP_BURACLE_SHIM = '{buracle}'
-export const MCP_SHIM_SCRIPT = 'exec "${BURACLE_HOME:-$HOME/.buracle}/bin/buracle" "$@"'
-export function mcpShimArgv(args: readonly string[]): { command: string, args: string[] } {
-  return { command: '/bin/sh', args: ['-c', MCP_SHIM_SCRIPT, 'buracle', ...args] }
-}
+export { MCP_BURACLE_SHIM, MCP_SHIM_SCRIPT, mcpShimArgv }
 export const EXTENSION_PATH = 'extensions/buracle.js'
 
 export function isOmpFileGlob(token: string): boolean {
@@ -115,21 +111,7 @@ export function renderCommand(skill: SkillDoc): BuildFile {
 }
 
 export function mcpEntry(id: string, spec: McpServerSpec): Record<string, unknown> {
-  const timeout = spec.tool_timeout_sec !== undefined ? { timeout: spec.tool_timeout_sec * 1000 } : {}
-  if (spec.transport === 'http') return { type: 'http', url: spec.url ?? '', ...timeout }
-  const expanded = expandMcpCommand(spec, { buracle: MCP_BURACLE_SHIM, id })
-  const viaShim = expanded.command === MCP_BURACLE_SHIM
-  const { command, args } = viaShim ? mcpShimArgv(expanded.args) : expanded
-  const entry: Record<string, unknown> = { type: 'stdio', command }
-  if (args.length > 0) entry['args'] = args
-  const env = mcpEnvFor(spec, 'omp')
-  const keys = Object.keys(env)
-  if (keys.length > 0) {
-    const out: Record<string, string> = {}
-    for (const k of keys) { const v = env[k] as string; const ref = envRef(v); out[k] = ref !== undefined ? `\${${ref}}` : v }
-    entry['env'] = out
-  }
-  return { ...entry, ...timeout }
+  return familyMcpEntry(id, spec, 'omp', 1000)
 }
 
 export function renderMcp(canonical: CanonicalBundle): BuildFile {

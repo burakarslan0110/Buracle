@@ -169,8 +169,10 @@ function textResult(text: string, isError = false): Record<string, unknown> {
   return r
 }
 
-export function harnessFromClient(name: string | undefined): string {
-  const h = HARNESSES.find(x => mcpClientMatches(harnessProfile(x), name ?? ''))
+export function harnessFromClient(name: string | undefined, env: Record<string, string | undefined> = process.env): string {
+  const found = HARNESSES.filter(x => mcpClientMatches(harnessProfile(x), name ?? ''))
+  // Oh My Pi and Pi both name themselves `pi`: the launcher's BURACLE_HARNESS says which of them started this server.
+  const h = found.length > 1 ? found.find(x => x === env['BURACLE_HARNESS']) ?? found[0] : found[0]
   return h !== undefined ? harnessProfile(h).noteName : 'buracle'
 }
 
@@ -241,7 +243,7 @@ export function createMemoryServer(opts: { cwd: string, version?: string, env?: 
         const client = isObj(params['clientInfo']) ? params['clientInfo'] : {}
         const cname = typeof client['name'] === 'string' ? client['name'] : undefined
         const cver = typeof client['version'] === 'string' ? client['version'] : undefined
-        ctx.harness = harnessFromClient(cname)
+        ctx.harness = harnessFromClient(cname, env)
         ctx.generatedBy = `${ctx.harness === 'buracle' ? (cname ?? 'mcp-client') : ctx.harness}/${cver ?? 'unknown'}`.replace(/\s+/g, '-')
         const version = negotiateProtocol(params['protocolVersion'])
         log('info', 'memory mcp: initialize', { client: cname, clientVersion: cver, requested: params['protocolVersion'], version })

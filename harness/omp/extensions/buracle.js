@@ -898,7 +898,6 @@ var init_pi = __esm(() => {
     bin: "pi",
     proc: { base: /^pi$/ },
     runtime: "inprocess",
-    adapterPending: true,
     editBudgetMs: 20000,
     configDir: { key: "piAgentDir", env: "PI_CODING_AGENT_DIR", under: ".pi/agent" },
     relocationEnv: ["PI_CODING_AGENT_DIR"],
@@ -38381,6 +38380,8 @@ function createStatusTexts(host) {
 
 // src/adapters/omp/runtime/stop.ts
 init_paths();
+
+// src/adapters/shared/pi-family/stop.ts
 function stopReason(hook, reason) {
   return GUARD_MARKERS.some((m) => reason.startsWith(m)) ? reason : `Buracle ${hook}: ${reason}`;
 }
@@ -38388,6 +38389,8 @@ function runawayNotice(why, plan) {
   const what = why === "runaway-plan" ? "the plan-wide limit of stop-guard continuations" : "the limit of consecutive stop-guard continuations";
   return `Buracle: the turn ended although the plan ${plan} is not finished, because ${what} was reached. Check the work, then continue or run \`buracle plan pause\`.`;
 }
+
+// src/adapters/omp/runtime/stop.ts
 var READ_ONLY_NOTICE = "Buracle: Oh My Pi is in plan mode (read-only), so the stop guard lets the turn end. Leave plan mode to continue the plan.";
 function planModeOn(ctx) {
   try {

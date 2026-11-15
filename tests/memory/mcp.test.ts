@@ -248,3 +248,13 @@ describe('end to end over stdio', () => {
     })
   }, 30_000)
 })
+
+describe('the MCP client name `pi` (Oh My Pi and Pi both send it)', () => {
+  test('BURACLE_HARNESS from the launcher says which of the two it is; without it the older adapter, omp, is taken', () => {
+    expect(harnessFromClient('pi', { BURACLE_HARNESS: 'pi' })).toBe('pi')
+    expect(harnessFromClient('pi', { BURACLE_HARNESS: 'omp' })).toBe('omp')
+    expect(harnessFromClient('pi', {})).toBe('omp')
+    expect(harnessFromClient('pi', { BURACLE_HARNESS: 'claude' })).toBe('omp')
+    expect(harnessFromClient('claude-code', { BURACLE_HARNESS: 'pi' })).toBe('claude-code')
+  })
+})

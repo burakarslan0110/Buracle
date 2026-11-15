@@ -6,6 +6,7 @@ import { bunExecutable } from '../../engine/config'
 import * as paths from '../../engine/paths'
 import { which } from '../../engine/proc'
 import type { AdapterContext } from '../registry'
+import { agentDirConflict } from '../shared/agent-dir'
 import { OWNER, PACKAGE_NAME, ompCommandNames, ompLspServers } from './generated'
 import { OMP_BRAIN_COMMAND, OMP_REMEMBER_COMMAND, OMP_STATUS_ALIAS, OMP_STATUS_COMMAND } from './runtime/commands'
 import { ompConfigPath } from './runtime/config'
@@ -135,6 +136,8 @@ export function ompLspSet(ctx: Pick<AdapterContext, 'canonical'>, layout: OmpLsp
 }
 
 export async function installPlan(ctx: AdapterContext): Promise<Plan> {
+  // PI_CODING_AGENT_DIR sends Pi and omp to one folder, and Pi's files are already in it: leave it to Pi.
+  if ((await agentDirConflict(ctx.paths))?.skipped === 'omp') return { id: 'omp', harness: 'omp', ops: [] }
   const agentDir = ctx.paths.ompAgentDir()
   const pluginDir = join(ctx.repoRoot, 'harness', 'omp')
   if (!existsSync(join(pluginDir, 'package.json'))) {

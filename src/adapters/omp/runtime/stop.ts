@@ -1,22 +1,14 @@
-import type { HookId, StopInput } from '../../../core/events'
-import type { StopWhy } from '../../../core/plan/index'
-import { GUARD_MARKERS } from '../../../core/policy/intents'
+import type { StopInput } from '../../../core/events'
 import { log } from '../../../engine/log'
 import * as paths from '../../../engine/paths'
 import { stop, type PipelineDeps } from '../../shared/pipeline/index'
 import type { ExtensionDeps } from './deps'
 import type { SpoolEntry } from './memory'
 import type { OmpContext, OmpExtensionAPI, OmpSessionStopEvent, OmpSessionStopResult } from './types'
+import { runawayNotice, stopReason } from '../../shared/pi-family/stop'
 import { clip, isMain, messageText, sessionOf } from '../../shared/pi-family/util'
 
-export function stopReason(hook: HookId, reason: string): string {
-  return GUARD_MARKERS.some(m => reason.startsWith(m)) ? reason : `Buracle ${hook}: ${reason}`
-}
-
-export function runawayNotice(why: StopWhy, plan: string): string {
-  const what = why === 'runaway-plan' ? 'the plan-wide limit of stop-guard continuations' : 'the limit of consecutive stop-guard continuations'
-  return `Buracle: the turn ended although the plan ${plan} is not finished, because ${what} was reached. Check the work, then continue or run \`buracle plan pause\`.`
-}
+export { runawayNotice, stopReason }
 
 export const READ_ONLY_NOTICE = 'Buracle: Oh My Pi is in plan mode (read-only), so the stop guard lets the turn end. Leave plan mode to continue the plan.'
 

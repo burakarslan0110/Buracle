@@ -5,6 +5,7 @@ import { mdBlockGet } from '../../engine/merge'
 import { detectBinary, parseVersion, run, which } from '../../engine/proc'
 import type { AdapterContext } from '../registry'
 import { resolveArgv, type Env } from '../shared/command'
+import { agentDirConflict } from '../shared/agent-dir'
 import { hostLimitRows } from '../shared/host-limits'
 import { checkLink } from './check-link'
 import { BUN_MIN_VERSION, OMP_MIN_VERSION, PACKAGE_NAME, ompCommandSkills } from './generated'
@@ -114,6 +115,8 @@ export interface DoctorDeps {
 }
 
 export async function doctor(ctx: AdapterContext, deps: DoctorDeps = {}): Promise<DoctorFinding[]> {
+  const conflict = await agentDirConflict(ctx.paths)
+  if (conflict?.skipped === 'omp') return [{ level: 'warn', check: 'omp.agent-dir', detail: conflict.message }]
   const out: DoctorFinding[] = []
   const found = await (deps.detect ?? (() => detectBinary('omp')))()
   // The host limits and their fallbacks hold whether or not omp is installed here.

@@ -1,8 +1,33 @@
-import { agentDirConflict } from '../shared/agent-dir'
-import { stubAdapter } from '../shared/stub'
+import type { Adapter, AdapterContext } from '../registry'
+import type { Plan } from '../../engine/txn'
+import { detectBinary } from '../../engine/proc'
+import { buildPi } from './build'
+import { doctor } from './doctor'
+import { installPlan, uninstallPlan } from './install'
 
-export const adapter = stubAdapter('pi', async ctx => {
-  const conflict = await agentDirConflict(ctx.paths)
-  return conflict === undefined ? [] : [{ level: 'warn', check: 'pi.agent-dir', detail: conflict.message }]
-})
+export const adapter: Adapter = {
+  harness: 'pi',
+
+  detect() {
+    return detectBinary('pi')
+  },
+
+  build(ctx: AdapterContext) {
+    return buildPi(ctx)
+  },
+
+  installPlan(ctx: AdapterContext): Promise<Plan> {
+    return installPlan(ctx)
+  },
+
+  uninstallPlan(ctx: AdapterContext): Promise<Plan> {
+    return uninstallPlan(ctx)
+  },
+
+  doctor(ctx: AdapterContext) {
+    return doctor(ctx)
+  },
+}
+
+export { uninstallPlan }
 export default adapter

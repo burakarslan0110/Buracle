@@ -306,6 +306,13 @@ export function ompChanges(tool: string, input: Record<string, unknown>, paths: 
   return replaceChanges(paths, [{ old: oldText, new: newText, all: input['replace_all'] ?? input['replaceAll'] }])
 }
 
+/** Pi's `write` ({ path, content }) and `edit` ({ path, edits: [{ oldText, newText }] }). */
+export function piChanges(tool: string, input: Record<string, unknown>, paths: readonly string[]): FileChange[] {
+  if (tool === 'write') return writeChanges(paths, input['content'])
+  if (tool !== 'edit' || !Array.isArray(input['edits'])) return []
+  return replaceChanges(paths, (input['edits'] as unknown[]).map(e => { const o = rec(e); return { old: o['oldText'], new: o['newText'] } }))
+}
+
 export function codexPatchChanges(input: Record<string, unknown>, cwd: string): FileChange[] {
   const text = patchTextOf(input)
   return text !== undefined ? patchChanges(text, cwd) : []
