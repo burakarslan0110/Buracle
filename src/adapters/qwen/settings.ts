@@ -7,6 +7,24 @@ export const OWNER = 'qwen'
 /** The one command every hook runs; the event is its only argument, so the entries survive Buracle updates. */
 export const HOOK_COMMAND_PREFIX = '"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle" hook qwen '
 
+/** The status line command (`ui.statusLine`): Qwen Code runs it through `/bin/sh` and pipes the session JSON to it; one line, the layout of statusline.yaml. */
+export const STATUS_LINE_COMMAND = '"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle" statusline qwen --style full'
+
+/** Qwen Code shows at most two lines of the command's output and re-runs it on its own events; `respectUserColors` keeps the ANSI colors. */
+export const STATUS_LINE_VALUE = { type: 'command', command: STATUS_LINE_COMMAND, respectUserColors: true, refreshInterval: 60 } as const
+
+export function isBuracleStatusLine(command: unknown): boolean {
+  return typeof command === 'string' && /(?:^|["'\s/])buracle["']?\s+statusline\s+qwen(?:\s|$)/.test(command.trim())
+}
+
+/** The label that tells a tip from Qwen Code's own loading phrases. */
+export const TIP_PREFIX = 'Buracle tip: '
+
+/** `ui.customWittyPhrases`: the loading phrases Qwen Code cycles through (docs/users/configuration/settings.md), one per canonical tip. */
+export function qwenTipPhrases(c: Pick<CanonicalBundle, 'tips'>): string[] {
+  return (c.tips ?? []).map(t => `${TIP_PREFIX}${t.text}`)
+}
+
 /** The events the Qwen adapter answers; a `hooks.yaml` qwen binding on any other event is left out. */
 export const QWEN_HOOK_EVENTS = [
   'SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'PreCompact', 'PostCompact', 'Stop', 'SubagentStart', 'SessionEnd',
@@ -97,6 +115,6 @@ export function qwenExcluded(c: Pick<CanonicalBundle, 'mcp'>, cfg: Pick<BuracleC
 }
 
 /** What Buracle owns in settings.json, as the file `harness/qwen/settings.fragment.json` shows it (`{buracle}` stands for the shim's path). */
-export function settingsFragment(c: Pick<CanonicalBundle, 'hooks' | 'mcp'>, buracle: string): string {
-  return JSON.stringify({ hooks: qwenHooks(c), mcpServers: qwenMcpServers(c, buracle) }, null, 2) + '\n'
+export function settingsFragment(c: Pick<CanonicalBundle, 'hooks' | 'mcp' | 'tips'>, buracle: string): string {
+  return JSON.stringify({ hooks: qwenHooks(c), mcpServers: qwenMcpServers(c, buracle), ui: { statusLine: STATUS_LINE_VALUE, customWittyPhrases: qwenTipPhrases(c) } }, null, 2) + '\n'
 }

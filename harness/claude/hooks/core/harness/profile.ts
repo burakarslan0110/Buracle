@@ -67,6 +67,8 @@ export interface HarnessProfile {
   companionPending?: true
   /** The host's non-interactive mode takes its prompt as an argument and reads none from stdin, so a text-only run cannot be fed one. */
   noStdinPrint?: boolean
+  /** The host runs a status-line command that reads the session JSON on stdin (`buracle statusline <harness>`). */
+  statusLineCommand?: true
   /** How long the checks after an edit may run. */
   editBudgetMs: number
   configDir: {

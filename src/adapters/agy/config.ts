@@ -9,6 +9,17 @@ export const HOOK_NAME = 'buracle'
 /** The one command every hook runs; the event is its only argument, so the entries survive Buracle updates. */
 export const HOOK_COMMAND_PREFIX = '"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle" hook agy '
 
+/**
+ * The `statusLine` block of AGY's settings.json (docs: antigravity.google/docs/cli/statusline): the CLI runs the command
+ * with `sh -c` on its own state changes, pipes the session JSON to it and shows the output. One line, the layout of statusline.yaml.
+ */
+export const STATUS_LINE_COMMAND = '"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle" statusline agy --style full'
+export const STATUS_LINE_VALUE = { type: 'command', command: STATUS_LINE_COMMAND } as const
+
+export function isBuracleStatusLine(command: unknown): boolean {
+  return typeof command === 'string' && /(?:^|["'\s/])buracle["']?\s+statusline\s+agy(?:\s|$)/.test(command.trim())
+}
+
 /** The events AGY CLI has that a binding may name (PostInvocation is the one no binding uses). */
 export const AGY_HOOK_EVENTS = ['SessionStart', 'PreToolUse', 'PostToolUse', 'PreInvocation', 'Stop'] as const
 const TOOL_EVENTS = new Set<string>(['PreToolUse', 'PostToolUse'])
@@ -73,6 +84,11 @@ export function agyMcpServers(c: Pick<CanonicalBundle, 'mcp'>, buracle: string):
 /** The files `harness/agy/` shows: what Buracle owns in hooks.json and in mcp_config.json (`{buracle}` stands for the shim's path). */
 export function hooksFragment(c: Pick<CanonicalBundle, 'hooks'>): string {
   return JSON.stringify({ [HOOK_NAME]: agyHooks(c) }, null, 2) + '\n'
+}
+
+/** What Buracle owns in AGY's settings.json (`~/.gemini/antigravity-cli/settings.json`). */
+export function settingsFragment(): string {
+  return JSON.stringify({ statusLine: STATUS_LINE_VALUE }, null, 2) + '\n'
 }
 
 export function mcpFragment(c: Pick<CanonicalBundle, 'mcp'>, buracle: string): string {

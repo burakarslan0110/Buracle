@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { adapter } from '../../../src/adapters/qwen/index'
-import { isBuracleCommand, qwenHooks, qwenMcpServers } from '../../../src/adapters/qwen/settings'
+import { isBuracleCommand, isBuracleStatusLine, qwenHooks, qwenMcpServers, qwenTipPhrases, STATUS_LINE_COMMAND, TIP_PREFIX } from '../../../src/adapters/qwen/settings'
 import { defaultConfig } from '../../../src/core/config'
 import { jsoncParse } from '../../../src/engine/merge'
 import { applyPlans } from '../../../src/engine/txn'
@@ -115,6 +115,36 @@ describe('install into ~/.qwen/settings.json', () => {
         expect(existsSync(join(home, 'elsewhere', 'settings.json'))).toBe(true)
         expect(existsSync(join(home, '.qwen'))).toBe(false)
       })
+    })
+  })
+})
+
+describe('the extras: status line and tips', () => {
+  test('writes ui.statusLine (a command that runs buracle statusline qwen) and one loading phrase per canonical tip', async () => {
+    await withSandbox(async ({ home }) => {
+      await install()
+      const ui = read(home)['ui'] as { statusLine: { type: string, command: string }, customWittyPhrases: string[] }
+      expect(ui.statusLine.type).toBe('command')
+      expect(ui.statusLine.command).toBe(STATUS_LINE_COMMAND)
+      expect(isBuracleStatusLine(ui.statusLine.command)).toBe(true)
+      expect(isBuracleStatusLine('echo hi')).toBe(false)
+      expect(ui.customWittyPhrases).toEqual(qwenTipPhrases(canonical))
+      expect(ui.customWittyPhrases.length).toBe((canonical.tips ?? []).length)
+      expect(ui.customWittyPhrases.every(t => t.startsWith(TIP_PREFIX))).toBe(true)
+    })
+  })
+
+  test('a statusLine and loading phrases of the user stay; a second install changes nothing', async () => {
+    await withSandbox(async ({ home }) => {
+      mkdirSync(join(home, '.qwen'), { recursive: true })
+      writeFileSync(settingsFile(home), JSON.stringify({ ui: { statusLine: { type: 'command', command: 'echo mine' }, customWittyPhrases: ['mine'] } }))
+      await install()
+      const ui = read(home)['ui'] as { statusLine: { command: string }, customWittyPhrases: string[] }
+      expect(ui.statusLine.command).toBe('echo mine')
+      expect(ui.customWittyPhrases[0]).toBe('mine')
+      expect(ui.customWittyPhrases.length).toBe(1 + (canonical.tips ?? []).length)
+      const again = await install()
+      expect(again.applied).toBe(0)
     })
   })
 })

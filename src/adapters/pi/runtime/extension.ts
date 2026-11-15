@@ -17,6 +17,7 @@ import { clip, hasTui, messageText, numAt, sessionOf, withDeadline } from '../..
 import { guardedContents, piChanges } from '../../shared/write-content'
 import { CODE_EXECUTION_TOOLS, defaultDeps, emptyGenerated, type PiDeps } from './deps'
 import { piEdit, textsOf } from './edits'
+import { createPiExtras } from './extras'
 import { GENERATED } from './generated-data'
 import { piOffServers } from './native-off'
 import type {
@@ -59,6 +60,7 @@ export function createBuracleExtension(data: PiGenerated = emptyGenerated(), ove
       nativeOff: { label: 'pi disabled servers', read: piOffServers },
     })
     const { memo, report, guarded, liveOrDefaults, started, spoolTo, pipe } = host
+    const extras = createPiExtras({ data, deps, live: () => liveOrDefaults(), guarded, slug: sid => memo(sid).slugValue })
     /** Context the pre-tool step has for a call, which Pi can only take back with the call's result. */
     const notes = new Map<string, string[]>()
     const denied = new Set<string>()
@@ -205,6 +207,8 @@ export function createBuracleExtension(data: PiGenerated = emptyGenerated(), ove
         if (r.continuation) { if (warning !== undefined) m.contextWarning = warning; return undefined }
         m.inputSeen = true
         m.stopBlocked = false
+        extras.flowStart(sid, text)
+        guarded('workflow band', () => extras.refreshFlow(sid, ctx))
         host.enqueue(m, r.context, routed as PromptRouting | undefined)
       } catch (e) {
         report('input', e)
@@ -255,6 +259,8 @@ export function createBuracleExtension(data: PiGenerated = emptyGenerated(), ove
         if (sid === undefined) return undefined
         host.enter(sid)
         void host.slugOf(sid, ctx.cwd)
+        guarded('workflow band', () => extras.refreshFlow(sid, ctx))
+        void extras.refreshStatus(sid, ctx).catch(e => report('status', e))
         if (memo(sid).starting === undefined) await openSession(sid, ctx, event.reason === 'startup' || event.reason === undefined ? 'startup' : event.reason === 'new' ? 'clear' : 'resume')
       } catch (e) {
         report('session_start', e)
@@ -296,9 +302,23 @@ export function createBuracleExtension(data: PiGenerated = emptyGenerated(), ove
         if (tokens !== undefined) entry.tokens = tokens
         if (text.trim() !== '') entry.excerpt = clip(text, 2000)
         await spoolTo(sid, [entry])
+        guarded('workflow band', () => extras.refreshFlow(sid, ctx))
+        void extras.refreshStatus(sid, ctx).catch(e => report('status', e))
       } catch (e) {
         report('turn_end', e)
       }
+      return undefined
+    })
+
+    // ---- agent_start and agent_end: a usage tip as the loader's text while the agent works ----
+
+    pi.on('agent_start', (_event: unknown, ctx: PiContext): undefined => {
+      guarded('tip', () => extras.tipStart(ctx))
+      return undefined
+    })
+
+    pi.on('agent_end', (_event: unknown, ctx: PiContext): undefined => {
+      guarded('tip', () => extras.tipEnd(ctx))
       return undefined
     })
 

@@ -143,8 +143,20 @@ export function readClaudePayload(j: unknown, fallbackCwd: string): ClaudePayloa
     const spend = obj(rl['spend_limit'])
     out.hasRateLimits = out.windows.length > 0 || (spend !== undefined && finite(spend['used_percentage']) !== undefined)
   }
+  // AGY CLI reports its quota as buckets of a remaining fraction; the weekly and five-hour ones become the usual windows.
+  const quota = obj(o['quota'])
+  if (quota !== undefined && out.windows.length === 0) {
+    for (const [id, bucket] of Object.entries(quota)) {
+      const fraction = finite(obj(bucket)?.['remaining_fraction'])
+      const label = /week/iu.test(id) ? '7d' : /(?:5h|five)/iu.test(id) ? '5h' : undefined
+      if (fraction === undefined || label === undefined || out.windows.some(w => w.label === label)) continue
+      const rw: RateWindow = { pct: Math.min(100, Math.max(0, (1 - fraction) * 100)), label, windowMinutes: label === '7d' ? 10080 : 300 }
+      out.windows.push(rw)
+    }
+    out.hasRateLimits = out.windows.length > 0
+  }
   const costObj = obj(o['cost'])
-  const cost = finite(costObj?.['total_cost_usd'])
+  const cost = finite(costObj?.['total_cost_usd']) ?? finite(costObj?.['total_usd'])
   if (cost !== undefined) out.costUsd = cost
   const added = finite(costObj?.['total_lines_added'])
   const removed = finite(costObj?.['total_lines_removed'])

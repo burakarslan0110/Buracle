@@ -8466,6 +8466,7 @@ var agyProfile = {
   runtime: "command",
   companionPending: true,
   noStdinPrint: true,
+  statusLineCommand: true,
   editBudgetMs: 28000,
   configDir: { key: "agyDir", under: ".gemini/config" },
   relocationEnv: ["ANTIGRAVITY_CONFIG_REL_DIR"],
@@ -8544,6 +8545,7 @@ var claudeProfile = {
   bin: "claude",
   proc: { base: /^claude$/, path: /\/claude\/versions\/[^/]+$/, pidEnv: "CLAUDE_PID" },
   runtime: "command",
+  statusLineCommand: true,
   spoolSuffix: "classic",
   editBudgetMs: 28000,
   configDir: { key: "claudeDir", env: "CLAUDE_CONFIG_DIR", under: ".claude" },
@@ -8942,6 +8944,7 @@ var qwenProfile = {
   bin: "qwen",
   proc: { base: /^qwen(?:-[\w.-]+)?$/, path: /\/\.qwen\/bin\/qwen\/qwen-[^/]+$/ },
   runtime: "command",
+  statusLineCommand: true,
   companionPending: true,
   editBudgetMs: 28000,
   configDir: { key: "qwenHome", env: "QWEN_HOME", under: ".qwen" },
@@ -35032,10 +35035,103 @@ function runawayNotice(why, plan) {
   return `Buracle: the turn ended although the plan ${plan} is not finished, because ${what} was reached. Check the work, then continue or run \`buracle plan pause\`.`;
 }
 
+// src/workflow/flow.ts
+import { join as join30 } from "path";
+
+// src/workflow/result.ts
+var NO_SESSION_HINT = "no session: no harness session id was found. Buracle reads it from --session <id> (with --harness <h>), or from " + "BURACLE_SESSION_ID with BURACLE_HARNESS, CLAUDE_CODE_SESSION_ID, CODEX_SESSION_ID/CODEX_THREAD_ID, OPENCODE_SESSION_ID or OMP_SESSION_ID; " + "when several harnesses set them (one started from the shell of another), only the ids of the nearest harness process count. " + "Without a session the stop guard is not protecting this run; continue from the plan file and run 'buracle doctor' to check the harness integration.";
+
+// src/workflow/flow.ts
+var DEFAULT_FOLD_SEC = FOLD_AFTER_SEC;
+function flowPath(h, sid) {
+  return join30(sessionDir(h, sid), "flow.json");
+}
+function readFlow(h, sid) {
+  const r = readJsonSafeSync(flowPath(h, sid));
+  if (!r.ok) {
+    if (r.code !== "missing")
+      log("warn", "flow record unreadable; starting a new one", { h, sid, error: r.error });
+    return;
+  }
+  const rec = parseFlow(r.value);
+  if (rec === undefined)
+    log("warn", "flow record has an unexpected shape; starting a new one", { h, sid });
+  return rec;
+}
+function writeFlow(h, sid, rec) {
+  atomicWriteSync(flowPath(h, sid), JSON.stringify(rec, null, 2) + `
+`);
+}
+function bandInputFor(h, sid, nowMs, foldAfterSec = DEFAULT_FOLD_SEC) {
+  const input = { nowMs, foldAfterSec };
+  const flow = readFlow(h, sid);
+  if (flow !== undefined)
+    input.flow = flow;
+  const state = loadState(h, sid);
+  if (state.plan !== undefined) {
+    const text = readTextSync(state.plan.path);
+    const plan = bandPlanOf(state, text.ok ? text.value : undefined);
+    if (plan !== undefined)
+      input.plan = plan;
+  }
+  const it = state.interaction;
+  if (it !== undefined) {
+    input.interaction = { state: it.state };
+    if (it.kind !== undefined)
+      input.interaction.kind = it.kind;
+    if (it.reason !== undefined)
+      input.interaction.reason = it.reason;
+  }
+  return input;
+}
+function flowViewFor(h, sid, nowMs, foldAfterSec = DEFAULT_FOLD_SEC) {
+  return bandView(bandInputFor(h, sid, nowMs, foldAfterSec));
+}
+function recordFlowStart(h, sid, input, now) {
+  try {
+    const r = flowStart(readFlow(h, sid), input, now);
+    if (r.changed)
+      writeFlow(h, sid, r.record);
+    return r.changed;
+  } catch (e) {
+    log("warn", "recording a flow start failed", { h, sid, error: e instanceof Error ? e.message : String(e) });
+    return false;
+  }
+}
+
+// src/usage/bar.ts
+import { isAbsolute as isAbsolute9, join as join31, relative as relative3, resolve as resolve15, sep as sep4 } from "path";
+function obj2(x) {
+  return x !== null && typeof x === "object" && !Array.isArray(x) ? x : undefined;
+}
+var SLUG_TTL_MS = 60 * 60000;
+function isMemoryStatus(x) {
+  const s = obj2(x);
+  const counts = obj2(s?.["counts"]);
+  return s !== undefined && s["v"] === 3 && typeof s["health"] === "string" && counts !== undefined && typeof counts["project"] === "number" && typeof counts["person"] === "number" && Array.isArray(s["reasons"]);
+}
+function readMemoryStatus(slug) {
+  const dir = join31(memoryStateDir(), "status");
+  for (const name of slug !== undefined ? [slug, "_global"] : ["_global"]) {
+    if (!/^[A-Za-z0-9._-]+$/u.test(name))
+      continue;
+    const r = readJsonSafeSync(join31(dir, `${name}.json`));
+    if (r.ok && isMemoryStatus(r.value))
+      return r.value;
+  }
+  return;
+}
+
 // src/adapters/pi/runtime/deps.ts
 var CODE_EXECUTION_TOOLS = new Set(["codemode"]);
 function defaultDeps() {
-  return { ...hostDeps("pi"), memory: createMemoryBridge({ harness: "pi", cli: hostCli }) };
+  return {
+    ...hostDeps("pi"),
+    memory: createMemoryBridge({ harness: "pi", cli: hostCli }),
+    flow: { start: (sid, input, now) => recordFlowStart("pi", sid, input, now), view: (sid, now, foldAfterSec) => flowViewFor("pi", sid, now, foldAfterSec) },
+    columns: () => typeof process.stdout.columns === "number" && process.stdout.columns > 0 ? process.stdout.columns : 120,
+    memoryStatus: readMemoryStatus
+  };
 }
 function emptyGenerated() {
   return { v: 1, buracleVersion: "0.0.0", config: defaultConfig(), routing: { strictness: "enforce", categories: [] }, mcp: [], mcpIds: [], skills: [] };
@@ -35067,6 +35163,132 @@ function piEdit(kind, input, file, before) {
 }
 function textsOf(edit, which) {
   return edit !== undefined && edit[which] !== "" ? { [edit.file]: edit[which] } : {};
+}
+
+// src/adapters/shared/pi-family/flow-widget.ts
+var FLOW_WIDGET_KEY = "buracle.flow";
+var FLOW_WIDGET_MAX_LINES = 10;
+var FLOW_WIDGET_ROWS = 3;
+var FLOW_WIDGET_PADDING = 2;
+function flowWidgetLines(view, terminalColumns, opts) {
+  const columns = Math.floor(Number.isFinite(terminalColumns) ? terminalColumns : 0) - FLOW_WIDGET_PADDING;
+  const rows = bandRows(view, columns, FLOW_WIDGET_ROWS, opts.emoji);
+  if (rows.length === 0)
+    return [];
+  const text = opts.ansi ? renderAnsiLines(rows) : renderPlainLines(rows);
+  return text.split(`
+`).slice(0, FLOW_WIDGET_MAX_LINES);
+}
+
+class FlowWidget {
+  #shown;
+  #foldAt;
+  draw(ui, lines) {
+    const next = lines.length > 0 ? lines.join(`
+`) : undefined;
+    if (next === this.#shown)
+      return false;
+    this.#shown = next;
+    ui.setWidget(FLOW_WIDGET_KEY, next === undefined ? undefined : [...lines], { placement: "aboveEditor" });
+    return true;
+  }
+  reset() {
+    this.#shown = undefined;
+    this.#foldAt = undefined;
+  }
+  foldDue(view, foldAfterSec) {
+    if (!view.visible || view.endedAt === undefined)
+      return;
+    const at = view.endedAt + Math.max(0, Number.isFinite(foldAfterSec) ? foldAfterSec : 0) * 1000;
+    if (this.#foldAt === at)
+      return;
+    this.#foldAt = at;
+    return at;
+  }
+}
+
+// src/adapters/pi/runtime/extras.ts
+var TIP_PREFIX = "Buracle tip: ";
+function skillWorkflowOf(text) {
+  const m = /^\/skill:([a-z][a-z0-9-]{0,39})(?=\s|$)/.exec(typeof text === "string" ? text.trim() : "");
+  const id = m?.[1];
+  return id !== undefined && flowDef(id) !== undefined ? id : undefined;
+}
+function createPiExtras(host) {
+  const { deps, guarded } = host;
+  const widgets = new Map;
+  const shownStatus = new Map;
+  let tipIndex = 0;
+  const flowStart = (sid, text) => {
+    const workflow = skillWorkflowOf(text);
+    if (workflow === undefined || deps.flow === undefined)
+      return;
+    const flow = deps.flow;
+    guarded("H25 flow start", () => flow.start(sid, { workflow, source: "skill" }, deps.now()));
+    return workflow;
+  };
+  const refreshFlow = (sid, ctx) => {
+    if (!hasTui(ctx) || deps.flow === undefined || typeof ctx.ui.setWidget !== "function")
+      return;
+    const lc = host.live();
+    const widget = widgets.get(sid) ?? new FlowWidget;
+    widgets.set(sid, widget);
+    if (!lc.config.workflow.band) {
+      widget.draw(ctx.ui, []);
+      return;
+    }
+    const now = deps.now();
+    const flow = deps.flow;
+    const view = guarded("flow view", () => flow.view(sid, now, FOLD_AFTER_SEC));
+    if (view === undefined)
+      return;
+    const columns = deps.columns?.() ?? 120;
+    widget.draw(ctx.ui, flowWidgetLines(view, columns, { emoji: lc.config.statusline.emoji, ansi: true }));
+    const due = widget.foldDue(view, FOLD_AFTER_SEC);
+    if (due !== undefined)
+      setTimeout(() => {
+        guarded("workflow band", () => refreshFlow(sid, ctx));
+      }, Math.max(0, due - now) + 250).unref?.();
+  };
+  const refreshStatus = async (sid, ctx) => {
+    const set = host.data.status?.setStatus;
+    if (!hasTui(ctx) || set === undefined || typeof ctx.ui.setStatus !== "function")
+      return;
+    const lc = host.live();
+    const bar = { harness: "pi", windows: [] };
+    const mem = guarded("memory status", () => deps.memoryStatus?.(host.slug(sid)));
+    if (mem !== undefined)
+      bar.mem = mem;
+    const hooks = deps.hooksHealth === undefined ? undefined : await deps.hooksHealth(deps.now()).catch(() => {
+      return;
+    });
+    if (hooks !== undefined)
+      bar.hooks = hooks;
+    const emoji = host.data.status !== undefined && host.data.status.layout.emoji && lc.config.statusline.emoji;
+    for (const key of Object.keys(set).sort()) {
+      const layout = { rows: [set[key] ?? []], thresholds: host.data.status?.layout.thresholds ?? { ctxWarn: 75, ctxCrit: 90 }, emoji };
+      const text = guarded("status render", () => renderPlain(rows(bar, layout, Number.POSITIVE_INFINITY, deps.now()))) ?? "";
+      const next = text.trim() !== "" ? text : undefined;
+      if (shownStatus.has(key) && shownStatus.get(key) === next)
+        continue;
+      shownStatus.set(key, next);
+      ctx.ui.setStatus(key, next);
+    }
+  };
+  const tipStart = (ctx) => {
+    const tips = host.data.tips ?? [];
+    if (!hasTui(ctx) || tips.length === 0 || typeof ctx.ui.setWorkingMessage !== "function")
+      return;
+    const tip = tips[tipIndex % tips.length];
+    tipIndex++;
+    if (tip !== undefined)
+      ctx.ui.setWorkingMessage(`${TIP_PREFIX}${tip.text}`);
+  };
+  const tipEnd = (ctx) => {
+    if (hasTui(ctx) && typeof ctx.ui.setWorkingMessage === "function")
+      ctx.ui.setWorkingMessage();
+  };
+  return { flowStart, refreshFlow, refreshStatus, tipStart, tipEnd };
 }
 
 // src/adapters/pi/runtime/generated-data.ts
@@ -35822,11 +36044,150 @@ var GENERATED = {
       userInvocable: true
     }
   ],
+  status: {
+    layout: {
+      emoji: false,
+      rows: [
+        [
+          "ctx",
+          "git",
+          "mem",
+          "index",
+          "flow",
+          "plan",
+          "hooks"
+        ]
+      ],
+      thresholds: {
+        ctxCrit: 90,
+        ctxWarn: 75
+      }
+    },
+    setStatus: {
+      buracle: [
+        "mem"
+      ]
+    }
+  },
+  tips: [
+    {
+      id: "plan-build",
+      text: "/plan-build writes a reviewed plan to docs/plan-build/, waits for your approval, then builds it test-first"
+    },
+    {
+      id: "goal-build",
+      text: "/goal-build locks pass/fail criteria first, then builds in rounds a judge scores against them"
+    },
+    {
+      id: "bugfix",
+      text: "/bugfix reproduces the failure, names the root cause as file:line and writes a failing test before the fix"
+    },
+    {
+      id: "requirements",
+      text: "Scope still unclear? /requirements asks a few rounds of questions and writes a PRD before any code"
+    },
+    {
+      id: "direct-work",
+      text: "No workflow needed for small changes: ask directly and the agent still verifies before it reports done"
+    },
+    {
+      id: "stop-words",
+      text: "Say stop, wait or hold on at any time: the agent finishes the current step and pauses the plan"
+    },
+    {
+      id: "worktree-flag",
+      text: "Add --worktree after a workflow request to build it in its own worktree, squash-merged back when done"
+    },
+    {
+      id: "research",
+      text: "/research <question> answers from sources it actually read: web, library docs, public code and memory"
+    },
+    {
+      id: "inspect",
+      text: "/inspect <question> traces how the code really behaves, cites every hop as path:line and changes nothing"
+    },
+    {
+      id: "dead-code",
+      text: "/dead-code reports unused code only when two independent signals agree, with a staged removal plan"
+    },
+    {
+      id: "project-rules",
+      text: "Run /project-rules once per repository: it writes an AGENTS.md from commands it ran, for every harness"
+    },
+    {
+      id: "remember",
+      text: "/remember <text> saves a note to the memory that Claude Code, Codex, OpenCode and Oh My Pi all share"
+    },
+    {
+      id: "why-question",
+      text: 'Ask "why did we\u2026" or "what did we decide\u2026": the agent searches the memory before it answers'
+    },
+    {
+      id: "brain-ui",
+      text: "/brain opens the Buracle Console: browse, search and fix the memory of this project and yours"
+    },
+    {
+      id: "brain-review",
+      text: "/brain review opens the review page: pin notes on a plan, and the agent applies them before approval"
+    },
+    {
+      id: "aside",
+      text: "/aside <question> answers a side question without derailing the running task"
+    },
+    {
+      id: "status",
+      text: "/buracle-status shows the active plan, the running workflow and the memory at a glance"
+    },
+    {
+      id: "find-skill",
+      text: "Need a skill for a recurring task? /find-skill searches the registry, audits the pick and installs it everywhere"
+    },
+    {
+      id: "new-skill",
+      text: "Did a procedure twice? /new-skill turns it into a skill every harness can load"
+    },
+    {
+      id: "doctor",
+      text: "Something feels off? `buracle doctor` checks config, hooks, MCP and LSP servers, memory and code indexes"
+    },
+    {
+      id: "update",
+      text: "`buracle update` updates Buracle and everything it connects, each part from its own source"
+    },
+    {
+      id: "config",
+      text: "`buracle config set plan.<key> <value>` tunes how workflows run: worktrees, questions, reviews"
+    },
+    {
+      id: "companion-review",
+      text: "Turn on plan.reviews.companion to get the same review from another installed harness as a second opinion"
+    },
+    {
+      id: "one-standard",
+      text: "The same skills, rules, guards and memory run in Claude Code, Codex, OpenCode and Oh My Pi"
+    },
+    {
+      id: "mcp-status",
+      text: "`buracle mcp status` shows Buracle's shared MCP servers; one backend serves every open session"
+    },
+    {
+      id: "index",
+      text: "codegraph and semble index each project in the background, so the agent finds callers without grep loops"
+    },
+    {
+      id: "plan-audit",
+      text: "`buracle plan audit` compares the diff with the files each task named and flags unplanned changes"
+    },
+    {
+      id: "language",
+      text: "Plans, PRDs and reports follow the language you write in; only the markers Buracle reads stay English"
+    }
+  ],
   v: 1
 };
 
 // src/adapters/pi/runtime/native-off.ts
-import { join as join30 } from "path";
+import { join as join32 } from "path";
 
 // src/adapters/shared/native-off.ts
 import { readFileSync as readFileSync20, statSync as statSync23 } from "fs";
@@ -35863,7 +36224,7 @@ function disabledIn(doc) {
   return Object.entries(servers).filter(([, v]) => v !== null && typeof v === "object" && v.enabled === false).map(([id]) => id);
 }
 function piOffServers(project) {
-  const files = [join30(piAgentDir(), "mcp.json"), join30(project, ".pi", "mcp.json")];
+  const files = [join32(piAgentDir(), "mcp.json"), join32(project, ".pi", "mcp.json")];
   return [...new Set(files.flatMap((f) => disabledIn(readCapped(f))))];
 }
 
@@ -35893,6 +36254,7 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
       nativeOff: { label: "pi disabled servers", read: piOffServers }
     });
     const { memo, report, guarded, liveOrDefaults, started, spoolTo, pipe } = host;
+    const extras = createPiExtras({ data, deps, live: () => liveOrDefaults(), guarded, slug: (sid) => memo(sid).slugValue });
     const notes = new Map;
     const denied = new Set;
     const consentHolds = new Map;
@@ -36072,6 +36434,8 @@ function createBuracleExtension(data = emptyGenerated(), overrides = {}) {
         }
         m.inputSeen = true;
         m.stopBlocked = false;
+        extras.flowStart(sid, text);
+        guarded("workflow band", () => extras.refreshFlow(sid, ctx));
         host.enqueue(m, r.context, routed);
       } catch (e) {
         report("input", e);
@@ -36125,6 +36489,8 @@ ${text}`;
           return;
         host.enter(sid);
         host.slugOf(sid, ctx.cwd);
+        guarded("workflow band", () => extras.refreshFlow(sid, ctx));
+        extras.refreshStatus(sid, ctx).catch((e) => report("status", e));
         if (memo(sid).starting === undefined)
           await openSession(sid, ctx, event.reason === "startup" || event.reason === undefined ? "startup" : event.reason === "new" ? "clear" : "resume");
       } catch (e) {
@@ -36169,9 +36535,19 @@ ${text}`;
         if (text.trim() !== "")
           entry.excerpt = clip6(text, 2000);
         await spoolTo(sid, [entry]);
+        guarded("workflow band", () => extras.refreshFlow(sid, ctx));
+        extras.refreshStatus(sid, ctx).catch((e) => report("status", e));
       } catch (e) {
         report("turn_end", e);
       }
+      return;
+    });
+    pi.on("agent_start", (_event, ctx) => {
+      guarded("tip", () => extras.tipStart(ctx));
+      return;
+    });
+    pi.on("agent_end", (_event, ctx) => {
+      guarded("tip", () => extras.tipEnd(ctx));
       return;
     });
     pi.on("agent_before_settle", async (event, ctx) => {

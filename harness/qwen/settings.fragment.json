@@ -209,5 +209,43 @@
         "MODE": "stdio"
       }
     }
+  },
+  "ui": {
+    "statusLine": {
+      "type": "command",
+      "command": "\"${BURACLE_HOME:-$HOME/.buracle}/bin/buracle\" statusline qwen --style full",
+      "respectUserColors": true,
+      "refreshInterval": 60
+    },
+    "customWittyPhrases": [
+      "Buracle tip: /plan-build writes a reviewed plan to docs/plan-build/, waits for your approval, then builds it test-first",
+      "Buracle tip: /goal-build locks pass/fail criteria first, then builds in rounds a judge scores against them",
+      "Buracle tip: /bugfix reproduces the failure, names the root cause as file:line and writes a failing test before the fix",
+      "Buracle tip: Scope still unclear? /requirements asks a few rounds of questions and writes a PRD before any code",
+      "Buracle tip: No workflow needed for small changes: ask directly and the agent still verifies before it reports done",
+      "Buracle tip: Say stop, wait or hold on at any time: the agent finishes the current step and pauses the plan",
+      "Buracle tip: Add --worktree after a workflow request to build it in its own worktree, squash-merged back when done",
+      "Buracle tip: /research <question> answers from sources it actually read: web, library docs, public code and memory",
+      "Buracle tip: /inspect <question> traces how the code really behaves, cites every hop as path:line and changes nothing",
+      "Buracle tip: /dead-code reports unused code only when two independent signals agree, with a staged removal plan",
+      "Buracle tip: Run /project-rules once per repository: it writes an AGENTS.md from commands it ran, for every harness",
+      "Buracle tip: /remember <text> saves a note to the memory that Claude Code, Codex, OpenCode and Oh My Pi all share",
+      "Buracle tip: Ask \"why did we…\" or \"what did we decide…\": the agent searches the memory before it answers",
+      "Buracle tip: /brain opens the Buracle Console: browse, search and fix the memory of this project and yours",
+      "Buracle tip: /brain review opens the review page: pin notes on a plan, and the agent applies them before approval",
+      "Buracle tip: /aside <question> answers a side question without derailing the running task",
+      "Buracle tip: /buracle-status shows the active plan, the running workflow and the memory at a glance",
+      "Buracle tip: Need a skill for a recurring task? /find-skill searches the registry, audits the pick and installs it everywhere",
+      "Buracle tip: Did a procedure twice? /new-skill turns it into a skill every harness can load",
+      "Buracle tip: Something feels off? `buracle doctor` checks config, hooks, MCP and LSP servers, memory and code indexes",
+      "Buracle tip: `buracle update` updates Buracle and everything it connects, each part from its own source",
+      "Buracle tip: `buracle config set plan.<key> <value>` tunes how workflows run: worktrees, questions, reviews",
+      "Buracle tip: Turn on plan.reviews.companion to get the same review from another installed harness as a second opinion",
+      "Buracle tip: The same skills, rules, guards and memory run in Claude Code, Codex, OpenCode and Oh My Pi",
+      "Buracle tip: `buracle mcp status` shows Buracle's shared MCP servers; one backend serves every open session",
+      "Buracle tip: codegraph and semble index each project in the background, so the agent finds callers without grep loops",
+      "Buracle tip: `buracle plan audit` compares the diff with the files each task named and flags unplanned changes",
+      "Buracle tip: Plans, PRDs and reports follow the language you write in; only the markers Buracle reads stay English"
+    ]
   }
 }

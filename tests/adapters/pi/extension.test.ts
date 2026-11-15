@@ -38,7 +38,7 @@ describe('pi extension: registration', () => {
   test('registers the events the bound hooks use, and no other', () => withSandbox(async sb => {
     const { fp } = setup(sb)
     expect([...fp.handlers.keys()].sort()).toEqual([
-      'agent_before_settle', 'before_agent_start', 'input', 'session_before_compact', 'session_compact', 'session_shutdown', 'session_start', 'tool_call', 'tool_result', 'turn_end',
+      'agent_before_settle', 'agent_end', 'agent_start', 'before_agent_start', 'input', 'session_before_compact', 'session_compact', 'session_shutdown', 'session_start', 'tool_call', 'tool_result', 'turn_end',
     ])
   }))
 })

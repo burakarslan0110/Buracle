@@ -1,6 +1,6 @@
 import { detectBinary } from '../../engine/proc'
 import type { Adapter, AdapterContext } from '../registry'
-import { hooksFragment, mcpFragment } from './config'
+import { hooksFragment, mcpFragment, settingsFragment } from './config'
 
 export const adapter: Adapter = {
   harness: 'agy',
@@ -12,6 +12,7 @@ export const adapter: Adapter = {
     return [
       { path: 'hooks.fragment.json', content: hooksFragment(ctx.canonical) },
       { path: 'mcp_config.fragment.json', content: mcpFragment(ctx.canonical, '{buracle}') },
+      { path: 'settings.fragment.json', content: settingsFragment() },
     ]
   },
 

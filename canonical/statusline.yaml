@@ -51,6 +51,9 @@ pi:
     - [ctx, git, mem, index, flow, plan, hooks]
   thresholds: { ctxWarn: 75, ctxCrit: 90 }
   emoji: false
+  native:
+    setStatus:
+      buracle: [mem]
 
 agy:
   rows:
