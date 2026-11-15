@@ -1,108 +1,57 @@
 import { readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import type { BuracleConfig } from '../../../core/config'
 import { defaultConfig } from '../../../core/config'
 import type { BandView } from '../../../core/flow/band'
 import type { FlowSource } from '../../../core/flow/record'
 import type { MemoryStatus } from '../../../core/memory/status'
 import { memSegment } from '../../../core/memory/status'
-import * as corePolicy from '../../../core/policy/index'
-import type { ConsentKind } from '../../../core/policy/consent'
-import type { McpHealth } from '../../../core/policy/routing'
-import type { UsageLedger } from '../../../core/policy/usage'
-import type { WriteGuardContext } from '../../../core/policy/write-guard'
 import * as corePlan from '../../../core/plan/index'
-import type { SessionState } from '../../../core/plan/index'
 import { normalizePlanText } from '../../../core/plan/capture'
 import * as coreCompact from '../../../core/compact'
-import * as coreCheckers from '../../../core/checkers'
 import { gitFromPorcelainV2, linesFromShortstat } from '../../../core/status/git'
 import type { GitState } from '../../../core/status/model'
 import * as coreStatus from '../../../core/status/render'
 import { barLines, type BarInfo } from '../../../core/status/bar'
-import { indexSettings, type WorkspaceInfo } from '../../../core/workspace'
 import { barInfo, liveMemoryUi } from '../../../usage/bar-info'
-import { commonDir, currentBranch, gitDiffShortstat, gitStatusPorcelainV2, projectSlug, revParse } from '../../../engine/git'
+import { commonDir, gitDiffShortstat, gitStatusPorcelainV2, revParse } from '../../../engine/git'
 import * as paths from '../../../engine/paths'
-import { run } from '../../../engine/proc'
 import { pendingUpdates } from '../../../usage/bar'
 import { readUsageCache, spawnUsageRefresh } from '../../../usage/cache'
 import type { UsageCacheEntry } from '../../../usage/types'
 import { flowViewFor, recordFlowStart } from '../../../workflow/flow'
 import { captureSessionPlan } from '../../../workflow/plan-native'
-import { loadLedger, updateLedger } from '../../../workflow/ledger'
-import { loadState, reviewSubjects, sessionMaint, updateState, writeTelemetry } from '../../../workflow/session-store'
+import { writeTelemetry } from '../../../workflow/session-store'
 import type { Telemetry } from '../../../workflow/session-store'
-import { refreshWorkspaceInfo, workspaceInfo } from '../../../workflow/workspace'
-import { recordDialogGrant } from '../../shared/consent-dialog'
-import { nodeCheckFs, type CheckFs } from '../../shared/checker-scan'
-import { realWriteTarget } from '../../shared/realpath'
-import type { AssetsSpawner } from '../../shared/project-assets'
-import { buracleRepoFor } from '../../shared/repo-cache'
-import { prepareWorkspace } from '../../shared/workspace-start'
-import { liveConfig, mcpHealth, type LiveConfig } from '../../shared/pi-family/config'
 import { ompConfigPath } from './config'
 import { reviewerFenceFromEnv } from './companion-fence'
-import { buracleCli, createMemoryBridge, readMemoryStatus, type MemoryBridge } from './memory'
+import { createMemoryBridge, readMemoryStatus } from './memory'
+import { hostCli, hostDeps, TOOL_CALL_DEADLINE_MS, TOOL_RESULT_DEADLINE_MS, type EvalGuard, type HostDeps } from '../../shared/pi-family/inprocess-host'
 import { ompAutosaveDir, STAGED_PLAN_MAX_AGE_MS, STAGED_PLAN_STALE_MS, USER_PLAN_MAX_AGE_MS, type PlanStore, type StagedPlan } from './plan-capture'
-import { createDepsReader } from './routing'
 import type { OmpGenerated } from './types'
 import { DEFAULT_BAND_LAYOUT, DEFAULT_SET_STATUS } from '../statusline'
 
-export const TOOL_CALL_DEADLINE_MS = 3_000
-export const TOOL_RESULT_DEADLINE_MS = 25_000
+export { TOOL_CALL_DEADLINE_MS, TOOL_RESULT_DEADLINE_MS }
 export const STATUS_INTERVAL_MS = 30_000
 
 export type TelemetryPatch = Omit<Telemetry, 'v' | 'harness' | 'sessionId'>
 
-export type EvalGuard = (code: string, language: string, ctx: WriteGuardContext, opts?: { extraDeny?: string[] }) => { deny?: string, hook?: 'H01' | 'H02' }
+export type { EvalGuard }
 
 export const CODE_EXECUTION_TOOLS: ReadonlySet<string> = new Set(['eval'])
 
-function coreEvalGuard(): EvalGuard | undefined {
-  const fn = (corePolicy as unknown as Record<string, unknown>)['checkEval']
-  return typeof fn === 'function' ? fn as EvalGuard : undefined
-}
-
-export interface ExtensionDeps {
-  now(): number
-  config(defaults: BuracleConfig): LiveConfig
-  health(): McpHealth
-  policy: Pick<typeof corePolicy, 'checkBash' | 'checkWrite' | 'routeTool' | 'capabilityCard' | 'checkQuestion' | 'detectIntent' | 'isGuardContinuation'>
-  evalGuard?: EvalGuard | undefined
-  realpath?: (p: string) => string | undefined
+export interface ExtensionDeps extends HostDeps {
   plan: Pick<typeof corePlan, 'stopGuardVerdict' | 'applyIntent' | 'validatePlan' | 'parsePlan' | 'promptInteraction' | 'answerReceipt'>
   compact: Pick<typeof coreCompact, 'compactInstructions' | 'handoffNote' | 'restoreContext'>
-  checkers: Pick<typeof coreCheckers, 'checkersFor' | 'findingsOf'>
-  checkFs?: CheckFs
-  resolveChecker?: (argv: readonly string[]) => string[]
   memSegment: typeof memSegment
   status: Pick<typeof coreStatus, 'rows' | 'renderPlain'>
   bar?: { lines: typeof barLines, render: typeof coreStatus.renderPlainLines, info(nowMs: number): Promise<BarInfo> }
-  state: {
-    load(sid: string): SessionState
-    update(sid: string, fn: (s: SessionState) => SessionState): SessionState
-    telemetry(sid: string, t: TelemetryPatch): void
-    subjects?(sid: string | undefined): string[]
-  }
-  ledger: {
-    load(sid: string): UsageLedger
-    update(sid: string, fn: (l: UsageLedger) => UsageLedger): UsageLedger
-  }
+  state: HostDeps['state'] & { telemetry(sid: string, t: TelemetryPatch): void }
   flow: {
     start(sid: string, input: { workflow: string, title?: string, source: FlowSource }, now: number): boolean
     view(sid: string, now: number, foldAfterSec: number): BandView
   }
-  memory: MemoryBridge
   plans: PlanStore
-  captureEnabled(): boolean
-  buracleRepo(cwd: string, configured: string | undefined): string | undefined
-  cli(): string[] | undefined
-  projectSlug(cwd: string): Promise<string>
-  branch(cwd: string): Promise<string | undefined>
   gitState(cwd: string): Promise<GitState | undefined>
-  run(argv: string[], opts: { cwd?: string, timeoutMs?: number, env?: Record<string, string> }): Promise<{ code: number, stdout: string, stderr: string, timedOut: boolean }>
-  readText(path: string): string | undefined
   listDir(path: string): string[]
   isFile(path: string): boolean
   memoryStatus(slug: string | undefined): MemoryStatus | undefined
@@ -110,19 +59,9 @@ export interface ExtensionDeps {
   usage(): UsageCacheEntry | undefined
   updates(): number | undefined
   refreshUsage(): void
-  prune(keep: ReadonlySet<string>, nowMs: number): string[]
-  recordAskGrant(sid: string, kind: ConsentKind, answer: 'once' | 'session', nowMs: number): void
-  prepareWorkspace(cwd: string, cfg: BuracleConfig, nowMs: number): Promise<WorkspaceInfo>
-  workspaceInfo(cwd: string, cfg: BuracleConfig, nowMs: number): Promise<WorkspaceInfo>
-  refreshWorkspace(info: WorkspaceInfo, cfg: BuracleConfig, nowMs: number): WorkspaceInfo
-  projectDeps(root: string | undefined): string[] | undefined
-  /** Starts the project's link run (H28); the pipeline's own spawner by default. */
-  assetsSpawn?: AssetsSpawner
   columns(): number
-  setEnv(name: string, value: string): void
-  home(): string
   reviewerFence?(): string | undefined
-  timings: { toolCallMs: number, toolResultMs: number, statusIntervalMs: number, maintDelayMs: number }
+  timings: HostDeps['timings'] & { statusIntervalMs: number }
 }
 
 function readText(path: string): string | undefined {
@@ -203,18 +142,11 @@ async function gitState(cwd: string): Promise<GitState | undefined> {
 }
 
 export function defaultDeps(): ExtensionDeps {
-  const cli = () => buracleCli(paths.shimPath(), paths.repoRoot())
+  const base = hostDeps('omp')
   return {
-    now: () => Date.now(),
-    config: liveConfig,
-    health: mcpHealth,
-    policy: corePolicy,
-    evalGuard: coreEvalGuard(),
-    realpath: realWriteTarget,
+    ...base,
     plan: corePlan,
     compact: coreCompact,
-    checkers: coreCheckers,
-    checkFs: nodeCheckFs,
     memSegment,
     status: coreStatus,
     bar: {
@@ -222,30 +154,14 @@ export function defaultDeps(): ExtensionDeps {
       render: coreStatus.renderPlainLines,
       info: nowMs => barInfo('omp', { nowMs }),
     },
-    state: {
-      load: sid => loadState('omp', sid),
-      update: (sid, fn) => updateState('omp', sid, fn),
-      telemetry: (sid, t) => writeTelemetry('omp', sid, t),
-      subjects: sid => reviewSubjects('omp', sid),
-    },
-    ledger: {
-      load: sid => loadLedger('omp', sid),
-      update: (sid, fn) => updateLedger('omp', sid, fn),
-    },
+    state: { ...base.state, telemetry: (sid, t) => writeTelemetry('omp', sid, t) },
     flow: {
       start: (sid, input, now) => recordFlowStart('omp', sid, input, now),
       view: (sid, now, foldAfterSec) => flowViewFor('omp', sid, now, foldAfterSec),
     },
-    memory: createMemoryBridge({ cli }),
+    memory: createMemoryBridge({ cli: hostCli }),
     plans: ompPlanStore(),
-    captureEnabled: () => process.env['BURACLE_NO_CAPTURE'] !== '1',
-    buracleRepo: (cwd, configured) => buracleRepoFor(cwd, [configured !== undefined ? paths.expandHome(configured) : undefined]),
-    cli,
-    projectSlug,
-    branch: currentBranch,
     gitState,
-    run: (argv, opts) => run(argv, opts),
-    readText,
     listDir: path => { try { return readdirSync(path) } catch { return [] } },
     isFile: path => { try { return statSync(path).isFile() } catch { return false } },
     memoryStatus: readMemoryStatus,
@@ -253,20 +169,12 @@ export function defaultDeps(): ExtensionDeps {
     usage: () => readUsageCache()?.harnesses.omp,
     updates: () => pendingUpdates(),
     refreshUsage: () => {
-      const argv = cli()
+      const argv = hostCli()
       if (argv !== undefined) spawnUsageRefresh('omp', { argv: [...argv, 'usage', 'refresh', '--harness', 'omp', '--background'] })
     },
-    prune: (keep, nowMs) => sessionMaint('omp', nowMs, { keep }).removed,
-    recordAskGrant: (sid, kind, answer, nowMs) => { recordDialogGrant('omp', sid, kind, answer, nowMs) },
-    prepareWorkspace: (cwd, cfg, nowMs) => prepareWorkspace(cwd, indexSettings(cfg), nowMs),
-    workspaceInfo: (cwd, cfg, nowMs) => workspaceInfo(cwd, indexSettings(cfg), nowMs),
-    refreshWorkspace: (info, cfg, nowMs) => refreshWorkspaceInfo(info, indexSettings(cfg), nowMs),
-    projectDeps: createDepsReader(),
     columns: () => (typeof process.stdout.columns === 'number' && process.stdout.columns > 0 ? process.stdout.columns : 120),
-    setEnv: (name, value) => { process.env[name] = value },
-    home: () => paths.home(),
     reviewerFence: reviewerFenceFromEnv,
-    timings: { toolCallMs: TOOL_CALL_DEADLINE_MS, toolResultMs: TOOL_RESULT_DEADLINE_MS, statusIntervalMs: STATUS_INTERVAL_MS, maintDelayMs: 15_000 },
+    timings: { ...base.timings, statusIntervalMs: STATUS_INTERVAL_MS },
   }
 }
 

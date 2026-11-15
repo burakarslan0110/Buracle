@@ -1,22 +1,15 @@
-import type { BuracleConfig } from '../../../core/config'
 import type { HookId, ToolCall, ToolKind } from '../../../core/events'
 import { classifyTool } from '../../../core/events'
 import { flowDef } from '../../../core/flow/catalog'
 import { FOLD_AFTER_SEC } from '../../../core/flow/state'
 import * as corePolicy from '../../../core/policy/index'
-import type { PromptRoute } from '../../../core/policy/skill-router'
-import { PROMPT_CONTEXT_MAX_CHARS, routeText } from '../../../core/policy/skill-router'
-import { offServersFor, withOffServers } from '../../../core/policy/mcp-off'
 import { ompOffServers } from '../../shared/native-off'
-import type { McpHealth } from '../../../core/policy/routing'
 import { mcpUnavailable } from '../../../core/policy/routing'
-import { ledgerPrompt, skillOf } from '../../../core/policy/usage'
-import type { ContextBand } from '../../../core/status/context'
+import { skillOf } from '../../../core/policy/usage'
 import { log } from '../../../engine/log'
 import * as paths from '../../../engine/paths'
-import type { AdapterContext } from '../../registry'
 import {
-  bashOptions, denyReason, fitParts, guardFailed, postTool, preTool, prompt as promptEvent, readWorkspace, saveWorkspace, sessionEnd, sessionStart, spool,
+  bashOptions, denyReason, guardFailed, postTool, preTool, prompt as promptEvent,
   workspaceStart, writeGuardContext, type PipelineDeps, type UsagePlan,
 } from '../../shared/pipeline/index'
 import { addedTextOf, OMP_H04_BUDGET_MS, removedTextOf } from './checks'
@@ -25,11 +18,10 @@ import { registerCompaction } from './compaction'
 import { fenceActiveTools, fenceToolCall } from './companion-fence'
 import { judgeWithConsent, type ConsentNeed } from '../../shared/pi-family/consent-ask'
 import { heldConsentNeed } from '../../shared/pi-family/consent-held'
-import type { LiveConfig } from '../../shared/pi-family/config'
 import { CODE_EXECUTION_TOOLS, defaultDeps, emptyGenerated, type ExtensionDeps } from './deps'
 import { editTargets, type EditTargets } from './edits'
 import { FlowWidget, flowWidgetLines } from './flow-widget'
-import { adapterContext, memoryFns, pipelineCore, uiHooks } from '../../shared/pi-family/host'
+import { contextBlock, createInProcessHost, type BaseMemo } from '../../shared/pi-family/inprocess-host'
 import { StatusPane } from './pane'
 import { createTurnReceipts } from './receipt'
 import { workflowOfExpanded, workflowOfInput } from './flow-track'
@@ -40,7 +32,7 @@ import { isModelPrompt, PROMPT_MESSAGE_TYPE } from './prompt'
 import { approvingResult, capturePlans, planFileOf, planSavedNote, type PlanSignal, type SavedPlan } from './plan-capture'
 import { contextCheck, NOTICE_MESSAGE_TYPE } from './session-notes'
 import { reviewAgentOf, reviewProblems, reviewYieldReason, yieldReport } from './review'
-import { availableServers, isDeviceWrite, mergeRoutes, promptRouting, routerData, sessionHealth, type PromptRouting, type RouterData } from './routing'
+import { availableServers, isDeviceWrite, type PromptRouting } from './routing'
 import { resumedSession, telemetryOf } from './session-facts'
 import { createStatusTexts } from './status'
 import { planModeOn, registerStopGuard } from './stop'
@@ -57,43 +49,18 @@ export { STATUS_KEYS, WIDGET_KEY } from './status'
 export { runawayNotice, stopReason } from './stop'
 
 const H = 'omp' as const
-const WORKSPACE_WAIT_MS = 3_000
-const PROJECT_WAIT_MS = 2_000
-const START_WAIT_MS = 1_000
 const FENCE_TOOLS_WAIT_MS = 2_000
-const MAX_QUEUED_PROMPTS = 16
 const WRITE_KINDS: ReadonlySet<ToolKind> = new Set(['edit', 'write', 'patch'])
 
-interface SessionMemo {
-  capture?: boolean
-  /** The session start in flight or done. */
-  starting?: Promise<void>
-  /** Settles once the start has reset the usage ledger (or failed): tool calls and prompts wait for it. */
-  ready?: Promise<void>
-  /** What the session start returned: the block of the system prompt. */
-  startContext?: string[]
+interface SessionMemo extends BaseMemo {
   /** A subagent's block. */
   block?: Promise<string>
-  slug?: Promise<string | undefined>
-  slugValue?: string
-  queued?: QueuedPrompt[]
-  delivered?: { prompt: string, text: string | undefined }
-  inputSeen?: boolean
   lastPrompt?: string
-  ctxWarned?: ContextBand
-  contextWarning?: string
   noticed?: boolean
   band?: string
   flow?: FlowWidget
   reviewBlocked?: boolean
   todos?: string[]
-}
-
-/** A prompt's context from the pipeline, split at its routing note: the notes of a batch are merged into one. */
-interface QueuedPrompt {
-  before: string[]
-  after: string[]
-  route?: PromptRoute
 }
 
 function toolPaths(core: readonly string[], targets: EditTargets | undefined): string[] {
@@ -103,109 +70,18 @@ function toolPaths(core: readonly string[], targets: EditTargets | undefined): s
 export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), overrides: Partial<ExtensionDeps> = {}): (pi: OmpExtensionAPI) => void {
   return function buracle(pi: OmpExtensionAPI): void {
     const deps: ExtensionDeps = { ...defaultDeps(), ...overrides }
-    const memos = new Map<string, SessionMemo>()
-    const reported = new Set<string>()
-    let currentSid: string | undefined
+    const host = createInProcessHost<SessionMemo>({
+      harness: H, data, deps, pi, noticeType: NOTICE_MESSAGE_TYPE,
+      configuredRepo: lc => lc.repoRoot,
+      nativeOff: { label: 'omp disabledServers', read: ompOffServers },
+    })
+    const { memo, guarded, live, liveOrDefaults, slugOf, healthFor, pipe, started, spoolTo } = host
+    const report = (what: string, e: unknown, outcome: 'allowed' | 'blocked' = 'allowed') => host.report(what, e, outcome)
     let statusTimerStarted = false
-    let maintScheduled = false
-    let router: { strictness: string, data: RouterData } | undefined
-
-    const report = (what: string, e: unknown, outcome: 'allowed' | 'blocked' = 'allowed') => {
-      const message = e instanceof Error ? e.message : String(e)
-      const key = `${what}:${message}`
-      if (reported.has(key)) return
-      reported.add(key)
-      log(/^not implemented: /.test(message) ? 'debug' : 'warn', `omp extension: ${what} failed (${outcome})`, { error: message })
-    }
-    const guarded = <T>(what: string, fn: () => T): T | undefined => {
-      try { return fn() } catch (e) { report(what, e); return undefined }
-    }
-    const live = () => deps.config(data.config)
-    const liveOrDefaults = (): LiveConfig => guarded('config', () => live()) ?? { config: data.config, vault: paths.oldVaultRoot(), shim: paths.shimPath(), source: 'defaults' }
-    const memo = (sid: string): SessionMemo => {
-      let m = memos.get(sid)
-      if (m === undefined) { m = {}; memos.set(sid, m) }
-      return m
-    }
-    const captureOn = (sid: string): boolean => {
-      const m = memo(sid)
-      m.capture ??= guarded('BURACLE_NO_CAPTURE', () => deps.captureEnabled()) ?? true
-      return m.capture
-    }
-    const slugOf = (sid: string, cwd: string): Promise<string | undefined> => {
-      const m = memo(sid)
-      m.slug ??= deps.projectSlug(cwd).then(s => { m.slugValue = s; return s }, e => { report('projectSlug', e); return undefined })
-      return m.slug
-    }
     const spoolSid = (ctx: OmpContext): string | undefined => {
       if (isMain(ctx)) return sessionOf(ctx)
       const sid = process.env['BURACLE_SESSION_ID']
       return process.env['BURACLE_HARNESS'] === 'omp' && paths.isValidSessionId(sid) ? sid : undefined
-    }
-    const routerFor = (strictness: BuracleConfig['routing']['strictness']): RouterData => {
-      if (router === undefined || router.strictness !== strictness) router = { strictness, data: routerData(data.skills, data.routing, strictness) }
-      return router.data
-    }
-    const healthFor = (lsid: string | undefined, cwd?: string): McpHealth => {
-      const health = guarded('health', () => deps.health()) ?? {}
-      const merged = guarded('H24 session health', () => sessionHealth(health, deps.ledger, lsid)) ?? health
-      // The servers that are off in Oh My Pi (mcp.off.omp, or its own `disabledServers`, read through an
-      // mtime cache): routing treats them as unavailable for good.
-      const native = guarded('omp disabledServers', () => ompOffServers(cwd ?? process.cwd())) ?? []
-      return withOffServers(merged, [...new Set([...offServersFor(liveOrDefaults().config, 'omp'), ...native])])
-    }
-    const availableNow = (lsid: string | undefined): string[] => availableServers(data.mcp, healthFor(lsid))
-
-    const step = async <T>(name: string, fallback: T, fn: () => T | Promise<T>): Promise<T> => {
-      try { return await fn() } catch (e) { report(name, e); return fallback }
-    }
-    const coreFns = pipelineCore(deps)
-    const memFns = memoryFns(deps.memory)
-    const ui = uiHooks(deps.memory)
-    const actx = (lc: LiveConfig): AdapterContext => adapterContext(data, lc, () => deps.home())
-
-    /** What the shared pipeline needs from omp for one session. */
-    const pipe = (sid: string, lc: LiveConfig = liveOrDefaults()): PipelineDeps => ({
-      harness: H, ctx: actx(lc), core: coreFns, step, ui,
-      // The session's capture decision (an injected one in tests) is what the pipeline reads as BURACLE_NO_CAPTURE.
-      env: { ...process.env, BURACLE_NO_CAPTURE: sid === '' || captureOn(sid) ? undefined : '1' },
-      memory: async name => memFns[name],
-      workspace: {
-        // The first turn does not wait for a slow preparation; its result is saved when it arrives.
-        prepareWorkspace: async (cwd, c, now) => {
-          const work = deps.prepareWorkspace(cwd, c.config, now)
-          let late = false
-          work.then(info => { if (late) guarded('H21 workspace', () => saveWorkspace(c, H, sid, info)) }, () => undefined)
-          const info = await withDeadline(work, WORKSPACE_WAIT_MS, undefined)
-          late = info === undefined
-          return info
-        },
-        workspaceInfo: (cwd, c, now) => withDeadline(deps.workspaceInfo(cwd, c.config, now), WORKSPACE_WAIT_MS, undefined),
-        refreshWorkspace: (info, c, now) => deps.refreshWorkspace(info, c.config, now),
-      },
-      project: async cwd => {
-        const project = await withDeadline(slugOf(sid, cwd), PROJECT_WAIT_MS, undefined)
-        if (project === undefined) throw new Error('the project of this folder is not known')
-        const branch = await withDeadline(deps.branch(cwd).catch(() => undefined), PROJECT_WAIT_MS, undefined)
-        return { project, ...(branch !== undefined ? { branch } : {}) }
-      },
-      ...(deps.realpath !== undefined ? { realpath: deps.realpath } : {}),
-      buracleRepo: async cwd => deps.buracleRepo(cwd, lc.repoRoot),
-      ...(deps.assetsSpawn !== undefined ? { assetsSpawn: deps.assetsSpawn } : {}),
-    })
-
-    /**
-     * The session start resets the usage ledger, so an event that counts in it waits for that step, briefly: a
-     * start that hangs must not hold a guard back.
-     */
-    const started = (sid: string | undefined): Promise<void> => {
-      const ready = sid !== undefined ? memo(sid).ready : undefined
-      return ready === undefined ? Promise.resolve() : withDeadline(ready, START_WAIT_MS, undefined)
-    }
-
-    /** Append to a session's memory spool (H14), through the pipeline. */
-    const spoolTo = async (sid: string | undefined, entries: SpoolEntry[]): Promise<void> => {
-      if (sid !== undefined) await spool(pipe(sid), sid, entries)
     }
 
     const status = createStatusTexts({
@@ -460,46 +336,7 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       }
     })
 
-    const route = (sid: string, text: string, lc: LiveConfig): PromptRouting => {
-      const strictness = lc.config.routing.strictness
-      const ledger = deps.ledger.load(sid)
-      const o: Parameters<typeof promptRouting>[2] = { loaded: Object.keys(ledger.skills), available: availableNow(sid), strictness }
-      const pd = deps.projectDeps(readWorkspace(actx(lc), H, sid)?.root)
-      if (pd !== undefined) o.deps = pd
-      return promptRouting(text, routerFor(strictness), o)
-    }
-
     const literalSkillAsk = (text: string): string => text.replace(/^\/skill:/, '/buracle:')
-
-    /**
-     * A prompt reaches the model at the next `before_agent_start`, and several can arrive together: their routes are
-     * merged and recorded in the ledger (H24) here, when they are delivered.
-     */
-    const deliver = (sid: string, prompt: string): string | undefined => {
-      const m = memo(sid)
-      const batch = m.queued ?? []
-      if (batch.length === 0) {
-        if (m.delivered?.prompt === prompt) return m.delivered.text
-        m.delivered = undefined
-        return undefined
-      }
-      if (guarded('H10 isGuardContinuation', () => coreFns.isGuardContinuation(prompt)) === true) return undefined
-      m.queued = undefined
-      const now = deps.now()
-      const router = routerFor(liveOrDefaults().config.routing.strictness)
-      const routes = batch.flatMap(p => (p.route !== undefined ? [p.route] : []))
-      let routed: string | undefined
-      if (routes.length > 0) {
-        const merged = mergeRoutes(routes, router.compiled)
-        guarded('H24 ledger turn', () => deps.ledger.update(sid, l => ledgerPrompt(l, merged, now)))
-        routed = guarded('H22 routeText', () => routeText(merged, H, router.policy, { triggers: router.compiled }))
-      }
-      const parts = [...new Set([...batch.flatMap(p => p.before), ...(routed !== undefined ? [routed] : []), ...batch.flatMap(p => p.after)])]
-      const lines = fitParts(parts, PROMPT_CONTEXT_MAX_CHARS)
-      const text = lines.length > 0 ? lines.join('\n\n') : undefined
-      m.delivered = { prompt, text }
-      return text
-    }
 
     const agentIdle = (ctx: OmpContext): boolean =>
       guarded('isIdle', () => ctx.isIdle?.()) === true && guarded('hasPendingMessages', () => ctx.hasPendingMessages?.()) !== true
@@ -524,7 +361,7 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
         ...pipe(sid, lc),
         routePrompt: async () => {
           if (text === '') return undefined
-          routed = route(sid, literalSkill ? literalSkillAsk(text) : text, lc)
+          routed = host.route(sid, literalSkill ? literalSkillAsk(text) : text, lc)
           return { route: routed.route, deferred: true, ...(routed.text !== undefined ? { text: routed.text } : {}) }
         },
         ...(wf !== undefined ? { typedWorkflow: wf.workflow } : {}),
@@ -553,11 +390,7 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
         const start = wf.args !== '' ? { workflow: wf.workflow, title: wf.args, source: 'command' as const } : { workflow: wf.workflow, source: 'command' as const }
         guarded('H25 flow start', () => deps.flow.start(sid, start, now))
       }
-      const found = routed as PromptRouting | undefined
-      const at = found?.text !== undefined ? r.context.indexOf(found.text.trim()) : -1
-      const queued = m.queued ??= []
-      queued.push({ before: at >= 0 ? r.context.slice(0, at) : r.context, after: at >= 0 ? r.context.slice(at + 1) : [], ...(found !== undefined ? { route: found.route } : {}) })
-      if (queued.length > MAX_QUEUED_PROMPTS) queued.splice(0, queued.length - MAX_QUEUED_PROMPTS)
+      host.enqueue(m, r.context, routed as PromptRouting | undefined)
       refreshFlowSafe(ctx)
       return true
     }
@@ -575,12 +408,10 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       return undefined
     })
 
-    const block = (parts: readonly string[]): string => (parts.length > 0 ? ['<buracle-context>', ...parts, '</buracle-context>'].join('\n\n') : '')
-
     const subagentBlock = async (sid: string, ctx: OmpContext): Promise<string> => {
       const d = pipe(sid)
       const text = await d.step('H21 workspace', '', () => workspaceStart({ sessionId: sid, cwd: ctx.cwd, subagent: true, now: deps.now() }, d))
-      return block(text.trim() !== '' ? [text.trim()] : [])
+      return contextBlock(text.trim() !== '' ? [text.trim()] : [])
     }
 
     /** The capability card (H15) with the servers that are up for this session. */
@@ -590,56 +421,11 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
       return deps.policy.capabilityCard({ policy, mcp: data.mcp.filter(s => !mcpUnavailable(health[s.id])), plugins: data.plugins, harness: H })
     }
 
-    const scheduleMaint = (ctx: OmpContext): void => {
-      if (maintScheduled || typeof ctx.setTimeout !== 'function') return
-      maintScheduled = true
-      ctx.setTimeout(() => {
-        const keep = new Set<string>([...memos.keys(), ...(currentSid !== undefined ? [currentSid] : [])])
-        const removed = guarded('H16 session maintenance', () => deps.prune(keep, deps.now())) ?? []
-        if (removed.length > 0) log('info', 'omp: pruned idle session state', { count: removed.length })
-      }, deps.timings.maintDelayMs)
-    }
-
-    const endSession = async (sid: string): Promise<void> => {
-      await sessionEnd({ harness: H, sessionId: sid, now: deps.now() }, pipe(sid))
-    }
-
-    /**
-     * The pipeline's sessionStart for a main session, after the end of the one it replaces. Its context is the block
-     * `before_agent_start` adds to the system prompt; the release notice goes out as omp's own message and toast, the
-     * profile warning as a toast.
-     */
-    const openSession = (sid: string, ctx: OmpContext, source: string, previous?: string): Promise<void> => {
-      const m = memo(sid)
-      let ready!: () => void
-      m.ready = new Promise<void>(res => { ready = res })
-      m.starting = (async () => {
-        if (previous !== undefined) await endSession(previous)
-        const d = pipe(sid)
-        const then = <A extends unknown[]>(fn: (...a: A) => Promise<void>) => (...a: A): Promise<void> => { ready(); return fn(...a) }
-        const r = await sessionStart({ harness: H, sessionId: sid, cwd: ctx.cwd, source, now: deps.now() }, {
-          ...d,
-          // The usage ledger is reset before the memory UI hears of the session: from there on a tool call may be counted.
-          ui: { ...d.ui, started: then(d.ui.started), seen: then(d.ui.seen) },
-          capabilityCard: () => card(ctx),
-          // The extension is a built copy, so the version that runs is the one baked into it.
-          version: () => data.buracleVersion,
-          sessionMaint: () => { scheduleMaint(ctx) },
-        })
-        const notice = r.notice
-        m.startContext = r.context.filter(part => part !== notice?.model)
-        // The profile warning (H17) is a toast for the user; it never enters the model's context.
-        const warning = r.profile
-        if (warning !== undefined) {
-          log('warn', 'omp: H17 profile guard', { sid, warning })
-          if (hasTui(ctx)) guarded('H17 notify', () => ctx.ui.notify(warning, 'warning'))
-        }
-        if (notice === undefined) return
-        guarded('H17 notice', () => pi.sendMessage({ customType: NOTICE_MESSAGE_TYPE, content: notice.model, display: false }, { deliverAs: 'nextTurn' }))
-        if (hasTui(ctx)) guarded('H17 notice notify', () => ctx.ui.notify(notice.user, 'info'))
-      })().catch((e: unknown) => { report('session start', e) }).finally(ready)
-      return m.ready
-    }
+    const openSession = (sid: string, ctx: OmpContext, source: string, previous?: string): Promise<void> => host.openSession(sid, ctx, source, {
+      ...(previous !== undefined ? { previous } : {}),
+      card: () => card(ctx),
+      scheduleMaint: () => { if (typeof ctx.setTimeout === 'function') host.scheduleMaint((fn, ms) => { ctx.setTimeout?.(fn, ms) }) },
+    })
 
     pi.on('before_agent_start', async (event: OmpBeforeAgentStartEvent, ctx: OmpContext): Promise<OmpBeforeAgentStartResult | undefined> => {
       await withDeadline(fenceActiveTools(pi, deps.reviewerFence?.()).catch(e => { report('second-opinion tools', e); return [] }), FENCE_TOOLS_WAIT_MS, [])
@@ -661,11 +447,11 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
         if (m.inputSeen !== true && ctx.mode !== 'tui' && ctx.mode !== 'rpc' && prompt !== m.lastPrompt && corePolicy.isUserText(prompt)
           && await onPrompt(sid, prompt, ctx, true).catch((e: unknown) => { report('prompt', e); return false })) m.lastPrompt = prompt
         m.inputSeen = false
-        const routed = guarded('H22 delivery', () => deliver(sid, prompt))
+        const routed = guarded('H22 delivery', () => host.deliver(sid, prompt))
         const saved = await savedPlans(ctx, { prompt })
         const message = [routed, saved].filter((t): t is string => t !== undefined).join('\n\n')
         await m.starting
-        const text = block(m.startContext ?? [])
+        const text = contextBlock(m.startContext ?? [])
         const result: OmpBeforeAgentStartResult = {}
         if (text !== '' && !base.includes(text)) result.systemPrompt = [...base, text]
         if (message !== '') result.message = { customType: PROMPT_MESSAGE_TYPE, content: message, display: false }
@@ -718,10 +504,7 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
     const startSession = (ctx: OmpContext, ev: string, event: unknown): Promise<void> | undefined => {
       const sid = sessionOf(ctx)
       if (sid === undefined) return undefined
-      const previous = currentSid !== undefined && currentSid !== sid ? currentSid : undefined
-      currentSid = sid
-      deps.setEnv('BURACLE_SESSION_ID', sid)
-      deps.setEnv('BURACLE_HARNESS', H)
+      const previous = host.enter(sid)
       const resumed = guarded('resumed session', () => resumedSession(ev, event, ctx, f => deps.isFile(f))) === true
       if (resumed) guarded('resume hint', () => receipts.resumed(sid, ctx, live().config))
       const m = memo(sid)
@@ -751,8 +534,8 @@ export function createBuracleExtension(data: OmpGenerated = emptyGenerated(), ov
     pi.on('session_shutdown', async (_event: unknown, ctx: OmpContext): Promise<undefined> => {
       try {
         if (!isMain(ctx)) return undefined
-        const sid = sessionOf(ctx) ?? currentSid
-        if (sid !== undefined) await endSession(sid)
+        const sid = sessionOf(ctx) ?? host.current()
+        if (sid !== undefined) await host.endSession(sid)
       } catch (e) {
         report('session_shutdown', e)
       }
