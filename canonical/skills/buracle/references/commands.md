@@ -6,7 +6,7 @@ One section per command: what it is for and how it is called. `buracle <command>
 
 ## build
 
-Generate harness/* from canonical/ and src/core (--check reports drift only)
+Generate harness/* from canonical/ and src/core (--check: determinism and drift, writes nothing)
 
 ```text
 buracle build [--check] [--harness <h>[,<h>…]] [--json]
