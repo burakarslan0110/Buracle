@@ -15,9 +15,10 @@ status   the state of the project's code indexes (ready, building, failed, not b
          Buracle last built or refreshed them, and the last error
 ensure   build what is missing (codegraph init), refresh what exists (codegraph sync, which a
          running codegraph server already does by itself; references an interrupted run left
-         unresolved are resolved) and warm semble's caches (code, and all content). A session
-         start runs it in the background with --if-due: only indexes older than
-         10 minutes, or failed long enough ago (the wait grows after each failure)
+         unresolved are resolved) and warm semble's caches (code, and all content). A new plan
+         worktree runs it in the background with --if-due (a session start runs nothing):
+         only indexes older than 10 minutes, or failed long enough ago (the wait grows after
+         each failure)
 rebuild  rebuild the codegraph index from scratch (codegraph index) and warm semble again.
          It stops a running codegraph server of the project, so the sessions using it lose
          codegraph until they reconnect: refused while one runs, unless --force

@@ -8,8 +8,7 @@ export const summary = 'Lint rules (size budget, references, routing list)'
 export const usage = `Usage: buracle rules lint [<rules-dir>] [--strict] [--json]
 
 Checks canonical/rules (or <rules-dir>):
-  always/*.md  no frontmatter; at most 200 lines each; at most 500 lines, 7,500 words and
-               8,000 bytes together
+  always/*.md  no frontmatter; at most 200 lines each; at most 8,000 bytes together
   paths/*.md   frontmatter paths: ["<glob>", …] only, with valid globs
   all rules    no Buracle placeholders or harness blocks (rules are not rendered), documented
                'buracle' commands only, no relative links (rules are installed elsewhere)

@@ -71,9 +71,10 @@ at its newest release (update.minReleaseAgeDays, 0 by default, can wait days) in
 and swapped in. Then composes:
   - the core plan: ~/.buracle/bin/buracle shim, ~/.local/bin/buracle link, repo: in
     config.yaml, and the path rules Codex and OpenCode read (~/.buracle/rules/paths/<id>.md)
-  - the skills plan: harness/agents-skills/<id> linked into the skills folder of each enabled
-    and installed Codex ($CODEX_HOME/skills), OpenCode (~/.config/opencode/skills) and
-    Oh My Pi (~/.omp/agent/skills); nothing goes to the shared ~/.agents/skills
+  - the skills plan: one copy of every skill (harness/agents-skills/<id>) in ~/.agents/skills,
+    which Codex, OpenCode and Oh My Pi read; a harness that does not read that folder gets one
+    link per skill to the copy, in the skills folder its profile names. Claude Code keeps the
+    skills of its own plugin
   - each enabled and detected harness adapter's install plan
 then applies the core and shared plans as one transaction and each harness as its
 own: backup -> atomic writes -> journal -> commands -> verify -> ledger -> commit,
