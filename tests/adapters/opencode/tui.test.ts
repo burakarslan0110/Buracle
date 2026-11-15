@@ -4,18 +4,14 @@ import { join } from 'node:path'
 import { bandLines, BandFeeder, estimatedWidth } from '../../../src/adapters/opencode/runtime/band'
 import { workflowCommandDescription, workflowPromptText } from '../../../src/adapters/opencode/runtime/commands'
 import { projectDeps } from '../../../src/adapters/opencode/runtime/deps'
-import { applyEffort, effortLevel } from '../../../src/adapters/opencode/runtime/effort'
-import { reviewProblems, subagentReport } from '../../../src/adapters/opencode/runtime/review'
+import { noteReviewMessages, reviewProblems, subagentReport } from '../../../src/adapters/opencode/runtime/review'
 import { commandOfPrompt, COMMAND_ARGS, COMMAND_MARK, routeUserPrompt, withinBudget } from '../../../src/adapters/opencode/runtime/routing'
 import type { CliResult, UtilityHost } from '../../../src/adapters/opencode/runtime/tui-commands'
 import { aside, brain, ping, remember, status, statusLines, utilityCommands, utilityNames } from '../../../src/adapters/opencode/runtime/tui-commands'
 import type { BandView } from '../../../src/core/flow/band'
-import { workJoin, workPublish } from '../../../src/workflow/board'
 import { flowPath } from '../../../src/workflow/flow'
-import type { ResolvedSession } from '../../../src/workflow/session-store'
-import { withEnv, withSandbox } from '../../helpers/sandbox'
-import { ctxAt, makeRepo, planDoc, write } from '../../workflow/fixture'
-import { fakeModelEditor, testBaked } from './helpers'
+import { withSandbox } from '../../helpers/sandbox'
+import { testBaked } from './helpers'
 
 function writeFlowRecord(sid: string, stack: unknown[]): void {
   mkdirSync(join(flowPath('opencode', sid), '..'), { recursive: true })
@@ -48,22 +44,6 @@ describe('the workflow band (band.ts)', () => {
     now += 9_000
     expect(feeder.view(sid, 8).visible).toBe(false)
   }))
-
-  test('the board counts of the lead refresh when a worker changes the board file, while the flow, the state and the plan stay the same', () => withSandbox(({ root }) => withEnv({ BURACLE_NO_MEMORY: '1', BURACLE_LOCK_TIMEOUT_MS: '2000' }, async () => {
-    const now = Date.UTC(2026, 10, 7, 12, 0, 0)
-    const repo = await makeRepo(root)
-    const plan = join(repo, 'docs', 'plan-build', '2026-11-07-rate-limit.md')
-    write(plan, planDoc({ n: 2, status: 'IN_PROGRESS', approved: true }))
-    const lead: ResolvedSession = { harness: 'opencode', sessionId: 'ses_band02', source: '--session' }
-    const pub = await workPublish({ planPath: plan }, ctxAt(repo, now), lead)
-    expect(pub.code).toBe(0)
-    writeFlowRecord(lead.sessionId, [{ workflow: 'plan-build', title: 'rate limit', source: 'command', startedAt: now - 90_000, phase: { id: 'implement', since: now - 30_000 } }])
-    const feeder = new BandFeeder(() => now)
-    expect(feeder.view(lead.sessionId, 8).note).toBe('board: 0 claimed · 0/2 merged')
-    const worker: ResolvedSession = { harness: 'codex', sessionId: 'worker-codex', source: '--session' }
-    expect((await workJoin('rate-limit', {}, ctxAt(repo, now), worker)).code).toBe(0)
-    expect(feeder.view(lead.sessionId, 8).note).toBe('board: 1 claimed · 0/2 merged')
-  })))
 
   test('no session, an invalid id or no record: nothing to draw', () => withSandbox(async () => {
     const feeder = new BandFeeder()
@@ -141,7 +121,7 @@ describe('the utility commands (tui-commands.ts): no model turn, output as a toa
     const unknown = host({ band: () => running, about: () => ({ workflows: [] }) })
     await status(unknown, '')
     expect(unknown.alerts[0]?.message.split('\n')[0]).toBe('Buracle on OpenCode')
-    expect(h.alerts[0]?.message).toContain('default effort: xhigh (effort.opencode auto)')
+    expect(h.alerts[0]?.message).not.toContain('effort')
     expect(h.alerts[0]?.message).toContain('workflows: /goal-build /plan-build')
     await status(h, 'flow')
     expect(h.alerts[1]).toMatchObject({ title: 'Buracle workflow' })
@@ -214,14 +194,12 @@ describe('pure helpers of the server plugin', () => {
     expect(workflowCommandDescription({ id: 'x', description: 'First sentence here. Second.' })).toBe('First sentence here.')
   })
 
-  test('routing.skills off: no skill loads or candidates; a history question raises no memory line; a workflow command still loads its own skill', () => {
+  test('a history question raises no memory line; a workflow command loads its own skill', () => {
     const baked = testBaked()
-    const cfg = { routing: { ...baked.defaults.routing, skills: 'off' as const } }
+    const cfg = { routing: baked.defaults.routing }
     const base = { attached: [], loaded: [], available: ['buracle-memory'], known: new Set(['research', 'plan-build']) }
     const r = routeUserPrompt({ ...base, text: '$research what did we decide last time?' }, baked, cfg)
-    expect(r.attach).toEqual([])
     expect(r.text ?? '').not.toContain('Earlier work')
-    expect(r.text ?? '').not.toContain('research')
     const c = routeUserPrompt({ ...base, text: 'add rate limiting', command: 'plan-build' }, baked, cfg)
     expect(c.attach).toEqual(['plan-build'])
     expect(c.workflows).toEqual(['plan-build'])
@@ -249,25 +227,41 @@ describe('pure helpers of the server plugin', () => {
     expect(withinBudget(['a'.repeat(30), 'b'], 20)).toEqual(['a'.repeat(30)])
   })
 
-  test('effort.opencode: auto is xhigh, keep and invalid values write nothing; the overlay of that variant becomes the default', () => {
-    const cfg = (opencode: string) => ({ effort: { claude: 'auto', codex: 'auto', opencode, omp: 'auto' } })
-    expect(effortLevel(cfg('auto'))).toBe('xhigh')
-    expect(effortLevel(cfg('max'))).toBe('max')
-    expect(effortLevel(cfg('keep'))).toBeUndefined()
-    expect(effortLevel(cfg('ultra'))).toBeUndefined()
-    const editor = fakeModelEditor([
-      { id: 'a', providerID: 'p', settings: { effort: 'low', other: 1 }, headers: { x: '1' }, variants: [{ id: 'max', settings: { effort: 'max' }, headers: { y: '2' } }] },
-      { id: 'b', providerID: 'p' },
-    ])
-    expect(applyEffort(editor, 'max')).toEqual(['p/a'])
-    expect(editor.models[0]).toMatchObject({ settings: { effort: 'max', other: 1 }, headers: { x: '1', y: '2' } })
-  })
-
   test('H19 reads the reviewer\'s report from the result (output first, the <subagent> text as a fallback)', () => {
     expect(subagentReport({ agent: 'build' }, { output: { output: 'x' } })).toBeUndefined()
     expect(subagentReport({ agent: 'changes-review' }, { output: { status: 'running', output: 'x' } })).toBeUndefined()
     expect(subagentReport({ agent: 'changes-review' }, { content: [{ type: 'text', text: '<subagent sessionID="ses_9" state="completed">\nnot json\n</subagent>' }] }))
       .toEqual({ agent: 'changes-review', sessionID: 'ses_9', text: 'not json' })
+    expect(subagentReport({ agent: 'changes-review' }, { content: '<subagent sessionID="ses_9" state="completed" description="review "the" plan > now">\nnot json\n</subagent>' }))
+      .toEqual({ agent: 'changes-review', sessionID: 'ses_9', text: 'not json' })
+    expect(subagentReport({ agent: 'changes-review' }, { content: '<subagent sessionID="ses_9" state="error" description="review">\nnot json\n</subagent>' })).toBeUndefined()
     expect(reviewProblems({ agent: 'changes-review', text: 'not json' })).toEqual(['the final message is not valid JSON'])
+  })
+
+  test('H19 on OpenCode 2.3.0: the report is a <subagent> user message; an invalid one gets the note, the same on every call', () => {
+    const report = (agent: string, state: string, body: string, child = 'ses_9') => ({
+      id: `msg_${child}_${body.length}`, role: 'user', metadata: { source: 'subagent', childID: child, agent, state },
+      content: [{ type: 'text', text: `<subagent sessionID="${child}" state="${state}" description="review the plan">\n${body}\n</subagent>` }],
+    })
+    const build = () => [
+      { role: 'user', content: [{ type: 'text', text: '<subagent sessionID="ses_9" state="completed" description="x">\nnot json\n</subagent>' }] },
+      report('explore', 'completed', 'not json'),
+      report('changes-review', 'error', 'not json'),
+      report('changes-review', 'completed', 'not json'),
+      report('changes-review', 'completed', 'still not json'),
+      report('plan-build-review', 'completed', 'no', 'ses_10'),
+    ]
+    const messages = build()
+    expect(noteReviewMessages(messages)).toEqual(['changes-review', 'changes-review', 'plan-build-review'])
+    const notes = messages.map(m => m.content.length === 2 ? (m.content[1] as { text: string }).text : undefined)
+    expect(notes.slice(0, 3)).toEqual([undefined, undefined, undefined])
+    expect(notes[3]).toContain('Buracle H19: the changes-review report is not valid review JSON')
+    expect(notes[3]).toContain('Continue the reviewer once with the subagent tool (agent changes-review, sessionID ses_9)')
+    expect(notes[4]).toContain('It failed twice')
+    expect(notes[5]).toContain('sessionID ses_10')
+    const again = build()
+    noteReviewMessages(again)
+    expect(again).toEqual(messages)
+    expect(noteReviewMessages('nothing')).toEqual([])
   })
 })

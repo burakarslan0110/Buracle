@@ -3,9 +3,6 @@ import type { CheckerFacts } from './checker-facts'
 
 export type { CheckerFacts, DirScan } from './checker-facts'
 export { CHECKER_PROBES, CHECKER_SCAN_MAX_DIRS, checkerDirs, checkerFacts } from './checker-facts'
-export type { TddEdit, TestCandidates } from './tdd'
-export { TEST_DIR_NAMES, dotnetLogicFree, importsModule, isDotnetTestProjectName, isTestFileName, tddHint, trivialEdit } from './tdd'
-export { CHARSET_MAX_FINDINGS, charsetFindings } from './charset'
 
 export interface CheckerPlan { argv: string[]; cwd: string; timeoutMs: number; parser: 'ruff'|'eslint'|'tsc'|'go-vet'|'golangci'|'shellcheck'|'dotnet-format'|'generic'; minMs?: number; env?: Record<string, string> }
 
@@ -26,33 +23,35 @@ function relativeIn(path: string, dir: string): string | undefined {
   return path.slice(d.length + 1)
 }
 
+/** Timeout of one checker run. */
+export const CHECKER_TIMEOUT_MS = 20_000
+
 export function checkersFor(path: string, facts: CheckerFacts, cfg: BuracleConfig['checkers']): CheckerPlan[] {
   if (!cfg || cfg.enabled === false || typeof path !== 'string' || path === '') return []
   const langs = new Set(Array.isArray(cfg.languages) ? cfg.languages : [])
-  const timeoutMs = typeof cfg.timeoutMs === 'number' && cfg.timeoutMs > 0 ? cfg.timeoutMs : 20000
   const cwd = facts.cwd || dirname(path)
   const e = ext(path)
   if ((e === 'py' || e === 'pyi') && langs.has('python') && facts.hasRuffConfig) {
-    return [{ argv: [facts.ruffBin ?? 'ruff', 'check', '--output-format=concise', path], cwd, timeoutMs, parser: 'ruff' }]
+    return [{ argv: [facts.ruffBin ?? 'ruff', 'check', '--output-format=concise', path], cwd, timeoutMs: CHECKER_TIMEOUT_MS, parser: 'ruff' }]
   }
   if (((TS_EXT.has(e) && langs.has('typescript')) || (JS_EXT.has(e) && langs.has('javascript'))) && facts.hasEslintConfig && !path.endsWith('.d.ts')) {
-    return [{ argv: [facts.eslintBin ?? 'eslint', '--format', 'json', path], cwd: facts.eslintCwd ?? cwd, timeoutMs, parser: 'eslint' }]
+    return [{ argv: [facts.eslintBin ?? 'eslint', '--format', 'json', path], cwd: facts.eslintCwd ?? cwd, timeoutMs: CHECKER_TIMEOUT_MS, parser: 'eslint' }]
   }
   if (e === 'go' && langs.has('go') && facts.isGoModule) {
     const plans: CheckerPlan[] = [
-      { argv: ['go', 'vet', '.'], cwd: dirname(path), timeoutMs, parser: 'go-vet' },
-      { argv: ['gofmt', '-l', path], cwd, timeoutMs, parser: 'generic' },
+      { argv: ['go', 'vet', '.'], cwd: dirname(path), timeoutMs: CHECKER_TIMEOUT_MS, parser: 'go-vet' },
+      { argv: ['gofmt', '-l', path], cwd, timeoutMs: CHECKER_TIMEOUT_MS, parser: 'generic' },
     ]
-    if (facts.golangci === true) plans.push({ argv: ['golangci-lint', 'run', '.'], cwd: dirname(path), timeoutMs, parser: 'golangci', minMs: SLOW_CHECKER_MIN_MS })
+    if (facts.golangci === true) plans.push({ argv: ['golangci-lint', 'run', '.'], cwd: dirname(path), timeoutMs: CHECKER_TIMEOUT_MS, parser: 'golangci', minMs: SLOW_CHECKER_MIN_MS })
     return plans
   }
   if ((e === 'sh' || e === 'bash') && langs.has('shell')) {
-    return [{ argv: ['shellcheck', '-f', 'gcc', path], cwd, timeoutMs, parser: 'shellcheck' }]
+    return [{ argv: ['shellcheck', '-f', 'gcc', path], cwd, timeoutMs: CHECKER_TIMEOUT_MS, parser: 'shellcheck' }]
   }
   if (e === 'cs' && langs.has('dotnet') && typeof facts.dotnetDir === 'string' && facts.dotnetDir !== '') {
     const rel = relativeIn(path, facts.dotnetDir)
     if (rel === undefined || /(?:^|[\\/])(?:bin|obj)[\\/]/.test(rel)) return []
-    return [{ argv: ['dotnet', 'format', 'whitespace', facts.dotnetDir, '--folder', '--verify-no-changes', '--verbosity', 'q', '--include', rel], cwd: facts.dotnetDir, timeoutMs, parser: 'dotnet-format', minMs: SLOW_CHECKER_MIN_MS, env: { ...DOTNET_FORMAT_ENV } }]
+    return [{ argv: ['dotnet', 'format', 'whitespace', facts.dotnetDir, '--folder', '--verify-no-changes', '--verbosity', 'q', '--include', rel], cwd: facts.dotnetDir, timeoutMs: CHECKER_TIMEOUT_MS, parser: 'dotnet-format', minMs: SLOW_CHECKER_MIN_MS, env: { ...DOTNET_FORMAT_ENV } }]
   }
   return []
 }
@@ -179,11 +178,4 @@ export function missingToolNote(plan: CheckerPlan): string | undefined {
 
 export function skippedNote(plan: CheckerPlan): string {
   return `${checkerTool(plan)} skipped (hook time budget used up)`
-}
-
-export function lengthNote(lineCount: number): string | undefined {
-  if (typeof lineCount !== 'number' || !Number.isFinite(lineCount)) return undefined
-  if (lineCount > 1000) return `This file has ${lineCount} lines (over 1000): split it along existing seams before adding more.`
-  if (lineCount > 800) return `This file has ${lineCount} lines (over 800): prefer splitting it along existing seams over growing it further.`
-  return undefined
 }

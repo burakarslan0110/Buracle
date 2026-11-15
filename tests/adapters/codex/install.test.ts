@@ -3,7 +3,6 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename, join, sep } from 'node:path'
 import type { CanonicalBundle } from '../../../src/core/catalog'
 import { defaultConfig, type BuracleConfig } from '../../../src/core/config'
-import { EFFORT_SCALES } from '../../../src/core/effort'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import { mdBlockGet, valueHash } from '../../../src/engine/merge'
 import * as paths from '../../../src/engine/paths'
@@ -17,7 +16,7 @@ import { codexArtifacts } from '../../../src/adapters/codex/generate'
 import { buracleHooksFile, CODEX_HOOK_EVENTS, findBuracleHandlers, HOOK_COMMAND_PREFIX, HOOK_GROUP_IDENTITY, hookCommand, hookTrustHash, hookTrustKey, LEGACY_HOOK_COMMAND_PREFIX, POST_MASK_HANDLER, POST_MASK_MATCHER, PRE_TOOL_MATCHER } from '../../../src/adapters/codex/hooks-config'
 import { BYPASS_KEYS, bypassUnitBlocked, codexTrustPlan, trustTables } from '../../../src/adapters/codex/trust'
 import { BYPASS_APPROVAL_POLICY } from '../../../src/adapters/codex/config'
-import { CODEX_ENUMS, codexEnumProblem, codexValueProblems, SUBAGENT_EFFORTS, subagentEffort } from '../../../src/adapters/codex/config'
+import { codexEnumProblem, codexValueProblems } from '../../../src/adapters/codex/config'
 import { MIN_VERSIONS } from '../../../src/engine/update/min-versions'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
 
@@ -97,14 +96,15 @@ describe('codex installPlan', () => {
     expect(toml['sandbox_mode']).toBe('danger-full-access')
     expect(toml['mcp_optional_startup_grace_ms']).toBe(0)
     expect(toml['web_search']).toBe('disabled')
-    expect([toml['model_reasoning_effort'], toml['plan_mode_reasoning_effort'], toml['agents']]).toEqual(['xhigh', 'xhigh', { default_subagent_reasoning_effort: 'xhigh', enabled: true }])
+    expect([toml['model_reasoning_effort'], toml['plan_mode_reasoning_effort'], toml['agents']]).toEqual([undefined, undefined, { enabled: true }])
     expect(toml['features']).toEqual({ memories: false })
     expect(toml['compact_prompt']).toStartWith('Compact this conversation into a handoff summary')
     expect(toml['compact_prompt']).toContain('Keep the approaches that were tried and rejected')
-    expect(Object.keys(toml).sort()).toEqual(['agents', 'approval_policy', 'compact_prompt', 'features', 'mcp_optional_startup_grace_ms', 'mcp_servers', 'model_reasoning_effort', 'plan_mode_reasoning_effort', 'sandbox_mode', 'tools', 'tui', 'web_search'])
+    expect(Object.keys(toml).sort()).toEqual(['agents', 'approval_policy', 'compact_prompt', 'features', 'mcp_optional_startup_grace_ms', 'mcp_servers', 'sandbox_mode', 'tools', 'tui', 'web_search'])
     const block = mdBlockGet(read(join(codex, 'AGENTS.md')), 'buracle') as string
     expect(block).toContain('# Core working rules')
-    expect(block).toContain('`~/.buracle/rules/paths/python.md`')
+    expect(block).toContain('python')
+    expect(block).toContain('`~/.buracle/rules/paths`')
     for (const a of canonical.agents) expect(existsSync(join(codex, 'agents', `${a.id}.toml`))).toBe(true)
     expect(read(join(codex, 'rules', 'buracle.rules'))).toContain('prefix_rule(')
     expect(existsSync(join(home, '.buracle', 'rules', 'paths'))).toBe(false)
@@ -133,7 +133,6 @@ describe('codex installPlan', () => {
     expect(toml['approval_policy']).toEqual(BYPASS_APPROVAL_POLICY)
     expect(toml['sandbox_mode']).toBe('danger-full-access')
     expect(text.indexOf('mcp_optional_startup_grace_ms = 0')).toBeLessThan(text.indexOf('[features]'))
-    expect(text.indexOf('model_reasoning_effort = "xhigh"')).toBeLessThan(text.indexOf('[features]'))
     expect(text.match(/^\[tui\]$/gm)).toHaveLength(1)
     expect(await install()).toMatchObject({ txn: '' })
   }))
@@ -342,8 +341,8 @@ describe('codex installPlan', () => {
     const min = MIN_VERSIONS.codex
     installTestHooks.codexVersion = async () => '0.142.0'
     const err = await adapter.installPlan(context()).then(() => undefined, (e: unknown) => e)
-    expect(err).toMatchObject({ exitCode: 2, code: 'HARNESS_TOO_OLD', harness: 'codex', version: '0.142.0', min, update: 'buracle update codex' })
-    expect((err as Error).message).toContain('buracle update codex')
+    expect(err).toMatchObject({ exitCode: 2, code: 'HARNESS_TOO_OLD', harness: 'codex', version: '0.142.0', min, update: 'update Codex with the installer that installed it' })
+    expect((err as Error).message).toContain('Update Codex with the installer that installed it')
     expect(await adapter.installPlan({ ...context(), force: true } as AdapterContext).then(() => 'planned', (e: unknown) => (e as { code?: string }).code)).toBe('HARNESS_TOO_OLD')
     // The oldest supported version (a prerelease of it too, as doctor reads it), and a version that cannot be read,
     // are installed as before.
@@ -367,7 +366,7 @@ describe('codex installPlan', () => {
     const config = read(join(home, '.codex', 'config.toml'))
     installTestHooks.codexVersion = async () => '0.142.0'
     const err = await adapter.installPlan(context()).then(() => undefined, (e: unknown) => e)
-    expect(err).toMatchObject({ code: 'HARNESS_TOO_OLD', version: '0.142.0', written: true, update: 'buracle update codex' })
+    expect(err).toMatchObject({ code: 'HARNESS_TOO_OLD', version: '0.142.0', written: true, update: 'update Codex with the installer that installed it' })
     expect((err as Error).message).toContain('cannot load the config.toml an earlier Buracle install wrote, so it does not start until you update it')
     expect((err as Error).message).not.toContain('left Codex as it is')
     expect(read(join(home, '.codex', 'config.toml'))).toBe(config)
@@ -554,7 +553,7 @@ describe('permissions.bypass on Codex', () => {
   })
 })
 
-describe('config.toml keys for routing, effort and the no-approval mode (phase 2)', () => {
+describe('config.toml keys for routing and the no-approval mode (phase 2)', () => {
   const configOf = (over: (c: BuracleConfig) => void): BuracleConfig => {
     const c = defaultConfig()
     over(c)
@@ -580,27 +579,6 @@ describe('config.toml keys for routing, effort and the no-approval mode (phase 2
     expect(tomlIn(codex)['web_search']).toBe('live')
   }))
 
-  test('effort keys are soft: a level Codex wrote after a model migration (or the user chose) is kept and reported as skipped, never a conflict', () => withSandbox(async ({ home }) => {
-    const codex = join(home, '.codex')
-    expect((await install()).conflicts).toEqual([])
-    const path = join(codex, 'config.toml')
-    writeFileSync(path, read(path).replace('model_reasoning_effort = "xhigh"', 'model_reasoning_effort = "medium"') + '\n[notice.model_migrations]\n"gpt-5.5" = "gpt-6-sol"\n')
-    const r = await install()
-    expect(r.conflicts).toEqual([])
-    expect(r.skipped.map(s => s.reason)).toContain('kept user value (model_reasoning_effort)')
-    expect(tomlIn(codex)['model_reasoning_effort']).toBe('medium')
-    expect(tomlIn(codex)['plan_mode_reasoning_effort']).toBe('xhigh')
-    const other = join(home, 'other-codex')
-    mkdirSync(other, { recursive: true })
-    writeFileSync(join(other, 'config.toml'), 'model_reasoning_effort = "low"\n')
-    await withEnv({ CODEX_HOME: other }, async () => {
-      const r2 = await install()
-      expect(r2.conflicts).toEqual([])
-      expect(r2.skipped.map(s => s.reason)).toContain('kept user value (model_reasoning_effort)')
-    })
-    expect(tomlIn(other)['model_reasoning_effort']).toBe('low')
-  }))
-
   test('compact_prompt is soft: a compaction prompt the user set is kept and reported as skipped', () => withSandbox(async ({ home }) => {
     const codex = join(home, '.codex')
     mkdirSync(codex, { recursive: true })
@@ -611,32 +589,18 @@ describe('config.toml keys for routing, effort and the no-approval mode (phase 2
     expect(tomlIn(codex)['compact_prompt']).toBe('Summarize in three bullets.')
   }))
 
-  test('effort.codex: a level goes to all three keys (the subagent default within what every model has); keep and invalid values write nothing', () => withSandbox(async () => {
-    const effortOf = async (effort: string) => {
-      const ops = (await adapter.installPlan(context({ config: configOf(c => { c.effort.codex = effort }) }))).ops
-      return ops.find(o => o.kind === 'toml-tables' && ((o as { soft?: string[] }).soft ?? []).includes('model_reasoning_effort')) as { keys: Record<string, string>, soft: string[] } | undefined
-    }
-    expect((await effortOf('max'))?.keys).toEqual({ model_reasoning_effort: 'max', plan_mode_reasoning_effort: 'max', 'agents.default_subagent_reasoning_effort': 'xhigh' })
-    expect((await effortOf('medium'))?.keys).toEqual({ model_reasoning_effort: 'medium', plan_mode_reasoning_effort: 'medium', 'agents.default_subagent_reasoning_effort': 'medium' })
-    expect((await effortOf('auto'))?.soft).toEqual(['model_reasoning_effort', 'plan_mode_reasoning_effort', 'agents.default_subagent_reasoning_effort'])
-    expect(await effortOf('keep')).toBeUndefined()
-    expect(await effortOf('ultra')).toBeUndefined()
-    expect([subagentEffort('none'), subagentEffort('minimal')]).toEqual(['low', 'low'])
-    for (const level of EFFORT_SCALES.codex.persistable) expect(SUBAGENT_EFFORTS).toContain(subagentEffort(level))
-  }))
-
-  test('the subagent default goes into an existing [agents] table, and stays valid TOML next to [agents.<role>] tables', () => withSandbox(async ({ home }) => {
+  test('agents.enabled goes into an existing [agents] table, and stays valid TOML next to [agents.<role>] tables', () => withSandbox(async ({ home }) => {
     const codex = join(home, '.codex')
     mkdirSync(codex, { recursive: true })
     writeFileSync(join(codex, 'config.toml'), '[agents]\nmax_threads = 4\n\n[agents.reviewer]\ndescription = "mine"\nconfig_file = "reviewer.toml"\n')
     expect((await install()).conflicts).toEqual([])
     expect(read(join(codex, 'config.toml')).match(/^\[agents\]$/gm)).toHaveLength(1)
-    expect(tomlIn(codex)['agents']).toEqual({ max_threads: 4, default_subagent_reasoning_effort: 'xhigh', enabled: true, reviewer: { description: 'mine', config_file: 'reviewer.toml' } })
+    expect(tomlIn(codex)['agents']).toEqual({ max_threads: 4, enabled: true, reviewer: { description: 'mine', config_file: 'reviewer.toml' } })
     const other = join(home, 'roles-only')
     mkdirSync(other, { recursive: true })
     writeFileSync(join(other, 'config.toml'), '[agents.reviewer]\ndescription = "mine"\n')
     await withEnv({ CODEX_HOME: other }, async () => { expect((await install()).conflicts).toEqual([]) })
-    expect(tomlIn(other)['agents']).toEqual({ default_subagent_reasoning_effort: 'xhigh', enabled: true, reviewer: { description: 'mine' } })
+    expect(tomlIn(other)['agents']).toEqual({ enabled: true, reviewer: { description: 'mine' } })
   }))
 
   test('permissions.enforce off: the no-approval keys stay one unit (a value the user chose for either one means neither is written)', () => withSandbox(async ({ home }) => {
@@ -705,15 +669,14 @@ describe('config.toml keys for routing, effort and the no-approval mode (phase 2
   }))
 
   test('every enum value Buracle writes is one Codex accepts; a bad one is reported before anything is written', () => {
-    expect([...CODEX_ENUMS.reasoning_effort] as string[]).toEqual([...EFFORT_SCALES.codex.levels])
     expect(codexEnumProblem('web_search', 'off')).toContain('Codex would refuse to start')
     expect(codexEnumProblem('omit_tools_from', ['deferred', 'hidden'])).toContain('"hidden"')
     expect(codexEnumProblem('omit_tools_from', [])).toContain('empty list')
     expect(codexEnumProblem('default_tools_approval_mode', 'never')).toBeDefined()
-    expect(codexValueProblems({ mcpTables: {}, rootKeys: { mcp_optional_startup_grace_ms: -1 }, effort: { 'agents.default_subagent_reasoning_effort': 'max' } })).toEqual([
-      expect.stringContaining('mcp_optional_startup_grace_ms'), expect.stringContaining('spawn_agent would fail'),
+    expect(codexValueProblems({ mcpTables: {}, rootKeys: { mcp_optional_startup_grace_ms: -1 } })).toEqual([
+      expect.stringContaining('mcp_optional_startup_grace_ms'),
     ])
     const a = codexArtifacts({ canonical, buracle: '/b', pathRulesDir: '~/r', config: defaultConfig() })
-    expect(codexValueProblems({ mcpTables: a.mcpTables, rootKeys: a.rootKeys, ...(a.effortKeys ? { effort: a.effortKeys } : {}), ...(a.bypassKeys ? { bypass: a.bypassKeys } : {}) })).toEqual([])
+    expect(codexValueProblems({ mcpTables: a.mcpTables, rootKeys: a.rootKeys, ...(a.bypassKeys ? { bypass: a.bypassKeys } : {}) })).toEqual([])
   })
 })

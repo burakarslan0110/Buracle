@@ -40,7 +40,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          # The OpenCode and omp bundles in harness/ are built with this Bun; build --check needs the same one.
+          # The OpenCode and omp bundles of the generated harness/ are built with this Bun.
           bun-version-file: .bun-version
 
       - name: Bun runs natively on ${{ matrix.platform }}
@@ -55,14 +55,17 @@ jobs:
       - name: Type check
         run: bunx tsc --noEmit -p .
 
-      - name: Generated harness/ matches the source
+      # harness/ is not committed: the generators run twice into temporary output roots, and the two trees must be
+      # byte-identical with a manifest that lists exactly the files written. (A checkout has no harness/ to compare.)
+      - name: Generation is deterministic
         run: |
           T=$(mktemp -d)
           HOME="$T" BURACLE_HOME="$T/.buracle" bun src/cli/main.ts build --check
 
       # The literal hook and MCP command lines the generators write for each harness are executed on this
       # operating system: the hook must deny a destructive command, and every buracle-memory entry must answer
-      # initialize and tools/list and leave no process behind. They also run again inside "Tests" below.
+      # initialize and tools/list and leave no process behind. The tests build harness/ into a temporary folder
+      # first (tests/helpers/built-harness.ts). They also run again inside "Tests" below.
       - name: Generated hook and MCP commands run
         run: bun test tests/adapters/hook-wire.test.ts tests/adapters/mcp-wire.test.ts
 
@@ -72,7 +75,7 @@ jobs:
       - name: Install script parses
         run: bash -n scripts/install.sh
 
-  # A clean macOS and Linux runner installs the release tree (this commit without RELEASE_DROPS) the way a
+  # A clean macOS and Linux runner installs the release tree (this commit with a freshly built harness/ and without RELEASE_DROPS) the way a
   # user does (scripts/install.sh, in a throwaway HOME), into the latest release of each harness,
   # then checks the installed buracle:
   # `buracle doctor` on the config, runtime and mcp topics (the mcp topic runs every server's handshake
@@ -103,12 +106,23 @@ jobs:
         with:
           bun-version-file: .bun-version
 
+      # The release tree holds the built harness/ (git-ignored on dev), exactly as the release job builds it.
+      - name: Build harness/ for the release tree
+        run: |
+          bun install --frozen-lockfile
+          T=$(mktemp -d)
+          HOME="$T" BURACLE_HOME="$T/.buracle" bun src/cli/main.ts build >/dev/null
+          test -f harness/.manifest.json
+
       - name: The release tree on a local branch
         run: |
           git switch -q -c release-tree
+          git add -A -f harness
           git rm -r -q --ignore-unmatch -- $RELEASE_DROPS
+          git add -A
           git -c user.name=ci -c user.email=ci@localhost commit -q -m 'release tree'
           test ! -e tests
+          git ls-files --error-unmatch harness/.manifest.json
 
       # Everything after this step runs in a home folder that holds nothing but what the install creates.
       - name: Throwaway HOME
@@ -160,8 +174,8 @@ jobs:
           done
 
   # A push to dev that passes on every platform publishes a release when the released files change.
-  # The release tree is the tested commit at the release's version, rebuilt (harness/ carries the
-  # version), without RELEASE_DROPS. main gets it as one commit per release (the first has no
+  # The release tree is the tested commit at the release's version with harness/ built from it (harness/ is not
+  # committed on dev and carries the version), without RELEASE_DROPS. main gets it as one commit per release (the first has no
   # parent), and v<version> points at that commit with the install script attached. The version
   # counts up by itself: the next patch after the newest v<major.minor>.* tag, or package.json's
   # version when its line has no release yet, so raising major or minor there starts a new line.
@@ -201,6 +215,8 @@ jobs:
             export GIT_INDEX_FILE="$RUNNER_TEMP/release.index"
             rm -f "$GIT_INDEX_FILE"
             git read-tree HEAD
+            # harness/ is git-ignored on dev: add the freshly built tree by force; main holds it.
+            git add -A -f -- harness
             git add -A
             git rm -r -q --cached --ignore-unmatch -- $RELEASE_DROPS
             git write-tree

@@ -220,9 +220,7 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
       "transport": "http"
     }
   ],
-  "plugins": [
-    "lint-lsp@acme-market"
-  ],
+  "plugins": [],
   "skills": [
     {
       "description": "Alpha workflow for the golden test: plan, build and verify one change. Run only when the user explicitly asks for alpha.",
@@ -245,7 +243,7 @@ export const CATALOG: { mcp: CatalogMcp[], skills: CatalogSkill[], plugins: stri
 
 export const META: { buracleVersion: string, contentHash: string } = {
   "buracleVersion": "9.9.9",
-  "contentHash": "77f6a3ac3695bc506c36509de3c781aa21e76623ebe86c8d9e168c54bff65b0e"
+  "contentHash": "273f7296e8dc47fd010293fabbe7088edef481714518165c353fa27e6e59ae18"
 }
 ===== hooks/hooks.json =====
 {
@@ -475,38 +473,45 @@ export function register(): void {}
 ===== skills/alpha/SKILL.md =====
 ---
 name: alpha
-description: "Alpha workflow for the golden test: plan, build and verify one change. Run only when the user explicitly asks for alpha."
-when_to_use: "The user says \"alpha ile yap\" or invokes alpha by name."
+description: "Alpha workflow for the golden test: plan, build and verify one change. Run only when the user explicitly asks for alpha. The user starts it with /alpha (Codex: $alpha). When to use: The user says \"alpha ile yap\" or invokes alpha by name."
 argument-hint: "<task>"
 disable-model-invocation: true
+metadata:
+  short-description: "Plan, build and verify one change"
 ---
 
 # Alpha
 
-Track the phases with `TodoWrite` (or `TaskCreate`/`TaskUpdate`, whichever this session has, if any). Ask with `AskUserQuestion`: 2 to 4 options.
-Launch `buracle:reviewer` with the `Agent` tool, then continue in `/buracle:beta`.
-Inline code keeps one span: `/alpha <task>` and `AskUserQuestion`.
-A literal placeholder stays literal: {{ask_user}} and {{skill:alpha}}.
+Track the phases with {{todo}}. Ask with {{ask_user}}: 2 to 4 options.
+Launch {{agent:reviewer}} with {{spawn_agent}}, then continue in {{skill:beta}}.
+Inline code keeps one span: `{{skill:alpha}} <task>` and `{{ask_user}}`.
+A literal placeholder stays literal: \{{ask_user}} and \{{skill:alpha}}.
 Unknown placeholders are left alone: {{nope}} and {{skill:Bad Id}}.
 
 ```text
-buracle:reviewer
+{{agent:reviewer}}
 plan_file: docs/plans/x.md
 ```
 
+<!-- harness:claude -->
 Claude block line.
-Inline claude marker.
+<!-- /harness -->
+<!-- harness:codex -->
+Codex block line.
+<!-- /harness -->
+<!-- harness:omp -->
+omp block line.
+<!-- /harness -->
+Inline <!-- harness:claude -->claude<!-- /harness --><!-- harness:opencode -->opencode<!-- /harness --> marker.
 
 See [references/ref.md](references/ref.md).
-===== skills/alpha/evals/cases.json =====
-{
-  "target": "skill:alpha",
-  "cases": [{ "id": "trigger", "prompt": "alpha ile yap", "expect": { "skill:alpha": true } }]
-}
 ===== skills/alpha/references/ref.md =====
 # Reference
 
-Phase notes: ask with `AskUserQuestion`, track with `TodoWrite` (or `TaskCreate`/`TaskUpdate`, whichever this session has, if any).
+Phase notes: ask with {{ask_user}}, track with {{todo}}.
+<!-- harness:opencode -->
+OpenCode note.
+<!-- /harness -->
 ===== skills/alpha/scripts/run.sh (mode 755) =====
 #!/bin/sh
 # Placeholders in scripts are not rendered: {{ask_user}}
@@ -517,7 +522,6 @@ name: beta
 description: "Beta helper: true: it answers yes/no questions about the repo # with a hash"
 user-invocable: false
 ---
-
 # Beta
 
 Answer directly.

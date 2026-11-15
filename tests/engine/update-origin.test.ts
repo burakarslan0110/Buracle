@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { detectOrigin, harnessUpdate, resolveBinary } from '../../src/engine/update/origin'
+import { detectOrigin, resolveBinary } from '../../src/engine/update/origin'
 import { withSandbox } from '../helpers/sandbox'
 
 describe('detectOrigin', () => {
@@ -51,32 +51,4 @@ describe('resolveBinary', () => {
     expect(resolveBinary(join(root, 'bin', 'gone'))).toBeUndefined()
     expect(resolveBinary(undefined)).toBeUndefined()
   }))
-})
-
-describe('harnessUpdate', () => {
-  test('each install method gets the command of the installer that installed it', () => {
-    expect(harnessUpdate('omp', { method: 'brew-formula', name: 'omp' }, '18.13.0')).toEqual({ action: 'brew-upgrade', command: ['brew', 'upgrade', 'omp'], source: 'Homebrew formula omp', measure: 'latest' })
-    expect(harnessUpdate('codex', { method: 'brew-cask', name: 'codex' }, '0.165.0')).toEqual({ action: 'brew-upgrade', command: ['brew', 'upgrade', '--cask', 'codex'], source: 'Homebrew cask codex', measure: 'latest' })
-    expect(harnessUpdate('codex', { method: 'npm', name: '@openai/codex', prefix: '/usr/local' }, '0.165.0'))
-      .toEqual({ action: 'npm-install', command: ['npm', 'install', '-g', '--prefix', '/usr/local', '@openai/codex@0.165.0'], source: 'npm @openai/codex', measure: 'latest' })
-    expect(harnessUpdate('claude', { method: 'bun', name: '@anthropic-ai/claude-code' }, '2.1.305'))
-      .toEqual({ action: 'bun-add', command: ['bun', 'add', '-g', '@anthropic-ai/claude-code@2.1.305'], source: 'bun @anthropic-ai/claude-code', measure: 'latest' })
-    expect(harnessUpdate('claude', { method: 'native' }, '2.1.305')).toEqual({ action: 'self-update', command: ['claude', 'update'], source: 'native installer', measure: 'increase' })
-    expect(harnessUpdate('opencode', { method: 'unknown' }, '2.0.31')).toEqual({ action: 'self-update', command: ['opencode', 'upgrade'], source: 'its own updater (opencode upgrade)', measure: 'increase' })
-    expect(harnessUpdate('omp', { method: 'unknown' }, '18.13.0')).toMatchObject({ command: ['omp', 'update'] })
-    expect(harnessUpdate('codex', { method: 'unknown' }, '0.165.0')).toMatchObject({ command: ['codex', 'update'] })
-  })
-
-  test('an npm package that is not the harness\'s own falls back to its own updater', () => {
-    expect(harnessUpdate('codex', { method: 'npm', name: 'evil-codex', prefix: '/usr/local' }, '0.165.0')).toMatchObject({ action: 'self-update', command: ['codex', 'update'] })
-    expect(harnessUpdate('opencode', { method: 'bun', name: 'opencode-ai' }, '2.0.31')).toMatchObject({ action: 'self-update', command: ['opencode', 'upgrade'] })
-  })
-
-  test('a version that is not a plain release never reaches npm or bun', () => {
-    for (const bad of ['--registry=http://x', '../x', '1.2.3 && rm', 'latest', '1.2']) {
-      expect(harnessUpdate('codex', { method: 'npm', name: '@openai/codex', prefix: '/usr/local' }, bad)).toEqual({ error: `refusing version ${JSON.stringify(bad)}: not a release version` })
-      expect(harnessUpdate('claude', { method: 'bun', name: '@anthropic-ai/claude-code' }, bad)).toMatchObject({ error: expect.stringContaining('not a release version') })
-    }
-    expect(harnessUpdate('codex', { method: 'npm', name: '@openai/codex', prefix: '/usr/local' }, '0.166.0-alpha.1')).toMatchObject({ command: ['npm', 'install', '-g', '--prefix', '/usr/local', '@openai/codex@0.166.0-alpha.1'] })
-  })
 })

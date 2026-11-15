@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { liveConfig, mcpHealth, parseHealth, parseRuntimeConfig } from '../../../src/adapters/omp/runtime/config'
+import { liveConfig, mcpHealth, parseHealth, parseRuntimeConfig } from '../../../src/adapters/shared/pi-family/config'
 import { defaultDeps } from '../../../src/adapters/omp/runtime/extension'
 import { buracleCli, capText, createMemoryBridge, readMemoryStatus } from '../../../src/adapters/omp/runtime/memory'
 import { defaultConfig } from '../../../src/core/config'
@@ -85,7 +85,7 @@ describe('omp runtime: memory bridge', () => {
   test('the bundled appendSpool (memory task) writes the session spool', () => withSandbox(async sb => {
     await withEnv({ BURACLE_NO_CAPTURE: undefined }, async () => {
       const bridge = createMemoryBridge({ cli: () => undefined })
-      await bridge.appendSpool(SID, [{ ts: Date.now(), ev: 'tool', tool: 'bash', kind: 'bash', cmd: 'bun test', exit: 0 }])
+      await bridge.appendSpool(SID, [{ ts: Date.now(), ev: 'stop', excerpt: 'Ran the tests.' }])
       const dir = join(sb.buracleHome, 'state', 'memory', 'spool')
       expect(readdirSync(dir).some(n => n.startsWith(`omp-${SID}`))).toBe(true)
     })
@@ -95,9 +95,9 @@ describe('omp runtime: memory bridge', () => {
 describe('omp runtime: live config and MCP health', () => {
   test('parseRuntimeConfig merges the snapshot over the defaults and keeps valid values only', () => withSandbox(async sb => {
     const d = defaultConfig()
-    const live = parseRuntimeConfig(JSON.stringify({ v: 1, config: { ...d, routing: { strictness: 'nudge' }, context: { warnPct: 'x', criticalPct: 95 } }, resolved: { repoRoot: '/r', vault: '/ignored' } }), d)
+    const live = parseRuntimeConfig(JSON.stringify({ v: 1, config: { ...d, routing: { strictness: 'nudge' }, memory: { ui: { autostart: 'x' }, exclude: [] } }, resolved: { repoRoot: '/r', vault: '/ignored' } }), d)
     expect(live.config.routing.strictness).toBe('nudge')
-    expect(live.config.context.warnPct).toBe(85)
+    expect(live.config.memory.ui.autostart).toBe(true)
     expect(live.repoRoot).toBe('/r')
     expect(live.vault).toBe(join(sb.home, 'Documents', 'Buracle'))
     expect(live.shim).toBe(join(sb.buracleHome, 'bin', 'buracle'))

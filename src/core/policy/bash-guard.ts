@@ -1,14 +1,10 @@
-import { isAbsPath, isRootPath, isWindowsPath, nativePath, normalizePath, pathRoot } from '../events'
+import { isAbsPath, isRootPath, normalizePath } from '../events'
 import type { CodeLang } from './code-scan'
 import { scanCode } from './code-scan'
 import { CONSENT_RUN_REASON, consentRunCall, isStartupFile, mentionsRelocation, renderPrintf, selfDisabling, UI_SETTINGS_REASON, uiSettingsCall } from './self-disable'
 import type { Redirect, Script, ShellWord, SimpleCommand, Unwrapped, VarRef } from './shell'
 import { DYN, HOME, SHELL_NAMES, commandName, parseShell, rawFromText, simpleCommands, unwrap } from './shell'
 import type { SelfArea, SelfPaths, WriteGuardContext } from './write-guard'
-import { decodeEncodedCommand, looksLikePowerShell } from './powershell'
-import { msysPath, windowsRawDevice, windowsTarget } from './windows-paths'
-import type { Dialect } from './windows-shell'
-import { translateCmd, translatePowerShell } from './windows-shell'
 import { checkWrite, selfProtectedArea, selfProtectionText } from './write-guard'
 
 const HOME_ABS = '/Users/home'
@@ -25,7 +21,7 @@ const CRITICAL_SECOND_LEVEL = new Set([
 ])
 const HOME_FOLDERS = new Set(['applications', 'desktop', 'documents', 'downloads', 'library', 'movies', 'music', 'pictures', 'public', '.config', '.ssh', '.gnupg', '.aws'])
 const SAFE_DEVICE = /^\/dev\/(?:null|zero|stdin|stdout|stderr|tty[\w.-]*|cu\.[\w.-]+|pts\/\d+|ptmx|random|urandom|fd\/\d+|shm\/.+|tcp\/.+|udp\/.+)$/
-const CREDENTIAL_DIR = /^(?:\/(?:(?:users|home)\/[^/]+|root|var\/root)|[A-Za-z]:\/users\/[^/]+)\/\.(ssh|aws|gnupg)(?:\/|$)/i
+const CREDENTIAL_DIR = /^\/(?:(?:users|home)\/[^/]+|root|var\/root)\/\.(ssh|aws|gnupg)(?:\/|$)/i
 const DOWNLOADERS = new Set(['curl', 'wget', 'fetch', 'http', 'https', 'xh', 'aria2c'])
 const PROTECTED_BRANCH = /^(?:main|master|release.*)$/i
 const OUTPUT_REDIRECTS = new Set(['>', '>>', '>|', '&>', '&>>', '<>', '>&'])
@@ -40,7 +36,7 @@ const GLOB_IN_DIR = /^(.*)\/(?:\.?\*|\?+\*|\*\/|\*\*(?:\/\*)?|\.\?\?\*|\.\[[!^]\
 
 interface Walk {
   lines: string[]; env: Map<string, string>; budget: number; cwd?: string
-  home: string; selfPaths?: SelfPaths; session?: string; windows?: boolean; psVars?: Map<string, string>
+  home: string; selfPaths?: SelfPaths; session?: string
   vault?: string; protect?: string[]; buracleRepo?: string; realpath?: (p: string) => string | undefined
   visit?: (argv: readonly ShellWord[]) => boolean
 }
@@ -80,8 +76,6 @@ function dangerousTarget(w: ShellWord, mode: Mode): string | undefined {
 function dangerousSpelling(w: ShellWord, mode: Mode): string | undefined {
   let t = pathText(w)
   if (t === undefined) return undefined
-  t = msysPath(t)
-  if (isWindowsPath(t)) t = normalizePath(t)
   let glob = false
   if (/[*?\]/]$/.test(w.raw) && !/['"]$/.test(w.raw) && /[*?]/.test(w.raw)) {
     if (GLOB_ALL.test(t)) { glob = true; t = '.' }
@@ -94,7 +88,6 @@ function dangerousSpelling(w: ShellWord, mode: Mode): string | undefined {
   if (p === '') return undefined
   const lower = p.toLowerCase()
   const what = (s: string): string => (glob ? `everything in ${s}` : s)
-  if (isWindowsPath(p)) return windowsTarget(p, glob, what)
   if (lower === '/') return glob ? 'everything under /' : '/ (the whole filesystem)'
   if (lower === HOME_ABS.toLowerCase()) return what('your home directory')
   if (p.startsWith('/')) {
@@ -118,8 +111,7 @@ function dangerousSpelling(w: ShellWord, mode: Mode): string | undefined {
 }
 
 function inDir(w: ShellWord, base: string | undefined): ShellWord | undefined {
-  if (base === undefined || w.text === '' || w.text.startsWith(HOME) || w.text.includes(DYN) || isWindowsPath(w.text)) return undefined
-  if (isWindowsPath(base) && /^[\\/](?![\\/])/.test(w.text)) return { text: `${pathRoot(normalizePath(base)).replace(/\/$/, '')}${w.text}`, raw: w.raw, quoted: w.quoted, dynamic: false }
+  if (base === undefined || w.text === '' || w.text.startsWith(HOME) || w.text.includes(DYN)) return undefined
   if (w.text.startsWith('/')) return undefined
   return { text: `${base.replace(/\/+$/, '')}/${w.text}`, raw: w.raw, quoted: w.quoted, dynamic: false }
 }
@@ -148,9 +140,8 @@ function forbiddenWrite(w: ShellWord): string | undefined {
 function forbiddenSpelling(w: ShellWord): string | undefined {
   const t = pathText(w)
   if (t === undefined) return undefined
-  const p = normalizePath(msysPath(t))
+  const p = normalizePath(t)
   if (p.startsWith('/dev/') && !SAFE_DEVICE.test(p)) return `the raw device ${p}`
-  if (windowsRawDevice(t) || windowsRawDevice(p)) return `the raw device ${nativePath(windowsRawDevice(p) ? p : t.replace(/\//g, '\\'))}`
   const m = CREDENTIAL_DIR.exec(p)
   if (m) return `~/.${(m[1] as string).toLowerCase()}`
   return undefined
@@ -196,7 +187,7 @@ function homeSpellings(p: string, home: string): string[] {
 function selfTarget(w: ShellWord, walk: Walk, ancestor = false): SelfArea | undefined {
   for (const c of [w, inDir(w, walk.cwd)]) {
     const raw = c === undefined ? undefined : selfPathText(c)
-    const t = raw === undefined ? undefined : msysPath(raw)
+    const t = raw
     if (t === undefined || !isAbsPath(t)) continue
     for (const p of homeSpellings(normalizePath(t), walk.home)) {
       const area = selfProtectedArea(p, walk.home, walk.selfPaths, ancestor, walk.session)
@@ -238,7 +229,7 @@ function writePath(w: ShellWord, walk: Walk): string | undefined {
   const t = w.text
   if (t === '' || t.includes(DYN)) return undefined
   const home = walk.home !== '' ? walk.home.replace(/\/+$/, '') : '~'
-  const abs = (x: string): string => (x.startsWith(HOME) ? home + x.slice(HOME.length) : walk.windows === true ? msysPath(x) : x)
+  const abs = (x: string): string => (x.startsWith(HOME) ? home + x.slice(HOME.length) : x)
   if (isAbsPath(t) || t.startsWith(HOME)) return abs(t)
   const base = walk.cwd
   if (base === undefined || base.includes(DYN)) return t
@@ -897,7 +888,7 @@ function copyLikeRule(name: string, argv: ShellWord[], walk: Walk): string | und
     operands.push(w)
   }
   const dest = targetDir ?? (operands.length >= 2 ? operands[operands.length - 1] : undefined)
-  const remote = (t: string): boolean => name === 'rsync' && /^[^/]*:/.test(t) && !isWindowsPath(t)
+  const remote = (t: string): boolean => name === 'rsync' && /^[^/]*:/.test(t)
   if (dest && !remote(dest.text)) {
     const bad = forbiddenIn(dest, base)
     if (bad) return bad.startsWith('~') ? credentialReason(bad) : deviceReason(display(argv), bad)
@@ -1159,11 +1150,7 @@ function interpreterOf(argv: ShellWord[]): Interp | undefined {
       if (t === '-c' || (t.length >= 4 && '-command'.startsWith(t)) || t === '-cwa' || t === '-commandwithargs') return code(k + 1)
       if (t === '-f' || t === '-file') return interp(name, 'powershell', inline, args[k + 1], true)
       if (t === '-e' || t === '-ec' || (t.length >= 3 && '-encodedcommand'.startsWith(t))) {
-        const text = args[k + 1]?.text
-        const decoded = text !== undefined && !text.includes(DYN) ? decodeEncodedCommand(text) : undefined
-        if (decoded === undefined) return { name, lang: 'powershell', stdin: false, inline, unreadable: 'its -EncodedCommand does not decode to readable text' }
-        inline.push({ text: decoded, raw: `'${decoded}'`, quoted: true, dynamic: false })
-        return { name, lang: 'powershell', stdin: false, inline }
+        return { name, lang: 'powershell', stdin: false, inline, unreadable: 'the guard does not decode -EncodedCommand' }
       }
       if (/^-(?:noprofile|nop|noninteractive|noni|nologo|nol|noexit|noe|mta|sta|interactive|i|login|l)$/.test(t)) continue
       if (/^-(?:executionpolicy|ex|ep|windowstyle|w|inputformat|in|if|outputformat|o|of|workingdirectory|wd|configurationname|config|settingsfile|settings|version|v|psconsolefile)$/.test(t)) { k++; continue }
@@ -1263,11 +1250,7 @@ function checkCommand(u: Unwrapped, cmd: SimpleCommand, cx: Cx): string | undefi
   const name = commandName(argv[0])
   if (name === undefined) return undefined
   const args = argv.slice(1)
-  const native = windowsNative(name, args)
-  if (native === 'disk') return `${q(shown)} formats a disk or partition and destroys its data; ask the user to run it themselves if it is really needed.`
-  if (native !== undefined) return checkCommand(unwrap(native), { assigns: [], words: native, redirects: cmd.redirects }, cx)
   switch (name) {
-    case 'cmd': return cmdRule(args, cx)
     case 'rm': return rmRule(argv, cx.walk)
     case 'unlink': case 'rmdir': case 'shred': case 'srm': return unlinkRule(argv, cx.walk)
     case 'chmod': case 'chown': case 'chgrp': case 'chflags': return permRule(name, argv, cx.walk)
@@ -1356,58 +1339,6 @@ function analyze(src: string, depth: number, walk: Walk): string | undefined {
     if (inner) return inner
   }
   return truncated === true ? TOO_DEEP : undefined
-}
-
-function analyzeWindows(src: string, dialect: Dialect, depth: number, walk: Walk, lenient = false, item?: string): string | undefined {
-  if (depth > MAX_DEPTH) return TOO_DEEP
-  const t = dialect === 'cmd' ? translateCmd(src) : translatePowerShell(src, { lenient, vars: walk.psVars ??= new Map(), ...(item !== undefined ? { item } : {}) })
-  if (t.fetch === true) return FETCH_REASON
-  const r = analyzeScript(t.script, depth, walk)
-  if (r) {
-    for (const o of t.origins) {
-      const restated = q(display(o.cmd.words))
-      if (r.includes(restated)) return r.replace(restated, q(clip(o.text.replace(/\s+/g, ' ').trim())))
-    }
-    return r
-  }
-  for (const n of t.nested) {
-    const inner = analyzeWindows(n.src, n.dialect, depth + 1, walk, lenient && n.dialect === 'powershell', n.item)
-    if (inner) return inner
-  }
-  return 'truncated' in t && t.truncated === true ? TOO_DEEP : undefined
-}
-
-function cmdRule(args: ShellWord[], cx: Cx): string | undefined {
-  const at = args.findIndex(a => /^(?:\/{1,2}|-)[ck]$/i.test(a.text))
-  if (at < 0) return undefined
-  const rest = args.slice(at + 1)
-  if (rest.length === 0) return undefined
-  return analyzeWindows(rest.map(w => (w.dynamic ? w.raw : w.text)).join(' '), 'cmd', cx.depth + 1, cx.walk)
-}
-
-const ENVIRONMENT_KEY = /^(?:hkcu|hkey_current_user|hklm|hkey_local_machine)[\\/]?(?:system[\\/]currentcontrolset[\\/]control[\\/]session manager[\\/])?environment[\\/]?$/i
-
-// Windows programs every shell can start: they restate as the POSIX commands with the same effect.
-function windowsNative(name: string, args: ShellWord[]): ShellWord[] | 'disk' | undefined {
-  const flags = args.map(a => a.text.toLowerCase().replace(/^\/\//, '/'))
-  if (flags.includes('/?')) return undefined
-  const word = (t: string): ShellWord => ({ text: t, raw: t, quoted: false, dynamic: false })
-  if (name === 'format' && args.some(a => /^[a-z]:\\?$/i.test(a.text))) return 'disk'
-  if (name === 'diskpart') return 'disk'
-  if (name === 'reg' && flags[0] === 'add' && ENVIRONMENT_KEY.test(args[1]?.text ?? '')) {
-    const v = flags.indexOf('/v')
-    const value = v >= 0 ? args[v + 1] : undefined
-    return value !== undefined ? [word('setx'), value] : undefined
-  }
-  if (name === 'robocopy') {
-    const operands = args.filter(a => !/^\/{1,2}[a-z]/i.test(a.text))
-    const [src, dst] = operands
-    if (src === undefined || dst === undefined) return undefined
-    if (flags.includes('/mir') || flags.includes('/purge')) return [word('rsync'), word('-a'), word('--delete'), src, dst]
-    if (flags.includes('/move') || flags.includes('/mov')) return [word('mv'), src, dst]
-    return [word('cp'), word('-r'), src, dst]
-  }
-  return undefined
 }
 
 function echoedText(src: string): string | undefined {
@@ -1569,7 +1500,7 @@ function stdinChecks(cmd: SimpleCommand, u: Unwrapped, name: string | undefined,
   }
   if (it !== undefined && it.stdin) {
     if (downloader) return `Piping a download straight into ${it.name} runs unreviewed remote code; save it to a file, read it, then run it.`
-    return stdinFeeds(cmd, history, text => (it.lang === 'powershell' ? analyzeWindows(text, 'powershell', cx.depth + 1, cx.walk) : undefined) ?? codeReason(text, it.lang, cx))
+    return stdinFeeds(cmd, history, text => codeReason(text, it.lang, cx))
   }
   return undefined
 }
@@ -1632,8 +1563,6 @@ function analyzeScript(script: Script, depth: number, walk: Walk): string | unde
           if (it.unreadable !== undefined) return `The guard could not check the code this command runs (${it.unreadable}); run it in smaller steps.`
           for (const code of it.inline) {
             if (code.dynamic && expandsDownload(code.raw)) return FETCH_REASON
-            const ps = it.lang === 'powershell' ? analyzeWindows(code.text, 'powershell', depth + 1, walk) : undefined
-            if (ps) return ps
             const r = codeReason(code.text, it.lang, cx)
             if (r) return r
           }
@@ -1671,7 +1600,7 @@ function compile(pattern: string): RegExp | null {
 }
 
 function fallbackScreen(command: string): string {
-  if (/\brm\s+(?:-[A-Za-z]*\s+)*-[A-Za-z]*[rR][A-Za-z]*\s+(?:-[A-Za-z-]+\s+)*(?:["']?(?:\/|~|\$HOME|\$\{HOME\}|[A-Za-z]:[\\/]?)[\\/]?["']?)(?:\s|$)/.test(command)) {
+  if (/\brm\s+(?:-[A-Za-z]*\s+)*-[A-Za-z]*[rR][A-Za-z]*\s+(?:-[A-Za-z-]+\s+)*(?:["']?(?:\/|~|\$HOME|\$\{HOME\})[\\/]?["']?)(?:\s|$)/.test(command)) {
     return 'This command would recursively delete the filesystem root or your home directory; remove only the specific paths you need.'
   }
   if (/\b(?:curl|wget)\b[^|]*\|\s*(?:sudo\s+)?(?:ba|z|da|k)?sh\b/.test(command)) {
@@ -1682,16 +1611,12 @@ function fallbackScreen(command: string): string {
 
 function newWalk(opts?: { home?: unknown, selfPaths?: unknown, cwd?: unknown, vault?: unknown, protect?: unknown, buracleRepo?: unknown, realpath?: unknown }): Walk {
   const walk: Walk = { lines: [], env: new Map([['HOME', HOME], ['PWD', '.']]), budget: MAX_SUBST, home: '' }
-  if (typeof opts?.home === 'string' && isAbsPath(opts.home)) walk.home = isWindowsPath(opts.home) ? normalizePath(opts.home) : opts.home
+  if (typeof opts?.home === 'string' && isAbsPath(opts.home)) walk.home = opts.home
   if (opts?.selfPaths !== null && typeof opts?.selfPaths === 'object') walk.selfPaths = opts.selfPaths as SelfPaths
   const cwd = opts?.cwd
   if (typeof cwd === 'string' && isAbsPath(cwd) && !cwd.includes(DYN) && !cwd.includes(HOME)) {
     walk.cwd = normalizePath(cwd)
     walk.session = walk.cwd
-  }
-  if (isWindowsPath(walk.home) || (walk.cwd !== undefined && isWindowsPath(walk.cwd))) {
-    walk.windows = true
-    walk.env.set('USERPROFILE', HOME)
   }
   if (typeof opts?.vault === 'string' && opts.vault !== '') walk.vault = opts.vault
   if (Array.isArray(opts?.protect)) walk.protect = opts.protect.filter((x): x is string => typeof x === 'string')
@@ -1700,24 +1625,9 @@ function newWalk(opts?: { home?: unknown, selfPaths?: unknown, cwd?: unknown, va
   return walk
 }
 
-// The shell a command line is written for: the POSIX shell unless the harness says PowerShell or
-// cmd (the Claude Code PowerShell tool). A POSIX line that looks like PowerShell is read both ways.
-export type ShellDialect = 'posix' | 'powershell' | 'cmd'
-
 export interface BashGuardOptions {
   extraDeny: string[]; home?: string; selfPaths?: SelfPaths; cwd?: string
   vault?: string; protect?: string[]; buracleRepo?: string; realpath?: (p: string) => string | undefined
-  shell?: ShellDialect
-}
-
-function dialectOf(x: unknown): Dialect | undefined {
-  return x === 'powershell' || x === 'cmd' ? x : undefined
-}
-
-function analyzeCommand(command: string, opts: BashGuardOptions | undefined, walk: Walk, fresh: () => Walk): string | undefined {
-  const dialect = dialectOf(opts?.shell)
-  if (dialect !== undefined) return analyzeWindows(command, dialect, 0, walk)
-  return analyze(command, 0, walk) ?? (looksLikePowerShell(command) ? analyzeWindows(command, 'powershell', 0, fresh(), true) : undefined)
 }
 
 export function checkBash(command: string, cfg: { extraDeny: string[] }): { deny?: string } {
@@ -1726,11 +1636,7 @@ export function checkBash(command: string, cfg: { extraDeny: string[] }): { deny
   const walk = newWalk(opts)
   let reason: string | undefined
   try {
-    reason = analyzeCommand(command, opts, walk, () => {
-      const w = newWalk(opts)
-      w.lines = walk.lines
-      return w
-    })
+    reason = analyze(command, 0, walk)
   } catch {
     reason = fallbackScreen(command)
   }
@@ -1749,17 +1655,14 @@ export function extraDenyReason(patterns: readonly string[] | undefined, texts: 
   return undefined
 }
 
-export function visitShellCommands(command: string, visit: (argv: readonly ShellWord[]) => boolean, opts?: { shell?: ShellDialect }): void {
+export function visitShellCommands(command: string, visit: (argv: readonly ShellWord[]) => boolean): void {
   if (typeof command !== 'string' || command.trim() === '' || typeof visit !== 'function') return
   const visitor = (argv: readonly ShellWord[]): boolean => {
     try { return visit(argv) === true } catch { return false }
   }
-  const walked = (): Walk => {
-    const w = newWalk()
-    w.visit = visitor
-    return w
-  }
+  const walk = newWalk()
+  walk.visit = visitor
   try {
-    analyzeCommand(command, { extraDeny: [], ...(opts?.shell !== undefined ? { shell: opts.shell } : {}) }, walked(), walked)
+    analyze(command, 0, walk)
   } catch {  }
 }

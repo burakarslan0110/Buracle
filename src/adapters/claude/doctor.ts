@@ -2,16 +2,15 @@ import { accessSync, constants, statSync } from 'node:fs'
 import { join, normalize } from 'node:path'
 import { catalogSkills } from '../../core/catalog'
 import type { BuracleConfig } from '../../core/config'
-import { EFFORT_SCALES, resolveEffort } from '../../core/effort'
 import { compileTriggers } from '../../core/policy/skill-router'
-import { describeIndexState, indexHealth } from '../../core/workspace'
+import { describeIndexState, indexHealth, indexSettings, type IndexSettings } from '../../core/workspace'
 import { readJsonSafeSync } from '../../engine/fsx'
 import * as paths from '../../engine/paths'
 import { parseVersion, run as runProc, which, type RunOptions, type RunResult } from '../../engine/proc'
 import { indexSummary, projectRootFor } from '../../workflow/workspace'
 import type { AdapterContext } from '../registry'
 import { parseList, samePath, type PluginEntry } from './check'
-import { EFFORT_MODELS, HARNESS_REL, MIN_CLAUDE, PLUGIN_ID } from './constants'
+import { HARNESS_REL, MIN_CLAUDE, PLUGIN_ID } from './constants'
 import { lastSessionMode } from './hook-route'
 
 export type Finding = { level: 'ok' | 'warn' | 'error', check: string, detail: string }
@@ -163,7 +162,7 @@ export async function guardProbeFinding(folder: string, d: Pick<DoctorDeps, 'run
     const payload = JSON.stringify({ session_id: 'buracle-doctor-probe', hook_event_name: 'PreToolUse', tool_name: tool, tool_input: { command: PROBE_COMMAND }, cwd: folder, permission_mode: 'bypassPermissions' })
     const r = await d.run(argv, {
       stdin: payload, timeoutMs: 30_000, cwd: folder,
-      env: { CLAUDE_PLUGIN_ROOT: folder, BURACLE_NO_CAPTURE: '1', BURACLE_NO_MEMORY: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_NO_NOTIFY: '1' },
+      env: { CLAUDE_PLUGIN_ROOT: folder, BURACLE_NO_CAPTURE: '1', BURACLE_NO_MEMORY: '1', BURACLE_NO_AUTOSTART: '1' },
     })
     let decision: unknown
     try { decision = ((JSON.parse(r.stdout) as Record<string, unknown>)['hookSpecificOutput'] as Record<string, unknown> | undefined)?.['permissionDecision'] } catch { decision = undefined }
@@ -331,53 +330,28 @@ export function permissionFinding(
   return { level: 'ok', check, detail: `bypassPermissions${live}${nudge}` }
 }
 
-export function effortFinding(value: string, settings: Record<string, unknown> | undefined, envLevel: string | undefined): Finding {
-  const check = 'effort'
-  const r = resolveEffort('claude', value)
-  if ('invalid' in r) return { level: 'warn', check, detail: `effort.claude: ${r.invalid}` }
-  if (envLevel !== undefined && envLevel.trim() !== '') {
-    return { level: 'warn', check, detail: `CLAUDE_CODE_EFFORT_LEVEL=${envLevel.trim()} is set in the environment; it overrides /effort and the settings Buracle writes` }
-  }
-  const models = obj(settings?.['modelSettings'])
-  const live: Array<[string, unknown]> = [['effortLevel', settings?.['effortLevel']], ...EFFORT_MODELS.map((m): [string, unknown] => [m, obj(models?.[m])?.['effortLevel']])]
-  const kept = EFFORT_SCALES.claude.persistable
-  const dropped = live.filter(([, v]) => typeof v === 'string' && !kept.includes(v))
-  if (dropped.length > 0) {
-    return { level: 'warn', check, detail: `${dropped.map(([k, v]) => `${k} ${JSON.stringify(v)}`).join(', ')}: Claude Code drops this value from its settings (max lasts one session) and uses its own default; pick one of ${kept.join(', ')}` }
-  }
-  if ('off' in r) {
-    const set = live.filter(([, v]) => typeof v === 'string').map(([k, v]) => `${k} ${String(v)}`)
-    return { level: 'ok', check, detail: `effort.claude is keep: Buracle leaves Claude Code's effort alone${set.length > 0 ? ` (${set.join(', ')})` : ''}` }
-  }
-  const missing = live.filter(([, v]) => v === undefined).map(([k]) => k)
-  if (missing.length > 0) return { level: 'warn', check, detail: `effort ${r.level} is not in ~/.claude/settings.json for ${missing.join(', ')}; run \`buracle install\`` }
-  const own = live.filter(([, v]) => v !== r.level).map(([k, v]) => `${k} ${String(v)}`)
-  return { level: 'ok', check, detail: `${r.level} for every model${own.length > 0 ? `, except the user's own choice (kept): ${own.join(', ')}` : ''}` }
-}
-
-export async function indexFinding(folder: string, cfg: BuracleConfig, cwd: string, now: number): Promise<Finding> {
+export async function indexFinding(folder: string, cfg: IndexSettings, cwd: string, now: number): Promise<Finding> {
   const check = 'index'
   const servers = obj(readJsonObject(join(folder, '.mcp.json'))?.['mcpServers']) ?? {}
-  const tools = (['codegraph', 'semble'] as const).filter(t => cfg.index[t])
+  const tools = (['codegraph', 'semble'] as const).filter(t => cfg[t])
   const missing = tools.filter(t => obj(servers[t]) === undefined)
   if (missing.length > 0) return { level: 'error', check, detail: `${join(folder, '.mcp.json')} declares no ${missing.join(' or ')} server; run \`buracle build\` and \`buracle install claude\`` }
   const deferred = tools.filter(t => obj(servers[t])?.['alwaysLoad'] !== true)
   const upfront = deferred.length > 0 ? `${deferred.join(' and ')} load behind tool search (no alwaysLoad); run \`buracle build\`` : undefined
   if (tools.length === 0) return { level: 'ok', check, detail: 'index.codegraph and index.semble are off' }
-  const root = await projectRootFor(cwd, paths.oldVaultRoot(), cfg.index.exclude).catch(() => undefined)
+  const root = await projectRootFor(cwd, paths.oldVaultRoot(), cfg.exclude).catch(() => undefined)
   if (root === undefined) {
     return { level: upfront !== undefined ? 'warn' : 'ok', check, detail: upfront ?? `${tools.join(' and ')} load upfront; ${cwd} is not a project, so there is no index to check here` }
   }
-  const pi = indexSummary(root, cfg.index, now)
+  const pi = indexSummary(root, cfg, now)
   const states = tools.map(t => `${t} ${describeIndexState(pi[t], now)}`).join(', ')
-  const auto = cfg.index.auto ? '' : ' (index.auto is off: run `buracle index ensure`)'
+  const auto = cfg.auto ? '' : ' (index.auto is off: run `buracle index ensure`)'
   const level = upfront !== undefined || indexHealth(pi) === 'failed' ? 'warn' : 'ok'
   return { level, check, detail: `${root}: ${states}${auto}${upfront !== undefined ? `; ${upfront}` : `; ${tools.join(' and ')} load upfront`}` }
 }
 
 export function routerFinding(ctx: AdapterContext): Finding {
   const check = 'router'
-  if (ctx.config.routing.skills === 'off') return { level: 'ok', check, detail: 'routing.skills is off: the prompt router names no skills (memory and MCP lines stay)' }
   let canonical: AdapterContext['canonical']
   try { canonical = ctx.canonical } catch (e) { return { level: 'warn', check, detail: `canonical/ could not be loaded: ${e instanceof Error ? e.message : String(e)}` } }
   if (canonical.triggers === undefined) return { level: 'warn', check, detail: 'canonical/skill-triggers.yaml was not loaded: the router names no MCP server for a prompt' }
@@ -419,8 +393,7 @@ export async function claudeDoctor(ctx: AdapterContext, deps: Partial<DoctorDeps
   findings.push(commandsFinding(folder, settingsPath, name => d.which(name)))
   const settings = readJsonObject(settingsPath)
   findings.push(permissionFinding(ctx.config.permissions, settings, readJsonObject(ctx.paths.claudeJson()), lastSessionMode(), d.now()))
-  findings.push(effortFinding(ctx.config.effort.claude, settings, d.env('CLAUDE_CODE_EFFORT_LEVEL')))
-  findings.push(await indexFinding(folder, ctx.config, d.cwd(), d.now()))
+  findings.push(await indexFinding(folder, indexSettings(ctx.config), d.cwd(), d.now()))
   findings.push(routerFinding(ctx))
   return findings
 }

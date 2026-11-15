@@ -2,9 +2,9 @@ import { describe, expect, test } from 'bun:test'
 import * as core from '../../src/core/index'
 import type {
   BarModel, BuracleConfig, CatalogMcp, CatalogSkill, CheckerFacts, CheckerPlan, CompiledTriggers, DirScan, Finding, GitState, Harness, HookId, IndexStatus, Intent,
-  McpHealth, MemItem, MemKind, MemLayer, MemRegion, MemoryStatus, Plan, PlanType, PreDecision, PricingTable, PromptRoute, PromptSignals, ReminderContext,
+  McpHealth, MemItem, MemKind, MemLayer, MemRegion, MemoryStatus, Plan, PlanType, PreDecision, PromptRoute, PromptSignals, ReminderContext,
   ReminderResult, RouteOptions, RouteTextOptions, RoutingPolicy, Segment, SessionState, StatusLayout, StopDecision, StopInput, StopWhy,
-  StartTextInput, TddEdit, TestCandidates, ToolCall, UsageLedger, WorkspaceInfo,
+  StartTextInput, ToolCall, UsageLedger, WorkspaceInfo,
 } from '../../src/core/index'
 
 type Equals<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false
@@ -14,7 +14,7 @@ assertType<Equals<typeof core.defaultConfig, () => BuracleConfig>>(true)
 assertType<Equals<typeof core.mergeConfig, (base: BuracleConfig, override: unknown) => BuracleConfig>>(true)
 assertType<Equals<typeof core.validateConfig, (x: unknown) => { ok: true, config: BuracleConfig } | { ok: false, errors: string[] }>>(true)
 assertType<Equals<BuracleConfig['harnesses'], Record<Harness, { enabled: boolean }>>>(true)
-assertType<Equals<BuracleConfig['routing'], { strictness: 'enforce' | 'nudge' | 'off', skills: 'router' | 'off', reminders: boolean }>>(true)
+assertType<Equals<BuracleConfig['routing'], { strictness: 'enforce' | 'nudge' | 'off', reminders: boolean }>>(true)
 
 const classify: (harness: Harness, tool: string, input: Record<string, unknown>, cwd: string) => Pick<ToolCall, 'kind' | 'command' | 'paths' | 'mcp'> = core.classifyTool
 void classify
@@ -22,24 +22,23 @@ const parsePatch: (patch: string, cwd: string) => { paths: string[], added: Reco
 void parsePatch
 assertType<Equals<Parameters<typeof core.parseApplyPatch>, [patch: string, cwd: string, opts?: core.ToolPathOptions]>>(true)
 assertType<Equals<ReturnType<typeof core.parseApplyPatch>, { paths: string[], added: Record<string, string> }>>(true)
-assertType<Equals<HookId, 'H01' | 'H02' | 'H03' | 'H04' | 'H05' | 'H06' | 'H07' | 'H08' | 'H09' | 'H10' | 'H11' | 'H12' | 'H13' | 'H14' | 'H15' | 'H16' | 'H17' | 'H18' | 'H19' | 'H20' | 'H21' | 'H22' | 'H23' | 'H24' | 'H25' | 'H26' | 'H28'>>(true)
+assertType<Equals<HookId, 'H01' | 'H02' | 'H03' | 'H04' | 'H05' | 'H06' | 'H07' | 'H08' | 'H09' | 'H10' | 'H11' | 'H12' | 'H13' | 'H14' | 'H15' | 'H16' | 'H17' | 'H18' | 'H19' | 'H20' | 'H21' | 'H22' | 'H23' | 'H24' | 'H25' | 'H28'>>(true)
 assertType<Equals<PreDecision, { action: 'allow', context?: string[] } | { action: 'deny', reason: string, hook: HookId }>>(true)
 assertType<Equals<StopDecision, { action: 'allow' } | { action: 'block', reason: string, hook: HookId }>>(true)
 
 assertType<Equals<typeof core.checkBash, (command: string, cfg: { extraDeny: string[] }) => { deny?: string }>>(true)
 assertType<Equals<typeof core.checkWrite, (paths: string[], ctx: { cwd: string, home: string, vault: string, protect: string[] }) => { deny?: string }>>(true)
 assertType<Equals<typeof core.routeTool, (call: ToolCall, policy: RoutingPolicy, health: McpHealth) => PreDecision>>(true)
-assertType<Equals<typeof core.bashNudge, (command: string) => string | undefined>>(true)
-assertType<Equals<typeof core.capabilityCard, (input: { policy: RoutingPolicy, mcp: CatalogMcp[], skills: CatalogSkill[], plugins: string[], harness: Harness, lsp?: string[] }) => string>>(true)
+assertType<Equals<typeof core.capabilityCard, (input: { policy: RoutingPolicy, mcp: CatalogMcp[], plugins: string[], harness: Harness, lsp?: string[] }) => string>>(true)
 assertType<Equals<typeof core.checkQuestion, (state: SessionState, call: ToolCall, now: number) => { deny?: string, context?: string }>>(true)
 assertType<Equals<typeof core.questionPause, (state: SessionState, call: ToolCall, now: number) => SessionState>>(true)
 assertType<Equals<typeof core.questionAnswered, (response: unknown, depth?: number) => boolean>>(true)
-assertType<Equals<typeof core.laneStateDenial, (command: string) => string | undefined>>(true)
+assertType<Equals<typeof core.subagentStateDenial, (command: string) => string | undefined>>(true)
 assertType<Equals<typeof core.detectIntent, (text: string) => Intent>>(true)
 assertType<Equals<Intent, 'pause' | 'resume' | 'stop' | 'history' | null>>(true)
 assertType<Equals<typeof core.controlGuidance, (intent: Intent, opts: { hasPlan: boolean, interaction?: core.HeldInteraction }) => string | undefined>>(true)
-assertType<Equals<keyof typeof core.CONTROL_GUIDANCE, 'pausePlan' | 'pause' | 'resume' | 'stop' | 'autoPause' | 'resultApproved'>>(true)
-assertType<Equals<typeof core.promptInteraction, (state: SessionState, control: 'pause' | 'resume' | 'stop' | null, text: string, opts: { autoPause: boolean, now: number }) => core.PromptInteraction>>(true)
+assertType<Equals<keyof typeof core.CONTROL_GUIDANCE, 'pausePlan' | 'pause' | 'resume' | 'stop' | 'resultApproved'>>(true)
+assertType<Equals<typeof core.promptInteraction, (state: SessionState, control: 'pause' | 'resume' | 'stop' | null, text: string, opts: { now: number }) => core.PromptInteraction>>(true)
 assertType<Equals<typeof core.stopGuardVerdict, (state: SessionState, input: StopInput, cfg: BuracleConfig['plan'], planCheck?: core.PlanDoc) => core.StopGuardResult>>(true)
 assertType<Equals<core.PlanDoc, { exists: boolean, findings: Finding[], text?: string }>>(true)
 
@@ -57,8 +56,6 @@ assertType<Equals<typeof core.reminders, (l: UsageLedger, call: ToolCall, ctx: R
 assertType<Equals<ReminderResult, { context?: string; deny?: { reason: string; key: string }; next: UsageLedger }>>(true)
 assertType<Equals<typeof core.turnAudit, (l: UsageLedger) => StopDecision>>(true)
 assertType<Equals<typeof core.ledgerAudited, (l: UsageLedger, decision?: StopDecision) => UsageLedger>>(true)
-assertType<Equals<typeof core.changedExports, (oldText: string, newText: string, file: string) => string[]>>(true)
-assertType<Equals<typeof core.importedPackages, (text: string, file: string) => string[]>>(true)
 assertType<Equals<typeof core.parseManifestDeps, (name: string, text: string) => string[]>>(true)
 const skillOf: (call: ToolCall, harness: Harness) => string | undefined = core.skillOf
 void skillOf
@@ -72,8 +69,6 @@ assertType<Equals<typeof core.planValidateVerdict, (state: SessionState, planExi
 assertType<Equals<typeof core.applyIntent, (state: SessionState, intent: Intent, now: number) => SessionState>>(true)
 assertType<Equals<typeof core.routeAuditAllowed, (why: StopWhy | undefined, strictness: 'enforce' | 'nudge' | 'off') => boolean>>(true)
 assertType<Equals<typeof core.ROUTE_AUDIT_AFTER, readonly StopWhy[]>>(true)
-const autoPauseReason: string = core.AUTO_PAUSE_REASON
-void autoPauseReason
 
 assertType<Equals<typeof core.compactInstructions, (base: string | undefined, state: SessionState) => string>>(true)
 assertType<Equals<typeof core.handoffNote, (input: { state: SessionState, project: string, harness: Harness, sessionId: string, branch?: string, now: number, todo?: string[] }) => { slug: string, markdown: string }>>(true)
@@ -85,9 +80,6 @@ assertType<Equals<typeof core.checkerDirs, (file: string, root: string | undefin
 assertType<Equals<typeof core.missingToolNote, (plan: CheckerPlan) => string | undefined>>(true)
 assertType<Equals<typeof core.missingToolKey, (plan: CheckerPlan) => string>>(true)
 assertType<Equals<typeof core.findingsOf, (plan: CheckerPlan, result: { code: number, stdout: string, stderr: string } | null) => string | undefined>>(true)
-assertType<Equals<typeof core.tddHint, (path: string, candidates: readonly string[] | TestCandidates, edit?: TddEdit) => string | undefined>>(true)
-assertType<Equals<typeof core.charsetFindings, (addedText: string, path: string, fileText?: string) => string[]>>(true)
-assertType<Equals<typeof core.lengthNote, (lineCount: number) => string | undefined>>(true)
 
 assertType<Equals<typeof core.gitFromPorcelainV2, (text: string, gitDir?: string, commonDir?: string) => GitState>>(true)
 assertType<Equals<typeof core.pace, (usedPct: number, resetsAtIso: string | undefined, windowMinutes: number, nowMs: number) => 'over' | 'under' | 'even'>>(true)
@@ -110,33 +102,29 @@ assertType<Equals<typeof core.isLive, (item: MemItem, nowMs: number) => boolean>
 assertType<Equals<typeof core.brainStartText, (input: StartTextInput) => string>>(true)
 assertType<Equals<typeof core.memLocked, (i: Pick<MemItem, 'origin' | 'pinned'>) => boolean>>(true)
 assertType<Equals<typeof core.memProtected, (i: Pick<MemItem, 'origin' | 'pinned' | 'review' | 'verifiedAt'>) => boolean>>(true)
-assertType<Equals<typeof core.promptSignals, (text: string) => core.PromptSignal[]>>(true)
 assertType<Equals<MemLayer, 'project' | 'person'>>(true)
 assertType<Equals<MemoryStatus['v'], 3>>(true)
-
-assertType<Equals<typeof core.priceOf, (model: string, tokens: { input: number; output: number; cacheRead: number; cacheWrite: number }, table: PricingTable) => number | undefined>>(true)
 
 describe('core exports', () => {
   test('every contracted function is exported from src/core/index.ts', () => {
     const fns = [
       'defaultConfig', 'mergeConfig', 'validateConfig', 'classifyTool', 'parseApplyPatch',
-      'checkBash', 'checkWrite', 'routeTool', 'bashNudge', 'capabilityCard', 'checkQuestion', 'detectIntent',
+      'checkBash', 'checkWrite', 'routeTool', 'capabilityCard', 'checkQuestion', 'detectIntent',
       'parsePlan', 'validatePlan', 'planSkeleton', 'emptyState', 'stopVerdict', 'planValidateVerdict', 'applyIntent',
       'compactInstructions', 'handoffNote', 'restoreContext', 'compactPrompt', 'validateNotices', 'pendingNotices', 'noticeTexts', 'isCorruptIndexError',
-      'checkersFor', 'findingsOf', 'tddHint', 'charsetFindings', 'lengthNote', 'checkerFacts', 'checkerDirs', 'missingToolNote', 'missingToolKey',
+      'checkersFor', 'findingsOf', 'checkerFacts', 'checkerDirs', 'missingToolNote', 'missingToolKey',
       'gitFromPorcelainV2', 'pace', 'windowLabel', 'rows', 'renderAnsi', 'renderPlain',
       'parseNote', 'slugify', 'normalizeForSearch', 'redact', 'memSegment',
-      'fromCortex', 'toCortexSave', 'cortexQuery', 'regionOf', 'isLive', 'brainStartText', 'memLocked', 'memProtected', 'ttlSeconds', 'promptSignals', 'sanitizePromptSignal', 'memHealth',
-      'priceOf',
+      'fromCortex', 'toCortexSave', 'cortexQuery', 'regionOf', 'isLive', 'brainStartText', 'memLocked', 'memProtected', 'ttlSeconds', 'memHealth',
       'realpathQueries', 'checkEval', 'catastrophicCommandRules', 'scanCode', 'redactClip',
       'compileTriggers', 'routePrompt', 'routeText', 'parseSkillTriggers', 'validateSkillTriggers', 'detectSignals', 'isUserText',
       'emptyLedger', 'parseLedger', 'ledgerPrompt', 'ledgerCall', 'skillOf', 'reminders', 'turnAudit', 'ledgerAudited',
-      'changedExports', 'importedPackages', 'parseManifestDeps', 'patchEdits', 'patchDeletes', 'isDocsUrl',
+      'parseManifestDeps', 'patchEdits', 'patchDeletes', 'isDocsUrl',
       'controlGuidance', 'routeAuditAllowed', 'mcpHealthOf', 'ledgerMcpResult', 'sessionMcpHealth', 'rootProblem', 'rootCheckText',
       'visitShellCommands', 'selfProtectedArea', 'selfProtectionText', 'indexStatusOf',
       'ruleGlobs', 'pathRuleIndex', 'projectRelative', 'matchPathRules', 'ruleText', 'ruleFileId', 'pathRuleNote',
       'promptInteraction', 'answerReceipt', 'approveResult', 'dropResultApproval', 'resumePlan', 'planProgressed', 'needsResultApproval', 'planObjective',
-      'objectiveLine', 'backgroundWait', 'finiteRunner', 'questionPause', 'questionAnswered', 'laneStateDenial', 'pausedReply', 'isResultApproval', 'isResultReview',
+      'objectiveLine', 'backgroundWait', 'finiteRunner', 'questionPause', 'questionAnswered', 'subagentStateDenial', 'pausedReply', 'isResultApproval', 'isResultReview',
       'isRunawayDecision', 'resultReviewable', 'isHandback', 'isModelSwitch', 'resumableDecision', 'tickedTasks',
     ]
     const exported = core as unknown as Record<string, unknown>
@@ -146,8 +134,7 @@ describe('core exports', () => {
   test('every contracted constant is exported from src/core/index.ts', () => {
     const exported = core as unknown as Record<string, unknown>
     expect(exported['ROUTE_AUDIT_AFTER']).toEqual(['finished', 'no-plan', 'disabled'])
-    expect(typeof exported['AUTO_PAUSE_REASON']).toBe('string')
-    expect(Object.keys(exported['CONTROL_GUIDANCE'] as object).sort()).toEqual(['autoPause', 'pause', 'pausePlan', 'resultApproved', 'resume', 'stop'])
+    expect(Object.keys(exported['CONTROL_GUIDANCE'] as object).sort()).toEqual(['pause', 'pausePlan', 'resultApproved', 'resume', 'stop'])
     expect(exported['RESULT_REVIEW_REASON']).toBe('result review')
     expect(exported['RUNAWAY_REASON']).toBe('runaway: continue, pivot or abandon?')
     expect(exported['HANDBACK_REASON']).toBe('build hand-back:')

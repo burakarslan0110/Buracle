@@ -26,7 +26,7 @@ describe('loadConfig', () => {
     expect(r.files.userExists).toBe(true)
     expect(r.config.routing.strictness).toBe('nudge')
     expect(r.config.checkers.languages).toEqual(['go'])
-    expect(r.config.checkers.timeoutMs).toBe(20000)
+    expect(r.config.checkers.enabled).toBe(true)
     expect(r.config.harnesses.omp.enabled).toBe(false)
     expect(r.config.harnesses.claude.enabled).toBe(true)
     expect(r.config.repo).toBe('/src/buracle')
@@ -43,17 +43,41 @@ describe('loadConfig', () => {
     expect(r.errors.some(e => e.includes('unknownThing: unknown key'))).toBe(true)
   }))
 
-  test('an unknown key says it is ignored and may have been renamed; a renamed key keeps its value and is a warning', () => withSandbox(({ buracleHome }) => {
-    writeUserConfig(buracleHome, 'perms:\n  enforced: false\nroutng:\n  strictness: off\n')
-    const r = loadConfigSync({ renames: [{ from: 'perms.enforced', to: 'permissions.enforce', since: '0.9.0' }] })
-    expect(r.config.permissions.enforce).toBe(false)
-    expect(r.warnings).toEqual([`${join(buracleHome, 'config.yaml')}: perms.enforced was renamed to permissions.enforce in 0.9.0; its value was used (rename the key in config.yaml)`])
+  test('an unknown key says it is ignored and may have been renamed or removed', () => withSandbox(({ buracleHome }) => {
+    writeUserConfig(buracleHome, 'routng:\n  strictness: off\n')
+    const r = loadConfigSync()
+    expect(r.warnings).toEqual([])
     expect(r.errors).toEqual([`${join(buracleHome, 'config.yaml')}: routng: unknown key (ignored; misspelled, renamed or removed? \`buracle config get\` prints the valid keys)`])
     expect(r.config.routing.strictness).toBe('enforce')
     expect(loadConfigSync().warnings).toEqual([])
   }))
 
-  test('unparsable YAML is reported, never treated as empty overrides', () => withSandbox(({ buracleHome }) => {
+  test('keys that became code constants still load from an old config.yaml: each is reported and ignored, the rest applies', () => withSandbox(({ buracleHome }) => {
+    writeUserConfig(buracleHome, [
+      'routing:\n  strictness: nudge',
+      'context:\n  warnPct: 70\n  criticalPct: 90',
+      'plan:\n  runaway:\n    perPlan: 3\n  worktreeDir: ~/trees',
+      'checkers:\n  timeoutMs: 5000\n  languages: [go]',
+      'memory:\n  ui:\n    port: 41800',
+      'workflow:\n  foldAfterSec: 60',
+      'index:\n  minIntervalMin: 1\n  maxChildren: 2\n  exclude: [vendor]',
+    ].join('\n') + '\n')
+    const r = loadConfigSync()
+    const file = join(buracleHome, 'config.yaml')
+    const ignored = (key: string) => `${file}: ${key}: unknown key (ignored; misspelled, renamed or removed? \`buracle config get\` prints the valid keys)`
+    expect([...r.errors].sort()).toEqual(['context', 'plan.runaway', 'plan.worktreeDir', 'checkers.timeoutMs', 'memory.ui.port', 'workflow.foldAfterSec', 'index.minIntervalMin', 'index.maxChildren'].map(ignored).sort())
+    expect(r.config).toEqual({ ...defaultConfig(), routing: { ...defaultConfig().routing, strictness: 'nudge' }, checkers: { enabled: true, languages: ['go'] }, index: { exclude: ['vendor'] } })
+  }))
+
+  test('routing.skills, a removed key, still loads from an old config.yaml: reported and ignored, the rest of routing applies', () => withSandbox(({ buracleHome }) => {
+    writeUserConfig(buracleHome, 'routing:\n  strictness: nudge\n  skills: off\n')
+    const r = loadConfigSync()
+    expect(r.errors).toEqual([`${join(buracleHome, 'config.yaml')}: routing.skills: unknown key (ignored; misspelled, renamed or removed? \`buracle config get\` prints the valid keys)`])
+    expect(r.config).toEqual({ ...defaultConfig(), routing: { ...defaultConfig().routing, strictness: 'nudge' } })
+    expect('skills' in r.config.routing).toBe(false)
+  }))
+
+  test('unparsable YAML is reported, never treated as empty overrides',() => withSandbox(({ buracleHome }) => {
     writeUserConfig(buracleHome, 'routing: [unclosed\n')
     const r = loadConfigSync()
     expect(r.config).toEqual(defaultConfig())
@@ -81,6 +105,7 @@ describe('runtime config snapshot', () => {
     expect(snap.resolved).toEqual({
       buracleHome, brain: join(buracleHome, 'brain'), shim: join(buracleHome, 'bin', 'buracle'), repoRoot: paths.repoRoot(),
       claudeDir: join(home, '.claude'), codexHome: join(home, '.codex'), opencodeConfigDir: join(home, '.config', 'opencode'), ompAgentDir: join(home, '.omp', 'agent'),
+      qwenHome: join(home, '.qwen'), piAgentDir: join(home, '.pi', 'agent'), agyDir: join(home, '.gemini', 'config'),
       bun: Bun.which('bun') ?? process.execPath,
     })
     expect(JSON.stringify(runtimeConfigSnapshot(cfg), null, 2) + '\n').toBe(text)
@@ -167,7 +192,6 @@ describe('loadConfigSync reuses the runtime snapshot of its inputs', () => {
     const elsewhere = join(root, 'elsewhere.yaml')
     writeFileSync(elsewhere, 'routing:\n  strictness: enforce\n')
     expect(loadConfigSync({ userConfigPath: elsewhere }).config.routing.strictness).toBe('enforce')
-    expect(loadConfigSync({ renames: [] }).config.routing.strictness).toBe('nudge')
     const snap = JSON.parse(readFileSync(snapshotFile(), 'utf8')) as Record<string, unknown>
     for (const bad of [{ ...snap, v: 2 }, { ...snap, stamp: 'f'.repeat(64) }, { ...snap, config: { routing: { strictness: 'maximum' } } }, 'not json', null]) {
       writeFileSync(snapshotFile(), typeof bad === 'string' ? bad : JSON.stringify(bad))

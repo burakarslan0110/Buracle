@@ -7,18 +7,17 @@ import * as core from '../../../src/core/index'
 import type { ContextBand } from '../../../src/core/status/context'
 import { CONTEXT_DEFAULTS, contextBand, contextThresholds, contextWarning, contextWatch } from '../../../src/core/status/context'
 import * as paths from '../../../src/engine/paths'
-import { sessionView } from '../../../src/usage/bar'
 import { readTelemetry, writeTelemetry } from '../../../src/workflow/session-store'
 import { withSandbox } from '../../helpers/sandbox'
 
 const CFG = { warnPct: 85, criticalPct: 95 }
 
 describe('thresholds (config `context`)', () => {
-  test('the shipped defaults are 85 / 95, in core and in canonical/buracle.yaml', () => {
+  test('the bands are 85 / 95, a constant of the core: neither defaultConfig() nor canonical/buracle.yaml carries them', () => {
     expect(CONTEXT_DEFAULTS).toEqual(CFG)
-    expect(defaultConfig().context).toEqual(CFG)
+    expect((defaultConfig() as { context?: unknown }).context).toBeUndefined()
     const canonical = parseYaml(readFileSync(join(paths.canonicalDir(), 'buracle.yaml'), 'utf8')) as { context?: unknown }
-    expect(canonical.context).toEqual(CFG)
+    expect(canonical.context).toBeUndefined()
   })
 
   test('the config rejects warnPct >= criticalPct; the watch falls back to the defaults for unusable values', () => {
@@ -102,9 +101,7 @@ describe('telemetry (the other half of H05)', () => {
     expect(readTelemetry('codex', 'thread-h05')).toMatchObject({ v: 1, harness: 'codex', sessionId: 'thread-h05', ctx: { pct: 88, tokens: 239_000, window: 272_000 } })
     writeTelemetry('codex', 'thread-h05', { at: now - 10_000, ctx: { pct: 91 } })
     expect(readTelemetry('codex', 'thread-h05')).toMatchObject({ model: 'gpt-6.1-sol', cwd: root, ctx: { pct: 91 } })
-    const view = sessionView('codex', { sessionId: 'thread-h05', nowMs: now })
-    expect(view.ctx?.pct).toBe(91)
-    expect(contextBand(view.ctx?.pct, defaultConfig().context)).toBe('warn')
+    expect(contextBand(readTelemetry('codex', 'thread-h05')?.ctx?.pct)).toBe('warn')
   }))
 
   test('canonical/hooks.yaml binds H05 as a non-blocking, fail-open hook with this file as its contract test', () => {

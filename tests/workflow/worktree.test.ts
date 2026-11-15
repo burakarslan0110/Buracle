@@ -7,13 +7,12 @@ import { analyzePlan } from '../../src/workflow/plan-file'
 import { MERGE_DECISION_ACTED, planRegister } from '../../src/workflow/plan'
 import { loadState, updateState } from '../../src/workflow/session-store'
 import { acquireRepoLock, updateExclude } from '../../src/workflow/gitx'
-import { reviewScope } from '../../src/workflow/review-scope'
 import {
-  commitMessage, metaForPlan, readMeta, worktreeCleanup, worktreeCreate, worktreeDetect, worktreeDiff, worktreeStatus, worktreeSync,
+  readMeta, worktreeCleanup, worktreeCreate, worktreeDetect, worktreeDiff, worktreeStatus,
 } from '../../src/workflow/worktree'
 import { branchRecordFor, worktreeBranch } from '../../src/workflow/worktree-branch'
 import { withEnv, withSandbox } from '../helpers/sandbox'
-import { SESSION, ctxAt, g, gRaw, makeRepo, memIO, planDoc, write } from './fixture'
+import { SESSION, ctxAt, g, makeRepo, memIO, planDoc, write } from './fixture'
 
 const S = SESSION
 
@@ -36,28 +35,6 @@ async function commitIn(dir: string, file: string, content: string, msg: string)
   await g(dir, 'add', '-A')
   await g(dir, 'commit', '-q', '-m', msg)
 }
-
-describe('commitMessage', () => {
-  test('conventional subject from the plan title and type', () => {
-    expect(commitMessage({ title: 'Rate-limit the public API', type: 'Feature', prefix: 'plan-build', slug: 'rate-limit', branch: 'plan-build/rate-limit', base: 'main', commits: ['task 1: a'] }).subject).toBe('feat: rate-limit the public API')
-    expect(commitMessage({ title: 'Fix: invoice totals drop the last line item', type: 'Bugfix', prefix: 'plan-build', slug: 'x', branch: 'plan-build/x', base: 'main', commits: [] }).subject).toBe('fix: invoice totals drop the last line item')
-    expect(commitMessage({ title: 'API keys rotate daily', type: 'Build', prefix: 'goal-build', slug: 'x', branch: 'goal-build/x', base: 'main', commits: [] }).subject).toBe('feat: API keys rotate daily')
-    expect(commitMessage({ prefix: 'bugfix', slug: 'null-crash', branch: 'bugfix/null-crash', base: 'main', commits: [] }).subject).toBe('fix: null crash')
-    const subj = (title: string) => commitMessage({ title, prefix: 'plan-build', slug: 's', branch: 'plan-build/s', base: 'main', commits: [] }).subject
-    expect(subj('Ödeme sayfası önbelleği')).toBe('feat: ödeme sayfası önbelleği')
-    expect(subj('İçerik güncelleme')).toBe('feat: içerik güncelleme')
-    expect(subj('Implement the cache')).toBe('feat: implement the cache')
-    expect(subj('iOS build fixes')).toBe('feat: iOS build fixes')
-    expect(subj('OAuth login')).toBe('feat: OAuth login')
-    expect(subj('feat(api): Add pagination')).toBe('feat: add pagination')
-    const long = commitMessage({ title: 'x'.repeat(30) + ' ' + 'y'.repeat(30) + ' ' + 'z'.repeat(30), prefix: 'plan-build', slug: 's', branch: 'plan-build/s', base: 'main', commits: [] })
-    expect(long.subject.length).toBeLessThanOrEqual(72)
-    const body = commitMessage({ title: 'T', prefix: 'plan-build', slug: 's', branch: 'plan-build/s', base: 'main', commits: ['one', 'two'], planRel: 'docs/plans/x.md' }).body
-    expect(body).toContain('Squash-merge of plan-build/s into main (2 commits).')
-    expect(body).toContain('Plan: docs/plans/x.md')
-    expect(body).toContain('- two')
-  })
-})
 
 describe('worktree create / detect / status / diff', () => {
   test('creates .worktrees/<slug> on spec/<slug>, excludes the dir, marks the plan', () => sandbox(async root => {
@@ -125,174 +102,19 @@ describe('worktree create / detect / status / diff', () => {
   }))
 })
 
-describe('worktree create --lane', () => {
-  test('a lane from the main checkout marks no plan and never stands for the plan\'s worktree', () => sandbox(async root => {
-    const { repo, plan } = await setup(root)
-    const ctx = ctxAt(repo)
-    const common = realpathSync(join(repo, '.git'))
-    const io = memIO(true)
-    const code = await runWorktree(['create', 'rate-limit-task-1', '--lane', '--session', S.sessionId, '--harness', S.harness], io, ctx)
-    expect(code).toBe(0)
-    const lanePath = realpathSync(join(repo, '.worktrees', 'rate-limit-task-1'))
-    expect(io.json()).toMatchObject({ created: true, path: lanePath, branch: 'plan-build/rate-limit-task-1', base: 'main', lane: true, plan: null })
-    expect(io.json()['parent']).toBeUndefined()
-    expect(io.err()).not.toContain('worktree: true')
-    expect(analyzePlan(readFileSync(plan, 'utf8')).worktree).toBe(false)
-    const laneMeta = readMeta(common, 'rate-limit-task-1')
-    expect(laneMeta).toMatchObject({ lane: true, base: 'main' })
-    expect(laneMeta?.planPath).toBeUndefined()
-    expect((await worktreeDetect(ctx, S)).data['planWorktree']).toBeUndefined()
-    expect((await reviewScope(undefined, ctx, S)).data['mode']).not.toBe('worktree')
-
-    expect((await worktreeCreate('rate-limit', {}, ctx, S)).code).toBe(0)
-    const planWt = realpathSync(join(repo, '.worktrees', 'rate-limit'))
-    expect((await worktreeCreate('zz-lane', { lane: true }, ctxAt(repo, ctx.now + 60_000), S)).data).toMatchObject({ lane: true, plan: null })
-    const planPath = readMeta(common, 'rate-limit')?.planPath as string
-    expect(metaForPlan(common, planPath)?.slug).toBe('rate-limit')
-    expect((await worktreeDetect(ctx, S)).data['planWorktree']).toMatchObject({ slug: 'rate-limit', path: planWt })
-    expect((await reviewScope(undefined, ctx, S)).data).toMatchObject({ mode: 'worktree', slug: 'rate-limit' })
-    expect((await worktreeStatus(ctx, S)).data['session']).toMatchObject({ worktree: 'rate-limit' })
-
-    const inLane = await worktreeDetect(ctxAt(lanePath), S)
-    expect(inLane.data).toMatchObject({ inWorktree: true, lane: true, slug: 'rate-limit-task-1', base: 'main', planWorktree: { slug: 'rate-limit' } })
-    expect(inLane.lines[0]).toStartWith("In lane worktree 'rate-limit-task-1': ")
-  }))
-
-  test('a lane created inside a plan worktree branches from its branch; sync merges the lane into it', () => sandbox(async root => {
-    const { repo, plan } = await setup(root)
-    const common = realpathSync(join(repo, '.git'))
-    const wt = String((await worktreeCreate('rate-limit', {}, ctxAt(repo), S)).data['path'])
-    await commitIn(wt, 'src/plan.ts', 'export const p = 1\n', 'plan work')
-    const mainHead = await g(repo, 'rev-parse', 'HEAD')
-
-    const r = await worktreeCreate('rate-limit-api', { lane: true }, ctxAt(join(wt, 'src')), S)
-    expect(r.code).toBe(0)
-    const lanePath = realpathSync(join(repo, '.worktrees', 'rate-limit-api'))
-    expect(r.data).toMatchObject({ created: true, path: lanePath, branch: 'plan-build/rate-limit-api', base: 'plan-build/rate-limit', lane: true, parent: 'rate-limit', plan: null })
-    expect(await g(lanePath, 'rev-parse', 'HEAD')).toBe(await g(wt, 'rev-parse', 'HEAD'))
-    expect(readMeta(common, 'rate-limit-api')).toMatchObject({ lane: true, parent: 'rate-limit', base: 'plan-build/rate-limit' })
-    expect(readMeta(common, 'rate-limit-api')?.planPath).toBeUndefined()
-    expect(metaForPlan(common, readMeta(common, 'rate-limit')?.planPath as string)?.slug).toBe('rate-limit')
-    expect(analyzePlan(readFileSync(plan, 'utf8')).worktree).toBe(true)
-    expect((await worktreeDetect(ctxAt(lanePath), S)).lines[0]).toContain("In lane worktree 'rate-limit-api'")
-
-    await commitIn(lanePath, 'src/api.ts', 'export const api = 1\n', 'lane: api')
-    const s = await worktreeSync('rate-limit-api', ctxAt(wt), S)
-    expect(s.code).toBe(0)
-    expect(s.data).toMatchObject({ merged: true, branch: 'plan-build/rate-limit-api', base: 'plan-build/rate-limit', checkout: wt })
-    expect(readFileSync(join(wt, 'src', 'api.ts'), 'utf8')).toBe('export const api = 1\n')
-    expect(await g(wt, 'show', '--name-only', '--format=', 'HEAD')).toBe('src/api.ts')
-    expect(await g(repo, 'rev-parse', 'HEAD')).toBe(mainHead)
-    expect((await worktreeCleanup('rate-limit-api', { force: false, discard: false }, ctxAt(wt))).code).toBe(0)
-    expect(existsSync(lanePath)).toBe(false)
-  }))
-
-  test('an explicit parent is recorded on a lane created from the main checkout (the task board passes the lead\'s worktree)', () => sandbox(async root => {
-    const { repo } = await setup(root)
-    const common = realpathSync(join(repo, '.git'))
-    await worktreeCreate('rate-limit', {}, ctxAt(repo), S)
-    const r = await worktreeCreate('rate-limit-t1', { lane: true, base: 'plan-build/rate-limit', parent: 'rate-limit' }, ctxAt(repo), S)
-    expect(r.code).toBe(0)
-    expect(r.data).toMatchObject({ created: true, branch: 'plan-build/rate-limit-t1', base: 'plan-build/rate-limit', lane: true, parent: 'rate-limit' })
-    expect(readMeta(common, 'rate-limit-t1')).toMatchObject({ lane: true, parent: 'rate-limit', base: 'plan-build/rate-limit', owner: { harness: S.harness, session: S.sessionId } })
-    const plain = await worktreeCreate('rate-limit-t2', { lane: true, base: 'main' }, ctxAt(repo), S)
-    expect(plain.code).toBe(0)
-    expect(readMeta(common, 'rate-limit-t2')?.parent).toBeUndefined()
-    expect((await worktreeCreate('other', { base: 'main', parent: 'rate-limit' }, ctxAt(repo), undefined)).code).toBe(0)
-    expect(readMeta(common, 'other')?.parent).toBeUndefined()
-  }))
-
-  test('without --lane, create inside a plan worktree still refuses with inside_worktree', () => sandbox(async root => {
+describe('worktree create inside a plan worktree', () => {
+  test('create inside a plan worktree refuses with inside_worktree', () => sandbox(async root => {
     const { repo } = await setup(root)
     const wt = String((await worktreeCreate('rate-limit', {}, ctxAt(repo), S)).data['path'])
     const r = await worktreeCreate('other', {}, ctxAt(wt), S)
     expect(r.code).toBe(1)
     expect(r.data).toMatchObject({ error: 'inside_worktree', message: "you are inside the plan worktree 'rate-limit'; run this from the main checkout or pass --base <branch>" })
     expect(existsSync(join(repo, '.worktrees', 'other'))).toBe(false)
-    expect((await worktreeCreate('other', { prefix: 'goal-build', lane: true }, ctxAt(wt), S)).data).toMatchObject({ branch: 'goal-build/other', base: 'plan-build/rate-limit', lane: true })
   }))
 })
 
-describe('worktree sync', () => {
-  test('squash-merges with a conventional commit; repeated sync is a no-op; cleanup needs no --force', () => sandbox(async root => {
-    const { repo, plan } = await setup(root)
-    const ctx = ctxAt(repo)
-    const wt = String((await worktreeCreate('rate-limit', {}, ctx, S)).data['path'])
-    await commitIn(wt, 'src/limit.ts', 'export const limit = 100\n', 'task 1: limiter')
-    await commitIn(wt, 'src/app.ts', 'export const a = 2\n', 'task 2: wire it')
-    const mainBefore = await g(repo, 'rev-parse', 'HEAD')
-
-    const r = await worktreeSync('rate-limit', ctx, S)
-    expect(r.code).toBe(0)
-    expect(r.data).toMatchObject({ merged: true, base: 'main', branch: 'plan-build/rate-limit', subject: 'feat: rate-limit the public API', commits: 2, stash: null })
-    expect(await g(repo, 'rev-parse', 'HEAD^')).toBe(mainBefore)
-    expect(await g(repo, 'log', '-1', '--format=%s')).toBe('feat: rate-limit the public API')
-    expect(await g(repo, 'log', '-1', '--format=%b')).toContain('Plan: docs/plans/2026-10-08-rate-limit.md')
-    expect(await g(repo, 'rev-list', '--count', 'HEAD')).toBe('2')
-    expect(readFileSync(join(repo, 'src', 'limit.ts'), 'utf8')).toBe('export const limit = 100\n')
-    expect(existsSync(plan)).toBe(true)
-    expect(existsSync(join(repo, '.git', 'SQUASH_MSG'))).toBe(false)
-
-    const again = await worktreeSync('rate-limit', ctx, S)
-    expect(again.code).toBe(0)
-    expect(again.data['already']).toBe(true)
-
-    const c = await worktreeCleanup('rate-limit', { force: false, discard: false }, ctx)
-    expect(c.code).toBe(0)
-    expect(c.data['removed']).toEqual({ worktree: true, branch: true })
-    expect(existsSync(wt)).toBe(false)
-    expect((await gRaw(repo, 'rev-parse', '--verify', '--quiet', 'refs/heads/plan-build/rate-limit')).code).not.toBe(0)
-    expect(readMeta(realpathSync(join(repo, '.git')), 'rate-limit')).toBeUndefined()
-  }))
-
-  test('in phase verify, syncing the plan\'s worktree ends a held merge-decision pause; elsewhere the pause holds (HOOKS-WORKFLOW-3)', () => sandbox(async root => {
-    const { repo } = await setup(root)
-    const ctx = ctxAt(repo)
-    const wt = String((await worktreeCreate('rate-limit', {}, ctx, S)).data['path'])
-    await commitIn(wt, 'src/limit.ts', 'export const limit = 100\n', 'task 1: limiter')
-    const hold = (phase: 'implement' | 'verify', reason: string) => updateState(S.harness, S.sessionId, st => ({
-      ...st, plan: { ...(st.plan as NonNullable<typeof st.plan>), status: 'COMPLETE', phase }, interaction: { state: 'paused', kind: 'decision', since: 1, reason },
-    }))
-
-    hold('verify', 'result review')
-    const review = await worktreeSync('rate-limit', ctx, S)
-    expect(review.code).toBe(0)
-    expect(review.data['resumed']).toBeUndefined()
-    expect(loadState(S.harness, S.sessionId).interaction).toMatchObject({ state: 'paused', reason: 'result review' })
-
-    hold('implement', 'merge decision')
-    expect((await worktreeSync('rate-limit', ctx, S)).lines).not.toContain(MERGE_DECISION_ACTED)
-    expect(loadState(S.harness, S.sessionId).interaction?.state).toBe('paused')
-
-    hold('verify', 'merge decision')
-    const merged = await worktreeSync('rate-limit', ctx, S)
-    expect(merged.code).toBe(0)
-    expect(merged.data['resumed']).toBe(true)
-    expect(merged.lines).toContain(MERGE_DECISION_ACTED)
-    expect(loadState(S.harness, S.sessionId).interaction).toEqual({ state: 'running', since: ctx.now })
-  }))
-
-  test('a plan-less bugfix worktree with one commit lands with that commit\'s subject and its root-cause body', () => sandbox(async root => {
-    const { repo } = await setup(root, { plan: false })
-    const ctx = ctxAt(repo)
-    const created = await worktreeCreate('totals', { prefix: 'bugfix' }, ctx, undefined)
-    expect(created.code).toBe(0)
-    const wt = String(created.data['path'])
-    write(join(wt, 'src', 'app.ts'), 'export const a = 3\n')
-    await g(wt, 'add', '-A')
-    await g(wt, 'commit', '-q', '-m', 'fix: totals drop the last line item', '-m', 'Root cause: src/app.ts:1 - the loop stops one item early.')
-    const r = await worktreeSync('totals', ctx, undefined)
-    expect(r.code).toBe(0)
-    expect(r.data).toMatchObject({ merged: true, branch: 'bugfix/totals', subject: 'fix: totals drop the last line item', commits: 1 })
-    expect(await g(repo, 'log', '-1', '--format=%s')).toBe('fix: totals drop the last line item')
-    const body = await g(repo, 'log', '-1', '--format=%b')
-    expect(body).toContain('Squash-merge of bugfix/totals into main (1 commit).')
-    expect(body).toContain('Root cause: src/app.ts:1 - the loop stops one item early.')
-    expect(body).not.toContain('Plan:')
-    expect(commitMessage({ prefix: 'bugfix', slug: 's', branch: 'bugfix/s', base: 'main', commits: ['a'], detail: '  \n' }).body).toBe('Squash-merge of bugfix/s into main (1 commit).\n\n- a')
-  }))
-
-  test('a bugfix worktree leaves the session\'s unrelated plan untouched; several commits still carry their root cause', () => sandbox(async root => {
+describe('worktree create: bugfix worktrees and the session plan', () => {
+  test('a bugfix worktree leaves the session\'s unrelated plan untouched', () => sandbox(async root => {
     const { repo, plan } = await setup(root)
     const before = readFileSync(plan, 'utf8')
     const ctx = ctxAt(repo)
@@ -301,30 +123,6 @@ describe('worktree sync', () => {
     expect(created.data['plan']).toBeNull()
     expect(created.errors).toContain("warning: a bugfix worktree belongs to no plan: the session's plan docs/plans/2026-10-08-rate-limit.md was left untouched")
     expect(readMeta(realpathSync(join(repo, '.git')), 'totals')?.planPath).toBeUndefined()
-    const wt = String(created.data['path'])
-    write(join(wt, 'src', 'app.ts'), 'export const a = 3\n')
-    await g(wt, 'add', '-A')
-    await g(wt, 'commit', '-q', '-m', 'fix: totals drop the last line item', '-m', 'Root cause: src/app.ts:1 - the loop stops one item early.')
-    const r = await worktreeSync('totals', ctx, S)
-    expect(r.code).toBe(0)
-    expect(r.data).toMatchObject({ merged: true, subject: 'fix: totals drop the last line item', commits: 1 })
-    const body = await g(repo, 'log', '-1', '--format=%b')
-    expect(body).toContain('Root cause: src/app.ts:1 - the loop stops one item early.')
-    expect(body).not.toContain('Plan:')
-    expect(readFileSync(plan, 'utf8')).toBe(before)
-
-    const second = String((await worktreeCreate('rounding', { prefix: 'bugfix' }, ctx, S)).data['path'])
-    write(join(second, 'src', 'round.ts'), 'export const r = Math.round\n')
-    await g(second, 'add', '-A')
-    await g(second, 'commit', '-q', '-m', 'fix: totals round half down', '-m', 'Root cause: src/round.ts:1 - floor instead of round.')
-    await commitIn(second, 'tests/round.test.ts', 'test\n', 'test: cover rounding')
-    const two = await worktreeSync('rounding', ctx, S)
-    expect(two.code).toBe(0)
-    expect(two.data).toMatchObject({ merged: true, subject: 'fix: rounding', commits: 2 })
-    const twoBody = await g(repo, 'log', '-1', '--format=%b')
-    expect(twoBody).toContain('- fix: totals round half down\n- test: cover rounding')
-    expect(twoBody).toContain('Root cause: src/round.ts:1 - floor instead of round.')
-    expect(twoBody).not.toContain('Plan:')
     expect(readFileSync(plan, 'utf8')).toBe(before)
   }))
 
@@ -340,133 +138,6 @@ describe('worktree sync', () => {
     expect(readMeta(realpathSync(join(repo, '.git')), 'rate-limit')?.planPath).toBe(plan)
   }))
 
-  test('local changes in the base checkout are stashed and restored', () => sandbox(async root => {
-    const { repo } = await setup(root)
-    const ctx = ctxAt(repo)
-    const wt = String((await worktreeCreate('rate-limit', {}, ctx, S)).data['path'])
-    await commitIn(wt, 'src/limit.ts', 'export const limit = 100\n', 'task 1')
-    write(join(repo, 'README.md'), '# demo\nlocal edit\n')
-    await g(repo, 'add', 'README.md')
-    write(join(repo, 'notes.txt'), 'untracked\n')
-    const r = await worktreeSync('rate-limit', ctx, S)
-    expect(r.code).toBe(0)
-    expect(r.data['stash']).toMatchObject({ restored: true })
-    expect(readFileSync(join(repo, 'README.md'), 'utf8')).toBe('# demo\nlocal edit\n')
-    expect(await g(repo, 'diff', '--cached', '--name-only')).toBe('README.md')
-    expect(await g(repo, 'stash', 'list')).toBe('')
-    expect(await g(repo, 'show', '--name-only', '--format=', 'HEAD')).toBe('src/limit.ts')
-    expect(readFileSync(join(repo, 'notes.txt'), 'utf8')).toBe('untracked\n')
-  }))
-
-  test('unregistered plan files under a new or a legacy document folder stay out of the stash', () => sandbox(async root => {
-    const { repo } = await setup(root)
-    const ctx = ctxAt(repo)
-    const fresh = join(repo, 'docs', 'plan-build', '2026-11-04-other.md')
-    const old = join(repo, 'docs', 'plans', '2026-10-09-old.md')
-    write(fresh, planDoc({ title: 'Other' }))
-    write(old, planDoc({ title: 'Old' }))
-    await g(repo, 'add', '-A')
-    await g(repo, 'commit', '-q', '-m', 'docs: two more plans')
-    const wt = String((await worktreeCreate('rate-limit', {}, ctx, S)).data['path'])
-    await commitIn(wt, 'src/app.ts', 'export const a = 2\n', 'task 1')
-    write(join(repo, 'src', 'app.ts'), 'export const a = 3 // local\n')
-    write(fresh, '# Other\n\nlocal edit\n')
-    write(old, '# Old\n\nlocal edit\n')
-    const r = await worktreeSync('rate-limit', ctx, S)
-    expect(r.code).toBe(2)
-    expect(await g(repo, 'stash', 'show', '--name-only', 'stash@{0}')).toBe('src/app.ts')
-    expect(readFileSync(fresh, 'utf8')).toBe('# Other\n\nlocal edit\n')
-    expect(readFileSync(old, 'utf8')).toBe('# Old\n\nlocal edit\n')
-  }))
-
-  test('exit 2 when the merge landed but the local changes conflict: the stash stays, the checkout is clean', () => sandbox(async root => {
-    const { repo } = await setup(root)
-    const ctx = ctxAt(repo)
-    const wt = String((await worktreeCreate('rate-limit', {}, ctx, S)).data['path'])
-    await commitIn(wt, 'src/app.ts', 'export const a = 2\n', 'task 1')
-    write(join(repo, 'src', 'app.ts'), 'export const a = 3 // local\n')
-    const r = await worktreeSync('rate-limit', ctx, S)
-    expect(r.code).toBe(2)
-    expect(r.data).toMatchObject({ merged: true, warning: 'stash_not_restored', stash: { restored: false, conflicts: ['src/app.ts'] } })
-    expect(r.errors.join('\n')).toContain('git stash pop')
-    expect(readFileSync(join(repo, 'src', 'app.ts'), 'utf8')).toBe('export const a = 2\n')
-    expect(await g(repo, 'status', '--porcelain', '--untracked-files=no')).toBe('')
-    expect((await g(repo, 'stash', 'list')).split('\n').length).toBe(1)
-    expect(await g(repo, 'show', 'stash@{0}:src/app.ts')).toBe('export const a = 3 // local')
-
-    const meta = readMeta(realpathSync(join(repo, '.git')), 'rate-limit')
-    expect(meta?.synced).toMatchObject({ exit: 2 })
-    const c = await worktreeCleanup('rate-limit', { force: false, discard: false }, ctx)
-    expect(c.code).toBe(0)
-  }))
-
-  test('exit 1 and nothing merged on conflicts with the base; local changes come back', () => sandbox(async root => {
-    const { repo } = await setup(root)
-    const ctx = ctxAt(repo)
-    const wt = String((await worktreeCreate('rate-limit', {}, ctx, S)).data['path'])
-    await commitIn(wt, 'src/app.ts', 'export const a = 2\n', 'task 1')
-    await commitIn(wt, 'src/added.ts', 'new file from the branch\n', 'task 2')
-    await commitIn(repo, 'src/app.ts', 'export const a = 5\n', 'main moves on')
-    write(join(repo, 'README.md'), '# demo\nlocal\n')
-    const head = await g(repo, 'rev-parse', 'HEAD')
-    const r = await worktreeSync('rate-limit', ctx, S)
-    expect(r.code).toBe(1)
-    expect(r.data).toMatchObject({ error: 'merge_failed', conflicts: ['src/app.ts'] })
-    expect(String(r.data['message'])).toContain('nothing merged')
-    expect(await g(repo, 'rev-parse', 'HEAD')).toBe(head)
-    expect(readFileSync(join(repo, 'README.md'), 'utf8')).toBe('# demo\nlocal\n')
-    expect(readFileSync(join(repo, 'src', 'app.ts'), 'utf8')).toBe('export const a = 5\n')
-    expect(existsSync(join(repo, 'src', 'added.ts'))).toBe(false)
-    expect(existsSync(join(repo, '.git', 'SQUASH_MSG'))).toBe(false)
-    expect(await g(repo, 'stash', 'list')).toBe('')
-    expect(await g(repo, 'status', '--porcelain', '--untracked-files=no')).toBe('M README.md')
-    const c = await worktreeCleanup('rate-limit', { force: false, discard: false }, ctx)
-    expect(c.code).toBe(2)
-    expect(existsSync(wt)).toBe(true)
-  }), 60_000)
-
-  test('a diverged base merges even with merge.ff=only in the user config', () => sandbox(async root => {
-    const { repo } = await setup(root)
-    const ctx = ctxAt(repo)
-    const wt = String((await worktreeCreate('rate-limit', {}, ctx, S)).data['path'])
-    await commitIn(wt, 'src/limit.ts', 'x\n', 'task 1')
-    await commitIn(repo, 'other.txt', 'o\n', 'main moves on')
-    await g(repo, 'config', 'merge.ff', 'only')
-    const r = await worktreeSync('rate-limit', ctx, S)
-    expect(r.code).toBe(0)
-    expect(await g(repo, 'log', '-1', '--format=%s')).toBe('feat: rate-limit the public API')
-    expect(await g(repo, 'rev-list', '--count', 'HEAD')).toBe('3')
-  }))
-
-  test('a dirty worktree is refused; a branch without commits is a no-op', () => sandbox(async root => {
-    const { repo } = await setup(root)
-    const ctx = ctxAt(repo)
-    const wt = String((await worktreeCreate('rate-limit', {}, ctx, S)).data['path'])
-    const noop = await worktreeSync('rate-limit', ctx, S)
-    expect(noop.code).toBe(0)
-    expect(noop.data['noop']).toBe(true)
-    write(join(wt, 'src', 'wip.ts'), 'x\n')
-    const head = await g(repo, 'rev-parse', 'HEAD')
-    const dirty = await worktreeSync('rate-limit', ctx, S)
-    expect(dirty.code).toBe(1)
-    expect(dirty.data['error']).toBe('worktree_dirty')
-    expect(await g(repo, 'rev-parse', 'HEAD')).toBe(head)
-  }))
-
-  test('merges in a temporary checkout when the base branch is not checked out anywhere', () => sandbox(async root => {
-    const { repo } = await setup(root)
-    const ctx = ctxAt(repo)
-    const wt = String((await worktreeCreate('rate-limit', {}, ctx, S)).data['path'])
-    await commitIn(wt, 'src/limit.ts', 'x\n', 'task 1')
-    await g(repo, 'checkout', '-q', '-b', 'elsewhere')
-    write(join(repo, 'README.md'), 'local on elsewhere\n')
-    const r = await worktreeSync('rate-limit', ctx, S)
-    expect(r.code).toBe(0)
-    expect(await g(repo, 'log', '-1', '--format=%s', 'main')).toBe('feat: rate-limit the public API')
-    expect(await g(repo, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe('elsewhere')
-    expect(readFileSync(join(repo, 'README.md'), 'utf8')).toBe('local on elsewhere\n')
-    expect((await g(repo, 'worktree', 'list')).split('\n').length).toBe(2)
-  }))
 })
 
 describe('worktree cleanup', () => {
@@ -492,12 +163,14 @@ describe('worktree cleanup', () => {
     expect((await worktreeCleanup('second', { force: false, discard: false }, ctx)).lines[0]).toContain('Nothing to clean up')
   }), 60_000)
 
-  test('in phase verify, discarding the plan\'s worktree ends a held merge-decision pause; a lane worktree and a refused cleanup do not (HOOKS-WORKFLOW-3)', () => sandbox(async root => {
+  test('in phase verify, discarding the plan\'s worktree ends a held merge-decision pause; a lane worktree an older Buracle left and a refused cleanup do not (HOOKS-WORKFLOW-3)', () => sandbox(async root => {
     const { repo } = await setup(root)
     const ctx = ctxAt(repo)
     const wt = String((await worktreeCreate('rate-limit', {}, ctx, S)).data['path'])
     await commitIn(wt, 'src/limit.ts', 'x\n', 'task 1')
-    const lane = String((await worktreeCreate('rate-limit-2', { lane: true }, ctxAt(repo, ctx.now + 1), S)).data['path'])
+    const lane = String((await worktreeCreate('rate-limit-2', {}, ctxAt(repo, ctx.now + 1), undefined)).data['path'])
+    const laneMeta = join(realpathSync(join(repo, '.git')), 'buracle', 'worktrees', 'rate-limit-2.json')
+    write(laneMeta, JSON.stringify({ ...(JSON.parse(readFileSync(laneMeta, 'utf8')) as object), lane: true }))
     write(join(lane, 'wip.txt'), 'wip\n')
     const hold = () => updateState(S.harness, S.sessionId, st => ({
       ...st, plan: { ...(st.plan as NonNullable<typeof st.plan>), status: 'COMPLETE', phase: 'verify' }, interaction: { state: 'paused', kind: 'decision', since: 1, reason: 'merge decision' },

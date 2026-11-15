@@ -54,7 +54,7 @@ describe('canonical/statusline.yaml', () => {
   })
 
   test('claude: full rows (DESIGN §6.3) and compact rows', () => {
-    expect(doc.claude?.rows).toEqual([['model', 'ctx', '5h', '7d', 'month', 'cost'], ['git', 'dir', 'mem', 'index', 'flow', 'plan', 'board', 'upd', 'hooks']])
+    expect(doc.claude?.rows).toEqual([['model', 'ctx', '5h', '7d', 'cost'], ['git', 'dir', 'mem', 'index', 'flow', 'plan', 'upd', 'hooks']])
     expect(doc.claude?.compact?.length).toBe(1)
   })
 
@@ -98,15 +98,15 @@ describe('canonical/statusline.yaml', () => {
     expect(doc.codex?.rows.length).toBe(1)
   })
 
-  test('omp: native segments exist in omp 18.8.3 and the status keys are buracle.budget / buracle.hooks / buracle.mem', () => {
+  test('omp: native segments exist in omp 18.8.3 and the status keys are buracle.hooks / buracle.mem', () => {
     const n = doc.omp?.native
     expect(n?.preset).toBe('custom')
     expect(n?.leftSegments).toEqual(['model', 'path', 'git', 'pr', 'subagents'])
     expect(n?.rightSegments).toEqual(['usage', 'context_pct', 'cost', 'status'])
     for (const id of [...(n?.leftSegments ?? []), ...(n?.rightSegments ?? [])]) expect(OMP_SEGMENT_IDS).toContain(id)
     expect(n?.showHookStatus).toBe(false)
-    expect(Object.keys(n?.setStatus ?? {})).toEqual(['buracle.budget', 'buracle.hooks', 'buracle.mem'])
-    expect(n?.setStatus).toEqual({ 'buracle.budget': ['month'], 'buracle.hooks': ['hooks'], 'buracle.mem': ['mem'] })
+    expect(Object.keys(n?.setStatus ?? {})).toEqual(['buracle.hooks', 'buracle.mem'])
+    expect(n?.setStatus).toEqual({ 'buracle.hooks': ['hooks'], 'buracle.mem': ['mem'] })
   })
 
   test('opencode: the status line keeps the footer slot; the slot above the prompt is the workflow band\'s', () => {

@@ -18,7 +18,7 @@ Before investigating, pin down what "fixed" means:
 - **Expected:** the correct behavior.
 - **Unchanged:** behaviors that must stay as they are, each with the existing test that guards it or the new test you will add.
 
-If the report has no reproducible When or Actual, ask the user once with {{ask_user}} for the missing pieces: exact steps, input, versions, logs. Offer the specific items you need as options. Pause first and announce the batch as in [plan.md](plan.md) P4 (`buracle notify attention_needed …`).
+If the report has no reproducible When or Actual, ask the user once with your structured-question tool for the missing pieces: exact steps, input, versions, logs. Offer the specific items you need as options. Pause first, as in [plan.md](plan.md) P4.
 
 If `branchIsolation` is on and the request carried no `--worktree`, `--new-branch` or `--current-branch` flag, ask [plan.md](plan.md) P4's "Where should implementation run?" question once, with the same options and together with the missing pieces when you ask for those; P9 applies the answer. No answer: take the recommendation and record it under `## Assumptions`.
 
@@ -152,4 +152,4 @@ Reproduction: `bun test tests/invoice.test.ts -t "three items"` → `expected 35
 
 ## B7. Validate, review, approve
 
-Follow [plan.md](plan.md) P7 to P9 unchanged: `buracle plan validate <path> --strict` until exit 0, {{agent:plan-build-review}} launched with {{spawn_agent}} (add `notes: check the root cause at <path:line> against the code, and that Task 1 reproduces the Actual symptom`; `reviews.plan: false` replaces it with your own check, as in P8), then the approval gate and the on-approval steps, the model-switch pause included. Continue with [implement.md](implement.md); its bugfix rules apply.
+Follow [plan.md](plan.md) P7 to P9 unchanged: `buracle plan validate <path> --strict` until exit 0, the `plan-build-review` agent launched with your subagent tool (add `notes: check the root cause at <path:line> against the code, and that Task 1 reproduces the Actual symptom`; `reviews.plan: false` replaces it with your own check, as in P8), then the approval gate and the on-approval steps, the model-switch pause included. Continue with [implement.md](implement.md); its bugfix rules apply.

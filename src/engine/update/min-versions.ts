@@ -7,4 +7,7 @@ export const MIN_VERSIONS: Readonly<Record<Harness, string>> = {
   codex: '0.154.0',
   opencode: '2.0.20',
   omp: '18.8.0',
+  qwen: '0.26.1',
+  pi: '1.5.2',
+  agy: '1.5.9',
 }

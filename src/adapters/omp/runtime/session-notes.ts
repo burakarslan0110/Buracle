@@ -1,17 +1,10 @@
-import type { BuracleConfig } from '../../../core/config'
-import type { Notice } from '../../../core/notices'
-import type { ContextBand } from '../../../core/status/context'
+import type { ContextBand, ContextBands } from '../../../core/status/context'
 import { contextWatch } from '../../../core/status/context'
-import { noticesOff, startupNotices } from '../../shared/notices'
 import type { OmpContext, OmpExtensionAPI, OmpTurnEndEvent } from './types'
-import { hasTui, strAt } from './util'
+import { hasTui, strAt } from '../../shared/pi-family/util'
 
 export const CONTEXT_WARNING_TYPE = 'buracle.context-warning'
 export const NOTICE_MESSAGE_TYPE = 'buracle.notice'
-/** The task board's hidden message to the model (the join offer) and its two visible notices. */
-export const BOARD_MESSAGE_TYPE = 'buracle.board'
-export const BOARD_OFFER_NOTICE = 'Buracle: a task board of this repository has tasks ready for a worker. Run /buracle-join <slug> to take one.'
-export const BOARD_WAITING_NOTICE = 'Buracle: a task board worker in this session waits for your answer (see its question above).'
 
 export interface NotesHost {
   pi: Pick<OmpExtensionAPI, 'sendMessage'>
@@ -20,7 +13,7 @@ export interface NotesHost {
 
 export interface ContextMemo { ctxWarned?: ContextBand, contextWarning?: string }
 
-export function contextCheck(host: NotesHost, m: ContextMemo, ctx: OmpContext, event: OmpTurnEndEvent, cfg: BuracleConfig['context']): void {
+export function contextCheck(host: NotesHost, m: ContextMemo, ctx: OmpContext, event: OmpTurnEndEvent, cfg?: ContextBands): void {
   const u = host.guarded('context usage', () => ctx.getContextUsage?.())
   const pct = u !== undefined && Number.isFinite(u.percent) ? u.percent : undefined
   const w = contextWatch(m.ctxWarned, pct, cfg)
@@ -34,12 +27,4 @@ export function contextCheck(host: NotesHost, m: ContextMemo, ctx: OmpContext, e
     return true
   }) === true
   m.contextWarning = sent ? undefined : warn
-}
-
-export function startupNotice(host: NotesHost, ctx: OmpContext, data: { notices?: Notice[], buracleVersion: string }, nowMs: number): void {
-  if (noticesOff()) return
-  const n = host.guarded('H17 notices', () => startupNotices(data.notices, { version: data.buracleVersion, nowMs, harness: 'omp' }))
-  if (n === undefined) return
-  host.guarded('H17 notice', () => host.pi.sendMessage({ customType: NOTICE_MESSAGE_TYPE, content: n.model, display: false }, { deliverAs: 'nextTurn' }))
-  if (hasTui(ctx)) host.guarded('H17 notice notify', () => ctx.ui.notify(n.user, 'info'))
 }

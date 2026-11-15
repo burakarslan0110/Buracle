@@ -77,8 +77,8 @@ export interface OmpSessionStopResult { decision?: 'block'; reason?: string; con
 export interface OmpSessionSwitchEvent { type: 'session_switch'; reason?: 'new' | 'resume' | 'fork'; previousSessionFile?: string }
 
 export interface OmpCompactingEvent { type: 'session.compacting'; sessionId: string }
-export interface OmpCompactingResult { context?: string[]; prompt?: string; preserveData?: Record<string, unknown> }
-export interface OmpCompactEvent { type: 'session_compact'; compactionEntry?: { summary?: string; preserveData?: Record<string, unknown> }; fromExtension?: boolean }
+export interface OmpCompactingResult { context?: string[]; prompt?: string }
+export interface OmpCompactEvent { type: 'session_compact'; compactionEntry?: { summary?: string }; fromExtension?: boolean }
 
 export interface OmpCommandOptions { description?: string; handler: (args: string, ctx: OmpContext) => Promise<void> }
 

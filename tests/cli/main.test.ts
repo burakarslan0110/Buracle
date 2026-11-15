@@ -6,8 +6,8 @@ import { run } from '../../src/engine/proc'
 import { withSandbox } from '../helpers/sandbox'
 
 const REPO = join(import.meta.dir, '..', '..')
-const CONTRACT_COMMANDS = ['build', 'install', 'uninstall', 'rollback', 'doctor', 'index', 'update', 'config', 'hook',
-  'statusline', 'usage', 'mem', 'mcp', 'lsp', 'plan', 'flow', 'worktree', 'work', 'review-scope', 'notify', 'consent', 'project', 'skills', 'rules']
+const CONTRACT_COMMANDS = ['build', 'install', 'uninstall', 'doctor', 'index', 'update', 'config', 'hook',
+  'statusline', 'usage', 'mem', 'mcp', 'lsp', 'plan', 'flow', 'worktree', 'review-scope', 'consent', 'project', 'skills', 'rules']
 
 export function memoryIO(stdin = ''): Omit<CommandIO, 'flags'> & { out(): string, err(): string } {
   let out = ''
@@ -36,7 +36,7 @@ describe('parseArgs', () => {
     expect(parseArgs(['--json', 'mem', 'search', '-v', 'term'])).toEqual({ command: 'mem', rest: ['--json', 'search', '-v', 'term'], flags: { json: true, verbose: true }, help: false, version: false })
     expect(parseArgs(['plan', '--help'])).toMatchObject({ command: 'plan', rest: [], help: true })
     expect(parseArgs(['-h'])).toMatchObject({ help: true, rest: [] })
-    expect(parseArgs(['notify', '--', '--json', '-v'])).toEqual({ command: 'notify', rest: ['--', '--json', '-v'], flags: { json: false, verbose: false }, help: false, version: false })
+    expect(parseArgs(['consent', '--', '--json', '-v'])).toEqual({ command: 'consent', rest: ['--', '--json', '-v'], flags: { json: false, verbose: false }, help: false, version: false })
     expect(parseArgs([])).toEqual({ rest: [], flags: { json: false, verbose: false }, help: false, version: false })
     expect(parseArgs(['--version'])).toMatchObject({ version: true })
     expect(parseArgs(['config', '--version'])).toMatchObject({ command: 'config', rest: ['--version'], version: false })
@@ -60,7 +60,7 @@ describe('router', () => {
     const io = memoryIO()
     expect(await main(['--help'], io)).toBe(0)
     const text = io.out()
-    for (const name of ['install', 'update', 'doctor', 'config', 'rollback', 'uninstall']) expect(text).toMatch(new RegExp(`^  ${name} +\\S`, 'm'))
+    for (const name of ['install', 'update', 'doctor', 'config', 'uninstall']) expect(text).toMatch(new RegExp(`^  ${name} +\\S`, 'm'))
     expect(text).toContain('\nRun `buracle` in a terminal to open the main menu.\n')
     expect(text).toContain('\n`buracle help --all` also lists the commands your agents and hooks use.\n')
     expect(text).not.toMatch(/^  (plan|hook|build|mem) /m)
@@ -100,33 +100,12 @@ describe('router', () => {
     }
   })
 
-  test('removed command names exit 1 with one line that says what to run instead', async () => {
-    const want: Record<string, string> = {
-      init: 'use `buracle install`',
-      sync: 'use `buracle install`',
-      toolchain: 'use `buracle install`, `buracle update tools`, `buracle doctor tools` or `buracle rollback toolchain`',
-      menu: 'run `buracle` in a terminal',
-      ctx: 'Context Mode was removed in 0.6.0',
-    }
-    for (const [name, instead] of Object.entries(want)) {
-      for (const argv of [[name], [name, '--json'], [name, '--help'], ['help', name]]) {
-        const io = memoryIO()
-        expect({ argv, code: await main(argv, io) }).toEqual({ argv, code: 1 })
-        expect(io.out()).toBe('')
-        expect(io.err()).toBe(`buracle ${name} was removed; ${instead}\n`)
-      }
-    }
-    for (const name of ['constructor', 'toString', '__proto__']) {
+  test('unknown command names exit 1 with one line', async () => {
+    for (const name of ['constructor', 'toString', '__proto__', 'sync', 'rollback', 'notify']) {
       const io = memoryIO()
       expect(await main([name], io)).toBe(1)
       expect(io.err()).toBe(`buracle: unknown command '${name}'. Run 'buracle --help' for the list of commands.\n`)
     }
-    const flag = memoryIO()
-    expect(await main(['update', '--toString', '--check'], flag)).toBe(1)
-    expect(flag.err()).not.toContain('was removed')
-    const sync = memoryIO()
-    expect(await main(['sync', '--dry-run'], sync)).toBe(1)
-    expect(sync.err()).toBe('buracle sync was removed; use `buracle install`\n')
   })
 
   test('diagram is no command any more: it is unknown, and help --all does not list it', async () => {

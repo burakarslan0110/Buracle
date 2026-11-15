@@ -18,12 +18,8 @@ import {
   type HeaderValue, type Phase, type PlanInfo,
 } from './plan-file'
 import { syncFlowFromPlan } from './flow'
-import { boardSummary } from '../core/board/model'
-import { closeAllPanes, commonDirOfBoard, keptPanesWarnings, type PaneDeps } from './board-panes'
-import { boardPath, commonDirOf, readBoard, removeBoard, sessionBoard, setSessionBoard, updateBoard } from './board-store'
-import { existsSync } from 'node:fs'
 import { shownPath } from './plan-capture'
-import { clearLaneReviews, reviewWarnings, reviewsView, type LaneOwner } from './plan-review'
+import { reviewWarnings, reviewsView } from './plan-review'
 import { fail, isResult, ok, partial, sessionJson, type CmdResult, type WorkflowCtx } from './result'
 
 type Binding = NonNullable<SessionState['plan']>
@@ -239,63 +235,7 @@ export async function planRegister(pathArg: string | undefined, phaseArg: string
   const lines = [
     `Registered ${display(path, ctx.cwd)} (${type}, ${status}, phase ${effectivePhase}) for the ${s.harness} session ${s.sessionId}.`,
   ]
-  const board = takeOverBoard(slug, ctx, s, warnings)
-  if (board !== undefined) lines.push(`Took over the task board ${slug}: ${board.summary.total} task(s), ${board.summary.total - board.summary.merged} not merged. Wait with 'buracle work wait --json'.`)
-  return ok({ ok: true, plan: view, tasks: { done: info.tasks.done, total: info.tasks.total }, session: sessionJson(s), ...(board !== undefined ? { board } : {}) }, lines, warnings)
-}
-
-type BoardView = { slug: string, role: 'lead' | 'worker', summary: ReturnType<typeof boardSummary> }
-
-function boardFileFor(slug: string, ctx: WorkflowCtx): string | undefined {
-  if (!isValidSlug(slug)) return undefined
-  const common = commonDirOf(ctx.cwd)
-  return common !== undefined ? boardPath(common, slug) : undefined
-}
-
-// A session that registers a plan with a live board becomes its lead (R15): the earlier lead's wait and merge then report not_lead.
-function takeOverBoard(slug: string, ctx: WorkflowCtx, s: ResolvedSession, warnings: string[]): BoardView | undefined {
-  if (s.sessionId.includes('.lane-')) return undefined
-  const path = boardFileFor(slug, ctx)
-  if (path === undefined || !existsSync(path)) return undefined
-  const r = updateBoard(path, ctx.now, b => (b.lead.harness === s.harness && b.lead.session === s.sessionId ? { ok: true, board: b } : { ok: true, board: { ...b, lead: { harness: s.harness, session: s.sessionId }, updatedAt: ctx.now } }))
-  if (!r.ok) {
-    warnings.push(`the task board ${slug} exists but could not be taken over: ${r.message}`)
-    return undefined
-  }
-  const prev = sessionBoard(s.harness, s.sessionId)
-  setSessionBoard(s.harness, s.sessionId, { slug, path, role: 'lead', cursor: prev?.path === path ? prev.cursor ?? 0 : r.board.seq })
-  return { slug, role: 'lead', summary: boardSummary(r.board) }
-}
-
-/** The board of the session's plan, for `plan status`: the session's binding first, else the plan's board file. */
-export function planBoardView(slug: string, ctx: WorkflowCtx, s: ResolvedSession): BoardView | undefined {
-  const bound = sessionBoard(s.harness, s.sessionId)
-  const path = bound?.slug === slug ? bound.path : boardFileFor(slug, ctx)
-  if (path === undefined) return undefined
-  const board = readBoard(path)
-  if (board === undefined) return undefined
-  const role: BoardView['role'] = bound?.slug === slug ? bound.role : board.lead.harness === s.harness && board.lead.session === s.sessionId ? 'lead' : 'worker'
-  return { slug, role, summary: boardSummary(board) }
-}
-
-// A verified plan closes its board: the panes spawn opened close, the file goes, lane worktrees that still exist are named for cleanup.
-async function closeBoardAfterVerify(b: Binding, ctx: WorkflowCtx, s: ResolvedSession, deps: PaneDeps): Promise<{ line?: string, warning?: string }> {
-  const path = boardFileFor(b.slug, ctx)
-  if (path === undefined || !existsSync(path)) return {}
-  const board = readBoard(path)
-  const panes = await closeAllPanes(commonDirOfBoard(path), b.slug, ctx.env, {}, deps)
-  removeBoard(path)
-  const bound = sessionBoard(s.harness, s.sessionId)
-  if (bound?.path === path) setSessionBoard(s.harness, s.sessionId, undefined)
-  const left = (board?.tasks ?? []).filter(t => t.worktree !== undefined && existsSync(t.worktree.path)).map(t => t.worktree?.slug ?? '')
-  const warnings: string[] = []
-  if (left.length > 0) warnings.push(`lane worktree(s) still exist: ${left.join(', ')}; remove them with 'buracle worktree cleanup <slug>' (run 'buracle work close' before 'plan verify' next time)`)
-  warnings.push(...keptPanesWarnings(panes))
-  if (panes.unreadable === true) warnings.push('the pane record file was unreadable and was removed; the panes it listed are still open, close them by hand')
-  return {
-    line: `Closed the task board ${b.slug}${panes.closed.length > 0 ? ` and ${panes.closed.length} worker pane(s)` : ''}.`,
-    ...(warnings.length > 0 ? { warning: warnings.join('; ') } : {}),
-  }
+  return ok({ ok: true, plan: view, tasks: { done: info.tasks.done, total: info.tasks.total }, session: sessionJson(s) }, lines, warnings)
 }
 
 export function planStatus(ctx: WorkflowCtx, s: ResolvedSession): CmdResult {
@@ -342,12 +282,6 @@ export function planStatus(ctx: WorkflowCtx, s: ResolvedSession): CmdResult {
     data['native'] = { path: native.path, preparedAt: native.at }
     lines.push("Plan mode: prepared (buracle plan prepare-native); the plan approved when the session leaves the harness's plan mode fills this file")
   }
-  const board = planBoardView(b.slug, ctx, s)
-  if (board !== undefined) {
-    data['board'] = board
-    const sm = board.summary
-    lines.push(`Board: ${board.slug} (${board.role}) · ${sm.open} open · ${sm.claimed} claimed · ${sm.waiting} waiting · ${sm.done} done · ${sm.merged}/${sm.total} merged · ${sm.stale} stale · ${sm.workers} worker(s)`)
-  }
   return ok({ plan: view, status: b.status, phase: b.phase, tasks, interaction, session: sessionJson(s), ...data }, lines, warnings)
 }
 
@@ -392,8 +326,8 @@ function actOnDecision(st: SessionState, now: number): SessionState {
 
 export const MERGE_DECISION_ACTED = 'Resumed: the merge decision was acted on, so the pause ended and the stop guard holds the run again.'
 
-export function actOnMergeDecision(s: ResolvedSession | undefined, wt: { slug: string, planPath?: string, lane?: boolean }, now: number): string | undefined {
-  if (s === undefined || wt.lane === true) return undefined
+export function actOnMergeDecision(s: ResolvedSession | undefined, wt: { slug: string, planPath?: string }, now: number): string | undefined {
+  if (s === undefined) return undefined
   const merging = (st: SessionState): boolean => {
     const p = st.plan
     if (p === undefined || isPlanFinished(st) || p.phase !== 'verify' || !decisionHeld(st) || isResultReview(st.interaction)) return false
@@ -521,7 +455,7 @@ export async function planComplete(ctx: WorkflowCtx, s: ResolvedSession): Promis
   return finishTransition('complete', b, res, { status: { from: b.status, to: 'COMPLETE' } }, ctx, s, ["Implementation complete; verification is next ('buracle plan set phase verify').", ...(held ? [DECISION_ACTED] : [])])
 }
 
-export async function planVerify(ctx: WorkflowCtx, s: ResolvedSession, action = 'verify', deps: PaneDeps = {}): Promise<CmdResult> {
+export async function planVerify(ctx: WorkflowCtx, s: ResolvedSession, action = 'verify'): Promise<CmdResult> {
   const bp = boundPlan(s)
   if (isResult(bp)) return bp
   const rb = readBound(bp.plan)
@@ -547,8 +481,7 @@ export async function planVerify(ctx: WorkflowCtx, s: ResolvedSession, action = 
   if (isResult(res)) return res
   const changed: Record<string, { from: unknown, to: unknown }> = { status: { from: b.status, to: 'VERIFIED' } }
   if (b.phase !== 'done') changed['phase'] = { from: b.phase, to: 'done' }
-  const board = await closeBoardAfterVerify(b, ctx, s, deps)
-  return finishTransition(action, b, res, changed, ctx, s, ['Plan VERIFIED; the stop guard releases this run.', ...(board.line !== undefined ? [board.line] : [])], [...stale, ...(board.warning !== undefined ? [board.warning] : [])])
+  return finishTransition(action, b, res, changed, ctx, s, ['Plan VERIFIED; the stop guard releases this run.'], stale)
 }
 
 export const SET_FIELDS = ['status', 'phase', 'approved', 'iterations', 'rounds', 'worktree'] as const
@@ -752,8 +685,7 @@ export async function planApproveResult(ctx: WorkflowCtx, s: ResolvedSession): P
   return ok({ ok: true, plan: b.path, resultApprovedAt: next.approvals?.resultApprovedAt ?? ctx.now, interaction: interactionView(next.interaction) }, lines, stale)
 }
 
-export async function planUnregister(ctx: WorkflowCtx, s: ResolvedSession, owner?: LaneOwner): Promise<CmdResult> {
-  clearLaneReviews(owner)
+export async function planUnregister(ctx: WorkflowCtx, s: ResolvedSession): Promise<CmdResult> {
   const state = loadState(s.harness, s.sessionId)
   if (state.plan === undefined) return ok({ ok: true, unregistered: null }, ['No plan is registered; nothing to do.'])
   const b = state.plan

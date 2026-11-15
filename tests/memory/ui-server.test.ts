@@ -80,10 +80,6 @@ async function oldServer(root: string, port: number, opts: { pid?: number } = {}
   return { proc, pid: proc.pid }
 }
 
-function uiConfig(buracleHome: string, port: number): void {
-  write(join(buracleHome, 'config.yaml'), `memory:\n  ui:\n    port: ${port}\n`)
-}
-
 async function stopRecorded(): Promise<void> {
   const rec = readUiRecord()
   if (rec !== undefined) await stopUi(rec)
@@ -219,8 +215,8 @@ describe('the server tied to the harness sessions (memory.ui.autostart)', () => 
     const session = join(paths.uiSessionsDir(), 'claude-s1')
     write(session, '')
     const serve = async (autostart: boolean): Promise<ReturnType<typeof Bun.spawn>> => {
-      write(join(buracleHome, 'config.yaml'), `memory:\n  ui:\n    port: ${port}\n    autostart: ${autostart}\n`)
-      const proc = Bun.spawn(['bun', MAIN, 'mem', 'ui', '--serve'], { cwd: REPO, env: { ...childEnv(), BURACLE_UI_IDLE_MS: '900' }, stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' })
+      write(join(buracleHome, 'config.yaml'), `memory:\n  ui:\n    autostart: ${autostart}\n`)
+      const proc = Bun.spawn(['bun', MAIN, 'mem', 'ui', '--serve', '--port', String(port)], { cwd: REPO, env: { ...childEnv(), BURACLE_UI_IDLE_MS: '900' }, stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' })
       await waitFor('the server', async () => { const r = readUiRecord(); return r !== undefined && r.pid === proc.pid && await probeUi(r.url) !== undefined })
       return proc
     }
@@ -255,14 +251,13 @@ describe('the server tied to the harness sessions (memory.ui.autostart)', () => 
 })
 
 describe('the server closes by itself', () => {
-  test('`mem ui --serve` exits once no request came for BURACLE_UI_IDLE_MS: its record is cleared and no CortexDB reader outlives it', () => withSandbox(async ({ root, buracleHome }) => {
+  test('`mem ui --serve` exits once no request came for BURACLE_UI_IDLE_MS: its record is cleared and no CortexDB reader outlives it', () => withSandbox(async ({ root }) => {
     const port = freePort()
-    uiConfig(buracleHome, port)
     const repo = join(root, 'shop')
     mkdirSync(repo, { recursive: true })
     expect((await cli(['mem', 'write', '--type', 'preference', '--layer', 'person', '--title', 'Keep answers short', '--summary', 's', '--json', '--cwd', repo])).code).toBe(0)
     const env = captureEnv({ BURACLE_UI_IDLE_MS: '1500' })
-    const proc = Bun.spawn(['bun', MAIN, 'mem', 'ui', '--serve'], { cwd: REPO, env, stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' })
+    const proc = Bun.spawn(['bun', MAIN, 'mem', 'ui', '--serve', '--port', String(port)], { cwd: REPO, env, stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' })
     try {
       await waitFor('the server', async () => { const r = readUiRecord(); return r !== undefined && r.pid === proc.pid && await probeUi(r.url) !== undefined })
       const rec = readUiRecord() as UiRecord
@@ -289,14 +284,13 @@ describe('the server closes by itself', () => {
     }
   }), 90_000)
 
-  test('`mem ui --stop` (a SIGTERM) closes the readers too', () => withSandbox(async ({ root, buracleHome }) => {
+  test('`mem ui --stop` (a SIGTERM) closes the readers too', () => withSandbox(async ({ root }) => {
     const port = freePort()
-    uiConfig(buracleHome, port)
     const repo = join(root, 'shop')
     mkdirSync(repo, { recursive: true })
     expect((await cli(['mem', 'write', '--type', 'preference', '--layer', 'person', '--title', 'Keep answers short', '--summary', 's', '--json', '--cwd', repo])).code).toBe(0)
     try {
-      expect(JSON.parse((await cli(['mem', 'ui', '--json'])).stdout)).toMatchObject({ started: true })
+      expect(JSON.parse((await cli(['mem', 'ui', '--json', '--port', String(port)])).stdout)).toMatchObject({ started: true })
       const rec = readUiRecord() as UiRecord
       expect((await fetch(`${rec.url}/api/brain?scope=person`)).status).toBe(200)
       const reader = readerEntries()[0]?.entry.child as number
@@ -311,14 +305,13 @@ describe('the server closes by itself', () => {
     }
   }), 90_000)
 
-  test('a server ended without running its handlers (what a SIGTERM does on Windows) leaves no reader entry once `stopUi` has seen it gone', () => withSandbox(async ({ root, buracleHome }) => {
+  test('a server ended without running its handlers (what a SIGTERM does on Windows) leaves no reader entry once `stopUi` has seen it gone', () => withSandbox(async ({ root }) => {
     const port = freePort()
-    uiConfig(buracleHome, port)
     const repo = join(root, 'shop')
     mkdirSync(repo, { recursive: true })
     expect((await cli(['mem', 'write', '--type', 'preference', '--layer', 'person', '--title', 'Keep answers short', '--summary', 's', '--json', '--cwd', repo])).code).toBe(0)
     try {
-      expect(JSON.parse((await cli(['mem', 'ui', '--json'])).stdout)).toMatchObject({ started: true })
+      expect(JSON.parse((await cli(['mem', 'ui', '--json', '--port', String(port)])).stdout)).toMatchObject({ started: true })
       const rec = readUiRecord() as UiRecord
       expect((await fetch(`${rec.url}/api/brain?scope=person`)).status).toBe(200)
       const reader = readerEntries()[0]?.entry.child as number
@@ -357,12 +350,11 @@ describe('the status line names the web UI only while it runs', () => {
 })
 
 describe('replacing a server of another build', () => {
-  test('`buracle mem ui` stops a running server of an earlier release and starts this build in its place', () => withSandbox(async ({ root, buracleHome }) => {
+  test('`buracle mem ui` stops a running server of an earlier release and starts this build in its place', () => withSandbox(async ({ root }) => {
     const port = freePort()
-    uiConfig(buracleHome, port)
     const old = await oldServer(root, port)
     try {
-      const r = await cli(['mem', 'ui', '--json'])
+      const r = await cli(['mem', 'ui', '--json', '--port', String(port)])
       expect(r.code).toBe(0)
       expect(JSON.parse(r.stdout)).toEqual({ url: `http://127.0.0.1:${port}`, started: true, opened: false })
       await old.proc.exited
@@ -384,15 +376,14 @@ describe('replacing a server of another build', () => {
     }
   }), 90_000)
 
-  test('`mem ui` names the page of the project in its folder when that project has a brain', () => withSandbox(async ({ root, buracleHome }) => {
+  test('`mem ui` names the page of the project in its folder when that project has a brain', () => withSandbox(async ({ root }) => {
     const port = freePort()
-    uiConfig(buracleHome, port)
     const repo = join(root, 'shop')
     mkdirSync(repo, { recursive: true })
     Bun.spawnSync(['git', 'init', '-q'], { cwd: repo, env: childEnv() })
     Bun.spawnSync(['git', 'remote', 'add', 'origin', 'git@github.com:me/shop.git'], { cwd: repo, env: childEnv() })
     try {
-      expect(JSON.parse((await cli(['mem', 'ui', '--json', '--cwd', repo])).stdout)).toMatchObject({ url: `http://127.0.0.1:${port}`, started: true })
+      expect(JSON.parse((await cli(['mem', 'ui', '--json', '--port', String(port), '--cwd', repo])).stdout)).toMatchObject({ url: `http://127.0.0.1:${port}`, started: true })
       expect((await cli(['mem', 'write', '--type', 'decision', '--title', 'Orders live in PostgreSQL', '--json', '--cwd', repo])).code).toBe(0)
       const r = JSON.parse((await cli(['mem', 'ui', '--json', '--cwd', repo])).stdout) as Record<string, unknown>
       expect(r).toEqual({ url: `http://127.0.0.1:${port}`, page: `http://127.0.0.1:${port}/?scope=project%3Ashop`, started: false, opened: false })
@@ -408,7 +399,6 @@ describe('replacing a server of another build', () => {
 
   test('a status line and a session start start no server: the UI starts only through `buracle mem ui`', () => withSandbox(async ({ root, home, buracleHome }) => {
     const port = freePort()
-    write(join(buracleHome, 'config.yaml'), `memory:\n  ui:\n    port: ${port}\nindex:\n  auto: false\n`)
     const marker = join(paths.stateDir(), 'memory-ui.spawn')
     const driver = startDriver(root)
     try {
@@ -425,9 +415,8 @@ describe('replacing a server of another build', () => {
     }
   }), 60_000)
 
-  test('a record whose pid /healthz does not confirm is never signalled: --stop leaves the process, a new server starts beside it', () => withSandbox(async ({ root, buracleHome }) => {
+  test('a record whose pid /healthz does not confirm is never signalled: --stop leaves the process, a new server starts beside it', () => withSandbox(async ({ root }) => {
     const port = freePort()
-    uiConfig(buracleHome, port)
     const bystander = Bun.spawn(['bun', '-e', 'setInterval(() => {}, 1000)'], { env: childEnv(), stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' })
     const impostorPort = freePort()
     const impostor = await oldServer(root, impostorPort, { pid: 4_000_000 })
@@ -444,7 +433,7 @@ describe('replacing a server of another build', () => {
       expect(JSON.parse(stop.stdout)).toEqual({ stopped: false })
       expect(alive(bystander.pid)).toBe(true)
 
-      const r = await cli(['mem', 'ui', '--json'])
+      const r = await cli(['mem', 'ui', '--json', '--port', String(port)])
       expect(JSON.parse(r.stdout)).toEqual({ url: `http://127.0.0.1:${port}`, started: true, opened: false })
       expect(alive(bystander.pid)).toBe(true)
       expect(readUiRecord()?.build).toBe(uiBuildId())

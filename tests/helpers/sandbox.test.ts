@@ -21,14 +21,6 @@ describe('withSandbox', () => {
     for (const k of SESSION_VARS) expect(process.env[k]).toBeUndefined()
   })
 
-  test('the developer\'s terminal multiplexer does not reach the tests: a test that wants tmux, herdr or cmux sets the variables itself', () => {
-    const MUX_VARS = ['TMUX', 'TMUX_PANE', 'HERDR_ENV', 'HERDR_PANE_ID', 'HERDR_TAB_ID', 'HERDR_WORKSPACE_ID', 'HERDR_SOCKET_PATH', 'CMUX_SURFACE_ID', 'CMUX_WORKSPACE_ID', 'CMUX_TAB_ID', 'CMUX_SOCKET_PATH']
-    for (const k of MUX_VARS) {
-      expect(ISOLATED_ENV).toContain(k)
-      expect(process.env[k]).toBeUndefined()
-    }
-  })
-
   test('a CI runner\'s Homebrew switches do not reach the tests', () => {
     for (const k of ['HOMEBREW_NO_AUTO_UPDATE', 'HOMEBREW_NO_ENV_HINTS']) expect(ISOLATED_ENV).toContain(k)
   })
@@ -41,7 +33,7 @@ describe('withSandbox', () => {
   })
 
   test('the preload sets the quiet defaults; withSandbox keeps them and child processes inherit them', async () => {
-    expect(TEST_DEFAULT_ENV).toEqual({ BURACLE_NO_NOTIFY: '1', BURACLE_NO_CAPTURE: '1', BURACLE_NO_TOOLCHAIN: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_NO_DISTILL: '1', BURACLE_NO_NOTICES: '1', BURACLE_RUNTIME: 'checkout', BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0', GIT_CONFIG_NOSYSTEM: '1' })
+    expect(TEST_DEFAULT_ENV).toEqual({ BURACLE_NO_CAPTURE: '1', BURACLE_NO_TOOLCHAIN: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_NO_DISTILL: '1', BURACLE_NO_NOTICES: '1', BURACLE_RUNTIME: 'checkout', BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0', GIT_CONFIG_NOSYSTEM: '1' })
     for (const [k, v] of Object.entries(TEST_DEFAULT_ENV)) {
       expect(ISOLATED_ENV).not.toContain(k)
       expect(process.env[k]).toBe(v)
@@ -57,17 +49,17 @@ describe('withSandbox', () => {
   })
 
   test('a quiet default that went missing comes back at the next withSandbox or withEnv, except where a withEnv controls it', async () => {
-    delete process.env['BURACLE_NO_NOTIFY']
-    await withSandbox(() => expect(process.env['BURACLE_NO_NOTIFY']).toBe('1'))
-    delete process.env['BURACLE_NO_NOTIFY']
+    delete process.env['BURACLE_NO_CAPTURE']
+    await withSandbox(() => expect(process.env['BURACLE_NO_CAPTURE']).toBe('1'))
+    delete process.env['BURACLE_NO_CAPTURE']
     await withEnv({ OTHER_VAR_FOR_THE_TEST: 'x' }, () => undefined)
-    expect(process.env['BURACLE_NO_NOTIFY']).toBe('1')
-    await withEnv({ BURACLE_NO_NOTIFY: undefined }, async () => {
-      await withSandbox(() => expect(process.env['BURACLE_NO_NOTIFY']).toBeUndefined())
-      await withEnv({ BURACLE_NO_NOTIFY: '0' }, () => expect(process.env['BURACLE_NO_NOTIFY']).toBe('0'))
-      expect(process.env['BURACLE_NO_NOTIFY']).toBeUndefined()
+    expect(process.env['BURACLE_NO_CAPTURE']).toBe('1')
+    await withEnv({ BURACLE_NO_CAPTURE: undefined }, async () => {
+      await withSandbox(() => expect(process.env['BURACLE_NO_CAPTURE']).toBeUndefined())
+      await withEnv({ BURACLE_NO_CAPTURE: '0' }, () => expect(process.env['BURACLE_NO_CAPTURE']).toBe('0'))
+      expect(process.env['BURACLE_NO_CAPTURE']).toBeUndefined()
     })
-    expect(process.env['BURACLE_NO_NOTIFY']).toBe('1')
+    expect(process.env['BURACLE_NO_CAPTURE']).toBe('1')
     expect(process.env['OTHER_VAR_FOR_THE_TEST']).toBeUndefined()
   })
 })

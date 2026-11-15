@@ -1,9 +1,8 @@
 import { classifyTool, type ToolKind } from '../../../core/events'
-import { redactClip } from '../../../core/memory/text'
-import { maskNotice, masksToolKind, maskToolOutput } from '../../shared/tool-output-mask'
+import { maskNotice, masksToolKind, maskToolOutput, redactClip } from '../../../core/memory/redact'
 import { isDeviceWrite } from './routing'
 import type { OmpContext, OmpTextBlock, OmpToolResultEvent } from './types'
-import { hasTui } from './util'
+import { hasTui } from '../../shared/pi-family/util'
 
 const DONE_TODO = new Set(['completed', 'done', 'abandoned', 'cancelled', 'deleted', 'failed'])
 const TODO_TEXT_MAX = 200

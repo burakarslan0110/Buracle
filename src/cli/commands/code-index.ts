@@ -1,5 +1,5 @@
-import type { CommandIO } from '../router'
 import { loadConfigSync } from '../../engine/config'
+import type { CommandIO } from '../router'
 import { parseFlags } from '../../engine/update/args'
 import { writeJson } from '../../engine/update/output'
 
@@ -15,22 +15,20 @@ status   the state of the project's code indexes (ready, building, failed, not b
          Buracle last built or refreshed them, and the last error
 ensure   build what is missing (codegraph init), refresh what exists (codegraph sync, which a
          running codegraph server already does by itself; references an interrupted run left
-         unresolved are resolved) and warm semble's caches (code, and all content). A session
-         start runs it in the background with --if-due: only indexes older than
-         index.minIntervalMin, or failed long enough ago (the wait grows after each failure)
+         unresolved are resolved) and warm semble's caches (code, and all content). A new plan
+         worktree runs it in the background with --if-due (a session start runs nothing):
+         only indexes older than 10 minutes, or failed long enough ago (the wait grows after
+         each failure)
 rebuild  rebuild the codegraph index from scratch (codegraph index) and warm semble again.
          It stops a running codegraph server of the project, so the sessions using it lose
          codegraph until they reconnect: refused while one runs, unless --force
-         (ensure --force is rebuild --force)
 
 The project is the git top level of --cwd (default: the current directory), else the nearest
 folder above it with a project manifest (package.json, go.mod, Cargo.toml, *.sln, ...), never the
 home folder or above it. A folder that only holds projects (loose files and hidden folders
-aside) works on each child project (index.children, at most index.maxChildren). Never indexed:
+aside) works on each child project (at most 8, the most recently active first). Never indexed:
 the home folder and its parents, the filesystem root, the memory vault, ~/.buracle and what
 index.exclude names.
-config: index.auto, index.codegraph, index.semble, index.minIntervalMin, index.exclude,
-index.children, index.maxChildren.
 Ctrl-C (SIGINT), SIGTERM or SIGHUP stops ensure and rebuild together with the codegraph and semble
 processes they started (exit 130, 143 or 129); an interrupted tool keeps its previous record.`
 
@@ -39,13 +37,14 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
   const json = io.flags.json || p.bools.has('json')
   const quiet = p.bools.has('quiet')
   const sub = p.positionals[0] ?? 'status'
-  if (p.errors.length > 0 || !['status', 'ensure', 'rebuild'].includes(sub)) {
-    io.stderr.write(`buracle index: ${[...p.errors, ...(['status', 'ensure', 'rebuild'].includes(sub) ? [] : [`unknown subcommand ${sub}`])].join('; ')}\n${usage}\n`)
+  const misplaced = p.bools.has('force') && sub !== 'rebuild' ? ['--force goes with rebuild'] : []
+  if (p.errors.length > 0 || misplaced.length > 0 || !['status', 'ensure', 'rebuild'].includes(sub)) {
+    io.stderr.write(`buracle index: ${[...p.errors, ...misplaced, ...(['status', 'ensure', 'rebuild'].includes(sub) ? [] : [`unknown subcommand ${sub}`])].join('; ')}\n${usage}\n`)
     return 1
   }
   const ws = await import('../../workflow/workspace')
-  const { describeIndexState } = await import('../../core/workspace')
-  const cfg = loadConfigSync().config
+  const { describeIndexState, indexSettings } = await import('../../core/workspace')
+  const cfg = indexSettings(loadConfigSync().config)
   const cwd = p.strings.get('cwd') ?? process.cwd()
   const target = await ws.resolveWorkspace(cwd, ws.workspaceOptions(cfg))
   const roots = target.root !== undefined ? [target.root] : target.children
@@ -60,7 +59,7 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
   }
 
   if (sub === 'status') {
-    const entries = roots.map(root => ({ root, record: ws.readIndexRecord(root) ?? null, state: ws.projectIndex(root, cfg.index, now) }))
+    const entries = roots.map(root => ({ root, record: ws.readIndexRecord(root) ?? null, state: ws.projectIndex(root, cfg, now) }))
     if (json) {
       if (target.root !== undefined) {
         const e = entries[0]
@@ -85,7 +84,7 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     return 0
   }
   const wi = await import('../../workflow/workspace-index')
-  const rebuild = sub === 'rebuild' || p.bools.has('force')
+  const rebuild = sub === 'rebuild'
   if (rebuild && !p.bools.has('force')) {
     const busy = roots.flatMap(root => {
       const w = wi.codegraphLiveWriter(root)

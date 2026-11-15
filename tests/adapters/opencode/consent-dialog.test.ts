@@ -26,7 +26,7 @@ async function runtime(dir: string) {
   const f = fakeServerContext(dir)
   const deps: PluginDeps = {
     baked: testBaked(), memory: fakeMemory(), settleMs: 0, runChecker: async () => ({ code: 0, stdout: '', stderr: '' }),
-    capture: () => true, maint: () => ({ removed: [] }), notify: () => undefined,
+    capture: () => true, maint: () => ({ removed: [] }),
     workspace: async cwd => noProject(cwd), workspaceRead: async cwd => noProject(cwd),
     consentAsk: { pollMs: 10, timeoutMs: 5_000 },
   }
@@ -52,7 +52,7 @@ describe('OpenCode H20 consent dialog: the server waits while the TUI asks', () 
     const { f } = await runtime(root)
     const held = await f.trigger('permission.evaluate', shell('git push origin main'))
     expect(held.effect).toBe('deny')
-    expect(held.message).toStartWith('[Buracle H20 consent.gate] ')
+    expect(held.message).toStartWith('Buracle H20: ')
     expect(held.message).toContain('call the `question` tool with one question whose text is exactly "Buracle consent: `git push origin main` pushes to a remote. Run it?" and the options "Allow once", "Allow for this session", "Refuse"')
     expect(openAsks(SID)).toEqual([])
   }))

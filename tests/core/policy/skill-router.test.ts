@@ -58,7 +58,7 @@ describe('canonical/skill-triggers.yaml', () => {
 
   test('the file holds no skill phrases: a skill loads from an exact invocation only (PRD follow-up 2026-11-06)', () => {
     expect((raw as Record<string, unknown>)['skills']).toBeUndefined()
-    expect(EXPLICIT.sort()).toEqual(['bugfix', 'buracle-join', 'dead-code', 'goal-build', 'inspect', 'plan-build', 'requirements'])
+    expect(EXPLICIT.sort()).toEqual(['bugfix', 'dead-code', 'goal-build', 'inspect', 'plan-build', 'requirements'])
     for (const s of T.skills) expect({ id: s.id, ask: s.ask, topic: s.topic, not: s.not }).toEqual({ id: s.id, ask: undefined, topic: undefined, not: undefined })
   })
 
@@ -97,7 +97,7 @@ describe('the skill evals as routing fixtures', () => {
           const yes = want === true || (typeof want === 'string' && want.startsWith('>='))
           // Plain prompts never load or suggest a skill and never raise a memory line: the agent decides.
           if (kind === 'skill' || (kind === 'cmd' && rest.startsWith('buracle '))) expect({ h, probe, offered: offered(r) }).toEqual({ h, probe, offered: [] })
-          else if (kind === 'mcp' && rest === 'buracle-memory') expect({ h, probe, memory: r.memory }).toEqual({ h, probe, memory: { recall: false, write: false } })
+          else if (kind === 'mcp' && rest === 'buracle-memory') expect({ h, probe, offered: offered(r), memory: 'memory' in r }).toEqual({ h, probe, offered: [], memory: false })
           else if (kind === 'mcp') {
             const cat = categoryOf(rest)
             expect({ h, probe, routed: cat !== undefined && r.categories.includes(cat) }).toEqual({ h, probe, routed: yes })
@@ -250,7 +250,7 @@ describe('caps, dedupe and availability', () => {
     const text = 'Express 5: verify in the docs whether async errors reach the error middleware.'
     expect(route(text).categories).toContain('library-docs')
     expect(route(text, { available: ALL_SERVERS.filter(s => s !== 'context7') }).categories).not.toContain('library-docs')
-    expect(route('What did we decide last time about the plan file format?', { available: [] }).memory).toEqual({ recall: false, write: false })
+    expect(route('What did we decide last time about the plan file format?', { available: [] })).toEqual({ invoked: [], load: [], candidates: [], categories: [] })
   })
 
   test('type and compile errors call for the lsp server, and only where it is installed (Codex and OpenCode)', () => {
@@ -393,7 +393,7 @@ describe('text the user did not write is never routed', () => {
 })
 
 describe('routeText', () => {
-  const r = (p: Partial<PromptRoute>): PromptRoute => ({ invoked: [], load: [], candidates: [], categories: [], memory: { recall: false, write: false }, ...p })
+  const r = (p: Partial<PromptRoute>): PromptRoute => ({ invoked: [], load: [], candidates: [], categories: [], ...p })
 
   test('T3: nothing matched, no text', () => {
     expect(routeText(r({}), 'claude', POLICY)).toBeUndefined()
@@ -404,7 +404,7 @@ describe('routeText', () => {
     const spec = r({ load: ['plan-build'] })
     expect(routeText(spec, 'claude', POLICY, { triggers: T, skillFile: id => `/plugins/buracle/skills/${id}/SKILL.md` })).toContain('read /plugins/buracle/skills/plan-build/SKILL.md')
     expect(routeText(r({ load: ['research'] }), 'claude', POLICY, { triggers: T })).toContain('Skill tool, buracle:research')
-    expect(routeText(spec, 'codex', POLICY, { triggers: T })).toContain('read ${CODEX_HOME:-~/.codex}/skills/plan-build/SKILL.md')
+    expect(routeText(spec, 'codex', POLICY, { triggers: T })).toContain('read ~/.agents/skills/plan-build/SKILL.md')
     expect(routeText(spec, 'opencode', POLICY, { triggers: T })).toContain('skill tool, plan-build')
     expect(routeText(spec, 'omp', POLICY, { triggers: T })).toContain('read skill://plan-build')
     expect(routeText(spec, 'claude', POLICY, { triggers: T })).toContain('the plan-build workflow: load it before any other step')
@@ -418,9 +418,7 @@ describe('routeText', () => {
     expect(text).toContain(`research (${SKILLS.find(s => s.id === 'research')?.short})`)
   })
 
-  test('memory and category lines', () => {
-    expect(routeText(r({ memory: { recall: true, write: false } }), 'claude', POLICY)).toContain('search memory first (memory_search')
-    expect(routeText(r({ memory: { recall: true, write: true, cli: true } }), 'omp', POLICY)).toContain('buracle mem remember')
+  test('category lines', () => {
     const lib = routeText(r({ categories: ['library-docs', 'code-structure'], libs: ['zod'] }), 'codex', POLICY) ?? ''
     expect(lib).toContain('- Library docs (zod): resolve the library with context7')
     expect(lib).toContain('- Code structure: ask codegraph')
@@ -439,7 +437,7 @@ describe('routeText', () => {
   })
 
   test('a skill the harness attached to the prompt: the T1 line says so, within the same budget', () => {
-    const full = r({ load: ['research'], candidates: ['ab-test', 'project-rules'], categories: ['library-docs', 'web-search'], libs: ['zod'], memory: { recall: true, write: true } })
+    const full = r({ load: ['research'], candidates: ['ab-test', 'project-rules'], categories: ['library-docs', 'web-search'], libs: ['zod'] })
     const text = routeText(full, 'opencode', POLICY, { triggers: T, attached: ['research'] }) ?? ''
     expect(text).toContain('- The user asked for the research skill: its skill is attached to this message; follow it, and treat the rest of the prompt as its input.')
     expect(text).not.toContain('load it before any other step')
@@ -448,11 +446,10 @@ describe('routeText', () => {
   })
 
   test('the budget drops lower-priority lines, never the load instruction', () => {
-    const full = r({ load: ['plan-build'], candidates: ['research', 'ab-test'], categories: ['library-docs', 'code-structure'], libs: ['zod', 'express', 'next'], memory: { recall: true, write: true } })
+    const full = r({ load: ['plan-build'], candidates: ['research', 'ab-test'], categories: ['library-docs', 'code-structure'], libs: ['zod', 'express', 'next'] })
     const text = routeText(full, 'claude', POLICY, { triggers: T, skillFile: id => `/Users/someone/.claude/plugins/marketplaces/buracle/harness/claude/skills/${id}/SKILL.md` }) ?? ''
     expect(text).toContain('the plan-build workflow')
     expect(utf8Bytes(text)).toBeLessThanOrEqual(ROUTE_TEXT_MAX_BYTES)
-    expect(text).toContain('Earlier work')
   })
 })
 

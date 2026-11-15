@@ -9,7 +9,7 @@ import type { AdapterContext } from '../../../src/adapters/registry'
 import { LAUNCH_DOWN_TTL_MS, recordLaunchFailure } from '../../../src/cli/commands/mcp'
 import { defaultConfig } from '../../../src/core/config'
 import type { CanonicalBundle } from '../../../src/core/catalog'
-import { AUTO_PAUSE_REASON, type StopWhy } from '../../../src/core/plan/state'
+import type { StopWhy } from '../../../src/core/plan/state'
 import type { WorkspaceInfo } from '../../../src/core/workspace'
 import * as paths from '../../../src/engine/paths'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
@@ -96,17 +96,6 @@ describe('UserPromptSubmit', () => {
     })
   })
 
-  test('plan.autoPause: a user message pauses a running plan with core\'s autoPause reason (the same on every harness)', async () => {
-    await withSandbox(async () => {
-      saveState('claude', SID, { ...freshState(), plan: { path: 'docs/plans/p.md', slug: 'p', status: 'IN_PROGRESS', type: 'Feature', phase: 'implement', registeredAt: NOW - 1000 } })
-      const on = defaultConfig()
-      on.plan.autoPause = true
-      const r = await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'Why is this function called twice?' }), ctx({ plan: on.plan }), deps())
-      expect(context(r.stdout)).toContain('plan.autoPause')
-      expect(loadState('claude', SID).interaction).toEqual({ state: 'paused', kind: 'discussion', since: NOW, reason: AUTO_PAUSE_REASON })
-    })
-  })
-
   test('a history question gets no memory line: the agent searches memory under its rules', async () => {
     await withSandbox(async () => {
       const r = await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'geçen sefer neden böyle yapmıştık?' }), ctx(), deps())
@@ -130,7 +119,7 @@ describe('PreToolUse: H20 consent gate', () => {
       const denied = await claudeHook('PreToolUse', bash('git push origin feature'), ctx(), deps())
       const out = json(denied.stdout)['hookSpecificOutput'] as Record<string, unknown>
       expect(out['permissionDecision']).toBe('deny')
-      expect(String(out['permissionDecisionReason'])).toContain('Buracle H20 (consent.gate)')
+      expect(String(out['permissionDecisionReason'])).toContain('Buracle H20: this command pushes to a remote')
       expect(existsSync(consentPath(SID))).toBe(true)
       await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'evet' }), ctx(), deps())
       const allowed = await claudeHook('PreToolUse', bash('git push origin feature'), ctx(), deps())
@@ -201,24 +190,14 @@ describe('PreToolUse: routing and questions', () => {
   })
 })
 
-describe('H03 shell notes', () => {
-  test('a shell file write points to Edit or Write once per session; printing a file points to Read', async () => {
-    await withSandbox(async () => {
-      const bash = (command: string) => payload('PreToolUse', { tool_name: 'Bash', tool_input: { command } })
-      expect(context((await claudeHook('PreToolUse', bash("sed -i 's/a/b/' src/a.ts"), ctx(), deps())).stdout)).toContain('this shell command writes `src/a.ts` (sed -i in place). Make ordinary source edits with the Edit or Write tool instead')
-      expect(context((await claudeHook('PreToolUse', bash('echo x > src/b.ts'), ctx(), deps())).stdout)).not.toContain('this shell command writes')
-      expect(context((await claudeHook('PreToolUse', bash('cat src/a.ts'), ctx(), deps())).stdout)).toContain('read `src/a.ts` with the Read tool instead of printing it in the shell')
-    })
-  })
-})
-
 describe('PostToolUse', () => {
   test('an edit gets the file-check notes as context', async () => {
     await withSandbox(async ({ root }) => {
-      const file = join(root, 'big.ts')
-      writeFileSync(file, Array.from({ length: 1200 }, (_, i) => `export const x${i} = ${i}`).join('\n') + '\n')
-      const r = await claudeHook('PostToolUse', JSON.stringify({ session_id: SID, cwd: root, tool_name: 'Write', tool_input: { file_path: file, content: 'x' }, tool_response: { success: true } }), ctx(), deps())
+      const file = join(root, 'run.sh')
+      writeFileSync(file, 'echo $1\n')
+      const r = await claudeHook('PostToolUse', JSON.stringify({ session_id: SID, cwd: root, tool_name: 'Write', tool_input: { file_path: file, content: 'x' }, tool_response: { success: true } }), ctx(), deps({ run: async () => ({ code: 127, stdout: '', stderr: 'not found', timedOut: false }) }))
       expect(context(r.stdout)).toContain('Buracle file checks')
+      expect(context(r.stdout)).toContain('shellcheck is not installed')
     })
   })
 
@@ -301,6 +280,24 @@ describe('SessionStart and SubagentStart: H21 workspace lines, H24 ledger reset'
       expect(context(other.stdout)).toContain('Project root:')
     })
   })
+
+  test('a subagent starts with the workspace lines alone, at SubagentStart and at a SessionStart that names an agent: no capability card, no memory index', async () => {
+    await withSandbox(async sb => {
+      saveWorkspace(SID, info(sb.root))
+      const loaded: string[] = []
+      const d = deps({ refreshWorkspace: i => i, importModule: async name => { loaded.push(name); return name === 'context' ? { contextText: async () => 'the memory index' } : undefined } })
+      for (const event of ['SubagentStart', 'SessionStart']) {
+        const text = context((await claudeHook(event, payload(event, { source: 'startup', cwd: sb.root, agent_id: 'a1', agent_type: 'Explore' }), ctx(), d)).stdout)
+        expect(text).toStartWith(`Project root: ${sb.root}.`)
+        expect(text).not.toContain('Buracle capabilities')
+        expect(text).not.toContain('the memory index')
+      }
+      expect(loaded).not.toContain('context')
+      const main = context((await claudeHook('SessionStart', payload('SessionStart', { source: 'startup', cwd: sb.root }), ctx(), deps({ prepareWorkspace: async () => info(sb.root), importModule: d.importModule! }))).stdout)
+      expect(main).toContain('Buracle capabilities (Claude Code)')
+      expect(main).toContain('the memory index')
+    })
+  })
 })
 
 describe('UserPromptExpansion and UserPromptSubmit: H25 flow, H22 router, H24 ledger, H26 signals, the permission mode', () => {
@@ -356,11 +353,9 @@ describe('UserPromptExpansion and UserPromptSubmit: H25 flow, H22 router, H24 le
     })
   })
 
-  test('routing.skills off names no skill; Buracle continuations, harness texts and subagent prompts are never routed', async () => {
+  test('an exact skill invocation is routed; Buracle continuations, harness texts and subagent prompts never are', async () => {
     await withSandbox(async () => {
-      const off = defaultConfig()
-      off.routing.skills = 'off'
-      expect(context((await claudeHook('UserPromptSubmit', prompt('$plan-build add rate limiting'), ctx(off), deps())).stdout)).not.toContain('plan-build')
+      expect(context((await claudeHook('UserPromptSubmit', prompt('$plan-build add rate limiting'), ctx(), deps())).stdout)).toContain('plan-build')
       expect(loadLedger('claude', SID).turn).toBe(1)
       for (const extra of [{ prompt: 'Buracle routing check: the user asked for plan-build and it was not loaded.' }, { prompt: '<task-notification>build done</task-notification>' }, { prompt: 'use the plan-build workflow', agent_id: 'a1' }]) {
         const r = await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', extra), ctx(), deps())
@@ -467,36 +462,6 @@ describe('PreToolUse: H24 ledger, the H03 deny-once gates and the semble/codegra
     return proj
   }
 
-  test('an edit that adds an import of a dependency context7 was not asked about is denied once; the retry goes through', async () => {
-    await withSandbox(async sb => {
-      const proj = project(sb.root)
-      const edit = payload('PreToolUse', { cwd: proj, tool_name: 'Edit', tool_input: { file_path: join(proj, 'src', 'a.ts'), old_string: "import { a } from './a'", new_string: "import { a } from './a'\nimport { z } from 'zod'" } })
-      const first = decision((await claudeHook('PreToolUse', edit, ctx(), deps())).stdout)
-      expect(first.permissionDecision).toBe('deny')
-      expect(String(first.permissionDecisionReason)).toStartWith('Buracle H03 (route.tools): this edit adds an import of `zod`')
-      expect((await claudeHook('PreToolUse', edit, ctx(), deps())).stdout).toBe('')
-      const nudge = defaultConfig()
-      nudge.routing.strictness = 'nudge'
-      const other = payload('PreToolUse', { session_id: 'sess-nudge', cwd: proj, tool_name: 'Edit', tool_input: { file_path: join(proj, 'b.ts'), old_string: 'x', new_string: "import { z } from 'zod'\nx" } })
-      expect(decision((await claudeHook('PreToolUse', other, ctx(nudge), deps())).stdout)).toEqual({ hookEventName: 'PreToolUse', additionalContext: expect.stringContaining('this edit imports `zod`') })
-    })
-  })
-
-  test('in an npm workspace the members\' dependencies count: an import of one is denied once (R4)', async () => {
-    await withSandbox(async sb => {
-      const mono = join(sb.root, 'mono')
-      mkdirSync(join(mono, 'packages', 'app', 'src'), { recursive: true })
-      writeFileSync(join(mono, 'package.json'), JSON.stringify({ private: true, workspaces: ['packages/*'], devDependencies: { turbo: '2', typescript: '6' } }))
-      writeFileSync(join(mono, 'packages', 'app', 'package.json'), JSON.stringify({ name: 'app', dependencies: { 'lodash-es': '4' } }))
-      saveWorkspace(SID, info(mono))
-      const file = join(mono, 'packages', 'app', 'src', 'a.ts')
-      const edit = payload('PreToolUse', { cwd: mono, tool_name: 'Edit', tool_input: { file_path: file, old_string: 'export const a = 1', new_string: "import { debounce } from 'lodash-es'\nexport const a = 1" } })
-      const first = decision((await claudeHook('PreToolUse', edit, ctx(), deps())).stdout)
-      expect(first.permissionDecision).toBe('deny')
-      expect(String(first.permissionDecisionReason)).toStartWith('Buracle H03 (route.tools): this edit adds an import of `lodash-es`')
-    })
-  })
-
   test('the root check is the one every harness uses: a folder of projects and index.exclude names are denied too', async () => {
     await withSandbox(async sb => {
       const dev = join(sb.root, 'dev')
@@ -526,11 +491,29 @@ describe('PreToolUse: H24 ledger, the H03 deny-once gates and the semble/codegra
     })
   })
 
-  test('a Skill call is recorded as a load; tools outside the matcher stay untouched', async () => {
+  test('a Skill call is recorded as a load; a tool outside the matcher gets no output', async () => {
     await withSandbox(async () => {
       expect((await claudeHook('PreToolUse', payload('PreToolUse', { tool_name: 'Skill', tool_input: { skill: 'buracle:research', args: 'bun 1.4' } }), ctx(), deps())).stdout).toBe('')
       expect(loadLedger('claude', SID).skills['research']?.n).toBe(1)
       expect((await claudeHook('PreToolUse', payload('PreToolUse', { tool_name: 'Agent', tool_input: { prompt: 'x' } }), ctx(), deps())).stdout).toBe('')
+    })
+  })
+
+  test('H24 counts every tool call the hook receives, as on the other harnesses: no selection by tool name', async () => {
+    await withSandbox(async sb => {
+      const proj = project(sb.root)
+      const calls: Array<[string, Record<string, unknown>]> = [
+        ['Bash', { command: 'ls' }], ['Edit', { file_path: join(proj, 'a.ts'), old_string: 'a', new_string: 'b' }], ['Glob', { pattern: '*.md' }],
+        ['NotebookEdit', { notebook_path: join(proj, 'n.ipynb'), new_source: 'x' }],
+        ['AskUserQuestion', { questions: [] }], ['mcp__myfiles__list', {}], ['Agent', { prompt: 'x' }],
+      ]
+      let n = 0
+      for (const [tool_name, tool_input] of calls) {
+        const r = await claudeHook('PreToolUse', payload('PreToolUse', { cwd: proj, tool_name, tool_input }), ctx(), deps())
+        expect({ tool_name, denied: decision(r.stdout).permissionDecision === 'deny' }).toEqual({ tool_name, denied: false })
+        expect({ tool_name, calls: loadLedger('claude', SID).turnTools.calls }).toEqual({ tool_name, calls: ++n })
+      }
+      expect(loadLedger('claude', SID).mcp['myfiles']?.n).toBe(1)
     })
   })
 })
@@ -557,16 +540,13 @@ describe('PostToolUse: H25 skill loads, H24 reads, H14 capture of web and MCP ca
     })
   })
 
-  test('web and MCP calls are spooled with their kind and full tool name', async () => {
+  test('web, MCP, shell and edit calls are not spooled: the capture keeps prompts and turns', async () => {
     await withSandbox(async () => {
       const s = spoolStub()
-      for (const tool of ['WebFetch', 'WebSearch', 'mcp__plugin_buracle_context7__query-docs']) {
-        await claudeHook('PostToolUse', payload('PostToolUse', { tool_name: tool, tool_input: { url: 'https://example.com', query: 'x' }, tool_response: {} }), ctx(), deps({ importModule: s.importModule }))
+      for (const tool of ['WebFetch', 'WebSearch', 'mcp__plugin_buracle_context7__query-docs', 'Bash', 'Skill']) {
+        await claudeHook('PostToolUse', payload('PostToolUse', { tool_name: tool, tool_input: { url: 'https://example.com', query: 'x', command: 'ls' }, tool_response: {} }), ctx(), deps({ importModule: s.importModule }))
       }
-      expect(s.appended.map(a => (a[2] as Array<Record<string, unknown>>)[0])).toEqual([
-        { ts: NOW, ev: 'tool', tool: 'WebFetch', kind: 'web_fetch' }, { ts: NOW, ev: 'tool', tool: 'WebSearch', kind: 'web_search' },
-        { ts: NOW, ev: 'tool', tool: 'mcp__plugin_buracle_context7__query-docs', kind: 'mcp' },
-      ])
+      expect(s.appended).toEqual([])
     })
   })
 })
@@ -580,7 +560,7 @@ describe('PostToolUseFailure and PostToolUse: H24 MCP results, the session failu
 
   test('servers in mcp.off.claude are unavailable for good: the built-in web search is allowed with an "off" note and the router leaves them out; off only in Codex changes nothing here', async () => {
     await withSandbox(async () => {
-      const off = (claude: string[], codex: string[] = []) => ctx({ mcp: { shared: true, off: { claude, codex, opencode: [], omp: [] } } })
+      const off = (claude: string[], codex: string[] = []) => ctx({ mcp: { shared: true, off: { claude, codex, opencode: [], omp: [], qwen: [], pi: [], agy: [] } } })
       const search = async (c: AdapterContext) => decision((await claudeHook('PreToolUse', payload('PreToolUse', { tool_name: 'WebSearch', tool_input: { query: 'bun 1.4 release notes' } }), c, deps())).stdout)
       const route = async (c: AdapterContext) => context((await claudeHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'search the web for the bun 1.4 release notes' }), c, deps())).stdout)
       expect(String((await search(off([], ['web-search', 'web-fetch']))).permissionDecisionReason)).toContain(WS)
@@ -707,7 +687,7 @@ describe('Stop: H23 route.audit once per prompt, after the stop guard', () => {
         return out === '' ? {} : json(out)
       }
       for (const why of ['paused', 'awaiting-approval', 'question'] as StopWhy[]) expect({ why, out: await after(why) }).toEqual({ why, out: {} })
-      for (const why of ['runaway-plan', 'runaway-chain'] as StopWhy[]) expect({ why, out: await after(why) }).toEqual({ why, out: { systemMessage: runawayNotice(why, defaultConfig().plan) } })
+      for (const why of ['runaway-plan', 'runaway-chain'] as StopWhy[]) expect({ why, out: await after(why) }).toEqual({ why, out: { systemMessage: runawayNotice(why) } })
       for (const why of ['finished', 'disabled'] as StopWhy[]) {
         const out = await after(why)
         const context = (out['hookSpecificOutput'] as Record<string, unknown> | undefined)?.['additionalContext']
@@ -827,7 +807,7 @@ describe('w2 plan state on Claude: H10 holds, H09 notes, the H08 receipt, the la
     await withSandbox(async () => {
       const bash = (command: string, extra: Record<string, unknown> = {}) => payload('PreToolUse', { tool_name: 'Bash', tool_input: { command }, ...extra })
       const lane = { agent_id: 'agent-1', agent_type: 'general-purpose' }
-      expect(deny((await claudeHook('PreToolUse', bash('buracle plan pause --kind decision --reason "merge?"', lane), ctx(), deps())).stdout)).toContain('Buracle lane guard')
+      expect(deny((await claudeHook('PreToolUse', bash('buracle plan pause --kind decision --reason "merge?"', lane), ctx(), deps())).stdout)).toContain('Buracle H01: a subagent does not run')
       expect(deny((await claudeHook('PreToolUse', bash('buracle flow phase verify', lane), ctx(), deps())).stdout)).toContain('`buracle flow phase`')
       expect(deny((await claudeHook('PreToolUse', bash('buracle plan status --json', lane), ctx(), deps())).stdout)).toBeUndefined()
       expect(deny((await claudeHook('PreToolUse', bash('buracle plan pause --kind decision'), ctx(), deps())).stdout)).toBeUndefined()

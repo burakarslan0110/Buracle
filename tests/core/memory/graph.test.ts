@@ -246,6 +246,14 @@ describe('entity hubs', () => {
     assertConsistent(g)
   })
 
+  test('an update that drops an about entry or a source drops its edge: the hubs follow the memory\'s own fields', () => {
+    const before = [item({ id: 'decision-a', title: 'A', about: ['bun', 'sqlite'], sources: ['src/a.ts'] })]
+    const after = [item({ id: 'decision-a', title: 'A', about: ['bun'], sources: [] })]
+    const hubs = (items: ReturnType<typeof item>[]) => memGraph(items, { nowMs: NOW }).edges.filter(e => e.kind === 'about' || e.kind === 'cites').map(e => e.target).sort()
+    expect(hubs(before)).toEqual(['concept:bun', 'concept:sqlite', 'file:src/a.ts'])
+    expect(hubs(after)).toEqual(['concept:bun'])
+  })
+
   test('the entity cap keeps the most linked hubs (label breaks ties)', () => {
     const items = [
       item({ id: 'decision-a', title: 'A', tags: ['zeta', 'beta', 'alpha'] }),

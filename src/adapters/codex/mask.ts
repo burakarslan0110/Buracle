@@ -1,6 +1,6 @@
 import { classifyTool } from '../../core/events'
 import type { AdapterContext } from '../registry'
-import { maskNotice, masksToolKind, maskToolOutput } from '../shared/tool-output-mask'
+import { maskNotice, masksToolKind, maskToolOutput } from '../../core/memory/redact'
 import { json, NOTHING, rec, str, type HookOutcome, type Payload } from './hook-io'
 
 export function responseText(response: unknown): string {

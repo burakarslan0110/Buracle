@@ -22,8 +22,11 @@ const AGENT_MAX_MS = 2 * 60 * 60_000
 const TODOS_MAX = 50
 const AGENTS_MAX = 6
 
+/** How many seconds the live view stays after a workflow ends before it folds away. */
+export const FOLD_AFTER_SEC = 8
+
 export function emptyBand(): BandState {
-  return { v: 1, sid: '', stamp: 0, todos: [], agents: [], foldAfterSec: 8 }
+  return { v: 1, sid: '', stamp: 0, todos: [], agents: [], foldAfterSec: FOLD_AFTER_SEC }
 }
 
 export interface BandFiles {
@@ -42,7 +45,7 @@ export function bandRefresh(prev: BandState, x: BandFiles): BandState {
     v: 1, sid: x.sid, stamp: x.now,
     todos: same ? prev.todos : [],
     agents: same ? prev.agents.filter(a => x.now - a.startedAt < AGENT_MAX_MS) : [],
-    foldAfterSec: Number.isFinite(x.foldAfterSec) && x.foldAfterSec >= 0 ? x.foldAfterSec : 8,
+    foldAfterSec: Number.isFinite(x.foldAfterSec) && x.foldAfterSec >= 0 ? x.foldAfterSec : FOLD_AFTER_SEC,
   }
   const flow = x.flow === 'keep' ? (same ? prev.flow : undefined) : x.flow
   if (flow !== undefined) next.flow = flow

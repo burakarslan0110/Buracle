@@ -9,7 +9,7 @@ import { ledgerPath, loadLedger, resetLedger, updateLedger } from '../../src/wor
 import { withSandbox } from '../helpers/sandbox'
 
 const REPO = join(import.meta.dir, '..', '..')
-const route = (p: Partial<PromptRoute> = {}): PromptRoute => ({ invoked: [], load: [], candidates: [], categories: [], memory: { recall: false, write: false }, ...p })
+const route = (p: Partial<PromptRoute> = {}): PromptRoute => ({ invoked: [], load: [], candidates: [], categories: [], ...p })
 const grep = { harness: 'claude' as const, sessionId: 's1', cwd: '/r', tool: 'Grep', input: { pattern: 'x' }, ...classifyTool('claude', 'Grep', { pattern: 'x' }, '/r') }
 
 describe('ledger.json', () => {

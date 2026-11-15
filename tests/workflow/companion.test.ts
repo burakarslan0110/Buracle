@@ -411,11 +411,11 @@ describe('second opinion (plan.reviews.companion)', () => {
 })
 
 describe('second opinion: the command line', () => {
-  test('the CLI: unknown actions, --lane and companion-only flags on other review actions are refused', () => sandbox(async root => {
+  test('the CLI: unknown actions, the removed --lane and companion-only flags on other review actions are refused', () => sandbox(async root => {
     const w = await world(root)
     const runIt = async (args: string[]) => { const io = memIO(false); const code = await runPlan([...args, '--session', w.s.sessionId, '--harness', 'claude'], io, ctxAt(w.repo)); return { code, err: io.err() } }
     expect((await runIt(['review', 'companion', 'launch', '--role', 'plan'])).err).toContain("plan review companion <start|collect|cancel>: unknown action 'launch'")
-    expect((await runIt(['review', 'companion', 'start', '--role', 'plan', '--lane', 'x'])).err).toContain('a second opinion belongs to the lead')
+    expect((await runIt(['review', 'companion', 'start', '--role', 'plan', '--lane', 'x'])).err).toContain('--lane')
     expect((await runIt(['review', 'done', '--role', 'plan', '--verdict', 'pass', '--on', 'codex'])).err).toContain("--on applies to 'plan review companion' only")
     expect((await runIt(['review', 'companion', 'collect', '--role', 'plan', '--wait', '9999'])).err).toContain('--wait must be a whole number of seconds from 0 to 600')
     expect((await runIt(['review', 'companion', 'start', '--role', 'plan', '--on', 'gemini'])).err).toContain("--on must be one of off, auto, claude, codex, opencode, omp (got 'gemini')")

@@ -13,7 +13,7 @@
 
 Skills, rules, MCP servers, hooks and guards managed from one source, one memory every agent shares, and workflows that finish with proof.
 
-macOS · Linux · Windows through WSL 2, on x64 and arm64
+macOS · Linux, on x64 and arm64
 
 ```sh
 curl -fsSL https://github.com/burakarslan0110/buracle/releases/latest/download/install.sh | bash
@@ -34,18 +34,18 @@ Buracle sets up every coding agent you use from one source: the same skills, rul
 
 Without it, each harness has its own config format, its own hooks, its own memory and its own idea of a skill. You set each of them up by hand, and none of them knows what you decided in another. Buracle keeps them in step:
 
-- One setup. Skills, rules, review agents, hooks and MCP config live in `canonical/`. `buracle install` writes each harness's own format, with backups, a journal and rollback.
+- One setup. Skills, rules, review agents, hooks and MCP config live in `canonical/`. `buracle install` writes each harness's own format, with backups and a journal, and rolls a failed run back.
 - One memory for every agent. Each project has a brain, and you have one that follows you across projects. A decision recorded in Claude Code is there when you open Codex the next morning.
 - Workflows with a contract. `/plan-build`, `/goal-build`, `/bugfix` and `/requirements` write durable files, wait for your approval where it matters, write the failing test first, run independent reviews and keep going until the result is verified.
 - Guards that make no-prompt mode safe. Hooks block catastrophic commands, ask in the harness's own dialog before ones that are hard to undo, protect secrets and mask them in tool output.
-- The right tool for each question. Ten MCP servers and six language servers are installed and wired into the harnesses, and routing hooks send each question to the server built for it.
-- The Buracle Console. A local web page shows the memory, a review page for plans and diffs, sessions and usage across all four harnesses, and the settings.
+- The right tool for each question. Nine MCP servers and six language servers are installed and wired into the harnesses, and routing hooks send each question to the server built for it.
+- The Buracle Console. A local web page shows the memory, a review page for plans and diffs, and the workflow settings.
 
 ## Install
 
 ### Before you start
 
-Install at least one harness: [Claude Code](https://code.claude.com/docs/en/quickstart), [Codex CLI](https://developers.openai.com/codex/cli), [OpenCode](https://opencode.ai) or [Oh My Pi](https://www.npmjs.com/package/@oh-my-pi/pi-coding-agent). Buracle sets up every harness it finds and skips the rest. The script installs Bun when it is missing. Git and curl (on Linux also unzip, and libatomic1 when Node.js is missing, for the Node.js the install downloads) are yours to install: the script never runs sudo or a package manager, and on Linux it prints the command for your distribution when one is missing. Node.js, uv, ripgrep and jq come through Homebrew when you have it; otherwise the install downloads a version Buracle pins, checks it against the sha256 pinned with it and keeps it in `~/.buracle/toolchain/system`.
+Buracle runs on macOS and Linux; Windows and WSL are not supported. Install at least one harness: [Claude Code](https://code.claude.com/docs/en/quickstart), [Codex CLI](https://developers.openai.com/codex/cli), [OpenCode](https://opencode.ai) or [Oh My Pi](https://www.npmjs.com/package/@oh-my-pi/pi-coding-agent). Buracle sets up every harness it finds and skips the rest. The script installs Bun when it is missing. Git and curl (on Linux also unzip, and libatomic1 when Node.js is missing, for the Node.js the install downloads) are yours to install: the script never runs sudo or a package manager, and on Linux it prints the command for your distribution when one is missing. Node.js, uv, ripgrep and jq come through Homebrew when you have it; otherwise the install downloads a version Buracle pins, checks it against the sha256 pinned with it and keeps it in `~/.buracle/toolchain/system`.
 
 ### Install
 
@@ -55,31 +55,21 @@ macOS and Linux:
 curl -fsSL https://github.com/burakarslan0110/buracle/releases/latest/download/install.sh | bash
 ```
 
-Windows: Buracle runs inside WSL 2, together with your harnesses.
-
-1. In PowerShell, run `wsl --install` to get WSL 2 with Ubuntu, and restart when Windows asks.
-2. Open the Ubuntu shell and install your harnesses there, not on Windows.
-3. In the Ubuntu shell, run the macOS and Linux command above.
-4. Keep your projects in the Linux file system, for example `~/projects`. Linux tools read a Windows drive under `/mnt/c` slowly, and `buracle doctor` warns about such a project.
-5. Run `buracle doctor` and check that it reports no error.
-
-In WSL, `buracle mem ui --open` opens the page in your Windows browser, and `buracle notify` shows a Windows notification. If the page does not open, check that `localhostForwarding` is not `false` in the `.wslconfig` file of your Windows user.
-
 The script comes from the latest GitHub release. It clones Buracle's `main` branch into `~/buracle`, installs its dependencies, then runs `buracle install`, which asks its rare questions right in the terminal (also under `curl … | bash`), puts `~/.local/bin` on your PATH (a marked block in the startup file of your shell, and of the other of zsh and bash, because a terminal opened in it never reads the first one's file), links a harness program your shells cannot find by name (omp installed with `bun add -g` sits in `~/.bun/bin`) into `~/.local/bin`, and starts the Buracle Console. It ends with a short summary, one line each for Prerequisites, Buracle, Harnesses, Tools, Memory and Result, plus a line for anything that did not pass; every detail, the health check included, goes to `~/.buracle/logs/install-<date>.log`, which the Result line names. `main` holds the released files: CI writes it, without the test suite, only when it publishes a release, and `buracle update` follows it. Running the script again updates the checkout and repairs the setup. The script is short enough to read first: [`install.sh`](scripts/install.sh).
 
 After the install:
 
 1. Run `/reload-plugins` in any Claude Code session that is already open. Sign in to the other harnesses once: `codex login`, `opencode auth login`, `omp login`.
-2. Run `buracle project init` in each project. It maps the project to its brain and links its skills for every harness.
-3. Run `buracle update` whenever you want the newest Buracle, harnesses and tools.
+2. Run `buracle project sync` in each project (a session start also runs its linking step). It checks for an `AGENTS.md`, links the project's `.agents/skills` into `.claude/skills` for Claude Code and sets up the project's brain.
+3. Run `buracle update` whenever you want the newest Buracle, skills and tools.
 
 <details>
 <summary><b>What <code>buracle install</code> does</b></summary>
 
-1. Build. It generates the harness files from `canonical/` and `src/`. A failed build installs nothing.
-2. Runtime. It copies the checkout into `~/.buracle/runtime/<id>` and tests the copy: `--version` must run, and the Claude Code and Codex hooks must deny `rm -rf ~` and allow `ls`. Only then does the `buracle` command switch to it. The previous runtime is kept for rollback.
-3. Toolchain. It installs missing system tools through Homebrew (macOS, and Linux when Homebrew is installed). Node.js, uv, ripgrep and jq that Homebrew cannot install are downloaded at a pinned version, checked against the pinned sha256, run once, and linked into `~/.local/bin`; on Linux without Homebrew any other missing tool is only reported with the command for your distribution. It installs every MCP server and language server into `~/.buracle/toolchain`. Everything comes in its newest release, CortexDB included (a new CortexDB is used only after it passed the memory's check, with the brains backed up first). `update.minReleaseAgeDays` (0 by default) can make Buracle wait some days after a release.
-4. Core. The `~/.buracle/bin/buracle` command, its `~/.local/bin/buracle` link, `~/.buracle/config.yaml` and the skill links in each installed harness's own skills folder (`~/.codex/skills`, `~/.config/opencode/skills`, `~/.omp/agent/skills`). Nothing goes to the shared `~/.agents/skills`, so agents Buracle does not support never see its skills.
+1. Preflight and build. A transaction an earlier run left half-done is finished first (or the install stops and says why). Then it generates the harness files from `canonical/` and `src/`; a failed build installs nothing.
+2. Runtime. It copies the checkout into `~/.buracle/runtime/<id>` and tests the copy: `--version` must run, and the Claude Code and Codex hooks must deny `rm -rf ~` and allow `ls`. Only then does the `buracle` command switch to it. The previous runtime is kept.
+3. Toolchain. It installs missing system tools through Homebrew (macOS, and Linux when Homebrew is installed). Node.js, uv, ripgrep and jq that Homebrew cannot install are downloaded at a pinned version, checked against the pinned sha256, run once, and linked into `~/.local/bin`; on Linux without Homebrew any other missing tool is only reported with the command for your distribution. It installs every MCP server and language server into `~/.buracle/toolchain`. Everything comes in its newest release, CortexDB included (it must be 2.137.0 or newer, and a new CortexDB is used only after it passed the memory's check, with the brains backed up first). `update.minReleaseAgeDays` (0 by default) can make Buracle wait some days after a release.
+4. Core. The `~/.buracle/bin/buracle` command, its `~/.local/bin/buracle` link, `~/.buracle/config.yaml` and one copy of each skill in `~/.agents/skills`, which Codex, OpenCode and Oh My Pi read themselves (Claude Code reads the same text from the Buracle plugin).
 5. Harnesses. Each harness gets its own transaction: backup, atomic writes, journal, commands, verification, ownership ledger and commit. If one harness fails, only that harness rolls back.
 6. Memory. It creates `~/.buracle/brain`.
 
@@ -88,10 +78,9 @@ Values you changed by hand are kept and reported. In a terminal it applies at on
 </details>
 
 <details>
-<summary><b>Update, roll back, uninstall</b></summary>
+<summary><b>Update, uninstall</b></summary>
 
-- `buracle update` checks Buracle, skills, MCP servers, Claude Code plugins, the harnesses, the tools and the price list, and updates each part from its own source. A harness is updated with the installer that installed it (Homebrew, npm, bun or its own updater) and its version is read again afterwards. `--check` only checks, and names narrow it down: `buracle update codex mcp`. A toolchain upgrade has to prove itself: an MCP server must start and answer, and a tool must run its version check. One that does not goes back to the version the toolchain kept.
-- `buracle rollback` undoes the newest install from its backups. `buracle rollback toolchain` puts back the previous toolchain versions.
+- `buracle update` checks Buracle (`self`), skills, MCP servers and the tools, and updates each part from its own source, with the installer that installed it. `--check` only checks, and kinds or names narrow it down: `buracle update mcp codegraph`. Like the install, it first finishes a half-done earlier transaction. After an update, every MCP server that moved has to start and answer again, and a part whose check failed is named as not checked, never as up to date.
 - `buracle uninstall` removes only what the ownership ledger proves Buracle wrote, the PATH block the install added to your shell's startup file and the system tools it downloaded. Values you changed stay, and the memory in `~/.buracle/brain` is never touched.
 
 </details>
@@ -129,12 +118,11 @@ flowchart LR
 What holds these workflows together:
 
 - A stop guard keeps the turn open until the plan is verified. Only a pause ends it, and you can pause at any time by saying stop, wait or hold on. Buracle pauses the plan itself when the whole message is such a word in English or Turkish; in any other case the agent pauses it.
-- `--worktree`, `--new-branch` or `--current-branch` after the request decide where the work happens. A worktree run is squash-merged back when it is done.
+- `--worktree`, `--new-branch` or `--current-branch` after the request decide where the work happens. A worktree run is merged back with plain git (a squash merge) when it is done.
 - Before any approval, the agent reads the notes you pinned on the review page and marks each one applied.
 - `buracle plan audit` compares the diff with the files each task named and flags changes no task planned.
 - With `plan.reviews.companion`, the same review also runs on another installed harness as a read-only second opinion.
-- Independent plans can run in parallel as lanes, each in its own worktree, and merge in dependency order.
-- **Buracle Swarm.** A plan's tasks can go to a task board shared by the repository, and worker sessions in other harnesses take them. The question comes while the plan is designed, together with the clarifying questions: "Run Buracle Swarm for this plan?" and which harnesses may run workers (`plan.board.mode` decides whether it asks, always does it or never; `plan.board.harnesses.<harness>` keeps a harness out of the swarm, also from the Console's settings page). The plan is then shaped for it: a foundation task that owns the shared files first, then tasks with disjoint files, and a `## Swarm Plan` section shows its waves (`buracle work publish --dry-run --md` prints it). The lead decides how many workers run, at most `plan.board.maxWorkers` (6), and scales the panes after every merge. Every worker takes one task at a time in its own worktree, asks you its questions in its own pane, reports back and waits for the next wave; the lead only waits, merges in dependency order and runs the checks. A `**Harness:** codex` line under a task's objective reserves that task for one harness. Without panes, open terminals yourself and run `/buracle-join <slug>` in each (`$buracle-join <slug>` in Codex). When the lead itself runs inside tmux, herdr, cmux or the Herdr desktop app, the publish and `buracle work spawn` open those terminals as panes below it (the lead keeps the top; the workers fill a grid of boxes of about the same size, up to four in a row; the Herdr app places them in the lead's tab), each already joining the board, label every pane with its worker and task (`Worker 2 (claude) · Task 3: …`), mark a pane whose worker asks you something (`NEEDS YOU`), and close a pane when nothing is left for its harness (`plan.board.mux` decides whether panes are offered).
+- Work that splits runs in parallel in lanes: subagents the lead launches, each editing lane in its own worktree, merged back by the lead.
 
 You decide how these workflows run in the Buracle Console's [settings](#settings) or with `buracle config set plan.<key> <value>`.
 
@@ -145,7 +133,6 @@ You decide how these workflows run in the Buracle Console's [settings](#settings
 | `/research <question>` | Cited research across the web, library docs, public code and memory. Every source is read before it is cited |
 | `/inspect <question>` | Traces one question through the code that actually runs, cites every hop as `path:line`, tries to disprove its own answer and states its confidence. Changes nothing |
 | `/dead-code` | Reports unused code. A candidate needs two independent signals, and the result is a staged removal plan. Changes nothing |
-| `/security-audit` | Cloudflare's security skill: focused guidance, or a six-phase audit with findings and a report |
 | `/project-rules` | Writes and checks `AGENTS.md`, nested `AGENTS.md` files and path rules from commands it ran |
 | `/new-skill` | Captures a repeatable procedure as a skill with evals, and lints it |
 | `/find-skill` | Searches your skills and the skills.sh registry with license, freshness and risk ratings, audits the pick and installs it for every harness |
@@ -160,7 +147,7 @@ You decide how these workflows run in the Buracle Console's [settings](#settings
 
 ### Rules
 
-Four rules load in every session: core (autonomy, evidence before "done", testing, change discipline, debugging), tooling (which tool answers which question), memory and plain language. The plain-language rule keeps one language per session: plans, PRDs, reports and review findings follow your language, and only the markers Buracle reads stay English. Path rules load when the agent touches matching files: TypeScript, Python, Go, .NET, Blazor, frontend, browser automation, backend and mobile.
+Four short rules load in every session, under 8 KB together (`buracle rules lint` enforces it): core (autonomy, evidence before "done"), tooling (which tool answers which question), memory and plain language. They carry the essentials; the detail (testing, change discipline, debugging, the full memory and language rules) sits in references of the `buracle` and `memory` skills, which the agent reads when it needs them. The plain-language rule keeps one language per session: plans, PRDs, reports and review findings follow your language, and only the markers Buracle reads stay English. Path rules load when the agent first touches matching files: TypeScript, Python, Go, .NET, Blazor, frontend and backend.
 
 ## Memory
 
@@ -171,41 +158,41 @@ Buracle's memory lives in one [CortexDB](https://github.com/liliang-cn/cortexdb)
 | Region | What it holds |
 |---|---|
 | Plans & decisions | Decisions with their reasons and the alternatives that were rejected |
-| Knowledge & ideas | Project knowledge, and the core pages (brief, architecture, conventions, commands, glossary, progress) of projects set up by an older Buracle |
+| Knowledge & ideas | Project knowledge and ideas |
 | Discoveries & references | Links and references worth keeping |
 | You & preferences | Your preferences and the conventions of the project |
 | Skills & procedures | Procedures that took real effort to work out |
 | Warnings & gotchas | Non-obvious failures and their root causes |
 | Memories & events | Sessions, handoffs and captures |
 
-Upgrading from 0.5: [MIGRATION.md](MIGRATION.md) (what the migration does, how to check it and go back). Why the memory looks like this, with measurements: [ARCHITECTURE.md](ARCHITECTURE.md). What each harness and operating system supports, and what was verified: [COMPATIBILITY.md](COMPATIBILITY.md).
+Why the memory looks like this, with measurements: [ARCHITECTURE.md](ARCHITECTURE.md). What each harness and operating system supports, and what was verified: [COMPATIBILITY.md](COMPATIBILITY.md).
 
 ### What it does, and when
 
 - When a session starts, the agent gets your preferences, the project's key memories and, if work was cut off, a handoff saying where it stopped. Reading is all that happens at that moment.
 - While you work, the agent saves a preference you state ("always", "never", "from now on"), in any language, as an explicit memory right away.
 - Before the context is compacted, the plan, task and todo state go into a handoff memory, and they come back right after.
+- While a session runs, the harness adapters only note each prompt, each finished turn and each compaction in a spool file. When it ends, the session memory lists the files it touched, taken from git.
 - When a session ends, one `buracle mem finalize` run writes the session memory and asks the model of the harness you used for the decisions, gotchas, procedures and preferences worth keeping. A preference it quotes in your own words, which your prompts show, is filed as explicit. Its answer is checked as a whole before anything is written. Confident findings become memories marked as inferred, with the model's confidence, and the rest wait as captures to be filed. A finding that resembles a memory of yours (explicit, pinned or verified) never changes it: it is stored beside it, marked as contradicting. The same run takes up to three older sessions whose capture is still owed.
 - `buracle mem capture` does the same on demand, and `buracle mem doctor` lists what is still owed.
 
-The memory runs nothing else in the background: no timers, no start-up jobs, no repair or cleanup passes. Sessions and handoffs expire by themselves, because CortexDB drops them after 45 and 14 days. `buracle mem backup` copies the whole brain file when you ask, and a session end takes one copy whenever the newest is more than a day old (the newest 10 are kept).
+The memory runs nothing else in the background: no timers, no start-up jobs, no repair passes. Sessions and handoffs expire after 45 and 14 days, and the session end that follows deletes the expired ones for good. `buracle mem backup` copies the whole brain file when you ask, and a session end takes one copy whenever the newest is more than a day old (the newest 10 are kept).
 
 Model calls go through the CLI of a harness you already use, so no API key is needed. The session's own harness goes first, and a harness whose 5-hour usage is above 75% or whose weekly usage is above 85% is skipped. Search is by words, with the English and Turkish word forms.
 
-Secrets are masked before anything is written, `<private>…</private>` blocks are never stored, and folders listed in `memory.exclude` are never recorded. A retired memory stays hidden from search until you delete it, so you can restore it. `buracle mem export` and `buracle mem import` move memories as JSON lines, and `buracle mem restore` brings a backup back.
+Secrets are masked before anything is written, `<private>…</private>` blocks are never stored, and folders listed in `memory.exclude` are never recorded. A retired memory stays hidden from search until you delete it, so you can restore it. `buracle mem restore` brings a backup back.
 
 ### Buracle Console
 
 ![A region opened: its memories drawn as a network of links, with their list in the side panel](assets/brain-network.png)
 
-`/brain` or `buracle mem ui --open` opens it at `http://localhost:41777`. It runs while you work: the install starts it, a session start in any of the four harnesses starts it when it is not running, and it stays up as long as a harness session is open. When the last session ends it stops within about a minute; before any session it stops after 30 minutes without a request (`BURACLE_UI_IDLE_MS`, in milliseconds, changes that). `buracle mem ui --stop` stops it until the next session starts. `buracle config set memory.ui.autostart false` brings back the manual way: it starts only with `buracle mem ui` and stops after the idle time.
+`/brain` or `buracle mem ui --open` opens it at `http://localhost:41777` (the port is fixed; `buracle mem ui --port N` starts one run on another). It runs while you work: the install starts it, a session start in any of the four harnesses starts it when it is not running, and it stays up as long as a harness session is open. When the last session ends it stops within about a minute; before any session it stops after 30 minutes without a request (`BURACLE_UI_IDLE_MS`, in milliseconds, changes that). `buracle mem ui --stop` stops it until the next session starts. `buracle config set memory.ui.autostart false` brings back the manual way: it starts only with `buracle mem ui` and stops after the idle time.
 
 - Brain view. The regions drawn as a brain, where writes and searches light up as they happen. `/` searches, `1` to `7` open a region and `G` shows the network of memories, tags, files and concepts.
 - Memory detail. The body, tags, sources and history, where the memory came from (your words or inferred, with its confidence) and the memories it links to, with edit, retire, restore and delete. An edit is stored as your own words.
 - Review page. Your plans, build contracts and PRDs, and the agent's diff. Mermaid blocks are drawn as diagrams, with their source underneath. Select text or click a line number to pin a note for the agent.
-- Health (`H`). What is wrong in plain words, the store and its version, the brain file with its size and buckets, the move from Buracle 0.5, the inbox of captures, the last capture and the backups, with a Back up button.
-- Sessions and usage (`W`). Sessions across all four harnesses for the last 30 days (counts only, never what you typed), commits landed, cost and tokens per day and model, and the installed skills, agents and rules.
-- Notifications (`N`) and a dark and a light theme (`T`).
+- Health (`H`). What is wrong in plain words, the store and its version, the brain file with its size and buckets, the notes still to file, the last capture and the backups, with a Back up button.
+- A dark and a light theme (`T`).
 
 ![The review page: a plan open in the middle, a highlighted passage, and the note pinned on it under "Your notes"](assets/brain-review.png)
 
@@ -221,7 +208,6 @@ Workflow switches decide how plan-build, goal-build and bugfix run on every harn
 
 | Switch | Key | Default |
 |---|---|---|
-| Pause a running plan when you send a new message | `plan.autoPause` | off |
 | Ask for your approval of a plan before building | `plan.planApproval` | on |
 | Ask for your approval of the verified result | `plan.resultApproval` | on |
 | Build on a branch of its own, in a worktree | `plan.branchIsolation` | on |
@@ -287,7 +273,7 @@ Buracle 0.8.6 · CC 2.1.296 (Max) · Buracle Console: localhost:41777 · brain 1
 
 ## What each harness gets
 
-All four get the same 27 hooks, skills, review agents, rules, memory, guards and status line data. What differs is how Buracle plugs in and what each host can show.
+All four get the same 26 hooks, skills, review agents, rules, memory, guards and status line data. What differs is how Buracle plugs in and what each host can show.
 
 | | Claude Code | Codex CLI | OpenCode | Oh My Pi |
 |---|---|---|---|---|
@@ -295,14 +281,14 @@ All four get the same 27 hooks, skills, review agents, rules, memory, guards and
 | Workflows | `/plan-build` | `$plan-build` | `/plan-build` | `/plan-build` |
 | Utility commands | `/brain`, `/remember`, `/aside`, `/buracle-status` | CLI twins, with `/aside` mapped to Codex's `/side` | All four in the TUI, with `/aside` mapped to `/btw` | All four |
 | Consent | A dialog inside Claude Code | Codex's own approval prompt | A TUI dialog, or the question tool on web and desktop | omp's select dialog |
-| Workflow progress | A band above the prompt, memory and plan panes | The status bar in tmux and `buracle plan status` | A band above the composer and a dialog | A widget above the editor and a pane below it |
-| Status line | Buracle's own status line | Codex's native items and a tmux bar | The prompt footer | omp's native preset with Buracle entries |
+| Workflow progress | A band above the prompt, memory and plan panes | One-line workflow notices and `buracle plan status` | A band above the composer and a dialog | A widget above the editor and a pane below it |
+| Status line | Buracle's own status line | Codex's native items | The prompt footer | omp's native preset with Buracle entries |
 | Usage tips | In the spinner rotation, as `Buracle: …` | None (Codex's tips are fixed) | One on the home screen | None (no place for them) |
 | Plan mode | Saved to `docs/plan-build/` | Saved when you choose to implement the plan | Saved as a draft | Saved on approval |
 | Language servers | Claude Code's LSP | Buracle's `lsp` MCP server | Buracle's `lsp` MCP server | omp's own LSP |
 | Browser | chrome-devtools | chrome-devtools | chrome-devtools | omp's built-in browser |
 
-Buracle switches off the built-in memory of Claude Code, Codex and Oh My Pi, so the brain is the one memory all four share. Review agents always run read-only. Where a host lacks a mechanism Buracle needs, [`src/adapters/shared/host-limits.ts`](src/adapters/shared/host-limits.ts) records the gap and the fallback, and `buracle doctor <harness> --all` lists each record. The table below is that list.
+Every harness maps its native hooks onto the same seven events (session start, prompt, before a tool, after a tool, stop, before compaction, session end), and one shared pipeline decides what each does; a denial reads `Buracle H<nn>: …` in all four. Buracle switches off the built-in memory of Claude Code, Codex and Oh My Pi, so the brain is the one memory all four share. Review agents always run read-only. One-time release notices show once per machine, as TUI toasts in OpenCode. Where a host lacks a mechanism Buracle needs, [`src/adapters/shared/host-limits.ts`](src/adapters/shared/host-limits.ts) records the gap and the fallback, and `buracle doctor <harness> --all` lists each record. The table below is that list.
 
 ### Host limits
 
@@ -314,12 +300,11 @@ Buracle switches off the built-in memory of Claude Code, Codex and Oh My Pi, so 
 | `codex.consent-dialog` | Codex | A hook cannot ask the user, and `codex exec`, `--yolo` and `-a never` sessions show no approval prompt | The denial tells the agent what to ask, and the next prompt carries the answer |
 | `codex.background-wait` | Codex | The Stop payload carries no task data, and nothing wakes a turn when a background command ends | The stop guard holds the turn |
 | `codex.quiet-stop-feedback` | Codex | A Stop hook continues a turn only with a block, whose reason becomes a new prompt | The stop guard's reason goes in that prompt |
-| `codex.shell-read-nudge` | Codex | No file-read tool to point a shell read to | The shell read stays allowed, and the edit note names `apply_patch` |
 | `codex.commands-without-turn` | Codex | No custom slash commands (a plugin's commands become skills) | `$memory`, the CLI twins and Codex's own `/side` |
 | `codex.live-exec-mask` | Codex | The `write_stdin` polls of a running command reach no hook | Every completed shell and MCP result is masked |
 | `codex.failed-mcp-mask` | Codex | PostToolUse runs only for a call that succeeded | Every successful shell and MCP result is masked |
-| `codex.live-panes` | Codex | Hooks get no pane, widget or dialog | `buracle mem status`, `buracle plan status` and the tmux status line |
-| `codex.custom-status-line` | Codex | The footer shows only Codex's own items | Buracle picks the native items and shows its own bar through tmux |
+| `codex.live-panes` | Codex | Hooks get no pane, widget or dialog | `buracle mem status`, `buracle plan status` and the one-line workflow notices (`workflow.codexNotices`) |
+| `codex.custom-status-line` | Codex | The footer shows only Codex's own items | Buracle picks the native items |
 | `codex.summary-keep-list` | Codex | Remote compaction (OpenAI, Azure, Bedrock) ignores `compact_prompt` | The handoff memory and the restore carry the state over |
 | `opencode.consent-dialog` | OpenCode | The dialog needs the TUI plugin, which web, desktop, the server API and `opencode run` do not load | The denial tells the agent to ask with the `question` tool |
 | `opencode.approved-plan-capture` | OpenCode | The plan agent has no approval tool or event | A draft plan (`approved: false`) when the session leaves the plan agent |
@@ -330,6 +315,8 @@ Buracle switches off the built-in memory of Claude Code, Codex and Oh My Pi, so 
 | `opencode.subagent-stop-hold` | OpenCode | No subagent-stop hook | An invalid review report gets a note that asks the agent to continue the reviewer once |
 | `opencode.rate-windows` | OpenCode | No quota API, so the windows come from provider response headers | The 5-hour and 7-day segments stay empty until a response carries them |
 | `omp.companion-shell` | Oh My Pi | Print mode cannot hold bash to read-only commands | The second opinion runs with read, grep and glob only, with the diff in its prompt |
+| `agy.no-compaction-event` | AGY CLI (support not released yet) | No hook event before or after a conversation is compacted | The memory context comes in at SessionStart, and the context size is watched before each model call |
+| `agy.no-session-end` | AGY CLI (support not released yet) | No event for the end of a conversation, only Stop at the end of each turn | The memory is captured at every Stop |
 
 </details>
 
@@ -344,11 +331,9 @@ Buracle needs at least these harness versions (`src/engine/update/min-versions.t
 
 ## The buracle command
 
-Run `buracle` in a terminal and it opens a menu with the logo, one line that says whether all is well, and six choices: install or repair, update, health check, memory, a detailed view of every part with its version and pending update, and quit. Arrow keys or j/k move, Enter runs the choice, and each choice has its own key.
+Run `buracle` in a terminal and it opens a menu with the logo, one line that says whether updates wait and when they were last checked, and five choices: install or repair, update, health check, memory and quit. Arrow keys or j/k move, Enter runs the choice, and each choice has its own key.
 
-Every screen keeps the same logo header at the top: the full logo from 55 by 20, the icon with the name in a narrower window, and one line in a low or narrow one. A command you start from the menu runs below that header, with its questions and progress lines as usual, and Ctrl-C stops the command, not the menu. When it ends, its result shows under the output: any key takes you back, and `o` shows the whole output again with your terminal's own scrollback.
-
-While the menu is open, Buracle re-checks what was last verified more than six hours ago: the MCP servers answer a live handshake, the tools report their version and the update check runs again. A row says `checking…` until its result is in. A check never downloads anything, so a server whose package is not in the toolchain waits for `buracle install`. In the detailed view, `n` jumps to the next row that needs a look and `r` rechecks everything now.
+The logo header fits the window: the full logo from 55 by 20, the icon with the name in a narrower window, and one line in a low or narrow one. A choice closes the menu and runs its command directly in the terminal, with its questions and progress lines as usual, and the command's exit code is the menu's.
 
 | Command | What it does |
 |---|---|
@@ -356,10 +341,9 @@ While the menu is open, Buracle re-checks what was last verified more than six h
 | `buracle update [--check]` | Updates each part from its own source |
 | `buracle doctor [<topic>] [--all]` | Checks hooks, MCP servers, memory and code indexes. It shows one line per section and only the problems, each with its fix; `--all` shows every row. A topic such as `mcp` or `memory` checks one part |
 | `buracle config` | Reads or changes the configuration with `get`, `set` and `unset` |
-| `buracle rollback` | Undoes the newest install |
 | `buracle uninstall` | Removes everything Buracle installed and leaves the memory alone |
 
-Your agents use more commands, such as `plan`, `worktree`, `work` (the task board), `mem`, `skills` and `project`. `buracle help --all` lists them and `buracle help <command>` explains one.
+Your agents use more commands, such as `plan`, `worktree`, `mem`, `skills` and `project`. `buracle help --all` lists them and `buracle help <command>` explains one.
 
 ## Development
 
@@ -370,10 +354,10 @@ T=$(mktemp -d) && HOME=$T BURACLE_HOME=$T/.buracle bun src/cli/main.ts build --c
 bun test
 ```
 
-CI runs these checks on macOS (arm64) and Linux (x64). Work lands on `dev`, so clone that branch to develop. When every check passes there and the released files changed, CI picks the next version by itself (0.5.0, 0.5.1, 0.5.2 and so on), writes that commit to `main` at that version and without the test suite (`tests/` and `bunfig.toml`), then publishes `v<version>` from it on GitHub with the install script attached. Nothing runs on `main`. To start a new line, raise the major or minor version in `package.json`.
+CI runs these checks on macOS (arm64) and Linux (x64). Work lands on `dev`, so clone that branch to develop. When every check passes there and the released files changed, CI picks the next patch version by itself, writes that commit to `main` at that version and without the test suite (`tests/` and `bunfig.toml`), then publishes `v<version>` from it on GitHub with the install script attached. Nothing runs on `main`. To start a new line, raise the major or minor version in `package.json`.
 
 Read [`AGENTS.md`](AGENTS.md), [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`SECURITY.md`](SECURITY.md) before you send a change. Found a bug or missing a feature? [Open an issue](https://github.com/burakarslan0110/buracle/issues).
 
 ## License
 
-[MIT](LICENSE). The `security-audit` skill is Cloudflare's [security-audit skill](https://github.com/cloudflare/security-audit-skill), also MIT, with its license in [`canonical/skills/security-audit/assets/`](canonical/skills/security-audit/assets/).
+[MIT](LICENSE).

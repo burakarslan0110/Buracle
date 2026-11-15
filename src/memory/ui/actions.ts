@@ -1,7 +1,6 @@
 import { existsSync } from 'node:fs'
 import { isMemId } from '../../core/memory/brain'
 import { BACKUP_BUDGET, HEADROOM } from '../../core/memory/budgets'
-import { loadConfigSync } from '../../engine/config'
 import * as paths from '../../engine/paths'
 import { memReasonAdvice } from '../../core/memory/status'
 import { tilde } from '../../engine/update/output'
@@ -13,7 +12,7 @@ import { removeProject } from '../project-remove'
 import { computeStatus, memoryMcpHealth, refreshStatus } from '../status'
 import { brainFileInfo } from '../status-report'
 import { bucketExists, deleteItem, getStored, projectRef, recordEvent, withBrainLock } from '../store'
-import { migrationSummary, parseScope, UiApiError, type UiScope } from './api'
+import { parseScope, UiApiError, type UiScope } from './api'
 
 export const MAX_BODY_BYTES = 64 * 1024
 
@@ -75,7 +74,6 @@ export async function healthPayload(scope: UiScope, nowMs: number): Promise<Reco
     ...(status.last_capture !== undefined ? { lastCapture: status.last_capture } : {}),
     store: { ok: status.store.ok, ...(status.store.version !== undefined ? { version: status.store.version } : {}) },
     brain: await brainFileInfo().catch(() => undefined),
-    migration: migrationSummary(),
     mcp: memoryMcpHealth(),
     backups: backupsPayload(scope),
   }
@@ -142,7 +140,7 @@ const layerId = (scope: UiScope, id: string): string => `${scope.kind === 'perso
 
 /** A memory error of the shared memory API as the status and body the page gets. */
 export function uiErrorOf(e: MemoryError): UiApiError {
-  const status = e.code === 'conflict' ? 409 : e.code === 'not_editable' ? 403 : e.code === 'not_found' ? 404 : e.code === 'invalid_input' ? 400 : e.code === 'migrating' || e.code === 'store_unavailable' ? 503 : 400
+  const status = e.code === 'conflict' ? 409 : e.code === 'not_editable' ? 403 : e.code === 'not_found' ? 404 : e.code === 'invalid_input' ? 400 : e.code === 'store_unavailable' ? 503 : 400
   return new UiApiError(status, e.code, e.message, undefined, e.data)
 }
 
@@ -232,14 +230,12 @@ export async function deleteMemory(body: Record<string, unknown>, nowMs: number)
 
 export function settingsPayload(nowMs: number): Record<string, unknown> {
   const choice = chooseHarnesses({ nowMs })
-  let port: number | undefined
-  try { port = loadConfigSync().config.memory.ui.port } catch { port = undefined }
   return {
     file: tilde(paths.userConfigFile()),
     model: {
       harnesses: choice.picks, held: choice.held,
       headroom: { max5hPct: HEADROOM.max5hPct, max7dPct: HEADROOM.max7dPct },
     },
-    ...(port !== undefined ? { ui: { port } } : {}),
+    ui: { port: paths.MEMORY_UI_PORT },
   }
 }

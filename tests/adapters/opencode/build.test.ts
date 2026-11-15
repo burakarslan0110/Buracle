@@ -122,10 +122,12 @@ describe('opencode build', () => {
       const heading = /^#\s+.+$/m.exec(r.body)?.[0]
       if (heading !== undefined) expect(block).toContain(heading)
     }
+    // The plugin hands a path rule over at the first matching edit, so the block names the rules and their folder, not every glob.
+    const pointer = block.slice(block.indexOf('# Path-scoped rules'))
+    expect(pointer).toContain('`~/.buracle/rules/paths`')
+    expect(pointer.trim().split('\n').length).toBe(3)
     for (const r of canonical().rules.filter(x => x.scope === 'paths')) {
-      expect(block).toContain(`~/.buracle/rules/paths/${r.id}.md`)
-      const line = block.split('\n').find(l => l.includes(`/rules/paths/${r.id}.md`)) ?? ''
-      for (const g of r.frontmatter['paths'] as string[]) expect({ rule: r.id, g, listed: line.includes(`\`${g}\``) }).toEqual({ rule: r.id, g, listed: true })
+      expect({ rule: r.id, named: new RegExp(`[(, ]${r.id}[,)]`).test(pointer) }).toEqual({ rule: r.id, named: true })
     }
     expect(block).not.toMatch(/\(\+\d+ more\)/)
   }, 60_000)
@@ -142,7 +144,7 @@ describe('opencode build', () => {
       const cleanup = await mod.default.setup(f.ctx)
       expect(f.hooks.size).toBe(9)
       expect([...f.commands.keys()].sort()).toEqual(userInvocable())
-      expect(f.modelTransforms.length).toBe(1)
+      expect(f.modelTransforms.length).toBe(0)
       const ev = await f.trigger('permission.evaluate', { sessionID: 'ses_bundle1', action: 'shell', resources: ['rm -rf /'], effect: 'allow' })
       expect((ev as { effect: string }).effect).toBe('deny')
       if (typeof cleanup === 'function') await (cleanup as () => Promise<void>)()

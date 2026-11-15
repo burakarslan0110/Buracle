@@ -14,7 +14,7 @@ type Verdict = { block?: boolean, reason?: string } | undefined
 function setup(cwd: string, fence: string | undefined, active: string[] = []) {
   mkdirSync(cwd, { recursive: true })
   const policy = { ...testDeps().deps.policy!, checkBash, checkWrite, routeTool: () => ({ action: 'allow' as const }) }
-  const t = testDeps({ policy, evalGuard: defaultDeps().evalGuard, consentGate: () => undefined, reviewerFence: () => fence })
+  const t = testDeps({ policy, evalGuard: defaultDeps().evalGuard, reviewerFence: () => fence })
   const fp = fakePi()
   const tools = { active: [...active], set: [] as string[][] }
   fp.pi.getActiveTools = () => [...tools.active]

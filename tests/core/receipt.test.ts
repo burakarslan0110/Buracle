@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { editOf, emptyReceipt, isCheckCommand, lineDelta, longTurnText, maskSecrets, noteChanges, noteCommand, noteEdit, parseReceipt, receiptLine, shellFailed, unverified } from '../../src/core/receipt'
+import { editOf, emptyReceipt, isCheckCommand, lineDelta, maskSecrets, noteChanges, noteCommand, noteEdit, parseReceipt, receiptLine, shellFailed, unverified } from '../../src/core/receipt'
 
 describe('isCheckCommand', () => {
   test.each(['bun test', 'bun test tests/a.test.ts', 'bunx tsc --noEmit -p .', 'npm test', 'pnpm run lint', 'pytest -q', 'python -m pytest', 'go test ./...', 'cargo check', 'claude plugin test harness/claude', 'buracle build --check', 'make test', 'ruff check .'])('%s verifies', c => {
@@ -105,13 +105,6 @@ describe('what the command-hook harnesses keep between hook runs', () => {
     })
   })
 
-  test('longTurnText: only a turn at least notifyAfterSec long, rounded to whole minutes; 0 turns it off', () => {
-    expect(longTurnText(119_000, 120)).toBeUndefined()
-    expect(longTurnText(120_000, 120)).toBe('Turn finished after 2 min')
-    expect(longTurnText(185_000, 120, 'plan-build (phase Implement)')).toBe('Turn finished after 3 min: plan-build (phase Implement)')
-    expect(longTurnText(10 * 60_000, 0)).toBeUndefined()
-    expect(longTurnText(Number.NaN, 120)).toBeUndefined()
-  })
 })
 
 describe('what the mod reads from tool calls', () => {

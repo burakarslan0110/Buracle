@@ -22,14 +22,13 @@ function setup(sb: Sandbox, overrides: Partial<ExtensionDeps> = {}, mode: 'tui' 
   const cwd = join(sb.root, 'work')
   mkdirSync(cwd, { recursive: true })
   const clock = { now: 1_791_400_000_000 }
-  const desktop: string[] = []
   const policy = { ...testDeps().deps.policy!, checkBash: () => ({}), checkWrite: () => ({}), routeTool: () => ({ action: 'allow' as const }), capabilityCard: () => '', checkQuestion: () => ({}), detectIntent, isGuardContinuation }
-  const t = testDeps({ policy, now: () => clock.now, notifyDesktop: (title, message) => { desktop.push(`${title}: ${message}`) }, ...overrides })
+  const t = testDeps({ policy, now: () => clock.now, ...overrides })
   const fp = fakePi({ thinking: 'high' })
   createBuracleExtension(generated(), t.deps)(fp.pi)
   const ctx = fakeCtx({ cwd, sid: SID, mode })
   ctx.isIdle = () => true
-  return { ...t, fp, ctx, cwd, clock, desktop }
+  return { ...t, fp, ctx, cwd, clock }
 }
 
 const notices = (ctx: ReturnType<typeof fakeCtx>) => ctx.uiCalls.filter(c => c.method === 'notify').map(c => c.args[0] as string)
@@ -59,19 +58,6 @@ describe('omp turn receipt, loop alarms, the long-turn notification and the resu
     for (const id of ['f1', 'f2', 'f3']) await fp.emit('tool_result', bash('bun test', 1, id), ctx)
     expect(notices(ctx).filter(n => n.includes('failed 3 times in a row'))).toEqual(['Buracle: the same command failed 3 times in a row: `bun test` (do not run it again as is; read the output and change your hypothesis)'])
     expect(sub.uiCalls.filter(c => c.method === 'notify')).toEqual([])
-  }))
-
-  test('a turn longer than workflow.notifyAfterSec sends a desktop notification in the TUI; print mode never does', () => withSandbox(async sb => {
-    const { fp, ctx, clock, desktop } = setup(sb)
-    await fp.emit('input', { type: 'input', text: 'long work', source: 'interactive' }, ctx)
-    clock.now += 125_000
-    await fp.emit('session_stop', stop('Summary.'), ctx)
-    expect(desktop).toEqual(['Buracle: Turn finished after 2 min'])
-    const print = setup(sb, {}, 'print')
-    await print.fp.emit('before_agent_start', { type: 'before_agent_start', prompt: 'long work', systemPrompt: [] }, print.ctx)
-    print.clock.now += 600_000
-    await print.fp.emit('session_stop', stop('Summary.'), print.ctx)
-    expect(print.desktop).toEqual([])
   }))
 
   test('a resumed session with an unfinished run gets one notice that suggests continuing it', () => withSandbox(async sb => {

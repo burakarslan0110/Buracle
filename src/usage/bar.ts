@@ -5,6 +5,7 @@ import type { BuracleConfig } from '../core/config'
 import type { Harness } from '../core/events'
 import type { BandView } from '../core/flow/band'
 import { bandPlanOf, bandView } from '../core/flow/band'
+import { indexSettings } from '../core/workspace'
 import type { MemoryStatus } from '../core/memory/status'
 import { gitFromPorcelainV2, linesFromShortstat } from '../core/status/git'
 import { indexStatusOf } from '../core/status/live'
@@ -15,12 +16,8 @@ import { buracleHome, canonicalDir, home, isValidSessionId, memoryStateDir, upda
 import { run } from '../engine/proc'
 import { tildeFrom } from '../engine/update/output'
 import { DEFAULT_FOLD_SEC, bandInputFor } from '../workflow/flow'
-import type { Telemetry } from '../workflow/session-store'
-import { loadState, readTelemetry } from '../workflow/session-store'
+import { loadState } from '../workflow/session-store'
 import { workspaceInfo } from '../workflow/workspace'
-import { monthKeyOf } from './month'
-import { latestTelemetry, liveWindows } from './telemetry'
-import type { UsageCacheEntry } from './types'
 
 type Obj = Record<string, unknown>
 
@@ -35,7 +32,7 @@ function finite(x: unknown): number | undefined {
 }
 
 export const FALLBACK_LAYOUT: StatusLayout = {
-  rows: [['model', 'ctx', 'windows', 'month'], ['git', 'mem', 'index', 'flow', 'plan', 'upd', 'hooks']],
+  rows: [['model', 'ctx', 'windows'], ['git', 'mem', 'index', 'flow', 'plan', 'upd', 'hooks']],
   thresholds: { ctxWarn: 75, ctxCrit: 90 },
   emoji: false,
 }
@@ -85,8 +82,6 @@ export interface ClaudePayload {
   windows: RateWindow[]
   hasRateLimits: boolean
   costUsd?: number
-  monthPct?: number
-  monthUsd?: number
   version?: string
   lines?: { added: number, removed: number }
 }
@@ -146,15 +141,22 @@ export function readClaudePayload(j: unknown, fallbackCwd: string): ClaudePayloa
       out.windows.push(rw)
     }
     const spend = obj(rl['spend_limit'])
-    if (spend !== undefined && finite(spend['used_percentage']) !== undefined) {
-      out.monthPct = finite(spend['used_percentage'])
-      const used = finite(spend['used_usd'])
-      if (used !== undefined) out.monthUsd = used
+    out.hasRateLimits = out.windows.length > 0 || (spend !== undefined && finite(spend['used_percentage']) !== undefined)
+  }
+  // AGY CLI reports its quota as buckets of a remaining fraction; the weekly and five-hour ones become the usual windows.
+  const quota = obj(o['quota'])
+  if (quota !== undefined && out.windows.length === 0) {
+    for (const [id, bucket] of Object.entries(quota)) {
+      const fraction = finite(obj(bucket)?.['remaining_fraction'])
+      const label = /week/iu.test(id) ? '7d' : /(?:5h|five)/iu.test(id) ? '5h' : undefined
+      if (fraction === undefined || label === undefined || out.windows.some(w => w.label === label)) continue
+      const rw: RateWindow = { pct: Math.min(100, Math.max(0, (1 - fraction) * 100)), label, windowMinutes: label === '7d' ? 10080 : 300 }
+      out.windows.push(rw)
     }
-    out.hasRateLimits = out.windows.length > 0 || out.monthPct !== undefined
+    out.hasRateLimits = out.windows.length > 0
   }
   const costObj = obj(o['cost'])
-  const cost = finite(costObj?.['total_cost_usd'])
+  const cost = finite(costObj?.['total_cost_usd']) ?? finite(costObj?.['total_usd'])
   if (cost !== undefined) out.costUsd = cost
   const added = finite(costObj?.['total_lines_added'])
   const removed = finite(costObj?.['total_lines_removed'])
@@ -287,7 +289,7 @@ export function flowForSession(h: Harness, sid: string | undefined, nowMs: numbe
 }
 
 export async function indexStatusFor(cwd: string, cfg: BuracleConfig, nowMs: number): Promise<IndexStatus | undefined> {
-  return indexStatusOf(await workspaceInfo(cwd, cfg, nowMs))
+  return indexStatusOf(await workspaceInfo(cwd, indexSettings(cfg), nowMs))
 }
 
 export function pendingUpdates(path = updatesFile()): number | undefined {
@@ -301,47 +303,4 @@ export function pendingUpdates(path = updatesFile()): number | undefined {
     if (Array.isArray(list)) return list.filter(x => obj(x)?.['available'] !== false).length
   }
   return undefined
-}
-
-export function monthFromEntry(entry: UsageCacheEntry | undefined, nowMs: number): BarModel['month'] | undefined {
-  if (entry === undefined || entry.month_key !== monthKeyOf(nowMs)) return undefined
-  const m: NonNullable<BarModel['month']> = { tokens: entry.month.tokens, estimate: true }
-  if (entry.month.usd !== undefined) m.usd = entry.month.usd
-  if (entry.month_pct !== undefined) m.pct = entry.month_pct
-  if (m.tokens <= 0 && m.usd === undefined && m.pct === undefined) return undefined
-  return m
-}
-
-export const TELEMETRY_FRESH_MS = 60 * 60_000
-
-export interface SessionView {
-  sessionId?: string
-  cwd?: string
-  model?: string
-  effort?: string
-  ctx?: NonNullable<BarModel['ctx']>
-  windows: RateWindow[]
-  costUsd?: number
-}
-
-export function sessionView(h: Harness, opts: { sessionId?: string, cwd?: string, nowMs: number, entry?: UsageCacheEntry }): SessionView {
-  let tel: Telemetry | undefined
-  if (opts.sessionId !== undefined) tel = isValidSessionId(opts.sessionId) ? readTelemetry(h, opts.sessionId) : undefined
-  else tel = latestTelemetry(h, opts.cwd !== undefined ? { cwd: opts.cwd } : {})
-  if (tel !== undefined && opts.nowMs - tel.at > TELEMETRY_FRESH_MS) tel = undefined
-  const latest = opts.entry?.latest
-  const view: SessionView = { windows: liveWindows(tel?.windows, opts.nowMs) }
-  if (view.windows.length === 0) view.windows = liveWindows(opts.entry?.windows, opts.nowMs)
-  const sid = tel?.sessionId ?? opts.sessionId ?? latest?.sessionId
-  if (sid !== undefined) view.sessionId = sid
-  const cwd = tel?.cwd ?? latest?.cwd
-  if (cwd !== undefined) view.cwd = cwd
-  const model = tel?.model ?? latest?.model
-  if (model !== undefined) view.model = model
-  const effort = tel?.effort ?? latest?.effort
-  if (effort !== undefined) view.effort = effort
-  const ctx = tel?.ctx ?? (latest !== undefined && opts.nowMs - latest.at <= TELEMETRY_FRESH_MS ? latest.ctx : undefined)
-  if (ctx !== undefined && Number.isFinite(ctx.pct)) view.ctx = ctx
-  if (tel?.costUsd !== undefined) view.costUsd = tel.costUsd
-  return view
 }

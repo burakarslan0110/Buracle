@@ -1,5 +1,4 @@
-import { join } from 'node:path'
-import { repoRelativeModuleComments } from '../shared/bundle'
+import { bundleExtension as bundle, repoRelativeModuleComments } from '../shared/bundle'
 import type { OmpGenerated } from './runtime/types'
 import { stableJson } from './render'
 
@@ -13,29 +12,8 @@ export function generatedModuleSource(data: OmpGenerated): string {
   return `// Canonical data baked in by buracle build.\nexport const GENERATED = ${stableJson(data)};\n`
 }
 
-export async function bundleExtension(repoRoot: string, data: OmpGenerated): Promise<string> {
-  const contents = generatedModuleSource(data)
-  const result = await Bun.build({
-    entrypoints: [join(repoRoot, 'src', 'adapters', 'omp', 'runtime', 'extension.ts')],
-    root: repoRoot,
-    target: 'bun',
-    format: 'esm',
-    splitting: false,
-    sourcemap: 'none',
-    minify: false,
-    plugins: [{
-      name: 'buracle-omp-generated-data',
-      setup(build) {
-        build.onLoad({ filter: GENERATED_MODULE }, () => ({ contents, loader: 'ts' }))
-      },
-    }],
+export function bundleExtension(repoRoot: string, data: OmpGenerated): Promise<string> {
+  return bundle({
+    repoRoot, entry: 'src/adapters/omp/runtime/extension.ts', dataModule: GENERATED_MODULE, dataSource: generatedModuleSource(data), banner: BUNDLE_BANNER, label: 'omp',
   })
-  if (!result.success) {
-    const msgs = result.logs.map(l => String(l.message ?? l)).join('\n')
-    throw new Error(`omp extension bundle failed:\n${msgs}`)
-  }
-  const out = result.outputs.find(o => o.kind === 'entry-point') ?? result.outputs[0]
-  if (out === undefined) throw new Error('omp extension bundle produced no output')
-  const text = repoRelativeModuleComments((await out.text()).replace(/\r\n/g, '\n'), repoRoot)
-  return BUNDLE_BANNER + (text.endsWith('\n') ? text : text + '\n')
 }

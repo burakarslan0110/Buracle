@@ -15,19 +15,7 @@ import { memoryStatusReport } from '../../src/memory/status-report'
 import { sessionStart } from '../../src/memory/session-record'
 import { appendSpool, readSpool, spoolFiles } from '../../src/memory/spool'
 import { listAll, projectRef } from '../../src/memory/store'
-import { main } from '../../src/cli/router'
 import { agentCtx, git, makeRepo, withBrain } from './helpers'
-
-async function cli(argv: string[]): Promise<{ code: number, out: string, err: string }> {
-  let out = ''
-  let err = ''
-  const code = await main(argv, {
-    stdout: { write: (s: string) => { out += s } },
-    stderr: { write: (s: string) => { err += s } },
-    stdin: { isTTY: true, text: async () => '' },
-  })
-  return { code, out, err }
-}
 
 describe('resolveProject', () => {
   test('slug from origin, cached, worktrees unified', async () => {
@@ -330,21 +318,6 @@ describe('memory.exclude', () => {
     })
   })
 
-  test('mem import --project refuses a project memory.exclude keeps out', async () => {
-    await withBrain(async ({ repo, root, buracleHome }) => {
-      await write(agentCtx(repo), { type: 'reference', title: 'The runbook is in the wiki', summary: 'ops wiki', body: '' })
-      const file = join(root, 'demo.jsonl')
-      expect((await cli(['mem', 'export', '--cwd', repo, '--out', file])).code).toBe(0)
-      const other = makeRepo(join(root, 'other'), 'git@github.com:acme/other.git')
-      expect((await resolveProject(other))?.slug).toBe('other')
-      exclude(buracleHome, 'acme/*')
-      const r = await cli(['mem', 'import', file, '--cwd', root, '--project', 'other'])
-      expect(r.code).toBe(2)
-      expect(r.err).toContain('the project other is excluded by memory.exclude (acme/*); nothing was imported')
-      expect(await listAll(projectRef('other'))).toEqual([])
-    })
-  })
-
   test('a session started before the exclusion leaves no session memory', async () => {
     await withBrain(async ({ repo, buracleHome }) => {
       const sid = '0199a213-81c0-7800-8aa1-bbab2a035a91'
@@ -366,7 +339,7 @@ describe('memory.exclude', () => {
       expect(await sessionStart('claude', sid, repo)).toEqual({ skipped: 'not-a-project' })
       const entries = [
         { ts: Date.now(), ev: 'prompt' as const, excerpt: 'Draft the acquisition term sheet for Acme' },
-        { ts: Date.now() + 1, ev: 'tool' as const, tool: 'Bash', cmd: 'git push origin main' },
+        { ts: Date.now() + 1, ev: 'turn' as const, excerpt: 'Pushing to origin main.' },
         { ts: Date.now() + 2, ev: 'stop' as const, excerpt: 'Drafted the term sheet.' },
       ]
       appendSpool('claude', sid, entries)

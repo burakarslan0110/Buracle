@@ -1,4 +1,5 @@
 import { parseFrontmatter } from '../frontmatter'
+import { harnessProfile, isHarness } from '../harness/index'
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,79}$/
 
@@ -37,12 +38,6 @@ export function memLocalTime(ms: number, offsetMin: number): string {
   return `${pad(p.h)}:${pad(p.mi)}`
 }
 
-export function memParseTime(v: unknown): number | undefined {
-  if (typeof v !== 'string' || v === '') return undefined
-  const ms = Date.parse(v)
-  return Number.isFinite(ms) ? ms : undefined
-}
-
 export function memNoteHarness(h: string): string {
-  return h === 'claude' ? 'claude-code' : h
+  return isHarness(h) ? harnessProfile(h).noteName : h
 }

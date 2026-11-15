@@ -4,11 +4,12 @@ import { join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import type { Harness, ToolCall } from '../../../src/core/events'
 import { HARNESSES, classifyTool, parseMcpName } from '../../../src/core/events'
-import type { CatalogMcp, CatalogSkill } from '../../../src/core/catalog'
+import { harnessProfile } from '../../../src/core/harness/index'
+import type { CatalogMcp } from '../../../src/core/catalog'
 import { catalogMcp, catalogSkills } from '../../../src/core/catalog'
 import type { McpHealth, RoutingPolicy } from '../../../src/core/policy/routing'
 import {
-  CAPABILITY_CARD_MAX_LINES, bashNudge, capabilityCard, harnessMcpPattern, harnessMcpToolName, isDocsUrl, mcpHealthOf, mcpUnavailable, parseRouteRef, routeTool, validateRoutingPolicy,
+  CAPABILITY_CARD_MAX_LINES, capabilityCard, harnessMcpPattern, harnessMcpToolName, isDocsUrl, mcpHealthOf, mcpUnavailable, parseRouteRef, routeTool, validateRoutingPolicy,
 } from '../../../src/core/policy/routing'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import * as paths from '../../../src/engine/paths'
@@ -20,8 +21,10 @@ const MCP_IDS = ['buracle-memory', 'chrome-devtools', 'codegraph', 'context7', '
 function call(harness: Harness, tool: string, input: Record<string, unknown>): ToolCall {
   return { harness, sessionId: 's', cwd: '/repo', tool, input, ...classifyTool(harness, tool, input, '/repo', MCP_IDS) }
 }
-const WEB_SEARCH: Record<Harness, string> = { claude: 'WebSearch', codex: 'web_search', opencode: 'websearch', omp: 'web_search' }
-const WEB_FETCH: Record<Exclude<Harness, 'codex'>, string> = { claude: 'WebFetch', opencode: 'webfetch', omp: 'fetch' }
+// Pi has no built-in web search or fetch tool, so the loops below run over the hosts that have one.
+const WEB_SEARCH: Partial<Record<Harness, string>> = { claude: 'WebSearch', codex: 'web_search', opencode: 'websearch', omp: 'web_search', qwen: 'web_search', agy: 'search_web' }
+const WEB_SEARCH_HOSTS = HARNESSES.filter(h => Object.values(harnessProfile(h).tools.kinds).includes('web_search'))
+const WEB_FETCH: Partial<Record<Harness, string>> = { claude: 'WebFetch', opencode: 'webfetch', omp: 'fetch', qwen: 'web_fetch', agy: 'read_url_content' }
 const withStrictness = (s: RoutingPolicy['strictness']): RoutingPolicy => ({ ...POLICY, strictness: s })
 
 describe('canonical/routing.yaml', () => {
@@ -60,11 +63,16 @@ describe('canonical/routing.yaml', () => {
     }
   })
 
-  test('tooling.md is English and states the index, root and routing-note rules', () => {
+  test('tooling.md is English and states the index and routing-note rules; their detail is in the working-rules reference', () => {
     const tooling = readFileSync(join(CANON, 'rules', 'always', 'tooling.md'), 'utf8')
     expect(tooling).not.toMatch(/[ğüşıöçĞÜŞİÖÇ]/)
-    for (const needle of ['`buracle index ensure --cwd <root>`', 'never conclude that codegraph is unusable', 'codegraph `projectPath`', 'semble `repo`', '`/<id>`', '`$<id>` on Codex', 'Buracle routing for this prompt', 'decide YES or NO', 'denied once']) {
+    for (const needle of ['`buracle index ensure --cwd <root>`', 'Buracle routing for this prompt']) {
       expect(tooling.toLowerCase()).toContain(needle.toLowerCase())
+    }
+    const detail = readFileSync(join(CANON, 'skills', 'buracle', 'references', 'working-rules.md'), 'utf8')
+    expect(detail).not.toMatch(/[ğüşıöçĞÜŞİÖÇ]/)
+    for (const needle of ['`buracle index ensure --cwd <root>`', 'never conclude that codegraph is unusable', 'codegraph `projectPath`', 'semble `repo`', '`/<id>`', '`$<id>` on Codex', 'Buracle routing for this prompt', 'decide YES or NO']) {
+      expect(detail.toLowerCase()).toContain(needle.toLowerCase())
     }
   })
 })
@@ -124,8 +132,8 @@ describe('harness MCP tool names', () => {
 
 describe('routeTool: built-in web tools', () => {
   test('enforce denies a built-in web search while web-search is healthy, naming the MCP tool per harness', () => {
-    for (const h of HARNESSES) {
-      const d = routeTool(call(h, WEB_SEARCH[h], { query: 'bun 1.4 release notes' }), POLICY, { 'web-search': 'ok', context7: 'ok' })
+    for (const h of WEB_SEARCH_HOSTS) {
+      const d = routeTool(call(h, WEB_SEARCH[h] as string, { query: 'bun 1.4 release notes' }), POLICY, { 'web-search': 'ok', context7: 'ok' })
       expect(d.action).toBe('deny')
       if (d.action !== 'deny') continue
       expect(d.hook).toBe('H03')
@@ -145,8 +153,8 @@ describe('routeTool: built-in web tools', () => {
   test('web-search down: a built-in web search goes to web-fetch first (a search results page), the built-in only when web-fetch is down too', () => {
     const cat = POLICY.categories.find(c => c.id === 'web-search')
     expect([...(cat?.prefer ?? []), ...(cat?.fallback ?? [])]).toEqual(['mcp:web-search/search', 'mcp:web-fetch/fetch_url', 'builtin:web_search'])
-    for (const h of HARNESSES) {
-      const c = call(h, WEB_SEARCH[h], { query: 'bun 1.4 changelog' })
+    for (const h of WEB_SEARCH_HOSTS) {
+      const c = call(h, WEB_SEARCH[h] as string, { query: 'bun 1.4 changelog' })
       const d = routeTool(c, POLICY, { 'web-search': 'down' })
       expect({ h, action: d.action }).toEqual({ h, action: 'deny' })
       if (d.action === 'deny') {
@@ -165,14 +173,14 @@ describe('routeTool: built-in web tools', () => {
 
   test('a server that is off counts as unavailable: its fallback built-in is allowed with a note that says "off", and web-search falls back to web-fetch first', () => {
     for (const h of ['claude', 'opencode', 'omp'] as const) {
-      const fetch = routeTool(call(h, WEB_FETCH[h], { url: 'https://example.com/blog/post' }), POLICY, { 'web-fetch': 'off' })
+      const fetch = routeTool(call(h, WEB_FETCH[h] as string, { url: 'https://example.com/blog/post' }), POLICY, { 'web-fetch': 'off' })
       expect({ h, action: fetch.action }).toEqual({ h, action: 'allow' })
       const note = fetch.action === 'allow' ? fetch.context?.join(' ') ?? '' : ''
       expect(note).toContain('MCP server is off')
       expect(note).not.toContain('is down')
     }
-    for (const h of HARNESSES) {
-      const search = call(h, WEB_SEARCH[h], { query: 'bun 1.4 changelog' })
+    for (const h of WEB_SEARCH_HOSTS) {
+      const search = call(h, WEB_SEARCH[h] as string, { query: 'bun 1.4 changelog' })
       const viaFetch = routeTool(search, POLICY, { 'web-search': 'off' })
       expect({ h, action: viaFetch.action }).toEqual({ h, action: 'deny' })
       if (viaFetch.action === 'deny') expect(viaFetch.reason).toContain(harnessMcpToolName(h, 'web-fetch', 'fetch_url'))
@@ -191,7 +199,7 @@ describe('routeTool: built-in web tools', () => {
 
   test('built-in fetch follows web-fetch health; claude.ai pages need the built-in session', () => {
     for (const h of ['claude', 'opencode', 'omp'] as const) {
-      const d = routeTool(call(h, WEB_FETCH[h], { url: 'https://docs.example.com/x' }), POLICY, { 'web-fetch': 'ok' })
+      const d = routeTool(call(h, WEB_FETCH[h] as string, { url: 'https://docs.example.com/x' }), POLICY, { 'web-fetch': 'ok' })
       expect(d.action).toBe('deny')
       if (d.action === 'deny') expect(d.reason).toContain(harnessMcpToolName(h, 'web-fetch', 'fetch_url'))
     }
@@ -208,7 +216,7 @@ describe('routeTool: built-in web tools', () => {
     const cat = POLICY.categories.find(c => c.id === 'web-fetch')
     expect([...(cat?.prefer ?? []), ...(cat?.fallback ?? [])]).toEqual(['mcp:web-fetch/fetch_url', 'builtin:web_fetch'])
     for (const h of ['claude', 'opencode', 'omp'] as const) {
-      const d = routeTool(call(h, WEB_FETCH[h], { url: 'https://example.com/blog/post' }), POLICY, { 'web-fetch': 'down' })
+      const d = routeTool(call(h, WEB_FETCH[h] as string, { url: 'https://example.com/blog/post' }), POLICY, { 'web-fetch': 'down' })
       expect({ h, action: d.action }).toEqual({ h, action: 'allow' })
       expect(d.action === 'allow' ? d.context?.join(' ') : '').toContain('allowed as a fallback')
     }
@@ -222,7 +230,7 @@ describe('routeTool: built-in web tools', () => {
     }
     for (const url of ['https://example.com/docs', 'https://github.com/colinhacks/zod', 'https://www.npmjs.com/', 'not a url']) expect({ url, docs: isDocsUrl(url) }).toEqual({ url, docs: false })
     for (const h of ['claude', 'opencode', 'omp'] as const) {
-      const d = routeTool(call(h, WEB_FETCH[h], { url: 'https://docs.rs/serde' }), POLICY, { 'web-fetch': 'ok', context7: 'ok' })
+      const d = routeTool(call(h, WEB_FETCH[h] as string, { url: 'https://docs.rs/serde' }), POLICY, { 'web-fetch': 'ok', context7: 'ok' })
       expect(d.action).toBe('deny')
       if (d.action === 'deny') {
         expect(d.hook).toBe('H03')
@@ -287,42 +295,10 @@ describe('routeTool: built-in web tools', () => {
   })
 })
 
-describe('routeTool and bashNudge: shell searches', () => {
-  const NUDGED = [
-    'grep -r foo src', 'grep -rn "TODO" .', 'grep -R x .', 'grep -nr x', 'grep --recursive x .', 'egrep -r "a|b" lib', 'fgrep -r x .', 'rgrep x',
-    'grep -d recurse x .', 'find . -name "*.ts" -exec grep -l foo {} +', 'find . -type f | xargs grep foo', 'find . -print0 | xargs -0 grep -n foo',
-    'sudo grep -r secret /etc', "bash -c 'grep -r foo .'", 'cd src && grep -rl foo .',
-  ]
-  const QUIET = ['rg -n foo src', 'grep foo file.txt', 'ps aux | grep node', 'git grep foo', 'grep -e -r file', 'grep -n foo a.ts b.ts', 'find . -name "*.ts"', 'ls | xargs wc -l', 'cat a | grep -v b', 'grep -E "x|y" f']
-
-  for (const cmd of NUDGED) {
-    test(`nudges: ${cmd}`, () => {
-      const n = bashNudge(cmd)
-      expect(n).toBeDefined()
-      expect(n).toContain('rg')
-      expect(n).toContain('semble')
-      expect(n).toContain('codegraph')
-    })
-  }
-  for (const cmd of QUIET) test(`quiet: ${cmd}`, () => expect(bashNudge(cmd)).toBeUndefined())
-
-  test('routeTool adds the nudge as context for shell calls, even when enforcing', () => {
-    const d = routeTool(call('claude', 'Bash', { command: 'grep -r foo src' }), POLICY, {})
-    expect(d.action).toBe('allow')
-    expect(d.action === 'allow' ? d.context?.length : 0).toBe(1)
-    expect(routeTool(call('codex', 'Bash', { command: 'rg foo' }), POLICY, {})).toEqual({ action: 'allow' })
-    expect(routeTool(call('claude', 'Bash', { command: 'grep -r foo' }), withStrictness('off'), {})).toEqual({ action: 'allow' })
-  })
-
-  test('never throws on odd input', () => {
-    expect(bashNudge('')).toBeUndefined()
-    expect(bashNudge(undefined as unknown as string)).toBeUndefined()
-    expect(() => bashNudge('$('.repeat(10_000))).not.toThrow()
-  })
-
-  test("Claude's Monitor command gets the same nudge as Bash; omp eval is never routed", () => {
-    const d = routeTool(call('claude', 'Monitor', { command: 'grep -r ERROR logs', description: 'x', timeout_ms: 1 }), POLICY, {})
-    expect(d.action === 'allow' ? d.context?.[0] : '').toContain('rg')
+describe('routeTool: shell and eval calls', () => {
+  test('a shell command and omp eval are never routed', () => {
+    expect(routeTool(call('claude', 'Bash', { command: 'grep -r foo src' }), POLICY, {})).toEqual({ action: 'allow' })
+    expect(routeTool(call('claude', 'Monitor', { command: 'grep -r ERROR logs', description: 'x', timeout_ms: 1 }), POLICY, {})).toEqual({ action: 'allow' })
     expect(routeTool(call('omp', 'eval', { language: 'js', code: 'x' }), POLICY, {})).toEqual({ action: 'allow' })
     expect(validateRoutingPolicy({ ...POLICY, categories: [{ ...(POLICY.categories[0] as RoutingPolicy['categories'][number]), prefer: ['builtin:eval'] }] })).toEqual([])
   })
@@ -330,67 +306,63 @@ describe('routeTool and bashNudge: shell searches', () => {
 
 describe('capabilityCard (H15)', () => {
   const bundle = loadCanonicalSync(CANON)
-  const card = (h: Harness, extra: Partial<{ mcp: CatalogMcp[], skills: CatalogSkill[], plugins: string[], policy: RoutingPolicy }> = {}): string =>
-    capabilityCard({ policy: extra.policy ?? POLICY, mcp: extra.mcp ?? catalogMcp(bundle.mcp, h), skills: extra.skills ?? catalogSkills(bundle.skills), plugins: extra.plugins ?? bundle.plugins.claude.plugins.map(p => p.id), harness: h })
+  const card = (h: Harness, extra: Partial<{ mcp: CatalogMcp[], plugins: string[], policy: RoutingPolicy }> = {}): string =>
+    capabilityCard({ policy: extra.policy ?? POLICY, mcp: extra.mcp ?? catalogMcp(bundle.mcp, h), plugins: extra.plugins ?? [], harness: h })
 
   test('fits in 30 lines for every harness with the real catalog', () => {
     expect(CAPABILITY_CARD_MAX_LINES).toBe(30)
     for (const h of HARNESSES) expect(card(h).split("\n").length).toBeLessThanOrEqual(CAPABILITY_CARD_MAX_LINES)
   })
 
-  test('the real card of each harness (Claude with its LSP line) fits in 30 lines with every server and skill on its own line', () => {
+  test('the real card of each harness (Claude with its LSP line) fits in 30 lines with every server on its own line and no skill list', () => {
     const skills = catalogSkills(bundle.skills)
     const lsp = bundle.tools.tools.flatMap(t => (t.lsp !== undefined ? [t.lsp.id] : []))
     expect(lsp.length).toBeGreaterThan(0)
-    const plugins: Record<Harness, string[]> = {
-      claude: bundle.plugins.claude.plugins.filter(p => p.enabled).map(p => p.id),
-      codex: [],
-      opencode: bundle.plugins.opencode.plugins.filter(p => p.enabled).map(p => p.id),
-      omp: bundle.plugins.omp.plugins.filter(p => p.enabled).map(p => p.id),
-    }
+    const plugins: Record<Harness, string[]> = { claude: [], codex: [], opencode: [], omp: [], qwen: [], pi: [], agy: [] }
     for (const h of HARNESSES) {
       const mcp = catalogMcp(bundle.mcp, h)
-      const c = capabilityCard({ policy: POLICY, mcp, skills, plugins: plugins[h], harness: h, ...(h === 'claude' ? { lsp } : {}) })
+      const c = capabilityCard({ policy: POLICY, mcp, plugins: plugins[h], harness: h, ...(h === 'claude' ? { lsp } : {}) })
       const lines = c.split('\n')
       expect({ h, lines: lines.length, fits: lines.length <= CAPABILITY_CARD_MAX_LINES }).toEqual({ h, lines: lines.length, fits: true })
       for (const m of mcp) expect({ h, server: m.id, listed: lines.some(l => l.startsWith(`- ${m.id}${m.critical ? '' : '*'}: `)) }).toEqual({ h, server: m.id, listed: true })
-      for (const s of skills) expect({ h, skill: s.id, oneLiner: lines.includes(`- ${s.id}: ${s.short}${s.invocation === 'explicit' ? ' (on request)' : ''}`) }).toEqual({ h, skill: s.id, oneLiner: true })
+      for (const s of skills) expect({ h, skill: s.id, oneLiner: lines.some(l => l.startsWith(`- ${s.id}: `)) }).toEqual({ h, skill: s.id, oneLiner: false })
+      expect({ h, skillLines: lines.filter(l => l.startsWith('Skills')).length }).toEqual({ h, skillLines: 1 })
       expect(c).not.toContain('more lines omitted')
     }
-    const claude = capabilityCard({ policy: POLICY, mcp: catalogMcp(bundle.mcp, 'claude'), skills, plugins: plugins.claude, harness: 'claude', lsp })
+    const claude = capabilityCard({ policy: POLICY, mcp: catalogMcp(bundle.mcp, 'claude'), plugins: plugins.claude, harness: 'claude', lsp })
     expect(claude).toContain('Language servers (LSP tool: definitions, references, hover, diagnostics): ')
     expect(claude.split('\n')[0]).toBe('Buracle capabilities (Claude Code). Tool routing is enforced: follow "Tool routing (strict)" in your rules. Buracle names the skills and MCP servers each prompt calls for and holds a few calls until the right tool has run; when it denies a call, use the tool the denial names.')
   })
 
-  test('lists installed servers and skills with the harness syntax and points to the routing rules', () => {
+  test('lists installed servers, says how skills start and load in the harness, and points to the routing rules', () => {
     const c = card('claude')
     expect(c).toContain('Tool routing (strict)')
     expect(c).toContain('mcp__plugin_buracle_<server>__<tool>')
-    expect(c).toContain('Skills (the user starts a workflow with /<id>; you load the others with the Skill tool as buracle:<id>):')
+    expect(c).toContain('Skills: the user starts a workflow with /<id>; you load the others with the Skill tool as buracle:<id>.')
     for (const id of MCP_IDS) expect(c).toContain(`- ${id}`)
     expect(c).not.toContain('Plugins:')
     expect(card('claude', { plugins: ['lint-lsp@acme-market'] })).toContain('Plugins: lint-lsp')
-    expect(capabilityCard({ policy: POLICY, mcp: [], skills: [], plugins: [], harness: 'claude', lsp: ['typescript', 'pyright', 'gopls'] })).toContain('Language servers (LSP tool: definitions, references, hover, diagnostics): gopls, pyright, typescript')
+    expect(capabilityCard({ policy: POLICY, mcp: [], plugins: [], harness: 'claude', lsp: ['typescript', 'pyright', 'gopls'] })).toContain('Language servers (LSP tool: definitions, references, hover, diagnostics): gopls, pyright, typescript')
     expect(card('omp')).not.toContain('chrome-devtools')
-    expect(card('codex')).toContain('Skills (the user starts a workflow with $<id>; you load one by reading ${CODEX_HOME:-~/.codex}/skills/<id>/SKILL.md):')
-    expect(card('omp')).toContain('Skills (the user starts a workflow with /<id>; you load one by reading skill://<id>):')
+    expect(card('codex')).toContain('Skills: the user starts a workflow with $<id>; you load one by reading ~/.agents/skills/<id>/SKILL.md.')
+    expect(card('omp')).toContain('Skills: the user starts a workflow with /<id>; you load one by reading skill://<id>.')
     expect(c).toContain('Buracle names the skills and MCP servers each prompt calls for')
   })
 
-  test('skill lines use the short description and mark the workflows that start on request', () => {
+  test('no skill is listed: the harness lists its skills itself; the catalog still marks the workflows that start on request', () => {
     const c = card('claude')
     const skills = catalogSkills(bundle.skills)
     for (const s of skills) {
       expect(s.short).toBeDefined()
-      expect(c).toContain(`- ${s.id}: ${s.short}${s.invocation === 'explicit' ? ' (on request)' : ''}`)
+      expect(c).not.toContain(`- ${s.id}: `)
     }
-    expect(skills.filter(s => s.invocation === 'explicit').map(s => s.id)).toEqual(['bugfix', 'buracle-join', 'dead-code', 'goal-build', 'inspect', 'plan-build', 'requirements'])
-    expect(card('codex', { skills: [{ id: 'x', description: 'Does one thing well. Then more.', userInvocable: true }] })).toContain('- x: Does one thing well')
+    expect(skills.filter(s => s.invocation === 'explicit').map(s => s.id)).toEqual(['bugfix', 'dead-code', 'goal-build', 'inspect', 'plan-build', 'requirements'])
+    expect(card('codex').split('\n').filter(l => /skill/i.test(l)).length).toBe(2)
   })
 
   test('OpenCode v2: skills load through the skill tool; non-critical servers sit behind Code Mode', () => {
     const c = card('opencode')
-    expect(c).toContain('Skills (the user starts a workflow with /<id>; you load one with the skill tool):')
+    expect(c).toContain('Skills: the user starts a workflow with /<id>; you load one with the skill tool.')
     expect(c).toContain('execute tool')
     expect(c).not.toContain('tool search')
     expect(c).toMatch(/^- grep\*: /m)
@@ -415,9 +387,8 @@ describe('capabilityCard (H15)', () => {
 
   test('is deterministic: input order and duplicates do not change the text', () => {
     const mcp = catalogMcp(bundle.mcp, 'claude')
-    const skills = catalogSkills(bundle.skills)
-    const a = card('claude', { mcp, skills, plugins: ['b@m', 'a@m'] })
-    const b = card('claude', { mcp: [...mcp].reverse().concat(mcp[0] as CatalogMcp), skills: [...skills].reverse(), plugins: ['a@m', 'b@m', 'a@m'] })
+    const a = card('claude', { mcp, plugins: ['b@m', 'a@m'] })
+    const b = card('claude', { mcp: [...mcp].reverse().concat(mcp[0] as CatalogMcp), plugins: ['a@m', 'b@m', 'a@m'] })
     expect(a).toBe(b)
     expect(card('claude')).toBe(card('claude'))
   })
@@ -428,17 +399,15 @@ describe('capabilityCard (H15)', () => {
   })
 
   test('compacts long catalogs instead of exceeding the limit', () => {
-    const many: CatalogSkill[] = Array.from({ length: 60 }, (_, i) => ({ id: `skill-${String(i).padStart(2, '0')}`, description: `Skill number ${i} does a thing.`, userInvocable: true }))
     const mcp: CatalogMcp[] = Array.from({ length: 30 }, (_, i) => ({ id: `srv-${String(i).padStart(2, '0')}`, description: 'A server.', transport: 'stdio', critical: true, routing: [], harnesses: ['claude'] }))
-    const c = card('claude', { skills: many, mcp })
+    const c = card('claude', { mcp })
     expect(c.split('\n').length).toBeLessThanOrEqual(CAPABILITY_CARD_MAX_LINES)
-    expect(c).toContain('skill-00')
     expect(c).toContain('srv-00')
   })
 
   test('works with empty inputs', () => {
-    const c = capabilityCard({ policy: POLICY, mcp: [], skills: [], plugins: [], harness: 'codex' })
-    expect(c.split('\n').length).toBe(1)
+    const c = capabilityCard({ policy: POLICY, mcp: [], plugins: [], harness: 'codex' })
+    expect(c.split('\n')).toEqual([c.split('\n')[0] as string, 'Skills: the user starts a workflow with $<id>; you load one by reading ~/.agents/skills/<id>/SKILL.md.'])
     expect(c).toStartWith('Buracle capabilities (Codex). ')
     expect(c).toContain('Tool routing (strict)')
   })

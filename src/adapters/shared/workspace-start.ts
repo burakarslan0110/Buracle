@@ -1,13 +1,12 @@
-import type { BuracleConfig } from '../../core/config'
-import type { WorkspaceInfo } from '../../core/workspace'
+import type { IndexSettings, WorkspaceInfo } from '../../core/workspace'
 import { canonicalDir, infoFor, resolveWorkspace, workspaceOptions } from '../../workflow/workspace'
 import { log } from '../../engine/log'
 
-function fallbackInfo(cwd: string, cfg: BuracleConfig): WorkspaceInfo {
+function fallbackInfo(cwd: string, cfg: IndexSettings): WorkspaceInfo {
   return {
     cwd: canonicalDir(cwd),
     children: [],
-    index: { codegraph: { state: cfg.index.codegraph ? 'none' : 'off' }, semble: { state: cfg.index.semble ? 'none' : 'off' } },
+    index: { codegraph: { state: cfg.codegraph ? 'none' : 'off' }, semble: { state: cfg.semble ? 'none' : 'off' } },
   }
 }
 
@@ -17,7 +16,7 @@ function fallbackInfo(cwd: string, cfg: BuracleConfig): WorkspaceInfo {
  * launcher of that server builds the first one), semble re-indexes when it searches, and an agent builds the index of
  * a project in a folder of projects when it needs one (`buracle index ensure --cwd <project>`, which the context line names).
  */
-export async function prepareWorkspace(cwd: string, cfg: BuracleConfig, nowMs: number): Promise<WorkspaceInfo> {
+export async function prepareWorkspace(cwd: string, cfg: IndexSettings, nowMs: number): Promise<WorkspaceInfo> {
   try {
     return infoFor(await resolveWorkspace(cwd, workspaceOptions(cfg)), cfg, nowMs)
   } catch (e) {

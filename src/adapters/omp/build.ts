@@ -1,6 +1,7 @@
+import { resolveAgents } from '../shared/agents'
 import type { AgentDoc, CanonicalBundle, McpServerSpec, RuleDoc, SkillDoc } from '../../core/catalog'
-import { envRef, expandMcpCommand, mcpEnvFor } from '../../core/catalog'
 import type { AdapterContext } from '../registry'
+import { familyMcpEntry, MCP_BURACLE_SHIM, MCP_SHIM_SCRIPT, mcpShimArgv } from '../shared/pi-family/mcp'
 import { bundleExtension } from './bundle'
 import { buracleVersion, ompCommandName, ompCommandNames, ompCommandSkills, ompGeneratedData, ompMcpServerIds, OMP_MIN_VERSION, PACKAGE_NAME } from './generated'
 import { firstHeading, frontmatter, oneLine, renderForOmp, withFinalNewline } from './render'
@@ -11,11 +12,7 @@ import { workflowCommandBody } from './runtime/flow-track'
 export interface BuildFile { path: string; content: string; mode?: number }
 
 export const MCP_SCHEMA_URL = 'https://raw.githubusercontent.com/can1357/oh-my-pi/main/packages/coding-agent/src/config/mcp-schema.json'
-export const MCP_BURACLE_SHIM = '{buracle}'
-export const MCP_SHIM_SCRIPT = 'exec "${BURACLE_HOME:-$HOME/.buracle}/bin/buracle" "$@"'
-export function mcpShimArgv(args: readonly string[]): { command: string, args: string[] } {
-  return { command: '/bin/sh', args: ['-c', MCP_SHIM_SCRIPT, 'buracle', ...args] }
-}
+export { MCP_BURACLE_SHIM, MCP_SHIM_SCRIPT, mcpShimArgv }
 export const EXTENSION_PATH = 'extensions/buracle.js'
 
 export function isOmpFileGlob(token: string): boolean {
@@ -114,21 +111,7 @@ export function renderCommand(skill: SkillDoc): BuildFile {
 }
 
 export function mcpEntry(id: string, spec: McpServerSpec): Record<string, unknown> {
-  const timeout = spec.tool_timeout_sec !== undefined ? { timeout: spec.tool_timeout_sec * 1000 } : {}
-  if (spec.transport === 'http') return { type: 'http', url: spec.url ?? '', ...timeout }
-  const expanded = expandMcpCommand(spec, { buracle: MCP_BURACLE_SHIM, id })
-  const viaShim = expanded.command === MCP_BURACLE_SHIM
-  const { command, args } = viaShim ? mcpShimArgv(expanded.args) : expanded
-  const entry: Record<string, unknown> = { type: 'stdio', command }
-  if (args.length > 0) entry['args'] = args
-  const env = mcpEnvFor(spec, 'omp')
-  const keys = Object.keys(env)
-  if (keys.length > 0) {
-    const out: Record<string, string> = {}
-    for (const k of keys) { const v = env[k] as string; const ref = envRef(v); out[k] = ref !== undefined ? `\${${ref}}` : v }
-    entry['env'] = out
-  }
-  return { ...entry, ...timeout }
+  return familyMcpEntry(id, spec, 'omp', 1000)
 }
 
 export function renderMcp(canonical: CanonicalBundle): BuildFile {
@@ -182,8 +165,6 @@ export function renderReadme(canonical: CanonicalBundle): BuildFile {
     '    consent (H20). While `permissions.enforce` is on, a changed value is written back on the next install',
     '    or sync (with a warning; uninstall restores the value it replaced), and `buracle doctor omp` reports it.',
     '  - `tools.xdev: false`: MCP tools are top-level tools the model sees, not `xd://` devices it must look up.',
-    '  - `defaultThinkingLevel` from config `effort.omp` (`auto` writes `xhigh`, `keep` writes nothing). A level',
-    '    you set yourself is kept. A `:level` suffix on `modelRoles.default` overrides it (`buracle doctor omp` says so).',
     '  - `memory.backend: off` and `enabledProviders: []`.',
     '- `~/.omp/agent/AGENTS.md`: a short managed block that points to the plugin (the rules ship in the plugin).',
     '',
@@ -197,8 +178,8 @@ export function renderReadme(canonical: CanonicalBundle): BuildFile {
     '  (H06, H07), the stop guard and the turn-end routing check (H08, H11, H23), intents and the prompt router',
     '  (H10, H22), the memory index, capability card and workspace lines (H13, H15, H21), session capture and the',
     '  finalizer (H14), maintenance (H16), the profile guard (H17), telemetry and the status texts (H18:',
-    '  `buracle.budget`, `buracle.mem`, and the status band below the editor), the review-report check of the',
-    '  review agents (H19), workflow tracking (H25) and profile signals (H26). When a handler fails, the tool call',
+    '  `buracle.mem`, and the status band below the editor), the review-report check of the',
+    '  review agents (H19), workflow tracking (H25) and profile signals. When a handler fails, the tool call',
     '  is allowed and the error goes to the log; only the H01 and H02 guards fail closed.',
     `- The running workflow shows above the editor (widget \`${FLOW_WIDGET_KEY}\`, \`workflow.band\`): its phases, progress`,
     '  and current step.',
@@ -229,7 +210,7 @@ export async function buildOmp(ctx: AdapterContext): Promise<BuildFile[]> {
     { path: EXTENSION_PATH, content: await bundleExtension(ctx.repoRoot, ompGeneratedData(canonical, version)) },
   ]
   for (const rule of canonical.rules) files.push(renderRule(rule))
-  for (const agent of canonical.agents) files.push(renderAgent(agent))
+  for (const agent of resolveAgents(canonical)) files.push(renderAgent(agent))
   const skills = new Map(canonical.skills.map(s => [s.id, s]))
   for (const id of ompCommandSkills(canonical)) {
     const skill = skills.get(id)

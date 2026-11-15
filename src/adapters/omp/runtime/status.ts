@@ -2,22 +2,20 @@ import { isAbsolute, join, resolve } from 'node:path'
 import type { BandView } from '../../../core/flow/band'
 import { bandSummary, bandText } from '../../../core/flow/band'
 import { cachedHarnessVersionOf, memoryPaneLines, planPaneLines } from '../../../core/flow/panes'
+import { FOLD_AFTER_SEC } from '../../../core/flow/state'
+import { RUNAWAY_PER_CHAIN, RUNAWAY_PER_PLAN } from '../../../core/plan/state'
 import { indexStatusOf } from '../../../core/status/live'
 import type { BarModel, HookHealth, IndexStatus } from '../../../core/status/model'
 import { statusHealth } from '../../../engine/hook-health'
 import { brainDir, buracleHome } from '../../../engine/paths'
-import { monthFromEntry } from '../../../usage/bar'
-import { isStale } from '../../../usage/cache'
 import { OMP_ASIDE_COMMAND, OMP_PING_COMMAND, OMP_STATUS_COMMAND, type StatusView } from './commands'
-import type { LiveConfig } from './config'
+import type { LiveConfig } from '../../shared/pi-family/config'
 import type { ExtensionDeps } from './deps'
 import type { OmpContext, OmpGenerated } from './types'
-import { hasTui, isMain, sessionOf, withDeadline } from './util'
-import { boardCountsFor } from '../../../workflow/board-store'
+import { hasTui, isMain, sessionOf, withDeadline } from '../../shared/pi-family/util'
 
 export const WIDGET_KEY = 'buracle'
-export const STATUS_KEYS = { mem: 'buracle.mem', month: 'buracle.budget' } as const
-const USAGE_REFRESH_INTERVAL_MS = 60_000
+export const STATUS_KEYS = { mem: 'buracle.mem' } as const
 const INDEX_TTL_MS = 30_000
 
 export interface StatusHost {
@@ -37,7 +35,6 @@ export interface StatusTexts {
 
 export function createStatusTexts(host: StatusHost): StatusTexts {
   const { data, deps, guarded } = host
-  let lastUsageRefresh = Number.NEGATIVE_INFINITY
   let indexCache: { cwd: string, at: number, value: Promise<IndexStatus | undefined> } | undefined
 
   const planCounts = (path: string, cwd: string): { done: number, total: number } => {
@@ -61,22 +58,12 @@ export function createStatusTexts(host: StatusHost): StatusTexts {
 
   const flowFor = (sid: string, lc: LiveConfig): BandView | undefined => {
     if (lc.config.workflow.band) return undefined
-    const v = guarded('flow view', () => deps.flow.view(sid, deps.now(), lc.config.workflow.foldAfterSec))
+    const v = guarded('flow view', () => deps.flow.view(sid, deps.now(), FOLD_AFTER_SEC))
     return v?.visible === true ? v : undefined
   }
 
   const barFor = async (sid: string, ctx: OmpContext, lc: LiveConfig, need: { git: boolean, index: boolean }): Promise<BarModel> => {
     const bar: BarModel = { harness: 'omp', windows: [] }
-    if (lc.config.statusline.monthly !== 'off') {
-      const entry = guarded('usage', () => deps.usage())
-      const now = deps.now()
-      const month = guarded('month', () => monthFromEntry(entry, now))
-      if (month !== undefined) bar.month = month
-      if ((guarded('usage staleness', () => isStale(entry, now)) ?? true) && now - lastUsageRefresh > USAGE_REFRESH_INTERVAL_MS) {
-        lastUsageRefresh = now
-        guarded('usage refresh', () => deps.refreshUsage())
-      }
-    }
     const ms = guarded('memory status', () => deps.memoryStatus(host.slug(sid)))
     if (ms !== undefined) bar.mem = ms
     const plan = guarded('state', () => deps.state.load(sid))?.plan
@@ -122,8 +109,6 @@ export function createStatusTexts(host: StatusHost): StatusTexts {
     const wants = (id: string): boolean => keys.some(k => data.status.setStatus[k]?.includes(id)) || (bandRows?.some(r => r.includes(id)) ?? false)
     const bar = await barFor(sid, ctx, lc, { git: wants('git'), index: barStyle || wants('index') })
     if (flow !== undefined) bar.flow = flow
-    const board = guarded('board counts', () => boardCountsFor('omp', sid, deps.now()))
-    if (board !== undefined) bar.board = board.summary
     for (const key of keys) {
       const text = renderIds(bar, [data.status.setStatus[key] ?? []], emoji, Number.POSITIVE_INFINITY)
       ctx.ui.setStatus(key, text.trim() !== '' ? text : undefined)
@@ -149,7 +134,7 @@ export function createStatusTexts(host: StatusHost): StatusTexts {
     const sid = sessionOf(ctx)
     const lc = host.live()
     const now = deps.now()
-    const flowView = (): BandView | undefined => (sid !== undefined ? guarded('flow view', () => deps.flow.view(sid, now, lc.config.workflow.foldAfterSec)) : undefined)
+    const flowView = (): BandView | undefined => (sid !== undefined ? guarded('flow view', () => deps.flow.view(sid, now, FOLD_AFTER_SEC)) : undefined)
     if (view === 'flow') {
       const v = flowView()
       return v !== undefined ? bandText(v) : ['No session: Buracle has no workflow to show.']
@@ -171,13 +156,13 @@ export function createStatusTexts(host: StatusHost): StatusTexts {
     const out = [`Buracle ${data.buracleVersion} · Oh My Pi${omp !== undefined ? ` ${omp}` : ''}`]
     out.push(`session ${sid ?? '-'} · ${ctx.mode} · config ${lc.source}`)
     out.push(`permissions: ${lc.config.permissions.bypass ? "bypass (tools.approvalMode yolo; Buracle's guards and consent gate protect)" : 'the harness setting'}`)
-    out.push(`routing: ${lc.config.routing.strictness} · skill router: ${lc.config.routing.skills} · workflow band: ${lc.config.workflow.band ? 'on' : 'off'}`)
+    out.push(`routing: ${lc.config.routing.strictness} · workflow band: ${lc.config.workflow.band ? 'on' : 'off'}`)
     if (sid !== undefined) {
       const state = guarded('state', () => deps.state.load(sid))
       const plan = state?.plan
       out.push(plan !== undefined ? `plan ${plan.slug} · ${plan.phase} · ${plan.status}` : 'plan: none')
       if (state?.interaction?.state === 'paused') out.push(`paused (${state.interaction.kind ?? 'manual'})${state.interaction.reason ? `: ${state.interaction.reason}` : ''}`)
-      if (state !== undefined) out.push(`stop guard ${lc.config.plan.stopGuard ? 'on' : 'off'} · blocks ${state.guard.blocksForPlan}/${lc.config.plan.runaway.perPlan} plan, ${state.guard.blocksInChain}/${lc.config.plan.runaway.perChain} chain`)
+      if (state !== undefined) out.push(`stop guard ${lc.config.plan.stopGuard ? 'on' : 'off'} · blocks ${state.guard.blocksForPlan}/${RUNAWAY_PER_PLAN} plan, ${state.guard.blocksInChain}/${RUNAWAY_PER_CHAIN} chain`)
       const v = flowView()
       const run = v !== undefined ? bandSummary(v) : ''
       if (run !== '') out.push(`workflow: ${run}`)

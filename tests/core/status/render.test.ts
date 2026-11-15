@@ -5,7 +5,7 @@ import type { FlowRecord } from '../../../src/core/flow/record'
 import { flowEnd, flowPhase, flowStart, flowStep } from '../../../src/core/flow/record'
 import { formatResetIn, textWidth } from '../../../src/core/status/format'
 import type { BarModel, IndexStatus, Segment, StatusLayout } from '../../../src/core/status/model'
-import { SEGMENT_IDS, SEGMENT_SEPARATOR, boardText, renderAnsi, renderPlain, renderTmux, rows } from '../../../src/core/status/render'
+import { SEGMENT_SEPARATOR, renderAnsi, renderPlain, renderTmux, rows } from '../../../src/core/status/render'
 import type { MemoryStatus } from '../../../src/core/memory/status'
 import { memSegment, memSegmentWith } from '../../../src/core/memory/status'
 
@@ -13,8 +13,8 @@ const NOW = Date.parse('2026-10-08T09:00:00.000Z')
 const at = (minutes: number) => new Date(NOW + minutes * 60_000).toISOString()
 
 const LAYOUT: StatusLayout = {
-  rows: [['model', 'ctx', '5h', '7d', 'month', 'cost'], ['git', 'dir', 'mem', 'plan', 'upd']],
-  compact: [['model', 'ctx', '5h', '7d', 'month', 'git', 'mem', 'plan']],
+  rows: [['model', 'ctx', '5h', '7d', 'cost'], ['git', 'dir', 'mem', 'plan', 'upd']],
+  compact: [['model', 'ctx', '5h', '7d', 'git', 'mem', 'plan']],
   thresholds: { ctxWarn: 75, ctxCrit: 90 },
   emoji: true,
 }
@@ -36,7 +36,6 @@ function bar(over: Partial<BarModel> = {}): BarModel {
       { label: '5h', pct: 42, windowMinutes: 300, resetsAt: at(80) },
       { label: '7d', pct: 18, windowMinutes: 10080, resetsAt: at(3 * 1440) },
     ],
-    month: { tokens: 1_200_000_000, usd: 212.4, estimate: true },
     git: { branch: 'main', ahead: 2, behind: 0, staged: 0, unstaged: 3, untracked: 1, stash: 0, conflicts: 0, worktree: 'auth-fix' },
     mem: MEM,
     plan: { title: 'auth-fix', phase: 'implement', done: 3, total: 6 },
@@ -48,33 +47,15 @@ function bar(over: Partial<BarModel> = {}): BarModel {
 const texts = (r: Segment[][]) => r.map(row => row.map(s => s.text))
 const ids = (r: Segment[][]) => r.map(row => row.map(s => s.id))
 
-describe('the board segment', () => {
-  test('shows the counts below the plan, in the short form when the width is tight, and nothing without a board', () => {
-    expect(SEGMENT_IDS).toContain('board')
-    expect(boardText(undefined)).toBeUndefined()
-    expect(boardText({ open: 0, claimed: 0, waiting: 0, done: 0, merged: 0, stale: 0, total: 0 })).toBeUndefined()
-    expect(boardText({ open: 2, claimed: 2, waiting: 1, done: 1, merged: 3, stale: 1, total: 8 })).toBe('board 2 claimed · 1 waiting · 1 done · 1 stale · 3/8 merged')
-    expect(boardText({ open: 0, claimed: 0, waiting: 0, done: 0, merged: 8, stale: 0, total: 8 })).toBe('board 0 claimed · 8/8 merged')
-    const layout: StatusLayout = { rows: [['plan', 'board']], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: true }
-    const full = rows(bar({ plan: { title: 'Rate limit', phase: 'implement', done: 3, total: 8 }, board: { open: 2, claimed: 2, waiting: 1, done: 0, merged: 3, stale: 0, total: 8 } }), layout, 200, NOW)
-    const texts = full.flat().map(s => s.text)
-    expect(texts.some(t => t === 'board 2 claimed · 1 waiting · 3/8 merged')).toBe(true)
-    expect(full.flat().find(s => s.id === 'board')?.color).toBe('yellow')
-    const tight = rows(bar({ plan: { title: 'Rate limit', phase: 'implement', done: 3, total: 8 }, board: { open: 2, claimed: 2, waiting: 0, done: 0, merged: 3, stale: 0, total: 8 } }), layout, 34, NOW)
-    expect(tight.flat().map(s => s.text)).toContain('board 3/8')
-    expect(rows(bar({ plan: { title: 'Rate limit', phase: 'implement', done: 3, total: 8 } }), layout, 200, NOW).flat().some(s => s.id === 'board')).toBe(false)
-  })
-})
-
 describe('rows: full layout', () => {
   test('the DESIGN §6.3 bar at a wide terminal', () => {
     const r = rows(bar(), LAYOUT, 200, NOW)
     const sevenDay = formatResetIn(NOW + 3 * 1440 * 60_000, NOW)
     expect(texts(r)).toEqual([
-      ['Opus 5.5 · max', 'ctx ▓▓░░░░ 37% (370k/1M)', '5h 42% ⇣ ↺1h20m', `7d 18% ⇣ ↺${sevenDay}`, 'mo ≈$212 · 1.2B tok'],
+      ['Opus 5.5 · max', 'ctx ▓▓░░░░ 37% (370k/1M)', '5h 42% ⇣ ↺1h20m', `7d 18% ⇣ ↺${sevenDay}`],
       ['⎇ main ↑2 ✚3 …1 [wt:auth-fix]', memSegment(MEM, NOW, 'wide').text, 'plan auth-fix [implement] 3/6', '⬆2'],
     ])
-    expect(r[0]?.map(s => s.color)).toEqual(['cyan', 'green', 'green', 'green', undefined])
+    expect(r[0]?.map(s => s.color)).toEqual(['cyan', 'green', 'green', 'green'])
     expect(r[1]?.map(s => s.color)).toEqual(['yellow', memSegment(MEM, NOW, 'wide').color, 'blue', 'magenta'])
   })
 
@@ -87,7 +68,7 @@ describe('rows: full layout', () => {
 
   test('compact rows are just another layout', () => {
     const r = rows(bar(), { ...LAYOUT, rows: LAYOUT.compact as string[][] }, 400, NOW)
-    expect(ids(r)).toEqual([['model', 'ctx', '5h', '7d', 'month', 'git', 'mem', 'plan']])
+    expect(ids(r)).toEqual([['model', 'ctx', '5h', '7d', 'git', 'mem', 'plan']])
   })
 })
 
@@ -100,9 +81,9 @@ describe('rows: fitting the width', () => {
         expect(w).toBeLessThanOrEqual(width)
       }
     }
-    expect(texts(rows(bar(), LAYOUT, 100, NOW))[0]).toEqual(['Opus 5.5 · max', 'ctx ▓▓░░░░ 37% (370k/1M)', '5h 42% ⇣ ↺1h20m', `7d 18% ⇣ ↺${formatResetIn(NOW + 3 * 1440 * 60_000, NOW)}`, 'mo ≈$212'])
-    expect(texts(rows(bar(), LAYOUT, 60, NOW))[0]).toEqual(['Opus 5.5', 'ctx ▓▓░░░░ 37%', '5h 42%⇣', '7d 18%⇣', 'mo ≈$212'])
-    expect(texts(rows(bar(), LAYOUT, 50, NOW))[0]).toEqual(['Opus 5.5', 'ctx 37%', '5h 42%⇣', '7d 18%⇣', 'mo ≈$212'])
+    expect(texts(rows(bar(), LAYOUT, 100, NOW))[0]).toEqual(['Opus 5.5 · max', 'ctx ▓▓░░░░ 37% (370k/1M)', '5h 42% ⇣ ↺1h20m', `7d 18% ⇣ ↺${formatResetIn(NOW + 3 * 1440 * 60_000, NOW)}`])
+    expect(texts(rows(bar(), LAYOUT, 60, NOW))[0]).toEqual(['Opus 5.5', 'ctx ▓▓░░░░ 37% (370k/1M)', '5h 42%⇣', '7d 18%⇣'])
+    expect(texts(rows(bar(), LAYOUT, 50, NOW))[0]).toEqual(['Opus 5.5', 'ctx ▓▓░░░░ 37%', '5h 42%⇣', '7d 18%⇣'])
     expect(ids(rows(bar(), LAYOUT, 47, NOW))).toEqual([['model', 'ctx', '5h', '7d'], ['git', 'mem', 'plan', 'upd']])
     expect(ids(rows(bar(), LAYOUT, 42, NOW))).toEqual([['model', 'ctx', '5h', '7d'], ['git', 'mem', 'plan']])
     expect(ids(rows(bar(), LAYOUT, 38, NOW))[1]).toEqual(['git', 'plan'])
@@ -154,16 +135,6 @@ describe('rows: segment rules', () => {
     const r = rows(b, { ...LAYOUT, rows: [['5h', 'windows']] }, 200, NOW)
     expect(ids(r)).toEqual([['5h', '1d', '7d']])
     expect(ids(rows(b, { ...LAYOUT, rows: [['windows']] }, 200, NOW))).toEqual([['5h', '1d', '7d']])
-  })
-
-  test('month: estimate with ≈, tokens only, or the provider percentage', () => {
-    const m = (month: BarModel['month']) => texts(rows(bar(month === undefined ? {} : { month }), { ...LAYOUT, rows: [['month']] }, 200, NOW))[0]?.[0]
-    expect(m({ tokens: 38_000_000, usd: 12.3, estimate: true })).toBe('mo ≈$12.30 · 38M tok')
-    expect(m({ tokens: 38_000_000, estimate: true })).toBe('mo 38M tok')
-    expect(m({ tokens: 0, usd: 314.12, estimate: false, pct: 62.8 })).toBe('mo 63% $314')
-    expect(m({ tokens: 0, estimate: true })).toBeUndefined()
-    const red = rows(bar({ month: { tokens: 0, estimate: false, pct: 93 } }), { ...LAYOUT, rows: [['month']] }, 200, NOW)[0]?.[0]
-    expect(red?.color).toBe('red')
   })
 
   test('git: all counters, detached HEAD, conflicts', () => {

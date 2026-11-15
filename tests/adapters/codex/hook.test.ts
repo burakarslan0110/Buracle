@@ -7,7 +7,7 @@ import { projectIdentity } from '../../../src/engine/git'
 import { run } from '../../../src/engine/proc'
 import * as paths from '../../../src/engine/paths'
 import { loadState, readTelemetry, saveState, writeTelemetry } from '../../../src/workflow/session-store'
-import { loadAdapterState, saveAdapterState } from '../../../src/adapters/codex/hook-io'
+import { compactFile, saveCompact } from '../../../src/adapters/shared/pipeline/index'
 import { capabilityCardText, CONTEXT_BUDGET_BYTES, handleCodexHook, MAX_SUBAGENT_ALIASES, recordSubagentAlias, reviewReportErrors, subagentAliasesFile, type CoreFns } from '../../../src/adapters/codex/hook'
 import { fakeExe } from '../../helpers/fake-exe'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
@@ -105,6 +105,24 @@ describe('PreToolUse', () => {
     expect(await verdict(other, 'harness/notes.md', ctx({ ...defaultConfig(), repo: other }))).toStartWith('Buracle H02: ')
   }), 30_000)
 
+  test('H01 buracleRepo: a shell command that writes under <repo>/harness of the Buracle checkout it runs in is denied, as on OpenCode', () => withSandbox(async ({ root }) => {
+    const mkRepo = async (name: string, pkg: string) => {
+      const dir = join(root, name)
+      mkdirSync(join(dir, 'src'), { recursive: true })
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: pkg }))
+      expect((await run(['git', 'init', '-q'], { cwd: dir })).code).toBe(0)
+      return dir
+    }
+    const buracle = await mkRepo('buracle-checkout', 'buracle')
+    const other = await mkRepo('app', 'my-app')
+    const d = deps({ ...quiet, checkBash: core.checkBash })
+    const verdict = async (command: string, cwd: string) => JSON.parse((await handleCodexHook('PreToolUse', bash(command, cwd), ctx(), d)).stdout || '{}').hookSpecificOutput?.permissionDecisionReason as string | undefined
+    expect(await verdict('echo x > harness/notes.md', buracle)).toStartWith('Buracle H01: ')
+    expect(await verdict('echo x > ../harness/notes.md', join(buracle, 'src'))).toStartWith('Buracle H01: ')
+    expect(await verdict('echo x > src/notes.md', buracle)).toBeUndefined()
+    expect(await verdict('echo x > harness/notes.md', other)).toBeUndefined()
+  }), 30_000)
+
   test('SEC-1 with the real core: a relocated CLAUDE_CONFIG_DIR, and the checkout these hooks run from (from an unrelated session)', () => withSandbox(async ({ root }) => {
     const proj = join(root, 'proj')
     mkdirSync(proj, { recursive: true })
@@ -131,13 +149,11 @@ describe('PreToolUse', () => {
     expect(out.additionalContext).toContain('pause first')
   }))
 
-  test('H03: a routing denial names its hook; routeTool owns the nudge (bashNudge is never called separately)', () => withSandbox(async () => {
+  test('H03: a routing denial names its hook; routing context reaches the model', () => withSandbox(async () => {
     const deny = await handleCodexHook('PreToolUse', bash('grep -r foo .'), ctx(), deps({ ...quiet, routeTool: () => ({ action: 'deny', reason: 'use rg', hook: 'H03' }) }))
     expect(JSON.parse(deny.stdout).hookSpecificOutput.permissionDecisionReason).toBe('Buracle H03: use rg')
     const nudge = await handleCodexHook('PreToolUse', bash('grep -r foo .'), ctx(), deps({ ...quiet, routeTool: () => ({ action: 'allow', context: ['Prefer rg.'] }) }))
     expect(JSON.parse(nudge.stdout)).toEqual({ hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: 'Prefer rg.' } })
-    const never = () => { throw new Error('bashNudge must not be called by the adapter') }
-    expect(await handleCodexHook('PreToolUse', bash('grep -r foo .'), ctx(), deps({ ...quiet, bashNudge: never }))).toEqual({ stdout: '', exitCode: 0 })
   }))
 
   test('path rules (R5): the first apply_patch of a matching file is denied once with the installed rule text; a shell read of the rule file counts', () => withSandbox(async ({ root }) => {
@@ -161,14 +177,6 @@ describe('PreToolUse', () => {
     expect(JSON.parse((await handleCodexHook('PreToolUse', other, ctx(nudge), d)).stdout).hookSpecificOutput.additionalContext).toContain('lib/x.go matches the path rule `go`; follow it for this change.')
   }))
 
-  test('real core: a shell file write points to apply_patch once per session; Codex gets no read note (it has no file-read tool)', () => withSandbox(async () => {
-    const real = deps({})
-    const w = JSON.parse((await handleCodexHook('PreToolUse', bash("sed -i 's/a/b/' src/a.ts"), ctx(), real)).stdout)
-    expect(w.hookSpecificOutput.additionalContext).toContain('this shell command writes `src/a.ts` (sed -i in place). Make ordinary source edits with apply_patch instead')
-    expect((await handleCodexHook('PreToolUse', bash('echo x > src/b.ts'), ctx(), real)).stdout).toBe('')
-    expect((await handleCodexHook('PreToolUse', bash('cat src/a.ts'), ctx(), real)).stdout).toBe('')
-  }))
-
   test('real core: rm -rf / is denied, ls is allowed', () => withSandbox(async () => {
     const real = deps({})
     const r = await handleCodexHook('PreToolUse', bash('rm -rf /'), ctx(), real)
@@ -188,9 +196,6 @@ describe('PostToolUse', () => {
       ...quiet,
       checkersFor: p => [{ argv: ['ruff', 'check', p], cwd, timeoutMs: 20000, parser: 'ruff' }],
       findingsOf: (_plan, res) => (res && res.code !== 0 ? `ruff: ${res.stdout}` : undefined),
-      tddHint: () => 'No test file next to x.py; add one.',
-      charsetFindings: added => (added.includes('import') ? ['plain ASCII'] : []),
-      lengthNote: () => undefined,
     })
     const r = await handleCodexHook('PostToolUse', payload('PostToolUse', { cwd, tool_name: 'apply_patch', tool_input: { command: patch }, tool_response: 'Success. Updated the following files:\nA x.py' }), ctx(), d)
     const out = JSON.parse(r.stdout)
@@ -200,13 +205,11 @@ describe('PostToolUse', () => {
     const text: string = out.hookSpecificOutput.additionalContext
     expect(text).toContain('\n\nx.py:\n')
     expect(text).toContain('- ruff: x.py:1:1: F401 unused import')
-    expect(text).toContain('- No test file next to x.py; add one.')
-    expect(text).toContain('- plain ASCII')
     expect(d.rec.runs).toEqual([['ruff', 'check', join(cwd, 'x.py')]])
-    expect(d.rec.spool).toEqual([{ ts: NOW, ev: 'tool', tool: 'apply_patch', kind: 'patch', paths: [join(cwd, 'x.py')] }])
+    expect(d.rec.spool).toEqual([])
   }))
 
-  test('apply_patch with the real checkers: a missing linter is named once per session, a mirrored test folder silences the TDD note', () => withSandbox(async ({ root }) => {
+  test('apply_patch with the real checkers: a missing linter is named once per session', () => withSandbox(async ({ root }) => {
     const cwd = join(root, 'proj')
     mkdirSync(join(cwd, 'src', 'core'), { recursive: true })
     mkdirSync(join(cwd, 'tests', 'core'), { recursive: true })
@@ -221,18 +224,18 @@ describe('PostToolUse', () => {
     expect(await post('*** Begin Patch\n*** Update File: src/core/x.ts\n@@\n-export const x = 1\n+export const x = 2\n*** End Patch\n')).toBe('')
   }))
 
-  test('a failed patch is spooled but not checked', () => withSandbox(async () => {
+  test('a failed patch is not checked and not spooled', () => withSandbox(async () => {
     const d = deps({ ...quiet, checkersFor: () => { throw new Error('should not run') } })
     const r = await handleCodexHook('PostToolUse', payload('PostToolUse', { tool_name: 'apply_patch', tool_input: { command: '*** Begin Patch\n*** Update File: a.ts\n+x\n*** End Patch' }, tool_response: 'Failed to apply patch' }), ctx(), d)
     expect(r.stdout).toBe('')
-    expect(d.rec.spool[0]).toMatchObject({ ev: 'tool', kind: 'patch' })
+    expect(d.rec.spool).toEqual([])
   }))
 
-  test('Bash (async group): spooled with command and exit code, no output', () => withSandbox(async () => {
+  test('Bash (async group): no output, and the command is not spooled', () => withSandbox(async () => {
     const d = deps(quiet)
     const r = await handleCodexHook('PostToolUse', payload('PostToolUse', { tool_name: 'Bash', tool_input: { command: 'bun test' }, tool_response: 'Process exited with code 1\n2 fail' }), ctx(), d)
     expect(r.stdout).toBe('')
-    expect(d.rec.spool).toEqual([{ ts: NOW, ev: 'tool', tool: 'Bash', kind: 'bash', cmd: 'bun test', exit: 1 }])
+    expect(d.rec.spool).toEqual([])
   }))
 })
 
@@ -249,6 +252,25 @@ describe('SessionStart', () => {
     await handleCodexHook('SessionStart', payload('SessionStart', { source: 'startup', agent_id: 'a1', agent_type: 'worker' }), ctx(), d)
     expect(prepared).toEqual(['/work/app'])
   }))
+
+  test('a subagent starts with the workspace note alone: no memory context, capability card or profile warning', () => withSandbox(() => withEnv({ CODEX_HOME: '/work/profile-b' }, async () => {
+    mkdirSync(paths.stateDir(), { recursive: true })
+    writeFileSync(paths.runtimeConfigFile(), JSON.stringify({ v: 1, resolved: { codexHome: '/work/profile-a' } }))
+    const info = { cwd: '/work/app', children: [], root: '/work/app', index: { codegraph: { state: 'ready' }, semble: { state: 'ready' } } } as never
+    const d = { ...deps(quiet, memoryText(3), { CODEX_HOME: '/work/profile-b' }), workspaceInfo: async () => info }
+    const sub = { agent_id: '019a1b2c-3d4e-7f60-8a9b-0c1d2e3f4b00', agent_type: 'worker' }
+    const main = JSON.parse((await handleCodexHook('SessionStart', payload('SessionStart', { source: 'startup' }), ctx(), d)).stdout)
+    expect(main.hookSpecificOutput.additionalContext).toContain('Capability card')
+    expect(main.hookSpecificOutput.additionalContext).toContain('## Project memory: proj')
+    expect(main.systemMessage).toContain('/work/profile-a')
+    for (const event of ['SessionStart', 'SubagentStart']) {
+      const out = JSON.parse((await handleCodexHook(event, payload(event, { source: 'startup', ...sub }), ctx(), d)).stdout)
+      expect(keys(out)).toEqual(['hookSpecificOutput'])
+      expect(out.hookSpecificOutput.additionalContext).toStartWith('Project root: /work/app.')
+      expect(out.hookSpecificOutput.additionalContext).not.toContain('Capability card')
+      expect(out.hookSpecificOutput.additionalContext).not.toContain('Buracle memory')
+    }
+  })))
 
   test('H13 memory context + H15 card as additionalContext, the session record started', () => withSandbox(async ({ root }) => {
     const cwd = join(root, 'proj')
@@ -413,7 +435,7 @@ describe('UserPromptSubmit', () => {
     const d = deps({ ...quiet, promptInteraction: (s, control, text, o) => { seen.push(control, text, o); return { next: { ...s, interaction: { state: 'paused', kind: 'discussion', since: o.now } }, guidance: 'Buracle: paused' } } })
     const r = await handleCodexHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: 'dur' }), ctx(), d)
     expect(JSON.parse(r.stdout).hookSpecificOutput.additionalContext).toContain('Buracle: paused')
-    expect(seen).toEqual(['pause', 'dur', { autoPause: false, now: NOW }])
+    expect(seen).toEqual(['pause', 'dur', { now: NOW }])
     expect(JSON.parse(readFileSync(statePath(), 'utf8')).interaction).toEqual({ state: 'paused', kind: 'discussion', since: NOW })
   }))
 
@@ -428,27 +450,14 @@ describe('UserPromptSubmit', () => {
     expect(loadState('codex', SID)).toMatchObject({ interaction: { state: 'running' }, guard: { blocksForPlan: 0, blocksInChain: 0 } })
   }))
 
-  test('Buracle\'s own stop-guard continuation is ignored: no intent, no autoPause, no spool entry', () => withSandbox(async () => {
+  test('Buracle\'s own stop-guard continuation is ignored: no intent, no spool entry', () => withSandbox(async () => {
     saveState('codex', SID, planState())
     const d = deps({ detectIntent: () => { throw new Error('must not run') } })
     const text = `<hook_prompt hook_run_id="r1">${core.GUARD_MARKERS[0]} the plan docs/plans/p.md is IN_PROGRESS … dur.</hook_prompt>`
-    const r = await handleCodexHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: text }), ctx(withPlan({ autoPause: true })), d)
+    const r = await handleCodexHook('UserPromptSubmit', payload('UserPromptSubmit', { prompt: text }), ctx(), d)
     expect(r.stdout).toBe('')
     expect(loadState('codex', SID).interaction).toBeUndefined()
     expect(d.rec.spool).toEqual([])
-  }))
-
-  test('plan.autoPause: a user message during a running plan pauses it (kind discussion); off by default', () => withSandbox(async () => {
-    saveState('codex', SID, planState())
-    const prompt = payload('UserPromptSubmit', { prompt: 'Bu fonksiyon neden iki kez çağrılıyor?' })
-    expect((await handleCodexHook('UserPromptSubmit', prompt, ctx(), deps({}))).stdout).toBe('')
-    expect(loadState('codex', SID).interaction).toBeUndefined()
-    const r = await handleCodexHook('UserPromptSubmit', prompt, ctx(withPlan({ autoPause: true })), deps({}))
-    expect(JSON.parse(r.stdout).hookSpecificOutput.additionalContext).toContain('plan.autoPause')
-    expect(loadState('codex', SID).interaction).toEqual({ state: 'paused', kind: 'discussion', since: NOW, reason: 'the user sent a message while the plan was running (plan.autoPause)' })
-    expect((await handleCodexHook('UserPromptSubmit', prompt, ctx(withPlan({ autoPause: true })), deps({}))).stdout).toBe('')
-    saveState('codex', SID, planState({ plan: { ...plan, status: 'VERIFIED', phase: 'done' } }))
-    expect((await handleCodexHook('UserPromptSubmit', prompt, ctx(withPlan({ autoPause: true })), deps({}))).stdout).toBe('')
   }))
 
   test('H05: one warning when the context crosses warnPct; H18 telemetry with model, effort, ctx and windows', () => withSandbox(async ({ root }) => {
@@ -552,20 +561,20 @@ describe('Stop (H08 + H11 through stopGuardVerdict) and SubagentStop', () => {
   }))
 
   test('a runaway cap holds the turn once to ask the user, then releases it with a one-time user notice (systemMessage)', () => withSandbox(async ({ root }) => {
-    const c = withPlan({ runaway: { perPlan: 30, perChain: 2 } })
-    saveState('codex', SID, planState({ guard: { blocksForPlan: 4, blocksInChain: 2 } }))
+    const c = withPlan({})
+    saveState('codex', SID, planState({ guard: { blocksForPlan: 4, blocksInChain: 5 } }))
     const escalate = JSON.parse((await handleCodexHook('Stop', payload('Stop', { cwd: root, stop_hook_active: true }), ctx(c), deps({}))).stdout)
     expect(keys(escalate)).toEqual(['decision', 'reason'])
-    expect(escalate.reason).toContain('plan.runaway.perChain, 2')
+    expect(escalate.reason).toContain('5 blocks in a row')
     expect(escalate.reason).toContain('runaway: continue, pivot or abandon?')
     const chain = JSON.parse((await handleCodexHook('Stop', payload('Stop', { cwd: root, stop_hook_active: true }), ctx(c), deps({}))).stdout)
     expect(keys(chain)).toEqual(['systemMessage'])
-    expect(chain.systemMessage).toContain('plan.runaway.perChain')
-    const p30 = withPlan({ runaway: { perPlan: 3, perChain: 5 } })
-    saveState('codex', SID, planState({ guard: { blocksForPlan: 3, blocksInChain: 0 } }))
-    expect(JSON.parse((await handleCodexHook('Stop', payload('Stop', { cwd: root }), ctx(p30), deps({}))).stdout).reason).toContain('plan.runaway.perPlan, 3')
+    expect(chain.systemMessage).toContain('5 continuations in a row')
+    const p30 = withPlan({})
+    saveState('codex', SID, planState({ guard: { blocksForPlan: 30, blocksInChain: 0 } }))
+    expect(JSON.parse((await handleCodexHook('Stop', payload('Stop', { cwd: root }), ctx(p30), deps({}))).stdout).reason).toContain('30 blocks for this plan')
     const first = JSON.parse((await handleCodexHook('Stop', payload('Stop', { cwd: root }), ctx(p30), deps({}))).stdout)
-    expect(first.systemMessage).toContain('plan.runaway.perPlan')
+    expect(first.systemMessage).toContain('30 stop-guard continuations')
     expect((await handleCodexHook('Stop', payload('Stop', { cwd: root }), ctx(p30), deps({}))).stdout).toBe('')
   }))
 
@@ -620,10 +629,10 @@ describe('thread-spawned subagents (root session_id + agent_id/agent_type)', () 
     JSON.stringify({ timestamp: '2026-10-08T11:59:00.000Z', type: 'event_msg', payload: { type: 'token_count', info: { last_token_usage: { total_tokens: tokens }, model_context_window: window } } }),
   ].join('\n') + '\n')
 
-  test('CODEX-SUBAGENT-UPS-H10: a subagent task message is not the user: no pause, no autoPause, no context, no spool', () => withSandbox(async () => {
+  test('CODEX-SUBAGENT-UPS-H10: a subagent task message is not the user: no pause, no context, no spool', () => withSandbox(async () => {
     saveState('codex', SID, planState())
     const d = deps({})
-    const r = await handleCodexHook('UserPromptSubmit', sub('UserPromptSubmit', { prompt: 'user_request: hata olursa dur ve bana sor\nReview the implemented changes.' }), ctx(withPlan({ autoPause: true })), d)
+    const r = await handleCodexHook('UserPromptSubmit', sub('UserPromptSubmit', { prompt: 'user_request: hata olursa dur ve bana sor\nReview the implemented changes.' }), ctx(), d)
     expect(r).toEqual({ stdout: '', exitCode: 0 })
     expect(loadState('codex', SID).interaction).toBeUndefined()
     expect(d.rec.spool).toEqual([])
@@ -722,11 +731,10 @@ describe('compaction and session end', () => {
     })
     writeFileSync(rollout, planLine('in_progress'))
     await handleCodexHook('PreCompact', payload('PreCompact', { cwd, trigger: 'auto', transcript_path: rollout }), ctx(), d)
-    expect(loadAdapterState(ctx(), SID).lastTodos).toEqual(['Write the parser'])
+    expect(JSON.parse(readFileSync(compactFile(ctx(), 'codex', SID), 'utf8'))).toEqual({ v: 1, at: NOW, todo: ['Write the parser'] })
     writeFileSync(rollout, planLine('completed'))
     await handleCodexHook('PreCompact', payload('PreCompact', { cwd, trigger: 'auto', transcript_path: rollout }), ctx(), d)
-    expect(loadAdapterState(ctx(), SID)).toMatchObject({ lastCompactAt: NOW })
-    expect(loadAdapterState(ctx(), SID).lastTodos).toBeUndefined()
+    expect(JSON.parse(readFileSync(compactFile(ctx(), 'codex', SID), 'utf8'))).toEqual({ v: 1, at: NOW })
     const r = await handleCodexHook('SessionStart', payload('SessionStart', { cwd, source: 'compact' }), ctx(), d)
     expect(r.stdout).not.toContain('Open todos')
     expect(r.stdout).not.toContain('Write the parser')
@@ -739,14 +747,14 @@ describe('compaction and session end', () => {
     mkdirSync(cwd)
     const rollout = join(root, 'rollout.jsonl')
     writeFileSync(rollout, JSON.stringify({ type: 'response_item', payload: { type: 'function_call', name: 'update_plan', call_id: 'c1', arguments: JSON.stringify({ plan: [{ step: 'Write the parser', status: 'in_progress' }] }) } }) + '\n')
-    saveAdapterState(ctx(), SID, { v: 1, lastHandoff: 'handoff-earlier-compaction', lastCompactAt: NOW - 1000 })
+    saveCompact(ctx(), 'codex', SID, NOW - 1000, 'handoff-earlier-compaction', [])
     const during: unknown[] = []
     const d = deps({ ...quiet, handoffNote: () => ({ slug: 's', markdown: '' }) }, {
-      writeHandoff: async () => { during.push(loadAdapterState(ctx(), SID)); return { id: 'handoff-now', path: 'handoff-now', rel: 'handoff-now', title: 't' } },
+      writeHandoff: async () => { during.push(JSON.parse(readFileSync(compactFile(ctx(), 'codex', SID), 'utf8'))); return { id: 'handoff-now', path: 'handoff-now', rel: 'handoff-now', title: 't' } },
     })
     await handleCodexHook('PreCompact', payload('PreCompact', { cwd, trigger: 'auto', transcript_path: rollout }), ctx(), d)
-    expect(during).toEqual([{ v: 1, lastCompactAt: NOW, lastTodos: ['Write the parser'] }])
-    expect(loadAdapterState(ctx(), SID)).toEqual({ v: 1, lastCompactAt: NOW, lastHandoff: 'handoff-now' })
+    expect(during).toEqual([{ v: 1, at: NOW, todo: ['Write the parser'] }])
+    expect(JSON.parse(readFileSync(compactFile(ctx(), 'codex', SID), 'utf8'))).toEqual({ v: 1, at: NOW, handoff: 'handoff-now' })
   }))
 
   test('PostCompact prints nothing and spools the compaction summary from the rollout (else a marker)', () => withSandbox(async ({ root }) => {
@@ -845,7 +853,7 @@ describe('w2 plan state on Codex: the lane guard, the async question pause, the 
 
   test('a subagent thread cannot change the root session\'s plan state; the root and read-only commands can', () => withSandbox(async () => {
     const lane = { agent_id: '019a1b2c-3d4e-7f60-8a9b-0c1d2e3f4b00', agent_type: 'worker' }
-    expect(denied((await handleCodexHook('PreToolUse', pre('Bash', { command: 'buracle plan verify' }, lane), ctx(), deps({}))).stdout)).toContain('Buracle lane guard')
+    expect(denied((await handleCodexHook('PreToolUse', pre('Bash', { command: 'buracle plan verify' }, lane), ctx(), deps({}))).stdout)).toContain('Buracle H01: a subagent does not run')
     expect(denied((await handleCodexHook('PreToolUse', pre('Bash', { command: 'buracle plan status --json' }, lane), ctx(), deps({}))).stdout)).toBeUndefined()
     expect(denied((await handleCodexHook('PreToolUse', pre('Bash', { command: 'buracle plan pause --kind decision' }), ctx(), deps({}))).stdout)).toBeUndefined()
   }))

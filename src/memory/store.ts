@@ -1,4 +1,3 @@
-import { AsyncLocalStorage } from 'node:async_hooks'
 import { appendFileSync, existsSync, mkdirSync, renameSync, statSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { cortexAbout, cortexQuery, fromCortex, toCortexSave, type MemItem, type MemKind, type MemLayer, type MemRankInput } from '../core/memory/brain'
@@ -7,7 +6,6 @@ import { log } from '../engine/log'
 import { CortexError, cortexFor } from './cortex'
 import { brainDbFile, brainLockFile, eventsFile } from './layout'
 import { acquireLock } from './lock'
-import { legacyPending } from './migration-state'
 
 /**
  * One CortexDB file holds the whole brain, in two kinds of bucket: the person's (scope `user`, user id `person`) and one
@@ -103,20 +101,6 @@ export function keepOf(raw: unknown): Record<string, unknown> {
   return out
 }
 
-// A memory call that finds Buracle 0.5 files waits for the migration (src/memory/migrate.ts) before it reads or writes
-// anything, so half-migrated data is never served and legacy-only data is never reported as an empty brain.
-const gateBypass = new AsyncLocalStorage<true>()
-
-export function bypassMigrationGate<T>(fn: () => Promise<T>): Promise<T> {
-  return gateBypass.run(true, fn)
-}
-
-async function ready(): Promise<void> {
-  if (gateBypass.getStore() === true || !legacyPending()) return
-  const { ensureMigrated } = await import('./migrate')
-  await ensureMigrated()
-}
-
 const PAGE = 1000
 const MAX_LIST = 200_000
 const LIST_CACHE_MS = 60_000
@@ -193,7 +177,6 @@ async function scan(): Promise<Scan> {
 
 /** The memories of one bucket, newest first. One pass over the file serves every bucket until the file changes. */
 export async function listAll(ref: BrainRef): Promise<MemItem[]> {
-  await ready()
   if (!brainExists()) return []
   const sig = sigOf(brainDbFile())
   const hit = listCache.get(cacheKey(ref))
@@ -206,7 +189,6 @@ export async function listAll(ref: BrainRef): Promise<MemItem[]> {
 
 /** How many rows each bucket holds (retired ones too), and how many rows belong to nobody Buracle knows. */
 export async function bucketCounts(): Promise<BucketCounts> {
-  await ready()
   if (!brainExists()) return { person: 0, projects: new Map(), foreign: 0 }
   const sig = sigOf(brainDbFile())
   if (lastScan !== undefined && lastScan.file === brainDbFile() && lastScan.sig === sig && Date.now() - lastScan.at < LIST_CACHE_MS) return lastScan.counts
@@ -220,7 +202,6 @@ export async function bucketExists(ref: BrainRef): Promise<boolean> {
 }
 
 export async function getStored(ref: BrainRef, id: string): Promise<Stored | undefined> {
-  await ready()
   if (!brainExists()) return undefined
   try {
     const r = await cortexFor(brainDbFile()).call<{ memory?: unknown }>('memory_get', { memory_id: storedId(ref, id) })
@@ -234,7 +215,6 @@ export async function getStored(ref: BrainRef, id: string): Promise<Stored | und
 }
 
 export async function searchLayer(ref: BrainRef, query: string, topK: number, opts: { about?: readonly string[] } = {}): Promise<MemRankInput[]> {
-  await ready()
   if (!brainExists()) return []
   const args = { ...cortexAbout(cortexQuery(query, topK), opts.about ?? []), ...bucketArgs(ref) }
   const r = await cortexFor(brainDbFile()).call<{ results?: Array<{ memory?: unknown }> }>('memory_search', args)
@@ -277,7 +257,6 @@ async function callSave(args: Record<string, unknown>): Promise<void> {
 }
 
 export async function saveItem(ref: BrainRef, item: MemItem, keep: Record<string, unknown> = {}, opts: SaveOptions = {}): Promise<void> {
-  await ready()
   mkdirSync(dirname(brainDbFile()), { recursive: true, mode: 0o700 })
   await callSave(storedSave(ref, item, keep, opts))
   const hit = listCache.get(cacheKey(ref))
@@ -286,7 +265,6 @@ export async function saveItem(ref: BrainRef, item: MemItem, keep: Record<string
 }
 
 export async function deleteItem(ref: BrainRef, id: string): Promise<boolean> {
-  await ready()
   listCache.delete(cacheKey(ref))
   if (!brainExists()) return false
   try {
@@ -300,7 +278,6 @@ export async function deleteItem(ref: BrainRef, id: string): Promise<boolean> {
 
 /** Deletes every row of one bucket by its id prefix and returns how many went. The other buckets are not touched. */
 export async function deleteBucket(ref: BrainRef): Promise<number> {
-  await ready()
   if (!brainExists()) return 0
   const c = cortexFor(brainDbFile())
   let n = 0
@@ -315,6 +292,18 @@ export async function deleteBucket(ref: BrainRef): Promise<number> {
     }
   }
   forgetListCache()
+  return n
+}
+
+/**
+ * Deletes every row whose time to live ran out (the engine's `sweep_expired`) and returns how many went. Until then
+ * the engine only hides such a row from search and listing: `memory_get` still answers it and it stays in the file.
+ */
+export async function sweepExpired(): Promise<number> {
+  if (!brainExists()) return 0
+  const r = await cortexFor(brainDbFile()).call<{ memories?: unknown }>('sweep_expired', {})
+  const n = Array.isArray(r.memories) ? r.memories.length : 0
+  if (n > 0) forgetListCache()
   return n
 }
 

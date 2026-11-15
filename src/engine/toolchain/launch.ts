@@ -2,7 +2,7 @@ import { accessSync, constants, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import type { McpCatalog, McpServerSpec } from '../../core/catalog'
-import { envRef, mcpPackageBin, validateMcpCatalog } from '../../core/catalog'
+import { envRef, mcpCatalogOf, mcpPackageBin, validateMcpCatalog } from '../../core/catalog'
 import { apiKeyFor } from '../mcp-share/keys'
 import * as paths from '../paths'
 import { findExecutable } from '../platform'
@@ -22,7 +22,7 @@ export function readMcpCatalog(file: string = join(paths.canonicalDir(), 'mcp.ya
   const raw = parseYaml(readFileSync(file, 'utf8')) as unknown
   const problems = validateMcpCatalog(raw)
   if (problems.length > 0) throw new Error(`${file}: ${problems.slice(0, 3).join('; ')}`)
-  return raw as McpCatalog
+  return mcpCatalogOf(raw)
 }
 
 export function serverEnvFor(spec: McpServerSpec, env: Record<string, string | undefined> = process.env): Record<string, string> {

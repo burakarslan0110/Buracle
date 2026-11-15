@@ -139,10 +139,7 @@ function removeDir(dir: string): void {
   try { rmSync(dir, { recursive: true, force: true }) } catch {  }
 }
 
-function prefixVersion(prefix: string, name: string): string | undefined {
-  return existsSync(prefix) ? npmInstalledVersion(prefix, name) : undefined
-}
-
+/** Puts `next` in place of `live`. The old copy waits in `prev` only while the swap runs, so a failed rename can put it back. */
 export function swapPrefix(live: string, next: string, prev: string): void {
   removeDir(prev)
   const hadLive = existsSync(live)
@@ -155,6 +152,7 @@ export function swapPrefix(live: string, next: string, prev: string): void {
     }
     throw e
   }
+  removeDir(prev)
 }
 
 export async function installNpm(req: PackageRequest, version: string, nowIso: string, opts: { timeoutMs?: number } = {}): Promise<InstallOutcome | InstallFailure> {
@@ -183,14 +181,12 @@ export async function installNpm(req: PackageRequest, version: string, nowIso: s
   const installed = npmInstalledVersion(stage, req.name)
   if (installed === undefined) return fail(`npm install ${req.name}@${version} finished but the package is not in ${stage}`)
   if (Object.keys(pickBins(stage, req.name, req.bins)).length === 0) return fail(`${req.name}@${installed} declares none of the expected executables (${(req.bins ?? []).join(', ') || 'any'})`)
-  const before = prefixVersion(live, req.name)
   try {
     swapPrefix(live, stage, npmPreviousPrefix(req.name))
   } catch (e) {
     return fail(`cannot put ${req.name}@${installed} in place of ${live} (${errText(e)}); the copy that was there stays`)
   }
   const pkg: InstalledPackage = { registry: 'npm', name: req.name, version: installed, dir: live, bins: pickBins(live, req.name, req.bins), installed_at: nowIso }
-  if (before !== undefined) pkg.previous = { version: before }
   return { ok: true, pkg }
 }
 
@@ -208,7 +204,7 @@ function uvBins(req: PackageRequest): Record<string, string> {
   return bins
 }
 
-export async function installPypi(req: PackageRequest, version: string, nowIso: string, opts: { timeoutMs?: number, before?: string } = {}): Promise<InstallOutcome | InstallFailure> {
+export async function installPypi(req: PackageRequest, version: string, nowIso: string, opts: { timeoutMs?: number } = {}): Promise<InstallOutcome | InstallFailure> {
   const uv = findExecutable('uv', { extra: paths.toolchainBinDirs() })
   if (uv === undefined) return { ok: false, error: 'uv is not installed' }
   mkdirSync(uvToolDir(), { recursive: true })
@@ -220,7 +216,6 @@ export async function installPypi(req: PackageRequest, version: string, nowIso: 
   if (Object.keys(bins).length === 0) return { ok: false, error: `uv installed ${req.name} but none of its executables (${(req.bins ?? [req.name]).join(', ')}) is in ${uvBinDir()}` }
   const pkg: InstalledPackage = { registry: 'pypi', name: req.name, version: version === 'latest' ? await uvToolVersion(uv, req.name) ?? 'latest' : version, dir: join(uvToolDir(), req.name), bins, python: UV_PYTHON, installed_at: nowIso }
   if (req.extras !== undefined && req.extras.length > 0) pkg.extras = [...req.extras]
-  if (opts.before !== undefined && opts.before !== pkg.version) pkg.previous = { version: opts.before }
   return { ok: true, pkg }
 }
 
@@ -235,7 +230,7 @@ export async function uvToolVersion(uv: string, name: string): Promise<string | 
   return /\sv?(\d+\.\d+\.\d+[^\s]*)/.exec(line ?? '')?.[1]
 }
 
-export async function installPackage(req: PackageRequest, nowMs: number, opts: { minAgeDays?: number, timeoutMs?: number, before?: string } = {}): Promise<InstallOutcome | InstallFailure> {
+export async function installPackage(req: PackageRequest, nowMs: number, opts: { minAgeDays?: number, timeoutMs?: number } = {}): Promise<InstallOutcome | InstallFailure> {
   let version = req.version
   if (version === 'latest' || version === '') {
     const latest = await latestVersion(req.registry, req.name, nowMs, opts.minAgeDays ?? configuredMinAgeDays())
@@ -243,10 +238,9 @@ export async function installPackage(req: PackageRequest, nowMs: number, opts: {
     version = latest.version
   }
   const nowIso = new Date(nowMs).toISOString()
-  const o: { timeoutMs?: number, before?: string } = {}
+  const o: { timeoutMs?: number } = {}
   if (opts.timeoutMs !== undefined) o.timeoutMs = opts.timeoutMs
   if (req.registry === 'npm') return installNpm(req, version, nowIso, o)
-  if (opts.before !== undefined) o.before = opts.before
   return installPypi(req, version, nowIso, o)
 }
 

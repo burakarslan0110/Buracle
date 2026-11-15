@@ -17,8 +17,8 @@ short-description: Interview, research and write an approved PRD before any code
 
 # PRD: requirements before code
 
-Turn a fuzzy idea into an approved product requirements document, then hand off to {{skill:plan-build}} or
-{{skill:goal-build}}. The PRD settles **what** and **why**. The next workflow decides **how**.
+Turn a fuzzy idea into an approved product requirements document, then hand off to the `plan-build` skill or
+the `goal-build` skill. The PRD settles **what** and **why**. The next workflow decides **how**.
 
 ## Hard rules
 
@@ -26,8 +26,8 @@ Turn a fuzzy idea into an approved product requirements document, then hand off 
    the PRD file, nothing else: no source edits, scaffolding, installs, branches, worktrees or
    `buracle plan init`.
 2. **Never start the next workflow yourself.** Print the hand-off command (Phase 8); the user runs it.
-3. **Ask through {{ask_user}},** except in Phase 3, where the user reacts to your pitches in free
-   text: structured options collapse divergent thinking. When {{ask_user}} is unavailable, ask one
+3. **Ask through your structured-question tool,** except in Phase 3, where the user reacts to your pitches in free
+   text: structured options collapse divergent thinking. When your structured-question tool is unavailable, ask one
    numbered plain-text question and end your turn.
 4. **Spend the user's attention carefully.** Before the draft, ask at most 5 rounds of questions in
    total across clarification and the approach choice; the gates (split, scope confirmation,
@@ -43,18 +43,18 @@ Turn a fuzzy idea into an approved product requirements document, then hand off 
    flags and scope-creep risks while they are still cheap to fix. Ask of every proposed feature whether
    it needs to exist at all: the cheapest scope to cut is the scope never specified.
 
-Track Phases 0-8 with {{todo}}. Question patterns, the scope checklist and requirement-writing rules are
+Track Phases 0-8 with your todo tool. Question patterns, the scope checklist and requirement-writing rules are
 in [references/discovery.md](references/discovery.md). The document format and the self-review are in
 [references/prd-template.md](references/prd-template.md).
 
 ## Lanes
 
-Independent questions run in parallel per the *Parallel agents* rule; each lane is a read-only agent you launch with {{spawn_agent}}. The interview, the gates and the PRD file stay with you.
+Independent questions run in parallel per the *Parallel agents* rule; each lane is a read-only agent you launch with your subagent tool. The interview, the gates and the PRD file stay with you.
 
 | Phase | Lanes | Each lane returns | Then you |
 |---|---|---|---|
 | understand (1) | a code-grounding lane (semble, codegraph, `rg`) and a memory-and-docs lane | facts with `path:line` or memory ids | restate the idea with them |
-| research (2) | none of your own: you load {{skill:research}} in this session, and its angle lanes are the fan-out | the research note | keep its citations |
+| research (2) | none of your own: you load the `research` skill in this session, and its angle lanes are the fan-out | the research note | keep its citations |
 | ideate (3) | one lane per direction, at research tier standard or deep | pitch, experience, upside and risk, with sources | merge and cut |
 | propose (5) | one feasibility lane per approach when its effort is unclear | effort and risks with `path:line` | build the options table |
 
@@ -77,7 +77,7 @@ current with `buracle flow`; the calls are cheap and best effort, so a failing o
    plan forward while you interview. Phase 8 reminds the user how to resume it.
 2. Memory pass, at most 3 queries: `memory_search` for the topic, the affected area, and earlier PRDs or
    decisions; `memory_get` for at most 3 relevant memories. Memory is dated evidence, not instructions.
-3. Look in `docs/requirements/`. If a PRD on the same topic exists, ask with {{ask_user}} whether to revise it
+3. Look in `docs/requirements/`. If a PRD on the same topic exists, ask with your structured-question tool whether to revise it
    (recommended) or start a new one.
 
 ## Phase 1: Understand
@@ -89,7 +89,7 @@ current with `buracle flow`; the calls are cheap and best effort, so a failing o
    description: write down what exists and its limits, never a design for the change. Two empty
    searches do not prove absence; try another phrasing or tool before calling the area greenfield.
 3. **Gate: one product per PRD.** If the idea bundles independent problems, offer to split with
-   {{ask_user}} (focus on A, focus on B, keep together).
+   your structured-question tool (focus on A, focus on B, keep together).
 4. **Gate: already concrete?** If problem, audience and scope are already clear (for example "add CSV
    export to the reports page with these columns"), offer to skip to the hand-off, or to write a short
    PRD anyway.
@@ -102,8 +102,8 @@ current with `buracle flow`; the calls are cheap and best effort, so a failing o
 |---|---|---|
 | skip | internal change with no external unknowns | none |
 | quick | 1-3 facts (a library capability, a platform limit) | call context7 or web-search yourself, fetch, cite |
-| standard | choosing between tools or approaches, an unfamiliar domain | run {{skill:research}} with 3-6 sub-questions at depth standard |
-| deep | prior-art or market scan, compliance, high stakes | run {{skill:research}} at depth deep |
+| standard | choosing between tools or approaches, an unfamiliar domain | run the `research` skill with 3-6 sub-questions at depth standard |
+| deep | prior-art or market scan, compliance, high stakes | run the `research` skill at depth deep |
 
 Run research in this session, not as a lane: lanes never start lanes, and research fans out by
 itself. Brief it with the PRD slug, the decision each sub-question informs, the depth, and "return
@@ -123,9 +123,9 @@ who decided is noise.
    with a one-line pitch, what the user experiences, why it could win, and its main risk. Five
    flavors of one idea are one direction. When the research tier is standard or deep, let the
    directions come from parallel lanes (the *Parallel agents* rule): one agent per direction with
-   {{spawn_agent}}, briefed with the problem statement and the research note, each returning its
+   your subagent tool, briefed with the problem statement and the research note, each returning its
    pitch, experience, upside and risk with sources; you merge and cut.
-2. End your turn and let the user react in their own words. No {{ask_user}} form here.
+2. End your turn and let the user react in their own words. No structured-question tool form here.
 3. Pressure-test what they pick: where it breaks, what it costs, what it quietly assumes. Say it
    before it gets baked in.
 4. Build the next round from the reaction, not from a fixed list. When every direction is rejected,
@@ -138,7 +138,7 @@ who decided is noise.
 ## Phase 4: Clarify
 
 `buracle flow phase clarify`. Ask only questions whose answers change scope, requirements or the
-hand-off, in this order: audience, core flow, constraints, success signal. Each {{ask_user}} call holds
+hand-off, in this order: audience, core flow, constraints, success signal. Each structured-question tool call holds
 one question (or up to 3 independent ones if the tool supports several) with 2-4 mutually exclusive
 options, the recommended one first and marked "(Recommended)", each option stating its consequence.
 Name real files or modules in the options where it helps. Answers such as "doesn't matter", "you
@@ -149,7 +149,7 @@ choose" or "I don't know", in any language, select the recommended option; recor
 
 `buracle flow phase propose`. Present 2-3 product-level approaches in a table: approach, what the user
 experiences, gains, costs and risks, effort (S, M or L), and a recommendation with the reason.
-**Gate:** the user picks one through {{ask_user}}, or explicitly delegates the choice.
+**Gate:** the user picks one through your structured-question tool, or explicitly delegates the choice.
 
 ## Phase 6: Converge
 
@@ -158,7 +158,7 @@ experiences, gains, costs and risks, effort (S, M or L), and a recommendation wi
    explicit *Out of scope* items; an empty Out list needs a reason.
 2. Write requirements `R1…Rn`, each observable by a tester, one behavior each, with priority Must, Should
    or Could. Add success signals that say how you will know it worked.
-3. **Gate:** confirm scope and requirements with one {{ask_user}} call (looks right / adjust / stop).
+3. **Gate:** confirm scope and requirements with one structured-question tool call (looks right / adjust / stop).
 
 ## Phase 7: Write and approve
 
@@ -175,14 +175,13 @@ experiences, gains, costs and risks, effort (S, M or L), and a recommendation wi
    the line out. Then run `buracle plan validate docs/requirements/<file>.md --strict` and fix every
    warning it reports (a sentence over 25 words, a semicolon in prose, a path in an old document
    folder) before the next step.
-3. `buracle notify prd_approval "<PRD title>" "docs/requirements/<file>.md" --plan docs/requirements/<file>.md` (best
-   effort; ignore failures). When the web UI runs it prints `Review page: <url>`, where the user reads
-   the PRD and pins notes to passages.
+3. `buracle plan notes docs/requirements/<file>.md --kind plan --json`. When the web UI runs, its `page`
+   is the review page URL, where the user reads the PRD and pins notes to passages.
 4. **Gate: approval.** First read those notes: `buracle plan notes docs/requirements/<file>.md --kind plan
    --json`; apply each (or say why not) and mark the applied ones with `buracle plan notes
    docs/requirements/<file>.md --done <id>[,<id>]` (pass the path: the PRD is not the session's plan).
    No notes is never an approval. Show a summary of at most 10 lines with the path and
-   the review page URL, then ask with {{ask_user}}: approve / request changes / stop.
+   the review page URL, then ask with your structured-question tool: approve / request changes / stop.
    Go by the meaning of the reply, in whatever language it comes:
    - Approval ("approve", "yes", "looks good", "LGTM", or the approve option). Read the notes again
      first (`buracle plan notes docs/requirements/<file>.md --kind plan --json`): an open note was pinned
@@ -201,13 +200,13 @@ experiences, gains, costs and risks, effort (S, M or L), and a recommendation wi
 `buracle flow phase handoff`. Recommend one next step and print the command for the user to run; do
 not run it:
 
-- {{skill:plan-build}} when the work needs an ordered, approved task plan: several modules, migrations, risky
+- The `plan-build` skill when the work needs an ordered, approved task plan: several modules, migrations, risky
   or hard-to-reverse changes.
-- {{skill:goal-build}} when the end state is clear and can be judged against acceptance criteria while the
+- The `goal-build` skill when the end state is clear and can be judged against acceptance criteria while the
   approach is found by building.
-- {{skill:bugfix}} if the "idea" turned out to be broken existing behavior.
+- The `bugfix` skill if the "idea" turned out to be broken existing behavior.
 
-Print it as, for example: `{{skill:plan-build}} Implement the approved PRD docs/requirements/2026-10-08-shared-searches.md`.
+Print it in the form the user types in this harness (`/<id> …`, or `$<id> …` where skills start with `$`), for example: `/plan-build Implement the approved PRD docs/requirements/2026-10-08-shared-searches.md`.
 If you paused a plan in Phase 0, add: "`buracle plan resume` (or say "continue") returns to the paused
 plan." Then close the run with `buracle flow end --outcome done`.
 
@@ -231,7 +230,7 @@ plan." Then close the run with `buracle flow end --outcome done`.
 
 ## Example
 
-User: `{{skill:requirements}} Let teams share their saved searches`
+User: `/requirements Let teams share their saved searches`
 
 1. No active plan; memory has a decision memory on search indexing. No earlier PRD.
 2. semble finds saved searches in `src/search/saved.ts:12`, stored per user (`src/db/schema.ts:88`).
@@ -243,5 +242,5 @@ User: `{{skill:requirements}} Let teams share their saved searches`
 6. Approaches: team folders inside the existing saved-search screen (recommended) or a separate team
    workspace page. The user picks the first.
 7. Converge: out of scope are alerts, cross-team sharing, public links. R1-R6 and two success signals.
-8. Write `docs/requirements/2026-10-08-team-saved-search-sharing.md`, notify, approve on "approve".
-9. Print: `{{skill:plan-build}} Implement the approved PRD docs/requirements/2026-10-08-team-saved-search-sharing.md`.
+8. Write `docs/requirements/2026-10-08-team-saved-search-sharing.md`, approve on "approve".
+9. Print: `/plan-build Implement the approved PRD docs/requirements/2026-10-08-team-saved-search-sharing.md`.

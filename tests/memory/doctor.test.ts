@@ -8,11 +8,10 @@ import { projectsFile } from '../../src/memory/layout'
 import { resolveProject } from '../../src/memory/project'
 import { sessionStart } from '../../src/memory/session-record'
 import { projectRef, saveItem } from '../../src/memory/store'
-import { migrationLockFile, sessionRecordsDir, spoolDir } from '../../src/memory/layout'
-import { tryLock } from '../../src/memory/lock'
+import { sessionRecordsDir, spoolDir } from '../../src/memory/layout'
 import { appendSpool } from '../../src/memory/spool'
 import { withEnv } from '../helpers/sandbox'
-import { installLegacyBrain, REAL_CORTEXDB, withBrain } from './helpers'
+import { REAL_CORTEXDB, withBrain } from './helpers'
 
 describe('mem doctor', () => {
   test('a healthy setup passes every check, the leak check included', async () => {
@@ -86,34 +85,6 @@ describe('mem doctor', () => {
     })
   })
 
-  test.skipIf(REAL_CORTEXDB)('the doctor reports the migration: pending while another process holds it, complete with what was kept afterwards', async () => {
-    await withBrain(async ({ repo }) => {
-      installLegacyBrain()
-      const holder = tryLock(migrationLockFile(), 60_000)
-      try {
-        await withEnv({ BURACLE_MIGRATE_WAIT_MS: '100' }, async () => {
-          const checks = await memDoctor({ cwd: repo, mcp: false, leak: false })
-          const m = checks.find(c => c.check === 'migration')
-          expect(m).toMatchObject({ level: 'warn' })
-          expect(m?.detail).toContain('person.db')
-          expect(m?.detail).toContain('buracle mem migrate')
-          expect(checks.find(c => c.level === 'error')?.detail).toContain('migrated')
-          expect(doctorExitCode(checks)).toBe(1)
-        })
-      } finally {
-        holder?.()
-      }
-      const done = await memDoctor({ cwd: repo, mcp: false, leak: false })
-      const ms = done.filter(c => c.check === 'migration')
-      expect(ms[0]).toMatchObject({ level: 'ok' })
-      expect(ms[0]?.detail).toContain('complete')
-      expect(ms[1]).toMatchObject({ level: 'info' })
-      expect(ms[1]?.detail).toContain('--purge-legacy')
-      expect(done.find(c => c.check === 'buckets')?.detail).toContain('person 5, demo 6')
-      expect(doctorExitCode(done)).toBe(0)
-    })
-  })
-
   test.skipIf(REAL_CORTEXDB)('CortexDB\'s own self-test of the brain file is part of the report: a failed self-test is an error that names the restore', async () => {
     await withBrain(async ({ repo }) => {
       await saveItem(projectRef('demo'), { id: 'decision-a', kind: 'decision', layer: 'project', title: 'A', summary: '', body: '', tags: [], sources: [], about: [], status: 'active', review: 'pending', importance: 3, created: '2026-10-13T10:00:00Z', updated: '2026-10-13T10:00:00Z', author: 'agent', version: 1, history: [] })
@@ -158,6 +129,20 @@ describe('mem doctor', () => {
     })
   })
 
+  test.skipIf(REAL_CORTEXDB)('a CortexDB below the minimum is an error that names both versions and the install', async () => {
+    await withBrain(async ({ repo, root }) => {
+      const old = join(root, 'old-cortexdb.ts')
+      writeFileSync(old, `process.env.FAKE_CORTEXDB_VERSION = '2.130.1'\nawait import(${JSON.stringify(join(import.meta.dir, '..', 'fixtures', 'cortexdb', 'fake-cortexdb.ts'))})\n`)
+      await withEnv({ BURACLE_CORTEXDB_BIN: old }, async () => {
+        const checks = await memDoctor({ cwd: repo, mcp: false, leak: false })
+        const found = checks.find(c => c.check === 'cortexdb')
+        expect(found?.level).toBe('error')
+        expect(found?.detail).toBe(`${old}: it is CortexDB 2.130.1, older than the 2.137.0 Buracle needs (buracle install takes the newest release)`)
+        expect(doctorExitCode(checks)).toBe(1)
+      })
+    })
+  })
+
   test('without CortexDB it is an error with the install command', async () => {
     await withBrain(async ({ repo, root }) => {
       await withEnv({ BURACLE_CORTEXDB_BIN: join(root, 'missing') }, async () => {
@@ -167,19 +152,6 @@ describe('mem doctor', () => {
       })
     })
   })
-
-  test('an old vault that was not imported yet is a warning; an imported one is information', async () => {
-    await withBrain(async ({ home, repo }) => {
-      mkdirSync(join(home, 'Documents', 'Buracle', 'projects', 'demo', 'decisions'), { recursive: true })
-      writeFileSync(join(home, 'Documents', 'Buracle', 'projects', 'demo', 'decisions', 'x.md'), '---\ntitle: X\n---\nx\n')
-      let vault = (await memDoctor({ cwd: repo, mcp: false, leak: false })).find(c => c.check === 'old vault')
-      expect(vault?.level).toBe('warn')
-      const { importVault } = await import('../../src/memory/import-vault')
-      await importVault()
-      vault = (await memDoctor({ cwd: repo, mcp: false, leak: false })).find(c => c.check === 'old vault')
-      expect(vault?.level).toBe('info')
-    })
-  }, 60_000)
 
   test('the leak check proves itself: project A finds its canary, project B does not', async () => {
     const r = await runLeakCheck()

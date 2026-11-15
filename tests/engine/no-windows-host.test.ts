@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
+import { BUILT } from '../helpers/built-harness'
 
-// Buracle runs on macOS and Linux; Windows users run it inside WSL 2. This scan keeps code that exists only so that
-// Buracle runs on a Windows host out of the repository. The shell guard stays: it inspects the PowerShell and cmd
-// commands an agent runs on any host (WSL interop runs powershell.exe and cmd.exe), so its files may name Windows.
+// Buracle runs on macOS and native Linux. This scan keeps code that exists only so that Buracle runs on a Windows
+// host out of the repository. A few guard files still name Windows places in the paths and code an agent writes.
 
 const ROOT = join(import.meta.dir, '..', '..')
 
@@ -12,11 +12,6 @@ const MARKERS = /\bwin32\b|\bisWindows\b|windowsHide|windowsVerbatim|commandWind
 
 // The guard files that read Windows commands and paths in agent input, each with its reason.
 const GUARD_FILES: Readonly<Record<string, string>> = {
-  'src/core/policy/windows-shell.ts': 'translates PowerShell and cmd commands, junctions included, into the shell commands the guard judges',
-  'src/core/policy/switch-off.ts': 'protects the PowerShell profiles under the user folder an agent could edit',
-  'src/core/policy/bash-guard.ts': 'protects C:\\ targets, the user folder and raw devices in commands an agent runs',
-  'src/core/policy/write-guard.ts': 'protects the shim names an agent could overwrite, buracle.cmd included',
-  'src/core/policy/code-scan.ts': 'reads USERPROFILE and drive paths in interpreter code an agent writes',
 }
 
 // The tests that name win32 to prove it has no effect.
@@ -50,9 +45,11 @@ describe('no Windows host code', () => {
   })
 
   test('the generated harness/ has no Windows shim and no Codex Windows command (R5)', () => {
-    expect(existsSync(join(ROOT, 'harness', 'claude', 'bin', 'buracle.cmd'))).toBe(false)
-    expect(files(join(ROOT, 'harness'), /./).map(rel).filter(f => /\.cmd$/.test(f))).toEqual([])
-    expect(hits('harness', /commandWindows/, /\.(?:json|toml|js|ts)$/)).toEqual([])
+    // harness/ is not committed: this is the tree the run built
+    const built = (p: string): string => relative(BUILT.root, p).split('\\').join('/')
+    expect(existsSync(join(BUILT.harness, 'claude', 'bin', 'buracle.cmd'))).toBe(false)
+    expect(files(BUILT.harness, /./).map(built).filter(f => /\.cmd$/.test(f))).toEqual([])
+    expect(files(BUILT.harness, /\.(?:json|toml|js|ts)$/).filter(f => /commandWindows/.test(readFileSync(f, 'utf8'))).map(built)).toEqual([])
   })
 
   test('the tools catalog has no Windows package manager and the pins no Windows download (R6)', () => {

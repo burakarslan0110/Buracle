@@ -1,14 +1,14 @@
 import { describe, expect, test } from 'bun:test'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { barSegments, contextUsage, layoutFor, StatusFeeder, statusSegments, usageRefreshArgv } from '../../../src/adapters/opencode/runtime/status'
 import type { TuiSessionMessage } from '../../../src/adapters/opencode/runtime/types'
 import { defaultConfig, type BuracleConfig } from '../../../src/core/config'
 import * as paths from '../../../src/engine/paths'
 import { writeUsageEntries } from '../../../src/usage/cache'
-import { monthKeyOf } from '../../../src/usage/month'
 import { recordFlowStart } from '../../../src/workflow/flow'
 import { saveState } from '../../../src/workflow/session-store'
+import { indexRecordFile } from '../../../src/workflow/workspace'
 import { withSandbox } from '../../helpers/sandbox'
 import { canonical } from './helpers'
 
@@ -33,9 +33,8 @@ describe('opencode TUI status model', () => {
   test('the feeder combines live data with the usage, memory, plan and update caches', () => withSandbox(async ({ root }) => {
     const now = Date.now()
     writeUsageEntries([{
-      harness: 'opencode', computed_at: new Date(now).toISOString(), month_key: monthKeyOf(now),
+      harness: 'opencode', computed_at: new Date(now).toISOString(),
       windows: [{ label: '5h', pct: 42, windowMinutes: 300, resetsAt: new Date(now + 3_600_000).toISOString() }],
-      month: { start: new Date(now).toISOString(), tokens: 1_234_567, usd: 12.5, byModel: {} },
     }], now)
     const memDir = join(paths.memoryStateDir(), 'status')
     mkdirSync(memDir, { recursive: true })
@@ -50,7 +49,6 @@ describe('opencode TUI status model', () => {
     const bar = feeder.bar({ cwd: root, sessionID: 'ses_tui2', model: { providerID: 'p', modelID: 'big', variant: 'max' }, ctx: { tokens: 370_000, window: 1_000_000, pct: 37 }, costUsd: 0.5 })
     expect(bar).toMatchObject({ harness: 'opencode', model: 'big', effort: 'max', ctx: { pct: 37, tokens: 370_000, window: 1_000_000 }, cost: { usd: 0.5 }, updates: 2 })
     expect(bar.windows.map(w => w.label)).toEqual(['5h'])
-    expect(bar.month).toMatchObject({ tokens: 1_234_567, usd: 12.5, estimate: true })
     expect(bar.mem?.counts.project).toBe(3)
     expect(bar.plan).toEqual({ title: 'Auth fix', phase: 'implement', done: 1, total: 2 })
     expect(bar.dir).toBeDefined()
@@ -67,10 +65,9 @@ describe('opencode TUI status model', () => {
 })
 
 describe('opencode TUI status: code indexes and the running workflow', () => {
-  const with_ = (cfg: BuracleConfig, over: { band?: boolean, semble?: boolean }): BuracleConfig => ({
+  const with_ = (cfg: BuracleConfig, over: { band?: boolean }): BuracleConfig => ({
     ...cfg,
     workflow: { ...cfg.workflow, ...(over.band !== undefined ? { band: over.band } : {}) },
-    index: { ...cfg.index, ...(over.semble !== undefined ? { semble: over.semble } : {}) },
   })
 
   test('the index segment shows the project\'s code indexes, read again about every 30 s; outside a project there is none', () => withSandbox(async ({ root, home }) => {
@@ -85,7 +82,8 @@ describe('opencode TUI status: code indexes and the running workflow', () => {
 
     mkdirSync(join(proj, '.codegraph'), { recursive: true })
     writeFileSync(join(proj, '.codegraph', 'codegraph.db'), '')
-    cfg = with_(cfg, { semble: false })
+    mkdirSync(paths.indexStateDir(), { recursive: true })
+    writeFileSync(indexRecordFile(realpathSync(proj)), JSON.stringify({ v: 1, root: realpathSync(proj), semble: { at: now, ok: true } }) + '\n')
     now += 10_000
     await feeder.refresh(proj, undefined)
     expect(feeder.bar({ cwd: proj }).index).toBe('none')

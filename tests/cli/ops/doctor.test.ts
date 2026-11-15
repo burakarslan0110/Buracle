@@ -1,14 +1,14 @@
 import { describe, expect, test } from 'bun:test'
 import { chmodSync, cpSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { run as doctorRun, indexSection, usage as doctorUsage } from '../../../src/cli/commands/doctor'
+import { run as doctorRun, healthChecks, healthSections, indexSection, printHealth, usage as doctorUsage, type HealthSection } from '../../../src/cli/commands/doctor'
 import { cliVersion } from '../../../src/cli/router'
 import { run as installRun } from '../../../src/cli/commands/install'
-import { CONFIG_RENAMES, defaultConfig, type ConfigRename } from '../../../src/core/config'
-import { liveContext } from '../../../src/engine/update/context'
+import { defaultConfig } from '../../../src/core/config'
+import { indexSettings } from '../../../src/core/workspace'
 import { indexChecks } from '../../../src/workflow/workspace-index'
 import type { McpCatalog } from '../../../src/core/catalog'
-import { checkTools, configChecks, doctorExit, parseShim, skillChecks, updateChecks, type DoctorCheck } from '../../../src/engine/update/doctor'
+import { checkTools, doctorExit, parseShim, skillChecks, updateChecks, type DoctorCheck } from '../../../src/engine/update/doctor'
 import { writeUpdatesCache } from '../../../src/engine/update/updates-cache'
 import { emptyToolchainState } from '../../../src/engine/toolchain/state'
 import type { ToolSpec } from '../../../src/core/catalog'
@@ -16,7 +16,7 @@ import { run as runProcess } from '../../../src/engine/proc'
 import * as paths from '../../../src/engine/paths'
 import { styledReport } from '../../../src/cli/commands/doctor'
 import { makeStyle, stripAnsi } from '../../../src/cli/ui/style'
-import { symlinkSync, unlinkSync } from 'node:fs'
+import { symlinkSync } from 'node:fs'
 import { shimContent } from '../../../src/engine/update/install-core'
 import { mcpHealthMap, probeHttp, probeServers, probeStdio, readHealth, writeHealth } from '../../../src/engine/update/mcp'
 import { installAdvice } from '../../../src/engine/toolchain/system'
@@ -24,6 +24,7 @@ import { loadCanonicalSync } from '../../../src/engine/canonical'
 import { fakeExe, onlyPath } from '../../helpers/fake-exe'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
 import { fakeAdapter, fakeCli, fakeFetch, makeRepo, memoryIO, REAL_REPO as REAL_REPO_DIR, withDeps } from './helpers'
+import { BUILT } from '../../helpers/built-harness'
 
 const FAKE_SERVER = `
 const mode = process.argv[2] ?? 'ok'
@@ -304,7 +305,7 @@ describe('buracle doctor', () => {
     const cfg = defaultConfig()
     const now = Date.parse('2026-10-08T00:00:00Z')
     const rows = await indexSection(repo, cfg, now)
-    expect(rows).toEqual((await indexChecks(repo, cfg, now)).map(c => ({ section: 'index', ...c })))
+    expect(rows).toEqual((await indexChecks(repo, indexSettings(cfg), now)).map(c => ({ section: 'index', ...c })))
     expect(rows.map(r => [r.level, r.check])).toEqual([['warn', 'index.codegraph'], ['warn', 'index.semble']])
     expect(rows.every(r => r.detail.startsWith(repo))).toBe(true)
     expect(await indexSection(home, cfg, now)).toEqual([{ section: 'index', level: 'info', check: 'index', detail: `${home} is your home folder: nothing is indexed here` }])
@@ -363,11 +364,11 @@ describe('buracle doctor', () => {
     }
   })
 
-  test('doctor tools lists the version of every toolchain package and the one kept for a rollback', () => withSandbox(async ({ root, buracleHome }) => {
+  test('doctor tools lists the version of every toolchain package', () => withSandbox(async ({ root, buracleHome }) => {
     const repo = makeRepo(root)
     mkdirSync(join(buracleHome, 'state'), { recursive: true })
     const state = emptyToolchainState()
-    state.packages['npm:@acme/srv'] = { registry: 'npm', name: '@acme/srv', version: '1.1.0', dir: join(buracleHome, 'toolchain/npm/x'), bins: {}, previous: { version: '1.0.0' }, installed_at: '2026-10-01T00:00:00.000Z' }
+    state.packages['npm:@acme/srv'] = { registry: 'npm', name: '@acme/srv', version: '1.1.0', dir: join(buracleHome, 'toolchain/npm/x'), bins: {}, installed_at: '2026-10-01T00:00:00.000Z' }
     state.packages['pypi:probe'] = { registry: 'pypi', name: 'probe', version: '0.3.0', dir: join(buracleHome, 'toolchain/pypi/x'), bins: {}, rolled_back: '0.4.0', installed_at: '2026-10-01T00:00:00.000Z' }
     writeFileSync(paths.toolchainStateFile(), JSON.stringify(state))
     await withDeps({ repoRoot: () => repo }, async () => {
@@ -376,7 +377,7 @@ describe('buracle doctor', () => {
       const checks = (JSON.parse(io.out()) as { checks: Array<{ section: string, level: string, check: string, detail: string }> }).checks
       expect(checks.find(c => c.check === 'toolchain.autoInstall')).toBeUndefined()
       expect(checks.filter(c => c.check.includes(':'))).toEqual([
-        { section: 'tools', level: 'ok', check: 'npm:@acme/srv', detail: "1.1.0 in Buracle's toolchain; 1.0.0 kept for `buracle rollback toolchain`" },
+        { section: 'tools', level: 'ok', check: 'npm:@acme/srv', detail: "1.1.0 in Buracle's toolchain" },
         { section: 'tools', level: 'ok', check: 'pypi:probe', detail: "0.3.0 in Buracle's toolchain; 0.4.0 was rolled back" },
       ])
     })
@@ -447,11 +448,11 @@ describe('buracle doctor', () => {
 
   test('updates: a part whose check failed is named as not checked next to the available ones', () => withSandbox(async () => {
     const at = '2026-11-05T06:00:00.000Z'
-    writeUpdatesCache({ checked_at: at, kinds: ['harness'], held: [], items: [{ kind: 'harness', id: 'claude', current: '2.1.311', latest: '2.1.312', action: 'npm-global', risk: 'low' }], errors: [{ kind: 'harness', id: 'codex', error: 'npm @openai/codex: fetch failed\nmore' }] })
+    writeUpdatesCache({ checked_at: at, kinds: ['tools'], held: [], items: [{ kind: 'tools', id: 'rg', current: '14.1.0', latest: '14.1.1', action: 'brew-upgrade', risk: 'low' }], errors: [{ kind: 'tools', id: 'jq', error: 'brew outdated: fetch failed\nmore' }] })
     const rows = updateChecks(Date.parse(at) + 2 * 3_600_000)
     expect(rows.map(r => r.check)).toEqual(['cache', 'available', 'not checked'])
-    expect(rows[1]?.detail).toContain('harness:claude')
-    expect(rows[2]).toEqual({ section: 'updates', level: 'info', check: 'not checked', detail: '1 part(s) whose check failed: harness:codex (npm @openai/codex: fetch failed); `buracle update --check` tries again' })
+    expect(rows[1]?.detail).toContain('tools:rg')
+    expect(rows[2]).toEqual({ section: 'updates', level: 'info', check: 'not checked', detail: '1 part(s) whose check failed: tools:jq (brew outdated: fetch failed); `buracle update --check` tries again' })
   }))
 
   test('a version check that times out once (a first start after an upgrade) runs again before it counts as failed', () => withSandbox(async ({ root }) => {
@@ -503,7 +504,7 @@ describe('buracle doctor', () => {
     })
   }))
 
-  test('skills: in the Claude plugin and linked into each harness\'s own skills folder', () => withSandbox(async ({ root }) => {
+  test('skills: in the Claude plugin and as one installed copy under ~/.agents/skills', () => withSandbox(async ({ root }) => {
     const repo = join(root, 'repo')
     for (const id of ['plan-build', 'bugfix']) {
       mkdirSync(join(repo, 'harness', 'claude', 'skills', id), { recursive: true })
@@ -511,22 +512,22 @@ describe('buracle doctor', () => {
       mkdirSync(join(repo, 'harness', 'agents-skills', id), { recursive: true })
       writeFileSync(join(repo, 'harness', 'agents-skills', id, 'SKILL.md'), '---\nname: x\n---\n')
     }
-    const codexDir = join(paths.codexHome(), 'skills')
-    const ompDir = join(paths.ompAgentDir(), 'skills')
+    const copy = join(paths.agentsDir(), 'skills')
     const before = skillChecks(['plan-build', 'bugfix'], repo, { claude: true, linked: ['codex', 'omp'] })
-    expect(before.map(c => [c.check, c.level])).toEqual([['claude plugin', 'ok'], ['codex (~/.codex/skills)', 'error'], ['omp (~/.omp/agent/skills)', 'error']])
-    for (const dir of [codexDir, ompDir]) {
-      mkdirSync(dir, { recursive: true })
-      for (const id of ['plan-build', 'bugfix']) symlinkSync(join(repo, 'harness', 'agents-skills', id), join(dir, id))
+    expect(before.map(c => [c.check, c.level])).toEqual([['claude plugin', 'ok'], ['installed copy (~/.agents/skills)', 'error']])
+    for (const id of ['plan-build', 'bugfix']) {
+      mkdirSync(join(copy, id), { recursive: true })
+      writeFileSync(join(copy, id, 'SKILL.md'), '---\nname: x\n---\n')
     }
-    mkdirSync(join(paths.agentsDir(), 'skills'), { recursive: true })
     expect(skillChecks(['plan-build', 'bugfix'], repo, { claude: true, linked: ['codex', 'omp'] }).every(c => c.level === 'ok')).toBe(true)
-    unlinkSync(join(ompDir, 'bugfix'))
-    expect(skillChecks(['plan-build', 'bugfix'], repo, { claude: false, linked: ['codex', 'omp'] }).map(c => [c.check, c.level])).toEqual([['codex (~/.codex/skills)', 'ok'], ['omp (~/.omp/agent/skills)', 'error']])
+    writeFileSync(join(copy, 'bugfix', 'SKILL.md'), 'edited by the user\n')
+    expect(skillChecks(['plan-build', 'bugfix'], repo, { claude: false, linked: ['codex'] }).map(c => [c.check, c.level])).toEqual([['installed copy (~/.agents/skills)', 'ok'], ['installed copy differs', 'warn']])
+    rmSync(join(copy, 'plan-build'), { recursive: true })
+    expect(skillChecks(['plan-build', 'bugfix'], repo, { claude: false, linked: ['omp'] })[0]).toMatchObject({ level: 'error', detail: expect.stringContaining('plan-build') })
     expect(skillChecks(['plan-build', 'gone'], repo, { claude: true, linked: [] })[0]).toMatchObject({ level: 'error', detail: expect.stringContaining('gone') })
   }))
 
-  test('a harness\'s skill links are checked only when it is installed, as install links them only then', () => withSandbox(async ({ root }) => {
+  test('the installed skill copy is checked only when a harness that reads it is installed', () => withSandbox(async ({ root }) => {
     const repo = makeRepo(root, { 'canonical/skills/demo/SKILL.md': '---\nname: demo\ndescription: A demo skill.\n---\nBody.\n' })
     const rows = async (installed: boolean): Promise<Array<{ check: string, level: string }>> => {
       const adapters = [fakeAdapter('claude'), fakeAdapter('codex', { installed }), fakeAdapter('opencode', { installed: false }), fakeAdapter('omp', { installed: false })]
@@ -538,7 +539,7 @@ describe('buracle doctor', () => {
       })
     }
     expect(await rows(false)).toEqual([])
-    expect(await rows(true)).toEqual([{ check: 'codex (~/.codex/skills)', level: 'error' }])
+    expect(await rows(true)).toEqual([{ check: 'installed copy (~/.agents/skills)', level: 'error' }])
   }), 60_000)
 
   test('the terminal report: one line per section with its counts, then only the warning and error rows', () => {
@@ -658,8 +659,8 @@ describe('buracle doctor runtime: unsettled transactions, stale locks, generated
       const checks = (JSON.parse(io.out()) as { checks: Array<{ check: string, level: string, detail: string }> }).checks
       const journals = checks.filter(c => c.check === 'journals')
       expect(journals.filter(c => c.level === 'error').map(c => c.detail)).toEqual([
-        'transaction 20260103T000000000Z-cccccc could not be rolled back completely; fix the cause, then run `buracle rollback 20260103T000000000Z-cccccc`',
-        'transaction 20260101T000000000Z-aaaaaa could not be rolled back completely (EACCES: settings.json); fix the cause, then run `buracle rollback 20260101T000000000Z-aaaaaa`',
+        'transaction 20260103T000000000Z-cccccc could not be rolled back completely; fix the cause',
+        'transaction 20260101T000000000Z-aaaaaa could not be rolled back completely (EACCES: settings.json); fix the cause',
       ])
       expect(journals.some(c => c.level === 'warn' && c.detail.includes('20260104T000000000Z-dddddd was interrupted'))).toBe(true)
       expect(checks.find(c => c.check === 'locks')).toMatchObject({ level: 'warn', detail: expect.stringContaining('is stale: its process 4194303 is gone') })
@@ -672,7 +673,9 @@ describe('buracle doctor runtime: unsettled transactions, stale locks, generated
 
   test('generated files that differ from the manifest or from canonical/, and node_modules that does not match package.json', () => withSandbox(async ({ root }) => {
     const repo = join(root, 'repo')
-    for (const d of ['canonical', 'harness']) cpSync(join(REAL_REPO_DIR, d), join(repo, d), { recursive: true })
+    cpSync(join(REAL_REPO_DIR, 'canonical'), join(repo, 'canonical'), { recursive: true })
+    // a real copy of the built folder: the checkout's own harness/ is a link to it for the length of the run, and this test edits files
+    cpSync(BUILT.harness, join(repo, 'harness'), { recursive: true })
     writeFileSync(join(repo, 'package.json'), '{"name":"buracle-test","version":"0.0.0","dependencies":{"yaml":"1.0.0"}}\n')
     symlinkSync(join(REAL_REPO_DIR, 'node_modules'), join(repo, 'node_modules'))
     await withDeps({ repoRoot: () => repo, adapters: async () => [] }, async () => {
@@ -695,20 +698,38 @@ describe('buracle doctor runtime: unsettled transactions, stale locks, generated
   }), 60_000)
 })
 
-describe('buracle doctor: renamed config keys', () => {
-  test('a value moved from a renamed key gets a warn row; the file is not called valid without comment (O6)', () => withSandbox(async ({ root, buracleHome }) => {
+describe('the one body of the health commands: a scope in, findings out, one printer', () => {
+  const ALL: HealthSection[] = ['config', 'runtime', 'tools', 'harness', 'mcp', 'lsp', 'memory', 'index', 'updates']
+
+  test('a scope names its sections: everything without one, config + runtime + the harness for a harness, else the one section', () => {
+    const of = (scope: string | undefined) => ALL.filter(healthSections(scope))
+    expect(of(undefined)).toEqual(ALL)
+    expect(of('codex')).toEqual(['config', 'runtime', 'harness'])
+    for (const s of ['mcp', 'lsp', 'memory', 'index', 'tools'] as const) expect(of(s)).toEqual([s])
+  })
+
+  test('printHealth: the same findings give the JSON document and the piped table, and the exit code of the worst level', () => {
+    const checks: DoctorCheck[] = [
+      { section: 'lsp', level: 'ok', check: 'pyright', detail: 'answered initialize in 12 ms' },
+      { section: 'index', level: 'warn', check: 'index.semble', detail: 'not built yet' },
+    ]
+    const j = memoryIO({ json: true })
+    expect(printHealth(j, checks, { json: true, all: false })).toBe(2)
+    expect(JSON.parse(j.out())).toEqual({ ok: false, code: 2, summary: { ok: 1, info: 0, warn: 1, error: 0 }, checks })
+    const t = memoryIO()
+    expect(printHealth(t, [...checks, { section: 'mcp', level: 'error', check: 'semble', detail: 'down' }], { json: false, all: false })).toBe(1)
+    expect(t.out()).toContain('1 ok, 1 warning(s), 1 error(s).')
+    expect(t.out().split('\n')[0]).toMatch(/^\s*SECTION\s+CHECK\s+STATUS\s+DETAIL$/)
+  })
+
+  test('`buracle doctor index` prints exactly what the body gathers for that scope', () => withSandbox(async ({ root }) => {
     const repo = makeRepo(root)
-    mkdirSync(buracleHome, { recursive: true })
-    writeFileSync(join(buracleHome, 'config.yaml'), 'statusline:\n  theme: full\n')
-    const renames = CONFIG_RENAMES as ConfigRename[]
-    renames.push({ from: 'statusline.theme', to: 'statusline.style', since: '9.9.9' })
-    try {
-      const live = liveContext(repo)
-      expect(live.config.statusline.style).toBe('full')
-      const rows = configChecks(live, { error: 'not loaded', problems: [] }, repo).filter(c => c.check === 'config')
-      expect(rows).toEqual([{ section: 'config', level: 'warn', check: 'config', detail: '~/.buracle/config.yaml: statusline.theme was renamed to statusline.style in 9.9.9; its value was used (rename the key in config.yaml)' }])
-    } finally {
-      renames.pop()
-    }
+    await withDeps({ repoRoot: () => repo }, async () => {
+      const io = memoryIO({ json: true })
+      const code = await doctorRun(['index', '--json'], io)
+      const viaBody = memoryIO({ json: true })
+      expect(printHealth(viaBody, await healthChecks('index'), { json: true, all: false })).toBe(code)
+      expect(JSON.parse(io.out())).toEqual(JSON.parse(viaBody.out()))
+    })
   }))
 })

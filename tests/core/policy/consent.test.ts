@@ -502,25 +502,3 @@ describe('a command that needs several kinds needs each of them', () => {
     expect(v.reason).toContain('(for example: "May I run `git push --force`? It will force push.")')
   })
 })
-
-describe('consentNeeded: PowerShell and cmd.exe forms hold for the same kinds', () => {
-  const ps = { shell: 'powershell' as const }
-  test('a recursive Remove-Item, rd /s and del /s need consent; disposable folders and single files do not', () => {
-    for (const [cmd, opts] of [['Remove-Item src -Recurse -Force', ps], ['rm -r -fo src', ps], ['rd src -Recurse', ps], ['gci src | Remove-Item -Recurse', ps],
-      ['Remove-Item src -Recurse -Force', undefined], ['cmd /c "rd /s /q src"', undefined], ['rd /s /q src', { shell: 'cmd' as const }], ['del /s /q docs\\*', { shell: 'cmd' as const }]] as const) {
-      expect({ cmd, kinds: consentNeeds(cmd, opts).map(n => n.kind) }).toEqual({ cmd, kinds: ['recursive-delete'] })
-    }
-    for (const cmd of ['Remove-Item node_modules -Recurse -Force', 'Remove-Item .\\dist -Recurse', 'Remove-Item notes.txt', 'Remove-Item src -Recurse -WhatIf', 'Get-ChildItem -Recurse']) {
-      expect({ cmd, need: consentNeeded(cmd, ps) }).toEqual({ cmd, need: undefined })
-    }
-  })
-
-  test('git keeps its kinds in PowerShell; the dialect reaches consentVerdict', () => {
-    expect(consentNeeded('git push --force origin feat', ps)?.kind).toBe('force-push')
-    expect(consentNeeded('git reset --hard; Write-Host done', ps)?.kind).toBe('history-rewrite')
-    const v = consentVerdict('Remove-Item C:\\work\\src -Recurse -Force', emptyConsent(), NOW, ps)
-    expect(v.allow).toBe(false)
-    expect(v.reason).toContain('`Remove-Item C:\\work\\src -Recurse -Force`')
-    expect(v.reason).toContain('delete a folder tree')
-  })
-})

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { atomicWriteSync } from '../engine/fsx'
 import { log } from '../engine/log'
 import * as paths from '../engine/paths'
-import { desktopHost, findWslProgram, type DesktopHost } from '../engine/platform'
+import { osName, type OsName } from '../engine/platform'
 import { closeAllCortex, idleCortex, pruneDeadReaders } from './cortex'
 import { brainDir } from './layout'
 import { sameUiBuild, uiBuildId } from './ui-build'
@@ -14,14 +14,11 @@ import { BrainCache, brainOf, errorPayload, graphOf, memoryOf, overview, parseSc
 import { eventStream } from './ui/events'
 import { addReviewNote, deleteReviewNote, editReviewNote, reviewDoc, reviewDocs } from './ui/review'
 import { reviewChanges } from './ui/review-changes'
-import { extensionsPayload } from './ui/extensions'
-import { markRead, notificationsPayload } from './ui/inbox'
 import { saveSetting, workflowPayload } from './ui/settings'
-import { sessionsPayload, usagePayload } from './ui/work'
 
 export { readUiRecord, type UiRecord } from './ui-record'
 
-export const DEFAULT_UI_PORT = 41777
+export const DEFAULT_UI_PORT = paths.MEMORY_UI_PORT
 const PORT_TRIES = 20
 const HOST = '127.0.0.1'
 const UI_APP = 'buracle-memory-ui'
@@ -77,7 +74,6 @@ const JS = 'text/javascript; charset=utf-8'
 export const UI_ASSETS: Readonly<Record<string, string>> = {
   'tokens.css': 'text/css; charset=utf-8',
   'app.css': 'text/css; charset=utf-8',
-  'dash.css': 'text/css; charset=utf-8',
   'app.js': JS,
   'pointer.js': JS,
   'brain.js': JS,
@@ -90,9 +86,6 @@ export const UI_ASSETS: Readonly<Record<string, string>> = {
   'dom.js': JS,
   'i18n.js': JS,
   'manage.js': JS,
-  'work.js': JS,
-  'inbox.js': JS,
-  'extensions.js': JS,
   'switches.js': JS,
   'logo.js': JS,
   'theme.js': JS,
@@ -157,7 +150,7 @@ export function uiContext(opts: { version: string, build?: string, port: number,
   return c
 }
 
-const WRITE_PATHS: ReadonlySet<string> = new Set(['/api/backup', '/api/project/remove', '/api/memory/update', '/api/memory/retire', '/api/memory/restore', '/api/memory/delete', '/api/review/note/add', '/api/review/note/edit', '/api/review/note/delete', '/api/notifications/read', '/api/settings'])
+const WRITE_PATHS: ReadonlySet<string> = new Set(['/api/backup', '/api/project/remove', '/api/memory/update', '/api/memory/retire', '/api/memory/restore', '/api/memory/delete', '/api/review/note/add', '/api/review/note/edit', '/api/review/note/delete', '/api/settings'])
 
 const BROWSER_ONLY: ReadonlySet<string> = new Set(['/api/settings'])
 
@@ -197,7 +190,6 @@ async function write(p: string, raw: string, req: Request, c: UiContext): Promis
       case '/api/review/note/add': return json(await addReviewNote(body, now))
       case '/api/review/note/edit': return json(await editReviewNote(body, now))
       case '/api/review/note/delete': return json(await deleteReviewNote(body, now))
-      case '/api/notifications/read': return json(markRead(body))
       case '/api/settings': return json(await saveSetting(body))
       default: throw new UiApiError(404, 'not_found', `there is no API at ${p}`)
     }
@@ -246,10 +238,6 @@ export async function handle(req: Request, c: UiContext, server?: UiServerHandle
       case '/api/review/docs': return json(await reviewDocs(now))
       case '/api/review/doc': return json(await reviewDoc(q.get('id'), now))
       case '/api/review/changes': return json(await reviewChanges(q.get('checkout'), now))
-      case '/api/sessions': return json(await sessionsPayload(now))
-      case '/api/usage': return json(await usagePayload(now))
-      case '/api/notifications': return json(notificationsPayload())
-      case '/api/extensions': return json(await extensionsPayload(await parseScope(q.get('scope')), now))
       case '/api/events': {
         const scope = await parseScope(q.get('scope'))
         if (req.method === 'HEAD') return new Response(null, { headers: { ...SECURITY_HEADERS, 'content-type': 'text/event-stream; charset=utf-8' } })
@@ -426,27 +414,18 @@ export async function ensureUi(argv: string[] | undefined, opts: { port?: number
 /**
  * The command that opens a page in the browser of the person's desktop, or undefined for an address that is not http(s)
  * and for a desktop with no way to open it. The address is normalised, so a space becomes %20.
- * In WSL the page opens in the Windows browser through `rundll32.exe url.dll,FileProtocolHandler`, which takes the address
- * as one argument and never runs it through cmd.exe (where `&` and `%` in an address would be read as shell syntax);
- * `wslview` is the fallback. xdg-open there finds no Linux browser, and explorer.exe exits 1 even when it opened the page.
  */
-export function browserArgv(url: string, host: DesktopHost = desktopHost(), find: (name: string) => string | undefined = findWslProgram): string[] | undefined {
+export function browserArgv(url: string, host: OsName = osName()): string[] | undefined {
   let href: string
   try {
     const u = new URL(url)
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return undefined
     href = u.href
   } catch { return undefined }
-  if (host === 'darwin') return ['open', href]
-  if (host === 'linux') return ['xdg-open', href]
-  if (host === 'wsl-no-interop') return undefined
-  const rundll = find('rundll32.exe')
-  if (rundll !== undefined) return [rundll, 'url.dll,FileProtocolHandler', href]
-  const wslview = find('wslview')
-  return wslview !== undefined ? [wslview, href] : undefined
+  return host === 'darwin' ? ['open', href] : ['xdg-open', href]
 }
 
-export function openInBrowser(url: string, host: DesktopHost = desktopHost()): boolean {
+export function openInBrowser(url: string, host: OsName = osName()): boolean {
   try {
     const argv = browserArgv(url, host)
     if (argv === undefined) return false

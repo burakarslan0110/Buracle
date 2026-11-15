@@ -1,22 +1,23 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { mkdirSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { NoticeReader } from '../../../src/adapters/opencode/runtime/notice-board'
 import { BuracleRuntime, createBuraclePlugin, REGISTRY_KEY, type PluginDeps } from '../../../src/adapters/opencode/runtime/plugin'
 import { clearRepoCache } from '../../../src/adapters/opencode/runtime/adapter-rules'
 import { routeUserPrompt } from '../../../src/adapters/opencode/runtime/routing'
 import { defaultConfig } from '../../../src/core/config'
 import { ROUTE_TEXT_MAX_BYTES, utf8Bytes } from '../../../src/core/policy/skill-router'
-import type { CommandDefinition, EditableModel, PermissionEvaluation, PromptInput, SessionContextEvent, SessionPromptEvent, ToolExecuteAfter } from '../../../src/adapters/opencode/runtime/types'
+import type { CommandDefinition, PermissionEvaluation, PromptInput, SessionContextEvent, SessionPromptEvent, ToolExecuteAfter } from '../../../src/adapters/opencode/runtime/types'
 import { clearPreparedWorkspaces } from '../../../src/adapters/opencode/runtime/workspace'
 import type { SessionState } from '../../../src/core/plan/state'
 import type { WorkspaceInfo } from '../../../src/core/workspace'
 import * as paths from '../../../src/engine/paths'
 import { readFlow } from '../../../src/workflow/flow'
 import { loadLedger } from '../../../src/workflow/ledger'
-import { loadState, readTelemetry, saveState } from '../../../src/workflow/session-store'
+import { loadState, saveState } from '../../../src/workflow/session-store'
 import { canonicalDir, indexRecordFile } from '../../../src/workflow/workspace'
 import { withSandbox } from '../../helpers/sandbox'
-import { fakeMemory, fakeModelEditor, fakeServerContext, type FakeContextOptions, testBaked } from './helpers'
+import { fakeMemory, fakeServerContext, type FakeContextOptions, testBaked } from './helpers'
 
 const SID = 'ses_route01'
 
@@ -39,11 +40,10 @@ interface Opts extends FakeContextOptions {
 async function runtime(dir: string, opts: Opts = {}) {
   const f = fakeServerContext(dir, opts)
   const mem = fakeMemory()
-  const notices: Array<{ title: string, message: string }> = []
   const prepared: string[] = []
   const deps: PluginDeps = {
     baked: testBaked(), memory: mem, settleMs: opts.settleMs ?? 0, runChecker: async () => ({ code: 0, stdout: '', stderr: '' }),
-    capture: () => true, maint: () => ({ removed: [] }), notify: (title, message) => { notices.push({ title, message }) },
+    capture: () => true, maint: () => ({ removed: [] }),
     workspace: opts.workspace ?? (async cwd => { prepared.push(cwd); return info(cwd) }),
     workspaceRead: async cwd => info(cwd),
     ...(opts.now !== undefined ? { now: opts.now } : {}),
@@ -51,7 +51,7 @@ async function runtime(dir: string, opts: Opts = {}) {
   const rt = new BuracleRuntime(f.ctx, deps)
   await rt.register()
   await rt.registerTransforms()
-  return { f, mem, rt, notices, prepared, deps }
+  return { f, mem, rt, prepared, deps }
 }
 
 function prompt(text: string, over: Partial<SessionPromptEvent> = {}): SessionPromptEvent {
@@ -196,7 +196,7 @@ describe('H22 prompt delivery: a prompt takes effect at the request that carries
     const both = await requestTexts(f, ['msg_1', 'msg_2', 'msg_3'])
     expect(both.match(/Buracle routing for this prompt:/g)?.length).toBe(1)
     expect(both).toContain('- The user asked for the research skill: its skill is attached to this message')
-    expect(both).toContain('plan-build')
+    expect(both).toContain('Skills: the user starts a workflow with /<id>')
     expect(loadLedger('opencode', SID)).toMatchObject({ turn: 2, prompt: { route: { invoked: ['research'] } } })
   }))
 
@@ -304,7 +304,7 @@ describe('H26 prompt signals and H14 capture', () => {
   test('a user prompt spools no statement (no word list reads it); a workflow command adds no usage signal', () => withSandbox(async ({ root }) => {
     const { f, mem } = await runtime(root, { skills: ['plan-build'] })
     await f.trigger('session.prompt', prompt('from now on always run the tests before you commit'))
-    const signals = () => mem.appended.flatMap(a => a.entries).filter(e => e.ev === 'prompt-signal').map(e => e.signal)
+    const signals = () => mem.appended.flatMap(a => a.entries).filter(e => (e.ev as string) === 'prompt-signal')
     expect(signals()).toEqual([])
     const spec = f.commands.get('plan-build') as CommandDefinition
     await spec.execute({ sessionID: SID, prompt: { text: 'add rate limiting' }, delivery: 'steer' })
@@ -314,30 +314,18 @@ describe('H26 prompt signals and H14 capture', () => {
     expect(mem.appended.flatMap(a => a.entries).filter(e => e.ev === 'prompt')).toHaveLength(2)
   }))
 
-  test('MCP, web and skill calls are spooled by name (metadata only)', () => withSandbox(async ({ root }) => {
+  test('MCP, web and skill calls are not spooled', () => withSandbox(async ({ root }) => {
     const { f, mem } = await runtime(root)
     const after = (tool: string, id: string, input: Record<string, unknown>): ToolExecuteAfter => ({ tool, sessionID: SID, agent: 'build', messageID: 'msg_1', id, input, status: 'completed', result: { output: 'x', content: [{ type: 'text', text: 'x' }] } })
     for (const [tool, id, input] of [['context7_query-docs', 'c1', { libraryId: '/x/y' }], ['websearch', 'c2', { query: 'bun' }], ['skill', 'c3', { id: 'research' }]] as const) {
       await f.trigger('tool.execute.before', { tool, sessionID: SID, agent: 'build', messageID: 'msg_1', id, input })
       await f.trigger('tool.execute.after', after(tool, id, input))
     }
-    const tools = mem.appended.flatMap(a => a.entries).filter(e => e.ev === 'tool').map(e => [e.tool, e.kind])
-    expect(tools).toEqual([['context7_query-docs', 'mcp'], ['websearch', 'web_search'], ['skill', 'other']])
+    expect(mem.appended.flatMap(a => a.entries)).toEqual([])
   }))
 })
 
 describe('H24 usage ledger: reminders and the deny-once gates (reported as H03)', () => {
-  test('an edit that adds an import context7 was not asked about is denied once; the retry runs', () => withSandbox(async ({ root }) => {
-    const { f } = await runtime(root)
-    const input = { path: 'src/a.ts', oldString: '', newString: "import { z } from 'zod'\n" }
-    await f.trigger('tool.execute.before', { tool: 'edit', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_e1', input })
-    const denied = await f.trigger('permission.evaluate', evaluation('edit', [join(root, 'src/a.ts')], 'call_e1'))
-    expect(denied.effect).toBe('deny')
-    expect(denied.message).toStartWith('[Buracle H03 route.tools] Buracle: this edit adds an import of `zod`')
-    await f.trigger('tool.execute.before', { tool: 'edit', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_e2', input })
-    expect((await f.trigger('permission.evaluate', evaluation('edit', [join(root, 'src/a.ts')], 'call_e2'))).effect).toBe('allow')
-  }))
-
   test('a semble repo or codegraph projectPath at the home folder is denied every time and names the project root', () => withSandbox(async ({ root, home }) => {
     const project = join(root, 'proj')
     const { f, rt } = await runtime(root, { workspace: async cwd => info(cwd, { root: project }) })
@@ -375,36 +363,6 @@ describe('H24 usage ledger: reminders and the deny-once gates (reported as H03)'
     expect((await verdict(alpha)).effect).toBe('allow')
   }))
 
-  test('R3 follows the codegraph index as it is now: an index built after the session started arms the gate', () => withSandbox(async ({ root }) => {
-    const project = join(root, 'proj')
-    mkdirSync(join(project, 'src'), { recursive: true })
-    const { f, rt } = await runtime(root, { workspace: async cwd => info(cwd, { root: project, index: { codegraph: { state: 'building', since: Date.now() }, semble: { state: 'off' } } }) })
-    await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: project } } })
-    await rt.idle()
-    mkdirSync(join(project, '.codegraph'), { recursive: true })
-    writeFileSync(join(project, '.codegraph', 'codegraph.db'), '')
-    const input = { path: join(project, 'src', 'api.ts'), oldString: 'export function load(id: string): Item {', newString: 'export function load(id: string, opts: Opts): Item {' }
-    await f.trigger('tool.execute.before', { tool: 'edit', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_g1', input })
-    const denied = await f.trigger('permission.evaluate', evaluation('edit', [input.path], 'call_g1'))
-    expect(denied.effect).toBe('deny')
-    expect(denied.message).toContain('codegraph has not been asked about it')
-  }))
-
-  test('R4 reads the members of an npm workspace: an import of a member\'s dependency is gated', () => withSandbox(async ({ root }) => {
-    const mono = join(root, 'mono')
-    mkdirSync(join(mono, 'packages', 'app', 'src'), { recursive: true })
-    writeFileSync(join(mono, 'package.json'), JSON.stringify({ private: true, workspaces: ['packages/*'], devDependencies: { turbo: '2', typescript: '6' } }))
-    writeFileSync(join(mono, 'packages', 'app', 'package.json'), JSON.stringify({ name: 'app', dependencies: { 'lodash-es': '4', zod: '4' } }))
-    const { f, rt } = await runtime(root, { workspace: async cwd => info(cwd, { root: mono }) })
-    await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: mono } } })
-    await rt.idle()
-    const input = { path: join(mono, 'packages', 'app', 'src', 'a.ts'), oldString: 'export const a = 1', newString: "import { debounce } from 'lodash-es'\nexport const a = 1" }
-    await f.trigger('tool.execute.before', { tool: 'edit', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_m1', input })
-    const denied = await f.trigger('permission.evaluate', evaluation('edit', [input.path], 'call_m1'))
-    expect(denied.effect).toBe('deny')
-    expect(denied.message).toContain('this edit adds an import of `lodash-es`')
-  }))
-
   test('path rules (R5): the first read of a matching file carries the rule; the first edit of an undelivered one is denied once with it', () => withSandbox(async ({ root }) => {
     const rules = paths.pathRulesDir()
     mkdirSync(rules, { recursive: true })
@@ -428,7 +386,7 @@ describe('H24 usage ledger: reminders and the deny-once gates (reported as H03)'
     await f.trigger('tool.execute.before', { tool: 'write', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_pw1', input: go })
     const denied = await f.trigger('permission.evaluate', evaluation('edit', [go.filePath], 'call_pw1'))
     expect(denied.effect).toBe('deny')
-    expect(denied.message).toStartWith('[Buracle H03 route.tools] Buracle: cmd/main.go matches the path rule `go`, which this session has not read yet.')
+    expect(denied.message).toStartWith('Buracle H03: cmd/main.go matches the path rule `go`, which this session has not read yet.')
     expect(denied.message).toContain('# Go\n\n- Format with gofmt.')
     await f.trigger('tool.execute.before', { tool: 'write', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_pw2', input: go })
     expect((await f.trigger('permission.evaluate', evaluation('edit', [go.filePath], 'call_pw2'))).effect).toBe('allow')
@@ -650,7 +608,7 @@ describe('H19 review.gate on the subagent tool result', () => {
   test('an invalid report asks the orchestrator to continue that reviewer once; a second one only warns; a valid one adds nothing', () => withSandbox(async ({ root }) => {
     const { f } = await runtime(root)
     const first = await run(f, 'call_v1', 'Looks fine to me.')
-    expect(first).toContain('Buracle H19 (review.gate): the plan-build-review report is not valid review JSON')
+    expect(first).toContain('Buracle H19: the plan-build-review report is not valid review JSON')
     expect(first).toContain('sessionID ses_rev1')
     const second = await run(f, 'call_v2', 'Still fine.')
     expect(second).toContain('It failed twice; check its findings yourself')
@@ -667,49 +625,32 @@ describe('H19 review.gate on the subagent tool result', () => {
   }))
 })
 
-describe('default effort and H17', () => {
-  test('the model transform gives every model with the configured variant that default; telemetry reports it', () => withSandbox(async ({ root }) => {
-    const { f, rt } = await runtime(root)
-    expect(f.modelTransforms.length).toBe(1)
-    const models: EditableModel[] = [
-      { id: 'claude-opus-5-5', providerID: 'anthropic', settings: { thinking: { type: 'enabled' } }, variants: [{ id: 'high', settings: { effort: 'high' } }, { id: 'xhigh', settings: { effort: 'xhigh', thinking: { type: 'adaptive' } } }] },
-      { id: 'gpt-x', providerID: 'openai', variants: [{ id: 'xhigh', settings: { reasoningEffort: 'xhigh' }, body: { include: ['reasoning.encrypted_content'] } }] },
-      { id: 'old', providerID: 'anthropic', variants: [{ id: 'high', settings: { effort: 'high' } }] },
-    ]
-    f.modelTransforms[0]?.(fakeModelEditor(models))
-    expect(models[0]?.settings).toEqual({ thinking: { type: 'adaptive' }, effort: 'xhigh' })
-    expect(models[1]).toMatchObject({ settings: { reasoningEffort: 'xhigh' }, body: { include: ['reasoning.encrypted_content'] } })
-    expect(models[2]?.settings).toBeUndefined()
-    await rt.handleEvent({ type: 'session.step.started', data: { sessionID: SID, model: { id: 'claude-opus-5-5', providerID: 'anthropic', variant: 'default' } } })
-    await rt.handleEvent({ type: 'session.usage.updated', data: { sessionID: SID, cost: 0.1 } })
-    expect(readTelemetry('opencode', SID)?.effort).toBe('xhigh')
-  }))
-
-  test('effort.opencode keep leaves the models alone', () => withSandbox(async ({ root }) => {
-    const file = paths.runtimeConfigFile()
-    mkdirSync(join(file, '..'), { recursive: true })
-    const cfg = structuredClone(testBaked().defaults)
-    cfg.effort.opencode = 'keep'
-    writeFileSync(file, JSON.stringify({ v: 1, config: cfg }))
-    const { f } = await runtime(root)
-    const models: EditableModel[] = [{ id: 'm', providerID: 'p', variants: [{ id: 'xhigh', settings: { effort: 'xhigh' } }] }]
-    f.modelTransforms[0]?.(fakeModelEditor(models))
-    expect(models[0]?.settings).toBeUndefined()
-  }))
-
-  test('H17: a plugin loaded from another config dir than the installed one warns once per service process', () => withSandbox(async ({ root }) => {
+describe('H17', () => {
+  test('H17: a plugin loaded from another config dir than the installed one warns at the start of a session, as a notice in the TUI and never in the model\'s context', () => withSandbox(async ({ root }) => {
     const file = paths.runtimeConfigFile()
     mkdirSync(join(file, '..'), { recursive: true })
     writeFileSync(file, JSON.stringify({ v: 1, config: testBaked().defaults, resolved: { opencodeConfigDir: join(root, 'installed', 'opencode') } }))
     const pluginDir = join(root, 'other', 'opencode', 'plugins', 'buracle')
-    const notices: string[] = []
-    const deps: PluginDeps = { baked: testBaked(), memory: fakeMemory(), settleMs: 0, capture: () => true, maint: () => ({ removed: [] }), pluginDir, notify: (_t, m) => { notices.push(m) }, workspace: async cwd => info(cwd) }
-    for (let i = 0; i < 2; i++) {
-      const stop = await createBuraclePlugin(deps).setup(fakeServerContext(root).ctx)
-      if (typeof stop === 'function') await (stop as () => Promise<void>)()
-    }
-    expect(notices.length).toBe(1)
-    expect(notices[0]).toContain(join(root, 'other', 'opencode'))
-    expect(notices[0]).toContain('buracle install opencode')
+    const logged: string[] = []
+    const now = 1_800_000_000_000
+    const deps: PluginDeps = { now: () => now, baked: testBaked(), memory: fakeMemory(), settleMs: 0, capture: () => true, maint: () => ({ removed: [] }), pluginDir, logger: (level, m) => { if (level === 'warn') logged.push(m) }, workspace: async cwd => info(cwd), workspaceRead: async cwd => info(cwd) }
+    const f = fakeServerContext(root)
+    // Loading the plugin checks nothing by itself any more: the pipeline's session start does.
+    const stop = await createBuraclePlugin(deps).setup(f.ctx)
+    if (typeof stop === 'function') await (stop as () => Promise<void>)()
+    expect(logged).toEqual([])
+
+    const rt = new BuracleRuntime(f.ctx, deps)
+    await rt.register()
+    await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: root } } })
+    await rt.idle()
+    const board = new NoticeReader().take(SID, now)
+    expect(board.map(n => n.variant)).toEqual(['warning'])
+    expect(board[0]?.text).toContain(join(root, 'other', 'opencode'))
+    expect(board[0]?.text).toContain('buracle install opencode')
+    expect(logged).toEqual([board[0]?.text as string])
+    const ev: SessionContextEvent = { sessionID: SID, model: { id: 'm1', providerID: 'p' }, agent: 'build', system: [], messages: [], options: {}, tools: {} }
+    await f.trigger('session.context', ev)
+    expect(ev.system.map(p => p.text).join('\n')).not.toContain(join(root, 'other', 'opencode'))
   }))
 })

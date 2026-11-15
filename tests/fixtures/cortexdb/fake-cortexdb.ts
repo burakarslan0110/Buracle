@@ -1,13 +1,17 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 
-// A stand-in for cortexdb-mcp that keeps the behaviours of the real engine (2.139.0) Buracle depends on:
+// A stand-in for cortexdb-mcp that keeps the behaviours of the real engine Buracle depends on, as cortexdb-mcp 2.151.1
+// showed them on an empty database (FAKE_CORTEXDB_VERSION names another release, to play one below Buracle's minimum):
 // - a memory id is the primary key of the whole file; saving an id again replaces the row, whichever bucket it was in;
 // - a row lives in one bucket: scope `user` + user_id (namespace `default`), or scope `global` + a namespace;
 //   `memory_search` only sees the bucket it is asked for (without scope: global/default), while `memory_list_all`,
 //   `memory_get` and `memory_delete` ignore buckets;
-// - supersedes hides the old row from search; ttl_seconds drops a row once its time is up;
-// - entities and relations on save, and entity_names with retrieval_mode graph/hybrid/ppr on search;
+// - supersedes hides the old row from search; a row whose ttl_seconds ran out is hidden from search and list_all, is
+//   still answered by memory_get, and is deleted only by `sweep_expired`;
+// - entities and relations on save, and entity_names with retrieval_mode graph/ppr on search; `graph_list_all` lists
+//   the whole file's graph (memory nodes, entity nodes, `mentions` and relation edges), a page at a time with
+//   order "id"; a memory saved again keeps the mentions of its earlier saves;
 // - review_status takes proposed, accepted or rejected.
 interface Rec {
   id: string
@@ -23,14 +27,21 @@ interface Rec {
   entities?: string[]
   relations?: Array<{ from: string, to: string }>
 }
-interface Db { v: 1, seq: number, records: Record<string, Rec & { seq: number }> }
+interface Db { v: 1, seq: number, records: Record<string, Rec & { seq: number }>, entities?: Record<string, { label: string, type: string }> }
+
+const VERSION = process.env['FAKE_CORTEXDB_VERSION'] ?? '2.151.1'
+
+if (process.argv[2] === '--version' || process.argv[2] === '-version') {
+  process.stdout.write(`cortexdb-mcp-stdio v${VERSION}\n`)
+  process.exit(0)
+}
 
 if (process.argv.includes('--doctor')) {
   // fail: the status check of the file fails while the self-test passes; self-test: the self-test fails too.
   const mode = process.env['FAKE_CORTEXDB_DOCTOR']
   const failed = mode === 'fail' || mode === 'self-test'
   const error = 'injected failure'
-  process.stdout.write(JSON.stringify({ version: '0.0.0-fake', mode: 'local', database: process.env['CORTEXDB_PATH'] ?? '', status: failed ? 'failed' : 'ready', self_test: mode === 'self-test' ? 'failed' : 'passed', ...(failed ? { error } : {}) }) + '\n')
+  process.stdout.write(JSON.stringify({ version: VERSION, mode: 'local', database: process.env['CORTEXDB_PATH'] ?? '', status: failed ? 'failed' : 'ready', self_test: mode === 'self-test' ? 'failed' : 'passed', ...(failed ? { error } : {}) }) + '\n')
   process.exit(failed ? 1 : 0)
 }
 
@@ -47,7 +58,8 @@ function nowMs(): number {
   return Date.now()
 }
 
-// A row saved with ttl_seconds disappears from get, list_all and search once its time is up, like the real engine.
+// A row saved with ttl_seconds disappears from list_all and search once its time is up, like the real engine; memory_get
+// still answers it until a sweep deletes it.
 function live(r: Rec): boolean {
   return r.expires_ms === undefined || r.expires_ms > nowMs()
 }
@@ -69,6 +81,9 @@ function save(db: Db): void {
 
 const fold = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '')
 const words = (s: string) => fold(s).split(/[^\p{L}\p{N}_]+/u).filter(w => w !== '')
+
+// One entity per name whatever its case, as the real engine files them: `entity:transaction_engine`.
+const entityId = (name: string): string => `entity:${fold(name).replace(/\s+/g, '_').replace(/[^\p{L}\p{N}_]/gu, '')}`
 
 function sessionOf(r: Rec): string {
   return r.scope === 'user' ? `memory:user:${r.user_id ?? ''}:${r.namespace}` : `memory:${r.scope}:${r.namespace}`
@@ -129,10 +144,15 @@ function call(name: string, a: Record<string, unknown>): unknown {
       const ttl = typeof a['ttl_seconds'] === 'number' && a['ttl_seconds'] > 0 ? a['ttl_seconds'] : 0
       const meta: Record<string, unknown> = { ...(a['metadata'] as Record<string, unknown> ?? {}), importance, kind: 'memory', namespace: b.namespace, scope: b.scope, ttl_seconds: ttl }
       if (review !== undefined) meta['_review_status'] = review
+      const mentioned = [...new Set([...(prev?.entities ?? []), ...entities])]
+      for (const e of Array.isArray(a['entities']) ? a['entities'] as Array<{ name?: unknown, type?: unknown }> : []) {
+        const name = String(e.name ?? '')
+        if (name !== '') (db.entities ??= {})[entityId(name)] = { label: name, type: typeof e.type === 'string' && e.type !== '' ? e.type : 'entity' }
+      }
       db.records[id] = {
         id, content: a['content'], created_at: prev?.created_at ?? now, importance, metadata: meta, seq: ++db.seq, scope: b.scope, namespace: b.namespace,
         ...(b.user_id !== undefined ? { user_id: b.user_id } : {}), ...(review !== undefined ? { review_status: review } : {}),
-        ...(entities.length > 0 ? { entities } : {}), ...(relations.length > 0 ? { relations } : {}), ...(ttl > 0 ? { expires_ms: nowMs() + ttl * 1000 } : {}),
+        ...(mentioned.length > 0 ? { entities: mentioned } : {}), ...(relations.length > 0 ? { relations } : {}), ...(ttl > 0 ? { expires_ms: nowMs() + ttl * 1000 } : {}),
       }
       for (const s of sup) { const r = db.records[s]; if (r) r.metadata = { ...r.metadata, superseded_by: id, superseded_at: now } }
       save(db)
@@ -140,7 +160,7 @@ function call(name: string, a: Record<string, unknown>): unknown {
     }
     case 'memory_get': {
       const r = db.records[id]
-      if (!r || !live(r)) throw new ToolError('embedding not found')
+      if (!r) throw new ToolError('embedding not found')
       return { memory: view(r) }
     }
     case 'memory_update': {
@@ -166,12 +186,42 @@ function call(name: string, a: Record<string, unknown>): unknown {
       const more = start + limit < all.length
       return { memories: page.map(view), truncated: more || undefined, next_cursor: more ? `c${start + limit}` : undefined }
     }
+    case 'sweep_expired': {
+      const gone = Object.values(db.records).filter(r => !live(r)).map(r => r.id).sort()
+      if (a['dry_run'] !== true && gone.length > 0) {
+        for (const g of gone) delete db.records[g]
+        save(db)
+      }
+      return { documents: [], memories: gone, now: new Date(nowMs()).toISOString(), ...(a['dry_run'] === true ? { dry_run: true } : {}) }
+    }
+    case 'graph_list_all': {
+      const order = a['order'] === undefined ? '' : String(a['order'])
+      if (order !== '' && order !== 'id') throw new ToolError(`unknown order: ${order}`)
+      const nodes: Array<{ id: string, label: string, type: string, degree: number }> = []
+      const edges: Array<{ from: string, to: string, type: string }> = []
+      for (const [eid, e] of Object.entries(db.entities ?? {})) nodes.push({ id: eid, label: e.label, type: e.type, degree: 0 })
+      for (const r of Object.values(db.records)) {
+        nodes.push({ id: `memory:${r.id}`, label: r.content.split('\n')[0] ?? '', type: 'memory', degree: 0 })
+        for (const e of r.entities ?? []) edges.push({ from: `memory:${r.id}`, to: entityId(e), type: 'mentions' })
+        for (const rel of r.relations ?? []) edges.push({ from: entityId(rel.from), to: entityId(rel.to), type: (rel as { type?: string }).type ?? 'related' })
+      }
+      for (const n of nodes) n.degree = edges.filter(e => e.from === n.id || e.to === n.id).length
+      nodes.sort((x, y) => (x.id < y.id ? -1 : 1))
+      if (order !== 'id') return { nodes, edges, total_nodes: nodes.length }
+      const limit = typeof a['limit'] === 'number' && a['limit'] > 0 ? a['limit'] : 50
+      const start = typeof a['cursor'] === 'string' ? Number(a['cursor'].replace(/^g/, '')) : 0
+      const page = nodes.slice(start, start + limit)
+      const ids = new Set(page.map(n => n.id))
+      const more = start + limit < nodes.length
+      // As in the real engine, a page carries the edges that start at its nodes; they may name a node of a later page.
+      return { nodes: page, edges: edges.filter(e => ids.has(e.from)), total_nodes: nodes.length, ...(more ? { truncated: true, next_cursor: `g${start + limit}` } : {}) }
+    }
     case 'memory_search': {
       const b = bucketOf(a)
       const terms = [...new Set([...words(String(a['query'] ?? '')), ...((a['keywords'] as string[] | undefined) ?? []).flatMap(words)])]
       const topK = typeof a['top_k'] === 'number' ? a['top_k'] : 10
       const names = new Set(((a['entity_names'] as string[] | undefined) ?? []).map(fold))
-      const graph = names.size > 0 && ['graph', 'hybrid', 'ppr'].includes(String(a['retrieval_mode'] ?? ''))
+      const graph = names.size > 0 && ['graph', 'ppr'].includes(String(a['retrieval_mode'] ?? ''))
       // A relation joins two entities: a memory about one is reached from the other.
       const reach = new Set(names)
       if (graph) for (const r of Object.values(db.records)) for (const rel of r.relations ?? []) {

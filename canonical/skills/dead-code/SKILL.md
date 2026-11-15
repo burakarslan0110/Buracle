@@ -76,38 +76,21 @@ current with `buracle flow`; the calls are cheap and best effort, so a failing o
 3. Memory pass, at most 3 queries: `memory_search` for "dead code", "unused", "keep" and the area name.
    A note such as "looks unused but is loaded by the plugin registry" is a lead to verify, not a verdict.
 4. Scope: the argument path, else the repository root. For a large repository (thousands of source files)
-   with no scope given, offer 2-4 scopes with {{ask_user}}, recommended first.
+   with no scope given, offer 2-4 scopes with your structured-question tool, recommended first.
 5. Map the boundaries before collecting candidates: manifests (`package.json` main, module, exports, bin, scripts;
    `pyproject.toml` scripts and entry points; `go.mod` and `main` packages), framework (from dependencies),
    generated and vendored directories, test layout, and whether this is a library (public API matters) or
    an application.
 
-Track Phases 0-6 with {{todo}}.
+Track Phases 0-6 with your todo tool.
 
 ## Phase 1: Collect candidates
 
 1. `buracle flow phase collect`. Run the helper script from the project root. It is read-only and
    needs only `bun` and `rg`.
-<!-- harness:claude -->
    ```bash
-   bun "${CLAUDE_SKILL_DIR}/scripts/candidates.ts" --root . --scope <path>
+   bun "$HOME/.agents/skills/dead-code/scripts/candidates.ts" --root . --scope <path>
    ```
-<!-- /harness -->
-<!-- harness:codex -->
-   ```bash
-   bun "${CODEX_HOME:-$HOME/.codex}/skills/dead-code/scripts/candidates.ts" --root . --scope <path>
-   ```
-<!-- /harness -->
-<!-- harness:opencode -->
-   ```bash
-   bun "${XDG_CONFIG_HOME:-$HOME/.config}/opencode/skills/dead-code/scripts/candidates.ts" --root . --scope <path>
-   ```
-<!-- /harness -->
-<!-- harness:omp -->
-   ```bash
-   bun "${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}/skills/dead-code/scripts/candidates.ts" --root . --scope <path>
-   ```
-<!-- /harness -->
    If that path does not exist, use the `scripts/` folder next to this SKILL.md.
    Options: `--mode exports|files|all`, `--lang ts,js,py,go`, `--exclude '<glob>'` (repeatable),
    `--include-tests`, `--limit <n>` (default 100), `--json`, `--help`.
@@ -117,26 +100,9 @@ Track Phases 0-6 with {{todo}}.
 2. Take a graph snapshot of everything the codegraph index says nothing reaches, with the index's
    health. It opens the index read-only, never runs `codegraph init` or sync, and needs the codegraph
    toolchain Buracle installs.
-<!-- harness:claude -->
    ```bash
-   bun "${CLAUDE_SKILL_DIR}/scripts/graph-candidates.ts" --root . --scope <path> --json
+   bun "$HOME/.agents/skills/dead-code/scripts/graph-candidates.ts" --root . --scope <path> --json
    ```
-<!-- /harness -->
-<!-- harness:codex -->
-   ```bash
-   bun "${CODEX_HOME:-$HOME/.codex}/skills/dead-code/scripts/graph-candidates.ts" --root . --scope <path> --json
-   ```
-<!-- /harness -->
-<!-- harness:opencode -->
-   ```bash
-   bun "${XDG_CONFIG_HOME:-$HOME/.config}/opencode/skills/dead-code/scripts/graph-candidates.ts" --root . --scope <path> --json
-   ```
-<!-- /harness -->
-<!-- harness:omp -->
-   ```bash
-   bun "${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}/skills/dead-code/scripts/graph-candidates.ts" --root . --scope <path> --json
-   ```
-<!-- /harness -->
    Options: `--exclude '<glob>'`, `--include-exported`, `--include-tests`, `--limit <n>`, `--help`.
    Its rows are G evidence for the candidates of step 1 and nominate symbols the text script cannot
    see (non-exported functions, methods, common names); a nomination is a candidate, not a finding.
@@ -156,7 +122,7 @@ If the script cannot run (no `bun` or `rg`), collect candidates with analyzers a
 
 `buracle flow phase check`. Collect evidence family by family; stop as soon as the verdict is clear.
 Candidates are independent: with more than ten of them, split the list into lanes of about ten and
-check each lane with a read-only agent launched by {{spawn_agent}} (the *Parallel agents* rule),
+check each lane with a read-only agent launched by your subagent tool (the *Parallel agents* rule),
 briefed with the evidence families below, the tool routing and "return one row per candidate with
 the family, the command and the `path:line` evidence". Run at most 4 lanes at once, run
 `buracle usage --json` first when you need 3 or more, and re-check two rows of every lane yourself
@@ -166,9 +132,7 @@ before you rank.
   its file, for example "callers and importers of `formatLegacy` in src/util/format.ts". Read the
   blast-radius section and the staleness banner. No index: run `buracle index ensure --cwd <project root>` once and retry; if that fails, G is
   `unchecked`.
-<!-- harness:claude -->
   If a language-server tool is available, a find-references result on the symbol also counts as G.
-<!-- /harness -->
 - **T:** `rg -n -w --hidden -g '!.git' '<name>'` across the whole repository, plus the quoted forms
   `rg -n -F "'<name>'"` and `rg -n -F '"<name>"'` for lookups by string. For a module, search its import
   specifier (`rg -n -F '/<stem>'`). Open every hit outside the definition.
@@ -207,7 +171,7 @@ risk first. For each batch
 give the items, the order of edits, and the commands the user should run afterwards (typecheck, build,
 tests, lint, and the helper script again for those names). Put `test-only` and `public-surface` items
 in a "needs your decision" section with options: delete the tests too, keep, or deprecate first.
-Suggest running larger plans through {{skill:plan-build}}. Never execute any part of the plan yourself.
+Suggest running larger plans through the `plan-build` skill. Never execute any part of the plan yourself.
 
 ## Phase 5: Report
 
@@ -245,12 +209,12 @@ removing them. Do not delete anything on your own. Then `buracle flow end --outc
 | script exits 1 | fix the arguments; if `rg` is missing, report it and collect candidates with analyzers only |
 | script exits 2 | use the results, copy its warnings into *Not checked* |
 | far too many candidates | narrow `--scope` or report the top 40 and list the remainder as unchecked |
-| the user asks to delete mid-audit | finish or stop the audit first; deletion is a separate change ({{skill:plan-build}} or a direct request) |
+| the user asks to delete mid-audit | finish or stop the audit first; deletion is a separate change (the `plan-build` skill or a direct request) |
 | memory says "keep X" | treat it as a family-B contradiction until current code disproves it |
 
 ## Example
 
-User: `{{skill:dead-code}} src/util` ("find the dead code under src/util").
+User: `/dead-code src/util` ("find the dead code under src/util").
 
 1. Snapshot, `buracle worktree detect --json`, memory finds nothing relevant.
 2. Script: `formatLegacy` (`unreferenced`), `onlyTests` (`test-only`), `usedLocally` (`local-only`).

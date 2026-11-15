@@ -155,7 +155,7 @@ async function review(h: Harness, root: string, env: Record<string, string | und
   }
 }
 
-const QUIET = { BURACLE_NO_MEMORY: '1', BURACLE_NO_CAPTURE: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_NO_NOTIFY: '1', BURACLE_NO_TOOLCHAIN: '1' }
+const QUIET = { BURACLE_NO_MEMORY: '1', BURACLE_NO_CAPTURE: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_NO_TOOLCHAIN: '1' }
 const WRITE_MCP = join(import.meta.dir, '..', 'fixtures', 'companion', 'write-mcp.ts')
 const OMP_EXTENSION = join(paths.repoRoot(), 'harness', 'omp', 'extensions', 'buracle.js')
 const FENCED = 'read-only second opinion (plan-build-review)'

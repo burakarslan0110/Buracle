@@ -1,8 +1,6 @@
 import type { Harness, PreDecision, ToolCall, ToolKind } from '../events'
-import { mcpServerToken } from '../events'
-import type { CatalogMcp, CatalogSkill } from '../catalog'
-import { commandName, parseShell, stageCommands, unwrap } from './shell'
-import type { Script } from './shell'
+import { HARNESS_LABEL, harnessProfile, harnessTable, mcpToolName, mcpToolPattern } from '../harness/index'
+import type { CatalogMcp } from '../catalog'
 import type { Triggers } from './skill-router'
 
 export interface RoutingPolicy { strictness: 'enforce'|'nudge'|'off'; categories: RoutingCategory[] }
@@ -60,58 +58,19 @@ export function parseRouteRef(ref: string): RouteRef | undefined {
   return { kind: 'builtin', tool: name }
 }
 
-export const CLAUDE_PLUGIN_NAME = 'buracle'
-
-function ompPart(s: string, fallback: string): string {
-  const t = s.toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '')
-  return t.length > 0 ? t : fallback
-}
+export { CLAUDE_PLUGIN_NAME } from '../harness/index'
 
 export function harnessMcpToolName(harness: Harness, server: string, tool: string): string {
-  switch (harness) {
-    case 'claude':
-      return `mcp__plugin_${CLAUDE_PLUGIN_NAME}_${mcpServerToken('claude', server)}__${tool.replace(/[^A-Za-z0-9_-]/g, '_')}`
-    case 'codex':
-      return `mcp__${server}__${tool}`.replace(/[^A-Za-z0-9_]/g, '_')
-    case 'opencode':
-      return `${mcpServerToken('opencode', server)}_${tool.replace(/[^A-Za-z0-9_-]/g, '_')}`
-    case 'omp': {
-      const s = mcpServerToken('omp', server)
-      let t = ompPart(tool, 'tool')
-      if (t.startsWith(`${s}_`) && t.length > s.length + 1) t = t.slice(s.length + 1)
-      return `mcp__${s}_${t}`
-    }
-  }
+  return mcpToolName(harnessProfile(harness).mcp, server, tool)
 }
 
 export function harnessMcpPattern(harness: Harness, server: string): string {
-  switch (harness) {
-    case 'claude': return `mcp__plugin_${CLAUDE_PLUGIN_NAME}_${mcpServerToken('claude', server)}__*`
-    case 'codex': return `mcp__${server.replace(/[^A-Za-z0-9_]/g, '_')}__*`
-    case 'opencode': return `${mcpServerToken('opencode', server)}_*`
-    case 'omp': return `mcp__${mcpServerToken('omp', server)}_*`
-  }
+  return mcpToolPattern(harnessProfile(harness).mcp, server)
 }
 
-const HARNESS_LABEL: Record<Harness, string> = { claude: 'Claude Code', codex: 'Codex', opencode: 'OpenCode', omp: 'Oh My Pi' }
-const SKILL_HOWTO: Record<Harness, string> = {
-  claude: 'the user starts a workflow with /<id>; you load the others with the Skill tool as buracle:<id>',
-  codex: 'the user starts a workflow with $<id>; you load one by reading ${CODEX_HOME:-~/.codex}/skills/<id>/SKILL.md',
-  opencode: 'the user starts a workflow with /<id>; you load one with the skill tool',
-  omp: 'the user starts a workflow with /<id>; you load one by reading skill://<id>',
-}
-const MCP_SYNTAX: Record<Harness, string> = {
-  claude: `mcp__plugin_${CLAUDE_PLUGIN_NAME}_<server>__<tool>`,
-  codex: 'mcp__<server>__<tool>, with - written as _',
-  opencode: '<server>_<tool>',
-  omp: 'mcp__<server>_<tool>, lower-case with - written as _',
-}
-const HIDDEN_NOTE: Record<Harness, string> = {
-  claude: '* = may be deferred: find its tools with tool search before assuming they are missing',
-  codex: '* = may be deferred: find its tools with tool_search before assuming they are missing',
-  opencode: '* = in Code Mode: its tools are not on your tool list; call them from a script run by the execute tool',
-  omp: '* = may be an xd:// device instead of a tool: read xd:// to find it before assuming it is missing',
-}
+const SKILL_HOWTO: Record<Harness, string> = harnessTable(p => p.skills.howto)
+const MCP_SYNTAX: Record<Harness, string> = harnessTable(p => p.mcp.syntax)
+const HIDDEN_NOTE: Record<Harness, string> = harnessTable(p => p.mcp.hiddenNote)
 const BUILTIN_LABEL: Record<string, string> = { web_search: 'built-in web search', web_fetch: 'built-in web fetch' }
 
 function code(s: string): string { return '`' + s + '`' }
@@ -203,11 +162,7 @@ function docsFetchRoute(call: ToolCall, policy: RoutingPolicy, health: McpHealth
 
 export function routeTool(call: ToolCall, policy: RoutingPolicy, health: McpHealth): PreDecision {
   if (!policy || policy.strictness === 'off') return { action: 'allow' }
-  if (call.kind === 'bash') {
-    const nudge = typeof call.command === 'string' ? bashNudge(call.command) : undefined
-    return nudge !== undefined ? { action: 'allow', context: [nudge] } : { action: 'allow' }
-  }
-  if (call.kind === 'mcp' || call.kind === 'eval' || call.kind === 'other') return { action: 'allow' }
+  if (call.kind === 'bash' || call.kind === 'mcp' || call.kind === 'eval' || call.kind === 'other') return { action: 'allow' }
   if (call.kind === 'web_fetch' && needsBuiltinSession(call)) return { action: 'allow' }
   const docsRoute = docsFetchRoute(call, policy, health ?? {})
   if (docsRoute !== undefined) return docsRoute
@@ -248,80 +203,6 @@ function libraryDocsHint(policy: RoutingPolicy, call: ToolCall, health: McpHealt
   return ` (for library or framework docs, use ${serverLabel(cat, choice.ref, call.harness)} first)`
 }
 
-const GREP_FAMILY = new Set(['grep', 'egrep', 'fgrep', 'ggrep'])
-
-function grepIsRecursive(argv: string[]): boolean {
-  for (let k = 1; k < argv.length; k++) {
-    const t = argv[k] as string
-    if (t === '--') break
-    if (t === '--recursive' || t === '--dereference-recursive' || t === '--directories=recurse') return true
-    if ((t === '-d' || t === '--directories') && argv[k + 1] === 'recurse') return true
-    if (/^-[A-Za-z]+$/.test(t)) {
-      const letters = t.slice(1)
-      for (let j = 0; j < letters.length; j++) {
-        const ch = letters[j] as string
-        if (ch === 'r' || ch === 'R') return true
-        if ('efmABCdD'.includes(ch)) { if (j === letters.length - 1) k++; break }
-      }
-    }
-  }
-  return false
-}
-
-const NUDGE_GREP = 'Search with `rg -n "<pattern>" <dir>` instead of `grep -r` (faster, respects .gitignore); for code by intent use the semble MCP `search`, and for definitions and callers use codegraph.'
-const NUDGE_FIND = 'Search with `rg -n "<pattern>" -g "<glob>"` instead of `find … | xargs grep` or `find -exec grep`; for code by intent use the semble MCP `search`, and for definitions and callers use codegraph.'
-
-function scanScript(script: Script, depth: number): string | undefined {
-  for (const pl of script.pipelines) {
-    let sawFind = false
-    for (const stage of pl.stages) {
-      for (const cmd of stageCommands(stage)) {
-        const first = commandName(cmd.words[0])
-        const u = unwrap(cmd.words)
-        const name = commandName(u.argv[0])
-        const argv = u.argv.map(w => w.text)
-        if (name === 'rgrep') return NUDGE_GREP
-        if (name !== undefined && GREP_FAMILY.has(name)) {
-          if (grepIsRecursive(argv)) return NUDGE_GREP
-          if (sawFind && first === 'xargs') return NUDGE_FIND
-        }
-        if (name === 'find') {
-          for (let k = 0; k < argv.length; k++) {
-            if (['-exec', '-execdir', '-ok', '-okdir'].includes(argv[k] as string)) {
-              const n = commandName(u.argv[k + 1])
-              if (n !== undefined && GREP_FAMILY.has(n)) return NUDGE_FIND
-            }
-          }
-          sawFind = true
-        }
-        if (depth < 4) {
-          for (const s of u.scripts) {
-            const inner = scanScript(parseShell(s).script, depth + 1)
-            if (inner) return inner
-          }
-        }
-      }
-    }
-  }
-  return undefined
-}
-
-export function bashNudge(command: string): string | undefined {
-  if (typeof command !== 'string' || command.trim() === '') return undefined
-  try {
-    const { script, subs } = parseShell(command)
-    const direct = scanScript(script, 0)
-    if (direct) return direct
-    for (const s of subs) {
-      const inner = scanScript(parseShell(s).script, 1)
-      if (inner) return inner
-    }
-  } catch {
-    return undefined
-  }
-  return undefined
-}
-
 export const CAPABILITY_CARD_MAX_LINES = 30
 
 function firstClause(text: string, max: number): string {
@@ -355,11 +236,11 @@ function byId<T extends { id: string }>(xs: readonly T[]): T[] {
   return [...xs].filter(x => x && typeof x.id === 'string').sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).filter(x => (seen.has(x.id) ? false : (seen.add(x.id), true)))
 }
 
-export function capabilityCard(input: { policy: RoutingPolicy, mcp: CatalogMcp[], skills: CatalogSkill[], plugins: string[], harness: Harness, lsp?: string[] }): string {
+// The card lists no skills: every harness lists the skills it loaded itself. It keeps the one line on how a skill is started and loaded here.
+export function capabilityCard(input: { policy: RoutingPolicy, mcp: CatalogMcp[], plugins: string[], harness: Harness, lsp?: string[] }): string {
   const h = input.harness
   const hiddenNote = HIDDEN_NOTE[h]
   const servers = byId(Array.isArray(input.mcp) ? input.mcp : []).filter(m => !Array.isArray(m.harnesses) || m.harnesses.includes(h))
-  const skills = byId(Array.isArray(input.skills) ? input.skills : [])
   const plugins = [...new Set((Array.isArray(input.plugins) ? input.plugins : []).filter(p => typeof p === 'string' && p.trim() !== '').map(p => p.trim().split('@')[0] as string))].sort()
   const strictness = input.policy?.strictness ?? 'enforce'
 
@@ -372,25 +253,15 @@ export function capabilityCard(input: { policy: RoutingPolicy, mcp: CatalogMcp[]
   ]
   const mcpHeader = `MCP servers (tools are named ${MCP_SYNTAX[h]}${servers.some(s => !s.critical) ? `; ${hiddenNote}` : ''}):`
   const mcpLines = servers.map(s => `- ${s.id}${!s.critical ? '*' : ''}: ${firstClause(s.description ?? '', 80)}`)
-  const skillHeader = `Skills (${SKILL_HOWTO[h]}):`
-  const skillLines = skills.map(s => {
-    const short = typeof s.short === 'string' && s.short.trim() !== '' ? firstClause(s.short, 90) : firstClause(s.description ?? '', 90)
-    return `- ${s.id}: ${short}${s.invocation === 'explicit' ? ' (on request)' : ''}`
-  })
+  const skillLine = [`Skills: ${SKILL_HOWTO[h]}.`]
   const pluginLine = plugins.length > 0 ? [`Plugins: ${plugins.join(', ')}`] : []
   const lsp = [...new Set((Array.isArray(input.lsp) ? input.lsp : []).filter(x => typeof x === 'string' && x.trim() !== '').map(x => x.trim()))].sort()
   if (lsp.length > 0) pluginLine.push(`Language servers (LSP tool: definitions, references, hover, diagnostics): ${lsp.join(', ')}`)
 
-  const assemble = (mcpBlock: string[], skillBlock: string[]): string[] => [...head, ...mcpBlock, ...skillBlock, ...pluginLine]
-  const fullMcp = servers.length > 0 ? [mcpHeader, ...mcpLines] : []
-  const fullSkills = skills.length > 0 ? [skillHeader, ...skillLines] : []
-  let lines = assemble(fullMcp, fullSkills)
-  if (lines.length > CAPABILITY_CARD_MAX_LINES && skills.length > 0) {
-    lines = assemble(fullMcp, wrapList(skillHeader, skills.map(s => s.id)))
-  }
+  const assemble = (mcpBlock: string[]): string[] => [...head, ...mcpBlock, ...skillLine, ...pluginLine]
+  let lines = assemble(servers.length > 0 ? [mcpHeader, ...mcpLines] : [])
   if (lines.length > CAPABILITY_CARD_MAX_LINES && servers.length > 0) {
-    const compactMcp = wrapList(`MCP servers (${MCP_SYNTAX[h]}):`, servers.map(s => s.id))
-    lines = assemble(compactMcp, skills.length > 0 ? wrapList(skillHeader, skills.map(s => s.id)) : [])
+    lines = assemble(wrapList(`MCP servers (${MCP_SYNTAX[h]}):`, servers.map(s => s.id)))
   }
   if (lines.length > CAPABILITY_CARD_MAX_LINES) {
     const kept = lines.slice(0, CAPABILITY_CARD_MAX_LINES - 1)

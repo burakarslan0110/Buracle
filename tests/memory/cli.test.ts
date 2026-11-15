@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { main } from '../../src/cli/router'
+import { sessionStart } from '../../src/memory/session-record'
 import { listAll, projectRef } from '../../src/memory/store'
 import { withEnv } from '../helpers/sandbox'
 import { withBrain } from './helpers'
@@ -20,7 +21,7 @@ describe('buracle mem', () => {
     const help = await cli(['mem'])
     expect(help.code).toBe(0)
     expect(help.out).toContain('Usage: buracle mem <subcommand>')
-    for (const s of ['import-vault', 'handoff', 'project init', 'capture [--session SID', 'finalize --harness H --session SID', '--origin explicit|inferred']) expect(help.out).toContain(s)
+    for (const s of ['handoff', 'project init', 'capture [--session SID', 'finalize --harness H --session SID', '--origin explicit|inferred']) expect(help.out).toContain(s)
     expect(help.out).not.toMatch(/consolidate|timeline|obsidian \[|\b(?:sweep|reflect|heal|tick|kick)\b|mem jobs|profile drop|\bverify\b/i)
     for (const gone of ['init', 'obsidian', 'consolidate', 'timeline', 'scan', 'mirror', 'sweep', 'reflect', 'verify', 'heal', 'jobs', 'tick', 'kick', 'profile', 'distill']) {
       const r = await cli(['mem', gone])
@@ -65,11 +66,9 @@ describe('buracle mem', () => {
     })
   })
 
-  test('start, finalize and handoff for hooks; session env vars are honored', async () => {
+  test('finalize and handoff for hooks; session env vars are honored', async () => {
     await withBrain(async ({ repo }) => {
-      expect((await cli(['mem', 'start'])).code).toBe(2)
-      const start = await cli(['mem', 'start', '--harness', 'codex', '--session', 'abc-123', '--cwd', repo, '--json'])
-      expect(JSON.parse(start.out).slug).toBe('demo')
+      expect((await sessionStart('codex', 'abc-123', repo)).slug).toBe('demo')
       await withEnv({ CODEX_THREAD_ID: 'abc-123' }, async () => {
         const fin = await cli(['mem', 'finalize', '--json'])
         expect(fin.code).toBe(0)
@@ -82,7 +81,7 @@ describe('buracle mem', () => {
       expect(cap.code).toBe(0)
       // The session spooled no material, so the capture completes as nothing-to-distill at once
       // instead of burning retries on the disabled distill (PRD R2).
-      expect(JSON.parse(cap.out).capture).toMatchObject({ state: 'done', preferences: { written: [] } })
+      expect(JSON.parse(cap.out).capture).toMatchObject({ state: 'done' })
       const latest = await cli(['mem', 'capture', '--cwd', repo, '--json'])
       expect(latest.code).toBe(0)
       expect((await cli(['mem', 'capture', '--cwd', repo, '--harness', 'codex', '--session', 'not valid!'])).code).toBe(2)
@@ -115,9 +114,8 @@ describe('buracle mem', () => {
     })
   })
 
-  test('start and finalize honor BURACLE_NO_CAPTURE=1 (exit 0, nothing recorded)', async () => {
-    await withBrain(async ({ repo }) => {
-      expect(await cli(['mem', 'start', '--harness', 'codex', '--session', 'abc-123', '--cwd', repo])).toMatchObject({ code: 0, out: 'skipped: capture-off\n' })
+  test('finalize honors BURACLE_NO_CAPTURE=1 (exit 0, nothing recorded)', async () => {
+    await withBrain(async () => {
       expect(await cli(['mem', 'finalize', '--harness', 'codex', '--session', 'abc-123'])).toMatchObject({ code: 0, out: 'skipped: capture-off\n' })
       expect(await cli(['mem', 'finalize', '--harness', 'codex', '--session', 'abc-123', '--detach'])).toMatchObject({ code: 0, out: 'skipped: capture-off (BURACLE_NO_CAPTURE=1)\n' })
     }, { capture: false })

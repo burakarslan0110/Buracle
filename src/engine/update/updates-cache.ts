@@ -2,8 +2,8 @@ import { atomicWriteSync, readJsonSafeSync } from '../fsx'
 import * as paths from '../paths'
 import type { Risk } from './versions'
 
-export type UpdateKind = 'self' | 'skills' | 'mcp' | 'plugins' | 'harness' | 'tools' | 'pricing'
-export const UPDATE_KINDS: readonly UpdateKind[] = ['self', 'skills', 'mcp', 'plugins', 'harness', 'tools', 'pricing']
+export type UpdateKind = 'self' | 'skills' | 'mcp' | 'tools'
+export const UPDATE_KINDS: readonly UpdateKind[] = ['self', 'skills', 'mcp', 'tools']
 
 export function isUpdateKind(x: unknown): x is UpdateKind {
   return typeof x === 'string' && (UPDATE_KINDS as readonly string[]).includes(x)

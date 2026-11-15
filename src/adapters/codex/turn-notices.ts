@@ -1,15 +1,13 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Harness } from '../../core/events'
-import { bandNotice, bandSummary } from '../../core/flow/band'
+import { bandNotice } from '../../core/flow/band'
 import type { ReceiptChange, ReceiptState } from '../../core/receipt'
-import { emptyReceipt, longTurnText, noteChanges, noteCommand, parseReceipt, receiptLine } from '../../core/receipt'
+import { emptyReceipt, noteChanges, noteCommand, parseReceipt, receiptLine } from '../../core/receipt'
 import type { HookHealth } from '../../core/status/model'
 import { hooksSegmentTexts } from '../../core/status/hooks'
 import { atomicWriteSync, ensureDirSync, readJsonSafeSync } from '../../engine/fsx'
 import { log } from '../../engine/log'
-import { boardNoteText } from '../../core/flow/band'
-import { boardCountsFor } from '../../workflow/board-store'
 import { flowViewFor } from '../../workflow/flow'
 import { withFileLock } from '../../workflow/session-store'
 import type { AdapterContext } from '../registry'
@@ -61,18 +59,13 @@ export function filesChanged(ctx: AdapterContext, sid: string, changes: readonly
   })
 }
 
-export interface TurnEndOptions { now: number; notify?: (title: string, message: string) => void }
+export interface TurnEndOptions { now: number }
 
-export function turnEnded(ctx: AdapterContext, sid: string, o: TurnEndOptions): string | undefined {
+export function turnEnded(ctx: AdapterContext, sid: string, _o: TurnEndOptions): string | undefined {
   if (!existsSync(turnFile(ctx, sid))) return undefined
   const t = updateTurn(ctx, sid, cur => ({ next: { v: 1, receipt: emptyReceipt() }, out: cur }))
   const summary = receiptLine(t.receipt)
   if (summary !== undefined && !summary.warn) log('debug', 'codex: turn receipt', { sid, line: summary.line })
-  if (t.startedAt !== undefined && o.notify !== undefined) {
-    const run = bandSummary(flowViewFor(H, sid, o.now, ctx.config.workflow.foldAfterSec))
-    const text = longTurnText(o.now - t.startedAt, ctx.config.workflow.notifyAfterSec, run)
-    if (text !== undefined) o.notify('Buracle', text)
-  }
   return summary?.warn === true ? summary.line : undefined
 }
 
@@ -83,10 +76,7 @@ export function flowNotice(ctx: AdapterContext, sid: string, now: number, silent
   const s = loadAdapterState(ctx, sid)
   if (s.flowNotified === n.key) return undefined
   saveAdapterState(ctx, sid, { ...s, flowNotified: n.key })
-  if (silent) return undefined
-  // Codex has no Buracle status line: the board's counts ride on the workflow notice.
-  const board = boardNoteText(boardCountsFor(H, sid, now)?.summary)
-  return board !== undefined ? `${n.text}\n${board}` : n.text
+  return silent ? undefined : n.text
 }
 
 export function hooksNotice(ctx: AdapterContext, health: HookHealth | undefined): string | undefined {
@@ -97,7 +87,7 @@ export function hooksNotice(ctx: AdapterContext, health: HookHealth | undefined)
   const parts: string[] = []
   if (n > 0) parts.push(`${n} Buracle hook ${n === 1 ? 'run' : 'runs'} failed in the last 24 h${closed > 0 ? ` (${closed} denied a call)` : ''}; run \`buracle doctor codex\``)
   if (health.runtimeBehind === true) parts.push('the installed Buracle runtime is behind the checkout; run `buracle install`')
-  return `Buracle: ${parts.join('; ')}. The tmux status line (\`buracle statusline codex\`) shows this too.`
+  return `Buracle: ${parts.join('; ')}.`
 }
 
 export function joinNotices(...parts: ReadonlyArray<string | undefined>): string | undefined {

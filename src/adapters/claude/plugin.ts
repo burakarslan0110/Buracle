@@ -1,3 +1,5 @@
+import { resolveAgents } from '../shared/agents'
+import { buildAgentsSkills } from '../shared/skills'
 import type { AgentDoc, CanonicalBundle, CatalogMcp, CatalogSkill, McpServerSpec, SkillDoc } from '../../core/catalog'
 import { catalogMcp, catalogSkills, envRef, expandMcpCommand, mcpEnvFor } from '../../core/catalog'
 import { mcpServerToken } from '../../core/events'
@@ -49,31 +51,13 @@ function compareStr(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0
 }
 
-export function renderSkill(skill: SkillDoc, protocols: readonly string[] = []): GenFile[] {
-  const fm = skill.frontmatter
-  const description = fmText(fm['description'], protocols)
-  if (description === undefined) throw new RenderError(`${skill.dir}/SKILL.md: description is required`)
-  const explicit = fm['invocation'] === 'explicit'
-  const entries: Array<readonly [string, FrontmatterValue | undefined]> = [
-    ['name', skill.id],
-    ['description', description],
-    ['when_to_use', fmText(fm['when_to_use'], protocols)],
-    ['argument-hint', str(fm['argument-hint'])],
-    ['disable-model-invocation', explicit ? true : undefined],
-    ['user-invocable', fm['user-invocable'] === false ? false : undefined],
-  ]
-  const out: GenFile[] = [{
-    path: `skills/${skill.id}/SKILL.md`,
-    content: withFrontmatter(entries, renderClaudeMarkdown(skill.body, `${skill.dir}/SKILL.md`, protocols)),
-  }]
-  for (const f of skill.files) {
-    if (f.path === 'SKILL.md') continue
-    const path = `skills/${skill.id}/${f.path}`
-    if (f.path.endsWith('.md')) out.push({ path, content: renderClaudeMarkdown(f.content, `${skill.dir}/${f.path}`, protocols) })
-    else if (f.path.startsWith('scripts/')) out.push({ path, content: f.content, mode: (f.mode & 0o111) !== 0 ? EXEC : 0o644 })
-    else out.push({ path, content: f.content })
-  }
-  return out
+// The plugin bundles the same skill files every other harness reads from `~/.agents/skills`
+// (`harness/agents-skills`): one text, and here it carries the plugin's `buracle:` namespace.
+export function pluginSkills(c: Pick<CanonicalBundle, 'mcp' | 'skills'>): GenFile[] {
+  const description = c.skills.find(s => typeof s.frontmatter['description'] !== 'string' || s.frontmatter['description'].trim() === '')
+  if (description !== undefined) throw new RenderError(`${description.dir}/SKILL.md: description is required`)
+  // Codex's `agents/openai.yaml` is for Codex's own skill list; Claude Code has no use for it.
+  return buildAgentsSkills({ canonical: c }).filter(f => !f.path.endsWith('/agents/openai.yaml')).map(f => ({ ...f, path: `skills/${f.path}` }))
 }
 
 export function pluginMcpPattern(server: string): string {
@@ -316,17 +300,13 @@ export function hooksJson(classic: readonly ClassicHook[], withModule: boolean):
   return out
 }
 
-function claudePlugins(c: CanonicalBundle): string[] {
-  return c.plugins.claude.plugins.filter(p => p.enabled).map(p => p.id)
-}
-
 export function canonicalContentHash(c: CanonicalBundle): string {
   return valueHash({
-    config: c.config, mcp: c.mcp, plugins: c.plugins, tools: c.tools, hooks: c.hooks, routing: c.routing,
-    statusline: c.statusline, pricing: c.pricing,
+    config: c.config, mcp: c.mcp, tools: c.tools, hooks: c.hooks, routing: c.routing,
+    statusline: c.statusline,
     rules: c.rules.map(r => ({ id: r.id, scope: r.scope, frontmatter: r.frontmatter, body: r.body })),
     skills: c.skills.map(s => ({ id: s.id, files: s.files.map(f => ({ path: f.path, content: f.content, mode: f.mode & 0o111 ? 1 : 0 })) })),
-    agents: c.agents.map(a => ({ id: a.id, frontmatter: a.frontmatter, body: a.body })),
+    agents: resolveAgents(c).map(a => ({ id: a.id, frontmatter: a.frontmatter, body: a.body })),
   })
 }
 
@@ -348,7 +328,7 @@ export function generatedModules(c: CanonicalBundle, buracleVersion: string): Ge
     harness: 'claude' as const,
     mcp,
     skills,
-    plugins: claudePlugins(c),
+    plugins: [] as string[],
     criticalToolPatterns: mcp.filter(s => s.critical).map(s => pluginMcpRegex(s.id)),
   }
   const meta = { buracleVersion, contentHash: canonicalContentHash(c) }
@@ -537,8 +517,8 @@ export function generatePlugin(input: PluginInput): GenFile[] {
     if (f.path.endsWith('.ts')) files.push({ path: `hooks/core/${f.path}`, content: f.content })
   }
   const protocols = protocolIds(c.skills)
-  for (const s of [...c.skills].sort((a, b) => compareStr(a.id, b.id))) files.push(...renderSkill(s, protocols))
-  for (const a of [...c.agents].sort((x, y) => compareStr(x.id, y.id))) files.push(renderAgent(a, c.mcp, protocols))
+  files.push(...pluginSkills(c))
+  for (const a of resolveAgents(c).sort((x, y) => compareStr(x.id, y.id))) files.push(renderAgent(a, c.mcp, protocols))
   files.push({ path: '.mcp.json', content: json(mcpJson(c.mcp)) })
   const lsp = lspJson(c)
   if (Object.keys(lsp).length > 0) files.push({ path: '.lsp.json', content: json(lsp) })

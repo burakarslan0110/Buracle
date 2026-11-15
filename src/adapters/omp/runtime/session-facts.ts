@@ -1,6 +1,6 @@
 import type { TelemetryPatch } from './deps'
 import type { OmpContext, OmpExtensionAPI, OmpSessionSwitchEvent } from './types'
-import { strAt } from './util'
+import { strAt } from '../../shared/pi-family/util'
 
 type Guarded = <T>(what: string, fn: () => T) => T | undefined
 

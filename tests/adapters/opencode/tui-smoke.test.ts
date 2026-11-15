@@ -14,6 +14,7 @@ import { narrowPath, pathOf } from '../../helpers/fake-exe'
 import { withSandbox } from '../../helpers/sandbox'
 import { lastUserText, startFakeProvider, type ToolRule } from './fake-provider'
 import { adapterContext, REPO } from './helpers'
+import { BUILT } from '../../helpers/built-harness'
 
 const OPENCODE = Bun.which('opencode', { PATH: process.env['PATH'] ?? '' })
 const TMUX = Bun.which('tmux', { PATH: pathOf(process.env['PATH'] ?? '', '/opt/homebrew/bin', '/usr/local/bin') })
@@ -52,7 +53,7 @@ async function tuiSetup({ root, home, buracleHome }: { root: string, home: strin
   const project = join(root, 'project')
   mkdirSync(project, { recursive: true })
   mkdirSync(join(paths.opencodeConfigDir(), 'skills'), { recursive: true })
-  symlinkSync(join(REPO, 'harness', 'agents-skills', 'plan-build'), join(paths.opencodeConfigDir(), 'skills', 'plan-build'))
+  symlinkSync(join(BUILT.harness, 'agents-skills', 'plan-build'), join(paths.opencodeConfigDir(), 'skills', 'plan-build'))
 
   await applyPlans([await installPlan(adapterContext(), { opencode: null })])
   const provider = startFakeProvider(rules)
@@ -73,7 +74,6 @@ async function tuiSetup({ root, home, buracleHome }: { root: string, home: strin
     BURACLE_HOME: buracleHome,
     BURACLE_CORTEXDB_BIN: process.env['BURACLE_CORTEXDB_BIN'] ?? '',
     BURACLE_NO_AUTOSTART: '1',
-    BURACLE_NO_NOTIFY: '1',
     OPENCODE_DISABLE_AUTOUPDATE: '1',
     OPENCODE_DISABLE_MODELS_FETCH: '1',
     TERM: 'xterm-256color',

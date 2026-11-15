@@ -25,7 +25,7 @@ async function runtime(dir: string) {
   const mem = fakeMemory()
   const deps: PluginDeps = {
     baked: testBaked(), memory: mem, settleMs: 0, runChecker: async () => ({ code: 0, stdout: '', stderr: '' }),
-    capture: () => true, maint: () => ({ removed: [] }), notify: () => undefined,
+    capture: () => true, maint: () => ({ removed: [] }),
     workspace: async cwd => noProject(cwd), workspaceRead: async cwd => noProject(cwd),
   }
   const rt = new BuracleRuntime(f.ctx, deps)
@@ -68,6 +68,6 @@ describe('opencode: H06/H07 keep the compaction state of this compaction only', 
     mem.handoff = async () => undefined
     await f.trigger('session.compaction', compaction())
     expect(await restored()).not.toContain('handoff-none')
-    expect(readFileSync(join(paths.sessionDir('opencode', SID), 'opencode.json'), 'utf8')).not.toContain('handoff-none')
+    expect(JSON.parse(readFileSync(join(paths.sessionDir('opencode', SID), 'compact.json'), 'utf8'))).toEqual({ v: 1, at: expect.any(Number) })
   }))
 })

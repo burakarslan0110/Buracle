@@ -78,6 +78,11 @@ describe('protocol negotiation and metadata', () => {
     const write = toolDefinitions().find(t => t['name'] === 'memory_write')!['inputSchema'] as { properties: Record<string, { enum?: string[] }> }
     expect(write.properties['type']?.enum).toEqual(['decision', 'gotcha', 'procedure', 'knowledge', 'reference', 'preference'])
     expect(write.properties['layer']?.enum).toEqual(['project', 'person'])
+    // The kinds of an older Buracle are in no schema and no description: not to write, not to file under, not to filter by.
+    const tools = toolDefinitions() as Array<{ inputSchema: { properties: Record<string, { items?: { enum?: string[] }, properties?: Record<string, { enum?: string[] }> }> } }>
+    expect(tools[0]?.inputSchema.properties['types']?.items?.enum).toEqual(['decision', 'gotcha', 'procedure', 'knowledge', 'reference', 'preference', 'core', 'session', 'handoff', 'capture'])
+    expect(tools[3]?.inputSchema.properties['patch']?.properties?.['move']).toBeDefined()
+    expect(JSON.stringify(toolDefinitions()) + SERVER_INSTRUCTIONS).not.toMatch(/\b(?:convention|profile)\b/)
     const all = JSON.stringify(toolDefinitions()) + SERVER_INSTRUCTIONS
     expect(all).not.toMatch(/turkish|türkçe|karar/i)
     expect(all).not.toMatch(/Obsidian|vault/i)
@@ -242,4 +247,14 @@ describe('end to end over stdio', () => {
       expect(byId.get(5)?.result).toEqual({})
     })
   }, 30_000)
+})
+
+describe('the MCP client name `pi` (Oh My Pi and Pi both send it)', () => {
+  test('BURACLE_HARNESS from the launcher says which of the two it is; without it the older adapter, omp, is taken', () => {
+    expect(harnessFromClient('pi', { BURACLE_HARNESS: 'pi' })).toBe('pi')
+    expect(harnessFromClient('pi', { BURACLE_HARNESS: 'omp' })).toBe('omp')
+    expect(harnessFromClient('pi', {})).toBe('omp')
+    expect(harnessFromClient('pi', { BURACLE_HARNESS: 'claude' })).toBe('omp')
+    expect(harnessFromClient('claude-code', { BURACLE_HARNESS: 'pi' })).toBe('claude-code')
+  })
 })

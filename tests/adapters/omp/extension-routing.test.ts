@@ -17,7 +17,6 @@ import { loadCanonicalSync } from '../../../src/engine/canonical'
 import * as paths from '../../../src/engine/paths'
 import { loadLedger } from '../../../src/workflow/ledger'
 import { readFlow } from '../../../src/workflow/flow'
-import { reviewNotesNotice } from '../../../src/adapters/shared/review-notes'
 import { loadState, saveState } from '../../../src/workflow/session-store'
 import { withEnv, withSandbox, type Sandbox } from '../../helpers/sandbox'
 import { fakeCtx, fakePi, planState, testDeps, testGenerated, type FakeCtx } from './fakes'
@@ -101,16 +100,13 @@ describe('omp H22 route.prompt and H23 route.audit', () => {
     }
   }))
 
-  test('a pause with a plan gets the English guidance first, then the route; routing.skills off drops the skill line', () => withSandbox(async sb => {
+  test('a pause with a plan gets the English guidance first, then the route', () => withSandbox(async sb => {
     const { fp, ctx } = setup(sb)
     saveState('omp', SID, planState())
     await fp.emit('input', input('$plan-build dur'), ctx)
     const text = await hidden(fp, ctx, 'x') as string
     expect(text.startsWith(CONTROL_GUIDANCE.pausePlan)).toBe(true)
     expect(text).toContain('read skill://plan-build')
-    const off = setup(sb, { config: d => ({ config: { ...d, routing: { ...d.routing, skills: 'off' } }, vault: '/v', shim: '/s', source: 'defaults' }) }, { sid: '01a118a8-8d01-740c-9360-dddddddddddd' })
-    await off.fp.emit('input', input('$plan-build add rate limiting'), off.ctx)
-    expect(await hidden(off.fp, off.ctx, 'x')).toBeUndefined()
   }))
 
   test('a memory runner child (BURACLE_MEMORY_RUNNER=1, print mode) gets no routing message and no system block', () => withSandbox(async sb => {
@@ -149,7 +145,7 @@ describe('omp H22 prompt delivery: input at submission, before_agent_start when 
     expect(text).not.toContain('Earlier work')
     const l = loadLedger('omp', SID)
     expect(l.turn).toBe(1)
-    expect(l.prompt?.route).toMatchObject({ invoked: [], load: ['research'], memory: { recall: false, write: false } })
+    expect(l.prompt?.route).toMatchObject({ invoked: [], load: ['research'] })
     expect(await hidden(fp, ctx, 'and what did we decide last time about the runtime?')).toBeUndefined()
     expect(loadLedger('omp', SID).turn).toBe(1)
     const held = await fp.emit('session_stop', stop, ctx) as { decision: string, reason: string }
@@ -200,7 +196,7 @@ describe('omp H22 prompt delivery: input at submission, before_agent_start when 
     const text = await hidden(fp, ctx, '$research compare bun and deno') as string
     expect(text).toContain('- The user asked for the research skill: load it before any other step and follow it (read skill://research)')
     expect(text).not.toContain('Earlier work')
-    expect(loadLedger('omp', SID).prompt?.route).toMatchObject({ load: ['research'], memory: { recall: false, write: false } })
+    expect(loadLedger('omp', SID).prompt?.route).toMatchObject({ load: ['research'] })
   }))
 
   test('a retry of the same delivery (omp runs before_agent_start again when the system prompt changed meanwhile) gets the same text; the turn moves once', () => withSandbox(async sb => {
@@ -230,25 +226,6 @@ describe('omp H22 prompt delivery: input at submission, before_agent_start when 
 })
 
 describe('omp H24 usage ledger and the deny-once gates (reported as H03)', () => {
-  test('a new third-party import is denied once (R4), the retry goes through', () => withSandbox(async sb => {
-    const { fp, ctx } = setup(sb)
-    const write = toolCall('write', { path: 'src/a.ts', content: "import { z } from 'zod'\nexport const s = z.string()\n" })
-    const first = await fp.emit('tool_call', write, ctx) as { block?: boolean, reason?: string }
-    expect(first.block).toBe(true)
-    expect(first.reason).toStartWith('Buracle H03: this edit adds an import of `zod`')
-    expect(await fp.emit('tool_call', write, ctx)).toBeUndefined()
-  }))
-
-  test('context7 first makes the import fine; under nudge the gate is a line of context', () => withSandbox(async sb => {
-    const { fp, ctx } = setup(sb)
-    await fp.emit('tool_call', toolCall('mcp__context7_resolve_library_id', { libraryName: 'zod' }), ctx)
-    expect(loadLedger('omp', SID).mcp['context7']?.n).toBe(1)
-    expect(await fp.emit('tool_call', toolCall('write', { path: 'src/a.ts', content: "import { z } from 'zod'\n" }), ctx)).toBeUndefined()
-    const nudge = setup(sb, { config: d => ({ config: { ...d, routing: { ...d.routing, strictness: 'nudge' } }, vault: '/v', shim: '/s', source: 'defaults' }) }, { sid: '01a118a8-8d01-740c-9360-eeeeeeeeeeee' })
-    const r = await nudge.fp.emit('tool_call', toolCall('write', { path: 'src/b.ts', content: "import y from 'yaml'\n" }), nudge.ctx) as { additionalContext?: string }
-    expect(r.additionalContext).toContain('Buracle: this edit imports `yaml`')
-  }))
-
   test('an MCP call through an omp device counts once (the inner mcp__ call); semble with the home folder as repo is denied', () => withSandbox(async sb => {
     const info: WorkspaceInfo = { cwd: join(sb.root, 'work'), root: join(sb.root, 'work'), children: [], index: { codegraph: { state: 'ready' }, semble: { state: 'ready' } } }
     const { fp, ctx } = setup(sb, { prepareWorkspace: async () => info })
@@ -360,16 +337,7 @@ describe('omp H02 on `~/` paths', () => {
 })
 
 describe('omp H03 shell notes and H04 checks through the shared planner', () => {
-  test('a shell file write points to edit or write once per session; printing a file points to read', () => withSandbox(async sb => {
-    const { fp, ctx } = setup(sb)
-    const write = await fp.emit('tool_call', toolCall('bash', { command: "sed -i 's/a/b/' src/a.ts" }), ctx) as { additionalContext?: string }
-    expect(write.additionalContext).toContain('this shell command writes `src/a.ts` (sed -i in place). Make ordinary source edits with the edit or write tool instead')
-    expect(await fp.emit('tool_call', toolCall('bash', { command: 'echo x > src/b.ts' }, '2'), ctx)).toBeUndefined()
-    const read = await fp.emit('tool_call', toolCall('bash', { command: 'cat src/a.ts' }, '3'), ctx) as { additionalContext?: string }
-    expect(read.additionalContext).toContain('read `src/a.ts` with the read tool instead of printing it in the shell')
-  }))
-
-  test('a missing linter is named once per session; a mirrored test folder silences the TDD note', () => withSandbox(async sb => {
+  test('a missing linter is named once per session', () => withSandbox(async sb => {
     const { fp, ctx, cwd } = setup(sb, { checkers: coreCheckers, run: async () => ({ code: 127, stdout: '', stderr: 'not found', timedOut: false }) })
     mkdirSync(join(cwd, 'src', 'core'), { recursive: true })
     mkdirSync(join(cwd, 'tests', 'core'), { recursive: true })
@@ -377,7 +345,7 @@ describe('omp H03 shell notes and H04 checks through the shared planner', () => 
     writeFileSync(join(cwd, 'src', 'core', 'x.ts'), 'export const x = 1\n')
     writeFileSync(join(cwd, 'tests', 'core', 'x.test.ts'), "import { x } from '../../src/core/x'\n")
     const first = await fp.emit('tool_result', toolResult('write', { path: 'run.sh', content: 'echo $1\n' }), ctx) as { additionalContext?: string }
-    expect(first.additionalContext).toBe('shellcheck is not installed, so it did not check this file: run `buracle install`.')
+    expect(first.additionalContext).toBe('run.sh:\n- shellcheck is not installed, so it did not check this file: run `buracle install`.')
     expect(await fp.emit('tool_result', toolResult('write', { path: 'run.sh', content: 'echo $1\n' }), ctx)).toBeUndefined()
     expect(await fp.emit('tool_result', toolResult('write', { path: 'src/core/x.ts', content: 'export const x = 1\n' }), ctx)).toBeUndefined()
   }))
@@ -385,22 +353,19 @@ describe('omp H03 shell notes and H04 checks through the shared planner', () => 
 
 describe('omp H04 on `~/` paths', () => {
   test('a patch that adds a file under ~/ is checked where omp writes it, in the home folder', () => withSandbox(async sb => {
-    const zwsp = String.fromCharCode(0x200b)
     const { fp, ctx } = setup(sb, {
       checkers: {
-        checkersFor: () => [],
-        findingsOf: () => undefined,
-        tddHint: () => undefined,
-        charsetFindings: (text, file) => (text.includes(zwsp) ? [`zero-width space added to ${file}`] : []),
-        lengthNote: () => undefined,
+        checkersFor: (path, facts) => [{ argv: ['lint', path], cwd: facts.cwd, timeoutMs: 1000, parser: 'ruff' }],
+        findingsOf: plan => `checked ${plan.argv[1]}`,
       },
+      run: async () => ({ code: 0, stdout: '', stderr: '', timedOut: false }),
     })
     const file = join(sb.home, 'notes', 'a.ts')
     mkdirSync(join(sb.home, 'notes'), { recursive: true })
-    writeFileSync(file, `export const x = "a${zwsp}b"\n`)
-    const patch = `*** Begin Patch\n*** Add File: ~/notes/a.ts\n+export const x = "a${zwsp}b"\n*** End Patch`
+    writeFileSync(file, 'export const x = 1\n')
+    const patch = '*** Begin Patch\n*** Add File: ~/notes/a.ts\n+export const x = 1\n*** End Patch'
     const r = await fp.emit('tool_result', { ...toolResult('edit', { input: patch }) }, ctx)
-    expect(r).toEqual({ additionalContext: `zero-width space added to ${file}` })
+    expect(r).toEqual({ additionalContext: `${file}:\n- checked ${file}` })
   }))
 })
 
@@ -447,7 +412,7 @@ describe('omp H26 prompt signals, H05 context watch, H17 profile guard', () => {
     await fp.emit('input', input('/skill:research compare zod and valibot'), ctx)
     await fp.emit('input', input('Bu projede testleri çalıştır, neden hata veriyor?'), ctx)
     await Bun.sleep(0)
-    const evs = memory.spool.map(s => s.entries.map(e => e.ev === 'prompt-signal' ? `${e.signal?.kind}:${e.signal?.text}` : e.ev))
+    const evs = memory.spool.map(s => s.entries.map(e => e.ev))
     expect(evs[0]?.[0]).toBe('prompt')
     expect(evs[0]?.slice(1)).toEqual([])
     expect(evs[1]).toEqual(['prompt'])
@@ -470,11 +435,23 @@ describe('omp H26 prompt signals, H05 context watch, H17 profile guard', () => {
     expect(await hidden(fp, ctx, 'x')).toContain(warn)
   }))
 
-  test('H17: a profile-guard warning is shown at session start and logged', () => withSandbox(async sb => {
-    const { fp, ctx } = setup(sb, { profileGuard: () => 'Buracle was installed for Oh My Pi into /a, but this session reads /b.' })
+  test('H17: the pipeline\'s profile warning is a toast at a fresh session start and never enters the model\'s context; a resumed session gets none', () => withSandbox(sb => withEnv({ PI_CODING_AGENT_DIR: '/work/profile-b' }, async () => {
+    mkdirSync(paths.stateDir(), { recursive: true })
+    writeFileSync(paths.runtimeConfigFile(), JSON.stringify({ v: 1, resolved: { ompAgentDir: '/work/profile-a' } }))
+    const warnings = (c: FakeCtx) => c.uiCalls.filter(u => u.method === 'notify' && u.args[1] === 'warning')
+    const { fp, ctx } = setup(sb)
     await fp.emit('session_start', { type: 'session_start' }, ctx)
-    expect(ctx.uiCalls).toContainEqual({ method: 'notify', args: ['Buracle was installed for Oh My Pi into /a, but this session reads /b.', 'warning'] })
-  }))
+    const context = await hidden(fp, ctx, 'x')
+    expect(warnings(ctx)).toEqual([{ method: 'notify', args: [expect.stringContaining('Buracle was installed for Oh My Pi into /work/profile-a, but this session reads /work/profile-b (PI_CODING_AGENT_DIR)'), 'warning'] }])
+    expect(context ?? '').not.toContain('/work/profile-a')
+    await fp.emit('input', input('keep going'), ctx)
+    await hidden(fp, ctx, 'keep going')
+    expect(warnings(ctx)).toHaveLength(1)
+    const resumed = setup(sb)
+    await resumed.fp.emit('session_switch', { type: 'session_switch', reason: 'resume' }, resumed.ctx)
+    await hidden(resumed.fp, resumed.ctx, 'x')
+    expect(warnings(resumed.ctx)).toEqual([])
+  })))
 })
 
 describe('omp H21 workspace lines', () => {
@@ -583,13 +560,13 @@ describe('omp utility commands', () => {
 })
 
 describe('omp extension: spool of MCP and web tools (H14)', () => {
-  test('MCP and web calls are spooled with their tool names; the outer device write is not', () => withSandbox(async sb => {
+  test('MCP and web calls are not spooled, and neither is the outer device write', () => withSandbox(async sb => {
     const { fp, ctx, memory } = setup(sb)
     await fp.emit('tool_result', toolResult('write', { path: 'xd://mcp__context7_query_docs', content: '{}' }), ctx)
     await fp.emit('tool_result', toolResult('mcp__context7_query_docs', { libraryId: '/x/y', query: 'q' }), ctx)
     await fp.emit('tool_result', toolResult('web_search', { query: 'x' }), ctx)
     await Bun.sleep(0)
-    expect(memory.spool.flatMap(s => s.entries.map(e => `${e.tool}:${e.kind}`))).toEqual(['mcp__context7_query_docs:mcp', 'web_search:web_search'])
+    expect(memory.spool).toEqual([])
   }))
 })
 
@@ -610,7 +587,7 @@ describe('w2 plan state on omp: the lane guard, the H09 reminder and the H08 rec
     const sub = setup(sb, {}, { kind: 'sub' })
     const r = await sub.fp.emit('tool_call', toolCall('bash', { command: 'buracle plan resume' }), sub.ctx) as { block?: boolean, reason?: string }
     expect(r.block).toBe(true)
-    expect(r.reason).toContain('Buracle lane guard')
+    expect(r.reason).toContain('read-only reviewer')
     expect(await sub.fp.emit('tool_call', toolCall('bash', { command: 'buracle plan status --json' }, '2'), sub.ctx)).toBeUndefined()
   }))
 
@@ -622,7 +599,7 @@ describe('w2 plan state on omp: the lane guard, the H09 reminder and the H08 rec
       { language: 'py', code: "import subprocess\nsubprocess.run(['buracle', 'plan', 'pause', '--kind', 'decision'])" },
     ]) {
       const r = await sub.fp.emit('tool_call', toolCall('eval', input, '3'), sub.ctx) as Verdict
-      expect({ language: input.language, block: r?.block, lane: r?.reason?.includes('Buracle lane guard') }).toEqual({ language: input.language, block: true, lane: true })
+      expect({ language: input.language, block: r?.block, lane: r?.reason?.includes('Buracle H01: a subagent does not run') }).toEqual({ language: input.language, block: true, lane: true })
     }
     expect(await sub.fp.emit('tool_call', toolCall('eval', { language: 'js', code: "require('child_process').execSync('buracle plan status --json')" }, '4'), sub.ctx)).toBeUndefined()
     const main = setup(sb, { evalGuard: defaultDeps().evalGuard })
@@ -656,7 +633,7 @@ describe('w2 plan state on omp: the lane guard, the H09 reminder and the H08 rec
   }))
 
   test('notes the user pinned in the review page on the plan reach the next prompt once (H10)', () => withSandbox(async sb => {
-    const { fp, ctx, cwd } = setup(sb, { reviewNotes: (sid, o) => reviewNotesNotice('omp', sid, o) })
+    const { fp, ctx, cwd } = setup(sb)
     const plan = join(cwd, 'docs', 'plans', 'p.md')
     saveState('omp', SID, { ...planState(), plan: { ...planState().plan!, path: plan, status: 'PENDING', phase: 'plan' } })
     mkdirSync(join(sb.buracleHome, 'state', 'review'), { recursive: true })

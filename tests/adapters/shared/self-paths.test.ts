@@ -18,7 +18,8 @@ describe('selfPaths', () => {
   test('the default layout under the home folder, and the checkout these hooks run from', () => withSandbox(({ home, buracleHome }) => {
     expect(selfPaths()).toEqual({
       buracleHome, localBinDir: join(home, '.local', 'bin'), claudeDir: join(home, '.claude'), codexHome: join(home, '.codex'),
-      opencodeConfigDir: join(home, '.config', 'opencode'), ompAgentDir: join(home, '.omp', 'agent'), ompHome: join(home, '.omp'), repo: REPO,
+      opencodeConfigDir: join(home, '.config', 'opencode'), ompAgentDir: join(home, '.omp', 'agent'), ompHome: join(home, '.omp'),
+      qwenHome: join(home, '.qwen'), piAgentDir: join(home, '.pi', 'agent'), agyDir: join(home, '.gemini', 'config'), repo: REPO,
     })
     expect(selfPaths(undefined, paths)).toEqual(selfPaths())
   }))
@@ -43,11 +44,11 @@ describe('selfPaths', () => {
   test('no checkout anywhere: no repo; a lookup that throws or answers nonsense is left out, never thrown', () => {
     const fake = (over: Partial<SelfPathsSource>): SelfPathsSource => ({
       home: () => '/h', buracleHome: () => '/h/.buracle', localBinDir: () => '/h/.local/bin', claudeDir: () => '/h/.claude', codexHome: () => '/h/.codex',
-      opencodeConfigDir: () => '/h/.config/opencode', ompAgentDir: () => '/h/.omp/agent', ompHome: () => '/h/.omp', repoRoot: () => '/opt/bundle',
+      opencodeConfigDir: () => '/h/.config/opencode', ompAgentDir: () => '/h/.omp/agent', ompHome: () => '/h/.omp', qwenHome: () => '/h/.qwen', piAgentDir: () => '/h/.pi/agent', agyDir: () => '/h/.gemini/config', repoRoot: () => '/opt/bundle',
       isCheckout: () => false, expandHome: (p: string) => p, ...over,
     })
     expect(selfPaths(undefined, fake({})).repo).toBeUndefined()
     const broken = selfPaths(undefined, fake({ claudeDir: () => { throw new Error('EACCES') }, codexHome: () => 'relative/codex', repoRoot: () => { throw new Error('no checkout') } }))
-    expect(broken).toEqual({ buracleHome: '/h/.buracle', localBinDir: '/h/.local/bin', opencodeConfigDir: '/h/.config/opencode', ompAgentDir: '/h/.omp/agent', ompHome: '/h/.omp' })
+    expect(broken).toEqual({ buracleHome: '/h/.buracle', localBinDir: '/h/.local/bin', opencodeConfigDir: '/h/.config/opencode', ompAgentDir: '/h/.omp/agent', ompHome: '/h/.omp', qwenHome: '/h/.qwen', piAgentDir: '/h/.pi/agent', agyDir: '/h/.gemini/config' })
   })
 })

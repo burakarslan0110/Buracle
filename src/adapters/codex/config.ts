@@ -2,7 +2,6 @@ import type { McpCatalog, StatuslineCatalog } from '../../core/catalog'
 import { envRef, expandMcpCommand, mcpEnvFor } from '../../core/catalog'
 import { compactPrompt } from '../../core/compact'
 import type { BuracleConfig } from '../../core/config'
-import { resolveEffort } from '../../core/effort'
 import { tomlKey, tomlValue } from '../../engine/merge'
 
 export type McpTable = Record<string, unknown>
@@ -15,7 +14,6 @@ export const CODEX_ENUMS = {
   web_search: ['disabled', 'cached', 'indexed', 'live'],
   omit_tools_from: ['direct', 'deferred', 'code_mode'],
   default_tools_approval_mode: ['auto', 'prompt', 'writes', 'approve'],
-  reasoning_effort: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
 } as const satisfies Record<string, readonly string[]>
 
 export type CodexEnumKey = keyof typeof CODEX_ENUMS
@@ -92,19 +90,6 @@ export function routingRootKeys(cfg: Pick<BuracleConfig, 'routing'> & { mcp?: Pi
   return keys
 }
 
-export const SUBAGENT_EFFORTS: readonly string[] = ['low', 'medium', 'high', 'xhigh']
-
-export function subagentEffort(level: string): string {
-  if (SUBAGENT_EFFORTS.includes(level)) return level
-  return level === 'none' || level === 'minimal' ? 'low' : 'xhigh'
-}
-
-export function effortKeys(cfg: Pick<BuracleConfig, 'effort'>): Record<string, string> | undefined {
-  const r = resolveEffort('codex', cfg.effort.codex)
-  if (!('level' in r)) return undefined
-  return { model_reasoning_effort: r.level, plan_mode_reasoning_effort: r.level, 'agents.default_subagent_reasoning_effort': subagentEffort(r.level) }
-}
-
 export const GRANULAR_FLAGS = ['sandbox_approval', 'rules', 'skill_approval', 'request_permissions', 'mcp_elicitations'] as const
 
 export const BYPASS_APPROVAL_POLICY: Readonly<{ granular: Readonly<Record<typeof GRANULAR_FLAGS[number], boolean>> }> = {
@@ -134,7 +119,7 @@ export function compactKeys(): Record<string, string> {
   return { compact_prompt: compactPrompt() }
 }
 
-export function codexValueProblems(input: { mcpTables: Record<string, McpTable>, rootKeys: Record<string, unknown>, effort?: Record<string, string>, bypass?: Readonly<Record<string, unknown>> }): string[] {
+export function codexValueProblems(input: { mcpTables: Record<string, McpTable>, rootKeys: Record<string, unknown>, bypass?: Readonly<Record<string, unknown>> }): string[] {
   const out: string[] = []
   const check = (where: string, key: CodexEnumKey, v: unknown) => { const p = codexEnumProblem(key, v); if (p !== undefined) out.push(`${where}: ${p}`) }
   for (const [name, t] of Object.entries(input.mcpTables)) {
@@ -144,9 +129,6 @@ export function codexValueProblems(input: { mcpTables: Record<string, McpTable>,
   if (input.rootKeys['web_search'] !== undefined) check('config.toml', 'web_search', input.rootKeys['web_search'])
   const grace = input.rootKeys['mcp_optional_startup_grace_ms']
   if (grace !== undefined && !(typeof grace === 'number' && Number.isInteger(grace) && grace >= 0)) out.push(`config.toml: mcp_optional_startup_grace_ms must be a whole number of milliseconds (got ${JSON.stringify(grace)})`)
-  for (const [k, v] of Object.entries(input.effort ?? {})) check(k, 'reasoning_effort', v)
-  const sub = input.effort?.['agents.default_subagent_reasoning_effort']
-  if (sub !== undefined && !SUBAGENT_EFFORTS.includes(sub)) out.push(`agents.default_subagent_reasoning_effort: ${JSON.stringify(sub)} is not supported by every model (spawn_agent would fail)`)
   if (input.bypass !== undefined) {
     const policy = approvalPolicyProblem(input.bypass['approval_policy'])
     if (policy !== undefined) out.push(`config.toml: ${policy}`)

@@ -3,14 +3,14 @@ name: buracle
 description: >-
   How to use the `buracle` helper CLI that Buracle workflows call instead of ad-hoc shell: plan
   state and the stop guard (`buracle plan …`, with `plan pause` as the only escape hatch),
-  isolated worktrees, review diff scope, notifications, usage limits, memory CLI twins, workflow
+  isolated worktrees, review diff scope, usage limits, memory CLI twins, workflow
   progress, code indexes, project sync, skill and rule lint, and `buracle doctor` for health checks.
   Covers JSON output, exit codes (0 ok, 1 error, 2 needs user action) and session resolution. Use
   whenever a step needs one of these commands, when a buracle command fails, or when the stop guard
   keeps your turn going.
 when_to_use: >-
   Creating, registering or moving a plan; pausing to ask the user; creating or merging a worktree;
-  computing a review diff; notifying the user; checking rate-limit headroom; diagnosing Buracle.
+  computing a review diff; checking rate-limit headroom; diagnosing Buracle.
 invocation: implicit
 user-invocable: false
 mcp: []
@@ -33,7 +33,7 @@ never edit its state files by hand.
 - Never edit `~/.buracle/` files or session state. The CLI owns them and the write guard blocks
   edits there.
 - Commands that change the installation (`buracle install`, `buracle update`,
-  `rollback`, `uninstall`) run only when the user asks for them.
+  `uninstall`) run only when the user asks for them.
 
 ## Session resolution
 
@@ -44,8 +44,8 @@ into your shell: `BURACLE_SESSION_ID` with `BURACLE_HARNESS`, `CLAUDE_CODE_SESSI
 sets of ids are present and the harness process you run under decides. Normally pass neither flag.
 
 The `plan` subcommands that read or change this session's binding (`register`, `prepare-native`, `status`, `set`,
-`pause`, `resume`, `complete`, `approve-result`, `verify`, `review`, `unregister`) exit 2 without a session. `worktree`,
-`review-scope` and `notify` use the session when there is one and work without it (`worktree create`
+`pause`, `resume`, `complete`, `approve-result`, `verify`, `review`, `unregister`) exit 2 without a session. `worktree`
+and `review-scope` use the session when there is one and work without it (`worktree create`
 then warns that it marked no plan). Never invent an id and never borrow another session's id.
 Without a session, continue from the plan file, tell the user once that the stop guard is not
 protecting this run, and suggest `buracle doctor`.
@@ -57,14 +57,13 @@ protecting this run, and suggest `buracle doctor`.
 | New plan file | `buracle plan init --type feature\|bugfix\|build --title "<t>" --json` → `{path, slug}` |
 | Check a plan's format | `buracle plan validate <path> --json` (exit 0 ok, 1 errors, 2 warnings with `--strict`) |
 | Bind the plan to this session | `buracle plan register <path> --phase plan\|implement\|verify --json` (the phase its state implies: `plan` until approved, `verify` once `COMPLETE`; a locked goal-build run takes no `--phase`, so the phase its run file records stays) |
-| Plan a registered feature plan in the harness's own plan mode (`plan.nativePlanMode`, as {{skill:plan-build}} says) | `buracle plan prepare-native <path> --json` (exit 2 with `reasons` when refused; `--cancel` drops the binding) |
+| Plan a registered feature plan in the harness's own plan mode (`plan.nativePlanMode`, as the `plan-build` skill says) | `buracle plan prepare-native <path> --json` (exit 2 with `reasons` when refused; `--cancel` drops the binding) |
 | Where am I? (also after a compaction) | `buracle plan status --json` → `{plan, phase, status, tasks: {done, total}, interaction}` |
 | Move the plan along | `buracle plan set status <S>`, `buracle plan set phase <p>`, `buracle plan set approved true` |
 | Raise the iteration or round counter | `buracle plan set iterations <n>` (Feature, Bugfix) or `buracle plan set rounds <n>` (Build) |
 | You need a real decision from the user | `buracle plan pause --kind decision --reason "<question>"`, then ask |
 | The user answered, or said "continue" after a stop | `buracle plan resume` (a bare "continue" answers no open decision or manual step: ask again; it does answer the runaway question, a goal-build hand-back and the model-switch pause) |
 | A reviewer runs in the background, or its report was triaged | `buracle plan review start --role plan\|changes\|goal --handle <id>`, then `buracle plan review done --role <r> --verdict <v>` |
-| A whole workflow runs as a plan lane | the lead: `buracle worktree create <slug> --lane`, and the plan file in the lead's checkout; the lane: every `buracle plan` command with `--lane <slug>` |
 | Planned work against the actual diff (end of implement, start of verify) | `buracle plan audit [<path>] --json` (exit 2 on warnings: planned work missing, unplanned changes, open Inventory rows) |
 | The user pinned notes in the review page (before an approval, before finishing a change) | `buracle plan notes [<path>] [--kind plan\|code] --json`, then `buracle plan notes [<path>] --done <id>[,<id>]` for the ones you applied (no notes is never an approval) |
 | All tasks implemented | `buracle plan complete` |
@@ -74,22 +73,22 @@ protecting this run, and suggest `buracle doctor`.
 | Isolated branch for a plan | `buracle worktree detect --json`, else `buracle worktree create <slug> [--prefix plan-build\|goal-build\|bugfix] --json` |
 | A new branch in this checkout instead of a worktree | `buracle worktree branch <slug> [--prefix plan-build\|goal-build\|bugfix] --json` (records its base for the review) |
 | Diff to review | `buracle review-scope --slug <slug> --json` |
-| User attention needed | `buracle notify <type> "<title>" "<message>" [--plan <path>]` |
 | Before an expensive fan-out | `buracle usage --json` |
 | Memory without the MCP server | `buracle mem search\|get\|write\|update\|remember\|status\|capture` (`mem search` also filters without a query: `--type`, `--since`, `--until`, `--file`, `--tag`, `--around <id>`; `buracle mem --help` lists them all) |
-| Back up, restore or move a brain (only when the user asks) | `buracle mem backup [--list]`, `buracle mem restore <id> --project <slug>`, `buracle mem export [--out <file>]`, `buracle mem import <file> [--dry-run]` |
+| Back up or restore a brain (only when the user asks) | `buracle mem backup [--list]`, `buracle mem restore <id> --project <slug>` |
 | Show a workflow's progress (the band above the prompt, the status line) | `buracle flow start <workflow>`, `buracle flow phase <id>`, `buracle flow end --outcome done` (the workflow skills say when) |
 | codegraph reports that the project has no index | `buracle index ensure --cwd <project root>`, then retry |
-| New repository, or AGENTS.md or project skills changed | `buracle project init --json` / `buracle project sync --json` |
+| New repository, or AGENTS.md or project skills changed | `buracle project sync --json` |
 | Agent guidance drifted (path rules, skill links, CLAUDE.md import)? | `buracle project check --json` (read-only; exit 2 names each fix) |
 | Skills that exist only in `.claude/skills` | `buracle project sync --adopt --dry-run --json`, then without `--dry-run` (`--move` only after the user agrees) |
 | Authoring skills and rules | `buracle skills list\|new\|lint`, `buracle rules lint` |
 | Something in Buracle misbehaves | `buracle doctor` or `buracle doctor <harness>` (read-only) |
 
-The workflow skill in charge ({{skill:plan-build}}, {{skill:goal-build}}, {{skill:bugfix}}) decides when each
-transition happens. Arguments, outputs and exit codes for every command:
-[references/commands.md](references/commands.md). Ready-made sequences:
+The workflow skill in charge (the `plan-build` skill, the `goal-build` skill, the `bugfix` skill) decides when each
+transition happens. The commands and their flags: [references/commands.md](references/commands.md);
+the details of one command: `buracle <command> --help`. Ready-made sequences:
 [references/recipes.md](references/recipes.md).
+The detail behind the always-loaded rules: lanes in [references/lanes.md](references/lanes.md), evidence, testing, git and docs in [references/working-rules.md](references/working-rules.md), documents and language in [references/plain-language.md](references/plain-language.md).
 
 ## Plans and the stop guard
 
@@ -103,11 +102,11 @@ VERIFIED plan only: `buracle plan set phase done` runs the same checks as `burac
 - **Pause before you ask.** Before a question that may end your turn (approval, a material
   decision, a step only the user can do), record it:
   `buracle plan pause --kind decision --reason "<question>"` (`--kind manual` when the user must do
-  something by hand). Then ask with {{ask_user}}. After the answer, `buracle plan resume`.
+  something by hand). Then ask with your structured-question tool. After the answer, `buracle plan resume`.
 - **Escape hatch:** while a registered plan is not VERIFIED, the stop guard keeps your turn going. The only way out is a pause: `buracle plan pause` (before a real question or a hand-back), or the user asking you to stop, wait or hold on, in any language. Buracle records it only when the whole message is such a word in English or Turkish, so otherwise run `buracle plan pause --kind discussion` yourself. The user's "continue" or `buracle plan resume` ends it. Use it for real waits, never to dodge remaining work.
 - **No routine questions.** In an approved run, never ask "should I continue?" or "should I keep
   waiting?". No guard rejects them any more, so this is yours to keep: keep working, or wait on the
-  job with {{todo}} and your harness's background facilities.
+  job with your todo tool and your harness's background facilities.
 - **Approval belongs to the user.** Run `buracle plan set approved true` only after the user
   approves in answer to the approval question ("approve", "yes", "ok", "lgtm", or the same in their
   language). Outside that question, a bare "ok" is an acknowledgment, not approval.
@@ -122,7 +121,7 @@ VERIFIED plan only: `buracle plan set phase done` runs the same checks as `burac
   run `buracle plan pause --kind discussion --reason "<their words>"` (harmless if the prompt hook
   already recorded it), give a status of at most five lines, end the turn. "Continue", "go on",
   "pick up where you left off": check `buracle plan status --json` and run `buracle plan resume` if
-  `interaction.state` is still `paused`. "Cancel", "drop it": confirm with {{ask_user}}, then
+  `interaction.state` is still `paused`. "Cancel", "drop it": confirm with your structured-question tool, then
   `buracle plan unregister`.
 - **Do not fight the guard.** It gives up after repeated blocks without progress and lets the turn
   end if it fails. If it keeps blocking you, do the action it names, or pause with a clear reason
@@ -133,13 +132,14 @@ VERIFIED plan only: `buracle plan set phase done` runs the same checks as `burac
 - `buracle worktree create <slug> [--prefix plan-build|goal-build|bugfix] --json` → `{path, branch}` with branch
   `<prefix>/<slug>` (default prefix `plan-build`); it also sets `worktree: true` on the registered plan.
   Work inside `path`. Run `buracle worktree detect --json` first to reuse an existing one.
-- `buracle worktree sync <slug> --json` squash-merges into the base. **0** merged · **2** merged
-  but the user's stashed local changes were not restored (tell them to check `git stash list`;
-  never pop or drop it yourself; plan files are never stashed, so the plan keeps its state) ·
-  **1** nothing merged (read the error; never clean up in this state).
-- `buracle worktree cleanup <slug>` after a sync that exited 0 or 2 needs no flag. `--force` is
-  only for a branch squash-merged outside the CLI that cleanup cannot recognize as merged.
-  `--discard` deletes unmerged work: only after the user's explicit yes.
+- The CLI does not merge. With everything committed in the worktree (`git -C <path> status --porcelain`
+  prints nothing), merge with git in the main checkout, on the base branch: `git merge --squash
+  <branch>`, then `git commit` (`git commit -C <branch>` reuses the branch tip's message). On a
+  conflict or an error, undo with `git reset --merge`, merge the base into the worktree branch
+  (never rebase), re-run the checks and retry once; otherwise ask. Never touch the user's
+  uncommitted changes, and never clean up in this state.
+- `buracle worktree cleanup <slug>` after the merge needs no flag. `--force` is only for a branch
+  whose commits landed another way. `--discard` deletes unmerged work: only after the user's explicit yes.
 - Never run raw `git worktree add` or `git worktree remove` for plan worktrees; the CLI keeps the
   session binding and the repository lock.
 - `buracle review-scope [--slug <s>] [--base <ref>] --json` → `{mode, base_ref, diff_range,
@@ -149,16 +149,10 @@ VERIFIED plan only: `buracle plan set phase done` runs the same checks as `burac
   it again with `--base <ref>` (the branch or commit the work started from). Never assemble a range
   by hand.
 
-## Notifications and usage
+## Usage
 
-- `buracle notify plan_approval|prd_approval|attention_needed|verification_complete|info "<title>" "<message>" [--plan <path>]`
-  sends a desktop notification and records it (notifications are not memory). Send
-  `plan_approval` right before waiting for a plan's approval, `prd_approval` when a PRD waits for
-  review, `attention_needed` when only the user can unblock you, `verification_complete` at the
-  end, and `info` sparingly for milestones in long autonomous runs. Write in the language the user
-  writes in, keep titles short, never include secrets. A failed notification never blocks the work.
-- `buracle usage --json` reports the 5-hour and 7-day windows (percent used, reset time) and a
-  monthly estimate. Check it before a fan-out (three or more subagents, an ab-test batch, a long loop).
+- `buracle usage --json` reports the 5-hour and 7-day windows (percent used, reset time).
+  Check it before a fan-out (three or more subagents, an ab-test batch, a long loop).
   At 75% or more of the 5-hour window, or 85% or more of the 7-day window, tell the user and
   prefer the cheaper path.
 

@@ -1,14 +1,15 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { MEMORY_INJECT } from '../../../src/core/memory/budgets'
+import { CONTEXT_BUDGET_BYTES } from '../../../src/adapters/shared/pipeline/index'
 import { capabilityCard } from '../../../src/core/policy/routing'
 import { CONTINUE_MARK, BuracleRuntime, contextNote, createBuraclePlugin, REGISTRY_KEY, type PluginDeps } from '../../../src/adapters/opencode/runtime/plugin'
-import { AUTO_PAUSE_REASON, clearRepoCache } from '../../../src/adapters/opencode/runtime/adapter-rules'
+import { clearRepoCache } from '../../../src/adapters/opencode/runtime/adapter-rules'
 import type { PermissionEvaluation, SessionContextEvent, ShellCreateBefore, ToolExecuteAfter } from '../../../src/adapters/opencode/runtime/types'
 import { clearPreparedWorkspaces } from '../../../src/adapters/opencode/runtime/workspace'
 import type { BuracleConfig } from '../../../src/core/config'
-import type { SessionState } from '../../../src/core/plan/state'
+import { RUNAWAY_PER_CHAIN, RUNAWAY_PER_PLAN, type SessionState } from '../../../src/core/plan/state'
+import { CONTEXT_DEFAULTS } from '../../../src/core/status/context'
 import type { WorkspaceInfo } from '../../../src/core/workspace'
 import * as paths from '../../../src/engine/paths'
 import { readFlow } from '../../../src/workflow/flow'
@@ -63,13 +64,11 @@ async function runtime(dir: string, opts: RuntimeOpts = {}) {
   const f = fakeServerContext(dir)
   const mem = fakeMemory(opts.memoryText)
   const baked = testBaked(opts.routing !== undefined ? { routing: opts.routing } : {})
-  const notices: Array<{ title: string, message: string }> = []
   const maintCalls: Array<{ nowMs: number, keep: string[] }> = []
   const deps: PluginDeps = {
     baked, memory: mem, settleMs: opts.settleMs ?? 0, runChecker: opts.runChecker ?? (async () => ({ code: 0, stdout: '', stderr: '' })),
     capture: opts.capture ?? (() => true),
     maint: opts.maint ?? ((nowMs, keep) => { maintCalls.push({ nowMs, keep }); return { removed: [] } }),
-    notify: (title, message) => { notices.push({ title, message }) },
     workspace: opts.workspace ?? (async cwd => noProject(cwd)),
     workspaceRead: async cwd => noProject(cwd),
     ...(opts.now !== undefined ? { now: opts.now } : {}),
@@ -77,7 +76,7 @@ async function runtime(dir: string, opts: RuntimeOpts = {}) {
   }
   const rt = new BuracleRuntime(f.ctx, deps)
   await rt.register()
-  return { f, mem, rt, baked, notices, maintCalls }
+  return { f, mem, rt, baked, maintCalls }
 }
 
 describe('opencode server plugin: setup and lifecycle', () => {
@@ -132,12 +131,13 @@ describe('opencode server plugin: setup and lifecycle', () => {
     await rt.idle()
     await rt.dispose()
     expect(mem.appended.map(a => a.sid).filter(sid => sid !== SID)).toEqual([])
-    expect(mem.appended.flatMap(a => a.entries).map(e => [e.ev, e.tool, e.kind])).toEqual([['tool', 'shell', 'bash'], ['tool', 'write', 'write']])
+    // A subagent's tool calls are not spooled, like the main session's.
+    expect(mem.appended.flatMap(a => a.entries)).toEqual([])
     expect(mem.started.map(s => s.sid)).toEqual([SID])
     expect(mem.finalized).toEqual([SID])
   }))
 
-  test('H14: a root session whose only work this plugin instance saw was a subagent\'s is started and finalized with that work', () => withSandbox(async ({ root }) => {
+  test('H14: a root session whose only work this plugin instance saw was a subagent\'s is started and finalized (the work itself is not spooled)', () => withSandbox(async ({ root }) => {
     const { f, rt, mem } = await runtime(root)
     f.parents['ses_sub8'] = 'ses_root8'
     const ls = { command: 'ls' }
@@ -145,7 +145,7 @@ describe('opencode server plugin: setup and lifecycle', () => {
     await f.trigger('tool.execute.after', { tool: 'shell', sessionID: 'ses_sub8', agent: 'general', messageID: 'msg_s1', id: 'call_s8', input: ls, status: 'completed', result: { output: { exit: 0 }, content: [{ type: 'text', text: '' }] } } satisfies ToolExecuteAfter)
     await rt.idle()
     await rt.dispose()
-    expect(mem.appended.map(a => a.sid)).toEqual(['ses_root8'])
+    expect(mem.appended).toEqual([])
     expect(mem.started.map(s => s.sid)).toEqual(['ses_root8'])
     expect(mem.finalized).toEqual(['ses_root8'])
   }))
@@ -257,7 +257,7 @@ describe('opencode server plugin: permission.evaluate guards', () => {
     await f.trigger('tool.execute.before', { tool: 'shell', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_1', input: { command: 'rm -rf /' } })
     const bad = await f.trigger('permission.evaluate', evaluation('shell', ['rm -rf /'], 'call_1'))
     expect(bad.effect).toBe('deny')
-    expect(bad.message).toStartWith('[Buracle H01 guard.bash] ')
+    expect(bad.message).toStartWith('Buracle H01: ')
     const ok = await f.trigger('permission.evaluate', evaluation('shell', ['ls -la']))
     expect(ok.effect).toBe('allow')
     expect(ok.message).toBeUndefined()
@@ -267,7 +267,7 @@ describe('opencode server plugin: permission.evaluate guards', () => {
     const { f } = await runtime(root)
     const held = await f.trigger('permission.evaluate', evaluation('shell', ['git push origin main']))
     expect(held.effect).toBe('deny')
-    expect(held.message).toStartWith('[Buracle H20 consent.gate] ')
+    expect(held.message).toStartWith('Buracle H20: ')
     expect((await f.trigger('permission.evaluate', evaluation('shell', ['git status']))).effect).toBe('allow')
     await f.trigger('session.prompt', { sessionID: SID, messageID: 'msg_p', prompt: { text: 'evet, pushla' }, delivery: 'steer' as const })
     expect((await f.trigger('permission.evaluate', evaluation('shell', ['git push origin main']))).effect).toBe('allow')
@@ -285,7 +285,7 @@ describe('opencode server plugin: permission.evaluate guards', () => {
     const { f } = await runtime(root)
     const secret = await f.trigger('permission.evaluate', evaluation('edit', ['.env']))
     expect(secret.effect).toBe('deny')
-    expect(secret.message).toStartWith('[Buracle H02 guard.write] ')
+    expect(secret.message).toStartWith('Buracle H02: ')
     await f.trigger('tool.execute.before', { tool: 'write', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_3', input: { path: 'src/app.ts', content: 'x' } })
     const plain = await f.trigger('permission.evaluate', evaluation('edit', ['src/app.ts'], 'call_3'))
     expect(plain.effect).toBe('allow')
@@ -313,7 +313,7 @@ describe('opencode server plugin: permission.evaluate guards', () => {
     await f.trigger('tool.execute.before', { tool: 'write', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_t1', input: { path: '~/.ssh/authorized_keys', content: 'ssh-ed25519 AAAA x\n' } })
     const ssh = await f.trigger('permission.evaluate', evaluation('edit', [], 'call_t1'))
     expect(ssh.effect).toBe('deny')
-    expect(ssh.message).toStartWith('[Buracle H02 guard.write] ')
+    expect(ssh.message).toStartWith('Buracle H02: ')
     expect(ssh.message).toContain('`~/.ssh/authorized_keys`')
     const input = { path: '~/notes/todo.md', content: '- x\n' }
     await f.trigger('tool.execute.before', { tool: 'write', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_t2', input })
@@ -321,8 +321,8 @@ describe('opencode server plugin: permission.evaluate guards', () => {
     mkdirSync(join(home, 'notes'), { recursive: true })
     writeFileSync(join(home, 'notes', 'todo.md'), input.content)
     await f.trigger('tool.execute.after', { tool: 'write', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_t2', input, status: 'completed', result: { output: {}, content: [{ type: 'text', text: 'Wrote the file' }] } } satisfies ToolExecuteAfter)
-    const written = mem.appended.flatMap(a => a.entries).find(e => e.ev === 'tool' && e.kind === 'write')
-    expect(written?.paths).toEqual([join(home, 'notes', 'todo.md')])
+    // The write itself leaves no spool entry: the capture keeps prompts and turns, and git lists the files.
+    expect(mem.appended.flatMap(a => a.entries)).toEqual([])
   }))
 
   test('H03 enforce denies the built-in websearch while web-search is usable; down → allowed', () => withSandbox(async ({ root, buracleHome }) => {
@@ -360,7 +360,7 @@ describe('opencode server plugin: permission.evaluate guards', () => {
 })
 
 describe('opencode server plugin: tool results, context, compaction, prompts, shell', () => {
-  test('execute.after spools edit and shell metadata and appends H04 notes and nudges', () => withSandbox(async ({ root }) => {
+  test('execute.after spools edit and shell metadata', () => withSandbox(async ({ root }) => {
     const { f, mem } = await runtime(root)
     const file = join(root, 'big.ts')
     writeFileSync(file, Array.from({ length: 1200 }, (_, i) => `export const v${i} = ${i}`).join('\n'))
@@ -371,33 +371,16 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
     expect(Array.isArray(content)).toBe(true)
     const texts = (content as unknown as Array<{ text: string }>).map(c => c.text)
     expect(texts[0]).toBe('Edited big.ts')
-    expect(texts.join('\n')).toContain('Buracle checks (H04):')
-    const edit = mem.appended.flatMap(a => a.entries).find(e => e.ev === 'tool' && e.kind === 'edit')
-    expect(edit?.paths).toEqual([file])
+    expect(mem.appended.flatMap(a => a.entries)).toEqual([])
 
     await f.trigger('tool.execute.before', { tool: 'shell', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_s', input: { command: 'grep -r foo .' } })
     await f.trigger('permission.evaluate', evaluation('shell', ['grep -r foo .'], 'call_s'))
     const sh: ToolExecuteAfter = { tool: 'shell', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_s', input: { command: 'grep -r foo .' }, status: 'completed', result: { output: { exit: 1, output: '', truncated: false }, content: [{ type: 'text', text: '' }] } }
     await f.trigger('tool.execute.after', sh)
-    const shText = sh.status === 'completed' ? (sh.result.content as unknown as Array<{ text: string }>).map(c => c.text).join('\n') : ''
-    expect(shText).toContain('rg')
-    const bash = mem.appended.flatMap(a => a.entries).find(e => e.ev === 'tool' && e.kind === 'bash')
-    expect(bash).toMatchObject({ tool: 'shell', cmd: 'grep -r foo .', exit: 1 })
+    expect(mem.appended.flatMap(a => a.entries)).toEqual([])
   }))
 
-  test('H03 shell notes ride the tool result: a shell file write points to edit, write or patch, a file print to read', () => withSandbox(async ({ root }) => {
-    const { f } = await runtime(root)
-    const shell = async (id: string, command: string): Promise<string> => {
-      await f.trigger('tool.execute.before', { tool: 'shell', sessionID: SID, agent: 'build', messageID: 'msg_1', id, input: { command } })
-      const after: ToolExecuteAfter = { tool: 'shell', sessionID: SID, agent: 'build', messageID: 'msg_1', id, input: { command }, status: 'completed', result: { output: { exit: 0, output: '', truncated: false }, content: [{ type: 'text', text: '' }] } }
-      await f.trigger('tool.execute.after', after)
-      return after.status === 'completed' ? (after.result.content as unknown as Array<{ text: string }>).map(c => c.text).join('\n') : ''
-    }
-    expect(await shell('call_w', "sed -i 's/a/b/' src/a.ts")).toContain('this shell command writes `src/a.ts` (sed -i in place). Make ordinary source edits with the edit, write or patch tool instead')
-    expect(await shell('call_r', 'cat src/a.ts')).toContain('read `src/a.ts` with the read tool instead of printing it in the shell')
-  }))
-
-  test('H04: a missing linter is named once per session; a mirrored test folder silences the TDD note', () => withSandbox(async ({ root }) => {
+  test('H04: a missing linter is named once per session', () => withSandbox(async ({ root }) => {
     const { f } = await runtime(root, { runChecker: async () => ({ code: 127, stdout: '', stderr: 'spawn shellcheck ENOENT' }) })
     mkdirSync(join(root, 'src', 'core'), { recursive: true })
     mkdirSync(join(root, 'tests', 'core'), { recursive: true })
@@ -410,23 +393,21 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
       await f.trigger('tool.execute.after', after)
       return after.status === 'completed' ? (after.result.content as unknown as Array<{ text: string }>).map(c => c.text).join('\n') : ''
     }
-    expect(await write('call_1', 'run.sh', 'echo $1\n')).toContain('run.sh: shellcheck is not installed, so it did not check this file: run `buracle install`.')
+    expect(await write('call_1', 'run.sh', 'echo $1\n')).toContain('run.sh:\n- shellcheck is not installed, so it did not check this file: run `buracle install`.')
     expect(await write('call_2', 'run.sh', 'echo $1\n')).not.toContain('Buracle checks (H04)')
     expect(await write('call_3', 'src/core/x.ts', 'export const x = 1\n')).not.toContain('Buracle checks (H04)')
   }))
 
   test('H04: a patch that adds a file under ~/ is checked where OpenCode writes it, in the home folder', () => withSandbox(async ({ root, home }) => {
-    const { f } = await runtime(root)
-    const zwsp = String.fromCharCode(0x200b)
+    const { f } = await runtime(root, { runChecker: async () => ({ code: 127, stdout: '', stderr: 'spawn shellcheck ENOENT' }) })
     mkdirSync(join(home, 'notes'), { recursive: true })
-    writeFileSync(join(home, 'notes', 'a.ts'), `export const x = "a${zwsp}b"\n`)
-    const input = { patchText: `*** Begin Patch\n*** Add File: ~/notes/a.ts\n+export const x = "a${zwsp}b"\n*** End Patch` }
+    writeFileSync(join(home, 'notes', 'a.sh'), 'echo $1\n')
+    const input = { patchText: '*** Begin Patch\n*** Add File: ~/notes/a.sh\n+echo $1\n*** End Patch' }
     await f.trigger('tool.execute.before', { tool: 'patch', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_p', input })
     const after: ToolExecuteAfter = { tool: 'patch', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_p', input, status: 'completed', result: { output: {}, content: [{ type: 'text', text: 'Applied the patch' }] } }
     await f.trigger('tool.execute.after', after)
     const text = after.status === 'completed' ? (after.result.content as unknown as Array<{ text: string }>).map(c => c.text).join('\n') : ''
-    expect(text).toContain('a.ts: added line 1, column 20: ')
-    expect(text).toContain('(U+200B)')
+    expect(text).toContain('a.sh:\n- shellcheck is not installed')
   }))
 
   test('session.context injects the capability card, the memory context and the H05 warning once (core contextWatch, D5)', () => withSandbox(async ({ root }) => {
@@ -439,17 +420,18 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
     await f.trigger('session.context', ev)
     const texts = ev.system.map(p => p.text)
     expect(texts[0]).toBe('host prompt')
-    expect(texts[1]).toBe(capabilityCard({ policy: baked.routing, mcp: baked.mcp, skills: baked.skills, plugins: baked.plugins, harness: 'opencode' }))
-    expect(texts).toContain(memoryText)
-    expect(mem.contexts).toEqual([{ cwd: root, maxBytes: MEMORY_INJECT.maxBytes }])
-    expect(texts.at(-1)).toBe(contextNote(89, baked.defaults.context) as string)
+    expect(texts.at(-2)).toBe(capabilityCard({ policy: baked.routing, mcp: baked.mcp, plugins: baked.plugins, harness: 'opencode' }))
+    expect(texts.at(-3)).toBe(memoryText)
+    expect(mem.contexts).toEqual([{ cwd: root, maxBytes: expect.any(Number) }])
+    expect(mem.contexts[0]?.maxBytes).toBeLessThan(CONTEXT_BUDGET_BYTES)
+    expect(texts.at(-1)).toBe(contextNote(89) as string)
     const ev2: SessionContextEvent = { ...ev, system: [{ type: 'text', text: 'host prompt' }] }
     await f.trigger('session.context', ev2)
     expect(ev2.system.map(p => p.text)).toEqual(texts.slice(0, -1))
   }))
 
   test('H05 (D5): one warning per band, re-armed only below warnPct; a reloaded plugin does not repeat it', () => withSandbox(async ({ root }) => {
-    const { f, rt, baked } = await runtime(root)
+    const { f, rt } = await runtime(root)
     await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: root } } })
     await rt.handleEvent({ type: 'session.step.started', data: { sessionID: SID, model: { id: 'm1', providerID: 'p' } } })
     const step = (input: number) => rt.handleEvent({ type: 'session.step.ended', data: { sessionID: SID, tokens: { input, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }, cost: 0 } })
@@ -458,7 +440,7 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
       await f.trigger('session.context', ev)
       return ev.system.map(p => p.text).filter(t => t.startsWith('Buracle: the context window'))
     }
-    const t = baked.defaults.context
+    const t = CONTEXT_DEFAULTS
     await step(960)
     expect(await warnings()).toEqual([contextNote(96, t) as string])
     await step(880)
@@ -483,7 +465,7 @@ describe('opencode server plugin: tool results, context, compaction, prompts, sh
     writeFileSync(join(home, '.ssh', 'authorized_keys'), 'k\n')
     mkdirSync(join(root, 'proj'), { recursive: true })
     symlinkSync(join(home, '.ssh'), join(root, 'proj', 'cfg'))
-    const ctx = rt.writeContext(join(root, 'proj'), testBaked().defaults) as unknown as { realpath?: (p: string) => string | undefined }
+    const ctx = await rt.writeContext(join(root, 'proj')) as unknown as { realpath?: (p: string) => string | undefined }
     expect(ctx.realpath?.(join(root, 'proj', 'cfg', 'config'))).toBe(join(home, '.ssh', 'config'))
   }))
 
@@ -617,7 +599,7 @@ describe('opencode server plugin: stop guard emulation (H08/H11)', () => {
     await rt.idle()
     expect(f.prompts.length).toBe(1)
     for (let i = 0; i < 8; i++) { clock += 120_000; await cycle(rt) }
-    expect(f.prompts.length).toBe(testBaked().defaults.plan.runaway.perChain + 1)
+    expect(f.prompts.length).toBe(RUNAWAY_PER_CHAIN + 1)
     expect(f.prompts.at(-1)?.text).toContain('runaway: continue, pivot or abandon?')
   }))
 
@@ -691,7 +673,7 @@ describe('opencode server plugin: stage-B contract rules', () => {
     const { f, baked } = await runtime(root)
     const first = ctxEvent()
     await f.trigger('session.context', first)
-    const card = first.system[0]?.text ?? ''
+    const card = first.system.at(-1)?.text ?? ''
     expect(card.split('\n').length).toBeLessThanOrEqual(30)
     expect(card).not.toContain('invoke as /<id>')
     expect(card).not.toContain('tool search')
@@ -703,7 +685,7 @@ describe('opencode server plugin: stage-B contract rules', () => {
     await f.trigger('session.context', ev)
     const healthy = baked.mcp.filter(m => m.id !== 'semble')
     expect(healthy.some(m => m.id === 'grep')).toBe(true)
-    expect(ev.system[0]?.text).toBe(capabilityCard({ policy: baked.routing, mcp: healthy, skills: baked.skills, plugins: baked.plugins, harness: 'opencode' }))
+    expect(ev.system.at(-1)?.text).toBe(capabilityCard({ policy: baked.routing, mcp: healthy, plugins: baked.plugins, harness: 'opencode' }))
   }))
 
   test('BURACLE_NO_CAPTURE: a session that starts with capture off gets no spool, stub note or finalizer', () => withSandbox(async ({ root }) => {
@@ -773,14 +755,14 @@ describe('opencode server plugin: stage-B contract rules', () => {
     expect(denied.effect).toBe('deny')
     expect(denied.message).toContain('buracle build')
     expect((await inRepo.f.trigger('permission.evaluate', evaluation('edit', [join(repo, 'src', 'x.ts')]))).effect).toBe('allow')
-    expect(inRepo.rt.writeContext(join(repo, 'src'), testBaked().defaults).buracleRepo).toBe(repo)
+    expect((await inRepo.rt.writeContext(join(repo, 'src'))).buracleRepo).toBe(repo)
 
     const other = join(root, 'other')
     mkdirSync(join(other, '.git'), { recursive: true })
     writeFileSync(join(other, 'package.json'), JSON.stringify({ name: 'other' }))
     const plain = await runtime(other)
     expect((await plain.f.trigger('permission.evaluate', evaluation('edit', [join(other, 'harness', 'next', 'x.md')]))).effect).toBe('allow')
-    expect(plain.rt.writeContext(other, testBaked().defaults).buracleRepo).toBeUndefined()
+    expect((await plain.rt.writeContext(other)).buracleRepo).toBeUndefined()
 
     writeRuntimeConfig(c => c, { repoRoot: other })
     clearRepoCache()
@@ -788,22 +770,7 @@ describe('opencode server plugin: stage-B contract rules', () => {
     expect((await configured.f.trigger('permission.evaluate', evaluation('edit', [join(other, 'harness', 'next', 'x.md')]))).effect).toBe('deny')
   }))
 
-  test('H10: with plan.autoPause a user message pauses a running plan; continuations and "devam" do not', () => withSandbox(async ({ root }) => {
-    writeRuntimeConfig(c => ({ ...c, plan: { ...c.plan, autoPause: true } }))
-    saveState('opencode', SID, planState())
-    const { f } = await runtime(root)
-    const prompt = (text: string) => ({ sessionID: SID, messageID: 'msg_p', prompt: { text }, delivery: 'steer' as const })
-    await f.trigger('session.prompt', prompt('Buracle stop guard: the plan is not VERIFIED, keep working'))
-    expect(loadState('opencode', SID).interaction).toBeUndefined()
-    await f.trigger('session.prompt', prompt('please also cover the parser edge case'))
-    expect(loadState('opencode', SID).interaction).toMatchObject({ state: 'paused', kind: 'discussion', reason: AUTO_PAUSE_REASON })
-    await f.trigger('session.prompt', prompt('devam'))
-    expect(loadState('opencode', SID).interaction?.state).toBe('running')
-    await f.trigger('session.prompt', { ...prompt('hello'), sessionID: 'ses_noplan2' })
-    expect(existsSync(join(paths.sessionDir('opencode', 'ses_noplan2'), 'state.json'))).toBe(false)
-  }))
-
-  test('H10: autoPause off (default) leaves a running plan running', () => withSandbox(async ({ root }) => {
+  test('H10: an ordinary message leaves a running plan running', () => withSandbox(async ({ root }) => {
     saveState('opencode', SID, planState())
     const { f } = await runtime(root)
     await f.trigger('session.prompt', { sessionID: SID, messageID: 'msg_p', prompt: { text: 'please also cover the parser edge case' }, delivery: 'steer' })
@@ -822,8 +789,8 @@ describe('opencode server plugin: stage-B contract rules', () => {
   test('a runaway cap releases the session and tells the user once per chain', () => withSandbox(async ({ root }) => {
     let clock = 5_000_000
     const plan = planState()
-    saveState('opencode', SID, { ...plan, guard: { blocksForPlan: testBaked().defaults.plan.runaway.perPlan, blocksInChain: 0 } })
-    const { f, rt, notices, mem } = await runtime(root, { now: () => clock })
+    saveState('opencode', SID, { ...plan, guard: { blocksForPlan: RUNAWAY_PER_PLAN, blocksInChain: 0 } })
+    const { f, rt, mem } = await runtime(root, { now: () => clock })
     await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: root } } })
     await cycle(rt)
     clock += 120_000
@@ -831,9 +798,9 @@ describe('opencode server plugin: stage-B contract rules', () => {
     clock += 120_000
     await cycle(rt)
     expect(f.prompts.map(p => p.text.includes('runaway: continue, pivot or abandon?'))).toEqual([true])
-    expect(notices.length).toBe(1)
-    expect(notices[0]?.message).toContain(plan.plan?.path as string)
-    expect(mem.appended.flatMap(a => a.entries).filter(e => e.ev === 'note').length).toBe(1)
+    const notes = mem.appended.flatMap(a => a.entries).filter(e => e.ev === 'note')
+    expect(notes.length).toBe(1)
+    expect(notes[0]?.excerpt).toContain(plan.plan?.path as string)
   }))
 
   test('the re-prompt chain is shared by plugin instances: a reloaded instance does not restart a capped chain', () => withSandbox(async ({ root }) => {
@@ -846,20 +813,7 @@ describe('opencode server plugin: stage-B contract rules', () => {
     const b = await runtime(root, { now: () => clock })
     await b.rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: root } } })
     for (let i = 0; i < 4; i++) { clock += 120_000; await cycle(b.rt) }
-    expect(a.f.prompts.length + b.f.prompts.length).toBe(testBaked().defaults.plan.runaway.perChain + 1)
-    expect(b.notices.length).toBe(1)
-  }))
-
-  test('H03: a shell nudge is appended once per call (routeTool owns it)', () => withSandbox(async ({ root }) => {
-    const { f } = await runtime(root)
-    await f.trigger('tool.execute.before', { tool: 'shell', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_g', input: { command: 'grep -r foo .' } })
-    await f.trigger('permission.evaluate', evaluation('shell', ['grep -r foo .'], 'call_g'))
-    await f.trigger('permission.evaluate', evaluation('shell', ['grep -r foo .'], 'call_g'))
-    const after: ToolExecuteAfter = { tool: 'shell', sessionID: SID, agent: 'build', messageID: 'msg_1', id: 'call_g', input: { command: 'grep -r foo .' }, status: 'completed', result: { output: { exit: 0 }, content: [{ type: 'text', text: 'out' }] } }
-    await f.trigger('tool.execute.after', after)
-    const texts = after.status === 'completed' ? (after.result.content as unknown as Array<{ text: string }>).map(c => c.text) : []
-    expect(texts.length).toBe(2)
-    expect(texts[0]).toBe('out')
+    expect(a.f.prompts.length + b.f.prompts.length).toBe(RUNAWAY_PER_CHAIN + 1)
   }))
 })
 
@@ -901,6 +855,7 @@ describe('H28 project assets on OpenCode', () => {
     expect(out).toContain('.claude/rules/web.md is not in AGENTS.md')
     clock += 31_000
     await rt.handleEvent({ type: 'session.execution.succeeded', data: { sessionID: SID } })
+    await rt.idle()
     expect(spawned).toEqual([`project sync --auto --quiet @ ${repo}`, `project sync --auto --quiet @ ${repo}`])
     rt.dispose()
     clearAssetsContextCache()

@@ -6,7 +6,8 @@ import { bunExecutable } from '../../engine/config'
 import * as paths from '../../engine/paths'
 import { which } from '../../engine/proc'
 import type { AdapterContext } from '../registry'
-import { OWNER, PACKAGE_NAME, ompCommandNames, ompLspServers, ompThinkingLevel } from './generated'
+import { agentDirConflict } from '../shared/agent-dir'
+import { OWNER, PACKAGE_NAME, ompCommandNames, ompLspServers } from './generated'
 import { OMP_BRAIN_COMMAND, OMP_REMEMBER_COMMAND, OMP_STATUS_ALIAS, OMP_STATUS_COMMAND } from './runtime/commands'
 import { ompConfigPath } from './runtime/config'
 import { ompPlanSettings } from './runtime/plan-capture'
@@ -40,7 +41,7 @@ export function userPlanAutosave(text: string | undefined, staging: string): boo
   return p['autosave'] !== undefined
 }
 
-export type OmpKeyContext = Pick<AdapterContext, 'canonical'> & { config?: Pick<AdapterContext['config'], 'permissions' | 'effort' | 'agents'> }
+export type OmpKeyContext = Pick<AdapterContext, 'canonical'> & { config?: Pick<AdapterContext['config'], 'permissions' | 'agents'> }
 
 export function ompConfigKeys(ctx: OmpKeyContext, opts: { userPreset?: string, planStaging?: string } = {}): Record<string, unknown> {
   const s = ompStatusLine(ctx.canonical.statusline.omp)
@@ -52,8 +53,6 @@ export function ompConfigKeys(ctx: OmpKeyContext, opts: { userPreset?: string, p
   }
   set['tools.approvalMode'] = ctx.config?.permissions.bypass === false ? 'write' : 'yolo'
   set['tools.xdev'] = false
-  const effort = ompThinkingLevel(ctx.config)
-  if ('level' in effort) set[THINKING_KEY] = effort.level
   set['memory.backend'] = 'off'
   set[LSP_ON_EDIT_KEY] = true
   set['enabledProviders'] = []
@@ -65,7 +64,6 @@ export function ompConfigKeys(ctx: OmpKeyContext, opts: { userPreset?: string, p
   return set
 }
 
-export const THINKING_KEY = 'defaultThinkingLevel'
 export const TEAMS_EAGER_KEY = 'task.eager'
 export const APPROVAL_KEY = 'tools.approvalMode'
 export const LSP_ON_EDIT_KEY = 'lsp.diagnosticsOnEdit'
@@ -73,7 +71,7 @@ export const LSP_ON_EDIT_KEY = 'lsp.diagnosticsOnEdit'
 export function ompKeyPolicy(set: Record<string, unknown>, config: Pick<AdapterContext['config'], 'permissions'> | undefined): { enforce?: string[], soft?: string[] } {
   const policy: { enforce?: string[], soft?: string[] } = {}
   if (config?.permissions.bypass !== false && config?.permissions.enforce === true && set[APPROVAL_KEY] === 'yolo') policy.enforce = [APPROVAL_KEY]
-  const soft = [THINKING_KEY, TEAMS_EAGER_KEY, PLAN_AUTOSAVE_KEY, PLAN_AUTOSAVE_DIR_KEY, LSP_ON_EDIT_KEY].filter(k => k in set)
+  const soft = [TEAMS_EAGER_KEY, PLAN_AUTOSAVE_KEY, PLAN_AUTOSAVE_DIR_KEY, LSP_ON_EDIT_KEY].filter(k => k in set)
   if (soft.length > 0) policy.soft = soft
   return policy
 }
@@ -90,11 +88,11 @@ export const SHARED_AGENTS_IMPORT = 'Shared instructions for every harness (when
 
 export function agentsPointer(opts: { commands?: readonly string[] } = {}): string {
   const list = opts.commands ?? []
-  const workflows = list.length > 0 ? `workflows are ${list.map(c => `\`/${c}\``).join(', ')} (skills in \`~/.omp/agent/skills\`), ` : ''
+  const workflows = list.length > 0 ? `workflows are ${list.map(c => `\`/${c}\``).join(', ')}, ` : ''
   return [
     '## Buracle',
     '',
-    `Buracle is active through the \`${PACKAGE_NAME}\` plugin: its always-on rules (working rules, tool routing, memory) load as plugin rules, ${workflows}\`/${OMP_STATUS_COMMAND}\` (or \`/${OMP_STATUS_ALIAS}\`) shows status, \`/${OMP_REMEMBER_COMMAND} <text>\` saves a memory note and \`/${OMP_BRAIN_COMMAND}\` opens the Buracle Console. The \`buracle\` CLI is the helper for plans, worktrees, reviews and memory.`,
+    `Buracle is active through the \`${PACKAGE_NAME}\` plugin: ${workflows}\`/${OMP_STATUS_COMMAND}\` (or \`/${OMP_STATUS_ALIAS}\`) shows status, \`/${OMP_REMEMBER_COMMAND} <text>\` saves a memory note and \`/${OMP_BRAIN_COMMAND}\` opens the Buracle Console.`,
     '',
     SHARED_AGENTS_IMPORT,
   ].join('\n')
@@ -138,6 +136,8 @@ export function ompLspSet(ctx: Pick<AdapterContext, 'canonical'>, layout: OmpLsp
 }
 
 export async function installPlan(ctx: AdapterContext): Promise<Plan> {
+  // PI_CODING_AGENT_DIR sends Pi and omp to one folder, and Pi's files are already in it: leave it to Pi.
+  if ((await agentDirConflict(ctx.paths))?.skipped === 'omp') return { id: 'omp', harness: 'omp', ops: [] }
   const agentDir = ctx.paths.ompAgentDir()
   const pluginDir = join(ctx.repoRoot, 'harness', 'omp')
   if (!existsSync(join(pluginDir, 'package.json'))) {

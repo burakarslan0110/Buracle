@@ -1,3 +1,4 @@
+import { HARNESS_LABEL } from '../../core/harness/index'
 import { existsSync } from 'node:fs'
 import { delimiter, join, resolve } from 'node:path'
 import type { CommandIO } from '../router'
@@ -8,7 +9,7 @@ import { ensureDirSync } from '../../engine/fsx'
 import { clearRuntimeDriftCache } from '../../engine/hook-health'
 import * as paths from '../../engine/paths'
 import {
-  applyPlans, diffPlan, isTxnInterrupted, ledgerRebuildable, newRunId, readJournal, readLedger, withTxnLock, type ApplyOptions, type ApplyResult, type Op, type Plan,
+  applyPlans, diffPlan, isTxnInterrupted, ledgerRebuildable, newRunId, readJournal, readLedger, repairUnsettled, withTxnLock, type ApplyOptions, type ApplyResult, type Op, type Plan,
 } from '../../engine/txn'
 import { parseFlags, removedFlags } from '../../engine/update/args'
 import { composeInstall, type ComposedPlan, type ComposeResult, type HarnessStatus } from '../../engine/update/compose'
@@ -17,7 +18,7 @@ import { opsDeps } from '../../engine/update/deps'
 import { shimReferenceChecks } from '../../engine/update/doctor'
 import {
   AGENTS_SKILLS_OWNER, applyWithRetry, bunPath, buracleHomeProblem, checkHome, CORE_OWNER, INSTALL_PHASES, keyPath, markBuracleHome, partitionEscapes, readInstallRecord,
-  retargetShim, writeInstallRecord,
+  retargetShim, UNSETTLED_TXN, writeInstallRecord,
 } from '../../engine/update/install-core'
 import { discardRuntime, planRuntime, pruneRuntimes, readShim, runtimeDirOf, runtimeModeFromEnv, stageRuntime, type RuntimeMode, type RuntimePlan } from '../../engine/update/runtime'
 import { errText, isInside, table, tilde, tildeText, writeJson } from '../../engine/update/output'
@@ -26,6 +27,7 @@ import type { ToolchainItem } from '../../engine/toolchain/index'
 import { lspRecommendationPlan } from '../../adapters/claude/install'
 import { codexTrustPlan } from '../../adapters/codex/trust'
 import { cliVersion } from '../router'
+import { hasBuiltHarness } from '../../engine/update/build'
 import { runBuildFlow } from './build'
 import { NO_STEPS, progressSteps, type Steps } from '../ui/steps'
 import { commandHeader, sectionHeading } from '../ui/frame'
@@ -52,8 +54,8 @@ Buracle Console (memory.ui.autostart), runs the checks of \`buracle doctor\` and
 detail to the install log (--log). --started is when the script began (the Result line
 shows the time taken).
 
-It first regenerates harness/ from canonical/ and src/ (\`buracle build\`); a failed build
-installs nothing. --dry-run only checks the generated files and prints the diff of every
+It first regenerates harness/ from canonical/ and src/ (\`buracle build\`; a checkout without a
+built harness/, such as a dev checkout, is built without asking); a failed build installs nothing. --dry-run only checks the generated files and prints the diff of every
 plan; nothing is written.
 
 Hooks and the CLI run a frozen copy of the checkout, not the checkout itself: install
@@ -61,18 +63,19 @@ copies src/, canonical/, harness/ and the runtime packages into ~/.buracle/runti
 checks the copy (\`--version\`, and a Claude Code and a Codex PreToolUse hook must deny
 \`rm -rf ~\` and let \`ls\` through) and only then points the shim at it. A copy that fails
 its check leaves the old runtime live and fails the install. One previous runtime is
-kept for \`buracle rollback\`. BURACLE_RUNTIME=checkout makes the shim run the checkout
+kept. BURACLE_RUNTIME=checkout makes the shim run the checkout
 directly (tests, debugging).
 
 Then it installs the toolchain (toolchain.autoInstall; false skips it): missing system tools through
 Homebrew (macOS, or Linux with Homebrew), and every MCP server package and language server
 at its newest release (update.minReleaseAgeDays, 0 by default, can wait days) into ~/.buracle/toolchain, staged
-and swapped in with the previous copy kept for \`buracle rollback toolchain\`. Then composes:
+and swapped in. Then composes:
   - the core plan: ~/.buracle/bin/buracle shim, ~/.local/bin/buracle link, repo: in
     config.yaml, and the path rules Codex and OpenCode read (~/.buracle/rules/paths/<id>.md)
-  - the skills plan: harness/agents-skills/<id> linked into the skills folder of each enabled
-    and installed Codex ($CODEX_HOME/skills), OpenCode (~/.config/opencode/skills) and
-    Oh My Pi (~/.omp/agent/skills); nothing goes to the shared ~/.agents/skills
+  - the skills plan: one copy of every skill (harness/agents-skills/<id>) in ~/.agents/skills,
+    which Codex, OpenCode and Oh My Pi read; a harness that does not read that folder gets one
+    link per skill to the copy, in the skills folder its profile names. Claude Code keeps the
+    skills of its own plugin
   - each enabled and detected harness adapter's install plan
 then applies the core and shared plans as one transaction and each harness as its
 own: backup -> atomic writes -> journal -> commands -> verify -> ledger -> commit,
@@ -214,32 +217,10 @@ function harnessRows(hs: HarnessStatus[]): string[][] {
 
 async function memorySteps(): Promise<string[]> {
   const steps: string[] = []
-  const reason = (r: { code: number, stderr: string }) => (r.stderr.trim().split('\n')[0] ?? '').slice(0, 160) || `exit ${r.code}`
   try {
     const { checkCortexdb } = await import('../../engine/toolchain/cortexdb')
     const bin = checkCortexdb()
     if (bin.status !== 'ok') steps.push(`Memory: ${bin.detail}.`)
-    const { legacyPending } = await import('../../memory/migration-state')
-    if (bin.status === 'ok' && legacyPending()) {
-      const r = await opsDeps.runCli(['mem', 'migrate', '--json'])
-      steps.push(r.code === 0
-        ? 'Folded the brain files of Buracle 0.5 (person.db, projects/) into ~/.buracle/brain/brain.db: verified copies first (brain/backups/pre-migrate-*), nothing deleted; `buracle mem migrate --rollback` goes back.'
-        : `Fold the brain files of Buracle 0.5 into brain.db: run \`buracle mem migrate\` (${reason(r)}).`)
-    }
-    const { oldVaultPath, vaultImportDone } = await import('../../memory/import-vault')
-    const vault = oldVaultPath()
-    const { removeVaultPreCommitHook } = await import('../../engine/update/uninstall')
-    if (await removeVaultPreCommitHook(vault) === 'removed') steps.push(`Removed Buracle's pre-commit hook from the old vault ${tilde(vault)} (manual commits there work again; the notes are untouched).`)
-    const hasNotes = existsSync(join(vault, 'projects')) || existsSync(join(vault, 'global'))
-    if (bin.status === 'ok' && hasNotes && vaultImportDone() === undefined) {
-      const r = await opsDeps.runCli(['mem', 'import-vault', '--vault', vault, '--json'])
-      if (r.code !== 0) steps.push(`Import the old vault's notes into the memory: run \`buracle mem import-vault\` (${reason(r)}).`)
-      else {
-        let n = 0
-        try { const j = JSON.parse(r.stdout) as { imported?: unknown[] }; n = Array.isArray(j.imported) ? j.imported.length : 0 } catch {  }
-        steps.push(`Imported ${n} memor${n === 1 ? 'y' : 'ies'} from the old vault ${tilde(vault)} into ~/.buracle/brain (the vault was only read; it is yours to keep or delete).`)
-      }
-    }
     const { removeClaudeRedirects } = await import('../../memory/project-init')
     const redirects = await removeClaudeRedirects()
     if (redirects.removed.length > 0) steps.push(`Took back Claude Code's memory redirect (autoMemoryDirectory) in ${redirects.removed.length} project${redirects.removed.length === 1 ? '' : 's'}; Claude Code's own auto memory is off, Buracle's brain is the memory.`)
@@ -327,6 +308,14 @@ export async function runInstallFlow(opts: InstallFlowOptions, io: CommandIO): P
   if (homeProblem) return fail(homeProblem)
   const repoRoot = opsDeps.repoRoot()
   if (paths.isFrozenRuntime(repoRoot)) return fail(`${tilde(repoRoot)} is a frozen runtime, not the checkout; run \`bun src/cli/main.ts install\` in the Buracle checkout`)
+  // A run that will write first settles what an earlier one left half done; a preview writes nothing, so it repairs nothing.
+  if (!opts.dryRun && (opts.yes || io.stdin.isTTY)) {
+    try {
+      result.recovered.push(...await repairUnsettled())
+    } catch (e) {
+      return fail(`${UNSETTLED_TXN}: ${errText(e)}`)
+    }
+  }
   let live = liveContext(repoRoot, { force: opts.force === true })
   for (const e of live.loaded.errors) result.warnings.push(`config: ${e}`)
   for (const w of live.loaded.warnings) result.warnings.push(`config: ${w}`)
@@ -662,7 +651,7 @@ function interruptCode(signal: string): number {
   return 128 + (signal === 'SIGINT' ? 2 : signal === 'SIGHUP' ? 1 : 15)
 }
 
-const HARNESS_TITLE: Readonly<Record<Harness, string>> = { claude: 'Claude Code', codex: 'Codex', opencode: 'OpenCode', omp: 'Oh My Pi' }
+const HARNESS_TITLE: Readonly<Record<Harness, string>> = HARNESS_LABEL
 
 // header: false when the live steps already printed the title.
 export function renderInstallStyled(r: InstallFlowResult, st: Style, columns = 100, header = true): string {
@@ -817,7 +806,9 @@ export async function run(argv: string[], io: CommandIO): Promise<number> {
     // The generated files are rebuilt only when they differ and the install may write; the install
     // itself writes runtime-config.json, so a declined or dry run leaves the home folder alone.
     let built = await runBuildFlow({ check: true, ...scope })
-    if (built.report.errors.length === 0 && built.report.drift.length > 0 && !opts.dryRun && (opts.yes || io.stdin.isTTY)) {
+    // A dev checkout has no built harness/ at all: it is built without asking, since nothing can be installed without it.
+    const unbuilt = !hasBuiltHarness(opsDeps.repoRoot())
+    if (built.report.errors.length === 0 && built.report.drift.length > 0 && !opts.dryRun && (unbuilt || opts.yes || io.stdin.isTTY)) {
       steps.start('build', 'Rebuilding the generated files')
       built = await runBuildFlow({ check: false, runtimeConfig: false, ...scope })
     }

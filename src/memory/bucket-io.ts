@@ -1,4 +1,4 @@
-import { fromCortex, type MemItem, type MemLayer } from '../core/memory/brain'
+import { fromCortex, type MemItem } from '../core/memory/brain'
 import { keepOf, plainRow, rowOwner, saveItem, storedId, type BrainRef } from './store'
 
 /** A memory with the metadata a re-save carries over (recall counters, retirement). */
@@ -9,18 +9,6 @@ export interface Entries { entries: Entry[], foreign: number }
 
 function oldestFirst(a: Entry, b: Entry): number {
   return (a.item.created || a.item.updated).localeCompare(b.item.created || b.item.updated) || a.item.id.localeCompare(b.item.id)
-}
-
-/** The rows of a Buracle 0.5 file: ids are plain, and the whole file is one layer. */
-export function entriesOfLegacyRows(rows: readonly unknown[], layer: MemLayer): Entries {
-  const entries: Entry[] = []
-  let foreign = 0
-  for (const raw of rows) {
-    const item = fromCortex(raw, layer)
-    if (item === undefined) { foreign++; continue }
-    entries.push({ item, keep: keepOf(raw) })
-  }
-  return { entries: entries.sort(oldestFirst), foreign }
 }
 
 /** The rows of one bucket in a brain.db file or a copy of it. */

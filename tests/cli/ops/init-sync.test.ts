@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, readlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { run as installRun } from '../../../src/cli/commands/install'
-import { main } from '../../../src/cli/router'
 import { yamlParse } from '../../../src/engine/merge'
 import { run as procRun } from '../../../src/engine/proc'
 import { narrowPath } from '../../helpers/fake-exe'
@@ -70,7 +69,7 @@ describe('buracle install builds the generated files first', () => {
       expect(await installRun(['--yes'], io)).toBe(0)
       expect(read(join(repo, 'harness/agents-skills/plan-build/SKILL.md'))).toBe('# spec\n')
       expect(read(join(home, '.codex/AGENTS.md'))).toBe('rules\n')
-      expect(readlinkSync(join(home, '.codex/skills/plan-build'))).toBe(join(repo, 'harness/agents-skills/plan-build'))
+      expect(read(join(home, '.agents/skills/plan-build/SKILL.md'))).toBe('# spec\n')
 
       broken = true
       writeFileSync(join(home, '.codex/AGENTS.md'), 'changed by hand\n')
@@ -95,24 +94,13 @@ describe('buracle install builds the generated files first', () => {
 
       const unknown = memoryIO()
       expect(await installRun(['nope'], unknown)).toBe(1)
-      expect(unknown.err()).toContain('unknown harness nope (expected claude, codex, opencode, omp)')
+      expect(unknown.err()).toContain('unknown harness nope (expected claude, codex, opencode, omp, qwen, pi, agy)')
       const old = memoryIO()
       expect(await installRun(['--harness', 'codex'], old)).toBe(1)
       expect(old.err()).toBe('buracle install: --harness was removed; name the harnesses instead: `buracle install codex`\n')
       const noTc = memoryIO()
       expect(await installRun(['--no-toolchain'], noTc)).toBe(1)
       expect(noTc.err()).toBe('buracle install: --no-toolchain was removed; `buracle config set toolchain.autoInstall false` skips the toolchain step\n')
-    })
-  }))
-
-  test('`buracle sync --yes` (what an older `buracle update` runs after a self update) still installs, and says it was renamed', () => withSandbox(async ({ root, home }) => {
-    const repo = makeRepo(root)
-    const codex = fakeAdapter('codex', { plan: () => ({ id: 'codex', harness: 'codex', ops: [{ kind: 'file', path: join(home, '.codex/AGENTS.md'), content: 'rules\n', owner: 'codex' }] }) })
-    await withDeps({ repoRoot: () => repo, adapters: async () => [codex], runCli: fakeCli().runCli, fetch: noNetwork }, async () => {
-      const io = memoryIO()
-      expect(await main(['sync', '--yes'], io)).toBe(0)
-      expect(io.err()).toContain('buracle sync was renamed; use buracle install')
-      expect(read(join(home, '.codex/AGENTS.md'))).toBe('rules\n')
     })
   }))
 })

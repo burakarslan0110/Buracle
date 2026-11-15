@@ -19,7 +19,6 @@ const ITEMS_80 = [
   '    Update             look for new versions and apply them, step by step',
   '    Health check       check every part and see how to fix what is broken',
   '    Memory             open the Buracle Console in your browser',
-  '    Detailed view      every part with its version, state and waiting update',
   '    Quit',
 ]
 const HINT = '  ↑↓ move · enter choose · q quit'
@@ -33,7 +32,7 @@ describe('main menu frames', () => {
       '  + All good · no update check yet',
       '',
       ...ITEMS_80,
-      ...Array<string>(12).fill(''),
+      ...Array<string>(13).fill(''),
       HINT,
     ])
   })
@@ -42,7 +41,7 @@ describe('main menu frames', () => {
     const lines = shown(color, menu(80, 24))
     expect(lines.slice(1, 7)).toEqual(LOGO.map(l => `  ${l}`.trimEnd()))
     expect(lines[7]).toBe('  v0.5.0  ·  One engineering setup, one memory, every coding agent')
-    expect(lines.slice(11, 17)).toEqual(ITEMS_80.map(l => l.replace('  > ', '  ❯ ')))
+    expect(lines.slice(11, 16)).toEqual(ITEMS_80.map(l => l.replace('  > ', '  ❯ ')))
     expect(lines).toHaveLength(24)
     expect(lines.at(-1)).toBe(HINT)
   })
@@ -52,10 +51,10 @@ describe('main menu frames', () => {
     const lines = shown(color, v)
     expect(lines.slice(1, 7).map(l => l.slice(0, 10).trimEnd())).toEqual(ICON.map(l => `  ${l}`.trimEnd()))
     expect(lines.join('\n')).toContain('buracle')
-    expect(lines.slice(10, 16)).toEqual(['  ❯ Install or repair', '    Update', '    Health check', '    Memory', '    Detailed view', '    Quit'])
-    expect(lines.at(-3)).toBe('  set Buracle up in your coding agents, or repair it')
-    expect(shown(color, press(v, 'down')).at(-3)).toBe('  look for new versions and apply them, step by step')
-    expect(shown(color, press(v, 'end')).at(-3)).toBe('')
+    expect(lines.slice(10, 15)).toEqual(['  ❯ Install or repair', '    Update', '    Health check', '    Memory', '    Quit'])
+    expect(lines.at(-4)).toBe('  set Buracle up in your coding agents, or repair it')
+    expect(shown(color, press(v, 'down')).at(-4)).toBe('  look for new versions and apply them, step by step')
+    expect(shown(color, press(v, 'end')).at(-4)).toBe('')
   })
 
   test('the header follows the terminal size and never leaves; below 40 by 10 only the list stays', () => {
@@ -65,10 +64,10 @@ describe('main menu frames', () => {
     const ITEMS = ITEMS_80.map(l => l.replace('  > ', '  ❯ '))
     expect(at(20)[1]).toBe(`  ${LOGO[0]}`.trimEnd())
     expect(at(19).slice(0, 5)).toEqual(['', TITLE, '', STATUS, ''])
-    expect(at(12)).toEqual([TITLE, STATUS, '', ...ITEMS, '', '', HINT])
-    expect(at(10)).toEqual([TITLE, STATUS, ...ITEMS, '', HINT])
-    expect(at(9)).toEqual([TITLE, STATUS, ...ITEMS, HINT])
-    expect(shown(plain, { ...menu(80, 4), selected: 5 })).toEqual([...ITEMS_80.slice(3, 5), '  > Quit', HINT])
+    expect(at(12)).toEqual([TITLE, STATUS, '', ...ITEMS, '', '', '', HINT])
+    expect(at(10)).toEqual([TITLE, STATUS, ...ITEMS, '', '', HINT])
+    expect(at(9)).toEqual([TITLE, STATUS, ...ITEMS, '', HINT])
+    expect(shown(plain, { ...menu(80, 4), selected: 4 })).toEqual([...ITEMS_80.slice(2, 4), '  > Quit', HINT])
   })
 
   test('from 40 by 10 the menu starts with the shared header lines of its size and color level', () => {
@@ -154,26 +153,25 @@ describe('main menu keys', () => {
     expect(press(v, 'pagedown', 'pageup').selected).toBe(0)
   })
 
-  test('Enter runs the selected choice: the commands, the detailed view and quit', () => {
+  test('Enter runs the selected choice: the commands and quit', () => {
     const enterAt = (n: number) => menuStep({ ...menu(80, 24), selected: n }, 'enter').action
-    expect([0, 1, 2, 3, 4, 5].map(enterAt)).toEqual([
+    expect([0, 1, 2, 3, 4].map(enterAt)).toEqual([
       { kind: 'run', argv: ['install'] },
       { kind: 'run', argv: ['update'] },
       { kind: 'run', argv: ['doctor'] },
       { kind: 'run', argv: ['mem', 'ui', '--open'] },
-      { kind: 'detail' },
       { kind: 'quit' },
     ])
   })
 
-  test('the detailed view\'s letters work here too and select their choice; v opens the detailed view', () => {
+  test('the letter keys select their choice and run it', () => {
     const v = menu(80, 24)
     for (const [key, argv, at] of [['i', ['install'], 0], ['u', ['update'], 1], ['d', ['doctor'], 2], ['m', ['mem', 'ui', '--open'], 3]] as const) {
       const step = menuStep(v, ch(key))
       expect(step.action).toEqual({ kind: 'run', argv: [...argv] })
       expect(step.view.selected).toBe(at)
     }
-    expect(menuStep(v, ch('v')).action).toEqual({ kind: 'detail' })
+    expect(menuStep(v, ch('v')).action).toBeUndefined()
     expect(menuStep(v, ch('c')).action).toBeUndefined()
     expect(menuStep(v, 'left').action).toBeUndefined()
   })

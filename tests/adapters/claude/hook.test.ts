@@ -2,15 +2,16 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
-  FALLBACK_SPOOL_SUFFIX, GUARD_FAILED, WRITE_GUARD_FAILED, claudeHook, defaultHookDeps, handoffRecordPath, readHealth, reviewNote, runawayNotice,
+  FALLBACK_SPOOL_SUFFIX, claudeHook, defaultHookDeps, readHealth, reviewNote, runawayNotice,
   type HookCore, type HookDeps,
 } from '../../../src/adapters/claude/hook'
 import type { AdapterContext } from '../../../src/adapters/registry'
+import { compactFile } from '../../../src/adapters/shared/pipeline/index'
 import { hookBundle } from '../../../src/cli/hook-data'
 import type { BuracleConfig } from '../../../src/core/config'
 import { defaultConfig } from '../../../src/core/config'
 import type { CanonicalBundle } from '../../../src/core/catalog'
-import { STOP_GUARD_ESCAPE } from '../../../src/core/plan/state'
+import { RUNAWAY_PER_CHAIN, STOP_GUARD_ESCAPE } from '../../../src/core/plan/state'
 import * as paths from '../../../src/engine/paths'
 import { run } from '../../../src/engine/proc'
 import { freshState, saveState, statePath } from '../../../src/workflow/session-store'
@@ -102,7 +103,7 @@ describe('payload handling', () => {
       expect(await claudeHook('Stop', '[]', ctxWith(), d)).toEqual(QUIET)
       expect(await claudeHook('Stop', fixture('stop.json', { session_id: undefined }), ctxWith(), d)).toEqual(QUIET)
       const guarded = await claudeHook('PreToolUse', fixture('pretooluse-bash.json', { session_id: '../etc' }), ctxWith(), deps({}, { checkBash: () => ({ deny: 'destructive' }) }))
-      expect(json(guarded.stdout)['hookSpecificOutput']).toEqual({ hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'destructive' })
+      expect(json(guarded.stdout)['hookSpecificOutput']).toEqual({ hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'Buracle H01: destructive' })
       expect(await claudeHook('PreToolUse', fixture('pretooluse-bash.json', { session_id: '../etc' }), ctxWith(), deps({}, { checkBash: () => ({}) }))).toEqual(QUIET)
       let called = false
       await claudeHook('SessionEnd', fixture('sessionend.json', { session_id: 'a b' }), ctxWith(), deps({ importModule: async () => { called = true; return undefined } }))
@@ -133,7 +134,7 @@ describe('the mod heartbeat decides who acts (heartbeatHandles)', () => {
       const r = await claudeHook('PreToolUse', fixture('pretooluse-bash.json'), ctxWith(), deps({}, {
         checkBash: c => { commands.push(c); return { deny: 'destructive' } },
       }))
-      expect(json(r.stdout)['hookSpecificOutput']).toEqual({ hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'destructive' })
+      expect(json(r.stdout)['hookSpecificOutput']).toEqual({ hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'Buracle H01: destructive' })
       expect(commands).toEqual(['rm -rf / --no-preserve-root'])
       const real = await claudeHook('PreToolUse', fixture('pretooluse-bash.json', { tool_input: { command: 'rm -rf ~' } }), ctxWith(), { ...defaultHookDeps, now: () => NOW })
       expect((json(real.stdout)['hookSpecificOutput'] as Record<string, unknown>)['permissionDecision']).toBe('deny')
@@ -146,7 +147,7 @@ describe('the mod heartbeat decides who acts (heartbeatHandles)', () => {
       for (const beat of [{ at: NOW - 10_000 }, { at: NOW - 91_000, handles: MOD_CLASSIC }, { at: NOW - 5_000, handles: MOD_CLASSIC, ended: 'prompt_input_exit' }]) {
         writeHeartbeat(beat)
         const r = await claudeHook('PreToolUse', fixture('pretooluse-bash.json'), ctxWith(), denyAll)
-        expect(json(r.stdout)['hookSpecificOutput']).toEqual({ hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'no' })
+        expect(json(r.stdout)['hookSpecificOutput']).toEqual({ hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'Buracle H01: no' })
       }
     })
   })
@@ -176,7 +177,7 @@ describe('PreToolUse (Bash): H01 then H03', () => {
         checkBash: (command, c) => { seen.push(command, c); return { deny: 'destructive: rm -rf /' } },
       }))
       expect(r.exitCode).toBe(0)
-      expect(json(r.stdout)).toEqual({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'destructive: rm -rf /' } })
+      expect(json(r.stdout)).toEqual({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'Buracle H01: destructive: rm -rf /' } })
       expect(seen).toEqual(['rm -rf / --no-preserve-root', { extraDeny: ['terraform destroy'], home: sb.home, selfPaths: sandboxSelfPaths(sb), cwd: '/tmp/project', vault: join(sb.home, 'Documents', 'Buracle'), protect: [], realpath: expect.any(Function) }])
     })
   })
@@ -184,7 +185,7 @@ describe('PreToolUse (Bash): H01 then H03', () => {
   test('H01 fails closed when the guard throws', async () => {
     await withSandbox(async () => {
       const r = await claudeHook('PreToolUse', fixture('pretooluse-bash.json'), ctxWith(), deps({}, { checkBash: () => { throw new Error('boom') } }))
-      expect(json(r.stdout)).toEqual({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: GUARD_FAILED } })
+      expect(json(r.stdout)).toEqual({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: "Buracle H01: the bash guard could not check this command (boom), so the call is blocked: Buracle's guards fail closed. Ask the user to run it themselves, or have them check `buracle doctor`." } })
     })
   })
 
@@ -197,7 +198,7 @@ describe('PreToolUse (Bash): H01 then H03', () => {
         ...allowBash,
         routeTool: c => { call = c as unknown as Record<string, unknown>; return { action: 'deny', reason: 'use rg', hook: 'H03' } },
       }))
-      expect(json(denied.stdout)['hookSpecificOutput']).toEqual({ hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'use rg' })
+      expect(json(denied.stdout)['hookSpecificOutput']).toEqual({ hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'Buracle H03: use rg' })
       expect(call).toMatchObject({ harness: 'claude', sessionId: SID, cwd: '/tmp/project', tool: 'Bash', kind: 'bash', command: 'grep -r foo .' })
 
       const nudged = await claudeHook('PreToolUse', input, ctxWith(), deps({}, { ...allowBash, routeTool: () => ({ action: 'allow', context: ['prefer rg', 'or semble'] }) }))
@@ -226,7 +227,7 @@ describe('PreToolUse (Bash): H01 then H03', () => {
       const r = await claudeHook('PreToolUse', monitor({ command: 'rm -rf ~' }), ctxWith(), deps({}, {
         checkBash: c => { commands.push(c); return { deny: 'no' } },
       }))
-      expect(json(r.stdout)['hookSpecificOutput']).toMatchObject({ permissionDecision: 'deny', permissionDecisionReason: 'no' })
+      expect(json(r.stdout)['hookSpecificOutput']).toMatchObject({ permissionDecision: 'deny', permissionDecisionReason: 'Buracle H01: no' })
       expect(commands).toEqual(['rm -rf ~'])
       expect(await claudeHook('PreToolUse', monitor({ ws: { url: 'wss://example.com' } }), ctxWith(), deps())).toEqual(QUIET)
       for (const command of ['rm -rf ~', 'git push --force origin main']) {
@@ -268,7 +269,7 @@ describe('PreToolUse (Edit, Write, NotebookEdit): H02 on the path and on where i
         realpath: q => (q === '/tmp/project/notes.txt' ? `${sb.home}/.ssh/authorized_keys` : undefined),
         buracleRepo: async () => '/tmp/project',
       }, { checkWrite: (paths, c) => { seen.push(paths, c); return { deny: 'protected' } } }))
-      expect(json(r.stdout)['hookSpecificOutput']).toEqual({ hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'protected' })
+      expect(json(r.stdout)['hookSpecificOutput']).toEqual({ hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'Buracle H02: protected' })
       expect(seen[0]).toEqual(['/tmp/project/notes.txt'])
       expect(seen[1]).toMatchObject({ cwd: '/tmp/project', home: sb.home, buracleRepo: '/tmp/project', selfPaths: sandboxSelfPaths(sb) })
       expect((seen[1] as { realpath: (p: string) => string | undefined }).realpath('/tmp/project/notes.txt')).toBe(`${sb.home}/.ssh/authorized_keys`)
@@ -296,7 +297,7 @@ describe('PreToolUse (Edit, Write, NotebookEdit): H02 on the path and on where i
   test('a throwing guard fails closed', async () => {
     await withSandbox(async () => {
       const r = await claudeHook('PreToolUse', write('/tmp/project/a.ts'), ctxWith(), deps({}, { checkWrite: () => { throw new Error('boom') } }))
-      expect(json(r.stdout)['hookSpecificOutput']).toEqual({ hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: WRITE_GUARD_FAILED })
+      expect(json(r.stdout)['hookSpecificOutput']).toEqual({ hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: "Buracle H02: the write guard could not check the files of this edit (boom), so the call is blocked: Buracle's guards fail closed. Ask the user to run it themselves, or have them check `buracle doctor`." })
     })
   })
 })
@@ -416,10 +417,10 @@ describe('Stop: H08 + H11 through stopGuardVerdict', () => {
       saveState('claude', SID, { ...freshState(), guard: { blocksForPlan: 30, blocksInChain: 2, lastBlockAt: NOW - 5000 }, plan: { path: PLAN, slug: 'p', status: 'IN_PROGRESS', type: 'Feature', phase: 'implement', registeredAt: NOW - 1000 } })
       const release: HookCore['stopGuardVerdict'] = s => ({ decision: { action: 'allow' }, next: { ...s, guard: { ...s.guard, blocksInChain: 0 } }, why: 'runaway-plan' })
       const first = await claudeHook('Stop', fixture('stop.json', { stop_hook_active: true }), ctxWith(cfg), deps({}, { stopGuardVerdict: release }))
-      expect(json(first.stdout)).toEqual({ systemMessage: runawayNotice('runaway-plan', cfg.plan) })
+      expect(json(first.stdout)).toEqual({ systemMessage: runawayNotice('runaway-plan') })
       expect(await claudeHook('Stop', fixture('stop.json'), ctxWith(cfg), deps({}, { stopGuardVerdict: release }))).toEqual(QUIET)
-      expect(runawayNotice('runaway-chain', cfg.plan)).toContain(String(cfg.plan.runaway.perChain))
-      expect(runawayNotice('blocked', cfg.plan)).toBeUndefined()
+      expect(runawayNotice('runaway-chain')).toContain(String(RUNAWAY_PER_CHAIN))
+      expect(runawayNotice('blocked')).toBeUndefined()
     })
   })
 })
@@ -437,7 +438,7 @@ describe('PreCompact (H06) and SessionStart compact (H07)', () => {
       expect(await claudeHook('PreCompact', fixture('precompact.json'), ctxWith(), d)).toEqual(QUIET)
       expect(inputs).toEqual([{ harness: 'claude', sessionId: SID, cwd: '/tmp/project', project: 'demo', branch: 'main', slug: note.slug, markdown: note.markdown, trigger: 'auto', now: NOW }])
       expect(noteInput).toMatchObject({ project: 'demo', harness: 'claude', sessionId: SID, branch: 'main', now: NOW, state: freshState() })
-      expect(JSON.parse(readFileSync(handoffRecordPath(SID), 'utf8'))).toEqual({ path: 'handoff-2026-10-08-handoff-x', at: NOW })
+      expect(JSON.parse(readFileSync(compactFile({ paths }, 'claude', SID), 'utf8'))).toEqual({ v: 1, at: NOW, handoff: 'handoff-2026-10-08-handoff-x' })
 
       let restoreArgs: unknown[] = []
       const r = await claudeHook('SessionStart', fixture('sessionstart-compact.json'), ctxWith(), deps({}, {
@@ -455,8 +456,8 @@ describe('PreCompact (H06) and SessionStart compact (H07)', () => {
 
   test('a record from an older Buracle (a vault file path) is never offered as a handoff id', async () => {
     await withSandbox(async () => {
-      mkdirSync(join(handoffRecordPath(SID), '..'), { recursive: true })
-      writeFileSync(handoffRecordPath(SID), JSON.stringify({ path: '/home/u/Documents/Buracle/projects/demo/handoffs/h.md', at: NOW }))
+      mkdirSync(join(compactFile({ paths }, 'claude', SID), '..'), { recursive: true })
+      writeFileSync(compactFile({ paths }, 'claude', SID), JSON.stringify({ v: 1, at: NOW, handoff: '/home/u/Documents/Buracle/projects/demo/handoffs/h.md' }))
       let handoff: unknown = 'unset'
       await claudeHook('SessionStart', fixture('sessionstart-compact.json'), ctxWith(), deps({}, { restoreContext: (_s, h) => { handoff = h; return undefined } }))
       expect(handoff).toBeUndefined()
@@ -467,12 +468,12 @@ describe('PreCompact (H06) and SessionStart compact (H07)', () => {
     await withSandbox(async sb => {
       await claudeHook('PreCompact', fixture('precompact.json'), ctxWith(), deps({}, { handoffNote: () => note }))
       expect(existsSync(join(sb.home, 'Documents'))).toBe(false)
-      expect(JSON.parse(readFileSync(handoffRecordPath(SID), 'utf8'))).toEqual({ at: NOW })
+      expect(JSON.parse(readFileSync(compactFile({ paths }, 'claude', SID), 'utf8'))).toEqual({ v: 1, at: NOW })
 
       const inputs: unknown[] = []
       await claudeHook('PreCompact', fixture('precompact.json'), ctxWith(), deps({ env: n => (n === 'BURACLE_NO_MEMORY' ? '1' : undefined), importModule: async n => (n === 'handoff' ? writer(inputs) : undefined) }))
       expect(inputs).toEqual([])
-      expect(existsSync(handoffRecordPath(SID))).toBe(false)
+      expect(JSON.parse(readFileSync(compactFile({ paths }, 'claude', SID), 'utf8'))).toEqual({ v: 1, at: NOW })
     })
   })
 
@@ -495,7 +496,7 @@ describe('PreCompact (H06) and SessionStart compact (H07)', () => {
       await claudeHook('PostToolUse', fixture('precompact.json', { hook_event_name: 'PostToolUse', tool_name: 'TodoWrite', tool_input: { todos: [{ content: 'write the parser', status: 'in_progress' }, { content: 'old', status: 'completed' }] }, tool_response: {} }), ctxWith(), deps())
       const failing = { writeHandoff: async () => undefined }
       await claudeHook('PreCompact', fixture('precompact.json'), ctxWith(), deps({ importModule: async n => (n === 'handoff' ? failing : undefined) }, { handoffNote: () => note }))
-      expect(JSON.parse(readFileSync(handoffRecordPath(SID), 'utf8'))).toEqual({ todo: ['write the parser'], at: NOW })
+      expect(JSON.parse(readFileSync(compactFile({ paths }, 'claude', SID), 'utf8'))).toEqual({ v: 1, at: NOW, todo: ['write the parser'] })
       const asked: unknown[] = []
       const mem = { latestHandoff: async (o: unknown) => { asked.push(o); return undefined } }
       const r = await claudeHook('SessionStart', fixture('sessionstart-compact.json'), ctxWith(), deps({ importModule: async n => (n === 'handoff' ? mem : undefined) }, { restoreContext: defaultHookDeps.core.restoreContext }))
@@ -511,10 +512,10 @@ describe('PreCompact (H06) and SessionStart compact (H07)', () => {
       const todos = (status: string) => fixture('precompact.json', { hook_event_name: 'PostToolUse', tool_name: 'TodoWrite', tool_input: { todos: [{ content: 'write the parser', status }] }, tool_response: {} })
       await claudeHook('PostToolUse', todos('in_progress'), ctxWith(), deps())
       await claudeHook('PreCompact', fixture('precompact.json'), ctxWith(), deps({ importModule: async n => (n === 'handoff' ? failing : undefined) }, { handoffNote: () => note }))
-      expect(JSON.parse(readFileSync(handoffRecordPath(SID), 'utf8'))).toEqual({ todo: ['write the parser'], at: NOW })
+      expect(JSON.parse(readFileSync(compactFile({ paths }, 'claude', SID), 'utf8'))).toEqual({ v: 1, at: NOW, todo: ['write the parser'] })
       await claudeHook('PostToolUse', todos('completed'), ctxWith(), deps())
       await claudeHook('PreCompact', fixture('precompact.json'), ctxWith(), deps({ importModule: async n => (n === 'handoff' ? failing : undefined) }, { handoffNote: () => note }))
-      expect(JSON.parse(readFileSync(handoffRecordPath(SID), 'utf8'))).toEqual({ at: NOW })
+      expect(JSON.parse(readFileSync(compactFile({ paths }, 'claude', SID), 'utf8'))).toEqual({ v: 1, at: NOW })
       const asked: unknown[] = []
       const mem = { latestHandoff: async (o: unknown) => { asked.push(o); return { id: 'handoff-earlier-compaction', path: 'handoff-earlier-compaction', rel: 'handoff-earlier-compaction', title: 'h' } } }
       const r = await claudeHook('SessionStart', fixture('sessionstart-compact.json'), ctxWith(), deps({ importModule: async n => (n === 'handoff' ? mem : undefined) }, { restoreContext: defaultHookDeps.core.restoreContext }))
@@ -527,14 +528,14 @@ describe('PreCompact (H06) and SessionStart compact (H07)', () => {
 
   test('the record is replaced before the handoff is written, so a hook killed during the write leaves this compaction\'s todos', async () => {
     await withSandbox(async () => {
-      mkdirSync(join(handoffRecordPath(SID), '..'), { recursive: true })
-      writeFileSync(handoffRecordPath(SID), JSON.stringify({ path: 'handoff-earlier-compaction', at: NOW - 1000 }))
+      mkdirSync(join(compactFile({ paths }, 'claude', SID), '..'), { recursive: true })
+      writeFileSync(compactFile({ paths }, 'claude', SID), JSON.stringify({ v: 1, at: NOW - 1000, handoff: 'handoff-earlier-compaction' }))
       await claudeHook('PostToolUse', fixture('precompact.json', { hook_event_name: 'PostToolUse', tool_name: 'TodoWrite', tool_input: { todos: [{ content: 'write the parser', status: 'in_progress' }] }, tool_response: {} }), ctxWith(), deps())
       const during: unknown[] = []
-      const slow = { writeHandoff: async () => { during.push(JSON.parse(readFileSync(handoffRecordPath(SID), 'utf8'))); return { id: 'handoff-now', path: 'handoff-now', rel: 'handoff-now', title: 'h' } } }
+      const slow = { writeHandoff: async () => { during.push(JSON.parse(readFileSync(compactFile({ paths }, 'claude', SID), 'utf8'))); return { id: 'handoff-now', path: 'handoff-now', rel: 'handoff-now', title: 'h' } } }
       await claudeHook('PreCompact', fixture('precompact.json'), ctxWith(), deps({ importModule: async n => (n === 'handoff' ? slow : undefined) }, { handoffNote: () => note }))
-      expect(during).toEqual([{ todo: ['write the parser'], at: NOW }])
-      expect(JSON.parse(readFileSync(handoffRecordPath(SID), 'utf8'))).toEqual({ path: 'handoff-now', at: NOW })
+      expect(during).toEqual([{ v: 1, at: NOW, todo: ['write the parser'] }])
+      expect(JSON.parse(readFileSync(compactFile({ paths }, 'claude', SID), 'utf8'))).toEqual({ v: 1, at: NOW, handoff: 'handoff-now' })
     })
   })
 

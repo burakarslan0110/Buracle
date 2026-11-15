@@ -4,7 +4,6 @@ import type { Adapter, AdapterContext } from '../../adapters/registry'
 import type { CanonicalBundle, ToolSpec } from '../../core/catalog'
 import { isPackageServer, validateMcpCatalog } from '../../core/catalog'
 import type { BuracleConfig } from '../../core/config'
-import type { Harness } from '../../core/events'
 import { atomicWriteSync } from '../fsx'
 import { packageServers, type ToolchainEvent } from '../toolchain/index'
 import { toolRequest } from '../toolchain/packages'
@@ -14,19 +13,11 @@ import * as paths from '../paths'
 import { opsDeps } from './deps'
 import * as gitops from './gitops'
 import { bunPath } from './install-core'
-import { detectOrigin, harnessUpdate, isBrewName, resolveBinary, type Origin } from './origin'
+import { isBrewName } from './origin'
 import { errText, isInside } from './output'
 import type { HeldItem, UpdateError, UpdateItem, UpdateKind } from './updates-cache'
-import { bumpRisk, compareVersions, parseVersionString, pickUpdate, type PublishedVersion, type Risk } from './versions'
+import { bumpRisk, pickUpdate, type PublishedVersion } from './versions'
 import { setYamlValue } from './yaml-edit'
-
-interface HarnessSource { npm?: string; url?: string }
-export const HARNESS_SOURCES: Readonly<Record<Harness, HarnessSource>> = {
-  claude: { npm: '@anthropic-ai/claude-code' },
-  codex: { npm: '@openai/codex' },
-  opencode: { url: 'https://opencode.ai/update/api/latest/cli/npm' },
-  omp: { npm: '@oh-my-pi/pi-coding-agent' },
-}
 
 export const BREW_CHECK_ENV: Readonly<Record<string, string>> = { HOMEBREW_NO_AUTO_UPDATE: '1', HOMEBREW_NO_ENV_HINTS: '1' }
 
@@ -54,13 +45,6 @@ export type CheckStep = { kind: UpdateKind, phase: 'start' } | { kind: UpdateKin
 function isRecord(x: unknown): x is Record<string, unknown> {
   return x !== null && typeof x === 'object' && !Array.isArray(x)
 }
-
-function maxRisk(a: Risk, b: Risk): Risk {
-  const r = { low: 0, medium: 1, high: 2 } as const
-  return r[a] >= r[b] ? a : b
-}
-
-const DAY_MS = 86_400_000
 
 export function npmUrl(pkg: string): string {
   return pkg.startsWith('@') ? `https://registry.npmjs.org/@${encodeURIComponent(pkg.slice(1))}` : `https://registry.npmjs.org/${encodeURIComponent(pkg)}`
@@ -225,162 +209,6 @@ function parseJsonOutput(stdout: string): unknown {
   try { return JSON.parse(last) as unknown } catch { return undefined }
 }
 
-// The plugin and marketplace names `buracle update <name>` accepts: Buracle's catalog plus what
-// Claude Code has installed (`marketplace:<name>` for a marketplace).
-export async function knownPluginNames(env: Pick<UpdateEnv, 'bundle'>): Promise<Set<string>> {
-  const out = new Set<string>([
-    ...(env.bundle?.plugins.claude.plugins.map(p => p.id) ?? []),
-    ...(env.bundle?.plugins.claude.marketplaces.map(m => `marketplace:${m.id}`) ?? []),
-  ])
-  const [list, mk] = await Promise.all([
-    opsDeps.run(['claude', 'plugin', 'list', '--json'], { timeoutMs: 60_000 }),
-    opsDeps.run(['claude', 'plugin', 'marketplace', 'list', '--json'], { timeoutMs: 60_000 }),
-  ])
-  const installed = list.code === 0 ? parseJsonOutput(list.stdout) : undefined
-  if (Array.isArray(installed)) for (const p of installed.filter(isRecord)) if (typeof p['id'] === 'string') out.add(p['id'])
-  const markets = mk.code === 0 ? parseJsonOutput(mk.stdout) : undefined
-  if (Array.isArray(markets)) for (const m of markets.filter(isRecord)) if (typeof m['name'] === 'string') out.add(`marketplace:${m['name']}`)
-  return out
-}
-
-interface MarketplaceInfo { name: string; source?: string; installLocation?: string; ref?: string }
-
-function marketplaceVersions(loc: string): Map<string, string> {
-  const out = new Map<string, string>()
-  try {
-    const j = JSON.parse(readFileSync(join(loc, '.claude-plugin', 'marketplace.json'), 'utf8')) as unknown
-    const plugins = isRecord(j) && Array.isArray(j['plugins']) ? j['plugins'] : []
-    for (const p of plugins) if (isRecord(p) && typeof p['name'] === 'string' && typeof p['version'] === 'string') out.set(p['name'], p['version'])
-  } catch {  }
-  return out
-}
-
-export async function checkPlugins(env: UpdateEnv, res: CheckResult): Promise<void> {
-  const claude = env.adapters.find(a => a.harness === 'claude')
-  if (!claude || env.config.harnesses.claude.enabled === false) { res.unchecked.push({ kind: 'plugins', reason: 'Claude Code is turned off in the configuration' }); return }
-  let det: { installed: boolean }
-  try { det = await claude.detect() } catch { det = { installed: false } }
-  if (!det.installed) { res.unchecked.push({ kind: 'plugins', reason: 'Claude Code is not installed' }); return }
-  const list = await opsDeps.run(['claude', 'plugin', 'list', '--json'], { timeoutMs: 60_000 })
-  const mk = await opsDeps.run(['claude', 'plugin', 'marketplace', 'list', '--json'], { timeoutMs: 60_000 })
-  const installed = parseJsonOutput(list.stdout)
-  const markets = parseJsonOutput(mk.stdout)
-  if (list.code !== 0 || !Array.isArray(installed)) { res.errors.push({ kind: 'plugins', id: 'claude', error: `claude plugin list --json failed (exit ${list.code})` }); return }
-  const mks: MarketplaceInfo[] = Array.isArray(markets) ? markets.filter(isRecord).map(m => {
-    const info: MarketplaceInfo = { name: String(m['name'] ?? '') }
-    if (typeof m['source'] === 'string') info.source = m['source']
-    if (typeof m['installLocation'] === 'string') info.installLocation = m['installLocation']
-    if (typeof m['ref'] === 'string') info.ref = m['ref']
-    return info
-  }).filter(m => m.name !== '') : []
-  for (const m of mks) {
-    if (m.installLocation === undefined || (m.source !== 'github' && m.source !== 'git')) continue
-    const local = await gitops.headCommit(m.installLocation)
-    const remote = local !== undefined ? await gitops.remoteHead(m.installLocation, m.ref ?? 'HEAD') : undefined
-    if (local !== undefined && remote !== undefined && local !== remote) {
-      res.items.push({ kind: 'plugins', id: `marketplace:${m.name}`, current: local.slice(0, 12), latest: remote.slice(0, 12), action: 'marketplace-update', risk: 'low', command: ['claude', 'plugin', 'marketplace', 'update', m.name] })
-    }
-  }
-  const catalogs = new Map<string, Map<string, string>>()
-  for (const p of installed.filter(isRecord)) {
-    const id = typeof p['id'] === 'string' ? p['id'] : ''
-    const at = id.lastIndexOf('@')
-    if (at <= 0) continue
-    const pname = id.slice(0, at)
-    const market = id.slice(at + 1)
-    if (['inline', 'skills-dir', 'synced', 'builtin'].includes(market) || id === 'buracle@buracle') continue
-    const m = mks.find(x => x.name === market)
-    if (!m?.installLocation) continue
-    if (!catalogs.has(market)) catalogs.set(market, marketplaceVersions(m.installLocation))
-    const offered = catalogs.get(market)?.get(pname)
-    const current = typeof p['version'] === 'string' ? p['version'] : undefined
-    if (offered === undefined || current === undefined || !parseVersionString(offered) || !parseVersionString(current)) continue
-    if (compareVersions(offered, current) <= 0) continue
-    res.items.push({ kind: 'plugins', id, current, latest: offered, action: 'plugin-update', risk: bumpRisk(current, offered), command: ['claude', 'plugin', 'update', id, '--json'], note: 'version from the cached marketplace catalog' })
-  }
-}
-
-async function latestHarnessVersion(src: HarnessSource): Promise<{ version?: string, publishedAt?: string, error?: string }> {
-  if (src.npm !== undefined) {
-    const found = await npmVersions(src.npm)
-    if ('error' in found) return { error: found.error }
-    const v = found.latestTag
-    if (v === undefined) return { error: `npm ${src.npm}: no latest tag` }
-    const at = found.versions.find(x => x.version === v)?.publishedAt
-    return at !== undefined ? { version: v, publishedAt: at } : { version: v }
-  }
-  if (src.url !== undefined) {
-    const r = await opsDeps.fetch(src.url, { timeoutMs: 20_000 })
-    if (!r.ok || !isRecord(r.json) || typeof r.json['version'] !== 'string') return { error: `${src.url}: ${r.error ?? 'unexpected response'}` }
-    return { version: r.json['version'] }
-  }
-  return { error: 'no version source' }
-}
-
-const OFFICIAL_TAPS: ReadonlySet<string> = new Set(['homebrew/core', 'homebrew/cask'])
-
-function stripCaskSuffix(v: string): string {
-  return v.split(',')[0] ?? v
-}
-
-async function brewLatest(origin: Origin): Promise<{ version?: string, note?: string, error?: string }> {
-  const name = origin.name ?? ''
-  const cask = origin.method === 'brew-cask'
-  const r = await opsDeps.run(['brew', 'info', '--json=v2', ...(cask ? ['--cask'] : []), name], { timeoutMs: 60_000, env: { ...BREW_CHECK_ENV } })
-  if (r.code === 127) return { error: 'brew not found' }
-  const j = parseJsonOutput(r.stdout)
-  const list = isRecord(j) ? j[cask ? 'casks' : 'formulae'] : undefined
-  const entry = Array.isArray(list) ? list.find(isRecord) : undefined
-  if (r.code !== 0 || entry === undefined) {
-    const why = r.stderr.split('\n').map(l => l.trim()).find(l => l.startsWith('Error:'))
-    return { error: `brew info --json=v2 ${cask ? '--cask ' : ''}${name} failed (exit ${r.code})${why !== undefined ? `: ${why.slice('Error:'.length).trim()}` : ''}` }
-  }
-  const tap = typeof entry['tap'] === 'string' ? entry['tap'] : ''
-  const versions = isRecord(entry['versions']) ? entry['versions'] : {}
-  const raw = cask ? entry['version'] : versions['stable']
-  const local = typeof raw === 'string' ? stripCaskSuffix(raw) : undefined
-  if (!OFFICIAL_TAPS.has(tap)) return local !== undefined ? { version: local, note: `Homebrew tap ${tap || 'unknown'}, as of its last brew update` } : { error: `brew info ${name}: no version` }
-  const api = await opsDeps.fetch(`https://formulae.brew.sh/api/${cask ? 'cask' : 'formula'}/${encodeURIComponent(name)}.json`, { timeoutMs: 20_000 })
-  const fromApi = api.ok && isRecord(api.json) ? (cask ? api.json['version'] : isRecord(api.json['versions']) ? api.json['versions']['stable'] : undefined) : undefined
-  if (typeof fromApi === 'string') return { version: stripCaskSuffix(fromApi) }
-  if (local === undefined) return { error: `Homebrew API: ${api.error ?? 'unexpected response'}` }
-  return { version: local, note: `Homebrew API unreachable (${api.error ?? `HTTP ${api.status}`}); version from the local brew data` }
-}
-
-export async function checkHarness(env: UpdateEnv, res: CheckResult): Promise<void> {
-  await Promise.all(env.adapters.map(async a => {
-    const h = a.harness
-    if (env.config.harnesses[h]?.enabled === false) return
-    let det: { installed: boolean, version?: string, path?: string }
-    try { det = await a.detect() } catch { return }
-    if (!det.installed || det.version === undefined) return
-    const src = HARNESS_SOURCES[h]
-    const real = resolveBinary(det.path)
-    const origin: Origin = real !== undefined ? detectOrigin(real) : { method: 'unknown' }
-    const notes: string[] = []
-    let latest: { version?: string, publishedAt?: string, error?: string, note?: string }
-    if (origin.method === 'brew-formula' || origin.method === 'brew-cask') {
-      latest = await brewLatest(origin)
-      if (latest.error === undefined) notes.push('Homebrew gives no release date, so update.minReleaseAgeDays does not apply')
-    } else latest = await latestHarnessVersion(src)
-    if (latest.error !== undefined || latest.version === undefined) { res.errors.push({ kind: 'harness', id: h, error: latest.error ?? 'unknown latest version' }); return }
-    if (!parseVersionString(latest.version)) { res.errors.push({ kind: 'harness', id: h, error: `unexpected latest version ${JSON.stringify(latest.version)}` }); return }
-    if (compareVersions(latest.version, det.version) <= 0) return
-    const plan = harnessUpdate(h, origin, latest.version, src.npm)
-    if ('error' in plan) { res.errors.push({ kind: 'harness', id: h, error: plan.error }); return }
-    if (latest.note !== undefined) notes.unshift(latest.note)
-    let risk = bumpRisk(det.version, latest.version)
-    if (latest.publishedAt !== undefined) {
-      const age = (env.nowMs - Date.parse(latest.publishedAt)) / DAY_MS
-      if (age < env.config.update.minReleaseAgeDays) { risk = maxRisk(risk, 'medium'); notes.push(`released ${Math.max(0, Math.round(age * 10) / 10)} day(s) ago`) }
-    }
-    const item: UpdateItem = { kind: 'harness', id: h, current: det.version, latest: latest.version, action: plan.action, risk, command: plan.command, source: plan.source }
-    if (notes.length > 0) item.note = notes.join('; ')
-    if (latest.publishedAt !== undefined) item.publishedAt = latest.publishedAt
-    res.items.push(item)
-  }))
-}
-
 export function brewUpgradeCommand(name: string): string[] | undefined {
   return isBrewName(name) ? ['brew', 'upgrade', name] : undefined
 }
@@ -441,42 +269,11 @@ export async function checkTools(env: UpdateEnv, res: CheckResult): Promise<void
   await checkToolchainTools(env, tools, res)
 }
 
-async function fetchText(url: string): Promise<string> {
-  const r = await opsDeps.fetch(url, { timeoutMs: 60_000 })
-  if (!r.ok) throw new Error(`GET ${url}: ${r.error ?? `HTTP ${r.status}`}`)
-  return r.text ?? JSON.stringify(r.json)
-}
-
-async function pricing(env: UpdateEnv, write: boolean): Promise<{ changed: boolean, written: boolean, missing: string[] } | { unavailable: string } | { error: string }> {
-  let mod: typeof import('../../usage/pricing')
-  try { mod = await import('../../usage/pricing') } catch (e) { return { unavailable: errText(e) } }
-  if (typeof mod.refreshPricing !== 'function') return { unavailable: 'refreshPricing is not exported' }
-  try {
-    const r = await mod.refreshPricing({ fetcher: fetchText, path: join(env.repoRoot, 'canonical', 'pricing.yaml'), write, now: () => new Date(env.nowMs) })
-    return { changed: r.changed === true, written: r.written === true, missing: Array.isArray(r.missing) ? r.missing.map(String) : [] }
-  } catch (e) {
-    return { error: errText(e) }
-  }
-}
-
-export async function checkPricing(env: UpdateEnv, res: CheckResult): Promise<void> {
-  const r = await pricing(env, false)
-  if ('unavailable' in r) { res.notes.push(`pricing: refresh not available (${r.unavailable})`); return }
-  if ('error' in r) { res.errors.push({ kind: 'pricing', id: 'pricing.yaml', error: r.error }); return }
-  if (!r.changed) return
-  const item: UpdateItem = { kind: 'pricing', id: 'pricing.yaml', current: null, latest: null, action: 'refresh', risk: 'low', note: 'list prices changed upstream (LiteLLM)' }
-  if (r.missing.length > 0) item.note += `; no price for: ${r.missing.join(', ')}`
-  res.items.push(item)
-}
-
 const CHECKERS: Record<UpdateKind, (env: UpdateEnv, res: CheckResult) => Promise<void>> = {
   self: checkSelf,
   skills: checkSkills,
   mcp: checkMcp,
-  plugins: checkPlugins,
-  harness: checkHarness,
   tools: checkTools,
-  pricing: checkPricing,
 }
 
 // onKind sees each kind start and finish; `result` holds what every kind checked so far found.
@@ -501,10 +298,7 @@ export interface ApplyOutcome {
   selfFrom?: string
   depsInstalled?: boolean
   bumpedServers: string[]
-  // The MCP servers and tools the toolchain installed or upgraded: the ones an update has to prove still work.
-  toolchainUpgraded: Array<{ kind: 'mcp' | 'tools', id: string }>
   pinsBumped: boolean
-  harnessChecks: Array<{ harness: Harness, level: 'warn' | 'error', check: string, detail: string }>
 }
 
 export const DEPENDENCY_FILES: readonly string[] = ['package.json', 'bun.lock']
@@ -542,23 +336,12 @@ export function bumpPins(repoRoot: string, bumps: ReadonlyArray<{ id: string, ve
   }
 }
 
-function lastJsonLine(stdout: string): Record<string, unknown> | undefined {
-  const lines = stdout.trim().split('\n').reverse()
-  for (const l of lines) {
-    try { const v = JSON.parse(l) as unknown; if (isRecord(v)) return v } catch {  }
-  }
-  return undefined
-}
-
 function firstLine(s: string): string {
   return s.trim().split('\n')[0] ?? ''
 }
 
-const HARNESS_LABEL: Readonly<Record<string, string>> = { claude: 'Claude Code', codex: 'Codex', opencode: 'OpenCode', omp: 'Oh My Pi' }
-
 export function partName(kind: UpdateKind, id: string): string {
   if (kind === 'self') return 'Buracle'
-  if (kind === 'harness') return HARNESS_LABEL[id] ?? id
   if (kind === 'skills') return `Skill ${id}`
   return id
 }
@@ -595,41 +378,6 @@ async function tracked(env: UpdateEnv, out: ApplyOutcome, step: { id: string, la
   lines.forEach((l, i) => report({ phase: 'done', id: i === 0 ? step.id : `${step.id}#${i}`, ...l }))
 }
 
-async function applyHarness(i: UpdateItem, env: UpdateEnv, out: ApplyOutcome): Promise<void> {
-  const adapter = env.adapters.find(a => a.harness === i.id)
-  if (!i.command || adapter === undefined) { out.skipped.push({ kind: 'harness', id: i.id, reason: 'no update command' }); return }
-  const h = adapter.harness
-  const cmd = i.command.join(' ')
-  const r = await opsDeps.run(i.command, { timeoutMs: 900_000, ...(i.command[0] === 'brew' ? { env: { HOMEBREW_NO_ENV_HINTS: '1' } } : {}) })
-  if (r.code !== 0) { out.failed.push({ kind: 'harness', id: h, error: `${cmd} failed: ${firstLine(r.stderr) || firstLine(r.stdout) || `exit ${r.code}`}` }); return }
-  try { (await import('../../usage/bar-info')).forgetHarnessVersion(h) } catch {  }
-  let now: string | undefined
-  try { now = (await adapter.detect()).version } catch { now = undefined }
-  const before = i.current
-  const latest = i.latest
-  if (i.action === 'self-update') {
-    if (now !== undefined && before !== null && compareVersions(now, before) === 0) {
-      out.skipped.push({ kind: 'harness', id: h, reason: `${cmd} found nothing newer than ${before}${latest !== null ? ` (registry latest ${latest})` : ''}`, benign: true })
-      return
-    }
-    if (now === undefined || (before !== null && compareVersions(now, before) < 0)) { out.failed.push({ kind: 'harness', id: h, error: `still ${now ?? 'an unknown version'} after ${cmd}` }); return }
-    const behind = latest !== null && compareVersions(now, latest) < 0 ? `; channel is behind the registry latest (${latest})` : ''
-    out.applied.push({ kind: 'harness', id: h, detail: `${cmd} → ${now}${behind}` })
-  } else {
-    if (now === undefined || (latest !== null && compareVersions(now, latest) < 0)) { out.failed.push({ kind: 'harness', id: h, error: `still ${now ?? 'an unknown version'} after ${cmd}` }); return }
-    out.applied.push({ kind: 'harness', id: h, detail: `${cmd} → ${now}` })
-  }
-  if (env.ctx === undefined) return
-  try {
-    const found = await adapter.doctor(env.ctx)
-    for (const f of Array.isArray(found) ? found : []) {
-      if (f.level === 'warn' || f.level === 'error') out.harnessChecks.push({ harness: h, level: f.level, check: String(f.check), detail: String(f.detail) })
-    }
-  } catch (e) {
-    out.harnessChecks.push({ harness: h, level: 'error', check: 'doctor', detail: errText(e) })
-  }
-}
-
 async function applyToolchain(items: readonly UpdateItem[], env: UpdateEnv, out: ApplyOutcome): Promise<void> {
   if (items.length === 0) return
   const idOf = (i: UpdateItem) => `${i.kind === 'mcp' ? 'mcp' : 'tool'}:${i.id}`
@@ -657,39 +405,14 @@ async function applyToolchain(items: readonly UpdateItem[], env: UpdateEnv, out:
     if (got === undefined) { out.failed.push({ kind: i.kind, id: i.id, error: 'not part of the toolchain run' }); continue }
     if (got.status === 'upgraded' || got.status === 'installed') {
       out.applied.push({ kind: i.kind, id: i.id, detail: `toolchain ${i.current ?? 'none'} → ${got.current ?? i.latest ?? 'latest'}` })
-      if (i.kind === 'mcp' || i.kind === 'tools') out.toolchainUpgraded.push({ kind: i.kind, id: i.id })
       if (i.kind === 'mcp') out.bumpedServers.push(i.id)
     } else if (got.status === 'ok') out.skipped.push({ kind: i.kind, id: i.id, reason: `already at ${got.current ?? i.current ?? 'the newest release'}`, benign: true })
     else out.failed.push({ kind: i.kind, id: i.id, error: got.detail || got.status })
   }
 }
 
-async function applyPluginUpdate(i: UpdateItem, out: ApplyOutcome): Promise<void> {
-  const r = await opsDeps.run(['claude', 'plugin', 'update', i.id, '--json'], { timeoutMs: 300_000 })
-  const res = lastJsonLine(r.stdout)
-  if (r.code === 0 && (res === undefined || res['outcome'] !== 'failed')) out.applied.push({ kind: 'plugins', id: i.id, detail: typeof res?.['message'] === 'string' ? res['message'] : `updated to ${i.latest ?? 'latest'} (restart or /reload-plugins)` })
-  else out.failed.push({ kind: 'plugins', id: i.id, error: typeof res?.['message'] === 'string' ? res['message'] : firstLine(r.stderr) || `exit ${r.code}` })
-}
-
-async function applyPlugins(items: readonly UpdateItem[], env: UpdateEnv, out: ApplyOutcome): Promise<void> {
-  if (items.length === 0) return
-  const markets = items.filter(p => p.action === 'marketplace-update')
-  const done = new Set<string>()
-  const mk = await opsDeps.run(['claude', 'plugin', 'marketplace', 'update'], { timeoutMs: 60_000 })
-  for (const i of markets) {
-    if (mk.code === 0) out.applied.push({ kind: 'plugins', id: i.id, detail: 'marketplace refreshed' })
-    else out.failed.push({ kind: 'plugins', id: i.id, error: `claude plugin marketplace update failed: ${firstLine(mk.stderr) || `exit ${mk.code}`}` })
-  }
-  if (mk.code === 0) {
-    const again: CheckResult = { items: [], held: [], errors: [], notes: [], unchecked: [] }
-    try { await checkPlugins(env, again) } catch {  }
-    for (const i of again.items.filter(p => p.action === 'plugin-update')) { done.add(i.id); await applyPluginUpdate(i, out) }
-  }
-  for (const i of items.filter(p => p.action === 'plugin-update' && !done.has(p.id))) await applyPluginUpdate(i, out)
-}
-
 export async function applyUpdates(items: readonly UpdateItem[], env: UpdateEnv): Promise<ApplyOutcome> {
-  const out: ApplyOutcome = { applied: [], failed: [], skipped: [], rebuild: false, selfUpdated: false, bumpedServers: [], toolchainUpgraded: [], pinsBumped: false, harnessChecks: [] }
+  const out: ApplyOutcome = { applied: [], failed: [], skipped: [], rebuild: false, selfUpdated: false, bumpedServers: [], pinsBumped: false }
   const of = (k: UpdateKind) => items.filter(i => i.kind === k)
 
   for (const i of of('self')) {
@@ -768,30 +491,12 @@ export async function applyUpdates(items: readonly UpdateItem[], env: UpdateEnv)
     })
   }
 
-  if (of('plugins').length > 0) {
-    await tracked(env, out, { id: 'plugins', label: 'Claude Code plugins: refreshing the marketplaces and updating', idle: 'Claude Code plugins: nothing to update' }, () => applyPlugins(of('plugins'), env, out))
-  }
-
-  for (const i of of('harness')) {
-    const how = i.command !== undefined ? ` (${i.command.join(' ')})` : ''
-    await tracked(env, out, { id: `harness:${i.id}`, label: `${partName('harness', i.id)}: updating${i.latest !== null ? ` to ${i.latest}` : ''}${how}`, idle: partName('harness', i.id) }, () => applyHarness(i, env, out))
-  }
-
   for (const i of of('tools').filter(t => t.action !== 'toolchain-upgrade')) {
     await tracked(env, out, { id: `tools:${i.id}`, label: `${i.id}: updating${i.command !== undefined ? ` (${i.command.join(' ')})` : ''}`, idle: i.id }, async () => {
       if (!i.command) { out.skipped.push({ kind: 'tools', id: i.id, reason: 'no command' }); return }
       const r = await opsDeps.run(i.command, { timeoutMs: 900_000, env: { HOMEBREW_NO_ENV_HINTS: '1' } })
       if (r.code === 0) out.applied.push({ kind: 'tools', id: i.id, detail: `${i.current ?? '?'} → ${i.latest ?? 'latest'}` })
       else out.failed.push({ kind: 'tools', id: i.id, error: `${i.command.join(' ')} failed: ${firstLine(r.stderr) || `exit ${r.code}`}` })
-    })
-  }
-
-  for (const i of of('pricing')) {
-    await tracked(env, out, { id: `pricing:${i.id}`, label: 'Prices: refreshing canonical/pricing.yaml', idle: 'Prices' }, async () => {
-      const r = await pricing(env, true)
-      if ('written' in r && r.written) { out.applied.push({ kind: 'pricing', id: i.id, detail: 'canonical/pricing.yaml refreshed' }); out.rebuild = true }
-      else if ('written' in r) out.skipped.push({ kind: 'pricing', id: i.id, reason: 'prices unchanged' })
-      else out.failed.push({ kind: 'pricing', id: i.id, error: 'error' in r ? r.error : r.unavailable })
     })
   }
   return out

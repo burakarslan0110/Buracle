@@ -99,8 +99,8 @@ describe('placeholders', () => {
     expect(renderPlaceholders('Ask with {{ask_user}} first.', 'neutral')).toBe('Ask with your structured-question tool (`request_user_input` in Codex, `question` in OpenCode, `ask` in Oh My Pi) first.')
     expect(renderPlaceholders('Then {{skill:requirements}}.', 'neutral')).toBe('Then `/requirements` (Codex: `$requirements`).')
     expect(renderPlaceholders('the idea is still vague ({{skill:requirements}}), or', 'neutral')).toBe('the idea is still vague (`/requirements`; Codex: `$requirements`), or')
-    expect(renderPlaceholders('Then {{skill:memory}}.', 'neutral', { protocols: ['memory'] })).toBe('Then the `memory` skill (read `${CODEX_HOME:-~/.codex}/skills/memory/SKILL.md` in Codex, load it with the `skill` tool in OpenCode, read `skill://memory` in Oh My Pi).')
-    expect(renderPlaceholders('A pass ({{skill:memory}}): three queries.', 'neutral', { protocols: ['memory'] })).toBe('A pass (the `memory` skill: read `${CODEX_HOME:-~/.codex}/skills/memory/SKILL.md` in Codex, load it with the `skill` tool in OpenCode, read `skill://memory` in Oh My Pi): three queries.')
+    expect(renderPlaceholders('Then {{skill:memory}}.', 'neutral', { protocols: ['memory'] })).toBe('Then the `memory` skill (read `~/.agents/skills/memory/SKILL.md` in Codex, load it with the `skill` tool in OpenCode, read `skill://memory` in Oh My Pi).')
+    expect(renderPlaceholders('A pass ({{skill:memory}}): three queries.', 'neutral', { protocols: ['memory'] })).toBe('A pass (the `memory` skill: read `~/.agents/skills/memory/SKILL.md` in Codex, load it with the `skill` tool in OpenCode, read `skill://memory` in Oh My Pi): three queries.')
     expect(renderPlaceholders('Track it with {{todo}}.', 'neutral')).toBe('Track it with your plan/todo tool (`update_plan` in Codex, `todowrite` in OpenCode, the todo tool in Oh My Pi).')
     expect(renderPlaceholders('Launch {{agent:plan-build-review}} with {{spawn_agent}}.', 'neutral')).toBe('Launch plan-build-review with your subagent tool (`spawn_agent` in Codex, `subagent` in OpenCode, `task` in Oh My Pi).')
   })
@@ -114,8 +114,8 @@ describe('placeholders', () => {
   })
 
   test('inside inline code a placeholder becomes per-harness code variants', () => {
-    expect(renderPlaceholders('User: `{{skill:requirements}} idea` here', 'neutral')).toBe('User: `$requirements idea` in Codex, `/requirements idea` in OpenCode and Oh My Pi here')
-    expect(renderPlaceholders('User: `{{skill:memory}} x` here', 'neutral', { protocols: ['memory'] })).toBe('User: `$memory x` in Codex, `@memory x` in OpenCode, `/skill:memory x` in Oh My Pi here')
+    expect(renderPlaceholders('User: `{{skill:requirements}} idea` here', 'neutral')).toBe('User: `$requirements idea` in Codex, `/requirements idea` in OpenCode, Oh My Pi and Qwen Code, `/skill:requirements idea` in Pi here')
+    expect(renderPlaceholders('User: `{{skill:memory}} x` here', 'neutral', { protocols: ['memory'] })).toBe('User: `$memory x` in Codex, `@memory x` in OpenCode, `/skill:memory x` in Oh My Pi and Pi, `/memory x` in Qwen Code here')
     expect(renderPlaceholders('`{{agent:changes-review}}`', 'neutral')).toBe('`changes-review`')
     expect(renderPlaceholders('Run `{{skill:plan-build}} x`.', 'codex')).toBe('Run `$plan-build x`.')
   })
@@ -125,7 +125,7 @@ describe('placeholders', () => {
     expect(renderPlaceholders(same, 'neutral')).toBe('```text\nchanges-review\nplan_file: x\n```')
     const differs = '```text\n{{skill:plan-build}} go\n```'
     expect(renderPlaceholders(differs, 'neutral')).toBe([
-      '**Codex:**', '```text', '$plan-build go', '```', '**OpenCode and Oh My Pi:**', '```text', '/plan-build go', '```',
+      '**Codex:**', '```text', '$plan-build go', '```', '**OpenCode, Oh My Pi and Qwen Code:**', '```text', '/plan-build go', '```', '**Pi:**', '```text', '/skill:plan-build go', '```',
     ].join('\n'))
   })
 

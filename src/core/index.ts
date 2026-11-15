@@ -10,7 +10,10 @@ export * from './memory/index'
 export * from './usage'
 export * from './receipt'
 export * from './workspace'
-export * from './effort'
 export * from './flow/index'
 export * from './notices'
-export * from './board/model'
+export {
+  HARNESS_LABEL, HARNESS_PROFILES, NEUTRAL_SKILL_HARNESSES, configDirOf, defineHarnesses, harnessProfile, harnessTable, harnessesWhere, lowerWordToken,
+  mcpClientMatches, mcpToken, mcpToolName, mcpToolPattern, missingEvents, parseMcpToolName, processMatches, shellTools, toolKindOf, wordDashToken, wordToken,
+  type HarnessProfile, type HarnessSet, type McpDialect, type McpTokenRule, type ProtectedDir,
+} from './harness/index'

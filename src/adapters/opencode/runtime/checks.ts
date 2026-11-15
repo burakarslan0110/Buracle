@@ -1,37 +1,27 @@
-import { statSync } from 'node:fs'
-import { basename } from 'node:path'
+import { harnessProfile } from '../../../core/harness/index'
 import type { BuracleConfig } from '../../../core/config'
 import type { ToolKind } from '../../../core/events'
 import { parseApplyPatch } from '../../../core/events'
 import type { CheckerPlan } from '../../../core/checkers'
-import { charsetFindings, checkersFor, findingsOf, lengthNote, tddHint } from '../../../core/checkers'
 import { patchEdits } from '../../../core/policy/code-facts'
-import { checkOneFile, nodeCheckFs, removedByFile, type CheckerResult, type CheckFs } from '../../shared/checker-scan'
+import { removedByFile, type CheckerResult } from '../../shared/checker-scan'
 
 export type CheckerRunner = (plan: CheckerPlan, timeoutMs?: number) => Promise<CheckerResult | null>
 
-export const OPENCODE_H04_BUDGET_MS = 20_000
+/** How long the file checks (H04) may take after an edit; OpenCode waits for the tool hook without a timeout of its own. */
+export const OPENCODE_H04_BUDGET_MS = harnessProfile('opencode').editBudgetMs
 export const OPENCODE_LSP_BUDGET_MS = 12_000
-export const MAX_CHECKED_FILES = 5
 
 export type LspEditAsk = (files: readonly string[], opts: { cwd: string, deadlineMs: number, now: () => number }) => Promise<string[]>
 
-export interface FileCheckDeps {
-  root: string
-  cwd: string
-  home: string
-  run: CheckerRunner
-  log: (level: 'debug' | 'warn', msg: string, data?: unknown) => void
-  now?: () => number
-  once?: (key: string) => boolean
-  fs?: CheckFs
-}
+type Log = (level: 'debug' | 'warn', msg: string, data?: unknown) => void
 
 function str(x: unknown): string | undefined {
   return typeof x === 'string' ? x : undefined
 }
 
-function editTexts(kind: ToolKind, files: readonly string[], input: Record<string, unknown>, cwd: string, home: string): { added: Record<string, string>, removed: Record<string, string> } {
+/** The text an OpenCode edit tool adds to and removes from each file, as far as its input shows it. */
+export function editTexts(kind: ToolKind, files: readonly string[], input: Record<string, unknown>, cwd: string, home: string): { added: Record<string, string>, removed: Record<string, string> } {
   const added: Record<string, string> = {}
   const removed: Record<string, string> = {}
   const first = files[0]
@@ -62,35 +52,7 @@ function editTexts(kind: ToolKind, files: readonly string[], input: Record<strin
   return { added, removed }
 }
 
-function isFile(path: string): boolean {
-  try { return statSync(path).isFile() } catch { return false }
-}
-
-export async function fileChecks(kind: ToolKind, files: string[], input: Record<string, unknown>, cfg: BuracleConfig['checkers'], deps: FileCheckDeps): Promise<string[]> {
-  if (!cfg.enabled) return []
-  const now = deps.now ?? Date.now
-  const deadlineMs = now() + OPENCODE_H04_BUDGET_MS
-  const { added, removed } = editTexts(kind, files, input, deps.cwd, deps.home)
-  const notes: string[] = []
-  for (const file of files.slice(0, MAX_CHECKED_FILES)) {
-    if (!isFile(file)) continue
-    const name = basename(file)
-    const found = await checkOneFile({
-      api: { checkersFor, findingsOf, tddHint, charsetFindings, lengthNote },
-      fs: deps.fs ?? nodeCheckFs,
-      now,
-      run: (plan, timeoutMs) => deps.run(plan, timeoutMs),
-      guard: async (what, fallback, fn) => {
-        try { return await fn() } catch (err) { deps.log('warn', `H04 ${what} failed`, { file, error: err instanceof Error ? err.message : String(err) }); return fallback }
-      },
-      ...(deps.once !== undefined ? { once: deps.once } : {}),
-    }, { file, cwd: deps.cwd, root: deps.root, home: deps.home, ...(added[file] !== undefined ? { added: added[file] } : {}), ...(removed[file] !== undefined ? { removed: removed[file] } : {}), deadlineMs }, cfg)
-    for (const n of found) notes.push(n.kind === 'tdd' ? n.text : `${name}: ${n.text}`)
-  }
-  return notes
-}
-
-export async function lspEditNotes(files: readonly string[], cfg: BuracleConfig['checkers'], deps: { cwd: string, ask: LspEditAsk, log: FileCheckDeps['log'], now?: () => number }): Promise<string[]> {
+export async function lspEditNotes(files: readonly string[], cfg: BuracleConfig['checkers'], deps: { cwd: string, ask: LspEditAsk, log: Log, now?: () => number }): Promise<string[]> {
   if (!cfg.enabled || files.length === 0) return []
   const now = deps.now ?? Date.now
   try {

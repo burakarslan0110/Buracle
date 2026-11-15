@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { HARNESSES } from '../../src/core/events'
 import {
   describeIndexState, indexExclusion, indexHealth, indexRetryDelayMs, indexState, indexToolDue, isCorruptIndexError, isPathWithin, pathKey,
-  workspaceContext, workspaceNotice, wslDrive, type IndexExclusionContext, type ProjectIndex, type WorkspaceInfo,
+  workspaceContext, workspaceNotice, type IndexExclusionContext, type ProjectIndex, type WorkspaceInfo,
 } from '../../src/core/workspace'
 
 const MIN = 60_000
@@ -19,7 +19,6 @@ describe('paths', () => {
   test('pathKey normalizes separators, dots and trailing slashes; lower-cases only when asked', () => {
     expect(pathKey('/a/b/../c/./d/', false)).toBe('/a/c/d')
     expect(pathKey('C:\\Users\\Burak\\', false)).toBe('C:/Users/Burak')
-    expect(pathKey('C:\\', false)).toBe('C:/')
     expect(pathKey('/Users/Burak/Proj', true)).toBe('/users/burak/proj')
   })
 
@@ -36,7 +35,7 @@ describe('paths', () => {
 describe('indexExclusion: folders Buracle never indexes', () => {
   test('the filesystem root, the home folder and its parents, the vault and Buracle state', () => {
     expect(indexExclusion('/', ctx())).toBe('the filesystem root')
-    expect(indexExclusion('D:\\', ctx())).toBe('the filesystem root')
+    expect(indexExclusion('D:\\', ctx())).toBeUndefined()
     expect(indexExclusion('/Users/burak', ctx())).toBe('your home folder')
     expect(indexExclusion('/Users', ctx())).toBe('a parent of your home folder')
     expect(indexExclusion('/Users/burak/Documents/Buracle', ctx())).toBe('inside the memory vault')
@@ -241,14 +240,5 @@ describe('workspaceNotice: the first prompt after the background build', () => {
       childIndex: { '/w/a': { codegraph: a, semble: { state: 'ready' } }, '/w/b': { codegraph: b, semble: { state: 'ready' } } },
     })
     expect(workspaceNotice(kids({ state: 'building' }, { state: 'building' }), kids({ state: 'ready' }, { state: 'ready' }))).toBe('The codegraph indexes of /w/a, /w/b are ready now: call codegraph with the project as `projectPath`.')
-  })
-})
-
-describe('wslDrive: the Windows drive WSL mounts a path from', () => {
-  test('/mnt/<letter> is a drive; other /mnt folders, other roots and other spellings are not', () => {
-    expect(wslDrive('/mnt/c/Users/me')).toBe('c')
-    expect(wslDrive('/mnt/d')).toBe('d')
-    expect(wslDrive('/mnt/D/data')).toBe('D')
-    for (const p of ['/mnt/wsl/x', '/mnt/wslg', '/mnt/data', '/mnt', '/mnt/', '/home/me', '/MNT/c', 'mnt/c/x', '/x/mnt/c', 'C:\\Users\\me', '']) expect(wslDrive(p)).toBeUndefined()
   })
 })

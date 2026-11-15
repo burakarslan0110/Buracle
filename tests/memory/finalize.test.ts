@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { existsSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { promptSignals } from '../../src/core/memory/signals'
 import { contextText } from '../../src/memory/context'
 import { pendingSessions } from '../../src/memory/capture'
 import { closeAllCortex, cortexFor } from '../../src/memory/cortex'
@@ -13,7 +12,7 @@ import { writeHandoff } from '../../src/memory/handoff'
 import { promptSeen, readSessionRecord, sessionStart, writeSessionRecord } from '../../src/memory/session-record'
 import { appendSpool } from '../../src/memory/spool'
 import { readStatus } from '../../src/memory/status'
-import { forgetListCache, getStored, listAll, personRef, projectRef, storedId } from '../../src/memory/store'
+import { forgetListCache, getStored, listAll, personRef, projectRef, storedId, sweepExpired } from '../../src/memory/store'
 import { writeTelemetry } from '../../src/workflow/session-store'
 import * as paths from '../../src/engine/paths'
 import { withEnv } from '../helpers/sandbox'
@@ -32,8 +31,6 @@ async function spooled(repo: string, sid: string, entries: Parameters<typeof app
   appendSpool('codex', sid, [{ ts: Date.now(), ev: 'prompt' }, ...entries, { ts: Date.now() + 5, ev: 'stop', excerpt }])
 }
 
-const statement = (text: string, ts = Date.now() + 1) => promptSignals(text).map(signal => ({ ts, ev: 'prompt-signal' as const, signal }))
-
 describe('finalize', () => {
   test('a late segment gets a second pass of the session memory, but the tail runs once', async () => {
     await withBrain(async ({ repo }) => {
@@ -49,6 +46,18 @@ describe('finalize', () => {
       expect(mem?.item.history.map(h => h.what)).toEqual(['session ended', 'finalized again', 'distilled'])
       expect(mem?.item.body).toContain('Also renamed the helper.')
       expect(r.capture?.state).toBe('done')
+    })
+  })
+
+  test.skipIf(REAL_CORTEXDB)('a sweep the engine refuses does not fail the session end', async () => {
+    await withBrain(async ({ repo }) => {
+      await spooled(repo, SID)
+      await withEnv({ FAKE_CORTEXDB_FAIL: 'sweep_expired' }, async () => {
+        const r = await finalize('codex', SID, { pending: false })
+        expect(r.memoryId).toBeDefined()
+        expect(readSessionRecord('codex', SID)?.status).toBe('ended')
+        await expect(sweepExpired()).rejects.toThrow('injected failure')
+      })
     })
   })
 
@@ -91,19 +100,78 @@ describe('finalize', () => {
       git(repo, 'commit', '-q', '-m', 'add b')
       appendSpool('codex', SID, [
         { ts: t0, ev: 'prompt', excerpt: 'secret prompt text' },
-        { ts: t0 + 1, ev: 'tool', tool: 'apply_patch', kind: 'edit', paths: [join(repo, 'a.ts'), join(repo, 'b.ts')] },
-        { ts: t0 + 2, ev: 'tool', tool: 'Bash', cmd: 'bun test', exit: 1 },
-        { ts: t0 + 3, ev: 'tool', tool: 'Bash', cmd: 'bun test', exit: 0 },
         { ts: t0 + 4, ev: 'turn', model: 'gpt-6.1-sol' },
         { ts: t0 + 5, ev: 'stop', excerpt: 'Added a and b.' },
       ])
       await finalize('codex', SID)
       const rec = readSessionRecord('codex', SID)
       expect(rec?.stats).toEqual({
-        endedMs: t0 + 5, prompts: 1, turns: 1, tools: 3, commands: 2, files: 2, tests: 2, testFailures: 1, model: 'gpt-6.1-sol',
-        commits: 2, filesChanged: 2, insertions: 3, topTools: [['Bash', 2], ['apply_patch', 1]],
+        endedMs: t0 + 5, prompts: 1, turns: 1, files: 2, model: 'gpt-6.1-sol',
+        commits: 2, filesChanged: 2, insertions: 3,
       })
       expect(JSON.stringify(rec)).not.toContain('secret prompt text')
+      // The file list is what git reports against the commit the session started on; no hook recorded it.
+      expect(rec?.files).toEqual(['a.ts', 'b.ts'])
+    })
+  })
+
+  test('the files a session touched come from git at its end: committed, changed and new ones, never an ignored one; changed files alone are no session', async () => {
+    await withBrain(async ({ repo }) => {
+      writeFileSync(join(repo, '.gitignore'), 'dist/\n')
+      git(repo, 'add', '-A')
+      git(repo, 'commit', '-q', '-m', 'ignore dist')
+      await sessionStart('codex', SID, repo)
+      mkdirSync(join(repo, 'src', 'memory'), { recursive: true })
+      mkdirSync(join(repo, 'dist'), { recursive: true })
+      writeFileSync(join(repo, 'src', 'memory', 'committed.ts'), 'export const a = 1\n')
+      git(repo, 'add', '-A')
+      git(repo, 'commit', '-q', '-m', 'add committed')
+      writeFileSync(join(repo, 'README.md'), '# demo, edited\n')
+      writeFileSync(join(repo, 'src', 'memory', 'new file.ts'), 'export const b = 2\n')
+      writeFileSync(join(repo, 'dist', 'out.js'), 'ignored\n')
+      // Only a prompt so far: the dirty worktree alone does not make a session memory.
+      await sessionStart('codex', OTHER, repo)
+      appendSpool('codex', OTHER, [{ ts: Date.now(), ev: 'prompt', excerpt: 'hello' }])
+      const empty = await finalize('codex', OTHER, { pending: false })
+      expect(empty).toMatchObject({ empty: true })
+      expect(empty.memoryId).toBeUndefined()
+      appendSpool('codex', SID, [{ ts: Date.now(), ev: 'prompt' }, { ts: Date.now() + 1, ev: 'stop', excerpt: 'Edited the readme.' }])
+      const r = await finalize('codex', SID, { pending: false })
+      const files = ['README.md', 'src/memory/committed.ts', 'src/memory/new file.ts']
+      expect(readSessionRecord('codex', SID)?.files).toEqual(files)
+      const mem = (await getStored(projectRef('demo'), r.memoryId as string))?.item
+      expect(mem?.body).toContain('- Files touched (3): `README.md`, `src/memory/committed.ts`, `src/memory/new file.ts`')
+      expect(mem?.body).not.toContain('dist/out.js')
+      expect(mem?.body).not.toMatch(/Commands:|Failed commands:|tool calls/)
+      expect(mem?.summary).toBe('Outcome: changed 3 files (src/memory); 1 commit.')
+      expect(mem?.title).toBe('codex session: src/memory')
+    })
+  })
+
+  test('files already modified or untracked when the session started are not its files, unless it changed them again; no baseline means every change counts', async () => {
+    await withBrain(async ({ repo }) => {
+      writeFileSync(join(repo, 'old.ts'), 'export const o = 1\n')
+      writeFileSync(join(repo, 'again.ts'), 'export const g = 1\n')
+      git(repo, 'add', '-A')
+      git(repo, 'commit', '-q', '-m', 'tracked files')
+      // Before the session: one tracked file edited, one tracked file edited, one new file.
+      writeFileSync(join(repo, 'old.ts'), 'export const o = 2\n')
+      writeFileSync(join(repo, 'again.ts'), 'export const g = 2\n')
+      writeFileSync(join(repo, 'pre-untracked.ts'), 'export const u = 1\n')
+      await sessionStart('codex', SID, repo)
+      expect(Object.keys(readSessionRecord('codex', SID)?.baseline ?? {}).sort()).toEqual(['again.ts', 'old.ts', 'pre-untracked.ts'])
+      writeFileSync(join(repo, 'again.ts'), 'export const g = 3 // changed during the session\n')
+      writeFileSync(join(repo, 'during.ts'), 'export const d = 1\n')
+      appendSpool('codex', SID, [{ ts: Date.now(), ev: 'prompt' }, { ts: Date.now() + 1, ev: 'stop', excerpt: 'Edited.' }])
+      await finalize('codex', SID, { pending: false })
+      expect(readSessionRecord('codex', SID)?.files).toEqual(['again.ts', 'during.ts'])
+      // A record without a baseline (older record, no git at start) reports every change, as before.
+      await sessionStart('codex', OTHER, repo)
+      const rec = readSessionRecord('codex', OTHER)
+      writeSessionRecord({ ...(rec as NonNullable<typeof rec>), baseline: undefined as never })
+      appendSpool('codex', OTHER, [{ ts: Date.now(), ev: 'prompt' }, { ts: Date.now() + 1, ev: 'stop', excerpt: 'Edited.' }])
+      await finalize('codex', OTHER, { pending: false })
+      expect(readSessionRecord('codex', OTHER)?.files).toEqual(['again.ts', 'old.ts', 'during.ts', 'pre-untracked.ts'])
     })
   })
 
@@ -117,10 +185,10 @@ describe('finalize', () => {
       git(repo, 'add', '-A')
       git(repo, 'commit', '-q', '-m', 'add a')
       const t0 = Date.now()
-      appendSpool('codex', SID, [{ ts: t0, ev: 'prompt' }, { ts: t0 + 1, ev: 'tool', tool: 'Bash', cmd: 'git commit -m x', exit: 0 }, { ts: t0 + 2, ev: 'stop', excerpt: 'Done.' }])
+      appendSpool('codex', SID, [{ ts: t0, ev: 'prompt' }, { ts: t0 + 2, ev: 'stop', excerpt: 'Done.' }])
       await finalize('codex', SID)
       const stats = readSessionRecord('codex', SID)?.stats
-      expect(stats).toMatchObject({ prompts: 1, tools: 1, commands: 1 })
+      expect(stats).toMatchObject({ prompts: 1, files: 0 })
       for (const k of ['commits', 'filesChanged', 'insertions', 'deletions'] as const) expect({ k, v: stats?.[k] }).toEqual({ k, v: undefined })
     })
   })
@@ -137,7 +205,7 @@ describe('finalize', () => {
     })
   })
 
-  test('the session memory is saved with CortexDB\'s own time to live (45 days): the engine drops it, no sweep does', async () => {
+  test('the session memory is saved with CortexDB\'s own time to live (45 days): the engine hides it, the sweep of the next session end deletes it', async () => {
     await withBrain(async ({ repo, root }) => {
       const clock = join(root, 'cortex-clock')
       await withEnv({ FAKE_CORTEXDB_CLOCK_FILE: clock }, async () => {
@@ -156,9 +224,15 @@ describe('finalize', () => {
         writeFileSync(clock, String(t0 + 44 * DAY))
         expect(await getStored(projectRef('demo'), id)).toBeDefined()
         writeFileSync(clock, String(t0 + 46 * DAY))
-        expect(await getStored(projectRef('demo'), id)).toBeUndefined()
+        // Past its time the engine only hides the row: a listing leaves it out, memory_get still answers it.
         forgetListCache()
         expect((await listAll(projectRef('demo'))).map(i => i.id)).not.toContain(id)
+        expect(await getStored(projectRef('demo'), id)).toBeDefined()
+        // The next session end sweeps it out of the file; a second sweep finds nothing.
+        await spooled(repo, OTHER)
+        await finalize('codex', OTHER, { pending: false, nowMs: t0 + 46 * DAY })
+        expect(await getStored(projectRef('demo'), id)).toBeUndefined()
+        expect(await sweepExpired()).toBe(0)
       })
     })
   })
@@ -209,9 +283,9 @@ describe('finalize', () => {
 
   test('without a model, a standing rule in the prompts files nothing: no word list reads it', async () => {
     await withBrain(async ({ repo }) => {
-      await spooled(repo, SID, statement('Always run the tests before you commit.'))
+      await spooled(repo, SID, [])
       const r = await finalize('codex', SID, { pending: false })
-      expect(r.capture?.preferences.written).toEqual([])
+      expect(r.capture).not.toHaveProperty('preferences')
       expect((await listAll(personRef())).filter(i => i.kind === 'preference')).toEqual([])
     })
   })
@@ -290,14 +364,14 @@ describe('finalize', () => {
   test('a session whose harness died before its end hook ran is finalized by a later session end', async () => {
     await withBrain(async ({ repo }) => {
       const t0 = Date.now()
-      // A spool written before PRD follow-up 2026-11-06 still holds the H26 statement; finalize files it.
-      await spooled(repo, SID, [{ ts: Date.now() + 1, ev: 'prompt-signal', signal: { kind: 'statement', key: 'said:amend-commits-published', polarity: -1, category: 'avoid', text: 'Never amend published commits', quote: 'Never amend published commits.' } }])
+      // A spool written before PRD follow-up 2026-11-06 still holds the H26 statement; nothing reads it any more.
+      await spooled(repo, SID, [{ ts: Date.now() + 1, ev: 'prompt-signal', signal: { kind: 'statement', key: 'said:amend-commits-published', polarity: -1, category: 'avoid', text: 'Never amend published commits', quote: 'Never amend published commits.' } } as never])
       expect(readSessionRecord('codex', SID)?.status).toBe('active')
       await spooled(repo, OTHER)
       const r = await finalize('codex', OTHER, { nowMs: t0 + 4 * HOUR })
       expect(r.pending?.map(p => [p.sid, p.why, p.result.skipped])).toEqual([[SID, 'stale', undefined]])
       expect(readSessionRecord('codex', SID)?.status).toBe('ended')
-      expect((await listAll(personRef())).filter(i => i.kind === 'preference').map(i => i.origin)).toEqual(['explicit'])
+      expect((await listAll(personRef())).filter(i => i.kind === 'preference')).toEqual([])
       expect((await listAll(projectRef('demo'))).filter(i => i.kind === 'session')).toHaveLength(2)
     })
   })
@@ -332,7 +406,7 @@ describe('finalize', () => {
 
   test('the session end leaves none of the machinery that used to run in the background: no jobs journal, tick, sweep, repair, upkeep or profile files', async () => {
     await withBrain(async ({ repo }) => {
-      await spooled(repo, SID, statement('Always run the tests before you commit.'))
+      await spooled(repo, SID, [])
       const r = await finalize('codex', SID, { pending: false })
       expect(r.memoryId).toBeDefined()
       expect(r.capture?.distill).toMatchObject({ ran: false, skipped: 'disabled' })

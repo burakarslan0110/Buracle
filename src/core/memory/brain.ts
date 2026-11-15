@@ -34,6 +34,10 @@ export const KIND_INFO: Readonly<Record<MemKind, MemKindInfo>> = {
 }
 
 export const MEM_KINDS = Object.keys(KIND_INFO) as MemKind[]
+/** Kinds of an older Buracle. Their records stay readable and show beside the preferences; nothing writes one any more. */
+export const READ_ONLY_KINDS: readonly MemKind[] = ['convention', 'profile']
+/** The kinds a search can be narrowed to in a tool schema: every kind something still writes. */
+export const LIVE_KINDS: readonly MemKind[] = MEM_KINDS.filter(k => !READ_ONLY_KINDS.includes(k))
 export const WRITABLE_KINDS: readonly MemKind[] = MEM_KINDS.filter(k => KIND_INFO[k].agentWritable && k !== 'core')
 export const FILE_AS_KINDS: readonly MemKind[] = WRITABLE_KINDS
 
@@ -212,8 +216,9 @@ const CORTEX_KEPT = ['recall_count', 'last_recalled_at', 'superseded_by', 'super
 
 /**
  * The memory_save arguments of an item. A row with an `expires` date is saved with CortexDB's own `ttl_seconds`
- * (counted from `nowMs`), so the engine hides and drops it by itself; the date also stays in the metadata, which is
- * how rows written before the native expiry still show when they run out.
+ * (counted from `nowMs`), so the engine hides it once its time is up and its sweep (run at each session end) deletes
+ * it; the date also stays in the metadata, which is how rows written before the native expiry still show when they
+ * run out.
  */
 export function toCortexSave(item: MemItem, keep: Readonly<Record<string, unknown>> = {}, nowMs?: number): Record<string, unknown> {
   const meta: Record<string, unknown> = {

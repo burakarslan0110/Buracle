@@ -58,7 +58,7 @@ describe('compactInstructions', () => {
       touched: ['src/a.ts', 'src/b.ts', '  '],
       background: ['changes-review (subagent)'],
     })
-    expect(out).toContain('- Running workflow: spec, phase Implement, step "parser tests". Continue it after compaction; `buracle flow status` shows where it stands.')
+    expect(out).toContain('- Running workflow: spec, phase Implement, step "parser tests". Continue it after compaction.')
     expect(out).toContain('- Files changed so far (keep these paths and what changed in each): src/a.ts, src/b.ts.')
     expect(out).toContain('- Still running in the background (keep them and how to check on them): changes-review (subagent).')
     expect(compactInstructionsWith(out, withPlan(), {}).split(COMPACT_MARKER).length).toBe(2)
@@ -199,19 +199,6 @@ describe('reviewers in flight survive the compaction on every harness (the recor
     const onlySecond = withPlan({ phase: 'verify', status: 'COMPLETE' }, { reviews: second.slice(1) })
     expect(compactInstructions(undefined, onlySecond)).not.toContain('Reviewers launched in the background')
     expect(compactInstructions(undefined, onlySecond)).toContain('Second opinions running on another harness')
-  })
-
-  test('a plan lane\'s reviewer recorded through --lane is named too, also when the lead has no plan of its own', () => {
-    const laneReviews: NonNullable<SessionState['laneReviews']> = [{ lane: 'billing', role: 'changes', startedAt: 7, handle: 'agent-b2' }]
-    const line = 'changes-review for lane billing (handle agent-b2)'
-    const leadOnly: SessionState = { ...emptyState(), laneReviews }
-    expect(compactInstructions(undefined, leadOnly)).toContain(`not collected yet: ${line}.`)
-    expect(compactInstructions(undefined, leadOnly)).toContain('(plus `--lane <slug>` for a lane\'s reviewer)')
-    expect(handoffNote({ state: leadOnly, project: 'buracle', harness: 'omp', sessionId: 's', now: NOW }).markdown).toContain(line)
-    expect(restoreContext(leadOnly)).toContain(line)
-    const both = restoreContext(withPlan({ phase: 'verify', status: 'COMPLETE' }, { reviews, laneReviews })) as string
-    expect(both).toContain('changes-review (handle agent-a1, codex); changes-review for lane billing (handle agent-b2)')
-    expect(restoreContext(emptyState())).toBeUndefined()
   })
 
   test('nothing in flight, or no active plan: no reviewer line', () => {

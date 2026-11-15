@@ -54,8 +54,8 @@ function docKind(d) {
   return t('review.kindPlan')
 }
 
+// `asked` is set by the server while the session's plan state says the plan waits for the user's approval.
 function waiting(d) {
-  if (d.session !== undefined) return d.session.paused && d.session.phase === 'plan' && d.approved !== true
   return d.asked !== undefined && d.approved !== true
 }
 

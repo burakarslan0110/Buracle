@@ -34,8 +34,3 @@ export const DEFAULT_HOOK_FAILURE: Readonly<Partial<Record<HookId, 'open' | 'clo
   H09: 'open',
   H11: 'open',
 }
-
-export function hookFailure(baked: Pick<BakedData, 'hooks'>, id: HookId): 'open' | 'closed' {
-  const hit = baked.hooks.find(h => h.id === id)
-  return hit?.failure ?? DEFAULT_HOOK_FAILURE[id] ?? 'open'
-}

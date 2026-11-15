@@ -3,6 +3,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, relative, sep } from 'node:path'
 import type { CanonicalBundle } from '../../../src/core/catalog'
+import { resolveAgents } from '../../../src/adapters/shared/agents'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import { defaultConfig } from '../../../src/core/config'
 import type { Harness } from '../../../src/core/events'
@@ -13,6 +14,7 @@ import { codexBuildFiles } from '../../../src/adapters/codex/generate'
 import { CODEX_HOOK_EVENTS, HOOK_COMMAND_PREFIX, POST_ANSWER_MATCHER, POST_CAPTURE_MATCHER, POST_MASK_HANDLER, POST_MASK_MATCHER, PRE_TOOL_MATCHER } from '../../../src/adapters/codex/hooks-config'
 import { approvalPolicyProblem, BYPASS_APPROVAL_POLICY, CODEX_ENUMS, codexMcpTables, CRITICAL_OMIT_TOOLS_FROM, renderTomlTables, STATUS_LINE_ITEMS, TERMINAL_TITLE_ITEMS } from '../../../src/adapters/codex/config'
 import type { AdapterContext } from '../../../src/adapters/registry'
+import { BUILT } from '../../helpers/built-harness'
 
 const REPO = join(import.meta.dir, '..', '..', '..')
 const canonical: CanonicalBundle = loadCanonicalSync(join(REPO, 'canonical'))
@@ -36,13 +38,13 @@ const file = (p: string) => (built.find(f => f.path === p) as { content: string 
 
 describe('codex build (harness/codex)', () => {
   test('matches the committed tree byte for byte (no missing or stale files)', () => {
-    const root = join(REPO, 'harness', 'codex')
+    const root = join(BUILT.harness, 'codex')
     expect(listFiles(root)).toEqual(built.map(f => f.path).sort())
     for (const f of built) expect({ path: f.path, content: readFileSync(join(root, f.path), 'utf8') }).toEqual({ path: f.path, content: f.content })
   })
 
   test('is deterministic and independent of the user config', async () => {
-    const again = await adapter.build({ ...ctx, config: { ...defaultConfig(), context: { warnPct: 50, criticalPct: 60 } } })
+    const again = await adapter.build({ ...ctx, config: { ...defaultConfig(), checkers: { enabled: false, languages: [] } } })
     expect(again).toEqual(built)
     expect(codexBuildFiles(canonical).warnings).toEqual([])
   })
@@ -90,7 +92,7 @@ describe('codex build (harness/codex)', () => {
 
   test('config.fragment.toml parses and holds only Buracle-managed tables and root keys (canonical defaults)', () => {
     const toml = Bun.TOML.parse(file('config.fragment.toml')) as Record<string, any>
-    expect(Object.keys(toml).sort()).toEqual(['agents', 'approval_policy', 'compact_prompt', 'features', 'mcp_optional_startup_grace_ms', 'mcp_servers', 'model_reasoning_effort', 'plan_mode_reasoning_effort', 'sandbox_mode', 'tools', 'tui', 'web_search'])
+    expect(Object.keys(toml).sort()).toEqual(['agents', 'approval_policy', 'compact_prompt', 'features', 'mcp_optional_startup_grace_ms', 'mcp_servers', 'sandbox_mode', 'tools', 'tui', 'web_search'])
     expect(toml['features']).toEqual({ memories: false })
     expect(Object.keys(toml['mcp_servers']).sort()).toEqual(Object.keys(canonical.mcp.servers).filter(id => canonical.mcp.servers[id]?.harnesses.includes('codex')).sort())
     const top = { omit_tools_from: [...CRITICAL_OMIT_TOOLS_FROM], default_tools_approval_mode: 'approve' }
@@ -109,7 +111,7 @@ describe('codex build (harness/codex)', () => {
     expect(toml['tui']['status_line']).toContain('task-progress')
     expect(toml['mcp_optional_startup_grace_ms']).toBe(0)
     expect(toml['web_search']).toBe('disabled')
-    expect([toml['model_reasoning_effort'], toml['plan_mode_reasoning_effort'], toml['agents']]).toEqual(['xhigh', 'xhigh', { default_subagent_reasoning_effort: 'xhigh', enabled: true }])
+    expect([toml['model_reasoning_effort'], toml['plan_mode_reasoning_effort'], toml['agents']]).toEqual([undefined, undefined, { enabled: true }])
     expect([toml['approval_policy'], toml['sandbox_mode']]).toEqual([BYPASS_APPROVAL_POLICY, 'danger-full-access'])
     expect(CODEX_ENUMS.web_search).toContain(toml['web_search'])
     expect(approvalPolicyProblem(toml['approval_policy'])).toBeUndefined()
@@ -124,7 +126,10 @@ describe('codex build (harness/codex)', () => {
   })
 
   test('agents/<id>.toml: name, description, read-only sandbox, developer_instructions = body', () => {
-    for (const a of canonical.agents) {
+    const complete = resolveAgents(canonical)
+    expect(complete.map(a => a.id)).toEqual(canonical.agents.map(a => a.id))
+    for (const a of complete) {
+      expect(a.body).not.toContain('{{include:')
       const t = Bun.TOML.parse(file(`agents/${a.id}.toml`)) as Record<string, unknown>
       expect(t['name']).toBe(a.id)
       expect(t['description']).toBe((a.frontmatter['description'] as string).replace(/\s+/g, ' ').trim())
@@ -135,17 +140,19 @@ describe('codex build (harness/codex)', () => {
     }
   })
 
-  test('AGENTS.md block: every always-rule in full, a short memory pointer, a path-rule index, no duplicate routing table', () => {
+  test('AGENTS.md block: every always-rule in full, no second memory section, a one-line path-rule pointer, no duplicate routing table', () => {
     const text = file('AGENTS.md')
     const block = mdBlockGet(text, 'buracle') as string
     expect(block).toBeString()
     for (const r of canonical.rules.filter(r => r.scope === 'always')) expect(block).toContain(r.body.trim())
-    const memory = block.slice(block.indexOf('# Memory index'), block.indexOf('# Buracle commands in Codex')).trim().split('\n')
-    expect(memory.length).toBeLessThanOrEqual(10)
+    expect(block.split(/^# Memory$/m).length).toBe(2)
     const commands = block.slice(block.indexOf('# Buracle commands in Codex'), block.indexOf('# Path-scoped rules'))
-    for (const s of ['`$plan-build`', '`$bugfix`', '`buracle mem remember -- "<text>"`', '`$memory`', '`buracle mem ui --open`', '`buracle flow status`', '`/side`']) expect(commands).toContain(s)
+    for (const s of ['`$plan-build`', '`$bugfix`', '`buracle mem remember -- "<text>"`', '`$memory`', '`buracle mem ui --open`', '`/side`']) expect(commands).toContain(s)
     expect(commands).not.toContain('`$memory`,')
-    for (const r of canonical.rules.filter(r => r.scope === 'paths')) expect(block).toContain(`\`~/.buracle/rules/paths/${r.id}.md\``)
+    const pointer = block.slice(block.indexOf('# Path-scoped rules'))
+    expect(pointer).toContain('`~/.buracle/rules/paths`')
+    expect(pointer.trim().split('\n').length).toBe(3)
+    for (const r of canonical.rules.filter(r => r.scope === 'paths')) expect({ rule: r.id, named: new RegExp(`[(, ]${r.id}[,)]`).test(pointer) }).toEqual({ rule: r.id, named: true })
     expect(block.split('| Need | Use first | Fallback |').length).toBe(2)
   })
 

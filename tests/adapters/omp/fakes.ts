@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { compactFile } from '../../../src/adapters/shared/pipeline/index'
+import * as paths from '../../../src/engine/paths'
 import type { ExtensionDeps } from '../../../src/adapters/omp/runtime/extension'
 import { defaultDeps } from '../../../src/adapters/omp/runtime/extension'
 import type { OmpContext, OmpCustomMessage, OmpExtensionAPI, OmpGenerated } from '../../../src/adapters/omp/runtime/types'
@@ -112,8 +115,7 @@ export function fakeMemory(context?: string): { bridge: MemoryBridge, calls: Mem
 export function fakeStatusRenderer(): Pick<typeof import('../../../src/core/status/render'), 'rows' | 'renderPlain'> {
   return {
     rows: (bar, layout) => layout.rows.map(ids => ids.flatMap(id => {
-      const v = id === 'month' ? bar.month && `${bar.month.tokens}${bar.month.usd !== undefined ? `/$${bar.month.usd}` : ''}${bar.month.pct !== undefined ? ` ${bar.month.pct}%` : ''}`
-        : id === 'mem' ? bar.mem && `${bar.mem.health}`
+      const v = id === 'mem' ? bar.mem && `${bar.mem.health}`
         : id === 'plan' ? bar.plan && `${bar.plan.title}[${bar.plan.phase}]${bar.plan.done}/${bar.plan.total}`
         : id === 'git' ? bar.git && `${bar.git.branch ?? '?'}`
         : id === 'upd' ? bar.updates !== undefined && `${bar.updates}`
@@ -161,9 +163,6 @@ export function testDeps(overrides: Partial<ExtensionDeps> = {}): { deps: Partia
     checkers: {
       checkersFor: () => notImplemented('checkersFor'),
       findingsOf: () => notImplemented('findingsOf'),
-      tddHint: () => notImplemented('tddHint'),
-      charsetFindings: () => notImplemented('charsetFindings'),
-      lengthNote: () => notImplemented('lengthNote'),
     },
     evalGuard: () => notImplemented('checkEval'),
     realpath: undefined,
@@ -175,7 +174,6 @@ export function testDeps(overrides: Partial<ExtensionDeps> = {}): { deps: Partia
     buracleRepo: () => undefined,
     updates: () => undefined,
     cli: () => ['buracle'],
-    notifyDesktop: () => undefined,
     projectSlug: async () => 'demo',
     branch: async () => 'main',
     gitState: async () => undefined,
@@ -188,9 +186,7 @@ export function testDeps(overrides: Partial<ExtensionDeps> = {}): { deps: Partia
     prepareWorkspace: async () => notImplemented('prepareWorkspace'),
     workspaceInfo: async () => notImplemented('workspaceInfo'),
     refreshWorkspace: info => info,
-    profileGuard: () => undefined,
     memoryUi: () => undefined,
-    codegraphIndexed: () => false,
     columns: () => 120,
     ...overrides,
   }
@@ -219,7 +215,12 @@ export function testGenerated(over: Partial<OmpGenerated> = {}): OmpGenerated {
     skills: [{ id: 'plan-build', description: 'Spec workflow', userInvocable: true }],
     plugins: [],
     commands: ['plan-build', 'goal-build'],
-    status: { layout: { rows: [['month', 'mem', 'git', 'plan']], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: false }, setStatus: { 'buracle.budget': ['month'], 'buracle.mem': ['mem'] } },
+    status: { layout: { rows: [['mem', 'git', 'plan']], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: false }, setStatus: { 'buracle.mem': ['mem'] } },
     ...over,
   }
+}
+
+/** The session's compaction record (compact.json), as the pipeline left it. */
+export function compactRecord(sid: string): unknown {
+  return JSON.parse(readFileSync(compactFile({ paths }, 'omp', sid), 'utf8'))
 }

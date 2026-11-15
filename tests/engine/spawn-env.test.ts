@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import ts from 'typescript'
-import { defaultConfig } from '../../src/core/config'
+import { INDEX_SETTINGS } from '../../src/core/workspace'
 import { run } from '../../src/engine/proc'
 import { startIndexRun } from '../../src/workflow/workspace'
 import { withSandbox } from '../helpers/sandbox'
@@ -138,7 +138,7 @@ describe('a child sees the HOME this process set after it started', () => {
     mkdirSync(project, { recursive: true })
     const out = join(sb.root, 'child-home.txt')
     const argv = [process.execPath, '-e', `require('node:fs').writeFileSync(${JSON.stringify(out)}, process.env.HOME ?? '')`]
-    expect(startIndexRun({ cwd: project, root: project, children: [] }, defaultConfig(), Date.now(), argv)).toEqual([project])
+    expect(startIndexRun({ cwd: project, root: project, children: [] }, INDEX_SETTINGS, Date.now(), argv)).toEqual([project])
     const deadline = Date.now() + 5_000
     while (!existsSync(out) && Date.now() < deadline) await Bun.sleep(25)
     await Bun.sleep(50)

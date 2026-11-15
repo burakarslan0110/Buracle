@@ -7,6 +7,7 @@ import { sessionStart } from '../../src/memory/session-record'
 import { appendSpool } from '../../src/memory/spool'
 import { listAll, personRef, projectRef } from '../../src/memory/store'
 import { withBrain } from '../memory/helpers'
+import { BUILT } from '../helpers/built-harness'
 
 const REPO = join(import.meta.dir, '..', '..')
 
@@ -26,7 +27,8 @@ const ALLOWED: Readonly<Record<string, Allowed>> = {
   'src/core/memory/query.ts': { why: 'memory query stopwords' },
   'src/core/memory/stem.ts': { why: 'Turkish inflection endings that memory search strips from query words' },
   'src/memory/distill.ts': { why: 'the Turkish letters the English-only distill validator recognizes (PRD R5)', only: /TURKISH_RE/ },
-  'src/core/memory/text.ts': { why: 'secret-word redaction and case folding' },
+  'src/core/memory/redact.ts': { why: 'secret-word redaction' },
+  'src/core/memory/text.ts': { why: 'case folding' },
   'src/core/plan/state.ts': { why: 'the plan approval question', only: /onayl\[ıi\]yor musun/ },
   'src/engine/git.ts': { why: 'slug folding', only: /\.replace\(\/[İıçğöşü]\/g/ },
   'src/engine/update/deps.ts': { why: "the update prompt's Turkish yes", only: /\|evet\)/ },
@@ -36,6 +38,7 @@ const ALLOWED: Readonly<Record<string, Allowed>> = {
   'harness/claude/hooks/generated/catalog.ts': { why: 'canonical data with the trigger phrases' },
   'harness/hook-data.json': { why: 'canonical data for the Claude and Codex command hooks, with the trigger phrases' },
   'src/adapters/omp/runtime/generated-data.ts': { why: 'canonical data baked into the omp bundle' },
+  'src/adapters/pi/runtime/generated-data.ts': { why: 'canonical data baked into the Pi bundle' },
   'src/adapters/opencode/runtime/server.ts': { why: 'canonical data baked into the OpenCode bundle', only: /contentHash: "/ },
   'src/adapters/opencode/runtime/tui.tsx': { why: 'canonical data baked into the OpenCode TUI bundle', only: /contentHash: "/ },
   // The ab-test fixture of PRD 2026-11-04 R9: Turkish prompts and plans in the format before the standard are the
@@ -146,28 +149,26 @@ describe('language guard (R1): what Buracle ships is English', () => {
   })
 
   test('the generated harness/ output, the JS bundles decoded, carries Turkish only in category D', () => {
-    const r = scan(join(REPO, 'harness'), REPO)
+    const r = scan(BUILT.harness, BUILT.root)
     expect(r.files).toBeGreaterThanOrEqual(200)
     expect(r.hits).toEqual([])
-    for (const bundle of ['harness/opencode/plugins/buracle/index.js', 'harness/opencode/plugins/buracle/tui.js', 'harness/omp/extensions/buracle.js']) {
-      const modules = readFileSync(join(REPO, bundle), 'utf8').split('\n').filter(l => /^\/\/ src\//.test(l))
+    for (const bundle of ['harness/opencode/plugins/buracle/index.js', 'harness/opencode/plugins/buracle/tui.js', 'harness/omp/extensions/buracle.js', 'harness/pi/extensions/buracle.js']) {
+      const modules = readFileSync(join(BUILT.root, bundle), 'utf8').split('\n').filter(l => /^\/\/ src\//.test(l))
       expect({ bundle, split: modules.length >= 50 }).toEqual({ bundle, split: true })
     }
   })
 
-  test('the memories Buracle itself writes are English: the session memory, a handoff and a preference filed from an English statement of an older spool', () => withBrain(async ({ repo }) => {
+  test('the memories Buracle itself writes are English: the session memory, and a handoff', () => withBrain(async ({ repo }) => {
     const sid = '0199a213-81c0-7800-8aa1-bbab2a035a99'
     await sessionStart('claude', sid, repo)
     appendSpool('claude', sid, [
       { ts: Date.now(), ev: 'prompt' },
-      // A statement from a spool written before PRD follow-up 2026-11-06 (H26 reads none now); finalize still files it.
-      { ts: Date.now() + 1, ev: 'prompt-signal' as const, signal: { kind: 'statement' as const, key: 'said:commit-run-tests', category: 'quality' as const, text: 'Run the tests before you commit', quote: 'Always run the tests before you commit.' } },
       { ts: Date.now() + 2, ev: 'stop', excerpt: 'Done.' },
     ])
     await finalize('claude', sid, { pending: false })
     const slug = (await projectInit(repo)).slug
     const items = [...await listAll(projectRef(slug)), ...await listAll(personRef())]
-    expect(items.map(i => i.kind).sort()).toEqual(['preference', 'session'])
+    expect(items.map(i => i.kind).sort()).toEqual(['session'])
     expect(items.flatMap(i => findings(`brain/${slug}/${i.id}`, [i.title, i.summary, i.body, ...i.tags].join('\n')))).toEqual([])
   }))
 

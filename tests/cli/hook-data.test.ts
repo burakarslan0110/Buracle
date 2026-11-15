@@ -15,9 +15,10 @@ import { MANIFEST_REL } from '../../src/engine/update/build'
 import { withEnv, withSandbox } from '../helpers/sandbox'
 import { git } from '../memory/helpers'
 import { fakeAdapter, makeRepo, memoryIO, withDeps } from './ops/helpers'
+import { BUILT } from '../helpers/built-harness'
 
 const REPO = join(import.meta.dir, '..', '..')
-const full = loadCanonicalSync(join(REPO, 'canonical'))
+const full = loadCanonicalSync(join(BUILT.view, 'canonical'))
 
 function counting(bundle: CanonicalBundle): { load: (root: string) => CanonicalBundle, calls: string[] } {
   const calls: string[] = []
@@ -27,10 +28,9 @@ function counting(bundle: CanonicalBundle): { load: (root: string) => CanonicalB
 describe('hookBundle', () => {
   test('serves every field the command hooks read from the snapshot, equal to the full tree, without loading canonical/', () => {
     const { load, calls } = counting(full)
-    const b = hookBundle(REPO, load)
-    expect(b.root).toBe(join(REPO, 'canonical'))
+    const b = hookBundle(BUILT.view, load)
+    expect(b.root).toBe(join(BUILT.view, 'canonical'))
     expect(b.mcp).toEqual(full.mcp)
-    expect(b.plugins).toEqual(full.plugins)
     expect(b.tools).toEqual(full.tools)
     expect(b.routing).toEqual(full.routing)
     expect(b.missing).toEqual(full.missing)
@@ -44,19 +44,18 @@ describe('hookBundle', () => {
     expect(b.agents.filter(a => a.frontmatter['output'] === 'json').map(a => a.id)).toEqual(full.agents.filter(a => a.frontmatter['output'] === 'json').map(a => a.id))
     expect(b.rules.map(r => ({ id: r.id, scope: r.scope, file: r.file, frontmatter: r.frontmatter }))).toEqual(full.rules.map(r => ({ id: r.id, scope: r.scope, file: r.file, frontmatter: r.frontmatter })))
     expect(pathRuleIndex(b.rules)).toEqual(pathRuleIndex(full.rules))
-    expect(pathRuleIndex(b.rules).map(r => r.id)).toContain('mobile')
+    expect(pathRuleIndex(b.rules).map(r => r.id)).toContain('dotnet')
     expect(calls).toEqual([])
   })
 
   test('a field outside the snapshot loads the full tree once, on first access, and holds what canonical/ holds', () => {
     const { load, calls } = counting(full)
-    const b = hookBundle(REPO, load)
+    const b = hookBundle(BUILT.view, load)
     expect(b.hooks).toEqual(full.hooks)
-    expect(calls).toEqual([join(REPO, 'canonical')])
+    expect(calls).toEqual([join(BUILT.view, 'canonical')])
     expect(b.rules.find(r => r.id === 'core')?.body).toBe(full.rules.find(r => r.id === 'core')?.body)
     expect(b.config).toEqual(full.config)
     expect(b.statusline).toEqual(full.statusline)
-    expect(b.pricing).toEqual(full.pricing)
     expect(b.triggers).toEqual(full.triggers)
     const spec = b.skills.find(s => s.id === 'plan-build')
     expect(spec?.body).toBe(full.skills.find(s => s.id === 'plan-build')?.body)
@@ -93,7 +92,8 @@ describe('hookBundle', () => {
   }))
 
   test('a hook context serves its canonical bundle from the snapshot', () => withSandbox(() => {
-    const c = createContext()
+    // The checkout under test has no harness/, so the snapshot comes from the view of this run's build.
+    const c = { ...createContext(), canonical: hookBundle(BUILT.view) }
     expect(c.canonical).toBe(c.canonical)
     expect(c.canonical.mcp).toEqual(full.mcp)
     expect(Object.getOwnPropertyDescriptor(c.canonical, 'hooks')?.get).toBeDefined()
@@ -132,7 +132,7 @@ describe('the hooks answer the same from the snapshot as from canonical/', () =>
       writeFileSync(join(project, 'package.json'), JSON.stringify({ name: 'demo', dependencies: { zod: '3.0.0', valibot: '1.0.0', yaml: '2.9.1' } }) + '\n')
       writeFileSync(join(project, 'src', 'config.ts'), 'export function parseConfig(text: string) { return text }\n')
       git(project, 'init', '-q')
-      const fromSnapshot = await answer(root, 'snapshot', c, ctx => ctx)
+      const fromSnapshot = await answer(root, 'snapshot', c, ctx => ({ ...ctx, canonical: hookBundle(BUILT.view) }))
       const fromTree = await answer(root, 'tree', c, ctx => ({ repoRoot: ctx.repoRoot, config: ctx.config, paths: ctx.paths, buracleBin: ctx.buracleBin, canonical: loadCanonicalSync(join(ctx.repoRoot, 'canonical')) }))
       expect(fromSnapshot).toEqual(fromTree)
       if (c.payload['tool_use_id'] === 'c3') {
@@ -148,9 +148,10 @@ describe('buracle build', () => {
     const repo = makeRepo(root)
     const file = join(repo, HOOK_DATA_REL)
     await withDeps({ repoRoot: () => repo, adapters: async () => [fakeAdapter('claude', { build: () => [{ path: 'x.md', content: 'x\n' }] })] }, async () => {
+      // No harness/ in the checkout: nothing to compare (the two builds agree)
       const check = memoryIO({ json: true })
-      expect(await buildRun(['--check', '--json'], check)).toBe(1)
-      expect((JSON.parse(check.out()) as { drift: unknown[] }).drift).toContainEqual({ path: HOOK_DATA_REL, kind: 'missing', by: 'hook-data' })
+      expect(await buildRun(['--check', '--json'], check)).toBe(0)
+      expect((JSON.parse(check.out()) as { drift: unknown[] }).drift).toEqual([])
 
       const w = memoryIO({ json: true })
       expect(await buildRun(['--json'], w)).toBe(0)

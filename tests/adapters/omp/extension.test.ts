@@ -5,22 +5,19 @@ import { existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createBuracleExtension, defaultDeps, STATUS_KEYS, stopReason, WIDGET_KEY, type ExtensionDeps } from '../../../src/adapters/omp/runtime/extension'
 import { createMemoryBridge } from '../../../src/adapters/omp/runtime/memory'
-import { AUTO_PAUSE_REASON } from '../../../src/adapters/opencode/runtime/adapter-rules'
-import { withDeadline } from '../../../src/adapters/omp/runtime/util'
+import { withDeadline } from '../../../src/adapters/shared/pi-family/util'
 import { checkBash } from '../../../src/core/policy/bash-guard'
 import { detectIntent, isGuardContinuation } from '../../../src/core/policy/intents'
-import { bashNudge, routeTool } from '../../../src/core/policy/routing'
 import { checkWrite } from '../../../src/core/policy/write-guard'
 import { validatePlan } from '../../../src/core/plan/format'
 import { applyIntent, stopGuardVerdict, type SessionState } from '../../../src/core/plan/state'
 import * as paths from '../../../src/engine/paths'
-import { monthKeyOf } from '../../../src/usage/month'
 import { loadState, readTelemetry, saveState } from '../../../src/workflow/session-store'
 import { fakeExe } from '../../helpers/fake-exe'
 import { withSandbox, type Sandbox } from '../../helpers/sandbox'
 import { testWhenImplemented } from '../../helpers/not-implemented'
 import { sandboxSelfPaths } from '../shared/self-paths-fixture'
-import { fakeCtx, fakeMemory, fakePi, planState, testDeps, testGenerated } from './fakes'
+import { compactRecord, fakeCtx, fakeMemory, fakePi, planState, testDeps, testGenerated } from './fakes'
 
 const SID = '01a118a8-8d01-740c-9360-f4f796699f4b'
 
@@ -58,9 +55,9 @@ describe('omp extension: tool_call (H01/H02/H03/H09)', () => {
     } })
     const bash = await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'bash', input: { command: 'ls' } }, ctx) as { block?: boolean, reason?: string }
     expect(bash.block).toBe(true)
-    expect(bash.reason).toStartWith('Buracle H01: the guard could not evaluate this call (boom)')
+    expect(bash.reason).toStartWith('Buracle H01: the bash guard could not check this command (boom)')
     const write = await fp.emit('tool_call', { type: 'tool_call', toolCallId: '2', toolName: 'write', input: { path: 'a.ts', content: 'x' } }, ctx) as { block?: boolean, reason?: string }
-    expect(write.reason).toStartWith('Buracle H02: the guard could not evaluate this call')
+    expect(write.reason).toStartWith('Buracle H02: the write guard could not check the files of this edit (boom)')
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '3', toolName: 'ask', input: { questions: [] } }, ctx)).toBeUndefined()
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '4', toolName: 'web_search', input: { query: 'x' } }, ctx)).toBeUndefined()
   }))
@@ -74,7 +71,7 @@ describe('omp extension: tool_call (H01/H02/H03/H09)', () => {
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'bash', input: null }, ctx)).toBeUndefined()
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '2', toolName: 'edit', input: { edits: 'nope' } }, ctx)).toBeUndefined()
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '3', toolName: 'bash', input: { command: 'rm -rf /' } }, ctx)).toEqual({ block: true, reason: 'Buracle H01: no' })
-    expect(seen).toEqual([{ ...testGenerated().config.guards.bash, home: sb.home, selfPaths: sandboxSelfPaths(sb), cwd, vault: join(sb.home, 'Documents', 'Buracle'), protect: [] }])
+    expect(seen).toEqual([{ ...testGenerated().config.guards.bash, home: sb.home, selfPaths: sandboxSelfPaths(sb), cwd, vault: join(sb.home, 'Documents', 'Buracle'), protect: [], realpath: expect.any(Function) }])
   }))
 
   test('H01 blocks a denied shell command with a Buracle reason', () => withSandbox(async sb => {
@@ -101,7 +98,7 @@ describe('omp extension: tool_call (H01/H02/H03/H09)', () => {
     const { fp, ctx, cwd } = setup(sb, { policy: { ...testDeps().deps.policy!, checkWrite: (paths: string[], c: unknown) => { got = { paths, c }; return paths.some(p => /[\\/]\.env$/.test(p)) ? { deny: 'secrets file' } : {} }, routeTool: () => ({ action: 'allow' }) } })
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'write', input: { path: '.env', content: 'A=1' } }, ctx))
       .toEqual({ block: true, reason: 'Buracle H02: secrets file' })
-    expect(got).toEqual({ paths: [join(cwd, '.env')], c: { cwd, home: sb.home, vault: join(sb.home, 'Documents', 'Buracle'), protect: [], selfPaths: sandboxSelfPaths(sb), parsers: { jsonc: expect.any(Function), toml: expect.any(Function), yaml: expect.any(Function) } } })
+    expect(got).toEqual({ paths: [join(cwd, '.env')], c: { cwd, home: sb.home, vault: join(sb.home, 'Documents', 'Buracle'), protect: [], realpath: expect.any(Function), selfPaths: sandboxSelfPaths(sb), parsers: { jsonc: expect.any(Function), toml: expect.any(Function), yaml: expect.any(Function) } } })
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '2', toolName: 'edit', input: { path: 'src/a.ts', edits: [] } }, ctx)).toBeUndefined()
   }))
 
@@ -116,7 +113,7 @@ describe('omp extension: tool_call (H01/H02/H03/H09)', () => {
     })
     await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'write', input: { path: 'harness/next/x.md', content: 'x' } }, ctx)
     expect(asked).toEqual([{ dir: cwd, configured: '/configured/buracle' }])
-    expect(contexts).toEqual([{ cwd, home: sb.home, vault: '/v', protect: [], selfPaths: sandboxSelfPaths(sb), buracleRepo: '/repo/buracle', parsers: { jsonc: expect.any(Function), toml: expect.any(Function), yaml: expect.any(Function) } }])
+    expect(contexts).toEqual([{ cwd, home: sb.home, vault: '/v', protect: [], realpath: expect.any(Function), selfPaths: sandboxSelfPaths(sb), buracleRepo: '/repo/buracle', parsers: { jsonc: expect.any(Function), toml: expect.any(Function), yaml: expect.any(Function) } }])
   }))
 
   test('H02 with the real guard and repo lookup: all of harness/** is protected in a Buracle checkout only', () => withSandbox(async sb => {
@@ -155,7 +152,7 @@ describe('omp extension: tool_call (H01/H02/H03/H09)', () => {
       const { fp, ctx } = setup(sb, { evalGuard, policy: { ...testDeps().deps.policy!, routeTool: () => ({ action: 'allow' }) } })
       const r = await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'eval', input: { language: 'py', code: 'print(1)' } }, ctx) as { block?: boolean, reason?: string }
       expect(r.block).toBe(true)
-      expect(r.reason).toStartWith('Buracle H01: the guard could not evaluate this call')
+      expect(r.reason).toStartWith('Buracle H01: the bash guard could not check this command')
     }
   }))
 
@@ -202,15 +199,6 @@ describe('omp extension: tool_call (H01/H02/H03/H09)', () => {
     expect(await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'bash', input: { command: 'grep -r x .' } }, ctx)).toEqual({ additionalContext: hint })
   }))
 
-  test('with the real routing policy the shell nudge appears exactly once', () => withSandbox(async sb => {
-    const policy = { ...testDeps().deps.policy!, checkBash: () => ({}), routeTool }
-    const { fp, ctx } = setup(sb, { policy })
-    const r = await fp.emit('tool_call', { type: 'tool_call', toolCallId: '1', toolName: 'bash', input: { command: 'grep -r foo .' } }, ctx) as { additionalContext: string }
-    const nudge = bashNudge('grep -r foo .') as string
-    expect(nudge.length).toBeGreaterThan(0)
-    expect(r.additionalContext).toBe(nudge)
-  }))
-
   test('H03 is skipped entirely when routing strictness is off', () => withSandbox(async sb => {
     let routed = 0
     const live = (d: Parameters<ExtensionDeps['config']>[0]) => ({ config: { ...d, routing: { ...d.routing, strictness: 'off' as const } }, vault: '/v', shim: '/s', source: 'defaults' as const })
@@ -253,16 +241,13 @@ describe('omp extension: tool_result (H04 + spool)', () => {
       checkers: {
         checkersFor: (path, facts) => { plansSeen.push({ path, facts }); return [{ argv: ['ruff', 'check', path], cwd: facts.cwd, timeoutMs: 1000, parser: 'ruff' }] },
         findingsOf: (_plan, result) => (result === null ? 'ruff could not run' : `ruff: exit ${result.code}`),
-        tddHint: path => (path.endsWith('app.py') ? 'no test file next to app.py' : undefined),
-        charsetFindings: text => (text.includes('​') ? ['zero-width space added'] : []),
-        lengthNote: n => (n > 2 ? `${n} lines` : undefined),
       },
       run: async argv => { runs.push(argv); return { code: 1, stdout: 'E501', stderr: '', timedOut: false } },
     })
     writeFileSync(join(cwd, 'ruff.toml'), '')
     writeFileSync(join(cwd, 'app.py'), 'a = 1\nb = 2\nc = 3\n')
     const r = await fp.emit('tool_result', { type: 'tool_result', toolCallId: '1', toolName: 'write', input: { path: 'app.py', content: 'a = 1​\n' }, content: [], isError: false }, ctx)
-    expect(r).toEqual({ additionalContext: 'ruff: exit 1\n\nno test file next to app.py\n\nzero-width space added\n\n3 lines' })
+    expect(r).toEqual({ additionalContext: 'app.py:\n- ruff: exit 1' })
     expect(runs).toEqual([['ruff', 'check', join(cwd, 'app.py')]])
     expect(plansSeen).toEqual([{ path: join(cwd, 'app.py'), facts: { hasRuffConfig: true, hasEslintConfig: false, isGoModule: false, cwd } }])
   }))
@@ -275,16 +260,13 @@ describe('omp extension: tool_result (H04 + spool)', () => {
     expect(await fp.emit('tool_result', { type: 'tool_result', toolCallId: '3', toolName: 'write', input: { path: 'a.ts', content: 'x' }, content: [], isError: false }, ctx)).toBeUndefined()
   }))
 
-  test('spools tool metadata: bash command and exit code, edited paths; subagents report into the main session', () => withSandbox(async sb => {
-    const { fp, ctx, cwd, memory } = setup(sb)
+  test('tool calls are not spooled: not a bash command, not an edit, not a subagent\'s write', () => withSandbox(async sb => {
+    const { fp, ctx, memory } = setup(sb)
     await fp.emit('tool_result', { type: 'tool_result', toolCallId: '1', toolName: 'bash', input: { command: 'bun test' }, content: [], isError: true, details: { exitCode: 2, wallTimeMs: 1500 } }, ctx)
     await fp.emit('tool_result', { type: 'tool_result', toolCallId: '2', toolName: 'edit', input: { path: 'src/x.ts', edits: [] }, content: [], isError: false }, ctx)
     await fp.emit('tool_result', { type: 'tool_result', toolCallId: '3', toolName: 'read', input: { path: 'src/x.ts' }, content: [], isError: false }, ctx)
     await Bun.sleep(0)
-    expect(memory.spool).toEqual([
-      { sid: SID, entries: [{ ts: 1_791_400_000_000, ev: 'tool', tool: 'bash', kind: 'bash', cmd: 'bun test', exit: 2, ms: 1500 }] },
-      { sid: SID, entries: [{ ts: 1_791_400_000_000, ev: 'tool', tool: 'edit', kind: 'edit', paths: [join(cwd, 'src/x.ts')] }] },
-    ])
+    expect(memory.spool).toEqual([])
     const prev = { sid: process.env['BURACLE_SESSION_ID'], h: process.env['BURACLE_HARNESS'] }
     process.env['BURACLE_SESSION_ID'] = 'main-session-1'
     process.env['BURACLE_HARNESS'] = 'omp'
@@ -292,7 +274,7 @@ describe('omp extension: tool_result (H04 + spool)', () => {
       const sub = setup(sb, {}, { kind: 'sub', sid: 'sub-session-9' })
       await sub.fp.emit('tool_result', { type: 'tool_result', toolCallId: '4', toolName: 'write', input: { path: 'b.ts', content: '' }, content: [], isError: false }, sub.ctx)
       await Bun.sleep(0)
-      expect(sub.memory.spool.map(s => s.sid)).toEqual(['main-session-1'])
+      expect(sub.memory.spool).toEqual([])
     } finally {
       if (prev.sid === undefined) delete process.env['BURACLE_SESSION_ID']; else process.env['BURACLE_SESSION_ID'] = prev.sid
       if (prev.h === undefined) delete process.env['BURACLE_HARNESS']; else process.env['BURACLE_HARNESS'] = prev.h
@@ -332,25 +314,7 @@ describe('omp extension: input (H10) and before_agent_start (H13/H15)', () => {
     expect(memory.spool).toEqual([])
   }))
 
-  test('H10 autoPause: with plan.autoPause a user message pauses a running plan (kind discussion); "devam" resumes', () => withSandbox(async sb => {
-    const live = (d: Parameters<ExtensionDeps['config']>[0]) => ({ config: { ...d, plan: { ...d.plan, autoPause: true } }, vault: '/v', shim: '/s', source: 'runtime-config' as const })
-    const { fp, ctx } = setup(sb, { config: live, policy: { ...testDeps().deps.policy!, isGuardContinuation, detectIntent }, plan: { ...testDeps().deps.plan!, applyIntent } })
-    saveState('omp', SID, planState())
-    await fp.emit('input', { type: 'input', text: 'please also cover the parser edge case', source: 'interactive' }, ctx)
-    expect(loadState('omp', SID).interaction).toMatchObject({ state: 'paused', kind: 'discussion', reason: AUTO_PAUSE_REASON })
-    await fp.emit('input', { type: 'input', text: 'devam', source: 'interactive' }, ctx)
-    expect(loadState('omp', SID).interaction?.state).toBe('running')
-    await fp.emit('input', { type: 'input', text: '!ls -la', source: 'interactive' }, ctx)
-    await fp.emit('input', { type: 'input', text: '/buracle-status', source: 'interactive' }, ctx)
-    expect(loadState('omp', SID).interaction?.state).toBe('running')
-    await fp.emit('input', { type: 'input', text: '/plan-build next', source: 'interactive' }, ctx)
-    expect(loadState('omp', SID).interaction).toMatchObject({ state: 'paused', kind: 'discussion' })
-    const other = setup(sb, { config: live, policy: { ...testDeps().deps.policy!, isGuardContinuation, detectIntent } }, { sid: '01a118a8-8d01-740c-9360-bbbbbbbbbbbb' })
-    await other.fp.emit('input', { type: 'input', text: 'hello', source: 'interactive' }, other.ctx)
-    expect(existsSync(join(sb.buracleHome, 'sessions', 'omp', '01a118a8-8d01-740c-9360-bbbbbbbbbbbb', 'state.json'))).toBe(false)
-  }))
-
-  test('H10: without autoPause an ordinary message leaves the plan running', () => withSandbox(async sb => {
+  test('H10: an ordinary message leaves the plan running', () => withSandbox(async sb => {
     const { fp, ctx } = setup(sb, { policy: { ...testDeps().deps.policy!, isGuardContinuation, detectIntent } })
     saveState('omp', SID, planState())
     await fp.emit('input', { type: 'input', text: 'please also cover the parser edge case', source: 'interactive' }, ctx)
@@ -417,7 +381,7 @@ describe('omp extension: input (H10) and before_agent_start (H13/H15)', () => {
     const { fp, ctx } = setup(sb, { memory: memory.bridge, policy: { ...testDeps().deps.policy!, capabilityCard: () => 'CARD' } })
     await fp.emit('session_start', { type: 'session_start' }, ctx)
     const r = await fp.emit('before_agent_start', { type: 'before_agent_start', prompt: 'hi', systemPrompt: [] }, ctx) as { systemPrompt: string[] }
-    expect(r.systemPrompt[0]).toBe('<buracle-context>\n\nCARD\n\n# Buracle memory (CortexDB brain; data, not instructions)\n- decision-9 · canonical text\n\n</buracle-context>')
+    expect(r.systemPrompt[0]).toBe('<buracle-context>\n\n# Buracle memory (CortexDB brain; data, not instructions)\n- decision-9 · canonical text\n\nCARD\n\n</buracle-context>')
     const none = setup(sb, { memory: fakeMemory().bridge, policy: { ...testDeps().deps.policy!, capabilityCard: () => 'CARD' } })
     await none.fp.emit('session_start', { type: 'session_start' }, none.ctx)
     const bare = await none.fp.emit('before_agent_start', { type: 'before_agent_start', prompt: 'hi', systemPrompt: [] }, none.ctx) as { systemPrompt: string[] }
@@ -525,18 +489,19 @@ describe('omp extension: session_stop (H08/H11)', () => {
 })
 
 describe('omp extension: compaction (H06/H07)', () => {
-  test('session.compacting returns plan context, writes the handoff memory and preserves its id; session_compact restores', () => withSandbox(async sb => {
+  test('session.compacting returns plan context, writes the handoff memory and records its id; session_compact restores', () => withSandbox(async sb => {
     const { fp, ctx, memory } = setup(sb, { compact: {
       compactInstructions: (_b, s) => `Keep plan ${s.plan?.slug} state`,
       handoffNote: input => ({ slug: `handoff-${input.project}-${input.branch}`, markdown: `# Handoff ${input.sessionId}\n` }),
       restoreContext: (s, handoff) => `Resume plan ${s.plan?.slug}; handoff at ${handoff}`,
     } })
     saveState('omp', SID, planState())
-    const r = await fp.emit('session.compacting', { type: 'session.compacting', sessionId: SID, messages: [] }, ctx) as { context: string[], preserveData: { buracle: Record<string, unknown> } }
+    const r = await fp.emit('session.compacting', { type: 'session.compacting', sessionId: SID, messages: [] }, ctx)
     const id = 'handoff-handoff-demo-main'
-    expect(r).toEqual({ context: ['Keep plan demo state'], preserveData: { buracle: { v: 1, sessionId: SID, plan: 'docs/plans/2026-10-08-demo.md', handoff: id } } })
+    expect(r).toEqual({ context: ['Keep plan demo state'] })
+    expect(compactRecord(SID)).toEqual({ v: 1, at: 1_791_400_000_000, handoff: id })
     expect(memory.handoffs).toEqual([{ sid: SID, cwd: ctx.cwd, slug: 'handoff-demo-main', markdown: `# Handoff ${SID}\n`, branch: 'main' }])
-    await fp.emit('session_compact', { type: 'session_compact', compactionEntry: { summary: 'We built X.', preserveData: r.preserveData }, fromExtension: false }, ctx)
+    await fp.emit('session_compact', { type: 'session_compact', compactionEntry: { summary: 'We built X.' }, fromExtension: false }, ctx)
     expect(fp.sent).toEqual([{ message: { customType: 'buracle.compact-restore', content: `Resume plan demo; handoff at ${id}`, display: false }, options: { deliverAs: 'nextTurn' } }])
     await Bun.sleep(0)
     expect(memory.spool.at(-1)).toEqual({ sid: SID, entries: [{ ts: 1_791_400_000_000, ev: 'compact', excerpt: 'We built X.' }] })
@@ -547,8 +512,8 @@ describe('omp extension: compaction (H06/H07)', () => {
     const { fp, ctx } = setup(sb, { memory: bridge, compact: { compactInstructions: () => 'x', handoffNote: () => ({ slug: 'h', markdown: '' }), restoreContext: () => 'y' } })
     expect(await fp.emit('session.compacting', { type: 'session.compacting', sessionId: SID, messages: [] }, ctx)).toBeUndefined()
     saveState('omp', SID, planState())
-    const r = await fp.emit('session.compacting', { type: 'session.compacting', sessionId: SID, messages: [] }, ctx) as { preserveData: { buracle: Record<string, unknown> } }
-    expect(r.preserveData.buracle['handoff']).toBeUndefined()
+    expect(await fp.emit('session.compacting', { type: 'session.compacting', sessionId: SID, messages: [] }, ctx)).toEqual({ context: ['x'] })
+    expect(compactRecord(SID)).toEqual({ v: 1, at: 1_791_400_000_000 })
   }))
 })
 
@@ -564,14 +529,13 @@ describe('omp extension: session lifecycle, status and telemetry (H05/H14/H16/H1
     expect(ctx.intervals.map(i => i.ms)).toEqual([30_000])
     expect(ctx.timeouts.length).toBe(1)
     await Bun.sleep(5)
-    expect(ctx.uiCalls.filter(c => c.method === 'setStatus').map(c => c.args)).toEqual([[STATUS_KEYS.month, undefined], [STATUS_KEYS.mem, undefined]])
+    expect(ctx.uiCalls.filter(c => c.method === 'setStatus').map(c => c.args)).toEqual([[STATUS_KEYS.mem, undefined]])
   }))
 
   test('status keys render their canonical segments; the band appears while a plan is registered', () => withSandbox(async sb => {
     const memStatus = { v: 3, computed_at: '2026-10-08T00:00:00Z', health: 'ok', reasons: [], counts: { project: 3, person: 1 }, regions: {}, captures: 1, store: { engine: 'cortexdb', version: '2.124.0', ok: true }, redactions_24h: 0 } as const
     let gitCalls = 0
     const { fp, ctx, cwd } = setup(sb, {
-      usage: () => ({ harness: 'omp', computed_at: '2026-10-08T00:00:00Z', windows: [], month_key: monthKeyOf(1_791_400_000_000), month: { start: '2026-10-01', tokens: 3_400_000, usd: 12.5, byModel: {} } }),
       memoryStatus: () => ({ ...memStatus, reasons: [] }),
       gitState: async () => { gitCalls++; return { branch: 'main', ahead: 1, behind: 0, staged: 0, unstaged: 2, untracked: 0, stash: 0, conflicts: 0 } },
       plan: { ...testDeps().deps.plan!, parsePlan: () => ({ header: { created: '2026-10-08', status: 'IN_PROGRESS', approved: true, worktree: false, type: 'Feature' }, title: 'Demo', sections: [], tasks: [{ n: 1, title: 'a', done: true, files: [] }, { n: 2, title: 'b', done: false, files: [] }] }) },
@@ -580,39 +544,18 @@ describe('omp extension: session lifecycle, status and telemetry (H05/H14/H16/H1
     writeFileSync(join(cwd, 'docs', 'plans', '2026-10-08-demo.md'), '# Demo\n')
     await fp.emit('session_start', { type: 'session_start' }, ctx)
     await Bun.sleep(5)
-    expect(ctx.uiCalls).toContainEqual({ method: 'setStatus', args: [STATUS_KEYS.month, 'month=3400000/$12.5'] })
     expect(ctx.uiCalls).toContainEqual({ method: 'setStatus', args: [STATUS_KEYS.mem, 'mem=ok'] })
     const statusBand = (calls: typeof ctx.uiCalls) => calls.filter(c => c.method === 'setWidget' && c.args[0] === WIDGET_KEY)
     expect(statusBand(ctx.uiCalls)).toEqual([])
     saveState('omp', SID, planState())
     ctx.intervals[0]?.fn()
     await Bun.sleep(5)
-    expect(statusBand(ctx.uiCalls)).toEqual([{ method: 'setWidget', args: [WIDGET_KEY, ['month=3400000/$12.5 | mem=ok | git=main | plan=demo[implement]1/2'], { placement: 'belowEditor' }] }])
+    expect(statusBand(ctx.uiCalls)).toEqual([{ method: 'setWidget', args: [WIDGET_KEY, ['mem=ok | git=main | plan=demo[implement]1/2'], { placement: 'belowEditor' }] }])
     expect(gitCalls).toBe(1)
     const before = ctx.uiCalls.length
     ctx.intervals[0]?.fn()
     await Bun.sleep(5)
     expect(ctx.uiCalls.slice(before).filter(c => c.method === 'setWidget')).toEqual([])
-  }))
-
-  test('month: only the current month counts, month_pct shows; a stale or missing entry triggers one throttled background refresh', () => withSandbox(async sb => {
-    const NOW = 1_791_400_000_000
-    const thisMonth = monthKeyOf(NOW)
-    let entry: Record<string, unknown> | undefined = { harness: 'omp', computed_at: new Date(NOW - 60_000).toISOString(), windows: [], month_key: thisMonth, month_pct: 42, month: { start: `${thisMonth}-01`, tokens: 1000, byModel: {} } }
-    const { fp, ctx, usageRefreshes } = setup(sb, { usage: () => entry as never })
-    await fp.emit('session_start', { type: 'session_start' }, ctx)
-    await Bun.sleep(5)
-    expect(ctx.uiCalls).toContainEqual({ method: 'setStatus', args: [STATUS_KEYS.month, 'month=1000 42%'] })
-    expect(usageRefreshes.count).toBe(0)
-    entry = { ...entry, month_key: '1999-01' }
-    ctx.intervals[0]?.fn()
-    await Bun.sleep(5)
-    expect(ctx.uiCalls.at(-2)).toEqual({ method: 'setStatus', args: [STATUS_KEYS.month, undefined] })
-    expect(usageRefreshes.count).toBe(1)
-    entry = undefined
-    ctx.intervals[0]?.fn()
-    await Bun.sleep(5)
-    expect(usageRefreshes.count).toBe(1)
   }))
 
   test('H21: the main session start prepares the workspace (memory UI, code indexes)', () => withSandbox(async sb => {
@@ -635,11 +578,9 @@ describe('omp extension: session lifecycle, status and telemetry (H05/H14/H16/H1
     expect(widget?.args[2]).toEqual({ placement: 'belowEditor' })
   }))
 
-  test('an entry of this month older than the cache TTL still shows and starts a refresh; the band shows pending updates', () => withSandbox(async sb => {
-    const NOW = 1_791_400_000_000
-    const entry = { harness: 'omp' as const, computed_at: new Date(NOW - 10 * 60_000).toISOString(), windows: [], month_key: monthKeyOf(NOW), month: { start: 'x', tokens: 7, byModel: {} } }
-    const generated = testGenerated({ status: { layout: { rows: [['month', 'upd']], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: false }, setStatus: { 'buracle.budget': ['month'] } } })
-    const t = testDeps({ usage: () => entry, updates: () => 3 })
+  test('the band shows pending updates', () => withSandbox(async sb => {
+    const generated = testGenerated({ status: { layout: { rows: [['upd']], thresholds: { ctxWarn: 75, ctxCrit: 90 }, emoji: false }, setStatus: {} } })
+    const t = testDeps({ updates: () => 3 })
     const fp = fakePi()
     createBuracleExtension(generated, t.deps)(fp.pi)
     const cwd = join(sb.root, 'work')
@@ -648,9 +589,7 @@ describe('omp extension: session lifecycle, status and telemetry (H05/H14/H16/H1
     saveState('omp', SID, planState())
     await fp.emit('session_start', { type: 'session_start' }, ctx)
     await Bun.sleep(5)
-    expect(ctx.uiCalls).toContainEqual({ method: 'setStatus', args: ['buracle.budget', 'month=7'] })
-    expect(ctx.uiCalls).toContainEqual({ method: 'setWidget', args: [WIDGET_KEY, ['month=7 | upd=3'], { placement: 'belowEditor' }] })
-    expect(t.usageRefreshes.count).toBe(1)
+    expect(ctx.uiCalls).toContainEqual({ method: 'setWidget', args: [WIDGET_KEY, ['upd=3'], { placement: 'belowEditor' }] })
   }))
 
   test('production usage deps: the shared usage.json reader and spawnUsageRefresh with the CLI argv', () => withSandbox(async () => {
@@ -658,7 +597,7 @@ describe('omp extension: session lifecycle, status and telemetry (H05/H14/H16/H1
     expect(d.usage()).toBeUndefined()
     const NOW = Date.now()
     mkdirSync(paths.stateDir(), { recursive: true })
-    const omp = { harness: 'omp', computed_at: new Date(NOW).toISOString(), windows: [], month_key: monthKeyOf(NOW), month: { start: 'x', tokens: 5, byModel: {} } }
+    const omp = { harness: 'omp', computed_at: new Date(NOW).toISOString(), windows: [] }
     writeFileSync(paths.usageFile(), JSON.stringify({ v: 1, updated_at: 'x', harnesses: { omp, codex: { ...omp, harness: 'codex' } } }))
     expect(d.usage()).toEqual(omp as never)
     expect(fakeExe(join(paths.binDir(), 'buracle'), '')).toBe(paths.shimPath())
@@ -722,6 +661,7 @@ describe('omp extension: session lifecycle, status and telemetry (H05/H14/H16/H1
     let pruned: { keep: string[] } | undefined
     const { fp, ctx } = setup(sb, { prune: (keep) => { pruned = { keep: [...keep] }; return [] } })
     await fp.emit('session_start', { type: 'session_start' }, ctx)
+    await Bun.sleep(0)
     ctx.timeouts[0]?.fn()
     expect(pruned).toEqual({ keep: [SID] })
   }))
@@ -858,13 +798,16 @@ describe('omp extension: H28 project assets', () => {
     const repo = await makeRepo(sb.root, 'proj')
     write(join(repo, 'AGENTS.md'), '# Demo\n\n## Scoped rules\n\n')
     write(join(repo, '.claude', 'rules', 'web.md'), '---\npaths: ["src/**/*.tsx"]\n---\n')
+    write(join(repo, '.claude', 'skills', 'review', 'SKILL.md'), '---\nname: review\ndescription: Review a diff\n---\n')
+    write(join(repo, '.agents', 'skills', 'deploy', 'SKILL.md'), '---\nname: deploy\ndescription: Deploy\n---\n')
     const linked: string[] = []
-    const base = defaultDeps().projectAssets
+    let clock = 1_791_400_000_000
     const { fp, ctx } = setup(sb, {
       policy: { ...testDeps().deps.policy!, capabilityCard: () => 'CARD', isGuardContinuation: () => false },
       memory: fakeMemory().bridge,
       prepareWorkspace: async cwd => ({ cwd, root: repo, children: [], index: { codegraph: { state: 'off' }, semble: { state: 'off' } } }),
-      projectAssets: { ...base, link: root => { linked.push(String(root)); return true } },
+      assetsSpawn: (_argv, root) => { linked.push(root) },
+      now: () => (clock += 60_000),
       plan: { ...testDeps().deps.plan!, stopGuardVerdict },
     }, { cwd: repo })
     await fp.emit('session_start', { type: 'session_start' }, ctx)

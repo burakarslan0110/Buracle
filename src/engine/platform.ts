@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 
@@ -9,62 +9,6 @@ export function osName(): OsName {
   const forced = process.env['BURACLE_PLATFORM']
   if (forced === 'darwin' || forced === 'linux') return forced
   return process.platform === 'darwin' ? 'darwin' : 'linux'
-}
-
-const PROC_VERSION = '/proc/version'
-const BINFMT_DIR = '/proc/sys/fs/binfmt_misc'
-let wslKernel: boolean | undefined
-
-function microsoftKernel(versionFile: string): boolean {
-  try {
-    const v = readFileSync(versionFile, 'utf8').toLowerCase()
-    return v.includes('microsoft') || v.includes('wsl')
-  } catch { return false }
-}
-
-// WSL is Linux with a Microsoft kernel; its shells carry WSL_DISTRO_NAME and WSL_INTEROP, which a process started
-// outside such a shell (a service, a hook) may lack, so the kernel's version text decides then.
-export function isWsl(env: Readonly<Record<string, string | undefined>> = process.env, versionFile = PROC_VERSION): boolean {
-  if (osName() !== 'linux') return false
-  if ((env['WSL_DISTRO_NAME'] ?? '') !== '' || (env['WSL_INTEROP'] ?? '') !== '') return true
-  if (versionFile !== PROC_VERSION) return microsoftKernel(versionFile)
-  wslKernel ??= microsoftKernel(versionFile)
-  return wslKernel
-}
-
-// WSL starts Windows programs through a binfmt_misc entry: WSLInterop, or WSLInterop-late in a distribution that runs
-// systemd. Interop turned off in wsl.conf (or by writing 0 to the entry) leaves it missing or disabled.
-export function wslInterop(dir = BINFMT_DIR): boolean {
-  for (const name of ['WSLInterop', 'WSLInterop-late']) {
-    try {
-      if (readFileSync(join(dir, name), 'utf8').split('\n')[0]?.trim() === 'enabled') return true
-    } catch {  }
-  }
-  return false
-}
-
-/** Where a page or a notification reaches the person: the macOS or Linux desktop, or Windows from inside WSL. */
-export type DesktopHost = 'darwin' | 'linux' | 'wsl' | 'wsl-no-interop'
-
-export function desktopHost(env: Readonly<Record<string, string | undefined>> = process.env, versionFile = PROC_VERSION, binfmtDir = BINFMT_DIR): DesktopHost {
-  if (osName() === 'darwin') return 'darwin'
-  if (!isWsl(env, versionFile)) return 'linux'
-  return wslInterop(binfmtDir) ? 'wsl' : 'wsl-no-interop'
-}
-
-// The Windows programs Buracle starts from WSL, at their usual place on drive C: for a shell whose PATH lacks the
-// Windows folders (appendWindowsPath = false in wsl.conf).
-const WINDOWS_PROGRAMS: Readonly<Record<string, string>> = {
-  'rundll32.exe': '/mnt/c/Windows/System32/rundll32.exe',
-  'powershell.exe': '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe',
-}
-
-/** A program a WSL process can start: on PATH, else a known Windows program at its usual place. */
-export function findWslProgram(name: string, places: Readonly<Record<string, string>> = WINDOWS_PROGRAMS): string | undefined {
-  const hit = findExecutable(name)
-  if (hit !== undefined) return hit
-  const fixed = places[name]
-  return fixed !== undefined && isFile(fixed) ? fixed : undefined
 }
 
 function homeDir(): string {

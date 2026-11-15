@@ -200,9 +200,9 @@ describe('omp build: rendering helpers', () => {
     }
   })
 
-  test('the shipped path rules (mobile, dotnet and blazor included) use omp glob conditions only', () => {
+  test('the shipped path rules (dotnet and blazor included) use omp glob conditions only', () => {
     const rules = devContext().canonical.rules.filter(r => r.scope === 'paths')
-    expect(rules.map(r => r.id)).toEqual(expect.arrayContaining(['blazor', 'dotnet', 'mobile']))
+    expect(rules.map(r => r.id)).toEqual(expect.arrayContaining(['blazor', 'dotnet']))
     for (const rule of rules) {
       const notGlobs = ((rule.frontmatter['paths'] as string[]) ?? []).filter(g => !isOmpFileGlob(g))
       expect({ rule: rule.id, notGlobs }).toEqual({ rule: rule.id, notGlobs: [] })
@@ -310,7 +310,7 @@ describe('omp build: the bundle stays light', () => {
     expect(modules.filter(m => heavy.includes(m))).toEqual([])
     expect(modules).toContain('src/memory/spool.ts')
     expect(modules).toContain('src/memory/session-record.ts')
-    expect(modules.filter(m => m.startsWith('src/adapters/opencode/'))).toEqual(['src/adapters/opencode/runtime/adapter-rules.ts'])
+    expect(modules.filter(m => m.startsWith('src/adapters/opencode/'))).toEqual([])
     expect(modules.filter(m => m.startsWith('src/adapters/shared/context-mode/'))).toEqual([])
   }, 60_000)
 })

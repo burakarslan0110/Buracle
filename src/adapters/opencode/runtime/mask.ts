@@ -1,5 +1,5 @@
 import type { ToolKind } from '../../../core/events'
-import { masksToolKind, maskToolOutput } from '../../shared/tool-output-mask'
+import { masksToolKind, maskToolOutput } from '../../../core/memory/redact'
 import type { ToolResultShape } from './types'
 
 const MCP_OUTPUT_TOOLS: ReadonlySet<string> = new Set(['execute', 'read_mcp_resource'])

@@ -4,19 +4,19 @@ import { join, resolve } from 'node:path'
 import { renderInstallStyled, run as installRun, runInstallFlow } from '../../../src/cli/commands/install'
 import { cliVersion } from '../../../src/cli/router'
 import { makeStyle } from '../../../src/cli/ui/style'
-import { CONFIG_RENAMES, type ConfigRename } from '../../../src/core/config'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import { atomicWriteSync } from '../../../src/engine/fsx'
 import { yamlParse } from '../../../src/engine/merge'
-import { applyPlans, listLedgerKey, readLedger, txnTestHooks, type Plan } from '../../../src/engine/txn'
+import { applyPlans, listLedgerKey, readJournal, readLedger, txnTestHooks, type Plan } from '../../../src/engine/txn'
 import { run as procRun } from '../../../src/engine/proc'
 import { renderPathRules } from '../../../src/engine/update/compose'
-import { bunPath, readInstallRecord, shellQuote, shimContent, shimPlanOps, writeInstallRecord } from '../../../src/engine/update/install-core'
+import { agentsSkillsPlan, bunPath, readInstallRecord, shellQuote, shimContent, shimPlanOps, writeInstallRecord } from '../../../src/engine/update/install-core'
 import { parseShimText } from '../../../src/engine/update/runtime'
 import * as paths from '../../../src/engine/paths'
 import { fakeExe, narrowPath, pathOf } from '../../helpers/fake-exe'
 import { snapshotTree } from '../../helpers/fs-snapshot'
 import { withEnv, withSandbox } from '../../helpers/sandbox'
+import { halfRolledBack } from '../../helpers/unsettled-txn'
 import { fakeAdapter, fakeCli, fullCheckout, makeRepo, memoryIO, noNetwork, REAL_REPO, withDeps } from './helpers'
 
 function read(p: string): string {
@@ -87,6 +87,24 @@ function finishedSteps(err: string): string[] {
   const plain = err.replace(/\u001b\[[0-9;?]*[A-Za-z]/g, '')
   return plain.split('\n').map(l => l.trim()).filter(l => /^[✔▲✖ℹ-] /.test(l) || l.startsWith('── '))
 }
+
+describe('install in a checkout without a built harness/ (a dev checkout)', () => {
+  test('builds harness/ first without asking, even without a terminal or --yes; a dry run builds nothing', () => withSandbox(async ({ root, home }) => {
+    const repo = makeRepo(root)
+    const codex = fakeAdapter('codex', { build: () => [{ path: 'hooks.json', content: '{}\n' }], plan: () => codexPlan(home, { '.codex/hooks.json': '{}\n' }) })
+    await withDeps({ repoRoot: () => repo, adapters: async () => [codex], runCli: fakeCli().runCli, confirm: async () => false }, async () => {
+      expect(await installRun(['--dry-run'], memoryIO())).toBe(0)
+      expect(existsSync(join(repo, 'harness'))).toBe(false)
+
+      const io = memoryIO()
+      // without a terminal or --yes the install itself may stop at its own question; the build comes before it
+      await installRun([], io)
+      expect(existsSync(join(repo, 'harness', 'codex', 'hooks.json'))).toBe(true)
+      expect(existsSync(join(repo, 'harness', 'hook-data.json'))).toBe(true)
+      expect(io.out()).toContain('Rebuilt the generated files')
+    })
+  }))
+})
 
 describe('install progress on a terminal', () => {
   test('each step shows as it finishes, in order, with what it did; the second run says what is already up to date', () => withSandbox(async ({ root, home }) => {
@@ -207,28 +225,6 @@ describe('buracle install', () => {
     })
   }))
 
-  test('an old vault with notes is imported by mem import-vault; a failure says how to retry', () => withSandbox(async ({ root, home }) => {
-    const repo = makeRepo(root)
-    const vault = join(home, 'Documents', 'Buracle')
-    mkdirSync(join(vault, 'projects', 'demo', 'decisions'), { recursive: true })
-    writeFileSync(join(vault, 'projects', 'demo', 'decisions', 'x.md'), '---\ntitle: X\n---\nx\n')
-    let answer: { code: number, stdout: string, stderr: string } = { code: 0, stdout: JSON.stringify({ found: true, imported: [{ id: 'decision-x' }, { id: 'gotcha-y' }], skipped: [] }), stderr: '' }
-    const cli = fakeCli(() => answer)
-    await withDeps({ repoRoot: () => repo, adapters: async () => [], runCli: cli.runCli, fetch: noNetwork }, async () => {
-      const steps = async (): Promise<string[]> => {
-        const io = memoryIO({ json: true })
-        expect(await installRun(['--yes', '--json'], io)).toBe(0)
-        return (JSON.parse(io.out()) as { steps: string[] }).steps.filter(s => s.includes('old vault'))
-      }
-      expect(await steps()).toEqual(['Imported 2 memories from the old vault ~/Documents/Buracle into ~/.buracle/brain (the vault was only read; it is yours to keep or delete).'])
-      expect(cli.calls).toEqual([['mem', 'import-vault', '--vault', vault, '--json']])
-      answer = { code: 1, stdout: '', stderr: 'buracle mem import-vault: disk full\n' }
-      expect(await steps()).toEqual(["Import the old vault's notes into the memory: run `buracle mem import-vault` (buracle mem import-vault: disk full)."])
-      expect(cli.calls).toHaveLength(2)
-      expect(readFileSync(join(vault, 'projects', 'demo', 'decisions', 'x.md'), 'utf8')).toBe('---\ntitle: X\n---\nx\n')
-    })
-  }))
-
   test('enabled and detected adapters are installed; disabled or missing ones are skipped and reported', () => withSandbox(async ({ root, home, buracleHome }) => {
     const repo = makeRepo(root, { 'harness/agents-skills/plan-build/SKILL.md': '# spec\n', 'harness/agents-skills/bugfix/SKILL.md': '# fix\n', 'harness/agents-skills/empty/README.md': 'no skill\n' })
     mkdirSync(buracleHome, { recursive: true })
@@ -243,10 +239,10 @@ describe('buracle install', () => {
       const r = JSON.parse(io.out()) as { harnesses: Array<{ harness: string, included: boolean, reason?: string }>, steps: string[] }
       expect(r.harnesses.map(h => [h.harness, h.included, h.reason ?? ''])).toEqual([['codex', true, ''], ['opencode', false, 'not installed'], ['omp', false, 'disabled in config']])
       expect(read(join(home, '.codex/hooks.json'))).toBe('{}\n')
-      expect(readlinkSync(join(home, '.codex/skills/plan-build'))).toBe(join(repo, 'harness/agents-skills/plan-build'))
-      expect(readlinkSync(join(home, '.codex/skills/bugfix'))).toBe(join(repo, 'harness/agents-skills/bugfix'))
-      expect(existsSync(join(home, '.codex/skills/empty'))).toBe(false)
-      expect(existsSync(join(home, '.agents'))).toBe(false)
+      expect(read(join(home, '.agents/skills/plan-build/SKILL.md'))).toBe('# spec\n')
+      expect(read(join(home, '.agents/skills/bugfix/SKILL.md'))).toBe('# fix\n')
+      expect(existsSync(join(home, '.agents/skills/empty'))).toBe(false)
+      expect(existsSync(join(home, '.codex/skills'))).toBe(false)
       expect(existsSync(join(home, '.config/opencode/skills'))).toBe(false)
       expect(existsSync(join(home, '.omp/agent/skills'))).toBe(false)
       expect(r.steps.some(s => s.includes('/hooks'))).toBe(true)
@@ -259,36 +255,58 @@ describe('buracle install', () => {
     })
   }))
 
-  test('Buracle skills are linked into each installed harness\'s own folder, never into ~/.agents/skills', () => withSandbox(async ({ root, home }) => {
-    const repo = makeRepo(root, { 'harness/agents-skills/plan-build/SKILL.md': '# spec\n', 'harness/agents-skills/bugfix/SKILL.md': '# fix\n' })
-    const own = { codex: join(home, '.codex/skills'), opencode: join(home, '.config/opencode/skills'), omp: join(home, '.omp/agent/skills') }
+  test('Buracle skills are installed once, as real files under ~/.agents/skills, and nowhere else', () => withSandbox(async ({ root, home }) => {
+    const repo = makeRepo(root, { 'harness/agents-skills/plan-build/SKILL.md': '# spec\n', 'harness/agents-skills/bugfix/SKILL.md': '# fix\n', 'harness/agents-skills/bugfix/references/x.md': 'x\n' })
     const adapters = async () => [fakeAdapter('codex'), fakeAdapter('opencode'), fakeAdapter('omp')]
     await withDeps({ repoRoot: () => repo, adapters, runCli: fakeCli().runCli, fetch: noNetwork }, async () => {
       mkdirSync(join(home, '.agents/skills/mine'), { recursive: true })
       writeFileSync(join(home, '.agents/skills/mine/SKILL.md'), '# third party\n')
       expect(await installRun(['--yes'], memoryIO())).toBe(0)
-      for (const dir of Object.values(own)) {
-        for (const id of ['plan-build', 'bugfix']) expect(readlinkSync(join(dir, id))).toBe(join(repo, 'harness/agents-skills', id))
-      }
-      expect(readdirSync(join(home, '.agents/skills'))).toEqual(['mine'])
+      expect(readdirSync(join(home, '.agents/skills')).sort()).toEqual(['bugfix', 'mine', 'plan-build'])
+      expect(read(join(home, '.agents/skills/plan-build/SKILL.md'))).toBe('# spec\n')
+      expect(read(join(home, '.agents/skills/bugfix/references/x.md'))).toBe('x\n')
+      expect(lstatSync(join(home, '.agents/skills/plan-build')).isSymbolicLink()).toBe(false)
+      expect(lstatSync(join(home, '.agents/skills/plan-build/SKILL.md')).isSymbolicLink()).toBe(false)
       expect(read(join(home, '.agents/skills/mine/SKILL.md'))).toBe('# third party\n')
+      // No second copy and no link in any harness's own folder.
+      for (const dir of ['.codex/skills', '.config/opencode/skills', '.omp/agent/skills']) expect(existsSync(join(home, dir))).toBe(false)
 
       expect(await installRun(['--yes', 'codex'], memoryIO())).toBe(0)
-      for (const dir of Object.values(own)) expect(readlinkSync(join(dir, 'plan-build'))).toBe(join(repo, 'harness/agents-skills/plan-build'))
+      expect(read(join(home, '.agents/skills/plan-build/SKILL.md'))).toBe('# spec\n')
     })
   }))
 
-  test('an upgrade removes the ~/.agents/skills links an earlier install recorded', () => withSandbox(async ({ root, home }) => {
+  test('the skills plan is one real copy: files only, no link for any of the four harnesses', () => withSandbox(async ({ root, home }) => {
+    const repo = makeRepo(root, { 'harness/agents-skills/plan-build/SKILL.md': '# spec\n', 'harness/agents-skills/plan-build/scripts/run.sh': '#!/bin/sh\n' })
+    const ops = agentsSkillsPlan(repo, ['claude', 'codex', 'opencode', 'omp']).ops
+    expect(ops.map(o => o.kind)).toEqual(['file', 'file'])
+    expect(ops.map(o => o.kind === 'file' ? o.path : '')).toEqual([join(home, '.agents/skills/plan-build/SKILL.md'), join(home, '.agents/skills/plan-build/scripts/run.sh')])
+    // Claude Code alone reads the plugin's bundled copy: nothing is installed for it.
+    expect(agentsSkillsPlan(repo, ['claude']).ops).toEqual([])
+  }))
+
+  test('an upgrade replaces the per-harness skill links of an earlier install with the one copy', () => withSandbox(async ({ root, home }) => {
     const repo = makeRepo(root, { 'harness/agents-skills/plan-build/SKILL.md': '# spec\n' })
-    const old = join(home, '.agents/skills/plan-build')
-    const res = await applyPlans([{ id: 'agents-skills', harness: 'core', ops: [{ kind: 'symlink', path: old, target: join(repo, 'harness/agents-skills/plan-build'), owner: 'agents-skills' }] }])
+    // An earlier checkout inside HOME: a link that leads outside HOME is never written through (a conflict), so the earlier link must be one the run may replace.
+    const target = join(home, 'old-checkout/harness/agents-skills/plan-build')
+    mkdirSync(target, { recursive: true })
+    const own = join(home, '.codex/skills/plan-build')
+    const shared = join(home, '.agents/skills/plan-build')
+    const res = await applyPlans([{ id: 'agents-skills', harness: 'core', ops: [
+      { kind: 'symlink', path: own, target, owner: 'agents-skills' },
+      { kind: 'symlink', path: shared, target, owner: 'agents-skills' },
+    ] }])
     expect(res.conflicts).toEqual([])
-    writeInstallRecord({ v: 1, plans: { 'agents-skills': { keys: [old] } }, execUndone: {} })
+    writeInstallRecord({ v: 1, plans: { 'agents-skills': { keys: [own, shared] } }, execUndone: {} })
     await withDeps({ repoRoot: () => repo, adapters: async () => [fakeAdapter('codex')], runCli: fakeCli().runCli, fetch: noNetwork }, async () => {
       expect(await installRun(['--yes'], memoryIO())).toBe(0)
-      expect(existsSync(old)).toBe(false)
-      expect(readlinkSync(join(home, '.codex/skills/plan-build'))).toBe(join(repo, 'harness/agents-skills/plan-build'))
-      expect(readInstallRecord().record.plans['agents-skills']?.keys).toEqual([join(home, '.codex/skills/plan-build')])
+      expect(existsSync(own)).toBe(false)
+      expect(existsSync(shared)).toBe(false)
+      // A link cannot become a folder inside one transaction: the run after the removal writes the copy.
+      expect(await installRun(['--yes'], memoryIO())).toBe(0)
+      expect(lstatSync(shared).isSymbolicLink()).toBe(false)
+      expect(read(join(shared, 'SKILL.md'))).toBe('# spec\n')
+      expect(readInstallRecord().record.plans['agents-skills']?.keys).toEqual([join(shared, 'SKILL.md')])
     })
   }))
 
@@ -505,7 +523,33 @@ describe('buracle install', () => {
     })
   }))
 
-  test('the core plan owns the shared path rules; a rule an older Codex plan wrote moves over; a canonical error never prunes them', () => withSandbox(async ({ root, home, buracleHome }) => {
+  test('a rollback that failed part way is finished before the install writes; while its cause stays, the install fails closed; a preview repairs nothing', () => withSandbox(async sb => {
+    const repo = makeRepo(sb.root)
+    const { txn, marker, flag } = await halfRolledBack(sb)
+    const shim = join(sb.buracleHome, 'bin', 'buracle')
+    await withDeps({ repoRoot: () => repo, adapters: async () => [], runCli: fakeCli().runCli }, async () => {
+      const blocked = memoryIO()
+      expect(await installRun(['--yes'], blocked)).toBe(1)
+      expect(blocked.err()).toContain('an earlier install left a transaction that still cannot be rolled back, so nothing was written')
+      expect(blocked.err()).toContain(txn)
+      expect(existsSync(shim)).toBe(false)
+      expect((await readJournal(txn)).status).toBe('rollback-failed')
+
+      writeFileSync(flag, '')
+      expect(await installRun(['--dry-run'], memoryIO())).toBe(0)
+      expect((await readJournal(txn)).status).toBe('rollback-failed')
+      expect(existsSync(marker)).toBe(true)
+
+      const io = memoryIO()
+      expect(await installRun(['--yes'], io)).toBe(0)
+      expect(io.out()).toContain(`Recovered (rolled back) interrupted transaction(s): ${txn}`)
+      expect((await readJournal(txn)).status).toBe('rolled-back')
+      expect(existsSync(marker)).toBe(false)
+      expect(existsSync(shim)).toBe(true)
+    })
+  }))
+
+  test('the core plan owns the shared path rules; a rule an older Codex plan wrote moves over; a canonical error never prunes them',() => withSandbox(async ({ root, home, buracleHome }) => {
     const repo = makeRepo(root, { 'canonical/rules/paths/python.md': '---\npaths: ["**/*.py"]\n---\n# Python\n\nRun the formatter before committing.\n' })
     const rules = await renderPathRules(loadCanonicalSync(join(repo, 'canonical')))
     expect(rules.map(r => r.id)).toEqual(['python'])
@@ -554,6 +598,9 @@ describe('buracle install', () => {
           codexHome: join(root, 'codex-home'),
           opencodeConfigDir: join(home, '.config/opencode'),
           ompAgentDir: join(root, 'omp-agent'),
+          qwenHome: join(home, '.qwen'),
+          piAgentDir: join(root, 'omp-agent'),
+          agyDir: join(home, '.gemini/config'),
           bun: shimBun as string,
         })
       }))
@@ -675,22 +722,4 @@ describe('buracle install', () => {
     expect(parseShimText(`#!/bin/sh\nexec '/b/bun' '/r e/po/src/cli/main.ts' "$@"\n`)).toEqual({ mode: 'legacy', bun: '/b/bun', main: '/r e/po/src/cli/main.ts', checkout: resolve('/r e/po') })
     expect(lstatSync(REAL_REPO).isDirectory()).toBe(true)
   })
-})
-
-describe('install: renamed config keys', () => {
-  test('a value moved from a renamed key is reported as a config warning (O6)', () => withSandbox(async ({ root, buracleHome }) => {
-    const repo = makeRepo(root)
-    mkdirSync(buracleHome, { recursive: true })
-    writeFileSync(join(buracleHome, 'config.yaml'), 'statusline:\n  theme: full\n')
-    const renames = CONFIG_RENAMES as ConfigRename[]
-    renames.push({ from: 'statusline.theme', to: 'statusline.style', since: '9.9.9' })
-    try {
-      await withDeps({ repoRoot: () => repo, adapters: async () => [fakeAdapter('claude', { installed: false })], runCli: fakeCli().runCli, fetch: noNetwork }, async () => {
-        const r = await runInstallFlow({ dryRun: true, yes: true, json: true }, memoryIO({ json: true }))
-        expect(r.warnings).toContain('config: ' + join(buracleHome, 'config.yaml') + ': statusline.theme was renamed to statusline.style in 9.9.9; its value was used (rename the key in config.yaml)')
-      })
-    } finally {
-      renames.pop()
-    }
-  }))
 })

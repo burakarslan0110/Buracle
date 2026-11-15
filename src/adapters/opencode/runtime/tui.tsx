@@ -1,12 +1,12 @@
 /** @jsx h */
 
+import { FOLD_AFTER_SEC } from '../../../core/flow/state'
 import type { Segment } from '../../../core/status/model'
 import { pickTip, TIPS_LABEL } from '../../../core/tips'
 import { run } from '../../../engine/proc'
 import type { BakedData } from './baked'
 import { bandLines, BandFeeder, estimatedWidth } from './band'
 import { workflowCommandSkills } from './commands'
-import { effortLevel } from './effort'
 import { applyEnv, resolveEnv, runtimeConfigCache } from './env'
 import type { LiveInputs } from './status'
 import { barSegments, contextUsage, layoutFor, StatusFeeder, statusSegments } from './status'
@@ -14,10 +14,8 @@ import type { UtilityHost } from './tui-commands'
 import { defaultCli, PANE_REFRESH_MS, utilityCommands, utilityNames } from './tui-commands'
 import { startConsentRelay } from './tui-consent'
 import { TuiNotices } from './tui-notices'
-import { emitBoardTerminal } from './tui-terminal'
 import { createMemo, createSignal, h, onCleanup, useTerminalDimensions } from './tui-runtime'
 import type { TuiComposerInput, TuiContext, TuiPluginDefinition, TuiPromptFooterInput, TuiTheme } from './types'
-import { profileWarning } from './workspace'
 
 declare const BURACLE_BAKED: BakedData
 
@@ -72,7 +70,7 @@ export function createTuiPlugin(baked: BakedData, pluginDir: string | undefined)
       const notices = new TuiNotices({
         now: () => Date.now(),
         toast: (message, variant) => { ctx.ui.toast?.show({ title: 'Buracle', message, variant, duration: variant === 'warning' ? 10_000 : 8_000 }) },
-        band: sid => band.view(sid, config.get().config.workflow.foldAfterSec),
+        band: sid => band.view(sid, FOLD_AFTER_SEC),
         bandOn: () => config.get().config.workflow.band,
         busy: sid => { const last = ctx.data.session.message.list(sid).at(-1); return last?.type === 'assistant' && last.status !== undefined && last.status !== 'completed' },
       })
@@ -82,7 +80,6 @@ export function createTuiPlugin(baked: BakedData, pluginDir: string | undefined)
           if (await feeder.refresh(current.cwd, current.sessionID)) setVersion(v => v + 1)
         } catch {  }
         try { notices.poll(current.sessionID) } catch {  }
-        try { emitBoardTerminal(current.sessionID, { toast: message => { ctx.ui.toast?.show({ title: 'Buracle', message, variant: 'warning', duration: 10_000 }) } }) } catch {  }
       }
       const timer = setInterval(() => { void tick() }, REFRESH_MS)
       void tick()
@@ -101,11 +98,7 @@ export function createTuiPlugin(baked: BakedData, pluginDir: string | undefined)
         const live: LiveInputs = sid !== undefined ? { cwd, sessionID: sid } : { cwd }
         const cfg = config.get().config
         const model = ctx.ui.model.current()
-        if (model !== undefined) {
-          live.model = model
-          const level = model.variant === undefined ? effortLevel(cfg) : undefined
-          if (level !== undefined && (ctx.ui.model.variant?.list() ?? []).includes(level)) live.model = { ...model, variant: level }
-        }
+        if (model !== undefined) live.model = model
         if (sid !== undefined) {
           const usage = contextUsage(ctx.data.session.message.list(sid), ctx.data.location.model.list(session?.location), session?.revert?.messageID)
           if (usage !== undefined) live.ctx = usage
@@ -174,7 +167,7 @@ export function createTuiPlugin(baked: BakedData, pluginDir: string | undefined)
             try {
               const cfg = config.get().config
               if (!cfg.workflow.band) return { key: '', rows: [] }
-              const view = band.view(input.sessionID, cfg.workflow.foldAfterSec)
+              const view = band.view(input.sessionID, FOLD_AFTER_SEC)
               const out = bandLines(view, measured() ?? estimatedWidth(dims().width))
               return { key: JSON.stringify(out), rows: out }
             } catch {
@@ -208,7 +201,7 @@ export function createTuiPlugin(baked: BakedData, pluginDir: string | undefined)
           if (ctx.ui.dialog !== undefined) await ctx.ui.dialog.alert({ title, message })
           else ctx.ui.toast?.show({ title, message, variant: 'info', duration: 15_000 })
         },
-        band: sid => band.view(sid, config.get().config.workflow.foldAfterSec),
+        band: sid => band.view(sid, FOLD_AFTER_SEC),
         about: () => ({ ...(ctx.app?.version !== undefined ? { opencode: ctx.app.version } : {}), workflows: workflowCommandSkills(baked.skills).map(s => s.id) }),
         pane: (title, lines) => {
           const dialog = ctx.ui.dialog
@@ -245,17 +238,9 @@ export function createTuiPlugin(baked: BakedData, pluginDir: string | undefined)
         ctx.keymap?.layer(() => ({ mode: 'global', commands: utilityCommands(host, utilityNames(takenNames(ctx))) }))
       } catch {  }
 
-      const profile = setTimeout(() => {
-        try {
-          const warning = profileWarning(pluginDir, config.get(), env.home)
-          if (warning !== undefined) ctx.ui.toast?.show({ title: 'Buracle', message: warning, variant: 'warning', duration: 20_000 })
-        } catch {  }
-      }, 1500)
-
       return () => {
         stopped = true
         clearInterval(timer)
-        clearTimeout(profile)
         for (const off of offs) off()
       }
     },

@@ -17,7 +17,7 @@ function setup(cwd: string, protect: string[] = [], agent: { kind?: 'main' | 'su
   const policy = { ...testDeps().deps.policy!, checkBash, checkWrite, routeTool: () => ({ action: 'allow' as const }) }
   const config = defaultConfig()
   config.guards.write.protect = protect
-  const t = testDeps({ policy, evalGuard: defaultDeps().evalGuard, realpath: defaultDeps().realpath, consentGate: () => undefined })
+  const t = testDeps({ policy, evalGuard: defaultDeps().evalGuard, realpath: defaultDeps().realpath })
   const fp = fakePi({ thinking: 'high' })
   createBuracleExtension(testGenerated({ config }), t.deps)(fp.pi)
   const ctx = fakeCtx({ cwd, sid: SID, ...agent })
@@ -36,7 +36,6 @@ describe('omp H01 meets the write context (W1.1)', () => {
       expect((await call('bash', { command: 'echo x > secrets/a.txt' }))?.reason).toContain('guards.write.protect')
       const allowed = await call('bash', { command: 'echo x > notes/a.txt' }) as { block?: boolean, additionalContext?: string } | undefined
       expect(allowed?.block).toBeUndefined()
-      expect(allowed?.additionalContext).toContain('this shell command writes `notes/a.txt`')
     })
   }))
 })

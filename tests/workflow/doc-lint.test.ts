@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative, sep } from 'node:path'
 import { HOST_LIMITS } from '../../src/adapters/shared/host-limits'
+import { BUILT } from '../helpers/built-harness'
 
 const REPO = join(import.meta.dir, '..', '..')
 // docs/ is gitignored: a checkout may hold only plans and generated reference files, so the design
@@ -34,8 +35,8 @@ function designDocs(): string[] {
   return [join(REPO, 'docs', 'DESIGN.md'), ...files(join(REPO, 'docs', 'design'), n => n.endsWith('.md'))]
 }
 
-// Documents the repository ships beside the README (architecture, compatibility matrix, upgrade guide).
-const SHIPPED_DOCS = ['ARCHITECTURE.md', 'COMPATIBILITY.md', 'MIGRATION.md'].map(f => join(REPO, f))
+// Documents the repository ships beside the README (architecture, compatibility matrix).
+const SHIPPED_DOCS = ['ARCHITECTURE.md', 'COMPATIBILITY.md'].map(f => join(REPO, f))
 
 function englishDocs(): string[] {
   return [
@@ -229,7 +230,8 @@ describe('doc lint: language and links', () => {
       for (const { line, path } of namedPaths(read(file))) {
         named.add(path)
         if (!HAS_DOCS && path.startsWith('docs/')) continue
-        if (!NAMED_ELSEWHERE.has(path) && !existsSync(join(REPO, path))) missing.push(`${relative(REPO, file)}:${line}: ${path}`)
+        // harness/ is not committed: a path under it must exist in the output this run built.
+        if (!NAMED_ELSEWHERE.has(path) && !existsSync(join(path.startsWith('harness/') ? BUILT.root : REPO, path))) missing.push(`${relative(REPO, file)}:${line}: ${path}`)
       }
     }
     expect(missing).toEqual([])
@@ -252,7 +254,7 @@ describe('doc lint: language and links', () => {
 describe('doc lint: host limits (PRD 2026-11-04 R20)', () => {
   test('both READMEs list every limit and partial record of host-limits.ts in their Host limits table', () => {
     const recorded = HOST_LIMITS.filter(l => l.kind !== 'native').map(l => l.id)
-    expect(recorded.length).toBeGreaterThanOrEqual(19)
+    expect(recorded.length).toBeGreaterThanOrEqual(18)
     for (const [file, heading] of [['README.md', '### Host limits'], ['README.tr.md', '### Harness sınırları']] as const) {
       const text = read(join(REPO, file))
       const start = text.indexOf(heading)

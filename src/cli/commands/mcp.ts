@@ -30,7 +30,7 @@ run <id>  A server with a shared backend (context7, semble, web-search, web-fetc
           process, else the package
           runner (npx with Buracle's own npm cache, or uvx on Python 3.12) as a child while a
           background install fills the toolchain for the next start. codegraph in a project
-          without an index first starts Buracle's index run (index.auto) and waits up to 4 s while
+          without an index first starts Buracle's index run and waits up to 4 s while
           it builds, so the server usually starts with the index in place and still answers within
           the 5 s Claude Code gives an always-loaded server. A server that cannot start, or exits
           with an error while starting, is marked down in ~/.buracle/state/health.json for 10

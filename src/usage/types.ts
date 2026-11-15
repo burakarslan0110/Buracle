@@ -1,6 +1,6 @@
 import type { Harness } from '../core/events'
 import type { RateWindow } from '../core/status/model'
-import type { PricingTable, UsageSnapshot } from '../core/usage'
+import type { UsageSnapshot } from '../core/usage'
 
 export interface LatestSession {
   at: number
@@ -11,12 +11,7 @@ export interface LatestSession {
   ctx?: { pct: number; tokens?: number; window?: number }
 }
 
-export interface UsageDay { day: string; tokens: number; usd?: number }
-
 export interface UsageCacheEntry extends UsageSnapshot {
-  month_key: string
-  days?: UsageDay[]
-  month_pct?: number
   notes?: string[]
   latest?: LatestSession
 }
@@ -27,8 +22,6 @@ export type Runner = (argv: string[], opts: { timeoutMs: number }) => Promise<{ 
 
 export interface CollectOptions {
   nowMs: number
-  month?: string
-  pricing: PricingTable
   run?: Runner
   which?: (name: string) => string | undefined
   offline?: boolean

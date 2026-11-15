@@ -1,8 +1,7 @@
 import { consentQuestion, consentRefusal, heldConsent, recordDialogGrants, type HeldConsent } from '../../shared/consent-dialog'
 import { questionHint } from './consent-question'
 import { anyTuiPresent, clearAsk, postAsk, readAnswer, tuiPresent, type RelayAnswer } from './consent-relay'
-import { denyMessage } from './guard'
-import type { PermissionEvaluation } from './types'
+import { denyReason } from '../../shared/pipeline/index'
 
 const HARNESS = 'opencode' as const
 
@@ -56,21 +55,18 @@ export async function askInTui(sid: string, command: string, host: ConsentAskHos
   }
 }
 
-export interface HeldCall { sid: string; command: string; effect: PermissionEvaluation['effect'] }
-
 export interface HeldHooks { host: ConsentAskHost; isSubagent(sid: string): Promise<boolean> }
 
-export async function answerHeld(e: PermissionEvaluation, held: HeldCall, hooks: HeldHooks): Promise<boolean> {
-  if (await hooks.isSubagent(held.sid)) return false
-  const r = await askInTui(held.sid, held.command, hooks.host)
+/** What became of a held command: allowed by the user, refused (with the denial to show), or not asked (with the way to ask). */
+export interface HeldAnswer { allowed: boolean; refusal?: string; hint?: string }
+
+export async function answerHeld(sid: string, command: string, hooks: HeldHooks): Promise<HeldAnswer> {
+  if (await hooks.isSubagent(sid)) return { allowed: false }
+  const r = await askInTui(sid, command, hooks.host)
   if (r === undefined) {
-    const need = heldConsent(HARNESS, held.sid, held.command)?.need
-    if (need !== undefined && e.message !== undefined) e.message = `${e.message} ${questionHint(need)}`
-    return false
+    const need = heldConsent(HARNESS, sid, command)?.need
+    return { allowed: false, ...(need !== undefined ? { hint: questionHint(need) } : {}) }
   }
-  if (r.answer === 'refuse') e.message = denyMessage('H20', consentRefusal(r.held.need))
-  if (r.answer !== 'once' && r.answer !== 'session') return false
-  e.effect = held.effect
-  delete e.message
-  return true
+  if (r.answer === 'once' || r.answer === 'session') return { allowed: true }
+  return { allowed: false, ...(r.answer === 'refuse' ? { refusal: denyReason('H20', consentRefusal(r.held.need)) } : {}) }
 }

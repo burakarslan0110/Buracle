@@ -26,11 +26,10 @@ const FALLBACK_TESTS: Readonly<Record<string, { file: string, title: string }>> 
   'codex.consent-dialog': { file: 'tests/adapters/parity.test.ts', title: 'the immediate consent question on all four: the Claude mod, Codex\'s own approval prompt (an execpolicy prompt rule), the OpenCode TUI and the omp TUI' },
   'codex.background-wait': { file: 'tests/adapters/codex/hook.test.ts', title: 'block → {decision:"block", reason} only; the verdict runs under the state lock and `next` is persisted' },
   'codex.quiet-stop-feedback': { file: 'tests/adapters/codex/hook.test.ts', title: 'block → {decision:"block", reason} only; the verdict runs under the state lock and `next` is persisted' },
-  'codex.shell-read-nudge': { file: 'tests/adapters/parity.test.ts', title: 'H03 shell nudges: a shell file write points to the edit tools on all four; a shell file print to the read tool where one exists (Codex has none)' },
   'codex.commands-without-turn': { file: 'tests/adapters/parity.test.ts', title: 'codex cannot register commands: its AGENTS block names the equivalents ($memory, the CLI twins, native /side)' },
   'codex.live-exec-mask': { file: 'tests/adapters/parity.test.ts', title: 'codex: a synchronous PostToolUse group of shell and MCP results runs the mask handler' },
   'codex.failed-mcp-mask': { file: 'tests/adapters/parity.test.ts', title: 'codex: a synchronous PostToolUse group of shell and MCP results runs the mask handler' },
-  'codex.live-panes': { file: 'tests/usage/cli-statusline.test.ts', title: 'codex tmux: the running workflow of the Codex session goes into the one line (Codex has no band above the prompt)' },
+  'codex.live-panes': { file: 'tests/adapters/codex/hook-receipt.test.ts', title: 'a workflow that ends is announced once, at the next Stop or prompt; workflow.codexNotices false keeps it quiet' },
   'codex.custom-status-line': { file: 'tests/core/status/layout.test.ts', title: 'codex: native footer and terminal title ids exist in codex 0.161.0' },
   'codex.summary-keep-list': { file: 'tests/adapters/parity.test.ts', title: 'workflow switches and review records (w3): H19 binds reports to the bound plans, H06/H07 carry the running reviewers, and the model-switch step names each harness\'s own command' },
   'opencode.consent-dialog': { file: 'tests/adapters/parity.test.ts', title: 'the immediate consent question on all four: the Claude mod, Codex\'s own approval prompt (an execpolicy prompt rule), the OpenCode TUI and the omp TUI' },
@@ -41,6 +40,8 @@ const FALLBACK_TESTS: Readonly<Record<string, { file: string, title: string }>> 
   'opencode.stop-veto': { file: 'tests/adapters/opencode/plugin.test.ts', title: 'an unfinished plan is continued with the core reason, once per stop, until the chain cap and its one escalation' },
   'opencode.subagent-stop-hold': { file: 'tests/adapters/opencode/routing.test.ts', title: 'an invalid report asks the orchestrator to continue that reviewer once; a second one only warns; a valid one adds nothing' },
   'opencode.rate-windows': { file: 'tests/adapters/parity.test.ts', title: '5-hour and weekly usage windows on all four; OpenCode reads them from provider responses (the server plugin bundle\'s http.response hook)' },
+  'agy.no-compaction-event': { file: 'tests/adapters/shared/new-harness-groundwork.test.ts', title: 'AGY: PreCompact and SessionEnd are null in the event map, and the compaction hooks are unsupported cells' },
+  'agy.no-session-end': { file: 'tests/adapters/shared/new-harness-groundwork.test.ts', title: 'AGY: PreCompact and SessionEnd are null in the event map, and the compaction hooks are unsupported cells' },
   'omp.companion-shell': { file: 'tests/adapters/parity.test.ts', title: 'second opinion (plan.reviews.companion): every host can run it read-only; omp runs it without a shell, with the diff in its prompt' },
 }
 
@@ -127,7 +128,7 @@ describe('host limits (PARITY-10)', () => {
       const r = l.recheck ?? ''
       expect({ id: l.id, dated: /\b20\d\d-\d\d-\d\d\b/.test(r), sourced: /https?:\/\/\S+|\b[\w/-]+\.(?:rs|ts|md|mdx)\b/.test(r) }).toEqual({ id: l.id, dated: true, sourced: true })
     }
-    expect(HOST_LIMITS.filter(l => l.kind !== 'native')).toHaveLength(19)
+    expect(HOST_LIMITS.filter(l => l.kind !== 'native')).toHaveLength(20)
   })
 
   test('every limit and partial record names the test that proves its fallback, and that file holds the test', () => {

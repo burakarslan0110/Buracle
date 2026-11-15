@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { CanonicalBundle } from '../../../src/core/catalog'
 import { defaultConfig } from '../../../src/core/config'
@@ -15,13 +15,13 @@ import { codexDoctor } from '../../../src/adapters/codex/doctor'
 import { installTestHooks } from '../../../src/adapters/codex/install'
 import { buracleHooksFile, CODEX_HOOK_EVENTS, findBuracleHandlers } from '../../../src/adapters/codex/hooks-config'
 import { readOpenPlanSteps } from '../../../src/adapters/codex/rollout'
-import { CODEX_FRESH_PLAN_PREFIX, CODEX_IMPLEMENT_PROMPT, lastAssistantText, proposedPlanOf } from '../../../src/adapters/codex/plan-capture'
+import { CODEX_ATTACHMENTS_DIR, CODEX_IMPLEMENT_PROMPT, CODEX_PLAN_FILE_NAME, CODEX_PLAN_FILE_PREFIX, CODEX_PLAN_FILE_SUFFIX, CODEX_PLAN_ITEM, lastAssistantText, proposedPlanOf } from '../../../src/adapters/codex/plan-capture'
 import { codexTrustPlan } from '../../../src/adapters/codex/trust'
 import { renderNeutralSkills } from '../../../src/adapters/shared/skills'
 import { hostLimitsOf, probeClosers, probeMisses } from '../../../src/adapters/shared/host-limits'
 import { agentsSkillsPlan } from '../../../src/engine/update/install-core'
 import { pathOf, SYSTEM_PATH_DIRS } from '../../helpers/fake-exe'
-import { withEnv, withSandbox } from '../../helpers/sandbox'
+import { withSandbox } from '../../helpers/sandbox'
 
 const REPO = join(import.meta.dir, '..', '..', '..')
 const canonical: CanonicalBundle = loadCanonicalSync(join(REPO, 'canonical'))
@@ -86,9 +86,9 @@ const CODEX_NATIVE = ((): string | undefined => {
 })()
 
 describe.skipIf(CODEX_NATIVE === undefined)('the installed codex binary carries the plan-mode text H12 matches', () => {
-  test('the <proposed_plan> instruction, "Implement the plan." and the fresh-thread prefix are host text of this Codex', () => {
+  test('the <proposed_plan> instruction, "Implement the plan." and the fresh-thread plan file prompt are host text of this Codex', () => {
     const bin = readFileSync(CODEX_NATIVE as string)
-    for (const text of ['wrap it in a `<proposed_plan>` block', '<proposed_plan>', CODEX_IMPLEMENT_PROMPT, CODEX_FRESH_PLAN_PREFIX, 'Yes, implement this plan', 'Yes, clear context and implement', 'No, stay in Plan mode']) {
+    for (const text of ['wrap it in a `<proposed_plan>` block', '<proposed_plan>', CODEX_IMPLEMENT_PROMPT, CODEX_PLAN_FILE_PREFIX, CODEX_PLAN_FILE_SUFFIX, CODEX_PLAN_FILE_NAME, CODEX_ATTACHMENTS_DIR, CODEX_PLAN_ITEM, 'Yes, implement this plan', 'Yes, clear context and implement', 'No, stay in Plan mode']) {
       expect({ text, found: bin.includes(Buffer.from(text, 'utf8')) }).toEqual({ text, found: true })
     }
   }, 60_000)
@@ -159,7 +159,7 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary (isola
     })
     expect(doctor.filter(i => i.level === 'error')).toEqual([])
     expect(doctor.find(i => i.check === 'codex.hooks.trust')?.level).toBe('ok')
-    for (const check of ['codex.permissions', 'codex.effort', 'codex.routing', 'codex.config']) expect({ check, level: doctor.find(i => i.check === check)?.level }).toEqual({ check, level: 'ok' })
+    for (const check of ['codex.permissions', 'codex.routing', 'codex.config']) expect({ check, level: doctor.find(i => i.check === check)?.level }).toEqual({ check, level: 'ok' })
   }), 120_000)
 
   test('next to the user\'s own hooks: their groups keep their keys, Buracle\'s are appended and Codex hashes them like Buracle', () => withSandbox(async ({ root, home }) => {
@@ -188,7 +188,7 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary (isola
     expect(after.find(l => l['key'] === `${hooksPath}:pre_tool_use:0:0`)?.['trustStatus']).toBe('untrusted')
   }), 120_000)
 
-  test('the model-visible prompt carries the AGENTS.md block and the neutral skills linked into $CODEX_HOME/skills, never ~/.agents/skills (explicit skills stay out of the catalog)', () => withSandbox(async ({ root, home }) => {
+  test('the model-visible prompt carries the AGENTS.md block and the one installed copy of the skills under ~/.agents/skills (explicit skills stay out of the catalog)', () => withSandbox(async ({ root, home }) => {
     const ctx: AdapterContext = { repoRoot: REPO, config: defaultConfig(), canonical, paths, buracleBin: paths.shimPath() }
     await applyPlans([await adapter.installPlan(ctx)])
     const tree = join(root, 'repo', 'harness', 'agents-skills')
@@ -201,8 +201,9 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary (isola
     const promptHome = join(root, 'prompt-codex')
     mkdirSync(promptHome)
     cpSync(join(home, '.codex', 'AGENTS.md'), join(promptHome, 'AGENTS.md'))
-    await withEnv({ CODEX_HOME: promptHome }, () => applyPlans([agentsSkillsPlan(join(root, 'repo'), ['codex'])]))
-    expect(existsSync(join(paths.agentsDir(), 'skills'))).toBe(false)
+    await applyPlans([agentsSkillsPlan(join(root, 'repo'), ['codex'])])
+    expect(existsSync(join(promptHome, 'skills'))).toBe(false)
+    const installed = realpathSync(join(paths.agentsDir(), 'skills'))
     const env = isolatedEnv(root, home, promptHome)
     const work = join(root, 'work')
     mkdirSync(work)
@@ -218,12 +219,11 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary (isola
       const m = new RegExp(`\\(file: (r\\d+)/${id}/SKILL\\.md\\)`).exec(text)
       return m === null ? undefined : `${roots.get(m[1] as string)}/${id}/SKILL.md`
     }
-    const own = realpathSync(join(promptHome, 'skills'))
     for (const s of canonical.skills) {
       const explicit = s.frontmatter['invocation'] === 'explicit'
       const file = fileOf(s.id)
-      const where = file === undefined ? undefined : realpathSync(file).startsWith(`${realpathSync(tree)}/`) && file.startsWith(own) ? 'codex-home' : file
-      expect({ skill: s.id, listed: catalog.includes(s.id), where }).toEqual({ skill: s.id, listed: !explicit, where: explicit ? undefined : 'codex-home' })
+      const where = file === undefined ? undefined : realpathSync(file).startsWith(`${installed}/`) && !lstatSync(dirname(file)).isSymbolicLink() ? 'agents-dir' : file
+      expect({ skill: s.id, listed: catalog.includes(s.id), where }).toEqual({ skill: s.id, listed: !explicit, where: explicit ? undefined : 'agents-dir' })
     }
   }), 120_000)
 })
@@ -325,7 +325,7 @@ async function installEndToEnd(root: string, home: string, buracleHome: string):
   mkdirSync(work)
   const env = {
     ...isolatedEnv(root, home), SHELL: '/bin/sh', BURACLE_HOME: buracleHome,
-    BURACLE_NO_MEMORY: '1', BURACLE_NO_CAPTURE: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_NO_NOTIFY: '1', BURACLE_NO_TOOLCHAIN: '1', BURACLE_NO_DISTILL: '1',
+    BURACLE_NO_MEMORY: '1', BURACLE_NO_CAPTURE: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_NO_TOOLCHAIN: '1', BURACLE_NO_DISTILL: '1',
   }
   return { env, work, mcpLog }
 }
@@ -439,11 +439,10 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary end to
       const ledger = loadLedger('codex', sid as string)
       expect(ledger.turn).toBe(1)
       expect(ledger.mcp['buracle-memory']?.n).toBe(1)
-      expect(ledger.prompt?.route.memory.recall).toBe(false)
+      expect(ledger.prompt?.route !== undefined && !('memory' in ledger.prompt.route)).toBe(true)
       expect(existsSync(join(buracleHome, 'sessions', 'codex', sid as string, 'workspace.json'))).toBe(true)
       const calls = readFileSync(mcpLog, 'utf8').trim().split('\n').map(l => JSON.parse(l) as { server: string, method: string, params?: Record<string, unknown> }).filter(c => c.method === 'tools/call')
       expect(calls.map(c => [c.server, c.params?.['name'], c.params?.['arguments']])).toEqual([['memory', 'memory_search', { query: 'cache decision' }]])
-      expect((calls[0]?.params?.['_meta'] as Record<string, any> | undefined)?.['x-codex-turn-metadata']?.['reasoning_effort']).toBe('xhigh')
     } finally { model.stop() }
   }), 120_000)
 
@@ -666,7 +665,7 @@ describe.skipIf(CODEX === null || CODEX === undefined)('real codex binary end to
     try {
       const r = await codexExec(env, work, model, ['-c', 'model="gpt-5.5"'], '/buracle:research compare bun and deno')
       expect(r.code).toBe(0)
-      expect(developerTexts(model.requests[0] as Record<string, any>)).toContain('read ${CODEX_HOME:-~/.codex}/skills/research/SKILL.md')
+      expect(developerTexts(model.requests[0] as Record<string, any>)).toContain('read ~/.agents/skills/research/SKILL.md')
       expect(model.requests.length).toBe(2)
       expect(JSON.stringify(model.requests[1])).toContain('Buracle routing check: the user asked for research')
     } finally { model.stop() }

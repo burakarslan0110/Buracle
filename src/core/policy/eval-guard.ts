@@ -1,4 +1,4 @@
-import { isAbsPath, isRootPath, isWindowsPath, normalizePath, resolveNormalPath } from '../events'
+import { isAbsPath, isRootPath, normalizePath, resolvePath } from '../events'
 import type { BashGuardOptions } from './bash-guard'
 import { catastrophicPath, checkBash, extraDenyReason, forbiddenWritePath } from './bash-guard'
 import type { CodeOp } from './code-scan'
@@ -21,7 +21,7 @@ function q(s: string): string {
 function expandHome(p: string, home: string): string {
   if (home === '') return p
   if (p === '~') return home
-  if (p.startsWith('~/') || (p.startsWith('~\\') && isWindowsPath(home))) return `${home.replace(/[\\/]+$/, '')}/${p.slice(2)}`
+  if (p.startsWith('~/')) return `${home.replace(/[\\/]+$/, '')}/${p.slice(2)}`
   return p
 }
 
@@ -63,8 +63,8 @@ function shellOptions(ctx: WriteGuardContext, extraDeny: string[]): BashGuardOpt
 
 function resolveIn(base: string, p: string, home: string): string {
   if (isAbsPath(p)) return normalizePath(p)
-  if (home !== '' && (p === '~' || p.startsWith('~/') || (p.startsWith('~\\') && isWindowsPath(home)))) return resolveNormalPath('', p, home) ?? p
-  return isAbsPath(base) ? resolveNormalPath(base, p) ?? p : p
+  if (home !== '' && (p === '~' || p.startsWith('~/'))) return resolvePath('', p, home) ?? p
+  return isAbsPath(base) ? resolvePath(base, p) ?? p : p
 }
 
 function judge(op: CodeOp, ctx: WriteGuardContext, execCwd: string, extraDeny: string[]): { deny: string, hook: 'H01' | 'H02' } | undefined {

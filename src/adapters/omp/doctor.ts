@@ -1,15 +1,15 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
-import { effortConfigValues, resolveEffort } from '../../core/effort'
 import { mdBlockGet } from '../../engine/merge'
 import { detectBinary, parseVersion, run, which } from '../../engine/proc'
 import type { AdapterContext } from '../registry'
 import { resolveArgv, type Env } from '../shared/command'
+import { agentDirConflict } from '../shared/agent-dir'
 import { hostLimitRows } from '../shared/host-limits'
 import { checkLink } from './check-link'
-import { BUN_MIN_VERSION, OMP_MIN_VERSION, OMP_THINKING_LEVELS, PACKAGE_NAME, ompCommandSkills, ompThinkingLevel } from './generated'
-import { AGENTS_BLOCK_ID, APPROVAL_KEY, ompConfigKeysFor, ompConfigPath, PLAN_AUTOSAVE_DIR_KEY, PLAN_AUTOSAVE_KEY, SHARED_AGENTS_IMPORT, THINKING_KEY } from './install'
+import { BUN_MIN_VERSION, OMP_MIN_VERSION, PACKAGE_NAME, ompCommandSkills } from './generated'
+import { AGENTS_BLOCK_ID, APPROVAL_KEY, ompConfigKeysFor, ompConfigPath, PLAN_AUTOSAVE_DIR_KEY, PLAN_AUTOSAVE_KEY, SHARED_AGENTS_IMPORT } from './install'
 import { EXTENSION_PATH } from './build'
 import { realPath } from '../../engine/fsx'
 
@@ -110,51 +110,13 @@ export function permissionFinding(doc: unknown, cfg: Pick<AdapterContext['config
   return { level: 'warn', check, detail: `tools.approvalMode ${now}, not ${want} (permissions.bypass ${cfg.permissions.bypass ? 'on' : 'off'}); ${fix}` }
 }
 
-export function userEffortFinding(raw: unknown, cfg: Pick<AdapterContext['config'], 'effort'>, file: string): DoctorFinding | undefined {
-  if (raw === undefined || raw === null) return undefined
-  const accepted = effortConfigValues('omp')
-  if (typeof raw === 'string' && accepted.includes(raw)) return undefined
-  const r = resolveEffort('omp', String(raw))
-  const why = 'invalid' in r ? r.invalid : `effort.omp takes one of ${accepted.join(', ')}, spelled exactly so`
-  const now = ompThinkingLevel(cfg)
-  const writes = 'level' in now ? `defaultThinkingLevel ${now.level}` : 'keep' in now ? "omp's own defaultThinkingLevel" : 'no defaultThinkingLevel'
-  return {
-    level: 'warn', check: 'omp effort',
-    detail: `effort.omp ${JSON.stringify(raw)} in ${file} is not used: ${why}. Buracle uses effort.omp ${cfg.effort.omp} instead (${writes}); pick another value with \`buracle config set effort.omp <value>\`, then run \`buracle install\``,
-  }
-}
-
-function userEffortValue(file: string): unknown {
-  let text: string
-  try { text = readFileSync(file, 'utf8') } catch { return undefined }
-  try { return getIn(parseYaml(text) ?? {}, 'effort.omp').value } catch { return undefined }
-}
-
-export function effortFindings(doc: unknown, cfg: Pick<AdapterContext['config'], 'effort'>, file: string): DoctorFinding[] {
-  const check = 'omp effort'
-  const out: DoctorFinding[] = []
-  const r = ompThinkingLevel(cfg)
-  const live = getIn(doc ?? {}, THINKING_KEY)
-  const liveText = live.found ? JSON.stringify(live.value) : "not set (omp's default is high)"
-  const unusable = live.found && !(typeof live.value === 'string' && OMP_THINKING_LEVELS.includes(live.value))
-  const ignored = `defaultThinkingLevel ${liveText} in ${file} is not a level omp accepts (${OMP_THINKING_LEVELS.join(', ')}): omp ignores it and runs at high. Set one with \`omp config set defaultThinkingLevel <level>\``
-  if ('invalid' in r) out.push({ level: 'warn', check, detail: `effort.omp: ${r.invalid}; defaultThinkingLevel is ${liveText}` })
-  else if ('keep' in r) out.push(unusable ? { level: 'warn', check, detail: `${ignored} (effort.omp is keep)` } : { level: 'ok', check, detail: `effort.omp is keep: omp's own defaultThinkingLevel stays (${liveText})` })
-  else if (!live.found) out.push({ level: 'warn', check, detail: `defaultThinkingLevel is not set in ${file} (omp starts at high); run \`buracle install omp\` to write ${r.level} (effort.omp)` })
-  else if (live.value === r.level) out.push({ level: 'ok', check, detail: `defaultThinkingLevel ${r.level} (effort.omp)` })
-  else if (unusable) out.push({ level: 'warn', check, detail: `${ignored} (effort.omp would write ${r.level})` })
-  else out.push({ level: 'ok', check, detail: `defaultThinkingLevel ${JSON.stringify(live.value)} is your own value and stays (effort.omp would write ${r.level})` })
-  const role = getIn(doc ?? {}, 'modelRoles.default')
-  const suffix = role.found && typeof role.value === 'string' ? /:([a-z]+)$/.exec(role.value)?.[1] : undefined
-  if (suffix !== undefined) out.push({ level: 'warn', check: 'omp effort', detail: `modelRoles.default ends in :${suffix}, which overrides defaultThinkingLevel for the default model; drop the suffix to use effort.omp` })
-  return out
-}
-
 export interface DoctorDeps {
   detect?: () => Promise<{ installed: boolean, version?: string, path?: string }>
 }
 
 export async function doctor(ctx: AdapterContext, deps: DoctorDeps = {}): Promise<DoctorFinding[]> {
+  const conflict = await agentDirConflict(ctx.paths)
+  if (conflict?.skipped === 'omp') return [{ level: 'warn', check: 'omp.agent-dir', detail: conflict.message }]
   const out: DoctorFinding[] = []
   const found = await (deps.detect ?? (() => detectBinary('omp')))()
   // The host limits and their fallbacks hold whether or not omp is installed here.
@@ -193,13 +155,11 @@ export async function doctor(ctx: AdapterContext, deps: DoctorDeps = {}): Promis
   const configFile = ompConfigPath(agentDir)
   let configText: string | undefined
   try { configText = readFileSync(configFile, 'utf8') } catch { configText = undefined }
-  const expected = Object.fromEntries(Object.entries(ompConfigKeysFor(ctx, configFile)).filter(([k]) => k !== APPROVAL_KEY && k !== THINKING_KEY && k !== PLAN_AUTOSAVE_KEY && k !== PLAN_AUTOSAVE_DIR_KEY))
+  const expected = Object.fromEntries(Object.entries(ompConfigKeysFor(ctx, configFile)).filter(([k]) => k !== APPROVAL_KEY && k !== PLAN_AUTOSAVE_KEY && k !== PLAN_AUTOSAVE_DIR_KEY))
   out.push(...configFindings(configText, expected, configFile))
-  const userEffort = userEffortFinding(userEffortValue(ctx.paths.userConfigFile()), ctx.config, ctx.paths.userConfigFile())
-  if (userEffort !== undefined) out.push(userEffort)
   if (configText !== undefined) {
     const doc = configDoc(configText)
-    if (doc !== undefined) out.push(permissionFinding(doc, ctx.config, configFile), ...effortFindings(doc, ctx.config, configFile))
+    if (doc !== undefined) out.push(permissionFinding(doc, ctx.config, configFile))
   }
 
   const agentsFile = join(agentDir, 'AGENTS.md')

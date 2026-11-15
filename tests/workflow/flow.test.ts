@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { bandInputFor, flowEndCmd, flowPath, flowPhaseCmd, flowStartCmd, flowStatusCmd, flowStepCmd, readFlow, recordFlowStart } from '../../src/workflow/flow'
+import { bandInputFor, flowEndCmd, flowPath, flowPhaseCmd, flowStartCmd, flowStepCmd, readFlow, recordFlowStart } from '../../src/workflow/flow'
 import { planComplete, planRegister, planSet, planVerify, planApproveResult } from '../../src/workflow/plan'
 import { withEnv, withSandbox } from '../helpers/sandbox'
 import { SESSION, ctxAt, makeRepo, planDoc } from './fixture'
@@ -57,18 +57,6 @@ describe('flow commands', () => {
     writeFileSync(flowPath('claude', S.sessionId), '{ torn')
     expect(flowStartCmd({ workflow: 'research' }, ctxAt('/', NOW), S).code).toBe(0)
     expect(readFlow('claude', S.sessionId)?.stack.map(e => e.workflow)).toEqual(['research'])
-  }))
-
-  test('status: the view of the running workflow, and nulls without a session', () => withSandbox(() => {
-    const none = flowStatusCmd(ctxAt('/', NOW), undefined)
-    expect(none).toMatchObject({ code: 0, data: { flow: null, active: null, view: null, session: null } })
-    expect(none.lines[0]).toContain('no session')
-    expect(flowStatusCmd(ctxAt('/', NOW), S).lines).toEqual([`No workflow is running in the claude session ${S.sessionId}.`])
-    flowStartCmd({ workflow: 'research', title: 'Queue libraries' }, ctxAt('/', NOW), S)
-    flowPhaseCmd({ phase: 'gather' }, ctxAt('/', NOW + 60_000), S)
-    const st = flowStatusCmd(ctxAt('/', NOW + 3 * 60_000), S)
-    expect(st.data).toMatchObject({ active: { workflow: 'research', phase: { id: 'gather', label: 'Gather' } }, view: { visible: true, status: 'running', elapsedMin: 3 } })
-    expect(st.lines[0]).toBe('research · Queue libraries · running · 3m')
   }))
 })
 

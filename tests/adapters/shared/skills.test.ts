@@ -7,6 +7,7 @@ import type { CanonicalBundle, SkillDoc } from '../../../src/core/catalog'
 import { loadCanonicalSync } from '../../../src/engine/canonical'
 import { parseFrontmatter } from '../../../src/engine/canonical'
 import { buildAgentsSkills, neutralDescription, openaiYaml, renderNeutralSkills } from '../../../src/adapters/shared/skills'
+import { BUILT } from '../../helpers/built-harness'
 
 const REPO = join(import.meta.dir, '..', '..', '..')
 const canonical: CanonicalBundle = loadCanonicalSync(join(REPO, 'canonical'))
@@ -28,7 +29,7 @@ describe('neutral skill render (harness/agents-skills)', () => {
 
   test('the committed harness/agents-skills tree is up to date (byte for byte)', () => {
     for (const f of rendered.files) {
-      const committed = readFileSync(join(REPO, 'harness', 'agents-skills', f.path), 'utf8')
+      const committed = readFileSync(join(BUILT.harness, 'agents-skills', f.path), 'utf8')
       expect({ path: f.path, content: committed }).toEqual({ path: f.path, content: f.content })
     }
   })
@@ -42,7 +43,8 @@ describe('neutral skill render (harness/agents-skills)', () => {
     for (const s of canonical.skills) {
       const { frontmatter } = parseFrontmatter((byPath.get(`${s.id}/SKILL.md`) as { content: string }).content)
       const explicit = s.frontmatter['invocation'] === 'explicit'
-      expect(Object.keys(frontmatter).sort()).toEqual(explicit ? ['description', 'disable-model-invocation', 'metadata', 'name'] : ['description', 'metadata', 'name'])
+      const extra = [...(typeof s.frontmatter['argument-hint'] === 'string' ? ['argument-hint'] : []), ...(explicit ? ['disable-model-invocation'] : []), ...(s.frontmatter['user-invocable'] === false ? ['user-invocable'] : [])]
+      expect(Object.keys(frontmatter).sort()).toEqual(['description', 'metadata', 'name', ...extra].sort())
       expect(frontmatter['name']).toBe(s.id)
       const d = frontmatter['description'] as string
       expect(d.length).toBeLessThanOrEqual(1024)
@@ -57,7 +59,14 @@ describe('neutral skill render (harness/agents-skills)', () => {
     expect(canonical.skills.some(s => s.frontmatter['invocation'] === 'explicit')).toBe(true)
   })
 
-  test('every .md is rendered: no live placeholders or harness markers remain, claude blocks are gone', () => {
+  test('one text for every harness: each file is the canonical file, with no placeholder, harness marker or per-harness tool name', () => {
+    for (const s of canonical.skills) {
+      for (const f of s.files) {
+        if (f.path === 'SKILL.md' || f.path.startsWith('evals/')) continue
+        expect({ path: `${s.id}/${f.path}`, same: byPath.get(`${s.id}/${f.path}`)?.content === f.content }).toEqual({ path: `${s.id}/${f.path}`, same: true })
+      }
+      expect((byPath.get(`${s.id}/SKILL.md`) as { content: string }).content).toEndWith(`---\n${s.body}`)
+    }
     for (const f of rendered.files) {
       if (!f.path.endsWith('.md')) continue
       expect({ path: f.path, live: f.content.match(/(?<!\\)\{\{(?:ask_user|todo|spawn_agent|skill:|agent:)[^}]*\}\}/g) }).toEqual({ path: f.path, live: null })
@@ -65,10 +74,15 @@ describe('neutral skill render (harness/agents-skills)', () => {
     }
     for (const p of ['ab-test/SKILL.md', 'dead-code/SKILL.md']) expect((byPath.get(p) as { content: string }).content).not.toContain('CLAUDE_SKILL_DIR')
     expect((byPath.get('research/SKILL.md') as { content: string }).content).not.toContain('ToolSearch')
-    expect((byPath.get('ab-test/SKILL.md') as { content: string }).content).toContain('**Codex:** `${CODEX_HOME:-$HOME/.codex}/skills/ab-test`\n**OpenCode:** `${XDG_CONFIG_HOME:-$HOME/.config}/opencode/skills/ab-test`\n**Oh My Pi:** `${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}/skills/ab-test`')
-    expect((byPath.get('plan-build/references/plan.md') as { content: string }).content).toContain('`request_user_input` in Codex')
-    expect((byPath.get('inspect/SKILL.md') as { content: string }).content).toContain('suggest `/bugfix` (Codex: `$bugfix`)')
-    expect((byPath.get('project-rules/SKILL.md') as { content: string }).content).toContain('the `memory` skill: read `${CODEX_HOME:-~/.codex}/skills/memory/SKILL.md` in Codex')
+    expect((byPath.get('ab-test/SKILL.md') as { content: string }).content).toContain('`<skill-dir>` below means this skill\'s folder:\n`$HOME/.agents/skills/ab-test`\nIf that path does not exist, use the folder that holds this SKILL.md.')
+    expect((byPath.get('plan-build/references/plan.md') as { content: string }).content).toContain('one structured-question tool call per round')
+    expect((byPath.get('inspect/SKILL.md') as { content: string }).content).toContain('suggest the `bugfix` skill')
+    expect((byPath.get('project-rules/SKILL.md') as { content: string }).content).toContain('Quick memory pass (the `memory` skill)')
+    for (const f of rendered.files) if (f.path.endsWith('.md')) expect({ path: f.path, toolName: /request_user_input|update_plan|todowrite|EnterPlanMode|ToolSearch/.exec(f.content)?.[0] }).toEqual({ path: f.path, toolName: undefined })
+    expect(renderNeutralSkills({ mcp: canonical.mcp, skills: [skill({ name: 'x', description: 'd' }, [{ path: 'references/a.md', content: 'ok\n<!-- harness:codex -->\n', mode: 0o644 }], 'Ask with {{ask_user}}.\n')] }).warnings).toEqual([
+      'skills/x/SKILL.md:1: {{ask_user}} is not rendered; write harness-neutral wording',
+      'skills/x/references/a.md:2: <!-- harness:codex --> is not rendered; write harness-neutral wording',
+    ])
     for (const f of rendered.files) if (f.path.endsWith('.md')) expect({ path: f.path, oldForm: /`@(?:spec|build|fix|prd|research)`|`\/skill:(?:spec|build|fix|prd)`/.test(f.content) }).toEqual({ path: f.path, oldForm: false })
   })
 
@@ -81,7 +95,7 @@ describe('neutral skill render (harness/agents-skills)', () => {
 
   test('executable scripts keep mode 0755', () => {
     const doc = skill({ name: 'x', description: 'd' }, [{ path: 'scripts/go.sh', content: '#!/bin/sh\n', mode: 0o755 }, { path: 'scripts/data.json', content: '{}', mode: 0o644 }])
-    const out = renderNeutralSkills({ mcp: canonical.mcp, skills: [doc], agents: [] }).files
+    const out = renderNeutralSkills({ mcp: canonical.mcp, skills: [doc] }).files
     expect(out.find(f => f.path === 'x/scripts/go.sh')?.mode).toBe(0o755)
     expect(out.find(f => f.path === 'x/scripts/data.json')?.mode).toBeUndefined()
   })
@@ -129,7 +143,7 @@ describe('neutral skill render (harness/agents-skills)', () => {
 
   test('committed files have the generated modes', () => {
     for (const f of rendered.files) {
-      const p = join(REPO, 'harness', 'agents-skills', f.path)
+      const p = join(BUILT.harness, 'agents-skills', f.path)
       const mode = statSync(p).mode & 0o777
       expect({ path: f.path, mode }).toEqual({ path: f.path, mode: f.mode ?? 0o644 })
     }

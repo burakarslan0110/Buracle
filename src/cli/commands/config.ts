@@ -31,14 +31,14 @@ unset  removes the key from ~/.buracle/config.yaml (the default applies again).
 path   prints the path of ~/.buracle/config.yaml.
 
 Keys that \`buracle install\` writes into the harnesses' own settings (permissions.*,
-effort.*, agents.teams, harnesses.*, routing.strictness, mcp.off.*, vault) reach them only at
+agents.teams, harnesses.*, routing.strictness, mcp.off.*) reach them only at
 the next \`buracle install\`: set and unset say so when such a key changes. \`buracle mcp
 disable\` and \`buracle mcp enable\` change mcp.off.* and run that install themselves.
 
 Examples:
   buracle config get routing.strictness
   buracle config set harnesses.codex.enabled false
-  buracle config set memory.ui.port 41800`
+  buracle config set memory.ui.autostart false`
 
 function effective(repoRoot: string): BuracleConfig {
   const c = loadConfigSync({ repoRoot }).config
@@ -49,7 +49,7 @@ function lookup(config: BuracleConfig, path: KeyPath): { found: boolean, value: 
   return getIn(config, path)
 }
 
-const SYNC_KEYS: readonly string[][] = [['permissions'], ['effort'], ['agents', 'teams'], ['harnesses'], ['routing', 'strictness'], ['mcp', 'off']]
+const SYNC_KEYS: readonly string[][] = [['permissions'], ['agents', 'teams'], ['harnesses'], ['routing', 'strictness'], ['mcp', 'off']]
 
 function syncHint(path: KeyPath): string | undefined {
   const segs = path.map(String)

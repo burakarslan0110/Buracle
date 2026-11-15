@@ -1,15 +1,8 @@
-import type { BoardStopInput } from './board/model'
+import { harnessProfile, type Harness } from './harness/index'
+import { mcpToken, parseMcpToolName, toolKindOf, type HarnessProfile, type ToolKind } from './harness/profile'
 
-export type Harness = 'claude' | 'codex' | 'opencode' | 'omp'
-
-export const HARNESSES: readonly Harness[] = ['claude', 'codex', 'opencode', 'omp']
-
-export function isHarness(x: unknown): x is Harness {
-  return typeof x === 'string' && (HARNESSES as readonly string[]).includes(x)
-}
-
-export type ToolKind = 'bash' | 'edit' | 'write' | 'patch' | 'read' | 'search' | 'web_search' | 'web_fetch'
-                     | 'ask_user' | 'plan_exit' | 'plan_enter' | 'todo' | 'agent' | 'mcp' | 'eval' | 'other'
+export { HARNESSES, isHarness, type Harness } from './harness/index'
+export { CANONICAL_EVENTS, type CanonicalEvent, type ToolKind } from './harness/profile'
 
 export interface ToolCall {
   harness: Harness; sessionId: string; cwd: string
@@ -22,192 +15,53 @@ export interface ToolCall {
 }
 export interface ToolResult extends ToolCall { ok: boolean; output?: string; addedText?: string }
 export type PreDecision = { action: 'allow', context?: string[] } | { action: 'deny', reason: string, hook: HookId }
-export interface StopInput { harness: Harness; sessionId: string; cwd: string; lastMessage?: string; hookActive?: boolean; backgroundWait?: boolean; readOnly?: boolean; now: number; board?: BoardStopInput }
+export interface StopInput { harness: Harness; sessionId: string; cwd: string; lastMessage?: string; hookActive?: boolean; backgroundWait?: boolean; readOnly?: boolean; subagent?: boolean; now: number }
 export type StopDecision = { action: 'allow' } | { action: 'block', reason: string, hook: HookId }
-export interface PromptInput { harness: Harness; sessionId: string; cwd: string; text: string; now: number }
+export interface PromptInput { harness: Harness; sessionId: string; cwd: string; text: string; userText?: boolean; now: number }
+
+// The seven canonical events (`CanonicalEvent`) every harness maps its native hooks onto. The types above and
+// below are their inputs and decisions: ToolCall/PreDecision (preTool), ToolResult/PostToolDecision (postTool),
+// PromptInput/PromptDecision (prompt), StopInput/StopDecision (stop).
+export interface SessionStartInput { harness: Harness; sessionId: string; cwd: string; source: string; model?: string; subagent?: boolean; now: number }
+export interface SessionStartDecision { context: string[] }
+export interface PromptDecision { context: string[] }
+export interface PostToolDecision { context: string[] }
+export interface CompactInput { harness: Harness; sessionId: string; cwd: string; trigger?: string; now: number }
+export interface CompactDecision { handoff?: string; todo: string[] }
+export interface SessionEndInput { harness: Harness; sessionId: string; now: number }
+export interface SessionEndDecision { finalized: boolean }
 export type HookId = 'H01' | 'H02' | 'H03' | 'H04' | 'H05' | 'H06' | 'H07' | 'H08' | 'H09' | 'H10' | 'H11' | 'H12' | 'H13' | 'H14' | 'H15' | 'H16' | 'H17' | 'H18' | 'H19' | 'H20' | 'H21'
-  | 'H22' | 'H23' | 'H24' | 'H25' | 'H26' | 'H28'
+  | 'H22' | 'H23' | 'H24' | 'H25' | 'H28'
 
 // Hook ids are stable: a retired hook leaves a gap, and its id is never reused.
 export const HOOK_IDS: readonly HookId[] = [
   'H01', 'H02', 'H03', 'H04', 'H05', 'H06', 'H07', 'H08', 'H09', 'H10',
   'H11', 'H12', 'H13', 'H14', 'H15', 'H16', 'H17', 'H18', 'H19', 'H20', 'H21',
-  'H22', 'H23', 'H24', 'H25', 'H26', 'H28',
+  'H22', 'H23', 'H24', 'H25', 'H28',
 ]
 
-// Ids of hooks earlier Buracle versions had (H27 context.session came and went with Context Mode).
-export const RETIRED_HOOK_IDS = ['H27'] as const
-
-const CLAUDE_TOOLS: Readonly<Record<string, ToolKind>> = {
-  Bash: 'bash', Monitor: 'bash', PowerShell: 'bash',
-  Edit: 'edit', MultiEdit: 'edit', NotebookEdit: 'edit',
-  Write: 'write',
-  Read: 'read', NotebookRead: 'read',
-  Glob: 'search', Grep: 'search', LS: 'search',
-  WebSearch: 'web_search',
-  WebFetch: 'web_fetch',
-  AskUserQuestion: 'ask_user',
-  ExitPlanMode: 'plan_exit',
-  EnterPlanMode: 'plan_enter',
-  TodoWrite: 'todo', TaskCreate: 'todo', TaskUpdate: 'todo', TaskList: 'todo', TaskGet: 'todo',
-  Agent: 'agent', Task: 'agent',
-}
-
-const CODEX_TOOLS: Readonly<Record<string, ToolKind>> = {
-  Bash: 'bash', shell: 'bash', shell_command: 'bash', exec_command: 'bash', local_shell: 'bash',
-  unified_exec: 'bash', 'container.exec': 'bash',
-  apply_patch: 'patch', Edit: 'patch', Write: 'patch',
-  view_image: 'read',
-  web_search: 'web_search', webrun: 'web_search',
-  request_user_input: 'ask_user', request_user_input_async: 'ask_user',
-  update_plan: 'todo',
-  spawn_agent: 'agent', Agent: 'agent',
-}
-
-const OPENCODE_TOOLS: Readonly<Record<string, ToolKind>> = {
-  bash: 'bash', shell: 'bash',
-  edit: 'edit', multiedit: 'edit',
-  write: 'write',
-  patch: 'patch', apply_patch: 'patch',
-  read: 'read',
-  grep: 'search', glob: 'search', list: 'search', ls: 'search',
-  webfetch: 'web_fetch',
-  websearch: 'web_search', codesearch: 'web_search',
-  question: 'ask_user',
-  todowrite: 'todo', todoread: 'todo',
-  task: 'agent', subagent: 'agent',
-  plan_exit: 'plan_exit', plan_enter: 'plan_enter',
-  skill: 'other', execute: 'other', list_mcp_resources: 'other', read_mcp_resource: 'other',
-}
-
-const OMP_TOOLS: Readonly<Record<string, ToolKind>> = {
-  bash: 'bash', eval: 'eval',
-  edit: 'edit', ast_edit: 'edit',
-  write: 'write',
-  read: 'read',
-  grep: 'search', search: 'search', find: 'search', glob: 'search', ast_grep: 'search',
-  web_search: 'web_search',
-  fetch: 'web_fetch', web_fetch: 'web_fetch',
-  ask: 'ask_user',
-  todo: 'todo',
-  task: 'agent',
-}
-
-const TOOL_TABLES: Readonly<Record<Harness, Readonly<Record<string, ToolKind>>>> = {
-  claude: CLAUDE_TOOLS,
-  codex: CODEX_TOOLS,
-  opencode: OPENCODE_TOOLS,
-  omp: OMP_TOOLS,
-}
-
-function own<T>(table: Readonly<Record<string, T>>, key: string): T | undefined {
-  return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined
-}
+// Ids of hooks earlier Buracle versions had (H27 context.session came and went with Context Mode; H26 profile.signals ended when no word list read
+// the prompt any more: the prompt spool line belongs to the memory spool, H14).
+export const RETIRED_HOOK_IDS = ['H26', 'H27'] as const
 
 export function mcpServerToken(harness: Harness, server: string): string {
-  switch (harness) {
-    case 'omp': {
-      const t = server.toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '')
-      return t.length > 0 ? t : 'server'
-    }
-    case 'codex':
-      return server.replace(/[^A-Za-z0-9_]/g, '_')
-    case 'claude':
-    case 'opencode':
-      return server.replace(/[^A-Za-z0-9_-]/g, '_')
-  }
+  return mcpToken(harnessProfile(harness).mcp, server)
 }
 
 export function parseMcpName(harness: Harness, name: string, knownServers?: readonly string[]): { server: string, tool: string } | undefined {
-  if (harness === 'claude' || harness === 'codex') {
-    if (!name.startsWith('mcp__')) return undefined
-    const rest = name.slice(5)
-    if (knownServers && knownServers.length > 0) {
-      let best: { server: string, tool: string, len: number } | undefined
-      for (const s of knownServers) {
-        const tok = mcpServerToken(harness, s)
-        const direct = `${tok}__`
-        if (rest.startsWith(direct) && rest.length > direct.length) {
-          if (!best || tok.length > best.len) best = { server: s, tool: rest.slice(direct.length), len: tok.length }
-        }
-        if (harness === 'claude' && rest.startsWith('plugin_')) {
-          const marker = `_${tok}__`
-          const at = rest.indexOf(marker, 'plugin_'.length)
-          if (at > 'plugin_'.length && rest.length > at + marker.length) {
-            if (!best || tok.length > best.len) best = { server: s, tool: rest.slice(at + marker.length), len: tok.length }
-          }
-        }
-      }
-      if (best) return { server: best.server, tool: best.tool }
-    }
-    const sep = rest.indexOf('__')
-    if (sep <= 0 || sep + 2 >= rest.length) return undefined
-    let server = rest.slice(0, sep)
-    const tool = rest.slice(sep + 2)
-    if (harness === 'claude' && server.startsWith('plugin_')) {
-      const inner = server.slice('plugin_'.length)
-      const us = inner.indexOf('_')
-      if (us > 0 && us + 1 < inner.length) server = inner.slice(us + 1)
-    }
-    return { server, tool }
-  }
-  if (harness === 'omp') {
-    if (!name.startsWith('mcp__')) return undefined
-    const rest = name.slice(5)
-    if (knownServers && knownServers.length > 0) return longestPrefixServer(harness, rest, knownServers)
-    const us = rest.indexOf('_')
-    if (us <= 0 || us + 1 >= rest.length) return undefined
-    return { server: rest.slice(0, us), tool: rest.slice(us + 1) }
-  }
-  if (knownServers && knownServers.length > 0) return longestPrefixServer(harness, name, knownServers)
-  const us = name.indexOf('_')
-  if (us <= 0 || us + 1 >= name.length) return undefined
-  return { server: name.slice(0, us), tool: name.slice(us + 1) }
-}
-
-function longestPrefixServer(harness: Harness, rest: string, knownServers: readonly string[]): { server: string, tool: string } | undefined {
-  let best: { server: string, tool: string, len: number } | undefined
-  for (const s of knownServers) {
-    const tok = mcpServerToken(harness, s)
-    const pre = `${tok}_`
-    if (rest.startsWith(pre) && rest.length > pre.length && (!best || tok.length > best.len)) {
-      best = { server: s, tool: rest.slice(pre.length), len: tok.length }
-    }
-  }
-  return best ? { server: best.server, tool: best.tool } : undefined
-}
-
-// The pure core cannot read the platform, so a Windows path is known by its shape: a drive
-// letter (`C:\`, `C:/`, `c:`) or a UNC prefix (`\\server\share`, `\\?\`, `\\.\`). Only such
-// paths get `\` read as a separator; on POSIX a backslash stays part of the name.
-const DRIVE = /^[A-Za-z]:(?=[\\/]|$)/
-
-export function isWindowsPath(p: string): boolean {
-  return typeof p === 'string' && (DRIVE.test(p) || p.startsWith('\\\\'))
+  return parseMcpToolName(harnessProfile(harness).mcp, name, knownServers)
 }
 
 export function isAbsPath(p: string): boolean {
-  return typeof p === 'string' && (p.startsWith('/') || isWindowsPath(p))
+  return typeof p === 'string' && p.startsWith('/')
 }
 
-// `\\?\C:\x` is `C:\x` and `\\?\UNC\srv\share` is `\\srv\share`; `\\.\` device paths keep their form.
-// A UNC root stays `\\srv\share` in the normalized form, so normalizing it again cannot turn it
-// into the POSIX `/srv/share`.
-function windowsRoot(p: string): { root: string, rest: string } {
-  let s = p.replace(/\\/g, '/')
-  if (/^\/\/\?\/(?:[A-Za-z]:(?:\/|$)|UNC\/)/i.test(s)) s = s.slice(4).replace(/^UNC\//i, '//')
-  if (DRIVE.test(s)) return { root: `${(s[0] as string).toUpperCase()}:/`, rest: s.slice(2) }
-  const m = /^\/*([^/]*)\/*([^/]*)(.*)$/.exec(s) as RegExpExecArray
-  return { root: `\\\\${m[1] ?? ''}${m[2] ? `\\${m[2]}` : ''}`, rest: m[3] ?? '' }
-}
-
+// A backslash is part of a name, never a separator: Buracle runs on macOS and Linux only.
 export function normalizePath(p: string): string {
   if (p === '') return ''
-  const win = isWindowsPath(p)
-  const { root, rest } = win ? windowsRoot(p) : { root: p.startsWith('/') ? '/' : '', rest: p }
-  const abs = root !== ''
+  const abs = p.startsWith('/')
   const out: string[] = []
-  for (const seg of rest.split('/')) {
+  for (const seg of p.split('/')) {
     if (seg === '' || seg === '.') continue
     if (seg === '..') {
       if (out.length > 0 && out[out.length - 1] !== '..') out.pop()
@@ -217,55 +71,37 @@ export function normalizePath(p: string): string {
     out.push(seg)
   }
   const body = out.join('/')
-  if (win) return root.endsWith('/') ? root + body : body === '' ? root : `${root}/${body}`
   if (abs) return '/' + body
   return body === '' ? '.' : body
 }
 
-// The root of a normalized absolute path (`/`, `C:/`, `\\srv\share`), or '' for a relative one.
+// The root of an absolute path (`/`), or '' for a relative one.
 export function pathRoot(p: string): string {
-  if (typeof p !== 'string') return ''
-  if (isWindowsPath(p)) return windowsRoot(p).root
-  return p.startsWith('/') ? '/' : ''
+  return typeof p === 'string' && p.startsWith('/') ? '/' : ''
 }
 
 export function isRootPath(p: string): boolean {
   return typeof p === 'string' && p !== '' && normalizePath(p) === pathRoot(normalizePath(p))
 }
 
-// The form the platform spells a normalized path in: backslashes for drive and UNC paths.
-export function nativePath(p: string): string {
-  return isWindowsPath(p) ? p.replace(/\//g, '\\') : p
-}
-
 export interface ToolPathOptions {
   homeTilde?: string
 }
 
+// The normalized form the guards compare.
 export function resolvePath(cwd: string, p: string, home?: string): string | undefined {
-  const r = resolveNormalPath(cwd, p, home)
-  return r === undefined ? undefined : nativePath(r)
-}
-
-// resolvePath in the normalized (forward-slash) form the guards compare; Windows paths keep their
-// uppercase drive root and never climb above it.
-export function resolveNormalPath(cwd: string, p: string, home?: string): string | undefined {
   let s = p.trim()
   if (s === '') return undefined
-  const winHome = home !== undefined && isWindowsPath(home)
-  if (home !== undefined && home !== '' && (s === '~' || s.startsWith('~/') || (winHome && s.startsWith('~\\')))) {
+  if (home !== undefined && home !== '' && (s === '~' || s.startsWith('~/'))) {
     return normalizePath(`${home.replace(/[\\/]+$/, '')}/${s.slice(2)}`)
   }
   if (s.startsWith('file://')) {
     s = s.slice('file://'.length)
     try { s = decodeURIComponent(s) } catch {  }
-    if (/^\/[A-Za-z]:/.test(s)) s = s.slice(1)
-    else if (!s.startsWith('/')) s = '/' + s
+    if (!s.startsWith('/')) s = '/' + s
   } else if (/^[A-Za-z][A-Za-z0-9+.-]+:\/\//.test(s)) {
     return undefined
   }
-  if (isWindowsPath(s)) return normalizePath(s)
-  if (isWindowsPath(cwd) && /^[\\/]/.test(s)) return normalizePath(`${windowsRoot(cwd).root.replace(/\/$/, '')}\\${s.slice(1)}`)
   if (s.startsWith('/')) return normalizePath(s)
   if (cwd === '') return normalizePath(s)
   return normalizePath(`${cwd}/${s}`)
@@ -432,36 +268,41 @@ function uniqueConcat(a: string[], b: string[]): string[] {
 }
 
 export function classifyTool(harness: Harness, tool: string, rawInput: Record<string, unknown>, cwd: string, knownServers?: readonly string[], opts?: ToolPathOptions): Pick<ToolCall, 'kind' | 'command' | 'paths' | 'mcp'> {
+  return classifyToolFor(harnessProfile(harness), tool, rawInput, cwd, knownServers, opts)
+}
+
+/** `classifyTool` for a profile: everything it knows about the host's tools comes from there. */
+export function classifyToolFor(profile: Pick<HarnessProfile, 'tools' | 'mcp'>, tool: string, rawInput: Record<string, unknown>, cwd: string, knownServers?: readonly string[], opts?: ToolPathOptions): Pick<ToolCall, 'kind' | 'command' | 'paths' | 'mcp'> {
   const input: Record<string, unknown> = rawInput !== null && typeof rawInput === 'object' && !Array.isArray(rawInput) ? rawInput : {}
   const home = opts?.homeTilde
-  const table = TOOL_TABLES[harness]
-  let kind: ToolKind | undefined = own(table, tool)
+  const t = profile.tools
+  let kind: ToolKind | undefined = toolKindOf(profile, tool)
   if (kind === undefined) {
-    const mcp = parseMcpName(harness, tool, knownServers)
+    const mcp = parseMcpToolName(profile.mcp, tool, knownServers)
     if (mcp) return { kind: 'mcp', paths: [], mcp }
     return { kind: 'other', paths: [] }
   }
 
-  if (harness === 'omp' && (kind === 'read' || kind === 'write')) {
+  if ((t.deviceScheme !== undefined || t.readFetchesUrls === true) && (kind === 'read' || kind === 'write')) {
     const p = str(input['path'])
     if (p !== undefined) {
-      const dev = /^xd:\/\/([^/?#\s]+)/.exec(p)
-      if (dev && dev[1] !== undefined) {
+      const dev = t.deviceScheme !== undefined && p.startsWith(`${t.deviceScheme}://`) ? /^[^/?#\s]+/.exec(p.slice(t.deviceScheme.length + 3)) : null
+      if (dev) {
         if (kind === 'write') {
-          const mcp = parseMcpName('omp', dev[1], knownServers)
+          const mcp = parseMcpToolName(profile.mcp, dev[0], knownServers)
           if (mcp) return { kind: 'mcp', paths: [], mcp }
         }
         return { kind: 'other', paths: [] }
       }
-      if (kind === 'read' && /^https?:\/\//i.test(p)) return { kind: 'web_fetch', paths: [] }
+      if (kind === 'read' && t.readFetchesUrls === true && /^https?:\/\//i.test(p)) return { kind: 'web_fetch', paths: [] }
     }
   }
-  if (harness === 'omp' && kind === 'edit') {
+  if (t.editTakesPatch === true && kind === 'edit') {
     const inner = str(input['input'])
     if (inner !== undefined && looksLikePatch(inner)) kind = 'patch'
   }
 
-  if (harness === 'claude' && tool === 'Monitor') {
+  if (t.stringCommandOnly?.includes(tool) === true) {
     const command = str(input['command'])
     return command !== undefined ? { kind: 'bash', command, paths: [] } : { kind: 'other', paths: [] }
   }

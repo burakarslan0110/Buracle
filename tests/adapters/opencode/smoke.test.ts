@@ -17,6 +17,7 @@ import { narrowPath } from '../../helpers/fake-exe'
 import { withSandbox } from '../../helpers/sandbox'
 import { endsWithToolResult, lastUserText, offeredTools, startFakeProvider, systemTexts, type FakeProvider, type ToolRule } from './fake-provider'
 import { adapterContext, canonical, REPO, until } from './helpers'
+import { BUILT } from '../../helpers/built-harness'
 
 const OPENCODE = Bun.which('opencode', { PATH: process.env['PATH'] ?? '' })
 const PASSWORD = 'buracle-smoke'
@@ -122,7 +123,7 @@ async function launch(root: string, home: string, buracleHome: string, rules: To
   const project = join(root, 'project')
   mkdirSync(project, { recursive: true })
   mkdirSync(join(paths.opencodeConfigDir(), 'skills'), { recursive: true })
-  for (const id of ['plan-build', 'research']) symlinkSync(join(REPO, 'harness', 'agents-skills', id), join(paths.opencodeConfigDir(), 'skills', id))
+  for (const id of ['plan-build', 'research']) symlinkSync(join(BUILT.harness, 'agents-skills', id), join(paths.opencodeConfigDir(), 'skills', id))
   expect(existsSync(join(paths.agentsDir(), 'skills'))).toBe(false)
 
   const res = await applyPlans([await installPlan(adapterContext(), { opencode: null })])
@@ -204,7 +205,7 @@ async function withLspServer({ root, home, buracleHome }: { root: string, home: 
 }
 
 describe('opencode smoke (real binary, isolated)', () => {
-  (available ? test : test.skip)('the generated config parses; the plugin loads, reacts to session events, runs the workflow commands, attaches skills, sets the effort and re-prompts once for H23', () => withSandbox(async ({ root, home, buracleHome }) => {
+  (available ? test : test.skip)('the generated config parses; the plugin loads, reacts to session events, runs the workflow commands, attaches skills and re-prompts once for H23', () => withSandbox(async ({ root, home, buracleHome }) => {
     const review = { agent: 'plan-build-review', description: 'review the plan', prompt: 'Review docs/plans/x.md and return your report.' }
     const { project, provider, server, shimLog, plugins } = await launch(root, home, buracleHome, [
       { when: t => t.includes(REVIEW_MARK), name: 'subagent', input: review },
@@ -248,7 +249,6 @@ describe('opencode smoke (real binary, isolated)', () => {
       expect(specText).toContain('<skill_content name="plan-build">')
       expect(JSON.stringify(specReq['tools'] ?? [])).toContain('"todowrite"')
       expect(specText).toContain('Run this with the Buracle plan-build workflow')
-      expect(specReq['output_config']).toEqual({ effort: 'xhigh' })
       await until(() => latestWindows('opencode', Date.now()).length === 2, 15_000)
       expect(latestWindows('opencode', Date.now()).map(w => `${w.label} ${w.pct}`)).toEqual(['5h 42', '7d 18'])
 
@@ -261,7 +261,7 @@ describe('opencode smoke (real binary, isolated)', () => {
 
       const s4 = await newSession(server, project)
       await api(server, 'POST', `/api/session/${s4}/prompt`, project, { text: `${REVIEW_MARK} please` })
-      await until(() => provider.requests.some(r => primary(r.body) && JSON.stringify(r.body?.['messages'] ?? []).includes('Buracle H19 (review.gate): the plan-build-review report is not valid review JSON')), 30_000)
+      await until(() => provider.requests.some(r => primary(r.body) && JSON.stringify(r.body?.['messages'] ?? []).includes('Buracle H19: the plan-build-review report is not valid review JSON')), 30_000)
 
       const s5 = await newSession(server, project)
       await api(server, 'POST', `/api/session/${s5}/prompt`, project, { text: `${BUSY_MARK} please start` })
@@ -309,7 +309,7 @@ describe('opencode smoke (real binary, isolated)', () => {
     try {
       const sid = await newSession(server, project)
       const denied = await resultAfter(await prompt(sid, 'PUSH_FIRST please'))
-      expect(denied).toContain('Buracle H20 consent.gate')
+      expect(denied).toContain('Buracle H20: ')
       expect(denied).toContain('call the `question` tool')
       let forms: any[] = []
       for (let i = 0; i < 120 && forms.length === 0; i++) {

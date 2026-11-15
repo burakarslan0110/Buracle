@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { HOOK_IDS, RETIRED_HOOK_IDS, classifyTool, isAbsPath, isHarness, isRootPath, isWindowsPath, mcpServerToken, nativePath, normalizePath, parseApplyPatch, parseMcpName, pathRoot, resolveNormalPath, resolvePath } from '../../src/core/events'
+import { HOOK_IDS, RETIRED_HOOK_IDS, classifyTool, isAbsPath, isHarness, isRootPath, mcpServerToken, normalizePath, parseApplyPatch, parseMcpName, pathRoot, resolvePath } from '../../src/core/events'
 import type { Harness, ToolKind } from '../../src/core/events'
 
 const CWD = '/work/repo'
@@ -241,50 +241,31 @@ describe('path helpers', () => {
     expect(resolvePath('/w', '  ')).toBeUndefined()
   })
 
-  test('Windows paths are known by their shape: a drive letter or a UNC prefix; a POSIX backslash stays in the name', () => {
-    for (const p of ['C:\\x', 'c:/x', 'C:', '\\\\srv\\share', '\\\\?\\C:\\x']) expect({ p, win: isWindowsPath(p), abs: isAbsPath(p) }).toEqual({ p, win: true, abs: true })
-    for (const p of ['/x', 'a\\b', 'a:b', 'C:x', 'x:', '']) expect({ p, win: isWindowsPath(p) }).toEqual({ p, win: p === 'x:' })
+  test('a backslash or a colon is part of a POSIX name: only a leading `/` makes a path absolute', () => {
     expect(isAbsPath('/x')).toBe(true)
-    expect(isAbsPath('rel\\x')).toBe(false)
-  })
-
-  test('normalizePath on Windows paths: forward slashes, an uppercase drive, `..` never above the root', () => {
-    expect(normalizePath('c:\\Users\\Me\\..\\..\\..\\x')).toBe('C:/x')
-    expect(normalizePath('C:\\')).toBe('C:/')
-    expect(normalizePath('c:')).toBe('C:/')
-    expect(normalizePath('C:/a//b/./c/../d/')).toBe('C:/a/b/d')
-    expect(normalizePath('\\\\srv\\share\\a\\..\\..\\b')).toBe('\\\\srv\\share/b')
-    expect(normalizePath(normalizePath('\\\\srv\\share\\x'))).toBe('\\\\srv\\share/x')
-    expect(normalizePath('\\\\?\\C:\\x\\y')).toBe('C:/x/y')
-    expect(normalizePath('\\\\?\\UNC\\srv\\sh\\x')).toBe('\\\\srv\\sh/x')
-    expect(normalizePath('\\\\.\\PhysicalDrive0')).toBe('\\\\.\\PhysicalDrive0')
+    for (const p of ['rel\\x', 'a:b', 'x:', 'C:\\x', 'c:/x', '\\\\srv\\share', '']) expect({ p, abs: isAbsPath(p) }).toEqual({ p, abs: false })
     expect(normalizePath('a\\b')).toBe('a\\b')
     expect(normalizePath('/a\\b/../c')).toBe('/c')
-    expect(pathRoot('C:/x')).toBe('C:/')
-    expect(pathRoot('\\\\srv\\share/x')).toBe('\\\\srv\\share')
+    expect(normalizePath('/a:b/./c\\d/')).toBe('/a:b/c\\d')
+    expect(normalizePath('C:\\Users\\Me')).toBe('C:\\Users\\Me')
+    expect(normalizePath('c:/a/../../x')).toBe('x')
+    expect(normalizePath('\\\\srv\\share')).toBe('\\\\srv\\share')
     expect(pathRoot('/x')).toBe('/')
-    expect(pathRoot('x')).toBe('')
-    for (const p of ['/', 'C:\\', 'c:/', 'D:', '\\\\srv\\share']) expect({ p, root: isRootPath(p) }).toEqual({ p, root: true })
-    for (const p of ['/x', 'C:\\x', '\\\\srv\\share\\x', 'x', '']) expect({ p, root: isRootPath(p) }).toEqual({ p, root: false })
+    for (const p of ['x', 'C:/x', '\\\\srv\\share/x']) expect({ p, root: pathRoot(p) }).toEqual({ p, root: '' })
+    expect(isRootPath('/')).toBe(true)
+    for (const p of ['/x', 'x', '', 'C:\\', 'c:/', 'D:', '\\\\srv\\share']) expect({ p, root: isRootPath(p) }).toEqual({ p, root: false })
   })
 
-  test('resolvePath returns the native spelling; resolveNormalPath the slash form the guards compare', () => {
-    expect(resolvePath('C:\\w', 'src\\a.ts')).toBe('C:\\w\\src\\a.ts')
-    expect(resolvePath('C:\\w', 'src/a.ts')).toBe('C:\\w\\src\\a.ts')
-    expect(resolveNormalPath('C:\\w', 'src\\a.ts')).toBe('C:/w/src/a.ts')
-    expect(resolvePath('C:\\w', '..\\..\\..\\x')).toBe('C:\\x')
-    expect(resolvePath('C:\\w', 'D:\\x')).toBe('D:\\x')
-    expect(resolvePath('C:\\w', '/Users/x')).toBe('C:\\Users\\x')
-    expect(resolvePath('C:\\w', '\\Users\\x')).toBe('C:\\Users\\x')
-    expect(resolvePath('\\\\srv\\sh\\w', '/x')).toBe('\\\\srv\\sh\\x')
-    expect(resolvePath('C:\\w', 'file:///C:/x/y')).toBe('C:\\x\\y')
-    expect(resolvePath('/w', 'C://x')).toBe('C:\\x')
-    expect(resolvePath('C:\\w', '~\\.ssh\\id', 'C:\\Users\\Me')).toBe('C:\\Users\\Me\\.ssh\\id')
-    expect(resolvePath('C:\\w', '~/.ssh', 'C:\\Users\\Me\\')).toBe('C:\\Users\\Me\\.ssh')
-    expect(resolvePath('C:\\w', '~', 'C:\\Users\\Me')).toBe('C:\\Users\\Me')
+  test('resolvePath joins a name that holds a backslash or a colon to the working folder like any other', () => {
     expect(resolvePath('/w', '~\\x', '/Users/u')).toBe('/w/~\\x')
-    expect(nativePath('C:/a/b')).toBe('C:\\a\\b')
-    expect(nativePath('/a/b')).toBe('/a/b')
+    expect(resolvePath('/w', 'src\\a.ts')).toBe('/w/src\\a.ts')
+    expect(resolvePath('/w', 'C:\\x')).toBe('/w/C:\\x')
+    expect(resolvePath('/w', 'C://x')).toBe('/w/C:/x')
+    expect(resolvePath('/w', '\\\\srv\\share\\x')).toBe('/w/\\\\srv\\share\\x')
+    expect(resolvePath('/w', 'file:///C:/x/y')).toBe('/C:/x/y')
+    expect(resolvePath('/w', 'a:b/../c\\d')).toBe('/w/c\\d')
+    expect(resolvePath('/w', '~/.ssh', '/Users/u/')).toBe('/Users/u/.ssh')
+    expect(classifyTool('opencode', 'edit', { filePath: 'src\\b.ts' }, '/w').paths).toEqual(['/w/src\\b.ts'])
   })
 })
 
@@ -343,14 +324,6 @@ describe('classifyTool: shell and code tools outside Bash', () => {
     expect(classifyTool('claude', 'PowerShell', { command: 'Remove-Item -Recurse -Force ~', description: 'x' }, CWD)).toEqual({ kind: 'bash', command: 'Remove-Item -Recurse -Force ~', paths: [] })
   })
 
-  test('the paths of file tools and patches keep the Windows spelling of a Windows session', () => {
-    const cwd = 'C:\\Users\\u\\app'
-    expect(classifyTool('claude', 'Write', { file_path: 'C:/Users/u/app/src/a.ts', content: 'x' }, cwd).paths).toEqual(['C:\\Users\\u\\app\\src\\a.ts'])
-    expect(classifyTool('opencode', 'edit', { filePath: 'src\\b.ts' }, cwd).paths).toEqual(['C:\\Users\\u\\app\\src\\b.ts'])
-    expect(classifyTool('opencode', 'write', { path: '~/.ssh/authorized_keys' }, cwd, undefined, { homeTilde: 'C:\\Users\\u' }).paths).toEqual(['C:\\Users\\u\\.ssh\\authorized_keys'])
-    const patch = '*** Begin Patch\n*** Add File: src/x.py\n+x\n*** End Patch'
-    expect(parseApplyPatch(patch, cwd)).toEqual({ paths: ['C:\\Users\\u\\app\\src\\x.py'], added: { 'C:\\Users\\u\\app\\src\\x.py': 'x' } })
-  })
 
   test('a WebSocket Monitor (no command) is not a shell call', () => {
     expect(classifyTool('claude', 'Monitor', { ws: { url: 'wss://x' }, description: 'x', timeout_ms: 1 }, CWD)).toEqual({ kind: 'other', paths: [] })
@@ -366,11 +339,11 @@ describe('classifyTool: shell and code tools outside Bash', () => {
 })
 
 describe('logical hook ids', () => {
-  test('H01 to H28 in order with one gap: H27 context.session retired with Context Mode in 0.6.0, H28 project.assets keeps its id', () => {
-    expect(HOOK_IDS.length).toBe(27)
-    expect(HOOK_IDS).toEqual([...Array.from({ length: 26 }, (_, i) => `H${String(i + 1).padStart(2, '0')}`), 'H28'] as typeof HOOK_IDS)
+  test('H01 to H28 in order with two gaps: H27 context.session retired with Context Mode in 0.6.0, H26 profile.signals retired with its word list, H28 project.assets keeps its id', () => {
+    expect(HOOK_IDS.length).toBe(26)
+    expect(HOOK_IDS).toEqual([...Array.from({ length: 25 }, (_, i) => `H${String(i + 1).padStart(2, '0')}`), 'H28'] as typeof HOOK_IDS)
     expect(HOOK_IDS[HOOK_IDS.length - 1]).toBe('H28')
-    expect(RETIRED_HOOK_IDS).toEqual(['H27'])
+    expect(RETIRED_HOOK_IDS).toEqual(['H26', 'H27'])
     for (const id of RETIRED_HOOK_IDS) expect([...HOOK_IDS] as string[]).not.toContain(id)
   })
 })

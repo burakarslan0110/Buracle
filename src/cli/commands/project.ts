@@ -5,10 +5,10 @@ import { emit, optionalSession, processCtx, usageError, warnCwdGone, type CmdRes
 
 export const name = 'project'
 export const summary = 'Per-project agent files: AGENTS.md, skill links, the path-rule index, the project brain, .git/info/exclude'
-export const usage = `Usage: buracle project init|sync [--adopt [--move] [--dry-run]] [--auto] [--quiet] [--json]
+export const usage = `Usage: buracle project sync [--adopt [--move] [--dry-run]] [--auto] [--quiet] [--json]
        buracle project check [--json]
 
-init and sync run the same idempotent steps in the current repository (init is the first-run name):
+sync runs idempotent steps in the current repository:
   - checks AGENTS.md (never writes it: without one, run the project-rules skill);
   - links .agents/skills/<id> into .claude/skills/<id> (relative symlinks; existing files or
     directories are left alone and reported; stale links into .agents/skills are removed). A
@@ -31,8 +31,7 @@ init and sync run the same idempotent steps in the current repository (init is t
               skills are linted afterwards (findings never block).
   --move      with --adopt: move each Claude-only folder into .agents/skills and link it back,
               and replace identical Claude copies with links. A tracked folder becomes a
-              symlink, which teammates without Buracle and Windows checkouts without symlinks
-              do not follow; ask before you use it.
+              symlink, which teammates without Buracle do not follow; ask before you use it.
   --dry-run   with --adopt: report what would change and write nothing.
   --auto      the session-start step (hook H28): only link .agents/skills into .claude/skills
               and update .git/info/exclude, under the repository lock (skipped when another
@@ -44,12 +43,11 @@ AGENTS.md '## Scoped rules' list (each rule listed once, with globs equal to its
 frontmatter, which must parse; every listed file exists; gitignored rules are reported apart),
 checks that every .agents/skills/<id> is linked into .claude/skills, that CLAUDE.md or
 CLAUDE.local.md imports AGENTS.md (a CLAUDE.md that is a symlink to AGENTS.md counts), and that
-no agent folder is a symlink leading outside the repository. 'buracle project sync --check' is the
-same command.
+no agent folder is a symlink leading outside the repository.
 Exit 0 ok · 1 error · 2 the user must act (sync: missing AGENTS.md, link or settings conflicts, a
 tracked settings file, not a git repo; check: drift, with the fix in each message).`
 
-const FLAGS = { adopt: 'bool', move: 'bool', 'dry-run': 'bool', auto: 'bool', quiet: 'bool', check: 'bool' } as const
+const FLAGS = { adopt: 'bool', move: 'bool', 'dry-run': 'bool', auto: 'bool', quiet: 'bool' } as const
 
 function quiet(r: CmdResult): CmdResult {
   return { ...r, lines: [], errors: r.code === 1 ? r.errors : [] }
@@ -60,20 +58,18 @@ export async function runProject(argv: string[], io: CommandIO, ctx: WorkflowCtx
   const [sub, ...rest] = parsed.positional
   const problems = [...parsed.errors]
   const f = parsed.flags
-  if (sub !== 'init' && sub !== 'sync' && sub !== 'check') problems.push(sub === undefined ? 'missing subcommand (init, sync or check)' : `unknown subcommand '${sub}'`)
+  if (sub !== 'sync' && sub !== 'check') problems.push(sub === undefined ? 'missing subcommand (sync or check)' : `unknown subcommand '${sub}'`)
   if (rest.length > 0) problems.push(`unexpected argument '${rest[0]}'`)
   const adopt = boolFlag(f, 'adopt')
   if (!adopt && (boolFlag(f, 'move') || boolFlag(f, 'dry-run'))) problems.push('--move and --dry-run need --adopt')
   if (boolFlag(f, 'auto') && adopt) problems.push('--auto and --adopt cannot be combined')
-  const check = sub === 'check' || boolFlag(f, 'check')
+  const check = sub === 'check'
   if (check && (adopt || boolFlag(f, 'auto'))) problems.push('check is read-only: drop --adopt and --auto')
-  if (sub === 'check' && boolFlag(f, 'check')) problems.push('--check is the same as the check subcommand')
-  if (sub === 'init' && boolFlag(f, 'check')) problems.push('--check goes with sync')
   const prefix = `buracle project${sub !== undefined ? ` ${sub}` : ''}`
   if (problems.length > 0) return emit(io, io.flags.json, prefix, usageError(usage, problems))
   const r = check
     ? await projectCheck(ctx)
-    : await projectSync(sub as 'init' | 'sync', ctx, optionalSession({}, ctx.env), {
+    : await projectSync('sync', ctx, optionalSession({}, ctx.env), {
       ...(boolFlag(f, 'auto') ? { auto: true } : {}),
       ...(adopt ? { adopt: { move: boolFlag(f, 'move'), dryRun: boolFlag(f, 'dry-run') } } : {}),
     })

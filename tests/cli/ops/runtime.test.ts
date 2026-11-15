@@ -21,7 +21,7 @@ function shimOf(buracleHome: string) {
 // The sh shim runs under /bin/sh; on Windows under Git's sh (what Git Bash runs the hooks with).
 const SH = '/bin/sh'
 
-const PROBE_ENV = { BURACLE_NO_CAPTURE: '1', BURACLE_NO_AUTOSTART: '1', BURACLE_NO_NOTIFY: '1' }
+const PROBE_ENV = { BURACLE_NO_CAPTURE: '1', BURACLE_NO_AUTOSTART: '1' }
 
 async function preToolUse(shim: string, harness: string, command: string): Promise<{ code: number, decision?: unknown, reason?: string }> {
   const payload = JSON.stringify({ session_id: 'runtime-test', hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command }, cwd: '/', permission_mode: 'bypassPermissions' })

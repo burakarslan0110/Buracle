@@ -60,15 +60,14 @@ read, add, remember. Nothing from a skill runs during the search or the install;
 | curated lists and vendor repositories | web-search `awesome agent skills <need>`, `<vendor> skills repository SKILL.md` |
 
 Skip a result that is a plugin, an MCP server or a prompt collection without a `SKILL.md`: it is
-not installable as a skill (an MCP server belongs in `canonical/mcp.yaml`, a Claude plugin in
-`canonical/plugins.yaml`; say so).
+not installable as a skill (an MCP server belongs in `canonical/mcp.yaml`; say so).
 
 ## Phase 2: Choose
 
 Pick from the `find` output; do not fetch more. Order of preference: the vendor's own repository,
 then installs and stars, then the last push; an archived repository, a `critical` risk rating, or no
 license drops a candidate. Say in one line which one you take and why; show a table only when the
-top candidates are close. Ask with {{ask_user}} only when two fit equally and differ in something
+top candidates are close. Ask with your structured-question tool only when two fit equally and differ in something
 the user cares about (license, a paid API, a heavy toolchain). Otherwise choose.
 
 ## Phase 3: Audit the pick
@@ -107,7 +106,7 @@ the user cares about (license, a paid API, a heavy toolchain). Otherwise choose.
   with local edits is kept unless `--force`. Run it when the user asks, or when a skill misbehaves.
 - `buracle skills remove <id>` removes a skill Buracle installed, with its Claude Code link.
 - A skill that belongs in the Buracle repository itself (the user wants to edit and version it) is
-  a job for {{skill:new-skill}} after it is installed: copy, then adapt.
+  a job for the `new-skill` skill after it is installed: copy, then adapt.
 
 ## Done when
 
@@ -126,14 +125,14 @@ the user cares about (license, a paid API, a heavy toolchain). Otherwise choose.
 | `exists and was not installed by Buracle` | a folder of the user's own is there; ask before `--force` |
 | the repository needs credentials or is private | ask the user for a token-free way (a fork, a local clone passed as a folder) |
 | grep or web-search is down | use the fallback the tooling rules name and say so |
-| the skill needs an MCP server | add the server to `canonical/mcp.yaml` through {{skill:new-skill}} or tell the user; do not install the skill alone |
+| the skill needs an MCP server | add the server to `canonical/mcp.yaml` through the `new-skill` skill or tell the user; do not install the skill alone |
 
 ## Example
 
-User: "Is there a skill for auditing a Next.js app for security problems?"
+User: "Is there a skill for finding unused code in this repository?"
 
-1. `buracle skills find next.js security audit --json`: the local matches list `security-audit`
-   (Buracle ships Cloudflare's skill); it covers the need. Say so, run it, stop.
+1. `buracle skills find unused dead code --json`: the local matches list `dead-code`
+   (Buracle ships it); it covers the need. Say so, run it, stop.
 
 User: "Find a skill that writes Stripe webhooks correctly."
 

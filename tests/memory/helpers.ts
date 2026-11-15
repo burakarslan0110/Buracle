@@ -1,6 +1,5 @@
-import { cpSync, mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import * as paths from '../../src/engine/paths'
 import type { MemoryCtx } from '../../src/memory/api'
 import { closeAllCortex } from '../../src/memory/cortex'
 import { withEnv, withSandbox, type Sandbox } from '../helpers/sandbox'
@@ -50,17 +49,6 @@ export function humanCtx(cwd: string): MemoryCtx {
   return { cwd, harness: 'human', generatedBy: 'human:tester', agent: false }
 }
 
-// The legacy fixture and a few tests drive the fake CortexDB's file format; a run against the real binary (BURACLE_CORTEXDB_SMOKE) skips them.
+// A few tests drive the fake CortexDB's file format; a run against the real binary (BURACLE_CORTEXDB_SMOKE) skips them.
 export const REAL_CORTEXDB = (process.env['BURACLE_CORTEXDB_SMOKE'] ?? '') !== ''
 
-const LEGACY_FIXTURE = join(import.meta.dir, '..', 'fixtures', 'legacy-brain')
-
-/**
- * Puts a Buracle 0.5 brain in the sandbox: the files the baseline code wrote under the fake CortexDB (a person brain with 3
- * memories, a `demo` project brain with 5, one of them superseded and one pinned, an absorbed archive) and the profile
- * claims and job state 0.5 kept next to them.
- */
-export function installLegacyBrain(): void {
-  cpSync(join(LEGACY_FIXTURE, 'brain'), paths.brainDir(), { recursive: true })
-  cpSync(join(LEGACY_FIXTURE, 'state', 'memory'), paths.memoryStateDir(), { recursive: true })
-}

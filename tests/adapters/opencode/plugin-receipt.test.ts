@@ -31,16 +31,15 @@ function noProject(cwd: string): WorkspaceInfo {
 
 async function runtime(dir: string, clock: { now: number }) {
   const f = fakeServerContext(dir)
-  const notified: string[] = []
   const deps: PluginDeps = {
     baked: testBaked(), memory: fakeMemory(), settleMs: 0, runChecker: async () => ({ code: 0, stdout: '', stderr: '' }),
-    capture: () => true, maint: () => ({ removed: [] }), notify: (title, message) => { notified.push(`${title}: ${message}`) },
+    capture: () => true, maint: () => ({ removed: [] }),
     workspace: async cwd => noProject(cwd), workspaceRead: async cwd => noProject(cwd), now: () => clock.now,
   }
   const rt = new BuracleRuntime(f.ctx, deps)
   await rt.register()
   await rt.handleEvent({ type: 'session.created', data: { sessionID: SID, location: { directory: dir } } })
-  return { f, rt, notified }
+  return { f, rt }
 }
 
 async function prompt(rt: BuracleRuntime, text: string): Promise<void> {
@@ -63,10 +62,10 @@ function board(): string[] {
   return items.map(i => i.text)
 }
 
-describe('OpenCode turn receipt, loop alarms and the long-turn notification (PARITY-3)', () => {
+describe('OpenCode turn receipt and loop alarms (PARITY-3)', () => {
   test('an unverified edit is posted for the TUI at the end of the turn; a passing check after it is not', () => withSandbox(async ({ root }) => {
     const clock = { now: NOW }
-    const { rt, notified } = await runtime(root, clock)
+    const { rt } = await runtime(root, clock)
     mkdirSync(join(root, 'src'))
     writeFileSync(join(root, 'src', 'a.ts'), 'export const a = 2\n')
     await prompt(rt, 'change a')
@@ -78,7 +77,6 @@ describe('OpenCode turn receipt, loop alarms and the long-turn notification (PAR
     await rt.onToolAfter(done('shell', { command: 'bun test' }, { output: '3 pass', exit: 0 }, 'c3'))
     await endTurn(rt, 'Tests pass.')
     expect(board()).toHaveLength(1)
-    expect(notified).toEqual([])
   }))
 
   test('the third identical failing command posts a loop alarm right away; a subagent\'s commands never count', () => withSandbox(async ({ root }) => {
@@ -93,21 +91,9 @@ describe('OpenCode turn receipt, loop alarms and the long-turn notification (PAR
     expect(board()).toEqual(['Buracle: the same command failed 3 times in a row: `bun test` (do not run it again as is; read the output and change your hypothesis)'])
   }))
 
-  test('a turn longer than workflow.notifyAfterSec sends one desktop notification', () => withSandbox(async ({ root }) => {
+  test('a turn that fails is reported, and so is an interrupted one; neither reads an old answer as a success claim', () => withSandbox(async ({ root }) => {
     const clock = { now: NOW }
-    const { rt, notified } = await runtime(root, clock)
-    await prompt(rt, 'long work')
-    clock.now = NOW + 4 * 60_000
-    await endTurn(rt, 'Here is the summary.')
-    expect(notified).toEqual(['Buracle: Turn finished after 4 min'])
-    clock.now += 5 * 60_000
-    await endTurn(rt, 'A stop-guard continuation ended.')
-    expect(notified).toHaveLength(1)
-  }))
-
-  test('a turn that fails is reported with its notification; an interrupted one is reported without it; neither reads an old answer as a success claim', () => withSandbox(async ({ root }) => {
-    const clock = { now: NOW }
-    const { rt, notified } = await runtime(root, clock)
+    const { rt } = await runtime(root, clock)
     mkdirSync(join(root, 'src'))
     writeFileSync(join(root, 'src', 'a.ts'), 'export const a = 2\n')
     await rt.handleEvent({ type: 'session.text.ended', data: { sessionID: SID, text: 'All done, it works.' } })
@@ -118,7 +104,6 @@ describe('OpenCode turn receipt, loop alarms and the long-turn notification (PAR
     await rt.handleEvent({ type: 'session.execution.failed', data: { sessionID: SID } })
     await rt.idle()
     expect(board()).toEqual(['Buracle · 1 file (+1 −1) · ⚠ unverified change'])
-    expect(notified).toEqual(['Buracle: Turn finished after 4 min'])
     await prompt(rt, 'change it again')
     await rt.onToolAfter(done('edit', { filePath: join(root, 'src', 'a.ts'), oldString: 'export const a = 2', newString: 'export const a = 3' }, { diff: '' }, 'c2'))
     clock.now += 4 * 60_000
@@ -126,7 +111,6 @@ describe('OpenCode turn receipt, loop alarms and the long-turn notification (PAR
     await rt.handleEvent({ type: 'session.execution.interrupted', data: { sessionID: SID } })
     await rt.idle()
     expect(board()).toEqual(['Buracle · 1 file (+1 −1) · ⚠ unverified change', 'Buracle · 1 file (+1 −1) · ⚠ unverified change'])
-    expect(notified).toHaveLength(1)
   }))
 })
 
@@ -160,7 +144,7 @@ describe('OpenCode 5-hour and weekly windows from provider responses (PARITY-5)'
     const until = Date.now() + 2_000
     while (readTelemetry('opencode', SID)?.windows === undefined && Date.now() < until) await Bun.sleep(5)
     expect(readTelemetry('opencode', SID)?.windows?.map(w => `${w.label} ${w.pct}`)).toEqual(['5h 42', '7d 18'])
-    const usage = await collectOpencode({ nowMs: clock.now, pricing: {} })
+    const usage = await collectOpencode({ nowMs: clock.now })
     expect(usage.windows.map(w => w.label)).toEqual(['5h', '7d'])
   }))
 

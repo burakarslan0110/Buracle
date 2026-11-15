@@ -1,10 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import { readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { runPlan } from '../../src/cli/commands/plan'
 import { userConfigFile } from '../../src/engine/paths'
 import { planRegister, planSet } from '../../src/workflow/plan'
-import { loadState } from '../../src/workflow/session-store'
+import { loadState, saveState } from '../../src/workflow/session-store'
+import type { SessionState } from '../../src/core/plan/state'
 import { withEnv, withSandbox } from '../helpers/sandbox'
 import { SESSION, ctxAt, evidenceSections, g, makeRepo, memIO, planDoc, write } from './fixture'
 
@@ -141,117 +142,36 @@ describe('buracle plan review: durable reviewer records', () => {
   }))
 })
 
-describe('buracle plan --lane: a whole workflow in a lane worktree keeps its own binding', () => {
-  test('the lead creates the lane worktree; the lane registers with --lane; the lead\'s binding is untouched and its status lists the lane', () => sandbox(async root => {
+describe('buracle plan: state of an older Buracle that carries plan-lane fields', () => {
+  test('a state file with laneReviews and a worktree record with lane fields still load; the fields are ignored', () => sandbox(async root => {
     const repo = await makeRepo(root)
     const lead = join(repo, 'docs', 'plans', '2026-10-08-lead.md')
-    write(lead, planDoc({ status: 'IN_PROGRESS', approved: true }))
-    await planRegister(lead, undefined, ctxAt(repo), S)
-    const io = memIO(true)
-    const { runWorktree } = await import('../../src/cli/commands/worktree')
-    expect(await runWorktree(['create', 'billing', '--lane', ...AS], io, ctxAt(repo))).toBe(0)
-    const lanePath = String(io.json()['path'])
-    const lanePlan = join(lanePath, 'docs', 'plans', '2026-10-08-billing.md')
-    write(lanePlan, planDoc({ title: 'Billing export' }))
-
-    const child = memIO(true)
-    const childEnv = { BURACLE_NO_NOTIFY: '1', BURACLE_NO_MEMORY: '1', BURACLE_SESSION_ID: 'child-session-9', BURACLE_HARNESS: 'opencode' }
-    expect(await runPlan(['register', lanePlan, '--phase', 'plan', '--lane', 'billing', '--json'], child, ctxAt(lanePath, undefined, childEnv))).toBe(0)
-    expect(child.json()['session']).toEqual({ harness: 'claude', id: `${S.sessionId}.lane-billing`, source: '--lane billing' })
+    write(lead, planDoc())
+    await planRegister(lead, 'plan', ctxAt(repo), S)
+    const old = { ...loadState('claude', S.sessionId), laneReviews: [{ lane: 'billing', role: 'changes', startedAt: 7, handle: 'agent-b2' }] }
+    saveState('claude', S.sessionId, old as unknown as SessionState)
     expect(loadState('claude', S.sessionId).plan?.path).toBe(lead)
-    expect(loadState('claude', `${S.sessionId}.lane-billing`).plan).toMatchObject({ path: lanePlan, status: 'PENDING', phase: 'plan' })
-
-    expect(await runPlan(['pause', '--kind', 'decision', '--reason', 'plan approval', '--lane', 'billing'], memIO(), ctxAt(lanePath, undefined, childEnv))).toBe(0)
     const status = await plan(repo, ['status', '--json'])
+    expect(status.code).toBe(0)
     expect(status.json()['plan']).toMatchObject({ path: lead })
-    expect(status.json()['lanes']).toEqual([{ lane: 'billing', session: `${S.sessionId}.lane-billing`, plan: lanePlan, type: 'Feature', status: 'PENDING', phase: 'plan', interaction: 'paused (decision): plan approval' }])
-    const text = memIO()
-    await runPlan(['status', ...AS], text, ctxAt(repo))
-    expect(text.out()).toContain(`Lane billing: ${lanePlan} (Feature, PENDING, phase plan; paused (decision): plan approval)`)
+    expect(status.json()['lanes']).toBeUndefined()
+    expect(status.out).not.toContain('Lane billing')
+    expect((await plan(repo, ['review', 'start', '--role', 'plan'])).code).toBe(0)
+    expect((await plan(repo, ['unregister'])).code).toBe(0)
 
-    expect((await plan(repo, ['review', 'start', '--role', 'plan', '--handle', 'agent-l1', '--lane', 'billing'])).code).toBe(0)
-    expect(loadState('claude', S.sessionId).laneReviews).toEqual([{ lane: 'billing', role: 'plan', startedAt: ctxAt(repo).now, handle: 'agent-l1' }])
-    expect(loadState('claude', `${S.sessionId}.lane-billing`).reviews).toEqual([expect.objectContaining({ role: 'plan', state: 'running', handle: 'agent-l1' })])
-    expect((await plan(repo, ['review', 'done', '--role', 'plan', '--verdict', 'pass', '--lane', 'billing'])).code).toBe(0)
-    expect(loadState('claude', S.sessionId).laneReviews).toBeUndefined()
-    await plan(repo, ['review', 'start', '--role', 'changes', '--lane', 'billing'])
-    expect(loadState('claude', S.sessionId).laneReviews).toHaveLength(1)
-
-    expect((await plan(repo, ['set', 'approved', 'true', '--lane', 'billing'])).code).toBe(0)
-    expect(loadState('claude', `${S.sessionId}.lane-billing`).interaction?.state).toBe('running')
-    expect(loadState('claude', S.sessionId).plan).toMatchObject({ path: lead, status: 'IN_PROGRESS' })
-    expect(loadState('claude', S.sessionId).interaction).toBeUndefined()
-    const laneStatus = await plan(repo, ['status', '--lane', 'billing', '--json'])
-    expect(laneStatus.json()['plan']).toMatchObject({ path: lanePlan, approved: true })
-    expect(loadState('claude', S.sessionId).laneReviews).toHaveLength(1)
-    expect((await plan(repo, ['unregister', '--lane', 'billing'])).code).toBe(0)
-    expect(loadState('claude', S.sessionId).laneReviews).toBeUndefined()
-    expect(loadState('claude', S.sessionId).plan?.path).toBe(lead)
+    const { runWorktree } = await import('../../src/cli/commands/worktree')
+    const io = memIO(true)
+    expect(await runWorktree(['create', 'billing'], io, ctxAt(repo))).toBe(0)
+    const meta = join(realpathSync(join(repo, '.git')), 'buracle', 'worktrees', 'billing.json')
+    write(meta, JSON.stringify({ ...(JSON.parse(readFileSync(meta, 'utf8')) as object), lane: true, parent: 'main', owner: { harness: S.harness, session: S.sessionId }, synced: { at: 1 } }))
+    const list = memIO(true)
+    expect(await runWorktree(['status'], list, ctxAt(repo))).toBe(0)
+    expect((list.json()['worktrees'] as Array<Record<string, unknown>>).map(w => w['slug'])).toEqual(['billing'])
+    expect((list.json()['worktrees'] as Array<Record<string, unknown>>)[0]?.['lane']).toBeUndefined()
   }))
 
-  test('the finish sequence of a lane whose plan file stays in the lead\'s checkout: sync, verify --lane, cleanup; a plan file inside the lane worktree stops the sync', () => sandbox(async root => {
+  test('--lane is no longer a plan flag', () => sandbox(async root => {
     const repo = await makeRepo(root)
-    write(userConfigFile(), 'version: 1\nplan:\n  resultApproval: false\n')
-    const { runWorktree } = await import('../../src/cli/commands/worktree')
-    const created = memIO(true)
-    expect(await runWorktree(['create', 'billing', '--lane', ...AS], created, ctxAt(repo))).toBe(0)
-    const lanePath = String(created.json()['path'])
-    const inside = join(lanePath, 'docs', 'plans', '2026-10-08-billing.md')
-    write(inside, planDoc({ title: 'Billing export' }))
-    write(join(lanePath, 'src', 'billing.ts'), 'export const b = 1\n')
-    await g(lanePath, 'add', 'src')
-    await g(lanePath, 'commit', '-q', '-m', 'billing')
-    const refused = memIO(true)
-    expect(await runWorktree(['sync', 'billing', ...AS], refused, ctxAt(repo))).toBe(1)
-    expect(refused.err() + refused.out()).toContain('uncommitted change(s)')
-    rmSync(inside)
-
-    const lanePlan = join(repo, 'docs', 'plans', '2026-10-08-billing.md')
-    write(lanePlan, planDoc({ title: 'Billing export', status: 'COMPLETE', approved: true, done: 2, evidence: true }))
-    expect(await runPlan(['register', lanePlan, '--phase', 'verify', '--lane', 'billing'], memIO(), ctxAt(lanePath, undefined, { BURACLE_SESSION_ID: 'child-session-9', BURACLE_HARNESS: 'opencode' }))).toBe(0)
-    const synced = memIO(true)
-    expect(await runWorktree(['sync', 'billing', ...AS], synced, ctxAt(repo))).toBe(0)
-    expect(readFileSync(join(repo, 'src', 'billing.ts'), 'utf8')).toBe('export const b = 1\n')
-    expect((await plan(repo, ['verify', '--lane', 'billing'])).code).toBe(0)
-    expect(readFileSync(lanePlan, 'utf8')).toContain('status: VERIFIED')
-    const cleaned = memIO(true)
-    expect(await runWorktree(['cleanup', 'billing'], cleaned, ctxAt(repo))).toBe(0)
-    expect(cleaned.json()['ok']).toBe(true)
-  }), 60_000)
-
-  test('cleaning up a lane worktree ends the lane\'s binding and the lead\'s record of its reviewer; unregister --lane still clears a lane whose worktree is gone', () => sandbox(async root => {
-    const repo = await makeRepo(root)
-    const { runWorktree } = await import('../../src/cli/commands/worktree')
-    expect(await runWorktree(['create', 'billing', '--lane', ...AS], memIO(), ctxAt(repo))).toBe(0)
-    const lanePlan = join(repo, 'docs', 'plans', '2026-10-08-billing.md')
-    write(lanePlan, planDoc({ title: 'Billing export' }))
-    expect((await plan(repo, ['register', lanePlan, '--phase', 'plan', '--lane', 'billing'])).code).toBe(0)
-    expect((await plan(repo, ['review', 'start', '--role', 'plan', '--handle', 'h1', '--lane', 'billing'])).code).toBe(0)
-    expect(await runWorktree(['cleanup', 'billing'], memIO(), ctxAt(repo))).toBe(0)
-    expect(loadState('claude', S.sessionId).laneReviews).toBeUndefined()
-    expect(loadState('claude', `${S.sessionId}.lane-billing`).plan).toBeUndefined()
-    expect((await plan(repo, ['status', '--json'])).json()['lanes']).toBeUndefined()
-
-    expect(await runWorktree(['create', 'export', '--lane'], memIO(), ctxAt(repo))).toBe(0)
-    expect((await plan(repo, ['register', lanePlan, '--phase', 'plan', '--lane', 'export'])).code).toBe(0)
-    expect((await plan(repo, ['review', 'start', '--role', 'plan', '--lane', 'export'])).code).toBe(0)
-    expect(await runWorktree(['cleanup', 'export'], memIO(), ctxAt(repo))).toBe(0)
-    expect((await plan(repo, ['status', '--json'])).json()['lanes']).toEqual([expect.objectContaining({ lane: 'export' })])
-    expect((await plan(repo, ['status', '--lane', 'export'])).code).toBe(1)
-    expect((await plan(repo, ['unregister', '--lane', 'export'])).code).toBe(0)
-    expect(loadState('claude', S.sessionId).laneReviews).toBeUndefined()
-    expect((await plan(repo, ['status', '--json'])).json()['lanes']).toBeUndefined()
-  }))
-
-  test('--lane needs a lane worktree of that slug and a valid slug', () => sandbox(async root => {
-    const repo = await makeRepo(root)
-    const missing = await plan(repo, ['status', '--lane', 'nope'])
-    expect(missing.code).toBe(1)
-    expect(missing.err).toContain("there is no lane worktree 'nope' in this repository")
-    const { runWorktree } = await import('../../src/cli/commands/worktree')
-    expect(await runWorktree(['create', 'plain', ...AS], memIO(), ctxAt(repo))).toBe(0)
-    expect((await plan(repo, ['status', '--lane', 'plain'])).code).toBe(1)
-    expect((await plan(repo, ['status', '--lane', 'Bad Slug'])).code).toBe(1)
-    expect((await plan(repo, ['init', '--lane', 'x', '--type', 'feature', '--title', 't'])).code).toBe(1)
+    expect((await plan(repo, ['status', '--lane', 'billing'])).code).toBe(1)
   }))
 })

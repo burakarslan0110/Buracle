@@ -5,6 +5,8 @@ import { parse as parseYaml } from 'yaml'
 import { readOpenPlanSteps } from '../../src/adapters/codex/rollout'
 import { OMP_BUILTIN_LSP, ompCommandName, ompLspServers, ompMcpServerIds } from '../../src/adapters/omp/generated'
 import { ompConfigKeys } from '../../src/adapters/omp/install'
+import { resolveAgents } from '../../src/adapters/shared/agents'
+import { QWEN_UNSERVED } from '../../src/adapters/qwen/settings'
 import { HOST_LIMITS } from '../../src/adapters/shared/host-limits'
 import { OMP_BUILTIN_COMMANDS } from '../../src/adapters/omp/runtime/commands'
 import { openTodosOf } from '../../src/adapters/omp/runtime/tool-output'
@@ -17,8 +19,9 @@ import { pathRuleFiles } from '../../src/adapters/shared/rules'
 import { buildAgentsSkills } from '../../src/adapters/shared/skills'
 import type { CanonicalBundle, HookBinding, HookSpec, HookUnsupported } from '../../src/core/catalog'
 import { catalogSkills, hookFallbacks } from '../../src/core/catalog'
-import type { Harness } from '../../src/core/events'
-import { HARNESSES } from '../../src/core/events'
+import type { Harness as AnyHarness } from '../../src/core/events'
+import { HARNESSES as ALL_HARNESSES } from '../../src/core/events'
+import { NEUTRAL_SKILL_HARNESSES, harnessProfile } from '../../src/core/harness/index'
 import { loadCanonicalSync } from '../../src/engine/canonical'
 import { jsoncParse } from '../../src/engine/merge'
 import { lspServers } from '../../src/engine/toolchain/lsp'
@@ -29,15 +32,25 @@ import { writeUsageEntries } from '../../src/usage/cache'
 import { collectCodex } from '../../src/usage/codex'
 import { windowsFromOmpUsage } from '../../src/usage/omp'
 import { collectOpencode } from '../../src/usage/opencode'
-import { monthKeyOf } from '../../src/usage/month'
 import { withSandbox } from '../helpers/sandbox'
 import { rateLimitHeaders } from './opencode/fake-provider'
 import { FIXTURES as USAGE_FIXTURES, NOW as USAGE_NOW, installFixture as installUsageFixture } from '../usage/helpers'
+import { BUILT } from '../helpers/built-harness'
 
 const REPO = paths.repoRoot()
 
+// A host whose adapter is still pending has no build to compare: tests/adapters/shared/new-harness-groundwork.test.ts covers those.
+// Pi, Qwen Code and AGY CLI are held to the pillars (hooks, MCP servers); the matrix of extras below (panes, status lines, plan mode,
+// rules, review agents) describes the four hosts that ship them, and none of them ships any of them in this phase (tasks 6.1 to 6.3).
+type Harness = Exclude<AnyHarness, 'qwen' | 'pi' | 'agy'>
+type Pillar = Harness | 'pi' | 'qwen' | 'agy'
+const HARNESSES = ALL_HARNESSES.filter((h): h is Harness => h !== 'pi' && h !== 'qwen' && h !== 'agy' && harnessProfile(h).adapterPending !== true)
+const PILLARS: readonly Pillar[] = ALL_HARNESSES.filter((h): h is Pillar => harnessProfile(h).adapterPending !== true)
+// AGY's two limits (no compaction event, no session end) are events the matrix below has no feature row for; tests/adapters/agy/ checks them.
+const LIMITS_IN_SCOPE = HOST_LIMITS.filter(l => harnessProfile(l.harness).adapterPending !== true && l.harness !== 'agy')
+
 type Files = ReadonlyMap<string, string>
-interface Built { canonical: CanonicalBundle; files: Readonly<Record<Harness, Files>>; agentsSkills: Files }
+interface Built { canonical: CanonicalBundle; files: Readonly<Record<Harness, Files>>; pi: Files; qwen: Files; agy: Files; agentsSkills: Files }
 
 let builtOnce: Promise<Built> | undefined
 
@@ -46,9 +59,12 @@ function built(): Promise<Built> {
     const canonical = loadCanonicalSync(join(REPO, 'canonical'))
     const ctx = buildContext(REPO, canonical)
     const files: Partial<Record<Harness, Files>> = {}
-    for (const a of allAdapters()) files[a.harness] = new Map((await inCheckout(REPO, () => a.build(ctx))).map(f => [f.path, f.content]))
+    for (const a of allAdapters().filter(x => HARNESSES.includes(x.harness as Harness))) files[a.harness as Harness] = new Map((await inCheckout(REPO, () => a.build(ctx))).map(f => [f.path, f.content]))
+    const pi = new Map((await inCheckout(REPO, () => allAdapters().find(x => x.harness === 'pi')!.build(ctx))).map(f => [f.path, f.content]))
+    const qwen = new Map((await inCheckout(REPO, () => allAdapters().find(x => x.harness === 'qwen')!.build(ctx))).map(f => [f.path, f.content]))
+    const agy = new Map((await inCheckout(REPO, () => allAdapters().find(x => x.harness === 'agy')!.build(ctx))).map(f => [f.path, f.content]))
     const agentsSkills = new Map(buildAgentsSkills(ctx).map(f => [f.path, f.content]))
-    return { canonical, files: files as Record<Harness, Files>, agentsSkills }
+    return { canonical, files: files as Record<Harness, Files>, pi, qwen, agy, agentsSkills }
   })()
   return builtOnce
 }
@@ -84,8 +100,8 @@ function anything(): unknown {
   return new Proxy(fn, { get: (_t, p) => (p === 'then' || typeof p === 'symbol' ? undefined : anything()) })
 }
 
-async function ompRegistrations(code: string, dir: string): Promise<Registered> {
-  const entry = join(dir, 'omp-buracle.js')
+async function ompRegistrations(code: string, dir: string, name = 'omp-buracle.js'): Promise<Registered> {
+  const entry = join(dir, name)
   writeFileSync(entry, code)
   const mod = await import(entry) as { default: (pi: unknown) => void }
   const out: Registered = { events: new Set(), commands: new Set() }
@@ -228,7 +244,7 @@ async function openCodeTuiRegistrations(code: string, dir: string): Promise<{ sl
   const entry = join(dir, 'opencode-tui.js')
   writeFileSync(host, TUI_HOST)
   writeFileSync(entry, code)
-  writeUsageEntries([{ harness: 'opencode', computed_at: new Date().toISOString(), windows: [], month: { start: new Date().toISOString(), tokens: 0, byModel: {} }, month_key: monthKeyOf(Date.now()) }], Date.now())
+  writeUsageEntries([{ harness: 'opencode', computed_at: new Date().toISOString(), windows: [] }], Date.now())
   const proc = Bun.spawn([process.execPath, host, entry], { cwd: dir, stdout: 'pipe', stderr: 'pipe', env: { ...process.env } })
   const [out, err, exit] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited])
   expect({ exit, err }).toEqual({ exit: 0, err: '' })
@@ -240,6 +256,7 @@ async function openCodeTuiRegistrations(code: string, dir: string): Promise<{ sl
 interface Surfaces {
   built: Built
   omp: Registered
+  pi: Registered
   openCodeServer: Registered & { handles(event: string): boolean }
   openCodeTui: { slash: Set<string>, slots: string[] }
 }
@@ -250,9 +267,11 @@ function surfaces(): Promise<Surfaces> {
   surfacesOnce ??= withSandbox(async ({ root }) => {
     const b = await built()
     const omp = await ompRegistrations(file(b.files.omp, 'extensions/buracle.js'), root)
+    // Pi's extension takes the same `pi.on(...)` surface, so the same stand-in records it.
+    const pi = await ompRegistrations(file(b.pi, 'extensions/buracle.js'), root, 'pi-buracle.js')
     const openCodeServer = await openCodeServerRegistrations(file(b.files.opencode, 'plugins/buracle/index.js'), root)
     const openCodeTui = await openCodeTuiRegistrations(file(b.files.opencode, 'plugins/buracle/tui.js'), root)
-    return { built: b, omp, openCodeServer, openCodeTui }
+    return { built: b, omp, pi, openCodeServer, openCodeTui }
   })
   return surfacesOnce
 }
@@ -268,10 +287,10 @@ function claudeModEvents(register: string): Set<string> {
 }
 
 describe('parity: every user-invocable skill is a workflow on every harness', () => {
-  test('the catalog: eleven workflows, and the protocol skills memory and buracle are not user-invocable (PLAN §2.2)', async () => {
+  test('the catalog: ten workflows, and the protocol skills memory and buracle are not user-invocable (PLAN §2.2)', async () => {
     const { canonical } = await built()
     expect(protocolSkills(canonical)).toEqual(['buracle', 'memory'])
-    const workflows = ['plan-build', 'goal-build', 'bugfix', 'requirements', 'research', 'inspect', 'dead-code', 'project-rules', 'new-skill', 'ab-test', 'buracle-join']
+    const workflows = ['plan-build', 'goal-build', 'bugfix', 'requirements', 'research', 'inspect', 'dead-code', 'project-rules', 'new-skill', 'ab-test']
     expect(workflows.filter(id => !userInvocable(canonical).includes(id))).toEqual([])
   })
 
@@ -304,13 +323,10 @@ describe('parity: every user-invocable skill is a workflow on every harness', ()
     const entries = new Set([...commandFiles(s.built.files.omp), ...s.omp.commands])
     expect(userInvocable(s.built.canonical).filter(id => !entries.has(ompCommandName(id)))).toEqual([])
     expect(protocolSkills(s.built.canonical).filter(id => commandFiles(s.built.files.omp).has(id))).toEqual([])
-    // omp keeps `/join` for its collab sessions: the worker skill is named buracle-join on every harness, and a future
-    // skill named like an omp built-in would get the same prefix on omp only.
+    // omp keeps `/join` for its collab sessions: a skill named like an omp built-in gets the prefix on omp only.
     expect(OMP_BUILTIN_COMMANDS.has('join')).toBe(true)
     expect(ompCommandName('join')).toBe('buracle-join')
-    expect(ompCommandName('buracle-join')).toBe('buracle-join')
     expect(commandFiles(s.built.files.omp).has('join')).toBe(false)
-    expect(s.built.files.omp.get('commands/buracle-join.md')).toContain('skill://buracle-join')
   }, 60_000)
 })
 
@@ -354,8 +370,11 @@ describe('parity: the utility commands (PLAN §2.3)', () => {
   })
 })
 
-function mcpServers(h: Harness, files: Files): string[] {
+function mcpServers(h: Pillar, files: Files): string[] {
   switch (h) {
+    case 'pi': return Object.keys((JSON.parse(file(files, 'mcp.json')) as { mcpServers?: Record<string, unknown> }).mcpServers ?? {}).sort()
+    case 'agy': return Object.keys((JSON.parse(file(files, 'mcp_config.fragment.json')) as { mcpServers?: Record<string, unknown> }).mcpServers ?? {}).sort()
+    case 'qwen': return Object.keys((JSON.parse(file(files, 'settings.fragment.json')) as { mcpServers?: Record<string, unknown> }).mcpServers ?? {}).sort()
     case 'claude':
     case 'omp': {
       const servers = (JSON.parse(file(files, '.mcp.json')) as { mcpServers?: Record<string, unknown> }).mcpServers ?? {}
@@ -408,15 +427,16 @@ describe('parity: language servers (PARITY-6)', () => {
 
 describe('parity: MCP servers', () => {
   test('each harness gets exactly the servers canonical/mcp.yaml assigns to it', async () => {
-    const { canonical, files } = await built()
+    const { canonical, files, pi, qwen, agy } = await built()
     const all = Object.keys(canonical.mcp.servers).sort()
-    for (const h of HARNESSES) {
+    const of = (h: Pillar): Files => (h === 'pi' ? pi : h === 'qwen' ? qwen : h === 'agy' ? agy : files[h])
+    for (const h of PILLARS) {
       const want = all.filter(id => canonical.mcp.servers[id]?.harnesses.includes(h))
-      expect({ h, servers: mcpServers(h, files[h]) }).toEqual({ h, servers: want })
+      expect({ h, servers: mcpServers(h, of(h)) }).toEqual({ h, servers: want })
     }
-    const sets = HARNESSES.map(h => mcpServers(h, files[h]))
+    const sets = PILLARS.map(h => mcpServers(h, of(h)))
     const common = all.filter(id => sets.every(s => s.includes(id)))
-    expect(all.filter(id => !common.includes(id))).toEqual(all.filter(id => (canonical.mcp.servers[id]?.harnesses.length ?? 0) < HARNESSES.length))
+    expect(all.filter(id => !common.includes(id))).toEqual(all.filter(id => PILLARS.some(h => canonical.mcp.servers[id]?.harnesses.includes(h) !== true)))
   })
 })
 
@@ -428,8 +448,18 @@ function bindingEvents(b: HookBinding): string[] {
   return [b.event, ...(b.also ?? []).map(a => a.event), ...hookFallbacks(b).map(f => (f.event.startsWith('classic.') ? f.event : `classic.${f.event}`))]
 }
 
-function servedBy(h: Harness, s: Surfaces): (event: string) => boolean {
+function servedBy(h: Pillar, s: Surfaces): (event: string) => boolean {
   switch (h) {
+    case 'pi': return e => s.pi.events.has(e)
+    case 'agy': {
+      const events = new Set(Object.keys((Object.values(JSON.parse(file(s.built.agy, 'hooks.fragment.json')) as Record<string, Record<string, unknown>>)[0] ?? {})))
+      return e => events.has(e)
+    }
+    // A binding on an event the adapter does not register yet is allowed only with its reason in QWEN_UNSERVED.
+    case 'qwen': {
+      const events = new Set(Object.keys((JSON.parse(file(s.built.qwen, 'settings.fragment.json')) as { hooks?: Record<string, unknown> }).hooks ?? {}))
+      return e => events.has(e) || e in QWEN_UNSERVED
+    }
     case 'claude': {
       const classic = new Set(Object.keys((JSON.parse(file(s.built.files.claude, 'hooks/hooks.json')) as { hooks?: Record<string, unknown> }).hooks ?? {}))
       const mod = claudeModEvents(file(s.built.files.claude, 'hooks/register.tsx'))
@@ -445,7 +475,7 @@ function servedBy(h: Harness, s: Surfaces): (event: string) => boolean {
 }
 
 describe('parity: every hook of canonical/hooks.yaml is served or unsupported with a reason, on every harness', () => {
-  for (const h of HARNESSES) {
+  for (const h of PILLARS) {
     test(h, async () => {
       const s = await surfaces()
       const served = servedBy(h, s)
@@ -466,6 +496,7 @@ describe('parity: every hook of canonical/hooks.yaml is served or unsupported wi
   test('the stand-ins really observe the plugins (a broken recorder would pass everything)', async () => {
     const s = await surfaces()
     expect(s.omp.events.has('tool_call')).toBe(true)
+    expect(s.pi.events.has('agent_before_settle')).toBe(true)
     expect(s.omp.commands.has('remember')).toBe(true)
     expect(s.openCodeServer.events.has('tool.execute.before')).toBe(true)
     expect(s.openCodeServer.handles('session.deleted')).toBe(true)
@@ -518,7 +549,7 @@ describe('parity: secrets in shell output are masked before the model reads them
   }), 60_000)
 })
 
-const FEATURES: Readonly<Record<'consentDialog' | 'readOnlyStartNotice' | 'earlyEditNote' | 'rateWindows' | 'todoHandoff' | 'pathRules' | 'goalCommand' | 'projectRuleList' | 'claudeOnlySkillList' | 'laneGuard' | 'answerReceipt' | 'readOnlyStop' | 'backgroundWait' | 'quietStopFeedback' | 'shellWriteNudge' | 'shellReadNudge' | 'approvedPlanCapture' | 'reviewerShellReadOnly' | 'midTurnContextWarning' | 'startupNotices' | 'summaryKeepList' | 'languageServers' | 'lspDiagnosticsOnEdit' | 'turnReceipt' | 'longTurnNotice' | 'resumeHint' | 'livePanes' | 'stopVeto' | 'subagentStopHold' | 'commandsWithoutTurn' | 'liveExecMask' | 'failedMcpMask' | 'customStatusLine' | 'reviewSubject' | 'reviewRestore' | 'modelSwitchCommand' | 'nativePlanMode' | 'nativePlanApproval' | 'companionShell' | 'reviewNotesNotice' | 'browserControl', Readonly<Record<Harness, boolean>>>> = {
+const FEATURES: Readonly<Record<'consentDialog' | 'readOnlyStartNotice' | 'earlyEditNote' | 'rateWindows' | 'todoHandoff' | 'pathRules' | 'goalCommand' | 'projectRuleList' | 'claudeOnlySkillList' | 'laneGuard' | 'answerReceipt' | 'readOnlyStop' | 'backgroundWait' | 'quietStopFeedback' | 'approvedPlanCapture' | 'reviewerShellReadOnly' | 'midTurnContextWarning' | 'startupNotices' | 'summaryKeepList' | 'languageServers' | 'lspDiagnosticsOnEdit' | 'turnReceipt' | 'resumeHint' | 'livePanes' | 'stopVeto' | 'subagentStopHold' | 'commandsWithoutTurn' | 'liveExecMask' | 'failedMcpMask' | 'customStatusLine' | 'reviewSubject' | 'reviewRestore' | 'modelSwitchCommand' | 'nativePlanMode' | 'nativePlanApproval' | 'companionShell' | 'reviewNotesNotice' | 'browserControl', Readonly<Record<Harness, boolean>>>> = {
   approvedPlanCapture: { claude: true, codex: true, opencode: false, omp: true },
   reviewerShellReadOnly: { claude: true, codex: true, opencode: true, omp: true },
   consentDialog: { claude: true, codex: true, opencode: true, omp: true },
@@ -538,12 +569,9 @@ const FEATURES: Readonly<Record<'consentDialog' | 'readOnlyStartNotice' | 'early
   readOnlyStop: { claude: true, codex: true, opencode: true, omp: true },
   backgroundWait: { claude: true, codex: false, opencode: true, omp: true },
   quietStopFeedback: { claude: true, codex: false, opencode: false, omp: true },
-  shellWriteNudge: { claude: true, codex: true, opencode: true, omp: true },
-  shellReadNudge: { claude: true, codex: false, opencode: true, omp: true },
   languageServers: { claude: true, codex: true, opencode: true, omp: true },
   lspDiagnosticsOnEdit: { claude: true, codex: true, opencode: true, omp: true },
   turnReceipt: { claude: true, codex: true, opencode: true, omp: true },
-  longTurnNotice: { claude: true, codex: true, opencode: true, omp: true },
   resumeHint: { claude: true, codex: true, opencode: true, omp: true },
   livePanes: { claude: true, codex: false, opencode: true, omp: true },
   stopVeto: { claude: true, codex: true, opencode: false, omp: true },
@@ -630,13 +658,29 @@ function sources(dir: string): string {
   return [...new Bun.Glob('**/*.{ts,tsx}').scanSync({ cwd: join(REPO, dir) })].sort().map(f => readFileSync(join(REPO, dir, f), 'utf8')).join('\n')
 }
 
+/** The in-process host that runs the pipeline's session start for omp and Pi (the start sequence is no longer in the extension itself). */
+const HOST_SRC = readFileSync(join(REPO, 'src/adapters/shared/pi-family/inprocess-host.ts'), 'utf8')
+
+const PIPELINE_FILES = { sessionStart: 'session-start', prompt: 'prompt', preTool: 'pre-tool', postTool: 'post-tool', stop: 'stop', preCompact: 'pre-compact' } as const
+
+/**
+ * An adapter's code with the shared pipeline's steps of the events it routes there: a step counts for the harness
+ * only when its adapter imports the pipeline and calls that event's function.
+ */
+function withPipeline(own: string, ...events: Array<keyof typeof PIPELINE_FILES>): string {
+  const imports = /from '(?:\.\.\/)+shared\/pipeline\/index'/.test(own)
+  const routed = events.filter(e => imports && new RegExp(`\\b${e}(?:Event)?\\(`).test(own))
+  return [own, ...routed.map(e => readFileSync(join(REPO, 'src/adapters/shared/pipeline', `${PIPELINE_FILES[e]}.ts`), 'utf8'))].join('\n')
+}
+
 describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
   test('plan state (w2): the lane guard, the answer receipt and plan-mode stops on all four; background waits where the host wakes the session (omp natively); quiet feedback on Claude Code and omp', async () => {
     const src: Record<Harness, string> = {
-      claude: sources('src/adapters/claude'), codex: sources('src/adapters/codex'), opencode: sources('src/adapters/opencode/runtime'), omp: sources('src/adapters/omp/runtime'),
+      claude: withPipeline(sources('src/adapters/claude'), 'prompt', 'preTool', 'postTool', 'stop'), codex: withPipeline(sources('src/adapters/codex'), 'prompt', 'preTool', 'postTool', 'stop'),
+      opencode: withPipeline(sources('src/adapters/opencode/runtime'), 'prompt', 'preTool', 'postTool', 'stop'), omp: withPipeline(sources('src/adapters/omp/runtime'), 'prompt', 'preTool', 'postTool', 'stop'),
     }
     const each = (test: (code: string, h: Harness) => boolean): Record<Harness, boolean> => ({ claude: test(src.claude, 'claude'), codex: test(src.codex, 'codex'), opencode: test(src.opencode, 'opencode'), omp: test(src.omp, 'omp') })
-    expect(each(c => /laneStateDenial\(command\)/.test(c))).toEqual(FEATURES.laneGuard)
+    expect(each(c => /subagentStateDenial\(command\)/.test(c))).toEqual(FEATURES.laneGuard)
     expect(each(c => /reviewNotesNotice\((?:H|HARNESS|'omp'), /.test(c))).toEqual(FEATURES.reviewNotesNotice)
     expect(each(c => /answerReceipt\(/.test(c) && /questionAnswered\(/.test(c))).toEqual(FEATURES.answerReceipt)
     expect(each(c => /readOnly = true/.test(c))).toEqual(FEATURES.readOnlyStop)
@@ -653,18 +697,20 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
 
   test('workflow switches and review records (w3): H19 binds reports to the bound plans, H06/H07 carry the running reviewers, and the model-switch step names each harness\'s own command', async () => {
     const src: Record<Harness, string> = {
-      claude: sources('src/adapters/claude'), codex: sources('src/adapters/codex'), opencode: sources('src/adapters/opencode/runtime'), omp: sources('src/adapters/omp/runtime'),
+      claude: withPipeline(sources('src/adapters/claude'), 'sessionStart', 'preCompact'), codex: withPipeline(sources('src/adapters/codex'), 'sessionStart', 'preCompact'),
+      opencode: withPipeline(sources('src/adapters/opencode/runtime'), 'sessionStart', 'preCompact'), omp: withPipeline(sources('src/adapters/omp/runtime') + HOST_SRC, 'sessionStart', 'preCompact'),
     }
     const each = (t: (code: string) => boolean): Record<Harness, boolean> => ({ claude: t(src.claude), codex: t(src.codex), opencode: t(src.opencode), omp: t(src.omp) })
     expect(each(c => /\.\.\.boundSubject\(sid\)|reviewSubjects\(H, sid\)\)|reviewSubjects\(HARNESS, s\.sid\)|state\.subjects\?\.\(spoolSid\(ctx\)\)/.test(c))).toEqual(FEATURES.reviewSubject)
     expect(each(c => /restoreContext\((?:loadState\(|host\.deps\.state\.load\()/.test(c) && /handoffNote\(/.test(c))).toEqual(FEATURES.reviewRestore)
-    const { files, agentsSkills } = await built()
+    const { agentsSkills } = await built()
+    // One text for every harness: the step names each harness's own command.
     const neutral = file(agentsSkills, 'plan-build/references/plan.md')
     expect({
-      claude: file(files.claude, 'skills/plan-build/references/plan.md').includes('run `/model`, pick the model for the implementation'),
-      codex: neutral.includes('**Codex:** run `/model`'),
-      opencode: neutral.includes('**OpenCode:** open the model list with `/models`'),
-      omp: neutral.includes('**Oh My Pi:** run `/model` (or `/switch`)'),
+      claude: neutral.includes('open the harness\'s model picker (`/model`;'),
+      codex: neutral.includes('(in Codex also its reasoning effort)'),
+      opencode: neutral.includes('`/models` or ctrl+x m in OpenCode'),
+      omp: neutral.includes('`/model` or `/switch` in Oh My Pi'),
     }).toEqual(FEATURES.modelSwitchCommand)
   })
 
@@ -686,16 +732,12 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
   })
 
   test('native plan mode (w4): every H12 path fills a prepared plan-build plan, each harness has its way into plan mode, and leaving plan mode approves the plan everywhere but OpenCode', async () => {
-    const { files, agentsSkills } = await built()
+    const { agentsSkills } = await built()
     const calls = (dir: string, harness: string): string[] => [...sources(dir).matchAll(/captureSessionPlan\(\{([^}]*)\}\)/g)].map(m => m[1] ?? '').filter(args => args.includes(harness) && /\bsid\b/.test(args))
     const dirs: Record<Harness, [string, string]> = { claude: ['src/adapters/claude', 'harness: H'], codex: ['src/adapters/codex', "harness: 'codex'"], opencode: ['src/adapters/opencode/runtime', 'harness: HARNESS'], omp: ['src/adapters/omp/runtime', "harness: 'omp'"] }
+    // One text for every harness: it sends the model to the `enter` line of `buracle plan prepare-native`, which each profile fills.
     const neutral = file(agentsSkills, 'plan-build/references/native-plan.md')
-    const enters: Record<Harness, boolean> = {
-      claude: file(files.claude, 'skills/plan-build/references/native-plan.md').includes('call EnterPlanMode'),
-      codex: neutral.includes('**Codex:** ask the user to switch to Plan mode with `/plan`'),
-      opencode: neutral.includes('**OpenCode:** ask the user to switch to the plan agent (Tab)'),
-      omp: neutral.includes('**Oh My Pi:** ask the user to turn on plan mode with `/plan`'),
-    }
+    const enters = Object.fromEntries(HARNESSES.map(h => [h, neutral.includes('the way the `Next:` line of that command says') && harnessProfile(h).plan.enter.length > 0])) as Record<Harness, boolean>
     const each = (t: (h: Harness) => boolean): Record<Harness, boolean> => Object.fromEntries(HARNESSES.map(h => [h, t(h)])) as Record<Harness, boolean>
     expect(each(h => calls(...dirs[h]).length > 0 && enters[h])).toEqual(FEATURES.nativePlanMode)
     expect(each(h => calls(...dirs[h]).length > 0 && calls(...dirs[h]).every(args => !args.includes('approved: false')))).toEqual(FEATURES.nativePlanApproval)
@@ -718,7 +760,7 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
   test('path rules reach the agent on all four: Claude natively, omp as TTSR conditions, Codex and OpenCode through the R5 gate (OpenCode also on the first read)', async () => {
     const { canonical, files } = await built()
     const rules = canonical.rules.filter(r => r.scope === 'paths')
-    const hookData = JSON.parse(readFileSync(join(REPO, 'harness', 'hook-data.json'), 'utf8')) as { rules: Array<{ id: string, scope: string, frontmatter: Record<string, unknown> }> }
+    const hookData = JSON.parse(readFileSync(join(BUILT.harness, 'hook-data.json'), 'utf8')) as { rules: Array<{ id: string, scope: string, frontmatter: Record<string, unknown> }> }
     const plugin = file(files.opencode, 'plugins/buracle/index.js')
     const has: Record<Harness, boolean> = {
       claude: rules.every(r => Array.isArray(frontmatter(renderClaudeRule(r))['paths'])),
@@ -752,7 +794,10 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
 
   test('a read-only plan mode at a workflow start, and an edit before the plan is approved, get a note on all four', async () => {
     const { files } = await built()
-    const src = { claude: sources('src/adapters/claude'), codex: sources('src/adapters/codex'), opencode: sources('src/adapters/opencode/runtime'), omp: sources('src/adapters/omp/runtime') }
+    const src = {
+      claude: withPipeline(sources('src/adapters/claude'), 'prompt', 'preTool'), codex: withPipeline(sources('src/adapters/codex'), 'prompt', 'preTool'),
+      opencode: withPipeline(sources('src/adapters/opencode/runtime'), 'prompt', 'preTool'), omp: withPipeline(sources('src/adapters/omp/runtime'), 'prompt', 'preTool'),
+    }
     const notice = 'was started while the session is in'
     const early = 'is still in its plan phase'
     const bundles: Record<Harness, string> = {
@@ -768,28 +813,29 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
     const labels = (ws: ReadonlyArray<{ label: string }>) => ws.map(w => w.label).sort()
     const claude = readClaudePayload({ rate_limits: { five_hour: { used_percentage: 42 }, seven_day: { used_percentage: 18 } } }, home).windows
     installUsageFixture('codex', join(home, '.codex'))
-    const codex = (await collectCodex({ nowMs: USAGE_NOW, pricing: {}, which: () => undefined })).windows
+    const codex = (await collectCodex({ nowMs: USAGE_NOW, which: () => undefined })).windows
     const omp = windowsFromOmpUsage(JSON.parse(readFileSync(join(USAGE_FIXTURES, 'omp', 'usage.json'), 'utf8')) as unknown, USAGE_NOW)
-    expect((await collectOpencode({ nowMs: USAGE_NOW, pricing: {} })).windows).toEqual([])
+    expect((await collectOpencode({ nowMs: USAGE_NOW })).windows).toEqual([])
     await openCodeHook(root, 'session.http.response', { sessionID: 'ses_windows1', response: new Response(null, { headers: rateLimitHeaders(USAGE_NOW) }) })
-    const opencode = (await collectOpencode({ nowMs: USAGE_NOW, pricing: {} })).windows
+    const opencode = (await collectOpencode({ nowMs: USAGE_NOW })).windows
     const has = (ws: ReadonlyArray<{ label: string }>) => ['5h', '7d'].every(l => labels(ws).includes(l))
     expect({ claude: has(claude), codex: has(codex), opencode: has(opencode), omp: has(omp) }).toEqual(FEATURES.rateWindows)
   }))
 
   test('open todos carried into the handoff note on all four (OpenCode through its experimental todowrite tool)', () => withSandbox(async ({ root }) => {
     const hooksJson = file((await built()).files.claude, 'hooks/hooks.json')
-    const claude = /TodoWrite\|TaskCreate\|TaskUpdate/.test(hooksJson) && /handoffNote\(\{[^\n]*\btodo\b/.test(readFileSync(join(REPO, 'src/adapters/claude/hook-end.ts'), 'utf8'))
+    const claude = /TodoWrite\|TaskCreate\|TaskUpdate/.test(hooksJson) && /handoffNote\(\{[^\n]*\btodo\b/.test(withPipeline(readFileSync(join(REPO, 'src/adapters/claude/hook-end.ts'), 'utf8'), 'preCompact'))
     const rollout = join(root, 'rollout.jsonl')
     const plan = [{ step: 'Add the tests', status: 'in_progress' }, { step: 'Ship it', status: 'completed' }]
     writeFileSync(rollout, JSON.stringify({ type: 'response_item', payload: { type: 'function_call', name: 'update_plan', call_id: 'c1', arguments: JSON.stringify({ plan }) } }) + '\n')
     const codex = JSON.stringify(readOpenPlanSteps(rollout)) === JSON.stringify(['Add the tests'])
-      && /input\.todo = todo/.test(readFileSync(join(REPO, 'src/adapters/codex/hook.ts'), 'utf8'))
+      && /handoffNote\(\{[^\n]*\btodo\b/.test(withPipeline(readFileSync(join(REPO, 'src/adapters/codex/hook.ts'), 'utf8'), 'preCompact'))
     const todos = openTodosOf({ toolName: 'todo', input: {}, isError: false, content: [{ type: 'text', text: 'Remaining items (2):\n  - Write the parser [in_progress]\n  - Old item [completed]' }] })
     const omp = JSON.stringify(todos) === JSON.stringify(['Write the parser'])
-      && /handoffNote\(\{[^\n]*\btodo\b/.test(readFileSync(join(REPO, 'src/adapters/omp/runtime/compaction.ts'), 'utf8'))
+      && /handoffNote\(\{[^\n]*\btodo\b/.test(withPipeline(readFileSync(join(REPO, 'src/adapters/omp/runtime/compaction.ts'), 'utf8'), 'preCompact'))
     const opencode = JSON.stringify(opencodeOpenTodos({ todos: [{ content: 'Write the parser', status: 'in_progress' }, { content: 'Old item', status: 'completed' }] })) === JSON.stringify(['Write the parser'])
-      && /input\.todo = s\.todos/.test(readFileSync(join(REPO, 'src/adapters/opencode/runtime/plugin.ts'), 'utf8'))
+      && /openTodos: \(\) => s\.todos/.test(readFileSync(join(REPO, 'src/adapters/opencode/runtime/plugin.ts'), 'utf8'))
+      && /handoffNote\(\{[^\n]*\btodo\b/.test(withPipeline(readFileSync(join(REPO, 'src/adapters/opencode/runtime/plugin.ts'), 'utf8'), 'preCompact'))
     expect({ claude, codex, opencode, omp }).toEqual(FEATURES.todoHandoff)
   }))
 
@@ -809,8 +855,8 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
     const { canonical, files } = await built()
     const ids = (canonical.notices ?? []).map(n => n.id)
     expect(ids.length).toBeGreaterThan(0)
-    const hookData = JSON.parse(readFileSync(join(REPO, 'harness', 'hook-data.json'), 'utf8')) as { notices?: Array<{ id: string }> }
-    const calls = (rel: string) => /startupNotices\(ctx\.canonical\.notices/.test(readFileSync(join(REPO, rel), 'utf8'))
+    const hookData = JSON.parse(readFileSync(join(BUILT.harness, 'hook-data.json'), 'utf8')) as { notices?: Array<{ id: string }> }
+    const calls = (rel: string) => /startupNotices\((?:d\.)?ctx\.canonical\.notices/.test(withPipeline(readFileSync(join(REPO, rel), 'utf8'), 'sessionStart'))
     const inBundle = (text: string) => ids.every(id => text.includes(id)) && text.includes('Buracle notice, shown once on this machine.')
     const has: Record<Harness, boolean> = {
       claude: calls('src/adapters/claude/hook.ts') && ids.every(id => (hookData.notices ?? []).some(n => n.id === id)),
@@ -836,13 +882,13 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
   })
 
   test('goal-build\'s portable brief opens with the native /goal command on Claude Code, Codex and omp; OpenCode has none', async () => {
-    const { files, agentsSkills } = await built()
-    const claude = file(files.claude, 'skills/goal-build/references/verify-and-handback.md')
-    const neutral = file(agentsSkills, 'goal-build/references/verify-and-handback.md').split('\n')
-    const labeled = (label: string) => neutral.find(l => l.startsWith(`**${label}:**`)) ?? ''
-    const goal = (text: string) => /`\/goal [^`]+`/.test(text)
-    expect(labeled('OpenCode')).toContain('no goal command')
-    expect({ claude: goal(claude), codex: goal(labeled('Codex')), opencode: goal(labeled('OpenCode')), omp: goal(labeled('Oh My Pi')) }).toEqual(FEATURES.goalCommand)
+    const { agentsSkills } = await built()
+    // One text for every harness: the line names the harnesses that have a goal command.
+    const line = file(agentsSkills, 'goal-build/references/verify-and-handback.md').split('\n').find(l => l.includes('has a goal command (')) ?? ''
+    expect(line).toMatch(/`\/goal [^`]+`/)
+    const names: Record<Harness, string> = { claude: 'Claude Code', codex: 'Codex', opencode: 'OpenCode', omp: 'Oh My Pi' }
+    const listed = (/has a goal command \(([^)]*)\)/.exec(line)?.[1] ?? '')
+    expect(Object.fromEntries(HARNESSES.map(h => [h, listed.includes(names[h])]))).toEqual(FEATURES.goalCommand)
   })
   test('H28 lists unindexed .claude/rules for Codex, OpenCode and omp (Claude Code loads them natively) and Claude-only skills for Codex alone (the others read .claude/skills)', () => withSandbox(async ({ root }) => {
     const { assetsContext } = await import('../../src/adapters/shared/project-assets')
@@ -859,20 +905,9 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
     expect(file(files.opencode, 'plugins/buracle/index.js')).toContain('Buracle project rules (H28)')
   }), 60_000)
 
-  test('H03 shell nudges: a shell file write points to the edit tools on all four; a shell file print to the read tool where one exists (Codex has none)', async () => {
-    const { emptyLedger, ledgerPrompt, reminders } = await import('../../src/core/policy/usage')
-    const { classifyTool } = await import('../../src/core/events')
-    const shellTool: Record<Harness, string> = { claude: 'Bash', codex: 'Bash', opencode: 'bash', omp: 'bash' }
-    const note = (h: Harness, command: string) => {
-      const input = { command }
-      const call = { harness: h, sessionId: 's', cwd: '/repo', tool: shellTool[h], input, ...classifyTool(h, shellTool[h], input, '/repo') }
-      return reminders(ledgerPrompt(emptyLedger(), { invoked: [], load: [], candidates: [], categories: [], memory: { recall: false, write: false } }, 1), call, { strictness: 'enforce', available: [] }).context ?? ''
-    }
-    expect(Object.fromEntries(HARNESSES.map(h => [h, note(h, "sed -i 's/a/b/' src/a.ts").includes('this shell command writes')]))).toEqual(FEATURES.shellWriteNudge)
-    expect(Object.fromEntries(HARNESSES.map(h => [h, note(h, 'cat src/a.ts').includes('instead of printing')]))).toEqual(FEATURES.shellReadNudge)
+  test('the OpenCode and omp bundles carry the H04 missing-tool and checker notes', async () => {
     const { files } = await built()
     for (const bundle of [file(files.opencode, 'plugins/buracle/index.js'), file(files.omp, 'extensions/buracle.js')]) {
-      expect(bundle).toContain('instead of printing')
       expect(bundle).toContain('H04:missing:')
       expect(bundle).toContain('dotnet format: the whitespace is not formatted')
     }
@@ -893,7 +928,6 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
     }
     const each = (test: (code: string, h: Harness) => boolean): Record<Harness, boolean> => ({ claude: test(src.claude, 'claude'), codex: test(src.codex, 'codex'), opencode: test(src.opencode, 'opencode'), omp: test(src.omp, 'omp') })
     expect(each(c => /receiptLine\(/.test(c) && /noteCommand\(/.test(c) && /note(?:Changes|Edit)\(/.test(c))).toEqual(FEATURES.turnReceipt)
-    expect(each(c => /longTurnText\(/.test(c))).toEqual(FEATURES.longTurnNotice)
     expect(each(c => /resumeSuggestion\(/.test(c))).toEqual(FEATURES.resumeHint)
     expect({
       claude: file(files.claude, 'hooks/register.tsx').includes("component: 'Pane'"),
@@ -937,11 +971,11 @@ describe('parity: the harness feature matrix (README, DESIGN §4.5)', () => {
     expect({ claude: /async function masked\(/.test(file(files.claude, 'hooks/register.tsx')), codex: codexHooks.includes('"PostToolUseFailure"'), opencode: /else this\.maskError\(e, cls\.kind\)/.test(sources('src/adapters/opencode/runtime')), omp: /maskResult\(event, ctx/.test(sources('src/adapters/omp/runtime')) && !/isError[^\n]*maskResult/.test(sources('src/adapters/omp/runtime')) }).toEqual(FEATURES.failedMcpMask)
     expect({ claude: /statusline claude/.test(readFileSync(join(REPO, 'src/adapters/claude/install.ts'), 'utf8')), codex: /statusline codex/.test(file(files.codex, 'config.fragment.toml')), opencode: file(files.opencode, 'plugins/buracle/tui.js').includes('prompt.footer.status'), omp: file(files.omp, 'extensions/buracle.js').includes('setStatus(') }).toEqual(FEATURES.customStatusLine)
     const falseCells = Object.entries(FEATURES).flatMap(([feature, cells]) => HARNESSES.filter(h => !cells[h]).map(h => `${feature}:${h}`)).sort()
-    expect(HOST_LIMITS.filter(l => l.kind !== 'partial').map(l => `${l.feature}:${l.harness}`).sort()).toEqual(falseCells)
+    expect(LIMITS_IN_SCOPE.filter(l => l.kind !== 'partial').map(l => `${l.feature}:${l.harness}`).sort()).toEqual(falseCells)
     const caveats = Object.entries(LIMITS).flatMap(([feature, byHarness]) => Object.keys(byHarness ?? {}).map(h => `${feature}:${h}`))
-    expect(HOST_LIMITS.filter(l => l.kind === 'partial').map(l => `${l.feature}:${l.harness}`).sort()).toEqual([...caveats, 'rateWindows:opencode'].sort())
-    for (const l of HOST_LIMITS) {
-      expect({ id: l.id, cell: FEATURES[l.feature as keyof typeof FEATURES]?.[l.harness] }).toEqual({ id: l.id, cell: l.kind === 'partial' })
+    expect(LIMITS_IN_SCOPE.filter(l => l.kind === 'partial').map(l => `${l.feature}:${l.harness}`).sort()).toEqual([...caveats, 'rateWindows:opencode'].sort())
+    for (const l of LIMITS_IN_SCOPE) {
+      expect({ id: l.id, cell: FEATURES[l.feature as keyof typeof FEATURES]?.[l.harness as Harness] }).toEqual({ id: l.id, cell: l.kind === 'partial' })
       expect({ id: l.id, told: l.reason !== '' && l.fallback !== '' && (l.kind === 'native' || l.probe !== undefined || (l.recheck ?? '') !== '') }).toEqual({ id: l.id, told: true })
     }
     expect(new Set(HOST_LIMITS.map(l => l.id)).size).toBe(HOST_LIMITS.length)
@@ -1024,23 +1058,13 @@ function harnessBlockRuns(file: string, text: string): HarnessBlockRun[] {
   return runs
 }
 
-function withoutHarnessBlocks(text: string): string {
-  const out: string[] = []
-  let open = false
-  for (const line of text.split('\n')) {
-    if (HB_START.test(line)) { open = true; continue }
-    if (open) { if (HB_END.test(line)) open = false; continue }
-    out.push(line.replace(HB_INLINE, ''))
-  }
-  return out.join('\n')
-}
 
 interface PlaceholderIds { skills: string[], protocols: string[], agents: string[] }
 
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const longestFirst = (xs: readonly string[]): string[] => [...xs].sort((a, b) => b.length - a.length)
 
-function joinLabels(hs: readonly Harness[]): string {
+function joinLabels(hs: readonly AnyHarness[]): string {
   const names = hs.map(h => HARNESS_LABEL[h])
   return names.length <= 1 ? names[0] ?? '' : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
 }
@@ -1059,8 +1083,8 @@ function neutralProseForms(placeholder: string, protocols: readonly string[]): s
 
 /** The neutral render of a code span holding a placeholder plus more text: one variant per group of harnesses, joined with their labels. */
 function neutralCodeForm(name: 'ask_user' | 'todo' | 'spawn_agent' | 'skill', arg: string | undefined, invocable: boolean): RegExp | undefined {
-  const groups: Array<{ harnesses: Harness[], value: string }> = []
-  for (const h of ['codex', 'opencode', 'omp'] as const) {
+  const groups: Array<{ harnesses: AnyHarness[], value: string }> = []
+  for (const h of NEUTRAL_SKILL_HARNESSES) {
     const value = placeholderLiteral({ name, ...(arg === undefined ? {} : { arg }) }, h, invocable) ?? 'a short checklist in your reply'
     const hit = groups.find(g => g.value === value)
     if (hit !== undefined) hit.harnesses.push(h)
@@ -1116,27 +1140,6 @@ function skillMarkdown(skill: CanonicalBundle['skills'][number]): Array<{ path: 
   return [{ path: 'SKILL.md', source: skill.body }, ...refs]
 }
 
-/**
- * Every harness-block run of canonical/skills/** that does not cover all four harnesses, keyed by skill id and the
- * block's first line. The reason is `feature:<FEATURES key>` (the row that explains the difference), `limit:<HOST_LIMITS
- * id>` (a recorded host limit) or `equivalent:<the mechanism the other harnesses use instead>`.
- */
-const RECORDED_HARNESS_BLOCKS: ReadonlyArray<{ skill: string, firstLine: string, reason: string }> = [
-  // Claude Code defers MCP tools behind ToolSearch; the other three list every MCP tool from the first turn (Codex keeps the
-  // critical servers out of tool_search and code mode with omit_tools_from, OpenCode turns Code Mode off for them with
-  // codemode: false, omp loads its .mcp.json servers whole), so they need no loading step.
-  { skill: 'research', firstLine: 'MCP tools may be deferred. Load them with ToolSearch (query the server id, for example `context7` or', reason: 'equivalent: Codex (omit_tools_from), OpenCode (codemode: false) and omp (.mcp.json) expose every MCP tool from the first turn, so nothing has to be loaded first' },
-  { skill: 'inspect', firstLine: 'MCP tools may be deferred. Load codegraph, semble and buracle-memory tools with ToolSearch before', reason: 'equivalent: Codex (omit_tools_from), OpenCode (codemode: false) and omp (.mcp.json) expose every MCP tool from the first turn, so nothing has to be loaded first' },
-  { skill: 'project-rules', firstLine: 'MCP tools may be deferred. Load the semble, codegraph, context7 and buracle-memory tools with', reason: 'equivalent: Codex (omit_tools_from), OpenCode (codemode: false) and omp (.mcp.json) expose every MCP tool from the first turn, so nothing has to be loaded first' },
-  { skill: 'memory', firstLine: 'If the memory tools are not visible, load them with ToolSearch before concluding they are', reason: 'equivalent: the memory tools are top-level from the first turn on Codex, OpenCode and omp, and Codex\'s own memories feature stays off (the Codex AGENTS block says so), so no other harness has a second store to warn about' },
-  // Find-references through a language server: Claude Code has the LSP tool; Codex and OpenCode reach the same through the lsp MCP bridge, omp through its built-in LSP (the tooling rule routes them there).
-  { skill: 'dead-code', firstLine: 'If a language-server tool is available, a find-references result on the symbol also counts as G.', reason: 'equivalent: Codex and OpenCode get find-references from the lsp MCP bridge and omp from its built-in LSP, as the tooling rule says; the G check names codegraph for all four' },
-  // omp drives its built-in browser, the other three the chrome-devtools MCP server (the browserControl row).
-  { skill: 'bugfix', firstLine: 'omp has no chrome-devtools server: wherever this skill says chrome-devtools, use omp\'s built-in browser tool.', reason: 'feature:browserControl' },
-  { skill: 'goal-build', firstLine: 'omp has no chrome-devtools server: wherever this skill says chrome-devtools, use omp\'s built-in browser tool.', reason: 'feature:browserControl' },
-  { skill: 'plan-build', firstLine: 'omp has no chrome-devtools server: wherever this skill says chrome-devtools, use omp\'s built-in browser tool.', reason: 'feature:browserControl' },
-]
-
 describe('parity: the same instructions on every harness (PRD R13)', () => {
   test('rules: every always rule and path rule carries the canonical body on all four harnesses', async () => {
     const { canonical, files } = await built()
@@ -1166,7 +1169,10 @@ describe('parity: the same instructions on every harness (PRD R13)', () => {
     const { canonical, files } = await built()
     const tomlInstructions = (toml: string): string => /developer_instructions = '''\n([\s\S]*?)\n'''/.exec(toml)?.[1] ?? ''
     const problems: string[] = []
-    for (const a of canonical.agents) {
+    const complete = resolveAgents(canonical)
+    expect(complete.map(a => a.id)).toEqual(canonical.agents.map(a => a.id))
+    for (const a of complete) {
+      expect(a.body).not.toContain('{{include:')
       const want = normBody(a.body)
       const got: Record<Harness, string> = {
         claude: normBody(stripFrontmatter(file(files.claude, `agents/${a.id}.md`))),
@@ -1180,23 +1186,15 @@ describe('parity: the same instructions on every harness (PRD R13)', () => {
     expect(problems).toEqual([])
   })
 
-  test('skills: the Claude render and the neutral render are the same instructions once the harness literals are mapped back to their placeholders and the harness blocks are removed', async () => {
+  test('skills: one text for every harness: the installed copy and the Claude plugin bundle carry the canonical text as it is', async () => {
     const { canonical, files, agentsSkills } = await built()
-    const ids: PlaceholderIds = { skills: canonical.skills.map(s => s.id), protocols: protocolSkills(canonical), agents: canonical.agents.map(a => a.id) }
-    const opts = { skills: ids.skills, agents: ids.agents, protocols: ids.protocols }
     let compared = 0
     for (const skill of canonical.skills) {
       for (const { path, source } of skillMarkdown(skill)) {
         const where = `skills/${skill.id}/${path}`
         const strip = path === 'SKILL.md' ? stripFrontmatter : (s: string) => s
-        // The built files are the renders of the canonical source.
-        expect({ where, built: firstDifference(normBody(strip(file(files.claude, `skills/${skill.id}/${path}`))), normBody(renderClaudeMarkdown(source, where, ids.protocols))) }).toEqual({ where, built: undefined })
-        expect({ where, built: firstDifference(normBody(strip(file(agentsSkills, `${skill.id}/${path}`))), normBody(renderMarkdown(source, 'neutral', { ...opts, file: where }))) }).toEqual({ where, built: undefined })
-        // Without the harness blocks, both renders say the same thing.
-        const plain = withoutHarnessBlocks(source)
-        const claude = normBody(placeholderTokens(renderClaudeMarkdown(plain, where, ids.protocols), ids))
-        const neutral = normBody(placeholderTokens(renderMarkdown(plain, 'neutral', { ...opts, file: where }), ids))
-        expect({ where, diff: firstDifference(claude, neutral) }).toEqual({ where, diff: undefined })
+        expect({ where, built: firstDifference(normBody(strip(file(agentsSkills, `${skill.id}/${path}`))), normBody(source)) }).toEqual({ where, built: undefined })
+        expect({ where, built: firstDifference(normBody(strip(file(files.claude, `skills/${skill.id}/${path}`))), normBody(source)) }).toEqual({ where, built: undefined })
         compared++
       }
     }
@@ -1212,36 +1210,19 @@ describe('parity: the same instructions on every harness (PRD R13)', () => {
     expect(claude).toBe('Ask with {{ask_user}}. {{ask_user}} first. Track with {{todo}} and a {{spawn_agent}}; run {{skill:plan-build}} ({{skill:plan-build}}), then {{skill:memory}} and {{agent:changes-review}} in `{{skill:plan-build}} src` and {{ask_user}}.')
   })
 
-  test('harness blocks: every block run that does not cover all four harnesses is recorded with its reason (a feature row, a host limit or the equivalent mechanism)', async () => {
+  test('no skill text has a harness block or a render placeholder: what differs between harnesses is worded neutrally in the one copy', async () => {
     const { canonical } = await built()
-    const runs = canonical.skills.flatMap(s => skillMarkdown(s).flatMap(({ path, source }) => harnessBlockRuns(`skills/${s.id}/${path}`, source).map(r => ({ ...r, skill: s.id }))))
-    const partial = runs.filter(r => new Set(r.harnesses).size < HARNESSES.length)
-    const key = (skill: string, firstLine: string) => `${skill}: ${firstLine}`
-    const recorded = new Set(RECORDED_HARNESS_BLOCKS.map(r => key(r.skill, r.firstLine)))
-    const unrecorded = partial.filter(r => !recorded.has(key(r.skill, r.firstLine))).map(r => `${r.file}:${r.line} (${r.harnesses.join(', ')}): ${r.firstLine}`)
-    expect(unrecorded).toEqual([])
-    const present = new Set(partial.map(r => key(r.skill, r.firstLine)))
-    expect(RECORDED_HARNESS_BLOCKS.filter(r => !present.has(key(r.skill, r.firstLine))).map(r => key(r.skill, r.firstLine))).toEqual([])
-    for (const r of RECORDED_HARNESS_BLOCKS) {
-      const m = /^(feature|limit|equivalent):(.+)$/.exec(r.reason)
-      const reasonOk = m !== null && (m[1] === 'feature' ? Object.hasOwn(FEATURES, m[2] ?? '') : m[1] === 'limit' ? HOST_LIMITS.some(l => l.id === m[2]) : (m[2] ?? '').trim().length >= 20)
-      expect({ row: key(r.skill, r.firstLine), reasonOk }).toEqual({ row: key(r.skill, r.firstLine), reasonOk: true })
-    }
-    expect(runs.length).toBeGreaterThan(partial.length)
-    expect(new Set(RECORDED_HARNESS_BLOCKS.map(r => key(r.skill, r.firstLine))).size).toBe(RECORDED_HARNESS_BLOCKS.length)
+    const runs = canonical.skills.flatMap(s => skillMarkdown(s).flatMap(({ path, source }) => harnessBlockRuns(`skills/${s.id}/${path}`, source)))
+    expect(runs.map(r => `${r.file}:${r.line}`)).toEqual([])
+    const placeholders = canonical.skills.flatMap(s => skillMarkdown(s).filter(({ source }) => /(?<!\\)\{\{(?:ask_user|todo|spawn_agent|(?:skill|agent):[A-Za-z0-9._-]+)\}\}/.test(source)).map(({ path }) => `skills/${s.id}/${path}`))
+    expect(placeholders).toEqual([])
   })
 })
 
 describe('parity: documents follow the user\'s language (PRD 2026-11-06 R18)', () => {
   // The language order of the plain-language rule, with no sentence that makes a document English.
-  const ORDER = [
-    'An explicit request in this conversation',
-    'A language rule of the project for this output',
-    "The harness's own language setting, where the harness has one.",
-    'An explicit language preference in memory.',
-    "The language of the user's messages. A message with no language signal",
-  ]
-  const holds = (text: string) => ORDER.every(s => text.includes(s)) && !/\bis English\b|English section titles/.test(text)
+  const ORDER = "Take it from the first of: an explicit request, a project rule, the harness's language setting, a preference in memory, the language of the user's messages."
+  const holds = (text: string) => text.includes(ORDER) && !/\bis English\b|English section titles/.test(text)
 
   test('the rendered explain rule carries the same language order on all four harnesses', async () => {
     const { canonical, files } = await built()

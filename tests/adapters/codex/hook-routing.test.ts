@@ -78,7 +78,7 @@ describe('routing (H21-H26)', () => {
   test('H22: an explicit ask tells the model to read the skill\'s SKILL.md (context cannot load a skill on Codex); the prompt is in the ledger', () => withSandbox(async () => {
     const text = contextOf(await handleCodexHook('UserPromptSubmit', prompt('/buracle:research compare bun and deno'), ctx(), deps(quiet)))
     expect(text).toContain('The user asked for the research skill')
-    expect(text).toContain('read ${CODEX_HOME:-~/.codex}/skills/research/SKILL.md')
+    expect(text).toContain('read ~/.agents/skills/research/SKILL.md')
     const l = loadLedger('codex', SID)
     expect([l.turn, l.prompt?.route.load]).toEqual([1, ['research']])
   }))
@@ -89,18 +89,15 @@ describe('routing (H21-H26)', () => {
     expect(text).not.toContain('plan-build')
     expect(readFlow('codex', SID)?.stack[0]).toMatchObject({ workflow: 'plan-build', title: 'add rate limiting to the upload API', source: 'prompt' })
     expect(loadLedger('codex', SID).skills['plan-build']?.n).toBe(1)
-    expect(d.rec.spool.filter(e => e.ev === 'prompt-signal')).toEqual([])
+    expect(d.rec.spool.filter(e => (e.ev as string) === 'prompt-signal')).toEqual([])
     const d2 = deps(quiet)
     await handleCodexHook('UserPromptSubmit', prompt('please run $memory on this'), ctx(), d2)
     expect(readFlow('codex', SID)?.stack.map(e => e.workflow)).toEqual(['plan-build'])
-    expect(d2.rec.spool.filter(e => e.ev === 'prompt-signal')).toEqual([])
+    expect(d2.rec.spool.filter(e => (e.ev as string) === 'prompt-signal')).toEqual([])
   }))
 
-  test('routing.skills off drops the skill lines; a history question raises no memory line', () => withSandbox(async () => {
-    const c = defaultConfig()
-    c.routing.skills = 'off'
-    const text = contextOf(await handleCodexHook('UserPromptSubmit', prompt('/buracle:research what did we decide last time?'), ctx(c), deps(quiet)))
-    expect(text).not.toContain('research')
+  test('a history question raises no memory line', () => withSandbox(async () => {
+    const text = contextOf(await handleCodexHook('UserPromptSubmit', prompt('/buracle:research what did we decide last time?'), ctx(), deps(quiet)))
     expect(text).not.toContain('Earlier work')
   }))
 
@@ -122,7 +119,6 @@ describe('routing (H21-H26)', () => {
     expect(denied.hookSpecificOutput.permissionDecisionReason).toContain(`Pass the project root ${proj} instead`)
     expect((await handleCodexHook('PreToolUse', mcp({ query: 'uploadFile', projectPath: proj }), ctx(), deps({}))).stdout).toBe('')
     expect(loadLedger('codex', SID).mcp['codegraph']?.n).toBe(1)
-    expect(loadLedger('codex', SID).symbols).toContain('uploadFile')
     await handleCodexHook('PreToolUse', mcp({ query: 'y', projectPath: proj }, { agent_id: 'a1', agent_type: 'worker' }), ctx(), deps({}))
     expect(loadLedger('codex', SID).mcp['codegraph']?.n).toBe(1)
   }))
@@ -225,7 +221,7 @@ describe('routing (H21-H26)', () => {
     expect(await reason(alpha)).toBeUndefined()
   }))
 
-  test('H24/H03 for a thread-spawned subagent: the root check and the deny-once gates apply to its calls, on a ledger of its own (never the session\'s turn)', () => withSandbox(async ({ home, root }) => {
+  test('H24/H03 for a thread-spawned subagent: the root check applies to its calls, on a ledger of its own (never the session\'s turn)', () => withSandbox(async ({ home, root }) => {
     const proj = join(root, 'proj')
     mkdirSync(proj, { recursive: true })
     writeFileSync(join(proj, 'package.json'), JSON.stringify({ dependencies: { zod: '^3' } }))
@@ -243,12 +239,8 @@ describe('routing (H21-H26)', () => {
     }
     expect(await reason(call('mcp__codegraph__codegraph_explore', { query: 'auth', projectPath: home }))).toStartWith('Buracle H03: codegraph `projectPath`')
     expect(await reason(call('mcp__semble__search', { query: 'where is auth', repo: proj }))).toBeUndefined()
-    const patch = "*** Begin Patch\n*** Add File: src/schema.ts\n+import { z } from 'zod'\n+const user = z.object({})\n*** End Patch\n"
-    expect(await reason(call('apply_patch', { command: patch }))).toStartWith('Buracle H03: this edit adds an import of `zod`')
-    expect(await reason(call('apply_patch', { command: patch }))).toBeUndefined()
     const l = loadLedger('codex', SID)
     expect([l.mcp, l.usedOnce, l.turnTools.calls]).toEqual([{}, [], 0])
-    expect(await reason(call('apply_patch', { command: patch }, {}))).toStartWith('Buracle H03: this edit adds an import of `zod`')
   }))
 
   test('H24/H23: a Bash read of a SKILL.md loads the skill; an explicitly requested skill that was not loaded holds the stop once', () => withSandbox(async () => {
@@ -262,7 +254,7 @@ describe('routing (H21-H26)', () => {
     await handleCodexHook('UserPromptSubmit', prompt('/buracle:research compare zod and yup'), ctx(), d)
     expect((await handleCodexHook('PreToolUse', payload('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'cat ~/.codex/skills/research/SKILL.md' } }), ctx(), d)).stdout).toBe('')
     expect(loadLedger('codex', SID).skills['research']?.n).toBe(1)
-    expect(d.rec.spool.filter(e => e.ev === 'prompt-signal')).toEqual([])
+    expect(d.rec.spool.filter(e => (e.ev as string) === 'prompt-signal')).toEqual([])
     expect((await handleCodexHook('Stop', payload('Stop'), ctx(), d)).stdout).toBe('')
   }))
 
@@ -304,8 +296,8 @@ describe('routing (H21-H26)', () => {
   test('H25: a workflow the model loads by reading its installed SKILL.md (the router\'s T1 line) starts its run', () => withSandbox(async ({ home }) => {
     const d = deps(quiet)
     const text = contextOf(await handleCodexHook('UserPromptSubmit', prompt('/buracle:plan-build add rate limiting to the upload endpoint'), ctx(), d))
-    expect(text).toContain('read ${CODEX_HOME:-~/.codex}/skills/plan-build/SKILL.md')
-    expect(text).not.toContain('.agents/skills')
+    expect(text).toContain('read ~/.agents/skills/plan-build/SKILL.md')
+    expect(text).not.toContain('CODEX_HOME')
     expect(readFlow('codex', SID)).toBeUndefined()
     const custom: CodexHookDeps = { ...d, env: () => ({ ...process.env, CODEX_HOME: '/opt/codex-home' }) }
     expect((await handleCodexHook('PreToolUse', payload('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'cat /opt/codex-home/skills/plan-build/SKILL.md' } }), ctx(), custom)).stdout).toBe('')
@@ -326,28 +318,11 @@ describe('routing (H21-H26)', () => {
     expect(readFlow('codex', SID)).toBeUndefined()
   }))
 
-  test('H24/R4: an apply_patch that imports a project dependency context7 was not asked about is denied once; the retry goes through', () => withSandbox(async ({ root }) => {
-    const proj = join(root, 'proj')
-    mkdirSync(proj, { recursive: true })
-    writeFileSync(join(proj, 'package.json'), JSON.stringify({ dependencies: { zod: '^3' } }))
-    saveWorkspaceInfo(ctx(), SID, infoAt(proj))
-    const patch = "*** Begin Patch\n*** Add File: src/schema.ts\n+import { z } from 'zod'\n+const user = z.object({})\n*** End Patch\n"
-    const call = () => handleCodexHook('PreToolUse', payload('PreToolUse', { cwd: proj, tool_name: 'apply_patch', tool_input: { command: patch } }), ctx(), deps(quiet))
-    const first = JSON.parse((await call()).stdout)
-    expect(first.hookSpecificOutput.permissionDecision).toBe('deny')
-    expect(first.hookSpecificOutput.permissionDecisionReason).toStartWith('Buracle H03: this edit adds an import of `zod`')
-    expect((await call()).stdout).toBe('')
-    const shell = `cd ${proj} && apply_patch <<'EOF'\n*** Begin Patch\n*** Add File: src/b.ts\n+import { describe } from 'vitest-x'\n*** End Patch\nEOF`
-    writeFileSync(join(proj, 'package.json'), JSON.stringify({ dependencies: { zod: '^3', 'vitest-x': '1' } }))
-    const viaShell = JSON.parse((await handleCodexHook('PreToolUse', payload('PreToolUse', { cwd: proj, tool_name: 'Bash', tool_input: { command: shell } }), ctx(), deps(quiet))).stdout)
-    expect(viaShell.hookSpecificOutput.permissionDecisionReason).toStartWith('Buracle H03: this edit adds an import of `vitest-x`')
-  }))
-
-  test('PostToolUse (H14): MCP calls are spooled with their tool name, `webrun` as a web search', () => withSandbox(async () => {
+  test('PostToolUse: an MCP or a web call is not spooled (the capture keeps prompts and turns)', () => withSandbox(async () => {
     const d = deps(quiet)
     await handleCodexHook('PostToolUse', payload('PostToolUse', { tool_name: 'mcp__context7__query_docs', tool_input: { libraryId: '/colinhacks/zod' }, tool_response: {} }), ctx(), d)
     await handleCodexHook('PostToolUse', payload('PostToolUse', { tool_name: 'webrun', tool_input: { search_query: [{ q: 'bun' }] }, tool_response: {} }), ctx(), d)
-    expect(d.rec.spool).toEqual([{ ts: NOW, ev: 'tool', tool: 'mcp__context7__query_docs', kind: 'mcp' }, { ts: NOW, ev: 'tool', tool: 'webrun', kind: 'web_search' }])
+    expect(d.rec.spool).toEqual([])
   }))
 
   test('H10 texts are English; the user\'s own words are recognized in any language', () => withSandbox(async () => {

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { memClip, memIsSensitivePath, memLooksRandom, memShortSid, normalizeForSearch, redact, redactClip, slugify } from '../../../src/core/memory/text'
+import { memLooksRandom, redact, redactClip } from '../../../src/core/memory/redact'
+import { memClip, memShortSid, normalizeForSearch, slugify } from '../../../src/core/memory/text'
 
 describe('slugify', () => {
   test('folds Turkish letters and builds kebab-case ASCII', () => {
@@ -122,11 +123,6 @@ describe('helpers', () => {
     expect(memShortSid('0199a213-81c0-7800-8aa1-bbab2a035a53')).toBe('035a53')
     expect(memShortSid('ses_ABC')).toBe('sesabc')
     expect(memShortSid('---')).toBe('x')
-  })
-
-  test('memIsSensitivePath matches the denylist', () => {
-    for (const p of ['.env', 'app/.env.local', 'certs/server.pem', '/Users/x/.ssh/config', 'id_rsa', 'aws-credentials.json']) expect(memIsSensitivePath(p)).toBe(true)
-    for (const p of ['notes/env.md', 'id_rsa.pub', 'src/identity.ts', 'docs/pemberton.md']) expect(memIsSensitivePath(p)).toBe(false)
   })
 
   test('memClip ends with an ellipsis when it cuts', () => {

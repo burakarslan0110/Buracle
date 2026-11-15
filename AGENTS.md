@@ -6,15 +6,13 @@ Oh My Pi. TypeScript on Bun ≥ 1.4, ESM only, strict TypeScript; the CLI runs f
 
 ## Read first
 
-- `docs/` is gitignored and may be missing: it holds the design, the contracts, the usage guide and
-  the generated reference. Without it, the code and the tests are the reference and the doc lint
-  skips what is missing.
-- When present, `docs/dev/CONTRACTS.md` is **binding** for code (types, file layout, ownership),
-  and so are `docs/dev/contracts/core.md` (§5), `engine.md` (§6–§7) and `adapters.md` (§8). Find a
-  "CONTRACTS §n" citation through the index in CONTRACTS.md. If the contract disagrees with anything
-  else, it wins: report the disagreement instead of working around it.
-- `docs/DESIGN.md` is the user-facing design. Its §4, §7 and §11 live in `docs/design/` under the
-  same numbers; find a "DESIGN §n.m" citation through the index DESIGN.md keeps.
+- `docs/` is gitignored and holds only the reference the build generates (`docs/reference/`, local).
+  The design (`docs/DESIGN.md`) and the contracts (`docs/dev/CONTRACTS.md` and its parts) are not in
+  this repository, although comments in code and tests still cite them as "DESIGN §n" and
+  "CONTRACTS §n". The code and the tests are the reference; the doc lint skips whatever is missing.
+- [ARCHITECTURE.md](ARCHITECTURE.md) is the map of the layers, the shared hook pipeline, the harness
+  profiles, the transaction engine and the Brain. When a comment cites a contract and the code
+  disagrees with it, report the disagreement instead of working around it.
 
 ## Commands
 
@@ -22,8 +20,8 @@ Oh My Pi. TypeScript on Bun ≥ 1.4, ESM only, strict TypeScript; the CLI runs f
 |---|---|
 | Install | `bun install --frozen-lockfile` (exact pins from `bun.lock`) |
 | Typecheck | `bunx tsc --noEmit -p .` (must stay clean for the whole repo) |
-| Build `harness/` | `T=$(mktemp -d) && HOME=$T BURACLE_HOME=$T/.buracle bun src/cli/main.ts build` |
-| Drift check | the same with `build --check` |
+| Build `harness/` (local, git-ignored; only needed to try the plugin or omp extension in place) | `T=$(mktemp -d) && HOME=$T BURACLE_HOME=$T/.buracle bun src/cli/main.ts build` |
+| Determinism check | the same with `build --check`: two builds must be identical; a local `harness/` must match too |
 | All tests | `bun test` |
 | One test file | `bun test tests/engine/txn.test.ts` |
 | Skill lint | `bun src/cli/main.ts skills lint canonical/skills` |
@@ -35,7 +33,7 @@ branch other than `main`, on macOS arm64 and Linux x64, with the Bun in
 
 ```sh
 bunx tsc --noEmit -p .                                                   # clean
-T=$(mktemp -d) && HOME=$T BURACLE_HOME=$T/.buracle bun src/cli/main.ts build --check   # no drift
+T=$(mktemp -d) && HOME=$T BURACLE_HOME=$T/.buracle bun src/cli/main.ts build --check   # deterministic
 bun test                                                                 # 0 fail
 ```
 
@@ -45,17 +43,27 @@ CI also parses the install script: `bash -n scripts/install.sh`. Run it after ed
 ## Layout
 
 - `canonical/` — the single source of truth: YAML data and English prose (rules, skills, agents).
-  `skill-triggers.yaml` holds the MCP routing categories' trigger phrases (data, any language);
-  `notices.yaml` holds one-time release notices, shown once per machine; `tips.yaml` holds the usage
-  tips in Claude Code's spinner and on OpenCode's home screen.
+  It names no harness: `mcp.yaml` ships a server to every harness unless it says `except:`, and
+  `buracle.yaml` (the config defaults) holds no harness names, because per-harness keys come from the
+  harness profiles. `skill-triggers.yaml` holds the MCP routing categories' trigger phrases (data,
+  any language); `notices.yaml` holds one-time release notices, shown once per machine; `tips.yaml`
+  holds the usage tips in Claude Code's spinner and on OpenCode's home screen. One file in it is
+  generated: `skills/buracle/references/commands.md`, the command summary the build writes from the
+  CLI help.
 - `src/core/` — pure logic, copied verbatim into the Claude plugin (`harness/claude/hooks/core/`).
+  `src/core/events.ts` defines the seven canonical events; `src/core/harness/` holds one
+  `HarnessProfile` per harness (`Harness`, the tool tables, MCP name shapes, event maps, labels,
+  skill invocation syntax and path tables derive from it).
 - `src/engine/` — IO: paths, files, processes, git, log, config and canonical loaders, the
   transaction engine, merge, diff.
 - `src/cli/main.ts` — thin entry only; never import it. The router is `src/cli/router.ts`, with one
   module per command in `src/cli/commands/<name>.ts`.
 - `src/adapters/<harness>/` — per-harness generator, runtime templates and hook handlers;
-  `src/adapters/registry.ts` lists them.
-- `src/workflow/` — plans, flows, worktrees, review scope, notify, project sync and check, skill and
+  `src/adapters/registry.ts` lists them. `src/adapters/shared/pipeline/` is the one hook pipeline,
+  a file per canonical event: Claude Code and Codex call it from command hooks, OpenCode and Oh My
+  Pi from their in-process runtimes. An adapter only decodes its host's payload and encodes its
+  host's answer.
+- `src/workflow/` — plans, flows, worktrees, review scope, project sync and check, skill and
   rule lint, the session store, the usage ledger, code indexes and the second opinion
   (`companion*`). `src/workflow/non-project.ts` holds the one "never a project" rule.
 - `src/memory/` — the memory on CortexDB: one `brain.db` with a bucket per project and one for the
@@ -64,10 +72,14 @@ CI also parses the install script: `bash -n scripts/install.sh`. Run it after ed
   (`src/memory/ui-presence.ts`, while `memory.ui.autostart` is on) or `mem ui` starts, and which
   stops when the last harness session ends.
 - `src/usage/` — per-harness usage collectors.
-- `harness/<harness>/` and `harness/hook-data.json` — GENERATED by `buracle build`, listed in
-  `harness/.manifest.json` and committed; never edit them by hand. `harness/hook-data.json` is the
+- `harness/<harness>/`, `harness/agents-skills/` (the one rendered copy of the skills, which install
+  writes to `~/.agents/skills`) and `harness/hook-data.json` — GENERATED by `buracle build`, listed in
+  `harness/.manifest.json` and NOT committed on `dev` (git-ignored; CI builds them into the release
+  tree, so `main` holds them); never edit them by hand. A checkout cloned from `main` has them; on a
+  `dev` checkout `buracle install` and `buracle update` build them first. `harness/hook-data.json` is the
   part of `canonical/` the Claude and Codex command hooks read (`src/cli/hook-data.ts`), so a
-  `canonical/` edit reaches them only after a build. `harness/codex/AGENTS.md` is generated output
+  `canonical/` edit reaches them only after a build. The one generated file that stays committed is
+  `canonical/skills/buracle/references/commands.md`: the skill needs it as source, and `build` refreshes it. `harness/codex/AGENTS.md` is generated output
   for users' Codex, not guidance for this repository.
 - `tests/` — bun tests mirroring `src/`, fixtures in `tests/fixtures/<area>/`.
 
@@ -75,11 +87,20 @@ CI also parses the install script: `bash -n scripts/install.sh`. Run it after ed
 
 - **Sources.** Work only from official harness docs and sources and local `--help` output. Write
   everything in your own words.
-- **Ownership.** Each task owns specific paths (CONTRACTS §11). Change only what your task owns; ask
-  for other changes in your report.
-- **Generation.** Edit `canonical/` and `src/`, run the sandboxed build, and commit its `harness/`
-  output with the change. Generated output must be deterministic (no timestamps, stable key order);
-  `build --check` fails on any drift.
+- **Ownership.** Each task owns specific paths, named in its brief. Change only what your task owns;
+  ask for other changes in your report.
+- **Harness names.** Never add a `switch (harness)` or a harness-name literal outside
+  `src/core/harness/`: add a profile field instead.
+- **Neutral text.** Skills and rules are the same text for every harness: no `{{…}}` placeholders and
+  no harness-only blocks (`buracle skills lint` and `buracle rules lint` reject them). The always-loaded
+  rules stay under 8,000 bytes together, with detail in skill references.
+- **Generation.** Edit `canonical/` and `src/`; do not commit `harness/`. Run the sandboxed build only
+  when you need `harness/` locally, and commit the refreshed `canonical/skills/buracle/references/commands.md`
+  when the CLI help changed. Generated output must be deterministic (no timestamps, stable key order):
+  `build --check` builds twice into temporary folders and fails when the two differ, when the manifest
+  does not list exactly the files written, or when an existing local `harness/` (or the committed
+  command reference) is out of date. Tests never read the repository's `harness/`: they build one
+  into the run's temp folder (`tests/helpers/built-harness.ts`), so they pass on a fresh clone.
 - **Pure core.** `src/core/**` takes no IO, no clock and no randomness; its limits are in the scoped
   rule below.
 - **Harness writes.** Every write into a harness directory goes through the transaction engine
@@ -113,6 +134,8 @@ CI also parses the install script: `bash -n scripts/install.sh`. Run it after ed
 ## Testing
 
 - Read `.claude/rules/tests.md` before writing a test: sandbox, fake CortexDB, fault injection.
+- Live harness checks that need a login or a real model run (`agy`, `qwen -p`) run only with
+  `BURACLE_LIVE_SMOKE=1` (`tests/helpers/live-smoke.ts`); a mock model on a local port is not live.
 - Tests never touch the real `~/.claude`, `~/.codex`, `~/.config/opencode`, `~/.omp`, `~/.agents`,
   `~/.buracle` (the brain included) or `~/Documents/Buracle` (the old memory vault).
   `tests/zz-real-home-untouched.test.ts` fails the run when one of them changed.
@@ -128,6 +151,9 @@ CI also parses the install script: `bash -n scripts/install.sh`. Run it after ed
   version has no release): one commit on `main` and a `v<version>` release with the install
   script. Raise major or minor in `package.json` to start a new line. A push that changes only the
   test suite releases nothing.
+- `harness/` is not in the `dev` tree. The `release` job builds it into the release tree, and the
+  `posix-install` job builds it before it makes the release-tree commit, so `main` holds it exactly as
+  before and users see no difference.
 - The released tree leaves out `RELEASE_DROPS` (`tests/` and `bunfig.toml`, in
   `.github/workflows/ci.yml`), so released code must not depend on them. The `posix-install` job
   installs that tree before the release. The install script clones `main`, and
@@ -141,17 +167,20 @@ CI also parses the install script: `bash -n scripts/install.sh`. Run it after ed
 - Every `bun src/cli/main.ts …` run (`build` included) rewrites
   `$BURACLE_HOME/state/runtime-config.json`, which the installed harnesses read → run it with
   `HOME` and `BURACLE_HOME` pointing at a temp dir, as in Commands; the output does not depend on
-  them.
+  them. A local `harness/` is yours to rebuild: a stale one makes `build --check` fail until you run
+  `build` (delete `harness/` to see the clean-clone state).
 - The installed hooks run a frozen copy of the checkout (`$BURACLE_HOME/runtime/<id>`,
   `src/engine/update/runtime.ts`), and OpenCode runs a copy of its plugin → a checkout edit reaches
   them only after `buracle install`. The Claude plugin's mod and the omp extension load `harness/`
   in place (after `/reload-plugins` or a new omp session).
-- After a Bun upgrade, `build --check` and `tests/cli/ops/repo-drift.test.ts` fail until the
-  OpenCode and omp bundles are rebuilt → follow `.claude/rules/host-versions.md`.
+- After a Bun upgrade, a local `harness/` is stale, so `build --check` and the local-harness test of
+  `tests/cli/ops/repo-drift.test.ts` fail until the OpenCode and omp bundles are rebuilt → follow `.claude/rules/host-versions.md`.
 
 ## Scoped rules
 
-Read the matching rule before editing those files.
+Read the matching rule before editing those files. The `.claude/rules/` files are not tracked in git,
+so a fresh clone lacks them; the guards and helpers they describe are in the named tests and in
+`tests/helpers/`.
 
 - `.claude/rules/pure-core.md` — `src/core/**` — what pure code may import and use
 - `.claude/rules/harness-writes.md` — `src/engine/**`, `src/adapters/**`, `src/cli/commands/**` — transaction engine, ownership ledger, paths and hook failure modes
