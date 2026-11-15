@@ -21,7 +21,7 @@ const install = async (config = defaultConfig()) => applyPlans([await adapter.in
 const uninstall = async () => applyPlans([await (adapter.uninstallPlan as NonNullable<typeof adapter.uninstallPlan>)(ctx())])
 
 describe('install into ~/.qwen/settings.json', () => {
-  test('writes the hooks and the MCP servers of canonical/ and nothing else in the folder', async () => {
+  test('writes the hooks and the MCP servers of canonical/ and, besides settings.json, only QWEN.md, agents, commands and rules', async () => {
     await withSandbox(async ({ home }) => {
       const r = await install()
       expect(r.conflicts).toEqual([])
@@ -29,7 +29,7 @@ describe('install into ~/.qwen/settings.json', () => {
       expect(Object.keys(s.hooks ?? {})).toEqual(Object.keys(qwenHooks(canonical)))
       expect(Object.keys(s.mcpServers ?? {}).sort()).toEqual(Object.keys(qwenMcpServers(canonical, '/x/bin/buracle')).sort())
       expect(s.mcp).toBeUndefined()
-      expect(readdirSync(join(home, '.qwen'))).toEqual(['settings.json'])
+      expect(readdirSync(join(home, '.qwen')).sort()).toEqual(['QWEN.md', 'agents', 'commands', 'rules', 'settings.json'])
       expect(existsSync(join(home, '.agents'))).toBe(false)
     })
   })

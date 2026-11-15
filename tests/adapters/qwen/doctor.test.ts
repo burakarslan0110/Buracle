@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { chmodSync, mkdirSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { qwenDoctor } from '../../../src/adapters/qwen/doctor'
 import { adapter } from '../../../src/adapters/qwen/index'
@@ -66,9 +66,21 @@ describe('doctor', () => {
       expect(byCheck(items, 'qwen.hooks')?.detail).toContain('user-level hooks need no approval')
       expect(byCheck(items, 'qwen.hooks.probe')).toMatchObject({ level: 'ok' })
       expect(byCheck(items, 'qwen.mcp')).toMatchObject({ level: 'ok' })
+      expect(byCheck(items, 'qwen.content')).toMatchObject({ level: 'ok' })
       expect(items.filter(i => i.level === 'error')).toEqual([])
     })
   }, 60_000)
+
+  test('a removed review agent file or QWEN.md block is a warning that names the file and the command', async () => {
+    await withQwen('0.27.4', async () => {
+      await applyPlans([await adapter.installPlan(ctx())])
+      rmSync(join(paths.qwenHome(), 'agents', 'changes-review.md'))
+      const row = byCheck(await qwenDoctor(ctx()), 'qwen.content')
+      expect(row).toMatchObject({ level: 'warn' })
+      expect(row?.detail).toContain('agents/changes-review.md')
+      expect(row?.detail).toContain('buracle install qwen')
+    })
+  })
 
   test('without the shim the guard probe fails: the guards would not run', async () => {
     await withQwen('0.27.4', async () => {

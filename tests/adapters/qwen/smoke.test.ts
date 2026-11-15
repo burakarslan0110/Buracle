@@ -50,6 +50,13 @@ describe(`the real qwen program${NOTE}`, () => {
     for (const id of Object.keys(qwenMcpServers(canonical, ctx().buracleBin))) expect({ id, listed: list.stdout.includes(`${id}:`) }).toEqual({ id, listed: true })
   }), 120_000)
 
+  local('discovers the three review agents Buracle wrote into ~/.qwen/agents (a listing, no model, no login)', () => withSandbox(async ({ home }) => {
+    await installed(home)
+    const list = await run([QWEN as string, 'agents', 'list'], { cwd: home, env: qwenEnv(home), timeoutMs: 60_000 })
+    expect(list.code).toBe(0)
+    for (const id of ['changes-review', 'goal-build-review', 'plan-build-review']) expect({ id, listed: list.stdout.includes(id) }).toEqual({ id, listed: true })
+  }), 120_000)
+
   live('starts with the settings Buracle wrote: no hook config is rejected', () => withSandbox(async ({ home }) => {
     await installed(home)
     const p = await run([QWEN as string, '-p', 'hi', '--no-session-persistence'], { cwd: home, env: qwenEnv(home), timeoutMs: 60_000 })

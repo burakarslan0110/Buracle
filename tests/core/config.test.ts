@@ -121,7 +121,7 @@ describe('validateConfig', () => {
       'plan.modelSwitch: expected one of off | manual, got string "auto"',
       'plan.nativePlanMode: expected one of off | on, got boolean true',
       'plan.reviews.changes: expected boolean, got string "no"',
-      'plan.reviews.companion: expected one of off | auto | claude | codex | opencode | omp | pi, got boolean true',
+      'plan.reviews.companion: expected one of off | auto | claude | codex | opencode | omp | qwen | pi, got boolean true',
       'plan.questions: expected boolean, got number 1',
     ]))
     const lenient = mergeConfigLenient(defaultConfig(), { plan: { modelSwitch: 'manual', reviews: { changes: false, companion: 'gemini' }, goalVerification: 'off' } })
@@ -129,7 +129,7 @@ describe('validateConfig', () => {
     expect(lenient.config.plan.reviews).toEqual({ plan: true, changes: false, goal: true, companion: 'off' })
     expect(mergeConfigLenient(defaultConfig(), { plan: { reviews: { companion: 'codex' } } }).config.plan.reviews.companion).toBe('codex')
     expect(lenient.config.plan.goalVerification).toBe(true)
-    expect(lenient.errors).toEqual(['plan.reviews.companion: expected one of off | auto | claude | codex | opencode | omp | pi, got string "gemini"', 'plan.goalVerification: expected boolean, got string "off"'])
+    expect(lenient.errors).toEqual(['plan.reviews.companion: expected one of off | auto | claude | codex | opencode | omp | qwen | pi, got string "gemini"', 'plan.goalVerification: expected boolean, got string "off"'])
   })
 
   test('cross checks', () => {

@@ -1,10 +1,11 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { jsoncParse } from '../../engine/merge'
+import { jsoncParse, mdBlockMarkers } from '../../engine/merge'
 import { detectBinary, run } from '../../engine/proc'
 import { MIN_VERSIONS } from '../../engine/update/min-versions'
 import { compareVersions } from '../../engine/update/versions'
 import type { AdapterContext } from '../registry'
+import { qwenContentFiles, QWEN_BLOCK_ID } from './content'
 import { settingsPath } from './install'
 import { isBuracleCommand, isBuracleStatusLine, qwenHooks, qwenMcpServers, QWEN_HOOK_EVENTS } from './settings'
 
@@ -67,6 +68,15 @@ export async function qwenDoctor(ctx: AdapterContext): Promise<DoctorItem[]> {
       ? { level: 'ok', check: 'qwen.tips', detail: `ui.loadingPhrases is ${mode}: Buracle's tips show while the model works` }
       : { level: 'warn', check: 'qwen.tips', detail: `Buracle's tips show only when ui.loadingPhrases is "witty" or "all" (it is ${typeof mode === 'string' ? JSON.stringify(mode) : 'unset, so "off"'} in ${file}); Buracle leaves that setting to you` })
   }
+
+  // The always-loaded rules (a block in QWEN.md), the path rules, the review agents and the commands are files the install writes.
+  const home = ctx.paths.qwenHome()
+  const memory = join(home, 'QWEN.md')
+  const hasBlock = existsSync(memory) && readFileSync(memory, 'utf8').includes(mdBlockMarkers(QWEN_BLOCK_ID).start)
+  const absent = qwenContentFiles(ctx.canonical).map(f => f.path).filter(p => !existsSync(join(home, p)))
+  out.push(hasBlock && absent.length === 0
+    ? { level: 'ok', check: 'qwen.content', detail: `the rules block in ${memory}, the path rules, the review agents and the commands are in ${home}` }
+    : { level: 'warn', check: 'qwen.content', detail: `${[...(hasBlock ? [] : [`the Buracle block in ${memory}`]), ...absent.map(p => join(home, p))].join(', ')} missing: run \`buracle install qwen\`` })
 
   const skills = join(ctx.paths.agentsDir(), 'skills')
   out.push(existsSync(skills) ? { level: 'ok', check: 'qwen.skills', detail: `Qwen Code reads the skills from ${skills}` } : { level: 'warn', check: 'qwen.skills', detail: `${skills} does not exist: run \`buracle install\`` })

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { adapter } from '../../../src/adapters/qwen/index'
+import { qwenContentFiles } from '../../../src/adapters/qwen/content'
 import { HOOK_COMMAND_PREFIX, isBuracleCommand, qwenExcluded, qwenHooks, qwenMcpEntry, qwenMcpServers, QWEN_HOOK_EVENTS, QWEN_UNSERVED, settingsFragment } from '../../../src/adapters/qwen/settings'
 import type { HookBinding } from '../../../src/core/catalog'
 import { defaultConfig } from '../../../src/core/config'
@@ -80,7 +81,7 @@ describe('Qwen Code settings: MCP servers from canonical/mcp.yaml', () => {
 describe('Qwen Code adapter build', () => {
   test('writes one deterministic fragment of what the install merges into settings.json', async () => {
     const files = await adapter.build(ctx())
-    expect(files.map(f => f.path)).toEqual(['settings.fragment.json'])
+    expect(files.map(f => f.path)).toEqual(['settings.fragment.json', 'QWEN.md', ...qwenContentFiles(canonical).map(f => f.path)])
     expect(files[0]?.content).toBe(settingsFragment(canonical, '{buracle}'))
     expect(files[0]?.content).toBe((await adapter.build(ctx()))[0]?.content as string)
     const parsed = JSON.parse(files[0]?.content as string) as { hooks: Record<string, unknown>, mcpServers: Record<string, { command?: string }> }

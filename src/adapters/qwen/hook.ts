@@ -2,7 +2,10 @@ import type { ToolCall } from '../../core/events'
 import { classifyTool } from '../../core/events'
 import { backgroundWait } from '../../core/plan/background'
 import { isUserText } from '../../core/policy/intents'
+import { validateReviewJson } from '../../core/policy/review'
+import { reviewSubjects } from '../../workflow/session-store'
 import type { AdapterContext } from '../registry'
+import { reviewAgentIds } from './content'
 import {
   afterTool, claudeShapedChanges, commandDeps, guardTool, knownServers, promptContext, runFrame, sharedSkillsDir, startContext, stopReason, trackSkillLoad, trackSlashWorkflow,
   type FrameSpec,
@@ -57,6 +60,7 @@ async function run(d: PipelineDeps, event: string, p: Record<string, unknown>, s
       const reason = await stopReason(d, { sid, cwd, now, hookActive: p['stop_hook_active'] === true, backgroundWait: backgroundWait(last, p['background_tasks'], p['crons']), readOnly: p['permission_mode'] === 'plan', spoolTurn: last !== undefined, ...(last !== undefined ? { lastMessage: last } : {}) })
       return reason !== undefined ? blockOut(reason) : QUIET
     }
+    case 'SubagentStop': return subagentStop(d, p, sid, now)
     case 'SessionEnd': await sessionEnd({ harness: H, sessionId: sid, now }, d); return QUIET
     default: return QUIET
   }
@@ -93,4 +97,23 @@ async function postToolUseFailure(d: PipelineDeps, p: Record<string, unknown>, s
   const cls = classifyTool(H, tool, isObj(p['tool_input']) ? p['tool_input'] : {}, cwd, knownServers(d.ctx, H))
   if (cls.kind === 'mcp') await d.step('H24 MCP result', undefined, () => { recordMcpResult(d, sid, cls.mcp?.server, false) })
   return QUIET
+}
+
+/**
+ * H19: the final message of a review agent must be a valid review report. An invalid one goes back to the reviewer once
+ * (`decision: block` continues the subagent, whose `stop_hook_active` is then true); a second one only warns the lead.
+ */
+async function subagentStop(d: PipelineDeps, p: Record<string, unknown>, sid: string, now: number): Promise<HookOutcome> {
+  const agent = str(p['agent_type'])
+  if (agent === undefined || !reviewAgentIds(d.ctx.canonical.agents).includes(agent)) return QUIET
+  const text = str(p['last_assistant_message']) ?? ''
+  const errors = await d.step('H19 validate', [] as string[], () => {
+    const r = validateReviewJson(text, { agent, subject: reviewSubjects(H, sid) })
+    return r.ok ? [] : r.errors.length > 0 ? r.errors : ['invalid review report']
+  })
+  await spool(d, sid, [{ ts: now, ev: 'note', tool: agent, excerpt: errors.length === 0 ? `${agent}: valid review report` : `${agent}: invalid review report: ${errors.slice(0, 5).join('; ')}` }])
+  if (errors.length === 0) return QUIET
+  const problems = `${errors.slice(0, 3).join('; ')}${errors.length > 3 ? '; …' : ''}`
+  if (p['stop_hook_active'] !== true) return blockOut(`Buracle H19: your final message is not a valid review report (${problems}). Answer again with only the corrected JSON report your instructions define, with nothing before or after it.`)
+  return { stdout: JSON.stringify({ systemMessage: `Buracle H19: ${agent} returned an invalid review report again (${problems}); check its findings yourself before relying on them.` }) + '\n', exitCode: 0 }
 }
