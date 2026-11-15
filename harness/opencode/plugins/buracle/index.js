@@ -7257,6 +7257,7 @@ __export(exports_core, {
   bandAgentEnd: () => bandAgentEnd,
   bandAgentStart: () => bandAgentStart,
   bandChanged: () => bandChanged,
+  bandCollapsedRows: () => bandCollapsedRows,
   bandFoldAt: () => bandFoldAt,
   bandHide: () => bandHide,
   bandInputOf: () => bandInputOf,
@@ -28347,6 +28348,18 @@ function bandRows(v, columns, maxRows, emoji, opts = {}) {
     one[0] = seg("band-crumb", `${v.workflow ?? ""} `, undefined, { bold: true });
   return [fit(one, cols)];
 }
+function bandCollapsedRows(v, columns, emoji) {
+  const cols = Math.floor(Number.isFinite(columns) ? columns : 0);
+  if (!v.visible || cols < 8)
+    return [];
+  const g = emoji ? UNICODE : ASCII;
+  const cur = v.phases.find((p) => p.state === "current");
+  if (cur !== undefined)
+    return [fit([seg(`band-phase-${cur.id}`, `${glyphOf("current", v, g)} ${cur.label}`, phaseColor("current", v), { bold: true })], cols)];
+  if (v.phases.length === 0)
+    return [fit([seg("band-phase", `${g.current} ${v.workflow ?? ""}`, STATUS_COLOR[v.status])], cols)];
+  return v.status === "done" ? [fit([seg("band-phase", `${g.done} done`, "green")], cols)] : [];
+}
 function bandText(v) {
   if (!v.visible)
     return ["No workflow is running."];
@@ -35719,6 +35732,21 @@ class StopGuard {
   }
 }
 
+// src/adapters/shared/pi-family/host.ts
+function uiHooks(bridge) {
+  return {
+    started: async (_h, sid) => {
+      bridge.ui?.started(sid);
+    },
+    seen: async (_h, sid) => {
+      bridge.ui?.seen(sid);
+    },
+    ended: async (_h, sid) => {
+      bridge.ui?.ended(sid);
+    }
+  };
+}
+
 // src/adapters/opencode/runtime/host.ts
 import { join as join35 } from "path";
 
@@ -35753,19 +35781,6 @@ var NO_UI = { started: async () => {
 }, ended: async () => {
   return;
 } };
-function uiHooks(bridge) {
-  return {
-    started: async (_h, sid) => {
-      bridge.ui?.started(sid);
-    },
-    seen: async (_h, sid) => {
-      bridge.ui?.seen(sid);
-    },
-    ended: async (_h, sid) => {
-      bridge.ui?.ended(sid);
-    }
-  };
-}
 function file(sid) {
   return join35(sessionDir(HARNESS5, sid), "opencode.json");
 }

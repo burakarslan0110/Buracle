@@ -449,7 +449,7 @@
     },
     "harness/claude/hooks/core/flow/band.ts": {
       "by": "claude",
-      "sha256": "1d05d85975747f903c970790ba666c65eeaf0be00f4b8d525ed2cdff67502b6d",
+      "sha256": "6c569d1d01b974b64686b19ffc5f607e5c2c77521368e7a3d60d299c026bc3e4",
       "exec": false
     },
     "harness/claude/hooks/core/flow/catalog.ts": {
@@ -934,7 +934,7 @@
     },
     "harness/claude/hooks/register.tsx": {
       "by": "claude",
-      "sha256": "0c9152cafe6e60da3decb202748b0d4cf07f18642ea04b9f0cda66553ac07c13",
+      "sha256": "2307746471b79a83ee5be64bd9b16f86daaba1add6e7c310d9c09ca5d5e8d11b",
       "exec": false
     },
     "harness/claude/settings.json": {
@@ -1244,7 +1244,7 @@
     },
     "harness/claude/tests/band.test.tsx": {
       "by": "claude",
-      "sha256": "7382a3e9fae16a4cab0b239ee968f1b04c3bc7eed78dbb7f39f0df262a11e41b",
+      "sha256": "053427335066f929e116ac581d6929178e80f1805b12344a5737e53809d42770",
       "exec": false
     },
     "harness/claude/tests/register.test.tsx": {
@@ -1414,7 +1414,7 @@
     },
     "harness/omp/extensions/buracle.js": {
       "by": "omp",
-      "sha256": "b1889feaed549ea76924cb239b6ec2aa4ba5aeeee197d7c0adb657a6c5f055b0",
+      "sha256": "0c444446ea765e62314bcbeb69d3a0ef0db6eb8d8dca81eaffb12df4ae100d87",
       "exec": false
     },
     "harness/omp/package.json": {
@@ -1514,12 +1514,12 @@
     },
     "harness/opencode/manifest.json": {
       "by": "opencode",
-      "sha256": "4777530d68246cd437b208a6f088470df8b864f210ec8f630f095903af862ae9",
+      "sha256": "7ff5b3f5ca16ac9d71d0851e6e577c1c9ea823be5446e6e37d538c4b08464383",
       "exec": false
     },
     "harness/opencode/plugins/buracle/index.js": {
       "by": "opencode",
-      "sha256": "75bbbdb74d8ec6128e2435eff8ee1d4c7d07414387944b3836b4ec45dc0f68ab",
+      "sha256": "9251d4c1199039ebcfcfb8c558a1d46fad7f528f40b4d5c483d95647df811e94",
       "exec": false
     },
     "harness/opencode/plugins/buracle/tui.js": {
@@ -1534,7 +1534,7 @@
     },
     "harness/pi/extensions/buracle.js": {
       "by": "pi",
-      "sha256": "44354059cf0c668cc138e1a1c0b37d4a64576ef389eb84836e84f497c33674f3",
+      "sha256": "252037976e6fb1fdd6309933a78efd26c34752401726233896086534fad662f4",
       "exec": false
     },
     "harness/pi/mcp.json": {

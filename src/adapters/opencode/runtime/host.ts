@@ -40,14 +40,6 @@ export function memoryFns(bridge: MemoryBridge): MemoryFns {
 
 export const NO_UI: UiSessionHooks = { started: async () => undefined, seen: async () => undefined, ended: async () => undefined }
 
-export function uiHooks(bridge: MemoryBridge): UiSessionHooks {
-  return {
-    started: async (_h, sid) => { bridge.ui?.started(sid) },
-    seen: async (_h, sid) => { bridge.ui?.seen(sid) },
-    ended: async (_h, sid) => { bridge.ui?.ended(sid) },
-  }
-}
-
 /** opencode.json of a session: what a plugin restart must not lose. */
 export interface Persisted { ctxWarned?: ContextBand, todos?: string[] }
 

@@ -73,7 +73,7 @@ export function memoryFns(bridge: MemoryBridge): MemoryFns {
   }
 }
 
-export function uiHooks(bridge: MemoryBridge): UiSessionHooks {
+export function uiHooks(bridge: Pick<MemoryBridge, 'ui'>): UiSessionHooks {
   return {
     started: async (_h, sid) => { bridge.ui?.started(sid) },
     seen: async (_h, sid) => { bridge.ui?.seen(sid) },
